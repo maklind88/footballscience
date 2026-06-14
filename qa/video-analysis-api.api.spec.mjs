@@ -35,8 +35,15 @@ test("video analysis clip normalization keeps millisecond precision and football
       teamPrincipleId: "create-free-player",
       miniGamePrincipleId: "third-player",
       outcome: "Positive",
+      codingMode: "instant",
+      preRollMs: 4000,
+      postRollMs: 6000,
       players: [{ playerId: "p1", playerLabel: "Player One", role: "secondary" }],
       tags: ["press", "wide"],
+      descriptors: [
+        { type: "unit", value: "Midfield" },
+        { type: "pitch-zone", value: "Final Third" },
+      ],
       note: "Good timing.",
     },
     actor
@@ -45,7 +52,13 @@ test("video analysis clip normalization keeps millisecond precision and football
   expect(clip.startMs).toBe(1234);
   expect(clip.endMs).toBe(6790);
   expect(clip.outcome).toBe("Positive");
+  expect(clip.codingMode).toBe("instant");
+  expect(clip.preRollMs).toBe(4000);
   expect(clip.players[0]).toMatchObject({ playerId: "p1", role: "secondary" });
+  expect(clip.descriptors).toEqual([
+    { type: "unit", value: "Midfield", label: null },
+    { type: "pitch_zone", value: "Final Third", label: null },
+  ]);
   expect(clip.tags).toEqual(["press", "wide"]);
 });
 

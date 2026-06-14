@@ -26,6 +26,7 @@
           outcome: "Positive",
           players: [{ player_id: "p1", player_label: "Alex Morgan", role: "primary" }],
           tags: ["wide", "third-player"],
+          descriptors: [{ descriptor_type: "unit", descriptor_value: "Front Line" }],
           notes: [{ note: "Clean support angle." }],
         },
       ];
@@ -33,14 +34,17 @@
       window.fetch = async (url, options = {}) => {
         const parsed = new URL(url, window.location.origin);
         const action = parsed.searchParams.get("action");
-        if (action === "status") return Response.json({ ok: true, schema: "footballscience-video-analysis-v1" });
-        if (action === "clips") return Response.json({ ok: true, schema: "footballscience-video-analysis-v1", clips });
-        if (action === "save-clip") return Response.json({ ok: true, schema: "footballscience-video-analysis-v1", clip: clips[0] });
-        if (action === "archive-clip") return Response.json({ ok: true, schema: "footballscience-video-analysis-v1", clip: clips[0] });
+        if (action === "status") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2" });
+        if (action === "clips") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clips });
+        if (action === "saved-searches") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearches: [] });
+        if (action === "save-search") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearch: { id: "search-1", title: "Build Up Development" } });
+        if (action === "save-review-session") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", reviewSession: { id: "review-1" } });
+        if (action === "save-clip") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip: clips[0] });
+        if (action === "archive-clip") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip: clips[0] });
         if (action === "create-local-video-source") {
           return Response.json({
             ok: true,
-            schema: "footballscience-video-analysis-v1",
+            schema: "footballscience-video-analysis-v2",
             match: { id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152", title: "Smoke match" },
             video: { id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725", match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152" },
             source: { id: "source-1" },
@@ -52,6 +56,7 @@
       const context = {
         ui: { analysisRoomWorkspace: document.getElementById("analysisRoomWorkspace") },
         win: window,
+        allowVideoAnalysisMetadataLoad: true,
         getAuthToken: () => "smoke-token",
         canEdit: () => true,
         getPlayerProfilesState: () => ({
@@ -63,7 +68,7 @@
       };
 
       videoAnalysis.render(context);
-      for (const type of ["click", "input", "change", "submit"]) {
+      for (const type of ["click", "input", "change", "submit", "keydown"]) {
         context.ui.analysisRoomWorkspace.addEventListener(type, (event) => {
           const handler = videoAnalysis[`handle${type[0].toUpperCase()}${type.slice(1)}`];
           handler?.(event, context);

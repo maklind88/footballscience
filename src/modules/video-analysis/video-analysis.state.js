@@ -3,6 +3,8 @@ import { defaultTeamPrincipleId } from "./constants/principles.js";
 import { defaultVideoAnalysisOutcome } from "./constants/outcomes.js";
 import { defaultVideoAnalysisPhase } from "./constants/phases.js";
 import { defaultVideoAnalysisSubPhase } from "./constants/subPhases.js";
+import { createDefaultCodingTemplate } from "./services/codingTemplateService.js";
+import { createReviewSections } from "./services/reviewSessionService.js";
 
 function normalizePlayer(player = {}) {
   const id = String(player.id || player.playerId || player.player_id || "").trim();
@@ -22,6 +24,7 @@ export function normalizeVideoAnalysisPlayers(state = {}) {
 }
 
 export function createInitialVideoAnalysisState(context = {}) {
+  const template = createDefaultCodingTemplate();
   return {
     status: "idle",
     canEdit: Boolean(context.canEdit?.()),
@@ -31,13 +34,35 @@ export function createInitialVideoAnalysisState(context = {}) {
     video: null,
     source: null,
     clips: [],
+    savedSearches: [],
     selectedClipId: "",
+    template,
+    codingSession: {
+      mode: template.defaultMode,
+      preRollMs: template.preRollMs,
+      postRollMs: template.postRollMs,
+      activeButtonId: "",
+      manualInMs: null,
+    },
+    timeline: {
+      zoom: 1,
+      laneMode: "phase",
+      playheadMs: 0,
+    },
+    matrix: {
+      mode: "phase-outcome",
+      selectedRow: "",
+      selectedColumn: "",
+    },
     filters: {
       search: "",
       phase: "",
       playerId: "",
       principleId: "",
+      miniGamePrincipleId: "",
       outcome: "",
+      unit: "",
+      descriptorValue: "",
     },
     draft: {
       startMs: 0,
@@ -50,10 +75,18 @@ export function createInitialVideoAnalysisState(context = {}) {
       outcome: defaultVideoAnalysisOutcome,
       playerId: "",
       playerRole: "primary",
+      unit: "",
+      pitchZone: "",
+      pressure: "",
+      decision: "",
+      execution: "",
       tags: "",
       note: "",
     },
     reviewList: [],
+    reviewTitle: "Football Science Review",
+    activeReviewSectionId: "team-meeting",
+    reviewSections: createReviewSections(),
     message: "",
     error: "",
   };

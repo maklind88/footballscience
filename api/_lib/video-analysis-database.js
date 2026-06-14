@@ -1,151 +1,31 @@
-const { parseJsonBody, readConfig, sendJson, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
+const { parseJsonBody, sendJson } = require("./supabase-admin.js");
+const {
+  MAX_BODY_BYTES,
+  asLimit,
+  asMs,
+  actorScope,
+  buildTeamParams,
+  containsForbiddenVideoPayload,
+  insertRow,
+  normalizeCodingMode,
+  normalizeDescriptorType,
+  normalizeLabelType,
+  normalizeNote,
+  normalizeOutcome,
+  normalizePlayerRole,
+  normalizeText,
+  normalizeUuid,
+  paramsPath,
+  patchRows,
+  rejectForbiddenPayload,
+  selectRows,
+} = require("./video-analysis-database-core.js");
+const { saveReviewSession } = require("./video-analysis-review-database.js");
 
-const VIDEO_ANALYSIS_SCHEMA = "footballscience-video-analysis-v1";
-const DEFAULT_LIMIT = 80;
-const MAX_LIMIT = 200;
-const MAX_BODY_BYTES = 96 * 1024;
-const OUTCOMES = new Set(["Positive", "Development", "Neutral"]);
-const PLAYER_ROLES = new Set(["primary", "secondary", "supporting", "unit"]);
-const FORBIDDEN_VIDEO_KEYS = new Set(
-  "absolutepath base64 blob bytes data dataurl file filecontent filepath fullpath localpath path rawvideo sourceurl videoblob videobytes videodata videofile videopath"
-    .split(" ")
-);
+const VIDEO_ANALYSIS_SCHEMA = "footballscience-video-analysis-v2";
 
-function normalizeText(value, maxLength = 240) {
-  return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
-}
-
-function normalizeNote(value, maxLength = 4000) {
-  return String(value || "").replace(/\r\n/g, "\n").trim().slice(0, maxLength);
-}
-
-function normalizeUuid(value) {
-  const text = normalizeText(value, 80);
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
-    ? text
-    : "";
-}
-
-function asLimit(value, fallback = DEFAULT_LIMIT) {
-  const limit = Math.floor(Number(value));
-  if (!Number.isFinite(limit) || limit <= 0) return fallback;
-  return Math.min(limit, MAX_LIMIT);
-}
-
-function asMs(value, fallback = 0) {
-  const ms = Math.round(Number(value));
-  return Number.isFinite(ms) && ms >= 0 ? ms : fallback;
-}
-
-function normalizeOutcome(value) {
-  const outcome = normalizeText(value, 40);
-  return OUTCOMES.has(outcome) ? outcome : "Neutral";
-}
-
-function normalizePlayerRole(value) {
-  const role = normalizeText(value, 40).toLowerCase();
-  return PLAYER_ROLES.has(role) ? role : "primary";
-}
-
-function actorScope(actor = {}) {
-  return {
-    organizationId: normalizeText(actor.clubId || actor.organizationId || "club-ncc", 160),
-    teamId: normalizeText(actor.teamId || "team-ncc-first", 160),
-    actorId: normalizeText(actor.id, 160),
-  };
-}
-
-function isLikelyLocalPath(value = "") {
-  const text = String(value || "").trim();
-  return (
-    /^file:\/\//i.test(text) ||
-    /^~\//.test(text) ||
-    /^\/(?:Users|home|var|Volumes|private|tmp)\//.test(text) ||
-    /^[A-Za-z]:\\/.test(text) ||
-    /^data:video\//i.test(text)
-  );
-}
-
-function containsForbiddenVideoPayload(value, path = []) {
-  if (value == null) return null;
-  if (typeof value === "string") {
-    return isLikelyLocalPath(value) ? { path, reason: "local_video_path_or_inline_video" } : null;
-  }
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) {
-      const match = containsForbiddenVideoPayload(value[index], [...path, String(index)]);
-      if (match) return match;
-    }
-    return null;
-  }
-  if (typeof value !== "object") return null;
-  for (const [key, child] of Object.entries(value)) {
-    if (FORBIDDEN_VIDEO_KEYS.has(key.toLowerCase())) return { path: [...path, key], reason: "forbidden_video_payload_key" };
-    const match = containsForbiddenVideoPayload(child, [...path, key]);
-    if (match) return match;
-  }
-  return null;
-}
-
-function rejectForbiddenPayload(payload = {}) {
-  const match = containsForbiddenVideoPayload(payload);
-  if (!match) return;
-  const error = new Error("Video files and local file paths must not be sent to Football Science.");
-  error.status = 400;
-  error.details = match;
-  throw error;
-}
-
-function restBaseUrl() {
-  const { url, serviceRoleKey } = readConfig();
-  return url && serviceRoleKey ? { url: `${url}/rest/v1`, serviceRoleKey } : null;
-}
-
-async function parseResponse(response) {
-  const text = await response.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { message: text };
-  }
-}
-
-async function dbRequest(path, options = {}) {
-  const base = restBaseUrl();
-  if (!base) return { ok: false, status: 500, reason: "Missing Supabase database configuration." };
-  const headers = {
-    ...buildSupabaseKeyHeaders(base.serviceRoleKey, { contentType: "application/json" }),
-    ...(options.headers || {}),
-  };
-  if (options.prefer) headers.Prefer = options.prefer;
-  const response = await fetch(`${base.url}${path}`, {
-    method: options.method || "GET",
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const payload = await parseResponse(response);
-  if (!response.ok) {
-    return {
-      ok: false,
-      status: response.status,
-      reason: payload?.message || payload?.error || `Video Analysis database request failed (${response.status}).`,
-      payload,
-    };
-  }
-  return { ok: true, status: response.status, payload };
-}
-
-function paramsPath(table, params = new URLSearchParams()) {
-  const query = params.toString();
-  return `/${table}${query ? `?${query}` : ""}`;
-}
-
-function buildTeamParams(scope) {
-  const params = new URLSearchParams();
-  params.set("organization_id", `eq.${scope.organizationId}`);
-  params.set("team_id", `eq.${scope.teamId}`);
-  return params;
+function rowList(result) {
+  return result.ok && Array.isArray(result.payload) ? result.payload : [];
 }
 
 function buildClipSearchParams(query = {}, scope = actorScope()) {
@@ -157,8 +37,8 @@ function buildClipSearchParams(query = {}, scope = actorScope()) {
   if (normalizeText(query.phase, 80)) params.set("phase", `eq.${normalizeText(query.phase, 80)}`);
   if (normalizeText(query.subPhase || query.sub_phase, 80)) params.set("sub_phase", `eq.${normalizeText(query.subPhase || query.sub_phase, 80)}`);
   if (normalizeText(query.outcome, 40)) params.set("outcome", `eq.${normalizeOutcome(query.outcome)}`);
-  if (normalizeText(query.teamPrincipleId || query.team_principle_id, 120)) {
-    params.set("team_principle_id", `eq.${normalizeText(query.teamPrincipleId || query.team_principle_id, 120)}`);
+  if (normalizeText(query.teamPrincipleId || query.team_principle_id || query.principleId, 120)) {
+    params.set("team_principle_id", `eq.${normalizeText(query.teamPrincipleId || query.team_principle_id || query.principleId, 120)}`);
   }
   if (normalizeText(query.miniGamePrincipleId || query.mini_game_principle_id, 120)) {
     params.set("mini_game_principle_id", `eq.${normalizeText(query.miniGamePrincipleId || query.mini_game_principle_id, 120)}`);
@@ -194,6 +74,46 @@ function normalizeVideoSourcePayload(payload = {}, actor = {}) {
   };
 }
 
+function normalizeDescriptors(payload = {}) {
+  const source = payload.descriptors || {};
+  const entries = Array.isArray(source)
+    ? source
+    : Object.entries(source).map(([type, value]) => ({ type, value }));
+  return entries
+    .map((entry = {}) => ({
+      type: normalizeDescriptorType(entry.type || entry.descriptorType || entry.descriptor_type),
+      value: normalizeText(entry.value || entry.descriptorValue || entry.descriptor_value, 180),
+      label: normalizeText(entry.label || entry.descriptorLabel || entry.descriptor_label, 180) || null,
+    }))
+    .filter((entry) => entry.value)
+    .slice(0, 30);
+}
+
+function normalizeLabels(payload = {}, clip = {}) {
+  const base = [
+    ["phase", clip.phase, clip.phase],
+    ["sub_phase", clip.subPhase, clip.subPhase],
+    ["team_principle", clip.teamPrincipleId, clip.teamPrincipleId],
+    ["mini_game_principle", clip.miniGamePrincipleId, clip.miniGamePrincipleId],
+    ["outcome", clip.outcome, clip.outcome],
+  ];
+  const custom = Array.isArray(payload.labels) ? payload.labels : [];
+  return base
+    .map(([type, value, label]) => ({ type, value, label }))
+    .concat(custom.map((entry = {}) => ({
+      type: entry.type || entry.labelType || entry.label_type,
+      value: entry.value || entry.labelValue || entry.label_value,
+      label: entry.label || entry.labelText || entry.label_text,
+    })))
+    .map((entry = {}) => ({
+      type: normalizeLabelType(entry.type),
+      value: normalizeText(entry.value, 180),
+      label: normalizeText(entry.label, 180) || null,
+    }))
+    .filter((entry) => entry.value)
+    .slice(0, 40);
+}
+
 function normalizeClipPayload(payload = {}, actor = {}) {
   rejectForbiddenPayload(payload);
   const scope = actorScope(actor);
@@ -213,7 +133,7 @@ function normalizeClipPayload(payload = {}, actor = {}) {
   }
   const players = Array.isArray(payload.players) ? payload.players : [];
   const tags = Array.isArray(payload.tags) ? payload.tags : [];
-  return {
+  const clip = {
     ...scope,
     id: normalizeUuid(payload.id),
     matchId,
@@ -226,6 +146,11 @@ function normalizeClipPayload(payload = {}, actor = {}) {
     teamPrincipleId: normalizeText(payload.teamPrincipleId || payload.team_principle_id, 120) || null,
     miniGamePrincipleId: normalizeText(payload.miniGamePrincipleId || payload.mini_game_principle_id, 120) || null,
     outcome: normalizeOutcome(payload.outcome),
+    codingMode: normalizeCodingMode(payload.codingMode || payload.coding_mode),
+    codingTemplateId: normalizeUuid(payload.codingTemplateId || payload.coding_template_id) || null,
+    codingButtonId: normalizeUuid(payload.codingButtonId || payload.coding_button_id) || null,
+    preRollMs: asMs(payload.preRollMs || payload.pre_roll_ms, 0),
+    postRollMs: asMs(payload.postRollMs || payload.post_roll_ms, 0),
     note: normalizeNote(payload.note || payload.notes, 4000),
     tags: tags.map((tag) => normalizeText(tag, 80)).filter(Boolean).slice(0, 20),
     players: players
@@ -237,20 +162,11 @@ function normalizeClipPayload(payload = {}, actor = {}) {
       .filter((player) => player.playerId)
       .slice(0, 20),
   };
-}
-
-async function selectRows(table, params) {
-  const result = await dbRequest(paramsPath(table, params));
-  if (!result.ok) return result;
-  return { ok: true, payload: Array.isArray(result.payload) ? result.payload : [] };
-}
-
-async function insertRow(table, row) {
-  return dbRequest(paramsPath(table), { method: "POST", body: row, prefer: "return=representation" });
-}
-
-async function patchRows(table, params, row) {
-  return dbRequest(paramsPath(table, params), { method: "PATCH", body: row, prefer: "return=representation" });
+  return {
+    ...clip,
+    descriptors: normalizeDescriptors(payload),
+    labels: normalizeLabels(payload, clip),
+  };
 }
 
 async function findExistingVideo(scope, localVideoIdentifier) {
@@ -320,14 +236,16 @@ async function attachClipRelations(clips, scope) {
     params.set("clip_instance_id", idFilter);
     return params;
   };
-  const [players, tags, notes] = await Promise.all([
+  const [players, tags, notes, labels, descriptors] = await Promise.all([
     selectRows("video_clip_players", childParams("*")),
     selectRows("video_clip_tags", childParams("*")),
     selectRows("video_clip_notes", childParams("*")),
+    selectRows("video_clip_labels", childParams("*")),
+    selectRows("video_clip_descriptors", childParams("*")),
   ]);
   const byClip = (rows) => {
     const map = new Map();
-    for (const row of rows.ok ? rows.payload : []) {
+    for (const row of rowList(rows)) {
       const list = map.get(row.clip_instance_id) || [];
       list.push(row);
       map.set(row.clip_instance_id, list);
@@ -337,30 +255,46 @@ async function attachClipRelations(clips, scope) {
   const playerMap = byClip(players);
   const tagMap = byClip(tags);
   const noteMap = byClip(notes);
+  const labelMap = byClip(labels);
+  const descriptorMap = byClip(descriptors);
   return clips.map((clip) => ({
     ...clip,
     players: playerMap.get(clip.id) || [],
     tags: (tagMap.get(clip.id) || []).map((entry) => entry.tag),
     notes: noteMap.get(clip.id) || [],
+    labels: labelMap.get(clip.id) || [],
+    descriptors: descriptorMap.get(clip.id) || [],
   }));
+}
+
+function clipMatchesSearch(clip = {}, search = "") {
+  if (!search) return true;
+  return [clip.phase, clip.sub_phase, clip.outcome, clip.team_principle_id, clip.mini_game_principle_id]
+    .concat(clip.tags || [])
+    .concat((clip.players || []).map((player) => player.player_label || player.player_id))
+    .concat((clip.notes || []).map((note) => note.note))
+    .concat((clip.labels || []).map((label) => label.label_text || label.label_value))
+    .concat((clip.descriptors || []).map((descriptor) => descriptor.descriptor_label || descriptor.descriptor_value))
+    .some((value) => normalizeText(value, 4000).toLowerCase().includes(search));
+}
+
+function clipMatchesFilters(clip = {}, query = {}) {
+  const playerId = normalizeText(query.playerId || query.player_id, 160);
+  const unit = normalizeText(query.unit, 120).toLowerCase();
+  const descriptorValue = normalizeText(query.descriptorValue || query.descriptor_value, 180).toLowerCase();
+  if (playerId && !(clip.players || []).some((player) => player.player_id === playerId)) return false;
+  if (unit && !(clip.descriptors || []).some((entry) => entry.descriptor_type === "unit" && normalizeText(entry.descriptor_value, 180).toLowerCase() === unit)) return false;
+  if (descriptorValue && !(clip.descriptors || []).some((entry) => normalizeText(entry.descriptor_value, 180).toLowerCase() === descriptorValue)) return false;
+  return true;
 }
 
 async function listClips(query, actor) {
   const scope = actorScope(actor);
-  const params = buildClipSearchParams(query, scope);
-  const result = await selectRows("video_clip_instances", params);
+  const result = await selectRows("video_clip_instances", buildClipSearchParams(query, scope));
   if (!result.ok) return result;
   let clips = await attachClipRelations(result.payload, scope);
   const search = normalizeText(query.search || query.q, 120).toLowerCase();
-  if (search) {
-    clips = clips.filter((clip) =>
-      [clip.phase, clip.sub_phase, clip.outcome, clip.team_principle_id, clip.mini_game_principle_id]
-        .concat(clip.tags || [])
-        .concat((clip.players || []).map((player) => player.player_label || player.player_id))
-        .concat((clip.notes || []).map((note) => note.note))
-        .some((value) => normalizeText(value, 4000).toLowerCase().includes(search))
-    );
-  }
+  clips = clips.filter((clip) => clipMatchesSearch(clip, search) && clipMatchesFilters(clip, query));
   return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clips } };
 }
 
@@ -391,6 +325,11 @@ async function saveClip(payload, actor) {
     team_principle_id: clip.teamPrincipleId,
     mini_game_principle_id: clip.miniGamePrincipleId,
     outcome: clip.outcome,
+    coding_mode: clip.codingMode,
+    coding_template_id: clip.codingTemplateId,
+    coding_button_id: clip.codingButtonId,
+    pre_roll_ms: clip.preRollMs,
+    post_roll_ms: clip.postRollMs,
     created_by: clip.actorId,
   };
   const patchParams = buildTeamParams({ organizationId: clip.organizationId, teamId: clip.teamId });
@@ -418,6 +357,28 @@ async function saveClip(payload, actor) {
       tag,
     }));
   }
+  for (const label of clip.labels) {
+    childWrites.push(insertRow("video_clip_labels", {
+      organization_id: clip.organizationId,
+      team_id: clip.teamId,
+      clip_instance_id: saved.id,
+      label_type: label.type,
+      label_value: label.value,
+      label_text: label.label,
+      created_by: clip.actorId,
+    }));
+  }
+  for (const descriptor of clip.descriptors) {
+    childWrites.push(insertRow("video_clip_descriptors", {
+      organization_id: clip.organizationId,
+      team_id: clip.teamId,
+      clip_instance_id: saved.id,
+      descriptor_type: descriptor.type,
+      descriptor_value: descriptor.value,
+      descriptor_label: descriptor.label,
+      created_by: clip.actorId,
+    }));
+  }
   if (clip.note) {
     childWrites.push(insertRow("video_clip_notes", {
       organization_id: clip.organizationId,
@@ -427,8 +388,7 @@ async function saveClip(payload, actor) {
       created_by: clip.actorId,
     }));
   }
-  const childResults = await Promise.all(childWrites);
-  const failed = childResults.find((entry) => !entry.ok && entry.status !== 409);
+  const failed = (await Promise.all(childWrites)).find((entry) => !entry.ok && entry.status !== 409);
   if (failed) return failed;
   const [withRelations] = await attachClipRelations([saved], { organizationId: clip.organizationId, teamId: clip.teamId });
   return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations } };
@@ -444,6 +404,33 @@ async function archiveClip(payload, actor) {
   return result.ok ? { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: result.payload?.[0] || null } } : result;
 }
 
+async function listSavedSearches(query, actor) {
+  const scope = actorScope(actor);
+  const params = buildTeamParams(scope);
+  params.set("select", "*");
+  params.set("status", "eq.active");
+  params.set("order", "created_at.desc");
+  params.set("limit", String(asLimit(query.limit, 40)));
+  const result = await selectRows("video_saved_clip_searches", params);
+  return result.ok ? { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, savedSearches: result.payload } } : result;
+}
+
+async function saveSearch(payload, actor) {
+  rejectForbiddenPayload(payload);
+  const scope = actorScope(actor);
+  const title = normalizeText(payload.title, 180);
+  if (!title) return { ok: false, status: 400, reason: "Search title is required." };
+  const result = await insertRow("video_saved_clip_searches", {
+    organization_id: scope.organizationId,
+    team_id: scope.teamId,
+    title,
+    search_json: payload.search || payload.searchJson || payload.search_json || {},
+    is_shared: payload.isShared !== false,
+    created_by: scope.actorId,
+  });
+  return result.ok ? { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, savedSearch: result.payload?.[0] || null } } : result;
+}
+
 function statusPayload(actor) {
   return {
     ok: true,
@@ -453,7 +440,7 @@ function statusPayload(actor) {
     scope: actorScope(actor),
     storesVideoFiles: false,
     precision: "milliseconds",
-    mvp: ["local-video", "clip-instance", "football-language-tags", "players", "notes", "filters", "review-list"],
+    workstation: ["templates", "hotkeys", "timeline-lanes", "descriptors", "matrix-find", "review-sections"],
   };
 }
 
@@ -461,10 +448,14 @@ async function handleVideoAnalysisRequest(req, res, actor) {
   const url = new URL(req.url || "/api/video-analysis", "https://footballscience.local");
   if (req.method === "GET") {
     const action = normalizeText(url.searchParams.get("action") || "clips", 40);
-    if (action === "status") return sendJson(res, 200, statusPayload(actor));
-    const result = action === "matches"
-      ? await listMatches(Object.fromEntries(url.searchParams.entries()), actor)
-      : await listClips(Object.fromEntries(url.searchParams.entries()), actor);
+    const query = Object.fromEntries(url.searchParams.entries());
+    const result = action === "status"
+      ? { ok: true, payload: statusPayload(actor) }
+      : action === "matches"
+        ? await listMatches(query, actor)
+        : action === "saved-searches"
+          ? await listSavedSearches(query, actor)
+          : await listClips(query, actor);
     return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
   }
   const body = await parseJsonBody(req, { maxBytes: MAX_BODY_BYTES });
@@ -476,7 +467,11 @@ async function handleVideoAnalysisRequest(req, res, actor) {
         ? await saveClip(body.clip || body, actor)
         : action === "archive-clip"
           ? await archiveClip(body, actor)
-          : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
+          : action === "save-search"
+            ? await saveSearch(body.search || body, actor)
+            : action === "save-review-session"
+              ? await saveReviewSession(body.reviewSession || body, actor)
+              : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }
 

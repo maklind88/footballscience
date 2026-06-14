@@ -21,6 +21,8 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/components/Timeline.js",
     "src/modules/video-analysis/components/ClipList.js",
     "src/modules/video-analysis/components/ClipFilters.js",
+    "src/modules/video-analysis/components/ClipIntelligence.js",
+    "src/modules/video-analysis/components/CodingTemplateBuilder.js",
     "src/modules/video-analysis/components/PlaylistBuilder.js",
     "src/modules/video-analysis/components/PlayerClipDrawer.js",
     "src/modules/video-analysis/services/videoPlaybackService.js",
@@ -28,6 +30,11 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/services/taggingService.js",
     "src/modules/video-analysis/services/playlistService.js",
     "src/modules/video-analysis/services/localVideoBridgeService.js",
+    "src/modules/video-analysis/services/codingTemplateService.js",
+    "src/modules/video-analysis/services/timelineService.js",
+    "src/modules/video-analysis/services/clipIntelligenceService.js",
+    "src/modules/video-analysis/services/reviewSessionService.js",
+    "src/modules/video-analysis/services/keyboardShortcutService.js",
     "src/modules/video-analysis/repositories/videoRepository.js",
     "src/modules/video-analysis/repositories/clipRepository.js",
     "src/modules/video-analysis/repositories/playlistRepository.js",
@@ -77,7 +84,20 @@ test("video analysis constants preserve Football Science language", () => {
 
 test("video analysis module exports the runtime handlers", async () => {
   const module = await import(pathToFileURL(path.join(moduleDir, "index.js")).href);
-  for (const exportName of ["render", "handleClick", "handleInput", "handleChange", "handleSubmit"]) {
+  for (const exportName of ["render", "handleClick", "handleInput", "handleChange", "handleSubmit", "handleKeydown"]) {
     expect(typeof module[exportName], exportName).toBe("function");
   }
+});
+
+test("video analysis workstation keeps controls out of the video player", () => {
+  const templateBuilder = read("src/modules/video-analysis/components/CodingTemplateBuilder.js");
+  const timeline = read("src/modules/video-analysis/components/Timeline.js");
+  const intelligence = read("src/modules/video-analysis/components/ClipIntelligence.js");
+  expect(templateBuilder).toContain("data-video-analysis-code-button");
+  expect(templateBuilder).toContain("data-video-analysis-mode");
+  expect(timeline).toContain("video-analysis-clip-block");
+  expect(timeline).toContain("data-video-analysis-zoom");
+  expect(intelligence).toContain("Phase x Outcome");
+  expect(intelligence).toContain("Principle x Player");
+  expect(intelligence).toContain("Mini-game x Unit");
 });

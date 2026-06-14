@@ -18,6 +18,16 @@ export function createClipRepository(context = {}) {
     list(filters = {}) {
       return requestJson(buildVideoAnalysisApiUrl("clips", filters), { method: "GET" }, getAuthToken);
     },
+    listSavedSearches(limit = 40) {
+      return requestJson(buildVideoAnalysisApiUrl("saved-searches", { limit }), { method: "GET" }, getAuthToken);
+    },
+    saveSearch(search = {}) {
+      return requestJson(
+        buildVideoAnalysisApiUrl("save-search"),
+        { method: "POST", body: JSON.stringify({ action: "save-search", search }) },
+        getAuthToken
+      );
+    },
     save(clip = {}) {
       return requestJson(
         buildVideoAnalysisApiUrl("save-clip"),

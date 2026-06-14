@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const migrationPath = path.join(rootDir, "supabase/migrations/20260613000100_video_analysis_metadata_foundation.sql");
 const migration = fs.readFileSync(migrationPath, "utf8");
+const workstationMigrationPath = path.join(rootDir, "supabase/migrations/20260614004604_video_analysis_workstation_v2_metadata.sql");
+const workstationMigration = fs.readFileSync(workstationMigrationPath, "utf8");
 
 test("video analysis schema stores metadata only with millisecond precision", () => {
   for (const tableName of [
@@ -40,4 +42,29 @@ test("video analysis permission seed and hard-delete guard are present", () => {
   expect(migration).toContain("('video-analysis', 'write'");
   expect(migration).toContain("('video-analysis', 'admin', array['admin']");
   expect(migration).toContain("grant select, insert, update, delete on public.video_clip_instances to service_role");
+});
+
+test("video analysis workstation v2 schema adds templates, descriptors, searches, and reviews additively", () => {
+  for (const tableName of [
+    "video_coding_templates",
+    "video_coding_buttons",
+    "video_coding_button_links",
+    "video_clip_labels",
+    "video_clip_descriptors",
+    "video_timeline_lanes",
+    "video_saved_clip_searches",
+    "video_playlist_sections",
+    "video_review_sessions",
+    "video_clip_revisions",
+  ]) {
+    expect(workstationMigration).toContain(`create table if not exists public.${tableName}`);
+    expect(workstationMigration).toContain(`alter table public.${tableName} enable row level security`);
+    expect(workstationMigration).toContain(`revoke all on public.${tableName} from anon, authenticated`);
+    expect(workstationMigration).toContain(`grant select, insert, update, delete on public.${tableName} to service_role`);
+  }
+
+  expect(workstationMigration).toContain("descriptor_type text not null check (descriptor_type in ('player', 'unit', 'pitch_zone', 'pressure', 'decision', 'execution', 'custom'))");
+  expect(workstationMigration).toContain("add column if not exists coding_mode text not null default 'manual' check (coding_mode in ('manual', 'instant'))");
+  expect(workstationMigration).toContain("add column if not exists section_id uuid references public.video_playlist_sections(id) on delete restrict");
+  expect(workstationMigration).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
 });

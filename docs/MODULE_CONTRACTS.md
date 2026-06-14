@@ -157,12 +157,12 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 ## Video Analysis
 
 - `id`: `video-analysis`
-- `purpose`: local video coding engine for own-team match analysis, timestamped clip metadata, football-language tagging, player connections, notes, search, filters, and coach review lists.
-- `data`: database-primary metadata in `video_matches`, `video_videos`, `video_sources`, `video_clip_instances`, `video_clip_players`, `video_clip_tags`, `video_clip_notes`, `video_coding_schemas`, `video_playlists`, and `video_playlist_items`; no protected browser storage key and no cloud video uploads.
+- `purpose`: local video coding workstation for own-team match analysis, timestamped clip metadata, principle-based code buttons, descriptors, matrix search, timeline lanes, player connections, notes, saved searches, and coach review sections.
+- `data`: database-primary metadata in `video_matches`, `video_videos`, `video_sources`, `video_clip_instances`, `video_clip_players`, `video_clip_tags`, `video_clip_notes`, `video_coding_schemas`, `video_playlists`, `video_playlist_items`, `video_coding_templates`, `video_coding_buttons`, `video_coding_button_links`, `video_clip_labels`, `video_clip_descriptors`, `video_timeline_lanes`, `video_saved_clip_searches`, `video_playlist_sections`, `video_review_sessions`, and `video_clip_revisions`; no protected browser storage key and no cloud video uploads.
 - `api`: `/api/video-analysis` is the only frontend data path. UI components must not call Supabase directly.
 - `permissions`: platform/club/team admin, coach, and analyst can code clips; scouting/performance can read where workspace access allows; admin-only module administration remains explicit.
-- `events`: local source linked, clip saved, review list updated.
-- `qa`: schema, API payload safety, module boundary, permission matrix, and Analysis Room loader contracts must prove metadata-only storage, millisecond precision, no component database access, and no local video path leakage.
+- `events`: local source linked, code button selected, clip saved, search saved, review section updated.
+- `qa`: schema, API payload safety, module boundary, workstation UX, permission matrix, and Analysis Room loader contracts must prove metadata-only storage, millisecond precision, no component database access, keyboard-ready coding, and no local video path leakage.
 - `migration`: Analysis Room now loads `src/modules/video-analysis/index.js`; Scouting remains isolated in its own workspace. Desktop bridge code stays under `desktop/local-video-app/` and must never expose video paths or raw video bytes to Supabase.
 
 ## Periodization

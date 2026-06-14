@@ -164,6 +164,39 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-lane__label").first()).toContainText(/Positive|Development|Neutral/);
 });
 
+test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red playhead", async ({ page }) => {
+  await installDeterministicMedia(page);
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+
+  await page.locator("[data-video-analysis-file]").setInputFiles({
+    name: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+    mimeType: "video/mp4",
+    buffer: h264Mp4Fixture,
+  });
+  await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await markVideoMetadataReady(page, 7267.24);
+
+  await expect(page.locator(".video-analysis-timeline-ruler")).toContainText("0:00:00");
+  await expect(page.locator(".video-analysis-timeline-ruler")).toContainText("2:01:07");
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("2:01:07");
+
+  const track = page.locator("[data-video-analysis-timeline-track]").first();
+  await expect(track).toBeVisible();
+  await track.scrollIntoViewIfNeeded();
+  const box = await track.boundingBox();
+  expect(box).toBeTruthy();
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + 2, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, y);
+  await page.mouse.up();
+
+  const currentTime = await page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.currentTime || 0);
+  expect(currentTime).toBeGreaterThan(3600);
+  expect(currentTime).toBeLessThan(3700);
+  await expect(page.locator(".video-analysis-playhead").first()).toHaveAttribute("aria-valuetext", /1:00:3/);
+});
+
 test("Video Analysis clears a codec warning when native playback succeeds", async ({ page }) => {
   await installDeterministicMedia(page);
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });

@@ -50,6 +50,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/domain/videoSource.model.js",
     "src/modules/video-analysis/timeline/index.js",
     "src/modules/video-analysis/timeline/timeline.constants.js",
+    "src/modules/video-analysis/timeline/timeline.interaction.js",
     "src/modules/video-analysis/timeline/timeline.renderer.js",
     "src/modules/video-analysis/timeline/timeline.selectors.js",
     "src/modules/video-analysis/timeline/timeline.service.js",
@@ -97,13 +98,14 @@ test("video analysis constants preserve Football Science language", () => {
 
 test("video analysis module exports the runtime handlers", async () => {
   const module = await import(pathToFileURL(path.join(moduleDir, "index.js")).href);
-  for (const exportName of ["render", "handleClick", "handleInput", "handleChange", "handleSubmit", "handleKeydown"]) {
+  for (const exportName of ["render", "handleClick", "handleInput", "handleChange", "handleSubmit", "handleKeydown", "handlePointerDown"]) {
     expect(typeof module[exportName], exportName).toBe("function");
   }
 });
 
 test("video analysis workstation keeps controls out of the video player", () => {
   const templateBuilder = read("src/modules/video-analysis/components/CodingTemplateBuilder.js");
+  const timelineInteraction = read("src/modules/video-analysis/timeline/timeline.interaction.js");
   const timelineWrapper = read("src/modules/video-analysis/components/Timeline.js");
   const timeline = read("src/modules/video-analysis/timeline/timeline.renderer.js");
   const intelligence = read("src/modules/video-analysis/components/ClipIntelligence.js");
@@ -112,6 +114,10 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timelineWrapper).toContain("../timeline/index.js");
   expect(timeline).toContain("data-video-analysis-timeline-module");
   expect(timeline).toContain("data-video-analysis-timeline-lane");
+  expect(timeline).toContain("data-video-analysis-timeline-scrub");
+  expect(timeline).toContain("data-video-analysis-timeline-track");
+  expect(timelineInteraction).toContain("createTimelineScrubController");
+  expect(timelineInteraction).toContain("pointermove");
   expect(timeline).toContain("video-analysis-clip-block");
   expect(timeline).toContain("data-video-analysis-zoom");
   expect(intelligence).toContain("Phase x Outcome");

@@ -64,7 +64,7 @@ export function clipBlockStyle(clip = {}, durationMs = 1) {
 
 export function playheadStyle(playheadMs = 0, durationMs = 1) {
   const safeDuration = Math.max(1, Number(durationMs || 1));
-  return `left:${Math.min(99.5, Math.max(0, (Number(playheadMs || 0) / safeDuration) * 100))}%;`;
+  return `left:${Math.min(100, Math.max(0, (Number(playheadMs || 0) / safeDuration) * 100))}%;`;
 }
 
 export function timelineCanvasStyle(zoom = 1) {
@@ -83,6 +83,23 @@ export function buildTimelineTicks(durationMs = 1, tickCount = TIMELINE_TICK_COU
       left: clampPercent(ratio * 100),
     };
   });
+}
+
+export function getTimelineDurationMs(state = {}) {
+  const clips = Array.isArray(state.allClips) && state.allClips.length
+    ? state.allClips
+    : Array.isArray(state.clips)
+      ? state.clips
+      : [];
+  const inferredClipEndMs = clips.reduce((maxEndMs, clip) => Math.max(maxEndMs, getClipEndMs(clip)), 0);
+  return Math.max(1, Number(state.videoRef?.durationMs || 0), inferredClipEndMs);
+}
+
+export function timelineMsFromClientX(clientX = 0, rect = {}, durationMs = 1) {
+  const width = Math.max(1, Number(rect.width || 0));
+  const left = Number(rect.left || 0);
+  const ratio = Math.min(1, Math.max(0, (Number(clientX || 0) - left) / width));
+  return Math.round(Math.max(1, Number(durationMs || 1)) * ratio);
 }
 
 export function getTimelineStats(clips = [], allClips = []) {

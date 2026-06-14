@@ -6,6 +6,7 @@ import {
   buildTimelineTicks,
   clipBlockStyle,
   getTimelineStats,
+  getTimelineDurationMs,
   normalizeTimelineLaneMode,
   normalizeTimelineZoom,
   playheadStyle,
@@ -42,9 +43,9 @@ function renderLaneButtons(activeLaneMode = "phase") {
   `;
 }
 
-function renderTimelineRuler(ticks = []) {
+function renderTimelineRuler(ticks = [], totalMs = 1) {
   return `
-    <div class="video-analysis-timeline-ruler" aria-hidden="true">
+    <div class="video-analysis-timeline-ruler" data-video-analysis-timeline-ruler data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}" aria-hidden="true">
       ${ticks.map((tick) => `
         <span class="video-analysis-timeline-tick" style="left:${tick.left}%">
           <i></i>
@@ -52,6 +53,24 @@ function renderTimelineRuler(ticks = []) {
         </span>
       `).join("")}
     </div>
+  `;
+}
+
+function renderTimelinePlayhead(playheadMs = 0, totalMs = 1) {
+  return `
+    <button
+      type="button"
+      class="video-analysis-playhead"
+      style="${playheadStyle(playheadMs, totalMs)}"
+      data-video-analysis-timeline-scrub
+      role="slider"
+      aria-label="Drag timeline playhead"
+      aria-valuemin="0"
+      aria-valuemax="${escapeHtml(Math.round(totalMs / 1000))}"
+      aria-valuenow="${escapeHtml(Math.round(Number(playheadMs || 0) / 1000))}"
+      aria-valuetext="${escapeHtml(formatVideoTime(playheadMs))}"
+      title="Drag to seek"
+    ></button>
   `;
 }
 
@@ -77,7 +96,17 @@ function renderClipBlock(clip = {}, totalMs = 1, laneMode = "phase", selectedCli
 
 function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", selectedClipId = "", playheadMs = 0) {
   if (!lanes.length) {
-    return `<p class="video-analysis-muted">No timeline clips.</p>`;
+    return `
+      <div class="video-analysis-lane is-empty">
+        <div class="video-analysis-lane__label">
+          <strong>Timeline</strong>
+          <span>No clips</span>
+        </div>
+        <div class="video-analysis-lane__track" data-video-analysis-timeline-track data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}">
+          ${renderTimelinePlayhead(playheadMs, totalMs)}
+        </div>
+      </div>
+    `;
   }
   return lanes.map((lane) => `
     <div class="video-analysis-lane">
@@ -85,8 +114,8 @@ function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", select
         <strong>${escapeHtml(lane.label)}</strong>
         <span>${escapeHtml(`${lane.clips.length} clip${lane.clips.length === 1 ? "" : "s"}`)}</span>
       </div>
-      <div class="video-analysis-lane__track">
-        <i class="video-analysis-playhead" style="${playheadStyle(playheadMs, totalMs)}" aria-hidden="true"></i>
+      <div class="video-analysis-lane__track" data-video-analysis-timeline-track data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}">
+        ${renderTimelinePlayhead(playheadMs, totalMs)}
         ${lane.clips.map((clip) => renderClipBlock(clip, totalMs, laneMode, selectedClipId)).join("")}
       </div>
     </div>
@@ -118,9 +147,8 @@ function renderSelectedClipSummary(selectedClip = null) {
 
 export function renderTimeline(state = {}) {
   const clips = Array.isArray(state.clips) ? state.clips : [];
-  const inferredClipEndMs = clips.reduce((maxEndMs, clip) => Math.max(maxEndMs, getClipEndMs(clip)), 0);
-  const totalMs = Math.max(1, Number(state.videoRef?.durationMs || 0), inferredClipEndMs);
   const allClips = Array.isArray(state.allClips) ? state.allClips : clips;
+  const totalMs = getTimelineDurationMs({ ...state, clips: allClips.length ? allClips : clips });
   const timeline = state.timeline || {};
   const laneMode = normalizeTimelineLaneMode(timeline.laneMode);
   const zoom = normalizeTimelineZoom(timeline.zoom);
@@ -129,7 +157,7 @@ export function renderTimeline(state = {}) {
   const selectedClip = getSelectedClip(clips, state.selectedClipId);
   const ticks = buildTimelineTicks(totalMs);
   return `
-    <section class="video-analysis-timeline video-analysis-timeline-module" data-video-analysis-timeline-module>
+    <section class="video-analysis-timeline video-analysis-timeline-module" data-video-analysis-timeline-module data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}">
       <div class="video-analysis-panel-header video-analysis-timeline-header">
         <div>
           <p class="video-analysis-kicker">FS Player module</p>
@@ -152,7 +180,7 @@ export function renderTimeline(state = {}) {
       </div>
       <div class="video-analysis-timeline-scroll">
         <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(zoom)}">
-          ${renderTimelineRuler(ticks)}
+          ${renderTimelineRuler(ticks, totalMs)}
           <div class="video-analysis-lane-stack">
             ${renderTimelineLanes(lanes, totalMs, laneMode, state.selectedClipId, timeline.playheadMs)}
           </div>

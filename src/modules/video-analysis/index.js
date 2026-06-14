@@ -31,6 +31,7 @@ import {
 import { addClipToReviewSection, buildReviewSessionPayload, removeClipFromReviewSection, updateReviewSectionNote } from "./services/reviewSessionService.js";
 import { trimClipDraft } from "./services/timelineService.js";
 import { describeVideoPlaybackError, getVideoCurrentMs, seekVideoToMs, toggleVideoPlayback } from "./services/videoPlaybackService.js";
+import { createTimelineScrubController } from "./timeline/timeline.interaction.js";
 import { findScheduleCandidate } from "./services/videoLibraryService.js";
 import { bindPaintedVideoControls, bindRootEventFallback, eventElement } from "./video-analysis.dom-events.js";
 import { createVideoLibraryController } from "./video-analysis.library-controller.js";
@@ -38,6 +39,7 @@ import { createVideoAnalysisStore } from "./video-analysis.store.js";
 
 let runtime = null;
 let videoLibraryController = null;
+let timelineScrubController = null;
 
 function getRoot(context = {}) {
   return context.ui?.analysisRoomWorkspace || null;
@@ -79,6 +81,19 @@ function libraryController() {
 
 function videoElement(context = {}) {
   return getRoot(context)?.querySelector("[data-video-analysis-video]");
+}
+
+function timelineController(context = {}) {
+  if (!timelineScrubController) {
+    timelineScrubController = createTimelineScrubController({
+      getRoot: () => getRoot(runtime?.context || context),
+      getState: () => runtime?.store.getState() || {},
+      getVideoElement: () => videoElement(runtime?.context || context),
+      getWindow: () => runtime?.context?.win || context.win || window,
+      updateState: (updater) => runtime?.store.update(updater),
+    });
+  }
+  return timelineScrubController;
 }
 
 const analysisRoomTabs = Object.freeze([
@@ -485,11 +500,7 @@ function paint(root, state) {
       }
     }
     video.ontimeupdate = () => {
-      const durationMs = Math.max(1, Number(runtime?.store.getState().videoRef?.durationMs || 1));
-      const left = `${Math.min(99.5, Math.max(0, (getVideoCurrentMs(video) / durationMs) * 100))}%`;
-      root.querySelectorAll(".video-analysis-playhead").forEach((playhead) => {
-        playhead.style.left = left;
-      });
+      timelineController(runtime?.context || context).handleVideoTimeUpdate(video);
     };
     video.addEventListener("loadedmetadata", () => markNativePlaybackReady(video), { once: true });
     video.addEventListener("canplay", () => markNativePlaybackReady(video), { once: true });
@@ -586,6 +597,7 @@ export function render(context = {}) {
     change: handleChange,
     click: handleClick,
     input: handleInput,
+    pointerdown: handlePointerDown,
     submit: handleSubmit,
   });
   if (!run.unsubscribe) {
@@ -604,6 +616,7 @@ export function resetVideoAnalysisRuntimeForTests() {
   runtime?.unsubscribe?.();
   runtime = null;
   videoLibraryController = null;
+  timelineScrubController = null;
 }
 
 async function handleFileSelection(file, context = {}, options = {}) {
@@ -794,6 +807,10 @@ async function applyCodeButton(buttonId = "", context = {}) {
   }
   run.store.update(() => nextState);
   return true;
+}
+
+export function handlePointerDown(event, context = {}) {
+  return timelineController(context).handlePointerDown(event);
 }
 
 export function handleClick(event, context = {}) {

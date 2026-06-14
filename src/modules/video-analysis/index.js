@@ -6,6 +6,7 @@ import { renderCodingTemplateBuilder } from "./components/CodingTemplateBuilder.
 import { renderPlayerClipDrawer } from "./components/PlayerClipDrawer.js";
 import { renderPlaylistBuilder } from "./components/PlaylistBuilder.js";
 import { renderTimeline } from "./components/Timeline.js";
+import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderVideoPlayer } from "./components/VideoPlayer.js";
 import { escapeHtml } from "./components/renderHelpers.js";
 import { normalizeClipInstance } from "./domain/clipInstance.model.js";
@@ -30,10 +31,13 @@ import {
 import { addClipToReviewSection, buildReviewSessionPayload, removeClipFromReviewSection, updateReviewSectionNote } from "./services/reviewSessionService.js";
 import { trimClipDraft } from "./services/timelineService.js";
 import { describeVideoPlaybackError, getVideoCurrentMs, seekVideoToMs, toggleVideoPlayback } from "./services/videoPlaybackService.js";
+import { findScheduleCandidate } from "./services/videoLibraryService.js";
 import { bindPaintedVideoControls, bindRootEventFallback, eventElement } from "./video-analysis.dom-events.js";
+import { createVideoLibraryController } from "./video-analysis.library-controller.js";
 import { createVideoAnalysisStore } from "./video-analysis.store.js";
 
 let runtime = null;
+let videoLibraryController = null;
 
 function getRoot(context = {}) {
   return context.ui?.analysisRoomWorkspace || null;
@@ -56,6 +60,21 @@ function ensureRuntime(context = {}) {
   if (!runtime) runtime = createRuntime(context);
   runtime.context = context;
   return runtime;
+}
+
+function libraryController() {
+  if (!videoLibraryController) {
+    videoLibraryController = createVideoLibraryController({
+      ensureRuntime,
+      getRuntime: () => runtime,
+      loadClips,
+      restoreLocalVideoHandle,
+      revokeLocalVideoReference,
+      shouldLoadMetadata,
+      localVideoStatusPatch,
+    });
+  }
+  return videoLibraryController;
 }
 
 function videoElement(context = {}) {
@@ -105,11 +124,11 @@ function renderAnalysisRoomTabIcon(icon) {
   return analysisRoomTabIcons[icon] || analysisRoomTabIcons.overview;
 }
 
-function renderAnalysisRoomTabs() {
+function renderAnalysisRoomTabs(activeId = "fs-player") {
   return `
     <nav class="analysis-room-tabs" aria-label="Analysis Room sections">
       ${analysisRoomTabs.map((tab) => {
-        const active = tab.id === "fs-player";
+        const active = tab.id === activeId;
         return `
           <button
             type="button"
@@ -156,7 +175,7 @@ function renderAnalysisRoomTeamMark(context = {}) {
   `;
 }
 
-function renderAnalysisRoomHeader(context = {}) {
+function renderAnalysisRoomHeader(context = {}, activeTabId = "fs-player") {
   const teamName = getAnalysisRoomTeamName(context);
   return `
     <header class="analysis-room-header">
@@ -167,7 +186,7 @@ function renderAnalysisRoomHeader(context = {}) {
           <h2>${escapeHtml(teamName)}</h2>
         </div>
       </div>
-      ${renderAnalysisRoomTabs()}
+      ${renderAnalysisRoomTabs(activeTabId)}
     </header>
   `;
 }
@@ -382,6 +401,7 @@ function paint(root, state) {
   const wasPlaying = Boolean(previousVideo && !previousVideo.paused && !previousVideo.ended);
   const focusedDraft = root.querySelector("[data-video-analysis-draft]:focus")?.dataset.videoAnalysisDraft || "";
   const focusedFilter = root.querySelector("[data-video-analysis-filter]:focus")?.dataset.videoAnalysisFilter || "";
+  const focusedLibraryFilter = root.querySelector("[data-video-analysis-library-filter]:focus")?.dataset.videoAnalysisLibraryFilter || "";
   const focusedReviewNote = root.querySelector("[data-video-analysis-review-note]:focus")?.dataset.videoAnalysisReviewNote || "";
   const selectionStart = root.ownerDocument?.activeElement?.selectionStart;
   const visibleClips = filterClipsForMatrix(
@@ -393,7 +413,7 @@ function paint(root, state) {
   const displayState = { ...state, clips: visibleClips, allClips: state.clips };
   root.innerHTML = `
     <section class="analysis-room-shell">
-      ${renderAnalysisRoomHeader(runtime?.context || {})}
+      ${renderAnalysisRoomHeader(runtime?.context || {}, state.view === "library" ? "overview" : "fs-player")}
       <section class="analysis-room-tab-panel" aria-label="FS Player">
         <section class="video-analysis-shell">
           ${state.message || state.error ? `
@@ -407,21 +427,27 @@ function paint(root, state) {
               ` : ""}
             </div>
           ` : ""}
-          ${renderVideoPlayer(displayState)}
-          ${renderTimeline(displayState)}
-          <section class="video-analysis-workstation">
-            <section class="video-analysis-left-stack">
-              ${renderCodingTemplateBuilder(displayState)}
-              ${renderCodingPanel(displayState)}
+          ${state.view === "library" ? renderVideoLibrary(displayState) : `
+            <div class="video-analysis-workspace-nav">
+              <button type="button" data-video-analysis-open-library>Back to library</button>
+              <span>${escapeHtml(state.match?.title || state.pendingScheduleLink?.title || "Untitled session")}</span>
+            </div>
+            ${renderVideoPlayer(displayState)}
+            ${renderTimeline(displayState)}
+            <section class="video-analysis-workstation">
+              <section class="video-analysis-left-stack">
+                ${renderCodingTemplateBuilder(displayState)}
+                ${renderCodingPanel(displayState)}
+              </section>
+              <section class="video-analysis-results">
+                ${renderClipFilters(displayState)}
+                ${renderClipIntelligence(displayState)}
+                ${renderClipList(displayState)}
+              </section>
             </section>
-            <section class="video-analysis-results">
-              ${renderClipFilters(displayState)}
-              ${renderClipIntelligence(displayState)}
-              ${renderClipList(displayState)}
-            </section>
-          </section>
-          ${renderPlaylistBuilder(state)}
-          ${renderPlayerClipDrawer(displayState)}
+            ${renderPlaylistBuilder(state)}
+            ${renderPlayerClipDrawer(displayState)}
+          `}
         </section>
       </section>
     </section>
@@ -438,9 +464,11 @@ function paint(root, state) {
     ? root.querySelector(`[data-video-analysis-draft="${focusedDraft}"]`)
     : focusedFilter
       ? root.querySelector(`[data-video-analysis-filter="${focusedFilter}"]`)
-      : focusedReviewNote
-        ? root.querySelector(`[data-video-analysis-review-note="${focusedReviewNote}"]`)
-      : null;
+      : focusedLibraryFilter
+        ? root.querySelector(`[data-video-analysis-library-filter="${focusedLibraryFilter}"]`)
+        : focusedReviewNote
+          ? root.querySelector(`[data-video-analysis-review-note="${focusedReviewNote}"]`)
+        : null;
   if (nextFocus) {
     nextFocus.focus();
     if (Number.isFinite(selectionStart) && typeof nextFocus.setSelectionRange === "function") {
@@ -538,9 +566,13 @@ async function initialize(context = {}) {
   const run = ensureRuntime(context);
   run.store.setState({ status: "loading", error: "", ...browserFileAccessCapabilities(context.win || window) });
   try {
-    await loadClips();
+    await libraryController().loadLibrary();
+    if (run.store.getState().view !== "library") await loadClips();
     await loadSavedSearches();
-    await restoreLocalVideoHandle(context, { silent: true });
+    if (run.store.getState().match?.id || run.store.getState().video?.id) {
+      await restoreLocalVideoHandle(context, { silent: true });
+    }
+    run.store.update((current) => ({ ...current, status: current.status === "loading" ? "ready" : current.status }));
   } catch (error) {
     run.store.setState({ status: "ready", error: error.message || "" });
   }
@@ -579,6 +611,7 @@ async function handleFileSelection(file, context = {}, options = {}) {
       ? localVideoStatusPatch("browser-unplayable", "Browser cannot play this file")
       : localVideoStatusPatch("restored", options.handle ? "Local file connected on this device" : "Local file linked for this session");
     run.store.setState({
+      view: "workspace",
       videoRef: reference,
       playbackPreparation: { active: false, token: "" },
       status: playbackWarning ? "error" : "saving-source",
@@ -589,11 +622,21 @@ async function handleFileSelection(file, context = {}, options = {}) {
       ...browserFileAccessCapabilities(context.win || window),
       ...initialStatusPatch,
     });
+    const linkState = run.store.getState();
+    const pendingSchedule = linkState.pendingScheduleLink || {};
+    const activeMatch = linkState.match || {};
     const payload = await run.videos.createLocalVideoSource({
       displayName: reference.displayName,
       localVideoIdentifier: reference.localVideoIdentifier,
       fileSizeBytes: reference.fileSizeBytes,
       durationMs: reference.durationMs,
+      matchId: activeMatch.id || "",
+      matchTitle: activeMatch.title || pendingSchedule.title || reference.displayName,
+      matchDate: activeMatch.match_date || activeMatch.matchDate || pendingSchedule.matchDate || "",
+      eventType: activeMatch.event_type || activeMatch.eventType || pendingSchedule.eventType || "",
+      scheduleEventId: activeMatch.schedule_event_id || activeMatch.scheduleEventId || pendingSchedule.scheduleEventId || "",
+      scheduleDayKey: activeMatch.schedule_day_key || activeMatch.scheduleDayKey || pendingSchedule.scheduleDayKey || pendingSchedule.matchDate || "",
+      opponent: activeMatch.opponent || pendingSchedule.opponent || "",
     });
     const identity = buildLocalVideoHandleIdentity(run.store.getState(), context, {
       match: payload.match,
@@ -608,6 +651,7 @@ async function handleFileSelection(file, context = {}, options = {}) {
         match: payload.match || state.match || { id: payload.video?.match_id, title: reference.displayName },
         video: payload.video,
         source: payload.source,
+        pendingScheduleLink: null,
         localFileHandleIdentity: identity,
         status: preservePlaybackPreparation ? state.status : playbackWarning ? "error" : "ready",
         message: preservePlaybackPreparation ? state.message : playbackWarning ? "" : "Video metadata saved.",
@@ -636,6 +680,7 @@ async function handleFileSelection(file, context = {}, options = {}) {
         }));
       }
     }
+    await libraryController().loadLibrary({ silent: true });
     await loadClips();
   } catch (error) {
     run.store.setState({ status: "error", error: error.message || "Could not load video." });
@@ -750,6 +795,19 @@ export function handleClick(event, context = {}) {
   const root = getRoot(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  if (target.closest("[data-video-analysis-open-library]")) {
+    libraryController().openLibraryView(context);
+    return true;
+  }
+  if (target.closest("[data-video-analysis-library-refresh]")) {
+    libraryController().loadLibrary();
+    return true;
+  }
+  const libraryItem = target.closest("[data-video-analysis-open-library-item]");
+  if (libraryItem) {
+    libraryController().openLibraryItem(libraryItem.dataset.videoAnalysisOpenLibraryItem, context);
+    return true;
+  }
   if (target.closest("[data-video-analysis-load]")) {
     openLocalVideoPicker(context);
     return true;
@@ -904,6 +962,18 @@ export function handleInput(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  const libraryFilter = target.closest("[data-video-analysis-library-filter]");
+  if (libraryFilter) {
+    const key = libraryFilter.dataset.videoAnalysisLibraryFilter;
+    run.store.update((state) => ({
+      ...state,
+      library: {
+        ...(state.library || {}),
+        filters: { ...(state.library?.filters || {}), [key]: libraryFilter.value },
+      },
+    }));
+    return true;
+  }
   const draftField = target.closest("[data-video-analysis-draft]");
   if (draftField) {
     const key = draftField.dataset.videoAnalysisDraft;
@@ -935,12 +1005,40 @@ export function handleInput(event, context = {}) {
 }
 
 export function handleChange(event, context = {}) {
+  const run = ensureRuntime(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
   const fileInput = target.closest("[data-video-analysis-file]");
   if (fileInput?.files?.[0]) {
     handleFileSelection(fileInput.files[0], context);
     fileInput.value = "";
+    return true;
+  }
+  const scheduleLink = target.closest("[data-video-analysis-link-schedule]");
+  if (scheduleLink) {
+    const matchId = scheduleLink.dataset.videoAnalysisLinkSchedule;
+    const candidate = findScheduleCandidate(run.store.getState(), scheduleLink.value);
+    libraryController().saveMatchLink(matchId, candidate ? {
+      scheduleEventId: candidate.scheduleEventId,
+      scheduleDayKey: candidate.scheduleDayKey,
+      matchDate: candidate.matchDate,
+      eventType: candidate.eventType,
+      opponent: candidate.opponent,
+    } : { scheduleEventId: "", scheduleDayKey: "", matchDate: "", eventType: "training" }, context);
+    return true;
+  }
+  const dateLink = target.closest("[data-video-analysis-link-date]");
+  if (dateLink) {
+    libraryController().saveMatchLink(dateLink.dataset.videoAnalysisLinkDate, {
+      matchDate: dateLink.value,
+      scheduleDayKey: dateLink.value,
+      scheduleEventId: "",
+    }, context);
+    return true;
+  }
+  const typeLink = target.closest("[data-video-analysis-link-type]");
+  if (typeLink) {
+    libraryController().saveMatchLink(typeLink.dataset.videoAnalysisLinkType, { eventType: typeLink.value }, context);
     return true;
   }
   return handleInput(event, context);

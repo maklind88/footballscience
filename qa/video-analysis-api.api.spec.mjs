@@ -1,8 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { createRequire } from "node:module";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const api = require("../api/_lib/video-analysis-database.js");
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const actor = {
   id: "6cf3a58f-7f5e-4fc7-9a22-8840a9d8aa41",
@@ -73,4 +77,17 @@ test("video analysis clip search params are team-scoped and bounded", () => {
   expect(params.get("phase")).toBe("eq.Set Pieces");
   expect(params.get("outcome")).toBe("eq.Development");
   expect(params.get("limit")).toBe("200");
+});
+
+test("video analysis library API supports schedule candidates and autosaved match links", () => {
+  const source = fs.readFileSync(path.join(rootDir, "api/_lib/video-analysis-database.js"), "utf8");
+  const librarySource = fs.readFileSync(path.join(rootDir, "api/_lib/video-analysis-library-database.js"), "utf8");
+
+  expect(source).toContain('action === "matches"');
+  expect(source).toContain('action === "update-match-link"');
+  expect(librarySource).toContain("scheduleCandidates");
+  expect(librarySource).toContain("scheduleEventId");
+  expect(librarySource).toContain("scheduleDayKey");
+  expect(librarySource).toContain("linkedFrom");
+  expect(source).toContain("rejectForbiddenPayload(payload)");
 });

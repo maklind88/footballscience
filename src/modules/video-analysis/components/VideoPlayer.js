@@ -44,12 +44,13 @@ export function renderVideoPlayer(state = {}) {
     : compatibility.container
       ? compatibility.container.toUpperCase()
       : "";
+  const title = ref?.displayName || state.match?.title || state.pendingScheduleLink?.title || "No match video loaded";
   return `
     <section class="video-analysis-player" data-video-analysis-player>
       <div class="video-analysis-player__bar">
         <div>
           <p class="video-analysis-kicker">FS Player</p>
-          <h2>${escapeHtml(ref?.displayName || "No match video loaded")}</h2>
+          <h2>${escapeHtml(title)}</h2>
         </div>
         <div class="video-analysis-player__actions">
           <input class="video-analysis-file-input" type="file" accept="video/*" data-video-analysis-file hidden>

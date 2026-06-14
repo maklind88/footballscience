@@ -7,6 +7,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     getUsers = () => [],
     getCurrentUser = () => null,
     getScheduleStateForGameplan = () => ({}),
+    getScheduleStateForVideoAnalysis = getScheduleStateForGameplan,
     getPlayerProfilesStateForGameplan = () => ({}),
     getPlayerProfilesStateForVideoAnalysis = getPlayerProfilesStateForGameplan,
     canEditGameplan = () => false,
@@ -139,6 +140,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
       teamName,
       teamLogoUrl: getPlatformTeamLogoUrl(team),
       getAuthToken,
+      getScheduleState: getScheduleStateForVideoAnalysis,
       getPlayerProfilesState: getPlayerProfilesStateForVideoAnalysis,
       canEdit: canEditVideoAnalysis,
     };

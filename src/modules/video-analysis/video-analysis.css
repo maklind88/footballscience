@@ -192,6 +192,202 @@
   background: transparent;
 }
 
+.video-analysis-library {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #d8ded7;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.video-analysis-library__header,
+.video-analysis-workspace-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.video-analysis-library__header h2 {
+  margin: 0;
+  color: #122018;
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.video-analysis-primary-action,
+.video-analysis-workspace-nav button,
+.video-analysis-library__toolbar button {
+  min-height: 34px;
+  border: 1px solid #143522;
+  border-radius: 7px;
+  padding: 0 11px;
+  color: #ffffff;
+  background: #143522;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.video-analysis-workspace-nav {
+  border: 1px solid #d8ded7;
+  border-radius: 8px;
+  padding: 9px 11px;
+  background: #ffffff;
+}
+
+.video-analysis-workspace-nav span {
+  min-width: 0;
+  color: #425049;
+  font-size: 13px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.video-analysis-library__toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, 0.6fr) minmax(140px, 0.5fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.video-analysis-library__toolbar input,
+.video-analysis-library__toolbar select,
+.video-analysis-library-row__controls input,
+.video-analysis-library-row__controls select {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #cfd8d1;
+  border-radius: 7px;
+  padding: 7px 9px;
+  color: #17201b;
+  background: #ffffff;
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.video-analysis-library__toolbar button {
+  border-color: #bcc7c0;
+  color: #17201b;
+  background: #f7faf7;
+}
+
+.video-analysis-library__note {
+  border: 1px solid #d5dbe7;
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: #2b3954;
+  background: #f4f7fb;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.video-analysis-library__list {
+  display: grid;
+  gap: 8px;
+}
+
+.video-analysis-library-row {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  border: 1px solid #dde4df;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fbfcfb;
+}
+
+.video-analysis-library-row.has-video {
+  border-left: 4px solid #1f6f4a;
+}
+
+.video-analysis-library-row.is-schedule-candidate {
+  border-left: 4px solid #2f6fed;
+}
+
+.video-analysis-library-row__main {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) minmax(150px, auto);
+  gap: 10px;
+  align-items: center;
+  min-height: 42px;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.video-analysis-library-row__date {
+  color: #49564f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.video-analysis-library-row__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.video-analysis-library-row__body strong,
+.video-analysis-library-row__body small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.video-analysis-library-row__body strong {
+  color: #132018;
+  font-size: 14px;
+}
+
+.video-analysis-library-row__body small,
+.video-analysis-library-row__hint,
+.video-analysis-library-row__saving {
+  color: #607068;
+  font-size: 12px;
+}
+
+.video-analysis-library-row__status {
+  justify-self: end;
+  border-radius: 999px;
+  padding: 5px 8px;
+  color: #26332d;
+  background: #edf2ef;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.video-analysis-library-row__controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(150px, 0.6fr) minmax(130px, 0.5fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.video-analysis-library-row__controls label {
+  display: grid;
+  gap: 4px;
+  color: #516059;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.video-analysis-library-row__saving {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  color: #1f6f4a;
+  font-weight: 800;
+}
+
 .video-analysis-player,
 .video-analysis-timeline,
 .video-analysis-template-builder,
@@ -862,9 +1058,22 @@
   }
 
   .video-analysis-workstation,
+  .video-analysis-library__toolbar,
+  .video-analysis-library-row__main,
+  .video-analysis-library-row__controls,
   .video-analysis-filters,
   .video-analysis-review-sections {
     grid-template-columns: 1fr;
+  }
+
+  .video-analysis-library__header,
+  .video-analysis-workspace-nav {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .video-analysis-library-row__status {
+    justify-self: start;
   }
 
   .video-analysis-video-frame,

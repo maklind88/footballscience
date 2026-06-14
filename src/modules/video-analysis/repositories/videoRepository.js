@@ -28,8 +28,19 @@ export function createVideoRepository(context = {}) {
         getAuthToken
       );
     },
-    listMatches(limit = 40) {
-      return requestJson(buildVideoAnalysisApiUrl("matches", { limit }), { method: "GET" }, getAuthToken);
+    listMatches(options = {}) {
+      const params = typeof options === "number" ? { limit: options } : options;
+      return requestJson(buildVideoAnalysisApiUrl("matches", params), { method: "GET" }, getAuthToken);
+    },
+    updateMatchLink(payload = {}) {
+      return requestJson(
+        buildVideoAnalysisApiUrl("update-match-link"),
+        {
+          method: "POST",
+          body: JSON.stringify({ action: "update-match-link", ...payload }),
+        },
+        getAuthToken
+      );
     },
   };
 }

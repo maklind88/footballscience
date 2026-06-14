@@ -264,6 +264,7 @@ export function createPlatformRuntimeServices(deps = {}) {
     getPlatformTeamDisplayName: platformStructureRuntimeService.getPlatformTeamDisplayName,
     getPlatformTeamLogoUrl,
     getScheduleStateForGameplan,
+    getScheduleStateForVideoAnalysis: () => deps.getScheduleState?.() || readScheduleState(),
     getPlayerProfilesStateForGameplan,
     getPlayerProfilesStateForVideoAnalysis: () => deps.getPlayerProfilesState?.() || readPlayerProfilesState(),
     canEditGameplan: () => canCurrentUserEditWorkspace("gameplan"),

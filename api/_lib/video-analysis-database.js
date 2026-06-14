@@ -20,6 +20,7 @@ const {
   rejectForbiddenPayload,
   selectRows,
 } = require("./video-analysis-database-core.js");
+const { listMatches, normalizeMetadata, normalizeVideoEventType, updateMatchLink } = require("./video-analysis-library-database.js");
 const { saveReviewSession } = require("./video-analysis-review-database.js");
 
 const VIDEO_ANALYSIS_SCHEMA = "footballscience-video-analysis-v2";
@@ -63,6 +64,9 @@ function normalizeVideoSourcePayload(payload = {}, actor = {}) {
     matchId: normalizeUuid(payload.matchId || payload.match_id),
     title: normalizeText(payload.matchTitle || payload.title || displayName, 180),
     matchDate: normalizeText(payload.matchDate || payload.match_date, 20) || null,
+    eventType: normalizeVideoEventType(payload.eventType || payload.event_type || payload.type),
+    scheduleEventId: normalizeText(payload.scheduleEventId || payload.schedule_event_id, 160) || null,
+    scheduleDayKey: normalizeText(payload.scheduleDayKey || payload.schedule_day_key, 40) || null,
     opponent: normalizeText(payload.opponent, 180) || null,
     displayName,
     localVideoIdentifier,
@@ -182,6 +186,7 @@ async function findExistingVideo(scope, localVideoIdentifier) {
 async function createLocalVideoSource(payload, actor) {
   const normalized = normalizeVideoSourcePayload(payload, actor);
   const scope = { organizationId: normalized.organizationId, teamId: normalized.teamId };
+  const matchMetadata = { eventType: normalized.eventType, scheduleEventId: normalized.scheduleEventId, scheduleDayKey: normalized.scheduleDayKey || normalized.matchDate, linkedFrom: "video-analysis-library" };
   let video = await findExistingVideo(scope, normalized.localVideoIdentifier);
   let matchId = video?.match_id || normalized.matchId;
   let match = null;
@@ -193,10 +198,27 @@ async function createLocalVideoSource(payload, actor) {
       match_date: normalized.matchDate,
       opponent: normalized.opponent,
       created_by: normalized.actorId,
+      metadata: Object.fromEntries(Object.entries(matchMetadata).filter(([, value]) => value)),
     });
     if (!matchResult.ok) return matchResult;
     match = matchResult.payload?.[0] || null;
     matchId = match?.id;
+  } else if (normalized.matchDate || normalized.scheduleEventId || normalized.eventType) {
+    const params = buildTeamParams(scope);
+    params.set("id", `eq.${matchId}`);
+    const existingMatchResult = await selectRows("video_matches", params);
+    const existingMatch = existingMatchResult.ok ? existingMatchResult.payload?.[0] || null : null;
+    const metadata = {
+      ...normalizeMetadata(existingMatch?.metadata),
+      ...Object.fromEntries(Object.entries(matchMetadata).filter(([, value]) => value)),
+    };
+    const patch = {
+      metadata,
+      match_date: normalized.matchDate || existingMatch?.match_date || null,
+    };
+    const patched = await patchRows("video_matches", params, patch);
+    if (!patched.ok) return patched;
+    match = patched.payload?.[0] || existingMatch;
   }
   if (!video) {
     const videoResult = await insertRow("video_videos", {
@@ -296,18 +318,6 @@ async function listClips(query, actor) {
   const search = normalizeText(query.search || query.q, 120).toLowerCase();
   clips = clips.filter((clip) => clipMatchesSearch(clip, search) && clipMatchesFilters(clip, query));
   return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clips } };
-}
-
-async function listMatches(query, actor) {
-  const scope = actorScope(actor);
-  const params = buildTeamParams(scope);
-  params.set("select", "*");
-  params.set("status", "eq.active");
-  params.set("order", "match_date.desc.nullslast,created_at.desc");
-  params.set("limit", String(asLimit(query.limit, 40)));
-  const result = await selectRows("video_matches", params);
-  if (!result.ok) return result;
-  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, matches: result.payload } };
 }
 
 async function saveClip(payload, actor) {
@@ -463,15 +473,17 @@ async function handleVideoAnalysisRequest(req, res, actor) {
   const result =
     action === "create-local-video-source"
       ? await createLocalVideoSource(body, actor)
-      : action === "save-clip"
-        ? await saveClip(body.clip || body, actor)
-        : action === "archive-clip"
-          ? await archiveClip(body, actor)
-          : action === "save-search"
-            ? await saveSearch(body.search || body, actor)
-            : action === "save-review-session"
-              ? await saveReviewSession(body.reviewSession || body, actor)
-              : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
+      : action === "update-match-link"
+        ? await updateMatchLink(body.match || body, actor)
+        : action === "save-clip"
+          ? await saveClip(body.clip || body, actor)
+          : action === "archive-clip"
+            ? await archiveClip(body, actor)
+            : action === "save-search"
+              ? await saveSearch(body.search || body, actor)
+              : action === "save-review-session"
+                ? await saveReviewSession(body.reviewSession || body, actor)
+                : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }
 

@@ -126,6 +126,7 @@ test("video analysis restores a persisted File System Access handle after refres
 
   await page.addInitScript((identityPayload) => {
     window.__videoAnalysisInitialState = {
+      view: "workspace",
       match: { id: identityPayload.matchId, title: "Restore match" },
       video: { id: identityPayload.videoId, match_id: identityPayload.matchId },
       source: {
@@ -153,6 +154,7 @@ test("video analysis restores a persisted File System Access handle after refres
 test("missing local file metadata shows link state instead of bridge-first prepare", async ({ page }) => {
   await page.addInitScript(() => {
     window.__videoAnalysisInitialState = {
+      view: "workspace",
       match: { id: "match-missing", title: "Missing local file" },
       video: { id: "video-missing", match_id: "match-missing" },
       source: {
@@ -177,6 +179,7 @@ test("missing local file metadata shows link state instead of bridge-first prepa
 test("unsupported File System Access browsers keep the file input fallback", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, "showOpenFilePicker", { configurable: true, value: undefined });
+    window.__videoAnalysisInitialState = { view: "workspace" };
   });
 
   await page.goto("/qa/video-analysis-browser-smoke.html?fallback=1", { waitUntil: "domcontentloaded" });
@@ -188,6 +191,7 @@ test("unsupported File System Access browsers keep the file input fallback", asy
 
 test("File System Access gesture failures fall back to the file input picker", async ({ page }) => {
   await page.addInitScript(() => {
+    window.__videoAnalysisInitialState = { view: "workspace" };
     Object.defineProperty(window, "showOpenFilePicker", {
       configurable: true,
       value: async () => {

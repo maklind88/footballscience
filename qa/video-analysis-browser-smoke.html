@@ -30,23 +30,74 @@
           notes: [{ note: "Clean support angle." }],
         },
       ];
+      const matches = [
+        {
+          id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+          title: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+          match_date: "2026-05-31",
+          event_type: "match",
+          schedule_event_id: "schedule-match-1",
+          latest_video: {
+            id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+            match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+            local_video_identifier: "existing-video",
+          },
+          latest_source: {
+            id: "source-1",
+            match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+            video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+            local_video_identifier: "existing-video",
+          },
+          clip_count: clips.length,
+          video_count: 1,
+          source_count: 1,
+        },
+      ];
+      const scheduleCandidates = [
+        {
+          id: "schedule-training-1",
+          scheduleEventId: "schedule-training-1",
+          matchDate: "2026-06-02",
+          eventType: "training",
+          title: "MD+2 Training",
+          source: "smoke",
+        },
+      ];
 
       window.fetch = async (url, options = {}) => {
         const parsed = new URL(url, window.location.origin);
         const action = parsed.searchParams.get("action");
         const body = options.body ? JSON.parse(options.body) : {};
+        window.__videoAnalysisRequests = window.__videoAnalysisRequests || [];
+        window.__videoAnalysisRequests.push({ action, body });
         if (action === "status") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2" });
+        if (action === "matches") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", matches, scheduleCandidates });
         if (action === "clips") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clips });
         if (action === "saved-searches") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearches: [] });
         if (action === "save-search") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearch: { id: "search-1", title: "Build Up Development" } });
         if (action === "save-review-session") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", reviewSession: { id: "review-1" } });
         if (action === "save-clip") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip: clips[0] });
         if (action === "archive-clip") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip: clips[0] });
+        if (action === "update-match-link") {
+          const match = matches.find((item) => item.id === body.matchId) || matches[0];
+          Object.assign(match, {
+            match_date: body.matchDate || match.match_date,
+            event_type: body.eventType || match.event_type,
+            schedule_event_id: body.scheduleEventId || "",
+          });
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", match });
+        }
         if (action === "create-local-video-source") {
           return Response.json({
             ok: true,
             schema: "footballscience-video-analysis-v2",
-            match: { id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152", title: "Smoke match" },
+            match: {
+              id: body.matchId || "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+              title: body.matchTitle || "Smoke match",
+              match_date: body.matchDate || "2026-05-31",
+              event_type: body.eventType || "match",
+              schedule_event_id: body.scheduleEventId || "",
+            },
             video: { id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725", match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152" },
             source: {
               id: "source-1",
@@ -66,6 +117,12 @@
         getAuthToken: () => "smoke-token",
         canEdit: () => true,
         videoAnalysisInitialState: window.__videoAnalysisInitialState || null,
+        getScheduleState: () => ({
+          events: [
+            { id: "schedule-match-1", date: "2026-05-31", type: "match", title: "Angel City away" },
+            { id: "schedule-training-1", date: "2026-06-02", type: "training", title: "MD+2 Training" },
+          ],
+        }),
         getPlayerProfilesState: () => ({
           players: [
             { id: "p1", name: "Alex Morgan", number: "13", position: "ST" },

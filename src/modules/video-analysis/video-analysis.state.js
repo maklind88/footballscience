@@ -28,6 +28,7 @@ export function createInitialVideoAnalysisState(context = {}) {
   const win = context.win || globalThis.window;
   const initialState = {
     status: "idle",
+    view: "library",
     canEdit: Boolean(context.canEdit?.()),
     players: normalizeVideoAnalysisPlayers(context.getPlayerProfilesState?.()),
     videoRef: null,
@@ -44,6 +45,19 @@ export function createInitialVideoAnalysisState(context = {}) {
     match: null,
     video: null,
     source: null,
+    pendingScheduleLink: null,
+    library: {
+      status: "idle",
+      matches: [],
+      scheduleCandidates: [],
+      filters: {
+        search: "",
+        date: "",
+        type: "all",
+      },
+      savingLinkId: "",
+      error: "",
+    },
     clips: [],
     savedSearches: [],
     selectedClipId: "",

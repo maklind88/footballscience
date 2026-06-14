@@ -14,9 +14,12 @@ test("video analysis module keeps the required isolated file structure", () => {
   for (const relativePath of [
     "src/modules/video-analysis/index.js",
     "src/modules/video-analysis/video-analysis.routes.js",
+    "src/modules/video-analysis/video-analysis.library-controller.js",
     "src/modules/video-analysis/video-analysis.state.js",
     "src/modules/video-analysis/video-analysis.store.js",
+    "api/_lib/video-analysis-library-database.js",
     "src/modules/video-analysis/components/VideoPlayer.js",
+    "src/modules/video-analysis/components/VideoLibrary.js",
     "src/modules/video-analysis/components/CodingPanel.js",
     "src/modules/video-analysis/components/Timeline.js",
     "src/modules/video-analysis/components/ClipList.js",
@@ -26,6 +29,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/components/PlaylistBuilder.js",
     "src/modules/video-analysis/components/PlayerClipDrawer.js",
     "src/modules/video-analysis/services/videoPlaybackService.js",
+    "src/modules/video-analysis/services/videoLibraryService.js",
     "src/modules/video-analysis/services/clipInstanceService.js",
     "src/modules/video-analysis/services/taggingService.js",
     "src/modules/video-analysis/services/playlistService.js",
@@ -59,6 +63,8 @@ test("video player stays playback-only and components avoid direct data access",
   }
 
   expect(read("src/modules/video-analysis/video-analysis.routes.js")).toContain("/api/video-analysis");
+  expect(read("src/modules/video-analysis/components/VideoLibrary.js")).toContain("data-video-analysis-open-library-item");
+  expect(read("src/modules/video-analysis/video-analysis.library-controller.js")).toContain("updateMatchLink");
   for (const file of fs.readdirSync(path.join(moduleDir, "repositories")).filter((entry) => entry.endsWith(".js"))) {
     const source = read(`src/modules/video-analysis/repositories/${file}`);
     if (file !== "playlistRepository.js") {

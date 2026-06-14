@@ -157,7 +157,9 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-clip-block").first()).toBeVisible();
   await expect(page.locator(".video-analysis-playhead")).toHaveCount(1);
   await expect(page.locator(".video-analysis-playhead").first()).toBeVisible();
-  await expect(page.locator(".video-analysis-playhead").first()).toHaveAttribute("draggable", "false");
+  await expect(page.locator(".video-analysis-playhead").first()).toHaveAttribute("aria-hidden", "true");
+  await expect(page.locator(".video-analysis-playhead-time")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-playhead-time")).toHaveCSS("opacity", "0");
   const firstClipStyle = await page.locator(".video-analysis-clip-block").first().getAttribute("style");
   expect(firstClipStyle).not.toContain("left:99.5%");
 
@@ -187,6 +189,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   expect(playheadMarker.borderTopWidth).toBe("9px");
   expect(playheadMarker.borderTopColor).toBe("rgb(225, 53, 45)");
   expect(playheadMarker.markerBottom).toBeLessThan(playheadMarker.timeLabelTop);
+  expect(await page.locator(".video-analysis-playhead").first().getAttribute("role")).toBeNull();
 
   await page.locator('[data-video-analysis-timeline-lane="outcome"]').click();
   await expect(page.locator('[data-video-analysis-timeline-lane="outcome"]')).toHaveClass(/is-active/);
@@ -222,10 +225,27 @@ test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red 
     const scroller = document.querySelector(".video-analysis-timeline-scroll");
     scroller.scrollLeft = 0;
   });
+
+  const hoverResult = await page.evaluate(() => ({
+    currentTime: document.querySelector("[data-video-analysis-video]")?.currentTime || 0,
+    left: document.querySelector(".video-analysis-playhead")?.style.left || "",
+    badgeOpacity: window.getComputedStyle(document.querySelector(".video-analysis-playhead-time")).opacity,
+    scrollLeft: document.querySelector(".video-analysis-timeline-scroll")?.scrollLeft || 0,
+  }));
   const y = playheadBox.y + playheadBox.height / 2;
   await page.mouse.move(playheadBox.x + playheadBox.width / 2, y);
+  const afterHoverResult = await page.evaluate(() => ({
+    currentTime: document.querySelector("[data-video-analysis-video]")?.currentTime || 0,
+    left: document.querySelector(".video-analysis-playhead")?.style.left || "",
+    badgeOpacity: window.getComputedStyle(document.querySelector(".video-analysis-playhead-time")).opacity,
+    scrollLeft: document.querySelector(".video-analysis-timeline-scroll")?.scrollLeft || 0,
+  }));
+  expect(afterHoverResult).toEqual(hoverResult);
+
   await page.mouse.down();
+  await expect(page.locator(".video-analysis-playhead-time")).toHaveCSS("opacity", "1");
   await page.mouse.move(railBox.x + railBox.width / 2, y);
+  await expect(page.locator(".video-analysis-playhead-time")).toContainText("1:00:");
   await page.mouse.up();
 
   const currentTime = await page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.currentTime || 0);
@@ -233,7 +253,8 @@ test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red 
   expect(currentTime).toBeGreaterThan(3600);
   expect(currentTime).toBeLessThan(3700);
   expect(timelineScrollLeft).toBe(0);
-  await expect(page.locator(".video-analysis-playhead").first()).toHaveAttribute("aria-valuetext", /1:00:3/);
+  await expect(page.locator(".video-analysis-playhead-time")).toHaveCSS("opacity", "0");
+  await expect(page.locator(".video-analysis-playhead-time")).toContainText("1:00:");
 });
 
 test("Video Analysis clears a codec warning when native playback succeeds", async ({ page }) => {

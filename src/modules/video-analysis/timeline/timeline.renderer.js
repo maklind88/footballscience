@@ -58,20 +58,18 @@ function renderTimelineRuler(ticks = [], totalMs = 1) {
 
 function renderTimelinePlayhead(playheadMs = 0, totalMs = 1) {
   return `
-    <button
-      type="button"
+    <div
       class="video-analysis-playhead"
       style="${playheadStyle(playheadMs, totalMs)}"
       data-video-analysis-timeline-scrub
-      draggable="false"
-      role="slider"
-      aria-label="Drag timeline playhead"
-      aria-valuemin="0"
-      aria-valuemax="${escapeHtml(Math.round(totalMs / 1000))}"
-      aria-valuenow="${escapeHtml(Math.round(Number(playheadMs || 0) / 1000))}"
-      aria-valuetext="${escapeHtml(formatVideoTime(playheadMs))}"
-      title="Drag to seek"
-    ></button>
+      aria-hidden="true"
+    ></div>
+    <div
+      class="video-analysis-playhead-time"
+      style="${playheadStyle(playheadMs, totalMs)}"
+      data-video-analysis-timeline-scrub-time
+      aria-hidden="true"
+    >${escapeHtml(formatVideoTime(playheadMs))}</div>
   `;
 }
 

@@ -32,6 +32,19 @@ export function createTimelineScrubController(options = {}) {
     session.scrollContainer.scrollLeft = session.scrollLeft;
   }
 
+  function syncScrubTimes(playheadMs = 0, durationMs = 1, visible = false) {
+    const targetRoot = root();
+    if (!targetRoot) return;
+    const safeDuration = Math.max(1, Number(durationMs || 1));
+    const safeMs = Math.min(safeDuration, Math.max(0, Math.round(Number(playheadMs || 0))));
+    const left = `${Math.min(100, Math.max(0, (safeMs / safeDuration) * 100))}%`;
+    targetRoot.querySelectorAll("[data-video-analysis-timeline-scrub-time]").forEach((badge) => {
+      badge.style.left = left;
+      badge.textContent = formatVideoTime(safeMs);
+      badge.setAttribute("aria-hidden", visible ? "false" : "true");
+    });
+  }
+
   function syncPlayheads(playheadMs = 0, durationMs = 1) {
     const targetRoot = root();
     if (!targetRoot) return;
@@ -40,9 +53,8 @@ export function createTimelineScrubController(options = {}) {
     const left = `${Math.min(100, Math.max(0, (safeMs / safeDuration) * 100))}%`;
     targetRoot.querySelectorAll(".video-analysis-playhead").forEach((playhead) => {
       playhead.style.left = left;
-      playhead.setAttribute("aria-valuenow", String(Math.round(safeMs / 1000)));
-      playhead.setAttribute("aria-valuetext", formatVideoTime(safeMs));
     });
+    syncScrubTimes(safeMs, safeDuration, Boolean(session));
   }
 
   function seekToMs(ms = 0, { commit = false } = {}) {
@@ -101,6 +113,7 @@ export function createTimelineScrubController(options = {}) {
     targetWindow?.removeEventListener?.("pointercancel", endScrub, session.listenerOptions);
     session.scrollContainer?.classList?.remove("is-scrubbing");
     lockScrollPosition();
+    syncScrubTimes(getVideoCurrentMs(options.getVideoElement?.()), getTimelineDurationMs(state()), false);
     clearPendingFrame();
     session = null;
   }
@@ -113,8 +126,6 @@ export function createTimelineScrubController(options = {}) {
     const scrubHandle = target.closest("[data-video-analysis-timeline-scrub]");
     const track = target.closest("[data-video-analysis-timeline-track]");
     const ruler = target.closest("[data-video-analysis-timeline-ruler]");
-    if (!scrubHandle && !track && !ruler) return false;
-
     const module = target.closest("[data-video-analysis-timeline-module]");
     const surface = module?.querySelector("[data-video-analysis-timeline-scrub-surface]")
       || scrubHandle?.closest("[data-video-analysis-timeline-scrub-surface]")
@@ -124,6 +135,11 @@ export function createTimelineScrubController(options = {}) {
 
     const rect = surface.getBoundingClientRect?.();
     if (!rect?.width) return false;
+    const insideScrubSurface = Number(event.clientX || 0) >= rect.left
+      && Number(event.clientX || 0) <= rect.right
+      && Number(event.clientY || 0) >= rect.top
+      && Number(event.clientY || 0) <= rect.bottom;
+    if (!scrubHandle && !track && !ruler && !insideScrubSurface) return false;
 
     const durationMs = Math.max(1, Number(
       surface.dataset.videoAnalysisTimelineDurationMs

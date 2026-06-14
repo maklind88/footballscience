@@ -258,6 +258,7 @@ async function updateFocus(payload, actor) {
   if ("description" in payload) patch.description = normalizeNote(payload.description, 1200) || null;
   if ("category" in payload) patch.category = normalizeCategory(payload.category);
   if ("status" in payload) patch.status = normalizeFocusStatus(payload.status);
+  if ("ownerId" in payload || "owner_id" in payload) patch.owner_id = normalizeText(payload.ownerId || payload.owner_id, 160) || null;
   if ("reviewDate" in payload || "review_date" in payload) patch.review_date = dateOrNull(payload.reviewDate || payload.review_date);
   if ("evidenceStatus" in payload || "evidence_status" in payload) {
     patch.evidence_status = normalizeText(payload.evidenceStatus || payload.evidence_status, 80);
@@ -375,6 +376,90 @@ async function addEvidence(payload, actor) {
   return { ok: true, payload: { schema: IDP_SCHEMA, evidence: result.payload?.[0] || null } };
 }
 
+async function deactivateOwnership(scope, playerId, ownershipType, focusId = "") {
+  const params = buildTeamParams(scope);
+  params.set("player_id", `eq.${playerId}`);
+  params.set("ownership_type", `eq.${ownershipType}`);
+  params.set("status", "eq.active");
+  params.set("deleted_at", "is.null");
+  if (focusId) params.set("focus_id", `eq.${focusId}`);
+  return patchRows("idp_staff_ownership", params, {
+    status: "inactive",
+    updated_by: scope.actorId,
+  });
+}
+
+async function insertOwnership(scope, profile, playerId, ownerId, ownershipType, focusId = "") {
+  if (!ownerId) return { ok: true, payload: [] };
+  return insertRow("idp_staff_ownership", {
+    organization_id: scope.organizationId,
+    team_id: scope.teamId,
+    player_id: playerId,
+    profile_id: profile?.id || null,
+    focus_id: focusId || null,
+    owner_id: ownerId,
+    ownership_type: ownershipType,
+    status: "active",
+    created_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+}
+
+async function assignOwner(payload, actor) {
+  const scope = actorScope(actor);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  const ownerId = normalizeText(payload.ownerId || payload.owner_id, 160);
+  const focusId = normalizeUuid(payload.focusId || payload.focus_id);
+  if (!playerId) return { ok: false, status: 400, reason: "playerId is required." };
+  const profileResult = await ensureProfile(scope, playerId, { ownerId });
+  if (!profileResult.ok) return profileResult;
+
+  const profileParams = buildTeamParams(scope);
+  profileParams.set("id", `eq.${profileResult.payload.id}`);
+  profileParams.set("deleted_at", "is.null");
+  const profilePatch = await patchRows("idp_profiles", profileParams, {
+    primary_owner_id: ownerId || null,
+    updated_by: scope.actorId,
+  });
+  if (!profilePatch.ok) return profilePatch;
+
+  let focus = null;
+  if (focusId) {
+    const focusParams = buildTeamParams(scope);
+    focusParams.set("id", `eq.${focusId}`);
+    focusParams.set("deleted_at", "is.null");
+    const focusPatch = await patchRows("idp_focuses", focusParams, {
+      owner_id: ownerId || null,
+      updated_by: scope.actorId,
+    });
+    if (!focusPatch.ok) return focusPatch;
+    focus = focusPatch.payload?.[0] || null;
+  }
+
+  const inactivePlayerOwner = await deactivateOwnership(scope, playerId, "player-owner");
+  if (!inactivePlayerOwner.ok) return inactivePlayerOwner;
+  if (focusId) {
+    const inactiveFocusOwner = await deactivateOwnership(scope, playerId, "focus-owner", focusId);
+    if (!inactiveFocusOwner.ok) return inactiveFocusOwner;
+  }
+  const playerOwner = await insertOwnership(scope, profilePatch.payload?.[0] || profileResult.payload, playerId, ownerId, "player-owner");
+  if (!playerOwner.ok) return playerOwner;
+  if (focusId) {
+    const focusOwner = await insertOwnership(scope, profilePatch.payload?.[0] || profileResult.payload, playerId, ownerId, "focus-owner", focusId);
+    if (!focusOwner.ok) return focusOwner;
+  }
+
+  return {
+    ok: true,
+    payload: {
+      schema: IDP_SCHEMA,
+      focus,
+      ownerId: ownerId || "",
+      profile: profilePatch.payload?.[0] || null,
+    },
+  };
+}
+
 async function completeReview(payload, actor) {
   const scope = actorScope(actor);
   const playerId = normalizeText(payload.playerId || payload.player_id, 160);
@@ -479,15 +564,18 @@ async function handleIdpRequest(req, res, actor) {
             ? await reviewClipBank(body.clipBankItem || body, actor)
             : action === "add-evidence"
               ? await addEvidence(body.evidence || body, actor)
-              : action === "complete-review"
-                ? await completeReview(body.review || body, actor)
-                : { ok: false, status: 400, reason: "Unsupported IDP action." };
+              : action === "assign-owner"
+                ? await assignOwner(body.ownership || body, actor)
+                : action === "complete-review"
+                  ? await completeReview(body.review || body, actor)
+                  : { ok: false, status: 400, reason: "Unsupported IDP action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }
 
 module.exports = {
   IDP_SCHEMA,
   addEvidence,
+  assignOwner,
   completeReview,
   createFocus,
   dashboardStatus,

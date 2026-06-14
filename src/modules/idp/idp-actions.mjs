@@ -115,6 +115,16 @@ export function createIdpActions({ store, api, context = {} }) {
     await refreshSelectedPlayer();
   }
 
+  async function assignOwner(formData) {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const detail = store.getState().playerDetail;
+    const focusId = formData.get("focusId") || detail?.focuses?.[0]?.id || "";
+    const ownerId = formData.get("ownerId") || "";
+    await api.assignOwner({ playerId, focusId, ownerId });
+    store.setState({ ui: { actionMode: "", message: ownerId ? "IDP Coach assigned." : "IDP Coach cleared." } });
+    await refreshSelectedPlayer();
+  }
+
   async function completeReview(formData) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const detail = store.getState().playerDetail;
@@ -133,6 +143,7 @@ export function createIdpActions({ store, api, context = {} }) {
 
   return {
     addEvidence,
+    assignOwner,
     completeReview,
     createFocus,
     loadDashboard,

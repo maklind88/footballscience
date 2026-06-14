@@ -82,6 +82,7 @@ export function createPlatformAppRuntimeServices(deps = {}) {
     ensurePeriodizationState: deps.ensurePeriodizationState,
     ensureScoutingState: deps.ensureScoutingState,
     escapeHtml,
+    formatUserName: deps.formatUserName,
     formatScheduleBlockSummary: deps.formatScheduleBlockSummary,
     formatScheduleBlockSummaryFromModule,
     formatScheduleDateValue: deps.formatScheduleDateValue,

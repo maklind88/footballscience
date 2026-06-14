@@ -40,6 +40,7 @@ export function createIdpApiService(context = {}) {
     updateFocus: (focus) => request("/api/idp", { method: "POST", body: { action: "update-focus", focus } }),
     reviewClipBank: (clipBankItem) => request("/api/idp", { method: "POST", body: { action: "review-clip-bank", clipBankItem } }),
     addEvidence: (evidence) => request("/api/idp", { method: "POST", body: { action: "add-evidence", evidence } }),
+    assignOwner: (ownership) => request("/api/idp", { method: "POST", body: { action: "assign-owner", ownership } }),
     completeReview: (review) => request("/api/idp", { method: "POST", body: { action: "complete-review", review } }),
     videoPlayerTagged: (clip) => request("/api/idp", { method: "POST", body: { action: "video-player-tagged", clip } }),
   };

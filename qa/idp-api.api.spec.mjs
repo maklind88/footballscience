@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createRequire } from "node:module";
+import fs from "node:fs";
 
 const require = createRequire(import.meta.url);
 const api = require("../api/_lib/idp-database.js");
@@ -60,4 +61,12 @@ test("idp normalization keeps scope bounded and safe", () => {
     organizationId: "club-ncc",
     teamId: "team-a",
   });
+});
+
+test("idp api exposes a server-owned assignment action", () => {
+  const source = fs.readFileSync(new URL("../api/_lib/idp-database.js", import.meta.url), "utf8");
+  expect(source).toContain('action === "assign-owner"');
+  expect(source).toContain("primary_owner_id");
+  expect(source).toContain("idp_staff_ownership");
+  expect(typeof api.assignOwner).toBe("function");
 });

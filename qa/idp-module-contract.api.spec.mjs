@@ -63,10 +63,24 @@ test("idp renderer separates the overview from the player development profile", 
       idp: { primaryFocus: "Receive under pressure", nextAction: "Add evidence" },
     }),
   };
-  const overviewHtml = renderIdpWorkspace(state, { canEdit: true, teamName: "North Carolina Courage" });
+  const staffOptions = {
+    canEdit: true,
+    teamName: "North Carolina Courage",
+    users: [
+      { id: "coach-1", name: "Mak Lind", role: "coach" },
+      { id: "analyst-1", name: "Video Analyst", role: "analyst" },
+    ],
+  };
+  state.dashboardPlayers[0].profile.ownerId = "coach-1";
+  state.playerDetail.profile.ownerId = "coach-1";
+  state.playerDetail.ownership = [{ owner_id: "coach-1", ownership_type: "player-owner", status: "active" }];
+  const overviewHtml = renderIdpWorkspace(state, staffOptions);
 
   expect(overviewHtml).toContain("data-idp-player=\"p1\"");
   expect(overviewHtml).toContain("data-idp-filter=\"status\"");
+  expect(overviewHtml).toContain("data-idp-filter=\"owner\"");
+  expect(overviewHtml).toContain("All IDP Coaches");
+  expect(overviewHtml).toContain("Mak Lind");
   expect(overviewHtml).toContain("Player Development");
   expect(overviewHtml).toContain("North Carolina Courage");
   expect(overviewHtml).toContain("Current Focus");
@@ -76,23 +90,30 @@ test("idp renderer separates the overview from the player development profile", 
   expect(overviewHtml).not.toContain("Development Timeline");
 
   const profileState = { ...state, ui: { ...state.ui, selectedPlayerId: "p1" } };
-  const profileHtml = renderIdpWorkspace(profileState, { canEdit: true, teamName: "North Carolina Courage" });
+  const profileHtml = renderIdpWorkspace(profileState, staffOptions);
 
   expect(profileHtml).toContain("Player Development Profile");
   expect(profileHtml).toContain("data-idp-back-overview");
+  expect(profileHtml).toContain("data-idp-action=\"ownership\"");
   expect(profileHtml).toContain("data-idp-action=\"focus\"");
   expect(profileHtml).toContain("data-idp-action=\"evidence\"");
   expect(profileHtml).toContain("Add observation");
   expect(profileHtml).toContain("Observations");
   expect(profileHtml).toContain("Clip Bank");
   expect(profileHtml).toContain("Development Timeline");
+  expect(profileHtml).toContain("Primary IDP Coach");
+  expect(profileHtml).toContain("Current Focus Owner");
 
-  expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "focus" } }, { canEdit: true })).toContain("data-idp-create-focus");
-  const observationHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "evidence" } }, { canEdit: true });
+  const assignmentHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "ownership" } }, staffOptions);
+  expect(assignmentHtml).toContain("data-idp-assign-owner");
+  expect(assignmentHtml).toContain("Assign IDP Coach");
+  expect(assignmentHtml).toContain("Save assignment");
+  expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "focus" } }, staffOptions)).toContain("data-idp-create-focus");
+  const observationHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "evidence" } }, staffOptions);
   expect(observationHtml).toContain("data-idp-add-evidence");
   expect(observationHtml).toContain("Observation type");
   expect(observationHtml).toContain("Add observation");
-  expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, { canEdit: true })).toContain("data-idp-complete-review");
+  expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, staffOptions)).toContain("data-idp-complete-review");
 });
 
 test("idp adapter derives read-only fallback from Squad state", () => {

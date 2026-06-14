@@ -10,6 +10,8 @@ function normalizeContext(context = {}) {
     ui: context.ui || {},
     win: context.win || globalThis,
     currentUser: context.currentUser || null,
+    users: Array.isArray(context.users) ? context.users : [],
+    formatUserName: typeof context.formatUserName === "function" ? context.formatUserName : null,
     team: context.team || null,
     teamName: context.teamName || context.team?.name || context.currentUser?.teamName || context.currentUser?.team || "",
     teamLogoUrl: context.teamLogoUrl || context.team?.logoUrl || context.team?.logo_url || context.currentUser?.teamLogoUrl || "",
@@ -38,6 +40,8 @@ function paint(activeRuntime = runtime) {
   root.innerHTML = renderMarkup(activeRuntime.store.getState(), {
     canEdit: canEdit(activeRuntime.context),
     currentUser: activeRuntime.context.currentUser,
+    users: activeRuntime.context.users,
+    formatUserName: activeRuntime.context.formatUserName,
     team: activeRuntime.context.team,
     teamLogoUrl: activeRuntime.context.teamLogoUrl,
     teamName: activeRuntime.context.teamName,
@@ -109,6 +113,7 @@ export function handleChange(event) {
   if (!filter) return;
   if (filter === "status") runtime?.store.setState({ ui: { statusFilter: target.value || "All" } });
   if (filter === "category") runtime?.store.setState({ ui: { categoryFilter: target.value || "All" } });
+  if (filter === "owner") runtime?.store.setState({ ui: { ownerFilter: target.value || "All" } });
 }
 
 export function handleClick(event) {
@@ -146,7 +151,7 @@ export function handleClick(event) {
 
 export function handleSubmit(event) {
   const form = event?.target;
-  if (!form?.matches?.("[data-idp-create-focus], [data-idp-add-evidence], [data-idp-complete-review]")) {
+  if (!form?.matches?.("[data-idp-create-focus], [data-idp-add-evidence], [data-idp-complete-review], [data-idp-assign-owner]")) {
     return;
   }
   event.preventDefault();
@@ -159,5 +164,8 @@ export function handleSubmit(event) {
   }
   if (form.matches("[data-idp-complete-review]")) {
     runAction(() => runtime?.actions.completeReview(formData));
+  }
+  if (form.matches("[data-idp-assign-owner]")) {
+    runAction(() => runtime?.actions.assignOwner(formData));
   }
 }

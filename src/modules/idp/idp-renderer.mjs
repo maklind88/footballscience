@@ -7,6 +7,7 @@ import {
 const defaultUiState = Object.freeze({
   selectedPlayerId: "",
   statusFilter: "All",
+  ownerFilter: "All",
   categoryFilter: "All",
   searchQuery: "",
   actionMode: "",
@@ -46,6 +47,86 @@ function optionList(options = [], selected = "", labelFormatter = (option) => op
 
 function normalizeText(value = "", fallback = "") {
   return String(value || fallback).trim();
+}
+
+const assignableIdpRoles = new Set(["admin", "club-admin", "team-admin", "coach", "analyst", "performance"]);
+
+function normalizeUserRole(user = {}) {
+  const rawRole = Array.isArray(user.roles) ? user.roles.find(Boolean) : user.role || user.platformRole || user.staffRole;
+  return normalizeText(rawRole, "coach").toLowerCase();
+}
+
+function getUserId(user = {}) {
+  return normalizeText(user.id || user.userId || user.user_id || user.email, "");
+}
+
+function defaultFormatUserName(user = {}) {
+  return normalizeText(
+    user.name
+      || user.displayName
+      || user.fullName
+      || [user.firstName || user.first_name, user.lastName || user.last_name].filter(Boolean).join(" ")
+      || user.email,
+    "Staff"
+  );
+}
+
+function getStaffUsers(options = {}) {
+  const users = Array.isArray(options.users) ? options.users : [];
+  const currentUser = options.currentUser ? [options.currentUser] : [];
+  const unique = new Map();
+  for (const user of [...users, ...currentUser]) {
+    const id = getUserId(user);
+    if (!id || unique.has(id)) continue;
+    const role = normalizeUserRole(user);
+    if (!assignableIdpRoles.has(role)) continue;
+    if (String(user.status || "active").toLowerCase() === "archived") continue;
+    unique.set(id, { ...user, id, role });
+  }
+  return [...unique.values()].sort((a, b) => defaultFormatUserName(a).localeCompare(defaultFormatUserName(b)));
+}
+
+function formatStaffName(ownerId = "", options = {}) {
+  const id = normalizeText(ownerId, "");
+  if (!id) return "Unassigned";
+  const user = getStaffUsers(options).find((entry) => getUserId(entry) === id);
+  if (!user) return id;
+  const formatter = typeof options.formatUserName === "function" ? options.formatUserName : defaultFormatUserName;
+  return normalizeText(formatter(user), defaultFormatUserName(user));
+}
+
+function primaryOwnerId(profile = {}, focus = {}) {
+  return normalizeText(profile.ownerId || focus.ownerId, "");
+}
+
+function staffSelectOptions(options = {}, selectedOwnerId = "") {
+  const staff = getStaffUsers(options);
+  const selected = normalizeText(selectedOwnerId, "");
+  const selectedMissing = selected && !staff.some((user) => getUserId(user) === selected);
+  return [
+    `<option value="" ${selected ? "" : "selected"}>Unassigned</option>`,
+    selectedMissing ? `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)}</option>` : "",
+    ...staff.map((user) => {
+      const id = getUserId(user);
+      const label = `${formatStaffName(id, options)} · ${normalizeUserRole(user)}`;
+      return `<option value="${escapeHtml(id)}" ${id === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
+    }),
+  ].join("");
+}
+
+function ownerFilterOptions(state = {}, options = {}, selected = "All") {
+  const staffIds = new Set(getStaffUsers(options).map(getUserId));
+  for (const entry of state.dashboardPlayers || []) {
+    const ownerId = primaryOwnerId(entry.profile || {}, entry.focus || {});
+    if (ownerId) staffIds.add(ownerId);
+  }
+  return [
+    `<option value="All" ${selected === "All" ? "selected" : ""}>All IDP Coaches</option>`,
+    `<option value="__unassigned" ${selected === "__unassigned" ? "selected" : ""}>Unassigned</option>`,
+    ...[...staffIds].filter(Boolean).sort((a, b) => formatStaffName(a, options).localeCompare(formatStaffName(b, options))).map((ownerId) =>
+      `<option value="${escapeHtml(ownerId)}" ${ownerId === selected ? "selected" : ""}>${escapeHtml(formatStaffName(ownerId, options))}</option>`
+    ),
+  ].join("");
 }
 
 function initialsFromName(value = "", fallback = "IDP") {
@@ -109,14 +190,19 @@ function renderTeamMark(options = {}) {
   `;
 }
 
-function filterDashboardRows(state = {}) {
-  const { selectedPlayerId, statusFilter, categoryFilter, searchQuery } = { ...defaultUiState, ...(state.ui || {}) };
+function filterDashboardRows(state = {}, options = {}) {
+  const { selectedPlayerId, statusFilter, ownerFilter, categoryFilter, searchQuery } = { ...defaultUiState, ...(state.ui || {}) };
   const query = String(searchQuery || "").trim().toLowerCase();
   const rows = (state.dashboardPlayers || []).filter((entry) => {
     const focus = entry.focus || {};
-    const haystack = [entry.profile?.playerName, focus.title, focus.category, entry.nextAction, entry.overallStatus, coachLabel(entry.nextAction), coachLabel(entry.overallStatus)].join(" ").toLowerCase();
+    const profile = entry.profile || {};
+    const ownerId = primaryOwnerId(profile, focus);
+    const ownerLabel = formatStaffName(ownerId, options);
+    const haystack = [profile.playerName, focus.title, focus.category, ownerId, ownerLabel, entry.nextAction, entry.overallStatus, coachLabel(entry.nextAction), coachLabel(entry.overallStatus)].join(" ").toLowerCase();
     if (query && !haystack.includes(query)) return false;
     if (statusFilter !== "All" && entry.overallStatus !== statusFilter) return false;
+    if (ownerFilter === "__unassigned" && ownerId) return false;
+    if (ownerFilter !== "All" && ownerFilter !== "__unassigned" && ownerId !== ownerFilter) return false;
     if (categoryFilter !== "All" && focus.category !== categoryFilter) return false;
     return true;
   });
@@ -137,7 +223,7 @@ function getReviewLabel(entry = {}) {
   return nextReview ? `Next ${nextReview}` : lastReview ? `Last ${lastReview}` : "No date";
 }
 
-function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state)) {
+function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state), options = {}) {
   const { rows, selectedPlayerId } = dashboard;
   if (!rows.length) {
     return `<div class="idp-empty-row">No players match the current view.</div>`;
@@ -147,6 +233,7 @@ function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state)) 
     const focus = entry.focus || {};
     const active = selectedPlayerId === profile.playerId;
     const playerName = profile.playerName || "Player";
+    const ownerId = primaryOwnerId(profile, focus);
     return `
       <button type="button" class="idp-overview-row${active ? " is-active" : ""}" data-idp-player="${escapeHtml(profile.playerId)}">
         <span class="idp-overview-player">
@@ -163,7 +250,7 @@ function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state)) 
         <span><span class="idp-status-pill is-${statusTone(entry.overallStatus)}">${escapeHtml(coachLabel(entry.overallStatus))}</span></span>
         <span class="idp-overview-metric"><strong>${escapeHtml(String(entry.evidenceCount || 0))}</strong><small>Observations</small></span>
         <span class="idp-overview-metric"><strong>${escapeHtml(String(entry.newClipCount || 0))}</strong><small>Clips</small></span>
-        <span class="idp-overview-review"><strong>${escapeHtml(getReviewLabel(entry))}</strong><small>${escapeHtml(profile.ownerId || focus.ownerId || "Unassigned")}</small></span>
+        <span class="idp-overview-review"><strong>${escapeHtml(getReviewLabel(entry))}</strong><small>${escapeHtml(formatStaffName(ownerId, options))}</small></span>
         <span class="idp-overview-action">${escapeHtml(coachLabel(entry.nextAction || "Add evidence"))}</span>
       </button>
     `;
@@ -238,6 +325,7 @@ function renderActionRail(canEdit = false, focusId = "") {
   if (!canEdit) return "";
   return `
     <div class="idp-action-rail" aria-label="Player development actions">
+      <button type="button" data-idp-action="ownership">Assign coach</button>
       <button type="button" data-idp-action="focus">Update focus</button>
       <button type="button" data-idp-action="evidence" ${focusId ? "" : "disabled"}>Add observation</button>
       <button type="button" data-idp-action="review" ${focusId ? "" : "disabled"}>Complete review</button>
@@ -320,16 +408,43 @@ function renderReviewForm(focus = null) {
   `;
 }
 
-function renderActionOverlay(state = {}, focus = null, canEdit = false) {
+function renderOwnershipForm(detail = {}, focus = null, options = {}) {
+  const profile = detail.profile || {};
+  const focusId = focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "";
+  const selectedOwnerId = primaryOwnerId(profile, focus || {});
+  return `
+    <form class="idp-action-form" data-idp-assign-owner>
+      <input type="hidden" name="focusId" value="${escapeHtml(focusId)}">
+      <label>
+        <span>Primary IDP Coach</span>
+        <select name="ownerId">${staffSelectOptions(options, selectedOwnerId)}</select>
+      </label>
+      <div class="idp-form-note">This coach owns the player's IDP follow-up. The active focus owner is updated at the same time.</div>
+      <div class="idp-action-form-actions">
+        <button type="button" class="idp-secondary-action" data-idp-close-action>Cancel</button>
+        <button type="submit">Save assignment</button>
+      </div>
+    </form>
+  `;
+}
+
+function renderActionOverlay(state = {}, focus = null, canEdit = false, options = {}) {
   const mode = state.ui?.actionMode || "";
   if (!canEdit || !mode) return "";
   const copy = {
+    ownership: ["Assign IDP Coach", "Choose who owns this player's development follow-up."],
     focus: ["Update focus", "Change the player's current development priority, status, and review date."],
     evidence: ["Add observation", "Capture a coach note, clip review, test result, or meeting signal for this focus."],
     review: ["Complete review", "Close the current review loop and set the next action."],
   };
   const [title, description] = copy[mode] || copy.focus;
-  const form = mode === "evidence" ? renderEvidenceForm(focus) : mode === "review" ? renderReviewForm(focus) : renderFocusForm(focus);
+  const form = mode === "ownership"
+    ? renderOwnershipForm(state.playerDetail, focus, options)
+    : mode === "evidence"
+      ? renderEvidenceForm(focus)
+      : mode === "review"
+        ? renderReviewForm(focus)
+        : renderFocusForm(focus);
   return `
     <section class="idp-action-layer" data-idp-action-layer role="presentation">
       <article class="idp-action-dialog" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
@@ -347,8 +462,8 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false) {
   `;
 }
 
-function renderOverviewBoard(state = {}, ui = defaultUiState) {
-  const dashboard = filterDashboardRows({ ...state, ui });
+function renderOverviewBoard(state = {}, ui = defaultUiState, options = {}) {
+  const dashboard = filterDashboardRows({ ...state, ui }, options);
   const visiblePlayerCount = dashboard.rows.length;
   const totalPlayerCount = state.dashboardPlayers?.length || 0;
   return `
@@ -367,6 +482,9 @@ function renderOverviewBoard(state = {}, ui = defaultUiState) {
         <select data-idp-filter="category" aria-label="Filter by category">
           ${optionList(["All", ...idpDevelopmentCategories], ui.categoryFilter)}
         </select>
+        <select data-idp-filter="owner" aria-label="Filter by IDP Coach">
+          ${ownerFilterOptions(state, options, ui.ownerFilter)}
+        </select>
         <input data-idp-search value="${escapeHtml(ui.searchQuery)}" placeholder="Search player or focus" aria-label="Search player or focus">
       </div>
       <div class="idp-overview-table" role="table" aria-label="Player development overview">
@@ -376,18 +494,54 @@ function renderOverviewBoard(state = {}, ui = defaultUiState) {
           <span>Status</span>
           <span>Observations</span>
           <span>Clips</span>
-          <span>Review / Owner</span>
+          <span>Review / IDP Coach</span>
           <span>Next Action</span>
         </div>
         <div class="idp-overview-rows">
-          ${renderOverviewRows({ ...state, ui }, dashboard)}
+          ${renderOverviewRows({ ...state, ui }, dashboard, options)}
         </div>
       </div>
     </section>
   `;
 }
 
-function renderPlayerProfile(state = {}, canEdit = false) {
+function renderOwnershipPanel(detail = {}, focus = null, canEdit = false, options = {}) {
+  const profile = detail.profile || {};
+  const profileOwnerId = normalizeText(profile.ownerId, "");
+  const focusOwnerId = normalizeText(focus?.ownerId, "");
+  const supportOwners = (detail.ownership || [])
+    .filter((item) => item && item.status !== "inactive" && item.status !== "archived")
+    .filter((item) => ["support-staff", "review-owner", "evidence-contributor"].includes(item.ownership_type || item.ownershipType))
+    .slice(0, 3);
+  return `
+    <article class="idp-panel">
+      <div class="idp-panel-head"><p>Staff Ownership</p><span>${escapeHtml(String((detail.ownership || []).length))}</span></div>
+      <div class="idp-owner-grid">
+        <div class="idp-owner-row">
+          <span>Primary IDP Coach</span>
+          <strong>${escapeHtml(formatStaffName(profileOwnerId || focusOwnerId, options))}</strong>
+        </div>
+        <div class="idp-owner-row">
+          <span>Current Focus Owner</span>
+          <strong>${escapeHtml(formatStaffName(focusOwnerId || profileOwnerId, options))}</strong>
+        </div>
+        <div class="idp-owner-row">
+          <span>Next Review</span>
+          <strong>${escapeHtml(formatDate(profile.nextReviewOn || focus?.reviewDate, "No review date"))}</strong>
+        </div>
+        ${supportOwners.length ? supportOwners.map((owner) => `
+          <div class="idp-owner-row">
+            <span>${escapeHtml(owner.ownership_type || owner.ownershipType || "Support")}</span>
+            <strong>${escapeHtml(formatStaffName(owner.owner_id || owner.ownerId, options))}</strong>
+          </div>
+        `).join("") : ""}
+      </div>
+      ${canEdit ? `<button type="button" class="idp-owner-action" data-idp-action="ownership">Assign coach</button>` : ""}
+    </article>
+  `;
+}
+
+function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
   const detail = state.playerDetail;
   if (!detail?.profile?.playerId) {
     return `<section class="idp-player-profile"><div class="idp-muted">Loading player profile.</div></section>`;
@@ -448,15 +602,9 @@ function renderPlayerProfile(state = {}, canEdit = false) {
           <p>Development Timeline</p>
           ${renderTimeline(detail)}
         </article>
-        <article class="idp-panel">
-          <p>Staff Ownership</p>
-          <div class="idp-owner-card">
-            <strong>${escapeHtml(focus?.ownerId || profile.ownerId || "Unassigned")}</strong>
-            <span>${escapeHtml(formatDate(profile.nextReviewOn || focus?.reviewDate, "No review date"))}</span>
-          </div>
-        </article>
+        ${renderOwnershipPanel(detail, focus, canEdit, options)}
       </section>
-      ${renderActionOverlay(state, focus, canEdit)}
+      ${renderActionOverlay(state, focus, canEdit, options)}
     </section>
   `;
 }
@@ -484,7 +632,7 @@ export function renderIdpWorkspace(state = {}, options = {}) {
       ${ui.loading ? `<div class="idp-notice">Loading player development plans.</div>` : ""}
       ${ui.error ? `<div class="idp-notice is-warning">${escapeHtml(ui.error)}</div>` : ""}
       ${ui.message ? `<div class="idp-notice">${escapeHtml(ui.message)}</div>` : ""}
-      ${hasSelectedPlayer ? renderPlayerProfile(state, canEdit) : renderOverviewBoard(state, ui)}
+      ${hasSelectedPlayer ? renderPlayerProfile(state, canEdit, options) : renderOverviewBoard(state, ui, options)}
     </section>
   `;
 }

@@ -17,6 +17,7 @@ import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntellige
 import { applyCodingButtonToDraft, buildInstantClipRange, findTemplateButton } from "./services/codingTemplateService.js";
 import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.js";
 import { createLocalVideoReference, revokeLocalVideoReference } from "./services/localVideoBridgeService.js";
+import { createPlayableLocalCopy } from "./services/localPlaybackTranscodeService.js";
 import { addClipToReviewSection, buildReviewSessionPayload, removeClipFromReviewSection, updateReviewSectionNote } from "./services/reviewSessionService.js";
 import { trimClipDraft } from "./services/timelineService.js";
 import { describeVideoPlaybackError, getVideoCurrentMs, seekVideoToMs, toggleVideoPlayback } from "./services/videoPlaybackService.js";
@@ -260,15 +261,18 @@ async function handleFileSelection(file, context = {}) {
       fileSizeBytes: reference.fileSizeBytes,
       durationMs: reference.durationMs,
     });
-    run.store.update((state) => ({
-      ...state,
-      match: payload.match || state.match || { id: payload.video?.match_id, title: reference.displayName },
-      video: payload.video,
-      source: payload.source,
-      status: playbackWarning ? "error" : "ready",
-      message: playbackWarning ? "" : "Video metadata saved.",
-      error: playbackWarning,
-    }));
+    run.store.update((state) => {
+      const preservePlaybackPreparation = state.status === "preparing-playback" || String(state.error || "").startsWith("Local video bridge");
+      return {
+        ...state,
+        match: payload.match || state.match || { id: payload.video?.match_id, title: reference.displayName },
+        video: payload.video,
+        source: payload.source,
+        status: preservePlaybackPreparation ? state.status : playbackWarning ? "error" : "ready",
+        message: preservePlaybackPreparation ? state.message : playbackWarning ? "" : "Video metadata saved.",
+        error: preservePlaybackPreparation ? state.error : playbackWarning,
+      };
+    });
     await loadClips();
   } catch (error) {
     run.store.setState({ status: "error", error: error.message || "Could not load video." });
@@ -292,6 +296,27 @@ async function saveDraftClip(context = {}, stateOverride = null) {
     return true;
   } catch (error) {
     run.store.setState({ status: "error", error: error.message || "Could not save clip." });
+    return false;
+  }
+}
+
+async function preparePlayableCopy(context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  if (!state.videoRef) return false;
+  run.store.setState({ status: "preparing-playback", message: "Preparing local playback copy.", error: "" });
+  try {
+    const playableReference = await createPlayableLocalCopy(state.videoRef, context.win || window);
+    run.store.update((current) => ({
+      ...current,
+      videoRef: playableReference,
+      status: "ready",
+      message: "Playable local copy ready.",
+      error: "",
+    }));
+    return true;
+  } catch (error) {
+    run.store.setState({ status: "error", message: "", error: error.message || "Could not prepare playable copy." });
     return false;
   }
 }
@@ -330,6 +355,10 @@ export function handleClick(event, context = {}) {
   }
   if (target.closest("[data-video-analysis-play]")) {
     togglePlayback(context);
+    return true;
+  }
+  if (target.closest("[data-video-analysis-prepare-playback]")) {
+    preparePlayableCopy(context);
     return true;
   }
   const modeButton = target.closest("[data-video-analysis-mode]");

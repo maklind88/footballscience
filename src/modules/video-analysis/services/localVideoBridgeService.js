@@ -1,5 +1,7 @@
 import { normalizeVideoSource } from "../domain/videoSource.model.js";
 
+const localVideoFiles = new Map();
+
 function sanitizeDisplayName(value = "") {
   return String(value || "Local video")
     .replace(/[\\/]+/g, " ")
@@ -123,7 +125,7 @@ export async function createLocalVideoReference(file, win = window) {
   const hash = await sha256([displayName, file.size, file.lastModified, file.type].join("|"));
   const playbackCompatibility = await detectPlaybackCompatibility(file, win);
   const objectUrl = win.URL.createObjectURL(file);
-  return normalizeVideoSource({
+  const reference = normalizeVideoSource({
     displayName,
     localVideoIdentifier: `local-video-${hash.slice(0, 40)}`,
     durationMs: 0,
@@ -133,8 +135,15 @@ export async function createLocalVideoReference(file, win = window) {
     playbackCompatibility,
     objectUrl,
   });
+  localVideoFiles.set(reference.localVideoIdentifier, file);
+  return reference;
+}
+
+export function getLocalVideoFile(reference = {}) {
+  return localVideoFiles.get(reference.localVideoIdentifier) || null;
 }
 
 export function revokeLocalVideoReference(reference, win = window) {
-  if (reference?.objectUrl) win.URL.revokeObjectURL(reference.objectUrl);
+  if (reference?.objectUrl?.startsWith("blob:")) win.URL.revokeObjectURL(reference.objectUrl);
+  if (reference?.localVideoIdentifier) localVideoFiles.delete(reference.localVideoIdentifier);
 }

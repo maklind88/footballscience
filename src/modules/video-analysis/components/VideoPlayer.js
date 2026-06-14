@@ -5,6 +5,7 @@ export function renderVideoPlayer(state = {}) {
   const ref = state.videoRef;
   const hasVideo = Boolean(ref?.objectUrl);
   const compatibility = ref?.playbackCompatibility || {};
+  const canPrepareCopy = hasVideo && (state.error || compatibility.warning || compatibility.status === "unsupported" || compatibility.status === "uncertain");
   const codecText = compatibility.codecLabel
     ? `${compatibility.codecLabel}${compatibility.container ? ` / ${compatibility.container.toUpperCase()}` : ""}`
     : compatibility.container
@@ -21,6 +22,7 @@ export function renderVideoPlayer(state = {}) {
           <input class="video-analysis-file-input" type="file" accept="video/*" data-video-analysis-file hidden>
           <button type="button" class="video-analysis-icon-button" data-video-analysis-load title="Load local video">Load</button>
           <button type="button" class="video-analysis-icon-button" data-video-analysis-play ${hasVideo ? "" : "disabled"} title="Play or pause">Play</button>
+          ${canPrepareCopy ? `<button type="button" class="video-analysis-primary-button" data-video-analysis-prepare-playback title="Prepare local playable copy">Prepare</button>` : ""}
         </div>
       </div>
       <div class="video-analysis-video-frame">

@@ -114,6 +114,7 @@ let scoutingComparisonMetricFilterQuery = "";
 let scoutingComparisonCandidatesOpen = false;
 let scoutingComparisonPlayerSearchQuery = "";
 let scoutingLeagueQualityCache = new Map();
+let scoutingDeferredTabSurfaceRenderId = 0;
 let scoutingFilteredDatabaseCache = {
   key: "",
   records: [],
@@ -501,6 +502,8 @@ const scoutingTabController = createScoutingTabController({
     state.shadowXi.selectedSlotId = "";
   },
   startPerformance: startScoutingPerformance,
+  scheduleTabSurfaceRender: scheduleScoutingTabSurfaceRender,
+  shouldDeferTabSurfaceRender: (tabId) => tabId === "database",
   syncTabButtonsDom: syncScoutingTabButtonsDom,
   writeState: writeScoutingState,
 });
@@ -12527,9 +12530,34 @@ function refreshScoutingActiveTabSurface(options = {}) {
   return true;
 }
 function renderScoutingActiveTabSurfaceOrWorkspace(options = {}) {
+  scoutingDeferredTabSurfaceRenderId += 1;
   if (!refreshScoutingActiveTabSurface(options)) {
     renderScoutingWorkspace(options);
   }
+}
+function scheduleScoutingTabSurfaceRender(callback) {
+  if (typeof callback !== "function") {
+    return false;
+  }
+  const win = typeof window !== "undefined" ? window : null;
+  const renderId = scoutingDeferredTabSurfaceRenderId + 1;
+  scoutingDeferredTabSurfaceRenderId = renderId;
+  const run = () => {
+    if (renderId !== scoutingDeferredTabSurfaceRenderId) {
+      return;
+    }
+    callback();
+  };
+  if (!win || typeof win.requestAnimationFrame !== "function") {
+    setTimeout(run, 0);
+    return true;
+  }
+  win.requestAnimationFrame(() => {
+    win.requestAnimationFrame(() => {
+      win.setTimeout(run, 0);
+    });
+  });
+  return true;
 }
 function refreshScoutingWorkspaceSummaryMetrics() {
   if (!ui.scoutingWorkspace) {

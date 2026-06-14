@@ -12,6 +12,20 @@ export function createScoutingTabController(deps = {}) {
     return Array.isArray(tabs) ? tabs : [];
   }
 
+  function renderActiveTabSurface(previousTab, nextTabId) {
+    const render = () => {
+      deps.renderActiveTabSurfaceOrWorkspace?.({ preserveFocus: false });
+    };
+    if (deps.shouldDeferTabSurfaceRender?.(nextTabId, previousTab) === true) {
+      const scheduled = deps.scheduleTabSurfaceRender?.(render, { previousTab, tabId: nextTabId });
+      if (scheduled !== false) {
+        return { deferred: true };
+      }
+    }
+    render();
+    return { deferred: false };
+  }
+
   function setActiveTab(tabId) {
     const state = deps.ensureState?.();
     const nextTabId = normalizeTabId(tabId);
@@ -38,8 +52,8 @@ export function createScoutingTabController(deps = {}) {
 
     deps.writeState?.({ syncCentral: false });
     deps.syncTabButtonsDom?.(state);
-    deps.renderActiveTabSurfaceOrWorkspace?.({ preserveFocus: false });
-    perf?.end?.({ from: previousTab, to: nextTabId });
+    const renderResult = renderActiveTabSurface(previousTab, nextTabId);
+    perf?.end?.({ deferred: renderResult.deferred, from: previousTab, to: nextTabId });
     return { changed: true, previousTab, tabId: nextTabId, status: "updated" };
   }
 

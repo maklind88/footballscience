@@ -506,6 +506,7 @@
 }
 
 .video-analysis-player__meta {
+  display: none;
   color: #627065;
   font-size: 12px;
 }

@@ -109,6 +109,12 @@ function paint(root, state) {
   const displayState = { ...state, clips: visibleClips, allClips: state.clips };
   root.innerHTML = `
     <section class="video-analysis-shell">
+      ${state.message || state.error ? `
+        <div class="video-analysis-notifications" aria-live="polite">
+          ${state.message ? `<p class="video-analysis-toast">${escapeHtml(state.message)}</p>` : ""}
+          ${state.error ? `<p class="video-analysis-error" role="alert">${escapeHtml(state.error)}</p>` : ""}
+        </div>
+      ` : ""}
       ${renderVideoPlayer(displayState)}
       ${renderTimeline(displayState)}
       <section class="video-analysis-workstation">
@@ -124,8 +130,6 @@ function paint(root, state) {
       </section>
       ${renderPlaylistBuilder(state)}
       ${renderPlayerClipDrawer(displayState)}
-      ${state.message ? `<p class="video-analysis-toast">${escapeHtml(state.message)}</p>` : ""}
-      ${state.error ? `<p class="video-analysis-error">${escapeHtml(state.error)}</p>` : ""}
     </section>
   `;
   const video = root.querySelector("[data-video-analysis-video]");

@@ -44,5 +44,14 @@ test("Video Analysis keeps the local video element stable after metadata loads",
 
   await page.locator("[data-video-analysis-play]").click();
   await expect.poll(() => page.evaluate(() => window.__videoPlayCalls)).toBe(1);
+
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "error", { configurable: true, value: { code: 4 } });
+    video.dispatchEvent(new Event("error"));
+  });
+  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("This browser cannot play that video format");
+  await expect(page.locator(".video-analysis-notifications")).toHaveCSS("position", "fixed");
+
   expect(pageErrors).toEqual([]);
 });

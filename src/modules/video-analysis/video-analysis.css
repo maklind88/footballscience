@@ -595,27 +595,40 @@
   padding-left: 18px;
 }
 
+.video-analysis-notifications {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  z-index: 80;
+  display: grid;
+  width: min(720px, calc(100vw - 28px));
+  gap: 8px;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
 .video-analysis-toast,
 .video-analysis-error {
-  position: sticky;
-  bottom: 12px;
-  justify-self: end;
-  max-width: min(480px, 100%);
   margin: 0;
+  border: 1px solid transparent;
   border-radius: 8px;
-  padding: 9px 12px;
-  font-size: 13px;
-  box-shadow: 0 10px 30px rgba(20, 32, 24, 0.14);
+  padding: 11px 14px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+  box-shadow: 0 16px 44px rgba(20, 32, 24, 0.18);
 }
 
 .video-analysis-toast {
   color: #143522;
-  background: #dff3e6;
+  border-color: #b9e5c9;
+  background: rgba(223, 243, 230, 0.96);
 }
 
 .video-analysis-error {
   color: #5b1b1b;
-  background: #fde4df;
+  border-color: #f4bbb2;
+  background: rgba(253, 228, 223, 0.97);
 }
 
 .video-analysis-muted {

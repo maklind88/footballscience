@@ -51,7 +51,7 @@ function resolveRequestPath(url = "/") {
   return filePath;
 }
 
-const server = createServer(async (req, res) => {
+async function handleRequest(req, res) {
   if (req.url?.startsWith("/api/")) {
     sendText(res, 404, JSON.stringify({ ok: false, reason: "API routes are not served by QA static server." }), "application/json; charset=utf-8");
     return;
@@ -88,6 +88,21 @@ const server = createServer(async (req, res) => {
   } catch {
     sendText(res, 404, "Not found");
   }
+}
+
+const server = createServer((req, res) => {
+  handleRequest(req, res).catch((error) => {
+    process.stderr.write(`QA static server request failed: ${error?.message || error}\n`);
+    if (!res.headersSent && !res.destroyed) {
+      sendText(res, 500, "Internal server error");
+      return;
+    }
+    if (!res.destroyed) res.destroy();
+  });
+});
+
+server.on("clientError", (_error, socket) => {
+  socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
 });
 
 server.listen(port, host, () => {

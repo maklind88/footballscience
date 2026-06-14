@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { createPlatformNavigationRenderer } from "../src/modules/platform/navigation-renderer.mjs";
 
 const renderer = createPlatformNavigationRenderer({
@@ -25,6 +26,25 @@ test("Platform navigation renderer owns top icon markup and notification state",
   expect(markup).toContain("top-icon-menu-item is-active has-notification");
   expect(markup).toContain('aria-label="Home, new activity"');
   expect(markup).toContain('data-icon="schedule"');
+});
+
+test("Platform navigation renderer has a dedicated IDP menu symbol", () => {
+  const idpSymbol = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="7" r="3"></circle></svg>';
+  const markup = createPlatformNavigationRenderer({
+    getTopIconSvg: (workspaceId) => (workspaceId === "idp" ? idpSymbol : ""),
+  }).renderTopIconMenu({
+    activeWorkspaceId: "idp",
+    workspaces: [{ id: "idp", title: "IDP" }],
+  });
+  const iconSource = readFileSync(new URL("../top-icons.js", import.meta.url), "utf8");
+
+  expect(markup).toContain('data-open-workspace="idp"');
+  expect(markup).toContain("top-icon-menu-item is-active");
+  expect(markup).toContain('aria-label="IDP"');
+  expect(markup).toContain(idpSymbol);
+  expect(iconSource).toContain('"idp":');
+  expect(iconSource).toContain('<circle cx="8" cy="7" r="3"');
+  expect(iconSource).toContain("M12.4 18.4");
 });
 
 test("Platform navigation renderer owns sidebar primary and overflow markup", () => {

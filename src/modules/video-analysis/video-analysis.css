@@ -603,12 +603,15 @@
   display: grid;
   width: min(720px, calc(100vw - 28px));
   gap: 8px;
-  pointer-events: none;
   transform: translateX(-50%);
 }
 
 .video-analysis-toast,
 .video-analysis-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin: 0;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -629,6 +632,18 @@
   color: #5b1b1b;
   border-color: #f4bbb2;
   background: rgba(253, 228, 223, 0.97);
+}
+
+.video-analysis-error button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 7px;
+  padding: 8px 11px;
+  color: #fff;
+  background: #5b1b1b;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .video-analysis-muted {

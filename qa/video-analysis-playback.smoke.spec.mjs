@@ -50,8 +50,8 @@ test("Video Analysis keeps the local video element stable after metadata loads",
     Object.defineProperty(video, "error", { configurable: true, value: { code: 4 } });
     video.dispatchEvent(new Event("error"));
   });
-  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("MP4 container");
-  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("video stream inside is not browser-playable");
+  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("Prepare a local H.264 playback copy");
+  await expect(page.locator(".video-analysis-error[role='alert'] [data-video-analysis-prepare-playback]")).toBeVisible();
   await expect(page.locator(".video-analysis-toast")).toHaveCount(0);
   await expect(page.locator(".video-analysis-notifications")).toHaveCSS("position", "fixed");
 
@@ -74,8 +74,7 @@ test("Video Analysis warns when a local file appears to use HEVC", async ({ page
   await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
   await expect(page.locator(".video-analysis-player__meta")).toContainText("HEVC/H.265 / MOV");
   await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("HEVC/H.265");
-  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("desktop bridge/transcode");
-  await expect(page.locator("[data-video-analysis-prepare-playback]")).toBeVisible();
+  await expect(page.locator(".video-analysis-error[role='alert'] [data-video-analysis-prepare-playback]")).toBeVisible();
   await expect(page.locator(".video-analysis-notifications")).toHaveCSS("position", "fixed");
   expect(pageErrors).toEqual([]);
 });
@@ -103,7 +102,7 @@ test("Video Analysis samples large MP4 files for codec markers away from the fil
 
   await expect(page.locator(".video-analysis-player__meta")).toContainText("HEVC/H.265 / MP4");
   await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("HEVC/H.265");
-  await expect(page.locator("[data-video-analysis-prepare-playback]")).toBeVisible();
+  await expect(page.locator(".video-analysis-error[role='alert'] [data-video-analysis-prepare-playback]")).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
 
@@ -117,6 +116,6 @@ test("Video Analysis explains when the local transcode bridge is not running", a
     buffer: Buffer.from("ftypqt  moovtrakmdiahdlrstsdhvc1"),
   });
 
-  await page.locator("[data-video-analysis-prepare-playback]").click();
+  await page.locator(".video-analysis-error[role='alert'] [data-video-analysis-prepare-playback]").click();
   await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("Local video bridge is not");
 });

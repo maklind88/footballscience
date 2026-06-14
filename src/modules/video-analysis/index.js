@@ -92,6 +92,11 @@ function shouldLoadMetadata(context = {}, state = {}) {
   return !isLocalStaticHost(context);
 }
 
+function canPreparePlayableCopy(state = {}) {
+  const compatibility = state.videoRef?.playbackCompatibility || {};
+  return Boolean(state.videoRef?.objectUrl && (state.error || compatibility.warning || compatibility.status === "unsupported" || compatibility.status === "uncertain"));
+}
+
 function paint(root, state) {
   const previousVideo = root.querySelector("[data-video-analysis-video]");
   const previousSrc = previousVideo?.currentSrc || previousVideo?.src || "";
@@ -113,7 +118,12 @@ function paint(root, state) {
       ${state.message || state.error ? `
         <div class="video-analysis-notifications" aria-live="polite">
           ${state.message ? `<p class="video-analysis-toast">${escapeHtml(state.message)}</p>` : ""}
-          ${state.error ? `<p class="video-analysis-error" role="alert">${escapeHtml(state.error)}</p>` : ""}
+          ${state.error ? `
+            <div class="video-analysis-error" role="alert">
+              <span>${escapeHtml(state.error)}</span>
+              ${canPreparePlayableCopy(state) ? `<button type="button" data-video-analysis-prepare-playback>Prepare playable copy</button>` : ""}
+            </div>
+          ` : ""}
         </div>
       ` : ""}
       ${renderVideoPlayer(displayState)}

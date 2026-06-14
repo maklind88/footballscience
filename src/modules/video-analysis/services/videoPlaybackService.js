@@ -18,12 +18,12 @@ export function describeVideoPlaybackError(videoElement, videoReference = {}) {
     const container = String(videoReference?.playbackCompatibility?.container || videoReference?.extension || "").toUpperCase();
     const codecLabel = String(videoReference?.playbackCompatibility?.codecLabel || "").trim();
     if (codecLabel) {
-      return `This ${container || "video"} file uses ${codecLabel}, but this browser cannot play that exact codec/profile. Convert it locally to MP4/H.264 or use the desktop bridge/transcode workflow.`;
+      return `This ${container || "video"} uses a ${codecLabel} profile this browser cannot play. Prepare a local H.264 playback copy.`;
     }
     if (container === "MP4" || container === "MOV" || container === "M4V") {
-      return `This is a ${container} container, but the video stream inside is not browser-playable here. It may be HEVC/H.265, ProRes, or another unsupported profile. Convert it locally to MP4/H.264 or use the desktop bridge/transcode workflow.`;
+      return `This ${container} has a video stream this browser cannot play. Prepare a local H.264 playback copy.`;
     }
-    return "This browser cannot play that video stream. Convert it locally to MP4/H.264 or use the desktop bridge/transcode workflow.";
+    return "This browser cannot play that video stream. Prepare a local H.264 playback copy.";
   }
   return "";
 }

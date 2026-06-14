@@ -14,6 +14,7 @@ function json(response, statusCode, payload) {
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,OPTIONS",
     "access-control-allow-headers": "content-type,x-football-science-file-name",
+    "access-control-allow-private-network": "true",
     "content-type": "application/json; charset=utf-8",
   });
   response.end(JSON.stringify(payload));
@@ -101,6 +102,7 @@ async function handlePlayback(url, response) {
     const stat = await fs.stat(playbackPath);
     response.writeHead(200, {
       "access-control-allow-origin": "*",
+      "access-control-allow-private-network": "true",
       "content-length": stat.size,
       "content-type": "video/mp4",
     });

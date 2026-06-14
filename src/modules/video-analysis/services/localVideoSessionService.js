@@ -82,6 +82,11 @@ function hasPersistentIdentity(identity = {}) {
   return Boolean(identity.matchId || identity.videoId || identity.localVideoIdentifier);
 }
 
+function shouldBackfillIdentity(record = {}, identity = {}) {
+  return ["organizationId", "teamId", "matchId", "videoId", "localVideoIdentifier"]
+    .some((key) => text(record[key]) !== text(identity[key]));
+}
+
 export function localVideoStatusPatch(localFileStatus, localFileMessage, extra = {}) {
   return {
     localFileStatus,
@@ -186,6 +191,14 @@ export async function restoreLocalVideoHandleForState({ state = {}, context = {}
         bridgeFallbackRecommended: false,
       }),
     };
+  }
+
+  if (shouldBackfillIdentity(record, identity)) {
+    try {
+      await saveVideoHandle({ ...identity, handle: record.handle, displayName: record.name }, win);
+    } catch {
+      // Restoring playback matters more than repairing a legacy local key.
+    }
   }
 
   const reference = await createLocalVideoReference(file, win);

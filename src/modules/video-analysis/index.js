@@ -336,10 +336,11 @@ function openFileInputFallback(context = {}) {
 async function openLocalVideoPicker(context = {}) {
   const run = ensureRuntime(context);
   const win = context.win || window;
-  run.store.setState(browserFileAccessCapabilities(win));
-  if (browserFileAccessCapabilities(win).fileSystemAccessSupported) {
+  const capabilities = browserFileAccessCapabilities(win);
+  if (capabilities.fileSystemAccessSupported) {
     try {
       const selection = await pickLocalVideoFile(win);
+      run.store.setState(capabilities);
       if (selection?.file) {
         await handleFileSelection(selection.file, context, { handle: selection.handle });
         return true;
@@ -349,16 +350,18 @@ async function openLocalVideoPicker(context = {}) {
       if (isAbortError(error)) return true;
       if (isFilePickerUserGestureError(error) && openFileInputFallback(context)) {
         run.store.setState({
+          ...capabilities,
           status: "ready",
           message: "Choose a local video file.",
           error: "",
         });
         return true;
       }
-      run.store.setState({ status: "error", message: "", error: error.message || "Could not open local video file." });
+      run.store.setState({ ...capabilities, status: "error", message: "", error: error.message || "Could not open local video file." });
       return false;
     }
   }
+  run.store.setState(capabilities);
   return openFileInputFallback(context);
 }
 
@@ -623,12 +626,16 @@ async function handleFileSelection(file, context = {}, options = {}) {
   const run = ensureRuntime(context);
   const previous = run.store.getState().videoRef;
   try {
+    const capabilities = browserFileAccessCapabilities(context.win || window);
     const reference = await createLocalVideoReference(file, context.win || window);
     revokeLocalVideoReference(previous, context.win || window);
     const playbackWarning = reference.playbackCompatibility?.warning || "";
+    const sessionOnlyMessage = capabilities.fileSystemAccessSupported
+      ? "Local file linked for this session. Browser permission was not saved."
+      : "Local file linked for this session. Use Chrome or Edge to remember it on this device.";
     const initialStatusPatch = playbackWarning
       ? localVideoStatusPatch("browser-unplayable", "Browser cannot play this file")
-      : localVideoStatusPatch("restored", options.handle ? "Local file connected on this device" : "Local file linked for this session");
+      : localVideoStatusPatch(options.handle ? "restored" : "session-only", options.handle ? "Local file connected on this device" : sessionOnlyMessage);
     run.store.setState({
       view: "workspace",
       videoRef: reference,
@@ -638,7 +645,7 @@ async function handleFileSelection(file, context = {}, options = {}) {
       error: playbackWarning,
       nativePlaybackReady: false,
       bridgeFallbackRecommended: Boolean(playbackWarning),
-      ...browserFileAccessCapabilities(context.win || window),
+      ...capabilities,
       ...initialStatusPatch,
     });
     const linkState = run.store.getState();

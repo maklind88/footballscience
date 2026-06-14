@@ -28,11 +28,18 @@ export function renderVideoPlayer(state = {}) {
   const showPrepared = Boolean(hasVideo && preparedPlayback);
   const showReconnect = localStatus === "permission-needed" && hasLinkedMetadata;
   const loadLabel = hasVideo ? "Change" : "Link local file";
+  const emptyActionAttribute = showReconnect ? "data-video-analysis-restore-local-file" : "data-video-analysis-load";
+  const emptyActionLabel = showReconnect
+    ? "Reconnect local file"
+    : localStatus === "linked-unavailable"
+      ? "Link local file"
+      : "Load local match video";
   const playbackStatus = state.localFileMessage || ({
     none: "No video linked",
     "linked-unavailable": "Local file linked but not available on this device",
     "permission-needed": "Local file permission needed",
     restored: "Local file connected on this device",
+    "session-only": "Local file linked for this session",
     "native-ready": "Native playback ready",
     "browser-unplayable": "Browser cannot play this file",
     preparing: "Preparing browser-safe copy",
@@ -55,7 +62,7 @@ export function renderVideoPlayer(state = {}) {
         <div class="video-analysis-player__actions">
           <input class="video-analysis-file-input" type="file" accept="video/*" data-video-analysis-file hidden>
           ${showReconnect ? `<button type="button" class="video-analysis-icon-button" data-video-analysis-restore-local-file title="Reconnect local file">Reconnect local file</button>` : ""}
-          <button type="button" class="video-analysis-icon-button" data-video-analysis-load title="Link local video">${loadLabel}</button>
+          ${showReconnect && !hasVideo ? "" : `<button type="button" class="video-analysis-icon-button" data-video-analysis-load title="Link local video">${loadLabel}</button>`}
           ${needsPrepare || showPrepared ? `<button type="button" class="video-analysis-icon-button" data-video-analysis-prepare-playback ${needsPrepare ? "" : "disabled"} title="Prepare browser-safe playback copy">${showPrepared ? "Prepared" : "Prepare"}</button>` : ""}
           <button type="button" class="video-analysis-icon-button" data-video-analysis-play ${hasVideo ? "" : "disabled"} title="Play or pause">Play</button>
         </div>
@@ -65,8 +72,8 @@ export function renderVideoPlayer(state = {}) {
           hasVideo
             ? `<video class="video-analysis-video" data-video-analysis-video src="${escapeHtml(ref.objectUrl)}" controls playsinline></video>`
             : `<div class="video-analysis-empty-video">
-                <button type="button" class="video-analysis-empty-video__button" data-video-analysis-load>
-                  ${localStatus === "linked-unavailable" ? "Link local file" : "Load local match video"}
+                <button type="button" class="video-analysis-empty-video__button" ${emptyActionAttribute}>
+                  ${emptyActionLabel}
                 </button>
               </div>`
         }

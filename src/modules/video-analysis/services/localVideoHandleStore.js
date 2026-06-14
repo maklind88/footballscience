@@ -93,6 +93,34 @@ function matchesCriteria(record = {}, criteria = {}) {
     && (!normalized.localVideoIdentifier || record.localVideoIdentifier === normalized.localVideoIdentifier);
 }
 
+function compatibleScope(recordValue = "", lookupValue = "", fallbackValue = "") {
+  if (!lookupValue || !recordValue) return true;
+  return recordValue === lookupValue || recordValue === fallbackValue || lookupValue === fallbackValue;
+}
+
+function scoreRecordMatch(record = {}, criteria = {}) {
+  const normalized = normalizeLookupCriteria(criteria);
+  if (!hasLookupTarget(normalized)) return 0;
+  if (matchesCriteria(record, normalized)) return 1000;
+
+  const videoMatch = Boolean(normalized.videoId && record.videoId === normalized.videoId);
+  const matchMatch = Boolean(normalized.matchId && record.matchId === normalized.matchId);
+  const identifierMatch = Boolean(normalized.localVideoIdentifier && record.localVideoIdentifier === normalized.localVideoIdentifier);
+  const scopeCompatible = compatibleScope(record.organizationId, normalized.organizationId, "local")
+    && compatibleScope(record.teamId, normalized.teamId, "team");
+
+  if (!scopeCompatible && !videoMatch && !(matchMatch && identifierMatch)) return 0;
+  if (!videoMatch && !matchMatch && !identifierMatch) return 0;
+
+  let score = 0;
+  if (videoMatch) score += 500;
+  if (identifierMatch) score += 350;
+  if (matchMatch) score += 250;
+  if (record.organizationId && normalized.organizationId && record.organizationId === normalized.organizationId) score += 50;
+  if (record.teamId && normalized.teamId && record.teamId === normalized.teamId) score += 50;
+  return score;
+}
+
 export function isFileSystemAccessSupported(win = window) {
   return typeof win?.showOpenFilePicker === "function";
 }
@@ -143,7 +171,13 @@ export async function getVideoHandle(criteria = {}, win = window) {
     }
   }
   const records = await allRecords(win);
-  return records.find((record) => matchesCriteria(record, criteria)) || null;
+  return records
+    .map((record) => ({ record, score: scoreRecordMatch(record, criteria) }))
+    .filter((entry) => entry.score > 0)
+    .sort((first, second) => (
+      second.score - first.score
+      || String(second.record.updatedAt || "").localeCompare(String(first.record.updatedAt || ""))
+    ))[0]?.record || null;
 }
 
 export async function removeVideoHandle(criteria = {}, win = window) {

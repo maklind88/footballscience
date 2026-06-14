@@ -44,12 +44,28 @@ test("local video handle store saves, restores, lists and removes IndexedDB hand
     const saved = await store.saveVideoHandle({ ...identity, handle });
     const found = await store.getVideoHandle(identity);
     const listed = await store.listVideoHandlesForMatch({ organizationId: "org-1", teamId: "team-1", matchId: "match-1" });
+    await store.saveVideoHandle({
+      organizationId: "local",
+      teamId: "team",
+      matchId: "match-legacy",
+      videoId: "video-legacy",
+      localVideoIdentifier: "local-video-legacy",
+      handle: { kind: "file", name: "legacy-match.mp4" },
+    });
+    const legacyFound = await store.getVideoHandle({
+      organizationId: "org-live",
+      teamId: "team-live",
+      matchId: "match-legacy",
+      videoId: "video-legacy",
+      localVideoIdentifier: "local-video-legacy",
+    });
     const removed = await store.removeVideoHandle(identity);
     const afterRemove = await store.getVideoHandle(identity);
     return {
       savedName: saved.name,
       foundName: found.handle.name,
       listedCount: listed.length,
+      legacyFoundName: legacyFound.handle.name,
       removed,
       afterRemove,
     };
@@ -59,6 +75,7 @@ test("local video handle store saves, restores, lists and removes IndexedDB hand
     savedName: "match.mp4",
     foundName: "match.mp4",
     listedCount: 1,
+    legacyFoundName: "legacy-match.mp4",
     removed: true,
     afterRemove: null,
   });
@@ -174,6 +191,31 @@ test("missing local file metadata shows link state instead of bridge-first prepa
   await expect(page.locator(".video-analysis-player__meta")).toContainText("Local file linked but not available on this device");
   await expect(page.locator(".video-analysis-empty-video [data-video-analysis-load]")).toContainText("Link local file");
   await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
+});
+
+test("permission-needed local handles show reconnect instead of a new link flow", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__videoAnalysisInitialState = {
+      status: "ready",
+      view: "workspace",
+      match: { id: "match-permission", title: "Permission match" },
+      video: { id: "video-permission", match_id: "match-permission" },
+      source: {
+        id: "source-permission",
+        match_id: "match-permission",
+        video_id: "video-permission",
+        local_video_identifier: "local-video-permission",
+      },
+      localFileStatus: "permission-needed",
+      localFileMessage: "Local file permission needed",
+    };
+  });
+
+  await page.goto("/qa/video-analysis-browser-smoke.html?permission-needed=1", { waitUntil: "domcontentloaded" });
+
+  await expect(page.locator(".video-analysis-empty-video [data-video-analysis-restore-local-file]")).toContainText("Reconnect local file");
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-restore-local-file]")).toContainText("Reconnect local file");
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-load]")).toHaveCount(0);
 });
 
 test("unsupported File System Access browsers keep the file input fallback", async ({ page }) => {

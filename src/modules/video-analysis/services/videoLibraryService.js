@@ -7,6 +7,40 @@ function dateValue(value = "") {
   return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : "";
 }
 
+function dateSearchTerms(value = "") {
+  const date = dateValue(value);
+  if (!date) return [];
+  const [year, month, day] = date.split("-");
+  const monthIndex = Math.max(0, Number(month) - 1);
+  const shortMonths = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  const longMonths = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+  ];
+  const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const weekdayIndex = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return [
+    date,
+    `${day}/${month}/${year}`,
+    `${day}/${month}`,
+    `${year}-${month}`,
+    shortMonths[monthIndex],
+    longMonths[monthIndex],
+    weekdays[weekdayIndex],
+    "day",
+  ];
+}
+
 function eventType(value = "") {
   const type = text(value).toLowerCase();
   return type === "match" ? "match" : "training";
@@ -134,7 +168,10 @@ export function filterVideoLibraryItems(items = [], filters = {}) {
     return [
       item.title,
       item.matchDate,
+      ...dateSearchTerms(item.matchDate),
       item.eventType,
+      `${item.eventType} day`,
+      item.hasVideo ? "video linked local video" : "needs video no video linked",
       item.opponent,
       item.competition,
       item.venue,

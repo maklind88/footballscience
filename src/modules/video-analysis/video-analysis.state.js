@@ -25,7 +25,8 @@ export function normalizeVideoAnalysisPlayers(state = {}) {
 
 export function createInitialVideoAnalysisState(context = {}) {
   const template = createDefaultCodingTemplate();
-  return {
+  const win = context.win || globalThis.window;
+  const initialState = {
     status: "idle",
     canEdit: Boolean(context.canEdit?.()),
     players: normalizeVideoAnalysisPlayers(context.getPlayerProfilesState?.()),
@@ -34,6 +35,12 @@ export function createInitialVideoAnalysisState(context = {}) {
       active: false,
       token: "",
     },
+    localFileStatus: "none",
+    localFileMessage: "No video linked",
+    localFileHandleIdentity: null,
+    fileSystemAccessSupported: typeof win?.showOpenFilePicker === "function",
+    nativePlaybackReady: false,
+    bridgeFallbackRecommended: false,
     match: null,
     video: null,
     source: null,
@@ -93,5 +100,9 @@ export function createInitialVideoAnalysisState(context = {}) {
     reviewSections: createReviewSections(),
     message: "",
     error: "",
+  };
+  return {
+    ...initialState,
+    ...(context.videoAnalysisInitialState || context.initialVideoAnalysisState || {}),
   };
 }

@@ -1,4 +1,10 @@
 import { expect, test } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const h264Mp4Fixture = fs.readFileSync(path.join(rootDir, "reference-copy.mp4"));
 
 test("Video Analysis keeps the local video element stable after metadata loads", async ({ page }) => {
   const pageErrors = [];
@@ -21,22 +27,18 @@ test("Video Analysis keeps the local video element stable after metadata loads",
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "match.mp4",
     mimeType: "video/mp4",
-    buffer: Buffer.from("football-science-local-video-smoke"),
+    buffer: h264Mp4Fixture,
   });
 
   await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
-  await expect(page.locator(".video-analysis-player__meta")).toContainText("Ready on this device");
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("Native playback ready");
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
 
-  await page.evaluate(() => {
-    const video = document.querySelector("[data-video-analysis-video]");
-    Object.defineProperty(video, "duration", { configurable: true, value: 12.345 });
-    video.dispatchEvent(new Event("loadedmetadata"));
-  });
-  await expect(page.locator(".video-analysis-player__meta")).toContainText("0:12");
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("Native playback ready");
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
 
   const stableAfterSameMetadata = await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
-    Object.defineProperty(video, "duration", { configurable: true, value: 12.345 });
     video.dispatchEvent(new Event("loadedmetadata"));
     return video === document.querySelector("[data-video-analysis-video]");
   });
@@ -56,6 +58,36 @@ test("Video Analysis keeps the local video element stable after metadata loads",
   await expect(page.locator(".video-analysis-notifications")).toHaveCSS("position", "fixed");
 
   expect(pageErrors).toEqual([]);
+});
+
+test("Video Analysis tries native H264 MP4 playback before offering bridge prepare", async ({ page }) => {
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  await page.locator("[data-video-analysis-file]").setInputFiles({
+    name: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+    mimeType: "video/mp4",
+    buffer: h264Mp4Fixture,
+  });
+
+  await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("H.264 / MP4");
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
+
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "duration", { configurable: true, value: 55.5 });
+    video.dispatchEvent(new Event("loadedmetadata"));
+  });
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("Native playback ready");
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
+
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "error", { configurable: true, value: { code: 4 } });
+    video.dispatchEvent(new Event("error"));
+  });
+  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("Prepare a local H.264 playback copy");
+  await expect(page.locator(".video-analysis-error[role='alert'] [data-video-analysis-prepare-playback]")).toBeVisible();
 });
 
 test("Video Analysis lets coaches load and reload a local match from the empty player", async ({ page }) => {

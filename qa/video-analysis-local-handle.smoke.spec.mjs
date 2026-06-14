@@ -1,0 +1,169 @@
+import { expect, test } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const h264Mp4FixtureBase64 = fs.readFileSync(path.join(rootDir, "reference-copy.mp4")).toString("base64");
+
+async function clearHandleDatabase(page) {
+  await page.evaluate(() => new Promise((resolve, reject) => {
+    const request = indexedDB.deleteDatabase("football-science-video-handles");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(true);
+    request.onblocked = () => resolve(false);
+  }));
+}
+
+test("local video handle store saves, restores, lists and removes IndexedDB handles", async ({ page }) => {
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+  await clearHandleDatabase(page);
+
+  const result = await page.evaluate(async () => {
+    const store = await import("/src/modules/video-analysis/services/localVideoHandleStore.js");
+    const handle = { kind: "file", name: "match.mp4" };
+    const identity = {
+      organizationId: "org-1",
+      teamId: "team-1",
+      matchId: "match-1",
+      videoId: "video-1",
+      localVideoIdentifier: "local-video-1",
+    };
+    const saved = await store.saveVideoHandle({ ...identity, handle });
+    const found = await store.getVideoHandle(identity);
+    const listed = await store.listVideoHandlesForMatch({ organizationId: "org-1", teamId: "team-1", matchId: "match-1" });
+    const removed = await store.removeVideoHandle(identity);
+    const afterRemove = await store.getVideoHandle(identity);
+    return {
+      savedName: saved.name,
+      foundName: found.handle.name,
+      listedCount: listed.length,
+      removed,
+      afterRemove,
+    };
+  });
+
+  expect(result).toEqual({
+    savedName: "match.mp4",
+    foundName: "match.mp4",
+    listedCount: 1,
+    removed: true,
+    afterRemove: null,
+  });
+});
+
+test("local video permission helpers verify and request read access", async ({ page }) => {
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  const result = await page.evaluate(async () => {
+    const store = await import("/src/modules/video-analysis/services/localVideoHandleStore.js");
+    const calls = [];
+    const handle = {
+      queryPermission: async (options) => {
+        calls.push(`query:${options.mode}`);
+        return "prompt";
+      },
+      requestPermission: async (options) => {
+        calls.push(`request:${options.mode}`);
+        return "granted";
+      },
+    };
+    return {
+      first: await store.verifyPermission(handle),
+      second: await store.requestPermission(handle),
+      calls,
+    };
+  });
+
+  expect(result).toEqual({
+    first: "prompt",
+    second: "granted",
+    calls: ["query:read", "request:read"],
+  });
+});
+
+test("video analysis restores a persisted File System Access handle after refresh", async ({ page }) => {
+  const identity = {
+    organizationId: "local",
+    teamId: "team",
+    matchId: "match-restore",
+    videoId: "video-restore",
+    localVideoIdentifier: "local-video-restore",
+  };
+
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+  await clearHandleDatabase(page);
+
+  const setup = await page.evaluate(async ({ identityPayload, fixtureBase64 }) => {
+    if (!navigator.storage?.getDirectory) return { supported: false };
+    const root = await navigator.storage.getDirectory();
+    const handle = await root.getFileHandle("restore-match.mp4", { create: true });
+    const writable = await handle.createWritable();
+    const binary = atob(fixtureBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    await writable.write(new File([bytes], "restore-match.mp4", { type: "video/mp4" }));
+    await writable.close();
+    const store = await import("/src/modules/video-analysis/services/localVideoHandleStore.js");
+    await store.saveVideoHandle({ ...identityPayload, handle });
+    return { supported: true };
+  }, { identityPayload: identity, fixtureBase64: h264Mp4FixtureBase64 });
+
+  test.skip(!setup.supported, "Origin Private File System handles are not available in this browser.");
+
+  await page.addInitScript((identityPayload) => {
+    window.__videoAnalysisInitialState = {
+      match: { id: identityPayload.matchId, title: "Restore match" },
+      video: { id: identityPayload.videoId, match_id: identityPayload.matchId },
+      source: {
+        id: "source-restore",
+        match_id: identityPayload.matchId,
+        video_id: identityPayload.videoId,
+        local_video_identifier: identityPayload.localVideoIdentifier,
+      },
+    };
+  }, identity);
+
+  await page.goto("/qa/video-analysis-browser-smoke.html?restore=1", { waitUntil: "domcontentloaded" });
+
+  await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await expect(page.locator(".video-analysis-player h2")).toContainText("restore-match.mp4");
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("Native playback ready");
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
+});
+
+test("missing local file metadata shows link state instead of bridge-first prepare", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__videoAnalysisInitialState = {
+      match: { id: "match-missing", title: "Missing local file" },
+      video: { id: "video-missing", match_id: "match-missing" },
+      source: {
+        id: "source-missing",
+        match_id: "match-missing",
+        video_id: "video-missing",
+        local_video_identifier: "local-video-missing",
+      },
+    };
+  });
+
+  await page.goto("/qa/video-analysis-browser-smoke.html?missing=1", { waitUntil: "domcontentloaded" });
+  await clearHandleDatabase(page);
+  await page.reload({ waitUntil: "domcontentloaded" });
+
+  await expect(page.locator("[data-video-analysis-video]")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("Local file linked but not available on this device");
+  await expect(page.locator(".video-analysis-empty-video [data-video-analysis-load]")).toContainText("Link local file");
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
+});
+
+test("unsupported File System Access browsers keep the file input fallback", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "showOpenFilePicker", { configurable: true, value: undefined });
+  });
+
+  await page.goto("/qa/video-analysis-browser-smoke.html?fallback=1", { waitUntil: "domcontentloaded" });
+
+  await expect(page.locator("[data-video-analysis-file]")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-load]")).toContainText("Link local file");
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
+});

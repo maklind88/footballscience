@@ -118,7 +118,9 @@ async function sha256(text) {
 }
 
 export async function createLocalVideoReference(file, win = window) {
-  if (!file?.type?.startsWith("video/")) {
+  const extension = fileExtension(file?.name);
+  const knownVideoExtension = ["mp4", "mov", "m4v", "webm", "avi", "mkv"].includes(extension);
+  if (!file?.type?.startsWith("video/") && !knownVideoExtension) {
     throw new Error("Choose a video file.");
   }
   const displayName = sanitizeDisplayName(file.name);
@@ -131,7 +133,7 @@ export async function createLocalVideoReference(file, win = window) {
     durationMs: 0,
     fileSizeBytes: file.size,
     mimeType: String(file.type || ""),
-    extension: fileExtension(file.name),
+    extension,
     playbackCompatibility,
     objectUrl,
   });

@@ -30,6 +30,8 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/services/taggingService.js",
     "src/modules/video-analysis/services/playlistService.js",
     "src/modules/video-analysis/services/localVideoBridgeService.js",
+    "src/modules/video-analysis/services/localVideoHandleStore.js",
+    "src/modules/video-analysis/services/localVideoSessionService.js",
     "src/modules/video-analysis/services/codingTemplateService.js",
     "src/modules/video-analysis/services/timelineService.js",
     "src/modules/video-analysis/services/clipIntelligenceService.js",
@@ -100,4 +102,33 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(intelligence).toContain("Phase x Outcome");
   expect(intelligence).toContain("Principle x Player");
   expect(intelligence).toContain("Mini-game x Unit");
+});
+
+test("local video architecture remains browser-first with bridge fallback only", () => {
+  const handleStore = read("src/modules/video-analysis/services/localVideoHandleStore.js");
+  const sessionService = read("src/modules/video-analysis/services/localVideoSessionService.js");
+  const player = read("src/modules/video-analysis/components/VideoPlayer.js");
+
+  expect(handleStore).toContain("showOpenFilePicker");
+  expect(handleStore).toContain("indexedDB.open");
+  for (const exportName of ["saveVideoHandle", "getVideoHandle", "removeVideoHandle", "listVideoHandlesForMatch", "verifyPermission", "requestPermission"]) {
+    expect(handleStore).toContain(`export async function ${exportName}`);
+  }
+  expect(sessionService).toContain("restoreLocalVideoHandleForState");
+  expect(sessionService).toContain("persistLocalVideoHandle");
+  expect(sessionService).not.toContain("createPlayableLocalCopy");
+  expect(player).toContain("data-video-analysis-prepare-playback");
+  expect(player).toContain("bridgeFallbackRecommended");
+  expect(read("src/modules/video-analysis/components/VideoPlayer.js")).not.toMatch(/showOpenFilePicker|indexedDB|createPlayableLocalCopy|fetch\(/);
+});
+
+test("production CSP allows only the narrow local video bridge endpoints", () => {
+  const vercel = JSON.parse(read("vercel.json"));
+  const csp = vercel.headers
+    .flatMap((entry) => entry.headers || [])
+    .find((header) => header.key === "Content-Security-Policy")?.value || "";
+  expect(csp).toContain("http://127.0.0.1:47831");
+  expect(csp).toContain("http://localhost:47831");
+  expect(csp).not.toMatch(/http:\/\/localhost:\*/);
+  expect(csp).not.toMatch(/http:\/\/127\.0\.0\.1:\*/);
 });

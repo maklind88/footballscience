@@ -18,6 +18,15 @@ import { applyCodingButtonToDraft, buildInstantClipRange, findTemplateButton } f
 import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.js";
 import { createLocalVideoReference, revokeLocalVideoReference } from "./services/localVideoBridgeService.js";
 import { createPlayableLocalCopy } from "./services/localPlaybackTranscodeService.js";
+import {
+  browserFileAccessCapabilities,
+  buildLocalVideoHandleIdentity,
+  isPreparedPlaybackUrl,
+  localVideoStatusPatch,
+  persistLocalVideoHandle,
+  pickLocalVideoFile,
+  restoreLocalVideoHandleForState,
+} from "./services/localVideoSessionService.js";
 import { addClipToReviewSection, buildReviewSessionPayload, removeClipFromReviewSection, updateReviewSectionNote } from "./services/reviewSessionService.js";
 import { trimClipDraft } from "./services/timelineService.js";
 import { describeVideoPlaybackError, getVideoCurrentMs, seekVideoToMs, toggleVideoPlayback } from "./services/videoPlaybackService.js";
@@ -67,13 +76,51 @@ function updateVideoDuration(durationMs = 0) {
   });
 }
 
+function isAbortError(error) {
+  return error?.name === "AbortError";
+}
+
+function isBridgeNotRunningError(error) {
+  return /^Local video bridge is not/i.test(String(error?.message || error || ""));
+}
+
+function markNativePlaybackReady(video) {
+  const state = runtime?.store.getState();
+  if (!state?.videoRef || video?.error) return;
+  if (state.bridgeFallbackRecommended || state.localFileStatus === "browser-unplayable" || state.localFileStatus === "bridge-not-running") return;
+  const compatibility = state.videoRef.playbackCompatibility || {};
+  if (compatibility.warning || compatibility.status === "unsupported") return;
+  const preparedPlayback = isPreparedPlaybackUrl(state.videoRef.objectUrl);
+  const nextStatus = preparedPlayback ? "prepared" : "native-ready";
+  if (state.nativePlaybackReady && state.localFileStatus === nextStatus && !state.error) return;
+  runtime?.store.update((current) => ({
+    ...current,
+    status: current.status === "preparing-playback" ? current.status : "ready",
+    message: current.message,
+    error: "",
+    nativePlaybackReady: true,
+    bridgeFallbackRecommended: false,
+    ...localVideoStatusPatch(
+      nextStatus,
+      preparedPlayback ? "Prepared copy ready" : "Native playback ready"
+    ),
+  }));
+}
+
 function setVideoPlaybackError(video) {
   const state = runtime?.store.getState();
   if (shouldPreservePlaybackPreparation(state)) return;
   const message = state?.videoRef?.playbackCompatibility?.warning || describeVideoPlaybackError(video, state?.videoRef);
   if (!message) return;
   if (state?.status === "error" && state.error === message) return;
-  runtime?.store.setState({ status: "error", message: "", error: message });
+  runtime?.store.setState({
+    status: "error",
+    message: "",
+    error: message,
+    nativePlaybackReady: false,
+    bridgeFallbackRecommended: true,
+    ...localVideoStatusPatch("browser-unplayable", "Browser cannot play this file"),
+  });
 }
 
 function togglePlayback(context = {}) {
@@ -98,21 +145,98 @@ function shouldPreservePlaybackPreparation(state = {}) {
   return Boolean(
     state.playbackPreparation?.active
     || state.status === "preparing-playback"
+    || state.bridgeFallbackRecommended
+    || state.localFileStatus === "browser-unplayable"
+    || state.localFileStatus === "bridge-not-running"
     || String(state.error || "").startsWith("Local video bridge")
   );
 }
 
 function canPreparePlayableCopy(state = {}) {
   const compatibility = state.videoRef?.playbackCompatibility || {};
-  return Boolean(state.videoRef?.objectUrl && (state.error || compatibility.warning || compatibility.status === "unsupported" || compatibility.status === "uncertain"));
+  return Boolean(
+    state.videoRef?.objectUrl
+    && !isPreparedPlaybackUrl(state.videoRef.objectUrl)
+    && (
+      state.bridgeFallbackRecommended
+      || state.error
+      || compatibility.warning
+      || compatibility.status === "unsupported"
+      || compatibility.status === "uncertain"
+    )
+  );
 }
 
-function openLocalVideoPicker(context = {}) {
+async function openLocalVideoPicker(context = {}) {
+  const run = ensureRuntime(context);
+  const win = context.win || window;
+  run.store.setState(browserFileAccessCapabilities(win));
+  if (browserFileAccessCapabilities(win).fileSystemAccessSupported) {
+    try {
+      const selection = await pickLocalVideoFile(win);
+      if (selection?.file) {
+        await handleFileSelection(selection.file, context, { handle: selection.handle });
+        return true;
+      }
+      return true;
+    } catch (error) {
+      if (isAbortError(error)) return true;
+      run.store.setState({ status: "error", message: "", error: error.message || "Could not open local video file." });
+      return false;
+    }
+  }
   const fileInput = getRoot(context)?.querySelector("[data-video-analysis-file]");
   if (!fileInput) return false;
   fileInput.value = "";
   fileInput.click();
   return true;
+}
+
+async function restoreLocalVideoHandle(context = {}, options = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  run.store.update((current) => ({
+    ...current,
+    status: "restoring-local-video",
+    message: options.silent ? current.message : "Restoring local file connection.",
+    error: "",
+    ...browserFileAccessCapabilities(context.win || window),
+  }));
+  try {
+    const result = await restoreLocalVideoHandleForState({
+      state,
+      context,
+      requestReadPermission: Boolean(options.requestPermission),
+    });
+    if (result.ok && result.reference) {
+      revokeLocalVideoReference(state.videoRef, context.win || window);
+      run.store.update((current) => ({
+        ...current,
+        videoRef: result.reference,
+        ...result.patch,
+        status: "ready",
+        message: options.silent ? current.message : "Local file connected on this device.",
+        error: "",
+      }));
+      return true;
+    }
+    run.store.update((current) => ({
+      ...current,
+      ...result.patch,
+      status: current.status === "restoring-local-video" ? "ready" : current.status,
+      message: options.silent ? "" : result.patch?.localFileMessage || current.message,
+      error: "",
+    }));
+    return false;
+  } catch (error) {
+    run.store.setState({
+      status: "error",
+      message: "",
+      error: error.message || "Could not restore the local file connection.",
+      nativePlaybackReady: false,
+    });
+    return false;
+  }
 }
 
 function paint(root, state) {
@@ -165,6 +289,7 @@ function paint(root, state) {
     handleFileSelection,
     openLocalVideoPicker,
     preparePlayableCopy,
+    restoreLocalVideoHandle,
     togglePlayback,
   });
   const video = root.querySelector("[data-video-analysis-video]");
@@ -199,6 +324,7 @@ function paint(root, state) {
     };
     video.addEventListener("loadedmetadata", () => {
       updateVideoDuration(Math.round(Number(video.duration || 0) * 1000));
+      markNativePlaybackReady(video);
     }, { once: true });
     video.addEventListener("error", () => setVideoPlaybackError(video), { once: true });
   }
@@ -210,10 +336,19 @@ async function loadClips(nextFilters = null) {
   const state = run.store.getState();
   const filters = nextFilters || state.filters;
   if (!shouldLoadMetadata(run.context, state)) {
-    run.store.setState({ status: "ready", filters, error: "" });
+    const preservePlaybackPreparation = shouldPreservePlaybackPreparation(state);
+    run.store.setState({
+      status: preservePlaybackPreparation ? state.status : "ready",
+      filters,
+      error: preservePlaybackPreparation ? state.error : "",
+    });
     return;
   }
-  run.store.setState({ status: "loading-clips", error: "" });
+  const preservePlaybackPreparation = shouldPreservePlaybackPreparation(state);
+  run.store.setState({
+    status: "loading-clips",
+    error: preservePlaybackPreparation ? state.error : "",
+  });
   try {
     const payload = await run.clips.list({
       search: filters.search,
@@ -260,10 +395,11 @@ async function loadSavedSearches() {
 
 async function initialize(context = {}) {
   const run = ensureRuntime(context);
-  run.store.setState({ status: "loading", error: "" });
+  run.store.setState({ status: "loading", error: "", ...browserFileAccessCapabilities(context.win || window) });
   try {
     await loadClips();
     await loadSavedSearches();
+    await restoreLocalVideoHandle(context, { silent: true });
   } catch (error) {
     run.store.setState({ status: "ready", error: error.message || "" });
   }
@@ -291,25 +427,38 @@ export function render(context = {}) {
   if (run.store.getState().status === "idle") initialize(context);
 }
 
-async function handleFileSelection(file, context = {}) {
+async function handleFileSelection(file, context = {}, options = {}) {
   const run = ensureRuntime(context);
   const previous = run.store.getState().videoRef;
   try {
     const reference = await createLocalVideoReference(file, context.win || window);
     revokeLocalVideoReference(previous, context.win || window);
     const playbackWarning = reference.playbackCompatibility?.warning || "";
+    const initialStatusPatch = playbackWarning
+      ? localVideoStatusPatch("browser-unplayable", "Browser cannot play this file")
+      : localVideoStatusPatch("restored", options.handle ? "Local file connected on this device" : "Local file linked for this session");
     run.store.setState({
       videoRef: reference,
       playbackPreparation: { active: false, token: "" },
       status: playbackWarning ? "error" : "saving-source",
       message: playbackWarning ? "" : "Local video linked.",
       error: playbackWarning,
+      nativePlaybackReady: false,
+      bridgeFallbackRecommended: Boolean(playbackWarning),
+      ...browserFileAccessCapabilities(context.win || window),
+      ...initialStatusPatch,
     });
     const payload = await run.videos.createLocalVideoSource({
       displayName: reference.displayName,
       localVideoIdentifier: reference.localVideoIdentifier,
       fileSizeBytes: reference.fileSizeBytes,
       durationMs: reference.durationMs,
+    });
+    const identity = buildLocalVideoHandleIdentity(run.store.getState(), context, {
+      match: payload.match,
+      video: payload.video,
+      source: payload.source,
+      reference,
     });
     run.store.update((state) => {
       const preservePlaybackPreparation = shouldPreservePlaybackPreparation(state);
@@ -318,11 +467,34 @@ async function handleFileSelection(file, context = {}) {
         match: payload.match || state.match || { id: payload.video?.match_id, title: reference.displayName },
         video: payload.video,
         source: payload.source,
+        localFileHandleIdentity: identity,
         status: preservePlaybackPreparation ? state.status : playbackWarning ? "error" : "ready",
         message: preservePlaybackPreparation ? state.message : playbackWarning ? "" : "Video metadata saved.",
         error: preservePlaybackPreparation ? state.error : playbackWarning,
+        bridgeFallbackRecommended: Boolean(playbackWarning),
       };
     });
+    if (options.handle) {
+      try {
+        await persistLocalVideoHandle({
+          state: run.store.getState(),
+          context,
+          handle: options.handle,
+          reference,
+          payload,
+        });
+        run.store.update((state) => ({
+          ...state,
+          localFileHandleIdentity: identity,
+          localFileMessage: playbackWarning ? state.localFileMessage : "Local file connected on this device",
+        }));
+      } catch {
+        run.store.update((state) => ({
+          ...state,
+          localFileMessage: "Local file linked for this session. Browser could not remember the file handle.",
+        }));
+      }
+    }
     await loadClips();
   } catch (error) {
     run.store.setState({ status: "error", error: error.message || "Could not load video." });
@@ -359,6 +531,9 @@ async function preparePlayableCopy(context = {}) {
       message: "",
       error: "Reload the original local file before preparing a playable copy.",
       playbackPreparation: { active: false, token: "" },
+      nativePlaybackReady: false,
+      bridgeFallbackRecommended: true,
+      ...localVideoStatusPatch("browser-unplayable", "Browser cannot play this file"),
     });
     return false;
   }
@@ -368,6 +543,9 @@ async function preparePlayableCopy(context = {}) {
     status: "preparing-playback",
     message: "Preparing local playback copy.",
     error: "",
+    nativePlaybackReady: false,
+    bridgeFallbackRecommended: true,
+    ...localVideoStatusPatch("preparing", "Preparing browser-safe copy"),
     playbackPreparation: { active: true, token },
   }));
   try {
@@ -378,6 +556,9 @@ async function preparePlayableCopy(context = {}) {
       status: "ready",
       message: "Playable local copy ready.",
       error: "",
+      nativePlaybackReady: true,
+      bridgeFallbackRecommended: false,
+      ...localVideoStatusPatch("prepared", "Prepared copy ready"),
       playbackPreparation: { active: false, token: "" },
     }));
     return true;
@@ -387,6 +568,12 @@ async function preparePlayableCopy(context = {}) {
       status: "error",
       message: "",
       error: error.message || "Could not prepare playable copy.",
+      nativePlaybackReady: false,
+      bridgeFallbackRecommended: true,
+      ...localVideoStatusPatch(
+        isBridgeNotRunningError(error) ? "bridge-not-running" : "browser-unplayable",
+        isBridgeNotRunningError(error) ? "Bridge not running" : "Browser cannot play this file"
+      ),
       playbackPreparation: { active: false, token: "" },
     }));
     return false;
@@ -424,6 +611,10 @@ export function handleClick(event, context = {}) {
   if (!target?.closest) return false;
   if (target.closest("[data-video-analysis-load]")) {
     openLocalVideoPicker(context);
+    return true;
+  }
+  if (target.closest("[data-video-analysis-restore-local-file]")) {
+    restoreLocalVideoHandle(context, { requestPermission: true });
     return true;
   }
   if (target.closest("[data-video-analysis-play]")) {

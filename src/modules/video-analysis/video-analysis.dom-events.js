@@ -44,6 +44,11 @@ export function bindPaintedVideoControls(root, actions = {}) {
       actions.openLocalVideoPicker?.(contextForRoot(root));
     }));
   });
+  root.querySelectorAll("[data-video-analysis-restore-local-file]").forEach((button) => {
+    button.addEventListener("click", (event) => handleDirectControlEvent(event, () => {
+      actions.restoreLocalVideoHandle?.(contextForRoot(root), { requestPermission: true });
+    }));
+  });
   root.querySelectorAll("[data-video-analysis-play]").forEach((button) => {
     button.addEventListener("click", (event) => handleDirectControlEvent(event, () => {
       actions.togglePlayback?.(contextForRoot(root));

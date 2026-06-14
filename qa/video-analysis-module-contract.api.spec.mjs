@@ -48,6 +48,11 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/domain/codingSchema.model.js",
     "src/modules/video-analysis/domain/playlist.model.js",
     "src/modules/video-analysis/domain/videoSource.model.js",
+    "src/modules/video-analysis/timeline/index.js",
+    "src/modules/video-analysis/timeline/timeline.constants.js",
+    "src/modules/video-analysis/timeline/timeline.renderer.js",
+    "src/modules/video-analysis/timeline/timeline.selectors.js",
+    "src/modules/video-analysis/timeline/timeline.service.js",
   ]) {
     expect(fs.existsSync(path.join(rootDir, relativePath)), relativePath).toBe(true);
   }
@@ -99,10 +104,14 @@ test("video analysis module exports the runtime handlers", async () => {
 
 test("video analysis workstation keeps controls out of the video player", () => {
   const templateBuilder = read("src/modules/video-analysis/components/CodingTemplateBuilder.js");
-  const timeline = read("src/modules/video-analysis/components/Timeline.js");
+  const timelineWrapper = read("src/modules/video-analysis/components/Timeline.js");
+  const timeline = read("src/modules/video-analysis/timeline/timeline.renderer.js");
   const intelligence = read("src/modules/video-analysis/components/ClipIntelligence.js");
   expect(templateBuilder).toContain("data-video-analysis-code-button");
   expect(templateBuilder).toContain("data-video-analysis-mode");
+  expect(timelineWrapper).toContain("../timeline/index.js");
+  expect(timeline).toContain("data-video-analysis-timeline-module");
+  expect(timeline).toContain("data-video-analysis-timeline-lane");
   expect(timeline).toContain("video-analysis-clip-block");
   expect(timeline).toContain("data-video-analysis-zoom");
   expect(intelligence).toContain("Phase x Outcome");

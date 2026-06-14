@@ -147,6 +147,23 @@ test("Video Analysis shows a schedule-aware library and autosaves day links", as
   ).some((request) => request.action === "update-match-link" && request.body.scheduleEventId === "schedule-training-1"))).toBe(true);
 });
 
+test("Video Analysis renders the FS Player Timeline module with lanes and clip blocks", async ({ page }) => {
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+
+  await page.locator('[data-video-analysis-open-library-item^="match:"]').first().click();
+  await expect(page.locator("[data-video-analysis-timeline-module]")).toBeVisible();
+  await expect(page.locator(".video-analysis-timeline-ruler")).toBeVisible();
+  await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("Team Principle");
+  await expect(page.locator(".video-analysis-clip-block").first()).toBeVisible();
+  await expect(page.locator(".video-analysis-playhead").first()).toBeVisible();
+  const firstClipStyle = await page.locator(".video-analysis-clip-block").first().getAttribute("style");
+  expect(firstClipStyle).not.toContain("left:99.5%");
+
+  await page.locator('[data-video-analysis-timeline-lane="outcome"]').click();
+  await expect(page.locator('[data-video-analysis-timeline-lane="outcome"]')).toHaveClass(/is-active/);
+  await expect(page.locator(".video-analysis-lane__label").first()).toContainText(/Positive|Development|Neutral/);
+});
+
 test("Video Analysis clears a codec warning when native playback succeeds", async ({ page }) => {
   await installDeterministicMedia(page);
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });

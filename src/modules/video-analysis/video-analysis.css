@@ -511,29 +511,111 @@
   font-size: 12px;
 }
 
-.video-analysis-timeline {
-  padding-bottom: 12px;
+.video-analysis-timeline-module {
+  overflow: hidden;
 }
 
-.video-analysis-timeline-track {
+.video-analysis-timeline-header {
+  border-bottom: 1px solid #e2e8e3;
+}
+
+.video-analysis-timeline-header h3 {
+  font-size: 17px;
+}
+
+.video-analysis-timeline-summary,
+.video-analysis-timeline-toolbar,
+.video-analysis-timeline-tabs,
+.video-analysis-timeline-selection,
+.video-analysis-timeline-selection > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.video-analysis-timeline-summary span,
+.video-analysis-timeline-selection span {
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #46534c;
+  background: #eef3ef;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.video-analysis-timeline-toolbar {
+  justify-content: space-between;
+  border-bottom: 1px solid #e4eae5;
+  padding: 9px 12px;
+}
+
+.video-analysis-timeline-tabs {
+  gap: 4px;
+}
+
+.video-analysis-timeline-tabs button {
+  min-height: 30px;
+  border: 1px solid #cad5cf;
+  border-radius: 999px;
+  padding: 0 10px;
+  color: #324039;
+  background: #f7faf8;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.video-analysis-timeline-tabs button.is-active {
+  border-color: #143522;
+  color: #ffffff;
+  background: #143522;
+}
+
+.video-analysis-timeline-scroll {
+  overflow-x: auto;
+  border-bottom: 1px solid #e4eae5;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.94), rgba(255,255,255,0)) 0 0 / 18px 100% no-repeat,
+    #f8faf8;
+}
+
+.video-analysis-timeline-canvas {
+  position: relative;
+  min-width: 760px;
+  padding: 0 12px 12px;
+}
+
+.video-analysis-timeline-ruler {
   position: relative;
   height: 34px;
-  margin: 0 12px;
-  border-radius: 6px;
-  background: #dfe6e0;
+  margin-left: 132px;
+  border-bottom: 1px solid #dce5de;
 }
 
-.video-analysis-marker {
+.video-analysis-timeline-tick {
   position: absolute;
-  top: 6px;
-  width: 8px;
-  height: 22px;
-  min-height: 0;
-  border: 0;
-  border-radius: 4px;
-  padding: 0;
-  background: #2f6fed;
-  transform: translateX(-50%);
+  top: 0;
+  bottom: 0;
+  color: #66736b;
+  font-size: 11px;
+  font-weight: 800;
+  transform: translateX(-1px);
+}
+
+.video-analysis-timeline-tick i {
+  display: block;
+  width: 1px;
+  height: 12px;
+  background: #b9c7bd;
+}
+
+.video-analysis-timeline-tick b {
+  position: absolute;
+  top: 15px;
+  left: 4px;
+  white-space: nowrap;
 }
 
 .video-analysis-workstation {
@@ -748,73 +830,178 @@
 .video-analysis-lane-stack {
   position: relative;
   display: grid;
-  gap: 6px;
-  margin: 0 12px;
-  overflow-x: auto;
-  padding-bottom: 2px;
+  gap: 7px;
+  padding-top: 8px;
 }
 
 .video-analysis-lane {
   display: grid;
-  grid-template-columns: 118px minmax(520px, 1fr);
-  gap: 8px;
+  grid-template-columns: 124px minmax(600px, 1fr);
+  gap: 10px;
   align-items: stretch;
 }
 
 .video-analysis-lane__label {
-  display: flex;
-  align-items: center;
-  min-height: 38px;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  min-height: 44px;
   border-radius: 6px;
-  padding: 0 8px;
+  padding: 0 9px;
   color: #334039;
-  background: #edf1ef;
+  background: #edf2ef;
   font-size: 12px;
   font-weight: 800;
   overflow-wrap: anywhere;
+  box-shadow: 8px 0 16px rgba(248, 250, 248, 0.88);
+}
+
+.video-analysis-lane__label span {
+  color: #69756e;
+  font-size: 11px;
+  font-weight: 750;
 }
 
 .video-analysis-lane__track {
   position: relative;
-  min-height: 38px;
+  min-height: 44px;
   border-radius: 6px;
-  background: #e4e9e6;
+  background:
+    repeating-linear-gradient(90deg, rgba(20, 53, 34, 0.07) 0 1px, transparent 1px 12.5%),
+    #e8eee9;
 }
 
 .video-analysis-clip-block {
   position: absolute;
-  top: 6px;
+  z-index: 2;
+  top: 7px;
   display: flex;
   align-items: center;
-  min-width: 24px;
-  height: 26px;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 34px;
+  height: 30px;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid #1e5eff;
-  border-radius: 5px;
-  padding: 0 6px;
+  border: 1px solid #2c5fd7;
+  border-radius: 6px;
+  padding: 0 5px;
   color: #ffffff;
-  background: #1e5eff;
+  background: #245eea;
   font-size: 11px;
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+  box-shadow: 0 6px 16px rgba(23, 52, 91, 0.16);
+}
+
+.video-analysis-clip-block.is-positive {
+  border-color: #1f6f4a;
+  background: #1f8a5f;
+}
+
+.video-analysis-clip-block.is-development {
+  border-color: #9b4d12;
+  background: #c56a1f;
+}
+
+.video-analysis-clip-block.is-neutral {
+  border-color: #365a87;
+  background: #3268b7;
+}
+
+.video-analysis-clip-block__copy {
+  display: grid;
+  min-width: 0;
+  line-height: 1;
+}
+
+.video-analysis-clip-block__copy strong,
+.video-analysis-clip-block__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-clip-block__copy small {
+  margin-top: 2px;
+  color: rgba(255,255,255,0.78);
+  font-size: 10px;
+}
+
+.video-analysis-clip-block__handle {
+  flex: 0 0 2px;
+  width: 2px;
+  align-self: stretch;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.65);
 }
 
 .video-analysis-clip-block.is-selected {
-  border-color: #0d1b2a;
-  background: #0d1b2a;
+  outline: 2px solid #0f1d16;
+  outline-offset: 2px;
 }
 
 .video-analysis-playhead {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   top: 0;
   bottom: 0;
   width: 2px;
-  background: #e3342f;
+  background: #e1352d;
   pointer-events: none;
+}
+
+.video-analysis-playhead::before {
+  position: absolute;
+  display: none;
+  top: -7px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e1352d;
+  content: "";
+  transform: translateX(-50%);
+}
+
+.video-analysis-lane:first-child .video-analysis-playhead::before {
+  display: block;
+}
+
+.video-analysis-timeline-selection {
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 9px 12px;
+  color: #58645d;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.video-analysis-timeline-selection.is-active {
+  color: #1c2a22;
+}
+
+.video-analysis-timeline-selection strong {
+  color: #112018;
+  font-size: 13px;
+}
+
+.video-analysis-timeline-selection button {
+  min-height: 30px;
+  border: 1px solid #143522;
+  border-radius: 7px;
+  padding: 0 10px;
+  color: #ffffff;
+  background: #143522;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .video-analysis-intelligence {

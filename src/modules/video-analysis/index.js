@@ -486,10 +486,10 @@ function paint(root, state) {
     }
     video.ontimeupdate = () => {
       const durationMs = Math.max(1, Number(runtime?.store.getState().videoRef?.durationMs || 1));
-      const zoom = Math.max(1, Number(runtime?.store.getState().timeline?.zoom || 1));
-      const safeDuration = durationMs / zoom;
-      const playhead = root.querySelector(".video-analysis-playhead");
-      if (playhead) playhead.style.left = `${Math.min(99.5, Math.max(0, (getVideoCurrentMs(video) / safeDuration) * 100))}%`;
+      const left = `${Math.min(99.5, Math.max(0, (getVideoCurrentMs(video) / durationMs) * 100))}%`;
+      root.querySelectorAll(".video-analysis-playhead").forEach((playhead) => {
+        playhead.style.left = left;
+      });
     };
     video.addEventListener("loadedmetadata", () => markNativePlaybackReady(video), { once: true });
     video.addEventListener("canplay", () => markNativePlaybackReady(video), { once: true });
@@ -914,6 +914,17 @@ export function handleClick(event, context = {}) {
       timeline: {
         ...(state.timeline || {}),
         zoom: Math.min(6, Math.max(1, Number(state.timeline?.zoom || 1) + Number(zoomButton.dataset.videoAnalysisZoom || 0))),
+      },
+    }));
+    return true;
+  }
+  const timelineLaneButton = target.closest("[data-video-analysis-timeline-lane]");
+  if (timelineLaneButton) {
+    run.store.update((state) => ({
+      ...state,
+      timeline: {
+        ...(state.timeline || {}),
+        laneMode: timelineLaneButton.dataset.videoAnalysisTimelineLane,
       },
     }));
     return true;

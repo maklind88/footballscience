@@ -1,3 +1,4 @@
+export { renderTimeline } from "./timeline.renderer.js";
 export {
   buildTimelineLanes,
   buildTimelineTicks,
@@ -8,4 +9,4 @@ export {
   playheadStyle,
   timelineCanvasStyle,
   trimClipDraft,
-} from "../timeline/index.js";
+} from "./timeline.service.js";

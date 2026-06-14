@@ -3042,7 +3042,8 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
       temporaryFrom: "",
       temporaryTo: "",
     });
-  await modal.locator("[data-player-profile-photo-upload]").setInputFiles({
+  const photoUploadInput = modal.locator("[data-player-profile-photo-upload]");
+  await photoUploadInput.setInputFiles({
     name: "player-photo.png",
     mimeType: "image/png",
     buffer: Buffer.from(
@@ -3050,6 +3051,7 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
       "base64"
     ),
   });
+  await photoUploadInput.dispatchEvent("change");
   await expect
     .poll(
       () =>

@@ -158,7 +158,7 @@ export const platformModules = Object.freeze([
   }),
   Object.freeze({
     id: "video-analysis",
-    label: "Video Analysis",
+    label: "FS Player",
     stage: "module",
     storageKeys: Object.freeze([]),
     futureTables: Object.freeze([

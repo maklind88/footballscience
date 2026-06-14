@@ -48,8 +48,8 @@ export function renderVideoPlayer(state = {}) {
     <section class="video-analysis-player" data-video-analysis-player>
       <div class="video-analysis-player__bar">
         <div>
-          <p class="video-analysis-kicker">Local video</p>
-          <h2>${escapeHtml(ref?.displayName || "No video loaded")}</h2>
+          <p class="video-analysis-kicker">FS Player</p>
+          <h2>${escapeHtml(ref?.displayName || "No match video loaded")}</h2>
         </div>
         <div class="video-analysis-player__actions">
           <input class="video-analysis-file-input" type="file" accept="video/*" data-video-analysis-file hidden>

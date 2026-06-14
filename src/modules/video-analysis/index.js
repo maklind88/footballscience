@@ -62,6 +62,49 @@ function videoElement(context = {}) {
   return getRoot(context)?.querySelector("[data-video-analysis-video]");
 }
 
+const analysisRoomTabs = Object.freeze([
+  { id: "overview", label: "Overview", state: "Room" },
+  { id: "fs-player", label: "FS Player", state: "Active" },
+  { id: "match-report", label: "Match Report", state: "Next" },
+  { id: "briefs", label: "Briefs", state: "Next" },
+]);
+
+function renderAnalysisRoomTabs() {
+  return `
+    <nav class="analysis-room-tabs" aria-label="Analysis Room sections">
+      ${analysisRoomTabs.map((tab) => {
+        const active = tab.id === "fs-player";
+        return `
+          <button
+            type="button"
+            class="analysis-room-tab${active ? " is-active" : ""}"
+            ${active ? `aria-current="page"` : `disabled aria-disabled="true"`}
+          >
+            <span>${escapeHtml(tab.label)}</span>
+            <small>${escapeHtml(tab.state)}</small>
+          </button>
+        `;
+      }).join("")}
+    </nav>
+  `;
+}
+
+function renderAnalysisRoomHeader(state = {}) {
+  const clipCount = Array.isArray(state.clips) ? state.clips.length : 0;
+  return `
+    <header class="analysis-room-header">
+      <div>
+        <p class="analysis-room-kicker">Analysis Room</p>
+        <h2>Own-team performance</h2>
+      </div>
+      <div class="analysis-room-status" aria-label="Analysis Room status">
+        <span>FS Player active</span>
+        <strong>${escapeHtml(clipCount)} clips</strong>
+      </div>
+    </header>
+  `;
+}
+
 function updateVideoDuration(durationMs = 0) {
   const safeDurationMs = Math.round(Number(durationMs || 0));
   if (!Number.isFinite(safeDurationMs) || safeDurationMs <= 0) return;
@@ -282,33 +325,39 @@ function paint(root, state) {
   );
   const displayState = { ...state, clips: visibleClips, allClips: state.clips };
   root.innerHTML = `
-    <section class="video-analysis-shell">
-      ${state.message || state.error ? `
-        <div class="video-analysis-notifications" aria-live="polite">
-          ${state.message ? `<p class="video-analysis-toast">${escapeHtml(state.message)}</p>` : ""}
-          ${state.error ? `
-            <div class="video-analysis-error" role="alert">
-              <span>${escapeHtml(state.error)}</span>
-              ${canPreparePlayableCopy(state) ? `<button type="button" data-video-analysis-prepare-playback>Prepare playable copy</button>` : ""}
+    <section class="analysis-room-shell">
+      ${renderAnalysisRoomHeader(state)}
+      ${renderAnalysisRoomTabs()}
+      <section class="analysis-room-tab-panel" aria-label="FS Player">
+        <section class="video-analysis-shell">
+          ${state.message || state.error ? `
+            <div class="video-analysis-notifications" aria-live="polite">
+              ${state.message ? `<p class="video-analysis-toast">${escapeHtml(state.message)}</p>` : ""}
+              ${state.error ? `
+                <div class="video-analysis-error" role="alert">
+                  <span>${escapeHtml(state.error)}</span>
+                  ${canPreparePlayableCopy(state) ? `<button type="button" data-video-analysis-prepare-playback>Prepare playable copy</button>` : ""}
+                </div>
+              ` : ""}
             </div>
           ` : ""}
-        </div>
-      ` : ""}
-      ${renderVideoPlayer(displayState)}
-      ${renderTimeline(displayState)}
-      <section class="video-analysis-workstation">
-        <section class="video-analysis-left-stack">
-          ${renderCodingTemplateBuilder(displayState)}
-          ${renderCodingPanel(displayState)}
-        </section>
-        <section class="video-analysis-results">
-          ${renderClipFilters(displayState)}
-          ${renderClipIntelligence(displayState)}
-          ${renderClipList(displayState)}
+          ${renderVideoPlayer(displayState)}
+          ${renderTimeline(displayState)}
+          <section class="video-analysis-workstation">
+            <section class="video-analysis-left-stack">
+              ${renderCodingTemplateBuilder(displayState)}
+              ${renderCodingPanel(displayState)}
+            </section>
+            <section class="video-analysis-results">
+              ${renderClipFilters(displayState)}
+              ${renderClipIntelligence(displayState)}
+              ${renderClipList(displayState)}
+            </section>
+          </section>
+          ${renderPlaylistBuilder(state)}
+          ${renderPlayerClipDrawer(displayState)}
         </section>
       </section>
-      ${renderPlaylistBuilder(state)}
-      ${renderPlayerClipDrawer(displayState)}
     </section>
   `;
   bindPaintedVideoControls(root, {

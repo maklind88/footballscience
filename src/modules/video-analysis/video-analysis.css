@@ -1,9 +1,117 @@
+.analysis-room-shell {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  color: #17201b;
+  background:
+    linear-gradient(135deg, rgba(246, 248, 245, 0.98), rgba(237, 242, 239, 0.96)),
+    #f5f7f4;
+}
+
+.analysis-room-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 76px;
+  border: 1px solid #d8ded7;
+  border-radius: 8px;
+  padding: 16px 18px;
+  background: #ffffff;
+}
+
+.analysis-room-kicker {
+  margin: 0 0 4px;
+  color: #627065;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.analysis-room-header h2 {
+  margin: 0;
+  color: #111816;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.analysis-room-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #56635c;
+  font-size: 13px;
+}
+
+.analysis-room-status strong {
+  border: 1px solid #c9d7cf;
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #163b29;
+  background: #eef8f2;
+  font-size: 12px;
+}
+
+.analysis-room-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.analysis-room-tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 48px;
+  border: 1px solid #d4dcd6;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #536158;
+  background: #f9fbf9;
+  font: inherit;
+  text-align: left;
+}
+
+.analysis-room-tab span {
+  color: #17201b;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.analysis-room-tab small {
+  color: #7a8680;
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.analysis-room-tab.is-active {
+  border-color: #143522;
+  background: #143522;
+}
+
+.analysis-room-tab.is-active span,
+.analysis-room-tab.is-active small {
+  color: #ffffff;
+}
+
+.analysis-room-tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.analysis-room-tab-panel {
+  display: grid;
+  min-width: 0;
+}
+
 .video-analysis-shell {
   display: grid;
   gap: 12px;
-  padding: 12px;
+  min-width: 0;
   color: #17201b;
-  background: #f5f7f4;
+  background: transparent;
 }
 
 .video-analysis-player,
@@ -666,6 +774,16 @@
 }
 
 @media (max-width: 980px) {
+  .analysis-room-header,
+  .analysis-room-status {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .analysis-room-tabs {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .video-analysis-workstation,
   .video-analysis-filters,
   .video-analysis-review-sections {
@@ -679,6 +797,16 @@
 
   .video-analysis-clip,
   .video-analysis-review-item {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .analysis-room-shell {
+    padding: 10px;
+  }
+
+  .analysis-room-tabs {
     grid-template-columns: 1fr;
   }
 }

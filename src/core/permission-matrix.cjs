@@ -125,7 +125,7 @@ const platformPermissionMatrix = Object.freeze([
     storageKeys: ["football-gameplan-v1"],
     routes: ["/api/app-state", "/api/gameplan-player-brief"],
   }),
-  moduleContract("video-analysis", "Video Analysis", "team", {
+  moduleContract("video-analysis", "FS Player", "team", {
     read: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance"],
     write: ["admin", "club-admin", "team-admin", "coach", "analyst"],
     delete: ["admin", "club-admin", "team-admin", "coach", "analyst"],

@@ -243,7 +243,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
           <section class="video-analysis-shell">
             <section class="video-analysis-player">
               <h2>Analysis Room could not load</h2>
-              <p>Refresh and try again.</p>
+              <p>Refresh and try FS Player again.</p>
             </section>
           </section>
         `;

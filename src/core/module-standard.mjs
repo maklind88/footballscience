@@ -313,7 +313,7 @@ export const moduleStandardContracts = Object.freeze([
   }),
   createModuleStandardContract({
     id: "video-analysis",
-    label: "Video Analysis",
+    label: "FS Player",
     migrationStatus: moduleMigrationStatuses.databasePrimary,
     mountId: "analysisRoomWorkspace",
     targetDir: "src/modules/video-analysis",
@@ -336,7 +336,7 @@ export const moduleStandardContracts = Object.freeze([
       preserveCurrentWritePath: false,
       centralSavePipelineRequired: false,
     },
-    notes: "New database-primary Analysis Room module. Store local video intelligence only: sources, clip timestamps, tags, players, notes, outcomes, and playlists. Never upload match video.",
+    notes: "Database-primary FS Player tab inside Analysis Room. Store local video intelligence only: sources, clip timestamps, tags, players, notes, outcomes, and playlists. Never upload match video.",
   }),
   createModuleStandardContract({
     id: "football-science-db",

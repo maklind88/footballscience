@@ -96,7 +96,7 @@ export function createIdpActions({ store, api, context = {} }) {
     } else {
       await api.createFocus({ ...payload, playerId });
     }
-    store.setState({ ui: { message: "Focus saved." } });
+    store.setState({ ui: { actionMode: "", message: "Focus saved." } });
     await refreshSelectedPlayer();
   }
 
@@ -111,7 +111,7 @@ export function createIdpActions({ store, api, context = {} }) {
       note: formData.get("note"),
       sourceModule: "idp",
     });
-    store.setState({ ui: { message: "Evidence added." } });
+    store.setState({ ui: { actionMode: "", message: "Evidence added." } });
     await refreshSelectedPlayer();
   }
 
@@ -127,7 +127,7 @@ export function createIdpActions({ store, api, context = {} }) {
       coachNote: formData.get("coachNote"),
       nextAction: formData.get("nextAction"),
     });
-    store.setState({ ui: { message: "Review completed." } });
+    store.setState({ ui: { actionMode: "", message: "Review completed." } });
     await refreshSelectedPlayer();
   }
 

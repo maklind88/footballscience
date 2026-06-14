@@ -151,10 +151,23 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
   }
 
   function getIdpContext() {
+    const currentUser = getCurrentUser();
+    const teamNameFromUser = currentUser?.teamName || currentUser?.team || "";
+    const displayTeam = getPlatformTeamDisplayTeam(currentUser);
+    const displayTeamName = getPlatformTeamDisplayName(currentUser);
+    const teamName = displayTeam?.name || displayTeamName || teamNameFromUser || "Team";
+    const team = displayTeam || {
+      name: teamName,
+      shortName: currentUser?.teamShortName || currentUser?.team_short_name || "",
+      logoUrl: currentUser?.teamLogoUrl || currentUser?.team_logo_url || currentUser?.teamLogo || "",
+    };
     return {
       ui,
       win,
-      currentUser: getCurrentUser(),
+      currentUser,
+      team,
+      teamName,
+      teamLogoUrl: getPlatformTeamLogoUrl(team),
       getAuthToken,
       getPlayerProfilesState: getPlayerProfilesStateForIdp,
       canEdit: canEditIdp,

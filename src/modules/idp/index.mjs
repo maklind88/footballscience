@@ -10,6 +10,9 @@ function normalizeContext(context = {}) {
     ui: context.ui || {},
     win: context.win || globalThis,
     currentUser: context.currentUser || null,
+    team: context.team || null,
+    teamName: context.teamName || context.team?.name || context.currentUser?.teamName || context.currentUser?.team || "",
+    teamLogoUrl: context.teamLogoUrl || context.team?.logoUrl || context.team?.logo_url || context.currentUser?.teamLogoUrl || "",
     getAuthToken: typeof context.getAuthToken === "function" ? context.getAuthToken : () => "",
     getPlayerProfilesState:
       typeof context.getPlayerProfilesState === "function" ? context.getPlayerProfilesState : () => ({}),
@@ -34,6 +37,10 @@ function paint(activeRuntime = runtime) {
   if (!root) return;
   root.innerHTML = renderMarkup(activeRuntime.store.getState(), {
     canEdit: canEdit(activeRuntime.context),
+    currentUser: activeRuntime.context.currentUser,
+    team: activeRuntime.context.team,
+    teamLogoUrl: activeRuntime.context.teamLogoUrl,
+    teamName: activeRuntime.context.teamName,
   });
 }
 
@@ -105,6 +112,22 @@ export function handleChange(event) {
 }
 
 export function handleClick(event) {
+  const closeActionTrigger = event?.target?.closest?.("[data-idp-close-action]");
+  if (closeActionTrigger || event?.target?.matches?.("[data-idp-action-layer]")) {
+    runtime?.store.setState({ ui: { actionMode: "" } });
+    return;
+  }
+  const actionTrigger = event?.target?.closest?.("[data-idp-action]");
+  if (actionTrigger) {
+    runtime?.store.setState({
+      ui: {
+        actionMode: actionTrigger.dataset.idpAction || "",
+        error: "",
+        message: "",
+      },
+    });
+    return;
+  }
   const playerTrigger = event?.target?.closest?.("[data-idp-player]");
   if (playerTrigger) {
     runAction(() => runtime?.actions.selectPlayer(playerTrigger.dataset.idpPlayer || ""));

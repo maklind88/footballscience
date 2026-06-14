@@ -4,6 +4,7 @@ export const idpInitialUiState = Object.freeze({
   ownerFilter: "All",
   categoryFilter: "All",
   searchQuery: "",
+  actionMode: "",
   message: "",
   error: "",
   loading: false,

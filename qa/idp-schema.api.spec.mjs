@@ -6,6 +6,11 @@ import { fileURLToPath } from "node:url";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const migrationPath = path.join(rootDir, "supabase/migrations/20260614163504_idp_player_development_system.sql");
 const migration = fs.readFileSync(migrationPath, "utf8");
+const allMigrations = fs
+  .readdirSync(path.join(rootDir, "supabase", "migrations"))
+  .filter((file) => file.endsWith(".sql"))
+  .map((file) => fs.readFileSync(path.join(rootDir, "supabase", "migrations", file), "utf8"))
+  .join("\n");
 
 const idpTables = [
   "idp_profiles",
@@ -50,4 +55,10 @@ test("idp focus and evidence lifecycle values are constrained", () => {
   expect(migration).toContain("evidence_status text not null default 'Needs Evidence' check (evidence_status in ('No Evidence', 'Needs Evidence', 'Has Evidence', 'Ready For Review'))");
   expect(migration).toContain("evidence_type text not null check (evidence_type in ('Video Clip', 'Coach Note', 'Training Observation', 'Match Observation', 'Performance Note', 'Medical Note', 'Leadership Note', 'Player Reflection', 'Review Meeting'))");
   expect(migration).toContain("action_type text not null check (action_type in ('Add Evidence', 'Review Clip Bank', 'Schedule IDP Meeting', 'Update Focus', 'Complete Review', 'Create Next Focus'))");
+});
+
+test("idp permission seed is registered for the live control plane", () => {
+  expect(allMigrations).toContain("('idp', 'read'");
+  expect(allMigrations).toContain("('idp', 'write'");
+  expect(allMigrations).toContain("('idp', 'admin', array['admin']");
 });

@@ -76,8 +76,36 @@ function createCandidateDeps(overrides = {}) {
 test("game simulator autopilot candidates expose moved candidate builders", () => {
   const candidates = createGameSimulatorAutopilotCandidates(createCandidateDeps());
 
+  expect(typeof candidates.getGoalkeeperDistributionPressure).toBe("function");
+  expect(typeof candidates.getGoalkeeperDirectReleaseTarget).toBe("function");
   expect(typeof candidates.buildAutoPilotGoalkeeperDistributionCandidate).toBe("function");
+  expect(typeof candidates.getAutoPilotShotTarget).toBe("function");
+  expect(typeof candidates.getAutoPilotBoxTarget).toBe("function");
+  expect(typeof candidates.buildAutoPilotKickoffCandidate).toBe("function");
+  expect(typeof candidates.getLastKickoffOpeningProfile).toBe("function");
+  expect(typeof candidates.getKickoffOpeningCandidateFit).toBe("function");
+  expect(typeof candidates.buildAutoPilotPostKickoffResetCandidate).toBe("function");
+  expect(typeof candidates.buildAutoPilotCornerCandidate).toBe("function");
+  expect(typeof candidates.buildAutoPilotThrowInCandidate).toBe("function");
+  expect(typeof candidates.buildAutoPilotPenaltyCandidate).toBe("function");
+  expect(typeof candidates.buildAutoPilotFreeKickCandidate).toBe("function");
+  expect(typeof candidates.getCornerDeliveryTarget).toBe("function");
+  expect(typeof candidates.chooseCornerDeliveryRunner).toBe("function");
+  expect(typeof candidates.getFreeKickDeliveryTarget).toBe("function");
+  expect(typeof candidates.chooseFreeKickShortReceiver).toBe("function");
   expect(typeof candidates.buildAutoPilotShotCandidate).toBe("function");
+  expect(typeof candidates.buildAutoPilotRegainReleaseCandidate).toBe("function");
+  expect(typeof candidates.getPressedRegainExitVector).toBe("function");
+  expect(typeof candidates.buildAutoPilotPressedRegainExitCandidate).toBe("function");
+  expect(typeof candidates.buildAutoPilotDangerZoneEscapeCandidate).toBe("function");
+  expect(typeof candidates.buildAutoPilotBoxDeliveryCandidate).toBe("function");
+  expect(typeof candidates.getFinalThirdCombinationVariants).toBe("function");
+  expect(typeof candidates.buildAutoPilotFinalThirdCombinationCandidate).toBe("function");
+  expect(typeof candidates.buildAutoPilotWideOverlapCandidate).toBe("function");
+  expect(typeof candidates.getLastSwitchLandingActionContext).toBe("function");
+  expect(typeof candidates.buildAutoPilotSwitchLandingContinuationCandidate).toBe("function");
+  expect(typeof candidates.buildAutoPilotThroughBallCandidate).toBe("function");
+  expect(typeof candidates.buildAutoPilotBetweenLinesCandidate).toBe("function");
   expect(typeof candidates.buildAutoPilotPassCandidates).toBe("function");
   expect(typeof candidates.buildAutoPilotDribbleCandidate).toBe("function");
 });

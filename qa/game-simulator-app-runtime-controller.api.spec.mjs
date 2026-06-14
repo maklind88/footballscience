@@ -33,9 +33,12 @@ test("game simulator app runtime controller owns simulator runtime wiring", () =
   expect(facade).toContain('"executePlannedAction"');
   expect(app).not.toContain("const gameSimulatorCanvasRenderer = createGameSimulatorCanvasRenderer");
   expect(app).not.toContain("const gameSimulatorPointerController = createGameSimulatorPointerController");
+  expect(controller).toContain('from "./app-runtime-sequence-adapter.mjs"');
+  expect(controller).toContain("createGameSimulatorAppRuntimeSequenceAdapter");
   expect(controller).toContain("createGameSimulatorSequenceEngine");
   expect(controller).toContain("createGameSimulatorCanvasRenderer");
   expect(controller).toContain("createGameSimulatorPointerController");
+  expect(controller).not.toContain("function invokeGameSimulatorSequenceEngine");
   expect(controller).toContain("function executePlannedAction()");
   expect(controller).toContain("function pauseSimulatorForWorkspaceSwitch()");
   expect(controller).toContain("hasActiveMetricTooltip, positionMetricTooltip");

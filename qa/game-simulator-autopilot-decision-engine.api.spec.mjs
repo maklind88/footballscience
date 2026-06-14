@@ -110,12 +110,56 @@ function createDecisionEngineDeps(overrides = {}) {
 test("game simulator autopilot decision engine exposes moved scoring contracts", () => {
   const engine = createGameSimulatorAutopilotDecisionEngine(createDecisionEngineDeps());
 
+  expect(typeof engine.getAutoPilotFlowContext).toBe("function");
+  expect(typeof engine.getAutoPilotCandidatePattern).toBe("function");
+  expect(typeof engine.getRecordedStepPattern).toBe("function");
+  expect(typeof engine.getAutoPilotRegainContext).toBe("function");
   expect(typeof engine.getAutoPilotFlowAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotPossessionIntentContext).toBe("function");
+  expect(typeof engine.getAutoPilotPossessionIntentAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotPossessionLoopAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotCorridorTempoReleaseAdjustment).toBe("function");
+  expect(typeof engine.getOpponentBlockReadProfile).toBe("function");
+  expect(typeof engine.getAutoPilotOpponentBlockReadAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotCombinationChainContext).toBe("function");
+  expect(typeof engine.getAutoPilotCombinationChainAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotPassLaneDenialAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotCounterPressEscapeAdjustment).toBe("function");
   expect(typeof engine.getAutoPilotPrincipleAdjustment).toBe("function");
   expect(typeof engine.getAutoPilotChanceHierarchyAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotAdvantageRetentionContext).toBe("function");
+  expect(typeof engine.getAutoPilotAdvantageRetentionAdjustment).toBe("function");
   expect(typeof engine.getAutoPilotLineBreakAdvantageAdjustment).toBe("function");
   expect(typeof engine.getAutoPilotAdvantageLifecycleAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotPressureEscapeContext).toBe("function");
+  expect(typeof engine.getAutoPilotPressureEscapeAdjustment).toBe("function");
   expect(typeof engine.buildAutoPilotPressureTrapEscapeCandidate).toBe("function");
+  expect(typeof engine.getAutoPilotPatternDiversityAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotRepetitionPenalty).toBe("function");
+  expect(typeof engine.isLastStepKickoffResetForTeam).toBe("function");
+  expect(typeof engine.getRecentLaneRepeatCount).toBe("function");
+  expect(typeof engine.getAutoPilotFlowContext).toBe("function");
+  expect(typeof engine.getAutoPilotRegainContext).toBe("function");
+  expect(typeof engine.getAutoPilotCandidatePattern).toBe("function");
+  expect(typeof engine.getRecordedStepPattern).toBe("function");
+  expect(typeof engine.getRecordedStepActorIds).toBe("function");
+  expect(typeof engine.getAutoPilotCarryEndProductContext).toBe("function");
+  expect(typeof engine.getAutoPilotCarryEndProductAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotSpacingBonus).toBe("function");
+  expect(typeof engine.mergeIntentionWeights).toBe("function");
+  expect(typeof engine.getAutoPilotIntentionModel).toBe("function");
+  expect(typeof engine.getAutoPilotCandidatePrincipleMetrics).toBe("function");
+  expect(typeof engine.getAutoPilotLocalSuperiorityProfile).toBe("function");
+  expect(typeof engine.getAutoPilotLocalSuperiorityAdjustment).toBe("function");
+  expect(typeof engine.getReceiverAvailabilityProfile).toBe("function");
+  expect(typeof engine.getAutoPilotReceiverAvailabilityAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotReceivePressureTrapAdjustment).toBe("function");
+  expect(typeof engine.estimateAutoPilotCandidateDuration).toBe("function");
+  expect(typeof engine.getAutoPilotNextSupportNetworkProfile).toBe("function");
+  expect(typeof engine.getAutoPilotNextSupportNetworkAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotVisionScanAdjustment).toBe("function");
+  expect(typeof engine.getAutoPilotSpaceLadderContext).toBe("function");
+  expect(typeof engine.getAutoPilotSpaceLadderAdjustment).toBe("function");
 });
 
 test("game simulator autopilot decision engine reads live state after simulator reset", () => {

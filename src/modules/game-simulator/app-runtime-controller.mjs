@@ -1,5 +1,6 @@
 import { createGameSimulatorCanvasRenderer } from "./canvas-renderer.mjs";
 import { createGameSimulatorPointerController } from "./pointer-controller.mjs";
+import { createGameSimulatorAppRuntimeSequenceAdapter } from "./app-runtime-sequence-adapter.mjs";
 import { createGameSimulatorSequenceEngine } from "./sequence-engine.mjs";
 
 function noop() {}
@@ -470,66 +471,48 @@ maxSpeed: effectiveMaxSpeed,
 };
 }
 var gameSimulatorSequenceEngine;
-function invokeGameSimulatorSequenceEngine(methodName, args) {
-if (!gameSimulatorSequenceEngine?.[methodName]) {
-throw new Error(`Game simulator sequence engine is not ready: ${methodName}`);
-}
-return gameSimulatorSequenceEngine[methodName](...args);
-}
-function captureSnapshot(...args) { return invokeGameSimulatorSequenceEngine("captureSnapshot", args); }
-function applySnapshot(...args) { return invokeGameSimulatorSequenceEngine("applySnapshot", args); }
-function cloneSnapshot(...args) { return invokeGameSimulatorSequenceEngine("cloneSnapshot", args); }
-function cloneSequenceStep(...args) { return invokeGameSimulatorSequenceEngine("cloneSequenceStep", args); }
-function buildSnapshotFromFormations(...args) { return invokeGameSimulatorSequenceEngine("buildSnapshotFromFormations", args); }
-function withSnapshotOverrides(...args) { return invokeGameSimulatorSequenceEngine("withSnapshotOverrides", args); }
-function createLowBlockPressExample(...args) { return invokeGameSimulatorSequenceEngine("createLowBlockPressExample", args); }
-function loadLowBlockPressExample(...args) { return invokeGameSimulatorSequenceEngine("loadLowBlockPressExample", args); }
-function cloneScenarioInfo(...args) { return invokeGameSimulatorSequenceEngine("cloneScenarioInfo", args); }
-function markSimulatorDirty(...args) { return invokeGameSimulatorSequenceEngine("markSimulatorDirty", args); }
-function markSequenceDirty(...args) { return invokeGameSimulatorSequenceEngine("markSequenceDirty", args); }
-function markSimulatorSaved(...args) { return invokeGameSimulatorSequenceEngine("markSimulatorSaved", args); }
-function readSavedSequenceLibrary(...args) {
-if (!gameSimulatorSequenceEngine?.readSavedSequenceLibrary) {
-try {
-const raw = win.localStorage.getItem(sequenceLibraryStorageKey);
-if (!raw) {
-return [];
-}
-const parsed = JSON.parse(raw);
-if (!Array.isArray(parsed)) {
-return [];
-}
-return parsed
-.filter((entry) => entry && entry.id && entry.name && entry.sequence?.steps)
-.sort((a, b) => new Date(b.savedAt ?? 0) - new Date(a.savedAt ?? 0));
-} catch {
-return [];
-}
-}
-return invokeGameSimulatorSequenceEngine("readSavedSequenceLibrary", args);
-}
-function writeSavedSequenceLibrary(...args) { return invokeGameSimulatorSequenceEngine("writeSavedSequenceLibrary", args); }
-function sanitizeFileName(...args) { return invokeGameSimulatorSequenceEngine("sanitizeFileName", args); }
-function goToSequenceFrame(...args) { return invokeGameSimulatorSequenceEngine("goToSequenceFrame", args); }
-function cancelSequenceAdvance(...args) { return invokeGameSimulatorSequenceEngine("cancelSequenceAdvance", args); }
-function stopSequencePlayback(...args) { return invokeGameSimulatorSequenceEngine("stopSequencePlayback", args); }
-function finishSequencePlayback(...args) { return invokeGameSimulatorSequenceEngine("finishSequencePlayback", args); }
-function queueNextSequenceStep(...args) { return invokeGameSimulatorSequenceEngine("queueNextSequenceStep", args); }
-function startRecordedAction(...args) { return invokeGameSimulatorSequenceEngine("startRecordedAction", args); }
-function createCommittedSnapshotFromCurrentState(...args) { return invokeGameSimulatorSequenceEngine("createCommittedSnapshotFromCurrentState", args); }
-function applyCommittedSnapshot(...args) { return invokeGameSimulatorSequenceEngine("applyCommittedSnapshot", args); }
-function serializeSequence(...args) { return invokeGameSimulatorSequenceEngine("serializeSequence", args); }
-function loadSequenceData(...args) { return invokeGameSimulatorSequenceEngine("loadSequenceData", args); }
-function saveSequenceToLocal(...args) { return invokeGameSimulatorSequenceEngine("saveSequenceToLocal", args); }
-function loadSequenceFromLocal(...args) { return invokeGameSimulatorSequenceEngine("loadSequenceFromLocal", args); }
-function downloadSequence(...args) { return invokeGameSimulatorSequenceEngine("downloadSequence", args); }
-function createStepThumbnail(...args) { return invokeGameSimulatorSequenceEngine("createStepThumbnail", args); }
-function startSequenceStep(...args) { return invokeGameSimulatorSequenceEngine("startSequenceStep", args); }
-function startSequencePlayback(...args) { return invokeGameSimulatorSequenceEngine("startSequencePlayback", args); }
-function getActiveExampleOverlay(...args) { return invokeGameSimulatorSequenceEngine("getActiveExampleOverlay", args); }
-function getSavedSequenceById(...args) { return invokeGameSimulatorSequenceEngine("getSavedSequenceById", args); }
-function loadSavedSequenceEntry(...args) { return invokeGameSimulatorSequenceEngine("loadSavedSequenceEntry", args); }
-function removeSavedSequenceEntry(...args) { return invokeGameSimulatorSequenceEngine("removeSavedSequenceEntry", args); }
+const gameSimulatorSequenceAdapter = createGameSimulatorAppRuntimeSequenceAdapter({
+  getSequenceEngine: () => gameSimulatorSequenceEngine,
+  sequenceLibraryStorageKey,
+  win,
+});
+const {
+  captureSnapshot,
+  applySnapshot,
+  cloneSnapshot,
+  cloneSequenceStep,
+  buildSnapshotFromFormations,
+  withSnapshotOverrides,
+  createLowBlockPressExample,
+  loadLowBlockPressExample,
+  cloneScenarioInfo,
+  markSimulatorDirty,
+  markSequenceDirty,
+  markSimulatorSaved,
+  readSavedSequenceLibrary,
+  writeSavedSequenceLibrary,
+  sanitizeFileName,
+  goToSequenceFrame,
+  cancelSequenceAdvance,
+  stopSequencePlayback,
+  finishSequencePlayback,
+  queueNextSequenceStep,
+  startRecordedAction,
+  createCommittedSnapshotFromCurrentState,
+  applyCommittedSnapshot,
+  serializeSequence,
+  loadSequenceData,
+  saveSequenceToLocal,
+  loadSequenceFromLocal,
+  downloadSequence,
+  createStepThumbnail,
+  startSequenceStep,
+  startSequencePlayback,
+  getActiveExampleOverlay,
+  getSavedSequenceById,
+  loadSavedSequenceEntry,
+  removeSavedSequenceEntry,
+} = gameSimulatorSequenceAdapter;
 gameSimulatorSequenceEngine = createGameSimulatorSequenceEngine({
   applyBallExecutionProfile: (...args) => applyBallExecutionProfile(...args),
   applyPhysicalProfileToPlayers: (...args) => applyPhysicalProfileToPlayers(...args),

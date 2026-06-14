@@ -56,6 +56,7 @@ function createCommandDeps(overrides = {}) {
     cloneSnapshot: (snapshot) => ({ ...snapshot }),
     cloneVector: (point) => ({ ...point }),
     completeLiveActionPlayersBeforeCommit: () => {},
+    computeReachDistance: (_player, _elapsed, target) => Math.hypot(target.x - state.players[0].position.x, target.y - state.players[0].position.y),
     computeTimeToCoverDistance: () => 1,
     configureBallTravelProfile: () => {},
     connectBallToPlayerForNextAction: () => {},
@@ -74,10 +75,12 @@ function createCommandDeps(overrides = {}) {
     getAutoPilotFlowContext: () => ({}),
     getAutoPilotReceiveMomentum: () => null,
     getBallOwner: () => state.players[0],
+    getBallFlightControlFactor: () => 1,
     getBallTravelPoint: () => state.ball.target,
     getDefensiveAutoV2Intent: () => null,
     getDefensiveAutopilotFocusPoint: () => state.ball.target,
     getDribbleCarryPathPoint: () => state.ball.target,
+    getFirstTouchModeLabel: (mode) => mode,
     getGoalDirectionSign: () => 1,
     getGoalLineX: () => 105,
     getGoalNetDisplayPoint: () => ({ x: 105, y: 34 }),
@@ -89,6 +92,7 @@ function createCommandDeps(overrides = {}) {
     getOffensiveAutopilotProfile: () => ({ phaseKey: "buildUp" }),
     getOffensiveRoleKey: () => "connector",
     getOffsideInfo: () => ({ offside: false }),
+    getOpponentGoalCenter: () => ({ x: 105, y: 34 }),
     getOpponentGoalSide: () => 1,
     getOpponentPenaltySpot: () => ({ x: 94, y: 34 }),
     getOpponentPressureAtPoint: () => 0.2,
@@ -102,6 +106,7 @@ function createCommandDeps(overrides = {}) {
     getPlayerPositionForControlPoint: (_player, point) => point,
     getPlayerPressureLoad: () => 0.2,
     getPlayerRoleModel: () => ({ attack: 0.7 }),
+    getPlayerTendency: () => 0.5,
     getRecordedStepEndSnapshot: () => null,
     getRequestedActionMode: () => null,
     getSelectedPlayer: () => state.players[0],
@@ -114,6 +119,7 @@ function createCommandDeps(overrides = {}) {
     isGoalkeeper: (player) => player?.role === "GK",
     isInsideOpponentBox: () => false,
     isInsideOwnBox: () => false,
+    isWideChannel: (point) => point.y < 16 || point.y > 52,
     isOffensiveAutopilotPlayer: () => false,
     keepSecurePossessionOnlyForOwner: () => {},
     lerp: (start, end, weight) => start + (end - start) * weight,
@@ -163,7 +169,29 @@ test("game simulator command engine exposes moved command and update helpers", (
   const engine = createGameSimulatorCommandEngine(createCommandDeps());
 
   expect(typeof engine.planAutoPilotNextAction).toBe("function");
+  expect(typeof engine.chooseAutoPilotLooseBallRecovery).toBe("function");
+  expect(typeof engine.issueLooseBallRecoveryCommand).toBe("function");
+  expect(typeof engine.applyLooseBallCollectControlTouch).toBe("function");
   expect(typeof engine.issuePassCommand).toBe("function");
+  expect(typeof engine.detectShotGoal).toBe("function");
+  expect(typeof engine.detectShotOutOfPlay).toBe("function");
+  expect(typeof engine.detectTouchlineOutOfPlay).toBe("function");
+  expect(typeof engine.resolveGoalkeeperSave).toBe("function");
+  expect(typeof engine.completeGoalkeeperSave).toBe("function");
+  expect(typeof engine.completeShotGoal).toBe("function");
+  expect(typeof engine.completeShotOutOfPlay).toBe("function");
+  expect(typeof engine.completeTouchlineOutOfPlay).toBe("function");
+  expect(typeof engine.getTransitOutcomeEventLabel).toBe("function");
+  expect(typeof engine.completeTransitOutcome).toBe("function");
+  expect(typeof engine.completeBallTravelArrival).toBe("function");
+  expect(typeof engine.completeDribbleCarry).toBe("function");
+  expect(typeof engine.completeLooseBallRecoveryAction).toBe("function");
+  expect(typeof engine.getBallStatus).toBe("function");
+  expect(typeof engine.getActionTypeLabel).toBe("function");
+  expect(typeof engine.describeStep).toBe("function");
+  expect(typeof engine.getSequenceStartSnapshot).toBe("function");
+  expect(typeof engine.getSequenceFrameSnapshot).toBe("function");
+  expect(typeof engine.persistCurrentFrameSnapshot).toBe("function");
   expect(typeof engine.stepSimulation).toBe("function");
   expect(typeof engine.finalizeCurrentActionStep).toBe("function");
 });

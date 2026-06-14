@@ -1,0 +1,18 @@
+export const autoPilotPrincipleLabels = {
+secure: "Secure first pass",
+attractPressure: "Attract pressure",
+goldenZone: "Attack central pocket",
+breakLine: "Break the next line",
+thirdPlayer: "Find the Third",
+switchPlay: "Change corridor",
+wideOverload: "Ask question wide",
+overlapUnderlap: "Overlap / underlap",
+driveSpace: "Drive past press",
+isolate1v1: "Isolate 1v1",
+boxDelivery: "Attack box",
+cutback: "Cutback zone",
+shoot: "Find sweet spot",
+secondBall: "Second-ball structure",
+counterAttack: "Attack transition space",
+restDefence: "Rest-defence balance",
+};

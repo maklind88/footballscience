@@ -49,6 +49,7 @@ function createResolutionDeps(overrides = {}) {
     configureBallTravelProfile: () => {},
     distance: (first, second) => Math.hypot(first.x - second.x, first.y - second.y),
     finalizeCurrentActionStep: () => {},
+    formatTime: (time) => `${time}s`,
     getActionInitiator: () => state.players[0],
     getAttackDirectionSign: (teamId) => teamId === "home" ? 1 : -1,
     getAutoPilotRoleStrength: () => 0.7,
@@ -133,8 +134,22 @@ test("game simulator ball resolution engine exposes moved possession and contest
   const engine = createGameSimulatorBallResolutionEngine(createResolutionDeps());
 
   expect(typeof engine.applyBallExecutionProfile).toBe("function");
+  expect(typeof engine.getAerialPresence).toBe("function");
+  expect(typeof engine.getAerialFirstContactContext).toBe("function");
+  expect(typeof engine.getAerialControlScore).toBe("function");
+  expect(typeof engine.getShotReboundClaimContext).toBe("function");
+  expect(typeof engine.getShotReboundClaimAdjustment).toBe("function");
+  expect(typeof engine.getLooseBallClaimScore).toBe("function");
+  expect(typeof engine.getBallContestControlScore).toBe("function");
+  expect(typeof engine.getBallDuelScore).toBe("function");
+  expect(typeof engine.getDribbleTackleCandidate).toBe("function");
+  expect(typeof engine.resolveDribbleDefensiveChallenge).toBe("function");
   expect(typeof engine.resolveLooseBallClaim).toBe("function");
+  expect(typeof engine.createLooseBallSpill).toBe("function");
+  expect(typeof engine.keepBallPlayableForNextAction).toBe("function");
   expect(typeof engine.resolvePassTransitInterception).toBe("function");
+  expect(typeof engine.shouldTriggerLandingBounce).toBe("function");
+  expect(typeof engine.startLandingBounceSkid).toBe("function");
   expect(typeof engine.settleBallForNextAction).toBe("function");
 });
 

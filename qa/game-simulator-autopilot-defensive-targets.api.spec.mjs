@@ -97,9 +97,38 @@ function createDefensiveDeps(overrides = {}) {
 test("game simulator autopilot defensive targets expose moved defensive helpers", () => {
   const defensive = createGameSimulatorAutopilotDefensiveTargets(createDefensiveDeps());
 
+  expect(typeof defensive.getDefensiveBackLineHandoverContext).toBe("function");
   expect(typeof defensive.applyDefensiveBackLineHandoverTargets).toBe("function");
+  expect(typeof defensive.getDefensiveThreatResponse).toBe("function");
+  expect(typeof defensive.getDefensivePrioritySpacePoint).toBe("function");
+  expect(typeof defensive.pickDefensiveProtectionPlayer).toBe("function");
+  expect(typeof defensive.applyDefensivePrioritySpaceProtectionTargets).toBe("function");
   expect(typeof defensive.getDefensiveGoalkeeperTarget).toBe("function");
+  expect(typeof defensive.getDefensiveLocalOverloadContext).toBe("function");
+  expect(typeof defensive.applyDefensiveLocalOverloadResponseTargets).toBe("function");
+  expect(typeof defensive.getDefensivePassLaneDenialContext).toBe("function");
+  expect(typeof defensive.getDefensivePassLaneDenialTarget).toBe("function");
+  expect(typeof defensive.applyDefensivePassLaneDenialTargets).toBe("function");
+  expect(typeof defensive.getDefensivePostRecoveryResponseContext).toBe("function");
+  expect(typeof defensive.getDefensivePostRecoveryResponseTarget).toBe("function");
+  expect(typeof defensive.getDefensivePostRecoveryOutletOptions).toBe("function");
+  expect(typeof defensive.applyDefensivePostRecoveryResponseTargets).toBe("function");
+  expect(typeof defensive.getDefensiveCentralAccessGateContext).toBe("function");
+  expect(typeof defensive.getDefensiveCentralAccessGateTarget).toBe("function");
+  expect(typeof defensive.applyDefensiveCentralAccessGateTargets).toBe("function");
+  expect(typeof defensive.getDefensiveChanceDenialContext).toBe("function");
+  expect(typeof defensive.getDefensiveChanceDenialTarget).toBe("function");
+  expect(typeof defensive.applyDefensiveChanceDenialTargets).toBe("function");
+  expect(typeof defensive.getDefensiveBoxDeliveryChainContext).toBe("function");
+  expect(typeof defensive.getDefensiveBoxDeliveryChainTarget).toBe("function");
+  expect(typeof defensive.applyDefensiveBoxDeliveryChainTargets).toBe("function");
+  expect(typeof defensive.getDefensiveLineBreakAdvantageContext).toBe("function");
+  expect(typeof defensive.getDefensiveLineBreakAdvantageTarget).toBe("function");
+  expect(typeof defensive.applyDefensiveLineBreakAdvantageCollapseTargets).toBe("function");
+  expect(typeof defensive.getDefensiveEmergencyCoverContext).toBe("function");
+  expect(typeof defensive.getDefensiveEmergencyCoverTarget).toBe("function");
   expect(typeof defensive.applyDefensiveEmergencyCoverTargets).toBe("function");
+  expect(typeof defensive.getDefensiveSecondBallAnticipationTarget).toBe("function");
   expect(typeof defensive.applyDefensiveSecondBallAnticipationTargets).toBe("function");
 });
 

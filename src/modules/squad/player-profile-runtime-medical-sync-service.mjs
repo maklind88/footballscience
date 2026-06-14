@@ -80,9 +80,25 @@ export function createPlayerProfileRuntimeMedicalSyncService(options = {}) {
     }
   }
 
+  function normalizeRosterVersion(value) {
+    return String(value ?? "").trim();
+  }
+
+  function hasSharedRosterContext(profileState = null, medicalState = getMedicalState()) {
+    const medicalRosterVersion = normalizeRosterVersion(medicalState?.rosterVersion);
+    const profileRosterVersion = normalizeRosterVersion(profileState?.rosterVersion);
+    if (!medicalRosterVersion || !profileRosterVersion) {
+      return true;
+    }
+    return medicalRosterVersion === profileRosterVersion;
+  }
+
   function getActiveSquadProfiles() {
     try {
       const profileState = options.ensurePlayerProfilesState();
+      if (!hasSharedRosterContext(profileState)) {
+        return [];
+      }
       return (Array.isArray(profileState?.players) ? profileState.players : [])
         .filter((player) => !options.isMedicalItemArchived(player))
         .filter((player) => player.countsInSquad !== false && String(player.rosterType || "squad").trim() === "squad");

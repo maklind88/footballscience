@@ -262,7 +262,7 @@ export function createPlatformRuntimeServices(deps = {}) {
     getCurrentUser: getCurrentPlatformUser,
     getScheduleStateForGameplan,
     getPlayerProfilesStateForGameplan,
-    getPlayerProfilesStateForVideoAnalysis: () => playerProfilesState || readPlayerProfilesState(),
+    getPlayerProfilesStateForVideoAnalysis: () => deps.getPlayerProfilesState?.() || readPlayerProfilesState(),
     canEditGameplan: () => canCurrentUserEditWorkspace("gameplan"),
     canEditVideoAnalysis: () => canCurrentUserEditWorkspace("analysis-room"),
     getAuthToken: getPlatformApiAccessToken,

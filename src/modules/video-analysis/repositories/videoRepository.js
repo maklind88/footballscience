@@ -2,7 +2,7 @@ import { buildVideoAnalysisApiUrl } from "../video-analysis.routes.js";
 
 async function requestJson(url, options = {}, getAuthToken = () => "") {
   const headers = { "Content-Type": "application/json" };
-  const token = getAuthToken?.();
+  const token = await getAuthToken?.();
   if (token) headers.Authorization = `Bearer ${token}`;
   const response = await fetch(url, { ...options, headers: { ...headers, ...(options.headers || {}) } });
   const payload = await response.json().catch(() => ({}));

@@ -118,7 +118,11 @@ async function initialize(context = {}) {
   const run = ensureRuntime(context);
   run.store.setState({ status: "loading", error: "" });
   try {
-    await run.videos.status();
+    const state = run.store.getState();
+    if (!state.match?.id && !state.video?.id) {
+      run.store.setState({ status: "ready", error: "" });
+      return;
+    }
     await loadClips();
   } catch (error) {
     run.store.setState({ status: "ready", error: error.message || "" });

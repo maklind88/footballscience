@@ -1,0 +1,51 @@
+/* Schedule Planner dense fit */
+.schedule-workspace.is-planner-view{gap:.68rem}
+.schedule-workspace.is-planner-view .schedule-hero-card{padding:.72rem .92rem;border-radius:22px}
+.schedule-workspace.is-planner-view .schedule-hero-card>div:first-child{min-width:0;flex:1 1 auto}
+.schedule-workspace.is-planner-view .schedule-title{font-size:clamp(2rem,3vw,2.65rem);letter-spacing:-.04em;white-space:nowrap}
+.schedule-workspace.is-planner-view .schedule-toolbar{gap:.32rem;padding:.24rem}
+.schedule-workspace.is-planner-view .schedule-view-button{min-height:2rem;padding:0 .72rem;font-size:.78rem}
+.schedule-workspace.is-planner-view .schedule-nav-button,.schedule-workspace.is-planner-view .schedule-today-button{min-width:2.25rem;min-height:2.25rem}
+.schedule-workspace.is-planner-view .schedule-today-button{padding-inline:.82rem}
+.schedule-workspace.is-planner-view .schedule-board-card{padding:.62rem;gap:.48rem;border-radius:22px}
+.schedule-workspace.is-planner-view .schedule-planner-grid{width:100%;grid-template-columns:repeat(var(--schedule-planner-months,3),minmax(0,1fr));justify-content:stretch;align-items:start;gap:.46rem}
+.schedule-workspace.is-planner-view .schedule-planner-month{gap:.26rem;padding:.42rem;border-radius:12px}
+.schedule-workspace.is-planner-view .schedule-planner-month>header{min-height:1.25rem;padding:0}
+.schedule-workspace.is-planner-view .schedule-planner-month h3{font-size:.9rem;letter-spacing:-.015em}
+.schedule-workspace.is-planner-view .schedule-overview-legend{display:none}
+.schedule-workspace.is-planner-view .schedule-planner-days{gap:.07rem}
+.schedule-workspace.is-planner-view .schedule-planner-day{grid-template-columns:2.8rem minmax(0,1fr);gap:.1rem;min-height:1.42rem;padding:.08rem .1rem;border-radius:6px;background:#fff;border-color:#0000000a}
+.schedule-workspace.is-planner-view .schedule-planner-day.has-events{background:#fff;border-color:#0000000a}
+.schedule-workspace.is-planner-view .schedule-planner-date{min-height:1.16rem;gap:.08rem;padding:0 .08rem;border-radius:5px}
+.schedule-workspace.is-planner-view .schedule-planner-date span{font-size:.47rem;letter-spacing:.015em}
+.schedule-workspace.is-planner-view .schedule-planner-date strong{width:1.06rem;height:1.06rem;font-size:.6rem}
+.schedule-workspace.is-planner-view .schedule-planner-events{min-height:1.16rem;gap:.05rem}
+.schedule-workspace.is-planner-view .schedule-planner-day.has-note .schedule-planner-events{padding-right:1rem}
+.schedule-workspace.is-planner-view .schedule-planner-event-chip{padding:.13rem .26rem;border-radius:7px;font-size:.59rem;line-height:1;border-color:currentColor}
+.schedule-workspace.is-planner-view .schedule-planner-event-chip strong{font-size:.59rem;line-height:1}
+.schedule-workspace.is-planner-view .schedule-planner-event-chip small{display:none}
+.schedule-workspace.is-planner-view .schedule-planner-add input,.schedule-workspace.is-planner-view .schedule-planner-edit input{min-height:1.25rem;padding:.1rem .3rem;font-size:.59rem;border-radius:7px}
+.schedule-workspace.is-planner-view .schedule-planner-note-indicator{right:.28rem;width:.84rem;height:.84rem;min-width:0;min-height:0;padding:0!important;font-size:.5rem}
+.schedule-workspace.is-planner-view .schedule-planner-note-indicator::after{max-width:min(10.5rem,32vw);font-size:.56rem}
+.schedule-workspace.is-planner-view .schedule-planner-note-overlay{width:min(21.5rem,calc(100vw - 1.5rem))}
+@media (max-width:1180px){.schedule-workspace.is-planner-view .schedule-planner-grid{grid-template-columns:repeat(var(--schedule-planner-months,3),minmax(0,1fr))}}
+@media (max-width:760px){.schedule-workspace.is-planner-view .schedule-hero-card{padding:.8rem}.schedule-workspace.is-planner-view .schedule-title{font-size:2.25rem}.schedule-workspace.is-planner-view .schedule-planner-day{grid-template-columns:2.9rem minmax(0,1fr);min-height:1.24rem}.schedule-workspace.is-planner-view .schedule-planner-event-chip,.schedule-workspace.is-planner-view .schedule-planner-add,.schedule-workspace.is-planner-view .schedule-planner-edit{width:100%;flex-basis:100%}}
+
+/* Schedule toolbar stability */
+.schedule-toolbar{position:relative;display:flex;align-items:center;gap:.5rem;min-height:3.42rem;white-space:nowrap}
+.schedule-view-switch{display:grid;grid-template-columns:repeat(4,5.05rem);align-items:center;gap:.22rem}
+.schedule-view-button{width:100%;min-width:0;justify-content:center;white-space:nowrap}
+.schedule-nav-button{width:2.6rem;min-width:2.6rem}
+.schedule-today-button{width:5.1rem;min-width:5.1rem;padding-inline:.8rem;white-space:nowrap}
+.schedule-span-select{position:static;right:auto;top:auto;z-index:1;flex:0 0 auto;min-height:2.2rem;padding:.12rem;box-shadow:none}
+.schedule-span-buttons button{min-width:2.05rem;min-height:1.62rem;padding:0 .44rem;font-size:.72rem}
+.schedule-workspace.is-planner-view .schedule-toolbar{gap:.5rem;padding:.35rem}
+.schedule-workspace.is-planner-view .schedule-view-button{min-height:2.25rem;padding:0 .9rem;font-size:.84rem}
+.schedule-workspace.is-planner-view .schedule-nav-button,.schedule-workspace.is-planner-view .schedule-today-button{min-width:2.6rem;min-height:2.6rem}
+.schedule-workspace.is-planner-view .schedule-today-button{padding-inline:.8rem}
+.schedule-hero-card{padding:.72rem .92rem;border-radius:22px}
+.schedule-title{font-size:clamp(2rem,3.6vw,3.25rem);letter-spacing:-.045em}
+.schedule-hero-card:has(#scheduleOverviewSpanControl:not([hidden])){padding-bottom:.72rem}
+.schedule-hero-card:has(#scheduleOverviewSpanControl:not([hidden]))>div:first-child{min-width:0;flex:1 1 auto}
+.schedule-hero-card:has(#scheduleOverviewSpanControl:not([hidden])) .schedule-title{font-size:clamp(2rem,3vw,2.65rem);letter-spacing:-.04em;white-space:nowrap}
+@media (max-width:760px){.schedule-toolbar{width:100%;flex-wrap:wrap}.schedule-view-switch{grid-template-columns:repeat(4,minmax(0,1fr));width:100%}.schedule-view-button,.schedule-workspace.is-planner-view .schedule-view-button{padding:0 .38rem;font-size:.72rem}.schedule-today-button,.schedule-workspace.is-planner-view .schedule-today-button{width:4.7rem;min-width:4.7rem}.schedule-workspace.is-planner-view .schedule-title,.schedule-hero-card:has(#scheduleOverviewSpanControl:not([hidden])) .schedule-title{white-space:normal}.schedule-span-select{width:100%;justify-content:center;order:2}}

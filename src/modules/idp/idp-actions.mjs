@@ -111,7 +111,7 @@ export function createIdpActions({ store, api, context = {} }) {
       note: formData.get("note"),
       sourceModule: "idp",
     });
-    store.setState({ ui: { actionMode: "", message: "Evidence added." } });
+    store.setState({ ui: { actionMode: "", message: "Observation added." } });
     await refreshSelectedPlayer();
   }
 

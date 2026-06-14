@@ -24,8 +24,24 @@ function escapeHtml(value = "") {
     .replace(/'/g, "&#039;");
 }
 
-function optionList(options = [], selected = "") {
-  return options.map((option) => `<option value="${escapeHtml(option)}" ${option === selected ? "selected" : ""}>${escapeHtml(option)}</option>`).join("");
+function coachLabel(value = "") {
+  return String(value ?? "")
+    .replace(/\bNeeds Evidence\b/g, "Needs Observation")
+    .replace(/\bAdd Evidence\b/g, "Add Observation")
+    .replace(/\bAdd evidence\b/g, "Add observation")
+    .replace(/\bMarked As Evidence\b/g, "Marked As Observation")
+    .replace(/\bHas Evidence\b/g, "Has Observation")
+    .replace(/\bFirst Evidence Added\b/g, "First Observation Added")
+    .replace(/\bEvidence added\b/g, "Observation added")
+    .replace(/\bEvidence queue\b/g, "Observation queue")
+    .replace(/\bEvidence summary\b/g, "Observation summary")
+    .replace(/\bEvidence type\b/g, "Observation type")
+    .replace(/\bEvidence\b/g, "Observations")
+    .replace(/\bevidence\b/g, "observations");
+}
+
+function optionList(options = [], selected = "", labelFormatter = (option) => option) {
+  return options.map((option) => `<option value="${escapeHtml(option)}" ${option === selected ? "selected" : ""}>${escapeHtml(labelFormatter(option))}</option>`).join("");
 }
 
 function normalizeText(value = "", fallback = "") {
@@ -98,7 +114,7 @@ function filterDashboardRows(state = {}) {
   const query = String(searchQuery || "").trim().toLowerCase();
   const rows = (state.dashboardPlayers || []).filter((entry) => {
     const focus = entry.focus || {};
-    const haystack = [entry.profile?.playerName, focus.title, focus.category, entry.nextAction, entry.overallStatus].join(" ").toLowerCase();
+    const haystack = [entry.profile?.playerName, focus.title, focus.category, entry.nextAction, entry.overallStatus, coachLabel(entry.nextAction), coachLabel(entry.overallStatus)].join(" ").toLowerCase();
     if (query && !haystack.includes(query)) return false;
     if (statusFilter !== "All" && entry.overallStatus !== statusFilter) return false;
     if (categoryFilter !== "All" && focus.category !== categoryFilter) return false;
@@ -144,11 +160,11 @@ function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state)) 
           <strong>${escapeHtml(focus.title || "No active focus")}</strong>
           <small>${escapeHtml(focus.category || "-")}</small>
         </span>
-        <span><span class="idp-status-pill is-${statusTone(entry.overallStatus)}">${escapeHtml(entry.overallStatus)}</span></span>
-        <span class="idp-overview-metric"><strong>${escapeHtml(String(entry.evidenceCount || 0))}</strong><small>Evidence</small></span>
+        <span><span class="idp-status-pill is-${statusTone(entry.overallStatus)}">${escapeHtml(coachLabel(entry.overallStatus))}</span></span>
+        <span class="idp-overview-metric"><strong>${escapeHtml(String(entry.evidenceCount || 0))}</strong><small>Observations</small></span>
         <span class="idp-overview-metric"><strong>${escapeHtml(String(entry.newClipCount || 0))}</strong><small>Clips</small></span>
         <span class="idp-overview-review"><strong>${escapeHtml(getReviewLabel(entry))}</strong><small>${escapeHtml(profile.ownerId || focus.ownerId || "Unassigned")}</small></span>
-        <span class="idp-overview-action">${escapeHtml(entry.nextAction || "Add evidence")}</span>
+        <span class="idp-overview-action">${escapeHtml(coachLabel(entry.nextAction || "Add evidence"))}</span>
       </button>
     `;
   }).join("");
@@ -183,7 +199,7 @@ function renderTimeline(detail = {}) {
     <div class="idp-timeline-item">
       <span></span>
       <div>
-        <strong>${escapeHtml(milestone.title || milestone.milestoneType)}</strong>
+        <strong>${escapeHtml(coachLabel(milestone.title || milestone.milestoneType))}</strong>
         <small>${escapeHtml(milestone.occurredOn || "")}</small>
       </div>
     </div>
@@ -196,21 +212,21 @@ function renderClipBank(detail = {}, canEdit = false) {
   return clips.slice(0, 8).map((clip) => `
     <div class="idp-list-item">
       <div>
-        <strong>${escapeHtml(clip.status)}</strong>
+        <strong>${escapeHtml(coachLabel(clip.status))}</strong>
         <small>${escapeHtml(clip.sourceModule)} / ${escapeHtml(clip.clipInstanceId)}</small>
       </div>
-      ${canEdit ? `<button type="button" data-idp-action="evidence">Evidence</button>` : ""}
+      ${canEdit ? `<button type="button" data-idp-action="evidence">Log observation</button>` : ""}
     </div>
   `).join("");
 }
 
 function renderEvidence(detail = {}) {
   const evidence = detail.evidence || [];
-  if (!evidence.length) return `<div class="idp-muted">Evidence queue is empty.</div>`;
+  if (!evidence.length) return `<div class="idp-muted">No observations yet.</div>`;
   return evidence.slice(0, 8).map((item) => `
     <div class="idp-list-item">
       <div>
-        <strong>${escapeHtml(item.evidenceType)}</strong>
+        <strong>${escapeHtml(coachLabel(item.evidenceType))}</strong>
         <small>${escapeHtml(item.note || item.sourceModule)}</small>
       </div>
       <time>${escapeHtml(item.createdAt ? item.createdAt.slice(0, 10) : "")}</time>
@@ -223,7 +239,7 @@ function renderActionRail(canEdit = false, focusId = "") {
   return `
     <div class="idp-action-rail" aria-label="Player development actions">
       <button type="button" data-idp-action="focus">Update focus</button>
-      <button type="button" data-idp-action="evidence" ${focusId ? "" : "disabled"}>Add evidence</button>
+      <button type="button" data-idp-action="evidence" ${focusId ? "" : "disabled"}>Add observation</button>
       <button type="button" data-idp-action="review" ${focusId ? "" : "disabled"}>Complete review</button>
     </div>
   `;
@@ -244,7 +260,7 @@ function renderFocusForm(focus = null) {
       </label>
       <label>
         <span>Status</span>
-        <select name="status">${optionList(idpFocusStatuses, focus?.status || "Active")}</select>
+        <select name="status">${optionList(idpFocusStatuses, focus?.status || "Active", coachLabel)}</select>
       </label>
       <label>
         <span>Review date</span>
@@ -264,7 +280,7 @@ function renderEvidenceForm(focus = null) {
     <form class="idp-action-form" data-idp-add-evidence>
       <input type="hidden" name="focusId" value="${escapeHtml(focusId)}">
       <label>
-        <span>Evidence type</span>
+        <span>Observation type</span>
         <select name="evidenceType">${optionList(idpEvidenceTypes, "Coach Note")}</select>
       </label>
       <label class="idp-form-wide">
@@ -273,7 +289,7 @@ function renderEvidenceForm(focus = null) {
       </label>
       <div class="idp-action-form-actions">
         <button type="button" class="idp-secondary-action" data-idp-close-action>Cancel</button>
-        <button type="submit" ${focusId ? "" : "disabled"}>Add evidence</button>
+        <button type="submit" ${focusId ? "" : "disabled"}>Add observation</button>
       </div>
     </form>
   `;
@@ -289,8 +305,8 @@ function renderReviewForm(focus = null) {
         <textarea name="progressSummary" rows="3" placeholder="What changed since the last review?"></textarea>
       </label>
       <label class="idp-form-wide">
-        <span>Evidence summary</span>
-        <textarea name="evidenceSummary" rows="3" placeholder="Evidence used for the decision"></textarea>
+        <span>Observation summary</span>
+        <textarea name="evidenceSummary" rows="3" placeholder="Observations used for the decision"></textarea>
       </label>
       <label>
         <span>Next action</span>
@@ -309,7 +325,7 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false) {
   if (!canEdit || !mode) return "";
   const copy = {
     focus: ["Update focus", "Change the player's current development priority, status, and review date."],
-    evidence: ["Add evidence", "Capture a coach note, clip review, test result, or meeting signal for this focus."],
+    evidence: ["Add observation", "Capture a coach note, clip review, test result, or meeting signal for this focus."],
     review: ["Complete review", "Close the current review loop and set the next action."],
   };
   const [title, description] = copy[mode] || copy.focus;
@@ -346,7 +362,7 @@ function renderOverviewBoard(state = {}, ui = defaultUiState) {
       </div>
       <div class="idp-toolbar">
         <select data-idp-filter="status" aria-label="Filter by status">
-          ${optionList(["All", "On Track", "Needs Evidence", "Review Due", "No Active Focus", "New Clips To Review"], ui.statusFilter)}
+          ${optionList(["All", "On Track", "Needs Evidence", "Review Due", "No Active Focus", "New Clips To Review"], ui.statusFilter, coachLabel)}
         </select>
         <select data-idp-filter="category" aria-label="Filter by category">
           ${optionList(["All", ...idpDevelopmentCategories], ui.categoryFilter)}
@@ -358,7 +374,7 @@ function renderOverviewBoard(state = {}, ui = defaultUiState) {
           <span>Player</span>
           <span>Current Focus</span>
           <span>Status</span>
-          <span>Evidence</span>
+          <span>Observations</span>
           <span>Clips</span>
           <span>Review / Owner</span>
           <span>Next Action</span>
@@ -393,7 +409,7 @@ function renderPlayerProfile(state = {}, canEdit = false) {
           </div>
         </div>
         <div class="idp-profile-actions">
-          <span class="idp-status-pill is-${statusTone(focus?.status)}">${escapeHtml(focus?.status || "No Active Focus")}</span>
+          <span class="idp-status-pill is-${statusTone(focus?.status)}">${escapeHtml(coachLabel(focus?.status || "No Active Focus"))}</span>
           ${renderActionRail(canEdit, focusId)}
         </div>
       </header>
@@ -405,13 +421,13 @@ function renderPlayerProfile(state = {}, canEdit = false) {
         </article>
         <article class="idp-panel idp-next-panel">
           <p>Next Action</p>
-          <h3>${escapeHtml(nextAction.title || "Add evidence")}</h3>
+          <h3>${escapeHtml(coachLabel(nextAction.title || "Add evidence"))}</h3>
           <div class="idp-meta-line">${escapeHtml(formatDate(nextAction.dueOn || focus?.reviewDate, "No date set"))}</div>
         </article>
         <article class="idp-panel idp-stat-panel">
-          <p>Evidence</p>
+          <p>Observations</p>
           <h3>${escapeHtml(String(detail.evidence?.length || 0))}</h3>
-          <div class="idp-meta-line">items attached</div>
+          <div class="idp-meta-line">observations logged</div>
         </article>
         <article class="idp-panel idp-stat-panel">
           <p>Clip Bank</p>
@@ -425,7 +441,7 @@ function renderPlayerProfile(state = {}, canEdit = false) {
           ${renderClipBank(detail, canEdit)}
         </article>
         <article class="idp-panel">
-          <div class="idp-panel-head"><p>Evidence</p><span>${escapeHtml(String(detail.evidence?.length || 0))}</span></div>
+          <div class="idp-panel-head"><p>Observations</p><span>${escapeHtml(String(detail.evidence?.length || 0))}</span></div>
           ${renderEvidence(detail)}
         </article>
         <article class="idp-panel">

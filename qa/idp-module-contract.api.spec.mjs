@@ -71,6 +71,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(overviewHtml).toContain("North Carolina Courage");
   expect(overviewHtml).toContain("Current Focus");
   expect(overviewHtml).toContain("Next Action");
+  expect(overviewHtml).toContain("Observations");
   expect(overviewHtml).not.toContain("data-idp-action=\"focus\"");
   expect(overviewHtml).not.toContain("Development Timeline");
 
@@ -81,11 +82,16 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("data-idp-back-overview");
   expect(profileHtml).toContain("data-idp-action=\"focus\"");
   expect(profileHtml).toContain("data-idp-action=\"evidence\"");
+  expect(profileHtml).toContain("Add observation");
+  expect(profileHtml).toContain("Observations");
   expect(profileHtml).toContain("Clip Bank");
   expect(profileHtml).toContain("Development Timeline");
 
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "focus" } }, { canEdit: true })).toContain("data-idp-create-focus");
-  expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "evidence" } }, { canEdit: true })).toContain("data-idp-add-evidence");
+  const observationHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "evidence" } }, { canEdit: true });
+  expect(observationHtml).toContain("data-idp-add-evidence");
+  expect(observationHtml).toContain("Observation type");
+  expect(observationHtml).toContain("Add observation");
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, { canEdit: true })).toContain("data-idp-complete-review");
 });
 

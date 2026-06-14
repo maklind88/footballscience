@@ -4,6 +4,12 @@ import { escapeHtml } from "./renderHelpers.js";
 export function renderVideoPlayer(state = {}) {
   const ref = state.videoRef;
   const hasVideo = Boolean(ref?.objectUrl);
+  const compatibility = ref?.playbackCompatibility || {};
+  const codecText = compatibility.codecLabel
+    ? `${compatibility.codecLabel}${compatibility.container ? ` / ${compatibility.container.toUpperCase()}` : ""}`
+    : compatibility.container
+      ? compatibility.container.toUpperCase()
+      : "";
   return `
     <section class="video-analysis-player" data-video-analysis-player>
       <div class="video-analysis-player__bar">
@@ -26,6 +32,7 @@ export function renderVideoPlayer(state = {}) {
       </div>
       <div class="video-analysis-player__meta">
         <span>${hasVideo ? "Ready on this device" : "No local file selected"}</span>
+        ${codecText ? `<span>${escapeHtml(codecText)}</span>` : ""}
         <span>${formatVideoTime(ref?.durationMs || 0)}</span>
       </div>
     </section>

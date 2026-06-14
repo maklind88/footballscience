@@ -66,9 +66,9 @@ function updateVideoDuration(durationMs = 0) {
 }
 
 function setVideoPlaybackError(video) {
-  const message = describeVideoPlaybackError(video);
-  if (!message) return;
   const state = runtime?.store.getState();
+  const message = state?.videoRef?.playbackCompatibility?.warning || describeVideoPlaybackError(video);
+  if (!message) return;
   if (state?.status === "error" && state.error === message) return;
   runtime?.store.setState({ status: "error", error: message });
 }
@@ -247,7 +247,13 @@ async function handleFileSelection(file, context = {}) {
   try {
     const reference = await createLocalVideoReference(file, context.win || window);
     revokeLocalVideoReference(previous, context.win || window);
-    run.store.setState({ videoRef: reference, status: "saving-source", message: "Local video linked.", error: "" });
+    const playbackWarning = reference.playbackCompatibility?.warning || "";
+    run.store.setState({
+      videoRef: reference,
+      status: playbackWarning ? "error" : "saving-source",
+      message: playbackWarning ? "" : "Local video linked.",
+      error: playbackWarning,
+    });
     const payload = await run.videos.createLocalVideoSource({
       displayName: reference.displayName,
       localVideoIdentifier: reference.localVideoIdentifier,
@@ -259,8 +265,9 @@ async function handleFileSelection(file, context = {}) {
       match: payload.match || state.match || { id: payload.video?.match_id, title: reference.displayName },
       video: payload.video,
       source: payload.source,
-      status: "ready",
-      message: "Video metadata saved.",
+      status: playbackWarning ? "error" : "ready",
+      message: playbackWarning ? "" : "Video metadata saved.",
+      error: playbackWarning,
     }));
     await loadClips();
   } catch (error) {

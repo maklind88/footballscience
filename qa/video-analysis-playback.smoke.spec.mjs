@@ -55,3 +55,24 @@ test("Video Analysis keeps the local video element stable after metadata loads",
 
   expect(pageErrors).toEqual([]);
 });
+
+test("Video Analysis warns when a local file appears to use HEVC", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("[data-video-analysis-load]")).toBeVisible();
+
+  await page.locator("[data-video-analysis-file]").setInputFiles({
+    name: "match-hevc.mov",
+    mimeType: "video/quicktime",
+    buffer: Buffer.from("ftypqt  moovtrakmdiahdlrstsdhvc1"),
+  });
+
+  await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("HEVC/H.265 / MOV");
+  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("HEVC/H.265");
+  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("desktop bridge/transcode");
+  await expect(page.locator(".video-analysis-notifications")).toHaveCSS("position", "fixed");
+  expect(pageErrors).toEqual([]);
+});

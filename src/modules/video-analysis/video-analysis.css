@@ -76,37 +76,49 @@
 }
 
 .analysis-room-tabs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 4px;
-  border: 1px solid #d8ded7;
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 3px;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid rgba(199, 211, 202, 0.92);
   border-radius: 8px;
-  padding: 4px;
-  background: #ffffff;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 10px 28px rgba(18, 32, 24, 0.07);
+  scrollbar-width: none;
+}
+
+.analysis-room-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .analysis-room-tab {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 9px;
-  min-width: 0;
-  min-height: 50px;
+  flex: 0 0 auto;
+  gap: 8px;
+  min-height: 38px;
   border: 1px solid transparent;
   border-radius: 7px;
-  padding: 8px 12px;
+  padding: 7px 12px;
   color: #536158;
   background: transparent;
   font: inherit;
   text-align: left;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
 }
 
 .analysis-room-tab-icon {
   display: block;
   flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  color: #607064;
+  width: 18px;
+  height: 18px;
+  color: #718078;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -122,17 +134,19 @@
 .analysis-room-tab span {
   min-width: 0;
   color: #17201b;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 750;
   line-height: 1.15;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .analysis-room-tab.is-active {
-  border-color: #17402a;
+  border-color: #17422b;
   color: #ffffff;
-  background: #143522;
-  box-shadow: 0 6px 18px rgba(20, 53, 34, 0.16);
+  background:
+    linear-gradient(135deg, rgba(39, 95, 63, 0.96), rgba(14, 62, 41, 0.98)),
+    #143522;
+  box-shadow: 0 8px 18px rgba(20, 53, 34, 0.18);
 }
 
 .analysis-room-tab.is-active .analysis-room-tab-icon,
@@ -142,12 +156,12 @@
 
 .analysis-room-tab:disabled {
   cursor: not-allowed;
-  opacity: 0.64;
+  opacity: 0.7;
 }
 
 .analysis-room-tab:not(:disabled):not(.is-active):hover {
-  border-color: #c6d3cb;
-  background: #f5f8f5;
+  border-color: #cbd8d0;
+  background: rgba(244, 248, 245, 0.95);
 }
 
 .analysis-room-tab-panel {
@@ -827,10 +841,6 @@
     align-items: center;
   }
 
-  .analysis-room-tabs {
-    grid-template-columns: 1fr 1fr;
-  }
-
   .video-analysis-workstation,
   .video-analysis-filters,
   .video-analysis-review-sections {
@@ -866,11 +876,7 @@
     font-size: 20px;
   }
 
-  .analysis-room-tabs {
-    grid-template-columns: 1fr;
-  }
-
   .analysis-room-tab {
-    min-height: 46px;
+    min-height: 38px;
   }
 }

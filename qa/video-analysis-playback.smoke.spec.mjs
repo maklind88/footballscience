@@ -155,9 +155,16 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-timeline-ruler")).toBeVisible();
   await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("Team Principle");
   await expect(page.locator(".video-analysis-clip-block").first()).toBeVisible();
+  await expect(page.locator(".video-analysis-playhead")).toHaveCount(1);
   await expect(page.locator(".video-analysis-playhead").first()).toBeVisible();
   const firstClipStyle = await page.locator(".video-analysis-clip-block").first().getAttribute("style");
   expect(firstClipStyle).not.toContain("left:99.5%");
+
+  const railBox = await page.locator(".video-analysis-playhead-rail").boundingBox();
+  const stackBox = await page.locator(".video-analysis-lane-stack").boundingBox();
+  expect(railBox).toBeTruthy();
+  expect(stackBox).toBeTruthy();
+  expect(railBox.height).toBeGreaterThan(stackBox.height);
 
   await page.locator('[data-video-analysis-timeline-lane="outcome"]').click();
   await expect(page.locator('[data-video-analysis-timeline-lane="outcome"]')).toHaveClass(/is-active/);
@@ -180,15 +187,19 @@ test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red 
   await expect(page.locator(".video-analysis-timeline-ruler")).toContainText("2:01:07");
   await expect(page.locator(".video-analysis-player__meta")).toContainText("2:01:07");
 
-  const track = page.locator("[data-video-analysis-timeline-track]").first();
-  await expect(track).toBeVisible();
-  await track.scrollIntoViewIfNeeded();
-  const box = await track.boundingBox();
-  expect(box).toBeTruthy();
-  const y = box.y + box.height / 2;
-  await page.mouse.move(box.x + 2, y);
+  const rail = page.locator("[data-video-analysis-timeline-scrub-surface]");
+  const playhead = page.locator(".video-analysis-playhead").first();
+  await expect(rail).toBeVisible();
+  await expect(playhead).toBeVisible();
+  await playhead.scrollIntoViewIfNeeded();
+  const railBox = await rail.boundingBox();
+  const playheadBox = await playhead.boundingBox();
+  expect(railBox).toBeTruthy();
+  expect(playheadBox).toBeTruthy();
+  const y = playheadBox.y + playheadBox.height / 2;
+  await page.mouse.move(playheadBox.x + playheadBox.width / 2, y);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2, y);
+  await page.mouse.move(railBox.x + railBox.width / 2, y);
   await page.mouse.up();
 
   const currentTime = await page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.currentTime || 0);

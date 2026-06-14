@@ -3,6 +3,8 @@ import { getTimelineDurationMs, timelineMsFromClientX } from "./timeline.service
 
 export function createTimelineScrubController(options = {}) {
   let session = null;
+  let pendingMoveMs = null;
+  let frameId = 0;
 
   function root() {
     return options.getRoot?.() || null;
@@ -14,6 +16,15 @@ export function createTimelineScrubController(options = {}) {
 
   function win() {
     return options.getWindow?.() || globalThis.window;
+  }
+
+  function clearPendingFrame() {
+    const targetWindow = win();
+    if (frameId && targetWindow?.cancelAnimationFrame) {
+      targetWindow.cancelAnimationFrame(frameId);
+    }
+    frameId = 0;
+    pendingMoveMs = null;
   }
 
   function syncPlayheads(playheadMs = 0, durationMs = 1) {
@@ -48,9 +59,23 @@ export function createTimelineScrubController(options = {}) {
     return timelineMsFromClientX(event.clientX, session.rect, session.durationMs);
   }
 
-  function applyScrub(event = {}, { commit = false } = {}) {
+  function applyScrub(event = {}, { commit = false, immediate = false } = {}) {
     if (!session) return;
-    seekToMs(msFromEvent(event), { commit });
+    const nextMs = msFromEvent(event);
+    const targetWindow = win();
+    if (commit || immediate || !targetWindow?.requestAnimationFrame) {
+      clearPendingFrame();
+      seekToMs(nextMs, { commit });
+      return;
+    }
+    pendingMoveMs = nextMs;
+    if (frameId) return;
+    frameId = targetWindow.requestAnimationFrame(() => {
+      frameId = 0;
+      const scrubMs = pendingMoveMs;
+      pendingMoveMs = null;
+      seekToMs(scrubMs);
+    });
   }
 
   function handlePointerMove(event = {}) {
@@ -66,6 +91,7 @@ export function createTimelineScrubController(options = {}) {
     targetWindow?.removeEventListener?.("pointermove", handlePointerMove);
     targetWindow?.removeEventListener?.("pointerup", endScrub);
     targetWindow?.removeEventListener?.("pointercancel", endScrub);
+    clearPendingFrame();
     session = null;
   }
 
@@ -77,7 +103,13 @@ export function createTimelineScrubController(options = {}) {
     const scrubHandle = target.closest("[data-video-analysis-timeline-scrub]");
     const track = target.closest("[data-video-analysis-timeline-track]");
     const ruler = target.closest("[data-video-analysis-timeline-ruler]");
-    const surface = scrubHandle?.closest("[data-video-analysis-timeline-track]") || track || ruler;
+    if (!scrubHandle && !track && !ruler) return false;
+
+    const module = target.closest("[data-video-analysis-timeline-module]");
+    const surface = module?.querySelector("[data-video-analysis-timeline-scrub-surface]")
+      || scrubHandle?.closest("[data-video-analysis-timeline-scrub-surface]")
+      || track
+      || ruler;
     if (!surface) return false;
 
     const rect = surface.getBoundingClientRect?.();
@@ -97,7 +129,7 @@ export function createTimelineScrubController(options = {}) {
     target.setPointerCapture?.(event.pointerId);
 
     event.preventDefault?.();
-    applyScrub(event);
+    applyScrub(event, { immediate: true });
     return true;
   }
 

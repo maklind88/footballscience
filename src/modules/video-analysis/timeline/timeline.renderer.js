@@ -94,7 +94,7 @@ function renderClipBlock(clip = {}, totalMs = 1, laneMode = "phase", selectedCli
   `;
 }
 
-function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", selectedClipId = "", playheadMs = 0) {
+function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", selectedClipId = "") {
   if (!lanes.length) {
     return `
       <div class="video-analysis-lane is-empty">
@@ -103,7 +103,6 @@ function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", select
           <span>No clips</span>
         </div>
         <div class="video-analysis-lane__track" data-video-analysis-timeline-track data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}">
-          ${renderTimelinePlayhead(playheadMs, totalMs)}
         </div>
       </div>
     `;
@@ -115,7 +114,6 @@ function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", select
         <span>${escapeHtml(`${lane.clips.length} clip${lane.clips.length === 1 ? "" : "s"}`)}</span>
       </div>
       <div class="video-analysis-lane__track" data-video-analysis-timeline-track data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}">
-        ${renderTimelinePlayhead(playheadMs, totalMs)}
         ${lane.clips.map((clip) => renderClipBlock(clip, totalMs, laneMode, selectedClipId)).join("")}
       </div>
     </div>
@@ -181,8 +179,15 @@ export function renderTimeline(state = {}) {
       <div class="video-analysis-timeline-scroll">
         <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(zoom)}">
           ${renderTimelineRuler(ticks, totalMs)}
+          <div
+            class="video-analysis-playhead-rail"
+            data-video-analysis-timeline-scrub-surface
+            data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}"
+          >
+            ${renderTimelinePlayhead(timeline.playheadMs, totalMs)}
+          </div>
           <div class="video-analysis-lane-stack">
-            ${renderTimelineLanes(lanes, totalMs, laneMode, state.selectedClipId, timeline.playheadMs)}
+            ${renderTimelineLanes(lanes, totalMs, laneMode, state.selectedClipId)}
           </div>
         </div>
       </div>

@@ -30,6 +30,10 @@ export function createInitialVideoAnalysisState(context = {}) {
     canEdit: Boolean(context.canEdit?.()),
     players: normalizeVideoAnalysisPlayers(context.getPlayerProfilesState?.()),
     videoRef: null,
+    playbackPreparation: {
+      active: false,
+      token: "",
+    },
     match: null,
     video: null,
     source: null,

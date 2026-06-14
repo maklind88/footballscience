@@ -21,6 +21,7 @@ import { createPlayableLocalCopy } from "./services/localPlaybackTranscodeServic
 import { addClipToReviewSection, buildReviewSessionPayload, removeClipFromReviewSection, updateReviewSectionNote } from "./services/reviewSessionService.js";
 import { trimClipDraft } from "./services/timelineService.js";
 import { describeVideoPlaybackError, getVideoCurrentMs, seekVideoToMs, toggleVideoPlayback } from "./services/videoPlaybackService.js";
+import { bindPaintedVideoControls, bindRootEventFallback, eventElement } from "./video-analysis.dom-events.js";
 import { createVideoAnalysisStore } from "./video-analysis.store.js";
 
 let runtime = null;
@@ -68,6 +69,7 @@ function updateVideoDuration(durationMs = 0) {
 
 function setVideoPlaybackError(video) {
   const state = runtime?.store.getState();
+  if (shouldPreservePlaybackPreparation(state)) return;
   const message = state?.videoRef?.playbackCompatibility?.warning || describeVideoPlaybackError(video, state?.videoRef);
   if (!message) return;
   if (state?.status === "error" && state.error === message) return;
@@ -92,9 +94,25 @@ function shouldLoadMetadata(context = {}, state = {}) {
   return !isLocalStaticHost(context);
 }
 
+function shouldPreservePlaybackPreparation(state = {}) {
+  return Boolean(
+    state.playbackPreparation?.active
+    || state.status === "preparing-playback"
+    || String(state.error || "").startsWith("Local video bridge")
+  );
+}
+
 function canPreparePlayableCopy(state = {}) {
   const compatibility = state.videoRef?.playbackCompatibility || {};
   return Boolean(state.videoRef?.objectUrl && (state.error || compatibility.warning || compatibility.status === "unsupported" || compatibility.status === "uncertain"));
+}
+
+function openLocalVideoPicker(context = {}) {
+  const fileInput = getRoot(context)?.querySelector("[data-video-analysis-file]");
+  if (!fileInput) return false;
+  fileInput.value = "";
+  fileInput.click();
+  return true;
 }
 
 function paint(root, state) {
@@ -143,6 +161,12 @@ function paint(root, state) {
       ${renderPlayerClipDrawer(displayState)}
     </section>
   `;
+  bindPaintedVideoControls(root, {
+    handleFileSelection,
+    openLocalVideoPicker,
+    preparePlayableCopy,
+    togglePlayback,
+  });
   const video = root.querySelector("[data-video-analysis-video]");
   const nextFocus = focusedDraft
     ? root.querySelector(`[data-video-analysis-draft="${focusedDraft}"]`)
@@ -208,7 +232,7 @@ async function loadClips(nextFilters = null) {
       clips = clips.filter((clip) => (clip.players || []).some((player) => (player.player_id || player.playerId) === filters.playerId));
     }
     run.store.update((current) => {
-      const preservePlaybackPreparation = current.status === "preparing-playback" || String(current.error || "").startsWith("Local video bridge");
+      const preservePlaybackPreparation = shouldPreservePlaybackPreparation(current);
       return {
         ...current,
         status: preservePlaybackPreparation ? current.status : "ready",
@@ -249,6 +273,12 @@ export function render(context = {}) {
   const run = ensureRuntime(context);
   const root = getRoot(context);
   if (!root) return;
+  bindRootEventFallback(root, context, {
+    change: handleChange,
+    click: handleClick,
+    input: handleInput,
+    submit: handleSubmit,
+  });
   if (!run.unsubscribe) {
     run.unsubscribe = run.store.subscribe((state) => paint(root, state));
   }
@@ -270,6 +300,7 @@ async function handleFileSelection(file, context = {}) {
     const playbackWarning = reference.playbackCompatibility?.warning || "";
     run.store.setState({
       videoRef: reference,
+      playbackPreparation: { active: false, token: "" },
       status: playbackWarning ? "error" : "saving-source",
       message: playbackWarning ? "" : "Local video linked.",
       error: playbackWarning,
@@ -281,7 +312,7 @@ async function handleFileSelection(file, context = {}) {
       durationMs: reference.durationMs,
     });
     run.store.update((state) => {
-      const preservePlaybackPreparation = state.status === "preparing-playback" || String(state.error || "").startsWith("Local video bridge");
+      const preservePlaybackPreparation = shouldPreservePlaybackPreparation(state);
       return {
         ...state,
         match: payload.match || state.match || { id: payload.video?.match_id, title: reference.displayName },
@@ -322,8 +353,23 @@ async function saveDraftClip(context = {}, stateOverride = null) {
 async function preparePlayableCopy(context = {}) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
-  if (!state.videoRef) return false;
-  run.store.setState({ status: "preparing-playback", message: "Preparing local playback copy.", error: "" });
+  if (!state.videoRef) {
+    run.store.setState({
+      status: "error",
+      message: "",
+      error: "Reload the original local file before preparing a playable copy.",
+      playbackPreparation: { active: false, token: "" },
+    });
+    return false;
+  }
+  const token = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  run.store.update((current) => ({
+    ...current,
+    status: "preparing-playback",
+    message: "Preparing local playback copy.",
+    error: "",
+    playbackPreparation: { active: true, token },
+  }));
   try {
     const playableReference = await createPlayableLocalCopy(state.videoRef, context.win || window);
     run.store.update((current) => ({
@@ -332,10 +378,17 @@ async function preparePlayableCopy(context = {}) {
       status: "ready",
       message: "Playable local copy ready.",
       error: "",
+      playbackPreparation: { active: false, token: "" },
     }));
     return true;
   } catch (error) {
-    run.store.setState({ status: "error", message: "", error: error.message || "Could not prepare playable copy." });
+    run.store.update((current) => ({
+      ...current,
+      status: "error",
+      message: "",
+      error: error.message || "Could not prepare playable copy.",
+      playbackPreparation: { active: false, token: "" },
+    }));
     return false;
   }
 }
@@ -367,13 +420,10 @@ async function applyCodeButton(buttonId = "", context = {}) {
 export function handleClick(event, context = {}) {
   const run = ensureRuntime(context);
   const root = getRoot(context);
-  const target = event.target;
+  const target = eventElement(event);
+  if (!target?.closest) return false;
   if (target.closest("[data-video-analysis-load]")) {
-    const fileInput = root?.querySelector("[data-video-analysis-file]");
-    if (fileInput) {
-      fileInput.value = "";
-      fileInput.click();
-    }
+    openLocalVideoPicker(context);
     return true;
   }
   if (target.closest("[data-video-analysis-play]")) {
@@ -520,26 +570,28 @@ export function handleClick(event, context = {}) {
 
 export function handleInput(event, context = {}) {
   const run = ensureRuntime(context);
-  const draftField = event.target.closest("[data-video-analysis-draft]");
+  const target = eventElement(event);
+  if (!target?.closest) return false;
+  const draftField = target.closest("[data-video-analysis-draft]");
   if (draftField) {
     const key = draftField.dataset.videoAnalysisDraft;
     run.store.update((state) => ({ ...state, draft: { ...state.draft, [key]: draftField.value } }));
     return true;
   }
-  const filterField = event.target.closest("[data-video-analysis-filter]");
+  const filterField = target.closest("[data-video-analysis-filter]");
   if (filterField) {
     const key = filterField.dataset.videoAnalysisFilter;
     const filters = { ...run.store.getState().filters, [key]: filterField.value };
     loadClips(filters);
     return true;
   }
-  const timelineField = event.target.closest("[data-video-analysis-timeline]");
+  const timelineField = target.closest("[data-video-analysis-timeline]");
   if (timelineField) {
     const key = timelineField.dataset.videoAnalysisTimeline;
     run.store.update((state) => ({ ...state, timeline: { ...(state.timeline || {}), [key]: timelineField.value } }));
     return true;
   }
-  const reviewNote = event.target.closest("[data-video-analysis-review-note]");
+  const reviewNote = target.closest("[data-video-analysis-review-note]");
   if (reviewNote) {
     run.store.update((state) => ({
       ...state,
@@ -551,7 +603,9 @@ export function handleInput(event, context = {}) {
 }
 
 export function handleChange(event, context = {}) {
-  const fileInput = event.target.closest("[data-video-analysis-file]");
+  const target = eventElement(event);
+  if (!target?.closest) return false;
+  const fileInput = target.closest("[data-video-analysis-file]");
   if (fileInput?.files?.[0]) {
     handleFileSelection(fileInput.files[0], context);
     fileInput.value = "";
@@ -575,7 +629,8 @@ export function handleKeydown(event, context = {}) {
 }
 
 export function handleSubmit(event, context = {}) {
-  if (!event.target.closest("[data-video-analysis-form]")) return false;
+  const target = eventElement(event);
+  if (!target?.closest("[data-video-analysis-form]")) return false;
   event.preventDefault();
   saveDraftClip(context);
   return true;

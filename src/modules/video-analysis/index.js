@@ -63,11 +63,47 @@ function videoElement(context = {}) {
 }
 
 const analysisRoomTabs = Object.freeze([
-  { id: "overview", label: "Overview", state: "Room" },
-  { id: "fs-player", label: "FS Player", state: "Active" },
-  { id: "match-report", label: "Match Report", state: "Next" },
-  { id: "briefs", label: "Briefs", state: "Next" },
+  { id: "overview", label: "Overview", icon: "overview" },
+  { id: "fs-player", label: "FS Player", icon: "play" },
+  { id: "match-report", label: "Match Report", icon: "report" },
+  { id: "briefs", label: "Briefs", icon: "briefs" },
 ]);
+
+const analysisRoomTabIcons = Object.freeze({
+  overview: `
+    <svg class="analysis-room-tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="4" y="5" width="7" height="6" rx="1.5"></rect>
+      <rect x="13" y="5" width="7" height="6" rx="1.5"></rect>
+      <rect x="4" y="13" width="7" height="6" rx="1.5"></rect>
+      <rect x="13" y="13" width="7" height="6" rx="1.5"></rect>
+    </svg>
+  `,
+  play: `
+    <svg class="analysis-room-tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="8"></circle>
+      <path d="m10 8.5 6 3.5-6 3.5Z"></path>
+    </svg>
+  `,
+  report: `
+    <svg class="analysis-room-tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M7 4h7l3 3v13H7z"></path>
+      <path d="M14 4v4h4"></path>
+      <path d="M9.5 12h5"></path>
+      <path d="M9.5 15.5h4"></path>
+    </svg>
+  `,
+  briefs: `
+    <svg class="analysis-room-tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="5" y="6" width="14" height="12" rx="2"></rect>
+      <path d="M8.5 10h7"></path>
+      <path d="M8.5 14h4.5"></path>
+    </svg>
+  `,
+});
+
+function renderAnalysisRoomTabIcon(icon) {
+  return analysisRoomTabIcons[icon] || analysisRoomTabIcons.overview;
+}
 
 function renderAnalysisRoomTabs() {
   return `
@@ -80,8 +116,8 @@ function renderAnalysisRoomTabs() {
             class="analysis-room-tab${active ? " is-active" : ""}"
             ${active ? `aria-current="page"` : `disabled aria-disabled="true"`}
           >
+            ${renderAnalysisRoomTabIcon(tab.icon)}
             <span>${escapeHtml(tab.label)}</span>
-            <small>${escapeHtml(tab.state)}</small>
           </button>
         `;
       }).join("")}

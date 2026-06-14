@@ -104,6 +104,15 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(intelligence).toContain("Mini-game x Unit");
 });
 
+test("analysis room tabs use icons without status labels", () => {
+  const source = read("src/modules/video-analysis/index.js");
+  expect(source).toContain("analysis-room-tab-icon");
+  expect(source).toContain("FS Player");
+  expect(source).not.toContain('state: "Room"');
+  expect(source).not.toContain('state: "Active"');
+  expect(source).not.toContain('state: "Next"');
+});
+
 test("local video architecture remains browser-first with bridge fallback only", () => {
   const handleStore = read("src/modules/video-analysis/services/localVideoHandleStore.js");
   const sessionService = read("src/modules/video-analysis/services/localVideoSessionService.js");

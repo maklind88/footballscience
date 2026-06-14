@@ -167,6 +167,7 @@ function renderAnalysisRoomHeader(context = {}) {
           <h2>${escapeHtml(teamName)}</h2>
         </div>
       </div>
+      ${renderAnalysisRoomTabs()}
     </header>
   `;
 }
@@ -393,7 +394,6 @@ function paint(root, state) {
   root.innerHTML = `
     <section class="analysis-room-shell">
       ${renderAnalysisRoomHeader(runtime?.context || {})}
-      ${renderAnalysisRoomTabs()}
       <section class="analysis-room-tab-panel" aria-label="FS Player">
         <section class="video-analysis-shell">
           ${state.message || state.error ? `

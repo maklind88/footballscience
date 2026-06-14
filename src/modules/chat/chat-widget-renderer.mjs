@@ -458,6 +458,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       class="dashboard-chat-thread-item${isSelected ? " is-active" : ""}${unreadCount ? " is-unread" : ""}${thread.mentionCount ? " is-mentioned" : ""}${attachmentCount ? " has-attachment" : ""}${threadSettings.pinned ? " is-thread-pinned" : ""}${threadSettings.muted ? " is-thread-muted" : ""}"
       data-dashboard-chat-thread="${escapeHtml(thread.threadId)}"
       data-dashboard-chat-search="${escapeHtml(searchText)}"
+      title="${escapeHtml(`${threadLabel} - ${preview}`)}"
       aria-label="${escapeHtml(`${threadLabel}. ${preview}. ${unreadCount ? `${unreadLabel} unread.` : "No unread messages."}`)}"
     >
       ${avatarMarkup}
@@ -897,6 +898,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             <div class="dashboard-chat-group-create-status" data-dashboard-chat-group-filter-status aria-live="polite">
               ${escapeHtml(`${groupCreateUsers.length} teammates available · 0 selected`)}
             </div>
+            <div class="dashboard-chat-group-selected-people" data-dashboard-chat-group-selected-list hidden aria-live="polite"></div>
             <div class="dashboard-chat-group-create-users" aria-label="Choose group members">
               ${groupCreateUsers
                 .map((user) => {
@@ -940,7 +942,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <header>
                 <span>
                   <strong>New group</strong>
-                  <small>Choose people and start a focused room</small>
+                  <small>Choose people, name the room and keep the conversation focused.</small>
                 </span>
                 <button type="button" class="dashboard-chat-group-create-close" aria-label="Close group creator" data-dashboard-chat-group-create-close>×</button>
               </header>
@@ -952,11 +954,11 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const threadPresetMarkup = groupCreateUsers.length
       ? `
           <details class="dashboard-chat-thread-presets" data-dashboard-chat-thread-presets>
-            <summary aria-label="Create new chat">+</summary>
+            <summary aria-label="Create group chat">+</summary>
             <div class="dashboard-chat-thread-preset-menu" aria-label="Create group chat">
               <button type="button" class="dashboard-chat-create-menu-action is-primary" data-dashboard-chat-open-group-creator>
                 <strong>New group</strong>
-                <small>Choose people and start a focused room</small>
+                <small>Choose teammates, avatar and name</small>
               </button>
             </div>
           </details>

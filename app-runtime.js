@@ -1093,15 +1093,33 @@ function syncDashboardChatGroupCreateForm(form) {
   const visibleCount = Array.from(form.querySelectorAll("[data-dashboard-chat-group-user-search]")).filter((row) => !row.hidden).length;
   const submitButton = form.querySelector("[data-dashboard-chat-group-create-submit]");
   const statusElement = form.querySelector("[data-dashboard-chat-group-filter-status]");
+  const selectedList = form.querySelector("[data-dashboard-chat-group-selected-list]");
   const hasTitle = Boolean(String(titleInput?.value || "").trim());
   const isReady = Boolean(hasTitle && selectedCount);
+  const selectedPeople = Array.from(form.querySelectorAll("input[name='participantIds']:checked"))
+    .map((input) => String(input.dataset.dashboardChatGroupParticipantName || input.value || "").trim())
+    .filter(Boolean)
+    .slice(0, 6);
+  form.querySelectorAll("[data-dashboard-chat-group-user-search]").forEach((row) => {
+    const checkbox = row.querySelector("input[name='participantIds']");
+    row.classList.toggle("is-selected", Boolean(checkbox?.checked));
+  });
   if (submitButton) {
     submitButton.disabled = !isReady || form.dataset.busy === "true";
     submitButton.setAttribute("aria-disabled", submitButton.disabled ? "true" : "false");
     submitButton.title = isReady ? "Create group" : "Add a group name and choose at least one teammate";
+    if (form.dataset.busy !== "true") {
+      submitButton.textContent = selectedCount ? `Create group (${selectedCount})` : "Create group";
+    }
   }
   if (statusElement) {
     statusElement.textContent = `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} visible · ${selectedCount} selected`;
+  }
+  if (selectedList) {
+    selectedList.hidden = !selectedPeople.length;
+    selectedList.innerHTML = selectedPeople
+      .map((name) => `<span>${escapeHtml(name)}</span>`)
+      .join("");
   }
 }
 
@@ -3050,6 +3068,7 @@ return;
 const openGroupCreatorButton = event.target.closest("[data-dashboard-chat-open-group-creator]");
 if (openGroupCreatorButton) {
 event.preventDefault();
+openGroupCreatorButton.closest("details")?.removeAttribute("open");
 dashboardChatGroupCreatorOpen = true;
 renderDashboardChatWidget();
 win.setTimeout(() => {

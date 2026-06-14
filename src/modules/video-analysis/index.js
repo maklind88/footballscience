@@ -84,18 +84,26 @@ function isBridgeNotRunningError(error) {
   return /^Local video bridge is not/i.test(String(error?.message || error || ""));
 }
 
+function isCurrentVideoElement(video) {
+  return Boolean(video && video === videoElement(runtime?.context || {}));
+}
+
+function updateVideoDurationFromElement(video) {
+  updateVideoDuration(Math.round(Number(video?.duration || 0) * 1000));
+}
+
 function markNativePlaybackReady(video) {
   const state = runtime?.store.getState();
   if (!state?.videoRef || video?.error) return;
-  if (state.bridgeFallbackRecommended || state.localFileStatus === "browser-unplayable" || state.localFileStatus === "bridge-not-running") return;
-  const compatibility = state.videoRef.playbackCompatibility || {};
-  if (compatibility.warning || compatibility.status === "unsupported") return;
+  if (!isCurrentVideoElement(video)) return;
+  if (state.playbackPreparation?.active || state.status === "preparing-playback") return;
   const preparedPlayback = isPreparedPlaybackUrl(state.videoRef.objectUrl);
   const nextStatus = preparedPlayback ? "prepared" : "native-ready";
   if (state.nativePlaybackReady && state.localFileStatus === nextStatus && !state.error) return;
+  updateVideoDurationFromElement(video);
   runtime?.store.update((current) => ({
     ...current,
-    status: current.status === "preparing-playback" ? current.status : "ready",
+    status: "ready",
     message: current.message,
     error: "",
     nativePlaybackReady: true,
@@ -109,6 +117,7 @@ function markNativePlaybackReady(video) {
 
 function setVideoPlaybackError(video) {
   const state = runtime?.store.getState();
+  if (!isCurrentVideoElement(video)) return;
   if (shouldPreservePlaybackPreparation(state)) return;
   const message = state?.videoRef?.playbackCompatibility?.warning || describeVideoPlaybackError(video, state?.videoRef);
   if (!message) return;
@@ -339,11 +348,11 @@ function paint(root, state) {
       const playhead = root.querySelector(".video-analysis-playhead");
       if (playhead) playhead.style.left = `${Math.min(99.5, Math.max(0, (getVideoCurrentMs(video) / safeDuration) * 100))}%`;
     };
-    video.addEventListener("loadedmetadata", () => {
-      updateVideoDuration(Math.round(Number(video.duration || 0) * 1000));
-      markNativePlaybackReady(video);
-    }, { once: true });
+    video.addEventListener("loadedmetadata", () => markNativePlaybackReady(video), { once: true });
+    video.addEventListener("canplay", () => markNativePlaybackReady(video), { once: true });
+    video.addEventListener("playing", () => markNativePlaybackReady(video));
     video.addEventListener("error", () => setVideoPlaybackError(video), { once: true });
+    if (video.readyState >= 1) markNativePlaybackReady(video);
   }
 }
 

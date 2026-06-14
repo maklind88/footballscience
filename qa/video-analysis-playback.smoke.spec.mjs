@@ -123,6 +123,36 @@ test("Video Analysis tries native H264 MP4 playback before offering bridge prepa
   await expect(page.locator(".video-analysis-error[role='alert'] [data-video-analysis-prepare-playback]")).toBeVisible();
 });
 
+test("Video Analysis clears a codec warning when native playback succeeds", async ({ page }) => {
+  await installDeterministicMedia(page);
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  await page.locator("[data-video-analysis-file]").setInputFiles({
+    name: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+    mimeType: "video/mp4",
+    buffer: h264Mp4Fixture,
+  });
+
+  await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    video.__videoAnalysisForcedError = { code: 4 };
+    video.dispatchEvent(new Event("error"));
+  });
+  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("Prepare a local H.264 playback copy");
+
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "duration", { configurable: true, value: 7267.24 });
+    video.dispatchEvent(new Event("canplay"));
+    video.dispatchEvent(new Event("playing"));
+  });
+
+  await expect(page.locator(".video-analysis-error[role='alert']")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("Native playback ready");
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
+});
+
 test("Video Analysis lets coaches load and reload a local match from the empty player", async ({ page }) => {
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
 

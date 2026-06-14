@@ -20,12 +20,12 @@ test("Workspace defaults expose stable hub workspaces and navigation order", () 
   expect(topIconMenuOrder).toContain("idp");
   expect(topIconMenuOrder).not.toContain("game-simulator");
   expect(platformSidebarPrimaryOrder).toEqual([
+    "player-profiles",
     "schedule",
     "periodization",
     "medical-team",
     "session-planner",
     "idp",
-    "player-profiles",
     "scouting",
   ]);
   expect(platformSidebarMoreOrder).toContain("admin");

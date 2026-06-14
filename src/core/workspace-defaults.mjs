@@ -176,12 +176,12 @@ export const topIconMenuOrder = [
 ];
 
 export const platformSidebarPrimaryOrder = [
+  "player-profiles",
   "schedule",
   "periodization",
   "medical-team",
   "session-planner",
   "idp",
-  "player-profiles",
   "scouting",
 ];
 

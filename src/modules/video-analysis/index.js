@@ -167,6 +167,19 @@ function canPreparePlayableCopy(state = {}) {
   );
 }
 
+function isFilePickerUserGestureError(error = {}) {
+  const message = String(error?.message || "");
+  return error?.name === "NotAllowedError" || message.includes("Must be handling a user gesture");
+}
+
+function openFileInputFallback(context = {}) {
+  const fileInput = getRoot(context)?.querySelector("[data-video-analysis-file]");
+  if (!fileInput) return false;
+  fileInput.value = "";
+  fileInput.click();
+  return true;
+}
+
 async function openLocalVideoPicker(context = {}) {
   const run = ensureRuntime(context);
   const win = context.win || window;
@@ -181,15 +194,19 @@ async function openLocalVideoPicker(context = {}) {
       return true;
     } catch (error) {
       if (isAbortError(error)) return true;
+      if (isFilePickerUserGestureError(error) && openFileInputFallback(context)) {
+        run.store.setState({
+          status: "ready",
+          message: "Choose a local video file.",
+          error: "",
+        });
+        return true;
+      }
       run.store.setState({ status: "error", message: "", error: error.message || "Could not open local video file." });
       return false;
     }
   }
-  const fileInput = getRoot(context)?.querySelector("[data-video-analysis-file]");
-  if (!fileInput) return false;
-  fileInput.value = "";
-  fileInput.click();
-  return true;
+  return openFileInputFallback(context);
 }
 
 async function restoreLocalVideoHandle(context = {}, options = {}) {

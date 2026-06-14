@@ -129,6 +129,7 @@ test("production CSP allows only the narrow local video bridge endpoints", () =>
     .find((header) => header.key === "Content-Security-Policy")?.value || "";
   expect(csp).toContain("http://127.0.0.1:47831");
   expect(csp).toContain("http://localhost:47831");
+  expect(csp).toContain("media-src 'self' blob: http://127.0.0.1:47831 http://localhost:47831");
   expect(csp).not.toMatch(/http:\/\/localhost:\*/);
   expect(csp).not.toMatch(/http:\/\/127\.0\.0\.1:\*/);
 });

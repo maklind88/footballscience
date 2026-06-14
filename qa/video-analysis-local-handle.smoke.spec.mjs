@@ -185,3 +185,30 @@ test("unsupported File System Access browsers keep the file input fallback", asy
   await expect(page.locator(".video-analysis-player__actions [data-video-analysis-load]")).toContainText("Link local file");
   await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
 });
+
+test("File System Access gesture failures fall back to the file input picker", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "showOpenFilePicker", {
+      configurable: true,
+      value: async () => {
+        throw new DOMException(
+          "Failed to execute 'showOpenFilePicker' on 'Window': Must be handling a user gesture to show a file picker.",
+          "NotAllowedError"
+        );
+      },
+    });
+    window.__videoAnalysisFileInputClicks = 0;
+    const nativeClick = HTMLInputElement.prototype.click;
+    HTMLInputElement.prototype.click = function click() {
+      if (this.matches?.("[data-video-analysis-file]")) window.__videoAnalysisFileInputClicks += 1;
+      return nativeClick.call(this);
+    };
+  });
+
+  await page.goto("/qa/video-analysis-browser-smoke.html?gesture-fallback=1", { waitUntil: "domcontentloaded" });
+  await page.locator(".video-analysis-player__actions [data-video-analysis-load]").click();
+
+  await expect.poll(() => page.evaluate(() => window.__videoAnalysisFileInputClicks)).toBe(1);
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-load]")).toContainText("Link local file");
+  await expect(page.locator(".video-analysis-error[role='alert']")).toHaveCount(0);
+});

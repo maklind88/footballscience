@@ -64,7 +64,13 @@ async function bootApp(page) {
   });
   page.on("console", (message) => {
     if (message.type() === "error") {
-      consoleErrors.push(message.text());
+      const location = message.location();
+      consoleErrors.push({
+        text: message.text(),
+        url: location.url || "",
+        lineNumber: location.lineNumber || 0,
+        columnNumber: location.columnNumber || 0,
+      });
     }
   });
   page.on("dialog", async (dialog) => {

@@ -600,6 +600,12 @@ export function render(context = {}) {
   if (run.store.getState().status === "idle") initialize(context);
 }
 
+export function resetVideoAnalysisRuntimeForTests() {
+  runtime?.unsubscribe?.();
+  runtime = null;
+  videoLibraryController = null;
+}
+
 async function handleFileSelection(file, context = {}, options = {}) {
   const run = ensureRuntime(context);
   const previous = run.store.getState().videoRef;

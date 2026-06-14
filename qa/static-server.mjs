@@ -38,6 +38,47 @@ function sendText(res, statusCode, text, contentType = "text/plain; charset=utf-
   res.end(text);
 }
 
+function sendJson(res, statusCode, payload) {
+  sendText(res, statusCode, JSON.stringify(payload), "application/json; charset=utf-8");
+}
+
+function handleMockApi(req, res) {
+  const parsedUrl = new URL(req.url || "/", `http://${host}:${port}`);
+  if (parsedUrl.pathname === "/api/idp") {
+    const action = parsedUrl.searchParams.get("action") || "dashboard";
+    if (action === "dashboard") {
+      sendJson(res, 200, {
+        ok: true,
+        dashboard: {
+          activePlans: 0,
+          dueReviews: 0,
+          developmentClips: 0,
+          focusAreas: [],
+        },
+      });
+      return true;
+    }
+
+    if (action === "player") {
+      sendJson(res, 200, {
+        ok: true,
+        player: {
+          id: parsedUrl.searchParams.get("playerId") || "",
+          plan: null,
+          notes: [],
+          reviews: [],
+        },
+      });
+      return true;
+    }
+
+    sendJson(res, 200, { ok: true, result: null });
+    return true;
+  }
+
+  return false;
+}
+
 function resolveRequestPath(url = "/") {
   const parsedUrl = new URL(url, `http://${host}:${port}`);
   const pathname = decodeURIComponent(parsedUrl.pathname);
@@ -53,7 +94,11 @@ function resolveRequestPath(url = "/") {
 
 async function handleRequest(req, res) {
   if (req.url?.startsWith("/api/")) {
-    sendText(res, 404, JSON.stringify({ ok: false, reason: "API routes are not served by QA static server." }), "application/json; charset=utf-8");
+    if (handleMockApi(req, res)) {
+      return;
+    }
+
+    sendJson(res, 404, { ok: false, reason: "API routes are not served by QA static server." });
     return;
   }
 

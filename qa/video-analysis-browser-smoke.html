@@ -63,6 +63,11 @@
           source: "smoke",
         },
       ];
+      const smokeParams = new URLSearchParams(window.location.search);
+      const initialStateFromQuery = smokeParams.get("reset") === "1"
+        ? { view: smokeParams.get("view") || "library" }
+        : window.__videoAnalysisInitialState || null;
+      videoAnalysis.resetVideoAnalysisRuntimeForTests?.();
 
       window.fetch = async (url, options = {}) => {
         const parsed = new URL(url, window.location.origin);
@@ -116,7 +121,7 @@
         allowVideoAnalysisMetadataLoad: true,
         getAuthToken: () => "smoke-token",
         canEdit: () => true,
-        videoAnalysisInitialState: window.__videoAnalysisInitialState || null,
+        videoAnalysisInitialState: initialStateFromQuery,
         getScheduleState: () => ({
           events: [
             { id: "schedule-match-1", date: "2026-05-31", type: "match", title: "Angel City away" },

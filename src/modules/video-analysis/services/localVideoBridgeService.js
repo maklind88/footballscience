@@ -14,7 +14,7 @@ function fileExtension(name = "") {
 }
 
 function playbackWarningForCodec(codec = "") {
-  if (codec === "hvc1" || codec === "hev1") {
+  if (codec === "hvc1" || codec === "hev1" || codec === "hvcc") {
     return "This file appears to use HEVC/H.265. Most web browsers cannot play that reliably here. Convert it to MP4/H.264 or use the desktop bridge/transcode workflow.";
   }
   if (codec === "apch" || codec === "apcn" || codec === "apcs" || codec === "apco" || codec === "ap4h") {
@@ -24,8 +24,8 @@ function playbackWarningForCodec(codec = "") {
 }
 
 function detectCodecFromText(text = "") {
-  const source = String(text || "");
-  for (const codec of ["avc1", "hvc1", "hev1", "vp09", "vp08", "av01", "mp4v", "apch", "apcn", "apcs", "apco", "ap4h"]) {
+  const source = String(text || "").toLowerCase();
+  for (const codec of ["hvc1", "hev1", "hvcc", "apch", "apcn", "apcs", "apco", "ap4h", "avc1", "avc3", "avcc", "vp09", "vp08", "av01", "mp4v"]) {
     if (source.includes(codec)) return codec;
   }
   return "";
@@ -35,8 +35,11 @@ function codecLabel(codec = "") {
   const labels = {
     av01: "AV1",
     avc1: "H.264",
+    avc3: "H.264",
+    avcc: "H.264",
     hvc1: "HEVC/H.265",
     hev1: "HEVC/H.265",
+    hvcc: "HEVC/H.265",
     vp08: "VP8",
     vp09: "VP9",
     mp4v: "MPEG-4 Visual",
@@ -65,15 +68,20 @@ function canPlayCodec(win, mimeType = "", codec = "") {
 }
 
 async function readCodecProbeText(file) {
-  const probeSize = Math.min(Number(file.size || 0), 8 * 1024 * 1024);
-  if (!probeSize) return "";
-  const head = await file.slice(0, probeSize).arrayBuffer();
+  const fileSize = Number(file.size || 0);
+  if (!fileSize) return "";
+  const probeSize = Math.min(fileSize, 2 * 1024 * 1024);
   const decoder = new TextDecoder("latin1");
-  let text = decoder.decode(head);
-  if (file.size > probeSize) {
-    const tailStart = Math.max(0, file.size - probeSize);
-    const tail = await file.slice(tailStart, file.size).arrayBuffer();
-    text += decoder.decode(tail);
+  const offsets = new Set([0, Math.max(0, fileSize - probeSize)]);
+  const sampleCount = Math.min(24, Math.max(2, Math.ceil(fileSize / (64 * 1024 * 1024))));
+  for (let index = 1; index < sampleCount; index += 1) {
+    offsets.add(Math.max(0, Math.floor((fileSize - probeSize) * (index / sampleCount))));
+  }
+  let text = "";
+  for (const offset of offsets) {
+    const chunk = await file.slice(offset, Math.min(fileSize, offset + probeSize)).arrayBuffer();
+    text += decoder.decode(chunk);
+    if (detectCodecFromText(text)) break;
   }
   return text;
 }

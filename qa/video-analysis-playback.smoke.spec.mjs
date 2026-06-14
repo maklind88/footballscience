@@ -50,7 +50,9 @@ test("Video Analysis keeps the local video element stable after metadata loads",
     Object.defineProperty(video, "error", { configurable: true, value: { code: 4 } });
     video.dispatchEvent(new Event("error"));
   });
-  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("This browser cannot play that video format");
+  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("MP4 container");
+  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("video stream inside is not browser-playable");
+  await expect(page.locator(".video-analysis-toast")).toHaveCount(0);
   await expect(page.locator(".video-analysis-notifications")).toHaveCSS("position", "fixed");
 
   expect(pageErrors).toEqual([]);
@@ -74,5 +76,31 @@ test("Video Analysis warns when a local file appears to use HEVC", async ({ page
   await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("HEVC/H.265");
   await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("desktop bridge/transcode");
   await expect(page.locator(".video-analysis-notifications")).toHaveCSS("position", "fixed");
+  expect(pageErrors).toEqual([]);
+});
+
+test("Video Analysis samples large MP4 files for codec markers away from the file edges", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  const middlePadding = Buffer.alloc(5 * 1024 * 1024, 0);
+  const sample = Buffer.concat([
+    Buffer.from("ftypisom"),
+    middlePadding,
+    Buffer.from("moovtrakmdiahdlrstsdhvcC"),
+    middlePadding,
+  ]);
+
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator("[data-video-analysis-load]")).toBeVisible();
+
+  await page.locator("[data-video-analysis-file]").setInputFiles({
+    name: "angle-1.mp4",
+    mimeType: "video/mp4",
+    buffer: sample,
+  });
+
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("HEVC/H.265 / MP4");
+  await expect(page.locator(".video-analysis-error[role='alert']")).toContainText("HEVC/H.265");
   expect(pageErrors).toEqual([]);
 });

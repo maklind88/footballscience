@@ -67,10 +67,10 @@ function updateVideoDuration(durationMs = 0) {
 
 function setVideoPlaybackError(video) {
   const state = runtime?.store.getState();
-  const message = state?.videoRef?.playbackCompatibility?.warning || describeVideoPlaybackError(video);
+  const message = state?.videoRef?.playbackCompatibility?.warning || describeVideoPlaybackError(video, state?.videoRef);
   if (!message) return;
   if (state?.status === "error" && state.error === message) return;
-  runtime?.store.setState({ status: "error", error: message });
+  runtime?.store.setState({ status: "error", message: "", error: message });
 }
 
 function togglePlayback(context = {}) {

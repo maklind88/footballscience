@@ -1744,6 +1744,39 @@
   padding-bottom: 10px;
 }
 
+.video-analysis-presentation-modebar {
+  display: inline-flex;
+  width: fit-content;
+  max-width: calc(100% - 20px);
+  gap: 3px;
+  margin: 0 10px 10px auto;
+  border: 1px solid #cdd9d1;
+  border-radius: 999px;
+  padding: 3px;
+  background: #f7faf7;
+}
+
+.video-analysis-presentation-modebar button,
+.video-analysis-draw-tool-grid button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  color: #3d4a42;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.video-analysis-presentation-modebar button.is-active,
+.video-analysis-draw-tool-grid button.is-active {
+  color: #ffffff;
+  background: #123522;
+  box-shadow: 0 8px 18px rgba(18, 53, 34, 0.14);
+}
+
 .video-analysis-presentation-board {
   display: grid;
   grid-template-columns: minmax(220px, 0.34fr) minmax(0, 1fr);
@@ -1866,6 +1899,318 @@
   font-size: 12px;
 }
 
+.video-analysis-presentation-stats {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.video-analysis-presentation-stats span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  border: 1px solid #dce5df;
+  border-radius: 999px;
+  padding: 4px 9px;
+  color: #46554b;
+  background: #f8faf8;
+}
+
+.video-analysis-presentation-stats strong {
+  color: #142018;
+  font-size: 13px;
+}
+
+.video-analysis-presentation-stats small {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.video-analysis-presentation-stage,
+.video-analysis-draw-room,
+.video-analysis-deliver-room {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.32fr);
+  gap: 10px;
+  padding: 0 10px 10px;
+}
+
+.video-analysis-presentation-stage__player,
+.video-analysis-presentation-queue,
+.video-analysis-draw-preview,
+.video-analysis-draw-tools,
+.video-analysis-deliver-hero,
+.video-analysis-deliver-section {
+  min-width: 0;
+  border: 1px solid #d8ded7;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.video-analysis-presentation-stage__player,
+.video-analysis-draw-preview,
+.video-analysis-deliver-hero {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.video-analysis-presentation-stage-frame,
+.video-analysis-draw-canvas,
+.video-analysis-deliver-now {
+  position: relative;
+  display: grid;
+  align-content: end;
+  gap: 6px;
+  min-height: 310px;
+  overflow: hidden;
+  border-radius: 8px;
+  padding: 14px;
+  color: #e9f1ec;
+  background:
+    linear-gradient(135deg, rgba(31, 138, 95, 0.16), rgba(30, 94, 255, 0.1)),
+    #111816;
+}
+
+.video-analysis-presentation-stage-frame::before,
+.video-analysis-draw-canvas::before,
+.video-analysis-deliver-now::before {
+  content: "";
+  position: absolute;
+  inset: 14%;
+  border: 1px solid rgba(233, 241, 236, 0.22);
+  border-radius: 8px;
+}
+
+.video-analysis-presentation-stage-frame span,
+.video-analysis-deliver-now span {
+  color: #aebeb5;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.video-analysis-presentation-stage-frame strong,
+.video-analysis-deliver-now strong {
+  position: relative;
+  z-index: 1;
+  max-width: 70%;
+  color: #ffffff;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.video-analysis-presentation-stage-frame small {
+  position: relative;
+  z-index: 1;
+  color: #cbd9d2;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.video-analysis-presentation-queue-list {
+  display: grid;
+  gap: 7px;
+  max-height: 380px;
+  overflow: auto;
+  padding: 0 10px 10px;
+}
+
+.video-analysis-presentation-queue-item {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 3px 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 54px;
+  border: 1px solid #dce4df;
+  border-left: 3px solid #91a19a;
+  border-radius: 8px;
+  padding: 8px 9px;
+  color: #17201b;
+  background: #fbfcfb;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.video-analysis-presentation-queue-item.is-active {
+  border-color: #123522;
+  border-left-color: #123522;
+  background: #eff7f2;
+}
+
+.video-analysis-presentation-queue-item span {
+  grid-row: span 2;
+  color: #627065;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.video-analysis-presentation-queue-item strong,
+.video-analysis-presentation-queue-item small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.video-analysis-presentation-queue-item strong {
+  color: #142018;
+  font-size: 12px;
+}
+
+.video-analysis-presentation-queue-item small {
+  color: #68756e;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.video-analysis-presentation-sections.is-compact {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.video-analysis-draw-canvas {
+  min-height: 360px;
+}
+
+.video-analysis-draw-canvas strong {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 2;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #ffffff;
+  background: rgba(10, 15, 13, 0.62);
+  font-size: 12px;
+}
+
+.video-analysis-draw-line,
+.video-analysis-draw-target,
+.video-analysis-draw-freeze {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.video-analysis-draw-line {
+  left: 24%;
+  top: 45%;
+  width: 42%;
+  height: 3px;
+  transform: rotate(-15deg);
+  transform-origin: left center;
+  border-radius: 999px;
+  background: #f4d06f;
+}
+
+.video-analysis-draw-line::after {
+  content: "";
+  position: absolute;
+  right: -4px;
+  top: -5px;
+  border-left: 11px solid #f4d06f;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+}
+
+.video-analysis-draw-target {
+  right: 26%;
+  top: 27%;
+  width: 86px;
+  height: 58px;
+  border: 3px solid #f4d06f;
+  border-radius: 50%;
+}
+
+.video-analysis-draw-freeze {
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), transparent 34%, rgba(255, 255, 255, 0.05));
+}
+
+.video-analysis-draw-canvas.is-circle .video-analysis-draw-line,
+.video-analysis-draw-canvas.is-spotlight .video-analysis-draw-line,
+.video-analysis-draw-canvas.is-text .video-analysis-draw-line,
+.video-analysis-draw-canvas.is-freeze .video-analysis-draw-line,
+.video-analysis-draw-canvas.is-zoom .video-analysis-draw-line {
+  opacity: 0.28;
+}
+
+.video-analysis-draw-canvas.is-arrow .video-analysis-draw-target,
+.video-analysis-draw-canvas.is-text .video-analysis-draw-target,
+.video-analysis-draw-canvas.is-freeze .video-analysis-draw-target {
+  opacity: 0.32;
+}
+
+.video-analysis-draw-canvas.is-spotlight .video-analysis-draw-target,
+.video-analysis-draw-canvas.is-zoom .video-analysis-draw-target {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.34);
+}
+
+.video-analysis-draw-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  padding: 0 10px 10px;
+}
+
+.video-analysis-draw-tool-grid button {
+  justify-content: center;
+  border: 1px solid #d4ded8;
+  border-radius: 8px;
+  background: #f8faf8;
+}
+
+.video-analysis-deliver-room {
+  grid-template-columns: minmax(260px, 0.36fr) minmax(0, 1fr);
+}
+
+.video-analysis-deliver-hero .video-analysis-presentation-stats {
+  justify-content: flex-start;
+  padding: 0;
+}
+
+.video-analysis-deliver-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.video-analysis-deliver-section {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 10px;
+}
+
+.video-analysis-deliver-section h3,
+.video-analysis-deliver-section p {
+  margin: 0;
+}
+
+.video-analysis-deliver-section p {
+  color: #526059;
+  font-size: 12px;
+}
+
+.video-analysis-deliver-section li {
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid #e4e9e4;
+  padding-top: 6px;
+  color: #26322c;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.video-analysis-deliver-section li span {
+  min-width: 56px;
+  color: #64716a;
+}
+
 .video-analysis-drawer {
   padding: 10px 12px;
 }
@@ -1959,8 +2304,18 @@
   .video-analysis-library-row__controls,
   .video-analysis-filters,
   .video-analysis-presentation-board,
-  .video-analysis-presentation-sections {
+  .video-analysis-presentation-sections,
+  .video-analysis-presentation-stage,
+  .video-analysis-draw-room,
+  .video-analysis-deliver-room,
+  .video-analysis-deliver-sections {
     grid-template-columns: 1fr;
+  }
+
+  .video-analysis-presentation-modebar {
+    width: auto;
+    margin-left: 10px;
+    overflow-x: auto;
   }
 
   .video-analysis-overview-hero {

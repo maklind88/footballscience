@@ -111,6 +111,8 @@ export function createInitialVideoAnalysisState(context = {}) {
     },
     reviewList: [],
     reviewTitle: "Football Science Review",
+    presentationMode: "build",
+    presentationDrawingTool: "arrow",
     activeReviewSectionId: "team-meeting",
     reviewSections: createReviewSections(),
     message: "",

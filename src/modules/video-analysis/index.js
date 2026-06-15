@@ -882,6 +882,16 @@ export function handleClick(event, context = {}) {
     });
     return true;
   }
+  const presentationModeButton = target.closest("[data-video-analysis-presentation-mode]");
+  if (presentationModeButton) {
+    run.store.setState({ presentationMode: presentationModeButton.dataset.videoAnalysisPresentationMode || "build" });
+    return true;
+  }
+  const drawToolButton = target.closest("[data-video-analysis-draw-tool]");
+  if (drawToolButton) {
+    run.store.setState({ presentationDrawingTool: drawToolButton.dataset.videoAnalysisDrawTool || "arrow" });
+    return true;
+  }
   if (target.closest("[data-video-analysis-library-refresh]")) {
     libraryController().loadLibrary();
     return true;
@@ -965,9 +975,11 @@ export function handleClick(event, context = {}) {
   }
   const reviewButton = target.closest("[data-video-analysis-review]");
   if (reviewButton) {
+    const clipId = reviewButton.dataset.videoAnalysisReview;
     run.store.update((state) => ({
       ...state,
-      reviewSections: addClipToReviewSection(state.reviewSections, state.activeReviewSectionId, reviewButton.dataset.videoAnalysisReview),
+      selectedClipId: clipId,
+      reviewSections: addClipToReviewSection(state.reviewSections, state.activeReviewSectionId, clipId),
       message: "Clip added to presentation.",
     }));
     return true;

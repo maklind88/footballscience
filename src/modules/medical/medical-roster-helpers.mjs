@@ -136,56 +136,7 @@ export function createMedicalRosterHelpers({
     return parsed;
   };
 
-  const renderBulkUpdatePanel = (players = []) => {
-    const canEdit = canEditMedicalTeam();
-    const selectedPlayers = getBulkSelectedPlayers();
-    const selectedCount = selectedPlayers.length;
-    const defaultDate = getSelectedDate();
-    const activityContext = getMedicalRecommendationActivityContext(defaultDate);
-    const canRecommend = canEdit && activityContext.isRecommendable;
-    const eligiblePlayers = getBulkRecommendationEligiblePlayers(players);
-    const defaultParticipation = 75;
-    const defaultStatus = getMedicalStatusForParticipation(defaultParticipation);
-    const defaultRtpPhase = getMedicalRtpPhaseForRecommendation(defaultStatus, defaultParticipation, activityContext.type);
-    const defaultPhaseLabel = getMedicalRtpPhaseOption(defaultRtpPhase).label;
-    const isOpen = isBulkRecommendationOpen();
-    return `
-<section class="medical-bulk-panel${isOpen ? " is-open" : ""}" aria-label="Bulk medical recommendation">
-<button type="button" class="medical-bulk-summary" data-medical-bulk-menu-toggle aria-expanded="${isOpen ? "true" : "false"}" ${canEdit ? "" : "disabled"}>
-<span>Bulk Recommendation</span>
-<strong>${selectedCount} selected</strong>
-<small>${players.length} visible</small>
-</button>
-${isOpen ? `
-<div class="medical-bulk-actions">
-<button type="button" data-medical-bulk-clear ${canEdit && selectedCount ? "" : "disabled"}>Clear</button>
-</div>
-<form id="medicalBulkRecommendationForm" class="medical-bulk-form" data-medical-bulk-recommendation-form>
-<label class="medical-bulk-date-field">
-<span>Date</span>
-<input name="date" type="date" value="${escapeHtml(defaultDate)}" data-medical-bulk-date ${canEdit ? "" : "disabled"} />
-</label>
-<label class="medical-bulk-select-field">
-<span>Select</span>
-<input type="button" value="Select Not Set" data-medical-bulk-select-not-set ${canRecommend && eligiblePlayers.length ? "" : "disabled"} />
-</label>
-<label class="medical-bulk-recommend-field">
-<span>Recommend</span>
-<select name="participation" data-medical-bulk-participation ${canRecommend ? "" : "disabled"}>
-${renderMedicalParticipationOptions(defaultParticipation)}
-</select>
-</label>
-<label class="medical-bulk-rtp-field">
-<span>RTP phase</span>
-<input type="text" value="${escapeHtml(defaultPhaseLabel)}" data-medical-bulk-rtp-preview disabled />
-</label>
-<small class="medical-bulk-activity-label${activityContext.isRecommendable ? "" : " is-locked"}" data-medical-bulk-activity-label>${escapeHtml(activityContext.isRecommendable ? `${activityContext.activityLabel} / ${activityContext.scheduleLabel}` : activityContext.blockReason)}</small>
-<button type="submit" ${canRecommend && selectedCount ? "" : "disabled"}>Apply Selected</button>
-</form>
-` : ""}
-</section>
-`;
-  };
+  const renderBulkUpdatePanel = () => "";
 
   return {
     parseRosterCsvLine,

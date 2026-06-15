@@ -60,26 +60,17 @@ test("Medical roster helpers parse CSV, pipe, tab, semicolon, and plain roster r
   ]);
 });
 
-test("Medical roster helpers render bulk panel states without writing medical data", () => {
+test("Medical roster helpers suppress bulk panel markup", () => {
   const helpers = createHelpers();
   const openMarkup = helpers.renderBulkUpdatePanel([{ id: "p1" }, { id: "p2", blocked: true }]);
 
-  expect(openMarkup).toContain("medical-bulk-panel is-open");
-  expect(openMarkup).toContain("1 selected");
-  expect(openMarkup).toContain("2 visible");
-  expect(openMarkup).toContain('value="2026-05-31"');
-  expect(openMarkup).toContain("Return to train");
-  expect(openMarkup).toContain("<option selected>75</option>");
-  expect(openMarkup).toContain("Apply Selected");
+  expect(openMarkup).toBe("");
 
   const collapsedMarkup = createHelpers({ isBulkRecommendationOpen: () => false }).renderBulkUpdatePanel([{ id: "p1" }]);
-  expect(collapsedMarkup).toContain("medical-bulk-panel");
-  expect(collapsedMarkup).toContain('aria-expanded="false"');
-  expect(collapsedMarkup).toContain("1 selected");
-  expect(collapsedMarkup).not.toContain("medical-bulk-form");
+  expect(collapsedMarkup).toBe("");
 });
 
-test("Medical roster helpers lock bulk controls when activity is not recommendable", () => {
+test("Medical roster helpers keep bulk panel suppressed when activity is not recommendable", () => {
   const helpers = createHelpers({
     getMedicalRecommendationActivityContext: () => ({
       isRecommendable: false,
@@ -92,8 +83,5 @@ test("Medical roster helpers lock bulk controls when activity is not recommendab
 
   const markup = helpers.renderBulkUpdatePanel([{ id: "p1" }]);
 
-  expect(markup).toContain("medical-bulk-activity-label is-locked");
-  expect(markup).toContain("No training or match");
-  expect(markup).toContain("data-medical-bulk-select-not-set disabled");
-  expect(markup).toContain('<button type="submit" disabled>Apply Selected</button>');
+  expect(markup).toBe("");
 });

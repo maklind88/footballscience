@@ -1538,14 +1538,12 @@ test("Medical availability blocks training recommendations for Squad non-availab
   await expect(internationalRow.locator(".medical-squad-availability-badge")).toHaveText("International duty");
   await expect(internationalRow.locator(".medical-quick-rec-button.is-active")).toHaveText("0%");
   await expect(internationalRow.locator('[data-medical-quick-participation="100"]')).toBeDisabled();
-  await expect(internationalRow.locator("[data-medical-bulk-toggle]")).toBeDisabled();
   await expect(availableRow.locator('[data-medical-quick-participation="100"]')).toBeEnabled();
+  await expect(page.locator(".medical-bulk-panel")).toHaveCount(0);
+  await expect(page.locator("[data-medical-bulk-toggle]")).toHaveCount(0);
+  await expect(page.locator("[data-medical-bulk-menu-toggle]")).toHaveCount(0);
 
-  await page.locator("[data-medical-bulk-menu-toggle]").click();
-  await page.locator("[data-medical-bulk-select-not-set]").click();
-  await expect(internationalRow.locator("[data-medical-bulk-toggle]")).not.toHaveClass(/is-selected/);
-  await expect(availableRow.locator("[data-medical-bulk-toggle]")).toHaveClass(/is-selected/);
-  await page.locator("#medicalBulkRecommendationForm button[type='submit']").click();
+  await availableRow.locator('[data-medical-quick-participation="75"]').click();
 
   await expect
     .poll(() =>
@@ -1637,7 +1635,7 @@ test("Medical metrics use current-month and planned-session averages", async ({ 
   await expect(page.locator(".medical-ops-overview .medical-coach-handover")).toBeVisible();
 });
 
-test("Medical bulk recommendation opens as a compact dated action row", async ({ page }) => {
+test("Medical availability hides bulk controls while quick recommendations remain active", async ({ page }) => {
   await page.addInitScript(({ storageKey }) => {
     const fixedNow = new Date("2026-05-15T12:00:00Z").valueOf();
     const NativeDate = Date;
@@ -1674,46 +1672,21 @@ test("Medical bulk recommendation opens as a compact dated action row", async ({
   await bootApp(page);
   await openWorkspace(page, "medical-team");
 
-  const rowBulkToggle = page.locator('[data-medical-bulk-toggle="bulk-two"]');
-  await expect(rowBulkToggle).toHaveText("");
-  await expect(rowBulkToggle).toHaveAttribute("aria-label", "Select Bulk Two for bulk recommendation");
-  await rowBulkToggle.click();
-  await expect(rowBulkToggle).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("[data-medical-bulk-menu-toggle]")).toContainText("1 selected");
-  await rowBulkToggle.click();
-  await expect(rowBulkToggle).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator("[data-medical-bulk-menu-toggle]")).toContainText("0 selected");
-
-  const bulkToggle = page.locator("[data-medical-bulk-menu-toggle]");
-  await expect(bulkToggle).toContainText("Bulk Recommendation");
+  await expect(page.locator(".medical-bulk-panel")).toHaveCount(0);
+  await expect(page.locator("[data-medical-bulk-menu-toggle]")).toHaveCount(0);
+  await expect(page.locator("[data-medical-bulk-toggle]")).toHaveCount(0);
   await expect(page.locator("#medicalBulkRecommendationForm")).toHaveCount(0);
-  await bulkToggle.click();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Array.from(document.querySelector(".medical-position-group .medical-roster-list-head")?.children || []).map((element) =>
+          element.textContent?.trim()
+        )
+      )
+    )
+    .toEqual(["Player", "Quick Recommendation"]);
 
-  const bulkForm = page.locator("#medicalBulkRecommendationForm");
-  await expect(bulkForm).toBeVisible();
-  const bulkColumnWidths = await bulkForm.evaluate((form) => {
-    const dateField = form.querySelector(".medical-bulk-date-field");
-    const selectField = form.querySelector(".medical-bulk-select-field");
-    const recommendField = form.querySelector(".medical-bulk-recommend-field");
-    return {
-      formClient: form.clientWidth,
-      formScroll: form.scrollWidth,
-      date: dateField?.getBoundingClientRect().width ?? 0,
-      select: selectField?.getBoundingClientRect().width ?? 0,
-      recommend: recommendField?.getBoundingClientRect().width ?? 0,
-    };
-  });
-  expect(bulkColumnWidths.formScroll).toBeLessThanOrEqual(bulkColumnWidths.formClient + 2);
-  expect(bulkColumnWidths.date).toBeGreaterThan(0);
-  expect(bulkColumnWidths.date).toBeLessThan(bulkColumnWidths.select);
-  expect(bulkColumnWidths.recommend).toBeGreaterThan(0);
-  expect(bulkColumnWidths.recommend).toBeLessThan(bulkColumnWidths.date * 0.85);
-  await expect(bulkForm.locator("[data-medical-bulk-date]")).toHaveValue("2026-05-15");
-  await bulkForm.locator("[data-medical-bulk-select-not-set]").click();
-  await expect(page.locator("[data-medical-bulk-menu-toggle]")).toContainText("1 selected");
-  await bulkForm.locator("[data-medical-bulk-participation]").selectOption("25");
-  await expect(bulkForm.locator("[data-medical-bulk-rtp-preview]")).toHaveValue("Rehab");
-  await bulkForm.locator('button[type="submit"]').click();
+  await page.locator('[data-medical-roster-row="bulk-two"] [data-medical-quick-participation="25"]').click();
 
   await expect
     .poll(() =>
@@ -1831,11 +1804,8 @@ test("Medical recommendations use match context and lock non-activity days", asy
   });
   await expect(page.locator("[data-medical-activity-context]")).toContainText("No Team Recommendation");
   await expect(page.locator('[data-medical-roster-row="qa-match-player"] [data-medical-quick-participation="100"]')).toBeDisabled();
-
-  await page.locator("[data-medical-bulk-menu-toggle]").click();
-  const bulkForm = page.locator("#medicalBulkRecommendationForm");
-  await expect(bulkForm.locator("[data-medical-bulk-participation]")).toBeDisabled();
-  await expect(bulkForm.locator('button[type="submit"]')).toBeDisabled();
+  await expect(page.locator(".medical-bulk-panel")).toHaveCount(0);
+  await expect(page.locator("#medicalBulkRecommendationForm")).toHaveCount(0);
 
   await page.locator('[data-medical-roster-row="qa-match-player"] .medical-roster-player-cell').click();
   await expect(page.locator(".medical-activity-lock")).toContainText("No scheduled training or match");
@@ -1904,13 +1874,12 @@ test("Medical roster overview groups by position and supports row quick recommen
         const bulkPanel = document.querySelector(".medical-bulk-panel");
         const commandBoard = document.querySelector(".medical-roster-panel > .medical-command-board");
         const positionOverview = document.querySelector(".medical-position-overview");
-        if (!bulkPanel || !positionOverview) return "";
+        if (!positionOverview) return "";
         const noCommandBoard = !commandBoard;
-        const overviewAfterBulk = Boolean(bulkPanel.compareDocumentPosition(positionOverview) & Node.DOCUMENT_POSITION_FOLLOWING);
-        return noCommandBoard && overviewAfterBulk ? "bulk-list" : "wrong-order";
+        return noCommandBoard && !bulkPanel ? "direct-list" : "wrong-order";
       })
     )
-    .toBe("bulk-list");
+    .toBe("direct-list");
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -1919,7 +1888,7 @@ test("Medical roster overview groups by position and supports row quick recommen
         )
       )
     )
-    .toEqual(["Player", "Quick Recommendation", "Select"]);
+    .toEqual(["Player", "Quick Recommendation"]);
 
   const searchInput = page.locator("[data-medical-roster-search]");
   await searchInput.click();

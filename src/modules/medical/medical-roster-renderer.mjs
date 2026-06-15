@@ -25,7 +25,6 @@ export function createMedicalRosterRenderer({
   getMedicalScheduleSummary,
   getMedicalStatusForParticipation,
   getMedicalStatusOptionForDate,
-  getMedicalValidBulkSelection,
   getMedicalVisibleComment,
   getMedicalWindowAverage,
   getMedicalWindowDates,
@@ -37,7 +36,6 @@ export function createMedicalRosterRenderer({
   isTemporaryPlayerProfile,
   medicalParticipationOptions = [],
   medicalStatusOptions = [],
-  renderMedicalBulkUpdatePanel,
   renderMedicalMetric,
   renderMedicalOperationsSystem,
   renderMedicalPlayerAvatar,
@@ -144,18 +142,11 @@ ${canRecommend ? "" : "disabled"}
     const selectedDate = getSelectedDate();
     const record = getLatestMedicalRecord(player.id, selectedDate);
     const status = getMedicalRecordStatus(record);
-    const activityContext = getMedicalRecommendationActivityContext(selectedDate);
     const isSelected = player.id === getSelectedPlayerId();
-    const isBulkSelected = getMedicalValidBulkSelection().has(player.id);
     const latestComment = getMedicalVisibleComment(record);
-    const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player);
-    const canBulkSelect = canEditMedicalTeam() && activityContext.isRecommendable && !squadBlockReason;
-    const bulkToggleLabel = isBulkSelected
-      ? `Remove ${player.name} from bulk recommendation`
-      : squadBlockReason || `Select ${player.name} for bulk recommendation`;
     return `
 <article
-class="medical-roster-row medical-tone-${escapeHtml(status.tone)}${isSelected && isPlayerModalOpen() ? " is-selected" : ""}${isBulkSelected ? " is-bulk-selected" : ""}"
+class="medical-roster-row medical-tone-${escapeHtml(status.tone)}${isSelected && isPlayerModalOpen() ? " is-selected" : ""}"
 data-medical-select-player="${escapeHtml(player.id)}"
 data-medical-roster-row="${escapeHtml(player.id)}"
 tabindex="0"
@@ -177,17 +168,6 @@ ${renderMedicalSquadAvailabilityBadge(player)}
 <div class="medical-roster-quick-cell">
 ${renderQuickRecommendationButtons(player, record)}
 </div>
-<div class="medical-roster-actions-cell">
-<button
-type="button"
-class="medical-row-select-button${isBulkSelected ? " is-selected" : ""}"
-data-medical-bulk-toggle="${escapeHtml(player.id)}"
-aria-pressed="${isBulkSelected ? "true" : "false"}"
-aria-label="${escapeHtml(bulkToggleLabel)}"
-title="${escapeHtml(bulkToggleLabel)}"
-${canBulkSelect ? "" : "disabled"}
-><span aria-hidden="true"></span></button>
-</div>
 ${latestComment ? `<p class="medical-row-comment">${escapeHtml(latestComment)}</p>` : ""}
 </article>
 `;
@@ -208,7 +188,6 @@ ${latestComment ? `<p class="medical-row-comment">${escapeHtml(latestComment)}</
 <div class="medical-roster-list-head" aria-hidden="true">
 <span>Player</span>
 <span>Quick Recommendation</span>
-<span>Select</span>
 </div>
 ${group.players.map(renderRosterRow).join("")}
 </div>
@@ -235,7 +214,6 @@ ${
 <div class="medical-roster-list-head" aria-hidden="true">
 <span>Player</span>
 <span>Quick Recommendation</span>
-<span>Select</span>
 </div>
 ${players.map(renderRosterRow).join("")}
 </div>
@@ -339,7 +317,6 @@ ${medicalStatusOptions
 </select>
 </div>
 </div>
-${renderMedicalBulkUpdatePanel(players)}
 <div class="medical-position-overview">
 ${
   squadPlayers.length

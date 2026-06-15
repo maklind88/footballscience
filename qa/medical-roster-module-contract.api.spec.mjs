@@ -31,7 +31,6 @@ test("Medical roster renderer owns availability workspace and roster rows", () =
     getMedicalScheduleSummary: () => "Training",
     getMedicalStatusForParticipation: () => "modified",
     getMedicalStatusOptionForDate: () => ({ label: "Modified" }),
-    getMedicalValidBulkSelection: () => new Set(["p1"]),
     getMedicalVisibleComment: () => "Monitor load",
     getMedicalWindowAverage: () => 75,
     getMedicalWindowDates: () => ["2026-05-31"],
@@ -43,7 +42,6 @@ test("Medical roster renderer owns availability workspace and roster rows", () =
     isTemporaryPlayerProfile: () => false,
     medicalParticipationOptions: [0, 75, 100],
     medicalStatusOptions: [{ key: "modified", label: "Modified" }],
-    renderMedicalBulkUpdatePanel: () => '<section class="bulk"></section>',
     renderMedicalMetric: (label, value) => `<article>${label}:${value}</article>`,
     renderMedicalOperationsSystem: () => '<section class="ops"></section>',
     renderMedicalPlayerAvatar: () => '<span class="avatar"></span>',
@@ -57,7 +55,8 @@ test("Medical roster renderer owns availability workspace and roster rows", () =
   expect(workspace).toContain("medical-roster-panel");
   expect(workspace).toContain("Mak Player");
   expect(workspace).toContain("data-medical-quick-recommend");
-  expect(workspace).toContain("data-medical-bulk-toggle");
+  expect(workspace).not.toContain("medical-bulk-panel");
+  expect(workspace).not.toContain("data-medical-bulk-toggle");
   expect(renderer.renderRosterSetup()).toContain("medicalRosterImportForm");
   expect(renderer.renderNewPlayerCard()).toContain("medicalNewPlayerForm");
 });

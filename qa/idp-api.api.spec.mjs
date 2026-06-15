@@ -63,6 +63,25 @@ test("idp normalization keeps scope bounded and safe", () => {
   });
 });
 
+test("idp actor scope maps current NCC platform aliases to the shared IDP tenant", () => {
+  expect(core.actorScope({
+    id: "coach-2",
+    clubId: "club-north-carolina-courage",
+    teamId: "team-north-carolina-courage",
+  })).toMatchObject({
+    actorId: "coach-2",
+    organizationId: "club-ncc",
+    clubId: "club-ncc",
+    teamId: "team-ncc-first",
+  });
+
+  expect(core.actorScope({ id: "admin-1" })).toMatchObject({
+    actorId: "admin-1",
+    organizationId: "club-ncc",
+    teamId: "team-ncc-first",
+  });
+});
+
 test("idp api exposes a server-owned assignment action", () => {
   const source = fs.readFileSync(new URL("../api/_lib/idp-database.js", import.meta.url), "utf8");
   expect(source).toContain('action === "assign-owner"');

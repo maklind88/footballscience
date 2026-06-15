@@ -3,9 +3,35 @@ const { readConfig, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
 const DEFAULT_LIMIT = 80;
 const MAX_LIMIT = 200;
 const MAX_BODY_BYTES = 128 * 1024;
+const DEFAULT_ORGANIZATION_ID = "club-ncc";
+const DEFAULT_TEAM_ID = "team-ncc-first";
+
+const ORGANIZATION_SCOPE_ALIASES = new Map([
+  ["club-ncc", DEFAULT_ORGANIZATION_ID],
+  ["ncc", DEFAULT_ORGANIZATION_ID],
+  ["north-carolina-courage", DEFAULT_ORGANIZATION_ID],
+  ["north carolina courage", DEFAULT_ORGANIZATION_ID],
+  ["club-north-carolina-courage", DEFAULT_ORGANIZATION_ID],
+]);
+
+const TEAM_SCOPE_ALIASES = new Map([
+  ["team-ncc-first", DEFAULT_TEAM_ID],
+  ["ncc", DEFAULT_TEAM_ID],
+  ["north-carolina-courage", DEFAULT_TEAM_ID],
+  ["north carolina courage", DEFAULT_TEAM_ID],
+  ["team-north-carolina-courage", DEFAULT_TEAM_ID],
+]);
 
 function normalizeText(value, maxLength = 240) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function normalizeScopeId(value, aliases, fallback) {
+  const text = normalizeText(value, 160);
+  if (!text) return fallback;
+  const comparable = text.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  const hyphenated = comparable.replace(/\s+/g, "-");
+  return aliases.get(text.toLowerCase()) || aliases.get(comparable) || aliases.get(hyphenated) || text;
 }
 
 function normalizeNote(value, maxLength = 1200) {
@@ -26,10 +52,28 @@ function asLimit(value, fallback = DEFAULT_LIMIT) {
 }
 
 function actorScope(actor = {}) {
+  const organizationId = normalizeScopeId(
+    actor.organizationId
+      || actor.organization_id
+      || actor.clubId
+      || actor.club_id
+      || actor.clubName
+      || actor.club,
+    ORGANIZATION_SCOPE_ALIASES,
+    DEFAULT_ORGANIZATION_ID
+  );
+  const teamId = normalizeScopeId(
+    actor.teamId
+      || actor.team_id
+      || actor.teamName
+      || actor.team,
+    TEAM_SCOPE_ALIASES,
+    DEFAULT_TEAM_ID
+  );
   return {
-    organizationId: normalizeText(actor.clubId || actor.organizationId || "club-ncc", 160),
-    clubId: normalizeText(actor.clubId || actor.organizationId || "club-ncc", 160),
-    teamId: normalizeText(actor.teamId || "team-ncc-first", 160),
+    organizationId,
+    clubId: normalizeScopeId(actor.clubId || actor.club_id || actor.clubName || actor.club || organizationId, ORGANIZATION_SCOPE_ALIASES, organizationId),
+    teamId,
     actorId: normalizeText(actor.id, 160),
   };
 }
@@ -106,6 +150,7 @@ module.exports = {
   asLimit,
   actorScope,
   buildTeamParams,
+  normalizeScopeId,
   insertRow,
   normalizeNote,
   normalizeText,

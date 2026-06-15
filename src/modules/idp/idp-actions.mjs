@@ -10,20 +10,117 @@ import {
   normalizeText,
 } from "./domain/idp.models.mjs";
 
-function normalizeDashboardPayload(payload = {}, fallbackPlayers = []) {
-  const players = Array.isArray(payload.players) ? payload.players : fallbackPlayers;
-  return players.map((entry = {}) => ({
-    profile: normalizeIdpProfile(entry.profile || {}),
-    focus: entry.focus ? normalizeIdpFocus(entry.focus) : null,
-    evidenceCount: Number(entry.evidenceCount || 0),
-    newClipCount: Number(entry.newClipCount || 0),
-    nextAction: normalizeText(entry.nextAction, 180),
-    overallStatus: normalizeText(entry.overallStatus || "On Track", 80),
-  }));
+function hasSource(value) {
+  return value && typeof value === "object" && Object.keys(value).length > 0;
 }
 
-function normalizePlayerPayload(payload = {}) {
+function numberOrFallback(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : Number(fallback || 0);
+}
+
+function mergeProfileWithFallback(profile = {}, fallbackProfile = {}) {
+  const fallback = normalizeIdpProfile(fallbackProfile || {});
+  if (!hasSource(profile)) return fallback;
+  const normalized = normalizeIdpProfile(profile);
   return {
+    ...fallback,
+    ...normalized,
+    id: normalized.id || fallback.id,
+    playerId: normalized.playerId || fallback.playerId,
+    playerName: normalized.playerName || fallback.playerName,
+    position: normalized.position || fallback.position,
+    role: normalized.role || fallback.role,
+    ownerId: normalized.ownerId || fallback.ownerId,
+    lastReviewOn: normalized.lastReviewOn || fallback.lastReviewOn,
+    nextReviewOn: normalized.nextReviewOn || fallback.nextReviewOn,
+    strengths: normalized.strengths.length ? normalized.strengths : fallback.strengths,
+    leadershipProfile: normalized.leadershipProfile || fallback.leadershipProfile,
+  };
+}
+
+function mergeFocusWithFallback(focus = null, fallbackFocus = null, playerId = "") {
+  const fallback = fallbackFocus ? normalizeIdpFocus(fallbackFocus) : null;
+  if (!hasSource(focus)) return fallback;
+  const normalized = normalizeIdpFocus(focus);
+  return {
+    ...(fallback || {}),
+    ...normalized,
+    id: normalized.id || fallback?.id || "",
+    playerId: normalized.playerId || fallback?.playerId || playerId,
+    title: normalized.title || fallback?.title || "",
+    description: normalized.description || fallback?.description || "",
+    ownerId: normalized.ownerId || fallback?.ownerId || "",
+    reviewDate: normalized.reviewDate || fallback?.reviewDate || "",
+  };
+}
+
+function dashboardEntryPlayerId(entry = {}) {
+  const profile = normalizeIdpProfile(entry.profile || {});
+  if (profile.playerId) return profile.playerId;
+  const focus = normalizeIdpFocus(entry.focus || {});
+  return focus.playerId;
+}
+
+function normalizeDashboardEntry(entry = {}, fallbackEntry = {}) {
+  const profile = mergeProfileWithFallback(entry.profile || {}, fallbackEntry.profile || {});
+  const focus = mergeFocusWithFallback(entry.focus || null, fallbackEntry.focus || null, profile.playerId);
+  return {
+    profile,
+    focus,
+    evidenceCount: numberOrFallback(entry.evidenceCount, fallbackEntry.evidenceCount),
+    newClipCount: numberOrFallback(entry.newClipCount, fallbackEntry.newClipCount),
+    nextAction: normalizeText(entry.nextAction, 180) || normalizeText(fallbackEntry.nextAction, 180),
+    overallStatus: normalizeText(entry.overallStatus, 80) || normalizeText(fallbackEntry.overallStatus || "On Track", 80),
+  };
+}
+
+function normalizeDashboardPayload(payload = {}, fallbackPlayers = []) {
+  const fallbackOrder = [];
+  const playerMap = new Map();
+  for (const entry of fallbackPlayers) {
+    const normalized = normalizeDashboardEntry({}, entry);
+    const playerId = normalized.profile.playerId || normalized.focus?.playerId || "";
+    if (!playerId) continue;
+    fallbackOrder.push(playerId);
+    playerMap.set(playerId, normalized);
+  }
+
+  const extraOrder = [];
+  const players = Array.isArray(payload.players) ? payload.players : [];
+  for (const entry of players) {
+    const playerId = dashboardEntryPlayerId(entry);
+    const merged = normalizeDashboardEntry(entry, playerId ? playerMap.get(playerId) || {} : {});
+    const mergedPlayerId = merged.profile.playerId || merged.focus?.playerId || playerId;
+    if (!mergedPlayerId) continue;
+    if (!playerMap.has(mergedPlayerId)) extraOrder.push(mergedPlayerId);
+    playerMap.set(mergedPlayerId, merged);
+  }
+
+  return [...fallbackOrder, ...extraOrder].map((playerId) => playerMap.get(playerId)).filter(Boolean);
+}
+
+function mergePlayerPayloadWithFallback(detail = {}, fallbackDetail = null) {
+  if (!fallbackDetail) return detail;
+  const profile = mergeProfileWithFallback(detail.profile || {}, fallbackDetail.profile || {});
+  const fallbackFocus = fallbackDetail.focuses?.[0] || null;
+  const focuses = detail.focuses.length
+    ? detail.focuses.map((focus) => mergeFocusWithFallback(focus, fallbackFocus, profile.playerId)).filter(Boolean)
+    : fallbackDetail.focuses || [];
+  return {
+    profile,
+    focuses,
+    clipBank: detail.clipBank.length ? detail.clipBank : fallbackDetail.clipBank || [],
+    evidence: detail.evidence.length ? detail.evidence : fallbackDetail.evidence || [],
+    reviews: detail.reviews.length ? detail.reviews : fallbackDetail.reviews || [],
+    nextActions: detail.nextActions.length ? detail.nextActions : fallbackDetail.nextActions || [],
+    milestones: detail.milestones.length ? detail.milestones : fallbackDetail.milestones || [],
+    ownership: Array.isArray(detail.ownership) ? detail.ownership : fallbackDetail.ownership || [],
+  };
+}
+
+function normalizePlayerPayload(payload = {}, fallbackDetail = null) {
+  const detail = {
     profile: normalizeIdpProfile(payload.profile || {}),
     focuses: (payload.focuses || []).map(normalizeIdpFocus),
     clipBank: (payload.clipBank || []).map(normalizeIdpClipBankItem),
@@ -33,6 +130,7 @@ function normalizePlayerPayload(payload = {}) {
     milestones: (payload.milestones || []).map(normalizeIdpMilestone),
     ownership: Array.isArray(payload.ownership) ? payload.ownership : [],
   };
+  return mergePlayerPayloadWithFallback(detail, fallbackDetail);
 }
 
 function selectedPlayerIdFromState(state = {}) {
@@ -64,15 +162,16 @@ export function createIdpActions({ store, api, context = {} }) {
     const safePlayerId = normalizeText(playerId, 160);
     store.setState({ ui: { selectedPlayerId: safePlayerId, error: "" } });
     const fallbackPlayer = findSquadPlayer(getSquadState(), safePlayerId);
+    const fallbackDetail = fallbackPlayer ? buildLegacyPlayerDetail(fallbackPlayer) : null;
     if (fallbackPlayer) {
-      store.setState({ playerDetail: buildLegacyPlayerDetail(fallbackPlayer) });
+      store.setState({ playerDetail: fallbackDetail });
     }
     if (!safePlayerId) return;
     try {
       const payload = await api.loadPlayer(safePlayerId);
-      const normalized = normalizePlayerPayload(payload);
+      const normalized = normalizePlayerPayload(payload, fallbackDetail);
       if (!normalized.profile.playerId && fallbackPlayer) {
-        store.setState({ playerDetail: buildLegacyPlayerDetail(fallbackPlayer), ui: { error: "" } });
+        store.setState({ playerDetail: fallbackDetail, ui: { error: "" } });
         return;
       }
       store.setState({ playerDetail: normalized, ui: { error: "" } });

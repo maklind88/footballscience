@@ -3,7 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildIdpDashboardFromSquadState, buildLegacyPlayerDetail } from "../src/modules/idp/idp-adapter.mjs";
+import { createIdpActions } from "../src/modules/idp/idp-actions.mjs";
 import { renderIdpWorkspace } from "../src/modules/idp/idp-renderer.mjs";
+import { createIdpStore } from "../src/modules/idp/idp-state.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const moduleDir = path.join(rootDir, "src/modules/idp");
@@ -134,6 +136,86 @@ test("idp adapter derives read-only fallback from Squad state", () => {
   expect(dashboard[0].profile).toMatchObject({ playerId: "p1", playerName: "Player One" });
   expect(dashboard[0].focus.title).toBe("Scan before receive");
   expect(dashboard[0].nextAction).toBe("Add evidence");
+});
+
+test("idp assignment refresh preserves the full squad roster and player identity", async () => {
+  const squadPlayers = [
+    {
+      id: "p1",
+      name: "Kailen Sheridan",
+      position: "Goalkeeper",
+      primaryRole: "GK",
+      idp: { primaryFocus: "Distribution under pressure", nextAction: "Add evidence" },
+    },
+    {
+      id: "p2",
+      name: "Madison White",
+      position: "Goalkeeper",
+      primaryRole: "GK",
+      idp: { primaryFocus: "Create current focus" },
+    },
+  ];
+  const store = createIdpStore({
+    ui: { selectedPlayerId: "p1" },
+    playerDetail: buildLegacyPlayerDetail(squadPlayers[0]),
+  });
+  const assignedPayloads = [];
+  const api = {
+    assignOwner: async (payload) => {
+      assignedPayloads.push(payload);
+      return { schema: "footballscience-idp-v1", ownerId: payload.ownerId };
+    },
+    loadDashboard: async () => ({
+      schema: "footballscience-idp-v1",
+      players: [
+        {
+          profile: { id: "idp-profile-p1", player_id: "p1", primary_owner_id: "coach-1" },
+          focus: null,
+          evidenceCount: 2,
+          newClipCount: 1,
+          nextAction: "Set review date",
+          overallStatus: "On Track",
+        },
+      ],
+    }),
+    loadPlayer: async () => ({
+      schema: "footballscience-idp-v1",
+      profile: { id: "idp-profile-p1", player_id: "p1", primary_owner_id: "coach-1" },
+      focuses: [],
+      clipBank: [],
+      evidence: [],
+      reviews: [],
+      nextActions: [],
+      milestones: [],
+      ownership: [{ owner_id: "coach-1", ownership_type: "player-owner", status: "active" }],
+    }),
+  };
+  const actions = createIdpActions({
+    store,
+    api,
+    context: { getPlayerProfilesState: () => ({ players: squadPlayers }) },
+  });
+
+  await actions.assignOwner({ get: (key) => (key === "ownerId" ? "coach-1" : "") });
+
+  const state = store.getState();
+  expect(assignedPayloads[0]).toMatchObject({ playerId: "p1", ownerId: "coach-1" });
+  expect(state.dashboardPlayers.map((entry) => entry.profile.playerName)).toEqual(["Kailen Sheridan", "Madison White"]);
+  expect(state.dashboardPlayers).toHaveLength(2);
+  expect(state.dashboardPlayers[0].profile).toMatchObject({
+    playerId: "p1",
+    playerName: "Kailen Sheridan",
+    ownerId: "coach-1",
+    position: "Goalkeeper",
+  });
+  expect(state.dashboardPlayers[0].focus.title).toBe("Distribution under pressure");
+  expect(state.playerDetail.profile).toMatchObject({
+    playerId: "p1",
+    playerName: "Kailen Sheridan",
+    ownerId: "coach-1",
+    position: "Goalkeeper",
+  });
+  expect(state.playerDetail.focuses[0].title).toBe("Distribution under pressure");
 });
 
 test("fs player syncs saved player clips to idp clip bank through the server boundary", () => {

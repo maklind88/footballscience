@@ -425,6 +425,15 @@ test("client-config login resolves usernames before Supabase password auth", asy
   }
 });
 
+test("login does not retry direct Supabase auth after server timeout", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const source = readFileSync(path.join(process.cwd(), "platform-auth-boot.js"), "utf8");
+
+  expect(source).toContain("[0, 404, 405, 500, 502].includes(Number(loginResponse.status))");
+  expect(source).not.toContain("[0, 404, 405, 500, 502, 504].includes(Number(loginResponse.status))");
+});
+
 test("app-state rejects unauthenticated requests before touching Supabase storage", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   clearEnv(supabaseEnvKeys);

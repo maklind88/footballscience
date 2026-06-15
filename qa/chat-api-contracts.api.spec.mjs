@@ -122,6 +122,13 @@ test("database read receipts resolve legacy thread ids before writing", () => {
   expect(chatDatabaseSource).toContain("const [threadSummary] = await enrichThreadSummaries(actor, [thread]);");
 });
 
+test("chat API reads have client-side timeout and retry metadata", () => {
+  expect(chatDomainSource).toContain("Chat API timed out. Try again.");
+  expect(chatDomainSource).toContain("controller.abort()");
+  expect(chatDomainSource).toContain("retryable: true");
+  expect(chatDomainSource).toContain("Chat session check took too long. Try again.");
+});
+
 test("pin, priority, reactions, and read receipts follow server rules", () => {
   const sent = applyChatActionToState(
     {},

@@ -1394,7 +1394,11 @@ module.exports = async (req, res) => {
       if (error?.code === "BODY_TOO_LARGE") {
         return sendJson(res, 413, { ok: false, reason: error.message || "Request body is too large." });
       }
-      return sendJson(res, 500, { ok: false, reason: error?.message || "Chat database API failed." });
+      const status = Number(error?.status || 0);
+      return sendJson(res, status >= 400 && status < 600 ? status : 500, {
+        ok: false,
+        reason: error?.message || "Chat database API failed.",
+      });
     }
   }
 

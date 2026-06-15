@@ -51,9 +51,11 @@ test("Medical operations renderer owns operations tabs, private system, and coac
 
   expect(renderer.renderTopMenu("availability", [{ key: "availability", label: "Availability" }])).toContain("medical-ops-top-menu");
   expect(renderer.renderSignalDrivers(signal)).toContain("75% recommendation");
-  const privateMarkup = renderer.renderPrivateSystem(summary, "availability", "2026-05-31");
+  const overviewMarkup = renderer.renderOverview(summary, "2026-05-31");
+  expect(overviewMarkup).toContain("Medical Briefing");
+  const privateMarkup = renderer.renderPrivateSystem(summary, "signals", "2026-05-31");
   expect(privateMarkup).toContain("medical-operations-system");
-  expect(privateMarkup).toContain("Medical Briefing");
+  expect(privateMarkup).toContain("medical-ops-signals-table");
   expect(privateMarkup).toContain("Mak Player");
   expect(renderer.renderHistory()).toContain("Recommendation");
   const coachMarkup = renderer.renderCoachSafeSummary("2026-05-31");

@@ -144,7 +144,21 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
   }
 
   async function fetchDashboardChatApi(query = {}) {
-    const token = await getDashboardChatApiAccessToken();
+    let token = "";
+    try {
+      token = await withUiTimeout(
+        getDashboardChatApiAccessToken(),
+        8000,
+        "Chat session check took too long. Try again."
+      );
+    } catch (error) {
+      return {
+        ok: false,
+        status: 0,
+        reason: error?.message || "Chat session check took too long. Try again.",
+        retryable: true,
+      };
+    }
     if (!token) {
       return { ok: false, status: 401, reason: "Chat API requires an authenticated session." };
     }
@@ -156,13 +170,20 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       }
     });
 
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    let timeoutId = 0;
     try {
+      if (controller) {
+        timeoutId = win.setTimeout(() => controller.abort(), 15000);
+      }
+
       const response = await fetchImpl(`/api/chat${params.toString() ? `?${params.toString()}` : ""}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
         },
         cache: "no-store",
+        signal: controller?.signal,
       });
 
       const responseText = await response.text();
@@ -185,7 +206,17 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
 
       return { ok: true, status: response.status, result };
     } catch (error) {
-      return { ok: false, status: 0, reason: error?.message || "Chat API could not be reached." };
+      const timedOut = error?.name === "AbortError";
+      return {
+        ok: false,
+        status: 0,
+        reason: timedOut ? "Chat API timed out. Try again." : error?.message || "Chat API could not be reached.",
+        retryable: true,
+      };
+    } finally {
+      if (timeoutId) {
+        win.clearTimeout(timeoutId);
+      }
     }
   }
 

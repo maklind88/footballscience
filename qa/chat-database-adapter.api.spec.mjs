@@ -81,3 +81,17 @@ test("chat moderation endpoint supports admin filters", () => {
   expect(source).toContain('const includeFailedUploads = auditAction === "all" || auditAction === "failed-uploads"');
   expect(source).toContain("auditToDate.setUTCHours(23, 59, 59, 999)");
 });
+
+test("chat database adapter fails fast when Supabase is busy", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const { fileURLToPath } = require("node:url");
+  const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../api/_lib/chat-database.js"), "utf8");
+  const apiSource = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../api/chat.js"), "utf8");
+
+  expect(source).toContain("CHAT_DB_REQUEST_TIMEOUT_MS");
+  expect(source).toContain("AbortSignal.timeout");
+  expect(source).toContain("Chat database is temporarily busy. Please try again.");
+  expect(source).toContain("throw createDatabaseError(result)");
+  expect(apiSource).toContain("status >= 400 && status < 600 ? status : 500");
+});

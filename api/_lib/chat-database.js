@@ -34,6 +34,8 @@ const PAGE_SIZE_DEFAULT = 40;
 const PAGE_SIZE_MAX = 100;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const CHAT_DB_REQUEST_TIMEOUT_MS = 8000;
+const CHAT_STORAGE_REQUEST_TIMEOUT_MS = 10000;
 const RATE_LIMITS = {
   createThread: 8,
   sendMessage: 24,
@@ -335,6 +337,7 @@ async function createSignedAttachmentUpload(bucket, path) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ expiresIn: 60 * 60 * 2 }),
+        signal: timeoutSignal(CHAT_STORAGE_REQUEST_TIMEOUT_MS),
       }
     );
     const payload = await response.json().catch(() => ({}));
@@ -452,6 +455,7 @@ async function uploadStorageObject(bucket, path, buffer, mimeType) {
       "x-upsert": "true",
     },
     body: buffer,
+    signal: timeoutSignal(CHAT_STORAGE_REQUEST_TIMEOUT_MS),
   });
   if (response.ok) {
     return { ok: true };
@@ -487,6 +491,23 @@ function jsonValue(value) {
   return JSON.stringify(value);
 }
 
+function timeoutSignal(timeoutMs = CHAT_DB_REQUEST_TIMEOUT_MS) {
+  return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(timeoutMs)
+    : undefined;
+}
+
+function isRequestTimeoutError(error) {
+  return error?.name === "TimeoutError" || error?.name === "AbortError";
+}
+
+function createDatabaseError(result = {}) {
+  const error = new Error(result.reason || "Chat database request failed.");
+  error.status = result.status || 500;
+  error.payload = result.payload || null;
+  return error;
+}
+
 async function parseResponse(response) {
   const text = await response.text();
   if (!text) {
@@ -506,19 +527,36 @@ async function dbRequest(path, options = {}) {
     return { ok: false, status: 500, reason: "Missing Supabase database configuration." };
   }
 
-  const response = await fetch(`${base.url}${path}`, {
-    method: options.method || "GET",
-    headers: restHeaders(base.serviceRoleKey, options.headers || {}),
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
+  let response = null;
+  try {
+    response = await fetch(`${base.url}${path}`, {
+      method: options.method || "GET",
+      headers: restHeaders(base.serviceRoleKey, options.headers || {}),
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      signal: timeoutSignal(options.timeoutMs || CHAT_DB_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (isRequestTimeoutError(error)) {
+      return {
+        ok: false,
+        status: 503,
+        reason: "Chat database is temporarily busy. Please try again.",
+      };
+    }
+    throw error;
+  }
   const payload = await parseResponse(response);
 
   if (!response.ok) {
+    const timeoutReason = payload?.message || payload?.hint || payload?.details || "";
     return {
       ok: false,
-      status: response.status,
+      status: response.status === 504 || /timeout/i.test(timeoutReason) ? 503 : response.status,
       payload,
-      reason: payload?.message || payload?.hint || payload?.details || `Database request failed (${response.status}).`,
+      reason:
+        response.status === 504 || /timeout/i.test(timeoutReason)
+          ? "Chat database is temporarily busy. Please try again."
+          : payload?.message || payload?.hint || payload?.details || `Database request failed (${response.status}).`,
     };
   }
 
@@ -528,7 +566,7 @@ async function dbRequest(path, options = {}) {
 async function selectOne(table, query) {
   const result = await dbRequest(`/${table}?${query}&limit=1`);
   if (!result.ok) {
-    throw new Error(result.reason);
+    throw createDatabaseError(result);
   }
 
   return Array.isArray(result.payload) ? result.payload[0] || null : null;
@@ -537,7 +575,7 @@ async function selectOne(table, query) {
 async function selectMany(table, query) {
   const result = await dbRequest(`/${table}?${query}`);
   if (!result.ok) {
-    throw new Error(result.reason);
+    throw createDatabaseError(result);
   }
 
   return Array.isArray(result.payload) ? result.payload : [];
@@ -553,7 +591,7 @@ async function insertRows(table, rows) {
     body: Array.isArray(rows) ? rows : [rows],
   });
   if (!result.ok) {
-    throw new Error(result.reason);
+    throw createDatabaseError(result);
   }
 
   return Array.isArray(result.payload) ? result.payload : [];
@@ -566,7 +604,7 @@ async function patchRows(table, query, patch) {
     body: patch,
   });
   if (!result.ok) {
-    throw new Error(result.reason);
+    throw createDatabaseError(result);
   }
 
   return Array.isArray(result.payload) ? result.payload : [];
@@ -578,7 +616,7 @@ async function deleteRows(table, query) {
     headers: { Prefer: "return=representation" },
   });
   if (!result.ok) {
-    throw new Error(result.reason);
+    throw createDatabaseError(result);
   }
 
   return Array.isArray(result.payload) ? result.payload : [];

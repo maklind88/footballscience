@@ -1459,8 +1459,8 @@ async function getActiveAccessToken() {
       const loginResponse = await apiRequest(API_AUTH_LOGIN,{method:"POST",skipAuth:true,timeoutMs:15000,body:JSON.stringify({email,password:cleanPassword})});
       if (!loginResponse.ok) {
         const proxyReason = String(loginResponse.payload?.reason || "");
-        const shouldTryDirectLogin = [0, 404, 405, 500, 502, 504].includes(Number(loginResponse.status)) ||
-          /too long|took too long|not be reached|network|method not allowed|not found|configured/i.test(proxyReason);
+        const shouldTryDirectLogin = [0, 404, 405, 500, 502].includes(Number(loginResponse.status)) ||
+          /network|method not allowed|not found|configured/i.test(proxyReason);
         if (shouldTryDirectLogin) {
           const directResult = await withTimeout(
             authState.supabase.auth.signInWithPassword({email,password:cleanPassword}),
@@ -2312,4 +2312,3 @@ async function getActiveAccessToken() {
   window.footballScienceMedicalDatabase={record:recordMedicalDatabaseEvent};
   window.platformAuthReadyPromise=bootAuth();
 })();
-

@@ -23,6 +23,8 @@ const MAX_JSON_BODY_BYTES = 256 * 1024;
 const PROFILE_IMAGE_BUCKET = "footballscience-profile-images";
 const MAX_PROFILE_IMAGE_UPLOAD_BYTES = 1024 * 1024;
 const MAX_LEGACY_PROFILE_IMAGE_DATA_URL_LENGTH = 2 * 1024 * 1024;
+const SUPABASE_AUTH_REQUEST_TIMEOUT_MS = 8000;
+const SUPABASE_STORAGE_REQUEST_TIMEOUT_MS = 10000;
 const PROFILE_IMAGE_TYPES = new Map([
   ["image/jpeg", "jpg"],
   ["image/jpg", "jpg"],
@@ -56,6 +58,16 @@ function readConfig() {
       "SUPABASE_SERVICE_ROLE",
     ]),
   };
+}
+
+function supabaseTimeoutSignal(timeoutMs = SUPABASE_AUTH_REQUEST_TIMEOUT_MS) {
+  return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(timeoutMs)
+    : undefined;
+}
+
+function isSupabaseTimeoutError(error) {
+  return error?.name === "TimeoutError" || error?.name === "AbortError";
 }
 
 function parseBearer(value) {
@@ -270,11 +282,25 @@ async function callSupabase(path, method, body, token) {
     };
   }
 
-  const response = await fetch(`${url}/auth/v1${path}`, {
-    method,
-    headers: buildHeaders(token || serviceRoleKey),
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let response = null;
+  try {
+    response = await fetch(`${url}/auth/v1${path}`, {
+      method,
+      headers: buildHeaders(token || serviceRoleKey),
+      body: body ? JSON.stringify(body) : undefined,
+      signal: supabaseTimeoutSignal(),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      status: isSupabaseTimeoutError(error) ? 503 : 502,
+      error: {
+        message: isSupabaseTimeoutError(error)
+          ? "Supabase auth is temporarily busy."
+          : error?.message || "Supabase auth could not be reached.",
+      },
+    };
+  }
 
   const payload = await parseSupabaseResponse(response);
   if (!response.ok) {
@@ -311,11 +337,25 @@ async function callSupabaseStorage(path, method, body, options = {}) {
     ...(options.headers || {}),
   };
 
-  const response = await fetch(`${url}/storage/v1${path}`, {
-    method,
-    headers,
-    body,
-  });
+  let response = null;
+  try {
+    response = await fetch(`${url}/storage/v1${path}`, {
+      method,
+      headers,
+      body,
+      signal: supabaseTimeoutSignal(SUPABASE_STORAGE_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      status: isSupabaseTimeoutError(error) ? 503 : 502,
+      error: {
+        message: isSupabaseTimeoutError(error)
+          ? "Supabase storage is temporarily busy."
+          : error?.message || "Supabase storage could not be reached.",
+      },
+    };
+  }
 
   const payload = await parseSupabaseResponse(response);
   if (!response.ok) {
@@ -487,13 +527,19 @@ async function getCurrentActor(authHeader) {
     return null;
   }
 
-  const response = await fetch(`${url}/auth/v1/user`, {
-    method: "GET",
-    headers: {
-      apikey: anonKey,
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  let response = null;
+  try {
+    response = await fetch(`${url}/auth/v1/user`, {
+      method: "GET",
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${token}`,
+      },
+      signal: supabaseTimeoutSignal(),
+    });
+  } catch {
+    return null;
+  }
 
   if (!response.ok) {
     return null;
@@ -525,10 +571,16 @@ async function listAllAuthUsers(perPage = 200) {
     listUrl.searchParams.set("page", String(page));
     listUrl.searchParams.set("per_page", String(limit));
 
-    const response = await fetch(listUrl.toString(), {
-      method: "GET",
-      headers: buildSupabaseKeyHeaders(serviceRoleKey),
-    });
+    let response = null;
+    try {
+      response = await fetch(listUrl.toString(), {
+        method: "GET",
+        headers: buildSupabaseKeyHeaders(serviceRoleKey),
+        signal: supabaseTimeoutSignal(),
+      });
+    } catch {
+      break;
+    }
 
     if (!response.ok) {
       break;

@@ -1001,6 +1001,7 @@
 .video-analysis-intelligence,
 .video-analysis-clip-list,
 .video-analysis-presentation,
+.video-analysis-presentation-sessions,
 .video-analysis-drawer {
   border: 1px solid #d8ded7;
   border-radius: 8px;
@@ -1225,6 +1226,10 @@
   grid-template-columns: minmax(360px, 0.95fr) minmax(0, 1.2fr);
   gap: 12px;
   align-items: start;
+}
+
+.video-analysis-workstation--coding-only {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .video-analysis-left-stack,
@@ -1739,6 +1744,69 @@
   padding-bottom: 10px;
 }
 
+.video-analysis-presentation-board {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 1fr);
+  gap: 10px;
+  padding: 0 10px 10px;
+}
+
+.video-analysis-presentation-sessions {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.video-analysis-presentation-session-list {
+  display: grid;
+  gap: 8px;
+  max-height: 520px;
+  overflow: auto;
+  padding: 0 10px 10px;
+}
+
+.video-analysis-presentation-session {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  min-height: 58px;
+  border: 1px solid #dce4df;
+  border-left: 3px solid #1f8a5f;
+  border-radius: 8px;
+  padding: 8px 9px;
+  color: #17201b;
+  background: #fbfcfb;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.video-analysis-presentation-session.is-active {
+  border-color: #1e5eff;
+  border-left-color: #1e5eff;
+  background: #eef4ff;
+}
+
+.video-analysis-presentation-session span {
+  min-width: 0;
+  color: #142018;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.video-analysis-presentation-session small {
+  color: #627065;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.video-analysis-presentation-library {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
 .video-analysis-presentation-sections {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1890,6 +1958,7 @@
   .video-analysis-library-row__main,
   .video-analysis-library-row__controls,
   .video-analysis-filters,
+  .video-analysis-presentation-board,
   .video-analysis-presentation-sections {
     grid-template-columns: 1fr;
   }

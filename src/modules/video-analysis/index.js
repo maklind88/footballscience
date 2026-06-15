@@ -231,14 +231,9 @@ function renderFsPlayerWorkspace(displayState = {}) {
     ${renderWorkspaceNav(displayState)}
     ${renderVideoPlayer(displayState)}
     ${renderTimeline(displayState)}
-    ${renderClipFilters(displayState)}
-    <section class="video-analysis-workstation">
+    <section class="video-analysis-workstation video-analysis-workstation--coding-only">
       <section class="video-analysis-left-stack">
         ${renderCodingTemplateBuilder(displayState)}
-      </section>
-      <section class="video-analysis-results">
-        ${renderClipIntelligence(displayState)}
-        ${renderClipList(displayState)}
       </section>
     </section>
     ${renderPlayerClipDrawer(displayState)}
@@ -878,6 +873,13 @@ export function handleClick(event, context = {}) {
   }
   if (target.closest("[data-video-analysis-open-library]")) {
     libraryController().openLibraryView(context);
+    return true;
+  }
+  const presentationSession = target.closest("[data-video-analysis-presentation-session]");
+  if (presentationSession) {
+    libraryController().openLibraryItem(presentationSession.dataset.videoAnalysisPresentationSession, context, {
+      activeTab: "presentation",
+    });
     return true;
   }
   if (target.closest("[data-video-analysis-library-refresh]")) {

@@ -146,6 +146,10 @@ test("analysis room tabs use icons without status labels", () => {
   expect(source).not.toContain("Briefs");
   expect(source).not.toContain("renderPlaylistBuilder");
   expect(presentation).toContain("data-video-analysis-presentation-module");
+  expect(presentation).toContain("data-video-analysis-presentation-session");
+  expect(presentation).toContain("renderClipFilters");
+  expect(presentation).toContain("renderClipIntelligence");
+  expect(presentation).toContain("renderClipList");
   expect(presentation).toContain("Save presentation");
   expect(source).not.toContain('state: "Room"');
   expect(source).not.toContain('state: "Active"');

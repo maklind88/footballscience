@@ -181,23 +181,10 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-timeline-ruler")).toBeVisible();
   await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("Team Principle");
   await expect(page.locator(".video-analysis-timeline-controls")).toHaveCount(0);
-  await expect(page.locator(".video-analysis-filters")).toHaveCount(1);
-  await expect(page.locator(".video-analysis-results .video-analysis-filters")).toHaveCount(0);
-  const filterPlacement = await page.evaluate(() => {
-    const timeline = document.querySelector("[data-video-analysis-timeline-module]");
-    const filters = document.querySelector(".video-analysis-filters");
-    const workstation = document.querySelector(".video-analysis-workstation");
-    return {
-      afterTimeline: Boolean(timeline?.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING),
-      beforeWorkstation: Boolean(filters?.compareDocumentPosition(workstation) & Node.DOCUMENT_POSITION_FOLLOWING),
-      directShellChild: filters?.parentElement?.classList.contains("video-analysis-shell") || false,
-    };
-  });
-  expect(filterPlacement).toEqual({
-    afterTimeline: true,
-    beforeWorkstation: true,
-    directShellChild: true,
-  });
+  await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-intelligence")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-clip-list")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-template-builder")).toBeVisible();
   await expect(page.locator(".video-analysis-clip-block").first()).toBeVisible();
   await expect(page.locator(".video-analysis-playhead")).toHaveCount(1);
   await expect(page.locator(".video-analysis-playhead").first()).toBeVisible();
@@ -242,6 +229,11 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await page.getByRole("button", { name: "Presentation", exact: true }).click();
   await expect(page.locator("[data-video-analysis-presentation-module]")).toBeVisible();
   await expect(page.locator(".video-analysis-presentation")).toContainText("Football Science Review");
+  await expect(page.locator(".video-analysis-presentation")).toContainText("Tagged sessions");
+  await expect(page.locator(".video-analysis-presentation-session")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-presentation .video-analysis-filters")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-presentation .video-analysis-intelligence")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-presentation .video-analysis-clip-list")).toHaveCount(1);
   await expect(page.locator(".video-analysis-presentation")).toContainText("Team Meeting");
   await expect(page.locator(".video-analysis-player")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-timeline-module]")).toHaveCount(0);
@@ -249,6 +241,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await page.getByRole("button", { name: "FS Player" }).click();
   await expect(page.locator("[data-video-analysis-timeline-module]")).toBeVisible();
   await expect(page.locator(".video-analysis-presentation")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
 });
 
 test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red playhead", async ({ page }) => {

@@ -72,17 +72,18 @@ export function createVideoLibraryController(deps = {}) {
     }
   }
 
-  async function openLibraryItem(itemKey = "", context = {}) {
+  async function openLibraryItem(itemKey = "", context = {}, options = {}) {
     const run = ensureRuntime(context);
     const item = findVideoLibraryItem(run.store.getState(), itemKey);
     if (!item) return false;
     const previous = run.store.getState().videoRef;
+    const activeTab = options.activeTab || "fs-player";
     if (item.kind === "schedule-candidate") {
       revokeLocalVideoReference(previous, context.win || window);
       run.store.update((state) => ({
         ...state,
         view: "workspace",
-        activeAnalysisRoomTab: "fs-player",
+        activeAnalysisRoomTab: activeTab,
         pendingScheduleLink: item,
         match: {
           title: item.title,
@@ -106,7 +107,7 @@ export function createVideoLibraryController(deps = {}) {
     run.store.update((state) => ({
       ...state,
       view: "workspace",
-      activeAnalysisRoomTab: "fs-player",
+      activeAnalysisRoomTab: activeTab,
       pendingScheduleLink: null,
       match: item.match,
       video: item.latestVideo || null,
@@ -114,7 +115,9 @@ export function createVideoLibraryController(deps = {}) {
       videoRef: null,
       clips: [],
       selectedClipId: "",
-      message: item.hasVideo ? "Opening linked analysis video." : "Open session and link a local video.",
+      message: activeTab === "presentation"
+        ? "Opening tagged session for presentation."
+        : item.hasVideo ? "Opening linked analysis video." : "Open session and link a local video.",
       error: "",
       ...localVideoStatusPatch(
         item.hasVideo ? "linked-unavailable" : "none",
@@ -122,7 +125,7 @@ export function createVideoLibraryController(deps = {}) {
       ),
     }));
     await loadClips();
-    await restoreLocalVideoHandle(context, { silent: true });
+    if (activeTab !== "presentation") await restoreLocalVideoHandle(context, { silent: true });
     return true;
   }
 

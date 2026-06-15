@@ -27,6 +27,11 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/components/ClipIntelligence.js",
     "src/modules/video-analysis/components/CodingTemplateBuilder.js",
     "src/modules/video-analysis/components/PresentationModule.js",
+    "src/modules/video-analysis/components/PresentationSources.js",
+    "src/modules/video-analysis/components/PresentationOutline.js",
+    "src/modules/video-analysis/components/SelectedClipInspector.js",
+    "src/modules/video-analysis/components/DrawingCanvas.js",
+    "src/modules/video-analysis/components/PresenterMode.js",
     "src/modules/video-analysis/components/PlaylistBuilder.js",
     "src/modules/video-analysis/components/PlayerClipDrawer.js",
     "src/modules/video-analysis/services/videoPlaybackService.js",
@@ -38,6 +43,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/services/localVideoHandleStore.js",
     "src/modules/video-analysis/services/localVideoSessionService.js",
     "src/modules/video-analysis/services/codingTemplateService.js",
+    "src/modules/video-analysis/services/presentationService.js",
     "src/modules/video-analysis/services/timelineService.js",
     "src/modules/video-analysis/services/clipIntelligenceService.js",
     "src/modules/video-analysis/services/reviewSessionService.js",
@@ -46,6 +52,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/repositories/clipRepository.js",
     "src/modules/video-analysis/repositories/codingTemplateRepository.js",
     "src/modules/video-analysis/repositories/playlistRepository.js",
+    "src/modules/video-analysis/repositories/presentationRepository.js",
     "src/modules/video-analysis/domain/clipInstance.model.js",
     "src/modules/video-analysis/domain/codingSchema.model.js",
     "src/modules/video-analysis/domain/playlist.model.js",
@@ -202,17 +209,37 @@ test("coding template persistence stays behind repositories and API actions", ()
 test("analysis room tabs use icons without status labels", () => {
   const source = read("src/modules/video-analysis/index.js");
   const presentation = read("src/modules/video-analysis/components/PresentationModule.js");
+  const presentationSources = read("src/modules/video-analysis/components/PresentationSources.js");
+  const presentationOutline = read("src/modules/video-analysis/components/PresentationOutline.js");
+  const selectedClip = read("src/modules/video-analysis/components/SelectedClipInspector.js");
+  const drawing = read("src/modules/video-analysis/components/DrawingCanvas.js");
+  const presenter = read("src/modules/video-analysis/components/PresenterMode.js");
+  const presentationRepository = read("src/modules/video-analysis/repositories/presentationRepository.js");
+  const presentationService = read("src/modules/video-analysis/services/presentationService.js");
   expect(source).toContain("analysis-room-tab-icon");
   expect(source).toContain("FS Player");
   expect(source).toContain("Presentation");
   expect(source).not.toContain("Briefs");
   expect(source).not.toContain("renderPlaylistBuilder");
   expect(presentation).toContain("data-video-analysis-presentation-module");
-  expect(presentation).toContain("data-video-analysis-presentation-session");
-  expect(presentation).toContain("renderClipFilters");
-  expect(presentation).toContain("renderClipIntelligence");
-  expect(presentation).toContain("renderClipList");
-  expect(presentation).toContain("Save presentation");
+  expect(presentation).toContain("renderPresentationSources");
+  expect(presentation).toContain("renderPresentationOutline");
+  expect(presentation).toContain("renderSelectedClipInspector");
+  expect(presentation).toContain("renderDrawingCanvas");
+  expect(presentation).toContain("renderPresenterMode");
+  expect(presentationSources).toContain("data-video-analysis-presentation-filter");
+  expect(presentationSources).toContain("data-video-analysis-smart-save");
+  expect(presentationOutline).toContain("data-video-analysis-presentation-drag-item");
+  expect(presentationOutline).toContain("data-video-analysis-presentation-drop-section");
+  expect(selectedClip).toContain("data-video-analysis-presentation-item-note");
+  expect(drawing).toContain("data-video-analysis-drawing-add");
+  expect(drawing).toContain("data-video-analysis-drawing-save");
+  expect(presenter).toContain("data-video-analysis-presenter-next");
+  expect(presenter).toContain("data-video-analysis-presenter-fullscreen");
+  expect(presentationRepository).toContain("save-presentation");
+  expect(presentationRepository).toContain("save-drawing-layer");
+  expect(presentationService).toContain("buildPresentationPayload");
+  expect(presentationService).toContain("movePresentationItemToSection");
   expect(source).not.toContain('state: "Room"');
   expect(source).not.toContain('state: "Active"');
   expect(source).not.toContain('state: "Next"');

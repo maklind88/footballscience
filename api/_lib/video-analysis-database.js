@@ -22,6 +22,15 @@ const {
 } = require("./video-analysis-database-core.js");
 const { listMatches, normalizeMetadata, normalizeVideoEventType, updateMatchLink } = require("./video-analysis-library-database.js");
 const { listCodingTemplates, saveCodingTemplate } = require("./video-analysis-coding-template-database.js");
+const {
+  archivePresentation,
+  getPresentation,
+  listPresentations,
+  saveDrawingLayer,
+  savePresentation,
+  saveShareTargets,
+  saveSmartCollection,
+} = require("./video-analysis-presentation-database.js");
 const { upsertClipBankItem } = require("./idp-database.js");
 const { saveReviewSession } = require("./video-analysis-review-database.js");
 
@@ -35,7 +44,12 @@ function buildClipSearchParams(query = {}, scope = actorScope()) {
   const params = buildTeamParams(scope);
   params.set("select", "*");
   params.set("status", "eq.active");
-  if (normalizeUuid(query.matchId || query.match_id)) params.set("match_id", `eq.${normalizeUuid(query.matchId || query.match_id)}`);
+  const matchId = normalizeUuid(query.matchId || query.match_id);
+  const matchIds = Array.isArray(query.matchIds || query.match_ids)
+    ? (query.matchIds || query.match_ids).map(normalizeUuid).filter(Boolean)
+    : [];
+  if (matchId) params.set("match_id", `eq.${matchId}`);
+  else if (matchIds.length) params.set("match_id", `in.(${matchIds.join(",")})`);
   if (normalizeUuid(query.videoId || query.video_id)) params.set("video_id", `eq.${normalizeUuid(query.videoId || query.video_id)}`);
   if (normalizeText(query.phase, 80)) params.set("phase", `eq.${normalizeText(query.phase, 80)}`);
   if (normalizeText(query.subPhase || query.sub_phase, 80)) params.set("sub_phase", `eq.${normalizeText(query.subPhase || query.sub_phase, 80)}`);
@@ -49,6 +63,19 @@ function buildClipSearchParams(query = {}, scope = actorScope()) {
   params.set("order", "start_ms.asc");
   params.set("limit", String(asLimit(query.limit)));
   return params;
+}
+
+async function matchIdsForDate(query = {}, scope = {}) {
+  const date = normalizeText(query.date || query.matchDate || query.match_date, 20);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || normalizeUuid(query.matchId || query.match_id)) return [];
+  const params = buildTeamParams(scope);
+  params.set("select", "id");
+  params.set("match_date", `eq.${date}`);
+  params.set("status", "eq.active");
+  params.set("limit", "500");
+  const result = await selectRows("video_matches", params);
+  if (!result.ok) return result;
+  return rowList(result).map((row) => row.id).filter(Boolean);
 }
 
 function normalizeVideoSourcePayload(payload = {}, actor = {}) {
@@ -314,7 +341,15 @@ function clipMatchesFilters(clip = {}, query = {}) {
 
 async function listClips(query, actor) {
   const scope = actorScope(actor);
-  const result = await selectRows("video_clip_instances", buildClipSearchParams(query, scope));
+  const dateMatchIds = await matchIdsForDate(query, scope);
+  if (dateMatchIds?.ok === false) return dateMatchIds;
+  if (Array.isArray(dateMatchIds) && /^\d{4}-\d{2}-\d{2}$/.test(normalizeText(query.date || query.matchDate || query.match_date, 20)) && !dateMatchIds.length) {
+    return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clips: [] } };
+  }
+  const result = await selectRows("video_clip_instances", buildClipSearchParams(
+    Array.isArray(dateMatchIds) && dateMatchIds.length ? { ...query, matchIds: dateMatchIds } : query,
+    scope
+  ));
   if (!result.ok) return result;
   let clips = await attachClipRelations(result.payload, scope);
   const search = normalizeText(query.search || query.q, 120).toLowerCase();
@@ -474,7 +509,7 @@ function statusPayload(actor) {
     scope: actorScope(actor),
     storesVideoFiles: false,
     precision: "milliseconds",
-    workstation: ["templates", "hotkeys", "timeline-lanes", "descriptors", "matrix-find", "review-sections"],
+    workstation: ["templates", "hotkeys", "timeline-lanes", "descriptors", "matrix-find", "review-sections", "presentation-builder", "drawing-layers"],
   };
 }
 
@@ -489,9 +524,15 @@ async function handleVideoAnalysisRequest(req, res, actor) {
         ? await listMatches(query, actor)
         : action === "saved-searches"
           ? await listSavedSearches(query, actor)
+          : action === "presentations" || action === "list-presentations"
+            ? await listPresentations(query, actor)
+            : action === "presentation" || action === "get-presentation"
+              ? await getPresentation(query, actor)
+              : action === "presentation-clips" || action === "list-presentation-clips"
+                ? await listClips(query, actor)
           : action === "coding-templates"
             ? await listCodingTemplates(query, actor)
-          : await listClips(query, actor);
+            : await listClips(query, actor);
     return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
   }
   const body = await parseJsonBody(req, { maxBytes: MAX_BODY_BYTES });
@@ -507,11 +548,21 @@ async function handleVideoAnalysisRequest(req, res, actor) {
             ? await archiveClip(body, actor)
             : action === "save-search"
               ? await saveSearch(body.search || body, actor)
-              : action === "save-review-session"
-                ? await saveReviewSession(body.reviewSession || body, actor)
-                : action === "save-coding-template"
-                  ? await saveCodingTemplate(body.template || body, actor)
-                  : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
+              : action === "save-presentation"
+                ? await savePresentation(body.presentation || body, actor)
+                : action === "archive-presentation"
+                  ? await archivePresentation(body, actor)
+                  : action === "save-smart-collection"
+                    ? await saveSmartCollection(body.smartCollection || body.collection || body, actor)
+                    : action === "save-drawing-layer"
+                      ? await saveDrawingLayer(body.drawingLayer || body.layer || body, actor)
+                      : action === "save-share-targets"
+                        ? await saveShareTargets(body, actor)
+                        : action === "save-review-session"
+                          ? await saveReviewSession(body.reviewSession || body, actor)
+                          : action === "save-coding-template"
+                            ? await saveCodingTemplate(body.template || body, actor)
+                            : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }
 
@@ -525,6 +576,7 @@ module.exports = {
   normalizeClipPayload,
   normalizeOutcome,
   rejectForbiddenPayload,
+  savePresentation,
   saveCodingTemplate,
   syncClipPlayersToIdp,
 };

@@ -4,6 +4,7 @@ import { defaultVideoAnalysisOutcome } from "./constants/outcomes.js";
 import { defaultVideoAnalysisPhase } from "./constants/phases.js";
 import { defaultVideoAnalysisSubPhase } from "./constants/subPhases.js";
 import { createDefaultCodingTemplate } from "./services/codingTemplateService.js";
+import { createInitialPresentationWorkspace } from "./services/presentationService.js";
 import { createReviewSections } from "./services/reviewSessionService.js";
 
 function normalizePlayer(player = {}) {
@@ -116,6 +117,7 @@ export function createInitialVideoAnalysisState(context = {}) {
     reviewTitle: "Football Science Review",
     presentationMode: "build",
     presentationDrawingTool: "arrow",
+    presentation: createInitialPresentationWorkspace(),
     activeReviewSectionId: "team-meeting",
     reviewSections: createReviewSections(),
     message: "",

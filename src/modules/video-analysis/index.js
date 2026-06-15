@@ -12,6 +12,7 @@ import { normalizeClipInstance } from "./domain/clipInstance.model.js";
 import { createCodingTemplateRepository } from "./repositories/codingTemplateRepository.js";
 import { createClipRepository } from "./repositories/clipRepository.js";
 import { createPlaylistRepository } from "./repositories/playlistRepository.js";
+import { createPresentationRepository } from "./repositories/presentationRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
 import { buildClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
@@ -29,6 +30,24 @@ import {
   restoreLocalVideoHandleForState,
 } from "./services/localVideoSessionService.js";
 import { addClipToReviewSection, buildReviewSessionPayload, removeClipFromReviewSection, updateReviewSectionNote } from "./services/reviewSessionService.js";
+import {
+  addClipToPresentation,
+  addDrawingLayerToItem,
+  addPresentationSection,
+  buildPresentationPayload,
+  createDefaultPresentation,
+  movePresentationItem,
+  movePresentationItemToSection,
+  normalizeDrawingLayer,
+  normalizePresentation,
+  presentationQueue,
+  removeDrawingLayerFromItem,
+  removePresentationItem,
+  selectedPresentationItem,
+  smartCollectionTitle,
+  updatePresentationItem,
+  updatePresentationSection,
+} from "./services/presentationService.js";
 import { trimClipDraft } from "./services/timelineService.js";
 import { describeVideoPlaybackError, getVideoCurrentMs, seekVideoToMs, toggleVideoPlayback } from "./services/videoPlaybackService.js";
 import { createTimelineScrubController } from "./timeline/timeline.interaction.js";
@@ -53,6 +72,7 @@ function createRuntime(context = {}) {
     templates: createCodingTemplateRepository(context),
     clips: createClipRepository(context),
     playlists: createPlaylistRepository(context),
+    presentations: createPresentationRepository(context),
     videos: createVideoRepository(context),
     unsubscribe: null,
     keydownBound: false,
@@ -469,6 +489,14 @@ function paint(root, state) {
   const focusedButtonField = root.querySelector("[data-video-analysis-button-field]:focus")?.dataset.videoAnalysisButtonField || "";
   const focusedButtonMsField = root.querySelector("[data-video-analysis-button-ms-field]:focus")?.dataset.videoAnalysisButtonMsField || "";
   const focusedTemplateField = root.querySelector("[data-video-analysis-template-field]:focus")?.dataset.videoAnalysisTemplateField || "";
+  const focusedPresentationTitle = Boolean(root.querySelector("[data-video-analysis-presentation-title]:focus"));
+  const focusedPresentationNotes = Boolean(root.querySelector("[data-video-analysis-presentation-notes]:focus"));
+  const focusedPresentationFilter = root.querySelector("[data-video-analysis-presentation-filter]:focus")?.dataset.videoAnalysisPresentationFilter || "";
+  const focusedPresentationSectionTitle = root.querySelector("[data-video-analysis-presentation-section-title]:focus")?.dataset.videoAnalysisPresentationSectionTitle || "";
+  const focusedPresentationSectionNote = root.querySelector("[data-video-analysis-presentation-section-note]:focus")?.dataset.videoAnalysisPresentationSectionNote || "";
+  const focusedPresentationItemTitle = root.querySelector("[data-video-analysis-presentation-item-title]:focus")?.dataset.videoAnalysisPresentationItemTitle || "";
+  const focusedPresentationItemNote = root.querySelector("[data-video-analysis-presentation-item-note]:focus")?.dataset.videoAnalysisPresentationItemNote || "";
+  const focusedDrawingField = root.querySelector("[data-video-analysis-drawing-field]:focus")?.dataset.videoAnalysisDrawingField || "";
   const selectionStart = root.ownerDocument?.activeElement?.selectionStart;
   const visibleClips = filterClipsForMatrix(
     state.clips || [],
@@ -523,7 +551,23 @@ function paint(root, state) {
             ? root.querySelector(`[data-video-analysis-button-ms-field="${focusedButtonMsField}"]`)
             : focusedTemplateField
               ? root.querySelector(`[data-video-analysis-template-field="${focusedTemplateField}"]`)
-              : null;
+              : focusedPresentationTitle
+                ? root.querySelector("[data-video-analysis-presentation-title]")
+                : focusedPresentationNotes
+                  ? root.querySelector("[data-video-analysis-presentation-notes]")
+                  : focusedPresentationFilter
+                    ? root.querySelector(`[data-video-analysis-presentation-filter="${focusedPresentationFilter}"]`)
+                    : focusedPresentationSectionTitle
+                      ? root.querySelector(`[data-video-analysis-presentation-section-title="${focusedPresentationSectionTitle}"]`)
+                      : focusedPresentationSectionNote
+                        ? root.querySelector(`[data-video-analysis-presentation-section-note="${focusedPresentationSectionNote}"]`)
+                        : focusedPresentationItemTitle
+                          ? root.querySelector(`[data-video-analysis-presentation-item-title="${focusedPresentationItemTitle}"]`)
+                          : focusedPresentationItemNote
+                            ? root.querySelector(`[data-video-analysis-presentation-item-note="${focusedPresentationItemNote}"]`)
+                            : focusedDrawingField
+                              ? root.querySelector(`[data-video-analysis-drawing-field="${focusedDrawingField}"]`)
+                              : null;
   if (nextFocus) {
     nextFocus.focus();
     if (Number.isFinite(selectionStart) && typeof nextFocus.setSelectionRange === "function") {
@@ -613,6 +657,303 @@ async function loadSavedSearches() {
   }
 }
 
+async function loadPresentations(options = {}) {
+  const run = runtime;
+  if (!run) return;
+  if (!shouldLoadMetadata(run.context, run.store.getState())) return;
+  try {
+    const payload = await run.presentations.list(40);
+    run.store.update((current) => ({
+      ...current,
+      presentation: {
+        ...(current.presentation || {}),
+        status: "ready",
+        presentations: payload.presentations || [],
+        smartCollections: payload.smartCollections || [],
+        error: "",
+      },
+    }));
+    if (!options.skipSources) await loadPresentationSources(null, { silent: true });
+  } catch (error) {
+    run.store.update((current) => ({
+      ...current,
+      presentation: {
+        ...(current.presentation || {}),
+        status: "error",
+        error: error.message || "Could not load presentations.",
+      },
+    }));
+  }
+}
+
+async function loadPresentation(id = "") {
+  const run = runtime;
+  if (!run || !id) return false;
+  try {
+    run.store.update((current) => ({
+      ...current,
+      presentation: { ...(current.presentation || {}), status: "loading", error: "" },
+    }));
+    const payload = await run.presentations.get(id);
+    const presentation = normalizePresentation(payload.presentation || {});
+    run.store.update((current) => ({
+      ...current,
+      presentation: {
+        ...(current.presentation || {}),
+        status: "ready",
+        activePresentationId: presentation.id,
+        activeSectionId: presentation.sections[0]?.id || "",
+        selectedItemId: presentationQueue(presentation)[0]?.id || "",
+        selectedClipId: presentationQueue(presentation)[0]?.clipId || "",
+        current: presentation,
+        smartCollections: payload.presentation?.smartCollections || current.presentation?.smartCollections || [],
+        error: "",
+      },
+    }));
+    return true;
+  } catch (error) {
+    run.store.update((current) => ({
+      ...current,
+      presentation: { ...(current.presentation || {}), status: "error", error: error.message || "Could not load presentation." },
+    }));
+    return false;
+  }
+}
+
+async function loadPresentationSources(nextFilters = null, options = {}) {
+  const run = runtime;
+  if (!run) return;
+  const state = run.store.getState();
+  if (!shouldLoadMetadata(run.context, state)) return;
+  const filters = nextFilters || state.presentation?.sourceFilters || {};
+  const searchParts = [filters.search, filters.tag].map((value) => String(value || "").trim()).filter(Boolean);
+  run.store.update((current) => ({
+    ...current,
+    presentation: {
+      ...(current.presentation || {}),
+      status: options.silent ? current.presentation?.status || "ready" : "loading-sources",
+      sourceFilters: filters,
+      error: "",
+    },
+  }));
+  try {
+    const payload = await run.presentations.listClips({
+      search: searchParts.join(" "),
+      phase: filters.phase,
+      outcome: filters.outcome,
+      playerId: filters.playerId,
+      date: filters.date,
+      type: filters.type,
+      limit: filters.limit || 80,
+    });
+    const clips = (payload.clips || []).map(normalizeClipInstance);
+    run.store.update((current) => ({
+      ...current,
+      presentation: {
+        ...(current.presentation || {}),
+        status: "ready",
+        sourceClips: clips,
+        sourceTotal: clips.length,
+        sourceFilters: filters,
+        error: "",
+      },
+    }));
+  } catch (error) {
+    run.store.update((current) => ({
+      ...current,
+      presentation: { ...(current.presentation || {}), status: "error", error: error.message || "Could not load presentation clips." },
+    }));
+  }
+}
+
+async function saveCurrentPresentation(context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const currentPresentation = state.presentation?.current || createDefaultPresentation();
+  try {
+    run.store.update((current) => ({
+      ...current,
+      presentation: { ...(current.presentation || {}), status: "saving", error: "" },
+    }));
+    const payload = await run.presentations.save(buildPresentationPayload(currentPresentation));
+    const presentation = normalizePresentation(payload.presentation || currentPresentation);
+    run.store.update((current) => ({
+      ...current,
+      message: "Presentation saved.",
+      presentation: {
+        ...(current.presentation || {}),
+        status: "ready",
+        activePresentationId: presentation.id,
+        current: presentation,
+        presentations: [
+          presentation,
+          ...(current.presentation?.presentations || []).filter((item) => item.id !== presentation.id),
+        ],
+        error: "",
+      },
+    }));
+    return true;
+  } catch (error) {
+    run.store.update((current) => ({
+      ...current,
+      presentation: { ...(current.presentation || {}), status: "error", error: error.message || "Could not save presentation." },
+    }));
+    return false;
+  }
+}
+
+async function saveCurrentSmartCollection(context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const filters = state.presentation?.sourceFilters || {};
+  try {
+    const payload = await run.presentations.saveSmartCollection({
+      presentationId: state.presentation?.current?.id || "",
+      title: smartCollectionTitle(filters),
+      search: filters,
+    });
+    run.store.update((current) => ({
+      ...current,
+      message: "Smart collection saved.",
+      presentation: {
+        ...(current.presentation || {}),
+        smartCollections: [
+          payload.smartCollection,
+          ...(current.presentation?.smartCollections || []).filter((item) => item.id !== payload.smartCollection?.id),
+        ].filter(Boolean),
+        error: "",
+      },
+    }));
+    return true;
+  } catch (error) {
+    run.store.update((current) => ({
+      ...current,
+      presentation: { ...(current.presentation || {}), status: "error", error: error.message || "Could not save smart collection." },
+    }));
+    return false;
+  }
+}
+
+async function saveSelectedDrawingLayers(context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const presentation = state.presentation?.current || {};
+  const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
+  if (!presentation.id || !item?.id) {
+    run.store.update((current) => ({
+      ...current,
+      presentation: { ...(current.presentation || {}), error: "Save the presentation before saving drawing layers." },
+    }));
+    return false;
+  }
+  try {
+    const saved = [];
+    for (const layer of item.drawings || []) {
+      const payload = await run.presentations.saveDrawingLayer({
+        ...layer,
+        presentationId: presentation.id,
+        presentationItemId: item.id,
+        clipId: item.clipId,
+      });
+      if (payload.drawingLayer) saved.push(payload.drawingLayer);
+    }
+    run.store.update((current) => ({
+      ...current,
+      message: "Drawing layers saved.",
+      presentation: {
+        ...(current.presentation || {}),
+        current: updatePresentationItem(current.presentation?.current, item.id, { drawings: saved }),
+        error: "",
+      },
+    }));
+    return true;
+  } catch (error) {
+    run.store.update((current) => ({
+      ...current,
+      presentation: { ...(current.presentation || {}), status: "error", error: error.message || "Could not save drawing layers." },
+    }));
+    return false;
+  }
+}
+
+function defaultDrawingGeometry(tool = "arrow") {
+  const map = {
+    arrow: { x1: 24, y1: 58, x2: 68, y2: 42 },
+    circle: { cx: 58, cy: 42, rx: 14, ry: 9 },
+    spotlight: { cx: 52, cy: 46, rx: 18, ry: 13 },
+    text: { x: 42, y: 36 },
+    freeze: { x: 0, y: 0, width: 100, height: 100 },
+    zoom: { cx: 54, cy: 48, scale: 1.6 },
+  };
+  return map[tool] || map.arrow;
+}
+
+function selectedClipFromPresentationSources(state = {}, clipId = "") {
+  return (state.presentation?.sourceClips || []).find((clip) => clip.id === clipId)
+    || (state.clips || []).find((clip) => clip.id === clipId)
+    || { id: clipId };
+}
+
+function presentationDropTarget(target) {
+  const itemTarget = target?.closest?.("[data-video-analysis-presentation-drop-item]");
+  if (itemTarget) {
+    const [sectionId, beforeItemId] = String(itemTarget.dataset.videoAnalysisPresentationDropItem || "").split(":");
+    return { sectionId, beforeItemId };
+  }
+  const emptyTarget = target?.closest?.("[data-video-analysis-presentation-drop-empty]");
+  if (emptyTarget) return { sectionId: emptyTarget.dataset.videoAnalysisPresentationDropEmpty || "", beforeItemId: "" };
+  const sectionTarget = target?.closest?.("[data-video-analysis-presentation-drop-section]");
+  if (sectionTarget) return { sectionId: sectionTarget.dataset.videoAnalysisPresentationDropSection || "", beforeItemId: "" };
+  return null;
+}
+
+export function handleDragStart(event, context = {}) {
+  ensureRuntime(context);
+  const target = eventElement(event);
+  const item = target?.closest?.("[data-video-analysis-presentation-drag-item]");
+  if (!item) return false;
+  const itemId = item.dataset.videoAnalysisPresentationDragItem || "";
+  if (!itemId) return false;
+  event.dataTransfer?.setData("text/plain", itemId);
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+  return true;
+}
+
+export function handleDragOver(event, context = {}) {
+  ensureRuntime(context);
+  const target = eventElement(event);
+  if (!presentationDropTarget(target)) return false;
+  event.preventDefault?.();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  return true;
+}
+
+export function handleDrop(event, context = {}) {
+  const run = ensureRuntime(context);
+  const target = eventElement(event);
+  const dropTarget = presentationDropTarget(target);
+  if (!dropTarget?.sectionId) return false;
+  const itemId = event.dataTransfer?.getData("text/plain") || "";
+  if (!itemId || itemId === dropTarget.beforeItemId) return false;
+  event.preventDefault?.();
+  run.store.update((state) => {
+    const targetSection = (state.presentation?.current?.sections || []).find((section) => section.id === dropTarget.sectionId);
+    const beforeIndex = dropTarget.beforeItemId
+      ? Math.max(0, (targetSection?.items || []).findIndex((item) => item.id === dropTarget.beforeItemId))
+      : (targetSection?.items || []).length;
+    return {
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        activeSectionId: dropTarget.sectionId,
+        selectedItemId: itemId,
+        current: movePresentationItemToSection(state.presentation?.current, itemId, dropTarget.sectionId, beforeIndex),
+      },
+    };
+  });
+  return true;
+}
+
 function codingSessionForTemplate(template = {}, currentSession = {}) {
   return {
     ...currentSession,
@@ -676,6 +1017,7 @@ async function initialize(context = {}) {
     await loadCodingTemplates({ silent: true });
     if (run.store.getState().view !== "library") await loadClips();
     await loadSavedSearches();
+    await loadPresentations({ skipSources: true });
     if (run.store.getState().match?.id || run.store.getState().video?.id) {
       await restoreLocalVideoHandle(context, { silent: true });
     }
@@ -692,6 +1034,9 @@ export function render(context = {}) {
   bindRootEventFallback(root, context, {
     change: handleChange,
     click: handleClick,
+    dragover: handleDragOver,
+    dragstart: handleDragStart,
+    drop: handleDrop,
     input: handleInput,
     pointerdown: handlePointerDown,
     submit: handleSubmit,
@@ -942,6 +1287,7 @@ export function handleClick(event, context = {}) {
         message: "",
         error: "",
       }));
+      if (tabId === "presentation") loadPresentationSources(null, { silent: true });
       return true;
     }
     return true;
@@ -959,12 +1305,63 @@ export function handleClick(event, context = {}) {
   }
   const presentationModeButton = target.closest("[data-video-analysis-presentation-mode]");
   if (presentationModeButton) {
-    run.store.setState({ presentationMode: presentationModeButton.dataset.videoAnalysisPresentationMode || "build" });
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        mode: presentationModeButton.dataset.videoAnalysisPresentationMode || "builder",
+      },
+    }));
     return true;
   }
   const drawToolButton = target.closest("[data-video-analysis-draw-tool]");
   if (drawToolButton) {
-    run.store.setState({ presentationDrawingTool: drawToolButton.dataset.videoAnalysisDrawTool || "arrow" });
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        drawingTool: drawToolButton.dataset.videoAnalysisDrawTool || "arrow",
+      },
+    }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-presentation-new]")) {
+    const current = createDefaultPresentation();
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        activePresentationId: "",
+        activeSectionId: current.sections[0]?.id || "",
+        selectedItemId: "",
+        selectedClipId: "",
+        current,
+        mode: "builder",
+        error: "",
+      },
+    }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-presentation-save]")) {
+    saveCurrentPresentation(context);
+    return true;
+  }
+  if (target.closest("[data-video-analysis-presentation-refresh-sources]")) {
+    loadPresentationSources();
+    return true;
+  }
+  if (target.closest("[data-video-analysis-smart-save]")) {
+    saveCurrentSmartCollection(context);
+    return true;
+  }
+  const smartApply = target.closest("[data-video-analysis-smart-apply]");
+  if (smartApply) {
+    const state = run.store.getState();
+    const collection = (state.presentation?.smartCollections || []).find((item) => (
+      item.id === smartApply.dataset.videoAnalysisSmartApply || item.title === smartApply.dataset.videoAnalysisSmartApply
+    ));
+    const filters = collection?.searchJson || collection?.search_json || {};
+    loadPresentationSources({ ...(state.presentation?.sourceFilters || {}), ...filters });
     return true;
   }
   if (target.closest("[data-video-analysis-library-refresh]")) {
@@ -1058,20 +1455,134 @@ export function handleClick(event, context = {}) {
   }
   const seekButton = target.closest("[data-video-analysis-seek]");
   if (seekButton) {
-    const clip = run.store.getState().clips.find((item) => item.id === seekButton.dataset.videoAnalysisSeek);
-    if (clip) seekVideoToMs(videoElement(context), clip.startMs);
-    run.store.setState({ selectedClipId: clip?.id || "" });
+    const state = run.store.getState();
+    const clip = selectedClipFromPresentationSources(state, seekButton.dataset.videoAnalysisSeek);
+    if (clip?.id) seekVideoToMs(videoElement(context), clip.startMs ?? clip.start_ms ?? 0);
+    run.store.update((current) => ({
+      ...current,
+      selectedClipId: clip?.id || "",
+      presentation: {
+        ...(current.presentation || {}),
+        selectedClipId: clip?.id || current.presentation?.selectedClipId || "",
+      },
+    }));
+    return true;
+  }
+  const presentationAddButton = target.closest("[data-video-analysis-presentation-add]");
+  if (presentationAddButton) {
+    const [sectionId, clipId] = String(presentationAddButton.dataset.videoAnalysisPresentationAdd || "").split(":");
+    run.store.update((state) => {
+      const clip = selectedClipFromPresentationSources(state, clipId);
+      const current = addClipToPresentation(state.presentation?.current, sectionId || state.presentation?.activeSectionId, clip);
+      const item = presentationQueue(current).find((entry) => entry.clipId === clipId);
+      return {
+        ...state,
+        message: "Clip added to presentation.",
+        presentation: {
+          ...(state.presentation || {}),
+          current,
+          activeSectionId: sectionId || state.presentation?.activeSectionId,
+          selectedItemId: item?.id || state.presentation?.selectedItemId || "",
+          selectedClipId: clipId,
+        },
+      };
+    });
+    return true;
+  }
+  const presentationSectionButton = target.closest("[data-video-analysis-presentation-section]");
+  if (presentationSectionButton) {
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        activeSectionId: presentationSectionButton.dataset.videoAnalysisPresentationSection || "",
+      },
+    }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-presentation-add-section]")) {
+    run.store.update((state) => {
+      const current = addPresentationSection(state.presentation?.current);
+      const lastSection = current.sections.at(-1);
+      return {
+        ...state,
+        presentation: {
+          ...(state.presentation || {}),
+          current,
+          activeSectionId: lastSection?.id || state.presentation?.activeSectionId || "",
+        },
+      };
+    });
+    return true;
+  }
+  const selectPresentationItemButton = target.closest("[data-video-analysis-presentation-select-item]");
+  if (selectPresentationItemButton) {
+    const itemId = selectPresentationItemButton.dataset.videoAnalysisPresentationSelectItem;
+    const item = presentationQueue(run.store.getState().presentation?.current).find((entry) => entry.id === itemId);
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        selectedItemId: itemId,
+        selectedClipId: item?.clipId || state.presentation?.selectedClipId || "",
+        activeSectionId: item?.sectionId || state.presentation?.activeSectionId || "",
+      },
+    }));
+    return true;
+  }
+  const movePresentationItemButton = target.closest("[data-video-analysis-presentation-move-item]");
+  if (movePresentationItemButton) {
+    const [itemId, direction] = String(movePresentationItemButton.dataset.videoAnalysisPresentationMoveItem || "").split(":");
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        current: movePresentationItem(state.presentation?.current, itemId, Number(direction || 0)),
+      },
+    }));
+    return true;
+  }
+  const removePresentationItemButton = target.closest("[data-video-analysis-presentation-remove-item]");
+  if (removePresentationItemButton) {
+    const itemId = removePresentationItemButton.dataset.videoAnalysisPresentationRemoveItem;
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        current: removePresentationItem(state.presentation?.current, itemId),
+        selectedItemId: state.presentation?.selectedItemId === itemId ? "" : state.presentation?.selectedItemId,
+      },
+    }));
     return true;
   }
   const reviewButton = target.closest("[data-video-analysis-review]");
   if (reviewButton) {
     const clipId = reviewButton.dataset.videoAnalysisReview;
-    run.store.update((state) => ({
-      ...state,
-      selectedClipId: clipId,
-      reviewSections: addClipToReviewSection(state.reviewSections, state.activeReviewSectionId, clipId),
-      message: "Clip added to presentation.",
-    }));
+    run.store.update((state) => {
+      if (state.activeAnalysisRoomTab === "presentation") {
+        const clip = selectedClipFromPresentationSources(state, clipId);
+        const sectionId = state.presentation?.activeSectionId || state.presentation?.current?.sections?.[0]?.id || "";
+        const current = addClipToPresentation(state.presentation?.current, sectionId, clip);
+        const item = presentationQueue(current).find((entry) => entry.clipId === clipId);
+        return {
+          ...state,
+          selectedClipId: clipId,
+          message: "Clip added to presentation.",
+          presentation: {
+            ...(state.presentation || {}),
+            current,
+            selectedItemId: item?.id || state.presentation?.selectedItemId || "",
+            selectedClipId: clipId,
+          },
+        };
+      }
+      return {
+        ...state,
+        selectedClipId: clipId,
+        reviewSections: addClipToReviewSection(state.reviewSections, state.activeReviewSectionId, clipId),
+        message: "Clip added to presentation.",
+      };
+    });
     return true;
   }
   const sectionButton = target.closest("[data-video-analysis-review-section]");
@@ -1086,6 +1597,119 @@ export function handleClick(event, context = {}) {
       ...state,
       reviewSections: removeClipFromReviewSection(state.reviewSections, sectionId, clipId),
     }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-drawing-add]")) {
+    run.store.update((state) => {
+      const presentation = state.presentation?.current;
+      const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
+      if (!item) return state;
+      const draft = state.presentation?.drawingDraft || {};
+      const tool = state.presentation?.drawingTool || "arrow";
+      const currentMs = getVideoCurrentMs(videoElement(context));
+      const timestampMs = draft.timestampSeconds === "" || draft.timestampSeconds === undefined
+        ? currentMs
+        : Math.round(Number(draft.timestampSeconds || 0) * 1000);
+      const layer = normalizeDrawingLayer({
+        presentationId: presentation.id,
+        presentationItemId: item.id,
+        clipId: item.clipId,
+        timestampMs,
+        durationMs: draft.durationSeconds ? Math.round(Number(draft.durationSeconds || 0) * 1000) : null,
+        tool,
+        text: draft.text || (tool === "text" ? "Coach point" : ""),
+        geometry: defaultDrawingGeometry(tool),
+        style: { color: tool === "spotlight" ? "#ffffff" : "#f4d06f" },
+      });
+      return {
+        ...state,
+        presentation: {
+          ...(state.presentation || {}),
+          current: addDrawingLayerToItem(presentation, item.id, layer),
+          drawingDraft: { timestampSeconds: "", durationSeconds: "", text: "" },
+          drawingUndoStack: [...(state.presentation?.drawingUndoStack || []), presentation].slice(-20),
+          drawingRedoStack: [],
+        },
+      };
+    });
+    return true;
+  }
+  const removeDrawingButton = target.closest("[data-video-analysis-drawing-remove]");
+  if (removeDrawingButton) {
+    run.store.update((state) => {
+      const presentation = state.presentation?.current;
+      const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
+      if (!item) return state;
+      return {
+        ...state,
+        presentation: {
+          ...(state.presentation || {}),
+          current: removeDrawingLayerFromItem(presentation, item.id, removeDrawingButton.dataset.videoAnalysisDrawingRemove),
+          drawingUndoStack: [...(state.presentation?.drawingUndoStack || []), presentation].slice(-20),
+          drawingRedoStack: [],
+        },
+      };
+    });
+    return true;
+  }
+  if (target.closest("[data-video-analysis-drawing-save]")) {
+    saveSelectedDrawingLayers(context);
+    return true;
+  }
+  if (target.closest("[data-video-analysis-drawing-undo]")) {
+    run.store.update((state) => {
+      const stack = [...(state.presentation?.drawingUndoStack || [])];
+      const previous = stack.pop();
+      if (!previous) return state;
+      return {
+        ...state,
+        presentation: {
+          ...(state.presentation || {}),
+          current: previous,
+          drawingUndoStack: stack,
+          drawingRedoStack: [state.presentation?.current, ...(state.presentation?.drawingRedoStack || [])].filter(Boolean).slice(0, 20),
+        },
+      };
+    });
+    return true;
+  }
+  if (target.closest("[data-video-analysis-drawing-redo]")) {
+    run.store.update((state) => {
+      const stack = [...(state.presentation?.drawingRedoStack || [])];
+      const next = stack.shift();
+      if (!next) return state;
+      return {
+        ...state,
+        presentation: {
+          ...(state.presentation || {}),
+          current: next,
+          drawingUndoStack: [...(state.presentation?.drawingUndoStack || []), state.presentation?.current].filter(Boolean).slice(-20),
+          drawingRedoStack: stack,
+        },
+      };
+    });
+    return true;
+  }
+  if (target.closest("[data-video-analysis-presenter-next]") || target.closest("[data-video-analysis-presenter-prev]")) {
+    const direction = target.closest("[data-video-analysis-presenter-next]") ? 1 : -1;
+    run.store.update((state) => {
+      const queue = presentationQueue(state.presentation?.current);
+      const index = Math.max(0, queue.findIndex((item) => item.id === state.presentation?.selectedItemId));
+      const next = queue[Math.max(0, Math.min(queue.length - 1, index + direction))];
+      return {
+        ...state,
+        presentation: {
+          ...(state.presentation || {}),
+          selectedItemId: next?.id || state.presentation?.selectedItemId || "",
+          selectedClipId: next?.clipId || state.presentation?.selectedClipId || "",
+          activeSectionId: next?.sectionId || state.presentation?.activeSectionId || "",
+        },
+      };
+    });
+    return true;
+  }
+  if (target.closest("[data-video-analysis-presenter-fullscreen]")) {
+    root?.querySelector(".video-analysis-presenter-mode")?.requestFullscreen?.().catch(() => {});
     return true;
   }
   const archiveButton = target.closest("[data-video-analysis-archive]");
@@ -1237,6 +1861,109 @@ export function handleInput(event, context = {}) {
     }));
     return true;
   }
+  const presentationTitle = target.closest("[data-video-analysis-presentation-title]");
+  if (presentationTitle) {
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        current: { ...(state.presentation?.current || createDefaultPresentation()), title: presentationTitle.value },
+      },
+    }));
+    return true;
+  }
+  const presentationNotes = target.closest("[data-video-analysis-presentation-notes]");
+  if (presentationNotes) {
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        current: { ...(state.presentation?.current || createDefaultPresentation()), notes: presentationNotes.value },
+      },
+    }));
+    return true;
+  }
+  const presentationFilter = target.closest("[data-video-analysis-presentation-filter]");
+  if (presentationFilter) {
+    const key = presentationFilter.dataset.videoAnalysisPresentationFilter;
+    const filters = { ...(run.store.getState().presentation?.sourceFilters || {}), [key]: presentationFilter.value };
+    loadPresentationSources(filters, { silent: true });
+    return true;
+  }
+  const presentationSectionTitle = target.closest("[data-video-analysis-presentation-section-title]");
+  if (presentationSectionTitle) {
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        current: updatePresentationSection(
+          state.presentation?.current,
+          presentationSectionTitle.dataset.videoAnalysisPresentationSectionTitle,
+          { title: presentationSectionTitle.value }
+        ),
+      },
+    }));
+    return true;
+  }
+  const presentationSectionNote = target.closest("[data-video-analysis-presentation-section-note]");
+  if (presentationSectionNote) {
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        current: updatePresentationSection(
+          state.presentation?.current,
+          presentationSectionNote.dataset.videoAnalysisPresentationSectionNote,
+          { coachNote: presentationSectionNote.value }
+        ),
+      },
+    }));
+    return true;
+  }
+  const presentationItemTitle = target.closest("[data-video-analysis-presentation-item-title]");
+  if (presentationItemTitle) {
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        current: updatePresentationItem(
+          state.presentation?.current,
+          presentationItemTitle.dataset.videoAnalysisPresentationItemTitle,
+          { customTitle: presentationItemTitle.value }
+        ),
+      },
+    }));
+    return true;
+  }
+  const presentationItemNote = target.closest("[data-video-analysis-presentation-item-note]");
+  if (presentationItemNote) {
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        current: updatePresentationItem(
+          state.presentation?.current,
+          presentationItemNote.dataset.videoAnalysisPresentationItemNote,
+          { coachNote: presentationItemNote.value }
+        ),
+      },
+    }));
+    return true;
+  }
+  const drawingField = target.closest("[data-video-analysis-drawing-field]");
+  if (drawingField) {
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        drawingDraft: {
+          ...(state.presentation?.drawingDraft || {}),
+          [drawingField.dataset.videoAnalysisDrawingField]: drawingField.value,
+        },
+      },
+    }));
+    return true;
+  }
   const filterField = target.closest("[data-video-analysis-filter]");
   if (filterField) {
     const key = filterField.dataset.videoAnalysisFilter;
@@ -1269,6 +1996,11 @@ export function handleChange(event, context = {}) {
   if (fileInput?.files?.[0]) {
     handleFileSelection(fileInput.files[0], context);
     fileInput.value = "";
+    return true;
+  }
+  const presentationLoad = target.closest("[data-video-analysis-presentation-load]");
+  if (presentationLoad) {
+    if (presentationLoad.value) loadPresentation(presentationLoad.value);
     return true;
   }
   const scheduleLink = target.closest("[data-video-analysis-link-schedule]");
@@ -1304,6 +2036,58 @@ export function handleChange(event, context = {}) {
 export function handleKeydown(event, context = {}) {
   const run = ensureRuntime(context);
   const root = getRoot(context);
+  const state = run.store.getState();
+  if (state.presentation?.mode === "presenter") {
+    if (["ArrowRight", " "].includes(event.key)) {
+      event.preventDefault?.();
+      run.store.update((current) => {
+        const queue = presentationQueue(current.presentation?.current);
+        const index = Math.max(0, queue.findIndex((item) => item.id === current.presentation?.selectedItemId));
+        const next = queue[Math.max(0, Math.min(queue.length - 1, index + 1))];
+        return {
+          ...current,
+          presentation: {
+            ...(current.presentation || {}),
+            selectedItemId: next?.id || current.presentation?.selectedItemId || "",
+            selectedClipId: next?.clipId || current.presentation?.selectedClipId || "",
+            activeSectionId: next?.sectionId || current.presentation?.activeSectionId || "",
+          },
+        };
+      });
+      return true;
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault?.();
+      run.store.update((current) => {
+        const queue = presentationQueue(current.presentation?.current);
+        const index = Math.max(0, queue.findIndex((item) => item.id === current.presentation?.selectedItemId));
+        const next = queue[Math.max(0, Math.min(queue.length - 1, index - 1))];
+        return {
+          ...current,
+          presentation: {
+            ...(current.presentation || {}),
+            selectedItemId: next?.id || current.presentation?.selectedItemId || "",
+            selectedClipId: next?.clipId || current.presentation?.selectedClipId || "",
+            activeSectionId: next?.sectionId || current.presentation?.activeSectionId || "",
+          },
+        };
+      });
+      return true;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault?.();
+      run.store.update((current) => ({
+        ...current,
+        presentation: { ...(current.presentation || {}), mode: "builder" },
+      }));
+      return true;
+    }
+    if (String(event.key || "").toLowerCase() === "f") {
+      event.preventDefault?.();
+      root?.querySelector(".video-analysis-presenter-mode")?.requestFullscreen?.().catch(() => {});
+      return true;
+    }
+  }
   return handleVideoAnalysisShortcut(event, {
     applyCodeButton: (buttonId) => applyCodeButton(buttonId, context),
     getCurrentMs: () => getVideoCurrentMs(videoElement(context)),

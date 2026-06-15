@@ -10,6 +10,8 @@ const workstationMigrationPath = path.join(rootDir, "supabase/migrations/2026061
 const workstationMigration = fs.readFileSync(workstationMigrationPath, "utf8");
 const buttonBehaviorMigrationPath = path.join(rootDir, "supabase/migrations/20260614222541_video_analysis_coding_button_behavior.sql");
 const buttonBehaviorMigration = fs.readFileSync(buttonBehaviorMigrationPath, "utf8");
+const presentationMigrationPath = path.join(rootDir, "supabase/migrations/20260615035024_video_analysis_presentation_builder_v1.sql");
+const presentationMigration = fs.readFileSync(presentationMigrationPath, "utf8");
 
 test("video analysis schema stores metadata only with millisecond precision", () => {
   for (const tableName of [
@@ -88,4 +90,31 @@ test("video analysis coding buttons own timing and behavior metadata", () => {
     expect(buttonBehaviorMigration).toContain(requiredText);
   }
   expect(buttonBehaviorMigration).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
+});
+
+test("video analysis presentation builder stores shareable metadata only", () => {
+  for (const tableName of [
+    "video_presentations",
+    "video_presentation_sections",
+    "video_presentation_items",
+    "video_drawing_layers",
+    "video_smart_collections",
+    "video_presentation_share_targets",
+  ]) {
+    expect(presentationMigration).toContain(`create table if not exists public.${tableName}`);
+    expect(presentationMigration).toContain(`alter table public.${tableName} enable row level security`);
+    expect(presentationMigration).toContain(`revoke all on public.${tableName} from anon, authenticated`);
+    expect(presentationMigration).toContain(`grant select, insert, update, delete on public.${tableName} to service_role`);
+    expect(presentationMigration).toContain(`${tableName}_prevent_hard_delete`);
+  }
+
+  expect(presentationMigration).toContain("tool text not null check (tool in ('arrow', 'circle', 'spotlight', 'text', 'freeze', 'zoom'))");
+  expect(presentationMigration).toContain("target_type text not null check (target_type in ('team', 'role', 'group', 'player', 'user'))");
+  expect(presentationMigration).toContain("access_level text not null default 'view' check (access_level in ('view', 'present', 'edit'))");
+  expect(presentationMigration).toContain("video_presentation_items_clip_idx");
+  expect(presentationMigration).toContain("video_drawing_layers_clip_time_idx");
+  expect(presentationMigration).toContain("video_smart_collections_search_gin_idx");
+  expect(presentationMigration).toContain("('video-analysis', 'present'");
+  expect(presentationMigration).toContain("('video-analysis', 'share'");
+  expect(presentationMigration).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
 });

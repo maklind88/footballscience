@@ -30,6 +30,30 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       return globalThis.fetch(...args);
     },
   } = dependencies;
+  const dashboardChatApiBackoffMs = 60 * 1000;
+  let dashboardChatApiBackoffUntil = 0;
+
+  function markDashboardChatApiBackoff() {
+    dashboardChatApiBackoffUntil = Date.now() + dashboardChatApiBackoffMs;
+  }
+
+  function clearDashboardChatApiBackoff() {
+    dashboardChatApiBackoffUntil = 0;
+  }
+
+  function getDashboardChatApiBackoffResult() {
+    const remainingMs = dashboardChatApiBackoffUntil - Date.now();
+    if (remainingMs <= 0) {
+      return null;
+    }
+    return {
+      ok: false,
+      status: 503,
+      reason: "Chat API is backing off while the platform data service recovers.",
+      retryable: true,
+      backoffMs: remainingMs,
+    };
+  }
 
   function getDashboardChatThreadTypeForApi(threadId) {
     const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
@@ -119,6 +143,9 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       }
 
       if (!response.ok || result?.ok === false) {
+        if (response.status >= 500) {
+          markDashboardChatApiBackoff();
+        }
         return {
           ok: false,
           status: response.status,
@@ -127,9 +154,11 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
         };
       }
 
+      clearDashboardChatApiBackoff();
       return { ok: true, status: response.status, result };
     } catch (error) {
       const timedOut = error?.name === "AbortError";
+      markDashboardChatApiBackoff();
       return {
         ok: false,
         status: 0,
@@ -144,6 +173,11 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
   }
 
   async function fetchDashboardChatApi(query = {}) {
+    const backoffResult = getDashboardChatApiBackoffResult();
+    if (backoffResult) {
+      return backoffResult;
+    }
+
     let token = "";
     try {
       token = await withUiTimeout(
@@ -152,6 +186,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
         "Chat session check took too long. Try again."
       );
     } catch (error) {
+      markDashboardChatApiBackoff();
       return {
         ok: false,
         status: 0,
@@ -197,6 +232,9 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       }
 
       if (!response.ok || result?.ok === false) {
+        if (response.status >= 500) {
+          markDashboardChatApiBackoff();
+        }
         return {
           ok: false,
           status: response.status,
@@ -204,9 +242,11 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
         };
       }
 
+      clearDashboardChatApiBackoff();
       return { ok: true, status: response.status, result };
     } catch (error) {
       const timedOut = error?.name === "AbortError";
+      markDashboardChatApiBackoff();
       return {
         ok: false,
         status: 0,

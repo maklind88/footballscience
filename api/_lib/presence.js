@@ -12,6 +12,7 @@ const PRESENCE_BUCKET_CHECK_TTL_MS = 10 * 60 * 1000;
 const PRESENCE_READ_CACHE_TTL_MS = 5000;
 const PRESENCE_WRITE_MIN_INTERVAL_MS = 45 * 1000;
 const PRESENCE_TYPING_WRITE_MIN_INTERVAL_MS = 5 * 1000;
+const PRESENCE_STORAGE_REQUEST_TIMEOUT_MS = 8000;
 let presenceBucketReadyCache = { checkedAt: 0, ready: false, pending: null };
 let presenceObjectCache = { updatedAt: 0, value: null };
 
@@ -38,6 +39,20 @@ function storageHeaders(serviceRoleKey, contentType = "application/json") {
   return buildSupabaseKeyHeaders(serviceRoleKey, { contentType });
 }
 
+function isTimeoutError(error) {
+  return error?.name === "AbortError" || error?.name === "TimeoutError";
+}
+
+function createStorageTimeoutSignal(timeoutMs = PRESENCE_STORAGE_REQUEST_TIMEOUT_MS) {
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+    return AbortSignal.timeout(timeoutMs);
+  }
+
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), timeoutMs).unref?.();
+  return controller.signal;
+}
+
 async function parseResponseBody(response, raw = false) {
   const text = await response.text();
   if (raw) {
@@ -61,13 +76,26 @@ async function storageRequest(path, options = {}) {
     return { ok: false, reason: "Missing Supabase server configuration." };
   }
 
-  const response = await fetch(`${storage.url}${path}`, {
-    ...options,
-    headers: {
-      ...storageHeaders(storage.serviceRoleKey, options.contentType),
-      ...(options.headers || {}),
-    },
-  });
+  let response;
+  try {
+    response = await fetch(`${storage.url}${path}`, {
+      ...options,
+      signal: options.signal || createStorageTimeoutSignal(),
+      headers: {
+        ...storageHeaders(storage.serviceRoleKey, options.contentType),
+        ...(options.headers || {}),
+      },
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      status: isTimeoutError(error) ? 503 : 0,
+      payload: {},
+      reason: isTimeoutError(error)
+        ? "Presence storage is temporarily busy."
+        : error?.message || "Presence storage could not be reached.",
+    };
+  }
 
   if (response.status === 404) {
     return { ok: false, status: 404, payload: {} };

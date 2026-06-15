@@ -36,6 +36,8 @@ export function createDashboardChatPresenceRuntime(dependencies = {}) {
   let dashboardPresenceLastRenderedSignature = "";
   let dashboardPresenceLastPushAt = 0;
   let dashboardPresenceLastPollAt = 0;
+  let dashboardPresenceBackoffUntil = 0;
+  const dashboardPresenceBackoffMs = 90 * 1000;
 
   let dashboardChatTypingThreadId = "";
   let dashboardChatTypingAt = 0;
@@ -55,6 +57,18 @@ export function createDashboardChatPresenceRuntime(dependencies = {}) {
       return "away";
     }
     return Date.now() - dashboardPresenceLastActivityAt > dashboardPresenceIdleMs ? "away" : "online";
+  }
+
+  function isDashboardPresenceBackoffActive() {
+    return Date.now() < dashboardPresenceBackoffUntil;
+  }
+
+  function markDashboardPresenceBackoff() {
+    dashboardPresenceBackoffUntil = Date.now() + dashboardPresenceBackoffMs;
+  }
+
+  function clearDashboardPresenceBackoff() {
+    dashboardPresenceBackoffUntil = 0;
   }
 
   function resolveDashboardPresenceStatus(entry, userId = "") {
@@ -194,6 +208,7 @@ export function createDashboardChatPresenceRuntime(dependencies = {}) {
     const currentUser = getCurrentPlatformUser();
     const authStore = getPlatformAuthStore();
     if (!currentUser?.id || !authStore?.updatePresence || dashboardPresenceInFlight) return;
+    if (!options.force && isDashboardPresenceBackoffActive()) return;
     if ((documentRef?.visibilityState || "") !== "visible" && statusOverride !== "away" && statusOverride !== "offline") return;
 
     const status = statusOverride || getDashboardSelfPresenceStatus();
@@ -212,11 +227,14 @@ export function createDashboardChatPresenceRuntime(dependencies = {}) {
     try {
       const result = await authStore.updatePresence(status, payload);
       if (result?.ok) {
+        clearDashboardPresenceBackoff();
         dashboardPresenceLastPushAt = now;
         applyDashboardPresenceEntries(result.entries, { forceRender: true });
+      } else {
+        markDashboardPresenceBackoff();
       }
     } catch {
-      // noop
+      markDashboardPresenceBackoff();
     } finally {
       dashboardPresenceInFlight = false;
     }
@@ -226,6 +244,7 @@ export function createDashboardChatPresenceRuntime(dependencies = {}) {
     const currentUser = getCurrentPlatformUser();
     const authStore = getPlatformAuthStore();
     if (!currentUser?.id || !authStore?.getPresence || (documentRef?.visibilityState || "") !== "visible") return;
+    if (!options.forceNetwork && isDashboardPresenceBackoffActive()) return;
     const now = Date.now();
     if (!options.forceNetwork && now - dashboardPresenceLastPollAt < dashboardPresencePollMinMs) return;
     dashboardPresenceLastPollAt = now;
@@ -233,10 +252,13 @@ export function createDashboardChatPresenceRuntime(dependencies = {}) {
     try {
       const result = await authStore.getPresence();
       if (result?.ok) {
+        clearDashboardPresenceBackoff();
         applyDashboardPresenceEntries(result.entries, { forceRender: Boolean(options.forceRender) });
+      } else {
+        markDashboardPresenceBackoff();
       }
     } catch {
-      // noop
+      markDashboardPresenceBackoff();
     }
   }
 

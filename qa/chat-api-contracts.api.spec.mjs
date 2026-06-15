@@ -127,6 +127,9 @@ test("chat API reads have client-side timeout and retry metadata", () => {
   expect(chatDomainSource).toContain("controller.abort()");
   expect(chatDomainSource).toContain("retryable: true");
   expect(chatDomainSource).toContain("Chat session check took too long. Try again.");
+  expect(chatDomainSource).toContain("dashboardChatApiBackoffMs");
+  expect(chatDomainSource).toContain("getDashboardChatApiBackoffResult");
+  expect(chatDomainSource).toContain("Chat API is backing off while the platform data service recovers.");
 });
 
 test("pin, priority, reactions, and read receipts follow server rules", () => {

@@ -159,7 +159,6 @@ function renderCalendarOverview(allItems = [], visibleItems = [], filters = {}) 
   const totalCells = Math.ceil((leadingDays.length + monthDays.length) / 7) * 7;
   const trailingDays = Array.from({ length: totalCells - leadingDays.length - monthDays.length }, () => "");
   const cells = [...leadingDays, ...monthDays, ...trailingDays];
-  const monthItems = [...itemsByDate.values()].flat();
   return `
     <section class="video-analysis-calendar-overview" aria-label="Video calendar overview">
       <div class="video-analysis-calendar-overview__header">
@@ -175,7 +174,6 @@ function renderCalendarOverview(allItems = [], visibleItems = [], filters = {}) 
           <button type="button" data-video-analysis-calendar-month="${escapeHtml(nextMonth)}" aria-label="Next month">
             <span aria-hidden="true">&#8250;</span>
           </button>
-          <span class="video-analysis-calendar-count">${escapeHtml(`${monthItems.length} in view`)}</span>
         </div>
       </div>
       <div class="video-analysis-calendar-weekdays" aria-hidden="true">

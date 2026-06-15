@@ -1568,7 +1568,7 @@ test("Medical availability blocks training recommendations for Squad non-availab
 });
 
 test("Medical metrics use current-month and planned-session averages", async ({ page }) => {
-  await page.addInitScript(({ storageKey, scheduleStorageKey }) => {
+  await page.addInitScript(({ storageKey, scheduleStorageKey, playerProfilesStorageKey }) => {
     const fixedNow = new Date("2026-05-15T12:00:00Z").valueOf();
     const NativeDate = Date;
     class FixedDate extends NativeDate {
@@ -1601,6 +1601,18 @@ test("Medical metrics use current-month and planned-session averages", async ({ 
       })
     );
     window.localStorage.setItem(
+      playerProfilesStorageKey,
+      JSON.stringify({
+        rosterVersion: "qa-medical-average-v1",
+        schemaVersion: 3,
+        selectedPlayerId: "qa-player",
+        players: [
+          { id: "qa-player", name: "QA Player", position: "Forward", rosterType: "squad", countsInSquad: true, rosterOrder: 1 },
+        ],
+        removedPlayerIds: [],
+      })
+    );
+    window.localStorage.setItem(
       scheduleStorageKey,
       JSON.stringify({
         selectedYear: 2026,
@@ -1618,7 +1630,7 @@ test("Medical metrics use current-month and planned-session averages", async ({ 
         ],
       })
     );
-  }, { storageKey: medicalKey, scheduleStorageKey: scheduleKey });
+  }, { storageKey: medicalKey, scheduleStorageKey: scheduleKey, playerProfilesStorageKey: playerProfilesKey });
 
   await bootApp(page);
   await openWorkspace(page, "medical-team");
@@ -1697,7 +1709,7 @@ test("Medical availability hides bulk controls while quick recommendations remai
 });
 
 test("Medical recommendations use match context and lock non-activity days", async ({ page }) => {
-  await page.addInitScript(({ medicalStorageKey, scheduleStorageKey }) => {
+  await page.addInitScript(({ medicalStorageKey, playerProfilesStorageKey, scheduleStorageKey }) => {
     const fixedNow = new Date("2026-05-16T12:00:00Z").valueOf();
     const NativeDate = Date;
     class FixedDate extends NativeDate {
@@ -1730,18 +1742,38 @@ test("Medical recommendations use match context and lock non-activity days", asy
         ],
       })
     );
+    const players = [
+      {
+        id: "qa-match-player",
+        name: "QA Match Player",
+        position: "Forward",
+        rosterType: "squad",
+        countsInSquad: true,
+        rosterOrder: 1,
+      },
+    ];
+    window.localStorage.setItem(
+      playerProfilesStorageKey,
+      JSON.stringify({
+        rosterVersion: "qa-medical-activity-context-v1",
+        schemaVersion: 3,
+        selectedPlayerId: "qa-match-player",
+        players,
+        removedPlayerIds: [],
+      })
+    );
     window.localStorage.setItem(
       medicalStorageKey,
       JSON.stringify({
         selectedDate: "2026-05-16",
         selectedPlayerId: "qa-match-player",
         rosterVersion: "qa-medical-activity-context-v1",
-        players: [{ id: "qa-match-player", name: "QA Match Player", position: "Forward", rosterOrder: 1 }],
+        players,
         records: [],
         injuryPlans: [],
       })
     );
-  }, { medicalStorageKey: medicalKey, scheduleStorageKey: scheduleKey });
+  }, { medicalStorageKey: medicalKey, playerProfilesStorageKey: playerProfilesKey, scheduleStorageKey: scheduleKey });
 
   await bootApp(page);
   await openWorkspace(page, "medical-team");
@@ -1911,18 +1943,29 @@ test("Medical roster overview groups by position and supports row quick recommen
 });
 
 test("Medical operations board separates signals, cases, history and season views", async ({ page }) => {
-  await page.addInitScript(({ storageKey }) => {
+  await page.addInitScript(({ storageKey, playerProfilesStorageKey }) => {
+    const players = [
+      { id: "qa-risk", name: "QA Risk Player", position: "Forward", rosterType: "squad", countsInSquad: true, rosterOrder: 1 },
+      { id: "qa-clear", name: "QA Clear Player", position: "Midfielder", rosterType: "squad", countsInSquad: true, rosterOrder: 2 },
+      { id: "qa-long-term", name: "QA Long Term ACL", position: "Defender", rosterType: "squad", countsInSquad: true, rosterOrder: 3 },
+    ];
+    window.localStorage.setItem(
+      playerProfilesStorageKey,
+      JSON.stringify({
+        rosterVersion: "qa-medical-ops-v1",
+        schemaVersion: 3,
+        selectedPlayerId: "qa-risk",
+        players,
+        removedPlayerIds: [],
+      })
+    );
     window.localStorage.setItem(
       storageKey,
       JSON.stringify({
         selectedDate: "2026-05-15",
         selectedPlayerId: "qa-risk",
         rosterVersion: "qa-medical-ops-v1",
-        players: [
-          { id: "qa-risk", name: "QA Risk Player", position: "Forward", rosterOrder: 1 },
-          { id: "qa-clear", name: "QA Clear Player", position: "Midfielder", rosterOrder: 2 },
-          { id: "qa-long-term", name: "QA Long Term ACL", position: "Defender", rosterOrder: 3 },
-        ],
+        players,
         records: [
           {
             id: "qa-risk-record",
@@ -1997,7 +2040,7 @@ test("Medical operations board separates signals, cases, history and season view
         ],
       })
     );
-  }, { storageKey: medicalKey });
+  }, { storageKey: medicalKey, playerProfilesStorageKey: playerProfilesKey });
 
   await bootApp(page);
   await openWorkspace(page, "medical-team");
@@ -2060,7 +2103,13 @@ test("Medical operations board separates signals, cases, history and season view
 });
 
 test("Medical availability list keeps participation states after overview removal", async ({ page }) => {
-  await page.addInitScript(({ medicalStorageKey, scheduleStorageKey }) => {
+  await page.addInitScript(({ medicalStorageKey, playerProfilesStorageKey, scheduleStorageKey }) => {
+    const players = [
+      { id: "qa-positive-missing", name: "QA Positive Missing", position: "Forward", rosterType: "squad", countsInSquad: true, rosterOrder: 1 },
+      { id: "qa-unavailable", name: "QA Unavailable", position: "Defender", rosterType: "squad", countsInSquad: true, rosterOrder: 2 },
+      { id: "qa-not-set", name: "QA Not Set", position: "Midfielder", rosterType: "squad", countsInSquad: true, rosterOrder: 3 },
+      { id: "qa-logged", name: "QA Logged", position: "Goalkeeper", rosterType: "squad", countsInSquad: true, rosterOrder: 4 },
+    ];
     window.localStorage.setItem(
       scheduleStorageKey,
       JSON.stringify({
@@ -2075,17 +2124,22 @@ test("Medical availability list keeps participation states after overview remova
       })
     );
     window.localStorage.setItem(
+      playerProfilesStorageKey,
+      JSON.stringify({
+        rosterVersion: "qa-medical-actual-missing-v1",
+        schemaVersion: 3,
+        selectedPlayerId: "qa-positive-missing",
+        players,
+        removedPlayerIds: [],
+      })
+    );
+    window.localStorage.setItem(
       medicalStorageKey,
       JSON.stringify({
         selectedDate: "2026-05-15",
         selectedPlayerId: "qa-positive-missing",
         rosterVersion: "qa-medical-actual-missing-v1",
-        players: [
-          { id: "qa-positive-missing", name: "QA Positive Missing", position: "Forward", rosterOrder: 1 },
-          { id: "qa-unavailable", name: "QA Unavailable", position: "Defender", rosterOrder: 2 },
-          { id: "qa-not-set", name: "QA Not Set", position: "Midfielder", rosterOrder: 3 },
-          { id: "qa-logged", name: "QA Logged", position: "Goalkeeper", rosterOrder: 4 },
-        ],
+        players,
         records: [
           {
             id: "qa-positive-missing-record",
@@ -2121,7 +2175,7 @@ test("Medical availability list keeps participation states after overview remova
         injuryPlans: [],
       })
     );
-  }, { medicalStorageKey: medicalKey, scheduleStorageKey: scheduleKey });
+  }, { medicalStorageKey: medicalKey, playerProfilesStorageKey: playerProfilesKey, scheduleStorageKey: scheduleKey });
 
   await bootApp(page);
   await openWorkspace(page, "medical-team");

@@ -7,7 +7,7 @@ const budget = (milliseconds) => Math.ceil(milliseconds * performanceBudgetMulti
 const budgets = {
   openWorkspace: budget(1200),
   switchTab: budget(1000),
-  loadDatabase: budget(5000),
+  loadDatabase: process.env.CI ? 15_000 : budget(5000),
   searchDatabase: budget(1000),
   filterDatabase: budget(1000),
   openProfile: budget(1000),

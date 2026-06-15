@@ -356,10 +356,26 @@
   background: #ffffff;
 }
 
+.video-analysis-calendar-day.is-today {
+  border-color: #123522;
+  background: #f6fbf7;
+  box-shadow: inset 0 0 0 1px #123522;
+}
+
 .video-analysis-calendar-day__number {
   color: #4f5e56;
   font-size: 11px;
   font-weight: 850;
+}
+
+.video-analysis-calendar-day.is-today .video-analysis-calendar-day__number {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #123522;
 }
 
 .video-analysis-calendar-event {

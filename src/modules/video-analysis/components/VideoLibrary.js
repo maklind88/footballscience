@@ -30,6 +30,13 @@ function currentIsoMonth() {
   return `${now.getFullYear()}-${month}`;
 }
 
+function currentIsoDate() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
 function addMonths(month = "", offset = 0) {
   const [year, monthNumber] = String(month || "").split("-").map((part) => Number(part));
   if (!year || !monthNumber) return currentIsoMonth();
@@ -41,14 +48,6 @@ function monthDateValue(month = "", day = 1) {
   const [year, monthNumber] = String(month || "").split("-");
   const safeDay = String(day).padStart(2, "0");
   return year && monthNumber ? `${year}-${monthNumber}-${safeDay}` : "";
-}
-
-function calendarMonthForItems(items = []) {
-  const dated = items
-    .map((item) => item.matchDate)
-    .filter(Boolean)
-    .sort((first, second) => String(second).localeCompare(String(first)));
-  return isoMonth(dated[0]) || isoMonth(new Date().toISOString().slice(0, 10));
 }
 
 function daysInMonth(month = "") {
@@ -131,9 +130,10 @@ function renderCalendarEvent(item = {}) {
 
 function renderCalendarDay(date = "", items = []) {
   const day = Number(String(date).slice(-2)) || "";
+  const isToday = date === currentIsoDate();
   const preview = items.slice(0, 2);
   return `
-    <div class="video-analysis-calendar-day${items.length ? " has-items" : ""}" aria-label="${escapeHtml(formatDate(date))}">
+    <div class="video-analysis-calendar-day${items.length ? " has-items" : ""}${isToday ? " is-today" : ""}" aria-label="${escapeHtml(`${isToday ? "Today, " : ""}${formatDate(date)}`)}">
       <span class="video-analysis-calendar-day__number">${escapeHtml(String(day))}</span>
       ${preview.map((item) => renderCalendarEvent(item)).join("")}
       ${items.length > preview.length ? `<span class="video-analysis-calendar-more">+${items.length - preview.length}</span>` : ""}
@@ -143,7 +143,7 @@ function renderCalendarDay(date = "", items = []) {
 
 function renderCalendarOverview(allItems = [], visibleItems = [], filters = {}) {
   const sourceItems = visibleItems.length ? visibleItems : allItems;
-  const month = isoMonth(filters.calendarMonth) || calendarMonthForItems(sourceItems);
+  const month = isoMonth(filters.calendarMonth) || isoMonth(filters.date) || currentIsoMonth();
   const todayMonth = currentIsoMonth();
   const previousMonth = addMonths(month, -1);
   const nextMonth = addMonths(month, 1);

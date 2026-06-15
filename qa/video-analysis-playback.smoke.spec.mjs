@@ -40,6 +40,30 @@ async function markVideoMetadataReady(page, duration = 55.5) {
   }, duration);
 }
 
+async function installFixedDate(page, fixedIso = "2026-06-15T12:00:00.000Z") {
+  await page.addInitScript((value) => {
+    const RealDate = Date;
+    class FixedDate extends RealDate {
+      constructor(...args) {
+        super(...(args.length ? args : [value]));
+      }
+
+      static now() {
+        return new RealDate(value).getTime();
+      }
+
+      static parse(input) {
+        return RealDate.parse(input);
+      }
+
+      static UTC(...args) {
+        return RealDate.UTC(...args);
+      }
+    }
+    window.Date = FixedDate;
+  }, fixedIso);
+}
+
 async function openScheduleDayForLocalVideo(page) {
   await expect(page.locator("[data-video-analysis-library]")).toBeVisible();
   await page.locator('[data-video-analysis-open-library-item^="schedule:"]').first().click();
@@ -131,9 +155,12 @@ test("Video Analysis tries native H264 MP4 playback before offering bridge prepa
 });
 
 test("Video Analysis shows a schedule-aware library and autosaves day links", async ({ page }) => {
+  await installFixedDate(page);
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
 
   await expect(page.locator("[data-video-analysis-library]")).toBeVisible();
+  await expect(page.locator(".video-analysis-calendar-overview")).toContainText("Jun 2026");
+  await expect(page.locator(".video-analysis-calendar-day.is-today")).toHaveAttribute("aria-label", "Today, 15/06/2026");
   await expect(page.locator(".video-analysis-calendar-overview")).toContainText("MD+2 Training");
   await expect(page.locator(".video-analysis-library__list")).toHaveCount(0);
 

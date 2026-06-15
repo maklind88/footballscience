@@ -271,6 +271,63 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
 });
 
+test("Video Analysis Tag Panel creates a 15 second timeline tag from a code button", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__videoAnalysisInitialState = {
+      view: "workspace",
+      match: {
+        id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        title: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+      },
+      video: {
+        id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+      },
+      source: {
+        id: "source-1",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        local_video_identifier: "existing-video",
+      },
+      videoRef: {
+        objectUrl: "data:video/mp4;base64,AAAA",
+        durationMs: 7267240,
+        displayName: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+      },
+      localFileStatus: "native-ready",
+      localFileMessage: "Native playback ready",
+      nativePlaybackReady: true,
+    };
+  });
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  await expect(page.locator(".video-analysis-template-builder")).toContainText("Tag Panel");
+  await expect(page.locator(".video-analysis-template-builder")).toContainText("Football Science Tag Panel");
+  await expect(page.locator('[data-video-analysis-code-button="subPhase-build-up"]')).toContainText("15s");
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "currentTime", { configurable: true, value: 83 });
+  });
+
+  await page.locator('[data-video-analysis-code-button="subPhase-build-up"]').click();
+  await expect.poll(() => {
+    return page.evaluate(() => {
+      const request = (window.__videoAnalysisRequests || []).find((item) => item.action === "save-clip");
+      return request?.body?.clip || null;
+    });
+  }).toMatchObject({
+    startMs: 83000,
+    endMs: 98000,
+    subPhase: "Build Up",
+    miniGamePrincipleId: "fix-release",
+    codingMode: "instant",
+  });
+
+  await page.locator('[data-video-analysis-panel-mode="edit"]').click();
+  await expect(page.locator('[data-video-analysis-button-ms-field="subPhase-build-up:defaultDurationMs"]')).toHaveValue("15");
+  await expect(page.locator('[data-video-analysis-button-field="subPhase-build-up:buttonBehavior"]')).toHaveValue("create_tag");
+});
+
 test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red playhead", async ({ page }) => {
   await installDeterministicMedia(page);
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });

@@ -65,10 +65,13 @@ export function createInitialVideoAnalysisState(context = {}) {
     template,
     codingSession: {
       mode: template.defaultMode,
+      panelMode: "use",
+      defaultClipDurationMs: template.defaultClipDurationMs,
       preRollMs: template.preRollMs,
       postRollMs: template.postRollMs,
       activeButtonId: "",
       manualInMs: null,
+      openTag: null,
     },
     timeline: {
       zoom: 1,

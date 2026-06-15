@@ -8,6 +8,8 @@ const migrationPath = path.join(rootDir, "supabase/migrations/20260613000100_vid
 const migration = fs.readFileSync(migrationPath, "utf8");
 const workstationMigrationPath = path.join(rootDir, "supabase/migrations/20260614004604_video_analysis_workstation_v2_metadata.sql");
 const workstationMigration = fs.readFileSync(workstationMigrationPath, "utf8");
+const buttonBehaviorMigrationPath = path.join(rootDir, "supabase/migrations/20260614222541_video_analysis_coding_button_behavior.sql");
+const buttonBehaviorMigration = fs.readFileSync(buttonBehaviorMigrationPath, "utf8");
 
 test("video analysis schema stores metadata only with millisecond precision", () => {
   for (const tableName of [
@@ -67,4 +69,23 @@ test("video analysis workstation v2 schema adds templates, descriptors, searches
   expect(workstationMigration).toContain("add column if not exists coding_mode text not null default 'manual' check (coding_mode in ('manual', 'instant'))");
   expect(workstationMigration).toContain("add column if not exists section_id uuid references public.video_playlist_sections(id) on delete restrict");
   expect(workstationMigration).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
+});
+
+test("video analysis coding buttons own timing and behavior metadata", () => {
+  for (const requiredText of [
+    "add column if not exists default_clip_duration_ms integer not null default 15000",
+    "alter column default_mode set default 'instant'",
+    "add column if not exists group_id text",
+    "add column if not exists target_field text",
+    "add column if not exists button_behavior text not null default 'create_tag'",
+    "add column if not exists creates_clip boolean not null default true",
+    "add column if not exists applies_label boolean not null default false",
+    "add column if not exists default_duration_ms integer not null default 15000",
+    "add column if not exists start_offset_ms integer not null default 0",
+    "add column if not exists end_offset_ms integer not null default 15000",
+    "video_coding_buttons_template_group_order_idx",
+  ]) {
+    expect(buttonBehaviorMigration).toContain(requiredText);
+  }
+  expect(buttonBehaviorMigration).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
 });

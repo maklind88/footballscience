@@ -14,7 +14,7 @@ import { createPlaylistRepository } from "./repositories/playlistRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
 import { buildClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
-import { applyCodingButtonToDraft, buildInstantClipRange, findTemplateButton } from "./services/codingTemplateService.js";
+import { buildCodingButtonAction, findTemplateButton } from "./services/codingTemplateService.js";
 import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.js";
 import { createLocalVideoReference, revokeLocalVideoReference } from "./services/localVideoBridgeService.js";
 import { createPlayableLocalCopy } from "./services/localPlaybackTranscodeService.js";
@@ -464,6 +464,8 @@ function paint(root, state) {
   const focusedFilter = root.querySelector("[data-video-analysis-filter]:focus")?.dataset.videoAnalysisFilter || "";
   const focusedLibraryFilter = root.querySelector("[data-video-analysis-library-filter]:focus")?.dataset.videoAnalysisLibraryFilter || "";
   const focusedReviewNote = root.querySelector("[data-video-analysis-review-note]:focus")?.dataset.videoAnalysisReviewNote || "";
+  const focusedButtonField = root.querySelector("[data-video-analysis-button-field]:focus")?.dataset.videoAnalysisButtonField || "";
+  const focusedButtonMsField = root.querySelector("[data-video-analysis-button-ms-field]:focus")?.dataset.videoAnalysisButtonMsField || "";
   const selectionStart = root.ownerDocument?.activeElement?.selectionStart;
   const visibleClips = filterClipsForMatrix(
     state.clips || [],
@@ -509,9 +511,13 @@ function paint(root, state) {
     : focusedFilter
       ? root.querySelector(`[data-video-analysis-filter="${focusedFilter}"]`)
       : focusedLibraryFilter
-        ? root.querySelector(`[data-video-analysis-library-filter="${focusedLibraryFilter}"]`)
-        : focusedReviewNote
-          ? root.querySelector(`[data-video-analysis-review-note="${focusedReviewNote}"]`)
+      ? root.querySelector(`[data-video-analysis-library-filter="${focusedLibraryFilter}"]`)
+      : focusedReviewNote
+        ? root.querySelector(`[data-video-analysis-review-note="${focusedReviewNote}"]`)
+        : focusedButtonField
+          ? root.querySelector(`[data-video-analysis-button-field="${focusedButtonField}"]`)
+          : focusedButtonMsField
+            ? root.querySelector(`[data-video-analysis-button-ms-field="${focusedButtonMsField}"]`)
         : null;
   if (nextFocus) {
     nextFocus.focus();
@@ -747,10 +753,11 @@ async function saveDraftClip(context = {}, stateOverride = null) {
     const clip = buildClipPayload(state);
     run.store.setState({ status: "saving-clip", error: "" });
     await run.clips.save(toApiClipPayload(clip));
+    const nextDurationMs = Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
     run.store.update((current) => ({
       ...current,
-      draft: { ...current.draft, startMs: clip.endMs, endMs: clip.endMs + 5000, tags: "", note: "" },
-      codingSession: { ...(current.codingSession || {}), manualInMs: null },
+      draft: { ...current.draft, startMs: clip.endMs, endMs: clip.endMs + nextDurationMs, tags: "", note: "" },
+      codingSession: { ...(current.codingSession || {}), manualInMs: null, openTag: null },
       message: "Clip saved.",
     }));
     await loadClips();
@@ -825,19 +832,26 @@ async function applyCodeButton(buttonId = "", context = {}) {
   const button = findTemplateButton(state.template, buttonId);
   if (!button) return false;
   const currentMs = getVideoCurrentMs(videoElement(context));
-  const nextDraft = applyCodingButtonToDraft(state.draft, state.template, button);
-  const nextSession = { ...(state.codingSession || {}), activeButtonId: button.id };
-  const nextState = { ...state, draft: nextDraft, codingSession: nextSession, message: `${button.label} selected.` };
-  if (nextSession.mode === "instant" && state.match?.id && state.video?.id) {
-    const range = buildInstantClipRange(currentMs, nextSession);
-    const instantState = {
-      ...nextState,
-      draft: { ...nextDraft, ...range },
-      codingSession: { ...nextSession, preRollMs: range.preRollMs, postRollMs: range.postRollMs },
-    };
-    run.store.update(() => instantState);
-    await saveDraftClip(context, instantState);
+  const action = buildCodingButtonAction(state, button, currentMs);
+  const nextState = {
+    ...state,
+    draft: action.nextDraft,
+    codingSession: action.nextSession,
+    message: action.message,
+    error: "",
+  };
+  if (action.shouldCreateClip && state.match?.id && state.video?.id) {
+    run.store.update(() => nextState);
+    await saveDraftClip(context, nextState);
     return true;
+  }
+  if (action.shouldCreateClip && (!state.match?.id || !state.video?.id)) {
+    run.store.update(() => ({
+      ...nextState,
+      message: "",
+      error: "Link a local match or training video before creating timeline tags.",
+    }));
+    return false;
   }
   run.store.update(() => nextState);
   return true;
@@ -931,17 +945,28 @@ export function handleClick(event, context = {}) {
     preparePlayableCopy(context);
     return true;
   }
-  const modeButton = target.closest("[data-video-analysis-mode]");
-  if (modeButton) {
+  const panelModeButton = target.closest("[data-video-analysis-panel-mode]");
+  if (panelModeButton) {
     run.store.update((state) => ({
       ...state,
-      codingSession: { ...(state.codingSession || {}), mode: modeButton.dataset.videoAnalysisMode },
+      codingSession: { ...(state.codingSession || {}), panelMode: panelModeButton.dataset.videoAnalysisPanelMode || "use" },
     }));
     return true;
   }
   const codeButton = target.closest("[data-video-analysis-code-button]");
   if (codeButton) {
     applyCodeButton(codeButton.dataset.videoAnalysisCodeButton, context);
+    return true;
+  }
+  const descriptorButton = target.closest("[data-video-analysis-descriptor-button]");
+  if (descriptorButton) {
+    const [key, ...valueParts] = String(descriptorButton.dataset.videoAnalysisDescriptorButton || "").split(":");
+    run.store.update((state) => ({
+      ...state,
+      draft: { ...state.draft, [key]: valueParts.join(":") },
+      message: valueParts.join(":") ? "Descriptor applied." : "Descriptor cleared.",
+      error: "",
+    }));
     return true;
   }
   const markButton = target.closest("[data-video-analysis-mark]");
@@ -1098,6 +1123,44 @@ export function handleInput(event, context = {}) {
   if (draftField) {
     const key = draftField.dataset.videoAnalysisDraft;
     run.store.update((state) => ({ ...state, draft: { ...state.draft, [key]: draftField.value } }));
+    return true;
+  }
+  const buttonField = target.closest("[data-video-analysis-button-field]");
+  if (buttonField) {
+    const [buttonId, fieldName] = String(buttonField.dataset.videoAnalysisButtonField || "").split(":");
+    const numericFields = new Set(["defaultDurationMs", "startOffsetMs", "endOffsetMs"]);
+    const nextValue = numericFields.has(fieldName) ? Math.round(Number(buttonField.value || 0)) : buttonField.value;
+    run.store.update((state) => ({
+      ...state,
+      template: {
+        ...(state.template || {}),
+        buttons: (state.template?.buttons || []).map((button) => button.id === buttonId ? {
+          ...button,
+          [fieldName]: nextValue,
+          ...(fieldName === "buttonBehavior" ? {
+            createsClip: ["create_tag", "toggle_duration"].includes(nextValue),
+            appliesLabel: ["label_current", "descriptor", "player_tag"].includes(nextValue),
+          } : {}),
+        } : button),
+      },
+    }));
+    return true;
+  }
+  const buttonMsField = target.closest("[data-video-analysis-button-ms-field]");
+  if (buttonMsField) {
+    const [buttonId, fieldName] = String(buttonMsField.dataset.videoAnalysisButtonMsField || "").split(":");
+    const milliseconds = Math.round(Number(buttonMsField.value || 0) * 1000);
+    run.store.update((state) => ({
+      ...state,
+      template: {
+        ...(state.template || {}),
+        buttons: (state.template?.buttons || []).map((button) => button.id === buttonId ? {
+          ...button,
+          [fieldName]: milliseconds,
+          ...(fieldName === "defaultDurationMs" ? { endOffsetMs: milliseconds } : {}),
+        } : button),
+      },
+    }));
     return true;
   }
   const filterField = target.closest("[data-video-analysis-filter]");

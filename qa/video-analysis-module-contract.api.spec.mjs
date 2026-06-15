@@ -107,13 +107,19 @@ test("video analysis module exports the runtime handlers", async () => {
 test("video analysis workstation keeps controls out of the video player", () => {
   const shell = read("src/modules/video-analysis/index.js");
   const templateBuilder = read("src/modules/video-analysis/components/CodingTemplateBuilder.js");
+  const codingTemplateService = read("src/modules/video-analysis/services/codingTemplateService.js");
   const timelineInteraction = read("src/modules/video-analysis/timeline/timeline.interaction.js");
   const timelineWrapper = read("src/modules/video-analysis/components/Timeline.js");
   const timeline = read("src/modules/video-analysis/timeline/timeline.renderer.js");
   const intelligence = read("src/modules/video-analysis/components/ClipIntelligence.js");
   expect(shell).not.toContain("renderCodingPanel");
   expect(templateBuilder).toContain("data-video-analysis-code-button");
-  expect(templateBuilder).toContain("data-video-analysis-mode");
+  expect(templateBuilder).toContain("data-video-analysis-panel-mode");
+  expect(templateBuilder).toContain("data-video-analysis-button-ms-field");
+  expect(templateBuilder).toContain("data-video-analysis-descriptor-button");
+  expect(codingTemplateService).toContain("buildCodingButtonAction");
+  expect(codingTemplateService).toContain('defaultButtonBehavior = "create_tag"');
+  expect(codingTemplateService).toContain("defaultClipDurationMs = 15000");
   expect(timelineWrapper).toContain("../timeline/index.js");
   expect(timeline).toContain("data-video-analysis-timeline-module");
   expect(timeline).toContain("data-video-analysis-timeline-lane");
@@ -135,6 +141,35 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(intelligence).toContain("Phase x Outcome");
   expect(intelligence).toContain("Principle x Player");
   expect(intelligence).toContain("Mini-game x Unit");
+});
+
+test("coding tag panel creates 15 second button-owned clip actions", async () => {
+  const service = await import(pathToFileURL(path.join(moduleDir, "services/codingTemplateService.js")).href);
+  const template = service.createDefaultCodingTemplate();
+  const button = template.buttons.find((item) => item.value === "Build Up");
+  const action = service.buildCodingButtonAction({
+    template,
+    draft: {
+      startMs: 0,
+      endMs: 15000,
+      phase: "In Possession",
+      subPhase: "Build Up",
+      teamPrincipleId: "secure-first-pass",
+      miniGamePrincipleId: "third-player",
+      outcome: "Neutral",
+    },
+    codingSession: { mode: template.defaultMode, defaultClipDurationMs: template.defaultClipDurationMs },
+  }, button, 831000);
+
+  expect(template.defaultMode).toBe("instant");
+  expect(button.buttonBehavior).toBe("create_tag");
+  expect(button.defaultDurationMs).toBe(15000);
+  expect(button.targetField).toBe("subPhase");
+  expect(action.shouldCreateClip).toBe(true);
+  expect(action.nextDraft.startMs).toBe(831000);
+  expect(action.nextDraft.endMs).toBe(846000);
+  expect(action.nextDraft.miniGamePrincipleId).toBe("fix-release");
+  expect(action.nextSession.mode).toBe("instant");
 });
 
 test("analysis room tabs use icons without status labels", () => {

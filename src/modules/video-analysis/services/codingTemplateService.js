@@ -6,16 +6,53 @@ import { videoAnalysisSubPhases } from "../constants/subPhases.js";
 
 const phaseHotkeys = ["1", "2", "3", "4", "5"];
 const principleHotkeys = ["6", "7", "8", "9", "0", "-"];
+const defaultClipDurationMs = 15000;
+const defaultButtonBehavior = "create_tag";
+const groupColors = Object.freeze({
+  Phase: "#1f5eff",
+  "Sub-phase": "#0f8a63",
+  "Team Principle": "#7c3aed",
+  "Mini-game Principle": "#d97706",
+  Outcome: "#334155",
+  Descriptors: "#0f766e",
+});
+const buttonTypeByField = Object.freeze({
+  subPhase: "sub_phase",
+  teamPrincipleId: "team_principle",
+  miniGamePrincipleId: "mini_game_principle",
+});
 
-function button(id, type, label, value, hotkey = "", group = type) {
-  return { id, type, label, value, hotkey, group, instantEnabled: true };
+function slug(value = "") {
+  return String(value || "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
+}
+
+function button(id, type, label, value, hotkey = "", group = type, options = {}) {
+  return {
+    id,
+    type,
+    buttonType: options.buttonType || buttonTypeByField[type] || type,
+    label,
+    value,
+    hotkey,
+    group,
+    groupId: options.groupId || slug(group),
+    color: options.color || groupColors[group] || "#143522",
+    defaultDurationMs: Number(options.defaultDurationMs ?? defaultClipDurationMs),
+    startOffsetMs: Number(options.startOffsetMs ?? 0),
+    endOffsetMs: Number(options.endOffsetMs ?? defaultClipDurationMs),
+    buttonBehavior: options.buttonBehavior || defaultButtonBehavior,
+    createsClip: options.createsClip !== false,
+    appliesLabel: Boolean(options.appliesLabel),
+    targetField: options.targetField || type,
+    instantEnabled: options.instantEnabled !== false,
+  };
 }
 
 function buttonsFromList(type, items, hotkeys = [], group = type) {
   return items.map((item, index) => {
     const value = typeof item === "string" ? item : item.id;
     const label = typeof item === "string" ? item : item.label;
-    return button(`${type}-${value}`.replace(/[^a-z0-9]+/gi, "-").toLowerCase(), type, label, value, hotkeys[index] || "", group);
+    return button(`${type}-${slug(value)}`, type, label, value, hotkeys[index] || "", group);
   });
 }
 
@@ -29,10 +66,11 @@ export function createDefaultCodingTemplate() {
   ];
   return {
     id: "football-science-default-template",
-    title: "Football Science Principle Coding",
-    defaultMode: "manual",
-    preRollMs: 4000,
-    postRollMs: 4000,
+    title: "Football Science Tag Panel",
+    defaultMode: "instant",
+    defaultClipDurationMs,
+    preRollMs: 0,
+    postRollMs: defaultClipDurationMs,
     buttons,
     links: [
       { sourceValue: "Build Up", targetType: "miniGamePrincipleId", targetValue: "third-player" },
@@ -54,8 +92,9 @@ export function findButtonByHotkey(template = {}, key = "") {
 }
 
 export function applyCodingButtonToDraft(draft = {}, template = {}, button = {}) {
-  if (!button?.type) return draft;
-  const nextDraft = { ...draft, [button.type]: button.value };
+  const targetField = button?.targetField || button?.type;
+  if (!targetField) return draft;
+  const nextDraft = { ...draft, [targetField]: button.value };
   for (const link of template.links || []) {
     if (link.sourceValue === button.value && link.targetType && link.targetValue) {
       nextDraft[link.targetType] = link.targetValue;
@@ -64,12 +103,64 @@ export function applyCodingButtonToDraft(draft = {}, template = {}, button = {})
   return nextDraft;
 }
 
-export function buildInstantClipRange(playheadMs = 0, session = {}) {
-  const preRollMs = Number(session.preRollMs ?? 4000);
-  const postRollMs = Number(session.postRollMs ?? 4000);
-  const startMs = Math.max(0, Math.round(Number(playheadMs || 0) - preRollMs));
-  const endMs = Math.max(startMs + 100, Math.round(Number(playheadMs || 0) + postRollMs));
+export function buildInstantClipRange(playheadMs = 0, session = {}, button = {}) {
+  const defaultDuration = Number(button.defaultDurationMs ?? session.defaultClipDurationMs ?? defaultClipDurationMs);
+  const startOffsetMs = Number(button.startOffsetMs ?? -Number(session.preRollMs ?? 0));
+  const endOffsetMs = Number(button.endOffsetMs ?? defaultDuration);
+  const preRollMs = Math.max(0, -startOffsetMs);
+  const postRollMs = Math.max(0, endOffsetMs);
+  const playhead = Number(playheadMs || 0);
+  const startMs = Math.max(0, Math.round(playhead + startOffsetMs));
+  const calculatedEndMs = Math.round(playhead + endOffsetMs);
+  const endMs = Math.max(startMs + 100, calculatedEndMs || startMs + defaultDuration);
   return { startMs, endMs, preRollMs, postRollMs };
+}
+
+export function buildCodingButtonAction(state = {}, button = {}, playheadMs = 0) {
+  const behavior = button.buttonBehavior || defaultButtonBehavior;
+  const nextDraft = applyCodingButtonToDraft(state.draft || {}, state.template || {}, button);
+  const nextSession = {
+    ...(state.codingSession || {}),
+    activeButtonId: button.id,
+    mode: button.createsClip === false ? state.codingSession?.mode || "instant" : "instant",
+  };
+
+  if (behavior === "toggle_duration") {
+    const openTag = state.codingSession?.openTag || null;
+    if (openTag?.buttonId === button.id) {
+      const startMs = Math.max(0, Math.round(Number(openTag.startMs || playheadMs || 0)));
+      const endMs = Math.max(startMs + 100, Math.round(Number(playheadMs || 0)));
+      return {
+        nextDraft: { ...nextDraft, startMs, endMs },
+        nextSession: { ...nextSession, openTag: null, preRollMs: 0, postRollMs: endMs - startMs },
+        shouldCreateClip: true,
+        message: `${button.label} duration saved.`,
+      };
+    }
+    return {
+      nextDraft,
+      nextSession: { ...nextSession, openTag: { buttonId: button.id, startMs: Math.max(0, Math.round(Number(playheadMs || 0))) } },
+      shouldCreateClip: false,
+      message: `${button.label} started.`,
+    };
+  }
+
+  if (button.createsClip === false || behavior === "descriptor" || behavior === "label_current" || behavior === "player_tag") {
+    return {
+      nextDraft,
+      nextSession,
+      shouldCreateClip: false,
+      message: `${button.label} applied.`,
+    };
+  }
+
+  const range = buildInstantClipRange(playheadMs, nextSession, button);
+  return {
+    nextDraft: { ...nextDraft, ...range },
+    nextSession: { ...nextSession, preRollMs: range.preRollMs, postRollMs: range.postRollMs },
+    shouldCreateClip: true,
+    message: `${button.label} tagged ${Math.round((range.endMs - range.startMs) / 1000)}s.`,
+  };
 }
 
 export function shouldIgnoreShortcutTarget(target) {

@@ -116,19 +116,6 @@ export function createPlayerProfileRuntimeMedicalSyncService(options = {}) {
     }
   }
 
-  function normalizeRosterVersion(value) {
-    return String(value ?? "").trim();
-  }
-
-  function hasSharedRosterContext(profileState = getPlayerProfilesStateForMedicalSync(), medicalState = getMedicalState()) {
-    const medicalRosterVersion = normalizeRosterVersion(medicalState?.rosterVersion);
-    const profileRosterVersion = normalizeRosterVersion(profileState?.rosterVersion);
-    if (!medicalRosterVersion || !profileRosterVersion) {
-      return true;
-    }
-    return medicalRosterVersion === profileRosterVersion;
-  }
-
   function getActiveSquadProfiles(profileState = getPlayerProfilesStateForMedicalSync()) {
     try {
       return (Array.isArray(profileState?.players) ? profileState.players : [])
@@ -159,9 +146,6 @@ export function createPlayerProfileRuntimeMedicalSyncService(options = {}) {
     const profileState = context.profileState || getPlayerProfilesStateForMedicalSync();
     const activeProfiles = Array.isArray(context.activeProfiles) ? context.activeProfiles : getActiveSquadProfiles(profileState);
     if (!activeProfiles.length || !identity.name) {
-      return true;
-    }
-    if (!hasSharedRosterContext(profileState)) {
       return true;
     }
     if (identity.id && activeProfiles.some((profile) => getMedicalPlayerProfileIdentity(profile).id === identity.id)) {
@@ -207,7 +191,7 @@ export function createPlayerProfileRuntimeMedicalSyncService(options = {}) {
     const removedNames = getRemovedSquadPlayerNames(profileState, removedPlayerIdSet);
     const activeSquadProfiles = getActiveSquadProfiles(profileState);
     const hasRemovalAuthority = Boolean(removedPlayerIdSet.size || removedNames.size);
-    const hasRosterAuthority = hasSharedRosterContext(profileState, medicalState);
+    const hasRosterAuthority = Boolean(activeSquadProfiles.length);
     if (!hasRemovalAuthority && (!activeSquadProfiles.length || !hasRosterAuthority)) {
       return [];
     }

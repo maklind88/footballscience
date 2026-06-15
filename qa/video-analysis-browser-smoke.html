@@ -63,6 +63,27 @@
           source: "smoke",
         },
       ];
+      const smartCollections = [
+        {
+          id: "smart-1",
+          title: "Build Up Positive",
+          searchJson: { phase: "In Possession", outcome: "Positive" },
+        },
+      ];
+      let savedPresentation = {
+        id: "presentation-1",
+        title: "Football Science Review",
+        purpose: "team-meeting",
+        status: "draft",
+        notes: "Team meeting notes",
+        sections: [
+          { id: "opening", title: "Opening", sectionType: "opening", sortOrder: 0, coachNote: "", items: [] },
+          { id: "team-focus", title: "Team focus", sectionType: "team", sortOrder: 1, coachNote: "", items: [] },
+          { id: "player-focus", title: "Player focus", sectionType: "player", sortOrder: 2, coachNote: "", items: [] },
+        ],
+        smartCollections,
+        shareTargets: [],
+      };
       const smokeParams = new URLSearchParams(window.location.search);
       const initialStateFromQuery = smokeParams.get("reset") === "1"
         ? { view: smokeParams.get("view") || "library" }
@@ -81,6 +102,43 @@
         if (action === "saved-searches") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearches: [] });
         if (action === "save-search") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearch: { id: "search-1", title: "Build Up Development" } });
         if (action === "save-review-session") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", reviewSession: { id: "review-1" } });
+        if (action === "list-presentations") {
+          return Response.json({
+            ok: true,
+            schema: "footballscience-video-analysis-v2",
+            presentations: [savedPresentation],
+            smartCollections,
+          });
+        }
+        if (action === "get-presentation") {
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", presentation: savedPresentation });
+        }
+        if (action === "list-presentation-clips") {
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clips, total: clips.length });
+        }
+        if (action === "save-presentation") {
+          savedPresentation = {
+            ...savedPresentation,
+            ...(body.presentation || {}),
+            id: body.presentation?.id || savedPresentation.id,
+          };
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", presentation: savedPresentation });
+        }
+        if (action === "save-smart-collection") {
+          const smartCollection = { id: "smart-2", ...(body.smartCollection || {}) };
+          smartCollections.unshift(smartCollection);
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", smartCollection });
+        }
+        if (action === "save-drawing-layer") {
+          return Response.json({
+            ok: true,
+            schema: "footballscience-video-analysis-v2",
+            drawingLayer: { id: "drawing-1", ...(body.drawingLayer || {}) },
+          });
+        }
+        if (action === "save-share-targets") {
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", shareTargets: body.targets || [] });
+        }
         if (action === "save-clip") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip: clips[0] });
         if (action === "archive-clip") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip: clips[0] });
         if (action === "update-match-link") {

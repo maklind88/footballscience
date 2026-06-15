@@ -264,10 +264,30 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-presentation")).toContainText("Football Science Review");
   await expect(page.locator(".video-analysis-presentation")).toContainText("Presentation Builder");
   await expect(page.locator(".video-analysis-presentation")).toContainText("Data Explorer");
-  await expect(page.locator(".video-analysis-presentation-source-filters")).toHaveCount(1);
-  await expect(page.locator(".video-analysis-presentation-source-list")).toHaveCount(1);
-  await expect(page.locator(".video-analysis-presentation-outline")).toHaveCount(1);
-  await expect(page.locator(".video-analysis-presentation")).toContainText("Team focus");
+  await expect(page.locator(".video-analysis-presentation")).toContainText("Outline");
+  await expect(page.locator(".video-analysis-presentation")).toContainText("Selected clip");
+  await expect(page.locator(".video-analysis-presentation-source-clip")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-presentation-source-clip")).toContainText("Alex Morgan");
+  await expect(page.locator(".video-analysis-presentation-outline-section")).toHaveCount(3);
+  await expect(page.locator(".video-analysis-presentation .video-analysis-filters")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-presentation .video-analysis-intelligence")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-presentation .video-analysis-clip-list")).toHaveCount(0);
+
+  await page.locator("[data-video-analysis-presentation-add]").first().click();
+  await expect(page.locator(".video-analysis-presentation-outline-item")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-presentation-outline-item")).toContainText("In Possession / Positive");
+
+  await page.getByRole("tab", { name: "Draw" }).click();
+  await expect(page.locator(".video-analysis-drawing-builder")).toBeVisible();
+  await page.locator('[data-video-analysis-drawing-field="text"]').fill("Press trigger");
+  await page.locator("[data-video-analysis-drawing-add]").click();
+  await expect(page.locator(".video-analysis-drawing-layer-list li")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-drawing-layer-list")).toContainText("arrow");
+
+  await page.getByRole("tab", { name: "Presenter" }).click();
+  await expect(page.locator(".video-analysis-presenter-mode")).toBeVisible();
+  await expect(page.locator(".video-analysis-presenter-queue-item")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-presenter-frame")).toContainText("1 drawing layers ready");
   await expect(page.locator(".video-analysis-player")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-timeline-module]")).toHaveCount(0);
 

@@ -141,7 +141,7 @@ export async function restoreLocalVideoHandleForState({ state = {}, context = {}
     return {
       ok: false,
       reason: "missing-handle",
-      patch: localVideoStatusPatch("linked-unavailable", "Local file linked but not available on this device", {
+      patch: localVideoStatusPatch("linked-unavailable", "Reconnect local file on this device", {
         localFileHandleIdentity: identity,
         nativePlaybackReady: false,
         bridgeFallbackRecommended: false,
@@ -169,7 +169,7 @@ export async function restoreLocalVideoHandleForState({ state = {}, context = {}
       ok: false,
       reason: "missing-file",
       record,
-      patch: localVideoStatusPatch("linked-unavailable", "Local file linked but not available on this device", {
+      patch: localVideoStatusPatch("linked-unavailable", "Reconnect local file on this device", {
         localFileHandleIdentity: identity,
         nativePlaybackReady: false,
         bridgeFallbackRecommended: false,
@@ -185,7 +185,7 @@ export async function restoreLocalVideoHandleForState({ state = {}, context = {}
       ok: false,
       reason: "missing-file",
       record,
-      patch: localVideoStatusPatch("linked-unavailable", "Local file linked but not available on this device", {
+      patch: localVideoStatusPatch("linked-unavailable", "Reconnect local file on this device", {
         localFileHandleIdentity: identity,
         nativePlaybackReady: false,
         bridgeFallbackRecommended: false,

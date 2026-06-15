@@ -118,7 +118,7 @@ export function createVideoLibraryController(deps = {}) {
       error: "",
       ...localVideoStatusPatch(
         item.hasVideo ? "linked-unavailable" : "none",
-        item.hasVideo ? "Local file linked but not available on this device" : "No video linked"
+        item.hasVideo ? "Reconnect local file on this device" : "No video linked"
       ),
     }));
     await loadClips();

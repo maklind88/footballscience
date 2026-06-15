@@ -59,6 +59,13 @@ test("local video handle store saves, restores, lists and removes IndexedDB hand
       videoId: "video-legacy",
       localVideoIdentifier: "local-video-legacy",
     });
+    const matchOnlyFallback = await store.getVideoHandle({
+      organizationId: "org-live",
+      teamId: "team-live",
+      matchId: "match-legacy",
+      videoId: "video-relinked",
+      localVideoIdentifier: "local-video-relinked",
+    });
     const removed = await store.removeVideoHandle(identity);
     const afterRemove = await store.getVideoHandle(identity);
     return {
@@ -66,6 +73,7 @@ test("local video handle store saves, restores, lists and removes IndexedDB hand
       foundName: found.handle.name,
       listedCount: listed.length,
       legacyFoundName: legacyFound.handle.name,
+      matchOnlyFallbackName: matchOnlyFallback.handle.name,
       removed,
       afterRemove,
     };
@@ -76,6 +84,7 @@ test("local video handle store saves, restores, lists and removes IndexedDB hand
     foundName: "match.mp4",
     listedCount: 1,
     legacyFoundName: "legacy-match.mp4",
+    matchOnlyFallbackName: "legacy-match.mp4",
     removed: true,
     afterRemove: null,
   });
@@ -188,8 +197,9 @@ test("missing local file metadata shows link state instead of bridge-first prepa
   await page.reload({ waitUntil: "domcontentloaded" });
 
   await expect(page.locator("[data-video-analysis-video]")).toHaveCount(0);
-  await expect(page.locator(".video-analysis-player__meta")).toContainText("Local file linked but not available on this device");
-  await expect(page.locator(".video-analysis-empty-video [data-video-analysis-load]")).toContainText("Link local file");
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("Reconnect local file on this device");
+  await expect(page.locator(".video-analysis-empty-video [data-video-analysis-load]")).toContainText("Reconnect local file");
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-load]")).toContainText("Reconnect local file");
   await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
 });
 

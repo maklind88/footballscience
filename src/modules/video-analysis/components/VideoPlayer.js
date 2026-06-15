@@ -26,17 +26,16 @@ export function renderVideoPlayer(state = {}) {
     )
   );
   const showPrepared = Boolean(hasVideo && preparedPlayback);
-  const showReconnect = localStatus === "permission-needed" && hasLinkedMetadata;
-  const loadLabel = hasVideo ? "Change" : "Link local file";
-  const emptyActionAttribute = showReconnect ? "data-video-analysis-restore-local-file" : "data-video-analysis-load";
-  const emptyActionLabel = showReconnect
+  const needsReconnect = hasLinkedMetadata && ["linked-unavailable", "permission-needed"].includes(localStatus);
+  const showPermissionReconnect = localStatus === "permission-needed" && hasLinkedMetadata;
+  const loadLabel = hasVideo ? "Change" : needsReconnect ? "Reconnect local file" : "Link local file";
+  const emptyActionAttribute = showPermissionReconnect ? "data-video-analysis-restore-local-file" : "data-video-analysis-load";
+  const emptyActionLabel = needsReconnect
     ? "Reconnect local file"
-    : localStatus === "linked-unavailable"
-      ? "Link local file"
-      : "Load local match video";
+    : "Load local match video";
   const playbackStatus = state.localFileMessage || ({
     none: "No video linked",
-    "linked-unavailable": "Local file linked but not available on this device",
+    "linked-unavailable": "Reconnect local file on this device",
     "permission-needed": "Local file permission needed",
     restored: "Local file connected on this device",
     "session-only": "Local file linked for this session",
@@ -61,8 +60,8 @@ export function renderVideoPlayer(state = {}) {
         </div>
         <div class="video-analysis-player__actions">
           <input class="video-analysis-file-input" type="file" accept="video/*" data-video-analysis-file hidden>
-          ${showReconnect ? `<button type="button" class="video-analysis-icon-button" data-video-analysis-restore-local-file title="Reconnect local file">Reconnect local file</button>` : ""}
-          ${showReconnect && !hasVideo ? "" : `<button type="button" class="video-analysis-icon-button" data-video-analysis-load title="Link local video">${loadLabel}</button>`}
+          ${showPermissionReconnect ? `<button type="button" class="video-analysis-icon-button" data-video-analysis-restore-local-file title="Reconnect local file">Reconnect local file</button>` : ""}
+          ${showPermissionReconnect && !hasVideo ? "" : `<button type="button" class="video-analysis-icon-button" data-video-analysis-load title="${needsReconnect ? "Reconnect local video" : "Link local video"}">${loadLabel}</button>`}
           ${needsPrepare || showPrepared ? `<button type="button" class="video-analysis-icon-button" data-video-analysis-prepare-playback ${needsPrepare ? "" : "disabled"} title="Prepare browser-safe playback copy">${showPrepared ? "Prepared" : "Prepare"}</button>` : ""}
           <button type="button" class="video-analysis-icon-button" data-video-analysis-play ${hasVideo ? "" : "disabled"} title="Play or pause">Play</button>
         </div>

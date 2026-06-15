@@ -40,6 +40,12 @@ async function markVideoMetadataReady(page, duration = 55.5) {
   }, duration);
 }
 
+async function openScheduleDayForLocalVideo(page) {
+  await expect(page.locator("[data-video-analysis-library]")).toBeVisible();
+  await page.locator('[data-video-analysis-open-library-item^="schedule:"]').first().click();
+  await expect(page.locator("[data-video-analysis-file]")).toHaveCount(1);
+}
+
 test("Video Analysis keeps the local video element stable after metadata loads", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -57,8 +63,7 @@ test("Video Analysis keeps the local video element stable after metadata loads",
   });
 
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("[data-video-analysis-library]")).toBeVisible();
-  await expect(page.locator("[data-video-analysis-load]").first()).toBeVisible();
+  await openScheduleDayForLocalVideo(page);
 
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "match.mp4",
@@ -100,6 +105,7 @@ test("Video Analysis keeps the local video element stable after metadata loads",
 test("Video Analysis tries native H264 MP4 playback before offering bridge prepare", async ({ page }) => {
   await installDeterministicMedia(page);
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  await openScheduleDayForLocalVideo(page);
 
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
@@ -248,6 +254,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
 test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red playhead", async ({ page }) => {
   await installDeterministicMedia(page);
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  await openScheduleDayForLocalVideo(page);
 
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
@@ -309,6 +316,7 @@ test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red 
 test("Video Analysis clears a codec warning when native playback succeeds", async ({ page }) => {
   await installDeterministicMedia(page);
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  await openScheduleDayForLocalVideo(page);
 
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
@@ -339,7 +347,7 @@ test("Video Analysis clears a codec warning when native playback succeeds", asyn
 test("Video Analysis lets coaches load and reload a local match from the empty player", async ({ page }) => {
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
 
-  await page.locator('[data-video-analysis-open-library-item^="schedule:"]').first().click();
+  await openScheduleDayForLocalVideo(page);
   await expect(page.locator(".video-analysis-empty-video [data-video-analysis-load]")).toBeVisible();
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "first-half.mp4",
@@ -363,7 +371,7 @@ test("Video Analysis warns when a local file appears to use HEVC", async ({ page
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("[data-video-analysis-load]").first()).toBeVisible();
+  await openScheduleDayForLocalVideo(page);
 
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "match-hevc.mov",
@@ -392,7 +400,7 @@ test("Video Analysis samples large MP4 files for codec markers away from the fil
   ]);
 
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("[data-video-analysis-load]").first()).toBeVisible();
+  await openScheduleDayForLocalVideo(page);
 
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "angle-1.mp4",
@@ -408,7 +416,7 @@ test("Video Analysis samples large MP4 files for codec markers away from the fil
 
 test("Video Analysis explains when the local transcode bridge is not running", async ({ page }) => {
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
-  await expect(page.locator("[data-video-analysis-load]").first()).toBeVisible();
+  await openScheduleDayForLocalVideo(page);
 
   await page.locator("[data-video-analysis-file]").setInputFiles({
     name: "match-hevc.mov",

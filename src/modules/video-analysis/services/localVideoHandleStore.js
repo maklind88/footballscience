@@ -109,7 +109,7 @@ function scoreRecordMatch(record = {}, criteria = {}) {
   const scopeCompatible = compatibleScope(record.organizationId, normalized.organizationId, "local")
     && compatibleScope(record.teamId, normalized.teamId, "team");
 
-  if (!scopeCompatible && !videoMatch && !(matchMatch && identifierMatch)) return 0;
+  if (!scopeCompatible && !videoMatch && !matchMatch && !identifierMatch) return 0;
   if (!videoMatch && !matchMatch && !identifierMatch) return 0;
 
   let score = 0;

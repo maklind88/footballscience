@@ -13,6 +13,8 @@ function createRuntime(overrides = {}) {
     modules: [],
     gameplanEvents: [],
     gameplanRender: [],
+    idpEvents: [],
+    idpRender: [],
     scoutingEvents: [],
     scoutingRender: [],
     analysisEvents: [],
@@ -33,6 +35,7 @@ function createRuntime(overrides = {}) {
     gameplanWorkspace: createRoot({ textContent: "" }),
     scoutingWorkspace: createRoot({ innerHTML: "" }),
     analysisRoomWorkspace: createRoot({ innerHTML: "" }),
+    idpWorkspace: createRoot({ innerHTML: "" }),
     transferRoomWorkspace: createRoot({ innerHTML: "" }),
   };
   const createEventHandlers = (target) => ({
@@ -65,6 +68,12 @@ function createRuntime(overrides = {}) {
             ...createEventHandlers(calls.analysisEvents),
           };
         }
+        if (id === "idp") {
+          return {
+            render: (context) => calls.idpRender.push(context),
+            ...createEventHandlers(calls.idpEvents),
+          };
+        }
         return {
           render: (context) => calls.scoutingRender.push(context),
           ...createEventHandlers(calls.scoutingEvents),
@@ -72,16 +81,19 @@ function createRuntime(overrides = {}) {
       },
     },
     getAssetVersion: () => "test-build",
-    getUsers: () => [{ id: "u1" }],
+    getUsers: () => [{ id: "u1" }, { id: "coach-2", firstName: "Alex", lastName: "Coach", role: "coach" }],
     getCurrentUser: () => ({ id: "u1", team: "First Team" }),
+    formatUserName: (user = {}) => [user.firstName, user.lastName].filter(Boolean).join(" ") || user.id || "Staff",
     getPlatformTeamDisplayTeam: () => ({ id: "team-first", name: "First Team", shortName: "FT", logoUrl: "/team-logo.png" }),
     getPlatformTeamDisplayName: () => "First Team",
     getPlatformTeamLogoUrl: (team = {}) => team.logoUrl || "",
     getScheduleStateForGameplan: () => ({ events: [] }),
     getPlayerProfilesStateForGameplan: () => ({ players: [] }),
     getPlayerProfilesStateForVideoAnalysis: () => ({ players: [{ id: "p1", name: "Player One" }] }),
+    getPlayerProfilesStateForIdp: () => ({ players: [{ id: "p-idp", name: "IDP Player" }] }),
     canEditGameplan: () => true,
     canEditVideoAnalysis: () => true,
+    canEditIdp: () => true,
     getAuthToken: () => "token",
     suppressCentralWrites: (key) => calls.hydrated.push(`suppress:${key}`),
     unsuppressCentralWrites: (key) => calls.hydrated.push(`unsuppress:${key}`),
@@ -160,6 +172,18 @@ test("workspace module runtime owns Gameplan, Scouting, and Video Analysis lazy 
   expect(calls.analysisRender[0].teamLogoUrl).toBe("/team-logo.png");
   expect(calls.analysisRender[0].canEdit()).toBe(true);
   expect(calls.analysisRender[0].getPlayerProfilesState().players[0].id).toBe("p1");
+
+  controller.renderIdpWorkspace();
+  expect(ui.idpWorkspace.innerHTML).toContain("Loading IDP");
+  await flushPromises();
+  expect(calls.modules).toContain("idp");
+  expect(calls.stylesheets).toContain("idp");
+  expect(calls.idpRender[0].teamName).toBe("First Team");
+  expect(calls.idpRender[0].teamLogoUrl).toBe("/team-logo.png");
+  expect(calls.idpRender[0].users.map((user) => user.id)).toEqual(["u1", "coach-2"]);
+  expect(calls.idpRender[0].formatUserName({ firstName: "Alex", lastName: "Coach" })).toBe("Alex Coach");
+  expect(calls.idpRender[0].canEdit()).toBe(true);
+  expect(calls.idpRender[0].getPlayerProfilesState().players[0].id).toBe("p-idp");
 });
 
 test("workspace module runtime hydrates and preloads the correct module families", async () => {

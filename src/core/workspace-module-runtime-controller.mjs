@@ -168,6 +168,8 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
       ui,
       win,
       currentUser,
+      users: getUsers(),
+      formatUserName,
       team,
       teamName,
       teamLogoUrl: getPlatformTeamLogoUrl(team),

@@ -181,3 +181,15 @@ test("video analysis API exposes presentation builder actions behind the service
   expect(presentationSource).toContain("video_drawing_layers");
   expect(presentationSource).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
 });
+
+test("video analysis coding template save archives removed buttons and links", () => {
+  const templateSource = fs.readFileSync(path.join(rootDir, "api/_lib/video-analysis-coding-template-database.js"), "utf8");
+
+  expect(templateSource).toMatch(/archiveMissingCodingRows\(\s*"video_coding_buttons"/);
+  expect(templateSource).toMatch(/archiveMissingCodingRows\(\s*"video_coding_button_links"/);
+  expect(templateSource).toContain('params.set("status", "eq.active")');
+  expect(templateSource).toContain('status: "archived"');
+  expect(templateSource).toContain("archived_at: new Date().toISOString()");
+  expect(templateSource).toContain("savedLinks.map((row) => row.id).filter(Boolean)");
+  expect(templateSource).not.toContain("rowList(savedLinks)");
+});

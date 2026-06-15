@@ -348,8 +348,22 @@ function buildIdParams(scope = {}, id = "") {
   return params;
 }
 
+async function archiveMissingCodingRows(table = "", template = {}, templateId = "", keepIds = []) {
+  const params = buildTeamParams(template);
+  params.set("template_id", `eq.${templateId}`);
+  params.set("status", "eq.active");
+  if (keepIds.length) params.set("id", `not.in.(${keepIds.join(",")})`);
+  return patchRows(table, params, {
+    status: "archived",
+    archived_at: new Date().toISOString(),
+  });
+}
+
 async function saveCodingButtonLinks(template = {}, templateId = "", savedButtons = []) {
-  if (!template.links.length || !savedButtons.length) return { ok: true, payload: [] };
+  if (!savedButtons.length) {
+    const archiveAll = await archiveMissingCodingRows("video_coding_button_links", template, templateId, []);
+    return archiveAll.ok ? { ok: true, payload: [] } : archiveAll;
+  }
   const buttonsByKey = new Map(savedButtons.map((button) => [`${button.button_type}:${button.value}`, button]));
   const savedLinks = [];
   for (const link of template.links) {
@@ -386,6 +400,13 @@ async function saveCodingButtonLinks(template = {}, templateId = "", savedButton
     if (!result.ok && result.status !== 409) return result;
     if (result.ok) savedLinks.push(result.payload?.[0] || row);
   }
+  const archiveMissingLinks = await archiveMissingCodingRows(
+    "video_coding_button_links",
+    template,
+    templateId,
+    savedLinks.map((row) => row.id).filter(Boolean)
+  );
+  if (!archiveMissingLinks.ok) return archiveMissingLinks;
   return { ok: true, payload: savedLinks };
 }
 
@@ -397,6 +418,13 @@ async function saveCodingTemplate(payload, actor) {
   if (!savedTemplate?.id) return { ok: false, status: 500, reason: "Coding template could not be saved." };
   const buttonsResult = await saveCodingButtons(template, savedTemplate.id);
   if (!buttonsResult.ok) return buttonsResult;
+  const archiveMissingButtons = await archiveMissingCodingRows(
+    "video_coding_buttons",
+    template,
+    savedTemplate.id,
+    rowList(buttonsResult).map((row) => row.id).filter(Boolean)
+  );
+  if (!archiveMissingButtons.ok) return archiveMissingButtons;
   const linksResult = await saveCodingButtonLinks(template, savedTemplate.id, rowList(buttonsResult));
   if (!linksResult.ok) return linksResult;
   const buttonRows = rowList(buttonsResult).map(mapButtonRow);

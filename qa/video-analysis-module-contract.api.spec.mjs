@@ -137,6 +137,9 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timeline).toContain("data-video-analysis-timeline-scrub");
   expect(timeline).toContain("data-video-analysis-timeline-scrub-surface");
   expect(timeline).toContain("data-video-analysis-timeline-scrub-time");
+  expect(timeline).toContain("data-video-analysis-timeline-trim-edge");
+  expect(timeline).toContain("data-video-analysis-timeline-category-step");
+  expect(timeline).toContain("data-video-analysis-timeline-category-add-selected");
   expect(timeline).not.toContain('role="slider"');
   expect(timeline).not.toContain("video-analysis-timeline-header");
   expect(timeline).not.toContain("video-analysis-timeline-summary");
@@ -146,6 +149,8 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timelineInteraction).toContain("requestAnimationFrame");
   expect(timelineInteraction).toContain("lockScrollPosition");
   expect(timelineInteraction).toContain("syncScrubTimes");
+  expect(timelineInteraction).toContain("onClipTrimCommit");
+  expect(timelineInteraction).toContain("is-trimming");
   expect(timeline).toContain("video-analysis-clip-block");
   expect(timeline).not.toContain("data-video-analysis-zoom");
   expect(timeline).not.toContain("video-analysis-timeline-controls");
@@ -186,6 +191,7 @@ test("coding tag panel creates 15 second button-owned clip actions", async () =>
 
 test("coding template persistence stays behind repositories and API actions", () => {
   const repository = read("src/modules/video-analysis/repositories/codingTemplateRepository.js");
+  const clipRepository = read("src/modules/video-analysis/repositories/clipRepository.js");
   const shell = read("src/modules/video-analysis/index.js");
   const api = read("api/_lib/video-analysis-database.js");
   const templateApi = read("api/_lib/video-analysis-coding-template-database.js");
@@ -198,6 +204,9 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(shell).toContain("saveCodingTemplate");
   expect(api).toContain("listCodingTemplates");
   expect(api).toContain("saveCodingTemplate");
+  expect(clipRepository).toContain("trim-clip");
+  expect(api).toContain("trimClip");
+  expect(api).toContain('action === "trim-clip"');
   expect(templateApi).toContain("normalizeCodingTemplatePayload");
   expect(templateApi).toContain("rejectForbiddenPayload(payload)");
   expect(templateApi).toContain("video_coding_templates");

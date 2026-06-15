@@ -463,6 +463,26 @@ async function saveClip(payload, actor) {
   return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations, idpClipBank } };
 }
 
+async function trimClip(payload, actor) {
+  rejectForbiddenPayload(payload);
+  const scope = actorScope(actor);
+  const id = normalizeUuid(payload.id || payload.clipId || payload.clip_id);
+  const startMs = asMs(payload.startMs ?? payload.start_ms);
+  const endMs = asMs(payload.endMs ?? payload.end_ms);
+  if (!id) return { ok: false, status: 400, reason: "clip id is required." };
+  if (endMs <= startMs) return { ok: false, status: 400, reason: "Clip end_ms must be greater than start_ms." };
+
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${id}`);
+  params.set("status", "eq.active");
+  const result = await patchRows("video_clip_instances", params, { start_ms: startMs, end_ms: endMs });
+  if (!result.ok) return result;
+  const saved = result.payload?.[0];
+  if (!saved?.id) return { ok: false, status: 404, reason: "Clip could not be found." };
+  const [withRelations] = await attachClipRelations([saved], scope);
+  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations } };
+}
+
 async function archiveClip(payload, actor) {
   const scope = actorScope(actor);
   const id = normalizeUuid(payload.id || payload.clipId || payload.clip_id);
@@ -544,6 +564,8 @@ async function handleVideoAnalysisRequest(req, res, actor) {
         ? await updateMatchLink(body.match || body, actor)
         : action === "save-clip"
           ? await saveClip(body.clip || body, actor)
+          : action === "trim-clip"
+            ? await trimClip(body.clip || body, actor)
           : action === "archive-clip"
             ? await archiveClip(body, actor)
             : action === "save-search"

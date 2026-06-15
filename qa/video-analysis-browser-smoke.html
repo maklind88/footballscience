@@ -139,7 +139,36 @@
         if (action === "save-share-targets") {
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", shareTargets: body.targets || [] });
         }
-        if (action === "save-clip") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip: clips[0] });
+        if (action === "save-clip") {
+          const input = body.clip || {};
+          const clip = {
+            id: `clip-${clips.length + 1}`,
+            match_id: input.matchId || input.match_id || matches[0].id,
+            video_id: input.videoId || input.video_id || matches[0].latest_video.id,
+            start_ms: input.startMs ?? input.start_ms ?? 0,
+            end_ms: input.endMs ?? input.end_ms ?? 15000,
+            period: input.period || "1",
+            phase: input.phase || "In Possession",
+            sub_phase: input.subPhase || input.sub_phase || "Build Up",
+            team_principle_id: input.teamPrincipleId || input.team_principle_id || "create-free-player",
+            mini_game_principle_id: input.miniGamePrincipleId || input.mini_game_principle_id || "third-player",
+            outcome: input.outcome || "Neutral",
+            players: input.playerId ? [{ player_id: input.playerId, player_label: input.playerId, role: input.playerRole || "primary" }] : [],
+            tags: input.tags || [],
+            descriptors: input.descriptors || [],
+            notes: input.notes || [],
+          };
+          clips.push(clip);
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip });
+        }
+        if (action === "trim-clip") {
+          const input = body.clip || {};
+          const clip = clips.find((item) => item.id === input.id || item.id === input.clipId);
+          if (!clip) return Response.json({ ok: false, reason: "Clip not found." }, { status: 404 });
+          clip.start_ms = input.startMs ?? input.start_ms ?? clip.start_ms;
+          clip.end_ms = input.endMs ?? input.end_ms ?? clip.end_ms;
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip });
+        }
         if (action === "archive-clip") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip: clips[0] });
         if (action === "update-match-link") {
           const match = matches.find((item) => item.id === body.matchId) || matches[0];

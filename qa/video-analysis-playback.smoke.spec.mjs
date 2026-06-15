@@ -258,6 +258,33 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await page.locator('[data-video-analysis-timeline-lane="outcome"]').click();
   await expect(page.locator('[data-video-analysis-timeline-lane="outcome"]')).toHaveClass(/is-active/);
   await expect(page.locator(".video-analysis-lane__label").first()).toContainText(/Positive|Development|Neutral/);
+  await page.locator("[data-video-analysis-timeline-category]").first().click();
+  await expect(page.locator(".video-analysis-timeline-category-tray")).toContainText("1 clip selected");
+  await page.locator("[data-video-analysis-timeline-category-open]").click();
+  await expect(page.locator(".video-analysis-timeline-category-view")).toBeVisible();
+  await expect(page.locator(".video-analysis-timeline-category-view button")).toHaveCount(1);
+  const startTrimHandle = page.locator('[data-video-analysis-timeline-trim-edge="clip-1:start"]');
+  await expect(startTrimHandle).toBeVisible();
+  const startHandleBox = await startTrimHandle.boundingBox();
+  const trackBox = await page.locator("[data-video-analysis-timeline-track]").boundingBox();
+  expect(startHandleBox).toBeTruthy();
+  expect(trackBox).toBeTruthy();
+  await page.mouse.move(startHandleBox.x + startHandleBox.width / 2, startHandleBox.y + startHandleBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(trackBox.x + trackBox.width * 0.5, startHandleBox.y + startHandleBox.height / 2);
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate(() => (
+    (window.__videoAnalysisRequests || []).find((item) => item.action === "trim-clip")?.body?.clip || null
+  ))).toMatchObject({
+    id: "clip-1",
+    endMs: 18000,
+  });
+  const trimmedStartMs = await page.evaluate(() => (
+    (window.__videoAnalysisRequests || []).find((item) => item.action === "trim-clip")?.body?.clip?.startMs || 0
+  ));
+  expect(trimmedStartMs).toBeGreaterThan(8000);
+  expect(trimmedStartMs).toBeLessThan(10000);
+  await expect(page.locator(".video-analysis-clip-block").first()).toHaveAttribute("title", /0:00:0[89]/);
 
   await page.getByRole("button", { name: "Presentation", exact: true }).click();
   await expect(page.locator("[data-video-analysis-presentation-module]")).toBeVisible();
@@ -348,6 +375,26 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     miniGamePrincipleId: "fix-release",
     codingMode: "instant",
   });
+  await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:01:23");
+  await expect.poll(() => page.evaluate(() => {
+    const block = [...document.querySelectorAll(".video-analysis-clip-block")]
+      .find((item) => String(item.getAttribute("title") || "").includes("0:01:23"));
+    const playhead = document.querySelector(".video-analysis-playhead");
+    return {
+      blockNumber: block?.querySelector("strong")?.textContent || "",
+      blockLeft: block ? Number.parseFloat(block.style.left || "0") : null,
+      playheadLeft: playhead ? Number.parseFloat(playhead.style.left || "0") : null,
+    };
+  })).toMatchObject({
+    blockNumber: "2",
+  });
+  const alignment = await page.evaluate(() => {
+    const block = [...document.querySelectorAll(".video-analysis-clip-block")]
+      .find((item) => String(item.getAttribute("title") || "").includes("0:01:23"));
+    const playhead = document.querySelector(".video-analysis-playhead");
+    return Math.abs(Number.parseFloat(block?.style.left || "0") - Number.parseFloat(playhead?.style.left || "0"));
+  });
+  expect(alignment).toBeLessThan(0.02);
 
   await page.locator('[data-video-analysis-panel-mode="edit"]').click();
   await expect(page.locator('[data-video-analysis-button-ms-field="subPhase-build-up:defaultDurationMs"]')).toHaveValue("15");

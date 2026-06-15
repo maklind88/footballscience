@@ -35,6 +35,13 @@ export function createClipRepository(context = {}) {
         getAuthToken
       );
     },
+    trim(clip = {}) {
+      return requestJson(
+        buildVideoAnalysisApiUrl("trim-clip"),
+        { method: "PATCH", body: JSON.stringify({ action: "trim-clip", clip }) },
+        getAuthToken
+      );
+    },
     archive(id) {
       return requestJson(
         buildVideoAnalysisApiUrl("archive-clip"),

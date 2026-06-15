@@ -16,7 +16,7 @@ import { createPresentationRepository } from "./repositories/presentationReposit
 import { createVideoRepository } from "./repositories/videoRepository.js";
 import { buildClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
-import { buildCodingButtonAction, findTemplateButton } from "./services/codingTemplateService.js";
+import { buildCodingButtonAction, findTemplateButton, shouldIgnoreShortcutTarget } from "./services/codingTemplateService.js";
 import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.js";
 import { createLocalVideoReference, revokeLocalVideoReference } from "./services/localVideoBridgeService.js";
 import { createPlayableLocalCopy } from "./services/localPlaybackTranscodeService.js";
@@ -48,7 +48,7 @@ import {
   updatePresentationItem,
   updatePresentationSection,
 } from "./services/presentationService.js";
-import { trimClipDraft } from "./services/timelineService.js";
+import { buildTimelineLanes, normalizeTimelineLaneMode, trimClipDraft } from "./services/timelineService.js";
 import { describeVideoPlaybackError, getVideoCurrentMs, seekVideoToMs, toggleVideoPlayback } from "./services/videoPlaybackService.js";
 import { createTimelineScrubController } from "./timeline/timeline.interaction.js";
 import { findScheduleCandidate } from "./services/videoLibraryService.js";
@@ -111,6 +111,7 @@ function timelineController(context = {}) {
       getState: () => runtime?.store.getState() || {},
       getVideoElement: () => videoElement(runtime?.context || context),
       getWindow: () => runtime?.context?.win || context.win || window,
+      onClipTrimCommit: (payload) => commitClipTrim(payload, runtime?.context || context),
       updateState: (updater) => runtime?.store.update(updater),
     });
   }
@@ -894,6 +895,99 @@ function selectedClipFromPresentationSources(state = {}, clipId = "") {
     || { id: clipId };
 }
 
+function currentPlayheadMs(context = {}, state = {}) {
+  const video = videoElement(context);
+  if (video) return getVideoCurrentMs(video);
+  return Math.max(0, Math.round(Number(state.timeline?.playheadMs || state.draft?.startMs || 0)));
+}
+
+function findTimelineCategoryClips(state = {}, laneMode = "", label = "") {
+  const normalizedLaneMode = normalizeTimelineLaneMode(laneMode);
+  const lanes = buildTimelineLanes(Array.isArray(state.clips) ? state.clips : [], normalizedLaneMode);
+  return lanes.find((lane) => lane.label === label)?.clips || [];
+}
+
+function categoryPayloadFromButton(button = {}) {
+  const value = String(
+    button.dataset.videoAnalysisTimelineCategoryOpen
+      || button.dataset.videoAnalysisTimelineCategoryPlay
+      || button.dataset.videoAnalysisTimelineCategoryAddPresentation
+      || ""
+  );
+  const [valueMode, ...labelParts] = value.split(":");
+  return {
+    laneMode: button.dataset.videoAnalysisTimelineCategoryMode || valueMode || "",
+    label: button.dataset.videoAnalysisTimelineCategoryLabel || labelParts.join(":") || "",
+  };
+}
+
+function addClipsToPresentation(presentation = {}, sectionId = "", clips = []) {
+  return clips.reduce((current, clip) => addClipToPresentation(current, sectionId, clip), presentation || createDefaultPresentation());
+}
+
+function patchClipTimesInState(current = {}, clipId = "", startMs = 0, endMs = 100) {
+  const patchList = (clips = []) => clips.map((clip) => (
+    clip.id === clipId ? { ...clip, startMs, endMs, start_ms: startMs, end_ms: endMs } : clip
+  ));
+  return {
+    ...current,
+    clips: patchList(current.clips || []),
+    allClips: Array.isArray(current.allClips) ? patchList(current.allClips) : current.allClips,
+  };
+}
+
+async function commitClipTrim(payload = {}, context = {}) {
+  const run = ensureRuntime(context);
+  const clipId = payload.clipId || "";
+  if (!clipId) return false;
+  try {
+    const result = await run.clips.trim({ id: clipId, startMs: payload.startMs, endMs: payload.endMs });
+    const savedClip = normalizeClipInstance(result.clip || {});
+    const startMs = savedClip.startMs ?? payload.startMs;
+    const endMs = savedClip.endMs ?? payload.endMs;
+    run.store.update((current) => ({
+      ...patchClipTimesInState(current, clipId, startMs, endMs),
+      selectedClipId: clipId,
+      message: "Clip timing updated.",
+      error: "",
+    }));
+    return true;
+  } catch (error) {
+    run.store.update((current) => ({
+      ...patchClipTimesInState(current, clipId, payload.originalStartMs, payload.originalEndMs),
+      error: error.message || "Could not update clip timing.",
+    }));
+    return false;
+  }
+}
+
+function selectTimelineCategoryClip(context = {}, laneMode = "", label = "", direction = 0) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const clips = findTimelineCategoryClips(state, laneMode, label);
+  if (!clips.length) return false;
+  const selectedIndex = Math.max(0, clips.findIndex((clip) => clip.id === state.selectedClipId || clip.id === state.timeline?.selectedCategory?.activeClipId));
+  const nextIndex = Math.max(0, Math.min(clips.length - 1, selectedIndex + Number(direction || 0)));
+  const clip = clips[nextIndex] || clips[0];
+  const startMs = clip.startMs ?? clip.start_ms ?? 0;
+  seekVideoToMs(videoElement(context), startMs);
+  run.store.update((current) => ({
+    ...current,
+    selectedClipId: clip.id,
+    timeline: {
+      ...(current.timeline || {}),
+      playheadMs: Math.max(0, Math.round(Number(startMs || 0))),
+      selectedCategory: {
+        laneMode: normalizeTimelineLaneMode(laneMode),
+        label,
+        viewOpen: true,
+        activeClipId: clip.id,
+      },
+    },
+  }));
+  return true;
+}
+
 function presentationDropTarget(target) {
   const itemTarget = target?.closest?.("[data-video-analysis-presentation-drop-item]");
   if (itemTarget) {
@@ -1158,12 +1252,18 @@ async function saveDraftClip(context = {}, stateOverride = null) {
   try {
     const clip = buildClipPayload(state);
     run.store.setState({ status: "saving-clip", error: "" });
-    await run.clips.save(toApiClipPayload(clip));
+    const payload = await run.clips.save(toApiClipPayload(clip));
+    const savedClip = normalizeClipInstance(payload?.clip || clip);
     const nextDurationMs = Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
     run.store.update((current) => ({
       ...current,
       draft: { ...current.draft, startMs: clip.endMs, endMs: clip.endMs + nextDurationMs, tags: "", note: "" },
       codingSession: { ...(current.codingSession || {}), manualInMs: null, openTag: null },
+      selectedClipId: savedClip.id || current.selectedClipId,
+      timeline: {
+        ...(current.timeline || {}),
+        playheadMs: clip.startMs,
+      },
       message: "Clip saved.",
     }));
     await loadClips();
@@ -1237,12 +1337,16 @@ async function applyCodeButton(buttonId = "", context = {}) {
   const state = run.store.getState();
   const button = findTemplateButton(state.template, buttonId);
   if (!button) return false;
-  const currentMs = getVideoCurrentMs(videoElement(context));
+  const currentMs = currentPlayheadMs(context, state);
   const action = buildCodingButtonAction(state, button, currentMs);
   const nextState = {
     ...state,
     draft: action.nextDraft,
     codingSession: action.nextSession,
+    timeline: {
+      ...(state.timeline || {}),
+      playheadMs: currentMs,
+    },
     message: action.message,
     error: "",
   };
@@ -1457,15 +1561,117 @@ export function handleClick(event, context = {}) {
   if (seekButton) {
     const state = run.store.getState();
     const clip = selectedClipFromPresentationSources(state, seekButton.dataset.videoAnalysisSeek);
-    if (clip?.id) seekVideoToMs(videoElement(context), clip.startMs ?? clip.start_ms ?? 0);
+    const startMs = clip?.startMs ?? clip?.start_ms ?? 0;
+    if (clip?.id) seekVideoToMs(videoElement(context), startMs);
     run.store.update((current) => ({
       ...current,
       selectedClipId: clip?.id || "",
+      timeline: {
+        ...(current.timeline || {}),
+        playheadMs: Math.max(0, Math.round(Number(startMs || 0))),
+      },
       presentation: {
         ...(current.presentation || {}),
         selectedClipId: clip?.id || current.presentation?.selectedClipId || "",
       },
     }));
+    return true;
+  }
+  const categorySelectButton = target.closest("[data-video-analysis-timeline-category]");
+  if (categorySelectButton) {
+    const { laneMode, label } = categoryPayloadFromButton(categorySelectButton);
+    const clips = findTimelineCategoryClips(run.store.getState(), laneMode, label);
+    run.store.update((current) => ({
+      ...current,
+      selectedClipId: clips[0]?.id || current.selectedClipId || "",
+      timeline: {
+        ...(current.timeline || {}),
+        selectedCategory: {
+          laneMode: normalizeTimelineLaneMode(laneMode),
+          label,
+          viewOpen: false,
+          activeClipId: clips[0]?.id || "",
+        },
+      },
+    }));
+    return true;
+  }
+  const categoryStepButton = target.closest("[data-video-analysis-timeline-category-step]");
+  if (categoryStepButton) {
+    const { laneMode, label } = categoryPayloadFromButton(categoryStepButton);
+    return selectTimelineCategoryClip(context, laneMode, label, Number(categoryStepButton.dataset.videoAnalysisTimelineCategoryStep || 0));
+  }
+  const categoryPlayButton = target.closest("[data-video-analysis-timeline-category-play]");
+  if (categoryPlayButton) {
+    const { laneMode, label } = categoryPayloadFromButton(categoryPlayButton);
+    return selectTimelineCategoryClip(context, laneMode, label, 0);
+  }
+  const categoryOpenButton = target.closest("[data-video-analysis-timeline-category-open]");
+  if (categoryOpenButton) {
+    const { laneMode, label } = categoryPayloadFromButton(categoryOpenButton);
+    run.store.update((state) => {
+      const currentCategory = state.timeline?.selectedCategory || {};
+      const normalizedLaneMode = normalizeTimelineLaneMode(laneMode);
+      const isSame = currentCategory.laneMode === normalizedLaneMode && currentCategory.label === label;
+      return {
+        ...state,
+        timeline: {
+          ...(state.timeline || {}),
+          selectedCategory: {
+            laneMode: normalizedLaneMode,
+            label,
+            viewOpen: isSame ? !currentCategory.viewOpen : true,
+            activeClipId: currentCategory.activeClipId || state.selectedClipId || "",
+          },
+        },
+      };
+    });
+    return true;
+  }
+  const categoryAddSelectedButton = target.closest("[data-video-analysis-timeline-category-add-selected]");
+  if (categoryAddSelectedButton) {
+    const { laneMode, label } = categoryPayloadFromButton(categoryAddSelectedButton);
+    run.store.update((state) => {
+      const clips = findTimelineCategoryClips(state, laneMode, label);
+      const activeClipId = state.timeline?.selectedCategory?.activeClipId || state.selectedClipId || clips[0]?.id || "";
+      const clip = clips.find((item) => item.id === activeClipId) || clips[0];
+      const sectionId = state.presentation?.activeSectionId || state.presentation?.current?.sections?.[0]?.id || "";
+      const current = clip ? addClipToPresentation(state.presentation?.current || createDefaultPresentation(), sectionId, clip) : state.presentation?.current;
+      const item = presentationQueue(current).find((entry) => entry.clipId === clip?.id);
+      return {
+        ...state,
+        message: clip ? "Selected clip added to Presentation." : "No selected clip in this category.",
+        presentation: {
+          ...(state.presentation || {}),
+          current,
+          activeSectionId: sectionId,
+          selectedItemId: item?.id || state.presentation?.selectedItemId || "",
+          selectedClipId: clip?.id || state.presentation?.selectedClipId || "",
+        },
+      };
+    });
+    return true;
+  }
+  const categoryAddButton = target.closest("[data-video-analysis-timeline-category-add-presentation]");
+  if (categoryAddButton) {
+    const { laneMode, label } = categoryPayloadFromButton(categoryAddButton);
+    run.store.update((state) => {
+      const clips = findTimelineCategoryClips(state, laneMode, label);
+      const sectionId = state.presentation?.activeSectionId || state.presentation?.current?.sections?.[0]?.id || "";
+      const current = addClipsToPresentation(state.presentation?.current || createDefaultPresentation(), sectionId, clips);
+      const firstItem = presentationQueue(current).find((item) => item.clipId === clips[0]?.id);
+      return {
+        ...state,
+        message: clips.length ? `${clips.length} clips added to Presentation.` : "No clips in this category.",
+        presentation: {
+          ...(state.presentation || {}),
+          current,
+          activeSectionId: sectionId,
+          selectedItemId: firstItem?.id || state.presentation?.selectedItemId || "",
+          selectedClipId: clips[0]?.id || state.presentation?.selectedClipId || "",
+        },
+      };
+    });
     return true;
   }
   const presentationAddButton = target.closest("[data-video-analysis-presentation-add]");
@@ -2037,6 +2243,38 @@ export function handleKeydown(event, context = {}) {
   const run = ensureRuntime(context);
   const root = getRoot(context);
   const state = run.store.getState();
+  const category = state.timeline?.selectedCategory || {};
+  if (
+    state.activeAnalysisRoomTab === "fs-player"
+    && category.viewOpen
+    && category.laneMode
+    && category.label
+    && !shouldIgnoreShortcutTarget(event.target)
+    && !event.metaKey
+    && !event.ctrlKey
+    && !event.altKey
+    && !event.shiftKey
+  ) {
+    if (["ArrowDown", "ArrowRight"].includes(event.key)) {
+      event.preventDefault?.();
+      return selectTimelineCategoryClip(context, category.laneMode, category.label, 1);
+    }
+    if (["ArrowUp", "ArrowLeft"].includes(event.key)) {
+      event.preventDefault?.();
+      return selectTimelineCategoryClip(context, category.laneMode, category.label, -1);
+    }
+    if (event.key === "Escape") {
+      event.preventDefault?.();
+      run.store.update((current) => ({
+        ...current,
+        timeline: {
+          ...(current.timeline || {}),
+          selectedCategory: { ...(current.timeline?.selectedCategory || {}), viewOpen: false },
+        },
+      }));
+      return true;
+    }
+  }
   if (state.presentation?.mode === "presenter") {
     if (["ArrowRight", " "].includes(event.key)) {
       event.preventDefault?.();

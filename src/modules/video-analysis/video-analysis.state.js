@@ -78,6 +78,11 @@ export function createInitialVideoAnalysisState(context = {}) {
       zoom: 1,
       laneMode: "phase",
       playheadMs: 0,
+      selectedCategory: {
+        laneMode: "",
+        label: "",
+        viewOpen: false,
+      },
     },
     matrix: {
       mode: "phase-outcome",

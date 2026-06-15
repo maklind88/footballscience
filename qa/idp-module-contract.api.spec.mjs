@@ -129,13 +129,31 @@ test("idp adapter derives read-only fallback from Squad state", () => {
         idp: { primaryFocus: "Scan before receive", nextAction: "Add evidence" },
       },
       { id: "p2", name: "Hidden Player", countsInSquad: false },
+      {
+        id: "p3",
+        name: "Injured Player",
+        position: "FW",
+        primaryRole: "ST",
+        idp: { status: "none" },
+      },
     ],
   });
 
-  expect(dashboard).toHaveLength(1);
+  expect(dashboard).toHaveLength(2);
   expect(dashboard[0].profile).toMatchObject({ playerId: "p1", playerName: "Player One" });
   expect(dashboard[0].focus.title).toBe("Scan before receive");
   expect(dashboard[0].nextAction).toBe("Add evidence");
+  expect(dashboard[1]).toMatchObject({
+    profile: { playerId: "p3", playerName: "Injured Player", status: "none" },
+    focus: null,
+    nextAction: "IDP inactive",
+    overallStatus: "No Active IDP",
+  });
+  expect(buildLegacyPlayerDetail({ id: "p3", name: "Injured Player", idp: { status: "none" } })).toMatchObject({
+    profile: { playerId: "p3", status: "none" },
+    focuses: [],
+    nextActions: [],
+  });
 });
 
 test("idp assignment refresh preserves the full squad roster and player identity", async () => {
@@ -216,6 +234,73 @@ test("idp assignment refresh preserves the full squad roster and player identity
     position: "Goalkeeper",
   });
   expect(state.playerDetail.focuses[0].title).toBe("Distribution under pressure");
+});
+
+test("idp profile shows Squad-owned inactive IDP status", async () => {
+  const injuredPlayer = {
+    id: "p-injured",
+    name: "Long Term Injury",
+    position: "Forward",
+    primaryRole: "ST",
+    status: "injured",
+    idp: { status: "none" },
+  };
+  const store = createIdpStore();
+  const actions = createIdpActions({
+    store,
+    api: {
+      loadDashboard: async () => ({
+        schema: "footballscience-idp-v1",
+        players: [
+          {
+            profile: { id: "idp-profile-injured", player_id: "p-injured", status: "active" },
+            focus: { id: "server-focus", player_id: "p-injured", title: "Old active focus", status: "Active" },
+            nextAction: "Add evidence",
+            overallStatus: "On Track",
+          },
+        ],
+      }),
+      loadPlayer: async () => ({
+        schema: "footballscience-idp-v1",
+        profile: { id: "idp-profile-injured", player_id: "p-injured", status: "active" },
+        focuses: [{ id: "server-focus", player_id: "p-injured", title: "Old active focus", status: "Active" }],
+        clipBank: [],
+        evidence: [],
+        reviews: [],
+        nextActions: [{ player_id: "p-injured", title: "Add evidence", status: "open" }],
+        milestones: [],
+        ownership: [],
+      }),
+    },
+    context: { getPlayerProfilesState: () => ({ players: [injuredPlayer] }) },
+  });
+
+  await actions.loadDashboard();
+  await actions.selectPlayer("p-injured");
+
+  const state = store.getState();
+  expect(state.dashboardPlayers[0]).toMatchObject({
+    profile: { playerId: "p-injured", playerName: "Long Term Injury", status: "none" },
+    focus: null,
+    nextAction: "IDP inactive",
+    overallStatus: "No Active IDP",
+  });
+  expect(state.playerDetail).toMatchObject({
+    profile: { playerId: "p-injured", playerName: "Long Term Injury", status: "none" },
+    focuses: [],
+    nextActions: [],
+  });
+
+  const html = renderIdpWorkspace(
+    { ...state, ui: { ...state.ui, selectedPlayerId: "p-injured" } },
+    { canEdit: true, users: [] }
+  );
+  expect(html).toContain("No Active IDP");
+  expect(html).toContain("IDP is inactive from Squad Room");
+  expect(html).toContain("No active IDP");
+  expect(html).toContain("No IDP action required");
+  expect(html).not.toContain("Old active focus");
+  expect(html).not.toContain("data-idp-action=\"focus\"");
 });
 
 test("fs player syncs saved player clips to idp clip bank through the server boundary", () => {

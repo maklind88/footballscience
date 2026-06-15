@@ -19,10 +19,24 @@ function numberOrFallback(value, fallback = 0) {
   return Number.isFinite(number) ? number : Number(fallback || 0);
 }
 
+function hasOwn(source = {}, keys = []) {
+  return keys.some((key) => Object.prototype.hasOwnProperty.call(source || {}, key));
+}
+
+function isInactiveIdpProfile(profile = {}) {
+  return normalizeText(profile.status, 40).toLowerCase() === "none";
+}
+
 function mergeProfileWithFallback(profile = {}, fallbackProfile = {}) {
   const fallback = normalizeIdpProfile(fallbackProfile || {});
   if (!hasSource(profile)) return fallback;
   const normalized = normalizeIdpProfile(profile);
+  const sourceHasStatus = hasOwn(profile, ["status"]);
+  const status = fallback.status === "none"
+    ? fallback.status
+    : sourceHasStatus
+      ? normalized.status || fallback.status
+      : fallback.status || normalized.status;
   return {
     ...fallback,
     ...normalized,
@@ -32,6 +46,7 @@ function mergeProfileWithFallback(profile = {}, fallbackProfile = {}) {
     position: normalized.position || fallback.position,
     role: normalized.role || fallback.role,
     ownerId: normalized.ownerId || fallback.ownerId,
+    status,
     lastReviewOn: normalized.lastReviewOn || fallback.lastReviewOn,
     nextReviewOn: normalized.nextReviewOn || fallback.nextReviewOn,
     strengths: normalized.strengths.length ? normalized.strengths : fallback.strengths,
@@ -64,14 +79,15 @@ function dashboardEntryPlayerId(entry = {}) {
 
 function normalizeDashboardEntry(entry = {}, fallbackEntry = {}) {
   const profile = mergeProfileWithFallback(entry.profile || {}, fallbackEntry.profile || {});
-  const focus = mergeFocusWithFallback(entry.focus || null, fallbackEntry.focus || null, profile.playerId);
+  const inactive = isInactiveIdpProfile(profile);
+  const focus = inactive ? null : mergeFocusWithFallback(entry.focus || null, fallbackEntry.focus || null, profile.playerId);
   return {
     profile,
     focus,
     evidenceCount: numberOrFallback(entry.evidenceCount, fallbackEntry.evidenceCount),
     newClipCount: numberOrFallback(entry.newClipCount, fallbackEntry.newClipCount),
-    nextAction: normalizeText(entry.nextAction, 180) || normalizeText(fallbackEntry.nextAction, 180),
-    overallStatus: normalizeText(entry.overallStatus, 80) || normalizeText(fallbackEntry.overallStatus || "On Track", 80),
+    nextAction: inactive ? "IDP inactive" : normalizeText(entry.nextAction, 180) || normalizeText(fallbackEntry.nextAction, 180),
+    overallStatus: inactive ? "No Active IDP" : normalizeText(entry.overallStatus, 80) || normalizeText(fallbackEntry.overallStatus || "On Track", 80),
   };
 }
 
@@ -103,8 +119,11 @@ function normalizeDashboardPayload(payload = {}, fallbackPlayers = []) {
 function mergePlayerPayloadWithFallback(detail = {}, fallbackDetail = null) {
   if (!fallbackDetail) return detail;
   const profile = mergeProfileWithFallback(detail.profile || {}, fallbackDetail.profile || {});
+  const inactive = isInactiveIdpProfile(profile);
   const fallbackFocus = fallbackDetail.focuses?.[0] || null;
-  const focuses = detail.focuses.length
+  const focuses = inactive
+    ? []
+    : detail.focuses.length
     ? detail.focuses.map((focus) => mergeFocusWithFallback(focus, fallbackFocus, profile.playerId)).filter(Boolean)
     : fallbackDetail.focuses || [];
   return {
@@ -113,7 +132,7 @@ function mergePlayerPayloadWithFallback(detail = {}, fallbackDetail = null) {
     clipBank: detail.clipBank.length ? detail.clipBank : fallbackDetail.clipBank || [],
     evidence: detail.evidence.length ? detail.evidence : fallbackDetail.evidence || [],
     reviews: detail.reviews.length ? detail.reviews : fallbackDetail.reviews || [],
-    nextActions: detail.nextActions.length ? detail.nextActions : fallbackDetail.nextActions || [],
+    nextActions: inactive ? [] : detail.nextActions.length ? detail.nextActions : fallbackDetail.nextActions || [],
     milestones: detail.milestones.length ? detail.milestones : fallbackDetail.milestones || [],
     ownership: Array.isArray(detail.ownership) ? detail.ownership : fallbackDetail.ownership || [],
   };

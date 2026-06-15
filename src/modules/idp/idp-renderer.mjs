@@ -144,7 +144,17 @@ function statusTone(status = "") {
   return "neutral";
 }
 
+function isInactiveIdpProfile(profile = {}) {
+  return normalizeText(profile.status, "").toLowerCase() === "none";
+}
+
+function idpStatusLabel(profile = {}, focus = null) {
+  if (isInactiveIdpProfile(profile)) return "No Active IDP";
+  return focus?.status || "No Active Focus";
+}
+
 function activeFocus(detail = {}) {
+  if (isInactiveIdpProfile(detail.profile || {})) return null;
   return (detail.focuses || []).find((focus) => ["Active", "Needs Evidence", "Ready For Review", "Reviewed"].includes(focus.status))
     || detail.focuses?.[0]
     || null;
@@ -234,6 +244,7 @@ function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state), 
     const active = selectedPlayerId === profile.playerId;
     const playerName = profile.playerName || "Player";
     const ownerId = primaryOwnerId(profile, focus);
+    const idpInactive = isInactiveIdpProfile(profile);
     return `
       <button type="button" class="idp-overview-row${active ? " is-active" : ""}" data-idp-player="${escapeHtml(profile.playerId)}">
         <span class="idp-overview-player">
@@ -244,8 +255,8 @@ function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state), 
           </span>
         </span>
         <span class="idp-overview-focus">
-          <strong>${escapeHtml(focus.title || "No active focus")}</strong>
-          <small>${escapeHtml(focus.category || "-")}</small>
+          <strong>${escapeHtml(idpInactive ? "No active IDP" : focus.title || "No active focus")}</strong>
+          <small>${escapeHtml(idpInactive ? "Inactive" : focus.category || "-")}</small>
         </span>
         <span><span class="idp-status-pill is-${statusTone(entry.overallStatus)}">${escapeHtml(coachLabel(entry.overallStatus))}</span></span>
         <span class="idp-overview-metric"><strong>${escapeHtml(String(entry.evidenceCount || 0))}</strong><small>Observations</small></span>
@@ -477,7 +488,7 @@ function renderOverviewBoard(state = {}, ui = defaultUiState, options = {}) {
       </div>
       <div class="idp-toolbar">
         <select data-idp-filter="status" aria-label="Filter by status">
-          ${optionList(["All", "On Track", "Needs Evidence", "Review Due", "No Active Focus", "New Clips To Review"], ui.statusFilter, coachLabel)}
+          ${optionList(["All", "On Track", "Needs Evidence", "Review Due", "No Active Focus", "No Active IDP", "New Clips To Review"], ui.statusFilter, coachLabel)}
         </select>
         <select data-idp-filter="category" aria-label="Filter by category">
           ${optionList(["All", ...idpDevelopmentCategories], ui.categoryFilter)}
@@ -548,6 +559,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
   }
   const profile = detail.profile;
   const focus = activeFocus(detail);
+  const idpInactive = isInactiveIdpProfile(profile);
   const focusId = focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "";
   const nextAction = detail.nextActions?.find((action) => action.status === "open") || detail.nextActions?.[0] || {};
   return `
@@ -563,20 +575,21 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
           </div>
         </div>
         <div class="idp-profile-actions">
-          <span class="idp-status-pill is-${statusTone(focus?.status)}">${escapeHtml(coachLabel(focus?.status || "No Active Focus"))}</span>
-          ${renderActionRail(canEdit, focusId)}
+          <span class="idp-status-pill is-${statusTone(idpStatusLabel(profile, focus))}">${escapeHtml(coachLabel(idpStatusLabel(profile, focus)))}</span>
+          ${renderActionRail(canEdit && !idpInactive, focusId)}
         </div>
       </header>
+      ${idpInactive ? `<div class="idp-notice is-warning">IDP is inactive from Squad Room. Historical observations, clips and ownership remain visible here.</div>` : ""}
       <section class="idp-profile-core">
         <article class="idp-panel idp-primary-panel idp-focus-panel">
           <p>Current Focus</p>
-          <h3>${escapeHtml(focus?.title || "Create current focus")}</h3>
-          <div class="idp-meta-line">${escapeHtml([focus?.category, focus?.linkedPhase, focus?.linkedSubPhase].filter(Boolean).join(" / ") || "Tactical")}</div>
+          <h3>${escapeHtml(idpInactive ? "No active IDP" : focus?.title || "Create current focus")}</h3>
+          <div class="idp-meta-line">${escapeHtml(idpInactive ? "Inactive in Squad Room" : [focus?.category, focus?.linkedPhase, focus?.linkedSubPhase].filter(Boolean).join(" / ") || "Tactical")}</div>
         </article>
         <article class="idp-panel idp-next-panel">
           <p>Next Action</p>
-          <h3>${escapeHtml(coachLabel(nextAction.title || "Add evidence"))}</h3>
-          <div class="idp-meta-line">${escapeHtml(formatDate(nextAction.dueOn || focus?.reviewDate, "No date set"))}</div>
+          <h3>${escapeHtml(coachLabel(idpInactive ? "No IDP action required" : nextAction.title || "Add evidence"))}</h3>
+          <div class="idp-meta-line">${escapeHtml(idpInactive ? "Paused" : formatDate(nextAction.dueOn || focus?.reviewDate, "No date set"))}</div>
         </article>
         <article class="idp-panel idp-stat-panel">
           <p>Observations</p>
@@ -604,7 +617,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
         </article>
         ${renderOwnershipPanel(detail, focus, canEdit, options)}
       </section>
-      ${renderActionOverlay(state, focus, canEdit, options)}
+      ${renderActionOverlay(state, focus, canEdit && !idpInactive, options)}
     </section>
   `;
 }

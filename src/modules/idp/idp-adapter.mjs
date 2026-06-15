@@ -13,7 +13,7 @@ function asPlayerList(playerProfilesState = {}) {
 }
 
 function legacyStatus(idp = {}) {
-  if (idp.status === "none") return "No Active Focus";
+  if (idp.status === "none") return "No Active IDP";
   if (idp.status === "review") return "Review Due";
   if (!normalizeText(idp.primaryFocus)) return "No Active Focus";
   return idp.nextAction ? "On Track" : "Needs Evidence";
@@ -25,6 +25,7 @@ export function buildIdpDashboardFromSquadState(playerProfilesState = {}) {
     .map((player) => {
       const playerId = normalizeText(player.id || player.playerId || player.profileId, 160);
       const idp = player.idp || {};
+      const idpInactive = idp.status === "none";
       const profile = normalizeIdpProfile({
         id: `legacy-profile-${playerId}`,
         playerId,
@@ -35,7 +36,7 @@ export function buildIdpDashboardFromSquadState(playerProfilesState = {}) {
         reviewDate: idp.reviewDate,
         strengths: idp.strengths ? String(idp.strengths).split(",") : [],
       });
-      const focusTitle = normalizeText(idp.primaryFocus || "Create current focus", 180);
+      const focusTitle = idpInactive ? "" : normalizeText(idp.primaryFocus || "Create current focus", 180);
       const focus = normalizeIdpFocus({
         id: `legacy-focus-${playerId}`,
         playerId,
@@ -50,7 +51,7 @@ export function buildIdpDashboardFromSquadState(playerProfilesState = {}) {
         focus: focusTitle ? focus : null,
         evidenceCount: 0,
         newClipCount: 0,
-        nextAction: normalizeText(idp.nextAction || (focusTitle ? "Add evidence" : "Create next focus"), 180),
+        nextAction: normalizeText(idpInactive ? "IDP inactive" : idp.nextAction || (focusTitle ? "Add evidence" : "Create next focus"), 180),
         overallStatus: legacyStatus(idp),
       };
     });
@@ -59,6 +60,7 @@ export function buildIdpDashboardFromSquadState(playerProfilesState = {}) {
 export function buildLegacyPlayerDetail(player = {}) {
   const playerId = normalizeText(player.id || player.playerId || player.profileId, 160);
   const idp = player.idp || {};
+  const idpInactive = idp.status === "none";
   const profile = normalizeIdpProfile({
     id: `legacy-profile-${playerId}`,
     playerId,
@@ -69,7 +71,7 @@ export function buildLegacyPlayerDetail(player = {}) {
     reviewDate: idp.reviewDate,
     strengths: idp.strengths ? String(idp.strengths).split(",") : [],
   });
-  const focus = normalizeIdpFocus({
+  const focus = idpInactive ? null : normalizeIdpFocus({
     id: `legacy-focus-${playerId}`,
     playerId,
     title: idp.primaryFocus || "Create current focus",
@@ -79,11 +81,11 @@ export function buildLegacyPlayerDetail(player = {}) {
   });
   return {
     profile,
-    focuses: [focus],
+    focuses: focus ? [focus] : [],
     clipBank: [],
     evidence: [],
     reviews: [],
-    nextActions: [normalizeIdpNextAction({ playerId, title: idp.nextAction || "Add evidence" })],
+    nextActions: idpInactive ? [] : [normalizeIdpNextAction({ playerId, title: idp.nextAction || "Add evidence" })],
     milestones: [normalizeIdpMilestone({ playerId, title: "IDP Started", occurredOn: player.createdAt })],
     ownership: [],
   };

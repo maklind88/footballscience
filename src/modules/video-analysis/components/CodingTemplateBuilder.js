@@ -90,6 +90,7 @@ function renderDescriptor(group = {}, draft = {}) {
 
 export function renderCodingTemplateBuilder(state = {}) {
   const template = state.template || {};
+  const editing = state.codingSession?.panelMode === "edit";
   const groups = new Map();
   for (const item of template.buttons || []) {
     const group = item.group || item.type;
@@ -101,11 +102,19 @@ export function renderCodingTemplateBuilder(state = {}) {
       <div class="video-analysis-panel-header">
         <div>
           <p class="video-analysis-kicker">Tag Panel</p>
-          <h3>${escapeHtml(template.title || "Football Science Coding")}</h3>
+          ${editing ? `
+            <label class="video-analysis-template-title-field">
+              <span>Panel name</span>
+              <input type="text" data-video-analysis-template-field="title" value="${escapeHtml(template.title || "Football Science Tag Panel")}">
+            </label>
+          ` : `<h3>${escapeHtml(template.title || "Football Science Coding")}</h3>`}
         </div>
-        <div class="video-analysis-mode-toggle" role="group" aria-label="Tag panel mode">
-          <button type="button" class="${state.codingSession?.panelMode !== "edit" ? "is-active" : ""}" data-video-analysis-panel-mode="use">Use</button>
-          <button type="button" class="${state.codingSession?.panelMode === "edit" ? "is-active" : ""}" data-video-analysis-panel-mode="edit">Edit</button>
+        <div class="video-analysis-template-actions">
+          <div class="video-analysis-mode-toggle" role="group" aria-label="Tag panel mode">
+            <button type="button" class="${!editing ? "is-active" : ""}" data-video-analysis-panel-mode="use">Use</button>
+            <button type="button" class="${editing ? "is-active" : ""}" data-video-analysis-panel-mode="edit">Edit</button>
+          </div>
+          ${editing ? `<button type="button" class="video-analysis-template-save" data-video-analysis-save-template>Save panel</button>` : ""}
         </div>
       </div>
       <div class="video-analysis-template-scroll">

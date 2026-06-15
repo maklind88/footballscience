@@ -21,6 +21,7 @@ const {
   selectRows,
 } = require("./video-analysis-database-core.js");
 const { listMatches, normalizeMetadata, normalizeVideoEventType, updateMatchLink } = require("./video-analysis-library-database.js");
+const { listCodingTemplates, saveCodingTemplate } = require("./video-analysis-coding-template-database.js");
 const { upsertClipBankItem } = require("./idp-database.js");
 const { saveReviewSession } = require("./video-analysis-review-database.js");
 
@@ -488,6 +489,8 @@ async function handleVideoAnalysisRequest(req, res, actor) {
         ? await listMatches(query, actor)
         : action === "saved-searches"
           ? await listSavedSearches(query, actor)
+          : action === "coding-templates"
+            ? await listCodingTemplates(query, actor)
           : await listClips(query, actor);
     return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
   }
@@ -506,7 +509,9 @@ async function handleVideoAnalysisRequest(req, res, actor) {
               ? await saveSearch(body.search || body, actor)
               : action === "save-review-session"
                 ? await saveReviewSession(body.reviewSession || body, actor)
-                : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
+                : action === "save-coding-template"
+                  ? await saveCodingTemplate(body.template || body, actor)
+                  : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }
 
@@ -516,8 +521,10 @@ module.exports = {
   buildClipSearchParams,
   containsForbiddenVideoPayload,
   handleVideoAnalysisRequest,
+  listCodingTemplates,
   normalizeClipPayload,
   normalizeOutcome,
   rejectForbiddenPayload,
+  saveCodingTemplate,
   syncClipPlayersToIdp,
 };

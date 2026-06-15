@@ -44,6 +44,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/services/keyboardShortcutService.js",
     "src/modules/video-analysis/repositories/videoRepository.js",
     "src/modules/video-analysis/repositories/clipRepository.js",
+    "src/modules/video-analysis/repositories/codingTemplateRepository.js",
     "src/modules/video-analysis/repositories/playlistRepository.js",
     "src/modules/video-analysis/domain/clipInstance.model.js",
     "src/modules/video-analysis/domain/codingSchema.model.js",
@@ -115,11 +116,14 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(shell).not.toContain("renderCodingPanel");
   expect(templateBuilder).toContain("data-video-analysis-code-button");
   expect(templateBuilder).toContain("data-video-analysis-panel-mode");
+  expect(templateBuilder).toContain("data-video-analysis-save-template");
+  expect(templateBuilder).toContain("data-video-analysis-template-field");
   expect(templateBuilder).toContain("data-video-analysis-button-ms-field");
   expect(templateBuilder).toContain("data-video-analysis-descriptor-button");
   expect(codingTemplateService).toContain("buildCodingButtonAction");
   expect(codingTemplateService).toContain('defaultButtonBehavior = "create_tag"');
   expect(codingTemplateService).toContain("defaultClipDurationMs = 15000");
+  expect(codingTemplateService).toContain("activeButtonDatabaseId");
   expect(timelineWrapper).toContain("../timeline/index.js");
   expect(timeline).toContain("data-video-analysis-timeline-module");
   expect(timeline).toContain("data-video-analysis-timeline-lane");
@@ -165,11 +169,34 @@ test("coding tag panel creates 15 second button-owned clip actions", async () =>
   expect(button.buttonBehavior).toBe("create_tag");
   expect(button.defaultDurationMs).toBe(15000);
   expect(button.targetField).toBe("subPhase");
+  expect(button.databaseId).toBe("");
   expect(action.shouldCreateClip).toBe(true);
   expect(action.nextDraft.startMs).toBe(831000);
   expect(action.nextDraft.endMs).toBe(846000);
   expect(action.nextDraft.miniGamePrincipleId).toBe("fix-release");
   expect(action.nextSession.mode).toBe("instant");
+});
+
+test("coding template persistence stays behind repositories and API actions", () => {
+  const repository = read("src/modules/video-analysis/repositories/codingTemplateRepository.js");
+  const shell = read("src/modules/video-analysis/index.js");
+  const api = read("api/_lib/video-analysis-database.js");
+  const templateApi = read("api/_lib/video-analysis-coding-template-database.js");
+
+  expect(repository).toContain("coding-templates");
+  expect(repository).toContain("save-coding-template");
+  expect(repository).toContain("buildVideoAnalysisApiUrl");
+  expect(shell).toContain("createCodingTemplateRepository");
+  expect(shell).toContain("loadCodingTemplates");
+  expect(shell).toContain("saveCodingTemplate");
+  expect(api).toContain("listCodingTemplates");
+  expect(api).toContain("saveCodingTemplate");
+  expect(templateApi).toContain("normalizeCodingTemplatePayload");
+  expect(templateApi).toContain("rejectForbiddenPayload(payload)");
+  expect(templateApi).toContain("video_coding_templates");
+  expect(templateApi).toContain("video_coding_buttons");
+  expect(api).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
+  expect(templateApi).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
 });
 
 test("analysis room tabs use icons without status labels", () => {

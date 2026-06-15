@@ -29,6 +29,7 @@ function slug(value = "") {
 function button(id, type, label, value, hotkey = "", group = type, options = {}) {
   return {
     id,
+    databaseId: options.databaseId || "",
     type,
     buttonType: options.buttonType || buttonTypeByField[type] || type,
     label,
@@ -122,6 +123,7 @@ export function buildCodingButtonAction(state = {}, button = {}, playheadMs = 0)
   const nextSession = {
     ...(state.codingSession || {}),
     activeButtonId: button.id,
+    activeButtonDatabaseId: button.databaseId || "",
     mode: button.createsClip === false ? state.codingSession?.mode || "instant" : "instant",
   };
 

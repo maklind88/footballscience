@@ -9,6 +9,7 @@ import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderVideoPlayer } from "./components/VideoPlayer.js";
 import { escapeHtml } from "./components/renderHelpers.js";
 import { normalizeClipInstance } from "./domain/clipInstance.model.js";
+import { createCodingTemplateRepository } from "./repositories/codingTemplateRepository.js";
 import { createClipRepository } from "./repositories/clipRepository.js";
 import { createPlaylistRepository } from "./repositories/playlistRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
@@ -49,6 +50,7 @@ function createRuntime(context = {}) {
   return {
     context,
     store,
+    templates: createCodingTemplateRepository(context),
     clips: createClipRepository(context),
     playlists: createPlaylistRepository(context),
     videos: createVideoRepository(context),
@@ -466,6 +468,7 @@ function paint(root, state) {
   const focusedReviewNote = root.querySelector("[data-video-analysis-review-note]:focus")?.dataset.videoAnalysisReviewNote || "";
   const focusedButtonField = root.querySelector("[data-video-analysis-button-field]:focus")?.dataset.videoAnalysisButtonField || "";
   const focusedButtonMsField = root.querySelector("[data-video-analysis-button-ms-field]:focus")?.dataset.videoAnalysisButtonMsField || "";
+  const focusedTemplateField = root.querySelector("[data-video-analysis-template-field]:focus")?.dataset.videoAnalysisTemplateField || "";
   const selectionStart = root.ownerDocument?.activeElement?.selectionStart;
   const visibleClips = filterClipsForMatrix(
     state.clips || [],
@@ -518,7 +521,9 @@ function paint(root, state) {
           ? root.querySelector(`[data-video-analysis-button-field="${focusedButtonField}"]`)
           : focusedButtonMsField
             ? root.querySelector(`[data-video-analysis-button-ms-field="${focusedButtonMsField}"]`)
-        : null;
+            : focusedTemplateField
+              ? root.querySelector(`[data-video-analysis-template-field="${focusedTemplateField}"]`)
+              : null;
   if (nextFocus) {
     nextFocus.focus();
     if (Number.isFinite(selectionStart) && typeof nextFocus.setSelectionRange === "function") {
@@ -608,11 +613,67 @@ async function loadSavedSearches() {
   }
 }
 
+function codingSessionForTemplate(template = {}, currentSession = {}) {
+  return {
+    ...currentSession,
+    mode: template.defaultMode || currentSession.mode || "instant",
+    defaultClipDurationMs: Number(template.defaultClipDurationMs || currentSession.defaultClipDurationMs || 15000),
+    preRollMs: Number(template.preRollMs || 0),
+    postRollMs: Number(template.postRollMs || template.defaultClipDurationMs || currentSession.postRollMs || 15000),
+  };
+}
+
+async function loadCodingTemplates(options = {}) {
+  const run = runtime;
+  if (!run) return;
+  if (!shouldLoadMetadata(run.context, run.store.getState())) return;
+  try {
+    const payload = await run.templates.list(20);
+    const template = Array.isArray(payload.templates) ? payload.templates[0] : null;
+    if (!template?.buttons?.length) return;
+    run.store.update((current) => ({
+      ...current,
+      template,
+      codingSession: codingSessionForTemplate(template, current.codingSession || {}),
+      message: options.silent ? current.message : "Tag panel loaded.",
+      error: options.silent ? current.error : "",
+    }));
+  } catch {
+    if (!options.silent) run.store.setState({ error: "Could not load tag panel." });
+  }
+}
+
+async function saveCodingTemplate(context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  try {
+    run.store.setState({ status: "saving-template", message: "Saving tag panel.", error: "" });
+    const payload = await run.templates.save(state.template);
+    const template = payload.template || state.template;
+    run.store.update((current) => ({
+      ...current,
+      status: "ready",
+      template,
+      codingSession: {
+        ...codingSessionForTemplate(template, current.codingSession || {}),
+        panelMode: current.codingSession?.panelMode || "edit",
+      },
+      message: "Tag panel saved.",
+      error: "",
+    }));
+    return true;
+  } catch (error) {
+    run.store.setState({ status: "error", message: "", error: error.message || "Could not save tag panel." });
+    return false;
+  }
+}
+
 async function initialize(context = {}) {
   const run = ensureRuntime(context);
   run.store.setState({ status: "loading", error: "", ...browserFileAccessCapabilities(context.win || window) });
   try {
     await libraryController().loadLibrary();
+    await loadCodingTemplates({ silent: true });
     if (run.store.getState().view !== "library") await loadClips();
     await loadSavedSearches();
     if (run.store.getState().match?.id || run.store.getState().video?.id) {
@@ -953,6 +1014,10 @@ export function handleClick(event, context = {}) {
     }));
     return true;
   }
+  if (target.closest("[data-video-analysis-save-template]")) {
+    saveCodingTemplate(context);
+    return true;
+  }
   const codeButton = target.closest("[data-video-analysis-code-button]");
   if (codeButton) {
     applyCodeButton(codeButton.dataset.videoAnalysisCodeButton, context);
@@ -1123,6 +1188,15 @@ export function handleInput(event, context = {}) {
   if (draftField) {
     const key = draftField.dataset.videoAnalysisDraft;
     run.store.update((state) => ({ ...state, draft: { ...state.draft, [key]: draftField.value } }));
+    return true;
+  }
+  const templateField = target.closest("[data-video-analysis-template-field]");
+  if (templateField) {
+    const key = templateField.dataset.videoAnalysisTemplateField;
+    run.store.update((state) => ({
+      ...state,
+      template: { ...(state.template || {}), [key]: templateField.value },
+    }));
     return true;
   }
   const buttonField = target.closest("[data-video-analysis-button-field]");

@@ -1273,7 +1273,16 @@
   flex-wrap: wrap;
 }
 
+.video-analysis-template-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .video-analysis-mode-toggle button,
+.video-analysis-template-save,
 .video-analysis-saved-searches button,
 .video-analysis-presentation .video-analysis-panel-header button {
   min-height: 30px;
@@ -1285,6 +1294,40 @@
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+}
+
+.video-analysis-template-save {
+  border-color: #143522;
+  color: #ffffff;
+  background: #143522;
+  font-weight: 800;
+}
+
+.video-analysis-template-title-field {
+  display: grid;
+  gap: 4px;
+  min-width: min(320px, 100%);
+}
+
+.video-analysis-template-title-field span {
+  color: #5b665f;
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.video-analysis-template-title-field input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #cbd5cf;
+  border-radius: 7px;
+  padding: 6px 8px;
+  color: #101814;
+  background: #ffffff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  box-sizing: border-box;
 }
 
 .video-analysis-presentation-actions {

@@ -28,7 +28,7 @@ async function loginWithApiBackedSession(page, baseURL) {
       email: process.env.LIVE_QA_USERNAME,
       password: process.env.LIVE_QA_PASSWORD,
     },
-    timeout: 15_000,
+    timeout: 45_000,
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok() || !payload?.session?.access_token) {

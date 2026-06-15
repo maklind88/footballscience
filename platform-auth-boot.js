@@ -1496,15 +1496,15 @@ async function getActiveAccessToken() {
       if (lookup?.email) { foundByUsername = true; email = lookup.email; }
     }
     try {
-      const loginResponse = await apiRequest(API_AUTH_LOGIN,{method:"POST",skipAuth:true,timeoutMs:15000,body:JSON.stringify({email,password:cleanPassword})});
+      const loginResponse = await apiRequest(API_AUTH_LOGIN,{method:"POST",skipAuth:true,timeoutMs:35000,body:JSON.stringify({email,password:cleanPassword})});
       if (!loginResponse.ok) {
         const proxyReason = String(loginResponse.payload?.reason || "");
-        const shouldTryDirectLogin = [0, 404, 405, 500, 502].includes(Number(loginResponse.status)) ||
+        const shouldTryDirectLogin = [0, 404, 405, 500, 502, 503, 504].includes(Number(loginResponse.status)) ||
           /network|method not allowed|not found|configured/i.test(proxyReason);
         if (shouldTryDirectLogin) {
           const directResult = await withTimeout(
             authState.supabase.auth.signInWithPassword({email,password:cleanPassword}),
-            12000,
+            30000,
             "Login is taking too long. Check your network and try again."
           );
           if (directResult.error) {

@@ -1,5 +1,10 @@
 {
   "ignoreCommand": "node scripts/vercel-ignore-build.mjs",
+  "functions": {
+    "api/client-config.js": {
+      "maxDuration": 45
+    }
+  },
   "rewrites": [
     {
       "source": "/api/app-state-backup-status",

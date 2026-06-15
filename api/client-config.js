@@ -13,7 +13,7 @@ const MAX_PASSWORD_LENGTH = 256;
 const LOGIN_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const LOGIN_RATE_LIMIT_MAX = 12;
 const AUTH_LOGIN_ATTEMPTS = 2;
-const AUTH_LOGIN_ATTEMPT_TIMEOUT_MS = 6500;
+const AUTH_LOGIN_ATTEMPT_TIMEOUT_MS = 28000;
 const AUTH_LOGIN_RETRY_DELAY_MS = 250;
 const loginRateBuckets = new Map();
 
@@ -195,6 +195,9 @@ async function handleLogin(req, res) {
       });
     } catch (error) {
       lastAuthError = { status: isTimeoutError(error) ? 504 : 0, error };
+      if (isTimeoutError(error)) {
+        break;
+      }
       if (attempt < AUTH_LOGIN_ATTEMPTS) {
         await sleep(AUTH_LOGIN_RETRY_DELAY_MS);
         continue;

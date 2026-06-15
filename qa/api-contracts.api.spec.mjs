@@ -516,13 +516,14 @@ test("client-config login keeps Supabase auth outages as service failures", asyn
   }
 });
 
-test("login does not retry direct Supabase auth after server timeout", () => {
+test("login retries direct Supabase auth after server timeout", () => {
   const { readFileSync } = require("node:fs");
   const path = require("node:path");
   const source = readFileSync(path.join(process.cwd(), "platform-auth-boot.js"), "utf8");
 
-  expect(source).toContain("[0, 404, 405, 500, 502].includes(Number(loginResponse.status))");
-  expect(source).not.toContain("[0, 404, 405, 500, 502, 504].includes(Number(loginResponse.status))");
+  expect(source).toContain("[0, 404, 405, 500, 502, 503, 504].includes(Number(loginResponse.status))");
+  expect(source).toContain("timeoutMs:35000");
+  expect(source).toContain("authState.supabase.auth.signInWithPassword({email,password:cleanPassword})");
 });
 
 test("platform auth boot throttles post-login auth-dependent hydration", () => {

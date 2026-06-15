@@ -11,6 +11,22 @@ const workspaceHubKey = "football-workspace-hub-v3";
 const workspaceLastActiveKey = "football-workspace-last-active-local-v1";
 const qaSessionPlannerTrainingDate = "2026-05-19";
 
+function createQaPlayerProfilesState(players = [], options = {}) {
+  const normalizedPlayers = players.map((player, index) => ({
+    rosterType: "squad",
+    countsInSquad: true,
+    rosterOrder: index + 1,
+    ...player,
+  }));
+  return {
+    rosterVersion: options.rosterVersion || "qa-player-profiles-v1",
+    schemaVersion: 3,
+    selectedPlayerId: options.selectedPlayerId || normalizedPlayers[0]?.id || "",
+    players: normalizedPlayers,
+    removedPlayerIds: [],
+  };
+}
+
 function getQaAgeFromBirthDate(birthDate, referenceDate = new Date()) {
   const [year, month, day] = birthDate.split("-").map(Number);
   let age = referenceDate.getFullYear() - year;
@@ -1183,7 +1199,7 @@ test("Medical recommendation edits persist after refresh", async ({ page }) => {
 });
 
 test("Medical archive keeps clinical records and plans protected", async ({ page }) => {
-  await page.addInitScript(({ medicalStorageKey, scheduleStorageKey }) => {
+  await page.addInitScript(({ medicalStorageKey, playerProfilesStorageKey, scheduleStorageKey, playerProfilesState }) => {
     window.localStorage.setItem(
       scheduleStorageKey,
       JSON.stringify({
@@ -1197,6 +1213,7 @@ test("Medical archive keeps clinical records and plans protected", async ({ page
         events: [{ id: "qa-archive-training", date: "2026-05-15", time: "10:00", type: "training", title: "Training", note: "" }],
       })
     );
+    window.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(playerProfilesState));
     window.localStorage.setItem(
       medicalStorageKey,
       JSON.stringify({
@@ -1246,7 +1263,15 @@ test("Medical archive keeps clinical records and plans protected", async ({ page
         ],
       })
     );
-  }, { medicalStorageKey: medicalKey, scheduleStorageKey: scheduleKey });
+  }, {
+    medicalStorageKey: medicalKey,
+    playerProfilesStorageKey: playerProfilesKey,
+    scheduleStorageKey: scheduleKey,
+    playerProfilesState: createQaPlayerProfilesState(
+      [{ id: "qa-archive-player", name: "QA Archive Player", position: "Forward", rosterOrder: 1 }],
+      { rosterVersion: "qa-medical-archive-v1", selectedPlayerId: "qa-archive-player" }
+    ),
+  });
 
   await bootApp(page);
   await openWorkspace(page, "medical-team");
@@ -1299,7 +1324,7 @@ test("Medical archive keeps clinical records and plans protected", async ({ page
 });
 
 test("Medical plan draft survives modal rerenders and saves long-term zero availability", async ({ page }) => {
-  await page.addInitScript(({ medicalStorageKey, scheduleStorageKey }) => {
+  await page.addInitScript(({ medicalStorageKey, playerProfilesStorageKey, scheduleStorageKey, playerProfilesState }) => {
     window.localStorage.setItem(
       scheduleStorageKey,
       JSON.stringify({
@@ -1315,6 +1340,7 @@ test("Medical plan draft survives modal rerenders and saves long-term zero avail
         ],
       })
     );
+    window.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(playerProfilesState));
     window.localStorage.setItem(
       medicalStorageKey,
       JSON.stringify({
@@ -1338,7 +1364,15 @@ test("Medical plan draft survives modal rerenders and saves long-term zero avail
         injuryPlans: [],
       })
     );
-  }, { medicalStorageKey: medicalKey, scheduleStorageKey: scheduleKey });
+  }, {
+    medicalStorageKey: medicalKey,
+    playerProfilesStorageKey: playerProfilesKey,
+    scheduleStorageKey: scheduleKey,
+    playerProfilesState: createQaPlayerProfilesState(
+      [{ id: "qa-plan-player", name: "QA Long Term Player", position: "Defender", rosterOrder: 1 }],
+      { rosterVersion: "qa-medical-plan-draft-v1", selectedPlayerId: "qa-plan-player" }
+    ),
+  });
 
   await bootApp(page);
   await openWorkspace(page, "medical-team");
@@ -1646,7 +1680,7 @@ test("Medical metrics use current-month and planned-session averages", async ({ 
 });
 
 test("Medical availability hides bulk controls while quick recommendations remain active", async ({ page }) => {
-  await page.addInitScript(({ storageKey }) => {
+  await page.addInitScript(({ storageKey, playerProfilesStorageKey, playerProfilesState }) => {
     const fixedNow = new Date("2026-05-15T12:00:00Z").valueOf();
     const NativeDate = Date;
     class FixedDate extends NativeDate {
@@ -1661,6 +1695,7 @@ test("Medical availability hides bulk controls while quick recommendations remai
     FixedDate.UTC = NativeDate.UTC;
     FixedDate.parse = NativeDate.parse;
     window.Date = FixedDate;
+    window.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(playerProfilesState));
     window.localStorage.setItem(
       storageKey,
       JSON.stringify({
@@ -1677,7 +1712,17 @@ test("Medical availability hides bulk controls while quick recommendations remai
         injuryPlans: [],
       })
     );
-  }, { storageKey: medicalKey });
+  }, {
+    storageKey: medicalKey,
+    playerProfilesStorageKey: playerProfilesKey,
+    playerProfilesState: createQaPlayerProfilesState(
+      [
+        { id: "bulk-one", name: "Bulk One", position: "Forward", rosterOrder: 1 },
+        { id: "bulk-two", name: "Bulk Two", position: "Midfielder", rosterOrder: 2 },
+      ],
+      { rosterVersion: "qa-medical-bulk-v1", selectedPlayerId: "bulk-one" }
+    ),
+  });
 
   await bootApp(page);
   await openWorkspace(page, "medical-team");
@@ -1858,7 +1903,8 @@ test("Medical recommendations use match context and lock non-activity days", asy
 });
 
 test("Medical roster overview groups by position and supports row quick recommendations", async ({ page }) => {
-  await page.addInitScript(({ storageKey }) => {
+  await page.addInitScript(({ storageKey, playerProfilesStorageKey, playerProfilesState }) => {
+    window.localStorage.setItem(playerProfilesStorageKey, JSON.stringify(playerProfilesState));
     window.localStorage.setItem(
       storageKey,
       JSON.stringify({
@@ -1875,7 +1921,19 @@ test("Medical roster overview groups by position and supports row quick recommen
         injuryPlans: [],
       })
     );
-  }, { storageKey: medicalKey });
+  }, {
+    storageKey: medicalKey,
+    playerProfilesStorageKey: playerProfilesKey,
+    playerProfilesState: createQaPlayerProfilesState(
+      [
+        { id: "qa-def", name: "QA Defender", position: "Defender", rosterOrder: 2 },
+        { id: "qa-gk", name: "QA Goalkeeper", position: "Goalkeeper", rosterOrder: 1 },
+        { id: "qa-mid", name: "QA Midfielder", position: "Midfielder", rosterOrder: 3 },
+        { id: "qa-fwd", name: "QA Forward Alias", position: "F", primaryRole: "ST", roleGroup: "forward", rosterOrder: 4 },
+      ],
+      { rosterVersion: "qa-medical-roster-overview-v1", selectedPlayerId: "qa-gk" }
+    ),
+  });
 
   await bootApp(page);
   await openWorkspace(page, "medical-team");

@@ -128,23 +128,22 @@ test("Video Analysis shows a schedule-aware library and autosaves day links", as
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
 
   await expect(page.locator("[data-video-analysis-library]")).toBeVisible();
-  await expect(page.locator(".video-analysis-library__list")).toContainText("Match #11 @ Angel City");
-  await expect(page.locator(".video-analysis-library__list")).toContainText("MD+2 Training");
+  await expect(page.locator(".video-analysis-calendar-overview")).toContainText("MD+2 Training");
+  await expect(page.locator(".video-analysis-library__list")).toHaveCount(0);
 
   await page.locator('[data-video-analysis-library-filter="search"]').fill("Angel");
+  await expect(page.locator(".video-analysis-library__list")).toBeVisible();
   await expect(page.locator(".video-analysis-library-row")).toHaveCount(1);
   await expect(page.locator(".video-analysis-library-row")).toContainText("Match #11 @ Angel City");
+  await page.locator('[data-video-analysis-link-schedule]').first().selectOption("schedule-training-1");
+  await expect.poll(() => page.evaluate(() => (
+    window.__videoAnalysisRequests || []
+  ).some((request) => request.action === "update-match-link" && request.body.scheduleEventId === "schedule-training-1"))).toBe(true);
 
   await page.locator('[data-video-analysis-library-filter="search"]').fill("");
   await page.locator('[data-video-analysis-library-filter="date"]').fill("2026-06-02");
   await expect(page.locator(".video-analysis-library-row")).toHaveCount(1);
   await expect(page.locator(".video-analysis-library-row")).toContainText("MD+2 Training");
-
-  await page.locator('[data-video-analysis-library-filter="date"]').fill("");
-  await page.locator('[data-video-analysis-link-schedule]').first().selectOption("schedule-training-1");
-  await expect.poll(() => page.evaluate(() => (
-    window.__videoAnalysisRequests || []
-  ).some((request) => request.action === "update-match-link" && request.body.scheduleEventId === "schedule-training-1"))).toBe(true);
 });
 
 test("Video Analysis renders the FS Player Timeline module with lanes and clip blocks", async ({ page }) => {

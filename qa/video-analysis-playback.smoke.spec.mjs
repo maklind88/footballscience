@@ -171,6 +171,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
 
   await expect(page.locator("[data-video-analysis-timeline-module]")).toBeVisible();
   await expect(page.locator(".video-analysis-coding-panel")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-presentation")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-header")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-ruler")).toBeVisible();
   await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("Team Principle");
@@ -215,6 +216,17 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await page.locator('[data-video-analysis-timeline-lane="outcome"]').click();
   await expect(page.locator('[data-video-analysis-timeline-lane="outcome"]')).toHaveClass(/is-active/);
   await expect(page.locator(".video-analysis-lane__label").first()).toContainText(/Positive|Development|Neutral/);
+
+  await page.getByRole("button", { name: "Presentation", exact: true }).click();
+  await expect(page.locator("[data-video-analysis-presentation-module]")).toBeVisible();
+  await expect(page.locator(".video-analysis-presentation")).toContainText("Football Science Review");
+  await expect(page.locator(".video-analysis-presentation")).toContainText("Team Meeting");
+  await expect(page.locator(".video-analysis-player")).toHaveCount(0);
+  await expect(page.locator("[data-video-analysis-timeline-module]")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "FS Player" }).click();
+  await expect(page.locator("[data-video-analysis-timeline-module]")).toBeVisible();
+  await expect(page.locator(".video-analysis-presentation")).toHaveCount(0);
 });
 
 test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red playhead", async ({ page }) => {

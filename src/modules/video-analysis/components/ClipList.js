@@ -40,7 +40,7 @@ function renderClip(clip = {}, canEdit = false) {
         ${latestNote ? `<p>${escapeHtml(latestNote)}</p>` : ""}
       </div>
       <div class="video-analysis-clip__actions">
-        <button type="button" data-video-analysis-review="${escapeHtml(clip.id)}">Add</button>
+        <button type="button" data-video-analysis-review="${escapeHtml(clip.id)}">Add to presentation</button>
         <button type="button" data-video-analysis-archive="${escapeHtml(clip.id)}" ${canEdit ? "" : "disabled"}>Archive</button>
       </div>
     </article>

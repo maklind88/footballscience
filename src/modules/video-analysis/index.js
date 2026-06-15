@@ -3,7 +3,7 @@ import { renderClipIntelligence } from "./components/ClipIntelligence.js";
 import { renderClipList } from "./components/ClipList.js";
 import { renderCodingTemplateBuilder } from "./components/CodingTemplateBuilder.js";
 import { renderPlayerClipDrawer } from "./components/PlayerClipDrawer.js";
-import { renderPlaylistBuilder } from "./components/PlaylistBuilder.js";
+import { renderPresentationModule } from "./components/PresentationModule.js";
 import { renderTimeline } from "./components/Timeline.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderVideoPlayer } from "./components/VideoPlayer.js";
@@ -99,7 +99,7 @@ const analysisRoomTabs = Object.freeze([
   { id: "overview", label: "Overview", icon: "overview" },
   { id: "fs-player", label: "FS Player", icon: "play" },
   { id: "match-report", label: "Match Report", icon: "report" },
-  { id: "briefs", label: "Briefs", icon: "briefs" },
+  { id: "presentation", label: "Presentation", icon: "presentation" },
 ]);
 
 const analysisRoomTabIcons = Object.freeze({
@@ -125,7 +125,7 @@ const analysisRoomTabIcons = Object.freeze({
       <path d="M9.5 15.5h4"></path>
     </svg>
   `,
-  briefs: `
+  presentation: `
     <svg class="analysis-room-tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <rect x="5" y="6" width="14" height="12" rx="2"></rect>
       <path d="M8.5 10h7"></path>
@@ -138,16 +138,24 @@ function renderAnalysisRoomTabIcon(icon) {
   return analysisRoomTabIcons[icon] || analysisRoomTabIcons.overview;
 }
 
-function renderAnalysisRoomTabs(activeId = "fs-player") {
+function analysisRoomTabEnabled(tab = {}, options = {}) {
+  if (tab.id === "match-report") return false;
+  if (tab.id === "overview") return true;
+  return Boolean(options.workspaceReady);
+}
+
+function renderAnalysisRoomTabs(activeId = "fs-player", options = {}) {
   return `
     <nav class="analysis-room-tabs" aria-label="Analysis Room sections">
       ${analysisRoomTabs.map((tab) => {
         const active = tab.id === activeId;
+        const enabled = active || analysisRoomTabEnabled(tab, options);
         return `
           <button
             type="button"
             class="analysis-room-tab${active ? " is-active" : ""}"
-            ${active ? `aria-current="page"` : `disabled aria-disabled="true"`}
+            ${active ? `aria-current="page"` : ""}
+            ${enabled ? `data-video-analysis-room-tab="${escapeHtml(tab.id)}"` : `disabled aria-disabled="true"`}
           >
             ${renderAnalysisRoomTabIcon(tab.icon)}
             <span>${escapeHtml(tab.label)}</span>
@@ -189,7 +197,7 @@ function renderAnalysisRoomTeamMark(context = {}) {
   `;
 }
 
-function renderAnalysisRoomHeader(context = {}, activeTabId = "fs-player") {
+function renderAnalysisRoomHeader(context = {}, activeTabId = "fs-player", options = {}) {
   const teamName = getAnalysisRoomTeamName(context);
   return `
     <header class="analysis-room-header">
@@ -200,8 +208,50 @@ function renderAnalysisRoomHeader(context = {}, activeTabId = "fs-player") {
           <h2>${escapeHtml(teamName)}</h2>
         </div>
       </div>
-      ${renderAnalysisRoomTabs(activeTabId)}
+      ${renderAnalysisRoomTabs(activeTabId, options)}
     </header>
+  `;
+}
+
+function activeAnalysisRoomTab(state = {}) {
+  if (state.view === "library") return "overview";
+  return state.activeAnalysisRoomTab === "presentation" ? "presentation" : "fs-player";
+}
+
+function renderWorkspaceNav(state = {}) {
+  return `
+    <div class="video-analysis-workspace-nav">
+      <button type="button" data-video-analysis-open-library>Back to library</button>
+      <span>${escapeHtml(state.match?.title || state.pendingScheduleLink?.title || "Untitled session")}</span>
+    </div>
+  `;
+}
+
+function renderFsPlayerWorkspace(displayState = {}) {
+  return `
+    ${renderWorkspaceNav(displayState)}
+    ${renderVideoPlayer(displayState)}
+    ${renderTimeline(displayState)}
+    <section class="video-analysis-workstation">
+      <section class="video-analysis-left-stack">
+        ${renderCodingTemplateBuilder(displayState)}
+      </section>
+      <section class="video-analysis-results">
+        ${renderClipFilters(displayState)}
+        ${renderClipIntelligence(displayState)}
+        ${renderClipList(displayState)}
+      </section>
+    </section>
+    ${renderPlayerClipDrawer(displayState)}
+  `;
+}
+
+function renderPresentationWorkspace(state = {}) {
+  return `
+    ${renderWorkspaceNav(state)}
+    <section class="video-analysis-presentation-workspace">
+      ${renderPresentationModule(state)}
+    </section>
   `;
 }
 
@@ -428,10 +478,11 @@ function paint(root, state) {
     state.matrix?.selectedColumn
   );
   const displayState = { ...state, clips: visibleClips, allClips: state.clips };
+  const activeTabId = activeAnalysisRoomTab(state);
   root.innerHTML = `
     <section class="analysis-room-shell">
-      ${renderAnalysisRoomHeader(runtime?.context || {}, state.view === "library" ? "overview" : "fs-player")}
-      <section class="analysis-room-tab-panel" aria-label="FS Player">
+      ${renderAnalysisRoomHeader(runtime?.context || {}, activeTabId, { workspaceReady: state.view !== "library" })}
+      <section class="analysis-room-tab-panel" aria-label="${escapeHtml(activeTabId === "presentation" ? "Presentation" : activeTabId === "overview" ? "Overview" : "FS Player")}">
         <section class="video-analysis-shell">
           ${state.message || state.error ? `
             <div class="video-analysis-notifications" aria-live="polite">
@@ -445,24 +496,7 @@ function paint(root, state) {
             </div>
           ` : ""}
           ${state.view === "library" ? renderVideoLibrary(displayState) : `
-            <div class="video-analysis-workspace-nav">
-              <button type="button" data-video-analysis-open-library>Back to library</button>
-              <span>${escapeHtml(state.match?.title || state.pendingScheduleLink?.title || "Untitled session")}</span>
-            </div>
-            ${renderVideoPlayer(displayState)}
-            ${renderTimeline(displayState)}
-            <section class="video-analysis-workstation">
-              <section class="video-analysis-left-stack">
-                ${renderCodingTemplateBuilder(displayState)}
-              </section>
-              <section class="video-analysis-results">
-                ${renderClipFilters(displayState)}
-                ${renderClipIntelligence(displayState)}
-                ${renderClipList(displayState)}
-              </section>
-            </section>
-            ${renderPlaylistBuilder(state)}
-            ${renderPlayerClipDrawer(displayState)}
+            ${activeTabId === "presentation" ? renderPresentationWorkspace(state) : renderFsPlayerWorkspace(displayState)}
           `}
         </section>
       </section>
@@ -636,6 +670,7 @@ async function handleFileSelection(file, context = {}, options = {}) {
       : localVideoStatusPatch(options.handle ? "restored" : "session-only", options.handle ? "Local file connected on this device" : sessionOnlyMessage);
     run.store.setState({
       view: "workspace",
+      activeAnalysisRoomTab: "fs-player",
       videoRef: reference,
       playbackPreparation: { active: false, token: "" },
       status: playbackWarning ? "error" : "saving-source",
@@ -823,6 +858,19 @@ export function handleClick(event, context = {}) {
   const root = getRoot(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
+  const roomTab = target.closest("[data-video-analysis-room-tab]");
+  if (roomTab) {
+    const tabId = roomTab.dataset.videoAnalysisRoomTab;
+    if (tabId === "overview") {
+      libraryController().openLibraryView(context);
+      return true;
+    }
+    if (tabId === "fs-player" || tabId === "presentation") {
+      if (run.store.getState().view !== "library") run.store.setState({ activeAnalysisRoomTab: tabId });
+      return true;
+    }
+    return true;
+  }
   if (target.closest("[data-video-analysis-open-library]")) {
     libraryController().openLibraryView(context);
     return true;
@@ -913,7 +961,7 @@ export function handleClick(event, context = {}) {
     run.store.update((state) => ({
       ...state,
       reviewSections: addClipToReviewSection(state.reviewSections, state.activeReviewSectionId, reviewButton.dataset.videoAnalysisReview),
-      message: "Clip added to review.",
+      message: "Clip added to presentation.",
     }));
     return true;
   }
@@ -1004,8 +1052,8 @@ export function handleClick(event, context = {}) {
   if (target.closest("[data-video-analysis-save-review]")) {
     const payload = buildReviewSessionPayload(run.store.getState());
     run.playlists.saveReviewSession(payload).then(() => {
-      run.store.setState({ message: "Review saved." });
-    }).catch((error) => run.store.setState({ error: error.message || "Could not save review." }));
+      run.store.setState({ message: "Presentation saved." });
+    }).catch((error) => run.store.setState({ error: error.message || "Could not save presentation." }));
     return true;
   }
   return false;

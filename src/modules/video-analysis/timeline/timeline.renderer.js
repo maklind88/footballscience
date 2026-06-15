@@ -136,7 +136,7 @@ function renderSelectedClipSummary(selectedClip = null) {
         <span>${escapeHtml(firstPlayerLabel(selectedClip))}</span>
         <span>${escapeHtml(selectedClip.outcome || "Neutral")}</span>
       </div>
-      <button type="button" data-video-analysis-review="${escapeHtml(selectedClip.id)}">Add to review</button>
+      <button type="button" data-video-analysis-review="${escapeHtml(selectedClip.id)}">Add to presentation</button>
     </div>
   `;
 }

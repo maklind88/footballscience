@@ -26,6 +26,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/components/ClipFilters.js",
     "src/modules/video-analysis/components/ClipIntelligence.js",
     "src/modules/video-analysis/components/CodingTemplateBuilder.js",
+    "src/modules/video-analysis/components/PresentationModule.js",
     "src/modules/video-analysis/components/PlaylistBuilder.js",
     "src/modules/video-analysis/components/PlayerClipDrawer.js",
     "src/modules/video-analysis/services/videoPlaybackService.js",
@@ -138,8 +139,14 @@ test("video analysis workstation keeps controls out of the video player", () => 
 
 test("analysis room tabs use icons without status labels", () => {
   const source = read("src/modules/video-analysis/index.js");
+  const presentation = read("src/modules/video-analysis/components/PresentationModule.js");
   expect(source).toContain("analysis-room-tab-icon");
   expect(source).toContain("FS Player");
+  expect(source).toContain("Presentation");
+  expect(source).not.toContain("Briefs");
+  expect(source).not.toContain("renderPlaylistBuilder");
+  expect(presentation).toContain("data-video-analysis-presentation-module");
+  expect(presentation).toContain("Save presentation");
   expect(source).not.toContain('state: "Room"');
   expect(source).not.toContain('state: "Active"');
   expect(source).not.toContain('state: "Next"');

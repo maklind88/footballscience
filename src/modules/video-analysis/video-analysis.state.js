@@ -29,6 +29,7 @@ export function createInitialVideoAnalysisState(context = {}) {
   const initialState = {
     status: "idle",
     view: "library",
+    activeAnalysisRoomTab: "fs-player",
     canEdit: Boolean(context.canEdit?.()),
     players: normalizeVideoAnalysisPlayers(context.getPlayerProfilesState?.()),
     videoRef: null,

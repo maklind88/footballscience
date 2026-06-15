@@ -82,6 +82,7 @@ export function createVideoLibraryController(deps = {}) {
       run.store.update((state) => ({
         ...state,
         view: "workspace",
+        activeAnalysisRoomTab: "fs-player",
         pendingScheduleLink: item,
         match: {
           title: item.title,
@@ -105,6 +106,7 @@ export function createVideoLibraryController(deps = {}) {
     run.store.update((state) => ({
       ...state,
       view: "workspace",
+      activeAnalysisRoomTab: "fs-player",
       pendingScheduleLink: null,
       match: item.match,
       video: item.latestVideo || null,
@@ -126,7 +128,7 @@ export function createVideoLibraryController(deps = {}) {
 
   function openLibraryView(context = {}) {
     const run = ensureRuntime(context);
-    run.store.setState({ view: "library", message: "", error: "" });
+    run.store.setState({ view: "library", activeAnalysisRoomTab: "fs-player", message: "", error: "" });
     loadLibrary({ silent: true });
   }
 

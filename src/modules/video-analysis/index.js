@@ -98,8 +98,8 @@ function timelineController(context = {}) {
 const analysisRoomTabs = Object.freeze([
   { id: "overview", label: "Overview", icon: "overview" },
   { id: "fs-player", label: "FS Player", icon: "play" },
-  { id: "match-report", label: "Match Report", icon: "report" },
   { id: "presentation", label: "Presentation", icon: "presentation" },
+  { id: "match-report", label: "Match Report", icon: "report" },
 ]);
 
 const analysisRoomTabIcons = Object.freeze({

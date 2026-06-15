@@ -120,11 +120,7 @@ function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", select
 
 function renderSelectedClipSummary(selectedClip = null) {
   if (!selectedClip) {
-    return `
-      <div class="video-analysis-timeline-selection">
-        <span>Select a clip block to inspect or send it into a review list.</span>
-      </div>
-    `;
+    return "";
   }
   const startMs = getClipStartMs(selectedClip);
   const endMs = getClipEndMs(selectedClip);

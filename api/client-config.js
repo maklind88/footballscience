@@ -12,6 +12,9 @@ const MAX_IDENTIFIER_LENGTH = 180;
 const MAX_PASSWORD_LENGTH = 256;
 const LOGIN_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const LOGIN_RATE_LIMIT_MAX = 12;
+const AUTH_LOGIN_ATTEMPTS = 2;
+const AUTH_LOGIN_ATTEMPT_TIMEOUT_MS = 6500;
+const AUTH_LOGIN_RETRY_DELAY_MS = 250;
 const loginRateBuckets = new Map();
 
 function normalizeText(value, maxLength) {
@@ -70,6 +73,18 @@ function publicAuthError(payload = {}, fallback = "Invalid login credentials.") 
   return raw.slice(0, 180) || fallback;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableAuthStatus(status) {
+  return Number(status) >= 500 || Number(status) === 0;
+}
+
+function isTimeoutError(error) {
+  return error?.name === "TimeoutError" || error?.name === "AbortError";
+}
+
 async function resolveLoginEmail(identifier) {
   const cleanIdentifier = normalizeText(identifier, MAX_IDENTIFIER_LENGTH).toLowerCase();
   if (!cleanIdentifier || cleanIdentifier.includes("@")) {
@@ -126,48 +141,73 @@ async function handleLogin(req, res) {
     return sendJson(res, 401, { ok: false, reason: "Invalid login credentials." });
   }
 
-  try {
-    const response = await fetch(`${url}/auth/v1/token?grant_type=password`, {
-      method: "POST",
-      headers: {
-        ...buildSupabaseKeyHeaders(anonKey),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-      signal: AbortSignal.timeout(12000),
-    });
-    const payload = await readSupabasePayload(response);
-    if (!response.ok) {
-      return sendJson(res, response.status === 429 ? 429 : 401, {
-        ok: false,
-        reason: publicAuthError(payload),
+  let lastAuthError = null;
+  for (let attempt = 1; attempt <= AUTH_LOGIN_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(`${url}/auth/v1/token?grant_type=password`, {
+        method: "POST",
+        headers: {
+          ...buildSupabaseKeyHeaders(anonKey),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+        signal: AbortSignal.timeout(AUTH_LOGIN_ATTEMPT_TIMEOUT_MS),
       });
-    }
+      const payload = await readSupabasePayload(response);
+      if (!response.ok) {
+        lastAuthError = { status: response.status, payload };
+        if (isRetryableAuthStatus(response.status) && attempt < AUTH_LOGIN_ATTEMPTS) {
+          await sleep(AUTH_LOGIN_RETRY_DELAY_MS);
+          continue;
+        }
+        if (response.status === 429) {
+          return sendJson(res, 429, {
+            ok: false,
+            reason: publicAuthError(payload, "Too many login attempts. Please wait a moment and try again."),
+          });
+        }
+        if (isRetryableAuthStatus(response.status)) {
+          return sendJson(res, response.status === 504 ? 504 : 503, {
+            ok: false,
+            reason: "Authentication took too long. Please try again.",
+          });
+        }
+        return sendJson(res, 401, {
+          ok: false,
+          reason: publicAuthError(payload),
+        });
+      }
 
-    if (!payload?.access_token || !payload?.refresh_token || !payload?.user?.id) {
-      return sendJson(res, 502, { ok: false, reason: "Could not start a session." });
-    }
+      if (!payload?.access_token || !payload?.refresh_token || !payload?.user?.id) {
+        return sendJson(res, 502, { ok: false, reason: "Could not start a session." });
+      }
 
-    return sendJson(res, 200, {
-      ok: true,
-      session: {
-        access_token: payload.access_token,
-        refresh_token: payload.refresh_token,
-        expires_in: payload.expires_in,
-        expires_at: payload.expires_at,
-        token_type: payload.token_type,
-        user: payload.user,
-      },
-    });
-  } catch (error) {
-    return sendJson(res, 504, {
-      ok: false,
-      reason:
-        error?.name === "TimeoutError" || error?.name === "AbortError"
-          ? "Authentication took too long. Please try again."
-          : "Authentication could not be reached. Please try again.",
-    });
+      return sendJson(res, 200, {
+        ok: true,
+        session: {
+          access_token: payload.access_token,
+          refresh_token: payload.refresh_token,
+          expires_in: payload.expires_in,
+          expires_at: payload.expires_at,
+          token_type: payload.token_type,
+          user: payload.user,
+        },
+      });
+    } catch (error) {
+      lastAuthError = { status: isTimeoutError(error) ? 504 : 0, error };
+      if (attempt < AUTH_LOGIN_ATTEMPTS) {
+        await sleep(AUTH_LOGIN_RETRY_DELAY_MS);
+        continue;
+      }
+    }
   }
+
+  return sendJson(res, lastAuthError?.status === 504 ? 504 : 503, {
+    ok: false,
+    reason: isTimeoutError(lastAuthError?.error)
+      ? "Authentication took too long. Please try again."
+      : "Authentication could not be reached. Please try again.",
+  });
 }
 
 module.exports = async (req, res) => {

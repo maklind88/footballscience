@@ -425,6 +425,96 @@ test("client-config login resolves usernames before Supabase password auth", asy
   }
 });
 
+test("client-config login retries transient Supabase auth failures once", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+
+  let tokenCalls = 0;
+  global.fetch = async (url, options = {}) => {
+    const requestUrl = String(url);
+    if (requestUrl.includes("/auth/v1/token")) {
+      tokenCalls += 1;
+      if (tokenCalls === 1) {
+        return new Response(JSON.stringify({ message: "context deadline exceeded" }), { status: 504 });
+      }
+      const body = JSON.parse(String(options.body || "{}"));
+      return new Response(
+        JSON.stringify({
+          access_token: "access-token",
+          refresh_token: "refresh-token",
+          expires_in: 3600,
+          expires_at: 1770000000,
+          token_type: "bearer",
+          user: {
+            id: "qa-user",
+            email: body.email,
+          },
+        }),
+        { status: 200 }
+      );
+    }
+
+    return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
+  };
+
+  try {
+    const response = await callHandler(clientConfigHandler, {
+      method: "POST",
+      url: "/api/client-config",
+      body: JSON.stringify({
+        email: "qa-live@example.com",
+        password: "correct-password",
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.session.access_token).toBe("access-token");
+    expect(tokenCalls).toBe(2);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("client-config login keeps Supabase auth outages as service failures", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+
+  let tokenCalls = 0;
+  global.fetch = async (url) => {
+    const requestUrl = String(url);
+    if (requestUrl.includes("/auth/v1/token")) {
+      tokenCalls += 1;
+      return new Response(JSON.stringify({ message: "context deadline exceeded" }), { status: 504 });
+    }
+    return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
+  };
+
+  try {
+    const response = await callHandler(clientConfigHandler, {
+      method: "POST",
+      url: "/api/client-config",
+      body: JSON.stringify({
+        email: "qa-live@example.com",
+        password: "correct-password",
+      }),
+    });
+
+    expect(response.status).toBe(504);
+    expect(response.payload.reason).toBe("Authentication took too long. Please try again.");
+    expect(tokenCalls).toBe(2);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("login does not retry direct Supabase auth after server timeout", () => {
   const { readFileSync } = require("node:fs");
   const path = require("node:path");

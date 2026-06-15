@@ -163,11 +163,6 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
   };
 
   const onInput = (event) => {
-    const playerPhotoInput = event.target.closest("[data-player-profile-photo-upload]");
-    if (playerPhotoInput) {
-      callOptional(actions.handlePhotoInput, playerPhotoInput);
-      return;
-    }
     const searchInput = event.target.closest("[data-player-profile-search]");
     if (searchInput) {
       setStateValue(state, "PlayerProfilesSearchQuery", searchInput.value);

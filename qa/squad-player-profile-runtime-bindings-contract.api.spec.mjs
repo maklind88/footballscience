@@ -202,6 +202,19 @@ test("Player profile runtime bindings preserve filters, search, remove, and new-
   expect(calls.at(-2)).toEqual(["render", expect.stringContaining("Player added")]);
 });
 
+test("Player profile runtime bindings handle photo uploads on change only", () => {
+  const { calls, workspace } = createHarness();
+  const photoTarget = createTarget({
+    closest: { "[data-player-profile-photo-upload]": { dataset: { playerProfilePhotoUpload: "p-1" } } },
+  });
+
+  workspace.listeners.input(createEvent(photoTarget));
+  expect(calls).not.toContain("photo");
+
+  workspace.listeners.change(createEvent(photoTarget));
+  expect(calls).toContain("photo");
+});
+
 test("Player profile runtime bindings save status changes immediately", () => {
   const { calls, workspace } = createHarness();
 

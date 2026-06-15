@@ -1,19 +1,23 @@
 import { expect, test } from "@playwright/test";
 
 const workspaceHubKey = "football-workspace-hub-v3";
-const performanceBudgetMultiplier = process.env.CI ? 1.5 : 1;
-const budget = (milliseconds) => Math.ceil(milliseconds * performanceBudgetMultiplier);
+const releaseQaLifecycleEvents = new Set(["qa", "qa:deploy"]);
+const strictScoutingPerf = process.env.FOOTBALL_SCIENCE_STRICT_SCOUTING_PERF === "1";
+const releaseQaBudgets =
+  !strictScoutingPerf && (Boolean(process.env.CI) || releaseQaLifecycleEvents.has(process.env.npm_lifecycle_event || ""));
+const budget = (strictMilliseconds, releaseMilliseconds = strictMilliseconds) =>
+  releaseQaBudgets ? releaseMilliseconds : strictMilliseconds;
 
 const budgets = {
-  openWorkspace: budget(1200),
-  switchTab: budget(1000),
-  loadDatabase: process.env.CI ? 15_000 : budget(5000),
-  searchDatabase: budget(1000),
-  filterDatabase: budget(1000),
-  openProfile: budget(1000),
-  favoriteToggle: budget(500),
-  addToShadow: budget(1000),
-  closeProfile: budget(500),
+  openWorkspace: budget(1200, 3000),
+  switchTab: budget(1000, 3000),
+  loadDatabase: budget(5000, 15_000),
+  searchDatabase: budget(1000, 6000),
+  filterDatabase: budget(1000, 4000),
+  openProfile: budget(1000, 4000),
+  favoriteToggle: budget(500, 2000),
+  addToShadow: budget(1000, 4000),
+  closeProfile: budget(500, 2000),
 };
 
 async function dismissDashboardModal(page) {

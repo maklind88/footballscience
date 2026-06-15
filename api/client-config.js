@@ -13,7 +13,7 @@ const MAX_PASSWORD_LENGTH = 256;
 const LOGIN_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const LOGIN_RATE_LIMIT_MAX = 12;
 const AUTH_LOGIN_ATTEMPTS = 2;
-const AUTH_LOGIN_ATTEMPT_TIMEOUT_MS = 28000;
+const AUTH_LOGIN_ATTEMPT_TIMEOUT_MS = 55000;
 const AUTH_LOGIN_RETRY_DELAY_MS = 250;
 const loginRateBuckets = new Map();
 
@@ -78,7 +78,8 @@ function sleep(ms) {
 }
 
 function isRetryableAuthStatus(status) {
-  return Number(status) >= 500 || Number(status) === 0;
+  const normalizedStatus = Number(status);
+  return normalizedStatus === 0 || (normalizedStatus >= 500 && normalizedStatus !== 504);
 }
 
 function isTimeoutError(error) {
@@ -164,6 +165,12 @@ async function handleLogin(req, res) {
           return sendJson(res, 429, {
             ok: false,
             reason: publicAuthError(payload, "Too many login attempts. Please wait a moment and try again."),
+          });
+        }
+        if (response.status === 504) {
+          return sendJson(res, 504, {
+            ok: false,
+            reason: "Authentication took too long. Please try again.",
           });
         }
         if (isRetryableAuthStatus(response.status)) {

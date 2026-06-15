@@ -2,7 +2,7 @@
   "ignoreCommand": "node scripts/vercel-ignore-build.mjs",
   "functions": {
     "api/client-config.js": {
-      "maxDuration": 45
+      "maxDuration": 75
     }
   },
   "rewrites": [

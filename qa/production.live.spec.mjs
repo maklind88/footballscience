@@ -91,7 +91,7 @@ async function establishServerBackedSession(page) {
       email: process.env.LIVE_QA_USERNAME,
       password: process.env.LIVE_QA_PASSWORD,
     },
-    timeout: 45_000,
+    timeout: 75_000,
   });
   const loginPayload = await loginResponse.json().catch(() => ({}));
   expect(
@@ -211,7 +211,7 @@ async function expectCentralSyncContains(page, key, text) {
             email: process.env.LIVE_QA_USERNAME,
             password: process.env.LIVE_QA_PASSWORD,
           },
-          timeout: 15_000,
+          timeout: 75_000,
         });
         if (!loginResponse.ok()) {
           return false;

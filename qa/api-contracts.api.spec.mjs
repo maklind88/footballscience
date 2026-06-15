@@ -439,7 +439,7 @@ test("client-config login retries transient Supabase auth failures once", async 
     if (requestUrl.includes("/auth/v1/token")) {
       tokenCalls += 1;
       if (tokenCalls === 1) {
-        return new Response(JSON.stringify({ message: "context deadline exceeded" }), { status: 504 });
+        return new Response(JSON.stringify({ message: "transient auth worker unavailable" }), { status: 503 });
       }
       const body = JSON.parse(String(options.body || "{}"));
       return new Response(
@@ -480,7 +480,7 @@ test("client-config login retries transient Supabase auth failures once", async 
   }
 });
 
-test("client-config login keeps Supabase auth outages as service failures", async () => {
+test("client-config login keeps Supabase auth timeouts as service failures without retry pressure", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
   clearEnv(supabaseEnvKeys);
@@ -509,7 +509,7 @@ test("client-config login keeps Supabase auth outages as service failures", asyn
 
     expect(response.status).toBe(504);
     expect(response.payload.reason).toBe("Authentication took too long. Please try again.");
-    expect(tokenCalls).toBe(2);
+    expect(tokenCalls).toBe(1);
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);
@@ -522,7 +522,7 @@ test("login retries direct Supabase auth after server timeout", () => {
   const source = readFileSync(path.join(process.cwd(), "platform-auth-boot.js"), "utf8");
 
   expect(source).toContain("[0, 404, 405, 500, 502, 503, 504].includes(Number(loginResponse.status))");
-  expect(source).toContain("timeoutMs:35000");
+  expect(source).toContain("timeoutMs:65000");
   expect(source).toContain("authState.supabase.auth.signInWithPassword({email,password:cleanPassword})");
 });
 

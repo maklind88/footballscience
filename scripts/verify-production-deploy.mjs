@@ -134,6 +134,17 @@ expect(clientConfig.ok === true, "/api/client-config did not return ok:true.");
 expect(Boolean(clientConfig.url && clientConfig.anonKey), "/api/client-config is missing Supabase browser config.");
 expect(clientConfig.hasServiceRoleKey === true, "/api/client-config reports missing service role key.");
 
+const authHealthResponse = await fetch(new URL("/api/auth-health", baseUrl), { cache: "no-store" });
+const authHealth = await authHealthResponse.json().catch(() => ({}));
+expect(
+  authHealth.service === "supabase-auth",
+  `/api/auth-health did not return the expected service marker: ${authHealthResponse.status}`
+);
+expect(
+  authHealthResponse.status === 200 || authHealthResponse.status === 503,
+  `/api/auth-health returned an unexpected status: ${authHealthResponse.status}`
+);
+
 const backupResponse = await fetch(new URL("/api/app-state-backup", baseUrl), { cache: "no-store" });
 const backupText = await backupResponse.text();
 expect(!backupResponse.ok, "/api/app-state-backup must not allow anonymous success.");
@@ -172,6 +183,7 @@ if (failures.length) {
     );
   }
   console.log("- client config: ok");
+  console.log(`- auth health endpoint: ${authHealth.ok === true ? "ok" : "warning"}`);
   console.log("- backup protection: ok");
   console.log("- backup status protection: ok");
 }

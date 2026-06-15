@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
+const authHealthHandler = require("../api/auth-health.js");
 const clientConfigHandler = require("../api/client-config.js");
 const appStateHandler = require("../api/app-state.js");
 const appStateBackupHandler = require("../api/app-state-backup.js");
@@ -338,6 +339,82 @@ test("client-config exposes only browser-safe config when configured", async () 
   }
 });
 
+test("auth-health checks Supabase GoTrue health without exposing secrets", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const healthRequests = [];
+  global.fetch = async (url, options = {}) => {
+    healthRequests.push({ url: String(url), headers: options.headers || {} });
+    return new Response(
+      JSON.stringify({
+        version: "v2.60.7",
+        name: "GoTrue",
+        description: "GoTrue is a user registration and authentication API",
+      }),
+      { status: 200 }
+    );
+  };
+
+  try {
+    const response = await callHandler(authHealthHandler, {
+      method: "GET",
+      url: "/api/auth-health",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      service: "supabase-auth",
+      status: 200,
+      name: "GoTrue",
+      version: "v2.60.7",
+    });
+    expect(healthRequests).toHaveLength(1);
+    expect(healthRequests[0].url).toBe("https://example.supabase.co/auth/v1/health");
+    expect(JSON.stringify(response.payload)).not.toContain("service-role-test-key");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("auth-health fails fast when Supabase Auth is unavailable", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+
+  global.fetch = async () => {
+    const error = new Error("deadline exceeded");
+    error.name = "TimeoutError";
+    throw error;
+  };
+
+  try {
+    const response = await callHandler(authHealthHandler, {
+      method: "GET",
+      url: "/api/auth-health",
+    });
+
+    expect(response.status).toBe(503);
+    expect(response.payload).toMatchObject({
+      ok: false,
+      service: "supabase-auth",
+      status: 0,
+      reason: "Supabase Auth health check timed out.",
+    });
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("client-config login resolves usernames before Supabase password auth", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
@@ -516,12 +593,13 @@ test("client-config login keeps Supabase auth timeouts as service failures witho
   }
 });
 
-test("login retries direct Supabase auth after server timeout", () => {
+test("login does not stack direct Supabase auth after server timeout", () => {
   const { readFileSync } = require("node:fs");
   const path = require("node:path");
   const source = readFileSync(path.join(process.cwd(), "platform-auth-boot.js"), "utf8");
 
-  expect(source).toContain("[0, 404, 405, 500, 502, 503, 504].includes(Number(loginResponse.status))");
+  expect(source).toContain("[0, 404, 405, 500, 502, 503].includes(Number(loginResponse.status))");
+  expect(source).not.toContain("[0, 404, 405, 500, 502, 503, 504].includes(Number(loginResponse.status))");
   expect(source).toContain("timeoutMs:65000");
   expect(source).toContain("authState.supabase.auth.signInWithPassword({email,password:cleanPassword})");
 });

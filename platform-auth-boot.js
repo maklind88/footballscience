@@ -1499,7 +1499,7 @@ async function getActiveAccessToken() {
       const loginResponse = await apiRequest(API_AUTH_LOGIN,{method:"POST",skipAuth:true,timeoutMs:65000,body:JSON.stringify({email,password:cleanPassword})});
       if (!loginResponse.ok) {
         const proxyReason = String(loginResponse.payload?.reason || "");
-        const shouldTryDirectLogin = [0, 404, 405, 500, 502, 503, 504].includes(Number(loginResponse.status)) ||
+        const shouldTryDirectLogin = [0, 404, 405, 500, 502, 503].includes(Number(loginResponse.status)) ||
           /network|method not allowed|not found|configured/i.test(proxyReason);
         if (shouldTryDirectLogin) {
           const directResult = await withTimeout(

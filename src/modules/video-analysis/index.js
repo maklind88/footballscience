@@ -138,18 +138,17 @@ function renderAnalysisRoomTabIcon(icon) {
   return analysisRoomTabIcons[icon] || analysisRoomTabIcons.overview;
 }
 
-function analysisRoomTabEnabled(tab = {}, options = {}) {
+function analysisRoomTabEnabled(tab = {}) {
   if (tab.id === "match-report") return false;
-  if (tab.id === "overview") return true;
-  return Boolean(options.workspaceReady);
+  return ["overview", "fs-player", "presentation"].includes(tab.id);
 }
 
-function renderAnalysisRoomTabs(activeId = "fs-player", options = {}) {
+function renderAnalysisRoomTabs(activeId = "fs-player") {
   return `
     <nav class="analysis-room-tabs" aria-label="Analysis Room sections">
       ${analysisRoomTabs.map((tab) => {
         const active = tab.id === activeId;
-        const enabled = active || analysisRoomTabEnabled(tab, options);
+        const enabled = active || analysisRoomTabEnabled(tab);
         return `
           <button
             type="button"
@@ -197,7 +196,7 @@ function renderAnalysisRoomTeamMark(context = {}) {
   `;
 }
 
-function renderAnalysisRoomHeader(context = {}, activeTabId = "fs-player", options = {}) {
+function renderAnalysisRoomHeader(context = {}, activeTabId = "fs-player") {
   const teamName = getAnalysisRoomTeamName(context);
   return `
     <header class="analysis-room-header">
@@ -208,7 +207,7 @@ function renderAnalysisRoomHeader(context = {}, activeTabId = "fs-player", optio
           <h2>${escapeHtml(teamName)}</h2>
         </div>
       </div>
-      ${renderAnalysisRoomTabs(activeTabId, options)}
+      ${renderAnalysisRoomTabs(activeTabId)}
     </header>
   `;
 }
@@ -481,7 +480,7 @@ function paint(root, state) {
   const activeTabId = activeAnalysisRoomTab(state);
   root.innerHTML = `
     <section class="analysis-room-shell">
-      ${renderAnalysisRoomHeader(runtime?.context || {}, activeTabId, { workspaceReady: state.view !== "library" })}
+      ${renderAnalysisRoomHeader(runtime?.context || {}, activeTabId)}
       <section class="analysis-room-tab-panel" aria-label="${escapeHtml(activeTabId === "presentation" ? "Presentation" : activeTabId === "overview" ? "Overview" : "FS Player")}">
         <section class="video-analysis-shell">
           ${state.message || state.error ? `
@@ -866,7 +865,13 @@ export function handleClick(event, context = {}) {
       return true;
     }
     if (tabId === "fs-player" || tabId === "presentation") {
-      if (run.store.getState().view !== "library") run.store.setState({ activeAnalysisRoomTab: tabId });
+      run.store.update((state) => ({
+        ...state,
+        view: "workspace",
+        activeAnalysisRoomTab: tabId,
+        message: "",
+        error: "",
+      }));
       return true;
     }
     return true;

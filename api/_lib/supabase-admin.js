@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { finishApiRequest } = require("./platform-security.js");
 
 const DEFAULT_ROLES = ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"];
@@ -25,6 +26,9 @@ const MAX_PROFILE_IMAGE_UPLOAD_BYTES = 1024 * 1024;
 const MAX_LEGACY_PROFILE_IMAGE_DATA_URL_LENGTH = 2 * 1024 * 1024;
 const SUPABASE_AUTH_REQUEST_TIMEOUT_MS = 8000;
 const SUPABASE_STORAGE_REQUEST_TIMEOUT_MS = 10000;
+const CURRENT_ACTOR_CACHE_TTL_MS = 2 * 1000;
+const CURRENT_ACTOR_CACHE_MAX = 200;
+const currentActorCache = new Map();
 const PROFILE_IMAGE_TYPES = new Map([
   ["image/jpeg", "jpg"],
   ["image/jpg", "jpg"],
@@ -77,6 +81,41 @@ function parseBearer(value) {
 
   const raw = String(value).trim();
   return raw.toLowerCase().startsWith("bearer ") ? raw.slice(7).trim() : raw;
+}
+
+function getActorCacheKey(token) {
+  return crypto.createHash("sha256").update(String(token || ""), "utf8").digest("hex");
+}
+
+function cloneCachedActor(actor) {
+  return actor && typeof actor === "object" ? JSON.parse(JSON.stringify(actor)) : null;
+}
+
+function readCurrentActorCache(token, nowMs = Date.now()) {
+  const key = getActorCacheKey(token);
+  const entry = currentActorCache.get(key);
+  if (!entry || entry.fetchRef !== global.fetch || nowMs - entry.savedAt > CURRENT_ACTOR_CACHE_TTL_MS) {
+    currentActorCache.delete(key);
+    return null;
+  }
+  return cloneCachedActor(entry.actor);
+}
+
+function writeCurrentActorCache(token, actor, nowMs = Date.now()) {
+  if (!token || !actor?.id) {
+    return;
+  }
+  if (currentActorCache.size >= CURRENT_ACTOR_CACHE_MAX) {
+    const oldestKey = currentActorCache.keys().next().value;
+    if (oldestKey) {
+      currentActorCache.delete(oldestKey);
+    }
+  }
+  currentActorCache.set(getActorCacheKey(token), {
+    actor: cloneCachedActor(actor),
+    fetchRef: global.fetch,
+    savedAt: nowMs,
+  });
 }
 
 function normalizeRole(value) {
@@ -522,6 +561,11 @@ async function getCurrentActor(authHeader) {
     return null;
   }
 
+  const cachedActor = readCurrentActorCache(token);
+  if (cachedActor) {
+    return cachedActor;
+  }
+
   const { url, anonKey } = readConfig();
   if (!url || !anonKey) {
     return null;
@@ -553,7 +597,9 @@ async function getCurrentActor(authHeader) {
 
   const freshUser = await getRawAuthUserById(user.id);
   const migratedUser = await migrateLegacyProfileImageForRawUser(freshUser || user);
-  return normalizePlatformUser(migratedUser || freshUser || user);
+  const actor = normalizePlatformUser(migratedUser || freshUser || user);
+  writeCurrentActorCache(token, actor);
+  return actor;
 }
 
 async function listAllAuthUsers(perPage = 200) {

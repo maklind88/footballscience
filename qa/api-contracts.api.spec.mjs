@@ -7,6 +7,7 @@ const clientConfigHandler = require("../api/client-config.js");
 const appStateHandler = require("../api/app-state.js");
 const appStateBackupHandler = require("../api/app-state-backup.js");
 const sessionHistoryHandler = require("../api/session-history.js");
+const { getCurrentActor } = require("../api/_lib/supabase-admin.js");
 const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
 
 const supabaseEnvKeys = [
@@ -522,6 +523,60 @@ test("login does not retry direct Supabase auth after server timeout", () => {
 
   expect(source).toContain("[0, 404, 405, 500, 502].includes(Number(loginResponse.status))");
   expect(source).not.toContain("[0, 404, 405, 500, 502, 504].includes(Number(loginResponse.status))");
+});
+
+test("platform auth boot throttles post-login auth-dependent hydration", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const source = readFileSync(path.join(process.cwd(), "platform-auth-boot.js"), "utf8");
+
+  expect(source).toContain("let authRefreshTokenPromise = null;");
+  expect(source).toContain("let authSessionReadPromise = null;");
+  expect(source).toContain("let currentUserProfileRefreshPromise = null;");
+  expect(source).toContain("let userCacheRefreshPromise = null;");
+  expect(source).toContain("await refreshCurrentUserProfile(sessionUserId).catch(() => null);");
+  expect(source).not.toMatch(/Promise\.allSettled\(\[\s*refreshCurrentUserProfile\(sessionUserId\),\s*hydrateCentralState\(\),\s*refreshUserCache\(\),\s*\]\)/);
+  expect(source).not.toMatch(/await refreshAccessToken\(\)\.catch\(\(\) => null\);\s*let sessionResult;/);
+});
+
+test("current actor lookup reuses a brief validated token cache", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const token = `actor-cache-token-${Date.now()}`;
+  let userCalls = 0;
+  let adminUserCalls = 0;
+  const rawUser = createMockPlatformUser("coach");
+
+  global.fetch = async (url) => {
+    const requestUrl = String(url);
+    if (requestUrl.endsWith("/auth/v1/user")) {
+      userCalls += 1;
+      return new Response(JSON.stringify(rawUser), { status: 200 });
+    }
+    if (requestUrl.includes("/auth/v1/admin/users/coach-1")) {
+      adminUserCalls += 1;
+      return new Response(JSON.stringify(rawUser), { status: 200 });
+    }
+    return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
+  };
+
+  try {
+    const first = await getCurrentActor(`Bearer ${token}`);
+    const second = await getCurrentActor(`Bearer ${token}`);
+
+    expect(first?.id).toBe("coach-1");
+    expect(second?.id).toBe("coach-1");
+    expect(userCalls).toBe(1);
+    expect(adminUserCalls).toBe(1);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
 });
 
 test("app-state rejects unauthenticated requests before touching Supabase storage", async () => {

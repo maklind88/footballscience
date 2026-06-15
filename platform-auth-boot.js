@@ -118,6 +118,11 @@
     localDev: false,
     metadata: {},
   };
+  let authRefreshTokenPromise = null;
+  let authSessionReadPromise = null;
+  let currentUserProfileRefreshPromise = null;
+  let currentUserProfileRefreshUserId = "";
+  let userCacheRefreshPromise = null;
   let postAuthHydrationTimer = 0;
   let postAuthHydrationRunId = 0;
   function normalizeRoleForAuth(rawRole, fallback = "coach") {
@@ -478,6 +483,10 @@ async function getActiveAccessToken() {
     if (!authState.supabase) {
       return null;
     }
+    if (authRefreshTokenPromise) {
+      return authRefreshTokenPromise;
+    }
+    authRefreshTokenPromise = (async () => {
     try {
       const refreshResult = await withTimeout(
         authState.supabase.auth.refreshSession(),
@@ -498,7 +507,11 @@ async function getActiveAccessToken() {
       return refreshedSession.access_token;
     } catch {
       return null;
+    } finally {
+      authRefreshTokenPromise = null;
     }
+    })();
+    return authRefreshTokenPromise;
   }
   async function apiRequest(path, options = {}) {
     const { timeoutMs = 15000, skipAuth = false, ...fetchOptions } = options || {};
@@ -1313,6 +1326,10 @@ async function getActiveAccessToken() {
     return normalizedUser;
   }
   async function refreshUserCache() {
+    if (userCacheRefreshPromise) {
+      return userCacheRefreshPromise;
+    }
+    userCacheRefreshPromise = (async () => {
     const response = await apiRequest(API_ADMIN_USERS, {
       method: "GET",
       timeoutMs: 9000,
@@ -1331,8 +1348,20 @@ async function getActiveAccessToken() {
       authState.users = [authState.currentUser];
     }
     return false;
+    })();
+    try {
+      return await userCacheRefreshPromise;
+    } finally {
+      userCacheRefreshPromise = null;
+    }
   }
   async function refreshCurrentUserProfile(sessionUserId = "") {
+    const normalizedSessionUserId = String(sessionUserId || "");
+    if (currentUserProfileRefreshPromise && currentUserProfileRefreshUserId === normalizedSessionUserId) {
+      return currentUserProfileRefreshPromise;
+    }
+    currentUserProfileRefreshUserId = normalizedSessionUserId;
+    currentUserProfileRefreshPromise = (async () => {
     const response = await apiRequest(`${API_ADMIN_USERS}?me=1`, {
       method: "GET",
       timeoutMs: 8000,
@@ -1347,6 +1376,13 @@ async function getActiveAccessToken() {
     }
     setCurrentUserFromSession(nextUser);
     return authState.currentUser;
+    })();
+    try {
+      return await currentUserProfileRefreshPromise;
+    } finally {
+      currentUserProfileRefreshPromise = null;
+      currentUserProfileRefreshUserId = "";
+    }
   }
   function queuePostAuthHydration(session = authState.session) {
     const queuedSession = session?.access_token ? session : authState.session;
@@ -1363,11 +1399,15 @@ async function getActiveAccessToken() {
       if (runId !== postAuthHydrationRunId || authState.session?.access_token !== queuedSession.access_token) {
         return;
       }
-      await Promise.allSettled([
-        refreshCurrentUserProfile(sessionUserId),
-        hydrateCentralState(),
-        refreshUserCache(),
-      ]);
+      await refreshCurrentUserProfile(sessionUserId).catch(() => null);
+      if (runId !== postAuthHydrationRunId || authState.session?.access_token !== queuedSession.access_token) {
+        return;
+      }
+      await hydrateCentralState().catch(() => false);
+      if (runId !== postAuthHydrationRunId || authState.session?.access_token !== queuedSession.access_token) {
+        return;
+      }
+      await refreshUserCache().catch(() => false);
       if (runId !== postAuthHydrationRunId) {
         return;
       }
@@ -2033,15 +2073,22 @@ async function getActiveAccessToken() {
   }
   window.platformMarkAppReady=()=>{window.__footballScienceAppReady=true;if(authState.currentUser){document.getElementById("hubShell").hidden=false;requestAnimationFrame(()=>revealPlatformShell(authState.currentUser));}};
   async function readSupabaseSession() {
+    if (authSessionReadPromise) {
+      return authSessionReadPromise;
+    }
+    authSessionReadPromise = (async () => {
     try {
       return await withTimeout(authState.supabase.auth.getSession(), 8000, "Session lookup timed out.");
     } catch (error) {
       console.warn("Supabase session lookup failed; continuing with cached session.", error);
       return { data: { session: authState.session || null }, error: null };
+    } finally {
+      authSessionReadPromise = null;
     }
+    })();
+    return authSessionReadPromise;
   }
   async function hydrateFromExistingSession() {
-    await refreshAccessToken().catch(() => null);
     let sessionResult;
     try {
       sessionResult = await readSupabaseSession();
@@ -2056,6 +2103,10 @@ async function getActiveAccessToken() {
     if (data?.session) {
       authState.session = data.session;
       await hydrateCurrentUser(data.session, { waitForCentral: false, waitForProfile: true });
+      const expiresAtMs = Number(data.session.expires_at || 0) * 1000;
+      if (expiresAtMs && expiresAtMs - Date.now() < 60 * 1000) {
+        refreshAccessToken().catch(() => null);
+      }
       if (isPausedAccount(authState.currentUser)) {
         await signOut();
       }
@@ -2259,6 +2310,11 @@ async function getActiveAccessToken() {
     setLoginBusy(false);
     authState.supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
+        if (authState.session?.access_token === session.access_token && authState.currentUser?.id) {
+          queuePostAuthHydration(session);
+          showPlatform(authState.currentUser);
+          return;
+        }
         await hydrateCurrentUser(session, { waitForCentral: false, waitForProfile: true });
         if (authState.currentUser) {
           showPlatform(authState.currentUser);

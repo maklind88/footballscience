@@ -191,7 +191,6 @@ function renderCalendarOverview(allItems = [], visibleItems = [], filters = {}) 
 function renderLibrarySearch(library = {}, visibleCount = 0, isActive = false) {
   return `
     <section class="video-analysis-library-search${isActive ? " is-active" : ""}" aria-label="Search videos and match days">
-      <input class="video-analysis-file-input" type="file" accept="video/*" data-video-analysis-file hidden>
       <input
         type="search"
         placeholder="Search day, video, match, team or date"
@@ -212,7 +211,6 @@ function renderLibrarySearch(library = {}, visibleCount = 0, isActive = false) {
           <option value="training" ${library.filters?.type === "training" ? "selected" : ""}>Training</option>
         </select>
         <button type="button" data-video-analysis-library-refresh>Refresh</button>
-        <button type="button" class="video-analysis-primary-action" data-video-analysis-load>Link local video</button>
       </div>
       ${isActive ? `<span>${escapeHtml(`${visibleCount} results`)}</span>` : ""}
     </section>

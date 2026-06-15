@@ -510,17 +510,6 @@
   background: #eef3ef;
 }
 
-.video-analysis-library-search__filters .video-analysis-primary-action {
-  border-color: #143522;
-  color: #ffffff;
-  background: #143522;
-}
-
-.video-analysis-library-search__filters .video-analysis-primary-action:hover {
-  border-color: #143522;
-  background: #0f2a1a;
-}
-
 .video-analysis-overview-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.85fr) auto;
@@ -1275,6 +1264,25 @@
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+}
+
+.video-analysis-presentation-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.video-analysis-presentation .video-analysis-panel-header .video-analysis-primary-action {
+  border-color: #143522;
+  color: #ffffff;
+  background: #143522;
+}
+
+.video-analysis-presentation .video-analysis-panel-header .video-analysis-primary-action:hover {
+  border-color: #143522;
+  background: #0f2a1a;
 }
 
 .video-analysis-mode-toggle .is-active,

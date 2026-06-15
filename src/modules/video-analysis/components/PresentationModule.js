@@ -38,7 +38,11 @@ export function renderPresentationModule(state = {}) {
           <p class="video-analysis-kicker">Presentation</p>
           <h3>${escapeHtml(state.reviewTitle || "Football Science Review")}</h3>
         </div>
-        <button type="button" data-video-analysis-save-review ${state.canEdit ? "" : "disabled"}>Save presentation</button>
+        <div class="video-analysis-presentation-actions">
+          <input class="video-analysis-file-input" type="file" accept="video/*" data-video-analysis-file hidden>
+          <button type="button" class="video-analysis-primary-action" data-video-analysis-load>Link local video</button>
+          <button type="button" data-video-analysis-save-review ${state.canEdit ? "" : "disabled"}>Save presentation</button>
+        </div>
       </div>
       <div class="video-analysis-presentation-sections">
         ${sections.map((section) => renderPresentationSection(section, clipsById, state.activeReviewSectionId)).join("")}

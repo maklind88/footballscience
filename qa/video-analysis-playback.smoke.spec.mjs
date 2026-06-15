@@ -159,6 +159,12 @@ test("Video Analysis shows a schedule-aware library and autosaves day links", as
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
 
   await expect(page.locator("[data-video-analysis-library]")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const library = document.querySelector("[data-video-analysis-library]");
+    const search = library?.querySelector(".video-analysis-library-search");
+    const calendar = library?.querySelector(".video-analysis-calendar-overview");
+    return Boolean(search && calendar && (search.compareDocumentPosition(calendar) & Node.DOCUMENT_POSITION_FOLLOWING));
+  })).toBe(true);
   await expect(page.locator(".video-analysis-calendar-overview")).toContainText("Jun 2026");
   await expect(page.locator(".video-analysis-calendar-day.is-today")).toHaveAttribute("aria-label", "Today, 15/06/2026");
   await expect(page.locator(".video-analysis-calendar-overview")).toContainText("MD+2 Training");

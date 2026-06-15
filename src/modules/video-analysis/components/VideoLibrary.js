@@ -256,8 +256,8 @@ export function renderVideoLibrary(state = {}) {
   const archiveItems = visibleItems.slice(0, 8);
   return `
     <section class="video-analysis-library" data-video-analysis-library>
-      ${renderCalendarOverview(allItems, visibleItems, library.filters || {})}
       ${renderLibrarySearch(library, visibleItems.length, searchIsActive)}
+      ${renderCalendarOverview(allItems, visibleItems, library.filters || {})}
       ${searchIsActive ? `
         <section class="video-analysis-library-archive" aria-label="Search results">
         <div class="video-analysis-panel-title">

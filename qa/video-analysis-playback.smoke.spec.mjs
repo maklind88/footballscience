@@ -170,6 +170,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await page.goto("/qa/video-analysis-browser-smoke.html?timeline=1", { waitUntil: "domcontentloaded" });
 
   await expect(page.locator("[data-video-analysis-timeline-module]")).toBeVisible();
+  await expect(page.locator(".video-analysis-timeline-header")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-ruler")).toBeVisible();
   await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("Team Principle");
   await expect(page.locator(".video-analysis-timeline-controls")).toHaveCount(0);

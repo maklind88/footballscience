@@ -5,7 +5,6 @@ import {
   buildTimelineLanes,
   buildTimelineTicks,
   clipBlockStyle,
-  getTimelineStats,
   getTimelineDurationMs,
   normalizeTimelineLaneMode,
   normalizeTimelineZoom,
@@ -150,22 +149,10 @@ export function renderTimeline(state = {}) {
   const laneMode = normalizeTimelineLaneMode(timeline.laneMode);
   const zoom = normalizeTimelineZoom(timeline.zoom);
   const lanes = buildTimelineLanes(clips, laneMode);
-  const stats = getTimelineStats(clips, allClips);
   const selectedClip = getSelectedClip(clips, state.selectedClipId);
   const ticks = buildTimelineTicks(totalMs);
   return `
     <section class="video-analysis-timeline video-analysis-timeline-module" data-video-analysis-timeline-module data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}">
-      <div class="video-analysis-panel-header video-analysis-timeline-header">
-        <div>
-          <p class="video-analysis-kicker">FS Player module</p>
-          <h3>Timeline</h3>
-        </div>
-        <div class="video-analysis-timeline-summary" aria-label="Timeline summary">
-          <span>${escapeHtml(`${stats.visibleClipCount} coded`)}</span>
-          <span>${escapeHtml(formatVideoTime(stats.codedMs))}</span>
-          ${stats.isFiltered ? `<span>${escapeHtml(`${stats.visibleClipCount}/${stats.totalClipCount} shown`)}</span>` : ""}
-        </div>
-      </div>
       <div class="video-analysis-timeline-toolbar">
         ${renderLaneButtons(laneMode)}
       </div>

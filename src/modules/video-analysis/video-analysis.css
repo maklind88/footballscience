@@ -1131,18 +1131,10 @@
 }
 
 .video-analysis-timeline-module {
+  margin-top: -6px;
   overflow: hidden;
 }
 
-.video-analysis-timeline-header {
-  border-bottom: 1px solid #e2e8e3;
-}
-
-.video-analysis-timeline-header h3 {
-  font-size: 17px;
-}
-
-.video-analysis-timeline-summary,
 .video-analysis-timeline-toolbar,
 .video-analysis-timeline-tabs,
 .video-analysis-timeline-selection,
@@ -1153,7 +1145,6 @@
   flex-wrap: wrap;
 }
 
-.video-analysis-timeline-summary span,
 .video-analysis-timeline-selection span {
   border-radius: 999px;
   padding: 4px 8px;
@@ -1166,7 +1157,7 @@
 .video-analysis-timeline-toolbar {
   justify-content: space-between;
   border-bottom: 1px solid #e4eae5;
-  padding: 9px 12px;
+  padding: 7px 10px 6px;
 }
 
 .video-analysis-timeline-tabs {

@@ -118,6 +118,8 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timeline).toContain("data-video-analysis-timeline-scrub-surface");
   expect(timeline).toContain("data-video-analysis-timeline-scrub-time");
   expect(timeline).not.toContain('role="slider"');
+  expect(timeline).not.toContain("video-analysis-timeline-header");
+  expect(timeline).not.toContain("video-analysis-timeline-summary");
   expect(timeline).toContain("data-video-analysis-timeline-track");
   expect(timelineInteraction).toContain("createTimelineScrubController");
   expect(timelineInteraction).toContain("pointermove");

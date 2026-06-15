@@ -1630,9 +1630,7 @@ test("Medical metrics use current-month and planned-session averages", async ({ 
   await expect(metricCards.filter({ hasText: "5-session average" })).toContainText("planned sessions");
   await expect(page.locator(".medical-availability-workspace .medical-huddle")).toHaveCount(0);
   await expect(page.locator(".medical-availability-workspace .medical-coach-handover")).toHaveCount(0);
-  await page.locator('[data-medical-ops-tab="overview"]').click();
-  await expect(page.locator(".medical-huddle-brief strong")).toHaveText("0/1");
-  await expect(page.locator(".medical-ops-overview .medical-coach-handover")).toBeVisible();
+  await expect(page.locator('[data-medical-ops-tab="overview"]')).toHaveCount(0);
 });
 
 test("Medical availability hides bulk controls while quick recommendations remain active", async ({ page }) => {
@@ -1766,11 +1764,7 @@ test("Medical recommendations use match context and lock non-activity days", asy
   await expect(playerRow.locator(".medical-roster-current-cell")).toHaveCount(0);
   await expect(playerRow.locator(".medical-roster-window-cell")).toHaveCount(0);
   await expect(playerRow).not.toContainText("Full Training");
-  await page.locator('[data-medical-ops-tab="overview"]').click();
-  const overviewPlayerRow = page.locator('.medical-ops-player-row[data-medical-select-player="qa-match-player"]');
-  await expect(overviewPlayerRow).toContainText("Match Available");
-  await expect(overviewPlayerRow).toContainText("100%");
-  await page.locator('[data-medical-ops-tab="availability"]').click();
+  await expect(page.locator('[data-medical-ops-tab="overview"]')).toHaveCount(0);
   await expect(playerRow).toBeVisible();
 
   await playerRow.locator(".medical-roster-player-cell").click();
@@ -2011,49 +2005,36 @@ test("Medical operations board separates signals, cases, history and season view
   const operationsMenu = page.locator("[data-medical-ops-top-menu]");
   await expect(operationsMenu).toBeVisible();
   await expect(operationsMenu).not.toContainText("Intelligence Board");
-  await expect(operationsMenu.locator("[data-medical-ops-tab]")).toHaveCount(6);
+  await expect(operationsMenu.locator("[data-medical-ops-tab]")).toHaveCount(5);
+  await expect(operationsMenu.locator('[data-medical-ops-tab="overview"]')).toHaveCount(0);
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveText("Availability");
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveClass(/is-active/);
   await expect(page.locator("[data-medical-availability-workspace]")).toBeVisible();
   await expect(page.locator(".medical-position-overview")).toBeVisible();
   await expect(page.locator("[data-medical-operations-system]")).toHaveCount(0);
-
-  await operationsMenu.locator('[data-medical-ops-tab="overview"]').click();
-  const operations = page.locator("[data-medical-operations-system]");
-  await expect(operations).toBeVisible();
-  await expect(operations.locator("[data-medical-ops-tab]")).toHaveCount(0);
-  await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);
   const menuPlacement = await page.evaluate(() => {
     const menu = document.querySelector("[data-medical-ops-top-menu]");
     const firstTab = menu?.querySelector("[data-medical-ops-tab]");
-    const operationsSystem = document.querySelector("[data-medical-operations-system]");
+    const availabilityWorkspace = document.querySelector("[data-medical-availability-workspace]");
     return {
       menuTop: menu?.getBoundingClientRect().top ?? 0,
       menuLeft: menu?.getBoundingClientRect().left ?? 0,
       firstTabLeft: firstTab?.getBoundingClientRect().left ?? 0,
-      operationsTop: operationsSystem?.getBoundingClientRect().top ?? 0,
+      workspaceTop: availabilityWorkspace?.getBoundingClientRect().top ?? 0,
     };
   });
-  expect(menuPlacement.menuTop).toBeLessThan(menuPlacement.operationsTop);
+  expect(menuPlacement.menuTop).toBeLessThan(menuPlacement.workspaceTop);
   expect(menuPlacement.firstTabLeft - menuPlacement.menuLeft).toBeLessThan(20);
-  await expect(operations).toContainText("Action required");
+
+  await operationsMenu.locator('[data-medical-ops-tab="cases"]').click();
+  const operations = page.locator("[data-medical-operations-system]");
+  await expect(operations).toBeVisible();
+  await expect(operations.locator("[data-medical-ops-tab]")).toHaveCount(0);
+  await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);
   await expect(operations).toContainText("ACL injury");
-  const actionCard = operations.locator(".medical-ops-card").filter({ hasText: "Action Required" });
-  await expect(actionCard).toContainText("QA Risk Player");
-  await expect(actionCard).not.toContainText("QA Long Term ACL");
-  const activeCaseBoard = operations.locator(".medical-ops-card").filter({ hasText: "Active Case Board" });
+  const activeCaseBoard = operations.locator(".medical-ops-cases-table");
   await expect(activeCaseBoard).toContainText("QA Long Term ACL");
-  const longTermCase = activeCaseBoard.locator('[data-medical-edit-injury-plan="qa-long-term-case"]');
-  await expect(longTermCase).toContainText("Edit plan");
-  await expect(longTermCase).toContainText("Review Wed 15 Jul");
-  await longTermCase.click();
-  const modalTabs = page.locator(".medical-modal-tabs");
-  await expect(modalTabs.getByRole("tab", { name: "Medical Plan" })).toHaveAttribute("aria-selected", "true");
-  const planForm = page.locator("#medicalInjuryPlanForm");
-  await expect(planForm.locator('button[type="submit"]')).toHaveText("Update plan");
-  await expect(planForm.locator('[name="injuryType"]')).toHaveValue("ACL injury");
-  await expect(planForm.locator('[name="duration"]')).toHaveValue("5");
-  await page.locator(".medical-modal-close").click();
+  await expect(activeCaseBoard.locator('[data-medical-select-player="qa-long-term"]')).toContainText("ACL injury");
 
   await operationsMenu.locator('[data-medical-ops-tab="availability"]').click();
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveClass(/is-active/);
@@ -2078,7 +2059,7 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(operations).toContainText("Major");
 });
 
-test("Medical operations actual missing counts only players expected to participate", async ({ page }) => {
+test("Medical availability list keeps participation states after overview removal", async ({ page }) => {
   await page.addInitScript(({ medicalStorageKey, scheduleStorageKey }) => {
     window.localStorage.setItem(
       scheduleStorageKey,
@@ -2146,14 +2127,22 @@ test("Medical operations actual missing counts only players expected to particip
   await openWorkspace(page, "medical-team");
 
   const operationsMenu = page.locator("[data-medical-ops-top-menu]");
-  await operationsMenu.locator('[data-medical-ops-tab="overview"]').click();
-  const actualMissingStat = page.locator(".medical-ops-stat").filter({ hasText: "Actual missing" });
-  await expect(actualMissingStat).toContainText("1");
-  await expect(actualMissingStat).toContainText("today's participation");
+  await expect(operationsMenu.locator('[data-medical-ops-tab="overview"]')).toHaveCount(0);
+  await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveClass(/is-active/);
+  await expect(page.locator("[data-medical-availability-workspace]")).toBeVisible();
+  await expect(page.locator(".medical-command-card").filter({ hasText: "Recommendation Queue" })).toHaveCount(0);
+  await expect(page.locator(".medical-metric-card").filter({ hasText: "Full" })).toContainText("1");
+  await expect(page.locator(".medical-metric-card").filter({ hasText: "Modified" })).toContainText("1");
+  await expect(page.locator(".medical-metric-card").filter({ hasText: "Unavailable" })).toContainText("1");
+  await expect(page.locator(".medical-metric-card").filter({ hasText: "Not set" })).toContainText("1");
+  await expect(page.locator('[data-medical-roster-row="qa-positive-missing"] .medical-quick-rec-button.is-active')).toHaveText("75%");
+  await expect(page.locator('[data-medical-roster-row="qa-unavailable"] .medical-quick-rec-button.is-active')).toHaveText("0%");
+  await expect(page.locator('[data-medical-roster-row="qa-logged"] .medical-quick-rec-button.is-active')).toHaveText("100%");
+  await expect(page.locator('[data-medical-roster-row="qa-not-set"] .medical-quick-rec-button.is-active')).toHaveCount(0);
 });
 
 test("Squad removal keeps default roster players hidden after reload", async ({ page }) => {
-  const removedPlayerId = "ncc-2026-cortnee-vine";
+  const removedPlayerId = "ncc-2026-ally-schlegel";
   await bootApp(page);
   await page.evaluate(() => {
     const store = window.platformAuthStore;
@@ -2166,7 +2155,7 @@ test("Squad removal keeps default roster players hidden after reload", async ({ 
   await openWorkspace(page, "player-profiles");
 
   const removedPlayerRow = page.locator(`[data-player-profile-select="${removedPlayerId}"]`);
-  await expect(removedPlayerRow).toContainText("Cortnee Vine");
+  await expect(removedPlayerRow).toContainText("Ally Schlegel");
   await removedPlayerRow.click();
   await expect(page.locator(".squad-profile-modal")).toBeVisible();
   await page.locator(`[data-player-profile-remove="${removedPlayerId}"]`).click();

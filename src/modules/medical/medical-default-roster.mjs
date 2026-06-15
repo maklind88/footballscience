@@ -216,22 +216,13 @@ photoUrl:
 rosterOrder: 24,
 },
 {
-id: "ncc-2026-cortnee-vine",
-name: "Cortnee Vine",
-number: "",
-position: "Forward",
-photoUrl:
-"https://images.nccourage.com/image/private/t_q-best/v1775663847/prd/assets/widgets/players/Roster%20Graphics/Cortnee_alsutx.jpg",
-rosterOrder: 25,
-},
-{
 id: "ncc-2026-hannah-betfort",
 name: "Hannah Betfort",
 number: "",
 position: "Forward",
 photoUrl:
 "https://images.nccourage.com/image/private/t_q-best/v1775675578/prd/assets/widgets/players/Roster%20Graphics/Hannah-2_laqpcm.png",
-rosterOrder: 26,
+rosterOrder: 25,
 },
 {
 id: "ncc-2026-ally-schlegel",
@@ -240,6 +231,6 @@ number: "",
 position: "Forward",
 photoUrl:
 "https://images.nccourage.com/image/private/t_q-best/v1775057295/prd/assets/widgets/players/Roster%20Graphics/Ally_hp7twm.jpg",
-rosterOrder: 27,
+rosterOrder: 26,
 },
 ];

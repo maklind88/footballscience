@@ -208,6 +208,64 @@ test("Squad player profile Medical sync service preserves Medical-only roster co
   expect(harness.getMedicalState().selectedPlayerId).toBe("qa-medical-only");
 });
 
+test("Squad player profile Medical sync service archives removed players by name across roster contexts", () => {
+  const harness = createHarness({
+    playerProfilesState: {
+      removedPlayerIds: ["old-cortnee"],
+      rosterVersion: "default-squad-v1",
+      players: [{ id: "p1", name: "Active Player", number: "10", rosterType: "squad", countsInSquad: true }],
+      changeLog: [
+        {
+          id: "remove-cortnee",
+          type: "player-removed",
+          playerId: "old-cortnee",
+          playerName: "Cortnee Vine",
+          createdAt: "2026-05-31T10:00:00.000Z",
+        },
+      ],
+    },
+    medicalState: {
+      selectedPlayerId: "legacy-cortnee",
+      rosterVersion: "qa-medical-import-v1",
+      players: [{ id: "legacy-cortnee", name: "Cortnee Vine", number: "" }],
+      records: [{ id: "r1", playerId: "legacy-cortnee", comment: "Standalone recommendation" }],
+      injuryPlans: [{ id: "plan1", playerId: "legacy-cortnee", injuryType: "Standalone plan" }],
+    },
+  });
+
+  expect(harness.service.isMedicalPlayerRemovedFromSquad({ id: "legacy-cortnee", name: "Cortnee Vine" })).toBe(true);
+  const archived = harness.service.archiveMedicalPlayersRemovedFromSquad();
+  expect(archived.map((player) => player.id)).toEqual(["legacy-cortnee"]);
+  expect(harness.getMedicalState().players[0]).toMatchObject({
+    id: "legacy-cortnee",
+    name: "Cortnee Vine",
+    archivedAt: "2026-05-31T11:14:00.000Z",
+    archiveReason: "Removed from Squad Room",
+  });
+  expect(harness.getMedicalState().selectedPlayerId).toBe("");
+});
+
+test("Squad player profile Medical sync service preserves temporary Medical guests", () => {
+  const harness = createHarness({
+    playerProfilesState: {
+      removedPlayerIds: [],
+      rosterVersion: "default-squad-v1",
+      players: [{ id: "p1", name: "Active Player", number: "10", rosterType: "squad", countsInSquad: true }],
+    },
+    medicalState: {
+      selectedPlayerId: "qa-guest",
+      rosterVersion: "qa-medical-import-v1",
+      players: [{ id: "qa-guest", name: "QA Guest", number: "", rosterType: "guest" }],
+      records: [],
+      injuryPlans: [],
+    },
+  });
+
+  expect(harness.service.isMedicalPlayerRemovedFromSquad({ id: "qa-guest", name: "QA Guest", rosterType: "guest" })).toBe(false);
+  expect(harness.service.archiveMedicalPlayersRemovedFromSquad()).toEqual([]);
+  expect(harness.getMedicalState().players[0].archivedAt).toBeUndefined();
+});
+
 test("Squad player profile Medical sync service archives direct profile removals with clinical commit", () => {
   const harness = createHarness({
     playerProfilesState: { removedPlayerIds: [] },

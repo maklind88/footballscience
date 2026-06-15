@@ -79,7 +79,6 @@ export const medicalWindowLength = 7;
 export const medicalDefaultRosterVersion = "ncc-2026-roster-v1";
 
 export const medicalOperationsTabOptions = [
-  { key: "overview", label: "Overview" },
   { key: "availability", label: "Availability" },
   { key: "signals", label: "Risk Signals" },
   { key: "cases", label: "Active Cases" },

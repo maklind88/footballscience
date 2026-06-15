@@ -363,7 +363,7 @@ ${renderOpsStat("Coach notes", String(items.length), "approved", items.length ? 
             ? renderHistory(summary)
             : activeTab === "season"
               ? renderSeason(summary)
-              : renderOverview(summary, selectedDate);
+              : renderSignals(summary);
     return `
 <section class="medical-operations-system" data-medical-operations-system aria-label="Medical operations intelligence board">
 ${body}

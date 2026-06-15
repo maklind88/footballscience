@@ -262,12 +262,12 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await page.getByRole("button", { name: "Presentation", exact: true }).click();
   await expect(page.locator("[data-video-analysis-presentation-module]")).toBeVisible();
   await expect(page.locator(".video-analysis-presentation")).toContainText("Football Science Review");
-  await expect(page.locator(".video-analysis-presentation")).toContainText("Tagged sessions");
-  await expect(page.locator(".video-analysis-presentation-session")).toHaveCount(1);
-  await expect(page.locator(".video-analysis-presentation .video-analysis-filters")).toHaveCount(1);
-  await expect(page.locator(".video-analysis-presentation .video-analysis-intelligence")).toHaveCount(1);
-  await expect(page.locator(".video-analysis-presentation .video-analysis-clip-list")).toHaveCount(1);
-  await expect(page.locator(".video-analysis-presentation")).toContainText("Team Meeting");
+  await expect(page.locator(".video-analysis-presentation")).toContainText("Presentation Builder");
+  await expect(page.locator(".video-analysis-presentation")).toContainText("Data Explorer");
+  await expect(page.locator(".video-analysis-presentation-source-filters")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-presentation-source-list")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-presentation-outline")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-presentation")).toContainText("Team focus");
   await expect(page.locator(".video-analysis-player")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-timeline-module]")).toHaveCount(0);
 

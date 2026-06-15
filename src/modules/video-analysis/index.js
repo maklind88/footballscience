@@ -1,7 +1,6 @@
 import { renderClipFilters } from "./components/ClipFilters.js";
 import { renderClipIntelligence } from "./components/ClipIntelligence.js";
 import { renderClipList } from "./components/ClipList.js";
-import { renderCodingPanel } from "./components/CodingPanel.js";
 import { renderCodingTemplateBuilder } from "./components/CodingTemplateBuilder.js";
 import { renderPlayerClipDrawer } from "./components/PlayerClipDrawer.js";
 import { renderPlaylistBuilder } from "./components/PlaylistBuilder.js";
@@ -455,7 +454,6 @@ function paint(root, state) {
             <section class="video-analysis-workstation">
               <section class="video-analysis-left-stack">
                 ${renderCodingTemplateBuilder(displayState)}
-                ${renderCodingPanel(displayState)}
               </section>
               <section class="video-analysis-results">
                 ${renderClipFilters(displayState)}

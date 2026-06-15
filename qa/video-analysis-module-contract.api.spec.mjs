@@ -104,11 +104,13 @@ test("video analysis module exports the runtime handlers", async () => {
 });
 
 test("video analysis workstation keeps controls out of the video player", () => {
+  const shell = read("src/modules/video-analysis/index.js");
   const templateBuilder = read("src/modules/video-analysis/components/CodingTemplateBuilder.js");
   const timelineInteraction = read("src/modules/video-analysis/timeline/timeline.interaction.js");
   const timelineWrapper = read("src/modules/video-analysis/components/Timeline.js");
   const timeline = read("src/modules/video-analysis/timeline/timeline.renderer.js");
   const intelligence = read("src/modules/video-analysis/components/ClipIntelligence.js");
+  expect(shell).not.toContain("renderCodingPanel");
   expect(templateBuilder).toContain("data-video-analysis-code-button");
   expect(templateBuilder).toContain("data-video-analysis-mode");
   expect(timelineWrapper).toContain("../timeline/index.js");

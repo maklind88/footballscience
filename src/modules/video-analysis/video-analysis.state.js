@@ -73,6 +73,8 @@ export function createInitialVideoAnalysisState(context = {}) {
       activeButtonId: "",
       manualInMs: null,
       openTag: null,
+      lastTaggedAtMs: null,
+      lastTaggedRangeMs: null,
     },
     timeline: {
       zoom: 1,

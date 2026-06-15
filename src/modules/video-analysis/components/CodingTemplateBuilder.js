@@ -24,10 +24,12 @@ function renderButton(item = {}, state = {}) {
   const targetField = item.targetField || item.type;
   const active = state.codingSession?.activeButtonId === item.id || state.draft?.[targetField] === item.value;
   const durationSeconds = secondsFromMs(item.defaultDurationMs ?? item.endOffsetMs ?? 15000);
+  const behavior = item.buttonBehavior || "create_tag";
   return `
     <button type="button" class="video-analysis-code-button${active ? " is-active" : ""}"
       data-video-analysis-code-button="${escapeHtml(item.id)}"
-      style="--video-analysis-button-color: ${escapeHtml(item.color || "#143522")}">
+      style="--video-analysis-button-color: ${escapeHtml(item.color || "#143522")}"
+      aria-label="${escapeHtml(`${item.label} ${behavior === "create_tag" ? `creates ${durationSeconds} second tag` : behavior}`)}">
       <span class="video-analysis-code-button__label">${escapeHtml(item.label)}</span>
       <span class="video-analysis-code-button__meta">
         <small>${escapeHtml(`${durationSeconds}s`)}</small>
@@ -45,12 +47,12 @@ function renderButtonEditor(item = {}) {
         <strong>${escapeHtml(item.label)}</strong>
       </div>
       <div class="video-analysis-button-editor-grid">
-        <label>Name<input type="text" data-video-analysis-button-field="${escapeHtml(item.id)}:label" value="${escapeHtml(item.label)}"></label>
+        <label>Button name<input type="text" data-video-analysis-button-field="${escapeHtml(item.id)}:label" value="${escapeHtml(item.label)}"></label>
         <label>Color<input type="color" data-video-analysis-button-field="${escapeHtml(item.id)}:color" value="${escapeHtml(item.color || "#143522")}"></label>
         <label>Hotkey<input type="text" maxlength="12" data-video-analysis-button-field="${escapeHtml(item.id)}:hotkey" value="${escapeHtml(item.hotkey || "")}"></label>
-        <label>Duration s<input type="number" min="1" max="900" step="1" data-video-analysis-button-ms-field="${escapeHtml(item.id)}:defaultDurationMs" value="${escapeHtml(secondsFromMs(item.defaultDurationMs, 15))}"></label>
-        <label>Start offset s<input type="number" min="-120" max="120" step="1" data-video-analysis-button-ms-field="${escapeHtml(item.id)}:startOffsetMs" value="${escapeHtml(secondsFromMs(item.startOffsetMs, 0))}"></label>
-        <label>End offset s<input type="number" min="1" max="900" step="1" data-video-analysis-button-ms-field="${escapeHtml(item.id)}:endOffsetMs" value="${escapeHtml(secondsFromMs(item.endOffsetMs, 15))}"></label>
+        <label>Clip length<input type="number" min="1" max="900" step="1" data-video-analysis-button-ms-field="${escapeHtml(item.id)}:defaultDurationMs" value="${escapeHtml(secondsFromMs(item.defaultDurationMs, 15))}"></label>
+        <label>Lead / start<input type="number" min="-120" max="120" step="1" data-video-analysis-button-ms-field="${escapeHtml(item.id)}:startOffsetMs" value="${escapeHtml(secondsFromMs(item.startOffsetMs, 0))}"></label>
+        <label>Lag / end<input type="number" min="1" max="900" step="1" data-video-analysis-button-ms-field="${escapeHtml(item.id)}:endOffsetMs" value="${escapeHtml(secondsFromMs(item.endOffsetMs, 15))}"></label>
         <label>Behavior<select data-video-analysis-button-field="${escapeHtml(item.id)}:buttonBehavior">${behaviorOptionList(item.buttonBehavior || "create_tag")}</select></label>
       </div>
     </article>
@@ -98,10 +100,10 @@ export function renderCodingTemplateBuilder(state = {}) {
     groups.get(group).push(item);
   }
   return `
-    <section class="video-analysis-template-builder">
+    <section class="video-analysis-template-builder" data-video-analysis-code-window>
       <div class="video-analysis-panel-header">
         <div>
-          <p class="video-analysis-kicker">Tag Panel</p>
+          <p class="video-analysis-kicker">Code Window</p>
           ${editing ? `
             <label class="video-analysis-template-title-field">
               <span>Panel name</span>
@@ -110,8 +112,8 @@ export function renderCodingTemplateBuilder(state = {}) {
           ` : `<h3>${escapeHtml(template.title || "Football Science Coding")}</h3>`}
         </div>
         <div class="video-analysis-template-actions">
-          <div class="video-analysis-mode-toggle" role="group" aria-label="Tag panel mode">
-            <button type="button" class="${!editing ? "is-active" : ""}" data-video-analysis-panel-mode="use">Use</button>
+          <div class="video-analysis-mode-toggle" role="group" aria-label="Code window mode">
+            <button type="button" class="${!editing ? "is-active" : ""}" data-video-analysis-panel-mode="use">Code</button>
             <button type="button" class="${editing ? "is-active" : ""}" data-video-analysis-panel-mode="edit">Edit</button>
           </div>
           ${editing ? `<button type="button" class="video-analysis-template-save" data-video-analysis-save-template>Save panel</button>` : ""}

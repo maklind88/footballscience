@@ -897,8 +897,11 @@ function selectedClipFromPresentationSources(state = {}, clipId = "") {
 
 function currentPlayheadMs(context = {}, state = {}) {
   const video = videoElement(context);
-  if (video) return getVideoCurrentMs(video);
-  return Math.max(0, Math.round(Number(state.timeline?.playheadMs || state.draft?.startMs || 0)));
+  const timelineMs = Math.max(0, Math.round(Number(state.timeline?.playheadMs ?? state.draft?.startMs ?? 0)));
+  if (!video) return timelineMs;
+  const videoMs = getVideoCurrentMs(video);
+  const videoReady = Number(video.readyState || 0) > 0 || videoMs > 0;
+  return videoReady ? videoMs : timelineMs;
 }
 
 function findTimelineCategoryClips(state = {}, laneMode = "", label = "") {
@@ -1258,7 +1261,13 @@ async function saveDraftClip(context = {}, stateOverride = null) {
     run.store.update((current) => ({
       ...current,
       draft: { ...current.draft, startMs: clip.endMs, endMs: clip.endMs + nextDurationMs, tags: "", note: "" },
-      codingSession: { ...(current.codingSession || {}), manualInMs: null, openTag: null },
+      codingSession: {
+        ...(current.codingSession || {}),
+        manualInMs: null,
+        openTag: null,
+        lastTaggedAtMs: clip.startMs,
+        lastTaggedRangeMs: { startMs: clip.startMs, endMs: clip.endMs },
+      },
       selectedClipId: savedClip.id || current.selectedClipId,
       timeline: {
         ...(current.timeline || {}),

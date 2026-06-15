@@ -341,10 +341,10 @@
 .video-analysis-calendar-day {
   display: grid;
   align-content: start;
-  gap: 5px;
-  min-height: 90px;
+  gap: 4px;
+  min-height: 82px;
   min-width: 0;
-  padding: 7px;
+  padding: 6px;
   background: #fbfcfb;
 }
 

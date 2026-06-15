@@ -125,7 +125,8 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timelineInteraction).toContain("lockScrollPosition");
   expect(timelineInteraction).toContain("syncScrubTimes");
   expect(timeline).toContain("video-analysis-clip-block");
-  expect(timeline).toContain("data-video-analysis-zoom");
+  expect(timeline).not.toContain("data-video-analysis-zoom");
+  expect(timeline).not.toContain("video-analysis-timeline-controls");
   expect(intelligence).toContain("Phase x Outcome");
   expect(intelligence).toContain("Principle x Player");
   expect(intelligence).toContain("Mini-game x Unit");

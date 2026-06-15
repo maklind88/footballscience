@@ -168,12 +168,6 @@ export function renderTimeline(state = {}) {
       </div>
       <div class="video-analysis-timeline-toolbar">
         ${renderLaneButtons(laneMode)}
-        <div class="video-analysis-timeline-controls">
-          <button type="button" data-video-analysis-zoom="-0.25" title="Zoom out">-</button>
-          <span>${escapeHtml(`${zoom.toFixed(2)}x`)}</span>
-          <button type="button" data-video-analysis-zoom="0.25" title="Zoom in">+</button>
-          <span>${escapeHtml(`Duration ${formatVideoTime(totalMs)}`)}</span>
-        </div>
       </div>
       <div class="video-analysis-timeline-scroll">
         <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(zoom)}">

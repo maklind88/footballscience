@@ -1287,8 +1287,6 @@
 }
 
 .video-analysis-mode-toggle button,
-.video-analysis-timeline-controls button,
-.video-analysis-timeline-controls select,
 .video-analysis-saved-searches button,
 .video-analysis-review .video-analysis-panel-header button {
   min-height: 30px;
@@ -1378,8 +1376,7 @@
   font-weight: 700;
 }
 
-.video-analysis-descriptor-grid select,
-.video-analysis-timeline-controls select {
+.video-analysis-descriptor-grid select {
   width: 100%;
   min-height: 32px;
   border: 1px solid #cfd8d1;
@@ -1452,15 +1449,6 @@
   border-radius: 8px;
   padding: 10px;
   background: #ffffff;
-}
-
-.video-analysis-timeline-controls {
-  display: grid;
-  grid-auto-flow: column;
-  align-items: center;
-  gap: 6px;
-  color: #5b665f;
-  font-size: 12px;
 }
 
 .video-analysis-lane-stack {

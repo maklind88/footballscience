@@ -251,7 +251,57 @@
   line-height: 1.1;
 }
 
-.video-analysis-calendar-overview__header span,
+.video-analysis-calendar-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.video-analysis-calendar-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border: 1px solid #cfd8d1;
+  border-radius: 999px;
+  padding: 0 12px;
+  color: #17201b;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.video-analysis-calendar-actions button:first-child,
+.video-analysis-calendar-actions button:last-of-type {
+  width: 34px;
+  padding: 0;
+}
+
+.video-analysis-calendar-actions button span {
+  display: block;
+  font-size: 22px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.video-analysis-calendar-actions button:hover {
+  border-color: #9dab9f;
+  background: #f4f8f5;
+  box-shadow: 0 2px 8px rgba(17, 24, 22, 0.08);
+  transform: translateY(-1px);
+}
+
+.video-analysis-calendar-actions button:focus-visible {
+  outline: 2px solid #d7ba68;
+  outline-offset: 2px;
+}
+
+.video-analysis-calendar-count,
 .video-analysis-library-search > span {
   flex: 0 0 auto;
   border-radius: 999px;
@@ -1948,6 +1998,11 @@
   .video-analysis-calendar-overview__header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .video-analysis-calendar-actions {
+    justify-content: flex-start;
+    width: 100%;
   }
 
   .video-analysis-calendar-weekdays,

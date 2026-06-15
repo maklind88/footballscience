@@ -833,6 +833,20 @@ export function handleClick(event, context = {}) {
     libraryController().loadLibrary();
     return true;
   }
+  const calendarMonthButton = target.closest("[data-video-analysis-calendar-month]");
+  if (calendarMonthButton) {
+    run.store.update((state) => ({
+      ...state,
+      library: {
+        ...(state.library || {}),
+        filters: {
+          ...(state.library?.filters || {}),
+          calendarMonth: calendarMonthButton.dataset.videoAnalysisCalendarMonth || "",
+        },
+      },
+    }));
+    return true;
+  }
   const libraryItem = target.closest("[data-video-analysis-open-library-item]");
   if (libraryItem) {
     libraryController().openLibraryItem(libraryItem.dataset.videoAnalysisOpenLibraryItem, context);

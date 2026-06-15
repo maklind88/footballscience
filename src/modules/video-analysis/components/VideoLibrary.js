@@ -24,6 +24,19 @@ function isoMonth(value = "") {
   return year && month ? `${year}-${month}` : "";
 }
 
+function currentIsoMonth() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  return `${now.getFullYear()}-${month}`;
+}
+
+function addMonths(month = "", offset = 0) {
+  const [year, monthNumber] = String(month || "").split("-").map((part) => Number(part));
+  if (!year || !monthNumber) return currentIsoMonth();
+  const date = new Date(Date.UTC(year, monthNumber - 1 + Number(offset || 0), 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 function monthDateValue(month = "", day = 1) {
   const [year, monthNumber] = String(month || "").split("-");
   const safeDay = String(day).padStart(2, "0");
@@ -128,9 +141,12 @@ function renderCalendarDay(date = "", items = []) {
   `;
 }
 
-function renderCalendarOverview(allItems = [], visibleItems = []) {
+function renderCalendarOverview(allItems = [], visibleItems = [], filters = {}) {
   const sourceItems = visibleItems.length ? visibleItems : allItems;
-  const month = calendarMonthForItems(sourceItems);
+  const month = isoMonth(filters.calendarMonth) || calendarMonthForItems(sourceItems);
+  const todayMonth = currentIsoMonth();
+  const previousMonth = addMonths(month, -1);
+  const nextMonth = addMonths(month, 1);
   const itemsByDate = new Map();
   for (const item of sourceItems) {
     if (isoMonth(item.matchDate) !== month) continue;
@@ -151,7 +167,16 @@ function renderCalendarOverview(allItems = [], visibleItems = []) {
           <p class="video-analysis-kicker">Video calendar</p>
           <h2>${escapeHtml(monthLabel(`${month}-01`))}</h2>
         </div>
-        <span>${escapeHtml(`${monthItems.length} in view`)}</span>
+        <div class="video-analysis-calendar-actions" aria-label="Calendar month navigation">
+          <button type="button" data-video-analysis-calendar-month="${escapeHtml(previousMonth)}" aria-label="Previous month">
+            <span aria-hidden="true">&#8249;</span>
+          </button>
+          <button type="button" data-video-analysis-calendar-month="${escapeHtml(todayMonth)}">Today</button>
+          <button type="button" data-video-analysis-calendar-month="${escapeHtml(nextMonth)}" aria-label="Next month">
+            <span aria-hidden="true">&#8250;</span>
+          </button>
+          <span class="video-analysis-calendar-count">${escapeHtml(`${monthItems.length} in view`)}</span>
+        </div>
       </div>
       <div class="video-analysis-calendar-weekdays" aria-hidden="true">
         ${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => `<span>${day}</span>`).join("")}
@@ -235,7 +260,7 @@ export function renderVideoLibrary(state = {}) {
   const archiveItems = visibleItems.slice(0, 8);
   return `
     <section class="video-analysis-library" data-video-analysis-library>
-      ${renderCalendarOverview(allItems, visibleItems)}
+      ${renderCalendarOverview(allItems, visibleItems, library.filters || {})}
       ${renderLibrarySearch(library, visibleItems.length, searchIsActive)}
       ${searchIsActive ? `
         <section class="video-analysis-library-archive" aria-label="Search results">

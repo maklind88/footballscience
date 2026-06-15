@@ -176,6 +176,23 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-timeline-ruler")).toBeVisible();
   await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("Team Principle");
   await expect(page.locator(".video-analysis-timeline-controls")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-filters")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-results .video-analysis-filters")).toHaveCount(0);
+  const filterPlacement = await page.evaluate(() => {
+    const timeline = document.querySelector("[data-video-analysis-timeline-module]");
+    const filters = document.querySelector(".video-analysis-filters");
+    const workstation = document.querySelector(".video-analysis-workstation");
+    return {
+      afterTimeline: Boolean(timeline?.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING),
+      beforeWorkstation: Boolean(filters?.compareDocumentPosition(workstation) & Node.DOCUMENT_POSITION_FOLLOWING),
+      directShellChild: filters?.parentElement?.classList.contains("video-analysis-shell") || false,
+    };
+  });
+  expect(filterPlacement).toEqual({
+    afterTimeline: true,
+    beforeWorkstation: true,
+    directShellChild: true,
+  });
   await expect(page.locator(".video-analysis-clip-block").first()).toBeVisible();
   await expect(page.locator(".video-analysis-playhead")).toHaveCount(1);
   await expect(page.locator(".video-analysis-playhead").first()).toBeVisible();

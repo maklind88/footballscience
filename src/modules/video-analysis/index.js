@@ -232,12 +232,12 @@ function renderFsPlayerWorkspace(displayState = {}) {
     ${renderWorkspaceNav(displayState)}
     ${renderVideoPlayer(displayState)}
     ${renderTimeline(displayState)}
+    ${renderClipFilters(displayState)}
     <section class="video-analysis-workstation">
       <section class="video-analysis-left-stack">
         ${renderCodingTemplateBuilder(displayState)}
       </section>
       <section class="video-analysis-results">
-        ${renderClipFilters(displayState)}
         ${renderClipIntelligence(displayState)}
         ${renderClipList(displayState)}
       </section>

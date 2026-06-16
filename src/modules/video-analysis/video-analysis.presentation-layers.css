@@ -1,0 +1,61 @@
+#analysisRoomWorkspace .video-analysis-presenter-layer,
+#analysisRoomWorkspace .video-analysis-presentation-stage-layer {
+  position: absolute;
+  z-index: 3;
+  display: inline-grid;
+  place-items: center;
+  min-width: 42px;
+  min-height: 32px;
+  border: 2px solid #f4d06f;
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #fff8dc;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-arrow,
+#analysisRoomWorkspace .video-analysis-presenter-layer.is-arrow {
+  width: 130px;
+  min-height: 0;
+  border-width: 0 3px 3px 0;
+  border-radius: 0;
+  transform-origin: left center;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-circle,
+#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-spotlight,
+#analysisRoomWorkspace .video-analysis-presenter-layer.is-circle,
+#analysisRoomWorkspace .video-analysis-presenter-layer.is-spotlight {
+  width: 120px;
+  height: 76px;
+  background: rgba(244, 208, 111, 0.08);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-spotlight,
+#analysisRoomWorkspace .video-analysis-presenter-layer.is-spotlight {
+  border-color: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 0 0 999px rgba(3, 8, 6, 0.24);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-text,
+#analysisRoomWorkspace .video-analysis-presenter-layer.is-text {
+  border-radius: 8px;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-freeze,
+#analysisRoomWorkspace .video-analysis-presenter-layer.is-freeze {
+  inset: 9%;
+  border-style: dashed;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-zoom,
+#analysisRoomWorkspace .video-analysis-presenter-layer.is-zoom {
+  width: 98px;
+  height: 98px;
+  border-color: #8fc9ff;
+  background: rgba(143, 201, 255, 0.1);
+}

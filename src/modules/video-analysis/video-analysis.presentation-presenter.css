@@ -1,97 +1,433 @@
 #analysisRoomWorkspace .video-analysis-presenter-mode {
   display: grid;
-  grid-template-columns: minmax(230px, 0.22fr) minmax(0, 1fr);
-  gap: 14px;
-  margin: 0 12px 12px;
-  border-radius: 18px;
-  padding: 14px;
-  background:
-    radial-gradient(circle at 75% 15%, rgba(244, 208, 111, 0.14), transparent 30%),
-    #030504;
+  grid-template-columns: minmax(260px, 350px) minmax(0, 1fr);
+  min-height: min(820px, calc(100vh - 128px));
+  overflow: hidden;
+  border-radius: 0 0 28px 28px;
+  background: #f4f6f8;
+  color: #111816;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 #analysisRoomWorkspace .video-analysis-presenter-mode:fullscreen {
   width: 100vw;
   height: 100vh;
-  margin: 0;
+  min-height: 100vh;
   border-radius: 0;
 }
 
 #analysisRoomWorkspace .video-analysis-presenter-queue {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+  border-right: 1px solid rgba(202, 210, 206, 0.94);
+  padding: 20px 16px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue__title {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
   gap: 10px;
-  align-self: start;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.05);
+  align-items: center;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue__title button,
+#analysisRoomWorkspace .video-analysis-presenter-home,
+#analysisRoomWorkspace .video-analysis-presenter-builder-toggle,
+#analysisRoomWorkspace .video-analysis-presenter-side-tools button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0;
+  background: rgba(220, 232, 255, 0.9);
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue__title button::before,
+#analysisRoomWorkspace .video-analysis-presenter-home::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  border: 3px solid #0b1016;
+  border-bottom: 0;
+  border-radius: 2px 2px 0 0;
+  transform: rotate(45deg);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-builder-toggle::before {
+  content: "";
+  width: 18px;
+  height: 16px;
+  border: 3px solid #2460e8;
+  border-radius: 2px;
+  box-shadow: inset 7px 0 0 rgba(36, 96, 232, 0.22);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue__title h3 {
+  margin: 0;
+  color: #0d1512;
+  font-size: 20px;
+  line-height: 1.08;
+  font-weight: 950;
+  overflow-wrap: anywhere;
 }
 
 #analysisRoomWorkspace .video-analysis-presenter-queue-list {
   display: grid;
-  gap: 8px;
-  max-height: 68vh;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
   overflow: auto;
+  padding-right: 4px;
 }
 
 #analysisRoomWorkspace .video-analysis-presenter-queue-item {
   display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  gap: 9px;
-  align-items: center;
-  min-height: 62px;
-  border-color: rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
   text-align: left;
+  cursor: pointer;
 }
 
-#analysisRoomWorkspace .video-analysis-presenter-queue-item.is-active {
-  border-color: rgba(244, 208, 111, 0.78);
-  background: rgba(244, 208, 111, 0.12);
+#analysisRoomWorkspace .video-analysis-presenter-queue-number {
+  display: grid;
+  place-items: center;
+  color: #111816;
+  font-size: 13px;
+  font-weight: 950;
 }
 
-#analysisRoomWorkspace .video-analysis-presenter-queue-item strong,
-#analysisRoomWorkspace .video-analysis-presenter-queue-item small,
-#analysisRoomWorkspace .video-analysis-presenter-stage__top h3,
-#analysisRoomWorkspace .video-analysis-presenter-notes p {
-  color: #edf5ef;
+#analysisRoomWorkspace .video-analysis-presenter-queue-card {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid rgba(182, 189, 186, 0.95);
+  border-radius: 12px;
+  padding: 9px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(20, 32, 24, 0.05);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue-item.is-active .video-analysis-presenter-queue-card {
+  border-color: #2862e9;
+  box-shadow: 0 0 0 2px rgba(40, 98, 233, 0.14), 0 14px 30px rgba(40, 98, 233, 0.1);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue-item__thumb {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 62px;
+  min-height: 62px;
+  border: 1px solid rgba(218, 226, 221, 0.95);
+  border-radius: 9px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.18) 1px, transparent 1px),
+    linear-gradient(145deg, #193825, #0b1510);
+  background-size: 100% 33%, 24% 100%, auto;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue-item__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue-copy strong {
+  color: #111816;
+  font-size: 14px;
+  line-height: 1.12;
+  font-weight: 950;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue-copy small,
+#analysisRoomWorkspace .video-analysis-presenter-queue-copy em {
+  color: #7a8580;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 760;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue-tags span {
+  border-radius: 4px;
+  padding: 2px 5px;
+  color: #1d4fd7;
+  background: rgba(37, 99, 235, 0.1);
+  font-size: 9px;
+  font-weight: 920;
 }
 
 #analysisRoomWorkspace .video-analysis-presenter-stage {
   display: grid;
-  gap: 10px;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 14px;
   min-width: 0;
+  min-height: 0;
+  padding: 20px 22px 18px;
 }
 
-#analysisRoomWorkspace .video-analysis-presenter-stage__top,
-#analysisRoomWorkspace .video-analysis-presenter-notes {
+#analysisRoomWorkspace .video-analysis-presenter-stage__top {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: start;
+  grid-template-columns: 40px 40px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-stage__top h3 {
+  margin: 0;
+  color: #0b1016;
+  font-size: clamp(22px, 2.2vw, 30px);
+  line-height: 1.05;
+  font-weight: 950;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-top-actions {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-top-actions button,
+#analysisRoomWorkspace .video-analysis-presenter-transport-controls button {
+  min-height: 38px;
+  border: 1px solid rgba(194, 203, 198, 0.94);
+  border-radius: 999px;
+  padding: 0 14px;
+  color: #101612;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-present-button {
+  min-width: 210px;
+  border-color: #245fe8 !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #2563eb, #214fde) !important;
+  box-shadow: 0 14px 34px rgba(37, 99, 235, 0.24);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  gap: 16px;
+  min-height: 0;
 }
 
 #analysisRoomWorkspace .video-analysis-presenter-frame {
-  min-height: clamp(520px, 66vh, 820px);
+  position: relative;
+  overflow: hidden;
+  min-height: clamp(430px, 66vh, 780px);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(244, 208, 111, 0.08), transparent 23%),
+    #08100c;
+  box-shadow: 0 26px 64px rgba(0, 0, 0, 0.16);
 }
 
 #analysisRoomWorkspace .video-analysis-presenter-video {
+  display: block;
+  width: 100%;
+  height: 100%;
   min-height: inherit;
+  object-fit: contain;
+  background: #050806;
 }
 
-#analysisRoomWorkspace .video-analysis-presenter-progress {
+#analysisRoomWorkspace .video-analysis-presenter-side-tools {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  justify-items: center;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-side-tools button {
+  width: 54px;
+  height: 54px;
+  border: 1px solid rgba(208, 216, 211, 0.95);
+  background: #fff;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-side-tools button:first-child::before {
+  content: "";
+  width: 24px;
+  height: 18px;
+  border-bottom: 4px solid #0b1016;
+  border-left: 4px solid #0b1016;
+  transform: rotate(-18deg);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-side-tools button:last-child::before {
+  content: "";
+  width: 22px;
+  height: 26px;
+  border: 3px solid #0b1016;
+  border-radius: 3px;
+  box-shadow: inset 0 7px 0 rgba(11, 16, 22, 0.12);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-layer-stack {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-frame__copy {
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  z-index: 4;
+  display: grid;
+  gap: 4px;
+  max-width: min(520px, calc(100% - 36px));
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #fff;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.58), rgba(0, 0, 0, 0.18));
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.34);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-frame__copy span,
+#analysisRoomWorkspace .video-analysis-presenter-frame__copy strong,
+#analysisRoomWorkspace .video-analysis-presenter-frame__copy small {
+  color: #fff;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-frame__copy span {
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-frame__copy strong {
+  font-size: 17px;
+  font-weight: 950;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-transport {
+  display: grid;
+  grid-template-columns: minmax(130px, auto) minmax(260px, 1fr);
+  gap: 12px 22px;
+  align-items: center;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-time {
+  display: flex;
+  gap: 5px;
+  align-items: baseline;
+  color: #0b1016;
+  font-size: 19px;
+  font-weight: 950;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-time span {
+  color: #7b8580;
+  font-size: 14px;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-transport-controls {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-transport-controls > span {
+  color: #0b1016;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-transport-controls button {
+  display: grid;
+  place-items: center;
+  min-width: 42px;
+  height: 42px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-transport-controls button.is-play {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #050806;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-transport-controls button.is-play::before {
+  content: "";
+  width: 0;
+  height: 0;
+  margin-left: 5px;
+  border-top: 15px solid transparent;
+  border-bottom: 15px solid transparent;
+  border-left: 23px solid #fff;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-scrub {
+  grid-column: 1 / -1;
   overflow: hidden;
   height: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(7, 14, 10, 0.16);
 }
 
-#analysisRoomWorkspace .video-analysis-presenter-progress span {
+#analysisRoomWorkspace .video-analysis-presenter-scrub span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #f4d06f, #fff);
+  background: #0b1016;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-notes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-notes > div {
+  border: 1px solid rgba(212, 221, 216, 0.86);
+  border-radius: 14px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-notes p {
+  margin: 0;
+  color: #4f5d54;
+  font-size: 13px;
+  font-weight: 720;
 }
 
 #analysisRoomWorkspace .video-analysis-presenter-mode.is-frozen .video-analysis-presenter-frame::after {
@@ -100,147 +436,11 @@
   right: 14px;
   top: 14px;
   z-index: 5;
-  border: 1px solid rgba(244, 208, 111, 0.72);
   border-radius: 999px;
-  padding: 7px 10px;
-  color: #f4d06f;
-  background: rgba(0, 0, 0, 0.58);
+  padding: 8px 11px;
+  color: #fff;
+  background: rgba(37, 99, 235, 0.9);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 950;
   text-transform: uppercase;
-}
-
-#analysisRoomWorkspace .video-analysis-presenter-controls button[data-video-analysis-presenter-freeze] {
-  border-color: #e5c86a;
-  color: #2c260c;
-  background: #f4d06f;
-}
-
-#analysisRoomWorkspace .video-analysis-presenter-layer,
-#analysisRoomWorkspace .video-analysis-presentation-stage-layer {
-  position: absolute;
-  z-index: 3;
-  display: inline-grid;
-  place-items: center;
-  min-width: 42px;
-  min-height: 32px;
-  border: 2px solid #f4d06f;
-  border-radius: 999px;
-  padding: 5px 9px;
-  color: #fff8dc;
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-arrow,
-#analysisRoomWorkspace .video-analysis-presenter-layer.is-arrow {
-  width: 130px;
-  min-height: 0;
-  border-width: 0 3px 3px 0;
-  border-radius: 0;
-  transform-origin: left center;
-}
-
-#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-circle,
-#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-spotlight,
-#analysisRoomWorkspace .video-analysis-presenter-layer.is-circle,
-#analysisRoomWorkspace .video-analysis-presenter-layer.is-spotlight {
-  width: 120px;
-  height: 76px;
-  background: rgba(244, 208, 111, 0.08);
-}
-
-#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-spotlight,
-#analysisRoomWorkspace .video-analysis-presenter-layer.is-spotlight {
-  border-color: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 0 0 999px rgba(3, 8, 6, 0.24);
-}
-
-#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-text,
-#analysisRoomWorkspace .video-analysis-presenter-layer.is-text {
-  border-radius: 8px;
-}
-
-#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-freeze,
-#analysisRoomWorkspace .video-analysis-presenter-layer.is-freeze {
-  inset: 9%;
-  border-style: dashed;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-#analysisRoomWorkspace .video-analysis-presentation-stage-layer.is-zoom,
-#analysisRoomWorkspace .video-analysis-presenter-layer.is-zoom {
-  width: 98px;
-  height: 98px;
-  border-color: #8fc9ff;
-  background: rgba(143, 201, 255, 0.1);
-}
-
-@media (max-width: 1180px) {
-  #analysisRoomWorkspace .video-analysis-presentation-builder-v2 {
-    grid-template-columns: minmax(290px, 0.42fr) minmax(0, 1fr);
-    grid-template-areas:
-      "stage stage"
-      "sources outline"
-      "sources inspector";
-  }
-}
-
-@media (max-width: 980px) {
-  #analysisRoomWorkspace .video-analysis-presentation-topbar,
-  #analysisRoomWorkspace .video-analysis-presentation-builder-v2,
-  #analysisRoomWorkspace .video-analysis-drawing-builder,
-  #analysisRoomWorkspace .video-analysis-presenter-mode,
-  #analysisRoomWorkspace .video-analysis-presenter-stage__top,
-  #analysisRoomWorkspace .video-analysis-presenter-notes {
-    grid-template-columns: 1fr;
-  }
-
-  #analysisRoomWorkspace .video-analysis-presentation-builder-v2 {
-    grid-template-areas:
-      "stage"
-      "sources"
-      "outline"
-      "inspector";
-  }
-
-  #analysisRoomWorkspace .video-analysis-presentation-command-stack,
-  #analysisRoomWorkspace .video-analysis-presentation-actions {
-    justify-items: stretch;
-    justify-content: flex-start;
-  }
-
-  #analysisRoomWorkspace .video-analysis-presentation-access {
-    margin-right: 12px;
-    width: auto;
-  }
-}
-
-@media (max-width: 720px) {
-  #analysisRoomWorkspace .video-analysis-presentation-access__grid,
-  #analysisRoomWorkspace .video-analysis-smart-share-panel__row,
-  #analysisRoomWorkspace .video-analysis-smart-save-strip__body,
-  #analysisRoomWorkspace .video-analysis-presentation-source-advanced > div {
-    grid-template-columns: 1fr;
-  }
-
-  #analysisRoomWorkspace .video-analysis-presentation-stage-frame-v2,
-  #analysisRoomWorkspace .video-analysis-presenter-frame {
-    min-height: 340px;
-  }
-
-  #analysisRoomWorkspace .video-analysis-presentation-stage-empty > div,
-  #analysisRoomWorkspace .video-analysis-presentation-stage-copy,
-  #analysisRoomWorkspace .video-analysis-presenter-frame__copy {
-    left: 14px;
-    right: 14px;
-    bottom: 14px;
-    max-width: none;
-  }
-
-  #analysisRoomWorkspace .video-analysis-drawing-overlay-input {
-    width: min(160px, 54vw);
-  }
 }

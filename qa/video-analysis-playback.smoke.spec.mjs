@@ -223,9 +223,12 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
         && timeline
         && ruler
         && code.left < deck.left
-        && Math.abs(timeline.left - workspace.left) < 3
-        && Math.abs(timeline.right - workspace.right) < 3
-        && Math.abs(ruler.left - deck.left) < 8
+        && Math.abs(timeline.left - deck.left) < 8
+        && Math.abs(timeline.right - deck.right) < 8
+        && timeline.top >= deck.bottom
+        && timeline.top - deck.bottom <= 16
+        && ruler.left > timeline.left + 90
+        && ruler.left < timeline.left + 140
     );
   })).toBe(true);
   await expect(page.locator(".video-analysis-workspace-nav")).toHaveCount(0);
@@ -325,6 +328,12 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
 
   await page.getByRole("button", { name: "Presentation", exact: true }).click();
   await expect(page.locator("[data-video-analysis-presentation-module]")).toBeVisible();
+  await expect(page.locator(".video-analysis-presentation-library")).toBeVisible();
+  await expect(page.locator(".video-analysis-presentation-library")).toContainText("Presentations");
+  await expect(page.locator(".video-analysis-presentation-library-card")).toContainText("Football Science Review");
+  await expect(page.locator("[data-video-analysis-presentation-library-search]")).toBeVisible();
+  await page.locator('[data-video-analysis-presentation-open="presentation-1"]').click();
+  await expect(page.locator(".video-analysis-presentation-builder-v2")).toBeVisible();
   await expect(page.locator(".video-analysis-presentation")).toContainText("Football Science Review");
   await expect(page.locator(".video-analysis-presentation")).toContainText("Presentation room");
   await expect(page.locator(".video-analysis-presentation")).toContainText("Data Explorer");

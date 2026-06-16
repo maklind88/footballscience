@@ -4,6 +4,7 @@ import { renderClipList } from "./components/ClipList.js";
 import { renderCodingTemplateBuilder } from "./components/CodingTemplateBuilder.js";
 import { renderPlayerClipDrawer } from "./components/PlayerClipDrawer.js";
 import { renderPresentationModule } from "./components/PresentationModule.js";
+import { renderTagFilterOverlay } from "./components/TagFilterOverlay.js";
 import { renderTimeline } from "./components/Timeline.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderVideoPlayer } from "./components/VideoPlayer.js";
@@ -313,14 +314,15 @@ function renderFsPlayerWorkspace(displayState = {}) {
         <section class="video-analysis-fs-player-deck">
           ${renderVideoPlayer(displayState)}
         </section>
+        <section class="video-analysis-fs-player-timeline">
+          ${renderTimeline(displayState)}
+        </section>
       </section>
       <section class="video-analysis-code-window-dock">
         ${renderCodingTemplateBuilder(displayState)}
       </section>
-      <section class="video-analysis-fs-player-timeline">
-        ${renderTimeline(displayState)}
-      </section>
     </section>
+    ${renderTagFilterOverlay(displayState)}
     ${renderPlayerClipDrawer(displayState)}
   `;
 }
@@ -408,6 +410,21 @@ function togglePlayback(context = {}) {
   toggleVideoPlayback(video).then((playing) => {
     if (!playing && video?.error) setVideoPlaybackError(video);
   });
+}
+
+function nudgePlayer(context = {}, deltaMs = 0) {
+  const video = videoElement(context);
+  if (!video) return false;
+  const nextMs = Math.max(0, getVideoCurrentMs(video) + Math.round(Number(deltaMs || 0)));
+  seekVideoToMs(video, nextMs);
+  ensureRuntime(context).store.update((state) => ({
+    ...state,
+    timeline: {
+      ...(state.timeline || {}),
+      playheadMs: nextMs,
+    },
+  }));
+  return true;
 }
 
 function isLocalStaticHost(context = {}) {
@@ -619,6 +636,7 @@ function paint(root, state) {
   const focusedTemplateBuilderField = root.querySelector("[data-video-analysis-template-builder-field]:focus")?.dataset.videoAnalysisTemplateBuilderField || "";
   const focusedPresentationTitle = Boolean(root.querySelector("[data-video-analysis-presentation-title]:focus"));
   const focusedPresentationNotes = Boolean(root.querySelector("[data-video-analysis-presentation-notes]:focus"));
+  const focusedPresentationLibrarySearch = Boolean(root.querySelector("[data-video-analysis-presentation-library-search]:focus"));
   const focusedPresentationFilter = root.querySelector("[data-video-analysis-presentation-filter]:focus")?.dataset.videoAnalysisPresentationFilter || "";
   const focusedPresentationSectionTitle = root.querySelector("[data-video-analysis-presentation-section-title]:focus")?.dataset.videoAnalysisPresentationSectionTitle || "";
   const focusedPresentationSectionNote = root.querySelector("[data-video-analysis-presentation-section-note]:focus")?.dataset.videoAnalysisPresentationSectionNote || "";
@@ -685,8 +703,10 @@ function paint(root, state) {
                   ? root.querySelector(`[data-video-analysis-template-builder-field="${focusedTemplateBuilderField}"]`)
                   : focusedPresentationTitle
                     ? root.querySelector("[data-video-analysis-presentation-title]")
-                    : focusedPresentationNotes
-                      ? root.querySelector("[data-video-analysis-presentation-notes]")
+                  : focusedPresentationNotes
+                    ? root.querySelector("[data-video-analysis-presentation-notes]")
+                    : focusedPresentationLibrarySearch
+                      ? root.querySelector("[data-video-analysis-presentation-library-search]")
                       : focusedPresentationFilter
                         ? root.querySelector(`[data-video-analysis-presentation-filter="${focusedPresentationFilter}"]`)
                         : focusedPresentationSectionTitle
@@ -775,6 +795,8 @@ async function loadClips(nextFilters = null) {
     if (filters.playerId) {
       clips = clips.filter((clip) => (clip.players || []).some((player) => (player.player_id || player.playerId) === filters.playerId));
     }
+    if (filters.tag) clips = clips.filter((clip) => clipHasTag(clip, filters.tag));
+    if (filters.ownerId) clips = clips.filter((clip) => clipMatchesOwner(clip, filters.ownerId));
     run.store.update((current) => {
       const preservePlaybackPreparation = shouldPreservePlaybackPreparation(current);
       return {
@@ -958,6 +980,22 @@ function replaceClipInState(current = {}, nextClip = {}) {
     clips: patchList(current.clips || []),
     allClips: Array.isArray(current.allClips) ? patchList(current.allClips) : current.allClips,
   };
+}
+
+function clipHasTag(clip = {}, tag = "") {
+  const target = String(tag || "").trim().toLowerCase();
+  if (!target) return true;
+  return (Array.isArray(clip.tags) ? clip.tags : []).some((value) => String(value || "").trim().toLowerCase() === target);
+}
+
+function clipOwnerId(clip = {}) {
+  return String(clip.ownerId || clip.owner_id || clip.createdBy || clip.created_by || "").trim();
+}
+
+function clipMatchesOwner(clip = {}, ownerId = "") {
+  const target = String(ownerId || "").trim();
+  if (!target) return true;
+  return clipOwnerId(clip) === target;
 }
 
 async function commitClipTrim(payload = {}, context = {}) {
@@ -1683,6 +1721,45 @@ export function handleClick(event, context = {}) {
     saveCurrentPresentation(context);
     return true;
   }
+  const presentationOpenButton = target.closest("[data-video-analysis-presentation-open]");
+  if (presentationOpenButton) {
+    const presentationId = presentationOpenButton.dataset.videoAnalysisPresentationOpen || "";
+    if (presentationId) {
+      loadPresentation(presentationId).then((loaded) => {
+        if (!loaded) return;
+        run.store.update((state) => ({
+          ...state,
+          presentation: {
+            ...(state.presentation || {}),
+            mode: "builder",
+          },
+        }));
+      });
+    } else {
+      run.store.update((state) => ({
+        ...state,
+        presentation: {
+          ...(state.presentation || {}),
+          mode: "builder",
+        },
+      }));
+    }
+    return true;
+  }
+  const presentationPresentButton = target.closest("[data-video-analysis-presentation-present]");
+  if (presentationPresentButton) {
+    const presentationId = presentationPresentButton.dataset.videoAnalysisPresentationPresent || "";
+    const openPresenter = () => run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        mode: "presenter",
+      },
+    }));
+    if (presentationId) loadPresentation(presentationId).then((loaded) => { if (loaded) openPresenter(); });
+    else openPresenter();
+    return true;
+  }
   if (target.closest("[data-video-analysis-presentation-refresh-sources]")) {
     loadPresentationSources();
     return true;
@@ -1783,6 +1860,10 @@ export function handleClick(event, context = {}) {
   if (target.closest("[data-video-analysis-play]")) {
     togglePlayback(context);
     return true;
+  }
+  const playerNudge = target.closest("[data-video-analysis-player-nudge]");
+  if (playerNudge) {
+    return nudgePlayer(context, Number(playerNudge.dataset.videoAnalysisPlayerNudge || 0));
   }
   if (target.closest("[data-video-analysis-prepare-playback]")) {
     preparePlayableCopy(context);
@@ -2032,6 +2113,37 @@ export function handleClick(event, context = {}) {
         selectedClipId: clip?.id || current.presentation?.selectedClipId || "",
       },
     }));
+    return true;
+  }
+  const tagFilterTrigger = target.closest("[data-video-analysis-tag-filter-trigger]");
+  if (tagFilterTrigger) {
+    run.store.update((state) => ({
+      ...state,
+      timeline: {
+        ...(state.timeline || {}),
+        laneMode: "tags",
+        tagFilterOpen: true,
+      },
+    }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-tag-filter-close]")) {
+    run.store.update((state) => ({
+      ...state,
+      timeline: {
+        ...(state.timeline || {}),
+        tagFilterOpen: false,
+      },
+    }));
+    return true;
+  }
+  const tagFilterButton = target.closest("[data-video-analysis-tag-filter]");
+  if (tagFilterButton) {
+    const kind = tagFilterButton.dataset.videoAnalysisTagFilterKind || "";
+    const value = tagFilterButton.dataset.videoAnalysisTagFilterValue || "";
+    if (kind === "tag" || kind === "ownerId") {
+      loadClips({ ...run.store.getState().filters, [kind]: value });
+    }
     return true;
   }
   const categorySelectButton = target.closest("[data-video-analysis-timeline-category]");
@@ -2298,6 +2410,15 @@ export function handleClick(event, context = {}) {
   if (target.closest("[data-video-analysis-presenter-freeze]")) {
     return presenterControls(context).toggleFreeze();
   }
+  const presenterNudge = target.closest("[data-video-analysis-presenter-nudge]");
+  if (presenterNudge) {
+    const video = videoElement(context);
+    const deltaSeconds = Number(presenterNudge.dataset.videoAnalysisPresenterNudge || 0) / 1000;
+    if (video && Number.isFinite(deltaSeconds)) {
+      video.currentTime = Math.max(0, Number(video.currentTime || 0) + deltaSeconds);
+    }
+    return true;
+  }
   if (target.closest("[data-video-analysis-thumbnail-cache-clear]")) {
     thumbnails(context).clearCache();
     return true;
@@ -2329,7 +2450,7 @@ export function handleClick(event, context = {}) {
     return true;
   }
   if (target.closest("[data-video-analysis-clear-filters]")) {
-    loadClips({ search: "", phase: "", playerId: "", principleId: "", miniGamePrincipleId: "", outcome: "", unit: "", descriptorValue: "" });
+    loadClips({ search: "", phase: "", playerId: "", ownerId: "", tag: "", principleId: "", miniGamePrincipleId: "", outcome: "", unit: "", descriptorValue: "" });
     run.store.update((state) => ({ ...state, matrix: { ...(state.matrix || {}), selectedRow: "", selectedColumn: "" } }));
     return true;
   }
@@ -2524,6 +2645,17 @@ export function handleInput(event, context = {}) {
     }));
     return true;
   }
+  const presentationLibrarySearch = target.closest("[data-video-analysis-presentation-library-search]");
+  if (presentationLibrarySearch) {
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        librarySearch: presentationLibrarySearch.value,
+      },
+    }));
+    return true;
+  }
   const presentationFilter = target.closest("[data-video-analysis-presentation-filter]");
   if (presentationFilter) {
     const key = presentationFilter.dataset.videoAnalysisPresentationFilter;
@@ -2696,6 +2828,19 @@ export function handleKeydown(event, context = {}) {
     return true;
   }
   const category = state.timeline?.selectedCategory || {};
+  if (
+    state.activeAnalysisRoomTab === "fs-player"
+    && state.timeline?.tagFilterOpen
+    && event.key === "Escape"
+  ) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    run.store.update((current) => ({
+      ...current,
+      timeline: { ...(current.timeline || {}), tagFilterOpen: false },
+    }));
+    return true;
+  }
   if (
     state.activeAnalysisRoomTab === "fs-player"
     && state.codingSession?.panelMode === "edit"

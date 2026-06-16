@@ -68,14 +68,18 @@ function findClipButton(clip = {}, lookup = {}) {
 function renderLaneButtons(activeLaneMode = "phase") {
   return `
     <div class="video-analysis-timeline-tabs" aria-label="Timeline lanes">
-      ${TIMELINE_LANE_MODES.map((mode) => `
+      ${TIMELINE_LANE_MODES.map((mode) => {
+        const opensTagFilter = mode.id === "tags";
+        return `
         <button
           type="button"
           class="${activeLaneMode === mode.id ? "is-active" : ""}"
           data-video-analysis-timeline-lane="${escapeHtml(mode.id)}"
+          ${opensTagFilter ? `data-video-analysis-tag-filter-trigger aria-haspopup="dialog"` : ""}
           aria-pressed="${activeLaneMode === mode.id ? "true" : "false"}"
         >${escapeHtml(mode.label)}</button>
-      `).join("")}
+      `;
+      }).join("")}
     </div>
   `;
 }

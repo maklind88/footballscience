@@ -51,6 +51,11 @@ export function renderVideoPlayer(state = {}) {
       ? compatibility.container.toUpperCase()
       : "";
   const title = ref?.displayName || state.match?.title || state.pendingScheduleLink?.title || "No match video loaded";
+  const currentMs = Math.max(0, Math.round(Number(state.timeline?.playheadMs || 0)));
+  const durationMs = Math.max(0, Math.round(Number(ref?.durationMs || 0)));
+  const visibleClipCount = Array.isArray(state.clips) ? state.clips.length : 0;
+  const totalClipCount = Array.isArray(state.allClips) && state.allClips.length ? state.allClips.length : visibleClipCount;
+  const filtered = totalClipCount > visibleClipCount;
   return `
     <section class="video-analysis-player" data-video-analysis-player>
       <div class="video-analysis-player__bar">
@@ -63,7 +68,6 @@ export function renderVideoPlayer(state = {}) {
           ${showPermissionReconnect ? `<button type="button" class="video-analysis-icon-button" data-video-analysis-restore-local-file title="Reconnect local file">Reconnect local file</button>` : ""}
           ${showPermissionReconnect && !hasVideo ? "" : `<button type="button" class="video-analysis-icon-button" data-video-analysis-load title="${needsReconnect ? "Reconnect local video" : "Link local video"}">${loadLabel}</button>`}
           ${needsPrepare || showPrepared ? `<button type="button" class="video-analysis-icon-button" data-video-analysis-prepare-playback ${needsPrepare ? "" : "disabled"} title="Prepare browser-safe playback copy">${showPrepared ? "Prepared" : "Prepare"}</button>` : ""}
-          <button type="button" class="video-analysis-icon-button" data-video-analysis-play ${hasVideo ? "" : "disabled"} title="Play or pause">Play</button>
         </div>
       </div>
       <div class="video-analysis-video-frame">
@@ -76,6 +80,23 @@ export function renderVideoPlayer(state = {}) {
                 </button>
               </div>`
         }
+      </div>
+      <div class="video-analysis-player-transport" aria-label="FS Player playback controls">
+        <div class="video-analysis-player-time">
+          <strong>${escapeHtml(formatVideoTime(currentMs))}</strong>
+          <span>/ ${escapeHtml(formatVideoTime(durationMs))}</span>
+        </div>
+        <div class="video-analysis-player-controls">
+          <span>1x</span>
+          <button type="button" data-video-analysis-player-nudge="-5000" ${hasVideo ? "" : "disabled"} aria-label="Back five seconds">-5</button>
+          <button type="button" class="video-analysis-player-play" data-video-analysis-play ${hasVideo ? "" : "disabled"} aria-label="Play or pause">Play</button>
+          <button type="button" data-video-analysis-player-nudge="5000" ${hasVideo ? "" : "disabled"} aria-label="Forward five seconds">+5</button>
+        </div>
+        <button type="button" class="video-analysis-player-tag-filter" data-video-analysis-tag-filter-trigger>
+          <span>#</span>
+          <strong>Tags</strong>
+          <em>${escapeHtml(filtered ? `${visibleClipCount}/${totalClipCount}` : String(visibleClipCount))}</em>
+        </button>
       </div>
       <div class="video-analysis-player__meta">
         <span>${escapeHtml(playbackStatus)}</span>

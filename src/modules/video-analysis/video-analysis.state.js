@@ -81,6 +81,7 @@ export function createInitialVideoAnalysisState(context = {}) {
       zoom: 1,
       laneMode: "phase",
       playheadMs: 0,
+      tagFilterOpen: false,
       selectedCategory: {
         laneMode: "",
         label: "",
@@ -96,6 +97,8 @@ export function createInitialVideoAnalysisState(context = {}) {
       search: "",
       phase: "",
       playerId: "",
+      ownerId: "",
+      tag: "",
       principleId: "",
       miniGamePrincipleId: "",
       outcome: "",

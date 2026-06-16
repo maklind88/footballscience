@@ -1,4 +1,5 @@
 export const presentationModes = Object.freeze([
+  { id: "overview", label: "Library" },
   { id: "builder", label: "Build" },
   { id: "draw", label: "Telestrate" },
   { id: "presenter", label: "Present" },
@@ -40,7 +41,7 @@ function booleanValue(value, fallback = false) {
 }
 
 export function normalizePresentationMode(mode = "") {
-  return presentationModes.some((item) => item.id === mode) ? mode : "builder";
+  return presentationModes.some((item) => item.id === mode) ? mode : "overview";
 }
 
 export function normalizePresentationDrawingTool(tool = "") {
@@ -68,7 +69,8 @@ export function createInitialPresentationWorkspace() {
     activeSectionId: "opening",
     selectedItemId: "",
     selectedClipId: "",
-    mode: "builder",
+    mode: "overview",
+    librarySearch: "",
     drawingTool: "arrow",
     drawingUndoStack: [],
     drawingRedoStack: [],

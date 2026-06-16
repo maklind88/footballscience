@@ -9,6 +9,7 @@ import { layerStyle } from "../services/presentationLayerGeometryService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { renderDrawingCanvas } from "./DrawingCanvas.js";
 import { renderPresentationOutline } from "./PresentationOutline.js";
+import { renderPresentationOverview } from "./PresentationOverview.js";
 import { renderPresentationSources } from "./PresentationSources.js";
 import { renderPresenterMode } from "./PresenterMode.js";
 import { renderSelectedClipInspector } from "./SelectedClipInspector.js";
@@ -226,6 +227,7 @@ function renderBuilder(state = {}) {
 }
 
 function renderPresentationBody(state = {}, activeMode = "builder") {
+  if (activeMode === "overview") return renderPresentationOverview(state);
   if (activeMode === "presenter") return renderPresenterMode(state);
   if (activeMode === "draw") return renderDrawingCanvas(state);
   return renderBuilder(state);
@@ -243,6 +245,14 @@ export function renderPresentationModule(state = {}) {
       <section class="video-analysis-presentation is-presenter" data-video-analysis-presentation-module>
         ${presentationState.error ? `<div class="video-analysis-error" role="alert">${escapeHtml(presentationState.error)}</div>` : ""}
         ${renderPresenterMode(state)}
+      </section>
+    `;
+  }
+  if (activeMode === "overview") {
+    return `
+      <section class="video-analysis-presentation is-library" data-video-analysis-presentation-module>
+        ${presentationState.error ? `<div class="video-analysis-error" role="alert">${escapeHtml(presentationState.error)}</div>` : ""}
+        ${renderPresentationOverview(state)}
       </section>
     `;
   }

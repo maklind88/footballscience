@@ -290,10 +290,10 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await page.getByRole("button", { name: "Presentation", exact: true }).click();
   await expect(page.locator("[data-video-analysis-presentation-module]")).toBeVisible();
   await expect(page.locator(".video-analysis-presentation")).toContainText("Football Science Review");
-  await expect(page.locator(".video-analysis-presentation")).toContainText("Presentation Builder");
+  await expect(page.locator(".video-analysis-presentation")).toContainText("Presentation room");
   await expect(page.locator(".video-analysis-presentation")).toContainText("Data Explorer");
-  await expect(page.locator(".video-analysis-presentation")).toContainText("Outline");
-  await expect(page.locator(".video-analysis-presentation")).toContainText("Selected clip");
+  await expect(page.locator(".video-analysis-presentation")).toContainText("Meeting order");
+  await expect(page.locator(".video-analysis-presentation")).toContainText("Clip prep");
   await expect(page.locator(".video-analysis-presentation-source-clip")).toHaveCount(1);
   await expect(page.locator(".video-analysis-presentation-source-clip")).toContainText("Alex Morgan");
   await expect(page.locator(".video-analysis-presentation-outline-section")).toHaveCount(3);

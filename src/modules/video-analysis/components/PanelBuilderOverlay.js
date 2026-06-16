@@ -301,13 +301,12 @@ export function renderPanelBuilderOverlay(state = {}, groups = []) {
   return `
     <div class="video-analysis-template-overlay" data-video-analysis-template-overlay>
       <button type="button" class="video-analysis-template-overlay__backdrop" data-video-analysis-panel-mode="use" aria-label="Close panel editor"></button>
-      <section class="video-analysis-template-overlay__panel" role="dialog" aria-modal="true" aria-labelledby="video-analysis-panel-editor-title">
+      <section class="video-analysis-template-overlay__panel" role="dialog" aria-modal="true" aria-label="Panel editor">
         <div class="video-analysis-template-overlay__header">
           <div class="video-analysis-template-overlay__header-main">
             <p class="video-analysis-kicker">Panel Editor</p>
             <label class="video-analysis-template-title-field">
-              <span id="video-analysis-panel-editor-title" class="video-analysis-sr-only">Panel name</span>
-              <input type="text" aria-labelledby="video-analysis-panel-editor-title" data-video-analysis-template-field="title" value="${escapeHtml(template.title || "Football Science Tag Panel")}">
+              <input type="text" aria-label="Panel name" data-video-analysis-template-field="title" value="${escapeHtml(template.title || "Football Science Tag Panel")}">
             </label>
           </div>
           <div class="video-analysis-template-actions">

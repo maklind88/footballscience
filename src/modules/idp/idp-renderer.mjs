@@ -1070,7 +1070,7 @@ export function renderIdpWorkspace(state = {}, options = {}) {
   const teamName = getTeamName(options);
   const hasSelectedPlayer = Boolean(ui.selectedPlayerId);
   return `
-    <section class="idp-shell">
+    <section class="idp-shell${hasSelectedPlayer ? " is-profile-mode" : " is-overview-mode"}">
       <header class="idp-header">
         <div class="idp-title-lockup">
           ${renderTeamMark(options)}

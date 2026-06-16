@@ -40,6 +40,23 @@ function getDocument(activeRuntime) {
   return activeRuntime?.context?.win?.document || globalThis.document || null;
 }
 
+function scrollWorkspaceTop(activeRuntime = runtime) {
+  const root = getRoot(activeRuntime?.context);
+  if (!root) return;
+  const win = activeRuntime?.context?.win || globalThis;
+  const doc = getDocument(activeRuntime);
+  const target = root.querySelector?.(".idp-player-profile, .idp-overview-board") || root;
+  const scroll = () => {
+    target.scrollIntoView?.({ block: "start", inline: "nearest" });
+    doc?.scrollingElement?.scrollTo?.({ top: 0, left: 0 });
+  };
+  if (typeof win.requestAnimationFrame === "function") {
+    win.requestAnimationFrame(scroll);
+    return;
+  }
+  scroll();
+}
+
 function shouldRunSyncCheck(activeRuntime) {
   const root = getRoot(activeRuntime?.context);
   if (!root || root.isConnected === false) return false;
@@ -175,6 +192,7 @@ export function handleClick(event) {
   const backTrigger = event?.target?.closest?.("[data-idp-back-overview]");
   if (backTrigger) {
     runtime?.store.setState({ ui: { selectedPlayerId: "", actionMode: "", error: "", message: "" } });
+    scrollWorkspaceTop(runtime);
     return;
   }
   const actionTrigger = event?.target?.closest?.("[data-idp-action]");
@@ -195,7 +213,10 @@ export function handleClick(event) {
   }
   const playerTrigger = event?.target?.closest?.("[data-idp-player]");
   if (playerTrigger) {
-    runAction(() => runtime?.actions.selectPlayer(playerTrigger.dataset.idpPlayer || ""));
+    runAction(async () => {
+      await runtime?.actions.selectPlayer(playerTrigger.dataset.idpPlayer || "");
+      scrollWorkspaceTop(runtime);
+    });
     return;
   }
   const refreshTrigger = event?.target?.closest?.("[data-idp-refresh]");

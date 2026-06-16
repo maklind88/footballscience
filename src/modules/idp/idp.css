@@ -3137,3 +3137,601 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
     display: none;
   }
 }
+
+/* Player Development Profile: Apple-inspired refinement */
+.idp-profile-experience {
+  --idp-profile-ink: #111827;
+  --idp-profile-muted: #667085;
+  --idp-profile-line: rgba(17, 24, 39, .08);
+  --idp-profile-soft-line: rgba(17, 24, 39, .05);
+  --idp-profile-card: rgba(255, 255, 255, .84);
+  --idp-profile-card-solid: #fff;
+  --idp-profile-soft: rgba(245, 247, 250, .82);
+  background: #f5f7fb;
+  border: 1px solid rgba(17, 24, 39, .07);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .88);
+  color: var(--idp-profile-ink);
+  gap: 12px;
+  padding: 12px;
+}
+
+.idp-shell.is-profile-mode {
+  --idp-ink: #111827;
+  --idp-muted: #667085;
+  --idp-line: rgba(17, 24, 39, .08);
+  --idp-panel: rgba(255, 255, 255, .86);
+  --idp-subtle: rgba(245, 247, 250, .82);
+}
+
+.idp-shell.is-profile-mode .idp-header {
+  background: rgba(255, 255, 255, .86);
+  border-color: rgba(17, 24, 39, .08);
+  box-shadow: 0 18px 48px rgba(16, 24, 40, .07);
+  color: #111827;
+}
+
+.idp-shell.is-profile-mode .idp-team-mark {
+  background: #f8fafc;
+  border-color: rgba(17, 24, 39, .08);
+  color: #2457a6;
+}
+
+.idp-shell.is-profile-mode .idp-title-lockup p,
+.idp-shell.is-profile-mode .idp-title-lockup span,
+.idp-shell.is-profile-mode .idp-summary-chip span {
+  color: #667085;
+}
+
+.idp-shell.is-profile-mode .idp-title-lockup h1,
+.idp-shell.is-profile-mode .idp-summary-chip strong {
+  color: #101828;
+}
+
+.idp-shell.is-profile-mode .idp-summary-chip {
+  background: rgba(248, 250, 252, .84);
+  border-color: rgba(17, 24, 39, .08);
+}
+
+.idp-profile-stage {
+  align-items: stretch;
+  background: rgba(255, 255, 255, .86);
+  border: 1px solid var(--idp-profile-line);
+  box-shadow: 0 22px 60px rgba(16, 24, 40, .08);
+  color: var(--idp-profile-ink);
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
+  min-height: 214px;
+  padding: 18px;
+}
+
+.idp-profile-stage::before {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .56), rgba(255, 255, 255, 0)),
+    linear-gradient(90deg, rgba(245, 247, 250, .92), rgba(255, 255, 255, .68));
+  opacity: 1;
+}
+
+.idp-stage-back {
+  background: rgba(245, 247, 250, .96);
+  border: 1px solid rgba(17, 24, 39, .08);
+  box-shadow: 0 8px 22px rgba(16, 24, 40, .06);
+  color: #344054;
+  min-height: 34px;
+}
+
+.idp-stage-back:hover {
+  background: #fff;
+  color: #101828;
+}
+
+.idp-stage-identity {
+  align-self: end;
+  padding-top: 44px;
+}
+
+.idp-stage-watermark {
+  color: rgba(17, 24, 39, .045);
+  font-size: clamp(5rem, 9vw, 8rem);
+  right: 18px;
+  top: 12px;
+}
+
+.idp-profile-experience .idp-section-kicker,
+.idp-profile-experience .idp-snapshot-label {
+  color: var(--idp-profile-muted);
+}
+
+.idp-stage-identity h2 {
+  color: #101828;
+  font-size: clamp(2.15rem, 3.8vw, 3.55rem);
+  letter-spacing: 0;
+  line-height: .98;
+  margin-top: 7px;
+}
+
+.idp-stage-identity p {
+  color: #475467;
+  font-size: .98rem;
+}
+
+.idp-stage-tags {
+  gap: 7px;
+  margin-top: 15px;
+}
+
+.idp-stage-tags > span:not(.idp-status-pill) {
+  background: rgba(255, 255, 255, .76);
+  border-color: rgba(17, 24, 39, .08);
+  color: #475467;
+}
+
+.idp-stage-scoreboard {
+  align-self: center;
+  gap: 8px;
+}
+
+.idp-stage-scoreboard > div {
+  background: rgba(248, 250, 252, .86);
+  border: 1px solid var(--idp-profile-line);
+  color: #101828;
+  min-height: 64px;
+  padding: 12px 14px;
+}
+
+.idp-stage-scoreboard strong {
+  font-size: 2.05rem;
+}
+
+.idp-stage-scoreboard span {
+  color: var(--idp-profile-muted);
+}
+
+.idp-development-board {
+  gap: 12px;
+  grid-template-columns: minmax(0, 1.42fr) minmax(280px, .58fr);
+}
+
+.idp-focus-story,
+.idp-coach-board,
+.idp-lens-compass,
+.idp-signal-radar,
+.idp-player-voice-card,
+.idp-review-card,
+.idp-filmstrip-panel,
+.idp-signal-stream-panel,
+.idp-river-panel,
+.idp-ownership-studio {
+  background: var(--idp-profile-card);
+  border: 1px solid var(--idp-profile-line);
+  box-shadow: 0 16px 42px rgba(16, 24, 40, .06);
+}
+
+.idp-focus-story {
+  padding: 20px;
+}
+
+.idp-focus-story::before {
+  background: #0f766e;
+  opacity: .72;
+  width: 4px;
+}
+
+.idp-focus-story h3 {
+  color: #101828;
+  font-size: clamp(1.7rem, 2.7vw, 2.4rem);
+  letter-spacing: 0;
+}
+
+.idp-focus-story > p,
+.idp-profile-experience .idp-development-objective,
+.idp-player-voice-card blockquote,
+.idp-review-card strong,
+.idp-ownership-studio > strong {
+  color: #23324a;
+}
+
+.idp-profile-experience .idp-development-objective {
+  background: rgba(248, 250, 252, .76);
+  border: 1px solid var(--idp-profile-soft-line);
+  border-radius: 8px;
+  font-size: 1.04rem;
+  line-height: 1.44;
+  max-width: 900px;
+  padding: 12px 14px;
+}
+
+.idp-profile-experience .idp-strength-row span {
+  background: rgba(15, 118, 110, .08);
+  border-color: rgba(15, 118, 110, .14);
+  color: #0f766e;
+}
+
+.idp-criteria-track {
+  gap: 8px;
+}
+
+.idp-criteria-node {
+  background: rgba(248, 250, 252, .74);
+  border-color: var(--idp-profile-soft-line);
+  min-height: 104px;
+  padding: 11px;
+}
+
+.idp-criteria-node::after {
+  background: rgba(17, 24, 39, .09);
+}
+
+.idp-criteria-node span {
+  background: #1d2939;
+  height: 24px;
+}
+
+.idp-criteria-node strong {
+  color: #1d2939;
+}
+
+.idp-coach-board {
+  background: rgba(255, 255, 255, .72);
+  color: var(--idp-profile-ink);
+  gap: 8px;
+  padding: 10px;
+}
+
+.idp-pulse-orb,
+.idp-next-decision,
+.idp-latest-signal {
+  background: rgba(248, 250, 252, .82);
+  border: 1px solid var(--idp-profile-soft-line);
+  color: #101828;
+  min-height: 0;
+  padding: 13px;
+}
+
+.idp-pulse-orb {
+  min-height: 132px;
+}
+
+.idp-pulse-orb span,
+.idp-next-decision span,
+.idp-latest-signal span,
+.idp-pulse-orb small,
+.idp-next-decision small,
+.idp-latest-signal small {
+  color: var(--idp-profile-muted);
+}
+
+.idp-pulse-orb strong,
+.idp-next-decision strong,
+.idp-latest-signal strong {
+  color: #101828;
+}
+
+.idp-pulse-orb .idp-pulse-meter {
+  background: rgba(17, 24, 39, .08);
+}
+
+.idp-intelligence-board,
+.idp-workflow-board {
+  gap: 12px;
+}
+
+.idp-lens-compass,
+.idp-signal-radar,
+.idp-player-voice-card,
+.idp-review-card,
+.idp-ownership-studio,
+.idp-filmstrip-panel,
+.idp-signal-stream-panel,
+.idp-river-panel {
+  padding: 15px;
+}
+
+.idp-compass-cell,
+.idp-empty-signal,
+.idp-owner-mini-grid div,
+.idp-action-context span {
+  background: rgba(248, 250, 252, .74);
+  border-color: var(--idp-profile-soft-line);
+}
+
+.idp-compass-cell.is-primary {
+  background: #eef8f6;
+  border-color: rgba(15, 118, 110, .16);
+  color: #0f766e;
+}
+
+.idp-compass-cell.is-primary span,
+.idp-compass-cell.is-primary small {
+  color: #667085;
+}
+
+.idp-signal-bar i {
+  background: rgba(17, 24, 39, .08);
+}
+
+.idp-signal-bar b {
+  background: #0f766e;
+}
+
+.idp-player-voice-card {
+  background: #fff;
+  border-color: rgba(17, 24, 39, .08);
+}
+
+.idp-player-voice-card blockquote {
+  font-size: 1rem;
+}
+
+.idp-profile-actions-deck {
+  background: rgba(255, 255, 255, .82);
+  border: 1px solid var(--idp-profile-line);
+  box-shadow: 0 14px 38px rgba(16, 24, 40, .06);
+  padding: 8px;
+}
+
+.idp-profile-actions-deck .idp-action-rail {
+  gap: 8px;
+}
+
+.idp-profile-actions-deck .idp-action-rail button {
+  background: rgba(248, 250, 252, .86);
+  border: 1px solid var(--idp-profile-soft-line);
+  box-shadow: none;
+  color: #101828;
+  min-height: 70px;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.idp-profile-actions-deck .idp-action-rail button:hover {
+  background: #fff;
+  border-color: rgba(15, 118, 110, .24);
+  transform: translateY(-1px);
+}
+
+.idp-profile-actions-deck .idp-action-rail button:nth-child(2),
+.idp-profile-actions-deck .idp-action-rail button:nth-child(3),
+.idp-profile-actions-deck .idp-action-rail button:nth-child(4) {
+  border-color: var(--idp-profile-soft-line);
+}
+
+.idp-profile-actions-deck .idp-action-rail button span {
+  background: #fff;
+  color: #667085;
+}
+
+.idp-profile-actions-deck .idp-action-rail button strong {
+  color: #101828;
+}
+
+.idp-profile-actions-deck .idp-action-rail button small {
+  color: #667085;
+}
+
+.idp-film-frame {
+  background: #f8fafc;
+  border: 1px solid var(--idp-profile-soft-line);
+  color: #101828;
+}
+
+.idp-film-frame::after {
+  border-color: rgba(17, 24, 39, .07);
+}
+
+.idp-film-frame span,
+.idp-film-frame small {
+  color: #667085;
+}
+
+.idp-stream-item time {
+  background: #eef4ff;
+  color: #2457a6;
+}
+
+.idp-stream-item div,
+.idp-river-item div {
+  border-color: rgba(17, 24, 39, .08);
+}
+
+.idp-river-item > span {
+  background: #0f766e;
+}
+
+.idp-ownership-studio {
+  background: rgba(255, 255, 255, .84);
+}
+
+.idp-section-head button,
+.idp-ownership-studio button {
+  background: #101828;
+  color: #fff;
+}
+
+.idp-action-layer {
+  background: rgba(15, 23, 42, .18);
+  backdrop-filter: blur(16px);
+}
+
+.idp-action-dialog {
+  background: #f5f7fb;
+  border-left: 1px solid rgba(17, 24, 39, .08);
+  box-shadow: -24px 0 70px rgba(16, 24, 40, .16);
+}
+
+.idp-action-dialog header {
+  background: rgba(255, 255, 255, .86);
+  border: 1px solid var(--idp-profile-line);
+  color: #101828;
+}
+
+.idp-action-dialog header span,
+.idp-action-dialog p {
+  color: #667085;
+}
+
+.idp-dialog-close {
+  background: #f2f4f7;
+  color: #344054;
+}
+
+body.is-dark-mode .idp-profile-experience,
+body.is-dark-mode .idp-shell.is-profile-mode,
+body.is-dark-mode .idp-shell.is-profile-mode .idp-header,
+body.is-dark-mode .idp-profile-stage,
+body.is-dark-mode .idp-coach-board,
+body.is-dark-mode .idp-profile-actions-deck,
+body.is-dark-mode .idp-action-dialog {
+  background: #f5f7fb;
+  color: #111827;
+}
+
+body.is-dark-mode .idp-shell.is-profile-mode {
+  --idp-ink: #111827;
+  --idp-muted: #667085;
+  --idp-line: rgba(17, 24, 39, .08);
+  --idp-panel: rgba(255, 255, 255, .86);
+  --idp-subtle: rgba(245, 247, 250, .82);
+}
+
+body.is-dark-mode .idp-profile-stage::before {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .56), rgba(255, 255, 255, 0)),
+    linear-gradient(90deg, rgba(245, 247, 250, .92), rgba(255, 255, 255, .68));
+}
+
+body.is-dark-mode .idp-focus-story,
+body.is-dark-mode .idp-lens-compass,
+body.is-dark-mode .idp-signal-radar,
+body.is-dark-mode .idp-review-card,
+body.is-dark-mode .idp-filmstrip-panel,
+body.is-dark-mode .idp-signal-stream-panel,
+body.is-dark-mode .idp-river-panel,
+body.is-dark-mode .idp-ownership-studio,
+body.is-dark-mode .idp-player-voice-card,
+body.is-dark-mode .idp-pulse-orb,
+body.is-dark-mode .idp-next-decision,
+body.is-dark-mode .idp-latest-signal,
+body.is-dark-mode .idp-profile-experience .idp-development-objective,
+body.is-dark-mode .idp-criteria-node,
+body.is-dark-mode .idp-stage-scoreboard > div,
+body.is-dark-mode .idp-stage-tags > span:not(.idp-status-pill),
+body.is-dark-mode .idp-profile-actions-deck .idp-action-rail button {
+  background: rgba(255, 255, 255, .84);
+  color: #111827;
+}
+
+body.is-dark-mode .idp-stage-identity h2,
+body.is-dark-mode .idp-stage-scoreboard strong,
+body.is-dark-mode .idp-pulse-orb strong,
+body.is-dark-mode .idp-next-decision strong,
+body.is-dark-mode .idp-latest-signal strong,
+body.is-dark-mode .idp-profile-actions-deck .idp-action-rail button strong,
+body.is-dark-mode .idp-focus-story h3,
+body.is-dark-mode .idp-profile-experience .idp-development-objective,
+body.is-dark-mode .idp-player-voice-card blockquote,
+body.is-dark-mode .idp-review-card strong,
+body.is-dark-mode .idp-ownership-studio > strong,
+body.is-dark-mode .idp-criteria-node strong {
+  color: #101828;
+}
+
+body.is-dark-mode .idp-profile-experience .idp-section-kicker,
+body.is-dark-mode .idp-profile-experience .idp-snapshot-label,
+body.is-dark-mode .idp-stage-identity p,
+body.is-dark-mode .idp-stage-scoreboard span,
+body.is-dark-mode .idp-pulse-orb span,
+body.is-dark-mode .idp-next-decision span,
+body.is-dark-mode .idp-latest-signal span,
+body.is-dark-mode .idp-pulse-orb small,
+body.is-dark-mode .idp-next-decision small,
+body.is-dark-mode .idp-latest-signal small,
+body.is-dark-mode .idp-profile-actions-deck .idp-action-rail button small,
+body.is-dark-mode .idp-profile-actions-deck .idp-action-rail button span {
+  color: #667085;
+}
+
+@media (max-width: 900px) {
+  .idp-profile-stage,
+  .idp-development-board,
+  .idp-intelligence-board,
+  .idp-workflow-board {
+    grid-template-columns: 1fr;
+  }
+
+  .idp-stage-scoreboard {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .idp-profile-experience {
+    padding: 10px;
+  }
+
+  .idp-profile-stage {
+    gap: 14px;
+    padding: 58px 14px 14px;
+  }
+
+  .idp-stage-identity {
+    padding-top: 0;
+  }
+
+  .idp-stage-watermark {
+    font-size: 5.4rem;
+    right: 12px;
+    top: 42px;
+  }
+
+  .idp-stage-identity h2 {
+    font-size: 2rem;
+  }
+
+  .idp-stage-tags {
+    margin-top: 12px;
+  }
+
+  .idp-stage-scoreboard > div {
+    min-height: 66px;
+    padding: 9px;
+  }
+
+  .idp-stage-scoreboard strong {
+    font-size: 1.45rem;
+  }
+
+  .idp-stage-scoreboard span {
+    font-size: .6rem;
+  }
+
+  .idp-focus-story,
+  .idp-lens-compass,
+  .idp-signal-radar,
+  .idp-player-voice-card,
+  .idp-review-card,
+  .idp-filmstrip-panel,
+  .idp-signal-stream-panel,
+  .idp-river-panel,
+  .idp-ownership-studio {
+    padding: 13px;
+  }
+
+  .idp-focus-story h3 {
+    font-size: 1.55rem;
+  }
+
+  .idp-profile-experience .idp-criteria-track {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .idp-profile-experience .idp-criteria-node {
+    min-height: 116px;
+  }
+
+  .idp-profile-experience .idp-criteria-node strong {
+    font-size: .8rem;
+  }
+
+  .idp-profile-actions-deck .idp-action-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

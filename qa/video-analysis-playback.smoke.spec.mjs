@@ -381,7 +381,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await page.getByRole("tab", { name: "Telestrate" }).click();
   await expect(page.locator(".video-analysis-drawing-builder")).toBeVisible();
   await expect(page.locator("[data-video-analysis-drawing-surface]")).toBeVisible();
-  await expect(page.locator(".video-analysis-drawing-canvas")).toContainText(/Drag directly|Link local video/);
+  await expect(page.locator(".video-analysis-drawing-canvas")).toContainText(/Direct telestration layer|Local video source needed/);
   const drawingSurfaceBox = await page.locator("[data-video-analysis-drawing-surface]").boundingBox();
   expect(drawingSurfaceBox).toBeTruthy();
   await page.mouse.move(drawingSurfaceBox.x + 80, drawingSurfaceBox.y + 80);

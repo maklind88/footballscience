@@ -6,6 +6,15 @@ import { layerStyle } from "../services/presentationLayerGeometryService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
+const toolBadges = Object.freeze({
+  arrow: "AR",
+  circle: "CI",
+  spotlight: "SP",
+  text: "TX",
+  freeze: "FR",
+  zoom: "ZO",
+});
+
 function renderTool(tool = {}, activeTool = "arrow") {
   const active = tool.id === activeTool;
   return `
@@ -13,6 +22,7 @@ function renderTool(tool = {}, activeTool = "arrow") {
       class="${active ? "is-active" : ""}"
       aria-pressed="${active ? "true" : "false"}"
       data-video-analysis-draw-tool="${escapeHtml(tool.id)}">
+      <span>${escapeHtml(toolBadges[tool.id] || "DR")}</span>
       ${escapeHtml(tool.label)}
     </button>
   `;
@@ -88,6 +98,7 @@ export function renderDrawingCanvas(state = {}) {
             <h3>${escapeHtml(item ? (item.customTitle || item.sectionTitle || "Selected clip") : "No clip selected")}</h3>
           </div>
           <div class="video-analysis-drawing-actions">
+            <span>${escapeHtml(selectedLayer ? `Selected ${selectedLayer.tool || "layer"}` : `${layers.length} layers`)}</span>
             <button type="button" data-video-analysis-drawing-undo ${state.presentation?.drawingUndoStack?.length ? "" : "disabled"}>Undo</button>
             <button type="button" data-video-analysis-drawing-redo ${state.presentation?.drawingRedoStack?.length ? "" : "disabled"}>Redo</button>
             <button type="button" data-video-analysis-presentation-mode="builder">Done</button>
@@ -102,7 +113,7 @@ export function renderDrawingCanvas(state = {}) {
           ${layers.map((layer) => renderOverlayLayer(layer, selectedLayerId)).join("")}
           ${renderPreviewLayer(previewLayer)}
           <strong>${escapeHtml(activeTool)}</strong>
-          <small>${escapeHtml(item ? (hasVideo ? "Drag directly on the video. Select an existing layer to move or resize it." : "Link local video to draw on the source clip.") : "Select a clip from the outline first.")}</small>
+          <small>${escapeHtml(item ? (hasVideo ? "Direct telestration layer" : "Local video source needed") : "No clip selected")}</small>
           ${!hasVideo ? `<button type="button" class="video-analysis-drawing-link-video" data-video-analysis-load>Link local video</button>` : ""}
         </div>
         <div class="video-analysis-drawing-layer-timeline" aria-label="Drawing timeline">
@@ -114,13 +125,16 @@ export function renderDrawingCanvas(state = {}) {
           <p class="video-analysis-kicker">Layer controls</p>
           <h3>${escapeHtml(layers.length ? `${layers.length} saved layers` : "Prepare first drawing")}</h3>
         </div>
-        <div class="video-analysis-drawing-form">
-          <input type="number" min="0" step="0.1" placeholder="Timestamp seconds" data-video-analysis-drawing-field="timestampSeconds" value="${escapeHtml(draft.timestampSeconds || "")}">
-          <input type="number" min="0" step="0.1" placeholder="Duration seconds" data-video-analysis-drawing-field="durationSeconds" value="${escapeHtml(draft.durationSeconds || "")}">
-          <input type="text" placeholder="${escapeHtml(selectedLayer ? "Edit selected layer text" : "Text label")}" data-video-analysis-drawing-field="text" value="${escapeHtml(selectedLayer ? selectedLayer.text || "" : draft.text || "")}">
-          <button type="button" data-video-analysis-drawing-add ${item ? "" : "disabled"}>Add layer</button>
-          <button type="button" data-video-analysis-drawing-save ${item?.drawings?.length ? "" : "disabled"}>Save layers</button>
-        </div>
+        <details class="video-analysis-drawing-settings">
+          <summary>Layer metadata</summary>
+          <div class="video-analysis-drawing-form">
+            <input type="number" min="0" step="0.1" placeholder="Timestamp seconds" data-video-analysis-drawing-field="timestampSeconds" value="${escapeHtml(draft.timestampSeconds || "")}">
+            <input type="number" min="0" step="0.1" placeholder="Duration seconds" data-video-analysis-drawing-field="durationSeconds" value="${escapeHtml(draft.durationSeconds || "")}">
+            <input type="text" placeholder="${escapeHtml(selectedLayer ? "Edit selected layer text" : "Text label")}" data-video-analysis-drawing-field="text" value="${escapeHtml(selectedLayer ? selectedLayer.text || "" : draft.text || "")}">
+            <button type="button" data-video-analysis-drawing-add ${item ? "" : "disabled"}>Add layer</button>
+            <button type="button" data-video-analysis-drawing-save ${item?.drawings?.length ? "" : "disabled"}>Save layers</button>
+          </div>
+        </details>
         <ol class="video-analysis-drawing-layer-list">
           ${layers.length ? layers.map(renderLayer).join("") : `<li class="video-analysis-muted">No saved layers on this clip.</li>`}
         </ol>

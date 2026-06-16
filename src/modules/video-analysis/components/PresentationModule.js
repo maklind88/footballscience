@@ -4,6 +4,7 @@ import {
   presentationQueue,
   selectedPresentationItem,
 } from "../services/presentationService.js";
+import { thumbnailCacheKey } from "../services/localThumbnailCacheService.js";
 import { layerStyle } from "../services/presentationLayerGeometryService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { renderDrawingCanvas } from "./DrawingCanvas.js";
@@ -97,6 +98,21 @@ function renderDrawingMarker(layer = {}, index = 0) {
   `;
 }
 
+function renderStageQueueItem(item = {}, active = false, state = {}, index = 0) {
+  const clip = item.clip || {};
+  const thumbnailUrl = state.presentation?.thumbnails?.[thumbnailCacheKey(state.videoRef || {}, clip)] || "";
+  const startMs = item.startMs ?? clip.startMs ?? clip.start_ms ?? 0;
+  return `
+    <button type="button" class="video-analysis-presentation-stage-queue-item${active ? " is-active" : ""}" data-video-analysis-presentation-select-item="${escapeHtml(item.id)}">
+      <span class="video-analysis-presentation-stage-queue-item__thumb">${thumbnailUrl ? `<img src="${escapeHtml(thumbnailUrl)}" alt="">` : escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+      <span>
+        <strong>${escapeHtml(itemTitle(item))}</strong>
+        <small>${escapeHtml(`${formatVideoTime(startMs)} / ${item.sectionTitle || "Section"}`)}</small>
+      </span>
+    </button>
+  `;
+}
+
 function renderStageMedia(state = {}, item = null, layers = []) {
   const ref = state.videoRef || {};
   const hasVideo = Boolean(ref.objectUrl);
@@ -129,12 +145,18 @@ function renderPresentationStage(state = {}) {
   const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
   const activeIndex = Math.max(0, queue.findIndex((entry) => entry.id === item?.id));
   const layers = Array.isArray(item?.drawings) ? item.drawings : [];
+  const hasVideo = Boolean(state.videoRef?.objectUrl);
   return `
     <section class="video-analysis-presentation-stage-v2" aria-label="Presentation stage">
       <div class="video-analysis-presentation-stage-v2__header">
         <div>
           <p class="video-analysis-kicker">${escapeHtml(item?.sectionTitle || "Coach stage")}</p>
           <h3>${escapeHtml(item ? itemTitle(item) : presentation.title || "Build a presentation")}</h3>
+        </div>
+        <div class="video-analysis-presentation-stage-kpis" aria-label="Presentation status">
+          <span>${escapeHtml(`${queue.length} clips`)}</span>
+          <span>${escapeHtml(`${layers.length} layers`)}</span>
+          <span>${escapeHtml(state.videoRef?.objectUrl ? "Video linked" : "Metadata only")}</span>
         </div>
         <div class="video-analysis-presentation-stage-v2__actions">
           <button type="button" data-video-analysis-seek="${escapeHtml(item?.clipId || "")}" ${item ? "" : "disabled"}>Cue clip</button>
@@ -144,16 +166,23 @@ function renderPresentationStage(state = {}) {
       </div>
       <div class="video-analysis-presentation-stage-frame-v2">
         ${renderStageMedia(state, item, layers)}
-        <div class="video-analysis-presentation-stage-copy">
-          <span>${escapeHtml(item ? `Clip ${activeIndex + 1} of ${queue.length}` : "No clip selected")}</span>
-          <strong>${escapeHtml(item ? itemTitle(item) : "Drag clips into the outline to build the meeting")}</strong>
-          <small>${escapeHtml(stageStatus(state, item))}</small>
-        </div>
+        ${hasVideo ? `
+          <div class="video-analysis-presentation-stage-copy">
+            <span>${escapeHtml(item ? `Clip ${activeIndex + 1} of ${queue.length}` : "No clip selected")}</span>
+            <strong>${escapeHtml(item ? itemTitle(item) : "Drag clips into the outline to build the meeting")}</strong>
+            <small>${escapeHtml(stageStatus(state, item))}</small>
+          </div>
+        ` : ""}
       </div>
       <div class="video-analysis-presentation-stage-timeline" aria-label="Drawing and freeze points">
         <div>
           ${layers.length ? layers.map(renderDrawingMarker).join("") : `<span><strong>00</strong>No drawing points yet</span>`}
         </div>
+      </div>
+      <div class="video-analysis-presentation-stage-queue" aria-label="Presentation clip queue">
+        ${queue.length
+          ? queue.map((entry, index) => renderStageQueueItem(entry, entry.id === item?.id, state, index)).join("")
+          : `<p class="video-analysis-muted">Add clips to start the meeting queue.</p>`}
       </div>
       <details class="video-analysis-presentation-brief-panel">
         <summary>Meeting notes and setup</summary>

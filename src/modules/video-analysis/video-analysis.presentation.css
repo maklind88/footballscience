@@ -85,7 +85,6 @@
   font-weight: 900;
   text-transform: uppercase;
 }
-
 #analysisRoomWorkspace .video-analysis-smart-save-strip {
   display: grid;
   grid-template-columns: minmax(170px, 1fr) minmax(150px, 1fr) 132px auto;
@@ -93,7 +92,6 @@
   align-items: center;
   padding: 0 10px 10px;
 }
-
 #analysisRoomWorkspace .video-analysis-smart-collections {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -101,7 +99,6 @@
   padding: 10px;
   border-top: 1px solid #edf1ee;
 }
-
 #analysisRoomWorkspace .video-analysis-smart-collections__header {
   grid-column: 1 / -1;
   display: flex;
@@ -238,6 +235,234 @@
   margin: 0 10px 10px;
 }
 
+#analysisRoomWorkspace .video-analysis-presentation-builder-v2 {
+  grid-template-columns: minmax(270px, 0.32fr) minmax(620px, 1fr) minmax(300px, 0.36fr);
+  grid-template-areas:
+    "sources stage outline"
+    "sources stage inspector";
+  gap: 14px;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-v2 {
+  border: 1px solid rgba(17, 48, 33, 0.18);
+  padding: 12px;
+  background: linear-gradient(180deg, #ffffff, #f8fbf9);
+  box-shadow: 0 20px 58px rgba(15, 34, 24, 0.11);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-v2__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-kpis {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-kpis span {
+  border: 1px solid #dfe7e2;
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: #44564c;
+  background: #ffffff;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-frame-v2 {
+  min-height: clamp(430px, 48vh, 660px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04), 0 24px 70px rgba(5, 8, 7, 0.22);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-copy {
+  max-width: min(720px, 78%);
+  border-left: 3px solid #f4d06f;
+  background: linear-gradient(90deg, rgba(3, 8, 6, 0.9), rgba(3, 8, 6, 0.52), rgba(3, 8, 6, 0));
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-copy strong {
+  font-size: clamp(24px, 3vw, 42px);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-queue {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(180px, 220px);
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 1px 4px;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-queue-item {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 58px;
+  border: 1px solid #dce6df;
+  border-radius: 8px;
+  padding: 6px;
+  color: #18241d;
+  background: #ffffff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-queue-item.is-active {
+  border-color: #14532d;
+  background: #f2f8f5;
+  box-shadow: inset 0 0 0 2px rgba(20, 83, 45, 0.11);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-queue-item__thumb,
+#analysisRoomWorkspace .video-analysis-presenter-queue-item__thumb {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 48px;
+  height: 40px;
+  border-radius: 7px;
+  color: #123522;
+  background: linear-gradient(135deg, #fff8df, #eaf4ef);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-stage-queue-item__thumb img,
+#analysisRoomWorkspace .video-analysis-presenter-queue-item__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-sources {
+  max-height: calc(100vh - 178px);
+  overflow: hidden auto;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-list {
+  max-height: 390px;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-clip {
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-clip__thumb {
+  width: 58px;
+  min-height: 58px;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-clip__badges {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-clip__badges span {
+  border: 1px solid #dde7e1;
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #45574d;
+  background: #ffffff;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-save-strip {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  border-top: 1px solid #e4ece7;
+  padding: 10px;
+  background: rgba(251, 252, 251, 0.96);
+  backdrop-filter: blur(12px);
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collections {
+  grid-template-columns: 1fr;
+  padding: 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection {
+  position: relative;
+  overflow: hidden;
+  border-left: 4px solid #14532d;
+  background: linear-gradient(135deg, #ffffff, #f7faf8);
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection.is-pinned {
+  border-left-color: #d6a62e;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection__main strong {
+  font-size: 15px;
+}
+
+#analysisRoomWorkspace .video-analysis-selected-clip {
+  gap: 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-selected-clip__notes {
+  border-top: 1px solid #e4ebe6;
+  padding: 0 10px 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-selected-clip__notes summary {
+  min-height: 34px;
+  color: #3f4c45;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-outline-item {
+  grid-template-columns: 42px minmax(0, 1fr);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-outline-item__main {
+  grid-template-columns: 1fr;
+  gap: 3px;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-outline-item__main span {
+  grid-row: auto;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-outline-item__main strong {
+  display: -webkit-box;
+  min-width: 0;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-outline-item__main small {
+  display: block;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-outline-item__tools {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+}
+
 #analysisRoomWorkspace .video-analysis-drawing-overlay {
   touch-action: none;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
@@ -294,8 +519,65 @@
   text-transform: none;
 }
 
+#analysisRoomWorkspace .video-analysis-draw-tool-grid--stage button {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  min-height: 40px;
+  text-align: left;
+}
+
+#analysisRoomWorkspace .video-analysis-draw-tool-grid--stage button span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: #123522;
+  background: #f4d06f;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+#analysisRoomWorkspace .video-analysis-draw-tool-grid--stage button.is-active span {
+  color: #f8fff9;
+  background: #123522;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-actions span {
+  border: 1px solid #dfe7e2;
+  border-radius: 999px;
+  padding: 7px 9px;
+  color: #44564c;
+  background: #ffffff;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-settings {
+  border: 1px solid #dfe7e2;
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-settings summary {
+  min-height: 34px;
+  padding: 9px 10px;
+  color: #3f4c45;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-settings .video-analysis-drawing-form {
+  padding: 0 10px 10px;
+}
+
 #analysisRoomWorkspace .video-analysis-presenter-mode {
-  background: #030504;
+  grid-template-columns: minmax(220px, 0.22fr) minmax(0, 1fr);
+  background: radial-gradient(circle at 70% 20%, rgba(244, 208, 111, 0.12), transparent 30%), #030504;
 }
 
 #analysisRoomWorkspace .video-analysis-presenter-mode:fullscreen {
@@ -328,7 +610,71 @@
   background: #f4d06f;
 }
 
+#analysisRoomWorkspace .video-analysis-presenter-queue {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue-item {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue-item.is-active {
+  border-color: rgba(244, 208, 111, 0.75);
+  background: rgba(244, 208, 111, 0.12);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-queue-item strong,
+#analysisRoomWorkspace .video-analysis-presenter-queue-item small {
+  color: #edf5ef;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-frame {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.36);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-progress {
+  overflow: hidden;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f4d06f, #ffffff);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-notes {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+}
+
 @media (max-width: 980px) {
+  #analysisRoomWorkspace .video-analysis-presentation-builder-v2,
+  #analysisRoomWorkspace .video-analysis-presenter-mode {
+    grid-template-columns: 1fr;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-builder-v2 {
+    grid-template-areas:
+      "stage"
+      "outline"
+      "sources"
+      "inspector";
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-stage-v2__header {
+    grid-template-columns: 1fr;
+  }
+
   #analysisRoomWorkspace .video-analysis-presentation-access__grid,
   #analysisRoomWorkspace .video-analysis-smart-share-panel__row,
   #analysisRoomWorkspace .video-analysis-smart-save-strip {

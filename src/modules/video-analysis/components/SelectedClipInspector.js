@@ -39,19 +39,22 @@ export function renderSelectedClipInspector(state = {}) {
         <button type="button" data-video-analysis-presentation-mode="draw">Open telestration</button>
         <button type="button" data-video-analysis-presentation-mode="presenter">Cue in presenter</button>
       </div>
-      <label>
-        Display title
-        <input type="text" data-video-analysis-presentation-item-title="${escapeHtml(item.id)}" value="${escapeHtml(item.customTitle || "")}">
-      </label>
-      <label>
-        Coach note for this moment
-        <textarea rows="4" data-video-analysis-presentation-item-note="${escapeHtml(item.id)}">${escapeHtml(item.coachNote || "")}</textarea>
-      </label>
       <div class="video-analysis-selected-clip__meta">
         <span>${escapeHtml(clip.phase || "Phase")}</span>
         <span>${escapeHtml(clip.subPhase || clip.sub_phase || "Sub-phase")}</span>
         <span>${escapeHtml(`${drawings.length} drawings`)}</span>
       </div>
+      <details class="video-analysis-selected-clip__notes">
+        <summary>Notes and label</summary>
+        <label>
+          Display title
+          <input type="text" data-video-analysis-presentation-item-title="${escapeHtml(item.id)}" value="${escapeHtml(item.customTitle || "")}">
+        </label>
+        <label>
+          Coach note for this moment
+          <textarea rows="4" data-video-analysis-presentation-item-note="${escapeHtml(item.id)}">${escapeHtml(item.coachNote || "")}</textarea>
+        </label>
+      </details>
     </aside>
   `;
 }

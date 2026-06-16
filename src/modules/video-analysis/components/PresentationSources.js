@@ -23,6 +23,20 @@ function clipDuration(clip = {}) {
   return Math.max(0, Number(endMs || 0) - Number(startMs || 0));
 }
 
+function clipMatchLabel(clip = {}) {
+  return clip.matchTitle || clip.match_title || clip.match?.title || clip.trainingTitle || clip.training_title || "Session";
+}
+
+function clipDateLabel(clip = {}) {
+  return clip.matchDate || clip.match_date || clip.date || clip.createdAt || clip.created_at || "";
+}
+
+function clipStatus(clip = {}, state = {}) {
+  if (state.videoRef?.objectUrl) return "Preview ready";
+  if (clip.videoLinked || clip.video_linked) return "Needs local source";
+  return "Metadata";
+}
+
 function clipTags(clip = {}) {
   const rawTags = []
     .concat(Array.isArray(clip.tags) ? clip.tags : [])
@@ -40,6 +54,7 @@ function renderSourceClip(clip = {}, activeSectionId = "", state = {}) {
   const startMs = clip.startMs ?? clip.start_ms ?? 0;
   const tags = clipTags(clip);
   const thumbnailUrl = state.presentation?.thumbnails?.[thumbnailCacheKey(state.videoRef || {}, clip)] || "";
+  const dateLabel = clipDateLabel(clip);
   return `
     <article class="video-analysis-presentation-source-clip">
       <button type="button" class="video-analysis-presentation-source-clip__thumb" data-video-analysis-seek="${escapeHtml(clip.id)}" aria-label="Preview clip">
@@ -49,7 +64,11 @@ function renderSourceClip(clip = {}, activeSectionId = "", state = {}) {
       <div>
         <strong>${escapeHtml(clipTitle(clip))}</strong>
         <span>${escapeHtml(playerLabel(clip))} - ${escapeHtml(clip.subPhase || clip.sub_phase || "Tagged clip")}</span>
-        <small>${escapeHtml(`${formatVideoTime(clipDuration(clip))} duration`)}</small>
+        <small>${escapeHtml(`${clipMatchLabel(clip)}${dateLabel ? ` / ${dateLabel}` : ""}`)}</small>
+        <div class="video-analysis-presentation-source-clip__badges">
+          <span>${escapeHtml(formatVideoTime(clipDuration(clip)))}</span>
+          <span>${escapeHtml(clipStatus(clip, state))}</span>
+        </div>
         <div class="video-analysis-presentation-clip-tags">
           ${(tags.length ? tags : [clip.outcome || "Ready"]).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
         </div>
@@ -72,7 +91,7 @@ function renderSmartCollection(collection = {}, state = {}) {
   return `
     <article class="video-analysis-smart-collection${pinned ? " is-pinned" : ""}${active ? " is-active" : ""}">
       <button type="button" class="video-analysis-smart-collection__main" data-video-analysis-smart-apply="${escapeHtml(normalized.id || normalized.title)}">
-        <span>${escapeHtml(pinned ? "Pinned playlist" : normalized.visibility)}</span>
+        <span>${escapeHtml(pinned ? "Pinned playlist" : "Smart playlist")}</span>
         <strong>${escapeHtml(normalized.title || "Smart collection")}</strong>
         <small>${escapeHtml(filterParts.length ? filterParts.join(" / ") : normalized.description || "Saved clip playlist")}</small>
       </button>
@@ -184,7 +203,7 @@ export function renderPresentationSources(state = {}) {
     <section class="video-analysis-presentation-sources" aria-label="Presentation sources and smart collections">
       <div class="video-analysis-panel-header">
         <div>
-          <p class="video-analysis-kicker">Find clips</p>
+          <p class="video-analysis-kicker">Sources</p>
           <h3>Data Explorer</h3>
         </div>
         <div class="video-analysis-presentation-source-tools">
@@ -204,7 +223,15 @@ export function renderPresentationSources(state = {}) {
         <input type="search" placeholder="Player or tag" data-video-analysis-presentation-filter="tag" value="${escapeHtml(filters.tag || "")}">
         <input type="date" data-video-analysis-presentation-filter="date" value="${escapeHtml(filters.date || "")}">
       </div>
-      ${renderSmartCollectionDraft(state)}
+      <div class="video-analysis-smart-collections" aria-label="Smart collections">
+        <div class="video-analysis-smart-collections__header">
+          <p class="video-analysis-kicker">Smart playlists</p>
+          <strong>${escapeHtml(`${smartCollections.length} saved`)}</strong>
+        </div>
+        ${smartCollections.length
+          ? smartCollections.map((collection) => renderSmartCollection(collection, state)).join("")
+          : `<span class="video-analysis-muted">Save searches as live playlists like High press wins, Set pieces or Player clips.</span>`}
+      </div>
       <div class="video-analysis-presentation-source-summary">
         <span>${escapeHtml(`${total} loaded clips`)}</span>
         <span>${escapeHtml(presentation.activeSectionId ? "Adds to active section" : "Choose a section first")}</span>
@@ -215,15 +242,7 @@ export function renderPresentationSources(state = {}) {
           : `<p class="video-analysis-muted">Search or refresh to load tagged clips.</p>`}
       </div>
       ${presentation.sourceHasMore ? `<button type="button" class="video-analysis-load-more-clips" data-video-analysis-presentation-load-more>Load more clips</button>` : ""}
-      <div class="video-analysis-smart-collections" aria-label="Smart collections">
-        <div class="video-analysis-smart-collections__header">
-          <p class="video-analysis-kicker">Smart playlists</p>
-          <strong>${escapeHtml(`${smartCollections.length} saved`)}</strong>
-        </div>
-        ${smartCollections.length
-          ? smartCollections.map((collection) => renderSmartCollection(collection, state)).join("")
-          : `<span class="video-analysis-muted">Save searches as live playlists like High press wins, Set pieces or Player clips.</span>`}
-      </div>
+      ${renderSmartCollectionDraft(state)}
     </section>
   `;
 }

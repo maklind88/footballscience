@@ -2,6 +2,7 @@ import {
   presentationQueue,
   selectedPresentationItem,
 } from "../services/presentationService.js";
+import { thumbnailCacheKey } from "../services/localThumbnailCacheService.js";
 import { layerStyle } from "../services/presentationLayerGeometryService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml } from "./renderHelpers.js";
@@ -21,14 +22,17 @@ function presenterPointLabel(point = {}) {
   return `${point.tool || point.label || "freeze"} ${formatVideoTime(point.timestampMs || point.timestamp_ms || 0)}`;
 }
 
-function renderQueueItem(item = {}, active = false) {
+function renderQueueItem(item = {}, active = false, state = {}, index = 0) {
   const clip = item.clip || {};
   const startMs = item.startMs ?? clip.startMs ?? clip.start_ms ?? 0;
+  const thumbnailUrl = state.presentation?.thumbnails?.[thumbnailCacheKey(state.videoRef || {}, clip)] || "";
   return `
     <button type="button" class="video-analysis-presenter-queue-item${active ? " is-active" : ""}" data-video-analysis-presentation-select-item="${escapeHtml(item.id)}">
-      <span>${escapeHtml(formatVideoTime(startMs))}</span>
-      <strong>${escapeHtml(itemTitle(item))}</strong>
-      <small>${escapeHtml(item.sectionTitle || "Section")}</small>
+      <span class="video-analysis-presenter-queue-item__thumb">${thumbnailUrl ? `<img src="${escapeHtml(thumbnailUrl)}" alt="">` : escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+      <span>
+        <strong>${escapeHtml(itemTitle(item))}</strong>
+        <small>${escapeHtml(`${formatVideoTime(startMs)} / ${item.sectionTitle || "Section"}`)}</small>
+      </span>
     </button>
   `;
 }
@@ -54,7 +58,7 @@ export function renderPresenterMode(state = {}) {
         </div>
         <div class="video-analysis-presenter-queue-list">
           ${queue.length
-            ? queue.map((entry) => renderQueueItem(entry, entry.id === item?.id)).join("")
+            ? queue.map((entry, index) => renderQueueItem(entry, entry.id === item?.id, state, index)).join("")
             : `<p class="video-analysis-muted">No clips in this presentation.</p>`}
         </div>
       </aside>
@@ -83,6 +87,9 @@ export function renderPresenterMode(state = {}) {
             <small>${escapeHtml(hasVideo ? (drawings.length ? `${drawings.length} drawing layers ready` : "No drawings yet") : "Link local video on this device to present clips.")}</small>
             ${hasVideo ? "" : `<button type="button" data-video-analysis-load>Link local video</button>`}
           </div>
+        </div>
+        <div class="video-analysis-presenter-progress" aria-label="Presentation progress">
+          <span style="width:${escapeHtml(String(queue.length ? ((activeIndex + 1) / queue.length) * 100 : 0))}%"></span>
         </div>
         <div class="video-analysis-presenter-notes">
           <div>

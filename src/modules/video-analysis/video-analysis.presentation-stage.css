@@ -31,6 +31,9 @@
   position: relative;
   display: grid;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   min-height: clamp(430px, 50vh, 680px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
@@ -414,7 +417,7 @@
 
 #analysisRoomWorkspace .video-analysis-presentation-stage-frame-v2 {
   aspect-ratio: 16 / 9;
-  min-height: min(46vh, 560px);
+  min-height: 0;
   max-height: calc(100vh - 300px);
 }
 

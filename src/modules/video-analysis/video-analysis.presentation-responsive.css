@@ -1,3 +1,13 @@
+@media (max-width: 1320px) {
+  #analysisRoomWorkspace .video-analysis-presentation-builder-v2 {
+    grid-template-columns: minmax(300px, 0.42fr) minmax(0, 1fr);
+    grid-template-areas:
+      "stage stage"
+      "sources outline"
+      "sources inspector";
+  }
+}
+
 @media (max-width: 1180px) {
   #analysisRoomWorkspace .video-analysis-presentation-builder-v2 {
     grid-template-columns: minmax(300px, 0.42fr) minmax(0, 1fr);

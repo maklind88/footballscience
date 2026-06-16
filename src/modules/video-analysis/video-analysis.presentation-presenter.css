@@ -550,6 +550,9 @@
 }
 
 #analysisRoomWorkspace .video-analysis-presenter-frame {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   aspect-ratio: 16 / 9;
   min-height: min(58vh, 640px);
   max-height: calc(100vh - 260px);
@@ -605,6 +608,12 @@
 #analysisRoomWorkspace .video-analysis-presenter-transport {
   grid-template-columns: minmax(110px, auto) minmax(320px, 1fr);
   margin: 2px 0 0;
+  box-sizing: border-box;
+  padding-right: clamp(0px, 18vw, 260px);
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-mode:fullscreen .video-analysis-presenter-transport {
+  padding-right: 0;
 }
 
 #analysisRoomWorkspace .video-analysis-presenter-transport-controls {
@@ -661,6 +670,7 @@
 
   #analysisRoomWorkspace .video-analysis-presenter-transport {
     grid-template-columns: 1fr;
+    padding-right: 0;
   }
 
   #analysisRoomWorkspace .video-analysis-presenter-transport-controls {

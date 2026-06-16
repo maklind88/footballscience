@@ -99,6 +99,13 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("data-idp-action=\"ownership\"");
   expect(profileHtml).toContain("data-idp-action=\"focus\"");
   expect(profileHtml).toContain("data-idp-action=\"evidence\"");
+  expect(profileHtml).toContain("Player Snapshot");
+  expect(profileHtml).toContain("Progress Pulse");
+  expect(profileHtml).toContain("Success Criteria");
+  expect(profileHtml).toContain("Development Lens");
+  expect(profileHtml).toContain("Signal Map");
+  expect(profileHtml).toContain("Player Voice");
+  expect(profileHtml).toContain("development-objective");
   expect(profileHtml).toContain("Add observation");
   expect(profileHtml).toContain("Observations");
   expect(profileHtml).toContain("Clip Bank");

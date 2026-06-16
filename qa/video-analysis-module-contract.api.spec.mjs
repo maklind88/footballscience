@@ -125,9 +125,18 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(templateBuilder).toContain("data-video-analysis-panel-mode");
   expect(templateBuilder).toContain("data-video-analysis-save-template");
   expect(templateBuilder).toContain("data-video-analysis-template-field");
+  expect(templateBuilder).toContain("data-video-analysis-template-builder-field");
+  expect(templateBuilder).toContain("data-video-analysis-add-button-group");
+  expect(templateBuilder).toContain("data-video-analysis-add-code-button");
+  expect(templateBuilder).toContain("data-video-analysis-duplicate-code-button");
+  expect(templateBuilder).toContain("data-video-analysis-remove-code-button");
   expect(templateBuilder).toContain("data-video-analysis-button-ms-field");
   expect(templateBuilder).toContain("data-video-analysis-descriptor-button");
   expect(codingTemplateService).toContain("buildCodingButtonAction");
+  expect(codingTemplateService).toContain("addCodingButtonToTemplate");
+  expect(codingTemplateService).toContain("duplicateCodingButtonInTemplate");
+  expect(codingTemplateService).toContain("removeCodingButtonFromTemplate");
+  expect(codingTemplateService).toContain("updateCodingButtonField");
   expect(codingTemplateService).toContain('defaultButtonBehavior = "create_tag"');
   expect(codingTemplateService).toContain("defaultClipDurationMs = 15000");
   expect(codingTemplateService).toContain("activeButtonDatabaseId");
@@ -187,6 +196,57 @@ test("coding tag panel creates 15 second button-owned clip actions", async () =>
   expect(action.nextDraft.endMs).toBe(846000);
   expect(action.nextDraft.miniGamePrincipleId).toBe("fix-release");
   expect(action.nextSession.mode).toBe("instant");
+});
+
+test("coding tag panel builder creates custom timeline tag buttons", async () => {
+  const service = await import(pathToFileURL(path.join(moduleDir, "services/codingTemplateService.js")).href);
+  const template = service.createDefaultCodingTemplate();
+  const withGroup = service.addCodingButtonGroupToTemplate(template, "Pressing Triggers");
+  const customButton = withGroup.buttons.find((item) => item.group === "Pressing Triggers");
+
+  expect(customButton).toMatchObject({
+    buttonType: "custom",
+    targetField: "tags",
+    buttonBehavior: "create_tag",
+    createsClip: true,
+    defaultDurationMs: 15000,
+    startOffsetMs: 0,
+    endOffsetMs: 15000,
+  });
+
+  const renamed = service.updateCodingButtonField(withGroup, customButton.id, "label", "Jump press");
+  const renamedButton = renamed.buttons.find((item) => item.id === customButton.id);
+  expect(renamedButton.label).toBe("Jump press");
+  expect(renamedButton.value).toBe("Jump press");
+
+  const shorter = service.updateCodingButtonMsField(renamed, customButton.id, "defaultDurationMs", 8);
+  const action = service.buildCodingButtonAction({
+    template: shorter,
+    draft: {
+      startMs: 0,
+      endMs: 15000,
+      phase: "In Possession",
+      subPhase: "Build Up",
+      teamPrincipleId: "secure-first-pass",
+      miniGamePrincipleId: "third-player",
+      outcome: "Neutral",
+      tags: "",
+    },
+    codingSession: { mode: "instant", defaultClipDurationMs: 15000 },
+  }, service.findTemplateButton(shorter, customButton.id), 12000);
+
+  expect(action.shouldCreateClip).toBe(true);
+  expect(action.nextDraft.tags).toBe("Jump press");
+  expect(action.nextDraft.startMs).toBe(12000);
+  expect(action.nextDraft.endMs).toBe(20000);
+
+  const duplicated = service.duplicateCodingButtonInTemplate(shorter, customButton.id);
+  expect(duplicated.buttons).toHaveLength(shorter.buttons.length + 1);
+  expect(duplicated.buttons.at(-1).databaseId).toBe("");
+  expect(duplicated.buttons.at(-1).hotkey).toBe("");
+
+  const removed = service.removeCodingButtonFromTemplate(duplicated, customButton.id);
+  expect(removed.buttons.some((item) => item.id === customButton.id)).toBe(false);
 });
 
 test("coding template persistence stays behind repositories and API actions", () => {

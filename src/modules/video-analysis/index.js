@@ -16,7 +16,17 @@ import { createPresentationRepository } from "./repositories/presentationReposit
 import { createVideoRepository } from "./repositories/videoRepository.js";
 import { buildClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
-import { buildCodingButtonAction, findTemplateButton, shouldIgnoreShortcutTarget } from "./services/codingTemplateService.js";
+import {
+  addCodingButtonGroupToTemplate,
+  addCodingButtonToTemplate,
+  buildCodingButtonAction,
+  duplicateCodingButtonInTemplate,
+  findTemplateButton,
+  removeCodingButtonFromTemplate,
+  shouldIgnoreShortcutTarget,
+  updateCodingButtonField,
+  updateCodingButtonMsField,
+} from "./services/codingTemplateService.js";
 import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.js";
 import { createLocalVideoReference, revokeLocalVideoReference } from "./services/localVideoBridgeService.js";
 import { createPlayableLocalCopy } from "./services/localPlaybackTranscodeService.js";
@@ -490,6 +500,7 @@ function paint(root, state) {
   const focusedButtonField = root.querySelector("[data-video-analysis-button-field]:focus")?.dataset.videoAnalysisButtonField || "";
   const focusedButtonMsField = root.querySelector("[data-video-analysis-button-ms-field]:focus")?.dataset.videoAnalysisButtonMsField || "";
   const focusedTemplateField = root.querySelector("[data-video-analysis-template-field]:focus")?.dataset.videoAnalysisTemplateField || "";
+  const focusedTemplateBuilderField = root.querySelector("[data-video-analysis-template-builder-field]:focus")?.dataset.videoAnalysisTemplateBuilderField || "";
   const focusedPresentationTitle = Boolean(root.querySelector("[data-video-analysis-presentation-title]:focus"));
   const focusedPresentationNotes = Boolean(root.querySelector("[data-video-analysis-presentation-notes]:focus"));
   const focusedPresentationFilter = root.querySelector("[data-video-analysis-presentation-filter]:focus")?.dataset.videoAnalysisPresentationFilter || "";
@@ -552,23 +563,25 @@ function paint(root, state) {
             ? root.querySelector(`[data-video-analysis-button-ms-field="${focusedButtonMsField}"]`)
             : focusedTemplateField
               ? root.querySelector(`[data-video-analysis-template-field="${focusedTemplateField}"]`)
-              : focusedPresentationTitle
-                ? root.querySelector("[data-video-analysis-presentation-title]")
-                : focusedPresentationNotes
-                  ? root.querySelector("[data-video-analysis-presentation-notes]")
-                  : focusedPresentationFilter
-                    ? root.querySelector(`[data-video-analysis-presentation-filter="${focusedPresentationFilter}"]`)
-                    : focusedPresentationSectionTitle
-                      ? root.querySelector(`[data-video-analysis-presentation-section-title="${focusedPresentationSectionTitle}"]`)
-                      : focusedPresentationSectionNote
-                        ? root.querySelector(`[data-video-analysis-presentation-section-note="${focusedPresentationSectionNote}"]`)
-                        : focusedPresentationItemTitle
-                          ? root.querySelector(`[data-video-analysis-presentation-item-title="${focusedPresentationItemTitle}"]`)
-                          : focusedPresentationItemNote
-                            ? root.querySelector(`[data-video-analysis-presentation-item-note="${focusedPresentationItemNote}"]`)
-                            : focusedDrawingField
-                              ? root.querySelector(`[data-video-analysis-drawing-field="${focusedDrawingField}"]`)
-                              : null;
+                : focusedTemplateBuilderField
+                  ? root.querySelector(`[data-video-analysis-template-builder-field="${focusedTemplateBuilderField}"]`)
+                  : focusedPresentationTitle
+                    ? root.querySelector("[data-video-analysis-presentation-title]")
+                    : focusedPresentationNotes
+                      ? root.querySelector("[data-video-analysis-presentation-notes]")
+                      : focusedPresentationFilter
+                        ? root.querySelector(`[data-video-analysis-presentation-filter="${focusedPresentationFilter}"]`)
+                        : focusedPresentationSectionTitle
+                          ? root.querySelector(`[data-video-analysis-presentation-section-title="${focusedPresentationSectionTitle}"]`)
+                          : focusedPresentationSectionNote
+                            ? root.querySelector(`[data-video-analysis-presentation-section-note="${focusedPresentationSectionNote}"]`)
+                            : focusedPresentationItemTitle
+                              ? root.querySelector(`[data-video-analysis-presentation-item-title="${focusedPresentationItemTitle}"]`)
+                              : focusedPresentationItemNote
+                                ? root.querySelector(`[data-video-analysis-presentation-item-note="${focusedPresentationItemNote}"]`)
+                                : focusedDrawingField
+                                  ? root.querySelector(`[data-video-analysis-drawing-field="${focusedDrawingField}"]`)
+                                  : null;
   if (nextFocus) {
     nextFocus.focus();
     if (Number.isFinite(selectionStart) && typeof nextFocus.setSelectionRange === "function") {
@@ -1528,6 +1541,84 @@ export function handleClick(event, context = {}) {
     saveCodingTemplate(context);
     return true;
   }
+  if (target.closest("[data-video-analysis-add-button-group]")) {
+    run.store.update((state) => {
+      const groupName = state.codingSession?.templateBuilder?.newGroupName || "Custom";
+      return {
+        ...state,
+        template: addCodingButtonGroupToTemplate(state.template || {}, groupName),
+        codingSession: {
+          ...(state.codingSession || {}),
+          templateBuilder: {
+            ...(state.codingSession?.templateBuilder || {}),
+            newGroupName: "",
+            newButtonGroup: groupName,
+          },
+        },
+        message: "Tag group added.",
+        error: "",
+      };
+    });
+    return true;
+  }
+  const groupAddButton = target.closest("[data-video-analysis-add-code-button-group]");
+  if (groupAddButton) {
+    const groupName = groupAddButton.dataset.videoAnalysisAddCodeButtonGroup || "Custom";
+    run.store.update((state) => ({
+      ...state,
+      template: addCodingButtonToTemplate(state.template || {}, { group: groupName }),
+      codingSession: {
+        ...(state.codingSession || {}),
+        templateBuilder: {
+          ...(state.codingSession?.templateBuilder || {}),
+          newButtonGroup: groupName,
+        },
+      },
+      message: "Tag button added.",
+      error: "",
+    }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-add-code-button]")) {
+    run.store.update((state) => {
+      const groups = (state.template?.buttons || []).map((button) => button.group || "Custom");
+      const groupName = state.codingSession?.templateBuilder?.newButtonGroup || groups[0] || "Custom";
+      return {
+        ...state,
+        template: addCodingButtonToTemplate(state.template || {}, { group: groupName }),
+        codingSession: {
+          ...(state.codingSession || {}),
+          templateBuilder: {
+            ...(state.codingSession?.templateBuilder || {}),
+            newButtonGroup: groupName,
+          },
+        },
+        message: "Tag button added.",
+        error: "",
+      };
+    });
+    return true;
+  }
+  const duplicateCodeButton = target.closest("[data-video-analysis-duplicate-code-button]");
+  if (duplicateCodeButton) {
+    run.store.update((state) => ({
+      ...state,
+      template: duplicateCodingButtonInTemplate(state.template || {}, duplicateCodeButton.dataset.videoAnalysisDuplicateCodeButton),
+      message: "Tag button duplicated.",
+      error: "",
+    }));
+    return true;
+  }
+  const removeCodeButton = target.closest("[data-video-analysis-remove-code-button]");
+  if (removeCodeButton) {
+    run.store.update((state) => ({
+      ...state,
+      template: removeCodingButtonFromTemplate(state.template || {}, removeCodeButton.dataset.videoAnalysisRemoveCodeButton),
+      message: "Tag button archived from this panel.",
+      error: "",
+    }));
+    return true;
+  }
   const codeButton = target.closest("[data-video-analysis-code-button]");
   if (codeButton) {
     applyCodeButton(codeButton.dataset.videoAnalysisCodeButton, context);
@@ -2038,41 +2129,36 @@ export function handleInput(event, context = {}) {
     }));
     return true;
   }
+  const templateBuilderField = target.closest("[data-video-analysis-template-builder-field]");
+  if (templateBuilderField) {
+    const key = templateBuilderField.dataset.videoAnalysisTemplateBuilderField;
+    run.store.update((state) => ({
+      ...state,
+      codingSession: {
+        ...(state.codingSession || {}),
+        templateBuilder: {
+          ...(state.codingSession?.templateBuilder || {}),
+          [key]: templateBuilderField.value,
+        },
+      },
+    }));
+    return true;
+  }
   const buttonField = target.closest("[data-video-analysis-button-field]");
   if (buttonField) {
     const [buttonId, fieldName] = String(buttonField.dataset.videoAnalysisButtonField || "").split(":");
-    const numericFields = new Set(["defaultDurationMs", "startOffsetMs", "endOffsetMs"]);
-    const nextValue = numericFields.has(fieldName) ? Math.round(Number(buttonField.value || 0)) : buttonField.value;
     run.store.update((state) => ({
       ...state,
-      template: {
-        ...(state.template || {}),
-        buttons: (state.template?.buttons || []).map((button) => button.id === buttonId ? {
-          ...button,
-          [fieldName]: nextValue,
-          ...(fieldName === "buttonBehavior" ? {
-            createsClip: ["create_tag", "toggle_duration"].includes(nextValue),
-            appliesLabel: ["label_current", "descriptor", "player_tag"].includes(nextValue),
-          } : {}),
-        } : button),
-      },
+      template: updateCodingButtonField(state.template || {}, buttonId, fieldName, buttonField.value),
     }));
     return true;
   }
   const buttonMsField = target.closest("[data-video-analysis-button-ms-field]");
   if (buttonMsField) {
     const [buttonId, fieldName] = String(buttonMsField.dataset.videoAnalysisButtonMsField || "").split(":");
-    const milliseconds = Math.round(Number(buttonMsField.value || 0) * 1000);
     run.store.update((state) => ({
       ...state,
-      template: {
-        ...(state.template || {}),
-        buttons: (state.template?.buttons || []).map((button) => button.id === buttonId ? {
-          ...button,
-          [fieldName]: milliseconds,
-          ...(fieldName === "defaultDurationMs" ? { endOffsetMs: milliseconds } : {}),
-        } : button),
-      },
+      template: updateCodingButtonMsField(state.template || {}, buttonId, fieldName, buttonMsField.value),
     }));
     return true;
   }

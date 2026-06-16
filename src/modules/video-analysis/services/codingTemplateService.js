@@ -26,6 +26,48 @@ function slug(value = "") {
   return String(value || "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
 }
 
+function normalizeGroupName(value = "") {
+  const group = String(value || "").trim().replace(/\s+/g, " ");
+  return group || "Custom";
+}
+
+function nextSortOrder(buttons = []) {
+  return buttons.reduce((highest, item, index) => Math.max(highest, Number(item.sortOrder ?? index)), -1) + 1;
+}
+
+function uniqueLabel(buttons = [], baseLabel = "New tag", group = "", ignoreId = "") {
+  const base = String(baseLabel || "New tag").trim() || "New tag";
+  const groupKey = normalizeGroupName(group).toLowerCase();
+  const labels = new Set(buttons
+    .filter((item) => item.id !== ignoreId && normalizeGroupName(item.group).toLowerCase() === groupKey)
+    .map((item) => String(item.label || "").toLowerCase()));
+  if (!labels.has(base.toLowerCase())) return base;
+  let index = 2;
+  while (labels.has(`${base} ${index}`.toLowerCase())) index += 1;
+  return `${base} ${index}`;
+}
+
+function uniqueValue(buttons = [], baseValue = "New tag", buttonType = "custom", ignoreId = "") {
+  const base = String(baseValue || "New tag").trim() || "New tag";
+  const type = buttonType || "custom";
+  const values = new Set(buttons
+    .filter((item) => item.id !== ignoreId && (item.buttonType || item.type || "custom") === type)
+    .map((item) => String(item.value || "").toLowerCase()));
+  if (!values.has(base.toLowerCase())) return base;
+  let index = 2;
+  while (values.has(`${base} ${index}`.toLowerCase())) index += 1;
+  return `${base} ${index}`;
+}
+
+function uniqueButtonId(buttons = [], seed = "custom-button") {
+  const base = slug(seed) || "custom-button";
+  const ids = new Set(buttons.map((item) => item.id));
+  if (!ids.has(base)) return base;
+  let index = 2;
+  while (ids.has(`${base}-${index}`)) index += 1;
+  return `${base}-${index}`;
+}
+
 function button(id, type, label, value, hotkey = "", group = type, options = {}) {
   return {
     id,
@@ -80,6 +122,99 @@ export function createDefaultCodingTemplate() {
       { sourceValue: "Offensive Transition", targetType: "miniGamePrincipleId", targetValue: "counterpress-five-seconds" },
       { sourceValue: "Finishing Phase", targetType: "miniGamePrincipleId", targetValue: "box-arrivals" },
     ],
+  };
+}
+
+export function addCodingButtonToTemplate(template = {}, options = {}) {
+  const buttons = Array.isArray(template.buttons) ? template.buttons : [];
+  const group = normalizeGroupName(options.group || "Custom");
+  const label = uniqueLabel(buttons, options.label || "New tag", group);
+  const buttonType = options.buttonType || "custom";
+  const value = uniqueValue(buttons, options.value || label, buttonType);
+  const id = uniqueButtonId(buttons, `custom-${group}-${value}`);
+  const durationMs = Number(options.defaultDurationMs ?? template.defaultClipDurationMs ?? defaultClipDurationMs);
+  const nextButton = button(id, "custom", label, value, "", group, {
+    buttonType,
+    color: options.color || groupColors[group] || "#1f5eff",
+    defaultDurationMs: durationMs,
+    startOffsetMs: Number(options.startOffsetMs ?? 0),
+    endOffsetMs: Number(options.endOffsetMs ?? durationMs),
+    buttonBehavior: options.buttonBehavior || defaultButtonBehavior,
+    targetField: options.targetField || "tags",
+    groupId: options.groupId || slug(group) || "custom",
+    sortOrder: nextSortOrder(buttons),
+  });
+  return { ...template, buttons: [...buttons, nextButton] };
+}
+
+export function addCodingButtonGroupToTemplate(template = {}, groupName = "Custom") {
+  return addCodingButtonToTemplate(template, { group: groupName, label: "New tag" });
+}
+
+export function duplicateCodingButtonInTemplate(template = {}, buttonId = "") {
+  const buttons = Array.isArray(template.buttons) ? template.buttons : [];
+  const source = buttons.find((item) => item.id === buttonId);
+  if (!source) return template;
+  const label = uniqueLabel(buttons, `${source.label || "Button"} copy`, source.group || "Custom");
+  const value = source.targetField === "tags" || source.buttonType === "custom"
+    ? uniqueValue(buttons, label, source.buttonType || "custom")
+    : uniqueValue(buttons, `${source.value || label} copy`, source.buttonType || source.type || "custom");
+  const duplicate = {
+    ...source,
+    id: uniqueButtonId(buttons, `${source.id || source.type || "button"}-copy`),
+    databaseId: "",
+    label,
+    value,
+    hotkey: "",
+    sortOrder: nextSortOrder(buttons),
+  };
+  return { ...template, buttons: [...buttons, duplicate] };
+}
+
+export function removeCodingButtonFromTemplate(template = {}, buttonId = "") {
+  return {
+    ...template,
+    buttons: (template.buttons || []).filter((item) => item.id !== buttonId),
+    links: (template.links || []).filter((link) => {
+      const source = findTemplateButton(template, buttonId);
+      if (!source) return true;
+      return link.sourceValue !== source.value && link.targetValue !== source.value;
+    }),
+  };
+}
+
+export function updateCodingButtonField(template = {}, buttonId = "", fieldName = "", value = "") {
+  const numericFields = new Set(["defaultDurationMs", "startOffsetMs", "endOffsetMs"]);
+  const nextValue = numericFields.has(fieldName) ? Math.round(Number(value || 0)) : value;
+  return {
+    ...template,
+    buttons: (template.buttons || []).map((item) => {
+      if (item.id !== buttonId) return item;
+      const next = {
+        ...item,
+        [fieldName]: nextValue,
+        ...(fieldName === "buttonBehavior" ? {
+          createsClip: ["create_tag", "toggle_duration"].includes(nextValue),
+          appliesLabel: ["label_current", "descriptor", "player_tag"].includes(nextValue),
+        } : {}),
+      };
+      if (fieldName === "label" && (item.targetField === "tags" || item.buttonType === "custom")) {
+        next.value = uniqueValue(template.buttons || [], nextValue, item.buttonType || "custom", buttonId);
+      }
+      return next;
+    }),
+  };
+}
+
+export function updateCodingButtonMsField(template = {}, buttonId = "", fieldName = "", seconds = 0) {
+  const milliseconds = Math.max(fieldName === "startOffsetMs" ? -120000 : 1000, Math.round(Number(seconds || 0) * 1000));
+  return {
+    ...template,
+    buttons: (template.buttons || []).map((item) => item.id === buttonId ? {
+      ...item,
+      [fieldName]: milliseconds,
+      ...(fieldName === "defaultDurationMs" ? { endOffsetMs: milliseconds } : {}),
+    } : item),
   };
 }
 

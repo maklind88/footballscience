@@ -43,8 +43,14 @@ function renderButtonEditor(item = {}) {
   return `
     <article class="video-analysis-code-button-editor">
       <div class="video-analysis-code-button-editor__head">
-        <span style="--video-analysis-button-color: ${escapeHtml(item.color || "#143522")}"></span>
-        <strong>${escapeHtml(item.label)}</strong>
+        <div>
+          <span style="--video-analysis-button-color: ${escapeHtml(item.color || "#143522")}"></span>
+          <strong>${escapeHtml(item.label)}</strong>
+        </div>
+        <div class="video-analysis-code-button-editor__actions">
+          <button type="button" data-video-analysis-duplicate-code-button="${escapeHtml(item.id)}">Duplicate</button>
+          <button type="button" data-video-analysis-remove-code-button="${escapeHtml(item.id)}">Archive</button>
+        </div>
       </div>
       <div class="video-analysis-button-editor-grid">
         <label>Button name<input type="text" data-video-analysis-button-field="${escapeHtml(item.id)}:label" value="${escapeHtml(item.label)}"></label>
@@ -63,11 +69,40 @@ function renderButtonGroup(group = "", buttons = [], state = {}) {
   const editing = state.codingSession?.panelMode === "edit";
   return `
     <section class="video-analysis-code-group">
-      <div class="video-analysis-code-group__header">${escapeHtml(group)}</div>
+      <div class="video-analysis-code-group__header">
+        <span>${escapeHtml(group)}</span>
+        ${editing ? `<button type="button" data-video-analysis-add-code-button-group="${escapeHtml(group)}">+ Button</button>` : ""}
+      </div>
       <div class="video-analysis-code-grid">
         ${buttons.map((item) => renderButton(item, state)).join("")}
       </div>
       ${editing ? `<div class="video-analysis-code-edit-grid">${buttons.map(renderButtonEditor).join("")}</div>` : ""}
+    </section>
+  `;
+}
+
+function renderPanelBuilderControls(state = {}, groupNames = []) {
+  const draft = state.codingSession?.templateBuilder || {};
+  const selectedGroup = draft.newButtonGroup || groupNames[0] || "Custom";
+  const groupOptions = groupNames.length ? groupNames : ["Custom"];
+  return `
+    <section class="video-analysis-panel-builder">
+      <div class="video-analysis-panel-builder__title">
+        <p class="video-analysis-kicker">Panel Builder</p>
+        <strong>Tag buttons</strong>
+      </div>
+      <label>
+        <span>New group</span>
+        <input type="text" data-video-analysis-template-builder-field="newGroupName" value="${escapeHtml(draft.newGroupName || "")}" placeholder="Group name">
+      </label>
+      <button type="button" data-video-analysis-add-button-group>Add group</button>
+      <label>
+        <span>Button group</span>
+        <select data-video-analysis-template-builder-field="newButtonGroup">
+          ${groupOptions.map((group) => `<option value="${escapeHtml(group)}" ${group === selectedGroup ? "selected" : ""}>${escapeHtml(group)}</option>`).join("")}
+        </select>
+      </label>
+      <button type="button" data-video-analysis-add-code-button>Add button</button>
     </section>
   `;
 }
@@ -99,6 +134,7 @@ export function renderCodingTemplateBuilder(state = {}) {
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(item);
   }
+  const groupNames = [...groups.keys()];
   return `
     <section class="video-analysis-template-builder" data-video-analysis-code-window>
       <div class="video-analysis-panel-header">
@@ -120,6 +156,7 @@ export function renderCodingTemplateBuilder(state = {}) {
         </div>
       </div>
       <div class="video-analysis-template-scroll">
+        ${editing ? renderPanelBuilderControls(state, groupNames) : ""}
         ${[...groups.entries()].map(([group, buttons]) => renderButtonGroup(group, buttons, state)).join("")}
         <section class="video-analysis-descriptor-panel">
           <div class="video-analysis-code-group__header">Descriptors</div>

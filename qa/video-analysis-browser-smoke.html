@@ -84,6 +84,7 @@
         smartCollections,
         shareTargets: [],
       };
+      let savedCodingTemplate = null;
       const smokeParams = new URLSearchParams(window.location.search);
       const initialStateFromQuery = smokeParams.get("reset") === "1"
         ? { view: smokeParams.get("view") || "library" }
@@ -102,6 +103,21 @@
         if (action === "saved-searches") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearches: [] });
         if (action === "save-search") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearch: { id: "search-1", title: "Build Up Development" } });
         if (action === "save-review-session") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", reviewSession: { id: "review-1" } });
+        if (action === "coding-templates") {
+          return Response.json({
+            ok: true,
+            schema: "footballscience-video-analysis-v2",
+            templates: savedCodingTemplate ? [savedCodingTemplate] : [],
+          });
+        }
+        if (action === "save-coding-template") {
+          savedCodingTemplate = {
+            id: "coding-template-1",
+            databaseId: "coding-template-1",
+            ...(body.template || {}),
+          };
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", template: savedCodingTemplate });
+        }
         if (action === "list-presentations") {
           return Response.json({
             ok: true,

@@ -139,7 +139,10 @@
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", presentation: savedPresentation });
         }
         if (action === "list-presentation-clips") {
-          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clips, total: clips.length });
+          const limit = Math.max(1, Number(parsed.searchParams.get("limit") || clips.length || 1));
+          const offset = Math.max(0, Number(parsed.searchParams.get("offset") || 0));
+          const pageClips = clips.slice(offset, offset + limit);
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clips: pageClips, pageSize: pageClips.length, total: clips.length });
         }
         if (action === "save-presentation") {
           savedPresentation = {
@@ -150,9 +153,17 @@
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", presentation: savedPresentation });
         }
         if (action === "save-smart-collection") {
-          const smartCollection = { id: "smart-2", ...(body.smartCollection || {}) };
-          smartCollections.unshift(smartCollection);
+          const input = body.smartCollection || {};
+          const existingIndex = smartCollections.findIndex((item) => item.id === input.id);
+          const smartCollection = { ...input, id: input.id || `smart-${smartCollections.length + 1}` };
+          if (existingIndex >= 0) smartCollections.splice(existingIndex, 1, smartCollection);
+          else smartCollections.unshift(smartCollection);
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", smartCollection });
+        }
+        if (action === "save-smart-collection-share-targets") {
+          const collection = smartCollections.find((item) => item.id === body.collectionId);
+          if (collection) collection.shareTargets = body.targets || [];
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", shareTargets: body.targets || [] });
         }
         if (action === "save-drawing-layer") {
           return Response.json({

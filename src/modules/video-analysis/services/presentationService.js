@@ -32,6 +32,13 @@ function numberValue(value, fallback = 0) {
   return Number.isFinite(number) && number >= 0 ? number : fallback;
 }
 
+function booleanValue(value, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return fallback;
+}
+
 export function normalizePresentationMode(mode = "") {
   return presentationModes.some((item) => item.id === mode) ? mode : "builder";
 }
@@ -68,9 +75,12 @@ export function createInitialPresentationWorkspace() {
     drawingInteraction: null,
     selectedDrawingLayerId: "",
     thumbnails: {},
+    thumbnailCache: { count: 0, bytes: 0, maxItems: 600, maxBytes: 35 * 1024 * 1024 },
     presenterIndex: 0,
     sourceClips: [],
     sourceTotal: 0,
+    sourceOffset: 0,
+    sourceHasMore: false,
     sourceFilters: {
       search: "",
       phase: "",
@@ -82,6 +92,25 @@ export function createInitialPresentationWorkspace() {
       type: "all",
       limit: 80,
     },
+    activeSmartCollectionId: "",
+    sharePanelTargetId: "",
+    smartCollectionDraft: {
+      title: "",
+      description: "",
+      visibility: "coach-analyst",
+      sortMode: "newest",
+      pinned: false,
+      targetType: "role",
+      targetId: "",
+      accessLevel: "view",
+      shareTargets: defaultShareTargets("coach-analyst"),
+    },
+    presentationShareDraft: {
+      targetType: "role",
+      targetId: "",
+      accessLevel: "view",
+    },
+    presentationAccessOpen: false,
     current: createDefaultPresentation(),
     error: "",
   };
@@ -103,6 +132,53 @@ export function normalizePresentation(value = {}) {
     sections,
     shareTargets: Array.isArray(value.shareTargets) ? value.shareTargets : [],
     smartCollections: Array.isArray(value.smartCollections) ? value.smartCollections : [],
+  };
+}
+
+export function normalizeShareTarget(target = {}) {
+  const targetType = stringValue(target.targetType || target.target_type || target.type) || "role";
+  const targetId = stringValue(target.targetId || target.target_id || target.id);
+  if (!targetId) return null;
+  return {
+    id: stringValue(target.id || target.shareTargetId || target.share_target_id),
+    targetType,
+    targetId,
+    accessLevel: stringValue(target.accessLevel || target.access_level) || "view",
+    metadata: target.metadata || {},
+  };
+}
+
+export function defaultShareTargets(visibility = "coach-analyst") {
+  if (visibility === "private") return [];
+  if (visibility === "team") return [{ targetType: "team", targetId: "team", accessLevel: "view" }];
+  if (visibility === "player-safe") return [{ targetType: "role", targetId: "player", accessLevel: "view" }];
+  return [
+    { targetType: "role", targetId: "coach", accessLevel: "edit" },
+    { targetType: "role", targetId: "analyst", accessLevel: "edit" },
+  ];
+}
+
+export function normalizeSmartCollection(collection = {}) {
+  const metadata = collection.metadata || {};
+  const shareTargets = Array.isArray(collection.shareTargets || collection.share_targets)
+    ? (collection.shareTargets || collection.share_targets).map(normalizeShareTarget).filter(Boolean)
+    : defaultShareTargets(collection.visibility || metadata.visibility || "coach-analyst");
+  return {
+    id: stringValue(collection.id || collection.collectionId || collection.collection_id),
+    presentationId: stringValue(collection.presentationId || collection.presentation_id),
+    title: stringValue(collection.title) || "Smart collection",
+    description: stringValue(collection.description),
+    collectionType: stringValue(collection.collectionType || collection.collection_type) || "smart",
+    visibility: stringValue(collection.visibility || metadata.visibility) || "coach-analyst",
+    sortMode: stringValue(collection.sortMode || collection.sort_mode || metadata.sortMode) || "newest",
+    searchJson: collection.searchJson || collection.search_json || collection.search || {},
+    isShared: collection.isShared !== false && collection.is_shared !== false,
+    metadata: {
+      ...metadata,
+      pinned: booleanValue(metadata.pinned, false),
+    },
+    shareTargets,
+    updatedAt: stringValue(collection.updatedAt || collection.updated_at),
   };
 }
 
@@ -343,6 +419,58 @@ export function buildPresentationPayload(presentation = {}) {
       })),
     })),
   };
+}
+
+export function buildSmartCollectionPayload(values = {}, filters = {}, presentationId = "") {
+  const normalized = normalizeSmartCollection({
+    ...values,
+    searchJson: values.searchJson || values.search || filters,
+    metadata: {
+      ...(values.metadata || {}),
+      pinned: booleanValue(values.pinned ?? values.metadata?.pinned, false),
+    },
+    shareTargets: Array.isArray(values.shareTargets) ? values.shareTargets : defaultShareTargets(values.visibility || "coach-analyst"),
+  });
+  return {
+    id: normalized.id,
+    presentationId: normalized.presentationId || presentationId || "",
+    title: normalized.title || smartCollectionTitle(filters),
+    description: normalized.description || "Live playlist generated from Data Explorer filters.",
+    visibility: normalized.visibility,
+    sortMode: normalized.sortMode,
+    search: normalized.searchJson || filters,
+    metadata: normalized.metadata,
+    shareTargets: normalized.shareTargets,
+  };
+}
+
+export function duplicateSmartCollection(collection = {}) {
+  const normalized = normalizeSmartCollection(collection);
+  return {
+    ...normalized,
+    id: "",
+    title: `${normalized.title} copy`,
+    metadata: { ...(normalized.metadata || {}), pinned: false, duplicatedFrom: normalized.id || "" },
+  };
+}
+
+export function toggleSmartCollectionPinned(collection = {}) {
+  const normalized = normalizeSmartCollection(collection);
+  return {
+    ...normalized,
+    metadata: { ...(normalized.metadata || {}), pinned: !normalized.metadata?.pinned },
+    pinned: !normalized.metadata?.pinned,
+  };
+}
+
+export function smartCollectionShareLabel(collection = {}) {
+  const targets = Array.isArray(collection.shareTargets) ? collection.shareTargets : [];
+  if (!targets.length) return "Private";
+  const roles = targets.filter((target) => target.targetType === "role").map((target) => target.targetId);
+  if (roles.includes("coach") && roles.includes("analyst")) return "Coaches + analysts";
+  if (targets.some((target) => target.targetType === "team")) return "Team";
+  if (targets.some((target) => target.targetType === "player")) return "Selected players";
+  return `${targets.length} targets`;
 }
 
 export function smartCollectionTitle(filters = {}) {

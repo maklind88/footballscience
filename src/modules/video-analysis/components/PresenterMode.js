@@ -17,6 +17,10 @@ function renderPresenterLayer(layer = {}) {
   return `<span class="video-analysis-presenter-layer is-${escapeHtml(tool)}" style="${escapeHtml(layerStyle(tool, geometry))}">${escapeHtml(layer.text || tool)}</span>`;
 }
 
+function presenterPointLabel(point = {}) {
+  return `${point.tool || point.label || "freeze"} ${formatVideoTime(point.timestampMs || point.timestamp_ms || 0)}`;
+}
+
 function renderQueueItem(item = {}, active = false) {
   const clip = item.clip || {};
   const startMs = item.startMs ?? clip.startMs ?? clip.start_ms ?? 0;
@@ -35,9 +39,14 @@ export function renderPresenterMode(state = {}) {
   const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
   const activeIndex = Math.max(0, queue.findIndex((entry) => entry.id === item?.id));
   const drawings = Array.isArray(item?.drawings) ? item.drawings : [];
+  const freezePoints = [
+    ...(Array.isArray(item?.freezePoints) ? item.freezePoints : []),
+    ...drawings.filter((layer) => layer.tool === "freeze"),
+  ];
   const hasVideo = Boolean(state.videoRef?.objectUrl);
+  const frozen = Boolean(state.presentation?.presenterFrozen);
   return `
-    <section class="video-analysis-presenter-mode" aria-label="Presenter mode">
+    <section class="video-analysis-presenter-mode${frozen ? " is-frozen" : ""}" aria-label="Presenter mode">
       <aside class="video-analysis-presenter-queue" aria-label="Clip queue">
         <div>
           <p class="video-analysis-kicker">Meeting queue</p>
@@ -56,8 +65,9 @@ export function renderPresenterMode(state = {}) {
             <h3>${escapeHtml(item ? itemTitle(item) : presentation.title || "Presentation")}</h3>
           </div>
           <div class="video-analysis-presenter-controls">
-            <button type="button" data-video-analysis-presenter-prev ${activeIndex > 0 ? "" : "disabled"}>Previous clip</button>
-            <button type="button" data-video-analysis-presenter-next ${activeIndex < queue.length - 1 ? "" : "disabled"}>Next clip</button>
+            <button type="button" data-video-analysis-presenter-prev ${activeIndex > 0 ? "" : "disabled"}>Previous</button>
+            <button type="button" data-video-analysis-presenter-next ${activeIndex < queue.length - 1 ? "" : "disabled"}>Next</button>
+            <button type="button" data-video-analysis-presenter-freeze>${frozen ? "Unfreeze" : "Freeze"}</button>
             <button type="button" data-video-analysis-presenter-fullscreen>Fullscreen</button>
             <button type="button" data-video-analysis-presentation-mode="builder">Exit</button>
           </div>
@@ -81,7 +91,7 @@ export function renderPresenterMode(state = {}) {
           </div>
           <div>
             <p class="video-analysis-kicker">Freeze / drawing points</p>
-            <p>${escapeHtml(drawings.map((layer) => `${layer.tool} ${formatVideoTime(layer.timestampMs || 0)}`).join(" | ") || "No freeze points.")}</p>
+            <p>${escapeHtml((freezePoints.length ? freezePoints : drawings).map(presenterPointLabel).join(" | ") || "No freeze points.")}</p>
           </div>
         </div>
       </section>

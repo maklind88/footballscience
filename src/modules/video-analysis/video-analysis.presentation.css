@@ -1,0 +1,353 @@
+#analysisRoomWorkspace .video-analysis-presentation-access {
+  margin-top: 10px;
+  border: 1px solid #dbe5df;
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-access summary {
+  min-height: 34px;
+  padding: 9px 12px;
+  color: #32443a;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-access__grid,
+#analysisRoomWorkspace .video-analysis-smart-share-panel__row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto auto;
+  gap: 8px;
+  align-items: end;
+  padding: 0 12px 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-access label,
+#analysisRoomWorkspace .video-analysis-smart-share-panel label {
+  display: grid;
+  gap: 4px;
+  color: #627168;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-access input,
+#analysisRoomWorkspace .video-analysis-presentation-access select,
+#analysisRoomWorkspace .video-analysis-smart-share-panel input,
+#analysisRoomWorkspace .video-analysis-smart-share-panel select,
+#analysisRoomWorkspace .video-analysis-smart-save-strip input,
+#analysisRoomWorkspace .video-analysis-smart-save-strip select {
+  min-width: 0;
+  min-height: 34px;
+  border: 1px solid #d6e0da;
+  border-radius: 7px;
+  padding: 0 10px;
+  color: #17201b;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  text-transform: none;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-access button,
+#analysisRoomWorkspace .video-analysis-smart-share-panel button,
+#analysisRoomWorkspace .video-analysis-smart-save-strip button,
+#analysisRoomWorkspace .video-analysis-load-more-clips {
+  min-height: 34px;
+  border: 1px solid #cbd8d0;
+  border-radius: 7px;
+  padding: 0 11px;
+  color: #123322;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-tools span {
+  border: 1px solid #dce6df;
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: #5a6a60;
+  background: #f7faf8;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-save-strip {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) minmax(150px, 1fr) 132px auto;
+  gap: 8px;
+  align-items: center;
+  padding: 0 10px 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid #edf1ee;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collections__header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collections__header strong {
+  color: #56655d;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #d8e4dc;
+  border-radius: 8px;
+  padding: 9px;
+  background: #ffffff;
+  box-shadow: 0 10px 26px rgba(30, 54, 43, 0.06);
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection.is-pinned {
+  border-color: #d8c177;
+  background: #fffdf5;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection.is-active {
+  border-color: #154d32;
+  box-shadow: 0 0 0 2px rgba(21, 77, 50, 0.12);
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection__main {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-height: 74px;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection__main span,
+#analysisRoomWorkspace .video-analysis-smart-collection__main small,
+#analysisRoomWorkspace .video-analysis-smart-collection__meta span {
+  min-width: 0;
+  color: #66756c;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection__main strong {
+  min-width: 0;
+  color: #15231b;
+  font-size: 15px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection__meta,
+#analysisRoomWorkspace .video-analysis-smart-collection__actions,
+#analysisRoomWorkspace .video-analysis-smart-share-panel__actions,
+#analysisRoomWorkspace .video-analysis-smart-share-targets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection__meta span,
+#analysisRoomWorkspace .video-analysis-share-target-pill {
+  border: 1px solid #e1e8e3;
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: #f7faf8;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection__actions button {
+  min-height: 28px;
+  border: 1px solid #d7e1db;
+  border-radius: 999px;
+  padding: 0 9px;
+  color: #31463a;
+  background: #ffffff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-share-panel {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #dce6e0;
+  border-radius: 8px;
+  padding: 9px 0;
+  background: #fbfcfb;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-share-panel__actions,
+#analysisRoomWorkspace .video-analysis-smart-share-targets {
+  padding: 0 9px;
+}
+
+#analysisRoomWorkspace .video-analysis-share-target-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #31463a;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+#analysisRoomWorkspace .video-analysis-share-target-pill button {
+  min-width: 20px;
+  min-height: 20px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  color: #ffffff;
+  background: #123322;
+}
+
+#analysisRoomWorkspace .video-analysis-load-more-clips {
+  width: calc(100% - 20px);
+  margin: 0 10px 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay {
+  touch-action: none;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay.is-selected {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(244, 208, 111, 0.38), 0 14px 30px rgba(0, 0, 0, 0.26);
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay i {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #05100b;
+  border-radius: 999px;
+  background: #f4d06f;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay i:nth-of-type(1) {
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay i:nth-of-type(2) {
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay i:nth-of-type(3) {
+  left: -8px;
+  top: -8px;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay i:nth-of-type(4) {
+  right: -8px;
+  bottom: -8px;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay-input {
+  width: min(180px, 28vw);
+  min-height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  border-radius: 6px;
+  padding: 0 8px;
+  color: #ffffff;
+  background: rgba(5, 8, 7, 0.7);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: none;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-mode {
+  background: #030504;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-mode:fullscreen {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  border-radius: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-mode.is-frozen .video-analysis-presenter-frame::after {
+  content: "Frozen";
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  z-index: 5;
+  border: 1px solid rgba(244, 208, 111, 0.72);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #f4d06f;
+  background: rgba(0, 0, 0, 0.58);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-controls button[data-video-analysis-presenter-freeze] {
+  border-color: #e5c86a;
+  color: #2c260c;
+  background: #f4d06f;
+}
+
+@media (max-width: 980px) {
+  #analysisRoomWorkspace .video-analysis-presentation-access__grid,
+  #analysisRoomWorkspace .video-analysis-smart-share-panel__row,
+  #analysisRoomWorkspace .video-analysis-smart-save-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #analysisRoomWorkspace .video-analysis-smart-collections {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  #analysisRoomWorkspace .video-analysis-presentation-access__grid,
+  #analysisRoomWorkspace .video-analysis-smart-share-panel__row,
+  #analysisRoomWorkspace .video-analysis-smart-save-strip {
+    grid-template-columns: 1fr;
+  }
+
+  #analysisRoomWorkspace .video-analysis-drawing-overlay-input {
+    width: min(160px, 54vw);
+  }
+}

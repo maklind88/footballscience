@@ -11,10 +11,60 @@ import { renderPresentationOutline } from "./PresentationOutline.js";
 import { renderPresentationSources } from "./PresentationSources.js";
 import { renderPresenterMode } from "./PresenterMode.js";
 import { renderSelectedClipInspector } from "./SelectedClipInspector.js";
-import { escapeHtml } from "./renderHelpers.js";
+import { escapeHtml, optionList } from "./renderHelpers.js";
 
 function renderPresentationOption(presentation = {}, activeId = "") {
   return `<option value="${escapeHtml(presentation.id || "")}" ${presentation.id === activeId ? "selected" : ""}>${escapeHtml(presentation.title || "Untitled presentation")}</option>`;
+}
+
+function renderPlayerTargetOptions(players = [], selected = "") {
+  return optionList(players, selected, (player) => player.id, (player) => `${player.name}${player.position ? ` / ${player.position}` : ""}`);
+}
+
+function renderPresentationShareTarget(target = {}) {
+  const key = `${target.targetType || "role"}:${target.targetId || ""}`;
+  return `
+    <span class="video-analysis-share-target-pill">
+      ${escapeHtml(`${key} / ${target.accessLevel || "view"}`)}
+      <button type="button" aria-label="Remove access target" data-video-analysis-presentation-share-remove="${escapeHtml(target.targetType || "")}:${escapeHtml(target.targetId || "")}">x</button>
+    </span>
+  `;
+}
+
+function renderPresentationShareSettings(state = {}, current = {}) {
+  const draft = state.presentation?.presentationShareDraft || {};
+  const targetType = draft.targetType || "role";
+  const shareTargets = Array.isArray(current.shareTargets) ? current.shareTargets : [];
+  return `
+    <details class="video-analysis-presentation-access" ${state.presentation?.presentationAccessOpen ? "open" : ""}>
+      <summary data-video-analysis-presentation-access-toggle>Access</summary>
+      <div class="video-analysis-presentation-access__grid">
+        <label>
+          <span>Target</span>
+          <select data-video-analysis-presentation-share-draft="targetType">
+            ${optionList(["role", "player", "group", "user", "team"], targetType)}
+          </select>
+        </label>
+        <label>
+          <span>${escapeHtml(targetType === "player" ? "Player" : "Id")}</span>
+          ${targetType === "player"
+            ? `<select data-video-analysis-presentation-share-draft="targetId"><option value="">Choose player</option>${renderPlayerTargetOptions(state.players || [], draft.targetId || "")}</select>`
+            : `<input type="text" placeholder="${escapeHtml(targetType === "role" ? "coach, analyst..." : "group/user id")}" data-video-analysis-presentation-share-draft="targetId" value="${escapeHtml(draft.targetId || "")}">`}
+        </label>
+        <label>
+          <span>Access</span>
+          <select data-video-analysis-presentation-share-draft="accessLevel">
+            ${optionList(["view", "present", "edit"], draft.accessLevel || "view")}
+          </select>
+        </label>
+        <button type="button" data-video-analysis-presentation-share-add>Add target</button>
+        <button type="button" class="video-analysis-primary-action" data-video-analysis-presentation-share-save>Save access</button>
+      </div>
+      <div class="video-analysis-smart-share-targets">
+        ${shareTargets.length ? shareTargets.map(renderPresentationShareTarget).join("") : `<span class="video-analysis-muted">Default access: coaches and analysts.</span>`}
+      </div>
+    </details>
+  `;
 }
 
 function itemTitle(item = {}) {
@@ -178,6 +228,7 @@ export function renderPresentationModule(state = {}) {
           <button type="button" data-video-analysis-presentation-mode="presenter">Present</button>
         </div>
       </div>
+      ${renderPresentationShareSettings(state, current)}
       ${renderModeBar(activeMode)}
       ${presentationState.error ? `<div class="video-analysis-error" role="alert">${escapeHtml(presentationState.error)}</div>` : ""}
       ${renderPresentationBody(state, activeMode)}

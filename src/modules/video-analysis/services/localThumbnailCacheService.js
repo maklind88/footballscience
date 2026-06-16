@@ -1,6 +1,8 @@
 const databaseName = "football-science-video-thumbnails";
 const storeName = "clipThumbnails";
 const databaseVersion = 1;
+const thumbnailCacheMaxItems = 600;
+const thumbnailCacheMaxBytes = 35 * 1024 * 1024;
 
 function text(value = "") {
   return String(value || "").trim();
@@ -38,6 +40,31 @@ function transactionStore(db, mode = "readonly") {
   return db.transaction(storeName, mode).objectStore(storeName);
 }
 
+function dataUrlBytes(dataUrl = "") {
+  const value = text(dataUrl);
+  if (!value) return 0;
+  const payload = value.includes(",") ? value.split(",").pop() : value;
+  return Math.max(0, Math.round((payload.length * 3) / 4));
+}
+
+function allRecords(store) {
+  if (typeof store.getAll === "function") return requestPromise(store.getAll());
+  return new Promise((resolve, reject) => {
+    const records = [];
+    const request = store.openCursor();
+    request.onerror = () => reject(request.error || new Error("Could not read thumbnail cache."));
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        resolve(records);
+        return;
+      }
+      records.push(cursor.value);
+      cursor.continue();
+    };
+  });
+}
+
 export function clipThumbnailTimeMs(clip = {}) {
   const startMs = Number(clip.startMs ?? clip.start_ms ?? 0);
   const endMs = Number(clip.endMs ?? clip.end_ms ?? startMs + 1500);
@@ -57,6 +84,9 @@ export async function getCachedThumbnail(key = "", win = window) {
   const db = await openDatabase(win);
   try {
     const record = await requestPromise(transactionStore(db).get(key));
+    if (record?.id) {
+      await requestPromise(transactionStore(db, "readwrite").put({ ...record, accessedAt: new Date().toISOString() })).catch(() => null);
+    }
     return record?.dataUrl || "";
   } finally {
     db.close?.();
@@ -73,10 +103,71 @@ export async function saveCachedThumbnail(key = "", values = {}, win = window) {
       clipId: text(values.clipId),
       timestampMs: Math.max(0, Math.round(Number(values.timestampMs || 0))),
       dataUrl: values.dataUrl,
+      bytes: dataUrlBytes(values.dataUrl),
+      accessedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     await requestPromise(transactionStore(db, "readwrite").put(record));
+    await pruneThumbnailCache(win).catch(() => null);
     return record;
+  } finally {
+    db.close?.();
+  }
+}
+
+export async function thumbnailCacheStats(win = window) {
+  const db = await openDatabase(win);
+  try {
+    const records = await allRecords(transactionStore(db));
+    const bytes = records.reduce((sum, record) => sum + Math.max(0, Number(record.bytes || dataUrlBytes(record.dataUrl))), 0);
+    return {
+      count: records.length,
+      bytes,
+      maxItems: thumbnailCacheMaxItems,
+      maxBytes: thumbnailCacheMaxBytes,
+      oldestAccessedAt: records.reduce((oldest, record) => {
+        const value = record.accessedAt || record.updatedAt || "";
+        return !oldest || (value && value < oldest) ? value : oldest;
+      }, ""),
+    };
+  } finally {
+    db.close?.();
+  }
+}
+
+export async function clearCachedThumbnails(win = window, localVideoIdentifier = "") {
+  const db = await openDatabase(win);
+  try {
+    const records = await allRecords(transactionStore(db));
+    const target = text(localVideoIdentifier);
+    for (const record of records) {
+      if (!target || record.localVideoIdentifier === target) {
+        await requestPromise(transactionStore(db, "readwrite").delete(record.id));
+      }
+    }
+    return true;
+  } finally {
+    db.close?.();
+  }
+}
+
+export async function pruneThumbnailCache(win = window, options = {}) {
+  const maxItems = Math.max(50, Math.round(Number(options.maxItems || thumbnailCacheMaxItems)));
+  const maxBytes = Math.max(5 * 1024 * 1024, Math.round(Number(options.maxBytes || thumbnailCacheMaxBytes)));
+  const db = await openDatabase(win);
+  try {
+    const records = await allRecords(transactionStore(db));
+    let bytes = records.reduce((sum, record) => sum + Math.max(0, Number(record.bytes || dataUrlBytes(record.dataUrl))), 0);
+    const sorted = records
+      .map((record) => ({ ...record, bytes: Math.max(0, Number(record.bytes || dataUrlBytes(record.dataUrl))) }))
+      .sort((a, b) => String(a.accessedAt || a.updatedAt || "").localeCompare(String(b.accessedAt || b.updatedAt || "")));
+    while (sorted.length > maxItems || bytes > maxBytes) {
+      const stale = sorted.shift();
+      if (!stale?.id) break;
+      bytes -= stale.bytes || 0;
+      await requestPromise(transactionStore(db, "readwrite").delete(stale.id));
+    }
+    return true;
   } finally {
     db.close?.();
   }

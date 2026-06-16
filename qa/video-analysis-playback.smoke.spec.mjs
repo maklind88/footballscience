@@ -330,13 +330,48 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-presentation")).toContainText("Data Explorer");
   await expect(page.locator(".video-analysis-presentation")).toContainText("Meeting order");
   await expect(page.locator(".video-analysis-presentation")).toContainText("Clip prep");
+  await expect(page.locator(".video-analysis-presentation-access")).toContainText("Access");
+  await expect(page.locator(".video-analysis-smart-save-strip")).toBeVisible();
   await expect(page.locator(".video-analysis-presentation-source-clip")).toHaveCount(1);
   await expect(page.locator(".video-analysis-presentation-source-clip")).toContainText("Alex Morgan");
+  await expect(page.locator(".video-analysis-smart-collections")).toContainText("Build Up Positive");
   await expect(page.locator(".video-analysis-presentation-outline-section")).toHaveCount(3);
   await expect(page.locator(".video-analysis-presentation .video-analysis-filters")).toHaveCount(0);
   await expect(page.locator(".video-analysis-presentation .video-analysis-intelligence")).toHaveCount(0);
   await expect(page.locator(".video-analysis-presentation .video-analysis-clip-list")).toHaveCount(0);
   await expect(page.locator(".video-analysis-presentation-source-clip__thumb")).toBeVisible();
+
+  await page.locator('[data-video-analysis-smart-draft="title"]').fill("High press wins");
+  await page.locator("[data-video-analysis-smart-save]").click();
+  await expect(page.locator(".video-analysis-smart-collections")).toContainText("High press wins");
+  await page.locator(".video-analysis-smart-collection", { hasText: "High press wins" }).locator("[data-video-analysis-smart-share]").click();
+  await page.locator(".video-analysis-smart-share-panel").locator('[data-video-analysis-smart-draft="targetType"]').selectOption("player");
+  await page.locator(".video-analysis-smart-share-panel").locator('[data-video-analysis-smart-draft="targetId"]').selectOption("p2");
+  await page.locator(".video-analysis-smart-share-panel").locator("[data-video-analysis-smart-share-add]").click();
+  await expect(page.locator(".video-analysis-smart-share-panel .video-analysis-smart-share-targets")).toContainText("player:p2");
+  await page.locator(".video-analysis-smart-share-panel").locator("[data-video-analysis-smart-share-save]").click();
+  const smartShareRequest = await expect.poll(() => page.evaluate(() => (
+    [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "save-smart-collection-share-targets")?.body || null
+  ))).toBeTruthy();
+  const smartShareBody = await page.evaluate(() => (
+    [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "save-smart-collection-share-targets")?.body || null
+  ));
+  expect(smartShareBody?.targets?.some((target) => target.targetType === "player" && target.targetId === "p2")).toBe(true);
+
+  await page.locator(".video-analysis-presentation-access summary").click();
+  await page.locator('[data-video-analysis-presentation-share-draft="targetType"]').selectOption("player");
+  await page.locator('[data-video-analysis-presentation-share-draft="targetId"]').selectOption("p1");
+  await page.locator("[data-video-analysis-presentation-share-add]").click();
+  await expect(page.locator(".video-analysis-presentation-access")).toContainText("player:p1");
+  await page.locator("[data-video-analysis-presentation-share-save]").click();
+  await expect.poll(() => page.evaluate(() => (
+    [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "save-share-targets" || item.action === "save-presentation")?.body || null
+  ))).toBeTruthy();
+  const presentationShareRequest = await page.evaluate(() => (
+    [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "save-share-targets" || item.action === "save-presentation") || null
+  ));
+  const presentationTargets = presentationShareRequest?.body?.targets || presentationShareRequest?.body?.presentation?.shareTargets || [];
+  expect(presentationTargets.some((target) => target.targetType === "player" && target.targetId === "p1")).toBe(true);
 
   await page.locator("[data-video-analysis-presentation-add]").first().click();
   await expect(page.locator(".video-analysis-presentation-outline-item")).toHaveCount(1);
@@ -355,12 +390,22 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await page.mouse.up();
   await expect(page.locator(".video-analysis-drawing-layer-list li")).toHaveCount(1);
   await expect(page.locator(".video-analysis-drawing-layer-list")).toContainText("arrow");
+  await page.locator('[data-video-analysis-draw-tool="text"]').click();
+  await page.mouse.move(drawingSurfaceBox.x + 250, drawingSurfaceBox.y + 190);
+  await page.mouse.down();
+  await page.mouse.move(drawingSurfaceBox.x + 280, drawingSurfaceBox.y + 210);
+  await page.mouse.up();
+  await expect(page.locator(".video-analysis-drawing-layer-list li")).toHaveCount(2);
+  await page.locator(".video-analysis-drawing-overlay-input").fill("Trigger run");
+  await expect(page.locator(".video-analysis-drawing-overlay-input")).toHaveValue("Trigger run");
 
   await page.getByRole("tab", { name: "Present" }).click();
   await expect(page.locator(".video-analysis-presenter-mode")).toBeVisible();
   await expect(page.locator(".video-analysis-presenter-queue-item")).toHaveCount(1);
   await expect(page.locator(".video-analysis-presenter-frame")).toContainText("arrow");
   await expect(page.locator(".video-analysis-presenter-frame")).toContainText("Clip 1 of 1");
+  await page.locator("[data-video-analysis-presenter-freeze]").click();
+  await expect(page.locator(".video-analysis-presenter-mode")).toHaveClass(/is-frozen/);
   await expect(page.locator(".video-analysis-player")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-timeline-module]")).toHaveCount(0);
 

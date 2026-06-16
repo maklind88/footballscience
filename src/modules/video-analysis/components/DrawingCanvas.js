@@ -39,10 +39,14 @@ function renderOverlayLayer(layer = {}, selectedLayerId = "") {
     <span class="video-analysis-drawing-overlay is-${escapeHtml(tool)}${selected ? " is-selected" : ""}"
       style="${escapeHtml(layerStyle(tool, geometry))}"
       data-video-analysis-drawing-layer="${escapeHtml(layer.id)}">
-      ${escapeHtml(text)}
+      ${selected && tool === "text"
+        ? `<input class="video-analysis-drawing-overlay-input" type="text" data-video-analysis-drawing-field="text" value="${escapeHtml(text)}" aria-label="Edit drawing text">`
+        : escapeHtml(text)}
       ${selected ? `
         <i data-video-analysis-drawing-resize="${escapeHtml(layer.id)}:start"></i>
         <i data-video-analysis-drawing-resize="${escapeHtml(layer.id)}:end"></i>
+        <i data-video-analysis-drawing-resize="${escapeHtml(layer.id)}:nw"></i>
+        <i data-video-analysis-drawing-resize="${escapeHtml(layer.id)}:se"></i>
       ` : ""}
     </span>
   `;
@@ -72,6 +76,7 @@ export function renderDrawingCanvas(state = {}) {
   const layers = Array.isArray(item?.drawings) ? item.drawings : [];
   const draft = state.presentation?.drawingDraft || {};
   const selectedLayerId = state.presentation?.selectedDrawingLayerId || "";
+  const selectedLayer = layers.find((layer) => layer.id === selectedLayerId) || null;
   const previewLayer = state.presentation?.drawingInteraction?.previewLayer || null;
   const hasVideo = Boolean(state.videoRef?.objectUrl);
   return `
@@ -112,7 +117,7 @@ export function renderDrawingCanvas(state = {}) {
         <div class="video-analysis-drawing-form">
           <input type="number" min="0" step="0.1" placeholder="Timestamp seconds" data-video-analysis-drawing-field="timestampSeconds" value="${escapeHtml(draft.timestampSeconds || "")}">
           <input type="number" min="0" step="0.1" placeholder="Duration seconds" data-video-analysis-drawing-field="durationSeconds" value="${escapeHtml(draft.durationSeconds || "")}">
-          <input type="text" placeholder="Text label" data-video-analysis-drawing-field="text" value="${escapeHtml(draft.text || "")}">
+          <input type="text" placeholder="${escapeHtml(selectedLayer ? "Edit selected layer text" : "Text label")}" data-video-analysis-drawing-field="text" value="${escapeHtml(selectedLayer ? selectedLayer.text || "" : draft.text || "")}">
           <button type="button" data-video-analysis-drawing-add ${item ? "" : "disabled"}>Add layer</button>
           <button type="button" data-video-analysis-drawing-save ${item?.drawings?.length ? "" : "disabled"}>Save layers</button>
         </div>

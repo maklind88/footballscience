@@ -8,6 +8,10 @@ import { renderTimeline } from "./components/Timeline.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderVideoPlayer } from "./components/VideoPlayer.js";
 import { escapeHtml } from "./components/renderHelpers.js";
+import { createDrawingController } from "./controllers/drawingController.js";
+import { createPresentationController } from "./controllers/presentationController.js";
+import { createPresenterController } from "./controllers/presenterController.js";
+import { createThumbnailController } from "./controllers/thumbnailController.js";
 import { normalizeClipInstance } from "./domain/clipInstance.model.js";
 import { createCodingTemplateRepository } from "./repositories/codingTemplateRepository.js";
 import { createClipRepository } from "./repositories/clipRepository.js";
@@ -47,37 +51,17 @@ import {
 import { addClipToReviewSection, buildReviewSessionPayload, removeClipFromReviewSection, updateReviewSectionNote } from "./services/reviewSessionService.js";
 import {
   addClipToPresentation,
-  addDrawingLayerToItem,
   addPresentationSection,
-  buildPresentationPayload,
   createDefaultPresentation,
+  defaultShareTargets,
   movePresentationItem,
   movePresentationItemToSection,
-  normalizeDrawingLayer,
-  normalizePresentation,
   presentationQueue,
-  removeDrawingLayerFromItem,
   removePresentationItem,
   selectedPresentationItem,
-  smartCollectionTitle,
-  updateDrawingLayerInItem,
   updatePresentationItem,
   updatePresentationSection,
 } from "./services/presentationService.js";
-import {
-  generateClipThumbnail,
-  getCachedThumbnail,
-  saveCachedThumbnail,
-  thumbnailCacheKey,
-  clipThumbnailTimeMs,
-} from "./services/localThumbnailCacheService.js";
-import {
-  defaultDrawingGeometry,
-  geometryFromDrag,
-  moveGeometry,
-  pointerPercent,
-  resizeGeometry,
-} from "./services/presentationLayerGeometryService.js";
 import { buildTimelineLanes, normalizeTimelineLaneMode, trimClipDraft } from "./services/timelineService.js";
 import { describeVideoPlaybackError, getVideoCurrentMs, seekVideoToMs, toggleVideoPlayback } from "./services/videoPlaybackService.js";
 import { createTimelineScrubController } from "./timeline/timeline.interaction.js";
@@ -89,7 +73,10 @@ import { createVideoAnalysisStore } from "./video-analysis.store.js";
 let runtime = null;
 let videoLibraryController = null;
 let timelineScrubController = null;
-const thumbnailRequests = new Set();
+let drawingController = null;
+let presentationController = null;
+let presenterController = null;
+let thumbnailController = null;
 const CLIP_PAGE_LIMIT = 200;
 const CLIP_WORKSPACE_LIMIT = 1000;
 
@@ -149,6 +136,52 @@ function timelineController(context = {}) {
     });
   }
   return timelineScrubController;
+}
+
+function drawingControls(context = {}) {
+  if (!drawingController) {
+    drawingController = createDrawingController({
+      getRoot: () => getRoot(runtime?.context || context),
+      getState: () => runtime?.store.getState() || {},
+      getVideoElement: () => videoElement(runtime?.context || context),
+      updateState: (updater) => runtime?.store.update(updater),
+    });
+  }
+  return drawingController;
+}
+
+function presenterControls(context = {}) {
+  if (!presenterController) {
+    presenterController = createPresenterController({
+      getRoot: () => getRoot(runtime?.context || context),
+      getVideoElement: () => videoElement(runtime?.context || context),
+      updateState: (updater) => runtime?.store.update(updater),
+    });
+  }
+  return presenterController;
+}
+
+function thumbnails(context = {}) {
+  if (!thumbnailController) {
+    thumbnailController = createThumbnailController({
+      getState: () => runtime?.store.getState() || {},
+      getWindow: () => runtime?.context?.win || context.win || window,
+      updateState: (updater) => runtime?.store.update(updater),
+    });
+  }
+  return thumbnailController;
+}
+
+function presentationControls(context = {}) {
+  if (!presentationController) {
+    presentationController = createPresentationController({
+      ensureRuntime,
+      getRuntime: () => runtime,
+      shouldLoadMetadata,
+    });
+  }
+  ensureRuntime(runtime?.context || context);
+  return presentationController;
 }
 
 const analysisRoomTabs = Object.freeze([
@@ -591,6 +624,8 @@ function paint(root, state) {
   const focusedPresentationSectionNote = root.querySelector("[data-video-analysis-presentation-section-note]:focus")?.dataset.videoAnalysisPresentationSectionNote || "";
   const focusedPresentationItemTitle = root.querySelector("[data-video-analysis-presentation-item-title]:focus")?.dataset.videoAnalysisPresentationItemTitle || "";
   const focusedPresentationItemNote = root.querySelector("[data-video-analysis-presentation-item-note]:focus")?.dataset.videoAnalysisPresentationItemNote || "";
+  const focusedSmartDraft = root.querySelector("[data-video-analysis-smart-draft]:focus")?.dataset.videoAnalysisSmartDraft || "";
+  const focusedPresentationShareDraft = root.querySelector("[data-video-analysis-presentation-share-draft]:focus")?.dataset.videoAnalysisPresentationShareDraft || "";
   const focusedDrawingField = root.querySelector("[data-video-analysis-drawing-field]:focus")?.dataset.videoAnalysisDrawingField || "";
   const selectionStart = root.ownerDocument?.activeElement?.selectionStart;
   const visibleClips = filterClipsForMatrix(
@@ -662,9 +697,13 @@ function paint(root, state) {
                               ? root.querySelector(`[data-video-analysis-presentation-item-title="${focusedPresentationItemTitle}"]`)
                               : focusedPresentationItemNote
                                 ? root.querySelector(`[data-video-analysis-presentation-item-note="${focusedPresentationItemNote}"]`)
-                                : focusedDrawingField
-                                  ? root.querySelector(`[data-video-analysis-drawing-field="${focusedDrawingField}"]`)
-                                  : null;
+                                : focusedSmartDraft
+                                  ? root.querySelector(`[data-video-analysis-smart-draft="${focusedSmartDraft}"]`)
+                                  : focusedPresentationShareDraft
+                                    ? root.querySelector(`[data-video-analysis-presentation-share-draft="${focusedPresentationShareDraft}"]`)
+                                    : focusedDrawingField
+                                      ? root.querySelector(`[data-video-analysis-drawing-field="${focusedDrawingField}"]`)
+                                      : null;
   if (nextFocus) {
     nextFocus.focus();
     if (Number.isFinite(selectionStart) && typeof nextFocus.setSelectionRange === "function") {
@@ -689,7 +728,7 @@ function paint(root, state) {
     video.addEventListener("error", () => setVideoPlaybackError(video), { once: true });
     if (video.readyState >= 1) markNativePlaybackReady(video);
   }
-  if (activeTabId === "presentation") ensurePresentationThumbnails(runtime?.context || {});
+  if (activeTabId === "presentation") thumbnails(runtime?.context || {}).ensureThumbnails();
 }
 
 async function loadClips(nextFilters = null) {
@@ -764,191 +803,59 @@ async function loadSavedSearches() {
 }
 
 async function loadPresentations(options = {}) {
-  const run = runtime;
-  if (!run) return;
-  if (!shouldLoadMetadata(run.context, run.store.getState())) return;
-  try {
-    const payload = await run.presentations.list(40);
-    run.store.update((current) => ({
-      ...current,
-      presentation: {
-        ...(current.presentation || {}),
-        status: "ready",
-        presentations: payload.presentations || [],
-        smartCollections: payload.smartCollections || [],
-        error: "",
-      },
-    }));
-    if (!options.skipSources) await loadPresentationSources(null, { silent: true });
-  } catch (error) {
-    run.store.update((current) => ({
-      ...current,
-      presentation: {
-        ...(current.presentation || {}),
-        status: "error",
-        error: error.message || "Could not load presentations.",
-      },
-    }));
-  }
+  return presentationControls(runtime?.context || {}).loadPresentations(options);
 }
 
 async function loadPresentation(id = "") {
-  const run = runtime;
-  if (!run || !id) return false;
-  try {
-    run.store.update((current) => ({
-      ...current,
-      presentation: { ...(current.presentation || {}), status: "loading", error: "" },
-    }));
-    const payload = await run.presentations.get(id);
-    const presentation = normalizePresentation(payload.presentation || {});
-    run.store.update((current) => ({
-      ...current,
-      presentation: {
-        ...(current.presentation || {}),
-        status: "ready",
-        activePresentationId: presentation.id,
-        activeSectionId: presentation.sections[0]?.id || "",
-        selectedItemId: presentationQueue(presentation)[0]?.id || "",
-        selectedClipId: presentationQueue(presentation)[0]?.clipId || "",
-        current: presentation,
-        smartCollections: payload.presentation?.smartCollections || current.presentation?.smartCollections || [],
-        error: "",
-      },
-    }));
-    return true;
-  } catch (error) {
-    run.store.update((current) => ({
-      ...current,
-      presentation: { ...(current.presentation || {}), status: "error", error: error.message || "Could not load presentation." },
-    }));
-    return false;
-  }
+  return presentationControls(runtime?.context || {}).loadPresentation(id);
 }
 
 async function loadPresentationSources(nextFilters = null, options = {}) {
-  const run = runtime;
-  if (!run) return;
-  const state = run.store.getState();
-  if (!shouldLoadMetadata(run.context, state)) return;
-  const filters = nextFilters || state.presentation?.sourceFilters || {};
-  const searchParts = [filters.search, filters.tag].map((value) => String(value || "").trim()).filter(Boolean);
-  run.store.update((current) => ({
-    ...current,
-    presentation: {
-      ...(current.presentation || {}),
-      status: options.silent ? current.presentation?.status || "ready" : "loading-sources",
-      sourceFilters: filters,
-      error: "",
-    },
-  }));
-  try {
-    const payload = await run.presentations.listClips({
-      search: searchParts.join(" "),
-      phase: filters.phase,
-      outcome: filters.outcome,
-      playerId: filters.playerId,
-      date: filters.date,
-      type: filters.type,
-      limit: filters.limit || 80,
-    });
-    const clips = (payload.clips || []).map(normalizeClipInstance);
-    run.store.update((current) => ({
-      ...current,
-      presentation: {
-        ...(current.presentation || {}),
-        status: "ready",
-        sourceClips: clips,
-        sourceTotal: clips.length,
-        sourceFilters: filters,
-        error: "",
-      },
-    }));
-  } catch (error) {
-    run.store.update((current) => ({
-      ...current,
-      presentation: { ...(current.presentation || {}), status: "error", error: error.message || "Could not load presentation clips." },
-    }));
-  }
+  return presentationControls(runtime?.context || {}).loadPresentationSources(nextFilters, options);
 }
 
 async function saveCurrentPresentation(context = {}) {
-  const run = ensureRuntime(context);
-  const state = run.store.getState();
-  const currentPresentation = state.presentation?.current || createDefaultPresentation();
-  try {
-    run.store.update((current) => ({
-      ...current,
-      presentation: { ...(current.presentation || {}), status: "saving", error: "" },
-    }));
-    const payload = await run.presentations.save(buildPresentationPayload(currentPresentation));
-    const presentation = normalizePresentation(payload.presentation || currentPresentation);
-    run.store.update((current) => ({
-      ...current,
-      message: "Presentation saved.",
-      presentation: {
-        ...(current.presentation || {}),
-        status: "ready",
-        activePresentationId: presentation.id,
-        current: presentation,
-        presentations: [
-          presentation,
-          ...(current.presentation?.presentations || []).filter((item) => item.id !== presentation.id),
-        ],
-        error: "",
-      },
-    }));
-    return true;
-  } catch (error) {
-    run.store.update((current) => ({
-      ...current,
-      presentation: { ...(current.presentation || {}), status: "error", error: error.message || "Could not save presentation." },
-    }));
-    return false;
-  }
+  return presentationControls(context).saveCurrentPresentation(context);
 }
 
 async function saveCurrentSmartCollection(context = {}) {
-  const run = ensureRuntime(context);
-  const state = run.store.getState();
-  const filters = state.presentation?.sourceFilters || {};
-  try {
-    const payload = await run.presentations.saveSmartCollection({
-      presentationId: state.presentation?.current?.id || "",
-      title: smartCollectionTitle(filters),
-      description: "Live playlist generated from Data Explorer filters.",
-      visibility: "coach-analyst",
-      sortMode: "newest",
-      search: filters,
-      metadata: {
-        kind: "live-playlist",
-        source: "presentation-data-explorer",
-      },
-      shareTargets: [
-        { targetType: "role", targetId: "coach", accessLevel: "edit" },
-        { targetType: "role", targetId: "analyst", accessLevel: "edit" },
-      ],
-    });
-    run.store.update((current) => ({
-      ...current,
-      message: "Smart collection saved.",
-      presentation: {
-        ...(current.presentation || {}),
-        smartCollections: [
-          payload.smartCollection,
-          ...(current.presentation?.smartCollections || []).filter((item) => item.id !== payload.smartCollection?.id),
-        ].filter(Boolean),
-        error: "",
-      },
-    }));
-    return true;
-  } catch (error) {
-    run.store.update((current) => ({
-      ...current,
-      presentation: { ...(current.presentation || {}), status: "error", error: error.message || "Could not save smart collection." },
-    }));
-    return false;
-  }
+  return presentationControls(context).saveCurrentSmartCollection(context);
+}
+
+async function pinSmartCollection(collectionId = "", context = {}) {
+  return presentationControls(context).pinSmartCollection(collectionId, context);
+}
+
+async function duplicateSmartCollectionById(collectionId = "", context = {}) {
+  return presentationControls(context).duplicateSmartCollectionById(collectionId, context);
+}
+
+function openSmartCollectionShare(collectionId = "", context = {}) {
+  return presentationControls(context).openSmartCollectionShare(collectionId, context);
+}
+
+function addSmartCollectionShareTarget(collectionId = "", context = {}) {
+  return presentationControls(context).addSmartCollectionShareTarget(collectionId, context);
+}
+
+function removeSmartCollectionShareTarget(payload = "", context = {}) {
+  return presentationControls(context).removeSmartCollectionShareTarget(payload, context);
+}
+
+async function saveSmartCollectionSharing(collectionId = "", context = {}) {
+  return presentationControls(context).saveSmartCollectionSharing(collectionId, context);
+}
+
+function addPresentationShareTarget(context = {}) {
+  return presentationControls(context).addPresentationShareTarget(context);
+}
+
+function removePresentationShareTarget(payload = "", context = {}) {
+  return presentationControls(context).removePresentationShareTarget(payload, context);
+}
+
+async function savePresentationShareTargets(context = {}) {
+  return presentationControls(context).savePresentationShareTargets(context);
 }
 
 async function saveSelectedDrawingLayers(context = {}) {
@@ -991,257 +898,6 @@ async function saveSelectedDrawingLayers(context = {}) {
     }));
     return false;
   }
-}
-
-function thumbnailCandidateClips(state = {}) {
-  const sourceClips = Array.isArray(state.presentation?.sourceClips) ? state.presentation.sourceClips : [];
-  const queueClips = presentationQueue(state.presentation?.current || {})
-    .map((item) => item.clip)
-    .filter(Boolean);
-  const seen = new Set();
-  return [...queueClips, ...sourceClips].filter((clip) => {
-    const id = clip?.id || clip?.clipId || clip?.clip_instance_id;
-    if (!id || seen.has(id)) return false;
-    seen.add(id);
-    return true;
-  }).slice(0, 60);
-}
-
-function ensurePresentationThumbnails(context = {}) {
-  const run = runtime;
-  if (!run) return;
-  const state = run.store.getState();
-  const videoRef = state.videoRef || {};
-  if (!videoRef.objectUrl || !videoRef.localVideoIdentifier) return;
-  for (const clip of thumbnailCandidateClips(state)) {
-    const key = thumbnailCacheKey(videoRef, clip);
-    if (!key || state.presentation?.thumbnails?.[key] || thumbnailRequests.has(key)) continue;
-    thumbnailRequests.add(key);
-    const win = context.win || window;
-    getCachedThumbnail(key, win)
-      .then((cached) => cached || generateClipThumbnail(videoRef, clip, win))
-      .then(async (dataUrl) => {
-        if (!dataUrl) return;
-        if (!dataUrl.startsWith("data:image/")) return;
-        if (!state.presentation?.thumbnails?.[key]) {
-          await saveCachedThumbnail(key, {
-            dataUrl,
-            localVideoIdentifier: videoRef.localVideoIdentifier,
-            clipId: clip.id || clip.clipId || clip.clip_instance_id,
-            timestampMs: clipThumbnailTimeMs(clip),
-          }, win).catch(() => null);
-        }
-        run.store.update((current) => ({
-          ...current,
-          presentation: {
-            ...(current.presentation || {}),
-            thumbnails: {
-              ...(current.presentation?.thumbnails || {}),
-              [key]: dataUrl,
-            },
-          },
-        }));
-      })
-      .catch(() => null)
-      .finally(() => thumbnailRequests.delete(key));
-  }
-}
-
-function addDrawingLayerAtPoint(context = {}, geometry = null) {
-  const run = ensureRuntime(context);
-  run.store.update((state) => {
-    const presentation = state.presentation?.current;
-    const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
-    if (!item) return state;
-    const draft = state.presentation?.drawingDraft || {};
-    const tool = state.presentation?.drawingTool || "arrow";
-    const layer = createDrawingLayer(state, item, context, geometry || defaultDrawingGeometry(tool));
-    return {
-      ...state,
-      presentation: {
-        ...(state.presentation || {}),
-        current: addDrawingLayerToItem(presentation, item.id, layer),
-        selectedDrawingLayerId: layer.id,
-        drawingDraft: { ...draft, timestampSeconds: "", durationSeconds: "", text: "" },
-        drawingUndoStack: [...(state.presentation?.drawingUndoStack || []), presentation].slice(-20),
-        drawingRedoStack: [],
-      },
-    };
-  });
-  return true;
-}
-
-function createDrawingLayer(state = {}, item = {}, context = {}, geometry = {}) {
-  const draft = state.presentation?.drawingDraft || {};
-  const tool = state.presentation?.drawingTool || "arrow";
-  const presentation = state.presentation?.current || {};
-  return normalizeDrawingLayer({
-      presentationId: presentation.id,
-      presentationItemId: item.id,
-      clipId: item.clipId,
-      timestampMs: currentPlayheadMs(context, state),
-      durationMs: draft.durationSeconds ? Math.round(Number(draft.durationSeconds || 0) * 1000) : null,
-      tool,
-      text: draft.text || (tool === "text" ? "Coach point" : ""),
-      geometry,
-      style: { color: tool === "spotlight" ? "#ffffff" : "#f4d06f" },
-    });
-}
-
-function drawingLayerById(item = {}, layerId = "") {
-  return (item.drawings || []).find((layer) => layer.id === layerId) || null;
-}
-
-function startDrawingInteraction(event, context = {}, surface = null) {
-  const run = ensureRuntime(context);
-  const state = run.store.getState();
-  const presentation = state.presentation?.current;
-  const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
-  if (!item) return false;
-  const point = pointerPercent(event, surface);
-  const resizeTarget = eventElement(event)?.closest?.("[data-video-analysis-drawing-resize]");
-  const layerTarget = eventElement(event)?.closest?.("[data-video-analysis-drawing-layer]");
-  const [resizeLayerId, resizeHandle] = String(resizeTarget?.dataset?.videoAnalysisDrawingResize || "").split(":");
-  const layerId = resizeLayerId || layerTarget?.dataset?.videoAnalysisDrawingLayer || "";
-  const layer = drawingLayerById(item, layerId);
-  event.preventDefault?.();
-  surface?.setPointerCapture?.(event.pointerId);
-  if (layer) {
-    run.store.update((current) => ({
-      ...current,
-      presentation: {
-        ...(current.presentation || {}),
-        selectedDrawingLayerId: layer.id,
-        drawingInteraction: {
-          type: resizeTarget ? "resize" : "move",
-          itemId: item.id,
-          layerId: layer.id,
-          handle: resizeHandle || "end",
-          start: point,
-          last: point,
-          originalGeometry: layer.geometry || {},
-          beforePresentation: presentation,
-        },
-      },
-    }));
-    return true;
-  }
-  const tool = state.presentation?.drawingTool || "arrow";
-  const geometry = defaultDrawingGeometry(tool, point);
-  const previewLayer = createDrawingLayer(state, item, context, geometry);
-  run.store.update((current) => ({
-    ...current,
-    presentation: {
-      ...(current.presentation || {}),
-      selectedDrawingLayerId: "",
-      drawingInteraction: {
-        type: "create",
-        itemId: item.id,
-        start: point,
-        last: point,
-        tool,
-        previewLayer,
-        beforePresentation: presentation,
-      },
-    },
-  }));
-  return true;
-}
-
-function updateDrawingInteraction(event, context = {}) {
-  const run = ensureRuntime(context);
-  const state = run.store.getState();
-  const interaction = state.presentation?.drawingInteraction;
-  if (!interaction) return false;
-  const surface = getRoot(context)?.querySelector("[data-video-analysis-drawing-surface]");
-  const point = pointerPercent(event, surface);
-  event.preventDefault?.();
-  run.store.update((current) => {
-    const liveInteraction = current.presentation?.drawingInteraction || interaction;
-    const presentation = current.presentation?.current;
-    const item = selectedPresentationItem(presentation, liveInteraction.itemId, "");
-    if (!item) return current;
-    if (liveInteraction.type === "create") {
-      const geometry = geometryFromDrag(liveInteraction.tool, liveInteraction.start, point);
-      return {
-        ...current,
-        presentation: {
-          ...(current.presentation || {}),
-          drawingInteraction: {
-            ...liveInteraction,
-            last: point,
-            previewLayer: {
-              ...(liveInteraction.previewLayer || {}),
-              geometry,
-            },
-          },
-        },
-      };
-    }
-    const layer = drawingLayerById(item, liveInteraction.layerId);
-    if (!layer) return current;
-    const dx = point.x - liveInteraction.start.x;
-    const dy = point.y - liveInteraction.start.y;
-    const geometry = liveInteraction.type === "resize"
-      ? resizeGeometry(layer.tool, liveInteraction.originalGeometry, liveInteraction.handle, point)
-      : moveGeometry(liveInteraction.originalGeometry, dx, dy);
-    return {
-      ...current,
-      presentation: {
-        ...(current.presentation || {}),
-        current: updateDrawingLayerInItem(presentation, item.id, layer.id, { geometry }),
-        drawingInteraction: { ...liveInteraction, last: point },
-      },
-    };
-  });
-  return true;
-}
-
-function finishDrawingInteraction(event, context = {}) {
-  const run = ensureRuntime(context);
-  const state = run.store.getState();
-  const interaction = state.presentation?.drawingInteraction;
-  if (!interaction) return false;
-  const surface = getRoot(context)?.querySelector("[data-video-analysis-drawing-surface]");
-  const point = pointerPercent(event, surface);
-  event.preventDefault?.();
-  run.store.update((current) => {
-    const liveInteraction = current.presentation?.drawingInteraction || interaction;
-    const presentation = current.presentation?.current;
-    const item = selectedPresentationItem(presentation, liveInteraction.itemId, "");
-    if (!item) {
-      return {
-        ...current,
-        presentation: { ...(current.presentation || {}), drawingInteraction: null },
-      };
-    }
-    if (liveInteraction.type === "create") {
-      const geometry = geometryFromDrag(liveInteraction.tool, liveInteraction.start, point);
-      const layer = createDrawingLayer(current, item, context, geometry);
-      return {
-        ...current,
-        presentation: {
-          ...(current.presentation || {}),
-          current: addDrawingLayerToItem(presentation, item.id, layer),
-          selectedDrawingLayerId: layer.id,
-          drawingInteraction: null,
-          drawingDraft: { timestampSeconds: "", durationSeconds: "", text: "" },
-          drawingUndoStack: [...(current.presentation?.drawingUndoStack || []), liveInteraction.beforePresentation].filter(Boolean).slice(-20),
-          drawingRedoStack: [],
-        },
-      };
-    }
-    return {
-      ...current,
-      presentation: {
-        ...(current.presentation || {}),
-        drawingInteraction: null,
-        drawingUndoStack: [...(current.presentation?.drawingUndoStack || []), liveInteraction.beforePresentation].filter(Boolean).slice(-20),
-        drawingRedoStack: [],
-      },
-    };
-  });
-  return true;
 }
 
 function selectedClipFromPresentationSources(state = {}, clipId = "") {
@@ -1635,6 +1291,10 @@ export function resetVideoAnalysisRuntimeForTests() {
   runtime = null;
   videoLibraryController = null;
   timelineScrubController = null;
+  drawingController = null;
+  presentationController = null;
+  presenterController = null;
+  thumbnailController = null;
 }
 
 async function handleFileSelection(file, context = {}, options = {}) {
@@ -1921,23 +1581,24 @@ export function handlePointerDown(event, context = {}) {
   const target = eventElement(event);
   const drawingSurface = target?.closest?.("[data-video-analysis-drawing-surface]");
   if (drawingSurface) {
+    if (target.closest?.("input, textarea, select, button")) return false;
     const run = ensureRuntime(context);
     const state = run.store.getState();
     if (state.presentation?.mode !== "draw") return false;
     const presentation = state.presentation?.current;
     const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
     if (!item) return false;
-    return startDrawingInteraction(event, context, drawingSurface);
+    return drawingControls(context).startInteraction(event, drawingSurface);
   }
   return timelineController(context).handlePointerDown(event);
 }
 
 export function handlePointerMove(event, context = {}) {
-  return updateDrawingInteraction(event, context);
+  return drawingControls(context).updateInteraction(event);
 }
 
 export function handlePointerUp(event, context = {}) {
-  return finishDrawingInteraction(event, context);
+  return drawingControls(context).finishInteraction(event);
 }
 
 export function handleWheel(event, context = {}) {
@@ -1946,7 +1607,6 @@ export function handleWheel(event, context = {}) {
 
 export function handleClick(event, context = {}) {
   const run = ensureRuntime(context);
-  const root = getRoot(context);
   const target = eventElement(event);
   if (!target?.closest) return false;
   const roomTab = target.closest("[data-video-analysis-room-tab]");
@@ -2027,18 +1687,66 @@ export function handleClick(event, context = {}) {
     loadPresentationSources();
     return true;
   }
+  if (target.closest("[data-video-analysis-presentation-load-more]")) {
+    loadPresentationSources(null, { append: true, silent: true });
+    return true;
+  }
   if (target.closest("[data-video-analysis-smart-save]")) {
     saveCurrentSmartCollection(context);
     return true;
   }
   const smartApply = target.closest("[data-video-analysis-smart-apply]");
   if (smartApply) {
-    const state = run.store.getState();
-    const collection = (state.presentation?.smartCollections || []).find((item) => (
-      item.id === smartApply.dataset.videoAnalysisSmartApply || item.title === smartApply.dataset.videoAnalysisSmartApply
-    ));
-    const filters = collection?.searchJson || collection?.search_json || {};
-    loadPresentationSources({ ...(state.presentation?.sourceFilters || {}), ...filters });
+    presentationControls(context).applySmartCollection(smartApply.dataset.videoAnalysisSmartApply || "");
+    return true;
+  }
+  const smartPin = target.closest("[data-video-analysis-smart-pin]");
+  if (smartPin) {
+    pinSmartCollection(smartPin.dataset.videoAnalysisSmartPin || "", context);
+    return true;
+  }
+  const smartDuplicate = target.closest("[data-video-analysis-smart-duplicate]");
+  if (smartDuplicate) {
+    duplicateSmartCollectionById(smartDuplicate.dataset.videoAnalysisSmartDuplicate || "", context);
+    return true;
+  }
+  const smartShare = target.closest("[data-video-analysis-smart-share]");
+  if (smartShare) {
+    return openSmartCollectionShare(smartShare.dataset.videoAnalysisSmartShare || "", context);
+  }
+  const smartShareAdd = target.closest("[data-video-analysis-smart-share-add]");
+  if (smartShareAdd) {
+    return addSmartCollectionShareTarget(smartShareAdd.dataset.videoAnalysisSmartShareAdd || "", context);
+  }
+  const smartShareRemove = target.closest("[data-video-analysis-smart-share-remove]");
+  if (smartShareRemove) {
+    return removeSmartCollectionShareTarget(smartShareRemove.dataset.videoAnalysisSmartShareRemove || "", context);
+  }
+  const smartShareSave = target.closest("[data-video-analysis-smart-share-save]");
+  if (smartShareSave) {
+    saveSmartCollectionSharing(smartShareSave.dataset.videoAnalysisSmartShareSave || "", context);
+    return true;
+  }
+  if (target.closest("[data-video-analysis-presentation-share-add]")) {
+    return addPresentationShareTarget(context);
+  }
+  if (target.closest("[data-video-analysis-presentation-access-toggle]")) {
+    event.preventDefault?.();
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        presentationAccessOpen: !state.presentation?.presentationAccessOpen,
+      },
+    }));
+    return true;
+  }
+  const presentationShareRemove = target.closest("[data-video-analysis-presentation-share-remove]");
+  if (presentationShareRemove) {
+    return removePresentationShareTarget(presentationShareRemove.dataset.videoAnalysisPresentationShareRemove || "", context);
+  }
+  if (target.closest("[data-video-analysis-presentation-share-save]")) {
+    savePresentationShareTargets(context);
     return true;
   }
   if (target.closest("[data-video-analysis-library-refresh]")) {
@@ -2473,7 +2181,8 @@ export function handleClick(event, context = {}) {
   const selectPresentationItemButton = target.closest("[data-video-analysis-presentation-select-item]");
   if (selectPresentationItemButton) {
     const itemId = selectPresentationItemButton.dataset.videoAnalysisPresentationSelectItem;
-    const item = presentationQueue(run.store.getState().presentation?.current).find((entry) => entry.id === itemId);
+    const currentState = run.store.getState();
+    const item = presentationQueue(currentState.presentation?.current).find((entry) => entry.id === itemId);
     run.store.update((state) => ({
       ...state,
       presentation: {
@@ -2483,6 +2192,10 @@ export function handleClick(event, context = {}) {
         activeSectionId: item?.sectionId || state.presentation?.activeSectionId || "",
       },
     }));
+    if (currentState.presentation?.mode === "presenter" && item) {
+      const clip = item.clip || {};
+      seekVideoToMs(videoElement(context), item.startMs ?? clip.startMs ?? clip.start_ms ?? 0);
+    }
     return true;
   }
   const movePresentationItemButton = target.closest("[data-video-analysis-presentation-move-item]");
@@ -2555,96 +2268,38 @@ export function handleClick(event, context = {}) {
     return true;
   }
   if (target.closest("[data-video-analysis-drawing-add]")) {
-    return addDrawingLayerAtPoint(context);
+    return drawingControls(context).addLayerAtPoint();
   }
   const selectDrawingButton = target.closest("[data-video-analysis-drawing-select]");
   if (selectDrawingButton) {
-    run.store.update((state) => ({
-      ...state,
-      presentation: {
-        ...(state.presentation || {}),
-        selectedDrawingLayerId: selectDrawingButton.dataset.videoAnalysisDrawingSelect || "",
-      },
-    }));
-    return true;
+    return drawingControls(context).selectLayer(selectDrawingButton.dataset.videoAnalysisDrawingSelect || "");
   }
   const removeDrawingButton = target.closest("[data-video-analysis-drawing-remove]");
   if (removeDrawingButton) {
-    run.store.update((state) => {
-      const presentation = state.presentation?.current;
-      const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
-      if (!item) return state;
-      return {
-        ...state,
-        presentation: {
-          ...(state.presentation || {}),
-          current: removeDrawingLayerFromItem(presentation, item.id, removeDrawingButton.dataset.videoAnalysisDrawingRemove),
-          selectedDrawingLayerId: state.presentation?.selectedDrawingLayerId === removeDrawingButton.dataset.videoAnalysisDrawingRemove ? "" : state.presentation?.selectedDrawingLayerId,
-          drawingUndoStack: [...(state.presentation?.drawingUndoStack || []), presentation].slice(-20),
-          drawingRedoStack: [],
-        },
-      };
-    });
-    return true;
+    return drawingControls(context).removeLayer(removeDrawingButton.dataset.videoAnalysisDrawingRemove || "");
   }
   if (target.closest("[data-video-analysis-drawing-save]")) {
     saveSelectedDrawingLayers(context);
     return true;
   }
   if (target.closest("[data-video-analysis-drawing-undo]")) {
-    run.store.update((state) => {
-      const stack = [...(state.presentation?.drawingUndoStack || [])];
-      const previous = stack.pop();
-      if (!previous) return state;
-      return {
-        ...state,
-        presentation: {
-          ...(state.presentation || {}),
-          current: previous,
-          drawingUndoStack: stack,
-          drawingRedoStack: [state.presentation?.current, ...(state.presentation?.drawingRedoStack || [])].filter(Boolean).slice(0, 20),
-        },
-      };
-    });
-    return true;
+    return drawingControls(context).undo();
   }
   if (target.closest("[data-video-analysis-drawing-redo]")) {
-    run.store.update((state) => {
-      const stack = [...(state.presentation?.drawingRedoStack || [])];
-      const next = stack.shift();
-      if (!next) return state;
-      return {
-        ...state,
-        presentation: {
-          ...(state.presentation || {}),
-          current: next,
-          drawingUndoStack: [...(state.presentation?.drawingUndoStack || []), state.presentation?.current].filter(Boolean).slice(-20),
-          drawingRedoStack: stack,
-        },
-      };
-    });
-    return true;
+    return drawingControls(context).redo();
   }
   if (target.closest("[data-video-analysis-presenter-next]") || target.closest("[data-video-analysis-presenter-prev]")) {
     const direction = target.closest("[data-video-analysis-presenter-next]") ? 1 : -1;
-    run.store.update((state) => {
-      const queue = presentationQueue(state.presentation?.current);
-      const index = Math.max(0, queue.findIndex((item) => item.id === state.presentation?.selectedItemId));
-      const next = queue[Math.max(0, Math.min(queue.length - 1, index + direction))];
-      return {
-        ...state,
-        presentation: {
-          ...(state.presentation || {}),
-          selectedItemId: next?.id || state.presentation?.selectedItemId || "",
-          selectedClipId: next?.clipId || state.presentation?.selectedClipId || "",
-          activeSectionId: next?.sectionId || state.presentation?.activeSectionId || "",
-        },
-      };
-    });
-    return true;
+    return presenterControls(context).step(direction);
   }
   if (target.closest("[data-video-analysis-presenter-fullscreen]")) {
-    root?.querySelector(".video-analysis-presenter-mode")?.requestFullscreen?.().catch(() => {});
+    return presenterControls(context).enterFullscreen();
+  }
+  if (target.closest("[data-video-analysis-presenter-freeze]")) {
+    return presenterControls(context).toggleFreeze();
+  }
+  if (target.closest("[data-video-analysis-thumbnail-cache-clear]")) {
+    thumbnails(context).clearCache();
     return true;
   }
   const archiveButton = target.closest("[data-video-analysis-archive]");
@@ -2816,10 +2471,44 @@ export function handleInput(event, context = {}) {
     }));
     return true;
   }
+  const smartDraft = target.closest("[data-video-analysis-smart-draft]");
+  if (smartDraft) {
+    const key = smartDraft.dataset.videoAnalysisSmartDraft;
+    run.store.update((state) => {
+      const draft = { ...(state.presentation?.smartCollectionDraft || {}), [key]: smartDraft.value };
+      if (key === "visibility" && !state.presentation?.sharePanelTargetId) {
+        draft.shareTargets = defaultShareTargets(smartDraft.value);
+      }
+      return {
+        ...state,
+        presentation: {
+          ...(state.presentation || {}),
+          smartCollectionDraft: draft,
+        },
+      };
+    });
+    return true;
+  }
+  const presentationShareDraft = target.closest("[data-video-analysis-presentation-share-draft]");
+  if (presentationShareDraft) {
+    const key = presentationShareDraft.dataset.videoAnalysisPresentationShareDraft;
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        presentationAccessOpen: true,
+        presentationShareDraft: {
+          ...(state.presentation?.presentationShareDraft || {}),
+          [key]: presentationShareDraft.value,
+        },
+      },
+    }));
+    return true;
+  }
   const presentationFilter = target.closest("[data-video-analysis-presentation-filter]");
   if (presentationFilter) {
     const key = presentationFilter.dataset.videoAnalysisPresentationFilter;
-    const filters = { ...(run.store.getState().presentation?.sourceFilters || {}), [key]: presentationFilter.value };
+    const filters = { ...(run.store.getState().presentation?.sourceFilters || {}), offset: 0, [key]: presentationFilter.value };
     loadPresentationSources(filters, { silent: true });
     return true;
   }
@@ -2885,16 +2574,20 @@ export function handleInput(event, context = {}) {
   }
   const drawingField = target.closest("[data-video-analysis-drawing-field]");
   if (drawingField) {
-    run.store.update((state) => ({
-      ...state,
-      presentation: {
-        ...(state.presentation || {}),
-        drawingDraft: {
-          ...(state.presentation?.drawingDraft || {}),
-          [drawingField.dataset.videoAnalysisDrawingField]: drawingField.value,
+    const key = drawingField.dataset.videoAnalysisDrawingField;
+    if (key === "text") drawingControls(context).updateSelectedLayer({ text: drawingField.value });
+    else {
+      run.store.update((state) => ({
+        ...state,
+        presentation: {
+          ...(state.presentation || {}),
+          drawingDraft: {
+            ...(state.presentation?.drawingDraft || {}),
+            [key]: drawingField.value,
+          },
         },
-      },
-    }));
+      }));
+    }
     return true;
   }
   const filterField = target.closest("[data-video-analysis-filter]");
@@ -3032,52 +2725,19 @@ export function handleKeydown(event, context = {}) {
   if (state.presentation?.mode === "presenter") {
     if (["ArrowRight", " "].includes(event.key)) {
       event.preventDefault?.();
-      run.store.update((current) => {
-        const queue = presentationQueue(current.presentation?.current);
-        const index = Math.max(0, queue.findIndex((item) => item.id === current.presentation?.selectedItemId));
-        const next = queue[Math.max(0, Math.min(queue.length - 1, index + 1))];
-        return {
-          ...current,
-          presentation: {
-            ...(current.presentation || {}),
-            selectedItemId: next?.id || current.presentation?.selectedItemId || "",
-            selectedClipId: next?.clipId || current.presentation?.selectedClipId || "",
-            activeSectionId: next?.sectionId || current.presentation?.activeSectionId || "",
-          },
-        };
-      });
-      return true;
+      return presenterControls(context).step(1);
     }
     if (event.key === "ArrowLeft") {
       event.preventDefault?.();
-      run.store.update((current) => {
-        const queue = presentationQueue(current.presentation?.current);
-        const index = Math.max(0, queue.findIndex((item) => item.id === current.presentation?.selectedItemId));
-        const next = queue[Math.max(0, Math.min(queue.length - 1, index - 1))];
-        return {
-          ...current,
-          presentation: {
-            ...(current.presentation || {}),
-            selectedItemId: next?.id || current.presentation?.selectedItemId || "",
-            selectedClipId: next?.clipId || current.presentation?.selectedClipId || "",
-            activeSectionId: next?.sectionId || current.presentation?.activeSectionId || "",
-          },
-        };
-      });
-      return true;
+      return presenterControls(context).step(-1);
     }
     if (event.key === "Escape") {
       event.preventDefault?.();
-      run.store.update((current) => ({
-        ...current,
-        presentation: { ...(current.presentation || {}), mode: "builder" },
-      }));
-      return true;
+      return presenterControls(context).exitToBuilder();
     }
     if (String(event.key || "").toLowerCase() === "f") {
       event.preventDefault?.();
-      root?.querySelector(".video-analysis-presenter-mode")?.requestFullscreen?.().catch(() => {});
-      return true;
+      return presenterControls(context).enterFullscreen();
     }
   }
   return handleVideoAnalysisShortcut(event, {

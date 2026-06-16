@@ -13,10 +13,15 @@ function read(relativePath) {
 test("video analysis module keeps the required isolated file structure", () => {
   for (const relativePath of [
     "src/modules/video-analysis/index.js",
+    "src/modules/video-analysis/video-analysis.presentation.css",
     "src/modules/video-analysis/video-analysis.routes.js",
     "src/modules/video-analysis/video-analysis.library-controller.js",
     "src/modules/video-analysis/video-analysis.state.js",
     "src/modules/video-analysis/video-analysis.store.js",
+    "src/modules/video-analysis/controllers/drawingController.js",
+    "src/modules/video-analysis/controllers/presentationController.js",
+    "src/modules/video-analysis/controllers/presenterController.js",
+    "src/modules/video-analysis/controllers/thumbnailController.js",
     "api/_lib/video-analysis-library-database.js",
     "src/modules/video-analysis/components/VideoPlayer.js",
     "src/modules/video-analysis/components/VideoLibrary.js",
@@ -44,6 +49,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/services/localVideoSessionService.js",
     "src/modules/video-analysis/services/codingTemplateService.js",
     "src/modules/video-analysis/services/presentationService.js",
+    "src/modules/video-analysis/services/presentationSmartCollectionService.js",
     "src/modules/video-analysis/services/timelineService.js",
     "src/modules/video-analysis/services/clipIntelligenceService.js",
     "src/modules/video-analysis/services/reviewSessionService.js",
@@ -78,6 +84,11 @@ test("video player stays playback-only and components avoid direct data access",
   }
 
   expect(read("src/modules/video-analysis/video-analysis.routes.js")).toContain("/api/video-analysis");
+  expect(read("src/modules/video-analysis/video-analysis.css")).toContain("video-analysis.presentation.css");
+  expect(read("src/modules/video-analysis/controllers/drawingController.js")).toContain("createDrawingController");
+  expect(read("src/modules/video-analysis/controllers/presentationController.js")).toContain("createPresentationController");
+  expect(read("src/modules/video-analysis/controllers/presenterController.js")).toContain("createPresenterController");
+  expect(read("src/modules/video-analysis/controllers/thumbnailController.js")).toContain("createThumbnailController");
   expect(read("src/modules/video-analysis/components/VideoLibrary.js")).toContain("data-video-analysis-open-library-item");
   expect(read("src/modules/video-analysis/video-analysis.library-controller.js")).toContain("updateMatchLink");
   for (const file of fs.readdirSync(path.join(moduleDir, "repositories")).filter((entry) => entry.endsWith(".js"))) {

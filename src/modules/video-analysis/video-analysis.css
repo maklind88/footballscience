@@ -1070,15 +1070,18 @@
 
 .video-analysis-video-frame {
   display: grid;
+  place-items: stretch;
   min-height: 360px;
+  overflow: hidden;
   background: #111816;
 }
 
 .video-analysis-video {
+  display: block;
   width: 100%;
-  max-height: 62vh;
-  aspect-ratio: 16 / 9;
+  height: 100%;
   background: #111816;
+  object-fit: contain;
 }
 
 .video-analysis-empty-video {
@@ -1314,11 +1317,17 @@
 
 .video-analysis-fs-player-deck .video-analysis-video-frame,
 .video-analysis-fs-player-deck .video-analysis-empty-video {
-  min-height: clamp(300px, 45vw, 560px);
+  min-height: 0;
 }
 
-.video-analysis-fs-player-deck .video-analysis-video {
-  max-height: min(62vh, 640px);
+.video-analysis-fs-player-deck .video-analysis-video-frame {
+  aspect-ratio: 16 / 9;
+  max-height: min(72vh, 720px);
+}
+
+.video-analysis-fs-player-deck .video-analysis-video,
+.video-analysis-fs-player-deck .video-analysis-empty-video {
+  min-height: 0;
 }
 
 .video-analysis-fs-player-timeline {
@@ -5042,7 +5051,7 @@
 
   .video-analysis-fs-player-deck .video-analysis-video-frame,
   .video-analysis-fs-player-deck .video-analysis-empty-video {
-    min-height: 250px;
+    min-height: 0;
   }
 
   .video-analysis-fs-player-timeline .video-analysis-timeline-canvas {

@@ -716,6 +716,157 @@ function renderOwnershipPanel(detail = {}, focus = null, canEdit = false, option
   `;
 }
 
+function renderCriteriaTrack(criteria = []) {
+  return `
+    <div class="idp-criteria-track" aria-label="Success Criteria">
+      ${criteria.map((item, index) => `
+        <div class="idp-criteria-node is-${escapeHtml(item.state || "next")}">
+          <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+          <strong>${escapeHtml(item.label)}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderLensCompass(detail = {}, focus = null) {
+  return `
+    <article class="idp-lens-compass">
+      <div class="idp-section-kicker">Development Lens</div>
+      <div class="idp-compass-grid">
+        ${lensCounts(detail, focus).map((item) => `
+          <div class="idp-compass-cell${item.active ? " is-primary" : ""}">
+            <span>${escapeHtml(item.label)}</span>
+            <strong>${escapeHtml(item.value ? `${item.value}` : "0")}</strong>
+            <small>${escapeHtml(item.value === 1 ? "signal" : "signals")}</small>
+          </div>
+        `).join("")}
+      </div>
+    </article>
+  `;
+}
+
+function renderSignalRadar(observationMix = [], total = 0) {
+  const maxCount = Math.max(1, ...observationMix.map(([, count]) => count));
+  return `
+    <article class="idp-signal-radar">
+      <div class="idp-section-kicker">Signal Map</div>
+      <strong>${escapeHtml(String(total))}</strong>
+      <span>coach observations in this IDP loop</span>
+      <div class="idp-signal-bars">
+        ${observationMix.length
+          ? observationMix.map(([label, count]) => `
+            <div class="idp-signal-bar">
+              <small>${escapeHtml(label)}</small>
+              <i><b class="is-level-${escapeHtml(String(Math.max(1, Math.ceil((count / maxCount) * 5))))}"></b></i>
+              <em>${escapeHtml(String(count))}</em>
+            </div>
+          `).join("")
+          : `<div class="idp-empty-signal">No observation pattern yet.</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderProfileFilmstrip(detail = {}, canEdit = false) {
+  const clips = detail.clipBank || [];
+  return `
+    <article class="idp-filmstrip-panel">
+      <div class="idp-section-head">
+        <div>
+          <span>Clip Bank</span>
+          <strong>${escapeHtml(String(clips.length))} waiting moments</strong>
+        </div>
+        ${canEdit ? `<button type="button" data-idp-action="evidence">Log observation</button>` : ""}
+      </div>
+      <div class="idp-filmstrip">
+        ${clips.length
+          ? clips.slice(0, 6).map((clip, index) => `
+            <div class="idp-film-frame">
+              <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+              <strong>${escapeHtml(coachLabel(clip.status))}</strong>
+              <small>${escapeHtml(clip.sourceModule)} / ${escapeHtml(clip.clipInstanceId)}</small>
+            </div>
+          `).join("")
+          : `<div class="idp-empty-signal">No clips waiting.</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderProfileSignalStream(detail = {}) {
+  const evidence = detail.evidence || [];
+  return `
+    <article class="idp-signal-stream-panel">
+      <div class="idp-section-head">
+        <div>
+          <span>Observations</span>
+          <strong>${escapeHtml(String(evidence.length))} captured signals</strong>
+        </div>
+      </div>
+      <div class="idp-signal-stream">
+        ${evidence.length
+          ? evidence.slice(0, 7).map((item) => `
+            <div class="idp-stream-item">
+              <time>${escapeHtml(formatShortDate(item.createdAt, "--"))}</time>
+              <div>
+                <strong>${escapeHtml(coachLabel(item.evidenceType))}</strong>
+                <span>${escapeHtml(item.note || item.sourceModule || "Observation logged")}</span>
+              </div>
+            </div>
+          `).join("")
+          : `<div class="idp-empty-signal">No observations yet.</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderProfileTimelineRiver(detail = {}) {
+  const milestones = detail.milestones || [];
+  return `
+    <article class="idp-river-panel">
+      <div class="idp-section-head">
+        <div>
+          <span>Development Timeline</span>
+          <strong>${escapeHtml(milestones.length ? "Learning trail" : "No milestones yet")}</strong>
+        </div>
+      </div>
+      <div class="idp-timeline-river">
+        ${milestones.length
+          ? milestones.slice(0, 7).map((milestone) => `
+            <div class="idp-river-item">
+              <span></span>
+              <div>
+                <strong>${escapeHtml(coachLabel(milestone.title || milestone.milestoneType))}</strong>
+                <small>${escapeHtml(milestone.occurredOn || "")}</small>
+              </div>
+            </div>
+          `).join("")
+          : `<div class="idp-empty-signal">The first completed action will start the timeline.</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderProfileOwnershipStudio(detail = {}, focus = null, canEdit = false, options = {}) {
+  const profile = detail.profile || {};
+  const profileOwnerId = normalizeText(profile.ownerId, "");
+  const focusOwnerId = normalizeText(focus?.ownerId, "");
+  const ownerLabel = formatStaffName(profileOwnerId || focusOwnerId, options);
+  return `
+    <article class="idp-ownership-studio">
+      <div class="idp-section-kicker">Staff Ownership</div>
+      <strong>${escapeHtml(ownerLabel)}</strong>
+      <span>Primary IDP Coach</span>
+      <div class="idp-owner-mini-grid">
+        <div><small>Current Focus Owner</small><b>${escapeHtml(formatStaffName(focusOwnerId || profileOwnerId, options))}</b></div>
+        <div><small>Next review</small><b>${escapeHtml(formatShortDate(profile.nextReviewOn || focus?.reviewDate, "Not set"))}</b></div>
+      </div>
+      ${canEdit ? `<button type="button" data-idp-action="ownership">Assign coach</button>` : ""}
+    </article>
+  `;
+}
+
 function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
   const detail = state.playerDetail;
   if (!detail?.profile?.playerId) {
@@ -732,98 +883,92 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
   const observationMix = observationTypeCounts(detail).slice(0, 3);
   const latestReview = latestItem(detail.reviews || []);
   const latestSignal = latestObservation(detail);
+  const reflection = latestObservation(detail, "Player Reflection");
+  const leadership = normalizeText(profile.leadershipProfile, "");
   const strengths = Array.isArray(profile.strengths) ? profile.strengths.slice(0, 3) : [];
   return `
-    <section class="idp-player-profile">
-      <header class="idp-profile-hero">
-        <div class="idp-profile-nav">
-          <button type="button" class="idp-back-button" data-idp-back-overview>Overview</button>
-          <span class="idp-status-pill is-${statusTone(idpStatusLabel(profile, focus))}">${escapeHtml(coachLabel(idpStatusLabel(profile, focus)))}</span>
-        </div>
-        <div class="idp-profile-title">
-          <span class="idp-player-avatar is-large" aria-hidden="true">${escapeHtml(initialsFromName(profile.playerName || "Player", "P"))}</span>
-          <div>
-            <p>Player Development Profile</p>
-            <h2>${escapeHtml(profile.playerName || "Player")}</h2>
-            <span>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</span>
+    <section class="idp-player-profile idp-profile-experience">
+      <header class="idp-profile-stage">
+        <button type="button" class="idp-stage-back" data-idp-back-overview>Overview</button>
+        <div class="idp-stage-identity">
+          <span class="idp-stage-watermark" aria-hidden="true">${escapeHtml(initialsFromName(profile.playerName || "Player", "P"))}</span>
+          <div class="idp-section-kicker">Player Development Profile</div>
+          <span class="idp-snapshot-label">Player Snapshot</span>
+          <h2>${escapeHtml(profile.playerName || "Player")}</h2>
+          <p>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</p>
+          <div class="idp-stage-tags">
+            <span class="idp-status-pill is-${statusTone(idpStatusLabel(profile, focus))}">${escapeHtml(coachLabel(idpStatusLabel(profile, focus)))}</span>
+            <span>${escapeHtml(formatStaffName(ownerId, options))}</span>
+            <span>${escapeHtml(reviewUrgencyLabel(profile, focus))}</span>
           </div>
         </div>
-        <div class="idp-profile-command">
+        <div class="idp-stage-scoreboard" aria-label="Player development pulse">
           <div>
-            <span>Primary IDP Coach</span>
-            <strong>${escapeHtml(formatStaffName(ownerId, options))}</strong>
+            <strong>${escapeHtml(String(detail.evidence?.length || 0))}</strong>
+            <span>Observations</span>
           </div>
           <div>
-            <span>Review Pulse</span>
-            <strong>${escapeHtml(reviewUrgencyLabel(profile, focus))}</strong>
+            <strong>${escapeHtml(String(detail.clipBank?.length || 0))}</strong>
+            <span>Clips</span>
+          </div>
+          <div>
+            <strong>${escapeHtml(String(detail.reviews?.length || 0))}</strong>
+            <span>Reviews</span>
           </div>
         </div>
       </header>
       ${idpInactive ? `<div class="idp-notice is-warning">IDP is inactive from Squad Room. Historical observations, clips and ownership remain visible here.</div>` : ""}
-      <section class="idp-profile-cockpit">
-        <article class="idp-panel idp-player-snapshot">
-          <div class="idp-panel-head"><p>Player Snapshot</p><span>${escapeHtml(profile.position || "Squad")}</span></div>
-          <div class="idp-snapshot-grid">
-            <div><span>Role</span><strong>${escapeHtml(profile.role || "Not set")}</strong></div>
-            <div><span>Status</span><strong>${escapeHtml(coachLabel(idpStatusLabel(profile, focus)))}</strong></div>
-            <div><span>Latest signal</span><strong>${escapeHtml(latestSignal ? formatShortDate(latestSignal.createdAt) : "None")}</strong></div>
-          </div>
+      <section class="idp-development-board">
+        <article class="idp-focus-story">
+          <div class="idp-section-kicker">Current Focus</div>
+          <h3>${escapeHtml(idpInactive ? "No active IDP" : focus?.title || "Create current focus")}</h3>
+          <p>${escapeHtml(idpInactive ? "Inactive in Squad Room" : [focus?.category, focus?.linkedPhase, focus?.linkedSubPhase].filter(Boolean).join(" / ") || "Tactical")}</p>
+          <div class="idp-development-objective">${escapeHtml(buildDevelopmentObjective(profile, focus, idpInactive))}</div>
           <div class="idp-strength-row">
             ${strengths.length ? strengths.map((item) => `<span>${escapeHtml(item)}</span>`).join("") : `<span>Strengths not captured</span>`}
           </div>
+          <div class="idp-section-kicker">Success Criteria</div>
+          ${renderCriteriaTrack(criteria)}
         </article>
-        <article class="idp-panel idp-primary-panel idp-mission-panel">
-          <p>Current Focus</p>
-          <h3>${escapeHtml(idpInactive ? "No active IDP" : focus?.title || "Create current focus")}</h3>
-          <div class="idp-meta-line">${escapeHtml(idpInactive ? "Inactive in Squad Room" : [focus?.category, focus?.linkedPhase, focus?.linkedSubPhase].filter(Boolean).join(" / ") || "Tactical")}</div>
-          <div class="idp-development-objective">${escapeHtml(buildDevelopmentObjective(profile, focus, idpInactive))}</div>
-        </article>
-        <article class="idp-panel idp-pulse-panel is-${escapeHtml(pulse.tone)}">
-          <p>Progress Pulse</p>
-          <h3>${escapeHtml(pulse.label)}</h3>
-          <div class="idp-meta-line">${escapeHtml(pulse.detail)}</div>
-          <div class="idp-pulse-meter is-level-${escapeHtml(String(pulseLevel(detail)))}"><span></span></div>
-        </article>
-        <article class="idp-panel idp-next-panel">
-          <p>Next Action</p>
-          <h3>${escapeHtml(coachLabel(idpInactive ? "No IDP action required" : nextAction.title || "Add evidence"))}</h3>
-          <div class="idp-meta-line">${escapeHtml(idpInactive ? "Paused" : formatDate(nextAction.dueOn || focus?.reviewDate, "No date set"))}</div>
-        </article>
-      </section>
-      <section class="idp-profile-intelligence">
-        <article class="idp-panel idp-success-panel">
-          <div class="idp-panel-head"><p>Success Criteria</p><span>${escapeHtml(String(criteria.filter((item) => item.state === "done").length))}/${escapeHtml(String(criteria.length))}</span></div>
-          ${renderSuccessCriteria(criteria)}
-        </article>
-        ${renderFourCornerLens(detail, focus)}
-        <article class="idp-panel idp-signal-panel">
-          <div class="idp-panel-head"><p>Signal Map</p><span>${escapeHtml(String(detail.evidence?.length || 0))}</span></div>
-          ${observationMix.length
-            ? observationMix.map(([label, count]) => `<div class="idp-signal-row"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(String(count))}</span></div>`).join("")
-            : `<div class="idp-muted">No observation mix yet.</div>`}
-        </article>
-        <article class="idp-panel idp-review-panel">
-          <div class="idp-panel-head"><p>Last Review</p><span>${escapeHtml(String(detail.reviews?.length || 0))}</span></div>
-          <strong>${escapeHtml(latestReview?.progressSummary || "No review completed yet.")}</strong>
-          <div class="idp-meta-line">${escapeHtml(latestReview ? formatShortDate(latestReview.createdAt) : "Complete the first review to lock the learning loop.")}</div>
-        </article>
+        <aside class="idp-coach-board">
+          <div class="idp-pulse-orb is-${escapeHtml(pulse.tone)}">
+            <span>Progress Pulse</span>
+            <strong>${escapeHtml(pulse.label)}</strong>
+            <small>${escapeHtml(pulse.detail)}</small>
+            <div class="idp-pulse-meter is-level-${escapeHtml(String(pulseLevel(detail)))}"><span></span></div>
+          </div>
+          <div class="idp-next-decision">
+            <span>Next Action</span>
+            <strong>${escapeHtml(coachLabel(idpInactive ? "No IDP action required" : nextAction.title || "Add observation"))}</strong>
+            <small>${escapeHtml(idpInactive ? "Paused" : formatDate(nextAction.dueOn || focus?.reviewDate, "No date set"))}</small>
+          </div>
+          <div class="idp-latest-signal">
+            <span>Latest signal</span>
+            <strong>${escapeHtml(latestSignal ? coachLabel(latestSignal.evidenceType) : "None yet")}</strong>
+            <small>${escapeHtml(latestSignal ? formatShortDate(latestSignal.createdAt) : "Start with one useful observation")}</small>
+          </div>
+        </aside>
       </section>
       ${canEdit && !idpInactive ? `<section class="idp-profile-actions-deck">${renderActionRail(true, focusId)}</section>` : ""}
-      <section class="idp-profile-work">
-        <article class="idp-panel">
-          <div class="idp-panel-head"><p>Clip Bank</p><span>${escapeHtml(String(detail.clipBank?.length || 0))}</span></div>
-          ${renderClipBank(detail, canEdit)}
+      <section class="idp-intelligence-board">
+        ${renderLensCompass(detail, focus)}
+        ${renderSignalRadar(observationMix, detail.evidence?.length || 0)}
+        <article class="idp-player-voice-card">
+          <div class="idp-section-kicker">Player Voice</div>
+          <blockquote>${escapeHtml(reflection?.note || leadership || "No player reflection captured yet.")}</blockquote>
+          <span>${escapeHtml(reflection ? `Captured ${formatShortDate(reflection.createdAt)}` : "Use the next check-in to add the player's words.")}</span>
         </article>
-        <article class="idp-panel">
-          <div class="idp-panel-head"><p>Observations</p><span>${escapeHtml(String(detail.evidence?.length || 0))}</span></div>
-          ${renderEvidence(detail)}
+        <article class="idp-review-card">
+          <div class="idp-section-kicker">Last Review</div>
+          <strong>${escapeHtml(latestReview?.progressSummary || "No review completed yet.")}</strong>
+          <span>${escapeHtml(latestReview ? formatShortDate(latestReview.createdAt) : "Complete the first review to lock the learning loop.")}</span>
         </article>
-        <article class="idp-panel">
-          <p>Development Timeline</p>
-          ${renderTimeline(detail)}
-        </article>
-        ${renderPlayerVoice(detail, profile)}
-        ${renderOwnershipPanel(detail, focus, canEdit, options)}
+      </section>
+      <section class="idp-workflow-board">
+        ${renderProfileFilmstrip(detail, canEdit)}
+        ${renderProfileSignalStream(detail)}
+        ${renderProfileTimelineRiver(detail)}
+        ${renderProfileOwnershipStudio(detail, focus, canEdit, options)}
       </section>
       ${renderActionOverlay(state, focus, canEdit && !idpInactive, options)}
     </section>

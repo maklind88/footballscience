@@ -1373,3 +1373,872 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
     flex: 1 1 auto;
   }
 }
+
+/* Player Development Profile v2 */
+.idp-profile-experience {
+  gap: 16px;
+}
+
+.idp-profile-stage {
+  background:
+    linear-gradient(135deg, rgba(16, 24, 40, .98), rgba(17, 58, 79, .96) 52%, rgba(15, 118, 110, .94)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 76px);
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .18);
+  color: #fff;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, .34fr);
+  min-height: 260px;
+  overflow: hidden;
+  padding: 58px 22px 22px;
+  position: relative;
+}
+
+.idp-profile-stage::before {
+  background:
+    linear-gradient(90deg, transparent 0 11%, rgba(255, 255, 255, .14) 11% 11.3%, transparent 11.3% 88.7%, rgba(255, 255, 255, .14) 88.7% 89%, transparent 89%),
+    linear-gradient(0deg, transparent 0 49.7%, rgba(255, 255, 255, .16) 49.7% 50.3%, transparent 50.3%);
+  content: "";
+  inset: 0;
+  opacity: .26;
+  pointer-events: none;
+  position: absolute;
+}
+
+.idp-stage-back {
+  align-items: center;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 900;
+  left: 18px;
+  min-height: 36px;
+  padding: 0 13px;
+  position: absolute;
+  top: 16px;
+  z-index: 1;
+}
+
+.idp-stage-identity {
+  align-self: end;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.idp-stage-watermark {
+  color: rgba(255, 255, 255, .08);
+  font-size: 9rem;
+  font-weight: 950;
+  line-height: .78;
+  position: absolute;
+  right: 0;
+  top: -40px;
+  user-select: none;
+}
+
+.idp-section-kicker {
+  color: rgba(255, 255, 255, .72);
+  font-size: .74rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.idp-snapshot-label {
+  color: rgba(255, 255, 255, .62);
+  display: block;
+  font-size: .78rem;
+  font-weight: 820;
+  margin-top: 5px;
+}
+
+.idp-stage-identity h2 {
+  font-size: clamp(2.35rem, 4vw, 4.1rem);
+  line-height: .94;
+  margin: 8px 0 8px;
+  max-width: 760px;
+  overflow-wrap: anywhere;
+  position: relative;
+  z-index: 1;
+}
+
+.idp-stage-identity p {
+  color: rgba(255, 255, 255, .82);
+  font-size: 1rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.idp-stage-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.idp-stage-tags > span:not(.idp-status-pill) {
+  align-items: center;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, .88);
+  display: inline-flex;
+  font-size: .78rem;
+  font-weight: 850;
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.idp-stage-scoreboard {
+  align-self: stretch;
+  display: grid;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.idp-stage-scoreboard > div {
+  align-content: center;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-height: 62px;
+  padding: 12px;
+}
+
+.idp-stage-scoreboard strong {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.idp-stage-scoreboard span {
+  color: rgba(255, 255, 255, .72);
+  font-size: .74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.idp-development-board {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr);
+}
+
+.idp-focus-story,
+.idp-coach-board,
+.idp-lens-compass,
+.idp-signal-radar,
+.idp-player-voice-card,
+.idp-review-card,
+.idp-filmstrip-panel,
+.idp-signal-stream-panel,
+.idp-river-panel,
+.idp-ownership-studio {
+  background: rgba(255, 255, 255, .94);
+  border: 1px solid rgba(20, 32, 51, .1);
+  border-radius: 8px;
+  box-shadow: 0 18px 52px rgba(15, 23, 42, .08);
+  min-width: 0;
+}
+
+.idp-focus-story {
+  display: grid;
+  gap: 14px;
+  overflow: hidden;
+  padding: 22px;
+  position: relative;
+}
+
+.idp-focus-story::before {
+  background: #0f766e;
+  content: "";
+  inset: 0 auto 0 0;
+  position: absolute;
+  width: 5px;
+}
+
+.idp-focus-story .idp-section-kicker,
+.idp-lens-compass .idp-section-kicker,
+.idp-signal-radar .idp-section-kicker,
+.idp-player-voice-card .idp-section-kicker,
+.idp-review-card .idp-section-kicker,
+.idp-ownership-studio .idp-section-kicker {
+  color: var(--idp-muted);
+}
+
+.idp-focus-story h3 {
+  font-size: 2.05rem;
+  line-height: 1.02;
+  margin: 0;
+  max-width: 880px;
+  overflow-wrap: anywhere;
+}
+
+.idp-focus-story > p {
+  color: var(--idp-muted);
+  font-size: .92rem;
+  font-weight: 800;
+  margin: 0;
+}
+
+.idp-profile-experience .idp-development-objective {
+  background: transparent;
+  border: 0;
+  color: #23324a;
+  font-size: 1.08rem;
+  font-weight: 760;
+  line-height: 1.45;
+  max-width: 850px;
+  padding: 0;
+}
+
+.idp-profile-experience .idp-strength-row span {
+  background: rgba(15, 118, 110, .1);
+  border-color: rgba(15, 118, 110, .18);
+  color: #115e59;
+}
+
+.idp-criteria-track {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.idp-criteria-node {
+  background: rgba(248, 250, 252, .92);
+  border: 1px solid rgba(20, 32, 51, .1);
+  border-radius: 8px;
+  display: grid;
+  gap: 9px;
+  min-height: 118px;
+  padding: 12px;
+  position: relative;
+}
+
+.idp-criteria-node::after {
+  background: rgba(20, 32, 51, .12);
+  content: "";
+  height: 2px;
+  left: 32px;
+  position: absolute;
+  right: -18px;
+  top: 22px;
+}
+
+.idp-criteria-node:last-child::after {
+  display: none;
+}
+
+.idp-criteria-node span {
+  align-items: center;
+  background: #142033;
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: .68rem;
+  font-weight: 950;
+  height: 24px;
+  justify-content: center;
+  position: relative;
+  width: 34px;
+  z-index: 1;
+}
+
+.idp-criteria-node.is-done span {
+  background: #0f766e;
+}
+
+.idp-criteria-node.is-watch span {
+  background: #a16207;
+}
+
+.idp-criteria-node strong {
+  font-size: .86rem;
+  line-height: 1.28;
+}
+
+.idp-coach-board {
+  background: #142033;
+  color: #fff;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.idp-pulse-orb,
+.idp-next-decision,
+.idp-latest-signal {
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+}
+
+.idp-pulse-orb {
+  min-height: 152px;
+}
+
+.idp-pulse-orb span,
+.idp-next-decision span,
+.idp-latest-signal span {
+  color: rgba(255, 255, 255, .68);
+  font-size: .72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.idp-pulse-orb strong,
+.idp-next-decision strong,
+.idp-latest-signal strong {
+  font-size: 1.15rem;
+  line-height: 1.15;
+}
+
+.idp-pulse-orb small,
+.idp-next-decision small,
+.idp-latest-signal small {
+  color: rgba(255, 255, 255, .68);
+  font-size: .82rem;
+  line-height: 1.3;
+}
+
+.idp-pulse-orb .idp-pulse-meter {
+  background: rgba(255, 255, 255, .14);
+  margin-top: auto;
+}
+
+.idp-intelligence-board {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(260px, .9fr) minmax(240px, .8fr) minmax(260px, .95fr) minmax(240px, .75fr);
+}
+
+.idp-lens-compass,
+.idp-signal-radar,
+.idp-player-voice-card,
+.idp-review-card,
+.idp-ownership-studio {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.idp-compass-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.idp-compass-cell {
+  background: #f7fafc;
+  border: 1px solid rgba(20, 32, 51, .1);
+  border-radius: 8px;
+  display: grid;
+  gap: 2px;
+  min-height: 80px;
+  padding: 11px;
+}
+
+.idp-compass-cell.is-primary {
+  background: #083f3f;
+  border-color: rgba(15, 118, 110, .36);
+  color: #fff;
+}
+
+.idp-compass-cell span {
+  color: var(--idp-muted);
+  font-size: .74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.idp-compass-cell.is-primary span,
+.idp-compass-cell.is-primary small {
+  color: rgba(255, 255, 255, .72);
+}
+
+.idp-compass-cell strong,
+.idp-signal-radar > strong {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.idp-compass-cell small,
+.idp-signal-radar > span,
+.idp-player-voice-card > span,
+.idp-review-card > span,
+.idp-ownership-studio > span {
+  color: var(--idp-muted);
+  font-size: .8rem;
+  font-weight: 760;
+}
+
+.idp-signal-bars {
+  display: grid;
+  gap: 9px;
+}
+
+.idp-signal-bar {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(70px, .75fr) 28px;
+}
+
+.idp-signal-bar small {
+  font-size: .78rem;
+  font-weight: 850;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-signal-bar i {
+  background: rgba(20, 32, 51, .08);
+  border-radius: 999px;
+  display: block;
+  height: 8px;
+  overflow: hidden;
+}
+
+.idp-signal-bar b {
+  background: #2457a6;
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.idp-signal-bar b.is-level-1 { width: 20%; }
+.idp-signal-bar b.is-level-2 { width: 40%; }
+.idp-signal-bar b.is-level-3 { width: 60%; }
+.idp-signal-bar b.is-level-4 { width: 80%; }
+.idp-signal-bar b.is-level-5 { width: 100%; }
+
+.idp-signal-bar em {
+  color: var(--idp-muted);
+  font-size: .78rem;
+  font-style: normal;
+  font-weight: 900;
+  text-align: right;
+}
+
+.idp-player-voice-card {
+  background: #fff7ed;
+  border-color: rgba(161, 98, 7, .18);
+}
+
+.idp-player-voice-card blockquote {
+  color: #2f261a;
+  font-size: 1.02rem;
+  font-weight: 760;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.idp-review-card strong {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.idp-profile-actions-deck {
+  background: #101828;
+  border: 1px solid rgba(20, 32, 51, .15);
+  box-shadow: 0 18px 52px rgba(15, 23, 42, .12);
+  padding: 8px;
+}
+
+.idp-profile-actions-deck .idp-action-rail {
+  gap: 8px;
+}
+
+.idp-profile-actions-deck .idp-action-rail button {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: none;
+  min-height: 74px;
+  padding: 12px;
+}
+
+.idp-profile-actions-deck .idp-action-rail button:hover {
+  background: rgba(255, 255, 255, .08);
+}
+
+.idp-profile-actions-deck .idp-action-rail button:nth-child(2) {
+  border-color: rgba(15, 118, 110, .48);
+}
+
+.idp-profile-actions-deck .idp-action-rail button:nth-child(3) {
+  border-color: rgba(36, 87, 166, .48);
+}
+
+.idp-profile-actions-deck .idp-action-rail button:nth-child(4) {
+  border-color: rgba(161, 98, 7, .54);
+}
+
+.idp-workflow-board {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(320px, 1.1fr) minmax(320px, 1.1fr) minmax(260px, .8fr) minmax(240px, .7fr);
+}
+
+.idp-filmstrip-panel,
+.idp-signal-stream-panel,
+.idp-river-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.idp-section-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.idp-section-head span {
+  color: var(--idp-muted);
+  display: block;
+  font-size: .72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.idp-section-head strong {
+  display: block;
+  font-size: 1rem;
+  margin-top: 3px;
+}
+
+.idp-section-head button,
+.idp-ownership-studio button {
+  background: #0f766e;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 900;
+  min-height: 34px;
+  padding: 0 11px;
+}
+
+.idp-filmstrip {
+  display: grid;
+  gap: 8px;
+}
+
+.idp-film-frame {
+  background: #111827;
+  border-radius: 8px;
+  color: #fff;
+  display: grid;
+  gap: 4px;
+  min-height: 88px;
+  padding: 12px;
+  position: relative;
+}
+
+.idp-film-frame::after {
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 6px;
+  content: "";
+  inset: 8px;
+  pointer-events: none;
+  position: absolute;
+}
+
+.idp-film-frame span {
+  color: rgba(255, 255, 255, .5);
+  font-size: .7rem;
+  font-weight: 950;
+}
+
+.idp-film-frame strong {
+  font-size: .92rem;
+  position: relative;
+  z-index: 1;
+}
+
+.idp-film-frame small {
+  color: rgba(255, 255, 255, .62);
+  font-size: .74rem;
+  overflow: hidden;
+  position: relative;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+.idp-signal-stream,
+.idp-timeline-river {
+  display: grid;
+  gap: 10px;
+}
+
+.idp-stream-item,
+.idp-river-item {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 54px minmax(0, 1fr);
+}
+
+.idp-stream-item time {
+  align-items: center;
+  background: rgba(36, 87, 166, .1);
+  border-radius: 8px;
+  color: #2457a6;
+  display: inline-flex;
+  font-size: .74rem;
+  font-weight: 900;
+  height: 34px;
+  justify-content: center;
+}
+
+.idp-stream-item div,
+.idp-river-item div {
+  border-bottom: 1px solid rgba(20, 32, 51, .1);
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding-bottom: 10px;
+}
+
+.idp-stream-item strong,
+.idp-river-item strong {
+  font-size: .9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-stream-item span,
+.idp-river-item small {
+  color: var(--idp-muted);
+  font-size: .78rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.idp-river-item {
+  grid-template-columns: 18px minmax(0, 1fr);
+}
+
+.idp-river-item > span {
+  background: #0f766e;
+  border-radius: 999px;
+  height: 11px;
+  margin-top: 4px;
+  width: 11px;
+}
+
+.idp-empty-signal {
+  align-items: center;
+  background: rgba(248, 250, 252, .9);
+  border: 1px dashed rgba(20, 32, 51, .16);
+  border-radius: 8px;
+  color: var(--idp-muted);
+  display: flex;
+  font-size: .86rem;
+  font-weight: 800;
+  min-height: 72px;
+  padding: 12px;
+}
+
+.idp-ownership-studio {
+  align-content: start;
+  background: #f7fafc;
+}
+
+.idp-ownership-studio > strong {
+  font-size: 1.2rem;
+  line-height: 1.15;
+}
+
+.idp-owner-mini-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.idp-owner-mini-grid div {
+  background: #fff;
+  border: 1px solid rgba(20, 32, 51, .09);
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+}
+
+.idp-owner-mini-grid small {
+  color: var(--idp-muted);
+  font-size: .7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.idp-owner-mini-grid b {
+  font-size: .86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-action-layer {
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
+}
+
+.idp-action-dialog {
+  border-radius: 0;
+  max-height: 100vh;
+  width: min(520px, 100vw);
+}
+
+.idp-action-dialog header {
+  background: #101828;
+  border-radius: 8px;
+  color: #fff;
+  margin: 0 0 16px;
+  padding: 16px;
+}
+
+.idp-action-dialog header span,
+.idp-action-dialog p {
+  color: rgba(255, 255, 255, .7);
+}
+
+.idp-dialog-close {
+  background: rgba(255, 255, 255, .12);
+  color: #fff;
+}
+
+body.is-dark-mode .idp-profile-stage,
+body.is-dark-mode .idp-coach-board,
+body.is-dark-mode .idp-profile-actions-deck,
+body.is-dark-mode .idp-film-frame,
+body.is-dark-mode .idp-action-dialog header {
+  background:
+    linear-gradient(135deg, rgba(7, 13, 24, .98), rgba(17, 58, 79, .9) 58%, rgba(15, 118, 110, .82));
+}
+
+body.is-dark-mode .idp-focus-story,
+body.is-dark-mode .idp-lens-compass,
+body.is-dark-mode .idp-signal-radar,
+body.is-dark-mode .idp-review-card,
+body.is-dark-mode .idp-filmstrip-panel,
+body.is-dark-mode .idp-signal-stream-panel,
+body.is-dark-mode .idp-river-panel,
+body.is-dark-mode .idp-ownership-studio {
+  background: rgba(17, 24, 39, .92);
+}
+
+body.is-dark-mode .idp-profile-experience .idp-development-objective,
+body.is-dark-mode .idp-player-voice-card blockquote {
+  color: var(--idp-ink);
+}
+
+body.is-dark-mode .idp-criteria-node,
+body.is-dark-mode .idp-compass-cell,
+body.is-dark-mode .idp-empty-signal,
+body.is-dark-mode .idp-owner-mini-grid div {
+  background: rgba(31, 41, 55, .76);
+}
+
+body.is-dark-mode .idp-player-voice-card {
+  background: rgba(161, 98, 7, .14);
+}
+
+@media (max-width: 1220px) {
+  .idp-intelligence-board,
+  .idp-workflow-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .idp-criteria-track {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .idp-profile-stage,
+  .idp-development-board,
+  .idp-intelligence-board,
+  .idp-workflow-board {
+    grid-template-columns: 1fr;
+  }
+
+  .idp-profile-stage {
+    min-height: 0;
+  }
+
+  .idp-stage-scoreboard {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .idp-profile-stage {
+    padding: 62px 14px 16px;
+  }
+
+  .idp-stage-identity h2,
+  .idp-focus-story h3 {
+    font-size: 2rem;
+  }
+
+  .idp-stage-watermark {
+    font-size: 6rem;
+  }
+
+  .idp-criteria-track,
+  .idp-compass-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .idp-stage-scoreboard {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .idp-stage-scoreboard > div {
+    min-height: 78px;
+    padding: 10px;
+  }
+
+  .idp-stage-scoreboard strong {
+    font-size: 1.62rem;
+  }
+
+  .idp-stage-scoreboard span {
+    font-size: .64rem;
+  }
+
+  .idp-criteria-node::after {
+    display: none;
+  }
+
+  .idp-focus-story,
+  .idp-lens-compass,
+  .idp-signal-radar,
+  .idp-player-voice-card,
+  .idp-review-card,
+  .idp-filmstrip-panel,
+  .idp-signal-stream-panel,
+  .idp-river-panel,
+  .idp-ownership-studio {
+    padding: 14px;
+  }
+}

@@ -131,6 +131,9 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(templateBuilder).toContain("data-video-analysis-duplicate-code-button");
   expect(templateBuilder).toContain("data-video-analysis-remove-code-button");
   expect(templateBuilder).toContain("data-video-analysis-button-ms-field");
+  expect(templateBuilder).toContain("targetFieldOptions");
+  expect(templateBuilder).toContain("Lead sec");
+  expect(templateBuilder).toContain("End after click");
   expect(templateBuilder).toContain("data-video-analysis-descriptor-button");
   expect(codingTemplateService).toContain("buildCodingButtonAction");
   expect(codingTemplateService).toContain("addCodingButtonToTemplate");
@@ -143,6 +146,7 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timelineWrapper).toContain("../timeline/index.js");
   expect(timeline).toContain("data-video-analysis-timeline-module");
   expect(timeline).toContain("data-video-analysis-timeline-lane");
+  expect(timeline).toContain("buildTemplateButtonLookup");
   expect(timeline).toContain("data-video-analysis-timeline-scrub");
   expect(timeline).toContain("data-video-analysis-timeline-scrub-surface");
   expect(timeline).toContain("data-video-analysis-timeline-scrub-time");
@@ -163,6 +167,7 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timeline).toContain("video-analysis-clip-block");
   expect(timeline).not.toContain("data-video-analysis-zoom");
   expect(timeline).not.toContain("video-analysis-timeline-controls");
+  expect(read("src/modules/video-analysis/timeline/timeline.constants.js")).toContain('id: "tags"');
   expect(intelligence).toContain("Phase x Outcome");
   expect(intelligence).toContain("Principle x Player");
   expect(intelligence).toContain("Mini-game x Unit");
@@ -219,7 +224,9 @@ test("coding tag panel builder creates custom timeline tag buttons", async () =>
   expect(renamedButton.label).toBe("Jump press");
   expect(renamedButton.value).toBe("Jump press");
 
-  const shorter = service.updateCodingButtonMsField(renamed, customButton.id, "defaultDurationMs", 8);
+  const colored = service.updateCodingButtonField(renamed, customButton.id, "color", "#d92d20");
+  const withLead = service.updateCodingButtonMsField(colored, customButton.id, "startOffsetMs", 2, "lead");
+  const shorter = service.updateCodingButtonMsField(withLead, customButton.id, "endOffsetMs", 10);
   const action = service.buildCodingButtonAction({
     template: shorter,
     draft: {
@@ -237,8 +244,10 @@ test("coding tag panel builder creates custom timeline tag buttons", async () =>
 
   expect(action.shouldCreateClip).toBe(true);
   expect(action.nextDraft.tags).toBe("Jump press");
-  expect(action.nextDraft.startMs).toBe(12000);
-  expect(action.nextDraft.endMs).toBe(20000);
+  expect(action.nextDraft.startMs).toBe(10000);
+  expect(action.nextDraft.endMs).toBe(22000);
+  expect(action.nextSession.preRollMs).toBe(2000);
+  expect(action.nextSession.postRollMs).toBe(10000);
 
   const duplicated = service.duplicateCodingButtonInTemplate(shorter, customButton.id);
   expect(duplicated.buttons).toHaveLength(shorter.buttons.length + 1);

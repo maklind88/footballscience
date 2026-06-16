@@ -213,6 +213,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-timeline-header")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-ruler")).toBeVisible();
   await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("Team Principle");
+  await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("Tags");
   await expect(page.locator(".video-analysis-timeline-controls")).toHaveCount(0);
   await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
   await expect(page.locator(".video-analysis-intelligence")).toHaveCount(0);
@@ -489,7 +490,12 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
   const group = page.locator(".video-analysis-code-group").filter({ hasText: "Pressing Triggers" }).first();
   await expect(group).toBeVisible();
   await group.locator('input[data-video-analysis-button-field$=":label"]').fill("Jump press");
+  await group.locator('input[data-video-analysis-button-field$=":color"]').fill("#d92d20");
+  await group.locator('input[data-video-analysis-button-field$=":hotkey"]').fill("j");
+  await group.locator('select[data-video-analysis-button-field$=":targetField"]').selectOption("tags");
   await group.locator('input[data-video-analysis-button-ms-field$=":defaultDurationMs"]').fill("8");
+  await group.locator('input[data-video-analysis-button-ms-field$=":startOffsetMs:lead"]').fill("2");
+  await group.locator('input[data-video-analysis-button-ms-field$=":endOffsetMs"]').fill("10");
   await group.locator("[data-video-analysis-duplicate-code-button]").click();
   await expect(group.locator(".video-analysis-code-button-editor")).toHaveCount(2);
   await group.locator("[data-video-analysis-remove-code-button]").last().click();
@@ -514,11 +520,25 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
       return request?.body?.clip || null;
     });
   }).toMatchObject({
-    startMs: 12000,
-    endMs: 20000,
+    startMs: 10000,
+    endMs: 22000,
     tags: ["Jump press"],
     codingMode: "instant",
+    preRollMs: 2000,
+    postRollMs: 10000,
   });
+  await page.locator('[data-video-analysis-timeline-lane="tags"]').click();
+  await expect(page.locator(".video-analysis-lane__label").filter({ hasText: "Jump press" })).toBeVisible();
+  const jumpPressBlock = await page.evaluate(() => {
+    const block = [...document.querySelectorAll(".video-analysis-clip-block")]
+      .find((item) => String(item.getAttribute("title") || "").includes("Jump press"));
+    return {
+      number: block?.querySelector("strong")?.textContent || "",
+      style: block?.getAttribute("style") || "",
+    };
+  });
+  expect(jumpPressBlock.number).toBe("1");
+  expect(jumpPressBlock.style).toContain("--video-analysis-clip-color:#d92d20;");
 });
 
 test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red playhead", async ({ page }) => {

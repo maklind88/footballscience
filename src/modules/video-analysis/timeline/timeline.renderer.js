@@ -12,6 +12,7 @@ import {
   timelineCanvasStyle,
 } from "./timeline.service.js";
 import {
+  clipValue,
   getClipEndMs,
   getClipPrimaryLabel,
   getClipSecondaryLabel,
@@ -23,6 +24,44 @@ function outcomeClass(outcome = "") {
   if (value === "positive") return " is-positive";
   if (value === "development") return " is-development";
   return " is-neutral";
+}
+
+function safeHexColor(value = "") {
+  const color = String(value || "").trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : "";
+}
+
+function clipTargetValue(clip = {}, targetField = "") {
+  if (targetField === "subPhase") return clipValue(clip, "subPhase", "sub_phase");
+  if (targetField === "teamPrincipleId") return clipValue(clip, "teamPrincipleId", "team_principle_id");
+  if (targetField === "miniGamePrincipleId") return clipValue(clip, "miniGamePrincipleId", "mini_game_principle_id");
+  return clipValue(clip, targetField, targetField);
+}
+
+function buildTemplateButtonLookup(template = {}) {
+  const byId = new Map();
+  const byFieldValue = new Map();
+  for (const button of template.buttons || []) {
+    for (const key of [button.id, button.databaseId].filter(Boolean)) byId.set(String(key), button);
+    const targetField = button.targetField || button.type || "";
+    if (targetField && button.value) byFieldValue.set(`${targetField}:${button.value}`, button);
+  }
+  return { byId, byFieldValue };
+}
+
+function findClipButton(clip = {}, lookup = {}) {
+  const clipButtonId = String(clipValue(clip, "codingButtonId", "coding_button_id") || "");
+  if (clipButtonId && lookup.byId?.has(clipButtonId)) return lookup.byId.get(clipButtonId);
+  for (const tag of Array.isArray(clip.tags) ? clip.tags : []) {
+    const tagButton = lookup.byFieldValue?.get(`tags:${tag}`);
+    if (tagButton) return tagButton;
+  }
+  for (const field of ["phase", "subPhase", "teamPrincipleId", "miniGamePrincipleId", "outcome"]) {
+    const value = clipTargetValue(clip, field);
+    const button = lookup.byFieldValue?.get(`${field}:${value}`);
+    if (button) return button;
+  }
+  return null;
 }
 
 function renderLaneButtons(activeLaneMode = "phase") {
@@ -70,18 +109,20 @@ function renderTimelinePlayhead(playheadMs = 0, totalMs = 1) {
   `;
 }
 
-function renderClipBlock(clip = {}, totalMs = 1, laneMode = "phase", selectedClipId = "", clipNumber = 1, categorySelected = false) {
+function renderClipBlock(clip = {}, totalMs = 1, laneMode = "phase", selectedClipId = "", clipNumber = 1, categorySelected = false, button = null) {
   const startMs = getClipStartMs(clip);
   const endMs = getClipEndMs(clip);
   const outcome = clip.outcome || "Neutral";
   const selected = selectedClipId === clip.id;
   const primaryLabel = getClipPrimaryLabel(clip, laneMode);
   const secondaryLabel = getClipSecondaryLabel(clip);
+  const buttonColor = safeHexColor(button?.color);
+  const buttonLabel = button?.label || "";
   return `
     <button type="button" class="video-analysis-clip-block${outcomeClass(outcome)}${selected ? " is-selected" : ""}${categorySelected ? " is-category-selected" : ""}"
-      style="${clipBlockStyle(clip, totalMs)}"
+      style="${clipBlockStyle(clip, totalMs)}${buttonColor ? `--video-analysis-clip-color:${escapeHtml(buttonColor)};` : ""}"
       data-video-analysis-seek="${escapeHtml(clip.id)}"
-      title="${escapeHtml(`#${clipNumber} · ${primaryLabel} · ${formatVideoTime(startMs)} - ${formatVideoTime(endMs)} · ${secondaryLabel}`)}">
+      title="${escapeHtml(`#${clipNumber} · ${buttonLabel || primaryLabel} · ${formatVideoTime(startMs)} - ${formatVideoTime(endMs)} · ${secondaryLabel}`)}">
       <span
         class="video-analysis-clip-block__handle is-start"
         data-video-analysis-timeline-trim-edge="${escapeHtml(`${clip.id}:start`)}"
@@ -107,7 +148,7 @@ function isActiveCategory(timeline = {}, laneMode = "phase", label = "") {
   return selected.laneMode === laneMode && selected.label === label;
 }
 
-function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", selectedClipId = "", timeline = {}) {
+function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", selectedClipId = "", timeline = {}, buttonLookup = {}) {
   if (!lanes.length) {
     return `
       <div class="video-analysis-lane is-empty">
@@ -141,7 +182,8 @@ function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", select
           laneMode,
           selectedClipId,
           index + 1,
-          isActiveCategory(timeline, laneMode, lane.label)
+          isActiveCategory(timeline, laneMode, lane.label),
+          findClipButton(clip, buttonLookup)
         )).join("")}
       </div>
     </div>
@@ -204,6 +246,7 @@ export function renderTimeline(state = {}) {
   const lanes = buildTimelineLanes(clips, laneMode);
   const ticks = buildTimelineTicks(totalMs);
   const selectedLane = selectedTimelineLane(lanes, laneMode, timeline);
+  const buttonLookup = buildTemplateButtonLookup(state.template || {});
   return `
     <section class="video-analysis-timeline video-analysis-timeline-module" data-video-analysis-timeline-module data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}">
       <div class="video-analysis-timeline-toolbar">
@@ -220,7 +263,7 @@ export function renderTimeline(state = {}) {
             ${renderTimelinePlayhead(timeline.playheadMs, totalMs)}
           </div>
           <div class="video-analysis-lane-stack">
-            ${renderTimelineLanes(lanes, totalMs, laneMode, state.selectedClipId, timeline)}
+            ${renderTimelineLanes(lanes, totalMs, laneMode, state.selectedClipId, timeline, buttonLookup)}
           </div>
         </div>
       </div>

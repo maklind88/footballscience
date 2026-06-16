@@ -2,11 +2,26 @@ import { descriptorGroups } from "../constants/descriptors.js";
 import { escapeHtml } from "./renderHelpers.js";
 
 const behaviorOptions = [
-  ["create_tag", "Create tag"],
-  ["toggle_duration", "Duration toggle"],
-  ["label_current", "Label current"],
-  ["descriptor", "Descriptor"],
-  ["player_tag", "Player tag"],
+  ["create_tag", "Standard tag"],
+  ["toggle_duration", "Duration tag"],
+  ["label_current", "Label selected"],
+  ["descriptor", "Descriptor label"],
+  ["player_tag", "Player label"],
+];
+
+const targetFieldOptions = [
+  ["tags", "Tag"],
+  ["phase", "Phase"],
+  ["subPhase", "Sub-phase"],
+  ["teamPrincipleId", "Team Principle"],
+  ["miniGamePrincipleId", "Mini-game Principle"],
+  ["outcome", "Outcome"],
+  ["unit", "Unit"],
+  ["pitchZone", "Pitch zone"],
+  ["pressure", "Pressure"],
+  ["decision", "Decision"],
+  ["execution", "Execution"],
+  ["playerId", "Player"],
 ];
 
 function secondsFromMs(value = 0, fallback = 15) {
@@ -14,10 +29,28 @@ function secondsFromMs(value = 0, fallback = 15) {
   return Number.isFinite(seconds) ? seconds : fallback;
 }
 
+function leadSecondsFromMs(value = 0) {
+  return Math.max(0, -secondsFromMs(value, 0));
+}
+
 function behaviorOptionList(selected = "") {
   return behaviorOptions
     .map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`)
     .join("");
+}
+
+function targetFieldOptionList(selected = "") {
+  return targetFieldOptions
+    .map(([value, label]) => `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`)
+    .join("");
+}
+
+function behaviorMetaLabel(behavior = "create_tag", durationSeconds = 15) {
+  if (behavior === "toggle_duration") return "toggle";
+  if (behavior === "label_current") return "label";
+  if (behavior === "descriptor") return "descriptor";
+  if (behavior === "player_tag") return "player";
+  return `${durationSeconds}s`;
 }
 
 function renderButton(item = {}, state = {}) {
@@ -32,7 +65,7 @@ function renderButton(item = {}, state = {}) {
       aria-label="${escapeHtml(`${item.label} ${behavior === "create_tag" ? `creates ${durationSeconds} second tag` : behavior}`)}">
       <span class="video-analysis-code-button__label">${escapeHtml(item.label)}</span>
       <span class="video-analysis-code-button__meta">
-        <small>${escapeHtml(`${durationSeconds}s`)}</small>
+        <small>${escapeHtml(behaviorMetaLabel(behavior, durationSeconds))}</small>
         ${item.hotkey ? `<kbd>${escapeHtml(item.hotkey)}</kbd>` : ""}
       </span>
     </button>
@@ -40,6 +73,9 @@ function renderButton(item = {}, state = {}) {
 }
 
 function renderButtonEditor(item = {}) {
+  const durationSeconds = secondsFromMs(item.defaultDurationMs, 15);
+  const leadSeconds = leadSecondsFromMs(item.startOffsetMs);
+  const endAfterClickSeconds = secondsFromMs(item.endOffsetMs, durationSeconds);
   return `
     <article class="video-analysis-code-button-editor">
       <div class="video-analysis-code-button-editor__head">
@@ -56,10 +92,11 @@ function renderButtonEditor(item = {}) {
         <label>Button name<input type="text" data-video-analysis-button-field="${escapeHtml(item.id)}:label" value="${escapeHtml(item.label)}"></label>
         <label>Color<input type="color" data-video-analysis-button-field="${escapeHtml(item.id)}:color" value="${escapeHtml(item.color || "#143522")}"></label>
         <label>Hotkey<input type="text" maxlength="12" data-video-analysis-button-field="${escapeHtml(item.id)}:hotkey" value="${escapeHtml(item.hotkey || "")}"></label>
-        <label>Clip length<input type="number" min="1" max="900" step="1" data-video-analysis-button-ms-field="${escapeHtml(item.id)}:defaultDurationMs" value="${escapeHtml(secondsFromMs(item.defaultDurationMs, 15))}"></label>
-        <label>Lead / start<input type="number" min="-120" max="120" step="1" data-video-analysis-button-ms-field="${escapeHtml(item.id)}:startOffsetMs" value="${escapeHtml(secondsFromMs(item.startOffsetMs, 0))}"></label>
-        <label>Lag / end<input type="number" min="1" max="900" step="1" data-video-analysis-button-ms-field="${escapeHtml(item.id)}:endOffsetMs" value="${escapeHtml(secondsFromMs(item.endOffsetMs, 15))}"></label>
         <label>Behavior<select data-video-analysis-button-field="${escapeHtml(item.id)}:buttonBehavior">${behaviorOptionList(item.buttonBehavior || "create_tag")}</select></label>
+        <label>Applies to<select data-video-analysis-button-field="${escapeHtml(item.id)}:targetField">${targetFieldOptionList(item.targetField || item.type || "tags")}</select></label>
+        <label>Length sec<input type="number" min="1" max="900" step="1" data-video-analysis-button-ms-field="${escapeHtml(item.id)}:defaultDurationMs" value="${escapeHtml(durationSeconds)}"></label>
+        <label>Lead sec<input type="number" min="0" max="120" step="1" data-video-analysis-button-ms-field="${escapeHtml(item.id)}:startOffsetMs:lead" value="${escapeHtml(leadSeconds)}"></label>
+        <label>End after click<input type="number" min="1" max="900" step="1" data-video-analysis-button-ms-field="${escapeHtml(item.id)}:endOffsetMs" value="${escapeHtml(endAfterClickSeconds)}"></label>
       </div>
     </article>
   `;

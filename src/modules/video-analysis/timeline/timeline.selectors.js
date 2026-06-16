@@ -45,6 +45,7 @@ export function getClipMiniGamePrincipleLabel(clip = {}) {
 
 export function getTimelineLaneValue(clip = {}, laneMode = "phase") {
   if (laneMode === "player") return firstPlayerLabel(clip);
+  if (laneMode === "tags") return Array.isArray(clip.tags) && clip.tags.length ? clip.tags[0] : "No tag";
   if (laneMode === "unit") return firstDescriptorValue(clip, "unit") || "Unit";
   if (laneMode === "outcome") return clipValue(clip, "outcome", "outcome") || "Neutral";
   if (laneMode === "subPhase") return clipValue(clip, "subPhase", "sub_phase") || "No sub-phase";
@@ -55,6 +56,7 @@ export function getTimelineLaneValue(clip = {}, laneMode = "phase") {
 
 export function getClipPrimaryLabel(clip = {}, laneMode = "phase") {
   if (laneMode === "outcome") return clipValue(clip, "phase", "phase") || "Uncoded";
+  if (laneMode === "tags") return clipValue(clip, "outcome", "outcome") || "Neutral";
   return clipValue(clip, "outcome", "outcome") || getTimelineLaneValue(clip, laneMode);
 }
 

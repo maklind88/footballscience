@@ -2155,10 +2155,10 @@ export function handleInput(event, context = {}) {
   }
   const buttonMsField = target.closest("[data-video-analysis-button-ms-field]");
   if (buttonMsField) {
-    const [buttonId, fieldName] = String(buttonMsField.dataset.videoAnalysisButtonMsField || "").split(":");
+    const [buttonId, fieldName, mode] = String(buttonMsField.dataset.videoAnalysisButtonMsField || "").split(":");
     run.store.update((state) => ({
       ...state,
-      template: updateCodingButtonMsField(state.template || {}, buttonId, fieldName, buttonMsField.value),
+      template: updateCodingButtonMsField(state.template || {}, buttonId, fieldName, buttonMsField.value, mode),
     }));
     return true;
   }

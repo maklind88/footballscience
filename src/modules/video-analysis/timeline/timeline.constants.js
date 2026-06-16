@@ -7,6 +7,7 @@ export const TIMELINE_LANE_MODES = Object.freeze([
   { id: "subPhase", label: "Sub-phase" },
   { id: "teamPrinciple", label: "Team Principle" },
   { id: "miniGamePrinciple", label: "Mini-game" },
+  { id: "tags", label: "Tags" },
   { id: "player", label: "Player" },
   { id: "unit", label: "Unit" },
   { id: "outcome", label: "Outcome" },

@@ -8,6 +8,13 @@ const phaseHotkeys = ["1", "2", "3", "4", "5"];
 const principleHotkeys = ["6", "7", "8", "9", "0", "-"];
 const defaultClipDurationMs = 15000;
 const defaultButtonBehavior = "create_tag";
+const buttonBehaviorSettings = Object.freeze({
+  create_tag: { createsClip: true, appliesLabel: false },
+  toggle_duration: { createsClip: true, appliesLabel: false },
+  label_current: { createsClip: false, appliesLabel: true },
+  descriptor: { createsClip: false, appliesLabel: true },
+  player_tag: { createsClip: false, appliesLabel: true },
+});
 const groupColors = Object.freeze({
   Phase: "#1f5eff",
   "Sub-phase": "#0f8a63",
@@ -24,6 +31,23 @@ const buttonTypeByField = Object.freeze({
 
 function slug(value = "") {
   return String(value || "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
+}
+
+function normalizeColor(value = "", fallback = "#143522") {
+  const color = String(value || "").trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+}
+
+function normalizeHotkey(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .slice(0, 12);
+}
+
+function behaviorSettings(behavior = defaultButtonBehavior) {
+  return buttonBehaviorSettings[behavior] || buttonBehaviorSettings.create_tag;
 }
 
 function normalizeGroupName(value = "") {
@@ -69,6 +93,8 @@ function uniqueButtonId(buttons = [], seed = "custom-button") {
 }
 
 function button(id, type, label, value, hotkey = "", group = type, options = {}) {
+  const buttonBehavior = options.buttonBehavior || defaultButtonBehavior;
+  const settings = behaviorSettings(buttonBehavior);
   return {
     id,
     databaseId: options.databaseId || "",
@@ -76,18 +102,19 @@ function button(id, type, label, value, hotkey = "", group = type, options = {})
     buttonType: options.buttonType || buttonTypeByField[type] || type,
     label,
     value,
-    hotkey,
+    hotkey: normalizeHotkey(hotkey),
     group,
     groupId: options.groupId || slug(group),
-    color: options.color || groupColors[group] || "#143522",
+    color: normalizeColor(options.color || groupColors[group] || "#143522"),
     defaultDurationMs: Number(options.defaultDurationMs ?? defaultClipDurationMs),
     startOffsetMs: Number(options.startOffsetMs ?? 0),
     endOffsetMs: Number(options.endOffsetMs ?? defaultClipDurationMs),
-    buttonBehavior: options.buttonBehavior || defaultButtonBehavior,
-    createsClip: options.createsClip !== false,
-    appliesLabel: Boolean(options.appliesLabel),
+    buttonBehavior,
+    createsClip: options.createsClip ?? settings.createsClip,
+    appliesLabel: options.appliesLabel ?? settings.appliesLabel,
     targetField: options.targetField || type,
     instantEnabled: options.instantEnabled !== false,
+    sortOrder: Number(options.sortOrder ?? 0),
   };
 }
 
@@ -171,6 +198,13 @@ export function duplicateCodingButtonInTemplate(template = {}, buttonId = "") {
   return { ...template, buttons: [...buttons, duplicate] };
 }
 
+function targetFieldForBehavior(currentTargetField = "", behavior = defaultButtonBehavior) {
+  if (currentTargetField && currentTargetField !== "tags") return currentTargetField;
+  if (behavior === "descriptor") return "unit";
+  if (behavior === "player_tag") return "playerId";
+  return currentTargetField || "tags";
+}
+
 export function removeCodingButtonFromTemplate(template = {}, buttonId = "") {
   return {
     ...template,
@@ -185,29 +219,42 @@ export function removeCodingButtonFromTemplate(template = {}, buttonId = "") {
 
 export function updateCodingButtonField(template = {}, buttonId = "", fieldName = "", value = "") {
   const numericFields = new Set(["defaultDurationMs", "startOffsetMs", "endOffsetMs"]);
-  const nextValue = numericFields.has(fieldName) ? Math.round(Number(value || 0)) : value;
+  const normalizedValue = fieldName === "hotkey"
+    ? normalizeHotkey(value)
+    : fieldName === "color"
+      ? normalizeColor(value)
+      : value;
+  const nextValue = numericFields.has(fieldName) ? Math.round(Number(value || 0)) : normalizedValue;
   return {
     ...template,
     buttons: (template.buttons || []).map((item) => {
       if (item.id !== buttonId) return item;
+      const behavior = fieldName === "buttonBehavior" ? nextValue : item.buttonBehavior || defaultButtonBehavior;
+      const settings = behaviorSettings(behavior);
       const next = {
         ...item,
         [fieldName]: nextValue,
         ...(fieldName === "buttonBehavior" ? {
-          createsClip: ["create_tag", "toggle_duration"].includes(nextValue),
-          appliesLabel: ["label_current", "descriptor", "player_tag"].includes(nextValue),
+          createsClip: settings.createsClip,
+          appliesLabel: settings.appliesLabel,
+          targetField: targetFieldForBehavior(item.targetField || item.type, nextValue),
         } : {}),
       };
       if (fieldName === "label" && (item.targetField === "tags" || item.buttonType === "custom")) {
         next.value = uniqueValue(template.buttons || [], nextValue, item.buttonType || "custom", buttonId);
+      }
+      if (fieldName === "targetField" && nextValue === "tags" && item.buttonType === "custom") {
+        next.value = uniqueValue(template.buttons || [], item.label || item.value, item.buttonType || "custom", buttonId);
       }
       return next;
     }),
   };
 }
 
-export function updateCodingButtonMsField(template = {}, buttonId = "", fieldName = "", seconds = 0) {
-  const milliseconds = Math.max(fieldName === "startOffsetMs" ? -120000 : 1000, Math.round(Number(seconds || 0) * 1000));
+export function updateCodingButtonMsField(template = {}, buttonId = "", fieldName = "", seconds = 0, mode = "") {
+  const rawSeconds = Math.round(Number(seconds || 0));
+  const signedSeconds = fieldName === "startOffsetMs" && mode === "lead" ? -Math.abs(rawSeconds) : rawSeconds;
+  const milliseconds = Math.max(fieldName === "startOffsetMs" ? -120000 : 1000, signedSeconds * 1000);
   return {
     ...template,
     buttons: (template.buttons || []).map((item) => item.id === buttonId ? {
@@ -231,6 +278,13 @@ export function applyCodingButtonToDraft(draft = {}, template = {}, button = {})
   const targetField = button?.targetField || button?.type;
   if (!targetField) return draft;
   const nextDraft = { ...draft, [targetField]: button.value };
+  if (targetField === "tags") {
+    const existingTags = String(draft.tags || "")
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    nextDraft.tags = [...new Set([...existingTags, button.value])].join(", ");
+  }
   for (const link of template.links || []) {
     if (link.sourceValue === button.value && link.targetType && link.targetValue) {
       nextDraft[link.targetType] = link.targetValue;

@@ -1669,7 +1669,7 @@
   display: grid;
   align-content: center;
   gap: 2px;
-  min-height: 26px;
+  min-height: 24px;
   border: 1px solid transparent;
   border-radius: 6px;
   padding: 0 7px;
@@ -1704,7 +1704,7 @@
 
 .video-analysis-lane__track {
   position: relative;
-  min-height: 26px;
+  min-height: 24px;
   border-radius: 6px;
   background:
     repeating-linear-gradient(90deg, rgba(20, 53, 34, 0.07) 0 1px, transparent 1px 12.5%),
@@ -1716,20 +1716,20 @@
 .video-analysis-clip-block {
   position: absolute;
   z-index: 2;
-  top: 4px;
+  top: 3px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 4px;
   min-width: 24px;
-  height: 18px;
+  height: 17px;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid #2c5fd7;
+  border: 1px solid color-mix(in srgb, var(--video-analysis-clip-color, #2c5fd7) 82%, #0f172a);
   border-radius: 5px;
   padding: 0 3px;
   color: #ffffff;
-  background: #245eea;
+  background: var(--video-analysis-clip-color, #245eea);
   font-size: 10px;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -1739,18 +1739,18 @@
 }
 
 .video-analysis-clip-block.is-positive {
-  border-color: #1f6f4a;
-  background: #1f8a5f;
+  border-color: color-mix(in srgb, var(--video-analysis-clip-color, #1f6f4a) 82%, #0f172a);
+  background: var(--video-analysis-clip-color, #1f8a5f);
 }
 
 .video-analysis-clip-block.is-development {
-  border-color: #9b4d12;
-  background: #c56a1f;
+  border-color: color-mix(in srgb, var(--video-analysis-clip-color, #9b4d12) 82%, #0f172a);
+  background: var(--video-analysis-clip-color, #c56a1f);
 }
 
 .video-analysis-clip-block.is-neutral {
-  border-color: #365a87;
-  background: #3268b7;
+  border-color: color-mix(in srgb, var(--video-analysis-clip-color, #365a87) 82%, #0f172a);
+  background: var(--video-analysis-clip-color, #3268b7);
 }
 
 .video-analysis-clip-block__copy {

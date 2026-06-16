@@ -22,6 +22,11 @@ import {
   buildCodingButtonAction,
   duplicateCodingButtonInTemplate,
   findTemplateButton,
+  groupCodingTemplateButtons,
+  moveCodingButtonByStep,
+  moveCodingButtonInTemplate,
+  moveCodingGroupByStep,
+  moveCodingTemplateGroup,
   removeCodingButtonFromTemplate,
   shouldIgnoreShortcutTarget,
   updateCodingButtonField,
@@ -1364,9 +1369,66 @@ function presentationDropTarget(target) {
   return null;
 }
 
+function templateDropTarget(target) {
+  const groupTarget = target?.closest?.("[data-video-analysis-template-drop-group]");
+  if (groupTarget) {
+    return { type: "group", group: groupTarget.dataset.videoAnalysisTemplateDropGroup || "" };
+  }
+  const buttonTarget = target?.closest?.("[data-video-analysis-template-drop-button]");
+  if (buttonTarget) {
+    const [group, beforeButtonId] = String(buttonTarget.dataset.videoAnalysisTemplateDropButton || "").split(":");
+    return { type: "button", group, beforeButtonId };
+  }
+  const emptyButtonTarget = target?.closest?.("[data-video-analysis-template-drop-button-empty]");
+  if (emptyButtonTarget) {
+    return { type: "button", group: emptyButtonTarget.dataset.videoAnalysisTemplateDropButtonEmpty || "", beforeButtonId: "" };
+  }
+  return null;
+}
+
+function codingTemplateBuilderPatch(state = {}, patch = {}, dirty = false) {
+  return {
+    ...(state.codingSession || {}),
+    ...(dirty ? { templateDirty: true } : {}),
+    templateBuilder: {
+      ...(state.codingSession?.templateBuilder || {}),
+      ...patch,
+    },
+  };
+}
+
+function firstButtonInGroup(template = {}, groupLabel = "") {
+  const group = groupCodingTemplateButtons(template).find((item) => item.label === groupLabel);
+  return group?.buttons?.[0] || null;
+}
+
+function selectedButtonFallback(template = {}, preferredButtonId = "", preferredGroup = "") {
+  const buttons = template.buttons || [];
+  return buttons.find((item) => item.id === preferredButtonId)
+    || firstButtonInGroup(template, preferredGroup)
+    || buttons[0]
+    || null;
+}
+
 export function handleDragStart(event, context = {}) {
   ensureRuntime(context);
   const target = eventElement(event);
+  const templateGroup = target?.closest?.("[data-video-analysis-template-drag-group]");
+  if (templateGroup) {
+    const groupLabel = templateGroup.dataset.videoAnalysisTemplateDragGroup || "";
+    if (!groupLabel) return false;
+    event.dataTransfer?.setData("text/plain", `video-analysis-template-group:${groupLabel}`);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    return true;
+  }
+  const templateButton = target?.closest?.("[data-video-analysis-template-drag-button]");
+  if (templateButton) {
+    const buttonId = templateButton.dataset.videoAnalysisTemplateDragButton || "";
+    if (!buttonId) return false;
+    event.dataTransfer?.setData("text/plain", `video-analysis-template-button:${buttonId}`);
+    if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+    return true;
+  }
   const item = target?.closest?.("[data-video-analysis-presentation-drag-item]");
   if (!item) return false;
   const itemId = item.dataset.videoAnalysisPresentationDragItem || "";
@@ -1379,7 +1441,7 @@ export function handleDragStart(event, context = {}) {
 export function handleDragOver(event, context = {}) {
   ensureRuntime(context);
   const target = eventElement(event);
-  if (!presentationDropTarget(target)) return false;
+  if (!presentationDropTarget(target) && !templateDropTarget(target)) return false;
   event.preventDefault?.();
   if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
   return true;
@@ -1388,9 +1450,58 @@ export function handleDragOver(event, context = {}) {
 export function handleDrop(event, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
+  const templateTarget = templateDropTarget(target);
+  const transfer = event.dataTransfer?.getData("text/plain") || "";
+  if (templateTarget) {
+    event.preventDefault?.();
+    run.store.update((state) => {
+      if (transfer.startsWith("video-analysis-template-group:") && templateTarget.type === "group") {
+        const groupLabel = transfer.replace("video-analysis-template-group:", "");
+        const template = moveCodingTemplateGroup(state.template || {}, groupLabel, templateTarget.group);
+        return {
+          ...state,
+          template,
+          codingSession: codingTemplateBuilderPatch(state, { selectedGroup: groupLabel }, true),
+          message: "Tag group reordered.",
+          error: "",
+        };
+      }
+      if (transfer.startsWith("video-analysis-template-button:") && templateTarget.type === "group") {
+        const buttonId = transfer.replace("video-analysis-template-button:", "");
+        const template = moveCodingButtonInTemplate(state.template || {}, buttonId, templateTarget.group, "");
+        return {
+          ...state,
+          template,
+          codingSession: codingTemplateBuilderPatch(state, {
+            selectedGroup: templateTarget.group,
+            selectedButtonId: buttonId,
+            newButtonGroup: templateTarget.group,
+          }, true),
+          message: "Tag button moved to group.",
+          error: "",
+        };
+      }
+      if (transfer.startsWith("video-analysis-template-button:") && templateTarget.type === "button") {
+        const buttonId = transfer.replace("video-analysis-template-button:", "");
+        const template = moveCodingButtonInTemplate(state.template || {}, buttonId, templateTarget.group, templateTarget.beforeButtonId);
+        return {
+          ...state,
+          template,
+          codingSession: codingTemplateBuilderPatch(state, {
+            selectedGroup: templateTarget.group,
+            selectedButtonId: buttonId,
+          }, true),
+          message: "Tag button reordered.",
+          error: "",
+        };
+      }
+      return state;
+    });
+    return true;
+  }
   const dropTarget = presentationDropTarget(target);
   if (!dropTarget?.sectionId) return false;
-  const itemId = event.dataTransfer?.getData("text/plain") || "";
+  const itemId = transfer;
   if (!itemId || itemId === dropTarget.beforeItemId) return false;
   event.preventDefault?.();
   run.store.update((state) => {
@@ -1432,7 +1543,10 @@ async function loadCodingTemplates(options = {}) {
     run.store.update((current) => ({
       ...current,
       template,
-      codingSession: codingSessionForTemplate(template, current.codingSession || {}),
+      codingSession: {
+        ...codingSessionForTemplate(template, current.codingSession || {}),
+        templateDirty: false,
+      },
       message: options.silent ? current.message : "Tag panel loaded.",
       error: options.silent ? current.error : "",
     }));
@@ -1455,6 +1569,7 @@ async function saveCodingTemplate(context = {}) {
       codingSession: {
         ...codingSessionForTemplate(template, current.codingSession || {}),
         panelMode: current.codingSession?.panelMode || "edit",
+        templateDirty: false,
       },
       message: "Tag panel saved.",
       error: "",
@@ -1968,7 +2083,17 @@ export function handleClick(event, context = {}) {
   if (panelModeButton) {
     run.store.update((state) => ({
       ...state,
-      codingSession: { ...(state.codingSession || {}), panelMode: panelModeButton.dataset.videoAnalysisPanelMode || "use" },
+      codingSession: {
+        ...(state.codingSession || {}),
+        panelMode: panelModeButton.dataset.videoAnalysisPanelMode || "use",
+        templateBuilder: {
+          ...(state.codingSession?.templateBuilder || {}),
+          selectedGroup: state.codingSession?.templateBuilder?.selectedGroup || groupCodingTemplateButtons(state.template || {})[0]?.label || "Custom",
+          selectedButtonId: state.codingSession?.templateBuilder?.selectedButtonId
+            || groupCodingTemplateButtons(state.template || {})[0]?.buttons?.[0]?.id
+            || "",
+        },
+      },
     }));
     return true;
   }
@@ -1979,17 +2104,17 @@ export function handleClick(event, context = {}) {
   if (target.closest("[data-video-analysis-add-button-group]")) {
     run.store.update((state) => {
       const groupName = state.codingSession?.templateBuilder?.newGroupName || "Custom";
+      const template = addCodingButtonGroupToTemplate(state.template || {}, groupName);
+      const selectedButton = selectedButtonFallback(template, "", groupName);
       return {
         ...state,
-        template: addCodingButtonGroupToTemplate(state.template || {}, groupName),
-        codingSession: {
-          ...(state.codingSession || {}),
-          templateBuilder: {
-            ...(state.codingSession?.templateBuilder || {}),
-            newGroupName: "",
-            newButtonGroup: groupName,
-          },
-        },
+        template,
+        codingSession: codingTemplateBuilderPatch(state, {
+          newGroupName: "",
+          newButtonGroup: groupName,
+          selectedGroup: groupName,
+          selectedButtonId: selectedButton?.id || "",
+        }, true),
         message: "Tag group added.",
         error: "",
       };
@@ -1999,35 +2124,37 @@ export function handleClick(event, context = {}) {
   const groupAddButton = target.closest("[data-video-analysis-add-code-button-group]");
   if (groupAddButton) {
     const groupName = groupAddButton.dataset.videoAnalysisAddCodeButtonGroup || "Custom";
-    run.store.update((state) => ({
-      ...state,
-      template: addCodingButtonToTemplate(state.template || {}, { group: groupName }),
-      codingSession: {
-        ...(state.codingSession || {}),
-        templateBuilder: {
-          ...(state.codingSession?.templateBuilder || {}),
+    run.store.update((state) => {
+      const template = addCodingButtonToTemplate(state.template || {}, { group: groupName });
+      const selectedButton = selectedButtonFallback(template, "", groupName);
+      return {
+        ...state,
+        template,
+        codingSession: codingTemplateBuilderPatch(state, {
           newButtonGroup: groupName,
-        },
-      },
-      message: "Tag button added.",
-      error: "",
-    }));
+          selectedGroup: groupName,
+          selectedButtonId: selectedButton?.id || "",
+        }, true),
+        message: "Tag button added.",
+        error: "",
+      };
+    });
     return true;
   }
   if (target.closest("[data-video-analysis-add-code-button]")) {
     run.store.update((state) => {
       const groups = (state.template?.buttons || []).map((button) => button.group || "Custom");
       const groupName = state.codingSession?.templateBuilder?.newButtonGroup || groups[0] || "Custom";
+      const template = addCodingButtonToTemplate(state.template || {}, { group: groupName });
+      const selectedButton = selectedButtonFallback(template, "", groupName);
       return {
         ...state,
-        template: addCodingButtonToTemplate(state.template || {}, { group: groupName }),
-        codingSession: {
-          ...(state.codingSession || {}),
-          templateBuilder: {
-            ...(state.codingSession?.templateBuilder || {}),
-            newButtonGroup: groupName,
-          },
-        },
+        template,
+        codingSession: codingTemplateBuilderPatch(state, {
+          newButtonGroup: groupName,
+          selectedGroup: groupName,
+          selectedButtonId: selectedButton?.id || "",
+        }, true),
         message: "Tag button added.",
         error: "",
       };
@@ -2036,20 +2163,106 @@ export function handleClick(event, context = {}) {
   }
   const duplicateCodeButton = target.closest("[data-video-analysis-duplicate-code-button]");
   if (duplicateCodeButton) {
-    run.store.update((state) => ({
-      ...state,
-      template: duplicateCodingButtonInTemplate(state.template || {}, duplicateCodeButton.dataset.videoAnalysisDuplicateCodeButton),
-      message: "Tag button duplicated.",
-      error: "",
-    }));
+    run.store.update((state) => {
+      const source = findTemplateButton(state.template || {}, duplicateCodeButton.dataset.videoAnalysisDuplicateCodeButton);
+      const template = duplicateCodingButtonInTemplate(state.template || {}, duplicateCodeButton.dataset.videoAnalysisDuplicateCodeButton);
+      const selectedButton = selectedButtonFallback(template, "", source?.group || "");
+      return {
+        ...state,
+        template,
+        codingSession: codingTemplateBuilderPatch(state, {
+          selectedGroup: selectedButton?.group || source?.group || state.codingSession?.templateBuilder?.selectedGroup || "Custom",
+          selectedButtonId: selectedButton?.id || "",
+        }, true),
+        message: "Tag button duplicated.",
+        error: "",
+      };
+    });
     return true;
   }
   const removeCodeButton = target.closest("[data-video-analysis-remove-code-button]");
   if (removeCodeButton) {
+    run.store.update((state) => {
+      const removed = findTemplateButton(state.template || {}, removeCodeButton.dataset.videoAnalysisRemoveCodeButton);
+      const template = removeCodingButtonFromTemplate(state.template || {}, removeCodeButton.dataset.videoAnalysisRemoveCodeButton);
+      const selectedButton = selectedButtonFallback(template, "", removed?.group || state.codingSession?.templateBuilder?.selectedGroup || "");
+      return {
+        ...state,
+        template,
+        codingSession: codingTemplateBuilderPatch(state, {
+          selectedGroup: selectedButton?.group || removed?.group || state.codingSession?.templateBuilder?.selectedGroup || "Custom",
+          selectedButtonId: selectedButton?.id || "",
+        }, true),
+        message: "Tag button archived from this panel.",
+        error: "",
+      };
+    });
+    return true;
+  }
+  const selectTemplateGroup = target.closest("[data-video-analysis-template-select-group]");
+  if (selectTemplateGroup) {
+    const selectedGroup = selectTemplateGroup.dataset.videoAnalysisTemplateSelectGroup || "Custom";
+    const selectedButton = firstButtonInGroup(run.store.getState().template || {}, selectedGroup);
     run.store.update((state) => ({
       ...state,
-      template: removeCodingButtonFromTemplate(state.template || {}, removeCodeButton.dataset.videoAnalysisRemoveCodeButton),
-      message: "Tag button archived from this panel.",
+      codingSession: codingTemplateBuilderPatch(state, {
+        selectedGroup,
+        selectedButtonId: selectedButton?.id || state.codingSession?.templateBuilder?.selectedButtonId || "",
+        newButtonGroup: selectedGroup,
+      }),
+    }));
+    return true;
+  }
+  const selectTemplateButton = target.closest("[data-video-analysis-template-select-button]");
+  if (selectTemplateButton) {
+    const buttonId = selectTemplateButton.dataset.videoAnalysisTemplateSelectButton || "";
+    const button = findTemplateButton(run.store.getState().template || {}, buttonId);
+    run.store.update((state) => ({
+      ...state,
+      codingSession: codingTemplateBuilderPatch(state, {
+        selectedButtonId: buttonId,
+        selectedGroup: button?.group || state.codingSession?.templateBuilder?.selectedGroup || "Custom",
+        newButtonGroup: button?.group || state.codingSession?.templateBuilder?.newButtonGroup || "Custom",
+      }),
+    }));
+    return true;
+  }
+  const moveTemplateGroup = target.closest("[data-video-analysis-template-move-group]");
+  if (moveTemplateGroup) {
+    const [groupLabel, direction] = String(moveTemplateGroup.dataset.videoAnalysisTemplateMoveGroup || "").split(":");
+    run.store.update((state) => ({
+      ...state,
+      template: moveCodingGroupByStep(state.template || {}, groupLabel, Number(direction || 0)),
+      codingSession: codingTemplateBuilderPatch(state, { selectedGroup: groupLabel }, true),
+      message: "Tag group reordered.",
+      error: "",
+    }));
+    return true;
+  }
+  const moveTemplateButton = target.closest("[data-video-analysis-template-move-button]");
+  if (moveTemplateButton) {
+    const [buttonId, direction] = String(moveTemplateButton.dataset.videoAnalysisTemplateMoveButton || "").split(":");
+    const button = findTemplateButton(run.store.getState().template || {}, buttonId);
+    run.store.update((state) => ({
+      ...state,
+      template: moveCodingButtonByStep(state.template || {}, buttonId, Number(direction || 0)),
+      codingSession: codingTemplateBuilderPatch(state, {
+        selectedGroup: button?.group || state.codingSession?.templateBuilder?.selectedGroup || "Custom",
+        selectedButtonId: buttonId,
+      }, true),
+      message: "Tag button reordered.",
+      error: "",
+    }));
+    return true;
+  }
+  const colorPreset = target.closest("[data-video-analysis-button-color-preset]");
+  if (colorPreset) {
+    const [buttonId, color] = String(colorPreset.dataset.videoAnalysisButtonColorPreset || "").split(":");
+    run.store.update((state) => ({
+      ...state,
+      template: updateCodingButtonField(state.template || {}, buttonId, "color", color),
+      codingSession: codingTemplateBuilderPatch(state, { selectedButtonId: buttonId }, true),
+      message: "Button color updated.",
       error: "",
     }));
     return true;
@@ -2541,6 +2754,7 @@ export function handleInput(event, context = {}) {
     run.store.update((state) => ({
       ...state,
       template: { ...(state.template || {}), [key]: templateField.value },
+      codingSession: { ...(state.codingSession || {}), templateDirty: true },
     }));
     return true;
   }
@@ -2565,6 +2779,7 @@ export function handleInput(event, context = {}) {
     run.store.update((state) => ({
       ...state,
       template: updateCodingButtonField(state.template || {}, buttonId, fieldName, buttonField.value),
+      codingSession: codingTemplateBuilderPatch(state, { selectedButtonId: buttonId }, true),
     }));
     return true;
   }
@@ -2574,6 +2789,7 @@ export function handleInput(event, context = {}) {
     run.store.update((state) => ({
       ...state,
       template: updateCodingButtonMsField(state.template || {}, buttonId, fieldName, buttonMsField.value, mode),
+      codingSession: codingTemplateBuilderPatch(state, { selectedButtonId: buttonId }, true),
     }));
     return true;
   }

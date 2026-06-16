@@ -1595,26 +1595,287 @@
   background: #ffffff;
 }
 
+.video-analysis-template-overlay__header > div:first-child {
+  flex: 1 1 420px;
+  min-width: min(420px, 55vw);
+}
+
 .video-analysis-template-overlay__body {
   display: grid;
-  grid-template-columns: minmax(240px, 0.32fr) minmax(0, 1fr);
+  grid-template-columns: minmax(230px, 0.25fr) minmax(330px, 0.36fr) minmax(340px, 0.39fr);
   gap: 12px;
   min-height: 0;
   overflow: auto;
   padding: 12px;
 }
 
-.video-analysis-template-overlay__body .video-analysis-panel-builder {
-  position: sticky;
-  top: 0;
-  grid-template-columns: 1fr;
-  align-self: start;
-}
-
 .video-analysis-template-overlay__groups {
   display: grid;
   gap: 10px;
   min-width: 0;
+}
+
+.video-analysis-template-dirty-pill,
+.video-analysis-template-saved-pill,
+.video-analysis-builder-column-head span,
+.video-analysis-builder-summary {
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #425047;
+  background: #edf3ef;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.video-analysis-template-dirty-pill {
+  color: #6f3d05;
+  background: #fff4d7;
+}
+
+.video-analysis-template-saved-pill {
+  color: #14532d;
+  background: #dcfce7;
+}
+
+.video-analysis-panel-builder-column {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.video-analysis-panel-builder-groups {
+  min-width: 230px;
+}
+
+.video-analysis-panel-builder-buttons {
+  min-width: 330px;
+}
+
+.video-analysis-panel-builder-inspector {
+  min-width: 340px;
+}
+
+.video-analysis-builder-column-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.video-analysis-builder-column-head button {
+  min-height: 28px;
+  border: 1px solid #c3cbc8;
+  border-radius: 6px;
+  padding: 0 8px;
+  color: #18211e;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.video-analysis-builder-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.video-analysis-builder-group-card,
+.video-analysis-code-button-editor {
+  cursor: grab;
+}
+
+.video-analysis-builder-group-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #d8e0dc;
+  border-radius: 7px;
+  padding: 7px;
+  background: #fbfcfb;
+}
+
+.video-analysis-builder-group-card.is-active,
+.video-analysis-code-button-editor.is-active {
+  border-color: #1e5eff;
+  box-shadow: 0 0 0 2px rgba(30, 94, 255, 0.12);
+}
+
+.video-analysis-builder-group-card > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  color: #17231d;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.video-analysis-builder-group-card > button strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-builder-group-card > button span {
+  flex: 0 0 auto;
+  color: #5a655f;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.video-analysis-builder-card-actions,
+.video-analysis-code-button-editor__actions {
+  display: inline-flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.video-analysis-builder-card-actions button,
+.video-analysis-panel-builder button,
+.video-analysis-code-group__header button,
+.video-analysis-code-button-editor__actions button {
+  min-height: 28px;
+  border: 1px solid #c3cbc8;
+  border-radius: 6px;
+  padding: 0 8px;
+  color: #18211e;
+  background: #ffffff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.video-analysis-builder-card-actions button:disabled,
+.video-analysis-code-button-editor__actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.video-analysis-builder-button-card {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  border: 0;
+  border-left: 5px solid var(--video-analysis-button-color, #143522);
+  border-radius: 6px;
+  padding: 7px 8px;
+  color: #17231d;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--video-analysis-button-color, #143522) 12%, #ffffff) 0, #ffffff 58%);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.video-analysis-builder-button-card.is-active {
+  color: #ffffff;
+  background: var(--video-analysis-button-color, #143522);
+}
+
+.video-analysis-builder-button-card span {
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.video-analysis-builder-button-card small {
+  color: inherit;
+  font-size: 10px;
+  font-weight: 750;
+  opacity: 0.78;
+}
+
+.video-analysis-builder-preview {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #d8e0dc;
+  border-radius: 8px;
+  padding: 10px;
+  background: #ffffff;
+}
+
+.video-analysis-builder-preview .video-analysis-code-button {
+  width: 100%;
+}
+
+.video-analysis-button-editor-grid--inspector,
+.video-analysis-button-editor-grid--timing {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.video-analysis-hotkey-warning {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #f1c27d;
+  border-radius: 7px;
+  padding: 8px;
+  color: #713f12;
+  background: #fff7ed;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.video-analysis-color-presets {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.video-analysis-color-presets button {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: var(--video-analysis-preset-color);
+  box-shadow: 0 0 0 1px #c9d3ce;
+  cursor: pointer;
+}
+
+.video-analysis-color-presets button.is-active {
+  box-shadow: 0 0 0 2px #1e5eff;
+}
+
+.video-analysis-builder-timing {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.video-analysis-builder-timing div {
+  display: grid;
+  gap: 2px;
+  border: 1px solid #d8e0dc;
+  border-radius: 7px;
+  padding: 8px;
+  background: #ffffff;
+}
+
+.video-analysis-builder-timing strong {
+  color: #17231d;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.video-analysis-builder-timing span {
+  color: #5a655f;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.video-analysis-builder-summary {
+  justify-self: start;
+  border-radius: 7px;
 }
 
 .video-analysis-mode-toggle {
@@ -1689,6 +1950,10 @@
   border-radius: 7px;
   padding: 10px;
   background: #f7faf8;
+}
+
+.video-analysis-panel-builder-column .video-analysis-panel-builder {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .video-analysis-panel-builder__title {

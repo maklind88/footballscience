@@ -75,6 +75,7 @@ export function createInitialVideoAnalysisState(context = {}) {
       openTag: null,
       lastTaggedAtMs: null,
       lastTaggedRangeMs: null,
+      templateDirty: false,
     },
     timeline: {
       zoom: 1,

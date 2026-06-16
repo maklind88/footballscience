@@ -529,6 +529,9 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await page.locator('[data-video-analysis-panel-mode="edit"]').click();
   await expect(page.locator("[data-video-analysis-template-overlay]")).toBeVisible();
   await expect(page.locator('[data-video-analysis-code-window] [data-video-analysis-button-ms-field="subPhase-build-up:defaultDurationMs"]')).toHaveCount(0);
+  await page.locator('[data-video-analysis-template-select-group="Sub-phase"]').click();
+  await page.locator('[data-video-analysis-template-select-button="subPhase-build-up"]').click();
+  await expect(page.locator("[data-video-analysis-template-overlay] .video-analysis-builder-preview")).toContainText("Build Up");
   await expect(page.locator('[data-video-analysis-template-overlay] [data-video-analysis-button-ms-field="subPhase-build-up:defaultDurationMs"]')).toHaveValue("15");
   await expect(page.locator('[data-video-analysis-template-overlay] [data-video-analysis-button-field="subPhase-build-up:buttonBehavior"]')).toHaveValue("create_tag");
 });
@@ -619,19 +622,28 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
   await page.locator('[data-video-analysis-template-builder-field="newGroupName"]').fill("Pressing Triggers");
   await page.locator("[data-video-analysis-add-button-group]").click();
 
-  const group = page.locator("[data-video-analysis-template-overlay] .video-analysis-code-group").filter({ hasText: "Pressing Triggers" }).first();
-  await expect(group).toBeVisible();
-  await group.locator('input[data-video-analysis-button-field$=":label"]').fill("Jump press");
-  await group.locator('input[data-video-analysis-button-field$=":color"]').fill("#d92d20");
-  await group.locator('input[data-video-analysis-button-field$=":hotkey"]').fill("j");
-  await group.locator('select[data-video-analysis-button-field$=":targetField"]').selectOption("tags");
-  await group.locator('input[data-video-analysis-button-ms-field$=":defaultDurationMs"]').fill("8");
-  await group.locator('input[data-video-analysis-button-ms-field$=":startOffsetMs:lead"]').fill("2");
-  await group.locator('input[data-video-analysis-button-ms-field$=":endOffsetMs"]').fill("10");
-  await group.locator("[data-video-analysis-duplicate-code-button]").click();
-  await expect(group.locator(".video-analysis-code-button-editor")).toHaveCount(2);
-  await group.locator("[data-video-analysis-remove-code-button]").last().click();
-  await expect(group.locator(".video-analysis-code-button-editor")).toHaveCount(1);
+  const overlay = page.locator("[data-video-analysis-template-overlay]");
+  const inspector = overlay.locator(".video-analysis-panel-builder-inspector");
+  const buttonsList = overlay.locator('[data-video-analysis-template-button-list="Pressing Triggers"]');
+  await expect(overlay.locator('[data-video-analysis-template-select-group="Pressing Triggers"]')).toBeVisible();
+  await expect(buttonsList).toBeVisible();
+  await expect(inspector).toContainText("Preview");
+  await inspector.locator('input[data-video-analysis-button-field$=":label"]').fill("Jump press");
+  await inspector.locator('input[data-video-analysis-button-field$=":hotkey"]').fill("1");
+  await expect(overlay.locator(".video-analysis-hotkey-warning")).toContainText("already used");
+  await inspector.locator('input[data-video-analysis-button-field$=":hotkey"]').fill("j");
+  await expect(overlay.locator(".video-analysis-hotkey-warning")).toHaveCount(0);
+  await inspector.locator('select[data-video-analysis-button-field$=":targetField"]').selectOption("tags");
+  await inspector.locator('input[data-video-analysis-button-ms-field$=":defaultDurationMs"]').fill("8");
+  await inspector.locator('input[data-video-analysis-button-ms-field$=":startOffsetMs:lead"]').fill("2");
+  await inspector.locator('input[data-video-analysis-button-ms-field$=":endOffsetMs"]').fill("10");
+  await inspector.locator("[data-video-analysis-button-color-preset]").nth(4).click();
+  await expect(overlay.locator("[data-video-analysis-template-dirty]")).toBeVisible();
+  await buttonsList.locator("[data-video-analysis-duplicate-code-button]").first().click();
+  await expect(buttonsList.locator(".video-analysis-code-button-editor")).toHaveCount(2);
+  await buttonsList.locator("[data-video-analysis-remove-code-button]").last().click();
+  await expect(buttonsList.locator(".video-analysis-code-button-editor")).toHaveCount(1);
+  await overlay.locator('[data-video-analysis-template-move-group="Pressing Triggers:-1"]').click();
   await page.locator("[data-video-analysis-save-template]").click();
   await expect.poll(() => page.evaluate(() => {
     return (window.__videoAnalysisRequests || []).find((item) => item.action === "save-coding-template")?.body?.template || null;
@@ -670,7 +682,7 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
     };
   });
   expect(jumpPressBlock.number).toBe("1");
-  expect(jumpPressBlock.style).toContain("--video-analysis-clip-color:#d92d20;");
+  expect(jumpPressBlock.style).toContain("--video-analysis-clip-color:#dc2626;");
 });
 
 test("Video Analysis Label selected buttons update the selected timeline clip", async ({ page }) => {
@@ -708,10 +720,11 @@ test("Video Analysis Label selected buttons update the selected timeline clip", 
   await expect(page.locator("[data-video-analysis-template-overlay]")).toBeVisible();
   await page.locator('[data-video-analysis-template-builder-field="newGroupName"]').fill("Clip Labels");
   await page.locator("[data-video-analysis-add-button-group]").click();
-  const group = page.locator("[data-video-analysis-template-overlay] .video-analysis-code-group").filter({ hasText: "Clip Labels" }).first();
-  await group.locator('input[data-video-analysis-button-field$=":label"]').fill("Press trigger");
-  await group.locator('select[data-video-analysis-button-field$=":buttonBehavior"]').selectOption("label_current");
-  await group.locator('select[data-video-analysis-button-field$=":targetField"]').selectOption("tags");
+  const inspector = page.locator("[data-video-analysis-template-overlay] .video-analysis-panel-builder-inspector");
+  await expect(page.locator('[data-video-analysis-template-button-list="Clip Labels"]')).toBeVisible();
+  await inspector.locator('input[data-video-analysis-button-field$=":label"]').fill("Press trigger");
+  await inspector.locator('select[data-video-analysis-button-field$=":buttonBehavior"]').selectOption("label_current");
+  await inspector.locator('select[data-video-analysis-button-field$=":targetField"]').selectOption("tags");
   await page.locator("[data-video-analysis-save-template]").click();
   await page.locator('[data-video-analysis-template-overlay] .video-analysis-icon-button[data-video-analysis-panel-mode="use"]').click();
   await page.locator('[data-video-analysis-code-button]').filter({ hasText: "Press trigger" }).click();

@@ -3,6 +3,17 @@ import { videoAnalysisOutcomes } from "../constants/outcomes.js";
 import { videoAnalysisPhases } from "../constants/phases.js";
 import { teamPrinciples } from "../constants/principles.js";
 import { videoAnalysisSubPhases } from "../constants/subPhases.js";
+import { groupCodingTemplateButtons, rebuildTemplateFromGroups } from "./codingTemplateLayoutService.js";
+
+export {
+  groupCodingTemplateButtons,
+  moveCodingButtonByStep,
+  moveCodingButtonInTemplate,
+  moveCodingGroupByStep,
+  moveCodingTemplateGroup,
+  reservedCodingHotkeys,
+  templateHotkeyIssues,
+} from "./codingTemplateLayoutService.js";
 
 const phaseHotkeys = ["1", "2", "3", "4", "5"];
 const principleHotkeys = ["6", "7", "8", "9", "0", "-"];
@@ -105,6 +116,7 @@ function button(id, type, label, value, hotkey = "", group = type, options = {})
     hotkey: normalizeHotkey(hotkey),
     group,
     groupId: options.groupId || slug(group),
+    groupSortOrder: Number(options.groupSortOrder ?? 0),
     color: normalizeColor(options.color || groupColors[group] || "#143522"),
     defaultDurationMs: Number(options.defaultDurationMs ?? defaultClipDurationMs),
     startOffsetMs: Number(options.startOffsetMs ?? 0),
@@ -155,6 +167,8 @@ export function createDefaultCodingTemplate() {
 export function addCodingButtonToTemplate(template = {}, options = {}) {
   const buttons = Array.isArray(template.buttons) ? template.buttons : [];
   const group = normalizeGroupName(options.group || "Custom");
+  const groups = groupCodingTemplateButtons(template);
+  const groupIndex = groups.findIndex((item) => item.label === group);
   const label = uniqueLabel(buttons, options.label || "New tag", group);
   const buttonType = options.buttonType || "custom";
   const value = uniqueValue(buttons, options.value || label, buttonType);
@@ -169,9 +183,11 @@ export function addCodingButtonToTemplate(template = {}, options = {}) {
     buttonBehavior: options.buttonBehavior || defaultButtonBehavior,
     targetField: options.targetField || "tags",
     groupId: options.groupId || slug(group) || "custom",
+    groupSortOrder: groupIndex >= 0 ? groupIndex : groups.length,
     sortOrder: nextSortOrder(buttons),
   });
-  return { ...template, buttons: [...buttons, nextButton] };
+  const nextTemplate = { ...template, buttons: [...buttons, nextButton] };
+  return rebuildTemplateFromGroups(nextTemplate, groupCodingTemplateButtons(nextTemplate));
 }
 
 export function addCodingButtonGroupToTemplate(template = {}, groupName = "Custom") {
@@ -195,7 +211,8 @@ export function duplicateCodingButtonInTemplate(template = {}, buttonId = "") {
     hotkey: "",
     sortOrder: nextSortOrder(buttons),
   };
-  return { ...template, buttons: [...buttons, duplicate] };
+  const nextTemplate = { ...template, buttons: [...buttons, duplicate] };
+  return rebuildTemplateFromGroups(nextTemplate, groupCodingTemplateButtons(nextTemplate));
 }
 
 function targetFieldForBehavior(currentTargetField = "", behavior = defaultButtonBehavior) {
@@ -206,7 +223,7 @@ function targetFieldForBehavior(currentTargetField = "", behavior = defaultButto
 }
 
 export function removeCodingButtonFromTemplate(template = {}, buttonId = "") {
-  return {
+  const nextTemplate = {
     ...template,
     buttons: (template.buttons || []).filter((item) => item.id !== buttonId),
     links: (template.links || []).filter((link) => {
@@ -215,6 +232,7 @@ export function removeCodingButtonFromTemplate(template = {}, buttonId = "") {
       return link.sourceValue !== source.value && link.targetValue !== source.value;
     }),
   };
+  return rebuildTemplateFromGroups(nextTemplate, groupCodingTemplateButtons(nextTemplate));
 }
 
 export function updateCodingButtonField(template = {}, buttonId = "", fieldName = "", value = "") {

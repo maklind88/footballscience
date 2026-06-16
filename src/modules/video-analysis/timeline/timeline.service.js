@@ -18,6 +18,9 @@ function clampPercent(value = 0) {
 }
 
 const allowedLaneModes = new Set(TIMELINE_LANE_MODES.map((mode) => mode.id));
+const DENSE_TIMELINE_CLIP_THRESHOLD = 250;
+const DENSE_TIMELINE_LANE_THRESHOLD = 40;
+const DENSE_TIMELINE_CLIPS_PER_MINUTE_THRESHOLD = 8;
 const TIMELINE_NICE_STEPS_MS = Object.freeze([
   1000,
   2000,
@@ -41,6 +44,10 @@ function laneSortIndex(laneMode = DEFAULT_TIMELINE_LANE_MODE, label = "") {
   return index === -1 ? Number.MAX_SAFE_INTEGER : index;
 }
 
+function clipId(clip = {}, fallback = "") {
+  return String(clip.id || clip.clipId || clip.clip_instance_id || fallback);
+}
+
 export function normalizeTimelineZoom(value = 1) {
   return Math.min(TIMELINE_MAX_ZOOM, Math.max(TIMELINE_MIN_ZOOM, Number(value || 1)));
 }
@@ -50,23 +57,75 @@ export function normalizeTimelineLaneMode(value = "") {
   return allowedLaneModes.has(nextValue) ? nextValue : DEFAULT_TIMELINE_LANE_MODE;
 }
 
-export function buildTimelineLanes(clips = [], laneMode = DEFAULT_TIMELINE_LANE_MODE) {
-  const map = new Map();
-  for (const clip of clips) {
-    const label = getTimelineLaneValue(clip, laneMode);
-    if (!map.has(label)) map.set(label, []);
-    map.get(label).push(clip);
-  }
-  return [...map.entries()]
-    .map(([label, laneClips]) => ({
-      id: label,
-      label,
-      clips: laneClips.slice().sort((a, b) => getClipStartMs(a) - getClipStartMs(b)),
-    }))
+export function buildTimelineIndex(clips = [], laneMode = DEFAULT_TIMELINE_LANE_MODE) {
+  const normalizedLaneMode = normalizeTimelineLaneMode(laneMode);
+  const sourceClips = Array.isArray(clips) ? clips : [];
+  const laneMap = new Map();
+  const clipsById = new Map();
+  const clipIdsByLane = new Map();
+  const clipTimeRanges = new Map();
+  let minStartMs = Number.POSITIVE_INFINITY;
+  let maxEndMs = 0;
+  let codedMs = 0;
+
+  sourceClips.forEach((clip, index) => {
+    const id = clipId(clip, `timeline-clip-${index}`);
+    const startMs = getClipStartMs(clip);
+    const endMs = getClipEndMs(clip);
+    const laneLabel = getTimelineLaneValue(clip, normalizedLaneMode);
+    if (!laneMap.has(laneLabel)) laneMap.set(laneLabel, []);
+    laneMap.get(laneLabel).push(clip);
+    clipsById.set(id, clip);
+    clipTimeRanges.set(id, { startMs, endMs });
+    minStartMs = Math.min(minStartMs, startMs);
+    maxEndMs = Math.max(maxEndMs, endMs);
+    codedMs += Math.max(0, endMs - startMs);
+  });
+
+  const lanes = [...laneMap.entries()]
+    .map(([label, laneClips]) => {
+      const sortedClips = laneClips.slice().sort((a, b) => (
+        getClipStartMs(a) - getClipStartMs(b)
+        || getClipEndMs(a) - getClipEndMs(b)
+        || clipId(a).localeCompare(clipId(b))
+      ));
+      const clipIds = sortedClips.map((clip, index) => clipId(clip, `${label}-${index}`));
+      const laneStartMs = sortedClips.reduce((minMs, clip) => Math.min(minMs, getClipStartMs(clip)), Number.POSITIVE_INFINITY);
+      const laneEndMs = sortedClips.reduce((maxMs, clip) => Math.max(maxMs, getClipEndMs(clip)), 0);
+      clipIdsByLane.set(label, clipIds);
+      return {
+        id: label,
+        label,
+        clips: sortedClips,
+        clipIds,
+        clipCount: sortedClips.length,
+        firstStartMs: Number.isFinite(laneStartMs) ? laneStartMs : 0,
+        lastEndMs: laneEndMs,
+      };
+    })
     .sort((a, b) => (
-      laneSortIndex(laneMode, a.label) - laneSortIndex(laneMode, b.label)
+      laneSortIndex(normalizedLaneMode, a.label) - laneSortIndex(normalizedLaneMode, b.label)
       || a.label.localeCompare(b.label)
     ));
+
+  const maxClipsInLane = lanes.reduce((maxCount, lane) => Math.max(maxCount, lane.clipCount), 0);
+  return {
+    laneMode: normalizedLaneMode,
+    clipsById,
+    clipIdsByLane,
+    clipTimeRanges,
+    lanes,
+    clipCount: sourceClips.length,
+    laneCount: lanes.length,
+    maxClipsInLane,
+    minStartMs: Number.isFinite(minStartMs) ? minStartMs : 0,
+    maxEndMs,
+    codedMs,
+  };
+}
+
+export function buildTimelineLanes(clips = [], laneMode = DEFAULT_TIMELINE_LANE_MODE) {
+  return buildTimelineIndex(clips, laneMode).lanes;
 }
 
 export function clipBlockStyle(clip = {}, durationMs = 1) {
@@ -158,6 +217,26 @@ export function getTimelineStats(clips = [], allClips = []) {
     totalClipCount: source.length,
     codedMs,
     isFiltered: source.length > clips.length,
+  };
+}
+
+export function getTimelineDensity(timelineIndex = {}, durationMs = 1) {
+  const clipCount = Math.max(0, Number(timelineIndex.clipCount || 0));
+  const laneCount = Math.max(0, Number(timelineIndex.laneCount || 0));
+  const maxClipsInLane = Math.max(0, Number(timelineIndex.maxClipsInLane || 0));
+  const minutes = Math.max(1 / 60, Number(durationMs || 1) / 60000);
+  const clipsPerMinute = clipCount / minutes;
+  const isDense = Boolean(
+    clipCount >= DENSE_TIMELINE_CLIP_THRESHOLD
+    || maxClipsInLane >= DENSE_TIMELINE_LANE_THRESHOLD
+    || clipsPerMinute >= DENSE_TIMELINE_CLIPS_PER_MINUTE_THRESHOLD
+  );
+  return {
+    isDense,
+    clipCount,
+    laneCount,
+    maxClipsInLane,
+    clipsPerMinute: Math.round(clipsPerMinute * 10) / 10,
   };
 }
 

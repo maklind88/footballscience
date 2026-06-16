@@ -133,6 +133,29 @@ test("video analysis timeline uses unique readable h:mm:ss ticks", async () => {
   expect(new Set(matchLabels).size).toBe(matchLabels.length);
 });
 
+test("video analysis timeline indexes 500 clips for dense workstations", async () => {
+  const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
+  const phases = ["In Possession", "Out of Possession", "Offensive Transition", "Defensive Transition", "Set Pieces"];
+  const clips = Array.from({ length: 500 }, (_, index) => ({
+    id: `clip-${index + 1}`,
+    startMs: index * 14000,
+    endMs: index * 14000 + 15000,
+    phase: phases[index % phases.length],
+    outcome: index % 3 === 0 ? "Positive" : index % 3 === 1 ? "Development" : "Neutral",
+  }));
+
+  const index = timelineService.buildTimelineIndex(clips, "phase");
+  const density = timelineService.getTimelineDensity(index, 7267240);
+
+  expect(index.clipCount).toBe(500);
+  expect(index.laneCount).toBe(5);
+  expect(index.maxClipsInLane).toBe(100);
+  expect(index.clipsById.get("clip-250").startMs).toBe(3486000);
+  expect(index.clipIdsByLane.get("In Possession")).toHaveLength(100);
+  expect(index.lanes[0]).toMatchObject({ label: "In Possession", clipCount: 100 });
+  expect(density).toMatchObject({ isDense: true, clipCount: 500, laneCount: 5, maxClipsInLane: 100 });
+});
+
 test("video analysis workstation keeps controls out of the video player", () => {
   const shell = read("src/modules/video-analysis/index.js");
   const templateBuilder = read("src/modules/video-analysis/components/CodingTemplateBuilder.js");
@@ -168,6 +191,8 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timeline).toContain("data-video-analysis-timeline-module");
   expect(timeline).toContain("data-video-analysis-timeline-lane");
   expect(timeline).toContain("buildTemplateButtonLookup");
+  expect(timeline).toContain("buildTimelineIndex");
+  expect(timeline).toContain("data-video-analysis-timeline-density");
   expect(timeline).toContain("data-video-analysis-timeline-scrub");
   expect(timeline).toContain("data-video-analysis-timeline-scrub-surface");
   expect(timeline).toContain("data-video-analysis-timeline-scrub-time");

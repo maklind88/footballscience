@@ -11,7 +11,7 @@
     <script type="module">
       import * as videoAnalysis from "../src/modules/video-analysis/index.js";
 
-      const clips = [
+      const defaultClips = [
         {
           id: "clip-1",
           match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
@@ -30,6 +30,10 @@
           notes: [{ note: "Clean support angle." }],
         },
       ];
+      const clips = (Array.isArray(window.__videoAnalysisSmokeClips) && window.__videoAnalysisSmokeClips.length
+        ? window.__videoAnalysisSmokeClips
+        : defaultClips
+      ).map((clip) => ({ ...clip }));
       const matches = [
         {
           id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
@@ -99,7 +103,12 @@
         window.__videoAnalysisRequests.push({ action, body });
         if (action === "status") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2" });
         if (action === "matches") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", matches, scheduleCandidates });
-        if (action === "clips") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clips });
+        if (action === "clips") {
+          const limit = Math.max(1, Number(parsed.searchParams.get("limit") || clips.length || 1));
+          const offset = Math.max(0, Number(parsed.searchParams.get("offset") || 0));
+          const pageClips = clips.slice(offset, offset + limit);
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clips: pageClips, pageSize: pageClips.length });
+        }
         if (action === "saved-searches") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearches: [] });
         if (action === "save-search") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearch: { id: "search-1", title: "Build Up Development" } });
         if (action === "save-review-session") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", reviewSession: { id: "review-1" } });

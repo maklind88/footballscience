@@ -34,6 +34,12 @@ function asLimit(value, fallback = DEFAULT_LIMIT) {
   return Math.min(limit, MAX_LIMIT);
 }
 
+function asOffset(value, fallback = 0) {
+  const offset = Math.floor(Number(value));
+  if (!Number.isFinite(offset) || offset <= 0) return fallback;
+  return Math.min(offset, 10000);
+}
+
 function asMs(value, fallback = 0) {
   const ms = Math.round(Number(value));
   return Number.isFinite(ms) && ms >= 0 ? ms : fallback;
@@ -186,6 +192,7 @@ module.exports = {
   MAX_BODY_BYTES,
   OUTCOMES,
   asLimit,
+  asOffset,
   asMs,
   actorScope,
   buildTeamParams,

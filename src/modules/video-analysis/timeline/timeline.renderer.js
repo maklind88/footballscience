@@ -2,9 +2,10 @@ import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml } from "../components/renderHelpers.js";
 import { TIMELINE_LANE_MODES } from "./timeline.constants.js";
 import {
-  buildTimelineLanes,
+  buildTimelineIndex,
   buildTimelineTicks,
   clipBlockStyle,
+  getTimelineDensity,
   getTimelineDurationMs,
   normalizeTimelineLaneMode,
   normalizeTimelineZoom,
@@ -109,7 +110,7 @@ function renderTimelinePlayhead(playheadMs = 0, totalMs = 1) {
   `;
 }
 
-function renderClipBlock(clip = {}, totalMs = 1, laneMode = "phase", selectedClipId = "", clipNumber = 1, categorySelected = false, button = null) {
+function renderClipBlock(clip = {}, totalMs = 1, laneMode = "phase", selectedClipId = "", clipNumber = 1, categorySelected = false, button = null, density = {}) {
   const startMs = getClipStartMs(clip);
   const endMs = getClipEndMs(clip);
   const outcome = clip.outcome || "Neutral";
@@ -131,7 +132,7 @@ function renderClipBlock(clip = {}, totalMs = 1, laneMode = "phase", selectedCli
       ></span>
       <span class="video-analysis-clip-block__copy">
         <strong>${escapeHtml(String(clipNumber))}</strong>
-        <small>${escapeHtml(formatVideoTime(startMs))}</small>
+        ${density.isDense ? "" : `<small>${escapeHtml(formatVideoTime(startMs))}</small>`}
       </span>
       <span
         class="video-analysis-clip-block__handle is-end"
@@ -148,7 +149,7 @@ function isActiveCategory(timeline = {}, laneMode = "phase", label = "") {
   return selected.laneMode === laneMode && selected.label === label;
 }
 
-function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", selectedClipId = "", timeline = {}, buttonLookup = {}) {
+function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", selectedClipId = "", timeline = {}, buttonLookup = {}, density = {}) {
   if (!lanes.length) {
     return `
       <div class="video-analysis-lane is-empty">
@@ -174,6 +175,7 @@ function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", select
       >
         <strong>${escapeHtml(lane.label)}</strong>
         <span>${escapeHtml(`${lane.clips.length} clip${lane.clips.length === 1 ? "" : "s"}`)}</span>
+        ${density.isDense && lane.clipCount ? `<span>${escapeHtml(`${formatVideoTime(lane.firstStartMs)} - ${formatVideoTime(lane.lastEndMs)}`)}</span>` : ""}
       </button>
       <div class="video-analysis-lane__track" data-video-analysis-timeline-track data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}">
         ${lane.clips.map((clip, index) => renderClipBlock(
@@ -183,7 +185,8 @@ function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", select
           selectedClipId,
           index + 1,
           isActiveCategory(timeline, laneMode, lane.label),
-          findClipButton(clip, buttonLookup)
+          findClipButton(clip, buttonLookup),
+          density
         )).join("")}
       </div>
     </div>
@@ -249,12 +252,20 @@ export function renderTimeline(state = {}) {
   const timeline = state.timeline || {};
   const laneMode = normalizeTimelineLaneMode(timeline.laneMode);
   const zoom = normalizeTimelineZoom(timeline.zoom);
-  const lanes = buildTimelineLanes(clips, laneMode);
+  const timelineIndex = buildTimelineIndex(clips, laneMode);
+  const lanes = timelineIndex.lanes;
   const ticks = buildTimelineTicks(totalMs);
+  const density = getTimelineDensity(timelineIndex, totalMs);
   const selectedLane = selectedTimelineLane(lanes, laneMode, timeline);
   const buttonLookup = buildTemplateButtonLookup(state.template || {});
   return `
-    <section class="video-analysis-timeline video-analysis-timeline-module" data-video-analysis-timeline-module data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}">
+    <section
+      class="video-analysis-timeline video-analysis-timeline-module${density.isDense ? " is-dense" : ""}"
+      data-video-analysis-timeline-module
+      data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}"
+      data-video-analysis-timeline-density="${density.isDense ? "dense" : "normal"}"
+      data-video-analysis-timeline-clip-count="${escapeHtml(density.clipCount)}"
+    >
       <div class="video-analysis-timeline-toolbar">
         ${renderLaneButtons(laneMode)}
       </div>
@@ -269,7 +280,7 @@ export function renderTimeline(state = {}) {
             ${renderTimelinePlayhead(timeline.playheadMs, totalMs)}
           </div>
           <div class="video-analysis-lane-stack">
-            ${renderTimelineLanes(lanes, totalMs, laneMode, state.selectedClipId, timeline, buttonLookup)}
+            ${renderTimelineLanes(lanes, totalMs, laneMode, state.selectedClipId, timeline, buttonLookup, density)}
           </div>
         </div>
       </div>

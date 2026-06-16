@@ -85,6 +85,8 @@ let runtime = null;
 let videoLibraryController = null;
 let timelineScrubController = null;
 const thumbnailRequests = new Set();
+const CLIP_PAGE_LIMIT = 200;
+const CLIP_WORKSPACE_LIMIT = 1000;
 
 function getRoot(context = {}) {
   return context.ui?.analysisRoomWorkspace || null;
@@ -709,19 +711,27 @@ async function loadClips(nextFilters = null) {
     error: preservePlaybackPreparation ? state.error : "",
   });
   try {
-    const payload = await run.clips.list({
-      search: filters.search,
-      phase: filters.phase,
-      outcome: filters.outcome,
-      teamPrincipleId: filters.principleId,
-      miniGamePrincipleId: filters.miniGamePrincipleId,
-      unit: filters.unit,
-      descriptorValue: filters.descriptorValue,
-      matchId: state.match?.id || "",
-      videoId: state.video?.id || "",
-      limit: 120,
-    });
-    let clips = (payload.clips || []).map(normalizeClipInstance);
+    let clips = [];
+    for (let offset = 0; offset < CLIP_WORKSPACE_LIMIT; offset += CLIP_PAGE_LIMIT) {
+      const payload = await run.clips.list({
+        search: filters.search,
+        phase: filters.phase,
+        outcome: filters.outcome,
+        teamPrincipleId: filters.principleId,
+        miniGamePrincipleId: filters.miniGamePrincipleId,
+        unit: filters.unit,
+        descriptorValue: filters.descriptorValue,
+        matchId: state.match?.id || "",
+        videoId: state.video?.id || "",
+        limit: CLIP_PAGE_LIMIT,
+        offset,
+      });
+      const pageClips = (payload.clips || []).map(normalizeClipInstance);
+      const pageSize = Math.max(0, Number(payload.pageSize ?? pageClips.length) || 0);
+      clips = clips.concat(pageClips);
+      if (pageSize < CLIP_PAGE_LIMIT) break;
+    }
+    clips = clips.slice(0, CLIP_WORKSPACE_LIMIT);
     if (filters.playerId) {
       clips = clips.filter((clip) => (clip.players || []).some((player) => (player.player_id || player.playerId) === filters.playerId));
     }

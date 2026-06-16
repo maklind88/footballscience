@@ -338,6 +338,72 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
 });
 
+test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) => {
+  await page.addInitScript(() => {
+    const phases = ["In Possession", "Out of Possession", "Offensive Transition", "Defensive Transition", "Set Pieces"];
+    const outcomes = ["Positive", "Development", "Neutral"];
+    window.__videoAnalysisSmokeClips = Array.from({ length: 500 }, (_, index) => ({
+      id: `clip-${index + 1}`,
+      match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+      video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+      start_ms: index * 14000,
+      end_ms: index * 14000 + 15000,
+      period: "1",
+      phase: phases[index % phases.length],
+      sub_phase: index % 2 ? "Build Up" : "Finishing Phase",
+      team_principle_id: index % 2 ? "create-free-player" : "secure-first-pass",
+      mini_game_principle_id: index % 2 ? "third-player" : "counterpress-5s",
+      outcome: outcomes[index % outcomes.length],
+      players: [],
+      tags: [],
+      descriptors: [],
+      notes: [],
+    }));
+    window.__videoAnalysisInitialState = {
+      view: "workspace",
+      match: {
+        id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        title: "500 tag match",
+      },
+      video: {
+        id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+      },
+      source: {
+        id: "source-1",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        local_video_identifier: "existing-video",
+      },
+      videoRef: {
+        objectUrl: "data:video/mp4;base64,AAAA",
+        durationMs: 7267240,
+        displayName: "500 tag match",
+      },
+      localFileStatus: "native-ready",
+      localFileMessage: "Native playback ready",
+      nativePlaybackReady: true,
+    };
+  });
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  const timeline = page.locator("[data-video-analysis-timeline-module]");
+  await expect(timeline).toHaveAttribute("data-video-analysis-timeline-density", "dense");
+  await expect(timeline).toHaveAttribute("data-video-analysis-timeline-clip-count", "500");
+  await expect(page.locator(".video-analysis-clip-block")).toHaveCount(500);
+  await expect(page.locator(".video-analysis-clip-block__copy small")).toHaveCount(0);
+  const phaseLane = page.locator('[data-video-analysis-timeline-category-label="In Possession"]');
+  await expect(phaseLane).toContainText("100 clips");
+  await expect(phaseLane).toContainText("0:00:00 - 1:55:45");
+  await phaseLane.click();
+  await expect(page.locator(".video-analysis-timeline-category-tray")).toContainText("100 clips selected");
+  await page.locator("[data-video-analysis-timeline-category-open]").click();
+  await expect(page.locator(".video-analysis-timeline-category-view button")).toHaveCount(100);
+  await expect.poll(() => page.evaluate(() => (
+    (window.__videoAnalysisRequests || []).filter((request) => request.action === "clips").length
+  ))).toBe(3);
+});
+
 test("Video Analysis Tag Panel creates a 15 second timeline tag from a code button", async ({ page }) => {
   await page.addInitScript(() => {
     window.__videoAnalysisInitialState = {

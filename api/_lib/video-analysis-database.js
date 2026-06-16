@@ -2,6 +2,7 @@ const { parseJsonBody, sendJson } = require("./supabase-admin.js");
 const {
   MAX_BODY_BYTES,
   asLimit,
+  asOffset,
   asMs,
   actorScope,
   buildTeamParams,
@@ -63,6 +64,7 @@ function buildClipSearchParams(query = {}, scope = actorScope()) {
   }
   params.set("order", "start_ms.asc");
   params.set("limit", String(asLimit(query.limit)));
+  params.set("offset", String(asOffset(query.offset)));
   return params;
 }
 
@@ -352,10 +354,11 @@ async function listClips(query, actor) {
     scope
   ));
   if (!result.ok) return result;
+  const pageSize = rowList(result).length;
   let clips = await attachClipRelations(result.payload, scope);
   const search = normalizeText(query.search || query.q, 120).toLowerCase();
   clips = clips.filter((clip) => clipMatchesSearch(clip, search) && clipMatchesFilters(clip, query));
-  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clips } };
+  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clips, pageSize } };
 }
 
 async function syncClipPlayersToIdp(clip = {}, saved = {}, actor = {}) {

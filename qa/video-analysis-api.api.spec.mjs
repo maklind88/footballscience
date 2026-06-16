@@ -97,6 +97,22 @@ test("video analysis clip search params support bounded presentation date match 
   expect(params.get("limit")).toBe("80");
 });
 
+test("video analysis clip search params support bounded timeline pagination", () => {
+  const params = api.buildClipSearchParams(
+    { limit: 200, offset: 400 },
+    { organizationId: "club-ncc", teamId: "team-ncc-first" }
+  );
+  const capped = api.buildClipSearchParams(
+    { limit: 9999, offset: 99999 },
+    { organizationId: "club-ncc", teamId: "team-ncc-first" }
+  );
+
+  expect(params.get("limit")).toBe("200");
+  expect(params.get("offset")).toBe("400");
+  expect(capped.get("limit")).toBe("200");
+  expect(capped.get("offset")).toBe("10000");
+});
+
 test("video analysis library API supports schedule candidates and autosaved match links", () => {
   const source = fs.readFileSync(path.join(rootDir, "api/_lib/video-analysis-database.js"), "utf8");
   const librarySource = fs.readFileSync(path.join(rootDir, "api/_lib/video-analysis-library-database.js"), "utf8");

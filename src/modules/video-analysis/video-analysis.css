@@ -2407,11 +2407,18 @@
 
 .video-analysis-code-button-editor {
   display: grid;
-  gap: 8px;
+  gap: 0;
   border: 1px solid #d8e0dc;
   border-radius: 7px;
-  padding: 9px;
+  padding: 7px;
   background: #fbfcfb;
+}
+
+.video-analysis-code-button-editor__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
 }
 
 .video-analysis-code-button-editor__head {
@@ -2440,9 +2447,30 @@
 
 .video-analysis-code-button-editor__actions {
   display: inline-flex;
+  align-items: center;
   gap: 5px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+}
+
+.video-analysis-code-button-editor__actions .video-analysis-code-button-editor__icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+}
+
+.video-analysis-code-button-editor__icon svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .video-analysis-button-editor-grid {

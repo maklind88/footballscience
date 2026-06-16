@@ -131,19 +131,49 @@ function renderButtonReorderList(group = {}, selectedButtonId = "") {
             data-video-analysis-template-drag-button="${escapeHtml(item.id)}"
             data-video-analysis-template-drop-button="${escapeHtml(group.label || "Custom")}:${escapeHtml(item.id)}"
           >
-            <button
-              type="button"
-              class="video-analysis-builder-button-card${item.id === selectedButtonId ? " is-active" : ""}"
-              style="--video-analysis-button-color: ${escapeHtml(item.color || "#143522")}"
-              data-video-analysis-template-select-button="${escapeHtml(item.id)}"
-            >
-              <span>${escapeHtml(item.label)}</span>
-            </button>
-            <div class="video-analysis-code-button-editor__actions">
-              <button type="button" data-video-analysis-template-move-button="${escapeHtml(item.id)}:-1" ${index === 0 ? "disabled" : ""}>Up</button>
-              <button type="button" data-video-analysis-template-move-button="${escapeHtml(item.id)}:1" ${index === group.buttons.length - 1 ? "disabled" : ""}>Down</button>
-              <button type="button" data-video-analysis-duplicate-code-button="${escapeHtml(item.id)}">Duplicate</button>
-              <button type="button" data-video-analysis-remove-code-button="${escapeHtml(item.id)}">Archive</button>
+            <div class="video-analysis-code-button-editor__row">
+              <button
+                type="button"
+                class="video-analysis-builder-button-card${item.id === selectedButtonId ? " is-active" : ""}"
+                style="--video-analysis-button-color: ${escapeHtml(item.color || "#143522")}"
+                data-video-analysis-template-select-button="${escapeHtml(item.id)}"
+              >
+                <span>${escapeHtml(item.label)}</span>
+              </button>
+              <div class="video-analysis-code-button-editor__actions" aria-label="Actions for ${escapeHtml(item.label)}">
+                ${renderBuilderActionButton({
+                  id: item.id,
+                  action: "move-button",
+                  value: "-1",
+                  label: `Move ${item.label} up`,
+                  title: "Move up",
+                  icon: "up",
+                  disabled: index === 0
+                })}
+                ${renderBuilderActionButton({
+                  id: item.id,
+                  action: "move-button",
+                  value: "1",
+                  label: `Move ${item.label} down`,
+                  title: "Move down",
+                  icon: "down",
+                  disabled: index === group.buttons.length - 1
+                })}
+                ${renderBuilderActionButton({
+                  id: item.id,
+                  action: "duplicate-code-button",
+                  label: `Duplicate ${item.label}`,
+                  title: "Duplicate",
+                  icon: "duplicate"
+                })}
+                ${renderBuilderActionButton({
+                  id: item.id,
+                  action: "remove-code-button",
+                  label: `Archive ${item.label}`,
+                  title: "Archive",
+                  icon: "archive"
+                })}
+              </div>
             </div>
           </article>
         `).join("")}
@@ -151,6 +181,36 @@ function renderButtonReorderList(group = {}, selectedButtonId = "") {
       </div>
     </section>
   `;
+}
+
+function renderBuilderActionButton({ id, action, value = "", label, title, icon, disabled = false }) {
+  const attribute = action === "move-button"
+    ? `data-video-analysis-template-move-button="${escapeHtml(id)}:${escapeHtml(value)}"`
+    : action === "duplicate-code-button"
+      ? `data-video-analysis-duplicate-code-button="${escapeHtml(id)}"`
+      : `data-video-analysis-remove-code-button="${escapeHtml(id)}"`;
+  return `
+    <button
+      type="button"
+      class="video-analysis-code-button-editor__icon"
+      ${attribute}
+      aria-label="${escapeHtml(label)}"
+      title="${escapeHtml(title)}"
+      ${disabled ? "disabled" : ""}
+    >
+      ${renderBuilderActionIcon(icon)}
+    </button>
+  `;
+}
+
+function renderBuilderActionIcon(icon) {
+  const icons = {
+    up: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 14 5-5 5 5"></path></svg>',
+    down: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 10 5 5 5-5"></path></svg>',
+    duplicate: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="8" y="8" width="10" height="10" rx="2"></rect><path d="M6 14H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg>',
+    archive: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16"></path><path d="M6 7v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"></path><path d="M9 11h6"></path><path d="M8 4h8l1 3H7l1-3Z"></path></svg>'
+  };
+  return icons[icon] || "";
 }
 
 function renderButtonInspector(state = {}, selectedButton = null) {

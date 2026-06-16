@@ -330,7 +330,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-presentation")).toContainText("Data Explorer");
   await expect(page.locator(".video-analysis-presentation")).toContainText("Meeting order");
   await expect(page.locator(".video-analysis-presentation")).toContainText("Clip prep");
-  await expect(page.locator(".video-analysis-presentation-access")).toContainText("Access");
+  await expect(page.locator(".video-analysis-presentation-access")).toContainText("Share");
   await expect(page.locator(".video-analysis-smart-save-strip")).toBeVisible();
   await expect(page.locator(".video-analysis-presentation-source-clip")).toHaveCount(1);
   await expect(page.locator(".video-analysis-presentation-source-clip")).toContainText("Alex Morgan");
@@ -341,6 +341,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-presentation .video-analysis-clip-list")).toHaveCount(0);
   await expect(page.locator(".video-analysis-presentation-source-clip__thumb")).toBeVisible();
 
+  await page.locator(".video-analysis-smart-save-strip summary").click();
   await page.locator('[data-video-analysis-smart-draft="title"]').fill("High press wins");
   await page.locator("[data-video-analysis-smart-save]").click();
   await expect(page.locator(".video-analysis-smart-collections")).toContainText("High press wins");
@@ -391,9 +392,11 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-drawing-layer-list li")).toHaveCount(1);
   await expect(page.locator(".video-analysis-drawing-layer-list")).toContainText("arrow");
   await page.locator('[data-video-analysis-draw-tool="text"]').click();
-  await page.mouse.move(drawingSurfaceBox.x + 250, drawingSurfaceBox.y + 190);
+  const textDrawingSurfaceBox = await page.locator("[data-video-analysis-drawing-surface]").boundingBox();
+  expect(textDrawingSurfaceBox).toBeTruthy();
+  await page.mouse.move(textDrawingSurfaceBox.x + 520, textDrawingSurfaceBox.y + 105);
   await page.mouse.down();
-  await page.mouse.move(drawingSurfaceBox.x + 280, drawingSurfaceBox.y + 210);
+  await page.mouse.move(textDrawingSurfaceBox.x + 560, textDrawingSurfaceBox.y + 135);
   await page.mouse.up();
   await expect(page.locator(".video-analysis-drawing-layer-list li")).toHaveCount(2);
   await page.locator(".video-analysis-drawing-overlay-input").fill("Trigger run");

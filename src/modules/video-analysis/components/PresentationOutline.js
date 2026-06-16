@@ -55,7 +55,10 @@ function renderOutlineSection(section = {}, state = {}) {
         </button>
         <input type="text" aria-label="Section title" data-video-analysis-presentation-section-title="${escapeHtml(section.id)}" value="${escapeHtml(section.title || "")}">
       </div>
-      <textarea rows="2" aria-label="Section coach note" placeholder="Section note for presenter" data-video-analysis-presentation-section-note="${escapeHtml(section.id)}">${escapeHtml(section.coachNote || "")}</textarea>
+      <details class="video-analysis-presentation-outline-section__note">
+        <summary>Coach note</summary>
+        <textarea rows="2" aria-label="Section coach note" placeholder="Section note for presenter" data-video-analysis-presentation-section-note="${escapeHtml(section.id)}">${escapeHtml(section.coachNote || "")}</textarea>
+      </details>
       <ol>
         ${items.length
           ? items.map((item) => renderOutlineItem(section.id, item, item.id === selectedItemId, state)).join("")
@@ -75,7 +78,7 @@ export function renderPresentationOutline(state = {}) {
           <p class="video-analysis-kicker">Organizer</p>
           <h3>Meeting order</h3>
         </div>
-        <button type="button" data-video-analysis-presentation-add-section>Add section</button>
+        <button type="button" data-video-analysis-presentation-add-section>+ Section</button>
       </div>
       <div class="video-analysis-presentation-outline-list">
         ${sections.map((section) => renderOutlineSection(section, state)).join("")}

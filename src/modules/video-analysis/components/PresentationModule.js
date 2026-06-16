@@ -38,7 +38,10 @@ function renderPresentationShareSettings(state = {}, current = {}) {
   const shareTargets = Array.isArray(current.shareTargets) ? current.shareTargets : [];
   return `
     <details class="video-analysis-presentation-access" ${state.presentation?.presentationAccessOpen ? "open" : ""}>
-      <summary data-video-analysis-presentation-access-toggle>Access</summary>
+      <summary data-video-analysis-presentation-access-toggle>
+        <span>Share</span>
+        <strong>${escapeHtml(shareTargets.length ? `${shareTargets.length} targets` : "Coach + analyst")}</strong>
+      </summary>
       <div class="video-analysis-presentation-access__grid">
         <label>
           <span>Target</span>
@@ -159,8 +162,8 @@ function renderPresentationStage(state = {}) {
           <span>${escapeHtml(state.videoRef?.objectUrl ? "Video linked" : "Metadata only")}</span>
         </div>
         <div class="video-analysis-presentation-stage-v2__actions">
-          <button type="button" data-video-analysis-seek="${escapeHtml(item?.clipId || "")}" ${item ? "" : "disabled"}>Cue clip</button>
-          <button type="button" data-video-analysis-presentation-mode="draw" ${item ? "" : "disabled"}>Telestrate</button>
+          <button type="button" data-video-analysis-seek="${escapeHtml(item?.clipId || "")}" ${item ? "" : "disabled"}>Cue</button>
+          <button type="button" data-video-analysis-presentation-mode="draw" ${item ? "" : "disabled"}>Draw</button>
           <button type="button" class="video-analysis-primary-action" data-video-analysis-presentation-mode="presenter" ${queue.length ? "" : "disabled"}>Present</button>
         </div>
       </div>
@@ -185,7 +188,7 @@ function renderPresentationStage(state = {}) {
           : `<p class="video-analysis-muted">Add clips to start the meeting queue.</p>`}
       </div>
       <details class="video-analysis-presentation-brief-panel">
-        <summary>Meeting notes and setup</summary>
+        <summary>Coach brief</summary>
         <label>
           <span>Meeting brief</span>
           <textarea rows="3" placeholder="Private notes for the staff before the room opens" data-video-analysis-presentation-notes>${escapeHtml(presentation.notes || "")}</textarea>
@@ -235,6 +238,14 @@ export function renderPresentationModule(state = {}) {
   const presentations = Array.isArray(presentationState.presentations) ? presentationState.presentations : [];
   const queue = presentationQueue(current);
   const drawingCount = queue.reduce((sum, item) => sum + (Array.isArray(item.drawings) ? item.drawings.length : 0), 0);
+  if (activeMode === "presenter") {
+    return `
+      <section class="video-analysis-presentation is-presenter" data-video-analysis-presentation-module>
+        ${presentationState.error ? `<div class="video-analysis-error" role="alert">${escapeHtml(presentationState.error)}</div>` : ""}
+        ${renderPresenterMode(state)}
+      </section>
+    `;
+  }
   return `
     <section class="video-analysis-presentation" data-video-analysis-presentation-module>
       <div class="video-analysis-presentation-topbar">
@@ -247,18 +258,20 @@ export function renderPresentationModule(state = {}) {
             <span>${escapeHtml(`${drawingCount} drawing layers`)}</span>
           </div>
         </div>
-        <div class="video-analysis-presentation-actions">
-          <select aria-label="Saved presentations" data-video-analysis-presentation-load>
-            <option value="">New / unsaved presentation</option>
-            ${presentations.map((presentation) => renderPresentationOption(presentation, current.id)).join("")}
-          </select>
-          <button type="button" data-video-analysis-presentation-new>New</button>
-          <button type="button" class="video-analysis-primary-action" data-video-analysis-presentation-save ${state.canEdit ? "" : "disabled"}>Save</button>
-          <button type="button" data-video-analysis-presentation-mode="presenter">Present</button>
+        <div class="video-analysis-presentation-command-stack">
+          ${renderModeBar(activeMode)}
+          <div class="video-analysis-presentation-actions">
+            <select aria-label="Saved presentations" data-video-analysis-presentation-load>
+              <option value="">New / unsaved presentation</option>
+              ${presentations.map((presentation) => renderPresentationOption(presentation, current.id)).join("")}
+            </select>
+            <button type="button" data-video-analysis-presentation-new>New</button>
+            <button type="button" class="video-analysis-primary-action" data-video-analysis-presentation-save ${state.canEdit ? "" : "disabled"}>Save</button>
+            <button type="button" data-video-analysis-presentation-mode="presenter">Present</button>
+          </div>
         </div>
       </div>
       ${renderPresentationShareSettings(state, current)}
-      ${renderModeBar(activeMode)}
       ${presentationState.error ? `<div class="video-analysis-error" role="alert">${escapeHtml(presentationState.error)}</div>` : ""}
       ${renderPresentationBody(state, activeMode)}
     </section>

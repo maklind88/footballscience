@@ -73,7 +73,7 @@ function renderSourceClip(clip = {}, activeSectionId = "", state = {}) {
           ${(tags.length ? tags : [clip.outcome || "Ready"]).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
         </div>
       </div>
-      <button type="button" data-video-analysis-presentation-add="${escapeHtml(activeSectionId)}:${escapeHtml(clip.id)}">Add</button>
+      <button type="button" aria-label="Add clip to presentation" data-video-analysis-presentation-add="${escapeHtml(activeSectionId)}:${escapeHtml(clip.id)}">+</button>
     </article>
   `;
 }
@@ -101,7 +101,7 @@ function renderSmartCollection(collection = {}, state = {}) {
       </div>
       <div class="video-analysis-smart-collection__actions">
         <button type="button" data-video-analysis-smart-pin="${escapeHtml(normalized.id || normalized.title)}">${pinned ? "Unpin" : "Pin"}</button>
-        <button type="button" data-video-analysis-smart-duplicate="${escapeHtml(normalized.id || normalized.title)}">Duplicate</button>
+        <button type="button" data-video-analysis-smart-duplicate="${escapeHtml(normalized.id || normalized.title)}">Copy</button>
         <button type="button" data-video-analysis-smart-share="${escapeHtml(normalized.id || normalized.title)}">Share</button>
       </div>
       ${state.presentation?.sharePanelTargetId === normalized.id ? renderSmartCollectionSharePanel(normalized, state) : ""}
@@ -175,20 +175,27 @@ function renderSmartCollectionSharePanel(collection = {}, state = {}) {
 function renderSmartCollectionDraft(state = {}) {
   const draft = state.presentation?.smartCollectionDraft || {};
   const filters = state.presentation?.sourceFilters || {};
+  const draftOpen = Boolean(draft.title || draft.description);
   return `
-    <div class="video-analysis-smart-save-strip">
-      <input type="text" placeholder="Playlist name, e.g. High press wins" data-video-analysis-smart-draft="title" value="${escapeHtml(draft.title || "")}">
-      <input type="text" placeholder="Short description" data-video-analysis-smart-draft="description" value="${escapeHtml(draft.description || "")}">
-      <select data-video-analysis-smart-draft="visibility">
-        ${optionList([
-          { id: "coach-analyst", label: "Coach + analyst" },
-          { id: "team", label: "Team" },
-          { id: "player-safe", label: "Player-safe" },
-          { id: "private", label: "Private" },
-        ], draft.visibility || "coach-analyst", (item) => item.id, (item) => item.label)}
-      </select>
-      <button type="button" data-video-analysis-smart-save>${escapeHtml(filters.search || filters.phase || filters.outcome || filters.tag ? "Save playlist" : "Save current view")}</button>
-    </div>
+    <details class="video-analysis-smart-save-strip" ${draftOpen ? "open" : ""}>
+      <summary>
+        <span>Save smart playlist</span>
+        <strong>${escapeHtml(filters.search || filters.phase || filters.outcome || filters.tag ? "Filtered view" : "Current view")}</strong>
+      </summary>
+      <div class="video-analysis-smart-save-strip__body">
+        <input type="text" placeholder="Playlist name, e.g. High press wins" data-video-analysis-smart-draft="title" value="${escapeHtml(draft.title || "")}">
+        <input type="text" placeholder="Short description" data-video-analysis-smart-draft="description" value="${escapeHtml(draft.description || "")}">
+        <select data-video-analysis-smart-draft="visibility">
+          ${optionList([
+            { id: "coach-analyst", label: "Coach + analyst" },
+            { id: "team", label: "Team" },
+            { id: "player-safe", label: "Player-safe" },
+            { id: "private", label: "Private" },
+          ], draft.visibility || "coach-analyst", (item) => item.id, (item) => item.label)}
+        </select>
+        <button type="button" data-video-analysis-smart-save>${escapeHtml(filters.search || filters.phase || filters.outcome || filters.tag ? "Save playlist" : "Save current view")}</button>
+      </div>
+    </details>
   `;
 }
 
@@ -214,14 +221,19 @@ export function renderPresentationSources(state = {}) {
       </div>
       <div class="video-analysis-presentation-source-filters">
         <input type="search" placeholder="Search clips, tags, player, match or date" data-video-analysis-presentation-filter="search" value="${escapeHtml(filters.search || "")}">
-        <select data-video-analysis-presentation-filter="phase">
-          <option value="">All phases</option>${optionList(videoAnalysisPhases, filters.phase)}
-        </select>
-        <select data-video-analysis-presentation-filter="outcome">
-          <option value="">All outcomes</option>${optionList(videoAnalysisOutcomes, filters.outcome)}
-        </select>
-        <input type="search" placeholder="Player or tag" data-video-analysis-presentation-filter="tag" value="${escapeHtml(filters.tag || "")}">
-        <input type="date" data-video-analysis-presentation-filter="date" value="${escapeHtml(filters.date || "")}">
+        <details class="video-analysis-presentation-source-advanced" ${filters.phase || filters.outcome || filters.tag || filters.date ? "open" : ""}>
+          <summary>Filters</summary>
+          <div>
+            <select data-video-analysis-presentation-filter="phase">
+              <option value="">All phases</option>${optionList(videoAnalysisPhases, filters.phase)}
+            </select>
+            <select data-video-analysis-presentation-filter="outcome">
+              <option value="">All outcomes</option>${optionList(videoAnalysisOutcomes, filters.outcome)}
+            </select>
+            <input type="search" placeholder="Player or tag" data-video-analysis-presentation-filter="tag" value="${escapeHtml(filters.tag || "")}">
+            <input type="date" data-video-analysis-presentation-filter="date" value="${escapeHtml(filters.date || "")}">
+          </div>
+        </details>
       </div>
       <div class="video-analysis-smart-collections" aria-label="Smart collections">
         <div class="video-analysis-smart-collections__header">

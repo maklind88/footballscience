@@ -69,7 +69,7 @@ export function renderPresenterMode(state = {}) {
             <h3>${escapeHtml(item ? itemTitle(item) : presentation.title || "Presentation")}</h3>
           </div>
           <div class="video-analysis-presenter-controls">
-            <button type="button" data-video-analysis-presenter-prev ${activeIndex > 0 ? "" : "disabled"}>Previous</button>
+            <button type="button" data-video-analysis-presenter-prev ${activeIndex > 0 ? "" : "disabled"}>Prev</button>
             <button type="button" data-video-analysis-presenter-next ${activeIndex < queue.length - 1 ? "" : "disabled"}>Next</button>
             <button type="button" data-video-analysis-presenter-freeze>${frozen ? "Unfreeze" : "Freeze"}</button>
             <button type="button" data-video-analysis-presenter-fullscreen>Fullscreen</button>

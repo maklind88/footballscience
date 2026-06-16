@@ -1,0 +1,261 @@
+#analysisRoomWorkspace .video-analysis-presentation {
+  display: grid;
+  gap: 12px;
+  color: #111816;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation.is-presenter {
+  gap: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-topbar {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  margin: 0 12px;
+  border: 1px solid rgba(202, 215, 207, 0.86);
+  border-radius: 16px;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(244, 208, 111, 0.18), transparent 30%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 249, 0.86));
+  box-shadow: 0 22px 60px rgba(18, 42, 28, 0.09);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-title-fields {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-title-fields input {
+  width: 100%;
+  min-width: 0;
+  max-width: 760px;
+  border: 0;
+  padding: 0;
+  color: #0d1512;
+  background: transparent;
+  font: inherit;
+  font-size: clamp(24px, 2.2vw, 34px);
+  font-weight: 920;
+  line-height: 1.05;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-meta,
+#analysisRoomWorkspace .video-analysis-presentation-stage-kpis,
+#analysisRoomWorkspace .video-analysis-smart-collection__meta,
+#analysisRoomWorkspace .video-analysis-smart-collection__actions,
+#analysisRoomWorkspace .video-analysis-smart-share-panel__actions,
+#analysisRoomWorkspace .video-analysis-smart-share-targets {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-meta span,
+#analysisRoomWorkspace .video-analysis-presentation-stage-kpis span,
+#analysisRoomWorkspace .video-analysis-smart-collection__meta span,
+#analysisRoomWorkspace .video-analysis-share-target-pill,
+#analysisRoomWorkspace .video-analysis-drawing-actions span {
+  border: 1px solid rgba(210, 222, 214, 0.9);
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #506158;
+  background: rgba(255, 255, 255, 0.74);
+  font-size: 11px;
+  font-weight: 860;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-command-stack {
+  display: grid;
+  justify-items: end;
+  gap: 9px;
+  min-width: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-modebar {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  gap: 2px;
+  margin: 0;
+  border: 1px solid rgba(195, 209, 201, 0.9);
+  border-radius: 999px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 10px 28px rgba(20, 32, 24, 0.08);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-modebar button,
+#analysisRoomWorkspace .video-analysis-draw-tool-grid button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 13px;
+  color: #405046;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 880;
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-modebar button.is-active,
+#analysisRoomWorkspace .video-analysis-draw-tool-grid button.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, #1d5a39, #103721);
+  box-shadow: 0 12px 22px rgba(16, 55, 33, 0.18);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-actions,
+#analysisRoomWorkspace .video-analysis-presentation-stage-v2__actions,
+#analysisRoomWorkspace .video-analysis-selected-clip__actions,
+#analysisRoomWorkspace .video-analysis-presenter-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-actions select,
+#analysisRoomWorkspace .video-analysis-presentation-actions button,
+#analysisRoomWorkspace .video-analysis-presentation-source-filters input,
+#analysisRoomWorkspace .video-analysis-presentation-source-advanced select,
+#analysisRoomWorkspace .video-analysis-presentation-source-advanced input,
+#analysisRoomWorkspace .video-analysis-presentation-outline-section input,
+#analysisRoomWorkspace .video-analysis-presentation-outline-section textarea,
+#analysisRoomWorkspace .video-analysis-selected-clip input,
+#analysisRoomWorkspace .video-analysis-selected-clip textarea,
+#analysisRoomWorkspace .video-analysis-smart-save-strip input,
+#analysisRoomWorkspace .video-analysis-smart-save-strip select,
+#analysisRoomWorkspace .video-analysis-smart-share-panel input,
+#analysisRoomWorkspace .video-analysis-smart-share-panel select,
+#analysisRoomWorkspace .video-analysis-presentation-access input,
+#analysisRoomWorkspace .video-analysis-presentation-access select,
+#analysisRoomWorkspace .video-analysis-drawing-form input {
+  min-width: 0;
+  min-height: 36px;
+  border: 1px solid rgba(202, 213, 206, 0.92);
+  border-radius: 10px;
+  padding: 0 11px;
+  color: #142018;
+  background: rgba(255, 255, 255, 0.9);
+  font: inherit;
+  font-size: 13px;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-actions button,
+#analysisRoomWorkspace .video-analysis-presentation-stage-v2__actions button,
+#analysisRoomWorkspace .video-analysis-selected-clip__actions button,
+#analysisRoomWorkspace .video-analysis-presentation-source-tools button,
+#analysisRoomWorkspace .video-analysis-presentation-source-clip > button:last-child,
+#analysisRoomWorkspace .video-analysis-presentation-outline-section button,
+#analysisRoomWorkspace .video-analysis-presentation-outline-item button,
+#analysisRoomWorkspace .video-analysis-smart-collection__actions button,
+#analysisRoomWorkspace .video-analysis-smart-save-strip button,
+#analysisRoomWorkspace .video-analysis-smart-share-panel button,
+#analysisRoomWorkspace .video-analysis-presentation-access button,
+#analysisRoomWorkspace .video-analysis-drawing-actions button,
+#analysisRoomWorkspace .video-analysis-drawing-form button,
+#analysisRoomWorkspace .video-analysis-drawing-layer-list button,
+#analysisRoomWorkspace .video-analysis-presenter-controls button,
+#analysisRoomWorkspace .video-analysis-load-more-clips {
+  min-height: 34px;
+  border: 1px solid rgba(195, 206, 199, 0.95);
+  border-radius: 10px;
+  padding: 0 11px;
+  color: #16231b;
+  background: rgba(255, 255, 255, 0.82);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 860;
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-actions .video-analysis-primary-action,
+#analysisRoomWorkspace .video-analysis-presentation-stage-v2__actions .video-analysis-primary-action,
+#analysisRoomWorkspace .video-analysis-smart-share-panel .video-analysis-primary-action,
+#analysisRoomWorkspace .video-analysis-presentation-access .video-analysis-primary-action,
+#analysisRoomWorkspace .video-analysis-drawing-form button[data-video-analysis-drawing-add] {
+  border-color: #143522;
+  color: #fff;
+  background: linear-gradient(135deg, #1e5c3a, #103721);
+  box-shadow: 0 12px 24px rgba(16, 55, 33, 0.14);
+}
+
+#analysisRoomWorkspace button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-access {
+  margin: -4px 12px 0 auto;
+  width: min(720px, calc(100% - 24px));
+  border: 1px solid rgba(207, 219, 211, 0.86);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 14px 36px rgba(18, 42, 28, 0.06);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-access summary,
+#analysisRoomWorkspace .video-analysis-smart-save-strip summary,
+#analysisRoomWorkspace .video-analysis-presentation-brief-panel summary,
+#analysisRoomWorkspace .video-analysis-presentation-outline-section__note summary,
+#analysisRoomWorkspace .video-analysis-selected-clip__notes summary,
+#analysisRoomWorkspace .video-analysis-drawing-settings summary,
+#analysisRoomWorkspace .video-analysis-presentation-source-advanced summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 0 12px;
+  color: #405048;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-access summary strong,
+#analysisRoomWorkspace .video-analysis-smart-save-strip summary strong {
+  color: #6a785f;
+  font-size: 11px;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-access__grid,
+#analysisRoomWorkspace .video-analysis-smart-share-panel__row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto auto;
+  gap: 8px;
+  align-items: end;
+  padding: 0 12px 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-access label,
+#analysisRoomWorkspace .video-analysis-smart-share-panel label,
+#analysisRoomWorkspace .video-analysis-presentation-brief-panel label,
+#analysisRoomWorkspace .video-analysis-selected-clip__notes label {
+  display: grid;
+  gap: 5px;
+  color: #627168;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-share-targets {
+  padding: 0 12px 12px;
+}
+
+#analysisRoomWorkspace .video-analysis-share-target-pill button {
+  min-width: 20px;
+  min-height: 20px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  color: #fff;
+  background: #143522;
+}

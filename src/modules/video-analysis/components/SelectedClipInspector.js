@@ -36,8 +36,8 @@ export function renderSelectedClipInspector(state = {}) {
         <button type="button" data-video-analysis-seek="${escapeHtml(item.clipId)}">${escapeHtml(formatVideoTime(startMs))}</button>
       </div>
       <div class="video-analysis-selected-clip__actions">
-        <button type="button" data-video-analysis-presentation-mode="draw">Open telestration</button>
-        <button type="button" data-video-analysis-presentation-mode="presenter">Cue in presenter</button>
+        <button type="button" data-video-analysis-presentation-mode="draw">Draw</button>
+        <button type="button" data-video-analysis-presentation-mode="presenter">Present</button>
       </div>
       <div class="video-analysis-selected-clip__meta">
         <span>${escapeHtml(clip.phase || "Phase")}</span>

@@ -117,7 +117,7 @@ export function renderDrawingCanvas(state = {}) {
           ${!hasVideo ? `<button type="button" class="video-analysis-drawing-link-video" data-video-analysis-load>Link local video</button>` : ""}
         </div>
         <div class="video-analysis-drawing-layer-timeline" aria-label="Drawing timeline">
-          ${layers.length ? layers.map((layer, index) => renderLayerMarker(layer, index, selectedLayerId)).join("") : `<p class="video-analysis-muted">No drawing points yet. Choose a tool, then drag on the video.</p>`}
+          ${layers.length ? layers.map((layer, index) => renderLayerMarker(layer, index, selectedLayerId)).join("") : `<p class="video-analysis-muted">No drawing points yet.</p>`}
         </div>
       </div>
       <aside class="video-analysis-drawing-side" aria-label="Drawing tools and layers">

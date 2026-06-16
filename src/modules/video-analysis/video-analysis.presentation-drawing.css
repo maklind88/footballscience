@@ -1,0 +1,110 @@
+#analysisRoomWorkspace .video-analysis-drawing-builder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.28fr);
+  gap: 14px;
+  padding: 0 12px 12px;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-builder__stage,
+#analysisRoomWorkspace .video-analysis-drawing-side {
+  display: grid;
+  gap: 10px;
+  align-self: start;
+  padding-bottom: 12px;
+}
+
+#analysisRoomWorkspace .video-analysis-draw-tool-grid--stage {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 0 12px;
+}
+
+#analysisRoomWorkspace .video-analysis-draw-tool-grid--stage button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 12px 0 7px;
+  text-align: left;
+}
+
+#analysisRoomWorkspace .video-analysis-draw-tool-grid--stage button span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: #123522;
+  background: #f4d06f;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+#analysisRoomWorkspace .video-analysis-draw-tool-grid--stage button.is-active span {
+  color: #f8fff9;
+  background: #123522;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-canvas {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-video {
+  position: absolute;
+  inset: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-canvas small {
+  z-index: 4;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(5, 8, 7, 0.46);
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay {
+  touch-action: none;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay.is-selected {
+  border-color: #fff;
+  box-shadow: 0 0 0 3px rgba(244, 208, 111, 0.38), 0 14px 30px rgba(0, 0, 0, 0.26);
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay i {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #05100b;
+  border-radius: 999px;
+  background: #f4d06f;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay i:nth-of-type(1) { left: -10px; top: 50%; transform: translateY(-50%); }
+#analysisRoomWorkspace .video-analysis-drawing-overlay i:nth-of-type(2) { right: -10px; top: 50%; transform: translateY(-50%); }
+#analysisRoomWorkspace .video-analysis-drawing-overlay i:nth-of-type(3) { left: -8px; top: -8px; }
+#analysisRoomWorkspace .video-analysis-drawing-overlay i:nth-of-type(4) { right: -8px; bottom: -8px; }
+
+#analysisRoomWorkspace .video-analysis-drawing-overlay-input {
+  width: min(180px, 28vw);
+  min-height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.48);
+  border-radius: 8px;
+  padding: 0 8px;
+  color: #fff;
+  background: rgba(5, 8, 7, 0.7);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+#analysisRoomWorkspace .video-analysis-drawing-settings .video-analysis-drawing-form {
+  display: grid;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+

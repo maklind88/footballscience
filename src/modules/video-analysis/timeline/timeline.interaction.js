@@ -55,6 +55,15 @@ export function createTimelineScrubController(options = {}) {
     targetRoot.querySelectorAll(".video-analysis-playhead").forEach((playhead) => {
       playhead.style.left = left;
     });
+    targetRoot.querySelectorAll("[data-video-analysis-player-current-time]").forEach((time) => {
+      time.textContent = formatVideoTime(safeMs);
+    });
+    targetRoot.querySelectorAll("[data-video-analysis-player-duration-time]").forEach((time) => {
+      time.textContent = `/ ${formatVideoTime(safeDuration)}`;
+    });
+    targetRoot.querySelectorAll("[data-video-analysis-player-meta-duration]").forEach((time) => {
+      time.textContent = formatVideoTime(safeDuration);
+    });
     syncScrubTimes(safeMs, safeDuration, Boolean(session && session.type !== "pan"));
   }
 

@@ -1,4 +1,5 @@
 import { formatVideoTime } from "../services/videoPlaybackService.js";
+import { getTimelineDurationMs } from "../timeline/timeline.service.js";
 import { escapeHtml } from "./renderHelpers.js";
 
 export function renderVideoPlayer(state = {}) {
@@ -52,7 +53,7 @@ export function renderVideoPlayer(state = {}) {
       : "";
   const title = ref?.displayName || state.match?.title || state.pendingScheduleLink?.title || "No match video loaded";
   const currentMs = Math.max(0, Math.round(Number(state.timeline?.playheadMs || 0)));
-  const durationMs = Math.max(0, Math.round(Number(ref?.durationMs || 0)));
+  const durationMs = Math.max(0, Math.round(Number(ref?.durationMs || 0)), Math.round(Number(getTimelineDurationMs(state) || 0)));
   const visibleClipCount = Array.isArray(state.clips) ? state.clips.length : 0;
   const totalClipCount = Array.isArray(state.allClips) && state.allClips.length ? state.allClips.length : visibleClipCount;
   const filtered = totalClipCount > visibleClipCount;
@@ -83,8 +84,8 @@ export function renderVideoPlayer(state = {}) {
       </div>
       <div class="video-analysis-player-transport" aria-label="FS Player playback controls">
         <div class="video-analysis-player-time">
-          <strong>${escapeHtml(formatVideoTime(currentMs))}</strong>
-          <span>/ ${escapeHtml(formatVideoTime(durationMs))}</span>
+          <strong data-video-analysis-player-current-time>${escapeHtml(formatVideoTime(currentMs))}</strong>
+          <span data-video-analysis-player-duration-time>/ ${escapeHtml(formatVideoTime(durationMs))}</span>
         </div>
         <div class="video-analysis-player-controls">
           <span>1x</span>
@@ -101,7 +102,7 @@ export function renderVideoPlayer(state = {}) {
       <div class="video-analysis-player__meta">
         <span>${escapeHtml(playbackStatus)}</span>
         ${codecText ? `<span>${escapeHtml(codecText)}</span>` : ""}
-        <span>${formatVideoTime(ref?.durationMs || 0)}</span>
+        <span data-video-analysis-player-meta-duration>${formatVideoTime(durationMs)}</span>
       </div>
     </section>
   `;

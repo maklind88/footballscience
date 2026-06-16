@@ -828,7 +828,25 @@ test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red 
 
   await expect(page.locator(".video-analysis-timeline-ruler")).toContainText("0:00:00");
   await expect(page.locator(".video-analysis-timeline-ruler")).toContainText("2:01:07");
+  await expect(page.locator(".video-analysis-player-time")).toContainText("0:00:00");
+  await expect(page.locator(".video-analysis-player-time")).toContainText("/ 2:01:07");
   await expect(page.locator(".video-analysis-player__meta")).toContainText("2:01:07");
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    video.__videoAnalysisTestCurrentTime = 83;
+    Object.defineProperty(video, "currentTime", {
+      configurable: true,
+      get() {
+        return this.__videoAnalysisTestCurrentTime || 0;
+      },
+      set(value) {
+        this.__videoAnalysisTestCurrentTime = Number(value) || 0;
+      },
+    });
+    video.dispatchEvent(new Event("timeupdate"));
+  });
+  await expect(page.locator(".video-analysis-player-time")).toContainText("0:01:23");
+  await expect(page.locator(".video-analysis-player-time")).toContainText("/ 2:01:07");
   await expect.poll(() => page.evaluate(() => {
     const scroller = document.querySelector(".video-analysis-timeline-scroll");
     const canvas = document.querySelector(".video-analysis-timeline-canvas");

@@ -167,6 +167,27 @@ test("video analysis timeline indexes 500 clips for dense workstations", async (
   expect(density).toMatchObject({ isDense: true, clipCount: 500, laneCount: 5, maxClipsInLane: 100 });
 });
 
+test("video player transport time follows timeline duration and live video time updates", async () => {
+  const player = await import(pathToFileURL(path.join(moduleDir, "components/VideoPlayer.js")).href);
+  const timelineInteraction = read("src/modules/video-analysis/timeline/timeline.interaction.js");
+  const html = player.renderVideoPlayer({
+    videoRef: { objectUrl: "blob:match-video", durationMs: 0, displayName: "Match #11" },
+    timeline: { playheadMs: 39000 },
+    clips: [],
+    allClips: [
+      { id: "clip-1", startMs: 0, endMs: 3357000 },
+    ],
+  });
+
+  expect(html).toContain("data-video-analysis-player-current-time");
+  expect(html).toContain("data-video-analysis-player-duration-time");
+  expect(html).toContain("data-video-analysis-player-meta-duration");
+  expect(html).toContain("0:00:39");
+  expect(html).toContain("/ 0:55:57");
+  expect(timelineInteraction).toContain("data-video-analysis-player-current-time");
+  expect(timelineInteraction).toContain("data-video-analysis-player-duration-time");
+});
+
 test("video analysis workstation keeps controls out of the video player", () => {
   const shell = read("src/modules/video-analysis/index.js");
   const templateBuilder = read("src/modules/video-analysis/components/CodingTemplateBuilder.js");

@@ -1996,8 +1996,9 @@
 .video-analysis-builder-card-actions,
 .video-analysis-code-button-editor__actions {
   display: inline-flex;
+  align-items: center;
   gap: 5px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-start;
 }
 
@@ -2021,6 +2022,16 @@
 .video-analysis-code-button-editor__actions button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.video-analysis-builder-card-actions .video-analysis-builder-card-action-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
 }
 
 .video-analysis-builder-button-card {
@@ -2463,6 +2474,7 @@
   padding: 0;
 }
 
+.video-analysis-builder-card-action-icon svg,
 .video-analysis-code-button-editor__icon svg {
   width: 15px;
   height: 15px;

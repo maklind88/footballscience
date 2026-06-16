@@ -99,8 +99,8 @@ function renderGroupReorderList(groups = [], selectedGroup = "", dirty = false, 
               <span>${escapeHtml(`${group.buttons.length} button${group.buttons.length === 1 ? "" : "s"}`)}</span>
             </button>
             <div class="video-analysis-builder-card-actions">
-              <button type="button" data-video-analysis-template-move-group="${escapeHtml(group.label)}:-1" ${index === 0 ? "disabled" : ""}>Up</button>
-              <button type="button" data-video-analysis-template-move-group="${escapeHtml(group.label)}:1" ${index === groups.length - 1 ? "disabled" : ""}>Down</button>
+              ${renderBuilderGroupMoveButton(group.label, -1, index === 0)}
+              ${renderBuilderGroupMoveButton(group.label, 1, index === groups.length - 1)}
             </div>
           </article>
         `).join("")}
@@ -113,6 +113,22 @@ function renderGroupReorderList(groups = [], selectedGroup = "", dirty = false, 
         <button type="button" data-video-analysis-add-button-group>Add group</button>
       </div>
     </section>
+  `;
+}
+
+function renderBuilderGroupMoveButton(groupLabel, direction, disabled = false) {
+  const directionLabel = direction < 0 ? "up" : "down";
+  return `
+    <button
+      type="button"
+      class="video-analysis-builder-card-action-icon"
+      data-video-analysis-template-move-group="${escapeHtml(groupLabel)}:${escapeHtml(String(direction))}"
+      aria-label="Move ${escapeHtml(groupLabel)} ${directionLabel}"
+      title="Move ${directionLabel}"
+      ${disabled ? "disabled" : ""}
+    >
+      ${renderBuilderActionIcon(directionLabel)}
+    </button>
   `;
 }
 

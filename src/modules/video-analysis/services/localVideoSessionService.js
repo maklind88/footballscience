@@ -20,6 +20,11 @@ function firstText(...values) {
   return "";
 }
 
+function metadataValue(record = {}, key = "") {
+  const metadata = record?.metadata && typeof record.metadata === "object" ? record.metadata : {};
+  return firstText(metadata[key], metadata[key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`)]);
+}
+
 function currentUserIdentity(context = {}) {
   const user = context.currentUser || {};
   return {
@@ -75,15 +80,45 @@ export function buildLocalVideoHandleIdentity(state = {}, context = {}, override
       reference.localVideoIdentifier,
       reference.local_video_identifier
     ),
+    scheduleEventId: firstText(
+      overrides.scheduleEventId,
+      overrides.schedule_event_id,
+      source.scheduleEventId,
+      source.schedule_event_id,
+      video.scheduleEventId,
+      video.schedule_event_id,
+      match.scheduleEventId,
+      match.schedule_event_id,
+      metadataValue(match, "scheduleEventId")
+    ),
+    scheduleDayKey: firstText(
+      overrides.scheduleDayKey,
+      overrides.schedule_day_key,
+      source.scheduleDayKey,
+      source.schedule_day_key,
+      video.scheduleDayKey,
+      video.schedule_day_key,
+      match.scheduleDayKey,
+      match.schedule_day_key,
+      metadataValue(match, "scheduleDayKey"),
+      match.matchDate,
+      match.match_date
+    ),
+    matchDate: firstText(overrides.matchDate, overrides.match_date, match.matchDate, match.match_date, source.matchDate, source.match_date),
+    displayName: firstText(overrides.displayName, overrides.display_name, reference.displayName, reference.display_name, source.displayName, source.display_name, video.title, match.title),
   };
 }
 
 function hasPersistentIdentity(identity = {}) {
+  return Boolean(identity.matchId || identity.videoId || identity.localVideoIdentifier || identity.scheduleEventId || identity.scheduleDayKey || identity.matchDate || identity.displayName);
+}
+
+function hasCentralVideoIdentity(identity = {}) {
   return Boolean(identity.matchId || identity.videoId || identity.localVideoIdentifier);
 }
 
 function shouldBackfillIdentity(record = {}, identity = {}) {
-  return ["organizationId", "teamId", "matchId", "videoId", "localVideoIdentifier"]
+  return ["organizationId", "teamId", "matchId", "videoId", "localVideoIdentifier", "scheduleEventId", "scheduleDayKey", "matchDate", "displayName"]
     .some((key) => text(record[key]) !== text(identity[key]));
 }
 
@@ -138,10 +173,11 @@ export async function restoreLocalVideoHandleForState({ state = {}, context = {}
 
   const record = await getVideoHandle(identity, win);
   if (!record?.handle) {
+    const linkedMetadata = hasCentralVideoIdentity(identity);
     return {
       ok: false,
       reason: "missing-handle",
-      patch: localVideoStatusPatch("linked-unavailable", "Reconnect local file on this device", {
+      patch: localVideoStatusPatch(linkedMetadata ? "linked-unavailable" : "none", linkedMetadata ? "Reconnect local file on this device" : "No video linked", {
         localFileHandleIdentity: identity,
         nativePlaybackReady: false,
         bridgeFallbackRecommended: false,

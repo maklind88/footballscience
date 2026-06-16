@@ -16,6 +16,10 @@ function identityId(criteria = {}) {
   ].join("::");
 }
 
+function comparableText(value = "") {
+  return text(value).toLowerCase();
+}
+
 function normalizeIdentity(criteria = {}) {
   return {
     id: identityId(criteria),
@@ -24,6 +28,10 @@ function normalizeIdentity(criteria = {}) {
     matchId: text(criteria.matchId || criteria.match_id),
     videoId: text(criteria.videoId || criteria.video_id),
     localVideoIdentifier: text(criteria.localVideoIdentifier || criteria.local_video_identifier),
+    scheduleEventId: text(criteria.scheduleEventId || criteria.schedule_event_id),
+    scheduleDayKey: text(criteria.scheduleDayKey || criteria.schedule_day_key),
+    matchDate: text(criteria.matchDate || criteria.match_date),
+    displayName: text(criteria.displayName || criteria.display_name || criteria.name),
   };
 }
 
@@ -35,11 +43,24 @@ function normalizeLookupCriteria(criteria = {}) {
     matchId: text(criteria.matchId || criteria.match_id),
     videoId: text(criteria.videoId || criteria.video_id),
     localVideoIdentifier: text(criteria.localVideoIdentifier || criteria.local_video_identifier),
+    scheduleEventId: text(criteria.scheduleEventId || criteria.schedule_event_id),
+    scheduleDayKey: text(criteria.scheduleDayKey || criteria.schedule_day_key),
+    matchDate: text(criteria.matchDate || criteria.match_date),
+    displayName: text(criteria.displayName || criteria.display_name || criteria.name),
   };
 }
 
 function hasLookupTarget(criteria = {}) {
-  return Boolean(criteria.id || criteria.matchId || criteria.videoId || criteria.localVideoIdentifier);
+  return Boolean(
+    criteria.id
+    || criteria.matchId
+    || criteria.videoId
+    || criteria.localVideoIdentifier
+    || criteria.scheduleEventId
+    || criteria.scheduleDayKey
+    || criteria.matchDate
+    || criteria.displayName
+  );
 }
 
 function hasIndexedDb(win = window) {
@@ -90,7 +111,11 @@ function matchesCriteria(record = {}, criteria = {}) {
     && (!normalized.teamId || record.teamId === normalized.teamId)
     && (!normalized.matchId || record.matchId === normalized.matchId)
     && (!normalized.videoId || record.videoId === normalized.videoId)
-    && (!normalized.localVideoIdentifier || record.localVideoIdentifier === normalized.localVideoIdentifier);
+    && (!normalized.localVideoIdentifier || record.localVideoIdentifier === normalized.localVideoIdentifier)
+    && (!normalized.scheduleEventId || record.scheduleEventId === normalized.scheduleEventId)
+    && (!normalized.scheduleDayKey || record.scheduleDayKey === normalized.scheduleDayKey)
+    && (!normalized.matchDate || record.matchDate === normalized.matchDate)
+    && (!normalized.displayName || [record.displayName, record.name].some((value) => comparableText(value) === comparableText(normalized.displayName)));
 }
 
 function compatibleScope(recordValue = "", lookupValue = "", fallbackValue = "") {
@@ -106,16 +131,24 @@ function scoreRecordMatch(record = {}, criteria = {}) {
   const videoMatch = Boolean(normalized.videoId && record.videoId === normalized.videoId);
   const matchMatch = Boolean(normalized.matchId && record.matchId === normalized.matchId);
   const identifierMatch = Boolean(normalized.localVideoIdentifier && record.localVideoIdentifier === normalized.localVideoIdentifier);
+  const scheduleEventMatch = Boolean(normalized.scheduleEventId && record.scheduleEventId === normalized.scheduleEventId);
+  const scheduleDayMatch = Boolean(normalized.scheduleDayKey && record.scheduleDayKey === normalized.scheduleDayKey);
+  const dateMatch = Boolean(normalized.matchDate && record.matchDate === normalized.matchDate);
+  const displayNameMatch = Boolean(normalized.displayName && [record.displayName, record.name].some((value) => comparableText(value) === comparableText(normalized.displayName)));
   const scopeCompatible = compatibleScope(record.organizationId, normalized.organizationId, "local")
     && compatibleScope(record.teamId, normalized.teamId, "team");
 
-  if (!scopeCompatible && !videoMatch && !matchMatch && !identifierMatch) return 0;
-  if (!videoMatch && !matchMatch && !identifierMatch) return 0;
+  if (!scopeCompatible && !videoMatch && !matchMatch && !identifierMatch && !scheduleEventMatch && !scheduleDayMatch && !dateMatch && !displayNameMatch) return 0;
+  if (!videoMatch && !matchMatch && !identifierMatch && !scheduleEventMatch && !scheduleDayMatch && !dateMatch && !displayNameMatch) return 0;
 
   let score = 0;
   if (videoMatch) score += 500;
   if (identifierMatch) score += 350;
   if (matchMatch) score += 250;
+  if (scheduleEventMatch) score += 220;
+  if (scheduleDayMatch) score += 180;
+  if (dateMatch) score += 120;
+  if (displayNameMatch) score += 80;
   if (record.organizationId && normalized.organizationId && record.organizationId === normalized.organizationId) score += 50;
   if (record.teamId && normalized.teamId && record.teamId === normalized.teamId) score += 50;
   return score;
@@ -145,7 +178,8 @@ export async function saveVideoHandle(values = {}, win = window) {
   const record = {
     ...identity,
     handle: values.handle,
-    name: text(values.handle?.name || values.displayName || values.display_name),
+    name: text(values.handle?.name || values.displayName || values.display_name || identity.displayName),
+    displayName: identity.displayName || text(values.handle?.name || values.displayName || values.display_name),
     updatedAt: new Date().toISOString(),
   };
   const db = await openDatabase(win);

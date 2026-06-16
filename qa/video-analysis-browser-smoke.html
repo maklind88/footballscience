@@ -157,8 +157,10 @@
         }
         if (action === "save-clip") {
           const input = body.clip || {};
+          const existingClip = input.id ? clips.find((item) => item.id === input.id) : null;
           const clip = {
-            id: `clip-${clips.length + 1}`,
+            ...(existingClip || {}),
+            id: input.id || `clip-${clips.length + 1}`,
             match_id: input.matchId || input.match_id || matches[0].id,
             video_id: input.videoId || input.video_id || matches[0].latest_video.id,
             start_ms: input.startMs ?? input.start_ms ?? 0,
@@ -179,7 +181,8 @@
             descriptors: input.descriptors || [],
             notes: input.notes || [],
           };
-          clips.push(clip);
+          if (existingClip) Object.assign(existingClip, clip);
+          else clips.push(clip);
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip });
         }
         if (action === "trim-clip") {

@@ -14,7 +14,7 @@ import { createClipRepository } from "./repositories/clipRepository.js";
 import { createPlaylistRepository } from "./repositories/playlistRepository.js";
 import { createPresentationRepository } from "./repositories/presentationRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
-import { buildClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
+import { applyCodingButtonToClip, buildClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
 import {
   addCodingButtonGroupToTemplate,
@@ -458,13 +458,16 @@ async function restoreLocalVideoHandle(context = {}, options = {}) {
       requestReadPermission: Boolean(options.requestPermission),
     });
     if (result.ok && result.reference) {
+      const metadataPatch = await ensureMetadataForRestoredReference(run, context, result.reference, result.record);
       revokeLocalVideoReference(state.videoRef, context.win || window);
       run.store.update((current) => ({
         ...current,
+        ...metadataPatch,
         videoRef: result.reference,
         ...result.patch,
+        localFileHandleIdentity: metadataPatch.localFileHandleIdentity || result.patch?.localFileHandleIdentity,
         status: "ready",
-        message: options.silent ? current.message : "Local file connected on this device.",
+        message: options.silent ? current.message : metadataPatch.video ? "Local file and video metadata restored." : "Local file connected on this device.",
         error: "",
       }));
       return true;
@@ -486,6 +489,68 @@ async function restoreLocalVideoHandle(context = {}, options = {}) {
     });
     return false;
   }
+}
+
+function hasVideoAnalysisMetadata(state = {}) {
+  return Boolean(state.match?.id && state.video?.id);
+}
+
+function localVideoSourcePayloadFromReference(reference = {}, state = {}) {
+  const pendingSchedule = state.pendingScheduleLink || {};
+  const activeMatch = state.match || {};
+  return {
+    displayName: reference.displayName,
+    localVideoIdentifier: reference.localVideoIdentifier,
+    fileSizeBytes: reference.fileSizeBytes,
+    durationMs: reference.durationMs,
+    matchId: activeMatch.id || "",
+    matchTitle: activeMatch.title || pendingSchedule.title || reference.displayName,
+    matchDate: activeMatch.match_date || activeMatch.matchDate || pendingSchedule.matchDate || "",
+    eventType: activeMatch.event_type || activeMatch.eventType || pendingSchedule.eventType || "",
+    scheduleEventId: activeMatch.schedule_event_id || activeMatch.scheduleEventId || pendingSchedule.scheduleEventId || "",
+    scheduleDayKey: activeMatch.schedule_day_key || activeMatch.scheduleDayKey || pendingSchedule.scheduleDayKey || pendingSchedule.matchDate || "",
+    opponent: activeMatch.opponent || pendingSchedule.opponent || "",
+  };
+}
+
+async function ensureMetadataForRestoredReference(run, context = {}, reference = {}, record = {}) {
+  const state = run.store.getState();
+  if (hasVideoAnalysisMetadata(state) || !reference?.localVideoIdentifier) return {};
+  let payload = null;
+  try {
+    payload = await run.videos.createLocalVideoSource(localVideoSourcePayloadFromReference(reference, state));
+  } catch {
+    return {};
+  }
+  const fallbackMatch = payload.video?.match_id
+    ? { ...(state.match || {}), id: payload.video.match_id, title: state.match?.title || reference.displayName }
+    : state.match;
+  const identity = buildLocalVideoHandleIdentity(state, context, {
+    match: payload.match || fallbackMatch,
+    video: payload.video,
+    source: payload.source,
+    reference,
+  });
+  if (record?.handle) {
+    try {
+      await persistLocalVideoHandle({
+        state,
+        context,
+        handle: record.handle,
+        reference,
+        payload: { match: payload.match || fallbackMatch, video: payload.video, source: payload.source },
+      });
+    } catch {
+      // Playback restore should not fail just because IndexedDB cannot backfill the richer identity.
+    }
+  }
+  return {
+    match: payload.match || fallbackMatch,
+    video: payload.video || state.video,
+    source: payload.source || state.source,
+    pendingScheduleLink: null,
+    localFileHandleIdentity: identity,
+  };
 }
 
 function paint(root, state) {
@@ -952,6 +1017,16 @@ function patchClipTimesInState(current = {}, clipId = "", startMs = 0, endMs = 1
   };
 }
 
+function replaceClipInState(current = {}, nextClip = {}) {
+  if (!nextClip?.id) return current;
+  const patchList = (clips = []) => clips.map((clip) => (clip.id === nextClip.id ? nextClip : clip));
+  return {
+    ...current,
+    clips: patchList(current.clips || []),
+    allClips: Array.isArray(current.allClips) ? patchList(current.allClips) : current.allClips,
+  };
+}
+
 async function commitClipTrim(payload = {}, context = {}) {
   const run = ensureRuntime(context);
   const clipId = payload.clipId || "";
@@ -1278,6 +1353,7 @@ async function saveDraftClip(context = {}, stateOverride = null) {
         ...(current.codingSession || {}),
         manualInMs: null,
         openTag: null,
+        lastClipId: savedClip.id || current.codingSession?.lastClipId || "",
         lastTaggedAtMs: clip.startMs,
         lastTaggedRangeMs: { startMs: clip.startMs, endMs: clip.endMs },
       },
@@ -1354,6 +1430,62 @@ async function preparePlayableCopy(context = {}) {
   }
 }
 
+function findClipForLabelAction(state = {}, playheadMs = 0) {
+  const clips = Array.isArray(state.clips) ? state.clips : [];
+  const selectedId = state.selectedClipId || state.codingSession?.lastClipId || state.timeline?.selectedCategory?.activeClipId || "";
+  const selectedClip = clips.find((clip) => clip.id && clip.id === selectedId);
+  if (selectedClip) return selectedClip;
+  const currentMs = Math.max(0, Math.round(Number(playheadMs || 0)));
+  return clips.find((clip) => {
+    const startMs = Math.max(0, Math.round(Number(clip.startMs ?? clip.start_ms ?? 0)));
+    const endMs = Math.max(startMs + 1, Math.round(Number(clip.endMs ?? clip.end_ms ?? startMs + 1)));
+    return currentMs >= startMs && currentMs <= endMs;
+  }) || null;
+}
+
+async function saveButtonLabelOnClip(button = {}, action = {}, context = {}, state = {}, playheadMs = 0) {
+  const run = ensureRuntime(context);
+  const targetClip = findClipForLabelAction(state, playheadMs);
+  if (!targetClip?.id) return false;
+  const nextClip = normalizeClipInstance(applyCodingButtonToClip(targetClip, button, state.players || []));
+  run.store.update(() => ({
+    ...state,
+    draft: action.nextDraft,
+    codingSession: {
+      ...(action.nextSession || state.codingSession || {}),
+      lastClipId: nextClip.id,
+    },
+    selectedClipId: nextClip.id,
+    status: "saving-clip",
+    message: `Applying ${button.label || "label"} to selected clip.`,
+    error: "",
+  }));
+  try {
+    const payload = await run.clips.save(toApiClipPayload(nextClip));
+    const savedClip = normalizeClipInstance(payload?.clip || nextClip);
+    run.store.update((current) => ({
+      ...replaceClipInState(current, savedClip),
+      status: "ready",
+      selectedClipId: savedClip.id,
+      codingSession: {
+        ...(current.codingSession || {}),
+        lastClipId: savedClip.id,
+      },
+      message: `${button.label || "Label"} applied to selected clip.`,
+      error: "",
+    }));
+    await loadClips();
+    return true;
+  } catch (error) {
+    run.store.update((current) => ({
+      ...replaceClipInState(current, targetClip),
+      status: "error",
+      error: error.message || "Could not apply label to selected clip.",
+    }));
+    return false;
+  }
+}
+
 async function applyCodeButton(buttonId = "", context = {}) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
@@ -1361,6 +1493,10 @@ async function applyCodeButton(buttonId = "", context = {}) {
   if (!button) return false;
   const currentMs = currentPlayheadMs(context, state);
   const action = buildCodingButtonAction(state, button, currentMs);
+  if (!action.shouldCreateClip && button.appliesLabel) {
+    const savedOnClip = await saveButtonLabelOnClip(button, action, context, state, currentMs);
+    if (savedOnClip) return true;
+  }
   const nextState = {
     ...state,
     draft: action.nextDraft,

@@ -55,8 +55,70 @@ export function buildDescriptorPayload(draft = {}, selectedPlayer = null) {
   return descriptors;
 }
 
+function uniqueTags(tags = [], value = "") {
+  const nextValue = String(value || "").trim();
+  return [...new Set([...(Array.isArray(tags) ? tags : []), nextValue].map((tag) => String(tag || "").trim()).filter(Boolean))];
+}
+
+function descriptorTypeForField(field = "") {
+  return descriptorApiKeys[field] || field;
+}
+
+function descriptorValue(entry = {}) {
+  return entry.descriptor_value || entry.descriptorValue || entry.value || "";
+}
+
+function descriptorType(entry = {}) {
+  return entry.descriptor_type || entry.descriptorType || entry.type || "";
+}
+
+function withDescriptor(clip = {}, field = "", value = "") {
+  const type = descriptorTypeForField(field);
+  const nextValue = String(value || "").trim();
+  const existing = Array.isArray(clip.descriptors) ? clip.descriptors : [];
+  const withoutType = existing.filter((entry) => descriptorType(entry) !== type);
+  if (!nextValue) return { ...clip, descriptors: withoutType };
+  return {
+    ...clip,
+    descriptors: [
+      ...withoutType,
+      { type, value: nextValue, label: nextValue, descriptor_type: type, descriptor_value: nextValue, descriptor_label: nextValue },
+    ],
+  };
+}
+
+function withPlayer(clip = {}, playerId = "", players = []) {
+  const id = String(playerId || "").trim();
+  if (!id) return clip;
+  const player = players.find((item) => item.id === id || item.playerId === id || item.player_id === id);
+  const label = player?.name || player?.playerLabel || player?.player_label || id;
+  const existing = Array.isArray(clip.players) ? clip.players : [];
+  if (existing.some((item) => (item.playerId || item.player_id) === id)) return clip;
+  return {
+    ...clip,
+    players: [...existing, { playerId: id, player_id: id, playerLabel: label, player_label: label, role: "primary" }],
+  };
+}
+
+export function applyCodingButtonToClip(clip = {}, button = {}, players = []) {
+  const targetField = button.targetField || button.type || "tags";
+  const value = button.value || button.label || "";
+  if (targetField === "tags") return { ...clip, tags: uniqueTags(clip.tags, value) };
+  if (targetField === "phase") return { ...clip, phase: value };
+  if (targetField === "subPhase") return { ...clip, subPhase: value, sub_phase: value };
+  if (targetField === "teamPrincipleId") return { ...clip, teamPrincipleId: value, team_principle_id: value };
+  if (targetField === "miniGamePrincipleId") return { ...clip, miniGamePrincipleId: value, mini_game_principle_id: value };
+  if (targetField === "outcome") return { ...clip, outcome: value };
+  if (targetField === "playerId") return withPlayer(clip, value, players);
+  if (["unit", "pitchZone", "pressure", "decision", "execution"].includes(targetField)) {
+    return withDescriptor(clip, targetField, value);
+  }
+  return { ...clip, tags: uniqueTags(clip.tags, value) };
+}
+
 export function toApiClipPayload(clip = {}) {
   return {
+    id: clip.id,
     matchId: clip.matchId,
     videoId: clip.videoId,
     startMs: clip.startMs,
@@ -73,6 +135,7 @@ export function toApiClipPayload(clip = {}) {
     preRollMs: clip.preRollMs,
     postRollMs: clip.postRollMs,
     tags: clip.tags || [],
+    labels: clip.labels || [],
     descriptors: clip.descriptors || [],
     players: clip.players || [],
     note: clip.notes?.[0]?.note || "",

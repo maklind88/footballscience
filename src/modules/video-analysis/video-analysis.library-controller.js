@@ -101,6 +101,7 @@ export function createVideoLibraryController(deps = {}) {
         error: "",
         ...localVideoStatusPatch("none", "No video linked"),
       }));
+      await restoreLocalVideoHandle(context, { silent: true, requestPermission: true });
       return true;
     }
     if (previous) revokeLocalVideoReference(previous, context.win || window);
@@ -124,8 +125,8 @@ export function createVideoLibraryController(deps = {}) {
         item.hasVideo ? "Reconnect local file on this device" : "No video linked"
       ),
     }));
+    if (activeTab !== "presentation") await restoreLocalVideoHandle(context, { silent: true, requestPermission: true });
     await loadClips();
-    if (activeTab !== "presentation") await restoreLocalVideoHandle(context, { silent: true });
     return true;
   }
 

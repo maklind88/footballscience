@@ -52,12 +52,26 @@ test("local video handle store saves, restores, lists and removes IndexedDB hand
       localVideoIdentifier: "local-video-legacy",
       handle: { kind: "file", name: "legacy-match.mp4" },
     });
+    await store.saveVideoHandle({
+      organizationId: "local",
+      teamId: "team",
+      scheduleDayKey: "2026-06-02",
+      matchDate: "2026-06-02",
+      displayName: "MD+2 Training",
+      handle: { kind: "file", name: "training-angle.mp4" },
+    });
     const legacyFound = await store.getVideoHandle({
       organizationId: "org-live",
       teamId: "team-live",
       matchId: "match-legacy",
       videoId: "video-legacy",
       localVideoIdentifier: "local-video-legacy",
+    });
+    const scheduleFound = await store.getVideoHandle({
+      organizationId: "org-live",
+      teamId: "team-live",
+      scheduleDayKey: "2026-06-02",
+      matchDate: "2026-06-02",
     });
     const matchOnlyFallback = await store.getVideoHandle({
       organizationId: "org-live",
@@ -73,6 +87,7 @@ test("local video handle store saves, restores, lists and removes IndexedDB hand
       foundName: found.handle.name,
       listedCount: listed.length,
       legacyFoundName: legacyFound.handle.name,
+      scheduleFoundName: scheduleFound.handle.name,
       matchOnlyFallbackName: matchOnlyFallback.handle.name,
       removed,
       afterRemove,
@@ -84,6 +99,7 @@ test("local video handle store saves, restores, lists and removes IndexedDB hand
     foundName: "match.mp4",
     listedCount: 1,
     legacyFoundName: "legacy-match.mp4",
+    scheduleFoundName: "training-angle.mp4",
     matchOnlyFallbackName: "legacy-match.mp4",
     removed: true,
     afterRemove: null,
@@ -175,6 +191,57 @@ test("video analysis restores a persisted File System Access handle after refres
   await expect(page.locator(".video-analysis-player h2")).toContainText("restore-match.mp4");
   await expect(page.locator(".video-analysis-player__meta")).toContainText("Native playback ready");
   await expect(page.locator(".video-analysis-player__actions [data-video-analysis-prepare-playback]")).toHaveCount(0);
+});
+
+test("schedule days restore a persisted local handle and recreate video metadata", async ({ page }) => {
+  await installDeterministicMedia(page);
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  await clearHandleDatabase(page);
+
+  const setup = await page.evaluate(async (fixtureBase64) => {
+    if (!navigator.storage?.getDirectory) return { supported: false };
+    const root = await navigator.storage.getDirectory();
+    const handle = await root.getFileHandle("schedule-restore.mp4", { create: true });
+    const writable = await handle.createWritable();
+    const binary = atob(fixtureBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    await writable.write(new File([bytes], "schedule-restore.mp4", { type: "video/mp4" }));
+    await writable.close();
+    const store = await import("/src/modules/video-analysis/services/localVideoHandleStore.js");
+    await store.saveVideoHandle({
+      organizationId: "local",
+      teamId: "team",
+      scheduleDayKey: "2026-06-02",
+      matchDate: "2026-06-02",
+      displayName: "MD+2 Training",
+      handle,
+    });
+    return { supported: true };
+  }, h264Mp4FixtureBase64);
+
+  test.skip(!setup.supported, "Origin Private File System handles are not available in this browser.");
+
+  await page.locator('[data-video-analysis-open-library-item="schedule:schedule-training-1"]').click();
+  await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await expect(page.locator(".video-analysis-player h2")).toContainText("schedule-restore.mp4");
+  await expect.poll(() => page.evaluate(() => {
+    const request = (window.__videoAnalysisRequests || []).find((item) => item.action === "create-local-video-source");
+    return request?.body || null;
+  })).toMatchObject({
+    matchTitle: "MD+2 Training",
+    matchDate: "2026-06-02",
+    eventType: "training",
+    scheduleEventId: "schedule-training-1",
+    scheduleDayKey: "2026-06-02",
+  });
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "duration", { configurable: true, value: 55.5 });
+    video.dispatchEvent(new Event("loadedmetadata"));
+  });
+  await expect(page.locator(".video-analysis-player__meta")).toContainText("Native playback ready");
+  await expect(page.locator(".video-analysis-player__actions [data-video-analysis-load]")).toContainText("Change");
 });
 
 test("missing local file metadata shows link state instead of bridge-first prepare", async ({ page }) => {

@@ -541,6 +541,61 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
   expect(jumpPressBlock.style).toContain("--video-analysis-clip-color:#d92d20;");
 });
 
+test("Video Analysis Label selected buttons update the selected timeline clip", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__videoAnalysisInitialState = {
+      view: "workspace",
+      match: {
+        id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        title: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+      },
+      video: {
+        id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+      },
+      source: {
+        id: "source-1",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        local_video_identifier: "existing-video",
+      },
+      videoRef: {
+        objectUrl: "data:video/mp4;base64,AAAA",
+        durationMs: 7267240,
+        displayName: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+      },
+      localFileStatus: "native-ready",
+      localFileMessage: "Native playback ready",
+      nativePlaybackReady: true,
+    };
+  });
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  await page.locator('[data-video-analysis-seek="clip-1"]').click();
+  await page.locator('[data-video-analysis-panel-mode="edit"]').click();
+  await page.locator('[data-video-analysis-template-builder-field="newGroupName"]').fill("Clip Labels");
+  await page.locator("[data-video-analysis-add-button-group]").click();
+  const group = page.locator(".video-analysis-code-group").filter({ hasText: "Clip Labels" }).first();
+  await group.locator('input[data-video-analysis-button-field$=":label"]').fill("Press trigger");
+  await group.locator('select[data-video-analysis-button-field$=":buttonBehavior"]').selectOption("label_current");
+  await group.locator('select[data-video-analysis-button-field$=":targetField"]').selectOption("tags");
+  await page.locator("[data-video-analysis-save-template]").click();
+  await page.locator('[data-video-analysis-panel-mode="use"]').click();
+  await page.locator('[data-video-analysis-code-button]').filter({ hasText: "Press trigger" }).click();
+
+  await expect.poll(() => page.evaluate(() => {
+    const request = [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "save-clip");
+    return request?.body?.clip || null;
+  })).toMatchObject({
+    id: "clip-1",
+    startMs: 12000,
+    endMs: 18000,
+    tags: ["wide", "third-player", "Press trigger"],
+  });
+  await expect(page.locator('[data-video-analysis-seek="clip-1"]')).toHaveCount(1);
+  await expect(page.locator(".video-analysis-template-builder")).toContainText("Press trigger");
+});
+
 test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red playhead", async ({ page }) => {
   await installDeterministicMedia(page);
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });

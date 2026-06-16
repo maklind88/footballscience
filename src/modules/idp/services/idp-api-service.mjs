@@ -36,6 +36,8 @@ export function createIdpApiService(context = {}) {
   return {
     loadDashboard: () => request("/api/idp?action=dashboard"),
     loadPlayer: (playerId) => request(`/api/idp?action=player&playerId=${encodeURIComponent(playerId)}`),
+    loadSync: (playerId = "") =>
+      request(`/api/idp?action=sync${playerId ? `&playerId=${encodeURIComponent(playerId)}` : ""}`),
     createFocus: (focus) => request("/api/idp", { method: "POST", body: { action: "create-focus", focus } }),
     updateFocus: (focus) => request("/api/idp", { method: "POST", body: { action: "update-focus", focus } }),
     reviewClipBank: (clipBankItem) => request("/api/idp", { method: "POST", body: { action: "review-clip-bank", clipBankItem } }),

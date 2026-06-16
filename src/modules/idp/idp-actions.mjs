@@ -23,6 +23,17 @@ function hasOwn(source = {}, keys = []) {
   return keys.some((key) => Object.prototype.hasOwnProperty.call(source || {}, key));
 }
 
+function normalizeSyncPayload(payload = {}) {
+  const source = payload.sync && typeof payload.sync === "object" ? payload.sync : payload;
+  const revision = normalizeText(source.revision || source.updatedAt || source.updated_at, 120);
+  return {
+    revision,
+    updatedAt: normalizeText(source.updatedAt || source.updated_at || revision, 120),
+    checkedAt: new Date().toISOString(),
+    playerId: normalizeText(source.playerId || source.player_id, 160),
+  };
+}
+
 function isInactiveIdpProfile(profile = {}) {
   return normalizeText(profile.status, 40).toLowerCase() === "none";
 }
@@ -167,6 +178,7 @@ export function createIdpActions({ store, api, context = {} }) {
       const dashboardPlayers = normalizeDashboardPayload(payload, fallback);
       store.setState({
         dashboardPlayers: dashboardPlayers.length ? dashboardPlayers : fallback,
+        sync: normalizeSyncPayload(payload),
         ui: { loading: false, error: "", selectedPlayerId: store.getState().ui.selectedPlayerId || "" },
       });
     } catch (error) {
@@ -190,10 +202,10 @@ export function createIdpActions({ store, api, context = {} }) {
       const payload = await api.loadPlayer(safePlayerId);
       const normalized = normalizePlayerPayload(payload, fallbackDetail);
       if (!normalized.profile.playerId && fallbackPlayer) {
-        store.setState({ playerDetail: fallbackDetail, ui: { error: "" } });
+        store.setState({ playerDetail: fallbackDetail, sync: normalizeSyncPayload(payload), ui: { error: "" } });
         return;
       }
-      store.setState({ playerDetail: normalized, ui: { error: "" } });
+      store.setState({ playerDetail: normalized, sync: normalizeSyncPayload(payload), ui: { error: "" } });
     } catch (error) {
       if (!fallbackPlayer) store.setState({ ui: { error: error.message || "Could not load player IDP." } });
     }
@@ -203,6 +215,23 @@ export function createIdpActions({ store, api, context = {} }) {
     const playerId = selectedPlayerIdFromState(store.getState());
     await loadDashboard();
     if (playerId) await selectPlayer(playerId);
+  }
+
+  async function checkForExternalUpdates() {
+    if (store.getState().ui.loading) return false;
+    const payload = await api.loadSync();
+    const nextSync = normalizeSyncPayload(payload);
+    const currentRevision = normalizeText(store.getState().sync?.revision, 120);
+    if (!nextSync.revision || !currentRevision) {
+      store.setState({ sync: nextSync });
+      return false;
+    }
+    if (nextSync.revision === currentRevision) {
+      store.setState({ sync: nextSync });
+      return false;
+    }
+    await refreshSelectedPlayer();
+    return true;
   }
 
   async function createFocus(formData) {
@@ -262,6 +291,7 @@ export function createIdpActions({ store, api, context = {} }) {
   return {
     addEvidence,
     assignOwner,
+    checkForExternalUpdates,
     completeReview,
     createFocus,
     loadDashboard,

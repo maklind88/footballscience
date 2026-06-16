@@ -236,6 +236,98 @@ test("idp assignment refresh preserves the full squad roster and player identity
   expect(state.playerDetail.focuses[0].title).toBe("Distribution under pressure");
 });
 
+test("idp sync refreshes overview and selected player after an external central update", async () => {
+  const squadPlayers = [
+    {
+      id: "p1",
+      name: "Kailen Sheridan",
+      position: "Goalkeeper",
+      primaryRole: "GK",
+      idp: { primaryFocus: "Distribution under pressure", nextAction: "Add observation" },
+    },
+  ];
+  const store = createIdpStore({
+    ui: { selectedPlayerId: "p1" },
+    playerDetail: buildLegacyPlayerDetail(squadPlayers[0]),
+    sync: { revision: "2026-06-15T10:00:00.000Z" },
+  });
+  let dashboardLoads = 0;
+  let playerLoads = 0;
+  const api = {
+    loadSync: async () => ({
+      schema: "footballscience-idp-v1",
+      sync: { revision: "2026-06-15T10:05:00.000Z", updatedAt: "2026-06-15T10:05:00.000Z" },
+    }),
+    loadDashboard: async () => {
+      dashboardLoads += 1;
+      return {
+        schema: "footballscience-idp-v1",
+        sync: { revision: "2026-06-15T10:05:00.000Z", updatedAt: "2026-06-15T10:05:00.000Z" },
+        players: [
+          {
+            profile: { id: "idp-profile-p1", player_id: "p1", primary_owner_id: "coach-1" },
+            focus: {
+              id: "server-focus",
+              player_id: "p1",
+              title: "Distribution after teammate review",
+              category: "Tactical",
+              status: "Reviewed",
+            },
+            evidenceCount: 3,
+            newClipCount: 0,
+            nextAction: "Create next focus",
+            overallStatus: "On Track",
+          },
+        ],
+      };
+    },
+    loadPlayer: async () => {
+      playerLoads += 1;
+      return {
+        schema: "footballscience-idp-v1",
+        sync: { revision: "2026-06-15T10:05:00.000Z", updatedAt: "2026-06-15T10:05:00.000Z" },
+        profile: { id: "idp-profile-p1", player_id: "p1", primary_owner_id: "coach-1" },
+        focuses: [
+          {
+            id: "server-focus",
+            player_id: "p1",
+            title: "Distribution after teammate review",
+            category: "Tactical",
+            status: "Reviewed",
+          },
+        ],
+        clipBank: [],
+        evidence: [],
+        reviews: [
+          {
+            id: "review-1",
+            player_id: "p1",
+            focus_id: "server-focus",
+            progress_summary: "Updated by another coach",
+          },
+        ],
+        nextActions: [],
+        milestones: [],
+        ownership: [{ owner_id: "coach-1", ownership_type: "player-owner", status: "active" }],
+      };
+    },
+  };
+  const actions = createIdpActions({
+    store,
+    api,
+    context: { getPlayerProfilesState: () => ({ players: squadPlayers }) },
+  });
+
+  await expect(actions.checkForExternalUpdates()).resolves.toBe(true);
+
+  const state = store.getState();
+  expect(dashboardLoads).toBe(1);
+  expect(playerLoads).toBe(1);
+  expect(state.sync.revision).toBe("2026-06-15T10:05:00.000Z");
+  expect(state.dashboardPlayers[0].focus.title).toBe("Distribution after teammate review");
+  expect(state.playerDetail.reviews[0].progressSummary).toBe("Updated by another coach");
+});
+
 test("idp profile shows Squad-owned inactive IDP status", async () => {
   const injuredPlayer = {
     id: "p-injured",
@@ -316,4 +408,15 @@ test("idp module exports the workspace runtime handlers", async () => {
   for (const exportName of ["render", "handleClick", "handleInput", "handleChange", "handleSubmit"]) {
     expect(typeof module[exportName], exportName).toBe("function");
   }
+});
+
+test("idp runtime checks central sync while mounted and when the browser becomes active", () => {
+  const indexSource = read("src/modules/idp/index.mjs");
+  const apiSource = read("src/modules/idp/services/idp-api-service.mjs");
+  expect(indexSource).toContain("IDP_SYNC_INTERVAL_MS");
+  expect(indexSource).toContain("checkForExternalUpdates");
+  expect(indexSource).toContain("visibilitychange");
+  expect(indexSource).toContain("focus");
+  expect(apiSource).toContain("action=sync");
+  expect(apiSource).toContain("loadSync");
 });

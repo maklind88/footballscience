@@ -27,6 +27,17 @@ const EVIDENCE_TYPES = new Set([
   "Player Reflection",
   "Review Meeting",
 ]);
+const SYNC_TABLES = Object.freeze([
+  { table: "idp_profiles", column: "updated_at" },
+  { table: "idp_development_areas", column: "updated_at" },
+  { table: "idp_focuses", column: "updated_at" },
+  { table: "idp_clip_bank_items", column: "updated_at" },
+  { table: "idp_evidence", column: "updated_at" },
+  { table: "idp_reviews", column: "updated_at" },
+  { table: "idp_next_actions", column: "updated_at" },
+  { table: "idp_milestones", column: "created_at" },
+  { table: "idp_staff_ownership", column: "updated_at" },
+]);
 
 function rowList(result) {
   return result.ok && Array.isArray(result.payload) ? result.payload : [];
@@ -96,8 +107,45 @@ async function listByPlayer(table, scope, playerId, options = {}) {
   return selectRows(table, params);
 }
 
+async function latestTimestampForTable(scope, playerId, tableConfig) {
+  const params = buildTeamParams(scope);
+  params.set("select", tableConfig.column);
+  if (playerId) params.set("player_id", `eq.${playerId}`);
+  params.set("order", `${tableConfig.column}.desc`);
+  params.set("limit", "1");
+  const result = await selectRows(tableConfig.table, params);
+  if (!result.ok) return result;
+  return { ok: true, payload: normalizeText(result.payload?.[0]?.[tableConfig.column], 80) };
+}
+
+async function buildSyncMeta(scope, playerId = "") {
+  const safePlayerId = normalizeText(playerId, 160);
+  const results = await Promise.all(SYNC_TABLES.map((tableConfig) => latestTimestampForTable(scope, safePlayerId, tableConfig)));
+  const failed = results.find((result) => !result.ok);
+  if (failed) return failed;
+  const updatedAt = results
+    .map((result) => normalizeText(result.payload, 80))
+    .filter(Boolean)
+    .sort()
+    .pop() || "";
+  return {
+    ok: true,
+    payload: {
+      scope: {
+        organizationId: scope.organizationId,
+        teamId: scope.teamId,
+      },
+      playerId: safePlayerId,
+      updatedAt,
+      revision: updatedAt,
+    },
+  };
+}
+
 async function listDashboard(query, actor) {
   const scope = actorScope(actor);
+  const sync = await buildSyncMeta(scope);
+  if (!sync.ok) return sync;
   const profileParams = buildTeamParams(scope);
   profileParams.set("select", "*");
   profileParams.set("deleted_at", "is.null");
@@ -106,7 +154,7 @@ async function listDashboard(query, actor) {
   const profiles = await selectRows("idp_profiles", profileParams);
   if (!profiles.ok) return profiles;
   const playerIds = profiles.payload.map((profile) => profile.player_id).filter(Boolean);
-  if (!playerIds.length) return { ok: true, payload: { schema: IDP_SCHEMA, players: [] } };
+  if (!playerIds.length) return { ok: true, payload: { schema: IDP_SCHEMA, players: [], sync: sync.payload } };
 
   const scopedChildParams = (table, order = "updated_at.desc") => {
     const params = buildTeamParams(scope);
@@ -146,13 +194,15 @@ async function listDashboard(query, actor) {
       overallStatus: dashboardStatus(profile, focus, newClipCount),
     };
   });
-  return { ok: true, payload: { schema: IDP_SCHEMA, players } };
+  return { ok: true, payload: { schema: IDP_SCHEMA, players, sync: sync.payload } };
 }
 
 async function getPlayerDevelopment(query, actor) {
   const scope = actorScope(actor);
   const playerId = normalizeText(query.playerId || query.player_id, 160);
   if (!playerId) return { ok: false, status: 400, reason: "playerId is required." };
+  const sync = await buildSyncMeta(scope, playerId);
+  if (!sync.ok) return sync;
   const [profiles, focuses, clipBank, evidence, reviews, actions, milestones, ownership] = await Promise.all([
     listByPlayer("idp_profiles", scope, playerId, { limit: 1, order: "updated_at.desc" }),
     listByPlayer("idp_focuses", scope, playerId, { limit: 50, order: "updated_at.desc" }),
@@ -177,8 +227,15 @@ async function getPlayerDevelopment(query, actor) {
       nextActions: actions.payload,
       milestones: milestones.payload,
       ownership: ownership.payload,
+      sync: sync.payload,
     },
   };
+}
+
+async function getSyncStatus(query, actor) {
+  const scope = actorScope(actor);
+  const sync = await buildSyncMeta(scope, query.playerId || query.player_id || "");
+  return sync.ok ? { ok: true, payload: { schema: IDP_SCHEMA, sync: sync.payload } } : sync;
 }
 
 async function ensureProfile(scope, playerId, payload = {}) {
@@ -241,7 +298,8 @@ async function createFocus(payload, actor) {
     source_id: focus?.id || null,
     created_by: scope.actorId,
   });
-  return { ok: true, payload: { schema: IDP_SCHEMA, focus } };
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, focus, sync: sync.ok ? sync.payload : null } };
 }
 
 async function updateFocus(payload, actor) {
@@ -264,7 +322,10 @@ async function updateFocus(payload, actor) {
     patch.evidence_status = normalizeText(payload.evidenceStatus || payload.evidence_status, 80);
   }
   const result = await patchRows("idp_focuses", params, patch);
-  return result.ok ? { ok: true, payload: { schema: IDP_SCHEMA, focus: result.payload?.[0] || null } } : result;
+  if (!result.ok) return result;
+  const focus = result.payload?.[0] || null;
+  const sync = await buildSyncMeta(scope, focus?.player_id || "");
+  return { ok: true, payload: { schema: IDP_SCHEMA, focus, sync: sync.ok ? sync.payload : null } };
 }
 
 async function upsertClipBankItem(payload, actor) {
@@ -283,7 +344,8 @@ async function upsertClipBankItem(payload, actor) {
   const existing = await selectRows("idp_clip_bank_items", existingParams);
   if (!existing.ok) return existing;
   if (existing.payload[0]) {
-    return { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: existing.payload[0], created: false } };
+    const sync = await buildSyncMeta(scope, playerId);
+    return { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: existing.payload[0], created: false, sync: sync.ok ? sync.payload : null } };
   }
   const result = await insertRow("idp_clip_bank_items", {
     organization_id: scope.organizationId,
@@ -297,9 +359,9 @@ async function upsertClipBankItem(payload, actor) {
     created_by: scope.actorId,
     updated_by: scope.actorId,
   });
-  return result.ok
-    ? { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: result.payload?.[0] || null, created: true } }
-    : result;
+  if (!result.ok) return result;
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: result.payload?.[0] || null, created: true, sync: sync.ok ? sync.payload : null } };
 }
 
 async function reviewClipBank(payload, actor) {
@@ -332,7 +394,8 @@ async function reviewClipBank(payload, actor) {
       note: payload.note,
     }, actor);
   }
-  return { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: item } };
+  const sync = await buildSyncMeta(scope, item?.player_id || "");
+  return { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: item, sync: sync.ok ? sync.payload : null } };
 }
 
 async function addEvidence(payload, actor) {
@@ -373,7 +436,8 @@ async function addEvidence(payload, actor) {
     source_id: result.payload?.[0]?.id || null,
     created_by: scope.actorId,
   });
-  return { ok: true, payload: { schema: IDP_SCHEMA, evidence: result.payload?.[0] || null } };
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, evidence: result.payload?.[0] || null, sync: sync.ok ? sync.payload : null } };
 }
 
 async function deactivateOwnership(scope, playerId, ownershipType, focusId = "") {
@@ -449,6 +513,7 @@ async function assignOwner(payload, actor) {
     if (!focusOwner.ok) return focusOwner;
   }
 
+  const sync = await buildSyncMeta(scope, playerId);
   return {
     ok: true,
     payload: {
@@ -456,6 +521,7 @@ async function assignOwner(payload, actor) {
       focus,
       ownerId: ownerId || "",
       profile: profilePatch.payload?.[0] || null,
+      sync: sync.ok ? sync.payload : null,
     },
   };
 }
@@ -522,7 +588,8 @@ async function completeReview(payload, actor) {
     source_id: result.payload?.[0]?.id || null,
     created_by: scope.actorId,
   });
-  return { ok: true, payload: { schema: IDP_SCHEMA, review: result.payload?.[0] || null } };
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, review: result.payload?.[0] || null, sync: sync.ok ? sync.payload : null } };
 }
 
 function statusPayload(actor) {
@@ -545,9 +612,11 @@ async function handleIdpRequest(req, res, actor) {
     const query = Object.fromEntries(url.searchParams.entries());
     const result = action === "status"
       ? { ok: true, payload: statusPayload(actor) }
-      : action === "player"
-        ? await getPlayerDevelopment(query, actor)
-        : await listDashboard(query, actor);
+      : action === "sync"
+        ? await getSyncStatus(query, actor)
+        : action === "player"
+          ? await getPlayerDevelopment(query, actor)
+          : await listDashboard(query, actor);
     return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
   }
 
@@ -576,9 +645,11 @@ module.exports = {
   IDP_SCHEMA,
   addEvidence,
   assignOwner,
+  buildSyncMeta,
   completeReview,
   createFocus,
   dashboardStatus,
+  getSyncStatus,
   handleIdpRequest,
   normalizeCategory,
   reviewClipBank,

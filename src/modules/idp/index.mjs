@@ -4,6 +4,8 @@ import { renderIdpWorkspace as renderMarkup } from "./idp-renderer.mjs";
 import { createIdpApiService } from "./services/idp-api-service.mjs";
 
 let runtime = null;
+const IDP_SYNC_INTERVAL_MS = 30000;
+const IDP_SYNC_FOCUS_COOLDOWN_MS = 5000;
 
 function normalizeContext(context = {}) {
   return {
@@ -34,6 +36,48 @@ function getRoot(context = {}) {
   return context.ui?.idpWorkspace || null;
 }
 
+function getDocument(activeRuntime) {
+  return activeRuntime?.context?.win?.document || globalThis.document || null;
+}
+
+function shouldRunSyncCheck(activeRuntime) {
+  const root = getRoot(activeRuntime?.context);
+  if (!root || root.isConnected === false) return false;
+  const doc = getDocument(activeRuntime);
+  return !doc?.hidden;
+}
+
+function queueSyncCheck(activeRuntime = runtime, options = {}) {
+  if (!activeRuntime || !activeRuntime.initialized || !shouldRunSyncCheck(activeRuntime)) return;
+  const now = Date.now();
+  if (!options.force && activeRuntime.lastSyncCheckAt && now - activeRuntime.lastSyncCheckAt < IDP_SYNC_FOCUS_COOLDOWN_MS) {
+    return;
+  }
+  if (activeRuntime.syncInFlight) return;
+  activeRuntime.lastSyncCheckAt = now;
+  activeRuntime.syncInFlight = true;
+  Promise.resolve()
+    .then(() => activeRuntime.actions.checkForExternalUpdates())
+    .catch(() => {})
+    .finally(() => {
+      activeRuntime.syncInFlight = false;
+    });
+}
+
+function startAutoSync(activeRuntime) {
+  const win = activeRuntime?.context?.win || globalThis;
+  if (!activeRuntime.syncIntervalId && typeof win.setInterval === "function") {
+    activeRuntime.syncIntervalId = win.setInterval(() => queueSyncCheck(activeRuntime), IDP_SYNC_INTERVAL_MS);
+  }
+  if (activeRuntime.syncListening || typeof win.addEventListener !== "function") return;
+  const onFocus = () => queueSyncCheck(activeRuntime, { force: true });
+  const onVisibilityChange = () => queueSyncCheck(activeRuntime, { force: true });
+  win.addEventListener("focus", onFocus);
+  getDocument(activeRuntime)?.addEventListener?.("visibilitychange", onVisibilityChange);
+  activeRuntime.syncListening = true;
+  activeRuntime.syncListeners = { onFocus, onVisibilityChange };
+}
+
 function paint(activeRuntime = runtime) {
   const root = getRoot(activeRuntime?.context);
   if (!root) return;
@@ -62,7 +106,12 @@ function ensureRuntime(context = {}) {
     api,
     context: nextContext,
     initialized: false,
+    lastSyncCheckAt: 0,
     store,
+    syncInFlight: false,
+    syncIntervalId: 0,
+    syncListening: false,
+    syncListeners: null,
   };
   store.subscribe(() => paint(runtime));
   return runtime;
@@ -98,6 +147,7 @@ function runAction(action) {
 export function render(context = {}) {
   const activeRuntime = ensureRuntime(context);
   paint(activeRuntime);
+  startAutoSync(activeRuntime);
   runAction(() => boot(activeRuntime));
 }
 

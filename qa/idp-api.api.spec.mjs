@@ -89,3 +89,15 @@ test("idp api exposes a server-owned assignment action", () => {
   expect(source).toContain("idp_staff_ownership");
   expect(typeof api.assignOwner).toBe("function");
 });
+
+test("idp api exposes a central sync revision endpoint", () => {
+  const source = fs.readFileSync(new URL("../api/_lib/idp-database.js", import.meta.url), "utf8");
+  expect(source).toContain('action === "sync"');
+  expect(source).toContain("buildSyncMeta");
+  expect(source).toContain("idp_reviews");
+  expect(source).toContain("idp_evidence");
+  expect(source).toContain("idp_staff_ownership");
+  expect(source).toContain("idp_milestones");
+  expect(typeof api.getSyncStatus).toBe("function");
+  expect(typeof api.buildSyncMeta).toBe("function");
+});

@@ -10,11 +10,19 @@ export const idpInitialUiState = Object.freeze({
   loading: false,
 });
 
+export const idpInitialSyncState = Object.freeze({
+  revision: "",
+  updatedAt: "",
+  checkedAt: "",
+  playerId: "",
+});
+
 export function createIdpStore(initialState = {}) {
   let state = {
     ui: { ...idpInitialUiState, ...(initialState.ui || {}) },
     dashboardPlayers: Array.isArray(initialState.dashboardPlayers) ? initialState.dashboardPlayers : [],
     playerDetail: initialState.playerDetail || null,
+    sync: { ...idpInitialSyncState, ...(initialState.sync || {}) },
   };
   const subscribers = new Set();
 
@@ -29,6 +37,7 @@ export function createIdpStore(initialState = {}) {
         ...state,
         ...patch,
         ui: { ...state.ui, ...(patch.ui || {}) },
+        sync: patch.sync ? { ...state.sync, ...patch.sync } : state.sync,
       };
       emit();
     },

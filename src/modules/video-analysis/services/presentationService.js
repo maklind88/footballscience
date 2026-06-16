@@ -1,7 +1,7 @@
 export const presentationModes = Object.freeze([
-  { id: "builder", label: "Builder" },
-  { id: "draw", label: "Draw" },
-  { id: "presenter", label: "Presenter" },
+  { id: "builder", label: "Build" },
+  { id: "draw", label: "Telestrate" },
+  { id: "presenter", label: "Present" },
 ]);
 
 export const presentationDrawingTools = Object.freeze([

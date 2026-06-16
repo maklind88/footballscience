@@ -14,11 +14,12 @@ function renderOutlineItem(sectionId = "", item = {}, active = false) {
       <button type="button" class="video-analysis-presentation-outline-item__main" data-video-analysis-presentation-select-item="${escapeHtml(item.id)}">
         <span>${escapeHtml(formatVideoTime(startMs))}</span>
         <strong>${escapeHtml(itemTitle(item))}</strong>
+        <small>${escapeHtml(clip.subPhase || clip.sub_phase || "Tagged moment")}</small>
       </button>
       <div class="video-analysis-presentation-outline-item__tools">
-        <button type="button" aria-label="Move clip up" data-video-analysis-presentation-move-item="${escapeHtml(item.id)}:-1">Up</button>
-        <button type="button" aria-label="Move clip down" data-video-analysis-presentation-move-item="${escapeHtml(item.id)}:1">Down</button>
-        <button type="button" aria-label="Remove clip" data-video-analysis-presentation-remove-item="${escapeHtml(item.id)}">Remove</button>
+        <button type="button" aria-label="Move clip up" data-video-analysis-presentation-move-item="${escapeHtml(item.id)}:-1">^</button>
+        <button type="button" aria-label="Move clip down" data-video-analysis-presentation-move-item="${escapeHtml(item.id)}:1">v</button>
+        <button type="button" aria-label="Remove clip" data-video-analysis-presentation-remove-item="${escapeHtml(item.id)}">x</button>
       </div>
     </li>
   `;
@@ -30,12 +31,14 @@ function renderOutlineSection(section = {}, state = {}) {
   const items = Array.isArray(section.items) ? section.items : [];
   return `
     <section class="video-analysis-presentation-outline-section${activeSection ? " is-active" : ""}" data-video-analysis-presentation-drop-section="${escapeHtml(section.id)}">
-      <button type="button" class="video-analysis-presentation-outline-section__select" data-video-analysis-presentation-section="${escapeHtml(section.id)}">
-        <span>${escapeHtml(section.title || "Section")}</span>
-        <strong>${items.length}</strong>
-      </button>
-      <input type="text" aria-label="Section title" data-video-analysis-presentation-section-title="${escapeHtml(section.id)}" value="${escapeHtml(section.title || "")}">
-      <textarea rows="2" aria-label="Section coach note" placeholder="Section note" data-video-analysis-presentation-section-note="${escapeHtml(section.id)}">${escapeHtml(section.coachNote || "")}</textarea>
+      <div class="video-analysis-presentation-outline-section__header">
+        <button type="button" class="video-analysis-presentation-outline-section__select" data-video-analysis-presentation-section="${escapeHtml(section.id)}">
+          <span>${escapeHtml(activeSection ? "Active" : "Section")}</span>
+          <strong>${items.length}</strong>
+        </button>
+        <input type="text" aria-label="Section title" data-video-analysis-presentation-section-title="${escapeHtml(section.id)}" value="${escapeHtml(section.title || "")}">
+      </div>
+      <textarea rows="2" aria-label="Section coach note" placeholder="Section note for presenter" data-video-analysis-presentation-section-note="${escapeHtml(section.id)}">${escapeHtml(section.coachNote || "")}</textarea>
       <ol>
         ${items.length
           ? items.map((item) => renderOutlineItem(section.id, item, item.id === selectedItemId)).join("")
@@ -52,8 +55,8 @@ export function renderPresentationOutline(state = {}) {
     <section class="video-analysis-presentation-outline" aria-label="Presentation outline">
       <div class="video-analysis-panel-header">
         <div>
-          <p class="video-analysis-kicker">Outline</p>
-          <h3>${escapeHtml(presentation.title || "Football Science Review")}</h3>
+          <p class="video-analysis-kicker">Organizer</p>
+          <h3>Meeting order</h3>
         </div>
         <button type="button" data-video-analysis-presentation-add-section>Add section</button>
       </div>

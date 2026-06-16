@@ -41,11 +41,12 @@ export function renderPresentationSources(state = {}) {
   const filters = presentation.sourceFilters || {};
   const clips = Array.isArray(presentation.sourceClips) ? presentation.sourceClips : [];
   const smartCollections = Array.isArray(presentation.smartCollections) ? presentation.smartCollections : [];
+  const total = Number(presentation.sourceTotal || clips.length || 0);
   return `
     <section class="video-analysis-presentation-sources" aria-label="Presentation sources and smart collections">
       <div class="video-analysis-panel-header">
         <div>
-          <p class="video-analysis-kicker">Sources</p>
+          <p class="video-analysis-kicker">Find clips</p>
           <h3>Data Explorer</h3>
         </div>
         <button type="button" data-video-analysis-presentation-refresh-sources>Refresh</button>
@@ -60,12 +61,16 @@ export function renderPresentationSources(state = {}) {
         </select>
         <input type="search" placeholder="Player or tag" data-video-analysis-presentation-filter="tag" value="${escapeHtml(filters.tag || "")}">
         <input type="date" data-video-analysis-presentation-filter="date" value="${escapeHtml(filters.date || "")}">
-        <button type="button" data-video-analysis-smart-save>Save smart</button>
+        <button type="button" data-video-analysis-smart-save>Save search</button>
       </div>
       <div class="video-analysis-smart-collections" aria-label="Smart collections">
         ${smartCollections.length
           ? smartCollections.map(renderSmartCollection).join("")
           : `<span class="video-analysis-muted">No smart collections saved yet.</span>`}
+      </div>
+      <div class="video-analysis-presentation-source-summary">
+        <span>${escapeHtml(`${total} matching clips`)}</span>
+        <span>${escapeHtml(presentation.activeSectionId ? "Adds to active section" : "Choose a section first")}</span>
       </div>
       <div class="video-analysis-presentation-source-list">
         ${clips.length

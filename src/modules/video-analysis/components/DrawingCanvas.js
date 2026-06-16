@@ -35,6 +35,16 @@ function renderOverlayLayer(layer = {}) {
   return `<span class="video-analysis-drawing-overlay is-${escapeHtml(tool)}">${escapeHtml(text)}</span>`;
 }
 
+function renderLayerMarker(layer = {}, index = 0) {
+  return `
+    <button type="button" data-video-analysis-drawing-select="${escapeHtml(layer.id)}">
+      <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+      <strong>${escapeHtml(layer.tool || "draw")}</strong>
+      <small>${escapeHtml(formatVideoTime(layer.timestampMs || 0))}</small>
+    </button>
+  `;
+}
+
 export function renderDrawingCanvas(state = {}) {
   const presentation = state.presentation?.current || {};
   const activeTool = state.presentation?.drawingTool || "arrow";
@@ -46,23 +56,32 @@ export function renderDrawingCanvas(state = {}) {
       <div class="video-analysis-drawing-builder__stage">
         <div class="video-analysis-panel-header">
           <div>
-            <p class="video-analysis-kicker">Drawing engine</p>
+            <p class="video-analysis-kicker">Telestration</p>
             <h3>${escapeHtml(item ? (item.customTitle || item.sectionTitle || "Selected clip") : "No clip selected")}</h3>
           </div>
           <div class="video-analysis-drawing-actions">
             <button type="button" data-video-analysis-drawing-undo ${state.presentation?.drawingUndoStack?.length ? "" : "disabled"}>Undo</button>
             <button type="button" data-video-analysis-drawing-redo ${state.presentation?.drawingRedoStack?.length ? "" : "disabled"}>Redo</button>
+            <button type="button" data-video-analysis-presentation-mode="builder">Done</button>
           </div>
+        </div>
+        <div class="video-analysis-draw-tool-grid video-analysis-draw-tool-grid--stage">
+          ${presentationDrawingTools.map((tool) => renderTool(tool, activeTool)).join("")}
         </div>
         <div class="video-analysis-drawing-canvas is-${escapeHtml(activeTool)}">
           <span class="video-analysis-drawing-field-lines"></span>
           ${layers.map(renderOverlayLayer).join("")}
           <strong>${escapeHtml(activeTool)}</strong>
+          <small>${escapeHtml(item ? "Drawings are saved as metadata on this clip." : "Select a clip from the outline first.")}</small>
+        </div>
+        <div class="video-analysis-drawing-layer-timeline" aria-label="Drawing timeline">
+          ${layers.length ? layers.map(renderLayerMarker).join("") : `<p class="video-analysis-muted">No drawing points yet. Choose a tool, set timing if needed, then add layer.</p>`}
         </div>
       </div>
       <aside class="video-analysis-drawing-side" aria-label="Drawing tools and layers">
-        <div class="video-analysis-draw-tool-grid">
-          ${presentationDrawingTools.map((tool) => renderTool(tool, activeTool)).join("")}
+        <div>
+          <p class="video-analysis-kicker">Layer controls</p>
+          <h3>${escapeHtml(layers.length ? `${layers.length} saved layers` : "Prepare first drawing")}</h3>
         </div>
         <div class="video-analysis-drawing-form">
           <input type="number" min="0" step="0.1" placeholder="Timestamp seconds" data-video-analysis-drawing-field="timestampSeconds" value="${escapeHtml(draft.timestampSeconds || "")}">

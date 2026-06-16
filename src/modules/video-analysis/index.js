@@ -275,7 +275,6 @@ function renderFsPlayerWorkspace(displayState = {}) {
 
 function renderPresentationWorkspace(state = {}) {
   return `
-    ${renderWorkspaceNav(state)}
     <section class="video-analysis-presentation-workspace">
       ${renderPresentationModule(state)}
     </section>

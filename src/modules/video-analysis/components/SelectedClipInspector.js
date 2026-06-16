@@ -15,11 +15,11 @@ export function renderSelectedClipInspector(state = {}) {
       <aside class="video-analysis-selected-clip" aria-label="Selected clip">
         <div class="video-analysis-panel-header">
           <div>
-            <p class="video-analysis-kicker">Selected clip</p>
+            <p class="video-analysis-kicker">Clip prep</p>
             <h3>No clip selected</h3>
           </div>
         </div>
-        <p class="video-analysis-muted">Add a tagged clip to start preparing coach notes and drawings.</p>
+        <p class="video-analysis-muted">Add a tagged clip to prepare notes, drawings and presenter cues.</p>
       </aside>
     `;
   }
@@ -30,17 +30,21 @@ export function renderSelectedClipInspector(state = {}) {
     <aside class="video-analysis-selected-clip" aria-label="Selected clip">
       <div class="video-analysis-panel-header">
         <div>
-          <p class="video-analysis-kicker">${escapeHtml(item.sectionTitle || "Selected clip")}</p>
+          <p class="video-analysis-kicker">${escapeHtml(item.sectionTitle || "Clip prep")}</p>
           <h3>${escapeHtml(clipLabel(item))}</h3>
         </div>
         <button type="button" data-video-analysis-seek="${escapeHtml(item.clipId)}">${escapeHtml(formatVideoTime(startMs))}</button>
       </div>
+      <div class="video-analysis-selected-clip__actions">
+        <button type="button" data-video-analysis-presentation-mode="draw">Open telestration</button>
+        <button type="button" data-video-analysis-presentation-mode="presenter">Cue in presenter</button>
+      </div>
       <label>
-        Clip title
+        Display title
         <input type="text" data-video-analysis-presentation-item-title="${escapeHtml(item.id)}" value="${escapeHtml(item.customTitle || "")}">
       </label>
       <label>
-        Coach note
+        Coach note for this moment
         <textarea rows="4" data-video-analysis-presentation-item-note="${escapeHtml(item.id)}">${escapeHtml(item.coachNote || "")}</textarea>
       </label>
       <div class="video-analysis-selected-clip__meta">

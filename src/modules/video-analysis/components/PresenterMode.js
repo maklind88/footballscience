@@ -32,7 +32,7 @@ export function renderPresenterMode(state = {}) {
     <section class="video-analysis-presenter-mode" aria-label="Presenter mode">
       <aside class="video-analysis-presenter-queue" aria-label="Clip queue">
         <div>
-          <p class="video-analysis-kicker">Clip queue</p>
+          <p class="video-analysis-kicker">Meeting queue</p>
           <h3>${escapeHtml(`${queue.length} clips`)}</h3>
         </div>
         <div class="video-analysis-presenter-queue-list">
@@ -48,8 +48,8 @@ export function renderPresenterMode(state = {}) {
             <h3>${escapeHtml(item ? itemTitle(item) : presentation.title || "Presentation")}</h3>
           </div>
           <div class="video-analysis-presenter-controls">
-            <button type="button" data-video-analysis-presenter-prev ${activeIndex > 0 ? "" : "disabled"}>Previous</button>
-            <button type="button" data-video-analysis-presenter-next ${activeIndex < queue.length - 1 ? "" : "disabled"}>Next</button>
+            <button type="button" data-video-analysis-presenter-prev ${activeIndex > 0 ? "" : "disabled"}>Previous clip</button>
+            <button type="button" data-video-analysis-presenter-next ${activeIndex < queue.length - 1 ? "" : "disabled"}>Next clip</button>
             <button type="button" data-video-analysis-presenter-fullscreen>Fullscreen</button>
             <button type="button" data-video-analysis-presentation-mode="builder">Exit</button>
           </div>

@@ -12,16 +12,41 @@ function playerLabel(clip = {}) {
   return player?.player_label || player?.playerLabel || player?.player_id || player?.playerId || "Team";
 }
 
+function clipDuration(clip = {}) {
+  const startMs = clip.startMs ?? clip.start_ms ?? 0;
+  const endMs = clip.endMs ?? clip.end_ms ?? startMs;
+  return Math.max(0, Number(endMs || 0) - Number(startMs || 0));
+}
+
+function clipTags(clip = {}) {
+  const rawTags = []
+    .concat(Array.isArray(clip.tags) ? clip.tags : [])
+    .concat(Array.isArray(clip.labels) ? clip.labels.map((label) => label.label_text || label.labelText || label.label_value || label.labelValue) : [])
+    .concat(Array.isArray(clip.descriptors) ? clip.descriptors.map((entry) => entry.descriptor_label || entry.descriptorLabel || entry.descriptor_value || entry.descriptorValue) : []);
+  return rawTags.map((tag) => String(tag || "").trim()).filter(Boolean).slice(0, 4);
+}
+
+function clipInitial(clip = {}) {
+  const phase = clip.phase || clip.subPhase || clip.sub_phase || "Clip";
+  return String(phase).split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "CL";
+}
+
 function renderSourceClip(clip = {}, activeSectionId = "") {
   const startMs = clip.startMs ?? clip.start_ms ?? 0;
+  const tags = clipTags(clip);
   return `
     <article class="video-analysis-presentation-source-clip">
-      <button type="button" class="video-analysis-presentation-source-clip__time" data-video-analysis-seek="${escapeHtml(clip.id)}">
-        ${escapeHtml(formatVideoTime(startMs))}
+      <button type="button" class="video-analysis-presentation-source-clip__thumb" data-video-analysis-seek="${escapeHtml(clip.id)}" aria-label="Preview clip">
+        <strong>${escapeHtml(clipInitial(clip))}</strong>
+        <span>${escapeHtml(formatVideoTime(startMs))}</span>
       </button>
       <div>
         <strong>${escapeHtml(clipTitle(clip))}</strong>
         <span>${escapeHtml(playerLabel(clip))} - ${escapeHtml(clip.subPhase || clip.sub_phase || "Tagged clip")}</span>
+        <small>${escapeHtml(`${formatVideoTime(clipDuration(clip))} duration`)}</small>
+        <div class="video-analysis-presentation-clip-tags">
+          ${(tags.length ? tags : [clip.outcome || "Ready"]).map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
+        </div>
       </div>
       <button type="button" data-video-analysis-presentation-add="${escapeHtml(activeSectionId)}:${escapeHtml(clip.id)}">Add</button>
     </article>
@@ -29,9 +54,15 @@ function renderSourceClip(clip = {}, activeSectionId = "") {
 }
 
 function renderSmartCollection(collection = {}) {
+  const filters = collection.searchJson || collection.search_json || {};
+  const filterParts = [filters.phase, filters.outcome, filters.tag, filters.date, filters.search]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .slice(0, 3);
   return `
     <button type="button" class="video-analysis-smart-collection" data-video-analysis-smart-apply="${escapeHtml(collection.id || collection.title)}">
-      <span>${escapeHtml(collection.title || "Smart collection")}</span>
+      <strong>${escapeHtml(collection.title || "Smart collection")}</strong>
+      <span>${escapeHtml(filterParts.length ? filterParts.join(" / ") : "Saved clip playlist")}</span>
     </button>
   `;
 }
@@ -66,7 +97,7 @@ export function renderPresentationSources(state = {}) {
       <div class="video-analysis-smart-collections" aria-label="Smart collections">
         ${smartCollections.length
           ? smartCollections.map(renderSmartCollection).join("")
-          : `<span class="video-analysis-muted">No smart collections saved yet.</span>`}
+          : `<span class="video-analysis-muted">Save searches here as live clip playlists.</span>`}
       </div>
       <div class="video-analysis-presentation-source-summary">
         <span>${escapeHtml(`${total} matching clips`)}</span>

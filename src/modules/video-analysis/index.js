@@ -966,6 +966,59 @@ function defaultDrawingGeometry(tool = "arrow") {
   return map[tool] || map.arrow;
 }
 
+function drawingGeometryAtPoint(tool = "arrow", x = 50, y = 50) {
+  const safeX = Math.max(0, Math.min(100, Number(x || 0)));
+  const safeY = Math.max(0, Math.min(100, Number(y || 0)));
+  if (tool === "arrow") {
+    return {
+      x1: Math.max(0, safeX - 18),
+      y1: Math.min(100, safeY + 8),
+      x2: Math.min(100, safeX + 18),
+      y2: Math.max(0, safeY - 8),
+    };
+  }
+  if (tool === "circle") return { cx: safeX, cy: safeY, rx: 12, ry: 8 };
+  if (tool === "spotlight") return { cx: safeX, cy: safeY, rx: 16, ry: 11 };
+  if (tool === "text") return { x: safeX, y: safeY };
+  if (tool === "zoom") return { cx: safeX, cy: safeY, scale: 1.6 };
+  if (tool === "freeze") return { x: 0, y: 0, width: 100, height: 100 };
+  return defaultDrawingGeometry(tool);
+}
+
+function addDrawingLayerAtPoint(context = {}, geometry = null) {
+  const run = ensureRuntime(context);
+  run.store.update((state) => {
+    const presentation = state.presentation?.current;
+    const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
+    if (!item) return state;
+    const draft = state.presentation?.drawingDraft || {};
+    const tool = state.presentation?.drawingTool || "arrow";
+    const timestampMs = currentPlayheadMs(context, state);
+    const layer = normalizeDrawingLayer({
+      presentationId: presentation.id,
+      presentationItemId: item.id,
+      clipId: item.clipId,
+      timestampMs,
+      durationMs: draft.durationSeconds ? Math.round(Number(draft.durationSeconds || 0) * 1000) : null,
+      tool,
+      text: draft.text || (tool === "text" ? "Coach point" : ""),
+      geometry: geometry || defaultDrawingGeometry(tool),
+      style: { color: tool === "spotlight" ? "#ffffff" : "#f4d06f" },
+    });
+    return {
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        current: addDrawingLayerToItem(presentation, item.id, layer),
+        drawingDraft: { timestampSeconds: "", durationSeconds: "", text: "" },
+        drawingUndoStack: [...(state.presentation?.drawingUndoStack || []), presentation].slice(-20),
+        drawingRedoStack: [],
+      },
+    };
+  });
+  return true;
+}
+
 function selectedClipFromPresentationSources(state = {}, clipId = "") {
   return (state.presentation?.sourceClips || []).find((clip) => clip.id === clipId)
     || (state.clips || []).find((clip) => clip.id === clipId)
@@ -1525,6 +1578,21 @@ async function applyCodeButton(buttonId = "", context = {}) {
 }
 
 export function handlePointerDown(event, context = {}) {
+  const target = eventElement(event);
+  const drawingSurface = target?.closest?.("[data-video-analysis-drawing-surface]");
+  if (drawingSurface) {
+    const run = ensureRuntime(context);
+    const state = run.store.getState();
+    if (state.presentation?.mode !== "draw") return false;
+    const presentation = state.presentation?.current;
+    const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
+    if (!item) return false;
+    event.preventDefault?.();
+    const rect = drawingSurface.getBoundingClientRect?.();
+    const x = rect?.width ? ((event.clientX - rect.left) / rect.width) * 100 : 50;
+    const y = rect?.height ? ((event.clientY - rect.top) / rect.height) * 100 : 50;
+    return addDrawingLayerAtPoint(context, drawingGeometryAtPoint(state.presentation?.drawingTool || "arrow", x, y));
+  }
   return timelineController(context).handlePointerDown(event);
 }
 
@@ -2041,39 +2109,7 @@ export function handleClick(event, context = {}) {
     return true;
   }
   if (target.closest("[data-video-analysis-drawing-add]")) {
-    run.store.update((state) => {
-      const presentation = state.presentation?.current;
-      const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
-      if (!item) return state;
-      const draft = state.presentation?.drawingDraft || {};
-      const tool = state.presentation?.drawingTool || "arrow";
-      const currentMs = getVideoCurrentMs(videoElement(context));
-      const timestampMs = draft.timestampSeconds === "" || draft.timestampSeconds === undefined
-        ? currentMs
-        : Math.round(Number(draft.timestampSeconds || 0) * 1000);
-      const layer = normalizeDrawingLayer({
-        presentationId: presentation.id,
-        presentationItemId: item.id,
-        clipId: item.clipId,
-        timestampMs,
-        durationMs: draft.durationSeconds ? Math.round(Number(draft.durationSeconds || 0) * 1000) : null,
-        tool,
-        text: draft.text || (tool === "text" ? "Coach point" : ""),
-        geometry: defaultDrawingGeometry(tool),
-        style: { color: tool === "spotlight" ? "#ffffff" : "#f4d06f" },
-      });
-      return {
-        ...state,
-        presentation: {
-          ...(state.presentation || {}),
-          current: addDrawingLayerToItem(presentation, item.id, layer),
-          drawingDraft: { timestampSeconds: "", durationSeconds: "", text: "" },
-          drawingUndoStack: [...(state.presentation?.drawingUndoStack || []), presentation].slice(-20),
-          drawingRedoStack: [],
-        },
-      };
-    });
-    return true;
+    return addDrawingLayerAtPoint(context);
   }
   const removeDrawingButton = target.closest("[data-video-analysis-drawing-remove]");
   if (removeDrawingButton) {

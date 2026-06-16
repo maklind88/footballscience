@@ -21,17 +21,70 @@ function itemTitle(item = {}) {
   return item.customTitle || `${clip.phase || "Clip"} / ${clip.outcome || "Neutral"}`;
 }
 
+function stageStatus(state = {}, item = null) {
+  if (!state.videoRef?.objectUrl) return item ? "Video not linked on this device" : "Ready for clips";
+  if (!item) return "Local video linked";
+  const clip = item.clip || {};
+  const startMs = item.startMs ?? clip.startMs ?? clip.start_ms ?? 0;
+  const endMs = item.endMs ?? clip.endMs ?? clip.end_ms ?? null;
+  return `${formatVideoTime(startMs)}${endMs ? ` - ${formatVideoTime(endMs)}` : ""}`;
+}
+
 function renderStageLayer(layer = {}) {
   const tool = layer.tool || "arrow";
-  return `<span class="video-analysis-presentation-stage-layer is-${escapeHtml(tool)}">${escapeHtml(layer.text || tool)}</span>`;
+  const geometry = layer.geometry || layer.geometryJson || layer.geometry_json || {};
+  const style = layerStyle(tool, geometry);
+  return `<span class="video-analysis-presentation-stage-layer is-${escapeHtml(tool)}" style="${escapeHtml(style)}">${escapeHtml(layer.text || tool)}</span>`;
 }
 
 function renderDrawingMarker(layer = {}, index = 0) {
   return `
-    <span style="--marker-left:${Math.max(4, Math.min(96, Number(layer.timestampMs || 0) / 600))}%">
+    <span>
       <strong>${escapeHtml(String(index + 1).padStart(2, "0"))}</strong>
       ${escapeHtml(layer.tool || "draw")}
     </span>
+  `;
+}
+
+function layerStyle(tool = "arrow", geometry = {}) {
+  const x = Number(geometry.x ?? geometry.cx ?? geometry.x1 ?? 50);
+  const y = Number(geometry.y ?? geometry.cy ?? geometry.y1 ?? 50);
+  if (tool === "arrow") {
+    const x2 = Number(geometry.x2 ?? x + 28);
+    const y2 = Number(geometry.y2 ?? y - 10);
+    const length = Math.max(12, Math.hypot(x2 - x, y2 - y));
+    const angle = Math.atan2(y2 - y, x2 - x) * 180 / Math.PI;
+    return `left:${Math.max(0, Math.min(100, x))}%;top:${Math.max(0, Math.min(100, y))}%;width:${Math.min(70, length)}%;transform:rotate(${angle}deg);`;
+  }
+  if (tool === "freeze") return "";
+  const width = Number(geometry.rx || geometry.width || (tool === "zoom" ? 12 : 16));
+  const height = Number(geometry.ry || geometry.height || (tool === "zoom" ? 12 : 10));
+  return `left:${Math.max(0, Math.min(94, x - width / 2))}%;top:${Math.max(0, Math.min(92, y - height / 2))}%;`;
+}
+
+function renderStageMedia(state = {}, item = null, layers = []) {
+  const ref = state.videoRef || {};
+  const hasVideo = Boolean(ref.objectUrl);
+  if (!hasVideo) {
+    return `
+      <div class="video-analysis-presentation-stage-empty">
+        <span class="video-analysis-presentation-stage-grid" aria-hidden="true"></span>
+        <div>
+          <span>${escapeHtml(item ? "Local video needed" : "No video linked")}</span>
+          <strong>${escapeHtml(item ? itemTitle(item) : "Link a local match video")}</strong>
+          <small>${escapeHtml(item ? "The presentation keeps metadata only. Link the source video on this device to preview clips." : "Use FS Player or this button to connect the local source video.")}</small>
+          <button type="button" data-video-analysis-load>Link local video</button>
+        </div>
+      </div>
+    `;
+  }
+  return `
+    <div class="video-analysis-presentation-stage-media">
+      <video class="video-analysis-presentation-stage-video" data-video-analysis-video src="${escapeHtml(ref.objectUrl)}" controls playsinline preload="metadata"></video>
+      <div class="video-analysis-presentation-stage-overlays" aria-hidden="true">
+        ${layers.slice(0, 8).map(renderStageLayer).join("")}
+      </div>
+    </div>
   `;
 }
 
@@ -40,9 +93,6 @@ function renderPresentationStage(state = {}) {
   const queue = presentationQueue(presentation);
   const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
   const activeIndex = Math.max(0, queue.findIndex((entry) => entry.id === item?.id));
-  const clip = item?.clip || {};
-  const startMs = item?.startMs ?? clip.startMs ?? clip.start_ms ?? 0;
-  const endMs = item?.endMs ?? clip.endMs ?? clip.end_ms ?? null;
   const layers = Array.isArray(item?.drawings) ? item.drawings : [];
   return `
     <section class="video-analysis-presentation-stage-v2" aria-label="Presentation stage">
@@ -58,12 +108,11 @@ function renderPresentationStage(state = {}) {
         </div>
       </div>
       <div class="video-analysis-presentation-stage-frame-v2">
-        <span class="video-analysis-presentation-stage-grid" aria-hidden="true"></span>
-        ${layers.slice(0, 5).map(renderStageLayer).join("")}
+        ${renderStageMedia(state, item, layers)}
         <div class="video-analysis-presentation-stage-copy">
           <span>${escapeHtml(item ? `Clip ${activeIndex + 1} of ${queue.length}` : "No clip selected")}</span>
           <strong>${escapeHtml(item ? itemTitle(item) : "Drag clips into the outline to build the meeting")}</strong>
-          <small>${escapeHtml(item ? `${formatVideoTime(startMs)}${endMs ? ` - ${formatVideoTime(endMs)}` : ""}` : "Use Data Explorer to find tagged clips.")}</small>
+          <small>${escapeHtml(stageStatus(state, item))}</small>
         </div>
       </div>
       <div class="video-analysis-presentation-stage-timeline" aria-label="Drawing and freeze points">
@@ -71,12 +120,13 @@ function renderPresentationStage(state = {}) {
           ${layers.length ? layers.map(renderDrawingMarker).join("") : `<span><strong>00</strong>No drawing points yet</span>`}
         </div>
       </div>
-      <div class="video-analysis-presentation-brief-panel">
+      <details class="video-analysis-presentation-brief-panel">
+        <summary>Meeting notes and setup</summary>
         <label>
           <span>Meeting brief</span>
           <textarea rows="3" placeholder="Private notes for the staff before the room opens" data-video-analysis-presentation-notes>${escapeHtml(presentation.notes || "")}</textarea>
         </label>
-      </div>
+      </details>
     </section>
   `;
 }

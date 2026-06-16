@@ -32,7 +32,9 @@ function renderLayer(layer = {}) {
 function renderOverlayLayer(layer = {}) {
   const tool = layer.tool || "arrow";
   const text = layer.text || tool;
-  return `<span class="video-analysis-drawing-overlay is-${escapeHtml(tool)}">${escapeHtml(text)}</span>`;
+  const geometry = layer.geometry || layer.geometryJson || layer.geometry_json || {};
+  const style = layerStyle(tool, geometry);
+  return `<span class="video-analysis-drawing-overlay is-${escapeHtml(tool)}" style="${escapeHtml(style)}">${escapeHtml(text)}</span>`;
 }
 
 function renderLayerMarker(layer = {}, index = 0) {
@@ -45,12 +47,29 @@ function renderLayerMarker(layer = {}, index = 0) {
   `;
 }
 
+function layerStyle(tool = "arrow", geometry = {}) {
+  const x = Number(geometry.x ?? geometry.cx ?? geometry.x1 ?? 50);
+  const y = Number(geometry.y ?? geometry.cy ?? geometry.y1 ?? 50);
+  if (tool === "arrow") {
+    const x2 = Number(geometry.x2 ?? x + 28);
+    const y2 = Number(geometry.y2 ?? y - 10);
+    const length = Math.max(12, Math.hypot(x2 - x, y2 - y));
+    const angle = Math.atan2(y2 - y, x2 - x) * 180 / Math.PI;
+    return `left:${Math.max(0, Math.min(100, x))}%;top:${Math.max(0, Math.min(100, y))}%;width:${Math.min(70, length)}%;transform:rotate(${angle}deg);`;
+  }
+  if (tool === "freeze") return "";
+  const width = Number(geometry.rx || geometry.width || (tool === "zoom" ? 12 : 16));
+  const height = Number(geometry.ry || geometry.height || (tool === "zoom" ? 12 : 10));
+  return `left:${Math.max(0, Math.min(94, x - width / 2))}%;top:${Math.max(0, Math.min(92, y - height / 2))}%;`;
+}
+
 export function renderDrawingCanvas(state = {}) {
   const presentation = state.presentation?.current || {};
   const activeTool = state.presentation?.drawingTool || "arrow";
   const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
   const layers = Array.isArray(item?.drawings) ? item.drawings : [];
   const draft = state.presentation?.drawingDraft || {};
+  const hasVideo = Boolean(state.videoRef?.objectUrl);
   return `
     <section class="video-analysis-drawing-builder" aria-label="Drawing layers">
       <div class="video-analysis-drawing-builder__stage">
@@ -68,11 +87,13 @@ export function renderDrawingCanvas(state = {}) {
         <div class="video-analysis-draw-tool-grid video-analysis-draw-tool-grid--stage">
           ${presentationDrawingTools.map((tool) => renderTool(tool, activeTool)).join("")}
         </div>
-        <div class="video-analysis-drawing-canvas is-${escapeHtml(activeTool)}">
+        <div class="video-analysis-drawing-canvas is-${escapeHtml(activeTool)}" data-video-analysis-drawing-surface>
+          ${hasVideo ? `<video class="video-analysis-drawing-video" data-video-analysis-video src="${escapeHtml(state.videoRef.objectUrl)}" controls playsinline preload="metadata"></video>` : ""}
           <span class="video-analysis-drawing-field-lines"></span>
           ${layers.map(renderOverlayLayer).join("")}
           <strong>${escapeHtml(activeTool)}</strong>
-          <small>${escapeHtml(item ? "Drawings are saved as metadata on this clip." : "Select a clip from the outline first.")}</small>
+          <small>${escapeHtml(item ? (hasVideo ? "Click the video to place this drawing tool. Drawings are saved as metadata." : "Link local video to draw on the source clip.") : "Select a clip from the outline first.")}</small>
+          ${!hasVideo ? `<button type="button" class="video-analysis-drawing-link-video" data-video-analysis-load>Link local video</button>` : ""}
         </div>
         <div class="video-analysis-drawing-layer-timeline" aria-label="Drawing timeline">
           ${layers.length ? layers.map(renderLayerMarker).join("") : `<p class="video-analysis-muted">No drawing points yet. Choose a tool, set timing if needed, then add layer.</p>`}

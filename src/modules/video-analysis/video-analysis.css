@@ -1239,7 +1239,8 @@
 
 .video-analysis-fs-player-workstation {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(340px, 0.58fr);
+  grid-template-areas: "code main";
+  grid-template-columns: minmax(340px, 0.58fr) minmax(0, 1.55fr);
   gap: 10px;
   align-items: start;
   min-width: 0;
@@ -1247,6 +1248,7 @@
 
 .video-analysis-fs-player-main {
   display: grid;
+  grid-area: main;
   gap: 8px;
   min-width: 0;
 }
@@ -1397,6 +1399,7 @@
 .video-analysis-code-window-dock {
   position: sticky;
   top: 10px;
+  grid-area: code;
   min-width: 0;
 }
 
@@ -4489,6 +4492,9 @@
 
 @media (max-width: 1180px) {
   .video-analysis-fs-player-workstation {
+    grid-template-areas:
+      "main"
+      "code";
     grid-template-columns: 1fr;
   }
 

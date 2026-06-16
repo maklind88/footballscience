@@ -105,7 +105,7 @@ function renderButtonEditor(item = {}) {
 function renderButtonGroup(group = "", buttons = [], state = {}) {
   const editing = state.codingSession?.panelMode === "edit";
   return `
-    <section class="video-analysis-code-group">
+    <section class="video-analysis-code-group" data-video-analysis-code-group="${escapeHtml(group)}">
       <div class="video-analysis-code-group__header">
         <span>${escapeHtml(group)}</span>
         ${editing ? `<button type="button" data-video-analysis-add-code-button-group="${escapeHtml(group)}">+ Button</button>` : ""}
@@ -172,8 +172,9 @@ export function renderCodingTemplateBuilder(state = {}) {
     groups.get(group).push(item);
   }
   const groupNames = [...groups.keys()];
+  const buttonCount = (template.buttons || []).length;
   return `
-    <section class="video-analysis-template-builder" data-video-analysis-code-window>
+    <section class="video-analysis-template-builder ${editing ? "is-editing" : "is-coding"}" data-video-analysis-code-window>
       <div class="video-analysis-panel-header">
         <div>
           <p class="video-analysis-kicker">Code Window</p>
@@ -185,6 +186,10 @@ export function renderCodingTemplateBuilder(state = {}) {
           ` : `<h3>${escapeHtml(template.title || "Football Science Coding")}</h3>`}
         </div>
         <div class="video-analysis-template-actions">
+          <div class="video-analysis-code-window-stats" aria-label="Code window summary">
+            <span>${escapeHtml(`${buttonCount} buttons`)}</span>
+            <span>${escapeHtml(`${groupNames.length} groups`)}</span>
+          </div>
           <div class="video-analysis-mode-toggle" role="group" aria-label="Code window mode">
             <button type="button" class="${!editing ? "is-active" : ""}" data-video-analysis-panel-mode="use">Code</button>
             <button type="button" class="${editing ? "is-active" : ""}" data-video-analysis-panel-mode="edit">Edit</button>

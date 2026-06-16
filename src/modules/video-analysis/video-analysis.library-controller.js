@@ -12,6 +12,19 @@ function contextScheduleCandidates(context = {}) {
   }
 }
 
+function scrollWorkspaceTop(context = {}) {
+  const targetWindow = context.win || globalThis.window;
+  const root = context.ui?.analysisRoomWorkspace || targetWindow?.document?.getElementById?.("analysisRoomWorkspace");
+  if (!targetWindow) return;
+  const run = () => {
+    targetWindow.scrollTo?.({ top: 0, left: 0 });
+    targetWindow.document?.scrollingElement?.scrollTo?.({ top: 0, left: 0 });
+    root?.scrollIntoView?.({ block: "start" });
+  };
+  if (targetWindow.requestAnimationFrame) targetWindow.requestAnimationFrame(run);
+  else run();
+}
+
 export function createVideoLibraryController(deps = {}) {
   const {
     ensureRuntime,
@@ -102,6 +115,7 @@ export function createVideoLibraryController(deps = {}) {
         ...localVideoStatusPatch("none", "No video linked"),
       }));
       await restoreLocalVideoHandle(context, { silent: true, requestPermission: true });
+      scrollWorkspaceTop(context);
       return true;
     }
     if (previous) revokeLocalVideoReference(previous, context.win || window);
@@ -127,6 +141,7 @@ export function createVideoLibraryController(deps = {}) {
     }));
     if (activeTab !== "presentation") await restoreLocalVideoHandle(context, { silent: true, requestPermission: true });
     await loadClips();
+    scrollWorkspaceTop(context);
     return true;
   }
 

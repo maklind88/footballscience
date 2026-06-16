@@ -207,7 +207,11 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   });
   await page.goto("/qa/video-analysis-browser-smoke.html?timeline=1", { waitUntil: "domcontentloaded" });
 
+  await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toBeVisible();
+  await expect(page.locator(".video-analysis-fs-player-deck [data-video-analysis-timeline-module]")).toBeVisible();
+  await expect(page.locator(".video-analysis-code-window-dock [data-video-analysis-code-window]")).toBeVisible();
   await expect(page.locator("[data-video-analysis-timeline-module]")).toBeVisible();
+  await expect(page.locator(".video-analysis-timeline-status")).toContainText("1 clip");
   await expect(page.locator(".video-analysis-coding-panel")).toHaveCount(0);
   await expect(page.locator(".video-analysis-presentation")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-header")).toHaveCount(0);
@@ -390,6 +394,8 @@ test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) =
   const timeline = page.locator("[data-video-analysis-timeline-module]");
   await expect(timeline).toHaveAttribute("data-video-analysis-timeline-density", "dense");
   await expect(timeline).toHaveAttribute("data-video-analysis-timeline-clip-count", "500");
+  await expect(page.locator(".video-analysis-timeline-status")).toContainText("500 clips");
+  await expect(page.locator(".video-analysis-code-window-dock [data-video-analysis-code-window]")).toBeVisible();
   await expect(page.locator(".video-analysis-clip-block")).toHaveCount(500);
   await expect(page.locator(".video-analysis-clip-block__copy small")).toHaveCount(0);
   const phaseLane = page.locator('[data-video-analysis-timeline-category-label="In Possession"]');

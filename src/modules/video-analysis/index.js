@@ -279,11 +279,15 @@ function renderWorkspaceNav(state = {}) {
 
 function renderFsPlayerWorkspace(displayState = {}) {
   return `
-    ${renderWorkspaceNav(displayState)}
-    ${renderVideoPlayer(displayState)}
-    ${renderTimeline(displayState)}
-    <section class="video-analysis-workstation video-analysis-workstation--coding-only">
-      <section class="video-analysis-left-stack">
+    <section class="video-analysis-fs-player-workstation" data-video-analysis-fs-player-workstation>
+      <section class="video-analysis-fs-player-main">
+        ${renderWorkspaceNav(displayState)}
+        <section class="video-analysis-fs-player-deck">
+          ${renderVideoPlayer(displayState)}
+          ${renderTimeline(displayState)}
+        </section>
+      </section>
+      <section class="video-analysis-code-window-dock">
         ${renderCodingTemplateBuilder(displayState)}
       </section>
     </section>

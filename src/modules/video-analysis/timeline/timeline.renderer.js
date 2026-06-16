@@ -80,6 +80,15 @@ function renderLaneButtons(activeLaneMode = "phase") {
   `;
 }
 
+function renderTimelineStatus(totalMs = 1, clipCount = 0) {
+  return `
+    <div class="video-analysis-timeline-status" aria-label="Timeline status">
+      <span>${escapeHtml(`${clipCount} clip${clipCount === 1 ? "" : "s"}`)}</span>
+      <span>${escapeHtml(formatVideoTime(totalMs))}</span>
+    </div>
+  `;
+}
+
 function renderTimelineRuler(ticks = [], totalMs = 1) {
   return `
     <div class="video-analysis-timeline-ruler" data-video-analysis-timeline-ruler data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}" aria-hidden="true">
@@ -268,6 +277,7 @@ export function renderTimeline(state = {}) {
     >
       <div class="video-analysis-timeline-toolbar">
         ${renderLaneButtons(laneMode)}
+        ${renderTimelineStatus(totalMs, density.clipCount)}
       </div>
       <div class="video-analysis-timeline-scroll">
         <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(zoom)}">

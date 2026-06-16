@@ -279,7 +279,7 @@ export function renderTimeline(state = {}) {
         ${renderLaneButtons(laneMode)}
         ${renderTimelineStatus(totalMs, density.clipCount)}
       </div>
-      <div class="video-analysis-timeline-scroll">
+      <div class="video-analysis-timeline-scroll" data-video-analysis-timeline-pan>
         <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(zoom)}">
           ${renderTimelineRuler(ticks, totalMs)}
           <div

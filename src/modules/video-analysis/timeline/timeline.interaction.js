@@ -29,7 +29,7 @@ export function createTimelineScrubController(options = {}) {
   }
 
   function lockScrollPosition() {
-    if (!session?.scrollContainer) return;
+    if (!session?.scrollContainer || session.type === "pan") return;
     session.scrollContainer.scrollLeft = session.scrollLeft;
   }
 
@@ -55,7 +55,7 @@ export function createTimelineScrubController(options = {}) {
     targetRoot.querySelectorAll(".video-analysis-playhead").forEach((playhead) => {
       playhead.style.left = left;
     });
-    syncScrubTimes(safeMs, safeDuration, Boolean(session));
+    syncScrubTimes(safeMs, safeDuration, Boolean(session && session.type !== "pan"));
   }
 
   function seekToMs(ms = 0, { commit = false } = {}) {
@@ -155,23 +155,75 @@ export function createTimelineScrubController(options = {}) {
   function handlePointerMove(event = {}) {
     if (!session) return;
     event.preventDefault?.();
+    if (session.type === "pan") {
+      const nextScrollLeft = session.scrollLeft - (Number(event.clientX || 0) - session.startX);
+      session.scrollContainer.scrollLeft = Math.max(0, Math.min(session.maxScrollLeft, nextScrollLeft));
+      return true;
+    }
     lockScrollPosition();
     applyScrub(event);
+    return true;
   }
 
   function endScrub(event = {}) {
     if (!session) return;
-    applyScrub(event, { commit: true });
+    const wasPan = session.type === "pan";
+    if (!wasPan) applyScrub(event, { commit: true });
     const targetWindow = win();
     targetWindow?.removeEventListener?.("pointermove", handlePointerMove, session.listenerOptions);
     targetWindow?.removeEventListener?.("pointerup", endScrub, session.listenerOptions);
     targetWindow?.removeEventListener?.("pointercancel", endScrub, session.listenerOptions);
     session.scrollContainer?.classList?.remove("is-scrubbing");
     session.scrollContainer?.classList?.remove("is-trimming");
-    lockScrollPosition();
-    syncScrubTimes(getVideoCurrentMs(options.getVideoElement?.()), getTimelineDurationMs(state()), false);
+    session.scrollContainer?.classList?.remove("is-panning");
+    if (!wasPan) {
+      lockScrollPosition();
+      syncScrubTimes(getVideoCurrentMs(options.getVideoElement?.()), getTimelineDurationMs(state()), false);
+    }
     clearPendingFrame();
     session = null;
+    return true;
+  }
+
+  function isPanBlocked(target) {
+    return Boolean(target.closest?.([
+      "button",
+      "a",
+      "input",
+      "select",
+      "textarea",
+      "[data-video-analysis-seek]",
+      "[data-video-analysis-timeline-category]",
+      "[data-video-analysis-timeline-ruler]",
+      "[data-video-analysis-timeline-scrub]",
+      "[data-video-analysis-timeline-scrub-surface]",
+      "[data-video-analysis-timeline-track]",
+      "[data-video-analysis-timeline-trim-edge]",
+    ].join(",")));
+  }
+
+  function startPan(event = {}, target) {
+    const scrollContainer = target.closest?.("[data-video-analysis-timeline-pan]");
+    if (!scrollContainer || isPanBlocked(target)) return false;
+    const maxScrollLeft = Math.max(0, Number(scrollContainer.scrollWidth || 0) - Number(scrollContainer.clientWidth || 0));
+    if (!maxScrollLeft) return false;
+    const listenerOptions = { passive: false };
+    session = {
+      type: "pan",
+      listenerOptions,
+      scrollContainer,
+      scrollLeft: Number(scrollContainer.scrollLeft || 0),
+      maxScrollLeft,
+      startX: Number(event.clientX || 0),
+    };
+    const targetWindow = win();
+    event.preventDefault?.();
+    scrollContainer.classList?.add("is-panning");
+    targetWindow?.addEventListener?.("pointermove", handlePointerMove, listenerOptions);
+    targetWindow?.addEventListener?.("pointerup", endScrub, listenerOptions);
+    targetWindow?.addEventListener?.("pointercancel", endScrub, listenerOptions);
+    target.setPointerCapture?.(event.pointerId);
+    return true;
   }
 
   function handlePointerDown(event = {}) {
@@ -184,6 +236,7 @@ export function createTimelineScrubController(options = {}) {
     const track = target.closest("[data-video-analysis-timeline-track]");
     const ruler = target.closest("[data-video-analysis-timeline-ruler]");
     const module = target.closest("[data-video-analysis-timeline-module]");
+    if (!trimHandle && !track && !ruler && !scrubHandle && startPan(event, target)) return true;
     const surface = module?.querySelector("[data-video-analysis-timeline-scrub-surface]")
       || scrubHandle?.closest("[data-video-analysis-timeline-scrub-surface]")
       || track
@@ -250,8 +303,27 @@ export function createTimelineScrubController(options = {}) {
     syncPlayheads(getVideoCurrentMs(videoElement), getTimelineDurationMs(state()));
   }
 
+  function handleWheel(event = {}) {
+    const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
+    const scrollContainer = target?.closest?.("[data-video-analysis-timeline-pan]");
+    if (!scrollContainer) return false;
+    const maxScrollLeft = Math.max(0, Number(scrollContainer.scrollWidth || 0) - Number(scrollContainer.clientWidth || 0));
+    if (!maxScrollLeft) return false;
+    const deltaX = Number(event.deltaX || 0);
+    const deltaY = Number(event.deltaY || 0);
+    const horizontalDelta = Math.abs(deltaX) > 0 ? deltaX : event.shiftKey ? deltaY : 0;
+    if (!horizontalDelta) return false;
+    const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, Number(scrollContainer.scrollLeft || 0) + horizontalDelta));
+    if (nextScrollLeft === Number(scrollContainer.scrollLeft || 0)) return false;
+    scrollContainer.scrollLeft = nextScrollLeft;
+    event.preventDefault?.();
+    return true;
+  }
+
   return {
     handlePointerDown,
+    handlePointerMove,
+    handleWheel,
     handleVideoTimeUpdate,
     seekToMs,
     syncPlayheads,

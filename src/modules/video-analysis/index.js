@@ -274,11 +274,13 @@ function renderFsPlayerWorkspace(displayState = {}) {
       <section class="video-analysis-fs-player-main">
         <section class="video-analysis-fs-player-deck">
           ${renderVideoPlayer(displayState)}
-          ${renderTimeline(displayState)}
         </section>
       </section>
       <section class="video-analysis-code-window-dock">
         ${renderCodingTemplateBuilder(displayState)}
+      </section>
+      <section class="video-analysis-fs-player-timeline">
+        ${renderTimeline(displayState)}
       </section>
     </section>
     ${renderPlayerClipDrawer(displayState)}
@@ -1497,6 +1499,7 @@ export function render(context = {}) {
     pointermove: handlePointerMove,
     pointerup: handlePointerUp,
     submit: handleSubmit,
+    wheel: handleWheel,
   });
   if (!run.unsubscribe) {
     run.unsubscribe = run.store.subscribe((state) => paint(root, state));
@@ -1818,6 +1821,10 @@ export function handlePointerMove(event, context = {}) {
 
 export function handlePointerUp(event, context = {}) {
   return finishDrawingInteraction(event, context);
+}
+
+export function handleWheel(event, context = {}) {
+  return timelineController(context).handleWheel(event);
 }
 
 export function handleClick(event, context = {}) {

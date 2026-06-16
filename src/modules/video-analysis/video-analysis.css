@@ -1161,6 +1161,7 @@
 .video-analysis-timeline-scroll {
   overflow-x: auto;
   overscroll-behavior-x: contain;
+  cursor: grab;
   border-bottom: 1px solid #e4eae5;
   background:
     linear-gradient(90deg, rgba(255,255,255,0.94), rgba(255,255,255,0)) 0 0 / 18px 100% no-repeat,
@@ -1169,6 +1170,15 @@
 
 .video-analysis-timeline-scroll.is-scrubbing {
   overflow-x: hidden;
+}
+
+.video-analysis-timeline-scroll.is-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.video-analysis-timeline-scroll.is-panning * {
+  cursor: grabbing;
 }
 
 .video-analysis-timeline-canvas {
@@ -1238,9 +1248,12 @@
 }
 
 .video-analysis-fs-player-workstation {
+  --video-analysis-fs-player-code-width: clamp(340px, 28vw, 390px);
   display: grid;
-  grid-template-areas: "code main";
-  grid-template-columns: minmax(340px, 0.58fr) minmax(0, 1.55fr);
+  grid-template-areas:
+    "code main"
+    "timeline timeline";
+  grid-template-columns: var(--video-analysis-fs-player-code-width) minmax(0, 1fr);
   gap: 10px;
   align-items: start;
   min-width: 0;
@@ -1265,7 +1278,7 @@
 }
 
 .video-analysis-fs-player-deck .video-analysis-player,
-.video-analysis-fs-player-deck .video-analysis-timeline {
+.video-analysis-fs-player-timeline .video-analysis-timeline {
   border: 0;
   border-radius: 0;
   box-shadow: none;
@@ -1306,12 +1319,22 @@
   max-height: min(62vh, 640px);
 }
 
-.video-analysis-fs-player-deck .video-analysis-timeline-module {
-  margin-top: 0;
-  border-top: 1px solid #d8ded7;
+.video-analysis-fs-player-timeline {
+  grid-area: timeline;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #d8ded7;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(18, 32, 24, 0.05);
 }
 
-.video-analysis-fs-player-deck .video-analysis-timeline-toolbar {
+.video-analysis-fs-player-timeline .video-analysis-timeline-module {
+  width: 100%;
+  margin-top: 0;
+}
+
+.video-analysis-fs-player-timeline .video-analysis-timeline-toolbar {
   min-height: 34px;
   gap: 6px;
   padding: 4px 8px;
@@ -1339,52 +1362,52 @@
   white-space: nowrap;
 }
 
-.video-analysis-fs-player-deck .video-analysis-timeline-canvas {
-  --video-analysis-timeline-label-width: 88px;
-  --video-analysis-timeline-lane-gap: 4px;
-  min-width: 720px;
-  padding: 0 6px 4px;
+.video-analysis-fs-player-timeline .video-analysis-timeline-canvas {
+  --video-analysis-timeline-label-width: var(--video-analysis-fs-player-code-width);
+  --video-analysis-timeline-lane-gap: 10px;
+  min-width: max(100%, 920px);
+  padding: 0 0 4px;
 }
 
-.video-analysis-fs-player-deck .video-analysis-timeline-ruler {
+.video-analysis-fs-player-timeline .video-analysis-timeline-ruler {
   height: 25px;
 }
 
-.video-analysis-fs-player-deck .video-analysis-timeline-tick i {
+.video-analysis-fs-player-timeline .video-analysis-timeline-tick i {
   height: 10px;
 }
 
-.video-analysis-fs-player-deck .video-analysis-timeline-tick b {
+.video-analysis-fs-player-timeline .video-analysis-timeline-tick b {
   top: 13px;
   font-size: 10px;
 }
 
-.video-analysis-fs-player-deck .video-analysis-lane-stack {
+.video-analysis-fs-player-timeline .video-analysis-lane-stack {
   gap: 2px;
   padding-top: 3px;
 }
 
-.video-analysis-fs-player-deck .video-analysis-lane {
-  gap: 4px;
+.video-analysis-fs-player-timeline .video-analysis-lane {
+  gap: var(--video-analysis-timeline-lane-gap);
 }
 
-.video-analysis-fs-player-deck .video-analysis-lane__label {
+.video-analysis-fs-player-timeline .video-analysis-lane__label {
   min-height: 22px;
   border-radius: 5px;
   padding: 0 6px;
   font-size: 10px;
 }
 
-.video-analysis-fs-player-deck .video-analysis-lane__label span {
+.video-analysis-fs-player-timeline .video-analysis-lane__label span {
   font-size: 9px;
 }
 
-.video-analysis-fs-player-deck .video-analysis-lane__track {
+.video-analysis-fs-player-timeline .video-analysis-lane__track {
   min-height: 22px;
   border-radius: 5px;
 }
 
-.video-analysis-fs-player-deck .video-analysis-clip-block {
+.video-analysis-fs-player-timeline .video-analysis-clip-block {
   top: 3px;
   height: 15px;
   min-width: 24px;
@@ -1392,7 +1415,7 @@
   font-size: 9px;
 }
 
-.video-analysis-fs-player-deck .video-analysis-clip-block__handle {
+.video-analysis-fs-player-timeline .video-analysis-clip-block__handle {
   width: 5px;
 }
 
@@ -4492,8 +4515,10 @@
 
 @media (max-width: 1180px) {
   .video-analysis-fs-player-workstation {
+    --video-analysis-fs-player-code-width: 100px;
     grid-template-areas:
       "main"
+      "timeline"
       "code";
     grid-template-columns: 1fr;
   }
@@ -4609,6 +4634,7 @@
 
 @media (max-width: 720px) {
   .video-analysis-fs-player-workstation {
+    --video-analysis-fs-player-code-width: 82px;
     gap: 8px;
   }
 
@@ -4630,7 +4656,7 @@
     min-height: 250px;
   }
 
-  .video-analysis-fs-player-deck .video-analysis-timeline-canvas {
+  .video-analysis-fs-player-timeline .video-analysis-timeline-canvas {
     --video-analysis-timeline-label-width: 82px;
     min-width: 620px;
   }

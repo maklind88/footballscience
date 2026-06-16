@@ -208,12 +208,25 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await page.goto("/qa/video-analysis-browser-smoke.html?timeline=1", { waitUntil: "domcontentloaded" });
 
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toBeVisible();
-  await expect(page.locator(".video-analysis-fs-player-deck [data-video-analysis-timeline-module]")).toBeVisible();
+  await expect(page.locator(".video-analysis-fs-player-timeline [data-video-analysis-timeline-module]")).toBeVisible();
   await expect(page.locator(".video-analysis-code-window-dock [data-video-analysis-code-window]")).toBeVisible();
   await expect.poll(() => page.evaluate(() => {
+    const workspace = document.querySelector("[data-video-analysis-fs-player-workstation]")?.getBoundingClientRect();
     const code = document.querySelector(".video-analysis-code-window-dock")?.getBoundingClientRect();
     const deck = document.querySelector(".video-analysis-fs-player-deck")?.getBoundingClientRect();
-    return Boolean(code && deck && code.left < deck.left);
+    const timeline = document.querySelector(".video-analysis-fs-player-timeline")?.getBoundingClientRect();
+    const ruler = document.querySelector(".video-analysis-timeline-ruler")?.getBoundingClientRect();
+    return Boolean(
+      workspace
+        && code
+        && deck
+        && timeline
+        && ruler
+        && code.left < deck.left
+        && Math.abs(timeline.left - workspace.left) < 3
+        && Math.abs(timeline.right - workspace.right) < 3
+        && Math.abs(ruler.left - deck.left) < 8
+    );
   })).toBe(true);
   await expect(page.locator(".video-analysis-workspace-nav")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-timeline-module]")).toBeVisible();
@@ -703,6 +716,26 @@ test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red 
   await expect(page.locator(".video-analysis-timeline-ruler")).toContainText("0:00:00");
   await expect(page.locator(".video-analysis-timeline-ruler")).toContainText("2:01:07");
   await expect(page.locator(".video-analysis-player__meta")).toContainText("2:01:07");
+  await expect.poll(() => page.evaluate(() => {
+    const scroller = document.querySelector(".video-analysis-timeline-scroll");
+    const canvas = document.querySelector(".video-analysis-timeline-canvas");
+    if (!scroller || !canvas) return 0;
+    canvas.style.width = "180%";
+    scroller.scrollLeft = 0;
+    scroller.dispatchEvent(new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: 280,
+      deltaMode: 0,
+    }));
+    return scroller.scrollLeft;
+  })).toBeGreaterThan(0);
+  await page.evaluate(() => {
+    const scroller = document.querySelector(".video-analysis-timeline-scroll");
+    const canvas = document.querySelector(".video-analysis-timeline-canvas");
+    if (canvas) canvas.style.width = "";
+    if (scroller) scroller.scrollLeft = 0;
+  });
 
   const rail = page.locator("[data-video-analysis-timeline-scrub-surface]");
   const playhead = page.locator(".video-analysis-playhead").first();
@@ -724,8 +757,9 @@ test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red 
     badgeOpacity: window.getComputedStyle(document.querySelector(".video-analysis-playhead-time")).opacity,
     scrollLeft: document.querySelector(".video-analysis-timeline-scroll")?.scrollLeft || 0,
   }));
-  const y = playheadBox.y + playheadBox.height / 2;
-  await page.mouse.move(playheadBox.x + playheadBox.width / 2, y);
+  const y = railBox.y + 10;
+  const startX = railBox.x + 4;
+  await page.mouse.move(startX, y);
   const afterHoverResult = await page.evaluate(() => ({
     currentTime: document.querySelector("[data-video-analysis-video]")?.currentTime || 0,
     left: document.querySelector(".video-analysis-playhead")?.style.left || "",

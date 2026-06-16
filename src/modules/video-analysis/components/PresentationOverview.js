@@ -78,7 +78,7 @@ function renderPresentationCard(state = {}, presentation = {}) {
   const clipLabel = hasKnownClipCount ? `${clipCount} clips` : "Open deck";
   return `
     <article class="video-analysis-presentation-library-card">
-      <button type="button" class="video-analysis-presentation-library-card__media" data-video-analysis-presentation-present="${escapeHtml(card.id || "")}" ${canPresent ? "" : "disabled"}>
+      <button type="button" class="video-analysis-presentation-library-card__media" data-video-analysis-presentation-present="${escapeHtml(card.id || "")}" aria-label="Present ${escapeHtml(title)}" ${canPresent ? "" : "disabled"}>
         ${thumbnailUrl ? `<img src="${escapeHtml(thumbnailUrl)}" alt="">` : `<span class="video-analysis-presentation-library-card__field" aria-hidden="true"></span>`}
         <span class="video-analysis-presentation-library-card__play" aria-hidden="true"></span>
         <span class="video-analysis-presentation-library-card__runtime">
@@ -87,9 +87,12 @@ function renderPresentationCard(state = {}, presentation = {}) {
         </span>
       </button>
       <div class="video-analysis-presentation-library-card__body">
-        <span>${escapeHtml(updatedAt)}</span>
-        <h3>${escapeHtml(title)}</h3>
-        <p>${escapeHtml(owner)} / ${escapeHtml(shareLabel(card))}</p>
+        <div class="video-analysis-presentation-library-card__meta">
+          <span>${escapeHtml(updatedAt)}</span>
+          <span>${escapeHtml(card.status || "Draft")}</span>
+        </div>
+        <h3 title="${escapeHtml(title)}">${escapeHtml(title)}</h3>
+        <p title="${escapeHtml(`${owner} / ${shareLabel(card)}`)}">${escapeHtml(owner)} / ${escapeHtml(shareLabel(card))}</p>
         <div class="video-analysis-presentation-library-card__actions">
           <button type="button" data-video-analysis-presentation-open="${escapeHtml(card.id || "")}">Open</button>
           <button type="button" class="video-analysis-primary-action" data-video-analysis-presentation-present="${escapeHtml(card.id || "")}" ${canPresent ? "" : "disabled"}>Present</button>
@@ -128,11 +131,11 @@ export function renderPresentationOverview(state = {}) {
         </button>
       </header>
       <section class="video-analysis-presentation-library-toolbar" aria-label="Presentation tools">
-        <div>
+        <div class="video-analysis-presentation-library-stat">
           <strong>${escapeHtml(String(presentations.length))}</strong>
           <span>presentations</span>
         </div>
-        <div>
+        <div class="video-analysis-presentation-library-stat">
           <strong>${escapeHtml(String(totalClips))}</strong>
           <span>clips</span>
         </div>

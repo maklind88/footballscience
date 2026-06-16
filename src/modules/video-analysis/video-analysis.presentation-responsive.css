@@ -1,6 +1,6 @@
 @media (max-width: 1180px) {
   #analysisRoomWorkspace .video-analysis-presentation-builder-v2 {
-    grid-template-columns: minmax(290px, 0.42fr) minmax(0, 1fr);
+    grid-template-columns: minmax(300px, 0.42fr) minmax(0, 1fr);
     grid-template-areas:
       "stage stage"
       "sources outline"
@@ -44,6 +44,8 @@
 
   #analysisRoomWorkspace .video-analysis-presenter-side-tools {
     display: flex;
+    align-items: center;
+    overflow-x: auto;
   }
 }
 
@@ -71,5 +73,59 @@
 
   #analysisRoomWorkspace .video-analysis-drawing-overlay-input {
     width: min(160px, 54vw);
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-topbar,
+  #analysisRoomWorkspace .video-analysis-presentation-builder-v2 {
+    margin-inline: 0;
+    padding-inline: 8px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-title-fields input {
+    font-size: 24px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-modebar {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-modebar button {
+    flex: 0 0 auto;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-source-clip {
+    grid-template-columns: 58px minmax(0, 1fr) 32px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-stage-queue-item {
+    flex-basis: 216px;
+    min-width: 216px;
+  }
+}
+
+@media (max-width: 520px) {
+  #analysisRoomWorkspace .video-analysis-presentation-source-advanced > div,
+  #analysisRoomWorkspace .video-analysis-smart-save-strip__body {
+    grid-template-columns: 1fr;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-source-clip {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-source-clip > button:last-child {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presenter-queue-card {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  #analysisRoomWorkspace .video-analysis-presenter-queue-item__thumb {
+    width: 64px;
+    height: 64px;
+    min-height: 64px;
   }
 }

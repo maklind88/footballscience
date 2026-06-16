@@ -1,0 +1,442 @@
+#analysisRoomWorkspace {
+  --fs-apple-canvas: #f5f5f7;
+  --fs-apple-surface: rgba(255, 255, 255, 0.86);
+  --fs-apple-surface-strong: rgba(255, 255, 255, 0.96);
+  --fs-apple-line: rgba(29, 38, 33, 0.1);
+  --fs-apple-line-strong: rgba(25, 35, 30, 0.16);
+  --fs-apple-text: #111312;
+  --fs-apple-muted: #6e746f;
+  --fs-apple-green: #123f2b;
+  --fs-apple-blue: #1f5eff;
+  --fs-apple-shadow: 0 18px 48px rgba(15, 23, 19, 0.1);
+  --fs-apple-shadow-soft: 0 10px 28px rgba(15, 23, 19, 0.07);
+  color: var(--fs-apple-text);
+}
+
+#analysisRoomWorkspace .analysis-room-shell {
+  gap: 10px;
+  padding: 14px;
+  background:
+    linear-gradient(180deg, #fbfbfc 0%, var(--fs-apple-canvas) 48%, #f0f2f1 100%);
+}
+
+#analysisRoomWorkspace .analysis-room-header {
+  min-height: 66px;
+  border-color: var(--fs-apple-line);
+  background: var(--fs-apple-surface);
+  box-shadow: var(--fs-apple-shadow-soft);
+  backdrop-filter: blur(24px) saturate(1.35);
+  -webkit-backdrop-filter: blur(24px) saturate(1.35);
+}
+
+#analysisRoomWorkspace .analysis-room-team-mark {
+  border-color: rgba(20, 53, 34, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(244, 246, 245, 0.92)),
+    #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+#analysisRoomWorkspace .analysis-room-kicker,
+#analysisRoomWorkspace .video-analysis-kicker,
+#analysisRoomWorkspace .video-analysis-code-group__header {
+  color: #747b76;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+#analysisRoomWorkspace .analysis-room-header h2,
+#analysisRoomWorkspace .video-analysis-player h2,
+#analysisRoomWorkspace .video-analysis-panel-header h3 {
+  color: var(--fs-apple-text);
+  font-weight: 850;
+}
+
+#analysisRoomWorkspace .analysis-room-tabs {
+  border-color: rgba(20, 53, 34, 0.12);
+  background: rgba(246, 248, 247, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 26px rgba(14, 22, 18, 0.08);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+}
+
+#analysisRoomWorkspace .analysis-room-tab {
+  min-height: 32px;
+  color: #4f5652;
+}
+
+#analysisRoomWorkspace .analysis-room-tab span {
+  color: inherit;
+  font-weight: 800;
+}
+
+#analysisRoomWorkspace .analysis-room-tab.is-active {
+  border-color: rgba(16, 65, 43, 0.9);
+  background:
+    linear-gradient(180deg, rgba(30, 84, 56, 0.98), rgba(13, 55, 37, 0.98)),
+    var(--fs-apple-green);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 8px 18px rgba(18, 63, 43, 0.22);
+}
+
+#analysisRoomWorkspace .video-analysis-shell {
+  gap: 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation {
+  --video-analysis-fs-player-code-width: clamp(360px, 29vw, 410px);
+  gap: 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-main {
+  gap: 8px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-deck,
+#analysisRoomWorkspace .video-analysis-fs-player-timeline,
+#analysisRoomWorkspace .video-analysis-template-builder,
+#analysisRoomWorkspace .video-analysis-presentation-library,
+#analysisRoomWorkspace .video-analysis-presentation-builder-v2,
+#analysisRoomWorkspace .video-analysis-presenter-mode {
+  border-color: var(--fs-apple-line);
+  border-radius: 8px;
+  background: var(--fs-apple-surface-strong);
+  box-shadow: var(--fs-apple-shadow);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-deck {
+  background: #080d0b;
+  box-shadow:
+    0 24px 60px rgba(5, 9, 7, 0.2),
+    0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-deck .video-analysis-player {
+  background: #080d0b;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-deck .video-analysis-player__bar {
+  min-height: 36px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-deck .video-analysis-player h2 {
+  font-size: 13px;
+}
+
+#analysisRoomWorkspace .video-analysis-video-frame,
+#analysisRoomWorkspace .video-analysis-empty-video {
+  background:
+    linear-gradient(180deg, rgba(12, 20, 17, 0.88), rgba(5, 10, 8, 0.98)),
+    #050908;
+}
+
+#analysisRoomWorkspace .video-analysis-video {
+  background: #050908;
+}
+
+#analysisRoomWorkspace .video-analysis-empty-video__button {
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 8px;
+  padding: 0 18px;
+  color: #0f1714;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+#analysisRoomWorkspace .video-analysis-empty-video__button:hover {
+  background: #ffffff;
+}
+
+#analysisRoomWorkspace .video-analysis-icon-button,
+#analysisRoomWorkspace .video-analysis-template-actions button,
+#analysisRoomWorkspace .video-analysis-player-controls button,
+#analysisRoomWorkspace .video-analysis-player-tag-filter,
+#analysisRoomWorkspace .video-analysis-presentation-library button {
+  border-color: rgba(24, 34, 29, 0.14);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 247, 246, 0.96)),
+    #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 1px 2px rgba(15, 23, 19, 0.05);
+}
+
+#analysisRoomWorkspace .video-analysis-icon-button:hover,
+#analysisRoomWorkspace .video-analysis-template-actions button:hover,
+#analysisRoomWorkspace .video-analysis-player-controls button:hover,
+#analysisRoomWorkspace .video-analysis-player-tag-filter:hover {
+  border-color: rgba(20, 53, 34, 0.22);
+  background: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 8px 18px rgba(15, 23, 19, 0.08);
+}
+
+#analysisRoomWorkspace .video-analysis-code-window-dock .video-analysis-mode-toggle button.is-active {
+  border-color: var(--fs-apple-blue);
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(0, 0, 0, 0.06)),
+    var(--fs-apple-blue);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 8px 18px rgba(31, 94, 255, 0.22);
+}
+
+#analysisRoomWorkspace .video-analysis-player-transport {
+  grid-template-columns: minmax(145px, auto) minmax(240px, 1fr) auto;
+  min-height: 58px;
+  border-top-color: rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 248, 247, 0.94)),
+    #ffffff;
+}
+
+#analysisRoomWorkspace .video-analysis-player-time strong {
+  font-size: 21px;
+  font-weight: 900;
+}
+
+#analysisRoomWorkspace .video-analysis-player-time span {
+  color: #8a908b;
+}
+
+#analysisRoomWorkspace .video-analysis-player-play {
+  min-width: 70px;
+  border-color: #0f1714 !important;
+  background:
+    linear-gradient(180deg, #27302b, #0f1714),
+    #0f1714 !important;
+}
+
+#analysisRoomWorkspace .video-analysis-player-tag-filter {
+  background: rgba(246, 248, 247, 0.92);
+}
+
+#analysisRoomWorkspace .video-analysis-player-tag-filter em {
+  color: #ffffff;
+  background: #1f5eff;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-timeline {
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--fs-apple-shadow-soft);
+  backdrop-filter: blur(18px) saturate(1.18);
+  -webkit-backdrop-filter: blur(18px) saturate(1.18);
+}
+
+#analysisRoomWorkspace .video-analysis-timeline-toolbar {
+  border-bottom-color: rgba(24, 34, 29, 0.09);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+#analysisRoomWorkspace .video-analysis-timeline-tabs button {
+  border-color: rgba(24, 34, 29, 0.12);
+  background: rgba(246, 248, 247, 0.86);
+  color: #303734;
+}
+
+#analysisRoomWorkspace .video-analysis-timeline-tabs button.is-active {
+  border-color: var(--fs-apple-green);
+  background: var(--fs-apple-green);
+}
+
+#analysisRoomWorkspace .video-analysis-timeline-scroll {
+  background:
+    linear-gradient(180deg, rgba(250, 251, 250, 0.96), rgba(245, 247, 246, 0.98)),
+    #f8faf8;
+}
+
+#analysisRoomWorkspace .video-analysis-timeline-ruler {
+  border-bottom-color: rgba(24, 34, 29, 0.12);
+}
+
+#analysisRoomWorkspace .video-analysis-timeline-tick {
+  color: #7a827c;
+}
+
+#analysisRoomWorkspace .video-analysis-lane__label {
+  border-color: rgba(24, 34, 29, 0.07);
+  background: rgba(239, 243, 240, 0.76);
+}
+
+#analysisRoomWorkspace .video-analysis-lane__track {
+  border: 1px solid rgba(24, 34, 29, 0.06);
+  background: rgba(241, 245, 242, 0.82);
+}
+
+#analysisRoomWorkspace .video-analysis-clip-block {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 5px 14px rgba(31, 94, 255, 0.18);
+}
+
+#analysisRoomWorkspace .video-analysis-code-window-dock .video-analysis-template-builder {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 249, 0.92)),
+    #ffffff;
+  box-shadow:
+    0 22px 52px rgba(15, 23, 19, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+}
+
+#analysisRoomWorkspace .video-analysis-code-window-dock .video-analysis-panel-header {
+  border-bottom-color: rgba(24, 34, 29, 0.08);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+#analysisRoomWorkspace .video-analysis-code-window-dock .video-analysis-template-scroll {
+  padding: 8px;
+}
+
+#analysisRoomWorkspace .video-analysis-code-window-dock .video-analysis-code-grid {
+  gap: 6px;
+}
+
+#analysisRoomWorkspace .video-analysis-code-window-dock .video-analysis-code-group {
+  gap: 6px;
+}
+
+#analysisRoomWorkspace .video-analysis-code-button {
+  border: 1px solid rgba(24, 34, 29, 0.12);
+  border-radius: 8px;
+  color: #17201b;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.72)),
+    color-mix(in srgb, var(--video-analysis-button-color, #143522) 14%, #ffffff);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 5px 14px rgba(15, 23, 19, 0.06);
+}
+
+#analysisRoomWorkspace .video-analysis-code-button:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 12px 24px rgba(15, 23, 19, 0.11);
+}
+
+#analysisRoomWorkspace .video-analysis-template-builder.is-coding .video-analysis-code-button.is-active,
+#analysisRoomWorkspace .video-analysis-code-button.is-active {
+  border-color: color-mix(in srgb, var(--video-analysis-button-color, #143522) 88%, #000000);
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(0, 0, 0, 0.08)),
+    var(--video-analysis-button-color, #143522);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 12px 26px color-mix(in srgb, var(--video-analysis-button-color, #143522) 24%, transparent);
+}
+
+#analysisRoomWorkspace .video-analysis-code-button__meta small,
+#analysisRoomWorkspace .video-analysis-code-button kbd,
+#analysisRoomWorkspace .video-analysis-timeline-status span {
+  border: 1px solid rgba(24, 34, 29, 0.08);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+#analysisRoomWorkspace .video-analysis-code-button.is-active .video-analysis-code-button__meta small,
+#analysisRoomWorkspace .video-analysis-code-button.is-active kbd {
+  color: #101512;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+#analysisRoomWorkspace .video-analysis-descriptor-panel {
+  border-top: 1px solid rgba(24, 34, 29, 0.08);
+  margin-top: 2px;
+}
+
+#analysisRoomWorkspace .video-analysis-tag-filter-backdrop {
+  background: rgba(9, 13, 11, 0.44);
+  backdrop-filter: blur(16px) saturate(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+}
+
+#analysisRoomWorkspace .video-analysis-tag-filter-panel {
+  border-color: rgba(255, 255, 255, 0.72);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 34px 86px rgba(5, 9, 7, 0.28);
+}
+
+#analysisRoomWorkspace .video-analysis-tag-filter-header {
+  background: rgba(255, 255, 255, 0.66);
+}
+
+#analysisRoomWorkspace .video-analysis-tag-filter-header h3 {
+  font-size: 30px;
+  font-weight: 900;
+}
+
+#analysisRoomWorkspace .video-analysis-tag-filter-chip {
+  border-color: rgba(24, 34, 29, 0.12);
+  background: rgba(244, 246, 245, 0.9);
+}
+
+#analysisRoomWorkspace .video-analysis-tag-filter-chip.is-active {
+  border-color: var(--fs-apple-blue);
+  background: var(--fs-apple-blue);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-library {
+  padding: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 248, 247, 0.94)),
+    #ffffff;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-library-hero,
+#analysisRoomWorkspace .video-analysis-presentation-library-toolbar,
+#analysisRoomWorkspace .video-analysis-presentation-library-card {
+  border-color: rgba(24, 34, 29, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--fs-apple-shadow-soft);
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-library-hero h2 {
+  color: var(--fs-apple-text);
+  font-weight: 900;
+}
+
+#analysisRoomWorkspace .video-analysis-presenter-mode {
+  background:
+    linear-gradient(180deg, #101412, #060907),
+    #080d0b;
+}
+
+@media (max-width: 1180px) {
+  #analysisRoomWorkspace .video-analysis-fs-player-workstation {
+    --video-analysis-fs-player-code-width: 100px;
+  }
+}
+
+@media (max-width: 980px) {
+  #analysisRoomWorkspace .analysis-room-shell {
+    padding: 10px;
+  }
+
+  #analysisRoomWorkspace .analysis-room-header {
+    min-height: 0;
+  }
+
+  #analysisRoomWorkspace .video-analysis-player-transport {
+    gap: 8px;
+    min-height: 0;
+  }
+}

@@ -304,3 +304,95 @@
   margin: 0 12px 12px;
 }
 
+/* Source and smart-playlist containment for large real-world tag names. */
+#analysisRoomWorkspace .video-analysis-presentation-builder-v2 {
+  min-width: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-sources,
+#analysisRoomWorkspace .video-analysis-presentation-outline,
+#analysisRoomWorkspace .video-analysis-selected-clip {
+  overflow: hidden;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-tools {
+  min-width: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-tools button,
+#analysisRoomWorkspace .video-analysis-presentation-source-tools span {
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-filters input,
+#analysisRoomWorkspace .video-analysis-presentation-source-advanced select {
+  width: 100%;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection,
+#analysisRoomWorkspace .video-analysis-presentation-source-clip {
+  min-width: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection__main strong,
+#analysisRoomWorkspace .video-analysis-smart-collection__main small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection__main strong {
+  -webkit-line-clamp: 2;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection__main small {
+  -webkit-line-clamp: 2;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection__actions {
+  min-width: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-smart-collection__actions button {
+  white-space: nowrap;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-clip > div {
+  min-width: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-clip strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-clip span,
+#analysisRoomWorkspace .video-analysis-presentation-source-clip small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-clip__badges,
+#analysisRoomWorkspace .video-analysis-presentation-clip-tags {
+  max-height: 52px;
+  overflow: hidden;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-source-clip__badges span,
+#analysisRoomWorkspace .video-analysis-presentation-clip-tags span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1360px) {
+  #analysisRoomWorkspace .video-analysis-presentation-builder-v2 {
+    grid-template-columns: minmax(265px, 0.34fr) minmax(520px, 1fr) minmax(265px, 0.34fr);
+  }
+}

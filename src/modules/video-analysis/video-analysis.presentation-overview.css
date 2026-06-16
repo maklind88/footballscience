@@ -5,6 +5,8 @@
 #analysisRoomWorkspace .video-analysis-presentation-library {
   display: grid;
   gap: 22px;
+  width: min(100%, 1500px);
+  margin: 0 auto;
   padding: clamp(18px, 3vw, 34px);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -13,21 +15,25 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 18px;
-  align-items: end;
+  align-items: center;
+  min-width: 0;
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-hero h2 {
   margin: 0;
   color: #111816;
-  font-size: clamp(34px, 5vw, 58px);
-  line-height: 0.96;
+  font-size: clamp(34px, 4.4vw, 56px);
+  line-height: 0.98;
   font-weight: 950;
+  letter-spacing: 0;
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-hero p {
   margin: 12px 0 0;
+  max-width: 620px;
   color: #727d75;
   font-size: 15px;
+  line-height: 1.35;
   font-weight: 780;
 }
 
@@ -50,6 +56,14 @@
   cursor: pointer;
 }
 
+#analysisRoomWorkspace .video-analysis-presentation-library .video-analysis-presentation-library-new {
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, #1f63f1, #244fe5);
+  box-shadow: 0 18px 40px rgba(31, 99, 241, 0.24);
+}
+
 #analysisRoomWorkspace .video-analysis-presentation-library-new span {
   font-size: 28px;
   line-height: 0;
@@ -57,18 +71,19 @@
 
 #analysisRoomWorkspace .video-analysis-presentation-library-toolbar {
   display: grid;
-  grid-template-columns: auto auto minmax(260px, 380px);
+  grid-template-columns: auto auto minmax(280px, 420px);
   gap: 12px;
   align-items: center;
   justify-content: end;
+  min-width: 0;
 }
 
-#analysisRoomWorkspace .video-analysis-presentation-library-toolbar > div {
+#analysisRoomWorkspace .video-analysis-presentation-library-stat {
   display: grid;
   gap: 1px;
   min-width: 94px;
   border: 1px solid rgba(208, 219, 212, 0.9);
-  border-radius: 14px;
+  border-radius: 8px;
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.76);
 }
@@ -89,6 +104,7 @@
 #analysisRoomWorkspace .video-analysis-presentation-library-toolbar label {
   position: relative;
   display: block;
+  min-width: 0;
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-toolbar label span {
@@ -114,24 +130,40 @@
   font: inherit;
   font-size: 17px;
   font-weight: 750;
+  outline: none;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-library-toolbar input:focus {
+  border-color: rgba(37, 99, 235, 0.78);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 620px), 760px));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 700px));
   gap: 18px;
   align-items: start;
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-card {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 1fr);
   overflow: hidden;
-  min-height: 204px;
+  min-width: 0;
+  min-height: 198px;
   border: 1px solid rgba(208, 222, 214, 0.86);
-  border-radius: 18px;
-  background: linear-gradient(135deg, rgba(239, 247, 255, 0.96), rgba(230, 241, 255, 0.86));
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(241, 247, 255, 0.98), rgba(231, 241, 255, 0.92)),
+    #fff;
   box-shadow: 0 22px 54px rgba(20, 48, 35, 0.08);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-library-card:hover {
+  border-color: rgba(37, 99, 235, 0.28);
+  box-shadow: 0 28px 62px rgba(20, 48, 35, 0.11);
+  transform: translateY(-1px);
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-card__media {
@@ -139,11 +171,19 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  min-height: 204px;
+  min-height: 198px;
+  aspect-ratio: 4 / 3;
   border: 0;
   padding: 0;
   background: #17211b;
   cursor: pointer;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-library .video-analysis-presentation-library-card__media {
+  border: 0;
+  border-radius: 0;
+  background: #17211b;
+  box-shadow: none;
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-card__media:disabled {
@@ -160,23 +200,33 @@
   object-fit: cover;
 }
 
+#analysisRoomWorkspace .video-analysis-presentation-library-card__media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, transparent 44%, rgba(0, 0, 0, 0.56)),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.12), transparent 32%);
+  pointer-events: none;
+}
+
 #analysisRoomWorkspace .video-analysis-presentation-library-card__field {
   background:
     linear-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.14) 1px, transparent 1px),
-    radial-gradient(circle at 50% 50%, rgba(244, 208, 111, 0.22), transparent 14%),
     linear-gradient(145deg, #274b38, #0c1812);
   background-size: 100% 34%, 24% 100%, auto, auto;
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-card__play {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   display: grid;
   place-items: center;
   width: 86px;
   height: 70px;
-  border-radius: 12px;
+  border-radius: 8px;
   background: linear-gradient(135deg, #1f63f1, #2552e5);
   box-shadow: 0 18px 38px rgba(20, 44, 119, 0.28);
 }
@@ -206,40 +256,66 @@
 
 #analysisRoomWorkspace .video-analysis-presentation-library-card__runtime strong,
 #analysisRoomWorkspace .video-analysis-presentation-library-card__runtime small {
+  display: block;
   color: #fff;
   font-size: 18px;
+  line-height: 1.05;
   font-weight: 950;
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-card__body {
   display: grid;
   align-content: center;
-  gap: 10px;
+  gap: 11px;
   min-width: 0;
-  padding: 22px 24px;
+  padding: 20px 22px;
 }
 
-#analysisRoomWorkspace .video-analysis-presentation-library-card__body > span {
+#analysisRoomWorkspace .video-analysis-presentation-library-card__meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-library-card__meta span {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 24px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 9px;
   color: #2a62e7;
-  font-size: 15px;
-  font-weight: 820;
+  background: rgba(37, 99, 235, 0.08);
+  font-size: 12px;
+  font-weight: 880;
+  white-space: nowrap;
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-card__body h3 {
+  display: -webkit-box;
   margin: 0;
+  min-width: 0;
   color: #0f1513;
   font-size: clamp(24px, 2vw, 30px);
   line-height: 1.05;
   font-weight: 950;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-card__body p {
+  display: block;
   margin: 0;
+  min-width: 0;
   color: #7b8580;
   font-size: 15px;
   font-weight: 740;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-card__actions {
@@ -248,23 +324,31 @@
   align-items: center;
   flex-wrap: wrap;
   margin-top: 4px;
+  min-width: 0;
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-card__actions button,
 #analysisRoomWorkspace .video-analysis-presentation-library-empty button {
   min-height: 34px;
   border: 1px solid rgba(187, 199, 191, 0.9);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 0 12px;
   color: #142018;
   background: rgba(255, 255, 255, 0.86);
   font: inherit;
   font-size: 12px;
   font-weight: 900;
+  white-space: nowrap;
   cursor: pointer;
 }
 
 #analysisRoomWorkspace .video-analysis-presentation-library-card__actions .video-analysis-primary-action {
+  border-color: #143522;
+  color: #fff;
+  background: #143522;
+}
+
+#analysisRoomWorkspace .video-analysis-presentation-library .video-analysis-presentation-library-card__actions .video-analysis-primary-action {
   border-color: #143522;
   color: #fff;
   background: #143522;
@@ -275,7 +359,7 @@
   gap: 8px;
   justify-items: start;
   border: 1px dashed rgba(184, 198, 189, 0.94);
-  border-radius: 18px;
+  border-radius: 8px;
   padding: 26px;
   color: #68766d;
   background: rgba(255, 255, 255, 0.7);
@@ -299,5 +383,41 @@
 
   #analysisRoomWorkspace .video-analysis-presentation-library-grid {
     grid-template-columns: 1fr;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-library-card__media {
+    min-height: 190px;
+    aspect-ratio: 16 / 9;
+  }
+}
+
+@media (max-width: 560px) {
+  #analysisRoomWorkspace .video-analysis-presentation-library {
+    gap: 16px;
+    padding: 16px 12px 18px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-library-hero {
+    gap: 14px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-library-hero h2 {
+    font-size: clamp(32px, 12vw, 44px);
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-library-new {
+    width: 100%;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-library-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-library-toolbar label {
+    grid-column: 1 / -1;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presentation-library-card__body {
+    padding: 18px;
   }
 }

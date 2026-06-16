@@ -218,6 +218,9 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
   await expect(page.locator(".video-analysis-intelligence")).toHaveCount(0);
   await expect(page.locator(".video-analysis-clip-list")).toHaveCount(0);
+  const timelineTickLabels = await page.locator(".video-analysis-timeline-tick b").allTextContents();
+  expect(new Set(timelineTickLabels).size).toBe(timelineTickLabels.length);
+  expect(timelineTickLabels).toContain("0:00:02");
   await expect(page.locator(".video-analysis-template-builder")).toBeVisible();
   await expect(page.locator(".video-analysis-clip-block").first()).toBeVisible();
   await expect(page.locator(".video-analysis-playhead")).toHaveCount(1);
@@ -261,6 +264,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-lane__label").first()).toContainText(/Positive|Development|Neutral/);
   await page.locator("[data-video-analysis-timeline-category]").first().click();
   await expect(page.locator(".video-analysis-timeline-category-tray")).toContainText("1 clip selected");
+  await expect(page.locator(".video-analysis-timeline-category-tray")).toContainText("Open clips");
   await page.locator("[data-video-analysis-timeline-category-open]").click();
   await expect(page.locator(".video-analysis-timeline-category-view")).toBeVisible();
   await expect(page.locator(".video-analysis-timeline-category-view button")).toHaveCount(1);

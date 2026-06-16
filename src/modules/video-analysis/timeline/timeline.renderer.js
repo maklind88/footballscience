@@ -204,20 +204,26 @@ function renderTimelineCategoryTray(lane = null, laneMode = "phase", timeline = 
   const firstClip = lane.clips[0];
   const activeClipId = timeline.selectedCategory?.activeClipId || "";
   const activeClip = lane.clips.find((clip) => clip.id === activeClipId) || firstClip;
+  const rangeStartMs = lane.clips.reduce((minMs, clip) => Math.min(minMs, getClipStartMs(clip)), Number.POSITIVE_INFINITY);
+  const rangeEndMs = lane.clips.reduce((maxMs, clip) => Math.max(maxMs, getClipEndMs(clip)), 0);
+  const rangeLabel = Number.isFinite(rangeStartMs)
+    ? `${formatVideoTime(rangeStartMs)} - ${formatVideoTime(rangeEndMs)}`
+    : "";
   return `
     <div class="video-analysis-timeline-category-tray">
-      <div>
-        <strong>${escapeHtml(lane.label)}</strong>
+      <div class="video-analysis-timeline-category-tray__summary">
+        <strong>${escapeHtml(lane.label)} clips</strong>
         <span>${escapeHtml(`${lane.clips.length} clip${lane.clips.length === 1 ? "" : "s"} selected`)}</span>
+        ${rangeLabel ? `<span>${escapeHtml(rangeLabel)}</span>` : ""}
         ${activeClip ? `<span>${escapeHtml(`Active: ${formatVideoTime(getClipStartMs(activeClip))}`)}</span>` : ""}
       </div>
       <div class="video-analysis-timeline-category-tray__actions">
         <button type="button" data-video-analysis-timeline-category-step="-1" data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Previous</button>
         <button type="button" data-video-analysis-timeline-category-play data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Play active</button>
         <button type="button" data-video-analysis-timeline-category-step="1" data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Next</button>
-        <button type="button" data-video-analysis-timeline-category-open data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">${viewOpen ? "Close view" : "Open view"}</button>
-        <button type="button" data-video-analysis-timeline-category-add-selected data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Add selected</button>
-        <button type="button" data-video-analysis-timeline-category-add-presentation data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Add all</button>
+        <button type="button" data-video-analysis-timeline-category-open data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">${viewOpen ? "Close clips" : "Open clips"}</button>
+        <button type="button" data-video-analysis-timeline-category-add-selected data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Add active</button>
+        <button type="button" data-video-analysis-timeline-category-add-presentation data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Add all to presentation</button>
       </div>
       ${viewOpen ? `
         <ol class="video-analysis-timeline-category-view" aria-label="${escapeHtml(`${lane.label} clips`)}">

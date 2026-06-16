@@ -18,6 +18,22 @@ function clampPercent(value = 0) {
 }
 
 const allowedLaneModes = new Set(TIMELINE_LANE_MODES.map((mode) => mode.id));
+const TIMELINE_NICE_STEPS_MS = Object.freeze([
+  1000,
+  2000,
+  5000,
+  10000,
+  15000,
+  30000,
+  60000,
+  120000,
+  300000,
+  600000,
+  900000,
+  1800000,
+  3600000,
+  7200000,
+]);
 
 function laneSortIndex(laneMode = DEFAULT_TIMELINE_LANE_MODE, label = "") {
   const order = TIMELINE_LANE_ORDER[laneMode] || [];
@@ -72,17 +88,49 @@ export function timelineCanvasStyle(zoom = 1) {
   return `width:${Math.round(scale * 100)}%;`;
 }
 
+function chooseTimelineTickStepMs(durationMs = 1, tickCount = TIMELINE_TICK_COUNT) {
+  const safeDuration = Math.max(1, Number(durationMs || 1));
+  const targetIntervals = Math.max(1, Number(tickCount || TIMELINE_TICK_COUNT) - 1);
+  const rawStep = Math.max(1000, safeDuration / targetIntervals);
+  return TIMELINE_NICE_STEPS_MS.reduce((bestStep, step) => (
+    Math.abs(step - rawStep) < Math.abs(bestStep - rawStep) ? step : bestStep
+  ), TIMELINE_NICE_STEPS_MS[0]);
+}
+
+function tickLabelKey(ms = 0) {
+  return Math.floor(Math.max(0, Number(ms || 0)) / 1000);
+}
+
 export function buildTimelineTicks(durationMs = 1, tickCount = TIMELINE_TICK_COUNT) {
   const safeDuration = Math.max(1, Number(durationMs || 1));
-  const count = Math.max(2, Number(tickCount || TIMELINE_TICK_COUNT));
-  return Array.from({ length: count }, (_, index) => {
-    const ratio = index / (count - 1);
-    return {
-      id: `tick-${index}`,
-      ms: Math.round(safeDuration * ratio),
-      left: clampPercent(ratio * 100),
-    };
-  });
+  const stepMs = chooseTimelineTickStepMs(safeDuration, tickCount);
+  const ticks = [];
+  const seenMs = new Set();
+  const seenLabels = new Set();
+  for (let ms = 0; ms < safeDuration; ms += stepMs) {
+    const roundedMs = Math.round(ms);
+    const labelKey = tickLabelKey(roundedMs);
+    if (seenMs.has(roundedMs) || seenLabels.has(labelKey)) continue;
+    seenMs.add(roundedMs);
+    seenLabels.add(labelKey);
+    ticks.push({
+      id: `tick-${roundedMs}`,
+      ms: roundedMs,
+      left: clampPercent((roundedMs / safeDuration) * 100),
+    });
+  }
+  const endMs = Math.round(safeDuration);
+  const endLabelKey = tickLabelKey(endMs);
+  if (!seenMs.has(endMs) && !seenLabels.has(endLabelKey)) {
+    ticks.push({
+      id: `tick-${endMs}`,
+      ms: endMs,
+      left: 100,
+    });
+  } else if (ticks.length > 1 && tickLabelKey(ticks.at(-1)?.ms) === endLabelKey) {
+    ticks[ticks.length - 1] = { ...ticks.at(-1), left: 100 };
+  }
+  return ticks;
 }
 
 export function getTimelineDurationMs(state = {}) {

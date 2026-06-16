@@ -112,6 +112,27 @@ test("video analysis module exports the runtime handlers", async () => {
   }
 });
 
+test("video analysis timeline uses unique readable h:mm:ss ticks", async () => {
+  const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
+  const playbackService = await import(pathToFileURL(path.join(moduleDir, "services/videoPlaybackService.js")).href);
+
+  const fiveSecondTicks = timelineService.buildTimelineTicks(5000);
+  const fiveSecondLabels = fiveSecondTicks.map((tick) => playbackService.formatVideoTime(tick.ms));
+  expect(fiveSecondTicks.map((tick) => tick.ms)).toEqual([0, 1000, 2000, 3000, 4000, 5000]);
+  expect(new Set(fiveSecondLabels).size).toBe(fiveSecondLabels.length);
+
+  const unknownDurationLabels = timelineService.buildTimelineTicks(1).map((tick) => playbackService.formatVideoTime(tick.ms));
+  expect(unknownDurationLabels).toEqual(["0:00:00"]);
+
+  const matchTicks = timelineService.buildTimelineTicks(7267240);
+  const matchLabels = matchTicks.map((tick) => playbackService.formatVideoTime(tick.ms));
+  expect(matchTicks[0]).toMatchObject({ ms: 0, left: 0 });
+  expect(matchTicks.at(-1)).toMatchObject({ ms: 7267240, left: 100 });
+  expect(matchLabels).toContain("2:01:07");
+  expect(matchLabels).toContain("0:15:00");
+  expect(new Set(matchLabels).size).toBe(matchLabels.length);
+});
+
 test("video analysis workstation keeps controls out of the video player", () => {
   const shell = read("src/modules/video-analysis/index.js");
   const templateBuilder = read("src/modules/video-analysis/components/CodingTemplateBuilder.js");

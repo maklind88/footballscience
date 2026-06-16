@@ -305,17 +305,18 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-presentation-outline-item")).toHaveCount(1);
   await expect(page.locator(".video-analysis-presentation-outline-item")).toContainText("In Possession / Positive");
 
-  await page.getByRole("tab", { name: "Draw" }).click();
+  await page.getByRole("tab", { name: "Telestrate" }).click();
   await expect(page.locator(".video-analysis-drawing-builder")).toBeVisible();
   await page.locator('[data-video-analysis-drawing-field="text"]').fill("Press trigger");
   await page.locator("[data-video-analysis-drawing-add]").click();
   await expect(page.locator(".video-analysis-drawing-layer-list li")).toHaveCount(1);
   await expect(page.locator(".video-analysis-drawing-layer-list")).toContainText("arrow");
 
-  await page.getByRole("tab", { name: "Presenter" }).click();
+  await page.getByRole("tab", { name: "Present" }).click();
   await expect(page.locator(".video-analysis-presenter-mode")).toBeVisible();
   await expect(page.locator(".video-analysis-presenter-queue-item")).toHaveCount(1);
-  await expect(page.locator(".video-analysis-presenter-frame")).toContainText("1 drawing layers ready");
+  await expect(page.locator(".video-analysis-presenter-frame")).toContainText("Press trigger");
+  await expect(page.locator(".video-analysis-presenter-frame")).toContainText("Clip 1 of 1");
   await expect(page.locator(".video-analysis-player")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-timeline-module]")).toHaveCount(0);
 

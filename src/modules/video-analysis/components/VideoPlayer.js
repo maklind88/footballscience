@@ -69,7 +69,7 @@ export function renderVideoPlayer(state = {}) {
       <div class="video-analysis-video-frame">
         ${
           hasVideo
-            ? `<video class="video-analysis-video" data-video-analysis-video src="${escapeHtml(ref.objectUrl)}" controls playsinline></video>`
+            ? `<video class="video-analysis-video" data-video-analysis-video src="${escapeHtml(ref.objectUrl)}" playsinline preload="metadata" tabindex="-1"></video>`
             : `<div class="video-analysis-empty-video">
                 <button type="button" class="video-analysis-empty-video__button" ${emptyActionAttribute}>
                   ${emptyActionLabel}

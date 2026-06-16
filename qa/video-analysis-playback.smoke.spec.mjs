@@ -245,6 +245,15 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   expect(new Set(timelineTickLabels).size).toBe(timelineTickLabels.length);
   expect(timelineTickLabels).toContain("0:00:02");
   await expect(page.locator(".video-analysis-template-builder")).toBeVisible();
+  await expect(page.locator(".video-analysis-code-window-stats")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => {
+    const scroll = document.querySelector(".video-analysis-code-window-dock .video-analysis-template-scroll");
+    const styles = scroll ? window.getComputedStyle(scroll) : null;
+    return {
+      maxHeight: styles?.maxHeight || "",
+      overflowY: styles?.overflowY || "",
+    };
+  })).toEqual({ maxHeight: "none", overflowY: "visible" });
   await expect(page.locator(".video-analysis-clip-block").first()).toBeVisible();
   await expect(page.locator(".video-analysis-playhead")).toHaveCount(1);
   await expect(page.locator(".video-analysis-playhead").first()).toBeVisible();
@@ -431,6 +440,14 @@ test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) =
 
 test("Video Analysis Tag Panel creates a 15 second timeline tag from a code button", async ({ page }) => {
   await page.addInitScript(() => {
+    window.__videoPlayCalls = 0;
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value() {
+        window.__videoPlayCalls += 1;
+        return Promise.resolve();
+      },
+    });
     window.__videoAnalysisInitialState = {
       view: "workspace",
       match: {
@@ -459,6 +476,7 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   });
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
 
+  await expect(page.locator("[data-video-analysis-video]")).not.toHaveAttribute("controls", "");
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Code Window");
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Football Science Tag Panel");
   await expect(page.locator('[data-video-analysis-code-button="subPhase-build-up"]')).toContainText("15s");
@@ -466,6 +484,13 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     const video = document.querySelector("[data-video-analysis-video]");
     Object.defineProperty(video, "currentTime", { configurable: true, value: 83 });
   });
+
+  await page.locator('[data-video-analysis-code-button="subPhase-build-up"]').focus();
+  await page.keyboard.press("Space");
+  await expect.poll(() => page.evaluate(() => window.__videoPlayCalls || 0)).toBe(1);
+  await expect.poll(() => page.evaluate(() => {
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
+  })).toBe(0);
 
   await page.locator('[data-video-analysis-code-button="subPhase-build-up"]').click();
   await expect.poll(() => {
@@ -502,8 +527,10 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   expect(alignment).toBeLessThan(0.02);
 
   await page.locator('[data-video-analysis-panel-mode="edit"]').click();
-  await expect(page.locator('[data-video-analysis-button-ms-field="subPhase-build-up:defaultDurationMs"]')).toHaveValue("15");
-  await expect(page.locator('[data-video-analysis-button-field="subPhase-build-up:buttonBehavior"]')).toHaveValue("create_tag");
+  await expect(page.locator("[data-video-analysis-template-overlay]")).toBeVisible();
+  await expect(page.locator('[data-video-analysis-code-window] [data-video-analysis-button-ms-field="subPhase-build-up:defaultDurationMs"]')).toHaveCount(0);
+  await expect(page.locator('[data-video-analysis-template-overlay] [data-video-analysis-button-ms-field="subPhase-build-up:defaultDurationMs"]')).toHaveValue("15");
+  await expect(page.locator('[data-video-analysis-template-overlay] [data-video-analysis-button-field="subPhase-build-up:buttonBehavior"]')).toHaveValue("create_tag");
 });
 
 test("Video Analysis Tag Panel uses the red timeline playhead when video metadata is not ready", async ({ page }) => {
@@ -588,10 +615,11 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
 
   await page.locator('[data-video-analysis-panel-mode="edit"]').click();
+  await expect(page.locator("[data-video-analysis-template-overlay]")).toBeVisible();
   await page.locator('[data-video-analysis-template-builder-field="newGroupName"]').fill("Pressing Triggers");
   await page.locator("[data-video-analysis-add-button-group]").click();
 
-  const group = page.locator(".video-analysis-code-group").filter({ hasText: "Pressing Triggers" }).first();
+  const group = page.locator("[data-video-analysis-template-overlay] .video-analysis-code-group").filter({ hasText: "Pressing Triggers" }).first();
   await expect(group).toBeVisible();
   await group.locator('input[data-video-analysis-button-field$=":label"]').fill("Jump press");
   await group.locator('input[data-video-analysis-button-field$=":color"]').fill("#d92d20");
@@ -611,7 +639,7 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
     title: "Football Science Tag Panel",
   });
 
-  await page.locator('[data-video-analysis-panel-mode="use"]').click();
+  await page.locator('[data-video-analysis-template-overlay] .video-analysis-icon-button[data-video-analysis-panel-mode="use"]').click();
   await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
     Object.defineProperty(video, "currentTime", { configurable: true, value: 12 });
@@ -677,14 +705,15 @@ test("Video Analysis Label selected buttons update the selected timeline clip", 
 
   await page.locator('[data-video-analysis-seek="clip-1"]').click();
   await page.locator('[data-video-analysis-panel-mode="edit"]').click();
+  await expect(page.locator("[data-video-analysis-template-overlay]")).toBeVisible();
   await page.locator('[data-video-analysis-template-builder-field="newGroupName"]').fill("Clip Labels");
   await page.locator("[data-video-analysis-add-button-group]").click();
-  const group = page.locator(".video-analysis-code-group").filter({ hasText: "Clip Labels" }).first();
+  const group = page.locator("[data-video-analysis-template-overlay] .video-analysis-code-group").filter({ hasText: "Clip Labels" }).first();
   await group.locator('input[data-video-analysis-button-field$=":label"]').fill("Press trigger");
   await group.locator('select[data-video-analysis-button-field$=":buttonBehavior"]').selectOption("label_current");
   await group.locator('select[data-video-analysis-button-field$=":targetField"]').selectOption("tags");
   await page.locator("[data-video-analysis-save-template]").click();
-  await page.locator('[data-video-analysis-panel-mode="use"]').click();
+  await page.locator('[data-video-analysis-template-overlay] .video-analysis-icon-button[data-video-analysis-panel-mode="use"]').click();
   await page.locator('[data-video-analysis-code-button]').filter({ hasText: "Press trigger" }).click();
 
   await expect.poll(() => page.evaluate(() => {

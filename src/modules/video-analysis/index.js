@@ -1506,7 +1506,8 @@ export function render(context = {}) {
   }
   if (!run.keydownBound) {
     const win = context.win || window;
-    win.addEventListener?.("keydown", (event) => handleKeydown(event, context));
+    win.addEventListener?.("keydown", (event) => handleKeydown(event, context), true);
+    win.addEventListener?.("keyup", (event) => handleKeyup(event, context), true);
     run.keydownBound = true;
   }
   paint(root, run.store.getState());
@@ -2752,7 +2753,34 @@ export function handleKeydown(event, context = {}) {
   const run = ensureRuntime(context);
   const root = getRoot(context);
   const state = run.store.getState();
+  if (
+    state.activeAnalysisRoomTab === "fs-player"
+    && event.key === " "
+    && !shouldIgnoreShortcutTarget(event.target)
+    && !event.metaKey
+    && !event.ctrlKey
+    && !event.altKey
+  ) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    togglePlayback(context);
+    return true;
+  }
   const category = state.timeline?.selectedCategory || {};
+  if (
+    state.activeAnalysisRoomTab === "fs-player"
+    && state.codingSession?.panelMode === "edit"
+    && event.key === "Escape"
+    && !shouldIgnoreShortcutTarget(event.target)
+  ) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    run.store.update((current) => ({
+      ...current,
+      codingSession: { ...(current.codingSession || {}), panelMode: "use" },
+    }));
+    return true;
+  }
   if (
     state.activeAnalysisRoomTab === "fs-player"
     && category.viewOpen
@@ -2844,6 +2872,23 @@ export function handleKeydown(event, context = {}) {
     togglePlayback: () => togglePlayback(context),
     update: run.store.update,
   });
+}
+
+export function handleKeyup(event, context = {}) {
+  const state = ensureRuntime(context).store.getState();
+  if (
+    state.activeAnalysisRoomTab === "fs-player"
+    && event.key === " "
+    && !shouldIgnoreShortcutTarget(event.target)
+    && !event.metaKey
+    && !event.ctrlKey
+    && !event.altKey
+  ) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    return true;
+  }
+  return false;
 }
 
 export function handleSubmit(event, context = {}) {

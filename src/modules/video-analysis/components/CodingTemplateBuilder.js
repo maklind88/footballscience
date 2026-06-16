@@ -118,6 +118,18 @@ function renderButtonGroup(group = "", buttons = [], state = {}) {
   `;
 }
 
+function renderEditableButtonGroup(group = "", buttons = []) {
+  return `
+    <section class="video-analysis-code-group" data-video-analysis-code-group="${escapeHtml(group)}">
+      <div class="video-analysis-code-group__header">
+        <span>${escapeHtml(group)}</span>
+        <button type="button" data-video-analysis-add-code-button-group="${escapeHtml(group)}">+ Button</button>
+      </div>
+      <div class="video-analysis-code-edit-grid">${buttons.map(renderButtonEditor).join("")}</div>
+    </section>
+  `;
+}
+
 function renderPanelBuilderControls(state = {}, groupNames = []) {
   const draft = state.codingSession?.templateBuilder || {};
   const selectedGroup = draft.newButtonGroup || groupNames[0] || "Custom";
@@ -141,6 +153,36 @@ function renderPanelBuilderControls(state = {}, groupNames = []) {
       </label>
       <button type="button" data-video-analysis-add-code-button>Add button</button>
     </section>
+  `;
+}
+
+function renderTemplateEditOverlay(state = {}, groupEntries = [], groupNames = []) {
+  const template = state.template || {};
+  return `
+    <div class="video-analysis-template-overlay" data-video-analysis-template-overlay>
+      <button type="button" class="video-analysis-template-overlay__backdrop" data-video-analysis-panel-mode="use" aria-label="Close panel editor"></button>
+      <section class="video-analysis-template-overlay__panel" role="dialog" aria-modal="true" aria-labelledby="video-analysis-panel-editor-title">
+        <div class="video-analysis-template-overlay__header">
+          <div>
+            <p class="video-analysis-kicker">Panel Editor</p>
+            <label class="video-analysis-template-title-field">
+              <span id="video-analysis-panel-editor-title">Panel name</span>
+              <input type="text" data-video-analysis-template-field="title" value="${escapeHtml(template.title || "Football Science Tag Panel")}">
+            </label>
+          </div>
+          <div class="video-analysis-template-actions">
+            <button type="button" class="video-analysis-template-save" data-video-analysis-save-template>Save panel</button>
+            <button type="button" class="video-analysis-icon-button" data-video-analysis-panel-mode="use">Close</button>
+          </div>
+        </div>
+        <div class="video-analysis-template-overlay__body">
+          ${renderPanelBuilderControls(state, groupNames)}
+          <div class="video-analysis-template-overlay__groups">
+            ${groupEntries.map(([group, buttons]) => renderEditableButtonGroup(group, buttons)).join("")}
+          </div>
+        </div>
+      </section>
+    </div>
   `;
 }
 
@@ -172,34 +214,26 @@ export function renderCodingTemplateBuilder(state = {}) {
     groups.get(group).push(item);
   }
   const groupNames = [...groups.keys()];
-  const buttonCount = (template.buttons || []).length;
+  const groupEntries = [...groups.entries()];
+  const codingState = editing
+    ? { ...state, codingSession: { ...(state.codingSession || {}), panelMode: "use" } }
+    : state;
   return `
-    <section class="video-analysis-template-builder ${editing ? "is-editing" : "is-coding"}" data-video-analysis-code-window>
+    <section class="video-analysis-template-builder is-coding${editing ? " has-edit-overlay" : ""}" data-video-analysis-code-window>
       <div class="video-analysis-panel-header">
         <div>
           <p class="video-analysis-kicker">Code Window</p>
-          ${editing ? `
-            <label class="video-analysis-template-title-field">
-              <span>Panel name</span>
-              <input type="text" data-video-analysis-template-field="title" value="${escapeHtml(template.title || "Football Science Tag Panel")}">
-            </label>
-          ` : `<h3>${escapeHtml(template.title || "Football Science Coding")}</h3>`}
+          <h3>${escapeHtml(template.title || "Football Science Coding")}</h3>
         </div>
         <div class="video-analysis-template-actions">
-          <div class="video-analysis-code-window-stats" aria-label="Code window summary">
-            <span>${escapeHtml(`${buttonCount} buttons`)}</span>
-            <span>${escapeHtml(`${groupNames.length} groups`)}</span>
-          </div>
           <div class="video-analysis-mode-toggle" role="group" aria-label="Code window mode">
             <button type="button" class="${!editing ? "is-active" : ""}" data-video-analysis-panel-mode="use">Code</button>
             <button type="button" class="${editing ? "is-active" : ""}" data-video-analysis-panel-mode="edit">Edit</button>
           </div>
-          ${editing ? `<button type="button" class="video-analysis-template-save" data-video-analysis-save-template>Save panel</button>` : ""}
         </div>
       </div>
       <div class="video-analysis-template-scroll">
-        ${editing ? renderPanelBuilderControls(state, groupNames) : ""}
-        ${[...groups.entries()].map(([group, buttons]) => renderButtonGroup(group, buttons, state)).join("")}
+        ${groupEntries.map(([group, buttons]) => renderButtonGroup(group, buttons, codingState)).join("")}
         <section class="video-analysis-descriptor-panel">
           <div class="video-analysis-code-group__header">Descriptors</div>
           <div class="video-analysis-descriptor-grid">
@@ -208,5 +242,6 @@ export function renderCodingTemplateBuilder(state = {}) {
         </section>
       </div>
     </section>
+    ${editing ? renderTemplateEditOverlay(state, groupEntries, groupNames) : ""}
   `;
 }

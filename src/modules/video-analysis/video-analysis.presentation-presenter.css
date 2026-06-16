@@ -554,8 +554,8 @@
   max-width: 100%;
   box-sizing: border-box;
   aspect-ratio: 16 / 9;
-  min-height: min(58vh, 640px);
-  max-height: calc(100vh - 260px);
+  min-height: min(50vh, 560px);
+  max-height: calc(100vh - 340px);
   border-radius: 8px;
   background:
     #050806;
@@ -649,6 +649,42 @@
     grid-column: 1 / -1;
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 820px) {
+  #analysisRoomWorkspace .video-analysis-presenter-mode {
+    min-height: auto;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presenter-queue {
+    max-height: 104px;
+    overflow: hidden;
+    padding: 12px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presenter-queue-list {
+    display: none;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presenter-stage {
+    gap: 12px;
+    padding-top: 12px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presenter-frame {
+    aspect-ratio: auto;
+    min-height: 210px;
+    height: min(30vh, 260px);
+    max-height: 260px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-presenter-frame__copy {
+    width: min(520px, calc(100% - 28px));
+  }
+
+  #analysisRoomWorkspace .video-analysis-presenter-side-tools {
+    display: none;
   }
 }
 

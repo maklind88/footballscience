@@ -88,10 +88,19 @@ export function renderVideoPlayer(state = {}) {
           <span data-video-analysis-player-duration-time>/ ${escapeHtml(formatVideoTime(durationMs))}</span>
         </div>
         <div class="video-analysis-player-controls">
-          <span>1x</span>
-          <button type="button" data-video-analysis-player-nudge="-5000" ${hasVideo ? "" : "disabled"} aria-label="Back five seconds">-5</button>
-          <button type="button" class="video-analysis-player-play" data-video-analysis-play ${hasVideo ? "" : "disabled"} aria-label="Play or pause">Play</button>
-          <button type="button" data-video-analysis-player-nudge="5000" ${hasVideo ? "" : "disabled"} aria-label="Forward five seconds">+5</button>
+          <span class="video-analysis-player-speed" aria-label="Playback speed">1x</span>
+          <button type="button" class="video-analysis-player-nudge" data-video-analysis-player-nudge="-5000" ${hasVideo ? "" : "disabled"} aria-label="Back five seconds" title="Back 5 seconds">
+            <span class="video-analysis-player-nudge__glyph" aria-hidden="true">&#8634;</span>
+            <strong>5s</strong>
+          </button>
+          <button type="button" class="video-analysis-player-play" data-video-analysis-play ${hasVideo ? "" : "disabled"} aria-label="Play" title="Play">
+            <span class="video-analysis-player-play__icon" data-video-analysis-play-icon aria-hidden="true">&#9654;</span>
+            <span data-video-analysis-play-label>Play</span>
+          </button>
+          <button type="button" class="video-analysis-player-nudge" data-video-analysis-player-nudge="5000" ${hasVideo ? "" : "disabled"} aria-label="Forward five seconds" title="Forward 5 seconds">
+            <strong>5s</strong>
+            <span class="video-analysis-player-nudge__glyph" aria-hidden="true">&#8635;</span>
+          </button>
         </div>
         <button type="button" class="video-analysis-player-tag-filter" data-video-analysis-tag-filter-trigger>
           <span>#</span>

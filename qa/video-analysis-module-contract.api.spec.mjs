@@ -182,6 +182,11 @@ test("video player transport time follows timeline duration and live video time 
   expect(html).toContain("data-video-analysis-player-current-time");
   expect(html).toContain("data-video-analysis-player-duration-time");
   expect(html).toContain("data-video-analysis-player-meta-duration");
+  expect(html).toContain("data-video-analysis-play-label");
+  expect(html).toContain("data-video-analysis-play-icon");
+  expect(html).toContain("video-analysis-player-nudge__glyph");
+  expect(html).not.toContain(">+5<");
+  expect(html).not.toContain(">-5<");
   expect(html).toContain("0:00:39");
   expect(html).toContain("/ 0:55:57");
   expect(timelineInteraction).toContain("data-video-analysis-player-current-time");

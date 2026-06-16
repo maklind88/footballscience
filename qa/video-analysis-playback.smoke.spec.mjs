@@ -110,8 +110,17 @@ test("Video Analysis keeps the local video element stable after metadata loads",
   });
   expect(stableAfterSameMetadata).toBe(true);
 
+  const playButton = page.locator(".video-analysis-player [data-video-analysis-play]");
+  await expect(playButton).toContainText("Play");
   await page.locator("[data-video-analysis-play]").click();
   await expect.poll(() => page.evaluate(() => window.__videoPlayCalls)).toBe(1);
+  await expect(playButton).toContainText("Pause");
+  await expect(playButton).toHaveAttribute("aria-label", "Pause");
+  await page.evaluate(() => {
+    document.querySelector("[data-video-analysis-video]")?.dispatchEvent(new Event("pause"));
+  });
+  await expect(playButton).toContainText("Play");
+  await expect(playButton).toHaveAttribute("aria-label", "Play");
 
   await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");

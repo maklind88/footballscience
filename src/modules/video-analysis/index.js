@@ -408,7 +408,26 @@ function setVideoPlaybackError(video) {
 function togglePlayback(context = {}) {
   const video = videoElement(context);
   toggleVideoPlayback(video).then((playing) => {
+    syncPlaybackControls(context, video, playing);
     if (!playing && video?.error) setVideoPlaybackError(video);
+  });
+}
+
+function syncPlaybackControls(context = {}, video = videoElement(context), forcePlaying = null) {
+  const root = getRoot(context);
+  if (!root) return;
+  const playing = forcePlaying === null
+    ? Boolean(video && !video.paused && !video.ended)
+    : Boolean(forcePlaying);
+  root.querySelectorAll(".video-analysis-player [data-video-analysis-play]").forEach((button) => {
+    const label = playing ? "Pause" : "Play";
+    const labelNode = button.querySelector("[data-video-analysis-play-label]");
+    const iconNode = button.querySelector("[data-video-analysis-play-icon]");
+    button.dataset.videoAnalysisPlaybackState = playing ? "playing" : "paused";
+    button.setAttribute("aria-label", label);
+    button.setAttribute("title", label);
+    if (labelNode) labelNode.textContent = label;
+    if (iconNode) iconNode.textContent = playing ? "II" : "\u25b6";
   });
 }
 
@@ -744,8 +763,15 @@ function paint(root, state) {
     };
     video.addEventListener("loadedmetadata", () => markNativePlaybackReady(video), { once: true });
     video.addEventListener("canplay", () => markNativePlaybackReady(video), { once: true });
-    video.addEventListener("playing", () => markNativePlaybackReady(video));
+    video.addEventListener("play", () => syncPlaybackControls(runtime?.context || context, video, true));
+    video.addEventListener("playing", () => {
+      markNativePlaybackReady(video);
+      syncPlaybackControls(runtime?.context || context, video, true);
+    });
+    video.addEventListener("pause", () => syncPlaybackControls(runtime?.context || context, video, false));
+    video.addEventListener("ended", () => syncPlaybackControls(runtime?.context || context, video, false));
     video.addEventListener("error", () => setVideoPlaybackError(video), { once: true });
+    syncPlaybackControls(runtime?.context || context, video);
     if (video.readyState >= 1) markNativePlaybackReady(video);
   }
   if (activeTabId === "presentation") thumbnails(runtime?.context || {}).ensureThumbnails();

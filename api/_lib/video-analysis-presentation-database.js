@@ -18,6 +18,8 @@ const SECTION_TYPES = new Set(["opening", "team", "unit", "player", "phase", "se
 const DRAWING_TOOLS = new Set(["arrow", "circle", "spotlight", "text", "freeze", "zoom"]);
 const SHARE_TARGET_TYPES = new Set(["team", "role", "group", "player", "user"]);
 const SHARE_ACCESS_LEVELS = new Set(["view", "present", "edit"]);
+const COLLECTION_VISIBILITY = new Set(["coach-analyst", "team", "private", "custom", "player-safe"]);
+const COLLECTION_SORT_MODES = new Set(["newest", "oldest", "match-date", "clip-time", "custom"]);
 
 function rowList(result) {
   return result.ok && Array.isArray(result.payload) ? result.payload : [];
@@ -56,6 +58,16 @@ function normalizeShareTargetType(value = "") {
 function normalizeAccessLevel(value = "") {
   const level = normalizeText(value || "view", 40).toLowerCase();
   return SHARE_ACCESS_LEVELS.has(level) ? level : "view";
+}
+
+function normalizeCollectionVisibility(value = "") {
+  const visibility = normalizeText(value || "coach-analyst", 80).toLowerCase();
+  return COLLECTION_VISIBILITY.has(visibility) ? visibility : "coach-analyst";
+}
+
+function normalizeCollectionSortMode(value = "") {
+  const mode = normalizeText(value || "newest", 80).toLowerCase();
+  return COLLECTION_SORT_MODES.has(mode) ? mode : "newest";
 }
 
 function normalizeSortOrder(value, index = 0) {
@@ -185,10 +197,15 @@ function normalizeSmartCollection(payload = {}, actor = {}) {
     id: normalizeUuid(payload.id || payload.collectionId || payload.collection_id),
     presentationId: normalizeUuid(payload.presentationId || payload.presentation_id),
     title,
+    description: normalizeNote(payload.description, 1000) || null,
+    collectionType: normalizeText(payload.collectionType || payload.collection_type || "smart", 40).toLowerCase() === "manual" ? "manual" : "smart",
+    visibility: normalizeCollectionVisibility(payload.visibility || payload.metadata?.visibility),
+    sortMode: normalizeCollectionSortMode(payload.sortMode || payload.sort_mode || payload.metadata?.sortMode),
     searchJson: normalizeObject(payload.search || payload.searchJson || payload.search_json),
     isShared: payload.isShared !== false && payload.is_shared !== false,
     status: normalizeActiveStatus(payload.status, "active"),
     metadata: normalizeObject(payload.metadata),
+    shareTargets: normalizeArray(payload.shareTargets || payload.share_targets).map(normalizeShareTarget).filter(Boolean).slice(0, 200),
   };
 }
 
@@ -269,15 +286,31 @@ function mapDrawingRow(row = {}) {
   };
 }
 
-function mapSmartCollectionRow(row = {}) {
+function mapSmartCollectionRow(row = {}, shareTargets = []) {
   return {
     id: row.id || "",
     presentationId: row.presentation_id || "",
     title: row.title || "Smart collection",
+    description: row.description || "",
+    collectionType: row.collection_type || "smart",
+    visibility: row.visibility || "coach-analyst",
+    sortMode: row.sort_mode || "newest",
     searchJson: row.search_json || {},
     isShared: row.is_shared !== false,
     metadata: row.metadata || {},
+    shareTargets,
     updatedAt: row.updated_at || "",
+  };
+}
+
+function mapSmartCollectionShareTargetRow(row = {}) {
+  return {
+    id: row.id || "",
+    collectionId: row.collection_id || "",
+    targetType: row.target_type || "role",
+    targetId: row.target_id || "",
+    accessLevel: row.access_level || "view",
+    metadata: row.metadata || {},
   };
 }
 
@@ -330,7 +363,33 @@ async function listSmartCollections(query = {}, actor = {}) {
     if (isMissingPresentationSchema(result)) return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, smartCollections: [] } };
     return result;
   }
-  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, smartCollections: rowList(result).map(mapSmartCollectionRow) } };
+  const rows = rowList(result);
+  const sharesByCollection = await shareTargetsForCollections(rows.map((row) => row.id).filter(Boolean), scope);
+  return {
+    ok: true,
+    payload: {
+      schema: VIDEO_ANALYSIS_SCHEMA,
+      smartCollections: rows.map((row) => mapSmartCollectionRow(row, sharesByCollection.get(row.id) || [])),
+    },
+  };
+}
+
+async function shareTargetsForCollections(collectionIds = [], scope = {}) {
+  const map = new Map();
+  if (!collectionIds.length) return map;
+  const params = buildTeamParams(scope);
+  params.set("select", "*");
+  params.set("collection_id", `in.(${collectionIds.join(",")})`);
+  params.set("status", "eq.active");
+  params.set("order", "created_at.asc,id.asc");
+  const result = await selectRows("video_smart_collection_share_targets", params);
+  if (!result.ok) return map;
+  for (const row of rowList(result).map(mapSmartCollectionShareTargetRow)) {
+    const list = map.get(row.collectionId) || [];
+    list.push(row);
+    map.set(row.collectionId, list);
+  }
+  return map;
 }
 
 async function getPresentation(query = {}, actor = {}) {
@@ -539,18 +598,76 @@ async function saveSmartCollection(payload = {}, actor = {}) {
     team_id: collection.teamId,
     presentation_id: collection.presentationId || null,
     title: collection.title,
+    description: collection.description,
+    collection_type: collection.collectionType,
+    visibility: collection.visibility,
+    sort_mode: collection.sortMode,
     search_json: collection.searchJson,
     is_shared: collection.isShared,
     status: collection.status,
     created_by: collection.actorId,
-    metadata: collection.metadata,
+    metadata: {
+      ...collection.metadata,
+      visibility: collection.visibility,
+      sortMode: collection.sortMode,
+    },
   };
   const result = collection.id
     ? await patchRows("video_smart_collections", buildIdParams(collection, collection.id), row)
     : await insertRow("video_smart_collections", row);
-  return result.ok
-    ? { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, smartCollection: mapSmartCollectionRow(result.payload?.[0] || row) } }
-    : result;
+  if (!result.ok) return result;
+  const saved = result.payload?.[0];
+  if (!saved?.id) return { ok: false, status: 500, reason: "Smart collection could not be saved." };
+  const targets = collection.shareTargets.length ? collection.shareTargets : defaultSmartCollectionShareTargets(collection.visibility);
+  const shares = await saveSmartCollectionShareTargets({ collectionId: saved.id, targets }, actor);
+  if (!shares.ok) return shares;
+  return {
+    ok: true,
+    payload: {
+      schema: VIDEO_ANALYSIS_SCHEMA,
+      smartCollection: mapSmartCollectionRow(saved, shares.payload?.shareTargets || []),
+    },
+  };
+}
+
+function defaultSmartCollectionShareTargets(visibility = "coach-analyst") {
+  if (visibility === "private") return [];
+  if (visibility === "team") return [{ targetType: "team", targetId: "team", accessLevel: "view" }];
+  if (visibility === "player-safe") return [{ targetType: "role", targetId: "player", accessLevel: "view" }];
+  return [
+    { targetType: "role", targetId: "coach", accessLevel: "edit" },
+    { targetType: "role", targetId: "analyst", accessLevel: "edit" },
+  ];
+}
+
+async function saveSmartCollectionShareTargets(payload = {}, actor = {}) {
+  rejectForbiddenPayload(payload);
+  const scope = actorScope(actor);
+  const collectionId = normalizeUuid(payload.collectionId || payload.collection_id);
+  if (!collectionId) return { ok: false, status: 400, reason: "collection id is required." };
+  const targets = normalizeArray(payload.targets || payload.shareTargets || payload.share_targets).map(normalizeShareTarget).filter(Boolean).slice(0, 200);
+  const params = buildTeamParams(scope);
+  params.set("collection_id", `eq.${collectionId}`);
+  params.set("status", "eq.active");
+  const archiveResult = await patchRows("video_smart_collection_share_targets", params, { status: "archived", archived_at: new Date().toISOString() });
+  if (!archiveResult.ok && archiveResult.status !== 404) return archiveResult;
+  const saved = [];
+  for (const target of targets) {
+    const result = await insertRow("video_smart_collection_share_targets", {
+      organization_id: scope.organizationId,
+      team_id: scope.teamId,
+      collection_id: collectionId,
+      target_type: target.targetType,
+      target_id: target.targetId,
+      access_level: target.accessLevel,
+      status: target.status,
+      created_by: scope.actorId,
+      metadata: target.metadata,
+    });
+    if (!result.ok && result.status !== 409) return result;
+    if (result.ok) saved.push(mapSmartCollectionShareTargetRow(result.payload?.[0] || target));
+  }
+  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, shareTargets: saved } };
 }
 
 async function saveDrawingLayer(payload = {}, actor = {}) {
@@ -622,5 +739,6 @@ module.exports = {
   saveDrawingLayer,
   savePresentation,
   saveShareTargets,
+  saveSmartCollectionShareTargets,
   saveSmartCollection,
 };

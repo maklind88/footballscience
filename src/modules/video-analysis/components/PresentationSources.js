@@ -1,5 +1,6 @@
 import { videoAnalysisOutcomes } from "../constants/outcomes.js";
 import { videoAnalysisPhases } from "../constants/phases.js";
+import { thumbnailCacheKey } from "../services/localThumbnailCacheService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml, optionList } from "./renderHelpers.js";
 
@@ -31,13 +32,14 @@ function clipInitial(clip = {}) {
   return String(phase).split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "CL";
 }
 
-function renderSourceClip(clip = {}, activeSectionId = "") {
+function renderSourceClip(clip = {}, activeSectionId = "", state = {}) {
   const startMs = clip.startMs ?? clip.start_ms ?? 0;
   const tags = clipTags(clip);
+  const thumbnailUrl = state.presentation?.thumbnails?.[thumbnailCacheKey(state.videoRef || {}, clip)] || "";
   return `
     <article class="video-analysis-presentation-source-clip">
       <button type="button" class="video-analysis-presentation-source-clip__thumb" data-video-analysis-seek="${escapeHtml(clip.id)}" aria-label="Preview clip">
-        <strong>${escapeHtml(clipInitial(clip))}</strong>
+        ${thumbnailUrl ? `<img src="${escapeHtml(thumbnailUrl)}" alt="">` : `<strong>${escapeHtml(clipInitial(clip))}</strong>`}
         <span>${escapeHtml(formatVideoTime(startMs))}</span>
       </button>
       <div>
@@ -55,6 +57,9 @@ function renderSourceClip(clip = {}, activeSectionId = "") {
 
 function renderSmartCollection(collection = {}) {
   const filters = collection.searchJson || collection.search_json || {};
+  const metadata = collection.metadata || {};
+  const visibility = collection.visibility || metadata.visibility || "Coach + analyst";
+  const targets = Array.isArray(collection.shareTargets) ? collection.shareTargets : [];
   const filterParts = [filters.phase, filters.outcome, filters.tag, filters.date, filters.search]
     .map((value) => String(value || "").trim())
     .filter(Boolean)
@@ -63,6 +68,7 @@ function renderSmartCollection(collection = {}) {
     <button type="button" class="video-analysis-smart-collection" data-video-analysis-smart-apply="${escapeHtml(collection.id || collection.title)}">
       <strong>${escapeHtml(collection.title || "Smart collection")}</strong>
       <span>${escapeHtml(filterParts.length ? filterParts.join(" / ") : "Saved clip playlist")}</span>
+      <small>${escapeHtml(`${visibility} - ${targets.length || 2} share targets`)}</small>
     </button>
   `;
 }
@@ -92,7 +98,7 @@ export function renderPresentationSources(state = {}) {
         </select>
         <input type="search" placeholder="Player or tag" data-video-analysis-presentation-filter="tag" value="${escapeHtml(filters.tag || "")}">
         <input type="date" data-video-analysis-presentation-filter="date" value="${escapeHtml(filters.date || "")}">
-        <button type="button" data-video-analysis-smart-save>Save search</button>
+        <button type="button" data-video-analysis-smart-save>Save playlist</button>
       </div>
       <div class="video-analysis-smart-collections" aria-label="Smart collections">
         ${smartCollections.length
@@ -105,7 +111,7 @@ export function renderPresentationSources(state = {}) {
       </div>
       <div class="video-analysis-presentation-source-list">
         ${clips.length
-          ? clips.map((clip) => renderSourceClip(clip, presentation.activeSectionId || "opening")).join("")
+          ? clips.map((clip) => renderSourceClip(clip, presentation.activeSectionId || "opening", state)).join("")
           : `<p class="video-analysis-muted">Search or refresh to load tagged clips.</p>`}
       </div>
     </section>

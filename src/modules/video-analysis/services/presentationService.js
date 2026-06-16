@@ -65,6 +65,9 @@ export function createInitialPresentationWorkspace() {
     drawingTool: "arrow",
     drawingUndoStack: [],
     drawingRedoStack: [],
+    drawingInteraction: null,
+    selectedDrawingLayerId: "",
+    thumbnails: {},
     presenterIndex: 0,
     sourceClips: [],
     sourceTotal: 0,
@@ -290,6 +293,16 @@ export function removeDrawingLayerFromItem(presentation = {}, itemId = "", layer
   if (!item) return presentation;
   return updatePresentationItem(presentation, itemId, {
     drawings: (item.drawings || []).filter((layer) => layer.id !== layerId),
+  });
+}
+
+export function updateDrawingLayerInItem(presentation = {}, itemId = "", layerId = "", patch = {}) {
+  const item = presentationQueue(presentation).find((entry) => entry.id === itemId);
+  if (!item) return presentation;
+  return updatePresentationItem(presentation, itemId, {
+    drawings: (item.drawings || []).map((layer) => (
+      layer.id === layerId ? normalizeDrawingLayer({ ...layer, ...patch }) : layer
+    )),
   });
 }
 

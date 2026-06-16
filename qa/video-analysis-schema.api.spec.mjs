@@ -12,6 +12,8 @@ const buttonBehaviorMigrationPath = path.join(rootDir, "supabase/migrations/2026
 const buttonBehaviorMigration = fs.readFileSync(buttonBehaviorMigrationPath, "utf8");
 const presentationMigrationPath = path.join(rootDir, "supabase/migrations/20260615035024_video_analysis_presentation_builder_v1.sql");
 const presentationMigration = fs.readFileSync(presentationMigrationPath, "utf8");
+const smartCollectionSharingMigrationPath = path.join(rootDir, "supabase/migrations/20260615223732_video_analysis_smart_collection_sharing_v2.sql");
+const smartCollectionSharingMigration = fs.readFileSync(smartCollectionSharingMigrationPath, "utf8");
 
 test("video analysis schema stores metadata only with millisecond precision", () => {
   for (const tableName of [
@@ -117,4 +119,17 @@ test("video analysis presentation builder stores shareable metadata only", () =>
   expect(presentationMigration).toContain("('video-analysis', 'present'");
   expect(presentationMigration).toContain("('video-analysis', 'share'");
   expect(presentationMigration).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
+});
+
+test("video analysis smart collection sharing stores playlist metadata only", () => {
+  expect(smartCollectionSharingMigration).toContain("add column if not exists description text");
+  expect(smartCollectionSharingMigration).toContain("add column if not exists visibility text not null default 'coach-analyst'");
+  expect(smartCollectionSharingMigration).toContain("add column if not exists sort_mode text not null default 'newest'");
+  expect(smartCollectionSharingMigration).toContain("create table if not exists public.video_smart_collection_share_targets");
+  expect(smartCollectionSharingMigration).toContain("target_type text not null check (target_type in ('team', 'role', 'group', 'player', 'user'))");
+  expect(smartCollectionSharingMigration).toContain("alter table public.video_smart_collection_share_targets enable row level security");
+  expect(smartCollectionSharingMigration).toContain("revoke all on public.video_smart_collection_share_targets from anon, authenticated");
+  expect(smartCollectionSharingMigration).toContain("grant select, insert, update, delete on public.video_smart_collection_share_targets to service_role");
+  expect(smartCollectionSharingMigration).toContain("video_smart_collection_share_targets_prevent_hard_delete");
+  expect(smartCollectionSharingMigration).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
 });

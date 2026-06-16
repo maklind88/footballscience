@@ -55,9 +55,24 @@ import {
   removePresentationItem,
   selectedPresentationItem,
   smartCollectionTitle,
+  updateDrawingLayerInItem,
   updatePresentationItem,
   updatePresentationSection,
 } from "./services/presentationService.js";
+import {
+  generateClipThumbnail,
+  getCachedThumbnail,
+  saveCachedThumbnail,
+  thumbnailCacheKey,
+  clipThumbnailTimeMs,
+} from "./services/localThumbnailCacheService.js";
+import {
+  defaultDrawingGeometry,
+  geometryFromDrag,
+  moveGeometry,
+  pointerPercent,
+  resizeGeometry,
+} from "./services/presentationLayerGeometryService.js";
 import { buildTimelineLanes, normalizeTimelineLaneMode, trimClipDraft } from "./services/timelineService.js";
 import { describeVideoPlaybackError, getVideoCurrentMs, seekVideoToMs, toggleVideoPlayback } from "./services/videoPlaybackService.js";
 import { createTimelineScrubController } from "./timeline/timeline.interaction.js";
@@ -69,6 +84,7 @@ import { createVideoAnalysisStore } from "./video-analysis.store.js";
 let runtime = null;
 let videoLibraryController = null;
 let timelineScrubController = null;
+const thumbnailRequests = new Set();
 
 function getRoot(context = {}) {
   return context.ui?.analysisRoomWorkspace || null;
@@ -670,6 +686,7 @@ function paint(root, state) {
     video.addEventListener("error", () => setVideoPlaybackError(video), { once: true });
     if (video.readyState >= 1) markNativePlaybackReady(video);
   }
+  if (activeTabId === "presentation") ensurePresentationThumbnails(runtime?.context || {});
 }
 
 async function loadClips(nextFilters = null) {
@@ -888,7 +905,18 @@ async function saveCurrentSmartCollection(context = {}) {
     const payload = await run.presentations.saveSmartCollection({
       presentationId: state.presentation?.current?.id || "",
       title: smartCollectionTitle(filters),
+      description: "Live playlist generated from Data Explorer filters.",
+      visibility: "coach-analyst",
+      sortMode: "newest",
       search: filters,
+      metadata: {
+        kind: "live-playlist",
+        source: "presentation-data-explorer",
+      },
+      shareTargets: [
+        { targetType: "role", targetId: "coach", accessLevel: "edit" },
+        { targetType: "role", targetId: "analyst", accessLevel: "edit" },
+      ],
     });
     run.store.update((current) => ({
       ...current,
@@ -954,35 +982,58 @@ async function saveSelectedDrawingLayers(context = {}) {
   }
 }
 
-function defaultDrawingGeometry(tool = "arrow") {
-  const map = {
-    arrow: { x1: 24, y1: 58, x2: 68, y2: 42 },
-    circle: { cx: 58, cy: 42, rx: 14, ry: 9 },
-    spotlight: { cx: 52, cy: 46, rx: 18, ry: 13 },
-    text: { x: 42, y: 36 },
-    freeze: { x: 0, y: 0, width: 100, height: 100 },
-    zoom: { cx: 54, cy: 48, scale: 1.6 },
-  };
-  return map[tool] || map.arrow;
+function thumbnailCandidateClips(state = {}) {
+  const sourceClips = Array.isArray(state.presentation?.sourceClips) ? state.presentation.sourceClips : [];
+  const queueClips = presentationQueue(state.presentation?.current || {})
+    .map((item) => item.clip)
+    .filter(Boolean);
+  const seen = new Set();
+  return [...queueClips, ...sourceClips].filter((clip) => {
+    const id = clip?.id || clip?.clipId || clip?.clip_instance_id;
+    if (!id || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  }).slice(0, 60);
 }
 
-function drawingGeometryAtPoint(tool = "arrow", x = 50, y = 50) {
-  const safeX = Math.max(0, Math.min(100, Number(x || 0)));
-  const safeY = Math.max(0, Math.min(100, Number(y || 0)));
-  if (tool === "arrow") {
-    return {
-      x1: Math.max(0, safeX - 18),
-      y1: Math.min(100, safeY + 8),
-      x2: Math.min(100, safeX + 18),
-      y2: Math.max(0, safeY - 8),
-    };
+function ensurePresentationThumbnails(context = {}) {
+  const run = runtime;
+  if (!run) return;
+  const state = run.store.getState();
+  const videoRef = state.videoRef || {};
+  if (!videoRef.objectUrl || !videoRef.localVideoIdentifier) return;
+  for (const clip of thumbnailCandidateClips(state)) {
+    const key = thumbnailCacheKey(videoRef, clip);
+    if (!key || state.presentation?.thumbnails?.[key] || thumbnailRequests.has(key)) continue;
+    thumbnailRequests.add(key);
+    const win = context.win || window;
+    getCachedThumbnail(key, win)
+      .then((cached) => cached || generateClipThumbnail(videoRef, clip, win))
+      .then(async (dataUrl) => {
+        if (!dataUrl) return;
+        if (!dataUrl.startsWith("data:image/")) return;
+        if (!state.presentation?.thumbnails?.[key]) {
+          await saveCachedThumbnail(key, {
+            dataUrl,
+            localVideoIdentifier: videoRef.localVideoIdentifier,
+            clipId: clip.id || clip.clipId || clip.clip_instance_id,
+            timestampMs: clipThumbnailTimeMs(clip),
+          }, win).catch(() => null);
+        }
+        run.store.update((current) => ({
+          ...current,
+          presentation: {
+            ...(current.presentation || {}),
+            thumbnails: {
+              ...(current.presentation?.thumbnails || {}),
+              [key]: dataUrl,
+            },
+          },
+        }));
+      })
+      .catch(() => null)
+      .finally(() => thumbnailRequests.delete(key));
   }
-  if (tool === "circle") return { cx: safeX, cy: safeY, rx: 12, ry: 8 };
-  if (tool === "spotlight") return { cx: safeX, cy: safeY, rx: 16, ry: 11 };
-  if (tool === "text") return { x: safeX, y: safeY };
-  if (tool === "zoom") return { cx: safeX, cy: safeY, scale: 1.6 };
-  if (tool === "freeze") return { x: 0, y: 0, width: 100, height: 100 };
-  return defaultDrawingGeometry(tool);
 }
 
 function addDrawingLayerAtPoint(context = {}, geometry = null) {
@@ -993,25 +1044,188 @@ function addDrawingLayerAtPoint(context = {}, geometry = null) {
     if (!item) return state;
     const draft = state.presentation?.drawingDraft || {};
     const tool = state.presentation?.drawingTool || "arrow";
-    const timestampMs = currentPlayheadMs(context, state);
-    const layer = normalizeDrawingLayer({
-      presentationId: presentation.id,
-      presentationItemId: item.id,
-      clipId: item.clipId,
-      timestampMs,
-      durationMs: draft.durationSeconds ? Math.round(Number(draft.durationSeconds || 0) * 1000) : null,
-      tool,
-      text: draft.text || (tool === "text" ? "Coach point" : ""),
-      geometry: geometry || defaultDrawingGeometry(tool),
-      style: { color: tool === "spotlight" ? "#ffffff" : "#f4d06f" },
-    });
+    const layer = createDrawingLayer(state, item, context, geometry || defaultDrawingGeometry(tool));
     return {
       ...state,
       presentation: {
         ...(state.presentation || {}),
         current: addDrawingLayerToItem(presentation, item.id, layer),
-        drawingDraft: { timestampSeconds: "", durationSeconds: "", text: "" },
+        selectedDrawingLayerId: layer.id,
+        drawingDraft: { ...draft, timestampSeconds: "", durationSeconds: "", text: "" },
         drawingUndoStack: [...(state.presentation?.drawingUndoStack || []), presentation].slice(-20),
+        drawingRedoStack: [],
+      },
+    };
+  });
+  return true;
+}
+
+function createDrawingLayer(state = {}, item = {}, context = {}, geometry = {}) {
+  const draft = state.presentation?.drawingDraft || {};
+  const tool = state.presentation?.drawingTool || "arrow";
+  const presentation = state.presentation?.current || {};
+  return normalizeDrawingLayer({
+      presentationId: presentation.id,
+      presentationItemId: item.id,
+      clipId: item.clipId,
+      timestampMs: currentPlayheadMs(context, state),
+      durationMs: draft.durationSeconds ? Math.round(Number(draft.durationSeconds || 0) * 1000) : null,
+      tool,
+      text: draft.text || (tool === "text" ? "Coach point" : ""),
+      geometry,
+      style: { color: tool === "spotlight" ? "#ffffff" : "#f4d06f" },
+    });
+}
+
+function drawingLayerById(item = {}, layerId = "") {
+  return (item.drawings || []).find((layer) => layer.id === layerId) || null;
+}
+
+function startDrawingInteraction(event, context = {}, surface = null) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const presentation = state.presentation?.current;
+  const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
+  if (!item) return false;
+  const point = pointerPercent(event, surface);
+  const resizeTarget = eventElement(event)?.closest?.("[data-video-analysis-drawing-resize]");
+  const layerTarget = eventElement(event)?.closest?.("[data-video-analysis-drawing-layer]");
+  const [resizeLayerId, resizeHandle] = String(resizeTarget?.dataset?.videoAnalysisDrawingResize || "").split(":");
+  const layerId = resizeLayerId || layerTarget?.dataset?.videoAnalysisDrawingLayer || "";
+  const layer = drawingLayerById(item, layerId);
+  event.preventDefault?.();
+  surface?.setPointerCapture?.(event.pointerId);
+  if (layer) {
+    run.store.update((current) => ({
+      ...current,
+      presentation: {
+        ...(current.presentation || {}),
+        selectedDrawingLayerId: layer.id,
+        drawingInteraction: {
+          type: resizeTarget ? "resize" : "move",
+          itemId: item.id,
+          layerId: layer.id,
+          handle: resizeHandle || "end",
+          start: point,
+          last: point,
+          originalGeometry: layer.geometry || {},
+          beforePresentation: presentation,
+        },
+      },
+    }));
+    return true;
+  }
+  const tool = state.presentation?.drawingTool || "arrow";
+  const geometry = defaultDrawingGeometry(tool, point);
+  const previewLayer = createDrawingLayer(state, item, context, geometry);
+  run.store.update((current) => ({
+    ...current,
+    presentation: {
+      ...(current.presentation || {}),
+      selectedDrawingLayerId: "",
+      drawingInteraction: {
+        type: "create",
+        itemId: item.id,
+        start: point,
+        last: point,
+        tool,
+        previewLayer,
+        beforePresentation: presentation,
+      },
+    },
+  }));
+  return true;
+}
+
+function updateDrawingInteraction(event, context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const interaction = state.presentation?.drawingInteraction;
+  if (!interaction) return false;
+  const surface = getRoot(context)?.querySelector("[data-video-analysis-drawing-surface]");
+  const point = pointerPercent(event, surface);
+  event.preventDefault?.();
+  run.store.update((current) => {
+    const liveInteraction = current.presentation?.drawingInteraction || interaction;
+    const presentation = current.presentation?.current;
+    const item = selectedPresentationItem(presentation, liveInteraction.itemId, "");
+    if (!item) return current;
+    if (liveInteraction.type === "create") {
+      const geometry = geometryFromDrag(liveInteraction.tool, liveInteraction.start, point);
+      return {
+        ...current,
+        presentation: {
+          ...(current.presentation || {}),
+          drawingInteraction: {
+            ...liveInteraction,
+            last: point,
+            previewLayer: {
+              ...(liveInteraction.previewLayer || {}),
+              geometry,
+            },
+          },
+        },
+      };
+    }
+    const layer = drawingLayerById(item, liveInteraction.layerId);
+    if (!layer) return current;
+    const dx = point.x - liveInteraction.start.x;
+    const dy = point.y - liveInteraction.start.y;
+    const geometry = liveInteraction.type === "resize"
+      ? resizeGeometry(layer.tool, liveInteraction.originalGeometry, liveInteraction.handle, point)
+      : moveGeometry(liveInteraction.originalGeometry, dx, dy);
+    return {
+      ...current,
+      presentation: {
+        ...(current.presentation || {}),
+        current: updateDrawingLayerInItem(presentation, item.id, layer.id, { geometry }),
+        drawingInteraction: { ...liveInteraction, last: point },
+      },
+    };
+  });
+  return true;
+}
+
+function finishDrawingInteraction(event, context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const interaction = state.presentation?.drawingInteraction;
+  if (!interaction) return false;
+  const surface = getRoot(context)?.querySelector("[data-video-analysis-drawing-surface]");
+  const point = pointerPercent(event, surface);
+  event.preventDefault?.();
+  run.store.update((current) => {
+    const liveInteraction = current.presentation?.drawingInteraction || interaction;
+    const presentation = current.presentation?.current;
+    const item = selectedPresentationItem(presentation, liveInteraction.itemId, "");
+    if (!item) {
+      return {
+        ...current,
+        presentation: { ...(current.presentation || {}), drawingInteraction: null },
+      };
+    }
+    if (liveInteraction.type === "create") {
+      const geometry = geometryFromDrag(liveInteraction.tool, liveInteraction.start, point);
+      const layer = createDrawingLayer(current, item, context, geometry);
+      return {
+        ...current,
+        presentation: {
+          ...(current.presentation || {}),
+          current: addDrawingLayerToItem(presentation, item.id, layer),
+          selectedDrawingLayerId: layer.id,
+          drawingInteraction: null,
+          drawingDraft: { timestampSeconds: "", durationSeconds: "", text: "" },
+          drawingUndoStack: [...(current.presentation?.drawingUndoStack || []), liveInteraction.beforePresentation].filter(Boolean).slice(-20),
+          drawingRedoStack: [],
+        },
+      };
+    }
+    return {
+      ...current,
+      presentation: {
+        ...(current.presentation || {}),
+        drawingInteraction: null,
+        drawingUndoStack: [...(current.presentation?.drawingUndoStack || []), liveInteraction.beforePresentation].filter(Boolean).slice(-20),
         drawingRedoStack: [],
       },
     };
@@ -1276,6 +1490,8 @@ export function render(context = {}) {
     drop: handleDrop,
     input: handleInput,
     pointerdown: handlePointerDown,
+    pointermove: handlePointerMove,
+    pointerup: handlePointerUp,
     submit: handleSubmit,
   });
   if (!run.unsubscribe) {
@@ -1587,13 +1803,17 @@ export function handlePointerDown(event, context = {}) {
     const presentation = state.presentation?.current;
     const item = selectedPresentationItem(presentation, state.presentation?.selectedItemId, state.presentation?.selectedClipId);
     if (!item) return false;
-    event.preventDefault?.();
-    const rect = drawingSurface.getBoundingClientRect?.();
-    const x = rect?.width ? ((event.clientX - rect.left) / rect.width) * 100 : 50;
-    const y = rect?.height ? ((event.clientY - rect.top) / rect.height) * 100 : 50;
-    return addDrawingLayerAtPoint(context, drawingGeometryAtPoint(state.presentation?.drawingTool || "arrow", x, y));
+    return startDrawingInteraction(event, context, drawingSurface);
   }
   return timelineController(context).handlePointerDown(event);
+}
+
+export function handlePointerMove(event, context = {}) {
+  return updateDrawingInteraction(event, context);
+}
+
+export function handlePointerUp(event, context = {}) {
+  return finishDrawingInteraction(event, context);
 }
 
 export function handleClick(event, context = {}) {
@@ -2111,6 +2331,17 @@ export function handleClick(event, context = {}) {
   if (target.closest("[data-video-analysis-drawing-add]")) {
     return addDrawingLayerAtPoint(context);
   }
+  const selectDrawingButton = target.closest("[data-video-analysis-drawing-select]");
+  if (selectDrawingButton) {
+    run.store.update((state) => ({
+      ...state,
+      presentation: {
+        ...(state.presentation || {}),
+        selectedDrawingLayerId: selectDrawingButton.dataset.videoAnalysisDrawingSelect || "",
+      },
+    }));
+    return true;
+  }
   const removeDrawingButton = target.closest("[data-video-analysis-drawing-remove]");
   if (removeDrawingButton) {
     run.store.update((state) => {
@@ -2122,6 +2353,7 @@ export function handleClick(event, context = {}) {
         presentation: {
           ...(state.presentation || {}),
           current: removeDrawingLayerFromItem(presentation, item.id, removeDrawingButton.dataset.videoAnalysisDrawingRemove),
+          selectedDrawingLayerId: state.presentation?.selectedDrawingLayerId === removeDrawingButton.dataset.videoAnalysisDrawingRemove ? "" : state.presentation?.selectedDrawingLayerId,
           drawingUndoStack: [...(state.presentation?.drawingUndoStack || []), presentation].slice(-20),
           drawingRedoStack: [],
         },

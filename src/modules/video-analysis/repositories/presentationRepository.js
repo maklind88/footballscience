@@ -59,5 +59,12 @@ export function createPresentationRepository(context = {}) {
         getAuthToken
       );
     },
+    saveSmartCollectionShareTargets(collectionId = "", targets = []) {
+      return requestJson(
+        buildVideoAnalysisApiUrl("save-smart-collection-share-targets"),
+        { method: "POST", body: JSON.stringify({ action: "save-smart-collection-share-targets", collectionId, targets }) },
+        getAuthToken
+      );
+    },
   };
 }

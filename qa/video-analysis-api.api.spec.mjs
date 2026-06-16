@@ -158,6 +158,35 @@ test("video analysis presentation API normalizes metadata and blocks video paylo
   expect(presentation.shareTargets[0]).toMatchObject({ targetType: "player", targetId: "player-9", accessLevel: "present" });
 });
 
+test("video analysis smart collections behave like shareable clip playlists", () => {
+  const collection = presentationApi.normalizeSmartCollection({
+    title: "High press wins",
+    description: "Auto-updating clips for the next team meeting.",
+    visibility: "coach-analyst",
+    sortMode: "match-date",
+    search: {
+      phase: "Out of Possession",
+      outcome: "Positive",
+      tag: "press",
+    },
+    shareTargets: [
+      { targetType: "role", targetId: "coach", accessLevel: "edit" },
+      { targetType: "role", targetId: "analyst", accessLevel: "edit" },
+    ],
+  }, actor);
+
+  expect(collection).toMatchObject({
+    title: "High press wins",
+    description: "Auto-updating clips for the next team meeting.",
+    visibility: "coach-analyst",
+    sortMode: "match-date",
+    collectionType: "smart",
+  });
+  expect(collection.searchJson).toMatchObject({ tag: "press" });
+  expect(collection.shareTargets).toHaveLength(2);
+  expect(collection.shareTargets[0]).toMatchObject({ targetType: "role", targetId: "coach", accessLevel: "edit" });
+});
+
 test("video analysis API exposes presentation builder actions behind the service layer", () => {
   const source = fs.readFileSync(path.join(rootDir, "api/_lib/video-analysis-database.js"), "utf8");
   const presentationSource = fs.readFileSync(path.join(rootDir, "api/_lib/video-analysis-presentation-database.js"), "utf8");
@@ -169,6 +198,7 @@ test("video analysis API exposes presentation builder actions behind the service
     "save-presentation",
     "archive-presentation",
     "save-smart-collection",
+    "save-smart-collection-share-targets",
     "save-drawing-layer",
     "save-share-targets",
   ]) {

@@ -304,22 +304,30 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-presentation .video-analysis-filters")).toHaveCount(0);
   await expect(page.locator(".video-analysis-presentation .video-analysis-intelligence")).toHaveCount(0);
   await expect(page.locator(".video-analysis-presentation .video-analysis-clip-list")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-presentation-source-clip__thumb")).toBeVisible();
 
   await page.locator("[data-video-analysis-presentation-add]").first().click();
   await expect(page.locator(".video-analysis-presentation-outline-item")).toHaveCount(1);
   await expect(page.locator(".video-analysis-presentation-outline-item")).toContainText("In Possession / Positive");
+  await expect(page.locator(".video-analysis-presentation-outline-item__thumb")).toBeVisible();
 
   await page.getByRole("tab", { name: "Telestrate" }).click();
   await expect(page.locator(".video-analysis-drawing-builder")).toBeVisible();
-  await page.locator('[data-video-analysis-drawing-field="text"]').fill("Press trigger");
-  await page.locator("[data-video-analysis-drawing-add]").click();
+  await expect(page.locator("[data-video-analysis-drawing-surface]")).toBeVisible();
+  await expect(page.locator(".video-analysis-drawing-canvas")).toContainText(/Drag directly|Link local video/);
+  const drawingSurfaceBox = await page.locator("[data-video-analysis-drawing-surface]").boundingBox();
+  expect(drawingSurfaceBox).toBeTruthy();
+  await page.mouse.move(drawingSurfaceBox.x + 80, drawingSurfaceBox.y + 80);
+  await page.mouse.down();
+  await page.mouse.move(drawingSurfaceBox.x + 220, drawingSurfaceBox.y + 150);
+  await page.mouse.up();
   await expect(page.locator(".video-analysis-drawing-layer-list li")).toHaveCount(1);
   await expect(page.locator(".video-analysis-drawing-layer-list")).toContainText("arrow");
 
   await page.getByRole("tab", { name: "Present" }).click();
   await expect(page.locator(".video-analysis-presenter-mode")).toBeVisible();
   await expect(page.locator(".video-analysis-presenter-queue-item")).toHaveCount(1);
-  await expect(page.locator(".video-analysis-presenter-frame")).toContainText("Press trigger");
+  await expect(page.locator(".video-analysis-presenter-frame")).toContainText("arrow");
   await expect(page.locator(".video-analysis-presenter-frame")).toContainText("Clip 1 of 1");
   await expect(page.locator(".video-analysis-player")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-timeline-module]")).toHaveCount(0);

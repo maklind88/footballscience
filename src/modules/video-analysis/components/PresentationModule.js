@@ -4,6 +4,7 @@ import {
   presentationQueue,
   selectedPresentationItem,
 } from "../services/presentationService.js";
+import { layerStyle } from "../services/presentationLayerGeometryService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { renderDrawingCanvas } from "./DrawingCanvas.js";
 import { renderPresentationOutline } from "./PresentationOutline.js";
@@ -44,22 +45,6 @@ function renderDrawingMarker(layer = {}, index = 0) {
       ${escapeHtml(layer.tool || "draw")}
     </span>
   `;
-}
-
-function layerStyle(tool = "arrow", geometry = {}) {
-  const x = Number(geometry.x ?? geometry.cx ?? geometry.x1 ?? 50);
-  const y = Number(geometry.y ?? geometry.cy ?? geometry.y1 ?? 50);
-  if (tool === "arrow") {
-    const x2 = Number(geometry.x2 ?? x + 28);
-    const y2 = Number(geometry.y2 ?? y - 10);
-    const length = Math.max(12, Math.hypot(x2 - x, y2 - y));
-    const angle = Math.atan2(y2 - y, x2 - x) * 180 / Math.PI;
-    return `left:${Math.max(0, Math.min(100, x))}%;top:${Math.max(0, Math.min(100, y))}%;width:${Math.min(70, length)}%;transform:rotate(${angle}deg);`;
-  }
-  if (tool === "freeze") return "";
-  const width = Number(geometry.rx || geometry.width || (tool === "zoom" ? 12 : 16));
-  const height = Number(geometry.ry || geometry.height || (tool === "zoom" ? 12 : 10));
-  return `left:${Math.max(0, Math.min(94, x - width / 2))}%;top:${Math.max(0, Math.min(92, y - height / 2))}%;`;
 }
 
 function renderStageMedia(state = {}, item = null, layers = []) {

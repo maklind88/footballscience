@@ -30,6 +30,7 @@ const {
   savePresentation,
   saveShareTargets,
   saveSmartCollection,
+  saveSmartCollectionShareTargets,
 } = require("./video-analysis-presentation-database.js");
 const { upsertClipBankItem } = require("./idp-database.js");
 const { saveReviewSession } = require("./video-analysis-review-database.js");
@@ -580,11 +581,13 @@ async function handleVideoAnalysisRequest(req, res, actor) {
                       ? await saveDrawingLayer(body.drawingLayer || body.layer || body, actor)
                       : action === "save-share-targets"
                         ? await saveShareTargets(body, actor)
-                        : action === "save-review-session"
-                          ? await saveReviewSession(body.reviewSession || body, actor)
-                          : action === "save-coding-template"
-                            ? await saveCodingTemplate(body.template || body, actor)
-                            : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
+                        : action === "save-smart-collection-share-targets"
+                          ? await saveSmartCollectionShareTargets(body, actor)
+                          : action === "save-review-session"
+                            ? await saveReviewSession(body.reviewSession || body, actor)
+                            : action === "save-coding-template"
+                              ? await saveCodingTemplate(body.template || body, actor)
+                              : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }
 

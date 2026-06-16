@@ -1,3 +1,4 @@
+import { thumbnailCacheKey } from "../services/localThumbnailCacheService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
@@ -19,13 +20,14 @@ function itemDuration(item = {}) {
   return Math.max(0, Number(endMs || 0) - Number(startMs || 0));
 }
 
-function renderOutlineItem(sectionId = "", item = {}, active = false) {
+function renderOutlineItem(sectionId = "", item = {}, active = false, state = {}) {
   const clip = item.clip || {};
   const startMs = item.startMs ?? clip.startMs ?? clip.start_ms ?? 0;
   const drawings = Array.isArray(item.drawings) ? item.drawings.length : 0;
+  const thumbnailUrl = state.presentation?.thumbnails?.[thumbnailCacheKey(state.videoRef || {}, clip)] || "";
   return `
     <li class="video-analysis-presentation-outline-item${active ? " is-active" : ""}" draggable="true" data-video-analysis-presentation-drag-item="${escapeHtml(item.id)}" data-video-analysis-presentation-drop-item="${escapeHtml(sectionId)}:${escapeHtml(item.id)}">
-      <span class="video-analysis-presentation-outline-item__thumb">${escapeHtml(itemInitial(item))}</span>
+      <span class="video-analysis-presentation-outline-item__thumb">${thumbnailUrl ? `<img src="${escapeHtml(thumbnailUrl)}" alt="">` : escapeHtml(itemInitial(item))}</span>
       <button type="button" class="video-analysis-presentation-outline-item__main" data-video-analysis-presentation-select-item="${escapeHtml(item.id)}">
         <span>${escapeHtml(formatVideoTime(startMs))}</span>
         <strong>${escapeHtml(itemTitle(item))}</strong>
@@ -56,7 +58,7 @@ function renderOutlineSection(section = {}, state = {}) {
       <textarea rows="2" aria-label="Section coach note" placeholder="Section note for presenter" data-video-analysis-presentation-section-note="${escapeHtml(section.id)}">${escapeHtml(section.coachNote || "")}</textarea>
       <ol>
         ${items.length
-          ? items.map((item) => renderOutlineItem(section.id, item, item.id === selectedItemId)).join("")
+          ? items.map((item) => renderOutlineItem(section.id, item, item.id === selectedItemId, state)).join("")
           : `<li class="video-analysis-muted" data-video-analysis-presentation-drop-empty="${escapeHtml(section.id)}">Drop or add clips here.</li>`}
       </ol>
     </section>

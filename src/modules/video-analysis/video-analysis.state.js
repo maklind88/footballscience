@@ -119,6 +119,7 @@ export function createInitialVideoAnalysisState(context = {}) {
       decision: "",
       execution: "",
       tags: "",
+      visibility: "private",
       note: "",
     },
     reviewList: [],

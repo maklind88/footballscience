@@ -387,8 +387,11 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(api).toContain("listCodingTemplates");
   expect(api).toContain("saveCodingTemplate");
   expect(clipRepository).toContain("trim-clip");
+  expect(clipRepository).toContain("share-clip");
   expect(api).toContain("trimClip");
+  expect(api).toContain("shareClip");
   expect(api).toContain('action === "trim-clip"');
+  expect(api).toContain('action === "share-clip"');
   expect(templateApi).toContain("normalizeCodingTemplatePayload");
   expect(templateApi).toContain("rejectForbiddenPayload(payload)");
   expect(templateApi).toContain("video_coding_templates");
@@ -444,6 +447,8 @@ test("local video architecture remains browser-first with bridge fallback only",
 
   expect(handleStore).toContain("showOpenFilePicker");
   expect(handleStore).toContain("indexedDB.open");
+  expect(handleStore).toContain("userId");
+  expect(sessionService).toContain("userId");
   for (const exportName of ["saveVideoHandle", "getVideoHandle", "removeVideoHandle", "listVideoHandlesForMatch", "verifyPermission", "requestPermission"]) {
     expect(handleStore).toContain(`export async function ${exportName}`);
   }

@@ -1,6 +1,6 @@
 const databaseName = "football-science-video-handles";
 const storeName = "videoHandles";
-const databaseVersion = 1;
+const databaseVersion = 2;
 
 function text(value = "") {
   return String(value || "").trim();
@@ -10,6 +10,7 @@ function identityId(criteria = {}) {
   return [
     text(criteria.organizationId || criteria.organization_id || "local"),
     text(criteria.teamId || criteria.team_id || "team"),
+    text(criteria.userId || criteria.user_id || "user"),
     text(criteria.matchId || criteria.match_id || "match"),
     text(criteria.videoId || criteria.video_id || "video"),
     text(criteria.localVideoIdentifier || criteria.local_video_identifier || "source"),
@@ -25,6 +26,7 @@ function normalizeIdentity(criteria = {}) {
     id: identityId(criteria),
     organizationId: text(criteria.organizationId || criteria.organization_id || "local"),
     teamId: text(criteria.teamId || criteria.team_id || "team"),
+    userId: text(criteria.userId || criteria.user_id || "user"),
     matchId: text(criteria.matchId || criteria.match_id),
     videoId: text(criteria.videoId || criteria.video_id),
     localVideoIdentifier: text(criteria.localVideoIdentifier || criteria.local_video_identifier),
@@ -40,6 +42,7 @@ function normalizeLookupCriteria(criteria = {}) {
     id: Object.prototype.hasOwnProperty.call(criteria, "id") ? text(criteria.id) : "",
     organizationId: text(criteria.organizationId || criteria.organization_id),
     teamId: text(criteria.teamId || criteria.team_id),
+    userId: text(criteria.userId || criteria.user_id),
     matchId: text(criteria.matchId || criteria.match_id),
     videoId: text(criteria.videoId || criteria.video_id),
     localVideoIdentifier: text(criteria.localVideoIdentifier || criteria.local_video_identifier),
@@ -81,6 +84,9 @@ function openDatabase(win = window) {
       if (!store.indexNames.contains("match")) store.createIndex("match", ["organizationId", "teamId", "matchId"], { unique: false });
       if (!store.indexNames.contains("video")) store.createIndex("video", ["organizationId", "teamId", "videoId"], { unique: false });
       if (!store.indexNames.contains("identifier")) store.createIndex("identifier", ["organizationId", "teamId", "localVideoIdentifier"], { unique: false });
+      if (!store.indexNames.contains("userMatch")) store.createIndex("userMatch", ["organizationId", "teamId", "userId", "matchId"], { unique: false });
+      if (!store.indexNames.contains("userVideo")) store.createIndex("userVideo", ["organizationId", "teamId", "userId", "videoId"], { unique: false });
+      if (!store.indexNames.contains("userIdentifier")) store.createIndex("userIdentifier", ["organizationId", "teamId", "userId", "localVideoIdentifier"], { unique: false });
     };
   });
 }
@@ -109,6 +115,7 @@ function matchesCriteria(record = {}, criteria = {}) {
   const normalized = normalizeLookupCriteria(criteria);
   return (!normalized.organizationId || record.organizationId === normalized.organizationId)
     && (!normalized.teamId || record.teamId === normalized.teamId)
+    && (!normalized.userId || !record.userId || record.userId === normalized.userId)
     && (!normalized.matchId || record.matchId === normalized.matchId)
     && (!normalized.videoId || record.videoId === normalized.videoId)
     && (!normalized.localVideoIdentifier || record.localVideoIdentifier === normalized.localVideoIdentifier)
@@ -136,7 +143,8 @@ function scoreRecordMatch(record = {}, criteria = {}) {
   const dateMatch = Boolean(normalized.matchDate && record.matchDate === normalized.matchDate);
   const displayNameMatch = Boolean(normalized.displayName && [record.displayName, record.name].some((value) => comparableText(value) === comparableText(normalized.displayName)));
   const scopeCompatible = compatibleScope(record.organizationId, normalized.organizationId, "local")
-    && compatibleScope(record.teamId, normalized.teamId, "team");
+    && compatibleScope(record.teamId, normalized.teamId, "team")
+    && compatibleScope(record.userId, normalized.userId, "user");
 
   if (!scopeCompatible && !videoMatch && !matchMatch && !identifierMatch && !scheduleEventMatch && !scheduleDayMatch && !dateMatch && !displayNameMatch) return 0;
   if (!videoMatch && !matchMatch && !identifierMatch && !scheduleEventMatch && !scheduleDayMatch && !dateMatch && !displayNameMatch) return 0;
@@ -151,6 +159,7 @@ function scoreRecordMatch(record = {}, criteria = {}) {
   if (displayNameMatch) score += 80;
   if (record.organizationId && normalized.organizationId && record.organizationId === normalized.organizationId) score += 50;
   if (record.teamId && normalized.teamId && record.teamId === normalized.teamId) score += 50;
+  if (record.userId && normalized.userId && record.userId === normalized.userId) score += 75;
   return score;
 }
 
@@ -232,6 +241,7 @@ export async function listVideoHandlesForMatch(criteria = {}, win = window) {
   return records.filter((record) => (
     (!normalized.organizationId || record.organizationId === normalized.organizationId)
     && (!normalized.teamId || record.teamId === normalized.teamId)
+    && (!normalized.userId || !record.userId || record.userId === normalized.userId)
     && (!normalized.matchId || record.matchId === normalized.matchId)
   ));
 }

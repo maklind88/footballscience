@@ -36,6 +36,10 @@ export function normalizeClipInstance(value = {}) {
     notes: Array.isArray(value.notes) ? value.notes : [],
     labels: Array.isArray(value.labels) ? value.labels : [],
     descriptors: Array.isArray(value.descriptors) ? value.descriptors : [],
+    visibility: String(value.visibility || value.clipVisibility || value.clip_visibility || "private"),
+    isShared: Boolean(value.isShared ?? value.is_shared),
+    ownerId: String(value.ownerId || value.owner_id || ""),
+    idpShared: Boolean(value.idpShared ?? value.idp_shared),
     createdAt: String(value.createdAt || value.created_at || ""),
     updatedAt: String(value.updatedAt || value.updated_at || ""),
   };

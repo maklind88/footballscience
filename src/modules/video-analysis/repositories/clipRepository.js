@@ -42,6 +42,13 @@ export function createClipRepository(context = {}) {
         getAuthToken
       );
     },
+    share(id, visibility = "team") {
+      return requestJson(
+        buildVideoAnalysisApiUrl("share-clip"),
+        { method: "PATCH", body: JSON.stringify({ action: "share-clip", clip: { id, visibility } }) },
+        getAuthToken
+      );
+    },
     archive(id) {
       return requestJson(
         buildVideoAnalysisApiUrl("archive-clip"),

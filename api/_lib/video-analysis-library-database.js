@@ -55,12 +55,21 @@ function scheduleCandidateFromRow(row = {}) {
   };
 }
 
-function videoMatchFromRow(row = {}, related = {}) {
+function actorIdentifier(actor = {}) {
+  return normalizeText(actor.actorId || actor.id, 160);
+}
+
+function videoMatchFromRow(row = {}, related = {}, actor = {}) {
   const metadata = normalizeMetadata(row.metadata);
   const videos = related.videosByMatch?.get(row.id) || [];
-  const latestVideo = videos[0] || null;
   const sourceCandidates = videos.flatMap((video) => related.sourcesByVideo?.get(video.id) || []);
-  const latestSource = sourceCandidates[0] || null;
+  const preferredActorId = actorIdentifier(actor);
+  const latestSource = sourceCandidates.find((source) => preferredActorId && source.created_by === preferredActorId)
+    || sourceCandidates[0]
+    || null;
+  const latestVideo = latestSource
+    ? videos.find((video) => video.id === latestSource.video_id) || videos[0] || null
+    : videos[0] || null;
   const eventType = inferVideoEventType(row.event_type || metadata.eventType || metadata.event_type, row);
   return {
     ...row,
@@ -193,7 +202,7 @@ async function listMatches(query, actor) {
     ok: true,
     payload: {
       schema: VIDEO_ANALYSIS_SCHEMA,
-      matches: baseMatches.map((match) => videoMatchFromRow(match, related)),
+      matches: baseMatches.map((match) => videoMatchFromRow(match, related, scope)),
       scheduleCandidates,
     },
   };
@@ -230,7 +239,7 @@ async function updateMatchLink(payload, actor) {
   if (opponent) patch.opponent = opponent;
   const result = await patchRows("video_matches", params, patch);
   return result.ok
-    ? { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, match: videoMatchFromRow(result.payload?.[0] || existing) } }
+    ? { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, match: videoMatchFromRow(result.payload?.[0] || existing, {}, scope) } }
     : result;
 }
 
@@ -240,4 +249,5 @@ module.exports = {
   normalizeVideoDate,
   normalizeVideoEventType,
   updateMatchLink,
+  videoMatchFromRow,
 };

@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 const api = require("../api/_lib/video-analysis-database.js");
+const clipSharing = require("../api/_lib/video-analysis-clip-sharing.js");
+const libraryApi = require("../api/_lib/video-analysis-library-database.js");
 const presentationApi = require("../api/_lib/video-analysis-presentation-database.js");
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -65,6 +67,32 @@ test("video analysis clip normalization keeps millisecond precision and football
     { type: "pitch_zone", value: "Final Third", label: null },
   ]);
   expect(clip.tags).toEqual(["press", "wide"]);
+  expect(clip.visibility).toBe("idp");
+});
+
+test("video analysis clip sharing keeps private clips owner-only and player clips IDP-shared", () => {
+  const privateMetadata = clipSharing.buildClipSharingMetadata({
+    payload: { visibility: "private" },
+    clip: { actorId: "coach-a", players: [] },
+    actor: { id: "coach-a" },
+  });
+  const sharedMetadata = clipSharing.buildClipSharingMetadata({
+    payload: { visibility: "team" },
+    clip: { actorId: "coach-a", players: [] },
+    actor: { id: "coach-a" },
+  });
+  const idpMetadata = clipSharing.buildClipSharingMetadata({
+    payload: { visibility: "private" },
+    clip: { actorId: "coach-a", players: [{ playerId: "player-8" }] },
+    actor: { id: "coach-a" },
+  });
+
+  expect(privateMetadata).toMatchObject({ visibility: "private", ownerId: "coach-a", isShared: false, idpShared: false });
+  expect(sharedMetadata).toMatchObject({ visibility: "team", ownerId: "coach-a", isShared: true, idpShared: false });
+  expect(idpMetadata).toMatchObject({ visibility: "idp", ownerId: "coach-a", isShared: true, idpShared: true });
+  expect(clipSharing.canActorViewClip({ metadata: privateMetadata, created_by: "coach-a" }, { id: "coach-a" })).toBe(true);
+  expect(clipSharing.canActorViewClip({ metadata: privateMetadata, created_by: "coach-a" }, { id: "coach-b" })).toBe(false);
+  expect(clipSharing.canActorViewClip({ metadata: sharedMetadata, created_by: "coach-a" }, { id: "coach-b" })).toBe(true);
 });
 
 test("video analysis clip search params are team-scoped and bounded", () => {
@@ -124,6 +152,23 @@ test("video analysis library API supports schedule candidates and autosaved matc
   expect(librarySource).toContain("scheduleDayKey");
   expect(librarySource).toContain("linkedFrom");
   expect(source).toContain("rejectForbiddenPayload(payload)");
+});
+
+test("video analysis library prefers the current actor local source without changing match metadata", () => {
+  const match = { id: "match-1", title: "Match", metadata: {}, match_date: "2026-06-16" };
+  const videoA = { id: "video-a", match_id: "match-1", created_at: "2026-06-15T10:00:00Z" };
+  const videoB = { id: "video-b", match_id: "match-1", created_at: "2026-06-16T10:00:00Z" };
+  const sourceA = { id: "source-a", video_id: "video-a", created_by: "coach-a", created_at: "2026-06-15T10:00:00Z" };
+  const sourceB = { id: "source-b", video_id: "video-b", created_by: "coach-b", created_at: "2026-06-16T10:00:00Z" };
+  const related = {
+    videosByMatch: new Map([["match-1", [videoB, videoA]]]),
+    sourcesByVideo: new Map([["video-a", [sourceA]], ["video-b", [sourceB]]]),
+    clipCounts: new Map(),
+  };
+
+  expect(libraryApi.videoMatchFromRow(match, related, { actorId: "coach-a" }).latest_source).toMatchObject({ id: "source-a" });
+  expect(libraryApi.videoMatchFromRow(match, related, { actorId: "coach-a" }).latest_video).toMatchObject({ id: "video-a" });
+  expect(libraryApi.videoMatchFromRow(match, related, { actorId: "coach-b" }).latest_source).toMatchObject({ id: "source-b" });
 });
 
 test("video analysis presentation API normalizes metadata and blocks video payloads", () => {

@@ -26,8 +26,9 @@ function metadataValue(record = {}, key = "") {
 }
 
 function currentUserIdentity(context = {}) {
-  const user = context.currentUser || {};
+  const user = context.currentUser || context.user || context.getCurrentPlatformUser?.() || {};
   return {
+    userId: firstText(user.id, user.userId, user.user_id, user.authId, user.auth_id, user.profileId, user.profile_id),
     organizationId: firstText(user.organizationId, user.organization_id, user.clubId, user.club_id, user.orgId, user.org_id),
     teamId: firstText(user.teamId, user.team_id, user.currentTeamId, user.current_team_id),
   };
@@ -68,6 +69,7 @@ export function buildLocalVideoHandleIdentity(state = {}, context = {}, override
       user.teamId,
       "team"
     ),
+    userId: firstText(overrides.userId, overrides.user_id, source.userId, source.user_id, video.userId, video.user_id, match.userId, match.user_id, user.userId, "user"),
     matchId: firstText(overrides.matchId, overrides.match_id, source.matchId, source.match_id, video.matchId, video.match_id, match.id),
     videoId: firstText(overrides.videoId, overrides.video_id, source.videoId, source.video_id, video.id, video.video_id),
     localVideoIdentifier: firstText(
@@ -118,7 +120,7 @@ function hasCentralVideoIdentity(identity = {}) {
 }
 
 function shouldBackfillIdentity(record = {}, identity = {}) {
-  return ["organizationId", "teamId", "matchId", "videoId", "localVideoIdentifier", "scheduleEventId", "scheduleDayKey", "matchDate", "displayName"]
+  return ["organizationId", "teamId", "userId", "matchId", "videoId", "localVideoIdentifier", "scheduleEventId", "scheduleDayKey", "matchDate", "displayName"]
     .some((key) => text(record[key]) !== text(identity[key]));
 }
 

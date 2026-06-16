@@ -37,6 +37,7 @@ export function buildClipPayload(state = {}) {
     codingButtonId: session.activeButtonDatabaseId || session.activeButtonId || "",
     preRollMs: session.preRollMs || 0,
     postRollMs: session.postRollMs || 0,
+    visibility: selectedPlayer ? "idp" : draft.visibility || draft.clipVisibility || "private",
     tags: splitTags(draft.tags),
     descriptors: buildDescriptorPayload(draft, selectedPlayer),
     players: selectedPlayer
@@ -134,6 +135,8 @@ export function toApiClipPayload(clip = {}) {
     codingButtonId: clip.codingButtonId,
     preRollMs: clip.preRollMs,
     postRollMs: clip.postRollMs,
+    visibility: clip.visibility || (clip.idpShared ? "idp" : clip.isShared ? "team" : "private"),
+    isShared: Boolean(clip.isShared || clip.visibility === "team" || clip.visibility === "idp" || clip.idpShared),
     tags: clip.tags || [],
     labels: clip.labels || [],
     descriptors: clip.descriptors || [],

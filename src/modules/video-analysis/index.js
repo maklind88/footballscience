@@ -2309,6 +2309,25 @@ export function handleClick(event, context = {}) {
     });
     return true;
   }
+  const shareClipButton = target.closest("[data-video-analysis-share-clip]");
+  if (shareClipButton) {
+    const [clipId, visibility] = String(shareClipButton.dataset.videoAnalysisShareClip || "").split(":");
+    run.store.setState({ status: "saving-clip", error: "" });
+    run.clips.share(clipId, visibility || "team").then((payload = {}) => {
+      const savedClip = normalizeClipInstance(payload.clip || {});
+      run.store.update((current) => ({
+        ...replaceClipInState(current, savedClip),
+        status: "ready",
+        selectedClipId: savedClip.id || current.selectedClipId,
+        message: savedClip.visibility === "private" ? "Clip is private." : "Clip shared.",
+        error: "",
+      }));
+      return loadClips();
+    }).catch((error) => {
+      run.store.setState({ status: "error", error: error.message || "Could not update clip sharing." });
+    });
+    return true;
+  }
   if (target.closest("[data-video-analysis-clear-filters]")) {
     loadClips({ search: "", phase: "", playerId: "", principleId: "", miniGamePrincipleId: "", outcome: "", unit: "", descriptorValue: "" });
     run.store.update((state) => ({ ...state, matrix: { ...(state.matrix || {}), selectedRow: "", selectedColumn: "" } }));

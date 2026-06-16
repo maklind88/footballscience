@@ -35,6 +35,13 @@ const {
 } = require("./video-analysis-presentation-database.js");
 const { upsertClipBankItem } = require("./idp-database.js");
 const { saveReviewSession } = require("./video-analysis-review-database.js");
+const {
+  attachClipSharingState,
+  buildClipSharingMetadata,
+  canActorMutateClip,
+  canActorViewClip,
+  normalizeClipVisibility,
+} = require("./video-analysis-clip-sharing.js");
 
 const VIDEO_ANALYSIS_SCHEMA = "footballscience-video-analysis-v2";
 
@@ -169,6 +176,7 @@ function normalizeClipPayload(payload = {}, actor = {}) {
   }
   const players = Array.isArray(payload.players) ? payload.players : [];
   const tags = Array.isArray(payload.tags) ? payload.tags : [];
+  const metadata = normalizeMetadata(payload.metadata);
   const clip = {
     ...scope,
     id: normalizeUuid(payload.id),
@@ -187,6 +195,11 @@ function normalizeClipPayload(payload = {}, actor = {}) {
     codingButtonId: normalizeUuid(payload.codingButtonId || payload.coding_button_id) || null,
     preRollMs: asMs(payload.preRollMs || payload.pre_roll_ms, 0),
     postRollMs: asMs(payload.postRollMs || payload.post_roll_ms, 0),
+    visibility: normalizeClipVisibility(
+      payload.visibility || payload.clipVisibility || payload.clip_visibility || metadata.visibility || (payload.isShared === true || payload.is_shared === true ? "team" : ""),
+      players.length ? "idp" : "private"
+    ),
+    metadata,
     note: normalizeNote(payload.note || payload.notes, 4000),
     tags: tags.map((tag) => normalizeText(tag, 80)).filter(Boolean).slice(0, 20),
     players: players
@@ -280,6 +293,28 @@ async function createLocalVideoSource(payload, actor) {
   return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, match, video, source: sourceResult.payload?.[0] || null } };
 }
 
+async function findClipById(scope = {}, id = "") {
+  const clipId = normalizeUuid(id);
+  if (!clipId) return null;
+  const params = buildTeamParams(scope);
+  params.set("select", "*");
+  params.set("id", `eq.${clipId}`);
+  params.set("limit", "1");
+  const result = await selectRows("video_clip_instances", params);
+  return result.ok ? result.payload?.[0] || null : null;
+}
+
+async function clipHasPlayerLinks(scope = {}, clipId = "") {
+  const id = normalizeUuid(clipId);
+  if (!id) return false;
+  const params = buildTeamParams(scope);
+  params.set("select", "id");
+  params.set("clip_instance_id", `eq.${id}`);
+  params.set("limit", "1");
+  const result = await selectRows("video_clip_players", params);
+  return result.ok && Boolean(result.payload?.[0]?.id);
+}
+
 async function attachClipRelations(clips, scope) {
   const ids = clips.map((clip) => clip.id).filter(Boolean);
   if (!ids.length) return clips;
@@ -311,7 +346,7 @@ async function attachClipRelations(clips, scope) {
   const noteMap = byClip(notes);
   const labelMap = byClip(labels);
   const descriptorMap = byClip(descriptors);
-  return clips.map((clip) => ({
+  return clips.map((clip) => attachClipSharingState({
     ...clip,
     players: playerMap.get(clip.id) || [],
     tags: (tagMap.get(clip.id) || []).map((entry) => entry.tag),
@@ -357,7 +392,7 @@ async function listClips(query, actor) {
   const pageSize = rowList(result).length;
   let clips = await attachClipRelations(result.payload, scope);
   const search = normalizeText(query.search || query.q, 120).toLowerCase();
-  clips = clips.filter((clip) => clipMatchesSearch(clip, search) && clipMatchesFilters(clip, query));
+  clips = clips.filter((clip) => canActorViewClip(clip, actor) && clipMatchesSearch(clip, search) && clipMatchesFilters(clip, query));
   return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clips, pageSize } };
 }
 
@@ -384,6 +419,13 @@ async function syncClipPlayersToIdp(clip = {}, saved = {}, actor = {}) {
 
 async function saveClip(payload, actor) {
   const clip = normalizeClipPayload(payload, actor);
+  const scope = { organizationId: clip.organizationId, teamId: clip.teamId };
+  const existing = clip.id ? await findClipById(scope, clip.id) : null;
+  if (clip.id && !existing) return { ok: false, status: 404, reason: "Clip could not be found." };
+  if (existing && !canActorMutateClip(existing, actor)) {
+    return { ok: false, status: 403, reason: "Private clips can only be changed by their owner." };
+  }
+  const metadata = buildClipSharingMetadata({ payload, clip, existing, actor });
   const row = {
     organization_id: clip.organizationId,
     team_id: clip.teamId,
@@ -402,9 +444,10 @@ async function saveClip(payload, actor) {
     coding_button_id: clip.codingButtonId,
     pre_roll_ms: clip.preRollMs,
     post_roll_ms: clip.postRollMs,
-    created_by: clip.actorId,
+    metadata,
+    created_by: existing?.created_by || clip.actorId,
   };
-  const patchParams = buildTeamParams({ organizationId: clip.organizationId, teamId: clip.teamId });
+  const patchParams = buildTeamParams(scope);
   patchParams.set("id", `eq.${clip.id}`);
   const clipResult = clip.id ? await patchRows("video_clip_instances", patchParams, row) : await insertRow("video_clip_instances", row);
   if (!clipResult.ok) return clipResult;
@@ -479,6 +522,11 @@ async function trimClip(payload, actor) {
   const params = buildTeamParams(scope);
   params.set("id", `eq.${id}`);
   params.set("status", "eq.active");
+  const existing = await findClipById(scope, id);
+  if (!existing) return { ok: false, status: 404, reason: "Clip could not be found." };
+  if (!canActorMutateClip(existing, actor)) {
+    return { ok: false, status: 403, reason: "Private clips can only be changed by their owner." };
+  }
   const result = await patchRows("video_clip_instances", params, { start_ms: startMs, end_ms: endMs });
   if (!result.ok) return result;
   const saved = result.payload?.[0];
@@ -493,8 +541,38 @@ async function archiveClip(payload, actor) {
   if (!id) return { ok: false, status: 400, reason: "clip id is required." };
   const params = buildTeamParams(scope);
   params.set("id", `eq.${id}`);
+  const existing = await findClipById(scope, id);
+  if (!existing) return { ok: false, status: 404, reason: "Clip could not be found." };
+  if (!canActorMutateClip(existing, actor)) {
+    return { ok: false, status: 403, reason: "Private clips can only be changed by their owner." };
+  }
   const result = await patchRows("video_clip_instances", params, { status: "archived", archived_at: new Date().toISOString() });
   return result.ok ? { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: result.payload?.[0] || null } } : result;
+}
+
+async function shareClip(payload, actor) {
+  rejectForbiddenPayload(payload);
+  const scope = actorScope(actor);
+  const id = normalizeUuid(payload.id || payload.clipId || payload.clip_id);
+  if (!id) return { ok: false, status: 400, reason: "clip id is required." };
+  const existing = await findClipById(scope, id);
+  if (!existing) return { ok: false, status: 404, reason: "Clip could not be found." };
+  if (!canActorMutateClip(existing, actor)) {
+    return { ok: false, status: 403, reason: "Private clips can only be shared by their owner." };
+  }
+  const hasPlayerLinks = await clipHasPlayerLinks(scope, id);
+  const metadata = buildClipSharingMetadata({
+    payload,
+    clip: hasPlayerLinks ? { players: [{ playerId: "idp-linked" }] } : {},
+    existing,
+    actor,
+  });
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${id}`);
+  const result = await patchRows("video_clip_instances", params, { metadata });
+  if (!result.ok) return result;
+  const [withRelations] = await attachClipRelations(result.payload || [], scope);
+  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: withRelations || null } };
 }
 
 async function listSavedSearches(query, actor) {
@@ -572,6 +650,8 @@ async function handleVideoAnalysisRequest(req, res, actor) {
             ? await trimClip(body.clip || body, actor)
           : action === "archive-clip"
             ? await archiveClip(body, actor)
+            : action === "share-clip"
+              ? await shareClip(body.clip || body, actor)
             : action === "save-search"
               ? await saveSearch(body.search || body, actor)
               : action === "save-presentation"
@@ -602,9 +682,11 @@ module.exports = {
   handleVideoAnalysisRequest,
   listCodingTemplates,
   normalizeClipPayload,
+  normalizeClipVisibility,
   normalizeOutcome,
   rejectForbiddenPayload,
   savePresentation,
   saveCodingTemplate,
+  shareClip,
   syncClipPlayersToIdp,
 };

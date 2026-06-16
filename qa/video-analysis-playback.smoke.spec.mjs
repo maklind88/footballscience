@@ -552,6 +552,7 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     subPhase: "Build Up",
     miniGamePrincipleId: "fix-release",
     codingMode: "instant",
+    visibility: "private",
   });
   await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:01:23");
   await expect.poll(() => page.evaluate(() => {
@@ -631,6 +632,7 @@ test("Video Analysis Tag Panel uses the red timeline playhead when video metadat
     endMs: 57000,
     phase: "Offensive Transition",
     codingMode: "instant",
+    visibility: "private",
   });
   await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:00:42");
 });

@@ -2757,6 +2757,30 @@
   font-size: 12px;
 }
 
+.video-analysis-clip__visibility {
+  width: fit-content;
+  border: 1px solid #d7dfd8;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #eef3ef;
+  color: #314038 !important;
+  font-size: 11px !important;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.video-analysis-clip__visibility.is-team {
+  border-color: #b6d7c6;
+  background: #e6f5ee;
+  color: #0f5b3a !important;
+}
+
+.video-analysis-clip__visibility.is-idp {
+  border-color: #bacff8;
+  background: #edf3ff;
+  color: #1c4d9b !important;
+}
+
 .video-analysis-presentation-workspace {
   display: grid;
   gap: 12px;

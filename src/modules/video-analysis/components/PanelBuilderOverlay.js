@@ -62,13 +62,6 @@ function behaviorMetaLabel(behavior = "create_tag", durationSeconds = 15) {
   return `${durationSeconds}s`;
 }
 
-function clipSummary(item = {}) {
-  const leadSeconds = leadSecondsFromMs(item.startOffsetMs);
-  const endAfterClickSeconds = secondsFromMs(item.endOffsetMs, secondsFromMs(item.defaultDurationMs, 15));
-  const start = leadSeconds ? `${leadSeconds}s before click` : "at click";
-  return `Click creates ${start} to ${endAfterClickSeconds}s after click`;
-}
-
 function renderCodeButtonPreview(item = {}, active = false) {
   const durationSeconds = secondsFromMs(item.defaultDurationMs ?? item.endOffsetMs ?? 15000);
   const behavior = item.buttonBehavior || "create_tag";
@@ -145,7 +138,6 @@ function renderButtonReorderList(group = {}, selectedButtonId = "") {
               data-video-analysis-template-select-button="${escapeHtml(item.id)}"
             >
               <span>${escapeHtml(item.label)}</span>
-              <small>${escapeHtml(clipSummary(item))}</small>
             </button>
             <div class="video-analysis-code-button-editor__actions">
               <button type="button" data-video-analysis-template-move-button="${escapeHtml(item.id)}:-1" ${index === 0 ? "disabled" : ""}>Up</button>
@@ -206,7 +198,6 @@ function renderButtonInspector(state = {}, selectedButton = null) {
         <div><strong>${escapeHtml(String(leadSeconds))}s</strong><span>Lead</span></div>
         <div><strong>${escapeHtml(String(endAfterClickSeconds))}s</strong><span>End after click</span></div>
       </div>
-      <p class="video-analysis-builder-summary">${escapeHtml(clipSummary(selectedButton))}</p>
       <div class="video-analysis-button-editor-grid video-analysis-button-editor-grid--timing">
         <label>Length sec<input type="number" min="1" max="900" step="1" data-video-analysis-button-ms-field="${escapeHtml(selectedButton.id)}:defaultDurationMs" value="${escapeHtml(durationSeconds)}"></label>
         <label>Lead sec<input type="number" min="0" max="120" step="1" data-video-analysis-button-ms-field="${escapeHtml(selectedButton.id)}:startOffsetMs:lead" value="${escapeHtml(leadSeconds)}"></label>

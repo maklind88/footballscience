@@ -1841,19 +1841,31 @@
   box-shadow: 0 28px 80px rgba(7, 20, 13, 0.35);
 }
 
-.video-analysis-template-overlay__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  border-bottom: 1px solid #dfe8e2;
-  padding: 14px;
-  background: #ffffff;
+.video-analysis-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
-.video-analysis-template-overlay__header > div:first-child {
-  flex: 1 1 420px;
-  min-width: min(420px, 55vw);
+.video-analysis-template-overlay__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid #dfe8e2;
+  padding: 12px 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 249, 0.94)),
+    #ffffff;
+}
+
+.video-analysis-template-overlay__header-main {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
 }
 
 .video-analysis-template-overlay__body {
@@ -2161,12 +2173,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 7px;
+  flex-wrap: nowrap;
 }
 
 .video-analysis-mode-toggle button,
 .video-analysis-template-save,
+.video-analysis-template-close,
 .video-analysis-saved-searches button,
 .video-analysis-presentation .video-analysis-panel-header button {
   min-height: 30px;
@@ -2188,14 +2201,32 @@
 }
 
 .video-analysis-template-save:disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.72;
+}
+
+.video-analysis-template-close {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+}
+
+.video-analysis-template-close svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .video-analysis-template-title-field {
   display: grid;
-  gap: 4px;
-  min-width: min(320px, 100%);
+  min-width: 0;
+  max-width: min(620px, 100%);
 }
 
 .video-analysis-template-title-field span {
@@ -2207,15 +2238,15 @@
 
 .video-analysis-template-title-field input {
   width: 100%;
-  min-height: 34px;
-  border: 1px solid #cbd5cf;
-  border-radius: 7px;
-  padding: 6px 8px;
+  min-height: 40px;
+  border: 1px solid rgba(20, 53, 34, 0.12);
+  border-radius: 9px;
+  padding: 7px 10px;
   color: #101814;
   background: #ffffff;
   font: inherit;
-  font-size: 14px;
-  font-weight: 800;
+  font-size: 16px;
+  font-weight: 850;
   box-sizing: border-box;
 }
 

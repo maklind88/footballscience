@@ -299,6 +299,47 @@
   background: rgba(255, 255, 255, 0.74);
 }
 
+#analysisRoomWorkspace .video-analysis-template-overlay__header {
+  border-bottom-color: rgba(24, 34, 29, 0.09);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 248, 0.88)),
+    #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(18px) saturate(1.12);
+  -webkit-backdrop-filter: blur(18px) saturate(1.12);
+}
+
+#analysisRoomWorkspace .video-analysis-template-title-field input {
+  border-color: rgba(24, 34, 29, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 249, 248, 0.9)),
+    #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 8px 18px rgba(15, 23, 19, 0.05);
+}
+
+#analysisRoomWorkspace .video-analysis-template-save:not(:disabled) {
+  border-color: rgba(16, 65, 43, 0.9);
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(30, 84, 56, 0.98), rgba(13, 55, 37, 0.98)),
+    var(--fs-apple-green);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 10px 20px rgba(18, 63, 43, 0.18);
+}
+
+#analysisRoomWorkspace .video-analysis-template-save:disabled {
+  color: #8a928d;
+  background: rgba(245, 247, 246, 0.82);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+#analysisRoomWorkspace .video-analysis-template-close {
+  color: #39423d;
+}
+
 #analysisRoomWorkspace .video-analysis-code-window-dock .video-analysis-template-scroll {
   padding: 8px;
 }

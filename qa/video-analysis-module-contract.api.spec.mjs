@@ -397,6 +397,11 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(templateApi).toContain("video_coding_templates");
   expect(templateApi).toContain("video_coding_buttons");
   expect(templateApi).toContain("groupSortOrder");
+  expect(templateApi).toContain("isMissingColumn");
+  expect(templateApi).toContain("omitColumns(row, TEMPLATE_BEHAVIOR_COLUMNS)");
+  expect(templateApi).toContain("writeCodingButtonRow");
+  expect(templateApi).toContain("defaultClipDurationMs: template.defaultClipDurationMs");
+  expect(templateApi).toContain("defaultDurationMs: button.defaultDurationMs");
   expect(api).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
   expect(templateApi).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
 });

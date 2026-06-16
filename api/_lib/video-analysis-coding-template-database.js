@@ -36,6 +36,17 @@ const BUTTON_TYPE_GROUPS = Object.freeze({
   unit: "Unit",
   custom: "Custom",
 });
+const TEMPLATE_BEHAVIOR_COLUMNS = Object.freeze(["default_clip_duration_ms"]);
+const BUTTON_BEHAVIOR_COLUMNS = Object.freeze([
+  "group_id",
+  "target_field",
+  "button_behavior",
+  "creates_clip",
+  "applies_label",
+  "default_duration_ms",
+  "start_offset_ms",
+  "end_offset_ms",
+]);
 
 function rowList(result) {
   return result.ok && Array.isArray(result.payload) ? result.payload : [];
@@ -147,6 +158,26 @@ function isMissingCodingTemplateSchema(result = {}) {
   return result.status === 404 || /video_coding_templates|video_coding_buttons|schema cache|relation .* does not exist/i.test(reason);
 }
 
+function isMissingColumn(result = {}, table = "", columns = []) {
+  const reason = String([
+    result.reason,
+    result.payload?.message,
+    result.payload?.hint,
+    result.payload?.details,
+    result.payload?.code,
+  ].filter(Boolean).join(" "));
+  if (!/schema cache|column|PGRST204/i.test(reason)) return false;
+  if (table && !reason.includes(table)) return false;
+  if (!columns.length) return true;
+  return columns.some((column) => reason.includes(column));
+}
+
+function omitColumns(row = {}, columns = []) {
+  const next = { ...row };
+  for (const column of columns) delete next[column];
+  return next;
+}
+
 function mapTemplateRow(row = {}, buttons = [], links = []) {
   return {
     id: row.id || "",
@@ -177,14 +208,14 @@ function mapButtonRow(row = {}) {
     value: row.value || row.label || "",
     hotkey: row.hotkey || "",
     group: normalizeText(metadata.group, 120) || BUTTON_TYPE_GROUPS[buttonType] || "Custom",
-    groupId: row.group_id || buttonType,
+    groupId: row.group_id || metadata.groupId || buttonType,
     color: row.color || "#143522",
-    defaultDurationMs: row.default_duration_ms || 15000,
-    startOffsetMs: row.start_offset_ms || 0,
-    endOffsetMs: row.end_offset_ms || row.default_duration_ms || 15000,
-    buttonBehavior: row.button_behavior || "create_tag",
-    createsClip: row.creates_clip !== false,
-    appliesLabel: row.applies_label === true,
+    defaultDurationMs: row.default_duration_ms || metadata.defaultDurationMs || 15000,
+    startOffsetMs: row.start_offset_ms ?? metadata.startOffsetMs ?? 0,
+    endOffsetMs: row.end_offset_ms || metadata.endOffsetMs || row.default_duration_ms || metadata.defaultDurationMs || 15000,
+    buttonBehavior: row.button_behavior || metadata.buttonBehavior || "create_tag",
+    createsClip: row.creates_clip ?? metadata.createsClip ?? true,
+    appliesLabel: row.applies_label ?? metadata.appliesLabel ?? false,
     targetField,
     instantEnabled: row.instant_enabled !== false,
     groupSortOrder: asSortOrder(metadata.groupSortOrder ?? metadata.group_sort_order, 0),
@@ -274,6 +305,12 @@ async function findCodingTemplate(template = {}) {
 async function saveCodingTemplateRow(template = {}) {
   const existing = await findCodingTemplate(template);
   if (!existing.ok) return existing;
+  const settings = {
+    ...(template.settings || {}),
+    defaultClipDurationMs: template.defaultClipDurationMs,
+    preRollMs: template.preRollMs,
+    postRollMs: template.postRollMs,
+  };
   const row = {
     organization_id: template.organizationId,
     team_id: template.teamId,
@@ -286,15 +323,23 @@ async function saveCodingTemplateRow(template = {}) {
     is_default: template.isDefault,
     status: "active",
     created_by: template.actorId,
-    settings: template.settings,
+    settings,
   };
   if (!existing.payload?.id) {
     const inserted = await insertRow("video_coding_templates", row);
+    if (!inserted.ok && isMissingColumn(inserted, "video_coding_templates", TEMPLATE_BEHAVIOR_COLUMNS)) {
+      const fallbackInserted = await insertRow("video_coding_templates", omitColumns(row, TEMPLATE_BEHAVIOR_COLUMNS));
+      return fallbackInserted.ok ? { ok: true, payload: fallbackInserted.payload?.[0] || null } : fallbackInserted;
+    }
     return inserted.ok ? { ok: true, payload: inserted.payload?.[0] || null } : inserted;
   }
   const params = buildTeamParams(template);
   params.set("id", `eq.${existing.payload.id}`);
   const patched = await patchRows("video_coding_templates", params, row);
+  if (!patched.ok && isMissingColumn(patched, "video_coding_templates", TEMPLATE_BEHAVIOR_COLUMNS)) {
+    const fallbackPatched = await patchRows("video_coding_templates", params, omitColumns(row, TEMPLATE_BEHAVIOR_COLUMNS));
+    return fallbackPatched.ok ? { ok: true, payload: fallbackPatched.payload?.[0] || existing.payload } : fallbackPatched;
+  }
   return patched.ok ? { ok: true, payload: patched.payload?.[0] || existing.payload } : patched;
 }
 
@@ -323,10 +368,27 @@ function buttonRow(button = {}, template = {}, templateId = "") {
     metadata: {
       clientId: button.clientId,
       group: button.group,
+      groupId: button.groupId,
       groupSortOrder: button.groupSortOrder,
       type: button.type,
+      targetField: button.targetField,
+      buttonBehavior: button.buttonBehavior,
+      createsClip: button.createsClip,
+      appliesLabel: button.appliesLabel,
+      defaultDurationMs: button.defaultDurationMs,
+      startOffsetMs: button.startOffsetMs,
+      endOffsetMs: button.endOffsetMs,
     },
   };
+}
+
+async function writeCodingButtonRow(table, row, params = null) {
+  const result = params ? await patchRows(table, params, row) : await insertRow(table, row);
+  if (!result.ok && isMissingColumn(result, table, BUTTON_BEHAVIOR_COLUMNS)) {
+    const fallbackRow = omitColumns(row, BUTTON_BEHAVIOR_COLUMNS);
+    return params ? patchRows(table, params, fallbackRow) : insertRow(table, fallbackRow);
+  }
+  return result;
 }
 
 async function saveCodingButtons(template = {}, templateId = "") {
@@ -342,8 +404,8 @@ async function saveCodingButtons(template = {}, templateId = "") {
     const row = buttonRow(button, template, templateId);
     const existing = button.databaseId ? existingRows.find((item) => item.id === button.databaseId) : existingByKey.get(`${button.buttonType}:${button.value}`);
     const result = existing?.id
-      ? await patchRows("video_coding_buttons", buildIdParams(template, existing.id), row)
-      : await insertRow("video_coding_buttons", row);
+      ? await writeCodingButtonRow("video_coding_buttons", row, buildIdParams(template, existing.id))
+      : await writeCodingButtonRow("video_coding_buttons", row);
     if (!result.ok) return result;
     saved.push(result.payload?.[0] || existing || row);
   }

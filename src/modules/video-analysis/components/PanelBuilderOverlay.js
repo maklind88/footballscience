@@ -224,7 +224,8 @@ function renderBuilderActionIcon(icon) {
     up: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 14 5-5 5 5"></path></svg>',
     down: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m7 10 5 5 5-5"></path></svg>',
     duplicate: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="8" y="8" width="10" height="10" rx="2"></rect><path d="M6 14H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></svg>',
-    archive: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16"></path><path d="M6 7v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"></path><path d="M9 11h6"></path><path d="M8 4h8l1 3H7l1-3Z"></path></svg>'
+    archive: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16"></path><path d="M6 7v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"></path><path d="M9 11h6"></path><path d="M8 4h8l1 3H7l1-3Z"></path></svg>',
+    close: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7l10 10"></path><path d="M17 7 7 17"></path></svg>'
   };
   return icons[icon] || "";
 }
@@ -296,22 +297,23 @@ export function renderPanelBuilderOverlay(state = {}, groups = []) {
     || null;
   const dirty = Boolean(state.codingSession?.templateDirty);
   const saving = state.status === "saving-template";
+  const saveDisabled = saving || !dirty;
   return `
     <div class="video-analysis-template-overlay" data-video-analysis-template-overlay>
       <button type="button" class="video-analysis-template-overlay__backdrop" data-video-analysis-panel-mode="use" aria-label="Close panel editor"></button>
       <section class="video-analysis-template-overlay__panel" role="dialog" aria-modal="true" aria-labelledby="video-analysis-panel-editor-title">
         <div class="video-analysis-template-overlay__header">
-          <div>
+          <div class="video-analysis-template-overlay__header-main">
             <p class="video-analysis-kicker">Panel Editor</p>
             <label class="video-analysis-template-title-field">
-              <span id="video-analysis-panel-editor-title">Panel name</span>
-              <input type="text" data-video-analysis-template-field="title" value="${escapeHtml(template.title || "Football Science Tag Panel")}">
+              <span id="video-analysis-panel-editor-title" class="video-analysis-sr-only">Panel name</span>
+              <input type="text" aria-labelledby="video-analysis-panel-editor-title" data-video-analysis-template-field="title" value="${escapeHtml(template.title || "Football Science Tag Panel")}">
             </label>
           </div>
           <div class="video-analysis-template-actions">
             ${saving ? `<span class="video-analysis-template-saving-pill">Saving...</span>` : dirty ? `<span class="video-analysis-template-dirty-pill">Unsaved changes</span>` : `<span class="video-analysis-template-saved-pill">Saved</span>`}
-            <button type="button" class="video-analysis-template-save" data-video-analysis-save-template ${saving ? "disabled" : ""}>${saving ? "Saving..." : "Save panel"}</button>
-            <button type="button" class="video-analysis-icon-button" data-video-analysis-panel-mode="use">Close</button>
+            <button type="button" class="video-analysis-template-save" data-video-analysis-save-template ${saveDisabled ? "disabled" : ""}>${saving ? "Saving..." : "Save panel"}</button>
+            <button type="button" class="video-analysis-template-close" data-video-analysis-panel-mode="use" aria-label="Close panel editor" title="Close panel editor">${renderBuilderActionIcon("close")}</button>
           </div>
         </div>
         <div class="video-analysis-template-overlay__body">

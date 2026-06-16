@@ -262,9 +262,9 @@ function getReviewLabel(entry = {}) {
 function overviewStatusFilters(selected = "All") {
   const filters = [
     ["All", "All"],
-    ["Needs Evidence", "Needs Observation"],
-    ["Review Due", "Review Due"],
-    ["No Active IDP", "Inactive IDP"],
+    ["Needs Evidence", "Attention"],
+    ["Review Due", "Review"],
+    ["No Active IDP", "Paused"],
     ["New Clips To Review", "Clips"],
   ];
   return filters.map(([value, label]) => `
@@ -283,10 +283,10 @@ function buildOverviewInsights(state = {}, options = {}) {
   const clipQueue = players.reduce((total, entry) => total + Number(entry.newClipCount || 0), 0);
   const firstOwner = players.map((entry) => primaryOwnerId(entry.profile || {}, entry.focus || {})).find(Boolean);
   return [
-    { label: "Coach attention", value: needsAttention, detail: reviewDue ? `${reviewDue} review loops close` : "No urgent review loops", tone: needsAttention ? "warning" : "good" },
+    { label: "Attention", value: needsAttention, detail: reviewDue ? `${reviewDue} review loops close` : "No urgent review loops", tone: needsAttention ? "warning" : "good" },
     { label: "Unassigned", value: unassigned, detail: firstOwner ? `Lead: ${formatStaffName(firstOwner, options)}` : "No IDP Coach set", tone: unassigned ? "warning" : "neutral" },
-    { label: "Inactive IDP", value: inactive, detail: "Visible for injuries and paused plans", tone: inactive ? "info" : "neutral" },
-    { label: "Video queue", value: clipQueue, detail: clipQueue ? "Moments waiting for decision" : "No clips waiting", tone: clipQueue ? "info" : "good" },
+    { label: "Paused", value: inactive, detail: "Injury or paused development plan", tone: inactive ? "info" : "neutral" },
+    { label: "Clips", value: clipQueue, detail: clipQueue ? "Moments waiting for decision" : "No clips waiting", tone: clipQueue ? "info" : "good" },
   ];
 }
 
@@ -352,7 +352,7 @@ function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state), 
           <small>Next Action</small>
           <strong>${escapeHtml(nextAction)}</strong>
         </span>
-        <span class="idp-open-profile">Open profile</span>
+        <span class="idp-open-profile">Profile</span>
       </button>
     `;
   }).join("");
@@ -717,8 +717,8 @@ function renderOverviewBoard(state = {}, ui = defaultUiState, options = {}) {
       <div class="idp-overview-head">
         <div>
           <p>Overview</p>
-          <h2>Squad cockpit</h2>
-          <span>Click a player to open the full Player Development Profile.</span>
+          <h2>Players</h2>
+          <span>Clean squad overview. Open a player to work inside the Player Development Profile.</span>
         </div>
         <span class="idp-sidebar-count">${escapeHtml(String(visiblePlayerCount))}/${escapeHtml(String(totalPlayerCount))} visible</span>
       </div>
@@ -753,7 +753,7 @@ function renderOverviewBoard(state = {}, ui = defaultUiState, options = {}) {
       </div>
       <div class="idp-overview-table" role="table" aria-label="Player development overview">
         <div class="idp-overview-row is-header" role="row">
-          <span>Priority</span>
+          <span>#</span>
           <span>Player</span>
           <span>Current Focus</span>
           <span>Observations</span>

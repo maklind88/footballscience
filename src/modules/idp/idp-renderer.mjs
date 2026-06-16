@@ -259,36 +259,100 @@ function getReviewLabel(entry = {}) {
   return nextReview ? `Next ${nextReview}` : lastReview ? `Last ${lastReview}` : "No date";
 }
 
+function overviewStatusFilters(selected = "All") {
+  const filters = [
+    ["All", "All"],
+    ["Needs Evidence", "Needs Observation"],
+    ["Review Due", "Review Due"],
+    ["No Active IDP", "Inactive IDP"],
+    ["New Clips To Review", "Clips"],
+  ];
+  return filters.map(([value, label]) => `
+    <button type="button" class="${value === selected ? "is-active" : ""}" data-idp-status-filter="${escapeHtml(value)}">
+      ${escapeHtml(label)}
+    </button>
+  `).join("");
+}
+
+function buildOverviewInsights(state = {}, options = {}) {
+  const players = state.dashboardPlayers || [];
+  const needsAttention = players.filter((entry) => statusTone(entry.overallStatus) === "warning").length;
+  const reviewDue = players.filter((entry) => String(entry.overallStatus || "").toLowerCase().includes("review")).length;
+  const inactive = players.filter((entry) => isInactiveIdpProfile(entry.profile || {}) || entry.overallStatus === "No Active IDP").length;
+  const unassigned = players.filter((entry) => !primaryOwnerId(entry.profile || {}, entry.focus || {})).length;
+  const clipQueue = players.reduce((total, entry) => total + Number(entry.newClipCount || 0), 0);
+  const firstOwner = players.map((entry) => primaryOwnerId(entry.profile || {}, entry.focus || {})).find(Boolean);
+  return [
+    { label: "Coach attention", value: needsAttention, detail: reviewDue ? `${reviewDue} review loops close` : "No urgent review loops", tone: needsAttention ? "warning" : "good" },
+    { label: "Unassigned", value: unassigned, detail: firstOwner ? `Lead: ${formatStaffName(firstOwner, options)}` : "No IDP Coach set", tone: unassigned ? "warning" : "neutral" },
+    { label: "Inactive IDP", value: inactive, detail: "Visible for injuries and paused plans", tone: inactive ? "info" : "neutral" },
+    { label: "Video queue", value: clipQueue, detail: clipQueue ? "Moments waiting for decision" : "No clips waiting", tone: clipQueue ? "info" : "good" },
+  ];
+}
+
+function renderOverviewInsights(state = {}, options = {}) {
+  return buildOverviewInsights(state, options).map((item) => `
+    <article class="idp-overview-insight is-${escapeHtml(item.tone)}">
+      <span>${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(String(item.value))}</strong>
+      <small>${escapeHtml(item.detail)}</small>
+    </article>
+  `).join("");
+}
+
 function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state), options = {}) {
   const { rows, selectedPlayerId } = dashboard;
   if (!rows.length) {
-    return `<div class="idp-empty-row">No players match the current view.</div>`;
+    return `
+      <div class="idp-empty-row">
+        <strong>No players match this cockpit view.</strong>
+        <span>Clear the search or switch the status lens to see the full squad.</span>
+      </div>
+    `;
   }
-  return rows.map((entry) => {
+  return rows.map((entry, index) => {
     const profile = entry.profile || {};
     const focus = entry.focus || {};
     const active = selectedPlayerId === profile.playerId;
     const playerName = profile.playerName || "Player";
     const ownerId = primaryOwnerId(profile, focus);
     const idpInactive = isInactiveIdpProfile(profile);
+    const tone = statusTone(entry.overallStatus);
+    const reviewLabel = idpInactive ? "Paused" : reviewUrgencyLabel(profile, focus);
+    const nextAction = idpInactive ? "Monitor availability" : coachLabel(entry.nextAction || "Add evidence");
     return `
-      <button type="button" class="idp-overview-row${active ? " is-active" : ""}" data-idp-player="${escapeHtml(profile.playerId)}">
+      <button type="button" class="idp-overview-row is-${escapeHtml(tone)}${active ? " is-active" : ""}" data-idp-player="${escapeHtml(profile.playerId)}">
+        <span class="idp-overview-rank" aria-hidden="true">${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
         <span class="idp-overview-player">
           <span class="idp-player-avatar" aria-hidden="true">${escapeHtml(initialsFromName(playerName, "P"))}</span>
           <span>
             <strong>${escapeHtml(playerName)}</strong>
-            <small>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</small>
+            <small>
+              <span>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</span>
+              <span>${escapeHtml(formatStaffName(ownerId, options))}</span>
+            </small>
           </span>
         </span>
         <span class="idp-overview-focus">
+          <small>Current Focus</small>
           <strong>${escapeHtml(idpInactive ? "No active IDP" : focus.title || "No active focus")}</strong>
-          <small>${escapeHtml(idpInactive ? "Inactive" : focus.category || "-")}</small>
+          <em>${escapeHtml(idpInactive ? "Inactive from Squad Room" : focus.category || "Tactical")}</em>
         </span>
-        <span><span class="idp-status-pill is-${statusTone(entry.overallStatus)}">${escapeHtml(coachLabel(entry.overallStatus))}</span></span>
-        <span class="idp-overview-metric"><strong>${escapeHtml(String(entry.evidenceCount || 0))}</strong><small>Observations</small></span>
-        <span class="idp-overview-metric"><strong>${escapeHtml(String(entry.newClipCount || 0))}</strong><small>Clips</small></span>
-        <span class="idp-overview-review"><strong>${escapeHtml(getReviewLabel(entry))}</strong><small>${escapeHtml(formatStaffName(ownerId, options))}</small></span>
-        <span class="idp-overview-action">${escapeHtml(coachLabel(entry.nextAction || "Add evidence"))}</span>
+        <span class="idp-overview-metrics">
+          <span class="idp-overview-metric"><strong>${escapeHtml(String(entry.evidenceCount || 0))}</strong><small>Observations</small></span>
+          <span class="idp-overview-metric"><strong>${escapeHtml(String(entry.newClipCount || 0))}</strong><small>Clips</small></span>
+          <span class="idp-status-pill is-${escapeHtml(tone)}">${escapeHtml(coachLabel(entry.overallStatus))}</span>
+        </span>
+        <span class="idp-overview-review">
+          <small>Review</small>
+          <strong>${escapeHtml(reviewLabel)}</strong>
+          <em>${escapeHtml(getReviewLabel(entry))}</em>
+        </span>
+        <span class="idp-overview-action">
+          <small>Next Action</small>
+          <strong>${escapeHtml(nextAction)}</strong>
+        </span>
+        <span class="idp-open-profile">Open profile</span>
       </button>
     `;
   }).join("");
@@ -606,6 +670,8 @@ function renderOwnershipForm(detail = {}, focus = null, options = {}) {
 function renderActionOverlay(state = {}, focus = null, canEdit = false, options = {}) {
   const mode = state.ui?.actionMode || "";
   if (!canEdit || !mode) return "";
+  const profile = state.playerDetail?.profile || {};
+  const ownerId = primaryOwnerId(profile, focus || {});
   const copy = {
     ownership: ["Assign IDP Coach", "Choose who owns this player's development follow-up."],
     focus: ["Update focus", "Change the player's current development priority, status, and review date."],
@@ -631,6 +697,11 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
           </div>
           <button type="button" class="idp-dialog-close" data-idp-close-action aria-label="Close">x</button>
         </header>
+        <div class="idp-action-context" aria-label="Action context">
+          <span><small>Player</small><strong>${escapeHtml(profile.playerName || "Player")}</strong></span>
+          <span><small>Current Focus</small><strong>${escapeHtml(focus?.title || "Create current focus")}</strong></span>
+          <span><small>IDP Coach</small><strong>${escapeHtml(formatStaffName(ownerId, options))}</strong></span>
+        </div>
         ${form}
       </article>
     </section>
@@ -646,31 +717,49 @@ function renderOverviewBoard(state = {}, ui = defaultUiState, options = {}) {
       <div class="idp-overview-head">
         <div>
           <p>Overview</p>
-          <h2>Players</h2>
+          <h2>Squad cockpit</h2>
+          <span>Click a player to open the full Player Development Profile.</span>
         </div>
         <span class="idp-sidebar-count">${escapeHtml(String(visiblePlayerCount))}/${escapeHtml(String(totalPlayerCount))} visible</span>
       </div>
-      <div class="idp-toolbar">
-        <select data-idp-filter="status" aria-label="Filter by status">
-          ${optionList(["All", "On Track", "Needs Evidence", "Review Due", "No Active Focus", "No Active IDP", "New Clips To Review"], ui.statusFilter, coachLabel)}
-        </select>
-        <select data-idp-filter="category" aria-label="Filter by category">
-          ${optionList(["All", ...idpDevelopmentCategories], ui.categoryFilter)}
-        </select>
-        <select data-idp-filter="owner" aria-label="Filter by IDP Coach">
-          ${ownerFilterOptions(state, options, ui.ownerFilter)}
-        </select>
-        <input data-idp-search value="${escapeHtml(ui.searchQuery)}" placeholder="Search player or focus" aria-label="Search player or focus">
+      <div class="idp-overview-insights" aria-label="IDP overview signals">
+        ${renderOverviewInsights(state, options)}
+      </div>
+      <div class="idp-overview-command">
+        <div class="idp-status-segments" aria-label="Status lens">
+          ${overviewStatusFilters(ui.statusFilter)}
+        </div>
+        <div class="idp-toolbar">
+          <select class="idp-filter-native-status" data-idp-filter="status" aria-label="Filter by status">
+            ${optionList(["All", "On Track", "Needs Evidence", "Review Due", "No Active Focus", "No Active IDP", "New Clips To Review"], ui.statusFilter, coachLabel)}
+          </select>
+          <label class="idp-control-select">
+            <span>Development lens</span>
+            <select data-idp-filter="category" aria-label="Filter by category">
+              ${optionList(["All", ...idpDevelopmentCategories], ui.categoryFilter)}
+            </select>
+          </label>
+          <label class="idp-control-select">
+            <span>IDP Coach</span>
+            <select data-idp-filter="owner" aria-label="Filter by IDP Coach">
+              ${ownerFilterOptions(state, options, ui.ownerFilter)}
+            </select>
+          </label>
+          <label class="idp-search-box">
+            <span>Search</span>
+            <input data-idp-search value="${escapeHtml(ui.searchQuery)}" placeholder="Player, focus or coach" aria-label="Search player or focus">
+          </label>
+        </div>
       </div>
       <div class="idp-overview-table" role="table" aria-label="Player development overview">
         <div class="idp-overview-row is-header" role="row">
+          <span>Priority</span>
           <span>Player</span>
           <span>Current Focus</span>
-          <span>Status</span>
           <span>Observations</span>
-          <span>Clips</span>
           <span>Review / IDP Coach</span>
           <span>Next Action</span>
+          <span>Profile</span>
         </div>
         <div class="idp-overview-rows">
           ${renderOverviewRows({ ...state, ui }, dashboard, options)}

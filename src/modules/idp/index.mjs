@@ -188,6 +188,11 @@ export function handleClick(event) {
     });
     return;
   }
+  const statusFilterTrigger = event?.target?.closest?.("[data-idp-status-filter]");
+  if (statusFilterTrigger) {
+    runtime?.store.setState({ ui: { statusFilter: statusFilterTrigger.dataset.idpStatusFilter || "All" } });
+    return;
+  }
   const playerTrigger = event?.target?.closest?.("[data-idp-player]");
   if (playerTrigger) {
     runAction(() => runtime?.actions.selectPlayer(playerTrigger.dataset.idpPlayer || ""));

@@ -268,20 +268,10 @@ function activeAnalysisRoomTab(state = {}) {
   return state.activeAnalysisRoomTab === "presentation" ? "presentation" : "fs-player";
 }
 
-function renderWorkspaceNav(state = {}) {
-  return `
-    <div class="video-analysis-workspace-nav">
-      <button type="button" data-video-analysis-open-library>Back to library</button>
-      <span>${escapeHtml(state.match?.title || state.pendingScheduleLink?.title || "Untitled session")}</span>
-    </div>
-  `;
-}
-
 function renderFsPlayerWorkspace(displayState = {}) {
   return `
     <section class="video-analysis-fs-player-workstation" data-video-analysis-fs-player-workstation>
       <section class="video-analysis-fs-player-main">
-        ${renderWorkspaceNav(displayState)}
         <section class="video-analysis-fs-player-deck">
           ${renderVideoPlayer(displayState)}
           ${renderTimeline(displayState)}

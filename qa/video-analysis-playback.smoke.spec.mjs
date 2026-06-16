@@ -210,6 +210,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toBeVisible();
   await expect(page.locator(".video-analysis-fs-player-deck [data-video-analysis-timeline-module]")).toBeVisible();
   await expect(page.locator(".video-analysis-code-window-dock [data-video-analysis-code-window]")).toBeVisible();
+  await expect(page.locator(".video-analysis-workspace-nav")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-timeline-module]")).toBeVisible();
   await expect(page.locator(".video-analysis-timeline-status")).toContainText("1 clip");
   await expect(page.locator(".video-analysis-coding-panel")).toHaveCount(0);

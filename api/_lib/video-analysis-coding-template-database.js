@@ -46,6 +46,11 @@ function asSignedMs(value, fallback = 0) {
   return Number.isFinite(ms) ? ms : fallback;
 }
 
+function asSortOrder(value, fallback = 0) {
+  const order = Math.round(Number(value));
+  return Number.isFinite(order) && order >= 0 ? order : fallback;
+}
+
 function normalizeCodingButtonType(value) {
   const raw = normalizeText(value, 80);
   const type = (CODING_FIELD_TO_BUTTON_TYPE[raw] || raw).toLowerCase().replace(/[\s-]+/g, "_");
@@ -91,7 +96,8 @@ function normalizeCodingButtonPayload(button = {}, index = 0) {
     startOffsetMs: asSignedMs(button.startOffsetMs ?? button.start_offset_ms, 0),
     endOffsetMs: Math.max(100, asSignedMs(button.endOffsetMs ?? button.end_offset_ms, defaultDurationMs)),
     instantEnabled: button.instantEnabled !== false && button.instant_enabled !== false,
-    sortOrder: Math.max(0, Math.round(Number(button.sortOrder ?? button.sort_order ?? index))),
+    groupSortOrder: asSortOrder(button.groupSortOrder ?? button.group_sort_order ?? button.metadata?.groupSortOrder ?? button.metadata?.group_sort_order, index),
+    sortOrder: asSortOrder(button.sortOrder ?? button.sort_order, index),
   };
 }
 
@@ -181,7 +187,8 @@ function mapButtonRow(row = {}) {
     appliesLabel: row.applies_label === true,
     targetField,
     instantEnabled: row.instant_enabled !== false,
-    sortOrder: row.sort_order || 0,
+    groupSortOrder: asSortOrder(metadata.groupSortOrder ?? metadata.group_sort_order, 0),
+    sortOrder: asSortOrder(row.sort_order, 0),
   };
 }
 
@@ -316,6 +323,7 @@ function buttonRow(button = {}, template = {}, templateId = "") {
     metadata: {
       clientId: button.clientId,
       group: button.group,
+      groupSortOrder: button.groupSortOrder,
       type: button.type,
     },
   };

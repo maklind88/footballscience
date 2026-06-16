@@ -228,6 +228,7 @@ export function renderPanelBuilderOverlay(state = {}, groups = []) {
     || groups.flatMap((group) => group.buttons || [])[0]
     || null;
   const dirty = Boolean(state.codingSession?.templateDirty);
+  const saving = state.status === "saving-template";
   return `
     <div class="video-analysis-template-overlay" data-video-analysis-template-overlay>
       <button type="button" class="video-analysis-template-overlay__backdrop" data-video-analysis-panel-mode="use" aria-label="Close panel editor"></button>
@@ -241,8 +242,8 @@ export function renderPanelBuilderOverlay(state = {}, groups = []) {
             </label>
           </div>
           <div class="video-analysis-template-actions">
-            ${dirty ? `<span class="video-analysis-template-dirty-pill">Unsaved changes</span>` : `<span class="video-analysis-template-saved-pill">Saved</span>`}
-            <button type="button" class="video-analysis-template-save" data-video-analysis-save-template>Save panel</button>
+            ${saving ? `<span class="video-analysis-template-saving-pill">Saving...</span>` : dirty ? `<span class="video-analysis-template-dirty-pill">Unsaved changes</span>` : `<span class="video-analysis-template-saved-pill">Saved</span>`}
+            <button type="button" class="video-analysis-template-save" data-video-analysis-save-template ${saving ? "disabled" : ""}>${saving ? "Saving..." : "Save panel"}</button>
             <button type="button" class="video-analysis-icon-button" data-video-analysis-panel-mode="use">Close</button>
           </div>
         </div>

@@ -650,6 +650,18 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
   })).toMatchObject({
     title: "Football Science Tag Panel",
   });
+  const savedPressingButton = await page.evaluate(() => {
+    const template = (window.__videoAnalysisRequests || []).find((item) => item.action === "save-coding-template")?.body?.template;
+    return (template?.buttons || []).find((item) => item.group === "Pressing Triggers") || null;
+  });
+  expect(savedPressingButton).toMatchObject({
+    label: "Jump press",
+    groupSortOrder: 4,
+    sortOrder: 0,
+    defaultDurationMs: 8000,
+    startOffsetMs: -2000,
+    endOffsetMs: 10000,
+  });
 
   await page.locator('[data-video-analysis-template-overlay] .video-analysis-icon-button[data-video-analysis-panel-mode="use"]').click();
   await page.evaluate(() => {

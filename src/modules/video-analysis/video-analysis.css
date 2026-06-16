@@ -1616,6 +1616,7 @@
 }
 
 .video-analysis-template-dirty-pill,
+.video-analysis-template-saving-pill,
 .video-analysis-template-saved-pill,
 .video-analysis-builder-column-head span,
 .video-analysis-builder-summary {
@@ -1635,6 +1636,11 @@
 .video-analysis-template-saved-pill {
   color: #14532d;
   background: #dcfce7;
+}
+
+.video-analysis-template-saving-pill {
+  color: #1e3a8a;
+  background: #dbeafe;
 }
 
 .video-analysis-panel-builder-column {
@@ -1912,6 +1918,11 @@
   color: #ffffff;
   background: #143522;
   font-weight: 800;
+}
+
+.video-analysis-template-save:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .video-analysis-template-title-field {

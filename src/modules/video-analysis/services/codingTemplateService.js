@@ -130,21 +130,24 @@ function button(id, type, label, value, hotkey = "", group = type, options = {})
   };
 }
 
-function buttonsFromList(type, items, hotkeys = [], group = type) {
+function buttonsFromList(type, items, hotkeys = [], group = type, groupSortOrder = 0) {
   return items.map((item, index) => {
     const value = typeof item === "string" ? item : item.id;
     const label = typeof item === "string" ? item : item.label;
-    return button(`${type}-${slug(value)}`, type, label, value, hotkeys[index] || "", group);
+    return button(`${type}-${slug(value)}`, type, label, value, hotkeys[index] || "", group, {
+      groupSortOrder,
+      sortOrder: index,
+    });
   });
 }
 
 export function createDefaultCodingTemplate() {
   const buttons = [
-    ...buttonsFromList("phase", videoAnalysisPhases, phaseHotkeys, "Phase"),
-    ...buttonsFromList("subPhase", videoAnalysisSubPhases, [], "Sub-phase"),
-    ...buttonsFromList("teamPrincipleId", teamPrinciples, principleHotkeys, "Team Principle"),
-    ...buttonsFromList("miniGamePrincipleId", miniGamePrinciples, [], "Mini-game Principle"),
-    ...buttonsFromList("outcome", videoAnalysisOutcomes, ["z", "x", "c"], "Outcome"),
+    ...buttonsFromList("phase", videoAnalysisPhases, phaseHotkeys, "Phase", 0),
+    ...buttonsFromList("subPhase", videoAnalysisSubPhases, [], "Sub-phase", 1),
+    ...buttonsFromList("teamPrincipleId", teamPrinciples, principleHotkeys, "Team Principle", 2),
+    ...buttonsFromList("miniGamePrincipleId", miniGamePrinciples, [], "Mini-game Principle", 3),
+    ...buttonsFromList("outcome", videoAnalysisOutcomes, ["z", "x", "c"], "Outcome", 4),
   ];
   return {
     id: "football-science-default-template",

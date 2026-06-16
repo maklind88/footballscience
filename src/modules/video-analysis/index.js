@@ -1558,6 +1558,7 @@ async function loadCodingTemplates(options = {}) {
 async function saveCodingTemplate(context = {}) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
+  if (state.status === "saving-template") return false;
   try {
     run.store.setState({ status: "saving-template", message: "Saving tag panel.", error: "" });
     const payload = await run.templates.save(state.template);

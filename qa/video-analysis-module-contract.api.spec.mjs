@@ -188,6 +188,7 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(panelBuilderOverlay).toContain("Lead sec");
   expect(panelBuilderOverlay).toContain("End after click");
   expect(panelBuilderOverlay).toContain("Unsaved changes");
+  expect(panelBuilderOverlay).toContain("Saving...");
   expect(panelBuilderOverlay).toContain("Preview");
   expect(codingTemplateService).toContain("buildCodingButtonAction");
   expect(codingTemplateService).toContain("addCodingButtonToTemplate");
@@ -257,6 +258,10 @@ test("coding tag panel creates 15 second button-owned clip actions", async () =>
   expect(button.defaultDurationMs).toBe(15000);
   expect(button.targetField).toBe("subPhase");
   expect(button.databaseId).toBe("");
+  const defaultGroups = service.groupCodingTemplateButtons(template);
+  expect(defaultGroups.map((group) => group.label)).toEqual(["Phase", "Sub-phase", "Team Principle", "Mini-game Principle", "Outcome"]);
+  expect(defaultGroups.map((group) => group.sortOrder)).toEqual([0, 1, 2, 3, 4]);
+  expect(defaultGroups[1].buttons.map((item) => item.sortOrder).slice(0, 3)).toEqual([0, 1, 2]);
   expect(action.shouldCreateClip).toBe(true);
   expect(action.nextDraft.startMs).toBe(831000);
   expect(action.nextDraft.endMs).toBe(846000);
@@ -283,8 +288,11 @@ test("coding tag panel builder creates custom timeline tag buttons", async () =>
   expect(initialGroupOrder.at(-1)).toBe("Pressing Triggers");
 
   const movedGroup = service.moveCodingGroupByStep(withGroup, "Pressing Triggers", -1);
-  const movedGroupOrder = service.groupCodingTemplateButtons(movedGroup).map((group) => group.label);
-  expect(movedGroupOrder.indexOf("Pressing Triggers")).toBe(initialGroupOrder.indexOf("Pressing Triggers") - 1);
+  const movedGroups = service.groupCodingTemplateButtons(movedGroup);
+  const movedGroupOrder = movedGroups.map((group) => group.label);
+  const pressingGroupIndex = movedGroupOrder.indexOf("Pressing Triggers");
+  expect(pressingGroupIndex).toBe(initialGroupOrder.indexOf("Pressing Triggers") - 1);
+  expect(movedGroups[pressingGroupIndex].buttons.every((item) => item.groupSortOrder === pressingGroupIndex)).toBe(true);
 
   const renamed = service.updateCodingButtonField(withGroup, customButton.id, "label", "Jump press");
   const renamedButton = renamed.buttons.find((item) => item.id === customButton.id);
@@ -331,6 +339,27 @@ test("coding tag panel builder creates custom timeline tag buttons", async () =>
   expect(removed.buttons.some((item) => item.id === customButton.id)).toBe(false);
 });
 
+test("coding template API preserves panel builder group and button ordering metadata", async () => {
+  const service = await import(pathToFileURL(path.join(moduleDir, "services/codingTemplateService.js")).href);
+  const apiModule = await import(pathToFileURL(path.join(rootDir, "api/_lib/video-analysis-coding-template-database.js")).href);
+  const normalize = apiModule.normalizeCodingTemplatePayload || apiModule.default?.normalizeCodingTemplatePayload;
+  const template = service.moveCodingGroupByStep(
+    service.addCodingButtonGroupToTemplate(service.createDefaultCodingTemplate(), "Pressing Triggers"),
+    "Pressing Triggers",
+    -1
+  );
+  const pressingButton = template.buttons.find((item) => item.group === "Pressing Triggers");
+  const pressingGroup = service.groupCodingTemplateButtons(template).find((group) => group.label === "Pressing Triggers");
+  const payload = normalize(template, { id: "coach-1", clubId: "club-ncc", teamId: "team-ncc-first" });
+  const savedPressingButton = payload.buttons.find((item) => item.clientId === pressingButton.id);
+
+  expect(typeof normalize).toBe("function");
+  expect(savedPressingButton.group).toBe("Pressing Triggers");
+  expect(savedPressingButton.groupSortOrder).toBe(pressingGroup.sortOrder);
+  expect(savedPressingButton.sortOrder).toBe(0);
+  expect(payload.buttons.filter((item) => item.group === "Sub-phase").map((item) => item.sortOrder).slice(0, 3)).toEqual([0, 1, 2]);
+});
+
 test("coding template persistence stays behind repositories and API actions", () => {
   const repository = read("src/modules/video-analysis/repositories/codingTemplateRepository.js");
   const clipRepository = read("src/modules/video-analysis/repositories/clipRepository.js");
@@ -353,6 +382,7 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(templateApi).toContain("rejectForbiddenPayload(payload)");
   expect(templateApi).toContain("video_coding_templates");
   expect(templateApi).toContain("video_coding_buttons");
+  expect(templateApi).toContain("groupSortOrder");
   expect(api).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
   expect(templateApi).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
 });

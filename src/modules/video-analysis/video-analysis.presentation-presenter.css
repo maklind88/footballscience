@@ -684,7 +684,7 @@
   }
 
   #analysisRoomWorkspace .video-analysis-presenter-side-tools {
-    display: none;
+    display: none !important;
   }
 }
 

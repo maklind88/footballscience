@@ -184,6 +184,21 @@ export function handleChange(event) {
 }
 
 export function handleClick(event) {
+  const searchTrigger = event?.target?.closest?.("[data-idp-search-submit]");
+  if (searchTrigger) {
+    event?.preventDefault?.();
+    const root = getRoot(runtime?.context);
+    const input = root?.querySelector?.("[data-idp-search]");
+    runtime?.store.setState({ ui: { searchQuery: input?.value || "" } });
+    const focusSearch = () => getRoot(runtime?.context)?.querySelector?.("[data-idp-search]")?.focus?.();
+    const win = runtime?.context?.win || globalThis;
+    if (typeof win.requestAnimationFrame === "function") {
+      win.requestAnimationFrame(focusSearch);
+    } else {
+      focusSearch();
+    }
+    return;
+  }
   const closeActionTrigger = event?.target?.closest?.("[data-idp-close-action]");
   if (closeActionTrigger || event?.target?.matches?.("[data-idp-action-layer]")) {
     runtime?.store.setState({ ui: { actionMode: "" } });

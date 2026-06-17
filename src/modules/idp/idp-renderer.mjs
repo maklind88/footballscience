@@ -717,11 +717,14 @@ function renderOverviewBoard(state = {}, ui = defaultUiState, options = {}) {
           <select class="idp-filter-native-status" data-idp-filter="status" aria-label="Filter by status">
             ${optionList(["All", "On Track", "Needs Evidence", "Review Due", "No Active Focus", "No Active IDP", "New Clips To Review"], ui.statusFilter, coachLabel)}
           </select>
-          <label class="idp-control-select">
-            <span>Development lens</span>
-            <select data-idp-filter="category" aria-label="Filter by category">
-              ${optionList(["All", ...idpDevelopmentCategories], ui.categoryFilter)}
-            </select>
+          <label class="idp-search-box">
+            <span>Search</span>
+            <span class="idp-search-control">
+              <input data-idp-search value="${escapeHtml(ui.searchQuery)}" placeholder="Player, focus or coach" aria-label="Search player or focus">
+              <button type="button" class="idp-search-button" data-idp-search-submit aria-label="Search players">
+                <span class="idp-search-icon" aria-hidden="true"></span>
+              </button>
+            </span>
           </label>
           <label class="idp-control-select">
             <span>IDP Coach</span>
@@ -729,9 +732,11 @@ function renderOverviewBoard(state = {}, ui = defaultUiState, options = {}) {
               ${ownerFilterOptions(state, options, ui.ownerFilter)}
             </select>
           </label>
-          <label class="idp-search-box">
-            <span>Search</span>
-            <input data-idp-search value="${escapeHtml(ui.searchQuery)}" placeholder="Player, focus or coach" aria-label="Search player or focus">
+          <label class="idp-control-select">
+            <span>Development lens</span>
+            <select data-idp-filter="category" aria-label="Filter by category">
+              ${optionList(["All", ...idpDevelopmentCategories], ui.categoryFilter)}
+            </select>
           </label>
         </div>
       </div>

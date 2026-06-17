@@ -199,7 +199,7 @@
 .idp-toolbar {
   display: grid;
   gap: 8px;
-  grid-template-columns: minmax(150px, .75fr) minmax(170px, .85fr) minmax(220px, 1.2fr);
+  grid-template-columns: minmax(320px, 1.35fr) minmax(190px, .72fr) minmax(190px, .72fr);
   min-width: 0;
 }
 
@@ -222,8 +222,8 @@
   padding: 8px 10px;
 }
 
-.idp-control-select span,
-.idp-search-box span {
+.idp-control-select > span,
+.idp-search-box > span:not(.idp-search-control) {
   color: var(--idp-muted);
   font-size: .66rem;
   font-weight: 900;
@@ -252,6 +252,66 @@
   min-height: 26px;
   padding: 0;
   width: 100%;
+}
+
+.idp-search-control {
+  align-items: center;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  min-width: 0;
+}
+
+.idp-search-control input {
+  min-width: 0;
+}
+
+.idp-search-button {
+  align-items: center;
+  appearance: none;
+  background: linear-gradient(135deg, #111827 0%, #2457a6 100%);
+  border: 0;
+  border-radius: 7px;
+  box-shadow: 0 7px 16px rgba(36, 87, 166, .22);
+  cursor: pointer;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  padding: 0;
+  transition: box-shadow .16s ease, transform .16s ease;
+  width: 38px;
+}
+
+.idp-search-button:hover,
+.idp-search-button:focus-visible {
+  box-shadow: 0 9px 20px rgba(36, 87, 166, .3);
+  transform: translateY(-1px);
+}
+
+.idp-search-button:focus-visible {
+  outline: 2px solid rgba(36, 87, 166, .38);
+  outline-offset: 2px;
+}
+
+.idp-search-icon {
+  border: 2px solid #fff;
+  border-radius: 999px;
+  display: block;
+  height: 12px;
+  position: relative;
+  width: 12px;
+}
+
+.idp-search-icon::after {
+  background: #fff;
+  border-radius: 999px;
+  content: "";
+  height: 2px;
+  position: absolute;
+  right: -7px;
+  top: 9px;
+  transform: rotate(45deg);
+  width: 8px;
 }
 
 .idp-action-form textarea {
@@ -2780,8 +2840,8 @@ body.is-dark-mode .idp-player-voice-card {
   padding: 7px 9px;
 }
 
-.idp-control-select span,
-.idp-search-box span {
+.idp-control-select > span,
+.idp-search-box > span:not(.idp-search-control) {
   color: #667085;
   font-size: .62rem;
 }

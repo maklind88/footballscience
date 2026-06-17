@@ -713,9 +713,6 @@ function renderOverviewBoard(state = {}, ui = defaultUiState, options = {}) {
   return `
     <section class="idp-overview-board">
       <div class="idp-overview-command">
-        <div class="idp-status-segments" aria-label="Status lens">
-          ${overviewStatusFilters(ui.statusFilter)}
-        </div>
         <div class="idp-toolbar">
           <select class="idp-filter-native-status" data-idp-filter="status" aria-label="Filter by status">
             ${optionList(["All", "On Track", "Needs Evidence", "Review Due", "No Active Focus", "No Active IDP", "New Clips To Review"], ui.statusFilter, coachLabel)}

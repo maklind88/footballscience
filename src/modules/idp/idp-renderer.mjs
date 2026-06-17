@@ -712,9 +712,6 @@ function renderOverviewBoard(state = {}, ui = defaultUiState, options = {}) {
   const dashboard = filterDashboardRows({ ...state, ui }, options);
   return `
     <section class="idp-overview-board">
-      <div class="idp-overview-insights" aria-label="IDP overview signals">
-        ${renderOverviewInsights(state, options)}
-      </div>
       <div class="idp-overview-command">
         <div class="idp-status-segments" aria-label="Status lens">
           ${overviewStatusFilters(ui.statusFilter)}

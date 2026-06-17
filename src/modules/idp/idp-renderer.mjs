@@ -710,18 +710,8 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
 
 function renderOverviewBoard(state = {}, ui = defaultUiState, options = {}) {
   const dashboard = filterDashboardRows({ ...state, ui }, options);
-  const visiblePlayerCount = dashboard.rows.length;
-  const totalPlayerCount = state.dashboardPlayers?.length || 0;
   return `
     <section class="idp-overview-board">
-      <div class="idp-overview-head">
-        <div>
-          <p>Overview</p>
-          <h2>Players</h2>
-          <span>Clean squad overview. Open a player to work inside the Player Development Profile.</span>
-        </div>
-        <span class="idp-sidebar-count">${escapeHtml(String(visiblePlayerCount))}/${escapeHtml(String(totalPlayerCount))} visible</span>
-      </div>
       <div class="idp-overview-insights" aria-label="IDP overview signals">
         ${renderOverviewInsights(state, options)}
       </div>

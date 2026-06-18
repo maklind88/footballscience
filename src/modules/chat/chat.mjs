@@ -207,6 +207,24 @@ export function selectHomeChatThreadMessages(messages = [], threadId = homeChatT
   return Object.freeze(messages.filter((message) => message.threadId === normalizedThreadId));
 }
 
+export function getLatestHomeChatMessage(messages = []) {
+  return (Array.isArray(messages) ? messages : []).reduce((latestMessage, message) => {
+    if (!latestMessage) {
+      return message;
+    }
+    const messageTime = parseTime(message?.createdAt);
+    const latestTime = parseTime(latestMessage?.createdAt);
+    if (messageTime !== latestTime) {
+      return messageTime > latestTime ? message : latestMessage;
+    }
+    const messageId = normalizeText(message?.id);
+    const latestId = normalizeText(latestMessage?.id);
+    return messageId.localeCompare(latestId, undefined, { numeric: true, sensitivity: "base" }) >= 0
+      ? message
+      : latestMessage;
+  }, null);
+}
+
 export function getHomeChatThreadParticipants(threadId, users = []) {
   const normalizedThreadId = normalizeHomeChatThreadId(threadId);
   if (normalizedThreadId === homeChatTeamThreadId) {
@@ -259,7 +277,7 @@ export function selectHomeChatThreadData(threadId, options = {}) {
     messageCount: threadMessages.length,
     unreadCount,
     mentionCount,
-    lastMessage: threadMessages.length ? threadMessages[threadMessages.length - 1] : null,
+    lastMessage: getLatestHomeChatMessage(threadMessages),
   });
 }
 

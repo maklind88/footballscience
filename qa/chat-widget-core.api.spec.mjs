@@ -8,6 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const dashboardChatCss = readFileSync(resolve(__dirname, "../dashboard-chat.css"), "utf8");
 const appRuntimeSource = readFileSync(resolve(__dirname, "../app-runtime.js"), "utf8");
 const composerRuntimeSource = readFileSync(resolve(__dirname, "../src/modules/chat/dashboard-chat-composer-runtime.mjs"), "utf8");
+const widgetRuntimeSource = readFileSync(resolve(__dirname, "../src/modules/chat/dashboard-chat-widget-runtime.mjs"), "utf8");
 
 const priorityOptions = [
   { key: "normal", label: "Normal" },
@@ -212,11 +213,20 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(result.html).toContain('aria-label="Open Team Chat, 1 unread chat message"');
   expect(result.html).toContain('title="Open Team Chat, 1 unread chat message"');
   expect(result.html).toContain("dashboard-chat-header-badge is-unread");
+  expect(result.html).toContain('<span class="dashboard-chat-launcher-icon" aria-hidden="true"></span>');
   expect(result.html).toContain('<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">1</span>');
   expect(result.html).toContain("1 unread chat message");
-  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher>*:not(.dashboard-chat-header-badge)");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher>*:not(.dashboard-chat-header-badge):not(.dashboard-chat-launcher-icon)");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
-  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:1.02rem");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:1.04rem");
+  expect(dashboardChatCss).toContain("width:2.58rem!important;height:2.28rem!important");
+  expect(dashboardChatCss).toContain("border-radius:.72rem .72rem .72rem .24rem!important");
+  expect(dashboardChatCss).toContain("linear-gradient(135deg,rgba(236,253,245,.18),rgba(59,130,246,.08))");
+  expect(dashboardChatCss).toContain(".dashboard-chat-launcher:before,body.is-dashboard-chat-closed .dashboard-chat-launcher:after{content:none!important}");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher-icon{position:relative!important;display:block!important");
+  expect(dashboardChatCss).toContain("border-radius:.26rem .26rem .26rem .12rem!important");
+  expect(dashboardChatCss).toContain("clip-path:polygon(0 0,100% 0,0 100%)!important");
+  expect(dashboardChatCss).toContain("top:-.4rem!important;right:-.42rem!important");
   expect(dashboardChatCss).toContain("@media(max-width:820px){body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:auto");
   expect(dashboardChatCss).toContain("@media(prefers-reduced-motion:reduce)");
 
@@ -293,6 +303,16 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   });
 
   expect(unnamedOpenResult.html).toContain('aria-label="Team Chat panel"');
+});
+
+test("chat notification cursor is persisted when active-thread toasts are suppressed", () => {
+  expect(widgetRuntimeSource).toContain("function writeDashboardChatWidgetNotificationCursorForMessage");
+  expect(widgetRuntimeSource).toContain("const threadId = normalizeDashboardChatThreadId(message.threadId, dashboardChatTeamThreadId);");
+  expect(widgetRuntimeSource).toContain("writeDashboardChatWidgetNotificationCursorForMessage(activeThreadLastMessage);");
+  expect(widgetRuntimeSource).toContain("if (isDashboardChatThreadActivelyViewed(latestVisibleMessage.threadId)) {");
+  expect(widgetRuntimeSource).toContain("writeDashboardChatWidgetNotificationCursorForMessage(latestVisibleMessage);");
+  expect(widgetRuntimeSource).toContain("markDashboardChatWidgetNotificationSeenForThread?.(latestVisibleMessage.threadId);");
+  expect(widgetRuntimeSource).toContain("hideDashboardChatWidgetToast();");
 });
 
 test("group creator overlay exposes a labelled dialog contract", () => {
@@ -406,8 +426,18 @@ test("group creator readiness respects the group name minimum length", () => {
   expect(appRuntimeSource).toContain("normalizeDashboardChatGroupAvatarInput,");
   expect(composerRuntimeSource).toContain('normalizeDashboardChatGroupNameInput = (value = "") => String(value ?? "").trim().replace(/\\s+/g, " ")');
   expect(appRuntimeSource).toContain("normalizeDashboardChatGroupNameInput,");
+  expect(composerRuntimeSource).toContain("syncDashboardChatGroupCreateForm = () => {}");
+  expect(appRuntimeSource).toContain("syncDashboardChatGroupCreateForm,");
   expect(composerRuntimeSource).toContain('const title = normalizeDashboardChatGroupNameInput(formData.get("title")).slice(0, 80);');
   expect(composerRuntimeSource).toContain('const avatarValue = normalizeDashboardChatGroupAvatarInput(formData.get("avatar")).slice(0, 800);');
+  expect(composerRuntimeSource).toContain("const previousSubmitState = submitButton");
+  expect(composerRuntimeSource).toContain('form.setAttribute("aria-busy", "true");');
+  expect(composerRuntimeSource).toContain('submitButton.setAttribute("aria-disabled", "true");');
+  expect(composerRuntimeSource).toContain('submitButton.title = "Creating group...";');
+  expect(composerRuntimeSource).toContain('form.removeAttribute("aria-busy");');
+  expect(composerRuntimeSource).toContain("submitButton.disabled = Boolean(previousSubmitState?.disabled);");
+  expect(composerRuntimeSource).toContain("submitButton.textContent = previousSubmitState?.textContent || \"Create group\";");
+  expect(composerRuntimeSource).toContain("syncDashboardChatGroupCreateForm(form);");
   expect(composerRuntimeSource).toContain('const avatarInput = form.querySelector("[data-dashboard-chat-group-avatar-input]");');
   expect(composerRuntimeSource).toContain("avatarInput.value = avatarValue;");
   expect(composerRuntimeSource).toContain('const avatarLabelValue = avatarValue.replace(/\\s+/g, "").slice(0, 2).toUpperCase();');

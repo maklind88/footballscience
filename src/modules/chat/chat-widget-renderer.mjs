@@ -1197,6 +1197,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 <strong>${escapeHtml(launcherLabel)}</strong>
                 <small>${escapeHtml(launcherPreview)}</small>
               </span>
+              <span class="dashboard-chat-launcher-icon" aria-hidden="true"></span>
               ${unreadCount ? `<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">${unreadCount}</span>` : `<span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>`}
             </button>
           `

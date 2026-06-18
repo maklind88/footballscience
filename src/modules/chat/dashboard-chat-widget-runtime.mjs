@@ -156,6 +156,21 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     );
   }
 
+  function writeDashboardChatWidgetNotificationCursorForMessage(message = {}) {
+    if (!message?.id) {
+      return;
+    }
+
+    const threadId = normalizeDashboardChatThreadId(message.threadId, dashboardChatTeamThreadId);
+    writeDashboardChatWidgetNotificationCursor({
+      lastMessageId: message.id,
+      seenAt: Date.now(),
+      userId: message.userId,
+      threadId,
+      messageCreatedAtMs: getDashboardMessageCreatedAtMs(message),
+    });
+  }
+
   function renderDashboardChatWidget() {
     const root = ui.dashboardChatWidgetRoot;
     if (!root) {
@@ -378,13 +393,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       if (
         !isDashboardChatNotificationCursorCurrentForMessage(activeThreadCursor, activeThreadLastMessage)
       ) {
-        writeDashboardChatWidgetNotificationCursor({
-          lastMessageId: activeThreadLastMessage.id,
-          seenAt: Date.now(),
-          userId: activeThreadLastMessage.userId,
-          threadId: activeThreadLastMessage.threadId,
-          messageCreatedAtMs: getDashboardMessageCreatedAtMs(activeThreadLastMessage),
-        });
+        writeDashboardChatWidgetNotificationCursorForMessage(activeThreadLastMessage);
       }
       if (dashboardChatWidgetToastState?.threadId === activeThreadLastMessage.threadId) {
         hideDashboardChatWidgetToast();
@@ -416,6 +425,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     }
 
     if (isDashboardChatThreadActivelyViewed(latestVisibleMessage.threadId)) {
+      writeDashboardChatWidgetNotificationCursorForMessage(latestVisibleMessage);
       markDashboardChatWidgetNotificationSeenForThread?.(latestVisibleMessage.threadId);
       if (dashboardChatWidgetToastState?.threadId === latestVisibleMessage.threadId) {
         hideDashboardChatWidgetToast();
@@ -445,13 +455,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
         : `New message from ${senderName} in ${threadName}`,
       latestVisibleMessage.threadId
     );
-    writeDashboardChatWidgetNotificationCursor({
-      lastMessageId: latestVisibleMessage.id,
-      seenAt: Date.now(),
-      userId: latestVisibleMessage.userId,
-      threadId: latestVisibleMessage.threadId,
-      messageCreatedAtMs: getDashboardMessageCreatedAtMs(latestVisibleMessage),
-    });
+    writeDashboardChatWidgetNotificationCursorForMessage(latestVisibleMessage);
     markDashboardChatWidgetNotificationSeenForThread?.(latestVisibleMessage.threadId);
   }
 

@@ -12,7 +12,9 @@ const { applyChatActionToState, filterChatStateForActor } = chatApi._private;
 
 const appSource = readFileSync(path.join(__dirname, "../app-runtime.js"), "utf8");
 const chatApiRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-api-runtime.mjs"), "utf8");
+const chatModuleSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat.mjs"), "utf8");
 const chatWidgetRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-widget-runtime.mjs"), "utf8");
+const chatThreadRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-thread-runtime.mjs"), "utf8");
 const rendererSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-widget-renderer.mjs"), "utf8");
 const chatCssSource = readFileSync(path.join(__dirname, "../dashboard-chat.css"), "utf8");
 const attachmentPreviewSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-attachment-preview.mjs"), "utf8");
@@ -91,6 +93,26 @@ test("core chat flow: send, receive, read, delete, reload, and sorting timestamp
   const deletedAfterReload = reloadedForCoach.messages.find((message) => message.id === second.message.id);
   expect(deletedAfterReload?.isDeleted).toBe(true);
   expect(deletedAfterReload?.text).toBe("");
+});
+
+test("chat thread sorting is driven by pinned state and message activity, not selected thread clicks", () => {
+  expect(chatThreadRuntimeSource).toContain("const selectedThreadId = normalizeDashboardChatThreadId");
+  expect(chatThreadRuntimeSource).toContain("selectedGroupThreadIds");
+  expect(chatThreadRuntimeSource).toContain("function getDashboardChatNewestThreadMessage");
+  expect(chatThreadRuntimeSource).toContain("const lastMessage = getDashboardChatNewestThreadMessage(threadMessages) || apiLastMessage;");
+  expect(chatThreadRuntimeSource).toContain("messageId.localeCompare(latestId, undefined, { numeric: true, sensitivity: \"base\" })");
+  expect(chatThreadRuntimeSource).toContain("function getDashboardChatEmptyThreadActivityMs");
+  expect(chatThreadRuntimeSource).toContain("Date.parse(apiThread?.createdAt || apiThread?.created_at || \"\")");
+  expect(chatThreadRuntimeSource).toContain(": getDashboardChatEmptyThreadActivityMs(apiThread, threadSettings);");
+  expect(chatThreadRuntimeSource).not.toContain("threadMessages[threadMessages.length - 1]");
+  expect(chatModuleSource).toContain("export function getLatestHomeChatMessage");
+  expect(chatModuleSource).toContain("lastMessage: getLatestHomeChatMessage(threadMessages)");
+  expect(chatModuleSource).toContain("messageId.localeCompare(latestId, undefined, { numeric: true, sensitivity: \"base\" })");
+  expect(chatThreadRuntimeSource).toContain("const threadTime = (thread) =>");
+  expect(chatThreadRuntimeSource).toContain("const firstPinned = Boolean(first.settings?.pinned);");
+  expect(chatThreadRuntimeSource).toContain("return secondTime - firstTime;");
+  expect(chatThreadRuntimeSource).not.toContain("firstIsSelectedEmptyGroup");
+  expect(chatThreadRuntimeSource).not.toContain("secondIsSelectedEmptyGroup");
 });
 
 test("dm flow stays scoped to participants and does not leak to other staff", () => {
@@ -362,6 +384,17 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(attachmentPreviewSource).toContain("data-chat-attachment-preview-previous");
   expect(attachmentPreviewSource).toContain("data-chat-attachment-preview-next");
   expect(attachmentPreviewSource).toContain("data-chat-attachment-preview-retry");
+  expect(attachmentPreviewSource).toContain('aria-label="Retry attachment preview"');
+  expect(attachmentPreviewSource).toContain('aria-labelledby="dashboardChatAttachmentPreviewTitle"');
+  expect(attachmentPreviewSource).toContain('aria-describedby="dashboardChatAttachmentPreviewStatus"');
+  expect(attachmentPreviewSource).toContain("aria-keyshortcuts=\"Escape ArrowLeft ArrowRight\"");
+  expect(attachmentPreviewSource).toContain("previous.setAttribute(\"aria-disabled\", String(singleAttachment));");
+  expect(attachmentPreviewSource).toContain("next.setAttribute(\"aria-disabled\", String(singleAttachment));");
+  expect(attachmentPreviewSource).toContain("const canNavigatePreview = () => state.items.length > 1;");
+  expect(attachmentPreviewSource).toContain("if (!state.items.length || !canNavigatePreview()) return;");
+  expect(attachmentPreviewSource).toContain("if (canNavigatePreview()) showIndex(state.index - 1);");
+  expect(attachmentPreviewSource).toContain("if (canNavigatePreview()) showIndex(state.index + 1);");
+  expect(attachmentPreviewSource).toContain("event.preventDefault();");
   expect(attachmentPreviewSource).toContain("previewLoadToken");
   expect(attachmentPreviewSource).toContain("showSaveFilePicker");
   expect(attachmentPreviewSource).toContain("event.key === \"Escape\"");

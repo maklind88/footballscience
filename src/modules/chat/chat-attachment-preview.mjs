@@ -78,11 +78,11 @@ async function saveAttachmentAs(url, name) {
 
 function previewUnavailableMarkup(name, message = "This file type cannot be previewed here.") {
   return `
-    <div class="dashboard-chat-attachment-preview-empty">
+    <div class="dashboard-chat-attachment-preview-empty" role="status" aria-live="polite">
       <span aria-hidden="true">FILE</span>
       <strong>${html(name)}</strong>
       <p>${html(message)} Use Download, Save as, or Open tab.</p>
-      <button type="button" data-chat-attachment-preview-retry>Retry preview</button>
+      <button type="button" data-chat-attachment-preview-retry aria-label="Retry attachment preview">Retry preview</button>
     </div>
   `;
 }
@@ -90,16 +90,16 @@ function previewUnavailableMarkup(name, message = "This file type cannot be prev
 export function renderDashboardChatAttachmentPreviewShell() {
   return `
       <div class="dashboard-chat-attachment-preview-backdrop" data-chat-attachment-preview-close></div>
-      <section class="dashboard-chat-attachment-preview-card" role="dialog" aria-modal="true" aria-label="Attachment preview">
+      <section class="dashboard-chat-attachment-preview-card" role="dialog" aria-modal="true" aria-labelledby="dashboardChatAttachmentPreviewTitle" aria-describedby="dashboardChatAttachmentPreviewStatus" aria-keyshortcuts="Escape ArrowLeft ArrowRight">
         <header>
           <div class="dashboard-chat-attachment-preview-title-block">
             <span data-chat-attachment-preview-label>Preparing preview</span>
-            <strong data-chat-attachment-preview-title>Attachment</strong>
-            <small data-chat-attachment-preview-count>1 file</small>
+            <strong id="dashboardChatAttachmentPreviewTitle" data-chat-attachment-preview-title>Attachment</strong>
+            <small id="dashboardChatAttachmentPreviewStatus" data-chat-attachment-preview-count aria-live="polite" aria-atomic="true">1 file</small>
           </div>
           <div class="dashboard-chat-attachment-preview-actions" role="toolbar" aria-label="Attachment actions">
-            <button type="button" data-chat-attachment-preview-previous aria-label="Previous attachment">Prev</button>
-            <button type="button" data-chat-attachment-preview-next aria-label="Next attachment">Next</button>
+            <button type="button" data-chat-attachment-preview-previous aria-label="Previous attachment" aria-keyshortcuts="ArrowLeft">Prev</button>
+            <button type="button" data-chat-attachment-preview-next aria-label="Next attachment" aria-keyshortcuts="ArrowRight">Next</button>
             <button type="button" data-chat-attachment-preview-print>Print</button>
             <button type="button" data-chat-attachment-preview-download>Download</button>
             <button type="button" data-chat-attachment-preview-save>Save as</button>
@@ -120,6 +120,7 @@ export function createDashboardChatAttachmentPreview() {
   let state = { items: [], index: 0 };
 
   const currentItem = () => state.items[state.index] || null;
+  const canNavigatePreview = () => state.items.length > 1;
 
   const revokeObjectUrl = () => {
     if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
@@ -149,12 +150,21 @@ export function createDashboardChatAttachmentPreview() {
     const openLink = previewRoot.querySelector("[data-chat-attachment-preview-open]");
     const previous = previewRoot.querySelector("[data-chat-attachment-preview-previous]");
     const next = previewRoot.querySelector("[data-chat-attachment-preview-next]");
+    const singleAttachment = total <= 1;
     if (title) title.textContent = item?.name || "Attachment";
     if (label) label.textContent = getKindLabel(kind);
     if (count) count.textContent = total > 1 ? `${state.index + 1} of ${total}` : "1 file";
     if (openLink) openLink.href = item?.url || "#";
-    if (previous) previous.disabled = total <= 1;
-    if (next) next.disabled = total <= 1;
+    if (previous) {
+      previous.disabled = singleAttachment;
+      previous.setAttribute("aria-disabled", String(singleAttachment));
+      previous.title = singleAttachment ? "Only one attachment" : "Previous attachment";
+    }
+    if (next) {
+      next.disabled = singleAttachment;
+      next.setAttribute("aria-disabled", String(singleAttachment));
+      next.title = singleAttachment ? "Only one attachment" : "Next attachment";
+    }
   };
 
   const renderPreview = (body) => {
@@ -194,7 +204,7 @@ export function createDashboardChatAttachmentPreview() {
     previewLoadToken = loadToken;
     revokeObjectUrl();
     renderPreview(`
-      <div class="dashboard-chat-attachment-preview-empty is-loading">
+      <div class="dashboard-chat-attachment-preview-empty is-loading" role="status" aria-live="polite">
         <span aria-hidden="true">...</span>
         <strong>Preparing preview</strong>
         <p>Securely loading the attachment.</p>
@@ -220,7 +230,7 @@ export function createDashboardChatAttachmentPreview() {
   };
 
   const showIndex = (nextIndex) => {
-    if (!state.items.length) return;
+    if (!state.items.length || !canNavigatePreview()) return;
     state.index = (nextIndex + state.items.length) % state.items.length;
     setToolbarState();
     void loadPreviewBlob(currentItem());
@@ -273,13 +283,33 @@ export function createDashboardChatAttachmentPreview() {
     previewRoot.innerHTML = renderDashboardChatAttachmentPreviewShell();
     previewRoot.addEventListener("click", (event) => {
       const item = currentItem();
-      if (event.target.closest("[data-chat-attachment-preview-close]")) close();
-      if (event.target.closest("[data-chat-attachment-preview-previous]")) showIndex(state.index - 1);
-      if (event.target.closest("[data-chat-attachment-preview-next]")) showIndex(state.index + 1);
-      if (event.target.closest("[data-chat-attachment-preview-download]") && item) triggerDownload(previewObjectUrl || item.url, item.name);
-      if (event.target.closest("[data-chat-attachment-preview-save]") && item) saveAttachmentAs(previewObjectUrl || item.url, item.name).catch(() => triggerDownload(previewObjectUrl || item.url, item.name));
-      if (event.target.closest("[data-chat-attachment-preview-print]") && item) print(item);
-      if (event.target.closest("[data-chat-attachment-preview-retry]") && item) void loadPreviewBlob(item);
+      if (event.target.closest("[data-chat-attachment-preview-close]")) {
+        close();
+        return;
+      }
+      if (event.target.closest("[data-chat-attachment-preview-previous]")) {
+        showIndex(state.index - 1);
+        return;
+      }
+      if (event.target.closest("[data-chat-attachment-preview-next]")) {
+        showIndex(state.index + 1);
+        return;
+      }
+      if (event.target.closest("[data-chat-attachment-preview-download]") && item) {
+        triggerDownload(previewObjectUrl || item.url, item.name);
+        return;
+      }
+      if (event.target.closest("[data-chat-attachment-preview-save]") && item) {
+        saveAttachmentAs(previewObjectUrl || item.url, item.name).catch(() => triggerDownload(previewObjectUrl || item.url, item.name));
+        return;
+      }
+      if (event.target.closest("[data-chat-attachment-preview-print]") && item) {
+        print(item);
+        return;
+      }
+      if (event.target.closest("[data-chat-attachment-preview-retry]") && item) {
+        void loadPreviewBlob(item);
+      }
     });
     document.body.append(previewRoot);
     setToolbarState();
@@ -290,9 +320,18 @@ export function createDashboardChatAttachmentPreview() {
   document.addEventListener("keydown", (event) => {
     keepFocusInsidePreview(event);
     if (!previewRoot) return;
-    if (event.key === "Escape") close();
-    if (event.key === "ArrowLeft") showIndex(state.index - 1);
-    if (event.key === "ArrowRight") showIndex(state.index + 1);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      if (canNavigatePreview()) showIndex(state.index - 1);
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      if (canNavigatePreview()) showIndex(state.index + 1);
+    }
   });
 
   return { open, close };

@@ -29,6 +29,32 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     return messages.filter((message) => message.threadId === normalizedThreadId);
   }
 
+  function getDashboardChatNewestThreadMessage(threadMessages = []) {
+    return threadMessages.reduce((latestMessage, message) => {
+      if (!latestMessage) {
+        return message;
+      }
+      const messageTime = Date.parse(message?.createdAt || "") || 0;
+      const latestTime = Date.parse(latestMessage?.createdAt || "") || 0;
+      if (messageTime !== latestTime) {
+        return messageTime > latestTime ? message : latestMessage;
+      }
+      const messageId = String(message?.id || "");
+      const latestId = String(latestMessage?.id || "");
+      return messageId.localeCompare(latestId, undefined, { numeric: true, sensitivity: "base" }) >= 0
+        ? message
+        : latestMessage;
+    }, null);
+  }
+
+  function getDashboardChatEmptyThreadActivityMs(apiThread = null, threadSettings = {}) {
+    return (
+      Date.parse(apiThread?.createdAt || apiThread?.created_at || "") ||
+      Date.parse(threadSettings.createdAt || threadSettings.created_at || "") ||
+      0
+    );
+  }
+
   function getDashboardChatThreadData(
     threadId,
     currentUser = getCurrentPlatformUser(),
@@ -58,7 +84,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     const apiThreads = getDashboardChatApiThreads().filter((thread) => !thread?.archivedAt && !thread?.archived_at);
     const apiThread = apiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
     const apiLastMessage = apiThread?.lastMessage ? normalizeDashboardApiMessage(apiThread.lastMessage, apiThread) : null;
-    const lastMessage = threadMessages.length ? threadMessages[threadMessages.length - 1] : apiLastMessage;
+    const lastMessage = getDashboardChatNewestThreadMessage(threadMessages) || apiLastMessage;
     const effectiveUnreadCount = threadMessages.length
       ? unreadCount
       : Number(apiThread?.unreadCount || 0) || 0;
@@ -72,7 +98,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
           Date.parse(lastMessage?.createdAt || "") || 0,
           Date.parse(apiThread?.lastMessageAt || "") || 0
         )
-      : Date.parse(apiThread?.createdAt || threadSettings.createdAt || threadSettings.created_at || "") || 0;
+      : getDashboardChatEmptyThreadActivityMs(apiThread, threadSettings);
 
     const managedTemplate = dashboardChatAdvancedThreadTemplates.find((template) => template.key === normalizedThreadId);
     const isDirectThread = !isTeamThread && !isManagedThread && normalizedThreadId.startsWith("dm:");
@@ -190,11 +216,6 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
       const secondPinned = Boolean(second.settings?.pinned);
       if (firstPinned !== secondPinned) {
         return firstPinned ? -1 : 1;
-      }
-      const firstIsSelectedEmptyGroup = first.threadId === selectedThreadId && first.type === "group" && !first.messageCount && !threadTime(first);
-      const secondIsSelectedEmptyGroup = second.threadId === selectedThreadId && second.type === "group" && !second.messageCount && !threadTime(second);
-      if (firstIsSelectedEmptyGroup !== secondIsSelectedEmptyGroup) {
-        return firstIsSelectedEmptyGroup ? -1 : 1;
       }
       const firstTime = threadTime(first);
       const secondTime = threadTime(second);

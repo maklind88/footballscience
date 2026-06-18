@@ -25,6 +25,7 @@ export function createDashboardChatComposerRuntime({
   setDashboardChatGroupCreatorOpen,
   setDashboardChatMessageSearchQuery,
   showDashboardChatWidgetToast,
+  syncDashboardChatGroupCreateForm = () => {},
   writeDashboardChatWidgetState,
   focusDashboardChatWidgetComposer,
   applyDashboardChatApiPayload,
@@ -265,10 +266,21 @@ export function createDashboardChatComposerRuntime({
     const legacyThreadId = createDashboardId("group");
     const participantIds = Array.from(new Set([currentUser.id, ...selectedParticipantIds].filter(Boolean)));
     const submitButton = form.querySelector("button[type='submit']");
+    const previousSubmitState = submitButton
+      ? {
+          disabled: submitButton.disabled,
+          ariaDisabled: submitButton.getAttribute("aria-disabled"),
+          textContent: submitButton.textContent,
+          title: submitButton.title,
+        }
+      : null;
 
     form.dataset.busy = "true";
+    form.setAttribute("aria-busy", "true");
     if (submitButton) {
       submitButton.disabled = true;
+      submitButton.setAttribute("aria-disabled", "true");
+      submitButton.title = "Creating group...";
       submitButton.textContent = "Creating...";
     }
 
@@ -378,10 +390,18 @@ export function createDashboardChatComposerRuntime({
       return null;
     } finally {
       delete form.dataset.busy;
+      form.removeAttribute("aria-busy");
       if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = "Create group";
+        submitButton.disabled = Boolean(previousSubmitState?.disabled);
+        if (previousSubmitState?.ariaDisabled === null) {
+          submitButton.removeAttribute("aria-disabled");
+        } else if (previousSubmitState?.ariaDisabled) {
+          submitButton.setAttribute("aria-disabled", previousSubmitState.ariaDisabled);
+        }
+        submitButton.title = previousSubmitState?.title || "";
+        submitButton.textContent = previousSubmitState?.textContent || "Create group";
       }
+      syncDashboardChatGroupCreateForm(form);
     }
   }
 

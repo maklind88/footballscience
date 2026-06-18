@@ -2389,6 +2389,7 @@ const dashboardChatComposerRuntime = createDashboardChatComposerRuntime({
   setDashboardChatGroupCreatorOpen,
   setDashboardChatMessageSearchQuery,
   showDashboardChatWidgetToast,
+  syncDashboardChatGroupCreateForm,
   writeDashboardChatWidgetState,
   focusDashboardChatWidgetComposer,
   uploadDashboardChatAttachmentFileWithClient,

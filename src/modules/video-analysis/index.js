@@ -1,5 +1,6 @@
 import { renderClipFilters } from "./components/ClipFilters.js";
 import { renderClipIntelligence } from "./components/ClipIntelligence.js";
+import { renderClipLibrary } from "./components/ClipLibrary.js";
 import { renderClipList } from "./components/ClipList.js";
 import { renderCodingTemplateBuilder } from "./components/CodingTemplateBuilder.js";
 import { renderPlayerClipDrawer } from "./components/PlayerClipDrawer.js";
@@ -20,6 +21,7 @@ import { createPlaylistRepository } from "./repositories/playlistRepository.js";
 import { createPresentationRepository } from "./repositories/presentationRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
 import { applyCodingButtonToClip, buildClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
+import { clipMatchesLibraryGroup } from "./services/clipLibraryService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
 import { clipMiniGamePrincipleIds, uniqueMiniGamePrincipleIds, withMiniGamePrinciples } from "./services/miniGamePrincipleService.js";
 import {
@@ -190,7 +192,7 @@ const analysisRoomTabs = Object.freeze([
   { id: "overview", label: "Overview", icon: "overview" },
   { id: "fs-player", label: "FS Player", icon: "play" },
   { id: "presentation", label: "Presentation", icon: "presentation" },
-  { id: "match-report", label: "Match Report", icon: "report" },
+  { id: "match-report", label: "Clip Library", icon: "report" },
 ]);
 
 const analysisRoomTabIcons = Object.freeze({
@@ -230,8 +232,7 @@ function renderAnalysisRoomTabIcon(icon) {
 }
 
 function analysisRoomTabEnabled(tab = {}) {
-  if (tab.id === "match-report") return false;
-  return ["overview", "fs-player", "presentation"].includes(tab.id);
+  return ["overview", "fs-player", "presentation", "match-report"].includes(tab.id);
 }
 
 function renderAnalysisRoomTabs(activeId = "fs-player") {
@@ -305,7 +306,9 @@ function renderAnalysisRoomHeader(context = {}, activeTabId = "fs-player") {
 
 function activeAnalysisRoomTab(state = {}) {
   if (state.view === "library") return "overview";
-  return state.activeAnalysisRoomTab === "presentation" ? "presentation" : "fs-player";
+  if (state.activeAnalysisRoomTab === "presentation") return "presentation";
+  if (state.activeAnalysisRoomTab === "match-report") return "match-report";
+  return "fs-player";
 }
 
 function renderFsPlayerWorkspace(displayState = {}) {
@@ -332,6 +335,14 @@ function renderPresentationWorkspace(state = {}) {
   return `
     <section class="video-analysis-presentation-workspace">
       ${renderPresentationModule(state)}
+    </section>
+  `;
+}
+
+function renderClipLibraryWorkspace(state = {}) {
+  return `
+    <section class="video-analysis-clip-library-workspace">
+      ${renderClipLibrary(state)}
     </section>
   `;
 }
@@ -677,7 +688,7 @@ function paint(root, state) {
   root.innerHTML = `
     <section class="analysis-room-shell">
       ${renderAnalysisRoomHeader(runtime?.context || {}, activeTabId)}
-      <section class="analysis-room-tab-panel" aria-label="${escapeHtml(activeTabId === "presentation" ? "Presentation" : activeTabId === "overview" ? "Overview" : "FS Player")}">
+      <section class="analysis-room-tab-panel" aria-label="${escapeHtml(activeTabId === "presentation" ? "Presentation" : activeTabId === "match-report" ? "Clip Library" : activeTabId === "overview" ? "Overview" : "FS Player")}">
         <section class="video-analysis-shell">
           ${state.message || state.error ? `
             <div class="video-analysis-notifications" aria-live="polite">
@@ -691,7 +702,11 @@ function paint(root, state) {
             </div>
           ` : ""}
           ${state.view === "library" ? renderVideoLibrary(displayState) : `
-            ${activeTabId === "presentation" ? renderPresentationWorkspace(state) : renderFsPlayerWorkspace(displayState)}
+            ${activeTabId === "presentation"
+              ? renderPresentationWorkspace(state)
+              : activeTabId === "match-report"
+                ? renderClipLibraryWorkspace(displayState)
+                : renderFsPlayerWorkspace(displayState)}
           `}
         </section>
       </section>
@@ -803,6 +818,7 @@ async function loadClips(nextFilters = null) {
       const payload = await run.clips.list({
         search: filters.search,
         phase: filters.phase,
+        subPhase: filters.subPhase,
         outcome: filters.outcome,
         miniGamePrincipleId: filters.miniGamePrincipleId,
         unit: filters.unit,
@@ -820,6 +836,9 @@ async function loadClips(nextFilters = null) {
     clips = clips.slice(0, CLIP_WORKSPACE_LIMIT);
     if (filters.playerId) {
       clips = clips.filter((clip) => (clip.players || []).some((player) => (player.player_id || player.playerId) === filters.playerId));
+    }
+    if (filters.subPhase) {
+      clips = clips.filter((clip) => String(clip.subPhase || clip.sub_phase || "") === filters.subPhase);
     }
     if (filters.tag) clips = clips.filter((clip) => clipHasTag(clip, filters.tag));
     if (filters.ownerId) clips = clips.filter((clip) => clipMatchesOwner(clip, filters.ownerId));
@@ -1825,7 +1844,7 @@ export function handleClick(event, context = {}) {
       libraryController().openLibraryView(context);
       return true;
     }
-    if (tabId === "fs-player" || tabId === "presentation") {
+    if (tabId === "fs-player" || tabId === "presentation" || tabId === "match-report") {
       run.store.update((state) => ({
         ...state,
         view: "workspace",
@@ -1834,6 +1853,7 @@ export function handleClick(event, context = {}) {
         error: "",
       }));
       if (tabId === "presentation") loadPresentationSources(null, { silent: true });
+      if (tabId === "match-report") loadClips(null);
       return true;
     }
     return true;
@@ -2569,7 +2589,7 @@ export function handleClick(event, context = {}) {
   if (reviewButton) {
     const clipId = reviewButton.dataset.videoAnalysisReview;
     run.store.update((state) => {
-      if (state.activeAnalysisRoomTab === "presentation") {
+      if (state.activeAnalysisRoomTab === "presentation" || state.activeAnalysisRoomTab === "match-report") {
         const clip = selectedClipFromPresentationSources(state, clipId);
         const sectionId = state.presentation?.activeSectionId || state.presentation?.current?.sections?.[0]?.id || "";
         const current = addClipToPresentation(state.presentation?.current, sectionId, clip);
@@ -2680,8 +2700,48 @@ export function handleClick(event, context = {}) {
     return true;
   }
   if (target.closest("[data-video-analysis-clear-filters]")) {
-    loadClips({ search: "", phase: "", playerId: "", ownerId: "", tag: "", miniGamePrincipleId: "", outcome: "", unit: "", descriptorValue: "" });
+    loadClips({ search: "", phase: "", subPhase: "", playerId: "", ownerId: "", tag: "", miniGamePrincipleId: "", outcome: "", unit: "", descriptorValue: "" });
     run.store.update((state) => ({ ...state, matrix: { ...(state.matrix || {}), selectedRow: "", selectedColumn: "" } }));
+    return true;
+  }
+  const clipLibraryGroupButton = target.closest("[data-video-analysis-clip-library-group]");
+  if (clipLibraryGroupButton) {
+    run.store.update((state) => ({
+      ...state,
+      clipLibrary: {
+        ...(state.clipLibrary || {}),
+        groupBy: clipLibraryGroupButton.dataset.videoAnalysisClipLibraryGroup || "subPhase",
+      },
+    }));
+    return true;
+  }
+  const clipLibraryAddGroupButton = target.closest("[data-video-analysis-clip-library-add-group]");
+  if (clipLibraryAddGroupButton) {
+    const groupBy = clipLibraryAddGroupButton.dataset.videoAnalysisClipLibraryAddGroup || "subPhase";
+    const value = clipLibraryAddGroupButton.dataset.videoAnalysisClipLibraryGroupValue || "";
+    run.store.update((state) => {
+      const visible = filterClipsForMatrix(
+        state.clips || [],
+        state.matrix?.mode,
+        state.matrix?.selectedRow,
+        state.matrix?.selectedColumn
+      );
+      const clips = visible.filter((clip) => clipMatchesLibraryGroup(clip, groupBy, value));
+      const sectionId = state.presentation?.activeSectionId || state.presentation?.current?.sections?.[0]?.id || "";
+      const current = addClipsToPresentation(state.presentation?.current || createDefaultPresentation(), sectionId, clips);
+      const firstItem = presentationQueue(current).find((item) => item.clipId === clips[0]?.id);
+      return {
+        ...state,
+        message: clips.length ? `${clips.length} clips added to Presentation.` : "No clips in this group.",
+        presentation: {
+          ...(state.presentation || {}),
+          current,
+          activeSectionId: sectionId,
+          selectedItemId: firstItem?.id || state.presentation?.selectedItemId || "",
+          selectedClipId: clips[0]?.id || state.presentation?.selectedClipId || "",
+        },
+      };
+    });
     return true;
   }
   const zoomButton = target.closest("[data-video-analysis-zoom]");

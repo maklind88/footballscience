@@ -99,6 +99,10 @@
 #analysisRoomWorkspace .video-analysis-fs-player-deck,
 #analysisRoomWorkspace .video-analysis-fs-player-timeline,
 #analysisRoomWorkspace .video-analysis-template-builder,
+#analysisRoomWorkspace .video-analysis-clip-library-hero,
+#analysisRoomWorkspace .video-analysis-clip-library-toolbar,
+#analysisRoomWorkspace .video-analysis-clip-library-controls,
+#analysisRoomWorkspace .video-analysis-clip-library-group,
 #analysisRoomWorkspace .video-analysis-presentation-library,
 #analysisRoomWorkspace .video-analysis-presentation-builder-v2,
 #analysisRoomWorkspace .video-analysis-presenter-mode {
@@ -106,6 +110,23 @@
   border-radius: 8px;
   background: var(--fs-apple-surface-strong);
   box-shadow: var(--fs-apple-shadow);
+}
+
+#analysisRoomWorkspace .video-analysis-clip-library-stat,
+#analysisRoomWorkspace .video-analysis-clip-library-card,
+#analysisRoomWorkspace .video-analysis-clip-library-toolbar input,
+#analysisRoomWorkspace .video-analysis-clip-library-toolbar select,
+#analysisRoomWorkspace .video-analysis-clip-library-toolbar button,
+#analysisRoomWorkspace .video-analysis-clip-library-saved button,
+#analysisRoomWorkspace .video-analysis-clip-library-group header button,
+#analysisRoomWorkspace .video-analysis-clip-library-card__actions button {
+  border-color: var(--fs-apple-line);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+#analysisRoomWorkspace .video-analysis-clip-library-group header {
+  background: rgba(247, 249, 248, 0.82);
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-deck {

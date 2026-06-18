@@ -436,6 +436,69 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
 });
 
+test("Video Analysis Clip Library groups clips by searchable football metadata", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__videoAnalysisInitialState = {
+      status: "ready",
+      view: "workspace",
+      activeAnalysisRoomTab: "match-report",
+      match: {
+        id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        title: "Match #11 @ Angel City - May 31st",
+      },
+      video: {
+        id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+      },
+      players: [
+        { id: "player-8", name: "Player Eight" },
+        { id: "player-6", name: "Player Six" },
+      ],
+      clips: [
+        {
+          id: "clip-build-third",
+          matchId: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+          videoId: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+          startMs: 12000,
+          endMs: 27000,
+          phase: "In Possession",
+          subPhase: "Build Up",
+          outcome: "Positive",
+          players: [{ player_id: "player-8", player_label: "Player Eight" }],
+          labels: [{ label_type: "mini_game_principle", label_value: "third-player", label_text: "Third Player" }],
+          notes: [{ note: "Finds the third player under pressure." }],
+        },
+        {
+          id: "clip-press-counter",
+          matchId: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+          videoId: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+          startMs: 42000,
+          endMs: 57000,
+          phase: "Out of Possession",
+          subPhase: "High Press",
+          outcome: "Development",
+          players: [{ player_id: "player-6", player_label: "Player Six" }],
+          labels: [{ label_type: "mini_game_principle", label_value: "counterpress-five-seconds", label_text: "Counterpress 5s" }],
+        },
+      ],
+    };
+  });
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  await expect(page.locator("[data-video-analysis-clip-library]")).toBeVisible();
+  await expect(page.locator(".analysis-room-tab.is-active")).toContainText("Clip Library");
+  await expect(page.locator(".video-analysis-clip-library-hero")).toContainText("Match #11 @ Angel City");
+  await expect(page.locator(".video-analysis-clip-library-card")).toHaveCount(2);
+  await expect(page.locator(".video-analysis-clip-library-group").first()).toContainText("Build Up");
+
+  await page.locator('[data-video-analysis-clip-library-group="miniGamePrinciple"]').click();
+  await expect(page.locator(".video-analysis-clip-library-group").first()).toContainText("Third Player");
+  await expect(page.locator(".video-analysis-clip-library-group").nth(1)).toContainText("Counterpress 5s");
+
+  await page.locator('[data-video-analysis-clip-library-add-group="miniGamePrinciple"][data-video-analysis-clip-library-group-value="Third Player"]').click();
+  await expect(page.locator(".video-analysis-toast")).toContainText("1 clips added to Presentation.");
+});
+
 test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) => {
   await page.addInitScript(() => {
     const phases = ["In Possession", "Out of Possession", "Offensive Transition", "Defensive Transition", "Set Pieces"];

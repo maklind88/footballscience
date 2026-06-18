@@ -456,6 +456,8 @@ test("coding template persistence stays behind repositories and API actions", ()
 test("analysis room tabs use icons without status labels", () => {
   const source = read("src/modules/video-analysis/index.js");
   const presentation = read("src/modules/video-analysis/components/PresentationModule.js");
+  const clipLibrary = read("src/modules/video-analysis/components/ClipLibrary.js");
+  const clipLibraryService = read("src/modules/video-analysis/services/clipLibraryService.js");
   const presentationSources = read("src/modules/video-analysis/components/PresentationSources.js");
   const presentationOutline = read("src/modules/video-analysis/components/PresentationOutline.js");
   const selectedClip = read("src/modules/video-analysis/components/SelectedClipInspector.js");
@@ -466,8 +468,16 @@ test("analysis room tabs use icons without status labels", () => {
   expect(source).toContain("analysis-room-tab-icon");
   expect(source).toContain("FS Player");
   expect(source).toContain("Presentation");
+  expect(source).toContain("Clip Library");
+  expect(source).toContain("renderClipLibrary");
+  expect(source).toContain("clipMatchesLibraryGroup");
   expect(source).not.toContain("Briefs");
   expect(source).not.toContain("renderPlaylistBuilder");
+  expect(clipLibrary).toContain("data-video-analysis-clip-library");
+  expect(clipLibrary).toContain("data-video-analysis-clip-library-group");
+  expect(clipLibrary).toContain("data-video-analysis-clip-library-add-group");
+  expect(clipLibraryService).toContain("buildClipLibraryGroups");
+  expect(clipLibraryService).toContain("clipMatchesLibraryGroup");
   expect(presentation).toContain("data-video-analysis-presentation-module");
   expect(presentation).toContain("renderPresentationSources");
   expect(presentation).toContain("renderPresentationOutline");

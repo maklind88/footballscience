@@ -57,7 +57,7 @@ export function filterClipsForMatrix(clips = [], mode = "", row = "", column = "
 }
 
 export function savedSearchTitle(filters = {}) {
-  const parts = [filters.phase, filters.outcome, filters.miniGamePrincipleId, filters.playerId, filters.unit]
+  const parts = [filters.phase, filters.subPhase, filters.outcome, filters.miniGamePrincipleId, filters.playerId, filters.unit]
     .map((value) => String(value || "").trim())
     .filter(Boolean);
   return parts.length ? parts.join(" / ") : "Video analysis search";

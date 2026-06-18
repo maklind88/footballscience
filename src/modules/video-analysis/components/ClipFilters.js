@@ -1,6 +1,7 @@
 import { miniGamePrinciples } from "../constants/miniGamePrinciples.js";
 import { videoAnalysisOutcomes } from "../constants/outcomes.js";
 import { videoAnalysisPhases } from "../constants/phases.js";
+import { videoAnalysisSubPhases } from "../constants/subPhases.js";
 import { optionList, escapeHtml } from "./renderHelpers.js";
 
 export function renderClipFilters(state = {}) {
@@ -10,6 +11,9 @@ export function renderClipFilters(state = {}) {
       <input type="search" placeholder="Search clips" data-video-analysis-filter="search" value="${escapeHtml(filters.search)}">
       <select data-video-analysis-filter="phase">
         <option value="">All phases</option>${optionList(videoAnalysisPhases, filters.phase)}
+      </select>
+      <select data-video-analysis-filter="subPhase">
+        <option value="">All sub-phases</option>${optionList(videoAnalysisSubPhases, filters.subPhase)}
       </select>
       <select data-video-analysis-filter="miniGamePrincipleId">
         <option value="">All principles</option>${optionList(miniGamePrinciples, filters.miniGamePrincipleId, (item) => item.id, (item) => item.label)}

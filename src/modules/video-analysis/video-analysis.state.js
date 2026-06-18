@@ -96,6 +96,9 @@ export function createInitialVideoAnalysisState(context = {}) {
     clips: [],
     savedSearches: [],
     selectedClipId: "",
+    clipLibrary: {
+      groupBy: "subPhase",
+    },
     template,
     codingSession: {
       mode: template.defaultMode,
@@ -131,6 +134,7 @@ export function createInitialVideoAnalysisState(context = {}) {
     filters: {
       search: "",
       phase: "",
+      subPhase: "",
       playerId: "",
       ownerId: "",
       tag: "",

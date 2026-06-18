@@ -51,6 +51,16 @@ function getDocument(activeRuntime) {
   return activeRuntime?.context?.win?.document || globalThis.document || null;
 }
 
+function ensureIdpProfileStyles(activeRuntime = runtime) {
+  const doc = getDocument(activeRuntime);
+  if (!doc?.head || doc.getElementById("idp-profile-focus-styles")) return;
+  const link = doc.createElement("link");
+  link.id = "idp-profile-focus-styles";
+  link.rel = "stylesheet";
+  link.href = "src/modules/idp/idp-profile-focus.css";
+  doc.head.appendChild(link);
+}
+
 function scrollWorkspaceTop(activeRuntime = runtime) {
   const root = getRoot(activeRuntime?.context);
   if (!root) return;
@@ -139,6 +149,7 @@ function paint(activeRuntime = runtime) {
   const root = getRoot(activeRuntime?.context);
   if (!root) return;
   ensureClipBankStyles(activeRuntime);
+  ensureIdpProfileStyles(activeRuntime);
   const searchFocus = captureSearchFocus(activeRuntime);
   root.innerHTML = renderMarkup(activeRuntime.store.getState(), {
     canEdit: canEdit(activeRuntime.context),

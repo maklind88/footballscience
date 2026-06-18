@@ -478,11 +478,20 @@ function pulseLevel(detail = {}) {
 
 function buildDevelopmentObjective(profile = {}, focus = null, idpInactive = false) {
   if (idpInactive) return "IDP is paused. Keep historical learning visible and reactivate when the player returns to full development work.";
-  const title = focus?.title || "Create current focus";
   const role = [profile.position, profile.role].filter(Boolean).join(" / ") || "their role";
   const phase = [focus?.linkedPhase, focus?.linkedSubPhase].filter(Boolean).join(" / ");
-  const gameContext = phase || `${focus?.category || "Tactical"} actions`;
-  return `${title} so the player can deliver clearer ${gameContext.toLowerCase()} in ${role}.`;
+  const context = phase || focus?.category || "the current focus";
+  const description = normalizeText(focus?.description, "");
+  if (description) {
+    const title = normalizeText(focus?.title, "");
+    let cleaned = title && description.toLowerCase().startsWith(title.toLowerCase())
+      ? description.slice(title.length).replace(/^[\s,.:;-]+/, "")
+      : description;
+    cleaned = cleaned.replace(/^so the player can\s+/i, "The player can ");
+    cleaned = cleaned.replace(/^so\s+/i, "To ");
+    return cleaned || description;
+  }
+  return `Collect match and training evidence for this focus, then decide the next coaching action for ${role}${context ? ` in ${context}` : ""}.`;
 }
 
 function buildSuccessCriteria(detail = {}, focus = null, profile = {}, idpInactive = false) {
@@ -970,14 +979,28 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
       </header>
       ${idpInactive ? `<div class="idp-notice is-warning">IDP is inactive from Squad Room. Historical observations, clips and ownership remain visible here.</div>` : ""}
       <section class="idp-development-board">
-        <article class="idp-focus-story">
-          <div class="idp-section-kicker">Current Focus</div>
-          <h3>${escapeHtml(idpInactive ? "No active IDP" : focus?.title || "Create current focus")}</h3>
-          <p>${escapeHtml(idpInactive ? "Inactive in Squad Room" : [focus?.category, focus?.linkedPhase, focus?.linkedSubPhase].filter(Boolean).join(" / ") || "Tactical")}</p>
-          <div class="idp-development-objective">${escapeHtml(buildDevelopmentObjective(profile, focus, idpInactive))}</div>
-          <div class="idp-strength-row">
-            ${strengths.length ? strengths.map((item) => `<span>${escapeHtml(item)}</span>`).join("") : `<span>Strengths not captured</span>`}
+        <article class="idp-focus-story idp-focus-clarity-card">
+          <div class="idp-focus-clarity-head">
+            <div>
+              <div class="idp-section-kicker">Current Focus</div>
+              <h3>${escapeHtml(idpInactive ? "No active IDP" : focus?.title || "Create current focus")}</h3>
+            </div>
+            <div class="idp-focus-meta">
+              <span>${escapeHtml(idpInactive ? "Paused" : focus?.category || "Tactical")}</span>
+              <span>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</span>
+              <span>${escapeHtml(reviewUrgencyLabel(profile, focus))}</span>
+            </div>
           </div>
+          <div class="idp-focus-coach-cue">
+            <span>Coach cue</span>
+            <strong>${escapeHtml(buildDevelopmentObjective(profile, focus, idpInactive))}</strong>
+          </div>
+          ${strengths.length ? `
+            <div class="idp-focus-strengths">
+              <span>Player strengths</span>
+              <div class="idp-strength-row">${strengths.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+            </div>
+          ` : ""}
           <div class="idp-section-kicker">Success Criteria</div>
           ${renderCriteriaTrack(criteria)}
         </article>

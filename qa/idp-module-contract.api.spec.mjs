@@ -25,6 +25,7 @@ test("idp module keeps the required isolated file structure", () => {
     "src/modules/idp/idp-state.mjs",
     "src/modules/idp/idp.css",
     "src/modules/idp/idp-clip-bank.css",
+    "src/modules/idp/idp-profile-focus.css",
     "src/modules/idp/constants/idp-options.mjs",
     "src/modules/idp/domain/idp.models.mjs",
     "src/modules/idp/services/idp-api-service.mjs",
@@ -104,6 +105,9 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("data-idp-action=\"focus\"");
   expect(profileHtml).toContain("data-idp-action=\"evidence\"");
   expect(profileHtml).toContain("Player Snapshot");
+  expect(profileHtml).toContain("idp-focus-clarity-card");
+  expect(profileHtml).toContain("Coach cue");
+  expect(profileHtml).not.toContain("Receive under pressure so the player");
   expect(profileHtml).toContain("Progress Pulse");
   expect(profileHtml).not.toContain("idp-stage-scoreboard");
   expect(profileHtml).not.toContain("Player development pulse");
@@ -111,7 +115,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("Development Lens");
   expect(profileHtml).toContain("Signal Map");
   expect(profileHtml).toContain("Player Voice");
-  expect(profileHtml).toContain("development-objective");
+  expect(profileHtml).toContain("idp-focus-coach-cue");
   expect(profileHtml).toContain("Add observation");
   expect(profileHtml).toContain("Observations");
   expect(profileHtml).toContain("Clip Bank");

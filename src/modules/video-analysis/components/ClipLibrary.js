@@ -4,13 +4,12 @@ import { videoAnalysisSubPhases } from "../constants/subPhases.js";
 import {
   buildClipLibraryGroups,
   buildClipLibraryStats,
-  clipEndMs,
   clipLibraryGroupModes,
-  clipStartMs,
   playerEntries,
 } from "../services/clipLibraryService.js";
 import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
+import { renderClipPreviewOverlay } from "./ClipLibraryPreview.js";
 import { escapeHtml, optionList } from "./renderHelpers.js";
 
 function primaryPlayerLabel(clip = {}) {
@@ -91,6 +90,28 @@ function renderSavedSearches(searches = []) {
   `;
 }
 
+function selectedClipIds(state = {}) {
+  return new Set((Array.isArray(state.clipLibrary?.selectedClipIds) ? state.clipLibrary.selectedClipIds : [])
+    .map((id) => String(id || ""))
+    .filter(Boolean));
+}
+
+function renderOrganizer(state = {}) {
+  const count = selectedClipIds(state).size;
+  return `
+    <section class="video-analysis-clip-library-organizer" aria-label="Clip organizer">
+      <div>
+        <p class="video-analysis-kicker">Organizer</p>
+        <strong>${count ? `${count} selected` : "Select clips to play in order"}</strong>
+      </div>
+      <div>
+        <button type="button" data-video-analysis-clip-library-play-selected ${count ? "" : "disabled"}>Play selected</button>
+        <button type="button" data-video-analysis-clip-library-clear-selected ${count ? "" : "disabled"}>Clear</button>
+      </div>
+    </section>
+  `;
+}
+
 function renderPrinciples(clip = {}) {
   const principles = clipMiniGamePrincipleLabels(clip);
   if (!principles.length) return `<span class="video-analysis-clip-library-muted">No MG principle</span>`;
@@ -135,11 +156,18 @@ function clipSourceLine(clip = {}, state = {}) {
 function renderClip(clip = {}, state = {}) {
   const note = clipNotes(clip);
   const descriptors = clipDescriptorSummary(clip);
+  const clipId = String(clip.id || "");
+  const isSelected = selectedClipIds(state).has(clipId);
   return `
-    <article class="video-analysis-clip-library-card" data-video-analysis-clip="${escapeHtml(clip.id)}">
-      <button type="button" class="video-analysis-clip-library-card__time" data-video-analysis-seek="${escapeHtml(clip.id)}">
-        ${escapeHtml(formatVideoTime(clipStartMs(clip)))}
-      </button>
+    <article class="video-analysis-clip-library-card${isSelected ? " is-selected" : ""}" data-video-analysis-clip="${escapeHtml(clipId)}">
+      <label class="video-analysis-clip-library-card__select" aria-label="Select clip for organizer">
+        <input
+          type="checkbox"
+          data-video-analysis-clip-library-select="${escapeHtml(clipId)}"
+          ${isSelected ? "checked" : ""}
+        >
+        <span aria-hidden="true"></span>
+      </label>
       <div class="video-analysis-clip-library-card__body">
         <div class="video-analysis-clip-library-card__primary">
           <strong>${escapeHtml(clipTitle(clip))}</strong>
@@ -153,8 +181,8 @@ function renderClip(clip = {}, state = {}) {
         </div>
       </div>
       <div class="video-analysis-clip-library-card__actions">
-        <button type="button" data-video-analysis-clip-library-play="${escapeHtml(clip.id)}">Play</button>
-        <button type="button" data-video-analysis-review="${escapeHtml(clip.id)}">Presentation</button>
+        <button type="button" data-video-analysis-clip-library-play="${escapeHtml(clipId)}">Play</button>
+        <button type="button" data-video-analysis-review="${escapeHtml(clipId)}">Presentation</button>
       </div>
     </article>
   `;
@@ -183,51 +211,9 @@ function renderGroup(group = {}, groupBy = "subPhase", state = {}) {
   `;
 }
 
-function renderClipPreviewOverlay(state = {}, clips = []) {
-  const previewClipId = String(state.clipLibrary?.previewClipId || "");
-  if (!previewClipId) return "";
-  const clip = clips.find((item) => item.id === previewClipId) || {};
-  const startMs = clipStartMs(clip);
-  const endMs = clipEndMs(clip);
-  const hasPlayableVideo = Boolean(state.videoRef?.objectUrl);
-  return `
-    <div class="video-analysis-clip-library-preview" data-video-analysis-clip-library-preview role="dialog" aria-modal="true" aria-label="Clip preview">
-      <section class="video-analysis-clip-library-preview__panel">
-        <header class="video-analysis-clip-library-preview__header">
-          <div>
-            <p class="video-analysis-kicker">Clip Preview</p>
-            <h3>${escapeHtml(clipTitle(clip))}</h3>
-            <span>${escapeHtml(clipSourceLine(clip, state))}</span>
-          </div>
-          <button type="button" data-video-analysis-clip-library-preview-close aria-label="Close clip preview">Close</button>
-        </header>
-        <div class="video-analysis-clip-library-preview__meta">
-          <strong>${escapeHtml(`${formatVideoTime(startMs)} - ${formatVideoTime(endMs)}`)}</strong>
-          <span>${escapeHtml(primaryPlayerLabel(clip))} · ${escapeHtml(clipOutcome(clip))}</span>
-          ${renderPrinciples(clip)}
-        </div>
-        ${
-          hasPlayableVideo
-            ? `<video
-                class="video-analysis-clip-library-preview__video"
-                data-video-analysis-clip-library-video
-                src="${escapeHtml(state.videoRef.objectUrl)}"
-                playsinline
-                preload="metadata"
-                controls
-              ></video>`
-            : `<div class="video-analysis-clip-library-preview__empty">
-                <strong>Local file is not connected on this device.</strong>
-                <button type="button" data-video-analysis-restore-local-file>Reconnect local file</button>
-              </div>`
-        }
-      </section>
-    </div>
-  `;
-}
-
 export function renderClipLibrary(state = {}) {
   const clips = Array.isArray(state.clips) ? state.clips : [];
+  const previewClips = Array.isArray(state.allClips) ? state.allClips : clips;
   const groupBy = state.clipLibrary?.groupBy || "subPhase";
   const stats = buildClipLibraryStats(clips);
   const groups = buildClipLibraryGroups(clips, groupBy);
@@ -254,6 +240,7 @@ export function renderClipLibrary(state = {}) {
         </div>
         ${renderSavedSearches(state.savedSearches || [])}
       </section>
+      ${renderOrganizer(state)}
       <section class="video-analysis-clip-library-groups">
         ${groups.length ? groups.map((group) => renderGroup(group, groupBy, state)).join("") : `
           <section class="video-analysis-clip-library-empty">
@@ -261,7 +248,7 @@ export function renderClipLibrary(state = {}) {
           </section>
         `}
       </section>
-      ${renderClipPreviewOverlay(state, clips)}
+      ${renderClipPreviewOverlay(state, previewClips)}
     </section>
   `;
 }

@@ -460,6 +460,7 @@ test("analysis room tabs use icons without status labels", () => {
   const source = read("src/modules/video-analysis/index.js");
   const presentation = read("src/modules/video-analysis/components/PresentationModule.js");
   const clipLibrary = read("src/modules/video-analysis/components/ClipLibrary.js");
+  const clipLibraryPreview = read("src/modules/video-analysis/components/ClipLibraryPreview.js");
   const clipLibraryService = read("src/modules/video-analysis/services/clipLibraryService.js");
   const presentationSources = read("src/modules/video-analysis/components/PresentationSources.js");
   const presentationOutline = read("src/modules/video-analysis/components/PresentationOutline.js");
@@ -480,10 +481,13 @@ test("analysis room tabs use icons without status labels", () => {
   expect(clipLibrary).toContain("data-video-analysis-clip-library-group");
   expect(clipLibrary).toContain("data-video-analysis-clip-library-add-group");
   expect(clipLibrary).toContain("data-video-analysis-clip-library-play");
-  expect(clipLibrary).toContain("data-video-analysis-clip-library-preview");
-  expect(clipLibrary).toContain("data-video-analysis-clip-library-video");
+  expect(clipLibrary).toContain("data-video-analysis-clip-library-select");
+  expect(clipLibrary).toContain("data-video-analysis-clip-library-play-selected");
+  expect(clipLibraryPreview).toContain("data-video-analysis-clip-library-preview");
+  expect(clipLibraryPreview).toContain("data-video-analysis-clip-library-video");
   expect(source).toContain("setupClipLibraryPreview");
   expect(clipLibraryService).toContain("buildClipLibraryGroups");
+  expect(clipLibraryService).toContain("buildClipLibraryClipOrder");
   expect(clipLibraryService).toContain("clipMatchesLibraryGroup");
   expect(presentation).toContain("data-video-analysis-presentation-module");
   expect(presentation).toContain("renderPresentationSources");

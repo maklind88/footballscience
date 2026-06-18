@@ -510,8 +510,21 @@ test("Video Analysis Clip Library groups clips by searchable football metadata",
   await expect(page.locator(".analysis-room-tab.is-active")).toContainText("Clip Library");
   await expect(page.locator(".video-analysis-clip-library-hero")).toContainText("Match #11 @ Angel City");
   await expect(page.locator(".video-analysis-clip-library-card")).toHaveCount(2);
+  await expect(page.locator(".video-analysis-clip-library-card__time")).toHaveCount(0);
+  await expect(page.locator('[data-video-analysis-clip-library-select="clip-build-third"]')).toBeVisible();
+  await expect(page.locator("[data-video-analysis-clip-library-play-selected]")).toBeDisabled();
   await expect(page.locator(".video-analysis-clip-library-card").first()).toContainText("Match · Match #11 @ Angel City - May 31st · 31/05/2026");
   await expect(page.locator(".video-analysis-clip-library-group").first()).toContainText("Build Up");
+
+  await page.locator('[data-video-analysis-clip-library-select="clip-build-third"]').check({ force: true });
+  await page.locator('[data-video-analysis-clip-library-select="clip-press-counter"]').check({ force: true });
+  await expect(page.locator(".video-analysis-clip-library-organizer")).toContainText("2 selected");
+  await page.locator("[data-video-analysis-clip-library-play-selected]").click();
+  await expect(page.locator("[data-video-analysis-clip-library-preview]")).toBeVisible();
+  await expect(page.locator("[data-video-analysis-clip-library-preview]")).toContainText("Organizer · 1 of 2");
+  await expect(page.locator("[data-video-analysis-clip-library-preview]")).toContainText("0:00:12 - 0:00:27");
+  await page.locator("[data-video-analysis-clip-library-preview-close]").click();
+  await expect(page.locator("[data-video-analysis-clip-library-preview]")).toHaveCount(0);
 
   await page.locator('[data-video-analysis-clip-library-play="clip-build-third"]').click();
   await expect(page.locator("[data-video-analysis-clip-library-preview]")).toBeVisible();

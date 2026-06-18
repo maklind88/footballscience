@@ -88,6 +88,20 @@ export function buildClipLibraryGroups(clips = [], groupBy = "subPhase") {
     });
 }
 
+export function buildClipLibraryClipOrder(clips = [], groupBy = "subPhase") {
+  const seen = new Set();
+  const orderedIds = [];
+  for (const group of buildClipLibraryGroups(clips, groupBy)) {
+    for (const clip of group.clips || []) {
+      const id = String(clip?.id || "").trim();
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      orderedIds.push(id);
+    }
+  }
+  return orderedIds;
+}
+
 export function buildClipLibraryStats(clips = []) {
   return {
     clips: clips.length,

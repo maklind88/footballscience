@@ -98,6 +98,10 @@ export function createInitialVideoAnalysisState(context = {}) {
     selectedClipId: "",
     clipLibrary: {
       groupBy: "subPhase",
+      selectedClipIds: [],
+      previewClipId: "",
+      previewQueueIds: [],
+      previewActiveIndex: 0,
     },
     template,
     codingSession: {

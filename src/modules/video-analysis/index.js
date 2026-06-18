@@ -21,7 +21,7 @@ import { createPlaylistRepository } from "./repositories/playlistRepository.js";
 import { createPresentationRepository } from "./repositories/presentationRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
 import { applyCodingButtonToClip, buildClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
-import { clipEndMs, clipMatchesLibraryGroup, clipStartMs } from "./services/clipLibraryService.js";
+import { buildClipLibraryClipOrder, clipEndMs, clipMatchesLibraryGroup, clipStartMs } from "./services/clipLibraryService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
 import { clipMiniGamePrincipleIds, uniqueMiniGamePrincipleIds, withMiniGamePrinciples } from "./services/miniGamePrincipleService.js";
 import {
@@ -978,6 +978,26 @@ function selectedClipFromPresentationSources(state = {}, clipId = "") {
     || { id: clipId };
 }
 
+function clipLibraryPreviewPatch(state = {}, clipIds = [], activeIndex = 0) {
+  const queueIds = clipIds.map((id) => String(id || "")).filter(Boolean);
+  const safeIndex = Math.min(Math.max(0, activeIndex), Math.max(0, queueIds.length - 1));
+  const clipId = queueIds[safeIndex] || queueIds[0] || "";
+  const clip = selectedClipFromPresentationSources(state, clipId);
+  return {
+    selectedClipId: clipId,
+    clipLibrary: {
+      ...(state.clipLibrary || {}),
+      previewClipId: clipId,
+      previewQueueIds: queueIds,
+      previewActiveIndex: safeIndex,
+    },
+    timeline: {
+      ...(state.timeline || {}),
+      playheadMs: clipStartMs(clip),
+    },
+  };
+}
+
 function setupClipLibraryPreview(root, state = {}) {
   const previewClipId = String(state.clipLibrary?.previewClipId || "");
   const video = root?.querySelector?.("[data-video-analysis-clip-library-video]");
@@ -999,6 +1019,19 @@ function setupClipLibraryPreview(root, state = {}) {
   video.addEventListener("timeupdate", () => {
     const limit = Number(video.dataset.videoAnalysisPreviewEnd || endSeconds);
     if (Number.isFinite(limit) && Number(video.currentTime || 0) >= limit) {
+      const queueIds = (Array.isArray(state.clipLibrary?.previewQueueIds) ? state.clipLibrary.previewQueueIds : [])
+        .map((id) => String(id || ""))
+        .filter(Boolean);
+      const activeIndex = Math.max(0, Number(state.clipLibrary?.previewActiveIndex || 0));
+      const nextIndex = activeIndex + 1;
+      if (queueIds.length > 1 && nextIndex < queueIds.length && video.dataset.videoAnalysisPreviewAdvancing !== "1") {
+        video.dataset.videoAnalysisPreviewAdvancing = "1";
+        runtime?.store?.update((current) => ({
+          ...current,
+          ...clipLibraryPreviewPatch(current, queueIds, nextIndex),
+        }));
+        return;
+      }
       video.pause?.();
       video.currentTime = limit;
     }
@@ -2653,21 +2686,43 @@ export function handleClick(event, context = {}) {
   if (clipLibraryPlayButton) {
     const clipId = clipLibraryPlayButton.dataset.videoAnalysisClipLibraryPlay || "";
     run.store.update((state) => {
-      const clip = selectedClipFromPresentationSources(state, clipId);
-      const startMs = clipStartMs(clip);
       return {
         ...state,
-        selectedClipId: clipId,
-        clipLibrary: {
-          ...(state.clipLibrary || {}),
-          previewClipId: clipId,
-        },
-        timeline: {
-          ...(state.timeline || {}),
-          playheadMs: startMs,
-        },
+        ...clipLibraryPreviewPatch(state, [clipId], 0),
       };
     });
+    return true;
+  }
+  if (target.closest("[data-video-analysis-clip-library-play-selected]")) {
+    run.store.update((state) => {
+      const selectedIds = new Set((Array.isArray(state.clipLibrary?.selectedClipIds) ? state.clipLibrary.selectedClipIds : [])
+        .map((id) => String(id || ""))
+        .filter(Boolean));
+      if (!selectedIds.size) return { ...state, message: "Select clips first." };
+      const visibleClips = filterClipsForMatrix(
+        state.clips || [],
+        state.matrix?.mode,
+        state.matrix?.selectedRow,
+        state.matrix?.selectedColumn
+      );
+      const orderedVisibleIds = buildClipLibraryClipOrder(visibleClips, state.clipLibrary?.groupBy || "subPhase");
+      const hiddenSelectedIds = [...selectedIds].filter((id) => !orderedVisibleIds.includes(id));
+      const queueIds = [...orderedVisibleIds.filter((id) => selectedIds.has(id)), ...hiddenSelectedIds];
+      return {
+        ...state,
+        ...clipLibraryPreviewPatch(state, queueIds, 0),
+      };
+    });
+    return true;
+  }
+  if (target.closest("[data-video-analysis-clip-library-clear-selected]")) {
+    run.store.update((state) => ({
+      ...state,
+      clipLibrary: {
+        ...(state.clipLibrary || {}),
+        selectedClipIds: [],
+      },
+    }));
     return true;
   }
   if (target.closest("[data-video-analysis-clip-library-preview-close]")) {
@@ -2676,6 +2731,8 @@ export function handleClick(event, context = {}) {
       clipLibrary: {
         ...(state.clipLibrary || {}),
         previewClipId: "",
+        previewQueueIds: [],
+        previewActiveIndex: 0,
       },
     }));
     return true;
@@ -3160,6 +3217,26 @@ export function handleChange(event, context = {}) {
   const typeLink = target.closest("[data-video-analysis-link-type]");
   if (typeLink) {
     libraryController().saveMatchLink(typeLink.dataset.videoAnalysisLinkType, { eventType: typeLink.value }, context);
+    return true;
+  }
+  const clipLibrarySelect = target.closest("[data-video-analysis-clip-library-select]");
+  if (clipLibrarySelect) {
+    const clipId = String(clipLibrarySelect.dataset.videoAnalysisClipLibrarySelect || "").trim();
+    if (!clipId) return true;
+    run.store.update((state) => {
+      const selected = new Set((Array.isArray(state.clipLibrary?.selectedClipIds) ? state.clipLibrary.selectedClipIds : [])
+        .map((id) => String(id || ""))
+        .filter(Boolean));
+      if (clipLibrarySelect.checked) selected.add(clipId);
+      else selected.delete(clipId);
+      return {
+        ...state,
+        clipLibrary: {
+          ...(state.clipLibrary || {}),
+          selectedClipIds: [...selected],
+        },
+      };
+    });
     return true;
   }
   return handleInput(event, context);

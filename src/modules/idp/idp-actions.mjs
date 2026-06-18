@@ -192,7 +192,19 @@ export function createIdpActions({ store, api, context = {} }) {
 
   async function selectPlayer(playerId) {
     const safePlayerId = normalizeText(playerId, 160);
-    store.setState({ ui: { selectedPlayerId: safePlayerId, error: "" } });
+    store.setState({
+      ui: {
+        selectedPlayerId: safePlayerId,
+        error: "",
+        selectedClipBankIds: [],
+        clipPreviewOpen: false,
+        clipPreviewQueueIds: [],
+        clipPreviewActiveIndex: 0,
+        clipPreviewStatus: "",
+        clipPreviewMessage: "",
+        clipPreviewObjectUrl: "",
+      },
+    });
     const fallbackPlayer = findSquadPlayer(getSquadState(), safePlayerId);
     const fallbackDetail = fallbackPlayer ? buildLegacyPlayerDetail(fallbackPlayer) : null;
     if (fallbackPlayer) {

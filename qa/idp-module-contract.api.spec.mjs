@@ -19,9 +19,12 @@ test("idp module keeps the required isolated file structure", () => {
     "src/modules/idp/index.mjs",
     "src/modules/idp/idp-actions.mjs",
     "src/modules/idp/idp-adapter.mjs",
+    "src/modules/idp/idp-clip-bank-renderer.mjs",
+    "src/modules/idp/idp-clip-preview-controller.mjs",
     "src/modules/idp/idp-renderer.mjs",
     "src/modules/idp/idp-state.mjs",
     "src/modules/idp/idp.css",
+    "src/modules/idp/idp-clip-bank.css",
     "src/modules/idp/constants/idp-options.mjs",
     "src/modules/idp/domain/idp.models.mjs",
     "src/modules/idp/services/idp-api-service.mjs",
@@ -124,6 +127,74 @@ test("idp renderer separates the overview from the player development profile", 
   expect(observationHtml).toContain("Observation type");
   expect(observationHtml).toContain("Add observation");
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, staffOptions)).toContain("data-idp-complete-review");
+});
+
+test("idp clip bank is a date-sorted organizer with play queue metadata", () => {
+  const profileState = {
+    dashboardPlayers: [],
+    playerDetail: {
+      profile: { playerId: "p1", playerName: "Player One", position: "CM", role: "8" },
+      focuses: [],
+      clipBank: [
+        {
+          id: "bank-old",
+          clipInstanceId: "b8f41622-57b5-4ed6-908f-b6d6d1e5fe30",
+          matchTitle: "Training + Lift",
+          matchDate: "2026-06-15",
+          eventType: "training",
+          startMs: 930000,
+          endMs: 945000,
+          phase: "In Possession",
+          subPhase: "Build With GK",
+          miniGamePrinciples: [{ label: "Third Player", value: "third-player" }],
+          status: "New",
+        },
+        {
+          id: "bank-new",
+          clipInstanceId: "d6b00c58-9f33-4a0e-814c-30288b24fc21",
+          matchTitle: "NCC - Louisville",
+          matchDate: "2026-06-27",
+          eventType: "match",
+          startMs: 1178000,
+          endMs: 1193000,
+          phase: "In Possession",
+          subPhase: "Build Up",
+          miniGamePrinciples: [{ label: "Counterpress 5s", value: "counterpress-5s" }],
+          outcome: "Positive",
+          status: "New",
+        },
+      ],
+      evidence: [],
+      reviews: [],
+      nextActions: [],
+      milestones: [],
+      ownership: [],
+    },
+    sync: {},
+    ui: {
+      selectedPlayerId: "p1",
+      selectedClipBankIds: ["bank-new"],
+      clipPreviewOpen: true,
+      clipPreviewQueueIds: ["bank-new", "bank-old"],
+      clipPreviewActiveIndex: 0,
+      clipPreviewStatus: "ready",
+      clipPreviewObjectUrl: "blob:local-video-preview",
+    },
+  };
+
+  const html = renderIdpWorkspace(profileState, { canEdit: true, teamName: "North Carolina Courage" });
+  expect(html).toContain("data-idp-clip-play-selected");
+  expect(html).toContain("Play selected (1)");
+  expect(html).toContain("data-idp-clip-play=\"bank-new\"");
+  expect(html).toContain("NCC - Louisville");
+  expect(html).toContain("Training + Lift");
+  expect(html.indexOf("NCC - Louisville")).toBeLessThan(html.indexOf("Training + Lift"));
+  expect(html).toContain("2026-06-27");
+  expect(html).toContain("Build Up / In Possession");
+  expect(html).toContain("Counterpress 5s");
+  expect(html).toContain("data-idp-clip-preview-video");
+  expect(html).toContain("1 of 2");
+  expect(html).not.toContain("b8f41622-57b5-4ed6-908f-b6d6d1e5fe30");
 });
 
 test("idp adapter derives read-only fallback from Squad state", () => {

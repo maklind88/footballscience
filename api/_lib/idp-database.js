@@ -11,6 +11,7 @@ const {
   patchRows,
   selectRows,
 } = require("./idp-database-core.js");
+const { enrichClipBankItems } = require("./idp-clip-bank-metadata.js");
 
 const IDP_SCHEMA = "footballscience-idp-v1";
 const CATEGORIES = new Set(["Technical", "Tactical", "Physical", "Psychological", "Leadership"]);
@@ -215,13 +216,14 @@ async function getPlayerDevelopment(query, actor) {
   ]);
   const failed = [profiles, focuses, clipBank, evidence, reviews, actions, milestones, ownership].find((result) => !result.ok);
   if (failed) return failed;
+  const enrichedClipBank = await enrichClipBankItems(clipBank.payload, scope);
   return {
     ok: true,
     payload: {
       schema: IDP_SCHEMA,
       profile: profiles.payload[0] || null,
       focuses: focuses.payload,
-      clipBank: clipBank.payload,
+      clipBank: enrichedClipBank,
       evidence: evidence.payload,
       reviews: reviews.payload,
       nextActions: actions.payload,

@@ -8,6 +8,13 @@ export const idpInitialUiState = Object.freeze({
   message: "",
   error: "",
   loading: false,
+  selectedClipBankIds: [],
+  clipPreviewOpen: false,
+  clipPreviewQueueIds: [],
+  clipPreviewActiveIndex: 0,
+  clipPreviewStatus: "",
+  clipPreviewMessage: "",
+  clipPreviewObjectUrl: "",
 });
 
 export const idpInitialSyncState = Object.freeze({
@@ -36,7 +43,16 @@ export function createIdpStore(initialState = {}) {
       state = {
         ...state,
         ...patch,
-        ui: { ...state.ui, ...(patch.ui || {}) },
+        ui: {
+          ...state.ui,
+          ...(patch.ui || {}),
+          selectedClipBankIds: Array.isArray(patch.ui?.selectedClipBankIds)
+            ? patch.ui.selectedClipBankIds
+            : state.ui.selectedClipBankIds,
+          clipPreviewQueueIds: Array.isArray(patch.ui?.clipPreviewQueueIds)
+            ? patch.ui.clipPreviewQueueIds
+            : state.ui.clipPreviewQueueIds,
+        },
         sync: patch.sync ? { ...state.sync, ...patch.sync } : state.sync,
       };
       emit();

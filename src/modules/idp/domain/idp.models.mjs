@@ -15,6 +15,21 @@ export function normalizeDate(value = "") {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
 }
 
+function normalizeNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.round(number)) : fallback;
+}
+
+function normalizeLabelList(values = []) {
+  return Array.isArray(values)
+    ? values.map((entry) => ({
+      type: normalizeText(entry.type || entry.label_type || "mini_game_principle", 80),
+      value: normalizeText(entry.value || entry.label_value, 160),
+      label: normalizeText(entry.label || entry.label_text || entry.value || entry.label_value, 180),
+    })).filter((entry) => entry.value || entry.label)
+    : [];
+}
+
 function pickOption(value, options, fallback) {
   const text = normalizeText(value, 80);
   return options.includes(text) ? text : fallback;
@@ -59,11 +74,29 @@ export function normalizeIdpFocus(value = {}) {
 export function normalizeIdpClipBankItem(value = {}) {
   return {
     id: normalizeText(value.id, 120),
+    organizationId: normalizeText(value.organizationId || value.organization_id, 160),
+    teamId: normalizeText(value.teamId || value.team_id, 160),
     playerId: normalizeText(value.playerId || value.player_id, 160),
     clipInstanceId: normalizeText(value.clipInstanceId || value.clip_instance_id || value.clipId, 160),
     linkedFocusId: normalizeText(value.linkedFocusId || value.linked_focus_id, 160),
     status: pickOption(value.status, idpClipBankStatuses, "New"),
     sourceModule: normalizeText(value.sourceModule || value.source_module || "video-analysis", 80),
+    matchId: normalizeText(value.matchId || value.match_id, 160),
+    videoId: normalizeText(value.videoId || value.video_id, 160),
+    matchTitle: normalizeText(value.matchTitle || value.match_title || value.title, 180),
+    matchDate: normalizeDate(value.matchDate || value.match_date || value.date) || normalizeText(value.matchDate || value.match_date, 40),
+    eventType: normalizeText(value.eventType || value.event_type || "training", 40),
+    opponent: normalizeText(value.opponent, 180),
+    videoTitle: normalizeText(value.videoTitle || value.video_title, 180),
+    localVideoIdentifier: normalizeText(value.localVideoIdentifier || value.local_video_identifier, 240),
+    startMs: normalizeNumber(value.startMs || value.start_ms, 0),
+    endMs: normalizeNumber(value.endMs || value.end_ms, 0),
+    phase: normalizeText(value.phase, 80),
+    subPhase: normalizeText(value.subPhase || value.sub_phase, 80),
+    outcome: normalizeText(value.outcome, 40),
+    miniGamePrincipleId: normalizeText(value.miniGamePrincipleId || value.mini_game_principle_id, 120),
+    miniGamePrinciples: normalizeLabelList(value.miniGamePrinciples || value.mini_game_principles || value.labels),
+    durationMs: normalizeNumber(value.durationMs || value.duration_ms, 0),
     createdAt: normalizeText(value.createdAt || value.created_at, 80),
     reviewedAt: normalizeText(value.reviewedAt || value.reviewed_at, 80),
   };

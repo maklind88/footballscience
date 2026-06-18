@@ -3,6 +3,10 @@ import {
   idpEvidenceTypes,
   idpFocusStatuses,
 } from "./constants/idp-options.mjs";
+import {
+  renderClipBankOrganizer,
+  renderIdpClipPreviewOverlay,
+} from "./idp-clip-bank-renderer.mjs";
 
 const defaultUiState = Object.freeze({
   selectedPlayerId: "",
@@ -851,30 +855,8 @@ function renderSignalRadar(observationMix = [], total = 0) {
   `;
 }
 
-function renderProfileFilmstrip(detail = {}, canEdit = false) {
-  const clips = detail.clipBank || [];
-  return `
-    <article class="idp-filmstrip-panel">
-      <div class="idp-section-head">
-        <div>
-          <span>Clip Bank</span>
-          <strong>${escapeHtml(String(clips.length))} waiting moments</strong>
-        </div>
-        ${canEdit ? `<button type="button" data-idp-action="evidence">Log observation</button>` : ""}
-      </div>
-      <div class="idp-filmstrip">
-        ${clips.length
-          ? clips.slice(0, 6).map((clip, index) => `
-            <div class="idp-film-frame">
-              <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
-              <strong>${escapeHtml(coachLabel(clip.status))}</strong>
-              <small>${escapeHtml(clip.sourceModule)} / ${escapeHtml(clip.clipInstanceId)}</small>
-            </div>
-          `).join("")
-          : `<div class="idp-empty-signal">No clips waiting.</div>`}
-      </div>
-    </article>
-  `;
+function renderProfileFilmstrip(detail = {}, canEdit = false, ui = {}) {
+  return renderClipBankOrganizer(detail, canEdit, ui);
 }
 
 function renderProfileSignalStream(detail = {}) {
@@ -1048,12 +1030,13 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
         </article>
       </section>
       <section class="idp-workflow-board">
-        ${renderProfileFilmstrip(detail, canEdit)}
+        ${renderProfileFilmstrip(detail, canEdit, state.ui || {})}
         ${renderProfileSignalStream(detail)}
         ${renderProfileTimelineRiver(detail)}
         ${renderProfileOwnershipStudio(detail, focus, canEdit, options)}
       </section>
       ${renderActionOverlay(state, focus, canEdit && !idpInactive, options)}
+      ${renderIdpClipPreviewOverlay(detail, state.ui || {})}
     </section>
   `;
 }

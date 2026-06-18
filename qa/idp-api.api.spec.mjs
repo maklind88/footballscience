@@ -101,3 +101,17 @@ test("idp api exposes a central sync revision endpoint", () => {
   expect(typeof api.getSyncStatus).toBe("function");
   expect(typeof api.buildSyncMeta).toBe("function");
 });
+
+test("idp clip bank enriches player clips with video metadata without storing local paths", () => {
+  const source = [
+    fs.readFileSync(new URL("../api/_lib/idp-database.js", import.meta.url), "utf8"),
+    fs.readFileSync(new URL("../api/_lib/idp-clip-bank-metadata.js", import.meta.url), "utf8"),
+  ].join("\n");
+  expect(source).toContain("enrichClipBankItems");
+  expect(source).toContain("video_clip_instances");
+  expect(source).toContain("video_matches");
+  expect(source).toContain("video_videos");
+  expect(source).toContain("mini_game_principles");
+  expect(source).toContain("local_video_identifier");
+  expect(source).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea|data:image)\b/i);
+});

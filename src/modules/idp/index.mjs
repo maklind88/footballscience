@@ -1,6 +1,17 @@
 import { createIdpActions } from "./idp-actions.mjs";
 import { createIdpStore } from "./idp-state.mjs";
 import { renderIdpWorkspace as renderMarkup } from "./idp-renderer.mjs";
+import {
+  closeClipPreview,
+  ensureClipBankStyles,
+  jumpClipPreview,
+  moveClipPreview,
+  openClipPreview,
+  revokePreviewUrl,
+  selectedClipIds,
+  setupIdpClipPreviewPlayback,
+  toggleClipBankSelection,
+} from "./idp-clip-preview-controller.mjs";
 import { createIdpApiService } from "./services/idp-api-service.mjs";
 
 let runtime = null;
@@ -127,6 +138,7 @@ function restoreSearchFocus(activeRuntime = runtime, focusState = null) {
 function paint(activeRuntime = runtime) {
   const root = getRoot(activeRuntime?.context);
   if (!root) return;
+  ensureClipBankStyles(activeRuntime);
   const searchFocus = captureSearchFocus(activeRuntime);
   root.innerHTML = renderMarkup(activeRuntime.store.getState(), {
     canEdit: canEdit(activeRuntime.context),
@@ -138,6 +150,7 @@ function paint(activeRuntime = runtime) {
     teamName: activeRuntime.context.teamName,
   });
   restoreSearchFocus(activeRuntime, searchFocus);
+  setupIdpClipPreviewPlayback(activeRuntime);
 }
 
 function ensureRuntime(context = {}) {
@@ -207,6 +220,12 @@ export function handleInput(event) {
 
 export function handleChange(event) {
   const target = event?.target;
+  const clipSelect = target?.closest?.("[data-idp-clip-select]");
+  if (clipSelect) {
+    const id = clipSelect.dataset.idpClipSelect || "";
+    toggleClipBankSelection(runtime, id, Boolean(clipSelect.checked));
+    return;
+  }
   const filter = target?.dataset?.idpFilter || "";
   if (!filter) return;
   if (filter === "status") runtime?.store.setState({ ui: { statusFilter: target.value || "All" } });
@@ -215,6 +234,43 @@ export function handleChange(event) {
 }
 
 export function handleClick(event) {
+  const clipPreviewClose = event?.target?.closest?.("[data-idp-clip-preview-close]");
+  if (clipPreviewClose || event?.target?.matches?.("[data-idp-clip-preview-layer]")) {
+    event?.preventDefault?.();
+    closeClipPreview(runtime);
+    return;
+  }
+  const clipPreviewPrev = event?.target?.closest?.("[data-idp-clip-preview-prev]");
+  if (clipPreviewPrev) {
+    event?.preventDefault?.();
+    moveClipPreview(runtime, -1);
+    return;
+  }
+  const clipPreviewNext = event?.target?.closest?.("[data-idp-clip-preview-next]");
+  if (clipPreviewNext) {
+    event?.preventDefault?.();
+    moveClipPreview(runtime, 1);
+    return;
+  }
+  const clipPreviewJump = event?.target?.closest?.("[data-idp-clip-preview-jump]");
+  if (clipPreviewJump) {
+    event?.preventDefault?.();
+    jumpClipPreview(runtime, Number(clipPreviewJump.dataset.idpClipPreviewJump || 0));
+    return;
+  }
+  const clipPlaySelected = event?.target?.closest?.("[data-idp-clip-play-selected]");
+  if (clipPlaySelected) {
+    event?.preventDefault?.();
+    openClipPreview(runtime, selectedClipIds(runtime));
+    return;
+  }
+  const clipPlay = event?.target?.closest?.("[data-idp-clip-play]");
+  if (clipPlay) {
+    event?.preventDefault?.();
+    const id = clipPlay.dataset.idpClipPlay || "";
+    openClipPreview(runtime, [id]);
+    return;
+  }
   const searchTrigger = event?.target?.closest?.("[data-idp-search-submit]");
   if (searchTrigger) {
     event?.preventDefault?.();
@@ -237,6 +293,7 @@ export function handleClick(event) {
   }
   const backTrigger = event?.target?.closest?.("[data-idp-back-overview]");
   if (backTrigger) {
+    revokePreviewUrl(runtime);
     runtime?.store.setState({ ui: { selectedPlayerId: "", actionMode: "", error: "", message: "" } });
     scrollWorkspaceTop(runtime);
     return;
@@ -259,6 +316,7 @@ export function handleClick(event) {
   }
   const playerTrigger = event?.target?.closest?.("[data-idp-player]");
   if (playerTrigger) {
+    revokePreviewUrl(runtime);
     runAction(async () => {
       await runtime?.actions.selectPlayer(playerTrigger.dataset.idpPlayer || "");
       scrollWorkspaceTop(runtime);

@@ -87,6 +87,30 @@ function previewUnavailableMarkup(name, message = "This file type cannot be prev
   `;
 }
 
+export function renderDashboardChatAttachmentPreviewShell() {
+  return `
+      <div class="dashboard-chat-attachment-preview-backdrop" data-chat-attachment-preview-close></div>
+      <section class="dashboard-chat-attachment-preview-card" role="dialog" aria-modal="true" aria-label="Attachment preview">
+        <header>
+          <div class="dashboard-chat-attachment-preview-title-block">
+            <span data-chat-attachment-preview-label>Preparing preview</span>
+            <strong data-chat-attachment-preview-title>Attachment</strong>
+            <small data-chat-attachment-preview-count>1 file</small>
+          </div>
+          <div class="dashboard-chat-attachment-preview-actions" role="toolbar" aria-label="Attachment actions">
+            <button type="button" data-chat-attachment-preview-previous aria-label="Previous attachment">Prev</button>
+            <button type="button" data-chat-attachment-preview-next aria-label="Next attachment">Next</button>
+            <button type="button" data-chat-attachment-preview-print>Print</button>
+            <button type="button" data-chat-attachment-preview-download>Download</button>
+            <button type="button" data-chat-attachment-preview-save>Save as</button>
+            <a href="#" target="_blank" rel="noopener noreferrer" data-chat-attachment-preview-open>Open tab</a>
+            <button type="button" class="is-close" data-chat-attachment-preview-close aria-label="Close attachment preview">&times;</button>
+          </div>
+        </header>
+        <div class="dashboard-chat-attachment-preview-body" data-chat-attachment-preview-body></div>
+      </section>`;
+}
+
 export function createDashboardChatAttachmentPreview() {
   let previewRoot = null;
   let previewObjectUrl = "";
@@ -246,26 +270,7 @@ export function createDashboardChatAttachmentPreview() {
     document.body.style.overflow = "hidden";
     previewRoot = document.createElement("div");
     previewRoot.className = "dashboard-chat-attachment-preview";
-    previewRoot.innerHTML = `
-      <div class="dashboard-chat-attachment-preview-backdrop" data-chat-attachment-preview-close></div>
-      <section class="dashboard-chat-attachment-preview-card" role="dialog" aria-modal="true" aria-label="Attachment preview">
-        <header>
-          <div class="dashboard-chat-attachment-preview-title-block">
-            <span data-chat-attachment-preview-label>Preparing preview</span>
-            <strong data-chat-attachment-preview-title>Attachment</strong>
-            <small data-chat-attachment-preview-count>1 file</small>
-          </div>
-          <div class="dashboard-chat-attachment-preview-actions" role="toolbar" aria-label="Attachment actions">
-            <button type="button" data-chat-attachment-preview-previous aria-label="Previous attachment">Prev</button>
-            <button type="button" data-chat-attachment-preview-next aria-label="Next attachment">Next</button>
-            <button type="button" data-chat-attachment-preview-print>Print</button>
-            <button type="button" data-chat-attachment-preview-download>Download</button>
-            <button type="button" data-chat-attachment-preview-save>Save as</button>
-            <a href="#" target="_blank" rel="noopener noreferrer" data-chat-attachment-preview-open>Open tab</a>
-            <button type="button" class="is-close" data-chat-attachment-preview-close aria-label="Close attachment preview">&times;</button>
-          </div>
-        </header>
-      </section>`;
+    previewRoot.innerHTML = renderDashboardChatAttachmentPreviewShell();
     previewRoot.addEventListener("click", (event) => {
       const item = currentItem();
       if (event.target.closest("[data-chat-attachment-preview-close]")) close();

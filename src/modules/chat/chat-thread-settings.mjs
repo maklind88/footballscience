@@ -11,6 +11,7 @@ export function normalizeDashboardChatThreadSettings(value = {}) {
     customTitle: normalizeText(value?.customTitle).slice(0, 80),
     avatarLabel: normalizeText(value?.avatarLabel).slice(0, 2).toUpperCase(),
     avatarUrl: normalizeText(value?.avatarUrl).slice(0, 800),
+    createdAt: normalizeText(value?.createdAt || value?.created_at),
     updatedAt: normalizeText(value?.updatedAt),
   };
 }

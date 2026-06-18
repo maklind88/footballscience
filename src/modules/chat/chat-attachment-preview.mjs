@@ -119,6 +119,7 @@ export function createDashboardChatAttachmentPreview() {
   let previousBodyOverflow = "";
   let state = { items: [], index: 0 };
 
+  const isOpen = () => Boolean(previewRoot);
   const currentItem = () => state.items[state.index] || null;
   const canNavigatePreview = () => state.items.length > 1;
 
@@ -322,17 +323,20 @@ export function createDashboardChatAttachmentPreview() {
     if (!previewRoot) return;
     if (event.key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
       close();
     }
     if (event.key === "ArrowLeft") {
       event.preventDefault();
+      event.stopPropagation();
       if (canNavigatePreview()) showIndex(state.index - 1);
     }
     if (event.key === "ArrowRight") {
       event.preventDefault();
+      event.stopPropagation();
       if (canNavigatePreview()) showIndex(state.index + 1);
     }
-  });
+  }, true);
 
-  return { open, close };
+  return { open, close, isOpen };
 }

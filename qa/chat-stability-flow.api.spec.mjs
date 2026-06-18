@@ -15,6 +15,7 @@ const chatApiRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/c
 const chatModuleSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat.mjs"), "utf8");
 const chatWidgetRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-widget-runtime.mjs"), "utf8");
 const chatThreadRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-thread-runtime.mjs"), "utf8");
+const chatThreadSettingsSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-thread-settings.mjs"), "utf8");
 const rendererSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-widget-renderer.mjs"), "utf8");
 const chatCssSource = readFileSync(path.join(__dirname, "../dashboard-chat.css"), "utf8");
 const attachmentPreviewSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-attachment-preview.mjs"), "utf8");
@@ -104,6 +105,10 @@ test("chat thread sorting is driven by pinned state and message activity, not se
   expect(chatThreadRuntimeSource).toContain("function getDashboardChatEmptyThreadActivityMs");
   expect(chatThreadRuntimeSource).toContain("Date.parse(apiThread?.createdAt || apiThread?.created_at || \"\")");
   expect(chatThreadRuntimeSource).toContain(": getDashboardChatEmptyThreadActivityMs(apiThread, threadSettings);");
+  expect(chatThreadSettingsSource).toContain("createdAt: normalizeText(value?.createdAt || value?.created_at)");
+  expect(chatThreadRuntimeSource.indexOf("Date.parse(threadSettings.createdAt || threadSettings.created_at || \"\")")).toBeLessThan(
+    chatThreadRuntimeSource.indexOf("Date.parse(apiThread?.createdAt || apiThread?.created_at || \"\")")
+  );
   expect(chatThreadRuntimeSource).not.toContain("threadMessages[threadMessages.length - 1]");
   expect(chatModuleSource).toContain("export function getLatestHomeChatMessage");
   expect(chatModuleSource).toContain("lastMessage: getLatestHomeChatMessage(threadMessages)");
@@ -400,6 +405,9 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(attachmentPreviewSource).toContain("event.key === \"Escape\"");
   expect(attachmentPreviewSource).toContain("event.key === \"ArrowLeft\"");
   expect(attachmentPreviewSource).toContain("event.key === \"ArrowRight\"");
+  expect(attachmentPreviewSource).toContain("event.stopPropagation();");
+  expect(attachmentPreviewSource).toContain("}, true);");
+  expect(attachmentPreviewSource).toContain("return { open, close, isOpen };");
   expect(attachmentPreviewSource).toContain("getPreviewKind");
 
   expect(databaseSource).toContain("attachmentIds");

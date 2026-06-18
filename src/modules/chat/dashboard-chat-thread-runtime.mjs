@@ -49,8 +49,8 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
 
   function getDashboardChatEmptyThreadActivityMs(apiThread = null, threadSettings = {}) {
     return (
-      Date.parse(apiThread?.createdAt || apiThread?.created_at || "") ||
       Date.parse(threadSettings.createdAt || threadSettings.created_at || "") ||
+      Date.parse(apiThread?.createdAt || apiThread?.created_at || "") ||
       0
     );
   }

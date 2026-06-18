@@ -557,7 +557,7 @@ test("client-config login retries transient Supabase auth failures once", async 
   }
 });
 
-test("client-config login keeps Supabase auth timeouts as service failures without retry pressure", async () => {
+test("client-config login uses bounded retry for Supabase auth timeouts", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
   clearEnv(supabaseEnvKeys);
@@ -586,7 +586,7 @@ test("client-config login keeps Supabase auth timeouts as service failures witho
 
     expect(response.status).toBe(504);
     expect(response.payload.reason).toBe("Authentication took too long. Please try again.");
-    expect(tokenCalls).toBe(1);
+    expect(tokenCalls).toBe(2);
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

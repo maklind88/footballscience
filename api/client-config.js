@@ -13,7 +13,7 @@ const MAX_PASSWORD_LENGTH = 256;
 const LOGIN_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const LOGIN_RATE_LIMIT_MAX = 12;
 const AUTH_LOGIN_ATTEMPTS = 2;
-const AUTH_LOGIN_ATTEMPT_TIMEOUT_MS = 55000;
+const AUTH_LOGIN_ATTEMPT_TIMEOUT_MS = 20000;
 const AUTH_LOGIN_RETRY_DELAY_MS = 250;
 const loginRateBuckets = new Map();
 
@@ -79,7 +79,7 @@ function sleep(ms) {
 
 function isRetryableAuthStatus(status) {
   const normalizedStatus = Number(status);
-  return normalizedStatus === 0 || (normalizedStatus >= 500 && normalizedStatus !== 504);
+  return normalizedStatus === 0 || normalizedStatus >= 500;
 }
 
 function isTimeoutError(error) {
@@ -203,6 +203,10 @@ async function handleLogin(req, res) {
     } catch (error) {
       lastAuthError = { status: isTimeoutError(error) ? 504 : 0, error };
       if (isTimeoutError(error)) {
+        if (attempt < AUTH_LOGIN_ATTEMPTS) {
+          await sleep(AUTH_LOGIN_RETRY_DELAY_MS);
+          continue;
+        }
         break;
       }
       if (attempt < AUTH_LOGIN_ATTEMPTS) {

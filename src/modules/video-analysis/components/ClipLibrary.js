@@ -4,6 +4,7 @@ import { videoAnalysisSubPhases } from "../constants/subPhases.js";
 import {
   buildClipLibraryGroups,
   buildClipLibraryStats,
+  clipEndMs,
   clipLibraryGroupModes,
   clipStartMs,
   playerEntries,
@@ -100,7 +101,38 @@ function renderPrinciples(clip = {}) {
   `;
 }
 
-function renderClip(clip = {}) {
+function formatSourceDate(value = "") {
+  const text = String(value || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return "";
+  const [year, month, day] = text.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+function sourceTypeLabel(value = "") {
+  return String(value || "").toLowerCase() === "training" ? "Training" : "Match";
+}
+
+function clipSourceTitle(clip = {}, state = {}) {
+  return String(
+    clip.matchTitle
+    || clip.match_title
+    || clip.match?.title
+    || clip.videoTitle
+    || clip.video_title
+    || state.match?.title
+    || state.videoRef?.displayName
+    || "Source not linked"
+  ).trim();
+}
+
+function clipSourceLine(clip = {}, state = {}) {
+  const type = sourceTypeLabel(clip.eventType || clip.event_type || state.match?.eventType || state.match?.event_type);
+  const title = clipSourceTitle(clip, state);
+  const date = formatSourceDate(clip.matchDate || clip.match_date || state.match?.matchDate || state.match?.match_date);
+  return [type, title, date].filter(Boolean).join(" · ");
+}
+
+function renderClip(clip = {}, state = {}) {
   const note = clipNotes(clip);
   const descriptors = clipDescriptorSummary(clip);
   return `
@@ -110,20 +142,21 @@ function renderClip(clip = {}) {
       </button>
       <div class="video-analysis-clip-library-card__body">
         <strong>${escapeHtml(clipTitle(clip))}</strong>
+        <span class="video-analysis-clip-library-card__source">${escapeHtml(clipSourceLine(clip, state))}</span>
         <span>${escapeHtml(primaryPlayerLabel(clip))} · ${escapeHtml(clipOutcome(clip))}</span>
         ${renderPrinciples(clip)}
         ${descriptors ? `<small>${escapeHtml(descriptors)}</small>` : ""}
         ${note ? `<p>${escapeHtml(note)}</p>` : ""}
       </div>
       <div class="video-analysis-clip-library-card__actions">
-        <button type="button" data-video-analysis-seek="${escapeHtml(clip.id)}">Open</button>
+        <button type="button" data-video-analysis-clip-library-play="${escapeHtml(clip.id)}">Play</button>
         <button type="button" data-video-analysis-review="${escapeHtml(clip.id)}">Presentation</button>
       </div>
     </article>
   `;
 }
 
-function renderGroup(group = {}, groupBy = "subPhase") {
+function renderGroup(group = {}, groupBy = "subPhase", state = {}) {
   return `
     <section class="video-analysis-clip-library-group">
       <header>
@@ -140,9 +173,52 @@ function renderGroup(group = {}, groupBy = "subPhase") {
         </button>
       </header>
       <div class="video-analysis-clip-library-grid">
-        ${group.clips.map((clip) => renderClip(clip)).join("")}
+        ${group.clips.map((clip) => renderClip(clip, state)).join("")}
       </div>
     </section>
+  `;
+}
+
+function renderClipPreviewOverlay(state = {}, clips = []) {
+  const previewClipId = String(state.clipLibrary?.previewClipId || "");
+  if (!previewClipId) return "";
+  const clip = clips.find((item) => item.id === previewClipId) || {};
+  const startMs = clipStartMs(clip);
+  const endMs = clipEndMs(clip);
+  const hasPlayableVideo = Boolean(state.videoRef?.objectUrl);
+  return `
+    <div class="video-analysis-clip-library-preview" data-video-analysis-clip-library-preview role="dialog" aria-modal="true" aria-label="Clip preview">
+      <section class="video-analysis-clip-library-preview__panel">
+        <header class="video-analysis-clip-library-preview__header">
+          <div>
+            <p class="video-analysis-kicker">Clip Preview</p>
+            <h3>${escapeHtml(clipTitle(clip))}</h3>
+            <span>${escapeHtml(clipSourceLine(clip, state))}</span>
+          </div>
+          <button type="button" data-video-analysis-clip-library-preview-close aria-label="Close clip preview">Close</button>
+        </header>
+        <div class="video-analysis-clip-library-preview__meta">
+          <strong>${escapeHtml(`${formatVideoTime(startMs)} - ${formatVideoTime(endMs)}`)}</strong>
+          <span>${escapeHtml(primaryPlayerLabel(clip))} · ${escapeHtml(clipOutcome(clip))}</span>
+          ${renderPrinciples(clip)}
+        </div>
+        ${
+          hasPlayableVideo
+            ? `<video
+                class="video-analysis-clip-library-preview__video"
+                data-video-analysis-clip-library-video
+                src="${escapeHtml(state.videoRef.objectUrl)}"
+                playsinline
+                preload="metadata"
+                controls
+              ></video>`
+            : `<div class="video-analysis-clip-library-preview__empty">
+                <strong>Local file is not connected on this device.</strong>
+                <button type="button" data-video-analysis-restore-local-file>Reconnect local file</button>
+              </div>`
+        }
+      </section>
+    </div>
   `;
 }
 
@@ -175,12 +251,13 @@ export function renderClipLibrary(state = {}) {
         ${renderSavedSearches(state.savedSearches || [])}
       </section>
       <section class="video-analysis-clip-library-groups">
-        ${groups.length ? groups.map((group) => renderGroup(group, groupBy)).join("") : `
+        ${groups.length ? groups.map((group) => renderGroup(group, groupBy, state)).join("") : `
           <section class="video-analysis-clip-library-empty">
             <h3>No clips found</h3>
           </section>
         `}
       </section>
+      ${renderClipPreviewOverlay(state, clips)}
     </section>
   `;
 }

@@ -319,6 +319,47 @@ async function clipHasPlayerLinks(scope = {}, clipId = "") {
   return result.ok && Boolean(result.payload?.[0]?.id);
 }
 
+function uniqueIds(values = []) {
+  return Array.from(new Set(values.map(normalizeUuid).filter(Boolean)));
+}
+
+function mapRowsById(rows = []) {
+  const map = new Map();
+  for (const row of rows) {
+    if (row?.id) map.set(row.id, row);
+  }
+  return map;
+}
+
+async function selectSourceRows(table, scope = {}, ids = [], select = "*") {
+  const safeIds = uniqueIds(ids);
+  if (!safeIds.length) return [];
+  const params = buildTeamParams(scope);
+  params.set("select", select);
+  params.set("id", `in.(${safeIds.join(",")})`);
+  params.set("limit", String(Math.max(1, safeIds.length)));
+  const result = await selectRows(table, params);
+  return result.ok ? rowList(result) : [];
+}
+
+function clipSourceMetadata(clip = {}, matchMap = new Map(), videoMap = new Map()) {
+  const match = matchMap.get(clip.match_id) || {};
+  const video = videoMap.get(clip.video_id) || {};
+  const metadata = normalizeMetadata(match.metadata);
+  const explicitType = normalizeText(metadata.eventType || metadata.event_type || match.event_type, 40);
+  const title = normalizeText(match.title || metadata.title || video.title, 180);
+  const inferredType = explicitType
+    ? normalizeVideoEventType(explicitType)
+    : (normalizeText(match.opponent || metadata.opponent, 180) || /\bmatch\b|\s@\s|\svs\.?\s/i.test(title) ? "match" : "training");
+  return {
+    match_title: title,
+    match_date: normalizeText(match.match_date || metadata.matchDate || metadata.match_date, 20),
+    event_type: inferredType,
+    opponent: normalizeText(match.opponent || metadata.opponent, 180),
+    video_title: normalizeText(video.title, 180),
+  };
+}
+
 async function attachClipRelations(clips, scope) {
   const ids = clips.map((clip) => clip.id).filter(Boolean);
   if (!ids.length) return clips;
@@ -329,12 +370,14 @@ async function attachClipRelations(clips, scope) {
     params.set("clip_instance_id", idFilter);
     return params;
   };
-  const [players, tags, notes, labels, descriptors] = await Promise.all([
+  const [players, tags, notes, labels, descriptors, matches, videos] = await Promise.all([
     selectRows("video_clip_players", childParams("*")),
     selectRows("video_clip_tags", childParams("*")),
     selectRows("video_clip_notes", childParams("*")),
     selectRows("video_clip_labels", childParams("*")),
     selectRows("video_clip_descriptors", childParams("*")),
+    selectSourceRows("video_matches", scope, clips.map((clip) => clip.match_id), "id,title,match_date,opponent,metadata"),
+    selectSourceRows("video_videos", scope, clips.map((clip) => clip.video_id), "id,title,match_id,duration_ms"),
   ]);
   const byClip = (rows) => {
     const map = new Map();
@@ -350,8 +393,11 @@ async function attachClipRelations(clips, scope) {
   const noteMap = byClip(notes);
   const labelMap = byClip(labels);
   const descriptorMap = byClip(descriptors);
+  const matchMap = mapRowsById(matches);
+  const videoMap = mapRowsById(videos);
   return clips.map((clip) => attachClipSharingState({
     ...clip,
+    ...clipSourceMetadata(clip, matchMap, videoMap),
     players: playerMap.get(clip.id) || [],
     tags: (tagMap.get(clip.id) || []).map((entry) => entry.tag),
     notes: noteMap.get(clip.id) || [],

@@ -3633,6 +3633,11 @@
   font-size: 12px;
 }
 
+.video-analysis-clip-library-card__source {
+  color: #354238 !important;
+  font-weight: 820;
+}
+
 .video-analysis-clip-library-principles {
   display: flex;
   flex-wrap: wrap;
@@ -3652,6 +3657,100 @@
 .video-analysis-clip-library-card__actions {
   display: flex;
   gap: 6px;
+}
+
+.video-analysis-clip-library-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(4, 8, 7, 0.72);
+  backdrop-filter: blur(12px);
+}
+
+.video-analysis-clip-library-preview__panel {
+  display: grid;
+  gap: 10px;
+  width: min(1060px, calc(100vw - 56px));
+  max-height: calc(100vh - 56px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  padding: 12px;
+  background: #f9fbfa;
+  box-shadow: 0 34px 100px rgba(0, 0, 0, 0.42);
+}
+
+.video-analysis-clip-library-preview__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.video-analysis-clip-library-preview__header h3 {
+  margin: 0;
+  color: #101815;
+  font-size: 18px;
+  line-height: 1.12;
+}
+
+.video-analysis-clip-library-preview__header span,
+.video-analysis-clip-library-preview__meta span {
+  color: #5f6d65;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.video-analysis-clip-library-preview__header button,
+.video-analysis-clip-library-preview__empty button {
+  min-height: 34px;
+  border: 1px solid #cbd6ce;
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: #142018;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.video-analysis-clip-library-preview__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.video-analysis-clip-library-preview__meta strong {
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #0f1a15;
+  background: #eef4f1;
+  font-size: 12px;
+}
+
+.video-analysis-clip-library-preview__video {
+  display: block;
+  width: 100%;
+  max-height: min(68vh, 650px);
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  background: #030706;
+  object-fit: contain;
+}
+
+.video-analysis-clip-library-preview__empty {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  min-height: 360px;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #07100d;
 }
 
 .video-analysis-clip-library-empty {

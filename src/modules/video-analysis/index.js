@@ -21,7 +21,7 @@ import { createPlaylistRepository } from "./repositories/playlistRepository.js";
 import { createPresentationRepository } from "./repositories/presentationRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
 import { applyCodingButtonToClip, buildClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
-import { clipMatchesLibraryGroup } from "./services/clipLibraryService.js";
+import { clipEndMs, clipMatchesLibraryGroup, clipStartMs } from "./services/clipLibraryService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
 import { clipMiniGamePrincipleIds, uniqueMiniGamePrincipleIds, withMiniGamePrinciples } from "./services/miniGamePrincipleService.js";
 import {
@@ -790,6 +790,7 @@ function paint(root, state) {
     syncPlaybackControls(runtime?.context || context, video);
     if (video.readyState >= 1) markNativePlaybackReady(video);
   }
+  setupClipLibraryPreview(root, displayState);
   if (activeTabId === "presentation") thumbnails(runtime?.context || {}).ensureThumbnails();
 }
 
@@ -968,9 +969,42 @@ async function saveSelectedDrawingLayers(context = {}) {
 }
 
 function selectedClipFromPresentationSources(state = {}, clipId = "") {
-  return (state.presentation?.sourceClips || []).find((clip) => clip.id === clipId)
-    || (state.clips || []).find((clip) => clip.id === clipId)
+  const sourceClips = Array.isArray(state.presentation?.sourceClips) ? state.presentation.sourceClips : [];
+  const clips = Array.isArray(state.clips) ? state.clips : [];
+  const allClips = Array.isArray(state.allClips) ? state.allClips : [];
+  return sourceClips.find((clip) => clip.id === clipId)
+    || clips.find((clip) => clip.id === clipId)
+    || allClips.find((clip) => clip.id === clipId)
     || { id: clipId };
+}
+
+function setupClipLibraryPreview(root, state = {}) {
+  const previewClipId = String(state.clipLibrary?.previewClipId || "");
+  const video = root?.querySelector?.("[data-video-analysis-clip-library-video]");
+  if (!previewClipId || !video || video.dataset.videoAnalysisPreviewStarted === "1") return;
+  const clip = selectedClipFromPresentationSources(state, previewClipId);
+  if (!clip?.id) return;
+  const startSeconds = clipStartMs(clip) / 1000;
+  const endSeconds = Math.max(startSeconds + 0.1, clipEndMs(clip) / 1000);
+  video.dataset.videoAnalysisPreviewStarted = "1";
+  video.dataset.videoAnalysisPreviewEnd = String(endSeconds);
+  const startPlayback = () => {
+    try {
+      video.currentTime = startSeconds;
+    } catch {
+      // The browser may reject seeking before metadata is ready for a local object URL.
+    }
+    video.play?.().catch(() => {});
+  };
+  video.addEventListener("timeupdate", () => {
+    const limit = Number(video.dataset.videoAnalysisPreviewEnd || endSeconds);
+    if (Number.isFinite(limit) && Number(video.currentTime || 0) >= limit) {
+      video.pause?.();
+      video.currentTime = limit;
+    }
+  });
+  if (video.readyState >= 1) startPlayback();
+  else video.addEventListener("loadedmetadata", startPlayback, { once: true });
 }
 
 function currentPlayheadMs(context = {}, state = {}) {
@@ -2613,6 +2647,37 @@ export function handleClick(event, context = {}) {
         message: "Clip added to presentation.",
       };
     });
+    return true;
+  }
+  const clipLibraryPlayButton = target.closest("[data-video-analysis-clip-library-play]");
+  if (clipLibraryPlayButton) {
+    const clipId = clipLibraryPlayButton.dataset.videoAnalysisClipLibraryPlay || "";
+    run.store.update((state) => {
+      const clip = selectedClipFromPresentationSources(state, clipId);
+      const startMs = clipStartMs(clip);
+      return {
+        ...state,
+        selectedClipId: clipId,
+        clipLibrary: {
+          ...(state.clipLibrary || {}),
+          previewClipId: clipId,
+        },
+        timeline: {
+          ...(state.timeline || {}),
+          playheadMs: startMs,
+        },
+      };
+    });
+    return true;
+  }
+  if (target.closest("[data-video-analysis-clip-library-preview-close]")) {
+    run.store.update((state) => ({
+      ...state,
+      clipLibrary: {
+        ...(state.clipLibrary || {}),
+        previewClipId: "",
+      },
+    }));
     return true;
   }
   const sectionButton = target.closest("[data-video-analysis-review-section]");

@@ -439,6 +439,9 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(api).toContain("shareClip");
   expect(api).toContain('action === "trim-clip"');
   expect(api).toContain('action === "share-clip"');
+  expect(api).toContain("clipSourceMetadata");
+  expect(api).toContain("match_title");
+  expect(api).toContain("video_title");
   expect(templateApi).toContain("normalizeCodingTemplatePayload");
   expect(templateApi).toContain("rejectForbiddenPayload(payload)");
   expect(templateApi).toContain("video_coding_templates");
@@ -476,6 +479,10 @@ test("analysis room tabs use icons without status labels", () => {
   expect(clipLibrary).toContain("data-video-analysis-clip-library");
   expect(clipLibrary).toContain("data-video-analysis-clip-library-group");
   expect(clipLibrary).toContain("data-video-analysis-clip-library-add-group");
+  expect(clipLibrary).toContain("data-video-analysis-clip-library-play");
+  expect(clipLibrary).toContain("data-video-analysis-clip-library-preview");
+  expect(clipLibrary).toContain("data-video-analysis-clip-library-video");
+  expect(source).toContain("setupClipLibraryPreview");
   expect(clipLibraryService).toContain("buildClipLibraryGroups");
   expect(clipLibraryService).toContain("clipMatchesLibraryGroup");
   expect(presentation).toContain("data-video-analysis-presentation-module");

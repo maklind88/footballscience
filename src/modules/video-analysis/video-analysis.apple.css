@@ -119,10 +119,18 @@
 #analysisRoomWorkspace .video-analysis-clip-library-toolbar button,
 #analysisRoomWorkspace .video-analysis-clip-library-saved button,
 #analysisRoomWorkspace .video-analysis-clip-library-group header button,
-#analysisRoomWorkspace .video-analysis-clip-library-card__actions button {
+#analysisRoomWorkspace .video-analysis-clip-library-card__actions button,
+#analysisRoomWorkspace .video-analysis-clip-library-preview__panel,
+#analysisRoomWorkspace .video-analysis-clip-library-preview__header button,
+#analysisRoomWorkspace .video-analysis-clip-library-preview__empty button {
   border-color: var(--fs-apple-line);
   background: rgba(255, 255, 255, 0.9);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+#analysisRoomWorkspace .video-analysis-clip-library-preview__panel {
+  background: var(--fs-apple-surface-strong);
+  box-shadow: 0 34px 110px rgba(4, 12, 8, 0.38);
 }
 
 #analysisRoomWorkspace .video-analysis-clip-library-group header {

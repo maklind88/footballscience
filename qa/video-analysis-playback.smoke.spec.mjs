@@ -438,6 +438,14 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
 
 test("Video Analysis Clip Library groups clips by searchable football metadata", async ({ page }) => {
   await page.addInitScript(() => {
+    window.__videoPlayCalls = 0;
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value() {
+        window.__videoPlayCalls += 1;
+        return Promise.resolve();
+      },
+    });
     window.__videoAnalysisInitialState = {
       status: "ready",
       view: "workspace",
@@ -450,6 +458,13 @@ test("Video Analysis Clip Library groups clips by searchable football metadata",
         id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
         match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
       },
+      videoRef: {
+        objectUrl: "data:video/mp4;base64,AAAA",
+        durationMs: 90000,
+        displayName: "Match #11 @ Angel City - May 31st.mp4",
+      },
+      localFileStatus: "native-ready",
+      nativePlaybackReady: true,
       players: [
         { id: "player-8", name: "Player Eight" },
         { id: "player-6", name: "Player Six" },
@@ -459,6 +474,9 @@ test("Video Analysis Clip Library groups clips by searchable football metadata",
           id: "clip-build-third",
           matchId: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
           videoId: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+          matchTitle: "Match #11 @ Angel City - May 31st",
+          matchDate: "2026-05-31",
+          eventType: "match",
           startMs: 12000,
           endMs: 27000,
           phase: "In Possession",
@@ -472,6 +490,9 @@ test("Video Analysis Clip Library groups clips by searchable football metadata",
           id: "clip-press-counter",
           matchId: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
           videoId: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+          matchTitle: "Training/IDP + Lift",
+          matchDate: "2026-06-18",
+          eventType: "training",
           startMs: 42000,
           endMs: 57000,
           phase: "Out of Possession",
@@ -489,7 +510,17 @@ test("Video Analysis Clip Library groups clips by searchable football metadata",
   await expect(page.locator(".analysis-room-tab.is-active")).toContainText("Clip Library");
   await expect(page.locator(".video-analysis-clip-library-hero")).toContainText("Match #11 @ Angel City");
   await expect(page.locator(".video-analysis-clip-library-card")).toHaveCount(2);
+  await expect(page.locator(".video-analysis-clip-library-card").first()).toContainText("Match · Match #11 @ Angel City - May 31st · 31/05/2026");
   await expect(page.locator(".video-analysis-clip-library-group").first()).toContainText("Build Up");
+
+  await page.locator('[data-video-analysis-clip-library-play="clip-build-third"]').click();
+  await expect(page.locator("[data-video-analysis-clip-library-preview]")).toBeVisible();
+  await expect(page.locator("[data-video-analysis-clip-library-preview]")).toContainText("Build Up / In Possession");
+  await expect(page.locator("[data-video-analysis-clip-library-preview]")).toContainText("Match #11 @ Angel City - May 31st");
+  await expect(page.locator("[data-video-analysis-clip-library-preview]")).toContainText("0:00:12 - 0:00:27");
+  await expect(page.locator("[data-video-analysis-clip-library-video]")).toBeVisible();
+  await page.locator("[data-video-analysis-clip-library-preview-close]").click();
+  await expect(page.locator("[data-video-analysis-clip-library-preview]")).toHaveCount(0);
 
   await page.locator('[data-video-analysis-clip-library-group="miniGamePrinciple"]').click();
   await expect(page.locator(".video-analysis-clip-library-group").first()).toContainText("Third Player");

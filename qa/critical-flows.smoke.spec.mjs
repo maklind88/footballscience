@@ -727,6 +727,111 @@ test("Chat thread click does not change latest activity sorting", async ({ page 
   await expect(page.locator("[data-dashboard-chat-thread]").first()).toHaveAttribute("data-dashboard-chat-thread", "team");
 });
 
+test("Chat compose send clears input and keeps sent message after reload", async ({ page }) => {
+  const messageText = `QA compose send ${Date.now()}`;
+  const chatActions = [];
+
+  await page.route("**/api/chat", async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST") {
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) });
+      return;
+    }
+
+    const payload = request.postDataJSON();
+    chatActions.push(payload);
+    if (payload.action !== "sendMessage") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, messages: [], threads: [], pagination: {} }),
+      });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const message = {
+      id: payload.clientMessageId || payload.id || `qa-sent-${Date.now()}`,
+      userId: "dev-user-mak",
+      threadId: payload.threadId || "team",
+      text: payload.text,
+      createdAt: now,
+      deliveredAt: now,
+      readBy: ["dev-user-mak"],
+      mentionedUserIds: payload.mentionedUserIds || [],
+      status: "sent",
+      author: {
+        id: "dev-user-mak",
+        firstName: "Mak",
+        lastName: "Lind",
+        role: "coach",
+        status: "active",
+      },
+    };
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        message,
+        messages: [message],
+        thread: {
+          id: "team",
+          threadId: "team",
+          legacyThreadId: "team",
+          type: "team",
+          title: "North Carolina Courage Chat",
+          messageCount: 1,
+          unreadCount: 0,
+          lastMessageAt: now,
+        },
+        threads: [],
+        pagination: {},
+      }),
+    });
+  });
+
+  await bootApp(page);
+  await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
+  await page.evaluate(() => {
+    const currentUser = window.platformAuthStore.getCurrentUser?.() || {};
+    const currentUserId = currentUser.id || "dev-user-mak";
+    window.platformAuthStore.getAccessToken = async () => "qa-chat-token";
+    window.platformAuthStore.refreshAccessToken = async () => "qa-chat-token";
+    window.platformAuthStore.writeUsers?.([
+      {
+        ...currentUser,
+        id: currentUserId,
+        firstName: currentUser.firstName || "Mak",
+        lastName: currentUser.lastName || "Lind",
+        role: currentUser.role || "coach",
+        status: "active",
+      },
+    ]);
+    window.platformAuthStore.setCurrentUser?.(currentUserId);
+  });
+
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await page.locator("[data-dashboard-chat-input]").fill(messageText);
+  await page.locator("[data-dashboard-chat-form] button[type='submit']").click();
+
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveValue("");
+  await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText);
+  expect(chatActions.some((payload) => payload.action === "sendMessage" && payload.text === messageText)).toBe(true);
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await dismissDashboardModal(page);
+  const openWidgetCount = await page.locator(".dashboard-chat-widget.is-open").count();
+  if (!openWidgetCount) {
+    await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  }
+
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveValue("");
+  await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText);
+});
+
 test("Chat attachment preview opens above chat with toolbar controls", async ({ page }) => {
   const messageId = `qa-chat-attachment-${Date.now()}`;
   const attachmentName = "qa-preview.svg";

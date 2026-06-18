@@ -372,6 +372,27 @@ test("Chat launcher shows unread chat until the thread is opened", async ({ page
     .toBe(true);
   await expect(page.locator(".dashboard-chat-launcher .dashboard-chat-header-badge")).toHaveCount(0);
   await expect(page.locator('.top-icon-menu-item[data-open-workspace="home"].has-notification')).toHaveCount(0);
+
+  await page.locator(".dashboard-chat-widget-close").click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toHaveCount(0);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await dismissDashboardModal(page);
+  await expect(page.locator(".dashboard-chat-launcher .dashboard-chat-header-badge")).toHaveCount(0);
+  await expect(page.locator('.top-icon-menu-item[data-open-workspace="home"].has-notification')).toHaveCount(0);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          ({ key, id }) => {
+            const message = JSON.parse(window.localStorage.getItem(key) || "[]").find((entry) => entry.id === id);
+            return Boolean(message?.readBy?.includes("dev-user-mak"));
+          },
+          { key: dashboardChatKey, id: messageId }
+        ),
+      { timeout: 5_000 }
+    )
+    .toBe(true);
 });
 
 test("Chat group creator creates a focused group from the plus menu", async ({ page }) => {

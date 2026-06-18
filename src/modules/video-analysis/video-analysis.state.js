@@ -1,5 +1,4 @@
 import { defaultMiniGamePrincipleId } from "./constants/miniGamePrinciples.js";
-import { defaultTeamPrincipleId } from "./constants/principles.js";
 import { defaultVideoAnalysisOutcome } from "./constants/outcomes.js";
 import { defaultVideoAnalysisPhase } from "./constants/phases.js";
 import { defaultVideoAnalysisSubPhase } from "./constants/subPhases.js";
@@ -110,10 +109,12 @@ export function createInitialVideoAnalysisState(context = {}) {
       lastTaggedAtMs: null,
       lastTaggedRangeMs: null,
       templateDirty: false,
+      miniGamePrinciplePickerOpen: false,
+      miniGamePrincipleDraftIds: [],
     },
     timeline: {
       zoom: 1,
-      laneMode: "phase",
+      laneMode: "subPhase",
       playheadMs: 0,
       tagFilterOpen: false,
       selectedCategory: {
@@ -145,8 +146,9 @@ export function createInitialVideoAnalysisState(context = {}) {
       period: "1",
       phase: defaultVideoAnalysisPhase,
       subPhase: defaultVideoAnalysisSubPhase,
-      teamPrincipleId: defaultTeamPrincipleId,
+      teamPrincipleId: "",
       miniGamePrincipleId: defaultMiniGamePrincipleId,
+      miniGamePrincipleIds: [],
       outcome: defaultVideoAnalysisOutcome,
       playerId: "",
       playerRole: "primary",

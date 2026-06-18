@@ -247,7 +247,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-presentation")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-header")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-ruler")).toBeVisible();
-  await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("Team Principle");
+  await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("MG Principle");
   await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("Tags");
   await expect(page.locator(".video-analysis-timeline-controls")).toHaveCount(0);
   await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
@@ -492,13 +492,13 @@ test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) =
   await expect(page.locator(".video-analysis-code-window-dock [data-video-analysis-code-window]")).toBeVisible();
   await expect(page.locator(".video-analysis-clip-block")).toHaveCount(500);
   await expect(page.locator(".video-analysis-clip-block__copy small")).toHaveCount(0);
-  const phaseLane = page.locator('[data-video-analysis-timeline-category-label="In Possession"]');
-  await expect(phaseLane).toContainText("100 clips");
-  await expect(phaseLane).toContainText("0:00:00 - 1:55:45");
-  await phaseLane.click();
-  await expect(page.locator(".video-analysis-timeline-category-tray")).toContainText("100 clips selected");
+  const subPhaseLane = page.locator('[data-video-analysis-timeline-category-label="Build Up"]');
+  await expect(subPhaseLane).toContainText("250 clips");
+  await expect(subPhaseLane).toContainText("0:00:14 - 1:56:41");
+  await subPhaseLane.click();
+  await expect(page.locator(".video-analysis-timeline-category-tray")).toContainText("250 clips selected");
   await page.locator("[data-video-analysis-timeline-category-open]").click();
-  await expect(page.locator(".video-analysis-timeline-category-view button")).toHaveCount(100);
+  await expect(page.locator(".video-analysis-timeline-category-view button")).toHaveCount(250);
   await expect.poll(() => page.evaluate(() => (
     (window.__videoAnalysisRequests || []).filter((request) => request.action === "clips").length
   ))).toBe(3);
@@ -568,7 +568,7 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     startMs: 83000,
     endMs: 98000,
     subPhase: "Build Up",
-    miniGamePrincipleId: "fix-release",
+    miniGamePrincipleId: "drive-past-press",
     codingMode: "instant",
     visibility: "private",
   });
@@ -776,14 +776,14 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
   });
   expect(savedPressingButton).toMatchObject({
     label: "Jump press",
-    groupSortOrder: 4,
+    groupSortOrder: 2,
     sortOrder: 0,
     defaultDurationMs: 8000,
     startOffsetMs: -2000,
     endOffsetMs: 10000,
   });
 
-  await page.locator('[data-video-analysis-template-overlay] .video-analysis-icon-button[data-video-analysis-panel-mode="use"]').click();
+  await page.locator('[data-video-analysis-template-overlay] .video-analysis-template-close[data-video-analysis-panel-mode="use"]').click();
   await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
     Object.defineProperty(video, "currentTime", { configurable: true, value: 12 });
@@ -858,7 +858,7 @@ test("Video Analysis Label selected buttons update the selected timeline clip", 
   await inspector.locator('select[data-video-analysis-button-field$=":buttonBehavior"]').selectOption("label_current");
   await inspector.locator('select[data-video-analysis-button-field$=":targetField"]').selectOption("tags");
   await page.locator("[data-video-analysis-save-template]").click();
-  await page.locator('[data-video-analysis-template-overlay] .video-analysis-icon-button[data-video-analysis-panel-mode="use"]').click();
+  await page.locator('[data-video-analysis-template-overlay] .video-analysis-template-close[data-video-analysis-panel-mode="use"]').click();
   await page.locator('[data-video-analysis-code-button]').filter({ hasText: "Press trigger" }).click();
 
   await expect.poll(() => page.evaluate(() => {

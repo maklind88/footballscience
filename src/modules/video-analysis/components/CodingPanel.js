@@ -1,5 +1,4 @@
 import { miniGamePrinciples } from "../constants/miniGamePrinciples.js";
-import { teamPrinciples } from "../constants/principles.js";
 import { videoAnalysisOutcomes } from "../constants/outcomes.js";
 import { videoAnalysisPhases } from "../constants/phases.js";
 import { videoAnalysisSubPhases } from "../constants/subPhases.js";
@@ -40,8 +39,7 @@ export function renderCodingPanel(state = {}) {
         </div>
         <label>Phase<select data-video-analysis-draft="phase">${optionList(videoAnalysisPhases, draft.phase)}</select></label>
         <label>Sub Phase<select data-video-analysis-draft="subPhase">${optionList(videoAnalysisSubPhases, draft.subPhase)}</select></label>
-        <label>Team Principle<select data-video-analysis-draft="teamPrincipleId">${optionList(teamPrinciples, draft.teamPrincipleId, (item) => item.id, (item) => item.label)}</select></label>
-        <label>Mini-Game Principle<select data-video-analysis-draft="miniGamePrincipleId">${optionList(miniGamePrinciples, draft.miniGamePrincipleId, (item) => item.id, (item) => item.label)}</select></label>
+        <label>MG Principle<select data-video-analysis-draft="miniGamePrincipleId"><option value="">None</option>${optionList(miniGamePrinciples, draft.miniGamePrincipleId, (item) => item.id, (item) => item.label)}</select></label>
         <div class="video-analysis-grid-2">
           <label>Player<select data-video-analysis-draft="playerId">${playerOptions}</select></label>
           <label>Role<select data-video-analysis-draft="playerRole">${optionList(["primary", "secondary", "supporting", "unit"], draft.playerRole)}</select></label>

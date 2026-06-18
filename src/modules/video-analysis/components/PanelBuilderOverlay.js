@@ -13,8 +13,6 @@ const targetFieldOptions = [
   ["tags", "Tag"],
   ["phase", "Phase"],
   ["subPhase", "Sub-phase"],
-  ["teamPrincipleId", "Team Principle"],
-  ["miniGamePrincipleId", "Mini-game Principle"],
   ["outcome", "Outcome"],
   ["unit", "Unit"],
   ["pitchZone", "Pitch zone"],

@@ -1,11 +1,6 @@
-import { miniGamePrinciples } from "../constants/miniGamePrinciples.js";
-import { teamPrinciples } from "../constants/principles.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
+import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
 import { escapeHtml } from "./renderHelpers.js";
-
-function principleLabel(items = [], id = "") {
-  return items.find((item) => item.id === id)?.label || id || "No principle";
-}
 
 function playerLabel(clip = {}) {
   const first = Array.isArray(clip.players) ? clip.players[0] : null;
@@ -46,11 +41,10 @@ function renderSharingAction(clip = {}, visibility = "private", canEdit = false)
 
 function renderClip(clip = {}, canEdit = false) {
   const startMs = clip.startMs ?? clip.start_ms ?? 0;
-  const teamPrinciple = clip.teamPrincipleId || clip.team_principle_id;
-  const miniGame = clip.miniGamePrincipleId || clip.mini_game_principle_id;
   const latestNote = Array.isArray(clip.notes) ? clip.notes.at(-1)?.note || "" : "";
   const descriptors = descriptorSummary(clip);
   const visibility = clipVisibility(clip);
+  const miniGameLabels = clipMiniGamePrincipleLabels(clip);
   return `
     <article class="video-analysis-clip" data-video-analysis-clip="${escapeHtml(clip.id)}">
       <button type="button" class="video-analysis-clip__time" data-video-analysis-seek="${escapeHtml(clip.id)}">
@@ -58,7 +52,9 @@ function renderClip(clip = {}, canEdit = false) {
       </button>
       <div class="video-analysis-clip__body">
         <strong>${escapeHtml(clip.phase)} / ${escapeHtml(clip.subPhase || clip.sub_phase)}</strong>
-        <span>${escapeHtml(principleLabel(teamPrinciples, teamPrinciple))} · ${escapeHtml(principleLabel(miniGamePrinciples, miniGame))}</span>
+        ${miniGameLabels.length ? `
+          <span class="video-analysis-clip__principles">${miniGameLabels.map((label) => `<em>${escapeHtml(label)}</em>`).join("")}</span>
+        ` : `<span class="video-analysis-muted">No MG principles</span>`}
         <span>${escapeHtml(playerLabel(clip))} · ${escapeHtml(clip.outcome || "Neutral")}</span>
         <span class="video-analysis-clip__visibility is-${escapeHtml(visibility)}">${escapeHtml(visibilityLabel(visibility))}</span>
         ${descriptors ? `<span>${escapeHtml(descriptors)}</span>` : ""}

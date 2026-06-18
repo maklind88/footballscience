@@ -1,7 +1,5 @@
-import { miniGamePrinciples } from "../constants/miniGamePrinciples.js";
 import { videoAnalysisOutcomes } from "../constants/outcomes.js";
 import { videoAnalysisPhases } from "../constants/phases.js";
-import { teamPrinciples } from "../constants/principles.js";
 import { videoAnalysisSubPhases } from "../constants/subPhases.js";
 import { groupCodingTemplateButtons, rebuildTemplateFromGroups } from "./codingTemplateLayoutService.js";
 
@@ -16,7 +14,6 @@ export {
 } from "./codingTemplateLayoutService.js";
 
 const phaseHotkeys = ["1", "2", "3", "4", "5"];
-const principleHotkeys = ["6", "7", "8", "9", "0", "-"];
 const defaultClipDurationMs = 15000;
 const defaultButtonBehavior = "create_tag";
 const buttonBehaviorSettings = Object.freeze({
@@ -29,7 +26,6 @@ const buttonBehaviorSettings = Object.freeze({
 const groupColors = Object.freeze({
   Phase: "#1f5eff",
   "Sub-phase": "#0f8a63",
-  "Team Principle": "#7c3aed",
   "Mini-game Principle": "#d97706",
   Outcome: "#334155",
   Descriptors: "#0f766e",
@@ -145,9 +141,7 @@ export function createDefaultCodingTemplate() {
   const buttons = [
     ...buttonsFromList("phase", videoAnalysisPhases, phaseHotkeys, "Phase", 0),
     ...buttonsFromList("subPhase", videoAnalysisSubPhases, [], "Sub-phase", 1),
-    ...buttonsFromList("teamPrincipleId", teamPrinciples, principleHotkeys, "Team Principle", 2),
-    ...buttonsFromList("miniGamePrincipleId", miniGamePrinciples, [], "Mini-game Principle", 3),
-    ...buttonsFromList("outcome", videoAnalysisOutcomes, ["z", "x", "c"], "Outcome", 4),
+    ...buttonsFromList("outcome", videoAnalysisOutcomes, ["z", "x", "c"], "Outcome", 2),
   ];
   return {
     id: "football-science-default-template",
@@ -158,11 +152,11 @@ export function createDefaultCodingTemplate() {
     postRollMs: defaultClipDurationMs,
     buttons,
     links: [
-      { sourceValue: "Build Up", targetType: "miniGamePrincipleId", targetValue: "third-player" },
-      { sourceValue: "Build Up", targetType: "miniGamePrincipleId", targetValue: "fix-release" },
-      { sourceValue: "High Press", targetType: "miniGamePrincipleId", targetValue: "screen-and-cover" },
-      { sourceValue: "Offensive Transition", targetType: "miniGamePrincipleId", targetValue: "counterpress-five-seconds" },
-      { sourceValue: "Finishing Phase", targetType: "miniGamePrincipleId", targetValue: "box-arrivals" },
+      { sourceValue: "Build Up", targetType: "miniGamePrincipleIds", targetValue: "drive-past-press" },
+      { sourceValue: "Build Up", targetType: "miniGamePrincipleIds", targetValue: "ft3-find-the-third" },
+      { sourceValue: "High Press", targetType: "miniGamePrincipleIds", targetValue: "press-within-press-radius" },
+      { sourceValue: "Offensive Transition", targetType: "miniGamePrincipleIds", targetValue: "direct-transition-to-goal" },
+      { sourceValue: "Finishing Phase", targetType: "miniGamePrincipleIds", targetValue: "box-arrivals" },
     ],
   };
 }
@@ -308,7 +302,13 @@ export function applyCodingButtonToDraft(draft = {}, template = {}, button = {})
   }
   for (const link of template.links || []) {
     if (link.sourceValue === button.value && link.targetType && link.targetValue) {
-      nextDraft[link.targetType] = link.targetValue;
+      if (link.targetType === "miniGamePrincipleIds" || link.targetType === "miniGamePrincipleId") {
+        const existing = Array.isArray(nextDraft.miniGamePrincipleIds) ? nextDraft.miniGamePrincipleIds : [];
+        nextDraft.miniGamePrincipleIds = [...new Set([...existing, link.targetValue].filter(Boolean))];
+        nextDraft.miniGamePrincipleId = nextDraft.miniGamePrincipleIds[0] || "";
+      } else {
+        nextDraft[link.targetType] = link.targetValue;
+      }
     }
   }
   return nextDraft;

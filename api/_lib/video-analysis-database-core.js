@@ -185,6 +185,10 @@ async function patchRows(table, params, row) {
   return dbRequest(paramsPath(table, params), { method: "PATCH", body: row, prefer: "return=representation" });
 }
 
+async function deleteRows(table, params) {
+  return dbRequest(paramsPath(table, params), { method: "DELETE" });
+}
+
 module.exports = {
   DEFAULT_LIMIT,
   DESCRIPTOR_TYPES,
@@ -198,6 +202,7 @@ module.exports = {
   buildTeamParams,
   containsForbiddenVideoPayload,
   dbRequest,
+  deleteRows,
   insertRow,
   normalizeCodingMode,
   normalizeDescriptorType,

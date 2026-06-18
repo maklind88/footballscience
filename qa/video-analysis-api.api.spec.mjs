@@ -70,6 +70,30 @@ test("video analysis clip normalization keeps millisecond precision and football
   expect(clip.visibility).toBe("idp");
 });
 
+test("video analysis clip normalization stores multiple MG principles as searchable labels", () => {
+  const clip = api.normalizeClipPayload(
+    {
+      matchId: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+      videoId: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+      startMs: 1000,
+      endMs: 16000,
+      phase: "In Possession",
+      subPhase: "Build Up",
+      miniGamePrincipleId: "drive-past-press",
+      labels: [
+        { type: "mini_game_principle", value: "drive-past-press", label: "Drive past press" },
+        { type: "mini_game_principle", value: "ft3-find-the-third", label: "FT3 (Find the Third)" },
+      ],
+    },
+    actor
+  );
+
+  expect(clip.labels.filter((label) => label.type === "mini_game_principle")).toEqual([
+    { type: "mini_game_principle", value: "drive-past-press", label: "Drive past press" },
+    { type: "mini_game_principle", value: "ft3-find-the-third", label: "FT3 (Find the Third)" },
+  ]);
+});
+
 test("video analysis clip sharing keeps private clips owner-only and player clips IDP-shared", () => {
   const privateMetadata = clipSharing.buildClipSharingMetadata({
     payload: { visibility: "private" },

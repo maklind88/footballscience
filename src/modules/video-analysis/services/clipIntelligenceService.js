@@ -1,3 +1,5 @@
+import { clipMiniGamePrincipleLabels } from "./miniGamePrincipleService.js";
+
 function valueOf(clip = {}, camelKey = "", snakeKey = "") {
   return clip[camelKey] ?? clip[snakeKey] ?? "";
 }
@@ -12,17 +14,16 @@ function descriptorValue(clip = {}, type = "") {
 }
 
 function matrixAxes(mode = "phase-outcome") {
-  if (mode === "principle-player") return ["teamPrincipleId", "player"];
+  if (mode === "mg-principle-player") return ["miniGamePrincipleId", "player"];
   if (mode === "mini-game-unit") return ["miniGamePrincipleId", "unit"];
   return ["phase", "outcome"];
 }
 
-function axisValue(clip = {}, axis = "") {
-  if (axis === "player") return playerLabel(clip);
-  if (axis === "unit") return descriptorValue(clip, "unit") || "Unit";
-  if (axis === "teamPrincipleId") return valueOf(clip, "teamPrincipleId", "team_principle_id") || "No principle";
-  if (axis === "miniGamePrincipleId") return valueOf(clip, "miniGamePrincipleId", "mini_game_principle_id") || "No mini-game";
-  return valueOf(clip, axis, axis) || "Uncoded";
+function axisValues(clip = {}, axis = "") {
+  if (axis === "player") return [playerLabel(clip)];
+  if (axis === "unit") return [descriptorValue(clip, "unit") || "Unit"];
+  if (axis === "miniGamePrincipleId") return clipMiniGamePrincipleLabels(clip).length ? clipMiniGamePrincipleLabels(clip) : ["No MG principle"];
+  return [valueOf(clip, axis, axis) || "Uncoded"];
 }
 
 export function buildClipMatrix(clips = [], mode = "phase-outcome") {
@@ -30,11 +31,13 @@ export function buildClipMatrix(clips = [], mode = "phase-outcome") {
   const rows = new Map();
   const columns = new Set();
   for (const clip of clips) {
-    const row = axisValue(clip, rowAxis);
-    const column = axisValue(clip, columnAxis);
-    columns.add(column);
-    if (!rows.has(row)) rows.set(row, new Map());
-    rows.get(row).set(column, (rows.get(row).get(column) || 0) + 1);
+    for (const row of axisValues(clip, rowAxis)) {
+      for (const column of axisValues(clip, columnAxis)) {
+        columns.add(column);
+        if (!rows.has(row)) rows.set(row, new Map());
+        rows.get(row).set(column, (rows.get(row).get(column) || 0) + 1);
+      }
+    }
   }
   return {
     rowAxis,
@@ -47,14 +50,14 @@ export function buildClipMatrix(clips = [], mode = "phase-outcome") {
 export function filterClipsForMatrix(clips = [], mode = "", row = "", column = "") {
   const [rowAxis, columnAxis] = matrixAxes(mode);
   return clips.filter((clip) => {
-    const rowOk = !row || axisValue(clip, rowAxis) === row;
-    const columnOk = !column || axisValue(clip, columnAxis) === column;
+    const rowOk = !row || axisValues(clip, rowAxis).includes(row);
+    const columnOk = !column || axisValues(clip, columnAxis).includes(column);
     return rowOk && columnOk;
   });
 }
 
 export function savedSearchTitle(filters = {}) {
-  const parts = [filters.phase, filters.outcome, filters.principleId, filters.playerId, filters.unit]
+  const parts = [filters.phase, filters.outcome, filters.miniGamePrincipleId, filters.playerId, filters.unit]
     .map((value) => String(value || "").trim())
     .filter(Boolean);
   return parts.length ? parts.join(" / ") : "Video analysis search";

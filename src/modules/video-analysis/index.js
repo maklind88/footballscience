@@ -21,6 +21,7 @@ import { createPresentationRepository } from "./repositories/presentationReposit
 import { createVideoRepository } from "./repositories/videoRepository.js";
 import { applyCodingButtonToClip, buildClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
+import { clipMiniGamePrincipleIds, uniqueMiniGamePrincipleIds, withMiniGamePrinciples } from "./services/miniGamePrincipleService.js";
 import {
   addCodingButtonGroupToTemplate,
   addCodingButtonToTemplate,
@@ -803,7 +804,6 @@ async function loadClips(nextFilters = null) {
         search: filters.search,
         phase: filters.phase,
         outcome: filters.outcome,
-        teamPrincipleId: filters.principleId,
         miniGamePrincipleId: filters.miniGamePrincipleId,
         unit: filters.unit,
         descriptorValue: filters.descriptorValue,
@@ -1006,6 +1006,17 @@ function replaceClipInState(current = {}, nextClip = {}) {
     clips: patchList(current.clips || []),
     allClips: Array.isArray(current.allClips) ? patchList(current.allClips) : current.allClips,
   };
+}
+
+function activeMiniGamePrincipleIds(state = {}) {
+  const playheadMs = currentPlayheadMs(runtime?.context || {}, state);
+  const targetClip = findClipForLabelAction(state, playheadMs);
+  if (targetClip?.id) return clipMiniGamePrincipleIds(targetClip);
+  return uniqueMiniGamePrincipleIds([
+    ...(Array.isArray(state.codingSession?.miniGamePrincipleDraftIds) ? state.codingSession.miniGamePrincipleDraftIds : []),
+    ...(Array.isArray(state.draft?.miniGamePrincipleIds) ? state.draft.miniGamePrincipleIds : []),
+    state.draft?.miniGamePrincipleId,
+  ]);
 }
 
 function clipHasTag(clip = {}, tag = "") {
@@ -1464,11 +1475,13 @@ async function saveDraftClip(context = {}, stateOverride = null) {
     const nextDurationMs = Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
     run.store.update((current) => ({
       ...current,
-      draft: { ...current.draft, startMs: clip.endMs, endMs: clip.endMs + nextDurationMs, tags: "", note: "" },
+      draft: { ...current.draft, startMs: clip.endMs, endMs: clip.endMs + nextDurationMs, tags: "", note: "", miniGamePrincipleId: "", miniGamePrincipleIds: [] },
       codingSession: {
         ...(current.codingSession || {}),
         manualInMs: null,
         openTag: null,
+        miniGamePrincipleDraftIds: [],
+        miniGamePrinciplePickerOpen: false,
         lastClipId: savedClip.id || current.codingSession?.lastClipId || "",
         lastTaggedAtMs: clip.startMs,
         lastTaggedRangeMs: { startMs: clip.startMs, endMs: clip.endMs },
@@ -1547,7 +1560,10 @@ async function preparePlayableCopy(context = {}) {
 }
 
 function findClipForLabelAction(state = {}, playheadMs = 0) {
-  const clips = Array.isArray(state.clips) ? state.clips : [];
+  const clips = [
+    ...(Array.isArray(state.clips) ? state.clips : []),
+    ...(Array.isArray(state.allClips) ? state.allClips : []),
+  ];
   const selectedId = state.selectedClipId || state.codingSession?.lastClipId || state.timeline?.selectedCategory?.activeClipId || "";
   const selectedClip = clips.find((clip) => clip.id && clip.id === selectedId);
   if (selectedClip) return selectedClip;
@@ -1597,6 +1613,65 @@ async function saveButtonLabelOnClip(button = {}, action = {}, context = {}, sta
       ...replaceClipInState(current, targetClip),
       status: "error",
       error: error.message || "Could not apply label to selected clip.",
+    }));
+    return false;
+  }
+}
+
+async function saveMiniGamePrinciplesForActiveClip(context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const ids = uniqueMiniGamePrincipleIds(state.codingSession?.miniGamePrincipleDraftIds || []);
+  const targetClip = findClipForLabelAction(state, currentPlayheadMs(context, state));
+  if (!targetClip?.id) {
+    run.store.update((current) => ({
+      ...current,
+      draft: {
+        ...(current.draft || {}),
+        miniGamePrincipleId: ids[0] || "",
+        miniGamePrincipleIds: ids,
+      },
+      codingSession: {
+        ...(current.codingSession || {}),
+        miniGamePrincipleDraftIds: ids,
+        miniGamePrinciplePickerOpen: false,
+      },
+      message: ids.length ? "MG principles ready for next tag." : "MG principles cleared for next tag.",
+      error: "",
+    }));
+    return true;
+  }
+  const nextClip = normalizeClipInstance(withMiniGamePrinciples(targetClip, ids));
+  run.store.update((current) => ({
+    ...current,
+    status: "saving-clip",
+    selectedClipId: nextClip.id,
+    message: "Saving MG principles.",
+    error: "",
+  }));
+  try {
+    const payload = await run.clips.save(toApiClipPayload(nextClip));
+    const savedClip = normalizeClipInstance(payload?.clip || nextClip);
+    run.store.update((current) => ({
+      ...replaceClipInState(current, savedClip),
+      status: "ready",
+      selectedClipId: savedClip.id,
+      codingSession: {
+        ...(current.codingSession || {}),
+        lastClipId: savedClip.id,
+        miniGamePrincipleDraftIds: clipMiniGamePrincipleIds(savedClip),
+        miniGamePrinciplePickerOpen: false,
+      },
+      message: ids.length ? "MG principles saved to clip." : "MG principles cleared from clip.",
+      error: "",
+    }));
+    await loadClips();
+    return true;
+  } catch (error) {
+    run.store.update((current) => ({
+      ...replaceClipInState(current, targetClip),
+      status: "error",
+      error: error.message || "Could not save MG principles.",
     }));
     return false;
   }
@@ -2153,6 +2228,60 @@ export function handleClick(event, context = {}) {
     }));
     return true;
   }
+  if (target.closest("[data-video-analysis-mg-principles-open]")) {
+    run.store.update((state) => ({
+      ...state,
+      codingSession: {
+        ...(state.codingSession || {}),
+        miniGamePrinciplePickerOpen: true,
+        miniGamePrincipleDraftIds: activeMiniGamePrincipleIds(state),
+      },
+      message: "",
+      error: "",
+    }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-mg-principles-close]")) {
+    run.store.update((state) => ({
+      ...state,
+      codingSession: { ...(state.codingSession || {}), miniGamePrinciplePickerOpen: false },
+    }));
+    return true;
+  }
+  const miniGameToggle = target.closest("[data-video-analysis-mg-principle-toggle]");
+  if (miniGameToggle) {
+    const id = miniGameToggle.dataset.videoAnalysisMgPrincipleToggle;
+    run.store.update((state) => {
+      const currentIds = uniqueMiniGamePrincipleIds(state.codingSession?.miniGamePrincipleDraftIds || activeMiniGamePrincipleIds(state));
+      const selected = new Set(currentIds);
+      if (selected.has(id)) selected.delete(id);
+      else selected.add(id);
+      return {
+        ...state,
+        codingSession: {
+          ...(state.codingSession || {}),
+          miniGamePrincipleDraftIds: uniqueMiniGamePrincipleIds([...selected]),
+          miniGamePrinciplePickerOpen: true,
+        },
+      };
+    });
+    return true;
+  }
+  if (target.closest("[data-video-analysis-mg-principles-clear]")) {
+    run.store.update((state) => ({
+      ...state,
+      codingSession: {
+        ...(state.codingSession || {}),
+        miniGamePrincipleDraftIds: [],
+        miniGamePrinciplePickerOpen: true,
+      },
+    }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-mg-principles-apply]")) {
+    saveMiniGamePrinciplesForActiveClip(context);
+    return true;
+  }
   const codeButton = target.closest("[data-video-analysis-code-button]");
   if (codeButton) {
     applyCodeButton(codeButton.dataset.videoAnalysisCodeButton, context);
@@ -2551,7 +2680,7 @@ export function handleClick(event, context = {}) {
     return true;
   }
   if (target.closest("[data-video-analysis-clear-filters]")) {
-    loadClips({ search: "", phase: "", playerId: "", ownerId: "", tag: "", principleId: "", miniGamePrincipleId: "", outcome: "", unit: "", descriptorValue: "" });
+    loadClips({ search: "", phase: "", playerId: "", ownerId: "", tag: "", miniGamePrincipleId: "", outcome: "", unit: "", descriptorValue: "" });
     run.store.update((state) => ({ ...state, matrix: { ...(state.matrix || {}), selectedRow: "", selectedColumn: "" } }));
     return true;
   }

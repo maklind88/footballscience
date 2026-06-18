@@ -7,6 +7,7 @@ const {
   actorScope,
   buildTeamParams,
   containsForbiddenVideoPayload,
+  deleteRows,
   insertRow,
   normalizeCodingMode,
   normalizeDescriptorType,
@@ -65,9 +66,6 @@ function buildClipSearchParams(query = {}, scope = actorScope()) {
   if (normalizeText(query.outcome, 40)) params.set("outcome", `eq.${normalizeOutcome(query.outcome)}`);
   if (normalizeText(query.teamPrincipleId || query.team_principle_id || query.principleId, 120)) {
     params.set("team_principle_id", `eq.${normalizeText(query.teamPrincipleId || query.team_principle_id || query.principleId, 120)}`);
-  }
-  if (normalizeText(query.miniGamePrincipleId || query.mini_game_principle_id, 120)) {
-    params.set("mini_game_principle_id", `eq.${normalizeText(query.miniGamePrincipleId || query.mini_game_principle_id, 120)}`);
   }
   params.set("order", "start_ms.asc");
   params.set("limit", String(asLimit(query.limit)));
@@ -141,19 +139,25 @@ function normalizeLabels(payload = {}, clip = {}) {
     ["outcome", clip.outcome, clip.outcome],
   ];
   const custom = Array.isArray(payload.labels) ? payload.labels : [];
-  return base
-    .map(([type, value, label]) => ({ type, value, label }))
-    .concat(custom.map((entry = {}) => ({
+  const seen = new Set();
+  return custom.map((entry = {}) => ({
       type: entry.type || entry.labelType || entry.label_type,
       value: entry.value || entry.labelValue || entry.label_value,
       label: entry.label || entry.labelText || entry.label_text,
-    })))
+    }))
+    .concat(base.map(([type, value, label]) => ({ type, value, label })))
     .map((entry = {}) => ({
       type: normalizeLabelType(entry.type),
       value: normalizeText(entry.value, 180),
       label: normalizeText(entry.label, 180) || null,
     }))
     .filter((entry) => entry.value)
+    .filter((entry) => {
+      const key = `${entry.type}:${entry.value}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .slice(0, 40);
 }
 
@@ -371,10 +375,28 @@ function clipMatchesFilters(clip = {}, query = {}) {
   const playerId = normalizeText(query.playerId || query.player_id, 160);
   const unit = normalizeText(query.unit, 120).toLowerCase();
   const descriptorValue = normalizeText(query.descriptorValue || query.descriptor_value, 180).toLowerCase();
+  const miniGamePrincipleId = normalizeText(query.miniGamePrincipleId || query.mini_game_principle_id, 120).toLowerCase();
   if (playerId && !(clip.players || []).some((player) => player.player_id === playerId)) return false;
   if (unit && !(clip.descriptors || []).some((entry) => entry.descriptor_type === "unit" && normalizeText(entry.descriptor_value, 180).toLowerCase() === unit)) return false;
   if (descriptorValue && !(clip.descriptors || []).some((entry) => normalizeText(entry.descriptor_value, 180).toLowerCase() === descriptorValue)) return false;
+  if (miniGamePrincipleId) {
+    const primary = normalizeText(clip.mini_game_principle_id, 120).toLowerCase();
+    const labels = (clip.labels || []).filter((label) => label.label_type === "mini_game_principle");
+    const matchesLabel = labels.some((label) => (
+      normalizeText(label.label_value, 180).toLowerCase() === miniGamePrincipleId ||
+      normalizeText(label.label_text, 180).toLowerCase() === miniGamePrincipleId
+    ));
+    if (primary !== miniGamePrincipleId && !matchesLabel) return false;
+  }
   return true;
+}
+
+async function replaceClipChildRows(table, scope = {}, clipId = "") {
+  const params = buildTeamParams(scope);
+  params.set("clip_instance_id", `eq.${clipId}`);
+  const result = await deleteRows(table, params);
+  if (!result.ok && result.status !== 404) return result;
+  return { ok: true };
 }
 
 async function listClips(query, actor) {
@@ -453,6 +475,10 @@ async function saveClip(payload, actor) {
   if (!clipResult.ok) return clipResult;
   const saved = clipResult.payload?.[0];
   if (!saved?.id) return { ok: false, status: 500, reason: "Clip could not be saved." };
+  if (existing) {
+    const labelsReplaced = await replaceClipChildRows("video_clip_labels", scope, saved.id);
+    if (!labelsReplaced.ok) return labelsReplaced;
+  }
   const childWrites = [];
   for (const player of clip.players) {
     childWrites.push(insertRow("video_clip_players", {

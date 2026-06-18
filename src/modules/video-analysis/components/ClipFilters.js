@@ -1,4 +1,3 @@
-import { teamPrinciples } from "../constants/principles.js";
 import { miniGamePrinciples } from "../constants/miniGamePrinciples.js";
 import { videoAnalysisOutcomes } from "../constants/outcomes.js";
 import { videoAnalysisPhases } from "../constants/phases.js";
@@ -12,11 +11,8 @@ export function renderClipFilters(state = {}) {
       <select data-video-analysis-filter="phase">
         <option value="">All phases</option>${optionList(videoAnalysisPhases, filters.phase)}
       </select>
-      <select data-video-analysis-filter="principleId">
-        <option value="">All principles</option>${optionList(teamPrinciples, filters.principleId, (item) => item.id, (item) => item.label)}
-      </select>
       <select data-video-analysis-filter="miniGamePrincipleId">
-        <option value="">All MG principles</option>${optionList(miniGamePrinciples, filters.miniGamePrincipleId, (item) => item.id, (item) => item.label)}
+        <option value="">All principles</option>${optionList(miniGamePrinciples, filters.miniGamePrincipleId, (item) => item.id, (item) => item.label)}
       </select>
       <select data-video-analysis-filter="playerId">
         <option value="">All players</option>${optionList(state.players || [], filters.playerId, (player) => player.id, (player) => player.name)}

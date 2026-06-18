@@ -19,6 +19,7 @@ import {
   getClipSecondaryLabel,
   getClipStartMs,
 } from "./timeline.selectors.js";
+import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
 
 function outcomeClass(outcome = "") {
   const value = String(outcome || "neutral").trim().toLowerCase();
@@ -57,7 +58,7 @@ function findClipButton(clip = {}, lookup = {}) {
     const tagButton = lookup.byFieldValue?.get(`tags:${tag}`);
     if (tagButton) return tagButton;
   }
-  for (const field of ["phase", "subPhase", "teamPrincipleId", "miniGamePrincipleId", "outcome"]) {
+  for (const field of ["phase", "subPhase", "miniGamePrincipleId", "outcome"]) {
     const value = clipTargetValue(clip, field);
     const button = lookup.byFieldValue?.get(`${field}:${value}`);
     if (button) return button;
@@ -132,6 +133,10 @@ function renderClipBlock(clip = {}, totalMs = 1, laneMode = "phase", selectedCli
   const secondaryLabel = getClipSecondaryLabel(clip);
   const buttonColor = safeHexColor(button?.color);
   const buttonLabel = button?.label || "";
+  const miniGameLabels = clipMiniGamePrincipleLabels(clip);
+  const miniGameText = miniGameLabels.length
+    ? `${miniGameLabels.slice(0, 3).join(" + ")}${miniGameLabels.length > 3 ? ` +${miniGameLabels.length - 3}` : ""}`
+    : "";
   return `
     <button type="button" class="video-analysis-clip-block${outcomeClass(outcome)}${selected ? " is-selected" : ""}${categorySelected ? " is-category-selected" : ""}"
       style="${clipBlockStyle(clip, totalMs)}${buttonColor ? `--video-analysis-clip-color:${escapeHtml(buttonColor)};` : ""}"
@@ -145,6 +150,7 @@ function renderClipBlock(clip = {}, totalMs = 1, laneMode = "phase", selectedCli
       ></span>
       <span class="video-analysis-clip-block__copy">
         <strong>${escapeHtml(String(clipNumber))}</strong>
+        ${miniGameText && !density.isDense ? `<em>${escapeHtml(miniGameText)}</em>` : ""}
         ${density.isDense ? "" : `<small>${escapeHtml(formatVideoTime(startMs))}</small>`}
       </span>
       <span

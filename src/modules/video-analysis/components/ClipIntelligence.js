@@ -3,8 +3,8 @@ import { escapeHtml } from "./renderHelpers.js";
 
 const matrixModes = Object.freeze([
   { id: "phase-outcome", label: "Phase x Outcome" },
-  { id: "principle-player", label: "Principle x Player" },
-  { id: "mini-game-unit", label: "Mini-game x Unit" },
+  { id: "mg-principle-player", label: "Principle x Player" },
+  { id: "mini-game-unit", label: "Principle x Unit" },
 ]);
 
 function renderMatrixCell(rowLabel = "", column = "", count = 0, selected = false) {

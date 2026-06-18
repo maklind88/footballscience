@@ -1,8 +1,4 @@
-import { miniGamePrinciples } from "../constants/miniGamePrinciples.js";
-import { teamPrinciples } from "../constants/principles.js";
-
-const teamPrincipleLabels = new Map(teamPrinciples.map((item) => [item.id, item.label]));
-const miniGamePrincipleLabels = new Map(miniGamePrinciples.map((item) => [item.id, item.label]));
+import { clipMiniGamePrincipleLabels, miniGamePrincipleLabel } from "../services/miniGamePrincipleService.js";
 
 export function clipValue(clip = {}, camelKey = "", snakeKey = "") {
   return clip[camelKey] ?? clip[snakeKey] ?? "";
@@ -33,14 +29,11 @@ export function firstDescriptorValue(clip = {}, type = "") {
   ))?.descriptor_value || "";
 }
 
-export function getClipTeamPrincipleLabel(clip = {}) {
-  const id = String(clipValue(clip, "teamPrincipleId", "team_principle_id") || "");
-  return teamPrincipleLabels.get(id) || id || "No team principle";
-}
-
 export function getClipMiniGamePrincipleLabel(clip = {}) {
+  const labels = clipMiniGamePrincipleLabels(clip);
+  if (labels.length) return labels.join(" + ");
   const id = String(clipValue(clip, "miniGamePrincipleId", "mini_game_principle_id") || "");
-  return miniGamePrincipleLabels.get(id) || id || "No mini-game principle";
+  return miniGamePrincipleLabel(id) || "No MG principle";
 }
 
 export function getTimelineLaneValue(clip = {}, laneMode = "phase") {
@@ -49,7 +42,6 @@ export function getTimelineLaneValue(clip = {}, laneMode = "phase") {
   if (laneMode === "unit") return firstDescriptorValue(clip, "unit") || "Unit";
   if (laneMode === "outcome") return clipValue(clip, "outcome", "outcome") || "Neutral";
   if (laneMode === "subPhase") return clipValue(clip, "subPhase", "sub_phase") || "No sub-phase";
-  if (laneMode === "teamPrinciple") return getClipTeamPrincipleLabel(clip);
   if (laneMode === "miniGamePrinciple") return getClipMiniGamePrincipleLabel(clip);
   return clipValue(clip, "phase", "phase") || "Uncoded";
 }

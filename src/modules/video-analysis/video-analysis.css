@@ -1876,6 +1876,161 @@
   font-weight: 750;
 }
 
+.video-analysis-mg-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10045;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.video-analysis-mg-picker-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(8, 13, 11, 0.58);
+  cursor: default;
+}
+
+.video-analysis-mg-picker-panel {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(940px, calc(100vw - 64px));
+  max-height: min(720px, calc(100vh - 56px));
+  overflow: hidden;
+  border: 1px solid rgba(211, 221, 216, 0.92);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 30px 90px rgba(5, 12, 9, 0.34);
+  backdrop-filter: blur(28px);
+}
+
+.video-analysis-mg-picker-header,
+.video-analysis-mg-picker-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.video-analysis-mg-picker-header {
+  border-bottom: 1px solid #e5ebe8;
+}
+
+.video-analysis-mg-picker-header h3 {
+  margin: 0;
+  color: #111815;
+  font-size: 24px;
+  line-height: 1.05;
+}
+
+.video-analysis-mg-picker-header span,
+.video-analysis-mg-picker-footer span {
+  color: #66736c;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.video-analysis-mg-picker-close {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  color: #111815;
+  background: #f1f5f3;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.video-analysis-mg-picker-close:hover {
+  background: #e5ece8;
+}
+
+.video-analysis-mg-picker-body {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 20px 24px;
+}
+
+.video-analysis-mg-picker-group {
+  display: grid;
+  gap: 8px;
+}
+
+.video-analysis-mg-picker-group h4 {
+  margin: 0;
+  color: #24342d;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.video-analysis-mg-picker-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.video-analysis-mg-principle-chip {
+  min-height: 34px;
+  border: 1px solid #d4ded8;
+  border-radius: 999px;
+  padding: 0 12px;
+  color: #1e2d26;
+  background: #f7faf8;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.video-analysis-mg-principle-chip:hover {
+  border-color: #d97706;
+  background: #fff7ed;
+}
+
+.video-analysis-mg-principle-chip.is-active {
+  border-color: #d97706;
+  color: #ffffff;
+  background: #d97706;
+  box-shadow: 0 8px 18px rgba(217, 119, 6, 0.18);
+}
+
+.video-analysis-mg-picker-footer {
+  align-items: center;
+  border-top: 1px solid #e5ebe8;
+  background: rgba(248, 250, 249, 0.92);
+}
+
+.video-analysis-mg-picker-footer button {
+  min-height: 34px;
+  border: 1px solid #cfd8d2;
+  border-radius: 999px;
+  padding: 0 14px;
+  color: #15231c;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.video-analysis-mg-picker-footer .video-analysis-primary-action {
+  border-color: #143522;
+  color: #ffffff;
+  background: #143522;
+}
+
 .video-analysis-template-overlay {
   position: fixed;
   inset: 0;
@@ -2860,10 +3015,19 @@
 }
 
 .video-analysis-clip-block__copy strong,
-.video-analysis-clip-block__copy small {
+.video-analysis-clip-block__copy small,
+.video-analysis-clip-block__copy em {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.video-analysis-clip-block__copy em {
+  min-width: 0;
+  max-width: 70%;
+  color: rgba(255,255,255,0.88);
+  font-size: 8px;
+  font-style: normal;
 }
 
 .video-analysis-clip-block__copy small {
@@ -3221,6 +3385,22 @@
   margin: 0;
   color: #56635b;
   font-size: 12px;
+}
+
+.video-analysis-clip__principles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.video-analysis-clip__principles em {
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: #8a4b04;
+  background: #fff7ed;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 850;
 }
 
 .video-analysis-clip__visibility {

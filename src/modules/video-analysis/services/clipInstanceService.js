@@ -1,6 +1,7 @@
 import { normalizeClipInstance, normalizeMs } from "../domain/clipInstance.model.js";
 import { descriptorApiKeys } from "../constants/descriptors.js";
 import { isValidCodingSelection, splitTags } from "./taggingService.js";
+import { buildMiniGamePrincipleLabels, uniqueMiniGamePrincipleIds, withMiniGamePrinciples } from "./miniGamePrincipleService.js";
 
 export function createClipDraftFromPlayerTime(draft = {}, videoElement) {
   const currentMs = normalizeMs((videoElement?.currentTime || 0) * 1000);
@@ -18,9 +19,13 @@ export function buildClipPayload(state = {}) {
     throw new Error("Load a local video before saving a clip.");
   }
   if (!isValidCodingSelection(draft)) {
-    throw new Error("Choose a valid phase, principle, mini-game principle, and outcome.");
+    throw new Error("Choose a valid phase, sub-phase, and outcome.");
   }
   const selectedPlayer = (state.players || []).find((player) => player.id === draft.playerId);
+  const miniGamePrincipleIds = uniqueMiniGamePrincipleIds([
+    ...(Array.isArray(draft.miniGamePrincipleIds) ? draft.miniGamePrincipleIds : []),
+    draft.miniGamePrincipleId,
+  ]);
   return normalizeClipInstance({
     matchId: state.match.id,
     videoId: state.video.id,
@@ -30,7 +35,7 @@ export function buildClipPayload(state = {}) {
     phase: draft.phase,
     subPhase: draft.subPhase,
     teamPrincipleId: draft.teamPrincipleId,
-    miniGamePrincipleId: draft.miniGamePrincipleId,
+    miniGamePrincipleId: miniGamePrincipleIds[0] || "",
     outcome: draft.outcome,
     codingMode: session.mode || "manual",
     codingTemplateId: state.template?.databaseId || state.template?.id || "",
@@ -40,6 +45,7 @@ export function buildClipPayload(state = {}) {
     visibility: selectedPlayer ? "idp" : draft.visibility || draft.clipVisibility || "private",
     tags: splitTags(draft.tags),
     descriptors: buildDescriptorPayload(draft, selectedPlayer),
+    labels: buildMiniGamePrincipleLabels(miniGamePrincipleIds),
     players: selectedPlayer
       ? [{ playerId: selectedPlayer.id, playerLabel: selectedPlayer.name, role: draft.playerRole || "primary" }]
       : [],
@@ -108,7 +114,7 @@ export function applyCodingButtonToClip(clip = {}, button = {}, players = []) {
   if (targetField === "phase") return { ...clip, phase: value };
   if (targetField === "subPhase") return { ...clip, subPhase: value, sub_phase: value };
   if (targetField === "teamPrincipleId") return { ...clip, teamPrincipleId: value, team_principle_id: value };
-  if (targetField === "miniGamePrincipleId") return { ...clip, miniGamePrincipleId: value, mini_game_principle_id: value };
+  if (targetField === "miniGamePrincipleId") return withMiniGamePrinciples(clip, [value]);
   if (targetField === "outcome") return { ...clip, outcome: value };
   if (targetField === "playerId") return withPlayer(clip, value, players);
   if (["unit", "pitchZone", "pressure", "decision", "execution"].includes(targetField)) {

@@ -289,7 +289,7 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(read("src/modules/video-analysis/timeline/timeline.constants.js")).toContain('id: "tags"');
   expect(intelligence).toContain("Phase x Outcome");
   expect(intelligence).toContain("Principle x Player");
-  expect(intelligence).toContain("Mini-game x Unit");
+  expect(intelligence).toContain("Principle x Unit");
 });
 
 test("coding tag panel creates 15 second button-owned clip actions", async () => {
@@ -316,13 +316,14 @@ test("coding tag panel creates 15 second button-owned clip actions", async () =>
   expect(button.targetField).toBe("subPhase");
   expect(button.databaseId).toBe("");
   const defaultGroups = service.groupCodingTemplateButtons(template);
-  expect(defaultGroups.map((group) => group.label)).toEqual(["Phase", "Sub-phase", "Team Principle", "Mini-game Principle", "Outcome"]);
-  expect(defaultGroups.map((group) => group.sortOrder)).toEqual([0, 1, 2, 3, 4]);
+  expect(defaultGroups.map((group) => group.label)).toEqual(["Phase", "Sub-phase", "Outcome"]);
+  expect(defaultGroups.map((group) => group.sortOrder)).toEqual([0, 1, 2]);
   expect(defaultGroups[1].buttons.map((item) => item.sortOrder).slice(0, 3)).toEqual([0, 1, 2]);
   expect(action.shouldCreateClip).toBe(true);
   expect(action.nextDraft.startMs).toBe(831000);
   expect(action.nextDraft.endMs).toBe(846000);
-  expect(action.nextDraft.miniGamePrincipleId).toBe("fix-release");
+  expect(action.nextDraft.miniGamePrincipleId).toBe("drive-past-press");
+  expect(action.nextDraft.miniGamePrincipleIds).toEqual(["drive-past-press", "ft3-find-the-third"]);
   expect(action.nextSession.mode).toBe("instant");
 });
 

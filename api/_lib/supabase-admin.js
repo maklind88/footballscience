@@ -595,9 +595,9 @@ async function getCurrentActor(authHeader) {
     return null;
   }
 
-  const freshUser = await getRawAuthUserById(user.id);
-  const migratedUser = await migrateLegacyProfileImageForRawUser(freshUser || user);
-  const actor = normalizePlatformUser(migratedUser || freshUser || user);
+  const needsLegacyImageMigration = Boolean(findLegacyProfileImageDataUrl(user.user_metadata));
+  const migratedUser = needsLegacyImageMigration ? await migrateLegacyProfileImageForRawUser(user) : null;
+  const actor = normalizePlatformUser(migratedUser || user);
   writeCurrentActorCache(token, actor);
   return actor;
 }

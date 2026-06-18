@@ -618,7 +618,7 @@ test("platform auth boot throttles post-login auth-dependent hydration", () => {
   expect(source).not.toMatch(/await refreshAccessToken\(\)\.catch\(\(\) => null\);\s*let sessionResult;/);
 });
 
-test("current actor lookup reuses a brief validated token cache", async () => {
+test("current actor lookup avoids duplicate admin fetches and reuses a brief validated token cache", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
   clearEnv(supabaseEnvKeys);
@@ -651,7 +651,7 @@ test("current actor lookup reuses a brief validated token cache", async () => {
     expect(first?.id).toBe("coach-1");
     expect(second?.id).toBe("coach-1");
     expect(userCalls).toBe(1);
-    expect(adminUserCalls).toBe(1);
+    expect(adminUserCalls).toBe(0);
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

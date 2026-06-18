@@ -118,9 +118,12 @@ function startAutoSync(activeRuntime) {
 
 function captureSearchFocus(activeRuntime = runtime) {
   const activeElement = getDocument(activeRuntime)?.activeElement;
-  if (!activeElement?.matches?.("[data-idp-search]")) return null;
+  const isOverviewSearch = Boolean(activeElement?.matches?.("[data-idp-search]"));
+  const isClipSearch = Boolean(activeElement?.matches?.("[data-idp-clip-search]"));
+  if (!isOverviewSearch && !isClipSearch) return null;
   const value = activeElement.value || "";
   return {
+    selector: isClipSearch ? "[data-idp-clip-search]" : "[data-idp-search]",
     end: Number.isInteger(activeElement.selectionEnd) ? activeElement.selectionEnd : value.length,
     start: Number.isInteger(activeElement.selectionStart) ? activeElement.selectionStart : value.length,
   };
@@ -128,7 +131,7 @@ function captureSearchFocus(activeRuntime = runtime) {
 
 function restoreSearchFocus(activeRuntime = runtime, focusState = null) {
   if (!focusState) return;
-  const input = getRoot(activeRuntime?.context)?.querySelector?.("[data-idp-search]");
+  const input = getRoot(activeRuntime?.context)?.querySelector?.(focusState.selector || "[data-idp-search]");
   if (!input) return;
   const valueLength = input.value?.length || 0;
   const start = Math.min(focusState.start ?? valueLength, valueLength);
@@ -225,8 +228,13 @@ export function render(context = {}) {
 
 export function handleInput(event) {
   const target = event?.target;
-  if (!target?.matches?.("[data-idp-search]")) return;
-  runtime?.store.setState({ ui: { searchQuery: target.value || "" } });
+  if (target?.matches?.("[data-idp-clip-search]")) {
+    runtime?.store.setState({ ui: { clipBankSearchQuery: target.value || "" } });
+    return;
+  }
+  if (target?.matches?.("[data-idp-search]")) {
+    runtime?.store.setState({ ui: { searchQuery: target.value || "" } });
+  }
 }
 
 export function handleChange(event) {

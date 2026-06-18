@@ -582,10 +582,11 @@ function renderActionRail(canEdit = false, focusId = "") {
   if (!canEdit) return "";
   return `
     <div class="idp-action-rail" aria-label="Player development actions">
-      <button type="button" data-idp-action="ownership"><span>01</span><strong>Assign coach</strong><small>Ownership</small></button>
-      <button type="button" data-idp-action="focus"><span>02</span><strong>Update focus</strong><small>Mission</small></button>
-      <button type="button" data-idp-action="evidence" ${focusId ? "" : "disabled"}><span>03</span><strong>Add observation</strong><small>Signal</small></button>
-      <button type="button" data-idp-action="review" ${focusId ? "" : "disabled"}><span>04</span><strong>Complete review</strong><small>Decision</small></button>
+      <span class="idp-action-rail-label">Quick actions</span>
+      <button type="button" data-idp-action="ownership" title="Assign coach"><span>01</span><strong>Assign coach</strong><small>Ownership</small></button>
+      <button type="button" data-idp-action="focus" title="Update focus"><span>02</span><strong>Update focus</strong><small>Mission</small></button>
+      <button type="button" data-idp-action="evidence" title="Add observation" ${focusId ? "" : "disabled"}><span>03</span><strong>Add observation</strong><small>Signal</small></button>
+      <button type="button" data-idp-action="review" title="Complete review" ${focusId ? "" : "disabled"}><span>04</span><strong>Complete review</strong><small>Decision</small></button>
     </div>
   `;
 }
@@ -1066,9 +1067,11 @@ export function renderIdpWorkspace(state = {}, options = {}) {
             <span>${escapeHtml(teamName)}</span>
           </div>
         </div>
-        <div class="idp-summary-strip" aria-label="Player development overview">
-          ${renderSummary(state)}
-        </div>
+        ${hasSelectedPlayer ? "" : `
+          <div class="idp-summary-strip" aria-label="Player development overview">
+            ${renderSummary(state)}
+          </div>
+        `}
       </header>
       ${ui.loading ? `<div class="idp-notice">Loading player development plans.</div>` : ""}
       ${ui.error ? `<div class="idp-notice is-warning">${escapeHtml(ui.error)}</div>` : ""}

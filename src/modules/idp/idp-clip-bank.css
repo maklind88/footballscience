@@ -47,6 +47,57 @@
   cursor: not-allowed;
 }
 
+.idp-clip-bank-search {
+  align-items: center;
+  background: rgba(248, 250, 252, 0.82);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin: 10px 0;
+  padding: 8px 10px;
+}
+
+.idp-clip-bank-search span {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.idp-clip-bank-search input {
+  appearance: none;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  color: #0f172a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  min-height: 34px;
+  min-width: 0;
+  padding: 7px 10px;
+}
+
+.idp-clip-bank-search input:focus {
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  outline: none;
+}
+
+.idp-clip-bank-search strong {
+  background: #eef2ff;
+  border-radius: 999px;
+  color: #175cd3;
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1;
+  padding: 7px 9px;
+  white-space: nowrap;
+}
+
 .idp-clip-bank-list {
   display: grid;
   gap: 8px;
@@ -269,6 +320,14 @@
 }
 
 @media (max-width: 760px) {
+  .idp-clip-bank-search {
+    grid-template-columns: 1fr;
+  }
+
+  .idp-clip-bank-search strong {
+    justify-self: start;
+  }
+
   .idp-clip-bank-row {
     grid-template-columns: 42px minmax(0, 1fr) auto;
   }

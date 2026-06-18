@@ -104,6 +104,9 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("data-idp-action=\"ownership\"");
   expect(profileHtml).toContain("data-idp-action=\"focus\"");
   expect(profileHtml).toContain("data-idp-action=\"evidence\"");
+  expect(profileHtml).toContain("Quick actions");
+  expect(profileHtml).not.toContain("idp-summary-strip");
+  expect(profileHtml).not.toContain("Player development overview");
   expect(profileHtml).toContain("Player Snapshot");
   expect(profileHtml).toContain("idp-focus-clarity-card");
   expect(profileHtml).toContain("Coach cue");
@@ -180,6 +183,7 @@ test("idp clip bank is a date-sorted organizer with play queue metadata", () => 
     ui: {
       selectedPlayerId: "p1",
       selectedClipBankIds: ["bank-new"],
+      clipBankSearchQuery: "Louisville",
       clipPreviewOpen: true,
       clipPreviewQueueIds: ["bank-new", "bank-old"],
       clipPreviewActiveIndex: 0,
@@ -189,12 +193,14 @@ test("idp clip bank is a date-sorted organizer with play queue metadata", () => 
   };
 
   const html = renderIdpWorkspace(profileState, { canEdit: true, teamName: "North Carolina Courage" });
+  expect(html).toContain("data-idp-clip-search");
+  expect(html).toContain("1 of 2 clips");
+  expect(html).toContain("Find clip, player, date or principle");
   expect(html).toContain("data-idp-clip-play-selected");
   expect(html).toContain("Play selected (1)");
   expect(html).toContain("data-idp-clip-play=\"bank-new\"");
   expect(html).toContain("NCC - Louisville");
-  expect(html).toContain("Training + Lift");
-  expect(html.indexOf("NCC - Louisville")).toBeLessThan(html.indexOf("Training + Lift"));
+  expect(html).not.toContain("Training + Lift");
   expect(html).toContain("2026-06-27");
   expect(html).toContain("Build Up / In Possession");
   expect(html).toContain("Counterpress 5s");

@@ -121,6 +121,120 @@ body.is-dark-mode .idp-focus-coach-cue strong {
   color: #e5e7eb;
 }
 
+.idp-player-profile .idp-profile-actions-deck {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.idp-player-profile .idp-profile-actions-deck .idp-action-rail {
+  align-items: center;
+  background: rgba(255, 255, 255, .88);
+  border: 1px solid rgba(20, 32, 51, .08);
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(16, 24, 40, .055);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto repeat(4, minmax(0, 1fr));
+  padding: 8px;
+}
+
+.idp-action-rail-label {
+  color: #667085;
+  font-size: .68rem;
+  font-weight: 950;
+  padding: 0 6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.idp-player-profile .idp-profile-actions-deck .idp-action-rail button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid rgba(20, 32, 51, .1);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .92);
+  color: #172033;
+  cursor: pointer;
+  display: grid;
+  gap: 2px 8px;
+  grid-template-columns: 25px minmax(0, 1fr) 16px;
+  min-height: 46px;
+  padding: 8px 9px;
+  position: relative;
+  text-align: left;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.idp-player-profile .idp-profile-actions-deck .idp-action-rail button::after {
+  color: #98a2b3;
+  content: ">";
+  font-size: 1.15rem;
+  font-weight: 900;
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  justify-self: end;
+}
+
+.idp-player-profile .idp-profile-actions-deck .idp-action-rail button:hover,
+.idp-player-profile .idp-profile-actions-deck .idp-action-rail button:focus-visible {
+  border-color: rgba(36, 87, 166, .32);
+  box-shadow: 0 10px 22px rgba(36, 87, 166, .09);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.idp-player-profile .idp-profile-actions-deck .idp-action-rail button:disabled {
+  background: rgba(248, 250, 252, .72);
+  color: #98a2b3;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.idp-player-profile .idp-profile-actions-deck .idp-action-rail button:disabled::after {
+  content: "";
+}
+
+.idp-player-profile .idp-profile-actions-deck .idp-action-rail button span {
+  align-self: center;
+  color: #667085;
+  font-size: .7rem;
+  font-weight: 950;
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.idp-player-profile .idp-profile-actions-deck .idp-action-rail button strong {
+  color: inherit;
+  font-size: .86rem;
+  font-weight: 900;
+  grid-column: 2;
+  line-height: 1.08;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-profile .idp-profile-actions-deck .idp-action-rail button small {
+  color: #667085;
+  font-size: .68rem;
+  font-weight: 850;
+  grid-column: 2;
+  line-height: 1;
+}
+
+body.is-dark-mode .idp-player-profile .idp-profile-actions-deck .idp-action-rail {
+  background: rgba(15, 23, 42, .72);
+  border-color: rgba(148, 163, 184, .14);
+}
+
+body.is-dark-mode .idp-player-profile .idp-profile-actions-deck .idp-action-rail button {
+  background: rgba(17, 24, 39, .82);
+  border-color: rgba(148, 163, 184, .16);
+  color: #e5e7eb;
+}
+
 @media (max-width: 960px) {
   .idp-focus-clarity-head,
   .idp-focus-coach-cue,
@@ -131,5 +245,14 @@ body.is-dark-mode .idp-focus-coach-cue strong {
   .idp-focus-meta {
     justify-content: flex-start;
     max-width: none;
+  }
+
+  .idp-player-profile .idp-profile-actions-deck .idp-action-rail {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .idp-action-rail-label {
+    grid-column: 1 / -1;
+    padding: 0;
   }
 }

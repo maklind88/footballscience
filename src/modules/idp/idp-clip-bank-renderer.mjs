@@ -76,6 +76,18 @@ function principleLabels(clip = {}) {
   return visible.slice(0, 3);
 }
 
+function clipSearchBlob(clip = {}) {
+  return [
+    tacticalTitle(clip),
+    sourceTitle(clip),
+    dateLabel(clip),
+    eventTypeLabel(clip),
+    clip.outcome,
+    clip.status,
+    ...principleLabels(clip),
+  ].map((item) => normalizeText(item).toLowerCase()).join(" ");
+}
+
 function clipKey(clip = {}) {
   return normalizeText(clip.id || clip.clipInstanceId);
 }
@@ -105,16 +117,24 @@ function renderClipCard(clip = {}, index = 0, selected = false) {
 
 export function renderClipBankOrganizer(detail = {}, canEdit = false, ui = {}) {
   const clips = sortClipBankItems(detail.clipBank || []);
+  const query = normalizeText(ui.clipBankSearchQuery || "");
+  const normalizedQuery = query.toLowerCase();
+  const filteredClips = normalizedQuery
+    ? clips.filter((clip) => clipSearchBlob(clip).includes(normalizedQuery))
+    : clips;
   const selectedIds = new Set(Array.isArray(ui.selectedClipBankIds) ? ui.selectedClipBankIds : []);
   const selectedCount = clips.filter((clip) => selectedIds.has(clipKey(clip))).length;
-  const visibleClips = clips.slice(0, 24);
+  const visibleClips = filteredClips.slice(0, 24);
+  const countLabel = normalizedQuery
+    ? `${filteredClips.length} of ${clips.length} clips`
+    : `${clips.length} clips`;
   return `
     <article class="idp-filmstrip-panel idp-clip-bank-organizer">
       <div class="idp-section-head idp-clip-bank-head">
         <div>
           <span>Clip Bank</span>
-          <strong>${escapeHtml(String(clips.length))} clips by date</strong>
-          <small>Newest sessions first, clips in match order.</small>
+          <strong>${escapeHtml(countLabel)}</strong>
+          <small>Search by match, training, sub-phase, outcome or principle.</small>
         </div>
         <div class="idp-clip-bank-actions">
           <button type="button" data-idp-clip-play-selected ${selectedCount ? "" : "disabled"}>
@@ -123,12 +143,17 @@ export function renderClipBankOrganizer(detail = {}, canEdit = false, ui = {}) {
           ${canEdit ? `<button type="button" data-idp-action="evidence">Log observation</button>` : ""}
         </div>
       </div>
+      <label class="idp-clip-bank-search">
+        <span>Search clips</span>
+        <input type="search" data-idp-clip-search value="${escapeHtml(query)}" placeholder="Find clip, player, date or principle">
+        <strong>${escapeHtml(countLabel)}</strong>
+      </label>
       <div class="idp-clip-bank-list">
         ${visibleClips.length
           ? visibleClips.map((clip, index) => renderClipCard(clip, index, selectedIds.has(clipKey(clip)))).join("")
-          : `<div class="idp-empty-signal">No clips waiting.</div>`}
+          : `<div class="idp-empty-signal">${clips.length ? "No clips match this search." : "No clips waiting."}</div>`}
       </div>
-      ${clips.length > visibleClips.length ? `<div class="idp-clip-bank-more">${escapeHtml(String(clips.length - visibleClips.length))} more clips in this player bank.</div>` : ""}
+      ${filteredClips.length > visibleClips.length ? `<div class="idp-clip-bank-more">${escapeHtml(String(filteredClips.length - visibleClips.length))} more clips in this player bank.</div>` : ""}
     </article>
   `;
 }

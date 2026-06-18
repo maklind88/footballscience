@@ -1,6 +1,7 @@
 export function createDashboardChatComposerRuntime({
   createDashboardId,
   dashboardChatAdvancedThreadTemplates,
+  dashboardChatGroupNameMinLength = 2,
   dashboardChatTeamThreadId,
   dashboardChatThreadSettings = null,
   formatUserName,
@@ -13,7 +14,9 @@ export function createDashboardChatComposerRuntime({
   getDashboardChatApiAccessToken,
   getDashboardSupabaseClient,
   logDashboardChatApiFailure,
+  normalizeDashboardChatGroupAvatarInput = (value = "") => String(value ?? "").trim().replace(/\s+/g, " "),
   normalizeDashboardChatThreadId,
+  normalizeDashboardChatGroupNameInput = (value = "") => String(value ?? "").trim().replace(/\s+/g, " "),
   queueDashboardChatThreadSummaryRefresh,
   readDashboardChatWidgetState,
   renderDashboardChatWidget,
@@ -209,12 +212,21 @@ export function createDashboardChatComposerRuntime({
 
     const currentUser = getCurrentPlatformUser();
     const formData = new FormData(form);
-    const title = String(formData.get("title") || "").trim().slice(0, 80);
-    const avatarValue = String(formData.get("avatar") || "").trim().slice(0, 800);
+    const title = normalizeDashboardChatGroupNameInput(formData.get("title")).slice(0, 80);
+    const titleInput = form.querySelector("[data-dashboard-chat-group-name-input]");
+    if (titleInput && titleInput.value !== title) {
+      titleInput.value = title;
+    }
+    const avatarValue = normalizeDashboardChatGroupAvatarInput(formData.get("avatar")).slice(0, 800);
+    const avatarInput = form.querySelector("[data-dashboard-chat-group-avatar-input]");
+    if (avatarInput && avatarInput.value !== avatarValue) {
+      avatarInput.value = avatarValue;
+    }
+    const avatarLabelValue = avatarValue.replace(/\s+/g, "").slice(0, 2).toUpperCase();
     const avatarPatch = avatarValue
       ? /^https?:\/\//i.test(avatarValue)
         ? { avatarUrl: avatarValue, avatarLabel: "" }
-        : { avatarLabel: avatarValue.slice(0, 2).toUpperCase(), avatarUrl: "" }
+        : { avatarLabel: avatarLabelValue, avatarUrl: "" }
       : {};
 
     setDashboardChatGroupCreateError(form, "");
@@ -237,9 +249,10 @@ export function createDashboardChatComposerRuntime({
       return null;
     }
 
-    if (!title) {
-      setDashboardChatGroupCreateError(form, "Add a group name.");
-      showDashboardChatWidgetToast("Add a group name.", getDashboardChatActiveToastThreadId());
+    if (title.length < dashboardChatGroupNameMinLength) {
+      const message = `Add a group name with at least ${dashboardChatGroupNameMinLength} characters.`;
+      setDashboardChatGroupCreateError(form, message);
+      showDashboardChatWidgetToast(message, getDashboardChatActiveToastThreadId());
       return null;
     }
 

@@ -188,6 +188,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     teamThreadId = "team",
     messageLimit = 50,
     maxMessageLength = 1600,
+    groupNameMinLength = 2,
     priorityOptions = [],
     escapeHtml = defaultEscapeHtml,
     formatUserName = defaultFormatUserName,
@@ -883,11 +884,12 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             <p class="dashboard-chat-group-create-error" data-dashboard-chat-group-create-error hidden></p>
             <label class="dashboard-chat-group-name">
               <span>Group name</span>
-              <input name="title" type="text" maxlength="80" placeholder="Example: Match prep" required data-dashboard-chat-group-name-input>
+              <input name="title" type="text" minlength="${escapeHtml(groupNameMinLength)}" maxlength="80" placeholder="Example: Match prep" required autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" aria-label="Group name" data-dashboard-chat-group-name-input>
             </label>
             <label class="dashboard-chat-group-avatar-field">
               <span>Group image or initials</span>
-              <input name="avatar" type="text" maxlength="800" placeholder="Image URL or initials, e.g. MP" data-dashboard-chat-group-avatar-input>
+              <small id="dashboardChatGroupAvatarHelp">Paste an image URL or type two initials for the group avatar.</small>
+              <input name="avatar" type="text" maxlength="800" placeholder="Image URL or initials, e.g. MP" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="Group image URL or initials" aria-describedby="dashboardChatGroupAvatarHelp" data-dashboard-chat-group-avatar-input>
             </label>
             <div class="dashboard-chat-group-title-presets" aria-label="Suggested group names">
               <button type="button" data-dashboard-chat-group-title-preset="Match prep">Match prep</button>
@@ -898,16 +900,18 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <span>Find teammates</span>
               <input type="search" placeholder="Search by name, role or email" autocomplete="off" data-dashboard-chat-group-user-filter>
             </label>
-            <div class="dashboard-chat-group-create-status" data-dashboard-chat-group-filter-status aria-live="polite">
+            <div class="dashboard-chat-group-create-status" data-dashboard-chat-group-filter-status aria-live="polite" aria-atomic="true">
               ${escapeHtml(`${groupCreateUsers.length} teammates available · 0 selected`)}
             </div>
-            <div class="dashboard-chat-group-selected-people" data-dashboard-chat-group-selected-list hidden aria-live="polite"></div>
-            <div class="dashboard-chat-group-create-users" aria-label="Choose group members">
+            <div class="dashboard-chat-group-selected-people" data-dashboard-chat-group-selected-list hidden aria-live="polite" aria-atomic="true"></div>
+            <div class="dashboard-chat-group-create-users" role="group" aria-label="Choose group members">
               ${groupCreateUsers
                 .map((user) => {
                   const userName = formatUserName(user);
                   const userInitial = String(userName || "?").trim().slice(0, 1).toUpperCase() || "?";
                   const userMeta = user.role || user.teamRole || user.email || "Team member";
+                  const userDomId = String(user.id || userName || userInitial).trim().replace(/[^a-zA-Z0-9_-]+/g, "-") || "member";
+                  const userMetaId = `dashboardChatGroupUserMeta-${userDomId}`;
                   const userSearch = `${userName} ${userMeta} ${user.email || ""} ${user.username || ""}`.toLowerCase();
                   return `
                     <label class="dashboard-chat-group-user" data-dashboard-chat-group-user-search="${escapeHtml(userSearch)}">
@@ -915,6 +919,8 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                         type="checkbox"
                         name="participantIds"
                         value="${escapeHtml(user.id)}"
+                        aria-label="${escapeHtml(`Add ${userName} (${userMeta}) to group`)}"
+                        aria-describedby="${escapeHtml(userMetaId)}"
                         data-dashboard-chat-group-participant-email="${escapeHtml(user.email || "")}"
                         data-dashboard-chat-group-participant-username="${escapeHtml(user.username || "")}"
                         data-dashboard-chat-group-participant-name="${escapeHtml(userName)}"
@@ -922,14 +928,14 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                       <span class="dashboard-chat-group-user-avatar">${escapeHtml(userInitial)}</span>
                       <span>
                         <strong>${escapeHtml(userName)}</strong>
-                        <small>${escapeHtml(userMeta)}</small>
+                        <small id="${escapeHtml(userMetaId)}">${escapeHtml(userMeta)}</small>
                       </span>
                     </label>
                   `;
                 })
                 .join("")}
             </div>
-            <button type="submit" data-dashboard-chat-group-create-submit disabled aria-disabled="true" title="Add a group name and choose at least one teammate">Create group</button>
+            <button type="submit" data-dashboard-chat-group-create-submit disabled aria-disabled="true" aria-label="Create selected group" title="Add a group name with at least 2 characters and choose at least one teammate">Create group</button>
           </form>
         `
       : `
@@ -941,13 +947,13 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const groupCreateOverlayMarkup = groupCreatorOpen
       ? `
           <div class="dashboard-chat-group-create-overlay" data-dashboard-chat-group-create-backdrop>
-            <section class="dashboard-chat-group-create-card" role="dialog" aria-modal="true" aria-label="Create group chat">
+            <section id="dashboardChatGroupCreateDialog" class="dashboard-chat-group-create-card" role="dialog" aria-modal="true" aria-keyshortcuts="Escape" aria-labelledby="dashboardChatGroupCreateTitle" aria-describedby="dashboardChatGroupCreateDescription">
               <header>
                 <span>
-                  <strong>New group</strong>
-                  <small>Choose people, name the room and keep the conversation focused.</small>
+                  <strong id="dashboardChatGroupCreateTitle">New group</strong>
+                  <small id="dashboardChatGroupCreateDescription">Choose people, name the room and keep the conversation focused.</small>
                 </span>
-                <button type="button" class="dashboard-chat-group-create-close" aria-label="Close group creator" data-dashboard-chat-group-create-close>×</button>
+                <button type="button" class="dashboard-chat-group-create-close" aria-controls="dashboardChatGroupCreateDialog" aria-label="Close new group dialog" title="Close new group dialog" data-dashboard-chat-group-create-close>×</button>
               </header>
               ${groupCreateMarkup}
             </section>
@@ -957,9 +963,9 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const threadPresetMarkup = groupCreateUsers.length
       ? `
           <details class="dashboard-chat-thread-presets" data-dashboard-chat-thread-presets>
-            <summary aria-label="Create group chat" title="Create group chat"><span aria-hidden="true">+</span></summary>
-            <div class="dashboard-chat-thread-preset-menu" aria-label="Create group chat">
-              <button type="button" class="dashboard-chat-create-menu-action is-primary" data-dashboard-chat-open-group-creator>
+            <summary data-dashboard-chat-create-menu-trigger aria-label="Open create chat menu" title="Open create chat menu" aria-haspopup="menu" aria-controls="dashboardChatCreateMenu"><span aria-hidden="true">+</span></summary>
+            <div id="dashboardChatCreateMenu" class="dashboard-chat-thread-preset-menu" role="menu" aria-label="Create chat">
+              <button type="button" class="dashboard-chat-create-menu-action is-primary" role="menuitem" data-dashboard-chat-open-group-creator aria-haspopup="dialog" aria-controls="dashboardChatGroupCreateDialog">
                 <strong>New group</strong>
                 <small>Name, avatar and selected teammates</small>
               </button>
@@ -1105,17 +1111,24 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       `;
       })
       .join("");
+    const trimmedLauncherLabel = launcherLabel.trim() || teamChatTitle;
+    const widgetDialogLabel = /\bchat$/i.test(trimmedLauncherLabel)
+      ? `${trimmedLauncherLabel} panel`
+      : `${trimmedLauncherLabel} chat panel`;
+    const widgetDialogAttributes = isOpen
+      ? ` role="dialog" aria-modal="false" aria-keyshortcuts="Escape" aria-label="${escapeHtml(widgetDialogLabel)}"`
+      : "";
 
     return {
       activeThreadId,
       replyDraft: replyState.replyDraft,
       html: `
-    <aside class="dashboard-chat-widget${isOpen ? " is-open" : ""}${mobileConversationOpen ? " is-mobile-conversation" : " is-mobile-inbox"}">
+    <aside${widgetDialogAttributes} class="dashboard-chat-widget${isOpen ? " is-open" : ""}${mobileConversationOpen ? " is-mobile-conversation" : " is-mobile-inbox"}">
       ${
         isOpen
           ? `
             <header class="dashboard-chat-widget-header">
-              <button type="button" class="dashboard-chat-widget-title" data-dashboard-chat-widget-toggle aria-expanded="true">
+              <button type="button" class="dashboard-chat-widget-title" data-dashboard-chat-widget-toggle aria-expanded="true" aria-controls="dashboardChatWidgetRoot" aria-label="${escapeHtml(`Close ${widgetDialogLabel}`)}" title="${escapeHtml(`Close ${widgetDialogLabel}`)}">
                 ${renderAvatarStack(headerParticipants)}
                 <span class="dashboard-chat-widget-title-copy">
                   <span>${escapeHtml(activeThreadLabel)}</span>
@@ -1167,7 +1180,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                   type="button"
                   class="dashboard-chat-widget-close"
                   data-dashboard-chat-widget-toggle
-                  aria-label="Close team chat"
+                  aria-expanded="true"
+                  aria-controls="dashboardChatWidgetRoot"
+                  aria-label="${escapeHtml(`Close ${widgetDialogLabel}`)}"
+                  title="${escapeHtml(`Close ${widgetDialogLabel}`)}"
                 >
                   &times;
                 </button>
@@ -1175,7 +1191,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             </header>
           `
           : `
-            <button type="button" class="dashboard-chat-launcher" data-dashboard-chat-widget-toggle aria-expanded="false" aria-label="${escapeHtml(`Open ${launcherLabel}${launcherUnreadLabel}`)}" title="${escapeHtml(`Open ${launcherLabel}${launcherUnreadLabel}`)}">
+            <button type="button" class="dashboard-chat-launcher" data-dashboard-chat-widget-toggle aria-expanded="false" aria-controls="dashboardChatWidgetRoot" aria-haspopup="dialog" aria-label="${escapeHtml(`Open ${launcherLabel}${launcherUnreadLabel}`)}" title="${escapeHtml(`Open ${launcherLabel}${launcherUnreadLabel}`)}">
               ${renderAvatarStack(launcherParticipants)}
               <span class="dashboard-chat-launcher-copy">
                 <strong>${escapeHtml(launcherLabel)}</strong>

@@ -356,6 +356,7 @@ const dashboardChatWidgetNotificationCursorStorageKey = "football-dashboard-chat
 const dashboardChatWidgetNotificationStateStorageKey = "football-dashboard-chat-widget-notification-state-v1";
 const dashboardChatTeamThreadId = "team";
 const dashboardChatMaxMessageLength = 1600;
+const dashboardChatGroupNameMinLength = 2;
 const dashboardChatWidgetMessageLimit = 50;
 const dashboardChatApiPageLimit = 40;
 const dashboardChatPinnedLimit = 3;
@@ -690,6 +691,7 @@ const dashboardChatWidgetRenderer = createDashboardChatWidgetRenderer({
 teamThreadId: dashboardChatTeamThreadId,
 messageLimit: dashboardChatWidgetMessageLimit,
 maxMessageLength: dashboardChatMaxMessageLength,
+groupNameMinLength: dashboardChatGroupNameMinLength,
 priorityOptions: dashboardChatPriorityOptions,
 escapeHtml,
 formatUserName,
@@ -1085,6 +1087,28 @@ const setDashboardChatGroupCreatorOpen = (next = false) => {
   dashboardChatGroupCreatorOpen = Boolean(next);
 };
 
+function normalizeDashboardChatGroupNameInput(value = "") {
+  return String(value ?? "").trim().replace(/\s+/g, " ");
+}
+
+function normalizeDashboardChatGroupAvatarInput(value = "") {
+  return String(value ?? "").trim().replace(/\s+/g, " ");
+}
+
+function getDashboardChatGroupNameRequirementLabel() {
+  return `Add a group name with at least ${dashboardChatGroupNameMinLength} characters`;
+}
+
+function getDashboardChatGroupCreateDisabledTitle({ missingGroupName = false, missingParticipants = false } = {}) {
+  if (missingGroupName && missingParticipants) {
+    return `${getDashboardChatGroupNameRequirementLabel()} and choose at least one teammate`;
+  }
+  if (missingGroupName) {
+    return getDashboardChatGroupNameRequirementLabel();
+  }
+  return "Choose at least one teammate";
+}
+
 function syncDashboardChatGroupCreateForm(form) {
   if (!form) {
     return;
@@ -1095,8 +1119,12 @@ function syncDashboardChatGroupCreateForm(form) {
   const submitButton = form.querySelector("[data-dashboard-chat-group-create-submit]");
   const statusElement = form.querySelector("[data-dashboard-chat-group-filter-status]");
   const selectedList = form.querySelector("[data-dashboard-chat-group-selected-list]");
-  const hasTitle = Boolean(String(titleInput?.value || "").trim());
+  const titleValue = normalizeDashboardChatGroupNameInput(titleInput?.value);
+  const hasTitle = titleValue.length >= dashboardChatGroupNameMinLength;
   const isReady = Boolean(hasTitle && selectedCount);
+  const missingGroupName = !hasTitle;
+  const missingParticipants = !selectedCount;
+  const disabledTitle = getDashboardChatGroupCreateDisabledTitle({ missingGroupName, missingParticipants });
   const selectedPeople = Array.from(form.querySelectorAll("input[name='participantIds']:checked"))
     .map((input) => String(input.dataset.dashboardChatGroupParticipantName || input.value || "").trim())
     .filter(Boolean)
@@ -1108,7 +1136,7 @@ function syncDashboardChatGroupCreateForm(form) {
   if (submitButton) {
     submitButton.disabled = !isReady || form.dataset.busy === "true";
     submitButton.setAttribute("aria-disabled", submitButton.disabled ? "true" : "false");
-    submitButton.title = isReady ? "Create group" : "Add a group name and choose at least one teammate";
+    submitButton.title = isReady ? "Create group" : disabledTitle;
     if (form.dataset.busy !== "true") {
       submitButton.textContent = selectedCount ? `Create group (${selectedCount})` : "Create group";
     }
@@ -2337,6 +2365,7 @@ const dashboardChatComposerRuntime = createDashboardChatComposerRuntime({
   applyDashboardChatApiPayload,
   createDashboardId,
   dashboardChatAdvancedThreadTemplates,
+  dashboardChatGroupNameMinLength,
   dashboardChatTeamThreadId,
   dashboardChatThreadSettings,
   formatUserName,
@@ -2349,6 +2378,8 @@ const dashboardChatComposerRuntime = createDashboardChatComposerRuntime({
   getDashboardChatApiAccessToken,
   getDashboardSupabaseClient,
   logDashboardChatApiFailure,
+  normalizeDashboardChatGroupAvatarInput,
+  normalizeDashboardChatGroupNameInput,
   normalizeDashboardChatThreadId,
   queueDashboardChatThreadSummaryRefresh,
   readDashboardChatWidgetState,
@@ -2921,8 +2952,7 @@ setPlatformThemeMode(ui.platformThemeModeSelect?.value);
 document.addEventListener("keydown", (event) => {
 if (event.key === "Escape") {
 if (dashboardChatGroupCreatorOpen) {
-dashboardChatGroupCreatorOpen = false;
-renderDashboardChatWidget();
+closeDashboardChatGroupCreator();
 return;
 }
 platformNavigationController.hideTopIconTooltip();
@@ -2930,6 +2960,52 @@ platformNavigationController.hideTopIconTooltip();
 });
 dashboardRuntimeController.bindInteractions();
 function closeChatMenus(x = null) { ui.dashboardChatWidgetRoot?.querySelectorAll(".dashboard-chat-message-menu[open]").forEach((menu) => { if (menu !== x) menu.removeAttribute("open"); }); }
+function focusDashboardChatWidgetLauncher() {
+requestAnimationFrame(() => {
+ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-widget-toggle]")?.focus?.();
+});
+}
+function focusDashboardChatCreateMenuTrigger() {
+requestAnimationFrame(() => {
+ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-create-menu-trigger]")?.focus?.();
+});
+}
+function closeDashboardChatGroupCreator({ focusCreateMenu = true, render = true } = {}) {
+if (!dashboardChatGroupCreatorOpen) {
+return false;
+}
+dashboardChatGroupCreatorOpen = false;
+if (render) {
+renderDashboardChatWidget();
+}
+if (focusCreateMenu) {
+focusDashboardChatCreateMenuTrigger();
+}
+return true;
+}
+function closeDashboardChatWidgetPanel({ render = true } = {}) {
+const currentState = readDashboardChatWidgetState();
+if (!currentState.isOpen) {
+return false;
+}
+closeChatMenus();
+clearDashboardChatTyping();
+setDashboardChatReplyDraft("", "");
+setDashboardChatPriorityDraft("normal");
+setDashboardChatConfirmAction(null);
+dashboardChatDetailsOpen = false;
+dashboardChatGroupCreatorOpen = false;
+dashboardChatMobileConversationOpen = true;
+writeDashboardChatWidgetState({
+...currentState,
+isOpen: false,
+});
+if (render) {
+renderDashboardChatWidget();
+focusDashboardChatWidgetLauncher();
+}
+return true;
+}
 ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
 const activeMenu = event.target.closest(".dashboard-chat-message-menu");
 closeChatMenus(activeMenu);
@@ -3085,8 +3161,7 @@ const closeGroupCreatorButton = event.target.closest("[data-dashboard-chat-group
 const groupCreatorBackdrop = event.target.closest("[data-dashboard-chat-group-create-backdrop]");
 if (closeGroupCreatorButton || (groupCreatorBackdrop && event.target === groupCreatorBackdrop)) {
 event.preventDefault();
-dashboardChatGroupCreatorOpen = false;
-renderDashboardChatWidget();
+closeDashboardChatGroupCreator();
 return;
 }
 const groupTitlePresetButton = event.target.closest("[data-dashboard-chat-group-title-preset]");
@@ -3164,19 +3239,16 @@ return;
 const toggleChat = event.target.closest("[data-dashboard-chat-widget-toggle]");
 if (toggleChat) {
 const currentState = readDashboardChatWidgetState();
+if (currentState.isOpen) {
+closeDashboardChatWidgetPanel({ render: false });
+renderDashboardChatWidget();
+focusDashboardChatWidgetLauncher();
+return;
+}
 const nextState = {
 ...currentState,
-isOpen: !currentState.isOpen,
+isOpen: true,
 };
-if (!nextState.isOpen) {
-clearDashboardChatTyping();
-setDashboardChatReplyDraft("", "");
-setDashboardChatPriorityDraft("normal");
-setDashboardChatConfirmAction(null);
-dashboardChatDetailsOpen = false;
-dashboardChatGroupCreatorOpen = false;
-dashboardChatMobileConversationOpen = true;
-}
 writeDashboardChatWidgetState(nextState);
 if (nextState.isOpen) {
 dashboardChatMobileConversationOpen = false;
@@ -3318,7 +3390,32 @@ const searchableText = threadButton.dataset.dashboardChatSearch || threadButton.
 threadButton.hidden = Boolean(query) && !searchableText.toLowerCase().includes(query);
 });
 });
+ui.dashboardChatWidgetRoot?.addEventListener("focusout", (event) => {
+const groupNameInput = event.target.closest("[data-dashboard-chat-group-name-input]");
+const groupAvatarInput = event.target.closest("[data-dashboard-chat-group-avatar-input]");
+if (!groupNameInput && !groupAvatarInput) {
+return;
+}
+const targetInput = groupNameInput || groupAvatarInput;
+const normalizedValue = groupNameInput
+? normalizeDashboardChatGroupNameInput(targetInput.value)
+: normalizeDashboardChatGroupAvatarInput(targetInput.value);
+if (targetInput.value !== normalizedValue) {
+targetInput.value = normalizedValue;
+}
+syncDashboardChatGroupCreateForm(targetInput.closest("[data-dashboard-chat-group-create-form]"));
+});
 ui.dashboardChatWidgetRoot?.addEventListener("keydown", (event) => {
+if (event.key === "Escape") {
+event.preventDefault();
+event.stopPropagation();
+if (dashboardChatGroupCreatorOpen) {
+closeDashboardChatGroupCreator();
+return;
+}
+closeDashboardChatWidgetPanel();
+return;
+}
 if (!event.target.matches("[data-dashboard-chat-input]")) {
 return;
 }

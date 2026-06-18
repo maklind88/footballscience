@@ -6,6 +6,8 @@ import { createDashboardChatWidgetRenderer } from "../src/modules/chat/chat-widg
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dashboardChatCss = readFileSync(resolve(__dirname, "../dashboard-chat.css"), "utf8");
+const appRuntimeSource = readFileSync(resolve(__dirname, "../app-runtime.js"), "utf8");
+const composerRuntimeSource = readFileSync(resolve(__dirname, "../src/modules/chat/dashboard-chat-composer-runtime.mjs"), "utf8");
 
 const priorityOptions = [
   { key: "normal", label: "Normal" },
@@ -202,6 +204,11 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   });
 
   expect(result.html).toContain("dashboard-chat-launcher");
+  expect(result.html).toContain('aria-expanded="false"');
+  expect(result.html).toContain('aria-controls="dashboardChatWidgetRoot"');
+  expect(result.html).toContain('aria-haspopup="dialog"');
+  expect(result.html).not.toContain('role="dialog"');
+  expect(result.html).not.toContain('aria-modal="false"');
   expect(result.html).toContain('aria-label="Open Team Chat, 1 unread chat message"');
   expect(result.html).toContain('title="Open Team Chat, 1 unread chat message"');
   expect(result.html).toContain("dashboard-chat-header-badge is-unread");
@@ -209,6 +216,8 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(result.html).toContain("1 unread chat message");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher>*:not(.dashboard-chat-header-badge)");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:1.02rem");
+  expect(dashboardChatCss).toContain("@media(max-width:820px){body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:auto");
   expect(dashboardChatCss).toContain("@media(prefers-reduced-motion:reduce)");
 
   const calmResult = createRenderer([]).render({
@@ -223,6 +232,8 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
 
   expect(calmResult.html).toContain('aria-label="Open Team Chat"');
   expect(calmResult.html).toContain('title="Open Team Chat"');
+  expect(calmResult.html).toContain("dashboard-chat-launcher-dot");
+  expect(calmResult.html).not.toContain("dashboard-chat-header-badge is-unread");
   expect(calmResult.html).not.toContain("unread chat message");
 
   const busyResult = createRenderer(messages).render({
@@ -237,4 +248,171 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
 
   expect(busyResult.html).toContain('aria-label="Open Team Chat, 2 unread chat messages"');
   expect(busyResult.html).toContain('title="Open Team Chat, 2 unread chat messages"');
+  expect(busyResult.html).toContain('<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">2</span>');
+
+  const openResult = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads: [{ ...threads[0], unreadCount: 0 }],
+    activeThreadId: "team",
+    unreadCount: 0,
+  });
+
+  expect(openResult.html).toContain('role="dialog"');
+  expect(openResult.html).toContain('aria-modal="false"');
+  expect(openResult.html).toContain('aria-keyshortcuts="Escape"');
+  expect(openResult.html).toContain('aria-label="Team Chat panel"');
+  expect(openResult.html).toContain('aria-expanded="true" aria-controls="dashboardChatWidgetRoot" aria-label="Close Team Chat panel"');
+  expect(openResult.html).toContain('title="Close Team Chat panel"');
+  expect(openResult.html).toContain('class="dashboard-chat-widget-close"');
+  expect(openResult.html).toContain('aria-controls="dashboardChatWidgetRoot"');
+  expect(openResult.html).toMatch(/class="dashboard-chat-widget-close"[\s\S]*aria-expanded="true"[\s\S]*aria-controls="dashboardChatWidgetRoot"[\s\S]*aria-label="Close Team Chat panel"[\s\S]*title="Close Team Chat panel"/);
+
+  const namedOpenResult = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads: [{ ...threads[0], label: "North Carolina Courage", unreadCount: 0 }],
+    activeThreadId: "team",
+    unreadCount: 0,
+  });
+
+  expect(namedOpenResult.html).toContain('aria-label="North Carolina Courage chat panel"');
+
+  const unnamedOpenResult = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads: [{ ...threads[0], label: "   ", unreadCount: 0 }],
+    activeThreadId: "team",
+    unreadCount: 0,
+  });
+
+  expect(unnamedOpenResult.html).toContain('aria-label="Team Chat panel"');
+});
+
+test("group creator overlay exposes a labelled dialog contract", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [
+    currentUser,
+    { id: "u2", name: "Ceri Bowley", role: "scout", status: "active" },
+  ];
+  const threads = [
+    {
+      threadId: "team",
+      label: "Team Chat",
+      isTeamThread: true,
+      messageCount: 0,
+      unreadCount: 0,
+      mentionCount: 0,
+      lastMessage: null,
+    },
+  ];
+  const result = createRenderer([]).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages: [],
+    threads,
+    activeThreadId: "team",
+    groupCreatorOpen: true,
+    unreadCount: 0,
+  });
+
+  expect(result.html).toContain('id="dashboardChatGroupCreateDialog"');
+  expect(result.html).toContain('role="dialog"');
+  expect(result.html).toContain('aria-modal="true"');
+  expect(result.html).toContain('aria-keyshortcuts="Escape"');
+  expect(result.html).toContain('aria-labelledby="dashboardChatGroupCreateTitle"');
+  expect(result.html).toContain('aria-describedby="dashboardChatGroupCreateDescription"');
+  expect(result.html).toContain('id="dashboardChatGroupCreateTitle">New group</strong>');
+  expect(result.html).toContain('id="dashboardChatGroupCreateDescription">Choose people, name the room and keep the conversation focused.</small>');
+  expect(result.html).toContain('minlength="2" maxlength="80" placeholder="Example: Match prep" required autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" aria-label="Group name" data-dashboard-chat-group-name-input');
+  expect(result.html).toContain('id="dashboardChatGroupAvatarHelp">Paste an image URL or type two initials for the group avatar.</small>');
+  expect(result.html).toContain('maxlength="800" placeholder="Image URL or initials, e.g. MP" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="Group image URL or initials" aria-describedby="dashboardChatGroupAvatarHelp" data-dashboard-chat-group-avatar-input');
+  expect(result.html).toContain('data-dashboard-chat-group-filter-status aria-live="polite" aria-atomic="true"');
+  expect(result.html).toContain('data-dashboard-chat-group-selected-list hidden aria-live="polite" aria-atomic="true"');
+  expect(result.html).toContain('class="dashboard-chat-group-create-users" role="group" aria-label="Choose group members"');
+  expect(result.html).toContain('aria-label="Add Ceri Bowley (scout) to group"');
+  expect(result.html).toContain('aria-describedby="dashboardChatGroupUserMeta-u2"');
+  expect(result.html).toContain('<small id="dashboardChatGroupUserMeta-u2">scout</small>');
+  expect(result.html).toContain('data-dashboard-chat-group-create-submit disabled aria-disabled="true" aria-label="Create selected group" title="Add a group name with at least 2 characters and choose at least one teammate"');
+  expect(result.html).toContain('class="dashboard-chat-group-create-close" aria-controls="dashboardChatGroupCreateDialog" aria-label="Close new group dialog" title="Close new group dialog"');
+  expect(result.html).toContain('data-dashboard-chat-create-menu-trigger aria-label="Open create chat menu" title="Open create chat menu" aria-haspopup="menu" aria-controls="dashboardChatCreateMenu"');
+  expect(result.html).toContain('id="dashboardChatCreateMenu" class="dashboard-chat-thread-preset-menu" role="menu" aria-label="Create chat"');
+  expect(result.html).toContain('role="menuitem" data-dashboard-chat-open-group-creator aria-haspopup="dialog" aria-controls="dashboardChatGroupCreateDialog"');
+});
+
+test("chat panel escape close reuses shared cleanup path", () => {
+  expect(appRuntimeSource).toContain("function closeDashboardChatWidgetPanel");
+  expect(appRuntimeSource).toContain("function focusDashboardChatWidgetLauncher");
+  expect(appRuntimeSource).toContain('querySelector("[data-dashboard-chat-widget-toggle]")?.focus?.();');
+  expect(appRuntimeSource).toContain("function focusDashboardChatCreateMenuTrigger");
+  expect(appRuntimeSource).toContain('querySelector("[data-dashboard-chat-create-menu-trigger]")?.focus?.();');
+  expect(appRuntimeSource).toContain("function closeDashboardChatGroupCreator");
+  expect(appRuntimeSource).toContain("focusDashboardChatCreateMenuTrigger();");
+  expect(appRuntimeSource).toContain("closeChatMenus();");
+  expect(appRuntimeSource).toContain('if (event.key === "Escape")');
+  expect(appRuntimeSource).toContain("event.stopPropagation();");
+  expect(appRuntimeSource).toContain("closeDashboardChatWidgetPanel();");
+  expect(appRuntimeSource).toContain("closeDashboardChatWidgetPanel({ render: false });");
+  expect(appRuntimeSource).toContain("closeDashboardChatGroupCreator();");
+  expect(appRuntimeSource).toContain("dashboardChatGroupCreatorOpen = false;");
+
+  const groupCreatorCloseIndex = appRuntimeSource.indexOf("if (dashboardChatGroupCreatorOpen)");
+  const panelCloseIndex = appRuntimeSource.indexOf("closeDashboardChatWidgetPanel();");
+
+  expect(groupCreatorCloseIndex).toBeGreaterThan(-1);
+  expect(panelCloseIndex).toBeGreaterThan(groupCreatorCloseIndex);
+});
+
+test("group creator opening closes the menu and focuses the group name", () => {
+  expect(appRuntimeSource).toContain('event.target.closest("[data-dashboard-chat-open-group-creator]")');
+  expect(appRuntimeSource).toContain('openGroupCreatorButton.closest("details")?.removeAttribute("open");');
+  expect(appRuntimeSource).toContain("dashboardChatGroupCreatorOpen = true;");
+  expect(appRuntimeSource).toContain("renderDashboardChatWidget();");
+  expect(appRuntimeSource).toContain('querySelector("[data-dashboard-chat-group-name-input]")?.focus();');
+});
+
+test("group creator readiness respects the group name minimum length", () => {
+  expect(appRuntimeSource).toContain("const dashboardChatGroupNameMinLength = 2;");
+  expect(appRuntimeSource).toContain("groupNameMinLength: dashboardChatGroupNameMinLength,");
+  expect(appRuntimeSource).toContain("dashboardChatGroupNameMinLength,");
+  expect(appRuntimeSource).toContain("function normalizeDashboardChatGroupNameInput");
+  expect(appRuntimeSource).toContain("function normalizeDashboardChatGroupAvatarInput");
+  expect(appRuntimeSource).toContain('addEventListener("focusout"');
+  expect(appRuntimeSource).toContain('event.target.closest("[data-dashboard-chat-group-name-input]")');
+  expect(appRuntimeSource).toContain('event.target.closest("[data-dashboard-chat-group-avatar-input]")');
+  expect(appRuntimeSource).toContain("const targetInput = groupNameInput || groupAvatarInput;");
+  expect(appRuntimeSource).toContain("normalizeDashboardChatGroupNameInput(targetInput.value)");
+  expect(appRuntimeSource).toContain("normalizeDashboardChatGroupAvatarInput(targetInput.value);");
+  expect(appRuntimeSource).toContain("targetInput.value = normalizedValue;");
+  expect(appRuntimeSource).toContain("function getDashboardChatGroupNameRequirementLabel()");
+  expect(appRuntimeSource).toContain("function getDashboardChatGroupCreateDisabledTitle");
+  expect(appRuntimeSource).toContain("const titleValue = normalizeDashboardChatGroupNameInput(titleInput?.value);");
+  expect(appRuntimeSource).toContain("const hasTitle = titleValue.length >= dashboardChatGroupNameMinLength;");
+  expect(appRuntimeSource).toContain("const missingGroupName = !hasTitle;");
+  expect(appRuntimeSource).toContain("const missingParticipants = !selectedCount;");
+  expect(appRuntimeSource).toContain("const disabledTitle = getDashboardChatGroupCreateDisabledTitle({ missingGroupName, missingParticipants });");
+  expect(appRuntimeSource).toContain("return `${getDashboardChatGroupNameRequirementLabel()} and choose at least one teammate`;");
+  expect(appRuntimeSource).toContain("Add a group name with at least ${dashboardChatGroupNameMinLength} characters");
+  expect(appRuntimeSource).toContain("Choose at least one teammate");
+  expect(composerRuntimeSource).toContain("dashboardChatGroupNameMinLength = 2");
+  expect(composerRuntimeSource).toContain('normalizeDashboardChatGroupAvatarInput = (value = "") => String(value ?? "").trim().replace(/\\s+/g, " ")');
+  expect(appRuntimeSource).toContain("normalizeDashboardChatGroupAvatarInput,");
+  expect(composerRuntimeSource).toContain('normalizeDashboardChatGroupNameInput = (value = "") => String(value ?? "").trim().replace(/\\s+/g, " ")');
+  expect(appRuntimeSource).toContain("normalizeDashboardChatGroupNameInput,");
+  expect(composerRuntimeSource).toContain('const title = normalizeDashboardChatGroupNameInput(formData.get("title")).slice(0, 80);');
+  expect(composerRuntimeSource).toContain('const avatarValue = normalizeDashboardChatGroupAvatarInput(formData.get("avatar")).slice(0, 800);');
+  expect(composerRuntimeSource).toContain('const avatarInput = form.querySelector("[data-dashboard-chat-group-avatar-input]");');
+  expect(composerRuntimeSource).toContain("avatarInput.value = avatarValue;");
+  expect(composerRuntimeSource).toContain('const avatarLabelValue = avatarValue.replace(/\\s+/g, "").slice(0, 2).toUpperCase();');
+  expect(composerRuntimeSource).toContain('const titleInput = form.querySelector("[data-dashboard-chat-group-name-input]");');
+  expect(composerRuntimeSource).toContain("titleInput.value = title;");
+  expect(composerRuntimeSource).toContain("if (title.length < dashboardChatGroupNameMinLength)");
+  expect(composerRuntimeSource).toContain("Add a group name with at least ${dashboardChatGroupNameMinLength} characters.");
 });

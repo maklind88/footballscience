@@ -727,6 +727,123 @@ test("Chat thread click does not change latest activity sorting", async ({ page 
   await expect(page.locator("[data-dashboard-chat-thread]").first()).toHaveAttribute("data-dashboard-chat-thread", "team");
 });
 
+test("Chat delete message does not resurrect after reload", async ({ page }) => {
+  const messageId = `qa-chat-delete-${Date.now()}`;
+  const messageText = `QA delete stays deleted ${Date.now()}`;
+  const deleteActions = [];
+
+  await page.route("**/api/chat", async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST") {
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) });
+      return;
+    }
+
+    const payload = request.postDataJSON();
+    if (payload.action === "deleteMessage") {
+      deleteActions.push(payload);
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          messages: [],
+          thread: {
+            id: "team",
+            threadId: "team",
+            legacyThreadId: "team",
+            type: "team",
+            title: "North Carolina Courage Chat",
+            messageCount: 0,
+            unreadCount: 0,
+            metadata: { legacyThreadId: "team" },
+          },
+          threads: [],
+          pagination: {},
+        }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, messages: [], threads: [], pagination: {} }),
+    });
+  });
+
+  await bootApp(page);
+  await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
+  await page.evaluate(() => {
+    const currentUser = window.platformAuthStore.getCurrentUser?.() || {};
+    window.platformAuthStore.getAccessToken = async () => "qa-chat-token";
+    window.platformAuthStore.refreshAccessToken = async () => "qa-chat-token";
+    window.platformAuthStore.writeUsers?.([
+      {
+        ...currentUser,
+        id: "dev-user-mak",
+        firstName: currentUser.firstName || "Mak",
+        lastName: currentUser.lastName || "Lind",
+        role: "admin",
+        status: "active",
+      },
+    ]);
+    window.platformAuthStore.setCurrentUser?.("dev-user-mak");
+  });
+
+  await page.evaluate(
+    ({ key, id, text }) => {
+      const now = new Date().toISOString();
+      const messages = [
+        {
+          id,
+          userId: "dev-user-mak",
+          threadId: "team",
+          text,
+          createdAt: now,
+          deliveredAt: now,
+          readBy: ["dev-user-mak"],
+          mentionedUserIds: [],
+          author: {
+            id: "dev-user-mak",
+            firstName: "Mak",
+            lastName: "Lind",
+            role: "admin",
+            status: "active",
+          },
+        },
+      ];
+      window.localStorage.setItem(key, JSON.stringify(messages));
+      window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(messages) }));
+    },
+    { key: dashboardChatKey, id: messageId, text: messageText }
+  );
+
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect(page.locator(`[data-dashboard-chat-message-id="${messageId}"]`)).toBeVisible();
+
+  const message = page.locator(`[data-dashboard-chat-message-id="${messageId}"]`);
+  await message.locator(".dashboard-chat-message-menu summary").click();
+  await message.locator(`[data-dashboard-remove-message="${messageId}"]`).click();
+  await expect(page.locator(".dashboard-chat-confirm-card")).toBeVisible();
+  await page.locator("[data-dashboard-chat-confirm-apply]").click();
+
+  await expect(page.locator(`[data-dashboard-chat-message-id="${messageId}"]`)).toHaveCount(0);
+  await expect(page.locator("[data-dashboard-chat-list]")).not.toContainText(messageText);
+  expect(deleteActions.some((payload) => payload.action === "deleteMessage" && payload.messageId === messageId)).toBe(true);
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await dismissDashboardModal(page);
+  const openWidgetCount = await page.locator(".dashboard-chat-widget.is-open").count();
+  if (!openWidgetCount) {
+    await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  }
+
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect(page.locator(`[data-dashboard-chat-message-id="${messageId}"]`)).toHaveCount(0);
+  await expect(page.locator("[data-dashboard-chat-list]")).not.toContainText(messageText);
+});
+
 test("Chat compose send clears input and keeps sent message after reload", async ({ page }) => {
   const messageText = `QA compose send ${Date.now()}`;
   const chatActions = [];

@@ -25,6 +25,7 @@ export function normalizeIdpProfile(value = {}) {
     id: normalizeText(value.id, 120),
     playerId: normalizeText(value.playerId || value.player_id, 160),
     playerName: normalizeText(value.playerName || value.player_name || value.name, 180),
+    squadNumber: normalizeText(value.squadNumber || value.squad_number || value.number || value.shirtNumber || value.shirt_number, 20),
     position: normalizeText(value.position || value.positionLabel || value.position_label, 80),
     role: normalizeText(value.role || value.roleLabel || value.role_label || value.primaryRole, 120),
     ownerId: normalizeText(value.ownerId || value.owner_id || value.primaryOwnerId || value.primary_owner_id, 160),

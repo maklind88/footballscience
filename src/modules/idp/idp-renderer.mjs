@@ -99,6 +99,10 @@ function primaryOwnerId(profile = {}, focus = {}) {
   return normalizeText(profile.ownerId || focus.ownerId, "");
 }
 
+function playerSquadNumber(profile = {}, fallback = "") {
+  return normalizeText(profile.squadNumber || profile.squad_number || profile.number || profile.shirtNumber || profile.shirt_number, fallback);
+}
+
 function staffSelectOptions(options = {}, selectedOwnerId = "") {
   const staff = getStaffUsers(options);
   const selected = normalizeText(selectedOwnerId, "");
@@ -208,7 +212,7 @@ function filterDashboardRows(state = {}, options = {}) {
     const profile = entry.profile || {};
     const ownerId = primaryOwnerId(profile, focus);
     const ownerLabel = formatStaffName(ownerId, options);
-    const haystack = [profile.playerName, focus.title, focus.category, ownerId, ownerLabel, entry.nextAction, entry.overallStatus, coachLabel(entry.nextAction), coachLabel(entry.overallStatus)].join(" ").toLowerCase();
+    const haystack = [profile.playerName, playerSquadNumber(profile), focus.title, focus.category, ownerId, ownerLabel, entry.nextAction, entry.overallStatus, coachLabel(entry.nextAction), coachLabel(entry.overallStatus)].join(" ").toLowerCase();
     if (query && !haystack.includes(query)) return false;
     if (statusFilter !== "All" && entry.overallStatus !== statusFilter) return false;
     if (ownerFilter === "__unassigned" && ownerId) return false;
@@ -310,11 +314,12 @@ function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state), 
       </div>
     `;
   }
-  return rows.map((entry, index) => {
+  return rows.map((entry) => {
     const profile = entry.profile || {};
     const focus = entry.focus || {};
     const active = selectedPlayerId === profile.playerId;
     const playerName = profile.playerName || "Player";
+    const squadNumber = playerSquadNumber(profile);
     const ownerId = primaryOwnerId(profile, focus);
     const idpInactive = isInactiveIdpProfile(profile);
     const tone = statusTone(entry.overallStatus);
@@ -322,7 +327,7 @@ function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state), 
     const nextAction = idpInactive ? "Monitor availability" : coachLabel(entry.nextAction || "Add evidence");
     return `
       <button type="button" class="idp-overview-row is-${escapeHtml(tone)}${active ? " is-active" : ""}" data-idp-player="${escapeHtml(profile.playerId)}">
-        <span class="idp-overview-rank" aria-hidden="true">${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+        <span class="idp-overview-rank" aria-label="${escapeHtml(squadNumber ? `Squad number ${squadNumber}` : "Squad number not set")}">${escapeHtml(squadNumber || "-")}</span>
         <span class="idp-overview-player">
           <span class="idp-player-avatar" aria-hidden="true">${escapeHtml(initialsFromName(playerName, "P"))}</span>
           <span>

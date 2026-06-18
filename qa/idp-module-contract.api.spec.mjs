@@ -49,7 +49,7 @@ test("idp renderer separates the overview from the player development profile", 
     ui: { statusFilter: "All", categoryFilter: "All", searchQuery: "" },
     dashboardPlayers: [
       {
-        profile: { playerId: "p1", playerName: "Player One", position: "FW", role: "9" },
+        profile: { playerId: "p1", playerName: "Player One", squadNumber: "19", position: "FW", role: "9" },
         focus: { title: "Receive under pressure", category: "Tactical", status: "Active" },
         evidenceCount: 1,
         newClipCount: 2,
@@ -79,6 +79,7 @@ test("idp renderer separates the overview from the player development profile", 
   const overviewHtml = renderIdpWorkspace(state, staffOptions);
 
   expect(overviewHtml).toContain("data-idp-player=\"p1\"");
+  expect(overviewHtml).toContain("Squad number 19");
   expect(overviewHtml).toContain("data-idp-filter=\"status\"");
   expect(overviewHtml).toContain("data-idp-filter=\"owner\"");
   expect(overviewHtml).toContain("All IDP Coaches");
@@ -131,6 +132,7 @@ test("idp adapter derives read-only fallback from Squad state", () => {
       {
         id: "p1",
         name: "Player One",
+        number: "18",
         position: "CM",
         primaryRole: "8",
         idp: { primaryFocus: "Scan before receive", nextAction: "Add evidence" },
@@ -147,7 +149,7 @@ test("idp adapter derives read-only fallback from Squad state", () => {
   });
 
   expect(dashboard).toHaveLength(2);
-  expect(dashboard[0].profile).toMatchObject({ playerId: "p1", playerName: "Player One" });
+  expect(dashboard[0].profile).toMatchObject({ playerId: "p1", playerName: "Player One", squadNumber: "18" });
   expect(dashboard[0].focus.title).toBe("Scan before receive");
   expect(dashboard[0].nextAction).toBe("Add evidence");
   expect(dashboard[1]).toMatchObject({
@@ -168,6 +170,7 @@ test("idp assignment refresh preserves the full squad roster and player identity
     {
       id: "p1",
       name: "Kailen Sheridan",
+      number: "1",
       position: "Goalkeeper",
       primaryRole: "GK",
       idp: { primaryFocus: "Distribution under pressure", nextAction: "Add evidence" },
@@ -175,6 +178,7 @@ test("idp assignment refresh preserves the full squad roster and player identity
     {
       id: "p2",
       name: "Madison White",
+      number: "21",
       position: "Goalkeeper",
       primaryRole: "GK",
       idp: { primaryFocus: "Create current focus" },
@@ -232,6 +236,7 @@ test("idp assignment refresh preserves the full squad roster and player identity
     playerName: "Kailen Sheridan",
     ownerId: "coach-1",
     position: "Goalkeeper",
+    squadNumber: "1",
   });
   expect(state.dashboardPlayers[0].focus.title).toBe("Distribution under pressure");
   expect(state.playerDetail.profile).toMatchObject({
@@ -239,6 +244,7 @@ test("idp assignment refresh preserves the full squad roster and player identity
     playerName: "Kailen Sheridan",
     ownerId: "coach-1",
     position: "Goalkeeper",
+    squadNumber: "1",
   });
   expect(state.playerDetail.focuses[0].title).toBe("Distribution under pressure");
 });

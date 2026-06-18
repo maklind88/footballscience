@@ -54,6 +54,7 @@ function mergeProfileWithFallback(profile = {}, fallbackProfile = {}) {
     id: normalized.id || fallback.id,
     playerId: normalized.playerId || fallback.playerId,
     playerName: normalized.playerName || fallback.playerName,
+    squadNumber: normalized.squadNumber || fallback.squadNumber,
     position: normalized.position || fallback.position,
     role: normalized.role || fallback.role,
     ownerId: normalized.ownerId || fallback.ownerId,

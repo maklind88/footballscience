@@ -6,6 +6,7 @@ function isLocalHost(hostname = "") {
 export function createDashboardChatApiDomainRuntime(dependencies = {}) {
   const {
     dashboardChatAdvancedThreadTemplates = () => [],
+    getDashboardChatAdvancedThreadTemplates = null,
     dashboardChatTeamThreadId = "team",
     dashboardChatThreadSettings = null,
     getDashboardChatApiThreads = () => [],
@@ -32,6 +33,20 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
   } = dependencies;
   const dashboardChatApiBackoffMs = 60 * 1000;
   let dashboardChatApiBackoffUntil = 0;
+
+  function getAdvancedThreadTemplates() {
+    const source =
+      typeof getDashboardChatAdvancedThreadTemplates === "function"
+        ? getDashboardChatAdvancedThreadTemplates()
+        : typeof dashboardChatAdvancedThreadTemplates === "function"
+          ? dashboardChatAdvancedThreadTemplates()
+          : dashboardChatAdvancedThreadTemplates;
+    return Array.isArray(source) ? source : [];
+  }
+
+  function getThreadSettingsStore() {
+    return typeof dashboardChatThreadSettings === "function" ? dashboardChatThreadSettings() : dashboardChatThreadSettings;
+  }
 
   function markDashboardChatApiBackoff() {
     dashboardChatApiBackoffUntil = Date.now() + dashboardChatApiBackoffMs;
@@ -63,7 +78,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
     if (normalizedThreadId.startsWith("group-") || normalizedThreadId.startsWith("group:")) {
       return "group";
     }
-    const template = dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.key === normalizedThreadId);
+    const template = getAdvancedThreadTemplates().find((candidate) => candidate.key === normalizedThreadId);
     return template?.type || "dm";
   }
 
@@ -305,11 +320,12 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
     const lastMessage = thread.lastMessage || thread.last_message || null;
     const lastMessageId = String(thread.lastMessageId || thread.last_message_id || lastMessage?.id || lastMessage?.messageId || "").trim();
 
+    const templates = getAdvancedThreadTemplates();
     const templateByLegacyId = legacyThreadId
-      ? dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.key === legacyThreadId)
+      ? templates.find((candidate) => candidate.key === legacyThreadId)
       : null;
     const templateByManagedType = ["medical", "matchday", "training", "announcement"].includes(type)
-      ? dashboardChatAdvancedThreadTemplates.find((candidate) => candidate.type === type)
+      ? templates.find((candidate) => candidate.type === type)
       : null;
     const template = templateByLegacyId || templateByManagedType;
     const resolvedLegacyThreadId = legacyThreadId || template?.key || "";
@@ -339,7 +355,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
         ? thread.participants.map(normalizeDashboardApiParticipant).filter(Boolean)
         : [],
       permissions: thread.permissions && typeof thread.permissions === "object" ? thread.permissions : {},
-      settings: dashboardChatThreadSettings?.normalize ? dashboardChatThreadSettings.normalize(thread.settings || thread.threadSettings || {}) : {},
+      settings: getThreadSettingsStore()?.normalize ? getThreadSettingsStore().normalize(thread.settings || thread.threadSettings || {}) : {},
       metadata: thread.metadata || {},
     };
   }

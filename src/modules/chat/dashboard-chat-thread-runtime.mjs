@@ -5,6 +5,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     dashboardChatThreadSettings = null,
     getCurrentPlatformUser = () => null,
     getDashboardChatApiThreads = () => [],
+    getDashboardChatCurrentViewState = () => ({ selectedThreadId: dashboardChatTeamThreadId }),
     getDashboardChatThreadParticipants = () => [],
     getDashboardChatTeamChatTitle = () => "Team Chat",
     getPlatformUsers = () => [],
@@ -37,6 +38,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
     const isTeamThread = normalizedThreadId === dashboardChatTeamThreadId;
     const isManagedThread = dashboardChatAdvancedThreadTemplates.some((template) => template.key === normalizedThreadId);
+    const isGroupThread = normalizedThreadId.startsWith("group-") || normalizedThreadId.startsWith("group:");
     const participants = isTeamThread || isManagedThread
       ? []
       : getDashboardChatThreadParticipants(normalizedThreadId, users).filter((user) => !isSameDashboardUser(user, currentUser));
@@ -103,7 +105,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
       threadId: normalizedThreadId,
       label: threadSettings.customTitle || (shouldUseComputedLabel ? fallbackThreadLabel : apiThreadTitle),
       isTeamThread,
-      type: apiThread?.type || (isManagedThread ? managedTemplate?.type : isTeamThread ? "team" : "dm"),
+      type: apiThread?.type || (isGroupThread ? "group" : isManagedThread ? managedTemplate?.type : isTeamThread ? "team" : "dm"),
       participant: threadParticipants.find((participant) => !isSameDashboardUser(participant, currentUser)) || threadParticipants[0] || null,
       participants: threadParticipants,
       permissions: apiThread?.permissions || {},
@@ -137,9 +139,13 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     const threadRows = [getDashboardChatThreadData(dashboardChatTeamThreadId, currentUser, users, messages)];
 
     const apiThreads = getDashboardChatApiThreads();
+    const selectedThreadId = normalizeDashboardChatThreadId(getDashboardChatCurrentViewState?.().selectedThreadId || "", "");
+    const selectedGroupThreadIds =
+      selectedThreadId && (selectedThreadId.startsWith("group-") || selectedThreadId.startsWith("group:")) ? [selectedThreadId] : [];
     const advancedThreadIds = Array.from(
       new Set([
         ...dashboardChatAdvancedThreadTemplates.map((template) => template.key),
+        ...selectedGroupThreadIds,
         ...apiThreads
           .filter((thread) => thread.threadId !== dashboardChatTeamThreadId && !String(thread.threadId).startsWith("dm:"))
           .map((thread) => thread.threadId),

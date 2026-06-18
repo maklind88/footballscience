@@ -2,6 +2,7 @@ export function createDashboardChatComposerRuntime({
   createDashboardId,
   dashboardChatAdvancedThreadTemplates,
   dashboardChatTeamThreadId,
+  dashboardChatThreadSettings = null,
   formatUserName,
   getCurrentPlatformUser,
   getDashboardChatActiveToastThreadId,
@@ -283,10 +284,58 @@ export function createDashboardChatComposerRuntime({
         return null;
       }
 
-      applyDashboardChatApiPayload(result.result || {}, { threadId: legacyThreadId });
+      const apiPayload = result.result || {};
+      const rawCreatedThread = apiPayload.thread || {};
       const createdThreadId = normalizeDashboardChatThreadId(
-        result.result?.thread?.threadId || result.result?.thread?.legacyThreadId || legacyThreadId,
+        rawCreatedThread.threadId || rawCreatedThread.legacyThreadId || rawCreatedThread.metadata?.legacyThreadId || legacyThreadId,
         legacyThreadId
+      );
+      const fallbackParticipants = participantIds.map((userId, index) => ({
+        userId,
+        id: userId,
+        participantRole: index === 0 ? "owner" : "member",
+        role: index === 0 ? "owner" : "member",
+      }));
+      const createdThread = {
+        ...rawCreatedThread,
+        threadId: createdThreadId,
+        legacyThreadId: createdThreadId,
+        type: rawCreatedThread.type || "group",
+        title: rawCreatedThread.title || title,
+        visibility: rawCreatedThread.visibility || "members",
+        participants: Array.isArray(rawCreatedThread.participants) && rawCreatedThread.participants.length
+          ? rawCreatedThread.participants
+          : fallbackParticipants,
+        permissions: rawCreatedThread.permissions || { canManageParticipants: true },
+        metadata: {
+          ...(rawCreatedThread.metadata || {}),
+          legacyThreadId: createdThreadId,
+          ...avatarPatch,
+        },
+      };
+      const payloadThreads = Array.isArray(apiPayload.threads)
+        ? apiPayload.threads.filter((thread) => {
+            const threadId = normalizeDashboardChatThreadId(
+              thread?.threadId || thread?.legacyThreadId || thread?.metadata?.legacyThreadId || "",
+              ""
+            );
+            return threadId !== createdThreadId;
+          })
+        : [];
+      if (dashboardChatThreadSettings?.write) {
+        dashboardChatThreadSettings.write(createdThreadId, {
+          customTitle: title,
+          avatarLabel: avatarPatch.avatarLabel || createdThread.metadata?.avatarLabel || "",
+          avatarUrl: avatarPatch.avatarUrl || createdThread.metadata?.avatarUrl || "",
+        });
+      }
+      applyDashboardChatApiPayload(
+        {
+          ...apiPayload,
+          thread: createdThread,
+          threads: [createdThread, ...payloadThreads],
+        },
+        { threadId: createdThreadId }
       );
       setDashboardChatMessageSearchQuery("");
       writeDashboardChatWidgetState({

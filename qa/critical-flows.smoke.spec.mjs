@@ -374,6 +374,200 @@ test("Chat launcher shows unread chat until the thread is opened", async ({ page
   await expect(page.locator('.top-icon-menu-item[data-open-workspace="home"].has-notification')).toHaveCount(0);
 });
 
+test("Chat group creator creates a focused group from the plus menu", async ({ page }) => {
+  const groupTitle = `QA Group ${Date.now()}`;
+  const chatActions = [];
+  const createdThreads = [];
+
+  await page.route("**/api/chat**", async (route) => {
+    const request = route.request();
+    if (request.method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, threads: createdThreads, messages: [], pagination: {} }),
+      });
+      return;
+    }
+
+    let payload = {};
+    try {
+      payload = request.postDataJSON();
+    } catch {
+      payload = {};
+    }
+    chatActions.push(payload);
+
+    if (payload.action !== "createThread") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, threads: createdThreads, messages: [], pagination: {} }),
+      });
+      return;
+    }
+
+    const participantIds = Array.isArray(payload.participantIds) ? payload.participantIds : [];
+    const thread = {
+      id: `db-${payload.threadId || "qa-group"}`,
+      threadId: payload.threadId || "qa-group",
+      legacyThreadId: payload.threadId || "qa-group",
+      type: payload.type || "group",
+      title: payload.title || groupTitle,
+      visibility: payload.visibility || "members",
+      messageCount: 0,
+      participants: participantIds.map((userId, index) => ({
+        userId,
+        participantRole: index === 0 ? "owner" : "member",
+        joinedAt: new Date().toISOString(),
+      })),
+      permissions: { canManageParticipants: true },
+      metadata: { legacyThreadId: payload.threadId || "qa-group", avatarLabel: payload.avatarLabel || "" },
+    };
+    createdThreads.push(thread);
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, thread, threads: [thread], messages: [], pagination: {} }),
+    });
+  });
+
+  await bootApp(page);
+  await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
+  await page.evaluate(() => {
+    window.platformAuthStore.getAccessToken = async () => "qa-chat-token";
+    window.platformAuthStore.refreshAccessToken = async () => "qa-chat-token";
+    const currentUser = window.platformAuthStore.getCurrentUser?.() || {};
+    const teammates = [
+      {
+        ...currentUser,
+        id: currentUser.id || "dev-user-mak",
+        firstName: currentUser.firstName || "Mak",
+        lastName: currentUser.lastName || "Lind",
+        status: "active",
+      },
+      {
+        id: "qa-chat-ceri",
+        firstName: "Ceri",
+        lastName: "Bowley",
+        role: "scout",
+        status: "active",
+        team: currentUser.team || "North Carolina Courage",
+      },
+      {
+        id: "qa-chat-austin",
+        firstName: "Austin",
+        lastName: "Da Luz",
+        role: "scout",
+        status: "active",
+        team: currentUser.team || "North Carolina Courage",
+      },
+    ];
+    window.platformAuthStore.writeUsers?.(teammates);
+    window.platformAuthStore.setCurrentUser?.(currentUser.id || "dev-user-mak");
+  });
+
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await page.locator("[data-dashboard-chat-thread-presets] > summary").click();
+  await expect(page.locator("[data-dashboard-chat-open-group-creator]")).toBeVisible();
+  await page.locator("[data-dashboard-chat-open-group-creator]").click();
+
+  const overlay = page.locator(".dashboard-chat-group-create-overlay");
+  await expect(overlay).toBeVisible();
+  await overlay.locator("[data-dashboard-chat-group-name-input]").fill(groupTitle);
+  await overlay.locator("input[name='participantIds']").first().check();
+  await expect(overlay.locator("[data-dashboard-chat-group-create-submit]")).toBeEnabled();
+  await overlay.locator("[data-dashboard-chat-group-create-submit]").click();
+
+  await expect(overlay).toHaveCount(0);
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("placeholder", `Message ${groupTitle}`);
+  expect(chatActions.some((payload) => payload.action === "createThread" && payload.type === "group" && payload.title === groupTitle)).toBe(true);
+});
+
+test("Chat attachment preview opens above chat with toolbar controls", async ({ page }) => {
+  const messageId = `qa-chat-attachment-${Date.now()}`;
+  const attachmentName = "qa-preview.svg";
+  const signedUrl = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><rect width="320" height="180" rx="18" fill="#0f172a"/><text x="160" y="96" text-anchor="middle" font-family="Arial" font-size="24" fill="#ffffff">QA preview</text></svg>')}`;
+
+  await bootApp(page);
+  await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
+  await page.evaluate((previewUrl) => {
+    window.platformAuthStore.getAccessToken = async () => "qa-chat-token";
+    window.platformAuthStore.refreshAccessToken = async () => "qa-chat-token";
+    window.platformAuthStore.getSupabaseClient = () => ({
+      storage: {
+        from: () => ({
+          createSignedUrl: async () => ({ data: { signedUrl: previewUrl } }),
+        }),
+      },
+      channel: () => ({
+        on() {
+          return this;
+        },
+        subscribe() {
+          return this;
+        },
+      }),
+      removeChannel: () => {},
+    });
+  }, signedUrl);
+
+  await page.evaluate(
+    ({ key, id, name }) => {
+      const now = new Date().toISOString();
+      const nextMessages = [
+        {
+          id,
+          userId: "dev-user-mak",
+          threadId: "team",
+          text: `Attachment: ${name}`,
+          createdAt: now,
+          deliveredAt: now,
+          readBy: ["dev-user-mak"],
+          mentionedUserIds: [],
+          author: {
+            id: "dev-user-mak",
+            firstName: "Mak",
+            lastName: "Lind",
+            role: "coach",
+            status: "active",
+          },
+          attachments: [
+            {
+              id: `${id}-file`,
+              bucket: "chat-attachments",
+              path: "qa/preview.svg",
+              fileName: name,
+              mimeType: "image/svg+xml",
+              byte_size: 2048,
+              status: "ready",
+            },
+          ],
+        },
+      ];
+      window.localStorage.setItem(key, JSON.stringify(nextMessages));
+      window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(nextMessages) }));
+    },
+    { key: dashboardChatKey, id: messageId, name: attachmentName }
+  );
+
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+
+  const attachmentButton = page.locator("[data-dashboard-chat-attachment-preview]").filter({ hasText: attachmentName }).first();
+  await expect(attachmentButton).toBeEnabled({ timeout: 6_000 });
+  await attachmentButton.click();
+
+  const preview = page.locator(".dashboard-chat-attachment-preview");
+  await expect(preview).toBeVisible();
+  await expect(page.locator("[data-chat-attachment-preview-title]")).toContainText(attachmentName);
+  await expect(page.locator("[data-chat-attachment-preview-body]")).toBeVisible();
+  await expect(page.locator("[data-chat-attachment-preview-download]")).toBeVisible();
+  await expect(page.locator("[data-chat-attachment-preview-save]")).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(preview).toHaveCount(0);
+});
+
 test("Schedule edits persist after refresh", async ({ page }) => {
   const title = `QA Schedule ${Date.now()}`;
   await bootApp(page);

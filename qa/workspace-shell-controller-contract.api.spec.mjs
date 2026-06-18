@@ -68,6 +68,10 @@ function createHarness(options = {}) {
     workspaceStatus: { textContent: "" },
     workspaceTitle: { textContent: "" },
   };
+  const win = options.win ?? {
+    __pendingWorkspaceId: options.pendingWorkspaceId ?? null,
+    footballScienceOverlayStability: options.scrollStability,
+  };
   const controller = createWorkspaceShellController({
     applyUserAvatar: () => calls.push(["avatar"]),
     closeDashboardModal: (value) => calls.push(["close-dashboard", value]),
@@ -114,11 +118,11 @@ function createHarness(options = {}) {
     syncGameSimulatorIntroState: () => calls.push(["simulator-intro"]),
     syncPlatformAutosaveStatusVisibility: (workspaceId) => calls.push(["autosave", workspaceId]),
     syncPlatformUserFromAuth: () => ({ firstName: "Mak", name: "Mak Lind", role: "admin", title: "Coach" }),
-    win: { __pendingWorkspaceId: options.pendingWorkspaceId ?? null },
+    win,
     workspaceHubDefaultActiveWorkspaceId: "home",
     writeWorkspaceHubState: () => calls.push(["write-hub"]),
   });
-  return { body, calls, controller, getHubState: () => hubState, ui, workspaceTriggers, workspaceViews };
+  return { body, calls, controller, getHubState: () => hubState, ui, win, workspaceTriggers, workspaceViews };
 }
 
 test("workspace shell controller owns the render/init shell outside app.js", () => {
@@ -175,6 +179,26 @@ test("workspace shell controller switches workspaces and preserves simulator/pro
   expect(harness.calls).toContainEqual(["preload", "schedule"]);
   expect(harness.calls).toContainEqual(["remember", "schedule"]);
   expect(harness.calls).toContainEqual(["write-hub"]);
+});
+
+test("workspace shell controller preserves scroll context when returning between workspaces", () => {
+  const scrollCalls = [];
+  const harness = createHarness({
+    scrollStability: {
+      captureWorkspace: (workspaceId) => scrollCalls.push(["capture", workspaceId]),
+      prepareWorkspaceRestore: (workspaceId) => scrollCalls.push(["prepare", workspaceId]),
+      restoreWorkspace: (workspaceId) => scrollCalls.push(["restore", workspaceId]),
+    },
+  });
+
+  harness.controller.setActiveWorkspace("schedule");
+
+  expect(scrollCalls).toEqual([
+    ["capture", "home"],
+    ["prepare", "schedule"],
+    ["restore", "schedule"],
+  ]);
+  expect(harness.getHubState().activeWorkspaceId).toBe("schedule");
 });
 
 test("workspace shell controller initializes pending workspace before URL and remembered workspace", () => {

@@ -33,8 +33,12 @@ export function createPlatformOverlayStabilityInstaller(options = {}) {
     rootScrollLeft: 0,
     backgroundScroller: null,
     scrollPositions: new Map(),
+    workspaceScrollPositions: new Map(),
     restoreFrame: 0,
     syncFrame: 0,
+    workspaceRestoreFrame: 0,
+    pendingWorkspaceRestoreId: "",
+    suppressWorkspaceCapture: false,
     observer: null,
     installed: false,
   };
@@ -49,6 +53,14 @@ export function createPlatformOverlayStabilityInstaller(options = {}) {
       return contentScroller;
     }
     return doc?.scrollingElement || doc?.documentElement || null;
+  }
+
+  function getActiveWorkspaceId() {
+    return String(doc?.body?.dataset?.activeWorkspace || "").trim();
+  }
+
+  function normalizeWorkspaceId(workspaceId = getActiveWorkspaceId()) {
+    return String(workspaceId || "").trim();
   }
 
   function isOverlayElementVisible(node) {
@@ -178,6 +190,90 @@ export function createPlatformOverlayStabilityInstaller(options = {}) {
     });
   }
 
+  function rememberWorkspaceScroll(workspaceId = getActiveWorkspaceId(), scroller = getContentScroller()) {
+    const workspaceKey = normalizeWorkspaceId(workspaceId);
+    if (!workspaceKey || !scroller) {
+      return false;
+    }
+    state.workspaceScrollPositions.set(workspaceKey, {
+      top: scroller.scrollTop || 0,
+      left: scroller.scrollLeft || 0,
+    });
+    return true;
+  }
+
+  function releaseWorkspaceCaptureAfterRestore(workspaceId) {
+    const workspaceKey = normalizeWorkspaceId(workspaceId);
+    const release = () => {
+      if (!state.pendingWorkspaceRestoreId || state.pendingWorkspaceRestoreId === workspaceKey) {
+        state.pendingWorkspaceRestoreId = "";
+        state.suppressWorkspaceCapture = false;
+      }
+    };
+    if (typeof requestFrame === "function") {
+      requestFrame(() => requestFrame(release));
+      return;
+    }
+    release();
+  }
+
+  function prepareWorkspaceRestore(workspaceId = getActiveWorkspaceId()) {
+    const workspaceKey = normalizeWorkspaceId(workspaceId);
+    if (!workspaceKey) {
+      return false;
+    }
+    state.pendingWorkspaceRestoreId = workspaceKey;
+    state.suppressWorkspaceCapture = true;
+    return true;
+  }
+
+  function restoreWorkspaceScrollNow(workspaceId = getActiveWorkspaceId()) {
+    const workspaceKey = normalizeWorkspaceId(workspaceId);
+    const position = workspaceKey ? state.workspaceScrollPositions.get(workspaceKey) : null;
+    const scroller = getContentScroller();
+    if (!workspaceKey || !position || !scroller) {
+      releaseWorkspaceCaptureAfterRestore(workspaceKey);
+      return false;
+    }
+    if (Math.abs((scroller.scrollTop || 0) - position.top) > 1) {
+      scroller.scrollTop = position.top;
+    }
+    if (Math.abs((scroller.scrollLeft || 0) - position.left) > 1) {
+      scroller.scrollLeft = position.left;
+    }
+    releaseWorkspaceCaptureAfterRestore(workspaceKey);
+    return true;
+  }
+
+  function restoreWorkspaceScroll(workspaceId = getActiveWorkspaceId()) {
+    const workspaceKey = normalizeWorkspaceId(workspaceId);
+    if (!workspaceKey) {
+      return false;
+    }
+    if (state.workspaceRestoreFrame || typeof requestFrame !== "function") {
+      return restoreWorkspaceScrollNow(workspaceKey);
+    }
+    state.workspaceRestoreFrame = requestFrame(() => {
+      requestFrame(() => {
+        state.workspaceRestoreFrame = 0;
+        restoreWorkspaceScrollNow(workspaceKey);
+      });
+    });
+    return state.workspaceScrollPositions.has(workspaceKey);
+  }
+
+  function rememberWorkspaceScrollFromEvent(event) {
+    if (state.active || state.suppressWorkspaceCapture || state.pendingWorkspaceRestoreId) {
+      return;
+    }
+    const contentScroller = getContentScroller();
+    const target = event?.target === doc ? contentScroller : event?.target;
+    if (!contentScroller || target !== contentScroller) {
+      return;
+    }
+    rememberWorkspaceScroll(getActiveWorkspaceId(), contentScroller);
+  }
+
   function scheduleRestore() {
     if (state.restoreFrame || typeof requestFrame !== "function") {
       return;
@@ -230,6 +326,7 @@ export function createPlatformOverlayStabilityInstaller(options = {}) {
       "scroll",
       (event) => {
         if (!state.active) {
+          rememberWorkspaceScrollFromEvent(event);
           return;
         }
         const target = event.target === doc ? state.backgroundScroller || getContentScroller() : event.target;
@@ -256,8 +353,11 @@ export function createPlatformOverlayStabilityInstaller(options = {}) {
     });
     win.footballScienceOverlayStability = {
       capture: rememberScroll,
+      captureWorkspace: rememberWorkspaceScroll,
       getBackgroundScroller: getContentScroller,
+      prepareWorkspaceRestore,
       restore: restoreScrollPositions,
+      restoreWorkspace: restoreWorkspaceScroll,
       sync,
     };
     sync();

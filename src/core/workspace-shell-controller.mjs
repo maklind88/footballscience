@@ -116,6 +116,9 @@ export function createWorkspaceShellController(deps = {}) {
     const hubState = getHubState();
     const previousWorkspaceId = hubState?.activeWorkspaceId;
     const targetWorkspaceId = workspace.id;
+    const scrollStability = win?.footballScienceOverlayStability;
+    scrollStability?.captureWorkspace?.(previousWorkspaceId);
+    scrollStability?.prepareWorkspaceRestore?.(targetWorkspaceId);
     if (previousWorkspaceId === "game-simulator" && targetWorkspaceId !== "game-simulator") {
       pauseSimulatorForWorkspaceSwitch();
       stopSimulatorAnimationLoop();
@@ -131,6 +134,7 @@ export function createWorkspaceShellController(deps = {}) {
     rememberActiveWorkspaceId(targetWorkspaceId);
     writeWorkspaceHubState();
     renderWorkspaceChrome();
+    scrollStability?.restoreWorkspace?.(targetWorkspaceId);
   }
 
   function initializeWorkspaceHub() {
@@ -162,7 +166,9 @@ export function createWorkspaceShellController(deps = {}) {
     win.__pendingWorkspaceId = null;
     hydrateWorkspaceModuleState(nextHubState.activeWorkspaceId);
     writeWorkspaceHubState();
+    win?.footballScienceOverlayStability?.prepareWorkspaceRestore?.(nextHubState.activeWorkspaceId);
     renderWorkspaceChrome();
+    win?.footballScienceOverlayStability?.restoreWorkspace?.(nextHubState.activeWorkspaceId);
     queueDashboardChatStylesheetLoad();
     queueCriticalWorkspacePreloads();
     scheduleDashboardLoginPopups();

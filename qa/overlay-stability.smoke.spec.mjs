@@ -88,3 +88,63 @@ test("platform overlays keep their scroll position across rerenders", async ({ p
 
   expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
 });
+
+test("platform restores workspace scroll position when returning between workspaces", async ({ page }) => {
+  await waitForPlatform(page);
+
+  const result = await page.evaluate(async () => {
+    const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const stability = window.footballScienceOverlayStability;
+    const platformContent = document.querySelector(".platform-content");
+    const triggers = Array.from(document.querySelectorAll("[data-open-workspace]"));
+    const workspaceIds = Array.from(new Set(triggers.map((trigger) => trigger.dataset.openWorkspace).filter(Boolean)));
+    const startWorkspaceId = workspaceIds.includes("schedule") ? "schedule" : workspaceIds.find((workspaceId) => workspaceId !== "home");
+    const returnWorkspaceId = workspaceIds.find((workspaceId) => workspaceId !== startWorkspaceId) || "home";
+    const openWorkspace = async (workspaceId) => {
+      window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId } }));
+      await nextFrame();
+    };
+    if (!platformContent || !stability || !startWorkspaceId || !returnWorkspaceId) {
+      return { ok: false, reason: "workspace navigation test prerequisites missing" };
+    }
+
+    const originalScrollTop = stability.getBackgroundScroller()?.scrollTop || 0;
+    const originalScrollLeft = stability.getBackgroundScroller()?.scrollLeft || 0;
+    const spacer = document.createElement("div");
+    spacer.setAttribute("data-qa-workspace-return-spacer", "1");
+    spacer.style.cssText = "height: 1800px; width: 1px;";
+    platformContent.appendChild(spacer);
+
+    try {
+      await openWorkspace(startWorkspaceId);
+      const scroller = stability.getBackgroundScroller();
+      scroller.scrollTop = 680;
+      scroller.dispatchEvent(new Event("scroll", { bubbles: true }));
+      await nextFrame();
+
+      await openWorkspace(returnWorkspaceId);
+      scroller.scrollTop = 0;
+      scroller.dispatchEvent(new Event("scroll", { bubbles: true }));
+      await nextFrame();
+
+      await openWorkspace(startWorkspaceId);
+      await nextFrame();
+      const restoredScrollTop = scroller.scrollTop;
+
+      scroller.scrollTop = originalScrollTop;
+      scroller.scrollLeft = originalScrollLeft;
+      spacer.remove();
+      return {
+        ok: document.body.dataset.activeWorkspace === startWorkspaceId && restoredScrollTop >= 640,
+        restoredScrollTop,
+        startWorkspaceId,
+        activeWorkspaceId: document.body.dataset.activeWorkspace,
+      };
+    } catch (error) {
+      spacer.remove();
+      return { ok: false, reason: error?.message || String(error) };
+    }
+  });
+
+  expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
+});

@@ -653,7 +653,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     `;
   }
 
-  function renderThreadDetailsPanel({ activeThread, activeThreadId, activeThreadLabel, activeThreadSubLabel, users, messages, pinnedMessages, messageSearchQuery = "", searchMatchCount = 0, searchActiveMatchIndex = 0, threadMessageCount = 0 }) {
+  function renderThreadDetailsPanel({ activeThread, activeThreadId, activeThreadLabel, activeThreadSubLabel, currentUser, users, messages, pinnedMessages, messageSearchQuery = "", searchMatchCount = 0, searchActiveMatchIndex = 0, threadMessageCount = 0 }) {
     const participants = getThreadDetailParticipants(activeThread, users).slice(0, 8);
     const files = getThreadFiles(messages, activeThreadId);
     const links = getThreadLinks(messages, activeThreadId);
@@ -1185,7 +1185,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       <button type="button" class="dashboard-chat-widget-toast" data-dashboard-chat-widget-toast data-dashboard-chat-toast-open aria-live="polite" aria-atomic="true" hidden></button>
       ${renderConfirmDialog(confirmAction)}
       ${isOpen ? groupCreateOverlayMarkup : ""}
-      ${isOpen && detailsOpen ? renderThreadDetailsPanel({ activeThread, activeThreadId, activeThreadLabel, activeThreadSubLabel, users, messages, pinnedMessages, messageSearchQuery, searchMatchCount, searchActiveMatchIndex, threadMessageCount: hasThreadMessages.length }) : ""}
+      ${isOpen && detailsOpen ? renderThreadDetailsPanel({ activeThread, activeThreadId, activeThreadLabel, activeThreadSubLabel, currentUser, users, messages, pinnedMessages, messageSearchQuery, searchMatchCount, searchActiveMatchIndex, threadMessageCount: hasThreadMessages.length }) : ""}
       <div class="dashboard-chat-widget-body">
         <section class="dashboard-chat-thread-list" aria-label="Chat threads">
           <div class="dashboard-chat-inbox-head">

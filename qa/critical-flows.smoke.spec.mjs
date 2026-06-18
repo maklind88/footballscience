@@ -505,6 +505,165 @@ test("Chat group creator creates a focused group from the plus menu", async ({ p
   expect(chatActions.some((payload) => payload.action === "createThread" && payload.type === "group" && payload.title === groupTitle)).toBe(true);
 });
 
+test("Chat group settings can rename, set avatar, and delete a group", async ({ page }) => {
+  const groupTitle = `QA Manage Group ${Date.now()}`;
+  const renamedTitle = `QA Renamed Group ${Date.now()}`;
+  const avatarInitials = "RG";
+  const chatActions = [];
+  let createdThread = null;
+
+  await page.route("**/api/chat**", async (route) => {
+    const request = route.request();
+    if (request.method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          threads: createdThread && !createdThread.archivedAt ? [createdThread] : [],
+          messages: [],
+          pagination: {},
+        }),
+      });
+      return;
+    }
+
+    let payload = {};
+    try {
+      payload = request.postDataJSON();
+    } catch {
+      payload = {};
+    }
+    chatActions.push(payload);
+
+    if (payload.action === "createThread") {
+      const now = new Date().toISOString();
+      const participantIds = Array.isArray(payload.participantIds) ? payload.participantIds : [];
+      createdThread = {
+        id: `db-${payload.threadId || "qa-group"}`,
+        threadId: payload.threadId || "qa-group",
+        legacyThreadId: payload.threadId || "qa-group",
+        type: payload.type || "group",
+        title: payload.title || groupTitle,
+        visibility: payload.visibility || "members",
+        createdAt: now,
+        created_at: now,
+        messageCount: 0,
+        participants: participantIds.map((userId, index) => ({
+          userId,
+          participantRole: index === 0 ? "owner" : "member",
+          joinedAt: now,
+        })),
+        permissions: { canManageParticipants: true },
+        settings: {},
+        metadata: { legacyThreadId: payload.threadId || "qa-group", avatarLabel: payload.avatarLabel || "" },
+      };
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, thread: createdThread, threads: [createdThread], messages: [], pagination: {} }),
+      });
+      return;
+    }
+
+    if (payload.action === "setThreadSettings" && createdThread) {
+      createdThread = {
+        ...createdThread,
+        title: payload.settings?.customTitle || createdThread.title,
+        settings: { ...(createdThread.settings || {}), ...(payload.settings || {}) },
+      };
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, thread: createdThread, threads: [createdThread], messages: [], pagination: {} }),
+      });
+      return;
+    }
+
+    if (payload.action === "archiveThread" && createdThread) {
+      createdThread = { ...createdThread, archivedAt: new Date().toISOString() };
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, thread: createdThread, threads: [], messages: [], pagination: {} }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, threads: createdThread ? [createdThread] : [], messages: [], pagination: {} }),
+    });
+  });
+
+  await bootApp(page);
+  await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
+  await page.evaluate(() => {
+    window.platformAuthStore.getAccessToken = async () => "qa-chat-token";
+    window.platformAuthStore.refreshAccessToken = async () => "qa-chat-token";
+    const currentUser = window.platformAuthStore.getCurrentUser?.() || {};
+    const teammates = [
+      {
+        ...currentUser,
+        id: currentUser.id || "dev-user-mak",
+        firstName: currentUser.firstName || "Mak",
+        lastName: currentUser.lastName || "Lind",
+        role: "team-admin",
+        status: "active",
+      },
+      {
+        id: "qa-chat-ceri",
+        firstName: "Ceri",
+        lastName: "Bowley",
+        role: "scout",
+        status: "active",
+        team: currentUser.team || "North Carolina Courage",
+      },
+    ];
+    window.platformAuthStore.writeUsers?.(teammates);
+    window.platformAuthStore.setCurrentUser?.(currentUser.id || "dev-user-mak");
+  });
+
+  await page.evaluate(
+    ({ title, initials }) => {
+      const answers = [title, initials];
+      window.prompt = () => answers.shift() || "";
+    },
+    { title: renamedTitle, initials: avatarInitials }
+  );
+
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await page.locator("[data-dashboard-chat-thread-presets] > summary").click();
+  await page.locator("[data-dashboard-chat-open-group-creator]").click();
+
+  const overlay = page.locator(".dashboard-chat-group-create-overlay");
+  await expect(overlay).toBeVisible();
+  await overlay.locator("[data-dashboard-chat-group-name-input]").fill(groupTitle);
+  await overlay.locator("input[name='participantIds']").first().check();
+  await overlay.locator("[data-dashboard-chat-group-create-submit]").click();
+  await expect(overlay).toHaveCount(0);
+  await expect(page.locator("[data-dashboard-chat-thread]").first()).toContainText(groupTitle);
+
+  const createdGroupThread = page.locator("[data-dashboard-chat-thread]").filter({ hasText: groupTitle }).first();
+  await createdGroupThread.click();
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("placeholder", `Message ${groupTitle}`);
+  const detailsToggle = page.locator("[data-dashboard-chat-details-toggle]");
+  await expect(detailsToggle).toBeVisible();
+  await detailsToggle.click();
+  await expect(page.locator(".dashboard-chat-details-panel")).toBeVisible();
+  await page.locator('[data-dashboard-chat-thread-setting="rename"]').click();
+  await expect(page.locator("header .dashboard-chat-widget-title")).toContainText(renamedTitle);
+  await expect(page.locator("[data-dashboard-chat-thread]").first()).toContainText(renamedTitle);
+
+  await page.locator('[data-dashboard-chat-thread-setting="avatar"]').click();
+  await expect(page.locator('[data-dashboard-chat-thread-setting="avatar"] small')).toContainText(avatarInitials);
+
+  await page.locator("[data-dashboard-chat-archive-thread]").click();
+  await expect(page.locator(".dashboard-chat-confirm-card")).toBeVisible();
+  await page.locator("[data-dashboard-chat-confirm-apply]").click();
+  await expect(page.locator("[data-dashboard-chat-thread]").filter({ hasText: renamedTitle })).toHaveCount(0);
+  expect(chatActions.some((payload) => payload.action === "setThreadSettings" && payload.settings?.customTitle === renamedTitle)).toBe(true);
+  expect(chatActions.some((payload) => payload.action === "setThreadSettings" && payload.settings?.avatarLabel === avatarInitials)).toBe(true);
+  expect(chatActions.some((payload) => payload.action === "archiveThread")).toBe(true);
+});
+
 test("Chat message grouping and latest thread sorting survive reload", async ({ page }) => {
   const baseTime = Date.now();
   const teamFirstId = `qa-chat-grouped-first-${baseTime}`;

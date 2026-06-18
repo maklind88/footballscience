@@ -100,6 +100,25 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
       : resolvedApiParticipants.length
         ? resolvedApiParticipants
         : participants;
+    const currentParticipant = threadParticipants.find((participant) => isSameDashboardUser(participant, currentUser)) || null;
+    const currentParticipantRole = String(
+      currentParticipant?.chatParticipantRole ||
+        currentParticipant?.participantRole ||
+        currentParticipant?.participant_role ||
+        currentParticipant?.role ||
+        ""
+    ).trim().toLowerCase();
+    const currentUserRole = String(currentUser?.role || "").trim().toLowerCase();
+    const isGroupLikeThread = apiThread?.type === "group" || isGroupThread;
+    const canManageParticipants = Boolean(
+      apiThread?.permissions?.canManageParticipants ||
+        (isGroupLikeThread &&
+          (currentParticipantRole === "owner" || ["admin", "club-admin", "team-admin", "coach"].includes(currentUserRole)))
+    );
+    const permissions = {
+      ...(apiThread?.permissions || {}),
+      ...(canManageParticipants ? { canManageParticipants: true } : {}),
+    };
 
     return {
       threadId: normalizedThreadId,
@@ -108,7 +127,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
       type: apiThread?.type || (isGroupThread ? "group" : isManagedThread ? managedTemplate?.type : isTeamThread ? "team" : "dm"),
       participant: threadParticipants.find((participant) => !isSameDashboardUser(participant, currentUser)) || threadParticipants[0] || null,
       participants: threadParticipants,
-      permissions: apiThread?.permissions || {},
+      permissions,
       messageCount: Math.max(threadMessages.length, apiThread?.messageCount || 0),
       unreadCount: effectiveUnreadCount,
       mentionCount,

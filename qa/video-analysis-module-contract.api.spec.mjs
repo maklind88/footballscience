@@ -207,7 +207,8 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(templateBuilder).toContain("data-video-analysis-code-button");
   expect(templateBuilder).toContain("data-video-analysis-panel-mode");
   expect(templateBuilder).toContain("renderPanelBuilderOverlay");
-  expect(templateBuilder).toContain("data-video-analysis-descriptor-button");
+  expect(templateBuilder).toContain("data-video-analysis-player-tag");
+  expect(templateBuilder).not.toContain("data-video-analysis-descriptor-button");
   expect(panelBuilderOverlay).toContain("data-video-analysis-save-template");
   expect(panelBuilderOverlay).toContain("data-video-analysis-template-field");
   expect(panelBuilderOverlay).toContain("data-video-analysis-template-builder-field");

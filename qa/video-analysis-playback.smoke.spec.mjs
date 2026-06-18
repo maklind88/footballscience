@@ -655,6 +655,58 @@ test("Video Analysis Tag Panel uses the red timeline playhead when video metadat
   await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:00:42");
 });
 
+test("Video Analysis player buttons create IDP player clips from the playhead", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__videoAnalysisInitialState = {
+      view: "workspace",
+      match: {
+        id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        title: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+      },
+      video: {
+        id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+      },
+      source: {
+        id: "source-1",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        local_video_identifier: "existing-video",
+      },
+      videoRef: {
+        objectUrl: "data:video/mp4;base64,AAAA",
+        durationMs: 7267240,
+        displayName: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+      },
+      localFileStatus: "native-ready",
+      localFileMessage: "Native playback ready",
+      nativePlaybackReady: true,
+    };
+  });
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+  await expect(page.locator(".video-analysis-player-tag-panel")).toContainText("Players");
+  await expect(page.locator('[data-video-analysis-player-tag="p1"]')).toContainText("AM");
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "currentTime", { configurable: true, value: 121 });
+  });
+
+  await page.locator('[data-video-analysis-player-tag="p1"]').click();
+
+  await expect.poll(() => page.evaluate(() => {
+    const request = [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "save-clip");
+    return request?.body?.clip || null;
+  })).toMatchObject({
+    startMs: 121000,
+    endMs: 136000,
+    visibility: "idp",
+    players: [
+      { playerId: "p1", playerLabel: "Alex Morgan", role: "primary" },
+    ],
+  });
+  await expect(page.locator(".video-analysis-notifications")).toContainText("Alex Morgan sent to IDP.");
+});
+
 test("Video Analysis Panel Builder creates a custom tag button", async ({ page }) => {
   await page.addInitScript(() => {
     window.__videoAnalysisInitialState = {

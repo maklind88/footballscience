@@ -1,4 +1,3 @@
-import { descriptorGroups } from "../constants/descriptors.js";
 import { groupCodingTemplateButtons } from "../services/codingTemplateService.js";
 import { renderPanelBuilderOverlay } from "./PanelBuilderOverlay.js";
 import { escapeHtml } from "./renderHelpers.js";
@@ -48,20 +47,52 @@ function renderButtonGroup(group = "", buttons = [], state = {}) {
   `;
 }
 
-function renderDescriptor(group = {}, draft = {}) {
+function playerDisplayName(player = {}) {
+  return String(player.name || player.playerName || player.player_label || player.id || "").trim();
+}
+
+function playerInitials(player = {}) {
+  const name = playerDisplayName(player);
+  const number = String(player.number || "").trim();
+  if (!name) return number || "P";
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
+}
+
+function renderPlayerButton(player = {}, state = {}) {
+  const id = String(player.id || player.playerId || player.player_id || "").trim();
+  if (!id) return "";
+  const name = playerDisplayName(player) || id;
+  const number = String(player.number || "").trim();
+  const position = String(player.position || "").trim();
+  const active = state.draft?.playerId === id || state.codingSession?.lastPlayerTagId === id;
   return `
-    <section class="video-analysis-code-group video-analysis-descriptor-group">
-      <div class="video-analysis-code-group__header">${escapeHtml(group.label)}</div>
-      <div class="video-analysis-code-grid video-analysis-descriptor-button-grid">
-        <button type="button" class="video-analysis-code-button${!draft[group.id] ? " is-active" : ""}"
-          data-video-analysis-descriptor-button="${escapeHtml(group.id)}:">Any</button>
-        ${(group.options || []).map((option) => `
-          <button type="button" class="video-analysis-code-button${draft[group.id] === option ? " is-active" : ""}"
-            data-video-analysis-descriptor-button="${escapeHtml(group.id)}:${escapeHtml(option)}">
-            <span class="video-analysis-code-button__label">${escapeHtml(option)}</span>
-          </button>
-        `).join("")}
+    <button type="button" class="video-analysis-player-tag-button${active ? " is-active" : ""}"
+      data-video-analysis-player-tag="${escapeHtml(id)}"
+      title="${escapeHtml(`${name}${position ? ` - ${position}` : ""}`)}"
+      aria-label="${escapeHtml(`Tag ${name} and send to IDP`)}">
+      <span class="video-analysis-player-tag-button__initials">${escapeHtml(playerInitials(player))}</span>
+      ${number ? `<span class="video-analysis-player-tag-button__number">${escapeHtml(number)}</span>` : ""}
+    </button>
+  `;
+}
+
+function renderPlayersPanel(state = {}) {
+  const players = Array.isArray(state.players) ? state.players : [];
+  return `
+    <section class="video-analysis-player-tag-panel" aria-label="Players">
+      <div class="video-analysis-code-group__header">
+        <span>Players</span>
+        ${players.length ? `<small>${players.length}</small>` : ""}
       </div>
+      ${players.length ? `
+        <div class="video-analysis-player-tag-grid">
+          ${players.map((player) => renderPlayerButton(player, state)).join("")}
+        </div>
+      ` : `
+        <p class="video-analysis-player-tag-empty">No squad players available.</p>
+      `}
     </section>
   `;
 }
@@ -90,12 +121,7 @@ export function renderCodingTemplateBuilder(state = {}) {
       </div>
       <div class="video-analysis-template-scroll">
         ${groupEntries.map(([group, buttons]) => renderButtonGroup(group, buttons, codingState)).join("")}
-        <section class="video-analysis-descriptor-panel">
-          <div class="video-analysis-code-group__header">Descriptors</div>
-          <div class="video-analysis-descriptor-grid">
-            ${descriptorGroups.map((group) => renderDescriptor(group, state.draft || {})).join("")}
-          </div>
-        </section>
+        ${renderPlayersPanel(state)}
       </div>
     </section>
     ${editing ? renderPanelBuilderOverlay(state, groups) : ""}

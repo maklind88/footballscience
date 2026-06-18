@@ -196,7 +196,12 @@
             coding_button_id: input.codingButtonId || input.coding_button_id || "",
             pre_roll_ms: input.preRollMs ?? input.pre_roll_ms ?? 0,
             post_roll_ms: input.postRollMs ?? input.post_roll_ms ?? 0,
-            players: input.playerId ? [{ player_id: input.playerId, player_label: input.playerId, role: input.playerRole || "primary" }] : [],
+            visibility: input.visibility || "private",
+            players: Array.isArray(input.players) && input.players.length
+              ? input.players
+              : input.playerId
+                ? [{ player_id: input.playerId, player_label: input.playerId, role: input.playerRole || "primary" }]
+                : [],
             tags: input.tags || [],
             descriptors: input.descriptors || [],
             notes: input.notes || [],

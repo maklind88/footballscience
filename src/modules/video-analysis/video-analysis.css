@@ -1691,6 +1691,21 @@
   min-height: 26px;
 }
 
+.video-analysis-code-window-dock .video-analysis-player-tag-panel {
+  gap: 5px;
+  border-top: 1px solid #e4e9e6;
+  padding-top: 7px;
+}
+
+.video-analysis-code-window-dock .video-analysis-player-tag-grid {
+  grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
+  gap: 5px;
+}
+
+.video-analysis-code-window-dock .video-analysis-player-tag-button {
+  min-height: 34px;
+}
+
 .video-analysis-code-window-dock .video-analysis-template-builder.is-editing .video-analysis-template-scroll {
   max-height: none;
   overflow: visible;
@@ -2610,6 +2625,81 @@
 .video-analysis-descriptor-grid {
   display: grid;
   gap: 10px;
+}
+
+.video-analysis-player-tag-panel {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #e4e9e6;
+  padding-top: 10px;
+}
+
+.video-analysis-player-tag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
+  gap: 7px;
+}
+
+.video-analysis-player-tag-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 42px;
+  border: 1px solid #cbd3d0;
+  border-radius: 8px;
+  color: #12201a;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 249, 0.82)),
+    #ffffff;
+  box-shadow: 0 1px 0 rgba(12, 24, 18, 0.05);
+  cursor: pointer;
+}
+
+.video-analysis-player-tag-button:hover {
+  border-color: #143522;
+  transform: translateY(-1px);
+}
+
+.video-analysis-player-tag-button.is-active {
+  border-color: #143522;
+  color: #ffffff;
+  background: #143522;
+  box-shadow: 0 10px 20px rgba(20, 53, 34, 0.16);
+}
+
+.video-analysis-player-tag-button__initials {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.video-analysis-player-tag-button__number {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  min-width: 16px;
+  border-radius: 999px;
+  padding: 1px 4px;
+  color: #314038;
+  background: #eef3f0;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.video-analysis-player-tag-button.is-active .video-analysis-player-tag-button__number {
+  color: #143522;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.video-analysis-player-tag-empty {
+  margin: 0;
+  border: 1px dashed #cbd5cf;
+  border-radius: 7px;
+  padding: 8px;
+  color: #66746c;
+  background: #f7faf8;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 @media (max-width: 860px) {

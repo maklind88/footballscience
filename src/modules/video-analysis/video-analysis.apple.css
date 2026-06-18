@@ -455,6 +455,36 @@
   margin-top: 2px;
 }
 
+#analysisRoomWorkspace .video-analysis-player-tag-panel {
+  border-top: 1px solid rgba(24, 34, 29, 0.08);
+  margin-top: 2px;
+}
+
+#analysisRoomWorkspace .video-analysis-player-tag-button {
+  border-color: rgba(24, 34, 29, 0.12);
+  border-radius: 9px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(245, 247, 246, 0.78)),
+    #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 5px 14px rgba(15, 23, 19, 0.06);
+}
+
+#analysisRoomWorkspace .video-analysis-player-tag-button:hover {
+  border-color: rgba(20, 53, 34, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 12px 24px rgba(15, 23, 19, 0.1);
+}
+
+#analysisRoomWorkspace .video-analysis-player-tag-button.is-active {
+  border-color: rgba(20, 53, 34, 0.9);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(0, 0, 0, 0.09)),
+    #143522;
+}
+
 #analysisRoomWorkspace .video-analysis-tag-filter-backdrop {
   background: rgba(9, 13, 11, 0.44);
   backdrop-filter: blur(16px) saturate(1.08);

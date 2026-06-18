@@ -1641,6 +1641,76 @@ async function applyCodeButton(buttonId = "", context = {}) {
   return true;
 }
 
+function playerLabel(player = {}) {
+  return String(player.name || player.playerName || player.player_label || player.id || "Player").trim();
+}
+
+async function applyPlayerQuickTag(playerId = "", context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const id = String(playerId || "").trim();
+  const player = (state.players || []).find((item) => item.id === id || item.playerId === id || item.player_id === id);
+  if (!player) {
+    run.store.setState({ status: "error", message: "", error: "Player is not available in the current squad." });
+    return false;
+  }
+  if (!state.match?.id || !state.video?.id) {
+    run.store.setState({ status: "error", message: "", error: "Link a local match or training video before tagging players." });
+    return false;
+  }
+
+  const currentMs = currentPlayheadMs(context, state);
+  const durationMs = Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
+  const nextState = {
+    ...state,
+    draft: {
+      ...(state.draft || {}),
+      playerId: player.id || id,
+      playerRole: "primary",
+      startMs: currentMs,
+      endMs: currentMs + durationMs,
+      visibility: "idp",
+      clipVisibility: "idp",
+    },
+    codingSession: {
+      ...(state.codingSession || {}),
+      mode: "instant",
+      preRollMs: 0,
+      postRollMs: durationMs,
+      activePlayerId: player.id || id,
+      lastPlayerTagId: player.id || id,
+    },
+    timeline: {
+      ...(state.timeline || {}),
+      playheadMs: currentMs,
+    },
+    message: `${playerLabel(player)} tagged for IDP.`,
+    error: "",
+  };
+  run.store.update(() => nextState);
+  const saved = await saveDraftClip(context, nextState);
+  if (saved) {
+    run.store.update((current) => ({
+      ...current,
+      draft: {
+        ...(current.draft || {}),
+        playerId: "",
+        playerRole: "primary",
+        visibility: "private",
+        clipVisibility: "private",
+      },
+      codingSession: {
+        ...(current.codingSession || {}),
+        activePlayerId: "",
+        lastPlayerTagId: player.id || id,
+      },
+      message: `${playerLabel(player)} sent to IDP.`,
+      error: "",
+    }));
+  }
+  return saved;
+}
+
 export function handlePointerDown(event, context = {}) {
   const target = eventElement(event);
   const drawingSurface = target?.closest?.("[data-video-analysis-drawing-surface]");
@@ -2086,6 +2156,11 @@ export function handleClick(event, context = {}) {
   const codeButton = target.closest("[data-video-analysis-code-button]");
   if (codeButton) {
     applyCodeButton(codeButton.dataset.videoAnalysisCodeButton, context);
+    return true;
+  }
+  const playerTagButton = target.closest("[data-video-analysis-player-tag]");
+  if (playerTagButton) {
+    applyPlayerQuickTag(playerTagButton.dataset.videoAnalysisPlayerTag, context);
     return true;
   }
   const descriptorButton = target.closest("[data-video-analysis-descriptor-button]");

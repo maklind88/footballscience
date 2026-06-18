@@ -626,6 +626,107 @@ test("Chat message grouping and latest thread sorting survive reload", async ({ 
   await expect(page.locator(`[data-dashboard-chat-message-id="${teamSecondId}"]`)).toHaveClass(/is-grouped-with-previous/);
 });
 
+test("Chat thread click does not change latest activity sorting", async ({ page }) => {
+  const baseTime = Date.now();
+  const latestTeamId = `qa-chat-latest-team-${baseTime}`;
+  const olderDirectId = `qa-chat-clicked-direct-${baseTime}`;
+
+  await bootApp(page);
+  await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
+  await page.evaluate(() => {
+    const currentUser = window.platformAuthStore.getCurrentUser?.() || {};
+    const currentUserId = currentUser.id || "dev-user-mak";
+    window.platformAuthStore.writeUsers?.([
+      {
+        ...currentUser,
+        id: currentUserId,
+        firstName: currentUser.firstName || "Mak",
+        lastName: currentUser.lastName || "Lind",
+        status: "active",
+      },
+      {
+        id: "qa-chat-austin",
+        firstName: "Austin",
+        lastName: "Da Luz",
+        role: "scout",
+        status: "active",
+        team: currentUser.team || "North Carolina Courage",
+      },
+    ]);
+    window.platformAuthStore.setCurrentUser?.(currentUserId);
+  });
+
+  await page.evaluate(
+    ({ key, base, teamId, directId }) => {
+      const makeIso = (offsetMs) => new Date(base + offsetMs).toISOString();
+      const messages = [
+        {
+          id: directId,
+          userId: "qa-chat-austin",
+          threadId: "dm:dev-user-mak:qa-chat-austin",
+          text: "Older clicked thread should stay below latest team chat",
+          createdAt: makeIso(-180_000),
+          deliveredAt: makeIso(-180_000),
+          readBy: ["qa-chat-austin"],
+          mentionedUserIds: [],
+          author: {
+            id: "qa-chat-austin",
+            firstName: "Austin",
+            lastName: "Da Luz",
+            role: "scout",
+            status: "active",
+          },
+        },
+        {
+          id: teamId,
+          userId: "dev-user-mak",
+          threadId: "team",
+          text: "Latest team activity",
+          createdAt: makeIso(-10_000),
+          deliveredAt: makeIso(-10_000),
+          readBy: ["dev-user-mak"],
+          mentionedUserIds: [],
+          author: {
+            id: "dev-user-mak",
+            firstName: "Mak",
+            lastName: "Lind",
+            role: "coach",
+            status: "active",
+          },
+        },
+      ];
+      window.localStorage.setItem(key, JSON.stringify(messages));
+      window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(messages) }));
+    },
+    {
+      key: dashboardChatKey,
+      base: baseTime,
+      teamId: latestTeamId,
+      directId: olderDirectId,
+    }
+  );
+
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect(page.locator("[data-dashboard-chat-thread]").first()).toHaveAttribute("data-dashboard-chat-thread", "team");
+
+  const olderDirectThread = page.locator("[data-dashboard-chat-thread]").filter({ hasText: "Austin Da Luz" }).first();
+  await expect(olderDirectThread).toBeVisible();
+  await olderDirectThread.click();
+  await expect(page.locator("[data-dashboard-chat-thread]").first()).toHaveAttribute("data-dashboard-chat-thread", "team");
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await dismissDashboardModal(page);
+  const openWidgetCount = await page.locator(".dashboard-chat-widget.is-open").count();
+  if (!openWidgetCount) {
+    await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  }
+
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect(page.locator("[data-dashboard-chat-thread]").first()).toHaveAttribute("data-dashboard-chat-thread", "team");
+});
+
 test("Chat attachment preview opens above chat with toolbar controls", async ({ page }) => {
   const messageId = `qa-chat-attachment-${Date.now()}`;
   const attachmentName = "qa-preview.svg";

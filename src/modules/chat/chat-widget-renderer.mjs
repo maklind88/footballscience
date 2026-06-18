@@ -864,6 +864,9 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         ? launcherThread.participants
         : [launcherThread?.participant].filter(Boolean);
     const launcherLabel = launcherThread?.label || teamChatTitle;
+    const launcherUnreadLabel = unreadCount
+      ? `, ${unreadCount} unread chat message${unreadCount === 1 ? "" : "s"}`
+      : "";
     const launcherPreview = launcherThread ? getThreadPreview(launcherThread, users, currentUser) : "Open team room";
     const teamPresenceLabel = getThreadStatus({ isTeamThread: true }, users);
     const notificationLevel = notificationState.level || (notificationState.enabled ? "all" : "muted");
@@ -1172,13 +1175,13 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             </header>
           `
           : `
-            <button type="button" class="dashboard-chat-launcher" data-dashboard-chat-widget-toggle aria-expanded="false">
+            <button type="button" class="dashboard-chat-launcher" data-dashboard-chat-widget-toggle aria-expanded="false" aria-label="${escapeHtml(`Open ${launcherLabel}${launcherUnreadLabel}`)}" title="${escapeHtml(`Open ${launcherLabel}${launcherUnreadLabel}`)}">
               ${renderAvatarStack(launcherParticipants)}
               <span class="dashboard-chat-launcher-copy">
                 <strong>${escapeHtml(launcherLabel)}</strong>
                 <small>${escapeHtml(launcherPreview)}</small>
               </span>
-              ${unreadCount ? `<span class="dashboard-chat-header-badge is-unread" aria-label="${escapeHtml(`${unreadCount} unread chat message${unreadCount === 1 ? "" : "s"}`)}">${unreadCount}</span>` : `<span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>`}
+              ${unreadCount ? `<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">${unreadCount}</span>` : `<span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>`}
             </button>
           `
       }

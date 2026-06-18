@@ -202,8 +202,39 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   });
 
   expect(result.html).toContain("dashboard-chat-launcher");
+  expect(result.html).toContain('aria-label="Open Team Chat, 1 unread chat message"');
+  expect(result.html).toContain('title="Open Team Chat, 1 unread chat message"');
   expect(result.html).toContain("dashboard-chat-header-badge is-unread");
+  expect(result.html).toContain('<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">1</span>');
   expect(result.html).toContain("1 unread chat message");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher>*:not(.dashboard-chat-header-badge)");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
+  expect(dashboardChatCss).toContain("@media(prefers-reduced-motion:reduce)");
+
+  const calmResult = createRenderer([]).render({
+    currentUser,
+    users,
+    state: { isOpen: false, selectedThreadId: "team" },
+    messages: [],
+    threads: [{ ...threads[0], unreadCount: 0, messageCount: 0, lastMessage: null }],
+    activeThreadId: "team",
+    unreadCount: 0,
+  });
+
+  expect(calmResult.html).toContain('aria-label="Open Team Chat"');
+  expect(calmResult.html).toContain('title="Open Team Chat"');
+  expect(calmResult.html).not.toContain("unread chat message");
+
+  const busyResult = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: false, selectedThreadId: "team" },
+    messages,
+    threads: [{ ...threads[0], unreadCount: 2 }],
+    activeThreadId: "team",
+    unreadCount: 2,
+  });
+
+  expect(busyResult.html).toContain('aria-label="Open Team Chat, 2 unread chat messages"');
+  expect(busyResult.html).toContain('title="Open Team Chat, 2 unread chat messages"');
 });

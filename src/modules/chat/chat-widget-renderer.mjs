@@ -230,11 +230,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const isOwn = lastMessage.userId === currentUser?.id;
     const sender = users.find((user) => user.id === lastMessage.userId);
     const senderName = isOwn ? "You" : (sender || lastMessage.author ? formatUserName(sender || lastMessage.author) : "Staff");
-    const shortText =
-      String(lastMessage.text || "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 44) || "Message";
+    const normalizedText = String(lastMessage.text || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const shortText = normalizedText.length > 42 ? `${normalizedText.slice(0, 39).trimEnd()}...` : normalizedText;
     const priority = normalizePriority(lastMessage.priority);
     const priorityOption = priorityOptions.find((option) => option.key === priority);
     const priorityPrefix = priority === "normal" ? "" : `${priorityOption?.label || priority}: `;

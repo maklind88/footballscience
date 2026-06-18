@@ -446,3 +446,102 @@ test("group creator readiness respects the group name minimum length", () => {
   expect(composerRuntimeSource).toContain("if (title.length < dashboardChatGroupNameMinLength)");
   expect(composerRuntimeSource).toContain("Add a group name with at least ${dashboardChatGroupNameMinLength} characters.");
 });
+
+test("chat inbox thread cards contain long names, timestamps, previews, and badges", () => {
+  expect(dashboardChatCss).toContain("final inbox-card containment contract");
+  expect(dashboardChatCss).toContain("grid-template-areas:\"avatar copy signals\"");
+  expect(dashboardChatCss).toContain("overscroll-behavior:contain!important;");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-thread-row strong,");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-thread-time,");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-thread-preview,");
+  expect(dashboardChatCss).toContain("text-overflow:ellipsis!important;");
+  expect(dashboardChatCss).toContain("white-space:nowrap!important;");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-thread-signals");
+  expect(dashboardChatCss).toContain("pointer-events:none!important;");
+
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [currentUser, { id: "u2", name: "A Very Long Staff Member Name That Should Never Break The Inbox Card" }];
+  const longText = "This is a very long operational update that should be trimmed before the thread preview reaches layout.";
+  const messages = [
+    {
+      id: "m-long",
+      userId: "u2",
+      threadId: "long-thread",
+      text: longText,
+      createdAt: "2026-06-18T10:00:00.000Z",
+      readBy: ["u2"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "normal",
+    },
+  ];
+  const threads = [
+    {
+      threadId: "long-thread",
+      label: "A very long scouting and match preparation group name that should stay inside its row",
+      type: "group",
+      messageCount: 1,
+      unreadCount: 3,
+      mentionCount: 1,
+      lastMessage: messages[0],
+      participant: null,
+      settings: { pinned: true, muted: true },
+    },
+  ];
+  const result = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "long-thread" },
+    messages,
+    threads,
+    activeThreadId: "long-thread",
+  });
+
+  expect(result.html).toContain('<small class="dashboard-chat-thread-preview">A Very Long Staff Member Name That Should Never Break The Inbox Card: This is a very long operational update...</small>');
+  expect(result.html).toContain("dashboard-chat-thread-unread");
+  expect(result.html).toContain("dashboard-chat-thread-mention-badge");
+});
+
+test("chat message actions stay behind a compact hover menu", () => {
+  expect(dashboardChatCss).toContain("WhatsApp-like message action menu");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-message-menu-panel");
+  expect(dashboardChatCss).toContain("top:calc(100% + .36rem)!important;");
+  expect(dashboardChatCss).toContain("width:min(13.5rem,72vw)!important;");
+  expect(dashboardChatCss).toContain("backdrop-filter:blur(18px)!important;");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-menu-action");
+  expect(dashboardChatCss).toContain("grid-template-columns:1.25rem minmax(0,1fr)!important;");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-menu-action.is-danger");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-menu-reaction-group");
+
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [currentUser, { id: "u2", name: "Coach" }];
+  const messages = [
+    {
+      id: "m-actions",
+      userId: "u2",
+      threadId: "team",
+      text: "Menu actions should not clutter the message bubble.",
+      createdAt: "2026-06-18T10:00:00.000Z",
+      readBy: ["u2"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "normal",
+    },
+  ];
+  const threads = [{ threadId: "team", label: "Team Chat", isTeamThread: true, messageCount: 1, lastMessage: messages[0], settings: {} }];
+  const result = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads,
+    activeThreadId: "team",
+  });
+
+  expect(result.html).toContain('class="dashboard-chat-message-menu"');
+  expect(result.html).toContain('class="dashboard-chat-message-menu-panel"');
+  expect(result.html).toContain("Open message actions");
+  expect(result.html).toContain("Reply");
+  expect(result.html).toContain("Copy");
+  expect(result.html).toContain("Delete");
+});

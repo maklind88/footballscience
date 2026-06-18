@@ -12,8 +12,8 @@ const MAX_IDENTIFIER_LENGTH = 180;
 const MAX_PASSWORD_LENGTH = 256;
 const LOGIN_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const LOGIN_RATE_LIMIT_MAX = 12;
-const AUTH_LOGIN_ATTEMPTS = 3;
-const AUTH_LOGIN_ATTEMPT_TIMEOUT_MS = 18000;
+const AUTH_LOGIN_ATTEMPT_TIMEOUTS_MS = [45000, 12000];
+const AUTH_LOGIN_ATTEMPTS = AUTH_LOGIN_ATTEMPT_TIMEOUTS_MS.length;
 const AUTH_LOGIN_RETRY_DELAY_MS = 250;
 const loginRateBuckets = new Map();
 
@@ -144,6 +144,8 @@ async function handleLogin(req, res) {
 
   let lastAuthError = null;
   for (let attempt = 1; attempt <= AUTH_LOGIN_ATTEMPTS; attempt += 1) {
+    const attemptTimeoutMs =
+      AUTH_LOGIN_ATTEMPT_TIMEOUTS_MS[Math.min(attempt - 1, AUTH_LOGIN_ATTEMPT_TIMEOUTS_MS.length - 1)];
     try {
       const response = await fetch(`${url}/auth/v1/token?grant_type=password`, {
         method: "POST",
@@ -152,7 +154,7 @@ async function handleLogin(req, res) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password }),
-        signal: AbortSignal.timeout(AUTH_LOGIN_ATTEMPT_TIMEOUT_MS),
+        signal: AbortSignal.timeout(attemptTimeoutMs),
       });
       const payload = await readSupabasePayload(response);
       if (!response.ok) {

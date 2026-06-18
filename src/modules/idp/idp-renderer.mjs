@@ -967,20 +967,6 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
             <span>${escapeHtml(reviewUrgencyLabel(profile, focus))}</span>
           </div>
         </div>
-        <div class="idp-stage-scoreboard" aria-label="Player development pulse">
-          <div>
-            <strong>${escapeHtml(String(detail.evidence?.length || 0))}</strong>
-            <span>Observations</span>
-          </div>
-          <div>
-            <strong>${escapeHtml(String(detail.clipBank?.length || 0))}</strong>
-            <span>Clips</span>
-          </div>
-          <div>
-            <strong>${escapeHtml(String(detail.reviews?.length || 0))}</strong>
-            <span>Reviews</span>
-          </div>
-        </div>
       </header>
       ${idpInactive ? `<div class="idp-notice is-warning">IDP is inactive from Squad Room. Historical observations, clips and ownership remain visible here.</div>` : ""}
       <section class="idp-development-board">

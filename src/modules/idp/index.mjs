@@ -95,9 +95,39 @@ function startAutoSync(activeRuntime) {
   activeRuntime.syncListeners = { onFocus, onVisibilityChange };
 }
 
+function captureSearchFocus(activeRuntime = runtime) {
+  const activeElement = getDocument(activeRuntime)?.activeElement;
+  if (!activeElement?.matches?.("[data-idp-search]")) return null;
+  const value = activeElement.value || "";
+  return {
+    end: Number.isInteger(activeElement.selectionEnd) ? activeElement.selectionEnd : value.length,
+    start: Number.isInteger(activeElement.selectionStart) ? activeElement.selectionStart : value.length,
+  };
+}
+
+function restoreSearchFocus(activeRuntime = runtime, focusState = null) {
+  if (!focusState) return;
+  const input = getRoot(activeRuntime?.context)?.querySelector?.("[data-idp-search]");
+  if (!input) return;
+  const valueLength = input.value?.length || 0;
+  const start = Math.min(focusState.start ?? valueLength, valueLength);
+  const end = Math.min(focusState.end ?? start, valueLength);
+  try {
+    input.focus?.({ preventScroll: true });
+  } catch {
+    input.focus?.();
+  }
+  try {
+    input.setSelectionRange?.(start, end);
+  } catch {
+    // Some browser/input combinations do not expose selection for this field.
+  }
+}
+
 function paint(activeRuntime = runtime) {
   const root = getRoot(activeRuntime?.context);
   if (!root) return;
+  const searchFocus = captureSearchFocus(activeRuntime);
   root.innerHTML = renderMarkup(activeRuntime.store.getState(), {
     canEdit: canEdit(activeRuntime.context),
     currentUser: activeRuntime.context.currentUser,
@@ -107,6 +137,7 @@ function paint(activeRuntime = runtime) {
     teamLogoUrl: activeRuntime.context.teamLogoUrl,
     teamName: activeRuntime.context.teamName,
   });
+  restoreSearchFocus(activeRuntime, searchFocus);
 }
 
 function ensureRuntime(context = {}) {

@@ -417,6 +417,91 @@ test("idp module exports the workspace runtime handlers", async () => {
   }
 });
 
+test("idp search keeps focus and cursor position while filtering rerenders the overview", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({
+    ok: true,
+    schema: "footballscience-idp-v1",
+    dashboardPlayers: [],
+  });
+  const imported = await import(`${pathToFileURL(path.join(moduleDir, "index.mjs")).href}?search-focus=${Date.now()}`);
+  const documentRef = {
+    activeElement: null,
+    addEventListener() {},
+    hidden: false,
+  };
+  const root = {
+    isConnected: true,
+    rendered: "",
+    searchInput: null,
+    querySelector(selector) {
+      if (selector === "[data-idp-search]") return this.searchInput;
+      if (selector === ".idp-player-profile, .idp-overview-board") return null;
+      return null;
+    },
+    set innerHTML(value) {
+      this.rendered = String(value || "");
+      const [, searchValue = ""] = this.rendered.match(/data-idp-search value="([^"]*)"/) || [];
+      const nextInput = {
+        selectionEnd: 0,
+        selectionStart: 0,
+        value: searchValue,
+        focus() {
+          documentRef.activeElement = nextInput;
+        },
+        matches(selector) {
+          return selector === "[data-idp-search]";
+        },
+        setSelectionRange(start, end) {
+          this.selectionStart = start;
+          this.selectionEnd = end;
+        },
+      };
+      this.searchInput = nextInput;
+    },
+    get innerHTML() {
+      return this.rendered;
+    },
+  };
+  const context = {
+    ui: { idpWorkspace: root },
+    win: {
+      addEventListener() {},
+      document: documentRef,
+      requestAnimationFrame(callback) {
+        callback();
+      },
+      setInterval() {
+        return 0;
+      },
+    },
+    canEdit: () => true,
+    getAuthToken: () => "test-token",
+  };
+
+  try {
+    imported.render(context);
+    const activeSearch = {
+      selectionEnd: 3,
+      selectionStart: 3,
+      value: "Mad",
+      matches(selector) {
+        return selector === "[data-idp-search]";
+      },
+    };
+    documentRef.activeElement = activeSearch;
+
+    imported.handleInput({ target: activeSearch });
+
+    expect(root.searchInput.value).toBe("Mad");
+    expect(documentRef.activeElement).toBe(root.searchInput);
+    expect(root.searchInput.selectionStart).toBe(3);
+    expect(root.searchInput.selectionEnd).toBe(3);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("idp runtime checks central sync while mounted and when the browser becomes active", () => {
   const indexSource = read("src/modules/idp/index.mjs");
   const apiSource = read("src/modules/idp/services/idp-api-service.mjs");

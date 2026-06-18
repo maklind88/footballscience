@@ -504,6 +504,128 @@ test("Chat group creator creates a focused group from the plus menu", async ({ p
   expect(chatActions.some((payload) => payload.action === "createThread" && payload.type === "group" && payload.title === groupTitle)).toBe(true);
 });
 
+test("Chat message grouping and latest thread sorting survive reload", async ({ page }) => {
+  const baseTime = Date.now();
+  const teamFirstId = `qa-chat-grouped-first-${baseTime}`;
+  const teamSecondId = `qa-chat-grouped-second-${baseTime}`;
+  const olderDirectId = `qa-chat-older-direct-${baseTime}`;
+
+  await bootApp(page);
+  await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
+  await page.evaluate(() => {
+    const currentUser = window.platformAuthStore.getCurrentUser?.() || {};
+    const currentUserId = currentUser.id || "dev-user-mak";
+    const teammates = [
+      {
+        ...currentUser,
+        id: currentUserId,
+        firstName: currentUser.firstName || "Mak",
+        lastName: currentUser.lastName || "Lind",
+        status: "active",
+      },
+      {
+        id: "qa-chat-austin",
+        firstName: "Austin",
+        lastName: "Da Luz",
+        role: "scout",
+        status: "active",
+        team: currentUser.team || "North Carolina Courage",
+      },
+    ];
+    window.platformAuthStore.writeUsers?.(teammates);
+    window.platformAuthStore.setCurrentUser?.(currentUserId);
+  });
+
+  await page.evaluate(
+    ({ key, base, firstId, secondId, directId }) => {
+      const makeIso = (offsetMs) => new Date(base + offsetMs).toISOString();
+      const teamMessages = [
+        {
+          id: firstId,
+          userId: "dev-user-mak",
+          threadId: "team",
+          text: "QA grouped message one",
+          createdAt: makeIso(-20_000),
+          deliveredAt: makeIso(-20_000),
+          readBy: ["dev-user-mak"],
+          mentionedUserIds: [],
+          author: {
+            id: "dev-user-mak",
+            firstName: "Mak",
+            lastName: "Lind",
+            role: "coach",
+            status: "active",
+          },
+        },
+        {
+          id: secondId,
+          userId: "dev-user-mak",
+          threadId: "team",
+          text: "QA grouped message two",
+          createdAt: makeIso(-10_000),
+          deliveredAt: makeIso(-10_000),
+          readBy: ["dev-user-mak"],
+          mentionedUserIds: [],
+          author: {
+            id: "dev-user-mak",
+            firstName: "Mak",
+            lastName: "Lind",
+            role: "coach",
+            status: "active",
+          },
+        },
+      ];
+      const messages = [
+        {
+          id: directId,
+          userId: "qa-chat-austin",
+          threadId: "dm:dev-user-mak:qa-chat-austin",
+          text: "Older direct message",
+          createdAt: makeIso(-120_000),
+          deliveredAt: makeIso(-120_000),
+          readBy: ["qa-chat-austin"],
+          mentionedUserIds: [],
+          author: {
+            id: "qa-chat-austin",
+            firstName: "Austin",
+            lastName: "Da Luz",
+            role: "scout",
+            status: "active",
+          },
+        },
+        ...teamMessages,
+      ];
+      window.localStorage.setItem(key, JSON.stringify(messages));
+      window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(messages) }));
+    },
+    {
+      key: dashboardChatKey,
+      base: baseTime,
+      firstId: teamFirstId,
+      secondId: teamSecondId,
+      directId: olderDirectId,
+    }
+  );
+
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect(page.locator("[data-dashboard-chat-thread]").first()).toHaveAttribute("data-dashboard-chat-thread", "team");
+  await expect(page.locator(`[data-dashboard-chat-message-id="${teamFirstId}"]`)).toHaveClass(/is-grouped-with-next/);
+  await expect(page.locator(`[data-dashboard-chat-message-id="${teamSecondId}"]`)).toHaveClass(/is-grouped-with-previous/);
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await dismissDashboardModal(page);
+  const openWidgetCount = await page.locator(".dashboard-chat-widget.is-open").count();
+  if (!openWidgetCount) {
+    await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  }
+
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect(page.locator("[data-dashboard-chat-thread]").first()).toHaveAttribute("data-dashboard-chat-thread", "team");
+  await expect(page.locator(`[data-dashboard-chat-message-id="${teamSecondId}"]`)).toHaveClass(/is-grouped-with-previous/);
+});
+
 test("Chat attachment preview opens above chat with toolbar controls", async ({ page }) => {
   const messageId = `qa-chat-attachment-${Date.now()}`;
   const attachmentName = "qa-preview.svg";

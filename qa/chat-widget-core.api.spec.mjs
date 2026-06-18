@@ -1,5 +1,11 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { createDashboardChatWidgetRenderer } from "../src/modules/chat/chat-widget-renderer.mjs";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const dashboardChatCss = readFileSync(resolve(__dirname, "../dashboard-chat.css"), "utf8");
 
 const priorityOptions = [
   { key: "normal", label: "Normal" },
@@ -153,4 +159,51 @@ test("chat widget exposes mobile inbox and conversation modes", () => {
   expect(inbox.html).toContain("is-mobile-inbox");
   expect(conversation.html).toContain("is-mobile-conversation");
   expect(conversation.html).toContain("data-dashboard-chat-mobile-back");
+});
+
+
+test("closed chat launcher keeps unread badge visible in compact sidebar mode", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [currentUser, { id: "u2", name: "Coach A", status: "active" }];
+  const messages = [
+    {
+      id: "m1",
+      userId: "u2",
+      threadId: "team",
+      text: "Unread team note",
+      createdAt: "2026-01-01T10:00:00.000Z",
+      readBy: ["u2"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "normal",
+    },
+  ];
+  const threads = [
+    {
+      threadId: "team",
+      label: "Team Chat",
+      isTeamThread: true,
+      messageCount: 1,
+      unreadCount: 1,
+      mentionCount: 0,
+      lastMessage: messages[0],
+      settings: {},
+    },
+  ];
+
+  const result = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: false, selectedThreadId: "team" },
+    messages,
+    threads,
+    activeThreadId: "team",
+    unreadCount: 1,
+  });
+
+  expect(result.html).toContain("dashboard-chat-launcher");
+  expect(result.html).toContain("dashboard-chat-header-badge is-unread");
+  expect(result.html).toContain("1 unread chat message");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher>*:not(.dashboard-chat-header-badge)");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
 });

@@ -12,7 +12,7 @@ function defaultNormalizePriority(value, priorityOptions = []) {
 }
 
 function parseThreadActivityTime(thread = {}) {
-  const time = Date.parse(thread.lastActivityAt || thread.lastMessage?.createdAt || thread.apiThread?.lastMessageAt || "");
+  const time = Date.parse(thread.lastActivityAt || thread.lastMessage?.createdAt || thread.apiThread?.lastMessageAt || thread.apiThread?.createdAt || "");
   return Number.isFinite(time) ? time : 0;
 }
 

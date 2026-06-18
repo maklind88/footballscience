@@ -63,22 +63,22 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
       ? unreadCount
       : Number(apiThread?.unreadCount || 0) || 0;
     const hasMessageActivity = Boolean(threadMessages.length || apiLastMessage || Number(apiThread?.messageCount || 0) > 0);
+    const threadSettings = dashboardChatThreadSettings && dashboardChatThreadSettings.merge
+      ? dashboardChatThreadSettings.merge(normalizedThreadId, apiThread?.settings || {})
+      : {};
 
     const lastActivityMs = hasMessageActivity
       ? Math.max(
           Date.parse(lastMessage?.createdAt || "") || 0,
           Date.parse(apiThread?.lastMessageAt || "") || 0
         )
-      : Date.parse(apiThread?.createdAt || "") || 0;
+      : Date.parse(apiThread?.createdAt || threadSettings.createdAt || threadSettings.created_at || "") || 0;
 
     const managedTemplate = dashboardChatAdvancedThreadTemplates.find((template) => template.key === normalizedThreadId);
     const isDirectThread = !isTeamThread && !isManagedThread && normalizedThreadId.startsWith("dm:");
     const fallbackThreadLabel = formatDashboardChatThreadLabel(normalizedThreadId, currentUser, users);
     const apiThreadTitle = String(apiThread?.title || "").trim();
     const shouldUseComputedLabel = isTeamThread || isDirectThread || isGenericDashboardChatThreadTitle(apiThreadTitle);
-    const threadSettings = dashboardChatThreadSettings && dashboardChatThreadSettings.merge
-      ? dashboardChatThreadSettings.merge(normalizedThreadId, apiThread?.settings || {})
-      : {};
 
     const apiParticipants = Array.isArray(apiThread?.participants) ? apiThread.participants : [];
     const resolvedApiParticipants = apiParticipants
@@ -171,6 +171,11 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
       const secondPinned = Boolean(second.settings?.pinned);
       if (firstPinned !== secondPinned) {
         return firstPinned ? -1 : 1;
+      }
+      const firstIsSelectedEmptyGroup = first.threadId === selectedThreadId && first.type === "group" && !first.messageCount && !threadTime(first);
+      const secondIsSelectedEmptyGroup = second.threadId === selectedThreadId && second.type === "group" && !second.messageCount && !threadTime(second);
+      if (firstIsSelectedEmptyGroup !== secondIsSelectedEmptyGroup) {
+        return firstIsSelectedEmptyGroup ? -1 : 1;
       }
       const firstTime = threadTime(first);
       const secondTime = threadTime(second);

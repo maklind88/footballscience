@@ -501,6 +501,7 @@ test("Chat group creator creates a focused group from the plus menu", async ({ p
 
   await expect(overlay).toHaveCount(0);
   await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("placeholder", `Message ${groupTitle}`);
+  await expect(page.locator("[data-dashboard-chat-thread]").first()).toContainText(groupTitle);
   expect(chatActions.some((payload) => payload.action === "createThread" && payload.type === "group" && payload.title === groupTitle)).toBe(true);
 });
 

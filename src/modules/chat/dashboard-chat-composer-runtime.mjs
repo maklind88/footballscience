@@ -286,6 +286,7 @@ export function createDashboardChatComposerRuntime({
 
       const apiPayload = result.result || {};
       const rawCreatedThread = apiPayload.thread || {};
+      const createdThreadCreatedAt = String(rawCreatedThread.createdAt || rawCreatedThread.created_at || new Date().toISOString()).trim();
       const createdThreadId = normalizeDashboardChatThreadId(
         rawCreatedThread.threadId || rawCreatedThread.legacyThreadId || rawCreatedThread.metadata?.legacyThreadId || legacyThreadId,
         legacyThreadId
@@ -303,6 +304,8 @@ export function createDashboardChatComposerRuntime({
         type: rawCreatedThread.type || "group",
         title: rawCreatedThread.title || title,
         visibility: rawCreatedThread.visibility || "members",
+        createdAt: createdThreadCreatedAt,
+        created_at: rawCreatedThread.created_at || createdThreadCreatedAt,
         participants: Array.isArray(rawCreatedThread.participants) && rawCreatedThread.participants.length
           ? rawCreatedThread.participants
           : fallbackParticipants,
@@ -327,6 +330,7 @@ export function createDashboardChatComposerRuntime({
           customTitle: title,
           avatarLabel: avatarPatch.avatarLabel || createdThread.metadata?.avatarLabel || "",
           avatarUrl: avatarPatch.avatarUrl || createdThread.metadata?.avatarUrl || "",
+          createdAt: createdThreadCreatedAt,
         });
       }
       applyDashboardChatApiPayload(

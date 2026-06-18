@@ -267,6 +267,7 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     const preservedSelectedGroup = shouldPreserveSelectedGroup
       ? existingThreads.find((thread) => thread.threadId === selectedThreadId)
       : null;
+    const existingById = new Map(existingThreads.map((thread) => [thread.threadId, thread]));
     const byId = new Map(
       (options.replace ? [preservedSelectedGroup].filter(Boolean) : existingThreads).map((thread) => [thread.threadId, thread])
     );
@@ -274,7 +275,23 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       if (isArchivedApiThread(thread)) {
         byId.delete(thread.threadId);
       } else {
-        byId.set(thread.threadId, thread);
+        const existingThread = existingById.get(thread.threadId) || null;
+        byId.set(thread.threadId, existingThread
+          ? {
+              ...existingThread,
+              ...thread,
+              createdAt: thread.createdAt || existingThread.createdAt || "",
+              lastMessageAt: thread.lastMessageAt || existingThread.lastMessageAt || "",
+              lastReadAt: thread.lastReadAt || existingThread.lastReadAt || "",
+              participants: Array.isArray(thread.participants) && thread.participants.length
+                ? thread.participants
+                : existingThread.participants || [],
+              permissions: Object.keys(thread.permissions || {}).length
+                ? thread.permissions
+                : existingThread.permissions || {},
+              settings: Object.keys(thread.settings || {}).length ? thread.settings : existingThread.settings || {},
+            }
+          : thread);
       }
     });
     setApiThreads(Array.from(byId.values()).filter((thread) => !isArchivedApiThread(thread)));

@@ -123,6 +123,25 @@ test("video analysis module exports the runtime handlers", async () => {
   }
 });
 
+test("video analysis player tag panel only includes current squad players", async () => {
+  const stateModule = await import(pathToFileURL(path.join(moduleDir, "video-analysis.state.js")).href);
+  const players = stateModule.normalizeVideoAnalysisPlayers({
+    players: [
+      { id: "p1", name: "Squad One", number: "1", rosterType: "squad", countsInSquad: true },
+      { id: "p2", name: "Training Guest", number: "99", rosterType: "guest", countsInSquad: false },
+      { id: "p3", name: "Academy Player", rosterType: "academy" },
+      { id: "p4", name: "Trialist Player", playerType: "trialist" },
+      { id: "p5", name: "Loan Player", squadType: "loan" },
+      { id: "p6", name: "Legacy Guest", counts_in_squad: "false" },
+      { id: "p7", name: "Squad Seven", shirtNumber: "7" },
+    ],
+  });
+
+  expect(players.map((player) => player.id)).toEqual(["p1", "p7"]);
+  expect(players.map((player) => player.name)).toEqual(["Squad One", "Squad Seven"]);
+  expect(players[1].number).toBe("7");
+});
+
 test("video analysis timeline uses unique readable h:mm:ss ticks", async () => {
   const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
   const playbackService = await import(pathToFileURL(path.join(moduleDir, "services/videoPlaybackService.js")).href);

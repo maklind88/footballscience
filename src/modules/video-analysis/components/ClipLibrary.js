@@ -141,12 +141,16 @@ function renderClip(clip = {}, state = {}) {
         ${escapeHtml(formatVideoTime(clipStartMs(clip)))}
       </button>
       <div class="video-analysis-clip-library-card__body">
-        <strong>${escapeHtml(clipTitle(clip))}</strong>
-        <span class="video-analysis-clip-library-card__source">${escapeHtml(clipSourceLine(clip, state))}</span>
-        <span>${escapeHtml(primaryPlayerLabel(clip))} · ${escapeHtml(clipOutcome(clip))}</span>
-        ${renderPrinciples(clip)}
-        ${descriptors ? `<small>${escapeHtml(descriptors)}</small>` : ""}
-        ${note ? `<p>${escapeHtml(note)}</p>` : ""}
+        <div class="video-analysis-clip-library-card__primary">
+          <strong>${escapeHtml(clipTitle(clip))}</strong>
+          <span class="video-analysis-clip-library-card__source">${escapeHtml(clipSourceLine(clip, state))}</span>
+        </div>
+        <div class="video-analysis-clip-library-card__meta">
+          <span>${escapeHtml(primaryPlayerLabel(clip))} · ${escapeHtml(clipOutcome(clip))}</span>
+          ${renderPrinciples(clip)}
+          ${descriptors ? `<small>${escapeHtml(descriptors)}</small>` : ""}
+          ${note ? `<p>${escapeHtml(note)}</p>` : ""}
+        </div>
       </div>
       <div class="video-analysis-clip-library-card__actions">
         <button type="button" data-video-analysis-clip-library-play="${escapeHtml(clip.id)}">Play</button>

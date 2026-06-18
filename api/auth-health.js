@@ -6,7 +6,7 @@ const {
 } = require("./_lib/supabase-admin.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
 
-const DEFAULT_AUTH_HEALTH_TIMEOUT_MS = 4500;
+const DEFAULT_AUTH_HEALTH_TIMEOUT_MS = 12000;
 const AUTH_HEALTH_TIMEOUT_MS = Number(process.env.AUTH_HEALTH_TIMEOUT_MS || DEFAULT_AUTH_HEALTH_TIMEOUT_MS);
 
 function timeoutSignal(timeoutMs) {

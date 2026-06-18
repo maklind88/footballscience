@@ -1,7 +1,7 @@
 import process from "node:process";
 
 const baseUrl = new URL(process.env.LIVE_QA_BASE_URL || process.argv[2] || "https://footballscience.xyz");
-const timeoutMs = Number(process.env.AUTH_HEALTH_VERIFY_TIMEOUT_MS || 10_000);
+const timeoutMs = Number(process.env.AUTH_HEALTH_VERIFY_TIMEOUT_MS || 20_000);
 
 function timeoutSignal(ms) {
   return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"

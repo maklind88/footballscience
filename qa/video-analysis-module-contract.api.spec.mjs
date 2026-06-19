@@ -493,6 +493,11 @@ test("analysis room tabs use icons without status labels", () => {
   expect(clipLibraryService).toContain("clipMatchesLibraryGroup");
   expect(miniGamePrinciples).toContain("hiddenMiniGamePrinciplePickerGroupIds");
   expect(miniGamePicker).toContain("miniGamePrinciplePickerGroups");
+  expect(miniGamePicker).toContain("data-video-analysis-mg-principle-search");
+  expect(miniGamePicker).toContain("MG Principles");
+  expect(miniGamePicker).toContain("Suggested for");
+  expect(miniGamePicker).not.toContain("Clip principles");
+  expect(miniGamePicker).not.toContain("Stored as suggestions");
   expect(miniGamePicker).not.toContain("miniGamePrincipleGroups.map");
   expect(presentation).toContain("data-video-analysis-presentation-module");
   expect(presentation).toContain("renderPresentationSources");

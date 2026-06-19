@@ -700,6 +700,24 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   });
   expect(alignment).toBeLessThan(0.02);
 
+  await page.locator("[data-video-analysis-mg-principles-open]").click();
+  await expect(page.locator(".video-analysis-mg-picker-overlay")).toBeVisible();
+  await expect(page.locator("#video-analysis-mg-picker-title")).toHaveText("MG Principles");
+  await expect(page.locator(".video-analysis-mg-picker-overlay")).not.toContainText("Clip principles");
+  await expect(page.locator(".video-analysis-mg-picker-overlay")).not.toContainText("Stored as suggestions");
+  await expect(page.locator(".video-analysis-mg-picker-overlay")).not.toContainText("Football Science Core");
+  await expect(page.locator(".video-analysis-mg-picker-search")).toBeVisible();
+  await expect(page.locator(".video-analysis-mg-picker-group").first()).toContainText("Suggested for Build Up");
+  await expect(page.locator(".video-analysis-mg-picker-group").first()).toContainText("Drive past press");
+  await expect(page.locator(".video-analysis-mg-picker-group").first()).toContainText("FT3");
+  await page.locator(".video-analysis-mg-picker-search").fill("FT3");
+  await expect(page.locator(".video-analysis-mg-picker-overlay")).toContainText("FT3 (Find the Third)");
+  await expect(page.locator(".video-analysis-mg-picker-overlay")).not.toContainText("Drive past press");
+  await page.locator(".video-analysis-mg-picker-search").press("Enter");
+  await expect(page.locator('[data-video-analysis-mg-principle-toggle="ft3-find-the-third"]')).toHaveClass(/is-active/);
+  await page.locator(".video-analysis-mg-picker-close").click();
+  await expect(page.locator(".video-analysis-mg-picker-overlay")).toHaveCount(0);
+
   await page.locator('[data-video-analysis-panel-mode="edit"]').click();
   await expect(page.locator("[data-video-analysis-template-overlay]")).toBeVisible();
   await expect(page.locator('[data-video-analysis-code-window] [data-video-analysis-button-ms-field="subPhase-build-up:defaultDurationMs"]')).toHaveCount(0);

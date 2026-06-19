@@ -1926,6 +1926,13 @@
   border-bottom: 1px solid #e5ebe8;
 }
 
+.video-analysis-mg-picker-titlebar {
+  display: grid;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .video-analysis-mg-picker-header h3 {
   margin: 0;
   color: #111815;
@@ -1933,7 +1940,26 @@
   line-height: 1.05;
 }
 
-.video-analysis-mg-picker-header span,
+.video-analysis-mg-picker-search {
+  width: min(480px, 100%);
+  min-height: 38px;
+  border: 1px solid #d8e1dc;
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: #111815;
+  background: rgba(247, 250, 248, 0.92);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 760;
+  outline: none;
+}
+
+.video-analysis-mg-picker-search:focus {
+  border-color: #1e5eff;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(30, 94, 255, 0.12);
+}
+
 .video-analysis-mg-picker-footer span {
   color: #66736c;
   font-size: 12px;
@@ -1973,6 +1999,13 @@
   gap: 8px;
 }
 
+.video-analysis-mg-picker-group.is-suggested {
+  border: 1px solid #f3d6aa;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff8ed;
+}
+
 .video-analysis-mg-picker-group h4 {
   margin: 0;
   color: #24342d;
@@ -1984,6 +2017,16 @@
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
+}
+
+.video-analysis-mg-picker-empty {
+  border: 1px dashed #d8e1dc;
+  border-radius: 12px;
+  padding: 18px;
+  color: #607067;
+  background: #f8faf9;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .video-analysis-mg-principle-chip {

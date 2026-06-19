@@ -9,7 +9,7 @@ import { renderTagFilterOverlay } from "./components/TagFilterOverlay.js";
 import { renderTimeline } from "./components/Timeline.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderVideoPlayer } from "./components/VideoPlayer.js";
-import { miniGamePrinciplePickerIds } from "./constants/miniGamePrinciples.js";
+import { miniGamePrinciplePickerGroups, miniGamePrinciplePickerIds } from "./constants/miniGamePrinciples.js";
 import { escapeHtml } from "./components/renderHelpers.js";
 import { createDrawingController } from "./controllers/drawingController.js";
 import { createPresentationController } from "./controllers/presentationController.js";
@@ -83,6 +83,9 @@ let presentationController = null;
 let presenterController = null;
 let thumbnailController = null;
 const pickerMiniGamePrincipleIdSet = new Set(miniGamePrinciplePickerIds);
+const pickerMiniGamePrinciples = miniGamePrinciplePickerGroups.flatMap((group) => (
+  group.principles.map((principle) => ({ ...principle, groupLabel: group.label }))
+));
 const CLIP_PAGE_LIMIT = 200;
 const CLIP_WORKSPACE_LIMIT = 1000;
 
@@ -678,6 +681,7 @@ function paint(root, state) {
   const focusedSmartDraft = root.querySelector("[data-video-analysis-smart-draft]:focus")?.dataset.videoAnalysisSmartDraft || "";
   const focusedPresentationShareDraft = root.querySelector("[data-video-analysis-presentation-share-draft]:focus")?.dataset.videoAnalysisPresentationShareDraft || "";
   const focusedDrawingField = root.querySelector("[data-video-analysis-drawing-field]:focus")?.dataset.videoAnalysisDrawingField || "";
+  const focusedMgPrincipleSearch = Boolean(root.querySelector("[data-video-analysis-mg-principle-search]:focus"));
   const selectionStart = root.ownerDocument?.activeElement?.selectionStart;
   const visibleClips = filterClipsForMatrix(
     state.clips || [],
@@ -760,7 +764,9 @@ function paint(root, state) {
                                     ? root.querySelector(`[data-video-analysis-presentation-share-draft="${focusedPresentationShareDraft}"]`)
                                     : focusedDrawingField
                                       ? root.querySelector(`[data-video-analysis-drawing-field="${focusedDrawingField}"]`)
-                                      : null;
+                                      : focusedMgPrincipleSearch
+                                        ? root.querySelector("[data-video-analysis-mg-principle-search]")
+                                        : null;
   if (nextFocus) {
     nextFocus.focus();
     if (Number.isFinite(selectionStart) && typeof nextFocus.setSelectionRange === "function") {
@@ -1109,6 +1115,39 @@ function activeMiniGamePrincipleIds(state = {}) {
 
 function pickerVisibleMiniGamePrincipleIds(ids = []) {
   return uniqueMiniGamePrincipleIds(ids).filter((id) => pickerMiniGamePrincipleIdSet.has(id));
+}
+
+function normalizedPickerSearch(value = "") {
+  return String(value || "").trim().toLowerCase();
+}
+
+function pickerPrincipleMatchesSearch(principle = {}, query = "") {
+  if (!query) return true;
+  return [principle.label, principle.id, principle.groupLabel]
+    .some((value) => String(value || "").toLowerCase().includes(query));
+}
+
+function firstMiniGamePrincipleSearchMatchId(search = "") {
+  const query = normalizedPickerSearch(search);
+  if (!query) return "";
+  return pickerMiniGamePrinciples.find((principle) => pickerPrincipleMatchesSearch(principle, query))?.id || "";
+}
+
+function toggleMiniGamePrincipleDraftId(state = {}, id = "") {
+  const principleId = String(id || "").trim();
+  if (!principleId || !pickerMiniGamePrincipleIdSet.has(principleId)) return state;
+  const currentIds = pickerVisibleMiniGamePrincipleIds(state.codingSession?.miniGamePrincipleDraftIds || activeMiniGamePrincipleIds(state));
+  const selected = new Set(currentIds);
+  if (selected.has(principleId)) selected.delete(principleId);
+  else selected.add(principleId);
+  return {
+    ...state,
+    codingSession: {
+      ...(state.codingSession || {}),
+      miniGamePrincipleDraftIds: pickerVisibleMiniGamePrincipleIds([...selected]),
+      miniGamePrinciplePickerOpen: true,
+    },
+  };
 }
 
 function clipHasTag(clip = {}, tag = "") {
@@ -2328,6 +2367,7 @@ export function handleClick(event, context = {}) {
         ...(state.codingSession || {}),
         miniGamePrinciplePickerOpen: true,
         miniGamePrincipleDraftIds: pickerVisibleMiniGamePrincipleIds(activeMiniGamePrincipleIds(state)),
+        miniGamePrincipleSearch: "",
       },
       message: "",
       error: "",
@@ -2337,27 +2377,14 @@ export function handleClick(event, context = {}) {
   if (target.closest("[data-video-analysis-mg-principles-close]")) {
     run.store.update((state) => ({
       ...state,
-      codingSession: { ...(state.codingSession || {}), miniGamePrinciplePickerOpen: false },
+      codingSession: { ...(state.codingSession || {}), miniGamePrinciplePickerOpen: false, miniGamePrincipleSearch: "" },
     }));
     return true;
   }
   const miniGameToggle = target.closest("[data-video-analysis-mg-principle-toggle]");
   if (miniGameToggle) {
     const id = miniGameToggle.dataset.videoAnalysisMgPrincipleToggle;
-    run.store.update((state) => {
-      const currentIds = pickerVisibleMiniGamePrincipleIds(state.codingSession?.miniGamePrincipleDraftIds || activeMiniGamePrincipleIds(state));
-      const selected = new Set(currentIds);
-      if (selected.has(id)) selected.delete(id);
-      else selected.add(id);
-      return {
-        ...state,
-        codingSession: {
-          ...(state.codingSession || {}),
-          miniGamePrincipleDraftIds: pickerVisibleMiniGamePrincipleIds([...selected]),
-          miniGamePrinciplePickerOpen: true,
-        },
-      };
-    });
+    run.store.update((state) => toggleMiniGamePrincipleDraftId(state, id));
     return true;
   }
   if (target.closest("[data-video-analysis-mg-principles-clear]")) {
@@ -2367,6 +2394,7 @@ export function handleClick(event, context = {}) {
         ...(state.codingSession || {}),
         miniGamePrincipleDraftIds: [],
         miniGamePrinciplePickerOpen: true,
+        miniGamePrincipleSearch: "",
       },
     }));
     return true;
@@ -3074,6 +3102,18 @@ export function handleInput(event, context = {}) {
     }));
     return true;
   }
+  const miniGamePrincipleSearch = target.closest("[data-video-analysis-mg-principle-search]");
+  if (miniGamePrincipleSearch) {
+    run.store.update((state) => ({
+      ...state,
+      codingSession: {
+        ...(state.codingSession || {}),
+        miniGamePrinciplePickerOpen: true,
+        miniGamePrincipleSearch: miniGamePrincipleSearch.value,
+      },
+    }));
+    return true;
+  }
   const presentationFilter = target.closest("[data-video-analysis-presentation-filter]");
   if (presentationFilter) {
     const key = presentationFilter.dataset.videoAnalysisPresentationFilter;
@@ -3252,6 +3292,21 @@ export function handleKeydown(event, context = {}) {
   const run = ensureRuntime(context);
   const root = getRoot(context);
   const state = run.store.getState();
+  const keyTarget = eventElement(event);
+  const mgPrincipleSearch = keyTarget?.closest?.("[data-video-analysis-mg-principle-search]");
+  if (mgPrincipleSearch && event.key === "Enter") {
+    const firstId = String(
+      mgPrincipleSearch.dataset.videoAnalysisMgPrincipleSearchFirst
+      || firstMiniGamePrincipleSearchMatchId(mgPrincipleSearch.value)
+      || ""
+    ).trim();
+    if (firstId) {
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      run.store.update((current) => toggleMiniGamePrincipleDraftId(current, firstId));
+      return true;
+    }
+  }
   if (
     state.activeAnalysisRoomTab === "fs-player"
     && event.key === " "

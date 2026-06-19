@@ -1638,6 +1638,11 @@
   gap: 4px;
 }
 
+.video-analysis-code-window-dock .video-analysis-mg-picker-button {
+  width: min(100%, calc((100% - 8px) / 3));
+  min-width: 96px;
+}
+
 .video-analysis-code-window-dock .video-analysis-code-button {
   min-height: 30px;
   border-radius: 5px;

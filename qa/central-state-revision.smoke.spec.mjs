@@ -113,7 +113,7 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
     });
   });
 
-  await context.route("**/api/app-state", async (route) => {
+  await context.route("**/api/app-state**", async (route) => {
     const request = route.request();
     const method = request.method().toUpperCase();
 

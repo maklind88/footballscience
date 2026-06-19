@@ -162,7 +162,7 @@ export function renderMiniGamePrinciplePicker(state = {}) {
               aria-label="Search MG principles"
             >
           </div>
-          <button type="button" class="video-analysis-mg-picker-close" data-video-analysis-mg-principles-close aria-label="Close">x</button>
+          <button type="button" class="video-analysis-mg-picker-close" data-video-analysis-mg-principles-close aria-label="Close"></button>
         </header>
         <div class="video-analysis-mg-picker-body">
           ${suggestedPrinciples.length ? renderPrincipleGroup({

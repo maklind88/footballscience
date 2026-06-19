@@ -1967,18 +1967,38 @@
 }
 
 .video-analysis-mg-picker-close {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 36px;
   height: 36px;
+  flex: 0 0 36px;
   border: 0;
   border-radius: 999px;
   color: #111815;
   background: #f1f5f3;
-  font: inherit;
-  font-size: 20px;
-  font-weight: 900;
   cursor: pointer;
+}
+
+.video-analysis-mg-picker-close::before,
+.video-analysis-mg-picker-close::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+  transform-origin: center;
+}
+
+.video-analysis-mg-picker-close::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.video-analysis-mg-picker-close::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .video-analysis-mg-picker-close:hover {

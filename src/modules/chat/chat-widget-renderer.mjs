@@ -1,3 +1,5 @@
+import { createDashboardChatIntelligenceRenderer } from "./chat-intelligence-renderer.mjs";
+
 function defaultEscapeHtml(value) {
   return String(value ?? "");
 }
@@ -210,6 +212,20 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     canDeleteMessage = () => false,
     canPinMessage = () => false,
   } = dependencies;
+  const chatIntelligenceRenderer = createDashboardChatIntelligenceRenderer({
+    teamThreadId,
+    escapeHtml,
+    formatUserName,
+    formatTime,
+    renderPresenceAvatar,
+  });
+  const {
+    renderCoachWorkflowPanel,
+    renderConversationIntelligenceRail,
+    renderThreadIntelligencePanel,
+    renderMessageWorkflowBadges,
+    renderMessagePromoteActions,
+  } = chatIntelligenceRenderer;
 
   function renderMessagePriority(message, normalizedPriority = "") {
     const priority = normalizedPriority || normalizePriority(message?.priority);
@@ -457,6 +473,8 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const replyMarkup = replyMessage ? renderReplyReference(replyMessage, users, { compact: true }) : "";
     const priorityMarkup = renderMessagePriority(message, normalizedPriority);
     const reactionMarkup = renderMessageReactions(message, currentUser);
+    const workflowBadgeMarkup = renderMessageWorkflowBadges(message, users);
+    const promoteActionMarkup = renderMessagePromoteActions(message);
     const hasAttachments = Array.isArray(message.attachments) && message.attachments.length > 0;
     const cardStateClasses = [
       normalizedPriority && normalizedPriority !== "normal" ? ` is-priority-${escapeHtml(normalizedPriority)}` : "",
@@ -493,6 +511,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 : ""
             }
             <button type="button" class="dashboard-chat-menu-action" data-dashboard-copy-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#10697;</span><span>Copy</span></button>
+            ${promoteActionMarkup}
             ${
               reactionMarkup
                 ? `<div class="dashboard-chat-menu-reaction-group" role="group" aria-label="React to message"><strong>React</strong>${reactionMarkup}</div>`
@@ -511,6 +530,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           </div>
         </details>
         ${priorityMarkup}
+        ${workflowBadgeMarkup}
         ${replyMarkup}
         <p>${renderMessageText(message, users, { searchQuery })}</p>
         ${renderMessageAttachments(message, users)}
@@ -918,6 +938,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             <small>Media, docs and links</small>
           </article>
         </div>
+        ${renderThreadIntelligencePanel({ activeThreadId, activeThreadLabel, messages, pinnedMessages, users, currentUser })}
         <label class="dashboard-chat-details-search">
           <span>Search conversation</span>
           <input type="search" data-dashboard-chat-message-search value="${escapeHtml(normalizedSearch)}" placeholder="${escapeHtml(`Search ${activeThreadLabel}`)}" autocomplete="off">
@@ -1468,6 +1489,8 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             </span>
           </div>
           ${moderationMarkup}
+          ${hasThreadMessages.length ? renderCoachWorkflowPanel({ activeThreadId, messages, pinnedMessages, users, currentUser }) : ""}
+          ${hasThreadMessages.length ? renderConversationIntelligenceRail({ activeThreadId, messages, pinnedMessages, users, currentUser }) : ""}
           ${renderPinnedMessages(pinnedMessages, users, currentUser)}
           <div class="dashboard-chat-list" data-dashboard-chat-list aria-live="polite">
             ${hasOlderMessages && !normalizedMessageSearch ? `<button type="button" class="dashboard-chat-load-more" data-dashboard-chat-load-earlier="${escapeHtml(activeThreadId)}">Load earlier</button>` : ""}

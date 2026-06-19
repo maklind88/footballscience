@@ -131,6 +131,12 @@ test("chat widget highlights searched messages and keeps search inside the detai
   expect(result.html).toContain("has-evidence");
   expect(result.html).toContain("dashboard-chat-search-hit");
   expect(result.html).toContain("dashboard-chat-attachment-library");
+  expect(result.html).toContain("data-dashboard-chat-coach-workflow");
+  expect(result.html).toContain("Evidence attached");
+  expect(result.html).toContain("data-dashboard-chat-intelligence-rail");
+  expect(result.html).toContain("data-dashboard-chat-intelligence-panel");
+  expect(result.html).toContain('data-dashboard-chat-evidence-kind="doc"');
+  expect(result.html).toContain('data-dashboard-chat-promote-target="task"');
   expect(result.html).toContain("readiness-report.pdf");
   expect(result.html).toContain("footballscience.xyz");
   expect(result.html).toContain('placeholder="Message"');
@@ -138,6 +144,86 @@ test("chat widget highlights searched messages and keeps search inside the detai
   expect(result.html).toContain('data-dashboard-chat-thread-setting="toggle-mute"');
   expect(result.html).toContain('data-dashboard-chat-thread-setting="toggle-pin"');
   expect(result.html).toContain("dashboard-chat-realtime-pill is-connected");
+});
+
+test("chat widget renders coach workflow and evidence intelligence layers", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [
+    currentUser,
+    { id: "u2", name: "Analyst", status: "active" },
+    { id: "p1", name: "Player Nine", role: "player", status: "active" },
+  ];
+  const messages = [
+    {
+      id: "decision-1",
+      userId: "u2",
+      threadId: "team",
+      text: "Decision: we go with high press in the match.",
+      pinnedAt: "2026-01-01T09:58:00.000Z",
+      createdAt: "2026-01-01T10:00:00.000Z",
+      readBy: ["u2"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "important",
+    },
+    {
+      id: "clip-1",
+      userId: "u2",
+      threadId: "team",
+      text: "Needs action: @PlayerNine review later with the training session clip.",
+      createdAt: "2026-01-01T10:05:00.000Z",
+      readBy: ["u2"],
+      mentionedUserIds: ["p1"],
+      reactions: {},
+      priority: "urgent",
+      attachments: [
+        {
+          id: "video-1",
+          signedUrl: "https://footballscience.xyz/high-press.mp4",
+          metadata: { fileName: "high-press.mp4", mimeType: "video/mp4", byteSize: 4096 },
+        },
+      ],
+    },
+  ];
+  const threads = [
+    {
+      threadId: "team",
+      label: "Team Chat",
+      isTeamThread: true,
+      messageCount: 2,
+      unreadCount: 0,
+      mentionCount: 1,
+      lastMessage: messages[1],
+      participant: null,
+      settings: { pinned: true },
+    },
+  ];
+
+  const result = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads,
+    activeThreadId: "team",
+    detailsOpen: true,
+  });
+
+  expect(result.html).toContain("data-dashboard-chat-coach-workflow");
+  expect(result.html).toContain("Needs action");
+  expect(result.html).toContain("Decision made");
+  expect(result.html).toContain("Evidence attached");
+  expect(result.html).toContain("Review later");
+  expect(result.html).toContain("dashboard-chat-message-signals");
+  expect(result.html).toContain("data-dashboard-chat-intelligence-rail");
+  expect(result.html).toContain("data-dashboard-chat-intelligence-panel");
+  expect(result.html).toContain("Video card");
+  expect(result.html).toContain("Player card");
+  expect(result.html).toContain("Training-session card");
+  expect(result.html).toContain("Match-event card");
+  expect(result.html).toContain("Decision card");
+  expect(result.html).toContain('data-dashboard-chat-evidence-kind="video"');
+  expect(result.html).toContain('data-dashboard-chat-promote-target="player-note"');
 });
 
 test("chat widget exposes mobile inbox and conversation modes", () => {

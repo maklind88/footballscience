@@ -102,9 +102,13 @@ test("chat database adapter batches message enrichment for read-heavy views", ()
   const { fileURLToPath } = require("node:url");
   const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../api/_lib/chat-database.js"), "utf8");
 
+  expect(source).toContain("THREAD_READ_MODEL_SELECT");
+  expect(source).toContain("async function readThreadReadModelRows");
+  expect(source).toContain("const missingLastMessageIds");
+  expect(source).toContain("const readModelEnrichment = buildMessageEnrichment");
+  expect(source).toContain("fallbackLastMessageEnrichment");
   expect(source).toContain("function buildMessageEnrichment");
   expect(source).toContain("async function loadMessageEnrichment");
-  expect(source).toContain("const lastMessageEnrichment = await loadMessageEnrichment(lastMessages");
   expect(source).toContain("return threads.map((thread) => {");
   expect(source).toContain("const visibleMessages = messages.reverse().filter((message) => threadsById.has(message.thread_id));");
   expect(source).not.toContain("await enrichMessages([lastMessage], thread)");

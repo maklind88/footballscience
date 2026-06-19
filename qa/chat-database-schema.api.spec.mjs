@@ -12,6 +12,10 @@ const storageMigration = readFileSync(
   resolve(__dirname, "../supabase/migrations/20260507234337_chat_storage_attachments_v1.sql"),
   "utf8"
 );
+const readModelMigration = readFileSync(
+  resolve(__dirname, "../supabase/migrations/20260619000100_chat_thread_read_models.sql"),
+  "utf8"
+);
 
 test("chat database migration includes multi-tenant core tables", () => {
   [
@@ -58,4 +62,17 @@ test("chat attachment storage migration keeps files private and thread-scoped", 
   expect(storageMigration).toContain("chat attachment storage objects are uploadable");
   expect(storageMigration).toContain("app_private.can_access_chat_thread(attachment.thread_id)");
   expect(storageMigration).toContain("attachment.uploaded_by = (select auth.uid())");
+});
+
+test("chat thread read model keeps summaries durable and access controlled", () => {
+  expect(readModelMigration).toContain("public.chat_thread_read_models");
+  expect(readModelMigration).toContain("private.refresh_chat_thread_read_model(target_thread_id uuid)");
+  expect(readModelMigration).toContain("last_message_reactions jsonb");
+  expect(readModelMigration).toContain("last_message_attachments jsonb");
+  expect(readModelMigration).toContain("chat_thread_read_models_org_team_activity_idx");
+  expect(readModelMigration).toContain("app_private.can_access_chat_thread(thread_id)");
+  expect(readModelMigration).toContain("chat_messages_refresh_read_model_write");
+  expect(readModelMigration).toContain("chat_reactions_refresh_read_model_write");
+  expect(readModelMigration).toContain("chat_attachments_refresh_read_model_write");
+  expect(readModelMigration).toContain("chat_thread_participants_refresh_read_model_write");
 });

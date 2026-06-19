@@ -93,6 +93,13 @@ const MESSAGE_SELECT = [
 ].join(",");
 const REACTION_SELECT = "message_id,user_id,reaction,created_at";
 const RECEIPT_SELECT = "thread_id,user_id,last_read_message_id,last_read_at";
+const THREAD_READ_MODEL_SELECT = [
+  "thread_id",
+  "last_message",
+  "last_message_reactions",
+  "last_message_attachments",
+  "refreshed_at",
+].join(",");
 const ATTACHMENT_SELECT = [
   "id",
   "organization_id",
@@ -1292,6 +1299,27 @@ async function readThreadParticipantRows(threadIds = []) {
   ).catch(() => []);
 }
 
+async function readThreadReadModelRows(threadIds = []) {
+  const ids = Array.from(new Set(threadIds.filter(Boolean)));
+  if (!ids.length) {
+    return [];
+  }
+  return selectMany(
+    "chat_thread_read_models",
+    `select=${THREAD_READ_MODEL_SELECT}&thread_id=${inFilter(ids)}`
+  ).catch(() => []);
+}
+
+function readModelMessage(row = {}) {
+  const message = row?.last_message;
+  return isPlainObject(message) && message.id ? message : null;
+}
+
+function readModelJsonRows(row = {}, key = "") {
+  const rows = row?.[key];
+  return Array.isArray(rows) ? rows.filter(isPlainObject) : [];
+}
+
 function threadPermissionsForActor(actor, thread = {}) {
   const role = actorRole(actor);
   const manager = canAdmin(actor) || MANAGER_ROLES.has(role);
@@ -1429,9 +1457,14 @@ async function enrichThreadSummaries(actor, threads = []) {
   }
   const threadIds = threads.map((thread) => thread.id).filter(Boolean);
   const lastMessageIds = threads.map((thread) => thread.last_message_id).filter(Boolean);
-  const [lastMessages, receipts, participantRows, allReceipts] = await Promise.all([
-    lastMessageIds.length
-      ? selectMany("chat_messages", `select=${MESSAGE_SELECT}&id=${inFilter(lastMessageIds)}&deleted_at=is.null`).catch(() => [])
+  const threadReadModelRows = await readThreadReadModelRows(threadIds);
+  const readModelRowsByThreadId = new Map(threadReadModelRows.map((row) => [row.thread_id, row]));
+  const readModelMessages = threadReadModelRows.map(readModelMessage).filter(Boolean);
+  const readModelMessageIds = new Set(readModelMessages.map((message) => message.id).filter(Boolean));
+  const missingLastMessageIds = lastMessageIds.filter((messageId) => !readModelMessageIds.has(messageId));
+  const [fallbackLastMessages, receipts, participantRows, allReceipts] = await Promise.all([
+    missingLastMessageIds.length
+      ? selectMany("chat_messages", `select=${MESSAGE_SELECT}&id=${inFilter(missingLastMessageIds)}&deleted_at=is.null`).catch(() => [])
       : Promise.resolve([]),
     actor?.id && threadIds.length
       ? selectMany(
@@ -1444,6 +1477,14 @@ async function enrichThreadSummaries(actor, threads = []) {
       ? selectMany("chat_read_receipts", `select=${RECEIPT_SELECT}&thread_id=${inFilter(threadIds)}`).catch(() => [])
       : Promise.resolve([]),
   ]);
+  const readModelReactionRows = threadReadModelRows.flatMap((row) => readModelJsonRows(row, "last_message_reactions"));
+  const readModelAttachmentRows = threadReadModelRows.flatMap((row) => readModelJsonRows(row, "last_message_attachments"));
+  const readModelEnrichment = buildMessageEnrichment(readModelReactionRows, readModelAttachmentRows, allReceipts);
+  const fallbackLastMessageEnrichment = await loadMessageEnrichment(fallbackLastMessages, {
+    threadIds,
+    receiptRows: allReceipts,
+  });
+  const lastMessages = [...readModelMessages, ...fallbackLastMessages];
   const messagesById = new Map(lastMessages.map((message) => [message.id, message]));
   const receiptsByThreadId = new Map(receipts.map((receipt) => [receipt.thread_id, receipt]));
   const participantRowsByThreadId = participantRows.reduce((map, participant) => {
@@ -1454,13 +1495,13 @@ async function enrichThreadSummaries(actor, threads = []) {
     map.set(`${receipt.thread_id}:${receipt.user_id}`, receipt);
     return map;
   }, new Map());
-  const lastMessageEnrichment = await loadMessageEnrichment(lastMessages, {
-    threadIds,
-    receiptRows: allReceipts,
-  });
   return threads.map((thread) => {
     const lastMessage = messagesById.get(thread.last_message_id) || null;
-    const enrichedLastMessage = lastMessage ? mapEnrichedMessage(lastMessage, thread, lastMessageEnrichment) : null;
+    const threadReadModel = readModelRowsByThreadId.get(thread.id) || null;
+    const hasReadModelLastMessage = Boolean(threadReadModel && lastMessage?.id && readModelMessageIds.has(lastMessage.id));
+    const enrichedLastMessage = lastMessage
+      ? mapEnrichedMessage(lastMessage, thread, hasReadModelLastMessage ? readModelEnrichment : fallbackLastMessageEnrichment)
+      : null;
     const receipt = receiptsByThreadId.get(thread.id) || null;
     const metadata = isPlainObject(thread.metadata) ? thread.metadata : {};
     const settingsByUser = isPlainObject(metadata.settingsByUser) ? metadata.settingsByUser : {};

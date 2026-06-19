@@ -232,12 +232,12 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
         && timeline
         && ruler
         && code.left < deck.left
-        && Math.abs(timeline.left - deck.left) < 8
+        && timeline.left < deck.left - 80
         && Math.abs(timeline.right - deck.right) < 8
         && timeline.top >= deck.bottom
         && timeline.top - deck.bottom <= 16
-        && ruler.left > timeline.left + 90
-        && ruler.left < timeline.left + 140
+        && Math.abs(ruler.left - deck.left) < 8
+        && Math.abs(ruler.right - deck.right) < 8
     );
   })).toBe(true);
   await expect(page.locator(".video-analysis-workspace-nav")).toHaveCount(0);
@@ -249,6 +249,15 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-timeline-ruler")).toBeVisible();
   await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("MG Principle");
   await expect(page.locator(".video-analysis-timeline-tabs")).toContainText("Tags");
+  const activeTimelineTabStyle = await page.locator(".video-analysis-timeline-tabs button.is-active").evaluate((button) => {
+    const style = getComputedStyle(button);
+    return {
+      backgroundImage: style.backgroundImage,
+      color: style.color,
+    };
+  });
+  expect(activeTimelineTabStyle.color).toBe("rgb(16, 53, 34)");
+  expect(activeTimelineTabStyle.backgroundImage).toContain("linear-gradient");
   await expect(page.locator(".video-analysis-timeline-controls")).toHaveCount(0);
   await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
   await expect(page.locator(".video-analysis-intelligence")).toHaveCount(0);

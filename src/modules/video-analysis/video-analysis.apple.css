@@ -319,8 +319,14 @@
 }
 
 #analysisRoomWorkspace .video-analysis-timeline-tabs button.is-active {
-  border-color: var(--fs-apple-green);
-  background: var(--fs-apple-green);
+  border-color: rgba(20, 83, 45, 0.34);
+  color: #103522;
+  background:
+    linear-gradient(180deg, rgba(248, 253, 250, 0.98), rgba(226, 242, 232, 0.96)),
+    #edf8f1;
+  box-shadow:
+    inset 0 0 0 1px rgba(20, 83, 45, 0.08),
+    0 2px 8px rgba(20, 53, 34, 0.08);
 }
 
 #analysisRoomWorkspace .video-analysis-timeline-scroll {

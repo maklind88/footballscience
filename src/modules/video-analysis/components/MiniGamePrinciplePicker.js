@@ -1,6 +1,12 @@
-import { miniGamePrincipleGroups } from "../constants/miniGamePrinciples.js";
+import { miniGamePrinciplePickerGroups, miniGamePrinciplePickerIds } from "../constants/miniGamePrinciples.js";
 import { clipMiniGamePrincipleIds, miniGamePrincipleLabel, uniqueMiniGamePrincipleIds } from "../services/miniGamePrincipleService.js";
 import { escapeHtml } from "./renderHelpers.js";
+
+const pickerPrincipleIds = new Set(miniGamePrinciplePickerIds);
+
+function pickerVisiblePrincipleIds(ids = []) {
+  return uniqueMiniGamePrincipleIds(ids).filter((id) => pickerPrincipleIds.has(id));
+}
 
 function selectedTargetClip(state = {}) {
   const clips = [
@@ -13,8 +19,8 @@ function selectedTargetClip(state = {}) {
 
 export function selectedMiniGamePrincipleIds(state = {}) {
   const targetClip = selectedTargetClip(state);
-  if (targetClip) return clipMiniGamePrincipleIds(targetClip);
-  return uniqueMiniGamePrincipleIds([
+  if (targetClip) return pickerVisiblePrincipleIds(clipMiniGamePrincipleIds(targetClip));
+  return pickerVisiblePrincipleIds([
     ...(Array.isArray(state.codingSession?.miniGamePrincipleDraftIds) ? state.codingSession.miniGamePrincipleDraftIds : []),
     ...(Array.isArray(state.draft?.miniGamePrincipleIds) ? state.draft.miniGamePrincipleIds : []),
     state.draft?.miniGamePrincipleId,
@@ -63,7 +69,7 @@ export function renderMiniGamePrinciplePicker(state = {}) {
           <button type="button" class="video-analysis-mg-picker-close" data-video-analysis-mg-principles-close aria-label="Close">x</button>
         </header>
         <div class="video-analysis-mg-picker-body">
-          ${miniGamePrincipleGroups.map((group) => `
+          ${miniGamePrinciplePickerGroups.map((group) => `
             <section class="video-analysis-mg-picker-group">
               <h4>${escapeHtml(group.label)}</h4>
               <div class="video-analysis-mg-picker-grid">

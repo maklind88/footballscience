@@ -9,6 +9,7 @@ import { renderTagFilterOverlay } from "./components/TagFilterOverlay.js";
 import { renderTimeline } from "./components/Timeline.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderVideoPlayer } from "./components/VideoPlayer.js";
+import { miniGamePrinciplePickerIds } from "./constants/miniGamePrinciples.js";
 import { escapeHtml } from "./components/renderHelpers.js";
 import { createDrawingController } from "./controllers/drawingController.js";
 import { createPresentationController } from "./controllers/presentationController.js";
@@ -81,6 +82,7 @@ let drawingController = null;
 let presentationController = null;
 let presenterController = null;
 let thumbnailController = null;
+const pickerMiniGamePrincipleIdSet = new Set(miniGamePrinciplePickerIds);
 const CLIP_PAGE_LIMIT = 200;
 const CLIP_WORKSPACE_LIMIT = 1000;
 
@@ -1105,6 +1107,10 @@ function activeMiniGamePrincipleIds(state = {}) {
   ]);
 }
 
+function pickerVisibleMiniGamePrincipleIds(ids = []) {
+  return uniqueMiniGamePrincipleIds(ids).filter((id) => pickerMiniGamePrincipleIdSet.has(id));
+}
+
 function clipHasTag(clip = {}, tag = "") {
   const target = String(tag || "").trim().toLowerCase();
   if (!target) return true;
@@ -1707,7 +1713,7 @@ async function saveButtonLabelOnClip(button = {}, action = {}, context = {}, sta
 async function saveMiniGamePrinciplesForActiveClip(context = {}) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
-  const ids = uniqueMiniGamePrincipleIds(state.codingSession?.miniGamePrincipleDraftIds || []);
+  const ids = pickerVisibleMiniGamePrincipleIds(state.codingSession?.miniGamePrincipleDraftIds || []);
   const targetClip = findClipForLabelAction(state, currentPlayheadMs(context, state));
   if (!targetClip?.id) {
     run.store.update((current) => ({
@@ -2321,7 +2327,7 @@ export function handleClick(event, context = {}) {
       codingSession: {
         ...(state.codingSession || {}),
         miniGamePrinciplePickerOpen: true,
-        miniGamePrincipleDraftIds: activeMiniGamePrincipleIds(state),
+        miniGamePrincipleDraftIds: pickerVisibleMiniGamePrincipleIds(activeMiniGamePrincipleIds(state)),
       },
       message: "",
       error: "",
@@ -2339,7 +2345,7 @@ export function handleClick(event, context = {}) {
   if (miniGameToggle) {
     const id = miniGameToggle.dataset.videoAnalysisMgPrincipleToggle;
     run.store.update((state) => {
-      const currentIds = uniqueMiniGamePrincipleIds(state.codingSession?.miniGamePrincipleDraftIds || activeMiniGamePrincipleIds(state));
+      const currentIds = pickerVisibleMiniGamePrincipleIds(state.codingSession?.miniGamePrincipleDraftIds || activeMiniGamePrincipleIds(state));
       const selected = new Set(currentIds);
       if (selected.has(id)) selected.delete(id);
       else selected.add(id);
@@ -2347,7 +2353,7 @@ export function handleClick(event, context = {}) {
         ...state,
         codingSession: {
           ...(state.codingSession || {}),
-          miniGamePrincipleDraftIds: uniqueMiniGamePrincipleIds([...selected]),
+          miniGamePrincipleDraftIds: pickerVisibleMiniGamePrincipleIds([...selected]),
           miniGamePrinciplePickerOpen: true,
         },
       };

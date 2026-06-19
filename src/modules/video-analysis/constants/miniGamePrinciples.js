@@ -200,6 +200,16 @@ export const miniGamePrincipleGroups = Object.freeze([
   },
 ]);
 
+export const hiddenMiniGamePrinciplePickerGroupIds = Object.freeze([
+  "football-science-core",
+]);
+
+export const miniGamePrinciplePickerGroups = Object.freeze(miniGamePrincipleGroups
+  .filter((group) => !hiddenMiniGamePrinciplePickerGroupIds.includes(group.id)));
+
+export const miniGamePrinciplePickerIds = Object.freeze(miniGamePrinciplePickerGroups
+  .flatMap((group) => group.principles.map((principle) => principle.id)));
+
 const seenPrincipleIds = new Set();
 
 export const miniGamePrinciples = Object.freeze(miniGamePrincipleGroups

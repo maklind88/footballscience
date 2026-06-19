@@ -461,6 +461,8 @@ test("analysis room tabs use icons without status labels", () => {
   const presentation = read("src/modules/video-analysis/components/PresentationModule.js");
   const clipLibrary = read("src/modules/video-analysis/components/ClipLibrary.js");
   const clipLibraryPreview = read("src/modules/video-analysis/components/ClipLibraryPreview.js");
+  const miniGamePicker = read("src/modules/video-analysis/components/MiniGamePrinciplePicker.js");
+  const miniGamePrinciples = read("src/modules/video-analysis/constants/miniGamePrinciples.js");
   const clipLibraryService = read("src/modules/video-analysis/services/clipLibraryService.js");
   const presentationSources = read("src/modules/video-analysis/components/PresentationSources.js");
   const presentationOutline = read("src/modules/video-analysis/components/PresentationOutline.js");
@@ -489,6 +491,9 @@ test("analysis room tabs use icons without status labels", () => {
   expect(clipLibraryService).toContain("buildClipLibraryGroups");
   expect(clipLibraryService).toContain("buildClipLibraryClipOrder");
   expect(clipLibraryService).toContain("clipMatchesLibraryGroup");
+  expect(miniGamePrinciples).toContain("hiddenMiniGamePrinciplePickerGroupIds");
+  expect(miniGamePicker).toContain("miniGamePrinciplePickerGroups");
+  expect(miniGamePicker).not.toContain("miniGamePrincipleGroups.map");
   expect(presentation).toContain("data-video-analysis-presentation-module");
   expect(presentation).toContain("renderPresentationSources");
   expect(presentation).toContain("renderPresentationOutline");

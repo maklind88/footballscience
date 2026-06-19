@@ -88,6 +88,12 @@ const pickerMiniGamePrinciples = miniGamePrinciplePickerGroups.flatMap((group) =
 ));
 const CLIP_PAGE_LIMIT = 200;
 const CLIP_WORKSPACE_LIMIT = 1000;
+const PLAYBACK_RATE_OPTIONS = [0.5, 1, 1.5, 2];
+
+function normalizePlaybackRate(value = 1) {
+  const numeric = Number(value);
+  return PLAYBACK_RATE_OPTIONS.includes(numeric) ? numeric : 1;
+}
 
 function getRoot(context = {}) {
   return context.ui?.analysisRoomWorkspace || null;
@@ -448,6 +454,27 @@ function syncPlaybackControls(context = {}, video = videoElement(context), force
     if (labelNode) labelNode.textContent = label;
     if (iconNode) iconNode.textContent = playing ? "II" : "\u25b6";
   });
+}
+
+function applyPlaybackRate(context = {}, video = videoElement(context)) {
+  const rate = normalizePlaybackRate(ensureRuntime(context).store.getState().fsPlayer?.playbackRate || 1);
+  if (video) video.playbackRate = rate;
+  return rate;
+}
+
+function setPlaybackRate(context = {}, value = 1) {
+  const run = ensureRuntime(context);
+  const rate = normalizePlaybackRate(value);
+  const video = videoElement(context);
+  if (video) video.playbackRate = rate;
+  run.store.update((state) => ({
+    ...state,
+    fsPlayer: {
+      ...(state.fsPlayer || {}),
+      playbackRate: rate,
+    },
+  }));
+  return true;
 }
 
 function fsPlayerWorkspaceElement(context = {}) {
@@ -813,6 +840,7 @@ function paint(root, state) {
     }
   }
   if (video) {
+    applyPlaybackRate(runtime?.context || context, video);
     if (previousSrc && (video.currentSrc || video.src) === previousSrc && Number.isFinite(previousTime)) {
       try {
         video.currentTime = previousTime;
@@ -2222,6 +2250,10 @@ export function handleClick(event, context = {}) {
   if (target.closest("[data-video-analysis-play]")) {
     togglePlayback(context);
     return true;
+  }
+  const playbackRateButton = target.closest("[data-video-analysis-playback-rate]");
+  if (playbackRateButton) {
+    return setPlaybackRate(context, playbackRateButton.dataset.videoAnalysisPlaybackRate || 1);
   }
   const playerNudge = target.closest("[data-video-analysis-player-nudge]");
   if (playerNudge) {

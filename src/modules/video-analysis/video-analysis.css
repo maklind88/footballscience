@@ -1149,16 +1149,13 @@
   background: #f5f8f6;
 }
 
-.video-analysis-player-speed {
+.video-analysis-player-rate-group {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 42px;
-  min-height: 32px;
+  gap: 2px;
   border-right: 1px solid #dbe3de;
-  color: #111815;
-  font-size: 13px;
-  font-weight: 900;
+  padding-right: 4px;
 }
 
 .video-analysis-player-controls button,
@@ -1179,6 +1176,20 @@
   min-width: 48px;
   border-color: transparent;
   background: transparent;
+}
+
+.video-analysis-player-controls .video-analysis-player-rate {
+  min-width: 38px;
+  min-height: 30px;
+  padding: 0 7px;
+  color: #3f4a44;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.video-analysis-player-controls .video-analysis-player-rate.is-active {
+  color: #ffffff;
+  background: #143522;
 }
 
 .video-analysis-player-controls button:disabled,

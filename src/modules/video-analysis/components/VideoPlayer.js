@@ -2,6 +2,18 @@ import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { getTimelineDurationMs } from "../timeline/timeline.service.js";
 import { escapeHtml } from "./renderHelpers.js";
 
+const PLAYBACK_RATES = [0.5, 1, 1.5, 2];
+
+function normalizePlaybackRate(value = 1) {
+  const numeric = Number(value);
+  return PLAYBACK_RATES.includes(numeric) ? numeric : 1;
+}
+
+function formatPlaybackRate(rate = 1) {
+  const numeric = Number(rate);
+  return `${Number.isInteger(numeric) ? numeric.toFixed(0) : numeric.toFixed(1)}x`;
+}
+
 export function renderVideoPlayer(state = {}) {
   const ref = state.videoRef;
   const hasVideo = Boolean(ref?.objectUrl);
@@ -55,6 +67,7 @@ export function renderVideoPlayer(state = {}) {
   const currentMs = Math.max(0, Math.round(Number(state.timeline?.playheadMs || 0)));
   const durationMs = Math.max(0, Math.round(Number(ref?.durationMs || 0)), Math.round(Number(getTimelineDurationMs(state) || 0)));
   const codeModeActive = state.fsPlayer?.mode === "code";
+  const playbackRate = normalizePlaybackRate(state.fsPlayer?.playbackRate || 1);
   return `
     <section class="video-analysis-player" data-video-analysis-player>
       <div class="video-analysis-player__bar">
@@ -86,7 +99,13 @@ export function renderVideoPlayer(state = {}) {
           <span data-video-analysis-player-duration-time>/ ${escapeHtml(formatVideoTime(durationMs))}</span>
         </div>
         <div class="video-analysis-player-controls">
-          <span class="video-analysis-player-speed" aria-label="Playback speed">1x</span>
+          <div class="video-analysis-player-rate-group" aria-label="Playback speed">
+            ${PLAYBACK_RATES.map((rate) => `
+              <button type="button" class="video-analysis-player-rate${rate === playbackRate ? " is-active" : ""}" data-video-analysis-playback-rate="${escapeHtml(String(rate))}" ${hasVideo ? "" : "disabled"} aria-pressed="${rate === playbackRate ? "true" : "false"}" title="Play at ${escapeHtml(formatPlaybackRate(rate))}">
+                ${escapeHtml(formatPlaybackRate(rate))}
+              </button>
+            `).join("")}
+          </div>
           <button type="button" class="video-analysis-player-nudge" data-video-analysis-player-nudge="-5000" ${hasVideo ? "" : "disabled"} aria-label="Back five seconds" title="Back 5 seconds">
             <span class="video-analysis-player-nudge__glyph" aria-hidden="true">&#8634;</span>
             <strong>5s</strong>

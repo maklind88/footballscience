@@ -659,6 +659,14 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
 
   await expect(page.locator("[data-video-analysis-video]")).not.toHaveAttribute("controls", "");
+  await expect(page.locator("[data-video-analysis-playback-rate]")).toHaveCount(4);
+  await expect(page.locator('[data-video-analysis-playback-rate="1"]')).toHaveAttribute("aria-pressed", "true");
+  await page.locator('[data-video-analysis-playback-rate="1.5"]').click();
+  await expect(page.locator('[data-video-analysis-playback-rate="1.5"]')).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.playbackRate)).toBe(1.5);
+  await page.locator('[data-video-analysis-playback-rate="0.5"]').click();
+  await expect(page.locator('[data-video-analysis-playback-rate="0.5"]')).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.playbackRate)).toBe(0.5);
   await expect(page.locator(".video-analysis-player-tag-filter")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-video-fullscreen]")).toBeVisible();
   await expect(page.locator("[data-video-analysis-code-mode]")).toContainText("Code mode");

@@ -1732,13 +1732,13 @@
   inset: 0;
   z-index: 320;
   grid-template-areas: "code main";
-  grid-template-columns: clamp(280px, 22vw, 360px) minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: clamp(276px, 21vw, 340px) minmax(0, 1fr);
+  gap: 8px;
   align-items: stretch;
   width: 100vw;
   height: 100dvh;
   min-height: 100vh;
-  padding: 12px;
+  padding: 8px;
   overflow: hidden;
   background:
     radial-gradient(circle at 76% 12%, rgba(44, 89, 69, 0.24), transparent 28rem),
@@ -1751,17 +1751,17 @@
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-main {
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-rows: minmax(0, 1fr) clamp(132px, 20dvh, 220px);
+  gap: 8px;
   min-height: 0;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-deck,
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline,
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-template-builder {
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.1);
   border-radius: 10px;
-  background: rgba(9, 14, 12, 0.92);
+  background: rgba(7, 12, 10, 0.94);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
 }
 
@@ -1779,6 +1779,41 @@
   color: #f6f8f7;
   border-color: rgba(255, 255, 255, 0.1);
   background: rgba(10, 16, 13, 0.88);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player__bar {
+  min-height: 28px;
+  padding: 4px 8px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-transport {
+  box-sizing: border-box;
+  grid-template-columns: minmax(122px, auto) minmax(360px, 560px) minmax(210px, auto);
+  min-height: 46px;
+  padding: 4px 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-controls,
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-view-actions {
+  min-height: 34px;
+  padding: 2px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-controls button,
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-view-button {
+  min-height: 30px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-controls .video-analysis-player-rate {
+  min-height: 28px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-play {
+  min-width: 82px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player__meta {
+  display: none;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player h2,
@@ -1800,8 +1835,69 @@
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline {
-  max-height: 34vh;
+  height: 100%;
+  max-height: clamp(132px, 20dvh, 220px);
   overflow: hidden;
+  background: rgba(238, 244, 240, 0.96);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-timeline-module {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-timeline-toolbar {
+  min-height: 30px;
+  padding: 3px 8px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-timeline-scroll {
+  min-height: 0;
+  overflow: auto;
+  background:
+    linear-gradient(180deg, rgba(247, 250, 248, 0.98), rgba(232, 240, 235, 0.96)),
+    #edf4ef;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-timeline-ruler {
+  height: 22px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-timeline-tick i {
+  height: 8px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-timeline-tick b {
+  top: 11px;
+  font-size: 9px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-lane-stack {
+  gap: 1px;
+  padding-top: 2px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-lane__label,
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-lane__track {
+  min-height: 20px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-lane__label {
+  padding: 0 5px;
+  font-size: 9px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-lane__label span {
+  font-size: 8px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-clip-block {
+  top: 3px;
+  height: 13px;
+  min-width: 22px;
+  padding: 0 5px;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock {
@@ -1815,10 +1911,58 @@
   grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
   overflow: hidden;
+  color: #eef5f1;
+  background:
+    linear-gradient(180deg, rgba(16, 24, 20, 0.96), rgba(5, 10, 8, 0.98)),
+    #060b09;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-panel-header {
+  border-bottom-color: rgba(255, 255, 255, 0.09);
+  background: rgba(236, 242, 238, 0.1);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-kicker,
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-code-group__header {
+  color: rgba(238, 245, 241, 0.58);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-panel-header h3 {
+  color: #f5faf7;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-template-scroll {
   overflow: auto;
+  scrollbar-color: rgba(236, 242, 238, 0.34) transparent;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-template-builder.is-coding .video-analysis-code-button:not(.is-active),
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-player-tag-button {
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #122018;
+  background:
+    linear-gradient(180deg, rgba(250, 253, 251, 0.98), rgba(234, 241, 236, 0.93)),
+    color-mix(in srgb, var(--video-analysis-button-color, #143522) 8%, #f8fbf9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 8px 18px rgba(0, 0, 0, 0.18);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-template-builder.is-coding .video-analysis-code-button.is-active {
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 14px 28px color-mix(in srgb, var(--video-analysis-button-color, #143522) 34%, transparent);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-code-button__meta small,
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-code-button kbd {
+  border-color: rgba(18, 32, 24, 0.08);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-player-tag-panel {
+  border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 .video-analysis-code-window-dock {

@@ -673,6 +673,23 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await page.locator("[data-video-analysis-code-mode]").click();
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
   await expect(page.locator("[data-video-analysis-code-mode]")).toHaveAttribute("aria-pressed", "true");
+  const codeModeLayout = await page.evaluate(() => {
+    const videoFrame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame")?.getBoundingClientRect();
+    const timeline = document.querySelector(".video-analysis-fs-player-timeline")?.getBoundingClientRect();
+    const timelineScroll = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-scroll");
+    const transport = document.querySelector(".video-analysis-player-transport")?.getBoundingClientRect();
+    const scrollStyle = timelineScroll ? getComputedStyle(timelineScroll) : null;
+    return {
+      timelineHeight: timeline?.height ?? 0,
+      timelineOverflowY: scrollStyle?.overflowY || "",
+      transportHeight: transport?.height ?? 0,
+      videoHeight: videoFrame?.height ?? 0,
+    };
+  });
+  expect(codeModeLayout.videoHeight).toBeGreaterThan(codeModeLayout.timelineHeight * 1.8);
+  expect(codeModeLayout.timelineHeight).toBeLessThanOrEqual(225);
+  expect(codeModeLayout.timelineOverflowY).toBe("auto");
+  expect(codeModeLayout.transportHeight).toBeLessThanOrEqual(52);
   await page.locator("[data-video-analysis-code-mode]").click();
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).not.toHaveClass(/is-code-mode/);
   const timelineLayout = await page.evaluate(() => {

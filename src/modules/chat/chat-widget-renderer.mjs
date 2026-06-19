@@ -1505,7 +1505,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 <input type="file" data-dashboard-chat-attachment-input hidden />
               </div>
             </div>
-            <button type="submit">Send</button>
+            <button type="submit" aria-label="Send message">
+              <span class="dashboard-chat-send-icon" aria-hidden="true">&#8593;</span>
+              <span class="dashboard-chat-send-label">Send</span>
+            </button>
           </form>
         </section>
       </div>

@@ -1547,12 +1547,21 @@
 }
 
 .video-analysis-fs-player-timeline {
+  --video-analysis-timeline-label-width: var(--video-analysis-fs-player-code-width, 104px);
+  --video-analysis-timeline-lane-gap: 6px;
+  --video-analysis-timeline-track-offset: calc(
+    var(--video-analysis-timeline-label-width) + var(--video-analysis-timeline-lane-gap)
+  );
+  box-sizing: border-box;
   min-width: 0;
+  width: calc(100% + var(--video-analysis-timeline-track-offset));
   overflow: hidden;
   border: 1px solid #d8ded7;
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 10px 30px rgba(18, 32, 24, 0.05);
+  transform: translateX(calc(0px - var(--video-analysis-timeline-track-offset)));
+  transform-origin: left top;
 }
 
 .video-analysis-fs-player-timeline .video-analysis-timeline-module {
@@ -1561,6 +1570,9 @@
 }
 
 .video-analysis-fs-player-timeline .video-analysis-timeline-toolbar {
+  box-sizing: border-box;
+  width: calc(100% - var(--video-analysis-timeline-track-offset));
+  margin-left: var(--video-analysis-timeline-track-offset);
   min-height: 34px;
   gap: 6px;
   padding: 4px 8px;
@@ -1589,8 +1601,8 @@
 }
 
 .video-analysis-fs-player-timeline .video-analysis-timeline-canvas {
-  --video-analysis-timeline-label-width: 104px;
-  --video-analysis-timeline-lane-gap: 10px;
+  --video-analysis-timeline-label-width: var(--video-analysis-fs-player-code-width, 104px);
+  --video-analysis-timeline-lane-gap: 6px;
   min-width: max(100%, 760px);
   padding: 0 0 4px;
 }

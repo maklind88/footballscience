@@ -658,6 +658,22 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await expect(page.locator("[data-video-analysis-code-mode]")).toHaveAttribute("aria-pressed", "true");
   await page.locator("[data-video-analysis-code-mode]").click();
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).not.toHaveClass(/is-code-mode/);
+  const timelineLayout = await page.evaluate(() => {
+    const videoFrame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame")?.getBoundingClientRect();
+    const ruler = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-ruler")?.getBoundingClientRect();
+    const label = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-lane__label")?.getBoundingClientRect();
+    return {
+      labelRight: label?.right ?? 0,
+      rulerLeft: ruler?.left ?? 0,
+      rulerWidth: ruler?.width ?? 0,
+      videoLeft: videoFrame?.left ?? 0,
+      videoWidth: videoFrame?.width ?? 0,
+    };
+  });
+  expect(timelineLayout.videoWidth).toBeGreaterThan(300);
+  expect(Math.abs(timelineLayout.rulerLeft - timelineLayout.videoLeft)).toBeLessThan(2);
+  expect(Math.abs(timelineLayout.rulerWidth - timelineLayout.videoWidth)).toBeLessThan(2);
+  expect(timelineLayout.labelRight).toBeLessThanOrEqual(timelineLayout.rulerLeft + 1);
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Code Window");
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Football Science Tag Panel");
   await expect(page.locator('[data-video-analysis-code-button="subPhase-build-up"]')).toContainText("15s");

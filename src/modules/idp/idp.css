@@ -198,8 +198,8 @@
 
 .idp-toolbar {
   display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(320px, 1.35fr) minmax(190px, .72fr) minmax(190px, .72fr);
+  gap: 10px;
+  grid-template-columns: minmax(360px, 1.45fr) minmax(190px, .68fr) minmax(210px, .72fr);
   min-width: 0;
 }
 
@@ -213,13 +213,44 @@
 
 .idp-control-select,
 .idp-search-box {
-  background: rgba(248, 250, 252, .94);
-  border: 1px solid rgba(20, 32, 51, .1);
+  background: rgba(255, 255, 255, .82);
+  border: 1px solid rgba(20, 32, 51, .09);
   border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 10px 24px rgba(16, 24, 40, .035);
   display: grid;
-  gap: 4px;
+  gap: 5px;
+  min-height: 58px;
   min-width: 0;
-  padding: 8px 10px;
+  padding: 9px 11px;
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.idp-control-select {
+  position: relative;
+}
+
+.idp-search-box {
+  background: linear-gradient(135deg, rgba(255, 255, 255, .94), rgba(245, 249, 255, .86));
+}
+
+.idp-control-select:focus-within,
+.idp-search-box:focus-within {
+  background: #fff;
+  border-color: rgba(36, 87, 166, .28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .96), 0 12px 28px rgba(36, 87, 166, .1);
+}
+
+.idp-control-select::after {
+  border-bottom: 2px solid rgba(20, 32, 51, .46);
+  border-right: 2px solid rgba(20, 32, 51, .46);
+  content: "";
+  height: 7px;
+  pointer-events: none;
+  position: absolute;
+  right: 13px;
+  top: 35px;
+  transform: rotate(45deg);
+  width: 7px;
 }
 
 .idp-control-select > span,
@@ -254,11 +285,16 @@
   width: 100%;
 }
 
+.idp-control-select select {
+  appearance: none;
+  padding-right: 22px;
+}
+
 .idp-search-control {
   align-items: center;
   display: grid;
-  gap: 7px;
-  grid-template-columns: minmax(0, 1fr) 38px;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 42px;
   min-width: 0;
 }
 
@@ -271,20 +307,20 @@
   appearance: none;
   background: linear-gradient(135deg, #111827 0%, #2457a6 100%);
   border: 0;
-  border-radius: 7px;
-  box-shadow: 0 7px 16px rgba(36, 87, 166, .22);
+  border-radius: 8px;
+  box-shadow: 0 9px 18px rgba(36, 87, 166, .24);
   cursor: pointer;
   display: inline-flex;
   height: 34px;
   justify-content: center;
   padding: 0;
   transition: box-shadow .16s ease, transform .16s ease;
-  width: 38px;
+  width: 42px;
 }
 
 .idp-search-button:hover,
 .idp-search-button:focus-visible {
-  box-shadow: 0 9px 20px rgba(36, 87, 166, .3);
+  box-shadow: 0 11px 24px rgba(36, 87, 166, .32);
   transform: translateY(-1px);
 }
 
@@ -2796,13 +2832,13 @@ body.is-dark-mode .idp-player-voice-card {
 }
 
 .idp-overview-command {
-  background: rgba(255, 255, 255, .64);
-  border: 1px solid rgba(23, 32, 51, .08);
+  background: linear-gradient(135deg, rgba(255, 255, 255, .84), rgba(248, 250, 252, .68));
+  border: 1px solid rgba(23, 32, 51, .07);
   border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75);
-  gap: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .88), 0 14px 30px rgba(16, 24, 40, .045);
+  gap: 10px;
   grid-template-columns: 1fr;
-  padding: 8px;
+  padding: 10px;
 }
 
 .idp-status-segments {
@@ -2830,14 +2866,18 @@ body.is-dark-mode .idp-player-voice-card {
 }
 
 .idp-toolbar {
-  gap: 6px;
+  gap: 10px;
 }
 
 .idp-control-select,
 .idp-search-box {
-  background: rgba(255, 255, 255, .72);
+  background: rgba(255, 255, 255, .82);
   border-color: rgba(23, 32, 51, .08);
-  padding: 7px 9px;
+  padding: 9px 11px;
+}
+
+.idp-search-box {
+  background: linear-gradient(135deg, rgba(255, 255, 255, .95), rgba(244, 248, 255, .86));
 }
 
 .idp-control-select > span,

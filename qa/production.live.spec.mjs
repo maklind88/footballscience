@@ -223,9 +223,10 @@ async function expectCentralSyncContains(page, key, text) {
         }
 
         for (let attempt = 0; attempt < 3; attempt += 1) {
-          const centralResponse = await page.request.get(`${endpointBase}/api/app-state`, {
+          const centralResponse = await page.request.get(`${endpointBase}/api/app-state?fresh=1`, {
             headers: {
               Authorization: `Bearer ${token}`,
+              "x-footballscience-fresh-state": "1",
             },
           });
           const centralPayload = centralResponse.ok() ? await centralResponse.json() : {};

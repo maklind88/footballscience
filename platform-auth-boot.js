@@ -1190,7 +1190,12 @@ async function getActiveAccessToken() {
     centralState.lastError = "";
     try {
       centralState.localDev = false;
-      const response = await apiRequest(API_APP_STATE, { method: "GET", timeoutMs: 10000 });
+      const statePath = options.forceApply || options.fresh ? `${API_APP_STATE}?fresh=1` : API_APP_STATE;
+      const response = await apiRequest(statePath, {
+        method: "GET",
+        timeoutMs: 10000,
+        headers: options.forceApply || options.fresh ? { "x-footballscience-fresh-state": "1" } : undefined,
+      });
       if (!response.ok) {
         centralState.lastError = response.payload?.reason || "Central app data could not be loaded.";
         return false;

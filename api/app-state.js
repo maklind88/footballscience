@@ -209,6 +209,31 @@ function cloneStateListResult(result = {}) {
   };
 }
 
+function isTruthyQueryValue(value) {
+  return ["1", "true", "yes", "fresh"].includes(String(value || "").trim().toLowerCase());
+}
+
+function shouldBypassStateReadSnapshot(req = {}) {
+  const url = new URL(req.url || "/", "http://localhost");
+  if (
+    isTruthyQueryValue(url.searchParams.get("fresh")) ||
+    isTruthyQueryValue(url.searchParams.get("forceFresh")) ||
+    isTruthyQueryValue(url.searchParams.get("bypassSnapshot"))
+  ) {
+    return true;
+  }
+
+  const headers = req.headers || {};
+  const cacheControl = String(headers["cache-control"] || headers["Cache-Control"] || "").toLowerCase();
+  const pragma = String(headers.pragma || headers.Pragma || "").toLowerCase();
+  return (
+    cacheControl.includes("no-cache") ||
+    cacheControl.includes("no-store") ||
+    pragma.includes("no-cache") ||
+    isTruthyQueryValue(headers["x-footballscience-fresh-state"] || headers["X-Footballscience-Fresh-State"])
+  );
+}
+
 function clearStateListObjectsCache() {
   stateListObjectsCache = { updatedAt: 0, result: null };
   stateReadSnapshotCache = { updatedAt: 0, result: null, pending: null };
@@ -2956,15 +2981,21 @@ async function writeStateListSnapshot(result = {}) {
   return finalResult;
 }
 
-async function listStateObjects() {
+async function listStateObjects(options = {}) {
   const now = Date.now();
-  if (stateListObjectsCache.result && now - stateListObjectsCache.updatedAt < STATE_LIST_CACHE_TTL_MS) {
+  if (
+    !options.bypassSnapshot &&
+    stateListObjectsCache.result &&
+    now - stateListObjectsCache.updatedAt < STATE_LIST_CACHE_TTL_MS
+  ) {
     return cloneStateListResult(stateListObjectsCache.result);
   }
-  const snapshot = await readStateListSnapshot();
-  if (snapshot) {
-    stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(snapshot) };
-    return cloneStateListResult(snapshot);
+  if (!options.bypassSnapshot) {
+    const snapshot = await readStateListSnapshot();
+    if (snapshot) {
+      stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(snapshot) };
+      return cloneStateListResult(snapshot);
+    }
   }
 
   const entries = {};
@@ -3099,7 +3130,7 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === "GET") {
-      const stateObjects = await listStateObjects();
+      const stateObjects = await listStateObjects({ bypassSnapshot: shouldBypassStateReadSnapshot(req) });
       const entries = filterStateEntriesForActor(actor, stateObjects.entries);
       return sendJson(res, 200, {
         ok: true,

@@ -747,6 +747,58 @@ test("app-state uses shared read snapshot before fanning out to protected storag
   }
 });
 
+test("app-state bypasses shared read snapshots when a fresh central state read is requested", async () => {
+  const handler = loadFreshAppStateHandler();
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const snapshotState = { events: [{ id: "event-stale", title: "Stale training" }] };
+  const sourceState = { events: [{ id: "event-fresh", title: "Fresh training" }] };
+  const storage = createAppStateFetchMock({
+    [appStateReadSnapshotPath]: {
+      schema: "footballscience-app-state-read-snapshot-v1",
+      generatedAt: new Date().toISOString(),
+      entries: {
+        [scheduleKey]: JSON.stringify(snapshotState),
+      },
+      metadata: {
+        [scheduleKey]: {
+          revision: 1,
+        },
+      },
+    },
+    [`global/${scheduleKey}.json`]: {
+      ...createAppStateStorageEntry(scheduleKey, sourceState),
+      revision: 9,
+    },
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(handler, {
+      method: "GET",
+      url: "/api/app-state?fresh=1",
+      headers: {
+        authorization: "Bearer snapshot-token",
+        "x-footballscience-fresh-state": "1",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.entries[scheduleKey]).toBe(JSON.stringify(sourceState));
+    expect(response.payload.metadata[scheduleKey].revision).toBe(9);
+    expect(storage.reads).not.toContain(appStateReadSnapshotPath);
+    expect(storage.reads).toContain(`global/${scheduleKey}.json`);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("app-state ignores stale shared read snapshots and rebuilds them from source objects", async () => {
   const handler = loadFreshAppStateHandler();
   const env = snapshotEnv(supabaseEnvKeys);

@@ -95,3 +95,18 @@ test("chat database adapter fails fast when Supabase is busy", () => {
   expect(source).toContain("throw createDatabaseError(result)");
   expect(apiSource).toContain("status >= 400 && status < 600 ? status : 500");
 });
+
+test("chat database adapter batches message enrichment for read-heavy views", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const { fileURLToPath } = require("node:url");
+  const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../api/_lib/chat-database.js"), "utf8");
+
+  expect(source).toContain("function buildMessageEnrichment");
+  expect(source).toContain("async function loadMessageEnrichment");
+  expect(source).toContain("const lastMessageEnrichment = await loadMessageEnrichment(lastMessages");
+  expect(source).toContain("return threads.map((thread) => {");
+  expect(source).toContain("const visibleMessages = messages.reverse().filter((message) => threadsById.has(message.thread_id));");
+  expect(source).not.toContain("await enrichMessages([lastMessage], thread)");
+  expect(source).not.toContain("for (const message of messages.reverse())");
+});

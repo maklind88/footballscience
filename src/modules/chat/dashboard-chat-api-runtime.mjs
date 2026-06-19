@@ -111,6 +111,21 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     win = typeof globalThis !== "undefined" ? globalThis : {},
   } = dependencies;
 
+  const DASHBOARD_CHAT_API_REFRESH_MIN_INTERVAL_MS = 2000;
+  const DASHBOARD_CHAT_THREAD_SUMMARY_REFRESH_MIN_INTERVAL_MS = 5000;
+  let dashboardChatApiLastRequestedAt = 0;
+
+  function normalizeRefreshDelay(value = 0) {
+    const delayMs = Number(value) || 0;
+    return Number.isFinite(delayMs) ? Math.max(0, delayMs) : 0;
+  }
+
+  function refreshDelayWithBudget(requestedDelayMs, lastRequestedAt, minIntervalMs) {
+    const elapsedMs = Date.now() - Number(lastRequestedAt || 0);
+    const budgetDelayMs = Math.max(0, Number(minIntervalMs || 0) - elapsedMs);
+    return Math.max(normalizeRefreshDelay(requestedDelayMs), budgetDelayMs);
+  }
+
   function getApiScope() {
     return getDashboardApiScope();
   }
@@ -371,12 +386,17 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       win.clearTimeout(getThreadSummarySyncTimer());
     }
 
+    const delayMs = refreshDelayWithBudget(
+      options.delayMs ?? 200,
+      getThreadSummaryLastRequestedAt(),
+      DASHBOARD_CHAT_THREAD_SUMMARY_REFRESH_MIN_INTERVAL_MS
+    );
     setThreadSummarySyncTimer(
       win.setTimeout(() => {
         setThreadSummarySyncTimer(0);
         setThreadSummaryLastRequestedAt(Date.now());
         void refreshDashboardChatThreadSummariesFromApi(options);
-      }, Number(options.delayMs ?? 200))
+      }, delayMs)
     );
   }
 
@@ -436,11 +456,17 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       win.clearTimeout(getApiSyncTimer());
     }
 
+    const delayMs = refreshDelayWithBudget(
+      options.delayMs ?? 160,
+      dashboardChatApiLastRequestedAt,
+      DASHBOARD_CHAT_API_REFRESH_MIN_INTERVAL_MS
+    );
     setApiSyncTimer(
       win.setTimeout(() => {
         setApiSyncTimer(0);
+        dashboardChatApiLastRequestedAt = Date.now();
         void refreshDashboardChatFromApi(options);
-      }, Number(options.delayMs ?? 160))
+      }, delayMs)
     );
   }
 
@@ -605,8 +631,6 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
         .on("postgres_changes", { event: "*", schema: "public", table: "chat_messages", filter: realtimeScopeFilter }, handleDashboardChatRealtimeMessageChange)
         .on("postgres_changes", { event: "*", schema: "public", table: "chat_attachments", filter: realtimeScopeFilter }, handleDashboardChatRealtimeRelatedChange)
         .on("postgres_changes", { event: "*", schema: "public", table: "chat_thread_participants", filter: realtimeScopeFilter }, handleDashboardChatRealtimeRelatedChange)
-        .on("postgres_changes", { event: "*", schema: "public", table: "chat_reactions", filter: realtimeScopeFilter }, () => handleDashboardChatRealtimeRelatedChange())
-        .on("postgres_changes", { event: "*", schema: "public", table: "chat_read_receipts", filter: realtimeScopeFilter }, () => handleDashboardChatRealtimeRelatedChange())
         .subscribe(handleDashboardChatRealtimeStatus)
     );
   }

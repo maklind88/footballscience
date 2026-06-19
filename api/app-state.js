@@ -24,6 +24,9 @@ const MAX_APP_STATE_JSON_BODY_BYTES = 4 * 1024 * 1024;
 const MAX_STATE_VALUE_BYTES = 12 * 1024 * 1024;
 const STATE_BUCKET_CHECK_TTL_MS = 10 * 60 * 1000;
 const STATE_LIST_CACHE_TTL_MS = 5000;
+const STATE_READ_SNAPSHOT_SCHEMA = "footballscience-app-state-read-snapshot-v1";
+const STATE_READ_SNAPSHOT_PATH = `${STATE_PREFIX}/__app-state-read-snapshot-v1.json`;
+const STATE_READ_SNAPSHOT_MAX_AGE_MS = 30 * 1000;
 const PERIODIZATION_KEY = "football-periodization-v2";
 const SESSION_PLANNER_KEY = "football-session-planner-v3";
 const SESSION_EXERCISE_LIBRARY_KEY = "football-session-exercise-library-v1";
@@ -195,6 +198,7 @@ const BLOCKED_JSON_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 const MAX_CONTENT_DEPTH = 80;
 let stateBucketReadyCache = { checkedAt: 0, result: null, pending: null };
 let stateListObjectsCache = { updatedAt: 0, result: null };
+let stateReadSnapshotCache = { updatedAt: 0, result: null, pending: null };
 
 function cloneStateListResult(result = {}) {
   return {
@@ -207,6 +211,7 @@ function cloneStateListResult(result = {}) {
 
 function clearStateListObjectsCache() {
   stateListObjectsCache = { updatedAt: 0, result: null };
+  stateReadSnapshotCache = { updatedAt: 0, result: null, pending: null };
 }
 
 function storageHeaders(contentType = "application/json") {
@@ -2822,12 +2827,14 @@ async function writeStateObject(entry) {
     });
     if (fallback.ok) {
       clearStateListObjectsCache();
+      await removeStateListSnapshot().catch(() => null);
     }
     return fallback;
   }
 
   if (result.ok) {
     clearStateListObjectsCache();
+    await removeStateListSnapshot().catch(() => null);
   }
   return result;
 }
@@ -2840,8 +2847,113 @@ async function removeStateObject(key) {
   });
   if (result.ok || result.status === 404) {
     clearStateListObjectsCache();
+    await removeStateListSnapshot().catch(() => null);
   }
   return result;
+}
+
+async function removeStateListSnapshot() {
+  stateReadSnapshotCache = { updatedAt: 0, result: null, pending: null };
+  return storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}`, {
+    method: "DELETE",
+    body: JSON.stringify({ prefixes: [STATE_READ_SNAPSHOT_PATH] }),
+  });
+}
+
+function normalizeStateListSnapshot(payload = {}, nowMs = Date.now()) {
+  if (payload?.schema !== STATE_READ_SNAPSHOT_SCHEMA) {
+    return null;
+  }
+  const generatedAtMs = new Date(payload.generatedAt || 0).getTime();
+  if (!Number.isFinite(generatedAtMs) || nowMs - generatedAtMs > STATE_READ_SNAPSHOT_MAX_AGE_MS) {
+    return null;
+  }
+
+  const entries = {};
+  const metadata = {};
+  Object.entries(payload.entries || {}).forEach(([key, value]) => {
+    const normalizedKey = sanitizeStateKey(key);
+    if (!normalizedKey || typeof value !== "string") {
+      return;
+    }
+    entries[normalizedKey] = value;
+    metadata[normalizedKey] =
+      payload.metadata?.[normalizedKey] && typeof payload.metadata[normalizedKey] === "object"
+        ? { ...payload.metadata[normalizedKey] }
+        : {};
+  });
+  return { entries, metadata };
+}
+
+async function readStateListSnapshot() {
+  const now = Date.now();
+  if (stateReadSnapshotCache.result && now - stateReadSnapshotCache.updatedAt < STATE_LIST_CACHE_TTL_MS) {
+    return cloneStateListResult(stateReadSnapshotCache.result);
+  }
+  if (stateReadSnapshotCache.pending) {
+    return stateReadSnapshotCache.pending;
+  }
+
+  stateReadSnapshotCache.pending = (async () => {
+    const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${STATE_READ_SNAPSHOT_PATH}`, {
+      method: "GET",
+      raw: true,
+      contentType: "",
+    });
+    if (!result.ok) {
+      return null;
+    }
+    const snapshot = normalizeStateListSnapshot(safeParseJson(result.payload, null), now);
+    if (!snapshot) {
+      return null;
+    }
+    stateReadSnapshotCache = { updatedAt: Date.now(), result: cloneStateListResult(snapshot), pending: null };
+    return cloneStateListResult(snapshot);
+  })();
+
+  try {
+    return await stateReadSnapshotCache.pending;
+  } finally {
+    if (stateReadSnapshotCache.pending) {
+      stateReadSnapshotCache.pending = null;
+    }
+  }
+}
+
+async function writeStateListSnapshot(result = {}) {
+  const snapshot = {
+    schema: STATE_READ_SNAPSHOT_SCHEMA,
+    generatedAt: new Date().toISOString(),
+    keyCount: Object.keys(result.entries || {}).length,
+    entries: { ...(result.entries || {}) },
+    metadata: Object.fromEntries(
+      Object.entries(result.metadata || {}).map(([key, value]) => [key, { ...(value || {}) }])
+    ),
+  };
+  const writeResult = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${STATE_READ_SNAPSHOT_PATH}`, {
+    method: "PUT",
+    headers: {
+      "x-upsert": "true",
+      "Cache-Control": "no-store",
+    },
+    body: JSON.stringify(snapshot),
+  });
+  const finalResult =
+    !writeResult.ok && writeResult.status === 404
+      ? await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${STATE_READ_SNAPSHOT_PATH}`, {
+          method: "POST",
+          headers: {
+            "x-upsert": "true",
+            "Cache-Control": "no-store",
+          },
+          body: JSON.stringify(snapshot),
+        })
+      : writeResult;
+
+  if (finalResult.ok) {
+    stateReadSnapshotCache = { updatedAt: Date.now(), result: cloneStateListResult(result), pending: null };
+  }
+  return finalResult;
 }
 
 async function listStateObjects() {
@@ -2849,6 +2961,12 @@ async function listStateObjects() {
   if (stateListObjectsCache.result && now - stateListObjectsCache.updatedAt < STATE_LIST_CACHE_TTL_MS) {
     return cloneStateListResult(stateListObjectsCache.result);
   }
+  const snapshot = await readStateListSnapshot();
+  if (snapshot) {
+    stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(snapshot) };
+    return cloneStateListResult(snapshot);
+  }
+
   const entries = {};
   const metadata = {};
   await Promise.all(Array.from(CENTRAL_STATE_KEYS).map(async (key) => {
@@ -2861,6 +2979,7 @@ async function listStateObjects() {
 
   const result = { entries, metadata };
   stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(result) };
+  await writeStateListSnapshot(result).catch(() => null);
   return result;
 }
 

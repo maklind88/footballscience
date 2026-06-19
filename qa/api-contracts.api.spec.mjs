@@ -11,6 +11,12 @@ const sessionHistoryHandler = require("../api/session-history.js");
 const { getCurrentActor } = require("../api/_lib/supabase-admin.js");
 const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
 
+function loadFreshAppStateHandler() {
+  const modulePath = require.resolve("../api/app-state.js");
+  delete require.cache[modulePath];
+  return require("../api/app-state.js");
+}
+
 const supabaseEnvKeys = [
   "CRON_SECRET",
   "SUPABASE_URL",
@@ -109,6 +115,8 @@ const medicalTeamKey = "football-medical-team-v1";
 const medicalTeamPath = `global/${medicalTeamKey}.json`;
 const transferRoomKey = "football-transfer-room-v1";
 const transferRoomPath = `global/${transferRoomKey}.json`;
+const scheduleKey = "football-schedule-v1";
+const appStateReadSnapshotPath = "global/__app-state-read-snapshot-v1.json";
 
 function createAppStateStorageEntry(key, value, updatedAt = "2026-05-07T00:00:00.000Z") {
   return {
@@ -251,6 +259,8 @@ function createMockPlatformUser(role = "coach") {
 function createAppStateFetchMock(initialObjects = {}, role = "coach") {
   const objects = new Map(Object.entries(initialObjects));
   const writes = [];
+  const reads = [];
+  const deletes = [];
   const user = createMockPlatformUser(role);
 
   const fetchMock = async (url, options = {}) => {
@@ -269,11 +279,20 @@ function createAppStateFetchMock(initialObjects = {}, role = "coach") {
       return new Response(JSON.stringify({ id: "footballscience-app-state" }), { status: 200 });
     }
 
+    if (requestUrl.endsWith("/storage/v1/object/footballscience-app-state") && method === "DELETE") {
+      const body = JSON.parse(String(options.body || "{}"));
+      const prefixes = Array.isArray(body?.prefixes) ? body.prefixes : [];
+      prefixes.forEach((prefix) => objects.delete(prefix));
+      deletes.push(...prefixes);
+      return new Response(JSON.stringify({ deleted: prefixes.length }), { status: 200 });
+    }
+
     const objectMarker = "/storage/v1/object/footballscience-app-state/";
     const objectMarkerIndex = requestUrl.indexOf(objectMarker);
     if (objectMarkerIndex >= 0) {
       const objectPath = decodeURIComponent(requestUrl.slice(objectMarkerIndex + objectMarker.length).split("?", 1)[0]);
       if (method === "GET") {
+        reads.push(objectPath);
         if (!objects.has(objectPath)) {
           return new Response("{}", { status: 404 });
         }
@@ -291,6 +310,7 @@ function createAppStateFetchMock(initialObjects = {}, role = "coach") {
         const body = JSON.parse(String(options.body || "{}"));
         const prefixes = Array.isArray(body?.prefixes) ? body.prefixes : [];
         prefixes.forEach((prefix) => objects.delete(prefix));
+        deletes.push(...prefixes);
         return new Response(JSON.stringify({ deleted: prefixes.length }), { status: 200 });
       }
     }
@@ -298,7 +318,7 @@ function createAppStateFetchMock(initialObjects = {}, role = "coach") {
     return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
   };
 
-  return { fetchMock, objects, writes };
+  return { fetchMock, objects, writes, reads, deletes };
 }
 
 test("client-config fails loudly when Supabase browser config is missing", async () => {
@@ -674,6 +694,191 @@ test("app-state rejects unauthenticated requests before touching Supabase storag
     });
     expect(response.payload.reason).toContain("signed in");
   } finally {
+    restoreEnv(env);
+  }
+});
+
+test("app-state uses shared read snapshot before fanning out to protected storage keys", async () => {
+  const handler = loadFreshAppStateHandler();
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const scheduleValue = JSON.stringify({ events: [{ id: "event-1", title: "Training" }] });
+  const storage = createAppStateFetchMock({
+    [appStateReadSnapshotPath]: {
+      schema: "footballscience-app-state-read-snapshot-v1",
+      generatedAt: new Date().toISOString(),
+      entries: {
+        [scheduleKey]: scheduleValue,
+      },
+      metadata: {
+        [scheduleKey]: {
+          revision: 7,
+          moduleId: "schedule",
+          organizationId: "global",
+          updatedAt: "2026-06-19T18:00:00.000Z",
+        },
+      },
+    },
+    [`global/${scheduleKey}.json`]: createAppStateStorageEntry(scheduleKey, { events: [] }),
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(handler, {
+      method: "GET",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer snapshot-token",
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.entries[scheduleKey]).toBe(scheduleValue);
+    expect(storage.reads).toContain(appStateReadSnapshotPath);
+    expect(storage.reads).not.toContain(`global/${scheduleKey}.json`);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state ignores stale shared read snapshots and rebuilds them from source objects", async () => {
+  const handler = loadFreshAppStateHandler();
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const sourceState = { events: [{ id: "event-fresh", title: "Fresh training" }] };
+  const storage = createAppStateFetchMock({
+    [appStateReadSnapshotPath]: {
+      schema: "footballscience-app-state-read-snapshot-v1",
+      generatedAt: "2020-01-01T00:00:00.000Z",
+      entries: {
+        [scheduleKey]: JSON.stringify({ events: [{ id: "event-stale", title: "Stale training" }] }),
+      },
+      metadata: {
+        [scheduleKey]: {
+          revision: 1,
+        },
+      },
+    },
+    [`global/${scheduleKey}.json`]: createAppStateStorageEntry(scheduleKey, sourceState),
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(handler, {
+      method: "GET",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer snapshot-token",
+      },
+    });
+
+    const snapshotWrite = storage.writes.find((write) => write.objectPath === appStateReadSnapshotPath);
+    expect(response.status).toBe(200);
+    expect(response.payload.entries[scheduleKey]).toBe(JSON.stringify(sourceState));
+    expect(storage.reads).toContain(appStateReadSnapshotPath);
+    expect(storage.reads).toContain(`global/${scheduleKey}.json`);
+    expect(snapshotWrite?.entry.entries[scheduleKey]).toBe(JSON.stringify(sourceState));
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state rebuilds the shared read snapshot when the snapshot is missing", async () => {
+  const handler = loadFreshAppStateHandler();
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const sourceState = { events: [{ id: "event-rebuild", title: "Rebuild training" }] };
+  const storage = createAppStateFetchMock({
+    [`global/${scheduleKey}.json`]: createAppStateStorageEntry(scheduleKey, sourceState),
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(handler, {
+      method: "GET",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer snapshot-token",
+      },
+    });
+
+    const snapshotWrite = storage.writes.find((write) => write.objectPath === appStateReadSnapshotPath);
+    expect(response.status).toBe(200);
+    expect(response.payload.entries[scheduleKey]).toBe(JSON.stringify(sourceState));
+    expect(storage.reads).toContain(appStateReadSnapshotPath);
+    expect(storage.reads).toContain(`global/${scheduleKey}.json`);
+    expect(snapshotWrite?.entry.schema).toBe("footballscience-app-state-read-snapshot-v1");
+    expect(snapshotWrite?.entry.entries[scheduleKey]).toBe(JSON.stringify(sourceState));
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state invalidates the shared read snapshot after central state writes", async () => {
+  const handler = loadFreshAppStateHandler();
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const nextState = { events: [{ id: "event-write", title: "Written training" }] };
+  const storage = createAppStateFetchMock({
+    [appStateReadSnapshotPath]: {
+      schema: "footballscience-app-state-read-snapshot-v1",
+      generatedAt: new Date().toISOString(),
+      entries: {
+        [scheduleKey]: JSON.stringify({ events: [{ id: "event-old", title: "Old training" }] }),
+      },
+      metadata: {
+        [scheduleKey]: {
+          revision: 1,
+        },
+      },
+    },
+    [`global/${scheduleKey}.json`]: createAppStateStorageEntry(scheduleKey, { events: [] }),
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(handler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer snapshot-token",
+      },
+      body: JSON.stringify({
+        key: scheduleKey,
+        value: JSON.stringify(nextState),
+        metadata: { baseRevision: 1 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(storage.deletes).toContain(appStateReadSnapshotPath);
+    expect(storage.objects.has(appStateReadSnapshotPath)).toBe(false);
+    expect(storage.objects.get(`global/${scheduleKey}.json`)?.value).toBe(JSON.stringify(nextState));
+  } finally {
+    global.fetch = originalFetch;
     restoreEnv(env);
   }
 });

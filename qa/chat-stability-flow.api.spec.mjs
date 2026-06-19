@@ -348,9 +348,14 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(rendererSource).toContain("data-dashboard-chat-search-active");
   expect(appSource).toContain("handleDashboardChatRealtimeRelatedChange");
   const chatRealtimePatterns = `${appSource}\n${chatApiRuntimeSource}`;
+  expect(chatApiRuntimeSource).toContain("DASHBOARD_CHAT_API_REFRESH_MIN_INTERVAL_MS = 2000");
+  expect(chatApiRuntimeSource).toContain("DASHBOARD_CHAT_THREAD_SUMMARY_REFRESH_MIN_INTERVAL_MS = 5000");
+  expect(chatApiRuntimeSource).toContain("refreshDelayWithBudget");
   expect(chatRealtimePatterns).toContain('table: "chat_threads"');
   expect(chatRealtimePatterns).toContain('table: "chat_attachments"');
   expect(chatRealtimePatterns).toContain('table: "chat_thread_participants"');
+  expect(chatRealtimePatterns).not.toContain('table: "chat_reactions"');
+  expect(chatRealtimePatterns).not.toContain('table: "chat_read_receipts"');
   const chatWidgetRuntimeContractSource = `${chatWidgetRuntimeSource}\n${rendererSource}`;
   expect(chatWidgetRuntimeContractSource).toContain("latestApiThreadMessage");
   expect(chatWidgetRuntimeContractSource).toContain("newestMessage");

@@ -43,7 +43,13 @@ test("server app-state API caches burst reads without caching writes", () => {
 
   expect(readNumericConstant(appStateSource, "STATE_BUCKET_CHECK_TTL_MS")).toBeGreaterThanOrEqual(5 * 60 * 1000);
   expect(readNumericConstant(appStateSource, "STATE_LIST_CACHE_TTL_MS")).toBeLessThanOrEqual(10000);
+  expect(readNumericConstant(appStateSource, "STATE_READ_SNAPSHOT_MAX_AGE_MS")).toBeGreaterThanOrEqual(30000);
+  expect(readNumericConstant(appStateSource, "STATE_READ_SNAPSHOT_MAX_AGE_MS")).toBeLessThanOrEqual(2 * 60 * 1000);
   expect(appStateSource).toContain("stateListObjectsCache");
+  expect(appStateSource).toContain("STATE_READ_SNAPSHOT_SCHEMA");
+  expect(appStateSource).toContain("readStateListSnapshot");
+  expect(appStateSource).toContain("writeStateListSnapshot");
+  expect(appStateSource).toContain("removeStateListSnapshot");
   expect(appStateSource).toContain("cloneStateListResult");
   expect(appStateSource).toContain("clearStateListObjectsCache();");
 });

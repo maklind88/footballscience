@@ -1308,26 +1308,7 @@ function threadPermissionsForActor(actor, thread = {}) {
   };
 }
 
-async function enrichMessages(messages = [], thread = null) {
-  const messageIds = messages.map((message) => message.id).filter(Boolean);
-  if (!messageIds.length) {
-    return [];
-  }
-
-  const reactionRows = await selectMany(
-    "chat_reactions",
-    `select=${REACTION_SELECT}&message_id=${inFilter(messageIds)}`
-  ).catch(() => []);
-  const attachmentRows = await selectMany(
-    "chat_attachments",
-    `select=${ATTACHMENT_SELECT}&message_id=${inFilter(messageIds)}&status=in.(pending,ready)`
-  ).catch(() => []);
-  const receiptRows = thread?.id
-    ? await selectMany(
-        "chat_read_receipts",
-        `select=${RECEIPT_SELECT}&thread_id=eq.${filterValue(thread.id)}`
-      ).catch(() => [])
-    : [];
+function buildMessageEnrichment(reactionRows = [], attachmentRows = [], receiptRows = []) {
   const reactionsByMessage = reactionRows.reduce((map, row) => {
     const reactions = map.get(row.message_id) || {};
     const key = normalizeString(row.reaction || "like", 32);
@@ -1340,42 +1321,106 @@ async function enrichMessages(messages = [], thread = null) {
     return map;
   }, new Map());
 
-  return messages.map((message) => {
-    const readBy = receiptRows
-      .filter((receipt) => {
-        if (!receipt.user_id) {
-          return false;
-        }
-        if (receipt.last_read_message_id === message.id) {
-          return true;
-        }
-        return Date.parse(receipt.last_read_at || "") >= Date.parse(message.created_at || "");
-      })
-      .map((receipt) => receipt.user_id);
+  return {
+    reactionsByMessage,
+    attachmentsByMessage,
+    receiptRows: Array.isArray(receiptRows) ? receiptRows : [],
+  };
+}
 
-    return {
-      ...message,
-      legacyThreadId: thread ? toLegacyThreadId(thread) : "",
-      text: message.body,
-      userId: message.author_id,
-      threadId: thread ? toLegacyThreadId(thread) : message.thread_id,
-      createdAt: message.created_at,
-      updatedAt: message.updated_at,
-      replyToId: message.reply_to_id || "",
-      pinnedAt: message.pinned_at || "",
-      pinnedBy: message.pinned_by || "",
-      author: {
-        id: message.author_id || "",
-        firstName: normalizeString(message.metadata?.authorName || "Staff", 80).split(" ")[0] || "Staff",
-        lastName: normalizeString(message.metadata?.authorName || "", 80).split(" ").slice(1).join(" "),
-        role: normalizeString(message.metadata?.authorRole || "coach", 40),
-      },
-      reactions: reactionsByMessage.get(message.id) || {},
-      readBy: Array.from(new Set([message.author_id, ...readBy].filter(Boolean))),
-      attachments: (attachmentsByMessage.get(message.id) || []).map(attachmentClientPayload),
-      status: message.deleted_at ? "deleted" : "sent",
-    };
+async function loadMessageEnrichment(messages = [], options = {}) {
+  const sourceMessages = Array.isArray(messages) ? messages : [];
+  const messageIds = Array.from(new Set(sourceMessages.map((message) => message.id).filter(Boolean)));
+  if (!messageIds.length) {
+    return buildMessageEnrichment();
+  }
+
+  const providedReceiptRows = Array.isArray(options.receiptRows) ? options.receiptRows : null;
+  const threadIds = Array.from(new Set(
+    (Array.isArray(options.threadIds) ? options.threadIds : [options.thread?.id])
+      .map((value) => normalizeId(value))
+      .filter(Boolean)
+  ));
+  const receiptQuery = !providedReceiptRows && threadIds.length
+    ? threadIds.length === 1
+      ? `select=${RECEIPT_SELECT}&thread_id=eq.${filterValue(threadIds[0])}`
+      : `select=${RECEIPT_SELECT}&thread_id=${inFilter(threadIds)}`
+    : "";
+  const [reactionRows, attachmentRows, fetchedReceiptRows] = await Promise.all([
+    selectMany(
+      "chat_reactions",
+      `select=${REACTION_SELECT}&message_id=${inFilter(messageIds)}`
+    ).catch(() => []),
+    selectMany(
+      "chat_attachments",
+      `select=${ATTACHMENT_SELECT}&message_id=${inFilter(messageIds)}&status=in.(pending,ready)`
+    ).catch(() => []),
+    receiptQuery ? selectMany("chat_read_receipts", receiptQuery).catch(() => []) : Promise.resolve([]),
+  ]);
+
+  return buildMessageEnrichment(reactionRows, attachmentRows, providedReceiptRows || fetchedReceiptRows);
+}
+
+function mapEnrichedMessage(message = {}, thread = null, enrichment = buildMessageEnrichment()) {
+  const messageThreadId = normalizeId(thread?.id || message.thread_id || "");
+  const readBy = (enrichment.receiptRows || [])
+    .filter((receipt) => {
+      if (!receipt.user_id) {
+        return false;
+      }
+      if (messageThreadId && normalizeId(receipt.thread_id) !== messageThreadId) {
+        return false;
+      }
+      if (receipt.last_read_message_id === message.id) {
+        return true;
+      }
+      return Date.parse(receipt.last_read_at || "") >= Date.parse(message.created_at || "");
+    })
+    .map((receipt) => receipt.user_id);
+
+  return {
+    ...message,
+    legacyThreadId: thread ? toLegacyThreadId(thread) : "",
+    text: message.body,
+    userId: message.author_id,
+    threadId: thread ? toLegacyThreadId(thread) : message.thread_id,
+    createdAt: message.created_at,
+    updatedAt: message.updated_at,
+    replyToId: message.reply_to_id || "",
+    pinnedAt: message.pinned_at || "",
+    pinnedBy: message.pinned_by || "",
+    author: {
+      id: message.author_id || "",
+      firstName: normalizeString(message.metadata?.authorName || "Staff", 80).split(" ")[0] || "Staff",
+      lastName: normalizeString(message.metadata?.authorName || "", 80).split(" ").slice(1).join(" "),
+      role: normalizeString(message.metadata?.authorRole || "coach", 40),
+    },
+    reactions: enrichment.reactionsByMessage.get(message.id) || {},
+    readBy: Array.from(new Set([message.author_id, ...readBy].filter(Boolean))),
+    attachments: (enrichment.attachmentsByMessage.get(message.id) || []).map(attachmentClientPayload),
+    status: message.deleted_at ? "deleted" : "sent",
+  };
+}
+
+async function enrichMessages(messages = [], thread = null, options = {}) {
+  const sourceMessages = Array.isArray(messages) ? messages : [];
+  const messageIds = sourceMessages.map((message) => message.id).filter(Boolean);
+  if (!messageIds.length) {
+    return [];
+  }
+
+  const threadIds = Array.isArray(options.threadIds)
+    ? options.threadIds
+    : thread?.id
+      ? [thread.id]
+      : [];
+  const enrichment = options.enrichment || await loadMessageEnrichment(sourceMessages, {
+    thread,
+    threadIds,
+    receiptRows: options.receiptRows,
   });
+  const threadsById = options.threadsById instanceof Map ? options.threadsById : null;
+  return sourceMessages.map((message) => mapEnrichedMessage(message, threadsById?.get(message.thread_id) || thread, enrichment));
 }
 
 async function enrichThreadSummaries(actor, threads = []) {
@@ -1409,46 +1454,48 @@ async function enrichThreadSummaries(actor, threads = []) {
     map.set(`${receipt.thread_id}:${receipt.user_id}`, receipt);
     return map;
   }, new Map());
-  return Promise.all(
-    threads.map(async (thread) => {
-      const lastMessage = messagesById.get(thread.last_message_id) || null;
-      const [enrichedLastMessage] = lastMessage ? await enrichMessages([lastMessage], thread) : [];
-      const receipt = receiptsByThreadId.get(thread.id) || null;
-      const metadata = isPlainObject(thread.metadata) ? thread.metadata : {};
-      const settingsByUser = isPlainObject(metadata.settingsByUser) ? metadata.settingsByUser : {};
-      const actorSettings = normalizeThreadSettingPatch(settingsByUser[actor?.id] || {});
-      const lastMessageAtMs = Date.parse(thread.last_message_at || lastMessage?.created_at || "");
-      const lastReadAtMs = Date.parse(receipt?.last_read_at || "");
-      const unreadCount =
-        enrichedLastMessage?.author_id && enrichedLastMessage.author_id !== actor?.id && Number.isFinite(lastMessageAtMs) && (!Number.isFinite(lastReadAtMs) || lastMessageAtMs > lastReadAtMs)
-          ? 1
-          : 0;
-      return {
-        ...thread,
-        legacyThreadId: toLegacyThreadId(thread),
-        threadId: toLegacyThreadId(thread),
-        participants: (participantRowsByThreadId.get(thread.id) || []).length
-          ? (participantRowsByThreadId.get(thread.id) || []).map((participant) =>
-              participantClientPayload(participant, receiptsByThreadAndUser.get(`${thread.id}:${participant.user_id}`))
-            )
-          : threadParticipantIds(thread).map((userId) => participantClientPayload({ user_id: userId })),
-        permissions: threadPermissionsForActor(actor, thread),
+  const lastMessageEnrichment = await loadMessageEnrichment(lastMessages, {
+    threadIds,
+    receiptRows: allReceipts,
+  });
+  return threads.map((thread) => {
+    const lastMessage = messagesById.get(thread.last_message_id) || null;
+    const enrichedLastMessage = lastMessage ? mapEnrichedMessage(lastMessage, thread, lastMessageEnrichment) : null;
+    const receipt = receiptsByThreadId.get(thread.id) || null;
+    const metadata = isPlainObject(thread.metadata) ? thread.metadata : {};
+    const settingsByUser = isPlainObject(metadata.settingsByUser) ? metadata.settingsByUser : {};
+    const actorSettings = normalizeThreadSettingPatch(settingsByUser[actor?.id] || {});
+    const lastMessageAtMs = Date.parse(thread.last_message_at || lastMessage?.created_at || "");
+    const lastReadAtMs = Date.parse(receipt?.last_read_at || "");
+    const unreadCount =
+      enrichedLastMessage?.author_id && enrichedLastMessage.author_id !== actor?.id && Number.isFinite(lastMessageAtMs) && (!Number.isFinite(lastReadAtMs) || lastMessageAtMs > lastReadAtMs)
+        ? 1
+        : 0;
+    return {
+      ...thread,
+      legacyThreadId: toLegacyThreadId(thread),
+      threadId: toLegacyThreadId(thread),
+      participants: (participantRowsByThreadId.get(thread.id) || []).length
+        ? (participantRowsByThreadId.get(thread.id) || []).map((participant) =>
+            participantClientPayload(participant, receiptsByThreadAndUser.get(`${thread.id}:${participant.user_id}`))
+          )
+        : threadParticipantIds(thread).map((userId) => participantClientPayload({ user_id: userId })),
+      permissions: threadPermissionsForActor(actor, thread),
+      avatarUrl: normalizeString(metadata.avatarUrl || metadata.imageUrl || "", 800),
+      settings: {
+        muted: Boolean(actorSettings.muted),
+        pinned: Boolean(actorSettings.pinned),
+        customTitle: normalizeString(metadata.customTitle || "", 140),
+        avatarLabel: normalizeString(metadata.avatarLabel || "", 2).toUpperCase(),
         avatarUrl: normalizeString(metadata.avatarUrl || metadata.imageUrl || "", 800),
-        settings: {
-          muted: Boolean(actorSettings.muted),
-          pinned: Boolean(actorSettings.pinned),
-          customTitle: normalizeString(metadata.customTitle || "", 140),
-          avatarLabel: normalizeString(metadata.avatarLabel || "", 2).toUpperCase(),
-          avatarUrl: normalizeString(metadata.avatarUrl || metadata.imageUrl || "", 800),
-          updatedAt: normalizeString(settingsByUser[actor?.id]?.updatedAt || metadata.threadSettingsUpdatedAt || metadata.settingsUpdatedAt || "", 80),
-        },
-        lastMessage: enrichedLastMessage || null,
-        lastMessagePreview: enrichedLastMessage ? messagePreviewText(enrichedLastMessage) : "",
-        unreadCount,
-        lastReadAt: receipt?.last_read_at || "",
-      };
-    })
-  );
+        updatedAt: normalizeString(settingsByUser[actor?.id]?.updatedAt || metadata.threadSettingsUpdatedAt || metadata.settingsUpdatedAt || "", 80),
+      },
+      lastMessage: enrichedLastMessage || null,
+      lastMessagePreview: enrichedLastMessage ? messagePreviewText(enrichedLastMessage) : "",
+      unreadCount,
+      lastReadAt: receipt?.last_read_at || "",
+    };
+  });
 }
 
 async function recalculateThreadSummary(thread = {}) {
@@ -1674,17 +1721,11 @@ async function handleDatabaseGet(req, res, actor) {
         .filter((thread) => thread.team_id === scope.teamId || (thread.type === "dm" && participantThreadIds.has(thread.id)))
         .map((thread) => [thread.id, thread])
     );
-    const enriched = [];
-    for (const message of messages.reverse()) {
-      const thread = threadsById.get(message.thread_id) || null;
-      if (!thread) {
-        continue;
-      }
-      const [mapped] = await enrichMessages([message], thread);
-      if (mapped) {
-        enriched.push(mapped);
-      }
-    }
+    const visibleMessages = messages.reverse().filter((message) => threadsById.has(message.thread_id));
+    const enriched = await enrichMessages(visibleMessages, null, {
+      threadIds: Array.from(new Set(visibleMessages.map((message) => message.thread_id).filter(Boolean))),
+      threadsById,
+    });
     return sendJson(res, 200, {
       ok: true,
       schema: "footballscience-chat-database-v1",

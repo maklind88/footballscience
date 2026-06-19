@@ -1162,7 +1162,7 @@
 }
 
 .video-analysis-player-controls button,
-.video-analysis-player-tag-filter {
+.video-analysis-player-view-button {
   min-height: 34px;
   border: 1px solid #cad4ce;
   border-radius: 999px;
@@ -1181,7 +1181,8 @@
   background: transparent;
 }
 
-.video-analysis-player-controls button:disabled {
+.video-analysis-player-controls button:disabled,
+.video-analysis-player-view-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
@@ -1226,29 +1227,99 @@
   line-height: 1;
 }
 
-.video-analysis-player-tag-filter {
+.video-analysis-player-view-actions {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 5px;
   justify-self: end;
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid #d7dfda;
+  border-radius: 999px;
+  padding: 3px;
+  background: #f5f8f6;
   white-space: nowrap;
 }
 
-.video-analysis-player-tag-filter span {
-  color: #111815;
-  font-size: 18px;
-  line-height: 1;
+.video-analysis-player-view-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  border-color: transparent;
+  background: transparent;
+  white-space: nowrap;
 }
 
-.video-analysis-player-tag-filter em {
-  min-width: 24px;
+.video-analysis-player-view-button:hover {
+  background: #ffffff;
+  box-shadow: 0 3px 10px rgba(15, 23, 19, 0.06);
+}
+
+.video-analysis-player-view-button.is-active {
+  color: #ffffff;
+  background: #111815;
+  box-shadow: 0 8px 18px rgba(15, 23, 19, 0.18);
+}
+
+.video-analysis-player-view-icon {
+  position: relative;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.video-analysis-player-view-icon::before,
+.video-analysis-player-view-icon::after {
+  position: absolute;
+  inset: 1px;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+  content: "";
+}
+
+.video-analysis-player-view-icon::after {
+  inset: 4px;
+  border-width: 0;
+  border-top: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+  transform: rotate(180deg);
+}
+
+.video-analysis-player-view-icon.is-code {
+  width: 16px;
+}
+
+.video-analysis-player-view-icon.is-code::before {
+  inset: 2px 1px;
+  border-width: 2px;
   border-radius: 999px;
-  padding: 2px 7px;
-  color: #17201b;
-  background: #dce3df;
-  font-style: normal;
-  font-size: 11px;
+}
+
+.video-analysis-player-view-icon.is-code::after {
+  inset: 5px 4px;
+  border-width: 0;
+  border-left: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  border-radius: 0;
+  transform: none;
+}
+
+.video-analysis-video-frame:fullscreen {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  place-items: center;
+  background: #000000;
+}
+
+.video-analysis-video-frame:fullscreen .video-analysis-video {
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
 }
 
 .video-analysis-player__meta {
@@ -1572,6 +1643,100 @@
 
 .video-analysis-fs-player-timeline .video-analysis-clip-block__handle {
   width: 5px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  grid-template-areas: "code main";
+  grid-template-columns: clamp(280px, 22vw, 360px) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100vh;
+  padding: 12px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 76% 12%, rgba(44, 89, 69, 0.24), transparent 28rem),
+    linear-gradient(180deg, #070b09 0%, #020403 100%);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode:fullscreen {
+  width: 100vw;
+  height: 100vh;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-main {
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px;
+  min-height: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-deck,
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline,
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-template-builder {
+  border-color: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(9, 14, 12, 0.92);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  min-height: 0;
+  height: 100%;
+  background: #020403;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player__bar,
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-transport,
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player__meta {
+  color: #f6f8f7;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(10, 16, 13, 0.88);
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player h2,
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-kicker {
+  color: #f6f8f7;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-video-frame {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: auto;
+  background: #000000;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-video,
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-empty-video {
+  min-height: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline {
+  max-height: 34vh;
+  overflow: hidden;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock {
+  position: static;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-template-builder {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  overflow: hidden;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-template-scroll {
+  overflow: auto;
 }
 
 .video-analysis-code-window-dock {
@@ -6221,7 +6386,7 @@
     overflow-x: auto;
   }
 
-  .video-analysis-player-tag-filter {
+  .video-analysis-player-view-actions {
     justify-self: start;
   }
 

@@ -131,6 +131,9 @@ export function createInitialVideoAnalysisState(context = {}) {
         viewOpen: false,
       },
     },
+    fsPlayer: {
+      mode: "standard",
+    },
     matrix: {
       mode: "phase-outcome",
       selectedRow: "",

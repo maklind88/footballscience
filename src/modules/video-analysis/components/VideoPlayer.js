@@ -54,9 +54,7 @@ export function renderVideoPlayer(state = {}) {
   const title = ref?.displayName || state.match?.title || state.pendingScheduleLink?.title || "No match video loaded";
   const currentMs = Math.max(0, Math.round(Number(state.timeline?.playheadMs || 0)));
   const durationMs = Math.max(0, Math.round(Number(ref?.durationMs || 0)), Math.round(Number(getTimelineDurationMs(state) || 0)));
-  const visibleClipCount = Array.isArray(state.clips) ? state.clips.length : 0;
-  const totalClipCount = Array.isArray(state.allClips) && state.allClips.length ? state.allClips.length : visibleClipCount;
-  const filtered = totalClipCount > visibleClipCount;
+  const codeModeActive = state.fsPlayer?.mode === "code";
   return `
     <section class="video-analysis-player" data-video-analysis-player>
       <div class="video-analysis-player__bar">
@@ -102,11 +100,16 @@ export function renderVideoPlayer(state = {}) {
             <span class="video-analysis-player-nudge__glyph" aria-hidden="true">&#8635;</span>
           </button>
         </div>
-        <button type="button" class="video-analysis-player-tag-filter" data-video-analysis-tag-filter-trigger>
-          <span>#</span>
-          <strong>Tags</strong>
-          <em>${escapeHtml(filtered ? `${visibleClipCount}/${totalClipCount}` : String(visibleClipCount))}</em>
-        </button>
+        <div class="video-analysis-player-view-actions" aria-label="FS Player view options">
+          <button type="button" class="video-analysis-player-view-button" data-video-analysis-video-fullscreen ${hasVideo ? "" : "disabled"} aria-label="Full screen video" title="Full screen video">
+            <span class="video-analysis-player-view-icon" aria-hidden="true"></span>
+            <strong>Full screen</strong>
+          </button>
+          <button type="button" class="video-analysis-player-view-button${codeModeActive ? " is-active" : ""}" data-video-analysis-code-mode aria-pressed="${codeModeActive ? "true" : "false"}" title="${codeModeActive ? "Exit Code Mode" : "Enter Code Mode"}">
+            <span class="video-analysis-player-view-icon is-code" aria-hidden="true"></span>
+            <strong>Code mode</strong>
+          </button>
+        </div>
       </div>
       <div class="video-analysis-player__meta">
         <span>${escapeHtml(playbackStatus)}</span>

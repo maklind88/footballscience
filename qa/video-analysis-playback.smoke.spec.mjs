@@ -650,6 +650,14 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
 
   await expect(page.locator("[data-video-analysis-video]")).not.toHaveAttribute("controls", "");
+  await expect(page.locator(".video-analysis-player-tag-filter")).toHaveCount(0);
+  await expect(page.locator("[data-video-analysis-video-fullscreen]")).toBeVisible();
+  await expect(page.locator("[data-video-analysis-code-mode]")).toContainText("Code mode");
+  await page.locator("[data-video-analysis-code-mode]").click();
+  await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
+  await expect(page.locator("[data-video-analysis-code-mode]")).toHaveAttribute("aria-pressed", "true");
+  await page.locator("[data-video-analysis-code-mode]").click();
+  await expect(page.locator("[data-video-analysis-fs-player-workstation]")).not.toHaveClass(/is-code-mode/);
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Code Window");
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Football Science Tag Panel");
   await expect(page.locator('[data-video-analysis-code-button="subPhase-build-up"]')).toContainText("15s");

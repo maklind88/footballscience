@@ -105,6 +105,7 @@ function createRuntime(context = {}) {
     videos: createVideoRepository(context),
     unsubscribe: null,
     keydownBound: false,
+    fullscreenBound: false,
   };
 }
 
@@ -317,8 +318,9 @@ function activeAnalysisRoomTab(state = {}) {
 }
 
 function renderFsPlayerWorkspace(displayState = {}) {
+  const codeModeActive = displayState.fsPlayer?.mode === "code";
   return `
-    <section class="video-analysis-fs-player-workstation" data-video-analysis-fs-player-workstation>
+    <section class="video-analysis-fs-player-workstation${codeModeActive ? " is-code-mode" : ""}" data-video-analysis-fs-player-workstation>
       <section class="video-analysis-fs-player-main">
         <section class="video-analysis-fs-player-deck">
           ${renderVideoPlayer(displayState)}
@@ -446,6 +448,43 @@ function syncPlaybackControls(context = {}, video = videoElement(context), force
     if (labelNode) labelNode.textContent = label;
     if (iconNode) iconNode.textContent = playing ? "II" : "\u25b6";
   });
+}
+
+function fsPlayerWorkspaceElement(context = {}) {
+  return getRoot(context)?.querySelector("[data-video-analysis-fs-player-workstation]") || null;
+}
+
+function fsPlayerVideoFrameElement(context = {}) {
+  return getRoot(context)?.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame") || null;
+}
+
+function requestNativeFullscreen(element) {
+  if (!element?.requestFullscreen) return Promise.resolve(false);
+  return element.requestFullscreen().then(() => true).catch(() => false);
+}
+
+function enterVideoFullscreen(context = {}) {
+  const run = ensureRuntime(context);
+  const element = fsPlayerVideoFrameElement(context);
+  if (!element) {
+    run.store.setState({ error: "Video area is not available yet.", message: "" });
+    return false;
+  }
+  requestNativeFullscreen(element);
+  return true;
+}
+
+function toggleFsPlayerCodeMode(context = {}) {
+  const run = ensureRuntime(context);
+  const isActive = run.store.getState().fsPlayer?.mode === "code";
+  run.store.update((state) => ({
+    ...state,
+    fsPlayer: { ...(state.fsPlayer || {}), mode: isActive ? "standard" : "code" },
+    message: isActive ? "Code Mode closed." : "Code Mode ready.",
+    error: "",
+  }));
+  if (!isActive) requestNativeFullscreen(fsPlayerWorkspaceElement(context));
+  return true;
 }
 
 function nudgePlayer(context = {}, deltaMs = 0) {
@@ -1488,6 +1527,18 @@ export function render(context = {}) {
     win.addEventListener?.("keyup", (event) => handleKeyup(event, context), true);
     run.keydownBound = true;
   }
+  if (!run.fullscreenBound) {
+    const doc = context.doc || document;
+    doc.addEventListener?.("fullscreenchange", () => {
+      if (!doc.fullscreenElement && run.store.getState().fsPlayer?.mode === "code") {
+        run.store.update((state) => ({
+          ...state,
+          fsPlayer: { ...(state.fsPlayer || {}), mode: "standard" },
+        }));
+      }
+    });
+    run.fullscreenBound = true;
+  }
   paint(root, run.store.getState());
   if (run.store.getState().status === "idle") initialize(context);
 }
@@ -1972,6 +2023,14 @@ export function handleClick(event, context = {}) {
   }
   if (target.closest("[data-video-analysis-open-library]")) {
     libraryController().openLibraryView(context);
+    return true;
+  }
+  if (target.closest("[data-video-analysis-video-fullscreen]")) {
+    enterVideoFullscreen(context);
+    return true;
+  }
+  if (target.closest("[data-video-analysis-code-mode]")) {
+    toggleFsPlayerCodeMode(context);
     return true;
   }
   const presentationSession = target.closest("[data-video-analysis-presentation-session]");
@@ -3321,6 +3380,19 @@ export function handleKeydown(event, context = {}) {
     return true;
   }
   const category = state.timeline?.selectedCategory || {};
+  if (
+    state.activeAnalysisRoomTab === "fs-player"
+    && state.fsPlayer?.mode === "code"
+    && event.key === "Escape"
+  ) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    run.store.update((current) => ({
+      ...current,
+      fsPlayer: { ...(current.fsPlayer || {}), mode: "standard" },
+    }));
+    return true;
+  }
   if (
     state.activeAnalysisRoomTab === "fs-player"
     && state.timeline?.tagFilterOpen

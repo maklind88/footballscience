@@ -94,7 +94,7 @@ This section exists because the platform is under heavy active product developme
 - In the Fast UI Lane, do not run the full safe release gate, full API suite, broad Playwright suites, staging flow, backup/restore checks, or Supabase/security verification unless the touched files or code path make them relevant.
 - Fast UI validation should be intentionally small: prefer `npm run quick:ui`, which runs `git diff --check`, syntax for changed JS files, and path-risk detection. Add one targeted browser/smoke check only when the visual change needs proof.
 - When the worktree is clean and you need to validate committed Fast UI work, `npm run quick:ui -- --from <ref>` compares `<ref>...HEAD` instead of only unstaged/staged files.
-- If the user says `Deploy` or `Deploy fast` after a clean committed Fast UI change, prefer `npm run deploy:ui`. It deploys through Vercel CLI after `quick:ui`, pushes `main`, checks release traffic, and runs production postdeploy verification while GitHub QA can continue in the background.
+- If the user says `Deploy` or `Deploy fast` after a clean committed Fast UI change, prefer `npm run deploy:ui`. It deploys through Vercel CLI after `quick:ui`, pushes `main`, checks release traffic, verifies staging/live isolation, repairs staging alias drift after the direct production deploy, and runs production postdeploy verification while GitHub QA can continue in the background.
 - `npm run deploy:ui` is only for a clean committed Fast UI change already on `main`; it fetches/rebases `origin/main` before push/deploy and should stop if the worktree is dirty or the branch is not `main`.
 - Use the **Safe Lane** only for auth/login, permissions, central app-state/data, Supabase/API, backup/restore, migrations, secrets, security, broad multi-module behavior, or anything that could lose/leak user data or take Live down.
 - Do not ask the user which lane to use when the request is clear. Codex owns this classification.
@@ -232,7 +232,8 @@ npm run deploy:safe
 - Do not deploy from a dirty working tree.
 - Use `npm run deploy` for routine fast production releases.
 - Use `npm run deploy:safe` for risky production releases that need full QA/staging.
+- Production deploy commands must fail closed if the worktree is linked to the wrong Vercel project; keep `.vercel/project.json` on the canonical `footballscience` project before deploying.
 - Do not use emergency overrides unless the user explicitly confirms an urgent hotfix.
 - Do not put secrets in source files. Vercel/GitHub/Supabase secrets stay in their respective dashboards.
 - After deployment, verify the live domain and protected backup endpoint through `npm run release:postdeploy`.
-- For recurring live health monitoring or manual postdeploy follow-up, use `npm run release:monitor`; it runs postdeploy verification, backup freshness/readiness checks, restore drill, and authenticated live smoke.
+- For recurring live health monitoring or manual postdeploy follow-up, use `npm run release:monitor`; it runs monitor-mode postdeploy verification, staging/live isolation, auth health, backup freshness/readiness checks, restore drill, and authenticated live smoke.

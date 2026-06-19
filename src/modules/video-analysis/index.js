@@ -490,6 +490,11 @@ function requestNativeFullscreen(element) {
   return element.requestFullscreen().then(() => true).catch(() => false);
 }
 
+function exitNativeFullscreen(docRef) {
+  if (!docRef?.fullscreenElement || !docRef?.exitFullscreen) return Promise.resolve(false);
+  return docRef.exitFullscreen().then(() => true).catch(() => false);
+}
+
 function enterVideoFullscreen(context = {}) {
   const run = ensureRuntime(context);
   const element = fsPlayerVideoFrameElement(context);
@@ -503,6 +508,7 @@ function enterVideoFullscreen(context = {}) {
 
 function toggleFsPlayerCodeMode(context = {}) {
   const run = ensureRuntime(context);
+  const doc = context.doc || document;
   const isActive = run.store.getState().fsPlayer?.mode === "code";
   run.store.update((state) => ({
     ...state,
@@ -510,7 +516,11 @@ function toggleFsPlayerCodeMode(context = {}) {
     message: isActive ? "Code Mode closed." : "Code Mode ready.",
     error: "",
   }));
-  if (!isActive) requestNativeFullscreen(fsPlayerWorkspaceElement(context));
+  if (isActive) {
+    exitNativeFullscreen(doc);
+  } else {
+    requestNativeFullscreen(fsPlayerWorkspaceElement(context));
+  }
   return true;
 }
 

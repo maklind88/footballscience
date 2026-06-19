@@ -284,10 +284,19 @@
 }
 
 #analysisRoomWorkspace .video-analysis-player-controls .video-analysis-player-nudge {
+  min-width: 42px;
   border-color: transparent;
   color: #46514b;
   background: transparent;
   box-shadow: none;
+}
+
+#analysisRoomWorkspace .video-analysis-player-nudge__amount {
+  color: #17231c;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow:
+    0 0 0 1px rgba(24, 34, 29, 0.08),
+    0 1px 3px rgba(15, 23, 19, 0.08);
 }
 
 #analysisRoomWorkspace .video-analysis-player-controls .video-analysis-player-nudge:hover {

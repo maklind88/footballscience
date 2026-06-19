@@ -107,16 +107,20 @@ export function renderVideoPlayer(state = {}) {
             `).join("")}
           </div>
           <button type="button" class="video-analysis-player-nudge" data-video-analysis-player-nudge="-5000" ${hasVideo ? "" : "disabled"} aria-label="Back five seconds" title="Back 5 seconds">
-            <span class="video-analysis-player-nudge__glyph" aria-hidden="true">&#8634;</span>
-            <strong>5s</strong>
+            <span class="video-analysis-player-nudge__glyph is-back" aria-hidden="true">
+              <span class="video-analysis-player-nudge__arrow">&#8634;</span>
+              <span class="video-analysis-player-nudge__amount">5</span>
+            </span>
           </button>
           <button type="button" class="video-analysis-player-play" data-video-analysis-play ${hasVideo ? "" : "disabled"} aria-label="Play" title="Play">
             <span class="video-analysis-player-play__icon" data-video-analysis-play-icon aria-hidden="true">&#9654;</span>
             <span data-video-analysis-play-label>Play</span>
           </button>
           <button type="button" class="video-analysis-player-nudge" data-video-analysis-player-nudge="5000" ${hasVideo ? "" : "disabled"} aria-label="Forward five seconds" title="Forward 5 seconds">
-            <strong>5s</strong>
-            <span class="video-analysis-player-nudge__glyph" aria-hidden="true">&#8635;</span>
+            <span class="video-analysis-player-nudge__glyph is-forward" aria-hidden="true">
+              <span class="video-analysis-player-nudge__arrow">&#8635;</span>
+              <span class="video-analysis-player-nudge__amount">5</span>
+            </span>
           </button>
         </div>
         <div class="video-analysis-player-view-actions" aria-label="FS Player view options">

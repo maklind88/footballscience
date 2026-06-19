@@ -204,6 +204,8 @@ test("video player transport time follows timeline duration and live video time 
   expect(html).toContain("data-video-analysis-play-label");
   expect(html).toContain("data-video-analysis-play-icon");
   expect(html).toContain("video-analysis-player-nudge__glyph");
+  expect(html).toContain("video-analysis-player-nudge__amount");
+  expect(html).not.toContain("<strong>5s</strong>");
   expect(html).not.toContain(">+5<");
   expect(html).not.toContain(">-5<");
   expect(html).toContain("0:00:39");

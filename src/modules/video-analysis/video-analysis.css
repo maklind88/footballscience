@@ -1207,18 +1207,45 @@
 }
 
 .video-analysis-player-nudge {
+  width: 42px;
+  min-width: 42px !important;
+  padding: 0 !important;
   color: #4b5650;
-  font-size: 12px;
 }
 
 .video-analysis-player-nudge__glyph {
-  font-size: 16px;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
   line-height: 1;
 }
 
-.video-analysis-player-nudge strong {
-  font-size: 12px;
-  font-weight: 900;
+.video-analysis-player-nudge__arrow {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.video-analysis-player-nudge__amount {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  margin-top: 1px;
+  border-radius: 999px;
+  color: #1b2620;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(27, 38, 32, 0.08);
+  font-size: 9px;
+  font-weight: 950;
   letter-spacing: 0;
 }
 

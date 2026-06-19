@@ -127,10 +127,14 @@ test("chat widget highlights searched messages and keeps search inside the detai
   expect(result.html).toContain('data-dashboard-chat-search-step="previous"');
   expect(result.html).toContain('data-dashboard-chat-search-active="true"');
   expect(result.html).toContain("dashboard-chat-message is-search-match");
+  expect(result.html).toContain("data-dashboard-chat-message-card");
+  expect(result.html).toContain("has-evidence");
   expect(result.html).toContain("dashboard-chat-search-hit");
   expect(result.html).toContain("dashboard-chat-attachment-library");
   expect(result.html).toContain("readiness-report.pdf");
   expect(result.html).toContain("footballscience.xyz");
+  expect(result.html).toContain('placeholder="Message"');
+  expect(result.html).toContain('aria-label="Message Team Chat"');
   expect(result.html).toContain('data-dashboard-chat-thread-setting="toggle-mute"');
   expect(result.html).toContain('data-dashboard-chat-thread-setting="toggle-pin"');
   expect(result.html).toContain("dashboard-chat-realtime-pill is-connected");
@@ -162,6 +166,146 @@ test("chat widget exposes mobile inbox and conversation modes", () => {
   expect(inbox.html).toContain("is-mobile-inbox");
   expect(conversation.html).toContain("is-mobile-conversation");
   expect(conversation.html).toContain("data-dashboard-chat-mobile-back");
+});
+
+test("chat widget header uses group avatar identity for group conversations", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [currentUser, { id: "u2", name: "Coach A", status: "active" }];
+  const messages = [{ id: "m1", userId: "u2", threadId: "group:match-prep", text: "Group note", mentionedUserIds: [], reactions: {} }];
+  const threads = [
+    {
+      threadId: "group:match-prep",
+      label: "Final third match prep",
+      type: "group",
+      messageCount: 1,
+      unreadCount: 0,
+      lastMessage: messages[0],
+      participants: users,
+      settings: { avatarLabel: "F3" },
+    },
+  ];
+
+  const result = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "group:match-prep" },
+    messages,
+    threads,
+  });
+
+  expect(result.html).toMatch(/dashboard-chat-widget-title[\s\S]*dashboard-chat-stack-avatar is-team\">F3/);
+  expect(result.html).toContain("Final third match prep");
+});
+
+test("chat inbox exposes coach-fast conversation filters", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [currentUser, { id: "u2", name: "Coach A", status: "active" }];
+  const messages = [{ id: "m1", userId: "u2", threadId: "team", text: "Team note", mentionedUserIds: [], reactions: {} }];
+  const threads = [
+    { threadId: "team", label: "Team Chat", isTeamThread: true, messageCount: 1, unreadCount: 0, mentionCount: 0, lastMessage: messages[0], settings: {} },
+    { threadId: "matchday", label: "Matchday", type: "matchday", messageCount: 3, unreadCount: 2, mentionCount: 1, lastMessage: messages[0], settings: {} },
+    { threadId: "training", label: "Training", type: "training", messageCount: 2, unreadCount: 0, mentionCount: 0, lastMessage: messages[0], settings: { pinned: true } },
+  ];
+
+  const mentions = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads,
+    activeThreadId: "team",
+    threadFilter: "mentions",
+  });
+
+  expect(mentions.html).toContain('class="dashboard-chat-thread-filters" role="toolbar" aria-label="Filter chat conversations"');
+  expect(mentions.html).toContain('data-dashboard-chat-thread-filter="all"');
+  expect(mentions.html).toContain('data-dashboard-chat-thread-filter="unread"');
+  expect(mentions.html).toContain('data-dashboard-chat-thread-filter="mentions"');
+  expect(mentions.html).toContain('data-dashboard-chat-thread-filter="pinned"');
+  expect(mentions.html).toContain('data-dashboard-chat-thread="matchday"');
+  expect(mentions.html).not.toContain('data-dashboard-chat-thread="training"');
+
+  const empty = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads: threads.map((thread) => ({ ...thread, settings: {}, mentionCount: 0, unreadCount: 0 })),
+    activeThreadId: "team",
+    threadFilter: "pinned",
+  });
+
+  expect(empty.html).toContain("dashboard-chat-thread-empty");
+  expect(empty.html).toContain("No pinned conversations");
+});
+
+test("chat settings use in-widget dialogs for names, images, and people", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [
+    currentUser,
+    { id: "u2", name: "Coach A", role: "coach", status: "active" },
+    { id: "u3", name: "Analyst B", role: "analyst", status: "active" },
+  ];
+  const messages = [{ id: "m1", userId: "u2", threadId: "group-1", text: "Plan", mentionedUserIds: [], reactions: {} }];
+  const threads = [
+    {
+      threadId: "group-1",
+      label: "Match prep",
+      type: "group",
+      messageCount: 1,
+      unreadCount: 0,
+      mentionCount: 0,
+      lastMessage: messages[0],
+      participants: [currentUser, users[1]],
+      permissions: { canManageParticipants: true },
+      settings: { customTitle: "Match prep", avatarLabel: "MP" },
+    },
+  ];
+
+  const rename = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "group-1" },
+    messages,
+    threads,
+    activeThreadId: "group-1",
+    threadSettingsDialog: { type: "rename", threadId: "group-1" },
+  });
+
+  expect(rename.html).toContain("dashboard-chat-settings-overlay");
+  expect(rename.html).toContain('role="dialog" aria-modal="true" aria-labelledby="dashboardChatSettingsTitle"');
+  expect(rename.html).toContain('data-dashboard-chat-settings-form data-dashboard-chat-settings-type="rename" data-dashboard-chat-thread="group-1"');
+  expect(rename.html).toContain('value="Match prep"');
+  expect(rename.html).toContain("dashboard-chat-character-count");
+
+  const avatar = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "group-1" },
+    messages,
+    threads,
+    activeThreadId: "group-1",
+    threadSettingsDialog: { type: "avatar", threadId: "group-1" },
+  });
+
+  expect(avatar.html).toContain('data-dashboard-chat-settings-form data-dashboard-chat-settings-type="avatar" data-dashboard-chat-thread="group-1"');
+  expect(avatar.html).toContain('value="MP"');
+
+  const participants = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "group-1" },
+    messages,
+    threads,
+    activeThreadId: "group-1",
+    threadSettingsDialog: { type: "participants", threadId: "group-1" },
+  });
+
+  expect(participants.html).toContain("data-dashboard-chat-participants-form");
+  expect(participants.html).toContain("data-dashboard-chat-participant-filter");
+  expect(participants.html).toContain("data-dashboard-chat-participant-row");
+  expect(participants.html).toContain('value="u2" checked');
+  expect(participants.html).toContain('value="u3"');
 });
 
 
@@ -216,18 +360,27 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(result.html).toContain('<span class="dashboard-chat-launcher-icon" aria-hidden="true"></span>');
   expect(result.html).toContain('<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">1</span>');
   expect(result.html).toContain("1 unread chat message");
+  expect(dashboardChatCss).toContain("closed launcher is a polished left-rail menu item, not a bottom-right bubble");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:1.2rem");
+  expect(dashboardChatCss).toContain("right:auto!important");
+  expect(dashboardChatCss).toContain("bottom:5.68rem!important");
+  expect(dashboardChatCss).toContain("width:3.05rem!important;z-index:180!important");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher>*:not(.dashboard-chat-header-badge):not(.dashboard-chat-launcher-icon)");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
-  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:1.04rem");
-  expect(dashboardChatCss).toContain("width:2.58rem!important;height:2.28rem!important");
-  expect(dashboardChatCss).toContain("border-radius:.72rem .72rem .72rem .24rem!important");
-  expect(dashboardChatCss).toContain("linear-gradient(135deg,rgba(236,253,245,.18),rgba(59,130,246,.08))");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher>.dashboard-chat-launcher-icon:not(.dashboard-chat-header-badge){display:block!important}");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher-copy{display:none!important}");
+  expect(dashboardChatCss).toContain("width:3.05rem!important;height:3.05rem!important");
+  expect(dashboardChatCss).toContain("border-radius:14px!important");
+  expect(dashboardChatCss).toContain("background:transparent!important");
+  expect(dashboardChatCss).toContain("backdrop-filter:blur(18px) saturate(1.15)!important");
   expect(dashboardChatCss).toContain(".dashboard-chat-launcher:before,body.is-dashboard-chat-closed .dashboard-chat-launcher:after{content:none!important}");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher-icon{position:relative!important;display:block!important");
-  expect(dashboardChatCss).toContain("border-radius:.26rem .26rem .26rem .12rem!important");
+  expect(dashboardChatCss).toContain("border-radius:.34rem .34rem .34rem .14rem!important");
   expect(dashboardChatCss).toContain("clip-path:polygon(0 0,100% 0,0 100%)!important");
-  expect(dashboardChatCss).toContain("top:-.4rem!important;right:-.42rem!important");
+  expect(dashboardChatCss).toContain("top:-.34rem!important;right:-.3rem!important");
+  expect(dashboardChatCss).toContain("background:#ff453a!important");
   expect(dashboardChatCss).toContain("@media(max-width:820px){body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:auto");
+  expect(dashboardChatCss).toContain("right:calc(.7rem + 3.14rem + .38rem + env(safe-area-inset-right))!important");
   expect(dashboardChatCss).toContain("@media(prefers-reduced-motion:reduce)");
 
   const calmResult = createRenderer([]).render({

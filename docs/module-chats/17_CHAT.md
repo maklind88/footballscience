@@ -11,18 +11,20 @@ Chat.
 
 Riktning:
 - Chatten ar en egen modul, inte en Home Dashboard-funktion.
-- Chatten ska fortsatta ligga nere i hogra hornet som global bottom-right experience.
+- Chatten ska inga i menyn till vanster som global chat entry point.
 - Utveckla den befintliga chatten, inte ett nytt koncept.
-- Bevara befintlig data i `football-dashboard-chat-v1`.
+- Chatten ar database-primary via `/api/chat` och `chat_*`-tabeller.
+- Bevara befintlig kompatibilitetsdata i `football-dashboard-chat-v1`, men behandla den inte som kanonisk write path.
 - Bevara team chat, DM, unread, mentions, read receipts, replies, reactions, pinned messages, priorities, notifications och admin actions.
-- Chatten ska vara staff-only: admin, coach, analyst, performance och medical. Guest ska inte ha chat-access.
+- Chatten ska vara staff-only: admin, club-admin, team-admin, coach, scout, analyst, performance och medical. Guest ska inte ha chat-access.
 - Designen ska bli renare, snyggare och mer professionell utan att bli rorig eller overforklarande.
-- Langsiktig migration ska ga mot `chat_threads`, `chat_messages`, `chat_read_receipts` och `chat_reactions`.
+- Nya features ska inte byggas forran aktiv miljo har verifierad chat-migration, attachment storage, realtime och `npm run qa:chat`.
 
 Borja med att lasa:
 docs/AI_HANDOFF.md
 docs/MODULE_CONTRACTS.md
 docs/MODULES.md
+docs/CHAT_API_CONTRACT.md
 src/modules/chat/chat.mjs
 src/modules/chat/chat-adapter.mjs
 

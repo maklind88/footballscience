@@ -2,7 +2,7 @@
 
 ## Direction
 
-Chat is a standalone module with a global bottom-right experience. It should keep the current foundation and mature it gradually:
+Chat is a standalone module with a global entry point in the left navigation rail. It should keep the current foundation and mature it gradually:
 
 - Team room
 - Direct messages
@@ -22,27 +22,28 @@ Strong now:
 
 - Message output is escaped before rendering.
 - Mentions are rendered from escaped text.
-- Chat storage is in the protected central state allowlist.
+- Chat is database-primary through `/api/chat`; `football-dashboard-chat-v1` is compatibility/cache state only.
 - The standalone module has a read-only adapter boundary.
 - Guest writes to central chat state are blocked by the `chat` permission mapping.
 - Message length is capped before storage and in the composer.
+- Destructive/admin actions have server-side audit coverage in database mode.
 
 Still not complete for long-term sensitive use:
 
-- Chat writes still sync the whole legacy payload instead of individual server-side message operations.
-- Admin destructive actions are still UI-level actions over the legacy payload.
-- There is no per-message audit trail for delete, clear, pin, or reaction changes yet.
 - Local browser storage should not be treated as a safe place for sensitive medical or player welfare content.
+- The app-state compatibility path must not be expanded; it should remain rollback/cache only.
+- Chat decisions still need product rules for when they should be promoted into IDP, Medical, Gameplan, Video, or Tasks instead of staying buried in conversation.
 
 ## Development Order
 
-1. Stabilize the standalone module boundary.
-2. Keep improving the bottom-right UX without replacing the current behavior.
-3. Add chat-specific server APIs for send, read receipt, reaction, pin, delete, and clear.
-4. Add audit logging for destructive actions and permission-sensitive changes.
-5. Move from `football-dashboard-chat-v1` payload sync to future tables:
-   `chat_threads`, `chat_messages`, `chat_read_receipts`, `chat_reactions`.
-6. Add focused browser QA for chat open, send, DM switch, read receipt, mention, pin, delete, and mobile layout.
+1. Keep the database-primary contract stable before adding new chat features.
+2. Verify active environments have chat migrations, attachment storage, and realtime publication applied.
+3. Keep improving the left-menu chat entry and in-widget UX without replacing the current behavior.
+4. Prevent generic app-state writes from becoming a second source of truth.
+5. Add retention jobs and operational health checks for growing chat tables.
+6. Split large chat renderer/API files only after behavior stays green under `npm run qa:chat`.
+
+Current stabilization packet: `docs/CHAT_STABILIZATION_RELEASE_PACKET.md`.
 
 ## UX Gaps
 
@@ -56,7 +57,7 @@ Still not complete for long-term sensitive use:
 ## Product Guardrails
 
 - Do not turn Chat into a full page.
-- Do not remove the bottom-right placement.
+- Do not move Chat out of the left navigation/menu entry point.
 - Do not replace the existing chat concept.
 - Do not reset or migrate away existing `football-dashboard-chat-v1` data without a dual-read phase.
 - Do not add rich HTML messages unless sanitization is explicit and tested.
@@ -69,29 +70,23 @@ Still not complete for long-term sensitive use:
 - Retention policy exists for active messages, soft-deleted messages, audit entries, and per-thread message caps.
 - Audit entries now mark destructive and admin actions.
 - Chat-specific API QA covers staff-only access, message normalization, mentions, DM filtering, pin, priority, reactions, read receipts, delete rules, clear-thread rules, and retention.
-- Migration-ready table schema exists in `docs/CHAT_DATABASE_SCHEMA.sql`.
-
-## Not Yet Switched
-
-- The current bottom-right UI has not been fully moved from legacy app-state persistence to `/api/chat`.
-- The next safe step is write-first UI migration: send, delete, pin, priority, reactions, and read receipts should call `/api/chat`, while reads can stay compatible until parity is confirmed.
-- After write migration passes QA, generic app-state writes for `football-dashboard-chat-v1` should be blocked so chat no longer syncs as a full payload.
+- Canonical database schema exists in `supabase/migrations/20260507130000_chat_module_multitenant.sql`; the readable docs schema is historical/reference only.
 
 ## Multi-Tenant Scale Step
 
 - Canonical Supabase migration now exists at `supabase/migrations/20260507130000_chat_module_multitenant.sql`.
 - The chat model now has organization, team, membership, thread, participant, message, mention, reaction, read receipt, attachment, audit, and retention tables.
 - The database stance is server-write first: authenticated clients can read RLS-protected rows, but writes should go through `/api/chat`.
-- The next implementation step is database-backed `/api/chat` writes with app-state read compatibility during rollout.
-- The current app-state compatibility layer should be removed only after UI writes and QA have moved to the database-backed API.
-- Database adapter is feature-flagged behind `CHAT_STORAGE_MODE=database`.
+- `/api/chat` is database-first by default.
+- `CHAT_STORAGE_MODE=legacy` is the explicit rollback/compatibility override.
+- The app-state compatibility layer should be retired only after active environments prove database reads/writes, attachments, and realtime are stable.
 
 ## UI Write Migration Status
 
-- Bottom-right chat UI now routes send, delete, pin, reaction, clear-thread, and read-receipt writes through `/api/chat` first.
+- The left-menu chat UI now routes send, delete, pin, reaction, clear-thread, and read-receipt writes through `/api/chat` first.
 - Retryable API failures fall back to the legacy app-state write path for continuity.
 - Authorization/rate-limit failures do not fall back to local writes.
-- The current UI still reads from the legacy-compatible local/app-state shape until database-mode read parity is implemented.
+- The current UI still preserves legacy-compatible shape handling so existing data and rollback paths do not break.
 
 ## Destructive Action UX
 

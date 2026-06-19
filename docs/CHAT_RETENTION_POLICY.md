@@ -16,11 +16,11 @@ The chat module now has an explicit retention policy in the dedicated `/api/chat
 - Deleted message metadata remains temporarily for audit and timeline integrity.
 - Old deleted messages are pruned after the deleted-message retention period.
 - Old active messages are pruned after the active-message retention period.
-- Audit entries are pruned after the audit retention period and capped to the latest `200` entries in the current app-state compatibility layer.
+- Audit entries are pruned after the audit retention period. The legacy app-state compatibility layer caps retained audit entries to the latest `200`; database mode stores audit in `chat_audit_events`.
 
-## Long-term target
+## Operational target
 
-When chat moves to dedicated database tables, retention should become a scheduled database or server job that archives or deletes rows from:
+Retention should become a scheduled database or server job that archives or deletes rows from:
 
 - `chat_messages`
 - `chat_read_receipts`

@@ -500,7 +500,8 @@ test("Chat group creator creates a focused group from the plus menu", async ({ p
   await overlay.locator("[data-dashboard-chat-group-create-submit]").click();
 
   await expect(overlay).toHaveCount(0);
-  await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("placeholder", `Message ${groupTitle}`);
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("placeholder", "Message");
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("aria-label", `Message ${groupTitle}`);
   await expect(page.locator("[data-dashboard-chat-thread]").first()).toContainText(groupTitle);
   expect(chatActions.some((payload) => payload.action === "createThread" && payload.type === "group" && payload.title === groupTitle)).toBe(true);
 });
@@ -620,14 +621,6 @@ test("Chat group settings can rename, set avatar, and delete a group", async ({ 
     window.platformAuthStore.setCurrentUser?.(currentUser.id || "dev-user-mak");
   });
 
-  await page.evaluate(
-    ({ title, initials }) => {
-      const answers = [title, initials];
-      window.prompt = () => answers.shift() || "";
-    },
-    { title: renamedTitle, initials: avatarInitials }
-  );
-
   await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
   await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
   await page.locator("[data-dashboard-chat-thread-presets] > summary").click();
@@ -643,16 +636,26 @@ test("Chat group settings can rename, set avatar, and delete a group", async ({ 
 
   const createdGroupThread = page.locator("[data-dashboard-chat-thread]").filter({ hasText: groupTitle }).first();
   await createdGroupThread.click();
-  await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("placeholder", `Message ${groupTitle}`);
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("placeholder", "Message");
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("aria-label", `Message ${groupTitle}`);
   const detailsToggle = page.locator("[data-dashboard-chat-details-toggle]");
   await expect(detailsToggle).toBeVisible();
   await detailsToggle.click();
   await expect(page.locator(".dashboard-chat-details-panel")).toBeVisible();
   await page.locator('[data-dashboard-chat-thread-setting="rename"]').click();
+  const settingsDialog = page.locator(".dashboard-chat-settings-dialog");
+  await expect(settingsDialog).toBeVisible();
+  await settingsDialog.locator("[data-dashboard-chat-settings-input]").fill(renamedTitle);
+  await settingsDialog.locator("button[type='submit']").click();
+  await expect(settingsDialog).toHaveCount(0);
   await expect(page.locator("header .dashboard-chat-widget-title")).toContainText(renamedTitle);
   await expect(page.locator("[data-dashboard-chat-thread]").first()).toContainText(renamedTitle);
 
   await page.locator('[data-dashboard-chat-thread-setting="avatar"]').click();
+  await expect(settingsDialog).toBeVisible();
+  await settingsDialog.locator("[data-dashboard-chat-settings-input]").fill(avatarInitials);
+  await settingsDialog.locator("button[type='submit']").click();
+  await expect(settingsDialog).toHaveCount(0);
   await expect(page.locator('[data-dashboard-chat-thread-setting="avatar"] small')).toContainText(avatarInitials);
 
   await page.locator("[data-dashboard-chat-archive-thread]").click();

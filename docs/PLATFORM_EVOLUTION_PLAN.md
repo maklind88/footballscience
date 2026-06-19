@@ -56,9 +56,8 @@ First adapter boundary:
 - Home Tasks has a read-only adapter for the existing `football-dashboard-tasks-v1` payload.
 - It can normalize current task records and calculate the same Work Queue buckets as the current dashboard.
 - Writes remain blocked until a later migration explicitly enables them.
-- Chat has a standalone read-only adapter for the existing `football-dashboard-chat-v1` payload.
-- It can normalize current messages, direct-message thread ids, unread counts, mentions, reactions, and thread lists without loading in the current UI.
-- Chat writes, read receipts, and destructive actions remain blocked until migration is explicitly enabled.
+- Historical note: Chat first shipped with a standalone read-only adapter for the existing `football-dashboard-chat-v1` payload.
+- Current state: Chat is database-first through `/api/chat`; `football-dashboard-chat-v1` is compatibility/cache state only. Use `docs/CHAT_API_CONTRACT.md` as the current source of truth.
 - Schedule has a read-only adapter for the existing `football-schedule-v1` payload.
 - It can normalize current calendar state, select day/month events, identify main events, and locate training-session events.
 - Schedule writes and event removal remain blocked until migration is explicitly enabled.

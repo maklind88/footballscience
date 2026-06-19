@@ -117,11 +117,11 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 
 - `id`: `chat`
 - `purpose`: staff room and direct colleague messaging.
-- `data`: `football-dashboard-chat-v1`
-- `permissions`: signed-in staff can send/read; guest access is excluded; admin-only destructive actions stay explicit.
+- `data`: database-primary records in `chat_threads`, `chat_thread_participants`, `chat_messages`, `chat_message_mentions`, `chat_reactions`, `chat_read_receipts`, `chat_attachments`, `chat_audit_events`, and `chat_retention_policies`; `football-dashboard-chat-v1` is compatibility/cache state only.
+- `permissions`: signed-in staff can send/read; guest access is excluded; manager/admin destructive and participant actions stay explicit.
 - `events`: message sent, message read, reaction changed, direct thread opened.
-- `qa`: chat storage remains protected by app-state and backups.
-- `migration`: move to `chat_threads`, `chat_messages`, `chat_read_receipts`, and `chat_reactions` after the standalone chat module boundary is stable. The inert Chat adapter must keep matching the legacy widget payload until a verified database adapter can be dual-read.
+- `qa`: `npm run qa:chat` covers API contracts, database adapter/schema, widget behavior, legacy compatibility, and focused browser flows.
+- `migration`: `/api/chat` is database-first by default, with `CHAT_STORAGE_MODE=legacy` as the explicit rollback/compatibility override. The inert Chat adapter must keep matching the legacy widget payload while the compatibility bridge exists, but new chat work must not reintroduce generic app-state as a canonical source.
 
 ## Exercise Library
 

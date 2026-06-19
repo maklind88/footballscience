@@ -40,6 +40,8 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     getDashboardChatMobileConversationOpen = () => true,
     getDashboardChatComposerAttachmentDraft = () => null,
     getDashboardChatGroupCreatorOpen = () => false,
+    getDashboardChatThreadFilter = () => "all",
+    getDashboardChatThreadSettingsDialog = () => null,
     dashboardChatThreadSettings = { get: () => ({ muted: false }) },
     dashboardChatModerationState = {},
     normalizeDashboardChatThreadId = (threadId, fallback = dashboardChatTeamThreadId) => threadId || fallback,
@@ -277,6 +279,8 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       attachmentDraft: getDashboardChatComposerAttachmentDraft(),
       teamChatTitle: getDashboardChatTeamChatTitle(),
       groupCreatorOpen: getDashboardChatGroupCreatorOpen(),
+      threadFilter: getDashboardChatThreadFilter(),
+      threadSettingsDialog: getDashboardChatThreadSettingsDialog(),
     });
 
     setDashboardChatReplyDraft(renderedWidget.replyDraft);
@@ -344,6 +348,10 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       const nextComposer = root.querySelector("[data-dashboard-chat-input]");
       if (nextComposer) {
         nextComposer.value = previousComposerDraft;
+        const characterCount = nextComposer.closest("[data-dashboard-chat-form]")?.querySelector("[data-dashboard-chat-character-count]");
+        if (characterCount) {
+          characterCount.textContent = `${String(previousComposerDraft || "").length}/${nextComposer.getAttribute("maxlength") || ""}`;
+        }
         if (wasComposerFocused) {
           nextComposer.focus();
         }

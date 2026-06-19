@@ -55,7 +55,7 @@ Main tables:
 ## Security model
 
 - Deny by default.
-- Staff-only baseline: `admin`, `coach`, `analyst`, `performance`, `medical`.
+- Staff-only baseline: `admin`, `club-admin`, `team-admin`, `coach`, `scout`, `analyst`, `performance`, `medical`.
 - Guest and player roles are not chat staff roles unless a future product decision explicitly grants scoped access.
 - Authorization role must come from Supabase `app_metadata`, not user-editable metadata.
 - Team membership controls team chat.
@@ -93,21 +93,20 @@ Avoid:
 - Move rate limits to Redis/Upstash before high traffic.
 - Use retention jobs so old chat rows do not grow forever.
 
-## Migration sequence
+## Stabilization sequence
 
-1. Apply the multi-tenant chat migration in Supabase.
-2. Build database-backed `/api/chat` write paths.
-3. Keep app-state bridge read-compatible during rollout.
-4. Move UI writes to database-backed API.
-5. Add browser QA for team chat, DM, mentions, reactions, read receipts, pin/delete, and mobile.
-6. Enable thread-scoped realtime reads.
-7. Disable generic app-state writes for `football-dashboard-chat-v1`.
-8. Add retention jobs and operational dashboards.
+1. Confirm the multi-tenant chat migrations are applied in each active Supabase environment.
+2. Confirm `/api/chat` is database-primary in the target environment, with `CHAT_STORAGE_MODE=legacy` reserved for explicit rollback only.
+3. Keep app-state bridge read-compatible while existing data and rollback paths are still needed.
+4. Keep browser QA for team chat, DM, mentions, reactions, read receipts, pin/delete, attachments, and mobile.
+5. Confirm thread-scoped realtime reads are enabled without global subscriptions.
+6. Block any new generic app-state writes for `football-dashboard-chat-v1`.
+7. Add retention jobs and operational dashboards.
 
 ## Current implementation switch
 
-The database adapter exists behind:
+`/api/chat` is database-first by default. Use the environment variable below only for explicit legacy rollback:
 
-- `CHAT_STORAGE_MODE=database`
+- `CHAT_STORAGE_MODE=legacy`
 
-Keep this disabled until the migration has been applied in the target Supabase project and database-mode QA has passed.
+Before building new chat features, verify migrations, attachment storage, realtime publication, and `npm run qa:chat` for the active environment.

@@ -1,5 +1,14 @@
 import { expect, test } from "@playwright/test";
+import { createDashboardChatAttachmentRenderer } from "../src/modules/chat/chat-attachment-renderer.mjs";
 import { renderDashboardChatAttachmentPreviewShell } from "../src/modules/chat/chat-attachment-preview.mjs";
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
 
 test("chat attachment preview shell has a render target and classic file actions", () => {
   const html = renderDashboardChatAttachmentPreviewShell();
@@ -23,4 +32,30 @@ test("chat attachment preview shell has a render target and classic file actions
   expect(html).toContain("data-chat-attachment-preview-print");
   expect(html).toContain("data-chat-attachment-preview-open");
   expect(html).toContain("data-chat-attachment-preview-close");
+});
+
+test("chat message attachments render as evidence cards without losing preview wiring", () => {
+  const renderer = createDashboardChatAttachmentRenderer({
+    escapeHtml,
+    getSupabaseClient: () => null,
+  });
+  const html = renderer.renderMessageAttachments({
+    attachments: [
+      {
+        bucket: "chat-attachments",
+        path: "qa/final-third-map.png",
+        fileName: "final-third-map.png",
+        mimeType: "image/png",
+        byte_size: 2048,
+        status: "ready",
+      },
+    ],
+  });
+
+  expect(html).toContain("dashboard-chat-evidence-card");
+  expect(html).toContain("dashboard-chat-evidence-icon is-image");
+  expect(html).toContain("Image evidence");
+  expect(html).toContain("data-dashboard-chat-attachment-preview");
+  expect(html).toContain("data-dashboard-chat-attachment-status");
+  expect(html).toContain("2 KB · preparing");
 });

@@ -1067,12 +1067,14 @@ let dashboardChatMessageSearchActiveIndex = 0;
 let dashboardChatModerationOpen = false;
 let dashboardChatDetailsOpen = false;
 let dashboardChatMobileConversationOpen = true;
+let dashboardChatThreadFilter = "all";
 let dashboardChatModerationFilters = { action: "all", userId: "", threadId: "", from: "", to: "" };
 let dashboardChatModerationState = { loading: false, audits: [], failedUploads: [], retentionPolicy: null, health: null, filters: dashboardChatModerationFilters, error: "" };
 let dashboardChatThreadSummarySyncTimer = 0;
 let dashboardChatThreadSummaryLastRequestedAt = 0;
 let dashboardChatComposerAttachmentDraft = null;
 let dashboardChatGroupCreatorOpen = false;
+let dashboardChatThreadSettingsDialog = null;
 let dashboardChatApiRuntime = null;
 let dashboardChatSubmittedComposerDrafts = new Map();
 
@@ -2607,6 +2609,8 @@ const {
   getDashboardChatMobileConversationOpen: () => dashboardChatMobileConversationOpen,
   getDashboardChatComposerAttachmentDraft: () => dashboardChatComposerAttachmentDraft,
   getDashboardChatGroupCreatorOpen: () => dashboardChatGroupCreatorOpen,
+  getDashboardChatThreadFilter: () => dashboardChatThreadFilter,
+  getDashboardChatThreadSettingsDialog: () => dashboardChatThreadSettingsDialog,
   moderationState: dashboardChatModerationState,
   normalizeDashboardChatThreadId,
   normalizeDashboardApiMessage,
@@ -2952,6 +2956,10 @@ setPlatformThemeMode(ui.platformThemeModeSelect?.value);
 });
 document.addEventListener("keydown", (event) => {
 if (event.key === "Escape") {
+if (dashboardChatThreadSettingsDialog) {
+closeDashboardChatThreadSettingsDialog();
+return;
+}
 if (dashboardChatGroupCreatorOpen) {
 closeDashboardChatGroupCreator();
 return;
@@ -2984,6 +2992,16 @@ focusDashboardChatCreateMenuTrigger();
 }
 return true;
 }
+function closeDashboardChatThreadSettingsDialog({ render = true } = {}) {
+if (!dashboardChatThreadSettingsDialog) {
+return false;
+}
+dashboardChatThreadSettingsDialog = null;
+if (render) {
+renderDashboardChatWidget();
+}
+return true;
+}
 function closeDashboardChatWidgetPanel({ render = true } = {}) {
 const currentState = readDashboardChatWidgetState();
 if (!currentState.isOpen) {
@@ -2996,6 +3014,7 @@ setDashboardChatPriorityDraft("normal");
 setDashboardChatConfirmAction(null);
 dashboardChatDetailsOpen = false;
 dashboardChatGroupCreatorOpen = false;
+dashboardChatThreadSettingsDialog = null;
 dashboardChatMobileConversationOpen = true;
 writeDashboardChatWidgetState({
 ...currentState,
@@ -3005,6 +3024,37 @@ if (render) {
 renderDashboardChatWidget();
 focusDashboardChatWidgetLauncher();
 }
+return true;
+}
+async function submitDashboardChatSettingsForm(settingsForm) {
+if (!settingsForm) {
+return false;
+}
+const formData = new FormData(settingsForm);
+const threadId = normalizeDashboardChatThreadId(settingsForm.dataset.dashboardChatThread, dashboardChatTeamThreadId);
+const type = String(settingsForm.dataset.dashboardChatSettingsType || "rename").trim();
+const cleanValue = String(formData.get("value") || "").trim().replace(/\s+/g, " ");
+const patch = type === "avatar"
+? /^https?:\/\//i.test(cleanValue)
+  ? { avatarUrl: cleanValue, avatarLabel: "" }
+  : { avatarLabel: cleanValue.slice(0, 2).toUpperCase(), avatarUrl: "" }
+: { customTitle: cleanValue };
+dashboardChatThreadSettingsDialog = null;
+await dashboardChatApiUiActions.setThreadSettingsWithApi(threadId, patch);
+renderDashboardChatWidget();
+return true;
+}
+async function submitDashboardChatParticipantsForm(participantsForm) {
+if (!participantsForm) {
+return false;
+}
+const threadId = normalizeDashboardChatThreadId(participantsForm.dataset.dashboardChatThread, dashboardChatTeamThreadId);
+const participantIds = Array.from(participantsForm.querySelectorAll("input[name='participantIds']:checked"))
+.map((input) => String(input.value || "").trim())
+.filter(Boolean);
+dashboardChatThreadSettingsDialog = null;
+await dashboardChatApiUiActions.setThreadParticipantsWithApi(threadId, participantIds);
+renderDashboardChatWidget();
 return true;
 }
 ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
@@ -3057,6 +3107,25 @@ dashboardChatDetailsOpen = false;
 renderDashboardChatWidget();
 return;
 }
+const settingsSaveButton = event.target.closest("[data-dashboard-chat-settings-save]");
+if (settingsSaveButton) {
+event.preventDefault();
+await submitDashboardChatSettingsForm(settingsSaveButton.closest("[data-dashboard-chat-settings-form]"));
+return;
+}
+const participantsSaveButton = event.target.closest("[data-dashboard-chat-participants-save]");
+if (participantsSaveButton) {
+event.preventDefault();
+await submitDashboardChatParticipantsForm(participantsSaveButton.closest("[data-dashboard-chat-participants-form]"));
+return;
+}
+const settingsBackdrop = event.target.closest("[data-dashboard-chat-settings-backdrop]");
+const settingsCloseButton = event.target.closest("[data-dashboard-chat-settings-close]");
+if ((settingsBackdrop && event.target === settingsBackdrop) || settingsCloseButton) {
+event.preventDefault();
+closeDashboardChatThreadSettingsDialog();
+return;
+}
 const mobileBackButton = event.target.closest("[data-dashboard-chat-mobile-back]");
 if (mobileBackButton) {
 dashboardChatMobileConversationOpen = false;
@@ -3067,6 +3136,18 @@ return;
 const threadSettingButton = event.target.closest("[data-dashboard-chat-thread-setting]");
 if (threadSettingButton) {
 const currentState = readDashboardChatWidgetState();
+const action = String(threadSettingButton.dataset.dashboardChatThreadSetting || "").trim();
+if (action === "rename" || action === "avatar") {
+dashboardChatThreadSettingsDialog = {
+type: action,
+threadId: normalizeDashboardChatThreadId(threadSettingButton.dataset.dashboardChatThreadSettingThread || currentState.selectedThreadId, dashboardChatTeamThreadId),
+};
+renderDashboardChatWidget();
+win.setTimeout(() => {
+ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-settings-input]")?.focus();
+}, 0);
+return;
+}
 dashboardChatApiUiActions.handleThreadSettingAction(threadSettingButton, currentState.selectedThreadId);
 return;
 }
@@ -3086,6 +3167,31 @@ return;
 const participantActionButton = event.target.closest("[data-dashboard-chat-participant-action]");
 if (participantActionButton) {
 const currentState = readDashboardChatWidgetState();
+const action = String(participantActionButton.dataset.dashboardChatParticipantAction || "").trim();
+const threadId = normalizeDashboardChatThreadId(participantActionButton.dataset.dashboardChatParticipantThread || currentState.selectedThreadId, dashboardChatTeamThreadId);
+if (action === "add") {
+dashboardChatThreadSettingsDialog = { type: "participants", threadId };
+renderDashboardChatWidget();
+win.setTimeout(() => {
+ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-participant-filter]")?.focus();
+}, 0);
+return;
+}
+if (action === "remove") {
+const participantId = String(participantActionButton.dataset.dashboardChatParticipantId || "").trim();
+const participant = getPlatformUsers().find((candidate) => candidate.id === participantId);
+const label = participant ? formatUserName(participant) : "this participant";
+setDashboardChatConfirmAction({
+type: "removeParticipant",
+threadId,
+participantId,
+title: `Remove ${label}?`,
+message: "The conversation history stays protected.",
+confirmLabel: "Remove",
+});
+renderDashboardChatWidget();
+return;
+}
 dashboardChatApiUiActions.handleThreadParticipantAction(participantActionButton, currentState.selectedThreadId);
 return;
 }
@@ -3097,6 +3203,12 @@ if (confirmAction?.type === "clearThread") {
 await clearDashboardMessagesForThreadWithApi(confirmAction.threadId);
 } else if (confirmAction?.type === "archiveThread") {
 await dashboardChatApiUiActions.archiveThreadWithApi(confirmAction.threadId);
+} else if (confirmAction?.type === "removeParticipant") {
+const currentIds = getDashboardChatParticipantIdsForApi(confirmAction.threadId);
+await dashboardChatApiUiActions.setThreadParticipantsWithApi(
+confirmAction.threadId,
+currentIds.filter((userId) => userId !== confirmAction.participantId)
+);
 } else if (confirmAction?.type === "deleteMessage") {
 await removeDashboardMessageWithApi(confirmAction.messageId);
 platformNavigationController.renderTopIconMenu();
@@ -3270,6 +3382,14 @@ writeDashboardChatWidgetNotificationState({ level: nextLevel });
 renderDashboardChatWidget();
 return;
 }
+const threadFilterButton = event.target.closest("[data-dashboard-chat-thread-filter]");
+if (threadFilterButton) {
+dashboardChatThreadFilter = ["all", "unread", "mentions", "pinned"].includes(threadFilterButton.dataset.dashboardChatThreadFilter)
+? threadFilterButton.dataset.dashboardChatThreadFilter
+: "all";
+renderDashboardChatWidget();
+return;
+}
 const threadSwitchButton = event.target.closest("[data-dashboard-chat-thread]");
 if (threadSwitchButton) {
 const threadId = normalizeDashboardChatThreadId(threadSwitchButton.dataset.dashboardChatThread, dashboardChatTeamThreadId);
@@ -3351,6 +3471,10 @@ ui.dashboardChatWidgetRoot?.addEventListener("input", (event) => {
 const chatInput = event.target.closest("[data-dashboard-chat-input]");
 if (chatInput) {
 markDashboardPresenceActivity();
+const countElement = chatInput.closest("[data-dashboard-chat-form]")?.querySelector("[data-dashboard-chat-character-count]");
+if (countElement) {
+countElement.textContent = `${String(chatInput.value || "").length}/${dashboardChatMaxMessageLength}`;
+}
 const currentState = readDashboardChatWidgetState();
 const threadId = normalizeDashboardChatThreadId(currentState.selectedThreadId, dashboardChatTeamThreadId);
 if (chatInput.value.trim()) {
@@ -3368,6 +3492,18 @@ if (dashboardChatMessageSearchQuery.length >= 2) {
 queueDashboardChatApiRefresh({ search: dashboardChatMessageSearchQuery, delayMs: 220 });
 }
 renderDashboardChatWidget();
+return;
+}
+const participantFilterInput = event.target.closest("[data-dashboard-chat-participant-filter]");
+if (participantFilterInput) {
+const query = String(participantFilterInput.value || "").trim().toLowerCase();
+participantFilterInput
+.closest("[data-dashboard-chat-participants-form]")
+?.querySelectorAll("[data-dashboard-chat-participant-row]")
+.forEach((row) => {
+const searchableText = row.dataset.dashboardChatParticipantSearch || row.textContent || "";
+row.hidden = Boolean(query) && !searchableText.toLowerCase().includes(query);
+});
 return;
 }
 const groupCreateForm = event.target.closest("[data-dashboard-chat-group-create-form]");
@@ -3410,6 +3546,10 @@ ui.dashboardChatWidgetRoot?.addEventListener("keydown", (event) => {
 if (event.key === "Escape") {
 event.preventDefault();
 event.stopPropagation();
+if (dashboardChatThreadSettingsDialog) {
+closeDashboardChatThreadSettingsDialog();
+return;
+}
 if (dashboardChatGroupCreatorOpen) {
 closeDashboardChatGroupCreator();
 return;
@@ -3426,6 +3566,18 @@ event.target.form?.requestSubmit();
 }
 });
 ui.dashboardChatWidgetRoot?.addEventListener("submit", async (event) => {
+const settingsForm = event.target.closest("[data-dashboard-chat-settings-form]");
+if (settingsForm) {
+event.preventDefault();
+await submitDashboardChatSettingsForm(settingsForm);
+return;
+}
+const participantsForm = event.target.closest("[data-dashboard-chat-participants-form]");
+if (participantsForm) {
+event.preventDefault();
+await submitDashboardChatParticipantsForm(participantsForm);
+return;
+}
 const groupCreateForm = event.target.closest("[data-dashboard-chat-group-create-form]");
 if (groupCreateForm) {
 event.preventDefault();

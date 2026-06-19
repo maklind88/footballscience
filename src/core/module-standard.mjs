@@ -156,14 +156,14 @@ export const moduleStandardContracts = Object.freeze([
   createModuleStandardContract({
     id: "chat",
     label: "Team Chat",
-    migrationStatus: moduleMigrationStatuses.partialExtraction,
+    migrationStatus: moduleMigrationStatuses.databasePrimary,
     mountId: "dashboardChatWidget",
     currentFiles: ["app.js", "src/modules/chat", "api/chat.js", "api/_lib/chat-database.js"],
     cssFiles: ["dashboard-chat.css"],
     testFiles: ["qa/chat-api-contracts.api.spec.mjs", "qa/home-chat-widget-renderer.api.spec.mjs"],
     extractionOrder: 6,
     riskLevel: "high",
-    notes: "Dedicated chat ownership exists; do not migrate chat from this lane unless ownership is transferred.",
+    notes: "Database-primary via /api/chat and chat_* tables; football-dashboard-chat-v1 is compatibility state only. Dedicated chat ownership exists; do not migrate chat from this lane unless ownership is transferred.",
   }),
   createModuleStandardContract({
     id: "schedule",

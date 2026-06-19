@@ -51,7 +51,7 @@ Current direction:
 - Home should feel like a clean coaching workspace: welcome card first, Staff Room pinned high on the right, and Coach To-Do plus Player/Team Alerts as the main work surface.
 - The previous Today Command Center card is intentionally hidden for now; avoid bringing it back until the workflow is clearer.
 - Schedule is the source for whether training is planned; Session Planner only adds the exercise blocks.
-- Chat is its own standalone module with a global bottom-right experience. Home should not own chat state, unread state, or destructive chat actions.
+- Chat is its own standalone module with a global left navigation/menu entry point. Home should not own chat state, unread state, or destructive chat actions.
 - First-login tutorial appears as a popup and lets the user choose whether to show it next login.
 - If the user chooses not to show the tutorial again, it should stay hidden for that user.
 - Release/news popups can appear when `dashboardNewsVersion` changes.

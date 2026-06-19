@@ -18,9 +18,9 @@ Current coordination rule:
 | Stream | Status | Current Contract | Next Build Step | Release Risk |
 | --- | --- | --- | --- | --- |
 | Multi-tenant auth/users/org/team | Backfill runner started | `public.platform_*` identity migration + `/api/platform-identity` + `/api/platform-tenant-bootstrap` + `npm run platform:identity:backfill` | Run controlled dry-run backfill, review output, then apply with explicit confirmation | Safe deploy only |
-| App-state module migrations | Tracked | `platform_module_migration_checkpoints` | Promote Chat to server-first with app-state fallback compare | Safe deploy only |
+| App-state module migrations | Tracked | `platform_module_migration_checkpoints` | Keep Chat compatibility cache bounded, then promote the next high-risk app-state module through staged dual-read/dual-write checks | Safe deploy only |
 | `app.js` module extraction | Started before program | Module loader + existing lazy Scouting/Game Simulator boundaries | Extract one module boundary per release, no UI behavior change first | Safe deploy for broad moves |
-| Chat server-first | Schema exists, app-state fallback still active | `chat_*` tables and `/api/chat` | Make chat API primary for reads/writes, retain compatibility cache | Safe deploy only |
+| Chat server-first | Database-first default, compatibility cache still active | `chat_*` tables and `/api/chat` | Verify active environment migrations, attachment storage, realtime, and retention jobs; block new generic app-state writes | Safe deploy only |
 | Football Science DB | Foundation started | `fsdb_*` global player identity tables and `/api/football-science-db` | Import Reep identity data, then connect roster/stat providers without frontend blobs | Safe deploy only |
 | Scouting server-first | Schema/API foundation exists, client still heavy | `scouting_*` tables and `/api/scouting` | Server-side search/filter/profile pages before loading client blobs | Safe deploy only |
 

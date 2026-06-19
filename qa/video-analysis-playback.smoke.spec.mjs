@@ -674,6 +674,21 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   expect(Math.abs(timelineLayout.rulerLeft - timelineLayout.videoLeft)).toBeLessThan(2);
   expect(Math.abs(timelineLayout.rulerWidth - timelineLayout.videoWidth)).toBeLessThan(2);
   expect(timelineLayout.labelRight).toBeLessThanOrEqual(timelineLayout.rulerLeft + 1);
+  const timelineClipBlock = await page.evaluate(() => {
+    const block = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-clip-block");
+    const detail = block?.querySelector("em");
+    const time = block?.querySelector("small");
+    return {
+      visibleText: block?.innerText.trim() || "",
+      detailDisplay: detail ? getComputedStyle(detail).display : "",
+      timeDisplay: time ? getComputedStyle(time).display : "",
+    };
+  });
+  expect(timelineClipBlock).toMatchObject({
+    visibleText: "1",
+    detailDisplay: "none",
+    timeDisplay: "none",
+  });
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Code Window");
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Football Science Tag Panel");
   await expect(page.locator('[data-video-analysis-code-button="subPhase-build-up"]')).toContainText("15s");

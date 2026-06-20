@@ -10,14 +10,6 @@ function secondsFromMs(value = 0, fallback = 15) {
   return Number.isFinite(seconds) ? seconds : fallback;
 }
 
-function behaviorMetaLabel(behavior = "create_tag", durationSeconds = 15) {
-  if (behavior === "toggle_duration") return "toggle";
-  if (behavior === "label_current") return "label";
-  if (behavior === "descriptor") return "descriptor";
-  if (behavior === "player_tag") return "player";
-  return `${durationSeconds}s`;
-}
-
 function renderButton(item = {}, state = {}) {
   const targetField = item.targetField || item.type;
   const active = state.codingSession?.activeButtonId === item.id || state.draft?.[targetField] === item.value;
@@ -29,10 +21,7 @@ function renderButton(item = {}, state = {}) {
       style="--video-analysis-button-color: ${escapeHtml(item.color || "#143522")}"
       aria-label="${escapeHtml(`${item.label} ${behavior === "create_tag" ? `creates ${durationSeconds} second tag` : behavior}`)}">
       <span class="video-analysis-code-button__label">${escapeHtml(item.label)}</span>
-      <span class="video-analysis-code-button__meta">
-        <small>${escapeHtml(behaviorMetaLabel(behavior, durationSeconds))}</small>
-        ${item.hotkey ? `<kbd>${escapeHtml(item.hotkey)}</kbd>` : ""}
-      </span>
+      ${item.hotkey ? `<span class="video-analysis-code-button__meta"><kbd>${escapeHtml(item.hotkey)}</kbd></span>` : ""}
     </button>
   `;
 }

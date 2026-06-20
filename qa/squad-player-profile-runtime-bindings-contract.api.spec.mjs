@@ -212,7 +212,7 @@ test("Player profile runtime bindings handle photo uploads on change only", () =
   expect(calls).not.toContain("photo");
 
   workspace.listeners.change(createEvent(photoTarget));
-  expect(calls).toContain("photo");
+  expect(calls).toEqual(["flush-autosave", "photo"]);
 });
 
 test("Player profile runtime bindings save status changes immediately", () => {

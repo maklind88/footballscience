@@ -191,6 +191,7 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
     }
     const playerPhotoInput = event.target.closest("[data-player-profile-photo-upload]");
     if (playerPhotoInput) {
+      actions.flushPlayerProfileAutosave?.();
       callOptional(actions.handlePhotoInput, playerPhotoInput);
       return;
     }

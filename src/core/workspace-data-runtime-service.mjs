@@ -160,16 +160,36 @@ export function createWorkspaceDataRuntimeService(deps = {}) {
       return;
     }
     const prefersReducedMotion = win.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    win.requestAnimationFrame(() => {
+    const block = options.block || "center";
+    const scrollSelectedCard = (behavior) => {
       const selectedCard = ui.periodizationBoard.querySelector(`[data-periodization-date="${dateValue}"]`);
       if (!selectedCard) {
-        return;
+        return null;
       }
       selectedCard.scrollIntoView({
-        block: options.block || "center",
+        block,
         inline: "nearest",
-        behavior: options.behavior || (prefersReducedMotion ? "auto" : "smooth"),
+        behavior,
       });
+      return selectedCard;
+    };
+    const isCardInViewport = (card) => {
+      if (!card?.getBoundingClientRect) {
+        return true;
+      }
+      const rect = card.getBoundingClientRect();
+      return rect.top >= 80 && rect.bottom <= win.innerHeight - 20;
+    };
+    win.requestAnimationFrame(() => {
+      const selectedCard = scrollSelectedCard(options.behavior || (prefersReducedMotion ? "auto" : "smooth"));
+      if (!selectedCard || options.ensure === false) {
+        return;
+      }
+      win.setTimeout?.(() => {
+        if (!isCardInViewport(selectedCard)) {
+          scrollSelectedCard("auto");
+        }
+      }, Number(options.ensureDelayMs ?? 120));
     });
   }
 

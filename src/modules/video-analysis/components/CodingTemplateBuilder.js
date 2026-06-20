@@ -59,13 +59,14 @@ function renderPlayerButton(player = {}, state = {}) {
   const number = String(player.number || "").trim();
   const position = String(player.position || "").trim();
   const active = state.draft?.playerId === id || state.codingSession?.lastPlayerTagId === id;
+  const numberText = number ? `<span class="video-analysis-player-tag-button__number">${escapeHtml(number)}</span>` : "";
   return `
-    <button type="button" class="video-analysis-player-tag-button${active ? " is-active" : ""}"
+    <button type="button" class="video-analysis-player-tag-button${active ? " is-active" : ""}${number ? " has-number" : ""}"
       data-video-analysis-player-tag="${escapeHtml(id)}"
       title="${escapeHtml(`${name}${position ? ` - ${position}` : ""}`)}"
-      aria-label="${escapeHtml(`Tag ${name} and send to IDP`)}">
+      aria-label="${escapeHtml(`Tag ${number ? `number ${number}, ` : ""}${name} and send to IDP`)}">
+      ${numberText}
       <span class="video-analysis-player-tag-button__initials">${escapeHtml(playerInitials(player))}</span>
-      ${number ? `<span class="video-analysis-player-tag-button__number">${escapeHtml(number)}</span>` : ""}
     </button>
   `;
 }

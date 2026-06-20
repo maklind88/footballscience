@@ -1,0 +1,291 @@
+:root {
+  --fs-bg: #f5f5f7;
+  --fs-bg-elevated: #ffffff;
+  --fs-surface: #ffffffd9;
+  --fs-surface-soft: #f7f8fae8;
+  --fs-surface-strong: #ffffff;
+  --fs-surface-muted: #eef1f4;
+  --fs-text: #1d1d1f;
+  --fs-text-strong: #111827;
+  --fs-text-muted: #6e6e73;
+  --fs-text-subtle: #8a8a8e;
+  --fs-border: #1d1d1f1a;
+  --fs-border-strong: #1d1d1f2b;
+  --fs-accent: #0a84ff;
+  --fs-accent-soft: #0a84ff1f;
+  --fs-success: #2f8f6b;
+  --fs-success-soft: #2f8f6b1f;
+  --fs-warning: #b7791f;
+  --fs-warning-soft: #b7791f1f;
+  --fs-danger: #d92d20;
+  --fs-danger-soft: #d92d201f;
+  --fs-info: #2563eb;
+  --fs-info-soft: #2563eb1f;
+  --fs-focus-ring: #0a84ff38;
+  --fs-shadow: 0 18px 48px #00000014;
+}
+
+body.is-dark-mode {
+  color-scheme: dark;
+  --fs-bg: #070b12;
+  --fs-bg-elevated: #0b111c;
+  --fs-surface: #111827e8;
+  --fs-surface-soft: #0f172ad9;
+  --fs-surface-strong: #172033;
+  --fs-surface-muted: #1e293b;
+  --fs-text: #e7edf6;
+  --fs-text-strong: #f8fafc;
+  --fs-text-muted: #a8b3c4;
+  --fs-text-subtle: #8794a8;
+  --fs-border: #94a3b833;
+  --fs-border-strong: #cbd5e15c;
+  --fs-accent: #7ab7ff;
+  --fs-accent-soft: #60a5fa24;
+  --fs-success: #67d7a1;
+  --fs-success-soft: #34d39924;
+  --fs-warning: #f8d47a;
+  --fs-warning-soft: #f59e0b2b;
+  --fs-danger: #ff8c82;
+  --fs-danger-soft: #f8717126;
+  --fs-info: #93c5fd;
+  --fs-info-soft: #60a5fa24;
+  --fs-focus-ring: #60a5fa40;
+  --fs-shadow: 0 22px 58px #00000066;
+  --bg: var(--fs-bg);
+  --panel: var(--fs-surface);
+  --ink: var(--fs-text);
+  --muted: var(--fs-text-muted);
+  --line: var(--fs-border);
+  --shadow: var(--fs-shadow);
+  --dark-bg: var(--fs-bg);
+  --dark-surface: var(--fs-surface);
+  --dark-surface-soft: var(--fs-surface-soft);
+  --dark-text: var(--fs-text);
+  --dark-muted: var(--fs-text-muted);
+  --dark-line: var(--fs-border);
+  --dark-line-strong: var(--fs-border-strong);
+  background: var(--fs-bg);
+  color: var(--fs-text);
+}
+
+body.is-dark-mode :where(.coach-platform, .platform-main, .platform-content) {
+  background:
+    radial-gradient(circle at 18% 0%, #123c5538, transparent 28rem),
+    linear-gradient(180deg, #0b111c 0%, #070b12 100%) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode :where(
+  .login-screen,
+  .platform-sidebar,
+  .platform-topbar,
+  .platform-profile-menu,
+  .platform-home-hero,
+  .placeholder-shell,
+  .workspace-view,
+  .workspace-grid,
+  .dashboard-panel,
+  .dashboard-chat-widget,
+  .dashboard-chat-panel,
+  .staff-card,
+  .profile-card,
+  .profile-panel,
+  .admin-card,
+  .admin-panel,
+  .schedule-workspace,
+  .schedule-hero-card,
+  .schedule-board-card,
+  .medical-command-center,
+  .medical-panel,
+  .medical-card,
+  .squad-card,
+  .squad-panel,
+  .scouting-workspace,
+  .transfer-room,
+  .gameplan-shell,
+  .idp-shell,
+  .idp-player-profile,
+  .analysis-room,
+  .video-analysis-workspace,
+  .video-analysis-shell,
+  .video-analysis-panel,
+  .video-analysis-card,
+  .session-planner-shell,
+  .session-planner-panel,
+  .session-planner-card,
+  [class*="-modal"],
+  [class*="-dialog"],
+  [class*="-overlay"] > [class*="-panel"]
+) {
+  background: var(--fs-surface) !important;
+  border-color: var(--fs-border) !important;
+  color: var(--fs-text) !important;
+  box-shadow: var(--fs-shadow);
+}
+
+body.is-dark-mode :where(
+  .platform-brand,
+  .platform-nav-item,
+  .top-icon-menu,
+  .top-icon-menu-item,
+  .platform-account-button,
+  .profile-menu-head,
+  .platform-theme-switcher,
+  .platform-foundation-grid article,
+  .dashboard-card,
+  .dashboard-task-card,
+  .workspace-card,
+  .workspace-panel,
+  .schedule-day-card,
+  .schedule-planner-day,
+  .schedule-planner-month,
+  .medical-roster-row,
+  .medical-ops-card,
+  .squad-roster-row,
+  .scouting-card,
+  .scouting-panel,
+  .idp-player-card,
+  .idp-overview-row,
+  .idp-mission-panel,
+  .video-analysis-toolbar,
+  .video-analysis-timeline,
+  .video-analysis-library,
+  .session-block-card,
+  .session-player-board-stage,
+  [class*="-card"],
+  [class*="-panel"],
+  [class*="-row"],
+  [class*="-item"]
+) {
+  background-color: var(--fs-surface-soft) !important;
+  border-color: var(--fs-border) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode :where(
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  strong,
+  b,
+  label,
+  .workspace-heading,
+  .workspace-title,
+  .placeholder-title,
+  .platform-nav-text strong,
+  .platform-account-copy strong
+) {
+  color: var(--fs-text-strong) !important;
+}
+
+body.is-dark-mode :where(
+  p,
+  small,
+  figcaption,
+  .workspace-date,
+  .dashboard-welcome,
+  .placeholder-tag,
+  .platform-nav-text small,
+  .platform-account-copy small,
+  [class*="-meta"],
+  [class*="-muted"],
+  [class*="-subtitle"],
+  [class*="-eyebrow"],
+  [class*="-hint"],
+  [class*="-empty"]
+) {
+  color: var(--fs-text-muted) !important;
+}
+
+body.is-dark-mode :where(input, select, textarea, [contenteditable="true"]) {
+  background: #08111f !important;
+  border-color: var(--fs-border-strong) !important;
+  color: var(--fs-text) !important;
+  caret-color: var(--fs-accent);
+}
+
+body.is-dark-mode :where(input::placeholder, textarea::placeholder) {
+  color: var(--fs-text-subtle) !important;
+}
+
+body.is-dark-mode :where(input, select, textarea, button, a, [tabindex]):focus-visible {
+  outline: 0 !important;
+  box-shadow: 0 0 0 4px var(--fs-focus-ring) !important;
+}
+
+body.is-dark-mode :where(button, .mode-button, .secondary, .platform-domain-link, .platform-status-pill) {
+  border-color: var(--fs-border) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode :where(button:not([disabled]):hover, .mode-button:not([disabled]):hover, .platform-nav-item:hover) {
+  background-color: var(--fs-surface-strong) !important;
+  color: var(--fs-text-strong) !important;
+}
+
+body.is-dark-mode :where(
+  button[type="submit"],
+  .primary,
+  .is-active,
+  .platform-nav-item.is-active,
+  .top-icon-menu-item.is-active
+) {
+  border-color: #7ab7ff55 !important;
+  background: linear-gradient(180deg, #1f456d, #123150) !important;
+  color: #f8fbff !important;
+}
+
+body.is-dark-mode :where(table, thead, tbody, tr, th, td, [role="table"], [role="row"], [role="cell"]) {
+  border-color: var(--fs-border) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode :where(.platform-inline-toast, .platform-autosave-status, .profile-menu-data-status) {
+  background: #0f172af2 !important;
+  border: 1px solid var(--fs-border) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode :where(.is-success, .success, [class*="success"], [class*="available"]) {
+  border-color: #34d39952 !important;
+  background-color: var(--fs-success-soft) !important;
+  color: #bbf7d0 !important;
+}
+
+body.is-dark-mode :where(.is-warning, .warning, [class*="warning"]) {
+  border-color: #f59e0b61 !important;
+  background-color: var(--fs-warning-soft) !important;
+  color: #fde68a !important;
+}
+
+body.is-dark-mode :where(.is-error, .error, .danger, [class*="danger"], [class*="unavailable"]) {
+  border-color: #f871715c !important;
+  background-color: var(--fs-danger-soft) !important;
+  color: #fecaca !important;
+}
+
+body.is-dark-mode :where(.login-card, .admin-user-editor-modal, .platform-profile-menu, [role="dialog"]) {
+  background: linear-gradient(180deg, #111827f5, #0b1220f0) !important;
+  border-color: var(--fs-border-strong) !important;
+}
+
+body.is-dark-mode :where(.platform-mark, .coach-avatar, .platform-account-avatar) {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: var(--fs-border) !important;
+}
+
+body.is-dark-mode :where(svg) {
+  color: inherit;
+}
+
+body.is-dark-mode :where(a) {
+  color: var(--fs-accent);
+}
+
+body.is-dark-mode :where(hr) {
+  border-color: var(--fs-border);
+}

@@ -362,7 +362,7 @@ const apiRouteSecurity = Object.freeze({
   "/api/chat": Object.freeze({
     moduleId: "chat",
     actions: Object.freeze({ GET: "read", POST: "write" }),
-    rateLimits: Object.freeze({ read: 360, write: 90 }),
+    rateLimits: Object.freeze({ read: 120, write: 60 }),
     enforcePermission: true,
   }),
   "/api/gameplan-player-brief": Object.freeze({
@@ -443,7 +443,7 @@ const apiRouteSecurity = Object.freeze({
   "/api/presence": Object.freeze({
     moduleId: "presence",
     actions: Object.freeze({ GET: "read", POST: "write" }),
-    rateLimits: Object.freeze({ read: 180, write: 120 }),
+    rateLimits: Object.freeze({ read: 30, write: 20 }),
     enforcePermission: true,
   }),
   "/api/profile-image": Object.freeze({

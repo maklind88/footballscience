@@ -116,6 +116,37 @@ test("API guard rate limits abusive public requests before route work", () => {
   expect(JSON.parse(latestResponse.body)).toEqual(expect.objectContaining({ ok: false }));
 });
 
+test("chat and presence API budgets stay conservative during traffic spikes", () => {
+  const chatConfig = permissionMatrix.apiRouteSecurity["/api/chat"];
+  const presenceConfig = permissionMatrix.apiRouteSecurity["/api/presence"];
+
+  expect(chatConfig.rateLimits.read).toBeLessThanOrEqual(120);
+  expect(chatConfig.rateLimits.write).toBeLessThanOrEqual(60);
+  expect(presenceConfig.rateLimits.read).toBeLessThanOrEqual(30);
+  expect(presenceConfig.rateLimits.write).toBeLessThanOrEqual(20);
+
+  platformSecurity.rateLimitBuckets.clear();
+  let latestResponse = null;
+  for (let index = 0; index < 31; index += 1) {
+    latestResponse = createResponse();
+    platformSecurity.guardApiRequest(
+      createRequest({ method: "GET", url: "/api/presence", ip: "203.0.113.91" }),
+      latestResponse,
+      {
+        route: "/api/presence",
+        moduleId: "presence",
+        action: "read",
+        actor: { id: "coach-presence-spike", role: "coach" },
+        enforcePermission: true,
+      }
+    );
+  }
+
+  expect(latestResponse.statusCode).toBe(429);
+  expect(latestResponse.headers["x-ratelimit-limit"]).toBe("30");
+  expect(latestResponse.headers["retry-after"]).toBeTruthy();
+});
+
 test("API guard blocks module actions outside the backend permission matrix", () => {
   platformSecurity.rateLimitBuckets.clear();
   const response = createResponse();

@@ -27,6 +27,16 @@ The API guard applies per-route, per-action rate limits and returns stable `X-Ra
 
 Vercel Firewall/WAF remains the outer layer for volumetric abuse and bot filtering; the in-app API guard is the application layer for identity-aware limits and permission logging.
 
+Active edge controls:
+
+- `Rate limit chat presence APIs`: Vercel Firewall custom rule on `^/api/(chat|presence)$`, fixed window `240` requests per `60s` per `ip`, deny on exceed.
+- AI bot managed rule: enabled with `deny`.
+
+Backend route budgets mirror the same intent but stay identity-aware:
+
+- `/api/chat`: `read 120/min`, `write 60/min`.
+- `/api/presence`: `read 30/min`, `write 20/min`.
+
 ## Observability
 
 API requests emit structured JSON logs with schema `footballscience-api-security-event-v1`. The logs include route, action, module, actor role, status, duration, and reason for failed requests.

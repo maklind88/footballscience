@@ -198,7 +198,7 @@
 
 .idp-toolbar {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   grid-template-columns: minmax(360px, 1.45fr) minmax(190px, .68fr) minmax(210px, .72fr);
   min-width: 0;
 }
@@ -216,12 +216,12 @@
   background: rgba(255, 255, 255, .82);
   border: 1px solid rgba(20, 32, 51, .09);
   border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 10px 24px rgba(16, 24, 40, .035);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 7px 18px rgba(16, 24, 40, .03);
   display: grid;
-  gap: 5px;
-  min-height: 58px;
+  gap: 1px;
+  min-height: 40px;
   min-width: 0;
-  padding: 9px 11px;
+  padding: 4px 8px;
   transition: background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
 }
 
@@ -248,7 +248,7 @@
   pointer-events: none;
   position: absolute;
   right: 13px;
-  top: 35px;
+  top: 23px;
   transform: rotate(45deg);
   width: 7px;
 }
@@ -256,8 +256,9 @@
 .idp-control-select > span,
 .idp-search-box > span:not(.idp-search-control) {
   color: var(--idp-muted);
-  font-size: .66rem;
+  font-size: .58rem;
   font-weight: 900;
+  line-height: 1;
   text-transform: uppercase;
 }
 
@@ -280,7 +281,7 @@
 .idp-search-box input {
   background: transparent;
   border: 0;
-  min-height: 26px;
+  min-height: 20px;
   padding: 0;
   width: 100%;
 }
@@ -293,8 +294,8 @@
 .idp-search-control {
   align-items: center;
   display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 30px;
   min-width: 0;
 }
 
@@ -311,11 +312,11 @@
   box-shadow: 0 9px 18px rgba(36, 87, 166, .24);
   cursor: pointer;
   display: inline-flex;
-  height: 34px;
+  height: 28px;
   justify-content: center;
   padding: 0;
   transition: box-shadow .16s ease, transform .16s ease;
-  width: 42px;
+  width: 30px;
 }
 
 .idp-search-button:hover,
@@ -333,9 +334,9 @@
   border: 2px solid #fff;
   border-radius: 999px;
   display: block;
-  height: 12px;
+  height: 9px;
   position: relative;
-  width: 12px;
+  width: 9px;
 }
 
 .idp-search-icon::after {
@@ -344,10 +345,10 @@
   content: "";
   height: 2px;
   position: absolute;
-  right: -7px;
-  top: 9px;
+  right: -6px;
+  top: 7px;
   transform: rotate(45deg);
-  width: 8px;
+  width: 7px;
 }
 
 .idp-action-form textarea {
@@ -2835,10 +2836,10 @@ body.is-dark-mode .idp-player-voice-card {
   background: linear-gradient(135deg, rgba(255, 255, 255, .84), rgba(248, 250, 252, .68));
   border: 1px solid rgba(23, 32, 51, .07);
   border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .88), 0 14px 30px rgba(16, 24, 40, .045);
-  gap: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .88), 0 8px 20px rgba(16, 24, 40, .035);
+  gap: 8px;
   grid-template-columns: 1fr;
-  padding: 10px;
+  padding: 5px;
 }
 
 .idp-status-segments {
@@ -2866,14 +2867,14 @@ body.is-dark-mode .idp-player-voice-card {
 }
 
 .idp-toolbar {
-  gap: 10px;
+  gap: 8px;
 }
 
 .idp-control-select,
 .idp-search-box {
   background: rgba(255, 255, 255, .82);
   border-color: rgba(23, 32, 51, .08);
-  padding: 9px 11px;
+  padding: 4px 8px;
 }
 
 .idp-search-box {
@@ -2883,7 +2884,8 @@ body.is-dark-mode .idp-player-voice-card {
 .idp-control-select > span,
 .idp-search-box > span:not(.idp-search-control) {
   color: #667085;
-  font-size: .62rem;
+  font-size: .58rem;
+  line-height: 1;
 }
 
 .idp-overview-rows {

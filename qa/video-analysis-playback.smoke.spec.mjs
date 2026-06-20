@@ -622,7 +622,7 @@ test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) =
   await expect(page.locator(".video-analysis-clip-block")).toHaveCount(500);
   await expect(page.locator(".video-analysis-clip-block__copy small")).toHaveCount(0);
   const subPhaseLane = page.locator('[data-video-analysis-timeline-category-label="Build Up"]');
-  await expect(subPhaseLane).toContainText("250 clips");
+  await expect(subPhaseLane).toContainText("Build Up (250)");
   await expect(subPhaseLane).toContainText("0:00:14 - 1:56:41");
   await subPhaseLane.click();
   await expect(page.locator(".video-analysis-timeline-category-tray")).toContainText("250 clips selected");

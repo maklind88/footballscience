@@ -161,8 +161,7 @@ function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", select
     return `
       <div class="video-analysis-lane is-empty">
         <div class="video-analysis-lane__label">
-          <strong>Timeline</strong>
-          <span>No clips</span>
+          <strong>Timeline <span class="video-analysis-lane__count">(0)</span></strong>
         </div>
         <div class="video-analysis-lane__track" data-video-analysis-timeline-track data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}">
         </div>
@@ -180,8 +179,7 @@ function renderTimelineLanes(lanes = [], totalMs = 1, laneMode = "phase", select
         aria-pressed="${isActiveCategory(timeline, laneMode, lane.label) ? "true" : "false"}"
         title="${escapeHtml(`Select all ${lane.label} clips`)}"
       >
-        <strong>${escapeHtml(lane.label)}</strong>
-        <span>${escapeHtml(`${lane.clips.length} clip${lane.clips.length === 1 ? "" : "s"}`)}</span>
+        <strong>${escapeHtml(lane.label)} <span class="video-analysis-lane__count">(${escapeHtml(String(lane.clips.length))})</span></strong>
         ${density.isDense && lane.clipCount ? `<span>${escapeHtml(`${formatVideoTime(lane.firstStartMs)} - ${formatVideoTime(lane.lastEndMs)}`)}</span>` : ""}
       </button>
       <div class="video-analysis-lane__track" data-video-analysis-timeline-track data-video-analysis-timeline-duration-ms="${escapeHtml(totalMs)}">

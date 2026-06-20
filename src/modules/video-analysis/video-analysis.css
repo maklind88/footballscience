@@ -1671,11 +1671,11 @@
   min-height: 22px;
   border-radius: 5px;
   padding: 0 6px;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .video-analysis-fs-player-timeline .video-analysis-lane__label span {
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .video-analysis-fs-player-timeline .video-analysis-lane__track {
@@ -1886,11 +1886,11 @@
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-lane__label {
   padding: 0 5px;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-lane__label span {
-  font-size: 8px;
+  font-size: 9px;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-clip-block {
@@ -3375,7 +3375,9 @@
   position: sticky;
   left: 0;
   z-index: 3;
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   align-content: center;
   gap: 2px;
   min-height: 24px;
@@ -3395,10 +3397,24 @@
   cursor: pointer;
 }
 
+.video-analysis-lane__label strong {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  line-height: 1.05;
+}
+
 .video-analysis-lane__label span {
   color: #69756e;
   font-size: 10px;
   font-weight: 750;
+}
+
+.video-analysis-lane__label .video-analysis-lane__count {
+  color: inherit;
+  font-size: 0.94em;
+  font-weight: 850;
+  white-space: nowrap;
 }
 
 .video-analysis-lane.is-selected .video-analysis-lane__label {

@@ -2,7 +2,11 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildIncidentResolutionComment, isResolvedConclusion } from "../scripts/create-incident-alert.mjs";
+import {
+  buildIncidentResolutionComment,
+  isResolvedConclusion,
+  isSupersededCancelledRun,
+} from "../scripts/create-incident-alert.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -42,6 +46,7 @@ test("production incident alerts create issue-backed alerts for failed release w
   expect(alertScript).toContain("release-monitor");
   expect(alertScript).toContain("createOrUpdateIncidentIssue");
   expect(alertScript).toContain("resolveOpenIncidentIssue");
+  expect(alertScript).toContain("isSupersededCancelledRun");
   expect(alertScript).toContain("state_reason: \"completed\"");
   expect(alertScript).toContain("INCIDENT_DRY_RUN");
   expect(alertScript).not.toContain("LIVE_QA_PASSWORD");
@@ -69,4 +74,30 @@ test("production incident alerts resolve stale incidents after green workflow ru
   expect(comment).toContain("Production Monitor");
   expect(comment).toContain("closed automatically");
   expect(comment).toContain("1234567890ab");
+});
+
+test("production incident alerts skip superseded cancelled production deploy runs", () => {
+  expect(isSupersededCancelledRun({
+    branch: "main",
+    conclusion: "cancelled",
+    currentSha: "fresh-main-sha",
+    sha: "older-deploy-sha",
+    workflowName: "Production Deploy",
+  })).toBe(true);
+
+  expect(isSupersededCancelledRun({
+    branch: "main",
+    conclusion: "failure",
+    currentSha: "fresh-main-sha",
+    sha: "older-deploy-sha",
+    workflowName: "Production Deploy",
+  })).toBe(false);
+
+  expect(isSupersededCancelledRun({
+    branch: "main",
+    conclusion: "cancelled",
+    currentSha: "same-sha",
+    sha: "same-sha",
+    workflowName: "Production Deploy",
+  })).toBe(false);
 });

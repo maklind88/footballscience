@@ -36,6 +36,7 @@ function getIncidentContext(env = process.env) {
     baseUrl: clean(env.LIVE_QA_BASE_URL) || "https://footballscience.xyz",
     branch: clean(env.INCIDENT_HEAD_BRANCH) || clean(env.GITHUB_REF_NAME) || "unknown",
     conclusion: clean(env.INCIDENT_WORKFLOW_CONCLUSION) || "unknown",
+    currentSha: clean(env.GITHUB_SHA) || "",
     event: clean(env.INCIDENT_EVENT) || clean(env.GITHUB_EVENT_NAME) || "unknown",
     repo,
     runId: clean(env.INCIDENT_RUN_ID) || clean(env.GITHUB_RUN_ID) || "",
@@ -53,6 +54,22 @@ function isActionableFailure(conclusion) {
 
 function isResolvedConclusion(conclusion) {
   return ["success", "skipped", "neutral"].includes(clean(conclusion).toLowerCase());
+}
+
+function isSupersededCancelledRun(context = {}) {
+  const conclusion = clean(context.conclusion).toLowerCase();
+  const workflowName = clean(context.workflowName).toLowerCase();
+  const branch = clean(context.branch);
+  const runSha = clean(context.sha);
+  const currentSha = clean(context.currentSha);
+  return Boolean(
+    conclusion === "cancelled" &&
+      workflowName === "production deploy" &&
+      branch === "main" &&
+      runSha &&
+      currentSha &&
+      runSha !== currentSha
+  );
 }
 
 function buildIncidentTitle(context) {
@@ -232,6 +249,7 @@ export {
   getIncidentContext,
   isActionableFailure,
   isResolvedConclusion,
+  isSupersededCancelledRun,
   resolveOpenIncidentIssue,
 };
 
@@ -265,6 +283,13 @@ async function main() {
 
   if (isResolvedConclusion(context.conclusion)) {
     await resolveOpenIncidentIssue(context, token);
+    return;
+  }
+
+  if (isSupersededCancelledRun(context)) {
+    console.log(
+      `Incident alert skipped: ${context.workflowName} was cancelled for superseded commit ${shortSha(context.sha)}.`
+    );
     return;
   }
 

@@ -51,6 +51,7 @@ requireText("scripts/create-incident-alert.mjs", "production-incident", "issues 
 requireText("scripts/create-incident-alert.mjs", "createOrUpdateIncidentIssue", "repeated failures must update existing incident issues");
 requireText("scripts/create-incident-alert.mjs", "isResolvedConclusion", "successful runs must be handled as incident resolutions");
 requireText("scripts/create-incident-alert.mjs", "resolveOpenIncidentIssue", "successful runs must close stale incident issues instead of creating new ones");
+requireText("scripts/create-incident-alert.mjs", "isSupersededCancelledRun", "superseded cancelled production deploys must not create false incidents");
 requireText("scripts/create-incident-alert.mjs", "state_reason: \"completed\"", "resolved incident issues must be closed as completed");
 requireText("scripts/create-incident-alert.mjs", "Do not deploy over this incident", "incident body must include a release safety guardrail");
 requireText("scripts/create-incident-alert.mjs", "INCIDENT_DRY_RUN", "incident script must be safely testable without GitHub writes");

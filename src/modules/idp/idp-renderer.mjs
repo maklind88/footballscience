@@ -629,7 +629,7 @@ function renderActionRail(canEdit = false, focusId = "") {
       <span class="idp-action-rail-label">Quick actions</span>
       <button type="button" data-idp-action="ownership" title="Assign coach"><span>01</span><strong>Assign coach</strong><small>Ownership</small></button>
       <button type="button" data-idp-action="focus" title="Update focus"><span>02</span><strong>Update focus</strong><small>Mission</small></button>
-      <button type="button" data-idp-action="evidence" title="Add observation" ${focusId ? "" : "disabled"}><span>03</span><strong>Add observation</strong><small>Signal</small></button>
+      <button type="button" data-idp-action="evidence" title="Add observation"><span>03</span><strong>Add observation</strong><small>Signal</small></button>
       <button type="button" data-idp-action="review" title="Complete review" ${focusId ? "" : "disabled"}><span>04</span><strong>Complete review</strong><small>Decision</small></button>
     </div>
   `;
@@ -666,6 +666,7 @@ function renderFocusForm(focus = null) {
 
 function renderEvidenceForm(focus = null) {
   const focusId = focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "";
+  const focusTitle = normalizeText(focus?.title, "General development notes");
   return `
     <form class="idp-action-form" data-idp-add-evidence>
       <input type="hidden" name="focusId" value="${escapeHtml(focusId)}">
@@ -677,9 +678,10 @@ function renderEvidenceForm(focus = null) {
         <span>Note</span>
         <textarea name="note" rows="4" placeholder="What did the player show?"></textarea>
       </label>
+      ${focusId ? "" : `<div class="idp-form-note">This observation will start a saved IDP note thread for ${escapeHtml(focusTitle)}.</div>`}
       <div class="idp-action-form-actions">
         <button type="button" class="idp-secondary-action" data-idp-close-action>Cancel</button>
-        <button type="submit" ${focusId ? "" : "disabled"}>Add observation</button>
+        <button type="submit">Add observation</button>
       </div>
     </form>
   `;

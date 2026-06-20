@@ -122,6 +122,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("idp-focus-coach-cue");
   expect(profileHtml).toContain("Add observation");
   expect(profileHtml).toContain("Observations");
+  expect(profileHtml).not.toContain('data-idp-action="evidence" title="Add observation" disabled');
   expect(profileHtml).toContain("Clip Bank");
   expect(profileHtml).toContain("Development Timeline");
   expect(profileHtml).toContain("Primary IDP Coach");
@@ -137,7 +138,105 @@ test("idp renderer separates the overview from the player development profile", 
   expect(observationHtml).toContain("data-idp-add-evidence");
   expect(observationHtml).toContain("Observation type");
   expect(observationHtml).toContain("Add observation");
+  expect(observationHtml).not.toContain("<button type=\"submit\" disabled>Add observation</button>");
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, staffOptions)).toContain("data-idp-complete-review");
+});
+
+test("idp observation creates a saved focus when the player only has a Squad fallback focus", async () => {
+  const player = {
+    id: "p1",
+    name: "Kailen Sheridan",
+    position: "Goalkeeper",
+    primaryRole: "GK",
+    idp: { primaryFocus: "Distribution under pressure", nextAction: "Add observation" },
+  };
+  const store = createIdpStore({
+    ui: { selectedPlayerId: "p1" },
+    playerDetail: buildLegacyPlayerDetail(player),
+  });
+  const createdFocuses = [];
+  const evidencePayloads = [];
+  const api = {
+    createFocus: async (payload) => {
+      createdFocuses.push(payload);
+      return {
+        schema: "footballscience-idp-v1",
+        focus: {
+          id: "server-focus",
+          player_id: payload.playerId,
+          title: payload.title,
+          category: payload.category,
+          status: payload.status,
+        },
+      };
+    },
+    addEvidence: async (payload) => {
+      evidencePayloads.push(payload);
+      return {
+        schema: "footballscience-idp-v1",
+        evidence: {
+          id: "evidence-1",
+          player_id: payload.playerId,
+          focus_id: payload.focusId,
+          evidence_type: payload.evidenceType,
+          note: payload.note,
+        },
+      };
+    },
+    loadDashboard: async () => ({
+      schema: "footballscience-idp-v1",
+      players: [
+        {
+          profile: { id: "profile-p1", player_id: "p1" },
+          focus: { id: "server-focus", player_id: "p1", title: "Distribution under pressure", status: "Active" },
+          evidenceCount: 1,
+          newClipCount: 0,
+          nextAction: "Review focus",
+          overallStatus: "On Track",
+        },
+      ],
+    }),
+    loadPlayer: async () => ({
+      schema: "footballscience-idp-v1",
+      profile: { id: "profile-p1", player_id: "p1" },
+      focuses: [{ id: "server-focus", player_id: "p1", title: "Distribution under pressure", status: "Active" }],
+      clipBank: [],
+      evidence: [{ id: "evidence-1", player_id: "p1", focus_id: "server-focus", evidence_type: "Coach Note", note: "Stayed composed." }],
+      reviews: [],
+      nextActions: [],
+      milestones: [],
+      ownership: [],
+    }),
+  };
+  const actions = createIdpActions({
+    store,
+    api,
+    context: { getPlayerProfilesState: () => ({ players: [player] }) },
+  });
+
+  await actions.addEvidence({
+    get: (key) => {
+      if (key === "evidenceType") return "Coach Note";
+      if (key === "note") return "Stayed composed.";
+      return "";
+    },
+  });
+
+  expect(createdFocuses).toHaveLength(1);
+  expect(createdFocuses[0]).toMatchObject({
+    playerId: "p1",
+    title: "Distribution under pressure",
+    category: "Tactical",
+    status: "Active",
+  });
+  expect(evidencePayloads[0]).toMatchObject({
+    playerId: "p1",
+    focusId: "server-focus",
+    evidenceType: "Coach Note",
+    note: "Stayed composed.",
+    sourceModule: "idp",
+  });
+  expect(store.getState().ui.message).toBe("Observation added.");
 });
 
 test("idp clip bank is a date-sorted organizer with play queue metadata", () => {

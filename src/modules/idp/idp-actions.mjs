@@ -168,6 +168,34 @@ function selectedPlayerIdFromState(state = {}) {
   return state.ui?.selectedPlayerId || "";
 }
 
+function persistedFocusId(focus = {}) {
+  const id = normalizeText(focus?.id, 160);
+  return id && !String(id).startsWith("legacy-focus-") ? id : "";
+}
+
+function primaryFocus(detail = {}) {
+  return Array.isArray(detail?.focuses) ? detail.focuses[0] || null : null;
+}
+
+function observationFocusTitle(detail = {}) {
+  const focus = primaryFocus(detail);
+  const title = normalizeText(focus?.title, 180);
+  return title && title !== "Create current focus" ? title : "General development notes";
+}
+
+function observationFocusPayload(detail = {}, playerId = "") {
+  const focus = primaryFocus(detail) || {};
+  const profile = detail?.profile || {};
+  return {
+    playerId,
+    title: observationFocusTitle(detail),
+    category: focus.category || "Tactical",
+    status: focus.status || "Active",
+    reviewDate: focus.reviewDate || profile.nextReviewOn || "",
+    ownerId: focus.ownerId || profile.ownerId || "",
+  };
+}
+
 export function createIdpActions({ store, api, context = {} }) {
   const getSquadState = () => context.getPlayerProfilesState?.() || {};
 
@@ -260,10 +288,21 @@ export function createIdpActions({ store, api, context = {} }) {
     await refreshSelectedPlayer();
   }
 
+  async function ensureObservationFocus(playerId, detail = {}, formData) {
+    const formFocusId = persistedFocusId({ id: formData.get("focusId") || "" });
+    if (formFocusId) return formFocusId;
+    const existingFocusId = persistedFocusId(primaryFocus(detail));
+    if (existingFocusId) return existingFocusId;
+    const created = await api.createFocus(observationFocusPayload(detail, playerId));
+    const createdFocusId = normalizeText(created?.focus?.id, 160);
+    if (!createdFocusId) throw new Error("Could not start an IDP focus for this observation.");
+    return createdFocusId;
+  }
+
   async function addEvidence(formData) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const detail = store.getState().playerDetail;
-    const focusId = formData.get("focusId") || detail?.focuses?.[0]?.id || "";
+    const focusId = await ensureObservationFocus(playerId, detail, formData);
     await api.addEvidence({
       playerId,
       focusId,

@@ -3,6 +3,7 @@ export const idpInitialUiState = Object.freeze({
   statusFilter: "All",
   ownerFilter: "All",
   categoryFilter: "All",
+  openFilterMenu: "",
   searchQuery: "",
   clipBankSearchQuery: "",
   actionMode: "",

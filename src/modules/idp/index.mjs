@@ -253,6 +253,30 @@ export function handleChange(event) {
 }
 
 export function handleClick(event) {
+  const filterToggle = event?.target?.closest?.("[data-idp-filter-toggle]");
+  if (filterToggle) {
+    event?.preventDefault?.();
+    const filter = filterToggle.dataset.idpFilterToggle || "";
+    const currentOpen = runtime?.store.getState?.()?.ui?.openFilterMenu || "";
+    runtime?.store.setState({ ui: { openFilterMenu: currentOpen === filter ? "" : filter } });
+    return;
+  }
+  const filterOption = event?.target?.closest?.("[data-idp-filter-option]");
+  if (filterOption) {
+    event?.preventDefault?.();
+    const filter = filterOption.dataset.idpFilterOption || "";
+    const value = filterOption.dataset.idpFilterValue || "All";
+    const uiPatch = { openFilterMenu: "" };
+    if (filter === "category") uiPatch.categoryFilter = value || "All";
+    if (filter === "owner") uiPatch.ownerFilter = value || "All";
+    runtime?.store.setState({ ui: uiPatch });
+    return;
+  }
+  const openFilterMenu = runtime?.store.getState?.()?.ui?.openFilterMenu || "";
+  if (openFilterMenu && !event?.target?.closest?.("[data-idp-filter-shell]")) {
+    runtime?.store.setState({ ui: { openFilterMenu: "" } });
+    return;
+  }
   const clipPreviewClose = event?.target?.closest?.("[data-idp-clip-preview-close]");
   if (clipPreviewClose || event?.target?.matches?.("[data-idp-clip-preview-layer]")) {
     event?.preventDefault?.();

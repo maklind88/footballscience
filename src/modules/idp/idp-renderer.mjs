@@ -13,6 +13,7 @@ const defaultUiState = Object.freeze({
   statusFilter: "All",
   ownerFilter: "All",
   categoryFilter: "All",
+  openFilterMenu: "",
   searchQuery: "",
   actionMode: "",
   message: "",
@@ -53,11 +54,12 @@ function normalizeText(value = "", fallback = "") {
   return String(value || fallback).trim();
 }
 
-const assignableIdpRoles = new Set(["admin", "club-admin", "team-admin", "coach", "analyst", "performance"]);
+const staffDirectoryRoles = new Set(["admin", "club-admin", "team-admin", "coach", "analyst", "performance"]);
+const idpCoachRole = "coach";
 
 function normalizeUserRole(user = {}) {
   const rawRole = Array.isArray(user.roles) ? user.roles.find(Boolean) : user.role || user.platformRole || user.staffRole;
-  return normalizeText(rawRole, "coach").toLowerCase();
+  return normalizeText(rawRole, "").toLowerCase();
 }
 
 function getUserId(user = {}) {
@@ -75,7 +77,7 @@ function defaultFormatUserName(user = {}) {
   );
 }
 
-function getStaffUsers(options = {}) {
+function getDirectoryUsers(options = {}) {
   const users = Array.isArray(options.users) ? options.users : [];
   const currentUser = options.currentUser ? [options.currentUser] : [];
   const unique = new Map();
@@ -83,17 +85,24 @@ function getStaffUsers(options = {}) {
     const id = getUserId(user);
     if (!id || unique.has(id)) continue;
     const role = normalizeUserRole(user);
-    if (!assignableIdpRoles.has(role)) continue;
     if (String(user.status || "active").toLowerCase() === "archived") continue;
     unique.set(id, { ...user, id, role });
   }
   return [...unique.values()].sort((a, b) => defaultFormatUserName(a).localeCompare(defaultFormatUserName(b)));
 }
 
+function getStaffUsers(options = {}) {
+  return getDirectoryUsers(options).filter((user) => staffDirectoryRoles.has(normalizeUserRole(user)));
+}
+
+function getIdpCoachUsers(options = {}) {
+  return getStaffUsers(options).filter((user) => normalizeUserRole(user) === idpCoachRole);
+}
+
 function formatStaffName(ownerId = "", options = {}) {
   const id = normalizeText(ownerId, "");
   if (!id) return "Unassigned";
-  const user = getStaffUsers(options).find((entry) => getUserId(entry) === id);
+  const user = getDirectoryUsers(options).find((entry) => getUserId(entry) === id);
   if (!user) return id;
   const formatter = typeof options.formatUserName === "function" ? options.formatUserName : defaultFormatUserName;
   return normalizeText(formatter(user), defaultFormatUserName(user));
@@ -108,33 +117,68 @@ function playerSquadNumber(profile = {}, fallback = "") {
 }
 
 function staffSelectOptions(options = {}, selectedOwnerId = "") {
-  const staff = getStaffUsers(options);
+  const staff = getIdpCoachUsers(options);
   const selected = normalizeText(selectedOwnerId, "");
   const selectedMissing = selected && !staff.some((user) => getUserId(user) === selected);
   return [
     `<option value="" ${selected ? "" : "selected"}>Unassigned</option>`,
-    selectedMissing ? `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)}</option>` : "",
+    selectedMissing ? `<option value="" selected>Choose IDP coach</option>` : "",
     ...staff.map((user) => {
       const id = getUserId(user);
-      const label = `${formatStaffName(id, options)} · ${normalizeUserRole(user)}`;
+      const label = `${formatStaffName(id, options)} · Coach`;
       return `<option value="${escapeHtml(id)}" ${id === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
     }),
   ].join("");
 }
 
-function ownerFilterOptions(state = {}, options = {}, selected = "All") {
-  const staffIds = new Set(getStaffUsers(options).map(getUserId));
-  for (const entry of state.dashboardPlayers || []) {
-    const ownerId = primaryOwnerId(entry.profile || {}, entry.focus || {});
-    if (ownerId) staffIds.add(ownerId);
-  }
+function ownerFilterItems(options = {}) {
+  const coachUsers = getIdpCoachUsers(options);
   return [
-    `<option value="All" ${selected === "All" ? "selected" : ""}>All IDP Coaches</option>`,
-    `<option value="__unassigned" ${selected === "__unassigned" ? "selected" : ""}>Unassigned</option>`,
-    ...[...staffIds].filter(Boolean).sort((a, b) => formatStaffName(a, options).localeCompare(formatStaffName(b, options))).map((ownerId) =>
-      `<option value="${escapeHtml(ownerId)}" ${ownerId === selected ? "selected" : ""}>${escapeHtml(formatStaffName(ownerId, options))}</option>`
-    ),
-  ].join("");
+    { value: "All", label: "All IDP Coaches", meta: "Whole squad" },
+    { value: "__unassigned", label: "Unassigned", meta: "No IDP coach" },
+    ...coachUsers.map((user) => {
+      const id = getUserId(user);
+      return { value: id, label: formatStaffName(id, options), meta: "Coach" };
+    }),
+  ];
+}
+
+function categoryFilterItems() {
+  return [
+    { value: "All", label: "All", meta: "Every lens" },
+    ...idpDevelopmentCategories.map((category) => ({ value: category, label: category, meta: "Development lens" })),
+  ];
+}
+
+function renderFilterDropdown({
+  filter = "",
+  label = "",
+  selected = "All",
+  items = [],
+  openFilterMenu = "",
+  ariaLabel = "",
+} = {}) {
+  const selectedItem = items.find((item) => item.value === selected) || items[0] || { value: "All", label: "All", meta: "" };
+  const isOpen = openFilterMenu === filter;
+  return `
+    <div class="idp-control-select idp-filter-dropdown ${isOpen ? "is-open" : ""}" data-idp-filter-shell="${escapeHtml(filter)}">
+      <span>${escapeHtml(label)}</span>
+      <button type="button" class="idp-filter-button" data-idp-filter="${escapeHtml(filter)}" data-idp-filter-toggle="${escapeHtml(filter)}" aria-haspopup="listbox" aria-expanded="${isOpen ? "true" : "false"}" aria-label="${escapeHtml(ariaLabel || label)}">
+        <strong>${escapeHtml(selectedItem.label)}</strong>
+        <i aria-hidden="true"></i>
+      </button>
+      ${isOpen ? `
+        <div class="idp-filter-menu" role="listbox" aria-label="${escapeHtml(ariaLabel || label)}">
+          ${items.map((item) => `
+            <button type="button" class="idp-filter-option ${item.value === selectedItem.value ? "is-selected" : ""}" data-idp-filter-option="${escapeHtml(filter)}" data-idp-filter-value="${escapeHtml(item.value)}" role="option" aria-selected="${item.value === selectedItem.value ? "true" : "false"}">
+              <span>${escapeHtml(item.label)}</span>
+              ${item.meta ? `<small>${escapeHtml(item.meta)}</small>` : ""}
+            </button>
+          `).join("")}
+        </div>
+      ` : ""}
+    </div>
+  `;
 }
 
 function initialsFromName(value = "", fallback = "IDP") {
@@ -728,35 +772,49 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
 }
 
 function renderOverviewBoard(state = {}, ui = defaultUiState, options = {}) {
-  const dashboard = filterDashboardRows({ ...state, ui }, options);
+  const ownerItems = ownerFilterItems(options);
+  const categoryItems = categoryFilterItems();
+  const ownerValues = new Set(ownerItems.map((item) => item.value));
+  const categoryValues = new Set(categoryItems.map((item) => item.value));
+  const normalizedUi = {
+    ...defaultUiState,
+    ...ui,
+    ownerFilter: ownerValues.has(ui.ownerFilter) ? ui.ownerFilter : "All",
+    categoryFilter: categoryValues.has(ui.categoryFilter) ? ui.categoryFilter : "All",
+  };
+  const dashboard = filterDashboardRows({ ...state, ui: normalizedUi }, options);
   return `
     <section class="idp-overview-board">
       <div class="idp-overview-command">
         <div class="idp-toolbar">
           <select class="idp-filter-native-status" data-idp-filter="status" aria-label="Filter by status">
-            ${optionList(["All", "On Track", "Needs Evidence", "Review Due", "No Active Focus", "No Active IDP", "New Clips To Review"], ui.statusFilter, coachLabel)}
+            ${optionList(["All", "On Track", "Needs Evidence", "Review Due", "No Active Focus", "No Active IDP", "New Clips To Review"], normalizedUi.statusFilter, coachLabel)}
           </select>
           <label class="idp-search-box">
             <span>Search</span>
             <span class="idp-search-control">
-              <input data-idp-search value="${escapeHtml(ui.searchQuery)}" placeholder="Player, focus or coach" aria-label="Search player or focus">
+              <input data-idp-search value="${escapeHtml(normalizedUi.searchQuery)}" placeholder="Player, focus or coach" aria-label="Search player or focus">
               <button type="button" class="idp-search-button" data-idp-search-submit aria-label="Search players">
                 <span class="idp-search-icon" aria-hidden="true"></span>
               </button>
             </span>
           </label>
-          <label class="idp-control-select">
-            <span>IDP Coach</span>
-            <select data-idp-filter="owner" aria-label="Filter by IDP Coach">
-              ${ownerFilterOptions(state, options, ui.ownerFilter)}
-            </select>
-          </label>
-          <label class="idp-control-select">
-            <span>Development lens</span>
-            <select data-idp-filter="category" aria-label="Filter by category">
-              ${optionList(["All", ...idpDevelopmentCategories], ui.categoryFilter)}
-            </select>
-          </label>
+          ${renderFilterDropdown({
+            filter: "owner",
+            label: "IDP Coach",
+            selected: normalizedUi.ownerFilter,
+            items: ownerItems,
+            openFilterMenu: normalizedUi.openFilterMenu,
+            ariaLabel: "Filter by IDP Coach",
+          })}
+          ${renderFilterDropdown({
+            filter: "category",
+            label: "Development lens",
+            selected: normalizedUi.categoryFilter,
+            items: categoryItems,
+            openFilterMenu: normalizedUi.openFilterMenu,
+            ariaLabel: "Filter by category",
+          })}
         </div>
       </div>
       <div class="idp-overview-table" role="table" aria-label="Player development overview">
@@ -770,7 +828,7 @@ function renderOverviewBoard(state = {}, ui = defaultUiState, options = {}) {
           <span>Profile</span>
         </div>
         <div class="idp-overview-rows">
-          ${renderOverviewRows({ ...state, ui }, dashboard, options)}
+          ${renderOverviewRows({ ...state, ui: normalizedUi }, dashboard, options)}
         </div>
       </div>
     </section>

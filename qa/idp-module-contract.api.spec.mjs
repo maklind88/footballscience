@@ -88,6 +88,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(overviewHtml).toContain("data-idp-filter=\"owner\"");
   expect(overviewHtml).toContain("All IDP Coaches");
   expect(overviewHtml).toContain("Mak Lind");
+  expect(overviewHtml).not.toContain("Video Analyst");
   expect(overviewHtml).toContain("Player Development");
   expect(overviewHtml).toContain("North Carolina Courage");
   expect(overviewHtml).toContain("Current Focus");
@@ -130,6 +131,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(assignmentHtml).toContain("data-idp-assign-owner");
   expect(assignmentHtml).toContain("Assign IDP Coach");
   expect(assignmentHtml).toContain("Save assignment");
+  expect(assignmentHtml).not.toContain("Video Analyst");
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "focus" } }, staffOptions)).toContain("data-idp-create-focus");
   const observationHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "evidence" } }, staffOptions);
   expect(observationHtml).toContain("data-idp-add-evidence");

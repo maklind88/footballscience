@@ -240,7 +240,7 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .96), 0 12px 28px rgba(36, 87, 166, .1);
 }
 
-.idp-control-select::after {
+.idp-control-select:not(.idp-filter-dropdown)::after {
   border-bottom: 2px solid rgba(20, 32, 51, .46);
   border-right: 2px solid rgba(20, 32, 51, .46);
   content: "";
@@ -289,6 +289,119 @@
 .idp-control-select select {
   appearance: none;
   padding-right: 22px;
+}
+
+.idp-filter-dropdown {
+  align-content: start;
+  overflow: visible;
+  z-index: 5;
+}
+
+.idp-filter-dropdown.is-open {
+  background: rgba(255, 255, 255, .96);
+  border-color: rgba(36, 87, 166, .2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .98), 0 16px 34px rgba(16, 24, 40, .12);
+  z-index: 80;
+}
+
+.idp-filter-button {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--idp-ink);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  min-height: 22px;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.idp-filter-button strong {
+  display: block;
+  font-size: .82rem;
+  font-weight: 650;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-filter-button i {
+  border-bottom: 2px solid rgba(20, 32, 51, .4);
+  border-right: 2px solid rgba(20, 32, 51, .4);
+  height: 7px;
+  justify-self: end;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform .16s ease, border-color .16s ease;
+  width: 7px;
+}
+
+.idp-filter-dropdown.is-open .idp-filter-button i {
+  border-color: rgba(36, 87, 166, .7);
+  transform: translateY(2px) rotate(225deg);
+}
+
+.idp-filter-menu {
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  backdrop-filter: blur(18px) saturate(1.25);
+  background: rgba(255, 255, 255, .88);
+  border: 1px solid rgba(23, 32, 51, .1);
+  border-radius: 10px;
+  box-shadow: 0 22px 54px rgba(16, 24, 40, .18);
+  display: grid;
+  gap: 3px;
+  left: 0;
+  max-height: min(320px, 56vh);
+  overflow: auto;
+  padding: 5px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 7px);
+}
+
+.idp-filter-option {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: #172033;
+  cursor: pointer;
+  display: grid;
+  gap: 1px;
+  min-height: 38px;
+  padding: 7px 9px;
+  text-align: left;
+  transition: background .14s ease, color .14s ease, transform .14s ease;
+}
+
+.idp-filter-option:hover,
+.idp-filter-option:focus-visible {
+  background: rgba(36, 87, 166, .08);
+  outline: 0;
+}
+
+.idp-filter-option.is-selected {
+  background: linear-gradient(135deg, rgba(36, 87, 166, .14), rgba(5, 150, 105, .1));
+  color: #12325f;
+}
+
+.idp-filter-option span {
+  font-size: .82rem;
+  font-weight: 760;
+  line-height: 1.15;
+}
+
+.idp-filter-option small {
+  color: #667085;
+  font-size: .63rem;
+  font-weight: 780;
+  line-height: 1.1;
 }
 
 .idp-search-control {
@@ -1600,6 +1713,36 @@ body.is-dark-mode .idp-control-select select,
 body.is-dark-mode .idp-search-box input {
   background: transparent;
   border: 0;
+}
+
+body.is-dark-mode .idp-filter-dropdown.is-open,
+body.is-dark-mode .idp-filter-menu {
+  background: rgba(17, 24, 39, .9);
+  border-color: rgba(229, 231, 235, .16);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, .38);
+}
+
+body.is-dark-mode .idp-filter-button,
+body.is-dark-mode .idp-filter-option {
+  color: #e5e7eb;
+}
+
+body.is-dark-mode .idp-filter-button i {
+  border-color: rgba(229, 231, 235, .5);
+}
+
+body.is-dark-mode .idp-filter-option:hover,
+body.is-dark-mode .idp-filter-option:focus-visible {
+  background: rgba(96, 165, 250, .14);
+}
+
+body.is-dark-mode .idp-filter-option.is-selected {
+  background: linear-gradient(135deg, rgba(96, 165, 250, .2), rgba(45, 212, 191, .12));
+  color: #eff6ff;
+}
+
+body.is-dark-mode .idp-filter-option small {
+  color: #aab4c3;
 }
 
 body.is-dark-mode .idp-player-card {
@@ -3042,6 +3185,20 @@ body.is-dark-mode .idp-open-profile {
   color: #172033;
 }
 
+body.is-dark-mode .idp-filter-menu {
+  background: rgba(255, 255, 255, .92);
+  color: #172033;
+}
+
+body.is-dark-mode .idp-filter-option,
+body.is-dark-mode .idp-filter-button {
+  color: #172033;
+}
+
+body.is-dark-mode .idp-filter-option small {
+  color: #667085;
+}
+
 body.is-dark-mode .idp-overview-player small,
 body.is-dark-mode .idp-overview-focus small,
 body.is-dark-mode .idp-overview-review small,
@@ -3191,6 +3348,10 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   .idp-control-select,
   .idp-search-box {
     padding: 6px 8px;
+  }
+
+  .idp-filter-menu {
+    max-height: 240px;
   }
 
   .idp-overview-row {

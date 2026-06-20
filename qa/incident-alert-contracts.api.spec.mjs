@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildIncidentResolutionComment, isResolvedConclusion } from "../scripts/create-incident-alert.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -32,7 +33,7 @@ test("production incident alerts create issue-backed alerts for failed release w
   expect(workflow).toContain("Production Rollback");
   expect(workflow).toContain("Supabase Migrations");
   expect(workflow).toContain("issues: write");
-  expect(workflow).toContain("github.event.workflow_run.conclusion != 'success'");
+  expect(workflow).not.toContain("github.event.workflow_run.conclusion != 'success'");
   expect(workflow).toContain("github.event.workflow_run.head_branch == 'main'");
   expect(workflow).toContain("npm run release:incident-alert");
 
@@ -40,10 +41,32 @@ test("production incident alerts create issue-backed alerts for failed release w
   expect(alertScript).toContain("production-incident");
   expect(alertScript).toContain("release-monitor");
   expect(alertScript).toContain("createOrUpdateIncidentIssue");
+  expect(alertScript).toContain("resolveOpenIncidentIssue");
+  expect(alertScript).toContain("state_reason: \"completed\"");
   expect(alertScript).toContain("INCIDENT_DRY_RUN");
   expect(alertScript).not.toContain("LIVE_QA_PASSWORD");
   expect(alertScript).not.toContain("CRON_SECRET");
   expect(readinessScript).toContain("Incident readiness verification: ok");
   expect(deploymentDocs).toContain("Production Incident Alert");
   expect(incidentRunbook).toContain("Do not paste secrets");
+});
+
+test("production incident alerts resolve stale incidents after green workflow runs", () => {
+  expect(isResolvedConclusion("success")).toBe(true);
+  expect(isResolvedConclusion("skipped")).toBe(true);
+  expect(isResolvedConclusion("neutral")).toBe(true);
+  expect(isResolvedConclusion("failure")).toBe(false);
+
+  const comment = buildIncidentResolutionComment({
+    actor: "qa-bot",
+    branch: "main",
+    conclusion: "success",
+    runUrl: "https://github.com/maklind88/footballscience/actions/runs/1",
+    sha: "1234567890abcdef",
+    workflowName: "Production Monitor",
+  });
+
+  expect(comment).toContain("Production Monitor");
+  expect(comment).toContain("closed automatically");
+  expect(comment).toContain("1234567890ab");
 });

@@ -51,6 +51,10 @@ function isActionableFailure(conclusion) {
   return !["success", "skipped", "neutral"].includes(clean(conclusion).toLowerCase());
 }
 
+function isResolvedConclusion(conclusion) {
+  return ["success", "skipped", "neutral"].includes(clean(conclusion).toLowerCase());
+}
+
 function buildIncidentTitle(context) {
   return `Production incident: ${context.workflowName}`;
 }
@@ -88,6 +92,17 @@ function buildIncidentBody(context) {
 function buildIncidentComment(context) {
   return [
     `Another **${context.workflowName}** run ended with **${context.conclusion}**.`,
+    "",
+    `- Run: ${context.runUrl || "unknown"}`,
+    `- Branch: ${context.branch}`,
+    `- Commit: ${shortSha(context.sha)}`,
+    `- Actor: ${context.actor}`,
+  ].join("\n");
+}
+
+function buildIncidentResolutionComment(context) {
+  return [
+    `The latest **${context.workflowName}** run ended with **${context.conclusion}**, so this incident is being closed automatically.`,
     "",
     `- Run: ${context.runUrl || "unknown"}`,
     `- Branch: ${context.branch}`,
@@ -184,23 +199,45 @@ async function createOrUpdateIncidentIssue(context, token) {
   return { action: "created", number: createdIssue.number, url: createdIssue.html_url };
 }
 
+async function resolveOpenIncidentIssue(context, token) {
+  const title = buildIncidentTitle(context);
+  const existingIssue = await findOpenIncidentIssue({ repo: context.repo, token, title });
+
+  if (!existingIssue?.number) {
+    console.log(`Incident alert resolved: no open issue for ${context.workflowName}.`);
+    return { action: "none", number: null, url: "" };
+  }
+
+  await githubJson(`/repos/${context.repo}/issues/${existingIssue.number}/comments`, {
+    method: "POST",
+    token,
+    body: { body: buildIncidentResolutionComment(context) },
+  });
+  await githubJson(`/repos/${context.repo}/issues/${existingIssue.number}`, {
+    method: "PATCH",
+    token,
+    body: { state: "closed", state_reason: "completed" },
+  });
+
+  console.log(`Incident alert resolved: #${existingIssue.number}`);
+  return { action: "resolved", number: existingIssue.number, url: existingIssue.html_url };
+}
+
 export {
   buildIncidentBody,
   buildIncidentComment,
+  buildIncidentResolutionComment,
   buildIncidentTitle,
   createOrUpdateIncidentIssue,
   getIncidentContext,
   isActionableFailure,
+  isResolvedConclusion,
+  resolveOpenIncidentIssue,
 };
 
 async function main() {
   const context = getIncidentContext();
   const dryRun = process.argv.includes("--dry-run") || process.env.INCIDENT_DRY_RUN === "1";
-
-  if (!isActionableFailure(context.conclusion)) {
-    console.log(`Incident alert skipped: ${context.workflowName} concluded ${context.conclusion}.`);
-    return;
-  }
 
   if (!context.repo) {
     throw new Error("GITHUB_REPOSITORY is required to create an incident alert.");
@@ -224,6 +261,16 @@ async function main() {
   const token = clean(process.env.GITHUB_TOKEN);
   if (!token) {
     throw new Error("GITHUB_TOKEN is required to create an incident alert.");
+  }
+
+  if (isResolvedConclusion(context.conclusion)) {
+    await resolveOpenIncidentIssue(context, token);
+    return;
+  }
+
+  if (!isActionableFailure(context.conclusion)) {
+    console.log(`Incident alert skipped: ${context.workflowName} concluded ${context.conclusion}.`);
+    return;
   }
 
   await createOrUpdateIncidentIssue(context, token);

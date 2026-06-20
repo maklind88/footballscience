@@ -45,11 +45,13 @@ requireText(".github/workflows/production-incident-alert.yml", "Supabase Migrati
 requireText(".github/workflows/production-incident-alert.yml", "github.event.workflow_run.head_branch == 'main'", "QA failures should only alert for main");
 requireText(".github/workflows/production-incident-alert.yml", "issues: write", "workflow must be able to create incident issues");
 requireText(".github/workflows/production-incident-alert.yml", "npm run release:incident-alert", "workflow must call the incident script");
-requireText(".github/workflows/production-incident-alert.yml", "github.event.workflow_run.conclusion != 'success'", "successful runs must not create incidents");
 
 requireText("scripts/create-incident-alert.mjs", "Production incident:", "issues must have a stable incident title");
 requireText("scripts/create-incident-alert.mjs", "production-incident", "issues must carry a production incident label");
 requireText("scripts/create-incident-alert.mjs", "createOrUpdateIncidentIssue", "repeated failures must update existing incident issues");
+requireText("scripts/create-incident-alert.mjs", "isResolvedConclusion", "successful runs must be handled as incident resolutions");
+requireText("scripts/create-incident-alert.mjs", "resolveOpenIncidentIssue", "successful runs must close stale incident issues instead of creating new ones");
+requireText("scripts/create-incident-alert.mjs", "state_reason: \"completed\"", "resolved incident issues must be closed as completed");
 requireText("scripts/create-incident-alert.mjs", "Do not deploy over this incident", "incident body must include a release safety guardrail");
 requireText("scripts/create-incident-alert.mjs", "INCIDENT_DRY_RUN", "incident script must be safely testable without GitHub writes");
 

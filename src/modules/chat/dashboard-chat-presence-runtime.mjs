@@ -1,11 +1,11 @@
 export function createDashboardChatPresenceRuntime(dependencies = {}) {
   const {
     dashboardChatTeamThreadId = "team",
-    dashboardPresenceHeartbeatMs = 60000,
-    dashboardPresencePollMs = 45000,
-    dashboardPresenceSteadyPushMinMs = 30000,
+    dashboardPresenceHeartbeatMs = 90000,
+    dashboardPresencePollMs = 90000,
+    dashboardPresenceSteadyPushMinMs = 45000,
     dashboardPresenceTypingPushMinMs = 5000,
-    dashboardPresencePollMinMs = 30000,
+    dashboardPresencePollMinMs = 60000,
     dashboardPresenceIdleMs = 90000,
     dashboardPresenceOnlineTtlMs = 85000,
     dashboardPresenceAwayTtlMs = 6 * 60 * 1000,
@@ -37,7 +37,7 @@ export function createDashboardChatPresenceRuntime(dependencies = {}) {
   let dashboardPresenceLastPushAt = 0;
   let dashboardPresenceLastPollAt = 0;
   let dashboardPresenceBackoffUntil = 0;
-  const dashboardPresenceBackoffMs = 90 * 1000;
+  const dashboardPresenceBackoffMs = 120 * 1000;
 
   let dashboardChatTypingThreadId = "";
   let dashboardChatTypingAt = 0;

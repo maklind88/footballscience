@@ -19,10 +19,13 @@ function createServiceHarness(options = {}) {
   const handledKeys = [];
   const timers = new Map();
   let timerId = 0;
+  let hydrated = options.hydrated !== false;
+  let revision = Number.isInteger(Number(options.revision)) ? Number(options.revision) : 7;
   const win = {
     footballScienceCentralState: {
-      getStatus: () => ({ metadata: { "football-session-planner-v1": { revision: 7 } } }),
+      getStatus: () => ({ metadata: { "football-session-planner-v1": { revision } } }),
       isCentralKey: () => true,
+      isHydrated: () => hydrated,
       syncKey: async (key, value, syncOptions) => {
         syncCalls.push({ key, value, options: syncOptions });
         return options.syncResult ?? { ok: true, value };
@@ -70,7 +73,23 @@ function createServiceHarness(options = {}) {
     showSessionPlannerToast: (...args) => autosaveStatuses.push(["toast", ...args]),
     win,
   });
-  return { autosaveStatuses, handledKeys, manifest, rawValues, service, snapshots, syncCalls, timers, win };
+  return {
+    autosaveStatuses,
+    handledKeys,
+    manifest,
+    rawValues,
+    service,
+    setHydrated: (nextValue) => {
+      hydrated = Boolean(nextValue);
+    },
+    setRevision: (nextRevision) => {
+      revision = Number(nextRevision) || 0;
+    },
+    snapshots,
+    syncCalls,
+    timers,
+    win,
+  };
 }
 
 test("central sync runtime queues protected writes with revision metadata and flushes through the bridge", async () => {
@@ -112,6 +131,32 @@ test("central sync runtime applies newer server values through the injected rend
     pendingCentralSync: false,
     size: 15,
   });
+});
+
+test("central sync runtime waits for hydration before flushing queued writes", async () => {
+  const harness = createServiceHarness({ hydrated: false, revision: 0 });
+
+  harness.service.queueCentralStateWrite("football-session-planner-v1", "{\"blocks\":[]}");
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([]);
+  expect(harness.manifest.entries["football-session-planner-v1"]).toMatchObject({
+    pendingCentralSync: true,
+  });
+  expect(harness.manifest.lastCentralError).toBe("Central sync is loading.");
+
+  harness.setRevision(9);
+  harness.setHydrated(true);
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([
+    {
+      key: "football-session-planner-v1",
+      value: "{\"blocks\":[]}",
+      options: { removed: false, baseRevision: 9 },
+    },
+  ]);
+  expect(harness.manifest.lastCentralError).toBe("");
 });
 
 test("central sync runtime keeps chat and workspace rendering outside the service", () => {

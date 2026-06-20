@@ -43,6 +43,20 @@ export function createCentralSyncRuntimeService(deps = {}) {
     return Number.isInteger(revision) && revision >= 0 ? revision : 0;
   }
 
+  function isCentralStateBridgeHydrated(bridge = getCentralStateBridge()) {
+    return typeof bridge?.isHydrated === "function" ? Boolean(bridge.isHydrated()) : true;
+  }
+
+  function getCentralStateWriteBaseRevision(write = {}) {
+    if (write.baseRevision !== null && write.baseRevision !== undefined && write.baseRevision !== "") {
+      const revision = Number(write.baseRevision);
+      if (Number.isInteger(revision) && revision >= 0) {
+        return revision;
+      }
+    }
+    return getCentralStateRevisionForKey(write.key);
+  }
+
   function canWriteCentralBackedCache() {
     if (win.__footballScienceCentralHydrating) {
       return true;
@@ -214,7 +228,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       key: normalizedKey,
       value: String(value ?? ""),
       removed: Boolean(options.removed),
-      baseRevision: getCentralStateRevisionForKey(normalizedKey),
+      baseRevision: isCentralStateBridgeHydrated(bridge) ? getCentralStateRevisionForKey(normalizedKey) : null,
     });
     if (centralStateWriteTimer) {
       win.clearTimeout(centralStateWriteTimer);
@@ -228,6 +242,10 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (!bridge?.syncKey || !centralStateWriteQueue.size) {
       return;
     }
+    if (!isCentralStateBridgeHydrated(bridge)) {
+      queueCentralStateStatus("Central sync is loading.");
+      return;
+    }
     const writes = Array.from(centralStateWriteQueue.values());
     const touchedSessionPlannerAutosave = writes.some((write) => isSessionPlannerAutosaveKey(write.key));
     centralStateWriteQueue.clear();
@@ -235,7 +253,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       const write = writes[index];
       const result = await bridge.syncKey(write.key, write.value, {
         removed: write.removed,
-        baseRevision: write.baseRevision,
+        baseRevision: getCentralStateWriteBaseRevision(write),
       });
       if (!result?.ok) {
         if (result?.conflict || result?.status === 409) {
@@ -293,6 +311,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     getCentralStateBridge,
     getCentralStateMetadataForKey,
     getCentralStateRevisionForKey,
+    getCentralStateWriteBaseRevision,
     getCentralSyncResultRevision,
     getCentralSyncResultValue,
     hasPendingCentralStateWrites,

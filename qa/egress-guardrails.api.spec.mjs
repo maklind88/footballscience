@@ -25,15 +25,15 @@ test("client egress guardrails keep central state and presence sync sparse", () 
 
   expect(readNumericConstant(centralReloadSource, "refreshIntervalMs")).toBeGreaterThanOrEqual(60000);
   expect(readNumericConstant(centralReloadSource, "activeRefreshMinMs")).toBeGreaterThanOrEqual(30000);
-  expect(readNumericConstant(appSource, "dashboardPresenceHeartbeatMs")).toBeGreaterThanOrEqual(60000);
-  expect(readNumericConstant(appSource, "dashboardPresencePollMs")).toBeGreaterThanOrEqual(30000);
-  expect(readNumericConstant(appSource, "dashboardPresenceSteadyPushMinMs")).toBeGreaterThanOrEqual(30000);
-  expect(readNumericConstant(appSource, "dashboardPresencePollMinMs")).toBeGreaterThanOrEqual(30000);
+  expect(readNumericConstant(appSource, "dashboardPresenceHeartbeatMs")).toBeGreaterThanOrEqual(90000);
+  expect(readNumericConstant(appSource, "dashboardPresencePollMs")).toBeGreaterThanOrEqual(90000);
+  expect(readNumericConstant(appSource, "dashboardPresenceSteadyPushMinMs")).toBeGreaterThanOrEqual(45000);
+  expect(readNumericConstant(appSource, "dashboardPresencePollMinMs")).toBeGreaterThanOrEqual(60000);
   expect(centralReloadSource).toContain("refreshInFlight");
   expect(centralReloadSource).toContain("reason === \"interval\" && !documentRef.hasFocus()");
   expect(appSource).toContain("bindPlatformGlobalRuntimeEvents({");
   expect(globalBindingsSource).toContain("pauseDashboardPresenceRuntime?.();");
-  expect(readNumericConstant(chatPresenceSource, "dashboardPresenceBackoffMs")).toBeGreaterThanOrEqual(60000);
+  expect(readNumericConstant(chatPresenceSource, "dashboardPresenceBackoffMs")).toBeGreaterThanOrEqual(120000);
   expect(chatPresenceSource).toContain("isDashboardPresenceBackoffActive");
   expect(chatPresenceSource).toContain("markDashboardPresenceBackoff");
 });

@@ -23,6 +23,14 @@ const chatCssSource = readFileSync(path.join(__dirname, "../dashboard-chat.css")
 const attachmentPreviewSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-attachment-preview.mjs"), "utf8");
 const databaseSource = readFileSync(path.join(__dirname, "../api/_lib/chat-database.js"), "utf8");
 
+function readNumericConstant(source, constantName) {
+  const match = source.match(new RegExp(`(?:const|,|\\{)\\s+${constantName}\\s*=\\s*([^,;}]+)`));
+  expect(match, `${constantName} must be declared`).toBeTruthy();
+  const expression = match[1].trim();
+  expect(expression, `${constantName} must stay a simple numeric expression`).toMatch(/^[\d\s*+/-]+$/);
+  return Function(`"use strict"; return (${expression});`)();
+}
+
 const coachActor = {
   id: "coach-qa",
   email: "coach.qa@example.com",
@@ -350,8 +358,8 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(rendererSource).toContain("data-dashboard-chat-search-active");
   expect(appSource).toContain("handleDashboardChatRealtimeRelatedChange");
   const chatRealtimePatterns = `${appSource}\n${chatApiRuntimeSource}`;
-  expect(chatApiRuntimeSource).toContain("DASHBOARD_CHAT_API_REFRESH_MIN_INTERVAL_MS = 2000");
-  expect(chatApiRuntimeSource).toContain("DASHBOARD_CHAT_THREAD_SUMMARY_REFRESH_MIN_INTERVAL_MS = 5000");
+  expect(readNumericConstant(chatApiRuntimeSource, "DASHBOARD_CHAT_API_REFRESH_MIN_INTERVAL_MS")).toBeGreaterThanOrEqual(8000);
+  expect(readNumericConstant(chatApiRuntimeSource, "DASHBOARD_CHAT_THREAD_SUMMARY_REFRESH_MIN_INTERVAL_MS")).toBeGreaterThanOrEqual(15000);
   expect(chatApiRuntimeSource).toContain("refreshDelayWithBudget");
   expect(appSource).toContain("Compatibility marker only");
   expect(appSource).not.toContain('localStorage.setItem(dashboardChatStorageKey, "[]")');

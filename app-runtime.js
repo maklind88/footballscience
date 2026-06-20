@@ -255,13 +255,13 @@ const {
   updatePlatformUserFromPayload,
   withUiTimeout,
 } = platformUserRuntimeService;
-const dashboardPresenceHeartbeatMs = 60000;
-const dashboardPresencePollMs = 45000;
-const dashboardPresenceSteadyPushMinMs = 30000;
+const dashboardPresenceHeartbeatMs = 90000;
+const dashboardPresencePollMs = 90000;
+const dashboardPresenceSteadyPushMinMs = 45000;
 const dashboardPresenceTypingPushMinMs = 5000;
 const dashboardPresenceTypingSendThrottleMs = 1800;
 const dashboardPresenceTypingTtlMs = 9000;
-const dashboardPresencePollMinMs = 30000;
+const dashboardPresencePollMinMs = 60000;
 const dashboardPresenceIdleMs = 90000;
 const dashboardPresenceOnlineTtlMs = 85000;
 const dashboardPresenceAwayTtlMs = 6 * 60 * 1000;

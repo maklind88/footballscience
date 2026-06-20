@@ -111,8 +111,8 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     win = typeof globalThis !== "undefined" ? globalThis : {},
   } = dependencies;
 
-  const DASHBOARD_CHAT_API_REFRESH_MIN_INTERVAL_MS = 2000;
-  const DASHBOARD_CHAT_THREAD_SUMMARY_REFRESH_MIN_INTERVAL_MS = 5000;
+  const DASHBOARD_CHAT_API_REFRESH_MIN_INTERVAL_MS = 8000;
+  const DASHBOARD_CHAT_THREAD_SUMMARY_REFRESH_MIN_INTERVAL_MS = 15000;
   let dashboardChatApiLastRequestedAt = 0;
 
   function normalizeRefreshDelay(value = 0) {

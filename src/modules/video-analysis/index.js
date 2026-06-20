@@ -1169,6 +1169,29 @@ function patchClipTimesInState(current = {}, clipId = "", startMs = 0, endMs = 1
   };
 }
 
+const clipTrimCommitQueues = new Map();
+
+function findClipInStateById(state = {}, clipId = "") {
+  return [...(state.clips || []), ...(state.allClips || [])].find((item) => item.id === clipId);
+}
+
+function stateHasClipTimes(state = {}, clipId = "", startMs = 0, endMs = 0) {
+  const clip = findClipInStateById(state, clipId);
+  return Boolean(clip?.id && clipStartMs(clip) === startMs && clipEndMs(clip) === endMs);
+}
+
+function enqueueClipTrimCommit(clipId = "", task = async () => {}) {
+  const previous = clipTrimCommitQueues.get(clipId) || Promise.resolve();
+  const queued = previous.catch(() => {}).then(task);
+  const cleanup = queued.finally(() => {
+    if (clipTrimCommitQueues.get(clipId) === cleanup) {
+      clipTrimCommitQueues.delete(clipId);
+    }
+  });
+  clipTrimCommitQueues.set(clipId, cleanup);
+  return queued;
+}
+
 function replaceClipInState(current = {}, nextClip = {}) {
   if (!nextClip?.id) return current;
   const patchList = (clips = []) => clips.map((clip) => (clip.id === nextClip.id ? nextClip : clip));
@@ -1247,25 +1270,35 @@ async function commitClipTrim(payload = {}, context = {}) {
   const run = ensureRuntime(context);
   const clipId = payload.clipId || "";
   if (!clipId) return false;
-  try {
-    const result = await run.clips.trim({ id: clipId, startMs: payload.startMs, endMs: payload.endMs });
-    const savedClip = normalizeClipInstance(result.clip || {});
-    const startMs = savedClip.startMs ?? payload.startMs;
-    const endMs = savedClip.endMs ?? payload.endMs;
-    run.store.update((current) => ({
-      ...patchClipTimesInState(current, clipId, startMs, endMs),
-      selectedClipId: clipId,
-      message: "Clip timing updated.",
-      error: "",
-    }));
-    return true;
-  } catch (error) {
-    run.store.update((current) => ({
-      ...patchClipTimesInState(current, clipId, payload.originalStartMs, payload.originalEndMs),
-      error: error.message || "Could not update clip timing.",
-    }));
-    return false;
-  }
+  return enqueueClipTrimCommit(clipId, async () => {
+    try {
+      const result = await run.clips.trim({ id: clipId, startMs: payload.startMs, endMs: payload.endMs });
+      const savedClip = normalizeClipInstance(result.clip || {});
+      const startMs = savedClip.startMs ?? payload.startMs;
+      const endMs = savedClip.endMs ?? payload.endMs;
+      run.store.update((current) => ({
+        ...(
+          stateHasClipTimes(current, clipId, payload.startMs, payload.endMs)
+            ? patchClipTimesInState(current, clipId, startMs, endMs)
+            : current
+        ),
+        selectedClipId: clipId,
+        message: "Clip timing updated.",
+        error: "",
+      }));
+      return true;
+    } catch (error) {
+      run.store.update((current) => ({
+        ...(
+          stateHasClipTimes(current, clipId, payload.startMs, payload.endMs)
+            ? patchClipTimesInState(current, clipId, payload.originalStartMs, payload.originalEndMs)
+            : current
+        ),
+        error: error.message || "Could not update clip timing.",
+      }));
+      return false;
+    }
+  });
 }
 
 function trimSelectedClipByKeyboard(context = {}, payload = {}) {

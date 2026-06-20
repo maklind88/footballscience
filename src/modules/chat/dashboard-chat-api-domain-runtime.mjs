@@ -33,6 +33,8 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
   } = dependencies;
   const dashboardChatApiBackoffMs = 60 * 1000;
   let dashboardChatApiBackoffUntil = 0;
+  let dashboardChatApiBackoffStatus = 503;
+  let dashboardChatApiBackoffReason = "Chat API is backing off while the platform data service recovers.";
 
   function getAdvancedThreadTemplates() {
     const source =
@@ -48,12 +50,29 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
     return typeof dashboardChatThreadSettings === "function" ? dashboardChatThreadSettings() : dashboardChatThreadSettings;
   }
 
-  function markDashboardChatApiBackoff() {
-    dashboardChatApiBackoffUntil = Date.now() + dashboardChatApiBackoffMs;
+  function getRetryAfterMs(response = null) {
+    const rawValue = String(response?.headers?.get?.("Retry-After") || "").trim();
+    if (!rawValue) {
+      return 0;
+    }
+    const seconds = Number(rawValue);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return seconds * 1000;
+    }
+    const retryAt = Date.parse(rawValue);
+    return Number.isFinite(retryAt) ? Math.max(0, retryAt - Date.now()) : 0;
+  }
+
+  function markDashboardChatApiBackoff(durationMs = dashboardChatApiBackoffMs, status = 503, reason = "") {
+    dashboardChatApiBackoffUntil = Date.now() + Math.max(1000, Number(durationMs) || dashboardChatApiBackoffMs);
+    dashboardChatApiBackoffStatus = Number(status) || 503;
+    dashboardChatApiBackoffReason = String(reason || "Chat API is backing off while the platform data service recovers.");
   }
 
   function clearDashboardChatApiBackoff() {
     dashboardChatApiBackoffUntil = 0;
+    dashboardChatApiBackoffStatus = 503;
+    dashboardChatApiBackoffReason = "Chat API is backing off while the platform data service recovers.";
   }
 
   function getDashboardChatApiBackoffResult() {
@@ -63,8 +82,8 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
     }
     return {
       ok: false,
-      status: 503,
-      reason: "Chat API is backing off while the platform data service recovers.",
+      status: dashboardChatApiBackoffStatus,
+      reason: dashboardChatApiBackoffReason,
       retryable: true,
       backoffMs: remainingMs,
     };
@@ -158,13 +177,18 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       }
 
       if (!response.ok || result?.ok === false) {
-        if (response.status >= 500) {
-          markDashboardChatApiBackoff();
+        const reason = result?.reason || result?.message || `Chat API failed (${response.status}).`;
+        if (response.status === 429 || response.status >= 500) {
+          markDashboardChatApiBackoff(
+            getRetryAfterMs(response) || (response.status === 429 ? 15 * 1000 : dashboardChatApiBackoffMs),
+            response.status,
+            reason
+          );
         }
         return {
           ok: false,
           status: response.status,
-          reason: result?.reason || result?.message || `Chat API failed (${response.status}).`,
+          reason,
           retryable: response.status >= 500,
         };
       }
@@ -247,13 +271,18 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       }
 
       if (!response.ok || result?.ok === false) {
-        if (response.status >= 500) {
-          markDashboardChatApiBackoff();
+        const reason = result?.reason || result?.message || `Chat API failed (${response.status}).`;
+        if (response.status === 429 || response.status >= 500) {
+          markDashboardChatApiBackoff(
+            getRetryAfterMs(response) || (response.status === 429 ? 15 * 1000 : dashboardChatApiBackoffMs),
+            response.status,
+            reason
+          );
         }
         return {
           ok: false,
           status: response.status,
-          reason: result?.reason || result?.message || `Chat API failed (${response.status}).`,
+          reason,
         };
       }
 
@@ -287,6 +316,9 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
   }
 
   function logDashboardChatApiFailure(action, result = {}) {
+    if (Number(result.status || 0) === 429) {
+      return;
+    }
     console.warn(`Chat action ${action} was not saved through /api/chat.`, result.reason || result.status || result);
   }
 

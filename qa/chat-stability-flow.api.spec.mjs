@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createDashboardChatApiDomainRuntime } from "../src/modules/chat/dashboard-chat-api-domain-runtime.mjs";
 import { createDashboardChatWidgetRuntime } from "../src/modules/chat/dashboard-chat-widget-runtime.mjs";
 
 const require = createRequire(import.meta.url);
@@ -12,6 +13,7 @@ const { applyChatActionToState, filterChatStateForActor } = chatApi._private;
 
 const appSource = readFileSync(path.join(__dirname, "../app-runtime.js"), "utf8");
 const chatApiRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-api-runtime.mjs"), "utf8");
+const chatApiDomainRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-api-domain-runtime.mjs"), "utf8");
 const chatModuleSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat.mjs"), "utf8");
 const chatWidgetRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-widget-runtime.mjs"), "utf8");
 const chatThreadRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-thread-runtime.mjs"), "utf8");
@@ -351,6 +353,13 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(chatApiRuntimeSource).toContain("DASHBOARD_CHAT_API_REFRESH_MIN_INTERVAL_MS = 2000");
   expect(chatApiRuntimeSource).toContain("DASHBOARD_CHAT_THREAD_SUMMARY_REFRESH_MIN_INTERVAL_MS = 5000");
   expect(chatApiRuntimeSource).toContain("refreshDelayWithBudget");
+  expect(appSource).toContain("Compatibility marker only");
+  expect(appSource).not.toContain('localStorage.setItem(dashboardChatStorageKey, "[]")');
+  expect(appSource).not.toContain('localStorage.setItem(dashboardChatDeletedMessageIdsStorageKey, "[]")');
+  expect(appSource).not.toContain('localStorage.setItem(dashboardChatWidgetNotificationCursorStorageKey, "{}")');
+  expect(appSource).not.toContain('localStorage.setItem(dashboardChatWidgetNotificationStateStorageKey, "{}")');
+  expect(chatApiDomainRuntimeSource).toContain("response.status === 429");
+  expect(chatApiDomainRuntimeSource).toContain("getRetryAfterMs(response)");
   expect(chatRealtimePatterns).toContain('table: "chat_threads"');
   expect(chatRealtimePatterns).toContain('table: "chat_attachments"');
   expect(chatRealtimePatterns).toContain('table: "chat_thread_participants"');
@@ -418,6 +427,46 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(databaseSource).toContain("attachmentIds");
   expect(databaseSource).toContain("status: \"ready\"");
   expect(databaseSource).toContain("chat_read_receipts");
+});
+
+test("chat API GET 429 enters backoff instead of hammering reads", async () => {
+  let fetchCount = 0;
+  const runtime = createDashboardChatApiDomainRuntime({
+    getPlatformAuthStore: () => ({
+      getAccessToken: async () => "token",
+    }),
+    fetchImpl: async () => {
+      fetchCount += 1;
+      return {
+        ok: false,
+        status: 429,
+        headers: {
+          get: (key) => (String(key).toLowerCase() === "retry-after" ? "2" : ""),
+        },
+        text: async () => JSON.stringify({ reason: "Too many requests. Please wait a moment and try again." }),
+      };
+    },
+    win: {
+      location: { hostname: "footballscience.xyz" },
+      setTimeout,
+      clearTimeout,
+    },
+  });
+
+  const first = await runtime.fetchDashboardChatApi({ view: "threads" });
+  const second = await runtime.fetchDashboardChatApi({ view: "threads" });
+
+  expect(first).toMatchObject({
+    ok: false,
+    status: 429,
+    reason: "Too many requests. Please wait a moment and try again.",
+  });
+  expect(second).toMatchObject({
+    ok: false,
+    status: 429,
+    retryable: true,
+  });
+  expect(fetchCount).toBe(1);
 });
 
 test("notification cursor survives reload when API replaces the local message id", () => {

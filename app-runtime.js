@@ -2509,10 +2509,8 @@ try {
 if (localStorage.getItem(dashboardChatLocalCacheResetStorageKey) === dashboardChatLocalCacheResetVersion) {
 return;
 }
-localStorage.setItem(dashboardChatStorageKey, "[]");
-localStorage.setItem(dashboardChatDeletedMessageIdsStorageKey, "[]");
-localStorage.setItem(dashboardChatWidgetNotificationCursorStorageKey, "{}");
-localStorage.setItem(dashboardChatWidgetNotificationStateStorageKey, "{}");
+// Compatibility marker only. Never clear football-dashboard-chat-v1 here;
+// legacy chat cache may contain protected user history during database migration.
 localStorage.setItem(dashboardChatLocalCacheResetStorageKey, dashboardChatLocalCacheResetVersion);
 } catch {
 }

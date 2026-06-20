@@ -1,5 +1,5 @@
 import { formatVideoTime, getVideoCurrentMs, seekVideoToMs } from "../services/videoPlaybackService.js";
-import { getTimelineDurationMs, timelineMsFromClientX } from "./timeline.service.js";
+import { getTimelineDurationMs, normalizeTimelineZoom, timelineMsFromClientX } from "./timeline.service.js";
 
 export function createTimelineScrubController(options = {}) {
   let session = null;
@@ -235,10 +235,57 @@ export function createTimelineScrubController(options = {}) {
     syncPlayheads(getVideoCurrentMs(videoElement), getTimelineDurationMs(state()));
   }
 
+  function zoomTimeline(event = {}, scrollContainer) {
+    if (!scrollContainer) return false;
+    const currentState = state();
+    const currentZoom = normalizeTimelineZoom(currentState.timeline?.zoom || 1);
+    const deltaY = Number(event.deltaY || 0);
+    if (!deltaY) return false;
+    const direction = deltaY < 0 ? 1 : -1;
+    const step = event.ctrlKey || event.metaKey ? 0.32 : 0.2;
+    const nextZoom = normalizeTimelineZoom(currentZoom + (direction * step));
+    if (nextZoom === currentZoom) return false;
+
+    const rect = scrollContainer.getBoundingClientRect?.();
+    const pointerX = rect?.width
+      ? Math.min(rect.width, Math.max(0, Number(event.clientX || rect.left) - rect.left))
+      : Number(scrollContainer.clientWidth || 0) / 2;
+    const canvas = scrollContainer.querySelector?.(".video-analysis-timeline-canvas");
+    const oldCanvasWidth = Math.max(
+      1,
+      Number(canvas?.scrollWidth || canvas?.getBoundingClientRect?.().width || scrollContainer.scrollWidth || scrollContainer.clientWidth || 1)
+    );
+    const timelineRatioAtPointer = Math.min(
+      1,
+      Math.max(0, (Number(scrollContainer.scrollLeft || 0) + pointerX) / oldCanvasWidth)
+    );
+
+    options.updateState?.((current) => ({
+      ...current,
+      timeline: { ...(current.timeline || {}), zoom: nextZoom },
+    }));
+
+    win()?.requestAnimationFrame?.(() => {
+      const nextCanvas = scrollContainer.querySelector?.(".video-analysis-timeline-canvas");
+      const nextCanvasWidth = Math.max(
+        1,
+        Number(nextCanvas?.scrollWidth || nextCanvas?.getBoundingClientRect?.().width || scrollContainer.scrollWidth || scrollContainer.clientWidth || 1)
+      );
+      const maxScrollLeft = Math.max(0, Number(scrollContainer.scrollWidth || 0) - Number(scrollContainer.clientWidth || 0));
+      scrollContainer.scrollLeft = Math.max(0, Math.min(maxScrollLeft, Math.round((nextCanvasWidth * timelineRatioAtPointer) - pointerX)));
+    });
+
+    event.preventDefault?.();
+    return true;
+  }
+
   function handleWheel(event = {}) {
     const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
     const scrollContainer = target?.closest?.("[data-video-analysis-timeline-pan]");
     if (!scrollContainer) return false;
+    if (event.ctrlKey || event.metaKey || event.altKey) {
+      return zoomTimeline(event, scrollContainer);
+    }
     const maxScrollLeft = Math.max(0, Number(scrollContainer.scrollWidth || 0) - Number(scrollContainer.clientWidth || 0));
     if (!maxScrollLeft) return false;
     const deltaX = Number(event.deltaX || 0);

@@ -232,11 +232,11 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
         && timeline
         && ruler
         && code.left < deck.left
-        && timeline.left < deck.left - 80
+        && Math.abs(timeline.left - deck.left) < 8
         && Math.abs(timeline.right - deck.right) < 8
         && timeline.top >= deck.bottom
         && timeline.top - deck.bottom <= 16
-        && Math.abs(ruler.left - deck.left) < 8
+        && ruler.left > timeline.left + 80
         && Math.abs(ruler.right - deck.right) < 8
     );
   })).toBe(true);
@@ -716,20 +716,69 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).not.toHaveClass(/is-code-mode/);
   const timelineLayout = await page.evaluate(() => {
     const videoFrame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame")?.getBoundingClientRect();
+    const timeline = document.querySelector(".video-analysis-fs-player-timeline")?.getBoundingClientRect();
+    const timelineScroll = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-scroll");
+    const scroll = timelineScroll?.getBoundingClientRect();
+    const canvas = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-canvas")?.getBoundingClientRect();
     const ruler = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-ruler")?.getBoundingClientRect();
     const label = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-lane__label")?.getBoundingClientRect();
     return {
+      canvasWidth: canvas?.width ?? 0,
+      frameLeft: timeline?.left ?? 0,
+      frameWidth: timeline?.width ?? 0,
       labelRight: label?.right ?? 0,
       rulerLeft: ruler?.left ?? 0,
       rulerWidth: ruler?.width ?? 0,
+      scrollClientWidth: timelineScroll?.clientWidth ?? 0,
+      scrollLeft: scroll?.left ?? 0,
+      scrollWidth: scroll?.width ?? 0,
       videoLeft: videoFrame?.left ?? 0,
       videoWidth: videoFrame?.width ?? 0,
     };
   });
   expect(timelineLayout.videoWidth).toBeGreaterThan(300);
-  expect(Math.abs(timelineLayout.rulerLeft - timelineLayout.videoLeft)).toBeLessThan(2);
-  expect(Math.abs(timelineLayout.rulerWidth - timelineLayout.videoWidth)).toBeLessThan(2);
+  expect(Math.abs(timelineLayout.frameLeft - timelineLayout.videoLeft)).toBeLessThanOrEqual(3);
+  expect(Math.abs(timelineLayout.frameWidth - timelineLayout.videoWidth)).toBeLessThanOrEqual(3);
+  expect(Math.abs(timelineLayout.scrollLeft - timelineLayout.frameLeft)).toBeLessThanOrEqual(3);
+  expect(Math.abs(timelineLayout.scrollWidth - timelineLayout.frameWidth)).toBeLessThanOrEqual(3);
+  expect(timelineLayout.rulerLeft).toBeGreaterThan(timelineLayout.frameLeft + 80);
   expect(timelineLayout.labelRight).toBeLessThanOrEqual(timelineLayout.rulerLeft + 1);
+  expect(timelineLayout.canvasWidth).toBeGreaterThanOrEqual(timelineLayout.scrollClientWidth - 2);
+  const timelineZoom = await page.evaluate(() => {
+    const scroll = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-scroll");
+    const canvas = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-canvas");
+    const frame = document.querySelector(".video-analysis-fs-player-timeline")?.getBoundingClientRect();
+    const rect = scroll?.getBoundingClientRect();
+    scroll?.dispatchEvent(new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      clientX: (rect?.left || 0) + ((rect?.width || 0) / 2),
+      clientY: (rect?.top || 0) + ((rect?.height || 0) / 2),
+      ctrlKey: true,
+      deltaY: -240,
+    }));
+    return {
+      beforeCanvasWidth: canvas?.getBoundingClientRect().width ?? 0,
+      beforeFrameWidth: frame?.width ?? 0,
+    };
+  });
+  await expect.poll(() => page.evaluate(() => {
+    const canvas = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-canvas");
+    return canvas?.getBoundingClientRect().width ?? 0;
+  })).toBeGreaterThan(timelineZoom.beforeCanvasWidth * 1.15);
+  const zoomedTimeline = await page.evaluate(() => {
+    const scroll = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-scroll");
+    const canvas = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-canvas");
+    const frame = document.querySelector(".video-analysis-fs-player-timeline")?.getBoundingClientRect();
+    return {
+      canvasWidth: canvas?.getBoundingClientRect().width ?? 0,
+      frameWidth: frame?.width ?? 0,
+      scrollClientWidth: scroll?.clientWidth ?? 0,
+      scrollWidth: scroll?.scrollWidth ?? 0,
+    };
+  });
+  expect(Math.abs(zoomedTimeline.frameWidth - timelineZoom.beforeFrameWidth)).toBeLessThan(2);
+  expect(zoomedTimeline.scrollWidth).toBeGreaterThan(zoomedTimeline.scrollClientWidth + 20);
   const timelineClipBlock = await page.evaluate(() => {
     const block = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-clip-block");
     const detail = block?.querySelector("em");

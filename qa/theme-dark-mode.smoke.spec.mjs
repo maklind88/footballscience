@@ -1,12 +1,15 @@
 import { expect, test } from "@playwright/test";
 
 function parseRgb(value) {
-  const match = String(value || "").match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  const match = String(value || "").match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?/i);
   if (!match) return null;
-  return match.slice(1, 4).map(Number);
+  return {
+    rgb: match.slice(1, 4).map(Number),
+    alpha: match[4] === undefined ? 1 : Number(match[4]),
+  };
 }
 
-function luminance([red, green, blue]) {
+function luminance({ rgb: [red, green, blue] }) {
   const values = [red, green, blue].map((channel) => {
     const normalized = channel / 255;
     return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
@@ -77,11 +80,70 @@ test("dark mode foundation keeps shell surfaces dark and readable", async ({ pag
   for (const row of audit) {
     const text = parseRgb(row.color);
     const background = parseRgb(row.backgroundColor);
-    if (!text || !background) continue;
+    if (!text || !background || background.alpha < 0.2) continue;
     const textLum = luminance(text);
     const backgroundLum = luminance(background);
     expect.soft(backgroundLum, `${row.selector} should not stay light in dark mode`).toBeLessThan(0.42);
     expect.soft(Math.abs(textLum - backgroundLum), `${row.selector} needs visible contrast`).toBeGreaterThan(0.25);
+  }
+
+  for (const workspaceId of [
+    "player-profiles",
+    "schedule",
+    "periodization",
+    "medical-team",
+    "session-planner",
+    "idp",
+    "scouting",
+    "gameplan",
+    "transfer-room",
+    "analysis-room",
+    "staff",
+    "admin",
+    "team-identity",
+  ]) {
+    const navItem = page.locator(`[data-open-workspace="${workspaceId}"]`).first();
+    if (!(await navItem.count())) continue;
+    if (!(await navItem.isVisible())) {
+      await page.locator(".platform-nav-more").evaluate((element) => {
+        element.open = true;
+      }).catch(() => {});
+    }
+    if (!(await navItem.isVisible())) continue;
+
+    await navItem.click();
+    await expect(navItem).toHaveClass(/is-active/);
+
+    const workspaceAudit = await page.evaluate((workspaceName) => {
+      const activeView = document.querySelector(".workspace-view.is-active");
+      if (!activeView) return [];
+      return [activeView, ...activeView.querySelectorAll('[class*="-hero"], [class*="-card"], [class*="-panel"], [class*="-row"], input, select, textarea')]
+        .filter((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.width > 20 && rect.height > 20;
+        })
+        .slice(0, 10)
+        .map((element) => {
+          const styles = window.getComputedStyle(element);
+          return {
+            selector: `${workspaceName}:${element.className || element.tagName}`,
+            color: styles.color,
+            backgroundColor: styles.backgroundColor,
+            borderColor: styles.borderColor,
+          };
+        });
+    }, workspaceId);
+
+    expect.soft(workspaceAudit.length, `${workspaceId} should expose themed surfaces`).toBeGreaterThan(0);
+    for (const row of workspaceAudit) {
+      const text = parseRgb(row.color);
+      const background = parseRgb(row.backgroundColor);
+      if (!text || !background || background.alpha < 0.2) continue;
+      const textLum = luminance(text);
+      const backgroundLum = luminance(background);
+      expect.soft(backgroundLum, `${row.selector} should not stay light in dark mode`).toBeLessThan(0.5);
+      expect.soft(Math.abs(textLum - backgroundLum), `${row.selector} needs visible contrast`).toBeGreaterThan(0.18);
+    }
   }
 
   expect(pageErrors).toEqual([]);

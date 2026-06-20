@@ -23,6 +23,18 @@
   --fs-info-soft: #2563eb1f;
   --fs-focus-ring: #0a84ff38;
   --fs-shadow: 0 18px 48px #00000014;
+  --fs-shadow-soft: 0 10px 28px #0000000f;
+  --fs-surface-glass: #ffffffd9;
+  --fs-control-bg: #ffffff;
+  --fs-control-muted: #f6f7f9;
+  --fs-hover-bg: #ffffffeb;
+  --fs-active-bg: #0f172a;
+  --fs-row-bg: #ffffffcc;
+  --fs-row-hover: #f8fafc;
+  --fs-overlay: #0f172a5c;
+  --fs-brand: #20382b;
+  --fs-brand-2: #2f8f6b;
+  --fs-brand-contrast: #ffffff;
 }
 
 body.is-dark-mode {
@@ -51,6 +63,18 @@ body.is-dark-mode {
   --fs-info-soft: #60a5fa24;
   --fs-focus-ring: #60a5fa40;
   --fs-shadow: 0 22px 58px #00000066;
+  --fs-shadow-soft: 0 12px 32px #0000004d;
+  --fs-surface-glass: #111827d9;
+  --fs-control-bg: #0b1220;
+  --fs-control-muted: #111827;
+  --fs-hover-bg: #1e293b;
+  --fs-active-bg: #1f456d;
+  --fs-row-bg: #111827cc;
+  --fs-row-hover: #172033;
+  --fs-overlay: #020617a8;
+  --fs-brand: #67d7a1;
+  --fs-brand-2: #7ab7ff;
+  --fs-brand-contrast: #07111f;
   --bg: var(--fs-bg);
   --panel: var(--fs-surface);
   --ink: var(--fs-text);
@@ -288,4 +312,474 @@ body.is-dark-mode :where(a) {
 
 body.is-dark-mode :where(hr) {
   border-color: var(--fs-border);
+}
+
+/* Module token bridges. These keep the existing module CSS alive while forcing
+   light/dark/auto to resolve through one platform theme contract. */
+:where(
+  .platform-home-view,
+  .platform-schedule-view,
+  .platform-periodization-view,
+  .platform-medical-team-view,
+  .platform-session-planner-view,
+  .platform-player-profiles-view,
+  .platform-scouting-view,
+  .platform-transfer-room-view,
+  .platform-analysis-room-view,
+  .platform-gameplan-view,
+  .platform-admin-view,
+  .platform-profile-view,
+  .platform-staff-view,
+  .platform-placeholder-view,
+  .workspace-view
+) {
+  --module-bg: var(--fs-bg);
+  --module-surface: var(--fs-surface);
+  --module-surface-soft: var(--fs-surface-soft);
+  --module-surface-strong: var(--fs-surface-strong);
+  --module-control: var(--fs-control-bg);
+  --module-hover: var(--fs-hover-bg);
+  --module-row: var(--fs-row-bg);
+  --module-row-hover: var(--fs-row-hover);
+  --module-text: var(--fs-text);
+  --module-text-strong: var(--fs-text-strong);
+  --module-text-muted: var(--fs-text-muted);
+  --module-border: var(--fs-border);
+  --module-border-strong: var(--fs-border-strong);
+  --module-accent: var(--fs-accent);
+  --module-success: var(--fs-success);
+  --module-warning: var(--fs-warning);
+  --module-danger: var(--fs-danger);
+  --module-shadow: var(--fs-shadow-soft);
+}
+
+:where(#scoutingWorkspace, .scouting-workspace) {
+  --scout-ink: var(--module-text);
+  --scout-muted: var(--module-text-muted);
+  --scout-soft: var(--module-surface-soft);
+  --scout-panel: var(--module-surface);
+  --scout-panel-strong: var(--module-surface-strong);
+  --scout-line: var(--module-border);
+  --scout-line-strong: var(--module-border-strong);
+  --scout-green: var(--fs-brand);
+  --scout-green-2: var(--fs-brand-2);
+  --scout-shadow: var(--module-shadow);
+  --scout-shadow-strong: var(--fs-shadow);
+}
+
+:where(.dashboard-chat-widget) {
+  --chat-premium-ink: var(--fs-text-strong);
+  --chat-premium-muted: var(--fs-text-muted);
+  --chat-premium-line: var(--fs-border);
+  --chat-premium-soft: var(--fs-surface-soft);
+  --chat-premium-surface: var(--fs-surface);
+  --chat-premium-control: var(--fs-control-bg);
+  --chat-premium-accent: var(--fs-accent);
+}
+
+body.is-dark-mode :where(
+  .platform-home-view,
+  .platform-schedule-view,
+  .platform-periodization-view,
+  .platform-medical-team-view,
+  .platform-session-planner-view,
+  .platform-player-profiles-view,
+  .platform-scouting-view,
+  .platform-transfer-room-view,
+  .platform-analysis-room-view,
+  .platform-gameplan-view,
+  .platform-admin-view,
+  .platform-profile-view,
+  .platform-staff-view,
+  .platform-placeholder-view,
+  .workspace-view
+) {
+  background:
+    radial-gradient(circle at 15% 0%, #123c5538, transparent 22rem),
+    linear-gradient(180deg, var(--fs-bg-elevated), var(--fs-bg)) !important;
+  color: var(--module-text) !important;
+}
+
+body.is-dark-mode :where(
+  .platform-home-view,
+  .platform-schedule-view,
+  .platform-periodization-view,
+  .platform-medical-team-view,
+  .platform-session-planner-view,
+  .platform-player-profiles-view,
+  .platform-scouting-view,
+  .platform-transfer-room-view,
+  .platform-analysis-room-view,
+  .platform-gameplan-view,
+  .platform-admin-view,
+  .platform-profile-view,
+  .platform-staff-view,
+  .platform-placeholder-view
+) :where(
+  [class*="-hero"],
+  [class*="-shell"],
+  [class*="-board"],
+  [class*="-toolbar"],
+  [class*="-bar"],
+  [class*="-card"],
+  [class*="-panel"],
+  [class*="-row"],
+  [class*="-item"],
+  [class*="-list"],
+  [class*="-table"],
+  [class*="-drawer"],
+  [class*="-menu"],
+  [class*="-modal"],
+  [class*="-dialog"],
+  details > div
+) {
+  border-color: var(--module-border) !important;
+  color: var(--module-text) !important;
+}
+
+body.is-dark-mode :where(
+  .platform-schedule-view,
+  .platform-periodization-view,
+  .platform-medical-team-view,
+  .platform-session-planner-view,
+  .platform-player-profiles-view,
+  .platform-scouting-view,
+  .platform-transfer-room-view,
+  .platform-analysis-room-view,
+  .platform-gameplan-view,
+  .platform-admin-view,
+  .platform-profile-view,
+  .platform-staff-view,
+  .platform-placeholder-view
+) :where(
+  [class*="-card"],
+  [class*="-panel"],
+  [class*="-row"],
+  [class*="-item"],
+  [class*="-list"],
+  [class*="-table"],
+  [class*="-drawer"],
+  [class*="-menu"],
+  details > div
+) {
+  background: var(--module-surface) !important;
+  box-shadow: var(--module-shadow) !important;
+}
+
+body.is-dark-mode :where(
+  .platform-schedule-view,
+  .platform-periodization-view,
+  .platform-medical-team-view,
+  .platform-session-planner-view,
+  .platform-player-profiles-view,
+  .platform-scouting-view,
+  .platform-transfer-room-view,
+  .platform-analysis-room-view,
+  .platform-gameplan-view,
+  .platform-admin-view,
+  .platform-profile-view,
+  .platform-staff-view,
+  .platform-placeholder-view
+) :where(
+  [class*="-empty"],
+  [class*="-muted"],
+  [class*="-hint"],
+  [class*="-meta"],
+  [class*="-subtitle"],
+  [class*="-eyebrow"],
+  small,
+  em
+) {
+  color: var(--module-text-muted) !important;
+}
+
+body.is-dark-mode :where(
+  .platform-schedule-view,
+  .platform-periodization-view,
+  .platform-medical-team-view,
+  .platform-session-planner-view,
+  .platform-player-profiles-view,
+  .platform-scouting-view,
+  .platform-transfer-room-view,
+  .platform-analysis-room-view,
+  .platform-gameplan-view,
+  .platform-admin-view,
+  .platform-profile-view,
+  .platform-staff-view,
+  .platform-placeholder-view
+) :where(
+  input,
+  select,
+  textarea,
+  summary,
+  [contenteditable="true"]
+) {
+  background: var(--module-control) !important;
+  border-color: var(--module-border-strong) !important;
+  color: var(--module-text) !important;
+}
+
+body.is-dark-mode :where(
+  .platform-schedule-view,
+  .platform-periodization-view,
+  .platform-medical-team-view,
+  .platform-session-planner-view,
+  .platform-player-profiles-view,
+  .platform-scouting-view,
+  .platform-transfer-room-view,
+  .platform-analysis-room-view,
+  .platform-gameplan-view,
+  .platform-admin-view,
+  .platform-profile-view,
+  .platform-staff-view,
+  .platform-placeholder-view
+) :where(button, [role="button"]) {
+  border-color: var(--module-border) !important;
+}
+
+body.is-dark-mode :where(
+  .platform-schedule-view,
+  .platform-periodization-view,
+  .platform-medical-team-view,
+  .platform-session-planner-view,
+  .platform-player-profiles-view,
+  .platform-scouting-view,
+  .platform-transfer-room-view,
+  .platform-analysis-room-view,
+  .platform-gameplan-view,
+  .platform-admin-view,
+  .platform-profile-view,
+  .platform-staff-view,
+  .platform-placeholder-view
+) :where(button:not([disabled]):hover, [role="button"]:not([disabled]):hover) {
+  background: var(--module-hover) !important;
+  color: var(--module-text-strong) !important;
+}
+
+body.is-dark-mode :where(
+  .platform-scouting-view,
+  #scoutingWorkspace,
+  .scouting-workspace
+) {
+  --scout-ink: var(--fs-text);
+  --scout-muted: var(--fs-text-muted);
+  --scout-soft: var(--fs-surface-soft);
+  --scout-panel: var(--fs-surface);
+  --scout-panel-strong: var(--fs-surface-strong);
+  --scout-line: var(--fs-border);
+  --scout-line-strong: var(--fs-border-strong);
+  --scout-green: var(--fs-success);
+  --scout-green-2: var(--fs-accent);
+  --scout-blue: var(--fs-info-soft);
+  --scout-gold: var(--fs-warning-soft);
+  --scout-shadow: var(--fs-shadow-soft);
+  --scout-shadow-strong: var(--fs-shadow);
+}
+
+body.is-dark-mode :where(#scoutingWorkspace, .scouting-workspace) :where(
+  .scouting-hero,
+  .scouting-command-bar,
+  .scouting-load-panel,
+  .scouting-settings-panel,
+  .scouting-record-card,
+  .scouting-list-card,
+  .scouting-shadow-card,
+  .scouting-profile-modal,
+  .scouting-saved-views-modal,
+  .scouting-role-model-modal,
+  .scouting-settings-modal,
+  .scouting-comparison-lab,
+  .scouting-comparison-radar,
+  .scouting-comparison-table,
+  .scouting-comparison-winners,
+  .scouting-target-board,
+  .scouting-budget-board,
+  .scouting-contact-form-card,
+  .scouting-contact-list-card
+) {
+  background: var(--fs-surface) !important;
+  border-color: var(--fs-border) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode :where(
+  .scouting-settings-panel,
+  .scouting-profile-action-menu-panel,
+  .scouting-my-team-menu div,
+  .scouting-shadow-player-menu div,
+  .scouting-comparison-candidate-drawer,
+  .scouting-comparison-metric-options
+) {
+  background: var(--fs-surface-strong) !important;
+  border-color: var(--fs-border-strong) !important;
+  color: var(--fs-text) !important;
+  box-shadow: var(--fs-shadow) !important;
+}
+
+body.is-dark-mode .scouting-settings-menu .scouting-settings-panel {
+  background: var(--fs-surface-strong) !important;
+  border-color: var(--fs-border-strong) !important;
+  color: var(--fs-text) !important;
+  box-shadow: var(--fs-shadow) !important;
+}
+
+body.is-dark-mode :where(#scoutingWorkspace, .scouting-workspace) :where(
+  .scouting-hero,
+  .scouting-tab.is-active,
+  .scouting-primary-button,
+  .scouting-filter-toggle,
+  .scouting-database-controls button[type="submit"]
+) {
+  background: linear-gradient(135deg, #163d33, #17446c) !important;
+  border-color: #67d7a166 !important;
+  color: #f8fafc !important;
+}
+
+body.is-dark-mode :where(#scoutingWorkspace, .scouting-workspace) :where(
+  .scouting-metrics span,
+  .scouting-profile-identity-meta span,
+  .scouting-profile-shadow-count,
+  .scouting-role-model-signal-pills span,
+  .scouting-comparison-winners article,
+  .scouting-comparison-table-head span,
+  .scouting-comparison-table-row span,
+  .scouting-shadow-empty
+) {
+  background: var(--fs-surface-soft) !important;
+  border-color: var(--fs-border) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode :where(
+  .video-analysis-workspace,
+  .video-analysis-shell,
+  .analysis-room,
+  .analysis-room-shell
+) {
+  --video-surface: var(--fs-surface);
+  --video-surface-soft: var(--fs-surface-soft);
+  --video-line: var(--fs-border);
+  --video-text: var(--fs-text);
+  --video-muted: var(--fs-text-muted);
+  --timeline-surface: var(--fs-surface-soft);
+}
+
+body.is-dark-mode :where(
+  .video-analysis-workspace,
+  .video-analysis-shell,
+  .analysis-room,
+  .analysis-room-shell
+) :where(
+  [class*="video-analysis"],
+  [class*="analysis-room"],
+  [class*="timeline"],
+  [class*="clip"],
+  [class*="playlist"],
+  [class*="tag"],
+  [class*="note"]
+) {
+  border-color: var(--fs-border) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode :where(
+  .video-analysis-workspace,
+  .video-analysis-shell,
+  .analysis-room,
+  .analysis-room-shell
+) :where(
+  .video-analysis-panel,
+  .video-analysis-card,
+  .video-analysis-toolbar,
+  .video-analysis-timeline,
+  .video-analysis-library,
+  .analysis-room-card,
+  .analysis-room-panel
+) {
+  background: var(--fs-surface) !important;
+  box-shadow: var(--fs-shadow-soft) !important;
+}
+
+body.is-dark-mode :where(
+  .medical-command-center,
+  .medical-availability-workspace,
+  .medical-roster-overview,
+  .medical-temporary-player-panel
+) {
+  --medical-surface: var(--fs-surface);
+  --medical-surface-soft: var(--fs-surface-soft);
+  --medical-text: var(--fs-text);
+  --medical-muted: var(--fs-text-muted);
+  --medical-border: var(--fs-border);
+}
+
+body.is-dark-mode :where(
+  .squad-workspace-layout,
+  .squad-profile,
+  .squad-roster,
+  .player-profile-shell
+) {
+  --squad-surface: var(--fs-surface);
+  --squad-surface-soft: var(--fs-surface-soft);
+  --squad-text: var(--fs-text);
+  --squad-muted: var(--fs-text-muted);
+  --squad-border: var(--fs-border);
+}
+
+body.is-dark-mode :where(
+  .session-planner,
+  .session-planner-shell,
+  .session-player-board-stage,
+  .periodization-shell,
+  .periodization-workspace
+) {
+  --session-surface: var(--fs-surface);
+  --session-surface-soft: var(--fs-surface-soft);
+  --session-text: var(--fs-text);
+  --session-muted: var(--fs-text-muted);
+  --session-border: var(--fs-border);
+}
+
+body.is-dark-mode :where(.transfer-room, .transfer-room-shell, .gameplan-shell, .gameplan-workspace) {
+  --transfer-surface: var(--fs-surface);
+  --transfer-surface-soft: var(--fs-surface-soft);
+  --transfer-text: var(--fs-text);
+  --transfer-muted: var(--fs-text-muted);
+  --transfer-border: var(--fs-border);
+  --gameplan-surface: var(--fs-surface);
+  --gameplan-surface-soft: var(--fs-surface-soft);
+  --gameplan-text: var(--fs-text);
+  --gameplan-muted: var(--fs-text-muted);
+  --gameplan-border: var(--fs-border);
+}
+
+body.is-dark-mode :where(.transfer-room-workspace, .transfer-room-shell) :where(
+  .transfer-room-hero-main,
+  .transfer-room-panel,
+  .transfer-room-table-shell,
+  .transfer-room-target-card,
+  .transfer-room-cap-logic,
+  .transfer-room-rule-check,
+  .transfer-room-audit,
+  .transfer-room-scenarios,
+  .transfer-room-settings,
+  .transfer-room-access,
+  .transfer-room-empty
+) {
+  background: var(--fs-surface) !important;
+  border-color: var(--fs-border) !important;
+  color: var(--fs-text) !important;
+  box-shadow: var(--fs-shadow-soft) !important;
+}
+
+body.is-dark-mode :where(.idp-shell, .idp-workspace, .idp-player-profile) {
+  --idp-surface: var(--fs-surface);
+  --idp-surface-soft: var(--fs-surface-soft);
+  --idp-text: var(--fs-text);
+  --idp-muted: var(--fs-text-muted);
+  --idp-border: var(--fs-border);
+}
+
+body.is-dark-mode :where([class*="-overlay"], [class*="-backdrop"]) {
+  background-color: var(--fs-overlay) !important;
 }

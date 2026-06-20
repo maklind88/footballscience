@@ -324,8 +324,8 @@ test("coding tag panel creates 15 second button-owned clip actions", async () =>
   expect(action.shouldCreateClip).toBe(true);
   expect(action.nextDraft.startMs).toBe(831000);
   expect(action.nextDraft.endMs).toBe(846000);
-  expect(action.nextDraft.miniGamePrincipleId).toBe("drive-past-press");
-  expect(action.nextDraft.miniGamePrincipleIds).toEqual(["drive-past-press", "ft3-find-the-third"]);
+  expect(action.nextDraft.miniGamePrincipleId).toBe("third-player");
+  expect(action.nextDraft.miniGamePrincipleIds || []).toEqual([]);
   expect(action.nextSession.mode).toBe("instant");
 });
 

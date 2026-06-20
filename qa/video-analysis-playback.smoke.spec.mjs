@@ -468,6 +468,40 @@ test("Video Analysis Clip Library groups clips by searchable football metadata",
         return Promise.resolve();
       },
     });
+    const libraryClips = [
+      {
+        id: "clip-build-third",
+        matchId: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        videoId: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        matchTitle: "Match #11 @ Angel City - May 31st",
+        matchDate: "2026-05-31",
+        eventType: "match",
+        startMs: 12000,
+        endMs: 27000,
+        phase: "In Possession",
+        subPhase: "Build Up",
+        outcome: "Positive",
+        players: [{ player_id: "player-8", player_label: "Player Eight" }],
+        labels: [{ label_type: "mini_game_principle", label_value: "third-player", label_text: "Third Player" }],
+        notes: [{ note: "Finds the third player under pressure." }],
+      },
+      {
+        id: "clip-press-counter",
+        matchId: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        videoId: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        matchTitle: "Training/IDP + Lift",
+        matchDate: "2026-06-18",
+        eventType: "training",
+        startMs: 42000,
+        endMs: 57000,
+        phase: "Out of Possession",
+        subPhase: "High Press",
+        outcome: "Development",
+        players: [{ player_id: "player-6", player_label: "Player Six" }],
+        labels: [{ label_type: "mini_game_principle", label_value: "counterpress-five-seconds", label_text: "Counterpress 5s" }],
+      },
+    ];
+    window.__videoAnalysisSmokeClips = libraryClips;
     window.__videoAnalysisInitialState = {
       status: "ready",
       view: "workspace",
@@ -491,39 +525,7 @@ test("Video Analysis Clip Library groups clips by searchable football metadata",
         { id: "player-8", name: "Player Eight" },
         { id: "player-6", name: "Player Six" },
       ],
-      clips: [
-        {
-          id: "clip-build-third",
-          matchId: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
-          videoId: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
-          matchTitle: "Match #11 @ Angel City - May 31st",
-          matchDate: "2026-05-31",
-          eventType: "match",
-          startMs: 12000,
-          endMs: 27000,
-          phase: "In Possession",
-          subPhase: "Build Up",
-          outcome: "Positive",
-          players: [{ player_id: "player-8", player_label: "Player Eight" }],
-          labels: [{ label_type: "mini_game_principle", label_value: "third-player", label_text: "Third Player" }],
-          notes: [{ note: "Finds the third player under pressure." }],
-        },
-        {
-          id: "clip-press-counter",
-          matchId: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
-          videoId: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
-          matchTitle: "Training/IDP + Lift",
-          matchDate: "2026-06-18",
-          eventType: "training",
-          startMs: 42000,
-          endMs: 57000,
-          phase: "Out of Possession",
-          subPhase: "High Press",
-          outcome: "Development",
-          players: [{ player_id: "player-6", player_label: "Player Six" }],
-          labels: [{ label_type: "mini_game_principle", label_value: "counterpress-five-seconds", label_text: "Counterpress 5s" }],
-        },
-      ],
+      clips: libraryClips,
     };
   });
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
@@ -554,8 +556,15 @@ test("Video Analysis Clip Library groups clips by searchable football metadata",
   await expect(page.locator("[data-video-analysis-clip-library-preview]")).toContainText("Match #11 @ Angel City - May 31st");
   await expect(page.locator("[data-video-analysis-clip-library-preview]")).toContainText("0:00:12 - 0:00:27");
   await expect(page.locator("[data-video-analysis-clip-library-video]")).toBeVisible();
+  await expect(page.locator(".video-analysis-clip-library-preview__principles")).toContainText("Third Player");
   await page.locator("[data-video-analysis-clip-library-preview-close]").click();
   await expect(page.locator("[data-video-analysis-clip-library-preview]")).toHaveCount(0);
+
+  await page.locator('[data-video-analysis-filter="miniGamePrincipleId"]').selectOption("third-player");
+  await expect(page.locator(".video-analysis-clip-library-card")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-clip-library-card")).toContainText("Third Player");
+  await page.locator("[data-video-analysis-clear-filters]").click();
+  await expect(page.locator(".video-analysis-clip-library-card")).toHaveCount(2);
 
   await page.locator('[data-video-analysis-clip-library-group="miniGamePrinciple"]').click();
   await expect(page.locator(".video-analysis-clip-library-group").first()).toContainText("Third Player");
@@ -761,7 +770,7 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     startMs: 83000,
     endMs: 98000,
     subPhase: "Build Up",
-    miniGamePrincipleId: "drive-past-press",
+    miniGamePrincipleId: "",
     codingMode: "instant",
     visibility: "private",
   });
@@ -799,8 +808,15 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await page.locator(".video-analysis-mg-picker-search").fill("FT3");
   await expect(page.locator(".video-analysis-mg-picker-overlay")).toContainText("FT3 (Find the Third)");
   await expect(page.locator(".video-analysis-mg-picker-overlay")).not.toContainText("Drive past press");
-  await page.locator(".video-analysis-mg-picker-search").press("Enter");
+  await page.locator('[data-video-analysis-mg-principle-toggle="ft3-find-the-third"]').click();
   await expect(page.locator('[data-video-analysis-mg-principle-toggle="ft3-find-the-third"]')).toHaveClass(/is-active/);
+  await expect.poll(() => page.evaluate(() => {
+    const request = [...(window.__videoAnalysisRequests || [])]
+      .reverse()
+      .find((item) => item.action === "save-clip" && (item.body?.clip?.labels || [])
+        .some((label) => (label.value || label.label_value) === "ft3-find-the-third"));
+    return (request?.body?.clip?.labels || []).map((label) => label.value || label.label_value);
+  })).toContain("ft3-find-the-third");
   await page.locator(".video-analysis-mg-picker-close").click();
   await expect(page.locator(".video-analysis-mg-picker-overlay")).toHaveCount(0);
 

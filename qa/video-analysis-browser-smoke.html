@@ -95,6 +95,41 @@
         : window.__videoAnalysisInitialState || null;
       videoAnalysis.resetVideoAnalysisRuntimeForTests?.();
 
+      function clipField(clip = {}, camelKey = "", snakeKey = "") {
+        return clip[camelKey] ?? clip[snakeKey] ?? "";
+      }
+
+      function clipMiniGamePrincipleValues(clip = {}) {
+        return [
+          clipField(clip, "miniGamePrincipleId", "mini_game_principle_id"),
+          ...(Array.isArray(clip.labels) ? clip.labels : [])
+            .filter((label) => String(label.type || label.label_type || "").trim() === "mini_game_principle")
+            .flatMap((label) => [label.value || label.label_value, label.label || label.label_text]),
+        ].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+      }
+
+      function clipMatchesRequest(clip = {}, parsed) {
+        const miniGamePrincipleId = String(parsed.searchParams.get("miniGamePrincipleId") || "").trim().toLowerCase();
+        if (miniGamePrincipleId && !clipMiniGamePrincipleValues(clip).includes(miniGamePrincipleId)) return false;
+        const subPhase = String(parsed.searchParams.get("subPhase") || "").trim();
+        if (subPhase && String(clipField(clip, "subPhase", "sub_phase")) !== subPhase) return false;
+        const outcome = String(parsed.searchParams.get("outcome") || "").trim();
+        if (outcome && String(clip.outcome || "") !== outcome) return false;
+        const query = String(parsed.searchParams.get("search") || "").trim().toLowerCase();
+        if (!query) return true;
+        return [
+          clip.phase,
+          clipField(clip, "subPhase", "sub_phase"),
+          clip.outcome,
+          clipField(clip, "miniGamePrincipleId", "mini_game_principle_id"),
+          ...(clip.tags || []),
+          ...(clip.players || []).map((player) => player.player_label || player.playerLabel || player.name || player.player_id || player.playerId),
+          ...(clip.notes || []).map((note) => note.note),
+          ...(clip.labels || []).flatMap((label) => [label.label_text || label.label, label.label_value || label.value]),
+          ...(clip.descriptors || []).flatMap((descriptor) => [descriptor.descriptor_label || descriptor.label, descriptor.descriptor_value || descriptor.value]),
+        ].some((value) => String(value || "").toLowerCase().includes(query));
+      }
+
       window.fetch = async (url, options = {}) => {
         const parsed = new URL(url, window.location.origin);
         const action = parsed.searchParams.get("action");
@@ -106,7 +141,8 @@
         if (action === "clips") {
           const limit = Math.max(1, Number(parsed.searchParams.get("limit") || clips.length || 1));
           const offset = Math.max(0, Number(parsed.searchParams.get("offset") || 0));
-          const pageClips = clips.slice(offset, offset + limit);
+          const filteredClips = clips.filter((clip) => clipMatchesRequest(clip, parsed));
+          const pageClips = filteredClips.slice(offset, offset + limit);
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clips: pageClips, pageSize: pageClips.length });
         }
         if (action === "saved-searches") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", savedSearches: [] });
@@ -141,8 +177,9 @@
         if (action === "list-presentation-clips") {
           const limit = Math.max(1, Number(parsed.searchParams.get("limit") || clips.length || 1));
           const offset = Math.max(0, Number(parsed.searchParams.get("offset") || 0));
-          const pageClips = clips.slice(offset, offset + limit);
-          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clips: pageClips, pageSize: pageClips.length, total: clips.length });
+          const filteredClips = clips.filter((clip) => clipMatchesRequest(clip, parsed));
+          const pageClips = filteredClips.slice(offset, offset + limit);
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clips: pageClips, pageSize: pageClips.length, total: filteredClips.length });
         }
         if (action === "save-presentation") {
           savedPresentation = {
@@ -189,7 +226,7 @@
             phase: input.phase || "In Possession",
             sub_phase: input.subPhase || input.sub_phase || "Build Up",
             team_principle_id: input.teamPrincipleId || input.team_principle_id || "create-free-player",
-            mini_game_principle_id: input.miniGamePrincipleId || input.mini_game_principle_id || "third-player",
+            mini_game_principle_id: input.miniGamePrincipleId || input.mini_game_principle_id || existingClip?.miniGamePrincipleId || existingClip?.mini_game_principle_id || "",
             outcome: input.outcome || "Neutral",
             coding_mode: input.codingMode || input.coding_mode || "instant",
             coding_template_id: input.codingTemplateId || input.coding_template_id || "",
@@ -197,6 +234,7 @@
             pre_roll_ms: input.preRollMs ?? input.pre_roll_ms ?? 0,
             post_roll_ms: input.postRollMs ?? input.post_roll_ms ?? 0,
             visibility: input.visibility || "private",
+            labels: Array.isArray(input.labels) ? input.labels : existingClip?.labels || [],
             players: Array.isArray(input.players) && input.players.length
               ? input.players
               : input.playerId

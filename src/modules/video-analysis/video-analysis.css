@@ -4354,14 +4354,42 @@
   font-size: 12px;
 }
 
+.video-analysis-clip-library-preview__video-shell {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #030706;
+}
+
 .video-analysis-clip-library-preview__video {
   display: block;
   width: 100%;
   max-height: min(68vh, 650px);
   aspect-ratio: 16 / 9;
-  border-radius: 8px;
   background: #030706;
   object-fit: contain;
+}
+
+.video-analysis-clip-library-preview__principles {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 2;
+  max-width: min(72%, 760px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: #fffaf0;
+  background: rgba(8, 13, 11, 0.72);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 .video-analysis-clip-library-preview__empty {

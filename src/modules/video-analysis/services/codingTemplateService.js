@@ -303,9 +303,7 @@ export function applyCodingButtonToDraft(draft = {}, template = {}, button = {})
   for (const link of template.links || []) {
     if (link.sourceValue === button.value && link.targetType && link.targetValue) {
       if (link.targetType === "miniGamePrincipleIds" || link.targetType === "miniGamePrincipleId") {
-        const existing = Array.isArray(nextDraft.miniGamePrincipleIds) ? nextDraft.miniGamePrincipleIds : [];
-        nextDraft.miniGamePrincipleIds = [...new Set([...existing, link.targetValue].filter(Boolean))];
-        nextDraft.miniGamePrincipleId = nextDraft.miniGamePrincipleIds[0] || "";
+        continue;
       } else {
         nextDraft[link.targetType] = link.targetValue;
       }

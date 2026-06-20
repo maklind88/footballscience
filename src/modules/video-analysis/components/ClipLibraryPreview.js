@@ -57,6 +57,16 @@ function renderPrinciples(clip = {}) {
   `;
 }
 
+function renderPrincipleCaption(clip = {}) {
+  const principles = clipMiniGamePrincipleLabels(clip);
+  if (!principles.length) return "";
+  return `
+    <span class="video-analysis-clip-library-preview__principles">
+      ${escapeHtml(principles.slice(0, 3).join(" · "))}
+    </span>
+  `;
+}
+
 export function renderClipPreviewOverlay(state = {}, clips = []) {
   const previewClipId = String(state.clipLibrary?.previewClipId || "");
   if (!previewClipId) return "";
@@ -87,14 +97,17 @@ export function renderClipPreviewOverlay(state = {}, clips = []) {
         </div>
         ${
           hasPlayableVideo
-            ? `<video
-                class="video-analysis-clip-library-preview__video"
-                data-video-analysis-clip-library-video
-                src="${escapeHtml(state.videoRef.objectUrl)}"
-                playsinline
-                preload="metadata"
-                controls
-              ></video>`
+            ? `<div class="video-analysis-clip-library-preview__video-shell">
+                <video
+                  class="video-analysis-clip-library-preview__video"
+                  data-video-analysis-clip-library-video
+                  src="${escapeHtml(state.videoRef.objectUrl)}"
+                  playsinline
+                  preload="metadata"
+                  controls
+                ></video>
+                ${renderPrincipleCaption(clip)}
+              </div>`
             : `<div class="video-analysis-clip-library-preview__empty">
                 <strong>Local file is not connected on this device.</strong>
                 <button type="button" data-video-analysis-restore-local-file>Reconnect local file</button>

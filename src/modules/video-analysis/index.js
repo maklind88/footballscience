@@ -24,7 +24,12 @@ import { createVideoRepository } from "./repositories/videoRepository.js";
 import { applyCodingButtonToClip, buildClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
 import { buildClipLibraryClipOrder, clipEndMs, clipMatchesLibraryGroup, clipStartMs } from "./services/clipLibraryService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
-import { clipMiniGamePrincipleIds, uniqueMiniGamePrincipleIds, withMiniGamePrinciples } from "./services/miniGamePrincipleService.js";
+import {
+  clipMiniGamePrincipleIds,
+  miniGamePrincipleLabel,
+  uniqueMiniGamePrincipleIds,
+  withMiniGamePrinciples,
+} from "./services/miniGamePrincipleService.js";
 import {
   addCodingButtonGroupToTemplate,
   addCodingButtonToTemplate,
@@ -1234,17 +1239,32 @@ function firstMiniGamePrincipleSearchMatchId(search = "") {
 }
 
 function toggleMiniGamePrincipleDraftId(state = {}, id = "") {
+  const ids = toggledMiniGamePrincipleIds(state, id);
+  if (!ids) return state;
+  return patchMiniGamePrincipleDraftState(state, ids);
+}
+
+function toggledMiniGamePrincipleIds(state = {}, id = "") {
   const principleId = String(id || "").trim();
-  if (!principleId || !pickerMiniGamePrincipleIdSet.has(principleId)) return state;
+  if (!principleId || !pickerMiniGamePrincipleIdSet.has(principleId)) return null;
   const currentIds = pickerVisibleMiniGamePrincipleIds(state.codingSession?.miniGamePrincipleDraftIds || activeMiniGamePrincipleIds(state));
   const selected = new Set(currentIds);
   if (selected.has(principleId)) selected.delete(principleId);
   else selected.add(principleId);
+  return pickerVisibleMiniGamePrincipleIds([...selected]);
+}
+
+function patchMiniGamePrincipleDraftState(state = {}, ids = []) {
   return {
     ...state,
+    draft: {
+      ...(state.draft || {}),
+      miniGamePrincipleId: ids[0] || "",
+      miniGamePrincipleIds: ids,
+    },
     codingSession: {
       ...(state.codingSession || {}),
-      miniGamePrincipleDraftIds: pickerVisibleMiniGamePrincipleIds([...selected]),
+      miniGamePrincipleDraftIds: ids,
       miniGamePrinciplePickerOpen: true,
     },
   };
@@ -1970,6 +1990,64 @@ async function saveMiniGamePrinciplesForActiveClip(context = {}) {
   }
 }
 
+async function toggleMiniGamePrincipleForActiveClip(principleId = "", context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const ids = toggledMiniGamePrincipleIds(state, principleId);
+  if (!ids) return false;
+  const targetClip = findClipForLabelAction(state, currentPlayheadMs(context, state));
+  if (!targetClip?.id) {
+    run.store.update((current) => ({
+      ...patchMiniGamePrincipleDraftState(current, ids),
+      message: ids.length ? "MG principles ready for next tag." : "MG principles cleared for next tag.",
+      error: "",
+    }));
+    return true;
+  }
+  const nextClip = normalizeClipInstance(withMiniGamePrinciples(targetClip, ids));
+  const label = miniGamePrincipleLabel(principleId) || "MG principle";
+  run.store.update((current) => ({
+    ...replaceClipInState(patchMiniGamePrincipleDraftState(current, ids), nextClip),
+    status: "saving-clip",
+    selectedClipId: nextClip.id,
+    codingSession: {
+      ...(current.codingSession || {}),
+      miniGamePrincipleDraftIds: ids,
+      miniGamePrinciplePickerOpen: true,
+      lastClipId: nextClip.id,
+    },
+    message: `${label} ${ids.includes(principleId) ? "tagged on clip." : "removed from clip."}`,
+    error: "",
+  }));
+  try {
+    const payload = await run.clips.save(toApiClipPayload(nextClip));
+    const savedClip = normalizeClipInstance(payload?.clip || nextClip);
+    const savedIds = pickerVisibleMiniGamePrincipleIds(clipMiniGamePrincipleIds(savedClip));
+    run.store.update((current) => ({
+      ...replaceClipInState(current, savedClip),
+      status: "ready",
+      selectedClipId: savedClip.id,
+      codingSession: {
+        ...(current.codingSession || {}),
+        miniGamePrincipleDraftIds: savedIds,
+        miniGamePrinciplePickerOpen: true,
+        lastClipId: savedClip.id,
+      },
+      message: savedIds.length ? "MG principles saved to clip." : "MG principles cleared from clip.",
+      error: "",
+    }));
+    await loadClips();
+    return true;
+  } catch (error) {
+    run.store.update((current) => ({
+      ...replaceClipInState(current, targetClip),
+      status: "error",
+      error: error.message || "Could not save MG principles.",
+    }));
+    return false;
+  }
+}
+
 async function applyCodeButton(buttonId = "", context = {}) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
@@ -2558,7 +2636,7 @@ export function handleClick(event, context = {}) {
   const miniGameToggle = target.closest("[data-video-analysis-mg-principle-toggle]");
   if (miniGameToggle) {
     const id = miniGameToggle.dataset.videoAnalysisMgPrincipleToggle;
-    run.store.update((state) => toggleMiniGamePrincipleDraftId(state, id));
+    toggleMiniGamePrincipleForActiveClip(id, context);
     return true;
   }
   if (target.closest("[data-video-analysis-mg-principles-clear]")) {
@@ -3477,7 +3555,7 @@ export function handleKeydown(event, context = {}) {
     if (firstId) {
       event.preventDefault?.();
       event.stopPropagation?.();
-      run.store.update((current) => toggleMiniGamePrincipleDraftId(current, firstId));
+      toggleMiniGamePrincipleForActiveClip(firstId, context);
       return true;
     }
   }

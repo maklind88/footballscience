@@ -1,6 +1,5 @@
 import { formatVideoTime, getVideoCurrentMs, seekVideoToMs } from "../services/videoPlaybackService.js";
 import { getTimelineDurationMs, timelineMsFromClientX } from "./timeline.service.js";
-import { getClipEndMs, getClipStartMs } from "./timeline.selectors.js";
 
 export function createTimelineScrubController(options = {}) {
   let session = null;
@@ -87,63 +86,9 @@ export function createTimelineScrubController(options = {}) {
     return timelineMsFromClientX(event.clientX, session.rect, session.durationMs);
   }
 
-  function patchClipTimes(current = {}, clipId = "", startMs = 0, endMs = 100) {
-    const patchList = (clips = []) => clips.map((clip) => {
-      if (clip.id !== clipId) return clip;
-      return { ...clip, startMs, endMs, start_ms: startMs, end_ms: endMs };
-    });
-    return {
-      ...current,
-      clips: patchList(current.clips || []),
-      allClips: Array.isArray(current.allClips) ? patchList(current.allClips) : current.allClips,
-      selectedClipId: clipId || current.selectedClipId,
-    };
-  }
-
-  function applyTrimPreview(ms = 0, { commit = false } = {}) {
-    if (!session || session.type !== "trim") return;
-    const pointerMs = Math.min(session.durationMs, Math.max(0, Math.round(Number(ms || 0))));
-    const startMs = session.edge === "start"
-      ? Math.max(0, Math.min(session.originalEndMs - 100, pointerMs))
-      : session.originalStartMs;
-    const endMs = session.edge === "end"
-      ? Math.max(session.originalStartMs + 100, pointerMs)
-      : session.originalEndMs;
-    options.updateState?.((current) => patchClipTimes(current, session.clipId, startMs, endMs));
-    syncScrubTimes(session.edge === "start" ? startMs : endMs, session.durationMs, true);
-    if (commit) {
-      options.onClipTrimCommit?.({
-        clipId: session.clipId,
-        startMs,
-        endMs,
-        originalStartMs: session.originalStartMs,
-        originalEndMs: session.originalEndMs,
-      });
-    }
-  }
-
   function applyScrub(event = {}, { commit = false, immediate = false } = {}) {
     if (!session) return;
     const nextMs = msFromEvent(event);
-    if (session.type === "trim") {
-      if (commit || immediate) {
-        clearPendingFrame();
-        applyTrimPreview(nextMs, { commit });
-        return;
-      }
-      const targetWindow = win();
-      pendingMoveMs = nextMs;
-      if (frameId) return;
-      frameId = targetWindow?.requestAnimationFrame?.(() => {
-        frameId = 0;
-        const trimMs = pendingMoveMs;
-        pendingMoveMs = null;
-        lockScrollPosition();
-        applyTrimPreview(trimMs);
-      }) || 0;
-      if (!frameId) applyTrimPreview(nextMs);
-      return;
-    }
     const targetWindow = win();
     if (commit || immediate || !targetWindow?.requestAnimationFrame) {
       clearPendingFrame();
@@ -183,7 +128,6 @@ export function createTimelineScrubController(options = {}) {
     targetWindow?.removeEventListener?.("pointerup", endScrub, session.listenerOptions);
     targetWindow?.removeEventListener?.("pointercancel", endScrub, session.listenerOptions);
     session.scrollContainer?.classList?.remove("is-scrubbing");
-    session.scrollContainer?.classList?.remove("is-trimming");
     session.scrollContainer?.classList?.remove("is-panning");
     if (!wasPan) {
       lockScrollPosition();
@@ -207,7 +151,6 @@ export function createTimelineScrubController(options = {}) {
       "[data-video-analysis-timeline-scrub]",
       "[data-video-analysis-timeline-scrub-surface]",
       "[data-video-analysis-timeline-track]",
-      "[data-video-analysis-timeline-trim-edge]",
     ].join(",")));
   }
 
@@ -238,14 +181,13 @@ export function createTimelineScrubController(options = {}) {
   function handlePointerDown(event = {}) {
     const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;
     if (!target?.closest || (event.button && event.button !== 0)) return false;
-    const trimHandle = target.closest("[data-video-analysis-timeline-trim-edge]");
-    if (!trimHandle && target.closest("[data-video-analysis-seek]")) return false;
+    if (target.closest("[data-video-analysis-seek]")) return false;
 
     const scrubHandle = target.closest("[data-video-analysis-timeline-scrub]");
     const track = target.closest("[data-video-analysis-timeline-track]");
     const ruler = target.closest("[data-video-analysis-timeline-ruler]");
     const module = target.closest("[data-video-analysis-timeline-module]");
-    if (!trimHandle && !track && !ruler && !scrubHandle && startPan(event, target)) return true;
+    if (!track && !ruler && !scrubHandle && startPan(event, target)) return true;
     const surface = module?.querySelector("[data-video-analysis-timeline-scrub-surface]")
       || scrubHandle?.closest("[data-video-analysis-timeline-scrub-surface]")
       || track
@@ -267,34 +209,15 @@ export function createTimelineScrubController(options = {}) {
     ));
     const scrollContainer = surface.closest(".video-analysis-timeline-scroll");
     const listenerOptions = { passive: false };
-    if (trimHandle) {
-      const [clipId, edge] = String(trimHandle.dataset.videoAnalysisTimelineTrimEdge || "").split(":");
-      const clip = (state().clips || []).find((item) => item.id === clipId);
-      if (!clip || !["start", "end"].includes(edge)) return false;
-      session = {
-        type: "trim",
-        clipId,
-        edge,
-        originalStartMs: getClipStartMs(clip),
-        originalEndMs: getClipEndMs(clip),
-        durationMs,
-        listenerOptions,
-        rect,
-        scrollContainer,
-        scrollLeft: Number(scrollContainer?.scrollLeft || 0),
-      };
-      scrollContainer?.classList?.add("is-trimming");
-    } else {
-      session = {
-        type: "scrub",
-        durationMs,
-        listenerOptions,
-        rect,
-        scrollContainer,
-        scrollLeft: Number(scrollContainer?.scrollLeft || 0),
-      };
-      scrollContainer?.classList?.add("is-scrubbing");
-    }
+    session = {
+      type: "scrub",
+      durationMs,
+      listenerOptions,
+      rect,
+      scrollContainer,
+      scrollLeft: Number(scrollContainer?.scrollLeft || 0),
+    };
+    scrollContainer?.classList?.add("is-scrubbing");
 
     const targetWindow = win();
     event.preventDefault?.();

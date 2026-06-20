@@ -142,23 +142,11 @@ function renderClipBlock(clip = {}, totalMs = 1, laneMode = "phase", selectedCli
       style="${clipBlockStyle(clip, totalMs)}${buttonColor ? `--video-analysis-clip-color:${escapeHtml(buttonColor)};` : ""}"
       data-video-analysis-seek="${escapeHtml(clip.id)}"
       title="${escapeHtml(`#${clipNumber} · ${buttonLabel || primaryLabel} · ${formatVideoTime(startMs)} - ${formatVideoTime(endMs)} · ${secondaryLabel}`)}">
-      <span
-        class="video-analysis-clip-block__handle is-start"
-        data-video-analysis-timeline-trim-edge="${escapeHtml(`${clip.id}:start`)}"
-        aria-label="Trim clip start"
-        title="Trim start"
-      ></span>
       <span class="video-analysis-clip-block__copy">
         <strong>${escapeHtml(String(clipNumber))}</strong>
         ${miniGameText && !density.isDense ? `<em>${escapeHtml(miniGameText)}</em>` : ""}
         ${density.isDense ? "" : `<small>${escapeHtml(formatVideoTime(startMs))}</small>`}
       </span>
-      <span
-        class="video-analysis-clip-block__handle is-end"
-        data-video-analysis-timeline-trim-edge="${escapeHtml(`${clip.id}:end`)}"
-        aria-label="Trim clip end"
-        title="Trim end"
-      ></span>
     </button>
   `;
 }

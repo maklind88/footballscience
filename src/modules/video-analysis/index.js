@@ -89,6 +89,7 @@ const pickerMiniGamePrinciples = miniGamePrinciplePickerGroups.flatMap((group) =
 const CLIP_PAGE_LIMIT = 200;
 const CLIP_WORKSPACE_LIMIT = 1000;
 const PLAYBACK_RATE_OPTIONS = [0.5, 1, 1.5, 2];
+const KEYBOARD_CLIP_TRIM_MIN_MS = 1000;
 
 function normalizePlaybackRate(value = 1) {
   const numeric = Number(value);
@@ -147,7 +148,6 @@ function timelineController(context = {}) {
       getState: () => runtime?.store.getState() || {},
       getVideoElement: () => videoElement(runtime?.context || context),
       getWindow: () => runtime?.context?.win || context.win || window,
-      onClipTrimCommit: (payload) => commitClipTrim(payload, runtime?.context || context),
       updateState: (updater) => runtime?.store.update(updater),
     });
   }
@@ -1266,6 +1266,46 @@ async function commitClipTrim(payload = {}, context = {}) {
     }));
     return false;
   }
+}
+
+function trimSelectedClipByKeyboard(context = {}, payload = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const clipId = state.selectedClipId || state.timeline?.selectedCategory?.activeClipId || state.codingSession?.lastClipId || "";
+  const clip = [...(state.clips || []), ...(state.allClips || [])].find((item) => item.id === clipId);
+  if (!clip?.id) {
+    run.store.update((current) => ({ ...current, message: "Select a tag before trimming." }));
+    return true;
+  }
+
+  const originalStartMs = clipStartMs(clip);
+  const originalEndMs = clipEndMs(clip);
+  const deltaMs = Math.round(Number(payload.deltaMs || 0));
+  const videoDurationMs = Math.max(0, Math.round(Number(state.videoRef?.durationMs || 0)));
+  let startMs = originalStartMs;
+  let endMs = originalEndMs;
+
+  if (payload.edge === "start") {
+    startMs = Math.max(0, Math.min(originalEndMs - KEYBOARD_CLIP_TRIM_MIN_MS, originalStartMs + deltaMs));
+  } else if (payload.edge === "end") {
+    const maxEndMs = videoDurationMs > 0 ? videoDurationMs : Number.POSITIVE_INFINITY;
+    endMs = Math.min(maxEndMs, Math.max(originalStartMs + KEYBOARD_CLIP_TRIM_MIN_MS, originalEndMs + deltaMs));
+  } else {
+    return true;
+  }
+
+  if (startMs === originalStartMs && endMs === originalEndMs) {
+    return true;
+  }
+
+  run.store.update((current) => ({
+    ...patchClipTimesInState(current, clip.id, startMs, endMs),
+    selectedClipId: clip.id,
+    message: payload.edge === "start" ? "Tag start adjusted by 1s." : "Tag end adjusted by 1s.",
+    error: "",
+  }));
+  void commitClipTrim({ clipId: clip.id, startMs, endMs, originalStartMs, originalEndMs }, context);
+  return true;
 }
 
 function selectTimelineCategoryClip(context = {}, laneMode = "", label = "", direction = 0) {
@@ -3518,6 +3558,7 @@ export function handleKeydown(event, context = {}) {
     root,
     saveDraftClip: () => saveDraftClip(context),
     togglePlayback: () => togglePlayback(context),
+    trimSelectedClipByKeyboard: (payload) => trimSelectedClipByKeyboard(context, payload),
     update: run.store.update,
   });
 }

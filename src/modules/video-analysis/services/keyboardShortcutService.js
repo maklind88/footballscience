@@ -3,7 +3,16 @@ import { trimClipDraft } from "./timelineService.js";
 import { findButtonByHotkey, shouldIgnoreShortcutTarget } from "./codingTemplateService.js";
 
 export function handleVideoAnalysisShortcut(event, handlers = {}) {
-  const { applyCodeButton, getCurrentMs, getState, root, saveDraftClip, togglePlayback, update } = handlers;
+  const {
+    applyCodeButton,
+    getCurrentMs,
+    getState,
+    root,
+    saveDraftClip,
+    togglePlayback,
+    trimSelectedClipByKeyboard,
+    update,
+  } = handlers;
   if (!root || (event.target !== root.ownerDocument?.body && !root.contains(event.target))) return false;
   if (shouldIgnoreShortcutTarget(event.target)) return false;
   const key = String(event.key || "");
@@ -28,6 +37,17 @@ export function handleVideoAnalysisShortcut(event, handlers = {}) {
   if (key === " ") {
     event.preventDefault();
     togglePlayback();
+    return true;
+  }
+  if ((event.metaKey || event.ctrlKey) && (lowerKey === "i" || lowerKey === "o")) {
+    event.preventDefault();
+    const deltaMs = lowerKey === "i"
+      ? (event.shiftKey ? 1000 : -1000)
+      : (event.shiftKey ? -1000 : 1000);
+    trimSelectedClipByKeyboard?.({
+      edge: lowerKey === "i" ? "start" : "end",
+      deltaMs,
+    });
     return true;
   }
   if (lowerKey === "i" || lowerKey === "o") {

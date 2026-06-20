@@ -271,7 +271,7 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timeline).toContain("data-video-analysis-timeline-scrub");
   expect(timeline).toContain("data-video-analysis-timeline-scrub-surface");
   expect(timeline).toContain("data-video-analysis-timeline-scrub-time");
-  expect(timeline).toContain("data-video-analysis-timeline-trim-edge");
+  expect(timeline).not.toContain("data-video-analysis-timeline-trim-edge");
   expect(timeline).toContain("data-video-analysis-timeline-category-step");
   expect(timeline).toContain("data-video-analysis-timeline-category-add-selected");
   expect(timeline).not.toContain('role="slider"');
@@ -283,8 +283,8 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timelineInteraction).toContain("requestAnimationFrame");
   expect(timelineInteraction).toContain("lockScrollPosition");
   expect(timelineInteraction).toContain("syncScrubTimes");
-  expect(timelineInteraction).toContain("onClipTrimCommit");
-  expect(timelineInteraction).toContain("is-trimming");
+  expect(timelineInteraction).not.toContain("onClipTrimCommit");
+  expect(timelineInteraction).not.toContain("is-trimming");
   expect(timeline).toContain("video-analysis-clip-block");
   expect(timeline).not.toContain("data-video-analysis-zoom");
   expect(timeline).not.toContain("video-analysis-timeline-controls");

@@ -82,7 +82,7 @@ export function renderVideoPlayer(state = {}) {
           ${needsPrepare || showPrepared ? `<button type="button" class="video-analysis-icon-button" data-video-analysis-prepare-playback ${needsPrepare ? "" : "disabled"} title="Prepare browser-safe playback copy">${showPrepared ? "Prepared" : "Prepare"}</button>` : ""}
         </div>
       </div>
-      <div class="video-analysis-video-frame">
+      <div class="video-analysis-video-frame" data-video-analysis-video-shuttle>
         ${
           hasVideo
             ? `<video class="video-analysis-video" data-video-analysis-video src="${escapeHtml(ref.objectUrl)}" playsinline preload="metadata" tabindex="-1"></video>`

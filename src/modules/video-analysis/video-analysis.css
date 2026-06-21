@@ -1074,6 +1074,7 @@
   place-items: stretch;
   min-height: 360px;
   overflow: hidden;
+  overscroll-behavior: contain;
   background: #111816;
 }
 
@@ -1083,6 +1084,10 @@
   height: 100%;
   background: #111816;
   object-fit: contain;
+}
+
+.video-analysis-video-frame.is-shuttle-scrubbing .video-analysis-video {
+  cursor: ew-resize;
 }
 
 .video-analysis-empty-video {

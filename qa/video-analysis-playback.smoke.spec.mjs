@@ -1251,6 +1251,78 @@ test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red 
   await expect(page.locator(".video-analysis-playhead-time")).toContainText("1:00:");
 });
 
+test("Video Analysis video frame shuttles playback with horizontal two finger wheel", async ({ page }) => {
+  await installDeterministicMedia(page);
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
+  await openScheduleDayForLocalVideo(page);
+
+  await page.locator("[data-video-analysis-file]").setInputFiles({
+    name: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+    mimeType: "video/mp4",
+    buffer: h264Mp4Fixture,
+  });
+  await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await markVideoMetadataReady(page, 7267.24);
+
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    video.__videoAnalysisTestCurrentTime = 60;
+    Object.defineProperty(video, "currentTime", {
+      configurable: true,
+      get() {
+        return this.__videoAnalysisTestCurrentTime || 0;
+      },
+      set(value) {
+        this.__videoAnalysisTestCurrentTime = Number(value) || 0;
+      },
+    });
+    video.dispatchEvent(new Event("timeupdate"));
+  });
+  await expect(page.locator(".video-analysis-player-time")).toContainText("0:01:00");
+
+  const forward = await page.evaluate(() => {
+    const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");
+    const video = document.querySelector("[data-video-analysis-video]");
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: 180,
+      deltaY: 6,
+      deltaMode: 0,
+    });
+    frame.dispatchEvent(event);
+    return {
+      currentTime: video.currentTime,
+      defaultPrevented: event.defaultPrevented,
+      cue: frame.classList.contains("is-shuttle-scrubbing"),
+    };
+  });
+  expect(forward.defaultPrevented).toBe(true);
+  expect(forward.cue).toBe(true);
+  expect(forward.currentTime).toBeGreaterThan(70);
+  await expect(page.locator(".video-analysis-player-time")).toContainText("0:01:14");
+
+  const backward = await page.evaluate(() => {
+    const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");
+    const video = document.querySelector("[data-video-analysis-video]");
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: -90,
+      deltaY: 0,
+      deltaMode: 0,
+    });
+    frame.dispatchEvent(event);
+    return {
+      currentTime: video.currentTime,
+      defaultPrevented: event.defaultPrevented,
+    };
+  });
+  expect(backward.defaultPrevented).toBe(true);
+  expect(backward.currentTime).toBeLessThan(forward.currentTime);
+  await expect(page.locator(".video-analysis-player-time")).toContainText("0:01:07");
+});
+
 test("Video Analysis clears a codec warning when native playback succeeds", async ({ page }) => {
   await installDeterministicMedia(page);
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });

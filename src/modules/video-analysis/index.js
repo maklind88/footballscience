@@ -95,6 +95,10 @@ const CLIP_PAGE_LIMIT = 200;
 const CLIP_WORKSPACE_LIMIT = 1000;
 const PLAYBACK_RATE_OPTIONS = [0.5, 1, 1.5, 2];
 const KEYBOARD_CLIP_TRIM_MIN_MS = 1000;
+const VIDEO_SHUTTLE_MS_PER_PIXEL = 80;
+const VIDEO_SHUTTLE_MAX_DELTA_MS = 45000;
+const VIDEO_SHUTTLE_MIN_DELTA_PX = 1;
+const videoShuttleTimers = new WeakMap();
 
 function normalizePlaybackRate(value = 1) {
   const numeric = Number(value);
@@ -541,6 +545,65 @@ function nudgePlayer(context = {}, deltaMs = 0) {
       playheadMs: nextMs,
     },
   }));
+  return true;
+}
+
+function clampVideoShuttleDeltaMs(deltaMs = 0) {
+  const numeric = Math.round(Number(deltaMs || 0));
+  return Math.max(-VIDEO_SHUTTLE_MAX_DELTA_MS, Math.min(VIDEO_SHUTTLE_MAX_DELTA_MS, numeric));
+}
+
+function videoShuttleDurationMs(state = {}, video = null) {
+  const stateDurationMs = Math.round(Number(state.videoRef?.durationMs || 0));
+  const videoDurationMs = Math.round(Number(video?.duration || 0) * 1000);
+  return Math.max(1, stateDurationMs, Number.isFinite(videoDurationMs) ? videoDurationMs : 0);
+}
+
+function videoShuttleCurrentMs(state = {}, video = null) {
+  const videoMs = getVideoCurrentMs(video);
+  if (videoMs > 0 || Number(video?.readyState || 0) > 0) return videoMs;
+  return Math.max(0, Math.round(Number(state.timeline?.playheadMs || 0)));
+}
+
+function clearVideoShuttleCue(frame = null, winRef = globalThis.window) {
+  if (!frame) return;
+  const existingTimer = videoShuttleTimers.get(frame);
+  if (existingTimer && winRef?.clearTimeout) winRef.clearTimeout(existingTimer);
+  const nextTimer = winRef?.setTimeout?.(() => {
+    frame.classList.remove("is-shuttle-scrubbing");
+    videoShuttleTimers.delete(frame);
+  }, 180);
+  if (nextTimer) videoShuttleTimers.set(frame, nextTimer);
+}
+
+function handleVideoFrameWheel(event = {}, context = {}) {
+  const target = eventElement(event);
+  const frame = target?.closest?.("[data-video-analysis-video-shuttle], .video-analysis-fs-player-deck .video-analysis-video-frame");
+  if (!frame || target.closest?.("button, input, select, textarea, a")) return false;
+  if (event.ctrlKey || event.metaKey || event.altKey) return false;
+
+  const video = videoElement(context);
+  if (!video || !frame.contains(video)) return false;
+
+  const deltaX = Number(event.deltaX || 0);
+  const deltaY = Number(event.deltaY || 0);
+  const horizontalDelta = Math.abs(deltaX) >= Math.max(VIDEO_SHUTTLE_MIN_DELTA_PX, Math.abs(deltaY) * 0.55)
+    ? deltaX
+    : event.shiftKey
+      ? deltaY
+      : 0;
+  if (Math.abs(horizontalDelta) < VIDEO_SHUTTLE_MIN_DELTA_PX) return false;
+
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const durationMs = videoShuttleDurationMs(state, video);
+  const currentMs = videoShuttleCurrentMs(state, video);
+  const deltaMs = clampVideoShuttleDeltaMs(horizontalDelta * VIDEO_SHUTTLE_MS_PER_PIXEL);
+  const nextMs = Math.max(0, Math.min(durationMs, currentMs + deltaMs));
+  timelineController(context).seekToMs(nextMs, { commit: true });
+  frame.classList.add("is-shuttle-scrubbing");
+  clearVideoShuttleCue(frame, context.win || globalThis.window);
+  event.preventDefault?.();
   return true;
 }
 
@@ -2182,6 +2245,7 @@ export function handlePointerUp(event, context = {}) {
 }
 
 export function handleWheel(event, context = {}) {
+  if (handleVideoFrameWheel(event, context)) return true;
   return timelineController(context).handleWheel(event);
 }
 

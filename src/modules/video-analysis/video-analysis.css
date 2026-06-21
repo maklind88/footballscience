@@ -1074,7 +1074,7 @@
   place-items: stretch;
   min-height: 360px;
   overflow: hidden;
-  overscroll-behavior-x: contain;
+  overscroll-behavior-x: none;
   overscroll-behavior-y: auto;
   background: #111816;
 }
@@ -1537,7 +1537,7 @@
   gap: 0;
   min-width: 0;
   overflow: hidden;
-  overscroll-behavior-x: contain;
+  overscroll-behavior-x: none;
   overscroll-behavior-y: auto;
   border: 1px solid #d8ded7;
   border-radius: 8px;

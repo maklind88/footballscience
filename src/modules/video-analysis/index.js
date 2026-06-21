@@ -96,7 +96,7 @@ const CLIP_WORKSPACE_LIMIT = 1000;
 const PLAYBACK_RATE_OPTIONS = [0.5, 1, 1.5, 2];
 const KEYBOARD_CLIP_TRIM_MIN_MS = 1000;
 const VIDEO_SHUTTLE_MIN_SPEED = 4;
-const VIDEO_SHUTTLE_MAX_SPEED = 16;
+const VIDEO_SHUTTLE_MAX_SPEED = 7;
 const VIDEO_SHUTTLE_SPEED_DELTA_PX = 60;
 const VIDEO_SHUTTLE_MIN_DELTA_PX = 6;
 const VIDEO_SHUTTLE_CONTAIN_DELTA_PX = 2;
@@ -655,6 +655,7 @@ function createVideoShuttleSession(frame, video, context = {}) {
     mode: "step",
     speed: VIDEO_SHUTTLE_MIN_SPEED,
     timer: 0,
+    token: 0,
     video,
     wasMuted: Boolean(video.muted),
     wasPaused: Boolean(video.paused || video.ended),
@@ -693,6 +694,8 @@ function videoShuttleStep(frame, context = {}) {
 function activateVideoShuttle(frame, video, context = {}, direction = 1, speed = VIDEO_SHUTTLE_MIN_SPEED) {
   const session = videoShuttleSessions.get(frame) || createVideoShuttleSession(frame, video, context);
   const winRef = session.winRef || context.win || globalThis.window;
+  session.token += 1;
+  const token = session.token;
   session.direction = direction;
   session.speed = speed;
   frame.classList.add("is-shuttle-scrubbing");
@@ -710,8 +713,10 @@ function activateVideoShuttle(frame, video, context = {}, direction = 1, speed =
       return;
     }
     playPromise.then(() => {
+      if (videoShuttleSessions.get(frame) !== session || session.token !== token || session.mode !== "native-forward" || session.direction <= 0) return;
       syncPlaybackControls(context, video, true);
     }).catch(() => {
+      if (videoShuttleSessions.get(frame) !== session || session.token !== token || session.direction <= 0) return;
       session.mode = "step";
       video.pause?.();
       videoShuttleStep(frame, context);

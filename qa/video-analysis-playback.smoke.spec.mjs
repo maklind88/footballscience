@@ -1554,7 +1554,8 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   });
   expect(forward.defaultPrevented).toBe(true);
   expect(forward.cue).toBe(true);
-  expect(forward.playbackRate).toBeGreaterThan(14);
+  expect(forward.playbackRate).toBeGreaterThanOrEqual(6.5);
+  expect(forward.playbackRate).toBeLessThanOrEqual(7);
   expect(forward.muted).toBe(true);
   await expect.poll(() => page.evaluate(() => window.__videoShuttlePlayCalls)).toBeGreaterThan(0);
   const reverseInertiaContainment = await page.evaluate(() => {
@@ -1618,7 +1619,8 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
     };
   });
   expect(transportSwipe.defaultPrevented).toBe(true);
-  expect(transportSwipe.playbackRate).toBeGreaterThan(14);
+  expect(transportSwipe.playbackRate).toBeGreaterThanOrEqual(6.5);
+  expect(transportSwipe.playbackRate).toBeLessThanOrEqual(7);
 
   await page.locator("[data-video-analysis-code-mode]").click();
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
@@ -1644,7 +1646,8 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   });
   expect(codeModeSwipe.defaultPrevented).toBe(true);
   expect(codeModeSwipe.fullscreenClassName).toContain("video-analysis-fs-player-workstation");
-  expect(codeModeSwipe.playbackRate).toBeGreaterThan(14);
+  expect(codeModeSwipe.playbackRate).toBeGreaterThanOrEqual(6.5);
+  expect(codeModeSwipe.playbackRate).toBeLessThanOrEqual(7);
   expect(codeModeSwipe.workstationCodeMode).toBe(true);
 
   await page.locator("[data-video-analysis-video-fullscreen]").click();
@@ -1700,9 +1703,9 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   });
   expect(vertical.defaultPrevented).toBe(false);
   expect(vertical.currentTime).toBe(vertical.before);
-  expect(vertical.overscrollX).toBe("contain");
+  expect(vertical.overscrollX).toBe("none");
   expect(vertical.overscrollY).toBe("auto");
-  expect(vertical.deckOverscrollX).toBe("contain");
+  expect(vertical.deckOverscrollX).toBe("none");
   expect(vertical.deckOverscrollY).toBe("auto");
 });
 

@@ -219,6 +219,105 @@ body.has-dashboard-chat-widget .platform-nav-more {
   margin-top: calc(var(--platform-rail-item-size) + var(--platform-rail-item-gap));
 }
 
+@media (min-width: 821px) {
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-widget-root {
+    top: var(--platform-rail-chat-slot-top);
+    right: auto;
+    bottom: auto;
+    left: var(--platform-rail-item-left);
+    width: var(--platform-rail-item-size);
+    filter: none;
+  }
+
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-widget {
+    width: var(--platform-rail-item-size);
+    filter: none;
+  }
+
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher {
+    position: relative;
+    width: var(--platform-rail-item-size);
+    height: var(--platform-rail-item-size);
+    min-height: var(--platform-rail-item-size);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 14px;
+    color: #dbe7dfd9;
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher::before,
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-avatar-stack,
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-copy {
+    display: none;
+  }
+
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher:hover,
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher:focus-visible {
+    color: #ffffff;
+    background: #ffffff17;
+    border-color: #ffffff1f;
+    box-shadow: 0 12px 26px #06120f2e;
+    outline: 0;
+  }
+
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon {
+    position: relative;
+    width: 1.42rem;
+    height: 1.42rem;
+    display: block;
+    color: currentColor;
+  }
+
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon::before {
+    content: "";
+    position: absolute;
+    inset: 0.16rem 0.1rem 0.36rem;
+    border: 2px solid currentColor;
+    border-radius: 0.48rem;
+  }
+
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon::after {
+    content: "";
+    position: absolute;
+    left: 0.36rem;
+    bottom: 0.18rem;
+    width: 0.48rem;
+    height: 0.48rem;
+    border-left: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    border-bottom-left-radius: 0.08rem;
+    transform: skew(-20deg) rotate(-8deg);
+  }
+
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-dot {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    width: 0.54rem;
+    height: 0.54rem;
+    background: #2f8f6b;
+    box-shadow: 0 0 0 0.16rem #101716;
+  }
+
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-header-badge {
+    position: absolute;
+    top: 0.36rem;
+    right: 0.36rem;
+    min-width: 1.15rem;
+    min-height: 1.15rem;
+    padding: 0 0.32rem;
+    background: #d7b46a;
+    color: #13211d;
+    box-shadow: 0 0 0 0.14rem #101716;
+    font-size: 0.62rem;
+  }
+}
+
 .platform-nav-more summary {
   list-style: none;
   cursor: pointer;
@@ -506,6 +605,12 @@ body.is-dark-mode .platform-sidebar .platform-profile-menu {
 }
 
 @media (max-height: 720px) and (min-width: 821px) {
+  :root {
+    --platform-rail-item-size: 2.72rem;
+    --platform-rail-item-gap: 0.28rem;
+    --platform-rail-chat-slot-top: calc(50vh + 7.76rem);
+  }
+
   .platform-sidebar,
   .coach-platform.is-sidebar-collapsed .platform-sidebar {
     gap: 0.66rem;

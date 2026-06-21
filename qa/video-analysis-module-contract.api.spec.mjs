@@ -437,10 +437,13 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(api).toContain("saveCodingTemplate");
   expect(clipRepository).toContain("trim-clip");
   expect(clipRepository).toContain("share-clip");
+  expect(clipRepository).toContain("archive-clips");
   expect(api).toContain("trimClip");
   expect(api).toContain("shareClip");
+  expect(api).toContain("archiveClips");
   expect(api).toContain('action === "trim-clip"');
   expect(api).toContain('action === "share-clip"');
+  expect(api).toContain('action === "archive-clips"');
   expect(api).toContain("clipSourceMetadata");
   expect(api).toContain("match_title");
   expect(api).toContain("video_title");

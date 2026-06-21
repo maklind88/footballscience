@@ -642,6 +642,142 @@ test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) =
   ))).toBe(3);
 });
 
+test("Video Analysis deletes a selected timeline tag with the Delete key", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__videoAnalysisSmokeClips = [
+      {
+        id: "clip-delete-1",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 12000,
+        end_ms: 27000,
+        phase: "In Possession",
+        sub_phase: "Build Up",
+        outcome: "Neutral",
+        players: [],
+        tags: [],
+        descriptors: [],
+        notes: [],
+      },
+      {
+        id: "clip-delete-2",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 42000,
+        end_ms: 57000,
+        phase: "Out of Possession",
+        sub_phase: "High Press",
+        outcome: "Positive",
+        players: [],
+        tags: [],
+        descriptors: [],
+        notes: [],
+      },
+    ];
+    window.__videoAnalysisInitialState = {
+      view: "workspace",
+      activeAnalysisRoomTab: "fs-player",
+      match: { id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152", title: "Delete shortcut match" },
+      video: { id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725", match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152" },
+      source: { id: "source-1", match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152", video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725" },
+      videoRef: { objectUrl: "data:video/mp4;base64,AAAA", durationMs: 120000, displayName: "Delete shortcut match" },
+      localFileStatus: "native-ready",
+      localFileMessage: "Native playback ready",
+      nativePlaybackReady: true,
+    };
+  });
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  await expect(page.locator(".video-analysis-clip-block")).toHaveCount(2);
+  await page.locator(".video-analysis-clip-block").first().click();
+  await page.keyboard.press("Delete");
+  await expect.poll(() => page.evaluate(() => (
+    [...(window.__videoAnalysisRequests || [])].reverse().find((request) => request.action === "archive-clip")?.body?.id || ""
+  ))).toBe("clip-delete-1");
+  await expect(page.locator(".video-analysis-clip-block")).toHaveCount(1);
+  await expect(page.locator(".video-analysis-toast")).toContainText("Timeline tag deleted.");
+});
+
+test("Video Analysis confirms before deleting an entire timeline row", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__videoAnalysisSmokeClips = [
+      {
+        id: "row-delete-1",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 10000,
+        end_ms: 25000,
+        phase: "In Possession",
+        sub_phase: "Build Up",
+        outcome: "Neutral",
+        players: [],
+        tags: [],
+        descriptors: [],
+        notes: [],
+      },
+      {
+        id: "row-delete-2",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 40000,
+        end_ms: 55000,
+        phase: "In Possession",
+        sub_phase: "Build Up",
+        outcome: "Positive",
+        players: [],
+        tags: [],
+        descriptors: [],
+        notes: [],
+      },
+      {
+        id: "row-keep-1",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 70000,
+        end_ms: 85000,
+        phase: "In Possession",
+        sub_phase: "Finishing Phase",
+        outcome: "Development",
+        players: [],
+        tags: [],
+        descriptors: [],
+        notes: [],
+      },
+    ];
+    window.__videoAnalysisInitialState = {
+      view: "workspace",
+      activeAnalysisRoomTab: "fs-player",
+      match: { id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152", title: "Row delete match" },
+      video: { id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725", match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152" },
+      source: { id: "source-1", match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152", video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725" },
+      videoRef: { objectUrl: "data:video/mp4;base64,AAAA", durationMs: 120000, displayName: "Row delete match" },
+      localFileStatus: "native-ready",
+      localFileMessage: "Native playback ready",
+      nativePlaybackReady: true,
+    };
+  });
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  await expect(page.locator(".video-analysis-clip-block")).toHaveCount(3);
+  await page.locator('[data-video-analysis-timeline-category-label="Build Up"]').click();
+  let confirmMessage = "";
+  page.once("dialog", async (dialog) => {
+    confirmMessage = dialog.message();
+    await dialog.accept();
+  });
+  await page.keyboard.press("Delete");
+
+  await expect.poll(() => confirmMessage).toContain("Delete the \"Build Up\" timeline row?");
+  await expect.poll(() => page.evaluate(() => {
+    const request = [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "archive-clips");
+    return request?.body?.ids || [];
+  })).toEqual(["row-delete-1", "row-delete-2"]);
+  await expect(page.locator(".video-analysis-clip-block")).toHaveCount(1);
+  await expect(page.locator('[data-video-analysis-timeline-category-label="Build Up"]')).toHaveCount(0);
+  await expect(page.locator('[data-video-analysis-timeline-category-label="Finishing Phase"]')).toBeVisible();
+  await expect(page.locator(".video-analysis-toast")).toContainText("2 timeline tags deleted.");
+});
+
 test("Video Analysis Tag Panel creates a 15 second timeline tag from a code button", async ({ page }) => {
   await page.addInitScript(() => {
     window.__videoPlayCalls = 0;

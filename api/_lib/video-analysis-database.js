@@ -622,6 +622,56 @@ async function archiveClip(payload, actor) {
   return result.ok ? { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, clip: result.payload?.[0] || null } } : result;
 }
 
+function chunkValues(values = [], size = 100) {
+  const chunks = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
+}
+
+async function selectClipsByIds(scope = {}, ids = []) {
+  const rows = [];
+  for (const chunk of chunkValues(uniqueIds(ids), 100)) {
+    const params = buildTeamParams(scope);
+    params.set("select", "*");
+    params.set("id", `in.(${chunk.join(",")})`);
+    params.set("limit", String(chunk.length));
+    const result = await selectRows("video_clip_instances", params);
+    if (!result.ok) return result;
+    rows.push(...rowList(result));
+  }
+  return { ok: true, payload: rows };
+}
+
+async function archiveClips(payload, actor) {
+  const scope = actorScope(actor);
+  const ids = uniqueIds(payload.ids || payload.clipIds || payload.clip_ids || []);
+  if (!ids.length) return { ok: false, status: 400, reason: "clip ids are required." };
+  if (ids.length > 500) return { ok: false, status: 400, reason: "Archive at most 500 clips at a time." };
+
+  const existingResult = await selectClipsByIds(scope, ids);
+  if (!existingResult.ok) return existingResult;
+  const existingRows = rowList(existingResult);
+  const existingIds = new Set(existingRows.map((row) => row.id).filter(Boolean));
+  const missingIds = ids.filter((id) => !existingIds.has(id));
+  if (missingIds.length) return { ok: false, status: 404, reason: "One or more clips could not be found." };
+  if (existingRows.some((row) => !canActorMutateClip(row, actor))) {
+    return { ok: false, status: 403, reason: "Private clips can only be changed by their owner." };
+  }
+
+  const archivedAt = new Date().toISOString();
+  const archived = [];
+  for (const chunk of chunkValues(ids, 100)) {
+    const params = buildTeamParams(scope);
+    params.set("id", `in.(${chunk.join(",")})`);
+    const result = await patchRows("video_clip_instances", params, { status: "archived", archived_at: archivedAt });
+    if (!result.ok) return result;
+    archived.push(...rowList(result));
+  }
+  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, archivedIds: ids, clips: archived } };
+}
+
 async function shareClip(payload, actor) {
   rejectForbiddenPayload(payload);
   const scope = actorScope(actor);
@@ -719,9 +769,11 @@ async function handleVideoAnalysisRequest(req, res, actor) {
         : action === "save-clip"
           ? await saveClip(body.clip || body, actor)
           : action === "trim-clip"
-            ? await trimClip(body.clip || body, actor)
+          ? await trimClip(body.clip || body, actor)
           : action === "archive-clip"
             ? await archiveClip(body, actor)
+            : action === "archive-clips"
+              ? await archiveClips(body, actor)
             : action === "share-clip"
               ? await shareClip(body.clip || body, actor)
             : action === "save-search"

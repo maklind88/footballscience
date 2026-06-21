@@ -256,7 +256,20 @@
           clip.end_ms = input.endMs ?? input.end_ms ?? clip.end_ms;
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip });
         }
-        if (action === "archive-clip") return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip: clips[0] });
+        if (action === "archive-clip") {
+          const id = body.id || body.clipId || body.clip_id;
+          const archived = clips.find((item) => item.id === id) || null;
+          const nextClips = clips.filter((item) => item.id !== id);
+          clips.splice(0, clips.length, ...nextClips);
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip: archived });
+        }
+        if (action === "archive-clips") {
+          const ids = new Set((body.ids || body.clipIds || body.clip_ids || []).map((id) => String(id || "")));
+          const archivedIds = clips.filter((item) => ids.has(item.id)).map((item) => item.id);
+          const nextClips = clips.filter((item) => !ids.has(item.id));
+          clips.splice(0, clips.length, ...nextClips);
+          return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", archivedIds, clips: [] });
+        }
         if (action === "update-match-link") {
           const match = matches.find((item) => item.id === body.matchId) || matches[0];
           Object.assign(match, {

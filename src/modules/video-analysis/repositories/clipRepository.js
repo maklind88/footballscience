@@ -56,5 +56,12 @@ export function createClipRepository(context = {}) {
         getAuthToken
       );
     },
+    archiveMany(ids = []) {
+      return requestJson(
+        buildVideoAnalysisApiUrl("archive-clips"),
+        { method: "PATCH", body: JSON.stringify({ action: "archive-clips", ids }) },
+        getAuthToken
+      );
+    },
   };
 }

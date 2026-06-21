@@ -1424,6 +1424,153 @@ function trimSelectedClipByKeyboard(context = {}, payload = {}) {
   return true;
 }
 
+function uniqueClipIds(ids = []) {
+  return Array.from(new Set(ids.map((id) => String(id || "").trim()).filter(Boolean)));
+}
+
+function removeArchivedClipIdsFromState(state = {}, clipIds = [], options = {}) {
+  const archivedIds = new Set(uniqueClipIds(clipIds));
+  if (!archivedIds.size) return state;
+  const filterClips = (clips = []) => (Array.isArray(clips) ? clips.filter((clip) => !archivedIds.has(String(clip.id || ""))) : clips);
+  const selectedClipId = archivedIds.has(String(state.selectedClipId || "")) ? "" : state.selectedClipId;
+  const selectedCategory = options.clearCategory
+    ? {}
+    : {
+        ...(state.timeline?.selectedCategory || {}),
+        activeClipId: archivedIds.has(String(state.timeline?.selectedCategory?.activeClipId || ""))
+          ? ""
+          : state.timeline?.selectedCategory?.activeClipId || "",
+      };
+  const selectedClipIds = (Array.isArray(state.clipLibrary?.selectedClipIds) ? state.clipLibrary.selectedClipIds : [])
+    .filter((id) => !archivedIds.has(String(id || "")));
+  const previewQueueIds = (Array.isArray(state.clipLibrary?.previewQueueIds) ? state.clipLibrary.previewQueueIds : [])
+    .filter((id) => !archivedIds.has(String(id || "")));
+  const previewClipId = archivedIds.has(String(state.clipLibrary?.previewClipId || ""))
+    ? previewQueueIds[0] || ""
+    : state.clipLibrary?.previewClipId || "";
+  return {
+    ...state,
+    clips: filterClips(state.clips),
+    allClips: filterClips(state.allClips),
+    selectedClipId,
+    timeline: {
+      ...(state.timeline || {}),
+      selectedCategory,
+    },
+    clipLibrary: {
+      ...(state.clipLibrary || {}),
+      selectedClipIds,
+      previewQueueIds,
+      previewClipId,
+      previewActiveIndex: previewClipId ? Math.max(0, previewQueueIds.indexOf(previewClipId)) : 0,
+    },
+  };
+}
+
+async function archiveTimelineClips(context = {}, clipIds = [], options = {}) {
+  const run = ensureRuntime(context);
+  const ids = uniqueClipIds(clipIds);
+  if (!ids.length) {
+    run.store.update((state) => ({ ...state, message: "Select a timeline tag first." }));
+    return false;
+  }
+  try {
+    run.store.update((state) => ({
+      ...state,
+      status: "saving-clip",
+      message: ids.length === 1 ? "Deleting timeline tag." : `Deleting ${ids.length} timeline tags.`,
+      error: "",
+    }));
+    if (ids.length === 1) await run.clips.archive(ids[0]);
+    else await run.clips.archiveMany(ids);
+    run.store.update((state) => ({
+      ...removeArchivedClipIdsFromState(state, ids, options),
+      status: "ready",
+      message: ids.length === 1 ? "Timeline tag deleted." : `${ids.length} timeline tags deleted.`,
+      error: "",
+    }));
+    await loadClips();
+    return true;
+  } catch (error) {
+    run.store.update((state) => ({
+      ...state,
+      status: "error",
+      message: "",
+      error: error.message || "Could not delete timeline tag.",
+    }));
+    return false;
+  }
+}
+
+function isTimelineDeleteKey(event = {}) {
+  return ["Delete", "Backspace"].includes(event.key)
+    && !event.metaKey
+    && !event.ctrlKey
+    && !event.altKey
+    && !event.shiftKey;
+}
+
+function timelineDeleteEventTarget(event = {}, context = {}) {
+  const doc = context.doc || document;
+  const target = eventElement(event);
+  const activeElement = doc.activeElement || null;
+  if (!target || target === doc.body || target === doc.documentElement || target === context.win) {
+    return activeElement || target;
+  }
+  return target;
+}
+
+function timelineDeleteIntent(event = {}, state = {}, context = {}) {
+  const target = timelineDeleteEventTarget(event, context);
+  const categoryButton = target?.closest?.("[data-video-analysis-timeline-category]");
+  if (categoryButton) {
+    const { laneMode, label } = categoryPayloadFromButton(categoryButton);
+    const clips = findTimelineCategoryClips(state, laneMode, label);
+    return clips.length ? { type: "category", laneMode, label, clipIds: clips.map((clip) => clip.id) } : null;
+  }
+  const clipButton = target?.closest?.(".video-analysis-timeline-module [data-video-analysis-seek]");
+  if (clipButton?.dataset?.videoAnalysisSeek) {
+    return { type: "clip", clipIds: [clipButton.dataset.videoAnalysisSeek] };
+  }
+  const selectedClipId = String(state.selectedClipId || state.timeline?.selectedCategory?.activeClipId || "");
+  if (
+    state.timeline?.selectedCategory?.keyboardDeleteScope === "category"
+    && state.timeline.selectedCategory.laneMode
+    && state.timeline.selectedCategory.label
+  ) {
+    const laneMode = state.timeline.selectedCategory.laneMode;
+    const label = state.timeline.selectedCategory.label;
+    const clips = findTimelineCategoryClips(state, laneMode, label);
+    return clips.length ? { type: "category", laneMode, label, clipIds: clips.map((clip) => clip.id) } : null;
+  }
+  if (selectedClipId) {
+    return { type: "clip", clipIds: [selectedClipId] };
+  }
+  return null;
+}
+
+function confirmTimelineCategoryDelete(intent = {}, context = {}) {
+  const count = intent.clipIds?.length || 0;
+  if (!count) return false;
+  const confirm = (context.win || window).confirm || (() => false);
+  return confirm(
+    `Delete the "${intent.label}" timeline row?\n\n${count} tag${count === 1 ? "" : "s"} will be archived from this timeline. This cannot be undone from here.`
+  );
+}
+
+function deleteTimelineSelectionByKeyboard(event = {}, context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  if (state.activeAnalysisRoomTab !== "fs-player" || !isTimelineDeleteKey(event) || shouldIgnoreShortcutTarget(event.target)) return false;
+  const intent = timelineDeleteIntent(event, state, context);
+  if (!intent) return false;
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  if (intent.type === "category" && !confirmTimelineCategoryDelete(intent, context)) return true;
+  void archiveTimelineClips(context, intent.clipIds, { clearCategory: intent.type === "category" });
+  return true;
+}
+
 function selectTimelineCategoryClip(context = {}, laneMode = "", label = "", direction = 0) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
@@ -2774,6 +2921,10 @@ export function handleClick(event, context = {}) {
       timeline: {
         ...(current.timeline || {}),
         playheadMs: Math.max(0, Math.round(Number(startMs || 0))),
+        selectedCategory: {
+          ...(current.timeline?.selectedCategory || {}),
+          keyboardDeleteScope: "clip",
+        },
       },
       presentation: {
         ...(current.presentation || {}),
@@ -2827,6 +2978,7 @@ export function handleClick(event, context = {}) {
           label,
           viewOpen: false,
           activeClipId: clips[0]?.id || "",
+          keyboardDeleteScope: "category",
         },
       },
     }));
@@ -3623,6 +3775,7 @@ export function handleKeydown(event, context = {}) {
       return true;
     }
   }
+  if (deleteTimelineSelectionByKeyboard(event, context)) return true;
   if (
     state.activeAnalysisRoomTab === "fs-player"
     && event.key === " "

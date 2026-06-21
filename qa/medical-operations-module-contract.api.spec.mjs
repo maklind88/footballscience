@@ -63,6 +63,9 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(privateMarkup).toContain("medical-operations-system");
   expect(privateMarkup).toContain("medical-ops-signals-table");
   expect(privateMarkup).toContain("Mak Player");
+  expect(renderer.renderPrivateSystem({ ...summary, signals: [], actionSignals: [], actionRequired: 0 }, "signals", "2026-05-31")).toContain(
+    "No risk signals for current squad players."
+  );
   const historyMarkup = renderer.renderHistory();
   expect(historyMarkup).toContain("data-medical-history-filter-form");
   expect(historyMarkup).toContain("data-medical-history-search");

@@ -2848,6 +2848,7 @@ test("Medical operations board separates signals, cases, history and season view
       { id: "qa-risk", name: "QA Risk Player", position: "Forward", rosterType: "squad", countsInSquad: true, rosterOrder: 1 },
       { id: "qa-clear", name: "QA Clear Player", position: "Midfielder", rosterType: "squad", countsInSquad: true, rosterOrder: 2 },
       { id: "qa-long-term", name: "QA Long Term ACL", position: "Defender", rosterType: "squad", countsInSquad: true, rosterOrder: 3 },
+      { id: "qa-guest-risk", name: "QA Guest Risk", position: "Forward", rosterType: "guest", countsInSquad: false, rosterOrder: 4 },
     ];
     window.localStorage.setItem(
       playerProfilesStorageKey,
@@ -2886,6 +2887,16 @@ test("Medical operations board separates signals, cases, history and season view
             actualParticipation: 100,
             rtpPhase: "full-training",
             createdAt: "2026-05-15T08:05:00.000Z",
+          },
+          {
+            id: "qa-guest-risk-record",
+            playerId: "qa-guest-risk",
+            date: "2026-05-15",
+            status: "unavailable",
+            participation: 0,
+            actualParticipation: "not-logged",
+            rtpPhase: "medical-restriction",
+            createdAt: "2026-05-15T08:06:00.000Z",
           },
         ],
         injuryPlans: [
@@ -2987,7 +2998,10 @@ test("Medical operations board separates signals, cases, history and season view
 
   await operationsMenu.locator('[data-medical-ops-tab="signals"]').click();
   await expect(operations).toContainText("Actual exceeded recommendation");
-  await expect(operations).toContainText("QA Risk Player");
+  const signalsTable = operations.locator(".medical-ops-signals-table");
+  await expect(signalsTable).toContainText("QA Risk Player");
+  await expect(signalsTable).not.toContainText("QA Clear Player");
+  await expect(signalsTable).not.toContainText("QA Guest Risk");
 
   await operationsMenu.locator('[data-medical-ops-tab="cases"]').click();
   await expect(operations).toContainText("Review overdue");

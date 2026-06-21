@@ -182,6 +182,7 @@ export function createMedicalRuntimeRenderers(deps = {}) {
     compareMedicalPlayers,
     ensureMedicalState,
     formatDateValue: formatScheduleDateValue,
+    getActiveMedicalPlayersForDate,
     getActiveMedicalInjuryPlan,
     getLatestMedicalRecord,
     getMedicalAvailabilityItems,

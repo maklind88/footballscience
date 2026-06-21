@@ -212,11 +212,13 @@ ${summary.activeCases.length
 <span>Action</span>
 </div>
 ${summary.signals
-  .map((signal) => {
-    const planLabel = signal.activePlan
-      ? `${signal.activePlan.injuryType} / ${getMedicalRtpPhaseOption(signal.activePlan.rtpPhase).label}`
-      : "No active case";
-    return `
+  .length
+  ? summary.signals
+      .map((signal) => {
+        const planLabel = signal.activePlan
+          ? `${signal.activePlan.injuryType} / ${getMedicalRtpPhaseOption(signal.activePlan.rtpPhase).label}`
+          : "No active case";
+        return `
 <button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-table-row medical-ops-tone-${escapeHtml(signal.tone)}">
 <span>${escapeHtml(signal.player.name)}<small>${escapeHtml(signal.player.position || "Position")}</small></span>
 <strong>${signal.record ? `${signal.record.participation}%` : "Not set"}<small>${escapeHtml(signal.status.label)}</small></strong>
@@ -225,8 +227,9 @@ ${summary.signals
 <strong>${escapeHtml(signal.actionSeverity ? signal.actionLabel : signal.label)}<small>${escapeHtml(signal.actionSeverity ? signal.primaryActionDriver : "No action")}</small></strong>
 </button>
 `;
-  })
-  .join("")}
+      })
+      .join("")
+  : `<div class="medical-empty-inline">No risk signals for current squad players.</div>`}
 </div>
 `;
 

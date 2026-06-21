@@ -23,9 +23,29 @@ function isRestrictedParticipation(value) {
   return Number.isFinite(participation) && participation < 100;
 }
 
+const nonSquadRiskRosterTypes = new Set(["academy", "guest", "loan", "trialist"]);
+
+function isMedicalSquadRiskPlayer(player = {}) {
+  if (player.countsInSquad === false) {
+    return false;
+  }
+  const rosterType = String(player.rosterType || player.playerType || player.squadType || "").trim().toLowerCase();
+  return !nonSquadRiskRosterTypes.has(rosterType);
+}
+
+function hasMedicalRiskSignal(signal = {}) {
+  return Boolean(
+    signal.highestSeverity > 0 ||
+      signal.actionSeverity > 0 ||
+      signal.activePlan ||
+      (Array.isArray(signal.drivers) && signal.drivers.length)
+  );
+}
+
 export function createMedicalOperationsSelectors({
   compareMedicalPlayers = defaultCompareMedicalPlayers,
   ensureMedicalState = () => {},
+  getActiveMedicalPlayersForDate = null,
   formatDateValue = defaultFormatDateValue,
   getActiveMedicalInjuryPlan = () => null,
   getLatestMedicalRecord = () => null,
@@ -72,6 +92,12 @@ export function createMedicalOperationsSelectors({
     const state = getState();
     const { startDate, endDate } = getMedicalSeasonWindow(dateValue);
     return state.injuryPlans.filter((plan) => !isMedicalItemArchived(plan) && planOverlapsWindow(plan, startDate, endDate));
+  }
+
+  function getMedicalRiskSignalPlayers(dateValue = getSelectedDate()) {
+    const activePlayers = typeof getActiveMedicalPlayersForDate === "function" ? getActiveMedicalPlayersForDate(dateValue) : null;
+    const players = Array.isArray(activePlayers) ? activePlayers : getState().players;
+    return players.filter((player) => !isMedicalItemArchived(player) && isMedicalSquadRiskPlayer(player));
   }
 
   function getMedicalActiveCaseItems(dateValue = getSelectedDate()) {
@@ -293,10 +319,9 @@ export function createMedicalOperationsSelectors({
 
   function getMedicalRiskSignals(dateValue = getSelectedDate()) {
     ensureMedicalState();
-    const state = getState();
-    return state.players
-      .filter((player) => !isMedicalItemArchived(player))
+    return getMedicalRiskSignalPlayers(dateValue)
       .map((player) => getMedicalPlayerRiskSignal(player, dateValue))
+      .filter(hasMedicalRiskSignal)
       .sort((first, second) => {
         if (first.actionSeverity !== second.actionSeverity) {
           return second.actionSeverity - first.actionSeverity;

@@ -1651,6 +1651,30 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   expect(codeModeSwipe.playbackRate).toBeGreaterThanOrEqual(6.5);
   expect(codeModeSwipe.playbackRate).toBeLessThanOrEqual(7);
   expect(codeModeSwipe.workstationCodeMode).toBe(true);
+  const codeModeWindowSwipe = await page.evaluate(() => {
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: -80,
+      deltaY: 2,
+      deltaMode: 0,
+    });
+    window.dispatchEvent(event);
+    return { defaultPrevented: event.defaultPrevented };
+  });
+  expect(codeModeWindowSwipe.defaultPrevented).toBe(true);
+  const codeModeWindowVertical = await page.evaluate(() => {
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: 0,
+      deltaY: 80,
+      deltaMode: 0,
+    });
+    window.dispatchEvent(event);
+    return { defaultPrevented: event.defaultPrevented };
+  });
+  expect(codeModeWindowVertical.defaultPrevented).toBe(false);
   await page.evaluate(() => {
     window.__videoAnalysisFullscreenElement = null;
     document.dispatchEvent(new Event("fullscreenchange"));
@@ -1680,6 +1704,22 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   expect(fullscreenSwipe.defaultPrevented).toBe(true);
   expect(fullscreenSwipe.fullscreenClassName).toContain("video-analysis-video-frame");
   expect(fullscreenSwipe.currentTime).toBeLessThan(180);
+  const fullscreenWindowSwipe = await page.evaluate(() => {
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: -120,
+      deltaY: 0,
+      deltaMode: 0,
+    });
+    window.dispatchEvent(event);
+    return {
+      defaultPrevented: event.defaultPrevented,
+      fullscreenClassName: window.__videoAnalysisFullscreenElement?.className || "",
+    };
+  });
+  expect(fullscreenWindowSwipe.defaultPrevented).toBe(true);
+  expect(fullscreenWindowSwipe.fullscreenClassName).toContain("video-analysis-video-frame");
 
   const vertical = await page.evaluate(() => {
     const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");

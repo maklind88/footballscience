@@ -128,6 +128,7 @@ function createRuntime(context = {}) {
     videos: createVideoRepository(context),
     unsubscribe: null,
     keydownBound: false,
+    wheelGuardBound: false,
   };
 }
 
@@ -500,6 +501,20 @@ function fsPlayerVideoFrameElement(context = {}) {
   return getRoot(context)?.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame") || null;
 }
 
+function fsPlayerOwnsFullscreen(context = {}) {
+  const fullscreenElement = (context.doc || document)?.fullscreenElement || null;
+  const workspace = fsPlayerWorkspaceElement(context);
+  return Boolean(
+    fullscreenElement
+    && workspace
+    && (
+      fullscreenElement === workspace
+      || workspace.contains?.(fullscreenElement)
+      || fullscreenElement.contains?.(workspace)
+    )
+  );
+}
+
 function requestNativeFullscreen(element) {
   if (!element?.requestFullscreen) return Promise.resolve(false);
   return element.requestFullscreen().then(() => true).catch(() => false);
@@ -753,6 +768,28 @@ function handleVideoFrameWheel(event = {}, context = {}) {
   const direction = horizontalDelta > 0 ? 1 : -1;
   activateVideoShuttle(frame, video, context, direction, videoShuttleSpeedFromDelta(horizontalDelta));
   scheduleVideoShuttleStop(frame, context);
+  return true;
+}
+
+function handleFsPlayerWindowWheel(event = {}, context = {}) {
+  if (event.__videoAnalysisHandled) return false;
+  if (event.ctrlKey || event.metaKey || event.altKey) return false;
+  if (!videoShuttleHasHorizontalIntent(event)) return false;
+
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  if (state.activeAnalysisRoomTab !== "fs-player") return false;
+
+  const target = eventElement(event);
+  if (target?.closest?.("input, select, textarea, a")) return false;
+
+  const workspace = fsPlayerWorkspaceElement(context);
+  const targetInsideWorkspace = Boolean(target && workspace?.contains?.(target));
+  const shouldGuard = fsPlayerOwnsFullscreen(context)
+    || (state.fsPlayer?.mode === "code" && (!target || targetInsideWorkspace));
+
+  if (!shouldGuard) return false;
+  event.preventDefault?.();
   return true;
 }
 
@@ -2101,6 +2138,13 @@ export function render(context = {}) {
     win.addEventListener?.("keydown", (event) => handleKeydown(event, context), true);
     win.addEventListener?.("keyup", (event) => handleKeyup(event, context), true);
     run.keydownBound = true;
+  }
+  if (!run.wheelGuardBound) {
+    const win = context.win || window;
+    win.addEventListener?.("wheel", (event) => {
+      handleFsPlayerWindowWheel(event, runtime?.context || context);
+    }, { capture: true, passive: false });
+    run.wheelGuardBound = true;
   }
   paint(root, run.store.getState());
   if (run.store.getState().status === "idle") initialize(context);

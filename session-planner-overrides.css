@@ -16,6 +16,15 @@
   z-index: 660;
 }
 
+/*
+  The overview card renders the same tactical coordinates on a smaller pitch
+  than the edit overlay. Scale placed objects down here so players/equipment
+  keep the same football feel instead of dominating the preview.
+*/
+#sessionPlannerWorkspace .session-media-preview .session-tactical-marker {
+  transform: translate(-50%, -50%) rotate(var(--session-tactical-rotation, 0deg)) scale(0.72);
+}
+
 #sessionPlannerWorkspace .session-post-notes-card {
   min-height: auto;
   padding: 0;

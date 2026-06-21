@@ -778,6 +778,76 @@ test("Video Analysis confirms before deleting an entire timeline row", async ({ 
   await expect(page.locator(".video-analysis-toast")).toContainText("2 timeline tags deleted.");
 });
 
+test("Video Analysis Tab jumps to the next timeline tag in row order", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__videoAnalysisSmokeClips = [
+      {
+        id: "tab-build-up-1",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 10000,
+        end_ms: 25000,
+        phase: "In Possession",
+        sub_phase: "Build Up",
+        outcome: "Neutral",
+        players: [],
+        tags: [],
+        descriptors: [],
+        notes: [],
+      },
+      {
+        id: "tab-build-up-2",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 40000,
+        end_ms: 55000,
+        phase: "In Possession",
+        sub_phase: "Build Up",
+        outcome: "Positive",
+        players: [],
+        tags: [],
+        descriptors: [],
+        notes: [],
+      },
+      {
+        id: "tab-creating-1",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 70000,
+        end_ms: 85000,
+        phase: "In Possession",
+        sub_phase: "Creating Phase",
+        outcome: "Development",
+        players: [],
+        tags: [],
+        descriptors: [],
+        notes: [],
+      },
+    ];
+    window.__videoAnalysisInitialState = {
+      view: "workspace",
+      activeAnalysisRoomTab: "fs-player",
+      match: { id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152", title: "Tab timeline match" },
+      video: { id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725", match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152" },
+      source: { id: "source-1", match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152", video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725" },
+      videoRef: { objectUrl: "data:video/mp4;base64,AAAA", durationMs: 120000, displayName: "Tab timeline match" },
+      localFileStatus: "native-ready",
+      localFileMessage: "Native playback ready",
+      nativePlaybackReady: true,
+    };
+  });
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  await page.locator('[data-video-analysis-seek="tab-build-up-1"]').click();
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".video-analysis-clip-block.is-selected")).toHaveAttribute("data-video-analysis-seek", "tab-build-up-2");
+  await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:00:40");
+
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".video-analysis-clip-block.is-selected")).toHaveAttribute("data-video-analysis-seek", "tab-creating-1");
+  await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:01:10");
+});
+
 test("Video Analysis Tag Panel creates a 15 second timeline tag from a code button", async ({ page }) => {
   await page.addInitScript(() => {
     window.__videoPlayCalls = 0;

@@ -1208,6 +1208,12 @@ function findTimelineCategoryClips(state = {}, laneMode = "", label = "") {
   return lanes.find((lane) => lane.label === label)?.clips || [];
 }
 
+function visibleTimelineLanes(state = {}) {
+  const laneMode = normalizeTimelineLaneMode(state.timeline?.laneMode);
+  const lanes = buildTimelineLanes(Array.isArray(state.clips) ? state.clips : [], laneMode);
+  return { laneMode, lanes };
+}
+
 function categoryPayloadFromButton(button = {}) {
   const value = String(
     button.dataset.videoAnalysisTimelineCategoryOpen
@@ -1571,6 +1577,29 @@ function deleteTimelineSelectionByKeyboard(event = {}, context = {}) {
   return true;
 }
 
+function selectTimelineClip(context = {}, clip = {}, laneMode = "", label = "") {
+  if (!clip?.id) return false;
+  const run = ensureRuntime(context);
+  const startMs = clipStartMs(clip);
+  seekVideoToMs(videoElement(context), startMs);
+  run.store.update((current) => ({
+    ...current,
+    selectedClipId: clip.id,
+    timeline: {
+      ...(current.timeline || {}),
+      playheadMs: Math.max(0, Math.round(Number(startMs || 0))),
+      selectedCategory: {
+        ...(current.timeline?.selectedCategory || {}),
+        laneMode: normalizeTimelineLaneMode(laneMode),
+        label,
+        activeClipId: clip.id,
+        keyboardDeleteScope: "clip",
+      },
+    },
+  }));
+  return true;
+}
+
 function selectTimelineCategoryClip(context = {}, laneMode = "", label = "", direction = 0) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
@@ -1596,6 +1625,61 @@ function selectTimelineCategoryClip(context = {}, laneMode = "", label = "", dir
     },
   }));
   return true;
+}
+
+function findTimelineClipPosition(state = {}, clipId = "") {
+  const selectedId = String(clipId || state.selectedClipId || state.timeline?.selectedCategory?.activeClipId || "");
+  if (!selectedId) return null;
+  const { laneMode, lanes } = visibleTimelineLanes(state);
+  for (let laneIndex = 0; laneIndex < lanes.length; laneIndex += 1) {
+    const lane = lanes[laneIndex];
+    const clipIndex = lane.clips.findIndex((clip) => String(clip.id || "") === selectedId);
+    if (clipIndex !== -1) return { laneMode, lanes, lane, laneIndex, clipIndex };
+  }
+  return null;
+}
+
+function nextTimelineClipFromPosition(position = null, direction = 1) {
+  if (!position?.lane || !Array.isArray(position.lanes)) return null;
+  const step = direction < 0 ? -1 : 1;
+  const { lanes, laneIndex, clipIndex } = position;
+  const currentLane = lanes[laneIndex];
+  if (step > 0) {
+    if (clipIndex < currentLane.clips.length - 1) {
+      return { lane: currentLane, clip: currentLane.clips[clipIndex + 1] };
+    }
+    const nextLane = lanes[laneIndex + 1];
+    return nextLane?.clips?.length ? { lane: nextLane, clip: nextLane.clips[0] } : null;
+  }
+  if (clipIndex > 0) {
+    return { lane: currentLane, clip: currentLane.clips[clipIndex - 1] };
+  }
+  const previousLane = lanes[laneIndex - 1];
+  return previousLane?.clips?.length
+    ? { lane: previousLane, clip: previousLane.clips[previousLane.clips.length - 1] }
+    : null;
+}
+
+function tabToAdjacentTimelineClip(event = {}, context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  if (
+    state.activeAnalysisRoomTab !== "fs-player"
+    || event.key !== "Tab"
+    || shouldIgnoreShortcutTarget(event.target)
+    || event.metaKey
+    || event.ctrlKey
+    || event.altKey
+  ) {
+    return false;
+  }
+  const position = findTimelineClipPosition(state);
+  if (!position) return false;
+  const next = nextTimelineClipFromPosition(position, event.shiftKey ? -1 : 1);
+  if (!next?.clip?.id) return false;
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  return selectTimelineClip(context, next.clip, position.laneMode, next.lane.label);
 }
 
 function presentationDropTarget(target) {
@@ -3776,6 +3860,7 @@ export function handleKeydown(event, context = {}) {
     }
   }
   if (deleteTimelineSelectionByKeyboard(event, context)) return true;
+  if (tabToAdjacentTimelineClip(event, context)) return true;
   if (
     state.activeAnalysisRoomTab === "fs-player"
     && event.key === " "

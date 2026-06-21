@@ -2,7 +2,7 @@ import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { getTimelineDurationMs } from "../timeline/timeline.service.js";
 import { escapeHtml } from "./renderHelpers.js";
 
-const PLAYBACK_RATES = [0.5, 1, 1.5, 2];
+const PLAYBACK_RATES = [0.5, 1, 1.5, 2, 3];
 
 function normalizePlaybackRate(value = 1) {
   const numeric = Number(value);
@@ -99,13 +99,14 @@ export function renderVideoPlayer(state = {}) {
           <span data-video-analysis-player-duration-time>/ ${escapeHtml(formatVideoTime(durationMs))}</span>
         </div>
         <div class="video-analysis-player-controls">
-          <div class="video-analysis-player-rate-group" aria-label="Playback speed">
-            ${PLAYBACK_RATES.map((rate) => `
-              <button type="button" class="video-analysis-player-rate${rate === playbackRate ? " is-active" : ""}" data-video-analysis-playback-rate="${escapeHtml(String(rate))}" ${hasVideo ? "" : "disabled"} aria-pressed="${rate === playbackRate ? "true" : "false"}" title="Play at ${escapeHtml(formatPlaybackRate(rate))}">
-                ${escapeHtml(formatPlaybackRate(rate))}
-              </button>
-            `).join("")}
-          </div>
+          <label class="video-analysis-player-rate-group" title="Playback speed">
+            <span class="video-analysis-sr-only">Playback speed</span>
+            <select class="video-analysis-player-rate-select" data-video-analysis-playback-rate-select ${hasVideo ? "" : "disabled"} aria-label="Playback speed">
+              ${PLAYBACK_RATES.map((rate) => `
+                <option value="${escapeHtml(String(rate))}" ${rate === playbackRate ? "selected" : ""}>${escapeHtml(formatPlaybackRate(rate))}</option>
+              `).join("")}
+            </select>
+          </label>
           <button type="button" class="video-analysis-player-nudge" data-video-analysis-player-nudge="-5000" ${hasVideo ? "" : "disabled"} aria-label="Back five seconds" title="Back 5 seconds">
             <span class="video-analysis-player-nudge__glyph is-back" aria-hidden="true">
               <span class="video-analysis-player-nudge__arrow">&#8634;</span>

@@ -887,13 +887,15 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
 
   await expect(page.locator("[data-video-analysis-video]")).not.toHaveAttribute("controls", "");
-  await expect(page.locator("[data-video-analysis-playback-rate]")).toHaveCount(4);
-  await expect(page.locator('[data-video-analysis-playback-rate="1"]')).toHaveAttribute("aria-pressed", "true");
-  await page.locator('[data-video-analysis-playback-rate="1.5"]').click();
-  await expect(page.locator('[data-video-analysis-playback-rate="1.5"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("[data-video-analysis-playback-rate]")).toHaveCount(0);
+  await expect(page.locator("[data-video-analysis-playback-rate-select]")).toHaveCount(1);
+  await expect(page.locator("[data-video-analysis-playback-rate-select] option")).toHaveCount(5);
+  await expect(page.locator("[data-video-analysis-playback-rate-select]")).toHaveValue("1");
+  await page.locator("[data-video-analysis-playback-rate-select]").selectOption("1.5");
   await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.playbackRate)).toBe(1.5);
-  await page.locator('[data-video-analysis-playback-rate="0.5"]').click();
-  await expect(page.locator('[data-video-analysis-playback-rate="0.5"]')).toHaveAttribute("aria-pressed", "true");
+  await page.locator("[data-video-analysis-playback-rate-select]").selectOption("3");
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.playbackRate)).toBe(3);
+  await page.locator("[data-video-analysis-playback-rate-select]").selectOption("0.5");
   await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.playbackRate)).toBe(0.5);
   await expect(page.locator(".video-analysis-player-tag-filter")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-video-fullscreen]")).toBeVisible();

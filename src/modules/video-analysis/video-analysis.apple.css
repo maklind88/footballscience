@@ -256,15 +256,24 @@
   border-right-color: rgba(24, 34, 29, 0.1);
 }
 
-#analysisRoomWorkspace .video-analysis-player-controls .video-analysis-player-rate {
-  min-width: 38px;
+#analysisRoomWorkspace .video-analysis-player-rate-group:hover::after {
+  border-top-color: #526058;
+}
+
+#analysisRoomWorkspace .video-analysis-player-rate-group:focus-within::after {
+  border-top-color: #ffffff;
+}
+
+#analysisRoomWorkspace .video-analysis-player-controls .video-analysis-player-rate-select {
+  min-width: 58px;
   border-color: transparent;
   color: #46514b;
   background: transparent;
   box-shadow: none;
 }
 
-#analysisRoomWorkspace .video-analysis-player-controls .video-analysis-player-rate:hover {
+#analysisRoomWorkspace .video-analysis-player-controls .video-analysis-player-rate-select:hover,
+#analysisRoomWorkspace .video-analysis-player-controls .video-analysis-player-rate-select:focus {
   color: #10231a;
   background: rgba(255, 255, 255, 0.88);
   box-shadow:
@@ -272,7 +281,7 @@
     0 3px 10px rgba(15, 23, 19, 0.06);
 }
 
-#analysisRoomWorkspace .video-analysis-player-controls .video-analysis-player-rate.is-active {
+#analysisRoomWorkspace .video-analysis-player-rate-group:focus-within .video-analysis-player-rate-select {
   border-color: rgba(20, 53, 34, 0.18);
   color: #ffffff;
   background:

@@ -1156,12 +1156,33 @@
 }
 
 .video-analysis-player-rate-group {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  min-width: 62px;
   border-right: 1px solid #dbe3de;
-  padding-right: 4px;
+  padding-right: 6px;
+  margin-right: 2px;
+}
+
+.video-analysis-player-rate-group::after {
+  position: absolute;
+  top: 50%;
+  right: 15px;
+  width: 0;
+  height: 0;
+  border-top: 4px solid #526058;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  content: "";
+  pointer-events: none;
+  transform: translateY(-35%);
+}
+
+.video-analysis-player-rate-group:hover::after,
+.video-analysis-player-rate-group:focus-within::after {
+  border-top-color: #ffffff;
 }
 
 .video-analysis-player-controls button,
@@ -1184,16 +1205,33 @@
   background: transparent;
 }
 
-.video-analysis-player-controls .video-analysis-player-rate {
-  min-width: 38px;
+.video-analysis-player-controls .video-analysis-player-rate-select {
+  appearance: none;
+  min-width: 58px;
   min-height: 30px;
-  padding: 0 7px;
-  color: #3f4a44;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0 25px 0 10px;
+  color: #111815;
+  background: transparent;
+  font: inherit;
   font-size: 12px;
   font-weight: 900;
+  cursor: pointer;
 }
 
-.video-analysis-player-controls .video-analysis-player-rate.is-active {
+.video-analysis-player-controls .video-analysis-player-rate-select:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.42);
+  outline-offset: 2px;
+}
+
+.video-analysis-player-controls .video-analysis-player-rate-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.video-analysis-player-controls .video-analysis-player-rate-select:hover,
+.video-analysis-player-controls .video-analysis-player-rate-select:focus {
   color: #ffffff;
   background: #143522;
 }
@@ -1813,7 +1851,7 @@
   min-height: 30px;
 }
 
-#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-controls .video-analysis-player-rate {
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-controls .video-analysis-player-rate-select {
   min-height: 28px;
 }
 

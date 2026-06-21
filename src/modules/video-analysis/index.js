@@ -93,7 +93,7 @@ const pickerMiniGamePrinciples = miniGamePrinciplePickerGroups.flatMap((group) =
 ));
 const CLIP_PAGE_LIMIT = 200;
 const CLIP_WORKSPACE_LIMIT = 1000;
-const PLAYBACK_RATE_OPTIONS = [0.5, 1, 1.5, 2];
+const PLAYBACK_RATE_OPTIONS = [0.5, 1, 1.5, 2, 3];
 const KEYBOARD_CLIP_TRIM_MIN_MS = 1000;
 const VIDEO_SHUTTLE_MIN_SPEED = 4;
 const VIDEO_SHUTTLE_MAX_SPEED = 7;
@@ -3935,6 +3935,10 @@ export function handleChange(event, context = {}) {
     handleFileSelection(fileInput.files[0], context);
     fileInput.value = "";
     return true;
+  }
+  const playbackRateSelect = target.closest("[data-video-analysis-playback-rate-select]");
+  if (playbackRateSelect) {
+    return setPlaybackRate(context, playbackRateSelect.value || 1);
   }
   const presentationLoad = target.closest("[data-video-analysis-presentation-load]");
   if (presentationLoad) {

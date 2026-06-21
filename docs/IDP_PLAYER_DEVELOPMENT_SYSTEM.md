@@ -213,6 +213,7 @@ indexes for active rows.
 | `idp_profiles` | References `squad_players` and optional roster membership; owns status, owners, strengths, leadership profile, learning notes, last review, and next review. |
 | `idp_development_areas` | Category-specific areas: Technical, Tactical, Physical, Psychological, Leadership. |
 | `idp_focuses` | Current and historical focus records with category, focus level, phase/sub-phase, principles, owner, status, evidence status, review date, and completion. |
+| `idp_development_interventions` | Player-owned individual exercise/player-board records linked to one player and focus; owns pitch mode, board state, objective, status, row version, soft delete, and audit path. |
 | `idp_clip_bank_items` | References player and `video_clip_instances`; owns IDP status only: New, Reviewed, Linked To Focus, Marked As Evidence, Archived, Hidden. |
 | `idp_evidence` | Curated proof linked to player/focus with structured source module/table/id and short bounded notes. |
 | `idp_reviews` | Lightweight progress review with evidence summary, coach note, optional player response, next action, and status change. |
@@ -265,6 +266,7 @@ IDP owns:
   development profiles
   development areas
   focuses
+  individual development interventions / player boards
   clip-bank review status
   curated evidence links
   reviews

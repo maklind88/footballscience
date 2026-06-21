@@ -1,6 +1,7 @@
 import { buildIdpDashboardFromSquadState, buildLegacyPlayerDetail, findSquadPlayer } from "./idp-adapter.mjs";
 import {
   normalizeIdpClipBankItem,
+  normalizeIdpDevelopmentIntervention,
   normalizeIdpEvidence,
   normalizeIdpFocus,
   normalizeIdpMilestone,
@@ -147,6 +148,7 @@ function mergePlayerPayloadWithFallback(detail = {}, fallbackDetail = null) {
     nextActions: inactive ? [] : detail.nextActions.length ? detail.nextActions : fallbackDetail.nextActions || [],
     milestones: detail.milestones.length ? detail.milestones : fallbackDetail.milestones || [],
     ownership: Array.isArray(detail.ownership) ? detail.ownership : fallbackDetail.ownership || [],
+    interventions: detail.interventions.length ? detail.interventions : fallbackDetail.interventions || [],
   };
 }
 
@@ -160,6 +162,7 @@ function normalizePlayerPayload(payload = {}, fallbackDetail = null) {
     nextActions: (payload.nextActions || []).map(normalizeIdpNextAction),
     milestones: (payload.milestones || []).map(normalizeIdpMilestone),
     ownership: Array.isArray(payload.ownership) ? payload.ownership : [],
+    interventions: (payload.interventions || []).map(normalizeIdpDevelopmentIntervention),
   };
   return mergePlayerPayloadWithFallback(detail, fallbackDetail);
 }
@@ -196,6 +199,73 @@ function observationFocusPayload(detail = {}, playerId = "") {
   };
 }
 
+function parseBoardNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(100, Math.max(0, Math.round(number * 10) / 10)) : fallback;
+}
+
+function splitTokenList(value = "") {
+  return String(value || "")
+    .split(/[\n,]+/)
+    .map((item) => normalizeText(item, 160))
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+function buildInterventionBoardState(formData) {
+  const zoneLabel = normalizeText(formData.get("zoneLabel"), 80);
+  const arrowLabel = normalizeText(formData.get("arrowLabel"), 80);
+  const noteText = normalizeText(formData.get("noteText"), 220);
+  const frameLabel = normalizeText(formData.get("frameLabel"), 80);
+  const referenceLabel = normalizeText(formData.get("referenceLabel"), 24);
+  return {
+    schema: "idp-player-board-v1",
+    player: {
+      x: parseBoardNumber(formData.get("playerX"), 50),
+      y: parseBoardNumber(formData.get("playerY"), 70),
+    },
+    referencePlayers: referenceLabel ? [{
+      id: "reference-1",
+      label: referenceLabel,
+      x: parseBoardNumber(formData.get("referenceX"), 50),
+      y: parseBoardNumber(formData.get("referenceY"), 44),
+    }] : [],
+    cones: [
+      { id: "cone-1", x: 41, y: 58 },
+      { id: "cone-2", x: 59, y: 58 },
+      { id: "cone-3", x: 50, y: 42 },
+    ],
+    zones: zoneLabel ? [{
+      id: "zone-1",
+      label: zoneLabel,
+      x: parseBoardNumber(formData.get("zoneX"), 36),
+      y: parseBoardNumber(formData.get("zoneY"), 32),
+      width: parseBoardNumber(formData.get("zoneWidth"), 28),
+      height: parseBoardNumber(formData.get("zoneHeight"), 22),
+    }] : [],
+    arrows: arrowLabel ? [{
+      id: "arrow-1",
+      label: arrowLabel,
+      from: {
+        x: parseBoardNumber(formData.get("arrowFromX"), parseBoardNumber(formData.get("playerX"), 50)),
+        y: parseBoardNumber(formData.get("arrowFromY"), parseBoardNumber(formData.get("playerY"), 70)),
+      },
+      to: {
+        x: parseBoardNumber(formData.get("arrowToX"), 62),
+        y: parseBoardNumber(formData.get("arrowToY"), 42),
+      },
+    }] : [],
+    notes: noteText ? [{
+      id: "note-1",
+      text: noteText,
+      x: parseBoardNumber(formData.get("noteX"), 12),
+      y: parseBoardNumber(formData.get("noteY"), 14),
+    }] : [],
+    frames: frameLabel ? [{ id: "frame-1", label: frameLabel }] : [{ id: "frame-1", label: "Start" }],
+    linkedClipIds: splitTokenList(formData.get("linkedClipIds")),
+  };
+}
+
 export function createIdpActions({ store, api, context = {} }) {
   const getSquadState = () => context.getPlayerProfilesState?.() || {};
 
@@ -222,7 +292,10 @@ export function createIdpActions({ store, api, context = {} }) {
     const safePlayerId = normalizeText(playerId, 160);
     store.setState({
       ui: {
+        openFilterMenu: "",
         selectedPlayerId: safePlayerId,
+        actionMode: "",
+        editEvidenceId: "",
         error: "",
         selectedClipBankIds: [],
         clipPreviewOpen: false,
@@ -231,6 +304,8 @@ export function createIdpActions({ store, api, context = {} }) {
         clipPreviewStatus: "",
         clipPreviewMessage: "",
         clipPreviewObjectUrl: "",
+        playerBoardOpen: false,
+        playerBoardInterventionId: "",
       },
     });
     const fallbackPlayer = findSquadPlayer(getSquadState(), safePlayerId);
@@ -314,6 +389,29 @@ export function createIdpActions({ store, api, context = {} }) {
     await refreshSelectedPlayer();
   }
 
+  async function updateEvidence(formData) {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const evidenceId = normalizeText(formData.get("evidenceId"), 160);
+    if (!playerId || !evidenceId) throw new Error("Observation could not be updated.");
+    await api.updateEvidence({
+      id: evidenceId,
+      playerId,
+      evidenceType: formData.get("evidenceType"),
+      note: formData.get("note"),
+    });
+    store.setState({ ui: { actionMode: "", editEvidenceId: "", message: "Observation updated." } });
+    await refreshSelectedPlayer();
+  }
+
+  async function deleteEvidence(evidenceId = "") {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const safeEvidenceId = normalizeText(evidenceId, 160);
+    if (!playerId || !safeEvidenceId) throw new Error("Observation could not be deleted.");
+    await api.deleteEvidence({ id: safeEvidenceId, playerId });
+    store.setState({ ui: { actionMode: "", editEvidenceId: "", message: "Observation deleted." } });
+    await refreshSelectedPlayer();
+  }
+
   async function assignOwner(formData) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const detail = store.getState().playerDetail;
@@ -340,14 +438,63 @@ export function createIdpActions({ store, api, context = {} }) {
     await refreshSelectedPlayer();
   }
 
+  async function ensureInterventionFocus(playerId, detail = {}, formData) {
+    const formFocusId = persistedFocusId({ id: formData.get("focusId") || "" });
+    if (formFocusId) return formFocusId;
+    return ensureObservationFocus(playerId, detail, formData);
+  }
+
+  async function saveIntervention(formData) {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const detail = store.getState().playerDetail;
+    const focusId = await ensureInterventionFocus(playerId, detail, formData);
+    const interventionId = normalizeText(formData.get("interventionId"), 160);
+    const payload = {
+      id: interventionId,
+      playerId,
+      focusId,
+      title: formData.get("title") || "Individual exercise",
+      objective: formData.get("objective") || "",
+      pitchMode: formData.get("pitchMode") || "half",
+      status: formData.get("status") || "active",
+      boardState: buildInterventionBoardState(formData),
+    };
+    let nextInterventionId = interventionId;
+    if (interventionId) {
+      await api.updateIntervention({
+        ...payload,
+        rowVersion: formData.get("rowVersion"),
+      });
+    } else {
+      const result = await api.createIntervention(payload);
+      nextInterventionId = normalizeText(result?.intervention?.id, 160);
+    }
+    await refreshSelectedPlayer();
+    store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: nextInterventionId || "", actionMode: "", message: "Individual exercise saved." } });
+  }
+
+  async function archiveIntervention(interventionId = "") {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const safeInterventionId = normalizeText(interventionId, 160);
+    const intervention = (store.getState().playerDetail?.interventions || []).find((item) => item.id === safeInterventionId);
+    if (!playerId || !intervention?.id) throw new Error("Individual exercise could not be archived.");
+    await api.archiveIntervention({ id: intervention.id, playerId, rowVersion: intervention.rowVersion });
+    await refreshSelectedPlayer();
+    store.setState({ ui: { playerBoardInterventionId: "", playerBoardOpen: true, message: "Individual exercise archived." } });
+  }
+
   return {
     addEvidence,
+    archiveIntervention,
     assignOwner,
     checkForExternalUpdates,
     completeReview,
     createFocus,
+    deleteEvidence,
     loadDashboard,
     refreshSelectedPlayer,
+    saveIntervention,
     selectPlayer,
+    updateEvidence,
   };
 }

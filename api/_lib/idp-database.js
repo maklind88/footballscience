@@ -17,6 +17,8 @@ const IDP_SCHEMA = "footballscience-idp-v1";
 const CATEGORIES = new Set(["Technical", "Tactical", "Physical", "Psychological", "Leadership"]);
 const FOCUS_STATUSES = new Set(["Draft", "Active", "Needs Evidence", "Ready For Review", "Reviewed", "Completed", "Archived"]);
 const CLIP_STATUSES = new Set(["New", "Reviewed", "Linked To Focus", "Marked As Evidence", "Archived", "Hidden"]);
+const INTERVENTION_STATUSES = new Set(["draft", "active", "review", "completed", "archived"]);
+const PITCH_MODES = new Set(["full", "half", "final-third", "box"]);
 const EVIDENCE_TYPES = new Set([
   "Video Clip",
   "Coach Note",
@@ -38,7 +40,21 @@ const SYNC_TABLES = Object.freeze([
   { table: "idp_next_actions", column: "updated_at" },
   { table: "idp_milestones", column: "created_at" },
   { table: "idp_staff_ownership", column: "updated_at" },
+  { table: "idp_development_interventions", column: "updated_at" },
 ]);
+const OPTIONAL_MIGRATION_TABLES = new Set(["idp_development_interventions"]);
+
+function isMissingOptionalTable(table, result) {
+  if (!OPTIONAL_MIGRATION_TABLES.has(table) || result?.ok) return false;
+  const haystack = `${result?.reason || ""} ${JSON.stringify(result?.payload || {})}`.toLowerCase();
+  const tableName = String(table || "").toLowerCase();
+  const looksLikeMissingRelation = haystack.includes("schema cache")
+    || haystack.includes("could not find the table")
+    || haystack.includes("does not exist")
+    || haystack.includes("42p01")
+    || haystack.includes("pgrst205");
+  return haystack.includes(tableName) && looksLikeMissingRelation;
+}
 
 function rowList(result) {
   return result.ok && Array.isArray(result.payload) ? result.payload : [];
@@ -67,6 +83,126 @@ function normalizeFocusLevel(value) {
 function normalizeEvidenceType(value, fallback = "Coach Note") {
   const type = normalizeText(value, 80);
   return EVIDENCE_TYPES.has(type) ? type : fallback;
+}
+
+function normalizeInterventionStatus(value, fallback = "active") {
+  const status = normalizeText(value, 40).toLowerCase();
+  return INTERVENTION_STATUSES.has(status) ? status : fallback;
+}
+
+function normalizePitchMode(value, fallback = "half") {
+  const mode = normalizeText(value, 40).toLowerCase();
+  return PITCH_MODES.has(mode) ? mode : fallback;
+}
+
+function normalizeRowVersion(value) {
+  const version = Number(value);
+  return Number.isInteger(version) && version > 0 ? version : 0;
+}
+
+function clampPercent(value, fallback = 50) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(100, Math.max(0, Math.round(number * 10) / 10));
+}
+
+function normalizeBoardLabel(value, maxLength = 120) {
+  return normalizeText(value, maxLength);
+}
+
+function normalizeBoardPoints(value = {}, fallback = { x: 50, y: 50 }) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    x: clampPercent(source.x, fallback.x),
+    y: clampPercent(source.y, fallback.y),
+  };
+}
+
+function normalizeBoardArray(value, limit, mapper) {
+  return Array.isArray(value)
+    ? value.slice(0, limit).map(mapper).filter(Boolean)
+    : [];
+}
+
+function normalizeBoardState(value = {}) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const player = normalizeBoardPoints(source.player, { x: 50, y: 70 });
+  return {
+    schema: "idp-player-board-v1",
+    player,
+    referencePlayers: normalizeBoardArray(source.referencePlayers, 6, (item = {}, index) => ({
+      id: normalizeBoardLabel(item.id || `ref-${index + 1}`, 80),
+      label: normalizeBoardLabel(item.label || "REF", 24) || "REF",
+      x: clampPercent(item.x, 50),
+      y: clampPercent(item.y, 45),
+    })),
+    cones: normalizeBoardArray(source.cones, 12, (item = {}, index) => ({
+      id: normalizeBoardLabel(item.id || `cone-${index + 1}`, 80),
+      x: clampPercent(item.x, 50),
+      y: clampPercent(item.y, 50),
+    })),
+    zones: normalizeBoardArray(source.zones, 6, (item = {}, index) => ({
+      id: normalizeBoardLabel(item.id || `zone-${index + 1}`, 80),
+      label: normalizeBoardLabel(item.label || "Development zone", 80),
+      x: clampPercent(item.x, 36),
+      y: clampPercent(item.y, 34),
+      width: Math.min(80, Math.max(8, clampPercent(item.width, 28))),
+      height: Math.min(80, Math.max(8, clampPercent(item.height, 22))),
+    })),
+    arrows: normalizeBoardArray(source.arrows, 8, (item = {}, index) => ({
+      id: normalizeBoardLabel(item.id || `arrow-${index + 1}`, 80),
+      label: normalizeBoardLabel(item.label || "Movement", 80),
+      from: normalizeBoardPoints(item.from, { x: 45, y: 70 }),
+      to: normalizeBoardPoints(item.to, { x: 60, y: 44 }),
+    })),
+    notes: normalizeBoardArray(source.notes, 6, (item = {}, index) => ({
+      id: normalizeBoardLabel(item.id || `note-${index + 1}`, 80),
+      text: normalizeNote(item.text, 220),
+      x: clampPercent(item.x, 12),
+      y: clampPercent(item.y, 14),
+    })).filter((item) => item.text),
+    frames: normalizeBoardArray(source.frames, 8, (item = {}, index) => ({
+      id: normalizeBoardLabel(item.id || `frame-${index + 1}`, 80),
+      label: normalizeBoardLabel(item.label || `Frame ${index + 1}`, 80),
+    })),
+    linkedClipIds: normalizeBoardArray(source.linkedClipIds, 12, (item) => normalizeText(item, 160)).filter(Boolean),
+  };
+}
+
+function boardStateSummary(boardState = {}) {
+  return {
+    zones: Array.isArray(boardState.zones) ? boardState.zones.length : 0,
+    arrows: Array.isArray(boardState.arrows) ? boardState.arrows.length : 0,
+    notes: Array.isArray(boardState.notes) ? boardState.notes.length : 0,
+    frames: Array.isArray(boardState.frames) ? boardState.frames.length : 0,
+    linkedClips: Array.isArray(boardState.linkedClipIds) ? boardState.linkedClipIds.length : 0,
+  };
+}
+
+function interventionAuditSummary(row = {}) {
+  return {
+    title: normalizeText(row.title, 180),
+    status: normalizeText(row.status, 40),
+    pitch_mode: normalizeText(row.pitch_mode, 40),
+    focus_id: normalizeText(row.focus_id, 80),
+    board: boardStateSummary(row.board_state || {}),
+  };
+}
+
+async function insertAuditEvent(scope, event = {}) {
+  return insertRow("idp_audit_events", {
+    organization_id: scope.organizationId,
+    team_id: scope.teamId,
+    player_id: normalizeText(event.playerId || event.player_id, 160) || null,
+    action: normalizeText(event.action, 120),
+    entity_type: normalizeText(event.entityType || event.entity_type, 80),
+    entity_id: normalizeUuid(event.entityId || event.entity_id) || null,
+    actor_id: scope.actorId,
+    changed_fields: Array.isArray(event.changedFields) ? event.changedFields.map((item) => normalizeText(item, 80)).filter(Boolean) : [],
+    before_summary: event.beforeSummary || null,
+    after_summary: event.afterSummary || null,
+    metadata: event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata) ? event.metadata : {},
+  });
 }
 
 function dateOrNull(value) {
@@ -105,7 +241,9 @@ async function listByPlayer(table, scope, playerId, options = {}) {
   if (options.status) params.set("status", options.status);
   params.set("order", options.order || "created_at.desc");
   params.set("limit", String(asLimit(options.limit, 100)));
-  return selectRows(table, params);
+  const result = await selectRows(table, params);
+  if (isMissingOptionalTable(table, result)) return { ok: true, payload: [] };
+  return result;
 }
 
 async function latestTimestampForTable(scope, playerId, tableConfig) {
@@ -115,6 +253,7 @@ async function latestTimestampForTable(scope, playerId, tableConfig) {
   params.set("order", `${tableConfig.column}.desc`);
   params.set("limit", "1");
   const result = await selectRows(tableConfig.table, params);
+  if (isMissingOptionalTable(tableConfig.table, result)) return { ok: true, payload: "" };
   if (!result.ok) return result;
   return { ok: true, payload: normalizeText(result.payload?.[0]?.[tableConfig.column], 80) };
 }
@@ -204,7 +343,7 @@ async function getPlayerDevelopment(query, actor) {
   if (!playerId) return { ok: false, status: 400, reason: "playerId is required." };
   const sync = await buildSyncMeta(scope, playerId);
   if (!sync.ok) return sync;
-  const [profiles, focuses, clipBank, evidence, reviews, actions, milestones, ownership] = await Promise.all([
+  const [profiles, focuses, clipBank, evidence, reviews, actions, milestones, ownership, interventions] = await Promise.all([
     listByPlayer("idp_profiles", scope, playerId, { limit: 1, order: "updated_at.desc" }),
     listByPlayer("idp_focuses", scope, playerId, { limit: 50, order: "updated_at.desc" }),
     listByPlayer("idp_clip_bank_items", scope, playerId, { limit: 120, order: "created_at.desc" }),
@@ -213,8 +352,9 @@ async function getPlayerDevelopment(query, actor) {
     listByPlayer("idp_next_actions", scope, playerId, { limit: 40, order: "created_at.desc" }),
     listByPlayer("idp_milestones", scope, playerId, { notDeleted: false, limit: 80, order: "occurred_on.desc,created_at.desc" }),
     listByPlayer("idp_staff_ownership", scope, playerId, { limit: 60, order: "created_at.desc" }),
+    listByPlayer("idp_development_interventions", scope, playerId, { limit: 60, order: "updated_at.desc" }),
   ]);
-  const failed = [profiles, focuses, clipBank, evidence, reviews, actions, milestones, ownership].find((result) => !result.ok);
+  const failed = [profiles, focuses, clipBank, evidence, reviews, actions, milestones, ownership, interventions].find((result) => !result.ok);
   if (failed) return failed;
   const enrichedClipBank = await enrichClipBankItems(clipBank.payload, scope);
   return {
@@ -229,6 +369,7 @@ async function getPlayerDevelopment(query, actor) {
       nextActions: actions.payload,
       milestones: milestones.payload,
       ownership: ownership.payload,
+      interventions: interventions.payload,
       sync: sync.payload,
     },
   };
@@ -442,6 +583,50 @@ async function addEvidence(payload, actor) {
   return { ok: true, payload: { schema: IDP_SCHEMA, evidence: result.payload?.[0] || null, sync: sync.ok ? sync.payload : null } };
 }
 
+async function updateEvidence(payload, actor) {
+  const scope = actorScope(actor);
+  const evidenceId = normalizeUuid(payload.id || payload.evidenceId || payload.evidence_id);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  if (!evidenceId || !playerId) return { ok: false, status: 400, reason: "evidenceId and playerId are required." };
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${evidenceId}`);
+  params.set("player_id", `eq.${playerId}`);
+  params.set("deleted_at", "is.null");
+  const patch = {
+    evidence_type: normalizeEvidenceType(payload.evidenceType || payload.evidence_type),
+    note: normalizeNote(payload.note, 1200) || null,
+    updated_by: scope.actorId,
+  };
+  const result = await patchRows("idp_evidence", params, patch);
+  if (!result.ok) return result;
+  const evidence = result.payload?.[0] || null;
+  if (!evidence) return { ok: false, status: 404, reason: "Observation was not found." };
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, evidence, sync: sync.ok ? sync.payload : null } };
+}
+
+async function deleteEvidence(payload, actor) {
+  const scope = actorScope(actor);
+  const evidenceId = normalizeUuid(payload.id || payload.evidenceId || payload.evidence_id);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  if (!evidenceId || !playerId) return { ok: false, status: 400, reason: "evidenceId and playerId are required." };
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${evidenceId}`);
+  params.set("player_id", `eq.${playerId}`);
+  params.set("deleted_at", "is.null");
+  const result = await patchRows("idp_evidence", params, {
+    status: "archived",
+    deleted_at: new Date().toISOString(),
+    deleted_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  if (!result.ok) return result;
+  const evidence = result.payload?.[0] || null;
+  if (!evidence) return { ok: false, status: 404, reason: "Observation was not found." };
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, evidence, sync: sync.ok ? sync.payload : null } };
+}
+
 async function deactivateOwnership(scope, playerId, ownershipType, focusId = "") {
   const params = buildTeamParams(scope);
   params.set("player_id", `eq.${playerId}`);
@@ -594,6 +779,154 @@ async function completeReview(payload, actor) {
   return { ok: true, payload: { schema: IDP_SCHEMA, review: result.payload?.[0] || null, sync: sync.ok ? sync.payload : null } };
 }
 
+async function createDevelopmentIntervention(payload, actor) {
+  const scope = actorScope(actor);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  const focusId = normalizeUuid(payload.focusId || payload.focus_id);
+  const title = normalizeText(payload.title, 180);
+  if (!playerId || !focusId || !title) return { ok: false, status: 400, reason: "playerId, focusId and title are required." };
+  const profileResult = await ensureProfile(scope, playerId, payload);
+  if (!profileResult.ok) return profileResult;
+  const boardState = normalizeBoardState(payload.boardState || payload.board_state);
+  const result = await insertRow("idp_development_interventions", {
+    organization_id: scope.organizationId,
+    club_id: scope.clubId,
+    team_id: scope.teamId,
+    player_id: playerId,
+    profile_id: profileResult.payload.id,
+    focus_id: focusId,
+    title,
+    objective: normalizeNote(payload.objective, 1200) || null,
+    pitch_mode: normalizePitchMode(payload.pitchMode || payload.pitch_mode),
+    board_state: boardState,
+    status: normalizeInterventionStatus(payload.status),
+    created_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  if (!result.ok) return result;
+  const intervention = result.payload?.[0] || null;
+  await insertAuditEvent(scope, {
+    playerId,
+    action: "development_intervention.created",
+    entityType: "idp_development_intervention",
+    entityId: intervention?.id,
+    changedFields: ["title", "objective", "pitch_mode", "board_state", "status"],
+    afterSummary: interventionAuditSummary(intervention),
+  });
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, intervention, sync: sync.ok ? sync.payload : null } };
+}
+
+async function updateDevelopmentIntervention(payload, actor) {
+  const scope = actorScope(actor);
+  const interventionId = normalizeUuid(payload.id || payload.interventionId || payload.intervention_id);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  const expectedRowVersion = normalizeRowVersion(payload.rowVersion || payload.row_version || payload.expectedRowVersion || payload.expected_row_version);
+  if (!interventionId || !playerId || !expectedRowVersion) {
+    return { ok: false, status: 400, reason: "interventionId, playerId and rowVersion are required." };
+  }
+  const currentParams = buildTeamParams(scope);
+  currentParams.set("select", "*");
+  currentParams.set("id", `eq.${interventionId}`);
+  currentParams.set("player_id", `eq.${playerId}`);
+  currentParams.set("deleted_at", "is.null");
+  currentParams.set("limit", "1");
+  const current = await selectRows("idp_development_interventions", currentParams);
+  if (!current.ok) return current;
+  const before = current.payload?.[0] || null;
+  if (!before) return { ok: false, status: 404, reason: "Individual exercise was not found." };
+  if (Number(before.row_version) !== expectedRowVersion) return { ok: false, status: 409, reason: "Individual exercise changed elsewhere. Reload and try again." };
+
+  const patch = { updated_by: scope.actorId };
+  const changedFields = [];
+  if ("title" in payload) {
+    patch.title = normalizeText(payload.title, 180);
+    changedFields.push("title");
+  }
+  if ("objective" in payload) {
+    patch.objective = normalizeNote(payload.objective, 1200) || null;
+    changedFields.push("objective");
+  }
+  if ("pitchMode" in payload || "pitch_mode" in payload) {
+    patch.pitch_mode = normalizePitchMode(payload.pitchMode || payload.pitch_mode);
+    changedFields.push("pitch_mode");
+  }
+  if ("boardState" in payload || "board_state" in payload) {
+    patch.board_state = normalizeBoardState(payload.boardState || payload.board_state);
+    changedFields.push("board_state");
+  }
+  if ("status" in payload) {
+    patch.status = normalizeInterventionStatus(payload.status);
+    changedFields.push("status");
+  }
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${interventionId}`);
+  params.set("player_id", `eq.${playerId}`);
+  params.set("row_version", `eq.${expectedRowVersion}`);
+  params.set("deleted_at", "is.null");
+  const result = await patchRows("idp_development_interventions", params, patch);
+  if (!result.ok) return result;
+  const intervention = result.payload?.[0] || null;
+  if (!intervention) return { ok: false, status: 409, reason: "Individual exercise changed elsewhere. Reload and try again." };
+  await insertAuditEvent(scope, {
+    playerId,
+    action: "development_intervention.updated",
+    entityType: "idp_development_intervention",
+    entityId: intervention.id,
+    changedFields,
+    beforeSummary: interventionAuditSummary(before),
+    afterSummary: interventionAuditSummary(intervention),
+  });
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, intervention, sync: sync.ok ? sync.payload : null } };
+}
+
+async function archiveDevelopmentIntervention(payload, actor) {
+  const scope = actorScope(actor);
+  const interventionId = normalizeUuid(payload.id || payload.interventionId || payload.intervention_id);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  const expectedRowVersion = normalizeRowVersion(payload.rowVersion || payload.row_version || payload.expectedRowVersion || payload.expected_row_version);
+  if (!interventionId || !playerId || !expectedRowVersion) {
+    return { ok: false, status: 400, reason: "interventionId, playerId and rowVersion are required." };
+  }
+  const currentParams = buildTeamParams(scope);
+  currentParams.set("select", "*");
+  currentParams.set("id", `eq.${interventionId}`);
+  currentParams.set("player_id", `eq.${playerId}`);
+  currentParams.set("deleted_at", "is.null");
+  currentParams.set("limit", "1");
+  const current = await selectRows("idp_development_interventions", currentParams);
+  if (!current.ok) return current;
+  const before = current.payload?.[0] || null;
+  if (!before) return { ok: false, status: 404, reason: "Individual exercise was not found." };
+  if (Number(before.row_version) !== expectedRowVersion) return { ok: false, status: 409, reason: "Individual exercise changed elsewhere. Reload and try again." };
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${interventionId}`);
+  params.set("player_id", `eq.${playerId}`);
+  params.set("row_version", `eq.${expectedRowVersion}`);
+  params.set("deleted_at", "is.null");
+  const result = await patchRows("idp_development_interventions", params, {
+    status: "archived",
+    deleted_at: new Date().toISOString(),
+    deleted_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  if (!result.ok) return result;
+  const intervention = result.payload?.[0] || null;
+  if (!intervention) return { ok: false, status: 409, reason: "Individual exercise changed elsewhere. Reload and try again." };
+  await insertAuditEvent(scope, {
+    playerId,
+    action: "development_intervention.archived",
+    entityType: "idp_development_intervention",
+    entityId: intervention.id,
+    changedFields: ["status", "deleted_at", "deleted_by"],
+    beforeSummary: interventionAuditSummary(before),
+    afterSummary: interventionAuditSummary(intervention),
+  });
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, intervention, sync: sync.ok ? sync.payload : null } };
+}
+
 function statusPayload(actor) {
   return {
     ok: true,
@@ -635,25 +968,41 @@ async function handleIdpRequest(req, res, actor) {
             ? await reviewClipBank(body.clipBankItem || body, actor)
             : action === "add-evidence"
               ? await addEvidence(body.evidence || body, actor)
-              : action === "assign-owner"
-                ? await assignOwner(body.ownership || body, actor)
-                : action === "complete-review"
-                  ? await completeReview(body.review || body, actor)
-                  : { ok: false, status: 400, reason: "Unsupported IDP action." };
+              : action === "update-evidence"
+                ? await updateEvidence(body.evidence || body, actor)
+                : action === "delete-evidence"
+                  ? await deleteEvidence(body.evidence || body, actor)
+                  : action === "assign-owner"
+                    ? await assignOwner(body.ownership || body, actor)
+                    : action === "complete-review"
+                      ? await completeReview(body.review || body, actor)
+                      : action === "create-intervention"
+                        ? await createDevelopmentIntervention(body.intervention || body, actor)
+                        : action === "update-intervention"
+                          ? await updateDevelopmentIntervention(body.intervention || body, actor)
+                          : action === "archive-intervention"
+                            ? await archiveDevelopmentIntervention(body.intervention || body, actor)
+                            : { ok: false, status: 400, reason: "Unsupported IDP action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }
 
 module.exports = {
   IDP_SCHEMA,
   addEvidence,
+  archiveDevelopmentIntervention,
   assignOwner,
   buildSyncMeta,
   completeReview,
+  createDevelopmentIntervention,
   createFocus,
   dashboardStatus,
+  deleteEvidence,
   getSyncStatus,
   handleIdpRequest,
   normalizeCategory,
   reviewClipBank,
+  updateDevelopmentIntervention,
+  updateEvidence,
+  updateFocus,
   upsertClipBankItem,
 };

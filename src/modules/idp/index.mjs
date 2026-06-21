@@ -219,6 +219,129 @@ function runAction(action) {
     .catch(setError);
 }
 
+function clampBoardPercent(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(100, Math.max(0, Math.round(number * 10) / 10)) : 50;
+}
+
+function boardPointFromEvent(event, pitch) {
+  const rect = pitch?.getBoundingClientRect?.();
+  if (!rect?.width || !rect?.height) return null;
+  return {
+    x: clampBoardPercent(((event.clientX - rect.left) / rect.width) * 100),
+    y: clampBoardPercent(((event.clientY - rect.top) / rect.height) * 100),
+  };
+}
+
+function setBoardFormValue(modal, name, value) {
+  const input = modal?.querySelector?.(`[name="${name}"]`);
+  if (!input) return;
+  input.value = String(value ?? "");
+}
+
+function boardFormNumber(modal, name, fallback) {
+  const value = Number(modal?.querySelector?.(`[name="${name}"]`)?.value);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function ensureBoardNotePin(pitch, text = "Coach note") {
+  let note = pitch?.querySelector?.(".idp-player-board-note-pin");
+  if (note || !pitch) return note;
+  const doc = pitch.ownerDocument || getDocument(runtime);
+  note = doc?.createElement?.("span");
+  if (!note) return null;
+  note.className = "idp-player-board-note-pin";
+  note.textContent = text;
+  pitch.appendChild(note);
+  return note;
+}
+
+function setMarkerPosition(marker, point) {
+  if (!marker || !point) return;
+  marker.style.left = `${point.x}%`;
+  marker.style.top = `${point.y}%`;
+}
+
+function applyBoardPitchPoint(event, pitch) {
+  const modal = pitch?.closest?.(".idp-player-board-modal");
+  const point = boardPointFromEvent(event, pitch);
+  if (!modal || !point) return false;
+  const tool = modal.dataset.idpBoardActiveTool || "player";
+  if (tool === "player") {
+    setBoardFormValue(modal, "playerX", point.x);
+    setBoardFormValue(modal, "playerY", point.y);
+    setMarkerPosition(pitch.querySelector(".idp-player-board-player"), point);
+    return true;
+  }
+  if (tool === "reference") {
+    setBoardFormValue(modal, "referenceX", point.x);
+    setBoardFormValue(modal, "referenceY", point.y);
+    setMarkerPosition(pitch.querySelector(".idp-player-board-reference"), point);
+    return true;
+  }
+  if (tool === "zone") {
+    const width = boardFormNumber(modal, "zoneWidth", 32);
+    const height = boardFormNumber(modal, "zoneHeight", 28);
+    const zonePoint = {
+      x: clampBoardPercent(point.x - width / 2),
+      y: clampBoardPercent(point.y - height / 2),
+    };
+    setBoardFormValue(modal, "zoneX", zonePoint.x);
+    setBoardFormValue(modal, "zoneY", zonePoint.y);
+    const zone = pitch.querySelector(".idp-player-board-zone");
+    if (zone) {
+      zone.style.left = `${zonePoint.x}%`;
+      zone.style.top = `${zonePoint.y}%`;
+      zone.style.width = `${width}%`;
+      zone.style.height = `${height}%`;
+    }
+    return true;
+  }
+  if (tool === "arrow") {
+    const line = pitch.querySelector(".idp-player-board-arrow-layer line");
+    if (modal.dataset.idpBoardArrowStart === "1") {
+      setBoardFormValue(modal, "arrowToX", point.x);
+      setBoardFormValue(modal, "arrowToY", point.y);
+      line?.setAttribute?.("x2", String(point.x));
+      line?.setAttribute?.("y2", String(point.y));
+      delete modal.dataset.idpBoardArrowStart;
+      return true;
+    }
+    setBoardFormValue(modal, "arrowFromX", point.x);
+    setBoardFormValue(modal, "arrowFromY", point.y);
+    setBoardFormValue(modal, "arrowToX", point.x);
+    setBoardFormValue(modal, "arrowToY", point.y);
+    line?.setAttribute?.("x1", String(point.x));
+    line?.setAttribute?.("y1", String(point.y));
+    line?.setAttribute?.("x2", String(point.x));
+    line?.setAttribute?.("y2", String(point.y));
+    modal.dataset.idpBoardArrowStart = "1";
+    return true;
+  }
+  if (tool === "note") {
+    const noteText = modal.querySelector?.('[name="noteText"]');
+    if (noteText && !String(noteText.value || "").trim()) noteText.value = "Coach note";
+    setBoardFormValue(modal, "noteX", point.x);
+    setBoardFormValue(modal, "noteY", point.y);
+    const note = ensureBoardNotePin(pitch, noteText?.value || "Coach note");
+    setMarkerPosition(note, point);
+    return true;
+  }
+  return false;
+}
+
+function selectBoardTool(toolButton) {
+  const modal = toolButton?.closest?.(".idp-player-board-modal");
+  const tool = toolButton?.dataset?.idpBoardTool || "player";
+  if (!modal) return false;
+  modal.dataset.idpBoardActiveTool = tool;
+  delete modal.dataset.idpBoardArrowStart;
+  modal.querySelectorAll?.("[data-idp-board-tool]")?.forEach((button) => {
+    button.classList.toggle("is-active", button === toolButton);
+  });
+  return true;
+}
+
 export function render(context = {}) {
   const activeRuntime = ensureRuntime(context);
   paint(activeRuntime);
@@ -270,6 +393,19 @@ export function handleClick(event) {
     if (filter === "category") uiPatch.categoryFilter = value || "All";
     if (filter === "owner") uiPatch.ownerFilter = value || "All";
     runtime?.store.setState({ ui: uiPatch });
+    return;
+  }
+  if (!event?.target?.closest?.(".idp-stage-actions")) {
+    getRoot(runtime?.context)?.querySelectorAll?.(".idp-stage-actions[open]")?.forEach((node) => {
+      node.removeAttribute("open");
+    });
+  }
+  const backTrigger = event?.target?.closest?.("[data-idp-back-overview]");
+  if (backTrigger) {
+    event?.preventDefault?.();
+    revokePreviewUrl(runtime);
+    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", actionMode: "", editEvidenceId: "", playerBoardOpen: false, playerBoardInterventionId: "", error: "", message: "" } });
+    scrollWorkspaceTop(runtime);
     return;
   }
   const openFilterMenu = runtime?.store.getState?.()?.ui?.openFilterMenu || "";
@@ -331,14 +467,79 @@ export function handleClick(event) {
   }
   const closeActionTrigger = event?.target?.closest?.("[data-idp-close-action]");
   if (closeActionTrigger || event?.target?.matches?.("[data-idp-action-layer]")) {
-    runtime?.store.setState({ ui: { actionMode: "" } });
+    runtime?.store.setState({ ui: { actionMode: "", editEvidenceId: "" } });
     return;
   }
-  const backTrigger = event?.target?.closest?.("[data-idp-back-overview]");
-  if (backTrigger) {
-    revokePreviewUrl(runtime);
-    runtime?.store.setState({ ui: { selectedPlayerId: "", actionMode: "", error: "", message: "" } });
-    scrollWorkspaceTop(runtime);
+  const boardToolTrigger = event?.target?.closest?.("[data-idp-board-tool]");
+  if (boardToolTrigger) {
+    event?.preventDefault?.();
+    selectBoardTool(boardToolTrigger);
+    return;
+  }
+  const boardEditorPitch = event?.target?.closest?.("[data-idp-board-editor-pitch]");
+  if (boardEditorPitch) {
+    event?.preventDefault?.();
+    if (applyBoardPitchPoint(event, boardEditorPitch)) return;
+  }
+  const playerBoardClose = event?.target?.closest?.("[data-idp-player-board-close]");
+  if (playerBoardClose || event?.target?.matches?.("[data-idp-player-board-layer]")) {
+    event?.preventDefault?.();
+    runtime?.store.setState({ ui: { playerBoardOpen: false, playerBoardInterventionId: "" } });
+    return;
+  }
+  const playerBoardNew = event?.target?.closest?.("[data-idp-player-board-new]");
+  if (playerBoardNew) {
+    event?.preventDefault?.();
+    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: "__new", actionMode: "", error: "", message: "" } });
+    return;
+  }
+  const playerBoardOpen = event?.target?.closest?.("[data-idp-player-board-open]");
+  if (playerBoardOpen) {
+    event?.preventDefault?.();
+    runtime?.store.setState({ ui: { playerBoardOpen: true, actionMode: "", error: "", message: "" } });
+    return;
+  }
+  const playerBoardSelect = event?.target?.closest?.("[data-idp-player-board-select]");
+  if (playerBoardSelect) {
+    event?.preventDefault?.();
+    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: playerBoardSelect.dataset.idpPlayerBoardSelect || "" } });
+    return;
+  }
+  const playerBoardLinkClip = event?.target?.closest?.("[data-idp-player-board-link-clip]");
+  if (playerBoardLinkClip) {
+    event?.preventDefault?.();
+    runtime?.store.setState({ ui: { actionMode: "evidence", playerBoardOpen: false, message: "Link a clip by marking it as IDP observation from Clip Bank." } });
+    return;
+  }
+  const archiveIntervention = event?.target?.closest?.("[data-idp-archive-intervention]");
+  if (archiveIntervention) {
+    event?.preventDefault?.();
+    const win = runtime?.context?.win || globalThis;
+    const confirmed = typeof win.confirm === "function" ? win.confirm("Archive this individual exercise?") : true;
+    if (!confirmed) return;
+    runAction(() => runtime?.actions.archiveIntervention(archiveIntervention.dataset.idpArchiveIntervention || ""));
+    return;
+  }
+  const editEvidenceTrigger = event?.target?.closest?.("[data-idp-edit-evidence]");
+  if (editEvidenceTrigger) {
+    event?.preventDefault?.();
+    runtime?.store.setState({
+      ui: {
+        actionMode: "edit-evidence",
+        editEvidenceId: editEvidenceTrigger.dataset.idpEditEvidence || "",
+        error: "",
+        message: "",
+      },
+    });
+    return;
+  }
+  const deleteEvidenceTrigger = event?.target?.closest?.("[data-idp-delete-evidence]");
+  if (deleteEvidenceTrigger) {
+    event?.preventDefault?.();
+    const win = runtime?.context?.win || globalThis;
+    const confirmed = typeof win.confirm === "function" ? win.confirm("Delete this observation?") : true;
+    if (!confirmed) return;
+    runAction(() => runtime?.actions.deleteEvidence(deleteEvidenceTrigger.dataset.idpDeleteEvidence || ""));
     return;
   }
   const actionTrigger = event?.target?.closest?.("[data-idp-action]");
@@ -346,6 +547,7 @@ export function handleClick(event) {
     runtime?.store.setState({
       ui: {
         actionMode: actionTrigger.dataset.idpAction || "",
+        editEvidenceId: "",
         error: "",
         message: "",
       },
@@ -374,7 +576,7 @@ export function handleClick(event) {
 
 export function handleSubmit(event) {
   const form = event?.target;
-  if (!form?.matches?.("[data-idp-create-focus], [data-idp-add-evidence], [data-idp-complete-review], [data-idp-assign-owner]")) {
+  if (!form?.matches?.("[data-idp-create-focus], [data-idp-add-evidence], [data-idp-update-evidence], [data-idp-complete-review], [data-idp-assign-owner], [data-idp-save-intervention]")) {
     return;
   }
   event.preventDefault();
@@ -385,10 +587,16 @@ export function handleSubmit(event) {
   if (form.matches("[data-idp-add-evidence]")) {
     runAction(() => runtime?.actions.addEvidence(formData));
   }
+  if (form.matches("[data-idp-update-evidence]")) {
+    runAction(() => runtime?.actions.updateEvidence(formData));
+  }
   if (form.matches("[data-idp-complete-review]")) {
     runAction(() => runtime?.actions.completeReview(formData));
   }
   if (form.matches("[data-idp-assign-owner]")) {
     runAction(() => runtime?.actions.assignOwner(formData));
+  }
+  if (form.matches("[data-idp-save-intervention]")) {
+    runAction(() => runtime?.actions.saveIntervention(formData));
   }
 }

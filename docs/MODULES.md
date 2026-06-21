@@ -281,6 +281,7 @@ Current direction:
 
 - Build as `src/modules/idp`, backed by guarded `/api/idp` routes and `idp_*` database tables.
 - Keep browser state as UI cache only; IDP records are database-primary.
+- IDP Player Board and individual exercises belong to IDP through `idp_development_interventions`; they must not reuse Session Planner session/block state or become team-session data.
 - Clip Bank is automatic from Video Analysis player tags, but Evidence is curated by a coach.
 - Do not duplicate player identity from Squad or clip metadata from Video Analysis.
 - MVP must stay daily-coach-first: dashboard, player view, current focus, clip bank, mark evidence, short note, review date, next action, and timeline.

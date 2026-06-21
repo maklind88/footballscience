@@ -20,6 +20,11 @@ function normalizeNumber(value, fallback = 0) {
   return Number.isFinite(number) ? Math.max(0, Math.round(number)) : fallback;
 }
 
+function normalizeDecimal(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(100, Math.max(0, Math.round(number * 10) / 10)) : fallback;
+}
+
 function normalizeLabelList(values = []) {
   return Array.isArray(values)
     ? values.map((entry) => ({
@@ -33,6 +38,53 @@ function normalizeLabelList(values = []) {
 function pickOption(value, options, fallback) {
   const text = normalizeText(value, 80);
   return options.includes(text) ? text : fallback;
+}
+
+function normalizeBoardState(value = {}) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    schema: normalizeText(source.schema || "idp-player-board-v1", 80),
+    player: {
+      x: normalizeDecimal(source.player?.x, 50),
+      y: normalizeDecimal(source.player?.y, 70),
+    },
+    referencePlayers: Array.isArray(source.referencePlayers) ? source.referencePlayers.slice(0, 6).map((item = {}, index) => ({
+      id: normalizeText(item.id || `ref-${index + 1}`, 80),
+      label: normalizeText(item.label || "REF", 24),
+      x: normalizeDecimal(item.x, 50),
+      y: normalizeDecimal(item.y, 45),
+    })) : [],
+    cones: Array.isArray(source.cones) ? source.cones.slice(0, 12).map((item = {}, index) => ({
+      id: normalizeText(item.id || `cone-${index + 1}`, 80),
+      x: normalizeDecimal(item.x, 50),
+      y: normalizeDecimal(item.y, 50),
+    })) : [],
+    zones: Array.isArray(source.zones) ? source.zones.slice(0, 6).map((item = {}, index) => ({
+      id: normalizeText(item.id || `zone-${index + 1}`, 80),
+      label: normalizeText(item.label || "Development zone", 80),
+      x: normalizeDecimal(item.x, 36),
+      y: normalizeDecimal(item.y, 34),
+      width: normalizeDecimal(item.width, 28),
+      height: normalizeDecimal(item.height, 22),
+    })) : [],
+    arrows: Array.isArray(source.arrows) ? source.arrows.slice(0, 8).map((item = {}, index) => ({
+      id: normalizeText(item.id || `arrow-${index + 1}`, 80),
+      label: normalizeText(item.label || "Movement", 80),
+      from: { x: normalizeDecimal(item.from?.x, 45), y: normalizeDecimal(item.from?.y, 70) },
+      to: { x: normalizeDecimal(item.to?.x, 60), y: normalizeDecimal(item.to?.y, 44) },
+    })) : [],
+    notes: Array.isArray(source.notes) ? source.notes.slice(0, 6).map((item = {}, index) => ({
+      id: normalizeText(item.id || `note-${index + 1}`, 80),
+      text: normalizeText(item.text, 220),
+      x: normalizeDecimal(item.x, 12),
+      y: normalizeDecimal(item.y, 14),
+    })).filter((item) => item.text) : [],
+    frames: Array.isArray(source.frames) ? source.frames.slice(0, 8).map((item = {}, index) => ({
+      id: normalizeText(item.id || `frame-${index + 1}`, 80),
+      label: normalizeText(item.label || `Frame ${index + 1}`, 80),
+    })) : [],
+    linkedClipIds: Array.isArray(source.linkedClipIds) ? source.linkedClipIds.slice(0, 12).map((item) => normalizeText(item, 160)).filter(Boolean) : [],
+  };
 }
 
 export function normalizeIdpProfile(value = {}) {
@@ -149,5 +201,27 @@ export function normalizeIdpMilestone(value = {}) {
     milestoneType: normalizeText(value.milestoneType || value.milestone_type || value.title, 160),
     title: normalizeText(value.title || value.milestoneType || value.milestone_type, 180),
     occurredOn: normalizeDate(value.occurredOn || value.occurred_on) || normalizeDate(value.createdAt || value.created_at),
+    sourceModule: normalizeText(value.sourceModule || value.source_module || "idp", 80),
+    sourceId: normalizeText(value.sourceId || value.source_id, 160),
+    createdBy: normalizeText(value.createdBy || value.created_by, 160),
+    createdAt: normalizeText(value.createdAt || value.created_at, 80),
+  };
+}
+
+export function normalizeIdpDevelopmentIntervention(value = {}) {
+  return {
+    id: normalizeText(value.id, 120),
+    playerId: normalizeText(value.playerId || value.player_id, 160),
+    focusId: normalizeText(value.focusId || value.focus_id, 160),
+    title: normalizeText(value.title || "Individual exercise", 180),
+    objective: normalizeText(value.objective, 800),
+    pitchMode: normalizeText(value.pitchMode || value.pitch_mode || "half", 40),
+    boardState: normalizeBoardState(value.boardState || value.board_state),
+    status: normalizeText(value.status || "active", 40),
+    rowVersion: Number(value.rowVersion || value.row_version || 1) || 1,
+    createdBy: normalizeText(value.createdBy || value.created_by, 160),
+    updatedBy: normalizeText(value.updatedBy || value.updated_by, 160),
+    createdAt: normalizeText(value.createdAt || value.created_at, 80),
+    updatedAt: normalizeText(value.updatedAt || value.updated_at, 80),
   };
 }

@@ -169,10 +169,10 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 
 - `id`: `idp`
 - `purpose`: daily player development system for current focus, curated evidence, clip-bank review, lightweight reviews, next actions, staff ownership, and development timeline.
-- `data`: database-primary records in `idp_profiles`, `idp_development_areas`, `idp_focuses`, `idp_clip_bank_items`, `idp_evidence`, `idp_reviews`, `idp_next_actions`, `idp_milestones`, `idp_staff_ownership`, and `idp_audit_events`; no protected browser storage key.
+- `data`: database-primary records in `idp_profiles`, `idp_development_areas`, `idp_focuses`, `idp_development_interventions`, `idp_clip_bank_items`, `idp_evidence`, `idp_reviews`, `idp_next_actions`, `idp_milestones`, `idp_staff_ownership`, and `idp_audit_events`; no protected browser storage key.
 - `api`: `/api/idp` is the frontend data path. UI components must not call Supabase directly.
 - `permissions`: platform/club/team admin, coach, analyst, scout, performance, and medical can read according to workspace access; platform/club/team admin, coach, and analyst can write; destructive actions remain admin/coach scoped and soft-delete only.
-- `events`: focus updated, clip bank reviewed, evidence added, review completed, next action updated, milestone created.
+- `events`: focus updated, individual intervention created/updated/archived, clip bank reviewed, evidence added, review completed, next action updated, milestone created.
 - `qa`: schema, API payload safety, module boundary, permission matrix, no direct component database access, clip-bank idempotency, and MVP renderer contracts must stay green before release.
 - `migration`: IDP references Squad player identity and Video Analysis clips. Existing lightweight Squad IDP fields remain compatibility context until database reads and rollback are proven.
 

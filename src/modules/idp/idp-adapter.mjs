@@ -1,5 +1,6 @@
 import {
   normalizeIdpFocus,
+  normalizeIdpDevelopmentIntervention,
   normalizeIdpMilestone,
   normalizeIdpNextAction,
   normalizeIdpProfile,
@@ -90,6 +91,22 @@ export function buildLegacyPlayerDetail(player = {}) {
     nextActions: idpInactive ? [] : [normalizeIdpNextAction({ playerId, title: idp.nextAction || "Add evidence" })],
     milestones: [normalizeIdpMilestone({ playerId, title: "IDP Started", occurredOn: player.createdAt })],
     ownership: [],
+    interventions: idpInactive ? [] : [normalizeIdpDevelopmentIntervention({
+      playerId,
+      focusId: focus?.id || "",
+      title: `${focus?.title || "IDP"} intervention`,
+      objective: idp.focusAreas || "",
+      pitchMode: player.position === "Goalkeeper" || player.primaryRole === "GK" ? "box" : "half",
+      status: "active",
+      boardState: {
+        player: { x: player.position === "Goalkeeper" || player.primaryRole === "GK" ? 50 : 52, y: player.position === "Goalkeeper" || player.primaryRole === "GK" ? 82 : 68 },
+        referencePlayers: [{ label: "REF", x: 50, y: 46 }],
+        cones: [{ x: 40, y: 58 }, { x: 60, y: 58 }, { x: 50, y: 38 }],
+        zones: [{ label: focus?.category || "Development zone", x: 34, y: 28, width: 32, height: 28 }],
+        arrows: [{ label: "Action path", from: { x: 50, y: 70 }, to: { x: 62, y: 42 } }],
+        frames: [{ label: "Start" }],
+      },
+    })],
   };
 }
 

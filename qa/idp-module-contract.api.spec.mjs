@@ -21,6 +21,7 @@ test("idp module keeps the required isolated file structure", () => {
     "src/modules/idp/idp-adapter.mjs",
     "src/modules/idp/idp-clip-bank-renderer.mjs",
     "src/modules/idp/idp-clip-preview-controller.mjs",
+    "src/modules/idp/idp-player-board-renderer.mjs",
     "src/modules/idp/idp-renderer.mjs",
     "src/modules/idp/idp-state.mjs",
     "src/modules/idp/idp.css",
@@ -46,6 +47,53 @@ test("idp UI modules avoid direct database access and use only the API service f
   expect(read("src/modules/idp/services/idp-api-service.mjs")).toContain("/api/idp");
   expect(read("api/idp.js")).toContain('route: "/api/idp"');
   expect(read("api/idp.js")).toContain('moduleId: "idp"');
+});
+
+test("idp evidence edits and deletes stay behind the server-owned database boundary", () => {
+  const apiService = read("src/modules/idp/services/idp-api-service.mjs");
+  const databaseSource = read("api/_lib/idp-database.js");
+
+  expect(apiService).toContain('action: "update-evidence"');
+  expect(apiService).toContain('action: "delete-evidence"');
+  expect(databaseSource).toContain("async function updateEvidence");
+  expect(databaseSource).toContain("async function deleteEvidence");
+  expect(databaseSource).toContain('patchRows("idp_evidence"');
+  expect(databaseSource).toContain("deleted_at: new Date().toISOString()");
+  expect(databaseSource).toContain("deleted_by: scope.actorId");
+  expect(databaseSource).not.toContain('deleteRows("idp_evidence"');
+});
+
+test("idp player board interventions are IDP-owned and server-versioned", () => {
+  const apiService = read("src/modules/idp/services/idp-api-service.mjs");
+  const databaseSource = read("api/_lib/idp-database.js");
+  const migration = read("supabase/migrations/20260621230015_add_idp_development_interventions.sql");
+  const playerBoardRenderer = read("src/modules/idp/idp-player-board-renderer.mjs");
+  const idpRuntime = read("src/modules/idp/index.mjs");
+
+  expect(apiService).toContain('action: "create-intervention"');
+  expect(apiService).toContain('action: "update-intervention"');
+  expect(apiService).toContain('action: "archive-intervention"');
+  expect(databaseSource).toContain("idp_development_interventions");
+  expect(databaseSource).toContain("async function createDevelopmentIntervention");
+  expect(databaseSource).toContain("async function updateDevelopmentIntervention");
+  expect(databaseSource).toContain("async function archiveDevelopmentIntervention");
+  expect(databaseSource).toContain("row_version");
+  expect(databaseSource).toContain("insertAuditEvent");
+  expect(databaseSource).toContain("OPTIONAL_MIGRATION_TABLES");
+  expect(databaseSource).toContain("isMissingOptionalTable");
+  expect(migration).toContain("create table if not exists public.idp_development_interventions");
+  expect(migration).toContain("board_state jsonb");
+  expect(migration).toContain("alter table public.idp_development_interventions enable row level security");
+  expect(migration).toContain("revoke all on public.idp_development_interventions from anon, authenticated");
+  expect(migration).toContain("grant select, insert, update, delete on public.idp_development_interventions to service_role");
+  expect(migration).toContain("idp_development_interventions_prevent_hard_delete");
+  expect(playerBoardRenderer).toContain("data-idp-player-board-open");
+  expect(playerBoardRenderer).toContain("data-idp-save-intervention");
+  expect(playerBoardRenderer).toContain("data-idp-board-tool");
+  expect(playerBoardRenderer).toContain("data-idp-board-editor-pitch");
+  expect(idpRuntime).toContain("applyBoardPitchPoint");
+  expect(idpRuntime).toContain("selectBoardTool");
+  expect(playerBoardRenderer).not.toContain("data-session-");
 });
 
 test("idp renderer separates the overview from the player development profile", () => {
@@ -80,6 +128,24 @@ test("idp renderer separates the overview from the player development profile", 
   state.dashboardPlayers[0].profile.ownerId = "coach-1";
   state.playerDetail.profile.ownerId = "coach-1";
   state.playerDetail.ownership = [{ owner_id: "coach-1", ownership_type: "player-owner", status: "active" }];
+  state.playerDetail.evidence = Array.from({ length: 8 }, (_, index) => ({
+    id: `evidence-${index + 1}`,
+    playerId: "p1",
+    focusId: "legacy-focus-p1",
+    evidenceType: "Coach Note",
+    note: index === 7 ? "Observation eight is visible." : `Observation ${index + 1}`,
+    createdAt: "2026-06-16T10:00:00.000Z",
+  }));
+  state.playerDetail.milestones = Array.from({ length: 7 }, (_, index) => ({
+    id: `milestone-${index + 1}`,
+    playerId: "p1",
+    focusId: "legacy-focus-p1",
+    milestoneType: index === 0 ? "First Evidence Added" : "Current Focus Updated",
+    title: index === 0 ? "Evidence added" : `Timeline update ${index + 1}`,
+    occurredOn: `2026-06-${String(16 - index).padStart(2, "0")}`,
+    sourceModule: "idp",
+    createdBy: "coach-1",
+  }));
   const overviewHtml = renderIdpWorkspace(state, staffOptions);
 
   expect(overviewHtml).toContain("data-idp-player=\"p1\"");
@@ -100,19 +166,26 @@ test("idp renderer separates the overview from the player development profile", 
   const profileState = { ...state, ui: { ...state.ui, selectedPlayerId: "p1" } };
   const profileHtml = renderIdpWorkspace(profileState, staffOptions);
 
-  expect(profileHtml).toContain("Player Development Profile");
   expect(profileHtml).toContain("data-idp-back-overview");
+  expect(profileHtml).toContain("idp-stage-actions");
+  expect(profileHtml.indexOf("idp-stage-actions")).toBeLessThan(profileHtml.indexOf("data-idp-back-overview"));
   expect(profileHtml).toContain("data-idp-action=\"ownership\"");
   expect(profileHtml).toContain("data-idp-action=\"focus\"");
   expect(profileHtml).toContain("data-idp-action=\"evidence\"");
   expect(profileHtml).toContain("Quick actions");
+  expect(profileHtml).toContain("Assign Coach");
+  expect(profileHtml).toContain("Update Focus");
+  expect(profileHtml).toContain("Add Observation");
+  expect(profileHtml).toContain("Complete Review");
+  expect(profileHtml).not.toContain("idp-profile-actions-deck");
   expect(profileHtml).not.toContain("idp-summary-strip");
   expect(profileHtml).not.toContain("Player development overview");
-  expect(profileHtml).toContain("Player Snapshot");
+  expect(profileHtml).not.toContain("Player Development Profile");
+  expect(profileHtml).not.toContain("Player Snapshot");
   expect(profileHtml).toContain("idp-focus-clarity-card");
   expect(profileHtml).toContain("Coach cue");
   expect(profileHtml).not.toContain("Receive under pressure so the player");
-  expect(profileHtml).toContain("Progress Pulse");
+  expect(profileHtml).toContain("IDP Player Board");
   expect(profileHtml).not.toContain("idp-stage-scoreboard");
   expect(profileHtml).not.toContain("Player development pulse");
   expect(profileHtml).toContain("Success Criteria");
@@ -120,17 +193,35 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("Signal Map");
   expect(profileHtml).toContain("Player Voice");
   expect(profileHtml).toContain("idp-focus-coach-cue");
+  expect(profileHtml).toContain("IDP Player Board");
+  expect(profileHtml).toContain("data-idp-player-board-open");
+  expect(profileHtml).toContain("New Individual Exercise");
+  expect(profileHtml).toContain("Edit Board");
+  expect(profileHtml).toContain("Link Clip");
+  expect(profileHtml).not.toContain("Progress Pulse");
   expect(profileHtml).toContain("Add observation");
   expect(profileHtml).toContain("Observations");
+  expect(profileHtml).toContain("8 captured signals");
+  expect(profileHtml).toContain("Observation eight is visible.");
+  expect(profileHtml).toContain('data-idp-edit-evidence="evidence-1"');
+  expect(profileHtml).toContain('data-idp-delete-evidence="evidence-1"');
   expect(profileHtml).not.toContain('data-idp-action="evidence" title="Add observation" disabled');
   expect(profileHtml).toContain("Clip Bank");
   expect(profileHtml).toContain("Development Timeline");
-  expect(profileHtml).toContain("Primary IDP Coach");
-  expect(profileHtml).toContain("Current Focus Owner");
+  expect(profileHtml).toContain("5 latest updates");
+  expect(profileHtml).toContain("data-idp-timeline-more");
+  expect(profileHtml).toContain("Show more");
+  expect(profileHtml).toContain("<strong>2</strong>");
+  expect(profileHtml).toContain("By Mak Lind");
+  expect(profileHtml).toContain("Observation added");
+  expect(profileHtml).not.toContain("idp-ownership-studio");
+  expect(profileHtml).not.toContain("Primary IDP Coach");
+  expect(profileHtml).not.toContain("Current Focus Owner");
 
   const assignmentHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "ownership" } }, staffOptions);
   expect(assignmentHtml).toContain("data-idp-assign-owner");
   expect(assignmentHtml).toContain("Assign IDP Coach");
+  expect(assignmentHtml).toContain("Primary IDP Coach");
   expect(assignmentHtml).toContain("Save assignment");
   expect(assignmentHtml).not.toContain("Video Analyst");
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "focus" } }, staffOptions)).toContain("data-idp-create-focus");
@@ -139,6 +230,29 @@ test("idp renderer separates the overview from the player development profile", 
   expect(observationHtml).toContain("Observation type");
   expect(observationHtml).toContain("Add observation");
   expect(observationHtml).not.toContain("<button type=\"submit\" disabled>Add observation</button>");
+  const editObservationHtml = renderIdpWorkspace(
+    { ...profileState, ui: { ...profileState.ui, actionMode: "edit-evidence", editEvidenceId: "evidence-2" } },
+    staffOptions
+  );
+  expect(editObservationHtml).toContain("data-idp-update-evidence");
+  expect(editObservationHtml).toContain('name="evidenceId" value="evidence-2"');
+  expect(editObservationHtml).toContain("Observation 2");
+  expect(editObservationHtml).toContain("Save observation");
+  const readOnlyHtml = renderIdpWorkspace(profileState, { ...staffOptions, canEdit: false });
+  expect(readOnlyHtml).not.toContain("data-idp-edit-evidence");
+  expect(readOnlyHtml).not.toContain("data-idp-delete-evidence");
+  const boardHtml = renderIdpWorkspace(
+    { ...profileState, ui: { ...profileState.ui, playerBoardOpen: true, playerBoardInterventionId: "__new" } },
+    staffOptions
+  );
+  expect(boardHtml).toContain("data-idp-player-board-layer");
+  expect(boardHtml).toContain("data-idp-save-intervention");
+  expect(boardHtml).toContain("data-idp-board-editor-pitch");
+  expect(boardHtml).toContain("data-idp-board-tool=\"player\"");
+  expect(boardHtml).toContain("data-idp-board-tool=\"arrow\"");
+  expect(boardHtml).toContain("Move Player");
+  expect(boardHtml).toContain("Arrow / Run");
+  expect(boardHtml).toContain("Linked clip ids");
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, staffOptions)).toContain("data-idp-complete-review");
 });
 
@@ -237,6 +351,169 @@ test("idp observation creates a saved focus when the player only has a Squad fal
     sourceModule: "idp",
   });
   expect(store.getState().ui.message).toBe("Observation added.");
+});
+
+test("idp observation edit and delete stay server-owned and refresh the selected player", async () => {
+  const player = {
+    id: "p1",
+    name: "Kailen Sheridan",
+    position: "Goalkeeper",
+    primaryRole: "GK",
+    idp: { primaryFocus: "Distribution under pressure", nextAction: "Add observation" },
+  };
+  const detail = buildLegacyPlayerDetail(player);
+  detail.focuses = [{ id: "server-focus", playerId: "p1", title: "Distribution under pressure", status: "Active" }];
+  detail.evidence = [{ id: "evidence-1", playerId: "p1", focusId: "server-focus", evidenceType: "Coach Note", note: "Original note" }];
+  const store = createIdpStore({
+    ui: { selectedPlayerId: "p1" },
+    playerDetail: detail,
+  });
+  const updatePayloads = [];
+  const deletePayloads = [];
+  let loadPlayerCalls = 0;
+  const api = {
+    updateEvidence: async (payload) => {
+      updatePayloads.push(payload);
+      return { schema: "footballscience-idp-v1", evidence: { ...payload, evidence_type: payload.evidenceType } };
+    },
+    deleteEvidence: async (payload) => {
+      deletePayloads.push(payload);
+      return { schema: "footballscience-idp-v1", evidence: { id: payload.id, player_id: payload.playerId, deleted_at: "2026-06-16T11:00:00.000Z" } };
+    },
+    loadDashboard: async () => ({ schema: "footballscience-idp-v1", players: [] }),
+    loadPlayer: async () => {
+      loadPlayerCalls += 1;
+      return {
+        schema: "footballscience-idp-v1",
+        profile: { id: "profile-p1", player_id: "p1" },
+        focuses: [{ id: "server-focus", player_id: "p1", title: "Distribution under pressure", status: "Active" }],
+        clipBank: [],
+        evidence: [],
+        reviews: [],
+        nextActions: [],
+        milestones: [],
+        ownership: [],
+      };
+    },
+  };
+  const actions = createIdpActions({
+    store,
+    api,
+    context: { getPlayerProfilesState: () => ({ players: [player] }) },
+  });
+
+  await actions.updateEvidence({
+    get: (key) => {
+      if (key === "evidenceId") return "evidence-1";
+      if (key === "evidenceType") return "Coach Note";
+      if (key === "note") return "Edited note";
+      return "";
+    },
+  });
+  await actions.deleteEvidence("evidence-1");
+
+  expect(updatePayloads[0]).toMatchObject({ id: "evidence-1", playerId: "p1", evidenceType: "Coach Note", note: "Edited note" });
+  expect(deletePayloads[0]).toMatchObject({ id: "evidence-1", playerId: "p1" });
+  expect(loadPlayerCalls).toBe(2);
+  expect(store.getState().ui.message).toBe("Observation deleted.");
+});
+
+test("idp individual exercise save and archive stay behind the server boundary", async () => {
+  const player = {
+    id: "p1",
+    name: "Kailen Sheridan",
+    position: "Goalkeeper",
+    primaryRole: "GK",
+    idp: { primaryFocus: "Distribution under pressure", nextAction: "Add observation" },
+  };
+  const detail = buildLegacyPlayerDetail(player);
+  detail.focuses = [{ id: "server-focus", playerId: "p1", title: "Distribution under pressure", status: "Active" }];
+  detail.interventions = [{ id: "intervention-1", playerId: "p1", focusId: "server-focus", title: "Existing board", rowVersion: 3, boardState: { player: { x: 50, y: 70 } } }];
+  const store = createIdpStore({
+    ui: { selectedPlayerId: "p1" },
+    playerDetail: detail,
+  });
+  const createPayloads = [];
+  const updatePayloads = [];
+  const archivePayloads = [];
+  const api = {
+    createIntervention: async (payload) => {
+      createPayloads.push(payload);
+      return { schema: "footballscience-idp-v1", intervention: { id: "intervention-2", row_version: 1, ...payload } };
+    },
+    updateIntervention: async (payload) => {
+      updatePayloads.push(payload);
+      return { schema: "footballscience-idp-v1", intervention: { id: payload.id, row_version: 4, ...payload } };
+    },
+    archiveIntervention: async (payload) => {
+      archivePayloads.push(payload);
+      return { schema: "footballscience-idp-v1", intervention: { id: payload.id, status: "archived" } };
+    },
+    loadDashboard: async () => ({ schema: "footballscience-idp-v1", players: [] }),
+    loadPlayer: async () => ({
+      schema: "footballscience-idp-v1",
+      profile: { id: "profile-p1", player_id: "p1" },
+      focuses: [{ id: "server-focus", player_id: "p1", title: "Distribution under pressure", status: "Active" }],
+      clipBank: [],
+      evidence: [],
+      reviews: [],
+      nextActions: [],
+      milestones: [],
+      ownership: [],
+      interventions: [{ id: "intervention-1", player_id: "p1", focus_id: "server-focus", title: "Existing board", row_version: 3, board_state: { player: { x: 50, y: 70 } } }],
+    }),
+  };
+  const actions = createIdpActions({
+    store,
+    api,
+    context: { getPlayerProfilesState: () => ({ players: [player] }) },
+  });
+  const form = new Map([
+    ["interventionId", "intervention-1"],
+    ["focusId", "server-focus"],
+    ["rowVersion", "3"],
+    ["title", "Distribution board"],
+    ["objective", "Rehearse claiming space."],
+    ["pitchMode", "box"],
+    ["status", "active"],
+    ["playerX", "50"],
+    ["playerY", "82"],
+    ["referenceLabel", "CB"],
+    ["referenceX", "45"],
+    ["referenceY", "58"],
+    ["zoneLabel", "Claiming zone"],
+    ["zoneX", "34"],
+    ["zoneY", "28"],
+    ["zoneWidth", "32"],
+    ["zoneHeight", "28"],
+    ["arrowLabel", "Attack ball"],
+    ["arrowFromX", "50"],
+    ["arrowFromY", "82"],
+    ["arrowToX", "58"],
+    ["arrowToY", "42"],
+    ["noteText", "Start from match cue."],
+    ["noteX", "12"],
+    ["noteY", "14"],
+    ["frameLabel", "Frame one"],
+    ["linkedClipIds", "clip-1, clip-2"],
+  ]);
+
+  await actions.saveIntervention(form);
+  await actions.archiveIntervention("intervention-1");
+
+  expect(createPayloads).toHaveLength(0);
+  expect(updatePayloads[0]).toMatchObject({
+    id: "intervention-1",
+    playerId: "p1",
+    focusId: "server-focus",
+    rowVersion: "3",
+    pitchMode: "box",
+  });
+  expect(updatePayloads[0].boardState).toMatchObject({
+    player: { x: 50, y: 82 },
+    linkedClipIds: ["clip-1", "clip-2"],
+  });
+  expect(archivePayloads[0]).toMatchObject({ id: "intervention-1", playerId: "p1", rowVersion: 3 });
 });
 
 test("idp clip bank is a date-sorted organizer with play queue metadata", () => {
@@ -605,6 +882,39 @@ test("idp module exports the workspace runtime handlers", async () => {
   for (const exportName of ["render", "handleClick", "handleInput", "handleChange", "handleSubmit"]) {
     expect(typeof module[exportName], exportName).toBe("function");
   }
+});
+
+test("idp profile overview navigation is not blocked by stale filter state", async () => {
+  const indexSource = read("src/modules/idp/index.mjs");
+  expect(indexSource.indexOf("const backTrigger = event?.target?.closest?.(\"[data-idp-back-overview]\")"))
+    .toBeLessThan(indexSource.indexOf("const openFilterMenu = runtime?.store.getState?.()?.ui?.openFilterMenu"));
+  expect(indexSource).toContain(".idp-stage-actions[open]");
+  expect(indexSource).toContain('openFilterMenu: "", selectedPlayerId: "", actionMode: "", editEvidenceId: "", playerBoardOpen: false, playerBoardInterventionId: "", error: "", message: ""');
+
+  const store = createIdpStore({ ui: { openFilterMenu: "owner" } });
+  const actions = createIdpActions({
+    store,
+    api: {
+      loadPlayer: async () => ({
+        profile: { playerId: "p1", playerName: "Player One", position: "FW", role: "9" },
+        focuses: [],
+        clipBank: [],
+        evidence: [],
+        reviews: [],
+        nextActions: [],
+        milestones: [],
+        ownership: [],
+      }),
+    },
+    context: {
+      getPlayerProfilesState: () => ({ players: [{ id: "p1", name: "Player One", position: "FW", primaryRole: "9" }] }),
+    },
+  });
+
+  await actions.selectPlayer("p1");
+
+  expect(store.getState().ui.selectedPlayerId).toBe("p1");
+  expect(store.getState().ui.openFilterMenu).toBe("");
 });
 
 test("idp search keeps focus and cursor position while filtering rerenders the overview", async () => {

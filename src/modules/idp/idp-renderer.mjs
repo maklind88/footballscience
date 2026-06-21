@@ -7,6 +7,10 @@ import {
   renderClipBankOrganizer,
   renderIdpClipPreviewOverlay,
 } from "./idp-clip-bank-renderer.mjs";
+import {
+  renderIdpPlayerBoardOverlay,
+  renderIdpPlayerBoardPanel,
+} from "./idp-player-board-renderer.mjs";
 
 const defaultUiState = Object.freeze({
   selectedPlayerId: "",
@@ -20,6 +24,8 @@ const defaultUiState = Object.freeze({
   error: "",
   loading: false,
 });
+
+const profileTimelinePreviewLimit = 5;
 
 function escapeHtml(value = "") {
   return String(value ?? "")
@@ -106,6 +112,24 @@ function formatStaffName(ownerId = "", options = {}) {
   if (!user) return id;
   const formatter = typeof options.formatUserName === "function" ? options.formatUserName : defaultFormatUserName;
   return normalizeText(formatter(user), defaultFormatUserName(user));
+}
+
+function isLikelyTechnicalId(value = "") {
+  return /^[0-9a-f-]{24,}$/i.test(String(value || ""));
+}
+
+function timelineActorLabel(milestone = {}, options = {}) {
+  const actorId = normalizeText(milestone.createdBy || milestone.created_by, "");
+  if (!actorId) return "Actor not captured";
+  const actorLabel = formatStaffName(actorId, options);
+  if (actorLabel === actorId && isLikelyTechnicalId(actorId)) return "Staff member";
+  return actorLabel;
+}
+
+function timelineSourceLabel(value = "") {
+  const source = normalizeText(value, "");
+  if (!source || source === "idp") return "";
+  return coachLabel(source.replace(/[-_]/g, " "));
 }
 
 function primaryOwnerId(profile = {}, focus = {}) {
@@ -622,15 +646,41 @@ function renderPlayerVoice(detail = {}, profile = {}) {
   `;
 }
 
-function renderActionRail(canEdit = false, focusId = "") {
-  if (!canEdit) return "";
+function renderStageQuickActions(canEdit = false, focusId = "", idpInactive = false) {
+  if (!canEdit || idpInactive) return "";
   return `
-    <div class="idp-action-rail" aria-label="Player development actions">
-      <span class="idp-action-rail-label">Quick actions</span>
-      <button type="button" data-idp-action="ownership" title="Assign coach"><span>01</span><strong>Assign coach</strong><small>Ownership</small></button>
-      <button type="button" data-idp-action="focus" title="Update focus"><span>02</span><strong>Update focus</strong><small>Mission</small></button>
-      <button type="button" data-idp-action="evidence" title="Add observation"><span>03</span><strong>Add observation</strong><small>Signal</small></button>
-      <button type="button" data-idp-action="review" title="Complete review" ${focusId ? "" : "disabled"}><span>04</span><strong>Complete review</strong><small>Decision</small></button>
+    <details class="idp-stage-actions">
+      <summary aria-label="Open quick actions" title="Quick actions">+</summary>
+      <div class="idp-stage-actions-menu" role="menu" aria-label="Quick actions">
+        <button type="button" data-idp-action="ownership" role="menuitem">Assign Coach</button>
+        <button type="button" data-idp-action="focus" role="menuitem">Update Focus</button>
+        <button type="button" data-idp-action="evidence" role="menuitem">Add Observation</button>
+        <button type="button" data-idp-action="review" role="menuitem" ${focusId ? "" : "disabled aria-disabled=\"true\""}>Complete Review</button>
+      </div>
+    </details>
+  `;
+}
+
+function renderObservationButtons(item = {}, canEdit = false) {
+  if (!canEdit || !item.id) return "";
+  const id = escapeHtml(item.id);
+  return `
+    <div class="idp-stream-actions" aria-label="Observation actions">
+      <button type="button" data-idp-edit-evidence="${id}" aria-label="Edit observation" title="Edit observation">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M4 20h4.5L19 9.5 14.5 5 4 15.5V20Z"></path>
+          <path d="M13.5 6 18 10.5"></path>
+        </svg>
+      </button>
+      <button type="button" data-idp-delete-evidence="${id}" aria-label="Delete observation" title="Delete observation">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M5 7h14"></path>
+          <path d="M10 11v6"></path>
+          <path d="M14 11v6"></path>
+          <path d="M8 7l1-3h6l1 3"></path>
+          <path d="M7 7l1 13h8l1-13"></path>
+        </svg>
+      </button>
     </div>
   `;
 }
@@ -664,24 +714,26 @@ function renderFocusForm(focus = null) {
   `;
 }
 
-function renderEvidenceForm(focus = null) {
-  const focusId = focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "";
+function renderEvidenceForm(focus = null, evidence = null) {
+  const isEditing = Boolean(evidence?.id);
+  const focusId = evidence?.focusId || (focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "");
   const focusTitle = normalizeText(focus?.title, "General development notes");
   return `
-    <form class="idp-action-form" data-idp-add-evidence>
+    <form class="idp-action-form" ${isEditing ? "data-idp-update-evidence" : "data-idp-add-evidence"}>
+      ${isEditing ? `<input type="hidden" name="evidenceId" value="${escapeHtml(evidence.id)}">` : ""}
       <input type="hidden" name="focusId" value="${escapeHtml(focusId)}">
       <label>
         <span>Observation type</span>
-        <select name="evidenceType">${optionList(idpEvidenceTypes, "Coach Note")}</select>
+        <select name="evidenceType">${optionList(idpEvidenceTypes, evidence?.evidenceType || "Coach Note")}</select>
       </label>
       <label class="idp-form-wide">
         <span>Note</span>
-        <textarea name="note" rows="4" placeholder="What did the player show?"></textarea>
+        <textarea name="note" rows="4" placeholder="What did the player show?">${escapeHtml(evidence?.note || "")}</textarea>
       </label>
-      ${focusId ? "" : `<div class="idp-form-note">This observation will start a saved IDP note thread for ${escapeHtml(focusTitle)}.</div>`}
+      ${focusId || isEditing ? "" : `<div class="idp-form-note">This observation will start a saved IDP note thread for ${escapeHtml(focusTitle)}.</div>`}
       <div class="idp-action-form-actions">
         <button type="button" class="idp-secondary-action" data-idp-close-action>Cancel</button>
-        <button type="submit">Add observation</button>
+        <button type="submit">${isEditing ? "Save observation" : "Add observation"}</button>
       </div>
     </form>
   `;
@@ -737,17 +789,25 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
   if (!canEdit || !mode) return "";
   const profile = state.playerDetail?.profile || {};
   const ownerId = primaryOwnerId(profile, focus || {});
+  const editingEvidence = mode === "edit-evidence"
+    ? (state.playerDetail?.evidence || []).find((item) => item.id === state.ui?.editEvidenceId) || null
+    : null;
   const copy = {
     ownership: ["Assign IDP Coach", "Choose who owns this player's development follow-up."],
     focus: ["Update focus", "Change the player's current development priority, status, and review date."],
     evidence: ["Add observation", "Capture a coach note, clip review, test result, or meeting signal for this focus."],
+    "edit-evidence": ["Edit observation", "Update the coaching signal without creating a duplicate note."],
     review: ["Complete review", "Close the current review loop and set the next action."],
   };
   const [title, description] = copy[mode] || copy.focus;
-  const form = mode === "ownership"
+  const form = mode === "edit-evidence" && !editingEvidence
+    ? `<div class="idp-empty-signal">Observation no longer available.</div>`
+    : mode === "ownership"
     ? renderOwnershipForm(state.playerDetail, focus, options)
     : mode === "evidence"
       ? renderEvidenceForm(focus)
+      : mode === "edit-evidence"
+        ? renderEvidenceForm(focus, editingEvidence)
       : mode === "review"
         ? renderReviewForm(focus)
         : renderFocusForm(focus);
@@ -929,7 +989,7 @@ function renderProfileFilmstrip(detail = {}, canEdit = false, ui = {}) {
   return renderClipBankOrganizer(detail, canEdit, ui);
 }
 
-function renderProfileSignalStream(detail = {}) {
+function renderProfileSignalStream(detail = {}, canEdit = false) {
   const evidence = detail.evidence || [];
   return `
     <article class="idp-signal-stream-panel">
@@ -941,13 +1001,14 @@ function renderProfileSignalStream(detail = {}) {
       </div>
       <div class="idp-signal-stream">
         ${evidence.length
-          ? evidence.slice(0, 7).map((item) => `
+          ? evidence.map((item) => `
             <div class="idp-stream-item">
               <time>${escapeHtml(formatShortDate(item.createdAt, "--"))}</time>
               <div>
                 <strong>${escapeHtml(coachLabel(item.evidenceType))}</strong>
                 <span>${escapeHtml(item.note || item.sourceModule || "Observation logged")}</span>
               </div>
+              ${renderObservationButtons(item, canEdit)}
             </div>
           `).join("")
           : `<div class="idp-empty-signal">No observations yet.</div>`}
@@ -956,48 +1017,57 @@ function renderProfileSignalStream(detail = {}) {
   `;
 }
 
-function renderProfileTimelineRiver(detail = {}) {
+function renderTimelineRiverItem(milestone = {}, options = {}) {
+  const label = coachLabel(milestone.title || milestone.milestoneType || "Timeline update");
+  const date = milestone.occurredOn || milestone.createdAt || "";
+  const actor = timelineActorLabel(milestone, options);
+  const actorText = actor === "Actor not captured" ? actor : `By ${actor}`;
+  const source = timelineSourceLabel(milestone.sourceModule || "");
+  return `
+    <div class="idp-river-item">
+      <span></span>
+      <div>
+        <strong>${escapeHtml(label)}</strong>
+        <small>
+          <span>${escapeHtml(formatShortDate(date, "No date"))}</span>
+          <span>${escapeHtml(actorText)}</span>
+          ${source ? `<span>${escapeHtml(source)}</span>` : ""}
+        </small>
+      </div>
+    </div>
+  `;
+}
+
+function renderProfileTimelineRiver(detail = {}, options = {}) {
   const milestones = detail.milestones || [];
+  const visibleMilestones = milestones.slice(0, profileTimelinePreviewLimit);
+  const hiddenMilestones = milestones.slice(profileTimelinePreviewLimit);
   return `
     <article class="idp-river-panel">
       <div class="idp-section-head">
         <div>
           <span>Development Timeline</span>
-          <strong>${escapeHtml(milestones.length ? "Learning trail" : "No milestones yet")}</strong>
+          <strong>${escapeHtml(milestones.length ? `${Math.min(milestones.length, profileTimelinePreviewLimit)} latest updates` : "No milestones yet")}</strong>
         </div>
       </div>
       <div class="idp-timeline-river">
         ${milestones.length
-          ? milestones.slice(0, 7).map((milestone) => `
-            <div class="idp-river-item">
-              <span></span>
-              <div>
-                <strong>${escapeHtml(coachLabel(milestone.title || milestone.milestoneType))}</strong>
-                <small>${escapeHtml(milestone.occurredOn || "")}</small>
-              </div>
-            </div>
-          `).join("")
+          ? `
+            ${visibleMilestones.map((milestone) => renderTimelineRiverItem(milestone, options)).join("")}
+            ${hiddenMilestones.length ? `
+              <details class="idp-river-more">
+                <summary data-idp-timeline-more>
+                  <span>Show more</span>
+                  <strong>${escapeHtml(String(hiddenMilestones.length))}</strong>
+                </summary>
+                <div class="idp-river-more-list">
+                  ${hiddenMilestones.map((milestone) => renderTimelineRiverItem(milestone, options)).join("")}
+                </div>
+              </details>
+            ` : ""}
+          `
           : `<div class="idp-empty-signal">The first completed action will start the timeline.</div>`}
       </div>
-    </article>
-  `;
-}
-
-function renderProfileOwnershipStudio(detail = {}, focus = null, canEdit = false, options = {}) {
-  const profile = detail.profile || {};
-  const profileOwnerId = normalizeText(profile.ownerId, "");
-  const focusOwnerId = normalizeText(focus?.ownerId, "");
-  const ownerLabel = formatStaffName(profileOwnerId || focusOwnerId, options);
-  return `
-    <article class="idp-ownership-studio">
-      <div class="idp-section-kicker">Staff Ownership</div>
-      <strong>${escapeHtml(ownerLabel)}</strong>
-      <span>Primary IDP Coach</span>
-      <div class="idp-owner-mini-grid">
-        <div><small>Current Focus Owner</small><b>${escapeHtml(formatStaffName(focusOwnerId || profileOwnerId, options))}</b></div>
-        <div><small>Next review</small><b>${escapeHtml(formatShortDate(profile.nextReviewOn || focus?.reviewDate, "Not set"))}</b></div>
-      </div>
-      ${canEdit ? `<button type="button" data-idp-action="ownership">Assign coach</button>` : ""}
     </article>
   `;
 }
@@ -1024,11 +1094,8 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
   return `
     <section class="idp-player-profile idp-profile-experience">
       <header class="idp-profile-stage">
-        <button type="button" class="idp-stage-back" data-idp-back-overview>Overview</button>
         <div class="idp-stage-identity">
           <span class="idp-stage-watermark" aria-hidden="true">${escapeHtml(initialsFromName(profile.playerName || "Player", "P"))}</span>
-          <div class="idp-section-kicker">Player Development Profile</div>
-          <span class="idp-snapshot-label">Player Snapshot</span>
           <h2>${escapeHtml(profile.playerName || "Player")}</h2>
           <p>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</p>
           <div class="idp-stage-tags">
@@ -1037,6 +1104,8 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
             <span>${escapeHtml(reviewUrgencyLabel(profile, focus))}</span>
           </div>
         </div>
+        ${renderStageQuickActions(canEdit, focusId, idpInactive)}
+        <button type="button" class="idp-stage-back" data-idp-back-overview>Overview</button>
       </header>
       ${idpInactive ? `<div class="idp-notice is-warning">IDP is inactive from Squad Room. Historical observations, clips and ownership remain visible here.</div>` : ""}
       <section class="idp-development-board">
@@ -1065,26 +1134,16 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
           <div class="idp-section-kicker">Success Criteria</div>
           ${renderCriteriaTrack(criteria)}
         </article>
-        <aside class="idp-coach-board">
-          <div class="idp-pulse-orb is-${escapeHtml(pulse.tone)}">
-            <span>Progress Pulse</span>
-            <strong>${escapeHtml(pulse.label)}</strong>
-            <small>${escapeHtml(pulse.detail)}</small>
-            <div class="idp-pulse-meter is-level-${escapeHtml(String(pulseLevel(detail)))}"><span></span></div>
-          </div>
-          <div class="idp-next-decision">
-            <span>Next Action</span>
-            <strong>${escapeHtml(coachLabel(idpInactive ? "No IDP action required" : nextAction.title || "Add observation"))}</strong>
-            <small>${escapeHtml(idpInactive ? "Paused" : formatDate(nextAction.dueOn || focus?.reviewDate, "No date set"))}</small>
-          </div>
-          <div class="idp-latest-signal">
-            <span>Latest signal</span>
-            <strong>${escapeHtml(latestSignal ? coachLabel(latestSignal.evidenceType) : "None yet")}</strong>
-            <small>${escapeHtml(latestSignal ? formatShortDate(latestSignal.createdAt) : "Start with one useful observation")}</small>
-          </div>
-        </aside>
+        ${renderIdpPlayerBoardPanel(
+          detail,
+          focus || {},
+          profile,
+          pulse,
+          idpInactive ? { title: "No IDP action required", dueOn: "Paused" } : nextAction,
+          canEdit && !idpInactive,
+          state.ui || {}
+        )}
       </section>
-      ${canEdit && !idpInactive ? `<section class="idp-profile-actions-deck">${renderActionRail(true, focusId)}</section>` : ""}
       <section class="idp-intelligence-board">
         ${renderLensCompass(detail, focus)}
         ${renderSignalRadar(observationMix, detail.evidence?.length || 0)}
@@ -1101,11 +1160,11 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
       </section>
       <section class="idp-workflow-board">
         ${renderProfileFilmstrip(detail, canEdit, state.ui || {})}
-        ${renderProfileSignalStream(detail)}
-        ${renderProfileTimelineRiver(detail)}
-        ${renderProfileOwnershipStudio(detail, focus, canEdit, options)}
+        ${renderProfileSignalStream(detail, canEdit && !idpInactive)}
+        ${renderProfileTimelineRiver(detail, options)}
       </section>
       ${renderActionOverlay(state, focus, canEdit && !idpInactive, options)}
+      ${renderIdpPlayerBoardOverlay(detail, focus || {}, profile, state.ui || {}, canEdit && !idpInactive)}
       ${renderIdpClipPreviewOverlay(detail, state.ui || {})}
     </section>
   `;

@@ -7,6 +7,7 @@ export const idpInitialUiState = Object.freeze({
   searchQuery: "",
   clipBankSearchQuery: "",
   actionMode: "",
+  editEvidenceId: "",
   message: "",
   error: "",
   loading: false,
@@ -17,6 +18,9 @@ export const idpInitialUiState = Object.freeze({
   clipPreviewStatus: "",
   clipPreviewMessage: "",
   clipPreviewObjectUrl: "",
+  playerBoardOpen: false,
+  playerBoardInterventionId: "",
+  playerBoardMode: "edit",
 });
 
 export const idpInitialSyncState = Object.freeze({

@@ -4,6 +4,8 @@ const managerRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach"
 const scopedAdminRoles = Object.freeze(["admin", "club-admin", "team-admin"]);
 const medicalAccessRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "performance", "medical"]);
 const medicalWriteRoles = Object.freeze(["admin", "club-admin", "team-admin", "medical", "performance"]);
+const rtpLibraryReadRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "analyst", "performance", "medical"]);
+const rtpLibraryWriteRoles = Object.freeze(["admin", "medical", "performance"]);
 const simulatorWriteRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "scout", "analyst"]);
 const transferRoomAdminRoles = Object.freeze(["admin", "team-admin"]);
 const allAuthenticatedRoles = Object.freeze([...platformRoles]);
@@ -197,6 +199,17 @@ const platformPermissionMatrix = Object.freeze([
   }, {
     storageKeys: ["football-medical-team-v1"],
     routes: ["/api/medical"],
+  }),
+  moduleContract("rtp-library", "RTP Library", "team", {
+    read: rtpLibraryReadRoles,
+    write: rtpLibraryWriteRoles,
+    delete: rtpLibraryWriteRoles,
+    export: rtpLibraryWriteRoles,
+    restore: ["admin", "medical"],
+    admin: ["admin"],
+    observe: ["admin", "medical", "performance"],
+  }, {
+    routes: ["/api/rtp-library"],
   }),
   moduleContract("player-profiles", "Squad", "team", {
     read: ["admin", "club-admin", "team-admin", "coach", "scout", "performance", "medical"],
@@ -420,6 +433,12 @@ const apiRouteSecurity = Object.freeze({
     moduleId: "medical-team",
     actions: Object.freeze({ GET: "read", POST: "write", PUT: "write", PATCH: "write", DELETE: "delete" }),
     rateLimits: Object.freeze({ read: 80, write: 40, delete: 10 }),
+    enforcePermission: true,
+  }),
+  "/api/rtp-library": Object.freeze({
+    moduleId: "rtp-library",
+    actions: Object.freeze({ GET: "read", POST: "write", PUT: "write", PATCH: "write", DELETE: "delete" }),
+    rateLimits: Object.freeze({ read: 100, write: 30, delete: 8 }),
     enforcePermission: true,
   }),
   "/api/scouting": Object.freeze({

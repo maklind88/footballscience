@@ -3,6 +3,8 @@ const staffRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", 
 const managerRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach"]);
 const medicalAccessRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "performance", "medical"]);
 const medicalEditRoles = Object.freeze(["admin", "club-admin", "team-admin", "medical", "performance"]);
+const rtpLibraryReadRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "analyst", "performance", "medical"]);
+const rtpLibraryEditRoles = Object.freeze(["admin", "medical", "performance"]);
 const transferRoomAdminRoles = Object.freeze(["admin", "team-admin"]);
 
 export const protectedStorageKeys = Object.freeze([
@@ -43,6 +45,7 @@ export const platformModuleMigrationOrder = Object.freeze([
   "session-planner",
   "periodization",
   "medical-team",
+  "rtp-library",
   "football-science-db",
   "scouting",
   "transfer-room",
@@ -263,6 +266,38 @@ export const platformModules = Object.freeze([
     editRoles: Object.freeze(medicalEditRoles),
     emits: Object.freeze(["medical.availability-updated"]),
     consumes: Object.freeze(["profile.updated"]),
+  }),
+  Object.freeze({
+    id: "rtp-library",
+    label: "RTP Library",
+    stage: "foundation",
+    storageKeys: Object.freeze([]),
+    futureTables: Object.freeze([
+      "rtp_injury_profiles",
+      "rtp_profile_sections",
+      "rtp_assessment_protocols",
+      "rtp_exercises",
+      "rtp_profile_exercise_links",
+      "rtp_progressions",
+      "rtp_progression_steps",
+      "rtp_profile_progression_links",
+      "rtp_criteria_sets",
+      "rtp_criteria_items",
+      "rtp_monitoring_metrics",
+      "rtp_benchmarks",
+      "rtp_research_evidence",
+      "rtp_case_studies",
+      "rtp_club_notes",
+      "rtp_tags",
+      "rtp_tag_links",
+      "rtp_favorites",
+      "rtp_content_versions",
+      "rtp_audit_events",
+    ]),
+    viewRoles: Object.freeze(rtpLibraryReadRoles),
+    editRoles: Object.freeze(rtpLibraryEditRoles),
+    emits: Object.freeze(["rtp.content-published", "rtp.content-archived", "rtp.favorite-updated"]),
+    consumes: Object.freeze([]),
   }),
   Object.freeze({
     id: "player-profiles",

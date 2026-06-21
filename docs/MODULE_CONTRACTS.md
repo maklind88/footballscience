@@ -77,7 +77,7 @@ Current long-term priorities:
 - Harden staging into a real mirror before risky Live releases.
 - Feed incident signals for deploys, egress, API errors, auth/permission spikes, saves, backups, and restore readiness into the health surface.
 
-Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Exercise Library, Sessions, Periodization, Gameplan, Transfer Room, and Game Simulator. Chat is tracked as an already database-backed module and should remain under its dedicated ownership path.
+Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, RTP Library, Exercise Library, Sessions, Periodization, Gameplan, Transfer Room, and Game Simulator. Chat is tracked as an already database-backed module and should remain under its dedicated ownership path.
 
 ## Platform Appearance
 
@@ -205,6 +205,19 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 - `events`: availability updated, player selected, coach-safe note changed, session planner reads selected-date availability.
 - `qa`: medical recommendation edits persist after refresh.
 - `migration`: current app-state remains active while the database foundation is staged in `medical_*` tables. Clinical writes are server-owned; direct authenticated reads are limited to coach-safe availability columns/views, with private governance, consent, cases, internal notes, sign-offs, load gates, review tasks, and audit events protected by RLS for medical/performance/admin service workflows.
+
+## RTP Library
+
+- `id`: `rtp-library`
+- `purpose`: shared Return to Performance content library for injury profiles, assessment protocols, exercise options, running/sprint/strength/load progressions, objective criteria, benchmarks, evidence, tags, versions, and audit events.
+- `data`: database-primary records in `rtp_injury_profiles`, `rtp_profile_sections`, `rtp_assessment_protocols`, `rtp_exercises`, `rtp_profile_exercise_links`, `rtp_progressions`, `rtp_progression_steps`, `rtp_profile_progression_links`, `rtp_criteria_sets`, `rtp_criteria_items`, `rtp_monitoring_metrics`, `rtp_benchmarks`, `rtp_research_evidence`, `rtp_case_studies`, `rtp_club_notes`, `rtp_tags`, `rtp_tag_links`, `rtp_favorites`, `rtp_content_versions`, and `rtp_audit_events`; no protected browser storage key.
+- `api`: `/api/rtp-library` is the only frontend data path. Phase 1 exposes status and empty collection payloads only; writes return an explicit disabled response until content governance is approved.
+- `permissions`: medical and performance jointly own library content. Admin, club admin, team admin, coach, analyst, performance, and medical can read; only admin, medical, and performance can write/archive/export; restore is admin/medical; admin owns module administration. Coaches receive only coach-safe summaries and training-readiness-facing content once data reads are enabled.
+- `permissionMatrix`: `rtp-library` must remain present in `src/core/permission-matrix.cjs`, `apiRouteSecurity`, and `public.platform_permission_matrix`.
+- `events`: future content-published, content-archived, favorite-updated events stay module-owned. Phase 1 consumes no Medical/Squad/IDP/Video events.
+- `qa`: `qa/rtp-library-schema.api.spec.mjs`, `qa/rtp-library-api.api.spec.mjs`, and `qa/rtp-library-module-contract.api.spec.mjs` must prove empty-state behavior, RLS/service-role access, permission matrix coverage, no frontend Supabase writes, no hardcoded injury content, no private medical table links, and no player-plan linking.
+- `migration`: Phase 1 is additive and inert. It creates a scalable shared content model for 50 injuries now and 200+ later, but does not seed injury content, does not link to player plans, does not connect to Medical cases, and does not add AI recommendations.
+- `dataSafety`: the library is server-owned through guarded API routes and service-role database access. Browser clients must not write to Supabase directly; player medical notes, clearance decisions, and private medical records remain in Medical-owned data models.
 
 ## Squad
 

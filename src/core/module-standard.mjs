@@ -249,6 +249,33 @@ export const moduleStandardContracts = Object.freeze([
     notes: "Extract only after Squad/Profile boundaries are stable because medical availability consumes roster identity.",
   }),
   createModuleStandardContract({
+    id: "rtp-library",
+    label: "RTP Library",
+    migrationStatus: moduleMigrationStatuses.databasePrimary,
+    mountId: "rtpLibraryWorkspace",
+    targetDir: "src/modules/rtp-library",
+    filePrefix: "rtp-library",
+    currentFiles: [
+      "api/rtp-library.js",
+      "api/_lib/rtp-library-database.js",
+      "supabase/migrations/20260621233632_rtp_library_foundation.sql",
+      "src/core/permission-matrix.cjs",
+      "src/core/platform-contracts.mjs",
+    ],
+    testFiles: [
+      "qa/rtp-library-schema.api.spec.mjs",
+      "qa/rtp-library-api.api.spec.mjs",
+      "qa/rtp-library-module-contract.api.spec.mjs",
+    ],
+    extractionOrder: 10.5,
+    riskLevel: "high",
+    migrationGuard: {
+      preserveCurrentWritePath: false,
+      centralSavePipelineRequired: false,
+    },
+    notes: "Database-primary shared RTP content foundation. No browser storage key, no direct frontend Supabase writes, no player-plan linking, and no private medical data ownership in Phase 1.",
+  }),
+  createModuleStandardContract({
     id: "exercise-library",
     label: "Exercise Library",
     migrationStatus: moduleMigrationStatuses.partialExtraction,

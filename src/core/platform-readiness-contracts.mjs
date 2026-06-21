@@ -66,6 +66,7 @@ export const platformModuleImplementationStages = Object.freeze({
   "session-planner": "partial-extraction",
   periodization: "partial-extraction",
   "medical-team": "hybrid-secured-module",
+  "rtp-library": "server-first-foundation",
   "player-profiles": "hybrid-adapter",
   "football-science-db": "server-first-foundation",
   scouting: "lazy-module",

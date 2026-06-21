@@ -1459,6 +1459,22 @@ test("Video Analysis timeline uses h:mm:ss and scrubs video by dragging the red 
 
 test("Video Analysis video frame shuttles playback with horizontal two finger wheel", async ({ page }) => {
   await installDeterministicMedia(page);
+  await page.addInitScript(() => {
+    window.__videoShuttlePlayCalls = 0;
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value() {
+        window.__videoShuttlePlayCalls += 1;
+        return Promise.resolve();
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "pause", {
+      configurable: true,
+      value() {
+        this.__videoAnalysisPaused = true;
+      },
+    });
+  });
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });
   await openScheduleDayForLocalVideo(page);
 
@@ -1473,6 +1489,13 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
     video.__videoAnalysisTestCurrentTime = 60;
+    video.__videoAnalysisPaused = true;
+    Object.defineProperty(video, "paused", {
+      configurable: true,
+      get() {
+        return this.__videoAnalysisPaused !== false;
+      },
+    });
     Object.defineProperty(video, "currentTime", {
       configurable: true,
       get() {
@@ -1489,6 +1512,7 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   const forward = await page.evaluate(() => {
     const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");
     const video = document.querySelector("[data-video-analysis-video]");
+    video.__videoAnalysisPaused = true;
     const event = new WheelEvent("wheel", {
       bubbles: true,
       cancelable: true,
@@ -1501,16 +1525,22 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
       currentTime: video.currentTime,
       defaultPrevented: event.defaultPrevented,
       cue: frame.classList.contains("is-shuttle-scrubbing"),
+      muted: video.muted,
+      playbackRate: video.playbackRate,
     };
   });
   expect(forward.defaultPrevented).toBe(true);
   expect(forward.cue).toBe(true);
-  expect(forward.currentTime).toBeGreaterThan(70);
-  await expect(page.locator(".video-analysis-player-time")).toContainText("0:01:14");
+  expect(forward.playbackRate).toBeGreaterThan(1);
+  expect(forward.muted).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__videoShuttlePlayCalls)).toBeGreaterThan(0);
+  await page.waitForTimeout(280);
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.playbackRate)).toBe(1);
 
   const backward = await page.evaluate(() => {
     const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");
     const video = document.querySelector("[data-video-analysis-video]");
+    video.__videoAnalysisTestCurrentTime = 82;
     const event = new WheelEvent("wheel", {
       bubbles: true,
       cancelable: true,
@@ -1525,8 +1555,28 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
     };
   });
   expect(backward.defaultPrevented).toBe(true);
-  expect(backward.currentTime).toBeLessThan(forward.currentTime);
-  await expect(page.locator(".video-analysis-player-time")).toContainText("0:01:07");
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.currentTime || 0)).toBeLessThan(82);
+
+  const vertical = await page.evaluate(() => {
+    const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");
+    const video = document.querySelector("[data-video-analysis-video]");
+    const before = video.currentTime;
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: 1,
+      deltaY: 120,
+      deltaMode: 0,
+    });
+    frame.dispatchEvent(event);
+    return {
+      currentTime: video.currentTime,
+      defaultPrevented: event.defaultPrevented,
+      before,
+    };
+  });
+  expect(vertical.defaultPrevented).toBe(false);
+  expect(vertical.currentTime).toBe(vertical.before);
 });
 
 test("Video Analysis clears a codec warning when native playback succeeds", async ({ page }) => {

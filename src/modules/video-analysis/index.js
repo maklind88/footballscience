@@ -95,10 +95,15 @@ const CLIP_PAGE_LIMIT = 200;
 const CLIP_WORKSPACE_LIMIT = 1000;
 const PLAYBACK_RATE_OPTIONS = [0.5, 1, 1.5, 2];
 const KEYBOARD_CLIP_TRIM_MIN_MS = 1000;
-const VIDEO_SHUTTLE_MS_PER_PIXEL = 80;
-const VIDEO_SHUTTLE_MAX_DELTA_MS = 45000;
-const VIDEO_SHUTTLE_MIN_DELTA_PX = 1;
+const VIDEO_SHUTTLE_MIN_SPEED = 1.5;
+const VIDEO_SHUTTLE_MAX_SPEED = 7;
+const VIDEO_SHUTTLE_SPEED_DELTA_PX = 320;
+const VIDEO_SHUTTLE_MIN_DELTA_PX = 6;
+const VIDEO_SHUTTLE_DOMINANCE_RATIO = 1.35;
+const VIDEO_SHUTTLE_IDLE_MS = 220;
+const VIDEO_SHUTTLE_MAX_FRAME_MS = 80;
 const videoShuttleTimers = new WeakMap();
+const videoShuttleSessions = new WeakMap();
 
 function normalizePlaybackRate(value = 1) {
   const numeric = Number(value);
@@ -548,11 +553,6 @@ function nudgePlayer(context = {}, deltaMs = 0) {
   return true;
 }
 
-function clampVideoShuttleDeltaMs(deltaMs = 0) {
-  const numeric = Math.round(Number(deltaMs || 0));
-  return Math.max(-VIDEO_SHUTTLE_MAX_DELTA_MS, Math.min(VIDEO_SHUTTLE_MAX_DELTA_MS, numeric));
-}
-
 function videoShuttleDurationMs(state = {}, video = null) {
   const stateDurationMs = Math.round(Number(state.videoRef?.durationMs || 0));
   const videoDurationMs = Math.round(Number(video?.duration || 0) * 1000);
@@ -565,15 +565,156 @@ function videoShuttleCurrentMs(state = {}, video = null) {
   return Math.max(0, Math.round(Number(state.timeline?.playheadMs || 0)));
 }
 
-function clearVideoShuttleCue(frame = null, winRef = globalThis.window) {
+function wheelDeltaPixelValue(value = 0, deltaMode = 0) {
+  const numeric = Number(value || 0);
+  if (!numeric) return 0;
+  if (Number(deltaMode) === 1) return numeric * 16;
+  if (Number(deltaMode) === 2) return numeric * 800;
+  return numeric;
+}
+
+function videoShuttleHorizontalDelta(event = {}) {
+  const deltaMode = Number(event.deltaMode || 0);
+  const deltaX = wheelDeltaPixelValue(event.deltaX, deltaMode);
+  const deltaY = wheelDeltaPixelValue(event.deltaY, deltaMode);
+  if (event.shiftKey && Math.abs(deltaY) >= VIDEO_SHUTTLE_MIN_DELTA_PX) return deltaY;
+  if (Math.abs(deltaX) < Math.max(VIDEO_SHUTTLE_MIN_DELTA_PX, Math.abs(deltaY) * VIDEO_SHUTTLE_DOMINANCE_RATIO)) return 0;
+  return deltaX;
+}
+
+function videoShuttleSpeedFromDelta(deltaPx = 0) {
+  const intensity = Math.min(1, Math.abs(Number(deltaPx || 0)) / VIDEO_SHUTTLE_SPEED_DELTA_PX);
+  const speed = VIDEO_SHUTTLE_MIN_SPEED + ((VIDEO_SHUTTLE_MAX_SPEED - VIDEO_SHUTTLE_MIN_SPEED) * intensity);
+  return Math.round(speed * 10) / 10;
+}
+
+function commitVideoShuttlePlayhead(context = {}, video = null) {
+  const currentMs = getVideoCurrentMs(video);
+  ensureRuntime(context).store.update((state) => ({
+    ...state,
+    timeline: {
+      ...(state.timeline || {}),
+      playheadMs: currentMs,
+    },
+  }));
+}
+
+function stopVideoShuttle(frame = null, context = {}) {
   if (!frame) return;
-  const existingTimer = videoShuttleTimers.get(frame);
+  const session = videoShuttleSessions.get(frame);
+  const winRef = session?.winRef || context.win || globalThis.window;
+  if (session?.timer && winRef?.clearTimeout) winRef.clearTimeout(session.timer);
+  if (session?.frameId && winRef?.cancelAnimationFrame) winRef.cancelAnimationFrame(session.frameId);
+  if (session?.video) {
+    session.video.playbackRate = session.basePlaybackRate;
+    session.video.muted = session.wasMuted;
+    if (session.wasPaused) {
+      session.video.pause?.();
+    } else if (session.mode === "step") {
+      const resumePromise = session.video.play?.();
+      resumePromise?.catch?.(() => {});
+    }
+    timelineController(context).handleVideoTimeUpdate(session.video);
+    commitVideoShuttlePlayhead(context, session.video);
+    syncPlaybackControls(context, session.video);
+  }
+  frame.classList.remove("is-shuttle-scrubbing");
+  videoShuttleSessions.delete(frame);
+  videoShuttleTimers.delete(frame);
+}
+
+function scheduleVideoShuttleStop(frame = null, context = {}) {
+  if (!frame) return;
+  const session = videoShuttleSessions.get(frame);
+  const winRef = session?.winRef || context.win || globalThis.window;
+  const existingTimer = session?.timer || videoShuttleTimers.get(frame);
   if (existingTimer && winRef?.clearTimeout) winRef.clearTimeout(existingTimer);
-  const nextTimer = winRef?.setTimeout?.(() => {
-    frame.classList.remove("is-shuttle-scrubbing");
-    videoShuttleTimers.delete(frame);
-  }, 180);
+  const nextTimer = winRef?.setTimeout?.(() => stopVideoShuttle(frame, context), VIDEO_SHUTTLE_IDLE_MS);
+  if (session) session.timer = nextTimer;
   if (nextTimer) videoShuttleTimers.set(frame, nextTimer);
+}
+
+function createVideoShuttleSession(frame, video, context = {}) {
+  const winRef = context.win || globalThis.window;
+  const session = {
+    basePlaybackRate: Number(video.playbackRate || 1) || 1,
+    direction: 1,
+    frameId: 0,
+    lastFrameTime: 0,
+    mode: "step",
+    speed: VIDEO_SHUTTLE_MIN_SPEED,
+    timer: 0,
+    video,
+    wasMuted: Boolean(video.muted),
+    wasPaused: Boolean(video.paused || video.ended),
+    winRef,
+  };
+  videoShuttleSessions.set(frame, session);
+  return session;
+}
+
+function videoShuttleStep(frame, context = {}) {
+  const session = videoShuttleSessions.get(frame);
+  if (!session?.video) return;
+  const winRef = session.winRef || context.win || globalThis.window;
+  const step = (timestamp = 0) => {
+    const activeSession = videoShuttleSessions.get(frame);
+    if (!activeSession || activeSession.mode !== "step") return;
+    activeSession.frameId = 0;
+    const elapsedMs = activeSession.lastFrameTime
+      ? Math.min(VIDEO_SHUTTLE_MAX_FRAME_MS, Math.max(8, Number(timestamp || 0) - activeSession.lastFrameTime))
+      : 16;
+    activeSession.lastFrameTime = Number(timestamp || 0);
+    const state = ensureRuntime(context).store.getState();
+    const durationMs = videoShuttleDurationMs(state, activeSession.video);
+    const currentMs = videoShuttleCurrentMs(state, activeSession.video);
+    const nextMs = Math.max(0, Math.min(durationMs, currentMs + (activeSession.direction * activeSession.speed * elapsedMs)));
+    timelineController(context).seekToMs(nextMs, { commit: false });
+    if (nextMs <= 0 || nextMs >= durationMs) {
+      scheduleVideoShuttleStop(frame, context);
+      return;
+    }
+    activeSession.frameId = winRef?.requestAnimationFrame?.(step) || 0;
+  };
+  if (!session.frameId) session.frameId = winRef?.requestAnimationFrame?.(step) || 0;
+}
+
+function activateVideoShuttle(frame, video, context = {}, direction = 1, speed = VIDEO_SHUTTLE_MIN_SPEED) {
+  const session = videoShuttleSessions.get(frame) || createVideoShuttleSession(frame, video, context);
+  const winRef = session.winRef || context.win || globalThis.window;
+  session.direction = direction;
+  session.speed = speed;
+  frame.classList.add("is-shuttle-scrubbing");
+  video.muted = true;
+
+  if (direction > 0) {
+    if (session.frameId && winRef?.cancelAnimationFrame) winRef.cancelAnimationFrame(session.frameId);
+    session.frameId = 0;
+    session.lastFrameTime = 0;
+    session.mode = "native-forward";
+    video.playbackRate = speed;
+    const playPromise = video.play?.();
+    if (!playPromise?.then) {
+      syncPlaybackControls(context, video, true);
+      return;
+    }
+    playPromise.then(() => {
+      syncPlaybackControls(context, video, true);
+    }).catch(() => {
+      session.mode = "step";
+      video.pause?.();
+      videoShuttleStep(frame, context);
+    });
+    return;
+  }
+
+  if (session.mode === "native-forward") {
+    video.playbackRate = session.basePlaybackRate;
+  }
+  video.pause?.();
+  session.mode = "step";
+  session.lastFrameTime = 0;
+  videoShuttleStep(frame, context);
 }
 
 function handleVideoFrameWheel(event = {}, context = {}) {
@@ -585,24 +726,12 @@ function handleVideoFrameWheel(event = {}, context = {}) {
   const video = videoElement(context);
   if (!video || !frame.contains(video)) return false;
 
-  const deltaX = Number(event.deltaX || 0);
-  const deltaY = Number(event.deltaY || 0);
-  const horizontalDelta = Math.abs(deltaX) >= Math.max(VIDEO_SHUTTLE_MIN_DELTA_PX, Math.abs(deltaY) * 0.55)
-    ? deltaX
-    : event.shiftKey
-      ? deltaY
-      : 0;
+  const horizontalDelta = videoShuttleHorizontalDelta(event);
   if (Math.abs(horizontalDelta) < VIDEO_SHUTTLE_MIN_DELTA_PX) return false;
 
-  const run = ensureRuntime(context);
-  const state = run.store.getState();
-  const durationMs = videoShuttleDurationMs(state, video);
-  const currentMs = videoShuttleCurrentMs(state, video);
-  const deltaMs = clampVideoShuttleDeltaMs(horizontalDelta * VIDEO_SHUTTLE_MS_PER_PIXEL);
-  const nextMs = Math.max(0, Math.min(durationMs, currentMs + deltaMs));
-  timelineController(context).seekToMs(nextMs, { commit: true });
-  frame.classList.add("is-shuttle-scrubbing");
-  clearVideoShuttleCue(frame, context.win || globalThis.window);
+  const direction = horizontalDelta > 0 ? 1 : -1;
+  activateVideoShuttle(frame, video, context, direction, videoShuttleSpeedFromDelta(horizontalDelta));
+  scheduleVideoShuttleStop(frame, context);
   event.preventDefault?.();
   return true;
 }

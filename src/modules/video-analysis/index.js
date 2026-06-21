@@ -719,11 +719,14 @@ function activateVideoShuttle(frame, video, context = {}, direction = 1, speed =
 
 function handleVideoFrameWheel(event = {}, context = {}) {
   const target = eventElement(event);
-  const frame = target?.closest?.("[data-video-analysis-video-shuttle], .video-analysis-fs-player-deck .video-analysis-video-frame");
-  if (!frame || target.closest?.("button, input, select, textarea, a")) return false;
+  const surface = target?.closest?.("[data-video-analysis-video-shuttle], .video-analysis-fs-player-deck");
+  if (!surface || target.closest?.("input, select, textarea, a")) return false;
   if (event.ctrlKey || event.metaKey || event.altKey) return false;
 
   const video = videoElement(context);
+  const frame = surface.matches?.("[data-video-analysis-video-shuttle]")
+    ? surface
+    : surface.querySelector?.(".video-analysis-video-frame");
   if (!video || !frame.contains(video)) return false;
 
   const horizontalDelta = videoShuttleHorizontalDelta(event);

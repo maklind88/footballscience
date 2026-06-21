@@ -1557,11 +1557,35 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   expect(backward.defaultPrevented).toBe(true);
   await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.currentTime || 0)).toBeLessThan(82);
 
+  const transportSwipe = await page.evaluate(() => {
+    const transport = document.querySelector(".video-analysis-player-transport");
+    const video = document.querySelector("[data-video-analysis-video]");
+    video.__videoAnalysisTestCurrentTime = 90;
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: 140,
+      deltaY: 0,
+      deltaMode: 0,
+    });
+    transport.dispatchEvent(event);
+    return {
+      defaultPrevented: event.defaultPrevented,
+      playbackRate: video.playbackRate,
+    };
+  });
+  expect(transportSwipe.defaultPrevented).toBe(true);
+  expect(transportSwipe.playbackRate).toBeGreaterThan(14);
+
   const vertical = await page.evaluate(() => {
     const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");
+    const deck = document.querySelector(".video-analysis-fs-player-deck");
     const video = document.querySelector("[data-video-analysis-video]");
     const before = video.currentTime;
+    const overscrollX = getComputedStyle(frame).overscrollBehaviorX;
     const overscrollY = getComputedStyle(frame).overscrollBehaviorY;
+    const deckOverscrollX = getComputedStyle(deck).overscrollBehaviorX;
+    const deckOverscrollY = getComputedStyle(deck).overscrollBehaviorY;
     const event = new WheelEvent("wheel", {
       bubbles: true,
       cancelable: true,
@@ -1574,12 +1598,18 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
       currentTime: video.currentTime,
       defaultPrevented: event.defaultPrevented,
       before,
+      overscrollX,
       overscrollY,
+      deckOverscrollX,
+      deckOverscrollY,
     };
   });
   expect(vertical.defaultPrevented).toBe(false);
   expect(vertical.currentTime).toBe(vertical.before);
-  expect(vertical.overscrollY).not.toBe("contain");
+  expect(vertical.overscrollX).toBe("contain");
+  expect(vertical.overscrollY).toBe("auto");
+  expect(vertical.deckOverscrollX).toBe("contain");
+  expect(vertical.deckOverscrollY).toBe("auto");
 });
 
 test("Video Analysis clears a codec warning when native playback succeeds", async ({ page }) => {

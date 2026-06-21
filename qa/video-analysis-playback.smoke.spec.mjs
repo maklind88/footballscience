@@ -1651,6 +1651,11 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   expect(codeModeSwipe.playbackRate).toBeGreaterThanOrEqual(6.5);
   expect(codeModeSwipe.playbackRate).toBeLessThanOrEqual(7);
   expect(codeModeSwipe.workstationCodeMode).toBe(true);
+  await page.evaluate(() => {
+    window.__videoAnalysisFullscreenElement = null;
+    document.dispatchEvent(new Event("fullscreenchange"));
+  });
+  await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
 
   await page.locator("[data-video-analysis-video-fullscreen]").click();
   const fullscreenSwipe = await page.evaluate(() => {

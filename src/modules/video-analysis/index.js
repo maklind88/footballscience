@@ -128,7 +128,6 @@ function createRuntime(context = {}) {
     videos: createVideoRepository(context),
     unsubscribe: null,
     keydownBound: false,
-    fullscreenBound: false,
   };
 }
 
@@ -2102,18 +2101,6 @@ export function render(context = {}) {
     win.addEventListener?.("keydown", (event) => handleKeydown(event, context), true);
     win.addEventListener?.("keyup", (event) => handleKeyup(event, context), true);
     run.keydownBound = true;
-  }
-  if (!run.fullscreenBound) {
-    const doc = context.doc || document;
-    doc.addEventListener?.("fullscreenchange", () => {
-      if (!doc.fullscreenElement && run.store.getState().fsPlayer?.mode === "code") {
-        run.store.update((state) => ({
-          ...state,
-          fsPlayer: { ...(state.fsPlayer || {}), mode: "standard" },
-        }));
-      }
-    });
-    run.fullscreenBound = true;
   }
   paint(root, run.store.getState());
   if (run.store.getState().status === "idle") initialize(context);

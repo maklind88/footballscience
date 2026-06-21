@@ -41,7 +41,13 @@ test("Medical operations renderer owns operations tabs, private system, and coac
     formatMedicalDateLabel: () => "31 May",
     getMedicalCoachHandoverItems: () => [{ id: "note-1" }],
     getMedicalDailyStats: () => ({ fullCount: 8, modifiedCount: 2, unavailableCount: 1 }),
-    getMedicalHistoryEvents: () => [{ player: signal.player, date: "2026-05-31", type: "Recommendation", title: "75% / Modified", detail: "RTP", coachShared: true }],
+    getMedicalHistoryDateFilter: () => "all",
+    getMedicalHistoryEvents: () => [
+      { player: signal.player, date: "2026-05-31", type: "Recommendation", title: "75% / Modified", detail: "RTP", coachShared: true },
+      { player: { id: "p2", name: "Ava Player", position: "CB" }, date: "2026-05-30", type: "Case opened", title: "ACL", detail: "Medical restriction / 0%", coachShared: false },
+    ],
+    getMedicalHistoryPlayerFilter: () => "all",
+    getMedicalHistorySearchQuery: () => "",
     getMedicalRtpPhaseOption: () => ({ label: "Return to train" }),
     medicalClearanceRoles: [{ key: "doctor" }],
     medicalLoadGateOptions: [{ key: "load" }],
@@ -57,7 +63,12 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(privateMarkup).toContain("medical-operations-system");
   expect(privateMarkup).toContain("medical-ops-signals-table");
   expect(privateMarkup).toContain("Mak Player");
-  expect(renderer.renderHistory()).toContain("Recommendation");
+  const historyMarkup = renderer.renderHistory();
+  expect(historyMarkup).toContain("data-medical-history-filter-form");
+  expect(historyMarkup).toContain("data-medical-history-search");
+  expect(historyMarkup).toContain("data-medical-history-date-filter");
+  expect(historyMarkup).toContain("data-medical-history-player-filter");
+  expect(historyMarkup).toContain("Recommendation");
   const coachMarkup = renderer.renderCoachSafeSummary("2026-05-31");
   expect(coachMarkup).toContain("Coach-Safe Summary");
   expect(coachMarkup).toContain("Coach notes");

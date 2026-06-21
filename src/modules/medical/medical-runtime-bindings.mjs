@@ -286,6 +286,18 @@ export function bindMedicalRuntimeBindings(deps = {}) {
       renderWorkspace();
       return;
     }
+    const historyDateFilter = event.target.closest("[data-medical-history-date-filter]");
+    if (historyDateFilter) {
+      setStateValue(state, "MedicalHistoryDateFilter", historyDateFilter.value || "all");
+      renderWorkspace();
+      return;
+    }
+    const historyPlayerFilter = event.target.closest("[data-medical-history-player-filter]");
+    if (historyPlayerFilter) {
+      setStateValue(state, "MedicalHistoryPlayerFilter", historyPlayerFilter.value || "all");
+      renderWorkspace();
+      return;
+    }
     const bulkDate = event.target.closest("[data-medical-bulk-date]");
     if (bulkDate) {
       actions.updateMedicalBulkActivityControls?.(bulkDate.closest("#medicalBulkRecommendationForm"));
@@ -363,6 +375,18 @@ export function bindMedicalRuntimeBindings(deps = {}) {
   };
 
   const onSubmit = (event) => {
+    const historyFilterForm = event.target.closest("[data-medical-history-filter-form]");
+    if (historyFilterForm) {
+      event.preventDefault();
+      const searchInput = historyFilterForm.querySelector?.("[data-medical-history-search]");
+      const dateFilter = historyFilterForm.querySelector?.("[data-medical-history-date-filter]");
+      const playerFilter = historyFilterForm.querySelector?.("[data-medical-history-player-filter]");
+      setStateValue(state, "MedicalHistorySearchQuery", searchInput?.value || "");
+      setStateValue(state, "MedicalHistoryDateFilter", dateFilter?.value || "all");
+      setStateValue(state, "MedicalHistoryPlayerFilter", playerFilter?.value || "all");
+      renderWorkspace();
+      return;
+    }
     const governanceForm = event.target.closest("#medicalGovernanceForm");
     if (governanceForm) {
       event.preventDefault();

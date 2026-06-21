@@ -53,6 +53,9 @@ function createHarness({ canEdit = true } = {}) {
   const workspace = createWorkspace();
   const mutable = {
     bulkOpen: false,
+    historyDateFilter: "all",
+    historyPlayerFilter: "all",
+    historySearch: "",
     modalOpen: true,
     modalTab: "availability",
     operationsTab: "availability",
@@ -78,6 +81,9 @@ function createHarness({ canEdit = true } = {}) {
       setMedicalPlayerModalTab: (value) => { mutable.modalTab = value; },
       getMedicalBulkRecommendationOpen: () => mutable.bulkOpen,
       setMedicalBulkRecommendationOpen: (value) => { mutable.bulkOpen = value; },
+      setMedicalHistoryDateFilter: (value) => { mutable.historyDateFilter = value; },
+      setMedicalHistoryPlayerFilter: (value) => { mutable.historyPlayerFilter = value; },
+      setMedicalHistorySearchQuery: (value) => { mutable.historySearch = value; },
       setMedicalOperationsTab: (value) => { mutable.operationsTab = value; },
       setMedicalRosterSearchQuery: (value) => { mutable.rosterSearch = value; },
       setMedicalStatusFilter: (value) => { mutable.statusFilter = value; },
@@ -188,6 +194,15 @@ test("Medical runtime bindings preserve quick recommendation, archive, and plan 
 
 test("Medical runtime bindings preserve roster search, filters, and protected submit writes", () => {
   const { calls, mutable, workspace } = createHarness();
+  const historyForm = {
+    querySelector(selector) {
+      return {
+        "[data-medical-history-search]": { value: "acl" },
+        "[data-medical-history-date-filter]": { value: "2026-05-15" },
+        "[data-medical-history-player-filter]": { value: "p-1" },
+      }[selector] ?? null;
+    },
+  };
   const newPlayerForm = { reset: () => calls.push("reset-new-player") };
   const recommendationForm = { values: { playerId: "p-1", participation: "100", date: "2026-05-29" } };
 
@@ -204,6 +219,23 @@ test("Medical runtime bindings preserve roster search, filters, and protected su
     closest: { "[data-medical-status-filter]": { value: "available" } },
   })));
   expect(mutable.statusFilter).toBe("available");
+
+  workspace.listeners.change(createEvent(createTarget({
+    closest: { "[data-medical-history-date-filter]": { value: "2026-05-15" } },
+  })));
+  expect(mutable.historyDateFilter).toBe("2026-05-15");
+
+  workspace.listeners.change(createEvent(createTarget({
+    closest: { "[data-medical-history-player-filter]": { value: "p-1" } },
+  })));
+  expect(mutable.historyPlayerFilter).toBe("p-1");
+
+  workspace.listeners.submit(createEvent(createTarget({
+    closest: { "[data-medical-history-filter-form]": historyForm },
+  })));
+  expect(mutable.historySearch).toBe("acl");
+  expect(mutable.historyDateFilter).toBe("2026-05-15");
+  expect(mutable.historyPlayerFilter).toBe("p-1");
 
   workspace.listeners.submit(createEvent(createTarget({
     closest: { "#medicalNewPlayerForm": newPlayerForm },

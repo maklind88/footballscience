@@ -2996,6 +2996,26 @@ test("Medical operations board separates signals, cases, history and season view
   await operationsMenu.locator('[data-medical-ops-tab="history"]').click();
   await expect(operations).toContainText("Case opened");
   await expect(operations).toContainText("Recommendation");
+  const historyTable = operations.locator(".medical-ops-history-table");
+  const historyFilterForm = operations.locator("[data-medical-history-filter-form]");
+  await expect(historyFilterForm).toBeVisible();
+  await expect(historyFilterForm.locator("[data-medical-history-search]")).toBeVisible();
+  await expect(historyFilterForm.locator("[data-medical-history-date-filter]")).toBeVisible();
+  await expect(historyFilterForm.locator("[data-medical-history-player-filter]")).toBeVisible();
+  await expect(historyTable).toContainText("QA Risk Player");
+  await expect(historyTable).not.toContainText("QA Clear Player");
+  await historyFilterForm.locator("[data-medical-history-search]").fill("long term");
+  await historyFilterForm.locator(".medical-ops-history-search-button").click();
+  await expect(historyTable).toContainText("QA Long Term ACL");
+  await expect(historyTable).not.toContainText("QA Risk Player");
+  await historyFilterForm.locator("[data-medical-history-search]").fill("");
+  await historyFilterForm.locator(".medical-ops-history-search-button").click();
+  await historyFilterForm.locator("[data-medical-history-date-filter]").selectOption("2026-05-15");
+  await expect(historyTable).toContainText("Recommendation");
+  await expect(historyTable).not.toContainText("Case opened");
+  await historyFilterForm.locator("[data-medical-history-player-filter]").selectOption("qa-risk");
+  await expect(historyTable).toContainText("QA Risk Player");
+  await expect(historyTable).not.toContainText("QA Long Term ACL");
 
   await operationsMenu.locator('[data-medical-ops-tab="season"]').click();
   await expect(operations).toContainText("Managed days");

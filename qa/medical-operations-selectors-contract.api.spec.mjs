@@ -105,7 +105,9 @@ test("Medical operations selectors build read-only operations summaries without 
 
   const history = selectors.getMedicalHistoryEvents();
   expect(history.map((event) => event.type)).toContain("Recommendation");
-  expect(history.find((event) => event.id === "plan-1")?.detail).toContain("22 days");
+  expect(history.find((event) => event.id === "r1")?.title).toContain("75%");
+  expect(history.find((event) => event.id === "r2")).toBeUndefined();
+  expect(history.find((event) => event.id === "plan-1")).toBeUndefined();
 
   const season = selectors.getMedicalSeasonSummary("2026-05-31");
   expect(season.plans).toHaveLength(1);

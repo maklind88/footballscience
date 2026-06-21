@@ -1182,6 +1182,69 @@ body.is-dark-mode .medical-plan-edit:focus-visible {
   background: rgba(238, 249, 241, 0.86);
 }
 
+.medical-ops-history-controls {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1.4fr) auto minmax(9rem, 0.7fr) minmax(11rem, 0.9fr) auto;
+  align-items: end;
+  gap: 0.58rem;
+  min-width: 0;
+  padding: 0.72rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 16px 40px rgba(12, 24, 20, 0.05);
+}
+
+.medical-ops-history-controls label {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.medical-ops-history-controls label span {
+  color: #66726b;
+  font-size: 0.66rem;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.medical-ops-history-controls input,
+.medical-ops-history-controls select,
+.medical-ops-history-search-button {
+  width: 100%;
+  min-height: 2.62rem;
+  border: 1px solid rgba(29, 31, 29, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #10231b;
+  font: inherit;
+  font-weight: 850;
+}
+
+.medical-ops-history-controls input,
+.medical-ops-history-controls select {
+  padding: 0 0.78rem;
+}
+
+.medical-ops-history-search-button {
+  padding: 0 1.08rem;
+  border-color: rgba(20, 44, 35, 0.16);
+  background: #14251d;
+  color: #fff;
+  cursor: pointer;
+}
+
+.medical-ops-history-controls small {
+  align-self: center;
+  justify-self: end;
+  color: #66726b;
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .medical-ops-table {
   display: grid;
   gap: 0.42rem;
@@ -1497,6 +1560,7 @@ body.is-dark-mode .medical-ops-tabs button,
 body.is-dark-mode .medical-ops-boundary,
 body.is-dark-mode .medical-ops-brief,
 body.is-dark-mode .medical-ops-card,
+body.is-dark-mode .medical-ops-history-controls,
 body.is-dark-mode .medical-ops-stat,
 body.is-dark-mode .medical-ops-table,
 body.is-dark-mode .medical-ops-table-row,
@@ -1528,9 +1592,23 @@ body.is-dark-mode .medical-ops-tabs button.is-active {
   color: #fff;
 }
 
+body.is-dark-mode .medical-ops-history-controls input,
+body.is-dark-mode .medical-ops-history-controls select {
+  border-color: var(--dark-line);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--dark-text);
+}
+
+body.is-dark-mode .medical-ops-history-search-button {
+  border-color: rgba(129, 210, 159, 0.36);
+  background: linear-gradient(180deg, #2c8b62, #1c684e);
+}
+
 body.is-dark-mode .medical-ops-brief span,
 body.is-dark-mode .medical-ops-brief small,
 body.is-dark-mode .medical-ops-card .medical-command-head span,
+body.is-dark-mode .medical-ops-history-controls label span,
+body.is-dark-mode .medical-ops-history-controls small,
 body.is-dark-mode .medical-ops-player-table-head,
 body.is-dark-mode .medical-ops-player-row small,
 body.is-dark-mode .medical-ops-table-head,
@@ -1715,6 +1793,19 @@ body.is-dark-mode .medical-ops-stat-clear {
 
   .medical-ops-tabs button {
     flex: 0 0 auto;
+  }
+
+  .medical-ops-history-controls {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .medical-ops-history-controls label,
+  .medical-ops-history-controls small {
+    grid-column: 1 / -1;
+  }
+
+  .medical-ops-history-search-button {
+    min-width: 6.4rem;
   }
 
   .medical-ops-overview,

@@ -11,7 +11,10 @@ export function createMedicalOperationsRenderer({
   formatMedicalDateLabel,
   getMedicalCoachHandoverItems,
   getMedicalDailyStats,
+  getMedicalHistoryDateFilter = () => "all",
   getMedicalHistoryEvents,
+  getMedicalHistoryPlayerFilter = () => "all",
+  getMedicalHistorySearchQuery = () => "",
   getMedicalRtpPhaseOption,
   medicalClearanceRoles = [],
   medicalLoadGateOptions = [],
@@ -254,9 +257,90 @@ ${summary.activeCases.length
 </div>
 `;
 
+  const normalizeHistoryFilterText = (value) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase();
+
+  const getHistoryDateOptions = (events) =>
+    Array.from(new Set(events.map((event) => event.date).filter(Boolean))).sort((first, second) => second.localeCompare(first));
+
+  const getHistoryPlayerOptions = (events) =>
+    Array.from(
+      events
+        .filter((event) => event.player?.id)
+        .reduce((players, event) => players.set(event.player.id, event.player), new Map())
+        .values()
+    ).sort((first, second) => String(first.name || "").localeCompare(String(second.name || "")));
+
+  const eventMatchesHistorySearch = (event, query) => {
+    if (!query) return true;
+    const haystack = [
+      event.date,
+      formatMedicalDateLabel(event.date),
+      event.player?.name,
+      event.player?.position,
+      event.type,
+      event.title,
+      event.detail,
+      event.coachShared ? "approved coach-safe" : "private medical only",
+    ]
+      .map(normalizeHistoryFilterText)
+      .join(" ");
+    return haystack.includes(query);
+  };
+
+  const renderHistoryFilters = ({ dateOptions, playerOptions, selectedDate, selectedPlayerId, searchQuery, visibleCount, totalCount }) => `
+<form class="medical-ops-history-controls" id="medicalHistoryFilterForm" data-medical-history-filter-form aria-label="Filter medical history">
+<label class="medical-ops-history-search">
+<span>Search</span>
+<input type="search" name="historySearch" value="${escapeHtml(searchQuery)}" placeholder="Search restricted history" data-medical-history-search>
+</label>
+<button type="submit" class="medical-ops-history-search-button">Search</button>
+<label>
+<span>Date</span>
+<select name="historyDate" data-medical-history-date-filter>
+<option value="all"${selectedDate === "all" ? " selected" : ""}>All dates</option>
+${dateOptions.map((date) => `<option value="${escapeHtml(date)}"${date === selectedDate ? " selected" : ""}>${escapeHtml(formatMedicalDateLabel(date))}</option>`).join("")}
+</select>
+</label>
+<label>
+<span>Player</span>
+<select name="historyPlayer" data-medical-history-player-filter>
+<option value="all"${selectedPlayerId === "all" ? " selected" : ""}>All players</option>
+${playerOptions.map((player) => `<option value="${escapeHtml(player.id)}"${player.id === selectedPlayerId ? " selected" : ""}>${escapeHtml(player.name)}</option>`).join("")}
+</select>
+</label>
+<small>${visibleCount}/${totalCount} restricted items</small>
+</form>
+`;
+
   const renderHistory = () => {
-    const events = getMedicalHistoryEvents();
+    const allEvents = getMedicalHistoryEvents(300);
+    const dateOptions = getHistoryDateOptions(allEvents);
+    const playerOptions = getHistoryPlayerOptions(allEvents);
+    const selectedDateCandidate = String(getMedicalHistoryDateFilter() || "all");
+    const selectedPlayerCandidate = String(getMedicalHistoryPlayerFilter() || "all");
+    const selectedDate = selectedDateCandidate === "all" || dateOptions.includes(selectedDateCandidate) ? selectedDateCandidate : "all";
+    const selectedPlayerId =
+      selectedPlayerCandidate === "all" || playerOptions.some((player) => player.id === selectedPlayerCandidate) ? selectedPlayerCandidate : "all";
+    const searchQuery = String(getMedicalHistorySearchQuery() || "");
+    const normalizedQuery = normalizeHistoryFilterText(searchQuery);
+    const filteredEvents = allEvents
+      .filter((event) => selectedDate === "all" || event.date === selectedDate)
+      .filter((event) => selectedPlayerId === "all" || event.player?.id === selectedPlayerId)
+      .filter((event) => eventMatchesHistorySearch(event, normalizedQuery));
+    const events = filteredEvents.slice(0, 40);
     return `
+${renderHistoryFilters({
+  dateOptions,
+  playerOptions,
+  selectedDate,
+  selectedPlayerId,
+  searchQuery,
+  visibleCount: filteredEvents.length,
+  totalCount: allEvents.length,
+})}
 <div class="medical-ops-table medical-ops-history-table">
 <div class="medical-ops-table-head" aria-hidden="true">
 <span>Date</span>
@@ -279,7 +363,7 @@ ${events.length
 `
       )
       .join("")
-  : `<div class="medical-empty-inline">No medical history yet.</div>`}
+  : `<div class="medical-empty-inline">${allEvents.length ? "No restricted history matches the current filters." : "No restricted medical history yet."}</div>`}
 </div>
 `;
   };

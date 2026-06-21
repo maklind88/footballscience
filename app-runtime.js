@@ -1011,6 +1011,9 @@ let medicalState = null;
 let medicalRosterSearchQuery = "";
 let medicalStatusFilter = "all";
 let medicalOperationsTab = "availability";
+let medicalHistorySearchQuery = "";
+let medicalHistoryDateFilter = "all";
+let medicalHistoryPlayerFilter = "all";
 let medicalPlayerModalOpen = false;
 let medicalPlayerModalTab = "availability";
 let medicalInjuryPlanDraftsByPlayerId = new Map();
@@ -1701,6 +1704,9 @@ getCurrentPlatformUser,
 getMedicalAvailabilityItems,
 getMedicalBulkRecommendationOpen: () => medicalBulkRecommendationOpen,
 getMedicalBulkSelectedPlayerIds: () => medicalBulkSelectedPlayerIds,
+getMedicalHistoryDateFilter: () => medicalHistoryDateFilter,
+getMedicalHistoryPlayerFilter: () => medicalHistoryPlayerFilter,
+getMedicalHistorySearchQuery: () => medicalHistorySearchQuery,
 getMedicalOperationsTab: () => medicalOperationsTab,
 getMedicalPlayerModalOpen: () => medicalPlayerModalOpen,
 getMedicalPlayerModalTab: () => medicalPlayerModalTab,
@@ -1765,6 +1771,9 @@ setMedicalBulkRecommendationOpen: (isOpen) => { medicalBulkRecommendationOpen = 
 setMedicalBulkSelectedPlayerIds: (selectedIds) => {
 medicalBulkSelectedPlayerIds = selectedIds instanceof Set ? selectedIds : new Set(selectedIds || []);
 },
+setMedicalHistoryDateFilter: (filter) => { medicalHistoryDateFilter = filter || "all"; },
+setMedicalHistoryPlayerFilter: (filter) => { medicalHistoryPlayerFilter = filter || "all"; },
+setMedicalHistorySearchQuery: (query) => { medicalHistorySearchQuery = query || ""; },
 setMedicalOperationsTab: (tab) => { medicalOperationsTab = tab; },
 setMedicalPlayerModalOpen: (isOpen) => { medicalPlayerModalOpen = Boolean(isOpen); },
 setMedicalPlayerModalTab: (tab) => { medicalPlayerModalTab = tab; },
@@ -3681,6 +3690,9 @@ setMedicalPlayerModalOpen: (isOpen) => { medicalPlayerModalOpen = isOpen; },
 setMedicalPlayerModalTab: (tab) => { medicalPlayerModalTab = tab; },
 getMedicalBulkRecommendationOpen: () => medicalBulkRecommendationOpen,
 setMedicalBulkRecommendationOpen: (isOpen) => { medicalBulkRecommendationOpen = isOpen; },
+setMedicalHistoryDateFilter: (filter) => { medicalHistoryDateFilter = filter || "all"; },
+setMedicalHistoryPlayerFilter: (filter) => { medicalHistoryPlayerFilter = filter || "all"; },
+setMedicalHistorySearchQuery: (query) => { medicalHistorySearchQuery = query || ""; },
 setMedicalOperationsTab: (tab) => { medicalOperationsTab = tab; },
 setMedicalRosterSearchQuery: (query) => { medicalRosterSearchQuery = query; },
 setMedicalStatusFilter: (filter) => { medicalStatusFilter = filter; },

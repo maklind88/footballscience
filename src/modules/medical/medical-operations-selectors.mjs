@@ -18,6 +18,11 @@ function planOverlapsWindow(plan, startDate, endDate) {
   return Boolean(plan && plan.startDate <= endDate && plan.endDate >= startDate);
 }
 
+function isRestrictedParticipation(value) {
+  const participation = Number(value);
+  return Number.isFinite(participation) && participation < 100;
+}
+
 export function createMedicalOperationsSelectors({
   compareMedicalPlayers = defaultCompareMedicalPlayers,
   ensureMedicalState = () => {},
@@ -99,40 +104,44 @@ export function createMedicalOperationsSelectors({
     ensureMedicalState();
     const state = getState();
     const playerById = new Map(state.players.map((player) => [player.id, player]));
-    const recommendationEvents = state.records.map((record) => {
-      const player = playerById.get(record.playerId) ?? null;
-      const archived = isMedicalItemArchived(record);
-      return {
-        id: record.id,
-        date: record.date,
-        sortTime: archived ? record.archivedAt : record.updatedAt || record.createdAt || `${record.date}T00:00:00.000Z`,
-        player,
-        type: archived ? "Recommendation archived" : "Recommendation",
-        title: `${record.participation}% / ${getMedicalRecordStatus(record).label}`,
-        detail: archived
-          ? record.archiveReason || "Kept in protected clinical archive"
-          : record.actualParticipation === medicalActualParticipationFallback
-            ? getMedicalRtpPhaseOption(record.rtpPhase).label
-            : `Actual ${record.actualParticipation}%`,
-        coachShared: record.shareWithCoach,
-      };
-    });
-    const caseEvents = state.injuryPlans.map((plan) => {
-      const player = playerById.get(plan.playerId) ?? null;
-      const archived = isMedicalItemArchived(plan);
-      return {
-        id: plan.id,
-        date: plan.startDate,
-        sortTime: archived ? plan.archivedAt : plan.updatedAt || plan.createdAt || `${plan.startDate}T00:00:00.000Z`,
-        player,
-        type: archived ? "Case archived" : "Case opened",
-        title: plan.injuryType,
-        detail: archived
-          ? plan.archiveReason || "Kept in protected clinical archive"
-          : `${getMedicalRtpPhaseOption(plan.rtpPhase).label} / ${plan.participation}% / ${getMedicalPlanTotalDays(plan)} days`,
-        coachShared: plan.shareWithCoach,
-      };
-    });
+    const recommendationEvents = state.records
+      .filter((record) => isRestrictedParticipation(record.participation))
+      .map((record) => {
+        const player = playerById.get(record.playerId) ?? null;
+        const archived = isMedicalItemArchived(record);
+        return {
+          id: record.id,
+          date: record.date,
+          sortTime: archived ? record.archivedAt : record.updatedAt || record.createdAt || `${record.date}T00:00:00.000Z`,
+          player,
+          type: archived ? "Recommendation archived" : "Recommendation",
+          title: `${record.participation}% / ${getMedicalRecordStatus(record).label}`,
+          detail: archived
+            ? record.archiveReason || "Kept in protected clinical archive"
+            : record.actualParticipation === medicalActualParticipationFallback
+              ? getMedicalRtpPhaseOption(record.rtpPhase).label
+              : `Actual ${record.actualParticipation}%`,
+          coachShared: record.shareWithCoach,
+        };
+      });
+    const caseEvents = state.injuryPlans
+      .filter((plan) => isRestrictedParticipation(plan.participation))
+      .map((plan) => {
+        const player = playerById.get(plan.playerId) ?? null;
+        const archived = isMedicalItemArchived(plan);
+        return {
+          id: plan.id,
+          date: plan.startDate,
+          sortTime: archived ? plan.archivedAt : plan.updatedAt || plan.createdAt || `${plan.startDate}T00:00:00.000Z`,
+          player,
+          type: archived ? "Case archived" : "Case opened",
+          title: plan.injuryType,
+          detail: archived
+            ? plan.archiveReason || "Kept in protected clinical archive"
+            : `${getMedicalRtpPhaseOption(plan.rtpPhase).label} / ${plan.participation}% / ${getMedicalPlanTotalDays(plan)} days`,
+          coachShared: plan.shareWithCoach,
+        };
+      });
     return [...recommendationEvents, ...caseEvents]
       .filter((event) => event.player)
       .sort((first, second) => {

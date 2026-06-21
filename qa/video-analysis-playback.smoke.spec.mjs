@@ -189,6 +189,77 @@ test("Video Analysis pauses FS Player and ignores shortcuts after leaving Analys
   await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.paused)).toBe(true);
 });
 
+test("Video Analysis contains horizontal trackpad swipes across FS Player modes", async ({ page }) => {
+  await installDeterministicMedia(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLMediaElement.prototype, "paused", {
+      configurable: true,
+      get() {
+        return this.__videoAnalysisPaused !== false;
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value() {
+        this.__videoAnalysisPaused = false;
+        return Promise.resolve();
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "pause", {
+      configurable: true,
+      value() {
+        this.__videoAnalysisPaused = true;
+      },
+    });
+  });
+
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1&workspace=1", { waitUntil: "domcontentloaded" });
+  await openScheduleDayForLocalVideo(page);
+  await page.locator("[data-video-analysis-file]").setInputFiles({
+    name: "match.mp4",
+    mimeType: "video/mp4",
+    buffer: h264Mp4Fixture,
+  });
+  await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await markVideoMetadataReady(page, 120);
+  await expect(page.locator("body")).toHaveClass(/is-video-analysis-fs-player-active/);
+
+  const dispatchHorizontalWheel = async (selector) => page.evaluate((targetSelector) => {
+    const target = document.querySelector(targetSelector);
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: -90,
+      deltaY: 1,
+      deltaMode: 0,
+      clientX: 240,
+      clientY: 160,
+    });
+    target.dispatchEvent(event);
+    return {
+      defaultPrevented: event.defaultPrevented,
+      handled: Boolean(event.__videoAnalysisHandled),
+      fsPlayerActive: document.body.classList.contains("is-video-analysis-fs-player-active"),
+      fsPlayerCodeMode: document.body.classList.contains("is-video-analysis-fs-player-code-mode"),
+    };
+  }, selector);
+
+  const videoFrameWheel = await dispatchHorizontalWheel(".video-analysis-video-frame");
+  expect(videoFrameWheel.defaultPrevented).toBe(true);
+  expect(videoFrameWheel.handled).toBe(true);
+  expect(videoFrameWheel.fsPlayerActive).toBe(true);
+
+  const timelineWheel = await dispatchHorizontalWheel(".video-analysis-fs-player-timeline [data-video-analysis-timeline-pan]");
+  expect(timelineWheel.defaultPrevented).toBe(true);
+
+  await page.locator("[data-video-analysis-code-mode]").click();
+  await expect(page.locator("body")).toHaveClass(/is-video-analysis-fs-player-code-mode/);
+  const codeModeWheel = await dispatchHorizontalWheel(".video-analysis-code-window-dock");
+  expect(codeModeWheel.defaultPrevented).toBe(true);
+  expect(codeModeWheel.handled).toBe(true);
+  expect(codeModeWheel.fsPlayerCodeMode).toBe(true);
+});
+
 test("Video Analysis tries native H264 MP4 playback before offering bridge prepare", async ({ page }) => {
   await installDeterministicMedia(page);
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });

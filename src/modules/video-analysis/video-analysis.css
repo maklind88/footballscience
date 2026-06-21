@@ -1088,6 +1088,17 @@
   overscroll-behavior-x: none;
 }
 
+body.is-video-analysis-fs-player-active {
+  overscroll-behavior-x: none;
+}
+
+body.is-video-analysis-fs-player-active #analysisRoomWorkspace,
+body.is-video-analysis-fs-player-active .analysis-room-shell,
+body.is-video-analysis-fs-player-active .video-analysis-shell,
+body.is-video-analysis-fs-player-active .video-analysis-fs-player-workstation {
+  overscroll-behavior-x: none;
+}
+
 .video-analysis-video {
   display: block;
   width: 100%;

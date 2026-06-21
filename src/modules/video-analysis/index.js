@@ -526,6 +526,15 @@ function fsPlayerPlayerElement(context = {}) {
   return getRoot(context)?.querySelector(".video-analysis-fs-player-deck .video-analysis-player") || null;
 }
 
+function syncFsPlayerGestureContainment(context = {}, state = {}) {
+  const body = (context.doc || getRoot(context)?.ownerDocument || document)?.body;
+  if (!body?.classList) return;
+  const isActive = isFsPlayerInteractionActive(context, state);
+  const isCodeMode = isActive && state.fsPlayer?.mode === "code";
+  body.classList.toggle("is-video-analysis-fs-player-active", isActive);
+  body.classList.toggle("is-video-analysis-fs-player-code-mode", isCodeMode);
+}
+
 function fsPlayerOwnsFullscreen(context = {}) {
   const fullscreenElement = (context.doc || document)?.fullscreenElement || null;
   const workspace = fsPlayerWorkspaceElement(context);
@@ -722,6 +731,7 @@ function pauseFsPlayerIfInactive(context = {}) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
   if (isFsPlayerInteractionActive(context, state)) return false;
+  syncFsPlayerGestureContainment(context, state);
   return pauseFsPlayerPlayback(context);
 }
 
@@ -882,6 +892,34 @@ function fsPlayerGlobalWheelFrame(event = {}, context = {}, state = {}) {
   return null;
 }
 
+function fsPlayerWheelTargetInfo(event = {}, context = {}, state = {}) {
+  const target = eventElement(event);
+  const workspace = fsPlayerWorkspaceElement(context);
+  const frame = fsPlayerVideoFrameElement(context);
+  const player = fsPlayerPlayerElement(context);
+  if (!workspace || !frame || !player) {
+    return { shouldContain: false, frame: null, allowTimeline: false };
+  }
+
+  const ownsFullscreen = fsPlayerOwnsFullscreen(context);
+  const targetInWorkspace = Boolean(target && workspace.contains?.(target));
+  const targetInPlayer = Boolean(target && player.contains?.(target));
+  const targetInTimeline = Boolean(target?.closest?.(
+    ".video-analysis-fs-player-timeline, [data-video-analysis-timeline-module], [data-video-analysis-timeline-pan]"
+  ));
+  const pointerInsidePlayer = ensureRuntime(context).fsPlayerPointerInsideShuttle;
+  const codeMode = state.fsPlayer?.mode === "code";
+  const shouldContain = ownsFullscreen || targetInWorkspace || targetInPlayer || pointerInsidePlayer;
+  if (!shouldContain) {
+    return { shouldContain: false, frame: null, allowTimeline: false };
+  }
+  if (targetInTimeline) {
+    return { shouldContain: true, frame: null, allowTimeline: true };
+  }
+  const shouldShuttle = ownsFullscreen || targetInPlayer || pointerInsidePlayer || codeMode;
+  return { shouldContain: true, frame: shouldShuttle ? frame : null, allowTimeline: false };
+}
+
 function handleFsPlayerGlobalWheel(event = {}, context = {}) {
   if (event.__videoAnalysisHandled) return false;
   if (event.ctrlKey || event.metaKey || event.altKey) return false;
@@ -894,14 +932,17 @@ function handleFsPlayerGlobalWheel(event = {}, context = {}) {
   const target = eventElement(event);
   if (target?.closest?.("input, select, textarea, a")) return false;
 
-  const frame = fsPlayerGlobalWheelFrame(event, context, state);
-  const shouldGuard = Boolean(frame) || fsPlayerOwnsFullscreen(context);
+  const targetInfo = fsPlayerWheelTargetInfo(event, context, state);
+  if (!targetInfo.shouldContain) return false;
 
-  if (!shouldGuard) return false;
   event.preventDefault?.();
+  if (targetInfo.allowTimeline) return false;
+
   event.stopPropagation?.();
   event.stopImmediatePropagation?.();
   event.__videoAnalysisHandled = true;
+
+  const frame = targetInfo.frame || fsPlayerGlobalWheelFrame(event, context, state);
   if (!frame) return true;
 
   const video = videoElement(context);
@@ -1144,6 +1185,7 @@ function paint(root, state) {
   );
   const displayState = { ...state, clips: visibleClips, allClips: state.clips };
   const activeTabId = activeAnalysisRoomTab(state);
+  syncFsPlayerGestureContainment(runtime?.context || {}, state);
   root.innerHTML = `
     <section class="analysis-room-shell">
       ${renderAnalysisRoomHeader(runtime?.context || {}, activeTabId)}
@@ -2296,6 +2338,10 @@ export function render(context = {}) {
 export function resetVideoAnalysisRuntimeForTests() {
   runtime?.unsubscribe?.();
   runtime?.workspaceObserver?.disconnect?.();
+  runtime?.context?.doc?.body?.classList?.remove?.(
+    "is-video-analysis-fs-player-active",
+    "is-video-analysis-fs-player-code-mode"
+  );
   runtime = null;
   videoLibraryController = null;
   timelineScrubController = null;

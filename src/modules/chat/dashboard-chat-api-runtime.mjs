@@ -143,6 +143,15 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     };
   }
 
+  function createDashboardChatClosedResult() {
+    return {
+      ok: false,
+      status: 0,
+      skipped: true,
+      reason: "Chat refresh is paused until the chat panel is opened.",
+    };
+  }
+
   function getApiScope() {
     return getDashboardApiScope();
   }
@@ -385,7 +394,10 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     if (!canRunDashboardChatNetworkRefresh(options)) {
       return createDashboardChatHiddenTabResult();
     }
-    const result = await fetchDashboardChatApi({ view: "threads", limit: options.limit || 80 });
+    if (!options.forceNetwork && !getDashboardChatCurrentViewState()?.isOpen) {
+      return createDashboardChatClosedResult();
+    }
+    const result = await fetchDashboardChatApi({ view: "threads", limit: options.limit || 80, __activeChatRead: true });
     if (!result.ok) {
       if (!canFallbackDashboardChatApiResult(result)) {
         logDashboardChatApiFailure("threads", result);
@@ -402,6 +414,10 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
   }
 
   function queueDashboardChatThreadSummaryRefresh(options = {}) {
+    if (!options.forceNetwork && !getDashboardChatCurrentViewState()?.isOpen) {
+      return;
+    }
+
     if (getThreadSummarySyncTimer()) {
       win.clearTimeout(getThreadSummarySyncTimer());
     }
@@ -425,13 +441,18 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
   }
 
   function queueDashboardChatCurrentViewRefresh(options = {}) {
-    queueDashboardChatThreadSummaryRefresh({ delayMs: Number(options.delayMs ?? 120), render: false });
     const state = getDashboardChatCurrentViewState();
+    if (!options.forceNetwork && !state.isOpen) {
+      return;
+    }
+
+    queueDashboardChatThreadSummaryRefresh({ delayMs: Number(options.delayMs ?? 120), render: false, forceNetwork: options.forceNetwork });
 
     if (state.isOpen) {
       queueDashboardChatApiRefresh({
         threadId: state.selectedThreadId,
         delayMs: Number(options.delayMs ?? 120) + 40,
+        forceNetwork: options.forceNetwork,
       });
     }
   }
@@ -439,6 +460,9 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
   async function refreshDashboardChatFromApi(options = {}) {
     if (!canRunDashboardChatNetworkRefresh(options)) {
       return createDashboardChatHiddenTabResult();
+    }
+    if (!options.forceNetwork && !getDashboardChatCurrentViewState()?.isOpen) {
+      return createDashboardChatClosedResult();
     }
     const threadId = normalizeDashboardChatThreadId(
       options.threadId || getDashboardChatCurrentViewState().selectedThreadId,
@@ -449,6 +473,7 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       threadId,
       threadType: getDashboardChatThreadTypeForApi(threadId),
       limit: options.limit || dashboardChatApiPageLimit,
+      __activeChatRead: true,
     };
 
     if (options.cursor) {
@@ -479,6 +504,10 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
   }
 
   function queueDashboardChatApiRefresh(options = {}) {
+    if (!options.forceNetwork && !getDashboardChatCurrentViewState()?.isOpen) {
+      return;
+    }
+
     if (getApiSyncTimer()) {
       win.clearTimeout(getApiSyncTimer());
     }
@@ -539,10 +568,11 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       thread: filters.threadId || "",
       from: filters.from || "",
       to: filters.to || "",
+      __activeChatRead: true,
     };
 
     const result = await fetchDashboardChatApi(moderationQuery);
-    const healthResult = await fetchDashboardChatApi({ view: "health", limit: 8 });
+    const healthResult = await fetchDashboardChatApi({ view: "health", limit: 8, __activeChatRead: true });
 
     if (!result.ok) {
       setModerationState({ ...getModerationState(), loading: false, error: result.reason || "Could not load moderation." });
@@ -581,6 +611,11 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
   }
 
   function handleDashboardChatRealtimeMessageChange(change = {}) {
+    const activeState = getDashboardChatCurrentViewState();
+    if (!activeState.isOpen) {
+      return;
+    }
+
     setRealtimeLastEventAt(Date.now());
     const eventType = String(change.eventType || change.type || "").toUpperCase();
     const record = change.new || change.old || {};
@@ -600,10 +635,14 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
   }
 
   function handleDashboardChatRealtimeRelatedChange(change = {}) {
+    const activeState = getDashboardChatCurrentViewState();
+    if (!activeState.isOpen) {
+      return;
+    }
+
     setRealtimeLastEventAt(Date.now());
     const record = change.new || change.old || {};
     const databaseThreadId = String(record.thread_id || record.id || "").trim();
-    const activeState = getDashboardChatCurrentViewState();
     const matchingThread = getApiThreads().find((thread) => thread.databaseThreadId === databaseThreadId) || null;
     const refreshThreadId = matchingThread?.threadId || activeState.selectedThreadId || dashboardChatTeamThreadId;
     queueDashboardChatThreadSummaryRefresh({ delayMs: 180 });

@@ -8,6 +8,8 @@ const {
 
 const CHAT_DATABASE_MODE_VALUES = new Set(["database", "db", "postgres", "supabase"]);
 const CHAT_LEGACY_MODE_VALUES = new Set(["legacy", "storage", "app-state", "appstate", "local", "off", "false", "0"]);
+const CHAT_ACTIVE_READ_HEADER = "x-footballscience-chat-active";
+const CHAT_READ_RETRY_AFTER_SECONDS = 300;
 const STAFF_ROLES = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"]);
 const MANAGER_ROLES = new Set(["admin", "club-admin", "team-admin", "coach"]);
 const ADMIN_ROLES = new Set(["admin"]);
@@ -52,6 +54,11 @@ const RATE_LIMITS = {
   archiveThread: 5,
   createAttachmentIntent: 20,
   uploadAttachmentObject: 20,
+  readThreads: 12,
+  readThread: 18,
+  searchMessages: 8,
+  readModeration: 8,
+  readHealth: 8,
   default: 60,
 };
 const rateLimitBuckets = new Map();
@@ -659,6 +666,51 @@ function checkRateLimit(actor, action, nowMs = Date.now()) {
   }
 
   return { ok: true };
+}
+
+function readHeaderValue(req, headerName) {
+  const headers = req?.headers || {};
+  const lowerName = String(headerName || "").toLowerCase();
+  return headers[lowerName] || headers[headerName] || headers[lowerName.replace(/(^|-)([a-z])/g, (match) => match.toUpperCase())] || "";
+}
+
+function hasActiveChatReadIntent(req) {
+  const value = String(readHeaderValue(req, CHAT_ACTIVE_READ_HEADER) || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "open" || value === "active";
+}
+
+function getDatabaseChatReadAction(req) {
+  const query = new URL(req.url || "/", "http://localhost").searchParams;
+  const view = normalizeString(query.get("view"), 40).toLowerCase();
+  if (view === "moderation" || view === "admin") return "readModeration";
+  if (view === "health") return "readHealth";
+  if (normalizeString(query.get("search"), 120)) return "searchMessages";
+  if (normalizeId(query.get("threadId")) || query.has("threadId")) return "readThread";
+  return "readThreads";
+}
+
+function sendChatReadPaused(res) {
+  res.setHeader("Retry-After", String(CHAT_READ_RETRY_AFTER_SECONDS));
+  res.setHeader("Cache-Control", "no-store");
+  return sendJson(res, 429, {
+    ok: false,
+    status: 429,
+    code: "chat_read_inactive",
+    retryable: true,
+    retryAfterSeconds: CHAT_READ_RETRY_AFTER_SECONDS,
+    reason: "Chat reads are paused until the chat panel is opened.",
+  });
+}
+
+function sendChatReadRateLimited(res, rateLimit) {
+  res.setHeader("Retry-After", "60");
+  res.setHeader("Cache-Control", "no-store");
+  return sendJson(res, rateLimit.status || 429, {
+    ...rateLimit,
+    retryable: true,
+    retryAfterSeconds: 60,
+    reason: "Too many chat reads. Please wait a moment and try again.",
+  });
 }
 
 async function readFirstMembership(actor) {
@@ -2716,6 +2768,13 @@ async function handleDatabaseChatRequest(req, res, actor) {
   }
 
   if (req.method === "GET") {
+    if (!hasActiveChatReadIntent(req)) {
+      return sendChatReadPaused(res);
+    }
+    const rateLimit = checkRateLimit(actor, getDatabaseChatReadAction(req));
+    if (!rateLimit.ok) {
+      return sendChatReadRateLimited(res, rateLimit);
+    }
     return handleDatabaseGet(req, res, actor);
   }
 
@@ -2732,6 +2791,8 @@ module.exports = {
   _private: {
     canUseChat,
     checkRateLimit,
+    getDatabaseChatReadAction,
+    hasActiveChatReadIntent,
     isUuid,
     normalizeMessageText,
     normalizePriority,

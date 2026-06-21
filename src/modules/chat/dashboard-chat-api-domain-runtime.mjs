@@ -3,6 +3,9 @@ function isLocalHost(hostname = "") {
   return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized.endsWith(".localhost");
 }
 
+const activeChatReadQueryKey = "__activeChatRead";
+const activeChatReadHeader = "X-FootballScience-Chat-Active";
+
 export function createDashboardChatApiDomainRuntime(dependencies = {}) {
   const {
     dashboardChatAdvancedThreadTemplates = () => [],
@@ -97,9 +100,15 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
     };
   }
 
+  function getDashboardChatPublicReadQuery(query = {}) {
+    const publicQuery = { ...(query || {}) };
+    delete publicQuery[activeChatReadQueryKey];
+    return publicQuery;
+  }
+
   function buildDashboardChatApiReadParams(query = {}) {
     const params = new URLSearchParams();
-    Object.entries(query)
+    Object.entries(getDashboardChatPublicReadQuery(query))
       .sort(([firstKey], [secondKey]) => String(firstKey).localeCompare(String(secondKey)))
       .forEach(([key, value]) => {
         if (value !== undefined && value !== null && String(value).trim()) {
@@ -299,6 +308,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       return { ok: false, status: 401, reason: "Chat API requires an authenticated session." };
     }
 
+    const activeChatRead = Boolean(query?.[activeChatReadQueryKey]);
     const params = buildDashboardChatApiReadParams(query);
     const readCacheKey = getDashboardChatApiReadCacheKey(query);
     const nowMs = Date.now();
@@ -323,6 +333,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
+            ...(activeChatRead ? { [activeChatReadHeader]: "1" } : {}),
           },
           cache: "no-store",
           signal: controller?.signal,

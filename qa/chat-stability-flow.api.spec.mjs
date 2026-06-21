@@ -372,7 +372,13 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(chatApiDomainRuntimeSource).toContain("getRetryAfterMs(response)");
   expect(chatApiDomainRuntimeSource).toContain("dashboardChatApiReadRequests");
   expect(chatApiDomainRuntimeSource).toContain("chatApiReadMinimumGapMs");
+  expect(chatApiDomainRuntimeSource).toContain("X-FootballScience-Chat-Active");
+  expect(chatApiDomainRuntimeSource).toContain("__activeChatRead");
   expect(chatApiRuntimeSource).toContain("Chat refresh is paused while this tab is hidden.");
+  expect(chatApiRuntimeSource).toContain("Chat refresh is paused until the chat panel is opened.");
+  expect(chatApiRuntimeSource).toContain("__activeChatRead: true");
+  expect(databaseSource).toContain("CHAT_ACTIVE_READ_HEADER");
+  expect(databaseSource).toContain("chat_read_inactive");
   expect(chatRealtimePatterns).toContain('table: "chat_threads"');
   expect(chatRealtimePatterns).toContain('table: "chat_attachments"');
   expect(chatRealtimePatterns).toContain('table: "chat_thread_participants"');
@@ -510,6 +516,45 @@ test("closed chat widget does not queue background API summaries", () => {
   expect(summaryRefreshCount).toBe(1);
 });
 
+test("closed chat runtime does not queue realtime recovery reads", async () => {
+  let fetchCount = 0;
+  let summaryTimer = 0;
+  let apiTimer = 0;
+  const runtime = createDashboardChatApiRuntime({
+    fetchDashboardChatApi: async () => {
+      fetchCount += 1;
+      return { ok: true, status: 200, result: { threads: [], messages: [] } };
+    },
+    getDashboardChatCurrentViewState: () => ({ isOpen: false, selectedThreadId: "team" }),
+    getDashboardChatApiThreadSummarySyncTimer: () => summaryTimer,
+    setDashboardChatApiThreadSummarySyncTimer: (value) => {
+      summaryTimer = value;
+    },
+    getDashboardChatApiSyncTimer: () => apiTimer,
+    setDashboardChatApiSyncTimer: (value) => {
+      apiTimer = value;
+    },
+    win: {
+      setTimeout: (handler) => {
+        handler();
+        return 1;
+      },
+      clearTimeout: () => {},
+    },
+  });
+
+  const summaries = await runtime.refreshDashboardChatThreadSummariesFromApi();
+  const thread = await runtime.refreshDashboardChatFromApi({ threadId: "team" });
+  runtime.queueDashboardChatCurrentViewRefresh({ delayMs: 0 });
+  runtime.handleDashboardChatRealtimeStatus("SUBSCRIBED");
+  runtime.handleDashboardChatRealtimeMessageChange({ eventType: "INSERT", new: { id: "m1" } });
+  runtime.handleDashboardChatRealtimeRelatedChange({ eventType: "UPDATE", new: { id: "team" } });
+
+  expect(summaries).toMatchObject({ ok: false, skipped: true, status: 0 });
+  expect(thread).toMatchObject({ ok: false, skipped: true, status: 0 });
+  expect(fetchCount).toBe(0);
+});
+
 test("chat widget open state is session-only and cannot revive stale background chat", () => {
   let storedWidgetState = { isOpen: true, selectedThreadId: "team" };
   const createRuntime = () =>
@@ -570,6 +615,40 @@ test("chat API GET 429 enters backoff instead of hammering reads", async () => {
     retryable: true,
   });
   expect(fetchCount).toBe(1);
+});
+
+test("chat API GET marks intentional reads without leaking internal query keys", async () => {
+  let capturedUrl = "";
+  let capturedHeaders = {};
+  const runtime = createDashboardChatApiDomainRuntime({
+    chatApiReadMinimumGapMs: 0,
+    getPlatformAuthStore: () => ({
+      getAccessToken: async () => "token",
+    }),
+    fetchImpl: async (url, options = {}) => {
+      capturedUrl = url;
+      capturedHeaders = options.headers || {};
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => "" },
+        text: async () => JSON.stringify({ ok: true, threads: [] }),
+      };
+    },
+    win: {
+      location: { hostname: "footballscience.xyz" },
+      setTimeout,
+      clearTimeout,
+    },
+  });
+
+  const result = await runtime.fetchDashboardChatApi({ view: "threads", limit: 80, __activeChatRead: true });
+
+  expect(result.ok).toBe(true);
+  expect(capturedUrl).toBe("/api/chat?limit=80&view=threads");
+  expect(capturedHeaders.Authorization).toBe("Bearer token");
+  expect(capturedHeaders["X-FootballScience-Chat-Active"]).toBe("1");
+  expect(capturedUrl).not.toContain("__activeChatRead");
 });
 
 test("chat API GET coalesces duplicate reads and reuses short settled results", async () => {

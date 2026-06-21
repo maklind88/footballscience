@@ -19,6 +19,8 @@ const APP_STATE_SCHEMA = "footballscience-app-state-v1";
 const CHAT_STATE_KEY = "football-dashboard-chat-v1";
 const CHAT_LEGACY_SCHEMA = "football-dashboard-chat-v1";
 const CHAT_API_SCHEMA = "footballscience-chat-api-v1";
+const CHAT_ACTIVE_READ_HEADER = "x-footballscience-chat-active";
+const CHAT_READ_RETRY_AFTER_SECONDS = 300;
 const MAX_MESSAGE_LENGTH = 1600;
 const MAX_AUDIT_ENTRIES = 200;
 const MAX_TEXT_FIELD_LENGTH = 240;
@@ -59,6 +61,7 @@ const RATE_LIMITS = {
   setThreadSettings: 30,
   setThreadParticipants: 12,
   clearThread: 5,
+  read: 12,
   default: 60,
 };
 const DEFAULT_RETENTION_POLICY = {
@@ -1360,6 +1363,41 @@ function checkChatRateLimit(actor, action, nowMs = Date.now()) {
   return { ok: true };
 }
 
+function readChatHeaderValue(req, headerName) {
+  const headers = req?.headers || {};
+  const lowerName = String(headerName || "").toLowerCase();
+  return headers[lowerName] || headers[headerName] || headers[lowerName.replace(/(^|-)([a-z])/g, (match) => match.toUpperCase())] || "";
+}
+
+function hasActiveChatReadIntent(req) {
+  const value = String(readChatHeaderValue(req, CHAT_ACTIVE_READ_HEADER) || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "open" || value === "active";
+}
+
+function sendChatReadPaused(res) {
+  res.setHeader("Retry-After", String(CHAT_READ_RETRY_AFTER_SECONDS));
+  res.setHeader("Cache-Control", "no-store");
+  return sendJson(res, 429, {
+    ok: false,
+    status: 429,
+    code: "chat_read_inactive",
+    retryable: true,
+    retryAfterSeconds: CHAT_READ_RETRY_AFTER_SECONDS,
+    reason: "Chat reads are paused until the chat panel is opened.",
+  });
+}
+
+function sendChatReadRateLimited(res, rateLimit) {
+  res.setHeader("Retry-After", "60");
+  res.setHeader("Cache-Control", "no-store");
+  return sendJson(res, rateLimit.status || 429, {
+    ...rateLimit,
+    retryable: true,
+    retryAfterSeconds: 60,
+    reason: "Too many chat reads. Please wait a moment and try again.",
+  });
+}
+
 module.exports = async (req, res) => {
   sendCorsHeaders(res);
 
@@ -1385,6 +1423,16 @@ module.exports = async (req, res) => {
   });
   if (!security.ok) {
     return;
+  }
+
+  if (req.method === "GET") {
+    if (!hasActiveChatReadIntent(req)) {
+      return sendChatReadPaused(res);
+    }
+    const rateLimit = checkChatRateLimit(actor, "read");
+    if (!rateLimit.ok) {
+      return sendChatReadRateLimited(res, rateLimit);
+    }
   }
 
   if (isDatabaseChatEnabled()) {

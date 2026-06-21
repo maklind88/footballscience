@@ -99,6 +99,8 @@ const VIDEO_SHUTTLE_MIN_SPEED = 4;
 const VIDEO_SHUTTLE_MAX_SPEED = 16;
 const VIDEO_SHUTTLE_SPEED_DELTA_PX = 60;
 const VIDEO_SHUTTLE_MIN_DELTA_PX = 6;
+const VIDEO_SHUTTLE_CONTAIN_DELTA_PX = 2;
+const VIDEO_SHUTTLE_CONTAIN_RATIO = 0.6;
 const VIDEO_SHUTTLE_DOMINANCE_RATIO = 1.35;
 const VIDEO_SHUTTLE_IDLE_MS = 520;
 const VIDEO_SHUTTLE_MAX_FRAME_MS = 80;
@@ -582,6 +584,15 @@ function videoShuttleHorizontalDelta(event = {}) {
   return deltaX;
 }
 
+function videoShuttleHasHorizontalIntent(event = {}) {
+  const deltaMode = Number(event.deltaMode || 0);
+  const deltaX = wheelDeltaPixelValue(event.deltaX, deltaMode);
+  const deltaY = wheelDeltaPixelValue(event.deltaY, deltaMode);
+  if (event.shiftKey && Math.abs(deltaY) >= VIDEO_SHUTTLE_CONTAIN_DELTA_PX) return true;
+  return Math.abs(deltaX) >= VIDEO_SHUTTLE_CONTAIN_DELTA_PX
+    && Math.abs(deltaX) >= Math.abs(deltaY) * VIDEO_SHUTTLE_CONTAIN_RATIO;
+}
+
 function videoShuttleSpeedFromDelta(deltaPx = 0) {
   const intensity = Math.min(1, Math.abs(Number(deltaPx || 0)) / VIDEO_SHUTTLE_SPEED_DELTA_PX);
   const speed = VIDEO_SHUTTLE_MIN_SPEED + ((VIDEO_SHUTTLE_MAX_SPEED - VIDEO_SHUTTLE_MIN_SPEED) * intensity);
@@ -729,13 +740,15 @@ function handleVideoFrameWheel(event = {}, context = {}) {
     : surface.querySelector?.(".video-analysis-video-frame");
   if (!video || !frame.contains(video)) return false;
 
+  if (!videoShuttleHasHorizontalIntent(event)) return false;
+  event.preventDefault?.();
+
   const horizontalDelta = videoShuttleHorizontalDelta(event);
-  if (Math.abs(horizontalDelta) < VIDEO_SHUTTLE_MIN_DELTA_PX) return false;
+  if (Math.abs(horizontalDelta) < VIDEO_SHUTTLE_MIN_DELTA_PX) return true;
 
   const direction = horizontalDelta > 0 ? 1 : -1;
   activateVideoShuttle(frame, video, context, direction, videoShuttleSpeedFromDelta(horizontalDelta));
   scheduleVideoShuttleStop(frame, context);
-  event.preventDefault?.();
   return true;
 }
 

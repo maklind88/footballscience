@@ -1557,6 +1557,26 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   expect(forward.playbackRate).toBeGreaterThan(14);
   expect(forward.muted).toBe(true);
   await expect.poll(() => page.evaluate(() => window.__videoShuttlePlayCalls)).toBeGreaterThan(0);
+  const reverseInertiaContainment = await page.evaluate(() => {
+    const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");
+    const video = document.querySelector("[data-video-analysis-video]");
+    const before = video.currentTime;
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: -4,
+      deltaY: 2,
+      deltaMode: 0,
+    });
+    frame.dispatchEvent(event);
+    return {
+      currentTime: video.currentTime,
+      defaultPrevented: event.defaultPrevented,
+      before,
+    };
+  });
+  expect(reverseInertiaContainment.defaultPrevented).toBe(true);
+  expect(reverseInertiaContainment.currentTime).toBe(reverseInertiaContainment.before);
   await page.waitForTimeout(280);
   await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.playbackRate)).toBe(1);
 

@@ -45,6 +45,54 @@ export function createWorkspaceShellController(deps = {}) {
     workspaceHubDefaultActiveWorkspaceId = "home",
     writeWorkspaceHubState = () => {},
   } = deps;
+  let workspaceHistoryBound = false;
+
+  function createWorkspaceHistoryUrl(workspaceId) {
+    const safeWorkspaceId = String(workspaceId || "").trim();
+    if (!safeWorkspaceId || !win?.location?.href) return "";
+    try {
+      const nextUrl = new URL(win.location.href);
+      nextUrl.searchParams.set("workspace", safeWorkspaceId);
+      nextUrl.searchParams.delete("space");
+      return nextUrl.toString();
+    } catch {
+      return "";
+    }
+  }
+
+  function createWorkspaceHistoryState(workspaceId) {
+    return {
+      ...(win?.history?.state && typeof win.history.state === "object" ? win.history.state : {}),
+      footballScienceWorkspaceId: String(workspaceId || "").trim(),
+    };
+  }
+
+  function replaceWorkspaceHistory(workspaceId) {
+    const nextUrl = createWorkspaceHistoryUrl(workspaceId);
+    if (!nextUrl || !win?.history?.replaceState) return;
+    try {
+      win.history.replaceState(createWorkspaceHistoryState(workspaceId), "", nextUrl);
+    } catch {}
+  }
+
+  function pushWorkspaceHistory(workspaceId) {
+    const nextUrl = createWorkspaceHistoryUrl(workspaceId);
+    if (!nextUrl || !win?.history?.pushState) return;
+    try {
+      win.history.pushState(createWorkspaceHistoryState(workspaceId), "", nextUrl);
+    } catch {}
+  }
+
+  function bindWorkspaceHistoryNavigation() {
+    if (workspaceHistoryBound || !win?.addEventListener) return;
+    workspaceHistoryBound = true;
+    win.addEventListener("popstate", (event) => {
+      const stateWorkspaceId = String(event?.state?.footballScienceWorkspaceId || "").trim();
+      const nextWorkspaceId = getSafeWorkspaceId(stateWorkspaceId || getWorkspaceIdFromUrl()) || getHubState()?.activeWorkspaceId;
+      if (!nextWorkspaceId) return;
+      setActiveWorkspace(nextWorkspaceId, { skipHistory: true });
+    });
+  }
 
   function renderWorkspaceChrome() {
     let hubState = getHubState();
@@ -109,7 +157,7 @@ export function createWorkspaceShellController(deps = {}) {
     stopSimulatorAnimationLoop();
   }
 
-  function setActiveWorkspace(workspaceId) {
+  function setActiveWorkspace(workspaceId, options = {}) {
     const resolvedWorkspaceId = getSafeWorkspaceId(workspaceId) || getFirstAccessibleWorkspaceId(getHubState());
     const workspace = getWorkspaceById(resolvedWorkspaceId);
     if (!workspace) return;
@@ -133,6 +181,9 @@ export function createWorkspaceShellController(deps = {}) {
     hubState.activeWorkspaceId = targetWorkspaceId;
     rememberActiveWorkspaceId(targetWorkspaceId);
     writeWorkspaceHubState();
+    if (!options.skipHistory && previousWorkspaceId !== targetWorkspaceId) {
+      pushWorkspaceHistory(targetWorkspaceId);
+    }
     renderWorkspaceChrome();
     scrollStability?.restoreWorkspace?.(targetWorkspaceId);
   }
@@ -166,6 +217,8 @@ export function createWorkspaceShellController(deps = {}) {
     win.__pendingWorkspaceId = null;
     hydrateWorkspaceModuleState(nextHubState.activeWorkspaceId);
     writeWorkspaceHubState();
+    bindWorkspaceHistoryNavigation();
+    replaceWorkspaceHistory(nextHubState.activeWorkspaceId);
     win?.footballScienceOverlayStability?.prepareWorkspaceRestore?.(nextHubState.activeWorkspaceId);
     renderWorkspaceChrome();
     win?.footballScienceOverlayStability?.restoreWorkspace?.(nextHubState.activeWorkspaceId);

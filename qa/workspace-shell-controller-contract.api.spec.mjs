@@ -23,6 +23,40 @@ function createToggleTarget(dataset = {}) {
   };
 }
 
+function createHistoryWindow(initialHref = "https://footballscience.xyz/?_build=test") {
+  let href = initialHref;
+  const listeners = {};
+  const historyCalls = [];
+  const history = {
+    state: null,
+    pushState(state, title, url) {
+      this.state = state;
+      href = String(url || href);
+      historyCalls.push(["push", state?.footballScienceWorkspaceId, href]);
+    },
+    replaceState(state, title, url) {
+      this.state = state;
+      href = String(url || href);
+      historyCalls.push(["replace", state?.footballScienceWorkspaceId, href]);
+    },
+  };
+  return {
+    __pendingWorkspaceId: null,
+    footballScienceOverlayStability: null,
+    getHistoryCalls: () => historyCalls,
+    triggerPopState: (state) => listeners.popstate?.({ state }),
+    addEventListener: (eventName, handler) => {
+      listeners[eventName] = handler;
+    },
+    history,
+    location: {
+      get href() {
+        return href;
+      },
+    },
+  };
+}
+
 function createHarness(options = {}) {
   const calls = [];
   let hubState = options.hubState ?? {
@@ -179,6 +213,28 @@ test("workspace shell controller switches workspaces and preserves simulator/pro
   expect(harness.calls).toContainEqual(["preload", "schedule"]);
   expect(harness.calls).toContainEqual(["remember", "schedule"]);
   expect(harness.calls).toContainEqual(["write-hub"]);
+});
+
+test("workspace shell controller keeps browser back inside platform workspace history", () => {
+  const win = createHistoryWindow("https://footballscience.xyz/?_build=test");
+  const harness = createHarness({ win });
+
+  harness.controller.initializeWorkspaceHub();
+  harness.controller.setActiveWorkspace("schedule");
+
+  expect(harness.getHubState().activeWorkspaceId).toBe("schedule");
+  expect(win.getHistoryCalls()).toEqual([
+    ["replace", "home", "https://footballscience.xyz/?_build=test&workspace=home"],
+    ["push", "schedule", "https://footballscience.xyz/?_build=test&workspace=schedule"],
+  ]);
+
+  win.triggerPopState({ footballScienceWorkspaceId: "home" });
+
+  expect(harness.getHubState().activeWorkspaceId).toBe("home");
+  expect(win.getHistoryCalls()).toEqual([
+    ["replace", "home", "https://footballscience.xyz/?_build=test&workspace=home"],
+    ["push", "schedule", "https://footballscience.xyz/?_build=test&workspace=schedule"],
+  ]);
 });
 
 test("workspace shell controller preserves scroll context when returning between workspaces", () => {

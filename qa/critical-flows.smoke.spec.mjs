@@ -279,6 +279,25 @@ test("Refresh keeps the active workspace without flashing the login screen", asy
   await expect.poll(() => page.evaluate(() => window.__qaLoginFlashDuringBoot)).toBe(false);
 });
 
+test("Browser back returns to the previous platform workspace instead of leaving the app", async ({ page }) => {
+  await bootApp(page);
+
+  await openWorkspace(page, "schedule");
+  await expect(page).toHaveURL(/workspace=schedule/);
+
+  await openWorkspace(page, "medical-team");
+  await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "medical-team");
+  await expect(page).toHaveURL(/workspace=medical-team/);
+
+  await page.goBack();
+
+  await waitForPlatformShell(page);
+  await expect(page.locator("body")).toHaveAttribute("data-active-workspace", "schedule");
+  await expect(page.locator('[data-workspace-view="schedule"].is-active')).toBeVisible();
+  await expect(page).toHaveURL(/workspace=schedule/);
+  await expect(page.locator("#hubShell")).toBeVisible();
+});
+
 test("Profile updates sync to the account menu and local dev keeps Mak signed in", async ({ page }) => {
   const stamp = Date.now();
   await bootApp(page);

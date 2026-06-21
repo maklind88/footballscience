@@ -120,7 +120,7 @@ test("chat and presence API budgets stay conservative during traffic spikes", ()
   const chatConfig = permissionMatrix.apiRouteSecurity["/api/chat"];
   const presenceConfig = permissionMatrix.apiRouteSecurity["/api/presence"];
 
-  expect(chatConfig.rateLimits.read).toBeLessThanOrEqual(120);
+  expect(chatConfig.rateLimits.read).toBeLessThanOrEqual(60);
   expect(chatConfig.rateLimits.write).toBeLessThanOrEqual(60);
   expect(presenceConfig.rateLimits.read).toBeLessThanOrEqual(30);
   expect(presenceConfig.rateLimits.write).toBeLessThanOrEqual(20);
@@ -144,6 +144,27 @@ test("chat and presence API budgets stay conservative during traffic spikes", ()
 
   expect(latestResponse.statusCode).toBe(429);
   expect(latestResponse.headers["x-ratelimit-limit"]).toBe("30");
+  expect(latestResponse.headers["retry-after"]).toBeTruthy();
+
+  platformSecurity.rateLimitBuckets.clear();
+  latestResponse = null;
+  for (let index = 0; index < 61; index += 1) {
+    latestResponse = createResponse();
+    platformSecurity.guardApiRequest(
+      createRequest({ method: "GET", url: "/api/chat", ip: "203.0.113.92" }),
+      latestResponse,
+      {
+        route: "/api/chat",
+        moduleId: "chat",
+        action: "read",
+        actor: { id: "coach-chat-spike", role: "coach" },
+        enforcePermission: true,
+      }
+    );
+  }
+
+  expect(latestResponse.statusCode).toBe(429);
+  expect(latestResponse.headers["x-ratelimit-limit"]).toBe("60");
   expect(latestResponse.headers["retry-after"]).toBeTruthy();
 });
 

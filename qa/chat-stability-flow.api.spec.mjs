@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createDashboardChatApiRuntime } from "../src/modules/chat/dashboard-chat-api-runtime.mjs";
 import { createDashboardChatApiDomainRuntime } from "../src/modules/chat/dashboard-chat-api-domain-runtime.mjs";
 import { createDashboardChatWidgetRuntime } from "../src/modules/chat/dashboard-chat-widget-runtime.mjs";
 
@@ -368,6 +369,7 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(appSource).not.toContain('localStorage.setItem(dashboardChatWidgetNotificationStateStorageKey, "{}")');
   expect(chatApiDomainRuntimeSource).toContain("response.status === 429");
   expect(chatApiDomainRuntimeSource).toContain("getRetryAfterMs(response)");
+  expect(chatApiRuntimeSource).toContain("Chat refresh is paused while this tab is hidden.");
   expect(chatRealtimePatterns).toContain('table: "chat_threads"');
   expect(chatRealtimePatterns).toContain('table: "chat_attachments"');
   expect(chatRealtimePatterns).toContain('table: "chat_thread_participants"');
@@ -435,6 +437,33 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(databaseSource).toContain("attachmentIds");
   expect(databaseSource).toContain("status: \"ready\"");
   expect(databaseSource).toContain("chat_read_receipts");
+});
+
+test("chat API runtime skips network refreshes while the browser tab is hidden", async () => {
+  let fetchCount = 0;
+  const runtime = createDashboardChatApiRuntime({
+    documentRef: { visibilityState: "hidden" },
+    fetchDashboardChatApi: async () => {
+      fetchCount += 1;
+      return { ok: true, status: 200, result: { threads: [], messages: [] } };
+    },
+    getDashboardChatCurrentViewState: () => ({ isOpen: true, selectedThreadId: "team" }),
+    win: {
+      setTimeout: (handler) => {
+        handler();
+        return 1;
+      },
+      clearTimeout: () => {},
+    },
+  });
+
+  const summaries = await runtime.refreshDashboardChatThreadSummariesFromApi();
+  const thread = await runtime.refreshDashboardChatFromApi({ threadId: "team" });
+  runtime.queueDashboardChatCurrentViewRefresh({ delayMs: 0 });
+
+  expect(summaries).toMatchObject({ ok: false, skipped: true, status: 0 });
+  expect(thread).toMatchObject({ ok: false, skipped: true, status: 0 });
+  expect(fetchCount).toBe(0);
 });
 
 test("chat API GET 429 enters backoff instead of hammering reads", async () => {

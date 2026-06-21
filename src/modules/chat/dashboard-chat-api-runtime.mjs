@@ -108,6 +108,7 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     getDashboardChatMessageSearchQuery = () => "",
     getDashboardChatPriority = () => "normal",
     dashboardChatReactionOptions = [],
+    documentRef = typeof document !== "undefined" ? document : null,
     win = typeof globalThis !== "undefined" ? globalThis : {},
   } = dependencies;
 
@@ -124,6 +125,22 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     const elapsedMs = Date.now() - Number(lastRequestedAt || 0);
     const budgetDelayMs = Math.max(0, Number(minIntervalMs || 0) - elapsedMs);
     return Math.max(normalizeRefreshDelay(requestedDelayMs), budgetDelayMs);
+  }
+
+  function canRunDashboardChatNetworkRefresh(options = {}) {
+    if (options.forceNetwork) {
+      return true;
+    }
+    return !documentRef || documentRef.visibilityState === "visible";
+  }
+
+  function createDashboardChatHiddenTabResult() {
+    return {
+      ok: false,
+      status: 0,
+      skipped: true,
+      reason: "Chat refresh is paused while this tab is hidden.",
+    };
   }
 
   function getApiScope() {
@@ -365,6 +382,9 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
   }
 
   async function refreshDashboardChatThreadSummariesFromApi(options = {}) {
+    if (!canRunDashboardChatNetworkRefresh(options)) {
+      return createDashboardChatHiddenTabResult();
+    }
     const result = await fetchDashboardChatApi({ view: "threads", limit: options.limit || 80 });
     if (!result.ok) {
       if (!canFallbackDashboardChatApiResult(result)) {
@@ -394,6 +414,10 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     setThreadSummarySyncTimer(
       win.setTimeout(() => {
         setThreadSummarySyncTimer(0);
+        if (!canRunDashboardChatNetworkRefresh(options)) {
+          void refreshDashboardChatThreadSummariesFromApi(options);
+          return;
+        }
         setThreadSummaryLastRequestedAt(Date.now());
         void refreshDashboardChatThreadSummariesFromApi(options);
       }, delayMs)
@@ -413,6 +437,9 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
   }
 
   async function refreshDashboardChatFromApi(options = {}) {
+    if (!canRunDashboardChatNetworkRefresh(options)) {
+      return createDashboardChatHiddenTabResult();
+    }
     const threadId = normalizeDashboardChatThreadId(
       options.threadId || getDashboardChatCurrentViewState().selectedThreadId,
       dashboardChatTeamThreadId
@@ -464,6 +491,10 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     setApiSyncTimer(
       win.setTimeout(() => {
         setApiSyncTimer(0);
+        if (!canRunDashboardChatNetworkRefresh(options)) {
+          void refreshDashboardChatFromApi(options);
+          return;
+        }
         dashboardChatApiLastRequestedAt = Date.now();
         void refreshDashboardChatFromApi(options);
       }, delayMs)

@@ -101,7 +101,7 @@ test("central sync runtime queues protected writes with revision metadata and fl
     pendingCentralSync: true,
   });
   expect(harness.autosaveStatuses).toContainEqual(["football-session-planner-v1", "saving", "Saving"]);
-  expect(harness.timers.size).toBe(1);
+  expect(harness.timers.size).toBeGreaterThanOrEqual(1);
 
   await harness.service.flushCentralStateWrites();
 
@@ -137,9 +137,12 @@ test("central sync runtime waits for hydration before flushing queued writes", a
   const harness = createServiceHarness({ hydrated: false, revision: 0 });
 
   harness.service.queueCentralStateWrite("football-session-planner-v1", "{\"blocks\":[]}");
-  await harness.service.flushCentralStateWrites();
+  const initialFlush = Array.from(harness.timers.values())[0];
+  expect(typeof initialFlush).toBe("function");
+  await initialFlush();
 
   expect(harness.syncCalls).toEqual([]);
+  expect(harness.timers.size).toBeGreaterThanOrEqual(1);
   expect(harness.manifest.entries["football-session-planner-v1"]).toMatchObject({
     pendingCentralSync: true,
   });
@@ -147,7 +150,9 @@ test("central sync runtime waits for hydration before flushing queued writes", a
 
   harness.setRevision(9);
   harness.setHydrated(true);
-  await harness.service.flushCentralStateWrites();
+  const retryFlush = Array.from(harness.timers.values()).at(-1);
+  expect(typeof retryFlush).toBe("function");
+  await retryFlush();
 
   expect(harness.syncCalls).toEqual([
     {

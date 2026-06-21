@@ -29,6 +29,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
   const centralStateWriteQueue = new Map();
   const centralStateWriteSuppressionKeys = new Set();
   let sessionPlannerCentralSyncNoticeAt = 0;
+  const centralStateHydrationRetryMs = 250;
 
   function getCentralStateBridge() { return win.footballScienceCentralState ?? null; }
 
@@ -244,6 +245,9 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
     if (!isCentralStateBridgeHydrated(bridge)) {
       queueCentralStateStatus("Central sync is loading.");
+      if (!centralStateWriteTimer) {
+        centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, centralStateHydrationRetryMs);
+      }
       return;
     }
     const writes = Array.from(centralStateWriteQueue.values());

@@ -1531,7 +1531,7 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   });
   expect(forward.defaultPrevented).toBe(true);
   expect(forward.cue).toBe(true);
-  expect(forward.playbackRate).toBeGreaterThan(8);
+  expect(forward.playbackRate).toBeGreaterThan(14);
   expect(forward.muted).toBe(true);
   await expect.poll(() => page.evaluate(() => window.__videoShuttlePlayCalls)).toBeGreaterThan(0);
   await page.waitForTimeout(280);
@@ -1561,6 +1561,7 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
     const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");
     const video = document.querySelector("[data-video-analysis-video]");
     const before = video.currentTime;
+    const overscrollY = getComputedStyle(frame).overscrollBehaviorY;
     const event = new WheelEvent("wheel", {
       bubbles: true,
       cancelable: true,
@@ -1573,10 +1574,12 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
       currentTime: video.currentTime,
       defaultPrevented: event.defaultPrevented,
       before,
+      overscrollY,
     };
   });
   expect(vertical.defaultPrevented).toBe(false);
   expect(vertical.currentTime).toBe(vertical.before);
+  expect(vertical.overscrollY).not.toBe("contain");
 });
 
 test("Video Analysis clears a codec warning when native playback succeeds", async ({ page }) => {

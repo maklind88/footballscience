@@ -1074,7 +1074,7 @@
   place-items: stretch;
   min-height: 360px;
   overflow: hidden;
-  overscroll-behavior: contain;
+  overscroll-behavior: auto;
   background: #111816;
 }
 

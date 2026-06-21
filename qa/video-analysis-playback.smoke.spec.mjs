@@ -1531,7 +1531,7 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   });
   expect(forward.defaultPrevented).toBe(true);
   expect(forward.cue).toBe(true);
-  expect(forward.playbackRate).toBeGreaterThan(1);
+  expect(forward.playbackRate).toBeGreaterThan(8);
   expect(forward.muted).toBe(true);
   await expect.poll(() => page.evaluate(() => window.__videoShuttlePlayCalls)).toBeGreaterThan(0);
   await page.waitForTimeout(280);

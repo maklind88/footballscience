@@ -759,6 +759,8 @@ test("open chat uses a calm professional conversation shell", () => {
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-toast[hidden]");
   expect(dashboardChatCss).toContain("bottom:calc(4.85rem + env(safe-area-inset-bottom))!important;");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-toast");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-confirm-backdrop");
+  expect(dashboardChatCss).toContain("z-index:900!important;");
 });
 
 test("chat message actions stay behind a compact hover menu", () => {

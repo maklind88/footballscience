@@ -997,6 +997,7 @@ function paint(root, state) {
   bindPaintedVideoControls(root, {
     handleFileSelection,
     openLocalVideoPicker,
+    handleWheel,
     preparePlayableCopy,
     restoreLocalVideoHandle,
     togglePlayback,

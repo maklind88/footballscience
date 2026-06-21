@@ -1461,6 +1461,29 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   await installDeterministicMedia(page);
   await page.addInitScript(() => {
     window.__videoShuttlePlayCalls = 0;
+    window.__videoAnalysisFullscreenElement = null;
+    Object.defineProperty(document, "fullscreenElement", {
+      configurable: true,
+      get() {
+        return window.__videoAnalysisFullscreenElement;
+      },
+    });
+    Object.defineProperty(Element.prototype, "requestFullscreen", {
+      configurable: true,
+      value() {
+        window.__videoAnalysisFullscreenElement = this;
+        document.dispatchEvent(new Event("fullscreenchange"));
+        return Promise.resolve();
+      },
+    });
+    Object.defineProperty(document, "exitFullscreen", {
+      configurable: true,
+      value() {
+        window.__videoAnalysisFullscreenElement = null;
+        document.dispatchEvent(new Event("fullscreenchange"));
+        return Promise.resolve();
+      },
+    });
     Object.defineProperty(HTMLMediaElement.prototype, "play", {
       configurable: true,
       value() {
@@ -1576,6 +1599,57 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   });
   expect(transportSwipe.defaultPrevented).toBe(true);
   expect(transportSwipe.playbackRate).toBeGreaterThan(14);
+
+  await page.locator("[data-video-analysis-code-mode]").click();
+  await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
+  const codeModeSwipe = await page.evaluate(() => {
+    const deck = document.querySelector(".video-analysis-fs-player-deck");
+    const video = document.querySelector("[data-video-analysis-video]");
+    video.__videoAnalysisTestCurrentTime = 120;
+    video.__videoAnalysisPaused = true;
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: 170,
+      deltaY: 4,
+      deltaMode: 0,
+    });
+    deck.dispatchEvent(event);
+    return {
+      defaultPrevented: event.defaultPrevented,
+      fullscreenClassName: window.__videoAnalysisFullscreenElement?.className || "",
+      playbackRate: video.playbackRate,
+      workstationCodeMode: document.querySelector("[data-video-analysis-fs-player-workstation]")?.classList.contains("is-code-mode") || false,
+    };
+  });
+  expect(codeModeSwipe.defaultPrevented).toBe(true);
+  expect(codeModeSwipe.fullscreenClassName).toContain("video-analysis-fs-player-workstation");
+  expect(codeModeSwipe.playbackRate).toBeGreaterThan(14);
+  expect(codeModeSwipe.workstationCodeMode).toBe(true);
+
+  await page.locator("[data-video-analysis-video-fullscreen]").click();
+  const fullscreenSwipe = await page.evaluate(() => {
+    const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");
+    const video = document.querySelector("[data-video-analysis-video]");
+    video.__videoAnalysisTestCurrentTime = 180;
+    video.__videoAnalysisPaused = true;
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: -170,
+      deltaY: -3,
+      deltaMode: 0,
+    });
+    frame.dispatchEvent(event);
+    return {
+      defaultPrevented: event.defaultPrevented,
+      fullscreenClassName: window.__videoAnalysisFullscreenElement?.className || "",
+      currentTime: video.currentTime,
+    };
+  });
+  expect(fullscreenSwipe.defaultPrevented).toBe(true);
+  expect(fullscreenSwipe.fullscreenClassName).toContain("video-analysis-video-frame");
+  expect(fullscreenSwipe.currentTime).toBeLessThan(180);
 
   const vertical = await page.evaluate(() => {
     const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");

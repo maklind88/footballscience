@@ -1,5 +1,6 @@
 const rootContexts = new WeakMap();
 const fallbackBoundRoots = new WeakSet();
+const wheelBoundSurfaces = new WeakSet();
 
 export function eventElement(event) {
   const target = event?.target;
@@ -37,8 +38,24 @@ function handleDirectControlEvent(event, handler) {
   event?.stopPropagation?.();
 }
 
+function handleDirectWheelEvent(event, root, handler) {
+  if (event.__videoAnalysisHandled || typeof handler !== "function") return;
+  const handled = handler(event, contextForRoot(root));
+  if (!handled) return;
+  event.__videoAnalysisHandled = true;
+  event.stopPropagation?.();
+}
+
 export function bindPaintedVideoControls(root, actions = {}) {
   if (!root) return;
+  root.querySelectorAll("[data-video-analysis-video-shuttle], .video-analysis-fs-player-deck").forEach((surface) => {
+    if (wheelBoundSurfaces.has(surface)) return;
+    surface.addEventListener("wheel", (event) => handleDirectWheelEvent(event, root, actions.handleWheel), {
+      capture: true,
+      passive: false,
+    });
+    wheelBoundSurfaces.add(surface);
+  });
   root.querySelectorAll("[data-video-analysis-load]").forEach((button) => {
     button.addEventListener("click", (event) => handleDirectControlEvent(event, () => {
       actions.openLocalVideoPicker?.(contextForRoot(root));

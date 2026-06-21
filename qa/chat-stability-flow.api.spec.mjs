@@ -369,6 +369,8 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(appSource).not.toContain('localStorage.setItem(dashboardChatWidgetNotificationStateStorageKey, "{}")');
   expect(chatApiDomainRuntimeSource).toContain("response.status === 429");
   expect(chatApiDomainRuntimeSource).toContain("getRetryAfterMs(response)");
+  expect(chatApiDomainRuntimeSource).toContain("dashboardChatApiReadRequests");
+  expect(chatApiDomainRuntimeSource).toContain("chatApiReadMinimumGapMs");
   expect(chatApiRuntimeSource).toContain("Chat refresh is paused while this tab is hidden.");
   expect(chatRealtimePatterns).toContain('table: "chat_threads"');
   expect(chatRealtimePatterns).toContain('table: "chat_attachments"');
@@ -504,6 +506,77 @@ test("chat API GET 429 enters backoff instead of hammering reads", async () => {
     retryable: true,
   });
   expect(fetchCount).toBe(1);
+});
+
+test("chat API GET coalesces duplicate reads and reuses short settled results", async () => {
+  let fetchCount = 0;
+  const runtime = createDashboardChatApiDomainRuntime({
+    chatApiReadDedupeWindowMs: 5000,
+    chatApiReadMinimumGapMs: 0,
+    getCurrentPlatformUser: () => ({ id: "admin-qa" }),
+    getPlatformAuthStore: () => ({
+      getAccessToken: async () => "token",
+    }),
+    fetchImpl: async () => {
+      fetchCount += 1;
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => "" },
+        text: async () => JSON.stringify({ ok: true, threads: [{ id: "team" }] }),
+      };
+    },
+    win: {
+      location: { hostname: "footballscience.xyz" },
+      setTimeout,
+      clearTimeout,
+    },
+  });
+
+  const [first, second] = await Promise.all([
+    runtime.fetchDashboardChatApi({ view: "threads", limit: 80 }),
+    runtime.fetchDashboardChatApi({ limit: 80, view: "threads" }),
+  ]);
+  const third = await runtime.fetchDashboardChatApi({ view: "threads", limit: 80 });
+
+  expect(first.ok).toBe(true);
+  expect(second.ok).toBe(true);
+  expect(third.ok).toBe(true);
+  expect(fetchCount).toBe(1);
+});
+
+test("chat API GET paces different read queries through one client budget", async () => {
+  const startedAt = [];
+  const runtime = createDashboardChatApiDomainRuntime({
+    chatApiReadDedupeWindowMs: 0,
+    chatApiReadMinimumGapMs: 25,
+    getCurrentPlatformUser: () => ({ id: "admin-qa" }),
+    getPlatformAuthStore: () => ({
+      getAccessToken: async () => "token",
+    }),
+    fetchImpl: async () => {
+      startedAt.push(Date.now());
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => "" },
+        text: async () => JSON.stringify({ ok: true, threads: [] }),
+      };
+    },
+    win: {
+      location: { hostname: "footballscience.xyz" },
+      setTimeout,
+      clearTimeout,
+    },
+  });
+
+  await Promise.all([
+    runtime.fetchDashboardChatApi({ view: "threads" }),
+    runtime.fetchDashboardChatApi({ threadId: "team", threadType: "team" }),
+  ]);
+
+  expect(startedAt).toHaveLength(2);
+  expect(startedAt[1] - startedAt[0]).toBeGreaterThanOrEqual(20);
 });
 
 test("notification cursor survives reload when API replaces the local message id", () => {

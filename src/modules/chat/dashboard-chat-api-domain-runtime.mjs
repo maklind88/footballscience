@@ -30,11 +30,19 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       }
       return globalThis.fetch(...args);
     },
+    chatApiReadDedupeWindowMs = 2000,
+    chatApiReadMinimumGapMs = 1000,
   } = dependencies;
   const dashboardChatApiBackoffMs = 60 * 1000;
+  const dashboardChatApiReadDedupeWindowMs = Math.max(0, Number(chatApiReadDedupeWindowMs) || 0);
+  const dashboardChatApiReadMinimumGapMs = Math.max(0, Number(chatApiReadMinimumGapMs) || 0);
+  const dashboardChatApiReadCacheMaxEntries = 40;
+  const dashboardChatApiReadRequests = new Map();
   let dashboardChatApiBackoffUntil = 0;
   let dashboardChatApiBackoffStatus = 503;
   let dashboardChatApiBackoffReason = "Chat API is backing off while the platform data service recovers.";
+  let dashboardChatApiReadLastStartedAt = 0;
+  let dashboardChatApiReadGate = Promise.resolve();
 
   function getAdvancedThreadTemplates() {
     const source =
@@ -87,6 +95,60 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       retryable: true,
       backoffMs: remainingMs,
     };
+  }
+
+  function buildDashboardChatApiReadParams(query = {}) {
+    const params = new URLSearchParams();
+    Object.entries(query)
+      .sort(([firstKey], [secondKey]) => String(firstKey).localeCompare(String(secondKey)))
+      .forEach(([key, value]) => {
+        if (value !== undefined && value !== null && String(value).trim()) {
+          params.set(key, String(value));
+        }
+      });
+    return params;
+  }
+
+  function getDashboardChatApiReadCacheKey(query = {}) {
+    const actorId = String(getCurrentPlatformUser()?.id || "").trim() || "anonymous";
+    return `${actorId}:${buildDashboardChatApiReadParams(query).toString()}`;
+  }
+
+  function cloneDashboardChatApiReadResult(result = {}) {
+    return result && typeof result === "object" ? { ...result } : result;
+  }
+
+  function pruneDashboardChatApiReadRequests(nowMs = Date.now()) {
+    if (dashboardChatApiReadRequests.size <= dashboardChatApiReadCacheMaxEntries) {
+      return;
+    }
+    for (const [key, entry] of dashboardChatApiReadRequests.entries()) {
+      if (!entry?.inFlight && (!entry?.expiresAt || entry.expiresAt <= nowMs)) {
+        dashboardChatApiReadRequests.delete(key);
+      }
+    }
+  }
+
+  function waitForDashboardChatApiReadDelay(delayMs = 0) {
+    const normalizedDelay = Math.max(0, Number(delayMs) || 0);
+    if (!normalizedDelay) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      win.setTimeout(resolve, normalizedDelay);
+    });
+  }
+
+  function waitForDashboardChatApiReadBudget() {
+    const previousGate = dashboardChatApiReadGate.catch(() => {});
+    const nextGate = previousGate.then(async () => {
+      const elapsedMs = Date.now() - Number(dashboardChatApiReadLastStartedAt || 0);
+      const delayMs = Math.max(0, dashboardChatApiReadMinimumGapMs - elapsedMs);
+      await waitForDashboardChatApiReadDelay(delayMs);
+      dashboardChatApiReadLastStartedAt = Date.now();
+    });
+    dashboardChatApiReadGate = nextGate.catch(() => {});
+    return nextGate;
   }
 
   function getDashboardChatThreadTypeForApi(threadId) {
@@ -237,71 +299,98 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       return { ok: false, status: 401, reason: "Chat API requires an authenticated session." };
     }
 
-    const params = new URLSearchParams();
-    Object.entries(query).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && String(value).trim()) {
-        params.set(key, String(value));
-      }
-    });
+    const params = buildDashboardChatApiReadParams(query);
+    const readCacheKey = getDashboardChatApiReadCacheKey(query);
+    const nowMs = Date.now();
+    const cachedRequest = dashboardChatApiReadRequests.get(readCacheKey);
+    if (cachedRequest?.inFlight) {
+      return cachedRequest.inFlight;
+    }
+    if (cachedRequest?.result?.ok && cachedRequest.expiresAt > nowMs) {
+      return cloneDashboardChatApiReadResult(cachedRequest.result);
+    }
 
     const controller = typeof AbortController === "function" ? new AbortController() : null;
     let timeoutId = 0;
-    try {
-      if (controller) {
-        timeoutId = win.setTimeout(() => controller.abort(), 15000);
-      }
-
-      const response = await fetchImpl(`/api/chat${params.toString() ? `?${params.toString()}` : ""}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-        signal: controller?.signal,
-      });
-
-      const responseText = await response.text();
-      let result = {};
-      if (responseText) {
-        try {
-          result = JSON.parse(responseText);
-        } catch {
-          result = { reason: responseText.slice(0, 240) };
+    const requestPromise = (async () => {
+      try {
+        await waitForDashboardChatApiReadBudget();
+        if (controller) {
+          timeoutId = win.setTimeout(() => controller.abort(), 15000);
         }
-      }
 
-      if (!response.ok || result?.ok === false) {
-        const reason = result?.reason || result?.message || `Chat API failed (${response.status}).`;
-        if (response.status === 429 || response.status >= 500) {
-          markDashboardChatApiBackoff(
-            getRetryAfterMs(response) || (response.status === 429 ? 15 * 1000 : dashboardChatApiBackoffMs),
-            response.status,
-            reason
-          );
+        const response = await fetchImpl(`/api/chat${params.toString() ? `?${params.toString()}` : ""}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+          signal: controller?.signal,
+        });
+
+        const responseText = await response.text();
+        let result = {};
+        if (responseText) {
+          try {
+            result = JSON.parse(responseText);
+          } catch {
+            result = { reason: responseText.slice(0, 240) };
+          }
         }
+
+        if (!response.ok || result?.ok === false) {
+          const reason = result?.reason || result?.message || `Chat API failed (${response.status}).`;
+          if (response.status === 429 || response.status >= 500) {
+            markDashboardChatApiBackoff(
+              getRetryAfterMs(response) || (response.status === 429 ? 15 * 1000 : dashboardChatApiBackoffMs),
+              response.status,
+              reason
+            );
+          }
+          return {
+            ok: false,
+            status: response.status,
+            reason,
+          };
+        }
+
+        clearDashboardChatApiBackoff();
+        return { ok: true, status: response.status, result };
+      } catch (error) {
+        const timedOut = error?.name === "AbortError";
+        markDashboardChatApiBackoff();
         return {
           ok: false,
-          status: response.status,
-          reason,
+          status: 0,
+          reason: timedOut ? "Chat API timed out. Try again." : error?.message || "Chat API could not be reached.",
+          retryable: true,
         };
+      } finally {
+        if (timeoutId) {
+          win.clearTimeout(timeoutId);
+        }
       }
+    })();
 
-      clearDashboardChatApiBackoff();
-      return { ok: true, status: response.status, result };
-    } catch (error) {
-      const timedOut = error?.name === "AbortError";
-      markDashboardChatApiBackoff();
-      return {
-        ok: false,
-        status: 0,
-        reason: timedOut ? "Chat API timed out. Try again." : error?.message || "Chat API could not be reached.",
-        retryable: true,
-      };
-    } finally {
-      if (timeoutId) {
-        win.clearTimeout(timeoutId);
+    dashboardChatApiReadRequests.set(readCacheKey, { inFlight: requestPromise, expiresAt: 0, result: null });
+    requestPromise.then((result) => {
+      if (result?.ok) {
+        const resolvedAt = Date.now();
+        dashboardChatApiReadRequests.set(readCacheKey, {
+          inFlight: null,
+          result,
+          resolvedAt,
+          expiresAt: resolvedAt + dashboardChatApiReadDedupeWindowMs,
+        });
+        pruneDashboardChatApiReadRequests(resolvedAt);
+        return;
       }
-    }
+      if (dashboardChatApiReadRequests.get(readCacheKey)?.inFlight === requestPromise) {
+        dashboardChatApiReadRequests.delete(readCacheKey);
+      }
+    });
+
+    return requestPromise;
   }
 
   function canFallbackDashboardChatApiResult(result = {}) {

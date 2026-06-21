@@ -1079,6 +1079,15 @@
   background: #111816;
 }
 
+.video-analysis-shell,
+.video-analysis-fs-player-workstation,
+.video-analysis-fs-player-main,
+.video-analysis-fs-player-deck,
+.video-analysis-video-frame,
+.video-analysis-player-transport {
+  overscroll-behavior-x: none;
+}
+
 .video-analysis-video {
   display: block;
   width: 100%;
@@ -1395,6 +1404,7 @@
   width: 100vw;
   height: 100vh;
   place-items: center;
+  overscroll-behavior: none;
   background: #000000;
 }
 
@@ -1795,6 +1805,7 @@
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode:fullscreen {
   width: 100vw;
   height: 100vh;
+  overscroll-behavior: none;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-main {

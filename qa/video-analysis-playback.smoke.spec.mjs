@@ -1624,6 +1624,43 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   expect(transportSwipe.playbackRate).toBeGreaterThanOrEqual(6.5);
   expect(transportSwipe.playbackRate).toBeLessThanOrEqual(7);
 
+  const normalWindowSwipeAfterPlayerHover = await page.evaluate(() => {
+    const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");
+    const video = document.querySelector("[data-video-analysis-video]");
+    video.__videoAnalysisTestCurrentTime = 150;
+    video.__videoAnalysisPaused = true;
+    frame.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: -160,
+      deltaY: 0,
+      deltaMode: 0,
+    });
+    window.dispatchEvent(event);
+    return {
+      currentTime: video.currentTime,
+      defaultPrevented: event.defaultPrevented,
+    };
+  });
+  expect(normalWindowSwipeAfterPlayerHover.defaultPrevented).toBe(true);
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.currentTime || 0)).toBeLessThan(150);
+
+  const normalWindowSwipeAwayFromPlayer = await page.evaluate(() => {
+    const root = document.querySelector("#analysisRoomWorkspace");
+    root.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: -160,
+      deltaY: 0,
+      deltaMode: 0,
+    });
+    window.dispatchEvent(event);
+    return { defaultPrevented: event.defaultPrevented };
+  });
+  expect(normalWindowSwipeAwayFromPlayer.defaultPrevented).toBe(false);
+
   await page.locator("[data-video-analysis-code-mode]").click();
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
   const codeModeSwipe = await page.evaluate(() => {
@@ -1720,6 +1757,26 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   });
   expect(fullscreenWindowSwipe.defaultPrevented).toBe(true);
   expect(fullscreenWindowSwipe.fullscreenClassName).toContain("video-analysis-video-frame");
+  const fullscreenDocumentSwipe = await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    video.__videoAnalysisTestCurrentTime = 220;
+    const event = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: -180,
+      deltaY: 0,
+      deltaMode: 0,
+    });
+    document.dispatchEvent(event);
+    return {
+      currentTime: video.currentTime,
+      defaultPrevented: event.defaultPrevented,
+      fullscreenClassName: window.__videoAnalysisFullscreenElement?.className || "",
+    };
+  });
+  expect(fullscreenDocumentSwipe.defaultPrevented).toBe(true);
+  expect(fullscreenDocumentSwipe.fullscreenClassName).toContain("video-analysis-video-frame");
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.currentTime || 0)).toBeLessThan(220);
 
   const vertical = await page.evaluate(() => {
     const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");

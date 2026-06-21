@@ -129,6 +129,8 @@ function createRuntime(context = {}) {
     unsubscribe: null,
     keydownBound: false,
     wheelGuardBound: false,
+    pointerGuardBound: false,
+    fsPlayerPointerInsideShuttle: false,
   };
 }
 
@@ -501,6 +503,10 @@ function fsPlayerVideoFrameElement(context = {}) {
   return getRoot(context)?.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame") || null;
 }
 
+function fsPlayerPlayerElement(context = {}) {
+  return getRoot(context)?.querySelector(".video-analysis-fs-player-deck .video-analysis-player") || null;
+}
+
 function fsPlayerOwnsFullscreen(context = {}) {
   const fullscreenElement = (context.doc || document)?.fullscreenElement || null;
   const workspace = fsPlayerWorkspaceElement(context);
@@ -589,10 +595,22 @@ function wheelDeltaPixelValue(value = 0, deltaMode = 0) {
   return numeric;
 }
 
+function wheelDeltaX(event = {}) {
+  if ("deltaX" in event) return Number(event.deltaX || 0);
+  const wheelDeltaXValue = Number(event.wheelDeltaX || 0);
+  return wheelDeltaXValue ? -wheelDeltaXValue : 0;
+}
+
+function wheelDeltaY(event = {}) {
+  if ("deltaY" in event) return Number(event.deltaY || 0);
+  const wheelDeltaYValue = Number(event.wheelDeltaY || event.wheelDelta || 0);
+  return wheelDeltaYValue ? -wheelDeltaYValue : 0;
+}
+
 function videoShuttleHorizontalDelta(event = {}) {
   const deltaMode = Number(event.deltaMode || 0);
-  const deltaX = wheelDeltaPixelValue(event.deltaX, deltaMode);
-  const deltaY = wheelDeltaPixelValue(event.deltaY, deltaMode);
+  const deltaX = wheelDeltaPixelValue(wheelDeltaX(event), deltaMode);
+  const deltaY = wheelDeltaPixelValue(wheelDeltaY(event), deltaMode);
   if (event.shiftKey && Math.abs(deltaY) >= VIDEO_SHUTTLE_MIN_DELTA_PX) return deltaY;
   if (Math.abs(deltaX) < Math.max(VIDEO_SHUTTLE_MIN_DELTA_PX, Math.abs(deltaY) * VIDEO_SHUTTLE_DOMINANCE_RATIO)) return 0;
   return deltaX;
@@ -600,8 +618,8 @@ function videoShuttleHorizontalDelta(event = {}) {
 
 function videoShuttleHasHorizontalIntent(event = {}) {
   const deltaMode = Number(event.deltaMode || 0);
-  const deltaX = wheelDeltaPixelValue(event.deltaX, deltaMode);
-  const deltaY = wheelDeltaPixelValue(event.deltaY, deltaMode);
+  const deltaX = wheelDeltaPixelValue(wheelDeltaX(event), deltaMode);
+  const deltaY = wheelDeltaPixelValue(wheelDeltaY(event), deltaMode);
   if (event.shiftKey && Math.abs(deltaY) >= VIDEO_SHUTTLE_CONTAIN_DELTA_PX) return true;
   return Math.abs(deltaX) >= VIDEO_SHUTTLE_CONTAIN_DELTA_PX
     && Math.abs(deltaX) >= Math.abs(deltaY) * VIDEO_SHUTTLE_CONTAIN_RATIO;
@@ -771,7 +789,26 @@ function handleVideoFrameWheel(event = {}, context = {}) {
   return true;
 }
 
-function handleFsPlayerWindowWheel(event = {}, context = {}) {
+function updateFsPlayerPointerGuard(event = {}, context = {}) {
+  const run = ensureRuntime(context);
+  const target = eventElement(event);
+  const player = fsPlayerPlayerElement(context);
+  run.fsPlayerPointerInsideShuttle = Boolean(target && player?.contains?.(target));
+}
+
+function fsPlayerGlobalWheelFrame(event = {}, context = {}, state = {}) {
+  const target = eventElement(event);
+  const frame = fsPlayerVideoFrameElement(context);
+  const player = fsPlayerPlayerElement(context);
+  if (!frame || !player) return null;
+  if (fsPlayerOwnsFullscreen(context)) return frame;
+  if (target && player.contains?.(target)) return frame;
+  if (ensureRuntime(context).fsPlayerPointerInsideShuttle) return frame;
+  if (state.fsPlayer?.mode === "code" && target && player.contains?.(target)) return frame;
+  return null;
+}
+
+function handleFsPlayerGlobalWheel(event = {}, context = {}) {
   if (event.__videoAnalysisHandled) return false;
   if (event.ctrlKey || event.metaKey || event.altKey) return false;
   if (!videoShuttleHasHorizontalIntent(event)) return false;
@@ -783,13 +820,25 @@ function handleFsPlayerWindowWheel(event = {}, context = {}) {
   const target = eventElement(event);
   if (target?.closest?.("input, select, textarea, a")) return false;
 
-  const workspace = fsPlayerWorkspaceElement(context);
-  const targetInsideWorkspace = Boolean(target && workspace?.contains?.(target));
-  const shouldGuard = fsPlayerOwnsFullscreen(context)
-    || (state.fsPlayer?.mode === "code" && (!target || targetInsideWorkspace));
+  const frame = fsPlayerGlobalWheelFrame(event, context, state);
+  const shouldGuard = Boolean(frame) || fsPlayerOwnsFullscreen(context);
 
   if (!shouldGuard) return false;
   event.preventDefault?.();
+  event.stopPropagation?.();
+  event.stopImmediatePropagation?.();
+  event.__videoAnalysisHandled = true;
+  if (!frame) return true;
+
+  const video = videoElement(context);
+  if (!video) return true;
+
+  const horizontalDelta = videoShuttleHorizontalDelta(event);
+  if (Math.abs(horizontalDelta) < VIDEO_SHUTTLE_MIN_DELTA_PX) return true;
+
+  const direction = horizontalDelta > 0 ? 1 : -1;
+  activateVideoShuttle(frame, video, context, direction, videoShuttleSpeedFromDelta(horizontalDelta));
+  scheduleVideoShuttleStop(frame, context);
   return true;
 }
 
@@ -2141,10 +2190,29 @@ export function render(context = {}) {
   }
   if (!run.wheelGuardBound) {
     const win = context.win || window;
-    win.addEventListener?.("wheel", (event) => {
-      handleFsPlayerWindowWheel(event, runtime?.context || context);
-    }, { capture: true, passive: false });
+    const doc = context.doc || document;
+    const wheelGuard = (event) => {
+      handleFsPlayerGlobalWheel(event, runtime?.context || context);
+    };
+    [win, doc, root].forEach((surface) => {
+      surface?.addEventListener?.("wheel", wheelGuard, { capture: true, passive: false });
+      surface?.addEventListener?.("mousewheel", wheelGuard, { capture: true, passive: false });
+    });
     run.wheelGuardBound = true;
+  }
+  if (!run.pointerGuardBound) {
+    const win = context.win || window;
+    const doc = context.doc || document;
+    const pointerGuard = (event) => updateFsPlayerPointerGuard(event, runtime?.context || context);
+    [win, doc, root].forEach((surface) => {
+      surface?.addEventListener?.("pointerover", pointerGuard, true);
+      surface?.addEventListener?.("pointermove", pointerGuard, true);
+      surface?.addEventListener?.("mouseover", pointerGuard, true);
+    });
+    win.addEventListener?.("blur", () => {
+      ensureRuntime(runtime?.context || context).fsPlayerPointerInsideShuttle = false;
+    });
+    run.pointerGuardBound = true;
   }
   paint(root, run.store.getState());
   if (run.store.getState().status === "idle") initialize(context);

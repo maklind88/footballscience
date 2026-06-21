@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDashboardChatApiRuntime } from "../src/modules/chat/dashboard-chat-api-runtime.mjs";
 import { createDashboardChatApiDomainRuntime } from "../src/modules/chat/dashboard-chat-api-domain-runtime.mjs";
+import { createDashboardChatDomainRuntime } from "../src/modules/chat/dashboard-chat-domain-runtime.mjs";
 import { createDashboardChatWidgetRuntime } from "../src/modules/chat/dashboard-chat-widget-runtime.mjs";
 
 const require = createRequire(import.meta.url);
@@ -466,6 +467,69 @@ test("chat API runtime skips network refreshes while the browser tab is hidden",
   expect(summaries).toMatchObject({ ok: false, skipped: true, status: 0 });
   expect(thread).toMatchObject({ ok: false, skipped: true, status: 0 });
   expect(fetchCount).toBe(0);
+});
+
+test("closed chat widget does not queue background API summaries", () => {
+  let summaryRefreshCount = 0;
+  let widgetState = { isOpen: false, selectedThreadId: "team" };
+  const runtime = createDashboardChatWidgetRuntime({
+    dashboardChatWidgetRenderer: {
+      render: () => ({ html: "<button data-dashboard-chat-widget-toggle></button>", activeThreadId: "team", replyDraft: null }),
+    },
+    getCurrentPlatformUser: () => ({ id: "admin-qa", firstName: "Admin", lastName: "QA" }),
+    getPlatformUsers: () => [{ id: "admin-qa", firstName: "Admin", lastName: "QA", status: "active" }],
+    getDashboardChatThreadList: () => [{ threadId: "team", label: "Team Chat" }],
+    readDashboardChatWidgetState: () => widgetState,
+    queueDashboardChatThreadSummaryRefresh: () => {
+      summaryRefreshCount += 1;
+    },
+    ui: {
+      dashboardChatWidgetRoot: {
+        dataset: {},
+        innerHTML: "",
+        querySelector: () => null,
+      },
+    },
+    documentRef: {
+      activeElement: null,
+      body: {
+        classList: {
+          add: () => {},
+          remove: () => {},
+          toggle: () => {},
+        },
+      },
+    },
+  });
+
+  runtime.renderDashboardChatWidget();
+  expect(summaryRefreshCount).toBe(0);
+
+  widgetState = { isOpen: true, selectedThreadId: "team" };
+  runtime.renderDashboardChatWidget();
+  expect(summaryRefreshCount).toBe(1);
+});
+
+test("chat widget open state is session-only and cannot revive stale background chat", () => {
+  let storedWidgetState = { isOpen: true, selectedThreadId: "team" };
+  const createRuntime = () =>
+    createDashboardChatDomainRuntime({
+      createDashboardChatMessageTextRenderer: () => () => "",
+      readDashboardJson: () => storedWidgetState,
+      writeDashboardJson: (key, value) => {
+        storedWidgetState = value;
+      },
+    });
+
+  const runtime = createRuntime();
+  expect(runtime.readDashboardChatWidgetState()).toEqual({ isOpen: false, selectedThreadId: "team" });
+
+  runtime.writeDashboardChatWidgetState({ isOpen: true, selectedThreadId: "team" });
+  expect(runtime.readDashboardChatWidgetState()).toEqual({ isOpen: true, selectedThreadId: "team" });
+  expect(storedWidgetState).toEqual({ isOpen: false, selectedThreadId: "team" });
+
+  const reloadedRuntime = createRuntime();
+  expect(reloadedRuntime.readDashboardChatWidgetState()).toEqual({ isOpen: false, selectedThreadId: "team" });
 });
 
 test("chat API GET 429 enters backoff instead of hammering reads", async () => {

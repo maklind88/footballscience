@@ -27,6 +27,7 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
   const createMessageTextRenderer = createDashboardChatMessageTextRenderer;
   const safeReadDashboardJson = readDashboardJson;
   const safeWriteDashboardJson = writeDashboardJson;
+  let dashboardChatWidgetSessionOpen = false;
 
   if (typeof createMessageTextRenderer !== "function") {
     throw new Error("createDashboardChatDomainRuntime requires createDashboardChatMessageTextRenderer.");
@@ -163,14 +164,15 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
       selectedThreadId: dashboardChatTeamThreadId,
     });
     return {
-      isOpen: Boolean(parsed?.isOpen),
+      isOpen: dashboardChatWidgetSessionOpen,
       selectedThreadId: normalizeDashboardChatThreadId(parsed?.selectedThreadId, dashboardChatTeamThreadId),
     };
   }
 
   function writeDashboardChatWidgetState(nextState) {
+    dashboardChatWidgetSessionOpen = Boolean(nextState?.isOpen);
     safeWriteDashboardJson(dashboardChatWidgetStateStorageKey, {
-      isOpen: Boolean(nextState?.isOpen),
+      isOpen: false,
       selectedThreadId: normalizeDashboardChatThreadId(nextState?.selectedThreadId, dashboardChatTeamThreadId),
     });
   }

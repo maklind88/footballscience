@@ -192,15 +192,15 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     ensureDashboardChatStylesheet().catch(() => {});
     resetDashboardChatLocalCacheIfNeeded();
 
+    const state = readDashboardChatWidgetState();
     const lastRequestedAt = Number(getDashboardChatThreadSummaryLastRequestedAt?.() || 0);
     const syncTimer = Number(getDashboardChatThreadSummarySyncTimer?.() || 0);
-    if (!syncTimer && Date.now() - lastRequestedAt > 30000) {
+    if (state.isOpen && !syncTimer && Date.now() - lastRequestedAt > 30000) {
       queueDashboardChatThreadSummaryRefresh({ delayMs: 50, render: true });
     }
 
     const users = getPlatformUsers().filter((user) => user.status === "active");
     const notificationState = readDashboardChatWidgetNotificationState();
-    const state = readDashboardChatWidgetState();
 
     documentRef?.body?.classList.add("has-dashboard-chat-widget");
     documentRef?.body?.classList.toggle("is-dashboard-chat-open", Boolean(state.isOpen));

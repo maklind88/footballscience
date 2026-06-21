@@ -128,9 +128,11 @@ function createRuntime(context = {}) {
     videos: createVideoRepository(context),
     unsubscribe: null,
     keydownBound: false,
+    lifecycleBound: false,
     wheelGuardBound: false,
     pointerGuardBound: false,
     fsPlayerPointerInsideShuttle: false,
+    workspaceObserver: null,
   };
 }
 
@@ -499,6 +501,23 @@ function fsPlayerWorkspaceElement(context = {}) {
   return getRoot(context)?.querySelector("[data-video-analysis-fs-player-workstation]") || null;
 }
 
+function analysisRoomWorkspaceView(context = {}) {
+  return getRoot(context)?.closest?.(".workspace-view") || null;
+}
+
+function isAnalysisRoomWorkspaceActive(context = {}) {
+  const view = analysisRoomWorkspaceView(context);
+  return !view || view.classList.contains("is-active");
+}
+
+function isFsPlayerInteractionActive(context = {}, state = {}) {
+  return Boolean(
+    isAnalysisRoomWorkspaceActive(context)
+    && state.view === "workspace"
+    && state.activeAnalysisRoomTab === "fs-player"
+  );
+}
+
 function fsPlayerVideoFrameElement(context = {}) {
   return getRoot(context)?.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame") || null;
 }
@@ -666,6 +685,61 @@ function stopVideoShuttle(frame = null, context = {}) {
   videoShuttleTimers.delete(frame);
 }
 
+function forcePauseVideoShuttle(frame = null, context = {}) {
+  if (!frame) return;
+  const session = videoShuttleSessions.get(frame);
+  const winRef = session?.winRef || context.win || globalThis.window;
+  if (session?.timer && winRef?.clearTimeout) winRef.clearTimeout(session.timer);
+  if (session?.frameId && winRef?.cancelAnimationFrame) winRef.cancelAnimationFrame(session.frameId);
+  if (session?.video) {
+    session.video.playbackRate = session.basePlaybackRate || 1;
+    session.video.muted = session.wasMuted;
+    session.video.pause?.();
+    timelineController(context).handleVideoTimeUpdate(session.video);
+    commitVideoShuttlePlayhead(context, session.video);
+    syncPlaybackControls(context, session.video, false);
+  }
+  frame.classList.remove("is-shuttle-scrubbing");
+  videoShuttleSessions.delete(frame);
+  videoShuttleTimers.delete(frame);
+}
+
+function pauseFsPlayerPlayback(context = {}) {
+  const frame = fsPlayerVideoFrameElement(context);
+  forcePauseVideoShuttle(frame, context);
+  const video = videoElement(context);
+  if (video) {
+    video.pause?.();
+    syncPlaybackControls(context, video, false);
+    timelineController(context).handleVideoTimeUpdate(video);
+    commitVideoShuttlePlayhead(context, video);
+  }
+  ensureRuntime(context).fsPlayerPointerInsideShuttle = false;
+  return Boolean(video || frame);
+}
+
+function pauseFsPlayerIfInactive(context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  if (isFsPlayerInteractionActive(context, state)) return false;
+  return pauseFsPlayerPlayback(context);
+}
+
+function bindFsPlayerLifecycle(context = {}) {
+  const run = ensureRuntime(context);
+  if (run.lifecycleBound) return;
+  const doc = context.doc || document;
+  const view = analysisRoomWorkspaceView(context);
+  if (view && typeof MutationObserver === "function") {
+    run.workspaceObserver = new MutationObserver(() => pauseFsPlayerIfInactive(runtime?.context || context));
+    run.workspaceObserver.observe(view, { attributes: true, attributeFilter: ["class", "hidden"] });
+  }
+  doc?.addEventListener?.("visibilitychange", () => {
+    if (doc.hidden) pauseFsPlayerPlayback(runtime?.context || context);
+  });
+  run.lifecycleBound = true;
+}
+
 function scheduleVideoShuttleStop(frame = null, context = {}) {
   if (!frame) return;
   const session = videoShuttleSessions.get(frame);
@@ -815,7 +889,7 @@ function handleFsPlayerGlobalWheel(event = {}, context = {}) {
 
   const run = ensureRuntime(context);
   const state = run.store.getState();
-  if (state.activeAnalysisRoomTab !== "fs-player") return false;
+  if (!isFsPlayerInteractionActive(context, state)) return false;
 
   const target = eventElement(event);
   if (target?.closest?.("input, select, textarea, a")) return false;
@@ -2182,6 +2256,7 @@ export function render(context = {}) {
   if (!run.unsubscribe) {
     run.unsubscribe = run.store.subscribe((state) => paint(root, state));
   }
+  bindFsPlayerLifecycle(context);
   if (!run.keydownBound) {
     const win = context.win || window;
     win.addEventListener?.("keydown", (event) => handleKeydown(event, context), true);
@@ -2220,6 +2295,7 @@ export function render(context = {}) {
 
 export function resetVideoAnalysisRuntimeForTests() {
   runtime?.unsubscribe?.();
+  runtime?.workspaceObserver?.disconnect?.();
   runtime = null;
   videoLibraryController = null;
   timelineScrubController = null;
@@ -2738,10 +2814,12 @@ export function handleClick(event, context = {}) {
   if (roomTab) {
     const tabId = roomTab.dataset.videoAnalysisRoomTab;
     if (tabId === "overview") {
+      pauseFsPlayerPlayback(context);
       libraryController().openLibraryView(context);
       return true;
     }
     if (tabId === "fs-player" || tabId === "presentation" || tabId === "match-report") {
+      if (tabId !== "fs-player") pauseFsPlayerPlayback(context);
       run.store.update((state) => ({
         ...state,
         view: "workspace",
@@ -2756,6 +2834,7 @@ export function handleClick(event, context = {}) {
     return true;
   }
   if (target.closest("[data-video-analysis-open-library]")) {
+    pauseFsPlayerPlayback(context);
     libraryController().openLibraryView(context);
     return true;
   }
@@ -4095,9 +4174,11 @@ export function handleChange(event, context = {}) {
 }
 
 export function handleKeydown(event, context = {}) {
+  if (!isAnalysisRoomWorkspaceActive(context)) return false;
   const run = ensureRuntime(context);
   const root = getRoot(context);
   const state = run.store.getState();
+  const fsPlayerShortcutsActive = isFsPlayerInteractionActive(context, state);
   const keyTarget = eventElement(event);
   const mgPrincipleSearch = keyTarget?.closest?.("[data-video-analysis-mg-principle-search]");
   if (mgPrincipleSearch && event.key === "Enter") {
@@ -4113,10 +4194,10 @@ export function handleKeydown(event, context = {}) {
       return true;
     }
   }
-  if (deleteTimelineSelectionByKeyboard(event, context)) return true;
-  if (tabToAdjacentTimelineClip(event, context)) return true;
+  if (fsPlayerShortcutsActive && deleteTimelineSelectionByKeyboard(event, context)) return true;
+  if (fsPlayerShortcutsActive && tabToAdjacentTimelineClip(event, context)) return true;
   if (
-    state.activeAnalysisRoomTab === "fs-player"
+    fsPlayerShortcutsActive
     && event.key === " "
     && !shouldIgnoreShortcutTarget(event.target)
     && !event.metaKey
@@ -4130,7 +4211,7 @@ export function handleKeydown(event, context = {}) {
   }
   const category = state.timeline?.selectedCategory || {};
   if (
-    state.activeAnalysisRoomTab === "fs-player"
+    fsPlayerShortcutsActive
     && state.fsPlayer?.mode === "code"
     && event.key === "Escape"
   ) {
@@ -4143,7 +4224,7 @@ export function handleKeydown(event, context = {}) {
     return true;
   }
   if (
-    state.activeAnalysisRoomTab === "fs-player"
+    fsPlayerShortcutsActive
     && state.timeline?.tagFilterOpen
     && event.key === "Escape"
   ) {
@@ -4156,7 +4237,7 @@ export function handleKeydown(event, context = {}) {
     return true;
   }
   if (
-    state.activeAnalysisRoomTab === "fs-player"
+    fsPlayerShortcutsActive
     && state.codingSession?.panelMode === "edit"
     && event.key === "Escape"
     && !shouldIgnoreShortcutTarget(event.target)
@@ -4170,7 +4251,7 @@ export function handleKeydown(event, context = {}) {
     return true;
   }
   if (
-    state.activeAnalysisRoomTab === "fs-player"
+    fsPlayerShortcutsActive
     && category.viewOpen
     && category.laneMode
     && category.label
@@ -4218,6 +4299,7 @@ export function handleKeydown(event, context = {}) {
       return presenterControls(context).enterFullscreen();
     }
   }
+  if (!fsPlayerShortcutsActive) return false;
   return handleVideoAnalysisShortcut(event, {
     applyCodeButton: (buttonId) => applyCodeButton(buttonId, context),
     getCurrentMs: () => getVideoCurrentMs(videoElement(context)),
@@ -4231,9 +4313,10 @@ export function handleKeydown(event, context = {}) {
 }
 
 export function handleKeyup(event, context = {}) {
+  if (!isAnalysisRoomWorkspaceActive(context)) return false;
   const state = ensureRuntime(context).store.getState();
   if (
-    state.activeAnalysisRoomTab === "fs-player"
+    isFsPlayerInteractionActive(context, state)
     && event.key === " "
     && !shouldIgnoreShortcutTarget(event.target)
     && !event.metaKey

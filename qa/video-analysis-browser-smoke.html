@@ -90,6 +90,14 @@
       };
       let savedCodingTemplate = null;
       const smokeParams = new URLSearchParams(window.location.search);
+      if (smokeParams.has("workspace")) {
+        const root = document.getElementById("analysisRoomWorkspace");
+        const workspaceView = document.createElement("section");
+        workspaceView.className = "workspace-view platform-analysis-room-view is-active";
+        workspaceView.dataset.workspaceView = "analysis-room";
+        root.parentNode.insertBefore(workspaceView, root);
+        workspaceView.appendChild(root);
+      }
       const initialStateFromQuery = smokeParams.get("reset") === "1"
         ? { view: smokeParams.get("view") || "library" }
         : window.__videoAnalysisInitialState || null;

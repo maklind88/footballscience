@@ -135,6 +135,60 @@ test("Video Analysis keeps the local video element stable after metadata loads",
   expect(pageErrors).toEqual([]);
 });
 
+test("Video Analysis pauses FS Player and ignores shortcuts after leaving Analysis Room", async ({ page }) => {
+  await installDeterministicMedia(page);
+  await page.addInitScript(() => {
+    window.__videoPlayCalls = 0;
+    window.__videoPauseCalls = 0;
+    Object.defineProperty(HTMLMediaElement.prototype, "paused", {
+      configurable: true,
+      get() {
+        return this.__videoAnalysisPaused !== false;
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      value() {
+        this.__videoAnalysisPaused = false;
+        window.__videoPlayCalls += 1;
+        return Promise.resolve();
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "pause", {
+      configurable: true,
+      value() {
+        this.__videoAnalysisPaused = true;
+        window.__videoPauseCalls += 1;
+      },
+    });
+  });
+
+  await page.goto("/qa/video-analysis-browser-smoke.html?reset=1&workspace=1", { waitUntil: "domcontentloaded" });
+  await openScheduleDayForLocalVideo(page);
+  await page.locator("[data-video-analysis-file]").setInputFiles({
+    name: "match.mp4",
+    mimeType: "video/mp4",
+    buffer: h264Mp4Fixture,
+  });
+  await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
+  await markVideoMetadataReady(page, 120);
+
+  await page.keyboard.press("Space");
+  await expect.poll(() => page.evaluate(() => window.__videoPlayCalls)).toBe(1);
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.paused)).toBe(false);
+
+  await page.evaluate(() => {
+    document.querySelector('[data-workspace-view="analysis-room"]')?.classList.remove("is-active");
+  });
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.paused)).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__videoPauseCalls)).toBeGreaterThan(0);
+
+  await page.evaluate(() => { window.__videoPlayCalls = 0; document.body.focus(); });
+  await page.keyboard.press("Space");
+  await expect.poll(() => page.evaluate(() => window.__videoPlayCalls)).toBe(0);
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.paused)).toBe(true);
+});
+
 test("Video Analysis tries native H264 MP4 playback before offering bridge prepare", async ({ page }) => {
   await installDeterministicMedia(page);
   await page.goto("/qa/video-analysis-browser-smoke.html?reset=1", { waitUntil: "domcontentloaded" });

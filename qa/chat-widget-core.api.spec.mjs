@@ -447,10 +447,11 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(result.html).toContain('<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">1</span>');
   expect(result.html).toContain("1 unread chat message");
   expect(dashboardChatCss).toContain("closed launcher is a polished left-rail menu item, not a bottom-right bubble");
-  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:1.2rem");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:var(--platform-rail-item-left,1.2rem)");
   expect(dashboardChatCss).toContain("right:auto!important");
-  expect(dashboardChatCss).toContain("bottom:5.68rem!important");
-  expect(dashboardChatCss).toContain("width:3.05rem!important;z-index:180!important");
+  expect(dashboardChatCss).toContain("top:min(var(--platform-rail-chat-slot-top,calc(50vh + 8.88rem)),calc(100vh - 8.6rem))!important");
+  expect(dashboardChatCss).toContain("bottom:auto!important");
+  expect(dashboardChatCss).toContain("width:var(--platform-rail-item-size,3.05rem)!important;height:var(--platform-rail-item-size,3.05rem)!important");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher>*:not(.dashboard-chat-header-badge):not(.dashboard-chat-launcher-icon)");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher>.dashboard-chat-launcher-icon:not(.dashboard-chat-header-badge){display:block!important}");
@@ -463,10 +464,10 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher-icon{position:relative!important;display:block!important");
   expect(dashboardChatCss).toContain("border-radius:.34rem .34rem .34rem .14rem!important");
   expect(dashboardChatCss).toContain("clip-path:polygon(0 0,100% 0,0 100%)!important");
-  expect(dashboardChatCss).toContain("top:-.34rem!important;right:-.3rem!important");
+  expect(dashboardChatCss).toContain("top:.24rem!important;right:.24rem!important");
   expect(dashboardChatCss).toContain("background:#ff453a!important");
-  expect(dashboardChatCss).toContain("@media(max-width:820px){body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:auto");
-  expect(dashboardChatCss).toContain("right:calc(.7rem + 3.14rem + .38rem + env(safe-area-inset-right))!important");
+  expect(dashboardChatCss).toContain("@media(max-width:820px){body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:var(--platform-rail-item-left,1.2rem)");
+  expect(dashboardChatCss).not.toContain("right:calc(.7rem + 3.14rem + .38rem + env(safe-area-inset-right))!important");
   expect(dashboardChatCss).toContain("@media(prefers-reduced-motion:reduce)");
 
   const calmResult = createRenderer([]).render({

@@ -20,6 +20,13 @@
   object-fit: contain;
 }
 
+:root {
+  --platform-rail-item-left: 1.2rem;
+  --platform-rail-item-size: 3.05rem;
+  --platform-rail-item-gap: 0.42rem;
+  --platform-rail-chat-slot-top: calc(50vh + 8.88rem);
+}
+
 .platform-sidebar {
   position: sticky;
   top: 0;
@@ -206,6 +213,10 @@ body[data-active-workspace="home"] .platform-brand-home .platform-mark {
 
 .platform-nav-more {
   position: relative;
+}
+
+body.has-dashboard-chat-widget .platform-nav-more {
+  margin-top: calc(var(--platform-rail-item-size) + var(--platform-rail-item-gap));
 }
 
 .platform-nav-more summary {

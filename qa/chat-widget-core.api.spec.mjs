@@ -742,6 +742,25 @@ test("chat inbox thread cards contain long names, timestamps, previews, and badg
   expect(result.html).toContain("dashboard-chat-thread-mention-badge");
 });
 
+test("open chat uses a calm professional conversation shell", () => {
+  expect(dashboardChatCss).toContain("calm professional conversation shell");
+  expect(dashboardChatCss).toContain("width:min(58rem,calc(100vw - 7.25rem))!important;");
+  expect(dashboardChatCss).toContain("height:min(74dvh,41rem)!important;");
+  expect(dashboardChatCss).toContain("grid-template-columns:minmax(15.25rem,16.75rem) minmax(0,1fr)!important;");
+  expect(dashboardChatCss).toContain(".dashboard-chat-coach-workflow,");
+  expect(dashboardChatCss).toContain(".dashboard-chat-intelligence-rail");
+  expect(dashboardChatCss).toContain("display:none!important;");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-thread-filters");
+  expect(dashboardChatCss).toContain("grid-template-columns:repeat(4,minmax(0,1fr))!important;");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-thread-filters button.is-active");
+  expect(dashboardChatCss).toContain("background:#1f6f54!important;");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-input-shell textarea:focus");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-body,");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-toast[hidden]");
+  expect(dashboardChatCss).toContain("bottom:calc(4.85rem + env(safe-area-inset-bottom))!important;");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-toast");
+});
+
 test("chat message actions stay behind a compact hover menu", () => {
   expect(dashboardChatCss).toContain("WhatsApp-like message action menu");
   expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-message-menu-panel");

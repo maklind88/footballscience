@@ -225,8 +225,11 @@ async function waitForProfileReady(page, recordId) {
   return profileModal;
 }
 
-async function clickScoutingTab(page, results, tabId) {
+async function clickScoutingTab(page, results, tabId, options = {}) {
   const tab = page.locator(`.scouting-tab[data-scouting-tab="${tabId}"]`).first();
+  if (options.required) {
+    await expect(tab, `Scouting tab ${tabId} should be available before measuring it`).toBeVisible({ timeout: 15_000 });
+  }
   if ((await tab.count()) === 0) {
     return;
   }
@@ -264,7 +267,7 @@ test("Scouting critical clicks stay within interaction budgets", async ({ page }
     }
   );
 
-  await clickScoutingTab(page, results, "database");
+  await clickScoutingTab(page, results, "database", { required: true });
 
   await measureInteraction(
     page,

@@ -6,6 +6,7 @@ import { createDashboardChatWidgetRenderer } from "../src/modules/chat/chat-widg
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dashboardChatCss = readFileSync(resolve(__dirname, "../dashboard-chat.css"), "utf8");
+const platformNavigationCss = readFileSync(resolve(__dirname, "../platform-navigation.css"), "utf8");
 const appRuntimeSource = readFileSync(resolve(__dirname, "../app-runtime.js"), "utf8");
 const composerRuntimeSource = readFileSync(resolve(__dirname, "../src/modules/chat/dashboard-chat-composer-runtime.mjs"), "utf8");
 const widgetRuntimeSource = readFileSync(resolve(__dirname, "../src/modules/chat/dashboard-chat-widget-runtime.mjs"), "utf8");
@@ -467,6 +468,15 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(dashboardChatCss).toContain("top:.24rem!important;right:.24rem!important");
   expect(dashboardChatCss).toContain("background:#ff453a!important");
   expect(dashboardChatCss).toContain("@media(max-width:820px){body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:var(--platform-rail-item-left,1.2rem)");
+  expect(dashboardChatCss).toContain("keep the closed launcher in the mobile rail after Scouting");
+  expect(dashboardChatCss).toContain("left:var(--platform-rail-chat-mobile-left,24.36rem)!important;");
+  expect(dashboardChatCss).toContain("bottom:var(--platform-rail-chat-mobile-bottom,calc(.85rem + env(safe-area-inset-bottom)))!important;");
+  expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
+  expect(dashboardChatCss).toContain("top:.32rem!important;");
+  expect(dashboardChatCss).toContain("right:.32rem!important;");
+  expect(platformNavigationCss).toContain("--platform-rail-chat-mobile-left: 24.36rem;");
+  expect(platformNavigationCss).toContain("--platform-rail-chat-mobile-bottom: calc(0.85rem + env(safe-area-inset-bottom));");
+  expect(platformNavigationCss).toContain("body.has-dashboard-chat-widget .platform-nav-more {\n    margin-top: 0;\n    margin-left: calc(var(--platform-rail-item-size) + var(--platform-rail-item-gap));\n  }");
   expect(dashboardChatCss).not.toContain("right:calc(.7rem + 3.14rem + .38rem + env(safe-area-inset-right))!important");
   expect(dashboardChatCss).toContain("@media(prefers-reduced-motion:reduce)");
 

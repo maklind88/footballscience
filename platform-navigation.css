@@ -647,6 +647,13 @@ body.is-dark-mode .platform-sidebar .platform-profile-menu {
 }
 
 @media (max-width: 820px) {
+  :root {
+    --platform-rail-item-size: 3rem;
+    --platform-rail-item-gap: 0.38rem;
+    --platform-rail-chat-mobile-left: 24.36rem;
+    --platform-rail-chat-mobile-bottom: calc(0.85rem + env(safe-area-inset-bottom));
+  }
+
   .coach-platform,
   .coach-platform.is-sidebar-collapsed {
     grid-template-columns: minmax(0, 1fr);
@@ -688,6 +695,11 @@ body.is-dark-mode .platform-sidebar .platform-profile-menu {
     width: 3rem;
     height: 3rem;
     min-height: 3rem;
+  }
+
+  body.has-dashboard-chat-widget .platform-nav-more {
+    margin-top: 0;
+    margin-left: calc(var(--platform-rail-item-size) + var(--platform-rail-item-gap));
   }
 
   .platform-nav-item.is-active::before {

@@ -515,15 +515,6 @@ function latestObservation(detail = {}, type = "") {
   return latestItem(candidates);
 }
 
-function observationTypeCounts(detail = {}) {
-  const counts = new Map();
-  for (const item of detail.evidence || []) {
-    const key = coachLabel(item.evidenceType || "Coach Note");
-    counts.set(key, (counts.get(key) || 0) + 1);
-  }
-  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
-}
-
 function progressPulse(detail = {}, focus = null, idpInactive = false) {
   const observations = detail.evidence?.length || 0;
   const clips = detail.clipBank?.filter((clip) => !["Archived", "Hidden"].includes(clip.status))?.length || 0;
@@ -982,28 +973,6 @@ function renderLensCompass(detail = {}, focus = null) {
   `;
 }
 
-function renderSignalRadar(observationMix = [], total = 0) {
-  const maxCount = Math.max(1, ...observationMix.map(([, count]) => count));
-  return `
-    <article class="idp-signal-radar">
-      <div class="idp-section-kicker">Signal Map</div>
-      <strong>${escapeHtml(String(total))}</strong>
-      <span>coach observations in this IDP loop</span>
-      <div class="idp-signal-bars">
-        ${observationMix.length
-          ? observationMix.map(([label, count]) => `
-            <div class="idp-signal-bar">
-              <small>${escapeHtml(label)}</small>
-              <i><b class="is-level-${escapeHtml(String(Math.max(1, Math.ceil((count / maxCount) * 5))))}"></b></i>
-              <em>${escapeHtml(String(count))}</em>
-            </div>
-          `).join("")
-          : `<div class="idp-empty-signal">No observation pattern yet.</div>`}
-      </div>
-    </article>
-  `;
-}
-
 function renderProfileFilmstrip(detail = {}, canEdit = false, ui = {}) {
   return renderClipBankOrganizer(detail, canEdit, ui);
 }
@@ -1121,7 +1090,6 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
   const ownerId = primaryOwnerId(profile, focus || {});
   const pulse = progressPulse(detail, focus, idpInactive);
   const criteria = buildSuccessCriteria(detail, focus, profile, idpInactive);
-  const observationMix = observationTypeCounts(detail).slice(0, 3);
   const latestReview = latestItem(detail.reviews || []);
   const latestSignal = latestObservation(detail);
   const reflection = latestObservation(detail, "Player Reflection");
@@ -1184,7 +1152,6 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
       </section>
       <section class="idp-intelligence-board">
         ${renderLensCompass(detail, focus)}
-        ${renderSignalRadar(observationMix, detail.evidence?.length || 0)}
         <article class="idp-player-voice-card">
           <div class="idp-section-kicker">Player Voice</div>
           <blockquote>${escapeHtml(reflection?.note || leadership || "No player reflection captured yet.")}</blockquote>

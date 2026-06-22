@@ -197,7 +197,8 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("idp-focus-coach-cue");
   expect(profileHtml).toContain("IDP Player Board");
   expect(profileHtml).toContain("data-idp-player-board-open");
-  expect(profileHtml).toContain("New Individual Exercise");
+  expect(profileHtml).toContain("idp-player-board-context-chip");
+  expect(profileHtml).toContain("New Exercise");
   expect(profileHtml).toContain("Edit Board");
   expect(profileHtml).toContain("Link Clip");
   expect(profileHtml).not.toContain("Progress Pulse");

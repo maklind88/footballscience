@@ -135,6 +135,8 @@ function interventionCounts(intervention = {}) {
 export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}) {
   const intervention = activeIntervention(detail, ui) || draftIntervention(profile, focus);
   const counts = interventionCounts(intervention);
+  const nextTitle = coachLabel(nextAction.title || "Add observation");
+  const nextDue = nextAction.dueOn || focus?.reviewDate || "No date set";
   return `
     <aside class="idp-player-board-panel">
       <div class="idp-player-board-head">
@@ -142,24 +144,30 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
           <span>IDP Player Board</span>
           <strong>${escapeHtml(intervention.title || "Individual exercise")}</strong>
         </div>
-        <small>${escapeHtml(pitchModeLabel(intervention.pitchMode))}</small>
+        <div class="idp-player-board-meta">
+          <span><strong>${escapeHtml(String(counts.frames))}</strong> frames</span>
+          <span><strong>${escapeHtml(String(counts.clips))}</strong> clips</span>
+          <span><strong>${escapeHtml(String(counts.notes))}</strong> notes</span>
+        </div>
       </div>
       <button type="button" class="idp-player-board-preview" data-idp-player-board-open aria-label="Open IDP Player Board">
-        ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-preview-arrow" })}
+        <span class="idp-player-board-canvas">
+          ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-preview-arrow" })}
+          <span class="idp-player-board-mode-chip">${escapeHtml(pitchModeLabel(intervention.pitchMode))}</span>
+          <span class="idp-player-board-context-chip is-progress">
+            <strong>${escapeHtml(pulse.label || "On track")}</strong>
+            <small>${escapeHtml(pulse.detail || "Progress")}</small>
+          </span>
+          <span class="idp-player-board-context-chip is-next">
+            <strong>${escapeHtml(nextTitle)}</strong>
+            <small>${escapeHtml(nextDue)}</small>
+          </span>
+        </span>
       </button>
-      <div class="idp-player-board-chips">
-        <span><strong>${escapeHtml(pulse.label || "On track")}</strong><small>${escapeHtml(pulse.detail || "Progress")}</small></span>
-        <span><strong>${escapeHtml(coachLabel(nextAction.title || "Add observation"))}</strong><small>${escapeHtml(nextAction.dueOn || focus?.reviewDate || "No date set")}</small></span>
-      </div>
-      <div class="idp-player-board-meta">
-        <span>${escapeHtml(String(counts.frames))} frames</span>
-        <span>${escapeHtml(String(counts.clips))} clips</span>
-        <span>${escapeHtml(String(counts.notes))} notes</span>
-      </div>
       ${canEdit ? `
         <div class="idp-player-board-actions">
-          <button type="button" data-idp-player-board-new>New Individual Exercise</button>
-          <button type="button" data-idp-player-board-open>Edit Board</button>
+          <button type="button" class="is-primary" data-idp-player-board-open>Edit Board</button>
+          <button type="button" data-idp-player-board-new>New Exercise</button>
           <button type="button" data-idp-player-board-link-clip>Link Clip</button>
           <button type="button" data-idp-action="evidence">Add Observation</button>
         </div>

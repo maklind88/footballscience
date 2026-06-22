@@ -185,6 +185,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("Player development overview");
   expect(profileHtml).not.toContain("Player Development Profile");
   expect(profileHtml).not.toContain("Player Snapshot");
+  expect(profileHtml).toContain('class="idp-status-pill is-good">Active');
   expect(profileHtml).toContain("idp-focus-clarity-card");
   expect(profileHtml).toContain("Coach cue");
   expect(profileHtml).not.toContain("Receive under pressure so the player");
@@ -880,6 +881,7 @@ test("idp profile shows Squad-owned inactive IDP status", async () => {
     { canEdit: true, users: [] }
   );
   expect(html).toContain("No Active IDP");
+  expect(html).toContain('class="idp-status-pill is-neutral">No Active IDP');
   expect(html).toContain("IDP is inactive from Squad Room");
   expect(html).toContain("No active IDP");
   expect(html).toContain("No IDP action required");

@@ -217,8 +217,10 @@ function initialsFromName(value = "", fallback = "IDP") {
 
 function statusTone(status = "") {
   const normalized = String(status).toLowerCase();
-  if (normalized.includes("due") || normalized.includes("needs") || normalized.includes("no active")) return "warning";
-  if (normalized.includes("ready") || normalized.includes("track")) return "good";
+  if (normalized === "active" || normalized.includes("track")) return "good";
+  if (normalized.includes("no active idp") || normalized.includes("inactive") || normalized.includes("paused")) return "neutral";
+  if (normalized.includes("due") || normalized.includes("needs") || normalized.includes("no active focus")) return "warning";
+  if (normalized.includes("ready")) return "good";
   if (normalized.includes("new clips")) return "info";
   return "neutral";
 }

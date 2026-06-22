@@ -167,6 +167,7 @@ test("idp renderer separates the overview from the player development profile", 
   const profileHtml = renderIdpWorkspace(profileState, staffOptions);
 
   expect(profileHtml).toContain("data-idp-back-overview");
+  expect(profileHtml).toContain('data-idp-profile-view="clip-bank"');
   expect(profileHtml).toContain("idp-profile-menu");
   expect(profileHtml).toContain("idp-stage-actions");
   expect(profileHtml.indexOf("idp-stage-actions")).toBeLessThan(profileHtml.indexOf("data-idp-back-overview"));
@@ -210,6 +211,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain('data-idp-delete-evidence="evidence-1"');
   expect(profileHtml).not.toContain('data-idp-action="evidence" title="Add observation" disabled');
   expect(profileHtml).toContain("Clip Bank");
+  expect(profileHtml).not.toContain("idp-clip-bank-organizer");
   expect(profileHtml).toContain("Development Timeline");
   expect(profileHtml).toContain("5 latest updates");
   expect(profileHtml).toContain("data-idp-timeline-more");
@@ -220,6 +222,18 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("idp-ownership-studio");
   expect(profileHtml).not.toContain("Primary IDP Coach");
   expect(profileHtml).not.toContain("Current Focus Owner");
+
+  const clipBankHtml = renderIdpWorkspace({
+    ...profileState,
+    ui: { ...profileState.ui, profileView: "clip-bank" },
+  }, staffOptions);
+  expect(clipBankHtml).toContain("idp-profile-clip-bank-page");
+  expect(clipBankHtml).toContain("Player Clip Bank");
+  expect(clipBankHtml).toContain("idp-clip-bank-organizer");
+  expect(clipBankHtml).toContain("Search clips");
+  expect(clipBankHtml).toContain('data-idp-profile-view="development"');
+  expect(clipBankHtml).not.toContain("idp-focus-clarity-card");
+  expect(clipBankHtml).not.toContain("idp-workflow-board");
 
   const assignmentHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "ownership" } }, staffOptions);
   expect(assignmentHtml).toContain("data-idp-assign-owner");
@@ -563,6 +577,7 @@ test("idp clip bank is a date-sorted organizer with play queue metadata", () => 
     sync: {},
     ui: {
       selectedPlayerId: "p1",
+      profileView: "clip-bank",
       selectedClipBankIds: ["bank-new"],
       clipBankSearchQuery: "Louisville",
       clipPreviewOpen: true,
@@ -892,7 +907,7 @@ test("idp profile overview navigation is not blocked by stale filter state", asy
   expect(indexSource.indexOf("const backTrigger = event?.target?.closest?.(\"[data-idp-back-overview]\")"))
     .toBeLessThan(indexSource.indexOf("const openFilterMenu = runtime?.store.getState?.()?.ui?.openFilterMenu"));
   expect(indexSource).toContain(".idp-stage-actions[open]");
-  expect(indexSource).toContain('openFilterMenu: "", selectedPlayerId: "", actionMode: "", editEvidenceId: "", playerBoardOpen: false, playerBoardInterventionId: "", error: "", message: ""');
+  expect(indexSource).toContain('openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", playerBoardOpen: false, playerBoardInterventionId: "", error: "", message: ""');
 
   const store = createIdpStore({ ui: { openFilterMenu: "owner" } });
   const actions = createIdpActions({

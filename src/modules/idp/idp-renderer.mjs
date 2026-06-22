@@ -19,10 +19,13 @@ const defaultUiState = Object.freeze({
   categoryFilter: "All",
   openFilterMenu: "",
   searchQuery: "",
+  profileView: "development",
+  clipBankSearchQuery: "",
   actionMode: "",
   message: "",
   error: "",
   loading: false,
+  selectedClipBankIds: [],
 });
 
 const profileTimelinePreviewLimit = 5;
@@ -661,10 +664,16 @@ function renderStageQuickActions(canEdit = false, focusId = "", idpInactive = fa
   `;
 }
 
-function renderProfileMenu() {
+function normalizeProfileView(value = "") {
+  return value === "clip-bank" ? "clip-bank" : "development";
+}
+
+function renderProfileMenu(profileView = "development") {
+  const isClipBank = normalizeProfileView(profileView) === "clip-bank";
   return `
     <nav class="idp-profile-menu" aria-label="Player profile navigation">
       <button type="button" data-idp-back-overview>Overview</button>
+      <button type="button" class="${isClipBank ? "is-active" : ""}" data-idp-profile-view="clip-bank" aria-pressed="${isClipBank ? "true" : "false"}">Clip Bank</button>
     </nav>
   `;
 }
@@ -997,6 +1006,23 @@ function renderProfileFilmstrip(detail = {}, canEdit = false, ui = {}) {
   return renderClipBankOrganizer(detail, canEdit, ui);
 }
 
+function renderProfileClipBankPage(detail = {}, canEdit = false, ui = {}) {
+  const clips = Array.isArray(detail.clipBank) ? detail.clipBank : [];
+  return `
+    <section class="idp-profile-subpage idp-profile-clip-bank-page">
+      <div class="idp-profile-subpage-head">
+        <div>
+          <span>Player Clip Bank</span>
+          <strong>${escapeHtml(String(clips.length))} clips connected to this IDP</strong>
+          <small>Match and training evidence for this player's development loop.</small>
+        </div>
+        <button type="button" data-idp-profile-view="development">Player Profile</button>
+      </div>
+      ${renderProfileFilmstrip(detail, canEdit, ui)}
+    </section>
+  `;
+}
+
 function renderProfileSignalStream(detail = {}, canEdit = false) {
   const evidence = detail.evidence || [];
   return `
@@ -1099,6 +1125,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
   const reflection = latestObservation(detail, "Player Reflection");
   const leadership = normalizeText(profile.leadershipProfile, "");
   const strengths = Array.isArray(profile.strengths) ? profile.strengths.slice(0, 3) : [];
+  const profileView = normalizeProfileView(state.ui?.profileView || "");
   return `
     <section class="idp-player-profile idp-profile-experience">
       <header class="idp-profile-stage">
@@ -1115,7 +1142,8 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
         ${renderStageQuickActions(canEdit, focusId, idpInactive)}
       </header>
       ${idpInactive ? `<div class="idp-notice is-warning">IDP is inactive from Squad Room. Historical observations, clips and ownership remain visible here.</div>` : ""}
-      ${renderProfileMenu()}
+      ${renderProfileMenu(profileView)}
+      ${profileView === "clip-bank" ? renderProfileClipBankPage(detail, canEdit && !idpInactive, state.ui || {}) : `
       <section class="idp-development-board">
         <article class="idp-focus-story idp-focus-clarity-card">
           <div class="idp-focus-clarity-head">
@@ -1167,10 +1195,10 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
         </article>
       </section>
       <section class="idp-workflow-board">
-        ${renderProfileFilmstrip(detail, canEdit, state.ui || {})}
         ${renderProfileSignalStream(detail, canEdit && !idpInactive)}
         ${renderProfileTimelineRiver(detail, options)}
       </section>
+      `}
       ${renderActionOverlay(state, focus, canEdit && !idpInactive, options)}
       ${renderIdpPlayerBoardOverlay(detail, focus || {}, profile, state.ui || {}, canEdit && !idpInactive)}
       ${renderIdpClipPreviewOverlay(detail, state.ui || {})}

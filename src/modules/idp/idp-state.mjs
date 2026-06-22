@@ -5,6 +5,7 @@ export const idpInitialUiState = Object.freeze({
   categoryFilter: "All",
   openFilterMenu: "",
   searchQuery: "",
+  profileView: "development",
   clipBankSearchQuery: "",
   actionMode: "",
   editEvidenceId: "",

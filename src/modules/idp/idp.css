@@ -3067,7 +3067,7 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 .idp-workflow-board {
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(320px, 1.1fr) minmax(320px, 1.1fr) minmax(260px, .8fr);
+  grid-template-columns: minmax(320px, 1.1fr) minmax(260px, .9fr);
 }
 
 .idp-filmstrip-panel,
@@ -4221,11 +4221,86 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
 }
 
 .idp-profile-menu button:hover,
-.idp-profile-menu button:focus-visible {
+.idp-profile-menu button:focus-visible,
+.idp-profile-menu button.is-active {
   background: #fff;
   border-color: rgba(15, 118, 110, .22);
   color: #0f766e;
   outline: none;
+}
+
+.idp-profile-menu button.is-active {
+  box-shadow: 0 8px 20px rgba(15, 118, 110, .1), inset 0 0 0 1px rgba(15, 118, 110, .1);
+}
+
+.idp-profile-subpage {
+  display: grid;
+  gap: 12px;
+}
+
+.idp-profile-subpage-head {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, .98), rgba(248, 250, 252, .9)),
+    #fff;
+  border: 1px solid var(--idp-profile-line);
+  border-radius: 8px;
+  box-shadow: 0 16px 42px rgba(16, 24, 40, .06);
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 16px;
+}
+
+.idp-profile-subpage-head div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.idp-profile-subpage-head span {
+  color: var(--idp-profile-muted);
+  font-size: .72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.idp-profile-subpage-head strong {
+  color: #101828;
+  font-size: clamp(1.2rem, 2vw, 1.8rem);
+  line-height: 1.06;
+}
+
+.idp-profile-subpage-head small {
+  color: var(--idp-profile-muted);
+  font-size: .86rem;
+  font-weight: 760;
+}
+
+.idp-profile-subpage-head button {
+  appearance: none;
+  background: #101828;
+  border: 1px solid rgba(16, 24, 40, .12);
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 900;
+  min-height: 34px;
+  padding: 0 13px;
+}
+
+.idp-profile-subpage-head button:hover,
+.idp-profile-subpage-head button:focus-visible {
+  background: #0f766e;
+  outline: none;
+}
+
+.idp-profile-clip-bank-page .idp-clip-bank-organizer {
+  min-height: 360px;
 }
 
 .idp-stage-identity {
@@ -4684,6 +4759,7 @@ body.is-dark-mode .idp-shell.is-profile-mode .idp-header,
 body.is-dark-mode .idp-profile-stage,
 body.is-dark-mode .idp-stage-actions-menu,
 body.is-dark-mode .idp-coach-board,
+body.is-dark-mode .idp-profile-subpage-head,
 body.is-dark-mode .idp-profile-actions-deck,
 body.is-dark-mode .idp-action-dialog {
   background: #f5f7fb;
@@ -4871,6 +4947,15 @@ body.is-dark-mode .idp-player-board-actions button:not(.is-primary) {
 
   .idp-profile-menu {
     margin: -1px 0 7px;
+  }
+
+  .idp-profile-subpage-head {
+    align-items: flex-start;
+    display: grid;
+  }
+
+  .idp-profile-subpage-head button {
+    justify-self: start;
   }
 
   .idp-stage-identity {

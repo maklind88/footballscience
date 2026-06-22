@@ -288,12 +288,14 @@ export function createIdpActions({ store, api, context = {} }) {
     }
   }
 
-  async function selectPlayer(playerId) {
+  async function selectPlayer(playerId, options = {}) {
     const safePlayerId = normalizeText(playerId, 160);
+    const currentUi = store.getState().ui || {};
     store.setState({
       ui: {
         openFilterMenu: "",
         selectedPlayerId: safePlayerId,
+        profileView: options.preserveProfileView ? currentUi.profileView || "development" : "development",
         actionMode: "",
         editEvidenceId: "",
         error: "",
@@ -330,7 +332,7 @@ export function createIdpActions({ store, api, context = {} }) {
   async function refreshSelectedPlayer() {
     const playerId = selectedPlayerIdFromState(store.getState());
     await loadDashboard();
-    if (playerId) await selectPlayer(playerId);
+    if (playerId) await selectPlayer(playerId, { preserveProfileView: true });
   }
 
   async function checkForExternalUpdates() {

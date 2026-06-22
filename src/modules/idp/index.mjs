@@ -199,7 +199,7 @@ async function boot(activeRuntime) {
   const state = activeRuntime.store.getState();
   const playerId = state.ui.selectedPlayerId || "";
   if (playerId) {
-    await activeRuntime.actions.selectPlayer(playerId);
+    await activeRuntime.actions.selectPlayer(playerId, { preserveProfileView: true });
   }
 }
 
@@ -404,7 +404,32 @@ export function handleClick(event) {
   if (backTrigger) {
     event?.preventDefault?.();
     revokePreviewUrl(runtime);
-    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", actionMode: "", editEvidenceId: "", playerBoardOpen: false, playerBoardInterventionId: "", error: "", message: "" } });
+    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", playerBoardOpen: false, playerBoardInterventionId: "", error: "", message: "" } });
+    scrollWorkspaceTop(runtime);
+    return;
+  }
+  const profileViewTrigger = event?.target?.closest?.("[data-idp-profile-view]");
+  if (profileViewTrigger) {
+    event?.preventDefault?.();
+    revokePreviewUrl(runtime);
+    const profileView = profileViewTrigger.dataset.idpProfileView === "clip-bank" ? "clip-bank" : "development";
+    runtime?.store.setState({
+      ui: {
+        profileView,
+        actionMode: "",
+        editEvidenceId: "",
+        playerBoardOpen: false,
+        playerBoardInterventionId: "",
+        clipPreviewOpen: false,
+        clipPreviewQueueIds: [],
+        clipPreviewActiveIndex: 0,
+        clipPreviewStatus: "",
+        clipPreviewMessage: "",
+        clipPreviewObjectUrl: "",
+        error: "",
+        message: "",
+      },
+    });
     scrollWorkspaceTop(runtime);
     return;
   }

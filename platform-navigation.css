@@ -21,10 +21,10 @@
 }
 
 :root {
-  --platform-rail-item-left: 1.2rem;
+  --platform-rail-item-left: 1.169rem;
   --platform-rail-item-size: 3.05rem;
   --platform-rail-item-gap: 0.42rem;
-  --platform-rail-chat-slot-top: calc(50vh + 8.88rem);
+  --platform-rail-chat-slot-top: calc(50vh + 10.55rem);
 }
 
 .platform-sidebar {
@@ -609,7 +609,7 @@ body.is-dark-mode .platform-sidebar .platform-profile-menu {
     --platform-rail-item-left: 1.334rem;
     --platform-rail-item-size: 2.72rem;
     --platform-rail-item-gap: 0.28rem;
-    --platform-rail-chat-slot-top: calc(50vh + 7.43rem);
+    --platform-rail-chat-slot-top: calc(50vh + 8.93rem);
   }
 
   .platform-sidebar,
@@ -651,7 +651,7 @@ body.is-dark-mode .platform-sidebar .platform-profile-menu {
   :root {
     --platform-rail-item-size: 3rem;
     --platform-rail-item-gap: 0.38rem;
-    --platform-rail-chat-mobile-left: 24.36rem;
+    --platform-rail-chat-mobile-left: 27.74rem;
     --platform-rail-chat-mobile-bottom: calc(0.85rem + env(safe-area-inset-bottom));
   }
 

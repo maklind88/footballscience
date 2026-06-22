@@ -183,12 +183,12 @@ export const platformSidebarPrimaryOrder = [
   "session-planner",
   "idp",
   "scouting",
+  "analysis-room",
 ];
 
 export const platformSidebarMoreOrder = [
   "gameplan",
   "transfer-room",
-  "analysis-room",
   "staff",
   "admin",
   "team-identity",

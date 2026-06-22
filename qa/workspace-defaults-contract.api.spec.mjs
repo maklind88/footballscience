@@ -27,7 +27,9 @@ test("Workspace defaults expose stable hub workspaces and navigation order", () 
     "session-planner",
     "idp",
     "scouting",
+    "analysis-room",
   ]);
+  expect(platformSidebarMoreOrder).not.toContain("analysis-room");
   expect(platformSidebarMoreOrder).toContain("admin");
   expect(placeholderWorkspaceContent).toEqual({});
 });

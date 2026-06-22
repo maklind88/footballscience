@@ -83,6 +83,7 @@ export const medicalOperationsTabOptions = [
   { key: "signals", label: "Risk Signals" },
   { key: "cases", label: "Active Cases" },
   { key: "history", label: "History" },
+  { key: "rtp-library", label: "RTP Library" },
   { key: "season", label: "Season" },
 ];
 

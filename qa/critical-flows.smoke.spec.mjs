@@ -2959,9 +2959,10 @@ test("Medical operations board separates signals, cases, history and season view
   const operationsMenu = page.locator("[data-medical-ops-top-menu]");
   await expect(operationsMenu).toBeVisible();
   await expect(operationsMenu).not.toContainText("Intelligence Board");
-  await expect(operationsMenu.locator("[data-medical-ops-tab]")).toHaveCount(5);
+  await expect(operationsMenu.locator("[data-medical-ops-tab]")).toHaveCount(6);
   await expect(operationsMenu.locator('[data-medical-ops-tab="overview"]')).toHaveCount(0);
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveText("Availability");
+  await expect(operationsMenu.locator('[data-medical-ops-tab="rtp-library"]')).toHaveText("RTP Library");
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveClass(/is-active/);
   await expect(page.locator("[data-medical-availability-workspace]")).toBeVisible();
   await expect(page.locator(".medical-position-overview")).toBeVisible();
@@ -3030,6 +3031,11 @@ test("Medical operations board separates signals, cases, history and season view
   await historyFilterForm.locator("[data-medical-history-player-filter]").selectOption("qa-risk");
   await expect(historyTable).toContainText("QA Risk Player");
   await expect(historyTable).not.toContainText("QA Long Term ACL");
+
+  await operationsMenu.locator('[data-medical-ops-tab="rtp-library"]').click();
+  await expect(operations).toContainText("RTP Library");
+  await expect(operations).toContainText("Framework page ready for protocols");
+  await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);
 
   await operationsMenu.locator('[data-medical-ops-tab="season"]').click();
   await expect(operations).toContainText("Managed days");

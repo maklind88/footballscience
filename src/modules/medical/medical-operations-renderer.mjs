@@ -371,6 +371,24 @@ ${events.length
 `;
   };
 
+  const renderRtpLibrary = () => `
+<section class="medical-ops-library" aria-label="RTP Library">
+<article class="medical-ops-card">
+<div class="medical-command-head">
+<span>RTP Library</span>
+<strong>Ready</strong>
+</div>
+<div class="medical-empty-inline">Framework page ready for protocols, phase definitions, testing gates, clearance rules, and sport-specific progressions.</div>
+</article>
+<div class="medical-ops-stats">
+${renderOpsStat("Protocols", "Ready", "structure only", "clear")}
+${renderOpsStat("Phases", "5", "medical to match", "low")}
+${renderOpsStat("Gates", "Pending", "testing library", "medium")}
+${renderOpsStat("Templates", "Pending", "injury pathways", "medium")}
+</div>
+</section>
+`;
+
   const renderSeason = (summary) => {
     const season = summary.season;
     return `
@@ -448,9 +466,11 @@ ${renderOpsStat("Coach notes", String(items.length), "approved", items.length ? 
           ? renderCases(summary)
           : activeTab === "history"
             ? renderHistory(summary)
-            : activeTab === "season"
-              ? renderSeason(summary)
-              : renderSignals(summary);
+            : activeTab === "rtp-library"
+              ? renderRtpLibrary(summary)
+              : activeTab === "season"
+                ? renderSeason(summary)
+                : renderSignals(summary);
     return `
 <section class="medical-operations-system" data-medical-operations-system aria-label="Medical operations intelligence board">
 ${body}
@@ -468,6 +488,7 @@ ${body}
     renderSignals,
     renderCases,
     renderHistory,
+    renderRtpLibrary,
     renderSeason,
     renderCoachSafeSummary,
     renderPrivateSystem,

@@ -55,7 +55,7 @@ test("Medical operations renderer owns operations tabs, private system, and coac
     renderMedicalDailyHuddle: () => '<section class="huddle"></section>',
   });
 
-  expect(renderer.renderTopMenu("availability", [{ key: "availability", label: "Availability" }])).toContain("medical-ops-top-menu");
+  expect(renderer.renderTopMenu("availability", [{ key: "rtp-library", label: "RTP Library" }])).toContain("RTP Library");
   expect(renderer.renderSignalDrivers(signal)).toContain("75% recommendation");
   const overviewMarkup = renderer.renderOverview(summary, "2026-05-31");
   expect(overviewMarkup).toContain("Medical Briefing");
@@ -66,6 +66,7 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(renderer.renderPrivateSystem({ ...summary, signals: [], actionSignals: [], actionRequired: 0 }, "signals", "2026-05-31")).toContain(
     "No risk signals for current squad players."
   );
+  expect(renderer.renderPrivateSystem(summary, "rtp-library", "2026-05-31")).toContain("Framework page ready for protocols");
   const historyMarkup = renderer.renderHistory();
   expect(historyMarkup).toContain("data-medical-history-filter-form");
   expect(historyMarkup).toContain("data-medical-history-search");

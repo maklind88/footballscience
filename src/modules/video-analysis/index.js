@@ -105,7 +105,8 @@ const VIDEO_SHUTTLE_DOMINANCE_RATIO = 1.35;
 const VIDEO_SHUTTLE_IDLE_MS = 520;
 const VIDEO_SHUTTLE_MAX_FRAME_MS = 80;
 const FS_PLAYER_HISTORY_GUARD_KEY = "__footballScienceFsPlayerHistoryGuard";
-const FS_PLAYER_HISTORY_POINTER_RECENT_MS = 2500;
+const FS_PLAYER_HISTORY_GUARD_DEPTH_KEY = "__footballScienceFsPlayerHistoryGuardDepth";
+const FS_PLAYER_HISTORY_GUARD_DEPTH = 3;
 const videoShuttleTimers = new WeakMap();
 const videoShuttleSessions = new WeakMap();
 
@@ -135,7 +136,7 @@ function createRuntime(context = {}) {
     pointerGuardBound: false,
     historyGuardBound: false,
     fsPlayerHistoryGuardArmed: false,
-    fsPlayerLastPointerInsideAt: 0,
+    fsPlayerHistoryGuardDepth: 0,
     fsPlayerPointerInsideShuttle: false,
     workspaceObserver: null,
   };
@@ -531,10 +532,11 @@ function fsPlayerPlayerElement(context = {}) {
   return getRoot(context)?.querySelector(".video-analysis-fs-player-deck .video-analysis-player") || null;
 }
 
-function fsPlayerHistoryGuardState(state = {}) {
+function fsPlayerHistoryGuardState(state = {}, depth = 1) {
   return {
     ...((state && typeof state === "object") ? state : {}),
     [FS_PLAYER_HISTORY_GUARD_KEY]: true,
+    [FS_PLAYER_HISTORY_GUARD_DEPTH_KEY]: depth,
   };
 }
 
@@ -545,34 +547,29 @@ function armFsPlayerHistoryGuard(context = {}) {
   if (!isFsPlayerInteractionActive(context, state)) return false;
   if (!win?.history?.pushState || !win.location?.href) return false;
   try {
-    if (win.history.state?.[FS_PLAYER_HISTORY_GUARD_KEY]) {
+    const currentState = win.history.state;
+    const currentDepth = currentState?.[FS_PLAYER_HISTORY_GUARD_KEY]
+      ? Math.max(0, Number(currentState?.[FS_PLAYER_HISTORY_GUARD_DEPTH_KEY] || 1))
+      : 0;
+    if (currentDepth >= FS_PLAYER_HISTORY_GUARD_DEPTH) {
       run.fsPlayerHistoryGuardArmed = true;
+      run.fsPlayerHistoryGuardDepth = currentDepth;
       return true;
     }
-    win.history.pushState(fsPlayerHistoryGuardState(win.history.state), "", win.location.href);
+    for (let depth = currentDepth + 1; depth <= FS_PLAYER_HISTORY_GUARD_DEPTH; depth += 1) {
+      win.history.pushState(fsPlayerHistoryGuardState(win.history.state, depth), "", win.location.href);
+    }
     run.fsPlayerHistoryGuardArmed = true;
+    run.fsPlayerHistoryGuardDepth = FS_PLAYER_HISTORY_GUARD_DEPTH;
     return true;
   } catch {
     return false;
   }
 }
 
-function recentFsPlayerPointer(context = {}) {
-  const run = ensureRuntime(context);
-  const now = Date.now();
-  return Boolean(
-    run.fsPlayerPointerInsideShuttle
-    || (run.fsPlayerLastPointerInsideAt && now - run.fsPlayerLastPointerInsideAt < FS_PLAYER_HISTORY_POINTER_RECENT_MS)
-  );
-}
-
 function shouldAbsorbFsPlayerHistoryNavigation(context = {}, state = {}) {
   if (!isFsPlayerInteractionActive(context, state)) return false;
-  return Boolean(
-    fsPlayerOwnsFullscreen(context)
-    || state.fsPlayer?.mode === "code"
-    || recentFsPlayerPointer(context)
-  );
+  return true;
 }
 
 function syncFsPlayerGestureContainment(context = {}, state = {}) {
@@ -586,11 +583,12 @@ function syncFsPlayerGestureContainment(context = {}, state = {}) {
     element.classList.toggle("is-video-analysis-fs-player-active", isActive);
     element.classList.toggle("is-video-analysis-fs-player-code-mode", isCodeMode);
   });
-  if (isCodeMode || (isActive && fsPlayerOwnsFullscreen(context))) {
+  if (isActive) {
     armFsPlayerHistoryGuard(context);
   } else if (!isActive) {
     const run = ensureRuntime(context);
     run.fsPlayerHistoryGuardArmed = false;
+    run.fsPlayerHistoryGuardDepth = 0;
     run.fsPlayerPointerInsideShuttle = false;
   }
 }
@@ -961,7 +959,6 @@ function updateFsPlayerPointerGuard(event = {}, context = {}) {
   const isInside = Boolean(target && player?.contains?.(target));
   run.fsPlayerPointerInsideShuttle = isInside;
   if (isInside) {
-    run.fsPlayerLastPointerInsideAt = Date.now();
     armFsPlayerHistoryGuard(context);
   }
 }

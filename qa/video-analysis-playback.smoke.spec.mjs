@@ -256,20 +256,32 @@ test("Video Analysis contains horizontal trackpad swipes across FS Player modes"
     await new Promise((resolve) => setTimeout(resolve, 50));
     const beforeHref = window.location.href;
     const armedBefore = Boolean(window.history.state?.__footballScienceFsPlayerHistoryGuard);
+    const depthBefore = Number(window.history.state?.__footballScienceFsPlayerHistoryGuardDepth || 0);
+    window.history.back();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const afterFirstBackHref = window.location.href;
     window.history.back();
     await new Promise((resolve) => setTimeout(resolve, 120));
     return {
       beforeHref,
       afterHref: window.location.href,
       armedBefore,
+      depthBefore,
+      afterFirstBackHref,
       armedAfter: Boolean(window.history.state?.__footballScienceFsPlayerHistoryGuard),
+      depthAfter: Number(window.history.state?.__footballScienceFsPlayerHistoryGuardDepth || 0),
       fsPlayerActive: document.body.classList.contains("is-video-analysis-fs-player-active"),
+      fsPlayerActiveOnHtml: document.documentElement.classList.contains("is-video-analysis-fs-player-active"),
     };
   });
   expect(historyGuard.armedBefore).toBe(true);
+  expect(historyGuard.depthBefore).toBeGreaterThanOrEqual(3);
+  expect(historyGuard.afterFirstBackHref).toBe(historyGuard.beforeHref);
   expect(historyGuard.afterHref).toBe(historyGuard.beforeHref);
   expect(historyGuard.armedAfter).toBe(true);
+  expect(historyGuard.depthAfter).toBeGreaterThanOrEqual(3);
   expect(historyGuard.fsPlayerActive).toBe(true);
+  expect(historyGuard.fsPlayerActiveOnHtml).toBe(true);
 
   const timelineWheel = await dispatchHorizontalWheel(".video-analysis-fs-player-timeline [data-video-analysis-timeline-pan]");
   expect(timelineWheel.defaultPrevented).toBe(true);

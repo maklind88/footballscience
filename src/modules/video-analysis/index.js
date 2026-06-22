@@ -612,11 +612,6 @@ function requestNativeFullscreen(element) {
   return element.requestFullscreen().then(() => true).catch(() => false);
 }
 
-function exitNativeFullscreen(docRef) {
-  if (!docRef?.fullscreenElement || !docRef?.exitFullscreen) return Promise.resolve(false);
-  return docRef.exitFullscreen().then(() => true).catch(() => false);
-}
-
 function enterVideoFullscreen(context = {}) {
   const run = ensureRuntime(context);
   const element = fsPlayerVideoFrameElement(context);
@@ -630,7 +625,6 @@ function enterVideoFullscreen(context = {}) {
 
 function toggleFsPlayerCodeMode(context = {}) {
   const run = ensureRuntime(context);
-  const doc = context.doc || document;
   const isActive = run.store.getState().fsPlayer?.mode === "code";
   run.store.update((state) => ({
     ...state,
@@ -638,11 +632,6 @@ function toggleFsPlayerCodeMode(context = {}) {
     message: isActive ? "Code Mode closed." : "Code Mode ready.",
     error: "",
   }));
-  if (isActive) {
-    exitNativeFullscreen(doc);
-  } else {
-    requestNativeFullscreen(fsPlayerWorkspaceElement(context));
-  }
   return true;
 }
 
@@ -992,7 +981,7 @@ function fsPlayerWheelTargetInfo(event = {}, context = {}, state = {}) {
   ));
   const pointerInsidePlayer = ensureRuntime(context).fsPlayerPointerInsideShuttle;
   const codeMode = state.fsPlayer?.mode === "code";
-  const shouldContain = ownsFullscreen || targetInWorkspace || targetInPlayer || pointerInsidePlayer;
+  const shouldContain = ownsFullscreen || codeMode || targetInWorkspace || targetInPlayer || pointerInsidePlayer;
   if (!shouldContain) {
     return { shouldContain: false, frame: null, allowTimeline: false };
   }
@@ -1236,7 +1225,8 @@ async function ensureMetadataForRestoredReference(run, context = {}, reference =
 }
 
 function paint(root, state) {
-  const previousVideo = root.querySelector("[data-video-analysis-video]");
+  const previousFsPlayerVideo = root.querySelector(".video-analysis-fs-player-deck [data-video-analysis-video]");
+  const previousVideo = previousFsPlayerVideo || root.querySelector("[data-video-analysis-video]");
   const previousSrc = previousVideo?.currentSrc || previousVideo?.src || "";
   const previousTime = Number(previousVideo?.currentTime || 0);
   const wasPlaying = Boolean(previousVideo && !previousVideo.paused && !previousVideo.ended);
@@ -1305,7 +1295,7 @@ function paint(root, state) {
     restoreLocalVideoHandle,
     togglePlayback,
   });
-  const video = root.querySelector("[data-video-analysis-video]");
+  const video = preservePaintedVideoElement(root, previousFsPlayerVideo) || root.querySelector("[data-video-analysis-video]");
   const nextFocus = focusedDraft
     ? root.querySelector(`[data-video-analysis-draft="${focusedDraft}"]`)
     : focusedFilter
@@ -1363,19 +1353,7 @@ function paint(root, state) {
         // Metadata can still be loading for a newly recreated local video element.
       }
     }
-    video.ontimeupdate = () => {
-      timelineController(runtime?.context || context).handleVideoTimeUpdate(video);
-    };
-    video.addEventListener("loadedmetadata", () => markNativePlaybackReady(video), { once: true });
-    video.addEventListener("canplay", () => markNativePlaybackReady(video), { once: true });
-    video.addEventListener("play", () => syncPlaybackControls(runtime?.context || context, video, true));
-    video.addEventListener("playing", () => {
-      markNativePlaybackReady(video);
-      syncPlaybackControls(runtime?.context || context, video, true);
-    });
-    video.addEventListener("pause", () => syncPlaybackControls(runtime?.context || context, video, false));
-    video.addEventListener("ended", () => syncPlaybackControls(runtime?.context || context, video, false));
-    video.addEventListener("error", () => setVideoPlaybackError(video), { once: true });
+    bindVideoRuntimeHandlers(video, runtime?.context || context);
     syncPlaybackControls(runtime?.context || context, video);
     if (video.readyState >= 1) markNativePlaybackReady(video);
   }
@@ -1627,6 +1605,57 @@ function setupClipLibraryPreview(root, state = {}) {
   });
   if (video.readyState >= 1) startPlayback();
   else video.addEventListener("loadedmetadata", startPlayback, { once: true });
+}
+
+function videoSourceOf(video) {
+  return String(video?.currentSrc || video?.src || video?.getAttribute?.("src") || "");
+}
+
+function shouldReusePaintedVideo(previousVideo, nextVideo) {
+  if (!previousVideo || !nextVideo || previousVideo === nextVideo) return false;
+  if (previousVideo.error) return false;
+  if (!previousVideo.classList?.contains("video-analysis-video")) return false;
+  if (!nextVideo.classList?.contains("video-analysis-video")) return false;
+  const previousSrc = videoSourceOf(previousVideo);
+  const nextSrc = videoSourceOf(nextVideo);
+  return Boolean(previousSrc && nextSrc && previousSrc === nextSrc);
+}
+
+function copyRenderedVideoAttributes(fromVideo, toVideo) {
+  if (!fromVideo || !toVideo) return;
+  const nextNames = new Set(Array.from(fromVideo.attributes || []).map((attribute) => attribute.name));
+  Array.from(toVideo.attributes || []).forEach((attribute) => {
+    if (!nextNames.has(attribute.name)) toVideo.removeAttribute(attribute.name);
+  });
+  Array.from(fromVideo.attributes || []).forEach((attribute) => {
+    if (attribute.name === "src" && videoSourceOf(toVideo) === attribute.value) return;
+    toVideo.setAttribute(attribute.name, attribute.value);
+  });
+}
+
+function preservePaintedVideoElement(root, previousVideo) {
+  const nextVideo = root?.querySelector?.(".video-analysis-fs-player-deck [data-video-analysis-video]");
+  if (!shouldReusePaintedVideo(previousVideo, nextVideo)) return nextVideo;
+  copyRenderedVideoAttributes(nextVideo, previousVideo);
+  nextVideo.replaceWith(previousVideo);
+  return previousVideo;
+}
+
+function bindVideoRuntimeHandlers(video, context = {}) {
+  const effectiveContext = runtime?.context || context;
+  video.ontimeupdate = () => {
+    timelineController(effectiveContext).handleVideoTimeUpdate(video);
+  };
+  video.onloadedmetadata = () => markNativePlaybackReady(video);
+  video.oncanplay = () => markNativePlaybackReady(video);
+  video.onplay = () => syncPlaybackControls(effectiveContext, video, true);
+  video.onplaying = () => {
+    markNativePlaybackReady(video);
+    syncPlaybackControls(effectiveContext, video, true);
+  };
+  video.onpause = () => syncPlaybackControls(effectiveContext, video, false);
+  video.onended = () => syncPlaybackControls(effectiveContext, video, false);
+  video.onerror = () => setVideoPlaybackError(video);
 }
 
 function currentPlayheadMs(context = {}, state = {}) {

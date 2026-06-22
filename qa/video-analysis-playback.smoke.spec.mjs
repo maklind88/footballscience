@@ -1164,6 +1164,18 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Code Window");
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Football Science Tag Panel");
   await expect(page.locator('[data-video-analysis-code-button="subPhase-build-up"]')).not.toContainText("15s");
+  await page.locator("[data-video-analysis-code-mode]").click();
+  await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
+  const codeModeBeforeTag = await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "error", { configurable: true, value: null });
+    const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame")?.getBoundingClientRect();
+    window.__videoAnalysisStableVideoElement = video;
+    return {
+      height: frame?.height ?? 0,
+      width: frame?.width ?? 0,
+    };
+  });
   await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
     Object.defineProperty(video, "currentTime", { configurable: true, value: 83 });
@@ -1190,6 +1202,20 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     codingMode: "instant",
     visibility: "private",
   });
+  const codeModeAfterTag = await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame")?.getBoundingClientRect();
+    return {
+      height: frame?.height ?? 0,
+      isCodeMode: document.querySelector("[data-video-analysis-fs-player-workstation]")?.classList.contains("is-code-mode") || false,
+      sameVideoNode: window.__videoAnalysisStableVideoElement === video,
+      width: frame?.width ?? 0,
+    };
+  });
+  expect(codeModeAfterTag.isCodeMode).toBe(true);
+  expect(codeModeAfterTag.sameVideoNode).toBe(true);
+  expect(Math.abs(codeModeAfterTag.height - codeModeBeforeTag.height)).toBeLessThanOrEqual(4);
+  expect(Math.abs(codeModeAfterTag.width - codeModeBeforeTag.width)).toBeLessThanOrEqual(4);
   await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:01:23");
   await expect.poll(() => page.evaluate(() => {
     const block = [...document.querySelectorAll(".video-analysis-clip-block")]
@@ -1843,7 +1869,7 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
     };
   });
   expect(codeModeSwipe.defaultPrevented).toBe(true);
-  expect(codeModeSwipe.fullscreenClassName).toContain("video-analysis-fs-player-workstation");
+  expect(codeModeSwipe.fullscreenClassName).toBe("");
   expect(codeModeSwipe.playbackRate).toBeGreaterThanOrEqual(6.5);
   expect(codeModeSwipe.playbackRate).toBeLessThanOrEqual(7);
   expect(codeModeSwipe.workstationCodeMode).toBe(true);
@@ -1899,7 +1925,7 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   });
   expect(fullscreenSwipe.defaultPrevented).toBe(true);
   expect(fullscreenSwipe.fullscreenClassName).toContain("video-analysis-video-frame");
-  expect(fullscreenSwipe.currentTime).toBeLessThan(180);
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.currentTime || 0)).toBeLessThan(180);
   const fullscreenWindowSwipe = await page.evaluate(() => {
     const event = new WheelEvent("wheel", {
       bubbles: true,

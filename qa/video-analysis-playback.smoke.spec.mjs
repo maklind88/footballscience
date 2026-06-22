@@ -1172,10 +1172,12 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame")?.getBoundingClientRect();
     window.__videoAnalysisStableVideoElement = video;
     return {
+      bodyOverflow: getComputedStyle(document.body).overflow,
       height: frame?.height ?? 0,
       width: frame?.width ?? 0,
     };
   });
+  expect(codeModeBeforeTag.bodyOverflow).toBe("hidden");
   await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
     Object.defineProperty(video, "currentTime", { configurable: true, value: 83 });
@@ -1236,6 +1238,29 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     return Math.abs(Number.parseFloat(block?.style.left || "0") - Number.parseFloat(playhead?.style.left || "0"));
   });
   expect(alignment).toBeLessThan(0.02);
+
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "currentTime", { configurable: true, value: 96 });
+  });
+  await page.locator('[data-video-analysis-code-button="subPhase-build-up"]').click();
+  await expect.poll(() => page.evaluate(() => {
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
+  })).toBeGreaterThanOrEqual(2);
+  const codeModeAfterSecondTag = await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame")?.getBoundingClientRect();
+    return {
+      height: frame?.height ?? 0,
+      parkedVideoLeftBehind: Boolean(document.querySelector("[data-video-analysis-video-parking] [data-video-analysis-video]")),
+      sameVideoNode: window.__videoAnalysisStableVideoElement === video,
+      width: frame?.width ?? 0,
+    };
+  });
+  expect(codeModeAfterSecondTag.sameVideoNode).toBe(true);
+  expect(codeModeAfterSecondTag.parkedVideoLeftBehind).toBe(false);
+  expect(Math.abs(codeModeAfterSecondTag.height - codeModeBeforeTag.height)).toBeLessThanOrEqual(4);
+  expect(Math.abs(codeModeAfterSecondTag.width - codeModeBeforeTag.width)).toBeLessThanOrEqual(4);
 
   await page.locator("[data-video-analysis-mg-principles-open]").click();
   await expect(page.locator(".video-analysis-mg-picker-overlay")).toBeVisible();

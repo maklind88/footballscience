@@ -520,7 +520,7 @@ function isFsPlayerInteractionActive(context = {}, state = {}) {
   return Boolean(
     isAnalysisRoomWorkspaceActive(context)
     && state.view === "workspace"
-    && state.activeAnalysisRoomTab === "fs-player"
+    && activeAnalysisRoomTab(state) === "fs-player"
   );
 }
 
@@ -1230,6 +1230,7 @@ function paint(root, state) {
   const previousSrc = previousVideo?.currentSrc || previousVideo?.src || "";
   const previousTime = Number(previousVideo?.currentTime || 0);
   const wasPlaying = Boolean(previousVideo && !previousVideo.paused && !previousVideo.ended);
+  const parkedFsPlayerVideo = parkPaintedVideoForPaint(root, previousFsPlayerVideo, state);
   const focusedDraft = root.querySelector("[data-video-analysis-draft]:focus")?.dataset.videoAnalysisDraft || "";
   const focusedFilter = root.querySelector("[data-video-analysis-filter]:focus")?.dataset.videoAnalysisFilter || "";
   const focusedLibraryFilter = root.querySelector("[data-video-analysis-library-filter]:focus")?.dataset.videoAnalysisLibraryFilter || "";
@@ -1295,7 +1296,7 @@ function paint(root, state) {
     restoreLocalVideoHandle,
     togglePlayback,
   });
-  const video = preservePaintedVideoElement(root, previousFsPlayerVideo) || root.querySelector("[data-video-analysis-video]");
+  const video = preservePaintedVideoElement(root, parkedFsPlayerVideo || previousFsPlayerVideo) || root.querySelector("[data-video-analysis-video]");
   const nextFocus = focusedDraft
     ? root.querySelector(`[data-video-analysis-draft="${focusedDraft}"]`)
     : focusedFilter
@@ -1611,6 +1612,45 @@ function videoSourceOf(video) {
   return String(video?.currentSrc || video?.src || video?.getAttribute?.("src") || "");
 }
 
+function shouldParkPaintedVideoForPaint(previousVideo, state = {}) {
+  if (!previousVideo || previousVideo.error) return false;
+  if (!previousVideo.classList?.contains("video-analysis-video")) return false;
+  if (state.view !== "workspace" || activeAnalysisRoomTab(state) !== "fs-player") return false;
+  if (state.fsPlayer?.mode !== "code") return false;
+  const nextSrc = String(state.videoRef?.objectUrl || "");
+  return Boolean(nextSrc && videoSourceOf(previousVideo) === nextSrc);
+}
+
+function videoParkingElement(root) {
+  const doc = root?.ownerDocument || document;
+  if (!doc?.body) return null;
+  let parking = doc.querySelector("[data-video-analysis-video-parking]");
+  if (!parking) {
+    parking = doc.createElement("div");
+    parking.dataset.videoAnalysisVideoParking = "1";
+    parking.setAttribute("aria-hidden", "true");
+    Object.assign(parking.style, {
+      height: "1px",
+      left: "-10000px",
+      overflow: "hidden",
+      pointerEvents: "none",
+      position: "fixed",
+      top: "-10000px",
+      width: "1px",
+    });
+    doc.body.appendChild(parking);
+  }
+  return parking;
+}
+
+function parkPaintedVideoForPaint(root, previousVideo, state = {}) {
+  if (!shouldParkPaintedVideoForPaint(previousVideo, state)) return null;
+  const parking = videoParkingElement(root);
+  if (!parking) return null;
+  parking.appendChild(previousVideo);
+  return previousVideo;
+}
+
 function shouldReusePaintedVideo(previousVideo, nextVideo) {
   if (!previousVideo || !nextVideo || previousVideo === nextVideo) return false;
   if (previousVideo.error) return false;
@@ -1635,7 +1675,10 @@ function copyRenderedVideoAttributes(fromVideo, toVideo) {
 
 function preservePaintedVideoElement(root, previousVideo) {
   const nextVideo = root?.querySelector?.(".video-analysis-fs-player-deck [data-video-analysis-video]");
-  if (!shouldReusePaintedVideo(previousVideo, nextVideo)) return nextVideo;
+  if (!shouldReusePaintedVideo(previousVideo, nextVideo)) {
+    if (previousVideo?.parentElement?.dataset?.videoAnalysisVideoParking === "1") previousVideo.remove();
+    return nextVideo;
+  }
   copyRenderedVideoAttributes(nextVideo, previousVideo);
   nextVideo.replaceWith(previousVideo);
   return previousVideo;

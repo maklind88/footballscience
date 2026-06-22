@@ -1102,6 +1102,13 @@ body.is-video-analysis-fs-player-active .video-analysis-fs-player-workstation {
   overscroll-behavior-x: none;
 }
 
+html.is-video-analysis-fs-player-code-mode,
+body.is-video-analysis-fs-player-code-mode {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 .video-analysis-video {
   display: block;
   width: 100%;

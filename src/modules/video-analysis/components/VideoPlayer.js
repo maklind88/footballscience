@@ -67,6 +67,7 @@ export function renderVideoPlayer(state = {}) {
   const currentMs = Math.max(0, Math.round(Number(state.timeline?.playheadMs || 0)));
   const durationMs = Math.max(0, Math.round(Number(ref?.durationMs || 0)), Math.round(Number(getTimelineDurationMs(state) || 0)));
   const codeModeActive = state.fsPlayer?.mode === "code";
+  const fullscreenActive = state.fsPlayer?.fullscreen === true;
   const playbackRate = normalizePlaybackRate(state.fsPlayer?.playbackRate || 1);
   return `
     <section class="video-analysis-player" data-video-analysis-player>
@@ -125,9 +126,9 @@ export function renderVideoPlayer(state = {}) {
           </button>
         </div>
         <div class="video-analysis-player-view-actions" aria-label="FS Player view options">
-          <button type="button" class="video-analysis-player-view-button" data-video-analysis-video-fullscreen ${hasVideo ? "" : "disabled"} aria-label="Full screen video" title="Full screen video">
+          <button type="button" class="video-analysis-player-view-button${fullscreenActive ? " is-active" : ""}" data-video-analysis-video-fullscreen ${hasVideo ? "" : "disabled"} aria-label="${fullscreenActive ? "Exit full screen video" : "Full screen video"}" aria-pressed="${fullscreenActive ? "true" : "false"}" title="${fullscreenActive ? "Exit full screen" : "Full screen video"}">
             <span class="video-analysis-player-view-icon" aria-hidden="true"></span>
-            <strong>Full screen</strong>
+            <strong>${fullscreenActive ? "Exit full screen" : "Full screen"}</strong>
           </button>
           <button type="button" class="video-analysis-player-view-button${codeModeActive ? " is-active" : ""}" data-video-analysis-code-mode aria-pressed="${codeModeActive ? "true" : "false"}" title="${codeModeActive ? "Exit Code Mode" : "Enter Code Mode"}">
             <span class="video-analysis-player-view-icon is-code" aria-hidden="true"></span>

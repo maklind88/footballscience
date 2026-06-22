@@ -135,6 +135,7 @@ function createRuntime(context = {}) {
     wheelGuardBound: false,
     pointerGuardBound: false,
     historyGuardBound: false,
+    fullscreenBound: false,
     fsPlayerHistoryGuardArmed: false,
     fsPlayerHistoryGuardDepth: 0,
     fsPlayerPointerInsideShuttle: false,
@@ -351,8 +352,9 @@ function activeAnalysisRoomTab(state = {}) {
 
 function renderFsPlayerWorkspace(displayState = {}) {
   const codeModeActive = displayState.fsPlayer?.mode === "code";
+  const fullscreenActive = displayState.fsPlayer?.fullscreen === true;
   return `
-    <section class="video-analysis-fs-player-workstation${codeModeActive ? " is-code-mode" : ""}" data-video-analysis-fs-player-workstation>
+    <section class="video-analysis-fs-player-workstation${codeModeActive ? " is-code-mode" : ""}${fullscreenActive ? " is-fullscreen" : ""}" data-video-analysis-fs-player-workstation>
       <section class="video-analysis-fs-player-main">
         <section class="video-analysis-fs-player-deck">
           ${renderVideoPlayer(displayState)}
@@ -579,9 +581,11 @@ function syncFsPlayerGestureContainment(context = {}, state = {}) {
   if (!body?.classList || !root?.classList) return;
   const isActive = isFsPlayerInteractionActive(context, state);
   const isCodeMode = isActive && state.fsPlayer?.mode === "code";
+  const isFullscreen = isActive && state.fsPlayer?.fullscreen === true;
   [root, body].forEach((element) => {
     element.classList.toggle("is-video-analysis-fs-player-active", isActive);
     element.classList.toggle("is-video-analysis-fs-player-code-mode", isCodeMode);
+    element.classList.toggle("is-video-analysis-fs-player-fullscreen", isFullscreen);
   });
   if (isActive) {
     armFsPlayerHistoryGuard(context);
@@ -607,19 +611,70 @@ function fsPlayerOwnsFullscreen(context = {}) {
   );
 }
 
+function fsPlayerFullscreenRequestElement(context = {}) {
+  const doc = context.doc || getRoot(context)?.ownerDocument || document;
+  return doc?.documentElement || doc?.body || fsPlayerWorkspaceElement(context) || fsPlayerVideoFrameElement(context);
+}
+
 function requestNativeFullscreen(element) {
   if (!element?.requestFullscreen) return Promise.resolve(false);
   return element.requestFullscreen().then(() => true).catch(() => false);
 }
 
+function exitNativeFullscreen(context = {}) {
+  const docRef = context.doc || document;
+  if (!docRef?.fullscreenElement || !docRef?.exitFullscreen) return Promise.resolve(false);
+  return docRef.exitFullscreen().then(() => true).catch(() => false);
+}
+
+function setFsPlayerFullscreenState(context = {}, fullscreen = false, patch = {}) {
+  const run = ensureRuntime(context);
+  run.store.update((state) => ({
+    ...state,
+    fsPlayer: {
+      ...(state.fsPlayer || {}),
+      fullscreen: Boolean(fullscreen),
+    },
+    ...patch,
+  }));
+}
+
+function exitFsPlayerFullscreen(context = {}, options = {}) {
+  setFsPlayerFullscreenState(context, false, {
+    message: options.message ?? "",
+    error: "",
+  });
+  if (options.native !== false) {
+    exitNativeFullscreen(context);
+  }
+  return true;
+}
+
 function enterVideoFullscreen(context = {}) {
   const run = ensureRuntime(context);
-  const element = fsPlayerVideoFrameElement(context);
+  const state = run.store.getState();
+  if (state.fsPlayer?.fullscreen === true || fsPlayerOwnsFullscreen(context)) {
+    return exitFsPlayerFullscreen(context, { native: true });
+  }
+  const element = fsPlayerFullscreenRequestElement(context);
   if (!element) {
     run.store.setState({ error: "Video area is not available yet.", message: "" });
     return false;
   }
-  requestNativeFullscreen(element);
+  requestNativeFullscreen(element).then((ok) => {
+    if (!isFsPlayerInteractionActive(context, run.store.getState())) return;
+    if (!ok && !fsPlayerOwnsFullscreen(context)) {
+      setFsPlayerFullscreenState(context, true, {
+        message: "Fullscreen mode ready.",
+        error: "",
+      });
+      return;
+    }
+    setFsPlayerFullscreenState(context, true, {
+      message: "",
+      error: "",
+    });
+  });
   return true;
 }
 
@@ -763,6 +818,9 @@ function forcePauseVideoShuttle(frame = null, context = {}) {
 function pauseFsPlayerPlayback(context = {}) {
   const frame = fsPlayerVideoFrameElement(context);
   forcePauseVideoShuttle(frame, context);
+  if (ensureRuntime(context).store.getState().fsPlayer?.fullscreen === true || fsPlayerOwnsFullscreen(context)) {
+    exitFsPlayerFullscreen(context, { native: true, message: "" });
+  }
   const video = videoElement(context);
   if (video) {
     video.pause?.();
@@ -784,17 +842,30 @@ function pauseFsPlayerIfInactive(context = {}) {
 
 function bindFsPlayerLifecycle(context = {}) {
   const run = ensureRuntime(context);
-  if (run.lifecycleBound) return;
   const doc = context.doc || document;
-  const view = analysisRoomWorkspaceView(context);
-  if (view && typeof MutationObserver === "function") {
-    run.workspaceObserver = new MutationObserver(() => pauseFsPlayerIfInactive(runtime?.context || context));
-    run.workspaceObserver.observe(view, { attributes: true, attributeFilter: ["class", "hidden"] });
+  if (!run.lifecycleBound) {
+    const view = analysisRoomWorkspaceView(context);
+    if (view && typeof MutationObserver === "function") {
+      run.workspaceObserver = new MutationObserver(() => pauseFsPlayerIfInactive(runtime?.context || context));
+      run.workspaceObserver.observe(view, { attributes: true, attributeFilter: ["class", "hidden"] });
+    }
+    doc?.addEventListener?.("visibilitychange", () => {
+      if (doc.hidden) pauseFsPlayerPlayback(runtime?.context || context);
+    });
+    run.lifecycleBound = true;
   }
-  doc?.addEventListener?.("visibilitychange", () => {
-    if (doc.hidden) pauseFsPlayerPlayback(runtime?.context || context);
-  });
-  run.lifecycleBound = true;
+  if (!run.fullscreenBound) {
+    doc?.addEventListener?.("fullscreenchange", () => {
+      const activeContext = runtime?.context || context;
+      const activeRun = ensureRuntime(activeContext);
+      const current = activeRun.store.getState();
+      const ownsFullscreen = fsPlayerOwnsFullscreen(activeContext);
+      if (current.fsPlayer?.fullscreen === true && !ownsFullscreen) {
+        setFsPlayerFullscreenState(activeContext, false, { message: "", error: "" });
+      }
+    });
+    run.fullscreenBound = true;
+  }
 }
 
 function bindFsPlayerHistoryGuard(context = {}) {
@@ -1616,7 +1687,7 @@ function shouldParkPaintedVideoForPaint(previousVideo, state = {}) {
   if (!previousVideo || previousVideo.error) return false;
   if (!previousVideo.classList?.contains("video-analysis-video")) return false;
   if (state.view !== "workspace" || activeAnalysisRoomTab(state) !== "fs-player") return false;
-  if (state.fsPlayer?.mode !== "code") return false;
+  if (state.fsPlayer?.mode !== "code" && state.fsPlayer?.fullscreen !== true) return false;
   const nextSrc = String(state.videoRef?.objectUrl || "");
   return Boolean(nextSrc && videoSourceOf(previousVideo) === nextSrc);
 }
@@ -2497,11 +2568,13 @@ export function resetVideoAnalysisRuntimeForTests() {
   runtime?.workspaceObserver?.disconnect?.();
   runtime?.context?.doc?.documentElement?.classList?.remove?.(
     "is-video-analysis-fs-player-active",
-    "is-video-analysis-fs-player-code-mode"
+    "is-video-analysis-fs-player-code-mode",
+    "is-video-analysis-fs-player-fullscreen"
   );
   runtime?.context?.doc?.body?.classList?.remove?.(
     "is-video-analysis-fs-player-active",
-    "is-video-analysis-fs-player-code-mode"
+    "is-video-analysis-fs-player-code-mode",
+    "is-video-analysis-fs-player-fullscreen"
   );
   runtime = null;
   videoLibraryController = null;

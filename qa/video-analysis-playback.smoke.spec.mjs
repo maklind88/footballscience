@@ -1696,6 +1696,13 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
         return Promise.resolve();
       },
     });
+    new MutationObserver(() => {
+      const element = window.__videoAnalysisFullscreenElement;
+      if (element && !document.contains(element)) {
+        window.__videoAnalysisFullscreenElement = null;
+        document.dispatchEvent(new Event("fullscreenchange"));
+      }
+    }).observe(document.documentElement, { childList: true, subtree: true });
     Object.defineProperty(HTMLMediaElement.prototype, "play", {
       configurable: true,
       value() {
@@ -1740,6 +1747,11 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
         this.__videoAnalysisTestCurrentTime = Number(value) || 0;
       },
     });
+    video.play = function play() {
+      window.__videoShuttlePlayCalls += 1;
+      this.__videoAnalysisPaused = false;
+      return Promise.resolve();
+    };
     video.dispatchEvent(new Event("timeupdate"));
   });
   await expect(page.locator(".video-analysis-player-time")).toContainText("0:01:00");
@@ -1929,6 +1941,8 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
 
   await page.locator("[data-video-analysis-video-fullscreen]").click();
+  await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-fullscreen/);
+  await expect(page.locator("[data-video-analysis-video-fullscreen]")).toHaveAttribute("aria-pressed", "true");
   const fullscreenSwipe = await page.evaluate(() => {
     const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame");
     const video = document.querySelector("[data-video-analysis-video]");
@@ -1945,12 +1959,25 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
     return {
       defaultPrevented: event.defaultPrevented,
       fullscreenClassName: window.__videoAnalysisFullscreenElement?.className || "",
+      fullscreenTagName: window.__videoAnalysisFullscreenElement?.tagName || "",
       currentTime: video.currentTime,
+      workstationFullscreen: document.querySelector("[data-video-analysis-fs-player-workstation]")?.classList.contains("is-fullscreen") || false,
     };
   });
   expect(fullscreenSwipe.defaultPrevented).toBe(true);
-  expect(fullscreenSwipe.fullscreenClassName).toContain("video-analysis-video-frame");
+  expect(fullscreenSwipe.fullscreenTagName).toBe("HTML");
+  expect(fullscreenSwipe.fullscreenClassName).toContain("is-video-analysis-fs-player-fullscreen");
+  expect(fullscreenSwipe.workstationFullscreen).toBe(true);
   await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.currentTime || 0)).toBeLessThan(180);
+  await page.waitForTimeout(650);
+  const fullscreenAfterRepaint = await page.evaluate(() => ({
+    fullscreenTagName: window.__videoAnalysisFullscreenElement?.tagName || "",
+    parkedVideoLeftBehind: Boolean(document.querySelector("[data-video-analysis-video-parking] [data-video-analysis-video]")),
+    workstationFullscreen: document.querySelector("[data-video-analysis-fs-player-workstation]")?.classList.contains("is-fullscreen") || false,
+  }));
+  expect(fullscreenAfterRepaint.fullscreenTagName).toBe("HTML");
+  expect(fullscreenAfterRepaint.workstationFullscreen).toBe(true);
+  expect(fullscreenAfterRepaint.parkedVideoLeftBehind).toBe(false);
   const fullscreenWindowSwipe = await page.evaluate(() => {
     const event = new WheelEvent("wheel", {
       bubbles: true,
@@ -1963,10 +1990,12 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
     return {
       defaultPrevented: event.defaultPrevented,
       fullscreenClassName: window.__videoAnalysisFullscreenElement?.className || "",
+      fullscreenTagName: window.__videoAnalysisFullscreenElement?.tagName || "",
     };
   });
   expect(fullscreenWindowSwipe.defaultPrevented).toBe(true);
-  expect(fullscreenWindowSwipe.fullscreenClassName).toContain("video-analysis-video-frame");
+  expect(fullscreenWindowSwipe.fullscreenTagName).toBe("HTML");
+  expect(fullscreenWindowSwipe.fullscreenClassName).toContain("is-video-analysis-fs-player-fullscreen");
   const fullscreenDocumentSwipe = await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
     video.__videoAnalysisTestCurrentTime = 220;
@@ -1982,10 +2011,12 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
       currentTime: video.currentTime,
       defaultPrevented: event.defaultPrevented,
       fullscreenClassName: window.__videoAnalysisFullscreenElement?.className || "",
+      fullscreenTagName: window.__videoAnalysisFullscreenElement?.tagName || "",
     };
   });
   expect(fullscreenDocumentSwipe.defaultPrevented).toBe(true);
-  expect(fullscreenDocumentSwipe.fullscreenClassName).toContain("video-analysis-video-frame");
+  expect(fullscreenDocumentSwipe.fullscreenTagName).toBe("HTML");
+  expect(fullscreenDocumentSwipe.fullscreenClassName).toContain("is-video-analysis-fs-player-fullscreen");
   await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.currentTime || 0)).toBeLessThan(220);
 
   const vertical = await page.evaluate(() => {

@@ -193,7 +193,8 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("idp-stage-scoreboard");
   expect(profileHtml).not.toContain("Player development pulse");
   expect(profileHtml).toContain("Success Criteria");
-  expect(profileHtml).toContain("Development Lens");
+  expect(profileHtml).not.toContain("Development Lens");
+  expect(profileHtml).not.toContain("idp-lens-compass");
   expect(profileHtml).not.toContain("Signal Map");
   expect(profileHtml).toContain("Player Voice");
   expect(profileHtml).toContain("idp-focus-coach-cue");

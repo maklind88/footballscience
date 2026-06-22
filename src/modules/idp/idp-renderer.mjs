@@ -956,23 +956,6 @@ function renderCriteriaTrack(criteria = []) {
   `;
 }
 
-function renderLensCompass(detail = {}, focus = null) {
-  return `
-    <article class="idp-lens-compass">
-      <div class="idp-section-kicker">Development Lens</div>
-      <div class="idp-compass-grid">
-        ${lensCounts(detail, focus).map((item) => `
-          <div class="idp-compass-cell${item.active ? " is-primary" : ""}">
-            <span>${escapeHtml(item.label)}</span>
-            <strong>${escapeHtml(item.value ? `${item.value}` : "0")}</strong>
-            <small>${escapeHtml(item.value === 1 ? "signal" : "signals")}</small>
-          </div>
-        `).join("")}
-      </div>
-    </article>
-  `;
-}
-
 function renderProfileFilmstrip(detail = {}, canEdit = false, ui = {}) {
   return renderClipBankOrganizer(detail, canEdit, ui);
 }
@@ -1151,7 +1134,6 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
         )}
       </section>
       <section class="idp-intelligence-board">
-        ${renderLensCompass(detail, focus)}
         <article class="idp-player-voice-card">
           <div class="idp-section-kicker">Player Voice</div>
           <blockquote>${escapeHtml(reflection?.note || leadership || "No player reflection captured yet.")}</blockquote>

@@ -467,8 +467,7 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(dashboardChatCss).toContain("clip-path:polygon(0 0,100% 0,0 100%)!important");
   expect(dashboardChatCss).toContain("top:.24rem!important;right:.24rem!important");
   expect(dashboardChatCss).toContain("background:#ff453a!important");
-  expect(dashboardChatCss).toContain("@media(max-width:820px){body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:var(--platform-rail-item-left,1.2rem)");
-  expect(dashboardChatCss).toContain("keep the closed launcher in the mobile rail after Scouting");
+  expect(dashboardChatCss).toContain("@media(max-width:820px){body.is-dashboard-chat-closed .dashboard-chat-widget-root{left:var(--platform-rail-chat-mobile-left,24.36rem)");
   expect(dashboardChatCss).toContain("left:var(--platform-rail-chat-mobile-left,24.36rem)!important;");
   expect(dashboardChatCss).toContain("bottom:var(--platform-rail-chat-mobile-bottom,calc(.85rem + env(safe-area-inset-bottom)))!important;");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
@@ -767,7 +766,7 @@ test("open chat uses a calm professional conversation shell", () => {
   expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-input-shell textarea:focus");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-body,");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-toast[hidden]");
-  expect(dashboardChatCss).toContain("bottom:calc(4.85rem + env(safe-area-inset-bottom))!important;");
+  expect(dashboardChatCss).toContain("bottom:var(--platform-rail-chat-mobile-bottom,calc(.85rem + env(safe-area-inset-bottom)))!important;");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-toast");
   expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-confirm-backdrop");
   expect(dashboardChatCss).toContain("z-index:900!important;");

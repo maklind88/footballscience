@@ -661,6 +661,14 @@ function renderStageQuickActions(canEdit = false, focusId = "", idpInactive = fa
   `;
 }
 
+function renderProfileMenu() {
+  return `
+    <nav class="idp-profile-menu" aria-label="Player profile navigation">
+      <button type="button" data-idp-back-overview>Overview</button>
+    </nav>
+  `;
+}
+
 function renderObservationButtons(item = {}, canEdit = false) {
   if (!canEdit || !item.id) return "";
   const id = escapeHtml(item.id);
@@ -1105,9 +1113,9 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
           </div>
         </div>
         ${renderStageQuickActions(canEdit, focusId, idpInactive)}
-        <button type="button" class="idp-stage-back" data-idp-back-overview>Overview</button>
       </header>
       ${idpInactive ? `<div class="idp-notice is-warning">IDP is inactive from Squad Room. Historical observations, clips and ownership remain visible here.</div>` : ""}
+      ${renderProfileMenu()}
       <section class="idp-development-board">
         <article class="idp-focus-story idp-focus-clarity-card">
           <div class="idp-focus-clarity-head">

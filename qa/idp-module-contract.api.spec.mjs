@@ -167,8 +167,10 @@ test("idp renderer separates the overview from the player development profile", 
   const profileHtml = renderIdpWorkspace(profileState, staffOptions);
 
   expect(profileHtml).toContain("data-idp-back-overview");
+  expect(profileHtml).toContain("idp-profile-menu");
   expect(profileHtml).toContain("idp-stage-actions");
   expect(profileHtml.indexOf("idp-stage-actions")).toBeLessThan(profileHtml.indexOf("data-idp-back-overview"));
+  expect(profileHtml.indexOf("idp-profile-menu")).toBeLessThan(profileHtml.indexOf("Current Focus"));
   expect(profileHtml).toContain("data-idp-action=\"ownership\"");
   expect(profileHtml).toContain("data-idp-action=\"focus\"");
   expect(profileHtml).toContain("data-idp-action=\"evidence\"");

@@ -87,8 +87,11 @@ function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options =
   const state = boardState(intervention, focus, profile);
   const player = state.player || {};
   const initials = initialsFromName(profile.playerName || profile.name || "Player", "P");
+  const playerName = normalizeText(profile.playerName || profile.name || "Player", "Player");
   const markerId = options.markerId || "idp-player-board-arrow";
   const editorAttr = options.editor ? " data-idp-board-editor-pitch" : "";
+  const playerY = clampPercent(player.y, 70);
+  const playerLabelTop = clampPercent(playerY > 66 ? playerY - 11 : playerY + 9, 79);
   return `
     <div class="idp-player-board-pitch is-${escapeHtml(intervention.pitchMode || "half")}"${editorAttr}>
       ${renderPitchLines()}
@@ -116,8 +119,11 @@ function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options =
       ${Array.isArray(state.notes) ? state.notes.slice(0, 2).map((note) => `
         <span class="idp-player-board-note-pin" style="left:${clampPercent(note.x, 12)}%;top:${clampPercent(note.y, 14)}%;">${escapeHtml(note.text)}</span>
       `).join("") : ""}
-      <span class="idp-player-board-player" style="left:${clampPercent(player.x, 50)}%;top:${clampPercent(player.y, 70)}%;">
+      <span class="idp-player-board-player" style="left:${clampPercent(player.x, 50)}%;top:${playerY}%;">
         ${escapeHtml(initials)}
+      </span>
+      <span class="idp-player-board-player-name" style="left:${clampPercent(player.x, 50)}%;top:${playerLabelTop}%;">
+        ${escapeHtml(playerName)}
       </span>
     </div>
   `;
@@ -137,12 +143,14 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
   const counts = interventionCounts(intervention);
   const nextTitle = coachLabel(nextAction.title || "Add observation");
   const nextDue = nextAction.dueOn || focus?.reviewDate || "No date set";
+  const modeLabel = pitchModeLabel(intervention.pitchMode);
   return `
     <aside class="idp-player-board-panel">
       <div class="idp-player-board-head">
         <div>
           <span>IDP Player Board</span>
           <strong>${escapeHtml(intervention.title || "Individual exercise")}</strong>
+          <small>${escapeHtml(profile.playerName || "Individual player")}</small>
         </div>
         <div class="idp-player-board-meta">
           <span><strong>${escapeHtml(String(counts.frames))}</strong> frames</span>
@@ -151,23 +159,40 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
         </div>
       </div>
       <button type="button" class="idp-player-board-preview" data-idp-player-board-open aria-label="Open IDP Player Board">
-        <span class="idp-player-board-canvas">
-          ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-preview-arrow" })}
-          <span class="idp-player-board-mode-chip">${escapeHtml(pitchModeLabel(intervention.pitchMode))}</span>
-          <span class="idp-player-board-context-chip is-progress">
-            <strong>${escapeHtml(pulse.label || "On track")}</strong>
-            <small>${escapeHtml(pulse.detail || "Progress")}</small>
+        <span class="idp-player-board-surface">
+          <span class="idp-player-board-status-strip">
+            <span>Individual</span>
+            <span>${escapeHtml(modeLabel)}</span>
+            <span>Frame ${escapeHtml(String(Math.max(1, counts.frames)))}</span>
           </span>
-          <span class="idp-player-board-context-chip is-next">
-            <strong>${escapeHtml(nextTitle)}</strong>
-            <small>${escapeHtml(nextDue)}</small>
+          <span class="idp-player-board-canvas">
+            <span class="idp-player-board-tool-rail" aria-hidden="true">
+              <span>1P</span>
+              <span>ZN</span>
+              <span>CL</span>
+            </span>
+            ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-preview-arrow" })}
+            <span class="idp-player-board-mode-chip">${escapeHtml(modeLabel)}</span>
+            <span class="idp-player-board-context-chip is-progress">
+              <strong>${escapeHtml(pulse.label || "On track")}</strong>
+              <small>${escapeHtml(pulse.detail || "Progress")}</small>
+            </span>
+            <span class="idp-player-board-context-chip is-next">
+              <strong>${escapeHtml(nextTitle)}</strong>
+              <small>${escapeHtml(nextDue)}</small>
+            </span>
+          </span>
+          <span class="idp-player-board-frame-strip" aria-hidden="true">
+            <span class="is-active">01</span>
+            <span>${escapeHtml(focus?.category || "Focus")}</span>
+            <span>${escapeHtml(String(counts.clips))} clips</span>
           </span>
         </span>
       </button>
       ${canEdit ? `
         <div class="idp-player-board-actions">
-          <button type="button" class="is-primary" data-idp-player-board-open>Edit Board</button>
-          <button type="button" data-idp-player-board-new>New Exercise</button>
+          <button type="button" class="is-primary" data-idp-player-board-new>New Exercise</button>
+          <button type="button" data-idp-player-board-open>Edit Board</button>
           <button type="button" data-idp-player-board-link-clip>Link Clip</button>
           <button type="button" data-idp-action="evidence">Add Observation</button>
         </div>

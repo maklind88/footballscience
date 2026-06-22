@@ -2266,13 +2266,12 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 
 .idp-player-board-panel {
   background:
-    radial-gradient(circle at 18% 8%, rgba(15, 118, 110, .08), transparent 26%),
-    linear-gradient(180deg, rgba(255, 255, 255, .98), rgba(248, 250, 252, .94)),
-    #fff;
-  border: 1px solid rgba(20, 32, 51, .1);
+    radial-gradient(circle at 20% 0%, rgba(20, 184, 166, .16), transparent 30%),
+    linear-gradient(180deg, #172337 0%, #0c1624 100%);
+  border: 1px solid rgba(226, 232, 240, .18);
   border-radius: 10px;
-  box-shadow: 0 18px 44px rgba(15, 23, 42, .07);
-  color: #101828;
+  box-shadow: 0 22px 54px rgba(7, 14, 25, .2);
+  color: #f8fafc;
   display: grid;
   gap: 8px;
   min-width: 0;
@@ -2281,7 +2280,7 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 }
 
 .idp-player-board-head {
-  align-items: end;
+  align-items: start;
   display: flex;
   gap: 10px;
   justify-content: space-between;
@@ -2305,43 +2304,117 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 }
 
 .idp-player-board-head strong {
-  color: #101828;
+  color: #f8fafc;
   font-size: .95rem;
   line-height: 1.12;
 }
 
+.idp-player-board-head small {
+  color: rgba(226, 232, 240, .68);
+  font-size: .68rem;
+  font-weight: 780;
+  line-height: 1.1;
+}
+
 .idp-player-board-preview {
-  background: #0b1827;
-  border: 1px solid rgba(17, 24, 39, .12);
+  background: transparent;
+  border: 0;
   border-radius: 10px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 16px 32px rgba(15, 23, 42, .1);
   cursor: pointer;
   display: block;
-  padding: 6px;
+  padding: 0;
   text-align: inherit;
   width: 100%;
 }
 
 .idp-player-board-preview:hover,
 .idp-player-board-preview:focus-visible {
-  border-color: rgba(15, 118, 110, .36);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, .2);
   outline: none;
+}
+
+.idp-player-board-surface {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, .72), rgba(2, 8, 23, .58)),
+    #08111d;
+  border: 1px solid rgba(148, 163, 184, .24);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 16px 32px rgba(2, 8, 23, .24);
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+}
+
+.idp-player-board-status-strip,
+.idp-player-board-frame-strip {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  min-width: 0;
+}
+
+.idp-player-board-status-strip span,
+.idp-player-board-frame-strip span {
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 999px;
+  color: rgba(241, 245, 249, .86);
+  font-size: .62rem;
+  font-weight: 900;
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-board-status-strip span:first-child {
+  background: rgba(45, 212, 191, .14);
+  border-color: rgba(45, 212, 191, .2);
+  color: #a7f3d0;
 }
 
 .idp-player-board-canvas {
   display: block;
+  padding: 0 0 0 34px;
   position: relative;
+}
+
+.idp-player-board-tool-rail {
+  background: rgba(2, 8, 23, .48);
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 8px;
+  bottom: 0;
+  display: grid;
+  gap: 5px;
+  left: 0;
+  padding: 5px;
+  position: absolute;
+  top: 0;
+  width: 28px;
+  z-index: 6;
+}
+
+.idp-player-board-tool-rail span {
+  align-items: center;
+  background: rgba(255, 255, 255, .08);
+  border-radius: 6px;
+  color: rgba(226, 232, 240, .84);
+  display: inline-flex;
+  font-size: .56rem;
+  font-weight: 950;
+  justify-content: center;
 }
 
 .idp-player-board-pitch {
   aspect-ratio: 4 / 3;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, .075) 50%, transparent 50%) 0 0 / 18px 100%,
-    radial-gradient(circle at 50% 52%, rgba(255, 255, 255, .08), transparent 20%),
-    linear-gradient(180deg, #23855f 0%, #15725d 48%, #0d5f4e 100%);
-  border: 1px solid rgba(255, 255, 255, .48);
+    linear-gradient(90deg, rgba(255, 255, 255, .07) 50%, transparent 50%) 0 0 / 16px 100%,
+    radial-gradient(circle at 50% 52%, rgba(255, 255, 255, .09), transparent 18%),
+    linear-gradient(180deg, #1f8d6c 0%, #14765f 48%, #0b5d4d 100%);
+  border: 1px solid rgba(255, 255, 255, .52);
   border-radius: 8px;
-  box-shadow: inset 0 0 0 1px rgba(16, 24, 40, .14);
+  box-shadow: inset 0 0 0 1px rgba(2, 8, 23, .22), inset 0 0 42px rgba(2, 8, 23, .2);
   min-height: 190px;
   overflow: hidden;
   position: relative;
@@ -2349,7 +2422,7 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 
 .idp-player-board-preview .idp-player-board-pitch {
   aspect-ratio: auto;
-  height: clamp(178px, 28vw, 238px);
+  height: clamp(196px, 30vw, 270px);
   min-height: 0;
 }
 
@@ -2419,8 +2492,8 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 
 .idp-player-board-zone {
   align-items: start;
-  background: rgba(255, 255, 255, .13);
-  border: 1px solid rgba(255, 255, 255, .38);
+  background: rgba(226, 232, 240, .16);
+  border: 1px dashed rgba(255, 255, 255, .48);
   border-radius: 8px;
   color: rgba(255, 255, 255, .86);
   display: flex;
@@ -2441,10 +2514,10 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 
 .idp-player-board-arrow-layer line {
   marker-end: inherit;
-  stroke: #fff7d6;
-  stroke-dasharray: 5 4;
+  stroke: #fef08a;
+  stroke-dasharray: 6 4;
   stroke-linecap: round;
-  stroke-width: 1.8;
+  stroke-width: 2.2;
 }
 
 .idp-player-board-arrow-layer marker path {
@@ -2486,10 +2559,10 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 
 .idp-player-board-player {
   align-items: center;
-  background: linear-gradient(180deg, #14213a, #0b1424);
+  background: radial-gradient(circle at 35% 25%, #3b82f6, #12213b 62%, #07111f);
   border: 2px solid #fff;
   border-radius: 999px;
-  box-shadow: 0 14px 28px rgba(16, 24, 40, .3), 0 0 0 4px rgba(255, 255, 255, .16);
+  box-shadow: 0 16px 32px rgba(2, 8, 23, .38), 0 0 0 5px rgba(255, 255, 255, .18), 0 0 0 10px rgba(59, 130, 246, .16);
   color: #fff;
   display: inline-flex;
   font-size: .82rem;
@@ -2497,6 +2570,23 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   height: 40px;
   justify-content: center;
   width: 40px;
+}
+
+.idp-player-board-player-name {
+  background: rgba(2, 8, 23, .72);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, .88);
+  font-size: .58rem;
+  font-weight: 900;
+  max-width: 128px;
+  overflow: hidden;
+  padding: 3px 7px;
+  position: absolute;
+  text-overflow: ellipsis;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  z-index: 4;
 }
 
 .idp-player-board-note-pin {
@@ -2520,9 +2610,9 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 }
 
 .idp-player-board-mode-chip {
-  background: rgba(255, 255, 255, .9);
+  background: rgba(226, 232, 240, .92);
   border-radius: 999px;
-  color: #0f766e;
+  color: #0f172a;
   font-size: .68rem;
   font-weight: 950;
   padding: 5px 8px;
@@ -2531,7 +2621,7 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 }
 
 .idp-player-board-context-chip {
-  background: rgba(10, 24, 38, .72);
+  background: rgba(2, 8, 23, .72);
   border-radius: 8px;
   bottom: 8px;
   color: #fff;
@@ -2575,9 +2665,10 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 }
 
 .idp-player-board-meta span {
-  background: rgba(15, 118, 110, .07);
+  background: rgba(45, 212, 191, .12);
+  border: 1px solid rgba(45, 212, 191, .12);
   border-radius: 999px;
-  color: #0f766e;
+  color: #a7f3d0;
   font-size: .63rem;
   font-weight: 850;
   padding: 4px 7px;
@@ -2585,7 +2676,7 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 }
 
 .idp-player-board-meta strong {
-  color: #0f766e;
+  color: #f8fafc;
 }
 
 .idp-player-board-actions {
@@ -2603,10 +2694,10 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 }
 
 .idp-player-board-actions button {
-  background: rgba(255, 255, 255, .92);
-  border: 1px solid rgba(17, 24, 39, .1);
+  background: rgba(226, 232, 240, .1);
+  border: 1px solid rgba(226, 232, 240, .12);
   border-radius: 8px;
-  color: #101828;
+  color: #e2e8f0;
   cursor: pointer;
   font-size: .68rem;
   font-weight: 900;
@@ -2616,9 +2707,14 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 }
 
 .idp-player-board-actions button.is-primary {
-  background: #101828;
-  border-color: rgba(16, 24, 40, .12);
-  color: #fff;
+  background: #e2e8f0;
+  border-color: rgba(226, 232, 240, .4);
+  color: #0f172a;
+}
+
+.idp-player-board-frame-strip span.is-active {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
 .idp-player-board-actions button:hover,
@@ -4861,15 +4957,28 @@ body.is-dark-mode .idp-stream-actions button {
   color: #475467;
 }
 
-body.is-dark-mode .idp-player-board-panel,
 body.is-dark-mode .idp-player-board-modal {
   background: rgba(255, 255, 255, .96);
   color: #101828;
 }
 
+body.is-dark-mode .idp-player-board-panel {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(20, 184, 166, .16), transparent 30%),
+    linear-gradient(180deg, #172337 0%, #0c1624 100%);
+  border-color: rgba(226, 232, 240, .18);
+  color: #f8fafc;
+}
+
 body.is-dark-mode .idp-player-board-actions button:not(.is-primary) {
   background: rgba(255, 255, 255, .9);
   color: #101828;
+}
+
+body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.is-primary) {
+  background: rgba(226, 232, 240, .1);
+  border-color: rgba(226, 232, 240, .12);
+  color: #e2e8f0;
 }
 
 @media (max-width: 900px) {
@@ -4905,6 +5014,16 @@ body.is-dark-mode .idp-player-board-actions button:not(.is-primary) {
   }
 }
 
+@media (max-width: 640px) {
+  .idp-player-board-canvas {
+    padding: 0;
+  }
+
+  .idp-player-board-tool-rail {
+    display: none;
+  }
+}
+
 @media (max-width: 560px) {
   .idp-player-board-head {
     align-items: start;
@@ -4922,6 +5041,20 @@ body.is-dark-mode .idp-player-board-actions button:not(.is-primary) {
   .idp-player-board-canvas {
     display: grid;
     gap: 5px;
+    padding: 0;
+  }
+
+  .idp-player-board-tool-rail {
+    display: none;
+  }
+
+  .idp-player-board-status-strip,
+  .idp-player-board-frame-strip {
+    flex-wrap: wrap;
+  }
+
+  .idp-player-board-preview .idp-player-board-pitch {
+    height: clamp(188px, 46vw, 230px);
   }
 
   .idp-player-board-context-chip {

@@ -68,6 +68,18 @@ test("rtp empty state exposes no cases, no writes, and no coach medical confiden
     coachSafe: true,
   });
   expect(payload.medicalConfidenceLevels).toEqual([]);
+  expect(payload.performanceReadiness).toMatchObject({
+    contractVersion: "footballscience-rtp-performance-readiness-v1",
+    writesEnabled: false,
+    scoreLabel: "Progression score – not clearance",
+    readinessScore: {
+      label: "Progression score – not clearance",
+      band: "insufficient-data",
+      dataCompleteness: "insufficient",
+    },
+  });
+  expect(payload.performanceReadiness.readinessScore).not.toHaveProperty("exactPercentage");
+  expect(payload.performanceReadiness.readinessScore.components.sprint).not.toHaveProperty("score");
   expect(payload.exclusions).toMatchObject({
     ui: true,
     aiDecisionEngine: true,
@@ -79,7 +91,7 @@ test("rtp empty state exposes no cases, no writes, and no coach medical confiden
   });
 });
 
-test("rtp Sprint 1 writes remain intentionally disabled", async () => {
+test("rtp Sprint 2 writes remain intentionally disabled", async () => {
   const res = createJsonResponse();
   await rtp.handleRtpRequest(
     { method: "POST", url: "/api/rtp" },
@@ -92,6 +104,6 @@ test("rtp Sprint 1 writes remain intentionally disabled", async () => {
     ok: false,
     schema: rtp.RTP_SCHEMA,
     writesEnabled: false,
-    reason: "RTP writes are intentionally disabled in Sprint 1.",
+    reason: "RTP writes are intentionally disabled in Sprint 2.",
   });
 });

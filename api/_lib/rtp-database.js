@@ -1,4 +1,7 @@
 const { sendJson } = require("./supabase-admin.js");
+const {
+  buildPerformanceReadinessEmptyState,
+} = require("./rtp-performance-readiness.js");
 
 const RTP_SCHEMA = "footballscience-rtp-operating-spine-v1";
 const RTP_MODULE_ID = "rtp";
@@ -175,6 +178,7 @@ function buildEmptyState(actor = {}, query = {}) {
     lifecycleStatuses: RTP_LIFECYCLE_STATUSES,
     medicalClearanceStatuses: RTP_MEDICAL_CLEARANCE_STATUSES,
     medicalConfidenceLevels: canViewMedicalConfidence(actor) ? RTP_MEDICAL_CONFIDENCE_LEVELS : [],
+    performanceReadiness: buildPerformanceReadinessEmptyState(actor),
     coachSafe: actorRole(actor) === "coach",
     exclusions: {
       ui: true,
@@ -206,7 +210,7 @@ async function handleRtpRequest(req, res, actor) {
       ok: false,
       schema: RTP_SCHEMA,
       writesEnabled: RTP_WRITES_ENABLED,
-      reason: "RTP writes are intentionally disabled in Sprint 1.",
+      reason: "RTP writes are intentionally disabled in Sprint 2.",
     });
   }
 

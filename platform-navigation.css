@@ -606,9 +606,10 @@ body.is-dark-mode .platform-sidebar .platform-profile-menu {
 
 @media (max-height: 720px) and (min-width: 821px) {
   :root {
+    --platform-rail-item-left: 1.334rem;
     --platform-rail-item-size: 2.72rem;
     --platform-rail-item-gap: 0.28rem;
-    --platform-rail-chat-slot-top: calc(50vh + 7.76rem);
+    --platform-rail-chat-slot-top: calc(50vh + 7.43rem);
   }
 
   .platform-sidebar,

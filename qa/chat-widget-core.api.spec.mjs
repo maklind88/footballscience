@@ -457,7 +457,7 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher>.dashboard-chat-launcher-icon:not(.dashboard-chat-header-badge){display:block!important}");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-launcher-copy{display:none!important}");
-  expect(dashboardChatCss).toContain("width:3.05rem!important;height:3.05rem!important");
+  expect(dashboardChatCss).toContain("width:var(--platform-rail-item-size,3.05rem)!important;height:var(--platform-rail-item-size,3.05rem)!important");
   expect(dashboardChatCss).toContain("border-radius:14px!important");
   expect(dashboardChatCss).toContain("background:transparent!important");
   expect(dashboardChatCss).toContain("backdrop-filter:blur(18px) saturate(1.15)!important");
@@ -475,6 +475,8 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(dashboardChatCss).toContain("right:.32rem!important;");
   expect(platformNavigationCss).toContain("--platform-rail-chat-mobile-left: 24.36rem;");
   expect(platformNavigationCss).toContain("--platform-rail-chat-mobile-bottom: calc(0.85rem + env(safe-area-inset-bottom));");
+  expect(platformNavigationCss).toContain("--platform-rail-item-left: 1.334rem;");
+  expect(platformNavigationCss).toContain("--platform-rail-chat-slot-top: calc(50vh + 7.43rem);");
   expect(platformNavigationCss).toContain("body.has-dashboard-chat-widget .platform-nav-more {\n    margin-top: 0;\n    margin-left: calc(var(--platform-rail-item-size) + var(--platform-rail-item-gap));\n  }");
   expect(dashboardChatCss).not.toContain("right:calc(.7rem + 3.14rem + .38rem + env(safe-area-inset-right))!important");
   expect(dashboardChatCss).toContain("@media(prefers-reduced-motion:reduce)");

@@ -1088,10 +1088,13 @@
   overscroll-behavior-x: none;
 }
 
+html.is-video-analysis-fs-player-active,
 body.is-video-analysis-fs-player-active {
   overscroll-behavior-x: none;
+  overscroll-behavior-y: auto;
 }
 
+html.is-video-analysis-fs-player-active body,
 body.is-video-analysis-fs-player-active #analysisRoomWorkspace,
 body.is-video-analysis-fs-player-active .analysis-room-shell,
 body.is-video-analysis-fs-player-active .video-analysis-shell,

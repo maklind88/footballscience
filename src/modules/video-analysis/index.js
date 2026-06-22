@@ -104,6 +104,8 @@ const VIDEO_SHUTTLE_CONTAIN_RATIO = 0.6;
 const VIDEO_SHUTTLE_DOMINANCE_RATIO = 1.35;
 const VIDEO_SHUTTLE_IDLE_MS = 520;
 const VIDEO_SHUTTLE_MAX_FRAME_MS = 80;
+const FS_PLAYER_HISTORY_GUARD_KEY = "__footballScienceFsPlayerHistoryGuard";
+const FS_PLAYER_HISTORY_POINTER_RECENT_MS = 2500;
 const videoShuttleTimers = new WeakMap();
 const videoShuttleSessions = new WeakMap();
 
@@ -131,6 +133,9 @@ function createRuntime(context = {}) {
     lifecycleBound: false,
     wheelGuardBound: false,
     pointerGuardBound: false,
+    historyGuardBound: false,
+    fsPlayerHistoryGuardArmed: false,
+    fsPlayerLastPointerInsideAt: 0,
     fsPlayerPointerInsideShuttle: false,
     workspaceObserver: null,
   };
@@ -526,13 +531,68 @@ function fsPlayerPlayerElement(context = {}) {
   return getRoot(context)?.querySelector(".video-analysis-fs-player-deck .video-analysis-player") || null;
 }
 
+function fsPlayerHistoryGuardState(state = {}) {
+  return {
+    ...((state && typeof state === "object") ? state : {}),
+    [FS_PLAYER_HISTORY_GUARD_KEY]: true,
+  };
+}
+
+function armFsPlayerHistoryGuard(context = {}) {
+  const win = context.win || globalThis.window;
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  if (!isFsPlayerInteractionActive(context, state)) return false;
+  if (!win?.history?.pushState || !win.location?.href) return false;
+  try {
+    if (win.history.state?.[FS_PLAYER_HISTORY_GUARD_KEY]) {
+      run.fsPlayerHistoryGuardArmed = true;
+      return true;
+    }
+    win.history.pushState(fsPlayerHistoryGuardState(win.history.state), "", win.location.href);
+    run.fsPlayerHistoryGuardArmed = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function recentFsPlayerPointer(context = {}) {
+  const run = ensureRuntime(context);
+  const now = Date.now();
+  return Boolean(
+    run.fsPlayerPointerInsideShuttle
+    || (run.fsPlayerLastPointerInsideAt && now - run.fsPlayerLastPointerInsideAt < FS_PLAYER_HISTORY_POINTER_RECENT_MS)
+  );
+}
+
+function shouldAbsorbFsPlayerHistoryNavigation(context = {}, state = {}) {
+  if (!isFsPlayerInteractionActive(context, state)) return false;
+  return Boolean(
+    fsPlayerOwnsFullscreen(context)
+    || state.fsPlayer?.mode === "code"
+    || recentFsPlayerPointer(context)
+  );
+}
+
 function syncFsPlayerGestureContainment(context = {}, state = {}) {
-  const body = (context.doc || getRoot(context)?.ownerDocument || document)?.body;
-  if (!body?.classList) return;
+  const doc = context.doc || getRoot(context)?.ownerDocument || document;
+  const body = doc?.body;
+  const root = doc?.documentElement;
+  if (!body?.classList || !root?.classList) return;
   const isActive = isFsPlayerInteractionActive(context, state);
   const isCodeMode = isActive && state.fsPlayer?.mode === "code";
-  body.classList.toggle("is-video-analysis-fs-player-active", isActive);
-  body.classList.toggle("is-video-analysis-fs-player-code-mode", isCodeMode);
+  [root, body].forEach((element) => {
+    element.classList.toggle("is-video-analysis-fs-player-active", isActive);
+    element.classList.toggle("is-video-analysis-fs-player-code-mode", isCodeMode);
+  });
+  if (isCodeMode || (isActive && fsPlayerOwnsFullscreen(context))) {
+    armFsPlayerHistoryGuard(context);
+  } else if (!isActive) {
+    const run = ensureRuntime(context);
+    run.fsPlayerHistoryGuardArmed = false;
+    run.fsPlayerPointerInsideShuttle = false;
+  }
 }
 
 function fsPlayerOwnsFullscreen(context = {}) {
@@ -750,6 +810,27 @@ function bindFsPlayerLifecycle(context = {}) {
   run.lifecycleBound = true;
 }
 
+function bindFsPlayerHistoryGuard(context = {}) {
+  const run = ensureRuntime(context);
+  if (run.historyGuardBound) return;
+  const win = context.win || window;
+  win?.addEventListener?.("popstate", (event) => {
+    const activeContext = runtime?.context || context;
+    const activeRun = ensureRuntime(activeContext);
+    const state = activeRun.store.getState();
+    if (!activeRun.fsPlayerHistoryGuardArmed && !shouldAbsorbFsPlayerHistoryNavigation(activeContext, state)) return;
+    if (!shouldAbsorbFsPlayerHistoryNavigation(activeContext, state)) {
+      activeRun.fsPlayerHistoryGuardArmed = false;
+      return;
+    }
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    event.stopImmediatePropagation?.();
+    armFsPlayerHistoryGuard(activeContext);
+  }, true);
+  run.historyGuardBound = true;
+}
+
 function scheduleVideoShuttleStop(frame = null, context = {}) {
   if (!frame) return;
   const session = videoShuttleSessions.get(frame);
@@ -877,7 +958,12 @@ function updateFsPlayerPointerGuard(event = {}, context = {}) {
   const run = ensureRuntime(context);
   const target = eventElement(event);
   const player = fsPlayerPlayerElement(context);
-  run.fsPlayerPointerInsideShuttle = Boolean(target && player?.contains?.(target));
+  const isInside = Boolean(target && player?.contains?.(target));
+  run.fsPlayerPointerInsideShuttle = isInside;
+  if (isInside) {
+    run.fsPlayerLastPointerInsideAt = Date.now();
+    armFsPlayerHistoryGuard(context);
+  }
 }
 
 function fsPlayerGlobalWheelFrame(event = {}, context = {}, state = {}) {
@@ -935,6 +1021,7 @@ function handleFsPlayerGlobalWheel(event = {}, context = {}) {
   const targetInfo = fsPlayerWheelTargetInfo(event, context, state);
   if (!targetInfo.shouldContain) return false;
 
+  armFsPlayerHistoryGuard(context);
   event.preventDefault?.();
   if (targetInfo.allowTimeline) return false;
 
@@ -2299,6 +2386,7 @@ export function render(context = {}) {
     run.unsubscribe = run.store.subscribe((state) => paint(root, state));
   }
   bindFsPlayerLifecycle(context);
+  bindFsPlayerHistoryGuard(context);
   if (!run.keydownBound) {
     const win = context.win || window;
     win.addEventListener?.("keydown", (event) => handleKeydown(event, context), true);
@@ -2338,6 +2426,10 @@ export function render(context = {}) {
 export function resetVideoAnalysisRuntimeForTests() {
   runtime?.unsubscribe?.();
   runtime?.workspaceObserver?.disconnect?.();
+  runtime?.context?.doc?.documentElement?.classList?.remove?.(
+    "is-video-analysis-fs-player-active",
+    "is-video-analysis-fs-player-code-mode"
+  );
   runtime?.context?.doc?.body?.classList?.remove?.(
     "is-video-analysis-fs-player-active",
     "is-video-analysis-fs-player-code-mode"

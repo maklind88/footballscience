@@ -249,6 +249,28 @@ test("Video Analysis contains horizontal trackpad swipes across FS Player modes"
   expect(videoFrameWheel.handled).toBe(true);
   expect(videoFrameWheel.fsPlayerActive).toBe(true);
 
+  const historyGuard = await page.evaluate(async () => {
+    const target = document.querySelector(".video-analysis-video-frame");
+    target.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+    target.dispatchEvent(new PointerEvent("pointermove", { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const beforeHref = window.location.href;
+    const armedBefore = Boolean(window.history.state?.__footballScienceFsPlayerHistoryGuard);
+    window.history.back();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    return {
+      beforeHref,
+      afterHref: window.location.href,
+      armedBefore,
+      armedAfter: Boolean(window.history.state?.__footballScienceFsPlayerHistoryGuard),
+      fsPlayerActive: document.body.classList.contains("is-video-analysis-fs-player-active"),
+    };
+  });
+  expect(historyGuard.armedBefore).toBe(true);
+  expect(historyGuard.afterHref).toBe(historyGuard.beforeHref);
+  expect(historyGuard.armedAfter).toBe(true);
+  expect(historyGuard.fsPlayerActive).toBe(true);
+
   const timelineWheel = await dispatchHorizontalWheel(".video-analysis-fs-player-timeline [data-video-analysis-timeline-pan]");
   expect(timelineWheel.defaultPrevented).toBe(true);
 

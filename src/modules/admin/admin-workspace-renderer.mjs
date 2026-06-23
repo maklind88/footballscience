@@ -96,10 +96,16 @@ ${canRemoveSelectedUser ? `<button type="button" class="staff-remove-button" dat
       return "";
     }
     const { createUserTeam, createUserClub, createUserTeamId, currentUser, structure } = context;
-    const createRoleOptions = renderAdminRoleOptions(currentUser, context.createRole);
+    const draft = context.createUserDraft && typeof context.createUserDraft === "object" ? context.createUserDraft : {};
+    const getDraftValue = (name, fallback = "") => draft[name] ?? fallback;
+    const createRoleOptions = renderAdminRoleOptions(currentUser, getDraftValue("role", context.createRole));
+    const createStatusValue = getDraftValue("status", "active");
+    const createStatusOptions = ["active", "paused"]
+      .map((status) => `<option value="${escapeHtml(status)}" ${status === createStatusValue ? "selected" : ""}>${escapeHtml(status === "active" ? "Active" : "Paused")}</option>`)
+      .join("");
     return `
       <div class="admin-user-editor-overlay" data-admin-create-user-overlay role="dialog" aria-modal="true" aria-label="Create user">
-        <article class="admin-card admin-user-editor-modal admin-create-user-modal">
+        <article class="admin-card admin-user-editor-modal admin-create-user-modal" tabindex="-1">
           <div class="staff-card-head admin-user-editor-head">
             <div>
               <h2>New User</h2>
@@ -108,17 +114,17 @@ ${canRemoveSelectedUser ? `<button type="button" class="staff-remove-button" dat
             <button type="button" class="admin-send-button admin-user-editor-close" data-admin-close-create-user>Close</button>
           </div>
           <form id="adminCreateUserForm" class="platform-form admin-user-form admin-create-form">
-            <label><span>First name</span><input name="firstName" required /></label>
-            <label><span>Last name</span><input name="lastName" required /></label>
-            <label><span>Email</span><input name="email" type="email" required /></label>
-            <label><span>Username</span><input name="username" required /></label>
+            <label><span>First name</span><input name="firstName" value="${escapeHtml(getDraftValue("firstName"))}" required /></label>
+            <label><span>Last name</span><input name="lastName" value="${escapeHtml(getDraftValue("lastName"))}" required /></label>
+            <label><span>Email</span><input name="email" type="email" value="${escapeHtml(getDraftValue("email"))}" required /></label>
+            <label><span>Username</span><input name="username" value="${escapeHtml(getDraftValue("username"))}" required /></label>
             <label><span>Role</span><select name="role">${createRoleOptions}</select></label>
-            <label><span>Status</span><select name="status"><option value="active" selected>Active</option><option value="paused">Paused</option></select></label>
-            <label><span>Title</span><input name="title" list="adminTitleSuggestions" value="Scout" /></label>
-            <label><span>Password</span>${renderPasswordRevealInput("password", "Optional; leave empty for temporary")}</label>
-            <label><span>Confirm password</span>${renderPasswordRevealInput("passwordConfirm", "Repeat password")}</label>
-            <label><span>Department</span><input name="department" list="adminDepartmentSuggestions" value="Scouting" /></label>
-            <label class="profile-wide"><span>Team scope</span><select name="teamId">${renderAdminTeamOptions(currentUser, structure, createUserTeamId)}</select></label>
+            <label><span>Status</span><select name="status">${createStatusOptions}</select></label>
+            <label><span>Title</span><input name="title" list="adminTitleSuggestions" value="${escapeHtml(getDraftValue("title", "Scout"))}" /></label>
+            <label><span>Password</span>${renderPasswordRevealInput("password", "Optional; leave empty for temporary", "new-password", getDraftValue("password"))}</label>
+            <label><span>Confirm password</span>${renderPasswordRevealInput("passwordConfirm", "Repeat password", "new-password", getDraftValue("passwordConfirm"))}</label>
+            <label><span>Department</span><input name="department" list="adminDepartmentSuggestions" value="${escapeHtml(getDraftValue("department", "Scouting"))}" /></label>
+            <label class="profile-wide"><span>Team scope</span><select name="teamId">${renderAdminTeamOptions(currentUser, structure, getDraftValue("teamId", createUserTeamId))}</select></label>
             <div class="profile-form-footer"><span>Creates the account directly in this team's admin scope.</span><button type="button" data-admin-create-user-submit>Create user</button></div>
           </form>
         </article>

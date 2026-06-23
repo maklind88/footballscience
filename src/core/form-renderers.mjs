@@ -7,10 +7,11 @@ const defaultEscapeHtml = (value) =>
     .replaceAll("'", "&#039;");
 
 export function createPasswordRevealInputRenderer({ escapeHtml = defaultEscapeHtml } = {}) {
-  return function renderPasswordRevealInput(name, placeholder, autocomplete = "new-password") {
+  return function renderPasswordRevealInput(name, placeholder, autocomplete = "new-password", value = "") {
+    const valueAttribute = value ? ` value="${escapeHtml(value)}"` : "";
     return `
     <span class="password-input-shell">
-      <input name="${escapeHtml(name)}" type="password" autocomplete="${escapeHtml(autocomplete)}" placeholder="${escapeHtml(placeholder)}" />
+      <input name="${escapeHtml(name)}" type="password" autocomplete="${escapeHtml(autocomplete)}" placeholder="${escapeHtml(placeholder)}"${valueAttribute} />
       <button
         type="button"
         class="password-visibility-toggle"

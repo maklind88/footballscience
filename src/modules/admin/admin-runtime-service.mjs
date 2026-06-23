@@ -15,6 +15,7 @@ export function createAdminRuntimeService(deps = {}) {
     adminUserEditorOpen: false,
     adminCreateUserEditorOpen: false,
     adminCreateUserTeamId: "",
+    adminCreateUserDraft: null,
     adminAuditEntries: [],
     adminAuditLoading: false,
     adminAuditLoadedAt: 0,
@@ -280,7 +281,22 @@ export function createAdminRuntimeService(deps = {}) {
         ? "coach"
         : assignableRoles[0];
     const createUserTeamId = state.adminCreateUserTeamId || call("getUserTeamId", currentUser, structure);
-    const createUserTeam = call("getPlatformTeamById", createUserTeamId, structure);
+    const createUserDraft = {
+      firstName: "",
+      lastName: "",
+      email: "",
+      username: "",
+      role: createRole,
+      status: "active",
+      title: "Scout",
+      password: "",
+      passwordConfirm: "",
+      department: "Scouting",
+      teamId: createUserTeamId,
+      ...(state.adminCreateUserDraft && typeof state.adminCreateUserDraft === "object" ? state.adminCreateUserDraft : {}),
+    };
+    const effectiveCreateUserTeamId = createUserDraft.teamId || createUserTeamId;
+    const createUserTeam = call("getPlatformTeamById", effectiveCreateUserTeamId, structure);
     const createUserClub = createUserTeam ? call("getPlatformClubById", createUserTeam.clubId, structure) : null;
     ui.adminWorkspace.innerHTML = adminWorkspaceRenderer.renderWorkspace({
       adminAuditLoadedAt: state.adminAuditLoadedAt,
@@ -290,8 +306,9 @@ export function createAdminRuntimeService(deps = {}) {
       canRemoveSelectedUser,
       createRole,
       createUserClub,
+      createUserDraft,
       createUserTeam,
-      createUserTeamId,
+      createUserTeamId: effectiveCreateUserTeamId,
       currentUser,
       currentUserIsPlatformAdmin,
       message,
@@ -309,6 +326,7 @@ export function createAdminRuntimeService(deps = {}) {
     return {
       getSelectedAdminUserId: () => state.selectedAdminUserId,
       setSelectedAdminUserId: (userId) => { state.selectedAdminUserId = userId; },
+      setAdminCreateUserDraft: (draft) => { state.adminCreateUserDraft = draft && typeof draft === "object" ? { ...draft } : null; },
       setAdminCreateUserEditorOpen: (isOpen) => { state.adminCreateUserEditorOpen = isOpen; },
       setAdminUserEditorOpen: (isOpen) => { state.adminUserEditorOpen = isOpen; },
       setAdminCreateUserTeamId: (teamId) => { state.adminCreateUserTeamId = teamId; },
@@ -351,6 +369,7 @@ export function createAdminRuntimeService(deps = {}) {
     openCredentialsMailto,
     publishPlatformAppearanceConfig,
     renderAdminWorkspace,
+    setAdminCreateUserDraft: (draft) => { state.adminCreateUserDraft = draft && typeof draft === "object" ? { ...draft } : null; },
     setAdminCreateUserEditorOpen: (isOpen) => { state.adminCreateUserEditorOpen = isOpen; },
     setAdminCreateUserTeamId: (teamId) => { state.adminCreateUserTeamId = teamId; },
     setAdminUserEditorOpen: (isOpen) => { state.adminUserEditorOpen = isOpen; },

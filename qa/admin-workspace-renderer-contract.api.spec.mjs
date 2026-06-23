@@ -14,7 +14,7 @@ const renderer = createAdminWorkspaceRenderer({
   renderAdminStructurePanel: () => '<section data-structure></section>',
   renderAdminTeamOptions: () => '<option value="team-1" selected>Team 1</option>',
   renderAdminTransferRoomAccessPanel: () => '<section data-transfer-access></section>',
-  renderPasswordRevealInput: (name) => `<input name="${name}" />`,
+  renderPasswordRevealInput: (name, _placeholder, _autocomplete, value = "") => `<input name="${name}" value="${value}" />`,
   renderPlatformAppearanceGovernancePanel: () => '<section data-appearance></section>',
   renderPlatformReadinessDashboard: () => '<section data-readiness></section>',
   titleSuggestions: ["Sporting Director"],
@@ -37,6 +37,19 @@ test("Admin workspace renderer owns admin layout, modals, and platform admin pan
     canManageSelectedUser: true,
     canRemoveSelectedUser: true,
     createRole: "scout",
+    createUserDraft: {
+      firstName: "Jess",
+      lastName: "Silva",
+      email: "jess@example.com",
+      username: "jess.silva",
+      role: "scout",
+      status: "active",
+      title: "Assistant Coach",
+      department: "Football",
+      password: "secret123",
+      passwordConfirm: "secret123",
+      teamId: "team-1",
+    },
     createUserClub: { name: "NCC" },
     createUserTeam: { name: "First Team" },
     createUserTeamId: "team-1",
@@ -59,6 +72,9 @@ test("Admin workspace renderer owns admin layout, modals, and platform admin pan
   expect(markup).toContain("data-appearance");
   expect(markup).toContain("adminUserForm");
   expect(markup).toContain("adminCreateUserForm");
+  expect(markup).toContain('value="Jess"');
+  expect(markup).toContain('value="jess@example.com"');
+  expect(markup).toContain('value="secret123"');
   expect(markup).toContain("data-transfer-access");
   expect(markup).toContain("data-role-access");
   expect(markup).toContain("Recent Admin Activity");

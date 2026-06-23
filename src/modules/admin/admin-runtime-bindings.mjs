@@ -31,8 +31,19 @@ export function bindAdminRuntimeBindings(deps = {}) {
     return false;
   };
 
+  function snapshotCreateUserDraft(createUserForm) {
+    if (!createUserForm) return;
+    const values = actions.getPlatformFormValues?.(createUserForm) ?? {};
+    setStateValue(state, "AdminCreateUserDraft", values);
+  }
+
+  function clearCreateUserDraft() {
+    setStateValue(state, "AdminCreateUserDraft", null);
+  }
+
   async function createAdminUserFromForm(createUserForm) {
     if (!createUserForm) return;
+    snapshotCreateUserDraft(createUserForm);
     if (!actions.isCurrentPlatformUserAdmin?.()) {
       renderAdmin("Admin access required. Sign in as an admin and try again.");
       return;
@@ -64,6 +75,7 @@ export function bindAdminRuntimeBindings(deps = {}) {
       setStateValue(state, "SelectedAdminUserId", result.user?.id ?? null);
       setStateValue(state, "AdminCreateUserEditorOpen", false);
       setStateValue(state, "AdminUserEditorOpen", Boolean(result.user?.id ?? null));
+      clearCreateUserDraft();
       createUserForm.reset();
       actions.renderWorkspaceChrome?.();
       const generatedPassword = result.generatedPassword || "";
@@ -138,7 +150,9 @@ export function bindAdminRuntimeBindings(deps = {}) {
     }
     const openCreateUserButton = event.target.closest("[data-admin-open-create-user]");
     if (openCreateUserButton) {
-      setStateValue(state, "AdminCreateUserTeamId", openCreateUserButton.dataset.adminOpenCreateUser || actions.getUserTeamId?.(getCurrentUser(actions), actions.getPlatformStructureState?.()));
+      const teamId = openCreateUserButton.dataset.adminOpenCreateUser || actions.getUserTeamId?.(getCurrentUser(actions), actions.getPlatformStructureState?.());
+      setStateValue(state, "AdminCreateUserTeamId", teamId);
+      setStateValue(state, "AdminCreateUserDraft", { teamId });
       setStateValue(state, "AdminCreateUserEditorOpen", true);
       setStateValue(state, "AdminUserEditorOpen", false);
       renderAdmin();
@@ -147,13 +161,13 @@ export function bindAdminRuntimeBindings(deps = {}) {
     const closeCreateUserButton = event.target.closest("[data-admin-close-create-user]");
     if (closeCreateUserButton) {
       setStateValue(state, "AdminCreateUserEditorOpen", false);
+      clearCreateUserDraft();
       renderAdmin();
       return;
     }
     const createUserOverlay = event.target.closest("[data-admin-create-user-overlay]");
     if (createUserOverlay && event.target === createUserOverlay) {
-      setStateValue(state, "AdminCreateUserEditorOpen", false);
-      renderAdmin();
+      createUserOverlay.querySelector(".admin-create-user-modal")?.focus?.({ preventScroll: true });
       return;
     }
     const createUserButton = event.target.closest("[data-admin-create-user-submit]");
@@ -179,6 +193,7 @@ export function bindAdminRuntimeBindings(deps = {}) {
       setStateValue(state, "SelectedAdminUserId", selectButton.dataset.adminSelectUser);
       setStateValue(state, "AdminUserEditorOpen", true);
       setStateValue(state, "AdminCreateUserEditorOpen", false);
+      clearCreateUserDraft();
       renderAdmin();
       return;
     }
@@ -307,6 +322,11 @@ export function bindAdminRuntimeBindings(deps = {}) {
     if (accessForm) submitAccessForm(event, accessForm);
   };
 
+  const onDraftInput = (event) => {
+    const createUserForm = event.target.closest?.("#adminCreateUserForm");
+    if (createUserForm) snapshotCreateUserDraft(createUserForm);
+  };
+
   async function submitAdminUserForm(event, userForm) {
     event.preventDefault();
     if (!actions.isCurrentPlatformUserAdmin?.()) {
@@ -421,7 +441,9 @@ export function bindAdminRuntimeBindings(deps = {}) {
   }
 
   workspaceElement.addEventListener("click", onClick);
+  workspaceElement.addEventListener("input", onDraftInput);
+  workspaceElement.addEventListener("change", onDraftInput);
   workspaceElement.addEventListener("submit", onSubmit);
 
-  return { click: onClick, submit: onSubmit, createAdminUserFromForm };
+  return { click: onClick, input: onDraftInput, change: onDraftInput, submit: onSubmit, createAdminUserFromForm };
 }

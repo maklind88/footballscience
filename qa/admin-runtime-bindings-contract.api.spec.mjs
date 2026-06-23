@@ -47,6 +47,7 @@ function createHarness() {
   ];
   const mutable = {
     adminCreateUserEditorOpen: false,
+    adminCreateUserDraft: null,
     adminCreateUserTeamId: "",
     adminUserEditorOpen: false,
     hubState: { workspaceAccess: {} },
@@ -65,6 +66,7 @@ function createHarness() {
     state: {
       getSelectedAdminUserId: () => mutable.selectedAdminUserId,
       setSelectedAdminUserId: (value) => { mutable.selectedAdminUserId = value; },
+      setAdminCreateUserDraft: (value) => { mutable.adminCreateUserDraft = value; },
       setAdminCreateUserEditorOpen: (value) => { mutable.adminCreateUserEditorOpen = value; },
       setAdminUserEditorOpen: (value) => { mutable.adminUserEditorOpen = value; },
       setAdminCreateUserTeamId: (value) => { mutable.adminCreateUserTeamId = value; },
@@ -156,10 +158,52 @@ test("Admin runtime bindings register click and submit handlers", () => {
   const { controllers, workspaceElement } = createHarness();
 
   expect(typeof controllers.click).toBe("function");
+  expect(typeof controllers.input).toBe("function");
+  expect(typeof controllers.change).toBe("function");
   expect(typeof controllers.submit).toBe("function");
   expect(typeof controllers.createAdminUserFromForm).toBe("function");
   expect(typeof workspaceElement.listeners.click).toBe("function");
+  expect(typeof workspaceElement.listeners.input).toBe("function");
+  expect(typeof workspaceElement.listeners.change).toBe("function");
   expect(typeof workspaceElement.listeners.submit).toBe("function");
+});
+
+test("Admin runtime bindings keep create user modal stable while drafting", async () => {
+  const { mutable, workspaceElement } = createHarness();
+  const createUserForm = {
+    values: {
+      firstName: "Jess",
+      lastName: "Silva",
+      email: "jess@example.com",
+      username: "jess.silva",
+      password: "secret123",
+      passwordConfirm: "secret123",
+      teamId: "team-1",
+    },
+  };
+  let focused = false;
+  const overlay = {
+    closest(selector) {
+      return selector === "[data-admin-create-user-overlay]" ? overlay : null;
+    },
+    querySelector(selector) {
+      return selector === ".admin-create-user-modal" ? { focus: () => { focused = true; } } : null;
+    },
+  };
+
+  await workspaceElement.listeners.click(createEvent(createTarget({
+    closest: { "[data-admin-open-create-user]": { dataset: { adminOpenCreateUser: "team-1" } } },
+  })));
+  expect(mutable.adminCreateUserEditorOpen).toBe(true);
+  expect(mutable.adminCreateUserDraft).toEqual({ teamId: "team-1" });
+
+  workspaceElement.listeners.input(createEvent(createTarget({ closest: { "#adminCreateUserForm": createUserForm } })));
+  expect(mutable.adminCreateUserDraft).toEqual(createUserForm.values);
+
+  await workspaceElement.listeners.click(createEvent(overlay));
+  expect(mutable.adminCreateUserEditorOpen).toBe(true);
+  expect(mutable.adminCreateUserDraft).toEqual(createUserForm.values);
+  expect(focused).toBe(true);
 });
 
 test("Admin runtime bindings preserve create, password, and update user behavior", async () => {

@@ -1,5 +1,9 @@
--- Scouting source identity hardening
--- Adds canonical source-system source-ids and unique constraints for stable weekly imports.
+-- Forward fix for environments where 20260514153000 is already recorded as applied.
+-- Ensures Scouting source identity defaults never reference row columns.
+
+create schema if not exists extensions;
+create extension if not exists pgcrypto with schema extensions;
+alter extension pgcrypto set schema extensions;
 
 alter table public.scouting_players
   add column if not exists source_system text,
@@ -29,10 +33,6 @@ alter table public.scouting_players
   alter column source_system set not null,
   alter column source_player_id set default encode(extensions.digest(extensions.gen_random_uuid()::text, 'sha1'), 'hex'),
   alter column source_player_id set not null;
-
-alter table public.scouting_players
-  drop constraint if exists scouting_players_sort_name_unique;
-drop index if exists public.scouting_players_org_sort_unique_idx;
 
 do $$
 begin
@@ -74,6 +74,11 @@ from public.scouting_players p
 where s.player_id = p.id
   and (s.source_system is null or btrim(s.source_system) = '');
 
+update public.scouting_player_seasons
+set source_system = coalesce(nullif(btrim(source_system), ''), 'file-import')
+where source_system is null
+  or btrim(source_system) = '';
+
 update public.scouting_player_seasons s
 set source_player_id = coalesce(
   nullif(btrim(s.source_player_id), ''),
@@ -84,14 +89,22 @@ from public.scouting_players p
 where s.player_id = p.id
   and (s.source_player_id is null or btrim(s.source_player_id) = '');
 
-update public.scouting_player_seasons s
-set source_record_id = coalesce(
-  nullif(btrim(s.source_record_id), ''),
-  nullif(btrim(s.record_key), ''),
-  encode(extensions.digest(s.id::text, 'sha1'), 'hex')
+update public.scouting_player_seasons
+set source_player_id = coalesce(
+  nullif(btrim(source_player_id), ''),
+  encode(extensions.digest(id::text, 'sha1'), 'hex')
 )
-where s.source_record_id is null
-  or btrim(s.source_record_id) = '';
+where source_player_id is null
+  or btrim(source_player_id) = '';
+
+update public.scouting_player_seasons
+set source_record_id = coalesce(
+  nullif(btrim(source_record_id), ''),
+  nullif(btrim(record_key), ''),
+  encode(extensions.digest(id::text, 'sha1'), 'hex')
+)
+where source_record_id is null
+  or btrim(source_record_id) = '';
 
 update public.scouting_player_seasons
 set source_record_id = left(
@@ -122,9 +135,6 @@ alter table public.scouting_player_seasons
   alter column source_player_id set not null,
   alter column source_record_id set default encode(extensions.digest(extensions.gen_random_uuid()::text, 'sha1'), 'hex'),
   alter column source_record_id set not null;
-
-alter table public.scouting_player_seasons
-  drop constraint if exists scouting_player_seasons_record_key_unique;
 
 create unique index if not exists scouting_player_seasons_source_record_idx
   on public.scouting_player_seasons (source_system, source_record_id);

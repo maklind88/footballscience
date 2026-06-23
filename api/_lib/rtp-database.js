@@ -2,6 +2,11 @@ const { sendJson } = require("./supabase-admin.js");
 const {
   buildPerformanceReadinessEmptyState,
 } = require("./rtp-performance-readiness.js");
+const {
+  buildCoachMatchdayReadinessReadModel,
+  buildCoachPlayerStatusCard,
+  buildCoachSquadAvailabilityReadModel,
+} = require("./rtp-coach-read-model.js");
 
 const RTP_SCHEMA = "footballscience-rtp-operating-spine-v1";
 const RTP_MODULE_ID = "rtp";
@@ -161,6 +166,7 @@ function actorScope(actor = {}) {
 function buildEmptyState(actor = {}, query = {}) {
   const scope = actorScope(actor);
   const playerId = normalizeText(query.playerId || query.player_id, 160);
+  const resolvedStatus = resolveMostRestrictiveStatus({ lifecycleStatus: "created", medicalClearanceStatus: "not-cleared" });
 
   return {
     ok: true,
@@ -174,11 +180,16 @@ function buildEmptyState(actor = {}, query = {}) {
     playerId,
     cases: [],
     activeCase: null,
-    resolvedStatus: resolveMostRestrictiveStatus({ lifecycleStatus: "created", medicalClearanceStatus: "not-cleared" }),
+    resolvedStatus,
     lifecycleStatuses: RTP_LIFECYCLE_STATUSES,
     medicalClearanceStatuses: RTP_MEDICAL_CLEARANCE_STATUSES,
     medicalConfidenceLevels: canViewMedicalConfidence(actor) ? RTP_MEDICAL_CONFIDENCE_LEVELS : [],
     performanceReadiness: buildPerformanceReadinessEmptyState(actor),
+    coachReadModel: buildCoachPlayerStatusCard({
+      playerId,
+      mostRestrictiveStatus: resolvedStatus,
+      hasActiveRtpCase: false,
+    }, actor),
     coachSafe: actorRole(actor) === "coach",
     exclusions: {
       ui: true,
@@ -200,9 +211,33 @@ function parseQuery(req = {}) {
   }
 }
 
+function buildCoachReadResponse(actor = {}, query = {}) {
+  const view = normalizeText(query.view, 80).toLowerCase();
+  const playerId = normalizeText(query.playerId || query.player_id, 160);
+
+  if (view === "coach-player-status" || view === "coach-summary") {
+    return buildCoachPlayerStatusCard({ playerId }, actor);
+  }
+
+  if (view === "coach-squad-availability") {
+    return buildCoachSquadAvailabilityReadModel({ players: [] }, actor);
+  }
+
+  if (view === "coach-matchday-readiness") {
+    return buildCoachMatchdayReadinessReadModel({
+      matchId: query.matchId || query.match_id,
+      players: [],
+    }, actor);
+  }
+
+  return null;
+}
+
 async function handleRtpRequest(req, res, actor) {
   if (req.method === "GET") {
-    return sendJson(res, 200, buildEmptyState(actor, parseQuery(req)));
+    const query = parseQuery(req);
+    const coachReadResponse = buildCoachReadResponse(actor, query);
+    return sendJson(res, 200, coachReadResponse || buildEmptyState(actor, query));
   }
 
   if (["POST", "PUT", "PATCH", "DELETE"].includes(String(req.method || "").toUpperCase())) {
@@ -227,6 +262,7 @@ module.exports = {
   canReadRtp,
   canViewMedicalConfidence,
   canWriteRtp,
+  buildCoachReadResponse,
   filterMedicalClearanceForActor,
   handleRtpRequest,
   normalizeLifecycleStatus,

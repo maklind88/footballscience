@@ -32,6 +32,7 @@ export const playerProfileRuntimeAccessorNames = Object.freeze([
   "getPlayerProfileEffectiveStatusFromSnapshot",
   "getPlayerProfileEffectiveStatus",
   "getPlayerProfileMedicalSnapshot",
+  "getPlayerProfileRtpCoachStatus",
   "getVisiblePlayerProfiles",
   "getAllTemporaryPlayerProfiles",
   "renderPlayerProfileStatusChip",
@@ -118,6 +119,7 @@ export const getPlayerProfileMedicalStatusOverride = createPlayerProfileRuntimeA
 export const getPlayerProfileEffectiveStatusFromSnapshot = createPlayerProfileRuntimeAccessor("getPlayerProfileEffectiveStatusFromSnapshot");
 export const getPlayerProfileEffectiveStatus = createPlayerProfileRuntimeAccessor("getPlayerProfileEffectiveStatus");
 export const getPlayerProfileMedicalSnapshot = createPlayerProfileRuntimeAccessor("getPlayerProfileMedicalSnapshot");
+export const getPlayerProfileRtpCoachStatus = createPlayerProfileRuntimeAccessor("getPlayerProfileRtpCoachStatus");
 export const getVisiblePlayerProfiles = createPlayerProfileRuntimeAccessor("getVisiblePlayerProfiles");
 export const getAllTemporaryPlayerProfiles = createPlayerProfileRuntimeAccessor("getAllTemporaryPlayerProfiles");
 export const renderPlayerProfileStatusChip = createPlayerProfileRuntimeAccessor("renderPlayerProfileStatusChip");

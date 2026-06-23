@@ -42,6 +42,7 @@ const accessorNames = [
   "getPlayerProfileEffectiveStatusFromSnapshot",
   "getPlayerProfileEffectiveStatus",
   "getPlayerProfileMedicalSnapshot",
+  "getPlayerProfileRtpCoachStatus",
   "getVisiblePlayerProfiles",
   "getAllTemporaryPlayerProfiles",
   "renderPlayerProfileStatusChip",

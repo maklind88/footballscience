@@ -2,6 +2,7 @@ import { createPlayerProfileRuntimeImportService } from "./player-profile-runtim
 import { createPlayerProfileRuntimeMedicalSyncService } from "./player-profile-runtime-medical-sync-service.mjs";
 import { createPlayerProfileRuntimeStateService } from "./player-profile-runtime-state-service.mjs";
 import { createPlayerProfileRuntimeWriteService } from "./player-profile-runtime-write-service.mjs";
+import { renderPlayerProfileRtpStatusCard } from "./player-profile-rtp-card-renderer.mjs";
 import { createSquadMedicalStatusService } from "./squad-medical-status-service.mjs";
 
 export function createPlayerProfileRuntimeFacade(deps = {}) {
@@ -19,6 +20,9 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
   let lastImportSnapshot = null;
   let newPlayerDraft = {};
   let pendingImportPlan = null;
+  let rtpCoachStatusByPlayerId = {};
+  let rtpCoachStatusHydrationPending = false;
+  let rtpCoachStatusHydrationTimer = 0;
   let runtimeImportService = null;
   let runtimeMedicalSyncService = null;
   let runtimeStateService = null;
@@ -119,6 +123,9 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     getPlayerProfileNewPlayerModalOpen: deps.getPlayerProfileNewPlayerModalOpen,
     getPlayerProfileRoleGroupForRole: deps.getPlayerProfileRoleGroupForRole,
     getPlayerProfileRosterTypeOption: deps.getPlayerProfileRosterTypeOption,
+    getPlayerProfileRtpCoachStatusByPlayerId: () => rtpCoachStatusByPlayerId,
+    getPlayerProfileRtpCoachStatusHydrationPending: () => rtpCoachStatusHydrationPending,
+    getPlayerProfileRtpCoachStatusHydrationTimer: () => rtpCoachStatusHydrationTimer,
     getPlayerProfileSyncIdentityKeys: deps.getPlayerProfileSyncIdentityKeys,
     getPlayerProfilesState: getProfilesState,
     getPlayerProfilesWorkspace: () => ui.playerProfilesWorkspace,
@@ -145,6 +152,7 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     rawDataSafetySetItem: deps.rawDataSafetySetItem,
     renderPlayerProfilesRosterListOnly,
     renderPlayerProfilesWorkspace,
+    renderPlayerProfileRtpStatusCard,
     setPlayerProfileAgeCacheState: (nextState) => {
       ageCacheState = nextState;
     },
@@ -162,6 +170,15 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     },
     setPlayerProfileModalOpen: deps.setPlayerProfileModalOpen,
     setPlayerProfileNewPlayerModalOpen: deps.setPlayerProfileNewPlayerModalOpen,
+    setPlayerProfileRtpCoachStatusByPlayerId: (nextState) => {
+      rtpCoachStatusByPlayerId = nextState && typeof nextState === "object" ? nextState : {};
+    },
+    setPlayerProfileRtpCoachStatusHydrationPending: (nextPending) => {
+      rtpCoachStatusHydrationPending = Boolean(nextPending);
+    },
+    setPlayerProfileRtpCoachStatusHydrationTimer: (nextTimer) => {
+      rtpCoachStatusHydrationTimer = nextTimer;
+    },
     setPlayerProfilesState: setProfilesState,
     win,
   });
@@ -212,6 +229,9 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
       visibleSummary: deps.getPlayerProfilesRosterSummary(visiblePlayers),
     });
     queuePlayerProfileAgeHydration();
+    if (deps.getPlayerProfileModalOpen?.()) {
+      queueSelectedPlayerProfileRtpCoachStatusHydration();
+    }
   }
 
   runtimeImportService = createPlayerProfileRuntimeImportService({
@@ -286,6 +306,9 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
       teamName: squadTeamName,
     });
     queuePlayerProfileAgeHydration();
+    if (deps.getPlayerProfileModalOpen?.()) {
+      queueSelectedPlayerProfileRtpCoachStatusHydration();
+    }
   }
 
   runtimeMedicalSyncService = createPlayerProfileRuntimeMedicalSyncService({
@@ -367,6 +390,8 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
   function mergePlayerProfileAgeHydrationResult(...args) { return method(runtimeStateService, "mergePlayerProfileAgeHydrationResult", ...args); }
   function hydratePlayerProfileAgesOnce(...args) { return method(runtimeStateService, "hydratePlayerProfileAgesOnce", ...args); }
   function queuePlayerProfileAgeHydration(...args) { return method(runtimeStateService, "queuePlayerProfileAgeHydration", ...args); }
+  function getPlayerProfileRtpCoachStatus(...args) { return method(runtimeStateService, "getPlayerProfileRtpCoachStatus", ...args); }
+  function queueSelectedPlayerProfileRtpCoachStatusHydration(...args) { return method(runtimeStateService, "queueSelectedPlayerProfileRtpCoachStatusHydration", ...args); }
   function ensurePlayerProfilesState(...args) { return method(runtimeStateService, "ensurePlayerProfilesState", ...args); }
   function canEditPlayerProfiles(...args) { return method(runtimeStateService, "canEditPlayerProfiles", ...args); }
   function getPlayerProfilesAccessLabel(...args) { return method(runtimeStateService, "getPlayerProfilesAccessLabel", ...args); }
@@ -440,6 +465,7 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     getPlayerProfileImportUndoState,
     getPlayerProfileMedicalSnapshot,
     getPlayerProfileMedicalStatusOverride,
+    getPlayerProfileRtpCoachStatus,
     getPlayerProfilesAccessLabel,
     getRecentPlayerProfileChangeLog,
     getSelectedPlayerProfile,

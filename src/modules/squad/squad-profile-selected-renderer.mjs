@@ -32,11 +32,13 @@ export function createSquadProfileSelectedRenderer({
   renderPlayerProfileHistoryPanel,
   renderPlayerProfileMedicalPanel,
   renderPlayerProfileOptionSet,
+  renderPlayerProfileRtpStatusCard = () => "",
   renderPlayerProfileRoleOptions,
   renderPlayerProfileScoutingSpider,
   renderPlayerProfileSecondaryRoleOptions,
   renderPlayerProfileStatusChip,
   renderPlayerProfileTabs,
+  getPlayerProfileRtpCoachStatus = () => null,
 } = {}) {
   const renderSelectedPanel = (player) => {
     if (!player) {
@@ -92,6 +94,7 @@ export function createSquadProfileSelectedRenderer({
           ${renderPlayerProfileStatusChip(effectiveStatus, medicalSnapshot)}
         </header>
       </article>
+      ${renderPlayerProfileRtpStatusCard(getPlayerProfileRtpCoachStatus(player.id), { playerId: player.id, escapeHtml })}
       ${renderPlayerProfileTabs()}
       ${activeTab === "overview" ? renderPlayerProfileScoutingSpider(player) : ""}
       <article class="squad-profile-section squad-editor-section">

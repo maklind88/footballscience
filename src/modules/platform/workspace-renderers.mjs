@@ -16,6 +16,7 @@ import {
   createSquadProfileSupportRenderer,
   createSquadRosterRenderer,
   createSquadWorkspaceRenderer,
+  renderPlayerProfileRtpStatusCard,
 } from "../squad/index.mjs";
 
 export function createPlatformWorkspaceRenderers(deps = {}) {
@@ -44,6 +45,7 @@ export function createPlatformWorkspaceRenderers(deps = {}) {
     getPlayerProfileRosterLabel,
     getPlayerProfileRosterSummary,
     getPlayerProfileRosterTypeOption,
+    getPlayerProfileRtpCoachStatus,
     getPlayerProfileTemporaryWindowLabel,
     getRecentPlayerProfileChangeLog,
     getRoleLabel,
@@ -257,11 +259,13 @@ export function createPlatformWorkspaceRenderers(deps = {}) {
     renderPlayerProfileHistoryPanel: (player) => squadProfileSupportRenderer.renderHistoryPanel(player),
     renderPlayerProfileMedicalPanel: (player) => squadProfileSupportRenderer.renderMedicalPanel(player),
     renderPlayerProfileOptionSet: (options, selectedKey) => squadProfileSupportRenderer.renderOptionSet(options, selectedKey),
+    renderPlayerProfileRtpStatusCard,
     renderPlayerProfileRoleOptions: (selectedRole) => squadProfileSupportRenderer.renderRoleOptions(selectedRole),
     renderPlayerProfileScoutingSpider,
     renderPlayerProfileSecondaryRoleOptions: (selectedRoles) => squadProfileSupportRenderer.renderSecondaryRoleOptions(selectedRoles),
     renderPlayerProfileStatusChip,
     renderPlayerProfileTabs: () => squadProfileSupportRenderer.renderTabs(),
+    getPlayerProfileRtpCoachStatus,
   });
 
   return {

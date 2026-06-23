@@ -31,6 +31,7 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
     getPlayerProfileEffectiveStatusFromSnapshot: () => "available",
     getPlayerProfileMedicalSnapshot: () => ({ returnLabel: "" }),
     getPlayerProfileOption: (options, key) => options.find((option) => option.key === key) || options[0],
+    getPlayerProfileRtpCoachStatus: () => ({ playerId: "p1", emptyState: { code: "rtp-coach-player-empty" } }),
     isCurrentPlatformUserAdmin: () => true,
     isProfileModalOpen: () => true,
     normalizePlayerProfileTab: (tab) => tab,
@@ -49,6 +50,7 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
     renderPlayerProfileHistoryPanel: () => "",
     renderPlayerProfileMedicalPanel: () => "",
     renderPlayerProfileOptionSet: optionSet,
+    renderPlayerProfileRtpStatusCard: () => '<article data-player-profile-rtp-card>No coach-safe RTP status available</article>',
     renderPlayerProfileRoleOptions: () => '<option value="8" selected>8</option>',
     renderPlayerProfileScoutingSpider: () => "",
     renderPlayerProfileSecondaryRoleOptions: () => '<option value="10" selected>10</option>',
@@ -61,6 +63,8 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
   expect(panelMarkup).toContain('id="playerProfileEditForm"');
   expect(panelMarkup).toContain('name="playerId"');
   expect(panelMarkup).toContain("Role Suitability");
+  expect(panelMarkup).toContain("data-player-profile-rtp-card");
+  expect(panelMarkup.indexOf("data-player-profile-rtp-card")).toBeLessThan(panelMarkup.indexOf("squad-profile-tabs"));
   expect(panelMarkup).toContain('data-player-profile-remove="p1"');
   const modalMarkup = renderer.renderModal(player);
   expect(modalMarkup).toContain("data-player-profile-modal-overlay");

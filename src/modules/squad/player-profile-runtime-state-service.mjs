@@ -8,7 +8,13 @@ export function createPlayerProfileRuntimeStateService(options = {}) {
   const setPlayerProfilesState = typeof options.setPlayerProfilesState === "function" ? options.setPlayerProfilesState : () => {};
   const getPlayerProfileAgeCacheState = typeof options.getPlayerProfileAgeCacheState === "function" ? options.getPlayerProfileAgeCacheState : () => null;
   const setPlayerProfileAgeCacheState = typeof options.setPlayerProfileAgeCacheState === "function" ? options.setPlayerProfileAgeCacheState : () => {};
+  const getPlayerProfileRtpCoachStatusByPlayerId = typeof options.getPlayerProfileRtpCoachStatusByPlayerId === "function" ? options.getPlayerProfileRtpCoachStatusByPlayerId : () => ({});
+  const setPlayerProfileRtpCoachStatusByPlayerId = typeof options.setPlayerProfileRtpCoachStatusByPlayerId === "function" ? options.setPlayerProfileRtpCoachStatusByPlayerId : () => {};
   const getMedicalState = typeof options.getMedicalState === "function" ? options.getMedicalState : () => null;
+
+  function normalizeText(value = "") {
+    return String(value || "").trim();
+  }
 
   function readPlayerProfileAgeCache() {
     try {
@@ -543,6 +549,103 @@ export function createPlayerProfileRuntimeStateService(options = {}) {
     }, 80);
     options.setPlayerProfileAgeHydrationTimer(timer);
   }
+
+  function getPlayerProfileRtpCoachStatus(playerId = "") {
+    const normalizedPlayerId = normalizeText(playerId);
+    if (!normalizedPlayerId) {
+      return null;
+    }
+    const statusByPlayerId = getPlayerProfileRtpCoachStatusByPlayerId() || {};
+    return statusByPlayerId[normalizedPlayerId]?.payload || null;
+  }
+
+  function setPlayerProfileRtpCoachStatus(playerId = "", payload = null, status = "loaded") {
+    const normalizedPlayerId = normalizeText(playerId);
+    if (!normalizedPlayerId) {
+      return;
+    }
+    const statusByPlayerId = {
+      ...(getPlayerProfileRtpCoachStatusByPlayerId() || {}),
+      [normalizedPlayerId]: {
+        payload: payload && typeof payload === "object" ? { ...payload, playerId: payload.playerId || normalizedPlayerId } : { playerId: normalizedPlayerId },
+        status,
+        fetchedAt: getNow(),
+      },
+    };
+    setPlayerProfileRtpCoachStatusByPlayerId(statusByPlayerId);
+  }
+
+  function patchPlayerProfileRtpCoachStatusCard(playerId = "") {
+    const workspace = options.getPlayerProfilesWorkspace?.();
+    const renderCard = options.renderPlayerProfileRtpStatusCard;
+    if (!workspace || typeof renderCard !== "function") {
+      return false;
+    }
+    const cards = Array.from(workspace.querySelectorAll?.("[data-player-profile-rtp-card-player-id]") || []);
+    const card = cards.find((entry) => entry.getAttribute("data-player-profile-rtp-card-player-id") === playerId);
+    if (!card) {
+      return false;
+    }
+    card.outerHTML = renderCard(getPlayerProfileRtpCoachStatus(playerId), { playerId });
+    return true;
+  }
+
+  async function hydrateSelectedPlayerProfileRtpCoachStatusOnce() {
+    if (options.getPlayerProfileRtpCoachStatusHydrationPending?.() || options.getHubState()?.activeWorkspaceId !== "player-profiles") {
+      return;
+    }
+    const selectedPlayer = getSelectedPlayerProfile();
+    const playerId = normalizeText(selectedPlayer?.id);
+    if (!playerId) {
+      return;
+    }
+    const currentEntry = (getPlayerProfileRtpCoachStatusByPlayerId() || {})[playerId];
+    if (currentEntry?.fetchedAt || currentEntry?.status === "loading") {
+      return;
+    }
+
+    setPlayerProfileRtpCoachStatus(playerId, { playerId }, "loading");
+    options.setPlayerProfileRtpCoachStatusHydrationPending?.(true);
+    try {
+      const token = await options.getPlatformApiAccessToken?.();
+      if (!token) {
+        setPlayerProfileRtpCoachStatus(playerId, { playerId }, "empty");
+        return;
+      }
+      const response = await fetchFn(`/api/rtp?view=coach-player-status&playerId=${encodeURIComponent(playerId)}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const text = await response.text();
+      let payload = {};
+      if (text) {
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          payload = {};
+        }
+      }
+      setPlayerProfileRtpCoachStatus(playerId, response.ok ? payload : { playerId }, response.ok ? "loaded" : "error");
+      patchPlayerProfileRtpCoachStatusCard(playerId);
+    } catch {
+      setPlayerProfileRtpCoachStatus(playerId, { playerId }, "error");
+      patchPlayerProfileRtpCoachStatusCard(playerId);
+    } finally {
+      options.setPlayerProfileRtpCoachStatusHydrationPending?.(false);
+    }
+  }
+
+  function queueSelectedPlayerProfileRtpCoachStatusHydration() {
+    win.clearTimeout(options.getPlayerProfileRtpCoachStatusHydrationTimer?.());
+    const timer = win.setTimeout(() => {
+      options.setPlayerProfileRtpCoachStatusHydrationTimer?.(0);
+      hydrateSelectedPlayerProfileRtpCoachStatusOnce();
+    }, 80);
+    options.setPlayerProfileRtpCoachStatusHydrationTimer?.(timer);
+  }
+
   function ensurePlayerProfilesState() {
     let state = getPlayerProfilesState();
     if (!state) {
@@ -628,13 +731,16 @@ export function createPlayerProfileRuntimeStateService(options = {}) {
     getPlayerProfileAgeHydrationCandidates,
     getPlayerProfileChangeLog,
     getPlayerProfilesAccessLabel,
+    getPlayerProfileRtpCoachStatus,
     getRecentPlayerProfileChangeLog,
     getSelectedPlayerProfile,
+    hydrateSelectedPlayerProfileRtpCoachStatusOnce,
     hydratePlayerProfileAgesOnce,
     mergePlayerProfileAgeHydrationResult,
     openPlayerProfileModal,
     openPlayerProfileNewPlayerModal,
     queuePlayerProfileAgeHydration,
+    queueSelectedPlayerProfileRtpCoachStatusHydration,
     readPlayerProfileAgeCache,
     readPlayerProfilesState,
     recordPlayerProfileChange,

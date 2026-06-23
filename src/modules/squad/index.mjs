@@ -10,6 +10,7 @@ export * from "./player-profile-runtime-medical-sync-service.mjs";
 export * from "./player-profile-runtime-state-service.mjs";
 export * from "./player-profile-runtime-write-service.mjs";
 export * from "./player-profile-runtime-facade.mjs";
+export * from "./player-profile-rtp-card-renderer.mjs";
 export * from "./player-profile-ui-helpers.mjs";
 export * from "./squad-adapter.mjs";
 export * from "./squad-data-foundation.mjs";

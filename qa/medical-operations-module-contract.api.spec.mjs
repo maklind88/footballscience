@@ -65,8 +65,8 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(privateMarkup).toContain("Mak Player");
   const rtpMarkup = renderer.renderPrivateSystem(summary, "rtp-library", "2026-05-31");
   expect(rtpMarkup).toContain("RTP Library");
-  expect(rtpMarkup).toContain("RTP Library & Progression Readiness");
-  expect(rtpMarkup).toContain("Clinical Priority");
+  expect(rtpMarkup).toContain("Coach-Safe RTP Status");
+  expect(rtpMarkup).toContain("Top RTP Signals");
   const historyMarkup = renderer.renderHistory();
   expect(historyMarkup).toContain("data-medical-history-filter-form");
   expect(historyMarkup).toContain("data-medical-history-search");

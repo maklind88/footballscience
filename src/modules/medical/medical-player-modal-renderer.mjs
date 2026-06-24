@@ -42,6 +42,7 @@ export function createMedicalPlayerModalRenderer({
   renderMedicalPlayerProfileSummary,
   renderMedicalRecommendationPresets,
   renderMedicalRtpPhaseOptions,
+  getMedicalPlayerRtpCoachStatus = () => null,
   renderMedicalStatusOptions,
 } = {}) {
   const renderCoachSafeModal = (player, record, status) => {
@@ -102,6 +103,41 @@ ${getMedicalWindowDates()
 </div>
 </section>
 </div>
+`;
+  };
+
+  const renderCoachSafeRtpCard = (player) => {
+    if (!player) {
+      return ``;
+    }
+    const statusPayload = getMedicalPlayerRtpCoachStatus(player.id);
+    const statusCard = statusPayload?.statusCard;
+    if (!statusCard) {
+      return `
+<article class="medical-side-card">
+<div class="medical-card-headline">
+<h2>RTP Status</h2>
+<span>Coach-safe summary</span>
+</div>
+<div class="medical-empty-inline">No coach-safe RTP status is available for this player yet.</div>
+</article>
+`;
+    }
+    return `
+<article class="medical-side-card">
+<div class="medical-card-headline">
+<h2>RTP Status</h2>
+<span>Coach-safe summary</span>
+</div>
+<div class="medical-coach-safe-grid">
+<div><span>Train today</span><strong>${escapeHtml(String(statusCard.canTrainToday || "unknown"))}</strong></div>
+<div><span>Play next match</span><strong>${escapeHtml(String(statusCard.canPlayNextMatch || "unknown"))}</strong></div>
+<div><span>Risk</span><strong>${escapeHtml(String(statusCard.riskLevel || "unknown"))}</strong></div>
+<div><span>Minutes guidance</span><strong>${escapeHtml(String(statusCard.minutesGuidanceBand || "unknown"))}</strong></div>
+<div><span>Position readiness</span><strong>${escapeHtml(String(statusCard.positionReadinessBand || "unknown"))}</strong></div>
+<div><span>Next decision</span><strong>${escapeHtml(String(statusCard.nextDecisionPoint || "Next decision point to be posted after latest activity."))}</strong></div>
+</div>
+</article>
 `;
   };
 
@@ -396,6 +432,7 @@ ${renderMedicalActualParticipationOptions(record?.actualParticipation)}
 </div>
 </form>
 </article>
+${renderCoachSafeRtpCard(player)}
 <article class="medical-side-card medical-log-card">
 <div class="medical-card-headline">
 <h2>Medical Log</h2>

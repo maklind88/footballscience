@@ -13,6 +13,7 @@ export function createMedicalRuntimeWriteService(deps = {}) {
     getMedicalRecommendationActivityContext = () => ({ isRecommendable: true, type: "" }),
     getMedicalRemovedSquadPlayerIdSet = () => new Set(),
     getMedicalRtpPhaseOption = () => ({ key: "", label: "", status: "", participation: 0 }),
+    loadMedicalPlayerRtpCoachStatus = () => null,
     getMedicalState = () => null,
     getMedicalStatusForParticipation = () => "not-set",
     isDateValue = () => false,
@@ -368,6 +369,11 @@ export function createMedicalRuntimeWriteService(deps = {}) {
     setMedicalPlayerModalTab("availability");
     writeMedicalState();
     renderMedicalTeamWorkspace();
+
+    const statusLoad = loadMedicalPlayerRtpCoachStatus(playerId);
+    if (statusLoad && typeof statusLoad.finally === "function") {
+      statusLoad.finally(() => renderMedicalTeamWorkspace());
+    }
   }
 
   function closeMedicalPlayerModal(message = "") {

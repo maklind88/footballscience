@@ -86,6 +86,8 @@ const facadeNames = [
   "getMedicalReviewAlerts",
   "getMedicalCoachComment",
   "getMedicalVisibleComment",
+  "getMedicalPlayerRtpCoachStatus",
+  "loadMedicalPlayerRtpCoachStatus",
   "createMedicalRecordFromInjuryPlan",
   "getLatestMedicalRecord",
   "getMedicalPlayerRecords",

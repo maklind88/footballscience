@@ -7,9 +7,14 @@ export function createMedicalRuntimeFacade(deps = {}) {
   let activitySelectors = null;
   let operationsService = null;
   let writeService = null;
+  const rtpCoachStatusByPlayerId = new Map();
+  const rtpCoachStatusLoadInFlightByPlayerId = new Map();
 
   const getMedicalState = () => deps.getMedicalState?.() ?? null;
   const method = (service, methodName, ...args) => service?.[methodName]?.(...args);
+
+  const safeText = (value, fallback = "") => String(value || "").trim().slice(0, 200) || fallback;
+  const normalizePlayerId = (playerId) => safeText(playerId).trim();
 
   function getMedicalAccessLabel(...args) { return method(activitySelectors, "getMedicalAccessLabel", ...args); }
   function getMedicalHeroTeamName(...args) { return method(activitySelectors, "getMedicalHeroTeamName", ...args); }
@@ -46,6 +51,71 @@ export function createMedicalRuntimeFacade(deps = {}) {
   function clearMedicalInjuryPlanDraft(...args) { return method(activitySelectors, "clearMedicalInjuryPlanDraft", ...args); }
   function getMedicalInjuryPlanFormDraft(...args) { return method(activitySelectors, "getMedicalInjuryPlanFormDraft", ...args); }
   function persistMedicalInjuryPlanDraftFromForm(...args) { return method(activitySelectors, "persistMedicalInjuryPlanDraftFromForm", ...args); }
+
+  function getMedicalPlayerRtpCoachStatus(playerId = "") {
+    const normalizedPlayerId = normalizePlayerId(playerId);
+    if (!normalizedPlayerId) {
+      return null;
+    }
+    const entry = rtpCoachStatusByPlayerId.get(normalizedPlayerId);
+    return entry?.status || null;
+  }
+
+  async function loadMedicalPlayerRtpCoachStatus(playerId = "", options = {}) {
+    const normalizedPlayerId = normalizePlayerId(playerId);
+    const force = Boolean(options.force);
+    if (!normalizedPlayerId) {
+      return null;
+    }
+    if (!force) {
+      const cached = rtpCoachStatusByPlayerId.get(normalizedPlayerId);
+      if (cached?.status && Date.now() - cached.loadedAt < 60000) {
+        return cached.status;
+      }
+    }
+    const existingRequest = rtpCoachStatusLoadInFlightByPlayerId.get(normalizedPlayerId);
+    if (existingRequest) {
+      return existingRequest;
+    }
+
+    const token = await deps.getPlatformApiAccessToken?.();
+    if (!token || typeof deps.fetchRef !== "function") {
+      return null;
+    }
+
+    const request = (async () => {
+      try {
+        const response = await deps.fetchRef(
+          `/api/rtp?view=coach-player-status&playerId=${encodeURIComponent(normalizedPlayerId)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${safeText(token)}`,
+              "Content-Type": "application/json",
+            },
+            cache: "no-store",
+          }
+        );
+        if (!response.ok) {
+          return null;
+        }
+        const payload = await response.json().catch(() => null);
+        if (!payload || typeof payload !== "object") {
+          return null;
+        }
+        rtpCoachStatusByPlayerId.set(normalizedPlayerId, {
+          status: payload,
+          loadedAt: Date.now(),
+        });
+        return payload;
+      } catch {
+        return null;
+      } finally {
+        rtpCoachStatusLoadInFlightByPlayerId.delete(normalizedPlayerId);
+      }
+    })();
+    rtpCoachStatusLoadInFlightByPlayerId.set(normalizedPlayerId, request);
+    return request;
+  }
 
   activitySelectors = createMedicalRuntimeActivitySelectors({
     addCalendarDays: deps.addCalendarDays,
@@ -277,6 +347,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
     getMedicalRecommendationActivityContext, getMedicalRecommendationBlockReason, getMedicalRecommendationEvent,
     getMedicalRecordStatus, getMedicalReviewAlerts, getMedicalRiskSignals, getMedicalRosterPositionGroups,
     getMedicalRosterPositionStats, getMedicalScheduleSummary, getMedicalSeasonPlans, getMedicalSeasonSummary,
+    getMedicalPlayerRtpCoachStatus, loadMedicalPlayerRtpCoachStatus,
     getMedicalTrailingRecommendationSummary, getMedicalValidBulkSelection, getMedicalVisibleComment,
     getMedicalWindowAverage, getMedicalWindowDates, isMedicalInjuryPlanActive, isMedicalPlanCleared,
     getSelectedMedicalPlayer, isMedicalPlayerVisibleForDate, isMedicalRestrictedRecommendationRecord, normalizeMedicalInjuryPlanDraft,

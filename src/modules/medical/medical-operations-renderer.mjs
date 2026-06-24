@@ -18,8 +18,10 @@ export function createMedicalOperationsRenderer({
   getMedicalRtpPhaseOption,
   medicalClearanceRoles = [],
   medicalLoadGateOptions = [],
+  getMedicalPlayerRtpCoachStatus = () => null,
   renderMedicalCoachHandoverPanel,
   renderMedicalDailyHuddle,
+  getSelectedMedicalPlayer = () => null,
 } = {}) {
   const renderOpsStat = (label, value, meta = "", tone = "") => `
 <article class="medical-ops-stat${tone ? ` medical-ops-stat-${escapeHtml(tone)}` : ""}">
@@ -258,6 +260,7 @@ ${summary.activeCases.length
 `;
 
   const renderRtpLibrary = (summary) => {
+    const selectedPlayer = getSelectedMedicalPlayer();
     const phaseBuckets = summary.activeCases.reduce((acc, item) => {
       const phase = getMedicalRtpPhaseOption(item.plan.rtpPhase)?.label ?? "No RTP phase";
       acc[phase] = (acc[phase] ?? 0) + 1;
@@ -271,11 +274,33 @@ ${summary.activeCases.length
     const topSignals = summary.signals
       .filter((signal) => signal.activePlan || signal.record?.participation < 100)
       .slice(0, 6);
+
+    const renderStatusRow = (statusCard = {}) => {
+      const canTrain = String(statusCard.canTrainToday || "unknown");
+      const canPlay = String(statusCard.canPlayNextMatch || "unknown");
+      const riskLevel = String(statusCard.riskLevel || "unknown");
+      const minutesGuidanceBand = String(statusCard.minutesGuidanceBand || "unknown");
+      const positionReadinessBand = String(statusCard.positionReadinessBand || "unknown");
+      const nextDecisionPoint = String(statusCard.nextDecisionPoint || "No active decision point available.");
+      return `
+<div class="medical-ops-signal-list">
+  <div class="medical-ops-signal-row"><span>Train today</span><strong>${escapeHtml(canTrain)}</strong></div>
+  <div class="medical-ops-signal-row"><span>Play next match</span><strong>${escapeHtml(canPlay)}</strong></div>
+  <div class="medical-ops-signal-row"><span>Risk</span><strong>${escapeHtml(riskLevel)}</strong></div>
+  <div class="medical-ops-signal-row"><span>Minutes guidance</span><strong>${escapeHtml(minutesGuidanceBand)}</strong></div>
+  <div class="medical-ops-signal-row"><span>Position readiness</span><strong>${escapeHtml(positionReadinessBand)}</strong></div>
+  <p class="medical-empty-inline">${escapeHtml(nextDecisionPoint)}</p>
+</div>
+`;
+    };
+
+    const selectedPlayerStatus = selectedPlayer ? getMedicalPlayerRtpCoachStatus(selectedPlayer.id) : null;
+    const selectedStatus = selectedPlayerStatus?.statusCard;
     return `
 <div class="medical-ops-season">
 <article class="medical-ops-card">
 <div class="medical-command-head">
-<span>RTP Library & Progression Readiness</span>
+<span>RTP Library</span>
 <strong>${summary.activeCases.length}</strong>
 </div>
 <div class="medical-ops-signal-list">
@@ -292,8 +317,21 @@ ${Object.keys(phaseBuckets).length
 </article>
 <article class="medical-ops-card">
 <div class="medical-command-head">
-<span>Clinical Priority</span>
-<strong>${summary.actionRequired}</strong>
+<span>Coach-Safe RTP Status</span>
+<strong>${selectedPlayer ? escapeHtml(selectedPlayer.name) : "No selection"}</strong>
+</div>
+<div class="medical-ops-signal-list">
+${selectedPlayer
+  ? selectedStatus
+    ? renderStatusRow(selectedStatus)
+    : `<div class="medical-empty-inline">No coach-safe RTP status is available for ${escapeHtml(selectedPlayer.name)} yet.</div>`
+  : `<div class="medical-empty-inline">Select a player in Medical Roster to load coach-safe RTP status.</div>`}
+</div>
+</article>
+<article class="medical-ops-card">
+<div class="medical-command-head">
+<span>Top RTP Signals</span>
+<strong>${topSignals.length}</strong>
 </div>
 <div class="medical-ops-signal-list">
 ${topSignals.length
@@ -309,17 +347,7 @@ ${topSignals.length
 </button>`;
       })
       .join("")
-  : `<div class="medical-empty-inline">No priority RTP signal currently requires review.</div>`}
-</div>
-</article>
-<article class="medical-ops-card">
-<div class="medical-command-head">
-<span>Team Notes</span>
-<strong>Read-only</strong>
-</div>
-<div class="medical-ops-signal-list">
-<p>Use RTP Library profiles as the reference, then apply the current case status from Active Cases and the trend from Signals.</p>
-<p>For coaches: use this room for summary context only. Exact load decisions remain in Performance flow.</p>
+  : `<div class="medical-empty-inline">No RTP signal currently requires review.</div>`}
 </div>
 </article>
 </div>

@@ -92,6 +92,8 @@ export function getMedicalRecommendationBlockReason(...args) { return callFacade
 export function getMedicalReviewAlerts(...args) { return callFacade("getMedicalReviewAlerts", args); }
 export function getMedicalCoachComment(...args) { return callFacade("getMedicalCoachComment", args); }
 export function getMedicalVisibleComment(...args) { return callFacade("getMedicalVisibleComment", args); }
+export function getMedicalPlayerRtpCoachStatus(...args) { return callFacade("getMedicalPlayerRtpCoachStatus", args); }
+export function loadMedicalPlayerRtpCoachStatus(...args) { return callFacade("loadMedicalPlayerRtpCoachStatus", args); }
 export function createMedicalRecordFromInjuryPlan(...args) { return callFacade("createMedicalRecordFromInjuryPlan", args); }
 export function getLatestMedicalRecord(...args) { return callFacade("getLatestMedicalRecord", args); }
 export function getMedicalPlayerRecords(...args) { return callFacade("getMedicalPlayerRecords", args); }

@@ -54,6 +54,7 @@ export function createMedicalRuntimeRenderers(deps = {}) {
     getMedicalPlanReviewState,
     getMedicalPlanSeverity,
     getMedicalPlanTotalDays,
+    getMedicalPlayerRtpCoachStatus,
     getMedicalPlayerInjuryPlans,
     getMedicalPlayerModalOpen,
     getMedicalPlayerModalTab,
@@ -241,7 +242,8 @@ export function createMedicalRuntimeRenderers(deps = {}) {
     medicalClearanceRoles,
     medicalLoadGateOptions,
     renderMedicalCoachHandoverPanel: () => medicalCommandRenderer.renderCoachHandoverPanel(),
-    renderMedicalDailyHuddle: () => medicalCommandRenderer.renderDailyHuddle(),
+  renderMedicalDailyHuddle: () => medicalCommandRenderer.renderDailyHuddle(),
+    getMedicalPlayerRtpCoachStatus,
   });
   medicalCommandRenderer = createMedicalCommandRenderer({
     escapeHtml,
@@ -395,6 +397,7 @@ export function createMedicalRuntimeRenderers(deps = {}) {
     getMedicalStatusOptionForDate,
     getMedicalWindowDates,
     getMedicalPlayerRestrictedLogRecords,
+    getMedicalPlayerRtpCoachStatus,
     getPlayerModalOpen: getMedicalPlayerModalOpen,
     getPlayerModalTab: getMedicalPlayerModalTab,
     getSelectedDate,

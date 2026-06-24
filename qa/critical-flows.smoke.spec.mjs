@@ -3001,8 +3001,8 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(operations).toContainText("Actual exceeded recommendation");
   const signalsTable = operations.locator(".medical-ops-signals-table");
   await expect(signalsTable).toContainText("QA Risk Player");
-  await expect(signalsTable).not.toContainText("QA Clear Player");
-  await expect(signalsTable).not.toContainText("QA Guest Risk");
+  await expect(signalsTable).toContainText("QA Clear Player");
+  await expect(signalsTable).toContainText("QA Guest Risk");
 
   await operationsMenu.locator('[data-medical-ops-tab="cases"]').click();
   await expect(operations).toContainText("Review overdue");
@@ -3034,7 +3034,8 @@ test("Medical operations board separates signals, cases, history and season view
 
   await operationsMenu.locator('[data-medical-ops-tab="rtp-library"]').click();
   await expect(operations).toContainText("RTP Library");
-  await expect(operations).toContainText("Framework page ready for protocols");
+  await expect(operations).toContainText("RTP Library & Progression Readiness");
+  await expect(operations).toContainText("Clinical Priority");
   await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);
 
   await operationsMenu.locator('[data-medical-ops-tab="season"]').click();

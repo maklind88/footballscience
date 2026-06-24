@@ -32,7 +32,14 @@ test("Medical options expose stable availability, RTP, and roster constants", ()
   expect(medicalActualParticipationFallback).toBe("not-logged");
   expect(medicalWindowLength).toBe(7);
   expect(medicalDefaultRosterVersion).toBe("ncc-2026-roster-v1");
-  expect(medicalOperationsTabOptions.map((tab) => tab.key)).toEqual(["availability", "signals", "cases", "history", "rtp-library", "season"]);
+  expect(medicalOperationsTabOptions.map((tab) => tab.key)).toEqual([
+    "availability",
+    "signals",
+    "cases",
+    "history",
+    "rtp-library",
+    "season",
+  ]);
   expect(medicalPlayerModalTabOptions.map((tab) => tab.key)).toContain("plan");
   expect(medicalDataSafetySyncStatusOptions.has("failed")).toBe(true);
   expect(medicalPositionOrder.Goalkeeper).toBeLessThan(medicalPositionOrder.Forward);

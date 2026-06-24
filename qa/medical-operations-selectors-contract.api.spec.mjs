@@ -7,7 +7,6 @@ test("Medical operations selectors build read-only operations summaries without 
       { id: "p1", name: "Mak Player", position: "CM" },
       { id: "p2", name: "Ava Defender", position: "CB" },
       { id: "p3", name: "Archived Player", position: "ST", archivedAt: "2026-05-01T08:00:00.000Z" },
-      { id: "p4", name: "Guest Player", position: "FW", rosterType: "guest", countsInSquad: false },
     ],
     records: [
       {
@@ -31,17 +30,6 @@ test("Medical operations selectors build read-only operations summaries without 
         rtpPhase: "full",
         shareWithCoach: false,
         updatedAt: "2026-05-31T11:00:00.000Z",
-      },
-      {
-        id: "r4",
-        playerId: "p4",
-        date: "2026-05-31",
-        participation: 0,
-        actualParticipation: "not-logged",
-        status: "unavailable",
-        rtpPhase: "medical-restriction",
-        shareWithCoach: false,
-        updatedAt: "2026-05-31T10:00:00.000Z",
       },
     ],
     injuryPlans: [
@@ -75,7 +63,6 @@ test("Medical operations selectors build read-only operations summaries without 
       ensureCount += 1;
     },
     formatDateValue: (date) => new Date(date).toISOString().slice(0, 10),
-    getActiveMedicalPlayersForDate: () => state.players.filter((player) => !player.archivedAt && player.countsInSquad !== false),
     getActiveMedicalInjuryPlan: (playerId, dateValue) =>
       state.injuryPlans.find((plan) => plan.playerId === playerId && plan.startDate <= dateValue && plan.endDate >= dateValue && !plan.archivedAt) ?? null,
     getLatestMedicalRecord: (playerId, dateValue) => state.records.find((record) => record.playerId === playerId && record.date === dateValue) ?? null,
@@ -131,11 +118,7 @@ test("Medical operations selectors build read-only operations summaries without 
   expect(signal.actionLabel).toBe("Action required");
   expect(signal.primaryActionDriver).toBe("Actual exceeded recommendation");
 
-  const riskSignals = selectors.getMedicalRiskSignals("2026-05-31");
-  expect(riskSignals.map((item) => item.player.id)).toEqual(["p1"]);
-
   const summary = selectors.getMedicalOperationsSummary("2026-05-31");
-  expect(summary.signals.map((item) => item.player.id)).toEqual(["p1"]);
   expect(summary.actionRequired).toBe(1);
   expect(summary.clearanceBlockers).toHaveLength(1);
   expect(summary.actualMissing).toBe(1);

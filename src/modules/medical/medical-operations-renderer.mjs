@@ -195,7 +195,7 @@ ${summary.activeCases.length
 `
       )
       .join("")
-  : `<div class="medical-empty-inline">No active availability plans today.</div>`}
+  : `<div class="medical-empty-inline">No active clinical cases today.</div>`}
 </div>
 </article>
 </div>
@@ -212,13 +212,11 @@ ${summary.activeCases.length
 <span>Action</span>
 </div>
 ${summary.signals
-  .length
-  ? summary.signals
-      .map((signal) => {
-        const planLabel = signal.activePlan
-          ? `${signal.activePlan.injuryType} / ${getMedicalRtpPhaseOption(signal.activePlan.rtpPhase).label}`
-          : "No active case";
-        return `
+  .map((signal) => {
+    const planLabel = signal.activePlan
+      ? `${signal.activePlan.injuryType} / ${getMedicalRtpPhaseOption(signal.activePlan.rtpPhase).label}`
+      : "No active case";
+    return `
 <button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-table-row medical-ops-tone-${escapeHtml(signal.tone)}">
 <span>${escapeHtml(signal.player.name)}<small>${escapeHtml(signal.player.position || "Position")}</small></span>
 <strong>${signal.record ? `${signal.record.participation}%` : "Not set"}<small>${escapeHtml(signal.status.label)}</small></strong>
@@ -227,9 +225,8 @@ ${summary.signals
 <strong>${escapeHtml(signal.actionSeverity ? signal.actionLabel : signal.label)}<small>${escapeHtml(signal.actionSeverity ? signal.primaryActionDriver : "No action")}</small></strong>
 </button>
 `;
-      })
-      .join("")
-  : `<div class="medical-empty-inline">No risk signals for current squad players.</div>`}
+  })
+  .join("")}
 </div>
 `;
 
@@ -256,9 +253,78 @@ ${summary.activeCases.length
 `
       )
       .join("")
-  : `<div class="medical-empty-inline">No active availability plans today.</div>`}
+  : `<div class="medical-empty-inline">No active clinical cases today.</div>`}
 </div>
 `;
+
+  const renderRtpLibrary = (summary) => {
+    const phaseBuckets = summary.activeCases.reduce((acc, item) => {
+      const phase = getMedicalRtpPhaseOption(item.plan.rtpPhase)?.label ?? "No RTP phase";
+      acc[phase] = (acc[phase] ?? 0) + 1;
+      return acc;
+    }, {});
+    const libraryStatusText =
+      summary.activeCases.length === 0
+        ? "No active RTP cases. Start with the Risk Signals or Active Cases tabs for player-level action."
+        : "Active RTP cases are grouped by phase so staff can apply position-relevant progression guidance.";
+
+    const topSignals = summary.signals
+      .filter((signal) => signal.activePlan || signal.record?.participation < 100)
+      .slice(0, 6);
+    return `
+<div class="medical-ops-season">
+<article class="medical-ops-card">
+<div class="medical-command-head">
+<span>RTP Library & Progression Readiness</span>
+<strong>${summary.activeCases.length}</strong>
+</div>
+<div class="medical-ops-signal-list">
+<p>${escapeHtml(libraryStatusText)}</p>
+${Object.keys(phaseBuckets).length
+  ? Object.entries(phaseBuckets)
+      .map(
+        ([phase, count]) =>
+          `<div class="medical-ops-signal-row"><span>${escapeHtml(phase)}</span><strong>${String(count)} active case${count === 1 ? "" : "s"}</strong></div>`
+      )
+      .join("")
+  : `<div class="medical-empty-inline">No RTP phase signal yet.</div>`}
+</div>
+</article>
+<article class="medical-ops-card">
+<div class="medical-command-head">
+<span>Clinical Priority</span>
+<strong>${summary.actionRequired}</strong>
+</div>
+<div class="medical-ops-signal-list">
+${topSignals.length
+  ? topSignals
+      .map((signal) => {
+        const caseLabel = signal.activePlan
+          ? `${signal.activePlan.injuryType} / ${getMedicalRtpPhaseOption(signal.activePlan.rtpPhase).label}`
+          : "No active case";
+        return `<button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-signal-row medical-ops-tone-${escapeHtml(signal.tone)}">
+  <span>${escapeHtml(signal.player.name)}<small>${escapeHtml(signal.player.position || "Position")}</small></span>
+  <strong>${escapeHtml(signal.label)}<small>${escapeHtml(caseLabel)}</small></strong>
+  <strong>${escapeHtml(signal.actionLabel)}<small>${escapeHtml(signal.primaryActionDriver)}</small></strong>
+</button>`;
+      })
+      .join("")
+  : `<div class="medical-empty-inline">No priority RTP signal currently requires review.</div>`}
+</div>
+</article>
+<article class="medical-ops-card">
+<div class="medical-command-head">
+<span>Team Notes</span>
+<strong>Read-only</strong>
+</div>
+<div class="medical-ops-signal-list">
+<p>Use RTP Library profiles as the reference, then apply the current case status from Active Cases and the trend from Signals.</p>
+<p>For coaches: use this room for summary context only. Exact load decisions remain in Performance flow.</p>
+</div>
+</article>
+</div>
+`;
+  };
 
   const normalizeHistoryFilterText = (value) =>
     String(value ?? "")
@@ -371,24 +437,6 @@ ${events.length
 `;
   };
 
-  const renderRtpLibrary = () => `
-<section class="medical-ops-library" aria-label="RTP Library">
-<article class="medical-ops-card">
-<div class="medical-command-head">
-<span>RTP Library</span>
-<strong>Ready</strong>
-</div>
-<div class="medical-empty-inline">Framework page ready for protocols, phase definitions, testing gates, clearance rules, and sport-specific progressions.</div>
-</article>
-<div class="medical-ops-stats">
-${renderOpsStat("Protocols", "Ready", "structure only", "clear")}
-${renderOpsStat("Phases", "5", "medical to match", "low")}
-${renderOpsStat("Gates", "Pending", "testing library", "medium")}
-${renderOpsStat("Templates", "Pending", "injury pathways", "medium")}
-</div>
-</section>
-`;
-
   const renderSeason = (summary) => {
     const season = summary.season;
     return `
@@ -470,7 +518,7 @@ ${renderOpsStat("Coach notes", String(items.length), "approved", items.length ? 
               ? renderRtpLibrary(summary)
               : activeTab === "season"
                 ? renderSeason(summary)
-                : renderSignals(summary);
+              : renderSignals(summary);
     return `
 <section class="medical-operations-system" data-medical-operations-system aria-label="Medical operations intelligence board">
 ${body}
@@ -487,8 +535,8 @@ ${body}
     renderPlayerAvailability,
     renderSignals,
     renderCases,
-    renderHistory,
     renderRtpLibrary,
+    renderHistory,
     renderSeason,
     renderCoachSafeSummary,
     renderPrivateSystem,

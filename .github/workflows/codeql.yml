@@ -18,7 +18,28 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v6
+      - name: Check code scanning enablement
+        id: code_scanning
+        run: |
+          set -euo pipefail
+          repository_payload=$(curl -sSf -H "Authorization: Bearer ${{ github.token }}" -H "Accept: application/vnd.github+json" https://api.github.com/repos/${{ github.repository }})
+          code_scanning_status=$(echo "$repository_payload" | jq -r '.security_and_analysis.code_scanning.status // "disabled"')
+          echo "Code scanning status: ${code_scanning_status}"
+          if [ "$code_scanning_status" = "enabled" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: github/codeql-action/init@v4
+        if: steps.code_scanning.outputs.enabled == 'true'
         with:
           languages: javascript-typescript
+
       - uses: github/codeql-action/analyze@v4
+        if: steps.code_scanning.outputs.enabled == 'true'
+
+      - name: Skip CodeQL analysis when code scanning is not enabled
+        if: steps.code_scanning.outputs.enabled == 'false'
+        run: |
+          echo "Code scanning is currently disabled for this repository, skipping CodeQL analyze."

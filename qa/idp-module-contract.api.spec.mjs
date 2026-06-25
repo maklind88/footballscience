@@ -81,6 +81,8 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(databaseSource).toContain("insertAuditEvent");
   expect(databaseSource).toContain("OPTIONAL_MIGRATION_TABLES");
   expect(databaseSource).toContain("isMissingOptionalTable");
+  expect(databaseSource).toContain("normalizeBoardLineStyle");
+  expect(databaseSource).toContain("lineWidth");
   expect(migration).toContain("create table if not exists public.idp_development_interventions");
   expect(migration).toContain("board_state jsonb");
   expect(migration).toContain("alter table public.idp_development_interventions enable row level security");
@@ -90,9 +92,13 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("data-idp-player-board-open");
   expect(playerBoardRenderer).toContain("data-idp-save-intervention");
   expect(playerBoardRenderer).toContain("data-idp-board-tool");
+  expect(playerBoardRenderer).toContain("data-idp-board-tool=\"run\"");
+  expect(playerBoardRenderer).toContain("data-idp-board-tool=\"cone\"");
+  expect(playerBoardRenderer).toContain("data-idp-board-color-choice");
   expect(playerBoardRenderer).toContain("data-idp-board-editor-pitch");
   expect(idpRuntime).toContain("applyBoardPitchPoint");
   expect(idpRuntime).toContain("selectBoardTool");
+  expect(idpRuntime).toContain("setBoardArrowPreset");
   expect(playerBoardRenderer).not.toContain("data-session-");
 });
 
@@ -304,9 +310,13 @@ test("idp renderer separates the overview from the player development profile", 
   expect(boardHtml).toContain("data-idp-save-intervention");
   expect(boardHtml).toContain("data-idp-board-editor-pitch");
   expect(boardHtml).toContain("data-idp-board-tool=\"player\"");
-  expect(boardHtml).toContain("data-idp-board-tool=\"arrow\"");
-  expect(boardHtml).toContain("Move Player");
-  expect(boardHtml).toContain("Arrow / Run");
+  expect(boardHtml).toContain("data-idp-board-tool=\"run\"");
+  expect(boardHtml).toContain("data-idp-board-tool=\"pass\"");
+  expect(boardHtml).toContain("data-idp-board-tool=\"cone\"");
+  expect(boardHtml).toContain("idp-player-board-toolbox");
+  expect(boardHtml).toContain("idp-player-board-canvas-wrap");
+  expect(boardHtml).toContain("idp-player-board-inspector");
+  expect(boardHtml).toContain("Movement colour");
   expect(boardHtml).toContain("Linked clip ids");
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, staffOptions)).toContain("data-idp-complete-review");
 });
@@ -542,10 +552,20 @@ test("idp individual exercise save and archive stay behind the server boundary",
     ["zoneWidth", "32"],
     ["zoneHeight", "28"],
     ["arrowLabel", "Attack ball"],
+    ["arrowType", "run"],
+    ["arrowColor", "#38bdf8"],
+    ["arrowLineStyle", "dashed"],
+    ["arrowLineWidth", "3.25"],
     ["arrowFromX", "50"],
     ["arrowFromY", "82"],
     ["arrowToX", "58"],
     ["arrowToY", "42"],
+    ["cone1X", "44"],
+    ["cone1Y", "60"],
+    ["cone2X", "56"],
+    ["cone2Y", "60"],
+    ["cone3X", "50"],
+    ["cone3Y", "44"],
     ["noteText", "Start from match cue."],
     ["noteX", "12"],
     ["noteY", "14"],
@@ -566,6 +586,12 @@ test("idp individual exercise save and archive stay behind the server boundary",
   });
   expect(updatePayloads[0].boardState).toMatchObject({
     player: { x: 50, y: 82 },
+    cones: [
+      { id: "cone-1", x: 44, y: 60 },
+      { id: "cone-2", x: 56, y: 60 },
+      { id: "cone-3", x: 50, y: 44 },
+    ],
+    arrows: [{ type: "run", color: "#38bdf8", lineStyle: "dashed", lineWidth: 3.25 }],
     linkedClipIds: ["clip-1", "clip-2"],
   });
   expect(archivePayloads[0]).toMatchObject({ id: "intervention-1", playerId: "p1", rowVersion: 3 });

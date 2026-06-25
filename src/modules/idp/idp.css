@@ -3202,6 +3202,415 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   margin-right: auto;
 }
 
+.idp-player-board-modal .idp-player-board-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.idp-player-board-modal .idp-player-board-status-strip span {
+  align-items: center;
+  background: #f2f7f6;
+  border: 1px solid rgba(16, 24, 40, .08);
+  border-radius: 999px;
+  color: #344054;
+  display: inline-flex;
+  font-size: .68rem;
+  font-weight: 850;
+  min-height: 24px;
+  padding: 0 9px;
+  text-transform: none;
+}
+
+.idp-player-board-modal-layout.is-tactical-style {
+  background: #eef2f6;
+  gap: 10px;
+  grid-template-columns: minmax(240px, 290px) minmax(420px, 1fr) minmax(300px, 360px);
+  padding: 10px;
+}
+
+.idp-player-board-toolbox,
+.idp-player-board-canvas-wrap,
+.idp-player-board-inspector {
+  min-height: 0;
+  overflow: auto;
+}
+
+.idp-player-board-toolbox,
+.idp-player-board-inspector {
+  background: rgba(255, 255, 255, .92);
+  border: 1px solid rgba(16, 24, 40, .08);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .82);
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.idp-player-board-toolbox .idp-player-board-tools {
+  display: grid;
+  left: auto;
+  position: static;
+  top: auto;
+  z-index: auto;
+}
+
+.idp-player-board-toolbox {
+  align-content: start;
+}
+
+.idp-player-board-editor-bank,
+.idp-player-board-tools,
+.idp-player-board-settings,
+.idp-player-board-editor-group {
+  background: rgba(248, 250, 252, .78);
+  border: 1px solid rgba(16, 24, 40, .08);
+  border-radius: 14px;
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+}
+
+.idp-player-board-toolbox .idp-player-board-bank-item {
+  background: #fff;
+  border-color: rgba(16, 24, 40, .1);
+  color: #101828;
+}
+
+.idp-player-board-toolbox .idp-player-board-bank-item.is-current {
+  background: #e8f7f5;
+  border-color: rgba(15, 118, 110, .22);
+  color: #0f3f3f;
+}
+
+.idp-player-board-toolbox .idp-player-board-bank-copy strong {
+  color: #101828;
+}
+
+.idp-player-board-toolbox .idp-player-board-bank-copy small {
+  color: #667085;
+}
+
+.idp-player-board-toolbox .idp-player-board-bank-number {
+  background: #eef4f6;
+  color: #0f3f3f;
+}
+
+.idp-player-board-editor-panel-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.idp-player-board-editor-panel-head span,
+.idp-player-board-tool-group > span {
+  color: #667085;
+  font-size: .64rem;
+  font-weight: 950;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.idp-player-board-editor-panel-head small {
+  color: #667085;
+  font-size: .68rem;
+  font-weight: 820;
+}
+
+.idp-player-board-tool-group {
+  display: grid;
+  gap: 5px;
+}
+
+.idp-player-board-tool-row {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.idp-player-board-tool-button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid rgba(16, 24, 40, .1);
+  border-radius: 12px;
+  color: #344054;
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 42px;
+  padding: 7px 8px;
+  text-align: left;
+  transition: background .14s ease, border-color .14s ease, box-shadow .14s ease, transform .14s ease;
+}
+
+.idp-player-board-tool-button:hover,
+.idp-player-board-tool-button:focus-visible {
+  border-color: rgba(15, 118, 110, .24);
+  box-shadow: 0 10px 22px rgba(16, 24, 40, .08);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.idp-player-board-tool-button.is-active {
+  background: #101828;
+  border-color: #101828;
+  box-shadow: 0 12px 28px rgba(16, 24, 40, .18);
+  color: #fff;
+}
+
+.idp-player-board-tool-icon {
+  align-items: center;
+  background: rgba(16, 24, 40, .07);
+  border-radius: 9px;
+  display: inline-flex;
+  font-size: .62rem;
+  font-weight: 950;
+  height: 24px;
+  justify-content: center;
+  width: 27px;
+}
+
+.idp-player-board-tool-button.is-active .idp-player-board-tool-icon {
+  background: rgba(255, 255, 255, .16);
+}
+
+.idp-player-board-tool-label {
+  font-size: .72rem;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-board-canvas-wrap {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(20, 184, 166, .1), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, .94), rgba(248, 250, 252, .9));
+  border: 1px solid rgba(16, 24, 40, .09);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 18px 42px rgba(16, 24, 40, .12);
+  display: grid;
+  gap: 10px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: 10px;
+}
+
+.idp-player-board-editor-framebar {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.idp-player-board-editor-framebar span {
+  color: #667085;
+  font-size: .66rem;
+  font-weight: 950;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.idp-player-board-editor-framebar div {
+  display: flex;
+  gap: 5px;
+}
+
+.idp-player-board-editor-framebar button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid rgba(16, 24, 40, .1);
+  border-radius: 999px;
+  color: #344054;
+  display: inline-flex;
+  font-size: .68rem;
+  font-weight: 950;
+  height: 26px;
+  justify-content: center;
+  min-width: 30px;
+}
+
+.idp-player-board-editor-framebar button.is-active {
+  background: #101828;
+  border-color: #101828;
+  color: #fff;
+}
+
+.idp-player-board-canvas-wrap .idp-player-board-editor-stage {
+  align-items: center;
+  background:
+    linear-gradient(180deg, rgba(16, 24, 40, .08), rgba(16, 24, 40, .03)),
+    #e8edf3;
+  border: 1px solid rgba(16, 24, 40, .08);
+  border-radius: 16px;
+  display: grid;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+
+.idp-player-board-canvas-wrap .idp-player-board-pitch {
+  aspect-ratio: 4 / 3;
+  height: clamp(320px, 54vh, 500px);
+  justify-self: center;
+  max-height: 100%;
+  max-width: 100%;
+  min-height: 0;
+  width: min(100%, 760px);
+}
+
+.idp-player-board-canvas-wrap .idp-player-board-pitch.is-box {
+  aspect-ratio: 1.05 / 1;
+  height: clamp(320px, 54vh, 460px);
+  width: min(100%, 620px);
+}
+
+.idp-player-board-editor-hint {
+  align-items: center;
+  background: rgba(16, 24, 40, .06);
+  border: 1px solid rgba(16, 24, 40, .08);
+  border-radius: 12px;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+.idp-player-board-editor-hint strong {
+  color: #101828;
+  font-size: .78rem;
+  font-weight: 950;
+}
+
+.idp-player-board-editor-hint span {
+  color: #667085;
+  font-size: .72rem;
+  font-weight: 760;
+  text-align: right;
+}
+
+.idp-player-board-inspector {
+  align-content: start;
+  border-left: 1px solid rgba(16, 24, 40, .08);
+}
+
+.idp-player-board-settings {
+  background: linear-gradient(180deg, #f8fafc, #fff);
+}
+
+.idp-player-board-settings label {
+  display: grid;
+  gap: 5px;
+}
+
+.idp-player-board-color-row {
+  display: grid;
+  gap: 6px;
+}
+
+.idp-player-board-color-row input[type="color"] {
+  height: 34px;
+  min-height: 34px;
+  padding: 3px;
+}
+
+.idp-player-board-color-swatches {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.idp-player-board-color-swatch {
+  background: var(--idp-board-swatch);
+  border: 1px solid rgba(16, 24, 40, .16);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .72);
+  cursor: pointer;
+  height: 23px;
+  min-height: 23px;
+  padding: 0;
+}
+
+.idp-player-board-color-swatch.is-active {
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, .22), inset 0 0 0 2px #fff;
+}
+
+.idp-player-board-inspector .idp-player-board-editor-group {
+  border-top: 0;
+}
+
+.idp-player-board-inspector .idp-player-board-editor-group > strong {
+  color: #475467;
+}
+
+.idp-player-board-inspector .idp-player-board-form-grid {
+  gap: 7px;
+}
+
+.idp-player-board-inspector footer {
+  background: rgba(255, 255, 255, .9);
+  bottom: -10px;
+  margin: 0 -10px -10px;
+  padding: 10px;
+  position: sticky;
+}
+
+.idp-player-board-arrow-layer path[data-idp-board-arrow-type] {
+  fill: none;
+  stroke: #38bdf8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.5;
+}
+
+.idp-player-board-arrow-layer path[data-idp-board-arrow-type="run"] {
+  stroke-dasharray: 7 4;
+}
+
+.idp-player-board-arrow-layer line[data-idp-board-arrow-type="pass"] {
+  stroke-dasharray: 1 5;
+}
+
+@media (max-width: 1100px) {
+  .idp-player-board-modal-layout.is-tactical-style {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+
+  .idp-player-board-toolbox,
+  .idp-player-board-inspector {
+    max-height: none;
+  }
+
+  .idp-player-board-canvas-wrap .idp-player-board-pitch {
+    min-height: 360px;
+  }
+}
+
+@media (max-width: 680px) {
+  .idp-player-board-layer {
+    padding: 0;
+  }
+
+  .idp-player-board-modal {
+    border-radius: 0;
+    max-height: 100vh;
+    max-width: 100vw;
+  }
+
+  .idp-player-board-tool-row,
+  .idp-player-board-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .idp-player-board-canvas-wrap .idp-player-board-pitch {
+    min-height: 300px;
+  }
+}
+
 .idp-pulse-orb,
 .idp-next-decision,
 .idp-latest-signal {
@@ -5523,5 +5932,522 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   .idp-stream-actions {
     opacity: .78;
     pointer-events: auto;
+  }
+}
+
+.idp-player-board-panel {
+  border-radius: 14px;
+  gap: 12px;
+  padding: 12px;
+}
+
+.idp-player-board-panel .idp-player-board-head {
+  align-items: start;
+}
+
+.idp-player-board-preview .idp-player-board-surface {
+  border-radius: 14px;
+  gap: 9px;
+}
+
+.idp-player-board-preview .idp-player-board-canvas {
+  min-height: 0;
+  padding-left: 34px;
+}
+
+.idp-player-board-preview .idp-player-board-pitch {
+  height: clamp(260px, 22vw, 340px);
+}
+
+.idp-player-board-preview .idp-player-board-pitch.is-box {
+  height: clamp(248px, 21vw, 320px);
+}
+
+.idp-player-board-tool-rail {
+  align-content: start;
+  background: rgba(2, 8, 23, .62);
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 10px;
+  display: grid;
+  gap: 6px;
+  left: 0;
+  padding: 6px;
+  position: absolute;
+  top: 0;
+  width: 28px;
+  z-index: 8;
+}
+
+.idp-player-board-tool-rail span {
+  align-items: center;
+  background: rgba(255, 255, 255, .1);
+  border-radius: 7px;
+  color: rgba(226, 232, 240, .86);
+  display: inline-flex;
+  font-size: .48rem;
+  font-weight: 950;
+  height: 25px;
+  justify-content: center;
+}
+
+.idp-player-board-modal {
+  background: #f5f7fb;
+  border-color: rgba(17, 24, 39, .1);
+  border-radius: 28px;
+  height: min(94vh, 980px);
+  max-height: min(94vh, 980px);
+  max-width: min(96vw, 1680px);
+  width: min(96vw, 1680px);
+}
+
+.idp-player-board-modal-head {
+  background: rgba(255, 255, 255, .86);
+  padding: 14px 16px;
+}
+
+.idp-player-board-modal-head h2 {
+  font-size: 1.35rem;
+}
+
+.idp-player-board-modal .idp-player-board-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.idp-player-board-modal .idp-player-board-status-strip span {
+  background: #eef5f8;
+  border: 1px solid rgba(17, 24, 39, .08);
+  border-radius: 999px;
+  color: #20313f;
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.idp-player-board-modal-layout {
+  background: #edf1f6;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(176px, 240px) minmax(520px, 1fr) minmax(288px, 360px);
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.idp-player-board-modal-layout > * {
+  min-height: 0;
+}
+
+.idp-player-board-toolbox,
+.idp-player-board-canvas-wrap,
+.idp-player-board-inspector {
+  border: 1px solid rgba(17, 24, 39, .08);
+  border-radius: 22px;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.idp-player-board-toolbox,
+.idp-player-board-inspector {
+  background: rgba(255, 255, 255, .78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7);
+  padding: 12px;
+}
+
+.idp-player-board-toolbox {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.idp-player-board-toolbox .idp-player-board-library {
+  border: 0;
+  display: grid;
+  gap: 7px;
+  overflow: visible;
+  padding: 0;
+}
+
+.idp-player-board-toolbox .idp-player-board-library button {
+  border-radius: 16px;
+  min-height: 50px;
+}
+
+.idp-player-board-modal .idp-player-board-tools {
+  display: grid;
+  gap: 10px;
+  left: auto;
+  position: static;
+  top: auto;
+}
+
+.idp-player-board-tool-group {
+  background: rgba(255, 255, 255, .7);
+  border: 1px solid rgba(17, 24, 39, .06);
+  border-radius: 18px;
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+}
+
+.idp-player-board-tool-group > span,
+.idp-player-board-settings label > span,
+.idp-player-board-framebar span {
+  color: #667085;
+  font-size: .68rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.idp-player-board-tool-row {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.idp-player-board-tool-button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid rgba(17, 24, 39, .08);
+  border-radius: 14px;
+  color: #344054;
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 44px;
+  padding: 7px;
+  text-align: left;
+  transition: background .14s ease, border-color .14s ease, box-shadow .14s ease, transform .14s ease;
+}
+
+.idp-player-board-tool-button:hover,
+.idp-player-board-tool-button:focus-visible {
+  border-color: rgba(15, 118, 110, .22);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.idp-player-board-tool-button.is-active {
+  background: #edf7f5;
+  border-color: rgba(15, 118, 110, .28);
+  box-shadow: 0 10px 24px rgba(15, 118, 110, .12), inset 0 0 0 1px rgba(15, 118, 110, .18);
+  color: #0f766e;
+}
+
+.idp-player-board-tool-icon {
+  align-items: center;
+  background: #f2f4f7;
+  border-radius: 10px;
+  display: inline-flex;
+  font-size: .56rem;
+  font-weight: 950;
+  height: 26px;
+  justify-content: center;
+  width: 28px;
+}
+
+.idp-player-board-tool-button.is-active .idp-player-board-tool-icon {
+  background: #0f766e;
+  color: #fff;
+}
+
+.idp-player-board-tool-label {
+  font-size: .72rem;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-board-canvas-wrap {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .86), rgba(247, 250, 252, .82)),
+    #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .7), 0 18px 46px rgba(29, 42, 50, .08);
+  display: grid;
+  gap: 10px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.idp-player-board-framebar {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.idp-player-board-framebar > div:first-child {
+  display: grid;
+  gap: 1px;
+}
+
+.idp-player-board-framebar strong {
+  color: #101828;
+  font-size: .9rem;
+}
+
+.idp-player-board-frame-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.idp-player-board-frame {
+  align-items: center;
+  background: #f2f4f7;
+  border: 1px solid rgba(17, 24, 39, .08);
+  border-radius: 999px;
+  color: #344054;
+  display: inline-flex;
+  font-size: .68rem;
+  font-weight: 950;
+  height: 28px;
+  justify-content: center;
+  min-width: 28px;
+  padding: 0 8px;
+}
+
+.idp-player-board-frame.is-active {
+  background: #101828;
+  color: #fff;
+}
+
+.idp-player-board-canvas-wrap .idp-player-board-editor-stage {
+  align-items: center;
+  background: #dfe6ee;
+  border: 1px solid rgba(17, 24, 39, .06);
+  border-radius: 18px;
+  display: grid;
+  min-height: 0;
+  overflow: auto;
+  padding: clamp(10px, 1.2vw, 18px);
+}
+
+.idp-player-board-canvas-wrap .idp-player-board-pitch {
+  justify-self: center;
+  max-height: 100%;
+  max-width: 100%;
+  min-height: 420px;
+  width: min(100%, 720px);
+}
+
+.idp-player-board-board-hint {
+  align-items: center;
+  background: #eef5f8;
+  border: 1px solid rgba(17, 24, 39, .08);
+  border-radius: 16px;
+  color: #475467;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 8px 10px;
+}
+
+.idp-player-board-board-hint strong {
+  color: #101828;
+  font-size: .82rem;
+}
+
+.idp-player-board-board-hint span {
+  font-size: .76rem;
+  font-weight: 780;
+  text-align: right;
+}
+
+.idp-player-board-inspector {
+  align-content: start;
+  display: grid;
+  gap: 10px;
+}
+
+.idp-player-board-settings,
+.idp-player-board-inspector .idp-player-board-editor-group {
+  background: rgba(255, 255, 255, .72);
+  border: 1px solid rgba(17, 24, 39, .06);
+  border-radius: 18px;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.idp-player-board-inspector .idp-player-board-editor-group {
+  border-top: 1px solid rgba(17, 24, 39, .06);
+}
+
+.idp-player-board-inspector .idp-player-board-editor-group.is-featured {
+  background: linear-gradient(180deg, #fff, #f8fafc);
+  border-color: rgba(15, 118, 110, .14);
+}
+
+.idp-player-board-color-row {
+  display: grid;
+  gap: 7px;
+}
+
+.idp-player-board-color-row input[type="color"] {
+  height: 38px;
+  padding: 3px;
+}
+
+.idp-player-board-color-swatches {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.idp-player-board-color-swatch {
+  aspect-ratio: 1;
+  background: var(--idp-board-swatch);
+  border: 1px solid rgba(17, 24, 39, .18);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .78), 0 6px 14px rgba(29, 42, 50, .1);
+  cursor: pointer;
+  min-height: 26px;
+}
+
+.idp-player-board-color-swatch.is-active {
+  border-color: #0f766e;
+  outline: 3px solid rgba(15, 118, 110, .18);
+}
+
+.idp-player-board-inspector footer {
+  background: rgba(255, 255, 255, .72);
+  border: 1px solid rgba(17, 24, 39, .06);
+  border-radius: 18px;
+  padding: 10px;
+}
+
+.idp-player-board-pitch {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, .065) 50%, transparent 50%) 0 0 / 18px 100%,
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, .08), transparent 18%),
+    linear-gradient(180deg, #22976f 0%, #147a61 48%, #0b604f 100%);
+}
+
+.idp-player-board-pitch::after {
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: 6px;
+  content: "";
+  inset: 8px;
+  pointer-events: none;
+  position: absolute;
+}
+
+@media (max-width: 1120px) {
+  .idp-player-board-modal {
+    height: min(95vh, 980px);
+  }
+
+  .idp-player-board-modal-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(34rem, 1fr) auto;
+    overflow: auto;
+  }
+
+  .idp-player-board-toolbox,
+  .idp-player-board-inspector {
+    overflow: visible;
+  }
+
+  .idp-player-board-toolbox {
+    grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+  }
+
+  .idp-player-board-tool-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .idp-player-board-modal {
+    border-radius: 0;
+    height: 100vh;
+    max-height: 100vh;
+    max-width: 100vw;
+    width: 100vw;
+  }
+
+  .idp-player-board-modal-layout {
+    grid-template-rows: auto minmax(26rem, 1fr) auto;
+    padding: 8px;
+  }
+
+  .idp-player-board-toolbox {
+    grid-template-columns: 1fr;
+  }
+
+  .idp-player-board-tool-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .idp-player-board-canvas-wrap .idp-player-board-pitch {
+    min-height: 330px;
+  }
+
+  .idp-player-board-board-hint {
+    align-items: flex-start;
+    display: grid;
+  }
+
+  .idp-player-board-board-hint span {
+    text-align: left;
+  }
+
+  .idp-player-board-preview .idp-player-board-canvas {
+    padding-left: 0;
+  }
+
+  .idp-player-board-preview .idp-player-board-pitch {
+    height: 220px;
+  }
+}
+
+.idp-player-board-modal-layout.is-tactical-style .idp-player-board-canvas-wrap .idp-player-board-pitch {
+  height: clamp(300px, 50vh, 430px);
+  min-height: 0;
+}
+
+.idp-player-board-modal-layout.is-tactical-style .idp-player-board-canvas-wrap .idp-player-board-pitch.is-box {
+  height: clamp(300px, 50vh, 400px);
+  min-height: 0;
+  width: min(100%, 560px);
+}
+
+@media (max-width: 760px) {
+  .idp-player-board-modal-layout.is-tactical-style {
+    align-content: start;
+    display: block;
+    grid-template-rows: auto auto auto;
+    overflow: auto;
+  }
+
+  .idp-player-board-modal-layout.is-tactical-style .idp-player-board-toolbox {
+    margin-bottom: 10px;
+    grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .idp-player-board-modal-layout.is-tactical-style .idp-player-board-canvas-wrap {
+    margin-bottom: 10px;
+  }
+
+  .idp-player-board-modal-layout.is-tactical-style .idp-player-board-tool-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .idp-player-board-modal-layout.is-tactical-style .idp-player-board-canvas-wrap .idp-player-board-pitch,
+  .idp-player-board-modal-layout.is-tactical-style .idp-player-board-canvas-wrap .idp-player-board-pitch.is-box {
+    height: 300px;
+    min-height: 0;
   }
 }

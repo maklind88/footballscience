@@ -212,9 +212,31 @@ function splitTokenList(value = "") {
     .slice(0, 12);
 }
 
+function normalizeBoardLineStyle(value = "", fallback = "dashed") {
+  const normalized = normalizeText(value, 20).toLowerCase();
+  return ["solid", "dashed", "dotted"].includes(normalized) ? normalized : fallback;
+}
+
+function normalizeBoardColor(value = "", fallback = "#38bdf8") {
+  const normalized = normalizeText(value, 20);
+  return /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : fallback;
+}
+
+function parseBoardLineWidth(value, fallback = 2.5) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(6, Math.max(.75, Math.round(number * 4) / 4)) : fallback;
+}
+
+function normalizeBoardArrowType(value = "", fallback = "run") {
+  const normalized = normalizeText(value, 20).toLowerCase();
+  return ["arrow", "pass", "run"].includes(normalized) ? normalized : fallback;
+}
+
 function buildInterventionBoardState(formData) {
   const zoneLabel = normalizeText(formData.get("zoneLabel"), 80);
   const arrowLabel = normalizeText(formData.get("arrowLabel"), 80);
+  const arrowType = normalizeBoardArrowType(formData.get("arrowType"), "run");
+  const defaultLineStyle = arrowType === "pass" ? "dotted" : arrowType === "run" ? "dashed" : "solid";
   const noteText = normalizeText(formData.get("noteText"), 220);
   const frameLabel = normalizeText(formData.get("frameLabel"), 80);
   const referenceLabel = normalizeText(formData.get("referenceLabel"), 24);
@@ -231,9 +253,9 @@ function buildInterventionBoardState(formData) {
       y: parseBoardNumber(formData.get("referenceY"), 44),
     }] : [],
     cones: [
-      { id: "cone-1", x: 41, y: 58 },
-      { id: "cone-2", x: 59, y: 58 },
-      { id: "cone-3", x: 50, y: 42 },
+      { id: "cone-1", x: parseBoardNumber(formData.get("cone1X"), 40), y: parseBoardNumber(formData.get("cone1Y"), 58) },
+      { id: "cone-2", x: parseBoardNumber(formData.get("cone2X"), 60), y: parseBoardNumber(formData.get("cone2Y"), 58) },
+      { id: "cone-3", x: parseBoardNumber(formData.get("cone3X"), 50), y: parseBoardNumber(formData.get("cone3Y"), 42) },
     ],
     zones: zoneLabel ? [{
       id: "zone-1",
@@ -245,7 +267,11 @@ function buildInterventionBoardState(formData) {
     }] : [],
     arrows: arrowLabel ? [{
       id: "arrow-1",
+      type: arrowType,
       label: arrowLabel,
+      color: normalizeBoardColor(formData.get("arrowColor"), arrowType === "pass" ? "#fbbf24" : "#38bdf8"),
+      lineStyle: normalizeBoardLineStyle(formData.get("arrowLineStyle"), defaultLineStyle),
+      lineWidth: parseBoardLineWidth(formData.get("arrowLineWidth"), 2.5),
       from: {
         x: parseBoardNumber(formData.get("arrowFromX"), parseBoardNumber(formData.get("playerX"), 50)),
         y: parseBoardNumber(formData.get("arrowFromY"), parseBoardNumber(formData.get("playerY"), 70)),

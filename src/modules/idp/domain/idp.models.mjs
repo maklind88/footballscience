@@ -25,6 +25,26 @@ function normalizeDecimal(value, fallback = 0) {
   return Number.isFinite(number) ? Math.min(100, Math.max(0, Math.round(number * 10) / 10)) : fallback;
 }
 
+function normalizeBoardColor(value, fallback = "#38bdf8") {
+  const color = normalizeText(value, 20);
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+}
+
+function normalizeBoardLineStyle(value, fallback = "dashed") {
+  const style = normalizeText(value, 20).toLowerCase();
+  return ["solid", "dashed", "dotted"].includes(style) ? style : fallback;
+}
+
+function normalizeBoardLineWidth(value, fallback = 2.4) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(6, Math.max(.75, Math.round(number * 4) / 4)) : fallback;
+}
+
+function normalizeBoardArrowType(value, fallback = "run") {
+  const type = normalizeText(value, 20).toLowerCase();
+  return ["arrow", "pass", "run"].includes(type) ? type : fallback;
+}
+
 function normalizeLabelList(values = []) {
   return Array.isArray(values)
     ? values.map((entry) => ({
@@ -67,12 +87,19 @@ function normalizeBoardState(value = {}) {
       width: normalizeDecimal(item.width, 28),
       height: normalizeDecimal(item.height, 22),
     })) : [],
-    arrows: Array.isArray(source.arrows) ? source.arrows.slice(0, 8).map((item = {}, index) => ({
-      id: normalizeText(item.id || `arrow-${index + 1}`, 80),
-      label: normalizeText(item.label || "Movement", 80),
-      from: { x: normalizeDecimal(item.from?.x, 45), y: normalizeDecimal(item.from?.y, 70) },
-      to: { x: normalizeDecimal(item.to?.x, 60), y: normalizeDecimal(item.to?.y, 44) },
-    })) : [],
+    arrows: Array.isArray(source.arrows) ? source.arrows.slice(0, 8).map((item = {}, index) => {
+      const type = normalizeBoardArrowType(item.type, "run");
+      return {
+        id: normalizeText(item.id || `arrow-${index + 1}`, 80),
+        type,
+        label: normalizeText(item.label || "Movement", 80),
+        color: normalizeBoardColor(item.color, type === "pass" ? "#fbbf24" : "#38bdf8"),
+        lineStyle: normalizeBoardLineStyle(item.lineStyle || item.line_style, type === "pass" ? "dotted" : type === "run" ? "dashed" : "solid"),
+        lineWidth: normalizeBoardLineWidth(item.lineWidth || item.line_width, 2.5),
+        from: { x: normalizeDecimal(item.from?.x, 45), y: normalizeDecimal(item.from?.y, 70) },
+        to: { x: normalizeDecimal(item.to?.x, 60), y: normalizeDecimal(item.to?.y, 44) },
+      };
+    }) : [],
     notes: Array.isArray(source.notes) ? source.notes.slice(0, 6).map((item = {}, index) => ({
       id: normalizeText(item.id || `note-${index + 1}`, 80),
       text: normalizeText(item.text, 220),

@@ -262,6 +262,112 @@ function setMarkerPosition(marker, point) {
   marker.style.top = `${point.y}%`;
 }
 
+function boardLineDasharray(lineStyle = "dashed") {
+  if (lineStyle === "solid") return "";
+  if (lineStyle === "dotted") return "1 5";
+  return "6 4";
+}
+
+function boardMovementPath(fromX, fromY, toX, toY) {
+  const controlX = (Number(fromX) + Number(toX)) / 2;
+  const controlY = Math.min(Number(fromY), Number(toY)) - Math.max(6, Math.abs(Number(toX) - Number(fromX)) / 5);
+  return `M ${fromX} ${fromY} Q ${controlX} ${controlY} ${toX} ${toY}`;
+}
+
+function boardMovementElement(modal) {
+  return modal?.querySelector?.(".idp-player-board-arrow-layer line, .idp-player-board-arrow-layer path[data-idp-board-arrow-type]");
+}
+
+function boardMovementPoints(modal) {
+  return {
+    fromX: boardFormNumber(modal, "arrowFromX", boardFormNumber(modal, "playerX", 50)),
+    fromY: boardFormNumber(modal, "arrowFromY", boardFormNumber(modal, "playerY", 70)),
+    toX: boardFormNumber(modal, "arrowToX", 62),
+    toY: boardFormNumber(modal, "arrowToY", 42),
+  };
+}
+
+function setBoardMovementCoordinates(modal) {
+  const element = boardMovementElement(modal);
+  const type = modal?.querySelector?.('[name="arrowType"]')?.value || element?.dataset?.idpBoardArrowType || "run";
+  const { fromX, fromY, toX, toY } = boardMovementPoints(modal);
+  if (!element) return;
+  if (type === "run" || element.tagName?.toLowerCase?.() === "path") {
+    element.setAttribute("d", boardMovementPath(fromX, fromY, toX, toY));
+    return;
+  }
+  element.setAttribute("x1", String(fromX));
+  element.setAttribute("y1", String(fromY));
+  element.setAttribute("x2", String(toX));
+  element.setAttribute("y2", String(toY));
+}
+
+function ensureBoardMovementElement(modal, type = "run") {
+  const svg = modal?.querySelector?.(".idp-player-board-arrow-layer");
+  const current = boardMovementElement(modal);
+  if (!svg || !current) return current;
+  const currentTag = current.tagName?.toLowerCase?.();
+  const targetTag = type === "run" ? "path" : "line";
+  if (currentTag === targetTag) {
+    current.dataset.idpBoardArrowType = type;
+    return current;
+  }
+  const doc = current.ownerDocument || getDocument(runtime);
+  const next = doc?.createElementNS?.("http://www.w3.org/2000/svg", targetTag);
+  if (!next) return current;
+  next.dataset.idpBoardArrowType = type;
+  next.setAttribute("marker-end", current.getAttribute("marker-end") || "url(#idp-player-board-editor-arrow)");
+  current.replaceWith(next);
+  setBoardMovementCoordinates(modal);
+  return next;
+}
+
+function updateBoardArrowStyle(modal) {
+  const color = modal?.querySelector?.('[name="arrowColor"]')?.value || "#38bdf8";
+  const lineStyle = modal?.querySelector?.('[name="arrowLineStyle"]')?.value || "dashed";
+  const lineWidth = Number(modal?.querySelector?.('[name="arrowLineWidth"]')?.value || 2.5);
+  const element = boardMovementElement(modal);
+  element?.setAttribute?.("stroke", color);
+  element?.setAttribute?.("stroke-width", String(Number.isFinite(lineWidth) ? Math.min(6, Math.max(.75, lineWidth)) : 2.5));
+  element?.setAttribute?.("stroke-dasharray", boardLineDasharray(lineStyle));
+  element?.setAttribute?.("fill", "none");
+  if (element?.style) {
+    element.style.stroke = color;
+    element.style.strokeWidth = String(Number.isFinite(lineWidth) ? Math.min(6, Math.max(.75, lineWidth)) : 2.5);
+    element.style.strokeDasharray = boardLineDasharray(lineStyle);
+    element.style.fill = "none";
+  }
+  modal?.querySelector?.(".idp-player-board-arrow-layer marker path")?.setAttribute?.("fill", color);
+  modal?.querySelector?.(".idp-player-board-arrow-layer marker path")?.setAttribute?.("stroke", color);
+  modal?.querySelectorAll?.("[data-idp-board-color-choice]")?.forEach((button) => {
+    button.classList.toggle("is-active", String(button.dataset.idpBoardColorChoice || "").toLowerCase() === String(color || "").toLowerCase());
+  });
+}
+
+function setBoardArrowPreset(modal, tool = "arrow") {
+  if (!modal || !["run", "pass", "arrow"].includes(tool)) return;
+  const arrowType = modal.querySelector?.('[name="arrowType"]');
+  const arrowLabel = modal.querySelector?.('[name="arrowLabel"]');
+  const lineStyle = modal.querySelector?.('[name="arrowLineStyle"]');
+  const preset = {
+    run: { label: "Run", lineStyle: "dashed", color: "#38bdf8" },
+    pass: { label: "Pass", lineStyle: "dotted", color: "#fbbf24" },
+    arrow: { label: "Action path", lineStyle: "solid", color: "#38bdf8" },
+  }[tool];
+  const color = modal.querySelector?.('[name="arrowColor"]');
+  if (arrowType) arrowType.value = tool;
+  if (arrowLabel && (!String(arrowLabel.value || "").trim() || ["Run", "Pass", "Action path", "Attack ball"].includes(arrowLabel.value))) {
+    arrowLabel.value = preset.label;
+  }
+  if (lineStyle) lineStyle.value = preset.lineStyle;
+  if (color && (!String(color.value || "").trim() || ["#fef08a", "#38bdf8", "#fbbf24"].includes(String(color.value).toLowerCase()))) {
+    color.value = preset.color;
+  }
+  ensureBoardMovementElement(modal, tool);
+  setBoardMovementCoordinates(modal);
+  updateBoardArrowStyle(modal);
+}
+
 function applyBoardPitchPoint(event, pitch) {
   const modal = pitch?.closest?.(".idp-player-board-modal");
   const point = boardPointFromEvent(event, pitch);
@@ -277,6 +383,12 @@ function applyBoardPitchPoint(event, pitch) {
     setBoardFormValue(modal, "referenceX", point.x);
     setBoardFormValue(modal, "referenceY", point.y);
     setMarkerPosition(pitch.querySelector(".idp-player-board-reference"), point);
+    return true;
+  }
+  if (tool === "cone") {
+    setBoardFormValue(modal, "cone1X", point.x);
+    setBoardFormValue(modal, "cone1Y", point.y);
+    setMarkerPosition(pitch.querySelector('[data-idp-board-cone="1"]'), point);
     return true;
   }
   if (tool === "zone") {
@@ -297,13 +409,12 @@ function applyBoardPitchPoint(event, pitch) {
     }
     return true;
   }
-  if (tool === "arrow") {
-    const line = pitch.querySelector(".idp-player-board-arrow-layer line");
+  if (["arrow", "run", "pass"].includes(tool)) {
+    setBoardArrowPreset(modal, tool);
     if (modal.dataset.idpBoardArrowStart === "1") {
       setBoardFormValue(modal, "arrowToX", point.x);
       setBoardFormValue(modal, "arrowToY", point.y);
-      line?.setAttribute?.("x2", String(point.x));
-      line?.setAttribute?.("y2", String(point.y));
+      setBoardMovementCoordinates(modal);
       delete modal.dataset.idpBoardArrowStart;
       return true;
     }
@@ -311,10 +422,7 @@ function applyBoardPitchPoint(event, pitch) {
     setBoardFormValue(modal, "arrowFromY", point.y);
     setBoardFormValue(modal, "arrowToX", point.x);
     setBoardFormValue(modal, "arrowToY", point.y);
-    line?.setAttribute?.("x1", String(point.x));
-    line?.setAttribute?.("y1", String(point.y));
-    line?.setAttribute?.("x2", String(point.x));
-    line?.setAttribute?.("y2", String(point.y));
+    setBoardMovementCoordinates(modal);
     modal.dataset.idpBoardArrowStart = "1";
     return true;
   }
@@ -336,9 +444,19 @@ function selectBoardTool(toolButton) {
   if (!modal) return false;
   modal.dataset.idpBoardActiveTool = tool;
   delete modal.dataset.idpBoardArrowStart;
+  [...modal.classList].forEach((className) => {
+    if (className.startsWith("idp-player-board-modal-tool-")) modal.classList.remove(className);
+  });
+  modal.classList.add(`idp-player-board-modal-tool-${tool}`);
   modal.querySelectorAll?.("[data-idp-board-tool]")?.forEach((button) => {
     button.classList.toggle("is-active", button === toolButton);
   });
+  const label = toolButton?.getAttribute?.("aria-label") || toolButton?.textContent?.trim?.() || "Player";
+  const activeLabel = modal.querySelector?.("[data-idp-board-active-tool-label]");
+  const hintTool = modal.querySelector?.("[data-idp-board-hint-tool]");
+  if (activeLabel) activeLabel.textContent = label;
+  if (hintTool) hintTool.textContent = label;
+  setBoardArrowPreset(modal, tool);
   return true;
 }
 
@@ -351,6 +469,10 @@ export function render(context = {}) {
 
 export function handleInput(event) {
   const target = event?.target;
+  if (target?.matches?.("[data-idp-board-color-input], [data-idp-board-line-width]")) {
+    updateBoardArrowStyle(target.closest?.(".idp-player-board-modal"));
+    return;
+  }
   if (target?.matches?.("[data-idp-clip-search]")) {
     runtime?.store.setState({ ui: { clipBankSearchQuery: target.value || "" } });
     return;
@@ -362,6 +484,10 @@ export function handleInput(event) {
 
 export function handleChange(event) {
   const target = event?.target;
+  if (target?.matches?.("[data-idp-board-line-style]")) {
+    updateBoardArrowStyle(target.closest?.(".idp-player-board-modal"));
+    return;
+  }
   const clipSelect = target?.closest?.("[data-idp-clip-select]");
   if (clipSelect) {
     const id = clipSelect.dataset.idpClipSelect || "";
@@ -493,6 +619,18 @@ export function handleClick(event) {
   const closeActionTrigger = event?.target?.closest?.("[data-idp-close-action]");
   if (closeActionTrigger || event?.target?.matches?.("[data-idp-action-layer]")) {
     runtime?.store.setState({ ui: { actionMode: "", editEvidenceId: "" } });
+    return;
+  }
+  const boardColorChoice = event?.target?.closest?.("[data-idp-board-color-choice]");
+  if (boardColorChoice) {
+    event?.preventDefault?.();
+    const modal = boardColorChoice.closest?.(".idp-player-board-modal");
+    const color = boardColorChoice.dataset.idpBoardColorChoice || "#fef08a";
+    setBoardFormValue(modal, "arrowColor", color);
+    modal?.querySelectorAll?.("[data-idp-board-color-choice]")?.forEach((button) => {
+      button.classList.toggle("is-active", button === boardColorChoice);
+    });
+    updateBoardArrowStyle(modal);
     return;
   }
   const boardToolTrigger = event?.target?.closest?.("[data-idp-board-tool]");

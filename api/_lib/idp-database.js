@@ -124,6 +124,26 @@ function normalizeBoardArray(value, limit, mapper) {
     : [];
 }
 
+function normalizeBoardLineWidth(value, fallback = 2.5) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(6, Math.max(.75, Math.round(number * 4) / 4)) : fallback;
+}
+
+function normalizeBoardColor(value, fallback = "#38bdf8") {
+  const color = normalizeText(value, 20);
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
+}
+
+function normalizeBoardLineStyle(value, fallback = "dashed") {
+  const style = normalizeBoardLabel(value, 20).toLowerCase();
+  return ["solid", "dashed", "dotted"].includes(style) ? style : fallback;
+}
+
+function normalizeBoardArrowType(value, fallback = "run") {
+  const type = normalizeBoardLabel(value, 20).toLowerCase();
+  return ["arrow", "pass", "run"].includes(type) ? type : fallback;
+}
+
 function normalizeBoardState(value = {}) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const player = normalizeBoardPoints(source.player, { x: 50, y: 70 });
@@ -149,12 +169,19 @@ function normalizeBoardState(value = {}) {
       width: Math.min(80, Math.max(8, clampPercent(item.width, 28))),
       height: Math.min(80, Math.max(8, clampPercent(item.height, 22))),
     })),
-    arrows: normalizeBoardArray(source.arrows, 8, (item = {}, index) => ({
-      id: normalizeBoardLabel(item.id || `arrow-${index + 1}`, 80),
-      label: normalizeBoardLabel(item.label || "Movement", 80),
-      from: normalizeBoardPoints(item.from, { x: 45, y: 70 }),
-      to: normalizeBoardPoints(item.to, { x: 60, y: 44 }),
-    })),
+    arrows: normalizeBoardArray(source.arrows, 8, (item = {}, index) => {
+      const type = normalizeBoardArrowType(item.type, "run");
+      return {
+        id: normalizeBoardLabel(item.id || `arrow-${index + 1}`, 80),
+        type,
+        label: normalizeBoardLabel(item.label || "Movement", 80),
+        color: normalizeBoardColor(item.color, type === "pass" ? "#fbbf24" : "#38bdf8"),
+        lineStyle: normalizeBoardLineStyle(item.lineStyle || item.line_style, type === "pass" ? "dotted" : type === "run" ? "dashed" : "solid"),
+        lineWidth: normalizeBoardLineWidth(item.lineWidth || item.line_width, 2.5),
+        from: normalizeBoardPoints(item.from, { x: 45, y: 70 }),
+        to: normalizeBoardPoints(item.to, { x: 60, y: 44 }),
+      };
+    }),
     notes: normalizeBoardArray(source.notes, 6, (item = {}, index) => ({
       id: normalizeBoardLabel(item.id || `note-${index + 1}`, 80),
       text: normalizeNote(item.text, 220),

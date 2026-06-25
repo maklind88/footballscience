@@ -124,6 +124,23 @@ ${isFallback ? "Not logged" : `${value}%`}
 
   const getRtpProgramItems = (items = [], limit = 2) => (Array.isArray(items) ? items.filter(Boolean).slice(0, limit) : []);
 
+  const hasRtpProgram = (plan = {}) =>
+    Boolean(
+      plan.rtpLibraryProfileName ||
+        getRtpProgramItems(plan.rtpProgramPhases, 1).length ||
+        getRtpProgramItems(plan.rtpProgramLoadText, 1).length ||
+        getRtpProgramItems(plan.rtpProgramRiskFactors, 1).length ||
+        getRtpProgramItems(plan.rtpProgramWarningPoints, 1).length ||
+        getRtpProgramItems(plan.rtpProgramGateCriteria, 1).length ||
+        getRtpProgramItems(plan.rtpProgramNextSteps, 1).length ||
+        getRtpProgramItems(plan.rtpProgramHoldRules, 1).length
+    );
+
+  const getPlayerRtpProgramPlan = (player) => {
+    const plans = player ? getMedicalPlayerInjuryPlans(player.id) : [];
+    return plans.find((plan) => hasRtpProgram(plan) && isMedicalInjuryPlanActive(plan, getSelectedDate())) || plans.find(hasRtpProgram) || null;
+  };
+
   const renderPlanProgramLine = (label, items = []) =>
     items.length ? `<small><strong>${escapeHtml(label)}:</strong> ${escapeHtml(items.join(" / "))}</small>` : "";
 
@@ -131,7 +148,7 @@ ${isFallback ? "Not logged" : `${value}%`}
     const gateCriteria = getRtpProgramItems(plan.rtpProgramGateCriteria, 2);
     const nextSteps = getRtpProgramItems(plan.rtpProgramNextSteps, 2);
     const holdRules = getRtpProgramItems(plan.rtpProgramHoldRules, 1);
-    const hasProgram = Boolean(plan.rtpLibraryProfileName || gateCriteria.length || nextSteps.length || holdRules.length);
+    const hasProgram = hasRtpProgram(plan);
     if (!hasProgram) {
       return "";
     }
@@ -147,10 +164,57 @@ ${renderPlanProgramLine("Hold", holdRules)}
 `;
   };
 
+  const renderRtpProgramSummarySection = (title, items = []) => `
+<section>
+<h4>${escapeHtml(title)}</h4>
+${
+  items.length
+    ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
+    : `<p>Not set yet</p>`
+}
+</section>
+`;
+
+  const renderRtpProgramSummaryCard = (player) => {
+    const plan = getPlayerRtpProgramPlan(player);
+    return `
+<article class="medical-side-card medical-rtp-program-summary-card">
+<div class="medical-card-headline">
+<h2>Medical RTP Program</h2>
+<span>Medical-only plan</span>
+</div>
+${
+  plan
+    ? `
+<div class="medical-rtp-program-summary-meta">
+<div><span>Case</span><strong>${escapeHtml(plan.injuryType || "Medical plan")}</strong></div>
+<div><span>Source</span><strong>${escapeHtml(plan.rtpLibraryProfileName || "Manual Medical plan")}</strong></div>
+<div><span>Evidence</span><strong>${escapeHtml(plan.rtpLibraryEvidenceLevel || "Not set")}</strong></div>
+<div><span>Review</span><strong>${escapeHtml(plan.reviewDate ? formatMedicalDateLabel(plan.reviewDate) : "Not set")}</strong></div>
+</div>
+<div class="medical-rtp-program-summary-grid">
+${renderRtpProgramSummarySection("Next step", getRtpProgramItems(plan.rtpProgramNextSteps, 3))}
+${renderRtpProgramSummarySection("Gate criteria", getRtpProgramItems(plan.rtpProgramGateCriteria, 3))}
+${renderRtpProgramSummarySection("Hold rules", getRtpProgramItems(plan.rtpProgramHoldRules, 2))}
+${renderRtpProgramSummarySection("Load focus", getRtpProgramItems(plan.rtpProgramLoadText, 2))}
+</div>
+${
+  canEditMedicalTeam()
+    ? `<button type="button" class="medical-plan-edit medical-rtp-program-open" data-medical-edit-injury-plan="${escapeHtml(plan.id)}">Open Medical Plan</button>`
+    : ""
+}
+<small class="medical-rtp-program-privacy-note">Private Medical program. Share only coach-safe status separately.</small>
+`
+    : `<div class="medical-empty-inline">No RTP Library starter has been applied to this player's Medical Plan yet.</div>`
+}
+</article>
+`;
+  };
+
   const renderInjuryPlanList = (player) => {
     const plans = player ? getMedicalPlayerInjuryPlans(player.id) : [];
     if (!plans.length) {
-      return `<div class="medical-log-empty">No active availability plan.</div>`;
+      return `<div class="medical-log-empty">No active medical plan.</div>`;
     }
     return plans
       .map((plan) => {
@@ -189,7 +253,7 @@ ${
     return `
 <article class="medical-side-card medical-plan-list-card">
 <div class="medical-card-headline">
-<h2>Availability Plans</h2>
+<h2>Medical Plans</h2>
 <span>${activeCount}${archivedCount ? ` / ${archivedCount} archived` : ""}</span>
 </div>
 <div class="medical-plan-list">${renderInjuryPlanList(player)}</div>
@@ -218,6 +282,7 @@ ${
     renderLog,
     renderLogCard,
     renderPlanListCard,
+    renderRtpProgramSummaryCard,
     renderRecommendationPresets,
   };
 }

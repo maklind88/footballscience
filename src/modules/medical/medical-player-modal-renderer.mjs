@@ -36,6 +36,7 @@ export function createMedicalPlayerModalRenderer({
   renderMedicalLog,
   renderMedicalNewPlayerCard,
   renderMedicalPlanListCard,
+  renderMedicalRtpProgramCard = () => "",
   renderMedicalActualParticipationOptions,
   renderMedicalParticipationOptions,
   renderMedicalPlayerAvatar,
@@ -242,6 +243,7 @@ ${renderMedicalActualPresets(formActual, canRecommend)}
 <div id="medicalModalPanel" class="medical-modal-body medical-modal-body-profile" role="tabpanel" aria-label="${escapeHtml(activeTabLabel)}">
 <div class="medical-modal-main">
 ${renderMedicalPlayerProfileSummary(player)}
+${renderMedicalRtpProgramCard(player)}
 </div>
 <aside class="medical-modal-side">
 ${renderMedicalLogCard(player)}
@@ -256,6 +258,7 @@ ${renderMedicalLogCard(player)}
 ${renderMedicalInjuryPlanForm(player, canEdit)}
 </div>
 <aside class="medical-modal-side">
+${renderMedicalRtpProgramCard(player)}
 ${renderMedicalClearanceChecklist(player, canEdit)}
 ${renderMedicalPlanListCard(player)}
 </aside>
@@ -433,6 +436,7 @@ ${renderMedicalActualParticipationOptions(record?.actualParticipation)}
 </form>
 </article>
 ${renderCoachSafeRtpCard(player)}
+${renderMedicalRtpProgramCard(player)}
 <article class="medical-side-card medical-log-card">
 <div class="medical-card-headline">
 <h2>Medical Log</h2>

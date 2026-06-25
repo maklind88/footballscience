@@ -2706,7 +2706,7 @@ test("Medical recommendations use match context and lock non-activity days", asy
   await expect(modalTabs.getByRole("tab", { name: "Medical Plan" })).toHaveAttribute("aria-selected", "true");
   await expect(page.locator(".medical-modal-body-plan")).toContainText("Availability Plan");
   await expect(page.locator(".medical-modal-body-plan")).toContainText("Clearance Checklist");
-  await expect(page.locator(".medical-modal-body-plan")).toContainText("Availability Plans");
+  await expect(page.locator(".medical-modal-body-plan")).toContainText("Medical Plans");
   await modalTabs.getByRole("tab", { name: "Availability" }).click();
   await expect(page.locator("[data-medical-recommendation-preview]")).toHaveText("100% / Match Available");
   await page.locator(".medical-modal-close").click();

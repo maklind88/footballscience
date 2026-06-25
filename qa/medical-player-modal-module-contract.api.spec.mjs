@@ -49,6 +49,7 @@ test("Medical player modal renderer keeps edit and coach-safe modal contracts", 
     renderMedicalLogCard: () => '<article data-log-card></article>',
     renderMedicalNewPlayerCard: () => '<article data-new-player></article>',
     renderMedicalPlanListCard: () => '<article data-plan-list></article>',
+    renderMedicalRtpProgramCard: () => '<article data-rtp-program-card></article>',
     renderMedicalActualParticipationOptions: () => '<option value="not-logged">Not logged</option>',
     renderMedicalParticipationOptions: () => '<option value="75">75%</option>',
     renderMedicalPlayerAvatar: () => '<span data-avatar></span>',
@@ -81,6 +82,21 @@ test("Medical player modal renderer keeps edit and coach-safe modal contracts", 
   const selectedPanel = editRenderer.renderSelectedPanel();
   expect(selectedPanel).toContain('id="medicalSidebarRecommendationForm"');
   expect(selectedPanel).toContain('id="medicalPlayerProfileForm"');
+  expect(selectedPanel).toContain("data-rtp-program-card");
   expect(selectedPanel).toContain('data-medical-remove-player="p1"');
   expect(selectedPanel).toContain("data-medical-log");
+
+  const planTabRenderer = createMedicalPlayerModalRenderer({
+    ...baseOptions,
+    canEditMedicalTeam: () => true,
+    getPlayerModalTab: () => "plan",
+  });
+  expect(planTabRenderer.renderPlayerModal()).toContain("data-rtp-program-card");
+
+  const profileTabRenderer = createMedicalPlayerModalRenderer({
+    ...baseOptions,
+    canEditMedicalTeam: () => true,
+    getPlayerModalTab: () => "profile",
+  });
+  expect(profileTabRenderer.renderPlayerModal()).toContain("data-rtp-program-card");
 });

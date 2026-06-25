@@ -414,6 +414,7 @@ export function createMedicalRuntimeRenderers(deps = {}) {
     renderMedicalLog: (player) => medicalRecommendationRenderer.renderLog(player),
     renderMedicalNewPlayerCard: () => medicalRosterRenderer.renderNewPlayerCard(),
     renderMedicalPlanListCard: (player) => medicalRecommendationRenderer.renderPlanListCard(player),
+    renderMedicalRtpProgramCard: (player) => medicalRecommendationRenderer.renderRtpProgramSummaryCard(player),
     renderMedicalActualParticipationOptions,
     renderMedicalParticipationOptions,
     renderMedicalPlayerAvatar,

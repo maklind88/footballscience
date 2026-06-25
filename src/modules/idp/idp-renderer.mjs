@@ -1133,7 +1133,9 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
           state.ui || {}
         )}
       </section>
-      <section class="idp-intelligence-board">
+      <section class="idp-workflow-board">
+        ${renderProfileSignalStream(detail, canEdit && !idpInactive)}
+        ${renderProfileTimelineRiver(detail, options)}
         <article class="idp-player-voice-card">
           <div class="idp-section-kicker">Player Voice</div>
           <blockquote>${escapeHtml(reflection?.note || leadership || "No player reflection captured yet.")}</blockquote>
@@ -1144,10 +1146,6 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
           <strong>${escapeHtml(latestReview?.progressSummary || "No review completed yet.")}</strong>
           <span>${escapeHtml(latestReview ? formatShortDate(latestReview.createdAt) : "Complete the first review to lock the learning loop.")}</span>
         </article>
-      </section>
-      <section class="idp-workflow-board">
-        ${renderProfileSignalStream(detail, canEdit && !idpInactive)}
-        ${renderProfileTimelineRiver(detail, options)}
       </section>
       `}
       ${renderActionOverlay(state, focus, canEdit && !idpInactive, options)}

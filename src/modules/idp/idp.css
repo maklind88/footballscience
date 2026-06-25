@@ -3163,7 +3163,7 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 .idp-workflow-board {
   display: grid;
   gap: 14px;
-  grid-template-columns: minmax(320px, 1.1fr) minmax(260px, .9fr);
+  grid-template-columns: minmax(260px, 1.05fr) minmax(250px, 1fr) minmax(220px, .82fr) minmax(220px, .82fr);
 }
 
 .idp-filmstrip-panel,

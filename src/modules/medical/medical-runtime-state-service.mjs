@@ -225,6 +225,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
       rtpProgramGateCriteria: [],
       rtpProgramNextSteps: [],
       rtpProgramHoldRules: [],
+      rtpProgramTracker: {},
       createdBy: "coach-safe",
     };
   }

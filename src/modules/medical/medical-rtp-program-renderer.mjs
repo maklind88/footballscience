@@ -1,3 +1,5 @@
+import { getMedicalRtpTrackerSummary } from "./medical-rtp-tracker-helpers.mjs";
+
 const defaultEscapeHtml = (value) =>
   String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -34,6 +36,22 @@ ${
 </section>
 `;
 
+  const renderRtpTrackerSummary = (plan = {}) => {
+    const summary = getMedicalRtpTrackerSummary(plan);
+    if (!summary.total) {
+      return renderRtpProgramSection("Tracker", ["No tracker items set yet"]);
+    }
+    return `
+<section class="medical-rtp-case-tracker medical-rtp-tracker-${escapeHtml(summary.tone)}">
+<h4>Tracker</h4>
+<div>
+<span>${escapeHtml(summary.completionLabel)}</span>
+<small>${escapeHtml(summary.nextDecision)}</small>
+</div>
+</section>
+`;
+  };
+
   const renderRtpCaseProgramCards = (summary = {}) => {
     const activeCases = Array.isArray(summary.activeCases) ? summary.activeCases : [];
     const rtpCases = activeCases.filter(({ plan }) => hasRtpProgramStarter(plan)).slice(0, 6);
@@ -52,6 +70,7 @@ ${
 ${rtpCases
   .map(({ player, plan, severity, review, clearance }) => {
     const phase = getMedicalRtpPhaseOption(plan.rtpPhase);
+    const trackerSummary = getMedicalRtpTrackerSummary(plan);
     return `
 <article class="medical-rtp-case-card medical-ops-tone-${escapeHtml(severity.tone)}">
 <header>
@@ -66,8 +85,10 @@ ${rtpCases
 <span><strong>Source</strong>${escapeHtml(plan.rtpLibraryProfileName || "RTP Library starter")}</span>
 <span><strong>Evidence</strong>${escapeHtml(plan.rtpLibraryEvidenceLevel || "Not set")}</span>
 <span><strong>Clearance</strong>${clearance.signOffCount}/${medicalClearanceRoles.length} sign-off / ${clearance.gatePassCount}/${medicalLoadGateOptions.length} gates</span>
+<span><strong>Tracker</strong>${escapeHtml(trackerSummary.completionLabel)}</span>
 </div>
 <div class="medical-rtp-case-sections">
+${renderRtpTrackerSummary(plan)}
 ${renderRtpProgramSection("Next step", getRtpProgramItems(plan.rtpProgramNextSteps, 2))}
 ${renderRtpProgramSection("Gate criteria", getRtpProgramItems(plan.rtpProgramGateCriteria, 3))}
 ${renderRtpProgramSection("Hold rules", getRtpProgramItems(plan.rtpProgramHoldRules, 2))}

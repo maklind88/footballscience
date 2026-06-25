@@ -1,3 +1,5 @@
+import { normalizeMedicalRtpProgramTracker } from "./medical-rtp-tracker-helpers.mjs";
+
 export function createMedicalClinicalNormalizers(deps = {}) {
   const {
     addCalendarDays = (date, days) => {
@@ -152,6 +154,22 @@ export function createMedicalClinicalNormalizers(deps = {}) {
     const status = medicalInjuryPlanStatusOptions.some((option) => option.key === plan.status) ? plan.status : phaseOption.status;
     const createdAt = normalizeMedicalTimestamp(plan.createdAt) || new Date().toISOString();
     const archivedAt = normalizeMedicalTimestamp(plan.archivedAt || plan.deletedAt);
+    const rtpProgramPhases = normalizeMedicalTextList(plan.rtpProgramPhases);
+    const rtpProgramLoadText = normalizeMedicalTextList(plan.rtpProgramLoadText);
+    const rtpProgramRiskFactors = normalizeMedicalTextList(plan.rtpProgramRiskFactors);
+    const rtpProgramWarningPoints = normalizeMedicalTextList(plan.rtpProgramWarningPoints);
+    const rtpProgramGateCriteria = normalizeMedicalTextList(plan.rtpProgramGateCriteria);
+    const rtpProgramNextSteps = normalizeMedicalTextList(plan.rtpProgramNextSteps);
+    const rtpProgramHoldRules = normalizeMedicalTextList(plan.rtpProgramHoldRules);
+    const rtpProgramSource = {
+      rtpProgramPhases,
+      rtpProgramLoadText,
+      rtpProgramRiskFactors,
+      rtpProgramWarningPoints,
+      rtpProgramGateCriteria,
+      rtpProgramNextSteps,
+      rtpProgramHoldRules,
+    };
     return {
       id: plan.id || createId("medical-injury-plan"),
       playerId,
@@ -175,13 +193,14 @@ export function createMedicalClinicalNormalizers(deps = {}) {
       rtpLibraryProfileName: String(plan.rtpLibraryProfileName ?? "").trim(),
       rtpLibraryEvidenceLevel: String(plan.rtpLibraryEvidenceLevel ?? "").trim(),
       rtpLibrarySummary: String(plan.rtpLibrarySummary ?? "").trim(),
-      rtpProgramPhases: normalizeMedicalTextList(plan.rtpProgramPhases),
-      rtpProgramLoadText: normalizeMedicalTextList(plan.rtpProgramLoadText),
-      rtpProgramRiskFactors: normalizeMedicalTextList(plan.rtpProgramRiskFactors),
-      rtpProgramWarningPoints: normalizeMedicalTextList(plan.rtpProgramWarningPoints),
-      rtpProgramGateCriteria: normalizeMedicalTextList(plan.rtpProgramGateCriteria),
-      rtpProgramNextSteps: normalizeMedicalTextList(plan.rtpProgramNextSteps),
-      rtpProgramHoldRules: normalizeMedicalTextList(plan.rtpProgramHoldRules),
+      rtpProgramPhases,
+      rtpProgramLoadText,
+      rtpProgramRiskFactors,
+      rtpProgramWarningPoints,
+      rtpProgramGateCriteria,
+      rtpProgramNextSteps,
+      rtpProgramHoldRules,
+      rtpProgramTracker: normalizeMedicalRtpProgramTracker(plan.rtpProgramTracker || plan, rtpProgramSource),
       createdAt,
       updatedAt: normalizeMedicalTimestamp(plan.updatedAt) || archivedAt || createdAt,
       createdBy: plan.createdBy || getCurrentUser()?.id || "",

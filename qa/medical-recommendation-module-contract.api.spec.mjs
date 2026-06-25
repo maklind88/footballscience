@@ -28,6 +28,11 @@ test("Medical recommendation renderer keeps log, preset, and plan contracts", ()
     rtpProgramGateCriteria: ["Pain-free maximal isometric contraction"],
     rtpProgramNextSteps: ["Controlled sprint exposure"],
     rtpProgramHoldRules: ["Pain with acceleration"],
+    rtpProgramTracker: {
+      gateCriteria: ["passed"],
+      nextSteps: ["in-progress"],
+      holdRules: ["not-started"],
+    },
   };
   const renderer = createMedicalRecommendationRenderer({
     escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
@@ -72,6 +77,8 @@ test("Medical recommendation renderer keeps log, preset, and plan contracts", ()
   expect(planList).toContain("data-medical-delete-injury-plan");
   expect(planList).toContain("Hamstring");
   expect(planList).toContain("RTP Library source");
+  expect(planList).toContain("Tracker");
+  expect(planList).toContain("1/3 passed");
   expect(planList).toContain("Gate criteria");
   expect(planList).toContain("Controlled sprint exposure");
 
@@ -79,6 +86,7 @@ test("Medical recommendation renderer keeps log, preset, and plan contracts", ()
   expect(rtpProgramCard).toContain("Medical RTP Program");
   expect(rtpProgramCard).toContain("Medical-only plan");
   expect(rtpProgramCard).toContain("Hamstring Strain");
+  expect(rtpProgramCard).toContain("Progress: Controlled sprint exposure");
   expect(rtpProgramCard).toContain("Pain-free maximal isometric contraction");
   expect(rtpProgramCard).toContain("Rebuild sprint exposure before match return");
   expect(rtpProgramCard).toContain("Private Medical program");

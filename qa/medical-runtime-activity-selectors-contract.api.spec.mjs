@@ -228,6 +228,11 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
       rtpProgramGateCriteria: "Pain-free acceleration\nRepeated sprint block completed",
       rtpProgramNextSteps: "Controlled acceleration session; Team rondo integration",
       rtpProgramHoldRules: "Pain increase\nNext-day symptom spike",
+      rtpProgramTrackerGate0: "passed",
+      rtpProgramTrackerGate1: "in-progress",
+      rtpProgramTrackerNext0: "in-progress",
+      rtpProgramTrackerNext1: "not-started",
+      rtpProgramTrackerHold0: "hold",
     },
     querySelector: (selector) => selector === "[name='shareWithCoach']" ? { checked: true } : { value: "p1" },
   };
@@ -239,6 +244,11 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
     rtpProgramGateCriteria: ["Pain-free acceleration", "Repeated sprint block completed"],
     rtpProgramNextSteps: ["Controlled acceleration session", "Team rondo integration"],
     rtpProgramHoldRules: ["Pain increase", "Next-day symptom spike"],
+    rtpProgramTracker: {
+      gateCriteria: ["passed", "in-progress"],
+      nextSteps: ["in-progress", "not-started"],
+      holdRules: ["hold", "not-started"],
+    },
   });
   expect(draftMap.has("p1")).toBe(true);
   selectors.clearMedicalInjuryPlanDraft("p1");

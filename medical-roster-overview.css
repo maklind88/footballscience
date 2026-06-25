@@ -2427,6 +2427,153 @@ body.is-dark-mode .medical-modal-close {
   line-height: 1.28;
 }
 
+.medical-rtp-program-tracker {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(244, 249, 246, 0.92));
+}
+
+.medical-rtp-program-tracker > header {
+  align-items: center;
+}
+
+.medical-rtp-program-tracker > header b,
+.medical-rtp-program-summary-tracker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  padding: 0.34rem 0.56rem;
+  border-radius: 999px;
+  color: #176449;
+  background: rgba(47, 143, 107, 0.12);
+  font-size: 0.68rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.medical-rtp-tracker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.58rem;
+}
+
+.medical-rtp-tracker-group {
+  display: grid;
+  gap: 0.46rem;
+  min-width: 0;
+  padding: 0.62rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.medical-rtp-tracker-group header,
+.medical-rtp-tracker-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.56rem;
+}
+
+.medical-rtp-tracker-group h4 {
+  margin: 0;
+  color: #10231b;
+  font-size: 0.76rem;
+  letter-spacing: 0;
+}
+
+.medical-rtp-tracker-group header span {
+  color: #64716b;
+  font-size: 0.66rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.medical-rtp-tracker-rows {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.medical-rtp-tracker-row {
+  align-items: center;
+  min-width: 0;
+  padding: 0.48rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 8px;
+  background: rgba(247, 250, 248, 0.8);
+}
+
+.medical-rtp-tracker-row > span {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.medical-rtp-tracker-row strong {
+  color: #176449;
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-tracker-row small,
+.medical-rtp-case-tracker small,
+.medical-rtp-program-summary-tracker span {
+  color: #64716b;
+  font-size: 0.7rem;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.medical-rtp-tracker-row select {
+  flex: 0 0 7.6rem;
+  min-height: 2rem;
+  border: 1px solid rgba(29, 31, 29, 0.14);
+  border-radius: 8px;
+  background: #fff;
+  color: #10231b;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 850;
+  padding: 0 0.5rem;
+  outline: 0;
+}
+
+.medical-rtp-tracker-row select:focus {
+  border-color: rgba(47, 143, 107, 0.48);
+  box-shadow: 0 0 0 3px rgba(47, 143, 107, 0.14);
+}
+
+.medical-rtp-tracker-clear {
+  border-color: rgba(47, 143, 107, 0.2);
+  background: rgba(47, 143, 107, 0.1);
+}
+
+.medical-rtp-tracker-medium {
+  border-color: rgba(214, 146, 49, 0.24);
+  background: rgba(214, 146, 49, 0.1);
+}
+
+.medical-rtp-tracker-high {
+  border-color: rgba(176, 55, 45, 0.22);
+  background: rgba(176, 55, 45, 0.1);
+}
+
+.medical-rtp-case-tracker {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.medical-rtp-case-tracker div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.medical-rtp-case-tracker span {
+  color: #10231b;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
 .medical-rtp-program-grid section,
 .medical-rtp-case-sections section {
   min-width: 0;
@@ -2742,6 +2889,12 @@ body.is-dark-mode .medical-modal-close {
   grid-template-columns: 1fr;
 }
 
+.medical-rtp-program-summary-tracker {
+  justify-content: space-between;
+  border-radius: 8px;
+  white-space: normal;
+}
+
 .medical-rtp-program-summary-grid section {
   display: grid;
   gap: 0.28rem;
@@ -2781,8 +2934,11 @@ body.is-dark-mode .medical-rtp-program-blueprint,
 body.is-dark-mode .medical-rtp-case-linker,
 body.is-dark-mode .medical-rtp-case-workspace,
 body.is-dark-mode .medical-rtp-plan-source,
+body.is-dark-mode .medical-rtp-program-summary-tracker,
 body.is-dark-mode .medical-rtp-program-summary-grid section,
 body.is-dark-mode .medical-rtp-program-field,
+body.is-dark-mode .medical-rtp-tracker-group,
+body.is-dark-mode .medical-rtp-tracker-row,
 body.is-dark-mode .medical-rtp-program-grid section,
 body.is-dark-mode .medical-rtp-case-sections section,
 body.is-dark-mode .medical-rtp-case-linker-card,
@@ -2808,6 +2964,8 @@ body.is-dark-mode .medical-rtp-case-linker > header strong,
 body.is-dark-mode .medical-rtp-case-linker-card strong,
 body.is-dark-mode .medical-rtp-case-workspace > header strong,
 body.is-dark-mode .medical-rtp-case-card > header strong,
+body.is-dark-mode .medical-rtp-tracker-group h4,
+body.is-dark-mode .medical-rtp-case-tracker span,
 body.is-dark-mode .medical-rtp-program-grid h4,
 body.is-dark-mode .medical-rtp-case-sections h4,
 body.is-dark-mode .medical-rtp-program-case-link span,
@@ -2822,6 +2980,9 @@ body.is-dark-mode .medical-rtp-program-summary-grid li,
 body.is-dark-mode .medical-rtp-program-summary-grid p,
 body.is-dark-mode .medical-rtp-case-linker > header small,
 body.is-dark-mode .medical-rtp-case-linker-card small,
+body.is-dark-mode .medical-rtp-tracker-row small,
+body.is-dark-mode .medical-rtp-case-tracker small,
+body.is-dark-mode .medical-rtp-program-summary-tracker span,
 body.is-dark-mode .medical-rtp-case-meta span {
   color: var(--muted);
 }
@@ -2833,6 +2994,12 @@ body.is-dark-mode .medical-rtp-program-field textarea {
 }
 
 body.is-dark-mode .medical-rtp-case-linker-card select {
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.72);
+  color: var(--ink);
+}
+
+body.is-dark-mode .medical-rtp-tracker-row select {
   border-color: rgba(148, 163, 184, 0.3);
   background: rgba(15, 23, 42, 0.72);
   color: var(--ink);
@@ -2858,6 +3025,7 @@ body.is-dark-mode .medical-rtp-case-linker-card select {
   }
 
   .medical-rtp-library-controls,
+  .medical-rtp-tracker-grid,
   .medical-rtp-profile-summary {
     grid-template-columns: 1fr;
   }
@@ -2879,6 +3047,15 @@ body.is-dark-mode .medical-rtp-case-linker-card select {
   .medical-rtp-program-case-link,
   .medical-rtp-program-editor-grid {
     grid-template-columns: 1fr;
+  }
+
+  .medical-rtp-tracker-row {
+    display: grid;
+  }
+
+  .medical-rtp-tracker-row select {
+    width: 100%;
+    flex-basis: auto;
   }
 
   .medical-rtp-program-field.is-wide {

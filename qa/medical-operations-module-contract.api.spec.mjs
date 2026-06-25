@@ -36,6 +36,11 @@ test("Medical operations renderer owns operations tabs, private system, and coac
           rtpProgramGateCriteria: ["pain-free maximal isometric contraction"],
           rtpProgramNextSteps: ["linear sprint exposure"],
           rtpProgramHoldRules: ["pain with walking after 48 hours"],
+          rtpProgramTracker: {
+            gateCriteria: ["passed"],
+            nextSteps: ["in-progress"],
+            holdRules: ["hold"],
+          },
         },
         severity: { tone: "medium", label: "Moderate" },
         daysRemaining: 10,
@@ -109,6 +114,9 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(casesMarkup).toContain("Medical-owned player programs from the RTP Library");
   expect(casesMarkup).toContain("Hamstring Strain");
   expect(casesMarkup).toContain("Gate criteria");
+  expect(casesMarkup).toContain("Tracker");
+  expect(casesMarkup).toContain("1/3 passed");
+  expect(casesMarkup).toContain("Hold: pain with walking after 48 hours");
   expect(casesMarkup).toContain("Open Medical Plan");
   expect(casesMarkup).toContain("RTP starter needed");
   expect(casesMarkup).toContain("data-medical-rtp-case-linker-form");

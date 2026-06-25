@@ -1,3 +1,5 @@
+import { getMedicalRtpTrackerSummary } from "./medical-rtp-tracker-helpers.mjs";
+
 const defaultEscapeHtml = (value) =>
   String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -148,6 +150,7 @@ ${isFallback ? "Not logged" : `${value}%`}
     const gateCriteria = getRtpProgramItems(plan.rtpProgramGateCriteria, 2);
     const nextSteps = getRtpProgramItems(plan.rtpProgramNextSteps, 2);
     const holdRules = getRtpProgramItems(plan.rtpProgramHoldRules, 1);
+    const trackerSummary = getMedicalRtpTrackerSummary(plan);
     const hasProgram = hasRtpProgram(plan);
     if (!hasProgram) {
       return "";
@@ -157,6 +160,7 @@ ${isFallback ? "Not logged" : `${value}%`}
 <span>RTP Library source</span>
 <strong>${escapeHtml(plan.rtpLibraryProfileName || "Medical starter")}</strong>
 ${plan.rtpLibraryEvidenceLevel ? `<small>Evidence: ${escapeHtml(plan.rtpLibraryEvidenceLevel)}</small>` : ""}
+${trackerSummary.total ? `<small><strong>Tracker:</strong> ${escapeHtml(trackerSummary.completionLabel)} / ${escapeHtml(trackerSummary.nextDecision)}</small>` : ""}
 ${renderPlanProgramLine("Gate criteria", gateCriteria)}
 ${renderPlanProgramLine("Next step", nextSteps)}
 ${renderPlanProgramLine("Hold", holdRules)}
@@ -177,6 +181,7 @@ ${
 
   const renderRtpProgramSummaryCard = (player) => {
     const plan = getPlayerRtpProgramPlan(player);
+    const trackerSummary = plan ? getMedicalRtpTrackerSummary(plan) : null;
     return `
 <article class="medical-side-card medical-rtp-program-summary-card">
 <div class="medical-card-headline">
@@ -191,7 +196,9 @@ ${
 <div><span>Source</span><strong>${escapeHtml(plan.rtpLibraryProfileName || "Manual Medical plan")}</strong></div>
 <div><span>Evidence</span><strong>${escapeHtml(plan.rtpLibraryEvidenceLevel || "Not set")}</strong></div>
 <div><span>Review</span><strong>${escapeHtml(plan.reviewDate ? formatMedicalDateLabel(plan.reviewDate) : "Not set")}</strong></div>
+<div><span>Tracker</span><strong>${escapeHtml(trackerSummary?.completionLabel || "No tracker")}</strong></div>
 </div>
+${trackerSummary?.total ? `<div class="medical-rtp-program-summary-tracker medical-rtp-tracker-${escapeHtml(trackerSummary.tone)}"><strong>${escapeHtml(trackerSummary.nextDecision)}</strong><span>${trackerSummary.counts.hold} hold / ${trackerSummary.counts["in-progress"]} active / ${trackerSummary.counts.passed} passed</span></div>` : ""}
 <div class="medical-rtp-program-summary-grid">
 ${renderRtpProgramSummarySection("Next step", getRtpProgramItems(plan.rtpProgramNextSteps, 3))}
 ${renderRtpProgramSummarySection("Gate criteria", getRtpProgramItems(plan.rtpProgramGateCriteria, 3))}

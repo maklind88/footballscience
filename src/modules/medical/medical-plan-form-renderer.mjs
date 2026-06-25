@@ -1,3 +1,11 @@
+import {
+  getMedicalRtpTrackerStatusOption,
+  getMedicalRtpTrackerSummary,
+  medicalRtpTrackerGroups,
+  medicalRtpTrackerStatusOptions,
+  normalizeMedicalRtpProgramTracker,
+} from "./medical-rtp-tracker-helpers.mjs";
+
 const defaultEscapeHtml = (value) =>
   String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -26,6 +34,14 @@ export function createMedicalPlanFormRenderer({
 } = {}) {
   const getProgramText = (value = []) => (Array.isArray(value) ? value.join("\n") : String(value ?? ""));
 
+  const renderTrackerStatusOptions = (selectedStatus = "not-started") =>
+    medicalRtpTrackerStatusOptions
+      .map(
+        (status) =>
+          `<option value="${escapeHtml(status.key)}"${status.key === selectedStatus ? " selected" : ""}>${escapeHtml(status.label)}</option>`
+      )
+      .join("");
+
   const renderProgramField = ({ name, label, items = [], placeholder = "", rows = 3, isWide = false, canEdit = true }) => `
 <label class="medical-rtp-program-field${isWide ? " is-wide" : ""}">
 <span>${escapeHtml(label)}</span>
@@ -33,6 +49,58 @@ export function createMedicalPlanFormRenderer({
 <small>One item per line. Medical-only unless separately summarized as coach-safe.</small>
 </label>
 `;
+
+  const renderTrackerGroup = (group, draft = {}, tracker = {}, canEdit = true) => {
+    const items = Array.isArray(draft[group.sourceField]) ? draft[group.sourceField] : [];
+    return `
+<section class="medical-rtp-tracker-group">
+<header>
+<h4>${escapeHtml(group.label)}</h4>
+<span>${items.length} item${items.length === 1 ? "" : "s"}</span>
+</header>
+${items.length
+  ? `<div class="medical-rtp-tracker-rows">
+${items
+  .map((item, index) => {
+    const status = getMedicalRtpTrackerStatusOption(tracker[group.key]?.[index]);
+    return `
+<label class="medical-rtp-tracker-row medical-rtp-tracker-${escapeHtml(status.tone)}">
+<span>
+<strong>${escapeHtml(group.shortLabel)} ${index + 1}</strong>
+<small>${escapeHtml(item)}</small>
+</span>
+<select name="${escapeHtml(group.formPrefix)}${index}" data-medical-rtp-tracker-status ${canEdit ? "" : "disabled"}>
+${renderTrackerStatusOptions(status.key)}
+</select>
+</label>
+`;
+  })
+  .join("")}
+</div>`
+  : `<div class="medical-empty-inline">Add ${escapeHtml(group.label.toLowerCase())} above to track progression.</div>`}
+</section>
+`;
+  };
+
+  const renderRtpProgramTracker = (draft = {}, canEdit = true) => {
+    const tracker = normalizeMedicalRtpProgramTracker(draft.rtpProgramTracker || draft, draft);
+    const summary = getMedicalRtpTrackerSummary({ ...draft, rtpProgramTracker: tracker });
+    return `
+<section class="medical-rtp-program-blueprint medical-rtp-program-tracker" aria-label="Medical RTP program tracker">
+<header>
+<div>
+<span>RTP Progress Tracker</span>
+<strong>${escapeHtml(summary.completionLabel)}</strong>
+<small>${escapeHtml(summary.nextDecision)}</small>
+</div>
+<b class="medical-rtp-tracker-summary medical-rtp-tracker-${escapeHtml(summary.tone)}">${summary.total ? `${summary.counts.hold} hold / ${summary.counts["in-progress"]} active` : "No tracker"}</b>
+</header>
+<div class="medical-rtp-tracker-grid">
+${medicalRtpTrackerGroups.map((group) => renderTrackerGroup(group, draft, tracker, canEdit)).join("")}
+</div>
+</section>
+`;
+  };
 
   const renderRtpProgramBuilder = (draft = {}, canEdit = true) => {
     const hasProgram = [
@@ -143,6 +211,7 @@ ${hasRtpLibraryStarter ? `
 </section>
 ` : ""}
 ${renderRtpProgramBuilder(draft, canEdit)}
+${renderRtpProgramTracker(draft, canEdit)}
 <div class="medical-form-grid medical-plan-form-grid">
 <label>
 <span>Injury / reason</span>

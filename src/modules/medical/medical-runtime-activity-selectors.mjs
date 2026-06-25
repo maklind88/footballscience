@@ -3,6 +3,7 @@ import {
   getMedicalRtpLibraryProfileById,
   getMedicalRtpLibraryProfiles,
 } from "./medical-rtp-library-data.mjs";
+import { normalizeMedicalRtpProgramTracker } from "./medical-rtp-tracker-helpers.mjs";
 
 export function createMedicalRuntimeActivitySelectors(deps = {}) {
   const {
@@ -400,6 +401,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       rtpProgramGateCriteria: [],
       rtpProgramNextSteps: [],
       rtpProgramHoldRules: [],
+      rtpProgramTracker: {},
     };
   }
 
@@ -427,6 +429,22 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
     const rtpPhase = getMedicalRtpPhaseOption(draft.rtpPhase || defaults.rtpPhase);
     const status = medicalInjuryPlanStatusOptions.some((option) => option.key === draft.status) ? draft.status : rtpPhase.status;
     const durationUnit = ["days", "weeks", "months"].includes(draft.durationUnit) ? draft.durationUnit : defaults.durationUnit;
+    const rtpProgramPhases = normalizeMedicalTextList(draft.rtpProgramPhases ?? defaults.rtpProgramPhases);
+    const rtpProgramLoadText = normalizeMedicalTextList(draft.rtpProgramLoadText ?? defaults.rtpProgramLoadText);
+    const rtpProgramRiskFactors = normalizeMedicalTextList(draft.rtpProgramRiskFactors ?? defaults.rtpProgramRiskFactors);
+    const rtpProgramWarningPoints = normalizeMedicalTextList(draft.rtpProgramWarningPoints ?? defaults.rtpProgramWarningPoints);
+    const rtpProgramGateCriteria = normalizeMedicalTextList(draft.rtpProgramGateCriteria ?? defaults.rtpProgramGateCriteria);
+    const rtpProgramNextSteps = normalizeMedicalTextList(draft.rtpProgramNextSteps ?? defaults.rtpProgramNextSteps);
+    const rtpProgramHoldRules = normalizeMedicalTextList(draft.rtpProgramHoldRules ?? defaults.rtpProgramHoldRules);
+    const rtpProgramSource = {
+      rtpProgramPhases,
+      rtpProgramLoadText,
+      rtpProgramRiskFactors,
+      rtpProgramWarningPoints,
+      rtpProgramGateCriteria,
+      rtpProgramNextSteps,
+      rtpProgramHoldRules,
+    };
     return {
       ...defaults,
       planId: String(draft.planId ?? draft.id ?? defaults.planId).trim(),
@@ -448,13 +466,14 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       rtpLibraryProfileName: String(draft.rtpLibraryProfileName ?? defaults.rtpLibraryProfileName).trim(),
       rtpLibraryEvidenceLevel: String(draft.rtpLibraryEvidenceLevel ?? defaults.rtpLibraryEvidenceLevel).trim(),
       rtpLibrarySummary: String(draft.rtpLibrarySummary ?? defaults.rtpLibrarySummary).trim(),
-      rtpProgramPhases: normalizeMedicalTextList(draft.rtpProgramPhases ?? defaults.rtpProgramPhases),
-      rtpProgramLoadText: normalizeMedicalTextList(draft.rtpProgramLoadText ?? defaults.rtpProgramLoadText),
-      rtpProgramRiskFactors: normalizeMedicalTextList(draft.rtpProgramRiskFactors ?? defaults.rtpProgramRiskFactors),
-      rtpProgramWarningPoints: normalizeMedicalTextList(draft.rtpProgramWarningPoints ?? defaults.rtpProgramWarningPoints),
-      rtpProgramGateCriteria: normalizeMedicalTextList(draft.rtpProgramGateCriteria ?? defaults.rtpProgramGateCriteria),
-      rtpProgramNextSteps: normalizeMedicalTextList(draft.rtpProgramNextSteps ?? defaults.rtpProgramNextSteps),
-      rtpProgramHoldRules: normalizeMedicalTextList(draft.rtpProgramHoldRules ?? defaults.rtpProgramHoldRules),
+      rtpProgramPhases,
+      rtpProgramLoadText,
+      rtpProgramRiskFactors,
+      rtpProgramWarningPoints,
+      rtpProgramGateCriteria,
+      rtpProgramNextSteps,
+      rtpProgramHoldRules,
+      rtpProgramTracker: normalizeMedicalRtpProgramTracker(draft.rtpProgramTracker || draft, rtpProgramSource),
     };
   }
 
@@ -549,6 +568,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       ...values,
       playerId: values.playerId || form.querySelector("[name='playerId']")?.value || getMedicalState()?.selectedPlayerId || "",
       shareWithCoach: Boolean(form.querySelector("[name='shareWithCoach']")?.checked),
+      rtpProgramTracker: normalizeMedicalRtpProgramTracker(values, values),
     };
   }
 

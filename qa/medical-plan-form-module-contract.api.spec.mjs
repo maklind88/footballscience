@@ -38,6 +38,11 @@ test("Medical plan form renderer keeps injury plan and clearance form contracts"
       rtpProgramGateCriteria: ["Pain-free maximal isometric contraction", "Tolerates repeated high-speed running"],
       rtpProgramNextSteps: ["Controlled acceleration session", "Position-specific sprint exposure"],
       rtpProgramHoldRules: ["Pain above acceptable threshold"],
+      rtpProgramTracker: {
+        gateCriteria: ["passed", "in-progress"],
+        nextSteps: ["in-progress", "not-started"],
+        holdRules: ["hold"],
+      },
     }),
     getMedicalPlayerInjuryPlans: () => [plan],
     getSelectedDate: () => "2026-05-31",
@@ -68,6 +73,13 @@ test("Medical plan form renderer keeps injury plan and clearance form contracts"
   expect(form).toContain("Pain-free maximal isometric contraction");
   expect(form).toContain('<textarea name="rtpProgramPhases"');
   expect(form).toContain("One item per line");
+  expect(form).toContain("RTP Progress Tracker");
+  expect(form).toContain("1/5 passed");
+  expect(form).toContain("Hold: Pain above acceptable threshold");
+  expect(form).toContain('name="rtpProgramTrackerGate0"');
+  expect(form).toContain('<option value="passed" selected>Passed</option>');
+  expect(form).toContain('name="rtpProgramTrackerHold0"');
+  expect(form).toContain('<option value="hold" selected>Hold</option>');
   expect(form).toContain("data-medical-duration-preset");
   expect(form).toContain("data-medical-cancel-injury-plan-edit");
   expect(form).toContain('datalist id="medicalInjuryTypes"');

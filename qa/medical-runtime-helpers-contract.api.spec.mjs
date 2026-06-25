@@ -215,6 +215,9 @@ test("Medical runtime helpers preserve record, plan, clearance, and policy norma
     rtpProgramGateCriteria: ["Pain-free sprinting"],
     rtpProgramNextSteps: "Controlled sprint exposure; Team training integration",
     rtpProgramHoldRules: ["Pain increase"],
+    rtpProgramTrackerGate0: "passed",
+    rtpProgramTrackerNext0: "in-progress",
+    rtpProgramTrackerHold0: "hold",
     createdAt: "2026-05-10T09:00:00.000Z",
   })).toMatchObject({
     id: "medical-injury-plan-1",
@@ -231,6 +234,11 @@ test("Medical runtime helpers preserve record, plan, clearance, and policy norma
     rtpProgramGateCriteria: ["Pain-free sprinting"],
     rtpProgramNextSteps: ["Controlled sprint exposure", "Team training integration"],
     rtpProgramHoldRules: ["Pain increase"],
+    rtpProgramTracker: {
+      gateCriteria: ["passed"],
+      nextSteps: ["in-progress", "not-started"],
+      holdRules: ["hold"],
+    },
   });
 
   expect(helpers.normalizeMedicalGovernancePolicy({

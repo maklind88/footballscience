@@ -31,6 +31,13 @@ test("Medical plan form renderer keeps injury plan and clearance form contracts"
       rtpLibraryProfileName: "Hamstring Strain",
       rtpLibraryEvidenceLevel: "Moderate to high",
       rtpLibrarySummary: "Sprint exposure must be rebuilt before match return.",
+      rtpProgramPhases: ["Rehab: restore pain-free strength", "Modified football: controlled acceleration"],
+      rtpProgramLoadText: ["Rebuild high-speed running before repeated sprint exposure"],
+      rtpProgramRiskFactors: ["Previous hamstring injury", "Sprint exposure gap"],
+      rtpProgramWarningPoints: ["Pain during acceleration"],
+      rtpProgramGateCriteria: ["Pain-free maximal isometric contraction", "Tolerates repeated high-speed running"],
+      rtpProgramNextSteps: ["Controlled acceleration session", "Position-specific sprint exposure"],
+      rtpProgramHoldRules: ["Pain above acceptable threshold"],
     }),
     getMedicalPlayerInjuryPlans: () => [plan],
     getSelectedDate: () => "2026-05-31",
@@ -53,6 +60,11 @@ test("Medical plan form renderer keeps injury plan and clearance form contracts"
   expect(form).toContain("RTP Library starter");
   expect(form).toContain("Hamstring Strain");
   expect(form).toContain('name="rtpLibraryProfileId" value="hamstring-strain"');
+  expect(form).toContain("Player RTP program starter");
+  expect(form).toContain("RTP phases");
+  expect(form).toContain("Gate criteria");
+  expect(form).toContain("Pain-free maximal isometric contraction");
+  expect(form).toContain('name="rtpProgramPhases"');
   expect(form).toContain("data-medical-duration-preset");
   expect(form).toContain("data-medical-cancel-injury-plan-edit");
   expect(form).toContain('datalist id="medicalInjuryTypes"');

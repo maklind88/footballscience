@@ -19,7 +19,31 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   const summary = {
     actionSignals: [signal],
     signals: [signal],
-    activeCases: [],
+    activeCases: [
+      {
+        player: signal.player,
+        plan: {
+          id: "plan-1",
+          injuryType: "Hamstring Strain",
+          bodyArea: "Posterior thigh",
+          startDate: "2026-05-20",
+          endDate: "2026-06-10",
+          participation: 50,
+          rtpPhase: "modified-team",
+          rtpLibraryProfileId: "hamstring-strain",
+          rtpLibraryProfileName: "Hamstring Strain",
+          rtpLibraryEvidenceLevel: "Moderate to high",
+          rtpProgramGateCriteria: ["pain-free maximal isometric contraction"],
+          rtpProgramNextSteps: ["linear sprint exposure"],
+          rtpProgramHoldRules: ["pain with walking after 48 hours"],
+        },
+        severity: { tone: "medium", label: "Moderate" },
+        daysRemaining: 10,
+        elapsedDays: 4,
+        review: { label: "Review due" },
+        clearance: { signOffCount: 1, gatePassCount: 0 },
+      },
+    ],
     clearanceBlockers: [],
     actionRequired: 1,
     actualMissing: 0,
@@ -63,6 +87,12 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(privateMarkup).toContain("medical-operations-system");
   expect(privateMarkup).toContain("medical-ops-signals-table");
   expect(privateMarkup).toContain("Mak Player");
+  const casesMarkup = renderer.renderPrivateSystem(summary, "cases", "2026-05-31");
+  expect(casesMarkup).toContain("RTP Programs");
+  expect(casesMarkup).toContain("Medical-owned player programs from the RTP Library");
+  expect(casesMarkup).toContain("Hamstring Strain");
+  expect(casesMarkup).toContain("Gate criteria");
+  expect(casesMarkup).toContain("Open Medical Plan");
   const rtpMarkup = renderer.renderPrivateSystem(summary, "rtp-library", "2026-05-31");
   expect(rtpMarkup).toContain("RTP Library");
   expect(rtpMarkup).toContain("Medical-safe injury knowledge");

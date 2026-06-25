@@ -209,6 +209,12 @@ test("Medical runtime helpers preserve record, plan, clearance, and policy norma
     durationUnit: "weeks",
     clearance: { doctor: "true" },
     gates: { running: "pass" },
+    rtpLibraryProfileId: "hamstring-strain",
+    rtpLibraryProfileName: "Hamstring Strain",
+    rtpProgramPhases: '["Rehab","Modified"]',
+    rtpProgramGateCriteria: ["Pain-free sprinting"],
+    rtpProgramNextSteps: "Controlled sprint exposure; Team training integration",
+    rtpProgramHoldRules: ["Pain increase"],
     createdAt: "2026-05-10T09:00:00.000Z",
   })).toMatchObject({
     id: "medical-injury-plan-1",
@@ -219,6 +225,12 @@ test("Medical runtime helpers preserve record, plan, clearance, and policy norma
     rtpPhase: "full-training",
     clearance: { doctor: true, physio: false },
     gates: { running: "pass", contact: "pending" },
+    rtpLibraryProfileId: "hamstring-strain",
+    rtpLibraryProfileName: "Hamstring Strain",
+    rtpProgramPhases: ["Rehab", "Modified"],
+    rtpProgramGateCriteria: ["Pain-free sprinting"],
+    rtpProgramNextSteps: ["Controlled sprint exposure", "Team training integration"],
+    rtpProgramHoldRules: ["Pain increase"],
   });
 
   expect(helpers.normalizeMedicalGovernancePolicy({

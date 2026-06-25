@@ -22,6 +22,11 @@ test("Medical recommendation renderer keeps log, preset, and plan contracts", ()
     reviewDate: "2026-06-03",
     comment: "Controlled return",
     archivedAt: null,
+    rtpLibraryProfileName: "Hamstring Strain",
+    rtpLibraryEvidenceLevel: "Moderate to high",
+    rtpProgramGateCriteria: ["Pain-free maximal isometric contraction"],
+    rtpProgramNextSteps: ["Controlled sprint exposure"],
+    rtpProgramHoldRules: ["Pain with acceleration"],
   };
   const renderer = createMedicalRecommendationRenderer({
     escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
@@ -65,6 +70,9 @@ test("Medical recommendation renderer keeps log, preset, and plan contracts", ()
   expect(planList).toContain("data-medical-edit-injury-plan");
   expect(planList).toContain("data-medical-delete-injury-plan");
   expect(planList).toContain("Hamstring");
+  expect(planList).toContain("RTP Library source");
+  expect(planList).toContain("Gate criteria");
+  expect(planList).toContain("Controlled sprint exposure");
 
   expect(renderer.renderPlanListCard(player)).toContain("1 / 1 archived");
   expect(renderer.renderLogCard(player)).toContain("Medical Log");

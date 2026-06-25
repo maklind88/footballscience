@@ -24,6 +24,47 @@ export function createMedicalPlanFormRenderer({
   renderMedicalParticipationOptions,
   renderMedicalRtpPhaseOptions,
 } = {}) {
+  const encodeJsonField = (value = []) => escapeHtml(JSON.stringify(Array.isArray(value) ? value : []));
+  const renderProgramList = (title, items = []) => items.length ? `
+<section>
+<h4>${escapeHtml(title)}</h4>
+<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+</section>
+` : "";
+
+  const renderRtpProgramBlueprint = (draft = {}) => {
+    const hasProgram = [
+      draft.rtpProgramPhases,
+      draft.rtpProgramLoadText,
+      draft.rtpProgramGateCriteria,
+      draft.rtpProgramNextSteps,
+      draft.rtpProgramHoldRules,
+    ].some((items) => Array.isArray(items) && items.length);
+    if (!hasProgram) {
+      return "";
+    }
+    return `
+<section class="medical-rtp-program-blueprint">
+<header>
+<div>
+<span>Player RTP program starter</span>
+<strong>Build, edit and individualize in Medical Plan</strong>
+</div>
+<small>Medical-owned / not coach-visible by default</small>
+</header>
+<div class="medical-rtp-program-grid">
+${renderProgramList("RTP phases", draft.rtpProgramPhases)}
+${renderProgramList("Running / sprint / COD / GPS", draft.rtpProgramLoadText)}
+${renderProgramList("Risk factors", draft.rtpProgramRiskFactors)}
+${renderProgramList("Warning points", draft.rtpProgramWarningPoints)}
+${renderProgramList("Gate criteria", draft.rtpProgramGateCriteria)}
+${renderProgramList("Next step", draft.rtpProgramNextSteps)}
+${renderProgramList("Hold rules", draft.rtpProgramHoldRules)}
+</div>
+</section>
+`;
+  };
+
   const renderInjuryPlanForm = (player, canEdit) => {
     const draft = getMedicalInjuryPlanDraft(player.id);
     const isEditing = Boolean(draft.planId);
@@ -41,6 +82,13 @@ export function createMedicalPlanFormRenderer({
 <input type="hidden" name="rtpLibraryProfileName" value="${escapeHtml(draft.rtpLibraryProfileName)}" />
 <input type="hidden" name="rtpLibraryEvidenceLevel" value="${escapeHtml(draft.rtpLibraryEvidenceLevel)}" />
 <input type="hidden" name="rtpLibrarySummary" value="${escapeHtml(draft.rtpLibrarySummary)}" />
+<input type="hidden" name="rtpProgramPhases" value="${encodeJsonField(draft.rtpProgramPhases)}" />
+<input type="hidden" name="rtpProgramLoadText" value="${encodeJsonField(draft.rtpProgramLoadText)}" />
+<input type="hidden" name="rtpProgramRiskFactors" value="${encodeJsonField(draft.rtpProgramRiskFactors)}" />
+<input type="hidden" name="rtpProgramWarningPoints" value="${encodeJsonField(draft.rtpProgramWarningPoints)}" />
+<input type="hidden" name="rtpProgramGateCriteria" value="${encodeJsonField(draft.rtpProgramGateCriteria)}" />
+<input type="hidden" name="rtpProgramNextSteps" value="${encodeJsonField(draft.rtpProgramNextSteps)}" />
+<input type="hidden" name="rtpProgramHoldRules" value="${encodeJsonField(draft.rtpProgramHoldRules)}" />
 ${hasRtpLibraryStarter ? `
 <section class="medical-rtp-plan-starter">
 <div>
@@ -51,6 +99,7 @@ ${hasRtpLibraryStarter ? `
 <p>${escapeHtml(draft.rtpLibrarySummary)}</p>
 </section>
 ` : ""}
+${renderRtpProgramBlueprint(draft)}
 <div class="medical-form-grid medical-plan-form-grid">
 <label>
 <span>Injury / reason</span>

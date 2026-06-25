@@ -38,4 +38,8 @@ test("Medical RTP Library starter drafts stay medical-owned and evidence-separat
   expect(draft.comment).toContain("RTP phases:");
   expect(draft.comment).toContain("Hold rules:");
   expect(draft.coachNote).not.toContain("cleared");
+  expect(draft.rtpProgramPhases).toContain("Rehab: restore pain-free range, trunk-pelvis control, and isometric strength.");
+  expect(draft.rtpProgramGateCriteria).toContain("pain-free maximal isometric contraction");
+  expect(draft.rtpProgramNextSteps).toContain("linear sprint exposure");
+  expect(draft.rtpProgramHoldRules).toEqual(draft.rtpProgramWarningPoints);
 });

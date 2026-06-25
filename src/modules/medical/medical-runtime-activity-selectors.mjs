@@ -393,7 +393,32 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       rtpLibraryProfileName: "",
       rtpLibraryEvidenceLevel: "",
       rtpLibrarySummary: "",
+      rtpProgramPhases: [],
+      rtpProgramLoadText: [],
+      rtpProgramRiskFactors: [],
+      rtpProgramWarningPoints: [],
+      rtpProgramGateCriteria: [],
+      rtpProgramNextSteps: [],
+      rtpProgramHoldRules: [],
     };
+  }
+
+  function normalizeMedicalTextList(value = []) {
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item ?? "").trim()).filter(Boolean).slice(0, 12);
+    }
+    const text = String(value ?? "").trim();
+    if (!text) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return normalizeMedicalTextList(parsed);
+      }
+    } catch {
+    }
+    return text.split(/\n|;/u).map((item) => item.trim()).filter(Boolean).slice(0, 12);
   }
 
   function normalizeMedicalInjuryPlanDraft(draft = {}, playerId = draft.playerId) {
@@ -423,6 +448,13 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       rtpLibraryProfileName: String(draft.rtpLibraryProfileName ?? defaults.rtpLibraryProfileName).trim(),
       rtpLibraryEvidenceLevel: String(draft.rtpLibraryEvidenceLevel ?? defaults.rtpLibraryEvidenceLevel).trim(),
       rtpLibrarySummary: String(draft.rtpLibrarySummary ?? defaults.rtpLibrarySummary).trim(),
+      rtpProgramPhases: normalizeMedicalTextList(draft.rtpProgramPhases ?? defaults.rtpProgramPhases),
+      rtpProgramLoadText: normalizeMedicalTextList(draft.rtpProgramLoadText ?? defaults.rtpProgramLoadText),
+      rtpProgramRiskFactors: normalizeMedicalTextList(draft.rtpProgramRiskFactors ?? defaults.rtpProgramRiskFactors),
+      rtpProgramWarningPoints: normalizeMedicalTextList(draft.rtpProgramWarningPoints ?? defaults.rtpProgramWarningPoints),
+      rtpProgramGateCriteria: normalizeMedicalTextList(draft.rtpProgramGateCriteria ?? defaults.rtpProgramGateCriteria),
+      rtpProgramNextSteps: normalizeMedicalTextList(draft.rtpProgramNextSteps ?? defaults.rtpProgramNextSteps),
+      rtpProgramHoldRules: normalizeMedicalTextList(draft.rtpProgramHoldRules ?? defaults.rtpProgramHoldRules),
     };
   }
 

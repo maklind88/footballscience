@@ -214,6 +214,17 @@ export function createMedicalRuntimeStateService(deps = {}) {
       coachNote: plan.shareWithCoach ? String(plan.coachNote ?? "").trim() : "",
       shareWithCoach: normalizeMedicalShareValue(plan.shareWithCoach),
       comment: "",
+      rtpLibraryProfileId: "",
+      rtpLibraryProfileName: "",
+      rtpLibraryEvidenceLevel: "",
+      rtpLibrarySummary: "",
+      rtpProgramPhases: [],
+      rtpProgramLoadText: [],
+      rtpProgramRiskFactors: [],
+      rtpProgramWarningPoints: [],
+      rtpProgramGateCriteria: [],
+      rtpProgramNextSteps: [],
+      rtpProgramHoldRules: [],
       createdBy: "coach-safe",
     };
   }

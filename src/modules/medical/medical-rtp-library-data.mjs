@@ -413,5 +413,12 @@ export function createMedicalRtpLibraryStarterDraft(profileId = "", playerId = "
     rtpLibraryProfileName: selectedProfile.name,
     rtpLibraryEvidenceLevel: selectedProfile.evidenceLevel,
     rtpLibrarySummary: selectedProfile.summary,
+    rtpProgramPhases: selectedProfile.phases,
+    rtpProgramLoadText: selectedProfile.loadText,
+    rtpProgramRiskFactors: selectedProfile.riskTags,
+    rtpProgramWarningPoints: selectedProfile.redFlags,
+    rtpProgramGateCriteria: selectedProfile.criteria,
+    rtpProgramNextSteps: selectedProfile.trainingChecklist,
+    rtpProgramHoldRules: selectedProfile.redFlags,
   };
 }

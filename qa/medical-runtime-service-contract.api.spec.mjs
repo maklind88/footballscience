@@ -121,6 +121,8 @@ test("Medical runtime service owns composition wiring outside app-runtime", () =
   expect(service).toContain("createMedicalRuntimeHelpers({");
   expect(service).toContain("createMedicalRuntimeStateService({");
   expect(service).toContain("createMedicalRuntimeFacade({");
+  expect(service).toContain("fetchRef: deps.fetchRef");
+  expect(service).toContain("getPlatformApiAccessToken: deps.getPlatformApiAccessToken");
   expect(service).toContain("get helpers() { return getHelpers(); }");
   expect(service).toContain("get stateService() { return getStateService(); }");
   expect(service).toContain("get facade() { return getFacade(); }");

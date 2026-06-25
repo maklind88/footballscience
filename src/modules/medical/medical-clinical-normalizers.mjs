@@ -116,6 +116,24 @@ export function createMedicalClinicalNormalizers(deps = {}) {
     return formatDateValue(addCalendarDays(startDate, cleanDuration * 7 - 1));
   }
 
+  function normalizeMedicalTextList(value = []) {
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item ?? "").trim()).filter(Boolean).slice(0, 12);
+    }
+    const text = String(value ?? "").trim();
+    if (!text) {
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return normalizeMedicalTextList(parsed);
+      }
+    } catch {
+    }
+    return text.split(/\n|;/u).map((item) => item.trim()).filter(Boolean).slice(0, 12);
+  }
+
   function normalizeMedicalInjuryPlan(plan = {}) {
     const playerId = String(plan.playerId ?? "").trim();
     const startDate = isDateValue(plan.startDate) ? plan.startDate : formatDateValue(new Date());
@@ -153,6 +171,17 @@ export function createMedicalClinicalNormalizers(deps = {}) {
       coachNote: String(plan.coachNote ?? "").trim(),
       shareWithCoach: normalizeMedicalShareValue(plan.shareWithCoach),
       comment: String(plan.comment ?? "").trim(),
+      rtpLibraryProfileId: String(plan.rtpLibraryProfileId ?? "").trim(),
+      rtpLibraryProfileName: String(plan.rtpLibraryProfileName ?? "").trim(),
+      rtpLibraryEvidenceLevel: String(plan.rtpLibraryEvidenceLevel ?? "").trim(),
+      rtpLibrarySummary: String(plan.rtpLibrarySummary ?? "").trim(),
+      rtpProgramPhases: normalizeMedicalTextList(plan.rtpProgramPhases),
+      rtpProgramLoadText: normalizeMedicalTextList(plan.rtpProgramLoadText),
+      rtpProgramRiskFactors: normalizeMedicalTextList(plan.rtpProgramRiskFactors),
+      rtpProgramWarningPoints: normalizeMedicalTextList(plan.rtpProgramWarningPoints),
+      rtpProgramGateCriteria: normalizeMedicalTextList(plan.rtpProgramGateCriteria),
+      rtpProgramNextSteps: normalizeMedicalTextList(plan.rtpProgramNextSteps),
+      rtpProgramHoldRules: normalizeMedicalTextList(plan.rtpProgramHoldRules),
       createdAt,
       updatedAt: normalizeMedicalTimestamp(plan.updatedAt) || archivedAt || createdAt,
       createdBy: plan.createdBy || getCurrentUser()?.id || "",

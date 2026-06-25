@@ -122,6 +122,31 @@ ${isFallback ? "Not logged" : `${value}%`}
       .join("");
   };
 
+  const getRtpProgramItems = (items = [], limit = 2) => (Array.isArray(items) ? items.filter(Boolean).slice(0, limit) : []);
+
+  const renderPlanProgramLine = (label, items = []) =>
+    items.length ? `<small><strong>${escapeHtml(label)}:</strong> ${escapeHtml(items.join(" / "))}</small>` : "";
+
+  const renderPlanRtpProgramMini = (plan = {}) => {
+    const gateCriteria = getRtpProgramItems(plan.rtpProgramGateCriteria, 2);
+    const nextSteps = getRtpProgramItems(plan.rtpProgramNextSteps, 2);
+    const holdRules = getRtpProgramItems(plan.rtpProgramHoldRules, 1);
+    const hasProgram = Boolean(plan.rtpLibraryProfileName || gateCriteria.length || nextSteps.length || holdRules.length);
+    if (!hasProgram) {
+      return "";
+    }
+    return `
+<section class="medical-rtp-plan-source">
+<span>RTP Library source</span>
+<strong>${escapeHtml(plan.rtpLibraryProfileName || "Medical starter")}</strong>
+${plan.rtpLibraryEvidenceLevel ? `<small>Evidence: ${escapeHtml(plan.rtpLibraryEvidenceLevel)}</small>` : ""}
+${renderPlanProgramLine("Gate criteria", gateCriteria)}
+${renderPlanProgramLine("Next step", nextSteps)}
+${renderPlanProgramLine("Hold", holdRules)}
+</section>
+`;
+  };
+
   const renderInjuryPlanList = (player) => {
     const plans = player ? getMedicalPlayerInjuryPlans(player.id) : [];
     if (!plans.length) {
@@ -141,6 +166,7 @@ ${isFallback ? "Not logged" : `${value}%`}
 <small>${escapeHtml(formatMedicalDateLabel(plan.startDate))} - ${escapeHtml(formatMedicalDateLabel(plan.endDate))} / ${plan.participation}%</small>
 <small>${escapeHtml(phase.label)} / ${isCleared ? "cleared gates" : "clearance pending"}</small>
 ${plan.bodyArea || plan.reviewDate ? `<small>${escapeHtml([plan.bodyArea, plan.reviewDate ? `Review ${formatMedicalDateLabel(plan.reviewDate)}` : ""].filter(Boolean).join(" / "))}</small>` : ""}
+${renderPlanRtpProgramMini(plan)}
 ${plan.comment ? `<p>${escapeHtml(plan.comment)}</p>` : ""}
 </div>
 ${

@@ -162,12 +162,15 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
     name: "Hamstring Strain",
     bodyArea: "Posterior thigh",
   });
-  expect(selectors.getMedicalRtpLibraryStarterDraft("hamstring-strain", "p1")).toMatchObject({
+  const starterDraft = selectors.getMedicalRtpLibraryStarterDraft("hamstring-strain", "p1");
+  expect(starterDraft).toMatchObject({
     playerId: "p1",
     injuryType: "Hamstring Strain",
     rtpLibraryProfileId: "hamstring-strain",
     shareWithCoach: false,
   });
+  expect(starterDraft.rtpProgramPhases.length).toBeGreaterThan(0);
+  expect(starterDraft.rtpProgramGateCriteria).toContain("pain-free maximal isometric contraction");
 
   expect(selectors.getMedicalRecommendationActivityContext("2026-05-31")).toMatchObject({
     type: "match",

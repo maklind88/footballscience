@@ -3,6 +3,7 @@ import {
   medicalRtpLibraryFilterOptions,
   medicalRtpLibraryProfiles as defaultMedicalRtpLibraryProfiles,
 } from "./medical-rtp-library-data.mjs";
+import { createMedicalRtpProgramRenderer } from "./medical-rtp-program-renderer.mjs";
 
 const defaultEscapeHtml = (value) =>
   String(value ?? "")
@@ -73,6 +74,13 @@ aria-pressed="${activeTab === tab.key ? "true" : "false"}"
 ${renderTabs(activeTab, tabOptions, "medical-ops-tabs-top")}
 </section>
 `;
+
+  const rtpProgramRenderer = createMedicalRtpProgramRenderer({
+    escapeHtml,
+    getMedicalRtpPhaseOption,
+    medicalClearanceRoles,
+    medicalLoadGateOptions,
+  });
 
   const renderPlayerAvailability = (summary) => {
     const players = summary.signals;
@@ -240,6 +248,8 @@ ${summary.signals
 `;
 
   const renderCases = (summary) => `
+<div class="medical-rtp-case-layout">
+${rtpProgramRenderer.renderRtpCaseProgramCards(summary)}
 <div class="medical-ops-table medical-ops-cases-table">
 <div class="medical-ops-table-head" aria-hidden="true">
 <span>Player</span>
@@ -263,6 +273,7 @@ ${summary.activeCases.length
       )
       .join("")
   : `<div class="medical-empty-inline">No active clinical cases today.</div>`}
+</div>
 </div>
 `;
 

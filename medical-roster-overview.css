@@ -2268,6 +2268,249 @@ body.is-dark-mode .medical-modal-close {
   line-height: 1.08;
 }
 
+.medical-rtp-program-blueprint,
+.medical-rtp-case-workspace,
+.medical-rtp-plan-source {
+  border: 1px solid rgba(29, 31, 29, 0.09);
+  border-radius: 8px;
+  background: rgba(247, 250, 248, 0.9);
+}
+
+.medical-rtp-program-blueprint {
+  display: grid;
+  gap: 0.72rem;
+  margin-bottom: 0.8rem;
+  padding: 0.78rem;
+}
+
+.medical-rtp-program-blueprint > header,
+.medical-rtp-case-workspace > header,
+.medical-rtp-case-card > header,
+.medical-rtp-case-card footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.72rem;
+}
+
+.medical-rtp-program-blueprint > header div,
+.medical-rtp-case-workspace > header div,
+.medical-rtp-case-card > header div {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.medical-rtp-program-blueprint > header span,
+.medical-rtp-case-workspace > header span,
+.medical-rtp-plan-source span {
+  color: #176449;
+  font-size: 0.66rem;
+  font-weight: 950;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-program-blueprint > header strong,
+.medical-rtp-case-workspace > header strong,
+.medical-rtp-plan-source strong {
+  color: #10231b;
+  font-size: 0.94rem;
+  line-height: 1.1;
+}
+
+.medical-rtp-program-blueprint > header small,
+.medical-rtp-case-workspace > header small,
+.medical-rtp-case-card small,
+.medical-rtp-case-card p,
+.medical-rtp-plan-source small {
+  color: #64716b;
+  font-size: 0.74rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.medical-rtp-program-grid,
+.medical-rtp-case-board,
+.medical-rtp-case-sections {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.medical-rtp-program-grid {
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+
+.medical-rtp-program-grid section,
+.medical-rtp-case-sections section {
+  min-width: 0;
+  padding: 0.62rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.medical-rtp-program-grid h4,
+.medical-rtp-case-sections h4 {
+  margin: 0;
+  color: #10231b;
+  font-size: 0.76rem;
+  letter-spacing: 0;
+}
+
+.medical-rtp-program-grid ul,
+.medical-rtp-case-sections ul {
+  display: grid;
+  gap: 0.24rem;
+  margin: 0.34rem 0 0;
+  padding-left: 1rem;
+}
+
+.medical-rtp-program-grid li,
+.medical-rtp-case-sections li {
+  color: #3f4f48;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.medical-rtp-case-layout {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.medical-rtp-case-workspace {
+  display: grid;
+  gap: 0.72rem;
+  padding: 0.82rem;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(239, 248, 244, 0.86));
+}
+
+.medical-rtp-case-board {
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+}
+
+.medical-rtp-case-card {
+  display: grid;
+  gap: 0.68rem;
+  min-width: 0;
+  padding: 0.74rem;
+  border: 1px solid rgba(29, 31, 29, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12px 28px rgba(12, 24, 20, 0.055);
+}
+
+.medical-rtp-case-card > header strong {
+  display: block;
+  overflow: hidden;
+  color: #10231b;
+  font-size: 0.98rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-rtp-case-card > header span {
+  color: #64716b;
+  font-size: 0.7rem;
+  font-weight: 850;
+}
+
+.medical-rtp-case-card > header b {
+  flex: 0 0 auto;
+  padding: 0.32rem 0.52rem;
+  border-radius: 999px;
+  color: #176449;
+  background: rgba(47, 143, 107, 0.12);
+  font-size: 0.68rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.medical-rtp-case-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.medical-rtp-case-meta span {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+  padding: 0.52rem;
+  border-radius: 8px;
+  background: rgba(23, 100, 73, 0.07);
+  color: #3f4f48;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.28;
+}
+
+.medical-rtp-case-meta strong {
+  color: #176449;
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-case-card footer {
+  align-items: center;
+}
+
+.medical-rtp-case-card button {
+  min-height: 2.15rem;
+  border: 0;
+  border-radius: 8px;
+  background: #193827;
+  color: #fff;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 900;
+  padding: 0 0.78rem;
+}
+
+.medical-rtp-plan-source {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.5rem;
+  padding: 0.58rem;
+}
+
+.medical-rtp-plan-source small strong {
+  color: #176449;
+}
+
+body.is-dark-mode .medical-rtp-program-blueprint,
+body.is-dark-mode .medical-rtp-case-workspace,
+body.is-dark-mode .medical-rtp-plan-source,
+body.is-dark-mode .medical-rtp-program-grid section,
+body.is-dark-mode .medical-rtp-case-sections section,
+body.is-dark-mode .medical-rtp-case-card {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+body.is-dark-mode .medical-rtp-case-workspace {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(21, 38, 31, 0.7));
+}
+
+body.is-dark-mode .medical-rtp-program-blueprint > header strong,
+body.is-dark-mode .medical-rtp-case-workspace > header strong,
+body.is-dark-mode .medical-rtp-case-card > header strong,
+body.is-dark-mode .medical-rtp-program-grid h4,
+body.is-dark-mode .medical-rtp-case-sections h4,
+body.is-dark-mode .medical-rtp-plan-source strong {
+  color: var(--ink);
+}
+
+body.is-dark-mode .medical-rtp-program-grid li,
+body.is-dark-mode .medical-rtp-case-sections li,
+body.is-dark-mode .medical-rtp-case-meta span {
+  color: var(--muted);
+}
+
 @media (max-width: 1180px) {
   .medical-rtp-library-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2290,6 +2533,18 @@ body.is-dark-mode .medical-modal-close {
   }
 
   .medical-rtp-profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .medical-rtp-program-blueprint > header,
+  .medical-rtp-case-workspace > header,
+  .medical-rtp-case-card > header,
+  .medical-rtp-case-card footer {
+    display: grid;
+  }
+
+  .medical-rtp-case-board,
+  .medical-rtp-case-meta {
     grid-template-columns: 1fr;
   }
 }

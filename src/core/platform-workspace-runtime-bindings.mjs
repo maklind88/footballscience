@@ -26,6 +26,8 @@ export function bindPlatformWorkspaceRuntimeBindings(deps = {}) {
     state: {
       getSelectedStaffUserId: profileState.getSelectedStaffUserId,
       setSelectedStaffUserId: profileState.setSelectedStaffUserId,
+      getStaffCreateUserDraft: profileState.getStaffCreateUserDraft,
+      setStaffCreateUserDraft: profileState.setStaffCreateUserDraft,
       getStaffCreateUserEditorOpen: profileState.getStaffCreateUserEditorOpen,
       setStaffCreateUserEditorOpen: profileState.setStaffCreateUserEditorOpen,
     },

@@ -1550,6 +1550,7 @@ win,
 });
 let selectedStaffUserId = null;
 let staffCreateUserEditorOpen = false;
+let staffCreateUserDraft = null;
 let adminRuntimeService = null;
 const {
 adminAccessRenderer,
@@ -2736,6 +2737,7 @@ getScheduleSessionEventForDate,
 getScheduledSessionTitleForDate,
 getScopedPlatformUsers,
 getSelectedStaffUserId: () => selectedStaffUserId,
+getStaffCreateUserDraft: () => staffCreateUserDraft,
 getSessionPlannerHistoryActionLabelFromModule,
 getSessionPlannerHistoryActorLabelFromModule,
 getSessionPlannerPlayerProfileContract,
@@ -2886,6 +2888,7 @@ setPlayerProfilesState: (nextState) => { playerProfilesState = nextState; },
 setScheduleState: (nextState) => { scheduleState = nextState; },
 setScoutingState: (nextState) => { scoutingState = nextState; },
 setSelectedStaffUserId: (userId) => { selectedStaffUserId = userId; },
+setStaffCreateUserDraft: (draft) => { staffCreateUserDraft = draft && typeof draft === "object" ? { ...draft } : null; },
 setSessionPlannerExerciseLibrary: (exercises) => { sessionPlannerExerciseLibrary = exercises; },
 setSessionPlannerState: (nextState) => { sessionPlannerState = nextState; },
 setStaffCreateUserEditorOpen: (isOpen) => { staffCreateUserEditorOpen = isOpen; },
@@ -3684,6 +3687,8 @@ scheduleWorkspaceController,
 profileState: {
 getSelectedStaffUserId: () => selectedStaffUserId,
 setSelectedStaffUserId: (userId) => { selectedStaffUserId = userId; },
+getStaffCreateUserDraft: () => staffCreateUserDraft,
+setStaffCreateUserDraft: (draft) => { staffCreateUserDraft = draft && typeof draft === "object" ? { ...draft } : null; },
 getStaffCreateUserEditorOpen: () => staffCreateUserEditorOpen,
 setStaffCreateUserEditorOpen: (isOpen) => { staffCreateUserEditorOpen = isOpen; },
 },

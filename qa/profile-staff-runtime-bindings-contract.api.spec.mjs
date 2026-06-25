@@ -49,8 +49,10 @@ function createHarness() {
   const winListeners = {};
   const mutable = {
     selectedStaffUserId: "staff-1",
+    staffCreateUserDraft: null,
     staffCreateUserEditorOpen: false,
     hubReady: true,
+    passwordValidationMessage: "",
   };
   const currentUser = { id: "user-1", username: "mak", email: "mak@example.com" };
   const users = [
@@ -76,6 +78,8 @@ function createHarness() {
     state: {
       getSelectedStaffUserId: () => mutable.selectedStaffUserId,
       setSelectedStaffUserId: (value) => { mutable.selectedStaffUserId = value; },
+      getStaffCreateUserDraft: () => mutable.staffCreateUserDraft,
+      setStaffCreateUserDraft: (value) => { mutable.staffCreateUserDraft = value; },
       getStaffCreateUserEditorOpen: () => mutable.staffCreateUserEditorOpen,
       setStaffCreateUserEditorOpen: (value) => { mutable.staffCreateUserEditorOpen = value; },
     },
@@ -85,7 +89,7 @@ function createHarness() {
       createProfileImageDataUrl: async () => "data:image/png;base64,abc",
       formatUserName: (user) => user.username,
       getCurrentPlatformUser: () => currentUser,
-      getPasswordValidationMessage: () => "",
+      getPasswordValidationMessage: () => mutable.passwordValidationMessage,
       getPlatformAuthStore: () => authStore,
       getPlatformFormValues: (form) => form.values || {},
       getPlatformUsers: () => users,
@@ -148,6 +152,7 @@ test("Profile/Staff runtime bindings register profile, staff, menu, and platform
   expect(typeof controllers.profileChange).toBe("function");
   expect(typeof controllers.profileClick).toBe("function");
   expect(typeof controllers.staffClick).toBe("function");
+  expect(typeof controllers.staffInput).toBe("function");
   expect(typeof controllers.staffSubmit).toBe("function");
   expect(typeof ui.profileWorkspace.listeners.submit).toBe("function");
   expect(typeof ui.staffWorkspace.listeners.click).toBe("function");
@@ -194,6 +199,7 @@ test("Staff runtime bindings preserve create, select, and remove user behavior",
 
   await ui.staffWorkspace.listeners.submit(createEvent(createTarget({ closest: { "#staffUserForm": staffForm } })));
   expect(mutable.selectedStaffUserId).toBe("staff-2");
+  expect(mutable.staffCreateUserDraft).toBe(null);
   expect(calls).toContain("staff-reset");
   expect(calls).toContainEqual(["staff-render", "User added. Password: pw. Copied to clipboard."]);
 
@@ -202,4 +208,56 @@ test("Staff runtime bindings preserve create, select, and remove user behavior",
   })));
   expect(mutable.selectedStaffUserId).toBe(null);
   expect(calls).toContainEqual(["staff-render", "Removed."]);
+});
+
+test("Staff runtime bindings keep add user modal stable while drafting", async () => {
+  const { calls, mutable, ui } = createHarness();
+  const draftValues = {
+    firstName: "Jess",
+    lastName: "Silva",
+    email: "jess@example.com",
+    username: "jess.silva",
+    password: "secret123",
+    passwordConfirm: "secret123",
+    role: "coach",
+    title: "Assistant Coach",
+    department: "Football",
+    teamId: "team-1",
+  };
+  const staffForm = { values: draftValues };
+  let focused = false;
+  const modal = {
+    focus: () => {
+      focused = true;
+    },
+  };
+  const overlay = {
+    querySelector: (selector) => (selector === ".staff-create-user-modal" ? modal : null),
+    closest: (selector) => (selector === "[data-staff-create-user-overlay]" ? overlay : null),
+  };
+
+  ui.staffWorkspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-staff-open-create-user]": { dataset: {} } },
+  })));
+  ui.staffWorkspace.listeners.input(createEvent(createTarget({ closest: { "#staffUserForm": staffForm } })));
+
+  expect(mutable.staffCreateUserEditorOpen).toBe(true);
+  expect(mutable.staffCreateUserDraft).toEqual(draftValues);
+
+  await ui.staffWorkspace.listeners.click(createEvent(overlay));
+  expect(focused).toBe(true);
+  expect(mutable.staffCreateUserEditorOpen).toBe(true);
+  expect(mutable.staffCreateUserDraft).toEqual(draftValues);
+
+  mutable.passwordValidationMessage = "Passwords do not match.";
+  await ui.staffWorkspace.listeners.submit(createEvent(createTarget({ closest: { "#staffUserForm": staffForm } })));
+  expect(mutable.staffCreateUserEditorOpen).toBe(true);
+  expect(mutable.staffCreateUserDraft).toEqual(draftValues);
+  expect(calls).toContainEqual(["staff-render", "Passwords do not match."]);
+
+  ui.staffWorkspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-staff-close-create-user]": { dataset: {} } },
+  })));
+  expect(mutable.staffCreateUserEditorOpen).toBe(false);
+  expect(mutable.staffCreateUserDraft).toBe(null);
 });

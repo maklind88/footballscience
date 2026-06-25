@@ -22,9 +22,31 @@ function setStateValue(state = {}, key, value) {
   if (typeof setter === "function") setter(value);
 }
 
+function getUsers(actions = {}) {
+  return actions.getPlatformUsers?.() ?? [];
+}
+
+function getCurrentUser(actions = {}) {
+  return actions.getCurrentPlatformUser?.() ?? null;
+}
+
+function getStructure(actions = {}) {
+  return actions.syncPlatformStructureWithUsers?.(getUsers(actions));
+}
+
 export function bindProfileStaffRuntimeBindings(deps = {}) {
   const { actions = {}, state = {}, ui = {}, win = globalThis } = deps;
   const controllers = {};
+
+  function snapshotStaffCreateUserDraft(createUserForm) {
+    if (!createUserForm) return;
+    const values = actions.getPlatformFormValues?.(createUserForm) ?? {};
+    setStateValue(state, "StaffCreateUserDraft", values);
+  }
+
+  function clearStaffCreateUserDraft() {
+    setStateValue(state, "StaffCreateUserDraft", null);
+  }
 
   if (ui.profileMenu?.addEventListener) {
     controllers.profileMenuClick = (event) => {
@@ -196,19 +218,20 @@ export function bindProfileStaffRuntimeBindings(deps = {}) {
       const closeCreateUserButton = event.target.closest("[data-staff-close-create-user]");
       if (closeCreateUserButton) {
         setStateValue(state, "StaffCreateUserEditorOpen", false);
+        clearStaffCreateUserDraft();
         actions.renderStaffWorkspace?.();
         return;
       }
       const createUserOverlay = event.target.closest("[data-staff-create-user-overlay]");
       if (createUserOverlay && event.target === createUserOverlay) {
-        setStateValue(state, "StaffCreateUserEditorOpen", false);
-        actions.renderStaffWorkspace?.();
+        createUserOverlay.querySelector(".staff-create-user-modal")?.focus?.({ preventScroll: true });
         return;
       }
       const selectButton = event.target.closest("[data-staff-select-user]");
       if (selectButton) {
         setStateValue(state, "SelectedStaffUserId", selectButton.dataset.staffSelectUser);
         setStateValue(state, "StaffCreateUserEditorOpen", false);
+        clearStaffCreateUserDraft();
         actions.renderStaffWorkspace?.();
         return;
       }
@@ -237,48 +260,69 @@ export function bindProfileStaffRuntimeBindings(deps = {}) {
       const form = event.target.closest("#staffUserForm");
       if (!form || !actions.isCurrentPlatformUserAdmin?.()) return;
       event.preventDefault();
+      snapshotStaffCreateUserDraft(form);
       const values = actions.getPlatformFormValues?.(form);
       const passwordError = actions.getPasswordValidationMessage?.(values);
       if (passwordError) {
         actions.renderStaffWorkspace?.(passwordError);
         return;
       }
-      const submissionValues = actions.normalizeAdminUserSubmissionValues?.(
-        actions.stripPasswordConfirmation?.({ ...values, status: "active" }),
-        actions.getCurrentPlatformUser?.(),
-        null,
-        actions.syncPlatformStructureWithUsers?.(actions.getPlatformUsers?.())
-      );
-      const result = await actions.getPlatformAuthStore?.()?.createUser?.(submissionValues);
-      if (!result?.ok) {
-        actions.renderStaffWorkspace?.(result?.reason ?? "User could not be added.");
+      const authStore = actions.getPlatformAuthStore?.();
+      if (!authStore?.createUser) {
+        actions.renderStaffWorkspace?.("Supabase user creation is not ready yet. Reload the page and try again.");
         return;
       }
-      setStateValue(state, "SelectedStaffUserId", result.user?.id ?? null);
-      setStateValue(state, "StaffCreateUserEditorOpen", false);
-      form.reset();
-      actions.renderWorkspaceChrome?.();
-      const generatedPassword = result.generatedPassword || "";
-      const passwordForMessage = submissionValues.password || generatedPassword;
-      const copied = passwordForMessage
-        ? await actions.maybeCopyToClipboard?.(
-          [
-            "Website: https://footballscience.xyz/",
-            `Username: ${result.user?.username || submissionValues.username}`,
-            `Email: ${result.user?.email || submissionValues.email}`,
-            `Password: ${passwordForMessage}`,
-          ].join("\n")
-        )
-        : false;
-      actions.renderStaffWorkspace?.(
-        passwordForMessage
-          ? `User added. Password: ${passwordForMessage}.${copied ? " Copied to clipboard." : ""}`
-          : "User added."
+      const submissionValues = actions.normalizeAdminUserSubmissionValues?.(
+        actions.stripPasswordConfirmation?.({ ...values, status: "active" }),
+        getCurrentUser(actions),
+        null,
+        getStructure(actions)
       );
+      actions.setFormSubmitButtonState?.(form, { isSubmitting: true, submittingLabel: "Adding...", defaultLabel: "Add user" });
+      try {
+        const result = await authStore.createUser(submissionValues);
+        if (!result?.ok) {
+          actions.renderStaffWorkspace?.(result?.reason ?? "User could not be added.");
+          return;
+        }
+        setStateValue(state, "SelectedStaffUserId", result.user?.id ?? null);
+        setStateValue(state, "StaffCreateUserEditorOpen", false);
+        clearStaffCreateUserDraft();
+        form.reset();
+        actions.renderWorkspaceChrome?.();
+        const generatedPassword = result.generatedPassword || "";
+        const passwordForMessage = submissionValues.password || generatedPassword;
+        const copied = passwordForMessage
+          ? await actions.maybeCopyToClipboard?.(
+            [
+              "Website: https://footballscience.xyz/",
+              `Username: ${result.user?.username || submissionValues.username}`,
+              `Email: ${result.user?.email || submissionValues.email}`,
+              `Password: ${passwordForMessage}`,
+            ].join("\n")
+          )
+          : false;
+        actions.renderStaffWorkspace?.(
+          passwordForMessage
+            ? `User added. Password: ${passwordForMessage}.${copied ? " Copied to clipboard." : ""}`
+            : "User added."
+        );
+      } catch (error) {
+        actions.renderStaffWorkspace?.(error?.message || "User could not be added.");
+      } finally {
+        actions.setFormSubmitButtonState?.(form, { isSubmitting: false, defaultLabel: "Add user" });
+      }
+    };
+
+    controllers.staffInput = (event) => {
+      const createUserForm = event.target.closest?.("#staffUserForm");
+      if (createUserForm) snapshotStaffCreateUserDraft(createUserForm);
     };
 
     ui.staffWorkspace.addEventListener("click", controllers.staffClick);
     ui.staffWorkspace.addEventListener("submit", controllers.staffSubmit);
+    ui.staffWorkspace.addEventListener("input", controllers.staffInput);
+    ui.staffWorkspace.addEventListener("change", controllers.staffInput);
   }
 
   return controllers;

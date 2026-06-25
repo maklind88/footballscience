@@ -5,6 +5,7 @@ export function createProfileStaffWorkspaceController(deps = {}) {
     getCurrentUser = () => null,
     getScopedUsers = (users) => users,
     getSelectedStaffUserId = () => null,
+    getStaffCreateUserDraft = () => null,
     getTeamId = () => "",
     getUi = () => ({}),
     getUserProfileImageUrl = () => "",
@@ -75,8 +76,13 @@ export function createProfileStaffWorkspaceController(deps = {}) {
       null;
     setSelectedStaffUserId(selectedUser?.id ?? null);
     const assignableRoles = getAssignableRolesForUser(user);
-    const roleOptions = renderAdminRoleOptions(user, assignableRoles.includes("coach") ? "coach" : assignableRoles[0]);
-    const teamOptions = renderAdminTeamOptions(user, structure, getTeamId(user, structure));
+    const rawCreateUserDraft = getStaffCreateUserDraft();
+    const createUserDraft = rawCreateUserDraft && typeof rawCreateUserDraft === "object" ? rawCreateUserDraft : {};
+    const roleOptions = renderAdminRoleOptions(
+      user,
+      createUserDraft.role || (assignableRoles.includes("coach") ? "coach" : assignableRoles[0])
+    );
+    const teamOptions = renderAdminTeamOptions(user, structure, createUserDraft.teamId || getTeamId(user, structure));
     ui.staffWorkspace.innerHTML = staffWorkspaceRenderer.renderWorkspace({
       currentUser: user,
       users: scopedUsers,
@@ -85,6 +91,7 @@ export function createProfileStaffWorkspaceController(deps = {}) {
       selectedUserId: selectedUser?.id ?? null,
       isAdmin: isAdmin(),
       createUserEditorOpen: Boolean(deps.getStaffCreateUserEditorOpen?.()),
+      createUserDraft,
       roleOptions,
       teamOptions,
       message,

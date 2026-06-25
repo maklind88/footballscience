@@ -40,11 +40,20 @@ export function createStaffWorkspaceRenderer({
       `;
   };
 
-  const renderCreateUserEditor = ({ currentUser, structure, roleOptions = "", teamOptions = "", isOpen = false }) =>
-    isOpen
-      ? `
+  const renderCreateUserEditor = ({
+    createUserDraft = {},
+    currentUser,
+    structure,
+    roleOptions = "",
+    teamOptions = "",
+    isOpen = false,
+  }) => {
+    if (!isOpen) return "";
+    const draft = createUserDraft && typeof createUserDraft === "object" ? createUserDraft : {};
+    const getDraftValue = (name, fallback = "") => draft[name] ?? fallback;
+    return `
       <div class="admin-user-editor-overlay" data-staff-create-user-overlay role="dialog" aria-modal="true" aria-label="Add user">
-        <article class="admin-card admin-user-editor-modal staff-create-user-modal">
+        <article class="admin-card admin-user-editor-modal staff-create-user-modal" tabindex="-1">
           <div class="staff-card-head admin-user-editor-head">
             <div>
               <h2>Add user</h2>
@@ -55,27 +64,27 @@ export function createStaffWorkspaceRenderer({
           <form id="staffUserForm" class="platform-form staff-create-form">
             <label>
               <span>First name</span>
-              <input name="firstName" required />
+              <input name="firstName" value="${escapeHtml(getDraftValue("firstName"))}" required />
             </label>
             <label>
               <span>Last name</span>
-              <input name="lastName" required />
+              <input name="lastName" value="${escapeHtml(getDraftValue("lastName"))}" required />
             </label>
             <label>
               <span>Email</span>
-              <input name="email" type="email" required />
+              <input name="email" type="email" value="${escapeHtml(getDraftValue("email"))}" required />
             </label>
             <label>
               <span>Username</span>
-              <input name="username" required />
+              <input name="username" value="${escapeHtml(getDraftValue("username"))}" required />
             </label>
             <label>
               <span>Password</span>
-              ${renderPasswordRevealInput("password", "Optional; leave empty for temporary")}
+              ${renderPasswordRevealInput("password", "Optional; leave empty for temporary", "new-password", getDraftValue("password"))}
             </label>
             <label>
               <span>Confirm password</span>
-              ${renderPasswordRevealInput("passwordConfirm", "Repeat password")}
+              ${renderPasswordRevealInput("passwordConfirm", "Repeat password", "new-password", getDraftValue("passwordConfirm"))}
             </label>
             <label>
               <span>Role</span>
@@ -83,11 +92,11 @@ export function createStaffWorkspaceRenderer({
             </label>
             <label>
               <span>Title</span>
-              <input name="title" value="Coach" />
+              <input name="title" value="${escapeHtml(getDraftValue("title", "Coach"))}" />
             </label>
             <label>
               <span>Department</span>
-              <input name="department" value="Football" />
+              <input name="department" value="${escapeHtml(getDraftValue("department", "Football"))}" />
             </label>
             <label class="profile-wide">
               <span>Team scope</span>
@@ -100,8 +109,8 @@ export function createStaffWorkspaceRenderer({
           </form>
         </article>
       </div>
-    `
-      : "";
+    `;
+  };
 
   const renderSelectedProfile = ({ selectedUser, structure }) =>
     selectedUser
@@ -134,6 +143,7 @@ ${renderUserAvatar(selectedUser, "profile-avatar")}
     createUserEditorOpen = false,
     roleOptions = "",
     teamOptions = "",
+    createUserDraft = {},
     message = "",
   } = {}) => {
     const userRows = users
@@ -148,6 +158,7 @@ ${renderUserAvatar(selectedUser, "profile-avatar")}
       )
       .join("");
     const staffCreateUserEditor = renderCreateUserEditor({
+      createUserDraft,
       currentUser,
       structure,
       roleOptions,

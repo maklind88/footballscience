@@ -124,6 +124,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     getCurrentUser: deps.getCurrentPlatformUser,
     getScopedUsers: deps.getScopedPlatformUsers,
     getSelectedStaffUserId: deps.getSelectedStaffUserId,
+    getStaffCreateUserDraft: deps.getStaffCreateUserDraft,
     getStaffCreateUserEditorOpen: deps.getStaffCreateUserEditorOpen,
     getTeamId: deps.getUserTeamId,
     getUi: () => deps.ui,

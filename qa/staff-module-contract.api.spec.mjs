@@ -9,7 +9,8 @@ test("Staff workspace renderer owns people list, selected profile, and create-us
     getUserClubName: () => "North Carolina Courage",
     getUserScopeLabel: () => "First Team",
     getUserTeamName: () => "First Team",
-    renderPasswordRevealInput: (name) => `<span class="password-input-shell"><input name="${name}" /></span>`,
+    renderPasswordRevealInput: (name, _placeholder, _autocomplete, value = "") =>
+      `<span class="password-input-shell"><input name="${name}" value="${value}" /></span>`,
     renderUserAvatar: (user, className) => `<span class="${className}">${user.firstName?.[0] || "U"}</span>`,
   });
   const users = [
@@ -24,6 +25,16 @@ test("Staff workspace renderer owns people list, selected profile, and create-us
     selectedUserId: "coach-1",
     isAdmin: true,
     createUserEditorOpen: true,
+    createUserDraft: {
+      firstName: "Jess",
+      lastName: "Silva",
+      email: "jess@example.com",
+      username: "jess.silva",
+      password: "secret123",
+      passwordConfirm: "secret123",
+      title: "Assistant Coach",
+      department: "Football",
+    },
     roleOptions: '<option value="coach">Coach</option>',
     teamOptions: '<option value="team-1">First Team</option>',
     message: "Saved.",
@@ -36,5 +47,9 @@ test("Staff workspace renderer owns people list, selected profile, and create-us
   expect(markup).toContain("data-staff-remove-user");
   expect(markup).toContain("staffUserForm");
   expect(markup).toContain("data-staff-create-user-overlay");
+  expect(markup).toContain('value="Jess"');
+  expect(markup).toContain('value="jess@example.com"');
+  expect(markup).toContain('value="secret123"');
+  expect(markup).toContain("Assistant Coach");
   expect(markup).toContain("Creates a central Supabase account");
 });

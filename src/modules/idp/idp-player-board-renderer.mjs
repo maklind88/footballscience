@@ -138,6 +138,63 @@ function interventionCounts(intervention = {}) {
   };
 }
 
+function interventionStatusLabel(status = "active") {
+  const normalized = normalizeText(status, "active").toLowerCase();
+  return {
+    active: "Active",
+    draft: "Draft",
+    review: "Review",
+    completed: "Complete",
+  }[normalized] || normalizeText(status, "Active");
+}
+
+function interventionObjective(intervention = {}, focus = {}) {
+  return normalizeText(
+    intervention.objective,
+    focus?.description || "Individual intervention for the current IDP focus."
+  );
+}
+
+function renderExerciseBank(detail = {}, current = {}, focus = {}) {
+  const interventions = Array.isArray(detail.interventions)
+    ? detail.interventions.filter((item) => item.status !== "archived")
+    : [];
+  const items = interventions.length ? interventions : [current];
+  const visibleItems = items.slice(0, 3);
+  const remainingCount = Math.max(0, items.length - visibleItems.length);
+  return `
+    <div class="idp-player-board-exercise-bank" aria-label="IDP individual exercise bank">
+      <div class="idp-player-board-bank-head">
+        <span>Exercise Bank</span>
+        <strong>${escapeHtml(items.length === 1 ? "1 individual exercise" : `${items.length} individual exercises`)}</strong>
+      </div>
+      <div class="idp-player-board-bank-list">
+        ${visibleItems.map((item, index) => {
+          const itemCounts = interventionCounts(item);
+          const isCurrent = item === current || (item.id && item.id === current.id);
+          const actionAttr = item.id
+            ? `data-idp-player-board-select="${escapeHtml(item.id)}"`
+            : "data-idp-player-board-new";
+          return `
+            <button type="button" class="idp-player-board-bank-item${isCurrent ? " is-current" : ""}" ${actionAttr}>
+              <span class="idp-player-board-bank-number">${String(index + 1).padStart(2, "0")}</span>
+              <span class="idp-player-board-bank-copy">
+                <strong>${escapeHtml(item.title || "Individual exercise")}</strong>
+                <small>${escapeHtml(interventionObjective(item, focus))}</small>
+              </span>
+              <span class="idp-player-board-bank-meta">
+                <strong>${escapeHtml(interventionStatusLabel(item.status))}</strong>
+                <small>${escapeHtml(`${itemCounts.frames || 1} frame${itemCounts.frames === 1 ? "" : "s"} / ${itemCounts.clips} clips`)}</small>
+              </span>
+            </button>
+          `;
+        }).join("")}
+        ${remainingCount ? `<span class="idp-player-board-bank-more">+${escapeHtml(String(remainingCount))} more in editor</span>` : ""}
+      </div>
+    </div>
+  `;
+}
+
 export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}) {
   const intervention = activeIntervention(detail, ui) || draftIntervention(profile, focus);
   const counts = interventionCounts(intervention);
@@ -160,39 +217,31 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
       </div>
       <button type="button" class="idp-player-board-preview" data-idp-player-board-open aria-label="Open IDP Player Board">
         <span class="idp-player-board-surface">
-          <span class="idp-player-board-status-strip">
-            <span>Individual</span>
-            <span>${escapeHtml(modeLabel)}</span>
-            <span>Frame ${escapeHtml(String(Math.max(1, counts.frames)))}</span>
+          <span class="idp-player-board-boardbar" aria-hidden="true">
+            <span><strong>01</strong><small>Individual</small></span>
+            <span><strong>${escapeHtml(modeLabel)}</strong><small>Pitch view</small></span>
+            <span><strong>${escapeHtml(String(Math.max(1, counts.frames)))}</strong><small>Frames</small></span>
           </span>
           <span class="idp-player-board-canvas">
-            <span class="idp-player-board-tool-rail" aria-hidden="true">
-              <span>1P</span>
-              <span>ZN</span>
-              <span>CL</span>
-            </span>
             ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-preview-arrow" })}
-            <span class="idp-player-board-mode-chip">${escapeHtml(modeLabel)}</span>
-            <span class="idp-player-board-context-chip is-progress">
+          </span>
+          <span class="idp-player-board-insight-row">
+            <span>
               <strong>${escapeHtml(pulse.label || "On track")}</strong>
               <small>${escapeHtml(pulse.detail || "Progress")}</small>
             </span>
-            <span class="idp-player-board-context-chip is-next">
+            <span>
               <strong>${escapeHtml(nextTitle)}</strong>
               <small>${escapeHtml(nextDue)}</small>
             </span>
           </span>
-          <span class="idp-player-board-frame-strip" aria-hidden="true">
-            <span class="is-active">01</span>
-            <span>${escapeHtml(focus?.category || "Focus")}</span>
-            <span>${escapeHtml(String(counts.clips))} clips</span>
-          </span>
         </span>
       </button>
+      ${renderExerciseBank(detail, intervention, focus)}
       ${canEdit ? `
         <div class="idp-player-board-actions">
-          <button type="button" class="is-primary" data-idp-player-board-new>New Exercise</button>
-          <button type="button" data-idp-player-board-open>Edit Board</button>
+          <button type="button" class="is-primary" data-idp-player-board-open>Edit Board</button>
+          <button type="button" data-idp-player-board-new>New Exercise</button>
           <button type="button" data-idp-player-board-link-clip>Link Clip</button>
           <button type="button" data-idp-action="evidence">Add Observation</button>
         </div>

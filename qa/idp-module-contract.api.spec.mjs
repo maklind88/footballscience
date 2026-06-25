@@ -224,6 +224,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("Development Timeline");
   expect(profileHtml).toContain("5 latest updates");
   expect(profileHtml).toContain("data-idp-timeline-more");
+  expect(profileHtml).toContain("idp-workflow-more");
   expect(profileHtml).toContain("Show more");
   expect(profileHtml).toContain("<strong>2</strong>");
   expect(profileHtml).toContain("By Mak Lind");
@@ -231,6 +232,34 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("idp-ownership-studio");
   expect(profileHtml).not.toContain("Primary IDP Coach");
   expect(profileHtml).not.toContain("Current Focus Owner");
+
+  const richWorkflowHtml = renderIdpWorkspace({
+    ...profileState,
+    playerDetail: {
+      ...profileState.playerDetail,
+      evidence: [
+        ...profileState.playerDetail.evidence,
+        ...Array.from({ length: 6 }, (_, index) => ({
+          id: `reflection-${index + 1}`,
+          playerId: "p1",
+          focusId: "legacy-focus-p1",
+          evidenceType: "Player Reflection",
+          note: `Player reflection ${index + 1}`,
+          createdAt: `2026-06-${String(25 - index).padStart(2, "0")}T10:00:00.000Z`,
+        })),
+      ],
+      reviews: Array.from({ length: 6 }, (_, index) => ({
+        id: `review-${index + 1}`,
+        playerId: "p1",
+        focusId: "legacy-focus-p1",
+        progressSummary: `Review summary ${index + 1}`,
+        createdAt: `2026-06-${String(25 - index).padStart(2, "0")}T10:00:00.000Z`,
+      })),
+    },
+  }, staffOptions);
+  expect(richWorkflowHtml).toContain("5 latest reflections");
+  expect(richWorkflowHtml).toContain("5 latest reviews");
+  expect((richWorkflowHtml.match(/<span>Show more<\/span>/g) || []).length).toBeGreaterThanOrEqual(4);
 
   const clipBankHtml = renderIdpWorkspace({
     ...profileState,

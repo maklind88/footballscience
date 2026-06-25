@@ -28,7 +28,7 @@ const defaultUiState = Object.freeze({
   selectedClipBankIds: [],
 });
 
-const profileTimelinePreviewLimit = 5;
+const profileWorkflowPreviewLimit = 5;
 
 function escapeHtml(value = "") {
   return String(value ?? "")
@@ -515,6 +515,14 @@ function latestObservation(detail = {}, type = "") {
   return latestItem(candidates);
 }
 
+function newestFirst(items = [], dateKeys = "createdAt") {
+  const keys = [...new Set([...(Array.isArray(dateKeys) ? dateKeys : [dateKeys]), "createdAt"].filter(Boolean))];
+  const itemDate = (item = {}) => keys.map((key) => item[key]).find(Boolean) || "";
+  return [...(Array.isArray(items) ? items : [])]
+    .filter(Boolean)
+    .sort((a, b) => String(itemDate(b)).localeCompare(String(itemDate(a))));
+}
+
 function progressPulse(detail = {}, focus = null, idpInactive = false) {
   const observations = detail.evidence?.length || 0;
   const clips = detail.clipBank?.filter((clip) => !["Archived", "Hidden"].includes(clip.status))?.length || 0;
@@ -977,8 +985,38 @@ function renderProfileClipBankPage(detail = {}, canEdit = false, ui = {}) {
   `;
 }
 
+function renderWorkflowMore(items = [], renderItem = () => "", summaryAttributes = "") {
+  if (!items.length) return "";
+  return `
+    <details class="idp-workflow-more">
+      <summary${summaryAttributes ? ` ${summaryAttributes}` : ""}>
+        <span>Show more</span>
+        <strong>${escapeHtml(String(items.length))}</strong>
+      </summary>
+      <div class="idp-workflow-more-list">
+        ${items.map(renderItem).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderProfileObservationItem(item = {}, canEdit = false) {
+  return `
+    <div class="idp-stream-item">
+      <time>${escapeHtml(formatShortDate(item.createdAt, "--"))}</time>
+      <div>
+        <strong>${escapeHtml(coachLabel(item.evidenceType))}</strong>
+        <span>${escapeHtml(item.note || item.sourceModule || "Observation logged")}</span>
+      </div>
+      ${renderObservationButtons(item, canEdit)}
+    </div>
+  `;
+}
+
 function renderProfileSignalStream(detail = {}, canEdit = false) {
-  const evidence = detail.evidence || [];
+  const evidence = newestFirst(detail.evidence || []);
+  const visibleEvidence = evidence.slice(0, profileWorkflowPreviewLimit);
+  const hiddenEvidence = evidence.slice(profileWorkflowPreviewLimit);
   return `
     <article class="idp-signal-stream-panel">
       <div class="idp-section-head">
@@ -989,16 +1027,10 @@ function renderProfileSignalStream(detail = {}, canEdit = false) {
       </div>
       <div class="idp-signal-stream">
         ${evidence.length
-          ? evidence.map((item) => `
-            <div class="idp-stream-item">
-              <time>${escapeHtml(formatShortDate(item.createdAt, "--"))}</time>
-              <div>
-                <strong>${escapeHtml(coachLabel(item.evidenceType))}</strong>
-                <span>${escapeHtml(item.note || item.sourceModule || "Observation logged")}</span>
-              </div>
-              ${renderObservationButtons(item, canEdit)}
-            </div>
-          `).join("")
+          ? `
+            ${visibleEvidence.map((item) => renderProfileObservationItem(item, canEdit)).join("")}
+            ${renderWorkflowMore(hiddenEvidence, (item) => renderProfileObservationItem(item, canEdit))}
+          `
           : `<div class="idp-empty-signal">No observations yet.</div>`}
       </div>
     </article>
@@ -1027,34 +1059,93 @@ function renderTimelineRiverItem(milestone = {}, options = {}) {
 }
 
 function renderProfileTimelineRiver(detail = {}, options = {}) {
-  const milestones = detail.milestones || [];
-  const visibleMilestones = milestones.slice(0, profileTimelinePreviewLimit);
-  const hiddenMilestones = milestones.slice(profileTimelinePreviewLimit);
+  const milestones = newestFirst(detail.milestones || [], "occurredOn");
+  const visibleMilestones = milestones.slice(0, profileWorkflowPreviewLimit);
+  const hiddenMilestones = milestones.slice(profileWorkflowPreviewLimit);
   return `
     <article class="idp-river-panel">
       <div class="idp-section-head">
         <div>
           <span>Development Timeline</span>
-          <strong>${escapeHtml(milestones.length ? `${Math.min(milestones.length, profileTimelinePreviewLimit)} latest updates` : "No milestones yet")}</strong>
+          <strong>${escapeHtml(milestones.length ? `${Math.min(milestones.length, profileWorkflowPreviewLimit)} latest updates` : "No milestones yet")}</strong>
         </div>
       </div>
       <div class="idp-timeline-river">
         ${milestones.length
           ? `
             ${visibleMilestones.map((milestone) => renderTimelineRiverItem(milestone, options)).join("")}
-            ${hiddenMilestones.length ? `
-              <details class="idp-river-more">
-                <summary data-idp-timeline-more>
-                  <span>Show more</span>
-                  <strong>${escapeHtml(String(hiddenMilestones.length))}</strong>
-                </summary>
-                <div class="idp-river-more-list">
-                  ${hiddenMilestones.map((milestone) => renderTimelineRiverItem(milestone, options)).join("")}
-                </div>
-              </details>
-            ` : ""}
+            ${renderWorkflowMore(hiddenMilestones, (milestone) => renderTimelineRiverItem(milestone, options), "data-idp-timeline-more")}
           `
           : `<div class="idp-empty-signal">The first completed action will start the timeline.</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderWorkflowTextItem(title = "", meta = "", body = "") {
+  return `
+    <div class="idp-workflow-text-item">
+      <strong>${escapeHtml(title)}</strong>
+      ${body ? `<span>${escapeHtml(body)}</span>` : ""}
+      <small>${escapeHtml(meta)}</small>
+    </div>
+  `;
+}
+
+function renderProfileVoiceCard(detail = {}, profile = {}) {
+  const reflections = newestFirst(detail.evidence || []).filter((item) => item.evidenceType === "Player Reflection");
+  const leadership = normalizeText(profile.leadershipProfile, "");
+  const visibleReflections = reflections.slice(0, profileWorkflowPreviewLimit);
+  const hiddenReflections = reflections.slice(profileWorkflowPreviewLimit);
+  return `
+    <article class="idp-player-voice-card idp-workflow-text-card">
+      <div class="idp-section-head">
+        <div>
+          <span>Player Voice</span>
+          <strong>${escapeHtml(reflections.length ? `${Math.min(reflections.length, profileWorkflowPreviewLimit)} latest reflections` : "No player reflection yet")}</strong>
+        </div>
+      </div>
+      <div class="idp-workflow-mini-list">
+        ${reflections.length
+          ? `
+            ${visibleReflections.map((item) => renderWorkflowTextItem("Player Reflection", `Captured ${formatShortDate(item.createdAt)}`, item.note || "Reflection captured")).join("")}
+            ${renderWorkflowMore(hiddenReflections, (item) => renderWorkflowTextItem("Player Reflection", `Captured ${formatShortDate(item.createdAt)}`, item.note || "Reflection captured"))}
+          `
+          : leadership
+            ? renderWorkflowTextItem("Leadership profile", "Squad room context", leadership)
+            : `<div class="idp-empty-signal">Use the next check-in to add the player's words.</div>`}
+      </div>
+    </article>
+  `;
+}
+
+function renderReviewItem(review = {}) {
+  return renderWorkflowTextItem(
+    "Review completed",
+    formatShortDate(review.createdAt || review.reviewedAt || review.completedAt, "No date"),
+    review.progressSummary || review.summary || "Review loop completed."
+  );
+}
+
+function renderProfileReviewCard(detail = {}) {
+  const reviews = newestFirst(detail.reviews || []);
+  const visibleReviews = reviews.slice(0, profileWorkflowPreviewLimit);
+  const hiddenReviews = reviews.slice(profileWorkflowPreviewLimit);
+  return `
+    <article class="idp-review-card idp-workflow-text-card">
+      <div class="idp-section-head">
+        <div>
+          <span>Last Review</span>
+          <strong>${escapeHtml(reviews.length ? `${Math.min(reviews.length, profileWorkflowPreviewLimit)} latest reviews` : "No review completed yet")}</strong>
+        </div>
+      </div>
+      <div class="idp-workflow-mini-list">
+        ${reviews.length
+          ? `
+            ${visibleReviews.map((review) => renderReviewItem(review)).join("")}
+            ${renderWorkflowMore(hiddenReviews, (review) => renderReviewItem(review))}
+          `
+          : `<div class="idp-empty-signal">Complete the first review to lock the learning loop.</div>`}
       </div>
     </article>
   `;
@@ -1073,10 +1164,6 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
   const ownerId = primaryOwnerId(profile, focus || {});
   const pulse = progressPulse(detail, focus, idpInactive);
   const criteria = buildSuccessCriteria(detail, focus, profile, idpInactive);
-  const latestReview = latestItem(detail.reviews || []);
-  const latestSignal = latestObservation(detail);
-  const reflection = latestObservation(detail, "Player Reflection");
-  const leadership = normalizeText(profile.leadershipProfile, "");
   const strengths = Array.isArray(profile.strengths) ? profile.strengths.slice(0, 3) : [];
   const profileView = normalizeProfileView(state.ui?.profileView || "");
   return `
@@ -1136,16 +1223,8 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
       <section class="idp-workflow-board">
         ${renderProfileSignalStream(detail, canEdit && !idpInactive)}
         ${renderProfileTimelineRiver(detail, options)}
-        <article class="idp-player-voice-card">
-          <div class="idp-section-kicker">Player Voice</div>
-          <blockquote>${escapeHtml(reflection?.note || leadership || "No player reflection captured yet.")}</blockquote>
-          <span>${escapeHtml(reflection ? `Captured ${formatShortDate(reflection.createdAt)}` : "Use the next check-in to add the player's words.")}</span>
-        </article>
-        <article class="idp-review-card">
-          <div class="idp-section-kicker">Last Review</div>
-          <strong>${escapeHtml(latestReview?.progressSummary || "No review completed yet.")}</strong>
-          <span>${escapeHtml(latestReview ? formatShortDate(latestReview.createdAt) : "Complete the first review to lock the learning loop.")}</span>
-        </article>
+        ${renderProfileVoiceCard(detail, profile)}
+        ${renderProfileReviewCard(detail)}
       </section>
       `}
       ${renderActionOverlay(state, focus, canEdit && !idpInactive, options)}

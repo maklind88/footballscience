@@ -3420,6 +3420,23 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   grid-template-columns: minmax(260px, 1.05fr) minmax(250px, 1fr) minmax(220px, .82fr) minmax(220px, .82fr);
 }
 
+.idp-workflow-board > article {
+  align-content: start;
+  display: grid;
+  gap: 12px;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 348px;
+}
+
+.idp-workflow-board .idp-section-head {
+  align-items: flex-start;
+  min-height: 46px;
+}
+
+.idp-workflow-board .idp-section-head strong {
+  line-height: 1.2;
+}
+
 .idp-filmstrip-panel,
 .idp-signal-stream-panel,
 .idp-river-panel {
@@ -3511,16 +3528,20 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
 }
 
 .idp-signal-stream,
-.idp-timeline-river {
+.idp-timeline-river,
+.idp-workflow-mini-list {
+  align-content: start;
   display: grid;
   gap: 10px;
 }
 
 .idp-stream-item,
 .idp-river-item {
+  align-items: start;
   display: grid;
   gap: 10px;
   grid-template-columns: 54px minmax(0, 1fr);
+  min-height: 48px;
 }
 
 .idp-stream-item {
@@ -3632,6 +3653,37 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   overflow-wrap: anywhere;
 }
 
+.idp-workflow-text-card {
+  align-content: start;
+}
+
+.idp-workflow-text-item {
+  border-bottom: 1px solid rgba(20, 32, 51, .1);
+  display: grid;
+  gap: 4px;
+  min-height: 48px;
+  padding-bottom: 10px;
+}
+
+.idp-workflow-text-item strong {
+  color: #101828;
+  font-size: .9rem;
+  line-height: 1.25;
+}
+
+.idp-workflow-text-item span,
+.idp-workflow-text-item small {
+  color: var(--idp-muted);
+  font-size: .78rem;
+  line-height: 1.32;
+  overflow-wrap: anywhere;
+}
+
+.idp-workflow-text-item span {
+  color: #344054;
+  font-weight: 760;
+}
+
 .idp-river-item small {
   align-items: center;
   display: flex;
@@ -3666,11 +3718,13 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   width: 11px;
 }
 
-.idp-river-more {
+.idp-river-more,
+.idp-workflow-more {
   margin-top: 2px;
 }
 
-.idp-river-more summary {
+.idp-river-more summary,
+.idp-workflow-more summary {
   align-items: center;
   background: rgba(15, 118, 110, .06);
   border: 1px solid rgba(15, 118, 110, .12);
@@ -3687,19 +3741,23 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   transition: background .14s ease, border-color .14s ease, transform .14s ease;
 }
 
-.idp-river-more summary::-webkit-details-marker {
+.idp-river-more summary::-webkit-details-marker,
+.idp-workflow-more summary::-webkit-details-marker {
   display: none;
 }
 
 .idp-river-more summary:hover,
-.idp-river-more summary:focus-visible {
+.idp-river-more summary:focus-visible,
+.idp-workflow-more summary:hover,
+.idp-workflow-more summary:focus-visible {
   background: rgba(15, 118, 110, .1);
   border-color: rgba(15, 118, 110, .22);
   outline: none;
   transform: translateY(-1px);
 }
 
-.idp-river-more summary strong {
+.idp-river-more summary strong,
+.idp-workflow-more summary strong {
   align-items: center;
   background: rgba(15, 118, 110, .12);
   border-radius: 999px;
@@ -3712,14 +3770,15 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   padding: 0 5px;
 }
 
-.idp-river-more-list {
+.idp-river-more-list,
+.idp-workflow-more-list {
   display: grid;
   gap: 10px;
   margin-top: 10px;
 }
 
 .idp-empty-signal {
-  align-items: center;
+  align-items: flex-start;
   background: rgba(248, 250, 252, .9);
   border: 1px dashed rgba(20, 32, 51, .16);
   border-radius: 8px;
@@ -3728,7 +3787,7 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   font-size: .86rem;
   font-weight: 800;
   min-height: 72px;
-  padding: 12px;
+  padding: 13px 12px;
 }
 
 .idp-ownership-studio {
@@ -5243,6 +5302,10 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   .idp-intelligence-board,
   .idp-workflow-board {
     grid-template-columns: 1fr;
+  }
+
+  .idp-workflow-board > article {
+    min-height: auto;
   }
 
   .idp-stage-scoreboard {

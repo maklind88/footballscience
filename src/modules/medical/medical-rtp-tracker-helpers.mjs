@@ -156,6 +156,9 @@ function getRtpActionForCase(caseItem = {}) {
     source: plan.rtpLibraryProfileName || "Medical Plan",
     tracker: trackerSummary,
     reviewLabel: review.label || "No review date",
+    focusGroupKey: trackerSummary.blocker?.groupKey || "",
+    focusIndex: Number.isInteger(trackerSummary.blocker?.index) ? String(trackerSummary.blocker.index) : "",
+    focusItem: trackerSummary.blocker?.item || "",
   };
 
   if (trackerSummary.counts.hold) {

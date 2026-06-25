@@ -409,7 +409,7 @@ export function createMedicalRuntimeRenderers(deps = {}) {
     normalizeMedicalPlayerModalTab,
     renderMedicalActualPresets: (selectedValue, canEdit) => medicalRecommendationRenderer.renderActualPresets(selectedValue, canEdit),
     renderMedicalClearanceChecklist: (player, canEdit) => medicalPlanFormRenderer.renderClearanceChecklist(player, canEdit),
-    renderMedicalInjuryPlanForm: (player, canEdit) => medicalPlanFormRenderer.renderInjuryPlanForm(player, canEdit),
+    renderMedicalInjuryPlanForm: (player, canEdit, options) => medicalPlanFormRenderer.renderInjuryPlanForm(player, canEdit, options),
     renderMedicalLogCard: (player) => medicalRecommendationRenderer.renderLogCard(player),
     renderMedicalLog: (player) => medicalRecommendationRenderer.renderLog(player),
     renderMedicalNewPlayerCard: () => medicalRosterRenderer.renderNewPlayerCard(),

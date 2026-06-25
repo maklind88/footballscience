@@ -196,12 +196,32 @@ test("Medical runtime bindings preserve quick recommendation, archive, and plan 
   expect(calls).toContainEqual(["sync", "record-archived", expect.objectContaining({ recordId: "r-1" })]);
 
   workspace.listeners.click(createEvent(createTarget({
-    closest: { "[data-medical-edit-injury-plan]": { dataset: { medicalEditInjuryPlan: "plan-1" } } },
+    closest: {
+      "[data-medical-edit-injury-plan]": {
+        dataset: {
+          medicalEditInjuryPlan: "plan-1",
+          medicalRtpFocus: "hold",
+          medicalRtpFocusGroup: "holdRules",
+          medicalRtpFocusIndex: "0",
+        },
+      },
+    },
   })));
   expect(calls).toContainEqual(["draft-from-plan", "plan-1"]);
   expect(mutable.selectedPlayerId).toBe("p-1");
   expect(mutable.modalOpen).toBe(true);
   expect(mutable.modalTab).toBe("plan");
+  expect(calls).toContainEqual([
+    "render",
+    "Medical plan ready to edit.",
+    expect.objectContaining({
+      focusMedicalRtpPlan: true,
+      rtpFocusPlanId: "plan-1",
+      rtpFocusKey: "hold",
+      rtpFocusGroupKey: "holdRules",
+      rtpFocusIndex: "0",
+    }),
+  ]);
 
   const caseLinkerForm = {
     dataset: { medicalPlanId: "plan-1" },

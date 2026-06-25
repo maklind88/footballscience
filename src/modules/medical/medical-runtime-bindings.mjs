@@ -265,7 +265,14 @@ export function bindMedicalRuntimeBindings(deps = {}) {
         setStateValue(state, "MedicalSelectedPlayerId", plan.playerId);
         setStateValue(state, "MedicalPlayerModalOpen", true);
         setStateValue(state, "MedicalPlayerModalTab", "plan");
-        renderWorkspace("Medical plan ready to edit.");
+        const rtpFocusKey = editInjuryPlanButton.dataset.medicalRtpFocus || "";
+        renderWorkspace("Medical plan ready to edit.", rtpFocusKey ? {
+          focusMedicalRtpPlan: true,
+          rtpFocusPlanId: plan.id,
+          rtpFocusKey,
+          rtpFocusGroupKey: editInjuryPlanButton.dataset.medicalRtpFocusGroup || "",
+          rtpFocusIndex: editInjuryPlanButton.dataset.medicalRtpFocusIndex || "",
+        } : {});
       }
       return;
     }

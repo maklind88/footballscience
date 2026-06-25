@@ -83,6 +83,22 @@ test("Medical plan form renderer keeps injury plan and clearance form contracts"
   expect(form).toContain("data-medical-duration-preset");
   expect(form).toContain("data-medical-cancel-injury-plan-edit");
   expect(form).toContain('datalist id="medicalInjuryTypes"');
+  expect(form).not.toContain("RTP Focus");
+
+  const focusedForm = renderer.renderInjuryPlanForm(player, true, {
+    focusMedicalRtpPlan: true,
+    rtpFocusPlanId: "plan1",
+    rtpFocusKey: "hold",
+    rtpFocusGroupKey: "holdRules",
+    rtpFocusIndex: "0",
+  });
+  expect(focusedForm).toContain("RTP Focus");
+  expect(focusedForm).toContain("Blocked by hold rule");
+  expect(focusedForm).toContain("Current blocker");
+  expect(focusedForm).toContain("Review");
+  expect(focusedForm).toContain("data-medical-rtp-focus-target");
+  expect(focusedForm).toContain("data-medical-rtp-focus-row");
+  expect(focusedForm).toContain("medical-rtp-tracker-row medical-rtp-tracker-high is-rtp-focus");
 
   const checklist = renderer.renderClearanceChecklist(player, true);
   expect(checklist).toContain('id="medicalClearanceForm"');

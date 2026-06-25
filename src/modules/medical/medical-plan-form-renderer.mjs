@@ -50,8 +50,52 @@ export function createMedicalPlanFormRenderer({
 </label>
 `;
 
-  const renderTrackerGroup = (group, draft = {}, tracker = {}, canEdit = true) => {
+  const isRtpFocusForDraft = (draft = {}, focus = {}) =>
+    Boolean(focus?.focusMedicalRtpPlan && (!focus.rtpFocusPlanId || String(focus.rtpFocusPlanId) === String(draft.planId || draft.id || "")));
+
+  const getRtpFocusLabel = (focusKey = "", summary = {}) => {
+    const labels = {
+      hold: "Blocked by hold rule",
+      ready: "Ready for Medical review",
+      review: "Review due",
+      exposure: "Needs next exposure decision",
+      start: "Start RTP tracker",
+      setup: "Set RTP tracker",
+    };
+    return labels[focusKey] || (summary.blocker ? summary.nextDecision : "RTP plan focus");
+  };
+
+  const getRtpFocusDetail = (focusKey = "", summary = {}) => {
+    if (focusKey === "ready") return "All tracked RTP items passed";
+    return summary.nextDecision;
+  };
+
+  const renderRtpProgramFocus = (draft = {}, summary = {}, focus = {}) => {
+    if (!isRtpFocusForDraft(draft, focus)) {
+      return "";
+    }
+    return `
+<section class="medical-rtp-plan-focus medical-rtp-action-${escapeHtml(summary.tone)}" data-medical-rtp-focus-target tabindex="-1" aria-label="RTP plan focus">
+<header>
+<div>
+<span>RTP Focus</span>
+<strong>${escapeHtml(getRtpFocusLabel(focus.rtpFocusKey, summary))}</strong>
+<small>${escapeHtml(getRtpFocusDetail(focus.rtpFocusKey, summary))}</small>
+</div>
+<b>${escapeHtml(summary.completionLabel)}</b>
+</header>
+<div class="medical-rtp-plan-focus-grid">
+<span><strong>Current blocker</strong>${escapeHtml(summary.blocker ? summary.nextDecision : "No active tracker blocker")}</span>
+<span><strong>Review</strong>${escapeHtml(draft.reviewDate || "No review date")}</span>
+<span><strong>Source</strong>${escapeHtml(draft.rtpLibraryProfileName || "Medical Plan")}</span>
+</div>
+</section>
+`;
+  };
+
+  const renderTrackerGroup = (group, draft = {}, tracker = {}, canEdit = true, focus = {}) => {
     const items = Array.isArray(draft[group.sourceField]) ? draft[group.sourceField] : [];
+    const hasFocus = isRtpFocusForDraft(draft, focus);
     return `
 <section class="medical-rtp-tracker-group">
 <header>
@@ -63,8 +107,9 @@ ${items.length
 ${items
   .map((item, index) => {
     const status = getMedicalRtpTrackerStatusOption(tracker[group.key]?.[index]);
+    const isFocusedRow = hasFocus && focus.rtpFocusGroupKey === group.key && String(focus.rtpFocusIndex) === String(index);
     return `
-<label class="medical-rtp-tracker-row medical-rtp-tracker-${escapeHtml(status.tone)}">
+<label class="medical-rtp-tracker-row medical-rtp-tracker-${escapeHtml(status.tone)}${isFocusedRow ? " is-rtp-focus" : ""}" ${isFocusedRow ? "data-medical-rtp-focus-row tabindex=\"-1\"" : ""}>
 <span>
 <strong>${escapeHtml(group.shortLabel)} ${index + 1}</strong>
 <small>${escapeHtml(item)}</small>
@@ -82,7 +127,7 @@ ${renderTrackerStatusOptions(status.key)}
 `;
   };
 
-  const renderRtpProgramTracker = (draft = {}, canEdit = true) => {
+  const renderRtpProgramTracker = (draft = {}, canEdit = true, focus = {}) => {
     const tracker = normalizeMedicalRtpProgramTracker(draft.rtpProgramTracker || draft, draft);
     const summary = getMedicalRtpTrackerSummary({ ...draft, rtpProgramTracker: tracker });
     return `
@@ -96,7 +141,7 @@ ${renderTrackerStatusOptions(status.key)}
 <b class="medical-rtp-tracker-summary medical-rtp-tracker-${escapeHtml(summary.tone)}">${summary.total ? `${summary.counts.hold} hold / ${summary.counts["in-progress"]} active` : "No tracker"}</b>
 </header>
 <div class="medical-rtp-tracker-grid">
-${medicalRtpTrackerGroups.map((group) => renderTrackerGroup(group, draft, tracker, canEdit)).join("")}
+${medicalRtpTrackerGroups.map((group) => renderTrackerGroup(group, draft, tracker, canEdit, focus)).join("")}
 </div>
 </section>
 `;
@@ -183,10 +228,11 @@ ${renderProgramField({
 `;
   };
 
-  const renderInjuryPlanForm = (player, canEdit) => {
+  const renderInjuryPlanForm = (player, canEdit, options = {}) => {
     const draft = getMedicalInjuryPlanDraft(player.id);
     const isEditing = Boolean(draft.planId);
     const hasRtpLibraryStarter = Boolean(draft.rtpLibraryProfileId);
+    const trackerSummary = getMedicalRtpTrackerSummary(draft);
     return `
 <article class="medical-modal-main-card medical-injury-plan-card">
 <div class="medical-card-headline">
@@ -211,7 +257,8 @@ ${hasRtpLibraryStarter ? `
 </section>
 ` : ""}
 ${renderRtpProgramBuilder(draft, canEdit)}
-${renderRtpProgramTracker(draft, canEdit)}
+${renderRtpProgramFocus(draft, trackerSummary, options)}
+${renderRtpProgramTracker(draft, canEdit, options)}
 <div class="medical-form-grid medical-plan-form-grid">
 <label>
 <span>Injury / reason</span>

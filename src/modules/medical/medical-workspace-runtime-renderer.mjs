@@ -42,7 +42,7 @@ ${
     ? rosterRenderer.renderAvailabilityWorkspace(message)
     : `${message ? `<div class="medical-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</div>` : ""}${renderOperationsSystem()}`
 }
-${playerModalRenderer.renderPlayerModal()}
+${playerModalRenderer.renderPlayerModal(options)}
 </div>
 `;
     if (options.focusRosterSearch) {
@@ -55,6 +55,13 @@ ${playerModalRenderer.renderPlayerModal()}
         if (typeof searchInput.setSelectionRange === "function") {
           searchInput.setSelectionRange(selectionStart, selectionEnd);
         }
+      }
+    }
+    if (options.focusMedicalRtpPlan) {
+      const focusTarget = workspace.querySelector("[data-medical-rtp-focus-target]") ?? workspace.querySelector("[data-medical-rtp-focus-row]");
+      if (focusTarget) {
+        focusTarget.scrollIntoView?.({ block: "center", behavior: "smooth" });
+        focusTarget.focus?.({ preventScroll: true });
       }
     }
   }

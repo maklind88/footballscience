@@ -234,7 +234,7 @@ ${renderMedicalActualPresets(formActual, canRecommend)}
 `;
   };
 
-  const renderPlayerModalBody = (context) => {
+  const renderPlayerModalBody = (context, options = {}) => {
     const activeTab = normalizeMedicalPlayerModalTab(getPlayerModalTab());
     const activeTabLabel = medicalPlayerModalTabOptions.find((tab) => tab.key === activeTab)?.label ?? "Availability";
     const { player, canEdit } = context;
@@ -255,7 +255,7 @@ ${renderMedicalLogCard(player)}
       return `
 <div id="medicalModalPanel" class="medical-modal-body medical-modal-body-plan" role="tabpanel" aria-label="${escapeHtml(activeTabLabel)}">
 <div class="medical-modal-main">
-${renderMedicalInjuryPlanForm(player, canEdit)}
+${renderMedicalInjuryPlanForm(player, canEdit, options)}
 </div>
 <aside class="medical-modal-side">
 ${renderMedicalRtpProgramCard(player)}
@@ -274,7 +274,7 @@ ${renderRecommendationModalCard(context)}
 `;
   };
 
-  const renderPlayerModal = () => {
+  const renderPlayerModal = (options = {}) => {
     if (!getPlayerModalOpen()) {
       return "";
     }
@@ -329,7 +329,7 @@ ${renderPlayerModalBody({
   formRtpPhase,
   formStatusLabel,
   squadBlockReason,
-})}
+}, options)}
 </section>
 </div>
 `;

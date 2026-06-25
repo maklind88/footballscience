@@ -80,7 +80,15 @@ ${
 ${summary.items
   .map(
     (item) => `
-<button type="button" data-medical-edit-injury-plan="${escapeHtml(item.planId)}" class="medical-rtp-action-row medical-rtp-action-${escapeHtml(item.tone)}">
+<button
+type="button"
+data-medical-edit-injury-plan="${escapeHtml(item.planId)}"
+data-medical-rtp-focus="${escapeHtml(item.key)}"
+data-medical-rtp-focus-group="${escapeHtml(item.focusGroupKey)}"
+data-medical-rtp-focus-index="${escapeHtml(item.focusIndex)}"
+class="medical-rtp-action-row medical-rtp-action-${escapeHtml(item.tone)}"
+aria-label="Open Medical Plan RTP focus for ${escapeHtml(item.playerName)}"
+>
 <span>
 <strong>${escapeHtml(item.playerName)}</strong>
 <small>${escapeHtml(item.identity)}</small>

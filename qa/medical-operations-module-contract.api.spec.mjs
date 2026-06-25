@@ -116,6 +116,9 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(casesMarkup).toContain("What Medical should handle next");
   expect(casesMarkup).toContain("Blocked by hold rule");
   expect(casesMarkup).toContain("Hold progression");
+  expect(casesMarkup).toContain('data-medical-rtp-focus="hold"');
+  expect(casesMarkup).toContain('data-medical-rtp-focus-group="holdRules"');
+  expect(casesMarkup).toContain('data-medical-rtp-focus-index="0"');
   expect(casesMarkup).toContain("Hamstring Strain");
   expect(casesMarkup).toContain("Gate criteria");
   expect(casesMarkup).toContain("Tracker");

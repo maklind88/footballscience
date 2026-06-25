@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createMedicalOperationsRenderer } from "../src/modules/medical/index.mjs";
+import { createMedicalOperationsRenderer, getMedicalRtpActionQueueSummary } from "../src/modules/medical/index.mjs";
 
 test("Medical operations renderer owns operations tabs, private system, and coach-safe summary", () => {
   const signal = {
@@ -112,6 +112,10 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   const casesMarkup = renderer.renderPrivateSystem(summary, "cases", "2026-05-31");
   expect(casesMarkup).toContain("RTP Programs");
   expect(casesMarkup).toContain("Medical-owned player programs from the RTP Library");
+  expect(casesMarkup).toContain("RTP Action Queue");
+  expect(casesMarkup).toContain("What Medical should handle next");
+  expect(casesMarkup).toContain("Blocked by hold rule");
+  expect(casesMarkup).toContain("Hold progression");
   expect(casesMarkup).toContain("Hamstring Strain");
   expect(casesMarkup).toContain("Gate criteria");
   expect(casesMarkup).toContain("Tracker");
@@ -138,4 +142,64 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   const coachMarkup = renderer.renderCoachSafeSummary("2026-05-31");
   expect(coachMarkup).toContain("Coach-Safe Summary");
   expect(coachMarkup).toContain("Coach notes");
+});
+
+test("Medical RTP action queue prioritizes hold, ready review, and exposure decisions", () => {
+  const summary = getMedicalRtpActionQueueSummary([
+    {
+      player: { id: "p1", name: "Hold Player", position: "FW" },
+      plan: {
+        id: "plan-hold",
+        injuryType: "Hamstring Strain",
+        bodyArea: "Posterior thigh",
+        rtpLibraryProfileId: "hamstring-strain",
+        rtpProgramGateCriteria: ["pain-free maximal isometric contraction"],
+        rtpProgramNextSteps: ["linear sprint exposure"],
+        rtpProgramHoldRules: ["pain with walking after 48 hours"],
+        rtpProgramTracker: {
+          gateCriteria: ["passed"],
+          nextSteps: ["in-progress"],
+          holdRules: ["hold"],
+        },
+      },
+      review: { label: "Review 31 May", severity: 2 },
+    },
+    {
+      player: { id: "p2", name: "Ready Player", position: "CM" },
+      plan: {
+        id: "plan-ready",
+        injuryType: "Adductor Strain",
+        rtpLibraryProfileName: "Adductor Strain",
+        rtpProgramGateCriteria: ["pain-free squeeze"],
+        rtpProgramTracker: { gateCriteria: ["passed"] },
+      },
+      review: { label: "Review next week", severity: 0 },
+    },
+    {
+      player: { id: "p3", name: "Exposure Player", position: "FB" },
+      plan: {
+        id: "plan-exposure",
+        injuryType: "Soleus Strain",
+        rtpLibraryProfileName: "Soleus Strain",
+        rtpProgramNextSteps: ["controlled accelerations"],
+        rtpProgramTracker: { nextSteps: ["in-progress"] },
+      },
+      review: { label: "No review date", severity: 0 },
+    },
+  ]);
+
+  expect(summary.total).toBe(3);
+  expect(summary.hold).toBe(1);
+  expect(summary.ready).toBe(1);
+  expect(summary.exposure).toBe(1);
+  expect(summary.items.map((item) => item.label)).toEqual([
+    "Blocked by hold rule",
+    "Ready for Medical review",
+    "Needs next exposure decision",
+  ]);
+  expect(summary.items[0]).toMatchObject({
+    planId: "plan-hold",
+    action: "Hold progression",
+    tone: "high",
+  });
 });

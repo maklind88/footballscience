@@ -29,6 +29,19 @@ export const medicalRtpTrackerGroups = [
   },
 ];
 
+const hasTextListItems = (value = []) => normalizeTrackerTextList(value).length > 0;
+
+export function hasMedicalRtpProgramStarter(plan = {}) {
+  return Boolean(
+    plan?.rtpLibraryProfileId ||
+      plan?.rtpLibraryProfileName ||
+      hasTextListItems(plan?.rtpProgramPhases) ||
+      hasTextListItems(plan?.rtpProgramGateCriteria) ||
+      hasTextListItems(plan?.rtpProgramNextSteps) ||
+      hasTextListItems(plan?.rtpProgramHoldRules)
+  );
+}
+
 const normalizeTrackerTextList = (value = []) => {
   if (Array.isArray(value)) {
     return value.map((item) => String(item ?? "").trim()).filter(Boolean).slice(0, 12);
@@ -123,4 +136,136 @@ export function getMedicalRtpTrackerSummary(plan = {}) {
     nextDecision,
     tone: counts.hold ? "high" : counts["in-progress"] ? "medium" : total && counts.passed === total ? "clear" : "neutral",
   };
+}
+
+function getRtpActionForCase(caseItem = {}) {
+  const plan = caseItem.plan || {};
+  if (!hasMedicalRtpProgramStarter(plan)) {
+    return null;
+  }
+  const trackerSummary = getMedicalRtpTrackerSummary(plan);
+  const review = caseItem.review || {};
+  const player = caseItem.player || {};
+  const identity = [player.position || "Position", plan.injuryType, plan.bodyArea].filter(Boolean).join(" / ");
+  const base = {
+    planId: plan.id || "",
+    playerId: player.id || "",
+    playerName: player.name || "Player",
+    identity,
+    injury: plan.injuryType || plan.rtpLibraryProfileName || "RTP case",
+    source: plan.rtpLibraryProfileName || "Medical Plan",
+    tracker: trackerSummary,
+    reviewLabel: review.label || "No review date",
+  };
+
+  if (trackerSummary.counts.hold) {
+    return {
+      ...base,
+      key: "hold",
+      label: "Blocked by hold rule",
+      detail: trackerSummary.nextDecision,
+      action: "Hold progression",
+      tone: "high",
+      priority: 100,
+    };
+  }
+
+  if (trackerSummary.total && trackerSummary.counts.passed === trackerSummary.total) {
+    return {
+      ...base,
+      key: "ready",
+      label: "Ready for Medical review",
+      detail: "All tracked RTP items passed",
+      action: "Review progression",
+      tone: "clear",
+      priority: 80,
+    };
+  }
+
+  if (review.severity >= 2) {
+    return {
+      ...base,
+      key: "review",
+      label: review.severity >= 3 ? "Review overdue" : "Review due",
+      detail: review.label || "Medical review needed",
+      action: "Review case",
+      tone: review.severity >= 3 ? "high" : "medium",
+      priority: 70,
+    };
+  }
+
+  if (trackerSummary.counts["in-progress"]) {
+    return {
+      ...base,
+      key: "exposure",
+      label: "Needs next exposure decision",
+      detail: trackerSummary.nextDecision,
+      action: "Decide next step",
+      tone: "medium",
+      priority: 60,
+    };
+  }
+
+  if (trackerSummary.counts["not-started"]) {
+    return {
+      ...base,
+      key: "start",
+      label: "Start RTP tracker",
+      detail: trackerSummary.nextDecision,
+      action: "Set first status",
+      tone: "neutral",
+      priority: 40,
+    };
+  }
+
+  if (!trackerSummary.total) {
+    return {
+      ...base,
+      key: "setup",
+      label: "Set RTP tracker",
+      detail: "Add gate, next-step or hold-rule tracking to the Medical Plan",
+      action: "Open plan",
+      tone: "neutral",
+      priority: 30,
+    };
+  }
+
+  return null;
+}
+
+export function getMedicalRtpActionQueueItems(activeCases = [], { limit = 5 } = {}) {
+  const maxItems = Math.max(1, Number(limit) || 5);
+  return (Array.isArray(activeCases) ? activeCases : [])
+    .map(getRtpActionForCase)
+    .filter(Boolean)
+    .sort((first, second) => {
+      if (first.priority !== second.priority) {
+        return second.priority - first.priority;
+      }
+      return String(first.playerName || "").localeCompare(String(second.playerName || ""));
+    })
+    .slice(0, maxItems);
+}
+
+export function getMedicalRtpActionQueueSummary(activeCases = [], { limit = 5 } = {}) {
+  const allItems = getMedicalRtpActionQueueItems(activeCases, { limit: Number.POSITIVE_INFINITY });
+  const displayLimit = Math.max(1, Number(limit) || 5);
+  return allItems.reduce(
+    (summary, item) => {
+      summary[item.key] = (summary[item.key] || 0) + 1;
+      summary.total += 1;
+      return summary;
+    },
+    {
+      total: 0,
+      hiddenCount: Math.max(0, allItems.length - displayLimit),
+      hold: 0,
+      review: 0,
+      ready: 0,
+      exposure: 0,
+      start: 0,
+      setup: 0,
+      items: allItems.slice(0, displayLimit),
+    }
+  );
 }

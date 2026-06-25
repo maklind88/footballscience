@@ -1,4 +1,8 @@
-import { getMedicalRtpTrackerSummary } from "./medical-rtp-tracker-helpers.mjs";
+import {
+  getMedicalRtpActionQueueSummary,
+  getMedicalRtpTrackerSummary,
+  hasMedicalRtpProgramStarter,
+} from "./medical-rtp-tracker-helpers.mjs";
 
 const defaultEscapeHtml = (value) =>
   String(value ?? "")
@@ -16,14 +20,7 @@ export function createMedicalRtpProgramRenderer({
   medicalClearanceRoles = [],
   medicalLoadGateOptions = [],
 } = {}) {
-  const hasRtpProgramStarter = (plan = {}) =>
-    Boolean(
-      plan.rtpLibraryProfileId ||
-        getRtpProgramItems(plan.rtpProgramPhases, 1).length ||
-        getRtpProgramItems(plan.rtpProgramGateCriteria, 1).length ||
-        getRtpProgramItems(plan.rtpProgramNextSteps, 1).length ||
-        getRtpProgramItems(plan.rtpProgramHoldRules, 1).length
-    );
+  const hasRtpProgramStarter = hasMedicalRtpProgramStarter;
 
   const renderRtpProgramSection = (title, items = []) => `
 <section>
@@ -52,6 +49,58 @@ ${
 `;
   };
 
+  const renderRtpActionMetric = (label, value, tone = "neutral") => `
+<span class="medical-rtp-action-metric medical-rtp-action-${escapeHtml(tone)}">
+<strong>${escapeHtml(value)}</strong>
+<small>${escapeHtml(label)}</small>
+</span>
+`;
+
+  const renderRtpActionQueue = (activeCases = []) => {
+    const summary = getMedicalRtpActionQueueSummary(activeCases);
+    return `
+<section class="medical-rtp-action-queue" aria-label="RTP medical action queue">
+<header>
+<div>
+<span>RTP Action Queue</span>
+<strong>What Medical should handle next</strong>
+<small>Prioritized by hold rules, reviews and tracker status.</small>
+</div>
+<b>${summary.total ? `${summary.total} action${summary.total === 1 ? "" : "s"}` : "No actions"}</b>
+</header>
+<div class="medical-rtp-action-metrics" aria-label="RTP action queue summary">
+${renderRtpActionMetric("Hold", summary.hold, summary.hold ? "high" : "neutral")}
+${renderRtpActionMetric("Review", summary.review, summary.review ? "medium" : "neutral")}
+${renderRtpActionMetric("Next exposure", summary.exposure, summary.exposure ? "medium" : "neutral")}
+${renderRtpActionMetric("Ready", summary.ready, summary.ready ? "clear" : "neutral")}
+</div>
+${
+  summary.items.length
+    ? `<div class="medical-rtp-action-list">
+${summary.items
+  .map(
+    (item) => `
+<button type="button" data-medical-edit-injury-plan="${escapeHtml(item.planId)}" class="medical-rtp-action-row medical-rtp-action-${escapeHtml(item.tone)}">
+<span>
+<strong>${escapeHtml(item.playerName)}</strong>
+<small>${escapeHtml(item.identity)}</small>
+</span>
+<span>
+<strong>${escapeHtml(item.label)}</strong>
+<small>${escapeHtml(item.detail)}</small>
+</span>
+<b>${escapeHtml(item.action)}</b>
+</button>
+`
+  )
+  .join("")}
+</div>`
+    : `<div class="medical-empty-inline">No RTP action queue items. Active RTP programs are tracking normally.</div>`
+}
+</section>
+`;
+  };
+
   const renderRtpCaseProgramCards = (summary = {}) => {
     const activeCases = Array.isArray(summary.activeCases) ? summary.activeCases : [];
     const rtpCases = activeCases.filter(({ plan }) => hasRtpProgramStarter(plan)).slice(0, 6);
@@ -64,6 +113,7 @@ ${
 </div>
 <small>${rtpCases.length}/${activeCases.length} active cases have a structured starter</small>
 </header>
+${renderRtpActionQueue(activeCases)}
 ${
   rtpCases.length
     ? `<div class="medical-rtp-case-board">

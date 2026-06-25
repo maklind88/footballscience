@@ -24,15 +24,17 @@ export function createMedicalPlanFormRenderer({
   renderMedicalParticipationOptions,
   renderMedicalRtpPhaseOptions,
 } = {}) {
-  const encodeJsonField = (value = []) => escapeHtml(JSON.stringify(Array.isArray(value) ? value : []));
-  const renderProgramList = (title, items = []) => items.length ? `
-<section>
-<h4>${escapeHtml(title)}</h4>
-<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-</section>
-` : "";
+  const getProgramText = (value = []) => (Array.isArray(value) ? value.join("\n") : String(value ?? ""));
 
-  const renderRtpProgramBlueprint = (draft = {}) => {
+  const renderProgramField = ({ name, label, items = [], placeholder = "", rows = 3, isWide = false, canEdit = true }) => `
+<label class="medical-rtp-program-field${isWide ? " is-wide" : ""}">
+<span>${escapeHtml(label)}</span>
+<textarea name="${escapeHtml(name)}" rows="${rows}" placeholder="${escapeHtml(placeholder)}" ${canEdit ? "" : "disabled"}>${escapeHtml(getProgramText(items))}</textarea>
+<small>One item per line. Medical-only unless separately summarized as coach-safe.</small>
+</label>
+`;
+
+  const renderRtpProgramBuilder = (draft = {}, canEdit = true) => {
     const hasProgram = [
       draft.rtpProgramPhases,
       draft.rtpProgramLoadText,
@@ -40,26 +42,74 @@ export function createMedicalPlanFormRenderer({
       draft.rtpProgramNextSteps,
       draft.rtpProgramHoldRules,
     ].some((items) => Array.isArray(items) && items.length);
-    if (!hasProgram) {
-      return "";
-    }
     return `
-<section class="medical-rtp-program-blueprint">
+<section class="medical-rtp-program-blueprint medical-rtp-program-editor" aria-label="Medical RTP program builder">
 <header>
 <div>
-<span>Player RTP program starter</span>
-<strong>Build, edit and individualize in Medical Plan</strong>
+<span>Player RTP program builder</span>
+<strong>${hasProgram ? "Edit and individualize this Medical-owned RTP program" : "Build the player program from an RTP Library starter"}</strong>
 </div>
 <small>Medical-owned / not coach-visible by default</small>
 </header>
-<div class="medical-rtp-program-grid">
-${renderProgramList("RTP phases", draft.rtpProgramPhases)}
-${renderProgramList("Running / sprint / COD / GPS", draft.rtpProgramLoadText)}
-${renderProgramList("Risk factors", draft.rtpProgramRiskFactors)}
-${renderProgramList("Warning points", draft.rtpProgramWarningPoints)}
-${renderProgramList("Gate criteria", draft.rtpProgramGateCriteria)}
-${renderProgramList("Next step", draft.rtpProgramNextSteps)}
-${renderProgramList("Hold rules", draft.rtpProgramHoldRules)}
+<div class="medical-rtp-program-case-link">
+<span><strong>Medical case</strong>${escapeHtml(draft.planId || "New case draft")}</span>
+<span><strong>RTP source</strong>${escapeHtml(draft.rtpLibraryProfileName || "No RTP Library starter applied")}</span>
+<span><strong>Evidence</strong>${escapeHtml(draft.rtpLibraryEvidenceLevel || "Not set")}</span>
+</div>
+<div class="medical-rtp-program-editor-grid">
+${renderProgramField({
+  name: "rtpProgramPhases",
+  label: "RTP phases",
+  items: draft.rtpProgramPhases,
+  placeholder: "Rehab: restore pain-free range...\nModified: controlled football exposure...\nFull: complete position-specific actions...",
+  rows: 5,
+  isWide: true,
+  canEdit,
+})}
+${renderProgramField({
+  name: "rtpProgramLoadText",
+  label: "Running / sprint / COD / GPS",
+  items: draft.rtpProgramLoadText,
+  placeholder: "Running: progress tempo volume...\nSprint: expose 90-100 percent before match...\nGPS: compare to positional baseline...",
+  rows: 5,
+  isWide: true,
+  canEdit,
+})}
+${renderProgramField({
+  name: "rtpProgramRiskFactors",
+  label: "Risk factors",
+  items: draft.rtpProgramRiskFactors,
+  placeholder: "Previous injury\nFixture congestion\nSprint exposure gap",
+  canEdit,
+})}
+${renderProgramField({
+  name: "rtpProgramWarningPoints",
+  label: "Warning points",
+  items: draft.rtpProgramWarningPoints,
+  placeholder: "Pain during acceleration\nNext-day symptom increase",
+  canEdit,
+})}
+${renderProgramField({
+  name: "rtpProgramGateCriteria",
+  label: "Gate criteria",
+  items: draft.rtpProgramGateCriteria,
+  placeholder: "Pain-free maximal contraction\nRepeated sprint exposure completed",
+  canEdit,
+})}
+${renderProgramField({
+  name: "rtpProgramNextSteps",
+  label: "Next step",
+  items: draft.rtpProgramNextSteps,
+  placeholder: "Controlled acceleration session\nPosition-specific sprint exposure",
+  canEdit,
+})}
+${renderProgramField({
+  name: "rtpProgramHoldRules",
+  label: "Hold rules",
+  items: draft.rtpProgramHoldRules,
+  placeholder: "Hold if pain increases\nHold if next-day response is worse",
+  canEdit,
+})}
 </div>
 </section>
 `;
@@ -82,13 +132,6 @@ ${renderProgramList("Hold rules", draft.rtpProgramHoldRules)}
 <input type="hidden" name="rtpLibraryProfileName" value="${escapeHtml(draft.rtpLibraryProfileName)}" />
 <input type="hidden" name="rtpLibraryEvidenceLevel" value="${escapeHtml(draft.rtpLibraryEvidenceLevel)}" />
 <input type="hidden" name="rtpLibrarySummary" value="${escapeHtml(draft.rtpLibrarySummary)}" />
-<input type="hidden" name="rtpProgramPhases" value="${encodeJsonField(draft.rtpProgramPhases)}" />
-<input type="hidden" name="rtpProgramLoadText" value="${encodeJsonField(draft.rtpProgramLoadText)}" />
-<input type="hidden" name="rtpProgramRiskFactors" value="${encodeJsonField(draft.rtpProgramRiskFactors)}" />
-<input type="hidden" name="rtpProgramWarningPoints" value="${encodeJsonField(draft.rtpProgramWarningPoints)}" />
-<input type="hidden" name="rtpProgramGateCriteria" value="${encodeJsonField(draft.rtpProgramGateCriteria)}" />
-<input type="hidden" name="rtpProgramNextSteps" value="${encodeJsonField(draft.rtpProgramNextSteps)}" />
-<input type="hidden" name="rtpProgramHoldRules" value="${encodeJsonField(draft.rtpProgramHoldRules)}" />
 ${hasRtpLibraryStarter ? `
 <section class="medical-rtp-plan-starter">
 <div>
@@ -99,7 +142,7 @@ ${hasRtpLibraryStarter ? `
 <p>${escapeHtml(draft.rtpLibrarySummary)}</p>
 </section>
 ` : ""}
-${renderRtpProgramBlueprint(draft)}
+${renderRtpProgramBuilder(draft, canEdit)}
 <div class="medical-form-grid medical-plan-form-grid">
 <label>
 <span>Injury / reason</span>

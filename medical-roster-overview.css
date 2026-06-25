@@ -2331,6 +2331,7 @@ body.is-dark-mode .medical-modal-close {
 }
 
 .medical-rtp-program-grid,
+.medical-rtp-program-editor-grid,
 .medical-rtp-case-board,
 .medical-rtp-case-sections {
   display: grid;
@@ -2339,6 +2340,91 @@ body.is-dark-mode .medical-modal-close {
 
 .medical-rtp-program-grid {
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+
+.medical-rtp-program-editor {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(239, 248, 244, 0.9));
+}
+
+.medical-rtp-program-case-link {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.48rem;
+}
+
+.medical-rtp-program-case-link span {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+  padding: 0.58rem;
+  border-radius: 8px;
+  background: rgba(23, 100, 73, 0.08);
+  color: #3f4f48;
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.28;
+}
+
+.medical-rtp-program-case-link strong {
+  color: #176449;
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-program-editor-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.medical-rtp-program-field {
+  display: grid;
+  gap: 0.26rem;
+  min-width: 0;
+  padding: 0.62rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.medical-rtp-program-field.is-wide {
+  grid-column: span 3;
+}
+
+.medical-rtp-program-field span {
+  color: #176449;
+  font-size: 0.66rem;
+  font-weight: 950;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-program-field textarea {
+  width: 100%;
+  min-height: 6.2rem;
+  resize: vertical;
+  border: 1px solid rgba(29, 31, 29, 0.14);
+  border-radius: 8px;
+  background: #fff;
+  color: #10231b;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.42;
+  padding: 0.62rem;
+  outline: 0;
+}
+
+.medical-rtp-program-field textarea:focus {
+  border-color: rgba(47, 143, 107, 0.48);
+  box-shadow: 0 0 0 3px rgba(47, 143, 107, 0.14);
+}
+
+.medical-rtp-program-field small {
+  color: #64716b;
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1.28;
 }
 
 .medical-rtp-program-grid section,
@@ -2485,11 +2571,16 @@ body.is-dark-mode .medical-modal-close {
 body.is-dark-mode .medical-rtp-program-blueprint,
 body.is-dark-mode .medical-rtp-case-workspace,
 body.is-dark-mode .medical-rtp-plan-source,
+body.is-dark-mode .medical-rtp-program-field,
 body.is-dark-mode .medical-rtp-program-grid section,
 body.is-dark-mode .medical-rtp-case-sections section,
 body.is-dark-mode .medical-rtp-case-card {
   border-color: rgba(148, 163, 184, 0.24);
   background: rgba(255, 255, 255, 0.08);
+}
+
+body.is-dark-mode .medical-rtp-program-editor {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(21, 38, 31, 0.7));
 }
 
 body.is-dark-mode .medical-rtp-case-workspace {
@@ -2501,6 +2592,7 @@ body.is-dark-mode .medical-rtp-case-workspace > header strong,
 body.is-dark-mode .medical-rtp-case-card > header strong,
 body.is-dark-mode .medical-rtp-program-grid h4,
 body.is-dark-mode .medical-rtp-case-sections h4,
+body.is-dark-mode .medical-rtp-program-case-link span,
 body.is-dark-mode .medical-rtp-plan-source strong {
   color: var(--ink);
 }
@@ -2509,6 +2601,12 @@ body.is-dark-mode .medical-rtp-program-grid li,
 body.is-dark-mode .medical-rtp-case-sections li,
 body.is-dark-mode .medical-rtp-case-meta span {
   color: var(--muted);
+}
+
+body.is-dark-mode .medical-rtp-program-field textarea {
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.72);
+  color: var(--ink);
 }
 
 @media (max-width: 1180px) {
@@ -2544,7 +2642,13 @@ body.is-dark-mode .medical-rtp-case-meta span {
   }
 
   .medical-rtp-case-board,
-  .medical-rtp-case-meta {
+  .medical-rtp-case-meta,
+  .medical-rtp-program-case-link,
+  .medical-rtp-program-editor-grid {
     grid-template-columns: 1fr;
+  }
+
+  .medical-rtp-program-field.is-wide {
+    grid-column: auto;
   }
 }

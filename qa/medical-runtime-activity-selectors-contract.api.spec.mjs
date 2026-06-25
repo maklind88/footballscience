@@ -207,13 +207,25 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
   ]);
 
   const form = {
-    values: { playerId: "p1", duration: "2", shareWithCoach: "on" },
+    values: {
+      playerId: "p1",
+      duration: "2",
+      shareWithCoach: "on",
+      rtpProgramPhases: "Rehab: restore capacity\nModified: controlled football",
+      rtpProgramGateCriteria: "Pain-free acceleration\nRepeated sprint block completed",
+      rtpProgramNextSteps: "Controlled acceleration session; Team rondo integration",
+      rtpProgramHoldRules: "Pain increase\nNext-day symptom spike",
+    },
     querySelector: (selector) => selector === "[name='shareWithCoach']" ? { checked: true } : { value: "p1" },
   };
   expect(selectors.persistMedicalInjuryPlanDraftFromForm(form)).toMatchObject({
     playerId: "p1",
     duration: 2,
     shareWithCoach: true,
+    rtpProgramPhases: ["Rehab: restore capacity", "Modified: controlled football"],
+    rtpProgramGateCriteria: ["Pain-free acceleration", "Repeated sprint block completed"],
+    rtpProgramNextSteps: ["Controlled acceleration session", "Team rondo integration"],
+    rtpProgramHoldRules: ["Pain increase", "Next-day symptom spike"],
   });
   expect(draftMap.has("p1")).toBe(true);
   selectors.clearMedicalInjuryPlanDraft("p1");

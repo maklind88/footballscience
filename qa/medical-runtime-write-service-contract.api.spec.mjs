@@ -181,14 +181,33 @@ test("Medical runtime write service preserves plans, clearance, roster upsert, a
     rtpPhase: "modified-team",
     doctor: true,
     running: "pass",
+    rtpLibraryProfileName: "Hamstring Strain",
+    rtpProgramPhases: ["Rehab", "Modified football"],
+    rtpProgramGateCriteria: ["Pain-free acceleration", "Sprint block completed"],
+    rtpProgramNextSteps: ["Controlled sprint exposure"],
+    rtpProgramHoldRules: ["Next-day symptom spike"],
   });
   expect(plan).toMatchObject({
     id: "plan-1",
     createdBy: "medical-user",
     clearance: { doctor: true },
     gates: { running: "pass" },
+    rtpLibraryProfileName: "Hamstring Strain",
+    rtpProgramPhases: ["Rehab", "Modified football"],
+    rtpProgramGateCriteria: ["Pain-free acceleration", "Sprint block completed"],
   });
   expect(harness.commits.at(-1).type).toBe("availability-plan-created");
+
+  expect(harness.service.updateMedicalInjuryPlan({
+    planId: plan.id,
+    injuryType: "Hamstring Strain",
+    rtpProgramNextSteps: ["Team training integration", "Late-session sprint"],
+    rtpProgramHoldRules: ["Pain increase"],
+  })).toMatchObject({
+    rtpProgramNextSteps: ["Team training integration", "Late-session sprint"],
+    rtpProgramHoldRules: ["Pain increase"],
+  });
+  expect(harness.commits.at(-1).type).toBe("availability-plan-updated");
 
   expect(harness.service.updateMedicalPlanClearance({ planId: plan.id, rtpPhase: "full-training", doctor: true, running: "pass" })).toMatchObject({
     status: "full",

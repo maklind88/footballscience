@@ -82,6 +82,105 @@ ${renderTabs(activeTab, tabOptions, "medical-ops-tabs-top")}
     medicalLoadGateOptions,
   });
 
+  const normalizeRtpCaseText = (value) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase();
+
+  const planHasRtpStarter = (plan = {}) =>
+    Boolean(
+      plan.rtpLibraryProfileId ||
+        plan.rtpLibraryProfileName ||
+        (Array.isArray(plan.rtpProgramGateCriteria) && plan.rtpProgramGateCriteria.length) ||
+        (Array.isArray(plan.rtpProgramNextSteps) && plan.rtpProgramNextSteps.length)
+    );
+
+  const getProfileMatchText = (profile = {}) =>
+    [
+      profile.id,
+      profile.name,
+      profile.system,
+      profile.bodyArea,
+      ...(profile.symptoms || []),
+      ...(profile.riskTags || []),
+      ...(profile.movementPlanes || []),
+    ]
+      .map(normalizeRtpCaseText)
+      .join(" ");
+
+  const getPlanMatchTerms = (plan = {}) =>
+    [plan.injuryType, plan.bodyArea, plan.phase, plan.comment, plan.coachNote]
+      .map(normalizeRtpCaseText)
+      .filter(Boolean);
+
+  const getProfileScoreForPlan = (profile, plan) => {
+    const terms = getPlanMatchTerms(plan);
+    const text = getProfileMatchText(profile);
+    return terms.reduce((score, term) => {
+      if (!term) return score;
+      if (normalizeRtpCaseText(profile.name) === term) return score + 8;
+      if (normalizeRtpCaseText(profile.bodyArea) === term) return score + 4;
+      return text.includes(term) || term.includes(normalizeRtpCaseText(profile.bodyArea)) ? score + 2 : score;
+    }, 0);
+  };
+
+  const getSuggestedProfilesForPlan = (plan = {}) =>
+    [...getMedicalRtpLibraryProfiles()].sort((first, second) => {
+      const scoreDiff = getProfileScoreForPlan(second, plan) - getProfileScoreForPlan(first, plan);
+      return scoreDiff || String(first.name || "").localeCompare(String(second.name || ""));
+    });
+
+  const renderCaseRtpStarterLinker = (summary) => {
+    const profiles = getMedicalRtpLibraryProfiles();
+    const casesNeedingStarter = summary.activeCases.filter(({ plan }) => !planHasRtpStarter(plan));
+    if (!profiles.length || !casesNeedingStarter.length) {
+      return "";
+    }
+    return `
+<section class="medical-rtp-case-linker" aria-label="Apply RTP Library starters to active cases">
+<header>
+<div>
+<span>RTP starter needed</span>
+<strong>${casesNeedingStarter.length}/${summary.activeCases.length} active case${summary.activeCases.length === 1 ? "" : "s"} need a structured starter</strong>
+<small>Choose a Library profile, fill the existing Medical Plan draft, review, then save. Nothing is auto-saved.</small>
+</div>
+<b>Medical review required</b>
+</header>
+<div class="medical-rtp-case-linker-grid">
+${casesNeedingStarter
+  .map(({ player, plan, severity, review }) => {
+    const suggestedProfiles = getSuggestedProfilesForPlan(plan);
+    const topProfile = suggestedProfiles[0] || profiles[0];
+    return `
+<article class="medical-rtp-case-linker-card medical-ops-tone-${escapeHtml(severity.tone)}">
+<div>
+<strong>${escapeHtml(player.name)}</strong>
+<small>${escapeHtml([player.position || "Position", plan.injuryType, plan.bodyArea].filter(Boolean).join(" / "))}</small>
+</div>
+<span>
+<strong>${escapeHtml(review.label)}</strong>
+<small>${topProfile ? `Suggested: ${escapeHtml(topProfile.name)}` : "Select RTP profile"}</small>
+</span>
+<form data-medical-rtp-case-linker-form data-medical-plan-id="${escapeHtml(plan.id)}">
+<label>
+<span>RTP Library profile</span>
+<select data-medical-rtp-case-profile aria-label="RTP Library profile for ${escapeHtml(player.name)}">
+${suggestedProfiles
+  .map((profileItem, index) => `<option value="${escapeHtml(profileItem.id)}">${index === 0 ? "Suggested: " : ""}${escapeHtml(profileItem.name)}</option>`)
+  .join("")}
+</select>
+</label>
+<button type="submit">Apply to this case</button>
+</form>
+</article>
+`;
+  })
+  .join("")}
+</div>
+</section>
+`;
+  };
+
   const renderPlayerAvailability = (summary) => {
     const players = summary.signals;
     return `
@@ -250,6 +349,7 @@ ${summary.signals
   const renderCases = (summary) => `
 <div class="medical-rtp-case-layout">
 ${rtpProgramRenderer.renderRtpCaseProgramCards(summary)}
+${renderCaseRtpStarterLinker(summary)}
 <div class="medical-ops-table medical-ops-cases-table">
 <div class="medical-ops-table-head" aria-hidden="true">
 <span>Player</span>

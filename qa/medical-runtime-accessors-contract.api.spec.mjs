@@ -108,6 +108,7 @@ const facadeNames = [
   "getMedicalRtpLibraryProfile",
   "getMedicalRtpLibraryProfiles",
   "getMedicalRtpLibraryStarterDraft",
+  "getMedicalRtpLibraryStarterDraftForPlan",
   "clearMedicalInjuryPlanDraft",
   "getMedicalInjuryPlanFormDraft",
   "persistMedicalInjuryPlanDraftFromForm",

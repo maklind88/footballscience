@@ -172,6 +172,19 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
   expect(starterDraft.rtpProgramPhases.length).toBeGreaterThan(0);
   expect(starterDraft.rtpProgramGateCriteria).toContain("pain-free maximal isometric contraction");
 
+  const caseStarterDraft = selectors.getMedicalRtpLibraryStarterDraftForPlan("hamstring-strain", "plan-1");
+  expect(caseStarterDraft).toMatchObject({
+    planId: "plan-1",
+    playerId: "p1",
+    injuryType: "Hamstring",
+    bodyArea: "Left",
+    rtpLibraryProfileId: "hamstring-strain",
+    rtpLibraryProfileName: "Hamstring Strain",
+    shareWithCoach: true,
+  });
+  expect(caseStarterDraft.startDate).toBe("2026-05-20");
+  expect(caseStarterDraft.rtpProgramGateCriteria).toContain("pain-free maximal isometric contraction");
+
   expect(selectors.getMedicalRecommendationActivityContext("2026-05-31")).toMatchObject({
     type: "match",
     scheduleLabel: "Matchday",

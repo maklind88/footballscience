@@ -265,7 +265,7 @@ export function bindMedicalRuntimeBindings(deps = {}) {
         setStateValue(state, "MedicalSelectedPlayerId", plan.playerId);
         setStateValue(state, "MedicalPlayerModalOpen", true);
         setStateValue(state, "MedicalPlayerModalTab", "plan");
-        renderWorkspace("Availability plan ready to edit.");
+        renderWorkspace("Medical plan ready to edit.");
       }
       return;
     }
@@ -426,6 +426,26 @@ export function bindMedicalRuntimeBindings(deps = {}) {
   };
 
   const onSubmit = (event) => {
+    const rtpCaseLinkerForm = event.target.closest("[data-medical-rtp-case-linker-form]");
+    if (rtpCaseLinkerForm) {
+      event.preventDefault();
+      if (!canEdit()) return;
+      const profileSelect = rtpCaseLinkerForm.querySelector?.("[data-medical-rtp-case-profile]");
+      const draft = actions.getMedicalRtpLibraryStarterDraftForPlan?.(
+        profileSelect?.value,
+        rtpCaseLinkerForm.dataset.medicalPlanId
+      );
+      if (!draft?.playerId) {
+        renderWorkspace("RTP Library starter could not be linked to this active case.");
+        return;
+      }
+      actions.setMedicalInjuryPlanDraft?.(draft.playerId, draft);
+      setStateValue(state, "MedicalSelectedPlayerId", draft.playerId);
+      setStateValue(state, "MedicalPlayerModalOpen", true);
+      setStateValue(state, "MedicalPlayerModalTab", "plan");
+      renderWorkspace(`${draft.rtpLibraryProfileName || draft.injuryType} starter ready for active case. Review and save Medical Plan.`);
+      return;
+    }
     const rtpLibraryControls = event.target.closest("[data-medical-rtp-library-controls]");
     if (rtpLibraryControls) {
       event.preventDefault();

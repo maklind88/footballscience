@@ -109,6 +109,12 @@ function createHarness({ canEdit = true } = {}) {
         injuryType: "Hamstring Strain",
         bodyArea: "Posterior thigh",
       }),
+      getMedicalRtpLibraryStarterDraftForPlan: (profileId, planId) => ({
+        playerId: "p-1",
+        planId,
+        injuryType: "ACL reconstruction",
+        rtpLibraryProfileName: "ACL Reconstruction RTP",
+      }),
       getMedicalRtpPhaseForRecommendation: () => "full",
       getMedicalRtpPhaseOption: (key) => ({ key, label: "Full", participation: 100, status: "available" }),
       getMedicalStatusForParticipation: () => "available",
@@ -196,6 +202,21 @@ test("Medical runtime bindings preserve quick recommendation, archive, and plan 
   expect(mutable.selectedPlayerId).toBe("p-1");
   expect(mutable.modalOpen).toBe(true);
   expect(mutable.modalTab).toBe("plan");
+
+  const caseLinkerForm = {
+    dataset: { medicalPlanId: "plan-1" },
+    querySelector(selector) {
+      return selector === "[data-medical-rtp-case-profile]" ? { value: "acl-reconstruction-rtp" } : null;
+    },
+  };
+  workspace.listeners.submit(createEvent(createTarget({
+    closest: { "[data-medical-rtp-case-linker-form]": caseLinkerForm },
+  })));
+  expect(calls).toContainEqual(["set-draft", "p-1", "ACL reconstruction"]);
+  expect(mutable.selectedPlayerId).toBe("p-1");
+  expect(mutable.modalOpen).toBe(true);
+  expect(mutable.modalTab).toBe("plan");
+  expect(calls).toContainEqual(["render", "ACL Reconstruction RTP starter ready for active case. Review and save Medical Plan."]);
 
   workspace.listeners.click(createEvent(createTarget({
     closest: { "[data-medical-apply-rtp-starter]": { dataset: { medicalRtpProfileId: "hamstring-strain", medicalPlayerId: "p-1" } } },

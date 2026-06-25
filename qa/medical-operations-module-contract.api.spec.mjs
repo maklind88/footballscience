@@ -43,6 +43,23 @@ test("Medical operations renderer owns operations tabs, private system, and coac
         review: { label: "Review due" },
         clearance: { signOffCount: 1, gatePassCount: 0 },
       },
+      {
+        player: { id: "p2", name: "Case Player", position: "CB" },
+        plan: {
+          id: "plan-2",
+          injuryType: "ACL reconstruction",
+          bodyArea: "Knee",
+          startDate: "2026-05-18",
+          endDate: "2026-08-10",
+          participation: 0,
+          rtpPhase: "medical-restriction",
+        },
+        severity: { tone: "high", label: "Major" },
+        daysRemaining: 60,
+        elapsedDays: 14,
+        review: { label: "RTP starter needed" },
+        clearance: { signOffCount: 0, gatePassCount: 0 },
+      },
     ],
     clearanceBlockers: [],
     actionRequired: 1,
@@ -93,6 +110,11 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(casesMarkup).toContain("Hamstring Strain");
   expect(casesMarkup).toContain("Gate criteria");
   expect(casesMarkup).toContain("Open Medical Plan");
+  expect(casesMarkup).toContain("RTP starter needed");
+  expect(casesMarkup).toContain("data-medical-rtp-case-linker-form");
+  expect(casesMarkup).toContain("data-medical-plan-id=\"plan-2\"");
+  expect(casesMarkup).toContain("Suggested: ACL Reconstruction RTP");
+  expect(casesMarkup).toContain("Apply to this case");
   const rtpMarkup = renderer.renderPrivateSystem(summary, "rtp-library", "2026-05-31");
   expect(rtpMarkup).toContain("RTP Library");
   expect(rtpMarkup).toContain("Medical-safe injury knowledge");

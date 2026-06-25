@@ -31,6 +31,32 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     void actions.recordMedicalDatabaseSyncEvent?.(eventType, payload);
   };
 
+  const filterMedicalRtpLibrary = () => {
+    const library = queryWorkspace(workspaceElement, "[data-medical-rtp-library]");
+    if (!library) return;
+    const query = String(library.querySelector("[data-medical-rtp-library-search]")?.value || "").trim().toLowerCase();
+    const filters = Array.from(library.querySelectorAll("[data-medical-rtp-library-filter]")).reduce((acc, control) => {
+      acc[control.dataset.medicalRtpLibraryFilter] = String(control.value || "all").toLowerCase();
+      return acc;
+    }, {});
+    let visibleCount = 0;
+    library.querySelectorAll("[data-medical-rtp-profile]").forEach((card) => {
+      const matchesQuery = !query || String(card.dataset.search || "").includes(query);
+      const matchesMovement = !filters.movement || filters.movement === "all" || String(card.dataset.movement || "").toLowerCase().includes(filters.movement);
+      const matchesPosition = !filters.position || filters.position === "all" || String(card.dataset.position || "").toLowerCase().includes(filters.position);
+      const matchesSeason = !filters.season || filters.season === "all" || String(card.dataset.season || "").toLowerCase().includes(filters.season);
+      const matchesSex = !filters.sex || filters.sex === "all" || String(card.dataset.sex || "").toLowerCase().includes(filters.sex);
+      const matchesLevel = !filters.level || filters.level === "all" || String(card.dataset.level || "").toLowerCase().includes(filters.level);
+      const isVisible = matchesQuery && matchesMovement && matchesPosition && matchesSeason && matchesSex && matchesLevel;
+      card.hidden = !isVisible;
+      visibleCount += isVisible ? 1 : 0;
+    });
+    const count = library.querySelector("[data-medical-rtp-library-count]");
+    if (count) count.textContent = String(visibleCount);
+    const empty = library.querySelector("[data-medical-rtp-library-empty]");
+    if (empty) empty.hidden = visibleCount !== 0;
+  };
+
   const onClick = (event) => {
     const closeModalButton = event.target.closest("[data-medical-close-modal]");
     if (closeModalButton) {
@@ -156,6 +182,23 @@ export function bindMedicalRuntimeBindings(deps = {}) {
       renderWorkspace();
       return;
     }
+    const applyRtpStarterButton = event.target.closest("[data-medical-apply-rtp-starter]");
+    if (applyRtpStarterButton && canEdit()) {
+      event.preventDefault();
+      event.stopPropagation();
+      const playerId = applyRtpStarterButton.dataset.medicalPlayerId || getMedicalState(state).selectedPlayerId;
+      const draft = actions.getMedicalRtpLibraryStarterDraft?.(applyRtpStarterButton.dataset.medicalRtpProfileId, playerId);
+      if (!draft?.playerId) {
+        renderWorkspace("RTP Library starter could not be applied. Select a player first.");
+        return;
+      }
+      actions.setMedicalInjuryPlanDraft?.(draft.playerId, draft);
+      setStateValue(state, "MedicalSelectedPlayerId", draft.playerId);
+      setStateValue(state, "MedicalPlayerModalOpen", true);
+      setStateValue(state, "MedicalPlayerModalTab", "plan");
+      renderWorkspace(`${draft.injuryType} starter ready in Medical Plan.`);
+      return;
+    }
     const selectPlayerCard = event.target.closest("[data-medical-select-player]");
     if (selectPlayerCard) {
       actions.openMedicalPlayerModal?.(selectPlayerCard.dataset.medicalSelectPlayer);
@@ -261,6 +304,10 @@ export function bindMedicalRuntimeBindings(deps = {}) {
   };
 
   const onInput = (event) => {
+    if (event.target.closest("[data-medical-rtp-library-search]")) {
+      filterMedicalRtpLibrary();
+      return;
+    }
     const injuryPlanForm = event.target.closest("#medicalInjuryPlanForm");
     if (injuryPlanForm) {
       actions.persistMedicalInjuryPlanDraftFromForm?.(injuryPlanForm);
@@ -275,6 +322,10 @@ export function bindMedicalRuntimeBindings(deps = {}) {
   };
 
   const onChange = (event) => {
+    if (event.target.closest("[data-medical-rtp-library-filter]")) {
+      filterMedicalRtpLibrary();
+      return;
+    }
     const datePicker = event.target.closest("[data-medical-date-picker]");
     if (datePicker) {
       actions.setMedicalSelectedDate?.(datePicker.value);
@@ -375,6 +426,12 @@ export function bindMedicalRuntimeBindings(deps = {}) {
   };
 
   const onSubmit = (event) => {
+    const rtpLibraryControls = event.target.closest("[data-medical-rtp-library-controls]");
+    if (rtpLibraryControls) {
+      event.preventDefault();
+      filterMedicalRtpLibrary();
+      return;
+    }
     const historyFilterForm = event.target.closest("[data-medical-history-filter-form]");
     if (historyFilterForm) {
       event.preventDefault();

@@ -3034,8 +3034,9 @@ test("Medical operations board separates signals, cases, history and season view
 
   await operationsMenu.locator('[data-medical-ops-tab="rtp-library"]').click();
   await expect(operations).toContainText("RTP Library");
-  await expect(operations).toContainText("Coach-Safe RTP Status");
-  await expect(operations).toContainText("Top RTP Signals");
+  await expect(operations).toContainText("Medical-safe injury knowledge");
+  await expect(operations).toContainText("Full text search");
+  await expect(operations).toContainText("Apply as medical starter");
   await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);
 
   await operationsMenu.locator('[data-medical-ops-tab="season"]').click();

@@ -157,6 +157,17 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
   expect(selectors.getMedicalPlayerRestrictedLogRecords("p1")).toHaveLength(1);
   expect(selectors.getMedicalRecordStatus(selectors.getLatestMedicalRecord("p1")).label).toBe("Modified");
   expect(selectors.getMedicalCoachComment(selectors.getLatestMedicalRecord("p1"))).toBe("Limit sprinting");
+  expect(selectors.getMedicalRtpLibraryProfiles().length).toBeGreaterThanOrEqual(15);
+  expect(selectors.getMedicalRtpLibraryProfile("hamstring-strain")).toMatchObject({
+    name: "Hamstring Strain",
+    bodyArea: "Posterior thigh",
+  });
+  expect(selectors.getMedicalRtpLibraryStarterDraft("hamstring-strain", "p1")).toMatchObject({
+    playerId: "p1",
+    injuryType: "Hamstring Strain",
+    rtpLibraryProfileId: "hamstring-strain",
+    shareWithCoach: false,
+  });
 
   expect(selectors.getMedicalRecommendationActivityContext("2026-05-31")).toMatchObject({
     type: "match",

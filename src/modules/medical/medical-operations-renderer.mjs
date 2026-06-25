@@ -1,3 +1,9 @@
+import {
+  getMedicalRtpLibrarySearchText,
+  medicalRtpLibraryFilterOptions,
+  medicalRtpLibraryProfiles as defaultMedicalRtpLibraryProfiles,
+} from "./medical-rtp-library-data.mjs";
+
 const defaultEscapeHtml = (value) =>
   String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -15,6 +21,7 @@ export function createMedicalOperationsRenderer({
   getMedicalHistoryEvents,
   getMedicalHistoryPlayerFilter = () => "all",
   getMedicalHistorySearchQuery = () => "",
+  getMedicalRtpLibraryProfiles = () => defaultMedicalRtpLibraryProfiles,
   getMedicalRtpPhaseOption,
   medicalClearanceRoles = [],
   medicalLoadGateOptions = [],
@@ -259,97 +266,117 @@ ${summary.activeCases.length
 </div>
 `;
 
-  const renderRtpLibrary = (summary) => {
+  const renderRtpLibrary = () => {
     const selectedPlayer = getSelectedMedicalPlayer();
-    const phaseBuckets = summary.activeCases.reduce((acc, item) => {
-      const phase = getMedicalRtpPhaseOption(item.plan.rtpPhase)?.label ?? "No RTP phase";
-      acc[phase] = (acc[phase] ?? 0) + 1;
-      return acc;
-    }, {});
-    const libraryStatusText =
-      summary.activeCases.length === 0
-        ? "No active RTP cases. Start with the Risk Signals or Active Cases tabs for player-level action."
-        : "Active RTP cases are grouped by phase so staff can apply position-relevant progression guidance.";
-
-    const topSignals = summary.signals
-      .filter((signal) => signal.activePlan || signal.record?.participation < 100)
-      .slice(0, 6);
-
-    const renderStatusRow = (statusCard = {}) => {
-      const canTrain = String(statusCard.canTrainToday || "unknown");
-      const canPlay = String(statusCard.canPlayNextMatch || "unknown");
-      const riskLevel = String(statusCard.riskLevel || "unknown");
-      const minutesGuidanceBand = String(statusCard.minutesGuidanceBand || "unknown");
-      const positionReadinessBand = String(statusCard.positionReadinessBand || "unknown");
-      const nextDecisionPoint = String(statusCard.nextDecisionPoint || "No active decision point available.");
-      return `
-<div class="medical-ops-signal-list">
-  <div class="medical-ops-signal-row"><span>Train today</span><strong>${escapeHtml(canTrain)}</strong></div>
-  <div class="medical-ops-signal-row"><span>Play next match</span><strong>${escapeHtml(canPlay)}</strong></div>
-  <div class="medical-ops-signal-row"><span>Risk</span><strong>${escapeHtml(riskLevel)}</strong></div>
-  <div class="medical-ops-signal-row"><span>Minutes guidance</span><strong>${escapeHtml(minutesGuidanceBand)}</strong></div>
-  <div class="medical-ops-signal-row"><span>Position readiness</span><strong>${escapeHtml(positionReadinessBand)}</strong></div>
-  <p class="medical-empty-inline">${escapeHtml(nextDecisionPoint)}</p>
-</div>
+    const profiles = getMedicalRtpLibraryProfiles();
+    const renderSelect = (label, key, options = []) => `
+<label>
+<span>${escapeHtml(label)}</span>
+<select data-medical-rtp-library-filter="${escapeHtml(key)}" aria-label="${escapeHtml(label)}">
+<option value="all">All</option>
+${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}
+</select>
+</label>
 `;
-    };
-
-    const selectedPlayerStatus = selectedPlayer ? getMedicalPlayerRtpCoachStatus(selectedPlayer.id) : null;
-    const selectedStatus = selectedPlayerStatus?.statusCard;
+    const renderTags = (items = [], limit = 4) =>
+      items
+        .slice(0, limit)
+        .map((item) => `<span class="medical-ops-chip medical-ops-chip-low">${escapeHtml(item)}</span>`)
+        .join("");
+    const renderList = (title, items = []) => `
+<section>
+<h4>${escapeHtml(title)}</h4>
+<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+</section>
+`;
     return `
-<div class="medical-ops-season">
-<article class="medical-ops-card">
-<div class="medical-command-head">
-<span>RTP Library</span>
-<strong>${summary.activeCases.length}</strong>
+<div class="medical-rtp-library" data-medical-rtp-library>
+<header class="medical-rtp-library-hero">
+<div>
+<p class="placeholder-tag">RTP Library</p>
+<h2>Medical-safe injury knowledge</h2>
+<span>Search profiles, read evidence and apply a starter into the selected player's Medical Plan.</span>
 </div>
-<div class="medical-ops-signal-list">
-<p>${escapeHtml(libraryStatusText)}</p>
-${Object.keys(phaseBuckets).length
-  ? Object.entries(phaseBuckets)
-      .map(
-        ([phase, count]) =>
-          `<div class="medical-ops-signal-row"><span>${escapeHtml(phase)}</span><strong>${String(count)} active case${count === 1 ? "" : "s"}</strong></div>`
-      )
-      .join("")
-  : `<div class="medical-empty-inline">No RTP phase signal yet.</div>`}
+<strong>${profiles.length} profiles</strong>
+</header>
+<form class="medical-rtp-library-controls" data-medical-rtp-library-controls>
+<label class="medical-rtp-library-search">
+<span>Full text search</span>
+<input type="search" data-medical-rtp-library-search placeholder="Search injury, system, body area, symptom, position or risk" />
+</label>
+${renderSelect("Movement plane", "movement", medicalRtpLibraryFilterOptions.movementPlanes)}
+${renderSelect("Position", "position", medicalRtpLibraryFilterOptions.positions)}
+${renderSelect("Season", "season", medicalRtpLibraryFilterOptions.seasons)}
+${renderSelect("Sex", "sex", medicalRtpLibraryFilterOptions.sex)}
+${renderSelect("Level", "level", medicalRtpLibraryFilterOptions.level)}
+</form>
+<div class="medical-rtp-library-meta">
+<span><strong data-medical-rtp-library-count>${profiles.length}</strong> visible</span>
+<span>Evidence and expert consensus are separated in every profile.</span>
 </div>
+<div class="medical-rtp-profile-grid">
+${profiles
+  .map((profileItem, index) => {
+    const searchText = getMedicalRtpLibrarySearchText(profileItem);
+    return `
+<article
+class="medical-rtp-profile-card"
+data-medical-rtp-profile
+data-search="${escapeHtml(searchText)}"
+data-movement="${escapeHtml(profileItem.movementPlanes.join(" "))}"
+data-position="${escapeHtml(profileItem.positions.join(" "))}"
+data-season="${escapeHtml(profileItem.season.join(" "))}"
+data-sex="${escapeHtml(profileItem.sex.join(" "))}"
+data-level="${escapeHtml(profileItem.level.join(" "))}"
+>
+<details ${index === 0 ? "open" : ""}>
+<summary>
+<span>
+<strong>${escapeHtml(profileItem.name)}</strong>
+<small>${escapeHtml(profileItem.system)} / ${escapeHtml(profileItem.bodyArea)} / ${escapeHtml(profileItem.evidenceLevel)}</small>
+</span>
+<b>Open profile</b>
+</summary>
+<div class="medical-rtp-profile-body">
+<section class="medical-rtp-profile-summary">
+<div>
+<h3>Quick Summary</h3>
+<p>${escapeHtml(profileItem.summary)}</p>
+</div>
+<div>
+<h3>Medical-safe Evidence</h3>
+<p><strong>Evidence:</strong> ${escapeHtml(profileItem.evidence)}</p>
+<p><strong>Experience/consensus:</strong> ${escapeHtml(profileItem.experience)}</p>
+</div>
+</section>
+<div class="medical-rtp-profile-tags">
+${renderTags(profileItem.riskTags, 5)}
+</div>
+<div class="medical-rtp-profile-sections">
+${renderList("Red flags", profileItem.redFlags)}
+${renderList("Progression criteria", profileItem.criteria)}
+${renderList("Return-to-training checklist", profileItem.trainingChecklist)}
+${renderList("Return-to-match checklist", profileItem.matchChecklist)}
+${renderList("Common mistakes / risks", profileItem.mistakes)}
+</div>
+<div class="medical-rtp-profile-actions">
+<button
+type="button"
+data-medical-apply-rtp-starter
+data-medical-rtp-profile-id="${escapeHtml(profileItem.id)}"
+data-medical-player-id="${escapeHtml(selectedPlayer?.id || "")}"
+${selectedPlayer ? "" : "disabled"}
+>Apply as medical starter${selectedPlayer ? ` for ${escapeHtml(selectedPlayer.name)}` : ""}</button>
+<small>This fills the Medical Plan draft only. Medical still owns the final player-specific program.</small>
+</div>
+</div>
+</details>
 </article>
-<article class="medical-ops-card">
-<div class="medical-command-head">
-<span>Coach-Safe RTP Status</span>
-<strong>${selectedPlayer ? escapeHtml(selectedPlayer.name) : "No selection"}</strong>
+`;
+  })
+  .join("")}
 </div>
-<div class="medical-ops-signal-list">
-${selectedPlayer
-  ? selectedStatus
-    ? renderStatusRow(selectedStatus)
-    : `<div class="medical-empty-inline">No coach-safe RTP status is available for ${escapeHtml(selectedPlayer.name)} yet.</div>`
-  : `<div class="medical-empty-inline">Select a player in Medical Roster to load coach-safe RTP status.</div>`}
-</div>
-</article>
-<article class="medical-ops-card">
-<div class="medical-command-head">
-<span>Top RTP Signals</span>
-<strong>${topSignals.length}</strong>
-</div>
-<div class="medical-ops-signal-list">
-${topSignals.length
-  ? topSignals
-      .map((signal) => {
-        const caseLabel = signal.activePlan
-          ? `${signal.activePlan.injuryType} / ${getMedicalRtpPhaseOption(signal.activePlan.rtpPhase).label}`
-          : "No active case";
-        return `<button type="button" data-medical-select-player="${escapeHtml(signal.player.id)}" class="medical-ops-signal-row medical-ops-tone-${escapeHtml(signal.tone)}">
-  <span>${escapeHtml(signal.player.name)}<small>${escapeHtml(signal.player.position || "Position")}</small></span>
-  <strong>${escapeHtml(signal.label)}<small>${escapeHtml(caseLabel)}</small></strong>
-  <strong>${escapeHtml(signal.actionLabel)}<small>${escapeHtml(signal.primaryActionDriver)}</small></strong>
-</button>`;
-      })
-      .join("")
-  : `<div class="medical-empty-inline">No RTP signal currently requires review.</div>`}
-</div>
-</article>
+<div class="medical-empty-inline medical-rtp-library-empty" data-medical-rtp-library-empty hidden>No RTP profiles match the current search and filters.</div>
 </div>
 `;
   };

@@ -42,6 +42,7 @@ export function createMedicalRuntimeService(deps = {}) {
     getMedicalHistoryPlayerFilter: deps.getMedicalHistoryPlayerFilter,
     getMedicalHistorySearchQuery: deps.getMedicalHistorySearchQuery,
     getMedicalInjuryPlanDraft: fromFacade("getMedicalInjuryPlanDraft"),
+    getMedicalRtpLibraryProfiles: fromFacade("getMedicalRtpLibraryProfiles"),
     getMedicalMonthAverageStats: fromFacade("getMedicalMonthAverageStats"),
     getMedicalMonthToDateDates: fromFacade("getMedicalMonthToDateDates"),
     getMedicalPastWindowDates: fromFacade("getMedicalPastWindowDates"),

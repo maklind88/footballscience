@@ -27,6 +27,7 @@ export function createMedicalPlanFormRenderer({
   const renderInjuryPlanForm = (player, canEdit) => {
     const draft = getMedicalInjuryPlanDraft(player.id);
     const isEditing = Boolean(draft.planId);
+    const hasRtpLibraryStarter = Boolean(draft.rtpLibraryProfileId);
     return `
 <article class="medical-modal-main-card medical-injury-plan-card">
 <div class="medical-card-headline">
@@ -36,6 +37,20 @@ export function createMedicalPlanFormRenderer({
 <form id="medicalInjuryPlanForm" class="medical-profile-form">
 <input type="hidden" name="planId" value="${escapeHtml(draft.planId)}" />
 <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
+<input type="hidden" name="rtpLibraryProfileId" value="${escapeHtml(draft.rtpLibraryProfileId)}" />
+<input type="hidden" name="rtpLibraryProfileName" value="${escapeHtml(draft.rtpLibraryProfileName)}" />
+<input type="hidden" name="rtpLibraryEvidenceLevel" value="${escapeHtml(draft.rtpLibraryEvidenceLevel)}" />
+<input type="hidden" name="rtpLibrarySummary" value="${escapeHtml(draft.rtpLibrarySummary)}" />
+${hasRtpLibraryStarter ? `
+<section class="medical-rtp-plan-starter">
+<div>
+<span>RTP Library starter</span>
+<strong>${escapeHtml(draft.rtpLibraryProfileName)}</strong>
+<small>${escapeHtml(draft.rtpLibraryEvidenceLevel)} evidence level</small>
+</div>
+<p>${escapeHtml(draft.rtpLibrarySummary)}</p>
+</section>
+` : ""}
 <div class="medical-form-grid medical-plan-form-grid">
 <label>
 <span>Injury / reason</span>

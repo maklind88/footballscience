@@ -27,6 +27,10 @@ test("Medical plan form renderer keeps injury plan and clearance form contracts"
       comment: "Internal",
       coachNote: "Coach-safe",
       shareWithCoach: true,
+      rtpLibraryProfileId: "hamstring-strain",
+      rtpLibraryProfileName: "Hamstring Strain",
+      rtpLibraryEvidenceLevel: "Moderate to high",
+      rtpLibrarySummary: "Sprint exposure must be rebuilt before match return.",
     }),
     getMedicalPlayerInjuryPlans: () => [plan],
     getSelectedDate: () => "2026-05-31",
@@ -46,6 +50,9 @@ test("Medical plan form renderer keeps injury plan and clearance form contracts"
   const form = renderer.renderInjuryPlanForm(player, true);
   expect(form).toContain('id="medicalInjuryPlanForm"');
   expect(form).toContain('name="planId" value="plan1"');
+  expect(form).toContain("RTP Library starter");
+  expect(form).toContain("Hamstring Strain");
+  expect(form).toContain('name="rtpLibraryProfileId" value="hamstring-strain"');
   expect(form).toContain("data-medical-duration-preset");
   expect(form).toContain("data-medical-cancel-injury-plan-edit");
   expect(form).toContain('datalist id="medicalInjuryTypes"');

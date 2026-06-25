@@ -1,3 +1,9 @@
+import {
+  createMedicalRtpLibraryStarterDraft,
+  getMedicalRtpLibraryProfileById,
+  getMedicalRtpLibraryProfiles,
+} from "./medical-rtp-library-data.mjs";
+
 export function createMedicalRuntimeActivitySelectors(deps = {}) {
   const {
     addCalendarDays,
@@ -383,6 +389,10 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       comment: "",
       coachNote: "",
       shareWithCoach: false,
+      rtpLibraryProfileId: "",
+      rtpLibraryProfileName: "",
+      rtpLibraryEvidenceLevel: "",
+      rtpLibrarySummary: "",
     };
   }
 
@@ -409,6 +419,10 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       comment: String(draft.comment ?? defaults.comment).trim(),
       coachNote: String(draft.coachNote ?? defaults.coachNote).trim(),
       shareWithCoach: normalizeShareValue(draft.shareWithCoach),
+      rtpLibraryProfileId: String(draft.rtpLibraryProfileId ?? defaults.rtpLibraryProfileId).trim(),
+      rtpLibraryProfileName: String(draft.rtpLibraryProfileName ?? defaults.rtpLibraryProfileName).trim(),
+      rtpLibraryEvidenceLevel: String(draft.rtpLibraryEvidenceLevel ?? defaults.rtpLibraryEvidenceLevel).trim(),
+      rtpLibrarySummary: String(draft.rtpLibrarySummary ?? defaults.rtpLibrarySummary).trim(),
     };
   }
 
@@ -439,6 +453,15 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       return null;
     }
     return setMedicalInjuryPlanDraft(plan.playerId, { ...plan, planId: plan.id });
+  }
+
+  function getMedicalRtpLibraryProfile(profileId = "") {
+    return getMedicalRtpLibraryProfileById(profileId);
+  }
+
+  function getMedicalRtpLibraryStarterDraft(profileId = "", playerId = getMedicalState()?.selectedPlayerId || "") {
+    const starterDraft = createMedicalRtpLibraryStarterDraft(profileId, playerId, getSelectedDate());
+    return starterDraft ? normalizeMedicalInjuryPlanDraft(starterDraft, playerId) : null;
   }
 
   function clearMedicalInjuryPlanDraft(playerId) {
@@ -483,6 +506,9 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
     getMedicalHeroTeamName,
     getMedicalInjuryPlanDraft,
     getMedicalInjuryPlanFormDraft,
+    getMedicalRtpLibraryProfile,
+    getMedicalRtpLibraryProfiles,
+    getMedicalRtpLibraryStarterDraft,
     getMedicalMonthToDateDates,
     getMedicalPastWindowDates,
     getMedicalPlayerInjuryPlans,

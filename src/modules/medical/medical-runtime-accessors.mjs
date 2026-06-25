@@ -111,6 +111,9 @@ export function normalizeMedicalInjuryPlanDraft(...args) { return callFacade("no
 export function getMedicalInjuryPlanDraft(...args) { return callFacade("getMedicalInjuryPlanDraft", args); }
 export function setMedicalInjuryPlanDraft(...args) { return callFacade("setMedicalInjuryPlanDraft", args); }
 export function setMedicalInjuryPlanDraftFromPlan(...args) { return callFacade("setMedicalInjuryPlanDraftFromPlan", args); }
+export function getMedicalRtpLibraryProfile(...args) { return callFacade("getMedicalRtpLibraryProfile", args); }
+export function getMedicalRtpLibraryProfiles(...args) { return callFacade("getMedicalRtpLibraryProfiles", args); }
+export function getMedicalRtpLibraryStarterDraft(...args) { return callFacade("getMedicalRtpLibraryStarterDraft", args); }
 export function clearMedicalInjuryPlanDraft(...args) { return callFacade("clearMedicalInjuryPlanDraft", args); }
 export function getMedicalInjuryPlanFormDraft(...args) { return callFacade("getMedicalInjuryPlanFormDraft", args); }
 export function persistMedicalInjuryPlanDraftFromForm(...args) { return callFacade("persistMedicalInjuryPlanDraftFromForm", args); }

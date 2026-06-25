@@ -104,6 +104,11 @@ function createHarness({ canEdit = true } = {}) {
       getMedicalInjuryPlanFormDraft: () => ({ playerId: "p-1" }),
       getMedicalRecommendationActivityContext: () => ({ type: "training" }),
       getMedicalRecommendationBlockReason: () => "",
+      getMedicalRtpLibraryStarterDraft: () => ({
+        playerId: "p-1",
+        injuryType: "Hamstring Strain",
+        bodyArea: "Posterior thigh",
+      }),
       getMedicalRtpPhaseForRecommendation: () => "full",
       getMedicalRtpPhaseOption: (key) => ({ key, label: "Full", participation: 100, status: "available" }),
       getMedicalStatusForParticipation: () => "available",
@@ -125,6 +130,7 @@ function createHarness({ canEdit = true } = {}) {
       renderMedicalTeamWorkspace: (...args) => calls.push(["render", ...args]),
       setMedicalBulkNotSetSelection: () => calls.push("bulk-not-set"),
       setMedicalBulkSelection: (ids) => calls.push(["bulk-selection", ids]),
+      setMedicalInjuryPlanDraft: (playerId, draft) => calls.push(["set-draft", playerId, draft.injuryType]),
       setMedicalInjuryPlanDraftFromPlan: (plan) => calls.push(["draft-from-plan", plan.id]),
       setMedicalSelectedDate: (value) => calls.push(`date:${value}`),
       shiftMedicalSelectedDate: (value) => calls.push(`shift:${value}`),
@@ -190,6 +196,15 @@ test("Medical runtime bindings preserve quick recommendation, archive, and plan 
   expect(mutable.selectedPlayerId).toBe("p-1");
   expect(mutable.modalOpen).toBe(true);
   expect(mutable.modalTab).toBe("plan");
+
+  workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-apply-rtp-starter]": { dataset: { medicalRtpProfileId: "hamstring-strain", medicalPlayerId: "p-1" } } },
+  })));
+  expect(calls).toContainEqual(["set-draft", "p-1", "Hamstring Strain"]);
+  expect(mutable.selectedPlayerId).toBe("p-1");
+  expect(mutable.modalOpen).toBe(true);
+  expect(mutable.modalTab).toBe("plan");
+  expect(calls).toContainEqual(["render", "Hamstring Strain starter ready in Medical Plan."]);
 });
 
 test("Medical runtime bindings preserve roster search, filters, and protected submit writes", () => {

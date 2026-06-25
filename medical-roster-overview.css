@@ -2003,3 +2003,293 @@ body.is-dark-mode .medical-modal-close {
     linear-gradient(180deg, rgba(226, 232, 240, 0.16), rgba(226, 232, 240, 0.08)),
     rgba(15, 23, 42, 0.28);
 }
+
+.medical-rtp-library {
+  display: grid;
+  gap: 0.82rem;
+}
+
+.medical-rtp-library-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.98rem;
+  border: 1px solid rgba(29, 31, 29, 0.1);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(238, 248, 243, 0.88));
+  box-shadow: 0 14px 34px rgba(12, 24, 20, 0.07);
+}
+
+.medical-rtp-library-hero h2,
+.medical-rtp-profile-summary h3,
+.medical-rtp-profile-sections h4 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.medical-rtp-library-hero h2 {
+  color: #10231b;
+  font-size: 1.25rem;
+  line-height: 1.05;
+}
+
+.medical-rtp-library-hero span,
+.medical-rtp-profile-card small,
+.medical-rtp-profile-actions small,
+.medical-rtp-plan-starter small {
+  color: #64716b;
+  font-size: 0.76rem;
+  font-weight: 750;
+  line-height: 1.32;
+}
+
+.medical-rtp-library-hero strong {
+  flex: 0 0 auto;
+  padding: 0.46rem 0.62rem;
+  border-radius: 999px;
+  color: #176449;
+  background: rgba(47, 143, 107, 0.12);
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.medical-rtp-library-controls {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1.8fr) repeat(5, minmax(8.5rem, 1fr));
+  gap: 0.58rem;
+  padding: 0.72rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.medical-rtp-library-controls label {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.medical-rtp-library-controls span {
+  color: #64716b;
+  font-size: 0.66rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-library-controls input,
+.medical-rtp-library-controls select {
+  width: 100%;
+  min-height: 2.35rem;
+  border: 1px solid rgba(29, 31, 29, 0.14);
+  border-radius: 8px;
+  background: #fff;
+  color: #10231b;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  outline: 0;
+  padding: 0 0.66rem;
+}
+
+.medical-rtp-library-controls input:focus,
+.medical-rtp-library-controls select:focus {
+  border-color: rgba(47, 143, 107, 0.48);
+  box-shadow: 0 0 0 3px rgba(47, 143, 107, 0.14);
+}
+
+.medical-rtp-library-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  color: #64716b;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.medical-rtp-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(21rem, 1fr));
+  gap: 0.72rem;
+}
+
+.medical-rtp-profile-card {
+  min-width: 0;
+  border: 1px solid rgba(29, 31, 29, 0.09);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 28px rgba(12, 24, 20, 0.055);
+}
+
+.medical-rtp-profile-card[hidden] {
+  display: none;
+}
+
+.medical-rtp-profile-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 4.3rem;
+  padding: 0.78rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.medical-rtp-profile-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.medical-rtp-profile-card summary span {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.medical-rtp-profile-card summary strong {
+  color: #10231b;
+  font-size: 0.98rem;
+  line-height: 1.1;
+}
+
+.medical-rtp-profile-card summary b {
+  flex: 0 0 auto;
+  color: #176449;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.medical-rtp-profile-body {
+  display: grid;
+  gap: 0.72rem;
+  padding: 0 0.78rem 0.78rem;
+}
+
+.medical-rtp-profile-summary,
+.medical-rtp-profile-sections {
+  display: grid;
+  gap: 0.64rem;
+}
+
+.medical-rtp-profile-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.medical-rtp-profile-summary div,
+.medical-rtp-profile-sections section,
+.medical-rtp-plan-starter {
+  min-width: 0;
+  padding: 0.72rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 8px;
+  background: rgba(247, 250, 248, 0.86);
+}
+
+.medical-rtp-profile-summary h3,
+.medical-rtp-profile-sections h4 {
+  color: #10231b;
+  font-size: 0.82rem;
+  line-height: 1.12;
+}
+
+.medical-rtp-profile-summary p,
+.medical-rtp-profile-sections li,
+.medical-rtp-plan-starter p {
+  color: #3f4f48;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.42;
+}
+
+.medical-rtp-profile-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.medical-rtp-profile-sections ul {
+  display: grid;
+  gap: 0.28rem;
+  margin: 0.36rem 0 0;
+  padding-left: 1rem;
+}
+
+.medical-rtp-profile-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.72rem;
+  padding-top: 0.08rem;
+}
+
+.medical-rtp-profile-actions button {
+  min-height: 2.25rem;
+  border: 0;
+  border-radius: 8px;
+  background: #193827;
+  color: #fff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 0 0.82rem;
+}
+
+.medical-rtp-profile-actions button:disabled {
+  opacity: 0.48;
+}
+
+.medical-rtp-plan-starter {
+  display: grid;
+  gap: 0.42rem;
+  margin-bottom: 0.72rem;
+  background: linear-gradient(135deg, rgba(238, 248, 243, 0.94), rgba(255, 255, 255, 0.9));
+}
+
+.medical-rtp-plan-starter div {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.medical-rtp-plan-starter span {
+  color: #176449;
+  font-size: 0.66rem;
+  font-weight: 950;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-plan-starter strong {
+  color: #10231b;
+  font-size: 0.98rem;
+  line-height: 1.08;
+}
+
+@media (max-width: 1180px) {
+  .medical-rtp-library-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .medical-rtp-library-search {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .medical-rtp-library-hero,
+  .medical-rtp-profile-actions {
+    display: grid;
+  }
+
+  .medical-rtp-library-controls,
+  .medical-rtp-profile-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .medical-rtp-profile-grid {
+    grid-template-columns: 1fr;
+  }
+}

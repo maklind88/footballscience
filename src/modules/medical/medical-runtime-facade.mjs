@@ -48,6 +48,9 @@ export function createMedicalRuntimeFacade(deps = {}) {
   function getMedicalInjuryPlanDraft(...args) { return method(activitySelectors, "getMedicalInjuryPlanDraft", ...args); }
   function setMedicalInjuryPlanDraft(...args) { return method(activitySelectors, "setMedicalInjuryPlanDraft", ...args); }
   function setMedicalInjuryPlanDraftFromPlan(...args) { return method(activitySelectors, "setMedicalInjuryPlanDraftFromPlan", ...args); }
+  function getMedicalRtpLibraryProfile(...args) { return method(activitySelectors, "getMedicalRtpLibraryProfile", ...args); }
+  function getMedicalRtpLibraryProfiles(...args) { return method(activitySelectors, "getMedicalRtpLibraryProfiles", ...args); }
+  function getMedicalRtpLibraryStarterDraft(...args) { return method(activitySelectors, "getMedicalRtpLibraryStarterDraft", ...args); }
   function clearMedicalInjuryPlanDraft(...args) { return method(activitySelectors, "clearMedicalInjuryPlanDraft", ...args); }
   function getMedicalInjuryPlanFormDraft(...args) { return method(activitySelectors, "getMedicalInjuryPlanFormDraft", ...args); }
   function persistMedicalInjuryPlanDraftFromForm(...args) { return method(activitySelectors, "persistMedicalInjuryPlanDraftFromForm", ...args); }
@@ -338,7 +341,8 @@ export function createMedicalRuntimeFacade(deps = {}) {
     getMedicalBulkRecommendationEligiblePlayers, getMedicalBulkSelectedPlayers, getMedicalCoachComment,
     getMedicalCoachHandoverItems, getMedicalDailyHuddle, getMedicalDailyStats, getMedicalDatabaseIdempotencyKey,
     getMedicalDatabasePlayer, getMedicalDaySpan, getMedicalHeroTeamName, getMedicalHistoryEvents,
-    getMedicalInjuryPlanDraft, getMedicalInjuryPlanFormDraft, getMedicalMonthAverageStats,
+    getMedicalInjuryPlanDraft, getMedicalInjuryPlanFormDraft, getMedicalRtpLibraryProfile,
+    getMedicalRtpLibraryProfiles, getMedicalRtpLibraryStarterDraft, getMedicalMonthAverageStats,
     getMedicalMonthToDateDates, getMedicalOperationsSummary, getMedicalPastWindowDates,
     getMedicalParticipationAverageForDates, getMedicalPlanClearanceSummary, getMedicalPlanDaysRemaining,
     getMedicalPlanElapsedDays, getMedicalPlanReviewState, getMedicalPlanSeverity, getMedicalPlanTotalDays,

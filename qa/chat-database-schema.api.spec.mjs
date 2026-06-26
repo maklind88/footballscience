@@ -16,6 +16,10 @@ const readModelMigration = readFileSync(
   resolve(__dirname, "../supabase/migrations/20260619000100_chat_thread_read_models.sql"),
   "utf8"
 );
+const whatsappStateMigration = readFileSync(
+  resolve(__dirname, "../supabase/migrations/20260626170000_chat_whatsapp_user_state.sql"),
+  "utf8"
+);
 
 test("chat database migration includes multi-tenant core tables", () => {
   [
@@ -75,4 +79,19 @@ test("chat thread read model keeps summaries durable and access controlled", () 
   expect(readModelMigration).toContain("chat_reactions_refresh_read_model_write");
   expect(readModelMigration).toContain("chat_attachments_refresh_read_model_write");
   expect(readModelMigration).toContain("chat_thread_participants_refresh_read_model_write");
+});
+
+test("chat WhatsApp user-state migration keeps private deletes per-user", () => {
+  expect(whatsappStateMigration).toContain("public.chat_message_user_states");
+  expect(whatsappStateMigration).toContain("primary key (message_id, user_id)");
+  expect(whatsappStateMigration).toContain("hidden_at timestamptz");
+  expect(whatsappStateMigration).toContain("alter table public.chat_message_user_states enable row level security");
+  expect(whatsappStateMigration).toContain("grant select on public.chat_message_user_states to authenticated");
+  expect(whatsappStateMigration).not.toContain("grant insert on public.chat_message_user_states to authenticated");
+  expect(whatsappStateMigration).toContain("user_id = (select auth.uid())");
+  expect(whatsappStateMigration).toContain("app_private.can_access_chat_thread(thread_id)");
+  expect(whatsappStateMigration).toContain("alter publication supabase_realtime add table public.%I");
+  expect(whatsappStateMigration).toContain("video/mp4");
+  expect(whatsappStateMigration).toContain("video/quicktime");
+  expect(whatsappStateMigration).toContain("video/webm");
 });

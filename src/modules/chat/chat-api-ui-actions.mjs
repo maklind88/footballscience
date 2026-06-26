@@ -157,6 +157,68 @@ export function createDashboardChatApiUiActions(dependencies = {}) {
     return false;
   }
 
+  async function setThreadUserStateWithApi(threadId = teamThreadId, operation = "") {
+    const normalizedThreadId = getNormalizedThreadId(threadId);
+    const normalizedOperation = normalizeText(operation).toLowerCase();
+    if (!normalizedThreadId || !normalizedOperation) {
+      return false;
+    }
+    const result = await sendApiAction({
+      action: "setThreadUserState",
+      threadId: normalizedThreadId,
+      threadType: getThreadType(normalizedThreadId),
+      operation: normalizedOperation,
+    });
+    if (result?.ok) {
+      applyApiPayload(result.result || {}, { threadId: normalizedThreadId });
+    }
+    if (result?.ok || canFallbackApiResult(result)) {
+      if (["archive", "hide", "delete", "block"].includes(normalizedOperation)) {
+        archiveThreadLocal(normalizedThreadId, result);
+      }
+      queueThreadSummaryRefresh({ delayMs: 0, render: true });
+      const labels = {
+        archive: "Chat archived.",
+        hide: "Chat hidden.",
+        delete: "Chat deleted for you.",
+        block: "Chat blocked.",
+        unarchive: "Chat restored.",
+        unblock: "Chat unblocked.",
+        restore: "Chat restored.",
+      };
+      showToast(labels[normalizedOperation] || "Chat updated.", teamThreadId);
+      renderWidget();
+      return true;
+    }
+    logApiFailure("setThreadUserState", result);
+    showToast(result?.reason || "Chat state could not be updated.", normalizedThreadId);
+    renderWidget();
+    return false;
+  }
+
+  async function leaveThreadWithApi(threadId = teamThreadId) {
+    const normalizedThreadId = getNormalizedThreadId(threadId);
+    const result = await sendApiAction({
+      action: "leaveThread",
+      threadId: normalizedThreadId,
+      threadType: getThreadType(normalizedThreadId),
+    });
+    if (result?.ok) {
+      applyApiPayload(result.result || {}, { threadId: normalizedThreadId });
+    }
+    if (result?.ok || canFallbackApiResult(result)) {
+      archiveThreadLocal(normalizedThreadId, result);
+      queueThreadSummaryRefresh({ delayMs: 0, render: true });
+      showToast("You left the group.", teamThreadId);
+      renderWidget();
+      return true;
+    }
+    logApiFailure("leaveThread", result);
+    showToast(result?.reason || "You could not leave this group.", normalizedThreadId);
+    renderWidget();
+    return false;
+  }
+
   function handleThreadParticipantAction(trigger, selectedThreadId = teamThreadId) {
     const threadId = getNormalizedThreadId(trigger?.dataset?.dashboardChatParticipantThread || selectedThreadId);
     const action = normalizeText(trigger?.dataset?.dashboardChatParticipantAction);
@@ -293,7 +355,9 @@ export function createDashboardChatApiUiActions(dependencies = {}) {
     archiveThreadWithApi,
     handleThreadParticipantAction,
     handleThreadSettingAction,
+    leaveThreadWithApi,
     retryMessageWithApi,
+    setThreadUserStateWithApi,
     setThreadParticipantsWithApi,
     setThreadSettingsWithApi,
   });

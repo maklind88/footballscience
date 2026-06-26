@@ -504,6 +504,9 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       : `<span class="dashboard-chat-avatar" aria-hidden="true">?</span>`;
     const statusMarkup = isOwn && !isGroupedWithNext ? renderMessageStatus(message, users, currentUser) : "";
     const canDeleteChat = canDeleteMessage(message, currentUser);
+    const canDeleteForMe = messageStatus !== "pending" && messageStatus !== "failed" && messageStatus !== "deleted";
+    const canEditChat = isOwn && canDeleteForMe;
+    const canForwardChat = canDeleteForMe && Boolean(String(message.text || "").trim());
     const canPinChat = canPinMessage(currentUser);
     const canRetryMessage = isOwn && messageStatus === "failed";
     const pinLabel = message.pinnedAt ? "Unpin" : "Pin";
@@ -532,10 +535,15 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         </span>
       </div>
     `;
-    const bubbleFooterMarkup = timeLabel || statusMarkup
+    const editedMarkup = message.editedAt ? `<span class="dashboard-chat-edited-label">edited</span>` : "";
+    const forwardedMarkup = message.forwardedFromMessageId || message.metadata?.forwardedFromMessageId
+      ? `<span class="dashboard-chat-forwarded-label" aria-label="Forwarded message">Forwarded</span>`
+      : "";
+    const bubbleFooterMarkup = timeLabel || statusMarkup || editedMarkup
       ? `
         <div class="dashboard-chat-bubble-footer">
           ${timeLabel ? `<time datetime="${escapeHtml(message.createdAt || "")}">${escapeHtml(timeLabel)}</time>` : ""}
+          ${editedMarkup}
           ${statusMarkup}
         </div>
       `
@@ -552,11 +560,21 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           <div class="dashboard-chat-message-menu-panel" role="menu">
             <button type="button" class="dashboard-chat-menu-action" data-dashboard-reply-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#8617;</span><span>Reply</span></button>
             ${
+              canEditChat
+                ? `<button type="button" class="dashboard-chat-menu-action" data-dashboard-edit-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#9998;</span><span>Edit</span></button>`
+                : ""
+            }
+            ${
               canRetryMessage
                 ? `<button type="button" class="dashboard-chat-menu-action is-primary" data-dashboard-retry-message="${escapeHtml(message.id)}" data-dashboard-chat-message-retry="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#8635;</span><span>Retry send</span></button>`
                 : ""
             }
             <button type="button" class="dashboard-chat-menu-action" data-dashboard-copy-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#10697;</span><span>Copy</span></button>
+            ${
+              canForwardChat
+                ? `<button type="button" class="dashboard-chat-menu-action" data-dashboard-forward-message="${escapeHtml(message.id)}" role="menuitem"><span aria-hidden="true">&#10148;</span><span>Forward</span></button>`
+                : ""
+            }
             ${promoteActionMarkup}
             ${
               reactionMarkup
@@ -569,8 +587,13 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 : ""
             }
             ${
+              canDeleteForMe
+                ? `<button type="button" class="dashboard-chat-menu-action" data-dashboard-delete-message-for-me="${escapeHtml(message.id)}" aria-label="Delete message for me" role="menuitem"><span aria-hidden="true">&#128465;</span><span>Delete for me</span></button>`
+                : ""
+            }
+            ${
               canDeleteChat
-                ? `<button type="button" class="dashboard-chat-menu-action is-danger" data-dashboard-remove-message="${escapeHtml(message.id)}" aria-label="Delete message from ${escapeHtml(userName)}" role="menuitem"><span aria-hidden="true">&#128465;</span><span>Delete</span></button>`
+                ? `<button type="button" class="dashboard-chat-menu-action is-danger" data-dashboard-delete-message-for-everyone="${escapeHtml(message.id)}" data-dashboard-remove-message="${escapeHtml(message.id)}" aria-label="Delete message from ${escapeHtml(userName)} for everyone" role="menuitem"><span aria-hidden="true">&#128465;</span><span>Delete for everyone</span></button>`
                 : ""
             }
           </div>
@@ -578,6 +601,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         ${priorityMarkup}
         ${workflowBadgeMarkup}
         ${replyMarkup}
+        ${forwardedMarkup}
         <p>${renderMessageText(message, users, { searchQuery })}</p>
         ${renderMessageAttachments(message, users)}
         ${bubbleFooterMarkup}
@@ -937,6 +961,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const canManageParticipants = Boolean(activeThread?.permissions?.canManageParticipants && !activeThread?.isTeamThread);
     const canManageGroup = Boolean(activeThread && activeThread.type === "group" && canManageParticipants);
     const canClearActiveThread = Boolean(canClearThread(currentUser, activeThread));
+    const canArchiveForMe = Boolean(activeThread?.permissions?.canArchiveForMe && !activeThread?.isTeamThread);
+    const canDeleteForMe = Boolean(activeThread?.permissions?.canDeleteForMe && !activeThread?.isTeamThread);
+    const canLeaveThread = Boolean(activeThread?.permissions?.canLeave && activeThread?.type === "group");
+    const canBlockThread = Boolean(activeThread?.permissions?.canBlock && activeThread?.type === "dm");
     const normalizedSearch = String(messageSearchQuery || "").trim();
     const activeMatchPosition = searchMatchCount ? Math.min(Math.max(Number(searchActiveMatchIndex) || 0, 0), searchMatchCount - 1) + 1 : 0;
     const searchSummary = normalizedSearch
@@ -1015,10 +1043,42 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 : ""
             }
             ${
+              canArchiveForMe
+                ? `<button type="button" data-dashboard-chat-thread-user-state="archive" data-dashboard-chat-thread-user-state-thread="${escapeHtml(activeThreadId)}">
+                    <span>Archive</span>
+                    <small>Hide from your inbox</small>
+                  </button>`
+                : ""
+            }
+            ${
+              canDeleteForMe
+                ? `<button type="button" data-dashboard-chat-thread-user-state="delete" data-dashboard-chat-thread-user-state-thread="${escapeHtml(activeThreadId)}">
+                    <span>Delete for me</span>
+                    <small>Clear your local history</small>
+                  </button>`
+                : ""
+            }
+            ${
+              canLeaveThread
+                ? `<button type="button" data-dashboard-chat-leave-thread="${escapeHtml(activeThreadId)}">
+                    <span>Leave group</span>
+                    <small>Remove yourself</small>
+                  </button>`
+                : ""
+            }
+            ${
+              canBlockThread
+                ? `<button type="button" class="is-danger" data-dashboard-chat-thread-user-state="block" data-dashboard-chat-thread-user-state-thread="${escapeHtml(activeThreadId)}">
+                    <span>Block chat</span>
+                    <small>Remove from your inbox</small>
+                  </button>`
+                : ""
+            }
+            ${
               canClearActiveThread
                 ? `<button type="button" class="is-danger" data-dashboard-clear-thread data-dashboard-chat-clear-thread="${escapeHtml(activeThreadId)}">
                     <span>Clear chat</span>
-                    <small>Delete visible messages</small>
+                    <small>Delete for everyone</small>
                   </button>`
                 : ""
             }
@@ -1494,6 +1554,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const headerCanManageParticipants = Boolean(activeThread?.permissions?.canManageParticipants && !activeThread?.isTeamThread);
     const headerCanManageGroup = Boolean(activeThread && activeThread.type === "group" && headerCanManageParticipants);
     const headerCanClearThread = Boolean(canClearThread(currentUser, activeThread));
+    const headerCanArchiveForMe = Boolean(activeThread?.permissions?.canArchiveForMe && !activeThread?.isTeamThread);
+    const headerCanDeleteForMe = Boolean(activeThread?.permissions?.canDeleteForMe && !activeThread?.isTeamThread);
+    const headerCanLeaveThread = Boolean(activeThread?.permissions?.canLeave && activeThread?.type === "group");
+    const headerCanBlockThread = Boolean(activeThread?.permissions?.canBlock && activeThread?.type === "dm");
 
     return {
       activeThreadId,
@@ -1542,6 +1606,46 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                         : ""
                     }
                     ${
+                      headerCanArchiveForMe
+                        ? `
+                          <button type="button" class="dashboard-chat-more-action" data-dashboard-chat-thread-user-state="archive" data-dashboard-chat-thread-user-state-thread="${escapeHtml(activeThreadId)}">
+                            Archive chat
+                            <small>Hide from your inbox</small>
+                          </button>
+                        `
+                        : ""
+                    }
+                    ${
+                      headerCanDeleteForMe
+                        ? `
+                          <button type="button" class="dashboard-chat-more-action" data-dashboard-chat-thread-user-state="delete" data-dashboard-chat-thread-user-state-thread="${escapeHtml(activeThreadId)}">
+                            Delete chat for me
+                            <small>Clear your copy only</small>
+                          </button>
+                        `
+                        : ""
+                    }
+                    ${
+                      headerCanLeaveThread
+                        ? `
+                          <button type="button" class="dashboard-chat-more-action" data-dashboard-chat-leave-thread="${escapeHtml(activeThreadId)}">
+                            Leave group
+                            <small>Remove yourself</small>
+                          </button>
+                        `
+                        : ""
+                    }
+                    ${
+                      headerCanBlockThread
+                        ? `
+                          <button type="button" class="dashboard-chat-more-action is-danger" data-dashboard-chat-thread-user-state="block" data-dashboard-chat-thread-user-state-thread="${escapeHtml(activeThreadId)}">
+                            Block chat
+                            <small>Remove this direct chat</small>
+                          </button>
+                        `
+                        : ""
+                    }
+                    ${
                       headerCanClearThread
                         ? `
                           <button
@@ -1551,7 +1655,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                             data-dashboard-chat-clear-thread="${escapeHtml(activeThreadId)}"
                           >
                             Clear chat
-                            <small>Delete visible messages</small>
+                            <small>Delete for everyone</small>
                           </button>
                           <button type="button" class="dashboard-chat-more-action" data-dashboard-chat-moderation-toggle aria-pressed="${moderationOpen}">
                             Support / audit

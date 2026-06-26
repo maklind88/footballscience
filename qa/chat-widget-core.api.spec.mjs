@@ -402,6 +402,73 @@ test("chat composer keeps priority behind message options and renders message bu
   expect(result.html).not.toContain("dashboard-chat-message-signals");
 });
 
+test("chat message menu exposes WhatsApp baseline actions", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [currentUser, { id: "u2", name: "Coach A", status: "active" }];
+  const messages = [
+    {
+      id: "m1",
+      userId: "u1",
+      threadId: "group-1",
+      text: "Edited forwarded message",
+      createdAt: "2026-01-01T10:00:00.000Z",
+      editedAt: "2026-01-01T10:01:00.000Z",
+      readBy: ["u1", "u2"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "normal",
+      forwardedFromMessageId: "source-1",
+    },
+  ];
+  const threads = [
+    {
+      threadId: "group-1",
+      label: "Match prep",
+      type: "group",
+      messageCount: 1,
+      unreadCount: 0,
+      lastMessage: messages[0],
+      participants: users,
+      permissions: { canManageParticipants: true, canArchiveForMe: true, canDeleteForMe: true, canLeave: true, canForward: true },
+      settings: {},
+    },
+  ];
+
+  const result = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "group-1" },
+    messages,
+    threads,
+    activeThreadId: "group-1",
+    detailsOpen: true,
+  });
+
+  expect(result.html).toContain('data-dashboard-edit-message="m1"');
+  expect(result.html).toContain('data-dashboard-forward-message="m1"');
+  expect(result.html).toContain('data-dashboard-delete-message-for-me="m1"');
+  expect(result.html).toContain('data-dashboard-delete-message-for-everyone="m1"');
+  expect(result.html).toContain("dashboard-chat-edited-label");
+  expect(result.html).toContain("Forwarded");
+  expect(result.html).toContain('data-dashboard-chat-thread-user-state="archive"');
+  expect(result.html).toContain('data-dashboard-chat-thread-user-state="delete"');
+  expect(result.html).toContain('data-dashboard-chat-leave-thread="group-1"');
+  expect(result.html).toContain("Delete chat for me");
+  expect(appRuntimeSource).toContain("editDashboardMessageWithApi");
+  expect(appRuntimeSource).toContain("forwardDashboardMessageWithApi");
+  expect(appRuntimeSource).toContain("deleteDashboardMessageForMeWithApi");
+  expect(appRuntimeSource).toContain('type: "threadUserState"');
+  expect(appRuntimeSource).toContain('type: "leaveThread"');
+});
+
+test("chat runtime supports browser notification permission and delivery hook", () => {
+  expect(appRuntimeSource).toContain("sendDashboardChatBrowserNotification");
+  expect(appRuntimeSource).toContain("win.Notification.requestPermission()");
+  expect(widgetRuntimeSource).toContain("sendBrowserNotification");
+  expect(widgetRuntimeSource).toContain("New message from");
+  expect(widgetRuntimeSource).toContain("mentioned you");
+});
+
 test("chat settings use in-widget dialogs for names, images, and people", () => {
   const currentUser = { id: "u1", name: "Mak" };
   const users = [

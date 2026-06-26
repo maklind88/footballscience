@@ -51,6 +51,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     formatDashboardChatThreadLabel = () => "",
     markDashboardChatWidgetNotificationSeenForThread = () => {},
     formatUserName = () => "Staff",
+    sendBrowserNotification = () => {},
     platformNavigationController = {},
     ui = {},
     win = typeof globalThis !== "undefined" ? globalThis : {},
@@ -465,6 +466,12 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
         : `New message from ${senderName} in ${threadName}`,
       latestVisibleMessage.threadId
     );
+    sendBrowserNotification({
+      title: mentionedCurrentUser ? `${senderName} mentioned you` : `New message from ${senderName}`,
+      body: threadName,
+      threadId: latestVisibleMessage.threadId,
+      messageId: latestVisibleMessage.id,
+    });
     writeDashboardChatWidgetNotificationCursorForMessage(latestVisibleMessage);
     markDashboardChatWidgetNotificationSeenForThread?.(latestVisibleMessage.threadId);
   }

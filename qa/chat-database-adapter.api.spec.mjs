@@ -66,6 +66,42 @@ test("chat database adapter exposes server-side participant management", () => {
   expect(source).toContain("result = await setThreadParticipants(actor, body)");
 });
 
+test("chat database adapter exposes WhatsApp-style private and group actions", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const { fileURLToPath } = require("node:url");
+  const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../api/_lib/chat-database.js"), "utf8");
+
+  expect(source).toContain("deleteMessageForMe: 30");
+  expect(source).toContain("forwardMessage: 24");
+  expect(source).toContain("setThreadUserState: 30");
+  expect(source).toContain("leaveThread: 10");
+  expect(source).toContain("async function deleteMessageForMe");
+  expect(source).toContain("async function forwardMessage");
+  expect(source).toContain("async function setThreadUserState");
+  expect(source).toContain("async function leaveThread");
+  expect(source).toContain("chat_message_user_states");
+  expect(source).toContain('operation === "delete"');
+  expect(source).toContain('normalizeParticipantRole(actorParticipant?.participant_role) === "owner"');
+  expect(source).toContain("result = await deleteMessageForMe(actor, body)");
+  expect(source).toContain("result = await forwardMessage(actor, body)");
+  expect(source).toContain("result = await setThreadUserState(actor, body)");
+  expect(source).toContain("result = await leaveThread(actor, body)");
+});
+
+test("chat database adapter allows video attachments through API and storage contracts", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const { fileURLToPath } = require("node:url");
+  const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../api/_lib/chat-database.js"), "utf8");
+
+  expect(source).toContain('"video/mp4"');
+  expect(source).toContain('"video/quicktime"');
+  expect(source).toContain('"video/webm"');
+  expect(source).toContain('"video/x-m4v"');
+  expect(source).toContain('"mp4", "mov", "m4v", "webm"');
+});
+
 test("chat moderation endpoint supports admin filters", () => {
   const { readFileSync } = require("node:fs");
   const path = require("node:path");
@@ -110,7 +146,9 @@ test("chat database adapter batches message enrichment for read-heavy views", ()
   expect(source).toContain("function buildMessageEnrichment");
   expect(source).toContain("async function loadMessageEnrichment");
   expect(source).toContain("return threads.map((thread) => {");
-  expect(source).toContain("const visibleMessages = messages.reverse().filter((message) => threadsById.has(message.thread_id));");
+  expect(source).toContain("const visibleMessages = await filterMessagesForActorByThread");
+  expect(source).toContain("shouldShowThreadForActor");
+  expect(source).toContain("readHiddenMessageStateRows");
   expect(source).not.toContain("await enrichMessages([lastMessage], thread)");
   expect(source).not.toContain("for (const message of messages.reverse())");
 });

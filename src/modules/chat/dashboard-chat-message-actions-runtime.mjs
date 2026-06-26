@@ -281,6 +281,98 @@ export function createDashboardChatMessageActionsRuntime(dependencies = {}) {
     return false;
   }
 
+  async function deleteDashboardMessageForMeWithApi(messageId) {
+    const normalizedMessageId = String(messageId || "").trim();
+    if (!normalizedMessageId) {
+      return false;
+    }
+    const result = await sendDashboardChatApiAction({
+      action: "deleteMessageForMe",
+      messageId: normalizedMessageId,
+    });
+    if (result.ok || canFallbackDashboardChatApiResult(result) || result.status === 404) {
+      removeDashboardMessage(normalizedMessageId, { skipCentralSync: Boolean(result.ok) });
+      queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
+      renderDashboardChatWidget();
+      return true;
+    }
+    logDashboardChatApiFailure("deleteMessageForMe", result);
+    showDashboardChatWidgetToast(result.reason || "Message could not be deleted for you.");
+    return false;
+  }
+
+  async function editDashboardMessageWithApi(messageId, nextText) {
+    const normalizedMessageId = String(messageId || "").trim();
+    const cleanText = sanitizeDashboardMessageText(nextText).slice(0, dashboardChatMaxMessageLength);
+    if (!normalizedMessageId || !cleanText) {
+      return false;
+    }
+    const previousMessages = readDashboardMessages();
+    let changed = false;
+    writeDashboardMessages(previousMessages.map((message) => {
+      if (message.id !== normalizedMessageId) {
+        return message;
+      }
+      changed = true;
+      return normalizeDashboardMessage({
+        ...message,
+        text: cleanText,
+        editedAt: new Date().toISOString(),
+      });
+    }), { skipCentralSync: true });
+    if (!changed) {
+      return false;
+    }
+    renderDashboardChatWidget();
+    const result = await sendDashboardChatApiAction({
+      action: "editMessage",
+      messageId: normalizedMessageId,
+      text: cleanText,
+    });
+    if (result.ok || canFallbackDashboardChatApiResult(result)) {
+      if (result.ok) {
+        applyDashboardChatApiPayload(result.result || {}, { threadId: result.result?.thread?.metadata?.legacyThreadId });
+      }
+      queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
+      renderDashboardChatWidget();
+      return true;
+    }
+    writeDashboardMessages(previousMessages, { skipCentralSync: true });
+    logDashboardChatApiFailure("editMessage", result);
+    showDashboardChatWidgetToast(result.reason || "Message could not be edited.");
+    renderDashboardChatWidget();
+    return false;
+  }
+
+  async function forwardDashboardMessageWithApi(messageId, targetThreadId) {
+    const normalizedMessageId = String(messageId || "").trim();
+    const normalizedTargetThreadId = normalizeDashboardChatThreadId(targetThreadId, "");
+    if (!normalizedMessageId || !normalizedTargetThreadId) {
+      return false;
+    }
+    const targetThread = getDashboardChatThreads().find((thread) => thread.threadId === normalizedTargetThreadId) || null;
+    const result = await sendDashboardChatApiAction({
+      action: "forwardMessage",
+      messageId: normalizedMessageId,
+      targetThreadId: normalizedTargetThreadId,
+      targetThreadType: getDashboardChatThreadTypeForApi(normalizedTargetThreadId),
+      targetThreadTitle: getDashboardChatThreadLabel(normalizedTargetThreadId, getCurrentPlatformUser()),
+      participantIds: getDashboardChatParticipantIdsForApi(normalizedTargetThreadId),
+    });
+    if (result.ok || canFallbackDashboardChatApiResult(result)) {
+      if (result.ok) {
+        applyDashboardChatApiPayload(result.result || {}, { threadId: normalizedTargetThreadId });
+      }
+      queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
+      showDashboardChatWidgetToast(`Forwarded to ${targetThread?.label || getDashboardChatThreadLabel(normalizedTargetThreadId, getCurrentPlatformUser())}.`, normalizedTargetThreadId);
+      renderDashboardChatWidget();
+      return true;
+    }
+    logDashboardChatApiFailure("forwardMessage", result);
+    showDashboardChatWidgetToast(result.reason || "Message could not be forwarded.");
+    return false;
+  }
+
   function toggleDashboardMessagePin(messageId, options = {}) {
     const currentUser = getCurrentPlatformUser();
     if (!canPinDashboardChatMessage(currentUser)) {
@@ -448,6 +540,9 @@ export function createDashboardChatMessageActionsRuntime(dependencies = {}) {
     markDashboardMessagesReadForCurrentUser,
     removeDashboardMessage,
     removeDashboardMessageWithApi,
+    deleteDashboardMessageForMeWithApi,
+    editDashboardMessageWithApi,
+    forwardDashboardMessageWithApi,
     toggleDashboardMessagePin,
     toggleDashboardMessagePinWithApi,
     toggleDashboardMessageReaction,

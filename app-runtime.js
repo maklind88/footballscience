@@ -2334,7 +2334,7 @@ const dashboardChatMessageActionsRuntime = createDashboardChatMessageActionsRunt
   getDashboardChatParticipantIdsForApi,
   getDashboardMentionUserIds,
   getPlatformUsers,
-  getDashboardThreads: () => dashboardChatApiThreads,
+  getDashboardChatThreads: () => dashboardChatApiThreads,
   setDashboardChatThreads: (nextThreads) => {
     dashboardChatApiThreads = Array.isArray(nextThreads) ? nextThreads : [];
   },
@@ -2480,6 +2480,9 @@ const {
   createDashboardMessageWithApi: createDashboardMessageWithApiFromRuntime,
   removeDashboardMessage,
   removeDashboardMessageWithApi: removeDashboardMessageWithApiFromRuntime,
+  deleteDashboardMessageForMeWithApi: deleteDashboardMessageForMeWithApiFromRuntime,
+  editDashboardMessageWithApi: editDashboardMessageWithApiFromRuntime,
+  forwardDashboardMessageWithApi: forwardDashboardMessageWithApiFromRuntime,
   retryDashboardMessageWithApi: retryDashboardMessageWithApiFromRuntime,
   markDashboardChatApiThreadRead: markDashboardChatApiThreadReadFromRuntime,
   queueDashboardChatReadReceiptApi: queueDashboardChatReadReceiptApiFromRuntime,
@@ -2535,6 +2538,18 @@ function markDashboardMessagesReadForCurrentUser(messages = readDashboardMessage
 
 function removeDashboardMessageWithApi(messageId) {
   return dashboardChatMessageActionsRuntime?.removeDashboardMessageWithApi?.(messageId) || Promise.resolve(null);
+}
+
+function deleteDashboardMessageForMeWithApi(messageId) {
+  return dashboardChatMessageActionsRuntime?.deleteDashboardMessageForMeWithApi?.(messageId) || Promise.resolve(false);
+}
+
+function editDashboardMessageWithApi(messageId, nextText) {
+  return dashboardChatMessageActionsRuntime?.editDashboardMessageWithApi?.(messageId, nextText) || Promise.resolve(false);
+}
+
+function forwardDashboardMessageWithApi(messageId, targetThreadId) {
+  return dashboardChatMessageActionsRuntime?.forwardDashboardMessageWithApi?.(messageId, targetThreadId) || Promise.resolve(false);
 }
 
 function toggleDashboardMessagePin(messageId, options = {}) {
@@ -2628,6 +2643,35 @@ function getDashboardTypingUsers(threadId, users, currentUser) {
 function renderDashboardTypingIndicator(threadId, users, currentUser) {
   return dashboardChatPresenceRuntime.renderDashboardTypingIndicator(threadId, users, currentUser);
 }
+function sendDashboardChatBrowserNotification(notification = {}) {
+try {
+if (!("Notification" in win) || win.Notification.permission !== "granted") {
+return false;
+}
+if (document.visibilityState === "visible" && readDashboardChatWidgetState().isOpen) {
+return false;
+}
+const title = String(notification.title || "Football Science chat").trim();
+const body = String(notification.body || "").trim();
+const browserNotification = new win.Notification(title, {
+body,
+tag: `footballscience-chat-${notification.threadId || notification.messageId || "message"}`,
+renotify: false,
+});
+browserNotification.onclick = () => {
+win.focus?.();
+writeDashboardChatWidgetState({
+...readDashboardChatWidgetState(),
+isOpen: true,
+selectedThreadId: normalizeDashboardChatThreadId(notification.threadId, dashboardChatTeamThreadId),
+});
+renderDashboardChatWidget();
+};
+return true;
+} catch {
+return false;
+}
+}
 const {
   renderDashboardChatWidget: _renderDashboardChatWidget,
   syncDashboardChatWidgetNotificationCursor: _syncDashboardChatWidgetNotificationCursor,
@@ -2685,6 +2729,7 @@ const {
   formatDashboardChatThreadLabel,
   markDashboardChatWidgetNotificationSeenForThread,
   formatUserName,
+  sendBrowserNotification: sendDashboardChatBrowserNotification,
   platformNavigationController,
   ui,
   win,
@@ -3274,6 +3319,43 @@ confirmLabel: "Delete",
 renderDashboardChatWidget();
 return;
 }
+const threadUserStateButton = event.target.closest("[data-dashboard-chat-thread-user-state]");
+if (threadUserStateButton) {
+const operation = String(threadUserStateButton.dataset.dashboardChatThreadUserState || "").trim();
+const threadId = normalizeDashboardChatThreadId(threadUserStateButton.dataset.dashboardChatThreadUserStateThread || readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId);
+const labels = {
+archive: ["Archive chat?", "This hides the chat from your inbox only.", "Archive"],
+hide: ["Hide chat?", "This removes the chat from your inbox only.", "Hide"],
+delete: ["Delete chat for you?", "This clears your chat history. Other people keep theirs.", "Delete for me"],
+block: ["Block chat?", "This removes the direct chat from your inbox.", "Block"],
+};
+const copy = labels[operation] || ["Update chat?", "This changes your private chat state only.", "Update"];
+threadUserStateButton.closest("details")?.removeAttribute("open");
+setDashboardChatConfirmAction({
+type: "threadUserState",
+threadId,
+operation,
+title: copy[0],
+message: copy[1],
+confirmLabel: copy[2],
+});
+renderDashboardChatWidget();
+return;
+}
+const leaveThreadButton = event.target.closest("[data-dashboard-chat-leave-thread]");
+if (leaveThreadButton) {
+const threadId = normalizeDashboardChatThreadId(leaveThreadButton.dataset.dashboardChatLeaveThread || readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId);
+leaveThreadButton.closest("details")?.removeAttribute("open");
+setDashboardChatConfirmAction({
+type: "leaveThread",
+threadId,
+title: "Leave group?",
+message: "You leave the group. The existing history stays protected for remaining members.",
+confirmLabel: "Leave group",
+});
+renderDashboardChatWidget();
+return;
+}
 const participantActionButton = event.target.closest("[data-dashboard-chat-participant-action]");
 if (participantActionButton) {
 const currentState = readDashboardChatWidgetState();
@@ -3313,6 +3395,10 @@ if (confirmAction?.type === "clearThread") {
 await clearDashboardMessagesForThreadWithApi(confirmAction.threadId);
 } else if (confirmAction?.type === "archiveThread") {
 await dashboardChatApiUiActions.archiveThreadWithApi(confirmAction.threadId);
+} else if (confirmAction?.type === "threadUserState") {
+await dashboardChatApiUiActions.setThreadUserStateWithApi(confirmAction.threadId, confirmAction.operation);
+} else if (confirmAction?.type === "leaveThread") {
+await dashboardChatApiUiActions.leaveThreadWithApi(confirmAction.threadId);
 } else if (confirmAction?.type === "removeParticipant") {
 const currentIds = getDashboardChatParticipantIdsForApi(confirmAction.threadId);
 await dashboardChatApiUiActions.setThreadParticipantsWithApi(
@@ -3321,6 +3407,9 @@ currentIds.filter((userId) => userId !== confirmAction.participantId)
 );
 } else if (confirmAction?.type === "deleteMessage") {
 await removeDashboardMessageWithApi(confirmAction.messageId);
+platformNavigationController.renderTopIconMenu();
+} else if (confirmAction?.type === "deleteMessageForMe") {
+await deleteDashboardMessageForMeWithApi(confirmAction.messageId);
 platformNavigationController.renderTopIconMenu();
 }
 renderDashboardChatWidget();
@@ -3348,6 +3437,36 @@ const message = getDashboardMessageById(copyMessageButton.dataset.dashboardCopyM
 const text = String(message?.text || "");
 const copied = Boolean(text && navigator.clipboard?.writeText && await navigator.clipboard.writeText(text).then(() => true, () => false));
 showDashboardChatWidgetToast(copied ? "Copied" : "Failed", message?.threadId || dashboardChatTeamThreadId);
+return;
+}
+const editMessageButton = event.target.closest("[data-dashboard-edit-message]");
+if (editMessageButton) {
+const message = getDashboardMessageById(editMessageButton.dataset.dashboardEditMessage);
+if (!message || message.userId !== getCurrentPlatformUser()?.id) {
+showDashboardChatWidgetToast("Only the sender can edit this message.", message?.threadId || dashboardChatTeamThreadId);
+return;
+}
+const nextText = window.prompt("Edit message", message.text || "");
+if (nextText !== null) {
+await editDashboardMessageWithApi(message.id, nextText);
+}
+return;
+}
+const forwardMessageButton = event.target.closest("[data-dashboard-forward-message]");
+if (forwardMessageButton) {
+const message = getDashboardMessageById(forwardMessageButton.dataset.dashboardForwardMessage);
+const availableThreads = dashboardChatApiThreads
+.filter((thread) => thread?.threadId && thread.threadId !== message?.threadId)
+.slice(0, 20);
+const menu = availableThreads.map((thread, index) => `${index + 1}. ${thread.label || thread.title || thread.threadId}`).join("\n");
+const answer = window.prompt(`Forward to conversation:\n${menu}`, "1");
+const numericIndex = Number(answer) - 1;
+const targetThread = Number.isInteger(numericIndex) && numericIndex >= 0 ? availableThreads[numericIndex] : availableThreads.find((thread) => String(thread.label || thread.title || thread.threadId).toLowerCase() === String(answer || "").trim().toLowerCase());
+if (targetThread?.threadId) {
+await forwardDashboardMessageWithApi(message?.id, targetThread.threadId);
+} else if (answer !== null) {
+showDashboardChatWidgetToast("Conversation not found.", message?.threadId || dashboardChatTeamThreadId);
+}
 return;
 }
 const retryMessageButton = event.target.closest("[data-dashboard-retry-message]");
@@ -3501,6 +3620,12 @@ const toggleNotifications = event.target.closest("[data-dashboard-chat-widget-to
 if (toggleNotifications) {
 const notifications = readDashboardChatWidgetNotificationState();
 const nextLevel = notifications.level === "all" ? "mentions" : notifications.level === "mentions" ? "muted" : "all";
+if (nextLevel !== "muted" && "Notification" in win && win.Notification.permission === "default") {
+try {
+await win.Notification.requestPermission();
+} catch {
+}
+}
 writeDashboardChatWidgetNotificationState({ level: nextLevel });
 renderDashboardChatWidget();
 return;
@@ -3563,6 +3688,36 @@ if (!canPinDashboardChatMessage()) {
 return;
 }
 await toggleDashboardMessagePinWithApi(pinMessageButton.dataset.dashboardTogglePinMessage);
+renderDashboardChatWidget();
+return;
+}
+const deleteMessageForMeButton = event.target.closest("[data-dashboard-delete-message-for-me]");
+if (deleteMessageForMeButton) {
+const message = getDashboardMessageById(deleteMessageForMeButton.dataset.dashboardDeleteMessageForMe);
+setDashboardChatConfirmAction({
+type: "deleteMessageForMe",
+messageId: deleteMessageForMeButton.dataset.dashboardDeleteMessageForMe,
+title: "Delete for you?",
+message: "This removes the message from your chat only. Other people keep their copy.",
+confirmLabel: "Delete for me",
+});
+renderDashboardChatWidget();
+return;
+}
+const deleteMessageForEveryoneButton = event.target.closest("[data-dashboard-delete-message-for-everyone]");
+if (deleteMessageForEveryoneButton) {
+const message = getDashboardMessageById(deleteMessageForEveryoneButton.dataset.dashboardDeleteMessageForEveryone);
+if (!canDeleteDashboardChatMessage(message)) {
+showDashboardChatWidgetToast("Only the sender or an admin can delete this message for everyone.", message?.threadId || dashboardChatTeamThreadId);
+return;
+}
+setDashboardChatConfirmAction({
+type: "deleteMessage",
+messageId: deleteMessageForEveryoneButton.dataset.dashboardDeleteMessageForEveryone,
+title: "Delete for everyone?",
+message: "This removes the message for everyone in the chat. The action is audited.",
+confirmLabel: "Delete for everyone",
+});
 renderDashboardChatWidget();
 return;
 }
@@ -3897,7 +4052,7 @@ setMedicalInjuryPlanDraft, setMedicalInjuryPlanDraftFromPlan, setMedicalSelected
 stripPasswordConfirmation, syncPlatformStructureWithUsers, syncPlatformUserFromAuth, toggleMedicalBulkPlayer,
 togglePasswordInputVisibility, transferRoomRuntime, updateDashboardTask, updateMedicalBulkActivityControls,
 updateMedicalGovernancePolicy, updateMedicalInjuryPlan, updateMedicalPlanClearance, updateMedicalPlayerProfile,
-updatePlatformUserFromPayload, uploadSquadTeamLogo, upsertMedicalPlayers, withUiTimeout, writeWorkspaceHubState,
+updatePlatformUserFromPayload, uploadPlayerProfilePhoto, uploadSquadTeamLogo, upsertMedicalPlayers, withUiTimeout, writeWorkspaceHubState,
 },
 });
 ui.dashboardChatWidgetRoot?.addEventListener("change", async (event) => {

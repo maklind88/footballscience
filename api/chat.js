@@ -35,12 +35,16 @@ const CHAT_ACTIONS = new Set([
   "sendMessage",
   "editMessage",
   "deleteMessage",
+  "deleteMessageForMe",
+  "forwardMessage",
   "setMessagePinned",
   "setMessagePriority",
   "addReaction",
   "removeReaction",
   "markThreadRead",
   "setThreadSettings",
+  "setThreadUserState",
+  "leaveThread",
   "setThreadParticipants",
   "clearThread",
   "archiveThread",
@@ -53,12 +57,16 @@ const RATE_LIMITS = {
   sendMessage: 24,
   editMessage: 24,
   deleteMessage: 20,
+  deleteMessageForMe: 30,
+  forwardMessage: 24,
   setMessagePinned: 30,
   setMessagePriority: 30,
   addReaction: 80,
   removeReaction: 80,
   markThreadRead: 120,
   setThreadSettings: 30,
+  setThreadUserState: 30,
+  leaveThread: 10,
   setThreadParticipants: 12,
   clearThread: 5,
   read: 12,
@@ -408,7 +416,7 @@ function normalizeAuditDetails(value, depth = 0) {
 
 function addChatAuditEntry(state, actor, action, summary, details = {}) {
   const now = new Date().toISOString();
-  const isDestructive = ["deleteMessage", "clearThread", "archiveThread"].includes(action);
+  const isDestructive = ["deleteMessage", "deleteMessageForMe", "clearThread", "archiveThread", "leaveThread"].includes(action);
   const isAdminAction = ["setMessagePinned", "setMessagePriority", "setThreadSettings", "setThreadParticipants", "clearThread", "archiveThread"].includes(action);
   const entry = {
     id: `${now}-${Math.random().toString(16).slice(2, 10)}`,
@@ -463,9 +471,33 @@ function actorCanAccessThread(actor, thread) {
   return participants.some((participant) => identities.has(participant));
 }
 
+function threadUserStateForActor(thread = {}, actor = {}) {
+  const actorKey = normalizeObjectKey(actor.id || actor.email || "actor", "actor", MAX_ID_LENGTH);
+  const statesByUser = isPlainObject(thread.userStateByUser)
+    ? thread.userStateByUser
+    : isPlainObject(thread.metadata?.userStateByUser)
+      ? thread.metadata.userStateByUser
+      : {};
+  return isPlainObject(statesByUser[actorKey]) ? statesByUser[actorKey] : {};
+}
+
+function isThreadVisibleForActor(thread = {}, actor = {}) {
+  const userState = threadUserStateForActor(thread, actor);
+  if (userState.archivedAt || userState.hiddenAt || userState.blockedAt) {
+    return false;
+  }
+  if (userState.deletedForUserAt) {
+    const lastActivityMs = timestampMs(thread.lastMessageAt || thread.updatedAt);
+    const deletedMs = timestampMs(userState.deletedForUserAt);
+    return Boolean(lastActivityMs && deletedMs && lastActivityMs > deletedMs);
+  }
+  return true;
+}
+
 function filterChatStateForActor(state, actor) {
   const normalized = normalizeChatState(state);
-  const allowedThreads = normalized.threads.filter((thread) => actorCanAccessThread(actor, thread));
+  const actorKey = normalizeObjectKey(actor.id || actor.email || "actor", "actor", MAX_ID_LENGTH);
+  const allowedThreads = normalized.threads.filter((thread) => actorCanAccessThread(actor, thread) && isThreadVisibleForActor(thread, actor));
   const allowedThreadIds = new Set(
     allowedThreads.map((thread) => normalizeId(thread.id || thread.threadId, "")).filter(Boolean)
   );
@@ -475,7 +507,22 @@ function filterChatStateForActor(state, actor) {
     threads: allowedThreads,
     messages: normalized.messages.filter((message) => {
       const threadId = normalizeId(message?.threadId || message?.channelId, "");
-      return !threadId || allowedThreadIds.has(threadId);
+      if (threadId && !allowedThreadIds.has(threadId)) {
+        return false;
+      }
+      if (Array.isArray(message.hiddenForUserIds) && message.hiddenForUserIds.includes(actorKey)) {
+        return false;
+      }
+      const thread = threadId ? getThreadById(normalized, threadId) : null;
+      const userState = thread ? threadUserStateForActor(thread, actor) : {};
+      if (userState.deletedForUserAt) {
+        const messageMs = timestampMs(message.createdAt || message.updatedAt);
+        const deletedMs = timestampMs(userState.deletedForUserAt);
+        if (messageMs && deletedMs && messageMs <= deletedMs) {
+          return false;
+        }
+      }
+      return true;
     }),
   };
 
@@ -509,12 +556,26 @@ function upsertThread(state, actor, body = {}, now = new Date().toISOString()) {
     MAX_THREAD_TITLE_LENGTH
   );
 
+  const participantIds = normalizeParticipantIds(body.participantIds || body.participants || [], actor);
+  const requestedRoles = normalizeParticipantRoleMap(body.participantRoles || body.participant_roles || {});
+  const actorId = normalizeString(actor.id || actor.email || "actor", MAX_ID_LENGTH);
+  const participantRoles = participantIds.reduce((roles, participantId) => {
+    roles[participantId] = participantId === actorId ? "owner" : requestedRoles[participantId] || "member";
+    return roles;
+  }, {});
   const thread = {
     id: threadId,
     type,
     title,
     name: title,
-    participantIds: normalizeParticipantIds(body.participantIds || body.participants || [], actor),
+    participantIds,
+    participantRoles,
+    participants: participantIds.map((participantId) => ({
+      id: participantId,
+      userId: participantId,
+      participantRole: participantRoles[participantId] || "member",
+      role: participantRoles[participantId] || "member",
+    })),
     createdAt: now,
     createdBy: actor.id || actor.email || "",
     updatedAt: now,
@@ -703,6 +764,124 @@ function applyDeleteMessage(state, actor, body, now) {
   });
 
   return { ok: true, status: 200, action: "deleteMessage", state, thread, message, auditEntry };
+}
+
+function applyDeleteMessageForMe(state, actor, body, now) {
+  const messageId = normalizeId(body.messageId || body.id, "");
+  const message = getMessageById(state, messageId);
+  if (!message || message.isDeleted) {
+    return { ok: false, status: 404, reason: "Message not found." };
+  }
+
+  const thread = getThreadById(state, normalizeId(message.threadId, ""));
+  const access = ensureActionAllowed(actor, state, thread);
+  if (!access.ok) {
+    return access;
+  }
+
+  const actorKey = normalizeObjectKey(actor.id || actor.email || "actor", "actor", MAX_ID_LENGTH);
+  const hiddenForUserIds = new Set(Array.isArray(message.hiddenForUserIds) ? message.hiddenForUserIds : []);
+  hiddenForUserIds.add(actorKey);
+  message.hiddenForUserIds = Array.from(hiddenForUserIds);
+  message.hiddenForUsers = {
+    ...(isPlainObject(message.hiddenForUsers) ? message.hiddenForUsers : {}),
+    [actorKey]: now,
+  };
+  message.updatedAt = now;
+
+  const auditEntry = addChatAuditEntry(state, actor, "deleteMessageForMe", "Deleted a chat message for one user.", {
+    threadId: message.threadId,
+    messageId,
+  });
+
+  return { ok: true, status: 200, action: "deleteMessageForMe", state, thread, message, auditEntry };
+}
+
+function applyForwardMessage(state, actor, body, now) {
+  const messageId = normalizeId(body.messageId || body.id, "");
+  const targetThreadId = normalizeId(body.targetThreadId || body.target_thread_id || body.threadId || body.channelId || "team", "team");
+  const sourceMessage = getMessageById(state, messageId);
+  if (!sourceMessage || sourceMessage.isDeleted) {
+    return { ok: false, status: 404, reason: "Message not found." };
+  }
+
+  const sourceThread = getThreadById(state, normalizeId(sourceMessage.threadId, ""));
+  const sourceAccess = ensureActionAllowed(actor, state, sourceThread);
+  if (!sourceAccess.ok) {
+    return sourceAccess;
+  }
+
+  const actorKey = normalizeObjectKey(actor.id || actor.email || "actor", "actor", MAX_ID_LENGTH);
+  if (Array.isArray(sourceMessage.hiddenForUserIds) && sourceMessage.hiddenForUserIds.includes(actorKey)) {
+    return { ok: false, status: 404, reason: "Message not found." };
+  }
+
+  const targetThread = upsertThread(state, actor, {
+    threadId: targetThreadId,
+    type: body.targetThreadType || body.threadType || body.type || (targetThreadId === "team" ? "team" : "group"),
+    title: body.targetThreadTitle || body.threadTitle || body.title,
+    participantIds: body.participantIds || body.participants,
+  }, now);
+  const targetAccess = ensureActionAllowed(actor, state, targetThread);
+  if (!targetAccess.ok) {
+    return targetAccess;
+  }
+
+  const text = normalizeMessageText(body.text || sourceMessage.text || sourceMessage.body);
+  if (!text) {
+    return { ok: false, status: 400, reason: "Forwarded message text is empty." };
+  }
+
+  const message = {
+    ...sourceMessage,
+    id: randomId("msg"),
+    threadId: targetThread.id,
+    text,
+    userId: actor.id || "",
+    authorId: actor.id || "",
+    authorEmail: normalizeString(actor.email, MAX_TEXT_FIELD_LENGTH).toLowerCase(),
+    authorName: actorName(actor),
+    authorRole: normalizeString(actor.role || "unknown", 40),
+    senderId: actor.id || "",
+    senderName: actorName(actor),
+    role: normalizeString(actor.role || "unknown", 40),
+    createdAt: now,
+    updatedAt: now,
+    replyToId: "",
+    pinned: false,
+    pinnedAt: "",
+    pinnedBy: "",
+    reactions: {},
+    readBy: [actor.id || actor.email || "actor"].filter(Boolean),
+    hiddenForUserIds: [],
+    hiddenForUsers: {},
+    metadata: {
+      ...(isPlainObject(sourceMessage.metadata) ? sourceMessage.metadata : {}),
+      forwardedFromMessageId: sourceMessage.id,
+      forwardedFromThreadId: sourceThread?.id || "",
+      forwardedBy: actor.id || "",
+      forwardedAt: now,
+      originalAuthorId: sourceMessage.authorId || sourceMessage.userId || "",
+      originalAuthorName: sourceMessage.authorName || sourceMessage.senderName || "",
+    },
+    forwardedFromMessageId: sourceMessage.id,
+    forwardedFromThreadId: sourceThread?.id || "",
+  };
+  state.messages.push(message);
+  touchThread(targetThread, {
+    updatedAt: now,
+    lastMessageAt: now,
+    lastMessageId: message.id,
+    messageCount: state.messages.filter((item) => normalizeId(item?.threadId, "") === targetThread.id && !item?.isDeleted).length,
+  });
+
+  const auditEntry = addChatAuditEntry(state, actor, "forwardMessage", "Forwarded a chat message.", {
+    sourceThreadId: sourceThread?.id || "",
+    sourceMessageId: sourceMessage.id,
+    targetThreadId: targetThread.id,
+  });
+
+  return { ok: true, status: 200, action: "forwardMessage", state, thread: targetThread, message, auditEntry };
 }
 
 function applySetMessagePinned(state, actor, body, now) {
@@ -1013,6 +1192,134 @@ function applySetThreadParticipants(state, actor, body, now) {
   return { ok: true, status: 200, action: "setThreadParticipants", state, thread, auditEntry };
 }
 
+function normalizeThreadUserStateOperation(value = "") {
+  const operation = normalizeString(value, 32).toLowerCase().replace(/_/g, "-");
+  return ["archive", "unarchive", "hide", "delete", "block", "unblock", "restore"].includes(operation) ? operation : "";
+}
+
+function applySetThreadUserState(state, actor, body, now) {
+  const threadId = normalizeId(body.threadId || body.id || body.channelId, "");
+  const operation = normalizeThreadUserStateOperation(body.operation || body.state || body.userStateAction);
+  const thread = getThreadById(state, threadId);
+  if (!thread) {
+    return { ok: false, status: 404, reason: "Thread not found." };
+  }
+  if (!operation) {
+    return { ok: false, status: 400, reason: "Thread user-state operation is required." };
+  }
+
+  const access = ensureActionAllowed(actor, state, thread);
+  if (!access.ok) {
+    return access;
+  }
+
+  const type = normalizeThreadType(thread.type || thread.kind);
+  if ((operation === "block" || operation === "unblock") && type !== "dm") {
+    return { ok: false, status: 400, reason: "Only direct chats can be blocked." };
+  }
+
+  const actorKey = normalizeObjectKey(actor.id || actor.email || "actor", "actor", MAX_ID_LENGTH);
+  const statesByUser = isPlainObject(thread.userStateByUser) ? { ...thread.userStateByUser } : {};
+  const userState = isPlainObject(statesByUser[actorKey]) ? { ...statesByUser[actorKey] } : {};
+  if (operation === "archive") {
+    userState.archivedAt = now;
+  } else if (operation === "unarchive") {
+    delete userState.archivedAt;
+  } else if (operation === "hide") {
+    userState.hiddenAt = now;
+  } else if (operation === "delete") {
+    userState.deletedForUserAt = now;
+    delete userState.archivedAt;
+    delete userState.hiddenAt;
+  } else if (operation === "block") {
+    userState.blockedAt = now;
+    userState.blockedUserId = normalizeId(body.blockedUserId || body.blocked_user_id || threadParticipantValues(thread).find((id) => id !== actorKey.toLowerCase()) || "", "");
+  } else if (operation === "unblock") {
+    delete userState.blockedAt;
+    delete userState.blockedUserId;
+  } else if (operation === "restore") {
+    ["archivedAt", "hiddenAt", "deletedForUserAt", "blockedAt", "blockedUserId"].forEach((key) => delete userState[key]);
+  }
+  userState.updatedAt = now;
+  userState.updatedBy = actor.id || "";
+  statesByUser[actorKey] = userState;
+  thread.userStateByUser = statesByUser;
+  thread.userState = userState;
+  thread.metadata = {
+    ...(isPlainObject(thread.metadata) ? thread.metadata : {}),
+    userStateByUser: statesByUser,
+  };
+  thread.updatedAt = now;
+
+  const auditEntry = addChatAuditEntry(state, actor, "setThreadUserState", "Updated private chat state for one user.", {
+    threadId: thread.id,
+    operation,
+  });
+
+  return { ok: true, status: 200, action: "setThreadUserState", state, thread, auditEntry };
+}
+
+function applyLeaveThread(state, actor, body, now) {
+  const threadId = normalizeId(body.threadId || body.id || body.channelId, "");
+  const thread = getThreadById(state, threadId);
+  if (!thread) {
+    return { ok: false, status: 404, reason: "Thread not found." };
+  }
+  const access = ensureActionAllowed(actor, state, thread);
+  if (!access.ok) {
+    return access;
+  }
+  if (normalizeThreadType(thread.type || thread.kind) !== "group") {
+    return { ok: false, status: 400, reason: "Only custom groups can be left." };
+  }
+
+  const actorKey = normalizeObjectKey(actor.id || actor.email || "actor", "actor", MAX_ID_LENGTH);
+  const currentIds = normalizeParticipantIds(thread.participantIds || thread.participants || [], null);
+  const nextIds = currentIds.filter((participantId) => participantId.toLowerCase() !== actorKey.toLowerCase());
+  if (nextIds.length < 1) {
+    return { ok: false, status: 400, reason: "A group needs another participant before you can leave." };
+  }
+  const roles = normalizeParticipantRoleMap(thread.participantRoles || {});
+  if (roles[actorKey] === "owner" && !nextIds.some((participantId) => roles[participantId] === "owner")) {
+    roles[nextIds[0]] = "owner";
+  }
+  delete roles[actorKey];
+  thread.participantIds = nextIds;
+  thread.participantRoles = roles;
+  thread.participants = nextIds.map((participantId) => ({
+    id: participantId,
+    userId: participantId,
+    participantRole: roles[participantId] || "member",
+    role: roles[participantId] || "member",
+  }));
+  const statesByUser = isPlainObject(thread.userStateByUser) ? { ...thread.userStateByUser } : {};
+  statesByUser[actorKey] = {
+    ...(isPlainObject(statesByUser[actorKey]) ? statesByUser[actorKey] : {}),
+    hiddenAt: now,
+    leftAt: now,
+    updatedAt: now,
+    updatedBy: actor.id || "",
+  };
+  thread.userStateByUser = statesByUser;
+  thread.userState = statesByUser[actorKey];
+  thread.metadata = {
+    ...(isPlainObject(thread.metadata) ? thread.metadata : {}),
+    participantIds: nextIds,
+    participantRoles: roles,
+    userStateByUser: statesByUser,
+    participantsUpdatedAt: now,
+    participantsUpdatedBy: actor.id || "",
+  };
+  thread.updatedAt = now;
+
+  const auditEntry = addChatAuditEntry(state, actor, "leaveThread", "Left a group chat.", {
+    threadId: thread.id,
+    remainingParticipantCount: nextIds.length,
+  });
+
+  return { ok: true, status: 200, action: "leaveThread", state, thread, auditEntry };
+}
+
 function applyClearThread(state, actor, body, now) {
   if (!canAdminChat(actor)) {
     return { ok: false, status: 403, reason: "Admin chat access required." };
@@ -1118,6 +1425,10 @@ function applyChatActionToState(rawState, actor, body = {}, context = {}) {
     result = applyEditMessage(state, actor, body, now);
   } else if (action === "deleteMessage") {
     result = applyDeleteMessage(state, actor, body, now);
+  } else if (action === "deleteMessageForMe") {
+    result = applyDeleteMessageForMe(state, actor, body, now);
+  } else if (action === "forwardMessage") {
+    result = applyForwardMessage(state, actor, body, now);
   } else if (action === "setMessagePinned") {
     result = applySetMessagePinned(state, actor, body, now);
   } else if (action === "setMessagePriority") {
@@ -1130,6 +1441,10 @@ function applyChatActionToState(rawState, actor, body = {}, context = {}) {
     result = applyMarkThreadRead(state, actor, body, now);
   } else if (action === "setThreadSettings") {
     result = applySetThreadSettings(state, actor, body, now);
+  } else if (action === "setThreadUserState") {
+    result = applySetThreadUserState(state, actor, body, now);
+  } else if (action === "leaveThread") {
+    result = applyLeaveThread(state, actor, body, now);
   } else if (action === "setThreadParticipants") {
     result = applySetThreadParticipants(state, actor, body, now);
   } else if (action === "clearThread") {

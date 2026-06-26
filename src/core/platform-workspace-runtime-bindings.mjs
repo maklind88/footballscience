@@ -229,6 +229,7 @@ export function bindPlatformWorkspaceRuntimeBindings(deps = {}) {
       renderPlayerProfilesRosterListOnly: actions.renderPlayerProfilesRosterListOnly,
       renderPlayerProfilesWorkspace: actions.renderPlayerProfilesWorkspace,
       savePlayerProfileEditForm: actions.savePlayerProfileEditForm,
+      uploadPlayerProfilePhoto: actions.uploadPlayerProfilePhoto,
       uploadSquadTeamLogo: actions.uploadSquadTeamLogo,
     },
   });

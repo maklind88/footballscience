@@ -24,6 +24,10 @@ const DEFAULT_ATTACHMENT_MIME_TYPES = [
   "image/png",
   "image/webp",
   "image/gif",
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-m4v",
   "application/pdf",
   "text/plain",
   "text/csv",
@@ -31,7 +35,7 @@ const DEFAULT_ATTACHMENT_MIME_TYPES = [
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ];
-const DEFAULT_ATTACHMENT_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "gif", "pdf", "txt", "csv", "docx", "xlsx", "pptx"]);
+const DEFAULT_ATTACHMENT_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "gif", "mp4", "mov", "m4v", "webm", "pdf", "txt", "csv", "docx", "xlsx", "pptx"]);
 const PAGE_SIZE_DEFAULT = 40;
 const PAGE_SIZE_MAX = 100;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -43,12 +47,16 @@ const RATE_LIMITS = {
   sendMessage: 24,
   editMessage: 24,
   deleteMessage: 20,
+  deleteMessageForMe: 30,
+  forwardMessage: 24,
   setMessagePinned: 30,
   setMessagePriority: 30,
   addReaction: 80,
   removeReaction: 80,
   markThreadRead: 120,
   setThreadSettings: 30,
+  setThreadUserState: 30,
+  leaveThread: 10,
   setThreadParticipants: 12,
   clearThread: 5,
   archiveThread: 5,
@@ -244,6 +252,37 @@ function normalizeThreadSettingPatch(value = {}) {
     patch.avatarUrl = normalizeString(source.avatarUrl, 800);
   }
   return patch;
+}
+
+function normalizeThreadUserStateOperation(value = "") {
+  const operation = normalizeString(value, 32).toLowerCase().replace(/_/g, "-");
+  if (["archive", "unarchive", "hide", "delete", "block", "unblock", "restore"].includes(operation)) {
+    return operation;
+  }
+  return "";
+}
+
+function participantUserStateFromMetadata(metadata = {}) {
+  const source = isPlainObject(metadata) ? metadata : {};
+  return {
+    archivedAt: normalizeString(source.archivedAt || "", 80),
+    hiddenAt: normalizeString(source.hiddenAt || "", 80),
+    deletedForUserAt: normalizeString(source.deletedForUserAt || "", 80),
+    blockedAt: normalizeString(source.blockedAt || "", 80),
+    blockedUserId: normalizeId(source.blockedUserId || ""),
+    updatedAt: normalizeString(source.userStateUpdatedAt || source.updatedAt || "", 80),
+    updatedBy: normalizeId(source.userStateUpdatedBy || source.updatedBy || ""),
+  };
+}
+
+function stripEmptyThreadUserState(metadata = {}) {
+  const next = isPlainObject(metadata) ? { ...metadata } : {};
+  ["archivedAt", "hiddenAt", "deletedForUserAt", "blockedAt", "blockedUserId"].forEach((key) => {
+    if (!next[key]) {
+      delete next[key];
+    }
+  });
+  return next;
 }
 
 function normalizeParticipantRole(value) {
@@ -1213,16 +1252,39 @@ async function resolveThreadForAction(actor, body = {}, options = {}) {
 }
 
 async function isThreadParticipant(actor, threadId) {
+  return Boolean(await readActorThreadParticipant(actor, threadId));
+}
+
+async function readActorThreadParticipant(actor, threadId) {
   if (!actor?.id || !threadId) {
-    return false;
+    return null;
   }
 
-  const participant = await selectOne(
+  return selectOne(
     "chat_thread_participants",
-    `select=thread_id,user_id,participant_role,left_at&thread_id=eq.${filterValue(threadId)}&user_id=eq.${filterValue(actor.id)}&left_at=is.null`
-  );
+    `select=thread_id,user_id,participant_role,notification_level,left_at,metadata&thread_id=eq.${filterValue(threadId)}&user_id=eq.${filterValue(actor.id)}&left_at=is.null`
+  ).catch(() => null);
+}
 
-  return Boolean(participant);
+async function ensureActorThreadParticipant(actor, thread) {
+  if (!actor?.id || !thread?.id) {
+    return null;
+  }
+  const existing = await readActorThreadParticipant(actor, thread.id);
+  if (existing) {
+    return existing;
+  }
+
+  const inserted = await insertRows("chat_thread_participants", {
+    thread_id: thread.id,
+    organization_id: thread.organization_id,
+    team_id: thread.team_id,
+    user_id: actor.id,
+    participant_role: "member",
+    created_by: isUuid(actor.id) ? actor.id : null,
+    metadata: { addedBy: "self-state", addedAt: new Date().toISOString() },
+  }).catch(() => []);
+  return inserted[0] || readActorThreadParticipant(actor, thread.id);
 }
 
 async function ensureThreadAccess(actor, thread, options = {}) {
@@ -1236,23 +1298,26 @@ async function ensureThreadAccess(actor, thread, options = {}) {
 
   const type = normalizeThreadType(thread.type);
   const membership = await readMembership(actor, thread.organization_id, thread.team_id);
+  const actorParticipant = await readActorThreadParticipant(actor, thread.id);
 
   if (["team", "group", "medical", "matchday", "training", "announcement"].includes(type) && membership) {
     if (type === "medical" && !["admin", "club-admin", "team-admin", "coach", "medical", "performance"].includes(String(membership.role || "").toLowerCase())) {
       return { ok: false, status: 403, reason: "Medical chat access required." };
     }
-    if (options.manager && !canManageByRole(membership.role) && actorRole(actor) !== "admin") {
+    const isGroupOwner = normalizeParticipantRole(actorParticipant?.participant_role) === "owner";
+    if (options.manager && !canManageByRole(membership.role) && actorRole(actor) !== "admin" && !isGroupOwner) {
       return { ok: false, status: 403, reason: "Chat manager access required." };
     }
-    return { ok: true, membership };
+    return { ok: true, membership, participant: actorParticipant };
   }
 
-  const participant = await isThreadParticipant(actor, thread.id);
+  const participant = actorParticipant;
   if (participant) {
-    if (options.manager && actorRole(actor) !== "admin") {
+    const isGroupOwner = normalizeParticipantRole(participant.participant_role) === "owner";
+    if (options.manager && actorRole(actor) !== "admin" && !isGroupOwner) {
       return { ok: false, status: 403, reason: "Chat manager access required." };
     }
-    return { ok: true, membership };
+    return { ok: true, membership, participant };
   }
 
   if (actorRole(actor) === "admin" && membership) {
@@ -1274,7 +1339,7 @@ function mentionHandles(text) {
 }
 
 function databaseAuditEvent(actor, action, details = {}) {
-  const destructive = ["deleteMessage", "clearThread", "archiveThread"].includes(action);
+  const destructive = ["deleteMessage", "deleteMessageForMe", "clearThread", "archiveThread", "leaveThread"].includes(action);
   const adminAction = ["setMessagePinned", "setMessagePriority", "setThreadSettings", "setThreadParticipants", "clearThread", "archiveThread"].includes(action);
   return {
     action: `chat.${action}`,
@@ -1328,11 +1393,17 @@ function threadParticipantIds(thread = {}) {
 
 function participantClientPayload(row = {}, receipt = null) {
   const userId = normalizeId(row.user_id || row.id || row.userId);
+  const metadata = isPlainObject(row.metadata) ? row.metadata : {};
+  const participantRole = normalizeParticipantRole(row.participant_role || row.participantRole);
   return {
     id: userId,
     userId,
-    participantRole: normalizeParticipantRole(row.participant_role || row.participantRole),
-    role: normalizeParticipantRole(row.participant_role || row.participantRole),
+    participantRole,
+    role: participantRole,
+    chatParticipantRole: participantRole,
+    notificationLevel: normalizeString(row.notification_level || row.notificationLevel || "all", 40) || "all",
+    metadata,
+    userState: participantUserStateFromMetadata(metadata),
     joinedAt: normalizeString(row.joined_at || row.joinedAt || "", 80),
     leftAt: normalizeString(row.left_at || row.leftAt || "", 80),
     lastReadAt: normalizeString(receipt?.last_read_at || receipt?.lastReadAt || "", 80),
@@ -1347,8 +1418,86 @@ async function readThreadParticipantRows(threadIds = []) {
   }
   return selectMany(
     "chat_thread_participants",
-    `select=thread_id,user_id,participant_role,joined_at,left_at&thread_id=${inFilter(ids)}&left_at=is.null`
+    `select=thread_id,user_id,participant_role,notification_level,joined_at,left_at,metadata&thread_id=${inFilter(ids)}&left_at=is.null`
   ).catch(() => []);
+}
+
+async function readActorThreadParticipantRows(actor, threadIds = []) {
+  const ids = Array.from(new Set(threadIds.filter(Boolean)));
+  if (!actor?.id || !ids.length) {
+    return [];
+  }
+  return selectMany(
+    "chat_thread_participants",
+    `select=thread_id,user_id,participant_role,notification_level,joined_at,left_at,metadata&thread_id=${inFilter(ids)}&user_id=eq.${filterValue(actor.id)}`
+  ).catch(() => []);
+}
+
+function isAfterIso(value = "", threshold = "") {
+  const valueMs = Date.parse(value || "");
+  const thresholdMs = Date.parse(threshold || "");
+  return Number.isFinite(valueMs) && Number.isFinite(thresholdMs) && valueMs > thresholdMs;
+}
+
+function shouldShowThreadForActor(thread = {}) {
+  const userState = participantUserStateFromMetadata(thread.userState || thread.metadata?.userState || {});
+  if (userState.archivedAt || userState.hiddenAt || userState.blockedAt) {
+    return false;
+  }
+  if (userState.deletedForUserAt) {
+    return isAfterIso(thread.lastMessage?.createdAt || thread.last_message_at || thread.lastMessageAt || "", userState.deletedForUserAt);
+  }
+  return true;
+}
+
+async function readHiddenMessageStateRows(actor, messageIds = []) {
+  const ids = Array.from(new Set(messageIds.filter(Boolean)));
+  if (!actor?.id || !ids.length) {
+    return [];
+  }
+  return selectMany(
+    "chat_message_user_states",
+    `select=message_id,hidden_at,thread_id,user_id&message_id=${inFilter(ids)}&user_id=eq.${filterValue(actor.id)}&hidden_at=not.is.null`
+  ).catch(() => []);
+}
+
+async function filterMessagesForActor(actor, messages = [], thread = null) {
+  const sourceMessages = Array.isArray(messages) ? messages : [];
+  if (!sourceMessages.length) {
+    return [];
+  }
+  const actorParticipant = thread?.id ? await readActorThreadParticipant(actor, thread.id) : null;
+  const userState = participantUserStateFromMetadata(actorParticipant?.metadata);
+  const hiddenRows = await readHiddenMessageStateRows(actor, sourceMessages.map((message) => message.id));
+  const hiddenIds = new Set(hiddenRows.map((row) => row.message_id).filter(Boolean));
+  return sourceMessages.filter((message) => {
+    if (hiddenIds.has(message.id)) {
+      return false;
+    }
+    if (userState.deletedForUserAt && !isAfterIso(message.created_at || message.createdAt || "", userState.deletedForUserAt)) {
+      return false;
+    }
+    return true;
+  });
+}
+
+async function filterMessagesForActorByThread(actor, messages = [], threadsById = new Map()) {
+  const sourceMessages = Array.isArray(messages) ? messages : [];
+  if (!sourceMessages.length) {
+    return [];
+  }
+  const grouped = sourceMessages.reduce((map, message) => {
+    const key = normalizeId(message.thread_id || message.threadId || "");
+    map.set(key, [...(map.get(key) || []), message]);
+    return map;
+  }, new Map());
+  const filteredGroups = await Promise.all(
+    Array.from(grouped.entries()).map(async ([threadId, groupedMessages]) =>
+      filterMessagesForActor(actor, groupedMessages, threadsById.get(threadId) || { id: threadId })
+    )
+  );
+  const visibleIds = new Set(filteredGroups.flat().map((message) => message.id).filter(Boolean));
+  return sourceMessages.filter((message) => visibleIds.has(message.id));
 }
 
 async function readThreadReadModelRows(threadIds = []) {
@@ -1385,6 +1534,13 @@ function threadPermissionsForActor(actor, thread = {}) {
     canPin: manager,
     canClear: canAdmin(actor),
     canModerate: canAdmin(actor),
+    canEditOwnMessages: true,
+    canDeleteOwnMessages: true,
+    canDeleteForMe: true,
+    canArchiveForMe: true,
+    canForward: true,
+    canBlock: type === "dm",
+    canLeave: type === "group",
   };
 }
 
@@ -1466,9 +1622,13 @@ function mapEnrichedMessage(message = {}, thread = null, enrichment = buildMessa
     threadId: thread ? toLegacyThreadId(thread) : message.thread_id,
     createdAt: message.created_at,
     updatedAt: message.updated_at,
+    editedAt: message.edited_at || "",
     replyToId: message.reply_to_id || "",
     pinnedAt: message.pinned_at || "",
     pinnedBy: message.pinned_by || "",
+    metadata: isPlainObject(message.metadata) ? message.metadata : {},
+    forwardedFromMessageId: normalizeId(message.metadata?.forwardedFromMessageId || message.metadata?.forwarded_from_message_id || ""),
+    forwardedFromThreadId: normalizeId(message.metadata?.forwardedFromThreadId || message.metadata?.forwarded_from_thread_id || ""),
     author: {
       id: message.author_id || "",
       firstName: normalizeString(message.metadata?.authorName || "Staff", 80).split(" ")[0] || "Staff",
@@ -1529,6 +1689,11 @@ async function enrichThreadSummaries(actor, threads = []) {
       ? selectMany("chat_read_receipts", `select=${RECEIPT_SELECT}&thread_id=${inFilter(threadIds)}`).catch(() => [])
       : Promise.resolve([]),
   ]);
+  const [actorParticipantRows, hiddenLastMessageRows] = await Promise.all([
+    readActorThreadParticipantRows(actor, threadIds),
+    readHiddenMessageStateRows(actor, lastMessageIds),
+  ]);
+  const hiddenLastMessageIds = new Set(hiddenLastMessageRows.map((row) => row.message_id).filter(Boolean));
   const readModelReactionRows = threadReadModelRows.flatMap((row) => readModelJsonRows(row, "last_message_reactions"));
   const readModelAttachmentRows = threadReadModelRows.flatMap((row) => readModelJsonRows(row, "last_message_attachments"));
   const readModelEnrichment = buildMessageEnrichment(readModelReactionRows, readModelAttachmentRows, allReceipts);
@@ -1543,15 +1708,21 @@ async function enrichThreadSummaries(actor, threads = []) {
     map.set(participant.thread_id, [...(map.get(participant.thread_id) || []), participant]);
     return map;
   }, new Map());
+  const actorParticipantByThreadId = new Map(actorParticipantRows.map((participant) => [participant.thread_id, participant]));
   const receiptsByThreadAndUser = allReceipts.reduce((map, receipt) => {
     map.set(`${receipt.thread_id}:${receipt.user_id}`, receipt);
     return map;
   }, new Map());
   return threads.map((thread) => {
+    const actorParticipant = actorParticipantByThreadId.get(thread.id) || null;
+    const actorUserState = participantUserStateFromMetadata(actorParticipant?.metadata);
     const lastMessage = messagesById.get(thread.last_message_id) || null;
     const threadReadModel = readModelRowsByThreadId.get(thread.id) || null;
     const hasReadModelLastMessage = Boolean(threadReadModel && lastMessage?.id && readModelMessageIds.has(lastMessage.id));
-    const enrichedLastMessage = lastMessage
+    const lastMessageHiddenByUserState =
+      hiddenLastMessageIds.has(lastMessage?.id) ||
+      (actorUserState.deletedForUserAt && lastMessage && !isAfterIso(lastMessage.created_at || lastMessage.createdAt || "", actorUserState.deletedForUserAt));
+    const enrichedLastMessage = lastMessage && !lastMessageHiddenByUserState
       ? mapEnrichedMessage(lastMessage, thread, hasReadModelLastMessage ? readModelEnrichment : fallbackLastMessageEnrichment)
       : null;
     const receipt = receiptsByThreadId.get(thread.id) || null;
@@ -1574,6 +1745,8 @@ async function enrichThreadSummaries(actor, threads = []) {
           )
         : threadParticipantIds(thread).map((userId) => participantClientPayload({ user_id: userId })),
       permissions: threadPermissionsForActor(actor, thread),
+      userState: actorUserState,
+      notificationLevel: normalizeString(actorParticipant?.notification_level || "all", 40) || "all",
       avatarUrl: normalizeString(metadata.avatarUrl || metadata.imageUrl || "", 800),
       settings: {
         muted: Boolean(actorSettings.muted),
@@ -1792,6 +1965,7 @@ async function handleDatabaseGet(req, res, actor) {
             "select=thread_id",
             `organization_id=eq.${filterValue(scope.organizationId)}`,
             `user_id=eq.${filterValue(actor.id)}`,
+            "left_at=is.null",
             "limit=200",
           ].join("&")
         ).catch(() => [])
@@ -1814,7 +1988,13 @@ async function handleDatabaseGet(req, res, actor) {
         .filter((thread) => thread.team_id === scope.teamId || (thread.type === "dm" && participantThreadIds.has(thread.id)))
         .map((thread) => [thread.id, thread])
     );
-    const visibleMessages = messages.reverse().filter((message) => threadsById.has(message.thread_id));
+    const searchableThreadSummaries = await enrichThreadSummaries(actor, Array.from(threadsById.values()));
+    const visibleThreadIds = new Set(searchableThreadSummaries.filter(shouldShowThreadForActor).map((thread) => thread.id));
+    const visibleMessages = await filterMessagesForActorByThread(
+      actor,
+      messages.reverse().filter((message) => threadsById.has(message.thread_id) && visibleThreadIds.has(message.thread_id)),
+      threadsById
+    );
     const enriched = await enrichMessages(visibleMessages, null, {
       threadIds: Array.from(new Set(visibleMessages.map((message) => message.thread_id).filter(Boolean))),
       threadsById,
@@ -1854,8 +2034,9 @@ async function handleDatabaseGet(req, res, actor) {
     }
 
     const messages = await selectMany("chat_messages", filters.join("&"));
+    const filteredMessages = await filterMessagesForActor(actor, messages, thread);
     const nextCursor = messages.length === limit ? messages[messages.length - 1]?.created_at || "" : "";
-    const enrichedMessages = await enrichMessages([...messages].reverse(), thread);
+    const enrichedMessages = await enrichMessages([...filteredMessages].reverse(), thread);
     const [threadSummary] = await enrichThreadSummaries(actor, [thread]);
     const responseThread = threadSummary || thread;
     return sendJson(res, 200, {
@@ -1890,6 +2071,7 @@ async function handleDatabaseGet(req, res, actor) {
           "select=thread_id",
           `organization_id=eq.${filterValue(scope.organizationId)}`,
           `user_id=eq.${filterValue(actor.id)}`,
+          "left_at=is.null",
           "limit=200",
         ].join("&")
       ).catch(() => [])
@@ -1923,7 +2105,7 @@ async function handleDatabaseGet(req, res, actor) {
     }
     return String(first.title || "").localeCompare(String(second.title || ""), undefined, { sensitivity: "base" });
   });
-  const threadSummaries = await enrichThreadSummaries(actor, threads);
+  const threadSummaries = (await enrichThreadSummaries(actor, threads)).filter(shouldShowThreadForActor);
   return sendJson(res, 200, {
     ok: true,
     schema: "footballscience-chat-database-v1",
@@ -2581,6 +2763,295 @@ async function archiveThread(actor, body) {
   return { ok: true, action: "archiveThread", thread: updatedThread || { ...thread, archived_at: now }, auditId: audit?.id || "" };
 }
 
+async function setThreadUserState(actor, body) {
+  const threadId = normalizeId(body.threadId || body.thread_id || body.id);
+  const operation = normalizeThreadUserStateOperation(body.operation || body.state || body.userStateAction || body.user_state_action);
+  if (!threadId) {
+    return { ok: false, status: 400, reason: "threadId is required." };
+  }
+  if (!operation) {
+    return { ok: false, status: 400, reason: "Thread user-state operation is required." };
+  }
+
+  const thread = await resolveThreadForAction(actor, body, { createIfMissing: false });
+  const access = await ensureThreadAccess(actor, thread);
+  if (!access.ok) {
+    return access;
+  }
+
+  const type = normalizeThreadType(thread.type);
+  if ((operation === "block" || operation === "unblock") && type !== "dm") {
+    return { ok: false, status: 400, reason: "Only direct chats can be blocked." };
+  }
+
+  const now = new Date().toISOString();
+  const participant = await ensureActorThreadParticipant(actor, thread);
+  if (!participant) {
+    return { ok: false, status: 403, reason: "You do not have access to this chat thread." };
+  }
+
+  let blockedUserId = normalizeId(body.blockedUserId || body.blocked_user_id || "");
+  if (operation === "block" && !blockedUserId) {
+    const participants = await readThreadParticipantRows([thread.id]);
+    blockedUserId = normalizeId(participants.find((row) => row.user_id && row.user_id !== actor.id)?.user_id || "");
+  }
+
+  const metadata = stripEmptyThreadUserState(participant.metadata);
+  if (operation === "archive") {
+    metadata.archivedAt = now;
+  } else if (operation === "unarchive") {
+    delete metadata.archivedAt;
+  } else if (operation === "hide") {
+    metadata.hiddenAt = now;
+  } else if (operation === "delete") {
+    metadata.deletedForUserAt = now;
+    delete metadata.archivedAt;
+    delete metadata.hiddenAt;
+  } else if (operation === "block") {
+    metadata.blockedAt = now;
+    metadata.blockedUserId = blockedUserId;
+  } else if (operation === "unblock") {
+    delete metadata.blockedAt;
+    delete metadata.blockedUserId;
+  } else if (operation === "restore") {
+    delete metadata.archivedAt;
+    delete metadata.hiddenAt;
+    delete metadata.deletedForUserAt;
+    delete metadata.blockedAt;
+    delete metadata.blockedUserId;
+  }
+  metadata.userStateUpdatedAt = now;
+  metadata.userStateUpdatedBy = actor.id || "";
+
+  await patchRows(
+    "chat_thread_participants",
+    `thread_id=eq.${filterValue(thread.id)}&user_id=eq.${filterValue(actor.id)}`,
+    { metadata }
+  );
+
+  const audit = await insertAudit(actor, "setThreadUserState", {
+    organization_id: thread.organization_id,
+    team_id: thread.team_id,
+    thread_id: thread.id,
+  }, {
+    operation,
+    blockedUserId: operation === "block" ? blockedUserId : "",
+  });
+  const [threadSummary] = await enrichThreadSummaries(actor, [thread]);
+  return { ok: true, action: "setThreadUserState", thread: threadSummary || thread, auditId: audit?.id || "" };
+}
+
+async function leaveThread(actor, body) {
+  const threadId = normalizeId(body.threadId || body.thread_id || body.id);
+  if (!threadId) {
+    return { ok: false, status: 400, reason: "threadId is required." };
+  }
+
+  const thread = await resolveThreadForAction(actor, body, { createIfMissing: false });
+  const access = await ensureThreadAccess(actor, thread);
+  if (!access.ok) {
+    return access;
+  }
+  if (normalizeThreadType(thread.type) !== "group") {
+    return { ok: false, status: 400, reason: "Only custom groups can be left." };
+  }
+
+  const now = new Date().toISOString();
+  const participant = await readActorThreadParticipant(actor, thread.id);
+  if (!participant) {
+    return { ok: false, status: 404, reason: "You are not an active participant in this group." };
+  }
+  const participantRows = await selectMany(
+    "chat_thread_participants",
+    `select=thread_id,user_id,participant_role,joined_at,left_at,metadata&thread_id=eq.${filterValue(thread.id)}`
+  ).catch(() => []);
+  const activeRows = participantRows.filter((row) => !row.left_at);
+  const otherActiveRows = activeRows.filter((row) => row.user_id !== actor.id);
+  if (!otherActiveRows.length) {
+    return { ok: false, status: 400, reason: "A group needs another participant before you can leave." };
+  }
+
+  const metadata = {
+    ...(isPlainObject(participant.metadata) ? participant.metadata : {}),
+    leftBy: actor.id || "",
+    leftAt: now,
+    hiddenAt: now,
+    userStateUpdatedAt: now,
+    userStateUpdatedBy: actor.id || "",
+  };
+  await patchRows(
+    "chat_thread_participants",
+    `thread_id=eq.${filterValue(thread.id)}&user_id=eq.${filterValue(actor.id)}`,
+    {
+      left_at: now,
+      metadata,
+    }
+  );
+
+  if (normalizeParticipantRole(participant.participant_role) === "owner") {
+    const nextOwner = otherActiveRows.find((row) => normalizeParticipantRole(row.participant_role) === "member") || otherActiveRows[0];
+    if (nextOwner?.user_id) {
+      await patchRows(
+        "chat_thread_participants",
+        `thread_id=eq.${filterValue(thread.id)}&user_id=eq.${filterValue(nextOwner.user_id)}`,
+        {
+          participant_role: "owner",
+          metadata: {
+            ...(isPlainObject(nextOwner.metadata) ? nextOwner.metadata : {}),
+            promotedBy: actor.id || "",
+            promotedAt: now,
+          },
+        }
+      ).catch(() => []);
+    }
+  }
+
+  const nextParticipantIds = otherActiveRows.map((row) => row.user_id).filter(Boolean);
+  const metadataPatch = {
+    ...(isPlainObject(thread.metadata) ? thread.metadata : {}),
+    participantIds: nextParticipantIds,
+    participantsUpdatedAt: now,
+    participantsUpdatedBy: actor.id || "",
+  };
+  const [updatedThread] = await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, { metadata: metadataPatch });
+  const audit = await insertAudit(actor, "leaveThread", {
+    organization_id: thread.organization_id,
+    team_id: thread.team_id,
+    thread_id: thread.id,
+  }, {
+    remainingParticipantCount: nextParticipantIds.length,
+  });
+
+  return { ok: true, action: "leaveThread", thread: updatedThread || { ...thread, metadata: metadataPatch }, auditId: audit?.id || "" };
+}
+
+async function deleteMessageForMe(actor, body) {
+  const messageId = normalizeId(body.messageId || body.message_id || body.id);
+  if (!messageId) {
+    return { ok: false, status: 400, reason: "messageId is required." };
+  }
+
+  const message = await selectOne("chat_messages", `select=${MESSAGE_SELECT}&id=eq.${filterValue(messageId)}`);
+  if (!message || message.deleted_at) {
+    return { ok: false, status: 404, reason: "Message not found." };
+  }
+  const thread = await readThread(message.thread_id);
+  const access = await ensureThreadAccess(actor, thread);
+  if (!access.ok) {
+    return access;
+  }
+
+  const now = new Date().toISOString();
+  const payload = {
+    message_id: message.id,
+    organization_id: message.organization_id,
+    team_id: message.team_id,
+    thread_id: message.thread_id,
+    user_id: actor.id,
+    hidden_at: now,
+    hidden_by: actor.id || null,
+    metadata: {
+      reason: "delete-for-me",
+      updatedBy: actor.id || "",
+      updatedAt: now,
+    },
+  };
+  await insertRows("chat_message_user_states", payload).catch(() => patchRows(
+    "chat_message_user_states",
+    `message_id=eq.${filterValue(message.id)}&user_id=eq.${filterValue(actor.id)}`,
+    {
+      hidden_at: now,
+      hidden_by: actor.id || null,
+      metadata: payload.metadata,
+    }
+  ));
+  const audit = await insertAudit(actor, "deleteMessageForMe", {
+    organization_id: message.organization_id,
+    team_id: message.team_id,
+    thread_id: message.thread_id,
+    message_id: message.id,
+  });
+
+  return { ok: true, action: "deleteMessageForMe", thread, message: { ...message, status: "deleted-for-me" }, auditId: audit?.id || "" };
+}
+
+async function forwardMessage(actor, body) {
+  const messageId = normalizeId(body.messageId || body.message_id || body.id);
+  const targetThreadId = normalizeId(body.targetThreadId || body.target_thread_id || body.threadId || body.thread_id);
+  if (!messageId) {
+    return { ok: false, status: 400, reason: "messageId is required." };
+  }
+  if (!targetThreadId) {
+    return { ok: false, status: 400, reason: "targetThreadId is required." };
+  }
+
+  const sourceMessage = await selectOne("chat_messages", `select=${MESSAGE_SELECT}&id=eq.${filterValue(messageId)}`);
+  if (!sourceMessage || sourceMessage.deleted_at) {
+    return { ok: false, status: 404, reason: "Message not found." };
+  }
+  const sourceThread = await readThread(sourceMessage.thread_id);
+  const sourceAccess = await ensureThreadAccess(actor, sourceThread);
+  if (!sourceAccess.ok) {
+    return sourceAccess;
+  }
+
+  const targetThread = await resolveThreadForAction(actor, {
+    ...body,
+    threadId: targetThreadId,
+    type: body.targetThreadType || body.threadType,
+  }, { createIfMissing: false });
+  const targetAccess = await ensureThreadAccess(actor, targetThread);
+  if (!targetAccess.ok) {
+    return targetAccess;
+  }
+
+  const hidden = await readHiddenMessageStateRows(actor, [sourceMessage.id]);
+  if (hidden.length) {
+    return { ok: false, status: 404, reason: "Message not found." };
+  }
+  const text = normalizeMessageText(body.text || sourceMessage.body);
+  if (!text) {
+    return { ok: false, status: 400, reason: "Forwarded message text is empty." };
+  }
+
+  const rows = await insertRows("chat_messages", {
+    organization_id: targetThread.organization_id,
+    team_id: targetThread.team_id,
+    thread_id: targetThread.id,
+    author_id: actor.id || null,
+    body: text,
+    priority: "normal",
+    metadata: {
+      authorName: normalizeString(`${actor.firstName || ""} ${actor.lastName || ""}`.trim() || actor.username || actor.email),
+      authorRole: actorRole(actor),
+      forwardedFromMessageId: sourceMessage.id,
+      forwardedFromThreadId: sourceThread?.id || "",
+      forwardedBy: actor.id || "",
+      forwardedAt: new Date().toISOString(),
+      originalAuthorId: sourceMessage.author_id || "",
+      originalAuthorName: normalizeString(sourceMessage.metadata?.authorName || "", 120),
+    },
+  });
+  const message = rows[0];
+  const updatedThread = await recalculateThreadSummary({
+    ...targetThread,
+    last_message_id: message.id,
+    last_message_at: message.created_at,
+  });
+  const audit = await insertAudit(actor, "forwardMessage", {
+    organization_id: targetThread.organization_id,
+    team_id: targetThread.team_id,
+    thread_id: targetThread.id,
+    message_id: message.id,
+  }, {
+    sourceThreadId: sourceThread?.id || "",
+    sourceMessageId: sourceMessage.id,
+  });
+  const [enrichedMessage] = await enrichMessages([message], targetThread);
+  const [threadSummary] = await enrichThreadSummaries(actor, [updatedThread || targetThread]);
+  return { ok: true, action: "forwardMessage", thread: threadSummary || updatedThread || targetThread, message: enrichedMessage || message, auditId: audit?.id || "" };
+}
+
 async function createAttachmentIntent(actor, body) {
   const thread = await resolveThreadForAction(actor, body);
   const access = await ensureThreadAccess(actor, thread);
@@ -2733,6 +3204,10 @@ async function handleDatabasePost(req, res, actor) {
     result = await updateMessageFlag(actor, body, action);
   } else if (action === "deleteMessage") {
     result = await deleteMessage(actor, body);
+  } else if (action === "deleteMessageForMe") {
+    result = await deleteMessageForMe(actor, body);
+  } else if (action === "forwardMessage") {
+    result = await forwardMessage(actor, body);
   } else if (action === "addReaction") {
     result = await setReaction(actor, body, true);
   } else if (action === "removeReaction") {
@@ -2741,6 +3216,10 @@ async function handleDatabasePost(req, res, actor) {
     result = await markThreadRead(actor, body);
   } else if (action === "setThreadSettings") {
     result = await setThreadSettings(actor, body);
+  } else if (action === "setThreadUserState") {
+    result = await setThreadUserState(actor, body);
+  } else if (action === "leaveThread") {
+    result = await leaveThread(actor, body);
   } else if (action === "setThreadParticipants") {
     result = await setThreadParticipants(actor, body);
   } else if (action === "clearThread") {

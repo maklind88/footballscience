@@ -442,6 +442,7 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
       threadId: normalizeDashboardChatThreadId(message?.threadId, dashboardChatTeamThreadId),
       text,
       createdAt,
+      editedAt: String(message?.editedAt || message?.edited_at || "").trim(),
       deliveredAt: message?.deliveredAt || message?.createdAt || createdAt,
       readBy: Array.from(new Set([userId, ...readBy].filter(Boolean))),
       mentionedUserIds: Array.from(new Set(mentionedUserIds)),
@@ -451,6 +452,9 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
       pinnedAt: String(message?.pinnedAt || "").trim(),
       pinnedBy: String(message?.pinnedBy || "").trim(),
       author: normalizeDashboardMessageAuthor(message?.author || message?.user || null),
+      metadata: message?.metadata && typeof message.metadata === "object" ? message.metadata : {},
+      forwardedFromMessageId: String(message?.forwardedFromMessageId || message?.forwarded_from_message_id || message?.metadata?.forwardedFromMessageId || "").trim(),
+      forwardedFromThreadId: String(message?.forwardedFromThreadId || message?.forwarded_from_thread_id || message?.metadata?.forwardedFromThreadId || "").trim(),
       attachments: Array.isArray(message?.attachments) ? message.attachments : [],
       status: String(message?.status || "sent").trim().toLowerCase(),
     };

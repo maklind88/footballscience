@@ -191,8 +191,15 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
     }
     const playerPhotoInput = event.target.closest("[data-player-profile-photo-upload]");
     if (playerPhotoInput) {
+      const playerId = playerPhotoInput.dataset.playerProfilePhotoUpload || "";
+      const file = playerPhotoInput.files?.[0] ?? null;
+      playerPhotoInput.value = "";
       actions.flushPlayerProfileAutosave?.();
-      callOptional(actions.handlePhotoInput, playerPhotoInput);
+      if (typeof actions.uploadPlayerProfilePhoto === "function") {
+        void actions.uploadPlayerProfilePhoto(playerId, file);
+      } else {
+        callOptional(actions.handlePhotoInput, playerPhotoInput);
+      }
       return;
     }
     const editForm = event.target.closest("#playerProfileEditForm");

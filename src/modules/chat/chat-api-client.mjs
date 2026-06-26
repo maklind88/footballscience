@@ -99,6 +99,12 @@ export function createChatApiClient(options = {}) {
     deleteMessage(payload = {}) {
       return action({ ...payload, action: "deleteMessage" });
     },
+    deleteMessageForMe(payload = {}) {
+      return action({ ...payload, action: "deleteMessageForMe" });
+    },
+    forwardMessage(payload = {}) {
+      return action({ ...payload, action: "forwardMessage" });
+    },
     setMessagePinned(payload = {}) {
       return action({ ...payload, action: "setMessagePinned" });
     },
@@ -116,6 +122,18 @@ export function createChatApiClient(options = {}) {
     },
     clearThread(payload = {}) {
       return action({ ...payload, action: "clearThread" });
+    },
+    setThreadSettings(payload = {}) {
+      return action({ ...payload, action: "setThreadSettings" });
+    },
+    setThreadParticipants(payload = {}) {
+      return action({ ...payload, action: "setThreadParticipants" });
+    },
+    setThreadUserState(payload = {}) {
+      return action({ ...payload, action: "setThreadUserState" });
+    },
+    leaveThread(payload = {}) {
+      return action({ ...payload, action: "leaveThread" });
     },
     createAttachmentIntent(payload = {}) {
       return action({ ...payload, action: "createAttachmentIntent" });

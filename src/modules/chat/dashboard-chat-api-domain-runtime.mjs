@@ -432,6 +432,11 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
           String(participant.participantRole || participant.participant_role || participant.role || "member").trim().toLowerCase() || "member",
         role:
           String(participant.participantRole || participant.participant_role || participant.role || "member").trim().toLowerCase() || "member",
+        chatParticipantRole:
+          String(participant.chatParticipantRole || participant.participantRole || participant.participant_role || participant.role || "member").trim().toLowerCase() || "member",
+        notificationLevel: String(participant.notificationLevel || participant.notification_level || "all").trim() || "all",
+        metadata: participant.metadata && typeof participant.metadata === "object" ? participant.metadata : {},
+        userState: participant.userState && typeof participant.userState === "object" ? participant.userState : {},
         joinedAt: String(participant.joinedAt || participant.joined_at || "").trim(),
         leftAt: String(participant.leftAt || participant.left_at || "").trim(),
         lastReadAt: String(participant.lastReadAt || participant.last_read_at || "").trim(),
@@ -488,6 +493,8 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
         : [],
       permissions: thread.permissions && typeof thread.permissions === "object" ? thread.permissions : {},
       settings: getThreadSettingsStore()?.normalize ? getThreadSettingsStore().normalize(thread.settings || thread.threadSettings || {}) : {},
+      userState: thread.userState && typeof thread.userState === "object" ? thread.userState : {},
+      notificationLevel: String(thread.notificationLevel || thread.notification_level || "all").trim() || "all",
       metadata: thread.metadata || {},
     };
   }
@@ -513,6 +520,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       text: message.text ?? message.body ?? "",
       userId: authorId,
       createdAt: message.createdAt || message.created_at,
+      editedAt: message.editedAt || message.edited_at || "",
       deliveredAt: message.deliveredAt || message.createdAt || message.created_at,
       readBy: Array.isArray(message.readBy) ? message.readBy : [],
       mentionedUserIds: Array.isArray(message.mentionedUserIds) ? message.mentionedUserIds : [],
@@ -522,6 +530,9 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       pinnedAt: message.pinnedAt || message.pinned_at || "",
       pinnedBy: message.pinnedBy || message.pinned_by || "",
       author,
+      metadata: message.metadata && typeof message.metadata === "object" ? message.metadata : {},
+      forwardedFromMessageId: message.forwardedFromMessageId || message.forwarded_from_message_id || message.metadata?.forwardedFromMessageId || "",
+      forwardedFromThreadId: message.forwardedFromThreadId || message.forwarded_from_thread_id || message.metadata?.forwardedFromThreadId || "",
       attachments: Array.isArray(message.attachments) ? message.attachments : [],
       status: message.status || (message.deleted_at || message.deletedAt ? "deleted" : "sent"),
     });

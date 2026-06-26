@@ -219,6 +219,127 @@ test("non-authors cannot delete another staff message unless admin", () => {
   expect(adminDeleted.state.audit[0].destructive).toBe(true);
 });
 
+test("deleteMessageForMe hides only the current user's copy", () => {
+  const otherActor = {
+    ...staffActor,
+    id: "analyst-1",
+    email: "analyst@example.com",
+    role: "analyst",
+  };
+  const sent = applyChatActionToState(
+    {},
+    staffActor,
+    { action: "sendMessage", threadId: "team", text: "Private cleanup only" },
+    { now: "2026-05-07T12:00:00.000Z" }
+  );
+
+  const deletedForMe = applyChatActionToState(
+    sent.state,
+    staffActor,
+    { action: "deleteMessageForMe", messageId: sent.message.id },
+    { now: "2026-05-07T12:01:00.000Z" }
+  );
+
+  expect(deletedForMe.ok).toBe(true);
+  expect(deletedForMe.message.isDeleted).toBeFalsy();
+  expect(deletedForMe.message.hiddenForUserIds).toContain(staffActor.id);
+  expect(filterChatStateForActor(deletedForMe.state, staffActor).messages.map((message) => message.id)).not.toContain(sent.message.id);
+  expect(filterChatStateForActor(deletedForMe.state, otherActor).messages.map((message) => message.id)).toContain(sent.message.id);
+  expect(deletedForMe.state.audit[0]).toMatchObject({
+    action: "chat.deleteMessageForMe",
+    destructive: true,
+  });
+});
+
+test("thread user-state delete/archive/block is private to one inbox", () => {
+  const otherActor = {
+    ...staffActor,
+    id: "analyst-1",
+    email: "analyst@example.com",
+    role: "analyst",
+  };
+  const created = applyChatActionToState(
+    {},
+    staffActor,
+    {
+      action: "createThread",
+      threadId: "dm:coach-1:analyst-1",
+      type: "dm",
+      participantIds: [staffActor.id, otherActor.id],
+    },
+    { now: "2026-05-07T12:00:00.000Z" }
+  );
+  const sent = applyChatActionToState(
+    created.state,
+    staffActor,
+    { action: "sendMessage", threadId: "dm:coach-1:analyst-1", threadType: "dm", participantIds: [staffActor.id, otherActor.id], text: "DM seed" },
+    { now: "2026-05-07T12:01:00.000Z" }
+  );
+  const deleted = applyChatActionToState(
+    sent.state,
+    staffActor,
+    { action: "setThreadUserState", threadId: "dm:coach-1:analyst-1", operation: "delete" },
+    { now: "2026-05-07T12:02:00.000Z" }
+  );
+
+  expect(deleted.ok).toBe(true);
+  expect(deleted.thread.userState.deletedForUserAt).toBe("2026-05-07T12:02:00.000Z");
+  expect(filterChatStateForActor(deleted.state, staffActor).threads.map((thread) => thread.id)).not.toContain("dm:coach-1:analyst-1");
+  expect(filterChatStateForActor(deleted.state, otherActor).threads.map((thread) => thread.id)).toContain("dm:coach-1:analyst-1");
+
+  const later = applyChatActionToState(
+    deleted.state,
+    otherActor,
+    { action: "sendMessage", threadId: "dm:coach-1:analyst-1", threadType: "dm", participantIds: [staffActor.id, otherActor.id], text: "New DM" },
+    { now: "2026-05-07T12:03:00.000Z" }
+  );
+  expect(filterChatStateForActor(later.state, staffActor).threads.map((thread) => thread.id)).toContain("dm:coach-1:analyst-1");
+
+  const blocked = applyChatActionToState(
+    later.state,
+    staffActor,
+    { action: "setThreadUserState", threadId: "dm:coach-1:analyst-1", operation: "block" },
+    { now: "2026-05-07T12:04:00.000Z" }
+  );
+  expect(blocked.ok).toBe(true);
+  expect(blocked.thread.userState.blockedAt).toBe("2026-05-07T12:04:00.000Z");
+  expect(filterChatStateForActor(blocked.state, staffActor).threads.map((thread) => thread.id)).not.toContain("dm:coach-1:analyst-1");
+});
+
+test("forwardMessage creates a new message in the target thread", () => {
+  const created = applyChatActionToState(
+    {},
+    staffActor,
+    {
+      action: "createThread",
+      threadId: "group:staff-room",
+      type: "group",
+      title: "Staff Room",
+      participantIds: [staffActor.id, "analyst-1"],
+    },
+    { now: "2026-05-07T12:00:00.000Z" }
+  );
+  const sent = applyChatActionToState(
+    created.state,
+    staffActor,
+    { action: "sendMessage", threadId: "team", text: "Forward this" },
+    { now: "2026-05-07T12:01:00.000Z" }
+  );
+  const forwarded = applyChatActionToState(
+    sent.state,
+    staffActor,
+    { action: "forwardMessage", messageId: sent.message.id, targetThreadId: "group:staff-room", targetThreadType: "group" },
+    { now: "2026-05-07T12:02:00.000Z" }
+  );
+
+  expect(forwarded.ok).toBe(true);
+  expect(forwarded.message.id).not.toBe(sent.message.id);
+  expect(forwarded.message.threadId).toBe("group:staff-room");
+  expect(forwarded.message.text).toBe("Forward this");
+  expect(forwarded.message.forwardedFromMessageId).toBe(sent.message.id);
+  expect(forwarded.state.audit[0].action).toBe("chat.forwardMessage");
+});
+
 test("retention prunes old active, deleted, and audit entries", () => {
   const retained = applyRetentionPolicy(
     {
@@ -363,6 +484,36 @@ test("thread participant management is manager-only and preserves private thread
   );
   expect(teamDenied.ok).toBe(false);
   expect(teamDenied.status).toBe(400);
+});
+
+test("group participants can leave and ownership is promoted", () => {
+  const created = applyChatActionToState(
+    {},
+    staffActor,
+    {
+      action: "createThread",
+      threadId: "group:staff-room",
+      type: "group",
+      title: "Staff Room",
+      participantIds: [staffActor.id, "analyst-1"],
+      participantRoles: { [staffActor.id]: "owner", "analyst-1": "member" },
+    },
+    { now: "2026-05-07T13:00:00.000Z" }
+  );
+  const left = applyChatActionToState(
+    created.state,
+    staffActor,
+    { action: "leaveThread", threadId: "group:staff-room" },
+    { now: "2026-05-07T13:01:00.000Z" }
+  );
+
+  expect(left.ok).toBe(true);
+  expect(left.thread.participantIds).not.toContain(staffActor.id);
+  expect(left.thread.participantIds).toContain("analyst-1");
+  expect(left.thread.participantRoles["analyst-1"]).toBe("owner");
+  expect(left.thread.userState.hiddenAt).toBe("2026-05-07T13:01:00.000Z");
+  expect(filterChatStateForActor(left.state, staffActor).threads.map((thread) => thread.id)).not.toContain("group:staff-room");
+  expect(left.state.audit[0].action).toBe("chat.leaveThread");
 });
 
 test("database chat group creation normalizes unsupported team visibility before insert", () => {

@@ -87,7 +87,8 @@ test("home chat widget renderer keeps launcher, conversation, and newest-first m
   expect(result.activeThreadId).toBe("team");
   expect(result.html).toContain("dashboard-chat-widget is-open");
   expect(result.html).toContain("data-pinned-count=\"1\"");
-  expect(result.html).toContain("dashboard-chat-priority is-urgent");
+  expect(result.html).not.toContain("dashboard-chat-priority is-urgent");
+  expect(result.html).toContain("dashboard-chat-compose-more-panel");
   expect(result.html.indexOf("Second")).toBeLessThan(result.html.indexOf("First"));
   expect(result.html).toContain("data-dashboard-clear-thread");
 });

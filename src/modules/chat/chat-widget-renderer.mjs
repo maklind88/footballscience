@@ -178,7 +178,7 @@ export function renderDashboardChatMessageStatus(message = {}, currentUser = {},
   const statusIcon = statusKey === "pending" ? "..." : statusKey === "failed" ? "!" : statusKey === "sent" ? "✓" : "✓✓";
   const statusLabel =
     statusKey === "pending" ? "Sending" : statusKey === "failed" ? "Not sent" : statusKey === "read" ? (readCount ? `Read by ${readCount}` : "Read") : statusKey === "delivered" ? "Delivered" : "Sent";
-  return `<div class="dashboard-chat-status is-${statusKey}" title="${escapeHtml(statusLabel)}" aria-label="${escapeHtml(statusLabel)}"><span class="dashboard-chat-check-label">${statusIcon}</span><span class="dashboard-chat-status-text">${escapeHtml(statusLabel)}</span></div>`;
+  return `<div class="dashboard-chat-status is-${statusKey}" title="${escapeHtml(statusLabel)}" aria-label="${escapeHtml(statusLabel)}"><span class="dashboard-chat-check-label" aria-hidden="true">${statusIcon}</span></div>`;
 }
 
 function defaultRenderMessageText(message = {}, options = {}, escapeHtml = defaultEscapeHtml) {
@@ -223,7 +223,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     renderCoachWorkflowPanel,
     renderConversationIntelligenceRail,
     renderThreadIntelligencePanel,
-    renderMessageWorkflowBadges,
     renderMessagePromoteActions,
   } = chatIntelligenceRenderer;
 
@@ -292,6 +291,44 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     return [...threads].sort((first, second) => {
       return parseThreadActivityTime(second) - parseThreadActivityTime(first);
     })[0] ?? null;
+  }
+
+  function hasThreadConversationActivity(thread = {}) {
+    return Boolean(
+      Number(thread.messageCount || 0) > 0 ||
+        thread.lastMessage ||
+        thread.lastActivityAt ||
+        thread.apiThread?.lastMessageAt ||
+        thread.apiThread?.last_message_at
+    );
+  }
+
+  function isOperationalRoomThread(thread = {}) {
+    const label = String(thread.label || thread.title || "").toLowerCase();
+    const type = String(thread.type || "").toLowerCase();
+    return Boolean(
+      thread.isTeamThread ||
+        ["group", "medical", "matchday", "training", "announcement"].includes(type) ||
+        (!thread.participant && /\b(room|announcements?|matchday|training|medical|staff|team)\b/.test(label))
+    );
+  }
+
+  function shouldShowThreadInSimpleInbox(thread = {}, activeThreadId = teamThreadId) {
+    if (!thread?.threadId) {
+      return false;
+    }
+    return Boolean(
+      thread.threadId === activeThreadId ||
+        Number(thread.unreadCount || 0) > 0 ||
+        Number(thread.mentionCount || 0) > 0 ||
+        thread.settings?.pinned ||
+        hasThreadConversationActivity(thread) ||
+        isOperationalRoomThread(thread)
+    );
+  }
+
+  function getSimpleInboxThreads(threads = [], activeThreadId = teamThreadId) {
+    return threads.filter((thread) => shouldShowThreadInSimpleInbox(thread, activeThreadId));
   }
 
   function getThreadStatus(thread, users = []) {
@@ -382,13 +419,13 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       unread: "No unread conversations",
       mentions: "No mentions right now",
       pinned: "No pinned conversations",
-      all: "No conversations yet",
+      all: "No relevant conversations yet",
     };
     const detail = {
       unread: "Everything is caught up.",
       mentions: "No one needs your attention.",
       pinned: "Pin key rooms from conversation details.",
-      all: "Start with the team room or create a group.",
+      all: "Team rooms, active chats and unread conversations will appear here.",
     };
     const filter = getNormalizedThreadFilter(activeFilter);
     return `
@@ -471,9 +508,9 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const pinLabel = message.pinnedAt ? "Unpin" : "Pin";
     const replyMessage = message.replyToId ? getMessageById(message.replyToId) : null;
     const replyMarkup = replyMessage ? renderReplyReference(replyMessage, users, { compact: true }) : "";
-    const priorityMarkup = renderMessagePriority(message, normalizedPriority);
+    const priorityMarkup = "";
     const reactionMarkup = renderMessageReactions(message, currentUser);
-    const workflowBadgeMarkup = renderMessageWorkflowBadges(message, users);
+    const workflowBadgeMarkup = "";
     const promoteActionMarkup = renderMessagePromoteActions(message);
     const hasAttachments = Array.isArray(message.attachments) && message.attachments.length > 0;
     const cardStateClasses = [
@@ -494,6 +531,14 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         </span>
       </div>
     `;
+    const bubbleFooterMarkup = timeLabel || statusMarkup
+      ? `
+        <div class="dashboard-chat-bubble-footer">
+          ${timeLabel ? `<time datetime="${escapeHtml(message.createdAt || "")}">${escapeHtml(timeLabel)}</time>` : ""}
+          ${statusMarkup}
+        </div>
+      `
+      : "";
 
     return `
     <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isMentioned ? " is-mentioned" : ""}${isSearchMatch ? " is-search-match" : ""}${isActiveSearchMatch ? " is-active-search-match" : ""}${message.pinnedAt ? " is-pinned" : ""}${isGroupedWithPrevious ? " is-grouped-with-previous" : ""}${isGroupedWithNext ? " is-grouped-with-next" : ""}${messageStatus ? ` is-${escapeHtml(messageStatus)} is-status-${escapeHtml(messageStatus)}` : ""}${cardStateClasses}" data-dashboard-chat-message-id="${escapeHtml(message.id)}" data-dashboard-chat-message-card${isActiveSearchMatch ? ' data-dashboard-chat-search-active="true"' : ""} aria-label="${escapeHtml(`${userName}${timeLabel ? `, ${timeLabel}` : ""}`)}">
@@ -534,7 +579,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         ${replyMarkup}
         <p>${renderMessageText(message, users, { searchQuery })}</p>
         ${renderMessageAttachments(message, users)}
-        ${statusMarkup}
+        ${bubbleFooterMarkup}
       </div>
     </article>
   `;
@@ -586,13 +631,8 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       : avatarUrl
         ? `<span class="dashboard-chat-thread-avatar is-team has-photo" aria-hidden="true"><img src="${escapeHtml(avatarUrl)}" alt=""></span>`
         : `<span class="dashboard-chat-thread-avatar is-team" aria-hidden="true">${escapeHtml(avatarLabel)}</span>`;
-    const threadTime = thread.lastActivityAt
-      ? escapeHtml(formatTime(thread.lastActivityAt))
-      : thread.lastMessage
-        ? escapeHtml(formatTime(thread.lastMessage.createdAt))
-        : thread.apiThread?.lastMessageAt
-          ? escapeHtml(formatTime(thread.apiThread.lastMessageAt))
-        : "&mdash;";
+    const threadTimeSource = thread.lastActivityAt || thread.lastMessage?.createdAt || thread.apiThread?.lastMessageAt || thread.apiThread?.last_message_at || "";
+    const threadTime = threadTimeSource ? escapeHtml(formatTime(threadTimeSource)) : "";
     const searchText = `${threadLabel} ${preview} ${threadStatus} ${threadKindLabel}`.toLowerCase();
 
     return `
@@ -608,7 +648,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       <span class="dashboard-chat-thread-copy">
         <span class="dashboard-chat-thread-row">
           <strong>${escapeHtml(threadLabel)}</strong>
-          <small class="dashboard-chat-thread-time">${threadTime}</small>
+          <small class="dashboard-chat-thread-time${threadTime ? "" : " is-empty"}">${threadTime}</small>
         </span>
         <span class="dashboard-chat-thread-preview-line">
           <small class="dashboard-chat-thread-preview">${escapeHtml(preview)}</small>
@@ -1045,7 +1085,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         ? state.selectedThreadId
         : threads[0]?.threadId || teamThreadId,
       unreadCount = 0,
-      realtimeStatus = { key: "warming", label: "Syncing", detail: "Realtime warming up" },
       detailsOpen = false,
       mobileConversationOpen = true,
       replyDraft = null,
@@ -1109,15 +1148,15 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const teamPresenceLabel = getThreadStatus({ isTeamThread: true }, users);
     const notificationLevel = notificationState.level || (notificationState.enabled ? "all" : "muted");
     const notificationLabel = { all: "All", mentions: "Mentions", muted: "Muted" }[notificationLevel] || "All";
-    const realtimeKey = String(realtimeStatus?.key || "warming").replace(/[^a-z-]/g, "");
-    const realtimeLabel = String(realtimeStatus?.label || "Syncing");
-    const realtimeDetail = String(realtimeStatus?.detail || realtimeLabel);
     const groupCreateUsers = users
       .filter((user) => user?.id && user.id !== currentUser?.id)
       .slice(0, 18);
     const normalizedThreadFilter = getNormalizedThreadFilter(threadFilter);
-    const filteredThreads = threads.filter((thread) => doesThreadMatchFilter(thread, normalizedThreadFilter));
-    const threadFilterMarkup = renderThreadFilters(normalizedThreadFilter, threads);
+    const simpleInboxThreads = getSimpleInboxThreads(threads, activeThreadId);
+    const filteredThreads = normalizedThreadFilter === "all"
+      ? simpleInboxThreads
+      : threads.filter((thread) => doesThreadMatchFilter(thread, normalizedThreadFilter));
+    const threadFilterMarkup = renderThreadFilters(normalizedThreadFilter, simpleInboxThreads);
     const groupCreateMarkup = groupCreateUsers.length
       ? `
           <form class="dashboard-chat-group-create-form" data-dashboard-chat-group-create-form>
@@ -1346,11 +1385,24 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           title="${escapeHtml(option.label)}"
           aria-label="${escapeHtml(option.label)} priority"
         >
-          ${escapeHtml(icon)}
+          <span class="dashboard-chat-priority-icon" aria-hidden="true">${escapeHtml(icon)}</span>
+          <span class="dashboard-chat-priority-label">${escapeHtml(option.label)}</span>
         </button>
       `;
       })
       .join("");
+    const priorityMenuMarkup = priorityControlsMarkup
+      ? `
+        <details class="dashboard-chat-compose-more dashboard-chat-more-menu">
+          <summary class="dashboard-chat-attachment-button" aria-label="Open message options" title="Message options">
+            <span aria-hidden="true">+</span>
+          </summary>
+          <div class="dashboard-chat-more-menu-panel dashboard-chat-compose-more-panel" role="menu" aria-label="Message priority">
+            ${priorityControlsMarkup}
+          </div>
+        </details>
+      `
+      : "";
     const trimmedLauncherLabel = launcherLabel.trim() || teamChatTitle;
     const widgetDialogLabel = /\bchat$/i.test(trimmedLauncherLabel)
       ? `${trimmedLauncherLabel} panel`
@@ -1358,6 +1410,12 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const widgetDialogAttributes = isOpen
       ? ` role="dialog" aria-modal="false" aria-keyshortcuts="Escape" aria-label="${escapeHtml(widgetDialogLabel)}"`
       : "";
+    const headerTitleLabel = mobileConversationOpen ? activeThreadLabel : "Chats";
+    const headerSubLabel = mobileConversationOpen
+      ? activeThreadSubLabel
+      : unreadCount
+        ? `${unreadCount} unread`
+        : `${simpleInboxThreads.length} conversation${simpleInboxThreads.length === 1 ? "" : "s"}`;
 
     return {
       activeThreadId,
@@ -1371,33 +1429,29 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <button type="button" class="dashboard-chat-widget-title" data-dashboard-chat-widget-toggle aria-expanded="true" aria-controls="dashboardChatWidgetRoot" aria-label="${escapeHtml(`Close ${widgetDialogLabel}`)}" title="${escapeHtml(`Close ${widgetDialogLabel}`)}">
                 ${renderThreadAvatarStack(activeThread, headerParticipants)}
                 <span class="dashboard-chat-widget-title-copy">
-                  <span>${escapeHtml(activeThreadLabel)}</span>
-                  <small>${escapeHtml(activeThreadSubLabel)}</small>
+                  <span>${escapeHtml(headerTitleLabel)}</span>
+                  <small>${escapeHtml(headerSubLabel)}</small>
                 </span>
               </button>
               <div class="dashboard-chat-widget-actions">
-                <button
-                  type="button"
-                  class="dashboard-chat-widget-notify"
-                  data-dashboard-chat-widget-toggle-notifications
-                  aria-pressed="${notificationState.enabled}"
-                  aria-label="${notificationState.enabled ? "Turn chat notifications off" : "Turn chat notifications on"}"
-                >
-                  ${escapeHtml(notificationLabel)}
-                </button>
-                <span class="dashboard-chat-realtime-pill is-${escapeHtml(realtimeKey)}" title="${escapeHtml(realtimeDetail)}" aria-label="${escapeHtml(`Chat ${realtimeLabel}. ${realtimeDetail}`)}">
-                  <i aria-hidden="true"></i>
-                  <span>${escapeHtml(realtimeLabel)}</span>
-                </span>
-              <button type="button" class="dashboard-chat-details-button${detailsOpen ? " is-active" : ""}" data-dashboard-chat-details-toggle aria-expanded="${detailsOpen}" aria-label="Open conversation details">
+                <button type="button" class="dashboard-chat-details-button${detailsOpen ? " is-active" : ""}" data-dashboard-chat-details-toggle aria-expanded="${detailsOpen}" aria-label="Open conversation details">
                   Info
                 </button>
-                ${
-                  canDeleteMessage(currentUser)
-                    ? `
-                      <details class="dashboard-chat-more-menu">
-                        <summary aria-label="Open advanced chat actions">More</summary>
-                        <div class="dashboard-chat-more-menu-panel">
+                <details class="dashboard-chat-more-menu">
+                  <summary aria-label="Open chat menu">More</summary>
+                  <div class="dashboard-chat-more-menu-panel">
+                    <button
+                      type="button"
+                      class="dashboard-chat-more-action"
+                      data-dashboard-chat-widget-toggle-notifications
+                      aria-pressed="${notificationState.enabled}"
+                    >
+                      Notifications
+                      <small>${escapeHtml(notificationLabel)}</small>
+                    </button>
+                    ${
+                      canDeleteMessage(currentUser)
+                        ? `
                           <button
                             type="button"
                             class="dashboard-chat-more-action is-danger"
@@ -1411,11 +1465,11 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                             Support / audit
                             <small>Health, filters and logs</small>
                           </button>
-                        </div>
-                      </details>
-                    `
-                    : ""
-                }
+                        `
+                        : ""
+                    }
+                  </div>
+                </details>
                 <button
                   type="button"
                   class="dashboard-chat-widget-close"
@@ -1451,8 +1505,8 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         <section class="dashboard-chat-thread-list" aria-label="Chat threads">
           <div class="dashboard-chat-inbox-head">
             <div>
-              <strong>Inbox</strong>
-              <small>${escapeHtml(unreadCount ? `${unreadCount} unread` : "All caught up")}</small>
+              <strong>Chats</strong>
+              <small>${escapeHtml(unreadCount ? `${unreadCount} unread` : `${simpleInboxThreads.length} conversation${simpleInboxThreads.length === 1 ? "" : "s"}`)}</small>
             </div>
             ${threadPresetMarkup}
             <input
@@ -1520,11 +1574,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 aria-label="${escapeHtml(`Message ${activeThreadLabel}`)}"
               ></textarea>
               <div class="dashboard-chat-compose-tools" role="group" aria-label="Message priority and attachments">
-                ${priorityControlsMarkup}
+                ${priorityMenuMarkup}
                 <button type="button" class="dashboard-chat-attachment-button" data-dashboard-chat-attachment-trigger title="Attach file" aria-label="Attach file">
                   <span aria-hidden="true">&#128206;</span>
                 </button>
-                <span class="dashboard-chat-character-count" data-dashboard-chat-character-count aria-live="polite">0/${escapeHtml(String(maxMessageLength))}</span>
                 <input type="file" data-dashboard-chat-attachment-input hidden />
               </div>
             </div>

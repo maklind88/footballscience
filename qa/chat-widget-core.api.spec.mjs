@@ -144,7 +144,8 @@ test("chat widget highlights searched messages and keeps search inside the detai
   expect(result.html).toContain('aria-label="Message Team Chat"');
   expect(result.html).toContain('data-dashboard-chat-thread-setting="toggle-mute"');
   expect(result.html).toContain('data-dashboard-chat-thread-setting="toggle-pin"');
-  expect(result.html).toContain("dashboard-chat-realtime-pill is-connected");
+  expect(result.html).not.toContain("dashboard-chat-realtime-pill");
+  expect(result.html).toContain("data-dashboard-chat-widget-toggle-notifications");
 });
 
 test("chat widget renders coach workflow and evidence intelligence layers", () => {
@@ -215,7 +216,7 @@ test("chat widget renders coach workflow and evidence intelligence layers", () =
   expect(result.html).toContain("Decision made");
   expect(result.html).toContain("Evidence attached");
   expect(result.html).toContain("Review later");
-  expect(result.html).toContain("dashboard-chat-message-signals");
+  expect(result.html).not.toContain("dashboard-chat-message-signals");
   expect(result.html).toContain("data-dashboard-chat-intelligence-rail");
   expect(result.html).toContain("data-dashboard-chat-intelligence-panel");
   expect(result.html).toContain("Video card");
@@ -326,6 +327,81 @@ test("chat inbox exposes coach-fast conversation filters", () => {
   expect(empty.html).toContain("No pinned conversations");
 });
 
+test("chat inbox defaults to relevant conversations instead of empty staff DMs", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [
+    currentUser,
+    { id: "u2", name: "Coach A", status: "active" },
+    { id: "u3", name: "Coach B", status: "active" },
+  ];
+  const messages = [];
+  const threads = [
+    { threadId: "team", label: "Team Chat", isTeamThread: true, messageCount: 0, unreadCount: 0, mentionCount: 0, lastMessage: null, settings: {} },
+    { threadId: "dm:u2", label: "Coach A", type: "dm", participant: users[1], messageCount: 0, unreadCount: 0, mentionCount: 0, lastMessage: null, settings: {} },
+    { threadId: "medical", label: "Medical Room", type: "medical", messageCount: 0, unreadCount: 0, mentionCount: 0, lastMessage: null, settings: {} },
+    { threadId: "dm:u3", label: "Coach B", type: "dm", participant: users[2], messageCount: 0, unreadCount: 1, mentionCount: 0, lastMessage: null, settings: {} },
+  ];
+
+  const result = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads,
+    activeThreadId: "team",
+    threadFilter: "all",
+  });
+
+  expect(result.html).toContain("<strong>Chats</strong>");
+  expect(result.html).toContain("3 conversations");
+  expect(result.html).toContain('data-dashboard-chat-thread="team"');
+  expect(result.html).toContain('data-dashboard-chat-thread="medical"');
+  expect(result.html).toContain('data-dashboard-chat-thread="dm:u3"');
+  expect(result.html).not.toContain('data-dashboard-chat-thread="dm:u2"');
+});
+
+test("chat composer keeps priority behind message options and renders message bubble footers", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [currentUser, { id: "u2", name: "Coach A", status: "active" }];
+  const messages = [
+    {
+      id: "m1",
+      userId: "u1",
+      threadId: "team",
+      text: "Simple message",
+      createdAt: "2026-01-01T10:00:00.000Z",
+      readBy: ["u1", "u2"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "normal",
+    },
+  ];
+  const threads = [{ threadId: "team", label: "Team Chat", isTeamThread: true, messageCount: 1, unreadCount: 0, lastMessage: messages[0], settings: {} }];
+
+  const result = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads,
+    activeThreadId: "team",
+    priorityDraft: "urgent",
+  });
+
+  expect(result.html).toContain("dashboard-chat-compose-more");
+  expect(result.html).toContain('aria-label="Open message options"');
+  expect(result.html).toContain("dashboard-chat-compose-more-panel");
+  expect(result.html).toContain('class="dashboard-chat-priority-label">Urgent</span>');
+  expect(result.html).toContain("dashboard-chat-bubble-footer");
+  expect(result.html).toContain('<time datetime="2026-01-01T10:00:00.000Z">10:15</time>');
+  expect(result.html).toContain("data-message-status");
+  expect(result.html).not.toContain("dashboard-chat-character-count");
+  expect(result.html).not.toContain("dashboard-chat-widget-notify");
+  expect(result.html).not.toContain("dashboard-chat-realtime-pill");
+  expect(result.html).not.toContain("dashboard-chat-priority is-urgent");
+  expect(result.html).not.toContain("dashboard-chat-message-signals");
+});
+
 test("chat settings use in-widget dialogs for names, images, and people", () => {
   const currentUser = { id: "u1", name: "Mak" };
   const users = [
@@ -363,7 +439,7 @@ test("chat settings use in-widget dialogs for names, images, and people", () => 
   expect(rename.html).toContain('role="dialog" aria-modal="true" aria-labelledby="dashboardChatSettingsTitle"');
   expect(rename.html).toContain('data-dashboard-chat-settings-form data-dashboard-chat-settings-type="rename" data-dashboard-chat-thread="group-1"');
   expect(rename.html).toContain('value="Match prep"');
-  expect(rename.html).toContain("dashboard-chat-character-count");
+  expect(rename.html).not.toContain("dashboard-chat-character-count");
 
   const avatar = createRenderer(messages).render({
     currentUser,

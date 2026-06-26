@@ -433,7 +433,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
       maxHeight: styles?.maxHeight || "",
       overflowY: styles?.overflowY || "",
     };
-  })).toEqual({ maxHeight: "none", overflowY: "visible" });
+  })).toEqual({ maxHeight: "none", overflowY: "auto" });
   await expect(page.locator(".video-analysis-clip-block").first()).toBeVisible();
   await expect(page.locator(".video-analysis-playhead")).toHaveCount(1);
   await expect(page.locator(".video-analysis-playhead").first()).toBeVisible();
@@ -1081,6 +1081,31 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   expect(codeModeLayout.transportHeight).toBeLessThanOrEqual(52);
   await page.locator("[data-video-analysis-code-mode]").click();
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).not.toHaveClass(/is-code-mode/);
+  const standardCodeWindowLayout = await page.evaluate(() => {
+    const deck = document.querySelector(".video-analysis-fs-player-deck")?.getBoundingClientRect();
+    const dock = document.querySelector(".video-analysis-code-window-dock")?.getBoundingClientRect();
+    const builder = document.querySelector(".video-analysis-code-window-dock .video-analysis-template-builder")?.getBoundingClientRect();
+    const scroller = document.querySelector(".video-analysis-code-window-dock .video-analysis-template-scroll");
+    const scrollRect = scroller?.getBoundingClientRect();
+    const scrollStyle = scroller ? getComputedStyle(scroller) : null;
+    return {
+      builderBottom: builder?.bottom ?? 0,
+      deckBottom: deck?.bottom ?? 0,
+      dockBottom: dock?.bottom ?? 0,
+      dockHeight: dock?.height ?? 0,
+      playerHeight: deck?.height ?? 0,
+      scrollClientHeight: scroller?.clientHeight ?? 0,
+      scrollHeight: scroller?.scrollHeight ?? 0,
+      scrollOverflowY: scrollStyle?.overflowY || "",
+      scrollTop: scrollRect?.top ?? 0,
+    };
+  });
+  expect(standardCodeWindowLayout.playerHeight).toBeGreaterThan(300);
+  expect(standardCodeWindowLayout.dockHeight).toBeLessThanOrEqual(standardCodeWindowLayout.playerHeight + 2);
+  expect(standardCodeWindowLayout.dockBottom).toBeLessThanOrEqual(standardCodeWindowLayout.deckBottom + 2);
+  expect(standardCodeWindowLayout.builderBottom).toBeLessThanOrEqual(standardCodeWindowLayout.deckBottom + 2);
+  expect(standardCodeWindowLayout.scrollOverflowY).toBe("auto");
+  expect(standardCodeWindowLayout.scrollHeight).toBeGreaterThanOrEqual(standardCodeWindowLayout.scrollClientHeight);
   const timelineLayout = await page.evaluate(() => {
     const videoFrame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame")?.getBoundingClientRect();
     const timeline = document.querySelector(".video-analysis-fs-player-timeline")?.getBoundingClientRect();

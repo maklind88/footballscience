@@ -553,7 +553,7 @@ test("local video architecture remains browser-first with bridge fallback only",
   expect(read("src/modules/video-analysis/components/VideoPlayer.js")).not.toMatch(/showOpenFilePicker|indexedDB|createPlayableLocalCopy|fetch\(/);
 });
 
-test("production CSP allows only the narrow local video bridge endpoints", () => {
+test("production CSP allows only the narrow local video bridge and Team Performance endpoints", () => {
   const vercel = JSON.parse(read("vercel.json"));
   const csp = vercel.headers
     .flatMap((entry) => entry.headers || [])
@@ -561,6 +561,8 @@ test("production CSP allows only the narrow local video bridge endpoints", () =>
   expect(csp).toContain("http://127.0.0.1:47831");
   expect(csp).toContain("http://localhost:47831");
   expect(csp).toContain("media-src 'self' blob: http://127.0.0.1:47831 http://localhost:47831");
+  expect(csp).toContain("frame-src 'self' https://ncskunk-harris.github.io");
   expect(csp).not.toMatch(/http:\/\/localhost:\*/);
   expect(csp).not.toMatch(/http:\/\/127\.0\.0\.1:\*/);
+  expect(csp).not.toMatch(/frame-src[^;]*\*/);
 });

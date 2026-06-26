@@ -1,4 +1,6 @@
 import {
+  getMedicalRtpLibraryClinicalSearchGroups,
+  getMedicalRtpLibraryClinicalSearchText,
   getMedicalRtpLibrarySearchText,
   medicalRtpLibraryFilterOptions,
   medicalRtpLibraryProfiles as defaultMedicalRtpLibraryProfiles,
@@ -504,8 +506,8 @@ tabindex="-1"
 </div>
 <form class="medical-rtp-library-controls" data-medical-rtp-library-controls>
 <label class="medical-rtp-library-search">
-<span>Full text search</span>
-<input type="search" data-medical-rtp-library-search placeholder="Search injury, system, body area, symptom or risk" />
+<span>Clinical search</span>
+<input type="search" data-medical-rtp-library-search placeholder="Search symptom, body area, mechanism, red flag or position demand" />
 </label>
 ${renderSelect("Movement plane", "movement", medicalRtpLibraryFilterOptions.movementPlanes)}
 </form>
@@ -517,11 +519,21 @@ ${renderSelect("Movement plane", "movement", medicalRtpLibraryFilterOptions.move
 ${profiles
   .map((profileItem) => {
     const searchText = getMedicalRtpLibrarySearchText(profileItem);
+    const clinicalSearchText = getMedicalRtpLibraryClinicalSearchText(profileItem);
+    const clinicalGroups = getMedicalRtpLibraryClinicalSearchGroups(profileItem);
     return `
 <article
 class="medical-rtp-profile-card"
 data-medical-rtp-profile
 data-search="${escapeHtml(searchText)}"
+data-clinical-search="${escapeHtml(clinicalSearchText)}"
+data-clinical-symptoms="${escapeHtml(clinicalGroups.symptoms.join(" "))}"
+data-clinical-body-area="${escapeHtml(clinicalGroups.bodyArea.join(" "))}"
+data-clinical-mechanism="${escapeHtml(clinicalGroups.mechanism.join(" "))}"
+data-clinical-red-flags="${escapeHtml(clinicalGroups.redFlags.join(" "))}"
+data-clinical-movement="${escapeHtml(clinicalGroups.movementPlane.join(" "))}"
+data-clinical-tissue="${escapeHtml(clinicalGroups.tissueType.join(" "))}"
+data-clinical-position-demand="${escapeHtml(clinicalGroups.positionDemand.join(" "))}"
 data-movement="${escapeHtml(profileItem.movementPlanes.join(" "))}"
 data-position="${escapeHtml(profileItem.positions.join(" "))}"
 data-season="${escapeHtml(profileItem.season.join(" "))}"

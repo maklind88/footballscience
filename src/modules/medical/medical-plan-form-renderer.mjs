@@ -5,6 +5,7 @@ import {
   medicalRtpTrackerStatusOptions,
   normalizeMedicalRtpProgramTracker,
 } from "./medical-rtp-tracker-helpers.mjs";
+import { getMedicalRtpLibraryProfiles as getDefaultMedicalRtpLibraryProfiles } from "./medical-rtp-library-data.mjs";
 
 const defaultEscapeHtml = (value) =>
   String(value ?? "")
@@ -19,6 +20,7 @@ export function createMedicalPlanFormRenderer({
   getActiveMedicalInjuryPlan,
   getMedicalInjuryPlanDraft,
   getMedicalPlayerInjuryPlans,
+  getMedicalRtpLibraryProfiles = getDefaultMedicalRtpLibraryProfiles,
   getSelectedDate,
   isMedicalPlanCleared,
   medicalClearanceRoles = [],
@@ -147,6 +149,27 @@ ${medicalRtpTrackerGroups.map((group) => renderTrackerGroup(group, draft, tracke
 `;
   };
 
+  const renderRtpGuideProgramLoader = (draft = {}, canEdit = true) => {
+    const profiles = [...getMedicalRtpLibraryProfiles()].sort((first, second) => String(first.name || "").localeCompare(String(second.name || "")));
+    const selectedProfileId = draft.rtpLibraryProfileId || profiles[0]?.id || "";
+    return `
+<section class="medical-rtp-program-guide-loader" aria-label="Use RTP Library guide in Medical Plan">
+<div>
+<span>RTP Library guide</span>
+<strong>${draft.rtpLibraryProfileName ? escapeHtml(draft.rtpLibraryProfileName) : "Choose a guide to build the Medical Plan"}</strong>
+<small>Loads phases, load focus, gates, next exposure, hold rules and medical notes into this draft.</small>
+</div>
+<label>
+<span>Guide</span>
+<select data-medical-plan-rtp-guide ${canEdit ? "" : "disabled"}>
+${profiles.map((profile) => `<option value="${escapeHtml(profile.id)}"${profile.id === selectedProfileId ? " selected" : ""}>${escapeHtml(profile.name)}</option>`).join("")}
+</select>
+</label>
+<button type="button" data-medical-plan-load-rtp-guide ${canEdit ? "" : "disabled"}>Load guide into draft</button>
+</section>
+`;
+  };
+
   const renderRtpProgramBuilder = (draft = {}, canEdit = true) => {
     const hasProgram = [
       draft.rtpProgramPhases,
@@ -164,6 +187,7 @@ ${medicalRtpTrackerGroups.map((group) => renderTrackerGroup(group, draft, tracke
 </div>
 <small>Medical-owned / not coach-visible by default</small>
 </header>
+${renderRtpGuideProgramLoader(draft, canEdit)}
 <div class="medical-rtp-program-case-link">
 <span><strong>Medical case</strong>${escapeHtml(draft.planId || "New case draft")}</span>
 <span><strong>RTP source</strong>${escapeHtml(draft.rtpLibraryProfileName || "No RTP Library starter applied")}</span>

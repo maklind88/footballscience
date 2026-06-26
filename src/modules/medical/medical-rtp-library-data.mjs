@@ -366,6 +366,67 @@ export const medicalRtpLibraryFilterOptions = {
   level: Array.from(new Set(medicalRtpLibraryProfiles.flatMap((entry) => entry.level))).sort(),
 };
 
+const normalizeClinicalSearchText = (value = "") =>
+  String(value ?? "")
+    .toLowerCase()
+    .replaceAll("/", " ")
+    .replaceAll("-", " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const flattenClinicalSearchParts = (items = []) =>
+  items
+    .flatMap((item) => {
+      if (!item) return [];
+      if (Array.isArray(item)) return flattenClinicalSearchParts(item);
+      if (typeof item === "object") return flattenClinicalSearchParts([item.title, item.content, item.items]);
+      return String(item);
+    })
+    .filter(Boolean);
+
+const getGoldStandardSection = (profileItem = {}, title = "") =>
+  (profileItem.goldStandardSections || []).find((section) => section.title === title) || null;
+
+export function getMedicalRtpLibraryClinicalSearchGroups(profileItem = {}) {
+  const positionDemand = getGoldStandardSection(profileItem, "Position-Specific Football Demands");
+  return {
+    symptoms: flattenClinicalSearchParts(profileItem.symptoms),
+    bodyArea: flattenClinicalSearchParts([profileItem.bodyArea]),
+    mechanism: flattenClinicalSearchParts([profileItem.mechanism, getGoldStandardSection(profileItem, "Mechanism of Injury")]),
+    redFlags: flattenClinicalSearchParts([profileItem.redFlags, getGoldStandardSection(profileItem, "Red Flags")]),
+    movementPlane: flattenClinicalSearchParts([profileItem.movementPlanes, profileItem.loadText, getGoldStandardSection(profileItem, "Change of Direction Progression")]),
+    tissueType: flattenClinicalSearchParts([profileItem.system, profileItem.family, profileItem.bodyArea]),
+    positionDemand: flattenClinicalSearchParts([profileItem.positions, positionDemand, profileItem.matchChecklist]),
+  };
+}
+
+export function getMedicalRtpLibraryClinicalSearchText(profileItem = {}) {
+  const clinicalGroups = getMedicalRtpLibraryClinicalSearchGroups(profileItem);
+  return normalizeClinicalSearchText(
+    flattenClinicalSearchParts([
+      profileItem.name,
+      profileItem.system,
+      profileItem.family,
+      profileItem.bodyArea,
+      profileItem.summary,
+      profileItem.evidence,
+      profileItem.experience,
+      profileItem.riskTags,
+      profileItem.criteria,
+      profileItem.trainingChecklist,
+      profileItem.matchChecklist,
+      profileItem.mistakes,
+      profileItem.phases,
+      profileItem.monitoring,
+      profileItem.gpsBenchmarks,
+      profileItem.strengthBenchmarks,
+      Object.values(clinicalGroups),
+      profileItem.goldStandardSections,
+    ]).join(" ")
+  );
+}
+
 export function getMedicalRtpLibraryProfiles() {
   return medicalRtpLibraryProfiles;
 }
@@ -376,21 +437,7 @@ export function getMedicalRtpLibraryProfileById(profileId = "") {
 }
 
 export function getMedicalRtpLibrarySearchText(profileItem = {}) {
-  return [
-    profileItem.name,
-    profileItem.system,
-    profileItem.bodyArea,
-    profileItem.summary,
-    profileItem.evidence,
-    profileItem.experience,
-    ...(profileItem.symptoms || []),
-    ...(profileItem.positions || []),
-    ...(profileItem.riskTags || []),
-    ...(profileItem.movementPlanes || []),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+  return getMedicalRtpLibraryClinicalSearchText(profileItem);
 }
 
 export function createMedicalRtpLibraryStarterDraft(profileId = "", playerId = "", selectedDate = "") {

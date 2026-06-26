@@ -3035,7 +3035,7 @@ test("Medical operations board separates signals, cases, history and season view
   await operationsMenu.locator('[data-medical-ops-tab="rtp-library"]').click();
   await expect(operations.locator(".medical-rtp-library-hero")).toHaveCount(0);
   await expect(operations).not.toContainText("Medical-safe injury knowledge");
-  await expect(operations).toContainText("Full text search");
+  await expect(operations).toContainText("Clinical search");
   await expect(operations.locator("[data-medical-open-rtp-guide-draft]")).toBeVisible();
   const guideDraftModal = operations.locator("[data-medical-rtp-guide-draft-modal]");
   await expect(guideDraftModal).toBeHidden();

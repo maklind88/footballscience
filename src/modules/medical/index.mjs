@@ -21,6 +21,8 @@ export * from "./medical-roster-renderer.mjs";
 export * from "./medical-rtp-tracker-helpers.mjs";
 export {
   createMedicalRtpLibraryStarterDraft,
+  getMedicalRtpLibraryClinicalSearchGroups,
+  getMedicalRtpLibraryClinicalSearchText,
   getMedicalRtpLibraryProfileById,
   getMedicalRtpLibrarySearchText,
   medicalRtpLibraryFilterOptions,

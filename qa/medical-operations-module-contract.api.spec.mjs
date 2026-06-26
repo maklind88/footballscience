@@ -140,7 +140,7 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(rtpMarkup).not.toContain("medical-rtp-library-hero");
   expect(rtpMarkup).not.toContain("<h2>RTP Library</h2>");
   expect(rtpMarkup).not.toContain("Medical-safe injury knowledge");
-  expect(rtpMarkup).toContain("Full text search");
+  expect(rtpMarkup).toContain("Clinical search");
   expect(rtpMarkup).toContain("Movement plane");
   expect(rtpMarkup).toContain("RTP injury guides");
   expect(rtpMarkup).toContain("Add injury guide");
@@ -149,6 +149,10 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(rtpMarkup).toContain("guides visible");
   expect(rtpMarkup).toContain("Open guide");
   expect(rtpMarkup).toContain('data-medical-rtp-library-filter="movement"');
+  expect(rtpMarkup).toContain("data-clinical-symptoms");
+  expect(rtpMarkup).toContain("data-clinical-mechanism");
+  expect(rtpMarkup).toContain("data-clinical-red-flags");
+  expect(rtpMarkup).toContain("data-clinical-position-demand");
   expect(rtpMarkup).not.toContain('data-medical-rtp-library-filter="position"');
   expect(rtpMarkup).not.toContain('data-medical-rtp-library-filter="season"');
   expect(rtpMarkup).not.toContain('data-medical-rtp-library-filter="sex"');

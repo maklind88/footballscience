@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import {
   createMedicalRtpLibraryStarterDraft,
+  getMedicalRtpLibraryClinicalSearchGroups,
+  getMedicalRtpLibraryClinicalSearchText,
   getMedicalRtpLibraryProfileById,
   getMedicalRtpLibrarySearchText,
   medicalRtpLibraryFilterOptions,
@@ -42,9 +44,30 @@ test("Medical RTP Library provides searchable medical-safe injury profiles", () 
   expect(distalHamstring.goldStandardSections).toHaveLength(37);
   expect(getMedicalRtpLibrarySearchText(hamstring)).toContain("sprint exposure gap");
   expect(getMedicalRtpLibrarySearchText(hamstring)).toContain("posterior thigh pain");
+  expect(getMedicalRtpLibrarySearchText(hamstring)).toContain("mechanism of injury");
+  expect(getMedicalRtpLibrarySearchText(hamstring)).toContain("position specific football demands");
   expect(getMedicalRtpLibrarySearchText(distalHamstring)).toContain("distal tendon involvement");
   expect(medicalRtpLibraryFilterOptions.positions).toContain("winger");
   expect(medicalRtpLibraryFilterOptions.movementPlanes).toContain("deceleration");
+});
+
+test("Medical RTP Library exposes structured clinical search domains", () => {
+  const hamstring = getMedicalRtpLibraryProfileById("hamstring-strain");
+  const clinicalSearchText = getMedicalRtpLibraryClinicalSearchText(hamstring);
+  const clinicalGroups = getMedicalRtpLibraryClinicalSearchGroups(hamstring);
+
+  expect(clinicalSearchText).toContain("posterior thigh pain");
+  expect(clinicalSearchText).toContain("high speed running injury");
+  expect(clinicalSearchText).toContain("palpable defect");
+  expect(clinicalSearchText).toContain("sagittal");
+  expect(clinicalSearchText).toContain("muscle");
+  expect(clinicalSearchText).toContain("winger");
+  expect(clinicalGroups.symptoms).toContain("posterior thigh pain");
+  expect(clinicalGroups.bodyArea).toContain("Posterior thigh");
+  expect(clinicalGroups.redFlags).toContain("palpable defect or extensive bruising");
+  expect(clinicalGroups.movementPlane).toContain("sagittal");
+  expect(clinicalGroups.tissueType).toContain("Muscle");
+  expect(clinicalGroups.positionDemand.join(" ")).toContain("winger");
 });
 
 test("RTP Gold Standard Template includes research-informed decision domains", () => {

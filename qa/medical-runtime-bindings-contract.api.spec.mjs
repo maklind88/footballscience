@@ -241,6 +241,25 @@ test("Medical runtime bindings preserve quick recommendation, archive, and plan 
   expect(mutable.modalTab).toBe("plan");
   expect(calls).toContainEqual(["render", "ACL Reconstruction RTP starter ready for active case. Review and save Medical Plan."]);
 
+  const guideLoaderForm = {
+    querySelector(selector) {
+      return selector === "[data-medical-plan-rtp-guide]" ? { value: "hamstring-strain" } : null;
+    },
+  };
+  const guideLoaderButton = {
+    closest(selector) {
+      return selector === "#medicalInjuryPlanForm" ? guideLoaderForm : null;
+    },
+  };
+  workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-plan-load-rtp-guide]": guideLoaderButton },
+  })));
+  expect(calls).toContainEqual(["set-draft", "p-1", "Hamstring Strain"]);
+  expect(mutable.selectedPlayerId).toBe("p-1");
+  expect(mutable.modalOpen).toBe(true);
+  expect(mutable.modalTab).toBe("plan");
+  expect(calls).toContainEqual(["render", "Hamstring Strain guide loaded into Medical Plan draft. Review before saving."]);
+
   workspace.listeners.click(createEvent(createTarget({
     closest: { "[data-medical-apply-rtp-starter]": { dataset: { medicalRtpProfileId: "hamstring-strain", medicalPlayerId: "p-1" } } },
   })));
@@ -403,6 +422,81 @@ test("Medical runtime bindings open RTP guide authoring draft and copy the templ
   expect(modal.hidden).toBe(true);
   expect(modal["aria-hidden"]).toBe("true");
   expect(calls).toContain("prevent-guide-escape");
+});
+
+test("Medical runtime bindings filter RTP Library by structured clinical search domains", () => {
+  const hamstringCard = {
+    hidden: false,
+    dataset: {
+      search: "hamstring posterior thigh",
+      clinicalSymptoms: "posterior thigh pain sprint pain",
+      clinicalMechanism: "high speed running acceleration",
+      clinicalRedFlags: "palpable defect bruising",
+      clinicalMovement: "sagittal sprint acceleration",
+      clinicalTissue: "muscle hamstring posterior thigh",
+      clinicalPositionDemand: "winger repeated sprint exposure",
+      movement: "sagittal sprint acceleration",
+      position: "winger striker",
+    },
+  };
+  const ankleCard = {
+    hidden: false,
+    dataset: {
+      search: "syndesmosis high ankle",
+      clinicalSymptoms: "high ankle pain push off pain",
+      clinicalMechanism: "external rotation contact braking",
+      clinicalRedFlags: "diastasis fracture suspicion",
+      clinicalMovement: "transverse rotation deceleration",
+      clinicalTissue: "ligament high ankle",
+      clinicalPositionDemand: "full back rotational braking",
+      movement: "transverse rotation deceleration",
+      position: "full back",
+    },
+  };
+  const search = { value: "rotational braking full back" };
+  const count = { textContent: "" };
+  const empty = { hidden: true };
+  const library = {
+    querySelector(selector) {
+      if (selector === "[data-medical-rtp-library-search]") return search;
+      if (selector === "[data-medical-rtp-library-count]") return count;
+      if (selector === "[data-medical-rtp-library-empty]") return empty;
+      return null;
+    },
+    querySelectorAll(selector) {
+      if (selector === "[data-medical-rtp-library-filter]") return [];
+      if (selector === "[data-medical-rtp-profile]") return [hamstringCard, ankleCard];
+      return [];
+    },
+  };
+  const workspace = {
+    listeners: {},
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    },
+    querySelector(selector) {
+      return selector === "[data-medical-rtp-library]" ? library : null;
+    },
+    querySelectorAll() {
+      return [];
+    },
+  };
+
+  bindMedicalRuntimeBindings({
+    workspaceElement: workspace,
+    win: {},
+    state: {},
+    actions: { canEditMedicalTeam: () => false },
+  });
+
+  workspace.listeners.input(createEvent(createTarget({
+    closest: { "[data-medical-rtp-library-search]": search },
+  })));
+
+  expect(hamstringCard.hidden).toBe(true);
+  expect(ankleCard.hidden).toBe(false);
+  expect(count.textContent).toBe("1");
+  expect(empty.hidden).toBe(true);
 });
 
 test("Medical runtime bindings reveal restricted history rows in batches", () => {

@@ -66,6 +66,11 @@ test("Medical plan form renderer keeps injury plan and clearance form contracts"
   expect(form).toContain("Hamstring Strain");
   expect(form).toContain('name="rtpLibraryProfileId" value="hamstring-strain"');
   expect(form).toContain("Player RTP program builder");
+  expect(form).toContain("RTP Library guide");
+  expect(form).toContain("data-medical-plan-rtp-guide");
+  expect(form).toContain("data-medical-plan-load-rtp-guide");
+  expect(form).toContain("Load guide into draft");
+  expect(form).toContain("Loads phases, load focus, gates, next exposure, hold rules and medical notes into this draft.");
   expect(form).toContain("Medical case");
   expect(form).toContain("plan1");
   expect(form).toContain("RTP phases");

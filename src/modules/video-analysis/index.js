@@ -3,7 +3,6 @@ import { renderClipIntelligence } from "./components/ClipIntelligence.js";
 import { renderClipLibrary } from "./components/ClipLibrary.js";
 import { renderClipList } from "./components/ClipList.js";
 import { renderCodingTemplateBuilder } from "./components/CodingTemplateBuilder.js";
-import { renderPlayerClipDrawer } from "./components/PlayerClipDrawer.js";
 import { renderPresentationModule } from "./components/PresentationModule.js";
 import { renderTagFilterOverlay } from "./components/TagFilterOverlay.js";
 import { renderTimeline } from "./components/Timeline.js";
@@ -380,7 +379,6 @@ function renderFsPlayerWorkspace(displayState = {}) {
       </section>
     </section>
     ${renderTagFilterOverlay(displayState)}
-    ${renderPlayerClipDrawer(displayState)}
   `;
 }
 

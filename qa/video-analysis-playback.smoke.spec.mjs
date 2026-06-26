@@ -1216,6 +1216,7 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   });
   expect(codeModeAfterTag.isCodeMode).toBe(true);
   expect(codeModeAfterTag.sameVideoNode).toBe(true);
+  await expect(page.locator(".video-analysis-drawer")).toHaveCount(0);
   expect(Math.abs(codeModeAfterTag.height - codeModeBeforeTag.height)).toBeLessThanOrEqual(4);
   expect(Math.abs(codeModeAfterTag.width - codeModeBeforeTag.width)).toBeLessThanOrEqual(4);
   await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:01:23");

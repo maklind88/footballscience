@@ -1985,7 +1985,7 @@ body.is-video-analysis-fs-player-fullscreen {
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   min-height: 0;
   height: 100%;
   background: #020403;
@@ -2000,8 +2000,7 @@ body.is-video-analysis-fs-player-fullscreen {
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player__bar {
-  min-height: 28px;
-  padding: 4px 8px;
+  display: none;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-transport {

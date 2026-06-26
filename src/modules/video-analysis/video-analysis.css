@@ -2141,10 +2141,22 @@ body.is-video-analysis-fs-player-fullscreen {
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock {
-  position: static;
-  grid-row: 1 / -1;
+  position: absolute;
+  grid-area: 1 / 1 / -1 / -1;
+  top: var(--video-analysis-code-window-pip-y, 8px);
+  left: var(--video-analysis-code-window-pip-x, 8px);
+  z-index: 5;
+  width: var(--video-analysis-code-window-pip-width, clamp(276px, 21vw, 340px));
+  height: var(--video-analysis-code-window-pip-height, clamp(360px, 78dvh, calc(100dvh - 16px)));
+  min-width: 240px;
+  min-height: 220px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px);
   min-height: 0;
   overflow: hidden;
+  container-name: video-analysis-code-window;
+  container-type: inline-size;
+  will-change: top, left, width, height;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-template-builder {
@@ -2182,6 +2194,19 @@ body.is-video-analysis-fs-player-fullscreen {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
   touch-action: none;
   user-select: none;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-grip--code-window {
+  top: 6px;
+  right: 10px;
+  left: auto;
+  width: 56px;
+  transform: none;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--code-window {
+  right: 5px;
+  bottom: 5px;
 }
 
 #analysisRoomWorkspace .video-analysis-code-pip-grip {
@@ -2251,6 +2276,68 @@ body.is-video-analysis-fs-player-fullscreen {
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-template-scroll {
   overflow: auto;
   scrollbar-color: rgba(236, 242, 238, 0.34) transparent;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-code-grid {
+  grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-player-tag-grid {
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-code-button {
+  min-height: 34px;
+  padding: 5px 6px;
+}
+
+@container video-analysis-code-window (max-width: 285px) {
+  #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-template-scroll {
+    gap: 4px;
+    padding: 5px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-code-grid {
+    grid-template-columns: repeat(auto-fit, minmax(62px, 1fr));
+    gap: 4px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-code-button {
+    min-height: 31px;
+    border-radius: 6px;
+    padding: 4px 5px;
+    font-size: 9px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-player-tag-grid {
+    grid-template-columns: repeat(auto-fit, minmax(39px, 1fr));
+    gap: 4px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-player-tag-button {
+    min-height: 40px;
+    border-radius: 9px;
+  }
+}
+
+@container video-analysis-code-window (min-width: 380px) {
+  #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-code-grid {
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 6px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-code-button {
+    min-height: 39px;
+    font-size: 11px;
+  }
+
+  #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-player-tag-grid {
+    grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
+  }
+
+  #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-player-tag-button {
+    min-height: 50px;
+  }
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-template-builder.is-coding .video-analysis-code-button:not(.is-active),

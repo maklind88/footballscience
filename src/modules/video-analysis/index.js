@@ -107,6 +107,8 @@ const CODE_PIP_MIN_WIDTH = 360;
 const CODE_PIP_MIN_HEIGHT = 220;
 const CODE_TIMELINE_PIP_MIN_WIDTH = 420;
 const CODE_TIMELINE_PIP_MIN_HEIGHT = 120;
+const CODE_WINDOW_PIP_MIN_WIDTH = 240;
+const CODE_WINDOW_PIP_MIN_HEIGHT = 220;
 const CODE_PIP_MARGIN = 8;
 const FS_PLAYER_HISTORY_GUARD_KEY = "__footballScienceFsPlayerHistoryGuard";
 const FS_PLAYER_HISTORY_GUARD_DEPTH_KEY = "__footballScienceFsPlayerHistoryGuardDepth";
@@ -368,13 +370,30 @@ function activeAnalysisRoomTab(state = {}) {
 }
 
 function codePipConfig(target = "video") {
-  const isTimeline = target === "timeline";
+  if (target === "timeline") {
+    return {
+      target: "timeline",
+      stateKey: "timelinePip",
+      minWidth: CODE_TIMELINE_PIP_MIN_WIDTH,
+      minHeight: CODE_TIMELINE_PIP_MIN_HEIGHT,
+      cssPrefix: "--video-analysis-code-timeline-pip",
+    };
+  }
+  if (target === "code-window") {
+    return {
+      target: "code-window",
+      stateKey: "codeWindowPip",
+      minWidth: CODE_WINDOW_PIP_MIN_WIDTH,
+      minHeight: CODE_WINDOW_PIP_MIN_HEIGHT,
+      cssPrefix: "--video-analysis-code-window-pip",
+    };
+  }
   return {
-    target: isTimeline ? "timeline" : "video",
-    stateKey: isTimeline ? "timelinePip" : "pip",
-    minWidth: isTimeline ? CODE_TIMELINE_PIP_MIN_WIDTH : CODE_PIP_MIN_WIDTH,
-    minHeight: isTimeline ? CODE_TIMELINE_PIP_MIN_HEIGHT : CODE_PIP_MIN_HEIGHT,
-    cssPrefix: isTimeline ? "--video-analysis-code-timeline-pip" : "--video-analysis-code-pip",
+    target: "video",
+    stateKey: "pip",
+    minWidth: CODE_PIP_MIN_WIDTH,
+    minHeight: CODE_PIP_MIN_HEIGHT,
+    cssPrefix: "--video-analysis-code-pip",
   };
 }
 
@@ -393,6 +412,7 @@ function renderFsPlayerWorkspace(displayState = {}) {
   const fullscreenActive = displayState.fsPlayer?.fullscreen === true;
   const pipStyle = codeModeActive ? renderCodePipStyle(displayState.fsPlayer?.pip) : "";
   const timelinePipStyle = codeModeActive ? renderCodePipStyle(displayState.fsPlayer?.timelinePip, "timeline") : "";
+  const codeWindowPipStyle = codeModeActive ? renderCodePipStyle(displayState.fsPlayer?.codeWindowPip, "code-window") : "";
   return `
     <section class="video-analysis-fs-player-workstation${codeModeActive ? " is-code-mode" : ""}${fullscreenActive ? " is-fullscreen" : ""}" data-video-analysis-fs-player-workstation>
       <section class="video-analysis-fs-player-main">
@@ -407,8 +427,10 @@ function renderFsPlayerWorkspace(displayState = {}) {
           ${codeModeActive ? `<div class="video-analysis-code-pip-resize video-analysis-code-pip-resize--timeline" data-video-analysis-code-pip-resize role="button" tabindex="0" aria-label="Resize timeline panel" title="Resize timeline panel"></div>` : ""}
         </section>
       </section>
-      <section class="video-analysis-code-window-dock">
+      <section class="video-analysis-code-window-dock"${codeModeActive ? ` data-video-analysis-code-pip="code-window"` : ""}${codeWindowPipStyle}>
+        ${codeModeActive ? `<div class="video-analysis-code-pip-grip video-analysis-code-pip-grip--code-window" data-video-analysis-code-pip-drag role="button" tabindex="0" aria-label="Move code window" title="Move code window"><span></span><span></span><span></span></div>` : ""}
         ${renderCodingTemplateBuilder(displayState)}
+        ${codeModeActive ? `<div class="video-analysis-code-pip-resize video-analysis-code-pip-resize--code-window" data-video-analysis-code-pip-resize role="button" tabindex="0" aria-label="Resize code window" title="Resize code window"></div>` : ""}
       </section>
     </section>
     ${renderTagFilterOverlay(displayState)}
@@ -629,7 +651,7 @@ function codePipBoxFromElement(deck = null, context = {}) {
   const workspace = fsPlayerWorkspaceElement(context);
   const deckRect = deck?.getBoundingClientRect?.();
   const workspaceRect = workspace?.getBoundingClientRect?.();
-  const target = deck?.getAttribute?.("data-video-analysis-code-pip") === "timeline" ? "timeline" : "video";
+  const target = codePipConfig(deck?.getAttribute?.("data-video-analysis-code-pip")).target;
   if (!deckRect || !workspaceRect) return normalizeCodePipBox({ target }, context);
   return normalizeCodePipBox({
     target,
@@ -642,7 +664,7 @@ function codePipBoxFromElement(deck = null, context = {}) {
 
 function applyCodePipBox(deck = null, box = {}) {
   if (!deck?.style) return;
-  const target = box.target || (deck.getAttribute?.("data-video-analysis-code-pip") === "timeline" ? "timeline" : "video");
+  const target = box.target || deck.getAttribute?.("data-video-analysis-code-pip");
   const config = codePipConfig(target);
   deck.style.setProperty(`${config.cssPrefix}-x`, `${box.x}px`);
   deck.style.setProperty(`${config.cssPrefix}-y`, `${box.y}px`);
@@ -659,7 +681,7 @@ function startCodePipInteraction(event = {}, context = {}) {
   if (state.fsPlayer?.mode !== "code") return false;
   const deck = handle.closest?.("[data-video-analysis-code-pip]");
   if (!deck) return false;
-  const pipTarget = deck.getAttribute?.("data-video-analysis-code-pip") === "timeline" ? "timeline" : "video";
+  const pipTarget = codePipConfig(deck.getAttribute?.("data-video-analysis-code-pip")).target;
   const startBox = codePipBoxFromElement(deck, context);
   run.codePipInteraction = {
     target: pipTarget,

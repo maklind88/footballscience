@@ -320,8 +320,11 @@ test("Medical runtime bindings open and close RTP Library profile overlays", () 
   expect(calls).toContain("focus-dialog");
   expect(content.innerHTML).toContain("Hamstring Strain");
   expect(content.innerHTML).toContain("Medical RTP guide");
-  expect(content.innerHTML).toContain("Apply guide to Medical Plan");
-  expect(content.innerHTML).toContain("Coach sharing remains off");
+  expect(content.innerHTML).toContain("Club-neutral knowledge");
+  expect(content.innerHTML).toContain("No player data is stored or selected inside the Library.");
+  expect(content.innerHTML).toContain("To build a player program");
+  expect(content.innerHTML).toContain("Knowledge only");
+  expect(content.innerHTML).not.toContain("data-medical-apply-rtp-starter");
   expect(content.innerHTML).toContain("Next field exposure");
   expect(content.innerHTML).toContain("Gold Standard Template");
   expect(content.innerHTML).toContain("37 sections");

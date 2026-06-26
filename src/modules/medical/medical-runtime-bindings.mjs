@@ -119,11 +119,11 @@ ${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join
   };
 
   const renderRtpProfileDecisionStrip = (profile = {}) => `
-<section class="medical-rtp-profile-decision-strip" aria-label="Medical starter decision support">
+<section class="medical-rtp-profile-decision-strip" aria-label="RTP guide decision support">
 <div>
-<span>Medical starter</span>
-<strong>Editable player program</strong>
-<small>No auto-save. Coach sharing remains off.</small>
+<span>Library guide</span>
+<strong>Club-neutral knowledge</strong>
+<small>No player data is stored or selected inside the Library.</small>
 </div>
 <div>
 <span>Gate focus</span>
@@ -161,9 +161,6 @@ ${Array.isArray(section.items) && section.items.length ? `<ul>${section.items.ma
 `;
 
   const renderRtpProfileDialogContent = (profile = {}) => {
-    const medicalState = getMedicalState(state);
-    const selectedPlayerId = medicalState.selectedPlayerId || "";
-    const selectedPlayer = medicalState.players?.find?.((player) => player.id === selectedPlayerId) ?? null;
     return `
 <header>
 <div>
@@ -201,15 +198,12 @@ ${renderRtpGuideList("Common mistakes / risks", profile.mistakes || [], getRtpPr
 <div id="${escapeHtml(getRtpProfileAnchorId(profile.id, "full-guide"))}">
 ${renderRtpGoldStandardSections(profile.goldStandardSections || [])}
 </div>
-<div class="medical-rtp-profile-actions">
-<button
-type="button"
-data-medical-apply-rtp-starter
-data-medical-rtp-profile-id="${escapeHtml(profile.id)}"
-data-medical-player-id="${escapeHtml(selectedPlayerId)}"
-${selectedPlayerId ? "" : "disabled"}
->Apply guide to Medical Plan${selectedPlayer ? ` for ${escapeHtml(selectedPlayer.name)}` : ""}</button>
-<small>Creates an editable Medical-owned draft only. Review, individualize and save inside Medical Plan.</small>
+<div class="medical-rtp-profile-actions medical-rtp-profile-actions-info">
+<div>
+<strong>To build a player program</strong>
+<small>Open Active Cases or the player's Medical Plan, choose this guide, then save the case-specific program there.</small>
+</div>
+<b>Knowledge only</b>
 </div>
 </div>
 </div>

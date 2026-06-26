@@ -2619,6 +2619,30 @@ body.is-dark-mode .medical-modal-close {
   opacity: 0.48;
 }
 
+.medical-rtp-profile-actions-info div {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.medical-rtp-profile-actions-info strong {
+  color: #10231b;
+  font-size: 0.82rem;
+  font-weight: 950;
+  line-height: 1.18;
+}
+
+.medical-rtp-profile-actions-info b {
+  flex: 0 0 auto;
+  padding: 0.34rem 0.58rem;
+  border-radius: 999px;
+  background: rgba(23, 100, 73, 0.1);
+  color: #176449;
+  font-size: 0.68rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
 .medical-rtp-gold-standard-sections {
   display: grid;
   gap: 0.55rem;
@@ -3719,6 +3743,7 @@ body.is-dark-mode .medical-rtp-profile-modal-close {
 body.is-dark-mode .medical-rtp-profile-header-meta span,
 body.is-dark-mode .medical-rtp-profile-quick-nav a,
 body.is-dark-mode .medical-rtp-gold-standard-sections summary span,
+body.is-dark-mode .medical-rtp-profile-actions-info b,
 body.is-dark-mode .medical-rtp-case-linker-steps strong {
   background: rgba(255, 255, 255, 0.1);
   color: var(--ink);
@@ -3737,6 +3762,7 @@ body.is-dark-mode .medical-rtp-profile-summary h3,
 body.is-dark-mode .medical-rtp-profile-sections h4,
 body.is-dark-mode .medical-rtp-gold-standard-sections summary,
 body.is-dark-mode .medical-rtp-profile-decision-strip strong,
+body.is-dark-mode .medical-rtp-profile-actions-info strong,
 body.is-dark-mode .medical-rtp-plan-focus > header strong,
 body.is-dark-mode .medical-rtp-case-linker > header strong,
 body.is-dark-mode .medical-rtp-case-linker-card strong,
@@ -3768,6 +3794,7 @@ body.is-dark-mode .medical-rtp-profile-summary p,
 body.is-dark-mode .medical-rtp-profile-sections p,
 body.is-dark-mode .medical-rtp-profile-sections li,
 body.is-dark-mode .medical-rtp-profile-decision-strip small,
+body.is-dark-mode .medical-rtp-profile-actions-info small,
 body.is-dark-mode .medical-rtp-gold-standard-sections > header span,
 body.is-dark-mode .medical-rtp-gold-standard-sections > header strong,
 body.is-dark-mode .medical-rtp-gold-standard-sections p,

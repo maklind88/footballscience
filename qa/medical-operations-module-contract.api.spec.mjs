@@ -136,6 +136,12 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(rtpMarkup).not.toContain("Medical-safe injury knowledge");
   expect(rtpMarkup).toContain("Full text search");
   expect(rtpMarkup).toContain("Apply as medical starter");
+  expect(rtpMarkup).toContain('data-medical-open-rtp-profile="hamstring-strain"');
+  expect(rtpMarkup).toContain('data-medical-rtp-profile-modal="hamstring-strain"');
+  expect(rtpMarkup).toContain('role="dialog"');
+  expect(rtpMarkup).toContain('aria-haspopup="dialog"');
+  expect(rtpMarkup).not.toContain("<details");
+  expect(rtpMarkup).not.toContain("<summary");
   expect(rtpMarkup).toContain("Evidence:");
   const historyMarkup = renderer.renderHistory();
   expect(historyMarkup).toContain("data-medical-history-filter-form");

@@ -3036,7 +3036,17 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(operations.locator(".medical-rtp-library-hero")).toHaveCount(0);
   await expect(operations).not.toContainText("Medical-safe injury knowledge");
   await expect(operations).toContainText("Full text search");
-  await expect(operations).toContainText("Apply as medical starter");
+  const rtpTrigger = operations.locator('[data-medical-open-rtp-profile="hamstring-strain"]');
+  await expect(rtpTrigger).toBeVisible();
+  const rtpModal = operations.locator('[data-medical-rtp-profile-modal="hamstring-strain"]');
+  await expect(rtpModal).toBeHidden();
+  await rtpTrigger.click();
+  await expect(rtpModal).toBeVisible();
+  await expect(rtpModal).toContainText("Quick Summary");
+  await expect(rtpModal).toContainText("Medical-safe Evidence");
+  await expect(rtpModal).toContainText("Apply as medical starter");
+  await rtpModal.locator("[data-medical-close-rtp-profile]").last().click();
+  await expect(rtpModal).toBeHidden();
   await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);
 
   await operationsMenu.locator('[data-medical-ops-tab="season"]').click();

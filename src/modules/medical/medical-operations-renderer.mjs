@@ -400,46 +400,7 @@ ${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(op
 <ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
 </section>
 `;
-    return `
-<div class="medical-rtp-library" data-medical-rtp-library>
-<form class="medical-rtp-library-controls" data-medical-rtp-library-controls>
-<label class="medical-rtp-library-search">
-<span>Full text search</span>
-<input type="search" data-medical-rtp-library-search placeholder="Search injury, system, body area, symptom, position or risk" />
-</label>
-${renderSelect("Movement plane", "movement", medicalRtpLibraryFilterOptions.movementPlanes)}
-${renderSelect("Position", "position", medicalRtpLibraryFilterOptions.positions)}
-${renderSelect("Season", "season", medicalRtpLibraryFilterOptions.seasons)}
-${renderSelect("Sex", "sex", medicalRtpLibraryFilterOptions.sex)}
-${renderSelect("Level", "level", medicalRtpLibraryFilterOptions.level)}
-</form>
-<div class="medical-rtp-library-meta">
-<span><strong data-medical-rtp-library-count>${profiles.length}</strong> visible</span>
-<span>Evidence and expert consensus are separated in every profile.</span>
-</div>
-<div class="medical-rtp-profile-grid">
-${profiles
-  .map((profileItem, index) => {
-    const searchText = getMedicalRtpLibrarySearchText(profileItem);
-    return `
-<article
-class="medical-rtp-profile-card"
-data-medical-rtp-profile
-data-search="${escapeHtml(searchText)}"
-data-movement="${escapeHtml(profileItem.movementPlanes.join(" "))}"
-data-position="${escapeHtml(profileItem.positions.join(" "))}"
-data-season="${escapeHtml(profileItem.season.join(" "))}"
-data-sex="${escapeHtml(profileItem.sex.join(" "))}"
-data-level="${escapeHtml(profileItem.level.join(" "))}"
->
-<details ${index === 0 ? "open" : ""}>
-<summary>
-<span>
-<strong>${escapeHtml(profileItem.name)}</strong>
-<small>${escapeHtml(profileItem.system)} / ${escapeHtml(profileItem.bodyArea)} / ${escapeHtml(profileItem.evidenceLevel)}</small>
-</span>
-<b>Open profile</b>
-</summary>
+    const renderProfileBody = (profileItem) => `
 <div class="medical-rtp-profile-body">
 <section class="medical-rtp-profile-summary">
 <div>
@@ -473,12 +434,86 @@ ${selectedPlayer ? "" : "disabled"}
 <small>This fills the Medical Plan draft only. Medical still owns the final player-specific program.</small>
 </div>
 </div>
-</details>
+`;
+    const renderProfileModal = (profileItem) => {
+      const safeProfileId = escapeHtml(profileItem.id);
+      return `
+<div class="medical-rtp-profile-modal" data-medical-rtp-profile-modal="${safeProfileId}" hidden aria-hidden="true">
+<button type="button" class="medical-rtp-profile-modal-backdrop" data-medical-close-rtp-profile aria-label="Close RTP profile"></button>
+<section
+id="medical-rtp-profile-dialog-${safeProfileId}"
+class="medical-rtp-profile-dialog"
+role="dialog"
+aria-modal="true"
+aria-labelledby="medical-rtp-profile-title-${safeProfileId}"
+tabindex="-1"
+>
+<header>
+<div>
+<span>RTP profile</span>
+<h3 id="medical-rtp-profile-title-${safeProfileId}">${escapeHtml(profileItem.name)}</h3>
+<small>${escapeHtml(profileItem.system)} / ${escapeHtml(profileItem.bodyArea)} / ${escapeHtml(profileItem.evidenceLevel)}</small>
+</div>
+<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close ${escapeHtml(profileItem.name)} profile">Close</button>
+</header>
+<div class="medical-rtp-profile-dialog-body">
+${renderProfileBody(profileItem)}
+</div>
+</section>
+</div>
+`;
+    };
+    return `
+<div class="medical-rtp-library" data-medical-rtp-library>
+<form class="medical-rtp-library-controls" data-medical-rtp-library-controls>
+<label class="medical-rtp-library-search">
+<span>Full text search</span>
+<input type="search" data-medical-rtp-library-search placeholder="Search injury, system, body area, symptom, position or risk" />
+</label>
+${renderSelect("Movement plane", "movement", medicalRtpLibraryFilterOptions.movementPlanes)}
+${renderSelect("Position", "position", medicalRtpLibraryFilterOptions.positions)}
+${renderSelect("Season", "season", medicalRtpLibraryFilterOptions.seasons)}
+${renderSelect("Sex", "sex", medicalRtpLibraryFilterOptions.sex)}
+${renderSelect("Level", "level", medicalRtpLibraryFilterOptions.level)}
+</form>
+<div class="medical-rtp-library-meta">
+<span><strong data-medical-rtp-library-count>${profiles.length}</strong> visible</span>
+<span>Evidence and expert consensus are separated in every profile.</span>
+</div>
+<div class="medical-rtp-profile-grid">
+${profiles
+  .map((profileItem) => {
+    const searchText = getMedicalRtpLibrarySearchText(profileItem);
+    return `
+<article
+class="medical-rtp-profile-card"
+data-medical-rtp-profile
+data-search="${escapeHtml(searchText)}"
+data-movement="${escapeHtml(profileItem.movementPlanes.join(" "))}"
+data-position="${escapeHtml(profileItem.positions.join(" "))}"
+data-season="${escapeHtml(profileItem.season.join(" "))}"
+data-sex="${escapeHtml(profileItem.sex.join(" "))}"
+data-level="${escapeHtml(profileItem.level.join(" "))}"
+>
+<button
+type="button"
+class="medical-rtp-profile-trigger"
+data-medical-open-rtp-profile="${escapeHtml(profileItem.id)}"
+aria-haspopup="dialog"
+aria-controls="medical-rtp-profile-dialog-${escapeHtml(profileItem.id)}"
+>
+<span>
+<strong>${escapeHtml(profileItem.name)}</strong>
+<small>${escapeHtml(profileItem.system)} / ${escapeHtml(profileItem.bodyArea)} / ${escapeHtml(profileItem.evidenceLevel)}</small>
+</span>
+<b>Open profile</b>
+</button>
 </article>
 `;
   })
   .join("")}
 </div>
+${profiles.map(renderProfileModal).join("")}
 <div class="medical-empty-inline medical-rtp-library-empty" data-medical-rtp-library-empty hidden>No RTP profiles match the current search and filters.</div>
 </div>
 `;

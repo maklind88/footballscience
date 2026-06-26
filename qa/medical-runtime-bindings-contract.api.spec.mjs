@@ -20,6 +20,9 @@ function createWorkspace() {
     querySelector() {
       return null;
     },
+    querySelectorAll() {
+      return [];
+    },
   };
 }
 
@@ -246,6 +249,57 @@ test("Medical runtime bindings preserve quick recommendation, archive, and plan 
   expect(mutable.modalOpen).toBe(true);
   expect(mutable.modalTab).toBe("plan");
   expect(calls).toContainEqual(["render", "Hamstring Strain starter ready in Medical Plan."]);
+});
+
+test("Medical runtime bindings open and close RTP Library profile overlays", () => {
+  const calls = [];
+  const modal = {
+    hidden: true,
+    dataset: { medicalRtpProfileModal: "hamstring-strain" },
+    querySelector(selector) {
+      return selector === "[role='dialog']" ? { focus: () => calls.push("focus-dialog") } : null;
+    },
+    removeAttribute(name) {
+      delete this[name];
+    },
+    setAttribute(name, value) {
+      this[name] = value;
+    },
+  };
+  const workspace = {
+    listeners: {},
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    },
+    querySelector(selector) {
+      return selector === "[data-medical-rtp-profile-modal]:not([hidden])" && !modal.hidden ? modal : null;
+    },
+    querySelectorAll(selector) {
+      return selector === "[data-medical-rtp-profile-modal]" ? [modal] : [];
+    },
+  };
+
+  bindMedicalRuntimeBindings({
+    workspaceElement: workspace,
+    win: {},
+    state: {},
+    actions: { canEditMedicalTeam: () => false },
+  });
+
+  workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-open-rtp-profile]": { dataset: { medicalOpenRtpProfile: "hamstring-strain" } } },
+  })));
+  expect(modal.hidden).toBe(false);
+  expect(modal["aria-hidden"]).toBeUndefined();
+  expect(calls).toContain("focus-dialog");
+
+  workspace.listeners.keydown(createEvent(createTarget(), {
+    key: "Escape",
+    preventDefault: () => calls.push("prevent-escape"),
+  }));
+  expect(modal.hidden).toBe(true);
+  expect(modal["aria-hidden"]).toBe("true");
+  expect(calls).toContain("prevent-escape");
 });
 
 test("Medical runtime bindings preserve roster search, filters, and protected submit writes", () => {

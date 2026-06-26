@@ -20,6 +20,10 @@ function queryWorkspace(workspaceElement, selector) {
   return workspaceElement?.querySelector?.(selector) ?? null;
 }
 
+function queryWorkspaceAll(workspaceElement, selector) {
+  return Array.from(workspaceElement?.querySelectorAll?.(selector) ?? []);
+}
+
 export function bindMedicalRuntimeBindings(deps = {}) {
   const { actions = {}, state = {}, win = globalThis, workspaceElement = null } = deps;
   if (!workspaceElement?.addEventListener) return {};
@@ -55,6 +59,25 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     if (count) count.textContent = String(visibleCount);
     const empty = library.querySelector("[data-medical-rtp-library-empty]");
     if (empty) empty.hidden = visibleCount !== 0;
+  };
+
+  const closeMedicalRtpProfileModal = () => {
+    queryWorkspaceAll(workspaceElement, "[data-medical-rtp-profile-modal]").forEach((modal) => {
+      modal.hidden = true;
+      modal.setAttribute?.("aria-hidden", "true");
+    });
+  };
+
+  const openMedicalRtpProfileModal = (profileId) => {
+    const targetProfileId = String(profileId || "");
+    const modal = queryWorkspaceAll(workspaceElement, "[data-medical-rtp-profile-modal]").find(
+      (candidate) => candidate.dataset?.medicalRtpProfileModal === targetProfileId
+    );
+    if (!modal) return;
+    closeMedicalRtpProfileModal();
+    modal.hidden = false;
+    modal.removeAttribute?.("aria-hidden");
+    modal.querySelector?.("[role='dialog']")?.focus?.();
   };
 
   const onClick = (event) => {
@@ -182,6 +205,18 @@ export function bindMedicalRuntimeBindings(deps = {}) {
       renderWorkspace();
       return;
     }
+    const closeRtpProfileButton = event.target.closest("[data-medical-close-rtp-profile]");
+    if (closeRtpProfileButton) {
+      event.preventDefault();
+      closeMedicalRtpProfileModal();
+      return;
+    }
+    const openRtpProfileButton = event.target.closest("[data-medical-open-rtp-profile]");
+    if (openRtpProfileButton) {
+      event.preventDefault();
+      openMedicalRtpProfileModal(openRtpProfileButton.dataset.medicalOpenRtpProfile);
+      return;
+    }
     const applyRtpStarterButton = event.target.closest("[data-medical-apply-rtp-starter]");
     if (applyRtpStarterButton && canEdit()) {
       event.preventDefault();
@@ -302,6 +337,11 @@ export function bindMedicalRuntimeBindings(deps = {}) {
   };
 
   const onKeydown = (event) => {
+    if (event.key === "Escape" && queryWorkspace(workspaceElement, "[data-medical-rtp-profile-modal]:not([hidden])")) {
+      event.preventDefault();
+      closeMedicalRtpProfileModal();
+      return;
+    }
     if (event.key !== "Enter" && event.key !== " ") return;
     if (event.target.closest("button, input, select, textarea, label")) return;
     const selectPlayerCard = event.target.closest("[data-medical-select-player]");

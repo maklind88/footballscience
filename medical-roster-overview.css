@@ -2099,38 +2099,162 @@ body.is-dark-mode .medical-modal-close {
   display: none;
 }
 
-.medical-rtp-profile-card summary {
+.medical-rtp-profile-trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  width: 100%;
   min-height: 4.3rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   padding: 0.78rem;
   cursor: pointer;
-  list-style: none;
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
-.medical-rtp-profile-card summary::-webkit-details-marker {
-  display: none;
+.medical-rtp-profile-trigger:hover,
+.medical-rtp-profile-trigger:focus-visible {
+  background: rgba(238, 248, 243, 0.82);
+  box-shadow: inset 0 0 0 2px rgba(47, 143, 107, 0.18);
+  outline: 0;
 }
 
-.medical-rtp-profile-card summary span {
+.medical-rtp-profile-trigger:active {
+  transform: translateY(1px);
+}
+
+.medical-rtp-profile-trigger span {
   display: grid;
   gap: 0.18rem;
   min-width: 0;
 }
 
-.medical-rtp-profile-card summary strong {
+.medical-rtp-profile-trigger strong {
   color: #10231b;
   font-size: 0.98rem;
   line-height: 1.1;
 }
 
-.medical-rtp-profile-card summary b {
+.medical-rtp-profile-trigger b {
   flex: 0 0 auto;
   color: #176449;
   font-size: 0.72rem;
   font-weight: 950;
+}
+
+.medical-rtp-profile-modal[hidden] {
+  display: none;
+}
+
+.medical-rtp-profile-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2200;
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 2.5rem);
+}
+
+.medical-rtp-profile-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(8, 18, 14, 0.58);
+  cursor: pointer;
+}
+
+.medical-rtp-profile-dialog {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(58rem, 100%);
+  max-height: min(42rem, calc(100vh - 2rem));
+  overflow: hidden;
+  border: 1px solid rgba(29, 31, 29, 0.12);
+  border-radius: 8px;
+  background: #f8fbf9;
+  box-shadow:
+    0 26px 70px rgba(8, 18, 14, 0.32),
+    0 0 0 1px rgba(255, 255, 255, 0.58);
+  outline: 0;
+}
+
+.medical-rtp-profile-dialog > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(29, 31, 29, 0.08);
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.medical-rtp-profile-dialog > header div {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.medical-rtp-profile-dialog > header span {
+  color: #64716b;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-profile-dialog > header h3 {
+  margin: 0;
+  color: #10231b;
+  font-size: clamp(1.12rem, 2vw, 1.5rem);
+  letter-spacing: 0;
+  line-height: 1.08;
+}
+
+.medical-rtp-profile-dialog > header small {
+  color: #52635b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.32;
+}
+
+.medical-rtp-profile-modal-close {
+  flex: 0 0 auto;
+  min-height: 2rem;
+  border: 1px solid rgba(29, 31, 29, 0.1);
+  border-radius: 8px;
+  background: #fff;
+  color: #193827;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 950;
+  padding: 0 0.7rem;
+  cursor: pointer;
+}
+
+.medical-rtp-profile-modal-close:hover,
+.medical-rtp-profile-modal-close:focus-visible {
+  border-color: rgba(47, 143, 107, 0.36);
+  box-shadow: 0 0 0 3px rgba(47, 143, 107, 0.14);
+  outline: 0;
+}
+
+.medical-rtp-profile-dialog-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 0.88rem;
+}
+
+.medical-rtp-profile-dialog-body .medical-rtp-profile-body {
+  padding: 0;
 }
 
 .medical-rtp-profile-body {
@@ -3124,6 +3248,10 @@ body.is-dark-mode .medical-rtp-plan-focus,
 body.is-dark-mode .medical-rtp-case-linker,
 body.is-dark-mode .medical-rtp-case-workspace,
 body.is-dark-mode .medical-rtp-plan-source,
+body.is-dark-mode .medical-rtp-profile-card,
+body.is-dark-mode .medical-rtp-profile-dialog,
+body.is-dark-mode .medical-rtp-profile-summary div,
+body.is-dark-mode .medical-rtp-profile-sections section,
 body.is-dark-mode .medical-rtp-program-summary-tracker,
 body.is-dark-mode .medical-rtp-program-summary-grid section,
 body.is-dark-mode .medical-rtp-program-field,
@@ -3152,10 +3280,31 @@ body.is-dark-mode .medical-rtp-case-linker {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(21, 38, 31, 0.7));
 }
 
+body.is-dark-mode .medical-rtp-profile-dialog > header {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.92);
+}
+
+body.is-dark-mode .medical-rtp-profile-trigger:hover,
+body.is-dark-mode .medical-rtp-profile-trigger:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 2px rgba(148, 163, 184, 0.2);
+}
+
+body.is-dark-mode .medical-rtp-profile-modal-close {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--ink);
+}
+
 body.is-dark-mode .medical-rtp-program-blueprint > header strong,
 body.is-dark-mode .medical-rtp-action-queue > header strong,
 body.is-dark-mode .medical-rtp-action-metric strong,
 body.is-dark-mode .medical-rtp-action-row strong,
+body.is-dark-mode .medical-rtp-profile-trigger strong,
+body.is-dark-mode .medical-rtp-profile-dialog > header h3,
+body.is-dark-mode .medical-rtp-profile-summary h3,
+body.is-dark-mode .medical-rtp-profile-sections h4,
 body.is-dark-mode .medical-rtp-plan-focus > header strong,
 body.is-dark-mode .medical-rtp-case-linker > header strong,
 body.is-dark-mode .medical-rtp-case-linker-card strong,
@@ -3173,6 +3322,11 @@ body.is-dark-mode .medical-rtp-plan-source strong {
 
 body.is-dark-mode .medical-rtp-program-grid li,
 body.is-dark-mode .medical-rtp-case-sections li,
+body.is-dark-mode .medical-rtp-profile-card small,
+body.is-dark-mode .medical-rtp-profile-dialog > header span,
+body.is-dark-mode .medical-rtp-profile-dialog > header small,
+body.is-dark-mode .medical-rtp-profile-summary p,
+body.is-dark-mode .medical-rtp-profile-sections li,
 body.is-dark-mode .medical-rtp-program-summary-grid li,
 body.is-dark-mode .medical-rtp-program-summary-grid p,
 body.is-dark-mode .medical-rtp-action-queue > header small,
@@ -3223,6 +3377,7 @@ body.is-dark-mode .medical-rtp-tracker-row select {
   .medical-rtp-case-linker > header,
   .medical-rtp-case-linker-card,
   .medical-rtp-case-linker-card form,
+  .medical-rtp-profile-dialog > header,
   .medical-rtp-profile-actions {
     display: grid;
   }
@@ -3237,6 +3392,22 @@ body.is-dark-mode .medical-rtp-tracker-row select {
 
   .medical-rtp-profile-grid {
     grid-template-columns: 1fr;
+  }
+
+  .medical-rtp-profile-modal {
+    padding: 0.6rem;
+  }
+
+  .medical-rtp-profile-dialog {
+    max-height: calc(100vh - 1.2rem);
+  }
+
+  .medical-rtp-profile-dialog > header {
+    gap: 0.7rem;
+  }
+
+  .medical-rtp-profile-modal-close {
+    width: 100%;
   }
 
   .medical-rtp-program-blueprint > header,

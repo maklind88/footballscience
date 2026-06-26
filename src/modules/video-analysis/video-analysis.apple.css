@@ -232,7 +232,7 @@
 }
 
 #analysisRoomWorkspace .video-analysis-player-transport {
-  grid-template-columns: minmax(145px, auto) minmax(240px, 1fr) auto;
+  grid-template-columns: minmax(186px, 196px) minmax(240px, 1fr) auto;
   min-height: 58px;
   border-top-color: rgba(255, 255, 255, 0.1);
   background:
@@ -240,12 +240,18 @@
     #ffffff;
 }
 
+#analysisRoomWorkspace .video-analysis-player-time {
+  min-width: 186px;
+}
+
 #analysisRoomWorkspace .video-analysis-player-time strong {
+  min-width: 84px;
   font-size: 21px;
   font-weight: 900;
 }
 
 #analysisRoomWorkspace .video-analysis-player-time span {
+  min-width: 90px;
   color: #8a908b;
 }
 
@@ -324,7 +330,8 @@
 }
 
 #analysisRoomWorkspace .video-analysis-player-play {
-  min-width: 90px;
+  width: 94px;
+  min-width: 94px;
   border-color: #0f1714 !important;
   background:
     linear-gradient(180deg, #27302b, #0f1714),

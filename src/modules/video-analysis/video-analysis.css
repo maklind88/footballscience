@@ -1169,7 +1169,7 @@ body.is-video-analysis-fs-player-fullscreen {
 
 .video-analysis-player-transport {
   display: grid;
-  grid-template-columns: minmax(135px, auto) minmax(220px, 1fr) auto;
+  grid-template-columns: minmax(174px, 188px) minmax(220px, 1fr) auto;
   align-items: center;
   gap: 12px;
   min-height: 56px;
@@ -1182,19 +1182,28 @@ body.is-video-analysis-fs-player-fullscreen {
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
+  min-width: 174px;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 .video-analysis-player-time strong {
+  display: inline-block;
+  min-width: 78px;
   color: #0f1714;
   font-size: 20px;
   line-height: 1;
+  text-align: right;
 }
 
 .video-analysis-player-time span {
+  display: inline-block;
+  min-width: 82px;
   color: #8a948e;
   font-size: 15px;
   font-weight: 800;
+  text-align: left;
 }
 
 .video-analysis-player-controls {
@@ -1350,7 +1359,8 @@ body.is-video-analysis-fs-player-fullscreen {
 }
 
 .video-analysis-player-play {
-  min-width: 86px;
+  width: 92px;
+  min-width: 92px !important;
   color: #ffffff !important;
   border-color: #143522 !important;
   background: #143522 !important;
@@ -1996,9 +2006,21 @@ body.is-video-analysis-fs-player-fullscreen {
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-transport {
   box-sizing: border-box;
-  grid-template-columns: minmax(122px, auto) minmax(360px, 560px) minmax(210px, auto);
+  grid-template-columns: minmax(170px, 178px) minmax(340px, 520px) minmax(210px, auto);
   min-height: 46px;
   padding: 4px 10px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-time {
+  min-width: 170px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-time strong {
+  min-width: 76px;
+}
+
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-time span {
+  min-width: 82px;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-controls,
@@ -2017,7 +2039,8 @@ body.is-video-analysis-fs-player-fullscreen {
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player-play {
-  min-width: 82px;
+  width: 90px;
+  min-width: 90px;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-player__meta {

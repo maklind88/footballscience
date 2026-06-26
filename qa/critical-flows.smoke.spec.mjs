@@ -3033,8 +3033,8 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(historyTable).not.toContainText("QA Long Term ACL");
 
   await operationsMenu.locator('[data-medical-ops-tab="rtp-library"]').click();
-  await expect(operations).toContainText("RTP Library");
-  await expect(operations).toContainText("Medical-safe injury knowledge");
+  await expect(operations.locator(".medical-rtp-library-hero")).toHaveCount(0);
+  await expect(operations).not.toContainText("Medical-safe injury knowledge");
   await expect(operations).toContainText("Full text search");
   await expect(operations).toContainText("Apply as medical starter");
   await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);

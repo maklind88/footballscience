@@ -402,14 +402,6 @@ ${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(op
 `;
     return `
 <div class="medical-rtp-library" data-medical-rtp-library>
-<header class="medical-rtp-library-hero">
-<div>
-<p class="placeholder-tag">RTP Library</p>
-<h2>Medical-safe injury knowledge</h2>
-<span>Search profiles, read evidence and apply a starter into the selected player's Medical Plan.</span>
-</div>
-<strong>${profiles.length} profiles</strong>
-</header>
 <form class="medical-rtp-library-controls" data-medical-rtp-library-controls>
 <label class="medical-rtp-library-search">
 <span>Full text search</span>

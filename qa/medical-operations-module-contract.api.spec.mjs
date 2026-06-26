@@ -131,8 +131,9 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(casesMarkup).toContain("Suggested: ACL Reconstruction RTP");
   expect(casesMarkup).toContain("Apply to this case");
   const rtpMarkup = renderer.renderPrivateSystem(summary, "rtp-library", "2026-05-31");
-  expect(rtpMarkup).toContain("RTP Library");
-  expect(rtpMarkup).toContain("Medical-safe injury knowledge");
+  expect(rtpMarkup).not.toContain("medical-rtp-library-hero");
+  expect(rtpMarkup).not.toContain("<h2>RTP Library</h2>");
+  expect(rtpMarkup).not.toContain("Medical-safe injury knowledge");
   expect(rtpMarkup).toContain("Full text search");
   expect(rtpMarkup).toContain("Apply as medical starter");
   expect(rtpMarkup).toContain("Evidence:");

@@ -2009,32 +2009,12 @@ body.is-dark-mode .medical-modal-close {
   gap: 0.82rem;
 }
 
-.medical-rtp-library-hero {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.98rem;
-  border: 1px solid rgba(29, 31, 29, 0.1);
-  border-radius: 8px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(238, 248, 243, 0.88));
-  box-shadow: 0 14px 34px rgba(12, 24, 20, 0.07);
-}
-
-.medical-rtp-library-hero h2,
 .medical-rtp-profile-summary h3,
 .medical-rtp-profile-sections h4 {
   margin: 0;
   letter-spacing: 0;
 }
 
-.medical-rtp-library-hero h2 {
-  color: #10231b;
-  font-size: 1.25rem;
-  line-height: 1.05;
-}
-
-.medical-rtp-library-hero span,
 .medical-rtp-profile-card small,
 .medical-rtp-profile-actions small,
 .medical-rtp-plan-starter small {
@@ -2042,16 +2022,6 @@ body.is-dark-mode .medical-modal-close {
   font-size: 0.76rem;
   font-weight: 750;
   line-height: 1.32;
-}
-
-.medical-rtp-library-hero strong {
-  flex: 0 0 auto;
-  padding: 0.46rem 0.62rem;
-  border-radius: 999px;
-  color: #176449;
-  background: rgba(47, 143, 107, 0.12);
-  font-size: 0.78rem;
-  font-weight: 950;
 }
 
 .medical-rtp-library-controls {
@@ -3248,7 +3218,6 @@ body.is-dark-mode .medical-rtp-tracker-row select {
 }
 
 @media (max-width: 760px) {
-  .medical-rtp-library-hero,
   .medical-rtp-action-queue > header,
   .medical-rtp-plan-focus > header,
   .medical-rtp-case-linker > header,

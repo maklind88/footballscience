@@ -481,7 +481,7 @@ test("analysis room tabs use icons without status labels", () => {
   expect(source).toContain("Team Performance");
   expect(source).toContain("TEAM_PERFORMANCE_DASHBOARD_URL");
   expect(source).toContain("https://ncskunk-harris.github.io/Team_Match_Performance_Dashboard/");
-  expect(source).toContain('sandbox="allow-scripts allow-modals"');
+  expect(source).toContain('sandbox="allow-scripts allow-modals allow-same-origin"');
   expect(source).toContain('referrerpolicy="no-referrer"');
   expect(source).toContain("Presentation");
   expect(source).toContain("Clip Library");

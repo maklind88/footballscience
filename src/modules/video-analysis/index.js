@@ -407,7 +407,7 @@ function renderTeamPerformanceWorkspace() {
         class="analysis-room-team-performance-frame"
         title="Team Performance"
         src="${escapeHtml(TEAM_PERFORMANCE_DASHBOARD_URL)}"
-        sandbox="allow-scripts allow-modals"
+        sandbox="allow-scripts allow-modals allow-same-origin"
         referrerpolicy="no-referrer"
         loading="lazy"
       ></iframe>

@@ -110,7 +110,7 @@ const CODE_TIMELINE_PIP_MIN_HEIGHT = 120;
 const CODE_WINDOW_PIP_MIN_WIDTH = 240;
 const CODE_WINDOW_PIP_MIN_HEIGHT = 220;
 const CODE_PIP_MARGIN = 8;
-const CODE_MODE_LAYOUT_VERSION = 2;
+const CODE_MODE_LAYOUT_VERSION = 3;
 const FS_PLAYER_HISTORY_GUARD_KEY = "__footballScienceFsPlayerHistoryGuard";
 const FS_PLAYER_HISTORY_GUARD_DEPTH_KEY = "__footballScienceFsPlayerHistoryGuardDepth";
 const FS_PLAYER_HISTORY_GUARD_DEPTH = 3;
@@ -686,8 +686,8 @@ function codeModeDefaultLayout(context = {}) {
   };
 }
 
-function codeModeLayoutPatch(context = {}, currentFsPlayer = {}) {
-  if (Number(currentFsPlayer.codeModeLayoutVersion || 0) === CODE_MODE_LAYOUT_VERSION) {
+function codeModeLayoutPatch(context = {}, currentFsPlayer = {}, options = {}) {
+  if (!options.force && Number(currentFsPlayer.codeModeLayoutVersion || 0) === CODE_MODE_LAYOUT_VERSION) {
     return {};
   }
   const layout = codeModeDefaultLayout(context);
@@ -893,7 +893,7 @@ function fsPlayerFullscreenRequestElement(context = {}) {
 
 function requestNativeFullscreen(element) {
   if (!element?.requestFullscreen) return Promise.resolve(false);
-  return element.requestFullscreen().then(() => true).catch(() => false);
+  return element.requestFullscreen({ navigationUI: "hide" }).then(() => true).catch(() => false);
 }
 
 function exitNativeFullscreen(context = {}) {
@@ -955,7 +955,6 @@ function enterVideoFullscreen(context = {}) {
 
 function enterFsPlayerCodeMode(context = {}) {
   const run = ensureRuntime(context);
-  exitNativeFullscreen(context);
   run.store.update((state) => ({
     ...state,
     fsPlayer: {
@@ -967,10 +966,27 @@ function enterFsPlayerCodeMode(context = {}) {
     message: "Code Mode ready.",
     error: "",
   }));
+  if (!fsPlayerOwnsFullscreen(context)) {
+    requestNativeFullscreen(fsPlayerFullscreenRequestElement(context)).then((ok) => {
+      const current = run.store.getState();
+      if (!ok || current.fsPlayer?.mode !== "code") return;
+      run.store.update((state) => ({
+        ...state,
+        fsPlayer: {
+          ...(state.fsPlayer || {}),
+          ...codeModeLayoutPatch(context, state.fsPlayer || {}, { force: true }),
+          mode: "code",
+          fullscreen: false,
+        },
+        message: "",
+        error: "",
+      }));
+    });
+  }
   return true;
 }
 
-function exitFsPlayerCodeMode(context = {}) {
+function exitFsPlayerCodeMode(context = {}, options = {}) {
   const run = ensureRuntime(context);
   run.store.update((state) => ({
     ...state,
@@ -982,6 +998,9 @@ function exitFsPlayerCodeMode(context = {}) {
     message: "Code Mode closed.",
     error: "",
   }));
+  if (options.native !== false) {
+    exitNativeFullscreen(context);
+  }
   return true;
 }
 
@@ -1161,6 +1180,10 @@ function bindFsPlayerLifecycle(context = {}) {
       const activeRun = ensureRuntime(activeContext);
       const current = activeRun.store.getState();
       const ownsFullscreen = fsPlayerOwnsFullscreen(activeContext);
+      if (current.fsPlayer?.mode === "code" && !ownsFullscreen) {
+        exitFsPlayerCodeMode(activeContext, { native: false });
+        return;
+      }
       if (current.fsPlayer?.fullscreen === true && !ownsFullscreen) {
         setFsPlayerFullscreenState(activeContext, false, { message: "", error: "" });
       }

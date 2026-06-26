@@ -1070,9 +1070,26 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await expect(page.locator(".video-analysis-player-tag-filter")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-video-fullscreen]")).toBeVisible();
   await expect(page.locator("[data-video-analysis-code-mode]")).toContainText("Code mode");
+  await page.evaluate(() => {
+    window.__videoAnalysisFullscreenRequests = [];
+    Object.defineProperty(document.documentElement, "requestFullscreen", {
+      configurable: true,
+      value(options) {
+        window.__videoAnalysisFullscreenRequests.push({
+          tagName: this.tagName,
+          navigationUI: options?.navigationUI || "",
+        });
+        return Promise.resolve();
+      },
+    });
+  });
   await page.locator("[data-video-analysis-code-mode]").click();
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
   await expect(page.locator("[data-video-analysis-code-mode]")).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => page.evaluate(() => window.__videoAnalysisFullscreenRequests?.[0] || null)).toEqual({
+    tagName: "HTML",
+    navigationUI: "hide",
+  });
   const codeModeLayout = await page.evaluate(() => {
     const workstationElement = document.querySelector("[data-video-analysis-fs-player-workstation]");
     const workstation = workstationElement?.getBoundingClientRect();

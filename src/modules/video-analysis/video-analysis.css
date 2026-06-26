@@ -1130,8 +1130,15 @@ body.is-video-analysis-fs-player-fullscreen {
   overflow: hidden;
 }
 
+html.is-video-analysis-fs-player-code-mode,
+body.is-video-analysis-fs-player-code-mode,
 html.is-video-analysis-fs-player-fullscreen,
 body.is-video-analysis-fs-player-fullscreen {
+  background: #020403;
+}
+
+html.is-video-analysis-fs-player-code-mode:fullscreen,
+html.is-video-analysis-fs-player-fullscreen:fullscreen {
   background: #020403;
 }
 

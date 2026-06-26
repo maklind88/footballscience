@@ -378,6 +378,20 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toBeVisible();
   await expect(page.locator(".video-analysis-fs-player-timeline [data-video-analysis-timeline-module]")).toBeVisible();
   await expect(page.locator(".video-analysis-code-window-dock [data-video-analysis-code-window]")).toBeVisible();
+  const activeRoomTabStyle = await page.locator(".analysis-room-tab.is-active").evaluate((tab) => {
+    const icon = tab.querySelector(".analysis-room-tab-icon");
+    const label = tab.querySelector("span");
+    return {
+      iconColor: icon ? getComputedStyle(icon).color : "",
+      labelColor: label ? getComputedStyle(label).color : "",
+      tabColor: getComputedStyle(tab).color,
+    };
+  });
+  expect(activeRoomTabStyle).toEqual({
+    iconColor: "rgb(248, 255, 249)",
+    labelColor: "rgb(248, 255, 249)",
+    tabColor: "rgb(248, 255, 249)",
+  });
   await expect.poll(() => page.evaluate(() => {
     const workspace = document.querySelector("[data-video-analysis-fs-player-workstation]")?.getBoundingClientRect();
     const code = document.querySelector(".video-analysis-code-window-dock")?.getBoundingClientRect();

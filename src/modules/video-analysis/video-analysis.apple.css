@@ -75,12 +75,19 @@
 
 #analysisRoomWorkspace .analysis-room-tab.is-active {
   border-color: rgba(16, 65, 43, 0.9);
+  color: #f8fff9;
   background:
     linear-gradient(180deg, rgba(30, 84, 56, 0.98), rgba(13, 55, 37, 0.98)),
     var(--fs-apple-green);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     0 8px 18px rgba(18, 63, 43, 0.22);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.26);
+}
+
+#analysisRoomWorkspace .analysis-room-tab.is-active .analysis-room-tab-icon,
+#analysisRoomWorkspace .analysis-room-tab.is-active span {
+  color: #f8fff9;
 }
 
 #analysisRoomWorkspace .video-analysis-shell {

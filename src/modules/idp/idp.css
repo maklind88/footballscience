@@ -6451,3 +6451,579 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
     min-height: 0;
   }
 }
+
+/* IDP Player Board: tactical-board visual system */
+.idp-player-board-tactical-shell {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(45, 212, 191, .12), transparent 32%),
+    radial-gradient(circle at 86% 14%, rgba(59, 130, 246, .14), transparent 30%),
+    linear-gradient(180deg, #101b2b 0%, #07111f 100%);
+  border: 1px solid rgba(226, 232, 240, .18);
+  border-radius: 14px;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, .16), inset 0 1px 0 rgba(255, 255, 255, .08);
+  color: #e5edf7;
+  gap: 10px;
+  padding: 10px;
+}
+
+.idp-player-board-tactical-head {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.idp-player-board-tactical-head span {
+  color: rgba(226, 232, 240, .56);
+  font-size: .64rem;
+  font-weight: 950;
+  letter-spacing: .04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.idp-player-board-tactical-head strong {
+  color: #fff;
+  display: block;
+  font-size: 1rem;
+  line-height: 1.08;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-board-tactical-head small {
+  color: rgba(226, 232, 240, .64);
+  display: block;
+  font-size: .7rem;
+  font-weight: 780;
+  line-height: 1.15;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-board-tactical-head button {
+  background: rgba(226, 232, 240, .12);
+  border: 1px solid rgba(226, 232, 240, .14);
+  border-radius: 9px;
+  color: #f8fafc;
+  cursor: pointer;
+  font-size: .7rem;
+  font-weight: 920;
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.idp-player-board-tactical-head button:hover,
+.idp-player-board-tactical-head button:focus-visible {
+  background: #f8fafc;
+  color: #0f172a;
+  outline: none;
+}
+
+.idp-player-board-tactical-preview {
+  border-radius: 12px;
+}
+
+.idp-player-board-tactical-preview .idp-player-board-surface {
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, .62), rgba(2, 8, 23, .86)),
+    #07111f;
+  border: 1px solid rgba(226, 232, 240, .18);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+  display: grid;
+  gap: 7px;
+  padding: 7px;
+}
+
+.idp-player-board-tactical-preview .idp-player-board-boardbar {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: .5fr 1.2fr .55fr;
+}
+
+.idp-player-board-tactical-preview .idp-player-board-boardbar span,
+.idp-player-board-tactical-preview .idp-player-board-insight-row span {
+  background: rgba(255, 255, 255, .075);
+  border: 1px solid rgba(255, 255, 255, .09);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+  min-width: 0;
+}
+
+.idp-player-board-tactical-preview .idp-player-board-boardbar span {
+  display: grid;
+  gap: 1px;
+  padding: 6px 7px;
+}
+
+.idp-player-board-tactical-preview .idp-player-board-boardbar strong {
+  color: #f8fafc;
+  font-size: .72rem;
+  font-weight: 950;
+  line-height: 1.05;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-board-tactical-preview .idp-player-board-boardbar small {
+  color: rgba(226, 232, 240, .58);
+  font-size: .56rem;
+  font-weight: 900;
+  letter-spacing: .04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.idp-player-board-tactical-preview .idp-player-board-canvas {
+  padding: 0 0 0 31px;
+  position: relative;
+}
+
+.idp-player-board-tactical-preview .idp-player-board-tool-rail {
+  align-content: start;
+  background: rgba(2, 8, 23, .58);
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 9px;
+  display: grid;
+  gap: 5px;
+  left: 0;
+  padding: 5px;
+  position: absolute;
+  top: 0;
+  width: 26px;
+  z-index: 8;
+}
+
+.idp-player-board-tool-rail svg,
+.idp-player-board-tool-icon svg {
+  display: block;
+  fill: none;
+  height: 14px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 14px;
+}
+
+.idp-player-board-tool-rail span {
+  align-items: center;
+  background: rgba(255, 255, 255, .09);
+  border-radius: 7px;
+  color: rgba(226, 232, 240, .84);
+  display: inline-flex;
+  height: 24px;
+  justify-content: center;
+}
+
+.idp-player-board-tactical-preview .idp-player-board-pitch {
+  border: 1px solid rgba(226, 232, 240, .36);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 1px rgba(2, 8, 23, .24),
+    inset 0 0 48px rgba(2, 8, 23, .22),
+    0 12px 24px rgba(2, 8, 23, .22);
+  height: clamp(225px, 20vw, 296px);
+  min-height: 0;
+}
+
+.idp-player-board-tactical-preview .idp-player-board-insight-row {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.idp-player-board-tactical-preview .idp-player-board-insight-row span {
+  display: grid;
+  gap: 1px;
+  padding: 7px 8px;
+}
+
+.idp-player-board-tactical-preview .idp-player-board-insight-row strong {
+  color: #f8fafc;
+  font-size: .72rem;
+  font-weight: 920;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-board-tactical-preview .idp-player-board-insight-row small {
+  color: rgba(226, 232, 240, .62);
+  font-size: .62rem;
+  font-weight: 760;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-board-tactical-shell .idp-player-board-exercise-bank {
+  background: rgba(255, 255, 255, .065);
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 12px;
+  gap: 7px;
+  max-height: 126px;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.idp-player-board-tactical-shell .idp-player-board-bank-list {
+  display: grid;
+  gap: 6px;
+}
+
+.idp-player-board-tactical-shell .idp-player-board-bank-item {
+  background: rgba(255, 255, 255, .055);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 9px;
+  min-height: 44px;
+  padding: 7px;
+}
+
+.idp-player-board-tactical-shell .idp-player-board-bank-item:nth-of-type(n+3),
+.idp-player-board-tactical-shell .idp-player-board-bank-meta {
+  display: none;
+}
+
+.idp-player-board-tactical-shell .idp-player-board-actions {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1.15fr repeat(3, minmax(0, 1fr));
+}
+
+.idp-player-board-tactical-shell .idp-player-board-actions button {
+  border-radius: 9px;
+  font-size: .68rem;
+  min-height: 34px;
+}
+
+.idp-player-board-modal {
+  background: #07111f;
+  border: 1px solid rgba(226, 232, 240, .16);
+  border-radius: 18px;
+  box-shadow: 0 34px 90px rgba(2, 8, 23, .38);
+  color: #e5edf7;
+  max-width: min(1480px, calc(100vw - 24px));
+}
+
+.idp-player-board-modal-head {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(45, 212, 191, .12), transparent 34%),
+    linear-gradient(180deg, #101b2b, #08111f);
+  border-bottom: 1px solid rgba(226, 232, 240, .12);
+  padding: 13px 15px;
+}
+
+.idp-player-board-modal-head span {
+  color: rgba(226, 232, 240, .56);
+  font-size: .66rem;
+  font-weight: 950;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.idp-player-board-modal-head h2 {
+  color: #fff;
+  font-size: clamp(1.22rem, 1.8vw, 1.55rem);
+  line-height: 1.05;
+}
+
+.idp-player-board-modal-head small {
+  color: rgba(226, 232, 240, .66);
+}
+
+.idp-player-board-modal-head button {
+  background: rgba(255, 255, 255, .09);
+  border: 1px solid rgba(255, 255, 255, .12);
+  color: #f8fafc;
+}
+
+.idp-player-board-modal .idp-player-board-status-strip span {
+  background: rgba(255, 255, 255, .08);
+  border-color: rgba(255, 255, 255, .1);
+  color: rgba(241, 245, 249, .82);
+}
+
+.idp-player-board-modal .idp-player-board-status-strip span:first-child {
+  background: rgba(45, 212, 191, .14);
+  border-color: rgba(45, 212, 191, .24);
+  color: #a7f3d0;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(59, 130, 246, .08), transparent 30%),
+    #08111f;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 270px) minmax(520px, 1fr) minmax(300px, 360px);
+  padding: 10px;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-toolbox,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-canvas-wrap,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-inspector {
+  background: rgba(15, 23, 42, .74);
+  border: 1px solid rgba(226, 232, 240, .12);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-toolbox,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-inspector {
+  color: #e5edf7;
+  padding: 10px;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-bank,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tools,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-settings,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-group {
+  background: rgba(255, 255, 255, .055);
+  border: 1px solid rgba(255, 255, 255, .085);
+  border-radius: 13px;
+  padding: 9px;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-panel-head span,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-group > span,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-settings label > span,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-group > strong {
+  color: rgba(226, 232, 240, .58);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-button {
+  background: rgba(255, 255, 255, .075);
+  border: 1px solid rgba(255, 255, 255, .1);
+  color: rgba(241, 245, 249, .86);
+  min-height: 42px;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-button:hover,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-button:focus-visible {
+  background: rgba(255, 255, 255, .11);
+  border-color: rgba(45, 212, 191, .26);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-button.is-active {
+  background: #e5edf7;
+  border-color: #e5edf7;
+  color: #07111f;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-icon {
+  background: rgba(255, 255, 255, .09);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-button.is-active .idp-player-board-tool-icon {
+  background: rgba(7, 17, 31, .1);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-bank .idp-player-board-tools {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-group {
+  background: rgba(255, 255, 255, .045);
+  border: 1px solid rgba(255, 255, 255, .075);
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-button {
+  gap: 5px;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  min-width: 0;
+  padding: 7px 5px;
+  text-align: center;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-icon {
+  height: 27px;
+  width: 31px;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-label {
+  font-size: .66rem;
+  max-width: 100%;
+  text-align: center;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-canvas-wrap {
+  display: grid;
+  gap: 9px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: 10px;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-framebar {
+  color: rgba(226, 232, 240, .66);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-framebar button {
+  background: rgba(255, 255, 255, .075);
+  border-color: rgba(255, 255, 255, .1);
+  color: rgba(241, 245, 249, .84);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-framebar button.is-active {
+  background: #e5edf7;
+  border-color: #e5edf7;
+  color: #07111f;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-stage {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .075), rgba(255, 255, 255, .03)),
+    #111827;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 14px;
+  min-height: 0;
+  overflow: auto;
+  padding: clamp(10px, 1.4vw, 18px);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-canvas-wrap .idp-player-board-pitch {
+  height: clamp(360px, 58vh, 640px);
+  max-width: 100%;
+  width: min(100%, 860px);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-canvas-wrap .idp-player-board-pitch.is-box {
+  height: clamp(360px, 58vh, 590px);
+  width: min(100%, 740px);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-hint {
+  background: rgba(255, 255, 255, .065);
+  border: 1px solid rgba(255, 255, 255, .09);
+  color: rgba(226, 232, 240, .74);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-hint strong {
+  color: #f8fafc;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-hint span {
+  color: rgba(226, 232, 240, .64);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-bank-item {
+  background: rgba(255, 255, 255, .07);
+  border-color: rgba(255, 255, 255, .09);
+  color: #f8fafc;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-bank-item.is-current {
+  background: rgba(45, 212, 191, .13);
+  border-color: rgba(45, 212, 191, .24);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-bank-copy strong {
+  color: #f8fafc;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-bank-copy small,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-bank-meta small {
+  color: rgba(226, 232, 240, .62);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-bank-number {
+  background: rgba(255, 255, 255, .1);
+  color: #f8fafc;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-form input,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-form select,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-form textarea {
+  background: rgba(255, 255, 255, .92);
+  border-color: rgba(255, 255, 255, .16);
+  color: #101828;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-inspector footer {
+  background: rgba(15, 23, 42, .92);
+  border-color: rgba(255, 255, 255, .09);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-inspector footer button {
+  background: rgba(255, 255, 255, .09);
+  border-color: rgba(255, 255, 255, .12);
+  color: #f8fafc;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-inspector footer button[type="submit"] {
+  background: #e5edf7;
+  color: #07111f;
+}
+
+@media (max-width: 1180px) {
+  .idp-player-board-modal-layout.is-idp-tacticalboard {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+
+  .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-toolbox {
+    grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+  }
+
+  .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .idp-player-board-tactical-preview .idp-player-board-canvas {
+    padding-left: 0;
+  }
+
+  .idp-player-board-tactical-preview .idp-player-board-tool-rail {
+    display: none;
+  }
+
+  .idp-player-board-tactical-preview .idp-player-board-pitch {
+    height: 226px;
+  }
+
+  .idp-player-board-tactical-shell .idp-player-board-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .idp-player-board-modal {
+    border-radius: 0;
+    max-width: 100vw;
+  }
+
+  .idp-player-board-modal-layout.is-idp-tacticalboard {
+    display: block;
+    overflow: auto;
+  }
+
+  .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-toolbox,
+  .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-canvas-wrap {
+    margin-bottom: 10px;
+  }
+
+  .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-toolbox {
+    grid-template-columns: 1fr;
+  }
+
+  .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-tool-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-canvas-wrap .idp-player-board-pitch,
+  .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-canvas-wrap .idp-player-board-pitch.is-box {
+    height: 330px;
+  }
+}

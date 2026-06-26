@@ -66,6 +66,20 @@ function boardToolIcon(tool = "player") {
   }[tool] || "T";
 }
 
+function renderBoardToolSvgIcon(tool = "player") {
+  const icons = {
+    player: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2.4"></circle></svg>',
+    reference: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><path d="M8.5 15.5 15.5 8.5"></path></svg>',
+    cone: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5h4l2 12H8l2-12Z"></path><path d="M6 19h12"></path><path d="M9 13h6"></path></svg>',
+    zone: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="7" width="14" height="10" rx="2"></rect><path d="M8 10h8"></path></svg>',
+    arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18 18 5"></path><path d="M12 5h6v6"></path></svg>',
+    pass: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13"></path><path d="m14 8 4 4-4 4"></path><circle cx="5" cy="12" r="1.5"></circle></svg>',
+    run: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18c3-8 8-11 14-12"></path><path d="M14 5h5v5"></path><path d="M8 15l2 2"></path></svg>',
+    note: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-4 3v-3H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path></svg>',
+  };
+  return icons[tool] || '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle></svg>';
+}
+
 function coachLabel(value = "") {
   return String(value ?? "")
     .replace(/\bNeeds Evidence\b/g, "Needs Observation")
@@ -277,7 +291,7 @@ function renderPreviewToolRail() {
   return `
     <span class="idp-player-board-tool-rail" aria-hidden="true">
       ${["player", "reference", "cone", "zone", "run"].map((tool) => `
-        <span title="${escapeHtml(boardToolLabel(tool))}">${escapeHtml(boardToolIcon(tool))}</span>
+        <span title="${escapeHtml(boardToolLabel(tool))}">${renderBoardToolSvgIcon(tool)}</span>
       `).join("")}
     </span>
   `;
@@ -289,21 +303,20 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
   const nextTitle = coachLabel(nextAction.title || "Add observation");
   const nextDue = nextAction.dueOn || focus?.reviewDate || "No date set";
   const modeLabel = pitchModeLabel(intervention.pitchMode);
+  const playerName = normalizeText(profile.playerName || profile.name, "Individual player");
+  const focusTitle = normalizeText(focus?.title, "Current focus");
+  const objective = interventionObjective(intervention, focus);
   return `
-    <aside class="idp-player-board-panel">
-      <div class="idp-player-board-head">
+    <aside class="idp-player-board-panel idp-player-board-tactical-shell">
+      <header class="idp-player-board-head idp-player-board-tactical-head">
         <div>
           <span>IDP Player Board</span>
-          <strong>${escapeHtml(intervention.title || "Individual exercise")}</strong>
-          <small>${escapeHtml(profile.playerName || "Individual player")}</small>
+          <strong>${escapeHtml(playerName)}</strong>
+          <small>${escapeHtml(focusTitle)}</small>
         </div>
-        <div class="idp-player-board-meta">
-          <span><strong>${escapeHtml(String(counts.frames))}</strong> frames</span>
-          <span><strong>${escapeHtml(String(counts.clips))}</strong> clips</span>
-          <span><strong>${escapeHtml(String(counts.notes))}</strong> notes</span>
-        </div>
-      </div>
-      <button type="button" class="idp-player-board-preview" data-idp-player-board-open aria-label="Open IDP Player Board">
+        <button type="button" data-idp-player-board-open aria-label="Open IDP Player Board">Edit Board</button>
+      </header>
+      <button type="button" class="idp-player-board-preview idp-player-board-tactical-preview" data-idp-player-board-open aria-label="Open IDP Player Board">
         <span class="idp-player-board-surface">
           <span class="idp-player-board-boardbar" aria-hidden="true">
             <span><strong>01</strong><small>Individual</small></span>
@@ -316,8 +329,8 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
           </span>
           <span class="idp-player-board-insight-row">
             <span>
-              <strong>${escapeHtml(pulse.label || "On track")}</strong>
-              <small>${escapeHtml(pulse.detail || "Progress")}</small>
+              <strong>${escapeHtml(intervention.title || "Individual exercise")}</strong>
+              <small>${escapeHtml(objective)}</small>
             </span>
             <span>
               <strong>${escapeHtml(nextTitle)}</strong>
@@ -329,8 +342,8 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
       ${renderExerciseBank(detail, intervention, focus)}
       ${canEdit ? `
         <div class="idp-player-board-actions">
-          <button type="button" class="is-primary" data-idp-player-board-new>New Exercise</button>
-          <button type="button" data-idp-player-board-open>Edit Board</button>
+          <button type="button" class="is-primary" data-idp-player-board-open>Edit Board</button>
+          <button type="button" data-idp-player-board-new>New Exercise</button>
           <button type="button" data-idp-player-board-link-clip>Link Clip</button>
           <button type="button" data-idp-action="evidence">Add Observation</button>
         </div>
@@ -384,9 +397,9 @@ function renderBoardColorSwatches(selected = "#38bdf8") {
 }
 
 const boardToolGroups = [
-  { label: "Individual", tools: [["player", "Move Player"], ["reference", "Reference"]] },
+  { label: "Players", tools: [["player", "Player"], ["reference", "Reference"]] },
   { label: "Equipment", tools: [["cone", "Cone"], ["zone", "Zone"]] },
-  { label: "Draw", tools: [["arrow", "Arrow"], ["pass", "Pass"], ["run", "Run"], ["note", "Note"]] },
+  { label: "Draw", tools: [["arrow", "Arrow"], ["pass", "Pass"], ["run", "Run"], ["note", "Text"]] },
 ];
 
 const boardToolDataAttributes = {
@@ -404,7 +417,7 @@ function renderBoardToolButton(tool, label, activeTool = "player") {
       title="${escapeHtml(label)}"
       aria-label="${escapeHtml(label)}"
     >
-      <span class="idp-player-board-tool-icon" aria-hidden="true">${escapeHtml(boardToolIcon(tool))}</span>
+      <span class="idp-player-board-tool-icon" aria-hidden="true">${renderBoardToolSvgIcon(tool)}</span>
       <span class="idp-player-board-tool-label">${escapeHtml(label)}</span>
     </button>
   `;
@@ -458,21 +471,31 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
       <section class="idp-player-board-modal idp-player-board-modal-tool-player" role="dialog" aria-modal="true" aria-label="IDP Player Board editor" data-idp-board-active-tool="player">
         <header class="idp-player-board-modal-head">
           <div>
-            <span>IDP Player Board</span>
-            <h2>${escapeHtml(profile.playerName || "Player")}</h2>
-            <small>${escapeHtml(focus?.title || "Individual development")}</small>
+            <span>Individual Development</span>
+            <h2>IDP Player Board</h2>
+            <small>${escapeHtml(profile.playerName || "Player")} / ${escapeHtml(focus?.title || "Individual development")}</small>
             <div class="idp-player-board-status-strip" aria-label="Board state">
               <span data-idp-board-active-tool-label>Move Player</span>
               <span>${escapeHtml(interventionStatusLabel(intervention.status))}</span>
               <span>${escapeHtml(`${Math.max(1, counts.frames)} frames`)}</span>
               <span>${escapeHtml(`${counts.clips} clips`)}</span>
+              <span>IDP only</span>
             </div>
           </div>
           <button type="button" data-idp-player-board-close>Close</button>
         </header>
-        <div class="idp-player-board-modal-layout is-tactical-style">
+        <div class="idp-player-board-modal-layout is-tactical-style is-idp-tacticalboard">
           <aside class="idp-player-board-toolbox">
-            <div class="idp-player-board-editor-bank">
+            <div class="idp-player-board-editor-bank idp-player-board-tool-bank">
+              <div class="idp-player-board-editor-panel-head">
+                <span>Tools</span>
+                <small>IDP board</small>
+              </div>
+              <div class="idp-player-board-tools" aria-label="IDP board tools">
+                ${renderBoardToolGroups("player")}
+              </div>
+            </div>
+            <div class="idp-player-board-editor-bank idp-player-board-mini-bank">
               <div class="idp-player-board-editor-panel-head">
                 <span>Exercise Bank</span>
                 <small>${escapeHtml(interventions.length || 1)} saved</small>
@@ -494,9 +517,6 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
                 </button>
               `).join("")}
             </div>
-            <div class="idp-player-board-tools" aria-label="IDP board tools">
-              ${renderBoardToolGroups("player")}
-            </div>
           </aside>
           <div class="idp-player-board-canvas-wrap">
             ${renderBoardFrameStrip(state.frames)}
@@ -505,7 +525,7 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
             </div>
             <div class="idp-player-board-editor-hint">
               <strong data-idp-board-hint-tool>Move Player</strong>
-              <span data-idp-board-hint-state>Click the pitch to place the selected IDP element.</span>
+              <span data-idp-board-hint-state>Click the pitch to place the selected IDP element. Save keeps it on this player's IDP only.</span>
             </div>
           </div>
           <form class="idp-player-board-form idp-player-board-inspector" data-idp-save-intervention>

@@ -229,7 +229,7 @@ function parseBoardLineWidth(value, fallback = 2.5) {
 
 function normalizeBoardArrowType(value = "", fallback = "run") {
   const normalized = normalizeText(value, 20).toLowerCase();
-  return ["arrow", "pass", "run"].includes(normalized) ? normalized : fallback;
+  return ["arrow", "pass", "run", "line", "curve"].includes(normalized) ? normalized : fallback;
 }
 
 function buildInterventionBoardState(formData) {

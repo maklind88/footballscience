@@ -268,6 +268,12 @@ function boardLineDasharray(lineStyle = "dashed") {
   return "6 4";
 }
 
+function boardRenderLineWidth(value, fallback = 2.5) {
+  const number = Number(value);
+  const logicalWidth = Number.isFinite(number) ? Math.min(6, Math.max(.75, number)) : fallback;
+  return Math.min(3.15, Math.max(.16, Math.round(logicalWidth * .52 * 100) / 100));
+}
+
 function boardMovementPath(fromX, fromY, toX, toY) {
   const controlX = (Number(fromX) + Number(toX)) / 2;
   const controlY = Math.min(Number(fromY), Number(toY)) - Math.max(6, Math.abs(Number(toX) - Number(fromX)) / 5);
@@ -292,6 +298,11 @@ function setBoardMovementCoordinates(modal) {
   const type = modal?.querySelector?.('[name="arrowType"]')?.value || element?.dataset?.idpBoardArrowType || "run";
   const { fromX, fromY, toX, toY } = boardMovementPoints(modal);
   if (!element) return;
+  if (type === "line" || type === "curve") {
+    element.removeAttribute("marker-end");
+  } else if (!element.getAttribute("marker-end")) {
+    element.setAttribute("marker-end", "url(#idp-player-board-editor-arrow)");
+  }
   if (type === "run" || element.tagName?.toLowerCase?.() === "path") {
     element.setAttribute("d", boardMovementPath(fromX, fromY, toX, toY));
     return;
@@ -307,7 +318,7 @@ function ensureBoardMovementElement(modal, type = "run") {
   const current = boardMovementElement(modal);
   if (!svg || !current) return current;
   const currentTag = current.tagName?.toLowerCase?.();
-  const targetTag = type === "run" ? "path" : "line";
+  const targetTag = type === "run" || type === "curve" ? "path" : "line";
   if (currentTag === targetTag) {
     current.dataset.idpBoardArrowType = type;
     return current;
@@ -316,7 +327,9 @@ function ensureBoardMovementElement(modal, type = "run") {
   const next = doc?.createElementNS?.("http://www.w3.org/2000/svg", targetTag);
   if (!next) return current;
   next.dataset.idpBoardArrowType = type;
-  next.setAttribute("marker-end", current.getAttribute("marker-end") || "url(#idp-player-board-editor-arrow)");
+  if (type !== "line" && type !== "curve") {
+    next.setAttribute("marker-end", current.getAttribute("marker-end") || "url(#idp-player-board-editor-arrow)");
+  }
   current.replaceWith(next);
   setBoardMovementCoordinates(modal);
   return next;
@@ -326,14 +339,15 @@ function updateBoardArrowStyle(modal) {
   const color = modal?.querySelector?.('[name="arrowColor"]')?.value || "#38bdf8";
   const lineStyle = modal?.querySelector?.('[name="arrowLineStyle"]')?.value || "dashed";
   const lineWidth = Number(modal?.querySelector?.('[name="arrowLineWidth"]')?.value || 2.5);
+  const renderLineWidth = boardRenderLineWidth(lineWidth, 2.5);
   const element = boardMovementElement(modal);
   element?.setAttribute?.("stroke", color);
-  element?.setAttribute?.("stroke-width", String(Number.isFinite(lineWidth) ? Math.min(6, Math.max(.75, lineWidth)) : 2.5));
+  element?.setAttribute?.("stroke-width", String(renderLineWidth));
   element?.setAttribute?.("stroke-dasharray", boardLineDasharray(lineStyle));
   element?.setAttribute?.("fill", "none");
   if (element?.style) {
     element.style.stroke = color;
-    element.style.strokeWidth = String(Number.isFinite(lineWidth) ? Math.min(6, Math.max(.75, lineWidth)) : 2.5);
+    element.style.strokeWidth = String(renderLineWidth);
     element.style.strokeDasharray = boardLineDasharray(lineStyle);
     element.style.fill = "none";
   }
@@ -345,7 +359,7 @@ function updateBoardArrowStyle(modal) {
 }
 
 function setBoardArrowPreset(modal, tool = "arrow") {
-  if (!modal || !["run", "pass", "arrow"].includes(tool)) return;
+  if (!modal || !["run", "pass", "arrow", "line", "curve"].includes(tool)) return;
   const arrowType = modal.querySelector?.('[name="arrowType"]');
   const arrowLabel = modal.querySelector?.('[name="arrowLabel"]');
   const lineStyle = modal.querySelector?.('[name="arrowLineStyle"]');
@@ -353,14 +367,16 @@ function setBoardArrowPreset(modal, tool = "arrow") {
     run: { label: "Run", lineStyle: "dashed", color: "#38bdf8" },
     pass: { label: "Pass", lineStyle: "dotted", color: "#fbbf24" },
     arrow: { label: "Action path", lineStyle: "solid", color: "#38bdf8" },
+    line: { label: "Line", lineStyle: "solid", color: "#111827" },
+    curve: { label: "Curve", lineStyle: "solid", color: "#111827" },
   }[tool];
   const color = modal.querySelector?.('[name="arrowColor"]');
   if (arrowType) arrowType.value = tool;
-  if (arrowLabel && (!String(arrowLabel.value || "").trim() || ["Run", "Pass", "Action path", "Attack ball"].includes(arrowLabel.value))) {
+  if (arrowLabel && (!String(arrowLabel.value || "").trim() || ["Run", "Pass", "Action path", "Attack ball", "Line", "Curve"].includes(arrowLabel.value))) {
     arrowLabel.value = preset.label;
   }
   if (lineStyle) lineStyle.value = preset.lineStyle;
-  if (color && (!String(color.value || "").trim() || ["#fef08a", "#38bdf8", "#fbbf24"].includes(String(color.value).toLowerCase()))) {
+  if (color && (!String(color.value || "").trim() || ["#fef08a", "#38bdf8", "#fbbf24", "#111827"].includes(String(color.value).toLowerCase()))) {
     color.value = preset.color;
   }
   ensureBoardMovementElement(modal, tool);
@@ -409,7 +425,7 @@ function applyBoardPitchPoint(event, pitch) {
     }
     return true;
   }
-  if (["arrow", "run", "pass"].includes(tool)) {
+  if (["arrow", "run", "pass", "line", "curve"].includes(tool)) {
     setBoardArrowPreset(modal, tool);
     if (modal.dataset.idpBoardArrowStart === "1") {
       setBoardFormValue(modal, "arrowToX", point.x);

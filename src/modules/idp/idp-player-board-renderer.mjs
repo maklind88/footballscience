@@ -30,6 +30,11 @@ function normalizeBoardLineWidth(value, fallback = 2.4) {
   return Number.isFinite(number) ? Math.min(6, Math.max(0.75, Math.round(number * 4) / 4)) : fallback;
 }
 
+function renderBoardLineWidth(value, fallback = 2.4) {
+  const logicalWidth = normalizeBoardLineWidth(value, fallback);
+  return Math.min(3.15, Math.max(0.16, Math.round(logicalWidth * 0.52 * 100) / 100));
+}
+
 function boardLineDasharray(lineStyle = "solid") {
   if (lineStyle === "dashed") return "7 4";
   if (lineStyle === "dotted") return "1 4";
@@ -37,7 +42,7 @@ function boardLineDasharray(lineStyle = "solid") {
 }
 
 function boardArrowType(value = "arrow") {
-  return ["arrow", "pass", "run"].includes(value) ? value : "arrow";
+  return ["arrow", "pass", "run", "line", "curve"].includes(value) ? value : "arrow";
 }
 
 function boardToolLabel(tool = "player") {
@@ -49,6 +54,8 @@ function boardToolLabel(tool = "player") {
     arrow: "Arrow",
     pass: "Pass",
     run: "Run",
+    line: "Line",
+    curve: "Curve",
     note: "Note",
   }[tool] || "Tool";
 }
@@ -75,6 +82,8 @@ function renderBoardToolSvgIcon(tool = "player") {
     arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18 18 5"></path><path d="M12 5h6v6"></path></svg>',
     pass: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13"></path><path d="m14 8 4 4-4 4"></path><circle cx="5" cy="12" r="1.5"></circle></svg>',
     run: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18c3-8 8-11 14-12"></path><path d="M14 5h5v5"></path><path d="M8 15l2 2"></path></svg>',
+    line: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19 19 5"></path></svg>',
+    curve: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17c5-12 10 2 14-10"></path></svg>',
     note: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-4l-4 3v-3H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"></path></svg>',
   };
   return icons[tool] || '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle></svg>';
@@ -130,30 +139,65 @@ function draftIntervention(profile = {}, focus = {}) {
     id: "",
     title: focus?.title ? `${focus.title} intervention` : "New individual exercise",
     objective: focus?.description || "",
-    pitchMode: profile.position === "Goalkeeper" || profile.role === "GK" ? "box" : "half",
+    pitchMode: profile.position === "Goalkeeper" || profile.role === "GK" ? "goalkeeper" : "attacking-half",
     boardState: boardState({}, focus, profile),
     status: "active",
     rowVersion: 1,
   };
 }
 
+function normalizePitchMode(mode = "attacking-half") {
+  const aliases = {
+    half: "attacking-half",
+    "final-third": "attacking-half",
+    box: "goalkeeper",
+  };
+  const normalized = normalizeText(mode, "attacking-half");
+  return ["full", "full-wide", "attacking-half", "defending-half", "goalkeeper"].includes(normalized)
+    ? normalized
+    : aliases[normalized] || "attacking-half";
+}
+
 function pitchModeLabel(mode = "half") {
   return {
     full: "Full pitch",
-    half: "Half pitch",
-    "final-third": "Final third",
-    box: "Box",
-  }[mode] || "Half pitch";
+    "full-wide": "Full pitch wide",
+    "attacking-half": "Attacking half",
+    "defending-half": "Defending half",
+    goalkeeper: "Goalkeeper box",
+    half: "Attacking half",
+    "final-third": "Attacking half",
+    box: "Goalkeeper box",
+  }[mode] || "Attacking half";
 }
 
-function renderPitchLines() {
+function pitchMeasurementLabel(mode = "attacking-half") {
+  return {
+    full: "65 x 105 m",
+    "full-wide": "105 x 65 m",
+    "attacking-half": "65 x 52.5 m",
+    "defending-half": "65 x 52.5 m",
+    goalkeeper: "65 x 33 m",
+  }[normalizePitchMode(mode)] || "65 x 52.5 m";
+}
+
+function renderSessionPitchDiagram(mode = "attacking-half") {
+  const pitchMode = normalizePitchMode(mode);
+  const landscapeClass = pitchMode === "full-wide" ? " session-pitch-diagram-landscape" : "";
   return `
-    <div class="idp-player-board-line is-half"></div>
-    <div class="idp-player-board-circle"></div>
-    <div class="idp-player-board-box is-top"></div>
-    <div class="idp-player-board-box is-bottom"></div>
-    <div class="idp-player-board-goal is-top"></div>
-    <div class="idp-player-board-goal is-bottom"></div>
+    <div class="session-pitch-diagram session-pitch-diagram-empty session-pitch-diagram-mode-${escapeHtml(pitchMode)}${landscapeClass}" aria-label="IDP tactical pitch">
+      <div class="session-pitch-goal session-pitch-goal-top"></div>
+      <div class="session-pitch-goal session-pitch-goal-bottom"></div>
+      <div class="session-pitch-box session-pitch-box-top"></div>
+      <div class="session-pitch-box session-pitch-box-bottom"></div>
+      <div class="session-pitch-goal-area session-pitch-goal-area-top"></div>
+      <div class="session-pitch-goal-area session-pitch-goal-area-bottom"></div>
+      <span class="session-pitch-penalty-spot session-pitch-penalty-spot-top"></span>
+      <span class="session-pitch-penalty-spot session-pitch-penalty-spot-bottom"></span>
+      <div class="session-pitch-halfway-edge session-pitch-halfway-edge-top"></div>
+      <div class="session-pitch-halfway-edge session-pitch-halfway-edge-bottom"></div>
+      <div class="session-pitch-circle"></div>
+    </div>
   `;
 }
 
@@ -165,15 +209,16 @@ function renderArrowElement(arrow = {}, markerId = "idp-player-board-arrow") {
   const toY = clampPercent(arrow.to?.y, 42);
   const color = normalizeBoardColor(arrow.color, type === "pass" ? "#fbbf24" : "#38bdf8");
   const lineStyle = normalizeBoardLineStyle(arrow.lineStyle, type === "pass" ? "dotted" : type === "run" ? "dashed" : "solid");
-  const lineWidth = normalizeBoardLineWidth(arrow.lineWidth, 2.4);
+  const lineWidth = renderBoardLineWidth(arrow.lineWidth, 2.4);
   const dash = boardLineDasharray(lineStyle);
-  const style = `stroke:${escapeHtml(color)};stroke-width:${lineWidth};${dash ? `stroke-dasharray:${escapeHtml(dash)};` : ""}`;
-  if (type === "run") {
+  const style = `fill:none;stroke:${escapeHtml(color)};stroke-width:${lineWidth};stroke-linecap:round;stroke-linejoin:round;${dash ? `stroke-dasharray:${escapeHtml(dash)};` : ""}`;
+  if (type === "run" || type === "curve") {
     const controlX = (fromX + toX) / 2;
     const controlY = Math.min(fromY, toY) - Math.max(6, Math.abs(toX - fromX) / 5);
-    return `<path d="M ${fromX} ${fromY} Q ${controlX} ${controlY} ${toX} ${toY}" marker-end="url(#${escapeHtml(markerId)})" data-idp-board-arrow-type="${escapeHtml(type)}" style="${style}"></path>`;
+    return `<path class="session-tactical-${escapeHtml(type)} idp-player-board-movement" d="M ${fromX} ${fromY} Q ${controlX} ${controlY} ${toX} ${toY}" ${type === "curve" ? "" : `marker-end="url(#${escapeHtml(markerId)})"`} data-idp-board-arrow-type="${escapeHtml(type)}" style="${style}"></path>`;
   }
-  return `<line x1="${fromX}" y1="${fromY}" x2="${toX}" y2="${toY}" marker-end="url(#${escapeHtml(markerId)})" data-idp-board-arrow-type="${escapeHtml(type)}" style="${style}"></line>`;
+  const shouldUseArrow = type !== "line";
+  return `<line class="session-tactical-${escapeHtml(type)} idp-player-board-movement" x1="${fromX}" y1="${fromY}" x2="${toX}" y2="${toY}" ${shouldUseArrow ? `marker-end="url(#${escapeHtml(markerId)})"` : ""} data-idp-board-arrow-type="${escapeHtml(type)}" style="${style}"></line>`;
 }
 
 function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options = {}) {
@@ -183,40 +228,47 @@ function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options =
   const playerName = normalizeText(profile.playerName || profile.name || "Player", "Player");
   const markerId = options.markerId || "idp-player-board-arrow";
   const editorAttr = options.editor ? " data-idp-board-editor-pitch" : "";
+  const pitchMode = normalizePitchMode(intervention.pitchMode || "attacking-half");
   const playerY = clampPercent(player.y, 70);
   const playerLabelTop = clampPercent(playerY > 66 ? playerY - 11 : playerY + 9, 79);
   return `
-    <div class="idp-player-board-pitch is-${escapeHtml(intervention.pitchMode || "half")}"${editorAttr}>
-      <span class="idp-player-board-mode-chip">${escapeHtml(pitchModeLabel(intervention.pitchMode || "half"))}</span>
-      ${renderPitchLines()}
-      ${Array.isArray(state.zones) ? state.zones.map((zone) => `
-        <span class="idp-player-board-zone" style="left:${clampPercent(zone.x, 34)}%;top:${clampPercent(zone.y, 28)}%;width:${clampPercent(zone.width, 32)}%;height:${clampPercent(zone.height, 28)}%;">
-          ${escapeHtml(zone.label || "Zone")}
-        </span>
-      `).join("") : ""}
-      <svg class="idp-player-board-arrow-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <defs>
-          <marker id="${escapeHtml(markerId)}" markerWidth="6" markerHeight="6" refX="5.4" refY="3" orient="auto" markerUnits="strokeWidth" viewBox="0 0 6 6">
-            <path d="M0.7,0.6 L5.4,3 L0.7,5.4 Z" fill="context-stroke" stroke="context-stroke" stroke-width="0.22" stroke-linejoin="round"></path>
-          </marker>
-        </defs>
-        ${Array.isArray(state.arrows) ? state.arrows.map((arrow) => renderArrowElement(arrow, markerId)).join("") : ""}
-      </svg>
-      ${Array.isArray(state.cones) ? state.cones.map((cone, index) => `
-        <span class="idp-player-board-cone" data-idp-board-cone="${index + 1}" style="left:${clampPercent(cone.x, 50)}%;top:${clampPercent(cone.y, 50)}%;"></span>
-      `).join("") : ""}
-      ${Array.isArray(state.referencePlayers) ? state.referencePlayers.map((item) => `
-        <span class="idp-player-board-reference" style="left:${clampPercent(item.x, 50)}%;top:${clampPercent(item.y, 45)}%;">${escapeHtml(item.label || "REF")}</span>
-      `).join("") : ""}
-      ${Array.isArray(state.notes) ? state.notes.slice(0, 2).map((note) => `
-        <span class="idp-player-board-note-pin" style="left:${clampPercent(note.x, 12)}%;top:${clampPercent(note.y, 14)}%;">${escapeHtml(note.text)}</span>
-      `).join("") : ""}
-      <span class="idp-player-board-player" style="left:${clampPercent(player.x, 50)}%;top:${playerY}%;">
-        ${escapeHtml(initials)}
-      </span>
-      <span class="idp-player-board-player-name" style="left:${clampPercent(player.x, 50)}%;top:${playerLabelTop}%;">
-        ${escapeHtml(playerName)}
-      </span>
+    <div class="session-visual-board session-visual-board-large session-visual-board-mode-${escapeHtml(pitchMode)} idp-player-board-pitch is-${escapeHtml(pitchMode)}" aria-label="IDP Playerboard tactical visual">
+      <div class="session-visual-board-surface idp-player-board-surface"${editorAttr}>
+        <span class="idp-player-board-mode-chip">${escapeHtml(pitchModeLabel(pitchMode))}</span>
+        ${renderSessionPitchDiagram(pitchMode)}
+        ${Array.isArray(state.zones) ? state.zones.map((zone) => `
+          <span class="idp-player-board-zone session-tactical-zone" style="left:${clampPercent(zone.x, 34)}%;top:${clampPercent(zone.y, 28)}%;width:${clampPercent(zone.width, 32)}%;height:${clampPercent(zone.height, 28)}%;">
+            ${escapeHtml(zone.label || "Zone")}
+          </span>
+        `).join("") : ""}
+        <svg class="session-tactical-svg-layer idp-player-board-arrow-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <marker id="${escapeHtml(markerId)}" markerWidth="6" markerHeight="6" refX="5.45" refY="3" orient="auto" markerUnits="strokeWidth" viewBox="0 0 6 6">
+              <path d="M0.75,0.6 L5.45,3 L0.75,5.4 Z" fill="context-stroke" stroke="context-stroke" stroke-width="0.22" stroke-linejoin="round"></path>
+            </marker>
+          </defs>
+          ${Array.isArray(state.arrows) ? state.arrows.map((arrow) => renderArrowElement(arrow, markerId)).join("") : ""}
+        </svg>
+        <div class="session-tactical-html-layer idp-player-board-html-layer" aria-hidden="true">
+          ${Array.isArray(state.cones) ? state.cones.map((cone, index) => `
+            <span class="session-tactical-marker session-tactical-cone idp-player-board-cone" data-idp-board-cone="${index + 1}" style="left:${clampPercent(cone.x, 50)}%;top:${clampPercent(cone.y, 50)}%;"></span>
+          `).join("") : ""}
+          ${Array.isArray(state.referencePlayers) ? state.referencePlayers.map((item) => `
+            <span class="session-tactical-marker session-tactical-player session-tactical-neutral-player has-badge idp-player-board-reference" style="left:${clampPercent(item.x, 50)}%;top:${clampPercent(item.y, 45)}%;">
+              <span class="session-tactical-player-badge${String(item.label || "REF").length > 1 ? " is-wide" : ""}">${escapeHtml(item.label || "REF")}</span>
+            </span>
+          `).join("") : ""}
+          ${Array.isArray(state.notes) ? state.notes.slice(0, 2).map((note) => `
+            <span class="session-tactical-marker session-tactical-text idp-player-board-note-pin" style="left:${clampPercent(note.x, 12)}%;top:${clampPercent(note.y, 14)}%;">${escapeHtml(note.text)}</span>
+          `).join("") : ""}
+          <span class="session-tactical-marker session-tactical-player session-tactical-blue-player has-badge idp-player-board-player" style="left:${clampPercent(player.x, 50)}%;top:${playerY}%;">
+            <span class="session-tactical-player-badge${initials.length > 1 ? " is-wide" : ""}">${escapeHtml(initials)}</span>
+          </span>
+          <span class="idp-player-board-player-name" style="left:${clampPercent(player.x, 50)}%;top:${playerLabelTop}%;">
+            ${escapeHtml(playerName)}
+          </span>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -357,8 +409,9 @@ function fieldValue(value, fallback = "") {
 }
 
 function renderPitchModeOptions(selected = "half") {
-  return ["full", "half", "final-third", "box"].map((mode) => `
-    <option value="${escapeHtml(mode)}"${mode === selected ? " selected" : ""}>${escapeHtml(pitchModeLabel(mode))}</option>
+  const normalizedSelected = normalizePitchMode(selected);
+  return ["full", "full-wide", "attacking-half", "defending-half", "goalkeeper"].map((mode) => `
+    <option value="${escapeHtml(mode)}"${mode === normalizedSelected ? " selected" : ""}>${escapeHtml(pitchModeLabel(mode))}</option>
   `).join("");
 }
 
@@ -387,9 +440,9 @@ function renderBoardColorSwatches(selected = "#38bdf8") {
   return colors.map(([color, label]) => `
     <button
       type="button"
-      class="idp-player-board-color-swatch${normalized === color ? " is-active" : ""}"
+      class="session-tactical-colour-swatch idp-player-board-color-swatch${normalized === color ? " is-active" : ""}"
       data-idp-board-color-choice="${escapeHtml(color)}"
-      style="--idp-board-swatch:${escapeHtml(color)};"
+      style="--idp-board-swatch:${escapeHtml(color)};--session-tactical-swatch:${escapeHtml(color)};"
       title="${escapeHtml(label)}"
       aria-label="${escapeHtml(label)}"
     ></button>
@@ -399,7 +452,7 @@ function renderBoardColorSwatches(selected = "#38bdf8") {
 const boardToolGroups = [
   { label: "Players", tools: [["player", "Player"], ["reference", "Reference"]] },
   { label: "Equipment", tools: [["cone", "Cone"], ["zone", "Zone"]] },
-  { label: "Draw", tools: [["arrow", "Arrow"], ["pass", "Pass"], ["run", "Run"], ["note", "Text"]] },
+  { label: "Draw", tools: [["arrow", "Arrow"], ["pass", "Pass"], ["run", "Run"], ["line", "Line"], ["curve", "Curve"], ["note", "Text"]] },
 ];
 
 const boardToolDataAttributes = {
@@ -412,22 +465,22 @@ function renderBoardToolButton(tool, label, activeTool = "player") {
   return `
     <button
       type="button"
-      class="idp-player-board-tool-button${activeTool === tool ? " is-active" : ""}"
+      class="session-tactical-tool-button idp-player-board-tool-button${activeTool === tool ? " is-active" : ""}"
       ${dataAttribute}
       title="${escapeHtml(label)}"
       aria-label="${escapeHtml(label)}"
     >
-      <span class="idp-player-board-tool-icon" aria-hidden="true">${renderBoardToolSvgIcon(tool)}</span>
-      <span class="idp-player-board-tool-label">${escapeHtml(label)}</span>
+      <span class="session-tactical-tool-icon idp-player-board-tool-icon" aria-hidden="true">${renderBoardToolSvgIcon(tool)}</span>
+      <span class="session-tactical-tool-label idp-player-board-tool-label">${escapeHtml(label)}</span>
     </button>
   `;
 }
 
 function renderBoardToolGroups(activeTool = "player") {
   return boardToolGroups.map((group) => `
-    <div class="idp-player-board-tool-group">
+    <div class="session-tacticalboard-tool-group idp-player-board-tool-group">
       <span>${escapeHtml(group.label)}</span>
-      <div class="idp-player-board-tool-row">
+      <div class="session-tacticalboard-tool-row idp-player-board-tool-row">
         ${group.tools.map(([tool, label]) => renderBoardToolButton(tool, label, activeTool)).join("")}
       </div>
     </div>
@@ -436,12 +489,16 @@ function renderBoardToolGroups(activeTool = "player") {
 
 function renderBoardFrameStrip(frames = []) {
   const safeFrames = Array.isArray(frames) && frames.length ? frames.slice(0, 6) : [{ id: "frame-1", label: "Start" }];
+  const frameStatusLabel = `1 / ${safeFrames.length || 1}`;
   return `
-    <div class="idp-player-board-editor-framebar" aria-label="IDP board frames">
-      <span>Frames</span>
-      <div>
+    <div class="session-tacticalboard-frames idp-player-board-editor-framebar" aria-label="IDP board frames">
+      <div class="session-tacticalboard-panel-head idp-player-board-editor-panel-head">
+        <span>Frames</span>
+        <small>${escapeHtml(frameStatusLabel)}</small>
+      </div>
+      <div class="session-tacticalboard-frame-list idp-player-board-frame-list">
         ${safeFrames.map((frame, index) => `
-          <button type="button" class="${index === 0 ? "is-active" : ""}" title="${escapeHtml(frame.label || `Frame ${index + 1}`)}">${index + 1}</button>
+          <button type="button" class="session-tacticalboard-frame idp-player-board-frame${index === 0 ? " is-active" : ""}" title="${escapeHtml(frame.label || `Frame ${index + 1}`)}">${index + 1}</button>
         `).join("")}
       </div>
     </div>
@@ -467,36 +524,37 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
   const counts = interventionCounts(intervention);
   const linkedClipIds = Array.isArray(state.linkedClipIds) ? state.linkedClipIds.join(", ") : "";
   return `
-    <div class="idp-player-board-layer" data-idp-player-board-layer>
-      <section class="idp-player-board-modal idp-player-board-modal-tool-player" role="dialog" aria-modal="true" aria-label="IDP Player Board editor" data-idp-board-active-tool="player">
-        <header class="idp-player-board-modal-head">
+    <div class="session-library-overlay session-tacticalboard-overlay idp-player-board-layer" data-idp-player-board-layer>
+      <section class="session-library-modal session-tacticalboard-modal idp-player-board-modal idp-player-board-modal-tool-player" role="dialog" aria-modal="true" aria-label="IDP Player Board editor" data-idp-board-active-tool="player">
+        <header class="session-library-modal-head idp-player-board-modal-head">
           <div>
-            <span>Individual Development</span>
-            <h2>IDP Player Board</h2>
+            <span>IDP Tacticalboard</span>
+            <h2>IDP Playerboard</h2>
             <small>${escapeHtml(profile.playerName || "Player")} / ${escapeHtml(focus?.title || "Individual development")}</small>
-            <div class="idp-player-board-status-strip" aria-label="Board state">
+            <div class="session-tacticalboard-status-strip idp-player-board-status-strip" aria-label="Board state">
               <span data-idp-board-active-tool-label>Move Player</span>
               <span>${escapeHtml(interventionStatusLabel(intervention.status))}</span>
               <span>${escapeHtml(`${Math.max(1, counts.frames)} frames`)}</span>
               <span>${escapeHtml(`${counts.clips} clips`)}</span>
+              <span>${escapeHtml(pitchMeasurementLabel(intervention.pitchMode))}</span>
               <span>IDP only</span>
             </div>
           </div>
-          <button type="button" data-idp-player-board-close>Close</button>
+          <button type="button" class="session-library-close-button" data-idp-player-board-close aria-label="Close IDP Playerboard">Close</button>
         </header>
-        <div class="idp-player-board-modal-layout is-tactical-style is-idp-tacticalboard">
-          <aside class="idp-player-board-toolbox">
-            <div class="idp-player-board-editor-bank idp-player-board-tool-bank">
-              <div class="idp-player-board-editor-panel-head">
+        <div class="session-tacticalboard-layout idp-player-board-modal-layout is-tactical-style is-idp-tacticalboard">
+          <aside class="session-tacticalboard-side session-tacticalboard-toolbox idp-player-board-toolbox">
+            <div class="session-tacticalboard-tools idp-player-board-editor-bank idp-player-board-tool-bank">
+              <div class="session-tacticalboard-panel-head idp-player-board-editor-panel-head">
                 <span>Tools</span>
                 <small>IDP board</small>
               </div>
-              <div class="idp-player-board-tools" aria-label="IDP board tools">
+              <div class="session-tacticalboard-tools idp-player-board-tools" aria-label="IDP board tools">
                 ${renderBoardToolGroups("player")}
               </div>
             </div>
-            <div class="idp-player-board-editor-bank idp-player-board-mini-bank">
-              <div class="idp-player-board-editor-panel-head">
+            <div class="session-tacticalboard-frames idp-player-board-editor-bank idp-player-board-mini-bank">
+              <div class="session-tacticalboard-panel-head idp-player-board-editor-panel-head">
                 <span>Exercise Bank</span>
                 <small>${escapeHtml(interventions.length || 1)} saved</small>
               </div>
@@ -518,31 +576,31 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
               `).join("")}
             </div>
           </aside>
-          <div class="idp-player-board-canvas-wrap">
+          <div class="session-tacticalboard-canvas-wrap idp-player-board-canvas-wrap" data-idp-player-board-canvas-wrap>
             ${renderBoardFrameStrip(state.frames)}
             <div class="idp-player-board-editor-stage">
               ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-editor-arrow", editor: true })}
             </div>
-            <div class="idp-player-board-editor-hint">
+            <div class="session-tacticalboard-hint idp-player-board-editor-hint">
               <strong data-idp-board-hint-tool>Move Player</strong>
               <span data-idp-board-hint-state>Click the pitch to place the selected IDP element. Save keeps it on this player's IDP only.</span>
             </div>
           </div>
-          <form class="idp-player-board-form idp-player-board-inspector" data-idp-save-intervention>
+          <form class="session-tacticalboard-side session-tacticalboard-inspector idp-player-board-form idp-player-board-inspector" data-idp-save-intervention>
             <input type="hidden" name="interventionId" value="${fieldValue(intervention.id)}">
             <input type="hidden" name="focusId" value="${fieldValue(focus?.id)}">
             <input type="hidden" name="rowVersion" value="${fieldValue(intervention.rowVersion || 1)}">
             <input type="hidden" name="arrowType" value="${fieldValue(arrowType)}" data-idp-board-arrow-type>
-            <div class="idp-player-board-settings" aria-label="Board settings">
+            <div class="session-tacticalboard-settings idp-player-board-settings" aria-label="Board settings">
               <label>
                 <span>Pitch view</span>
                 <select name="pitchMode">${renderPitchModeOptions(intervention.pitchMode || "half")}</select>
               </label>
               <label>
                 <span>Movement colour</span>
-                <div class="idp-player-board-color-row">
+                <div class="session-tacticalboard-colour-row idp-player-board-color-row">
                   <input name="arrowColor" type="color" value="${fieldValue(arrowColor)}" data-idp-board-color-input>
-                  <div class="idp-player-board-color-swatches">${renderBoardColorSwatches(arrowColor)}</div>
+                  <div class="session-tacticalboard-colour-swatches idp-player-board-color-swatches">${renderBoardColorSwatches(arrowColor)}</div>
                 </div>
               </label>
               <label>

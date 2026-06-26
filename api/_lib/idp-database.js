@@ -141,7 +141,7 @@ function normalizeBoardLineStyle(value, fallback = "dashed") {
 
 function normalizeBoardArrowType(value, fallback = "run") {
   const type = normalizeBoardLabel(value, 20).toLowerCase();
-  return ["arrow", "pass", "run"].includes(type) ? type : fallback;
+  return ["arrow", "pass", "run", "line", "curve"].includes(type) ? type : fallback;
 }
 
 function normalizeBoardState(value = {}) {

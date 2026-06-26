@@ -712,7 +712,8 @@ renderPinnedMessages: renderDashboardPinnedMessages,
 renderTypingIndicator: renderDashboardTypingIndicator,
 getPinnedMessagesForThread: getDashboardPinnedMessagesForThread,
 getMessageById: getDashboardMessageById,
-canDeleteMessage: isCurrentPlatformUserAdmin,
+canDeleteMessage: canDeleteDashboardChatMessage,
+canClearThread: isCurrentPlatformUserAdmin,
 canPinMessage: canPinDashboardChatMessage,
 });
 let centralAppStateReloadService = null;
@@ -1079,6 +1080,7 @@ let dashboardChatThreadSummarySyncTimer = 0;
 let dashboardChatThreadSummaryLastRequestedAt = 0;
 let dashboardChatComposerAttachmentDraft = null;
 let dashboardChatGroupCreatorOpen = false;
+let dashboardChatCreatorMode = "group";
 let dashboardChatThreadSettingsDialog = null;
 let dashboardChatApiRuntime = null;
 let dashboardChatSubmittedComposerDrafts = new Map();
@@ -1092,6 +1094,9 @@ const setDashboardChatMessageSearchQuery = (next = "") => {
 };
 const setDashboardChatGroupCreatorOpen = (next = false) => {
   dashboardChatGroupCreatorOpen = Boolean(next);
+};
+const setDashboardChatCreatorMode = (next = "group") => {
+  dashboardChatCreatorMode = next === "dm" ? "dm" : "group";
 };
 
 function normalizeDashboardChatGroupNameInput(value = "") {
@@ -1169,6 +1174,45 @@ function filterDashboardChatGroupCreateUsers(form) {
     row.hidden = Boolean(query) && !searchableText.toLowerCase().includes(query);
   });
   syncDashboardChatGroupCreateForm(form);
+}
+
+function syncDashboardChatDirectCreateForm(form) {
+  if (!form) {
+    return;
+  }
+  const selectedInput = form.querySelector("input[name='participantId']:checked");
+  const visibleCount = Array.from(form.querySelectorAll("[data-dashboard-chat-direct-user-search]")).filter((row) => !row.hidden).length;
+  const submitButton = form.querySelector("[data-dashboard-chat-direct-create-submit]");
+  const statusElement = form.querySelector("[data-dashboard-chat-direct-filter-status]");
+  form.querySelectorAll("[data-dashboard-chat-direct-user-search]").forEach((row) => {
+    const radio = row.querySelector("input[name='participantId']");
+    row.classList.toggle("is-selected", Boolean(radio?.checked));
+  });
+  if (submitButton) {
+    submitButton.disabled = !selectedInput || form.dataset.busy === "true";
+    submitButton.setAttribute("aria-disabled", submitButton.disabled ? "true" : "false");
+    submitButton.title = selectedInput ? "Start chat" : "Choose a teammate";
+    if (form.dataset.busy !== "true") {
+      submitButton.textContent = selectedInput
+        ? `Start chat with ${String(selectedInput.dataset.dashboardChatDirectParticipantName || "teammate").trim() || "teammate"}`
+        : "Start chat";
+    }
+  }
+  if (statusElement) {
+    statusElement.textContent = `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} visible · ${selectedInput ? "1 selected" : "choose one"}`;
+  }
+}
+
+function filterDashboardChatDirectCreateUsers(form) {
+  if (!form) {
+    return;
+  }
+  const query = String(form.querySelector("[data-dashboard-chat-direct-user-filter]")?.value || "").trim().toLowerCase();
+  form.querySelectorAll("[data-dashboard-chat-direct-user-search]").forEach((row) => {
+    const searchableText = row.dataset.dashboardChatDirectUserSearch || row.textContent || "";
+    row.hidden = Boolean(query) && !searchableText.toLowerCase().includes(query);
+  });
+  syncDashboardChatDirectCreateForm(form);
 }
 
 const getDashboardSupabaseClientFromAuthStore = () => {
@@ -2073,6 +2117,14 @@ const getIsCurrentPlatformUserAdmin = () => {
   }
   return false;
 };
+function canDeleteDashboardChatMessage(message = null, currentUser = getCurrentPlatformUser()) {
+  if (getIsCurrentPlatformUserAdmin()) {
+    return true;
+  }
+  const currentUserId = String(currentUser?.id || "").trim();
+  const messageAuthorId = String(message?.userId || message?.authorId || message?.senderId || message?.author?.id || "").trim();
+  return Boolean(currentUserId && messageAuthorId && currentUserId === messageAuthorId);
+}
 
 dashboardChatApiRuntime = createDashboardChatApiRuntime({
   dashboardChatTeamThreadId,
@@ -2401,24 +2453,26 @@ const dashboardChatComposerRuntime = createDashboardChatComposerRuntime({
   readDashboardChatWidgetState,
   renderDashboardChatWidget,
   sendDashboardChatApiAction,
-  setDashboardChatComposerAttachmentDraft,
-  setDashboardChatGroupCreatorOpen,
-  setDashboardChatMessageSearchQuery,
-  showDashboardChatWidgetToast,
-  syncDashboardChatGroupCreateForm,
-  writeDashboardChatWidgetState,
-  focusDashboardChatWidgetComposer,
+setDashboardChatComposerAttachmentDraft,
+setDashboardChatGroupCreatorOpen,
+setDashboardChatMessageSearchQuery,
+showDashboardChatWidgetToast,
+syncDashboardChatDirectCreateForm,
+syncDashboardChatGroupCreateForm,
+writeDashboardChatWidgetState,
+focusDashboardChatWidgetComposer,
   uploadDashboardChatAttachmentFileWithClient,
 });
 
 const {
   setDashboardChatAttachmentDraft,
   uploadDashboardChatAttachmentFile,
-  createDashboardChatAttachmentIntent,
-  createDashboardAdvancedChatThread,
-  handleDashboardChatAttachmentInputChange,
-  setDashboardChatGroupCreateError,
-  createDashboardCustomGroupThreadFromForm,
+createDashboardChatAttachmentIntent,
+createDashboardAdvancedChatThread,
+handleDashboardChatAttachmentInputChange,
+setDashboardChatGroupCreateError,
+createDashboardDirectThreadFromForm,
+createDashboardCustomGroupThreadFromForm,
 } = dashboardChatComposerRuntime;
 const {
   commitDashboardChatApiAction: commitDashboardChatApiActionFromRuntime,
@@ -2621,6 +2675,7 @@ const {
   getDashboardChatMobileConversationOpen: () => dashboardChatMobileConversationOpen,
   getDashboardChatComposerAttachmentDraft: () => dashboardChatComposerAttachmentDraft,
   getDashboardChatGroupCreatorOpen: () => dashboardChatGroupCreatorOpen,
+  getDashboardChatCreatorMode: () => dashboardChatCreatorMode,
   getDashboardChatThreadFilter: () => dashboardChatThreadFilter,
   getDashboardChatThreadSettingsDialog: () => dashboardChatThreadSettingsDialog,
   moderationState: dashboardChatModerationState,
@@ -2998,6 +3053,7 @@ if (!dashboardChatGroupCreatorOpen) {
 return false;
 }
 dashboardChatGroupCreatorOpen = false;
+dashboardChatCreatorMode = "group";
 if (render) {
 renderDashboardChatWidget();
 }
@@ -3028,6 +3084,7 @@ setDashboardChatPriorityDraft("normal");
 setDashboardChatConfirmAction(null);
 dashboardChatDetailsOpen = false;
 dashboardChatGroupCreatorOpen = false;
+dashboardChatCreatorMode = "group";
 dashboardChatThreadSettingsDialog = null;
 dashboardChatMobileConversationOpen = true;
 writeDashboardChatWidgetState({
@@ -3144,6 +3201,45 @@ const mobileBackButton = event.target.closest("[data-dashboard-chat-mobile-back]
 if (mobileBackButton) {
 dashboardChatMobileConversationOpen = false;
 dashboardChatDetailsOpen = false;
+renderDashboardChatWidget();
+return;
+}
+const moreSettingButton = event.target.closest("[data-dashboard-chat-more-setting]");
+if (moreSettingButton) {
+const action = String(moreSettingButton.dataset.dashboardChatMoreSetting || "").trim();
+const threadId = normalizeDashboardChatThreadId(moreSettingButton.dataset.dashboardChatMoreSettingThread || readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId);
+moreSettingButton.closest("details")?.removeAttribute("open");
+if (action === "rename" || action === "avatar") {
+dashboardChatThreadSettingsDialog = { type: action, threadId };
+renderDashboardChatWidget();
+win.setTimeout(() => {
+ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-settings-input]")?.focus();
+}, 0);
+}
+return;
+}
+const moreParticipantsButton = event.target.closest("[data-dashboard-chat-more-participants]");
+if (moreParticipantsButton) {
+const threadId = normalizeDashboardChatThreadId(moreParticipantsButton.dataset.dashboardChatMoreParticipants || readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId);
+moreParticipantsButton.closest("details")?.removeAttribute("open");
+dashboardChatThreadSettingsDialog = { type: "participants", threadId };
+renderDashboardChatWidget();
+win.setTimeout(() => {
+ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-participant-filter]")?.focus();
+}, 0);
+return;
+}
+const moreArchiveThreadButton = event.target.closest("[data-dashboard-chat-more-archive-thread]");
+if (moreArchiveThreadButton) {
+const threadId = normalizeDashboardChatThreadId(moreArchiveThreadButton.dataset.dashboardChatMoreArchiveThread, dashboardChatTeamThreadId);
+moreArchiveThreadButton.closest("details")?.removeAttribute("open");
+setDashboardChatConfirmAction({
+type: "archiveThread",
+threadId,
+title: "Delete group?",
+message: "History stays protected.",
+confirmLabel: "Delete",
+});
 renderDashboardChatWidget();
 return;
 }
@@ -3273,10 +3369,23 @@ if (loadEarlierButton) {
 await loadOlderDashboardChatMessagesWithApi(loadEarlierButton.dataset.dashboardChatLoadEarlier);
 return;
 }
+const openDirectCreatorButton = event.target.closest("[data-dashboard-chat-open-direct-creator]");
+if (openDirectCreatorButton) {
+event.preventDefault();
+openDirectCreatorButton.closest("details")?.removeAttribute("open");
+dashboardChatCreatorMode = "dm";
+dashboardChatGroupCreatorOpen = true;
+renderDashboardChatWidget();
+win.setTimeout(() => {
+ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-direct-user-filter]")?.focus();
+}, 0);
+return;
+}
 const openGroupCreatorButton = event.target.closest("[data-dashboard-chat-open-group-creator]");
 if (openGroupCreatorButton) {
 event.preventDefault();
 openGroupCreatorButton.closest("details")?.removeAttribute("open");
+dashboardChatCreatorMode = "group";
 dashboardChatGroupCreatorOpen = true;
 renderDashboardChatWidget();
 win.setTimeout(() => {
@@ -3416,6 +3525,7 @@ setDashboardChatPriorityDraft("normal");
 dashboardChatMessageSearchQuery = "";
 dashboardChatDetailsOpen = false;
 dashboardChatGroupCreatorOpen = false;
+dashboardChatCreatorMode = "group";
 dashboardChatMobileConversationOpen = true;
 writeDashboardChatWidgetState({
 isOpen: true,
@@ -3458,7 +3568,9 @@ return;
 }
 const removeMessageButton = event.target.closest("[data-dashboard-remove-message]");
 if (removeMessageButton) {
-if (!isCurrentPlatformUserAdmin()) {
+const message = getDashboardMessageById(removeMessageButton.dataset.dashboardRemoveMessage);
+if (!canDeleteDashboardChatMessage(message)) {
+showDashboardChatWidgetToast("Only the sender or an admin can delete this message.", message?.threadId || dashboardChatTeamThreadId);
 return;
 }
 setDashboardChatConfirmAction({
@@ -3529,6 +3641,15 @@ return;
 syncDashboardChatGroupCreateForm(groupCreateForm);
 return;
 }
+const directCreateForm = event.target.closest("[data-dashboard-chat-direct-create-form]");
+if (directCreateForm) {
+if (event.target.closest("[data-dashboard-chat-direct-user-filter]")) {
+filterDashboardChatDirectCreateUsers(directCreateForm);
+return;
+}
+syncDashboardChatDirectCreateForm(directCreateForm);
+return;
+}
 const filterInput = event.target.closest("[data-dashboard-chat-filter]");
 if (!filterInput) {
 return;
@@ -3596,6 +3717,12 @@ const groupCreateForm = event.target.closest("[data-dashboard-chat-group-create-
 if (groupCreateForm) {
 event.preventDefault();
 await createDashboardCustomGroupThreadFromForm(groupCreateForm);
+return;
+}
+const directCreateForm = event.target.closest("[data-dashboard-chat-direct-create-form]");
+if (directCreateForm) {
+event.preventDefault();
+await createDashboardDirectThreadFromForm(directCreateForm);
 return;
 }
 const moderationFilterForm = event.target.closest("[data-dashboard-chat-moderation-filter-form]");
@@ -3777,6 +3904,11 @@ ui.dashboardChatWidgetRoot?.addEventListener("change", async (event) => {
 const groupParticipantInput = event.target.closest("[data-dashboard-chat-group-create-form] input[name='participantIds']");
 if (groupParticipantInput) {
 syncDashboardChatGroupCreateForm(groupParticipantInput.closest("[data-dashboard-chat-group-create-form]"));
+return;
+}
+const directParticipantInput = event.target.closest("[data-dashboard-chat-direct-create-form] input[name='participantId']");
+if (directParticipantInput) {
+syncDashboardChatDirectCreateForm(directParticipantInput.closest("[data-dashboard-chat-direct-create-form]"));
 return;
 }
 const attachmentInput = event.target.closest("[data-dashboard-chat-attachment-input]");

@@ -40,6 +40,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     getDashboardChatMobileConversationOpen = () => true,
     getDashboardChatComposerAttachmentDraft = () => null,
     getDashboardChatGroupCreatorOpen = () => false,
+    getDashboardChatCreatorMode = () => "group",
     getDashboardChatThreadFilter = () => "all",
     getDashboardChatThreadSettingsDialog = () => null,
     dashboardChatThreadSettings = { get: () => ({ muted: false }) },
@@ -279,6 +280,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       attachmentDraft: getDashboardChatComposerAttachmentDraft(),
       teamChatTitle: getDashboardChatTeamChatTitle(),
       groupCreatorOpen: getDashboardChatGroupCreatorOpen(),
+      chatCreatorMode: getDashboardChatCreatorMode(),
       threadFilter: getDashboardChatThreadFilter(),
       threadSettingsDialog: getDashboardChatThreadSettingsDialog(),
     });

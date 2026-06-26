@@ -665,3 +665,48 @@ body.is-dashboard-chat-closed .dashboard-chat-launcher-icon::before{content:""!i
 body.is-dashboard-chat-closed .dashboard-chat-launcher-icon::after{content:""!important;position:absolute!important;left:.48rem!important;right:.48rem!important;top:.58rem!important;height:2px!important;border:0!important;border-radius:999px!important;background:currentColor!important;box-shadow:0 .27rem 0 currentColor!important;clip-path:none!important;transform:none!important;opacity:.94!important}
 body.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread{top:.34rem!important;right:.34rem!important;min-width:.86rem!important;max-width:1.2rem!important;height:.86rem!important;min-height:.86rem!important;padding:0 .18rem!important;border:1px solid #14231f!important;background:#d7b46a!important;color:#13211d!important;font-size:.5rem!important;line-height:.78rem!important;box-shadow:0 0 0 .1rem rgba(16,23,22,.95)!important}
 @media(max-width:820px){body.is-dashboard-chat-closed .dashboard-chat-launcher-icon{width:1.42rem!important;height:1.42rem!important}body.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread{top:.36rem!important;right:.36rem!important;box-shadow:0 0 0 .1rem rgba(16,23,22,.95)!important}}
+/* Chat module: functional WhatsApp baseline actions and private-chat creator. */
+.dashboard-chat-thread-preset-menu .dashboard-chat-create-menu-action{
+  display:grid!important;
+  gap:.08rem!important;
+}
+.dashboard-chat-thread-preset-menu .dashboard-chat-create-menu-action strong,
+.dashboard-chat-more-menu-panel .dashboard-chat-more-action{
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}
+.dashboard-chat-direct-create-form{
+  display:grid!important;
+  gap:.72rem!important;
+}
+.dashboard-chat-group-create-users.is-direct{
+  max-height:min(46vh,22rem)!important;
+  overflow:auto!important;
+}
+.dashboard-chat-direct-user input[type="radio"]{
+  width:1rem!important;
+  height:1rem!important;
+  accent-color:#1f6f54!important;
+}
+.dashboard-chat-group-user.is-selected,
+.dashboard-chat-direct-user:has(input:checked){
+  border-color:rgba(31,111,84,.32)!important;
+  background:#f1f8f4!important;
+}
+.dashboard-chat-widget .dashboard-chat-more-menu-panel{
+  width:min(15.5rem,78vw)!important;
+}
+.dashboard-chat-widget .dashboard-chat-more-action{
+  min-width:0!important;
+  text-align:left!important;
+}
+.dashboard-chat-settings-grid button{
+  min-width:0!important;
+}
+.dashboard-chat-settings-grid button span,
+.dashboard-chat-settings-grid button small{
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+  white-space:nowrap!important;
+}

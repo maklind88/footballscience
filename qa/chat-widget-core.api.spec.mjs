@@ -696,6 +696,55 @@ test("group creator overlay exposes a labelled dialog contract", () => {
   expect(result.html).toContain('role="menuitem" data-dashboard-chat-open-group-creator aria-haspopup="dialog" aria-controls="dashboardChatGroupCreateDialog"');
 });
 
+test("chat creator exposes private-message mode before group creation", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [
+    currentUser,
+    { id: "u2", name: "Ceri Bowley", role: "scout", email: "ceri@example.com", status: "active" },
+  ];
+  const threads = [
+    {
+      threadId: "team",
+      label: "Team Chat",
+      isTeamThread: true,
+      messageCount: 0,
+      unreadCount: 0,
+      mentionCount: 0,
+      lastMessage: null,
+    },
+  ];
+  const result = createRenderer([]).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages: [],
+    threads,
+    activeThreadId: "team",
+    groupCreatorOpen: true,
+    chatCreatorMode: "dm",
+    unreadCount: 0,
+  });
+
+  expect(result.html).toContain('id="dashboardChatGroupCreateTitle">New chat</strong>');
+  expect(result.html).toContain("Choose one person and start a private conversation.");
+  expect(result.html).toContain("data-dashboard-chat-direct-create-form");
+  expect(result.html).toContain("data-dashboard-chat-direct-user-filter");
+  expect(result.html).toContain('role="radiogroup" aria-label="Choose private chat recipient"');
+  expect(result.html).toContain('name="participantId"');
+  expect(result.html).toContain('aria-label="Start private chat with Ceri Bowley (scout)"');
+  expect(result.html).toContain("data-dashboard-chat-direct-create-submit disabled");
+  expect(result.html).toContain("data-dashboard-chat-open-direct-creator");
+  expect(result.html).toContain("Private message");
+  expect(result.html).toContain("New group");
+  expect(appRuntimeSource).toContain('event.target.closest("[data-dashboard-chat-open-direct-creator]")');
+  expect(appRuntimeSource).toContain('querySelector("[data-dashboard-chat-direct-user-filter]")?.focus();');
+  expect(appRuntimeSource).toContain("syncDashboardChatDirectCreateForm");
+  expect(appRuntimeSource).toContain("filterDashboardChatDirectCreateUsers");
+  expect(composerRuntimeSource).toContain("createDashboardDirectThreadFromForm");
+  expect(composerRuntimeSource).toContain('action: "createThread"');
+  expect(composerRuntimeSource).toContain('type: "dm"');
+});
+
 test("chat panel escape close reuses shared cleanup path", () => {
   expect(appRuntimeSource).toContain("function closeDashboardChatWidgetPanel");
   expect(appRuntimeSource).toContain("function focusDashboardChatWidgetLauncher");
@@ -894,4 +943,58 @@ test("chat message actions stay behind a compact hover menu", () => {
   expect(result.html).toContain("Reply");
   expect(result.html).toContain("Copy");
   expect(result.html).toContain("Delete");
+});
+
+test("chat message delete action follows sender-or-admin permission", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [currentUser, { id: "u2", name: "Coach" }];
+  const messages = [
+    {
+      id: "own-message",
+      userId: "u1",
+      threadId: "team",
+      text: "My message",
+      createdAt: "2026-06-18T10:00:00.000Z",
+      readBy: ["u1"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "normal",
+    },
+    {
+      id: "other-message",
+      userId: "u2",
+      threadId: "team",
+      text: "Their message",
+      createdAt: "2026-06-18T10:01:00.000Z",
+      readBy: ["u2"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "normal",
+    },
+  ];
+  const renderer = createDashboardChatWidgetRenderer({
+    priorityOptions,
+    escapeHtml,
+    formatUserName: (user = {}) => user?.name || "Staff",
+    formatTime: () => "10:15",
+    normalizePriority: () => "normal",
+    renderMessageText: renderTextWithSearch,
+    renderMessageReactions: () => "",
+    renderPinnedMessages: () => "",
+    renderTypingIndicator: () => "",
+    getPinnedMessagesForThread: () => [],
+    canDeleteMessage: (message, user) => message?.userId === user?.id,
+  });
+  const threads = [{ threadId: "team", label: "Team Chat", isTeamThread: true, messageCount: 2, lastMessage: messages[1], settings: {} }];
+  const result = renderer.render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads,
+    activeThreadId: "team",
+  });
+
+  expect(result.html).toContain('data-dashboard-remove-message="own-message"');
+  expect(result.html).not.toContain('data-dashboard-remove-message="other-message"');
 });

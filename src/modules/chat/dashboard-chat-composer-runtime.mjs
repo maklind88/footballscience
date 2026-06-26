@@ -25,6 +25,7 @@ export function createDashboardChatComposerRuntime({
   setDashboardChatGroupCreatorOpen,
   setDashboardChatMessageSearchQuery,
   showDashboardChatWidgetToast,
+  syncDashboardChatDirectCreateForm = () => {},
   syncDashboardChatGroupCreateForm = () => {},
   writeDashboardChatWidgetState,
   focusDashboardChatWidgetComposer,
@@ -204,6 +205,183 @@ export function createDashboardChatComposerRuntime({
     const normalizedMessage = String(message || "").trim();
     errorElement.textContent = normalizedMessage;
     errorElement.hidden = !normalizedMessage;
+  }
+
+  async function createDashboardDirectThreadFromForm(form) {
+    if (!form || form.dataset.busy === "true") {
+      return null;
+    }
+
+    const currentUser = getCurrentPlatformUser();
+    const selectedInput = form.querySelector("input[name='participantId']:checked");
+    const selectedParticipant = selectedInput
+      ? {
+          id: String(selectedInput.value || "").trim(),
+          email: String(selectedInput.dataset.dashboardChatDirectParticipantEmail || "").trim().toLowerCase(),
+          username: String(selectedInput.dataset.dashboardChatDirectParticipantUsername || "").trim(),
+          name: String(selectedInput.dataset.dashboardChatDirectParticipantName || "").trim(),
+        }
+      : null;
+
+    setDashboardChatGroupCreateError(form, "");
+
+    if (!currentUser?.id) {
+      setDashboardChatGroupCreateError(form, "Sign in before starting a private chat.");
+      showDashboardChatWidgetToast("Sign in before starting a private chat.", getDashboardChatActiveToastThreadId());
+      return null;
+    }
+
+    if (!selectedParticipant?.id && !selectedParticipant?.email && !selectedParticipant?.username) {
+      setDashboardChatGroupCreateError(form, "Choose a teammate.");
+      showDashboardChatWidgetToast("Choose a teammate.", getDashboardChatActiveToastThreadId());
+      return null;
+    }
+
+    if (selectedParticipant.id && selectedParticipant.id === currentUser.id) {
+      setDashboardChatGroupCreateError(form, "Choose another teammate.");
+      showDashboardChatWidgetToast("Choose another teammate.", getDashboardChatActiveToastThreadId());
+      return null;
+    }
+
+    const legacyThreadId = normalizeDashboardChatThreadId(
+      `dm:${currentUser.id}:${selectedParticipant.id || selectedParticipant.email || selectedParticipant.username}`,
+      dashboardChatTeamThreadId
+    );
+    if (!legacyThreadId || legacyThreadId === dashboardChatTeamThreadId) {
+      setDashboardChatGroupCreateError(form, "This private chat could not be started.");
+      showDashboardChatWidgetToast("This private chat could not be started.", getDashboardChatActiveToastThreadId());
+      return null;
+    }
+
+    const participantIds = Array.from(new Set([currentUser.id, selectedParticipant.id].filter(Boolean)));
+    const submitButton = form.querySelector("button[type='submit']");
+    const previousSubmitState = submitButton
+      ? {
+          disabled: submitButton.disabled,
+          ariaDisabled: submitButton.getAttribute("aria-disabled"),
+          textContent: submitButton.textContent,
+          title: submitButton.title,
+        }
+      : null;
+
+    form.dataset.busy = "true";
+    form.setAttribute("aria-busy", "true");
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.setAttribute("aria-disabled", "true");
+      submitButton.title = "Starting chat...";
+      submitButton.textContent = "Starting...";
+    }
+
+    try {
+      const result = await sendDashboardChatApiAction({
+        action: "createThread",
+        threadId: legacyThreadId,
+        type: "dm",
+        title: "Direct message",
+        visibility: "private",
+        participantIds,
+        participants: [{
+          id: currentUser.id,
+          email: currentUser.email || "",
+          username: currentUser.username || "",
+          name: formatUserName(currentUser),
+        }, selectedParticipant],
+      });
+
+      if (!result.ok) {
+        logDashboardChatApiFailure("createDirectThread", result);
+        setDashboardChatGroupCreateError(form, result.reason || "Could not start private chat.");
+        showDashboardChatWidgetToast(result.reason || "Could not start private chat.", getDashboardChatActiveToastThreadId());
+        return null;
+      }
+
+      const apiPayload = result.result || {};
+      const rawCreatedThread = apiPayload.thread || {};
+      const createdThreadCreatedAt = String(rawCreatedThread.createdAt || rawCreatedThread.created_at || new Date().toISOString()).trim();
+      const createdThreadId = normalizeDashboardChatThreadId(
+        rawCreatedThread.threadId || rawCreatedThread.legacyThreadId || rawCreatedThread.metadata?.legacyThreadId || legacyThreadId,
+        legacyThreadId
+      );
+      const fallbackParticipants = participantIds.map((userId, index) => ({
+        userId,
+        id: userId,
+        participantRole: index === 0 ? "owner" : "member",
+        role: index === 0 ? "owner" : "member",
+      }));
+      const createdThread = {
+        ...rawCreatedThread,
+        threadId: createdThreadId,
+        legacyThreadId: createdThreadId,
+        type: rawCreatedThread.type || "dm",
+        title: rawCreatedThread.title || "Direct message",
+        visibility: rawCreatedThread.visibility || "private",
+        createdAt: createdThreadCreatedAt,
+        created_at: rawCreatedThread.created_at || createdThreadCreatedAt,
+        participants: Array.isArray(rawCreatedThread.participants) && rawCreatedThread.participants.length
+          ? rawCreatedThread.participants
+          : fallbackParticipants,
+        permissions: rawCreatedThread.permissions || {},
+        metadata: {
+          ...(rawCreatedThread.metadata || {}),
+          legacyThreadId: createdThreadId,
+        },
+      };
+      const payloadThreads = Array.isArray(apiPayload.threads)
+        ? apiPayload.threads.filter((thread) => {
+            const threadId = normalizeDashboardChatThreadId(
+              thread?.threadId || thread?.legacyThreadId || thread?.metadata?.legacyThreadId || "",
+              ""
+            );
+            return threadId !== createdThreadId;
+          })
+        : [];
+
+      applyDashboardChatApiPayload(
+        {
+          ...apiPayload,
+          thread: createdThread,
+          threads: [createdThread, ...payloadThreads],
+        },
+        { threadId: createdThreadId }
+      );
+      setDashboardChatMessageSearchQuery("");
+      writeDashboardChatWidgetState({
+        isOpen: true,
+        selectedThreadId: createdThreadId,
+      });
+      setDashboardChatGroupCreatorOpen(false);
+      form.reset();
+      renderDashboardChatWidget();
+      focusDashboardChatWidgetComposer();
+      showDashboardChatWidgetToast(`Chat opened${selectedParticipant.name ? ` with ${selectedParticipant.name}` : ""}.`, createdThreadId);
+      queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: true });
+      return result.result?.thread || null;
+    } catch (error) {
+      logDashboardChatApiFailure("createDirectThread", {
+        ok: false,
+        status: 0,
+        reason: error?.message || "Could not start private chat.",
+        retryable: true,
+      });
+      setDashboardChatGroupCreateError(form, error?.message || "Could not start private chat.");
+      showDashboardChatWidgetToast(error?.message || "Could not start private chat.", getDashboardChatActiveToastThreadId());
+      return null;
+    } finally {
+      delete form.dataset.busy;
+      form.removeAttribute("aria-busy");
+      if (submitButton) {
+        submitButton.disabled = Boolean(previousSubmitState?.disabled);
+        if (previousSubmitState?.ariaDisabled === null) {
+          submitButton.removeAttribute("aria-disabled");
+        } else if (previousSubmitState?.ariaDisabled) {
+          submitButton.setAttribute("aria-disabled", previousSubmitState.ariaDisabled);
+        }
+        submitButton.title = previousSubmitState?.title || "";
+        submitButton.textContent = previousSubmitState?.textContent || "Start chat";
+      }
+      syncDashboardChatDirectCreateForm(form);
+    }
   }
 
   async function createDashboardCustomGroupThreadFromForm(form) {
@@ -412,6 +590,7 @@ export function createDashboardChatComposerRuntime({
     handleDashboardChatAttachmentInputChange,
     createDashboardAdvancedChatThread,
     setDashboardChatGroupCreateError,
+    createDashboardDirectThreadFromForm,
     createDashboardCustomGroupThreadFromForm,
   };
 }

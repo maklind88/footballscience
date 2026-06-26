@@ -211,6 +211,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     getMessageById = (messageId, messages = []) => messages.find((message) => message.id === messageId) || null,
     canDeleteMessage = () => false,
     canPinMessage = () => false,
+    canClearThread = (currentUser) => canDeleteMessage(null, currentUser),
   } = dependencies;
   const chatIntelligenceRenderer = createDashboardChatIntelligenceRenderer({
     teamThreadId,
@@ -502,7 +503,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       ? renderPresenceAvatar(user, "dashboard-chat-avatar")
       : `<span class="dashboard-chat-avatar" aria-hidden="true">?</span>`;
     const statusMarkup = isOwn && !isGroupedWithNext ? renderMessageStatus(message, users, currentUser) : "";
-    const canDeleteChat = canDeleteMessage(currentUser);
+    const canDeleteChat = canDeleteMessage(message, currentUser);
     const canPinChat = canPinMessage(currentUser);
     const canRetryMessage = isOwn && messageStatus === "failed";
     const pinLabel = message.pinnedAt ? "Unpin" : "Pin";
@@ -935,6 +936,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const threadSettings = activeThread?.settings || {};
     const canManageParticipants = Boolean(activeThread?.permissions?.canManageParticipants && !activeThread?.isTeamThread);
     const canManageGroup = Boolean(activeThread && activeThread.type === "group" && canManageParticipants);
+    const canClearActiveThread = Boolean(canClearThread(currentUser, activeThread));
     const normalizedSearch = String(messageSearchQuery || "").trim();
     const activeMatchPosition = searchMatchCount ? Math.min(Math.max(Number(searchActiveMatchIndex) || 0, 0), searchMatchCount - 1) + 1 : 0;
     const searchSummary = normalizedSearch
@@ -1004,6 +1006,22 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <span>Image</span>
               <small>${escapeHtml(threadSettings.avatarUrl ? "Photo set" : threadSettings.avatarLabel || "Photo or initials")}</small>
             </button>
+            ${
+              canManageParticipants
+                ? `<button type="button" data-dashboard-chat-participant-action="add" data-dashboard-chat-participant-thread="${escapeHtml(activeThreadId)}">
+                    <span>Edit people</span>
+                    <small>${escapeHtml(`${participants.length || 0} participant${participants.length === 1 ? "" : "s"}`)}</small>
+                  </button>`
+                : ""
+            }
+            ${
+              canClearActiveThread
+                ? `<button type="button" class="is-danger" data-dashboard-clear-thread data-dashboard-chat-clear-thread="${escapeHtml(activeThreadId)}">
+                    <span>Clear chat</span>
+                    <small>Delete visible messages</small>
+                  </button>`
+                : ""
+            }
             ${
               canManageGroup
                 ? `<button type="button" class="is-danger" data-dashboard-chat-archive-thread="${escapeHtml(activeThreadId)}">
@@ -1099,6 +1117,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       attachmentDraft = null,
       teamChatTitle = "Team Chat",
       groupCreatorOpen = false,
+      chatCreatorMode = "group",
       threadFilter = "all",
       threadSettingsDialog = null,
     } = options;
@@ -1151,12 +1170,64 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const groupCreateUsers = users
       .filter((user) => user?.id && user.id !== currentUser?.id)
       .slice(0, 18);
+    const normalizedChatCreatorMode = chatCreatorMode === "dm" ? "dm" : "group";
     const normalizedThreadFilter = getNormalizedThreadFilter(threadFilter);
     const simpleInboxThreads = getSimpleInboxThreads(threads, activeThreadId);
     const filteredThreads = normalizedThreadFilter === "all"
       ? simpleInboxThreads
       : threads.filter((thread) => doesThreadMatchFilter(thread, normalizedThreadFilter));
     const threadFilterMarkup = renderThreadFilters(normalizedThreadFilter, simpleInboxThreads);
+    const directCreateMarkup = groupCreateUsers.length
+      ? `
+          <form class="dashboard-chat-direct-create-form" data-dashboard-chat-direct-create-form>
+            <p class="dashboard-chat-group-create-error" data-dashboard-chat-group-create-error hidden></p>
+            <label class="dashboard-chat-group-search">
+              <span>Find teammate</span>
+              <input type="search" placeholder="Search by name, role or email" autocomplete="off" data-dashboard-chat-direct-user-filter>
+            </label>
+            <div class="dashboard-chat-group-create-status" data-dashboard-chat-direct-filter-status aria-live="polite" aria-atomic="true">
+              ${escapeHtml(`${groupCreateUsers.length} teammates available · choose one`)}
+            </div>
+            <div class="dashboard-chat-group-create-users is-direct" role="radiogroup" aria-label="Choose private chat recipient">
+              ${groupCreateUsers
+                .map((user) => {
+                  const userName = formatUserName(user);
+                  const userInitial = String(userName || "?").trim().slice(0, 1).toUpperCase() || "?";
+                  const userMeta = user.role || user.teamRole || user.email || "Team member";
+                  const userDomId = String(user.id || userName || userInitial).trim().replace(/[^a-zA-Z0-9_-]+/g, "-") || "member";
+                  const userMetaId = `dashboardChatDirectUserMeta-${userDomId}`;
+                  const userSearch = `${userName} ${userMeta} ${user.email || ""} ${user.username || ""}`.toLowerCase();
+                  return `
+                    <label class="dashboard-chat-group-user dashboard-chat-direct-user" data-dashboard-chat-direct-user-search="${escapeHtml(userSearch)}">
+                      <input
+                        type="radio"
+                        name="participantId"
+                        value="${escapeHtml(user.id)}"
+                        aria-label="${escapeHtml(`Start private chat with ${userName} (${userMeta})`)}"
+                        aria-describedby="${escapeHtml(userMetaId)}"
+                        data-dashboard-chat-direct-participant-email="${escapeHtml(user.email || "")}"
+                        data-dashboard-chat-direct-participant-username="${escapeHtml(user.username || "")}"
+                        data-dashboard-chat-direct-participant-name="${escapeHtml(userName)}"
+                      >
+                      <span class="dashboard-chat-group-user-avatar">${escapeHtml(userInitial)}</span>
+                      <span>
+                        <strong>${escapeHtml(userName)}</strong>
+                        <small id="${escapeHtml(userMetaId)}">${escapeHtml(userMeta)}</small>
+                      </span>
+                    </label>
+                  `;
+                })
+                .join("")}
+            </div>
+            <button type="submit" data-dashboard-chat-direct-create-submit disabled aria-disabled="true" aria-label="Start selected private chat" title="Choose a teammate">Start chat</button>
+          </form>
+        `
+      : `
+          <div class="dashboard-chat-group-create-empty">
+            <strong>No teammates yet</strong>
+            <small>Add users before starting private chats.</small>
+          </div>
+        `;
     const groupCreateMarkup = groupCreateUsers.length
       ? `
           <form class="dashboard-chat-group-create-form" data-dashboard-chat-group-create-form>
@@ -1229,12 +1300,12 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             <section id="dashboardChatGroupCreateDialog" class="dashboard-chat-group-create-card" role="dialog" aria-modal="true" aria-keyshortcuts="Escape" aria-labelledby="dashboardChatGroupCreateTitle" aria-describedby="dashboardChatGroupCreateDescription">
               <header>
                 <span>
-                  <strong id="dashboardChatGroupCreateTitle">New group</strong>
-                  <small id="dashboardChatGroupCreateDescription">Choose people, name the room and keep the conversation focused.</small>
+                  <strong id="dashboardChatGroupCreateTitle">${normalizedChatCreatorMode === "dm" ? "New chat" : "New group"}</strong>
+                  <small id="dashboardChatGroupCreateDescription">${normalizedChatCreatorMode === "dm" ? "Choose one person and start a private conversation." : "Choose people, name the room and keep the conversation focused."}</small>
                 </span>
-                <button type="button" class="dashboard-chat-group-create-close" aria-controls="dashboardChatGroupCreateDialog" aria-label="Close new group dialog" title="Close new group dialog" data-dashboard-chat-group-create-close>×</button>
+                <button type="button" class="dashboard-chat-group-create-close" aria-controls="dashboardChatGroupCreateDialog" aria-label="${normalizedChatCreatorMode === "dm" ? "Close new chat dialog" : "Close new group dialog"}" title="${normalizedChatCreatorMode === "dm" ? "Close new chat dialog" : "Close new group dialog"}" data-dashboard-chat-group-create-close>×</button>
               </header>
-              ${groupCreateMarkup}
+              ${normalizedChatCreatorMode === "dm" ? directCreateMarkup : groupCreateMarkup}
             </section>
           </div>
         `
@@ -1244,7 +1315,11 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           <details class="dashboard-chat-thread-presets" data-dashboard-chat-thread-presets>
             <summary data-dashboard-chat-create-menu-trigger aria-label="Open create chat menu" title="Open create chat menu" aria-haspopup="menu" aria-controls="dashboardChatCreateMenu"><span aria-hidden="true">+</span></summary>
             <div id="dashboardChatCreateMenu" class="dashboard-chat-thread-preset-menu" role="menu" aria-label="Create chat">
-              <button type="button" class="dashboard-chat-create-menu-action is-primary" role="menuitem" data-dashboard-chat-open-group-creator aria-haspopup="dialog" aria-controls="dashboardChatGroupCreateDialog">
+              <button type="button" class="dashboard-chat-create-menu-action is-primary" role="menuitem" data-dashboard-chat-open-direct-creator aria-haspopup="dialog" aria-controls="dashboardChatGroupCreateDialog">
+                <strong>Private message</strong>
+                <small>Send directly to one teammate</small>
+              </button>
+              <button type="button" class="dashboard-chat-create-menu-action" role="menuitem" data-dashboard-chat-open-group-creator aria-haspopup="dialog" aria-controls="dashboardChatGroupCreateDialog">
                 <strong>New group</strong>
                 <small>Name, avatar and selected teammates</small>
               </button>
@@ -1416,6 +1491,9 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       : unreadCount
         ? `${unreadCount} unread`
         : `${simpleInboxThreads.length} conversation${simpleInboxThreads.length === 1 ? "" : "s"}`;
+    const headerCanManageParticipants = Boolean(activeThread?.permissions?.canManageParticipants && !activeThread?.isTeamThread);
+    const headerCanManageGroup = Boolean(activeThread && activeThread.type === "group" && headerCanManageParticipants);
+    const headerCanClearThread = Boolean(canClearThread(currentUser, activeThread));
 
     return {
       activeThreadId,
@@ -1450,7 +1528,21 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                       <small>${escapeHtml(notificationLabel)}</small>
                     </button>
                     ${
-                      canDeleteMessage(currentUser)
+                      headerCanManageGroup
+                        ? `
+                          <button type="button" class="dashboard-chat-more-action" data-dashboard-chat-more-setting="rename" data-dashboard-chat-more-setting-thread="${escapeHtml(activeThreadId)}">
+                            Rename group
+                            <small>${escapeHtml(activeThread?.settings?.customTitle || activeThreadLabel)}</small>
+                          </button>
+                          <button type="button" class="dashboard-chat-more-action" data-dashboard-chat-more-participants="${escapeHtml(activeThreadId)}">
+                            Edit people
+                            <small>${escapeHtml(`${activeThread?.participants?.length || 0} participant${(activeThread?.participants?.length || 0) === 1 ? "" : "s"}`)}</small>
+                          </button>
+                        `
+                        : ""
+                    }
+                    ${
+                      headerCanClearThread
                         ? `
                           <button
                             type="button"
@@ -1458,12 +1550,26 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                             data-dashboard-clear-thread
                             data-dashboard-chat-clear-thread="${escapeHtml(activeThreadId)}"
                           >
-                            Clear thread
-                            <small>Admin audited</small>
+                            Clear chat
+                            <small>Delete visible messages</small>
                           </button>
                           <button type="button" class="dashboard-chat-more-action" data-dashboard-chat-moderation-toggle aria-pressed="${moderationOpen}">
                             Support / audit
                             <small>Health, filters and logs</small>
+                          </button>
+                        `
+                        : ""
+                    }
+                    ${
+                      headerCanManageGroup
+                        ? `
+                          <button
+                            type="button"
+                            class="dashboard-chat-more-action is-danger"
+                            data-dashboard-chat-more-archive-thread="${escapeHtml(activeThreadId)}"
+                          >
+                            Delete group
+                            <small>Remove group for everyone</small>
                           </button>
                         `
                         : ""

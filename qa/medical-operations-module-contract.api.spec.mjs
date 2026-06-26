@@ -135,6 +135,13 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(rtpMarkup).not.toContain("<h2>RTP Library</h2>");
   expect(rtpMarkup).not.toContain("Medical-safe injury knowledge");
   expect(rtpMarkup).toContain("Full text search");
+  expect(rtpMarkup).toContain("Movement plane");
+  expect(rtpMarkup).toContain('data-medical-rtp-library-filter="movement"');
+  expect(rtpMarkup).not.toContain('data-medical-rtp-library-filter="position"');
+  expect(rtpMarkup).not.toContain('data-medical-rtp-library-filter="season"');
+  expect(rtpMarkup).not.toContain('data-medical-rtp-library-filter="sex"');
+  expect(rtpMarkup).not.toContain('data-medical-rtp-library-filter="level"');
+  expect(rtpMarkup).not.toContain("Search injury, system, body area, symptom, position or risk");
   expect(rtpMarkup).toContain("Apply as medical starter");
   expect(rtpMarkup).toContain('data-medical-open-rtp-profile="hamstring-strain"');
   expect(rtpMarkup).toContain('data-medical-rtp-profile-modal="hamstring-strain"');

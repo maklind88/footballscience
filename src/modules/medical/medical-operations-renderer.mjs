@@ -468,13 +468,9 @@ ${renderProfileBody(profileItem)}
 <form class="medical-rtp-library-controls" data-medical-rtp-library-controls>
 <label class="medical-rtp-library-search">
 <span>Full text search</span>
-<input type="search" data-medical-rtp-library-search placeholder="Search injury, system, body area, symptom, position or risk" />
+<input type="search" data-medical-rtp-library-search placeholder="Search injury, system, body area, symptom or risk" />
 </label>
 ${renderSelect("Movement plane", "movement", medicalRtpLibraryFilterOptions.movementPlanes)}
-${renderSelect("Position", "position", medicalRtpLibraryFilterOptions.positions)}
-${renderSelect("Season", "season", medicalRtpLibraryFilterOptions.seasons)}
-${renderSelect("Sex", "sex", medicalRtpLibraryFilterOptions.sex)}
-${renderSelect("Level", "level", medicalRtpLibraryFilterOptions.level)}
 </form>
 <div class="medical-rtp-library-meta">
 <span><strong data-medical-rtp-library-count>${profiles.length}</strong> visible</span>

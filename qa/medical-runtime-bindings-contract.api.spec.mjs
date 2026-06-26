@@ -319,6 +319,10 @@ test("Medical runtime bindings open and close RTP Library profile overlays", () 
   expect(modal["aria-hidden"]).toBeUndefined();
   expect(calls).toContain("focus-dialog");
   expect(content.innerHTML).toContain("Hamstring Strain");
+  expect(content.innerHTML).toContain("Medical RTP guide");
+  expect(content.innerHTML).toContain("Apply guide to Medical Plan");
+  expect(content.innerHTML).toContain("Coach sharing remains off");
+  expect(content.innerHTML).toContain("Next field exposure");
   expect(content.innerHTML).toContain("Gold Standard Template");
   expect(content.innerHTML).toContain("37 sections");
   expect(content.innerHTML).toContain("RTP Risk Score");

@@ -49,6 +49,23 @@ ${
 `;
   };
 
+  const renderRtpProgramFocusStrip = (plan = {}) => `
+<div class="medical-rtp-case-focus-strip" aria-label="RTP program focus">
+<span>
+<strong>Load focus</strong>
+${escapeHtml(getRtpProgramItems(plan.rtpProgramLoadText, 1)[0] || "Set load focus in Medical Plan")}
+</span>
+<span>
+<strong>Risk watch</strong>
+${escapeHtml(getRtpProgramItems(plan.rtpProgramRiskFactors, 1)[0] || "Set player-specific risk factors")}
+</span>
+<span>
+<strong>Warning point</strong>
+${escapeHtml(getRtpProgramItems(plan.rtpProgramWarningPoints, 1)[0] || "Set hold triggers")}
+</span>
+</div>
+`;
+
   const renderRtpActionMetric = (label, value, tone = "neutral") => `
 <span class="medical-rtp-action-metric medical-rtp-action-${escapeHtml(tone)}">
 <strong>${escapeHtml(value)}</strong>
@@ -145,6 +162,7 @@ ${rtpCases
 <span><strong>Clearance</strong>${clearance.signOffCount}/${medicalClearanceRoles.length} sign-off / ${clearance.gatePassCount}/${medicalLoadGateOptions.length} gates</span>
 <span><strong>Tracker</strong>${escapeHtml(trackerSummary.completionLabel)}</span>
 </div>
+${renderRtpProgramFocusStrip(plan)}
 <div class="medical-rtp-case-sections">
 ${renderRtpTrackerSummary(plan)}
 ${renderRtpProgramSection("Next step", getRtpProgramItems(plan.rtpProgramNextSteps, 2))}

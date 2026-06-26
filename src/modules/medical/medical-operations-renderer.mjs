@@ -140,12 +140,17 @@ ${renderTabs(activeTab, tabOptions, "medical-ops-tabs-top")}
 <section class="medical-rtp-case-linker" aria-label="Apply RTP Library starters to active cases">
 <header>
 <div>
-<span>RTP starter needed</span>
-<strong>${casesNeedingStarter.length}/${summary.activeCases.length} active case${summary.activeCases.length === 1 ? "" : "s"} need a structured starter</strong>
-<small>Choose a Library guide, fill the existing Medical Plan draft, review, then save. Nothing is auto-saved.</small>
+<span>Medical Plan starter needed</span>
+<strong>${casesNeedingStarter.length}/${summary.activeCases.length} active case${summary.activeCases.length === 1 ? "" : "s"} need an RTP Library starter</strong>
+<small>Apply a guide into the existing Medical Plan draft, then individualize before saving.</small>
 </div>
-<b>Medical review required</b>
+<b>Coach sharing off</b>
 </header>
+<div class="medical-rtp-case-linker-steps" aria-label="RTP starter workflow">
+<span><strong>1</strong> Match guide</span>
+<span><strong>2</strong> Review Medical Plan</span>
+<span><strong>3</strong> Save player-specific program</span>
+</div>
 <div class="medical-rtp-case-linker-grid">
 ${casesNeedingStarter
   .map(({ player, plan, severity, review }) => {
@@ -159,7 +164,7 @@ ${casesNeedingStarter
 </div>
 <span>
 <strong>${escapeHtml(review.label)}</strong>
-<small>${topProfile ? `Suggested guide: ${escapeHtml(topProfile.name)}` : "Select RTP guide"}</small>
+<small>${topProfile ? `Best guide match: ${escapeHtml(topProfile.name)}` : "Select RTP guide"}</small>
 </span>
 <form data-medical-rtp-case-linker-form data-medical-plan-id="${escapeHtml(plan.id)}">
 <label>
@@ -170,7 +175,7 @@ ${suggestedProfiles
   .join("")}
 </select>
 </label>
-<button type="submit">Apply to this case</button>
+<button type="submit">Apply guide to Medical Plan</button>
 </form>
 </article>
 `;

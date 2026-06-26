@@ -3053,9 +3053,10 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(rtpModal).toBeVisible();
   await expect(rtpModal).toContainText("Quick Summary");
   await expect(rtpModal).toContainText("Medical-safe Evidence");
+  await expect(rtpModal).toContainText("Next field exposure");
   await expect(rtpModal).toContainText("Gold Standard Template");
   await expect(rtpModal).toContainText("37 sections");
-  await expect(rtpModal).toContainText("Start Medical Plan from guide");
+  await expect(rtpModal).toContainText("Apply guide to Medical Plan");
   await rtpModal.locator("[data-medical-close-rtp-profile]").last().click();
   await expect(rtpModal).toBeHidden();
   await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);

@@ -77,10 +77,16 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     });
   };
 
-  const renderRtpGuideList = (title, items = []) => `
-<section>
+  const getRtpProfileAnchorId = (profileId = "", suffix = "") =>
+    `medical-rtp-${String(profileId || "guide").replace(/[^a-z0-9_-]/gi, "-").toLowerCase()}-${suffix}`;
+
+  const getFirstRtpGuideItem = (items = [], fallback = "Review and individualize in the Medical Plan.") =>
+    (Array.isArray(items) && items.find(Boolean)) || fallback;
+
+  const renderRtpGuideList = (title, items = [], anchorId = "") => `
+<section${anchorId ? ` id="${escapeHtml(anchorId)}"` : ""}>
 <h4>${escapeHtml(title)}</h4>
-<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : "<p>Not set yet.</p>"}
 </section>
 `;
 
@@ -89,6 +95,50 @@ export function bindMedicalRuntimeBindings(deps = {}) {
       .slice(0, limit)
       .map((item) => `<span class="medical-ops-chip medical-ops-chip-low">${escapeHtml(item)}</span>`)
       .join("");
+
+  const renderRtpProfileHeaderMeta = (profile = {}) => `
+<div class="medical-rtp-profile-header-meta" aria-label="RTP guide metadata">
+<span>${escapeHtml(profile.system || "System")}</span>
+<span>${escapeHtml(profile.bodyArea || "Body area")}</span>
+<span>${escapeHtml(profile.evidenceLevel || "Evidence level not set")}</span>
+</div>
+`;
+
+  const renderRtpProfileQuickNav = (profile = {}) => {
+    const profileId = profile.id || "guide";
+    return `
+<nav class="medical-rtp-profile-quick-nav" aria-label="RTP guide quick sections">
+<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "summary"))}">Summary</a>
+<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "red-flags"))}">Red flags</a>
+<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "criteria"))}">Criteria</a>
+<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "training"))}">Training</a>
+<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "match"))}">Match</a>
+<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "full-guide"))}">37 sections</a>
+</nav>
+`;
+  };
+
+  const renderRtpProfileDecisionStrip = (profile = {}) => `
+<section class="medical-rtp-profile-decision-strip" aria-label="Medical starter decision support">
+<div>
+<span>Medical starter</span>
+<strong>Editable player program</strong>
+<small>No auto-save. Coach sharing remains off.</small>
+</div>
+<div>
+<span>Gate focus</span>
+<strong>${escapeHtml(getFirstRtpGuideItem(profile.criteria, "Set player-specific gate criteria."))}</strong>
+</div>
+<div>
+<span>Next field exposure</span>
+<strong>${escapeHtml(getFirstRtpGuideItem(profile.trainingChecklist, "Set the next tolerated field exposure."))}</strong>
+</div>
+<div>
+<span>Hold trigger</span>
+<strong>${escapeHtml(getFirstRtpGuideItem(profile.redFlags, "Hold if symptoms or risk signals increase."))}</strong>
+</div>
+</section>
+`;
 
   const renderRtpGoldStandardSections = (sections = []) => `
 <section class="medical-rtp-gold-standard-sections" aria-label="Gold Standard RTP profile sections">
@@ -117,15 +167,16 @@ ${Array.isArray(section.items) && section.items.length ? `<ul>${section.items.ma
     return `
 <header>
 <div>
-<span>RTP guide</span>
+<span>Medical RTP guide</span>
 <h3 id="medical-rtp-profile-title">${escapeHtml(profile.name || "RTP injury guide")}</h3>
-<small>${escapeHtml(profile.system || "System")} / ${escapeHtml(profile.bodyArea || "Body area")} / ${escapeHtml(profile.evidenceLevel || "Evidence level not set")}</small>
+${renderRtpProfileHeaderMeta(profile)}
 </div>
 <button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close ${escapeHtml(profile.name || "RTP")} guide">Close</button>
 </header>
 <div class="medical-rtp-profile-dialog-body">
 <div class="medical-rtp-profile-body">
-<section class="medical-rtp-profile-summary">
+${renderRtpProfileQuickNav(profile)}
+<section class="medical-rtp-profile-summary" id="${escapeHtml(getRtpProfileAnchorId(profile.id, "summary"))}">
 <div>
 <h3>Quick Summary</h3>
 <p>${escapeHtml(profile.summary)}</p>
@@ -139,14 +190,17 @@ ${Array.isArray(section.items) && section.items.length ? `<ul>${section.items.ma
 <div class="medical-rtp-profile-tags">
 ${renderRtpGuideTags(profile.riskTags || [], 5)}
 </div>
+${renderRtpProfileDecisionStrip(profile)}
 <div class="medical-rtp-profile-sections">
-${renderRtpGuideList("Red flags", profile.redFlags || [])}
-${renderRtpGuideList("Progression criteria", profile.criteria || [])}
-${renderRtpGuideList("Return-to-training checklist", profile.trainingChecklist || [])}
-${renderRtpGuideList("Return-to-match checklist", profile.matchChecklist || [])}
-${renderRtpGuideList("Common mistakes / risks", profile.mistakes || [])}
+${renderRtpGuideList("Red flags", profile.redFlags || [], getRtpProfileAnchorId(profile.id, "red-flags"))}
+${renderRtpGuideList("Progression criteria", profile.criteria || [], getRtpProfileAnchorId(profile.id, "criteria"))}
+${renderRtpGuideList("Return-to-training checklist", profile.trainingChecklist || [], getRtpProfileAnchorId(profile.id, "training"))}
+${renderRtpGuideList("Return-to-match checklist", profile.matchChecklist || [], getRtpProfileAnchorId(profile.id, "match"))}
+${renderRtpGuideList("Common mistakes / risks", profile.mistakes || [], getRtpProfileAnchorId(profile.id, "risks"))}
 </div>
+<div id="${escapeHtml(getRtpProfileAnchorId(profile.id, "full-guide"))}">
 ${renderRtpGoldStandardSections(profile.goldStandardSections || [])}
+</div>
 <div class="medical-rtp-profile-actions">
 <button
 type="button"
@@ -154,8 +208,8 @@ data-medical-apply-rtp-starter
 data-medical-rtp-profile-id="${escapeHtml(profile.id)}"
 data-medical-player-id="${escapeHtml(selectedPlayerId)}"
 ${selectedPlayerId ? "" : "disabled"}
->Start Medical Plan from guide${selectedPlayer ? ` for ${escapeHtml(selectedPlayer.name)}` : ""}</button>
-<small>This fills the Medical Plan draft only. Medical still owns the final player-specific program.</small>
+>Apply guide to Medical Plan${selectedPlayer ? ` for ${escapeHtml(selectedPlayer.name)}` : ""}</button>
+<small>Creates an editable Medical-owned draft only. Review, individualize and save inside Medical Plan.</small>
 </div>
 </div>
 </div>

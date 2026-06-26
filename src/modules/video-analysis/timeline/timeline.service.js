@@ -147,8 +147,13 @@ export function timelineCanvasStyle(zoom = 1) {
   return `width:${Math.round(scale * 100)}%;`;
 }
 
-function chooseTimelineTickStepMs(durationMs = 1, tickCount = TIMELINE_TICK_COUNT) {
+function chooseTimelineTickStepMs(durationMs = 1, tickCount = TIMELINE_TICK_COUNT, zoom = 1) {
   const safeDuration = Math.max(1, Number(durationMs || 1));
+  const safeZoom = normalizeTimelineZoom(zoom);
+  if (safeDuration >= 20 * 60000) {
+    if (safeZoom >= 4.2) return 60000;
+    if (safeZoom >= 2.1) return 300000;
+  }
   const targetIntervals = Math.max(1, Number(tickCount || TIMELINE_TICK_COUNT) - 1);
   const rawStep = Math.max(1000, safeDuration / targetIntervals);
   return TIMELINE_NICE_STEPS_MS.reduce((bestStep, step) => (
@@ -156,13 +161,27 @@ function chooseTimelineTickStepMs(durationMs = 1, tickCount = TIMELINE_TICK_COUN
   ), TIMELINE_NICE_STEPS_MS[0]);
 }
 
+function timelineTickOptions(tickCountOrOptions = TIMELINE_TICK_COUNT, zoom = 1) {
+  if (tickCountOrOptions && typeof tickCountOrOptions === "object") {
+    return {
+      tickCount: Number(tickCountOrOptions.tickCount || TIMELINE_TICK_COUNT),
+      zoom: Number(tickCountOrOptions.zoom || zoom || 1),
+    };
+  }
+  return {
+    tickCount: Number(tickCountOrOptions || TIMELINE_TICK_COUNT),
+    zoom: Number(zoom || 1),
+  };
+}
+
 function tickLabelKey(ms = 0) {
   return Math.floor(Math.max(0, Number(ms || 0)) / 1000);
 }
 
-export function buildTimelineTicks(durationMs = 1, tickCount = TIMELINE_TICK_COUNT) {
+export function buildTimelineTicks(durationMs = 1, tickCountOrOptions = TIMELINE_TICK_COUNT, zoom = 1) {
   const safeDuration = Math.max(1, Number(durationMs || 1));
-  const stepMs = chooseTimelineTickStepMs(safeDuration, tickCount);
+  const options = timelineTickOptions(tickCountOrOptions, zoom);
+  const stepMs = chooseTimelineTickStepMs(safeDuration, options.tickCount, options.zoom);
   const ticks = [];
   const seenMs = new Set();
   const seenLabels = new Set();

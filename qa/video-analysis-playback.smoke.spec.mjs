@@ -391,11 +391,11 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
         && timeline
         && ruler
         && code.left < deck.left
-        && Math.abs(timeline.left - deck.left) < 8
+        && Math.abs(timeline.left - code.left) < 8
         && Math.abs(timeline.right - deck.right) < 8
         && timeline.top >= deck.bottom
         && timeline.top - deck.bottom <= 16
-        && ruler.left > timeline.left + 80
+        && Math.abs(ruler.left - deck.left) < 8
         && Math.abs(ruler.right - deck.right) < 8
     );
   })).toBe(true);
@@ -1107,6 +1107,7 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   expect(standardCodeWindowLayout.scrollOverflowY).toBe("auto");
   expect(standardCodeWindowLayout.scrollHeight).toBeGreaterThanOrEqual(standardCodeWindowLayout.scrollClientHeight);
   const timelineLayout = await page.evaluate(() => {
+    const code = document.querySelector(".video-analysis-code-window-dock")?.getBoundingClientRect();
     const videoFrame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame")?.getBoundingClientRect();
     const timeline = document.querySelector(".video-analysis-fs-player-timeline")?.getBoundingClientRect();
     const timelineScroll = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-scroll");
@@ -1116,24 +1117,29 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     const label = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-lane__label")?.getBoundingClientRect();
     return {
       canvasWidth: canvas?.width ?? 0,
+      codeLeft: code?.left ?? 0,
       frameLeft: timeline?.left ?? 0,
+      frameRight: timeline?.right ?? 0,
       frameWidth: timeline?.width ?? 0,
       labelRight: label?.right ?? 0,
       rulerLeft: ruler?.left ?? 0,
+      rulerRight: ruler?.right ?? 0,
       rulerWidth: ruler?.width ?? 0,
       scrollClientWidth: timelineScroll?.clientWidth ?? 0,
       scrollLeft: scroll?.left ?? 0,
       scrollWidth: scroll?.width ?? 0,
       videoLeft: videoFrame?.left ?? 0,
+      videoRight: videoFrame?.right ?? 0,
       videoWidth: videoFrame?.width ?? 0,
     };
   });
   expect(timelineLayout.videoWidth).toBeGreaterThan(300);
-  expect(Math.abs(timelineLayout.frameLeft - timelineLayout.videoLeft)).toBeLessThanOrEqual(3);
-  expect(Math.abs(timelineLayout.frameWidth - timelineLayout.videoWidth)).toBeLessThanOrEqual(3);
+  expect(Math.abs(timelineLayout.frameLeft - timelineLayout.codeLeft)).toBeLessThanOrEqual(3);
+  expect(Math.abs(timelineLayout.frameRight - timelineLayout.videoRight)).toBeLessThanOrEqual(3);
   expect(Math.abs(timelineLayout.scrollLeft - timelineLayout.frameLeft)).toBeLessThanOrEqual(3);
   expect(Math.abs(timelineLayout.scrollWidth - timelineLayout.frameWidth)).toBeLessThanOrEqual(3);
-  expect(timelineLayout.rulerLeft).toBeGreaterThan(timelineLayout.frameLeft + 80);
+  expect(Math.abs(timelineLayout.rulerLeft - timelineLayout.videoLeft)).toBeLessThanOrEqual(3);
+  expect(Math.abs(timelineLayout.rulerRight - timelineLayout.videoRight)).toBeLessThanOrEqual(3);
   expect(timelineLayout.labelRight).toBeLessThanOrEqual(timelineLayout.rulerLeft + 1);
   expect(timelineLayout.canvasWidth).toBeGreaterThanOrEqual(timelineLayout.scrollClientWidth - 2);
   const timelineZoom = await page.evaluate(() => {
@@ -1171,6 +1177,40 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   });
   expect(Math.abs(zoomedTimeline.frameWidth - timelineZoom.beforeFrameWidth)).toBeLessThan(2);
   expect(zoomedTimeline.scrollWidth).toBeGreaterThan(zoomedTimeline.scrollClientWidth + 20);
+  for (let zoomStep = 0; zoomStep < 4; zoomStep += 1) {
+    await page.evaluate(() => {
+      const scroll = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-scroll");
+      const rect = scroll?.getBoundingClientRect();
+      scroll?.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        clientX: (rect?.left || 0) + ((rect?.width || 0) / 2),
+        clientY: (rect?.top || 0) + ((rect?.height || 0) / 2),
+        ctrlKey: true,
+        deltaY: -240,
+      }));
+    });
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  }
+  await expect.poll(() => page.locator(".video-analysis-fs-player-timeline .video-analysis-timeline-tick b").allTextContents())
+    .toContain("0:05:00");
+  for (let zoomStep = 0; zoomStep < 6; zoomStep += 1) {
+    await page.evaluate(() => {
+      const scroll = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-scroll");
+      const rect = scroll?.getBoundingClientRect();
+      scroll?.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        clientX: (rect?.left || 0) + ((rect?.width || 0) / 2),
+        clientY: (rect?.top || 0) + ((rect?.height || 0) / 2),
+        ctrlKey: true,
+        deltaY: -240,
+      }));
+    });
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  }
+  await expect.poll(() => page.locator(".video-analysis-fs-player-timeline .video-analysis-timeline-tick b").allTextContents())
+    .toContain("0:01:00");
   const timelineClipBlock = await page.evaluate(() => {
     const block = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-clip-block");
     const detail = block?.querySelector("em");

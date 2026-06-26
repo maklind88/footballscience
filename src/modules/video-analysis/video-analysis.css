@@ -1615,7 +1615,7 @@ body.is-video-analysis-fs-player-fullscreen {
   display: grid;
   grid-template-areas:
     "code deck"
-    ". timeline";
+    "timeline timeline";
   grid-template-columns: var(--video-analysis-fs-player-code-width) minmax(0, 1fr);
   grid-template-rows: auto auto;
   gap: 6px;

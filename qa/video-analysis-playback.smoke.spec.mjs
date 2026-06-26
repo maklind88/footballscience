@@ -2023,12 +2023,14 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
     return {
       defaultPrevented: event.defaultPrevented,
       fullscreenClassName: window.__videoAnalysisFullscreenElement?.className || "",
+      fullscreenTagName: window.__videoAnalysisFullscreenElement?.tagName || "",
       playbackRate: video.playbackRate,
       workstationCodeMode: document.querySelector("[data-video-analysis-fs-player-workstation]")?.classList.contains("is-code-mode") || false,
     };
   });
   expect(codeModeSwipe.defaultPrevented).toBe(true);
-  expect(codeModeSwipe.fullscreenClassName).toBe("");
+  expect(codeModeSwipe.fullscreenTagName).toBe("HTML");
+  expect(codeModeSwipe.fullscreenClassName).toContain("is-video-analysis-fs-player-code-mode");
   expect(codeModeSwipe.playbackRate).toBeGreaterThanOrEqual(6.5);
   expect(codeModeSwipe.playbackRate).toBeLessThanOrEqual(7);
   expect(codeModeSwipe.workstationCodeMode).toBe(true);
@@ -2060,7 +2062,7 @@ test("Video Analysis video frame shuttles playback with horizontal two finger wh
     window.__videoAnalysisFullscreenElement = null;
     document.dispatchEvent(new Event("fullscreenchange"));
   });
-  await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
+  await expect(page.locator("[data-video-analysis-fs-player-workstation]")).not.toHaveClass(/is-code-mode/);
 
   await page.locator("[data-video-analysis-video-fullscreen]").click();
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-fullscreen/);

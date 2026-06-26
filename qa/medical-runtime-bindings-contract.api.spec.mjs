@@ -302,6 +302,58 @@ test("Medical runtime bindings open and close RTP Library profile overlays", () 
   expect(calls).toContain("prevent-escape");
 });
 
+test("Medical runtime bindings reveal restricted history rows in batches", () => {
+  const rows = Array.from({ length: 30 }, (_, index) => ({
+    hidden: index >= 25,
+    dataset: { medicalHistoryRowVisible: index < 25 ? "true" : "false" },
+  }));
+  const status = { textContent: "Showing 25 of 30" };
+  const showMoreButton = {
+    hidden: false,
+    dataset: { medicalHistoryPageSize: "25" },
+    closest(selector) {
+      return selector === "[data-medical-history-table]" ? table : null;
+    },
+  };
+  const table = {
+    dataset: { medicalHistoryPageSize: "25" },
+    querySelector(selector) {
+      return selector === "[data-medical-history-page-status]" ? status : null;
+    },
+    querySelectorAll(selector) {
+      return selector === "[data-medical-history-row]" ? rows : [];
+    },
+  };
+  const workspace = {
+    listeners: {},
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    },
+    querySelector() {
+      return null;
+    },
+    querySelectorAll() {
+      return [];
+    },
+  };
+
+  bindMedicalRuntimeBindings({
+    workspaceElement: workspace,
+    win: {},
+    state: {},
+    actions: { canEditMedicalTeam: () => false },
+  });
+
+  workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-history-show-more]": showMoreButton },
+  })));
+
+  expect(rows.every((row) => row.hidden === false)).toBe(true);
+  expect(rows.every((row) => row.dataset.medicalHistoryRowVisible === "true")).toBe(true);
+  expect(status.textContent).toBe("Showing 30 of 30");
+  expect(showMoreButton.hidden).toBe(true);
+});
+
 test("Medical runtime bindings preserve roster search, filters, and protected submit writes", () => {
   const { calls, mutable, workspace } = createHarness();
   const historyForm = {

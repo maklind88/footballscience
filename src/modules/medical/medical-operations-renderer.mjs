@@ -578,6 +578,7 @@ ${playerOptions.map((player) => `<option value="${escapeHtml(player.id)}"${playe
 `;
 
   const renderHistory = () => {
+    const historyPageSize = 25;
     const allEvents = getMedicalHistoryEvents(300);
     const dateOptions = getHistoryDateOptions(allEvents);
     const playerOptions = getHistoryPlayerOptions(allEvents);
@@ -592,7 +593,7 @@ ${playerOptions.map((player) => `<option value="${escapeHtml(player.id)}"${playe
       .filter((event) => selectedDate === "all" || event.date === selectedDate)
       .filter((event) => selectedPlayerId === "all" || event.player?.id === selectedPlayerId)
       .filter((event) => eventMatchesHistorySearch(event, normalizedQuery));
-    const events = filteredEvents.slice(0, 40);
+    const initialVisibleCount = Math.min(filteredEvents.length, historyPageSize);
     return `
 ${renderHistoryFilters({
   dateOptions,
@@ -603,7 +604,7 @@ ${renderHistoryFilters({
   visibleCount: filteredEvents.length,
   totalCount: allEvents.length,
 })}
-<div class="medical-ops-table medical-ops-history-table">
+<div class="medical-ops-table medical-ops-history-table" data-medical-history-table data-medical-history-page-size="${historyPageSize}">
 <div class="medical-ops-table-head" aria-hidden="true">
 <span>Date</span>
 <span>Player</span>
@@ -611,11 +612,18 @@ ${renderHistoryFilters({
 <span>Detail</span>
 <span>Share</span>
 </div>
-${events.length
-  ? events
+${filteredEvents.length
+  ? filteredEvents
       .map(
-        (event) => `
-<button type="button" data-medical-select-player="${escapeHtml(event.player.id)}" class="medical-ops-table-row">
+        (event, index) => `
+<button
+type="button"
+data-medical-select-player="${escapeHtml(event.player.id)}"
+data-medical-history-row
+data-medical-history-row-visible="${index < initialVisibleCount ? "true" : "false"}"
+class="medical-ops-table-row"
+${index < initialVisibleCount ? "" : "hidden"}
+>
 <span>${escapeHtml(formatMedicalDateLabel(event.date))}</span>
 <strong>${escapeHtml(event.player.name)}<small>${escapeHtml(event.player.position || "Position")}</small></strong>
 <span>${escapeHtml(event.type)}</span>
@@ -626,6 +634,14 @@ ${events.length
       )
       .join("")
   : `<div class="medical-empty-inline">${allEvents.length ? "No restricted history matches the current filters." : "No restricted medical history yet."}</div>`}
+${filteredEvents.length > historyPageSize
+  ? `
+<div class="medical-ops-history-pager" data-medical-history-pager>
+<span data-medical-history-page-status aria-live="polite">Showing ${initialVisibleCount} of ${filteredEvents.length}</span>
+<button type="button" data-medical-history-show-more data-medical-history-page-size="${historyPageSize}">Show 25 more</button>
+</div>
+`
+  : ""}
 </div>
 `;
   };

@@ -213,3 +213,27 @@ test("Medical RTP action queue prioritizes hold, ready review, and exposure deci
     tone: "high",
   });
 });
+
+test("Medical history renders restricted items in batches of 25", () => {
+  const events = Array.from({ length: 30 }, (_, index) => ({
+    player: { id: `p-${index}`, name: `Player ${index + 1}`, position: "Defender" },
+    date: `2026-06-${String(26 - (index % 3)).padStart(2, "0")}`,
+    type: "Recommendation",
+    title: `${index + 1}% / Rehab`,
+    detail: "Medical restriction",
+    coachShared: index % 2 === 0,
+  }));
+  const renderer = createMedicalOperationsRenderer({
+    escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
+    formatMedicalDateLabel: (value) => value,
+    getMedicalHistoryEvents: () => events,
+  });
+
+  const markup = renderer.renderHistory();
+
+  expect((markup.match(/data-medical-history-row(\s|>)/g) || []).length).toBe(30);
+  expect((markup.match(/data-medical-history-row-visible="true"/g) || []).length).toBe(25);
+  expect((markup.match(/data-medical-history-row-visible="false"/g) || []).length).toBe(5);
+  expect(markup).toContain('data-medical-history-show-more');
+  expect(markup).toContain("Showing 25 of 30");
+});

@@ -1278,6 +1278,46 @@ body.is-dark-mode .medical-plan-edit:focus-visible {
   grid-template-columns: minmax(7rem, 0.55fr) minmax(12rem, 1fr) minmax(9rem, 0.7fr) minmax(18rem, 1.5fr) minmax(8rem, 0.62fr);
 }
 
+.medical-ops-history-table .medical-ops-table-row[hidden] {
+  display: none;
+}
+
+.medical-ops-history-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.72rem;
+  min-width: 66rem;
+  padding: 0.68rem 0.58rem 0.16rem;
+  color: #66726b;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.medical-ops-history-pager button {
+  min-height: 2.28rem;
+  border: 1px solid rgba(20, 44, 35, 0.14);
+  border-radius: 999px;
+  background: #fff;
+  color: #143326;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 950;
+  padding: 0 0.9rem;
+  cursor: pointer;
+}
+
+.medical-ops-history-pager button:hover,
+.medical-ops-history-pager button:focus-visible {
+  border-color: rgba(47, 143, 107, 0.34);
+  box-shadow: 0 0 0 3px rgba(47, 143, 107, 0.12);
+  outline: 0;
+}
+
+.medical-ops-history-pager button[hidden] {
+  display: none;
+}
+
 .medical-ops-table-head {
   padding: 0 0.58rem;
 }
@@ -1602,6 +1642,16 @@ body.is-dark-mode .medical-ops-history-controls select {
 body.is-dark-mode .medical-ops-history-search-button {
   border-color: rgba(129, 210, 159, 0.36);
   background: linear-gradient(180deg, #2c8b62, #1c684e);
+}
+
+body.is-dark-mode .medical-ops-history-pager {
+  color: var(--dark-muted);
+}
+
+body.is-dark-mode .medical-ops-history-pager button {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--dark-text);
 }
 
 body.is-dark-mode .medical-ops-brief span,

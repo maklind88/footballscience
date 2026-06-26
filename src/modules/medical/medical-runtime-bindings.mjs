@@ -80,6 +80,23 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     modal.querySelector?.("[role='dialog']")?.focus?.();
   };
 
+  const showMoreMedicalHistoryRows = (showMoreButton) => {
+    const table = showMoreButton.closest?.("[data-medical-history-table]") ?? queryWorkspace(workspaceElement, "[data-medical-history-table]");
+    if (!table) return;
+    const rows = Array.from(table.querySelectorAll?.("[data-medical-history-row]") ?? []);
+    const pageSize = Number(showMoreButton.dataset?.medicalHistoryPageSize || table.dataset?.medicalHistoryPageSize || 25) || 25;
+    const visibleCount = rows.filter((row) => !row.hidden).length;
+    const nextVisibleCount = Math.min(rows.length, visibleCount + pageSize);
+    rows.forEach((row, index) => {
+      const isVisible = index < nextVisibleCount;
+      row.hidden = !isVisible;
+      row.dataset.medicalHistoryRowVisible = isVisible ? "true" : "false";
+    });
+    const status = table.querySelector?.("[data-medical-history-page-status]");
+    if (status) status.textContent = `Showing ${nextVisibleCount} of ${rows.length}`;
+    if (nextVisibleCount >= rows.length) showMoreButton.hidden = true;
+  };
+
   const onClick = (event) => {
     const closeModalButton = event.target.closest("[data-medical-close-modal]");
     if (closeModalButton) {
@@ -203,6 +220,12 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     if (operationsTabButton) {
       setStateValue(state, "MedicalOperationsTab", actions.normalizeMedicalOperationsTab?.(operationsTabButton.dataset.medicalOpsTab));
       renderWorkspace();
+      return;
+    }
+    const historyShowMoreButton = event.target.closest("[data-medical-history-show-more]");
+    if (historyShowMoreButton) {
+      event.preventDefault();
+      showMoreMedicalHistoryRows(historyShowMoreButton);
       return;
     }
     const closeRtpProfileButton = event.target.closest("[data-medical-close-rtp-profile]");

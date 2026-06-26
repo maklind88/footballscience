@@ -3047,12 +3047,14 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(guideDraftModal).toBeHidden();
   const rtpTrigger = operations.locator('[data-medical-open-rtp-profile="hamstring-strain"]');
   await expect(rtpTrigger).toBeVisible();
-  const rtpModal = operations.locator('[data-medical-rtp-profile-modal="hamstring-strain"]');
+  const rtpModal = operations.locator("[data-medical-rtp-profile-modal]");
   await expect(rtpModal).toBeHidden();
   await rtpTrigger.click();
   await expect(rtpModal).toBeVisible();
   await expect(rtpModal).toContainText("Quick Summary");
   await expect(rtpModal).toContainText("Medical-safe Evidence");
+  await expect(rtpModal).toContainText("Gold Standard Template");
+  await expect(rtpModal).toContainText("37 sections");
   await expect(rtpModal).toContainText("Start Medical Plan from guide");
   await rtpModal.locator("[data-medical-close-rtp-profile]").last().click();
   await expect(rtpModal).toBeHidden();

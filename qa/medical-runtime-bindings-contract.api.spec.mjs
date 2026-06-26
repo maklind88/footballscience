@@ -253,10 +253,12 @@ test("Medical runtime bindings preserve quick recommendation, archive, and plan 
 
 test("Medical runtime bindings open and close RTP Library profile overlays", () => {
   const calls = [];
+  const content = { innerHTML: "" };
   const modal = {
     hidden: true,
-    dataset: { medicalRtpProfileModal: "hamstring-strain" },
+    dataset: {},
     querySelector(selector) {
+      if (selector === "[data-medical-rtp-profile-dialog-content]") return content;
       return selector === "[role='dialog']" ? { focus: () => calls.push("focus-dialog") } : null;
     },
     removeAttribute(name) {
@@ -272,6 +274,7 @@ test("Medical runtime bindings open and close RTP Library profile overlays", () 
       this.listeners[type] = listener;
     },
     querySelector(selector) {
+      if (selector === "[data-medical-rtp-profile-modal]") return modal;
       return selector === "[data-medical-rtp-profile-modal]:not([hidden])" && !modal.hidden ? modal : null;
     },
     querySelectorAll(selector) {
@@ -283,7 +286,30 @@ test("Medical runtime bindings open and close RTP Library profile overlays", () 
     workspaceElement: workspace,
     win: {},
     state: {},
-    actions: { canEditMedicalTeam: () => false },
+    actions: {
+      canEditMedicalTeam: () => false,
+      getMedicalRtpLibraryProfile: () => ({
+        id: "hamstring-strain",
+        name: "Hamstring Strain",
+        system: "Muscle",
+        bodyArea: "Posterior thigh",
+        evidenceLevel: "Moderate to high",
+        summary: "Sprint exposure must be rebuilt.",
+        evidence: "Criteria-based RTP evidence.",
+        experience: "Football staff should expose sprint actions.",
+        riskTags: ["sprint exposure gap"],
+        redFlags: ["pain with walking"],
+        criteria: ["maximal sprint exposure"],
+        trainingChecklist: ["linear sprint exposure"],
+        matchChecklist: ["repeated sprint block"],
+        mistakes: ["clearing on jogging"],
+        goldStandardSections: Array.from({ length: 37 }, (_, index) => ({
+          title: index === 34 ? "RTP Risk Score" : `Section ${index + 1}`,
+          content: `Content ${index + 1}`,
+          items: index === 0 ? ["item"] : [],
+        })),
+      }),
+    },
   });
 
   workspace.listeners.click(createEvent(createTarget({
@@ -292,6 +318,10 @@ test("Medical runtime bindings open and close RTP Library profile overlays", () 
   expect(modal.hidden).toBe(false);
   expect(modal["aria-hidden"]).toBeUndefined();
   expect(calls).toContain("focus-dialog");
+  expect(content.innerHTML).toContain("Hamstring Strain");
+  expect(content.innerHTML).toContain("Gold Standard Template");
+  expect(content.innerHTML).toContain("37 sections");
+  expect(content.innerHTML).toContain("RTP Risk Score");
 
   workspace.listeners.keydown(createEvent(createTarget(), {
     key: "Escape",
@@ -355,7 +385,8 @@ test("Medical runtime bindings open RTP guide authoring draft and copy the templ
   })));
   await Promise.resolve();
   expect(copiedText).toContain("RTP Injury Guide Draft");
-  expect(copiedText).toContain("Evidence:");
+  expect(copiedText).toContain("24. Evidence Level");
+  expect(copiedText).toContain("37. Return-to-Performance Analytics");
   expect(calls).toContainEqual(["render", "RTP injury guide template copied."]);
 
   workspace.listeners.keydown(createEvent(createTarget(), {

@@ -10,16 +10,27 @@ import {
 test("Medical RTP Library provides searchable medical-safe injury profiles", () => {
   const profiles = medicalRtpLibraryProfiles;
   const hamstring = getMedicalRtpLibraryProfileById("hamstring-strain");
+  const distalHamstring = getMedicalRtpLibraryProfileById("distal-hamstring-injury");
 
-  expect(profiles.length).toBeGreaterThanOrEqual(15);
+  expect(profiles).toHaveLength(200);
+  expect(new Set(profiles.map((profile) => profile.id)).size).toBe(200);
   expect(hamstring).toMatchObject({
     name: "Hamstring Strain",
     system: "Muscle",
     bodyArea: "Posterior thigh",
     evidenceLevel: "Moderate to high",
   });
+  expect(hamstring.goldStandardSections).toHaveLength(37);
+  expect(hamstring.goldStandardSections.map((section) => section.title)).toContain("RTP Risk Score");
+  expect(distalHamstring).toMatchObject({
+    name: "Distal Hamstring Injury",
+    system: "Muscle",
+    bodyArea: "Distal posterior thigh",
+  });
+  expect(distalHamstring.goldStandardSections).toHaveLength(37);
   expect(getMedicalRtpLibrarySearchText(hamstring)).toContain("sprint exposure gap");
   expect(getMedicalRtpLibrarySearchText(hamstring)).toContain("posterior thigh pain");
+  expect(getMedicalRtpLibrarySearchText(distalHamstring)).toContain("distal tendon involvement");
   expect(medicalRtpLibraryFilterOptions.positions).toContain("winger");
   expect(medicalRtpLibraryFilterOptions.movementPlanes).toContain("deceleration");
 });

@@ -400,69 +400,33 @@ ${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(op
 <ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
 </section>
 `;
-    const renderProfileBody = (profileItem) => `
-<div class="medical-rtp-profile-body">
-<section class="medical-rtp-profile-summary">
-<div>
-<h3>Quick Summary</h3>
-<p>${escapeHtml(profileItem.summary)}</p>
-</div>
-<div>
-<h3>Medical-safe Evidence</h3>
-<p><strong>Evidence:</strong> ${escapeHtml(profileItem.evidence)}</p>
-<p><strong>Experience/consensus:</strong> ${escapeHtml(profileItem.experience)}</p>
-</div>
-</section>
-<div class="medical-rtp-profile-tags">
-${renderTags(profileItem.riskTags, 5)}
-</div>
-<div class="medical-rtp-profile-sections">
-${renderList("Red flags", profileItem.redFlags)}
-${renderList("Progression criteria", profileItem.criteria)}
-${renderList("Return-to-training checklist", profileItem.trainingChecklist)}
-${renderList("Return-to-match checklist", profileItem.matchChecklist)}
-${renderList("Common mistakes / risks", profileItem.mistakes)}
-</div>
-<div class="medical-rtp-profile-actions">
-<button
-type="button"
-data-medical-apply-rtp-starter
-data-medical-rtp-profile-id="${escapeHtml(profileItem.id)}"
-data-medical-player-id="${escapeHtml(selectedPlayer?.id || "")}"
-${selectedPlayer ? "" : "disabled"}
->Start Medical Plan from guide${selectedPlayer ? ` for ${escapeHtml(selectedPlayer.name)}` : ""}</button>
-<small>This fills the Medical Plan draft only. Medical still owns the final player-specific program.</small>
-</div>
-</div>
-`;
-    const renderProfileModal = (profileItem) => {
-      const safeProfileId = escapeHtml(profileItem.id);
-      return `
-<div class="medical-rtp-profile-modal" data-medical-rtp-profile-modal="${safeProfileId}" hidden aria-hidden="true">
+    const renderProfileModal = () => `
+<div class="medical-rtp-profile-modal" data-medical-rtp-profile-modal hidden aria-hidden="true">
 <button type="button" class="medical-rtp-profile-modal-backdrop" data-medical-close-rtp-profile aria-label="Close RTP guide"></button>
 <section
-id="medical-rtp-profile-dialog-${safeProfileId}"
+id="medical-rtp-profile-dialog"
 class="medical-rtp-profile-dialog"
 role="dialog"
 aria-modal="true"
-aria-labelledby="medical-rtp-profile-title-${safeProfileId}"
+aria-labelledby="medical-rtp-profile-title"
 tabindex="-1"
 >
+<div class="medical-rtp-profile-dialog-content" data-medical-rtp-profile-dialog-content>
 <header>
 <div>
 <span>RTP guide</span>
-<h3 id="medical-rtp-profile-title-${safeProfileId}">${escapeHtml(profileItem.name)}</h3>
-<small>${escapeHtml(profileItem.system)} / ${escapeHtml(profileItem.bodyArea)} / ${escapeHtml(profileItem.evidenceLevel)}</small>
+<h3 id="medical-rtp-profile-title">RTP injury guide</h3>
+<small>Select a guide from the library.</small>
 </div>
-<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close ${escapeHtml(profileItem.name)} guide">Close</button>
+<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close RTP guide">Close</button>
 </header>
 <div class="medical-rtp-profile-dialog-body">
-${renderProfileBody(profileItem)}
+<div class="medical-empty-inline">Select an RTP injury guide to open the full Gold Standard profile.</div>
+</div>
 </div>
 </section>
 </div>
 `;
-    };
     const renderGuideAuthoringModal = () => `
 <div class="medical-rtp-profile-modal" data-medical-rtp-guide-draft-modal hidden aria-hidden="true">
 <button type="button" class="medical-rtp-profile-modal-backdrop" data-medical-close-rtp-guide-draft aria-label="Close injury guide draft"></button>
@@ -577,7 +541,7 @@ aria-controls="medical-rtp-profile-dialog-${escapeHtml(profileItem.id)}"
   })
   .join("")}
 </div>
-${profiles.map(renderProfileModal).join("")}
+${renderProfileModal()}
 ${renderGuideAuthoringModal()}
 <div class="medical-empty-inline medical-rtp-library-empty" data-medical-rtp-library-empty hidden>No RTP injury guides match the current search and filters.</div>
 </div>

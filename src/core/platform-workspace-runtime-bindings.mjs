@@ -159,6 +159,7 @@ export function bindPlatformWorkspaceRuntimeBindings(deps = {}) {
       getMedicalInjuryPlanFormDraft: actions.getMedicalInjuryPlanFormDraft,
       getMedicalRecommendationActivityContext: actions.getMedicalRecommendationActivityContext,
       getMedicalRecommendationBlockReason: actions.getMedicalRecommendationBlockReason,
+      getMedicalRtpLibraryProfile: actions.getMedicalRtpLibraryProfile,
       getMedicalRtpLibraryStarterDraft: actions.getMedicalRtpLibraryStarterDraft,
       getMedicalRtpPhaseForRecommendation: actions.getMedicalRtpPhaseForRecommendation,
       getMedicalRtpPhaseOption: actions.getMedicalRtpPhaseOption,

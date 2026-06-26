@@ -1,11 +1,20 @@
-const profile = (data) => ({
-  level: ["professional", "elite", "international"],
-  sex: ["female", "male", "all"],
-  season: ["pre-season", "in-season", "congested", "post-season"],
-  ...data,
-});
+import { expandedMedicalRtpLibraryProfiles } from "./medical-rtp-library-expansion-data.mjs";
+import { createGoldStandardSections } from "./medical-rtp-library-profile-factory.mjs";
 
-export const medicalRtpLibraryProfiles = [
+const profile = (data) => {
+  const normalized = {
+    level: ["professional", "elite", "international"],
+    sex: ["female", "male", "all"],
+    season: ["pre-season", "in-season", "congested", "post-season"],
+    ...data,
+  };
+  return {
+    ...normalized,
+    goldStandardSections: createGoldStandardSections(normalized),
+  };
+};
+
+const coreMedicalRtpLibraryProfiles = [
   profile({
     id: "hamstring-strain",
     name: "Hamstring Strain",
@@ -338,6 +347,11 @@ export const medicalRtpLibraryProfiles = [
   }),
 ];
 
+export const medicalRtpLibraryProfiles = [
+  ...coreMedicalRtpLibraryProfiles,
+  ...expandedMedicalRtpLibraryProfiles,
+];
+
 export const medicalRtpLibraryFilterOptions = {
   movementPlanes: Array.from(new Set(medicalRtpLibraryProfiles.flatMap((entry) => entry.movementPlanes))).sort(),
   positions: Array.from(new Set(medicalRtpLibraryProfiles.flatMap((entry) => entry.positions))).sort(),
@@ -394,7 +408,7 @@ export function createMedicalRtpLibraryStarterDraft(profileId = "", playerId = "
     reviewDate: "",
     phase: `RTP Library starter - ${selectedProfile.name}`,
     comment: [
-      `RTP Library profile: ${selectedProfile.name}`,
+      `RTP Library guide: ${selectedProfile.name}`,
       `Quick summary: ${selectedProfile.summary}`,
       section("RTP phases", selectedProfile.phases),
       section("Movement/load", selectedProfile.loadText),

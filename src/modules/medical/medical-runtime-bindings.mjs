@@ -24,6 +24,15 @@ function queryWorkspaceAll(workspaceElement, selector) {
   return Array.from(workspaceElement?.querySelectorAll?.(selector) ?? []);
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 export function bindMedicalRuntimeBindings(deps = {}) {
   const { actions = {}, state = {}, win = globalThis, workspaceElement = null } = deps;
   if (!workspaceElement?.addEventListener) return {};
@@ -68,6 +77,91 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     });
   };
 
+  const renderRtpGuideList = (title, items = []) => `
+<section>
+<h4>${escapeHtml(title)}</h4>
+<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+</section>
+`;
+
+  const renderRtpGuideTags = (items = [], limit = 5) =>
+    items
+      .slice(0, limit)
+      .map((item) => `<span class="medical-ops-chip medical-ops-chip-low">${escapeHtml(item)}</span>`)
+      .join("");
+
+  const renderRtpGoldStandardSections = (sections = []) => `
+<section class="medical-rtp-gold-standard-sections" aria-label="Gold Standard RTP profile sections">
+<header>
+<span>Gold Standard Template</span>
+<strong>${sections.length} sections</strong>
+</header>
+${sections
+  .map(
+    (section, index) => `
+<details${index < 4 ? " open" : ""}>
+<summary><span>${index + 1}</span>${escapeHtml(section.title)}</summary>
+<p>${escapeHtml(section.content)}</p>
+${Array.isArray(section.items) && section.items.length ? `<ul>${section.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+</details>
+`
+  )
+  .join("")}
+</section>
+`;
+
+  const renderRtpProfileDialogContent = (profile = {}) => {
+    const medicalState = getMedicalState(state);
+    const selectedPlayerId = medicalState.selectedPlayerId || "";
+    const selectedPlayer = medicalState.players?.find?.((player) => player.id === selectedPlayerId) ?? null;
+    return `
+<header>
+<div>
+<span>RTP guide</span>
+<h3 id="medical-rtp-profile-title">${escapeHtml(profile.name || "RTP injury guide")}</h3>
+<small>${escapeHtml(profile.system || "System")} / ${escapeHtml(profile.bodyArea || "Body area")} / ${escapeHtml(profile.evidenceLevel || "Evidence level not set")}</small>
+</div>
+<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close ${escapeHtml(profile.name || "RTP")} guide">Close</button>
+</header>
+<div class="medical-rtp-profile-dialog-body">
+<div class="medical-rtp-profile-body">
+<section class="medical-rtp-profile-summary">
+<div>
+<h3>Quick Summary</h3>
+<p>${escapeHtml(profile.summary)}</p>
+</div>
+<div>
+<h3>Medical-safe Evidence</h3>
+<p><strong>Evidence:</strong> ${escapeHtml(profile.evidence)}</p>
+<p><strong>Experience/consensus:</strong> ${escapeHtml(profile.experience)}</p>
+</div>
+</section>
+<div class="medical-rtp-profile-tags">
+${renderRtpGuideTags(profile.riskTags || [], 5)}
+</div>
+<div class="medical-rtp-profile-sections">
+${renderRtpGuideList("Red flags", profile.redFlags || [])}
+${renderRtpGuideList("Progression criteria", profile.criteria || [])}
+${renderRtpGuideList("Return-to-training checklist", profile.trainingChecklist || [])}
+${renderRtpGuideList("Return-to-match checklist", profile.matchChecklist || [])}
+${renderRtpGuideList("Common mistakes / risks", profile.mistakes || [])}
+</div>
+${renderRtpGoldStandardSections(profile.goldStandardSections || [])}
+<div class="medical-rtp-profile-actions">
+<button
+type="button"
+data-medical-apply-rtp-starter
+data-medical-rtp-profile-id="${escapeHtml(profile.id)}"
+data-medical-player-id="${escapeHtml(selectedPlayerId)}"
+${selectedPlayerId ? "" : "disabled"}
+>Start Medical Plan from guide${selectedPlayer ? ` for ${escapeHtml(selectedPlayer.name)}` : ""}</button>
+<small>This fills the Medical Plan draft only. Medical still owns the final player-specific program.</small>
+</div>
+</div>
+</div>
+`;
+  };
+
   const closeMedicalRtpGuideDraftModal = () => {
     queryWorkspaceAll(workspaceElement, "[data-medical-rtp-guide-draft-modal]").forEach((modal) => {
       modal.hidden = true;
@@ -77,10 +171,16 @@ export function bindMedicalRuntimeBindings(deps = {}) {
 
   const openMedicalRtpProfileModal = (profileId) => {
     const targetProfileId = String(profileId || "");
-    const modal = queryWorkspaceAll(workspaceElement, "[data-medical-rtp-profile-modal]").find(
-      (candidate) => candidate.dataset?.medicalRtpProfileModal === targetProfileId
-    );
+    const modal =
+      queryWorkspaceAll(workspaceElement, "[data-medical-rtp-profile-modal]").find(
+        (candidate) => candidate.dataset?.medicalRtpProfileModal === targetProfileId
+      ) ?? queryWorkspace(workspaceElement, "[data-medical-rtp-profile-modal]");
     if (!modal) return;
+    const profile = actions.getMedicalRtpLibraryProfile?.(targetProfileId);
+    const content = modal.querySelector?.("[data-medical-rtp-profile-dialog-content]");
+    if (profile && content) {
+      content.innerHTML = renderRtpProfileDialogContent(profile);
+    }
     closeMedicalRtpProfileModal();
     modal.hidden = false;
     modal.removeAttribute?.("aria-hidden");
@@ -99,23 +199,50 @@ export function bindMedicalRuntimeBindings(deps = {}) {
   const getMedicalRtpGuideTemplateText = () => [
     "RTP Injury Guide Draft",
     "",
-    "Injury name:",
-    "System / body area:",
-    "Movement plane:",
-    "Symptoms / risk tags:",
-    "Evidence level:",
+    "Metadata",
+    "- Injury name:",
+    "- System / body area:",
+    "- Movement plane:",
+    "- Symptoms / risk tags:",
+    "- Evidence level:",
     "",
-    "Quick summary:",
-    "Evidence:",
-    "Expert consensus / club experience:",
-    "Red flags:",
-    "Progression criteria:",
-    "Return-to-training checklist:",
-    "Return-to-match checklist:",
-    "Common mistakes / risks:",
-    "Medical notes:",
-    "Performance notes:",
-    "Coach-safe summary:",
+    "1. Overview",
+    "2. Mechanism of Injury",
+    "3. Risk Factors",
+    "4. Clinical Presentation",
+    "5. Assessment Protocols",
+    "6. Differential Diagnosis",
+    "7. Red Flags",
+    "8. Imaging Considerations",
+    "9. Rehabilitation Principles",
+    "10. Exercise Bank",
+    "11. Running Progression",
+    "12. Sprint Progression",
+    "13. Change of Direction Progression",
+    "14. Football Integration",
+    "15. Return to Running Criteria",
+    "16. Return to Training Criteria",
+    "17. Return to Performance Criteria",
+    "18. Monitoring Metrics",
+    "19. GPS Benchmarks",
+    "20. Strength Benchmarks",
+    "21. Common Mistakes",
+    "22. Case Study Example",
+    "23. Research Summary",
+    "24. Evidence Level",
+    "25. Coach Summary",
+    "26. Medical Notes",
+    "27. Performance Notes",
+    "28. Position-Specific Football Demands",
+    "29. Women's Football Considerations",
+    "30. RTP Decision Tree",
+    "31. Objective RTP Testing Battery",
+    "32. Match Return Strategy",
+    "33. Worst Case Scenario Analysis",
+    "34. NWSL / Elite Women's Football Context",
+    "35. RTP Risk Score",
+    "36. RTP Meeting Summary",
+    "37. Return-to-Performance Analytics",
   ].join("\n");
 
   const copyMedicalRtpGuideTemplate = () => {

@@ -37,6 +37,7 @@ export function getClipMiniGamePrincipleLabel(clip = {}) {
 }
 
 export function getTimelineLaneValue(clip = {}, laneMode = "phase") {
+  if (laneMode === "all") return "All Tags";
   if (laneMode === "player") return firstPlayerLabel(clip);
   if (laneMode === "tags") return Array.isArray(clip.tags) && clip.tags.length ? clip.tags[0] : "No tag";
   if (laneMode === "unit") return firstDescriptorValue(clip, "unit") || "Unit";

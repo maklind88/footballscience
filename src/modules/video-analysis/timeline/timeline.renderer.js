@@ -66,22 +66,16 @@ function findClipButton(clip = {}, lookup = {}) {
   return null;
 }
 
-function renderLaneButtons(activeLaneMode = "phase") {
+function renderLaneSelector(activeLaneMode = "phase") {
   return `
-    <div class="video-analysis-timeline-tabs" aria-label="Timeline lanes">
-      ${TIMELINE_LANE_MODES.map((mode) => {
-        const opensTagFilter = mode.id === "tags";
-        return `
-        <button
-          type="button"
-          class="${activeLaneMode === mode.id ? "is-active" : ""}"
-          data-video-analysis-timeline-lane="${escapeHtml(mode.id)}"
-          ${opensTagFilter ? `data-video-analysis-tag-filter-trigger aria-haspopup="dialog"` : ""}
-          aria-pressed="${activeLaneMode === mode.id ? "true" : "false"}"
-        >${escapeHtml(mode.label)}</button>
-      `;
-      }).join("")}
-    </div>
+    <label class="video-analysis-timeline-view-select">
+      <span>Timeline</span>
+      <select data-video-analysis-timeline-lane-select aria-label="Timeline view">
+        ${TIMELINE_LANE_MODES.map((mode) => `
+          <option value="${escapeHtml(mode.id)}"${activeLaneMode === mode.id ? " selected" : ""}>${escapeHtml(mode.label)}</option>
+        `).join("")}
+      </select>
+    </label>
   `;
 }
 
@@ -271,12 +265,12 @@ export function renderTimeline(state = {}) {
       data-video-analysis-timeline-density="${density.isDense ? "dense" : "normal"}"
       data-video-analysis-timeline-clip-count="${escapeHtml(density.clipCount)}"
     >
-      <div class="video-analysis-timeline-toolbar">
-        ${renderLaneButtons(laneMode)}
-        ${renderTimelineStatus(totalMs, density.clipCount)}
-      </div>
       <div class="video-analysis-timeline-scroll" data-video-analysis-timeline-pan>
         <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(zoom)}">
+          <div class="video-analysis-timeline-toolbar">
+            ${renderLaneSelector(laneMode)}
+            ${renderTimelineStatus(totalMs, density.clipCount)}
+          </div>
           ${renderTimelineRuler(ticks, totalMs)}
           <div
             class="video-analysis-playhead-rail"

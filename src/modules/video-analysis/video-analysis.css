@@ -1472,7 +1472,6 @@ body.is-video-analysis-fs-player-fullscreen {
   overflow: hidden;
 }
 
-.video-analysis-timeline-toolbar,
 .video-analysis-timeline-tabs,
 .video-analysis-timeline-selection,
 .video-analysis-timeline-selection > div {
@@ -1492,9 +1491,51 @@ body.is-video-analysis-fs-player-fullscreen {
 }
 
 .video-analysis-timeline-toolbar {
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: var(--video-analysis-timeline-label-width) minmax(600px, 1fr);
+  gap: var(--video-analysis-timeline-lane-gap);
+  align-items: center;
   border-bottom: 1px solid #e4eae5;
-  padding: 5px 9px;
+  padding: 5px 8px 4px 0;
+}
+
+.video-analysis-timeline-view-select {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border-right: 1px solid rgba(207, 216, 209, 0.72);
+  padding: 0 6px 0 0;
+  background:
+    linear-gradient(90deg, rgba(248,250,248,0.98), rgba(248,250,248,0.9)),
+    #f8faf8;
+  box-shadow: 8px 0 16px rgba(248, 250, 248, 0.9);
+  cursor: default;
+}
+
+.video-analysis-timeline-view-select span {
+  color: #66736b;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.video-analysis-timeline-view-select select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 27px;
+  border: 1px solid #cad5cf;
+  border-radius: 8px;
+  padding: 0 26px 0 8px;
+  color: #142018;
+  background: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
 }
 
 .video-analysis-timeline-tabs {
@@ -1716,9 +1757,8 @@ body.is-video-analysis-fs-player-fullscreen {
   box-sizing: border-box;
   width: 100%;
   margin-left: 0;
-  min-height: 34px;
-  gap: 6px;
-  padding: 4px 8px;
+  min-height: 38px;
+  padding: 4px 8px 4px 0;
 }
 
 .video-analysis-timeline-status,
@@ -1729,6 +1769,13 @@ body.is-video-analysis-fs-player-fullscreen {
   gap: 5px;
   margin-left: auto;
   flex-wrap: wrap;
+}
+
+.video-analysis-timeline-status {
+  position: sticky;
+  right: 8px;
+  z-index: 4;
+  justify-self: end;
 }
 
 .video-analysis-timeline-status span,
@@ -2004,14 +2051,14 @@ body.is-video-analysis-fs-player-fullscreen {
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-timeline-module {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   height: 100%;
   min-height: 0;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-timeline-toolbar {
-  min-height: 30px;
-  padding: 3px 8px;
+  min-height: 34px;
+  padding: 3px 8px 3px 0;
 }
 
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-timeline .video-analysis-timeline-scroll {

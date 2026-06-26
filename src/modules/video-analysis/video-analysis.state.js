@@ -122,7 +122,7 @@ export function createInitialVideoAnalysisState(context = {}) {
     },
     timeline: {
       zoom: 1,
-      laneMode: "subPhase",
+      laneMode: "all",
       playheadMs: 0,
       tagFilterOpen: false,
       selectedCategory: {

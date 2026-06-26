@@ -4425,6 +4425,23 @@ export function handleChange(event, context = {}) {
   if (playbackRateSelect) {
     return setPlaybackRate(context, playbackRateSelect.value || 1);
   }
+  const timelineLaneSelect = target.closest("[data-video-analysis-timeline-lane-select]");
+  if (timelineLaneSelect) {
+    run.store.update((state) => ({
+      ...state,
+      timeline: {
+        ...(state.timeline || {}),
+        laneMode: timelineLaneSelect.value || "all",
+        tagFilterOpen: false,
+        selectedCategory: {
+          laneMode: "",
+          label: "",
+          viewOpen: false,
+        },
+      },
+    }));
+    return true;
+  }
   const presentationLoad = target.closest("[data-video-analysis-presentation-load]");
   if (presentationLoad) {
     if (presentationLoad.value) loadPresentation(presentationLoad.value);

@@ -68,6 +68,13 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     });
   };
 
+  const closeMedicalRtpGuideDraftModal = () => {
+    queryWorkspaceAll(workspaceElement, "[data-medical-rtp-guide-draft-modal]").forEach((modal) => {
+      modal.hidden = true;
+      modal.setAttribute?.("aria-hidden", "true");
+    });
+  };
+
   const openMedicalRtpProfileModal = (profileId) => {
     const targetProfileId = String(profileId || "");
     const modal = queryWorkspaceAll(workspaceElement, "[data-medical-rtp-profile-modal]").find(
@@ -78,6 +85,48 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     modal.hidden = false;
     modal.removeAttribute?.("aria-hidden");
     modal.querySelector?.("[role='dialog']")?.focus?.();
+  };
+
+  const openMedicalRtpGuideDraftModal = () => {
+    const modal = queryWorkspace(workspaceElement, "[data-medical-rtp-guide-draft-modal]");
+    if (!modal) return;
+    closeMedicalRtpProfileModal();
+    modal.hidden = false;
+    modal.removeAttribute?.("aria-hidden");
+    modal.querySelector?.("[role='dialog']")?.focus?.();
+  };
+
+  const getMedicalRtpGuideTemplateText = () => [
+    "RTP Injury Guide Draft",
+    "",
+    "Injury name:",
+    "System / body area:",
+    "Movement plane:",
+    "Symptoms / risk tags:",
+    "Evidence level:",
+    "",
+    "Quick summary:",
+    "Evidence:",
+    "Expert consensus / club experience:",
+    "Red flags:",
+    "Progression criteria:",
+    "Return-to-training checklist:",
+    "Return-to-match checklist:",
+    "Common mistakes / risks:",
+    "Medical notes:",
+    "Performance notes:",
+    "Coach-safe summary:",
+  ].join("\n");
+
+  const copyMedicalRtpGuideTemplate = () => {
+    const writeText = win.navigator?.clipboard?.writeText;
+    if (typeof writeText === "function") {
+      void writeText.call(win.navigator.clipboard, getMedicalRtpGuideTemplateText())
+        .then(() => renderWorkspace("RTP injury guide template copied."))
+        .catch(() => renderWorkspace("RTP injury guide template could not be copied."));
+      return;
+    }
+    renderWorkspace("RTP injury guide template is ready once clipboard access is available.");
   };
 
   const showMoreMedicalHistoryRows = (showMoreButton) => {
@@ -228,6 +277,24 @@ export function bindMedicalRuntimeBindings(deps = {}) {
       showMoreMedicalHistoryRows(historyShowMoreButton);
       return;
     }
+    const closeRtpGuideDraftButton = event.target.closest("[data-medical-close-rtp-guide-draft]");
+    if (closeRtpGuideDraftButton) {
+      event.preventDefault();
+      closeMedicalRtpGuideDraftModal();
+      return;
+    }
+    const openRtpGuideDraftButton = event.target.closest("[data-medical-open-rtp-guide-draft]");
+    if (openRtpGuideDraftButton) {
+      event.preventDefault();
+      openMedicalRtpGuideDraftModal();
+      return;
+    }
+    const copyRtpGuideTemplateButton = event.target.closest("[data-medical-copy-rtp-guide-template]");
+    if (copyRtpGuideTemplateButton) {
+      event.preventDefault();
+      copyMedicalRtpGuideTemplate();
+      return;
+    }
     const closeRtpProfileButton = event.target.closest("[data-medical-close-rtp-profile]");
     if (closeRtpProfileButton) {
       event.preventDefault();
@@ -360,6 +427,11 @@ export function bindMedicalRuntimeBindings(deps = {}) {
   };
 
   const onKeydown = (event) => {
+    if (event.key === "Escape" && queryWorkspace(workspaceElement, "[data-medical-rtp-guide-draft-modal]:not([hidden])")) {
+      event.preventDefault();
+      closeMedicalRtpGuideDraftModal();
+      return;
+    }
     if (event.key === "Escape" && queryWorkspace(workspaceElement, "[data-medical-rtp-profile-modal]:not([hidden])")) {
       event.preventDefault();
       closeMedicalRtpProfileModal();

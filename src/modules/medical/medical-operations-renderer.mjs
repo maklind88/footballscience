@@ -142,7 +142,7 @@ ${renderTabs(activeTab, tabOptions, "medical-ops-tabs-top")}
 <div>
 <span>RTP starter needed</span>
 <strong>${casesNeedingStarter.length}/${summary.activeCases.length} active case${summary.activeCases.length === 1 ? "" : "s"} need a structured starter</strong>
-<small>Choose a Library profile, fill the existing Medical Plan draft, review, then save. Nothing is auto-saved.</small>
+<small>Choose a Library guide, fill the existing Medical Plan draft, review, then save. Nothing is auto-saved.</small>
 </div>
 <b>Medical review required</b>
 </header>
@@ -159,12 +159,12 @@ ${casesNeedingStarter
 </div>
 <span>
 <strong>${escapeHtml(review.label)}</strong>
-<small>${topProfile ? `Suggested: ${escapeHtml(topProfile.name)}` : "Select RTP profile"}</small>
+<small>${topProfile ? `Suggested guide: ${escapeHtml(topProfile.name)}` : "Select RTP guide"}</small>
 </span>
 <form data-medical-rtp-case-linker-form data-medical-plan-id="${escapeHtml(plan.id)}">
 <label>
-<span>RTP Library profile</span>
-<select data-medical-rtp-case-profile aria-label="RTP Library profile for ${escapeHtml(player.name)}">
+<span>RTP Library guide</span>
+<select data-medical-rtp-case-profile aria-label="RTP Library guide for ${escapeHtml(player.name)}">
 ${suggestedProfiles
   .map((profileItem, index) => `<option value="${escapeHtml(profileItem.id)}">${index === 0 ? "Suggested: " : ""}${escapeHtml(profileItem.name)}</option>`)
   .join("")}
@@ -430,7 +430,7 @@ data-medical-apply-rtp-starter
 data-medical-rtp-profile-id="${escapeHtml(profileItem.id)}"
 data-medical-player-id="${escapeHtml(selectedPlayer?.id || "")}"
 ${selectedPlayer ? "" : "disabled"}
->Apply as medical starter${selectedPlayer ? ` for ${escapeHtml(selectedPlayer.name)}` : ""}</button>
+>Start Medical Plan from guide${selectedPlayer ? ` for ${escapeHtml(selectedPlayer.name)}` : ""}</button>
 <small>This fills the Medical Plan draft only. Medical still owns the final player-specific program.</small>
 </div>
 </div>
@@ -439,7 +439,7 @@ ${selectedPlayer ? "" : "disabled"}
       const safeProfileId = escapeHtml(profileItem.id);
       return `
 <div class="medical-rtp-profile-modal" data-medical-rtp-profile-modal="${safeProfileId}" hidden aria-hidden="true">
-<button type="button" class="medical-rtp-profile-modal-backdrop" data-medical-close-rtp-profile aria-label="Close RTP profile"></button>
+<button type="button" class="medical-rtp-profile-modal-backdrop" data-medical-close-rtp-profile aria-label="Close RTP guide"></button>
 <section
 id="medical-rtp-profile-dialog-${safeProfileId}"
 class="medical-rtp-profile-dialog"
@@ -450,11 +450,11 @@ tabindex="-1"
 >
 <header>
 <div>
-<span>RTP profile</span>
+<span>RTP guide</span>
 <h3 id="medical-rtp-profile-title-${safeProfileId}">${escapeHtml(profileItem.name)}</h3>
 <small>${escapeHtml(profileItem.system)} / ${escapeHtml(profileItem.bodyArea)} / ${escapeHtml(profileItem.evidenceLevel)}</small>
 </div>
-<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close ${escapeHtml(profileItem.name)} profile">Close</button>
+<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close ${escapeHtml(profileItem.name)} guide">Close</button>
 </header>
 <div class="medical-rtp-profile-dialog-body">
 ${renderProfileBody(profileItem)}
@@ -463,8 +463,76 @@ ${renderProfileBody(profileItem)}
 </div>
 `;
     };
+    const renderGuideAuthoringModal = () => `
+<div class="medical-rtp-profile-modal" data-medical-rtp-guide-draft-modal hidden aria-hidden="true">
+<button type="button" class="medical-rtp-profile-modal-backdrop" data-medical-close-rtp-guide-draft aria-label="Close injury guide draft"></button>
+<section
+id="medical-rtp-guide-draft-dialog"
+class="medical-rtp-profile-dialog medical-rtp-guide-authoring-dialog"
+role="dialog"
+aria-modal="true"
+aria-labelledby="medical-rtp-guide-draft-title"
+tabindex="-1"
+>
+<header>
+<div>
+<span>Medical authoring</span>
+<h3 id="medical-rtp-guide-draft-title">Add injury guide</h3>
+<small>Medical-owned draft structure for expanding the RTP Library safely.</small>
+</div>
+<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-guide-draft aria-label="Close injury guide draft">Close</button>
+</header>
+<div class="medical-rtp-profile-dialog-body">
+<div class="medical-rtp-guide-authoring-body">
+<section class="medical-rtp-guide-authoring-panel">
+<h4>Draft workflow</h4>
+<div class="medical-rtp-guide-status-strip">
+<span><strong>1</strong> Medical draft</span>
+<span><strong>2</strong> Performance review</span>
+<span><strong>3</strong> Governance approval</span>
+<span><strong>4</strong> Published guide</span>
+</div>
+<p>Permanent saving needs the guarded RTP Library API, RLS and audit events before custom guides become shared club knowledge.</p>
+</section>
+<section class="medical-rtp-guide-authoring-panel">
+<h4>Guide fields</h4>
+<div class="medical-rtp-guide-field-grid">
+<span>Injury name</span>
+<span>System / body area</span>
+<span>Movement plane</span>
+<span>Symptoms and risk tags</span>
+<span>Evidence level</span>
+<span>Quick summary</span>
+<span>Red flags</span>
+<span>Progression criteria</span>
+<span>Training checklist</span>
+<span>Match checklist</span>
+<span>Common mistakes</span>
+<span>Medical / Performance notes</span>
+</div>
+</section>
+<section class="medical-rtp-guide-authoring-panel">
+<h4>Authoring template</h4>
+<p>Use this template for new injuries until draft saving is enabled. It keeps evidence and expert consensus separated before Medical and Performance publish the guide.</p>
+<div class="medical-rtp-guide-actions">
+<button type="button" data-medical-copy-rtp-guide-template>Copy guide template</button>
+<small>No custom guide is saved from the browser in this phase.</small>
+</div>
+</section>
+</div>
+</div>
+</section>
+</div>
+`;
     return `
 <div class="medical-rtp-library" data-medical-rtp-library>
+<div class="medical-rtp-library-toolbar">
+<div>
+<strong>RTP injury guides</strong>
+<small>Search, open and start Medical Plans from approved RTP Library guides.</small>
+</div>
+<button type="button" data-medical-open-rtp-guide-draft>Add injury guide</button>
+</div>
 <form class="medical-rtp-library-controls" data-medical-rtp-library-controls>
 <label class="medical-rtp-library-search">
 <span>Full text search</span>
@@ -473,8 +541,8 @@ ${renderProfileBody(profileItem)}
 ${renderSelect("Movement plane", "movement", medicalRtpLibraryFilterOptions.movementPlanes)}
 </form>
 <div class="medical-rtp-library-meta">
-<span><strong data-medical-rtp-library-count>${profiles.length}</strong> visible</span>
-<span>Evidence and expert consensus are separated in every profile.</span>
+<span><strong data-medical-rtp-library-count>${profiles.length}</strong> guides visible</span>
+<span>Evidence and expert consensus are separated in every injury guide.</span>
 </div>
 <div class="medical-rtp-profile-grid">
 ${profiles
@@ -502,7 +570,7 @@ aria-controls="medical-rtp-profile-dialog-${escapeHtml(profileItem.id)}"
 <strong>${escapeHtml(profileItem.name)}</strong>
 <small>${escapeHtml(profileItem.system)} / ${escapeHtml(profileItem.bodyArea)} / ${escapeHtml(profileItem.evidenceLevel)}</small>
 </span>
-<b>Open profile</b>
+<b>Open guide</b>
 </button>
 </article>
 `;
@@ -510,7 +578,8 @@ aria-controls="medical-rtp-profile-dialog-${escapeHtml(profileItem.id)}"
   .join("")}
 </div>
 ${profiles.map(renderProfileModal).join("")}
-<div class="medical-empty-inline medical-rtp-library-empty" data-medical-rtp-library-empty hidden>No RTP profiles match the current search and filters.</div>
+${renderGuideAuthoringModal()}
+<div class="medical-empty-inline medical-rtp-library-empty" data-medical-rtp-library-empty hidden>No RTP injury guides match the current search and filters.</div>
 </div>
 `;
   };

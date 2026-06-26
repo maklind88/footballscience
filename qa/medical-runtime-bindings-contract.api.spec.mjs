@@ -302,6 +302,71 @@ test("Medical runtime bindings open and close RTP Library profile overlays", () 
   expect(calls).toContain("prevent-escape");
 });
 
+test("Medical runtime bindings open RTP guide authoring draft and copy the template", async () => {
+  const calls = [];
+  const modal = {
+    hidden: true,
+    dataset: {},
+    querySelector(selector) {
+      return selector === "[role='dialog']" ? { focus: () => calls.push("focus-guide-dialog") } : null;
+    },
+    removeAttribute(name) {
+      delete this[name];
+    },
+    setAttribute(name, value) {
+      this[name] = value;
+    },
+  };
+  const workspace = {
+    listeners: {},
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    },
+    querySelector(selector) {
+      if (selector === "[data-medical-rtp-guide-draft-modal]") return modal;
+      if (selector === "[data-medical-rtp-guide-draft-modal]:not([hidden])" && !modal.hidden) return modal;
+      return null;
+    },
+    querySelectorAll(selector) {
+      return selector === "[data-medical-rtp-guide-draft-modal]" ? [modal] : [];
+    },
+  };
+  let copiedText = "";
+
+  bindMedicalRuntimeBindings({
+    workspaceElement: workspace,
+    win: { navigator: { clipboard: { writeText: async (value) => { copiedText = value; } } } },
+    state: {},
+    actions: {
+      canEditMedicalTeam: () => false,
+      renderMedicalTeamWorkspace: (...args) => calls.push(["render", ...args]),
+    },
+  });
+
+  workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-open-rtp-guide-draft]": { dataset: {} } },
+  })));
+  expect(modal.hidden).toBe(false);
+  expect(modal["aria-hidden"]).toBeUndefined();
+  expect(calls).toContain("focus-guide-dialog");
+
+  workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-copy-rtp-guide-template]": { dataset: {} } },
+  })));
+  await Promise.resolve();
+  expect(copiedText).toContain("RTP Injury Guide Draft");
+  expect(copiedText).toContain("Evidence:");
+  expect(calls).toContainEqual(["render", "RTP injury guide template copied."]);
+
+  workspace.listeners.keydown(createEvent(createTarget(), {
+    key: "Escape",
+    preventDefault: () => calls.push("prevent-guide-escape"),
+  }));
+  expect(modal.hidden).toBe(true);
+  expect(modal["aria-hidden"]).toBe("true");
+  expect(calls).toContain("prevent-guide-escape");
+});
+
 test("Medical runtime bindings reveal restricted history rows in batches", () => {
   const rows = Array.from({ length: 30 }, (_, index) => ({
     hidden: index >= 25,

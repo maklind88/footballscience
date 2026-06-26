@@ -371,13 +371,16 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       setPagination(nextPagination);
     }
 
+    const payloadThread = payload.thread || null;
+    const payloadMessages = Array.isArray(payload.messages) ? payload.messages : [];
+
     if (Array.isArray(payload.messages)) {
       mergeDashboardChatApiMessages(payload.messages, {
         render: false,
-        thread: payload.thread || null,
+        thread: payloadThread,
         keepThread: Boolean(payload.nextCursor),
         replaceThreadId: options.replaceThread
-          ? options.threadId || payload.thread?.threadId || payload.thread?.legacyThreadId || payload.thread?.metadata?.legacyThreadId
+          ? options.threadId || payloadThread?.threadId || payloadThread?.legacyThreadId || payloadThread?.metadata?.legacyThreadId
           : "",
       });
     }
@@ -385,7 +388,13 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     if (payload.message) {
       mergeDashboardChatApiMessages([payload.message], {
         render: false,
-        thread: payload.thread || null,
+        thread: payloadThread,
+      });
+    } else if (!payloadMessages.length && (payloadThread?.lastMessage || payloadThread?.last_message)) {
+      mergeDashboardChatApiMessages([payloadThread.lastMessage || payloadThread.last_message], {
+        render: false,
+        thread: payloadThread,
+        keepThread: true,
       });
     }
   }
@@ -494,11 +503,32 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       return result;
     }
 
-    markThreadHydrated(threadId);
-    applyDashboardChatApiPayload(result.result, {
+    const payload = result.result || {};
+    const payloadMessages = Array.isArray(payload.messages) ? payload.messages : [];
+    const payloadThread = payload.thread || null;
+    const payloadThreadHasServerActivity = Boolean(
+      payloadThread &&
+        (
+          Number(payloadThread.messageCount || payloadThread.message_count || 0) > 0 ||
+          payloadThread.lastMessage ||
+          payloadThread.last_message ||
+          payloadThread.lastMessageId ||
+          payloadThread.last_message_id ||
+          payloadThread.lastMessageAt ||
+          payloadThread.last_message_at
+        )
+    );
+
+    applyDashboardChatApiPayload(payload, {
       threadId,
       replaceThread: !options.cursor && !options.search,
     });
+
+    if (payloadMessages.length || !payloadThreadHasServerActivity || options.cursor || options.search) {
+      markThreadHydrated(threadId);
+    } else {
+      unmarkThreadHydrated(threadId);
+    }
     renderDashboardChatWidget();
     return result;
   }

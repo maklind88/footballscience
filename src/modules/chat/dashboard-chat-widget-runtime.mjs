@@ -244,11 +244,32 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       : threads[0]?.threadId || dashboardChatTeamThreadId;
 
     const hydratedThreadIds = getDashboardHydratedThreadIds();
+    const activeThread = threads.find((thread) => thread.threadId === activeThreadId) || null;
+    const activeThreadMessageCount = resolvedMessages.filter((message) => message.threadId === activeThreadId).length;
+    const activeThreadHasServerActivity = Boolean(
+      activeThread &&
+        (
+          Number(activeThread.messageCount || 0) > 0 ||
+          activeThread.lastMessage ||
+          activeThread.lastActivityAt ||
+          activeThread.apiThread?.lastMessage ||
+          activeThread.apiThread?.last_message ||
+          activeThread.apiThread?.lastMessageAt ||
+          activeThread.apiThread?.last_message_at
+        )
+    );
+    const activeThreadNeedsHydration = Boolean(
+      activeThreadId &&
+        hydratedThreadIds instanceof Set &&
+        (
+          !hydratedThreadIds.has(activeThreadId) ||
+          (activeThreadHasServerActivity && activeThreadMessageCount === 0)
+        )
+    );
     if (
       state.isOpen &&
       activeThreadId &&
-      hydratedThreadIds instanceof Set &&
-      !hydratedThreadIds.has(activeThreadId) &&
+      activeThreadNeedsHydration &&
       !getDashboardChatApiSyncTimer()
     ) {
       queueDashboardChatApiRefresh({ threadId: activeThreadId, delayMs: 0 });

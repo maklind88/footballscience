@@ -558,6 +558,107 @@ test("open chat queues first thread load without marking the thread hydrated bef
   expect(hydratedThreadIds.has(threadId)).toBe(false);
 });
 
+test("open chat rehydrates active server-backed thread when local message store is empty", () => {
+  const threadId = "dm:coach-qa:teammate-qa";
+  const hydratedThreadIds = new Set([threadId]);
+  const queuedThreadLoads = [];
+  const runtime = createDashboardChatWidgetRuntime({
+    dashboardChatWidgetRenderer: {
+      render: () => ({ html: "<section data-dashboard-chat-list></section>", activeThreadId: threadId, replyDraft: null }),
+    },
+    getCurrentPlatformUser: () => coachActor,
+    getPlatformUsers: () => [coachActor, teammateActor],
+    getDashboardChatThreadList: () => [{
+      threadId,
+      label: "Taylor Teammate",
+      messageCount: 3,
+      lastActivityAt: "2026-06-26T20:00:00.000Z",
+      apiThread: {
+        lastMessageAt: "2026-06-26T20:00:00.000Z",
+      },
+    }],
+    readDashboardMessages: () => [],
+    readDashboardChatWidgetState: () => ({ isOpen: true, selectedThreadId: threadId }),
+    getDashboardHydratedThreadIds: () => hydratedThreadIds,
+    queueDashboardChatApiRefresh: (options) => {
+      queuedThreadLoads.push(options);
+    },
+    ui: {
+      dashboardChatWidgetRoot: {
+        dataset: {},
+        innerHTML: "",
+        querySelector: () => null,
+      },
+    },
+    documentRef: {
+      activeElement: null,
+      body: {
+        classList: {
+          add: () => {},
+          remove: () => {},
+          toggle: () => {},
+        },
+      },
+    },
+  });
+
+  runtime.renderDashboardChatWidget();
+
+  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0 }]);
+});
+
+test("chat API runtime keeps active thread unhydrated when history payload is empty but server has activity", async () => {
+  const hydratedThreadIds = new Set();
+  let rendered = 0;
+  let mergedMessages = [];
+  const runtime = createDashboardChatApiRuntime({
+    fetchDashboardChatApi: async () => ({
+      ok: true,
+      status: 200,
+      result: {
+        thread: {
+          threadId: "team",
+          type: "team",
+          messageCount: 7,
+          lastMessageAt: "2026-06-26T20:00:00.000Z",
+          lastMessage: {
+            id: "msg-latest",
+            text: "Latest server message",
+            userId: "coach-qa",
+            createdAt: "2026-06-26T20:00:00.000Z",
+          },
+        },
+        threads: [],
+        messages: [],
+      },
+    }),
+    getDashboardChatCurrentViewState: () => ({ isOpen: true, selectedThreadId: "team" }),
+    getDashboardHydratedThreadIds: () => hydratedThreadIds,
+    setDashboardHydratedThreadIds: (nextValue) => {
+      hydratedThreadIds.clear();
+      Array.from(nextValue || []).forEach((value) => hydratedThreadIds.add(value));
+    },
+    mergeDashboardChatApiMessages: (messages) => {
+      mergedMessages = messages;
+    },
+    renderDashboardChatWidget: () => {
+      rendered += 1;
+    },
+  });
+
+  const result = await runtime.refreshDashboardChatFromApi({ threadId: "team" });
+
+  expect(result.ok).toBe(true);
+  expect(mergedMessages).toEqual([
+    expect.objectContaining({
+      id: "msg-latest",
+      text: "Latest server message",
+    }),
+  ]);
+  expect(hydratedThreadIds.has("team")).toBe(false);
+  expect(rendered).toBe(1);
+});
+
 test("closed chat runtime does not queue realtime recovery reads", async () => {
   let fetchCount = 0;
   let summaryTimer = 0;

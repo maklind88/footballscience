@@ -6,7 +6,7 @@ import {
   medicalRtpLibraryFilterOptions,
   medicalRtpLibraryProfiles,
 } from "../src/modules/medical/index.mjs";
-import { RTP_GOLD_STANDARD_SECTION_TITLES } from "../src/modules/medical/medical-rtp-library-profile-factory.mjs";
+import { RTP_GOLD_STANDARD_SECTION_TITLES, RTP_LIBRARY_RESEARCH_AUDIT_SCOPE } from "../src/modules/medical/medical-rtp-library-profile-factory.mjs";
 
 test("Medical RTP Library provides searchable medical-safe injury profiles", () => {
   const profiles = medicalRtpLibraryProfiles;
@@ -20,6 +20,11 @@ test("Medical RTP Library provides searchable medical-safe injury profiles", () 
   expect(profiles.every((profile) => profile.goldStandardSections.map((section) => section.title).join("|") === RTP_GOLD_STANDARD_SECTION_TITLES.join("|"))).toBe(true);
   expect(profiles.every((profile) => profile.summary && profile.evidence && profile.experience)).toBe(true);
   expect(profiles.every((profile) => profile.criteria.length >= 4 && profile.redFlags.length >= 4)).toBe(true);
+  expect(RTP_LIBRARY_RESEARCH_AUDIT_SCOPE.displaySourcesInUi).toBe(false);
+  expect(RTP_LIBRARY_RESEARCH_AUDIT_SCOPE.scope).toContain("RTP continuum and criteria-based progression");
+  expect(profiles.every((profile) => profile.researchAuditStatus === "research-informed-template-review-v1")).toBe(true);
+  expect(profiles.every((profile) => profile.researchAuditReviewedAt === "2026-06-26")).toBe(true);
+  expect(profiles.every((profile) => profile.researchAuditFamily === profile.family)).toBe(true);
   expect(hamstring).toMatchObject({
     name: "Hamstring Strain",
     system: "Muscle",
@@ -42,6 +47,20 @@ test("Medical RTP Library provides searchable medical-safe injury profiles", () 
   expect(medicalRtpLibraryFilterOptions.movementPlanes).toContain("deceleration");
 });
 
+test("RTP Gold Standard Template includes research-informed decision domains", () => {
+  const hamstring = getMedicalRtpLibraryProfileById("hamstring-strain");
+  const overview = hamstring.goldStandardSections.find((section) => section.title === "Overview");
+  const testing = hamstring.goldStandardSections.find((section) => section.title === "Objective RTP Testing Battery");
+  const women = hamstring.goldStandardSections.find((section) => section.title === "Women's Football Considerations");
+  const risk = hamstring.goldStandardSections.find((section) => section.title === "RTP Risk Score");
+
+  expect(overview.items).toContain("Use the return-to-participation, return-to-sport and return-to-performance continuum rather than one clearance moment.");
+  expect(testing.items).toContain("Recommended: athlete confidence, psychological readiness and fear/apprehension screen.");
+  expect(testing.content).toContain("clinically safe");
+  expect(women.content).toContain("energy availability");
+  expect(risk.content).toContain("low confidence");
+});
+
 test("expanded RTP Library profiles use injury-family specific clinical language", () => {
   const rectusFemoris = getMedicalRtpLibraryProfileById("rectus-femoris-strain");
   const navicularStress = getMedicalRtpLibraryProfileById("navicular-stress-fracture");
@@ -56,6 +75,7 @@ test("expanded RTP Library profiles use injury-family specific clinical language
 
   expect(navicularStress).toMatchObject({ family: "bone stress" });
   expect(navicularStress.summary).toContain("energy availability");
+  expect(navicularStress.criteria).toContain("energy availability and bone-health risks addressed");
   expect(navicularStress.redFlags).toContain("high-risk bone site");
   expect(navicularStress.imaging).toContain("MRI");
 
@@ -65,11 +85,28 @@ test("expanded RTP Library profiles use injury-family specific clinical language
 
   expect(cardiacRedFlag).toMatchObject({ family: "medical" });
   expect(cardiacRedFlag.summary).toContain("Medical-governed");
+  expect(cardiacRedFlag.criteria).toContain("energy availability or recovery risks considered when relevant");
   expect(cardiacRedFlag.redFlags).toContain("chest pain, palpitations or syncope");
 
   expect(goalkeeperLoad).toMatchObject({ family: "goalkeeper" });
   expect(goalkeeperLoad.summary).toContain("goalkeeper-specific RTP");
   expect(goalkeeperLoad.trainingChecklist).toContain("controlled dives");
+});
+
+test("core RTP profiles retain hand-written specificity while adopting research audit updates", () => {
+  const acl = getMedicalRtpLibraryProfileById("acl-reconstruction-rtp");
+  const ankle = getMedicalRtpLibraryProfileById("lateral-ankle-sprain");
+  const concussion = getMedicalRtpLibraryProfileById("concussion");
+  const meniscus = getMedicalRtpLibraryProfileById("meniscus-injury");
+
+  expect(acl.evidence).toContain("psychological readiness");
+  expect(acl.criteria).toContain("psychological readiness reviewed");
+  expect(ankle.evidence).toContain("athlete perception");
+  expect(ankle.criteria).toContain("athlete confidence stable");
+  expect(concussion.evidence).toContain("cognitive load progression");
+  expect(concussion.criteria).toContain("return-to-learn/workload considered");
+  expect(meniscus.evidence).toContain("criterion-based progression");
+  expect(meniscus.criteria).toContain("repair or tissue-protection rules respected where relevant");
 });
 
 test("Medical RTP Library starter drafts stay medical-owned and evidence-separated", () => {

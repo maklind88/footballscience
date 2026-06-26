@@ -75,6 +75,38 @@ const section = (title, content, items = []) => ({
   items: list(items),
 });
 
+const UNIVERSAL_RTP_RESEARCH_LENS = [
+  "Use the return-to-participation, return-to-sport and return-to-performance continuum rather than one clearance moment.",
+  "Combine tissue or medical safety, football exposure, athlete readiness and next-day response before progression.",
+  "Treat calendar time as a healing context, not a standalone RTP criterion.",
+  "Escalate when red flags, diagnostic uncertainty, structural risk, recurrence or systemic risk are present.",
+];
+
+const RTP_TESTING_DOMAINS = [
+  "Required: diagnosis confidence, red flag screen, symptom response and 24-hour review.",
+  "Required: football-specific exposure history matched to the player's role.",
+  "Recommended: strength, power, endurance, range and movement-quality comparison to baseline where available.",
+  "Recommended: field exposure across running, sprinting, COD, braking, contact or position-specific actions as relevant.",
+  "Recommended: athlete confidence, psychological readiness and fear/apprehension screen.",
+  "Optional: imaging, force plates, isokinetic testing or advanced motion analysis when it changes the decision.",
+];
+
+export const RTP_LIBRARY_RESEARCH_AUDIT_SCOPE = {
+  reviewedAt: "2026-06-26",
+  status: "research-informed-template-review-v1",
+  displaySourcesInUi: false,
+  scope: [
+    "RTP continuum and criteria-based progression",
+    "lower-limb muscle injury RTP criteria",
+    "tendon load and 24-hour response principles",
+    "ankle RTS decision domains",
+    "bone stress risk stratification and energy availability",
+    "concussion graduated return and medical clearance",
+    "surgical tissue-protection and objective response",
+    "women's football, travel, surface and congestion modifiers",
+  ],
+};
+
 export const RTP_GOLD_STANDARD_SECTION_TITLES = [
   "Overview",
   "Mechanism of Injury",
@@ -134,41 +166,41 @@ export function createGoldStandardSections(profile = {}) {
   const gps = profile.gpsBenchmarks || "Benchmark total distance, high-speed running, sprint count, max velocity exposure, acceleration/deceleration density and late-session exposure against the player's position and individual history.";
   const strength = profile.strengthBenchmarks || "Use side-to-side comparison, absolute capacity, endurance, rate-of-force development and position-specific movement quality; avoid treating one strength number as clearance.";
   return [
-    section("Overview", profile.summary),
+    section("Overview", profile.summary, UNIVERSAL_RTP_RESEARCH_LENS),
     section("Mechanism of Injury", mechanism),
     section("Risk Factors", `Primary football risk modifiers: ${sentence(risks)}.`, risks),
     section("Clinical Presentation", `Common presentations include ${sentence(symptoms)}. Interpret symptoms alongside football demand and 24-hour response.`, symptoms),
-    section("Assessment Protocols", "Use a combined Medical and Performance battery rather than a calendar-only decision.", ["history and mechanism", "red flag screen", "palpation or symptom mapping", "range and strength testing", "football movement exposure", "24-hour response review"]),
+    section("Assessment Protocols", "Use a combined Medical and Performance battery rather than a calendar-only decision.", ["history, mechanism and diagnosis confidence", "red flag screen", "symptom mapping and clinical examination", "range, strength, endurance and power testing", "athlete confidence or apprehension screen", "football movement exposure", "24-hour response review"]),
     section("Differential Diagnosis", differential),
     section("Red Flags", "Escalate or hold progression when red flags are present.", redFlags),
     section("Imaging Considerations", imaging),
-    section("Rehabilitation Principles", "Criteria before calendar. Build capacity first, then controlled exposure, then football chaos, then match expectation.", phases),
+    section("Rehabilitation Principles", "Criteria before calendar. Build clinical capacity first, then controlled exposure, then football chaos, then match expectation.", phases),
     section("Exercise Bank", "Exercise selection should match the tissue, movement plane and position demand.", ["isometrics or symptom-limited loading", "heavy slow resistance where appropriate", "eccentric or energy-storage loading", "trunk-pelvis control", "position-specific field drills"]),
     section("Running Progression", loadText.find((item) => item.toLowerCase().startsWith("running:")) || "Running: progress volume, speed and density separately."),
     section("Sprint Progression", loadText.find((item) => item.toLowerCase().startsWith("sprint:")) || "Sprint: expose acceleration, high-speed running and repeated sprinting only when clinically appropriate."),
     section("Change of Direction Progression", loadText.find((item) => item.toLowerCase().startsWith("cod:")) || "COD: progress planned movement before reactive football change of direction."),
     section("Football Integration", "Move from isolated technical work to positional patterns, opponent pressure, contact where relevant and late-session exposure.", training),
-    section("Return to Running Criteria", "Running begins when Medical confirms clinical safety and Performance can control the first field exposure.", criteria.slice(0, 3)),
-    section("Return to Training Criteria", "Training availability requires controlled football exposure without adverse response and a clear hold rule.", training),
-    section("Return to Performance Criteria", "Return to Performance requires the player to tolerate the demands of their role, not only participate in training.", match),
+    section("Return to Running Criteria", "Running begins when Medical confirms clinical safety, diagnostic risk is acceptable and Performance can control the first field exposure.", criteria.slice(0, 3)),
+    section("Return to Training Criteria", "Training availability requires controlled football exposure without adverse response, athlete confidence and a clear hold rule.", training),
+    section("Return to Performance Criteria", "Return to Performance requires the player to tolerate the demands of their role, not only participate in training.", [...match, "historical or role baseline restored where available", "player confidence and staff agreement documented"]),
     section("Monitoring Metrics", monitoring),
     section("GPS Benchmarks", gps),
     section("Strength Benchmarks", strength),
     section("Common Mistakes", "Avoid these common RTP errors.", mistakes),
     section("Case Study Example", `A ${positions[0] || "player"} enters RTP for ${profile.name}. Medical confirms clinical safety, Performance stages ${sentence(movements)} exposure, and the Coach receives only a coach-safe status band, restrictions and next decision point.`),
-    section("Research Summary", `${profile.evidence} ${profile.experience} Evidence is separated from club experience and should be reviewed annually.`),
+    section("Research Summary", `${profile.evidence} ${profile.experience} Evidence is separated from club experience and should be reviewed annually. Current RTP logic should integrate clinical safety, sport exposure, athlete readiness and role-specific performance demand.`),
     section("Evidence Level", profile.evidenceLevel),
     section("Coach Summary", `Coach-safe: ${profile.name} is managed by status band, restrictions, minutes guidance and next decision point. Do not interpret this guide as automatic selection clearance.`),
     section("Medical Notes", "Medical owns diagnosis, red flags, private clinical reasoning, participation safety, confidence level and final clinical documentation."),
     section("Performance Notes", "Performance owns demand readiness, exposure progression, position-demand gap, load response and the coach-safe readiness summary."),
     section("Position-Specific Football Demands", "Worst-case actions must be checked against position.", positions.map((position) => `${position}: validate worst-case speed, braking, duel/contact and technical actions before match exposure.`)),
-    section("Women's Football Considerations", "Use individual baseline, menstrual and hormonal context when relevant, travel load, match congestion, surface changes and available strength/speed history. Evidence specific to elite women's football may be limited."),
-    section("RTP Decision Tree", "Hold for red flags; progress only when clinical response is stable; add capacity before chaos; expose sprint/COD/contact before selection; review next-day response before match decision."),
-    section("Objective RTP Testing Battery", "Required: Medical red flag and symptom response review. Recommended: strength, field exposure and GPS comparison. Optional: advanced imaging, force plates, isokinetic testing or movement analysis when available."),
-    section("Match Return Strategy", "Low-risk cases may progress through modified to full training quickly; moderate cases need repeated exposure and conservative minutes; high-risk cases need staged match return, congestion control and clear hold rules."),
+    section("Women's Football Considerations", "Use individual baseline, menstrual and hormonal context when relevant, energy availability, travel load, match congestion, surface changes and available strength/speed history. Evidence specific to elite women's football may be limited."),
+    section("RTP Decision Tree", "Hold for red flags or diagnostic uncertainty; progress only when clinical response is stable; add capacity before chaos; expose sprint/COD/contact before selection; review next-day response before match decision."),
+    section("Objective RTP Testing Battery", "The battery should answer four questions: is the player clinically safe, can the player tolerate football demand, is the player confident, and what is the next bottleneck?", RTP_TESTING_DOMAINS),
+    section("Match Return Strategy", "Low-risk cases may progress through modified to full training quickly; moderate cases need repeated exposure and conservative minutes; high-risk cases need staged match return, congestion control, travel/load protection and clear hold rules."),
     section("Worst Case Scenario Analysis", "Identify the single most demanding position-specific action and rehearse it before match availability.", positions.map((position) => `${position}: confirm the player can tolerate the role's highest-risk football action under fatigue.`)),
     section("NWSL / Elite Women's Football Context", "Account for travel, heat, turf/grass changes, international duty, short turnarounds and squad rotation limits. Do not use men's football timelines as automatic defaults."),
-    section("RTP Risk Score", "Low risk: criteria met and exposure restored. Moderate risk: one key gap remains. High risk: red flag, recurrence, structural concern, congestion or major exposure gap. This is progression support, not clearance."),
+    section("RTP Risk Score", "Low risk: criteria met and exposure restored. Moderate risk: one key gap remains. High risk: red flag, recurrence, structural concern, low confidence, congestion, travel or major exposure gap. This is progression support, not clearance."),
     section("RTP Meeting Summary", "Medical states participation safety; Performance states demand readiness and bottleneck; Coach receives status band, restrictions, minutes guidance and next decision point."),
     section("Return-to-Performance Analytics", "Compare Best Case, Typical Case and Delayed Case pathways against the player's own baseline, positional demand and historical response rather than calendar time alone."),
   ];
@@ -205,6 +237,9 @@ export function createMedicalRtpLibraryProfile(seed = {}) {
     monitoring: seed.monitoring || clinical.monitoring,
     gpsBenchmarks: seed.gpsBenchmarks || clinical.gpsBenchmarks,
     strengthBenchmarks: seed.strengthBenchmarks || clinical.strengthBenchmarks,
+    researchAuditStatus: RTP_LIBRARY_RESEARCH_AUDIT_SCOPE.status,
+    researchAuditReviewedAt: RTP_LIBRARY_RESEARCH_AUDIT_SCOPE.reviewedAt,
+    researchAuditFamily: clinical.family,
     level: DEFAULT_LEVEL,
     sex: DEFAULT_SEX,
     season: DEFAULT_SEASON,

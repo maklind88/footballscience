@@ -110,6 +110,7 @@ const CODE_TIMELINE_PIP_MIN_HEIGHT = 120;
 const CODE_WINDOW_PIP_MIN_WIDTH = 240;
 const CODE_WINDOW_PIP_MIN_HEIGHT = 220;
 const CODE_PIP_MARGIN = 8;
+const CODE_MODE_LAYOUT_VERSION = 2;
 const FS_PLAYER_HISTORY_GUARD_KEY = "__footballScienceFsPlayerHistoryGuard";
 const FS_PLAYER_HISTORY_GUARD_DEPTH_KEY = "__footballScienceFsPlayerHistoryGuardDepth";
 const FS_PLAYER_HISTORY_GUARD_DEPTH = 3;
@@ -647,6 +648,57 @@ function normalizeCodePipBox(box = {}, context = {}) {
   };
 }
 
+function codeModeDefaultLayout(context = {}) {
+  const win = context.win || globalThis.window;
+  const viewportWidth = Math.max(960, Number(win?.innerWidth || 1280));
+  const viewportHeight = Math.max(540, Number(win?.innerHeight || 720));
+  const gap = CODE_PIP_MARGIN;
+  const codeWidth = Math.round(clampNumber(viewportWidth * 0.22, 288, 360));
+  const timelineHeight = Math.round(clampNumber(viewportHeight * 0.2, 150, 230));
+  const deckX = codeWidth + (gap * 2);
+  const deckWidth = Math.max(CODE_PIP_MIN_WIDTH, viewportWidth - deckX - gap);
+  const deckHeight = Math.max(
+    CODE_PIP_MIN_HEIGHT,
+    viewportHeight - timelineHeight - (gap * 3),
+  );
+  return {
+    codeWindowPip: normalizeCodePipBox({
+      target: "code-window",
+      x: gap,
+      y: gap,
+      width: codeWidth,
+      height: viewportHeight - (gap * 2),
+    }, context),
+    pip: normalizeCodePipBox({
+      target: "video",
+      x: deckX,
+      y: gap,
+      width: deckWidth,
+      height: deckHeight,
+    }, context),
+    timelinePip: normalizeCodePipBox({
+      target: "timeline",
+      x: deckX,
+      y: deckHeight + (gap * 2),
+      width: deckWidth,
+      height: timelineHeight,
+    }, context),
+  };
+}
+
+function codeModeLayoutPatch(context = {}, currentFsPlayer = {}) {
+  if (Number(currentFsPlayer.codeModeLayoutVersion || 0) === CODE_MODE_LAYOUT_VERSION) {
+    return {};
+  }
+  const layout = codeModeDefaultLayout(context);
+  return {
+    pip: layout.pip,
+    timelinePip: layout.timelinePip,
+    codeWindowPip: layout.codeWindowPip,
+    codeModeLayoutVersion: CODE_MODE_LAYOUT_VERSION,
+  };
+}
+
 function codePipBoxFromElement(deck = null, context = {}) {
   const workspace = fsPlayerWorkspaceElement(context);
   const deckRect = deck?.getBoundingClientRect?.();
@@ -901,16 +953,42 @@ function enterVideoFullscreen(context = {}) {
   return true;
 }
 
-function toggleFsPlayerCodeMode(context = {}) {
+function enterFsPlayerCodeMode(context = {}) {
   const run = ensureRuntime(context);
-  const isActive = run.store.getState().fsPlayer?.mode === "code";
+  exitNativeFullscreen(context);
   run.store.update((state) => ({
     ...state,
-    fsPlayer: { ...(state.fsPlayer || {}), mode: isActive ? "standard" : "code" },
-    message: isActive ? "Code Mode closed." : "Code Mode ready.",
+    fsPlayer: {
+      ...(state.fsPlayer || {}),
+      ...codeModeLayoutPatch(context, state.fsPlayer || {}),
+      mode: "code",
+      fullscreen: false,
+    },
+    message: "Code Mode ready.",
     error: "",
   }));
   return true;
+}
+
+function exitFsPlayerCodeMode(context = {}) {
+  const run = ensureRuntime(context);
+  run.store.update((state) => ({
+    ...state,
+    fsPlayer: {
+      ...(state.fsPlayer || {}),
+      mode: "standard",
+      fullscreen: false,
+    },
+    message: "Code Mode closed.",
+    error: "",
+  }));
+  return true;
+}
+
+function toggleFsPlayerCodeMode(context = {}) {
+  const run = ensureRuntime(context);
+  const isActive = run.store.getState().fsPlayer?.mode === "code";
+  return isActive ? exitFsPlayerCodeMode(context) : enterFsPlayerCodeMode(context);
 }
 
 function nudgePlayer(context = {}, deltaMs = 0) {
@@ -4742,11 +4820,7 @@ export function handleKeydown(event, context = {}) {
   ) {
     event.preventDefault?.();
     event.stopPropagation?.();
-    run.store.update((current) => ({
-      ...current,
-      fsPlayer: { ...(current.fsPlayer || {}), mode: "standard" },
-    }));
-    return true;
+    return exitFsPlayerCodeMode(context);
   }
   if (
     fsPlayerShortcutsActive

@@ -1893,7 +1893,7 @@ body.is-video-analysis-fs-player-fullscreen {
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode {
   position: fixed;
   inset: 0;
-  z-index: 320;
+  z-index: 10000;
   grid-template-areas:
     "code deck"
     "code timeline";
@@ -1906,6 +1906,8 @@ body.is-video-analysis-fs-player-fullscreen {
   min-height: 100vh;
   padding: 8px;
   overflow: hidden;
+  isolation: isolate;
+  overscroll-behavior: none;
   background:
     radial-gradient(circle at 76% 12%, rgba(44, 89, 69, 0.24), transparent 28rem),
     linear-gradient(180deg, #070b09 0%, #020403 100%);

@@ -1074,22 +1074,44 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
   await expect(page.locator("[data-video-analysis-code-mode]")).toHaveAttribute("aria-pressed", "true");
   const codeModeLayout = await page.evaluate(() => {
+    const workstationElement = document.querySelector("[data-video-analysis-fs-player-workstation]");
+    const workstation = workstationElement?.getBoundingClientRect();
+    const codeWindow = document.querySelector('[data-video-analysis-code-pip="code-window"]')?.getBoundingClientRect();
+    const deck = document.querySelector('[data-video-analysis-code-pip="video"]')?.getBoundingClientRect();
     const videoFrame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame")?.getBoundingClientRect();
     const timeline = document.querySelector(".video-analysis-fs-player-timeline")?.getBoundingClientRect();
     const timelineScroll = document.querySelector(".video-analysis-fs-player-timeline .video-analysis-timeline-scroll");
     const transport = document.querySelector(".video-analysis-player-transport")?.getBoundingClientRect();
     const scrollStyle = timelineScroll ? getComputedStyle(timelineScroll) : null;
     return {
+      codeWindowWidth: codeWindow?.width ?? 0,
+      deckWidth: deck?.width ?? 0,
+      isFixed: workstationElement ? getComputedStyle(workstationElement).position === "fixed" : false,
+      workstationHeight: workstation?.height ?? 0,
+      workstationWidth: workstation?.width ?? 0,
+      viewportHeight: window.innerHeight,
+      viewportWidth: window.innerWidth,
       timelineHeight: timeline?.height ?? 0,
       timelineOverflowY: scrollStyle?.overflowY || "",
       transportHeight: transport?.height ?? 0,
       videoHeight: videoFrame?.height ?? 0,
     };
   });
+  expect(codeModeLayout.isFixed).toBe(true);
+  expect(codeModeLayout.workstationWidth).toBeGreaterThanOrEqual(codeModeLayout.viewportWidth - 2);
+  expect(codeModeLayout.workstationHeight).toBeGreaterThanOrEqual(codeModeLayout.viewportHeight - 2);
+  expect(codeModeLayout.deckWidth).toBeGreaterThan(codeModeLayout.codeWindowWidth * 1.8);
   expect(codeModeLayout.videoHeight).toBeGreaterThan(codeModeLayout.timelineHeight * 1.8);
   expect(codeModeLayout.timelineHeight).toBeLessThanOrEqual(225);
   expect(codeModeLayout.timelineOverflowY).toBe("auto");
   expect(codeModeLayout.transportHeight).toBeLessThanOrEqual(52);
+  await expect(page.locator('[data-video-analysis-code-pip="video"] [data-video-analysis-code-pip-drag]')).toBeVisible();
+  await expect(page.locator('[data-video-analysis-code-pip="timeline"] [data-video-analysis-code-pip-drag]')).toBeVisible();
+  await expect(page.locator('[data-video-analysis-code-pip="code-window"] [data-video-analysis-code-pip-drag]')).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-video-analysis-fs-player-workstation]")).not.toHaveClass(/is-code-mode/);
+  await page.locator("[data-video-analysis-code-mode]").click();
+  await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
   await page.locator("[data-video-analysis-code-mode]").click();
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).not.toHaveClass(/is-code-mode/);
   const standardCodeWindowLayout = await page.evaluate(() => {
@@ -1364,6 +1386,8 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await page.locator(".video-analysis-mg-picker-close").click();
   await expect(page.locator(".video-analysis-mg-picker-overlay")).toHaveCount(0);
 
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-video-analysis-fs-player-workstation]")).not.toHaveClass(/is-code-mode/);
   await page.locator('[data-video-analysis-panel-mode="edit"]').click();
   await expect(page.locator("[data-video-analysis-template-overlay]")).toBeVisible();
   await expect(page.locator('[data-video-analysis-code-window] [data-video-analysis-button-ms-field="subPhase-build-up:defaultDurationMs"]')).toHaveCount(0);

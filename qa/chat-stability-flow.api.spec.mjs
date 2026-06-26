@@ -11,7 +11,7 @@ import { createDashboardChatWidgetRuntime } from "../src/modules/chat/dashboard-
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const chatApi = require("../api/chat.js");
-const { applyChatActionToState, filterChatStateForActor } = chatApi._private;
+const { applyChatActionToState, checkChatRateLimit, filterChatStateForActor } = chatApi._private;
 
 const appSource = readFileSync(path.join(__dirname, "../app-runtime.js"), "utf8");
 const chatApiRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-api-runtime.mjs"), "utf8");
@@ -23,6 +23,7 @@ const chatThreadSettingsSource = readFileSync(path.join(__dirname, "../src/modul
 const rendererSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-widget-renderer.mjs"), "utf8");
 const chatCssSource = readFileSync(path.join(__dirname, "../dashboard-chat.css"), "utf8");
 const attachmentPreviewSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-attachment-preview.mjs"), "utf8");
+const chatApiSource = readFileSync(path.join(__dirname, "../api/chat.js"), "utf8");
 const databaseSource = readFileSync(path.join(__dirname, "../api/_lib/chat-database.js"), "utf8");
 
 function readNumericConstant(source, constantName) {
@@ -379,6 +380,13 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(chatApiRuntimeSource).toContain("__activeChatRead: true");
   expect(databaseSource).toContain("CHAT_ACTIVE_READ_HEADER");
   expect(databaseSource).toContain("chat_read_inactive");
+  expect(chatApiSource).toContain('req.method === "GET" && !isDatabaseChatEnabled()');
+  expect(chatApiSource).toContain("function getChatReadAction");
+  expect(chatApiSource).toContain("function normalizeRateLimitAction");
+  expect(chatApiSource).toContain("readThread: 18");
+  expect(appSource).toContain("refreshDashboardChatFromApi({ threadId, forceNetwork: true })");
+  expect(appSource).toContain("refreshDashboardChatFromApi({");
+  expect(appSource).toContain("forceNetwork: true");
   expect(chatRealtimePatterns).toContain('table: "chat_threads"');
   expect(chatRealtimePatterns).toContain('table: "chat_attachments"');
   expect(chatRealtimePatterns).toContain('table: "chat_thread_participants"');
@@ -446,6 +454,22 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(databaseSource).toContain("attachmentIds");
   expect(databaseSource).toContain("status: \"ready\"");
   expect(databaseSource).toContain("chat_read_receipts");
+});
+
+test("chat read rate limiter separates thread history reads from inbox summary reads", () => {
+  const nowMs = Date.parse("2026-06-26T20:45:00.000Z");
+  const threadActor = { id: "rate-read-thread-history", role: "coach" };
+  const summaryActor = { id: "rate-read-thread-summary", role: "coach" };
+
+  for (let index = 0; index < 18; index += 1) {
+    expect(checkChatRateLimit(threadActor, "readThread", nowMs)).toMatchObject({ ok: true });
+  }
+  expect(checkChatRateLimit(threadActor, "readThread", nowMs)).toMatchObject({ ok: false, status: 429 });
+
+  for (let index = 0; index < 12; index += 1) {
+    expect(checkChatRateLimit(summaryActor, "readThreads", nowMs)).toMatchObject({ ok: true });
+  }
+  expect(checkChatRateLimit(summaryActor, "readThreads", nowMs)).toMatchObject({ ok: false, status: 429 });
 });
 
 test("chat API runtime skips network refreshes while the browser tab is hidden", async () => {
@@ -602,6 +626,56 @@ test("open chat rehydrates active server-backed thread when local message store 
     },
   });
 
+  runtime.renderDashboardChatWidget();
+
+  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0 }]);
+});
+
+test("open chat throttles repeated empty active thread hydration requests", () => {
+  const threadId = "dm:coach-qa:teammate-qa";
+  const hydratedThreadIds = new Set([threadId]);
+  const queuedThreadLoads = [];
+  const runtime = createDashboardChatWidgetRuntime({
+    dashboardChatWidgetRenderer: {
+      render: () => ({ html: "<section data-dashboard-chat-list></section>", activeThreadId: threadId, replyDraft: null }),
+    },
+    getCurrentPlatformUser: () => coachActor,
+    getPlatformUsers: () => [coachActor, teammateActor],
+    getDashboardChatThreadList: () => [{
+      threadId,
+      label: "Taylor Teammate",
+      messageCount: 3,
+      lastActivityAt: "2026-06-26T20:00:00.000Z",
+      apiThread: {
+        lastMessageAt: "2026-06-26T20:00:00.000Z",
+      },
+    }],
+    readDashboardMessages: () => [],
+    readDashboardChatWidgetState: () => ({ isOpen: true, selectedThreadId: threadId }),
+    getDashboardHydratedThreadIds: () => hydratedThreadIds,
+    queueDashboardChatApiRefresh: (options) => {
+      queuedThreadLoads.push(options);
+    },
+    ui: {
+      dashboardChatWidgetRoot: {
+        dataset: {},
+        innerHTML: "",
+        querySelector: () => null,
+      },
+    },
+    documentRef: {
+      activeElement: null,
+      body: {
+        classList: {
+          add: () => {},
+          remove: () => {},
+          toggle: () => {},
+        },
+      },
+    },
+  });
+
+  runtime.renderDashboardChatWidget();
   runtime.renderDashboardChatWidget();
 
   expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0 }]);

@@ -63,6 +63,8 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
 
   let dashboardChatWidgetToastTimer = null;
   let dashboardChatWidgetToastState = null;
+  const dashboardChatHydrationAttemptAtByThread = new Map();
+  const dashboardChatHydrationRetryWindowMs = 10 * 1000;
 
   const runtimeDashboardChatAttachmentRenderer = dashboardChatAttachmentRenderer || { queueSignedUrls: () => {} };
 
@@ -266,12 +268,20 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
           (activeThreadHasServerActivity && activeThreadMessageCount === 0)
         )
     );
+    if (activeThreadId && activeThreadMessageCount > 0) {
+      dashboardChatHydrationAttemptAtByThread.delete(activeThreadId);
+    }
+    const lastHydrationAttemptAt = Number(dashboardChatHydrationAttemptAtByThread.get(activeThreadId) || 0);
+    const canQueueActiveThreadHydration =
+      !lastHydrationAttemptAt || Date.now() - lastHydrationAttemptAt >= dashboardChatHydrationRetryWindowMs;
     if (
       state.isOpen &&
       activeThreadId &&
       activeThreadNeedsHydration &&
-      !getDashboardChatApiSyncTimer()
+      !getDashboardChatApiSyncTimer() &&
+      canQueueActiveThreadHydration
     ) {
+      dashboardChatHydrationAttemptAtByThread.set(activeThreadId, Date.now());
       queueDashboardChatApiRefresh({ threadId: activeThreadId, delayMs: 0 });
     }
 

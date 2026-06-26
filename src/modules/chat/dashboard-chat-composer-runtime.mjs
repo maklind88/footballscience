@@ -17,6 +17,7 @@ export function createDashboardChatComposerRuntime({
   normalizeDashboardChatGroupAvatarInput = (value = "") => String(value ?? "").trim().replace(/\s+/g, " "),
   normalizeDashboardChatThreadId,
   normalizeDashboardChatGroupNameInput = (value = "") => String(value ?? "").trim().replace(/\s+/g, " "),
+  refreshDashboardChatFromApi = null,
   queueDashboardChatThreadSummaryRefresh,
   readDashboardChatWidgetState,
   renderDashboardChatWidget,
@@ -356,6 +357,9 @@ export function createDashboardChatComposerRuntime({
       focusDashboardChatWidgetComposer();
       showDashboardChatWidgetToast(`Chat opened${selectedParticipant.name ? ` with ${selectedParticipant.name}` : ""}.`, createdThreadId);
       queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: true });
+      if (typeof refreshDashboardChatFromApi === "function") {
+        void refreshDashboardChatFromApi({ threadId: createdThreadId, forceNetwork: true });
+      }
       return result.result?.thread || null;
     } catch (error) {
       logDashboardChatApiFailure("createDirectThread", {
@@ -555,6 +559,9 @@ export function createDashboardChatComposerRuntime({
       focusDashboardChatWidgetComposer();
       showDashboardChatWidgetToast("Group created.", createdThreadId);
       queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: true });
+      if (typeof refreshDashboardChatFromApi === "function") {
+        void refreshDashboardChatFromApi({ threadId: createdThreadId, forceNetwork: true });
+      }
       return result.result?.thread || null;
     } catch (error) {
       logDashboardChatApiFailure("createGroupThread", {

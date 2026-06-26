@@ -2449,6 +2449,7 @@ const dashboardChatComposerRuntime = createDashboardChatComposerRuntime({
   normalizeDashboardChatGroupAvatarInput,
   normalizeDashboardChatGroupNameInput,
   normalizeDashboardChatThreadId,
+  refreshDashboardChatFromApi,
   queueDashboardChatThreadSummaryRefresh,
   readDashboardChatWidgetState,
   renderDashboardChatWidget,
@@ -3608,7 +3609,11 @@ writeDashboardChatWidgetState(nextState);
 if (nextState.isOpen) {
 dashboardChatMobileConversationOpen = false;
 hideDashboardChatWidgetToast();
-queueDashboardChatCurrentViewRefresh({ delayMs: 0 });
+queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: false, forceNetwork: true });
+void refreshDashboardChatFromApi({
+threadId: normalizeDashboardChatThreadId(nextState.selectedThreadId, dashboardChatTeamThreadId),
+forceNetwork: true,
+});
 }
 renderDashboardChatWidget();
 if (nextState.isOpen) {
@@ -3659,7 +3664,8 @@ selectedThreadId: threadId,
 markDashboardChatWidgetNotificationSeenForThread(threadId);
 hideDashboardChatWidgetToast();
 renderDashboardChatWidget();
-queueDashboardChatCurrentViewRefresh({ delayMs: 0 });
+queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: false, forceNetwork: true });
+void refreshDashboardChatFromApi({ threadId, forceNetwork: true });
 focusDashboardChatWidgetComposer();
 return;
 }
@@ -3952,6 +3958,7 @@ return;
 setDashboardChatReplyDraft("", "");
 setDashboardChatPriorityDraft("normal");
 queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
+void refreshDashboardChatFromApi({ threadId, forceNetwork: true });
 renderDashboardChatWidget();
 focusDashboardChatWidgetComposer();
 platformNavigationController.renderTopIconMenu();

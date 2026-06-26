@@ -50,6 +50,7 @@ const CHAT_ACTIONS = new Set([
   "archiveThread",
   "createAttachmentIntent",
 ]);
+const CHAT_READ_ACTIONS = new Set(["readThreads", "readThread", "searchMessages", "readModeration", "readHealth", "read"]);
 const UNSAFE_OBJECT_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMITS = {
@@ -69,6 +70,14 @@ const RATE_LIMITS = {
   leaveThread: 10,
   setThreadParticipants: 12,
   clearThread: 5,
+  archiveThread: 5,
+  createAttachmentIntent: 20,
+  uploadAttachmentObject: 20,
+  readThreads: 12,
+  readThread: 18,
+  searchMessages: 8,
+  readModeration: 8,
+  readHealth: 8,
   read: 12,
   default: 60,
 };
@@ -117,6 +126,11 @@ function normalizeMessageText(value) {
 function normalizeAction(value) {
   const action = normalizeString(value, 48);
   return CHAT_ACTIONS.has(action) ? action : "";
+}
+
+function normalizeRateLimitAction(value) {
+  const action = normalizeString(value, 48);
+  return CHAT_ACTIONS.has(action) || CHAT_READ_ACTIONS.has(action) ? action : "";
 }
 
 function normalizeThreadType(value) {
@@ -1647,7 +1661,7 @@ async function writeChatState(state, actor) {
 }
 
 function checkChatRateLimit(actor, action, nowMs = Date.now()) {
-  const normalizedAction = normalizeAction(action) || "default";
+  const normalizedAction = normalizeRateLimitAction(action) || "default";
   const max = RATE_LIMITS[normalizedAction] || RATE_LIMITS.default;
   const identity = normalizeObjectKey(actor.id || actor.email || "unknown", "unknown", MAX_ID_LENGTH);
   const key = `${identity}:${normalizedAction}`;
@@ -1687,6 +1701,16 @@ function readChatHeaderValue(req, headerName) {
 function hasActiveChatReadIntent(req) {
   const value = String(readChatHeaderValue(req, CHAT_ACTIVE_READ_HEADER) || "").trim().toLowerCase();
   return value === "1" || value === "true" || value === "open" || value === "active";
+}
+
+function getChatReadAction(req) {
+  const query = new URL(req.url || "/", "http://localhost").searchParams;
+  const view = normalizeString(query.get("view"), 40).toLowerCase();
+  if (view === "moderation" || view === "admin") return "readModeration";
+  if (view === "health") return "readHealth";
+  if (normalizeString(query.get("search"), 120)) return "searchMessages";
+  if (normalizeId(query.get("threadId")) || query.has("threadId")) return "readThread";
+  return "readThreads";
 }
 
 function sendChatReadPaused(res) {
@@ -1740,11 +1764,11 @@ module.exports = async (req, res) => {
     return;
   }
 
-  if (req.method === "GET") {
+  if (req.method === "GET" && !isDatabaseChatEnabled()) {
     if (!hasActiveChatReadIntent(req)) {
       return sendChatReadPaused(res);
     }
-    const rateLimit = checkChatRateLimit(actor, "read");
+    const rateLimit = checkChatRateLimit(actor, getChatReadAction(req));
     if (!rateLimit.ok) {
       return sendChatReadRateLimited(res, rateLimit);
     }

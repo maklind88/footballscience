@@ -501,8 +501,16 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
 
   function normalizeDashboardApiMessage(message = {}, thread = null) {
     const apiThread = thread ? normalizeDashboardApiThread(thread) : null;
+    const messageMetadata = message.metadata && typeof message.metadata === "object" ? message.metadata : {};
+    const messageLegacyThreadId = String(
+      message.legacyThreadId ||
+        message.legacy_thread_id ||
+        messageMetadata.legacyThreadId ||
+        messageMetadata.legacy_thread_id ||
+        ""
+    ).trim();
     const threadId = normalizeDashboardChatThreadId(
-      message.legacyThreadId || message.threadId || message.thread_id || apiThread?.threadId || dashboardChatTeamThreadId,
+      messageLegacyThreadId || apiThread?.threadId || message.threadId || message.thread_id || dashboardChatTeamThreadId,
       dashboardChatTeamThreadId
     );
     const author = message.author || message.user || null;
@@ -513,8 +521,8 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       clientMessageId:
         message.clientMessageId ||
         message.client_message_id ||
-        message.metadata?.clientMessageId ||
-        message.metadata?.client_message_id ||
+        messageMetadata.clientMessageId ||
+        messageMetadata.client_message_id ||
         "",
       threadId,
       text: message.text ?? message.body ?? "",
@@ -530,9 +538,9 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       pinnedAt: message.pinnedAt || message.pinned_at || "",
       pinnedBy: message.pinnedBy || message.pinned_by || "",
       author,
-      metadata: message.metadata && typeof message.metadata === "object" ? message.metadata : {},
-      forwardedFromMessageId: message.forwardedFromMessageId || message.forwarded_from_message_id || message.metadata?.forwardedFromMessageId || "",
-      forwardedFromThreadId: message.forwardedFromThreadId || message.forwarded_from_thread_id || message.metadata?.forwardedFromThreadId || "",
+      metadata: messageMetadata,
+      forwardedFromMessageId: message.forwardedFromMessageId || message.forwarded_from_message_id || messageMetadata.forwardedFromMessageId || "",
+      forwardedFromThreadId: message.forwardedFromThreadId || message.forwarded_from_thread_id || messageMetadata.forwardedFromThreadId || "",
       attachments: Array.isArray(message.attachments) ? message.attachments : [],
       status: message.status || (message.deleted_at || message.deletedAt ? "deleted" : "sent"),
     });

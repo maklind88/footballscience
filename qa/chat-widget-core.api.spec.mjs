@@ -148,6 +148,56 @@ test("chat widget highlights searched messages and keeps search inside the detai
   expect(result.html).toContain("data-dashboard-chat-widget-toggle-notifications");
 });
 
+test("chat widget renders direct message bodies in the active conversation pane", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const peer = { id: "u2", name: "Michita Toda", status: "active" };
+  const threadId = "dm:u1:u2";
+  const messages = [
+    {
+      id: "m1",
+      userId: "u1",
+      threadId,
+      text: "Hi",
+      createdAt: "2026-06-26T19:44:04.000Z",
+      readBy: ["u1"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "normal",
+    },
+  ];
+  const threads = [
+    {
+      threadId,
+      type: "dm",
+      label: "Michita Toda",
+      isTeamThread: false,
+      messageCount: 1,
+      unreadCount: 0,
+      mentionCount: 0,
+      lastMessage: messages[0],
+      participants: [currentUser, peer],
+      participant: peer,
+      settings: {},
+      permissions: {},
+    },
+  ];
+
+  const result = createRenderer(messages).render({
+    currentUser,
+    users: [currentUser, peer],
+    state: { isOpen: true, selectedThreadId: threadId },
+    messages,
+    threads,
+    activeThreadId: threadId,
+    mobileConversationOpen: true,
+    realtimeStatus: { key: "connected", label: "Connected", detail: "Realtime active" },
+  });
+
+  expect(result.html).toContain("Hi");
+  expect(result.html).toContain('data-dashboard-chat-message-card');
+  expect(result.html).not.toContain("No messages yet");
+});
+
 test("chat widget renders coach workflow and evidence intelligence layers", () => {
   const currentUser = { id: "u1", name: "Mak" };
   const users = [

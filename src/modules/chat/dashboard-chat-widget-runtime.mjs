@@ -251,7 +251,6 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       !hydratedThreadIds.has(activeThreadId) &&
       !getDashboardChatApiSyncTimer()
     ) {
-      hydratedThreadIds.add(activeThreadId);
       queueDashboardChatApiRefresh({ threadId: activeThreadId, delayMs: 0 });
     }
 

@@ -516,6 +516,48 @@ test("closed chat widget does not queue background API summaries", () => {
   expect(summaryRefreshCount).toBe(1);
 });
 
+test("open chat queues first thread load without marking the thread hydrated before API success", () => {
+  const threadId = "dm:coach-qa:teammate-qa";
+  const hydratedThreadIds = new Set();
+  const queuedThreadLoads = [];
+  const runtime = createDashboardChatWidgetRuntime({
+    dashboardChatWidgetRenderer: {
+      render: () => ({ html: "<section data-dashboard-chat-list></section>", activeThreadId: threadId, replyDraft: null }),
+    },
+    getCurrentPlatformUser: () => coachActor,
+    getPlatformUsers: () => [coachActor, teammateActor],
+    getDashboardChatThreadList: () => [{ threadId, label: "Taylor Teammate", messageCount: 3 }],
+    readDashboardChatWidgetState: () => ({ isOpen: true, selectedThreadId: threadId }),
+    getDashboardChatThreadSummaryLastRequestedAt: () => Date.now(),
+    getDashboardHydratedThreadIds: () => hydratedThreadIds,
+    queueDashboardChatApiRefresh: (options) => {
+      queuedThreadLoads.push(options);
+    },
+    ui: {
+      dashboardChatWidgetRoot: {
+        dataset: {},
+        innerHTML: "",
+        querySelector: () => null,
+      },
+    },
+    documentRef: {
+      activeElement: null,
+      body: {
+        classList: {
+          add: () => {},
+          remove: () => {},
+          toggle: () => {},
+        },
+      },
+    },
+  });
+
+  runtime.renderDashboardChatWidget();
+
+  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0 }]);
+  expect(hydratedThreadIds.has(threadId)).toBe(false);
+});
+
 test("closed chat runtime does not queue realtime recovery reads", async () => {
   let fetchCount = 0;
   let summaryTimer = 0;
@@ -720,6 +762,43 @@ test("chat API GET paces different read queries through one client budget", asyn
 
   expect(startedAt).toHaveLength(2);
   expect(startedAt[1] - startedAt[0]).toBeGreaterThanOrEqual(20);
+});
+
+test("chat API message normalization keeps database-backed direct messages on the public thread id", () => {
+  const databaseThreadId = "0c85c2d2-4814-4233-885c-31ac41ddfe9c";
+  const publicThreadId = "dm:coach-qa:teammate-qa";
+  const runtime = createDashboardChatApiDomainRuntime({
+    normalizeDashboardMessage: (message) => message,
+    normalizeDashboardChatThreadId: (rawThreadId, fallbackThreadId = "team") => {
+      const threadId = String(rawThreadId || "").trim();
+      const fallback = String(fallbackThreadId || "team").trim() || "team";
+      if (!threadId || threadId === "team") {
+        return fallback;
+      }
+      if (threadId.startsWith("dm:") || threadId.startsWith("group:") || threadId.startsWith("group-")) {
+        return threadId;
+      }
+      return fallback;
+    },
+  });
+
+  const message = runtime.normalizeDashboardApiMessage(
+    {
+      id: "message-1",
+      thread_id: databaseThreadId,
+      author_id: "coach-qa",
+      body: "This must show in the conversation body.",
+    },
+    {
+      id: databaseThreadId,
+      type: "dm",
+      message_count: 3,
+      metadata: { legacyThreadId: publicThreadId },
+    }
+  );
+
+  expect(message.threadId).toBe(publicThreadId);
+  expect(message.text).toBe("This must show in the conversation body.");
 });
 
 test("notification cursor survives reload when API replaces the local message id", () => {

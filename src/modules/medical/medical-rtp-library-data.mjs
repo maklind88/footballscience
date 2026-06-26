@@ -1,11 +1,14 @@
 import { expandedMedicalRtpLibraryProfiles } from "./medical-rtp-library-expansion-data.mjs";
+import { createMedicalRtpClinicalTemplate } from "./medical-rtp-library-clinical-templates.mjs";
 import { createGoldStandardSections } from "./medical-rtp-library-profile-factory.mjs";
 
 const profile = (data) => {
+  const clinical = createMedicalRtpClinicalTemplate(data);
   const normalized = {
     level: ["professional", "elite", "international"],
     sex: ["female", "male", "all"],
     season: ["pre-season", "in-season", "congested", "post-season"],
+    family: clinical.family,
     ...data,
   };
   return {

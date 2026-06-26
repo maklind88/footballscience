@@ -6,6 +6,7 @@ import {
   medicalRtpLibraryFilterOptions,
   medicalRtpLibraryProfiles,
 } from "../src/modules/medical/index.mjs";
+import { RTP_GOLD_STANDARD_SECTION_TITLES } from "../src/modules/medical/medical-rtp-library-profile-factory.mjs";
 
 test("Medical RTP Library provides searchable medical-safe injury profiles", () => {
   const profiles = medicalRtpLibraryProfiles;
@@ -14,10 +15,16 @@ test("Medical RTP Library provides searchable medical-safe injury profiles", () 
 
   expect(profiles).toHaveLength(200);
   expect(new Set(profiles.map((profile) => profile.id)).size).toBe(200);
+  expect(profiles.every((profile) => profile.family)).toBe(true);
+  expect(profiles.every((profile) => profile.goldStandardSections.length === 37)).toBe(true);
+  expect(profiles.every((profile) => profile.goldStandardSections.map((section) => section.title).join("|") === RTP_GOLD_STANDARD_SECTION_TITLES.join("|"))).toBe(true);
+  expect(profiles.every((profile) => profile.summary && profile.evidence && profile.experience)).toBe(true);
+  expect(profiles.every((profile) => profile.criteria.length >= 4 && profile.redFlags.length >= 4)).toBe(true);
   expect(hamstring).toMatchObject({
     name: "Hamstring Strain",
     system: "Muscle",
     bodyArea: "Posterior thigh",
+    family: "hamstring",
     evidenceLevel: "Moderate to high",
   });
   expect(hamstring.goldStandardSections).toHaveLength(37);
@@ -33,6 +40,36 @@ test("Medical RTP Library provides searchable medical-safe injury profiles", () 
   expect(getMedicalRtpLibrarySearchText(distalHamstring)).toContain("distal tendon involvement");
   expect(medicalRtpLibraryFilterOptions.positions).toContain("winger");
   expect(medicalRtpLibraryFilterOptions.movementPlanes).toContain("deceleration");
+});
+
+test("expanded RTP Library profiles use injury-family specific clinical language", () => {
+  const rectusFemoris = getMedicalRtpLibraryProfileById("rectus-femoris-strain");
+  const navicularStress = getMedicalRtpLibraryProfileById("navicular-stress-fracture");
+  const achillesRepair = getMedicalRtpLibraryProfileById("achilles-tendon-repair-rtp");
+  const cardiacRedFlag = getMedicalRtpLibraryProfileById("cardiac-symptoms-red-flag");
+  const goalkeeperLoad = getMedicalRtpLibraryProfileById("goalkeeper-hip-groin-load");
+
+  expect(rectusFemoris).toMatchObject({ family: "quadriceps" });
+  expect(rectusFemoris.summary).toContain("anterior-thigh");
+  expect(rectusFemoris.criteria).toContain("kicking volume tolerated");
+  expect(getMedicalRtpLibrarySearchText(rectusFemoris)).toContain("strike volume");
+
+  expect(navicularStress).toMatchObject({ family: "bone stress" });
+  expect(navicularStress.summary).toContain("energy availability");
+  expect(navicularStress.redFlags).toContain("high-risk bone site");
+  expect(navicularStress.imaging).toContain("MRI");
+
+  expect(achillesRepair).toMatchObject({ family: "surgical" });
+  expect(achillesRepair.summary).toContain("surgeon protocol");
+  expect(achillesRepair.criteria).toContain("surgeon and Medical restrictions satisfied");
+
+  expect(cardiacRedFlag).toMatchObject({ family: "medical" });
+  expect(cardiacRedFlag.summary).toContain("Medical-governed");
+  expect(cardiacRedFlag.redFlags).toContain("chest pain, palpitations or syncope");
+
+  expect(goalkeeperLoad).toMatchObject({ family: "goalkeeper" });
+  expect(goalkeeperLoad.summary).toContain("goalkeeper-specific RTP");
+  expect(goalkeeperLoad.trainingChecklist).toContain("controlled dives");
 });
 
 test("Medical RTP Library starter drafts stay medical-owned and evidence-separated", () => {

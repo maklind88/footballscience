@@ -1,3 +1,5 @@
+import { createMedicalRtpClinicalTemplate } from "./medical-rtp-library-clinical-templates.mjs";
+
 const DEFAULT_LEVEL = ["professional", "elite", "international"];
 const DEFAULT_SEX = ["female", "male", "all"];
 const DEFAULT_SEASON = ["pre-season", "in-season", "congested", "post-season"];
@@ -174,39 +176,35 @@ export function createGoldStandardSections(profile = {}) {
 
 export function createMedicalRtpLibraryProfile(seed = {}) {
   const positions = inferPositions(seed);
+  const clinical = createMedicalRtpClinicalTemplate(seed);
   const profile = {
     id: seed.id || slugify(seed.name),
     name: seed.name,
     system: seed.system || "Medical",
     bodyArea: seed.bodyArea || "General",
+    family: clinical.family,
     symptoms: list(seed.symptoms || "pain|load intolerance|reduced football confidence"),
     positions,
     movementPlanes: list(seed.movementPlanes || "sagittal|football integration|load progression"),
     riskTags: list(seed.riskTags || "load spike|previous symptoms|fixture congestion|incomplete exposure"),
     evidenceLevel: seed.evidenceLevel || "Limited to moderate",
-    summary:
-      seed.summary ||
-      `${seed.name} requires criteria-based RTP that separates clinical safety, demand readiness and coach-safe selection support.`,
-    evidence:
-      seed.evidence ||
-      "Evidence supports criteria-based progression, symptom/load monitoring and sport-specific exposure, but injury-specific elite football data may be limited.",
-    experience:
-      seed.experience ||
-      "Elite football staff should use individual baseline, position demand, congestion, travel and surface context to guide progression.",
-    redFlags: list(seed.redFlags || "worsening symptoms|night pain or systemic symptoms|neurological signs|instability or structural concern"),
-    criteria: list(seed.criteria || "clinical symptoms stable|strength and control acceptable|football exposure tolerated|no adverse next-day response"),
-    trainingChecklist: list(seed.trainingChecklist || "medical review|controlled field exposure|position-specific technical work|load response review"),
-    matchChecklist: list(seed.matchChecklist || "full training response stable|position-specific worst-case action completed|minutes guidance agreed|congestion risk reviewed"),
-    mistakes: list(seed.mistakes || "calendar-only clearance|ignoring next-day response|underexposing football demand|sharing private medical detail with coaches"),
-    phases: list(seed.phases || "Rehab: restore clinical tolerance and basic capacity.|Modified: add controlled field and technical exposure.|Full: complete position-specific football demand.|Match: return through minutes and congestion guardrails."),
-    loadText: list(seed.loadText || "Running: progress volume and speed separately.|Sprint: add only when clinically appropriate.|COD: progress planned before reactive movements.|GPS: compare exposure to individual and positional baseline."),
+    summary: seed.summary || clinical.summary,
+    evidence: seed.evidence || clinical.evidence,
+    experience: seed.experience || clinical.experience,
+    redFlags: list(seed.redFlags || clinical.redFlags),
+    criteria: list(seed.criteria || clinical.criteria),
+    trainingChecklist: list(seed.trainingChecklist || clinical.trainingChecklist),
+    matchChecklist: list(seed.matchChecklist || clinical.matchChecklist),
+    mistakes: list(seed.mistakes || clinical.mistakes),
+    phases: list(seed.phases || clinical.phases),
+    loadText: list(seed.loadText || clinical.loadText),
     starter: seed.starter || inferStarter(seed),
-    mechanism: seed.mechanism,
-    differential: seed.differential,
-    imaging: seed.imaging,
-    monitoring: seed.monitoring,
-    gpsBenchmarks: seed.gpsBenchmarks,
-    strengthBenchmarks: seed.strengthBenchmarks,
+    mechanism: seed.mechanism || clinical.mechanism,
+    differential: seed.differential || clinical.differential,
+    imaging: seed.imaging || clinical.imaging,
+    monitoring: seed.monitoring || clinical.monitoring,
+    gpsBenchmarks: seed.gpsBenchmarks || clinical.gpsBenchmarks,
+    strengthBenchmarks: seed.strengthBenchmarks || clinical.strengthBenchmarks,
     level: DEFAULT_LEVEL,
     sex: DEFAULT_SEX,
     season: DEFAULT_SEASON,

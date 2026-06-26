@@ -135,6 +135,7 @@ export function createInitialVideoAnalysisState(context = {}) {
       mode: "standard",
       fullscreen: false,
       pip: null,
+      timelinePip: null,
     },
     matrix: {
       mode: "phase-outcome",

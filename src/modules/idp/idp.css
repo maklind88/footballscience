@@ -7222,3 +7222,73 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
     text-align: center;
   }
 }
+
+/* IDP profile workflow: keep the four insight cards visually symmetric. */
+.idp-player-profile .idp-workflow-board {
+  align-items: stretch;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.idp-player-profile .idp-workflow-board > article {
+  align-content: stretch;
+  display: grid;
+  gap: 12px;
+  grid-template-rows: minmax(48px, auto) minmax(0, 1fr);
+  height: 100%;
+  min-height: clamp(220px, 18vw, 280px);
+  min-width: 0;
+}
+
+.idp-player-profile .idp-workflow-board .idp-section-head {
+  align-items: flex-start;
+  min-height: 48px;
+}
+
+.idp-player-profile .idp-workflow-board .idp-section-head > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.idp-player-profile .idp-workflow-board .idp-section-head strong {
+  font-size: .96rem;
+  line-height: 1.2;
+}
+
+.idp-player-profile .idp-signal-stream,
+.idp-player-profile .idp-timeline-river,
+.idp-player-profile .idp-workflow-mini-list {
+  align-content: start;
+  display: grid;
+  gap: 10px;
+  grid-auto-rows: max-content;
+  min-height: 0;
+}
+
+.idp-player-profile .idp-workflow-board .idp-empty-signal {
+  align-items: center;
+  min-height: 64px;
+}
+
+.idp-player-profile .idp-workflow-board .idp-stream-item,
+.idp-player-profile .idp-workflow-board .idp-river-item,
+.idp-player-profile .idp-workflow-board .idp-workflow-text-item {
+  min-height: 48px;
+}
+
+@media (max-width: 1220px) {
+  .idp-player-profile .idp-workflow-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .idp-player-profile .idp-workflow-board {
+    grid-template-columns: 1fr;
+  }
+
+  .idp-player-profile .idp-workflow-board > article {
+    min-height: 0;
+  }
+}

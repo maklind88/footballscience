@@ -3002,7 +3002,7 @@ test("Medical operations board separates signals, cases, history and season view
   const signalsTable = operations.locator(".medical-ops-signals-table");
   await expect(signalsTable).toContainText("QA Risk Player");
   await expect(signalsTable).toContainText("QA Clear Player");
-  await expect(signalsTable).toContainText("QA Guest Risk");
+  await expect(signalsTable).not.toContainText("QA Guest Risk");
 
   await operationsMenu.locator('[data-medical-ops-tab="cases"]').click();
   await expect(operations).toContainText("Review overdue");

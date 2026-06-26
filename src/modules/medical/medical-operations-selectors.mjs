@@ -23,6 +23,10 @@ function isRestrictedParticipation(value) {
   return Number.isFinite(participation) && participation < 100;
 }
 
+function isMedicalRegularSquadPlayer(player = {}) {
+  return player.countsInSquad !== false && String(player.rosterType || "squad").trim() === "squad";
+}
+
 export function createMedicalOperationsSelectors({
   compareMedicalPlayers = defaultCompareMedicalPlayers,
   ensureMedicalState = () => {},
@@ -295,7 +299,7 @@ export function createMedicalOperationsSelectors({
     ensureMedicalState();
     const state = getState();
     return state.players
-      .filter((player) => !isMedicalItemArchived(player))
+      .filter((player) => !isMedicalItemArchived(player) && isMedicalRegularSquadPlayer(player))
       .map((player) => getMedicalPlayerRiskSignal(player, dateValue))
       .sort((first, second) => {
         if (first.actionSeverity !== second.actionSeverity) {
@@ -323,7 +327,7 @@ export function createMedicalOperationsSelectors({
     const clearanceBlockers = activeCases.filter((item) => item.plan.participation >= 100 && !item.clearance.isCleared);
     const actionRequired = actionSignals.length;
     const actualMissing = getMedicalAvailabilityItems(dateValue).filter(
-      (item) => item.record && item.record.participation > 0 && item.record.actualParticipation === medicalActualParticipationFallback
+      (item) => isMedicalRegularSquadPlayer(item.player) && item.record && item.record.participation > 0 && item.record.actualParticipation === medicalActualParticipationFallback
     ).length;
     return {
       signals,

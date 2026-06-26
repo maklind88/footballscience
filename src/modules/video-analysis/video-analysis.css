@@ -2148,6 +2148,83 @@ body.is-video-analysis-fs-player-fullscreen {
     #060b09;
 }
 
+#analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-fs-player-deck {
+  position: absolute;
+  grid-area: 1 / 1 / -1 / -1;
+  top: var(--video-analysis-code-pip-y, 8px);
+  left: var(--video-analysis-code-pip-x, calc(clamp(276px, 21vw, 340px) + 16px));
+  z-index: 3;
+  width: var(--video-analysis-code-pip-width, clamp(760px, 68vw, calc(100vw - clamp(276px, 21vw, 340px) - 32px)));
+  height: var(--video-analysis-code-pip-height, clamp(330px, 62dvh, calc(100dvh - clamp(132px, 20dvh, 220px) - 32px)));
+  min-width: 360px;
+  min-height: 220px;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px);
+  will-change: top, left, width, height;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-grip,
+#analysisRoomWorkspace .video-analysis-code-pip-resize {
+  position: absolute;
+  z-index: 6;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(12, 18, 15, 0.68);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+  touch-action: none;
+  user-select: none;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-grip {
+  top: 8px;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 84px;
+  height: 20px;
+  border-radius: 999px;
+  cursor: grab;
+  transform: translateX(-50%);
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-grip:active {
+  cursor: grabbing;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-grip span {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize {
+  right: 6px;
+  bottom: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  cursor: nwse-resize;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize::before {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid rgba(255, 255, 255, 0.72);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.72);
+  content: "";
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-grip:focus-visible,
+#analysisRoomWorkspace .video-analysis-code-pip-resize:focus-visible {
+  outline: 2px solid rgba(91, 141, 255, 0.92);
+  outline-offset: 2px;
+}
+
 #analysisRoomWorkspace .video-analysis-fs-player-workstation.is-code-mode .video-analysis-code-window-dock .video-analysis-panel-header {
   display: none;
 }

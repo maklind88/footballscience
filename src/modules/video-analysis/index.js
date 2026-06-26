@@ -103,6 +103,9 @@ const VIDEO_SHUTTLE_CONTAIN_RATIO = 0.6;
 const VIDEO_SHUTTLE_DOMINANCE_RATIO = 1.35;
 const VIDEO_SHUTTLE_IDLE_MS = 520;
 const VIDEO_SHUTTLE_MAX_FRAME_MS = 80;
+const CODE_PIP_MIN_WIDTH = 360;
+const CODE_PIP_MIN_HEIGHT = 220;
+const CODE_PIP_MARGIN = 8;
 const FS_PLAYER_HISTORY_GUARD_KEY = "__footballScienceFsPlayerHistoryGuard";
 const FS_PLAYER_HISTORY_GUARD_DEPTH_KEY = "__footballScienceFsPlayerHistoryGuardDepth";
 const FS_PLAYER_HISTORY_GUARD_DEPTH = 3;
@@ -135,6 +138,7 @@ function createRuntime(context = {}) {
     pointerGuardBound: false,
     historyGuardBound: false,
     fullscreenBound: false,
+    codePipInteraction: null,
     fsPlayerHistoryGuardArmed: false,
     fsPlayerHistoryGuardDepth: 0,
     fsPlayerPointerInsideShuttle: false,
@@ -361,14 +365,26 @@ function activeAnalysisRoomTab(state = {}) {
   return "fs-player";
 }
 
+function renderCodePipStyle(pip = null) {
+  if (!pip || !Number.isFinite(Number(pip.x)) || !Number.isFinite(Number(pip.y))) return "";
+  const x = Math.max(CODE_PIP_MARGIN, Math.round(Number(pip.x)));
+  const y = Math.max(CODE_PIP_MARGIN, Math.round(Number(pip.y)));
+  const width = Math.max(CODE_PIP_MIN_WIDTH, Math.round(Number(pip.width || CODE_PIP_MIN_WIDTH)));
+  const height = Math.max(CODE_PIP_MIN_HEIGHT, Math.round(Number(pip.height || CODE_PIP_MIN_HEIGHT)));
+  return ` style="--video-analysis-code-pip-x: ${x}px; --video-analysis-code-pip-y: ${y}px; --video-analysis-code-pip-width: ${width}px; --video-analysis-code-pip-height: ${height}px;"`;
+}
+
 function renderFsPlayerWorkspace(displayState = {}) {
   const codeModeActive = displayState.fsPlayer?.mode === "code";
   const fullscreenActive = displayState.fsPlayer?.fullscreen === true;
+  const pipStyle = codeModeActive ? renderCodePipStyle(displayState.fsPlayer?.pip) : "";
   return `
     <section class="video-analysis-fs-player-workstation${codeModeActive ? " is-code-mode" : ""}${fullscreenActive ? " is-fullscreen" : ""}" data-video-analysis-fs-player-workstation>
       <section class="video-analysis-fs-player-main">
-        <section class="video-analysis-fs-player-deck">
+        <section class="video-analysis-fs-player-deck"${codeModeActive ? " data-video-analysis-code-pip" : ""}${pipStyle}>
+          ${codeModeActive ? `<div class="video-analysis-code-pip-grip" data-video-analysis-code-pip-drag role="button" tabindex="0" aria-label="Move video panel" title="Move video panel"><span></span><span></span><span></span></div>` : ""}
           ${renderVideoPlayer(displayState)}
+          ${codeModeActive ? `<div class="video-analysis-code-pip-resize" data-video-analysis-code-pip-resize role="button" tabindex="0" aria-label="Resize video panel" title="Resize video panel"></div>` : ""}
         </section>
         <section class="video-analysis-fs-player-timeline">
           ${renderTimeline(displayState)}
@@ -557,6 +573,133 @@ function fsPlayerVideoFrameElement(context = {}) {
 
 function fsPlayerPlayerElement(context = {}) {
   return getRoot(context)?.querySelector(".video-analysis-fs-player-deck .video-analysis-player") || null;
+}
+
+function clampNumber(value, min, max) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return min;
+  return Math.min(max, Math.max(min, numeric));
+}
+
+function codePipBounds(context = {}) {
+  const workspace = fsPlayerWorkspaceElement(context);
+  const rect = workspace?.getBoundingClientRect?.();
+  const win = context.win || window;
+  const width = Math.max(CODE_PIP_MIN_WIDTH + (CODE_PIP_MARGIN * 2), Number(rect?.width || win.innerWidth || 1280));
+  const height = Math.max(CODE_PIP_MIN_HEIGHT + (CODE_PIP_MARGIN * 2), Number(rect?.height || win.innerHeight || 720));
+  return { width, height };
+}
+
+function normalizeCodePipBox(box = {}, context = {}) {
+  const bounds = codePipBounds(context);
+  const maxWidth = Math.max(CODE_PIP_MIN_WIDTH, bounds.width - (CODE_PIP_MARGIN * 2));
+  const maxHeight = Math.max(CODE_PIP_MIN_HEIGHT, bounds.height - (CODE_PIP_MARGIN * 2));
+  const width = clampNumber(box.width, CODE_PIP_MIN_WIDTH, maxWidth);
+  const height = clampNumber(box.height, CODE_PIP_MIN_HEIGHT, maxHeight);
+  const x = clampNumber(box.x, CODE_PIP_MARGIN, Math.max(CODE_PIP_MARGIN, bounds.width - width - CODE_PIP_MARGIN));
+  const y = clampNumber(box.y, CODE_PIP_MARGIN, Math.max(CODE_PIP_MARGIN, bounds.height - height - CODE_PIP_MARGIN));
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    width: Math.round(width),
+    height: Math.round(height),
+  };
+}
+
+function codePipBoxFromElement(deck = null, context = {}) {
+  const workspace = fsPlayerWorkspaceElement(context);
+  const deckRect = deck?.getBoundingClientRect?.();
+  const workspaceRect = workspace?.getBoundingClientRect?.();
+  if (!deckRect || !workspaceRect) return normalizeCodePipBox({}, context);
+  return normalizeCodePipBox({
+    x: deckRect.left - workspaceRect.left,
+    y: deckRect.top - workspaceRect.top,
+    width: deckRect.width,
+    height: deckRect.height,
+  }, context);
+}
+
+function applyCodePipBox(deck = null, box = {}) {
+  if (!deck?.style) return;
+  deck.style.setProperty("--video-analysis-code-pip-x", `${box.x}px`);
+  deck.style.setProperty("--video-analysis-code-pip-y", `${box.y}px`);
+  deck.style.setProperty("--video-analysis-code-pip-width", `${box.width}px`);
+  deck.style.setProperty("--video-analysis-code-pip-height", `${box.height}px`);
+}
+
+function startCodePipInteraction(event = {}, context = {}) {
+  const target = eventElement(event);
+  const handle = target?.closest?.("[data-video-analysis-code-pip-drag], [data-video-analysis-code-pip-resize]");
+  if (!handle) return false;
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  if (state.fsPlayer?.mode !== "code") return false;
+  const deck = handle.closest?.("[data-video-analysis-code-pip]");
+  if (!deck) return false;
+  const startBox = codePipBoxFromElement(deck, context);
+  run.codePipInteraction = {
+    type: handle.matches("[data-video-analysis-code-pip-resize]") ? "resize" : "move",
+    pointerId: event.pointerId,
+    startX: Number(event.clientX || 0),
+    startY: Number(event.clientY || 0),
+    startBox,
+    deck,
+  };
+  handle.setPointerCapture?.(event.pointerId);
+  event.preventDefault?.();
+  return true;
+}
+
+function updateCodePipInteraction(event = {}, context = {}) {
+  const run = ensureRuntime(context);
+  const interaction = run.codePipInteraction;
+  if (!interaction?.deck) return false;
+  const dx = Number(event.clientX || 0) - interaction.startX;
+  const dy = Number(event.clientY || 0) - interaction.startY;
+  let nextBox;
+  if (interaction.type === "resize") {
+    const bounds = codePipBounds(context);
+    nextBox = {
+      ...interaction.startBox,
+      width: clampNumber(
+        interaction.startBox.width + dx,
+        CODE_PIP_MIN_WIDTH,
+        Math.max(CODE_PIP_MIN_WIDTH, bounds.width - interaction.startBox.x - CODE_PIP_MARGIN),
+      ),
+      height: clampNumber(
+        interaction.startBox.height + dy,
+        CODE_PIP_MIN_HEIGHT,
+        Math.max(CODE_PIP_MIN_HEIGHT, bounds.height - interaction.startBox.y - CODE_PIP_MARGIN),
+      ),
+    };
+  } else {
+    nextBox = {
+      ...interaction.startBox,
+      x: interaction.startBox.x + dx,
+      y: interaction.startBox.y + dy,
+    };
+  }
+  applyCodePipBox(interaction.deck, normalizeCodePipBox(nextBox, context));
+  event.preventDefault?.();
+  return true;
+}
+
+function finishCodePipInteraction(event = {}, context = {}) {
+  const run = ensureRuntime(context);
+  const interaction = run.codePipInteraction;
+  if (!interaction?.deck) return false;
+  const nextPip = codePipBoxFromElement(interaction.deck, context);
+  run.codePipInteraction = null;
+  event?.target?.releasePointerCapture?.(interaction.pointerId);
+  run.store.update((state) => ({
+    ...state,
+    fsPlayer: {
+      ...(state.fsPlayer || {}),
+      pip: nextPip,
+    },
+  }));
+  event.preventDefault?.();
+  return true;
 }
 
 function fsPlayerHistoryGuardState(state = {}, depth = 1) {
@@ -3085,6 +3228,7 @@ async function applyPlayerQuickTag(playerId = "", context = {}) {
 }
 
 export function handlePointerDown(event, context = {}) {
+  if (startCodePipInteraction(event, context)) return true;
   const target = eventElement(event);
   const drawingSurface = target?.closest?.("[data-video-analysis-drawing-surface]");
   if (drawingSurface) {
@@ -3101,10 +3245,12 @@ export function handlePointerDown(event, context = {}) {
 }
 
 export function handlePointerMove(event, context = {}) {
+  if (updateCodePipInteraction(event, context)) return true;
   return drawingControls(context).updateInteraction(event);
 }
 
 export function handlePointerUp(event, context = {}) {
+  if (finishCodePipInteraction(event, context)) return true;
   return drawingControls(context).finishInteraction(event);
 }
 

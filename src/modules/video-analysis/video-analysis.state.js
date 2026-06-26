@@ -134,6 +134,7 @@ export function createInitialVideoAnalysisState(context = {}) {
     fsPlayer: {
       mode: "standard",
       fullscreen: false,
+      pip: null,
     },
     matrix: {
       mode: "phase-outcome",

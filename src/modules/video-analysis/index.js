@@ -230,9 +230,12 @@ function presentationControls(context = {}) {
 const analysisRoomTabs = Object.freeze([
   { id: "overview", label: "Overview", icon: "overview" },
   { id: "fs-player", label: "FS Player", icon: "play" },
+  { id: "team-performance", label: "Team Performance", icon: "numbers" },
   { id: "presentation", label: "Presentation", icon: "presentation" },
   { id: "match-report", label: "Clip Library", icon: "report" },
 ]);
+
+const TEAM_PERFORMANCE_DASHBOARD_URL = "https://ncskunk-harris.github.io/Team_Match_Performance_Dashboard/";
 
 const analysisRoomTabIcons = Object.freeze({
   overview: `
@@ -257,6 +260,14 @@ const analysisRoomTabIcons = Object.freeze({
       <path d="M9.5 15.5h4"></path>
     </svg>
   `,
+  numbers: `
+    <svg class="analysis-room-tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 19V9"></path>
+      <path d="M12 19V5"></path>
+      <path d="M19 19v-7"></path>
+      <path d="M4 19h16"></path>
+    </svg>
+  `,
   presentation: `
     <svg class="analysis-room-tab-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <rect x="5" y="6" width="14" height="12" rx="2"></rect>
@@ -271,7 +282,7 @@ function renderAnalysisRoomTabIcon(icon) {
 }
 
 function analysisRoomTabEnabled(tab = {}) {
-  return ["overview", "fs-player", "presentation", "match-report"].includes(tab.id);
+  return ["overview", "fs-player", "team-performance", "presentation", "match-report"].includes(tab.id);
 }
 
 function renderAnalysisRoomTabs(activeId = "fs-player") {
@@ -345,6 +356,7 @@ function renderAnalysisRoomHeader(context = {}, activeTabId = "fs-player") {
 
 function activeAnalysisRoomTab(state = {}) {
   if (state.view === "library") return "overview";
+  if (state.activeAnalysisRoomTab === "team-performance") return "team-performance";
   if (state.activeAnalysisRoomTab === "presentation") return "presentation";
   if (state.activeAnalysisRoomTab === "match-report") return "match-report";
   return "fs-player";
@@ -384,6 +396,21 @@ function renderClipLibraryWorkspace(state = {}) {
   return `
     <section class="video-analysis-clip-library-workspace">
       ${renderClipLibrary(state)}
+    </section>
+  `;
+}
+
+function renderTeamPerformanceWorkspace() {
+  return `
+    <section class="analysis-room-team-performance-workspace" aria-label="Team Performance">
+      <iframe
+        class="analysis-room-team-performance-frame"
+        title="Team Performance"
+        src="${escapeHtml(TEAM_PERFORMANCE_DASHBOARD_URL)}"
+        sandbox="allow-scripts allow-modals"
+        referrerpolicy="no-referrer"
+        loading="lazy"
+      ></iframe>
     </section>
   `;
 }
@@ -1335,7 +1362,7 @@ function paint(root, state) {
   root.innerHTML = `
     <section class="analysis-room-shell">
       ${renderAnalysisRoomHeader(runtime?.context || {}, activeTabId)}
-      <section class="analysis-room-tab-panel" aria-label="${escapeHtml(activeTabId === "presentation" ? "Presentation" : activeTabId === "match-report" ? "Clip Library" : activeTabId === "overview" ? "Overview" : "FS Player")}">
+      <section class="analysis-room-tab-panel" aria-label="${escapeHtml(activeTabId === "team-performance" ? "Team Performance" : activeTabId === "presentation" ? "Presentation" : activeTabId === "match-report" ? "Clip Library" : activeTabId === "overview" ? "Overview" : "FS Player")}">
         <section class="video-analysis-shell">
           ${state.message || state.error ? `
             <div class="video-analysis-notifications" aria-live="polite">
@@ -1349,11 +1376,13 @@ function paint(root, state) {
             </div>
           ` : ""}
           ${state.view === "library" ? renderVideoLibrary(displayState) : `
-            ${activeTabId === "presentation"
-              ? renderPresentationWorkspace(state)
-              : activeTabId === "match-report"
-                ? renderClipLibraryWorkspace(displayState)
-                : renderFsPlayerWorkspace(displayState)}
+            ${activeTabId === "team-performance"
+              ? renderTeamPerformanceWorkspace()
+              : activeTabId === "presentation"
+                ? renderPresentationWorkspace(state)
+                : activeTabId === "match-report"
+                  ? renderClipLibraryWorkspace(displayState)
+                  : renderFsPlayerWorkspace(displayState)}
           `}
         </section>
       </section>
@@ -3098,7 +3127,7 @@ export function handleClick(event, context = {}) {
       libraryController().openLibraryView(context);
       return true;
     }
-    if (tabId === "fs-player" || tabId === "presentation" || tabId === "match-report") {
+    if (tabId === "fs-player" || tabId === "team-performance" || tabId === "presentation" || tabId === "match-report") {
       if (tabId !== "fs-player") pauseFsPlayerPlayback(context);
       run.store.update((state) => ({
         ...state,

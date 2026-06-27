@@ -173,6 +173,7 @@ test("idp renderer separates the overview from the player development profile", 
   const profileHtml = renderIdpWorkspace(profileState, staffOptions);
 
   expect(profileHtml).toContain("data-idp-back-overview");
+  expect(profileHtml).toContain('data-idp-profile-view="player-board"');
   expect(profileHtml).toContain('data-idp-profile-view="clip-bank"');
   expect(profileHtml).toContain("idp-profile-menu");
   expect(profileHtml).toContain("idp-stage-actions");
@@ -195,7 +196,8 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("idp-focus-clarity-card");
   expect(profileHtml).toContain("Coach cue");
   expect(profileHtml).not.toContain("Receive under pressure so the player");
-  expect(profileHtml).toContain("IDP Player Board");
+  expect(profileHtml).toContain("Player Board");
+  expect(profileHtml).not.toContain("idp-player-board-panel");
   expect(profileHtml).not.toContain("idp-stage-scoreboard");
   expect(profileHtml).not.toContain("Player development pulse");
   expect(profileHtml).toContain("Success Criteria");
@@ -205,20 +207,14 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("Signal Map");
   expect(profileHtml).toContain("Player Voice");
   expect(profileHtml).toContain("idp-focus-coach-cue");
-  expect(profileHtml).toContain("IDP Player Board");
-  expect(profileHtml).toContain("data-idp-player-board-open");
-  expect(profileHtml).toContain("idp-player-board-boardbar");
-  expect(profileHtml).toContain("idp-player-board-exercise-bank");
-  expect(profileHtml).toContain("idp-player-board-bank-item");
-  expect(profileHtml).toContain("Exercise Bank");
-  expect(profileHtml).toContain("idp-player-board-player-name");
-  expect(profileHtml).toContain("idp-player-board-insight-row");
+  expect(profileHtml).not.toContain("data-idp-player-board-open");
+  expect(profileHtml).not.toContain("idp-player-board-boardbar");
+  expect(profileHtml).not.toContain("idp-player-board-exercise-bank");
   expect(profileHtml).not.toContain("data-session-");
-  expect(profileHtml).toContain("New Exercise");
-  expect(profileHtml).toContain("Edit Board");
-  expect(profileHtml).toContain("Link Clip");
+  expect(profileHtml).not.toContain("New Exercise");
+  expect(profileHtml).not.toContain("Edit Board");
+  expect(profileHtml).not.toContain("Link Clip");
   expect(profileHtml).not.toContain("Progress Pulse");
-  expect(profileHtml).toContain("Add observation");
   expect(profileHtml).toContain("Observations");
   expect(profileHtml).toContain("8 captured signals");
   expect(profileHtml).toContain("Observation eight is visible.");
@@ -266,6 +262,31 @@ test("idp renderer separates the overview from the player development profile", 
   expect(richWorkflowHtml).toContain("5 latest reflections");
   expect(richWorkflowHtml).toContain("5 latest reviews");
   expect((richWorkflowHtml.match(/<span>Show more<\/span>/g) || []).length).toBeGreaterThanOrEqual(4);
+
+  const playerBoardHtml = renderIdpWorkspace({
+    ...profileState,
+    ui: { ...profileState.ui, profileView: "player-board" },
+  }, staffOptions);
+  expect(playerBoardHtml).toContain("idp-profile-player-board-page");
+  expect(playerBoardHtml).toContain("Player Board");
+  expect(playerBoardHtml).toContain("individual exercises");
+  expect(playerBoardHtml).toContain('class="idp-profile-menu"');
+  expect(playerBoardHtml).toContain('data-idp-profile-view="player-board"');
+  expect(playerBoardHtml).toContain('data-idp-profile-view="development"');
+  expect(playerBoardHtml).toContain("IDP Player Board");
+  expect(playerBoardHtml).toContain("data-idp-player-board-open");
+  expect(playerBoardHtml).toContain("idp-player-board-boardbar");
+  expect(playerBoardHtml).toContain("idp-player-board-exercise-bank");
+  expect(playerBoardHtml).toContain("idp-player-board-bank-item");
+  expect(playerBoardHtml).toContain("Exercise Bank");
+  expect(playerBoardHtml).toContain("idp-player-board-player-name");
+  expect(playerBoardHtml).toContain("idp-player-board-insight-row");
+  expect(playerBoardHtml).toContain("New Exercise");
+  expect(playerBoardHtml).toContain("Edit Board");
+  expect(playerBoardHtml).toContain("Link Clip");
+  expect(playerBoardHtml).not.toContain("idp-focus-clarity-card");
+  expect(playerBoardHtml).not.toContain("idp-workflow-board");
+  expect(playerBoardHtml).not.toContain("idp-clip-bank-organizer");
 
   const clipBankHtml = renderIdpWorkspace({
     ...profileState,
@@ -947,9 +968,16 @@ test("idp profile shows Squad-owned inactive IDP status", async () => {
   expect(html).toContain('class="idp-status-pill is-neutral">No Active IDP');
   expect(html).toContain("IDP is inactive from Squad Room");
   expect(html).toContain("No active IDP");
-  expect(html).toContain("No IDP action required");
   expect(html).not.toContain("Old active focus");
   expect(html).not.toContain("data-idp-action=\"focus\"");
+
+  const playerBoardHtml = renderIdpWorkspace(
+    { ...state, ui: { ...state.ui, selectedPlayerId: "p-injured", profileView: "player-board" } },
+    { canEdit: true, users: [] }
+  );
+  expect(playerBoardHtml).toContain("idp-profile-player-board-page");
+  expect(playerBoardHtml).toContain("No IDP action required");
+  expect(playerBoardHtml).not.toContain("Old active focus");
 });
 
 test("fs player syncs saved player clips to idp clip bank through the server boundary", () => {

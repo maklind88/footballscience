@@ -5012,43 +5012,66 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
 .idp-profile-menu {
   align-items: center;
   display: flex;
-  gap: 6px;
+  gap: 4px;
   justify-content: flex-start;
-  margin: -2px 0 8px;
-  min-height: 32px;
+  margin: 4px 0 14px;
+  max-width: 100%;
+  min-height: 40px;
   overflow-x: auto;
-  padding: 0 2px;
+  padding: 5px;
+  width: fit-content;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .94), rgba(248, 250, 252, .86)),
+    rgba(255, 255, 255, .92);
+  border: 1px solid rgba(17, 24, 39, .1);
+  border-radius: 999px;
+  box-shadow: 0 14px 34px rgba(16, 24, 40, .09), inset 0 1px 0 rgba(255, 255, 255, .9);
+  backdrop-filter: blur(18px);
 }
 
 .idp-profile-menu button {
   align-items: center;
-  background: rgba(255, 255, 255, .82);
-  border: 1px solid rgba(17, 24, 39, .08);
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 999px;
-  box-shadow: 0 8px 20px rgba(16, 24, 40, .05);
-  color: #344054;
+  box-shadow: none;
+  color: #475467;
   cursor: pointer;
   display: inline-flex;
   font: inherit;
-  font-size: .78rem;
-  font-weight: 780;
+  font-size: .76rem;
+  font-weight: 880;
   justify-content: center;
-  min-height: 30px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 14px;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
   white-space: nowrap;
 }
 
 .idp-profile-menu button:hover,
-.idp-profile-menu button:focus-visible,
-.idp-profile-menu button.is-active {
+.idp-profile-menu button:focus-visible {
   background: #fff;
-  border-color: rgba(15, 118, 110, .22);
-  color: #0f766e;
+  border-color: rgba(17, 24, 39, .08);
+  color: #101828;
+  box-shadow: 0 8px 18px rgba(16, 24, 40, .08);
   outline: none;
 }
 
 .idp-profile-menu button.is-active {
-  box-shadow: 0 8px 20px rgba(15, 118, 110, .1), inset 0 0 0 1px rgba(15, 118, 110, .1);
+  background: #101828;
+  border-color: #101828;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(16, 24, 40, .16);
+}
+
+.idp-profile-menu button[data-idp-back-overview] {
+  color: #344054;
+}
+
+.idp-profile-menu button[data-idp-back-overview]:hover,
+.idp-profile-menu button[data-idp-back-overview]:focus-visible {
+  color: #0f766e;
 }
 
 .idp-profile-subpage {
@@ -5280,6 +5303,10 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   align-items: start;
   gap: 12px;
   grid-template-columns: minmax(0, 1.16fr) minmax(360px, .84fr);
+}
+
+.idp-development-board.is-focus-only {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .idp-focus-story,
@@ -5636,16 +5663,29 @@ body.is-dark-mode .idp-criteria-node strong {
   color: #101828;
 }
 
+body.is-dark-mode .idp-profile-menu {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .9), rgba(241, 245, 249, .82)),
+    rgba(255, 255, 255, .86);
+  border-color: rgba(148, 163, 184, .24);
+}
+
 body.is-dark-mode .idp-profile-menu button {
-  background: rgba(255, 255, 255, .84);
-  border-color: rgba(17, 24, 39, .08);
+  background: transparent;
+  border-color: transparent;
   color: #344054;
 }
 
 body.is-dark-mode .idp-profile-menu button:hover,
 body.is-dark-mode .idp-profile-menu button:focus-visible {
   background: #fff;
-  color: #0f766e;
+  color: #101828;
+}
+
+body.is-dark-mode .idp-profile-menu button.is-active {
+  background: #101828;
+  border-color: #101828;
+  color: #fff;
 }
 
 body.is-dark-mode .idp-profile-experience .idp-section-kicker,
@@ -5807,7 +5847,14 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   }
 
   .idp-profile-menu {
-    margin: -1px 0 7px;
+    margin: 3px 0 10px;
+    width: 100%;
+  }
+
+  .idp-profile-menu button {
+    flex: 1 0 auto;
+    min-width: max-content;
+    padding: 0 11px;
   }
 
   .idp-profile-subpage-head {
@@ -6162,6 +6209,59 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.idp-profile-player-board-page {
+  gap: 14px;
+}
+
+.idp-player-board-page-shell {
+  display: grid;
+  min-width: 0;
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-shell {
+  border-radius: 18px;
+  gap: 12px;
+  padding: 14px;
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-head {
+  align-items: center;
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-head strong {
+  font-size: 1.1rem;
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-head small {
+  max-width: min(42rem, 100%);
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-preview .idp-player-board-surface {
+  gap: 10px;
+  padding: 10px;
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-preview .idp-player-board-canvas {
+  padding-left: 42px;
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-preview .idp-player-board-tool-rail {
+  width: 34px;
+}
+
+.idp-profile-player-board-page .idp-player-board-pitch.session-visual-board {
+  min-height: clamp(300px, 40vw, 500px);
+}
+
+.idp-profile-player-board-page .idp-player-board-actions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.idp-profile-player-board-page .idp-player-board-actions button {
+  min-width: 0;
+  white-space: normal;
 }
 
 .idp-player-board-canvas-wrap {

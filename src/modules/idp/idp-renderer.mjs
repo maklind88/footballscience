@@ -666,14 +666,19 @@ function renderStageQuickActions(canEdit = false, focusId = "", idpInactive = fa
 }
 
 function normalizeProfileView(value = "") {
-  return value === "clip-bank" ? "clip-bank" : "development";
+  if (value === "clip-bank") return "clip-bank";
+  if (value === "player-board") return "player-board";
+  return "development";
 }
 
 function renderProfileMenu(profileView = "development") {
-  const isClipBank = normalizeProfileView(profileView) === "clip-bank";
+  const normalizedView = normalizeProfileView(profileView);
+  const isPlayerBoard = normalizedView === "player-board";
+  const isClipBank = normalizedView === "clip-bank";
   return `
     <nav class="idp-profile-menu" aria-label="Player profile navigation">
       <button type="button" data-idp-back-overview>Overview</button>
+      <button type="button" class="${isPlayerBoard ? "is-active" : ""}" data-idp-profile-view="player-board" aria-pressed="${isPlayerBoard ? "true" : "false"}">Player Board</button>
       <button type="button" class="${isClipBank ? "is-active" : ""}" data-idp-profile-view="clip-bank" aria-pressed="${isClipBank ? "true" : "false"}">Clip Bank</button>
     </nav>
   `;
@@ -985,6 +990,25 @@ function renderProfileClipBankPage(detail = {}, canEdit = false, ui = {}) {
   `;
 }
 
+function renderProfilePlayerBoardPage(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}) {
+  const playerName = normalizeText(profile.playerName || profile.name, "Player");
+  return `
+    <section class="idp-profile-subpage idp-profile-player-board-page">
+      <div class="idp-profile-subpage-head">
+        <div>
+          <span>Player Board</span>
+          <strong>${escapeHtml(playerName)} individual exercises</strong>
+          <small>Create player-specific interventions, draw the exercise and keep clips, notes and frames tied to this IDP.</small>
+        </div>
+        <button type="button" data-idp-profile-view="development">Player Profile</button>
+      </div>
+      <div class="idp-player-board-page-shell">
+        ${renderIdpPlayerBoardPanel(detail, focus, profile, pulse, nextAction, canEdit, ui)}
+      </div>
+    </section>
+  `;
+}
+
 function renderWorkflowMore(items = [], renderItem = () => "", summaryAttributes = "") {
   if (!items.length) return "";
   return `
@@ -1183,8 +1207,20 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
       </header>
       ${idpInactive ? `<div class="idp-notice is-warning">IDP is inactive from Squad Room. Historical observations, clips and ownership remain visible here.</div>` : ""}
       ${renderProfileMenu(profileView)}
-      ${profileView === "clip-bank" ? renderProfileClipBankPage(detail, canEdit && !idpInactive, state.ui || {}) : `
-      <section class="idp-development-board">
+      ${profileView === "clip-bank"
+        ? renderProfileClipBankPage(detail, canEdit && !idpInactive, state.ui || {})
+        : profileView === "player-board"
+          ? renderProfilePlayerBoardPage(
+            detail,
+            focus || {},
+            profile,
+            pulse,
+            idpInactive ? { title: "No IDP action required", dueOn: "Paused" } : nextAction,
+            canEdit && !idpInactive,
+            state.ui || {}
+          )
+          : `
+      <section class="idp-development-board is-focus-only">
         <article class="idp-focus-story idp-focus-clarity-card">
           <div class="idp-focus-clarity-head">
             <div>
@@ -1210,15 +1246,6 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
           <div class="idp-section-kicker">Success Criteria</div>
           ${renderCriteriaTrack(criteria)}
         </article>
-        ${renderIdpPlayerBoardPanel(
-          detail,
-          focus || {},
-          profile,
-          pulse,
-          idpInactive ? { title: "No IDP action required", dueOn: "Paused" } : nextAction,
-          canEdit && !idpInactive,
-          state.ui || {}
-        )}
       </section>
       <section class="idp-workflow-board">
         ${renderProfileSignalStream(detail, canEdit && !idpInactive)}

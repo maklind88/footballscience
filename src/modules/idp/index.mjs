@@ -554,7 +554,8 @@ export function handleClick(event) {
   if (profileViewTrigger) {
     event?.preventDefault?.();
     revokePreviewUrl(runtime);
-    const profileView = profileViewTrigger.dataset.idpProfileView === "clip-bank" ? "clip-bank" : "development";
+    const requestedProfileView = profileViewTrigger.dataset.idpProfileView || "";
+    const profileView = ["clip-bank", "player-board"].includes(requestedProfileView) ? requestedProfileView : "development";
     runtime?.store.setState({
       ui: {
         profileView,

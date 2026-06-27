@@ -25,6 +25,12 @@ const idpTables = [
   "idp_audit_events",
 ];
 
+const idpOptionalTables = [
+  "idp_development_interventions",
+  "idp_development_goals",
+  "idp_goal_checkins",
+];
+
 test("idp schema creates additive team-scoped tables with RLS and service-role API access", () => {
   for (const tableName of idpTables) {
     expect(migration).toContain(`create table if not exists public.${tableName}`);
@@ -48,6 +54,26 @@ test("idp schema protects data retention and avoids storing raw video or image p
   expect(migration).toContain("idp_clip_bank_unique_active_clip_idx");
   expect(migration).toContain("idp_next_actions_active_type_idx");
   expect(migration).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea|data:image)\b/i);
+});
+
+test("idp goal schema is additive, soft-deleted and indexed for player room workflows", () => {
+  const goalMigration = fs.readFileSync(path.join(rootDir, "supabase/migrations/20260627030412_idp_development_goals.sql"), "utf8");
+  for (const tableName of idpOptionalTables.slice(1)) {
+    expect(goalMigration).toContain(`create table if not exists public.${tableName}`);
+    expect(goalMigration).toContain(`alter table public.${tableName} enable row level security`);
+    expect(goalMigration).toContain(`revoke all on public.${tableName} from anon, authenticated`);
+    expect(goalMigration).toContain(`grant select, insert, update, delete on public.${tableName} to service_role`);
+  }
+
+  expect(goalMigration).toContain("goal_role text not null default 'supporting'");
+  expect(goalMigration).toContain("metric_type text not null default 'observation'");
+  expect(goalMigration).toContain("baseline_value numeric(10,2)");
+  expect(goalMigration).toContain("target_value numeric(10,2)");
+  expect(goalMigration).toContain("idp_development_goals_player_status_idx");
+  expect(goalMigration).toContain("idp_goal_checkins_goal_recent_idx");
+  expect(goalMigration).toContain("idp_development_goals_prevent_hard_delete");
+  expect(goalMigration).toContain("idp_goal_checkins_prevent_hard_delete");
+  expect(goalMigration).toContain("add column if not exists goal_id");
 });
 
 test("idp focus and evidence lifecycle values are constrained", () => {

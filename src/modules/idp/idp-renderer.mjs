@@ -2,6 +2,10 @@ import {
   idpDevelopmentCategories,
   idpEvidenceTypes,
   idpFocusStatuses,
+  idpGoalCadences,
+  idpGoalMetricTypes,
+  idpGoalRoles,
+  idpGoalStatuses,
 } from "./constants/idp-options.mjs";
 import {
   renderClipBankOrganizer,
@@ -22,6 +26,7 @@ const defaultUiState = Object.freeze({
   profileView: "development",
   clipBankSearchQuery: "",
   actionMode: "",
+  editGoalId: "",
   message: "",
   error: "",
   loading: false,
@@ -585,6 +590,124 @@ function buildSuccessCriteria(detail = {}, focus = null, profile = {}, idpInacti
   ];
 }
 
+function goalRoleLabel(role = "supporting") {
+  return {
+    primary: "Primary",
+    supporting: "Supporting",
+    leadership: "Leadership",
+  }[normalizeText(role, "supporting").toLowerCase()] || "Supporting";
+}
+
+function goalMetricLabel(type = "observation") {
+  return normalizeText(type, "observation").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function activeGoals(detail = {}) {
+  return (Array.isArray(detail.goals) ? detail.goals : [])
+    .filter((goal) => goal && goal.status !== "archived")
+    .sort((a, b) => {
+      const roleOrder = { primary: 0, supporting: 1, leadership: 2 };
+      const first = roleOrder[a.goalRole] ?? 3;
+      const second = roleOrder[b.goalRole] ?? 3;
+      return first - second || String(a.dueOn || a.updatedAt || "").localeCompare(String(b.dueOn || b.updatedAt || ""));
+    });
+}
+
+function goalCheckins(detail = {}, goalId = "") {
+  return newestFirst(detail.goalCheckins || [], ["checkinOn", "createdAt"])
+    .filter((item) => item.goalId === goalId);
+}
+
+function numericGoalValue(value) {
+  if (value === "" || value === null || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function formatGoalValue(value, unit = "") {
+  const number = numericGoalValue(value);
+  if (number === null) return "-";
+  const formatted = Number.isInteger(number) ? String(number) : String(Math.round(number * 10) / 10);
+  return unit ? `${formatted}${unit}` : formatted;
+}
+
+function goalProgress(goal = {}) {
+  const current = numericGoalValue(goal.currentValue);
+  const target = numericGoalValue(goal.targetValue);
+  if (current === null || target === null || target === 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((current / target) * 100)));
+}
+
+function renderGoalCard(goal = {}, detail = {}, canEdit = false, options = {}) {
+  const checkins = goalCheckins(detail, goal.id);
+  const latest = checkins[0] || {};
+  const progress = goalProgress(goal);
+  const role = goalRoleLabel(goal.goalRole);
+  const isLeadership = goal.goalRole === "leadership" || goal.category === "Leadership";
+  return `
+    <article class="idp-goal-card${isLeadership ? " is-leadership" : ""}">
+      <header>
+        <div>
+          <span>${escapeHtml(role)} / ${escapeHtml(goal.category || "Tactical")}</span>
+          <strong>${escapeHtml(goal.title || "Development goal")}</strong>
+        </div>
+        <small class="idp-goal-status is-${escapeHtml(statusTone(goal.status || "active"))}">${escapeHtml(goal.status || "active")}</small>
+      </header>
+      ${goal.description ? `<p>${escapeHtml(goal.description)}</p>` : ""}
+      <div class="idp-goal-meter" aria-label="Goal progress">
+        <span style="width:${progress}%"></span>
+      </div>
+      <div class="idp-goal-metrics">
+        <span><small>Metric</small><strong>${escapeHtml(goal.metricLabel || goalMetricLabel(goal.metricType))}</strong></span>
+        <span><small>Now</small><strong>${escapeHtml(formatGoalValue(goal.currentValue, goal.unit))}</strong></span>
+        <span><small>Target</small><strong>${escapeHtml(formatGoalValue(goal.targetValue, goal.unit))}</strong></span>
+        <span><small>Cadence</small><strong>${escapeHtml(goal.cadence || "weekly")}</strong></span>
+      </div>
+      <div class="idp-goal-footer">
+        <small>${escapeHtml(latest.note ? `Latest: ${latest.note}` : latest.checkinOn ? `Last check-in ${formatShortDate(latest.checkinOn)}` : goal.dueOn ? `Due ${formatShortDate(goal.dueOn)}` : "No check-in yet")}</small>
+        ${canEdit ? `
+          <div class="idp-goal-actions">
+            <button type="button" data-idp-goal-checkin="${escapeHtml(goal.id)}">Check-in</button>
+            <button type="button" data-idp-edit-goal="${escapeHtml(goal.id)}">Edit</button>
+            <button type="button" data-idp-archive-goal="${escapeHtml(goal.id)}">Archive</button>
+          </div>
+        ` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function renderGoalEmpty(canEdit = false) {
+  return `
+    <div class="idp-goals-empty">
+      <strong>No development goals yet</strong>
+      <span>Create 1-2 measurable goals plus one leadership responsibility for this player.</span>
+      ${canEdit ? `<button type="button" data-idp-action="goal">Create goal</button>` : ""}
+    </div>
+  `;
+}
+
+function renderGoalsSnapshot(detail = {}, canEdit = false, options = {}) {
+  const goals = activeGoals(detail);
+  const visibleGoals = goals.slice(0, 3);
+  return `
+    <section class="idp-goals-snapshot" aria-label="Player development goals">
+      <div class="idp-profile-subsection-head">
+        <div>
+          <span>Goals & Responsibility</span>
+          <strong>${escapeHtml(goals.length ? `${goals.length} active goal${goals.length === 1 ? "" : "s"}` : "No active goals")}</strong>
+        </div>
+        ${canEdit ? `<button type="button" data-idp-action="goal">New Goal</button>` : ""}
+      </div>
+      <div class="idp-goals-grid">
+        ${visibleGoals.length
+          ? visibleGoals.map((goal) => renderGoalCard(goal, detail, canEdit, options)).join("")
+          : renderGoalEmpty(canEdit)}
+      </div>
+    </section>
+  `;
+}
+
 function lensCounts(detail = {}, focus = null) {
   const counts = new Map([
     ["Technical", 0],
@@ -658,6 +781,8 @@ function renderStageQuickActions(canEdit = false, focusId = "", idpInactive = fa
       <div class="idp-stage-actions-menu" role="menu" aria-label="Quick actions">
         <button type="button" data-idp-action="ownership" role="menuitem">Assign Coach</button>
         <button type="button" data-idp-action="focus" role="menuitem">Update Focus</button>
+        <button type="button" data-idp-action="goal" role="menuitem">New Goal</button>
+        <button type="button" data-idp-action="leadership-goal" role="menuitem">Leadership Goal</button>
         <button type="button" data-idp-action="evidence" role="menuitem">Add Observation</button>
         <button type="button" data-idp-action="review" role="menuitem" ${focusId ? "" : "disabled aria-disabled=\"true\""}>Complete Review</button>
       </div>
@@ -668,16 +793,19 @@ function renderStageQuickActions(canEdit = false, focusId = "", idpInactive = fa
 function normalizeProfileView(value = "") {
   if (value === "clip-bank") return "clip-bank";
   if (value === "player-board") return "player-board";
+  if (value === "goals") return "goals";
   return "development";
 }
 
 function renderProfileMenu(profileView = "development") {
   const normalizedView = normalizeProfileView(profileView);
+  const isGoals = normalizedView === "goals";
   const isPlayerBoard = normalizedView === "player-board";
   const isClipBank = normalizedView === "clip-bank";
   return `
     <nav class="idp-profile-menu" aria-label="Player profile navigation">
       <button type="button" data-idp-back-overview>Overview</button>
+      <button type="button" class="${isGoals ? "is-active" : ""}" data-idp-profile-view="goals" aria-pressed="${isGoals ? "true" : "false"}">Goals</button>
       <button type="button" class="${isPlayerBoard ? "is-active" : ""}" data-idp-profile-view="player-board" aria-pressed="${isPlayerBoard ? "true" : "false"}">Player Board</button>
       <button type="button" class="${isClipBank ? "is-active" : ""}" data-idp-profile-view="clip-bank" aria-pressed="${isClipBank ? "true" : "false"}">Clip Bank</button>
     </nav>
@@ -787,6 +915,99 @@ function renderReviewForm(focus = null) {
   `;
 }
 
+function goalFormValue(value = "") {
+  return value === null || value === undefined ? "" : String(value);
+}
+
+function renderGoalForm(detail = {}, focus = null, goal = null, mode = "goal") {
+  const goalId = goal?.id || "";
+  const isLeadership = mode === "leadership-goal" || goal?.goalRole === "leadership" || goal?.category === "Leadership";
+  const selectedRole = goal?.goalRole || (isLeadership ? "leadership" : "supporting");
+  const selectedCategory = goal?.category || (isLeadership ? "Leadership" : focus?.category || "Tactical");
+  const focusId = goal?.focusId || (focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "");
+  return `
+    <form class="idp-action-form" data-idp-save-goal>
+      <input type="hidden" name="goalId" value="${escapeHtml(goalId)}">
+      <input type="hidden" name="focusId" value="${escapeHtml(focusId)}">
+      <input type="hidden" name="rowVersion" value="${escapeHtml(goal?.rowVersion || 1)}">
+      <label>
+        <span>Goal type</span>
+        <select name="goalRole">${optionList(idpGoalRoles, selectedRole, goalRoleLabel)}</select>
+      </label>
+      <label>
+        <span>Category</span>
+        <select name="category">${optionList(idpDevelopmentCategories, selectedCategory)}</select>
+      </label>
+      <label class="idp-form-wide">
+        <span>Goal</span>
+        <input name="title" value="${escapeHtml(goal?.title || (isLeadership ? "Own the next on-pitch action" : ""))}" placeholder="Measurable player goal" required>
+      </label>
+      <label class="idp-form-wide">
+        <span>Why it matters</span>
+        <textarea name="description" rows="3" placeholder="What should change in the player's game?">${escapeHtml(goal?.description || "")}</textarea>
+      </label>
+      <label>
+        <span>Metric</span>
+        <input name="metricLabel" value="${escapeHtml(goal?.metricLabel || (isLeadership ? "Leadership moments" : "Coach observations"))}" placeholder="Metric label">
+      </label>
+      <label>
+        <span>Metric type</span>
+        <select name="metricType">${optionList(idpGoalMetricTypes, goal?.metricType || "observation", goalMetricLabel)}</select>
+      </label>
+      <div class="idp-form-grid">
+        <label><span>Baseline</span><input name="baselineValue" type="number" step="0.01" value="${escapeHtml(goalFormValue(goal?.baselineValue))}"></label>
+        <label><span>Current</span><input name="currentValue" type="number" step="0.01" value="${escapeHtml(goalFormValue(goal?.currentValue))}"></label>
+        <label><span>Target</span><input name="targetValue" type="number" step="0.01" value="${escapeHtml(goalFormValue(goal?.targetValue || (isLeadership ? 2 : 3)))}"></label>
+        <label><span>Unit</span><input name="unit" value="${escapeHtml(goal?.unit || "")}" placeholder="%, reps, /10"></label>
+      </div>
+      <div class="idp-form-grid">
+        <label><span>Cadence</span><select name="cadence">${optionList(idpGoalCadences, goal?.cadence || "weekly")}</select></label>
+        <label><span>Due</span><input name="dueOn" type="date" value="${escapeHtml(goal?.dueOn || "")}"></label>
+        <label><span>Status</span><select name="status">${optionList(idpGoalStatuses, goal?.status || "active")}</select></label>
+      </div>
+      <div class="idp-action-form-actions">
+        <button type="button" class="idp-secondary-action" data-idp-close-action>Cancel</button>
+        <button type="submit">Save goal</button>
+      </div>
+    </form>
+  `;
+}
+
+function renderGoalCheckinForm(goal = null) {
+  if (!goal?.id) {
+    return `<div class="idp-empty-signal">Choose a development goal first.</div>`;
+  }
+  return `
+    <form class="idp-action-form" data-idp-add-goal-checkin>
+      <input type="hidden" name="goalId" value="${escapeHtml(goal.id)}">
+      <label>
+        <span>Current value</span>
+        <input name="value" type="number" step="0.01" value="${escapeHtml(goalFormValue(goal.currentValue))}">
+      </label>
+      <label>
+        <span>Confidence</span>
+        <input name="confidence" type="number" min="1" max="5" step="1" placeholder="1-5">
+      </label>
+      <label>
+        <span>Status</span>
+        <select name="statusSnapshot">${optionList(idpGoalStatuses, goal.status || "active")}</select>
+      </label>
+      <label>
+        <span>Date</span>
+        <input name="checkinOn" type="date" value="${escapeHtml(new Date().toISOString().slice(0, 10))}">
+      </label>
+      <label class="idp-form-wide">
+        <span>Check-in note</span>
+        <textarea name="note" rows="3" placeholder="What did the player show?"></textarea>
+      </label>
+      <div class="idp-action-form-actions">
+        <button type="button" class="idp-secondary-action" data-idp-close-action>Cancel</button>
+        <button type="submit">Add check-in</button>
+      </div>
+    </form>
+  `;
+}
+
 function renderOwnershipForm(detail = {}, focus = null, options = {}) {
   const profile = detail.profile || {};
   const focusId = focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "";
@@ -815,9 +1036,16 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
   const editingEvidence = mode === "edit-evidence"
     ? (state.playerDetail?.evidence || []).find((item) => item.id === state.ui?.editEvidenceId) || null
     : null;
+  const editingGoal = ["edit-goal", "goal-checkin"].includes(mode)
+    ? (state.playerDetail?.goals || []).find((item) => item.id === state.ui?.editGoalId) || null
+    : null;
   const copy = {
     ownership: ["Assign IDP Coach", "Choose who owns this player's development follow-up."],
     focus: ["Update focus", "Change the player's current development priority, status, and review date."],
+    goal: ["Create development goal", "Set a measurable outcome or behavior that supports this player's IDP."],
+    "edit-goal": ["Edit development goal", "Adjust the target, measurement or cadence without losing goal history."],
+    "goal-checkin": ["Goal check-in", "Log the latest progress signal for this goal."],
+    "leadership-goal": ["Create leadership goal", "Define the player's on-pitch responsibility, communication or ownership behavior."],
     evidence: ["Add observation", "Capture a coach note, clip review, test result, or meeting signal for this focus."],
     "edit-evidence": ["Edit observation", "Update the coaching signal without creating a duplicate note."],
     review: ["Complete review", "Close the current review loop and set the next action."],
@@ -831,9 +1059,15 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
       ? renderEvidenceForm(focus)
       : mode === "edit-evidence"
         ? renderEvidenceForm(focus, editingEvidence)
-      : mode === "review"
-        ? renderReviewForm(focus)
-        : renderFocusForm(focus);
+      : mode === "goal" || mode === "leadership-goal"
+        ? renderGoalForm(state.playerDetail, focus, null, mode)
+        : mode === "edit-goal"
+          ? renderGoalForm(state.playerDetail, focus, editingGoal, mode)
+          : mode === "goal-checkin"
+            ? renderGoalCheckinForm(editingGoal)
+            : mode === "review"
+              ? renderReviewForm(focus)
+              : renderFocusForm(focus);
   return `
     <section class="idp-action-layer" data-idp-action-layer role="presentation">
       <article class="idp-action-dialog" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
@@ -1005,6 +1239,61 @@ function renderProfilePlayerBoardPage(detail = {}, focus = {}, profile = {}, pul
       <div class="idp-player-board-page-shell">
         ${renderIdpPlayerBoardPanel(detail, focus, profile, pulse, nextAction, canEdit, ui)}
       </div>
+    </section>
+  `;
+}
+
+function renderProfileGoalsPage(detail = {}, focus = {}, profile = {}, canEdit = false, options = {}) {
+  const goals = activeGoals(detail);
+  const leadershipGoals = goals.filter((goal) => goal.goalRole === "leadership" || goal.category === "Leadership");
+  const developmentGoals = goals.filter((goal) => !(goal.goalRole === "leadership" || goal.category === "Leadership"));
+  const checkinCount = Array.isArray(detail.goalCheckins) ? detail.goalCheckins.length : 0;
+  return `
+    <section class="idp-profile-subpage idp-profile-goals-page">
+      <div class="idp-profile-subpage-head">
+        <div>
+          <span>Goals & Leadership</span>
+          <strong>${escapeHtml(profile.playerName || "Player")} development room</strong>
+          <small>Measurable goals, on-pitch responsibility and progress check-ins for this player's IDP.</small>
+        </div>
+        <div class="idp-profile-subpage-actions">
+          ${canEdit ? `<button type="button" data-idp-action="leadership-goal">Leadership Goal</button>` : ""}
+          ${canEdit ? `<button type="button" data-idp-action="goal">New Goal</button>` : ""}
+          <button type="button" data-idp-profile-view="development">Player Profile</button>
+        </div>
+      </div>
+      <div class="idp-goals-page-summary">
+        <span><strong>${escapeHtml(String(developmentGoals.length))}</strong><small>Development goals</small></span>
+        <span><strong>${escapeHtml(String(leadershipGoals.length))}</strong><small>Leadership goals</small></span>
+        <span><strong>${escapeHtml(String(checkinCount))}</strong><small>Check-ins</small></span>
+        <span><strong>${escapeHtml(formatShortDate(profile.nextReviewOn || focus?.reviewDate, "--"))}</strong><small>Next review</small></span>
+      </div>
+      ${goals.length ? `
+        <div class="idp-goals-board">
+          <section>
+            <div class="idp-profile-subsection-head">
+              <div>
+                <span>Development Goals</span>
+                <strong>${escapeHtml(developmentGoals.length ? "Measurable progress" : "No development goals")}</strong>
+              </div>
+            </div>
+            <div class="idp-goals-grid">
+              ${developmentGoals.length ? developmentGoals.map((goal) => renderGoalCard(goal, detail, canEdit, options)).join("") : renderGoalEmpty(canEdit)}
+            </div>
+          </section>
+          <section>
+            <div class="idp-profile-subsection-head">
+              <div>
+                <span>Leadership & Responsibility</span>
+                <strong>${escapeHtml(leadershipGoals.length ? "On-pitch ownership" : "No leadership goal")}</strong>
+              </div>
+            </div>
+            <div class="idp-goals-grid">
+              ${leadershipGoals.length ? leadershipGoals.map((goal) => renderGoalCard(goal, detail, canEdit, options)).join("") : renderGoalEmpty(canEdit)}
+            </div>
+          </section>
+        </div>
+      ` : renderGoalEmpty(canEdit)}
     </section>
   `;
 }
@@ -1209,6 +1498,8 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
       ${renderProfileMenu(profileView)}
       ${profileView === "clip-bank"
         ? renderProfileClipBankPage(detail, canEdit && !idpInactive, state.ui || {})
+        : profileView === "goals"
+          ? renderProfileGoalsPage(detail, focus || {}, profile, canEdit && !idpInactive, options)
         : profileView === "player-board"
           ? renderProfilePlayerBoardPage(
             detail,
@@ -1247,6 +1538,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
           ${renderCriteriaTrack(criteria)}
         </article>
       </section>
+      ${renderGoalsSnapshot(detail, canEdit && !idpInactive, options)}
       <section class="idp-workflow-board">
         ${renderProfileSignalStream(detail, canEdit && !idpInactive)}
         ${renderProfileTimelineRiver(detail, options)}

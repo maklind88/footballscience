@@ -214,6 +214,8 @@ indexes for active rows.
 | `idp_development_areas` | Category-specific areas: Technical, Tactical, Physical, Psychological, Leadership. |
 | `idp_focuses` | Current and historical focus records with category, focus level, phase/sub-phase, principles, owner, status, evidence status, review date, and completion. |
 | `idp_development_interventions` | Player-owned individual exercise/player-board records linked to one player and focus; owns pitch mode, board state, objective, status, row version, soft delete, and audit path. |
+| `idp_development_goals` | Measurable player goals linked to one player and optional focus; owns goal role, category, metric, target/current values, cadence, due date, status, row version, soft delete, and audit path. |
+| `idp_goal_checkins` | Progress check-ins linked to a development goal; owns value, confidence, note, status snapshot, check-in date, row version, soft delete, and audit path. |
 | `idp_clip_bank_items` | References player and `video_clip_instances`; owns IDP status only: New, Reviewed, Linked To Focus, Marked As Evidence, Archived, Hidden. |
 | `idp_evidence` | Curated proof linked to player/focus with structured source module/table/id and short bounded notes. |
 | `idp_reviews` | Lightweight progress review with evidence summary, coach note, optional player response, next action, and status change. |
@@ -231,6 +233,11 @@ indexes for active rows.
 - Clip bank: `(team_id, player_id, status, created_at desc)`.
 - Evidence: `(focus_id, created_at desc)` and `(team_id, player_id,
   created_at desc)`.
+- Development goals: `(team_id, player_id, status, due_on, updated_at desc)`
+  partial where active, plus `(focus_id, status, updated_at desc)` for focus
+  rooms.
+- Goal check-ins: `(goal_id, checkin_on desc, created_at desc)` partial where
+  active, plus player recency for room summaries.
 - Automation idempotency: unique active index on `(player_id, clip_instance_id)`
   for `idp_clip_bank_items` where not deleted.
 
@@ -240,8 +247,9 @@ Client state should be a thin view model, not the source of truth.
 
 - `idp-state.mjs`: local UI filters, selected player id, active panel, loading
   state, optimistic command status.
-- `idp-store.mjs`: normalized cache of profiles, focuses, clip bank items,
-  evidence, reviews, next actions, and milestones returned by the API.
+- `idp-store.mjs`: normalized cache of profiles, focuses, goals, goal
+  check-ins, clip bank items, evidence, reviews, next actions, and milestones
+  returned by the API.
 - `idp-adapter.mjs`: read boundary for legacy Squad IDP fields during migration.
 - Server/database remains authoritative for IDP records.
 - Browser localStorage may cache view preferences only; it must not become hidden
@@ -267,6 +275,8 @@ IDP owns:
   development areas
   focuses
   individual development interventions / player boards
+  measurable development goals
+  goal check-ins
   clip-bank review status
   curated evidence links
   reviews

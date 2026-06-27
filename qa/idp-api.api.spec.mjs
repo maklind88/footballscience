@@ -102,6 +102,23 @@ test("idp api exposes a central sync revision endpoint", () => {
   expect(typeof api.buildSyncMeta).toBe("function");
 });
 
+test("idp api exposes server-owned development goals and check-ins", () => {
+  const source = fs.readFileSync(new URL("../api/_lib/idp-database.js", import.meta.url), "utf8");
+  expect(source).toContain('action === "create-goal"');
+  expect(source).toContain('action === "update-goal"');
+  expect(source).toContain('action === "archive-goal"');
+  expect(source).toContain('action === "add-goal-checkin"');
+  expect(source).toContain("idp_development_goals");
+  expect(source).toContain("idp_goal_checkins");
+  expect(source).toContain("goal_role");
+  expect(source).toContain("metric_label");
+  expect(source).toContain("development_goal.checkin_added");
+  expect(typeof api.createDevelopmentGoal).toBe("function");
+  expect(typeof api.updateDevelopmentGoal).toBe("function");
+  expect(typeof api.archiveDevelopmentGoal).toBe("function");
+  expect(typeof api.addGoalCheckin).toBe("function");
+});
+
 test("idp clip bank enriches player clips with video metadata without storing local paths", () => {
   const source = [
     fs.readFileSync(new URL("../api/_lib/idp-database.js", import.meta.url), "utf8"),

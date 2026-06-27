@@ -415,6 +415,16 @@ function renderPitchModeOptions(selected = "half") {
   `).join("");
 }
 
+function renderGoalOptions(detail = {}, selected = "") {
+  const goals = Array.isArray(detail.goals) ? detail.goals.filter((goal) => goal.status !== "archived") : [];
+  return [
+    `<option value="">No linked goal</option>`,
+    ...goals.map((goal) => `
+      <option value="${escapeHtml(goal.id)}"${goal.id === selected ? " selected" : ""}>${escapeHtml(`${goal.goalRole === "leadership" ? "Leadership" : "Goal"} / ${goal.title || "Development goal"}`)}</option>
+    `),
+  ].join("");
+}
+
 function selectedEditorIntervention(detail = {}, focus = {}, profile = {}, ui = {}) {
   const selected = activeIntervention(detail, ui);
   return ui.playerBoardInterventionId === "__new" || !selected ? draftIntervention(profile, focus) : selected;
@@ -597,6 +607,10 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
                 <select name="pitchMode">${renderPitchModeOptions(intervention.pitchMode || "half")}</select>
               </label>
               <label>
+                <span>Linked goal</span>
+                <select name="goalId">${renderGoalOptions(detail, intervention.goalId || "")}</select>
+              </label>
+              <label>
                 <span>Movement colour</span>
                 <div class="session-tacticalboard-colour-row idp-player-board-color-row">
                   <input name="arrowColor" type="color" value="${fieldValue(arrowColor)}" data-idp-board-color-input>
@@ -616,6 +630,8 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
               <strong>Active Individual Exercise</strong>
               <label><span>Title</span><input name="title" value="${fieldValue(intervention.title, "Individual exercise")}" autocomplete="off"></label>
               <label><span>Objective</span><textarea name="objective" rows="3">${fieldValue(intervention.objective || focus?.description || "")}</textarea></label>
+              <label><span>Coaching cue</span><textarea name="coachingCue" rows="2">${fieldValue(intervention.coachingCue || "")}</textarea></label>
+              <label><span>Success criteria</span><textarea name="successCriteria" rows="2" placeholder="One criterion per line">${fieldValue(Array.isArray(intervention.successCriteria) ? intervention.successCriteria.join("\n") : "")}</textarea></label>
               <div class="idp-player-board-form-grid">
                 <label><span>Status</span><select name="status">
                   ${["draft", "active", "review", "completed"].map((status) => `<option value="${status}"${status === intervention.status ? " selected" : ""}>${escapeHtml(status)}</option>`).join("")}

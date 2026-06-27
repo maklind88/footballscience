@@ -19,6 +19,10 @@ const FOCUS_STATUSES = new Set(["Draft", "Active", "Needs Evidence", "Ready For 
 const CLIP_STATUSES = new Set(["New", "Reviewed", "Linked To Focus", "Marked As Evidence", "Archived", "Hidden"]);
 const INTERVENTION_STATUSES = new Set(["draft", "active", "review", "completed", "archived"]);
 const PITCH_MODES = new Set(["full", "half", "final-third", "box"]);
+const GOAL_ROLES = new Set(["primary", "supporting", "leadership"]);
+const GOAL_METRIC_TYPES = new Set(["observation", "count", "percentage", "rating", "time", "distance", "custom"]);
+const GOAL_CADENCES = new Set(["daily", "weekly", "biweekly", "monthly", "review"]);
+const GOAL_STATUSES = new Set(["draft", "active", "at_risk", "achieved", "paused", "archived"]);
 const EVIDENCE_TYPES = new Set([
   "Video Clip",
   "Coach Note",
@@ -41,8 +45,10 @@ const SYNC_TABLES = Object.freeze([
   { table: "idp_milestones", column: "created_at" },
   { table: "idp_staff_ownership", column: "updated_at" },
   { table: "idp_development_interventions", column: "updated_at" },
+  { table: "idp_development_goals", column: "updated_at" },
+  { table: "idp_goal_checkins", column: "updated_at" },
 ]);
-const OPTIONAL_MIGRATION_TABLES = new Set(["idp_development_interventions"]);
+const OPTIONAL_MIGRATION_TABLES = new Set(["idp_development_interventions", "idp_development_goals", "idp_goal_checkins"]);
 
 function isMissingOptionalTable(table, result) {
   if (!OPTIONAL_MIGRATION_TABLES.has(table) || result?.ok) return false;
@@ -95,9 +101,46 @@ function normalizePitchMode(value, fallback = "half") {
   return PITCH_MODES.has(mode) ? mode : fallback;
 }
 
+function normalizeGoalRole(value, fallback = "supporting") {
+  const role = normalizeText(value, 40).toLowerCase();
+  return GOAL_ROLES.has(role) ? role : fallback;
+}
+
+function normalizeGoalMetricType(value, fallback = "observation") {
+  const metricType = normalizeText(value, 40).toLowerCase();
+  return GOAL_METRIC_TYPES.has(metricType) ? metricType : fallback;
+}
+
+function normalizeGoalCadence(value, fallback = "weekly") {
+  const cadence = normalizeText(value, 40).toLowerCase();
+  return GOAL_CADENCES.has(cadence) ? cadence : fallback;
+}
+
+function normalizeGoalStatus(value, fallback = "active") {
+  const status = normalizeText(value, 40).toLowerCase();
+  return GOAL_STATUSES.has(status) ? status : fallback;
+}
+
 function normalizeRowVersion(value) {
   const version = Number(value);
   return Number.isInteger(version) && version > 0 ? version : 0;
+}
+
+function normalizeOptionalNumeric(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.round(number * 100) / 100 : null;
+}
+
+function normalizeConfidence(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return null;
+  return Math.min(5, Math.max(1, Math.round(number)));
+}
+
+function normalizeTextList(value, maxItems = 6, maxLength = 160) {
+  const source = Array.isArray(value) ? value : String(value || "").split(/[\n,]+/);
+  return source.map((item) => normalizeText(item, maxLength)).filter(Boolean).slice(0, maxItems);
 }
 
 function clampPercent(value, fallback = 50) {
@@ -212,7 +255,21 @@ function interventionAuditSummary(row = {}) {
     status: normalizeText(row.status, 40),
     pitch_mode: normalizeText(row.pitch_mode, 40),
     focus_id: normalizeText(row.focus_id, 80),
+    goal_id: normalizeText(row.goal_id, 80),
     board: boardStateSummary(row.board_state || {}),
+  };
+}
+
+function goalAuditSummary(row = {}) {
+  return {
+    title: normalizeText(row.title, 180),
+    status: normalizeText(row.status, 40),
+    goal_role: normalizeText(row.goal_role, 40),
+    category: normalizeText(row.category, 40),
+    metric_label: normalizeText(row.metric_label, 160),
+    current_value: row.current_value ?? null,
+    target_value: row.target_value ?? null,
+    due_on: normalizeText(row.due_on, 40),
   };
 }
 
@@ -370,7 +427,7 @@ async function getPlayerDevelopment(query, actor) {
   if (!playerId) return { ok: false, status: 400, reason: "playerId is required." };
   const sync = await buildSyncMeta(scope, playerId);
   if (!sync.ok) return sync;
-  const [profiles, focuses, clipBank, evidence, reviews, actions, milestones, ownership, interventions] = await Promise.all([
+  const [profiles, focuses, clipBank, evidence, reviews, actions, milestones, ownership, interventions, goals, goalCheckins] = await Promise.all([
     listByPlayer("idp_profiles", scope, playerId, { limit: 1, order: "updated_at.desc" }),
     listByPlayer("idp_focuses", scope, playerId, { limit: 50, order: "updated_at.desc" }),
     listByPlayer("idp_clip_bank_items", scope, playerId, { limit: 120, order: "created_at.desc" }),
@@ -380,8 +437,10 @@ async function getPlayerDevelopment(query, actor) {
     listByPlayer("idp_milestones", scope, playerId, { notDeleted: false, limit: 80, order: "occurred_on.desc,created_at.desc" }),
     listByPlayer("idp_staff_ownership", scope, playerId, { limit: 60, order: "created_at.desc" }),
     listByPlayer("idp_development_interventions", scope, playerId, { limit: 60, order: "updated_at.desc" }),
+    listByPlayer("idp_development_goals", scope, playerId, { limit: 80, order: "updated_at.desc" }),
+    listByPlayer("idp_goal_checkins", scope, playerId, { limit: 120, order: "checkin_on.desc,created_at.desc" }),
   ]);
-  const failed = [profiles, focuses, clipBank, evidence, reviews, actions, milestones, ownership, interventions].find((result) => !result.ok);
+  const failed = [profiles, focuses, clipBank, evidence, reviews, actions, milestones, ownership, interventions, goals, goalCheckins].find((result) => !result.ok);
   if (failed) return failed;
   const enrichedClipBank = await enrichClipBankItems(clipBank.payload, scope);
   return {
@@ -397,6 +456,8 @@ async function getPlayerDevelopment(query, actor) {
       milestones: milestones.payload,
       ownership: ownership.payload,
       interventions: interventions.payload,
+      goals: goals.payload,
+      goalCheckins: goalCheckins.payload,
       sync: sync.payload,
     },
   };
@@ -424,6 +485,41 @@ async function ensureProfile(scope, playerId, payload = {}) {
     updated_by: scope.actorId,
   });
   return result.ok ? { ok: true, payload: result.payload?.[0] || null } : result;
+}
+
+async function requireOwnedFocus(scope, playerId, focusId) {
+  const safeFocusId = normalizeUuid(focusId);
+  if (!safeFocusId) return { ok: false, status: 400, reason: "focusId is invalid." };
+  const params = buildTeamParams(scope);
+  params.set("select", "*");
+  params.set("id", `eq.${safeFocusId}`);
+  params.set("player_id", `eq.${playerId}`);
+  params.set("deleted_at", "is.null");
+  params.set("limit", "1");
+  const result = await selectRows("idp_focuses", params);
+  if (!result.ok) return result;
+  const focus = result.payload?.[0] || null;
+  return focus
+    ? { ok: true, payload: focus }
+    : { ok: false, status: 404, reason: "Focus was not found for this player." };
+}
+
+async function requireOwnedGoal(scope, playerId, goalId) {
+  const safeGoalId = normalizeUuid(goalId);
+  if (!safeGoalId) return { ok: false, status: 400, reason: "goalId is invalid." };
+  const params = buildTeamParams(scope);
+  params.set("select", "*");
+  params.set("id", `eq.${safeGoalId}`);
+  params.set("player_id", `eq.${playerId}`);
+  params.set("deleted_at", "is.null");
+  params.set("limit", "1");
+  const result = await selectRows("idp_development_goals", params);
+  if (isMissingOptionalTable("idp_development_goals", result)) return { ok: false, status: 404, reason: "Development goal was not found." };
+  if (!result.ok) return result;
+  const goal = result.payload?.[0] || null;
+  return goal
+    ? { ok: true, payload: goal }
+    : { ok: false, status: 404, reason: "Development goal was not found." };
 }
 
 async function createFocus(payload, actor) {
@@ -806,6 +902,264 @@ async function completeReview(payload, actor) {
   return { ok: true, payload: { schema: IDP_SCHEMA, review: result.payload?.[0] || null, sync: sync.ok ? sync.payload : null } };
 }
 
+async function createDevelopmentGoal(payload, actor) {
+  const scope = actorScope(actor);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  const title = normalizeText(payload.title, 180);
+  const metricLabel = normalizeText(payload.metricLabel || payload.metric_label, 160) || "Coach observation";
+  if (!playerId || !title) return { ok: false, status: 400, reason: "playerId and title are required." };
+  const profileResult = await ensureProfile(scope, playerId, payload);
+  if (!profileResult.ok) return profileResult;
+  const focusId = normalizeUuid(payload.focusId || payload.focus_id) || null;
+  if (focusId) {
+    const focusResult = await requireOwnedFocus(scope, playerId, focusId);
+    if (!focusResult.ok) return focusResult;
+  }
+  const result = await insertRow("idp_development_goals", {
+    organization_id: scope.organizationId,
+    club_id: scope.clubId,
+    team_id: scope.teamId,
+    player_id: playerId,
+    profile_id: profileResult.payload.id,
+    focus_id: focusId,
+    goal_role: normalizeGoalRole(payload.goalRole || payload.goal_role),
+    category: normalizeCategory(payload.category),
+    title,
+    description: normalizeNote(payload.description, 1200) || null,
+    metric_label: metricLabel,
+    metric_type: normalizeGoalMetricType(payload.metricType || payload.metric_type),
+    baseline_value: normalizeOptionalNumeric(payload.baselineValue ?? payload.baseline_value),
+    current_value: normalizeOptionalNumeric(payload.currentValue ?? payload.current_value),
+    target_value: normalizeOptionalNumeric(payload.targetValue ?? payload.target_value),
+    unit: normalizeText(payload.unit, 40) || null,
+    cadence: normalizeGoalCadence(payload.cadence),
+    due_on: dateOrNull(payload.dueOn || payload.due_on),
+    status: normalizeGoalStatus(payload.status),
+    created_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  if (!result.ok) return result;
+  const goal = result.payload?.[0] || null;
+  await insertAuditEvent(scope, {
+    playerId,
+    action: "development_goal.created",
+    entityType: "idp_development_goal",
+    entityId: goal?.id,
+    changedFields: ["title", "goal_role", "category", "metric_label", "target_value", "status"],
+    afterSummary: goalAuditSummary(goal),
+  });
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, goal, sync: sync.ok ? sync.payload : null } };
+}
+
+async function updateDevelopmentGoal(payload, actor) {
+  const scope = actorScope(actor);
+  const goalId = normalizeUuid(payload.id || payload.goalId || payload.goal_id);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  const expectedRowVersion = normalizeRowVersion(payload.rowVersion || payload.row_version || payload.expectedRowVersion || payload.expected_row_version);
+  if (!goalId || !playerId || !expectedRowVersion) {
+    return { ok: false, status: 400, reason: "goalId, playerId and rowVersion are required." };
+  }
+  const currentParams = buildTeamParams(scope);
+  currentParams.set("select", "*");
+  currentParams.set("id", `eq.${goalId}`);
+  currentParams.set("player_id", `eq.${playerId}`);
+  currentParams.set("deleted_at", "is.null");
+  currentParams.set("limit", "1");
+  const current = await selectRows("idp_development_goals", currentParams);
+  if (!current.ok) return current;
+  const before = current.payload?.[0] || null;
+  if (!before) return { ok: false, status: 404, reason: "Development goal was not found." };
+  if (Number(before.row_version) !== expectedRowVersion) return { ok: false, status: 409, reason: "Development goal changed elsewhere. Reload and try again." };
+
+  const patch = { updated_by: scope.actorId };
+  const changedFields = [];
+  if ("focusId" in payload || "focus_id" in payload) {
+    patch.focus_id = normalizeUuid(payload.focusId || payload.focus_id) || null;
+    if (patch.focus_id) {
+      const focusResult = await requireOwnedFocus(scope, playerId, patch.focus_id);
+      if (!focusResult.ok) return focusResult;
+    }
+    changedFields.push("focus_id");
+  }
+  if ("goalRole" in payload || "goal_role" in payload) {
+    patch.goal_role = normalizeGoalRole(payload.goalRole || payload.goal_role);
+    changedFields.push("goal_role");
+  }
+  if ("category" in payload) {
+    patch.category = normalizeCategory(payload.category);
+    changedFields.push("category");
+  }
+  if ("title" in payload) {
+    patch.title = normalizeText(payload.title, 180);
+    changedFields.push("title");
+  }
+  if ("description" in payload) {
+    patch.description = normalizeNote(payload.description, 1200) || null;
+    changedFields.push("description");
+  }
+  if ("metricLabel" in payload || "metric_label" in payload) {
+    patch.metric_label = normalizeText(payload.metricLabel || payload.metric_label, 160) || "Coach observation";
+    changedFields.push("metric_label");
+  }
+  if ("metricType" in payload || "metric_type" in payload) {
+    patch.metric_type = normalizeGoalMetricType(payload.metricType || payload.metric_type);
+    changedFields.push("metric_type");
+  }
+  if ("baselineValue" in payload || "baseline_value" in payload) {
+    patch.baseline_value = normalizeOptionalNumeric(payload.baselineValue ?? payload.baseline_value);
+    changedFields.push("baseline_value");
+  }
+  if ("currentValue" in payload || "current_value" in payload) {
+    patch.current_value = normalizeOptionalNumeric(payload.currentValue ?? payload.current_value);
+    changedFields.push("current_value");
+  }
+  if ("targetValue" in payload || "target_value" in payload) {
+    patch.target_value = normalizeOptionalNumeric(payload.targetValue ?? payload.target_value);
+    changedFields.push("target_value");
+  }
+  if ("unit" in payload) {
+    patch.unit = normalizeText(payload.unit, 40) || null;
+    changedFields.push("unit");
+  }
+  if ("cadence" in payload) {
+    patch.cadence = normalizeGoalCadence(payload.cadence);
+    changedFields.push("cadence");
+  }
+  if ("dueOn" in payload || "due_on" in payload) {
+    patch.due_on = dateOrNull(payload.dueOn || payload.due_on);
+    changedFields.push("due_on");
+  }
+  if ("status" in payload) {
+    patch.status = normalizeGoalStatus(payload.status);
+    changedFields.push("status");
+  }
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${goalId}`);
+  params.set("player_id", `eq.${playerId}`);
+  params.set("row_version", `eq.${expectedRowVersion}`);
+  params.set("deleted_at", "is.null");
+  const result = await patchRows("idp_development_goals", params, patch);
+  if (!result.ok) return result;
+  const goal = result.payload?.[0] || null;
+  if (!goal) return { ok: false, status: 409, reason: "Development goal changed elsewhere. Reload and try again." };
+  await insertAuditEvent(scope, {
+    playerId,
+    action: "development_goal.updated",
+    entityType: "idp_development_goal",
+    entityId: goal.id,
+    changedFields,
+    beforeSummary: goalAuditSummary(before),
+    afterSummary: goalAuditSummary(goal),
+  });
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, goal, sync: sync.ok ? sync.payload : null } };
+}
+
+async function archiveDevelopmentGoal(payload, actor) {
+  const scope = actorScope(actor);
+  const goalId = normalizeUuid(payload.id || payload.goalId || payload.goal_id);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  const expectedRowVersion = normalizeRowVersion(payload.rowVersion || payload.row_version || payload.expectedRowVersion || payload.expected_row_version);
+  if (!goalId || !playerId || !expectedRowVersion) {
+    return { ok: false, status: 400, reason: "goalId, playerId and rowVersion are required." };
+  }
+  const currentParams = buildTeamParams(scope);
+  currentParams.set("select", "*");
+  currentParams.set("id", `eq.${goalId}`);
+  currentParams.set("player_id", `eq.${playerId}`);
+  currentParams.set("deleted_at", "is.null");
+  currentParams.set("limit", "1");
+  const current = await selectRows("idp_development_goals", currentParams);
+  if (!current.ok) return current;
+  const before = current.payload?.[0] || null;
+  if (!before) return { ok: false, status: 404, reason: "Development goal was not found." };
+  if (Number(before.row_version) !== expectedRowVersion) return { ok: false, status: 409, reason: "Development goal changed elsewhere. Reload and try again." };
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${goalId}`);
+  params.set("player_id", `eq.${playerId}`);
+  params.set("row_version", `eq.${expectedRowVersion}`);
+  params.set("deleted_at", "is.null");
+  const result = await patchRows("idp_development_goals", params, {
+    status: "archived",
+    deleted_at: new Date().toISOString(),
+    deleted_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  if (!result.ok) return result;
+  const goal = result.payload?.[0] || null;
+  if (!goal) return { ok: false, status: 409, reason: "Development goal changed elsewhere. Reload and try again." };
+  await insertAuditEvent(scope, {
+    playerId,
+    action: "development_goal.archived",
+    entityType: "idp_development_goal",
+    entityId: goal.id,
+    changedFields: ["status", "deleted_at", "deleted_by"],
+    beforeSummary: goalAuditSummary(before),
+    afterSummary: goalAuditSummary(goal),
+  });
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, goal, sync: sync.ok ? sync.payload : null } };
+}
+
+async function addGoalCheckin(payload, actor) {
+  const scope = actorScope(actor);
+  const goalId = normalizeUuid(payload.goalId || payload.goal_id);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  if (!goalId || !playerId) return { ok: false, status: 400, reason: "goalId and playerId are required." };
+  const goalParams = buildTeamParams(scope);
+  goalParams.set("select", "*");
+  goalParams.set("id", `eq.${goalId}`);
+  goalParams.set("player_id", `eq.${playerId}`);
+  goalParams.set("deleted_at", "is.null");
+  goalParams.set("limit", "1");
+  const goalResult = await selectRows("idp_development_goals", goalParams);
+  if (!goalResult.ok) return goalResult;
+  const goal = goalResult.payload?.[0] || null;
+  if (!goal) return { ok: false, status: 404, reason: "Development goal was not found." };
+  const value = normalizeOptionalNumeric(payload.value);
+  const checkinResult = await insertRow("idp_goal_checkins", {
+    organization_id: scope.organizationId,
+    club_id: scope.clubId,
+    team_id: scope.teamId,
+    player_id: playerId,
+    profile_id: goal.profile_id,
+    goal_id: goal.id,
+    focus_id: goal.focus_id || null,
+    value,
+    confidence: normalizeConfidence(payload.confidence),
+    note: normalizeNote(payload.note, 1200) || null,
+    status_snapshot: normalizeGoalStatus(payload.statusSnapshot || payload.status_snapshot || goal.status),
+    checkin_on: dateOrNull(payload.checkinOn || payload.checkin_on) || new Date().toISOString().slice(0, 10),
+    created_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  if (!checkinResult.ok) return checkinResult;
+  if (value !== null) {
+    const patchParams = buildTeamParams(scope);
+    patchParams.set("id", `eq.${goal.id}`);
+    patchParams.set("player_id", `eq.${playerId}`);
+    patchParams.set("deleted_at", "is.null");
+    await patchRows("idp_development_goals", patchParams, { current_value: value, updated_by: scope.actorId });
+  }
+  const checkin = checkinResult.payload?.[0] || null;
+  await insertAuditEvent(scope, {
+    playerId,
+    action: "development_goal.checkin_added",
+    entityType: "idp_goal_checkin",
+    entityId: checkin?.id,
+    changedFields: ["value", "confidence", "note", "status_snapshot"],
+    afterSummary: {
+      goal_id: goal.id,
+      value,
+      checkin_on: normalizeText(checkin?.checkin_on, 40),
+      status_snapshot: normalizeText(checkin?.status_snapshot, 40),
+    },
+  });
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, checkin, sync: sync.ok ? sync.payload : null } };
+}
+
 async function createDevelopmentIntervention(payload, actor) {
   const scope = actorScope(actor);
   const playerId = normalizeText(payload.playerId || payload.player_id, 160);
@@ -815,6 +1169,16 @@ async function createDevelopmentIntervention(payload, actor) {
   const profileResult = await ensureProfile(scope, playerId, payload);
   if (!profileResult.ok) return profileResult;
   const boardState = normalizeBoardState(payload.boardState || payload.board_state);
+  const focusResult = await requireOwnedFocus(scope, playerId, focusId);
+  if (!focusResult.ok) return focusResult;
+  const goalId = normalizeUuid(payload.goalId || payload.goal_id) || null;
+  if (goalId) {
+    const goalResult = await requireOwnedGoal(scope, playerId, goalId);
+    if (!goalResult.ok) return goalResult;
+    if (goalResult.payload.focus_id && goalResult.payload.focus_id !== focusId) {
+      return { ok: false, status: 409, reason: "Development goal belongs to a different focus." };
+    }
+  }
   const result = await insertRow("idp_development_interventions", {
     organization_id: scope.organizationId,
     club_id: scope.clubId,
@@ -822,8 +1186,11 @@ async function createDevelopmentIntervention(payload, actor) {
     player_id: playerId,
     profile_id: profileResult.payload.id,
     focus_id: focusId,
+    goal_id: goalId,
     title,
     objective: normalizeNote(payload.objective, 1200) || null,
+    coaching_cue: normalizeNote(payload.coachingCue || payload.coaching_cue, 800) || null,
+    success_criteria: normalizeTextList(payload.successCriteria || payload.success_criteria),
     pitch_mode: normalizePitchMode(payload.pitchMode || payload.pitch_mode),
     board_state: boardState,
     status: normalizeInterventionStatus(payload.status),
@@ -837,7 +1204,7 @@ async function createDevelopmentIntervention(payload, actor) {
     action: "development_intervention.created",
     entityType: "idp_development_intervention",
     entityId: intervention?.id,
-    changedFields: ["title", "objective", "pitch_mode", "board_state", "status"],
+    changedFields: ["title", "objective", "goal_id", "coaching_cue", "success_criteria", "pitch_mode", "board_state", "status"],
     afterSummary: interventionAuditSummary(intervention),
   });
   const sync = await buildSyncMeta(scope, playerId);
@@ -873,6 +1240,25 @@ async function updateDevelopmentIntervention(payload, actor) {
   if ("objective" in payload) {
     patch.objective = normalizeNote(payload.objective, 1200) || null;
     changedFields.push("objective");
+  }
+  if ("goalId" in payload || "goal_id" in payload) {
+    patch.goal_id = normalizeUuid(payload.goalId || payload.goal_id) || null;
+    if (patch.goal_id) {
+      const goalResult = await requireOwnedGoal(scope, playerId, patch.goal_id);
+      if (!goalResult.ok) return goalResult;
+      if (goalResult.payload.focus_id && before.focus_id && goalResult.payload.focus_id !== before.focus_id) {
+        return { ok: false, status: 409, reason: "Development goal belongs to a different focus." };
+      }
+    }
+    changedFields.push("goal_id");
+  }
+  if ("coachingCue" in payload || "coaching_cue" in payload) {
+    patch.coaching_cue = normalizeNote(payload.coachingCue || payload.coaching_cue, 800) || null;
+    changedFields.push("coaching_cue");
+  }
+  if ("successCriteria" in payload || "success_criteria" in payload) {
+    patch.success_criteria = normalizeTextList(payload.successCriteria || payload.success_criteria);
+    changedFields.push("success_criteria");
   }
   if ("pitchMode" in payload || "pitch_mode" in payload) {
     patch.pitch_mode = normalizePitchMode(payload.pitchMode || payload.pitch_mode);
@@ -1003,23 +1389,34 @@ async function handleIdpRequest(req, res, actor) {
                     ? await assignOwner(body.ownership || body, actor)
                     : action === "complete-review"
                       ? await completeReview(body.review || body, actor)
-                      : action === "create-intervention"
-                        ? await createDevelopmentIntervention(body.intervention || body, actor)
-                        : action === "update-intervention"
-                          ? await updateDevelopmentIntervention(body.intervention || body, actor)
-                          : action === "archive-intervention"
-                            ? await archiveDevelopmentIntervention(body.intervention || body, actor)
-                            : { ok: false, status: 400, reason: "Unsupported IDP action." };
+                      : action === "create-goal"
+                        ? await createDevelopmentGoal(body.goal || body, actor)
+                        : action === "update-goal"
+                          ? await updateDevelopmentGoal(body.goal || body, actor)
+                          : action === "archive-goal"
+                            ? await archiveDevelopmentGoal(body.goal || body, actor)
+                            : action === "add-goal-checkin"
+                              ? await addGoalCheckin(body.checkin || body, actor)
+                              : action === "create-intervention"
+                                ? await createDevelopmentIntervention(body.intervention || body, actor)
+                                : action === "update-intervention"
+                                  ? await updateDevelopmentIntervention(body.intervention || body, actor)
+                                  : action === "archive-intervention"
+                                    ? await archiveDevelopmentIntervention(body.intervention || body, actor)
+                                    : { ok: false, status: 400, reason: "Unsupported IDP action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }
 
 module.exports = {
   IDP_SCHEMA,
   addEvidence,
+  addGoalCheckin,
   archiveDevelopmentIntervention,
+  archiveDevelopmentGoal,
   assignOwner,
   buildSyncMeta,
   completeReview,
+  createDevelopmentGoal,
   createDevelopmentIntervention,
   createFocus,
   dashboardStatus,
@@ -1028,6 +1425,7 @@ module.exports = {
   handleIdpRequest,
   normalizeCategory,
   reviewClipBank,
+  updateDevelopmentGoal,
   updateDevelopmentIntervention,
   updateEvidence,
   updateFocus,

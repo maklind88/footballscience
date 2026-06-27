@@ -73,16 +73,22 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(apiService).toContain('action: "create-intervention"');
   expect(apiService).toContain('action: "update-intervention"');
   expect(apiService).toContain('action: "archive-intervention"');
+  expect(apiService).toContain('action: "create-goal"');
   expect(databaseSource).toContain("idp_development_interventions");
   expect(databaseSource).toContain("async function createDevelopmentIntervention");
   expect(databaseSource).toContain("async function updateDevelopmentIntervention");
   expect(databaseSource).toContain("async function archiveDevelopmentIntervention");
   expect(databaseSource).toContain("row_version");
   expect(databaseSource).toContain("insertAuditEvent");
+  expect(databaseSource).toContain("requireOwnedFocus");
+  expect(databaseSource).toContain("requireOwnedGoal");
+  expect(databaseSource).toContain("Development goal belongs to a different focus.");
   expect(databaseSource).toContain("OPTIONAL_MIGRATION_TABLES");
   expect(databaseSource).toContain("isMissingOptionalTable");
   expect(databaseSource).toContain("normalizeBoardLineStyle");
   expect(databaseSource).toContain("lineWidth");
+  expect(databaseSource).toContain("goal_id");
+  expect(databaseSource).toContain("success_criteria");
   expect(migration).toContain("create table if not exists public.idp_development_interventions");
   expect(migration).toContain("board_state jsonb");
   expect(migration).toContain("alter table public.idp_development_interventions enable row level security");
@@ -96,10 +102,57 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("data-idp-board-tool=\"cone\"");
   expect(playerBoardRenderer).toContain("data-idp-board-color-choice");
   expect(playerBoardRenderer).toContain("data-idp-board-editor-pitch");
+  expect(playerBoardRenderer).toContain("Linked goal");
+  expect(playerBoardRenderer).toContain("Success criteria");
   expect(idpRuntime).toContain("applyBoardPitchPoint");
   expect(idpRuntime).toContain("selectBoardTool");
   expect(idpRuntime).toContain("setBoardArrowPreset");
   expect(playerBoardRenderer).not.toContain("data-session-");
+});
+
+test("idp development goals are IDP-owned, measurable and server-versioned", () => {
+  const apiService = read("src/modules/idp/services/idp-api-service.mjs");
+  const databaseSource = read("api/_lib/idp-database.js");
+  const migration = read("supabase/migrations/20260627030412_idp_development_goals.sql");
+  const renderer = read("src/modules/idp/idp-renderer.mjs");
+  const idpRuntime = read("src/modules/idp/index.mjs");
+
+  expect(migration).toContain("create table if not exists public.idp_development_goals");
+  expect(migration).toContain("create table if not exists public.idp_goal_checkins");
+  expect(migration).toContain("goal_role text not null default 'supporting'");
+  expect(migration).toContain("metric_type text not null default 'observation'");
+  expect(migration).toContain("row_version integer not null default 1");
+  expect(migration).toContain("deleted_at timestamptz");
+  expect(migration).toContain("alter table public.idp_development_goals enable row level security");
+  expect(migration).toContain("alter table public.idp_goal_checkins enable row level security");
+  expect(migration).toContain("revoke all on public.idp_development_goals from anon, authenticated");
+  expect(migration).toContain("grant select, insert, update, delete on public.idp_development_goals to service_role");
+  expect(migration).toContain("idp_development_goals_prevent_hard_delete");
+  expect(migration).toContain("idp_goal_checkins_prevent_hard_delete");
+  expect(migration).toContain("idp_development_goals_player_status_idx");
+  expect(migration).toContain("idp_goal_checkins_goal_recent_idx");
+  expect(migration).toContain("add column if not exists goal_id");
+
+  expect(apiService).toContain('action: "create-goal"');
+  expect(apiService).toContain('action: "update-goal"');
+  expect(apiService).toContain('action: "archive-goal"');
+  expect(apiService).toContain('action: "add-goal-checkin"');
+  expect(databaseSource).toContain("async function createDevelopmentGoal");
+  expect(databaseSource).toContain("async function updateDevelopmentGoal");
+  expect(databaseSource).toContain("async function archiveDevelopmentGoal");
+  expect(databaseSource).toContain("async function addGoalCheckin");
+  expect(databaseSource).toContain("requireOwnedFocus(scope, playerId");
+  expect(databaseSource).toContain("requireOwnedGoal(scope, playerId");
+  expect(databaseSource).toContain("idp_development_goals");
+  expect(databaseSource).toContain("idp_goal_checkins");
+  expect(databaseSource).toContain("OPTIONAL_MIGRATION_TABLES");
+  expect(databaseSource).toContain("development_goal.checkin_added");
+  expect(renderer).toContain('data-idp-profile-view="goals"');
+  expect(renderer).toContain("Goals & Leadership");
+  expect(renderer).toContain("data-idp-save-goal");
+  expect(renderer).toContain("data-idp-add-goal-checkin");
+  expect(idpRuntime).toContain("data-idp-edit-goal");
+  expect(idpRuntime).toContain("data-idp-goal-checkin");
 });
 
 test("idp renderer separates the overview from the player development profile", () => {
@@ -173,6 +226,7 @@ test("idp renderer separates the overview from the player development profile", 
   const profileHtml = renderIdpWorkspace(profileState, staffOptions);
 
   expect(profileHtml).toContain("data-idp-back-overview");
+  expect(profileHtml).toContain('data-idp-profile-view="goals"');
   expect(profileHtml).toContain('data-idp-profile-view="player-board"');
   expect(profileHtml).toContain('data-idp-profile-view="clip-bank"');
   expect(profileHtml).toContain("idp-profile-menu");
@@ -185,6 +239,8 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("Quick actions");
   expect(profileHtml).toContain("Assign Coach");
   expect(profileHtml).toContain("Update Focus");
+  expect(profileHtml).toContain("New Goal");
+  expect(profileHtml).toContain("Leadership Goal");
   expect(profileHtml).toContain("Add Observation");
   expect(profileHtml).toContain("Complete Review");
   expect(profileHtml).not.toContain("idp-profile-actions-deck");
@@ -201,6 +257,9 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("idp-stage-scoreboard");
   expect(profileHtml).not.toContain("Player development pulse");
   expect(profileHtml).toContain("Success Criteria");
+  expect(profileHtml).toContain("Goals & Responsibility");
+  expect(profileHtml).toContain("data-idp-edit-goal");
+  expect(profileHtml).toContain("data-idp-goal-checkin");
   expect(profileHtml).not.toContain("idp-intelligence-board");
   expect(profileHtml).not.toContain("Development Lens");
   expect(profileHtml).not.toContain("idp-lens-compass");
@@ -300,6 +359,18 @@ test("idp renderer separates the overview from the player development profile", 
   expect(clipBankHtml).not.toContain("idp-focus-clarity-card");
   expect(clipBankHtml).not.toContain("idp-workflow-board");
 
+  const goalsHtml = renderIdpWorkspace({
+    ...profileState,
+    ui: { ...profileState.ui, profileView: "goals" },
+  }, staffOptions);
+  expect(goalsHtml).toContain("idp-profile-goals-page");
+  expect(goalsHtml).toContain("Goals & Leadership");
+  expect(goalsHtml).toContain("Development Goals");
+  expect(goalsHtml).toContain("Leadership & Responsibility");
+  expect(goalsHtml).toContain("data-idp-action=\"goal\"");
+  expect(goalsHtml).toContain("data-idp-action=\"leadership-goal\"");
+  expect(goalsHtml).not.toContain("idp-workflow-board");
+
   const assignmentHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "ownership" } }, staffOptions);
   expect(assignmentHtml).toContain("data-idp-assign-owner");
   expect(assignmentHtml).toContain("Assign IDP Coach");
@@ -320,6 +391,19 @@ test("idp renderer separates the overview from the player development profile", 
   expect(editObservationHtml).toContain('name="evidenceId" value="evidence-2"');
   expect(editObservationHtml).toContain("Observation 2");
   expect(editObservationHtml).toContain("Save observation");
+  const goalFormHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "goal" } }, staffOptions);
+  expect(goalFormHtml).toContain("data-idp-save-goal");
+  expect(goalFormHtml).toContain("Measurable player goal");
+  expect(goalFormHtml).toContain("Metric type");
+  const leadershipGoalHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "leadership-goal" } }, staffOptions);
+  expect(leadershipGoalHtml).toContain("Create leadership goal");
+  expect(leadershipGoalHtml).toContain("Leadership moments");
+  const goalCheckinHtml = renderIdpWorkspace(
+    { ...profileState, ui: { ...profileState.ui, actionMode: "goal-checkin", editGoalId: profileState.playerDetail.goals[0].id } },
+    staffOptions
+  );
+  expect(goalCheckinHtml).toContain("data-idp-add-goal-checkin");
+  expect(goalCheckinHtml).toContain("Current value");
   const readOnlyHtml = renderIdpWorkspace(profileState, { ...staffOptions, canEdit: false });
   expect(readOnlyHtml).not.toContain("data-idp-edit-evidence");
   expect(readOnlyHtml).not.toContain("data-idp-delete-evidence");
@@ -557,9 +641,12 @@ test("idp individual exercise save and archive stay behind the server boundary",
   const form = new Map([
     ["interventionId", "intervention-1"],
     ["focusId", "server-focus"],
+    ["goalId", "goal-1"],
     ["rowVersion", "3"],
     ["title", "Distribution board"],
     ["objective", "Rehearse claiming space."],
+    ["coachingCue", "Scan, claim, release."],
+    ["successCriteria", "Early body shape\nClear first pass"],
     ["pitchMode", "box"],
     ["status", "active"],
     ["playerX", "50"],
@@ -602,8 +689,11 @@ test("idp individual exercise save and archive stay behind the server boundary",
     id: "intervention-1",
     playerId: "p1",
     focusId: "server-focus",
+    goalId: "goal-1",
     rowVersion: "3",
     pitchMode: "box",
+    coachingCue: "Scan, claim, release.",
+    successCriteria: ["Early body shape", "Clear first pass"],
   });
   expect(updatePayloads[0].boardState).toMatchObject({
     player: { x: 50, y: 82 },
@@ -616,6 +706,117 @@ test("idp individual exercise save and archive stay behind the server boundary",
     linkedClipIds: ["clip-1", "clip-2"],
   });
   expect(archivePayloads[0]).toMatchObject({ id: "intervention-1", playerId: "p1", rowVersion: 3 });
+});
+
+test("idp development goal save, check-in and archive stay behind the server boundary", async () => {
+  const player = {
+    id: "p1",
+    name: "Kailen Sheridan",
+    position: "Goalkeeper",
+    primaryRole: "GK",
+    idp: { primaryFocus: "Distribution under pressure", nextAction: "Add observation" },
+  };
+  const detail = buildLegacyPlayerDetail(player);
+  detail.focuses = [{ id: "server-focus", playerId: "p1", title: "Distribution under pressure", status: "Active" }];
+  detail.goals = [{
+    id: "goal-1",
+    playerId: "p1",
+    focusId: "server-focus",
+    title: "Improve first pass",
+    goalRole: "supporting",
+    category: "Tactical",
+    metricLabel: "Successful actions",
+    metricType: "count",
+    targetValue: 8,
+    currentValue: 3,
+    status: "active",
+    rowVersion: 2,
+  }];
+  const store = createIdpStore({
+    ui: { selectedPlayerId: "p1" },
+    playerDetail: detail,
+  });
+  const createdGoals = [];
+  const checkins = [];
+  const archivedGoals = [];
+  const api = {
+    createGoal: async (payload) => {
+      createdGoals.push(payload);
+      return { schema: "footballscience-idp-v1", goal: { id: "goal-2", row_version: 1, ...payload } };
+    },
+    addGoalCheckin: async (payload) => {
+      checkins.push(payload);
+      return { schema: "footballscience-idp-v1", checkin: { id: "checkin-1", ...payload } };
+    },
+    archiveGoal: async (payload) => {
+      archivedGoals.push(payload);
+      return { schema: "footballscience-idp-v1", goal: { id: payload.id, status: "archived" } };
+    },
+    loadDashboard: async () => ({ schema: "footballscience-idp-v1", players: [] }),
+    loadPlayer: async () => ({
+      schema: "footballscience-idp-v1",
+      profile: { id: "profile-p1", player_id: "p1" },
+      focuses: [{ id: "server-focus", player_id: "p1", title: "Distribution under pressure", status: "Active" }],
+      clipBank: [],
+      evidence: [],
+      reviews: [],
+      nextActions: [],
+      goals: [],
+      goalCheckins: [],
+      milestones: [],
+      ownership: [],
+      interventions: [],
+    }),
+  };
+  const actions = createIdpActions({
+    store,
+    api,
+    context: { getPlayerProfilesState: () => ({ players: [player] }) },
+  });
+
+  await actions.saveGoal(new Map([
+    ["focusId", "server-focus"],
+    ["goalRole", "supporting"],
+    ["category", "Tactical"],
+    ["title", "Win first action"],
+    ["description", "Cleaner first action under pressure."],
+    ["metricLabel", "Successful actions"],
+    ["metricType", "count"],
+    ["baselineValue", "3"],
+    ["currentValue", "4"],
+    ["targetValue", "8"],
+    ["unit", ""],
+    ["cadence", "weekly"],
+    ["dueOn", "2026-07-10"],
+    ["status", "active"],
+  ]));
+  store.setState({ playerDetail: detail });
+  await actions.addGoalCheckin(new Map([
+    ["goalId", "goal-1"],
+    ["value", "5"],
+    ["confidence", "4"],
+    ["note", "Better first pass after scan."],
+    ["statusSnapshot", "active"],
+    ["checkinOn", "2026-06-27"],
+  ]));
+  store.setState({ playerDetail: detail });
+  await actions.archiveGoal("goal-1");
+
+  expect(createdGoals[0]).toMatchObject({
+    playerId: "p1",
+    focusId: "server-focus",
+    title: "Win first action",
+    metricLabel: "Successful actions",
+    targetValue: "8",
+  });
+  expect(checkins[0]).toMatchObject({
+    playerId: "p1",
+    goalId: "goal-1",
+    value: "5",
+    confidence: "4",
+    note: "Better first pass after scan.",
+  });
+  expect(archivedGoals[0]).toMatchObject({ id: "goal-1", playerId: "p1", rowVersion: 2 });
 });
 
 test("idp clip bank is a date-sorted organizer with play queue metadata", () => {
@@ -1000,7 +1201,7 @@ test("idp profile overview navigation is not blocked by stale filter state", asy
   expect(indexSource.indexOf("const backTrigger = event?.target?.closest?.(\"[data-idp-back-overview]\")"))
     .toBeLessThan(indexSource.indexOf("const openFilterMenu = runtime?.store.getState?.()?.ui?.openFilterMenu"));
   expect(indexSource).toContain(".idp-stage-actions[open]");
-  expect(indexSource).toContain('openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", playerBoardOpen: false, playerBoardInterventionId: "", error: "", message: ""');
+  expect(indexSource).toContain('openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", error: "", message: ""');
 
   const store = createIdpStore({ ui: { openFilterMenu: "owner" } });
   const actions = createIdpActions({

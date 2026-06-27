@@ -3,6 +3,10 @@ import {
   idpDevelopmentCategories,
   idpEvidenceTypes,
   idpFocusStatuses,
+  idpGoalCadences,
+  idpGoalMetricTypes,
+  idpGoalRoles,
+  idpGoalStatuses,
   idpNextActionTypes,
 } from "../constants/idp-options.mjs";
 
@@ -18,6 +22,12 @@ export function normalizeDate(value = "") {
 function normalizeNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? Math.max(0, Math.round(number)) : fallback;
+}
+
+function normalizeOptionalNumber(value) {
+  if (value === null || value === undefined || value === "") return "";
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.round(number * 100) / 100 : "";
 }
 
 function normalizeDecimal(value, fallback = 0) {
@@ -220,6 +230,51 @@ export function normalizeIdpNextAction(value = {}) {
   };
 }
 
+export function normalizeIdpDevelopmentGoal(value = {}) {
+  return {
+    id: normalizeText(value.id, 120),
+    playerId: normalizeText(value.playerId || value.player_id, 160),
+    focusId: normalizeText(value.focusId || value.focus_id, 160),
+    goalRole: pickOption(value.goalRole || value.goal_role, idpGoalRoles, "supporting"),
+    category: pickOption(value.category, idpDevelopmentCategories, "Tactical"),
+    title: normalizeText(value.title, 180),
+    description: normalizeText(value.description, 800),
+    metricLabel: normalizeText(value.metricLabel || value.metric_label || "Coach observation", 160),
+    metricType: pickOption(value.metricType || value.metric_type, idpGoalMetricTypes, "observation"),
+    baselineValue: normalizeOptionalNumber(value.baselineValue ?? value.baseline_value),
+    currentValue: normalizeOptionalNumber(value.currentValue ?? value.current_value),
+    targetValue: normalizeOptionalNumber(value.targetValue ?? value.target_value),
+    unit: normalizeText(value.unit, 40),
+    cadence: pickOption(value.cadence, idpGoalCadences, "weekly"),
+    dueOn: normalizeDate(value.dueOn || value.due_on),
+    status: pickOption(value.status, idpGoalStatuses, "active"),
+    rowVersion: Number(value.rowVersion || value.row_version || 1) || 1,
+    createdBy: normalizeText(value.createdBy || value.created_by, 160),
+    updatedBy: normalizeText(value.updatedBy || value.updated_by, 160),
+    createdAt: normalizeText(value.createdAt || value.created_at, 80),
+    updatedAt: normalizeText(value.updatedAt || value.updated_at, 80),
+  };
+}
+
+export function normalizeIdpGoalCheckin(value = {}) {
+  return {
+    id: normalizeText(value.id, 120),
+    playerId: normalizeText(value.playerId || value.player_id, 160),
+    focusId: normalizeText(value.focusId || value.focus_id, 160),
+    goalId: normalizeText(value.goalId || value.goal_id, 160),
+    value: normalizeOptionalNumber(value.value),
+    confidence: normalizeOptionalNumber(value.confidence),
+    note: normalizeText(value.note, 800),
+    statusSnapshot: normalizeText(value.statusSnapshot || value.status_snapshot, 80),
+    checkinOn: normalizeDate(value.checkinOn || value.checkin_on),
+    rowVersion: Number(value.rowVersion || value.row_version || 1) || 1,
+    createdBy: normalizeText(value.createdBy || value.created_by, 160),
+    updatedBy: normalizeText(value.updatedBy || value.updated_by, 160),
+    createdAt: normalizeText(value.createdAt || value.created_at, 80),
+    updatedAt: normalizeText(value.updatedAt || value.updated_at, 80),
+  };
+}
+
 export function normalizeIdpMilestone(value = {}) {
   return {
     id: normalizeText(value.id, 120),
@@ -240,8 +295,13 @@ export function normalizeIdpDevelopmentIntervention(value = {}) {
     id: normalizeText(value.id, 120),
     playerId: normalizeText(value.playerId || value.player_id, 160),
     focusId: normalizeText(value.focusId || value.focus_id, 160),
+    goalId: normalizeText(value.goalId || value.goal_id, 160),
     title: normalizeText(value.title || "Individual exercise", 180),
     objective: normalizeText(value.objective, 800),
+    coachingCue: normalizeText(value.coachingCue || value.coaching_cue, 800),
+    successCriteria: Array.isArray(value.successCriteria || value.success_criteria)
+      ? (value.successCriteria || value.success_criteria).map((item) => normalizeText(item, 160)).filter(Boolean).slice(0, 6)
+      : [],
     pitchMode: normalizeText(value.pitchMode || value.pitch_mode || "half", 40),
     boardState: normalizeBoardState(value.boardState || value.board_state),
     status: normalizeText(value.status || "active", 40),

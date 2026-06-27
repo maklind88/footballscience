@@ -4,6 +4,8 @@ import {
   normalizeIdpDevelopmentIntervention,
   normalizeIdpEvidence,
   normalizeIdpFocus,
+  normalizeIdpDevelopmentGoal,
+  normalizeIdpGoalCheckin,
   normalizeIdpMilestone,
   normalizeIdpNextAction,
   normalizeIdpProfile,
@@ -146,6 +148,8 @@ function mergePlayerPayloadWithFallback(detail = {}, fallbackDetail = null) {
     evidence: detail.evidence.length ? detail.evidence : fallbackDetail.evidence || [],
     reviews: detail.reviews.length ? detail.reviews : fallbackDetail.reviews || [],
     nextActions: inactive ? [] : detail.nextActions.length ? detail.nextActions : fallbackDetail.nextActions || [],
+    goals: inactive ? [] : detail.goals.length ? detail.goals : fallbackDetail.goals || [],
+    goalCheckins: inactive ? [] : detail.goalCheckins.length ? detail.goalCheckins : fallbackDetail.goalCheckins || [],
     milestones: detail.milestones.length ? detail.milestones : fallbackDetail.milestones || [],
     ownership: Array.isArray(detail.ownership) ? detail.ownership : fallbackDetail.ownership || [],
     interventions: detail.interventions.length ? detail.interventions : fallbackDetail.interventions || [],
@@ -160,6 +164,8 @@ function normalizePlayerPayload(payload = {}, fallbackDetail = null) {
     evidence: (payload.evidence || []).map(normalizeIdpEvidence),
     reviews: (payload.reviews || []).map(normalizeIdpReview),
     nextActions: (payload.nextActions || []).map(normalizeIdpNextAction),
+    goals: (payload.goals || []).map(normalizeIdpDevelopmentGoal),
+    goalCheckins: (payload.goalCheckins || []).map(normalizeIdpGoalCheckin),
     milestones: (payload.milestones || []).map(normalizeIdpMilestone),
     ownership: Array.isArray(payload.ownership) ? payload.ownership : [],
     interventions: (payload.interventions || []).map(normalizeIdpDevelopmentIntervention),
@@ -174,6 +180,11 @@ function selectedPlayerIdFromState(state = {}) {
 function persistedFocusId(focus = {}) {
   const id = normalizeText(focus?.id, 160);
   return id && !String(id).startsWith("legacy-focus-") ? id : "";
+}
+
+function persistedGoalId(goal = {}) {
+  const id = normalizeText(goal?.id, 160);
+  return id && !String(id).startsWith("legacy-goal-") ? id : "";
 }
 
 function primaryFocus(detail = {}) {
@@ -197,6 +208,11 @@ function observationFocusPayload(detail = {}, playerId = "") {
     reviewDate: focus.reviewDate || profile.nextReviewOn || "",
     ownerId: focus.ownerId || profile.ownerId || "",
   };
+}
+
+function numericFieldValue(value) {
+  const text = normalizeText(value, 40);
+  return text === "" ? "" : text;
 }
 
 function parseBoardNumber(value, fallback) {
@@ -324,6 +340,7 @@ export function createIdpActions({ store, api, context = {} }) {
         profileView: options.preserveProfileView ? currentUi.profileView || "development" : "development",
         actionMode: "",
         editEvidenceId: "",
+        editGoalId: "",
         error: "",
         selectedClipBankIds: [],
         clipPreviewOpen: false,
@@ -466,6 +483,65 @@ export function createIdpActions({ store, api, context = {} }) {
     await refreshSelectedPlayer();
   }
 
+  async function saveGoal(formData) {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const detail = store.getState().playerDetail;
+    const focusId = persistedFocusId({ id: formData.get("focusId") || "" }) || persistedFocusId(primaryFocus(detail));
+    const goalId = persistedGoalId({ id: formData.get("goalId") || "" });
+    const payload = {
+      id: goalId,
+      playerId,
+      focusId,
+      goalRole: formData.get("goalRole") || "supporting",
+      category: formData.get("category") || "Tactical",
+      title: formData.get("title") || "",
+      description: formData.get("description") || "",
+      metricLabel: formData.get("metricLabel") || "Coach observation",
+      metricType: formData.get("metricType") || "observation",
+      baselineValue: numericFieldValue(formData.get("baselineValue")),
+      currentValue: numericFieldValue(formData.get("currentValue")),
+      targetValue: numericFieldValue(formData.get("targetValue")),
+      unit: formData.get("unit") || "",
+      cadence: formData.get("cadence") || "weekly",
+      dueOn: formData.get("dueOn") || "",
+      status: formData.get("status") || "active",
+    };
+    if (goalId) {
+      await api.updateGoal({ ...payload, rowVersion: formData.get("rowVersion") });
+    } else {
+      await api.createGoal(payload);
+    }
+    store.setState({ ui: { actionMode: "", message: "Development goal saved." } });
+    await refreshSelectedPlayer();
+  }
+
+  async function addGoalCheckin(formData) {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const goalId = persistedGoalId({ id: formData.get("goalId") || "" });
+    if (!playerId || !goalId) throw new Error("Development goal check-in could not be saved.");
+    await api.addGoalCheckin({
+      playerId,
+      goalId,
+      value: numericFieldValue(formData.get("value")),
+      confidence: numericFieldValue(formData.get("confidence")),
+      note: formData.get("note") || "",
+      statusSnapshot: formData.get("statusSnapshot") || "",
+      checkinOn: formData.get("checkinOn") || "",
+    });
+    store.setState({ ui: { actionMode: "", message: "Goal check-in added." } });
+    await refreshSelectedPlayer();
+  }
+
+  async function archiveGoal(goalId = "") {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const safeGoalId = normalizeText(goalId, 160);
+    const goal = (store.getState().playerDetail?.goals || []).find((item) => item.id === safeGoalId);
+    if (!playerId || !goal?.id) throw new Error("Development goal could not be archived.");
+    await api.archiveGoal({ id: goal.id, playerId, rowVersion: goal.rowVersion });
+    store.setState({ ui: { actionMode: "", message: "Development goal archived." } });
+    await refreshSelectedPlayer();
+  }
+
   async function ensureInterventionFocus(playerId, detail = {}, formData) {
     const formFocusId = persistedFocusId({ id: formData.get("focusId") || "" });
     if (formFocusId) return formFocusId;
@@ -481,8 +557,11 @@ export function createIdpActions({ store, api, context = {} }) {
       id: interventionId,
       playerId,
       focusId,
+      goalId: formData.get("goalId") || "",
       title: formData.get("title") || "Individual exercise",
       objective: formData.get("objective") || "",
+      coachingCue: formData.get("coachingCue") || "",
+      successCriteria: splitTokenList(formData.get("successCriteria")),
       pitchMode: formData.get("pitchMode") || "half",
       status: formData.get("status") || "active",
       boardState: buildInterventionBoardState(formData),
@@ -513,7 +592,9 @@ export function createIdpActions({ store, api, context = {} }) {
 
   return {
     addEvidence,
+    addGoalCheckin,
     archiveIntervention,
+    archiveGoal,
     assignOwner,
     checkForExternalUpdates,
     completeReview,
@@ -522,6 +603,7 @@ export function createIdpActions({ store, api, context = {} }) {
     loadDashboard,
     refreshSelectedPlayer,
     saveIntervention,
+    saveGoal,
     selectPlayer,
     updateEvidence,
   };

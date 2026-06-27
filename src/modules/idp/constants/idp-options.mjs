@@ -46,6 +46,39 @@ export const idpNextActionTypes = Object.freeze([
   "Create Next Focus",
 ]);
 
+export const idpGoalRoles = Object.freeze([
+  "primary",
+  "supporting",
+  "leadership",
+]);
+
+export const idpGoalMetricTypes = Object.freeze([
+  "observation",
+  "count",
+  "percentage",
+  "rating",
+  "time",
+  "distance",
+  "custom",
+]);
+
+export const idpGoalCadences = Object.freeze([
+  "daily",
+  "weekly",
+  "biweekly",
+  "monthly",
+  "review",
+]);
+
+export const idpGoalStatuses = Object.freeze([
+  "draft",
+  "active",
+  "at_risk",
+  "achieved",
+  "paused",
+  "archived",
+]);
+
 export const idpMilestoneTypes = Object.freeze([
   "IDP Started",
   "First IDP Meeting Completed",

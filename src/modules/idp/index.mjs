@@ -546,7 +546,7 @@ export function handleClick(event) {
   if (backTrigger) {
     event?.preventDefault?.();
     revokePreviewUrl(runtime);
-    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", playerBoardOpen: false, playerBoardInterventionId: "", error: "", message: "" } });
+    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", error: "", message: "" } });
     scrollWorkspaceTop(runtime);
     return;
   }
@@ -555,12 +555,13 @@ export function handleClick(event) {
     event?.preventDefault?.();
     revokePreviewUrl(runtime);
     const requestedProfileView = profileViewTrigger.dataset.idpProfileView || "";
-    const profileView = ["clip-bank", "player-board"].includes(requestedProfileView) ? requestedProfileView : "development";
+    const profileView = ["clip-bank", "player-board", "goals"].includes(requestedProfileView) ? requestedProfileView : "development";
     runtime?.store.setState({
       ui: {
         profileView,
         actionMode: "",
         editEvidenceId: "",
+        editGoalId: "",
         playerBoardOpen: false,
         playerBoardInterventionId: "",
         clipPreviewOpen: false,
@@ -635,7 +636,7 @@ export function handleClick(event) {
   }
   const closeActionTrigger = event?.target?.closest?.("[data-idp-close-action]");
   if (closeActionTrigger || event?.target?.matches?.("[data-idp-action-layer]")) {
-    runtime?.store.setState({ ui: { actionMode: "", editEvidenceId: "" } });
+    runtime?.store.setState({ ui: { actionMode: "", editEvidenceId: "", editGoalId: "" } });
     return;
   }
   const boardColorChoice = event?.target?.closest?.("[data-idp-board-color-choice]");
@@ -722,12 +723,34 @@ export function handleClick(event) {
     runAction(() => runtime?.actions.deleteEvidence(deleteEvidenceTrigger.dataset.idpDeleteEvidence || ""));
     return;
   }
+  const editGoalTrigger = event?.target?.closest?.("[data-idp-edit-goal]");
+  if (editGoalTrigger) {
+    event?.preventDefault?.();
+    runtime?.store.setState({ ui: { actionMode: "edit-goal", editGoalId: editGoalTrigger.dataset.idpEditGoal || "", error: "", message: "" } });
+    return;
+  }
+  const goalCheckinTrigger = event?.target?.closest?.("[data-idp-goal-checkin]");
+  if (goalCheckinTrigger) {
+    event?.preventDefault?.();
+    runtime?.store.setState({ ui: { actionMode: "goal-checkin", editGoalId: goalCheckinTrigger.dataset.idpGoalCheckin || "", error: "", message: "" } });
+    return;
+  }
+  const archiveGoalTrigger = event?.target?.closest?.("[data-idp-archive-goal]");
+  if (archiveGoalTrigger) {
+    event?.preventDefault?.();
+    const win = runtime?.context?.win || globalThis;
+    const confirmed = typeof win.confirm === "function" ? win.confirm("Archive this development goal?") : true;
+    if (!confirmed) return;
+    runAction(() => runtime?.actions.archiveGoal(archiveGoalTrigger.dataset.idpArchiveGoal || ""));
+    return;
+  }
   const actionTrigger = event?.target?.closest?.("[data-idp-action]");
   if (actionTrigger) {
     runtime?.store.setState({
       ui: {
         actionMode: actionTrigger.dataset.idpAction || "",
         editEvidenceId: "",
+        editGoalId: "",
         error: "",
         message: "",
       },
@@ -756,7 +779,7 @@ export function handleClick(event) {
 
 export function handleSubmit(event) {
   const form = event?.target;
-  if (!form?.matches?.("[data-idp-create-focus], [data-idp-add-evidence], [data-idp-update-evidence], [data-idp-complete-review], [data-idp-assign-owner], [data-idp-save-intervention]")) {
+  if (!form?.matches?.("[data-idp-create-focus], [data-idp-add-evidence], [data-idp-update-evidence], [data-idp-complete-review], [data-idp-assign-owner], [data-idp-save-goal], [data-idp-add-goal-checkin], [data-idp-save-intervention]")) {
     return;
   }
   event.preventDefault();
@@ -775,6 +798,12 @@ export function handleSubmit(event) {
   }
   if (form.matches("[data-idp-assign-owner]")) {
     runAction(() => runtime?.actions.assignOwner(formData));
+  }
+  if (form.matches("[data-idp-save-goal]")) {
+    runAction(() => runtime?.actions.saveGoal(formData));
+  }
+  if (form.matches("[data-idp-add-goal-checkin]")) {
+    runAction(() => runtime?.actions.addGoalCheckin(formData));
   }
   if (form.matches("[data-idp-save-intervention]")) {
     runAction(() => runtime?.actions.saveIntervention(formData));

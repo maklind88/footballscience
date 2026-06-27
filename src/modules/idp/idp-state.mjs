@@ -9,6 +9,7 @@ export const idpInitialUiState = Object.freeze({
   clipBankSearchQuery: "",
   actionMode: "",
   editEvidenceId: "",
+  editGoalId: "",
   message: "",
   error: "",
   loading: false,

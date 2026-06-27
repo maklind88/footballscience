@@ -110,6 +110,7 @@ const CODE_TIMELINE_PIP_MIN_HEIGHT = 120;
 const CODE_WINDOW_PIP_MIN_WIDTH = 240;
 const CODE_WINDOW_PIP_MIN_HEIGHT = 220;
 const CODE_PIP_MARGIN = 8;
+const CODE_PIP_BOUND_MARGIN = 0;
 const CODE_MODE_LAYOUT_VERSION = 3;
 const FS_PLAYER_HISTORY_GUARD_KEY = "__footballScienceFsPlayerHistoryGuard";
 const FS_PLAYER_HISTORY_GUARD_DEPTH_KEY = "__footballScienceFsPlayerHistoryGuardDepth";
@@ -401,11 +402,17 @@ function codePipConfig(target = "video") {
 function renderCodePipStyle(pip = null, target = "video") {
   if (!pip || !Number.isFinite(Number(pip.x)) || !Number.isFinite(Number(pip.y))) return "";
   const config = codePipConfig(target);
-  const x = Math.max(CODE_PIP_MARGIN, Math.round(Number(pip.x)));
-  const y = Math.max(CODE_PIP_MARGIN, Math.round(Number(pip.y)));
+  const x = Math.max(CODE_PIP_BOUND_MARGIN, Math.round(Number(pip.x)));
+  const y = Math.max(CODE_PIP_BOUND_MARGIN, Math.round(Number(pip.y)));
   const width = Math.max(config.minWidth, Math.round(Number(pip.width || config.minWidth)));
   const height = Math.max(config.minHeight, Math.round(Number(pip.height || config.minHeight)));
   return ` style="${config.cssPrefix}-x: ${x}px; ${config.cssPrefix}-y: ${y}px; ${config.cssPrefix}-width: ${width}px; ${config.cssPrefix}-height: ${height}px;"`;
+}
+
+function renderCodePipResizeHandles(label = "panel") {
+  return ["n", "e", "s", "w", "ne", "nw", "se", "sw"].map((direction) => (
+    `<div class="video-analysis-code-pip-resize video-analysis-code-pip-resize--${direction}" data-video-analysis-code-pip-resize="${direction}" role="button" tabindex="0" aria-label="Resize ${escapeHtml(label)} ${direction}" title="Resize"></div>`
+  )).join("");
 }
 
 function renderFsPlayerWorkspace(displayState = {}) {
@@ -420,18 +427,18 @@ function renderFsPlayerWorkspace(displayState = {}) {
         <section class="video-analysis-fs-player-deck"${codeModeActive ? ` data-video-analysis-code-pip="video"` : ""}${pipStyle}>
           ${codeModeActive ? `<div class="video-analysis-code-pip-grip" data-video-analysis-code-pip-drag role="button" tabindex="0" aria-label="Move video panel" title="Move video panel"><span></span><span></span><span></span></div>` : ""}
           ${renderVideoPlayer(displayState)}
-          ${codeModeActive ? `<div class="video-analysis-code-pip-resize" data-video-analysis-code-pip-resize role="button" tabindex="0" aria-label="Resize video panel" title="Resize video panel"></div>` : ""}
+          ${codeModeActive ? renderCodePipResizeHandles("video panel") : ""}
         </section>
         <section class="video-analysis-fs-player-timeline"${codeModeActive ? ` data-video-analysis-code-pip="timeline"` : ""}${timelinePipStyle}>
           ${codeModeActive ? `<div class="video-analysis-code-pip-grip video-analysis-code-pip-grip--timeline" data-video-analysis-code-pip-drag role="button" tabindex="0" aria-label="Move timeline panel" title="Move timeline panel"><span></span><span></span><span></span></div>` : ""}
           ${renderTimeline(displayState)}
-          ${codeModeActive ? `<div class="video-analysis-code-pip-resize video-analysis-code-pip-resize--timeline" data-video-analysis-code-pip-resize role="button" tabindex="0" aria-label="Resize timeline panel" title="Resize timeline panel"></div>` : ""}
+          ${codeModeActive ? renderCodePipResizeHandles("timeline panel") : ""}
         </section>
       </section>
       <section class="video-analysis-code-window-dock"${codeModeActive ? ` data-video-analysis-code-pip="code-window"` : ""}${codeWindowPipStyle}>
         ${codeModeActive ? `<div class="video-analysis-code-pip-grip video-analysis-code-pip-grip--code-window" data-video-analysis-code-pip-drag role="button" tabindex="0" aria-label="Move code window" title="Move code window"><span></span><span></span><span></span></div>` : ""}
         ${renderCodingTemplateBuilder(displayState)}
-        ${codeModeActive ? `<div class="video-analysis-code-pip-resize video-analysis-code-pip-resize--code-window" data-video-analysis-code-pip-resize role="button" tabindex="0" aria-label="Resize code window" title="Resize code window"></div>` : ""}
+        ${codeModeActive ? renderCodePipResizeHandles("code window") : ""}
       </section>
     </section>
     ${renderTagFilterOverlay(displayState)}
@@ -633,12 +640,12 @@ function codePipBounds(context = {}) {
 function normalizeCodePipBox(box = {}, context = {}) {
   const config = codePipConfig(box.target);
   const bounds = codePipBounds(context);
-  const maxWidth = Math.max(config.minWidth, bounds.width - (CODE_PIP_MARGIN * 2));
-  const maxHeight = Math.max(config.minHeight, bounds.height - (CODE_PIP_MARGIN * 2));
+  const maxWidth = Math.max(config.minWidth, bounds.width - (CODE_PIP_BOUND_MARGIN * 2));
+  const maxHeight = Math.max(config.minHeight, bounds.height - (CODE_PIP_BOUND_MARGIN * 2));
   const width = clampNumber(box.width, config.minWidth, maxWidth);
   const height = clampNumber(box.height, config.minHeight, maxHeight);
-  const x = clampNumber(box.x, CODE_PIP_MARGIN, Math.max(CODE_PIP_MARGIN, bounds.width - width - CODE_PIP_MARGIN));
-  const y = clampNumber(box.y, CODE_PIP_MARGIN, Math.max(CODE_PIP_MARGIN, bounds.height - height - CODE_PIP_MARGIN));
+  const x = clampNumber(box.x, CODE_PIP_BOUND_MARGIN, Math.max(CODE_PIP_BOUND_MARGIN, bounds.width - width - CODE_PIP_BOUND_MARGIN));
+  const y = clampNumber(box.y, CODE_PIP_BOUND_MARGIN, Math.max(CODE_PIP_BOUND_MARGIN, bounds.height - height - CODE_PIP_BOUND_MARGIN));
   return {
     target: config.target,
     x: Math.round(x),
@@ -646,6 +653,41 @@ function normalizeCodePipBox(box = {}, context = {}) {
     width: Math.round(width),
     height: Math.round(height),
   };
+}
+
+function resizeCodePipBox(startBox = {}, direction = "se", dx = 0, dy = 0, context = {}) {
+  const config = codePipConfig(startBox.target);
+  const bounds = codePipBounds(context);
+  const normalizedDirection = String(direction || "se").toLowerCase();
+  const minX = CODE_PIP_BOUND_MARGIN;
+  const minY = CODE_PIP_BOUND_MARGIN;
+  const maxX = Math.max(minX, bounds.width - CODE_PIP_BOUND_MARGIN);
+  const maxY = Math.max(minY, bounds.height - CODE_PIP_BOUND_MARGIN);
+  let left = Number(startBox.x || 0);
+  let top = Number(startBox.y || 0);
+  let right = left + Number(startBox.width || config.minWidth);
+  let bottom = top + Number(startBox.height || config.minHeight);
+
+  if (normalizedDirection.includes("w")) {
+    left = clampNumber(left + dx, minX, Math.max(minX, right - config.minWidth));
+  }
+  if (normalizedDirection.includes("e")) {
+    right = clampNumber(right + dx, Math.min(maxX, left + config.minWidth), maxX);
+  }
+  if (normalizedDirection.includes("n")) {
+    top = clampNumber(top + dy, minY, Math.max(minY, bottom - config.minHeight));
+  }
+  if (normalizedDirection.includes("s")) {
+    bottom = clampNumber(bottom + dy, Math.min(maxY, top + config.minHeight), maxY);
+  }
+
+  return normalizeCodePipBox({
+    target: config.target,
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  }, context);
 }
 
 function codeModeDefaultLayout(context = {}) {
@@ -738,7 +780,9 @@ function startCodePipInteraction(event = {}, context = {}) {
   run.codePipInteraction = {
     target: pipTarget,
     type: handle.matches("[data-video-analysis-code-pip-resize]") ? "resize" : "move",
+    direction: handle.dataset?.videoAnalysisCodePipResize || "se",
     pointerId: event.pointerId,
+    pointerHandle: handle,
     startX: Number(event.clientX || 0),
     startY: Number(event.clientY || 0),
     startBox,
@@ -757,21 +801,7 @@ function updateCodePipInteraction(event = {}, context = {}) {
   const dy = Number(event.clientY || 0) - interaction.startY;
   let nextBox;
   if (interaction.type === "resize") {
-    const bounds = codePipBounds(context);
-    const config = codePipConfig(interaction.target);
-    nextBox = {
-      ...interaction.startBox,
-      width: clampNumber(
-        interaction.startBox.width + dx,
-        config.minWidth,
-        Math.max(config.minWidth, bounds.width - interaction.startBox.x - CODE_PIP_MARGIN),
-      ),
-      height: clampNumber(
-        interaction.startBox.height + dy,
-        config.minHeight,
-        Math.max(config.minHeight, bounds.height - interaction.startBox.y - CODE_PIP_MARGIN),
-      ),
-    };
+    nextBox = resizeCodePipBox(interaction.startBox, interaction.direction, dx, dy, context);
   } else {
     nextBox = {
       ...interaction.startBox,
@@ -797,7 +827,7 @@ function finishCodePipInteraction(event = {}, context = {}) {
     height: nextPip.height,
   };
   run.codePipInteraction = null;
-  event?.target?.releasePointerCapture?.(interaction.pointerId);
+  interaction.pointerHandle?.releasePointerCapture?.(interaction.pointerId);
   run.store.update((state) => ({
     ...state,
     fsPlayer: {

@@ -1911,7 +1911,7 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   width: 100vw;
   height: 100dvh;
   min-height: 100vh;
-  padding: 8px;
+  padding: 0;
   overflow: hidden;
   isolation: isolate;
   overscroll-behavior: none;
@@ -2083,8 +2083,8 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   height: var(--video-analysis-code-timeline-pip-height, clamp(132px, 20dvh, 220px));
   min-width: 420px;
   min-height: 120px;
-  max-width: calc(100vw - 16px);
-  max-height: calc(100dvh - 16px);
+  max-width: 100vw;
+  max-height: 100dvh;
   overflow: hidden;
   background: rgba(238, 244, 240, 0.96);
   will-change: top, left, width, height;
@@ -2159,8 +2159,8 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   height: var(--video-analysis-code-window-pip-height, clamp(360px, 78dvh, calc(100dvh - 16px)));
   min-width: 240px;
   min-height: 220px;
-  max-width: calc(100vw - 16px);
-  max-height: calc(100dvh - 16px);
+  max-width: 100vw;
+  max-height: 100dvh;
   min-height: 0;
   overflow: hidden;
   container-name: video-analysis-code-window;
@@ -2189,8 +2189,8 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   height: var(--video-analysis-code-pip-height, clamp(330px, 62dvh, calc(100dvh - clamp(132px, 20dvh, 220px) - 32px)));
   min-width: 360px;
   min-height: 220px;
-  max-width: calc(100vw - 16px);
-  max-height: calc(100dvh - 16px);
+  max-width: 100vw;
+  max-height: 100dvh;
   will-change: top, left, width, height;
 }
 
@@ -2244,23 +2244,92 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
 }
 
 #analysisRoomWorkspace .video-analysis-code-pip-resize {
-  right: 6px;
-  bottom: 6px;
-  width: 22px;
-  height: 22px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  opacity: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--n,
+#analysisRoomWorkspace .video-analysis-code-pip-resize--s {
+  left: 16px;
+  right: 16px;
+  height: 12px;
+  cursor: ns-resize;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--n {
+  top: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--s {
+  bottom: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--e,
+#analysisRoomWorkspace .video-analysis-code-pip-resize--w {
+  top: 16px;
+  bottom: 16px;
+  width: 12px;
+  cursor: ew-resize;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--e {
+  right: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--w {
+  left: 0;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--ne,
+#analysisRoomWorkspace .video-analysis-code-pip-resize--nw,
+#analysisRoomWorkspace .video-analysis-code-pip-resize--se,
+#analysisRoomWorkspace .video-analysis-code-pip-resize--sw {
+  width: 20px;
+  height: 20px;
   border-radius: 7px;
+  opacity: 0.58;
+  background: rgba(12, 18, 15, 0.42);
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--nw {
+  top: 0;
+  left: 0;
   cursor: nwse-resize;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
 }
 
 #analysisRoomWorkspace .video-analysis-code-pip-resize::before {
   position: absolute;
-  right: 5px;
-  bottom: 5px;
-  width: 10px;
-  height: 10px;
-  border-right: 2px solid rgba(255, 255, 255, 0.72);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.72);
+  inset: 5px;
+  border: 1.5px solid rgba(255, 255, 255, 0.74);
+  border-radius: 4px;
   content: "";
+}
+
+#analysisRoomWorkspace .video-analysis-code-pip-resize--n::before,
+#analysisRoomWorkspace .video-analysis-code-pip-resize--s::before,
+#analysisRoomWorkspace .video-analysis-code-pip-resize--e::before,
+#analysisRoomWorkspace .video-analysis-code-pip-resize--w::before {
+  content: none;
 }
 
 #analysisRoomWorkspace .video-analysis-code-pip-grip:focus-visible,

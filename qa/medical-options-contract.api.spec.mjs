@@ -36,6 +36,7 @@ test("Medical options expose stable availability, RTP, and roster constants", ()
     "availability",
     "signals",
     "cases",
+    "programs",
     "history",
     "rtp-library",
     "season",

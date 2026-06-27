@@ -7,6 +7,7 @@ const {
   buildCoachPlayerStatusCard,
   buildCoachSquadAvailabilityReadModel,
 } = require("./rtp-coach-read-model.js");
+const { buildRtpLibraryReadResponse } = require("./rtp-library-database.js");
 
 const RTP_SCHEMA = "footballscience-rtp-operating-spine-v1";
 const RTP_MODULE_ID = "rtp";
@@ -236,6 +237,10 @@ function buildCoachReadResponse(actor = {}, query = {}) {
 async function handleRtpRequest(req, res, actor) {
   if (req.method === "GET") {
     const query = parseQuery(req);
+    const libraryReadResponse = await buildRtpLibraryReadResponse(actor, query);
+    if (libraryReadResponse) {
+      return sendJson(res, libraryReadResponse.status || 200, libraryReadResponse);
+    }
     const coachReadResponse = buildCoachReadResponse(actor, query);
     return sendJson(res, 200, coachReadResponse || buildEmptyState(actor, query));
   }

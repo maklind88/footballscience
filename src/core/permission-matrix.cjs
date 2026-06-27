@@ -6,6 +6,7 @@ const medicalAccessRoles = Object.freeze(["admin", "club-admin", "team-admin", "
 const medicalWriteRoles = Object.freeze(["admin", "club-admin", "team-admin", "medical", "performance"]);
 const rtpAccessRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "performance", "medical"]);
 const rtpWriteRoles = Object.freeze(["admin", "club-admin", "team-admin", "medical", "performance"]);
+const rtpLibraryReadRoles = Object.freeze(["admin", "club-admin", "team-admin", "medical", "performance"]);
 const simulatorWriteRoles = Object.freeze(["admin", "club-admin", "team-admin", "coach", "scout", "analyst"]);
 const transferRoomAdminRoles = Object.freeze(["admin", "team-admin"]);
 const allAuthenticatedRoles = Object.freeze([...platformRoles]);
@@ -203,6 +204,17 @@ const platformPermissionMatrix = Object.freeze([
   moduleContract("rtp", "RTP Operating Spine", "team", {
     read: rtpAccessRoles,
     write: rtpWriteRoles,
+    delete: ["admin"],
+    export: ["admin", "medical"],
+    restore: ["admin", "medical"],
+    admin: ["admin"],
+    observe: ["admin", "medical", "performance"],
+  }, {
+    routes: ["/api/rtp"],
+  }),
+  moduleContract("rtp-library", "RTP Library", "organization", {
+    read: rtpLibraryReadRoles,
+    write: ["admin", "medical"],
     delete: ["admin"],
     export: ["admin", "medical"],
     restore: ["admin", "medical"],

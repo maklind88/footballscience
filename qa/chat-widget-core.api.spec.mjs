@@ -839,21 +839,30 @@ test("group creator overlay exposes a labelled dialog contract", () => {
   expect(result.html).toContain('aria-labelledby="dashboardChatGroupCreateTitle"');
   expect(result.html).toContain('aria-describedby="dashboardChatGroupCreateDescription"');
   expect(result.html).toContain('id="dashboardChatGroupCreateTitle">New group</strong>');
-  expect(result.html).toContain('id="dashboardChatGroupCreateDescription">Choose people, name the room and keep the conversation focused.</small>');
-  expect(result.html).toContain('minlength="2" maxlength="80" placeholder="Example: Match prep" required autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" aria-label="Group name" data-dashboard-chat-group-name-input');
-  expect(result.html).toContain('id="dashboardChatGroupAvatarHelp">Paste an image URL or type two initials for the group avatar.</small>');
-  expect(result.html).toContain('maxlength="800" placeholder="Image URL or initials, e.g. MP" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="Group image URL or initials" aria-describedby="dashboardChatGroupAvatarHelp" data-dashboard-chat-group-avatar-input');
+  expect(result.html).toContain('id="dashboardChatGroupCreateDescription">Name the group, add people, then create the chat.</small>');
+  expect(result.html).toContain('class="dashboard-chat-group-create-flow" aria-hidden="true"');
+  expect(result.html).toContain('<span>Name</span>');
+  expect(result.html).toContain('<span>Members</span>');
+  expect(result.html).toContain('<span>Create</span>');
+  expect(result.html).toContain('minlength="2" maxlength="80" placeholder="Group name" required autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" aria-label="Group name" data-dashboard-chat-group-name-input');
+  expect(result.html).toContain('id="dashboardChatGroupAvatarHelp">Optional · image URL or two initials</small>');
+  expect(result.html).toContain('maxlength="800" placeholder="MP" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="Group image URL or initials" aria-describedby="dashboardChatGroupAvatarHelp" data-dashboard-chat-group-avatar-input');
   expect(result.html).toContain('data-dashboard-chat-group-filter-status aria-live="polite" aria-atomic="true"');
   expect(result.html).toContain('data-dashboard-chat-group-selected-list hidden aria-live="polite" aria-atomic="true"');
   expect(result.html).toContain('class="dashboard-chat-group-create-users" role="group" aria-label="Choose group members"');
   expect(result.html).toContain('aria-label="Add Ceri Bowley (scout) to group"');
   expect(result.html).toContain('aria-describedby="dashboardChatGroupUserMeta-u2"');
   expect(result.html).toContain('<small id="dashboardChatGroupUserMeta-u2">scout</small>');
+  expect(result.html).toContain('class="dashboard-chat-group-user-action"');
   expect(result.html).toContain('data-dashboard-chat-group-create-submit disabled aria-disabled="true" aria-label="Create selected group" title="Add a group name with at least 2 characters and choose at least one teammate"');
   expect(result.html).toContain('class="dashboard-chat-group-create-close" aria-controls="dashboardChatGroupCreateDialog" aria-label="Close new group dialog" title="Close new group dialog"');
   expect(result.html).toContain('data-dashboard-chat-create-menu-trigger aria-label="Open create chat menu" title="Open create chat menu" aria-haspopup="menu" aria-controls="dashboardChatCreateMenu"');
   expect(result.html).toContain('id="dashboardChatCreateMenu" class="dashboard-chat-thread-preset-menu" role="menu" aria-label="Create chat"');
   expect(result.html).toContain('role="menuitem" data-dashboard-chat-open-group-creator aria-haspopup="dialog" aria-controls="dashboardChatGroupCreateDialog"');
+  expect(dashboardChatCreateCss).toContain(".dashboard-chat-group-create-flow");
+  expect(dashboardChatCreateCss).toContain(".dashboard-chat-group-user-action");
+  expect(dashboardChatCreateCss).toContain('content: "Added"');
+  expect(dashboardChatCreateCss).toContain("position: sticky");
 });
 
 test("chat creator exposes private-message mode before group creation", () => {

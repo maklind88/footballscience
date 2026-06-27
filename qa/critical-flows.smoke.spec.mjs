@@ -514,7 +514,8 @@ test("Chat group creator creates a focused group from the plus menu", async ({ p
   const overlay = page.locator(".dashboard-chat-group-create-overlay");
   await expect(overlay).toBeVisible();
   await overlay.locator("[data-dashboard-chat-group-name-input]").fill(groupTitle);
-  await overlay.locator("input[name='participantIds']").first().check();
+  await overlay.locator("[data-dashboard-chat-group-user-search]").filter({ hasText: "Ceri Bowley" }).click();
+  await expect(overlay.locator("[data-dashboard-chat-group-selected-list]")).toContainText("Ceri Bowley");
   await expect(overlay.locator("[data-dashboard-chat-group-create-submit]")).toBeEnabled();
   await overlay.locator("[data-dashboard-chat-group-create-submit]").click();
 
@@ -768,7 +769,7 @@ test("Chat group settings can rename, set avatar, and delete a group", async ({ 
   const overlay = page.locator(".dashboard-chat-group-create-overlay");
   await expect(overlay).toBeVisible();
   await overlay.locator("[data-dashboard-chat-group-name-input]").fill(groupTitle);
-  await overlay.locator("input[name='participantIds']").first().check();
+  await overlay.locator("[data-dashboard-chat-group-user-search]").filter({ hasText: "Ceri Bowley" }).click();
   await overlay.locator("[data-dashboard-chat-group-create-submit]").click();
   await expect(overlay).toHaveCount(0);
   await expect(page.locator("[data-dashboard-chat-thread]").first()).toContainText(groupTitle);

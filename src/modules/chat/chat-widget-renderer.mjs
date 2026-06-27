@@ -1348,14 +1348,19 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       ? `
           <form class="dashboard-chat-group-create-form" data-dashboard-chat-group-create-form>
             <p class="dashboard-chat-group-create-error" data-dashboard-chat-group-create-error hidden></p>
+            <div class="dashboard-chat-group-create-flow" aria-hidden="true">
+              <span>Name</span>
+              <span>Members</span>
+              <span>Create</span>
+            </div>
             <label class="dashboard-chat-group-name">
               <span>Group name</span>
-              <input name="title" type="text" minlength="${escapeHtml(groupNameMinLength)}" maxlength="80" placeholder="Example: Match prep" required autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" aria-label="Group name" data-dashboard-chat-group-name-input>
+              <input name="title" type="text" minlength="${escapeHtml(groupNameMinLength)}" maxlength="80" placeholder="Group name" required autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" aria-label="Group name" data-dashboard-chat-group-name-input>
             </label>
             <label class="dashboard-chat-group-avatar-field">
-              <span>Group image or initials</span>
-              <small id="dashboardChatGroupAvatarHelp">Paste an image URL or type two initials for the group avatar.</small>
-              <input name="avatar" type="text" maxlength="800" placeholder="Image URL or initials, e.g. MP" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="Group image URL or initials" aria-describedby="dashboardChatGroupAvatarHelp" data-dashboard-chat-group-avatar-input>
+              <span>Group icon</span>
+              <small id="dashboardChatGroupAvatarHelp">Optional · image URL or two initials</small>
+              <input name="avatar" type="text" maxlength="800" placeholder="MP" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="Group image URL or initials" aria-describedby="dashboardChatGroupAvatarHelp" data-dashboard-chat-group-avatar-input>
             </label>
             <div class="dashboard-chat-group-title-presets" aria-label="Suggested group names">
               <button type="button" data-dashboard-chat-group-title-preset="Match prep">Match prep</button>
@@ -1363,8 +1368,8 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <button type="button" data-dashboard-chat-group-title-preset="Medical update">Medical update</button>
             </div>
             <label class="dashboard-chat-group-search">
-              <span>Find teammates</span>
-              <input type="search" placeholder="Search by name, role or email" autocomplete="off" data-dashboard-chat-group-user-filter>
+              <span>Add people</span>
+              <input type="search" placeholder="Search name, role or email" autocomplete="off" data-dashboard-chat-group-user-filter>
             </label>
             <div class="dashboard-chat-group-create-status" data-dashboard-chat-group-filter-status aria-live="polite" aria-atomic="true">
               ${escapeHtml(`${groupCreateUsers.length} teammates available · 0 selected`)}
@@ -1396,6 +1401,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                         <strong>${escapeHtml(userName)}</strong>
                         <small id="${escapeHtml(userMetaId)}">${escapeHtml(userMeta)}</small>
                       </span>
+                      <span class="dashboard-chat-group-user-action" aria-hidden="true">Add</span>
                     </label>
                   `;
                 })
@@ -1417,7 +1423,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <header>
                 <span>
                   <strong id="dashboardChatGroupCreateTitle">${normalizedChatCreatorMode === "dm" ? "New chat" : "New group"}</strong>
-                  <small id="dashboardChatGroupCreateDescription">${normalizedChatCreatorMode === "dm" ? "Choose one person and start a private conversation." : "Choose people, name the room and keep the conversation focused."}</small>
+                  <small id="dashboardChatGroupCreateDescription">${normalizedChatCreatorMode === "dm" ? "Choose one person and start a private conversation." : "Name the group, add people, then create the chat."}</small>
                 </span>
                 <button type="button" class="dashboard-chat-group-create-close" aria-controls="dashboardChatGroupCreateDialog" aria-label="${normalizedChatCreatorMode === "dm" ? "Close new chat dialog" : "Close new group dialog"}" title="${normalizedChatCreatorMode === "dm" ? "Close new chat dialog" : "Close new group dialog"}" data-dashboard-chat-group-create-close>×</button>
               </header>

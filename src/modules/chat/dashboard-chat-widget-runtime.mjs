@@ -274,15 +274,24 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     const lastHydrationAttemptAt = Number(dashboardChatHydrationAttemptAtByThread.get(activeThreadId) || 0);
     const canQueueActiveThreadHydration =
       !lastHydrationAttemptAt || Date.now() - lastHydrationAttemptAt >= dashboardChatHydrationRetryWindowMs;
+    const widgetAppearsOpen = Boolean(
+      state.isOpen ||
+        root.querySelector(".dashboard-chat-widget.is-open") ||
+        root.querySelector("[data-dashboard-chat-form]")
+    );
     if (
-      state.isOpen &&
+      widgetAppearsOpen &&
       activeThreadId &&
       activeThreadNeedsHydration &&
       !getDashboardChatApiSyncTimer() &&
       canQueueActiveThreadHydration
     ) {
       dashboardChatHydrationAttemptAtByThread.set(activeThreadId, Date.now());
-      queueDashboardChatApiRefresh({ threadId: activeThreadId, delayMs: 0 });
+      queueDashboardChatApiRefresh({
+        threadId: activeThreadId,
+        delayMs: 0,
+        ...(!state.isOpen ? { forceNetwork: true } : {}),
+      });
     }
 
     const unreadCount = getDashboardChatUnreadCountForCurrentUser(currentUser, resolvedMessages);

@@ -11,7 +11,9 @@ import { createDashboardChatWidgetRuntime } from "../src/modules/chat/dashboard-
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const chatApi = require("../api/chat.js");
+const chatDatabase = require("../api/_lib/chat-database.js");
 const { applyChatActionToState, checkChatRateLimit, filterChatStateForActor } = chatApi._private;
+const { checkRateLimit: checkDatabaseChatRateLimit } = chatDatabase._private;
 
 const appSource = readFileSync(path.join(__dirname, "../app-runtime.js"), "utf8");
 const chatApiRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-api-runtime.mjs"), "utf8");
@@ -384,6 +386,8 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(chatApiSource).toContain("function getChatReadAction");
   expect(chatApiSource).toContain("function normalizeRateLimitAction");
   expect(chatApiSource).toContain("readThread: 18");
+  expect(databaseSource).toContain("readThread: 120");
+  expect(chatApiRuntimeSource).toContain("mergeActiveThreadLastMessageFromSummary");
   expect(appSource).toContain("refreshDashboardChatFromApi({ threadId, forceNetwork: true })");
   expect(appSource).toContain("refreshDashboardChatFromApi({");
   expect(appSource).toContain("forceNetwork: true");
@@ -470,6 +474,19 @@ test("chat read rate limiter separates thread history reads from inbox summary r
     expect(checkChatRateLimit(summaryActor, "readThreads", nowMs)).toMatchObject({ ok: true });
   }
   expect(checkChatRateLimit(summaryActor, "readThreads", nowMs)).toMatchObject({ ok: false, status: 429 });
+});
+
+test("database chat read limiter allows active conversation hydration without blocking message history", () => {
+  const nowMs = Date.parse("2026-06-27T01:15:00.000Z");
+  const threadActor = { id: "database-rate-read-thread-history", role: "coach" };
+  const summaryActor = { id: "database-rate-read-thread-summary", role: "coach" };
+
+  for (let index = 0; index < 60; index += 1) {
+    expect(checkDatabaseChatRateLimit(threadActor, "readThread", nowMs)).toMatchObject({ ok: true });
+  }
+  for (let index = 0; index < 30; index += 1) {
+    expect(checkDatabaseChatRateLimit(summaryActor, "readThreads", nowMs)).toMatchObject({ ok: true });
+  }
 });
 
 test("chat API runtime skips network refreshes while the browser tab is hidden", async () => {
@@ -631,6 +648,55 @@ test("open chat rehydrates active server-backed thread when local message store 
   expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0 }]);
 });
 
+test("rendered chat conversation can hydrate active server-backed thread even when session open state drifted", () => {
+  const threadId = "team";
+  const hydratedThreadIds = new Set([threadId]);
+  const queuedThreadLoads = [];
+  const runtime = createDashboardChatWidgetRuntime({
+    dashboardChatWidgetRenderer: {
+      render: () => ({ html: "<section data-dashboard-chat-list></section>", activeThreadId: threadId, replyDraft: null }),
+    },
+    getCurrentPlatformUser: () => coachActor,
+    getPlatformUsers: () => [coachActor, teammateActor],
+    getDashboardChatThreadList: () => [{
+      threadId,
+      label: "North Carolina Courage Chat",
+      messageCount: 7,
+      lastActivityAt: "2026-06-27T01:08:00.000Z",
+      apiThread: {
+        lastMessageAt: "2026-06-27T01:08:00.000Z",
+      },
+    }],
+    readDashboardMessages: () => [],
+    readDashboardChatWidgetState: () => ({ isOpen: false, selectedThreadId: threadId }),
+    getDashboardHydratedThreadIds: () => hydratedThreadIds,
+    queueDashboardChatApiRefresh: (options) => {
+      queuedThreadLoads.push(options);
+    },
+    ui: {
+      dashboardChatWidgetRoot: {
+        dataset: {},
+        innerHTML: "",
+        querySelector: (selector) => selector === "[data-dashboard-chat-form]" ? { nodeName: "FORM" } : null,
+      },
+    },
+    documentRef: {
+      activeElement: null,
+      body: {
+        classList: {
+          add: () => {},
+          remove: () => {},
+          toggle: () => {},
+        },
+      },
+    },
+  });
+
+  runtime.renderDashboardChatWidget();
+
+  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0, forceNetwork: true }]);
+});
+
 test("open chat throttles repeated empty active thread hydration requests", () => {
   const threadId = "dm:coach-qa:teammate-qa";
   const hydratedThreadIds = new Set([threadId]);
@@ -731,6 +797,46 @@ test("chat API runtime keeps active thread unhydrated when history payload is em
   ]);
   expect(hydratedThreadIds.has("team")).toBe(false);
   expect(rendered).toBe(1);
+});
+
+test("chat summary seeds active server last message while full thread history hydrates", async () => {
+  const merged = [];
+  const runtime = createDashboardChatApiRuntime({
+    getDashboardChatCurrentViewState: () => ({ isOpen: true, selectedThreadId: "team" }),
+    getDashboardMessages: () => [],
+    normalizeDashboardApiThread: (thread) => ({
+      ...thread,
+      threadId: thread.threadId || thread.legacyThreadId || thread.metadata?.legacyThreadId || "team",
+      messageCount: thread.messageCount || thread.message_count || 0,
+    }),
+    mergeDashboardChatApiMessages: (messages, options) => {
+      merged.push({ messages, options });
+    },
+    setDashboardApiThreads: () => {},
+  });
+
+  runtime.applyDashboardChatApiPayload({
+    threads: [{
+      id: "database-team-thread",
+      threadId: "team",
+      type: "team",
+      messageCount: 7,
+      lastMessageAt: "2026-06-27T01:08:00.000Z",
+      lastMessage: {
+        id: "msg-team-latest",
+        threadId: "team",
+        userId: "coach-qa",
+        text: "fdsafas",
+        createdAt: "2026-06-27T01:08:00.000Z",
+      },
+    }],
+    messages: [],
+  }, { replaceThreadList: true });
+
+  expect(merged[0]).toEqual(expect.objectContaining({
+    messages: [expect.objectContaining({ id: "msg-team-latest", text: "fdsafas" })],
+    options: expect.objectContaining({ keepThread: true }),
+  }));
 });
 
 test("closed chat runtime does not queue realtime recovery reads", async () => {

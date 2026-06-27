@@ -338,6 +338,46 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     setApiThreads(Array.from(byId.values()).filter((thread) => !isArchivedApiThread(thread)));
   }
 
+  function mergeActiveThreadLastMessageFromSummary(threads = []) {
+    if (!Array.isArray(threads) || !threads.length) {
+      return;
+    }
+
+    const activeThreadId = normalizeDashboardChatThreadId(
+      getDashboardChatCurrentViewState?.().selectedThreadId || "",
+      ""
+    );
+    if (!activeThreadId) {
+      return;
+    }
+
+    const hasLocalActiveMessages = getDashboardMessages()
+      .some((message) => normalizeDashboardChatThreadId(message?.threadId || "", "") === activeThreadId);
+    if (hasLocalActiveMessages) {
+      return;
+    }
+
+    const activeSummary = threads.find((thread) => normalizeDashboardApiThread(thread)?.threadId === activeThreadId) || null;
+    const lastMessage = activeSummary?.lastMessage || activeSummary?.last_message || null;
+    const hasServerActivity = Boolean(
+      lastMessage ||
+        Number(activeSummary?.messageCount || activeSummary?.message_count || 0) > 0 ||
+        activeSummary?.lastMessageAt ||
+        activeSummary?.last_message_at ||
+        activeSummary?.lastMessageId ||
+        activeSummary?.last_message_id
+    );
+    if (!lastMessage || !hasServerActivity) {
+      return;
+    }
+
+    mergeDashboardChatApiMessages([lastMessage], {
+      render: false,
+      thread: activeSummary,
+      keepThread: true,
+    });
+  }
+
   function applyDashboardChatApiPayload(payload = {}, options = {}) {
     if (payload.scope) {
       setApiScope(payload.scope);
@@ -355,6 +395,7 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
 
     if (Array.isArray(payload.threads)) {
       updateDashboardChatApiThreads(payload.threads, { replace: Boolean(options.replaceThreadList) });
+      mergeActiveThreadLastMessageFromSummary(payload.threads);
     } else if (payload.thread) {
       updateDashboardChatApiThreads([payload.thread]);
     }

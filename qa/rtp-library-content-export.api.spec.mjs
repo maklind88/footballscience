@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -35,4 +35,23 @@ test("RTP Library content export validates canonical source counts", () => {
     exercises: 72,
     mappings: 1614,
   });
+});
+
+test("RTP Library content export can write Supabase-safe SQL chunks", () => {
+  const outDir = join(tmpdir(), `rtp-library-content-chunks-${Date.now()}`);
+  const output = execFileSync("node", ["scripts/export-rtp-library-content-sql.mjs", "--out-dir", outDir], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+  const summary = JSON.parse(output);
+  const files = readdirSync(outDir).filter((file) => file.endsWith(".sql")).sort();
+  const firstSql = readFileSync(join(outDir, files[0]), "utf8");
+  const mappingSql = readFileSync(join(outDir, files.find((file) => file.includes("profile_exercises_001"))), "utf8");
+
+  expect(summary).toMatchObject({ profiles: 200, exercises: 72, mappings: 1614 });
+  expect(files.length).toBeGreaterThan(40);
+  expect(files[0]).toBe("001_profiles_001.sql");
+  expect(firstSql).toContain("insert into public.rtp_library_profiles");
+  expect(mappingSql).toContain("delete from public.rtp_library_profile_exercises");
+  expect(summary.files).toEqual(files);
 });

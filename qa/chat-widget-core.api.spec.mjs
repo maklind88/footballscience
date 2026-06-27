@@ -198,6 +198,53 @@ test("chat widget renders direct message bodies in the active conversation pane"
   expect(result.html).not.toContain("No messages yet");
 });
 
+test("chat widget shows server summary latest message when active history is still hydrating", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [currentUser, { id: "u2", name: "Analyst", status: "active" }];
+  const lastMessage = {
+    id: "server-latest-message",
+    userId: "u1",
+    threadId: "team",
+    text: "fdsafas",
+    createdAt: "2026-06-27T01:08:00.000Z",
+    readBy: ["u1"],
+    mentionedUserIds: [],
+    reactions: {},
+    priority: "normal",
+  };
+  const threads = [{
+    threadId: "team",
+    label: "Team Chat",
+    isTeamThread: true,
+    messageCount: 7,
+    unreadCount: 0,
+    mentionCount: 0,
+    lastMessage,
+    lastMessagePreview: "You: fdsafas",
+    lastMessageAt: "2026-06-27T01:08:00.000Z",
+    settings: {},
+    permissions: {},
+  }];
+
+  const result = createRenderer([]).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages: [],
+    threads,
+    activeThreadId: "team",
+    mobileConversationOpen: true,
+    realtimeStatus: { key: "connected", label: "Connected", detail: "Realtime active" },
+  });
+
+  expect(result.html).toContain("fdsafas");
+  expect(result.html).toContain('data-dashboard-chat-message-id="server-latest-message"');
+  expect(result.html).toContain("is-preview");
+  expect(result.html).not.toContain("No messages yet");
+  expect(result.html).not.toContain("data-dashboard-reply-message");
+  expect(result.html).not.toContain("data-dashboard-delete-message-for-me");
+});
+
 test("chat widget renders coach workflow and evidence intelligence layers", () => {
   const currentUser = { id: "u1", name: "Mak" };
   const users = [

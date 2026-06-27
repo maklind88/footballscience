@@ -238,7 +238,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
   }
 
   function getThreadPreview(thread, users, currentUser) {
-    const lastMessage = thread?.lastMessage;
+    const lastMessage = getThreadLastMessage(thread);
     if (!lastMessage) {
       return thread?.isTeamThread ? "Open team room" : thread?.type === "announcement" ? "Broadcast staff updates" : "Start a conversation";
     }
@@ -262,6 +262,54 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     return lastMessage.mentionedUserIds?.includes(currentUser?.id)
       ? `${priorityPrefix}Mentioned you: ${previewText}${attachmentSuffix}`
       : `${priorityPrefix}${senderName}: ${previewText}${attachmentSuffix}`;
+  }
+
+  function getThreadLastMessage(thread = {}) {
+    return thread?.lastMessage || thread?.apiThread?.lastMessage || thread?.apiThread?.last_message || null;
+  }
+
+  function getThreadPreviewFallbackMessages(thread = null, activeThreadId = teamThreadId, users = [], currentUser = null) {
+    if (!thread?.threadId) {
+      return [];
+    }
+
+    const lastMessage = getThreadLastMessage(thread);
+    const previewText = String(thread.lastMessagePreview || thread.apiThread?.lastMessagePreview || thread.apiThread?.last_message_preview || "").trim();
+    const lastMessageText = String(lastMessage?.text ?? lastMessage?.body ?? "").trim();
+    const fallbackText = lastMessageText || previewText.replace(/^you:\s*/i, "").trim();
+    if (!fallbackText) {
+      return [];
+    }
+
+    const currentUserId = String(currentUser?.id || "").trim();
+    const senderId = String(
+      lastMessage?.userId ||
+        lastMessage?.author_id ||
+        lastMessage?.authorId ||
+        lastMessage?.author?.id ||
+        (/^you:\s*/i.test(previewText) ? currentUserId : "")
+    ).trim();
+    const fallbackUserId = senderId || users.find((user) => user?.id)?.id || "chat-preview";
+    const createdAt = String(lastMessage?.createdAt || lastMessage?.created_at || thread.lastMessageAt || thread.apiThread?.lastMessageAt || thread.apiThread?.last_message_at || "").trim();
+    const messageId = String(lastMessage?.id || lastMessage?.messageId || thread.lastMessageId || thread.apiThread?.lastMessageId || thread.apiThread?.last_message_id || "").trim();
+
+    return [{
+      ...lastMessage,
+      id: messageId || `thread-preview-${thread.threadId}`,
+      threadId: activeThreadId,
+      text: fallbackText,
+      userId: fallbackUserId,
+      createdAt,
+      status: "preview",
+      metadata: {
+        ...(lastMessage?.metadata || {}),
+        previewOnly: true,
+      },
+      readBy: Array.isArray(lastMessage?.readBy) ? lastMessage.readBy : [],
+      mentionedUserIds: Array.isArray(lastMessage?.mentionedUserIds) ? lastMessage.mentionedUserIds : [],
+      reactions: lastMessage?.reactions || {},
+      attachments: Array.isArray(lastMessage?.attachments) ? lastMessage.attachments : [],
+    }];
   }
 
   function getMessageAttachmentCount(message = {}) {
@@ -488,6 +536,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
 
   function renderMessage(message, users, currentUser, options = {}) {
     const isOwn = message.userId === currentUser?.id;
+    const isPreviewOnly = Boolean(message.previewOnly || message.metadata?.previewOnly || message.status === "preview");
     const isMentioned = !isOwn && message.mentionedUserIds.includes(currentUser?.id);
     const isGroupedWithPrevious = Boolean(options.groupedWithPrevious);
     const isGroupedWithNext = Boolean(options.groupedWithNext);
@@ -502,20 +551,20 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const avatarMarkup = user
       ? renderPresenceAvatar(user, "dashboard-chat-avatar")
       : `<span class="dashboard-chat-avatar" aria-hidden="true">?</span>`;
-    const statusMarkup = isOwn && !isGroupedWithNext ? renderMessageStatus(message, users, currentUser) : "";
-    const canDeleteChat = canDeleteMessage(message, currentUser);
-    const canDeleteForMe = messageStatus !== "pending" && messageStatus !== "failed" && messageStatus !== "deleted";
-    const canEditChat = isOwn && canDeleteForMe;
-    const canForwardChat = canDeleteForMe && Boolean(String(message.text || "").trim());
-    const canPinChat = canPinMessage(currentUser);
+    const statusMarkup = isOwn && !isGroupedWithNext && !isPreviewOnly ? renderMessageStatus(message, users, currentUser) : "";
+    const canDeleteChat = !isPreviewOnly && canDeleteMessage(message, currentUser);
+    const canDeleteForMe = !isPreviewOnly && messageStatus !== "pending" && messageStatus !== "failed" && messageStatus !== "deleted";
+    const canEditChat = !isPreviewOnly && isOwn && canDeleteForMe;
+    const canForwardChat = !isPreviewOnly && canDeleteForMe && Boolean(String(message.text || "").trim());
+    const canPinChat = !isPreviewOnly && canPinMessage(currentUser);
     const canRetryMessage = isOwn && messageStatus === "failed";
     const pinLabel = message.pinnedAt ? "Unpin" : "Pin";
     const replyMessage = message.replyToId ? getMessageById(message.replyToId) : null;
     const replyMarkup = replyMessage ? renderReplyReference(replyMessage, users, { compact: true }) : "";
     const priorityMarkup = "";
-    const reactionMarkup = renderMessageReactions(message, currentUser);
+    const reactionMarkup = isPreviewOnly ? "" : renderMessageReactions(message, currentUser);
     const workflowBadgeMarkup = "";
-    const promoteActionMarkup = renderMessagePromoteActions(message);
+    const promoteActionMarkup = isPreviewOnly ? "" : renderMessagePromoteActions(message);
     const hasAttachments = Array.isArray(message.attachments) && message.attachments.length > 0;
     const cardStateClasses = [
       normalizedPriority && normalizedPriority !== "normal" ? ` is-priority-${escapeHtml(normalizedPriority)}` : "",
@@ -550,10 +599,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       : "";
 
     return `
-    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isMentioned ? " is-mentioned" : ""}${isSearchMatch ? " is-search-match" : ""}${isActiveSearchMatch ? " is-active-search-match" : ""}${message.pinnedAt ? " is-pinned" : ""}${isGroupedWithPrevious ? " is-grouped-with-previous" : ""}${isGroupedWithNext ? " is-grouped-with-next" : ""}${messageStatus ? ` is-${escapeHtml(messageStatus)} is-status-${escapeHtml(messageStatus)}` : ""}${cardStateClasses}" data-dashboard-chat-message-id="${escapeHtml(message.id)}" data-dashboard-chat-message-card${isActiveSearchMatch ? ' data-dashboard-chat-search-active="true"' : ""} aria-label="${escapeHtml(`${userName}${timeLabel ? `, ${timeLabel}` : ""}`)}">
+    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isPreviewOnly ? " is-preview" : ""}${isMentioned ? " is-mentioned" : ""}${isSearchMatch ? " is-search-match" : ""}${isActiveSearchMatch ? " is-active-search-match" : ""}${message.pinnedAt ? " is-pinned" : ""}${isGroupedWithPrevious ? " is-grouped-with-previous" : ""}${isGroupedWithNext ? " is-grouped-with-next" : ""}${messageStatus ? ` is-${escapeHtml(messageStatus)} is-status-${escapeHtml(messageStatus)}` : ""}${cardStateClasses}" data-dashboard-chat-message-id="${escapeHtml(message.id)}" data-dashboard-chat-message-card${isActiveSearchMatch ? ' data-dashboard-chat-search-active="true"' : ""} aria-label="${escapeHtml(`${userName}${timeLabel ? `, ${timeLabel}` : ""}`)}">
       ${metaMarkup}
       <div class="dashboard-chat-bubble">
-        <details class="dashboard-chat-message-menu">
+        ${isPreviewOnly ? "" : `<details class="dashboard-chat-message-menu">
           <summary aria-label="Open message actions">
             <span aria-hidden="true">&#8964;</span>
           </summary>
@@ -597,7 +646,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 : ""
             }
           </div>
-        </details>
+        </details>`}
         ${priorityMarkup}
         ${workflowBadgeMarkup}
         ${replyMarkup}
@@ -1202,6 +1251,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       ? Math.max(0, Math.min(searchActiveMatchIndex - Math.floor(messageLimit / 2), searchedMessages.length - messageLimit))
       : Math.max(0, searchedMessages.length - messageLimit);
     const visibleMessages = searchedMessages.slice(visibleSearchWindowStart, visibleSearchWindowStart + messageLimit);
+    const previewFallbackMessages = visibleMessages.length
+      ? []
+      : getThreadPreviewFallbackMessages(activeThread, activeThreadId, users, currentUser);
+    const conversationMessages = visibleMessages.length ? visibleMessages : previewFallbackMessages;
     const pinnedMessages = getPinnedMessagesForThread(messages, activeThreadId);
     const latestThread = threads.find((thread) => thread.unreadCount) || getLatestThread(threads);
     const activeThreadLabel = activeThread?.label || teamChatTitle;
@@ -1758,7 +1811,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           ${renderPinnedMessages(pinnedMessages, users, currentUser)}
           <div class="dashboard-chat-list" data-dashboard-chat-list aria-live="polite">
             ${hasOlderMessages && !normalizedMessageSearch ? `<button type="button" class="dashboard-chat-load-more" data-dashboard-chat-load-earlier="${escapeHtml(activeThreadId)}">Load earlier</button>` : ""}
-            ${visibleMessages.length ? renderMessagesWithDateSeparators(visibleMessages, users, currentUser, { searchQuery: normalizedMessageSearch, activeSearchMatchId }) : `<div class="dashboard-chat-empty-state"><strong>No messages yet</strong><span>${escapeHtml(activeThread?.isTeamThread ? "Start the team thread." : `Start a direct message with ${activeThreadLabel}.`)}</span></div>`}
+            ${conversationMessages.length ? renderMessagesWithDateSeparators(conversationMessages, users, currentUser, { searchQuery: normalizedMessageSearch, activeSearchMatchId }) : `<div class="dashboard-chat-empty-state"><strong>No messages yet</strong><span>${escapeHtml(activeThread?.isTeamThread ? "Start the team thread." : `Start a direct message with ${activeThreadLabel}.`)}</span></div>`}
           </div>
           ${renderTypingIndicator(activeThreadId, users, currentUser)}
           ${replyComposerMarkup}

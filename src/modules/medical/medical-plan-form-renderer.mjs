@@ -5,6 +5,7 @@ import {
   medicalRtpTrackerStatusOptions,
   normalizeMedicalRtpProgramTracker,
 } from "./medical-rtp-tracker-helpers.mjs";
+import { getMedicalRtpExercisesForProfile as getDefaultMedicalRtpExercisesForProfile } from "./medical-rtp-exercise-bank-data.mjs";
 import { getMedicalRtpLibraryProfiles as getDefaultMedicalRtpLibraryProfiles } from "./medical-rtp-library-data.mjs";
 
 const defaultEscapeHtml = (value) =>
@@ -20,6 +21,7 @@ export function createMedicalPlanFormRenderer({
   getActiveMedicalInjuryPlan,
   getMedicalInjuryPlanDraft,
   getMedicalPlayerInjuryPlans,
+  getMedicalRtpExercisesForProfile = getDefaultMedicalRtpExercisesForProfile,
   getMedicalRtpLibraryProfiles = getDefaultMedicalRtpLibraryProfiles,
   getSelectedDate,
   isMedicalPlanCleared,
@@ -51,6 +53,31 @@ export function createMedicalPlanFormRenderer({
 <small>One item per line. Medical-only unless separately summarized as coach-safe.</small>
 </label>
 `;
+
+  const renderExerciseStarterCards = (profile = null, limit = 4) => {
+    const exercises = profile ? getMedicalRtpExercisesForProfile(profile.id, { limit }) : [];
+    if (!exercises.length) {
+      return `<div class="medical-rtp-exercise-empty">No Exercise Bank starters mapped yet.</div>`;
+    }
+    return `
+<div class="medical-rtp-exercise-grid medical-rtp-exercise-grid-compact">
+${exercises
+  .map(
+    (item) => `
+<article class="medical-rtp-exercise-card medical-rtp-exercise-${escapeHtml(item.riskLevel)}">
+<header>
+<span>${escapeHtml(item.phases.slice(0, 2).join(" / ") || "phase")}</span>
+<strong>${escapeHtml(item.name)}</strong>
+</header>
+<p>${escapeHtml(item.intent)}</p>
+<small>${escapeHtml(item.footballDemands.slice(0, 3).join(" / "))}</small>
+</article>
+`
+  )
+  .join("")}
+</div>
+`;
+  };
 
   const isRtpFocusForDraft = (draft = {}, focus = {}) =>
     Boolean(focus?.focusMedicalRtpPlan && (!focus.rtpFocusPlanId || String(focus.rtpFocusPlanId) === String(draft.planId || draft.id || "")));
@@ -129,6 +156,34 @@ ${renderTrackerStatusOptions(status.key)}
 `;
   };
 
+  const renderRtpGuideStarterPreview = (profile = null) => {
+    if (!profile) {
+      return `<div class="medical-rtp-guide-preview" data-medical-rtp-guide-preview><span>Starter preview</span><strong>Select a guide to preview the Medical Plan starter.</strong></div>`;
+    }
+    const previewItems = [
+      ["Phases", profile.phases?.[0] || "No phase starter set"],
+      ["Load focus", profile.loadText?.[0] || "No load starter set"],
+      ["Gate", profile.criteria?.[0] || "No gate criterion set"],
+      ["Exercise", getMedicalRtpExercisesForProfile(profile.id, { limit: 1 })[0]?.name || "No exercise starter mapped"],
+      ["Next exposure", profile.trainingChecklist?.[0] || "No next exposure set"],
+      ["Hold rule", profile.redFlags?.[0] || "No hold rule set"],
+    ];
+    return `
+<div class="medical-rtp-guide-preview" data-medical-rtp-guide-preview aria-label="RTP guide starter preview">
+<span>Starter preview</span>
+<strong>${escapeHtml(profile.name)} -> Medical Plan draft</strong>
+<ul>
+${previewItems.map(([label, value]) => `<li><b>${escapeHtml(label)}</b><span>${escapeHtml(value)}</span></li>`).join("")}
+</ul>
+<div class="medical-rtp-exercise-preview">
+<span>Exercise Bank starters</span>
+${renderExerciseStarterCards(profile, 3)}
+</div>
+<small>Loading the guide does not save automatically. Medical must individualize and save the player-specific plan.</small>
+</div>
+`;
+  };
+
   const renderRtpProgramTracker = (draft = {}, canEdit = true, focus = {}) => {
     const tracker = normalizeMedicalRtpProgramTracker(draft.rtpProgramTracker || draft, draft);
     const summary = getMedicalRtpTrackerSummary({ ...draft, rtpProgramTracker: tracker });
@@ -152,12 +207,18 @@ ${medicalRtpTrackerGroups.map((group) => renderTrackerGroup(group, draft, tracke
   const renderRtpGuideProgramLoader = (draft = {}, canEdit = true) => {
     const profiles = [...getMedicalRtpLibraryProfiles()].sort((first, second) => String(first.name || "").localeCompare(String(second.name || "")));
     const selectedProfileId = draft.rtpLibraryProfileId || profiles[0]?.id || "";
+    const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId) || profiles[0] || null;
     return `
 <section class="medical-rtp-program-guide-loader" aria-label="Use RTP Library guide in Medical Plan">
 <div>
 <span>RTP Library guide</span>
 <strong>${draft.rtpLibraryProfileName ? escapeHtml(draft.rtpLibraryProfileName) : "Choose a guide to build the Medical Plan"}</strong>
 <small>Loads phases, load focus, gates, next exposure, hold rules and medical notes into this draft.</small>
+</div>
+<div class="medical-rtp-program-flow" aria-label="RTP Library to Medical Plan flow">
+<span><strong>Library</strong> neutral guide</span>
+<span><strong>Medical Plan</strong> player-specific program</span>
+<span><strong>Tracker</strong> gates and hold rules</span>
 </div>
 <label>
 <span>Guide</span>
@@ -166,6 +227,7 @@ ${profiles.map((profile) => `<option value="${escapeHtml(profile.id)}"${profile.
 </select>
 </label>
 <button type="button" data-medical-plan-load-rtp-guide ${canEdit ? "" : "disabled"}>Load guide into draft</button>
+${renderRtpGuideStarterPreview(selectedProfile)}
 </section>
 `;
   };
@@ -175,6 +237,7 @@ ${profiles.map((profile) => `<option value="${escapeHtml(profile.id)}"${profile.
       draft.rtpProgramPhases,
       draft.rtpProgramLoadText,
       draft.rtpProgramGateCriteria,
+      draft.rtpProgramExercises,
       draft.rtpProgramNextSteps,
       draft.rtpProgramHoldRules,
     ].some((items) => Array.isArray(items) && items.length);
@@ -182,8 +245,8 @@ ${profiles.map((profile) => `<option value="${escapeHtml(profile.id)}"${profile.
 <section class="medical-rtp-program-blueprint medical-rtp-program-editor" aria-label="Medical RTP program builder">
 <header>
 <div>
-<span>Player RTP program builder</span>
-<strong>${hasProgram ? "Edit and individualize this Medical-owned RTP program" : "Build the player program from an RTP Library starter"}</strong>
+<span>Medical Program Builder</span>
+<strong>${hasProgram ? "Individualize this Medical-owned RTP program" : "Build the player program from an RTP Library starter"}</strong>
 </div>
 <small>Medical-owned / not coach-visible by default</small>
 </header>
@@ -231,6 +294,15 @@ ${renderProgramField({
   label: "Gate criteria",
   items: draft.rtpProgramGateCriteria,
   placeholder: "Pain-free maximal contraction\nRepeated sprint exposure completed",
+  canEdit,
+})}
+${renderProgramField({
+  name: "rtpProgramExercises",
+  label: "Exercise starters",
+  items: draft.rtpProgramExercises,
+  placeholder: "Nordic hamstring progression | phase: full | demand: max velocity | hold: sharp pain\nTempo run exposure | phase: modified | demand: running volume",
+  rows: 5,
+  isWide: true,
   canEdit,
 })}
 ${renderProgramField({

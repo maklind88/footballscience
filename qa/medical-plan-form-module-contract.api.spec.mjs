@@ -36,6 +36,7 @@ test("Medical plan form renderer keeps injury plan and clearance form contracts"
       rtpProgramRiskFactors: ["Previous hamstring injury", "Sprint exposure gap"],
       rtpProgramWarningPoints: ["Pain during acceleration"],
       rtpProgramGateCriteria: ["Pain-free maximal isometric contraction", "Tolerates repeated high-speed running"],
+      rtpProgramExercises: ["Nordic hamstring progression | phase: full | demand: max velocity | hold: sharp pain"],
       rtpProgramNextSteps: ["Controlled acceleration session", "Position-specific sprint exposure"],
       rtpProgramHoldRules: ["Pain above acceptable threshold"],
       rtpProgramTracker: {
@@ -65,16 +66,33 @@ test("Medical plan form renderer keeps injury plan and clearance form contracts"
   expect(form).toContain("RTP Library starter");
   expect(form).toContain("Hamstring Strain");
   expect(form).toContain('name="rtpLibraryProfileId" value="hamstring-strain"');
-  expect(form).toContain("Player RTP program builder");
+  expect(form).toContain("Medical Program Builder");
+  expect(form).toContain("Individualize this Medical-owned RTP program");
   expect(form).toContain("RTP Library guide");
   expect(form).toContain("data-medical-plan-rtp-guide");
   expect(form).toContain("data-medical-plan-load-rtp-guide");
   expect(form).toContain("Load guide into draft");
   expect(form).toContain("Loads phases, load focus, gates, next exposure, hold rules and medical notes into this draft.");
+  expect(form).toContain("Library</strong> neutral guide");
+  expect(form).toContain("Medical Plan</strong> player-specific program");
+  expect(form).toContain("Tracker</strong> gates and hold rules");
+  expect(form).toContain("Starter preview");
+  expect(form).toContain("Hamstring Strain -> Medical Plan draft");
+  expect(form).toContain("<b>Phases</b>");
+  expect(form).toContain("<b>Load focus</b>");
+  expect(form).toContain("<b>Gate</b>");
+  expect(form).toContain("<b>Exercise</b>");
+  expect(form).toContain("<b>Next exposure</b>");
+  expect(form).toContain("<b>Hold rule</b>");
+  expect(form).toContain("Exercise Bank starters");
+  expect(form).toContain("Loading the guide does not save automatically");
   expect(form).toContain("Medical case");
   expect(form).toContain("plan1");
   expect(form).toContain("RTP phases");
   expect(form).toContain("Gate criteria");
+  expect(form).toContain("Exercise starters");
+  expect(form).toContain("Nordic hamstring progression");
+  expect(form).toContain('<textarea name="rtpProgramExercises"');
   expect(form).toContain("Pain-free maximal isometric contraction");
   expect(form).toContain('<textarea name="rtpProgramPhases"');
   expect(form).toContain("One item per line");

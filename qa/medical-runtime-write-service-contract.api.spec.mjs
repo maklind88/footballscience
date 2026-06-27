@@ -184,6 +184,7 @@ test("Medical runtime write service preserves plans, clearance, roster upsert, a
     rtpLibraryProfileName: "Hamstring Strain",
     rtpProgramPhases: ["Rehab", "Modified football"],
     rtpProgramGateCriteria: ["Pain-free acceleration", "Sprint block completed"],
+    rtpProgramExercises: ["Nordic hamstring progression"],
     rtpProgramNextSteps: ["Controlled sprint exposure"],
     rtpProgramHoldRules: ["Next-day symptom spike"],
   });
@@ -195,15 +196,18 @@ test("Medical runtime write service preserves plans, clearance, roster upsert, a
     rtpLibraryProfileName: "Hamstring Strain",
     rtpProgramPhases: ["Rehab", "Modified football"],
     rtpProgramGateCriteria: ["Pain-free acceleration", "Sprint block completed"],
+    rtpProgramExercises: ["Nordic hamstring progression"],
   });
   expect(harness.commits.at(-1).type).toBe("availability-plan-created");
 
   expect(harness.service.updateMedicalInjuryPlan({
     planId: plan.id,
     injuryType: "Hamstring Strain",
+    rtpProgramExercises: ["Tempo run exposure", "Repeated sprint block"],
     rtpProgramNextSteps: ["Team training integration", "Late-session sprint"],
     rtpProgramHoldRules: ["Pain increase"],
   })).toMatchObject({
+    rtpProgramExercises: ["Tempo run exposure", "Repeated sprint block"],
     rtpProgramNextSteps: ["Team training integration", "Late-session sprint"],
     rtpProgramHoldRules: ["Pain increase"],
   });

@@ -167,6 +167,7 @@ ${renderRtpProgramFocusStrip(plan)}
 ${renderRtpTrackerSummary(plan)}
 ${renderRtpProgramSection("Next step", getRtpProgramItems(plan.rtpProgramNextSteps, 2))}
 ${renderRtpProgramSection("Gate criteria", getRtpProgramItems(plan.rtpProgramGateCriteria, 3))}
+${renderRtpProgramSection("Exercise starters", getRtpProgramItems(plan.rtpProgramExercises, 3))}
 ${renderRtpProgramSection("Hold rules", getRtpProgramItems(plan.rtpProgramHoldRules, 2))}
 </div>
 <footer>

@@ -223,6 +223,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
       rtpProgramRiskFactors: [],
       rtpProgramWarningPoints: [],
       rtpProgramGateCriteria: [],
+      rtpProgramExercises: [],
       rtpProgramNextSteps: [],
       rtpProgramHoldRules: [],
       rtpProgramTracker: {},

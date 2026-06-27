@@ -18,7 +18,9 @@ export * from "./medical-recommendation-renderer.mjs";
 export * from "./medical-roster-helpers.mjs";
 export * from "./medical-roster-selectors.mjs";
 export * from "./medical-roster-renderer.mjs";
+export * from "./medical-rtp-program-workspace-renderer.mjs";
 export * from "./medical-rtp-tracker-helpers.mjs";
+export * from "./medical-rtp-exercise-bank-data.mjs";
 export {
   createMedicalRtpLibraryStarterDraft,
   getMedicalRtpLibraryClinicalSearchGroups,

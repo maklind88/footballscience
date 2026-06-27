@@ -5,6 +5,7 @@ import {
   medicalRtpLibraryFilterOptions,
   medicalRtpLibraryProfiles as defaultMedicalRtpLibraryProfiles,
 } from "./medical-rtp-library-data.mjs";
+import { createMedicalRtpProgramWorkspaceRenderer } from "./medical-rtp-program-workspace-renderer.mjs";
 import { createMedicalRtpProgramRenderer } from "./medical-rtp-program-renderer.mjs";
 
 const defaultEscapeHtml = (value) =>
@@ -94,6 +95,7 @@ ${renderTabs(activeTab, tabOptions, "medical-ops-tabs-top")}
       plan.rtpLibraryProfileId ||
         plan.rtpLibraryProfileName ||
         (Array.isArray(plan.rtpProgramGateCriteria) && plan.rtpProgramGateCriteria.length) ||
+        (Array.isArray(plan.rtpProgramExercises) && plan.rtpProgramExercises.length) ||
         (Array.isArray(plan.rtpProgramNextSteps) && plan.rtpProgramNextSteps.length)
     );
 
@@ -187,6 +189,15 @@ ${suggestedProfiles
 </section>
 `;
   };
+
+  const rtpProgramWorkspaceRenderer = createMedicalRtpProgramWorkspaceRenderer({
+    escapeHtml,
+    renderCaseRtpStarterLinker,
+    renderOpsStat,
+    renderRtpCaseProgramCards: rtpProgramRenderer.renderRtpCaseProgramCards,
+  });
+
+  const renderPrograms = (summary) => rtpProgramWorkspaceRenderer.renderRtpProgramsWorkspace(summary);
 
   const renderPlayerAvailability = (summary) => {
     const players = summary.signals;
@@ -767,13 +778,15 @@ ${renderOpsStat("Coach notes", String(items.length), "approved", items.length ? 
         ? renderSignals(summary)
         : activeTab === "cases"
           ? renderCases(summary)
-          : activeTab === "history"
-            ? renderHistory(summary)
-            : activeTab === "rtp-library"
-              ? renderRtpLibrary(summary)
-              : activeTab === "season"
-                ? renderSeason(summary)
-              : renderSignals(summary);
+          : activeTab === "programs"
+            ? renderPrograms(summary)
+            : activeTab === "history"
+              ? renderHistory(summary)
+              : activeTab === "rtp-library"
+                ? renderRtpLibrary(summary)
+                : activeTab === "season"
+                  ? renderSeason(summary)
+                : renderSignals(summary);
     return `
 <section class="medical-operations-system" data-medical-operations-system aria-label="Medical operations intelligence board">
 ${body}
@@ -790,6 +803,7 @@ ${body}
     renderPlayerAvailability,
     renderSignals,
     renderCases,
+    renderPrograms,
     renderRtpLibrary,
     renderHistory,
     renderSeason,

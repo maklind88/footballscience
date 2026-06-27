@@ -141,6 +141,40 @@ ${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join
       .map((item) => `<span class="medical-ops-chip medical-ops-chip-low">${escapeHtml(item)}</span>`)
       .join("");
 
+  const getRtpProfileExercises = (profile = {}, limit = 6) =>
+    actions.getMedicalRtpExercisesForProfile?.(profile.id, { limit }) || [];
+
+  const renderRtpExerciseCards = (profile = {}, limit = 6) => {
+    const exercises = getRtpProfileExercises(profile, limit);
+    if (!exercises.length) {
+      return `<div class="medical-rtp-exercise-empty">No Exercise Bank starters mapped yet.</div>`;
+    }
+    return `
+<div class="medical-rtp-exercise-grid">
+${exercises
+  .map(
+    (item) => `
+<article class="medical-rtp-exercise-card medical-rtp-exercise-${escapeHtml(item.riskLevel)}">
+<header>
+<span>${escapeHtml(item.phases.slice(0, 2).join(" / ") || "phase")}</span>
+<strong>${escapeHtml(item.name)}</strong>
+</header>
+<p>${escapeHtml(item.intent)}</p>
+<div class="medical-rtp-exercise-meta">
+<span>${escapeHtml(item.tissueTypes.slice(0, 2).join(" / ") || "tissue")}</span>
+<span>${escapeHtml(item.footballDemands.slice(0, 2).join(" / ") || "football demand")}</span>
+<span>${escapeHtml(item.riskLevel)}</span>
+</div>
+<small><strong>Evidence:</strong> ${escapeHtml(item.evidenceLevel)}. ${escapeHtml(item.evidenceSummary)}</small>
+<small><strong>Hold:</strong> ${escapeHtml(item.holdRules[0] || "Medical review if symptoms increase.")}</small>
+</article>
+`
+  )
+  .join("")}
+</div>
+`;
+  };
+
   const renderRtpProfileHeaderMeta = (profile = {}) => `
 <div class="medical-rtp-profile-header-meta" aria-label="RTP guide metadata">
 <span>${escapeHtml(profile.system || "System")}</span>
@@ -156,6 +190,7 @@ ${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join
 <a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "summary"))}">Summary</a>
 <a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "red-flags"))}">Red flags</a>
 <a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "criteria"))}">Criteria</a>
+<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "exercises"))}">Exercises</a>
 <a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "training"))}">Training</a>
 <a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "match"))}">Match</a>
 <a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "full-guide"))}">37 sections</a>
@@ -236,6 +271,10 @@ ${renderRtpProfileDecisionStrip(profile)}
 <div class="medical-rtp-profile-sections">
 ${renderRtpGuideList("Red flags", profile.redFlags || [], getRtpProfileAnchorId(profile.id, "red-flags"))}
 ${renderRtpGuideList("Progression criteria", profile.criteria || [], getRtpProfileAnchorId(profile.id, "criteria"))}
+<section id="${escapeHtml(getRtpProfileAnchorId(profile.id, "exercises"))}">
+<h4>Exercise Bank starters</h4>
+${renderRtpExerciseCards(profile, 6)}
+</section>
 ${renderRtpGuideList("Return-to-training checklist", profile.trainingChecklist || [], getRtpProfileAnchorId(profile.id, "training"))}
 ${renderRtpGuideList("Return-to-match checklist", profile.matchChecklist || [], getRtpProfileAnchorId(profile.id, "match"))}
 ${renderRtpGuideList("Common mistakes / risks", profile.mistakes || [], getRtpProfileAnchorId(profile.id, "risks"))}
@@ -253,6 +292,37 @@ ${renderRtpGoldStandardSections(profile.goldStandardSections || [])}
 </div>
 </div>
 `;
+  };
+
+  const renderPlanGuidePreviewContent = (profile = {}) => {
+    const previewItems = [
+      ["Phases", profile.phases?.[0] || "No phase starter set"],
+      ["Load focus", profile.loadText?.[0] || "No load starter set"],
+      ["Gate", profile.criteria?.[0] || "No gate criterion set"],
+      ["Exercise", getRtpProfileExercises(profile, 1)[0]?.name || "No exercise starter mapped"],
+      ["Next exposure", profile.trainingChecklist?.[0] || "No next exposure set"],
+      ["Hold rule", profile.redFlags?.[0] || "No hold rule set"],
+    ];
+    return `
+<span>Starter preview</span>
+<strong>${escapeHtml(profile.name || "RTP guide")} -> Medical Plan draft</strong>
+<ul>
+${previewItems.map(([label, value]) => `<li><b>${escapeHtml(label)}</b><span>${escapeHtml(value)}</span></li>`).join("")}
+</ul>
+<div class="medical-rtp-exercise-preview">
+<span>Exercise Bank starters</span>
+${renderRtpExerciseCards(profile, 3)}
+</div>
+<small>Loading the guide does not save automatically. Medical must individualize and save the player-specific plan.</small>
+`;
+  };
+
+  const updateMedicalPlanGuidePreview = (guideSelect) => {
+    const form = guideSelect?.closest?.("#medicalInjuryPlanForm");
+    const preview = form?.querySelector?.("[data-medical-rtp-guide-preview]");
+    const profile = actions.getMedicalRtpLibraryProfile?.(guideSelect?.value);
+    if (!preview || !profile) return;
+    preview.innerHTML = renderPlanGuidePreviewContent(profile);
   };
 
   const closeMedicalRtpGuideDraftModal = () => {
@@ -717,6 +787,10 @@ ${renderRtpGoldStandardSections(profile.goldStandardSections || [])}
     if (event.target.closest("[data-medical-rtp-library-filter]")) {
       filterMedicalRtpLibrary();
       return;
+    }
+    const planRtpGuide = event.target.closest("[data-medical-plan-rtp-guide]");
+    if (planRtpGuide) {
+      updateMedicalPlanGuidePreview(planRtpGuide);
     }
     const datePicker = event.target.closest("[data-medical-date-picker]");
     if (datePicker) {

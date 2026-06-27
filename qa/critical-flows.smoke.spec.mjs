@@ -3080,9 +3080,10 @@ test("Medical operations board separates signals, cases, history and season view
   const operationsMenu = page.locator("[data-medical-ops-top-menu]");
   await expect(operationsMenu).toBeVisible();
   await expect(operationsMenu).not.toContainText("Intelligence Board");
-  await expect(operationsMenu.locator("[data-medical-ops-tab]")).toHaveCount(6);
+  await expect(operationsMenu.locator("[data-medical-ops-tab]")).toHaveCount(7);
   await expect(operationsMenu.locator('[data-medical-ops-tab="overview"]')).toHaveCount(0);
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveText("Availability");
+  await expect(operationsMenu.locator('[data-medical-ops-tab="programs"]')).toHaveText("Programs");
   await expect(operationsMenu.locator('[data-medical-ops-tab="rtp-library"]')).toHaveText("RTP Library");
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveClass(/is-active/);
   await expect(page.locator("[data-medical-availability-workspace]")).toBeVisible();

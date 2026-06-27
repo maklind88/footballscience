@@ -37,6 +37,7 @@ export function hasMedicalRtpProgramStarter(plan = {}) {
       plan?.rtpLibraryProfileName ||
       hasTextListItems(plan?.rtpProgramPhases) ||
       hasTextListItems(plan?.rtpProgramGateCriteria) ||
+      hasTextListItems(plan?.rtpProgramExercises) ||
       hasTextListItems(plan?.rtpProgramNextSteps) ||
       hasTextListItems(plan?.rtpProgramHoldRules)
   );

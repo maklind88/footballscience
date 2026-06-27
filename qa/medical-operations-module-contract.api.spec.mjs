@@ -1,7 +1,17 @@
 import { expect, test } from "@playwright/test";
-import { createMedicalOperationsRenderer, getMedicalRtpActionQueueSummary } from "../src/modules/medical/index.mjs";
+import { createMedicalOperationsRenderer, getMedicalRtpActionQueueSummary, medicalOperationsTabOptions } from "../src/modules/medical/index.mjs";
 
 test("Medical operations renderer owns operations tabs, private system, and coach-safe summary", () => {
+  expect(medicalOperationsTabOptions.map((tab) => tab.key)).toEqual([
+    "availability",
+    "signals",
+    "cases",
+    "programs",
+    "history",
+    "rtp-library",
+    "season",
+  ]);
+
   const signal = {
     player: { id: "p1", name: "Mak Player", position: "CM" },
     record: { participation: 75 },
@@ -34,6 +44,7 @@ test("Medical operations renderer owns operations tabs, private system, and coac
           rtpLibraryProfileName: "Hamstring Strain",
           rtpLibraryEvidenceLevel: "Moderate to high",
           rtpProgramGateCriteria: ["pain-free maximal isometric contraction"],
+          rtpProgramExercises: ["Nordic hamstring progression | phase: full | demand: max velocity"],
           rtpProgramNextSteps: ["linear sprint exposure"],
           rtpProgramHoldRules: ["pain with walking after 48 hours"],
           rtpProgramTracker: {
@@ -121,6 +132,8 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(casesMarkup).toContain('data-medical-rtp-focus-index="0"');
   expect(casesMarkup).toContain("Hamstring Strain");
   expect(casesMarkup).toContain("Gate criteria");
+  expect(casesMarkup).toContain("Exercise starters");
+  expect(casesMarkup).toContain("Nordic hamstring progression");
   expect(casesMarkup).toContain("Tracker");
   expect(casesMarkup).toContain("1/3 passed");
   expect(casesMarkup).toContain("Hold: pain with walking after 48 hours");
@@ -136,6 +149,23 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(casesMarkup).toContain("Load focus");
   expect(casesMarkup).toContain("Risk watch");
   expect(casesMarkup).toContain("Warning point");
+  const programsMarkup = renderer.renderPrivateSystem(summary, "programs", "2026-05-31");
+  expect(programsMarkup).toContain("medical-rtp-programs-workspace");
+  expect(programsMarkup).toContain("Medical-owned player programs");
+  expect(programsMarkup).toContain("Use RTP Library as the knowledge source");
+  expect(programsMarkup).toContain("Program Builder v1");
+  expect(programsMarkup).toContain("Build player-specific RTP programs from neutral Library guides");
+  expect(programsMarkup).toContain("Library content stays club-neutral");
+  expect(programsMarkup).toContain("Medical-owned");
+  expect(programsMarkup).toContain("Coach sharing off by default");
+  expect(programsMarkup).toContain("Performance bridge ready");
+  expect(programsMarkup).toContain("Active case");
+  expect(programsMarkup).toContain("RTP guide");
+  expect(programsMarkup).toContain("Medical Plan");
+  expect(programsMarkup).toContain("Tracker gates");
+  expect(programsMarkup).toContain("Medical Plan starter needed");
+  expect(programsMarkup).toContain("RTP Action Queue");
+  expect(programsMarkup).toContain("Open Medical Plan");
   const rtpMarkup = renderer.renderPrivateSystem(summary, "rtp-library", "2026-05-31");
   expect(rtpMarkup).not.toContain("medical-rtp-library-hero");
   expect(rtpMarkup).not.toContain("<h2>RTP Library</h2>");

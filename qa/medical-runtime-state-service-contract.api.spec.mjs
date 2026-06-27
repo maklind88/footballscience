@@ -117,6 +117,7 @@ function createStoredMedicalState() {
         rtpLibraryProfileName: "Hamstring Strain",
         rtpLibraryEvidenceLevel: "Moderate to high",
         rtpProgramGateCriteria: ["Pain-free sprinting"],
+        rtpProgramExercises: ["Nordic hamstring progression"],
         rtpProgramNextSteps: ["Controlled sprint exposure"],
         rtpProgramHoldRules: ["Pain increase"],
         createdAt: "2026-05-01T09:00:00.000Z",
@@ -165,6 +166,7 @@ test("Medical runtime state service preserves private and coach-safe read behavi
   expect(privateState.injuryPlans[0]).toMatchObject({
     rtpLibraryProfileName: "Hamstring Strain",
     rtpProgramGateCriteria: ["Pain-free sprinting"],
+    rtpProgramExercises: ["Nordic hamstring progression"],
   });
   expect(privateState.records[0]).not.toHaveProperty("createdBy");
   expect(privateState.policy).toMatchObject({ policyOwner: "Medical Lead" });
@@ -190,6 +192,7 @@ test("Medical runtime state service preserves private and coach-safe read behavi
     createdBy: "coach-safe",
     rtpLibraryProfileName: "",
     rtpProgramGateCriteria: [],
+    rtpProgramExercises: [],
   });
   expect(coachState.policy).toMatchObject({ coachSafe: true });
 });

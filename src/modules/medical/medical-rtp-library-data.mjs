@@ -1,4 +1,5 @@
 import { expandedMedicalRtpLibraryProfiles } from "./medical-rtp-library-expansion-data.mjs";
+import { getMedicalRtpExerciseStarterItems } from "./medical-rtp-exercise-bank-data.mjs";
 import { createMedicalRtpClinicalTemplate } from "./medical-rtp-library-clinical-templates.mjs";
 import { RTP_LIBRARY_RESEARCH_AUDIT_SCOPE, createGoldStandardSections } from "./medical-rtp-library-profile-factory.mjs";
 
@@ -448,6 +449,7 @@ export function createMedicalRtpLibraryStarterDraft(profileId = "", playerId = "
     return null;
   }
   const section = (title, items = []) => `${title}: ${items.join("; ")}`;
+  const exerciseStarters = getMedicalRtpExerciseStarterItems(selectedProfile.id, { limit: 6 });
   return {
     playerId: cleanPlayerId,
     injuryType: selectedProfile.name,
@@ -468,6 +470,7 @@ export function createMedicalRtpLibraryStarterDraft(profileId = "", playerId = "
       section("Risk factors", selectedProfile.riskTags),
       section("Warning points", selectedProfile.redFlags),
       section("Gate criteria", selectedProfile.criteria),
+      section("Exercise starters", exerciseStarters),
       section("Next step", selectedProfile.trainingChecklist),
       section("Hold rules", selectedProfile.redFlags),
       `Evidence level: ${selectedProfile.evidenceLevel}`,
@@ -485,6 +488,7 @@ export function createMedicalRtpLibraryStarterDraft(profileId = "", playerId = "
     rtpProgramRiskFactors: selectedProfile.riskTags,
     rtpProgramWarningPoints: selectedProfile.redFlags,
     rtpProgramGateCriteria: selectedProfile.criteria,
+    rtpProgramExercises: exerciseStarters,
     rtpProgramNextSteps: selectedProfile.trainingChecklist,
     rtpProgramHoldRules: selectedProfile.redFlags,
   };

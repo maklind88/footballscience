@@ -3,6 +3,7 @@ import {
   getMedicalRtpLibraryProfileById,
   getMedicalRtpLibraryProfiles,
 } from "./medical-rtp-library-data.mjs";
+import { getMedicalRtpExercisesForProfile } from "./medical-rtp-exercise-bank-data.mjs";
 import { normalizeMedicalRtpProgramTracker } from "./medical-rtp-tracker-helpers.mjs";
 
 export function createMedicalRuntimeActivitySelectors(deps = {}) {
@@ -399,6 +400,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       rtpProgramRiskFactors: [],
       rtpProgramWarningPoints: [],
       rtpProgramGateCriteria: [],
+      rtpProgramExercises: [],
       rtpProgramNextSteps: [],
       rtpProgramHoldRules: [],
       rtpProgramTracker: {},
@@ -434,6 +436,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
     const rtpProgramRiskFactors = normalizeMedicalTextList(draft.rtpProgramRiskFactors ?? defaults.rtpProgramRiskFactors);
     const rtpProgramWarningPoints = normalizeMedicalTextList(draft.rtpProgramWarningPoints ?? defaults.rtpProgramWarningPoints);
     const rtpProgramGateCriteria = normalizeMedicalTextList(draft.rtpProgramGateCriteria ?? defaults.rtpProgramGateCriteria);
+    const rtpProgramExercises = normalizeMedicalTextList(draft.rtpProgramExercises ?? defaults.rtpProgramExercises);
     const rtpProgramNextSteps = normalizeMedicalTextList(draft.rtpProgramNextSteps ?? defaults.rtpProgramNextSteps);
     const rtpProgramHoldRules = normalizeMedicalTextList(draft.rtpProgramHoldRules ?? defaults.rtpProgramHoldRules);
     const rtpProgramSource = {
@@ -442,6 +445,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       rtpProgramRiskFactors,
       rtpProgramWarningPoints,
       rtpProgramGateCriteria,
+      rtpProgramExercises,
       rtpProgramNextSteps,
       rtpProgramHoldRules,
     };
@@ -471,6 +475,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       rtpProgramRiskFactors,
       rtpProgramWarningPoints,
       rtpProgramGateCriteria,
+      rtpProgramExercises,
       rtpProgramNextSteps,
       rtpProgramHoldRules,
       rtpProgramTracker: normalizeMedicalRtpProgramTracker(draft.rtpProgramTracker || draft, rtpProgramSource),
@@ -545,6 +550,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
         rtpProgramRiskFactors: starterDraft.rtpProgramRiskFactors,
         rtpProgramWarningPoints: starterDraft.rtpProgramWarningPoints,
         rtpProgramGateCriteria: starterDraft.rtpProgramGateCriteria,
+        rtpProgramExercises: starterDraft.rtpProgramExercises,
         rtpProgramNextSteps: starterDraft.rtpProgramNextSteps,
         rtpProgramHoldRules: starterDraft.rtpProgramHoldRules,
       },
@@ -597,6 +603,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
     getMedicalInjuryPlanFormDraft,
     getMedicalRtpLibraryProfile,
     getMedicalRtpLibraryProfiles,
+    getMedicalRtpExercisesForProfile,
     getMedicalRtpLibraryStarterDraft,
     getMedicalRtpLibraryStarterDraftForPlan,
     getMedicalMonthToDateDates,

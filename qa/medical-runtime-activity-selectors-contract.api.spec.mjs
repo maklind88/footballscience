@@ -171,6 +171,7 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
   });
   expect(starterDraft.rtpProgramPhases.length).toBeGreaterThan(0);
   expect(starterDraft.rtpProgramGateCriteria).toContain("pain-free maximal isometric contraction");
+  expect(starterDraft.rtpProgramExercises.join(" ")).toContain("Nordic hamstring progression");
 
   const caseStarterDraft = selectors.getMedicalRtpLibraryStarterDraftForPlan("hamstring-strain", "plan-1");
   expect(caseStarterDraft).toMatchObject({
@@ -184,6 +185,7 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
   });
   expect(caseStarterDraft.startDate).toBe("2026-05-20");
   expect(caseStarterDraft.rtpProgramGateCriteria).toContain("pain-free maximal isometric contraction");
+  expect(caseStarterDraft.rtpProgramExercises.join(" ")).toContain("Nordic hamstring progression");
 
   expect(selectors.getMedicalRecommendationActivityContext("2026-05-31")).toMatchObject({
     type: "match",
@@ -226,6 +228,7 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
       shareWithCoach: "on",
       rtpProgramPhases: "Rehab: restore capacity\nModified: controlled football",
       rtpProgramGateCriteria: "Pain-free acceleration\nRepeated sprint block completed",
+      rtpProgramExercises: "Nordic hamstring progression\nTempo run exposure",
       rtpProgramNextSteps: "Controlled acceleration session; Team rondo integration",
       rtpProgramHoldRules: "Pain increase\nNext-day symptom spike",
       rtpProgramTrackerGate0: "passed",
@@ -242,6 +245,7 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
     shareWithCoach: true,
     rtpProgramPhases: ["Rehab: restore capacity", "Modified: controlled football"],
     rtpProgramGateCriteria: ["Pain-free acceleration", "Repeated sprint block completed"],
+    rtpProgramExercises: ["Nordic hamstring progression", "Tempo run exposure"],
     rtpProgramNextSteps: ["Controlled acceleration session", "Team rondo integration"],
     rtpProgramHoldRules: ["Pain increase", "Next-day symptom spike"],
     rtpProgramTracker: {

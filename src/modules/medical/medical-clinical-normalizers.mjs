@@ -159,6 +159,7 @@ export function createMedicalClinicalNormalizers(deps = {}) {
     const rtpProgramRiskFactors = normalizeMedicalTextList(plan.rtpProgramRiskFactors);
     const rtpProgramWarningPoints = normalizeMedicalTextList(plan.rtpProgramWarningPoints);
     const rtpProgramGateCriteria = normalizeMedicalTextList(plan.rtpProgramGateCriteria);
+    const rtpProgramExercises = normalizeMedicalTextList(plan.rtpProgramExercises);
     const rtpProgramNextSteps = normalizeMedicalTextList(plan.rtpProgramNextSteps);
     const rtpProgramHoldRules = normalizeMedicalTextList(plan.rtpProgramHoldRules);
     const rtpProgramSource = {
@@ -167,6 +168,7 @@ export function createMedicalClinicalNormalizers(deps = {}) {
       rtpProgramRiskFactors,
       rtpProgramWarningPoints,
       rtpProgramGateCriteria,
+      rtpProgramExercises,
       rtpProgramNextSteps,
       rtpProgramHoldRules,
     };
@@ -198,6 +200,7 @@ export function createMedicalClinicalNormalizers(deps = {}) {
       rtpProgramRiskFactors,
       rtpProgramWarningPoints,
       rtpProgramGateCriteria,
+      rtpProgramExercises,
       rtpProgramNextSteps,
       rtpProgramHoldRules,
       rtpProgramTracker: normalizeMedicalRtpProgramTracker(plan.rtpProgramTracker || plan, rtpProgramSource),

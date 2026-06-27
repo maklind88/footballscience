@@ -26,6 +26,7 @@ test("Medical recommendation renderer keeps log, preset, and plan contracts", ()
     rtpLibraryEvidenceLevel: "Moderate to high",
     rtpProgramLoadText: ["Rebuild sprint exposure before match return"],
     rtpProgramGateCriteria: ["Pain-free maximal isometric contraction"],
+    rtpProgramExercises: ["Nordic hamstring progression | phase: full | demand: max velocity"],
     rtpProgramNextSteps: ["Controlled sprint exposure"],
     rtpProgramHoldRules: ["Pain with acceleration"],
     rtpProgramTracker: {
@@ -80,6 +81,8 @@ test("Medical recommendation renderer keeps log, preset, and plan contracts", ()
   expect(planList).toContain("Tracker");
   expect(planList).toContain("1/3 passed");
   expect(planList).toContain("Gate criteria");
+  expect(planList).toContain("Exercise starters");
+  expect(planList).toContain("Nordic hamstring progression");
   expect(planList).toContain("Controlled sprint exposure");
 
   const rtpProgramCard = renderer.renderRtpProgramSummaryCard(player);
@@ -88,6 +91,8 @@ test("Medical recommendation renderer keeps log, preset, and plan contracts", ()
   expect(rtpProgramCard).toContain("Hamstring Strain");
   expect(rtpProgramCard).toContain("Progress: Controlled sprint exposure");
   expect(rtpProgramCard).toContain("Pain-free maximal isometric contraction");
+  expect(rtpProgramCard).toContain("Exercise starters");
+  expect(rtpProgramCard).toContain("Nordic hamstring progression");
   expect(rtpProgramCard).toContain("Rebuild sprint exposure before match return");
   expect(rtpProgramCard).toContain("Private Medical program");
   expect(rtpProgramCard).toContain('data-medical-edit-injury-plan="plan1"');

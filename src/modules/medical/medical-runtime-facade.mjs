@@ -50,6 +50,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
   function setMedicalInjuryPlanDraftFromPlan(...args) { return method(activitySelectors, "setMedicalInjuryPlanDraftFromPlan", ...args); }
   function getMedicalRtpLibraryProfile(...args) { return method(activitySelectors, "getMedicalRtpLibraryProfile", ...args); }
   function getMedicalRtpLibraryProfiles(...args) { return method(activitySelectors, "getMedicalRtpLibraryProfiles", ...args); }
+  function getMedicalRtpExercisesForProfile(...args) { return method(activitySelectors, "getMedicalRtpExercisesForProfile", ...args); }
   function getMedicalRtpLibraryStarterDraft(...args) { return method(activitySelectors, "getMedicalRtpLibraryStarterDraft", ...args); }
   function getMedicalRtpLibraryStarterDraftForPlan(...args) { return method(activitySelectors, "getMedicalRtpLibraryStarterDraftForPlan", ...args); }
   function clearMedicalInjuryPlanDraft(...args) { return method(activitySelectors, "clearMedicalInjuryPlanDraft", ...args); }
@@ -343,7 +344,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
     getMedicalCoachHandoverItems, getMedicalDailyHuddle, getMedicalDailyStats, getMedicalDatabaseIdempotencyKey,
     getMedicalDatabasePlayer, getMedicalDaySpan, getMedicalHeroTeamName, getMedicalHistoryEvents,
     getMedicalInjuryPlanDraft, getMedicalInjuryPlanFormDraft, getMedicalRtpLibraryProfile,
-    getMedicalRtpLibraryProfiles, getMedicalRtpLibraryStarterDraft, getMedicalRtpLibraryStarterDraftForPlan, getMedicalMonthAverageStats,
+    getMedicalRtpExercisesForProfile, getMedicalRtpLibraryProfiles, getMedicalRtpLibraryStarterDraft, getMedicalRtpLibraryStarterDraftForPlan, getMedicalMonthAverageStats,
     getMedicalMonthToDateDates, getMedicalOperationsSummary, getMedicalPastWindowDates,
     getMedicalParticipationAverageForDates, getMedicalPlanClearanceSummary, getMedicalPlanDaysRemaining,
     getMedicalPlanElapsedDays, getMedicalPlanReviewState, getMedicalPlanSeverity, getMedicalPlanTotalDays,

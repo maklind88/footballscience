@@ -118,6 +118,29 @@ function createHarness({ canEdit = true } = {}) {
         injuryType: "ACL reconstruction",
         rtpLibraryProfileName: "ACL Reconstruction RTP",
       }),
+      getMedicalRtpLibraryProfile: (profileId) => ({
+        id: profileId,
+        name: profileId === "acl-reconstruction-rtp" ? "ACL Reconstruction RTP" : "Hamstring Strain",
+        phases: ["Rehab: restore clinical capacity"],
+        loadText: ["Running: staged field exposure"],
+        criteria: ["strength and control acceptable"],
+        trainingChecklist: ["controlled field exposure"],
+        redFlags: ["reactive swelling"],
+      }),
+      getMedicalRtpExercisesForProfile: () => [
+        {
+          id: "hop-and-stick",
+          name: "Hop and stick",
+          intent: "Build single-leg landing confidence.",
+          tissueTypes: ["ligament"],
+          phases: ["modified", "full"],
+          footballDemands: ["landing", "cutting preparation"],
+          riskLevel: "moderate",
+          evidenceLevel: "Consensus supported",
+          evidenceSummary: "Hop and landing tasks are common RTP battery items.",
+          holdRules: ["hold if swelling follows"],
+        },
+      ],
       getMedicalRtpPhaseForRecommendation: () => "full",
       getMedicalRtpPhaseOption: (key) => ({ key, label: "Full", participation: 100, status: "available" }),
       getMedicalStatusForParticipation: () => "available",
@@ -241,6 +264,30 @@ test("Medical runtime bindings preserve quick recommendation, archive, and plan 
   expect(mutable.modalTab).toBe("plan");
   expect(calls).toContainEqual(["render", "ACL Reconstruction RTP starter ready for active case. Review and save Medical Plan."]);
 
+  const preview = { innerHTML: "" };
+  const guideChangeForm = {
+    querySelector(selector) {
+      return selector === "[data-medical-rtp-guide-preview]" ? preview : null;
+    },
+  };
+  const guideSelect = {
+    value: "acl-reconstruction-rtp",
+    closest(selector) {
+      return selector === "#medicalInjuryPlanForm" ? guideChangeForm : null;
+    },
+  };
+  workspace.listeners.change(createEvent(createTarget({
+    closest: {
+      "[data-medical-plan-rtp-guide]": guideSelect,
+      "#medicalInjuryPlanForm": guideChangeForm,
+    },
+  })));
+  expect(preview.innerHTML).toContain("ACL Reconstruction RTP");
+  expect(preview.innerHTML).toContain("Medical Plan draft");
+  expect(preview.innerHTML).toContain("Rehab: restore clinical capacity");
+  expect(preview.innerHTML).toContain("Exercise Bank starters");
+  expect(preview.innerHTML).toContain("Hop and stick");
+
   const guideLoaderForm = {
     querySelector(selector) {
       return selector === "[data-medical-plan-rtp-guide]" ? { value: "hamstring-strain" } : null;
@@ -328,6 +375,20 @@ test("Medical runtime bindings open and close RTP Library profile overlays", () 
           items: index === 0 ? ["item"] : [],
         })),
       }),
+      getMedicalRtpExercisesForProfile: () => [
+        {
+          id: "nordic-hamstring-progression",
+          name: "Nordic hamstring progression",
+          intent: "Develop high-intensity eccentric hamstring capacity.",
+          tissueTypes: ["muscle"],
+          phases: ["modified", "full"],
+          footballDemands: ["max velocity", "repeated sprint"],
+          riskLevel: "high",
+          evidenceLevel: "Moderate to high",
+          evidenceSummary: "Nordic programs are associated with reduced hamstring injury risk.",
+          holdRules: ["hold if sharp pain occurs"],
+        },
+      ],
     },
   });
 
@@ -345,6 +406,8 @@ test("Medical runtime bindings open and close RTP Library profile overlays", () 
   expect(content.innerHTML).toContain("Knowledge only");
   expect(content.innerHTML).not.toContain("data-medical-apply-rtp-starter");
   expect(content.innerHTML).toContain("Next field exposure");
+  expect(content.innerHTML).toContain("Exercise Bank starters");
+  expect(content.innerHTML).toContain("Nordic hamstring progression");
   expect(content.innerHTML).toContain("Gold Standard Template");
   expect(content.innerHTML).toContain("37 sections");
   expect(content.innerHTML).toContain("RTP Risk Score");

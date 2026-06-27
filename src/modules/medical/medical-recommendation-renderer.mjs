@@ -134,6 +134,7 @@ ${isFallback ? "Not logged" : `${value}%`}
         getRtpProgramItems(plan.rtpProgramRiskFactors, 1).length ||
         getRtpProgramItems(plan.rtpProgramWarningPoints, 1).length ||
         getRtpProgramItems(plan.rtpProgramGateCriteria, 1).length ||
+        getRtpProgramItems(plan.rtpProgramExercises, 1).length ||
         getRtpProgramItems(plan.rtpProgramNextSteps, 1).length ||
         getRtpProgramItems(plan.rtpProgramHoldRules, 1).length
     );
@@ -148,6 +149,7 @@ ${isFallback ? "Not logged" : `${value}%`}
 
   const renderPlanRtpProgramMini = (plan = {}) => {
     const gateCriteria = getRtpProgramItems(plan.rtpProgramGateCriteria, 2);
+    const exercises = getRtpProgramItems(plan.rtpProgramExercises, 1);
     const nextSteps = getRtpProgramItems(plan.rtpProgramNextSteps, 2);
     const holdRules = getRtpProgramItems(plan.rtpProgramHoldRules, 1);
     const trackerSummary = getMedicalRtpTrackerSummary(plan);
@@ -162,6 +164,7 @@ ${isFallback ? "Not logged" : `${value}%`}
 ${plan.rtpLibraryEvidenceLevel ? `<small>Evidence: ${escapeHtml(plan.rtpLibraryEvidenceLevel)}</small>` : ""}
 ${trackerSummary.total ? `<small><strong>Tracker:</strong> ${escapeHtml(trackerSummary.completionLabel)} / ${escapeHtml(trackerSummary.nextDecision)}</small>` : ""}
 ${renderPlanProgramLine("Gate criteria", gateCriteria)}
+${renderPlanProgramLine("Exercise starters", exercises)}
 ${renderPlanProgramLine("Next step", nextSteps)}
 ${renderPlanProgramLine("Hold", holdRules)}
 </section>
@@ -202,6 +205,7 @@ ${trackerSummary?.total ? `<div class="medical-rtp-program-summary-tracker medic
 <div class="medical-rtp-program-summary-grid">
 ${renderRtpProgramSummarySection("Next step", getRtpProgramItems(plan.rtpProgramNextSteps, 3))}
 ${renderRtpProgramSummarySection("Gate criteria", getRtpProgramItems(plan.rtpProgramGateCriteria, 3))}
+${renderRtpProgramSummarySection("Exercise starters", getRtpProgramItems(plan.rtpProgramExercises, 3))}
 ${renderRtpProgramSummarySection("Hold rules", getRtpProgramItems(plan.rtpProgramHoldRules, 2))}
 ${renderRtpProgramSummarySection("Load focus", getRtpProgramItems(plan.rtpProgramLoadText, 2))}
 </div>

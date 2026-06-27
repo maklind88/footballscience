@@ -213,6 +213,7 @@ test("Medical runtime helpers preserve record, plan, clearance, and policy norma
     rtpLibraryProfileName: "Hamstring Strain",
     rtpProgramPhases: '["Rehab","Modified"]',
     rtpProgramGateCriteria: ["Pain-free sprinting"],
+    rtpProgramExercises: '["Nordic hamstring progression","Tempo run exposure"]',
     rtpProgramNextSteps: "Controlled sprint exposure; Team training integration",
     rtpProgramHoldRules: ["Pain increase"],
     rtpProgramTrackerGate0: "passed",
@@ -232,6 +233,7 @@ test("Medical runtime helpers preserve record, plan, clearance, and policy norma
     rtpLibraryProfileName: "Hamstring Strain",
     rtpProgramPhases: ["Rehab", "Modified"],
     rtpProgramGateCriteria: ["Pain-free sprinting"],
+    rtpProgramExercises: ["Nordic hamstring progression", "Tempo run exposure"],
     rtpProgramNextSteps: ["Controlled sprint exposure", "Team training integration"],
     rtpProgramHoldRules: ["Pain increase"],
     rtpProgramTracker: {

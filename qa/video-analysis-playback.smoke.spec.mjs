@@ -1130,6 +1130,8 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   const deckGrip = await page.locator('[data-video-analysis-code-pip="video"] [data-video-analysis-code-pip-drag]').boundingBox();
   expect(deckBeforeMove).toBeTruthy();
   expect(deckGrip).toBeTruthy();
+  expect(deckGrip.x).toBeGreaterThan(deckBeforeMove.x + deckBeforeMove.width - 96);
+  expect(deckGrip.y).toBeLessThan(deckBeforeMove.y + 36);
   await page.mouse.move(deckGrip.x + deckGrip.width / 2, deckGrip.y + deckGrip.height / 2);
   await page.mouse.down();
   await page.mouse.move(deckGrip.x + deckGrip.width / 2 - 64, deckGrip.y + deckGrip.height / 2 + 32);

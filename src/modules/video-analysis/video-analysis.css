@@ -2205,31 +2205,24 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   user-select: none;
 }
 
-#analysisRoomWorkspace .video-analysis-code-pip-grip--code-window {
-  top: 6px;
-  right: 10px;
-  left: auto;
-  width: 56px;
-  transform: none;
-}
-
 #analysisRoomWorkspace .video-analysis-code-pip-resize--code-window {
   right: 5px;
   bottom: 5px;
 }
 
 #analysisRoomWorkspace .video-analysis-code-pip-grip {
-  top: 8px;
-  left: 50%;
+  top: 10px;
+  right: 28px;
+  left: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  width: 84px;
-  height: 20px;
+  width: 52px;
+  height: 18px;
   border-radius: 999px;
   cursor: grab;
-  transform: translateX(-50%);
+  transform: none;
 }
 
 #analysisRoomWorkspace .video-analysis-code-pip-grip:active {

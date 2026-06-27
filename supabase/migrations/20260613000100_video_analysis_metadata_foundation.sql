@@ -203,8 +203,8 @@ create index if not exists video_clip_instances_video_start_idx on public.video_
 create index if not exists video_clip_instances_language_idx on public.video_clip_instances (team_id, phase, sub_phase, outcome) where status = 'active';
 create index if not exists video_clip_instances_principle_idx on public.video_clip_instances (team_principle_id, mini_game_principle_id) where status = 'active';
 create index if not exists video_clip_players_player_idx on public.video_clip_players (team_id, player_id, created_at desc);
-create index if not exists video_clip_tags_tag_trgm_idx on public.video_clip_tags using gin ((lower(tag)) gin_trgm_ops);
-create index if not exists video_clip_notes_note_trgm_idx on public.video_clip_notes using gin ((lower(note)) gin_trgm_ops);
+create index if not exists video_clip_tags_tag_trgm_idx on public.video_clip_tags using gin ((lower(tag)) extensions.gin_trgm_ops);
+create index if not exists video_clip_notes_note_trgm_idx on public.video_clip_notes using gin ((lower(note)) extensions.gin_trgm_ops);
 create index if not exists video_playlists_team_created_idx on public.video_playlists (team_id, created_at desc) where status <> 'archived';
 create index if not exists video_playlist_items_playlist_order_idx on public.video_playlist_items (playlist_id, sort_order, id);
 create index if not exists video_audit_events_team_created_idx on public.video_audit_events (team_id, created_at desc);

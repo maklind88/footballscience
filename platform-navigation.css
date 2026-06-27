@@ -251,9 +251,11 @@ body.has-dashboard-chat-widget .platform-nav-more {
   }
 
   body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher::before,
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher::after,
   body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-avatar-stack,
   body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-copy {
     display: none;
+    content: none;
   }
 
   body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher:hover,
@@ -269,29 +271,26 @@ body.has-dashboard-chat-widget .platform-nav-more {
     position: relative;
     width: 1.42rem;
     height: 1.42rem;
-    display: block;
+    display: grid;
+    place-items: center;
     color: currentColor;
   }
 
-  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon::before {
-    content: "";
-    position: absolute;
-    inset: 0.16rem 0.1rem 0.36rem;
-    border: 2px solid currentColor;
-    border-radius: 0.48rem;
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon::before,
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon::after {
+    content: none;
+    display: none;
   }
 
-  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon::after {
-    content: "";
-    position: absolute;
-    left: 0.36rem;
-    bottom: 0.18rem;
-    width: 0.48rem;
-    height: 0.48rem;
-    border-left: 2px solid currentColor;
-    border-bottom: 2px solid currentColor;
-    border-bottom-left-radius: 0.08rem;
-    transform: skew(-20deg) rotate(-8deg);
+  body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon svg {
+    width: 1.42rem;
+    height: 1.42rem;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-dot {
@@ -306,15 +305,22 @@ body.has-dashboard-chat-widget .platform-nav-more {
 
   body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-header-badge {
     position: absolute;
-    top: 0.36rem;
-    right: 0.36rem;
-    min-width: 1.15rem;
-    min-height: 1.15rem;
-    padding: 0 0.32rem;
-    background: #d7b46a;
-    color: #13211d;
-    box-shadow: 0 0 0 0.14rem #101716;
-    font-size: 0.62rem;
+    top: 0.28rem;
+    right: 0.28rem;
+    min-width: 1rem;
+    height: 1rem;
+    min-height: 1rem;
+    display: inline-grid;
+    place-items: center;
+    padding: 0 0.28rem;
+    border: 1px solid #ffffff;
+    border-radius: 999px;
+    background: #ff3b30;
+    color: #ffffff;
+    box-shadow: 0 0 0 0.13rem #101716;
+    font-size: 0.58rem;
+    font-weight: 900;
+    line-height: 1;
   }
 }
 

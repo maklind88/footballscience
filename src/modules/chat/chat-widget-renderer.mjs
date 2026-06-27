@@ -1273,6 +1273,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         ? launcherThread.participants
         : [launcherThread?.participant].filter(Boolean);
     const launcherLabel = launcherThread?.label || teamChatTitle;
+    const launcherUnreadDisplay = unreadCount > 99 ? "99+" : String(unreadCount);
     const launcherUnreadLabel = unreadCount
       ? `, ${unreadCount} unread chat message${unreadCount === 1 ? "" : "s"}`
       : "";
@@ -1754,8 +1755,13 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 <strong>${escapeHtml(launcherLabel)}</strong>
                 <small>${escapeHtml(launcherPreview)}</small>
               </span>
-              <span class="dashboard-chat-launcher-icon" aria-hidden="true"></span>
-              ${unreadCount ? `<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">${unreadCount}</span>` : `<span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>`}
+              <span class="dashboard-chat-launcher-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M4 5.5h16a1.8 1.8 0 0 1 1.8 1.8v8.2a1.8 1.8 0 0 1-1.8 1.8H9.5L5 20.5v-3.2H4a1.8 1.8 0 0 1-1.8-1.8V7.3A1.8 1.8 0 0 1 4 5.5Z"></path>
+                  <path d="M7.2 10h9.6M7.2 13.2h5.8"></path>
+                </svg>
+              </span>
+              ${unreadCount ? `<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">${escapeHtml(launcherUnreadDisplay)}</span>` : `<span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>`}
             </button>
           `
       }

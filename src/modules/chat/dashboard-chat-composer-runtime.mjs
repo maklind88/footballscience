@@ -273,6 +273,7 @@ export function createDashboardChatComposerRuntime({
       submitButton.title = "Starting chat...";
       submitButton.textContent = "Starting...";
     }
+    syncDashboardChatDirectCreateForm(form);
 
     try {
       const result = await sendDashboardChatApiAction({

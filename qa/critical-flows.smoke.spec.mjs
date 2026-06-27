@@ -525,6 +525,126 @@ test("Chat group creator creates a focused group from the plus menu", async ({ p
   expect(chatActions.some((payload) => payload.action === "createThread" && payload.type === "group" && payload.title === groupTitle)).toBe(true);
 });
 
+test("Chat direct creator opens a private chat by tapping a teammate", async ({ page }) => {
+  const chatActions = [];
+  const createdThreads = [];
+
+  await page.route("**/api/chat**", async (route) => {
+    const request = route.request();
+    if (request.method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, threads: createdThreads, messages: [], pagination: {} }),
+      });
+      return;
+    }
+
+    let payload = {};
+    try {
+      payload = request.postDataJSON();
+    } catch {
+      payload = {};
+    }
+    chatActions.push(payload);
+
+    if (payload.action !== "createThread") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, threads: createdThreads, messages: [], pagination: {} }),
+      });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const participantIds = Array.isArray(payload.participantIds) ? payload.participantIds : [];
+    const participants = Array.isArray(payload.participants)
+      ? payload.participants.map((participant, index) => ({
+          id: participant.id,
+          userId: participant.id,
+          name: participant.name,
+          email: participant.email || "",
+          username: participant.username || "",
+          participantRole: index === 0 ? "owner" : "member",
+          joinedAt: now,
+        }))
+      : participantIds.map((userId, index) => ({
+          userId,
+          id: userId,
+          participantRole: index === 0 ? "owner" : "member",
+          joinedAt: now,
+        }));
+    const thread = {
+      id: `db-${payload.threadId || "qa-dm"}`,
+      threadId: payload.threadId || "qa-dm",
+      legacyThreadId: payload.threadId || "qa-dm",
+      type: "dm",
+      title: payload.title || "Direct message",
+      visibility: "private",
+      createdAt: now,
+      created_at: now,
+      messageCount: 0,
+      participants,
+      permissions: {},
+      metadata: { legacyThreadId: payload.threadId || "qa-dm" },
+    };
+    createdThreads.push(thread);
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, thread, threads: [thread], messages: [], pagination: {} }),
+    });
+  });
+
+  await bootApp(page);
+  await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
+  await page.evaluate(() => {
+    window.platformAuthStore.getAccessToken = async () => "qa-chat-token";
+    window.platformAuthStore.refreshAccessToken = async () => "qa-chat-token";
+    const currentUser = window.platformAuthStore.getCurrentUser?.() || {};
+    const teammates = [
+      {
+        ...currentUser,
+        id: currentUser.id || "dev-user-mak",
+        firstName: currentUser.firstName || "Mak",
+        lastName: currentUser.lastName || "Lind",
+        role: "team-admin",
+        status: "active",
+      },
+      {
+        id: "qa-chat-ceri",
+        firstName: "Ceri",
+        lastName: "Bowley",
+        role: "scout",
+        status: "active",
+        team: currentUser.team || "North Carolina Courage",
+      },
+    ];
+    window.platformAuthStore.writeUsers?.(teammates);
+    window.platformAuthStore.setCurrentUser?.(currentUser.id || "dev-user-mak");
+  });
+
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await page.locator("[data-dashboard-chat-thread-presets] > summary").click();
+  await expect(page.locator("[data-dashboard-chat-open-direct-creator]")).toBeVisible();
+  await page.locator("[data-dashboard-chat-open-direct-creator]").click();
+
+  const overlay = page.locator(".dashboard-chat-group-create-overlay");
+  await expect(overlay).toBeVisible();
+  await expect(overlay.locator("[data-dashboard-chat-direct-filter-status]")).toContainText("tap a person to start");
+  await overlay.locator("[data-dashboard-chat-direct-user-search]").filter({ hasText: "Ceri Bowley" }).first().click();
+
+  await expect(overlay).toHaveCount(0);
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("placeholder", "Message");
+  await expect(page.locator("[data-dashboard-chat-thread]").filter({ hasText: "Ceri Bowley" })).toHaveCount(1);
+  expect(chatActions.some((payload) => (
+    payload.action === "createThread"
+    && payload.type === "dm"
+    && Array.isArray(payload.participantIds)
+    && payload.participantIds.includes("qa-chat-ceri")
+  ))).toBe(true);
+});
+
 test("Chat group settings can rename, set avatar, and delete a group", async ({ page }) => {
   const groupTitle = `QA Manage Group ${Date.now()}`;
   const renamedTitle = `QA Renamed Group ${Date.now()}`;

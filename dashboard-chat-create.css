@@ -1,0 +1,149 @@
+/* Direct chat creation: make choosing a person feel like opening a chat, not filling a form. */
+body.has-dashboard-chat-widget .dashboard-chat-direct-create-form {
+  display: grid !important;
+  gap: 0.68rem !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-group-create-users.is-direct {
+  display: grid !important;
+  gap: 0.44rem !important;
+  max-height: min(52vh, 24rem) !important;
+  padding-right: 0.1rem !important;
+  overflow: auto !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user {
+  position: relative !important;
+  display: grid !important;
+  grid-template-columns: 2.38rem minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 0.68rem !important;
+  min-height: 3.34rem !important;
+  padding: 0.64rem 0.72rem !important;
+  border: 1px solid rgba(15, 23, 42, 0.1) !important;
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.045) !important;
+  cursor: pointer !important;
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease, transform 150ms ease !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user:hover,
+body.has-dashboard-chat-widget .dashboard-chat-direct-user:focus-within {
+  border-color: rgba(31, 111, 84, 0.32) !important;
+  background: #f5fbf7 !important;
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.075) !important;
+  transform: translateY(-1px) !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user input[type="radio"] {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  opacity: 0 !important;
+  cursor: pointer !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user .dashboard-chat-group-user-avatar {
+  grid-column: 1 !important;
+  width: 2.36rem !important;
+  height: 2.36rem !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, #12233f, #0f172a) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2) !important;
+  font-size: 0.74rem !important;
+  font-weight: 950 !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user strong,
+body.has-dashboard-chat-widget .dashboard-chat-direct-user small {
+  display: block !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user strong {
+  color: #0f172a !important;
+  font-size: 0.88rem !important;
+  font-weight: 950 !important;
+  letter-spacing: 0 !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user small {
+  margin-top: 0.12rem !important;
+  color: #64748b !important;
+  font-size: 0.68rem !important;
+  font-weight: 850 !important;
+  line-height: 1.18 !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user-action {
+  display: inline-grid !important;
+  place-items: center !important;
+  min-width: 3.2rem !important;
+  height: 1.78rem !important;
+  padding: 0 0.68rem !important;
+  border: 1px solid rgba(31, 111, 84, 0.16) !important;
+  border-radius: 999px !important;
+  background: rgba(31, 111, 84, 0.08) !important;
+  color: #176449 !important;
+  font-size: 0.66rem !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user.is-selected,
+body.has-dashboard-chat-widget .dashboard-chat-direct-user:has(input:checked) {
+  border-color: rgba(31, 111, 84, 0.42) !important;
+  background: #eff8f3 !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user.is-starting .dashboard-chat-direct-user-action {
+  border-color: #176449 !important;
+  background: #176449 !important;
+  color: #ffffff !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user.is-starting .dashboard-chat-direct-user-action::before {
+  content: "Opening" !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user.is-starting .dashboard-chat-direct-user-action {
+  color: transparent !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-user.is-starting .dashboard-chat-direct-user-action::before {
+  color: #ffffff !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-create-hint {
+  margin: -0.08rem 0 0 !important;
+  color: #64748b !important;
+  font-size: 0.72rem !important;
+  font-weight: 850 !important;
+  line-height: 1.3 !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-direct-create-submit[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 620px) {
+  body.has-dashboard-chat-widget .dashboard-chat-direct-user {
+    grid-template-columns: 2.34rem minmax(0, 1fr) !important;
+    min-height: 3.42rem !important;
+  }
+
+  body.has-dashboard-chat-widget .dashboard-chat-direct-user-action {
+    grid-column: 2 !important;
+    justify-self: start !important;
+    margin-top: 0.18rem !important;
+  }
+}

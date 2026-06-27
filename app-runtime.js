@@ -1187,19 +1187,22 @@ function syncDashboardChatDirectCreateForm(form) {
   form.querySelectorAll("[data-dashboard-chat-direct-user-search]").forEach((row) => {
     const radio = row.querySelector("input[name='participantId']");
     row.classList.toggle("is-selected", Boolean(radio?.checked));
+    row.classList.toggle("is-starting", Boolean(radio?.checked && form.dataset.busy === "true"));
   });
   if (submitButton) {
     submitButton.disabled = !selectedInput || form.dataset.busy === "true";
     submitButton.setAttribute("aria-disabled", submitButton.disabled ? "true" : "false");
-    submitButton.title = selectedInput ? "Start chat" : "Choose a teammate";
+    submitButton.title = selectedInput ? "Opening chat..." : "Choose a teammate";
     if (form.dataset.busy !== "true") {
       submitButton.textContent = selectedInput
-        ? `Start chat with ${String(selectedInput.dataset.dashboardChatDirectParticipantName || "teammate").trim() || "teammate"}`
+        ? `Open chat with ${String(selectedInput.dataset.dashboardChatDirectParticipantName || "teammate").trim() || "teammate"}`
         : "Start chat";
     }
   }
   if (statusElement) {
-    statusElement.textContent = `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} visible · ${selectedInput ? "1 selected" : "choose one"}`;
+    statusElement.textContent = selectedInput
+      ? `Opening ${String(selectedInput.dataset.dashboardChatDirectParticipantName || "chat").trim() || "chat"}...`
+      : `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} visible · tap a person to start`;
   }
 }
 
@@ -3520,6 +3523,18 @@ event.preventDefault();
 closeDashboardChatGroupCreator();
 return;
 }
+const directCreateUserRow = event.target.closest("[data-dashboard-chat-direct-user-search]");
+if (directCreateUserRow) {
+const directCreateForm = directCreateUserRow.closest("[data-dashboard-chat-direct-create-form]");
+const directParticipantInput = directCreateUserRow.querySelector("input[name='participantId']");
+if (directCreateForm && directParticipantInput && directCreateForm.dataset.busy !== "true") {
+event.preventDefault();
+directParticipantInput.checked = true;
+syncDashboardChatDirectCreateForm(directCreateForm);
+await createDashboardDirectThreadFromForm(directCreateForm);
+}
+return;
+}
 const groupTitlePresetButton = event.target.closest("[data-dashboard-chat-group-title-preset]");
 if (groupTitlePresetButton) {
 event.preventDefault();
@@ -4070,7 +4085,9 @@ return;
 }
 const directParticipantInput = event.target.closest("[data-dashboard-chat-direct-create-form] input[name='participantId']");
 if (directParticipantInput) {
-syncDashboardChatDirectCreateForm(directParticipantInput.closest("[data-dashboard-chat-direct-create-form]"));
+const directCreateForm = directParticipantInput.closest("[data-dashboard-chat-direct-create-form]");
+syncDashboardChatDirectCreateForm(directCreateForm);
+await createDashboardDirectThreadFromForm(directCreateForm);
 return;
 }
 const attachmentInput = event.target.closest("[data-dashboard-chat-attachment-input]");

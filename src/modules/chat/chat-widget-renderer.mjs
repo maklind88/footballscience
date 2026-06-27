@@ -1293,16 +1293,16 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const threadFilterMarkup = renderThreadFilters(normalizedThreadFilter, simpleInboxThreads);
     const directCreateMarkup = groupCreateUsers.length
       ? `
-          <form class="dashboard-chat-direct-create-form" data-dashboard-chat-direct-create-form>
+          <form class="dashboard-chat-direct-create-form" aria-label="Start a private chat" data-dashboard-chat-direct-create-form>
             <p class="dashboard-chat-group-create-error" data-dashboard-chat-group-create-error hidden></p>
             <label class="dashboard-chat-group-search">
-              <span>Find teammate</span>
-              <input type="search" placeholder="Search by name, role or email" autocomplete="off" data-dashboard-chat-direct-user-filter>
+              <span>Search people</span>
+              <input type="search" placeholder="Search name, role or email" autocomplete="off" data-dashboard-chat-direct-user-filter>
             </label>
             <div class="dashboard-chat-group-create-status" data-dashboard-chat-direct-filter-status aria-live="polite" aria-atomic="true">
-              ${escapeHtml(`${groupCreateUsers.length} teammates available · choose one`)}
+              ${escapeHtml(`${groupCreateUsers.length} teammates available · tap a person to start`)}
             </div>
-            <div class="dashboard-chat-group-create-users is-direct" role="radiogroup" aria-label="Choose private chat recipient">
+            <div class="dashboard-chat-group-create-users is-direct" role="list" aria-label="Start a private chat">
               ${groupCreateUsers
                 .map((user) => {
                   const userName = formatUserName(user);
@@ -1312,12 +1312,12 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                   const userMetaId = `dashboardChatDirectUserMeta-${userDomId}`;
                   const userSearch = `${userName} ${userMeta} ${user.email || ""} ${user.username || ""}`.toLowerCase();
                   return `
-                    <label class="dashboard-chat-group-user dashboard-chat-direct-user" data-dashboard-chat-direct-user-search="${escapeHtml(userSearch)}">
+                    <label class="dashboard-chat-group-user dashboard-chat-direct-user" role="listitem" data-dashboard-chat-direct-user-search="${escapeHtml(userSearch)}">
                       <input
                         type="radio"
                         name="participantId"
                         value="${escapeHtml(user.id)}"
-                        aria-label="${escapeHtml(`Start private chat with ${userName} (${userMeta})`)}"
+                        aria-label="${escapeHtml(`Open private chat with ${userName} (${userMeta})`)}"
                         aria-describedby="${escapeHtml(userMetaId)}"
                         data-dashboard-chat-direct-participant-email="${escapeHtml(user.email || "")}"
                         data-dashboard-chat-direct-participant-username="${escapeHtml(user.username || "")}"
@@ -1328,12 +1328,14 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                         <strong>${escapeHtml(userName)}</strong>
                         <small id="${escapeHtml(userMetaId)}">${escapeHtml(userMeta)}</small>
                       </span>
+                      <span class="dashboard-chat-direct-user-action" aria-hidden="true">Open</span>
                     </label>
                   `;
                 })
                 .join("")}
             </div>
-            <button type="submit" data-dashboard-chat-direct-create-submit disabled aria-disabled="true" aria-label="Start selected private chat" title="Choose a teammate">Start chat</button>
+            <p class="dashboard-chat-direct-create-hint">Tap a teammate to open the private chat.</p>
+            <button type="submit" class="dashboard-chat-direct-create-submit" data-dashboard-chat-direct-create-submit hidden aria-hidden="true" tabindex="-1" aria-label="Start selected private chat" title="Start chat">Start chat</button>
           </form>
         `
       : `

@@ -2274,6 +2274,40 @@ function patchMiniGamePrincipleDraftState(state = {}, ids = []) {
   };
 }
 
+function buildMiniGamePrincipleCapture(state = {}, startMs = 0) {
+  const durationMs = Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
+  const draft = state.draft || {};
+  return {
+    startMs: Math.max(0, Math.round(Number(startMs || 0))),
+    durationMs,
+    period: draft.period || "1",
+    phase: draft.phase || "",
+    subPhase: draft.subPhase || "",
+    teamPrincipleId: draft.teamPrincipleId || "",
+    outcome: draft.outcome || "",
+    playerId: draft.playerId || "",
+    playerRole: draft.playerRole || "primary",
+    unit: draft.unit || "",
+    pitchZone: draft.pitchZone || "",
+    pressure: draft.pressure || "",
+    decision: draft.decision || "",
+    execution: draft.execution || "",
+    visibility: draft.visibility || draft.clipVisibility || "private",
+  };
+}
+
+function closeMiniGamePrinciplePickerState(state = {}) {
+  return {
+    ...state,
+    codingSession: {
+      ...(state.codingSession || {}),
+      miniGamePrinciplePickerOpen: false,
+      miniGamePrincipleSearch: "",
+      miniGamePrincipleCapture: null,
+    },
+  };
+}
+
 function clipHasTag(clip = {}, tag = "") {
   const target = String(tag || "").trim().toLowerCase();
   if (!target) return true;
@@ -3190,6 +3224,10 @@ async function saveButtonLabelOnClip(button = {}, action = {}, context = {}, sta
 async function saveMiniGamePrinciplesForActiveClip(context = {}) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
+  if (state.codingSession?.miniGamePrincipleCapture) {
+    run.store.update((current) => closeMiniGamePrinciplePickerState(current));
+    return true;
+  }
   const ids = pickerVisibleMiniGamePrincipleIds(state.codingSession?.miniGamePrincipleDraftIds || []);
   const targetClip = findClipForLabelAction(state, currentPlayheadMs(context, state));
   if (!targetClip?.id) {
@@ -3246,9 +3284,155 @@ async function saveMiniGamePrinciplesForActiveClip(context = {}) {
   }
 }
 
+function openMiniGamePrincipleCapture(context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  if (!state.match?.id || !state.video?.id) {
+    run.store.setState({
+      status: "error",
+      message: "",
+      error: "Link a local match or training video before tagging MG principles.",
+    });
+    return false;
+  }
+  const currentMs = currentPlayheadMs(context, state);
+  const video = videoElement(context);
+  if (video) {
+    try {
+      video.pause();
+    } catch {
+      // Pausing is best-effort here; timestamp capture should still open if the browser rejects it.
+    }
+  }
+  syncPlaybackControls(context, video, false);
+  const capture = buildMiniGamePrincipleCapture(state, currentMs);
+  run.store.update((current) => ({
+    ...current,
+    codingSession: {
+      ...(current.codingSession || {}),
+      mode: "instant",
+      miniGamePrinciplePickerOpen: true,
+      miniGamePrincipleDraftIds: [],
+      miniGamePrincipleSearch: "",
+      miniGamePrincipleCapture: capture,
+    },
+    timeline: {
+      ...(current.timeline || {}),
+      playheadMs: capture.startMs,
+    },
+    message: "MG timestamp captured. Choose one or more principles.",
+    error: "",
+  }));
+  return true;
+}
+
+async function createMiniGamePrincipleTagFromCapture(principleId = "", context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const id = String(principleId || "").trim();
+  const capture = state.codingSession?.miniGamePrincipleCapture || null;
+  if (!capture) return false;
+  if (!id || !pickerMiniGamePrincipleIdSet.has(id)) return false;
+  if (!state.match?.id || !state.video?.id) {
+    run.store.setState({
+      status: "error",
+      message: "",
+      error: "Link a local match or training video before tagging MG principles.",
+    });
+    return false;
+  }
+  const existingIds = pickerVisibleMiniGamePrincipleIds(state.codingSession?.miniGamePrincipleDraftIds || []);
+  if (existingIds.includes(id)) {
+    run.store.setState({
+      message: `${miniGamePrincipleLabel(id) || "MG principle"} is already tagged for this timestamp.`,
+      error: "",
+    });
+    return true;
+  }
+  const startMs = Math.max(0, Math.round(Number(capture.startMs || 0)));
+  const durationMs = Math.max(1000, Number(capture.durationMs || state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
+  const endMs = startMs + durationMs;
+  const nextIds = pickerVisibleMiniGamePrincipleIds([...existingIds, id]);
+  const nextState = {
+    ...state,
+    draft: {
+      ...(state.draft || {}),
+      startMs,
+      endMs,
+      period: capture.period || state.draft?.period || "1",
+      phase: capture.phase || state.draft?.phase || "",
+      subPhase: capture.subPhase || state.draft?.subPhase || "",
+      teamPrincipleId: capture.teamPrincipleId || state.draft?.teamPrincipleId || "",
+      outcome: capture.outcome || state.draft?.outcome || "",
+      playerId: capture.playerId || state.draft?.playerId || "",
+      playerRole: capture.playerRole || state.draft?.playerRole || "primary",
+      unit: capture.unit || state.draft?.unit || "",
+      pitchZone: capture.pitchZone || state.draft?.pitchZone || "",
+      pressure: capture.pressure || state.draft?.pressure || "",
+      decision: capture.decision || state.draft?.decision || "",
+      execution: capture.execution || state.draft?.execution || "",
+      visibility: capture.visibility || state.draft?.visibility || "private",
+      clipVisibility: capture.visibility || state.draft?.clipVisibility || "private",
+      miniGamePrincipleId: id,
+      miniGamePrincipleIds: [id],
+      tags: "",
+      note: "",
+    },
+    codingSession: {
+      ...(state.codingSession || {}),
+      mode: "instant",
+      preRollMs: 0,
+      postRollMs: durationMs,
+      miniGamePrincipleDraftIds: nextIds,
+      miniGamePrinciplePickerOpen: true,
+      miniGamePrincipleCapture: capture,
+    },
+    timeline: {
+      ...(state.timeline || {}),
+      playheadMs: startMs,
+    },
+    message: `${miniGamePrincipleLabel(id) || "MG principle"} tagged.`,
+    error: "",
+  };
+  run.store.update(() => nextState);
+  const saved = await saveDraftClip(context, nextState);
+  if (saved) {
+    run.store.update((current) => ({
+      ...current,
+      draft: {
+        ...(current.draft || {}),
+        startMs,
+        endMs,
+        miniGamePrincipleId: "",
+        miniGamePrincipleIds: [],
+      },
+      codingSession: {
+        ...(current.codingSession || {}),
+        mode: "instant",
+        preRollMs: 0,
+        postRollMs: durationMs,
+        miniGamePrincipleDraftIds: nextIds,
+        miniGamePrinciplePickerOpen: true,
+        miniGamePrincipleSearch: state.codingSession?.miniGamePrincipleSearch || "",
+        miniGamePrincipleCapture: capture,
+      },
+      timeline: {
+        ...(current.timeline || {}),
+        playheadMs: startMs,
+      },
+      message: `${miniGamePrincipleLabel(id) || "MG principle"} tag created.`,
+      error: "",
+    }));
+  }
+  return saved;
+}
+
 async function toggleMiniGamePrincipleForActiveClip(principleId = "", context = {}) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
+  if (state.codingSession?.miniGamePrincipleCapture) {
+    return createMiniGamePrincipleTagFromCapture(principleId, context);
+  }
   const ids = toggledMiniGamePrincipleIds(state, principleId);
   if (!ids) return false;
   const targetClip = findClipForLabelAction(state, currentPlayheadMs(context, state));
@@ -3876,24 +4060,10 @@ export function handleClick(event, context = {}) {
     return true;
   }
   if (target.closest("[data-video-analysis-mg-principles-open]")) {
-    run.store.update((state) => ({
-      ...state,
-      codingSession: {
-        ...(state.codingSession || {}),
-        miniGamePrinciplePickerOpen: true,
-        miniGamePrincipleDraftIds: pickerVisibleMiniGamePrincipleIds(activeMiniGamePrincipleIds(state)),
-        miniGamePrincipleSearch: "",
-      },
-      message: "",
-      error: "",
-    }));
-    return true;
+    return openMiniGamePrincipleCapture(context);
   }
   if (target.closest("[data-video-analysis-mg-principles-close]")) {
-    run.store.update((state) => ({
-      ...state,
-      codingSession: { ...(state.codingSession || {}), miniGamePrinciplePickerOpen: false, miniGamePrincipleSearch: "" },
-    }));
+    run.store.update((state) => closeMiniGamePrinciplePickerState(state));
     return true;
   }
   const miniGameToggle = target.closest("[data-video-analysis-mg-principle-toggle]");

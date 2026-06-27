@@ -1407,29 +1407,64 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   expect(Math.abs(codeModeAfterSecondTag.height - codeModeBeforeTag.height)).toBeLessThanOrEqual(4);
   expect(Math.abs(codeModeAfterSecondTag.width - codeModeBeforeTag.width)).toBeLessThanOrEqual(4);
 
+  await expect(page.locator("[data-video-analysis-mg-principles-open]")).not.toContainText("choose");
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "currentTime", { configurable: true, value: 123.456 });
+    Object.defineProperty(video, "paused", { configurable: true, value: false });
+  });
+  const saveCountBeforeMgCapture = await page.evaluate(() => {
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
+  });
   await page.locator("[data-video-analysis-mg-principles-open]").click();
+  await expect.poll(() => page.evaluate(() => {
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
+  })).toBe(saveCountBeforeMgCapture);
   await expect(page.locator(".video-analysis-mg-picker-overlay")).toBeVisible();
   await expect(page.locator("#video-analysis-mg-picker-title")).toHaveText("MG Principles");
   await expect(page.locator(".video-analysis-mg-picker-overlay")).not.toContainText("Clip principles");
   await expect(page.locator(".video-analysis-mg-picker-overlay")).not.toContainText("Stored as suggestions");
   await expect(page.locator(".video-analysis-mg-picker-overlay")).not.toContainText("Football Science Core");
   await expect(page.locator(".video-analysis-mg-picker-search")).toBeVisible();
+  await expect(page.locator(".video-analysis-mg-picker-footer")).toContainText("0 tags created at 123456ms");
   await expect(page.locator(".video-analysis-mg-picker-group").first()).toContainText("Suggested for Build Up");
   await expect(page.locator(".video-analysis-mg-picker-group").first()).toContainText("Drive past press");
   await expect(page.locator(".video-analysis-mg-picker-group").first()).toContainText("FT3");
+  await page.locator('[data-video-analysis-mg-principle-toggle="drive-past-press"]').click();
+  await expect.poll(() => page.evaluate(() => {
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
+  })).toBe(saveCountBeforeMgCapture + 1);
+  await expect(page.locator(".video-analysis-mg-picker-footer")).toContainText("1 tag created at 123456ms");
   await page.locator(".video-analysis-mg-picker-search").fill("FT3");
   await expect(page.locator(".video-analysis-mg-picker-overlay")).toContainText("FT3 (Find the Third)");
   await expect(page.locator(".video-analysis-mg-picker-overlay")).not.toContainText("Drive past press");
   await page.locator('[data-video-analysis-mg-principle-toggle="ft3-find-the-third"]').click();
   await expect(page.locator('[data-video-analysis-mg-principle-toggle="ft3-find-the-third"]')).toHaveClass(/is-active/);
   await expect.poll(() => page.evaluate(() => {
-    const request = [...(window.__videoAnalysisRequests || [])]
-      .reverse()
-      .find((item) => item.action === "save-clip" && (item.body?.clip?.labels || [])
-        .some((label) => (label.value || label.label_value) === "ft3-find-the-third"));
-    return (request?.body?.clip?.labels || []).map((label) => label.value || label.label_value);
-  })).toContain("ft3-find-the-third");
-  await page.locator(".video-analysis-mg-picker-close").click();
+    const requests = (window.__videoAnalysisRequests || [])
+      .filter((item) => item.action === "save-clip" && [123456, 123457].includes(item.body?.clip?.startMs));
+    return requests.map((item) => ({
+      startMs: item.body?.clip?.startMs,
+      endMs: item.body?.clip?.endMs,
+      labels: (item.body?.clip?.labels || []).map((label) => label.value || label.label_value),
+      miniGamePrincipleId: item.body?.clip?.miniGamePrincipleId,
+    }));
+  })).toEqual([
+    {
+      startMs: 123456,
+      endMs: 138456,
+      labels: ["drive-past-press"],
+      miniGamePrincipleId: "drive-past-press",
+    },
+    {
+      startMs: 123456,
+      endMs: 138456,
+      labels: ["ft3-find-the-third"],
+      miniGamePrincipleId: "ft3-find-the-third",
+    },
+  ]);
+  await expect(page.locator(".video-analysis-mg-picker-footer")).toContainText("2 tags created at 123456ms");
+  await page.locator("[data-video-analysis-mg-principles-apply]").click();
   await expect(page.locator(".video-analysis-mg-picker-overlay")).toHaveCount(0);
 
   await page.keyboard.press("Escape");

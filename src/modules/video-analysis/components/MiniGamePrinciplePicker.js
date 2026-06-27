@@ -32,6 +32,8 @@ function selectedTargetClip(state = {}) {
 }
 
 function activeSubPhaseLabel(state = {}, targetClip = null) {
+  const captureSubPhase = String(state.codingSession?.miniGamePrincipleCapture?.subPhase || "").trim();
+  if (captureSubPhase) return captureSubPhase;
   return String(targetClip?.subPhase || targetClip?.sub_phase || state.draft?.subPhase || "").trim();
 }
 
@@ -116,7 +118,6 @@ export function renderMiniGamePrincipleLauncher(state = {}) {
         aria-haspopup="dialog"
       >
         <span class="video-analysis-code-button__label">${escapeHtml(label)}${escapeHtml(suffix)}</span>
-        <span class="video-analysis-code-button__meta"><small>choose</small></span>
       </button>
     </section>
   `;
@@ -126,6 +127,7 @@ export function renderMiniGamePrinciplePicker(state = {}) {
   if (!state.codingSession?.miniGamePrinciplePickerOpen) return "";
   const selectedIds = new Set(selectedMiniGamePrincipleIds(state));
   const targetClip = selectedTargetClip(state);
+  const capture = state.codingSession?.miniGamePrincipleCapture || null;
   const searchValue = String(state.codingSession?.miniGamePrincipleSearch || "");
   const searchQuery = normalizeSearchText(searchValue);
   const subPhaseLabel = activeSubPhaseLabel(state, targetClip);
@@ -174,10 +176,10 @@ export function renderMiniGamePrinciplePicker(state = {}) {
           ${hasResults ? "" : `<section class="video-analysis-mg-picker-empty">No principles found.</section>`}
         </div>
         <footer class="video-analysis-mg-picker-footer">
-          <span>${escapeHtml(`${selectedIds.size} selected`)}</span>
-          <button type="button" data-video-analysis-mg-principles-clear>Clear</button>
+          <span>${capture ? escapeHtml(`${selectedIds.size} tag${selectedIds.size === 1 ? "" : "s"} created at ${Math.round(Number(capture.startMs || 0))}ms`) : escapeHtml(`${selectedIds.size} selected`)}</span>
+          ${capture ? "" : `<button type="button" data-video-analysis-mg-principles-clear>Clear</button>`}
           <button type="button" class="video-analysis-primary-action" data-video-analysis-mg-principles-apply>
-            ${targetClip ? "Save to clip" : "Use for next tag"}
+            ${capture ? "Done" : targetClip ? "Save to clip" : "Use for next tag"}
           </button>
         </footer>
       </section>

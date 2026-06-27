@@ -135,6 +135,89 @@ test("chat thread sorting is driven by pinned state and message activity, not se
   expect(chatThreadRuntimeSource).not.toContain("secondIsSelectedEmptyGroup");
 });
 
+test("closed chat receives realtime summary refresh for unread notifications", async () => {
+  const fetchCalls = [];
+  const timers = [];
+  let apiThreads = [];
+  let detailTimer = 0;
+  let summaryTimer = 0;
+
+  const runtime = createDashboardChatApiRuntime({
+    canFallbackDashboardChatApiResult: () => false,
+    fetchDashboardChatApi: async (query) => {
+      fetchCalls.push(query);
+      return {
+        ok: true,
+        result: {
+          threads: [
+            {
+              threadId: "dm:coach-qa:teammate-qa",
+              type: "dm",
+              messageCount: 1,
+              unreadCount: 1,
+              lastMessage: {
+                id: "incoming-dm",
+                threadId: "dm:coach-qa:teammate-qa",
+                userId: "teammate-qa",
+                text: "Private update",
+                createdAt: "2026-06-27T10:00:00.000Z",
+                readBy: ["teammate-qa"],
+              },
+            },
+          ],
+        },
+      };
+    },
+    getDashboardApiThreads: () => apiThreads,
+    setDashboardApiThreads: (nextThreads) => {
+      apiThreads = nextThreads;
+    },
+    getDashboardChatCurrentViewState: () => ({ isOpen: false, selectedThreadId: "team" }),
+    getDashboardChatApiSyncTimer: () => detailTimer,
+    setDashboardChatApiSyncTimer: (value) => {
+      detailTimer = value;
+    },
+    getDashboardChatApiThreadSummarySyncTimer: () => summaryTimer,
+    setDashboardChatApiThreadSummarySyncTimer: (value) => {
+      summaryTimer = value;
+    },
+    getDashboardChatApiThreadSummarySyncLastRequestedAt: () => 0,
+    setDashboardChatApiThreadSummarySyncLastRequestedAt: () => {},
+    normalizeDashboardApiThread: (thread) => thread,
+    normalizeDashboardApiMessage: (message) => message,
+    normalizeDashboardChatThreadId: (threadId, fallback = "team") => String(threadId || fallback || "team"),
+    syncDashboardChatWidgetNotificationCursor: () => {},
+    renderDashboardChatWidget: () => {},
+    win: {
+      clearTimeout: () => {},
+      setTimeout: (callback) => {
+        timers.push(callback);
+        callback();
+        return timers.length;
+      },
+    },
+  });
+
+  runtime.handleDashboardChatRealtimeMessageChange({
+    eventType: "INSERT",
+    new: {
+      id: "incoming-dm",
+      thread_id: "database-thread-id",
+      organization_id: "org-qa",
+    },
+  });
+  await Promise.resolve();
+
+  expect(fetchCalls).toHaveLength(1);
+  expect(fetchCalls[0]).toMatchObject({ view: "threads", __activeChatRead: true });
+  expect(fetchCalls[0].threadId).toBeUndefined();
+  expect(detailTimer).toBe(0);
+  expect(apiThreads[0]).toMatchObject({
+    threadId: "dm:coach-qa:teammate-qa",
+    unreadCount: 1,
+  });
+});
+
 test("dm flow stays scoped to participants and does not leak to other staff", () => {
   const dmThreadId = "dm:coach-qa:teammate-qa";
   const seededState = {
@@ -839,13 +922,15 @@ test("chat summary seeds active server last message while full thread history hy
   }));
 });
 
-test("closed chat runtime does not queue realtime recovery reads", async () => {
+test("closed chat runtime keeps polling paused but allows realtime notification summaries", async () => {
   let fetchCount = 0;
+  const fetchQueries = [];
   let summaryTimer = 0;
   let apiTimer = 0;
   const runtime = createDashboardChatApiRuntime({
-    fetchDashboardChatApi: async () => {
+    fetchDashboardChatApi: async (query) => {
       fetchCount += 1;
+      fetchQueries.push(query);
       return { ok: true, status: 200, result: { threads: [], messages: [] } };
     },
     getDashboardChatCurrentViewState: () => ({ isOpen: false, selectedThreadId: "team" }),
@@ -875,7 +960,11 @@ test("closed chat runtime does not queue realtime recovery reads", async () => {
 
   expect(summaries).toMatchObject({ ok: false, skipped: true, status: 0 });
   expect(thread).toMatchObject({ ok: false, skipped: true, status: 0 });
-  expect(fetchCount).toBe(0);
+  expect(fetchCount).toBe(2);
+  expect(fetchQueries).toEqual([
+    expect.objectContaining({ view: "threads", __activeChatRead: true }),
+    expect.objectContaining({ view: "threads", __activeChatRead: true }),
+  ]);
 });
 
 test("chat widget open state is session-only and cannot revive stale background chat", () => {

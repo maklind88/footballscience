@@ -683,9 +683,6 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
 
   function handleDashboardChatRealtimeMessageChange(change = {}) {
     const activeState = getDashboardChatCurrentViewState();
-    if (!activeState.isOpen) {
-      return;
-    }
 
     setRealtimeLastEventAt(Date.now());
     const eventType = String(change.eventType || change.type || "").toUpperCase();
@@ -701,25 +698,30 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       platformNavigationController?.renderTopIconMenu?.();
     }
 
-    queueDashboardChatApiRefresh({ delayMs: 250 });
-    queueDashboardChatThreadSummaryRefresh({ delayMs: 350 });
+    if (activeState.isOpen) {
+      queueDashboardChatApiRefresh({ delayMs: 250 });
+      queueDashboardChatThreadSummaryRefresh({ delayMs: 350 });
+      return;
+    }
+
+    queueDashboardChatThreadSummaryRefresh({ delayMs: 350, forceNetwork: true, render: true });
   }
 
   function handleDashboardChatRealtimeRelatedChange(change = {}) {
     const activeState = getDashboardChatCurrentViewState();
-    if (!activeState.isOpen) {
-      return;
-    }
 
     setRealtimeLastEventAt(Date.now());
     const record = change.new || change.old || {};
     const databaseThreadId = String(record.thread_id || record.id || "").trim();
     const matchingThread = getApiThreads().find((thread) => thread.databaseThreadId === databaseThreadId) || null;
     const refreshThreadId = matchingThread?.threadId || activeState.selectedThreadId || dashboardChatTeamThreadId;
-    queueDashboardChatThreadSummaryRefresh({ delayMs: 180 });
     if (activeState.isOpen) {
+      queueDashboardChatThreadSummaryRefresh({ delayMs: 180 });
       queueDashboardChatApiRefresh({ threadId: refreshThreadId, delayMs: 220 });
+      return;
     }
+
+    queueDashboardChatThreadSummaryRefresh({ delayMs: 180, forceNetwork: true, render: true });
   }
 
   function handleDashboardChatRealtimeStatus(status = "") {

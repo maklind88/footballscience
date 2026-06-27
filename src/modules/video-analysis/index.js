@@ -1840,10 +1840,14 @@ async function loadClips(nextFilters = null) {
     if (filters.ownerId) clips = clips.filter((clip) => clipMatchesOwner(clip, filters.ownerId));
     run.store.update((current) => {
       const preservePlaybackPreparation = shouldPreservePlaybackPreparation(current);
+      const pendingArchiveIds = new Set(uniqueClipIds(current.timeline?.pendingArchiveClipIds || []));
+      const visibleClips = pendingArchiveIds.size
+        ? clips.filter((clip) => !pendingArchiveIds.has(String(clip.id || "")))
+        : clips;
       return {
         ...current,
         status: preservePlaybackPreparation ? current.status : "ready",
-        clips,
+        clips: visibleClips,
         filters,
         error: preservePlaybackPreparation ? current.error : "",
       };
@@ -2403,11 +2407,55 @@ function uniqueClipIds(ids = []) {
   return Array.from(new Set(ids.map((id) => String(id || "").trim()).filter(Boolean)));
 }
 
+function clipIdsWithout(ids = [], removeIds = []) {
+  const removeSet = new Set(uniqueClipIds(removeIds));
+  return uniqueClipIds(ids).filter((id) => !removeSet.has(id));
+}
+
+function removePendingArchiveClipIdsFromState(state = {}, clipIds = []) {
+  const pendingArchiveClipIds = clipIdsWithout(state.timeline?.pendingArchiveClipIds, clipIds);
+  return {
+    ...state,
+    timeline: {
+      ...(state.timeline || {}),
+      pendingArchiveClipIds,
+    },
+  };
+}
+
+function clipByIdFromState(state = {}, clipId = "") {
+  const targetId = String(clipId || "");
+  return (Array.isArray(state.clips) ? state.clips : []).find((clip) => String(clip.id || "") === targetId)
+    || (Array.isArray(state.allClips) ? state.allClips : []).find((clip) => String(clip.id || "") === targetId)
+    || null;
+}
+
+function deletedTimelineNavigationAnchor(state = {}, clipIds = []) {
+  const ids = uniqueClipIds(clipIds);
+  if (!ids.length) return null;
+  const activeId = String(state.selectedClipId || state.timeline?.selectedCategory?.activeClipId || "");
+  const anchorId = ids.includes(activeId) ? activeId : ids[0];
+  const position = findTimelineClipPosition(state, anchorId);
+  const clip = position?.lane?.clips?.[position.clipIndex] || clipByIdFromState(state, anchorId);
+  if (!clip?.id || !position?.laneMode || !position?.lane?.label) return null;
+  return {
+    clipId: String(clip.id || ""),
+    laneMode: position.laneMode,
+    label: position.lane.label,
+    startMs: clipStartMs(clip),
+    endMs: clipEndMs(clip),
+  };
+}
+
 function removeArchivedClipIdsFromState(state = {}, clipIds = [], options = {}) {
   const archivedIds = new Set(uniqueClipIds(clipIds));
   if (!archivedIds.size) return state;
   const filterClips = (clips = []) => (Array.isArray(clips) ? clips.filter((clip) => !archivedIds.has(String(clip.id || ""))) : clips);
   const selectedClipId = archivedIds.has(String(state.selectedClipId || "")) ? "" : state.selectedClipId;
+  const pendingArchiveClipIds = uniqueClipIds([
+    ...(Array.isArray(state.timeline?.pendingArchiveClipIds) ? state.timeline.pendingArchiveClipIds : []),
+    ...archivedIds,
+  ]);
   const selectedCategory = options.clearCategory
     ? {}
     : {
@@ -2430,6 +2478,8 @@ function removeArchivedClipIdsFromState(state = {}, clipIds = [], options = {}) 
     selectedClipId,
     timeline: {
       ...(state.timeline || {}),
+      pendingArchiveClipIds,
+      navigationAnchor: options.navigationAnchor || state.timeline?.navigationAnchor || null,
       selectedCategory,
     },
     clipLibrary: {
@@ -2449,9 +2499,10 @@ async function archiveTimelineClips(context = {}, clipIds = [], options = {}) {
     run.store.update((state) => ({ ...state, message: "Select a timeline tag first." }));
     return false;
   }
+  const navigationAnchor = deletedTimelineNavigationAnchor(run.store.getState(), ids);
   try {
     run.store.update((state) => ({
-      ...state,
+      ...removeArchivedClipIdsFromState(state, ids, { ...options, navigationAnchor }),
       status: "saving-clip",
       message: ids.length === 1 ? "Deleting timeline tag." : `Deleting ${ids.length} timeline tags.`,
       error: "",
@@ -2459,19 +2510,28 @@ async function archiveTimelineClips(context = {}, clipIds = [], options = {}) {
     if (ids.length === 1) await run.clips.archive(ids[0]);
     else await run.clips.archiveMany(ids);
     run.store.update((state) => ({
-      ...removeArchivedClipIdsFromState(state, ids, options),
+      ...removeArchivedClipIdsFromState(state, ids, { ...options, navigationAnchor }),
       status: "ready",
       message: ids.length === 1 ? "Timeline tag deleted." : `${ids.length} timeline tags deleted.`,
       error: "",
     }));
     await loadClips();
+    run.store.update((state) => removePendingArchiveClipIdsFromState(state, ids));
     return true;
   } catch (error) {
+    const errorMessage = error.message || "Could not delete timeline tag.";
+    run.store.update((state) => ({
+      ...removePendingArchiveClipIdsFromState(state, ids),
+      status: "loading-clips",
+      message: "",
+      error: errorMessage,
+    }));
+    await loadClips();
     run.store.update((state) => ({
       ...state,
       status: "error",
       message: "",
-      error: error.message || "Could not delete timeline tag.",
+      error: errorMessage,
     }));
     return false;
   }
@@ -2564,6 +2624,7 @@ function selectTimelineClip(context = {}, clip = {}, laneMode = "", label = "") 
         activeClipId: clip.id,
         keyboardDeleteScope: "clip",
       },
+      navigationAnchor: null,
     },
   }));
   return true;
@@ -2629,6 +2690,39 @@ function nextTimelineClipFromPosition(position = null, direction = 1) {
     : null;
 }
 
+function firstAdjacentClipFromLane(lane = {}, anchorStartMs = 0, direction = 1) {
+  const clips = Array.isArray(lane.clips) ? lane.clips : [];
+  if (!clips.length) return null;
+  if (direction < 0) {
+    return clips.slice().reverse().find((clip) => clipStartMs(clip) <= anchorStartMs) || null;
+  }
+  return clips.find((clip) => clipStartMs(clip) >= anchorStartMs) || null;
+}
+
+function nextTimelineClipFromNavigationAnchor(state = {}, direction = 1) {
+  const anchor = state.timeline?.navigationAnchor || null;
+  if (!anchor?.laneMode || !anchor.label) return null;
+  const { laneMode, lanes } = visibleTimelineLanes(state);
+  if (laneMode !== normalizeTimelineLaneMode(anchor.laneMode) || !lanes.length) return null;
+  const step = direction < 0 ? -1 : 1;
+  const laneIndex = lanes.findIndex((lane) => lane.label === anchor.label);
+  if (laneIndex !== -1) {
+    const sameLaneClip = firstAdjacentClipFromLane(lanes[laneIndex], Number(anchor.startMs || 0), step);
+    if (sameLaneClip?.id) return { lane: lanes[laneIndex], clip: sameLaneClip };
+  }
+  if (step > 0) {
+    for (let index = Math.max(0, laneIndex + 1); index < lanes.length; index += 1) {
+      if (lanes[index]?.clips?.length) return { lane: lanes[index], clip: lanes[index].clips[0] };
+    }
+    return null;
+  }
+  for (let index = (laneIndex === -1 ? lanes.length : laneIndex) - 1; index >= 0; index -= 1) {
+    const clips = lanes[index]?.clips || [];
+    if (clips.length) return { lane: lanes[index], clip: clips[clips.length - 1] };
+  }
+  return null;
+}
+
 function tabToAdjacentTimelineClip(event = {}, context = {}) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
@@ -2643,12 +2737,14 @@ function tabToAdjacentTimelineClip(event = {}, context = {}) {
     return false;
   }
   const position = findTimelineClipPosition(state);
-  if (!position) return false;
-  const next = nextTimelineClipFromPosition(position, event.shiftKey ? -1 : 1);
+  const direction = event.shiftKey ? -1 : 1;
+  const next = position
+    ? nextTimelineClipFromPosition(position, direction)
+    : nextTimelineClipFromNavigationAnchor(state, direction);
   if (!next?.clip?.id) return false;
   event.preventDefault?.();
   event.stopPropagation?.();
-  return selectTimelineClip(context, next.clip, position.laneMode, next.lane.label);
+  return selectTimelineClip(context, next.clip, position?.laneMode || state.timeline?.navigationAnchor?.laneMode || "", next.lane.label);
 }
 
 function presentationDropTarget(target) {

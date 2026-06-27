@@ -138,6 +138,11 @@
         ].some((value) => String(value || "").toLowerCase().includes(query));
       }
 
+      function optionalArchiveDelay() {
+        const delayMs = Math.max(0, Number(window.__videoAnalysisArchiveDelayMs || 0));
+        return delayMs ? new Promise((resolve) => setTimeout(resolve, delayMs)) : Promise.resolve();
+      }
+
       window.fetch = async (url, options = {}) => {
         const parsed = new URL(url, window.location.origin);
         const action = parsed.searchParams.get("action");
@@ -265,6 +270,7 @@
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip });
         }
         if (action === "archive-clip") {
+          await optionalArchiveDelay();
           const id = body.id || body.clipId || body.clip_id;
           const archived = clips.find((item) => item.id === id) || null;
           const nextClips = clips.filter((item) => item.id !== id);
@@ -272,6 +278,7 @@
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip: archived });
         }
         if (action === "archive-clips") {
+          await optionalArchiveDelay();
           const ids = new Set((body.ids || body.clipIds || body.clip_ids || []).map((id) => String(id || "")));
           const archivedIds = clips.filter((item) => ids.has(item.id)).map((item) => item.id);
           const nextClips = clips.filter((item) => !ids.has(item.id));

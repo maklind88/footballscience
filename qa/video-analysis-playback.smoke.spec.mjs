@@ -1018,6 +1018,81 @@ test("Video Analysis Tab jumps to the next timeline tag in row order", async ({ 
   await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:01:10");
 });
 
+test("Video Analysis Tab skips a timeline tag while deletion is still saving", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__videoAnalysisArchiveDelayMs = 750;
+    window.__videoAnalysisSmokeClips = [
+      {
+        id: "tab-delete-race-1",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 10000,
+        end_ms: 25000,
+        phase: "In Possession",
+        sub_phase: "Build Up",
+        outcome: "Neutral",
+        players: [],
+        tags: [],
+        descriptors: [],
+        notes: [],
+      },
+      {
+        id: "tab-delete-race-2",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 40000,
+        end_ms: 55000,
+        phase: "In Possession",
+        sub_phase: "Build Up",
+        outcome: "Positive",
+        players: [],
+        tags: [],
+        descriptors: [],
+        notes: [],
+      },
+      {
+        id: "tab-delete-race-3",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 70000,
+        end_ms: 85000,
+        phase: "In Possession",
+        sub_phase: "Creating Phase",
+        outcome: "Development",
+        players: [],
+        tags: [],
+        descriptors: [],
+        notes: [],
+      },
+    ];
+    window.__videoAnalysisInitialState = {
+      view: "workspace",
+      activeAnalysisRoomTab: "fs-player",
+      match: { id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152", title: "Tab delete race match" },
+      video: { id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725", match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152" },
+      source: { id: "source-1", match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152", video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725" },
+      videoRef: { objectUrl: "data:video/mp4;base64,AAAA", durationMs: 120000, displayName: "Tab delete race match" },
+      localFileStatus: "native-ready",
+      localFileMessage: "Native playback ready",
+      nativePlaybackReady: true,
+    };
+  });
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  await page.locator('[data-video-analysis-seek="tab-delete-race-1"]').click();
+  await page.keyboard.press("Delete");
+  await expect(page.locator('[data-video-analysis-seek="tab-delete-race-1"]')).toHaveCount(0);
+  await expect(page.locator(".video-analysis-clip-block")).toHaveCount(2);
+
+  await page.keyboard.press("Tab");
+  await expect(page.locator(".video-analysis-clip-block.is-selected")).toHaveAttribute("data-video-analysis-seek", "tab-delete-race-2");
+  await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:00:40");
+  await expect.poll(() => page.evaluate(() => (
+    [...(window.__videoAnalysisRequests || [])].reverse().find((request) => request.action === "archive-clip")?.body?.id || ""
+  ))).toBe("tab-delete-race-1");
+  await expect(page.locator(".video-analysis-clip-block")).toHaveCount(2);
+});
+
 test("Video Analysis Tag Panel creates a 15 second timeline tag from a code button", async ({ page }) => {
   await page.addInitScript(() => {
     window.__videoPlayCalls = 0;

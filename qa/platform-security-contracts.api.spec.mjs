@@ -192,6 +192,7 @@ test("tenant isolation and permission matrix are enforced at migration-contract 
   const migration = readProjectFile("supabase/migrations/20260510030705_platform_security_control_plane.sql");
   expect(migration).toContain("public.platform_permission_matrix");
   expect(migration).toContain("public.platform_security_events");
+  expect(migration).toContain("action text not null check (char_length(action) between 2 and 120)");
   expect(migration).toContain("enable row level security");
   expect(migration).toContain("app_private.has_platform_permission");
   expect(migration).toContain("app_private.is_platform_org_member");

@@ -6,7 +6,7 @@ create schema if not exists app_private;
 
 create table if not exists public.platform_permission_matrix (
   module_id text not null check (module_id ~ '^[a-z0-9][a-z0-9-]{1,80}$'),
-  action text not null check (action in ('read', 'write', 'delete', 'export', 'restore', 'admin', 'observe')),
+  action text not null check (char_length(action) between 2 and 120),
   roles text[] not null check (
     roles <@ array['admin', 'club-admin', 'team-admin', 'coach', 'scout', 'analyst', 'performance', 'medical', 'guest']::text[]
     and array_length(roles, 1) is not null

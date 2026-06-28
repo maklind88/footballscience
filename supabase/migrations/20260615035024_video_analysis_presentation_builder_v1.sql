@@ -170,6 +170,12 @@ create trigger video_smart_collections_prevent_hard_delete before delete on publ
 drop trigger if exists video_presentation_share_targets_prevent_hard_delete on public.video_presentation_share_targets;
 create trigger video_presentation_share_targets_prevent_hard_delete before delete on public.video_presentation_share_targets for each row execute function app_private.video_analysis_prevent_hard_delete();
 
+alter table if exists public.platform_permission_matrix
+  drop constraint if exists platform_permission_matrix_action_check;
+alter table if exists public.platform_permission_matrix
+  add constraint platform_permission_matrix_action_check
+  check (char_length(action) between 2 and 120);
+
 insert into public.platform_permission_matrix
   (module_id, action, roles, scope, requires_organization_scope, requires_team_scope, description)
 values

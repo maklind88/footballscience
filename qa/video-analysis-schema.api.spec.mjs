@@ -116,6 +116,8 @@ test("video analysis presentation builder stores shareable metadata only", () =>
   expect(presentationMigration).toContain("video_presentation_items_clip_idx");
   expect(presentationMigration).toContain("video_drawing_layers_clip_time_idx");
   expect(presentationMigration).toContain("video_smart_collections_search_gin_idx");
+  expect(presentationMigration).toContain("drop constraint if exists platform_permission_matrix_action_check");
+  expect(presentationMigration).toContain("check (char_length(action) between 2 and 120)");
   expect(presentationMigration).toContain("('video-analysis', 'present'");
   expect(presentationMigration).toContain("('video-analysis', 'share'");
   expect(presentationMigration).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);

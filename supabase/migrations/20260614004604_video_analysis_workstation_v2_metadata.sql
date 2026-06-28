@@ -195,7 +195,7 @@ create index if not exists video_coding_buttons_template_order_idx on public.vid
 create index if not exists video_coding_buttons_hotkey_idx on public.video_coding_buttons (team_id, lower(hotkey)) where status = 'active' and hotkey is not null;
 create index if not exists video_coding_button_links_source_idx on public.video_coding_button_links (source_button_id, link_type) where status = 'active';
 create index if not exists video_clip_labels_clip_idx on public.video_clip_labels (clip_instance_id, label_type, label_value);
-create index if not exists video_clip_labels_value_trgm_idx on public.video_clip_labels using gin ((lower(label_value)) gin_trgm_ops);
+create index if not exists video_clip_labels_value_trgm_idx on public.video_clip_labels using gin ((lower(label_value)) extensions.gin_trgm_ops);
 create index if not exists video_clip_descriptors_clip_idx on public.video_clip_descriptors (clip_instance_id, descriptor_type, descriptor_value);
 create index if not exists video_clip_descriptors_value_idx on public.video_clip_descriptors (team_id, descriptor_type, descriptor_value, created_at desc);
 create index if not exists video_timeline_lanes_team_order_idx on public.video_timeline_lanes (team_id, sort_order, id) where status = 'active';

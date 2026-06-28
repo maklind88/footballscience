@@ -22,6 +22,7 @@ function readMigrationBySuffix(suffix) {
 }
 
 const foundationMigration = readMigrationBySuffix("_video_analysis_metadata_foundation.sql");
+const workstationMigration = readMigrationBySuffix("_video_analysis_workstation_v2_metadata.sql");
 const forwardFixMigration = readMigrationBySuffix("_fix_video_analysis_trigram_indexes.sql");
 
 test("video analysis foundation migration indexes use schema-qualified gin_trgm_ops", () => {
@@ -37,6 +38,15 @@ test("video analysis foundation migration indexes use schema-qualified gin_trgm_
   );
   expect(foundationMigration.migration).not.toContain(
     "create index if not exists video_clip_notes_note_trgm_idx on public.video_clip_notes using gin ((lower(note)) gin_trgm_ops);"
+  );
+});
+
+test("video analysis workstation migration indexes use schema-qualified gin_trgm_ops", () => {
+  expect(workstationMigration.migration).toContain(
+    "create index if not exists video_clip_labels_value_trgm_idx on public.video_clip_labels using gin ((lower(label_value)) extensions.gin_trgm_ops);"
+  );
+  expect(workstationMigration.migration).not.toContain(
+    "create index if not exists video_clip_labels_value_trgm_idx on public.video_clip_labels using gin ((lower(label_value)) gin_trgm_ops);"
   );
 });
 

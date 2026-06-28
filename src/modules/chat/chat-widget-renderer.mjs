@@ -1607,6 +1607,21 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const widgetDialogAttributes = isOpen
       ? ` role="dialog" aria-modal="false" aria-keyshortcuts="Escape" aria-label="${escapeHtml(widgetDialogLabel)}"`
       : "";
+    const chatNavIconMarkup = `
+      <svg viewBox="0 0 24 24" focusable="false">
+        <path d="M4 5.5h16a1.8 1.8 0 0 1 1.8 1.8v8.2a1.8 1.8 0 0 1-1.8 1.8H9.5L5 20.5v-3.2H4a1.8 1.8 0 0 1-1.8-1.8V7.3A1.8 1.8 0 0 1 4 5.5Z"></path>
+        <path d="M7.2 10h9.6M7.2 13.2h5.8"></path>
+      </svg>
+    `;
+    const railToggleMarkup = isOpen
+      ? `
+        <button type="button" class="dashboard-chat-rail-toggle platform-nav-item is-active" data-dashboard-chat-widget-toggle aria-expanded="true" aria-controls="dashboardChatWidgetRoot" aria-label="${escapeHtml(`Close ${widgetDialogLabel}`)}" title="${escapeHtml(`Close ${widgetDialogLabel}`)}">
+          <span class="platform-nav-icon dashboard-chat-rail-toggle-icon" aria-hidden="true">${chatNavIconMarkup}</span>
+          <span class="platform-nav-text">Messages</span>
+          ${unreadCount ? `<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">${escapeHtml(launcherUnreadDisplay)}</span>` : `<span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>`}
+        </button>
+      `
+      : "";
     const headerTitleLabel = mobileConversationOpen ? activeThreadLabel : "Chats";
     const headerSubLabel = mobileConversationOpen
       ? activeThreadSubLabel
@@ -1625,6 +1640,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       activeThreadId,
       replyDraft: replyState.replyDraft,
       html: `
+      ${railToggleMarkup}
     <aside${widgetDialogAttributes} class="dashboard-chat-widget${isOpen ? " is-open" : ""}${mobileConversationOpen ? " is-mobile-conversation" : " is-mobile-inbox"}">
       ${
         isOpen
@@ -1764,10 +1780,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 <small>${escapeHtml(launcherPreview)}</small>
               </span>
               <span class="dashboard-chat-launcher-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" focusable="false">
-                  <path d="M4 5.5h16a1.8 1.8 0 0 1 1.8 1.8v8.2a1.8 1.8 0 0 1-1.8 1.8H9.5L5 20.5v-3.2H4a1.8 1.8 0 0 1-1.8-1.8V7.3A1.8 1.8 0 0 1 4 5.5Z"></path>
-                  <path d="M7.2 10h9.6M7.2 13.2h5.8"></path>
-                </svg>
+                ${chatNavIconMarkup}
               </span>
               ${unreadCount ? `<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">${escapeHtml(launcherUnreadDisplay)}</span>` : `<span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>`}
             </button>

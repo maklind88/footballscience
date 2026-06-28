@@ -705,6 +705,8 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(dashboardChatLauncherCss).toContain("body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon svg");
   expect(dashboardChatLauncherCss).toContain("stroke-width: 2 !important;");
   expect(dashboardChatLauncherCss).toContain("body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
+  expect(dashboardChatLauncherCss).toContain("body.has-dashboard-chat-widget.is-dashboard-chat-open .dashboard-chat-rail-toggle");
+  expect(dashboardChatLauncherCss).toContain("body.has-dashboard-chat-widget.is-dashboard-chat-open .dashboard-chat-rail-toggle .dashboard-chat-rail-toggle-icon svg");
   expect(dashboardChatLauncherCss).toContain("top: 0.24rem !important;");
   expect(dashboardChatLauncherCss).toContain("right: 0.24rem !important;");
   expect(dashboardChatLauncherCss).toContain("background: #ff3b30 !important;");
@@ -763,6 +765,9 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(openResult.html).toContain('aria-modal="false"');
   expect(openResult.html).toContain('aria-keyshortcuts="Escape"');
   expect(openResult.html).toContain('aria-label="Team Chat panel"');
+  expect(openResult.html).toContain('class="dashboard-chat-rail-toggle platform-nav-item is-active"');
+  expect(openResult.html).toContain('class="platform-nav-icon dashboard-chat-rail-toggle-icon"');
+  expect(openResult.html).toContain('<span class="platform-nav-text">Messages</span>');
   expect(openResult.html).toContain('aria-expanded="true" aria-controls="dashboardChatWidgetRoot" aria-label="Close Team Chat panel"');
   expect(openResult.html).toContain('title="Close Team Chat panel"');
   expect(openResult.html).toContain('class="dashboard-chat-widget-close"');

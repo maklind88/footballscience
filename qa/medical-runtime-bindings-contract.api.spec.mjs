@@ -562,6 +562,74 @@ test("Medical runtime bindings filter RTP Library by structured clinical search 
   expect(empty.hidden).toBe(true);
 });
 
+test("Medical runtime bindings filter RTP Exercise Bank catalog by metadata", () => {
+  const sprintExercise = {
+    hidden: false,
+    dataset: {
+      search: "max velocity sprint exposure hamstring",
+      phase: "full match",
+      tissue: "muscle tendon",
+      risk: "high",
+    },
+  };
+  const tendonExercise = {
+    hidden: false,
+    dataset: {
+      search: "calf raise tendon loading",
+      phase: "rehab modified",
+      tissue: "tendon",
+      risk: "moderate",
+    },
+  };
+  const search = { value: "sprint" };
+  const phase = { value: "full", dataset: { medicalRtpExerciseFilter: "phase" } };
+  const tissue = { value: "all", dataset: { medicalRtpExerciseFilter: "tissue" } };
+  const risk = { value: "high", dataset: { medicalRtpExerciseFilter: "risk" } };
+  const count = { textContent: "" };
+  const empty = { hidden: true };
+  const catalog = {
+    querySelector(selector) {
+      if (selector === "[data-medical-rtp-exercise-search]") return search;
+      if (selector === "[data-medical-rtp-exercise-count]") return count;
+      if (selector === "[data-medical-rtp-exercise-empty]") return empty;
+      return null;
+    },
+    querySelectorAll(selector) {
+      if (selector === "[data-medical-rtp-exercise-filter]") return [phase, tissue, risk];
+      if (selector === "[data-medical-rtp-exercise]") return [sprintExercise, tendonExercise];
+      return [];
+    },
+  };
+  const workspace = {
+    listeners: {},
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    },
+    querySelector(selector) {
+      return selector === "[data-medical-rtp-exercise-catalog]" ? catalog : null;
+    },
+    querySelectorAll() {
+      return [];
+    },
+  };
+
+  bindMedicalRuntimeBindings({
+    workspaceElement: workspace,
+    win: {},
+    state: {},
+    actions: { canEditMedicalTeam: () => false },
+  });
+
+  workspace.listeners.input(createEvent(createTarget({
+    closest: { "[data-medical-rtp-exercise-search]": search },
+  })));
+
+  expect(sprintExercise.hidden).toBe(false);
+  expect(tendonExercise.hidden).toBe(true);
+  expect(count.textContent).toBe("1");
+  expect(empty.hidden).toBe(true);
+});
+
 test("Medical runtime bindings reveal restricted history rows in batches", () => {
   const rows = Array.from({ length: 30 }, (_, index) => ({
     hidden: index >= 25,

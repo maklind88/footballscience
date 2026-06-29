@@ -141,6 +141,7 @@ const tenantRootTables = new Set([
   // RTP Library is shared medical knowledge content, not player/case/team data.
   "rtp_library_profiles",
   "rtp_library_exercises",
+  "rtp_library_exercise_media",
   "rtp_library_profile_exercises",
 ]);
 const teamRootTables = new Set(["chat_teams", "squad_teams", "platform_teams"]);

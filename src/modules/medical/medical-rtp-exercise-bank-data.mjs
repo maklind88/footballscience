@@ -4,6 +4,10 @@ import {
   medicalRtpExerciseEvidenceReferences,
 } from "./medical-rtp-exercise-bank-items.mjs";
 import { medicalRtpExerciseProfileCoverageRows } from "./medical-rtp-exercise-profile-map.mjs";
+import {
+  enhanceMedicalRtpExerciseItem,
+  getMedicalRtpExerciseCatalogSearchText,
+} from "./medical-rtp-exercise-bank-professional-fields.mjs";
 
 const normalizeArray = (value = []) => (Array.isArray(value) ? value : [value]).map((item) => String(item ?? "").trim()).filter(Boolean);
 
@@ -59,7 +63,7 @@ const createExerciseFromRow = (row = []) =>
 
 export { medicalRtpExerciseEvidenceReferences };
 
-export const medicalRtpExerciseBank = medicalRtpExerciseBankRows.map(createExerciseFromRow);
+export const medicalRtpExerciseBank = medicalRtpExerciseBankRows.map((row) => enhanceMedicalRtpExerciseItem(createExerciseFromRow(row)));
 
 export const medicalRtpExerciseProfileCoverageMap = new Map(medicalRtpExerciseProfileCoverageRows);
 
@@ -70,6 +74,9 @@ export const medicalRtpExerciseBankFilterOptions = {
   footballDemands: Array.from(new Set(medicalRtpExerciseBank.flatMap((item) => item.footballDemands))).sort(),
   equipment: Array.from(new Set(medicalRtpExerciseBank.flatMap((item) => item.equipment))).sort(),
   riskLevels: Array.from(new Set(medicalRtpExerciseBank.map((item) => item.riskLevel))).sort(),
+  bodyRegions: Array.from(new Set(medicalRtpExerciseBank.flatMap((item) => item.bodyRegions))).sort(),
+  mechanismTags: Array.from(new Set(medicalRtpExerciseBank.flatMap((item) => item.mechanismTags))).sort(),
+  positionDemands: Array.from(new Set(medicalRtpExerciseBank.flatMap((item) => item.positionDemands))).sort(),
 };
 
 export function getMedicalRtpExerciseBankSearchText(exerciseItem = {}) {
@@ -93,9 +100,39 @@ export function getMedicalRtpExerciseBankSearchText(exerciseItem = {}) {
     exerciseItem.medicalNotes,
     exerciseItem.performanceNotes,
     exerciseItem.coachSafeLabel,
+    exerciseItem.bodyRegions,
+    exerciseItem.symptomTags,
+    exerciseItem.mechanismTags,
+    exerciseItem.positionDemands,
+    exerciseItem.clinicalTags,
+    exerciseItem.setup,
+    exerciseItem.execution,
+    exerciseItem.coachingCues,
+    exerciseItem.qualityChecks,
+    exerciseItem.programBuilder?.loadFocus,
+    exerciseItem.programBuilder?.gateCriteria,
+    exerciseItem.programBuilder?.nextExposure,
+    exerciseItem.programBuilder?.holdRules,
   ], 80)
     .join(" ")
-    .toLowerCase();
+    .toLowerCase() || getMedicalRtpExerciseCatalogSearchText(exerciseItem);
+}
+
+export function getMedicalRtpExerciseCatalogItems(options = {}) {
+  const query = String(options.query || options.search || "").trim().toLowerCase();
+  const phase = String(options.phase || "").trim().toLowerCase();
+  const tissueType = String(options.tissueType || options.tissue || "").trim().toLowerCase();
+  const demand = String(options.demand || options.footballDemand || "").trim().toLowerCase();
+  const riskLevel = String(options.riskLevel || options.risk || "").trim().toLowerCase();
+  const limit = Number.isFinite(Number(options.limit)) ? Math.max(1, Number(options.limit)) : Number.POSITIVE_INFINITY;
+  return medicalRtpExerciseBank
+    .filter((item) => !query || getMedicalRtpExerciseCatalogSearchText(item).includes(query))
+    .filter((item) => !phase || item.phases.some((value) => value.toLowerCase() === phase))
+    .filter((item) => !tissueType || item.tissueTypes.some((value) => value.toLowerCase() === tissueType))
+    .filter((item) => !demand || item.footballDemands.some((value) => value.toLowerCase().includes(demand)))
+    .filter((item) => !riskLevel || item.riskLevel.toLowerCase() === riskLevel)
+    .sort((first, second) => first.priority - second.priority || first.name.localeCompare(second.name))
+    .slice(0, limit);
 }
 
 export function getMedicalRtpExercisesForProfile(profileOrId = "", options = {}) {

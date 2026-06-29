@@ -306,6 +306,7 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(platformSecurityGuard).toContain("footballscience-api-security-event-v1");
   expect(platformSecurityGuard).toContain("api.permission_denied");
   expect(platformSecurityVerifier).toContain("public.platform_security_events");
+  expect(platformSecurityVerifier).toContain("rtp_library_exercise_media");
   expect(platformSecurityVerifier).toContain("Platform security verification: ok");
   expect(incidentWorkflow).toContain("Production Incident Alert");
   expect(incidentWorkflow).toContain("issues: write");

@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 import {
   createMedicalRtpLibraryStarterDraft,
+  getMedicalRtpExerciseCatalogItems,
+  getMedicalRtpExercisesForProfile,
+  medicalRtpExerciseBank,
+  medicalRtpExerciseBankFilterOptions,
   getMedicalRtpLibraryClinicalSearchGroups,
   getMedicalRtpLibraryClinicalSearchText,
   getMedicalRtpLibraryProfileById,
@@ -189,4 +193,43 @@ test("Medical RTP Library starter drafts stay medical-owned and evidence-separat
   expect(draft.rtpProgramExercises.join(" ")).toContain("Nordic hamstring progression");
   expect(draft.rtpProgramNextSteps).toContain("linear sprint exposure");
   expect(draft.rtpProgramHoldRules).toEqual(draft.rtpProgramWarningPoints);
+});
+
+test("Medical RTP Exercise Bank is a professional catalog linked across all RTP profiles", () => {
+  expect(medicalRtpExerciseBank.length).toBeGreaterThanOrEqual(70);
+  expect(medicalRtpExerciseBankFilterOptions.bodyRegions.length).toBeGreaterThan(0);
+  expect(medicalRtpExerciseBankFilterOptions.mechanismTags).toContain("sprint exposure");
+  expect(medicalRtpExerciseBankFilterOptions.positionDemands.length).toBeGreaterThan(0);
+
+  for (const exercise of medicalRtpExerciseBank) {
+    expect(exercise.bodyRegions.length).toBeGreaterThan(0);
+    expect(exercise.mechanismTags.length).toBeGreaterThan(0);
+    expect(exercise.positionDemands.length).toBeGreaterThan(0);
+    expect(exercise.clinicalTags.length).toBeGreaterThan(0);
+    expect(exercise.programBuilder.loadFocus).toBeTruthy();
+    expect(exercise.programBuilder.gateCriteria.length).toBeGreaterThanOrEqual(2);
+    expect(exercise.programBuilder.nextExposure).toBeTruthy();
+    expect(exercise.programBuilder.holdRules.length).toBeGreaterThan(0);
+    expect(exercise.thumbnail.diagramKey).toBeTruthy();
+    expect(exercise.mediaStatus).toBe("placeholder");
+  }
+
+  for (const profile of medicalRtpLibraryProfiles) {
+    const exercises = getMedicalRtpExercisesForProfile(profile.id);
+    expect(exercises.length).toBeGreaterThan(0);
+    expect(exercises.some((exercise) => exercise.programBuilder?.gateCriteria?.length)).toBe(true);
+  }
+});
+
+test("Medical RTP Exercise Bank supports clinical catalog search without loading player data", () => {
+  const sprintCatalog = getMedicalRtpExerciseCatalogItems({ search: "sprint", phase: "full", limit: 12 });
+  const tendonCatalog = getMedicalRtpExerciseCatalogItems({ tissue: "tendon", risk: "moderate", limit: 12 });
+
+  expect(sprintCatalog.length).toBeGreaterThan(0);
+  expect(sprintCatalog.length).toBeLessThanOrEqual(12);
+  expect(sprintCatalog.every((exercise) => exercise.phases.includes("full"))).toBe(true);
+  expect(sprintCatalog.some((exercise) => exercise.footballDemands.join(" ").toLowerCase().includes("sprint"))).toBe(true);
+  expect(tendonCatalog.length).toBeGreaterThan(0);
+  expect(tendonCatalog.every((exercise) => exercise.tissueTypes.includes("tendon"))).toBe(true);
+  expect(tendonCatalog.every((exercise) => exercise.riskLevel === "moderate")).toBe(true);
 });

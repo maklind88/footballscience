@@ -1180,15 +1180,22 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     const transport = document.querySelector(".video-analysis-player-transport")?.getBoundingClientRect();
     const scrollStyle = timelineScroll ? getComputedStyle(timelineScroll) : null;
     return {
+      codeWindowBottom: codeWindow?.bottom ?? 0,
       codeWindowWidth: codeWindow?.width ?? 0,
+      deckBottom: deck?.bottom ?? 0,
+      deckX: deck?.x ?? 0,
       deckWidth: deck?.width ?? 0,
       isFixed: workstationElement ? getComputedStyle(workstationElement).position === "fixed" : false,
       workstationHeight: workstation?.height ?? 0,
       workstationWidth: workstation?.width ?? 0,
       viewportHeight: window.innerHeight,
       viewportWidth: window.innerWidth,
+      timelineBottom: timeline?.bottom ?? 0,
       timelineHeight: timeline?.height ?? 0,
       timelineOverflowY: scrollStyle?.overflowY || "",
+      timelineWidth: timeline?.width ?? 0,
+      timelineX: timeline?.x ?? 0,
+      timelineY: timeline?.y ?? 0,
       transportHeight: transport?.height ?? 0,
       videoHeight: videoFrame?.height ?? 0,
     };
@@ -1196,24 +1203,28 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   expect(codeModeLayout.isFixed).toBe(true);
   expect(codeModeLayout.workstationWidth).toBeGreaterThanOrEqual(codeModeLayout.viewportWidth - 2);
   expect(codeModeLayout.workstationHeight).toBeGreaterThanOrEqual(codeModeLayout.viewportHeight - 2);
-  expect(codeModeLayout.deckWidth).toBeGreaterThan(codeModeLayout.codeWindowWidth * 1.8);
-  expect(codeModeLayout.videoHeight).toBeGreaterThan(codeModeLayout.timelineHeight * 1.8);
-  expect(codeModeLayout.timelineHeight).toBeLessThanOrEqual(225);
+  expect(codeModeLayout.deckX).toBeGreaterThan(codeModeLayout.codeWindowWidth - 4);
+  expect(codeModeLayout.deckWidth).toBeGreaterThan(codeModeLayout.codeWindowWidth * 1.45);
+  expect(codeModeLayout.videoHeight).toBeGreaterThan(codeModeLayout.timelineHeight * 2.5);
+  expect(codeModeLayout.timelineHeight).toBeLessThanOrEqual(182);
+  expect(codeModeLayout.timelineWidth).toBeGreaterThanOrEqual(codeModeLayout.viewportWidth - 20);
+  expect(codeModeLayout.timelineX).toBeLessThanOrEqual(10);
+  expect(codeModeLayout.timelineBottom).toBeGreaterThanOrEqual(codeModeLayout.viewportHeight - 12);
+  expect(codeModeLayout.codeWindowBottom).toBeLessThanOrEqual(codeModeLayout.timelineY + 2);
+  expect(codeModeLayout.deckBottom).toBeLessThanOrEqual(codeModeLayout.timelineY + 2);
   expect(codeModeLayout.timelineOverflowY).toBe("auto");
   expect(codeModeLayout.transportHeight).toBeLessThanOrEqual(52);
-  await expect(page.locator('[data-video-analysis-code-pip="video"] [data-video-analysis-code-pip-drag]')).toBeVisible();
-  await expect(page.locator('[data-video-analysis-code-pip="timeline"] [data-video-analysis-code-pip-drag]')).toBeVisible();
-  await expect(page.locator('[data-video-analysis-code-pip="code-window"] [data-video-analysis-code-pip-drag]')).toBeVisible();
+  await expect(page.locator("[data-video-analysis-code-pip-drag]")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-code-pip-resize]")).toHaveCount(24);
   const deckBeforeMove = await page.locator('[data-video-analysis-code-pip="video"]').boundingBox();
-  const deckGrip = await page.locator('[data-video-analysis-code-pip="video"] [data-video-analysis-code-pip-drag]').boundingBox();
   expect(deckBeforeMove).toBeTruthy();
-  expect(deckGrip).toBeTruthy();
-  expect(deckGrip.x).toBeGreaterThan(deckBeforeMove.x + deckBeforeMove.width - 96);
-  expect(deckGrip.y).toBeLessThan(deckBeforeMove.y + 36);
-  await page.mouse.move(deckGrip.x + deckGrip.width / 2, deckGrip.y + deckGrip.height / 2);
+  const dragStart = {
+    x: deckBeforeMove.x + Math.min(120, deckBeforeMove.width / 3),
+    y: deckBeforeMove.y + Math.min(90, deckBeforeMove.height / 3),
+  };
+  await page.mouse.move(dragStart.x, dragStart.y);
   await page.mouse.down();
-  await page.mouse.move(deckGrip.x + deckGrip.width / 2 - 64, deckGrip.y + deckGrip.height / 2 + 32);
+  await page.mouse.move(dragStart.x - 64, dragStart.y + 32);
   const deckDuringMove = await page.locator('[data-video-analysis-code-pip="video"]').boundingBox();
   await page.mouse.up();
   const deckAfterMove = await page.locator('[data-video-analysis-code-pip="video"]').boundingBox();

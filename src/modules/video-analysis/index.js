@@ -106,12 +106,12 @@ const VIDEO_SHUTTLE_MAX_FRAME_MS = 80;
 const CODE_PIP_MIN_WIDTH = 360;
 const CODE_PIP_MIN_HEIGHT = 220;
 const CODE_TIMELINE_PIP_MIN_WIDTH = 420;
-const CODE_TIMELINE_PIP_MIN_HEIGHT = 120;
+const CODE_TIMELINE_PIP_MIN_HEIGHT = 96;
 const CODE_WINDOW_PIP_MIN_WIDTH = 240;
 const CODE_WINDOW_PIP_MIN_HEIGHT = 220;
 const CODE_PIP_MARGIN = 8;
 const CODE_PIP_BOUND_MARGIN = 0;
-const CODE_MODE_LAYOUT_VERSION = 3;
+const CODE_MODE_LAYOUT_VERSION = 4;
 const FS_PLAYER_HISTORY_GUARD_KEY = "__footballScienceFsPlayerHistoryGuard";
 const FS_PLAYER_HISTORY_GUARD_DEPTH_KEY = "__footballScienceFsPlayerHistoryGuardDepth";
 const FS_PLAYER_HISTORY_GUARD_DEPTH = 3;
@@ -411,7 +411,7 @@ function renderCodePipStyle(pip = null, target = "video") {
 
 function renderCodePipResizeHandles(label = "panel") {
   return ["n", "e", "s", "w", "ne", "nw", "se", "sw"].map((direction) => (
-    `<div class="video-analysis-code-pip-resize video-analysis-code-pip-resize--${direction}" data-video-analysis-code-pip-resize="${direction}" role="button" tabindex="0" aria-label="Resize ${escapeHtml(label)} ${direction}" title="Resize"></div>`
+    `<div class="video-analysis-code-pip-resize video-analysis-code-pip-resize--${direction}" data-video-analysis-code-pip-resize="${direction}" aria-hidden="true" title="Resize ${escapeHtml(label)} ${direction}"></div>`
   )).join("");
 }
 
@@ -425,18 +425,15 @@ function renderFsPlayerWorkspace(displayState = {}) {
     <section class="video-analysis-fs-player-workstation${codeModeActive ? " is-code-mode" : ""}${fullscreenActive ? " is-fullscreen" : ""}" data-video-analysis-fs-player-workstation>
       <section class="video-analysis-fs-player-main">
         <section class="video-analysis-fs-player-deck"${codeModeActive ? ` data-video-analysis-code-pip="video"` : ""}${pipStyle}>
-          ${codeModeActive ? `<div class="video-analysis-code-pip-grip" data-video-analysis-code-pip-drag role="button" tabindex="0" aria-label="Move video panel" title="Move video panel"><span></span><span></span><span></span></div>` : ""}
           ${renderVideoPlayer(displayState)}
           ${codeModeActive ? renderCodePipResizeHandles("video panel") : ""}
         </section>
         <section class="video-analysis-fs-player-timeline"${codeModeActive ? ` data-video-analysis-code-pip="timeline"` : ""}${timelinePipStyle}>
-          ${codeModeActive ? `<div class="video-analysis-code-pip-grip video-analysis-code-pip-grip--timeline" data-video-analysis-code-pip-drag role="button" tabindex="0" aria-label="Move timeline panel" title="Move timeline panel"><span></span><span></span><span></span></div>` : ""}
           ${renderTimeline(displayState)}
           ${codeModeActive ? renderCodePipResizeHandles("timeline panel") : ""}
         </section>
       </section>
       <section class="video-analysis-code-window-dock"${codeModeActive ? ` data-video-analysis-code-pip="code-window"` : ""}${codeWindowPipStyle}>
-        ${codeModeActive ? `<div class="video-analysis-code-pip-grip video-analysis-code-pip-grip--code-window" data-video-analysis-code-pip-drag role="button" tabindex="0" aria-label="Move code window" title="Move code window"><span></span><span></span><span></span></div>` : ""}
         ${renderCodingTemplateBuilder(displayState)}
         ${codeModeActive ? renderCodePipResizeHandles("code window") : ""}
       </section>
@@ -695,21 +692,19 @@ function codeModeDefaultLayout(context = {}) {
   const viewportWidth = Math.max(960, Number(win?.innerWidth || 1280));
   const viewportHeight = Math.max(540, Number(win?.innerHeight || 720));
   const gap = CODE_PIP_MARGIN;
-  const codeWidth = Math.round(clampNumber(viewportWidth * 0.22, 288, 360));
-  const timelineHeight = Math.round(clampNumber(viewportHeight * 0.2, 150, 230));
+  const codeWidth = Math.round(clampNumber(viewportWidth * 0.24, 320, 410));
+  const timelineHeight = Math.round(clampNumber(viewportHeight * 0.18, 118, 176));
+  const upperHeight = Math.max(CODE_PIP_MIN_HEIGHT, viewportHeight - timelineHeight - (gap * 3));
   const deckX = codeWidth + (gap * 2);
   const deckWidth = Math.max(CODE_PIP_MIN_WIDTH, viewportWidth - deckX - gap);
-  const deckHeight = Math.max(
-    CODE_PIP_MIN_HEIGHT,
-    viewportHeight - timelineHeight - (gap * 3),
-  );
+  const deckHeight = upperHeight;
   return {
     codeWindowPip: normalizeCodePipBox({
       target: "code-window",
       x: gap,
       y: gap,
       width: codeWidth,
-      height: viewportHeight - (gap * 2),
+      height: upperHeight,
     }, context),
     pip: normalizeCodePipBox({
       target: "video",
@@ -720,9 +715,9 @@ function codeModeDefaultLayout(context = {}) {
     }, context),
     timelinePip: normalizeCodePipBox({
       target: "timeline",
-      x: deckX,
-      y: deckHeight + (gap * 2),
-      width: deckWidth,
+      x: gap,
+      y: upperHeight + (gap * 2),
+      width: viewportWidth - (gap * 2),
       height: timelineHeight,
     }, context),
   };
@@ -766,21 +761,46 @@ function applyCodePipBox(deck = null, box = {}) {
   deck.style.setProperty(`${config.cssPrefix}-height`, `${box.height}px`);
 }
 
+function isCodePipBlockedDragTarget(target = null) {
+  if (!target?.closest) return true;
+  return Boolean(target.closest([
+    "button",
+    "input",
+    "textarea",
+    "select",
+    "option",
+    "a[href]",
+    "[contenteditable='true']",
+    "[data-video-analysis-code-pip-resize]",
+    "[data-video-analysis-timeline-scrub]",
+    "[data-video-analysis-timeline-scrub-surface]",
+    "[data-video-analysis-timeline-track]",
+    "[data-video-analysis-timeline-lane-select]",
+    "[data-video-analysis-seek]",
+    "[data-video-analysis-drawing-surface]",
+  ].join(",")));
+}
+
 function startCodePipInteraction(event = {}, context = {}) {
   const target = eventElement(event);
-  const handle = target?.closest?.("[data-video-analysis-code-pip-drag], [data-video-analysis-code-pip-resize]");
+  const resizeHandle = target?.closest?.("[data-video-analysis-code-pip-resize]");
+  const dragHandle = target?.closest?.("[data-video-analysis-code-pip-drag]");
+  const dragDeck = !resizeHandle && !dragHandle && !isCodePipBlockedDragTarget(target)
+    ? target?.closest?.("[data-video-analysis-code-pip]")
+    : null;
+  const handle = resizeHandle || dragHandle || dragDeck;
   if (!handle) return false;
   const run = ensureRuntime(context);
   const state = run.store.getState();
   if (state.fsPlayer?.mode !== "code") return false;
-  const deck = handle.closest?.("[data-video-analysis-code-pip]");
+  const deck = dragDeck || handle.closest?.("[data-video-analysis-code-pip]");
   if (!deck) return false;
   const pipTarget = codePipConfig(deck.getAttribute?.("data-video-analysis-code-pip")).target;
   const startBox = codePipBoxFromElement(deck, context);
   run.codePipInteraction = {
     target: pipTarget,
-    type: handle.matches("[data-video-analysis-code-pip-resize]") ? "resize" : "move",
-    direction: handle.dataset?.videoAnalysisCodePipResize || "se",
+    type: resizeHandle ? "resize" : "move",
+    direction: resizeHandle?.dataset?.videoAnalysisCodePipResize || "se",
     pointerId: event.pointerId,
     pointerHandle: handle,
     startX: Number(event.clientX || 0),

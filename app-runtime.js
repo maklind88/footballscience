@@ -3,13 +3,13 @@ import { createDashboardChatAttachmentRenderer } from "./src/modules/chat/chat-a
 import { createDashboardChatAttachmentPreview } from "./src/modules/chat/chat-attachment-preview.mjs";
 import { createDashboardChatApiUiActions } from "./src/modules/chat/chat-api-ui-actions.mjs";
 import { createDashboardChatApiDomainRuntime } from "./src/modules/chat/dashboard-chat-api-domain-runtime.mjs";
-import { createDashboardChatApiRuntime } from "./src/modules/chat/dashboard-chat-api-runtime.mjs";
+import { createDashboardChatApiRuntime } from "./src/modules/chat/dashboard-chat-api-runtime.mjs?v=chat-history-hydration-20260629";
 import { createDashboardChatThreadSettingsStore } from "./src/modules/chat/chat-thread-settings.mjs";
 import { createDashboardChatDomainRuntime } from "./src/modules/chat/dashboard-chat-domain-runtime.mjs";
 import { createDashboardChatMessageRuntime } from "./src/modules/chat/dashboard-chat-message-runtime.mjs";
 import { createDashboardChatMessageActionsRuntime } from "./src/modules/chat/dashboard-chat-message-actions-runtime.mjs";
 import { createDashboardChatMessageRenderRuntime } from "./src/modules/chat/dashboard-chat-message-render-runtime.mjs";
-import { createDashboardChatWidgetRuntime } from "./src/modules/chat/dashboard-chat-widget-runtime.mjs";
+import { createDashboardChatWidgetRuntime } from "./src/modules/chat/dashboard-chat-widget-runtime.mjs?v=chat-history-hydration-20260629";
 import { createDashboardChatComposerRuntime } from "./src/modules/chat/dashboard-chat-composer-runtime.mjs";
 import { createDashboardChatThreadRuntime } from "./src/modules/chat/dashboard-chat-thread-runtime.mjs";
 import { createDashboardChatPresenceRuntime } from "./src/modules/chat/dashboard-chat-presence-runtime.mjs";

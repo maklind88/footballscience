@@ -111,7 +111,7 @@ const CODE_WINDOW_PIP_MIN_WIDTH = 240;
 const CODE_WINDOW_PIP_MIN_HEIGHT = 220;
 const CODE_PIP_MARGIN = 8;
 const CODE_PIP_BOUND_MARGIN = 0;
-const CODE_MODE_LAYOUT_VERSION = 4;
+const CODE_MODE_LAYOUT_VERSION = 5;
 const VIDEO_ANALYSIS_TOAST_DISMISS_MS = 1600;
 const FS_PLAYER_HISTORY_GUARD_KEY = "__footballScienceFsPlayerHistoryGuard";
 const FS_PLAYER_HISTORY_GUARD_DEPTH_KEY = "__footballScienceFsPlayerHistoryGuardDepth";
@@ -692,35 +692,37 @@ function resizeCodePipBox(startBox = {}, direction = "se", dx = 0, dy = 0, conte
 
 function codeModeDefaultLayout(context = {}) {
   const win = context.win || globalThis.window;
-  const viewportWidth = Math.max(960, Number(win?.innerWidth || 1280));
-  const viewportHeight = Math.max(540, Number(win?.innerHeight || 720));
-  const gap = CODE_PIP_MARGIN;
-  const codeWidth = Math.round(clampNumber(viewportWidth * 0.24, 320, 410));
-  const timelineHeight = Math.round(clampNumber(viewportHeight * 0.18, 118, 176));
-  const upperHeight = Math.max(CODE_PIP_MIN_HEIGHT, viewportHeight - timelineHeight - (gap * 3));
-  const deckX = codeWidth + (gap * 2);
-  const deckWidth = Math.max(CODE_PIP_MIN_WIDTH, viewportWidth - deckX - gap);
+  const viewportWidth = Math.max(720, Number(win?.innerWidth || 1280));
+  const viewportHeight = Math.max(520, Number(win?.innerHeight || 720));
+  const edge = Math.round(clampNumber(Math.min(viewportWidth, viewportHeight) * 0.006, 4, 8));
+  const gutter = Math.round(clampNumber(viewportWidth * 0.003, 2, 6));
+  const codeRatio = viewportWidth >= 1800 ? 0.18 : viewportWidth >= 1280 ? 0.21 : 0.27;
+  const codeWidth = Math.round(clampNumber(viewportWidth * codeRatio, 260, 390));
+  const timelineHeight = Math.round(clampNumber(viewportHeight * 0.16, 104, 168));
+  const upperHeight = Math.max(CODE_PIP_MIN_HEIGHT, viewportHeight - timelineHeight - edge);
+  const deckX = edge + codeWidth + gutter;
+  const deckWidth = Math.max(CODE_PIP_MIN_WIDTH, viewportWidth - deckX - edge);
   const deckHeight = upperHeight;
   return {
     codeWindowPip: normalizeCodePipBox({
       target: "code-window",
-      x: gap,
-      y: gap,
+      x: edge,
+      y: edge,
       width: codeWidth,
       height: upperHeight,
     }, context),
     pip: normalizeCodePipBox({
       target: "video",
       x: deckX,
-      y: gap,
+      y: edge,
       width: deckWidth,
       height: deckHeight,
     }, context),
     timelinePip: normalizeCodePipBox({
       target: "timeline",
-      x: gap,
-      y: upperHeight + (gap * 2),
-      width: viewportWidth - (gap * 2),
+      x: 0,
+      y: viewportHeight - timelineHeight,
+      width: viewportWidth,
       height: timelineHeight,
     }, context),
   };

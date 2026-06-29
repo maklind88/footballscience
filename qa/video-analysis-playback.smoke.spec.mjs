@@ -1181,9 +1181,12 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     const scrollStyle = timelineScroll ? getComputedStyle(timelineScroll) : null;
     return {
       codeWindowBottom: codeWindow?.bottom ?? 0,
+      codeWindowX: codeWindow?.x ?? 0,
+      codeWindowY: codeWindow?.y ?? 0,
       codeWindowWidth: codeWindow?.width ?? 0,
       deckBottom: deck?.bottom ?? 0,
       deckX: deck?.x ?? 0,
+      deckY: deck?.y ?? 0,
       deckWidth: deck?.width ?? 0,
       isFixed: workstationElement ? getComputedStyle(workstationElement).position === "fixed" : false,
       workstationHeight: workstation?.height ?? 0,
@@ -1203,13 +1206,16 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   expect(codeModeLayout.isFixed).toBe(true);
   expect(codeModeLayout.workstationWidth).toBeGreaterThanOrEqual(codeModeLayout.viewportWidth - 2);
   expect(codeModeLayout.workstationHeight).toBeGreaterThanOrEqual(codeModeLayout.viewportHeight - 2);
+  expect(codeModeLayout.codeWindowX).toBeLessThanOrEqual(10);
+  expect(codeModeLayout.codeWindowY).toBeLessThanOrEqual(10);
+  expect(codeModeLayout.deckY).toBeLessThanOrEqual(10);
   expect(codeModeLayout.deckX).toBeGreaterThan(codeModeLayout.codeWindowWidth - 4);
-  expect(codeModeLayout.deckWidth).toBeGreaterThan(codeModeLayout.codeWindowWidth * 1.45);
+  expect(codeModeLayout.deckWidth).toBeGreaterThan(codeModeLayout.codeWindowWidth * 1.6);
   expect(codeModeLayout.videoHeight).toBeGreaterThan(codeModeLayout.timelineHeight * 2.5);
-  expect(codeModeLayout.timelineHeight).toBeLessThanOrEqual(182);
-  expect(codeModeLayout.timelineWidth).toBeGreaterThanOrEqual(codeModeLayout.viewportWidth - 20);
-  expect(codeModeLayout.timelineX).toBeLessThanOrEqual(10);
-  expect(codeModeLayout.timelineBottom).toBeGreaterThanOrEqual(codeModeLayout.viewportHeight - 12);
+  expect(codeModeLayout.timelineHeight).toBeLessThanOrEqual(174);
+  expect(codeModeLayout.timelineWidth).toBeGreaterThanOrEqual(codeModeLayout.viewportWidth - 2);
+  expect(codeModeLayout.timelineX).toBeLessThanOrEqual(2);
+  expect(codeModeLayout.timelineBottom).toBeGreaterThanOrEqual(codeModeLayout.viewportHeight - 2);
   expect(codeModeLayout.codeWindowBottom).toBeLessThanOrEqual(codeModeLayout.timelineY + 2);
   expect(codeModeLayout.deckBottom).toBeLessThanOrEqual(codeModeLayout.timelineY + 2);
   expect(codeModeLayout.timelineOverflowY).toBe("auto");

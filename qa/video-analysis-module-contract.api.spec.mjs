@@ -288,6 +288,13 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timeline).toContain("video-analysis-clip-block");
   expect(timeline).not.toContain("data-video-analysis-zoom");
   expect(timeline).not.toContain("video-analysis-timeline-controls");
+  expect(timeline).toContain('function renderLaneSelector(activeLaneMode = "phase", totalMs = 1, clipCount = 0)');
+  expect(timeline).toContain("${renderTimelineStatus(totalMs, clipCount)}");
+  expect(timeline).toContain("${renderLaneSelector(laneMode, totalMs, density.clipCount)}");
+  expect(timeline).not.toContain("${renderLaneSelector(laneMode)}\n            ${renderTimelineStatus(totalMs, density.clipCount)}");
+  const timelineStyles = read("src/modules/video-analysis/video-analysis.css");
+  expect(timelineStyles).toContain(".video-analysis-timeline-view-select .video-analysis-timeline-status");
+  expect(timelineStyles).toContain("text-transform: none");
   expect(read("src/modules/video-analysis/timeline/timeline.constants.js")).toContain('id: "tags"');
   expect(intelligence).toContain("Phase x Outcome");
   expect(intelligence).toContain("Principle x Player");

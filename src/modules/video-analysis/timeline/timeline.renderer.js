@@ -66,7 +66,7 @@ function findClipButton(clip = {}, lookup = {}) {
   return null;
 }
 
-function renderLaneSelector(activeLaneMode = "phase") {
+function renderLaneSelector(activeLaneMode = "phase", totalMs = 1, clipCount = 0) {
   return `
     <label class="video-analysis-timeline-view-select">
       <span>Timeline</span>
@@ -75,6 +75,7 @@ function renderLaneSelector(activeLaneMode = "phase") {
           <option value="${escapeHtml(mode.id)}"${activeLaneMode === mode.id ? " selected" : ""}>${escapeHtml(mode.label)}</option>
         `).join("")}
       </select>
+      ${renderTimelineStatus(totalMs, clipCount)}
     </label>
   `;
 }
@@ -268,8 +269,7 @@ export function renderTimeline(state = {}) {
       <div class="video-analysis-timeline-scroll" data-video-analysis-timeline-pan>
         <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(zoom)}">
           <div class="video-analysis-timeline-toolbar">
-            ${renderLaneSelector(laneMode)}
-            ${renderTimelineStatus(totalMs, density.clipCount)}
+            ${renderLaneSelector(laneMode, totalMs, density.clipCount)}
           </div>
           ${renderTimelineRuler(ticks, totalMs)}
           <div

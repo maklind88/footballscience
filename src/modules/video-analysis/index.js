@@ -2647,14 +2647,30 @@ function selectTimelineCategoryClip(context = {}, laneMode = "", label = "", dir
       ...(current.timeline || {}),
       playheadMs: Math.max(0, Math.round(Number(startMs || 0))),
       selectedCategory: {
+        ...(current.timeline?.selectedCategory || {}),
         laneMode: normalizeTimelineLaneMode(laneMode),
         label,
-        viewOpen: true,
+        viewOpen: Boolean(current.timeline?.selectedCategory?.viewOpen),
+        menuOpen: Boolean(current.timeline?.selectedCategory?.menuOpen),
         activeClipId: clip.id,
       },
     },
   }));
   return true;
+}
+
+function timelineCategoryMenuPosition(event = {}, context = {}) {
+  const win = context.win || (typeof window !== "undefined" ? window : {});
+  const menuWidth = 380;
+  const menuHeight = 320;
+  const viewportWidth = Math.max(menuWidth + 24, Number(win.innerWidth || 0) || menuWidth + 24);
+  const viewportHeight = Math.max(menuHeight + 24, Number(win.innerHeight || 0) || menuHeight + 24);
+  const rawX = Number(event.clientX || 0) || 12;
+  const rawY = Number(event.clientY || 0) || 12;
+  return {
+    x: Math.max(12, Math.min(Math.round(rawX), viewportWidth - menuWidth - 12)),
+    y: Math.max(12, Math.min(Math.round(rawY), viewportHeight - menuHeight - 12)),
+  };
 }
 
 function findTimelineClipPosition(state = {}, clipId = "") {
@@ -2998,6 +3014,7 @@ export function render(context = {}) {
   bindRootEventFallback(root, context, {
     change: handleChange,
     click: handleClick,
+    contextmenu: handleContextMenu,
     dragover: handleDragOver,
     dragstart: handleDragStart,
     drop: handleDrop,
@@ -4295,8 +4312,24 @@ export function handleClick(event, context = {}) {
           laneMode: normalizeTimelineLaneMode(laneMode),
           label,
           viewOpen: false,
+          menuOpen: false,
           activeClipId: clips[0]?.id || "",
           keyboardDeleteScope: "category",
+        },
+      },
+    }));
+    return true;
+  }
+  const categoryCloseButton = target.closest("[data-video-analysis-timeline-category-close]");
+  if (categoryCloseButton) {
+    run.store.update((state) => ({
+      ...state,
+      timeline: {
+        ...(state.timeline || {}),
+        selectedCategory: {
+          ...(state.timeline?.selectedCategory || {}),
+          viewOpen: false,
+          menuOpen: false,
         },
       },
     }));
@@ -4327,6 +4360,9 @@ export function handleClick(event, context = {}) {
             laneMode: normalizedLaneMode,
             label,
             viewOpen: isSame ? !currentCategory.viewOpen : true,
+            menuOpen: true,
+            menuX: currentCategory.menuX || 12,
+            menuY: currentCategory.menuY || 12,
             activeClipId: currentCategory.activeClipId || state.selectedClipId || "",
           },
         },
@@ -5035,6 +5071,9 @@ export function handleChange(event, context = {}) {
           laneMode: "",
           label: "",
           viewOpen: false,
+          menuOpen: false,
+          menuX: 0,
+          menuY: 0,
         },
       },
     }));
@@ -5093,6 +5132,39 @@ export function handleChange(event, context = {}) {
     return true;
   }
   return handleInput(event, context);
+}
+
+export function handleContextMenu(event, context = {}) {
+  if (!isAnalysisRoomWorkspaceActive(context)) return false;
+  const run = ensureRuntime(context);
+  const target = eventElement(event);
+  if (!target?.closest) return false;
+  const categorySelectButton = target.closest("[data-video-analysis-timeline-category]");
+  if (!categorySelectButton) return false;
+  const { laneMode, label } = categoryPayloadFromButton(categorySelectButton);
+  const clips = findTimelineCategoryClips(run.store.getState(), laneMode, label);
+  if (!clips.length) return false;
+  const position = timelineCategoryMenuPosition(event, context);
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  run.store.update((current) => ({
+    ...current,
+    selectedClipId: clips[0]?.id || current.selectedClipId || "",
+    timeline: {
+      ...(current.timeline || {}),
+      selectedCategory: {
+        laneMode: normalizeTimelineLaneMode(laneMode),
+        label,
+        viewOpen: false,
+        menuOpen: true,
+        menuX: position.x,
+        menuY: position.y,
+        activeClipId: clips[0]?.id || "",
+        keyboardDeleteScope: "category",
+      },
+    },
+  }));
+  return true;
 }
 
 export function handleKeydown(event, context = {}) {
@@ -5170,7 +5242,7 @@ export function handleKeydown(event, context = {}) {
   }
   if (
     fsPlayerShortcutsActive
-    && category.viewOpen
+    && (category.viewOpen || category.menuOpen)
     && category.laneMode
     && category.label
     && !shouldIgnoreShortcutTarget(event.target)
@@ -5193,7 +5265,7 @@ export function handleKeydown(event, context = {}) {
         ...current,
         timeline: {
           ...(current.timeline || {}),
-          selectedCategory: { ...(current.timeline?.selectedCategory || {}), viewOpen: false },
+          selectedCategory: { ...(current.timeline?.selectedCategory || {}), viewOpen: false, menuOpen: false },
         },
       }));
       return true;

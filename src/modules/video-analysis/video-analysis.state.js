@@ -130,6 +130,9 @@ export function createInitialVideoAnalysisState(context = {}) {
         laneMode: "",
         label: "",
         viewOpen: false,
+        menuOpen: false,
+        menuX: 0,
+        menuY: 0,
       },
     },
     fsPlayer: {

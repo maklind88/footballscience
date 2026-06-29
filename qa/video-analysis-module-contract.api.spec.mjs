@@ -118,7 +118,7 @@ test("video analysis constants preserve Football Science language", () => {
 
 test("video analysis module exports the runtime handlers", async () => {
   const module = await import(pathToFileURL(path.join(moduleDir, "index.js")).href);
-  for (const exportName of ["render", "handleClick", "handleInput", "handleChange", "handleSubmit", "handleKeydown", "handlePointerDown"]) {
+  for (const exportName of ["render", "handleClick", "handleContextMenu", "handleInput", "handleChange", "handleSubmit", "handleKeydown", "handlePointerDown"]) {
     expect(typeof module[exportName], exportName).toBe("function");
   }
 });
@@ -274,6 +274,8 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timeline).not.toContain("data-video-analysis-timeline-trim-edge");
   expect(timeline).toContain("data-video-analysis-timeline-category-step");
   expect(timeline).toContain("data-video-analysis-timeline-category-add-selected");
+  expect(timeline).toContain("video-analysis-timeline-category-menu");
+  expect(shell).toContain("contextmenu: handleContextMenu");
   expect(timeline).not.toContain('role="slider"');
   expect(timeline).not.toContain("video-analysis-timeline-header");
   expect(timeline).not.toContain("video-analysis-timeline-summary");

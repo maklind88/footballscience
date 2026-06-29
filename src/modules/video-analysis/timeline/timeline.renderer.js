@@ -200,33 +200,44 @@ function selectedTimelineLane(lanes = [], laneMode = "phase", timeline = {}) {
 }
 
 function renderTimelineCategoryTray(lane = null, laneMode = "phase", timeline = {}) {
-  if (!lane) {
+  const selectedCategory = timeline.selectedCategory || {};
+  if (!lane || !selectedCategory.menuOpen) {
     return "";
   }
-  const viewOpen = Boolean(timeline.selectedCategory?.viewOpen);
+  const viewOpen = Boolean(selectedCategory.viewOpen);
   const firstClip = lane.clips[0];
-  const activeClipId = timeline.selectedCategory?.activeClipId || "";
+  const activeClipId = selectedCategory.activeClipId || "";
   const activeClip = lane.clips.find((clip) => clip.id === activeClipId) || firstClip;
+  const menuX = Math.max(12, Math.round(Number(selectedCategory.menuX || 12)));
+  const menuY = Math.max(12, Math.round(Number(selectedCategory.menuY || 12)));
   const rangeStartMs = lane.clips.reduce((minMs, clip) => Math.min(minMs, getClipStartMs(clip)), Number.POSITIVE_INFINITY);
   const rangeEndMs = lane.clips.reduce((maxMs, clip) => Math.max(maxMs, getClipEndMs(clip)), 0);
   const rangeLabel = Number.isFinite(rangeStartMs)
     ? `${formatVideoTime(rangeStartMs)} - ${formatVideoTime(rangeEndMs)}`
     : "";
   return `
-    <div class="video-analysis-timeline-category-tray">
+    <div
+      class="video-analysis-timeline-category-tray video-analysis-timeline-category-menu"
+      style="--video-analysis-category-menu-x:${escapeHtml(String(menuX))}px;--video-analysis-category-menu-y:${escapeHtml(String(menuY))}px;"
+      role="menu"
+      aria-label="${escapeHtml(`${lane.label} clip actions`)}"
+    >
       <div class="video-analysis-timeline-category-tray__summary">
-        <strong>${escapeHtml(lane.label)} clips</strong>
-        <span>${escapeHtml(`${lane.clips.length} clip${lane.clips.length === 1 ? "" : "s"} selected`)}</span>
-        ${rangeLabel ? `<span>${escapeHtml(rangeLabel)}</span>` : ""}
-        ${activeClip ? `<span>${escapeHtml(`Active: ${formatVideoTime(getClipStartMs(activeClip))}`)}</span>` : ""}
+        <div>
+          <strong>${escapeHtml(lane.label)} clips</strong>
+          <span>${escapeHtml(`${lane.clips.length} clip${lane.clips.length === 1 ? "" : "s"} selected`)}</span>
+          ${rangeLabel ? `<span>${escapeHtml(rangeLabel)}</span>` : ""}
+          ${activeClip ? `<span>${escapeHtml(`Active: ${formatVideoTime(getClipStartMs(activeClip))}`)}</span>` : ""}
+        </div>
+        <button type="button" class="video-analysis-timeline-category-tray__close" data-video-analysis-timeline-category-close aria-label="Close clip actions">x</button>
       </div>
       <div class="video-analysis-timeline-category-tray__actions">
-        <button type="button" data-video-analysis-timeline-category-step="-1" data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Previous</button>
-        <button type="button" data-video-analysis-timeline-category-play data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Play active</button>
-        <button type="button" data-video-analysis-timeline-category-step="1" data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Next</button>
-        <button type="button" data-video-analysis-timeline-category-open data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">${viewOpen ? "Close clips" : "Open clips"}</button>
-        <button type="button" data-video-analysis-timeline-category-add-selected data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Add active</button>
-        <button type="button" data-video-analysis-timeline-category-add-presentation data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Add all to presentation</button>
+        <button type="button" role="menuitem" data-video-analysis-timeline-category-step="-1" data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Previous</button>
+        <button type="button" role="menuitem" data-video-analysis-timeline-category-play data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Play active</button>
+        <button type="button" role="menuitem" data-video-analysis-timeline-category-step="1" data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Next</button>
+        <button type="button" role="menuitem" data-video-analysis-timeline-category-open data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">${viewOpen ? "Close clips" : "Open clips"}</button>
+        <button type="button" role="menuitem" data-video-analysis-timeline-category-add-selected data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Add active</button>
+        <button type="button" role="menuitem" data-video-analysis-timeline-category-add-presentation data-video-analysis-timeline-category-mode="${escapeHtml(laneMode)}" data-video-analysis-timeline-category-label="${escapeHtml(lane.label)}">Add all to presentation</button>
       </div>
       ${viewOpen ? `
         <ol class="video-analysis-timeline-category-view" aria-label="${escapeHtml(`${lane.label} clips`)}">

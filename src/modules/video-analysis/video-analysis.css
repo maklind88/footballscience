@@ -4245,21 +4245,43 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
 
 .video-analysis-timeline-category-tray {
   display: grid;
-  gap: 8px;
-  border-top: 1px solid #e4eae5;
-  padding: 8px 10px;
+  position: fixed;
+  top: var(--video-analysis-category-menu-y, 12px);
+  left: var(--video-analysis-category-menu-x, 12px);
+  z-index: 95;
+  gap: 10px;
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(440px, calc(100vh - 24px));
+  overflow: auto;
+  border: 1px solid rgba(20, 53, 34, 0.16);
+  border-radius: 14px;
+  padding: 12px;
   color: #24322b;
-  background: #fbfdfb;
+  background: rgba(251, 253, 251, 0.98);
+  box-shadow: 0 18px 44px rgba(13, 32, 22, 0.2);
   font-size: 12px;
   font-weight: 750;
+  backdrop-filter: blur(16px);
 }
 
-.video-analysis-timeline-category-tray > div:first-child,
+.video-analysis-timeline-category-tray__summary,
 .video-analysis-timeline-category-tray__actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.video-analysis-timeline-category-tray__summary {
+  justify-content: space-between;
+}
+
+.video-analysis-timeline-category-tray__summary > div {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
 }
 
 .video-analysis-timeline-category-tray strong {
@@ -4289,16 +4311,29 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   cursor: pointer;
 }
 
-.video-analysis-timeline-category-tray button:last-child {
+.video-analysis-timeline-category-tray .video-analysis-timeline-category-tray__close {
+  width: 30px;
+  min-height: 30px;
+  border-color: #d5ded8;
+  border-radius: 999px;
+  padding: 0;
+  color: #1d2b22;
+  background: #f4f8f5;
+  line-height: 1;
+}
+
+.video-analysis-timeline-category-tray__actions button:last-child {
   color: #ffffff;
   background: #143522;
 }
 
 .video-analysis-timeline-category-view {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: 1fr;
   gap: 6px;
   margin: 0;
+  max-height: 248px;
+  overflow: auto;
   padding: 0;
   list-style: none;
 }

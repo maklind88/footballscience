@@ -484,6 +484,8 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator("[data-video-analysis-timeline-lane-select]")).toHaveValue("outcome");
   await expect(page.locator(".video-analysis-lane__label").first()).toContainText(/Positive|Development|Neutral/);
   await page.locator("[data-video-analysis-timeline-category]").first().click();
+  await expect(page.locator(".video-analysis-timeline-category-tray")).toHaveCount(0);
+  await page.locator("[data-video-analysis-timeline-category]").first().click({ button: "right" });
   await expect(page.locator(".video-analysis-timeline-category-tray")).toContainText("1 clip selected");
   await expect(page.locator(".video-analysis-timeline-category-tray")).toContainText("Open clips");
   await page.locator("[data-video-analysis-timeline-category-open]").click();
@@ -803,6 +805,8 @@ test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) =
   await expect(subPhaseLane).toContainText("Build Up (250)");
   await expect(subPhaseLane).toContainText("0:00:14 - 1:56:41");
   await subPhaseLane.click();
+  await expect(page.locator(".video-analysis-timeline-category-tray")).toHaveCount(0);
+  await subPhaseLane.click({ button: "right" });
   await expect(page.locator(".video-analysis-timeline-category-tray")).toContainText("250 clips selected");
   await page.locator("[data-video-analysis-timeline-category-open]").click();
   await expect(page.locator(".video-analysis-timeline-category-view button")).toHaveCount(250);

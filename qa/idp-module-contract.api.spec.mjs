@@ -226,12 +226,15 @@ test("idp renderer separates the overview from the player development profile", 
   const profileHtml = renderIdpWorkspace(profileState, staffOptions);
 
   expect(profileHtml).toContain("data-idp-back-overview");
+  expect(profileHtml).toContain('data-idp-profile-view="development"');
   expect(profileHtml).toContain('data-idp-profile-view="goals"');
   expect(profileHtml).toContain('data-idp-profile-view="player-board"');
   expect(profileHtml).toContain('data-idp-profile-view="clip-bank"');
   expect(profileHtml).toContain("idp-profile-menu");
   expect(profileHtml).toContain("idp-stage-actions");
   expect(profileHtml.indexOf("idp-stage-actions")).toBeLessThan(profileHtml.indexOf("data-idp-back-overview"));
+  expect(profileHtml.indexOf("data-idp-back-overview")).toBeLessThan(profileHtml.indexOf('data-idp-profile-view="development"'));
+  expect(profileHtml.indexOf('data-idp-profile-view="development"')).toBeLessThan(profileHtml.indexOf('data-idp-profile-view="goals"'));
   expect(profileHtml.indexOf("idp-profile-menu")).toBeLessThan(profileHtml.indexOf("Current Focus"));
   expect(profileHtml).toContain("data-idp-action=\"ownership\"");
   expect(profileHtml).toContain("data-idp-action=\"focus\"");
@@ -332,6 +335,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain('class="idp-profile-menu"');
   expect(playerBoardHtml).toContain('data-idp-profile-view="player-board"');
   expect(playerBoardHtml).toContain('data-idp-profile-view="development"');
+  expect((playerBoardHtml.match(/data-idp-profile-view="development"/g) || []).length).toBe(1);
   expect(playerBoardHtml).toContain("IDP Player Board");
   expect(playerBoardHtml).toContain("data-idp-player-board-open");
   expect(playerBoardHtml).toContain("idp-player-board-boardbar");
@@ -356,6 +360,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(clipBankHtml).toContain("idp-clip-bank-organizer");
   expect(clipBankHtml).toContain("Search clips");
   expect(clipBankHtml).toContain('data-idp-profile-view="development"');
+  expect((clipBankHtml.match(/data-idp-profile-view="development"/g) || []).length).toBe(1);
   expect(clipBankHtml).not.toContain("idp-focus-clarity-card");
   expect(clipBankHtml).not.toContain("idp-workflow-board");
 
@@ -369,6 +374,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(goalsHtml).toContain("Leadership & Responsibility");
   expect(goalsHtml).toContain("data-idp-action=\"goal\"");
   expect(goalsHtml).toContain("data-idp-action=\"leadership-goal\"");
+  expect((goalsHtml.match(/data-idp-profile-view="development"/g) || []).length).toBe(1);
   expect(goalsHtml).not.toContain("idp-workflow-board");
 
   const assignmentHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "ownership" } }, staffOptions);

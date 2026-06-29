@@ -799,12 +799,14 @@ function normalizeProfileView(value = "") {
 
 function renderProfileMenu(profileView = "development") {
   const normalizedView = normalizeProfileView(profileView);
+  const isDevelopment = normalizedView === "development";
   const isGoals = normalizedView === "goals";
   const isPlayerBoard = normalizedView === "player-board";
   const isClipBank = normalizedView === "clip-bank";
   return `
     <nav class="idp-profile-menu" aria-label="Player profile navigation">
       <button type="button" data-idp-back-overview>Overview</button>
+      <button type="button" class="${isDevelopment ? "is-active" : ""}" data-idp-profile-view="development" aria-pressed="${isDevelopment ? "true" : "false"}">Player Profile</button>
       <button type="button" class="${isGoals ? "is-active" : ""}" data-idp-profile-view="goals" aria-pressed="${isGoals ? "true" : "false"}">Goals</button>
       <button type="button" class="${isPlayerBoard ? "is-active" : ""}" data-idp-profile-view="player-board" aria-pressed="${isPlayerBoard ? "true" : "false"}">Player Board</button>
       <button type="button" class="${isClipBank ? "is-active" : ""}" data-idp-profile-view="clip-bank" aria-pressed="${isClipBank ? "true" : "false"}">Clip Bank</button>
@@ -1217,7 +1219,6 @@ function renderProfileClipBankPage(detail = {}, canEdit = false, ui = {}) {
           <strong>${escapeHtml(String(clips.length))} clips connected to this IDP</strong>
           <small>Match and training evidence for this player's development loop.</small>
         </div>
-        <button type="button" data-idp-profile-view="development">Player Profile</button>
       </div>
       ${renderProfileFilmstrip(detail, canEdit, ui)}
     </section>
@@ -1234,7 +1235,6 @@ function renderProfilePlayerBoardPage(detail = {}, focus = {}, profile = {}, pul
           <strong>${escapeHtml(playerName)} individual exercises</strong>
           <small>Create player-specific interventions, draw the exercise and keep clips, notes and frames tied to this IDP.</small>
         </div>
-        <button type="button" data-idp-profile-view="development">Player Profile</button>
       </div>
       <div class="idp-player-board-page-shell">
         ${renderIdpPlayerBoardPanel(detail, focus, profile, pulse, nextAction, canEdit, ui)}
@@ -1259,7 +1259,6 @@ function renderProfileGoalsPage(detail = {}, focus = {}, profile = {}, canEdit =
         <div class="idp-profile-subpage-actions">
           ${canEdit ? `<button type="button" data-idp-action="leadership-goal">Leadership Goal</button>` : ""}
           ${canEdit ? `<button type="button" data-idp-action="goal">New Goal</button>` : ""}
-          <button type="button" data-idp-profile-view="development">Player Profile</button>
         </div>
       </div>
       <div class="idp-goals-page-summary">

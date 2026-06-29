@@ -12,6 +12,11 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
     compareDashboardChatMessages = () => 0,
     getDashboardChatRuntimeMessages = () => [],
     setDashboardChatRuntimeMessages = () => {},
+    dashboardChatRuntimeThreadMessageLimit = 500,
+    dashboardChatRuntimeGlobalMessageLimit = 2000,
+    dashboardChatPersistedThreadMessageLimit = 120,
+    dashboardChatPersistedGlobalMessageLimit = 800,
+    dashboardChatPinnedMessageCacheLimit = 20,
     centralStateWriteSuppressionKeys = null,
     readDashboardJson = () => null,
     writeDashboardJson = () => {},
@@ -93,6 +98,50 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
     return getDashboardMessagesFromIdentityMap(messageMap);
   }
 
+  function normalizeCacheLimit(value, fallback, minimum = 1) {
+    const limit = Math.trunc(Number(value));
+    return Number.isFinite(limit) && limit >= minimum ? limit : fallback;
+  }
+
+  function trimDashboardMessageCache(messages = [], options = {}) {
+    const perThreadLimit = normalizeCacheLimit(options.perThreadLimit, 500);
+    const globalLimit = normalizeCacheLimit(options.globalLimit, 2000);
+    const pinnedLimit = normalizeCacheLimit(options.pinnedLimit, 20, 0);
+    const messagesByThread = new Map();
+
+    (Array.isArray(messages) ? messages : []).forEach((message) => {
+      const threadId = normalizeDashboardChatThreadId(message?.threadId, dashboardChatTeamThreadId);
+      messagesByThread.set(threadId, [...(messagesByThread.get(threadId) || []), message]);
+    });
+
+    const keptMessages = [];
+    messagesByThread.forEach((threadMessages) => {
+      const sortedThreadMessages = [...threadMessages].sort(compareDashboardChatMessages);
+      const recentThreadMessages = sortedThreadMessages.slice(-perThreadLimit);
+      const recentIds = new Set(recentThreadMessages.flatMap((message) => getDashboardMessageIdentityKeys(message)));
+      const pinnedThreadMessages = pinnedLimit
+        ? sortedThreadMessages
+            .filter((message) => message.pinnedAt && !getDashboardMessageIdentityKeys(message).some((id) => recentIds.has(id)))
+            .slice(-pinnedLimit)
+        : [];
+      keptMessages.push(...pinnedThreadMessages, ...recentThreadMessages);
+    });
+
+    const dedupedMessages = normalizeDashboardMessageCollection(keptMessages);
+    if (dedupedMessages.length <= globalLimit) {
+      return dedupedMessages;
+    }
+
+    const globalRecentMessages = dedupedMessages.slice(-globalLimit);
+    const globalRecentIds = new Set(globalRecentMessages.flatMap((message) => getDashboardMessageIdentityKeys(message)));
+    const globalPinnedMessages = pinnedLimit
+      ? dedupedMessages
+          .filter((message) => message.pinnedAt && !getDashboardMessageIdentityKeys(message).some((id) => globalRecentIds.has(id)))
+          .slice(-pinnedLimit)
+      : [];
+    return normalizeDashboardMessageCollection([...globalPinnedMessages, ...globalRecentMessages]);
+  }
+
   function readDashboardDeletedMessageIds() {
     const parsed = readDashboardJson(dashboardChatDeletedMessageIdsStorageKey, []);
     return new Set(Array.isArray(parsed) ? parsed.map((id) => String(id || "").trim()).filter(Boolean) : []);
@@ -153,19 +202,24 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
   function writeDashboardMessages(messages, options = {}) {
     const deletedMessageIds = readDashboardDeletedMessageIds();
     const normalizedMessages = normalizeDashboardMessageCollection(messages, { deletedMessageIds });
-    const recentMessages = normalizedMessages.slice(-80);
-    const pinnedMessages = normalizedMessages
-      .filter((message) => message.pinnedAt && !recentMessages.some((recentMessage) => recentMessage.id === message.id))
-      .slice(-20);
-    const nextMessages = normalizeDashboardMessageCollection([...pinnedMessages, ...recentMessages], { deletedMessageIds });
+    const runtimeMessages = trimDashboardMessageCache(normalizedMessages, {
+      perThreadLimit: dashboardChatRuntimeThreadMessageLimit,
+      globalLimit: dashboardChatRuntimeGlobalMessageLimit,
+      pinnedLimit: dashboardChatPinnedMessageCacheLimit,
+    });
+    const persistedMessages = trimDashboardMessageCache(runtimeMessages, {
+      perThreadLimit: dashboardChatPersistedThreadMessageLimit,
+      globalLimit: dashboardChatPersistedGlobalMessageLimit,
+      pinnedLimit: dashboardChatPinnedMessageCacheLimit,
+    });
 
-    setDashboardChatRuntimeMessages(nextMessages);
+    setDashboardChatRuntimeMessages(runtimeMessages);
 
     if (centralStateWriteSuppressionKeys?.add && centralStateWriteSuppressionKeys?.delete) {
       centralStateWriteSuppressionKeys.add(dashboardChatStorageKey);
     }
     try {
-      writeDashboardJson(dashboardChatStorageKey, nextMessages);
+      writeDashboardJson(dashboardChatStorageKey, persistedMessages);
     } finally {
       if (centralStateWriteSuppressionKeys?.delete) {
         centralStateWriteSuppressionKeys.delete(dashboardChatStorageKey);

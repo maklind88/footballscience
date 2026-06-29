@@ -201,6 +201,49 @@ test("chat widget renders direct message bodies in the active conversation pane"
   expect(result.html).not.toContain("No messages yet");
 });
 
+test("chat widget keeps loaded older history visible in the active conversation pane", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [currentUser, { id: "u2", name: "Coach A", status: "active" }];
+  const messages = Array.from({ length: 75 }, (_, index) => ({
+    id: `history-${String(index + 1).padStart(3, "0")}`,
+    userId: index % 2 ? "u1" : "u2",
+    threadId: "team",
+    text: `History ${String(index + 1).padStart(3, "0")}`,
+    createdAt: new Date(Date.UTC(2026, 5, 26, 10, index)).toISOString(),
+    readBy: [index % 2 ? "u1" : "u2"],
+    mentionedUserIds: [],
+    reactions: {},
+    priority: "normal",
+  }));
+  const threads = [
+    {
+      threadId: "team",
+      label: "Team Chat",
+      isTeamThread: true,
+      messageCount: messages.length,
+      unreadCount: 0,
+      mentionCount: 0,
+      lastMessage: messages.at(-1),
+      settings: {},
+    },
+  ];
+
+  const result = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads,
+    activeThreadId: "team",
+    hasOlderMessages: true,
+  });
+
+  expect(result.html).toContain('data-dashboard-chat-load-earlier="team"');
+  expect(result.html).toContain("History 001");
+  expect(result.html).toContain("History 075");
+  expect(result.html).not.toContain("No messages yet");
+});
+
 test("chat widget shows server summary latest message when active history is still hydrating", () => {
   const currentUser = { id: "u1", name: "Mak" };
   const users = [currentUser, { id: "u2", name: "Analyst", status: "active" }];

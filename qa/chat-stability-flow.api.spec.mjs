@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createDashboardChatApiRuntime } from "../src/modules/chat/dashboard-chat-api-runtime.mjs";
 import { createDashboardChatApiDomainRuntime } from "../src/modules/chat/dashboard-chat-api-domain-runtime.mjs";
 import { createDashboardChatDomainRuntime } from "../src/modules/chat/dashboard-chat-domain-runtime.mjs";
+import { createDashboardChatMessageRuntime } from "../src/modules/chat/dashboard-chat-message-runtime.mjs";
 import { createDashboardChatWidgetRuntime } from "../src/modules/chat/dashboard-chat-widget-runtime.mjs";
 
 const require = createRequire(import.meta.url);
@@ -133,6 +134,66 @@ test("chat thread sorting is driven by pinned state and message activity, not se
   expect(chatThreadRuntimeSource).toContain("return secondTime - firstTime;");
   expect(chatThreadRuntimeSource).not.toContain("firstIsSelectedEmptyGroup");
   expect(chatThreadRuntimeSource).not.toContain("secondIsSelectedEmptyGroup");
+});
+
+test("chat history pagination keeps older loaded API pages in the runtime cache", () => {
+  let runtimeMessages = [];
+  const persistedWrites = [];
+  const normalizeThreadId = (threadId, fallback = "team") => String(threadId || fallback || "team").trim();
+  const normalizeMessage = (message = {}) => ({
+    id: String(message.id || message.messageId || ""),
+    clientMessageId: String(message.clientMessageId || message.client_message_id || ""),
+    userId: String(message.userId || message.authorId || message.author_id || "coach-qa"),
+    threadId: normalizeThreadId(message.threadId || message.thread_id, "team"),
+    text: String(message.text || message.body || ""),
+    createdAt: String(message.createdAt || message.created_at || ""),
+    readBy: Array.isArray(message.readBy) ? message.readBy : [],
+    mentionedUserIds: Array.isArray(message.mentionedUserIds) ? message.mentionedUserIds : [],
+    reactions: message.reactions || {},
+    priority: String(message.priority || "normal"),
+    attachments: Array.isArray(message.attachments) ? message.attachments : [],
+    status: String(message.status || "sent"),
+  });
+  const messageTime = (message = {}) => Date.parse(message.createdAt || message.created_at || "") || 0;
+  const makeMessage = (index) => ({
+    id: `history-${String(index).padStart(3, "0")}`,
+    author_id: index % 2 ? coachActor.id : teammateActor.id,
+    thread_id: "team",
+    body: `History ${String(index).padStart(3, "0")}`,
+    created_at: new Date(Date.UTC(2026, 5, 26, 10, index)).toISOString(),
+  });
+  const runtime = createDashboardChatMessageRuntime({
+    getDashboardChatRuntimeMessages: () => runtimeMessages,
+    setDashboardChatRuntimeMessages: (nextMessages) => {
+      runtimeMessages = nextMessages;
+    },
+    readDashboardJson: () => [],
+    writeDashboardJson: (key, value) => {
+      persistedWrites.push({ key, value });
+    },
+    normalizeDashboardChatThreadId: normalizeThreadId,
+    normalizeDashboardMessage: normalizeMessage,
+    normalizeDashboardApiMessage: normalizeMessage,
+    getDashboardMessageIdentityKeys: (message = {}) => [message.id, message.messageId, message.clientMessageId].filter(Boolean),
+    getDashboardMessageCreatedAtMs: messageTime,
+    compareDashboardChatMessages: (first, second) =>
+      messageTime(first) - messageTime(second) || String(first.id || "").localeCompare(String(second.id || "")),
+    renderDashboardChatWidget: () => {},
+  });
+
+  runtime.writeDashboardMessages(Array.from({ length: 80 }, (_, index) => normalizeMessage(makeMessage(index + 40))), {
+    skipCentralSync: true,
+  });
+  const mergedMessages = runtime.mergeDashboardChatApiMessages(
+    Array.from({ length: 40 }, (_, index) => makeMessage(index)),
+    { thread: { threadId: "team" }, keepThread: true, render: false }
+  );
+
+  expect(mergedMessages.map((message) => message.id)).toContain("history-000");
+  expect(mergedMessages.map((message) => message.id)).toContain("history-119");
+  expect(runtimeMessages.map((message) => message.id)).toContain("history-000");
+  expect(runtimeMessages.map((message) => message.id)).toContain("history-119");
+  expect(persistedWrites.at(-1).value.map((message) => message.id)).toContain("history-000");
 });
 
 test("closed chat receives realtime summary refresh for unread notifications", async () => {

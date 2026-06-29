@@ -360,6 +360,7 @@ const dashboardChatTeamThreadId = "team";
 const dashboardChatMaxMessageLength = 1600;
 const dashboardChatGroupNameMinLength = 2;
 const dashboardChatWidgetMessageLimit = 50;
+const dashboardChatWidgetConversationMessageLimit = 500;
 const dashboardChatApiPageLimit = 40;
 const dashboardChatPinnedLimit = 3;
 const dashboardChatReactionOptions = [
@@ -692,6 +693,7 @@ const dashboardChatAttachmentPreview = createDashboardChatAttachmentPreview();
 const dashboardChatWidgetRenderer = createDashboardChatWidgetRenderer({
 teamThreadId: dashboardChatTeamThreadId,
 messageLimit: dashboardChatWidgetMessageLimit,
+conversationMessageLimit: dashboardChatWidgetConversationMessageLimit,
 maxMessageLength: dashboardChatMaxMessageLength,
 groupNameMinLength: dashboardChatGroupNameMinLength,
 priorityOptions: dashboardChatPriorityOptions,

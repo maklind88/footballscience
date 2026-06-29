@@ -189,6 +189,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
   const {
     teamThreadId = "team",
     messageLimit = 50,
+    conversationMessageLimit = 500,
     maxMessageLength = 1600,
     groupNameMinLength = 2,
     priorityOptions = [],
@@ -1247,10 +1248,13 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       ? ((normalizedSearchActiveIndex % searchMatchCount) + searchMatchCount) % searchMatchCount
       : 0;
     const activeSearchMatchId = normalizedMessageSearch && searchMatchCount ? searchedMessages[searchActiveMatchIndex]?.id || "" : "";
-    const visibleSearchWindowStart = normalizedMessageSearch && searchedMessages.length > messageLimit
-      ? Math.max(0, Math.min(searchActiveMatchIndex - Math.floor(messageLimit / 2), searchedMessages.length - messageLimit))
-      : Math.max(0, searchedMessages.length - messageLimit);
-    const visibleMessages = searchedMessages.slice(visibleSearchWindowStart, visibleSearchWindowStart + messageLimit);
+    const activeMessageLimit = normalizedMessageSearch
+      ? messageLimit
+      : Math.max(messageLimit, Number(conversationMessageLimit) || messageLimit);
+    const visibleSearchWindowStart = normalizedMessageSearch && searchedMessages.length > activeMessageLimit
+      ? Math.max(0, Math.min(searchActiveMatchIndex - Math.floor(activeMessageLimit / 2), searchedMessages.length - activeMessageLimit))
+      : Math.max(0, searchedMessages.length - activeMessageLimit);
+    const visibleMessages = searchedMessages.slice(visibleSearchWindowStart, visibleSearchWindowStart + activeMessageLimit);
     const previewFallbackMessages = visibleMessages.length
       ? []
       : getThreadPreviewFallbackMessages(activeThread, activeThreadId, users, currentUser);

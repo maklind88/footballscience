@@ -305,6 +305,78 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     setDashboardChatModerationState?.({ ...nextState });
   }
 
+  function getDashboardChatLegacyStatePayload(payload = {}) {
+    const state = payload?.state;
+    return state && typeof state === "object" && !Array.isArray(state) ? state : null;
+  }
+
+  function isDashboardChatLegacyStatePayload(payload = {}) {
+    const state = getDashboardChatLegacyStatePayload(payload);
+    return Boolean(state && (Array.isArray(state.messages) || Array.isArray(state.threads)));
+  }
+
+  function getDashboardChatPayloadThreads(payload = {}) {
+    if (Array.isArray(payload?.threads)) {
+      return payload.threads;
+    }
+    const legacyState = getDashboardChatLegacyStatePayload(payload);
+    return Array.isArray(legacyState?.threads) ? legacyState.threads : [];
+  }
+
+  function getDashboardChatSourceThreadId(thread = {}) {
+    const type = String(thread?.type || "").trim().toLowerCase();
+    return normalizeDashboardChatThreadId(
+      thread?.threadId ||
+        thread?.thread_id ||
+        thread?.legacyThreadId ||
+        thread?.legacy_thread_id ||
+        thread?.metadata?.legacyThreadId ||
+        thread?.metadata?.legacy_thread_id ||
+        (type === "team" ? dashboardChatTeamThreadId : thread?.id),
+      dashboardChatTeamThreadId
+    );
+  }
+
+  function getDashboardChatPayloadThread(payload = {}, options = {}) {
+    if (payload?.thread) {
+      return payload.thread;
+    }
+    const normalizedThreadId = normalizeDashboardChatThreadId(options.threadId || "", "");
+    if (!normalizedThreadId) {
+      return null;
+    }
+    return getDashboardChatPayloadThreads(payload).find((thread) => getDashboardChatSourceThreadId(thread) === normalizedThreadId) || null;
+  }
+
+  function getDashboardChatSourceMessageThreadId(message = {}, payloadThread = null) {
+    return normalizeDashboardChatThreadId(
+      message?.threadId ||
+        message?.thread_id ||
+        message?.legacyThreadId ||
+        message?.legacy_thread_id ||
+        message?.metadata?.legacyThreadId ||
+        message?.metadata?.legacy_thread_id ||
+        getDashboardChatSourceThreadId(payloadThread || {}),
+      dashboardChatTeamThreadId
+    );
+  }
+
+  function getDashboardChatPayloadMessages(payload = {}, options = {}) {
+    const legacyState = getDashboardChatLegacyStatePayload(payload);
+    const sourceMessages = Array.isArray(payload?.messages)
+      ? payload.messages
+      : Array.isArray(legacyState?.messages)
+        ? legacyState.messages
+        : [];
+    if (!isDashboardChatLegacyStatePayload(payload) || !options.threadId || options.search) {
+      return sourceMessages;
+    }
+
+    const normalizedThreadId = normalizeDashboardChatThreadId(options.threadId, dashboardChatTeamThreadId);
+    const payloadThread = getDashboardChatPayloadThread(payload, options);
+    return sourceMessages.filter((message) => getDashboardChatSourceMessageThreadId(message, payloadThread) === normalizedThreadId);
+  }
+
   function isArchivedApiThread(thread = {}) {
     return Boolean(thread?.archivedAt || thread?.archived_at || thread?.metadata?.archivedAt || thread?.metadata?.archived_at);
   }
@@ -430,9 +502,10 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       });
     }
 
-    if (Array.isArray(payload.threads)) {
-      updateDashboardChatApiThreads(payload.threads, { replace: Boolean(options.replaceThreadList) });
-      mergeActiveThreadLastMessageFromSummary(payload.threads);
+    const payloadThreads = getDashboardChatPayloadThreads(payload);
+    if (payloadThreads.length) {
+      updateDashboardChatApiThreads(payloadThreads, { replace: Boolean(options.replaceThreadList) });
+      mergeActiveThreadLastMessageFromSummary(payloadThreads);
     } else if (payload.thread) {
       updateDashboardChatApiThreads([payload.thread]);
     }
@@ -450,11 +523,11 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       setPagination(nextPagination);
     }
 
-    const payloadThread = payload.thread || null;
-    const payloadMessages = Array.isArray(payload.messages) ? payload.messages : [];
+    const payloadThread = getDashboardChatPayloadThread(payload, options);
+    const payloadMessages = getDashboardChatPayloadMessages(payload, options);
 
-    if (Array.isArray(payload.messages)) {
-      mergeDashboardChatApiMessages(payload.messages, {
+    if (Array.isArray(payload.messages) || isDashboardChatLegacyStatePayload(payload)) {
+      mergeDashboardChatApiMessages(payloadMessages, {
         render: false,
         thread: payloadThread,
         keepThread: Boolean(payload.nextCursor || options.keepThread),
@@ -583,8 +656,8 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     }
 
     const payload = result.result || {};
-    const payloadMessages = Array.isArray(payload.messages) ? payload.messages : [];
-    const payloadThread = payload.thread || null;
+    const payloadMessages = getDashboardChatPayloadMessages(payload, { threadId, search: options.search });
+    const payloadThread = getDashboardChatPayloadThread(payload, { threadId });
     const payloadThreadMessageCount = Number(payloadThread?.messageCount || payloadThread?.message_count || 0) || 0;
     const requestedMessageLimit = Math.max(1, Number(options.limit || dashboardChatApiPageLimit) || dashboardChatApiPageLimit);
     const expectedInitialPayloadCount = payloadThreadMessageCount

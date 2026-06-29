@@ -1054,6 +1054,105 @@ test("chat API runtime keeps active thread unhydrated when history payload is em
   expect(rendered).toBe(1);
 });
 
+test("chat API runtime hydrates active thread from legacy state payload without leaking other thread messages", async () => {
+  const hydratedThreadIds = new Set();
+  let apiThreads = [];
+  const fetchQueries = [];
+  const mergeCalls = [];
+  const runtime = createDashboardChatApiRuntime({
+    fetchDashboardChatApi: async (query) => {
+      fetchQueries.push(query);
+      return {
+        ok: true,
+        status: 200,
+        result: {
+          ok: true,
+          schema: "footballscience-chat-api-v1",
+          state: {
+            threads: [
+              {
+                id: "team",
+                type: "team",
+                title: "North Carolina Courage Chat",
+                messageCount: 2,
+                lastMessageAt: "2026-06-26T20:00:00.000Z",
+              },
+              {
+                id: "dm:coach-qa:teammate-qa",
+                type: "dm",
+                title: "Private chat",
+                messageCount: 1,
+                lastMessageAt: "2026-06-26T20:01:00.000Z",
+              },
+            ],
+            messages: [
+              {
+                id: "team-first",
+                threadId: "team",
+                text: "First team message",
+                userId: coachActor.id,
+                createdAt: "2026-06-26T19:59:00.000Z",
+              },
+              {
+                id: "team-second",
+                threadId: "team",
+                text: "Second team message",
+                userId: teammateActor.id,
+                createdAt: "2026-06-26T20:00:00.000Z",
+              },
+              {
+                id: "dm-message",
+                threadId: "dm:coach-qa:teammate-qa",
+                text: "Private message",
+                userId: teammateActor.id,
+                createdAt: "2026-06-26T20:01:00.000Z",
+              },
+            ],
+          },
+        },
+      };
+    },
+    getDashboardChatCurrentViewState: () => ({ isOpen: true, selectedThreadId: "team" }),
+    getDashboardHydratedThreadIds: () => hydratedThreadIds,
+    setDashboardHydratedThreadIds: (nextValue) => {
+      hydratedThreadIds.clear();
+      Array.from(nextValue || []).forEach((value) => hydratedThreadIds.add(value));
+    },
+    getDashboardApiThreads: () => apiThreads,
+    setDashboardApiThreads: (nextThreads = []) => {
+      apiThreads = nextThreads;
+    },
+    normalizeDashboardApiThread: (thread = {}) => ({
+      ...thread,
+      threadId: thread.threadId || thread.id,
+    }),
+    mergeDashboardChatApiMessages: (messages, options) => {
+      mergeCalls.push({ messages, options });
+      return messages;
+    },
+    renderDashboardChatWidget: () => {},
+  });
+
+  const result = await runtime.refreshDashboardChatFromApi({ threadId: "team", limit: 40 });
+
+  expect(result.ok).toBe(true);
+  expect(fetchQueries).toEqual([expect.objectContaining({ threadId: "team", threadType: "team" })]);
+  expect(apiThreads.map((thread) => thread.threadId || thread.id)).toContain("team");
+  expect(mergeCalls).toEqual([
+    expect.objectContaining({
+      messages: [
+        expect.objectContaining({ id: "team-first", threadId: "team" }),
+        expect.objectContaining({ id: "team-second", threadId: "team" }),
+      ],
+      options: expect.objectContaining({
+        replaceThreadId: "team",
+      }),
+    }),
+  ]);
+  expect(mergeCalls[0].messages.some((message) => message.id === "dm-message")).toBe(false);
+  expect(hydratedThreadIds.has("team")).toBe(true);
+});
+
 test("chat API runtime preserves cached history when payload is smaller than reported history", async () => {
   const hydratedThreadIds = new Set();
   let pagination = {};

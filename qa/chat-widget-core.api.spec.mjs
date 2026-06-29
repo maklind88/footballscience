@@ -1124,6 +1124,9 @@ test("open chat uses a calm professional conversation shell", () => {
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-toast");
   expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-confirm-backdrop");
   expect(dashboardChatCss).toContain("z-index:900!important;");
+  expect(dashboardChatCss).toContain("chat menus must float above empty conversation states");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-more-menu[open]");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-empty-state{z-index:0!important;pointer-events:none!important}");
 });
 
 test("chat message actions stay behind a compact hover menu", () => {

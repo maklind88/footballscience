@@ -581,7 +581,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         ${avatarMarkup}
         <span class="dashboard-chat-author">
           <strong>${escapeHtml(userName)}</strong>
-          <small>${escapeHtml(timeLabel)}</small>
         </span>
       </div>
     `;

@@ -537,6 +537,7 @@ test("chat composer keeps priority behind message options and renders message bu
   expect(result.html).toContain('class="dashboard-chat-priority-label">Urgent</span>');
   expect(result.html).toContain("dashboard-chat-bubble-footer");
   expect(result.html).toContain('<time datetime="2026-01-01T10:00:00.000Z">10:15</time>');
+  expect(result.html).not.toMatch(/<span class="dashboard-chat-author">[\s\S]*?<small>10:15<\/small>[\s\S]*?<\/span>/);
   expect(result.html).toContain("data-message-status");
   expect(result.html).not.toContain("dashboard-chat-character-count");
   expect(result.html).not.toContain("dashboard-chat-widget-notify");

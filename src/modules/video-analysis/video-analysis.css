@@ -1622,6 +1622,12 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   touch-action: none;
 }
 
+.video-analysis-timeline-toolbar .video-analysis-timeline-ruler {
+  grid-column: 2;
+  align-self: stretch;
+  margin-left: 0;
+}
+
 .video-analysis-timeline-tick {
   position: absolute;
   top: 0;
@@ -1775,7 +1781,7 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   width: 100%;
   margin-left: 0;
   min-height: 38px;
-  padding: 4px 8px 4px 0;
+  padding: 4px 0;
 }
 
 .video-analysis-timeline-status,

@@ -270,8 +270,8 @@ export function renderTimeline(state = {}) {
         <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(zoom)}">
           <div class="video-analysis-timeline-toolbar">
             ${renderLaneSelector(laneMode, totalMs, density.clipCount)}
+            ${renderTimelineRuler(ticks, totalMs)}
           </div>
-          ${renderTimelineRuler(ticks, totalMs)}
           <div
             class="video-analysis-playhead-rail"
             data-video-analysis-timeline-scrub-surface

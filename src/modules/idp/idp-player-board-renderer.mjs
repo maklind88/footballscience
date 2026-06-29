@@ -89,14 +89,6 @@ function renderBoardToolSvgIcon(tool = "player") {
   return icons[tool] || '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle></svg>';
 }
 
-function coachLabel(value = "") {
-  return String(value ?? "")
-    .replace(/\bNeeds Evidence\b/g, "Needs Observation")
-    .replace(/\bAdd Evidence\b/g, "Add Observation")
-    .replace(/\bEvidence\b/g, "Observations")
-    .replace(/\bevidence\b/g, "observations");
-}
-
 function initialsFromName(value = "Player", fallback = "P") {
   const words = String(value || "").trim().split(/\s+/).filter(Boolean);
   return (words.length > 1 ? `${words[0][0]}${words.at(-1)[0]}` : words[0]?.slice(0, 2) || fallback).toUpperCase();
@@ -352,20 +344,10 @@ function renderPreviewToolRail() {
 export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}) {
   const intervention = activeIntervention(detail, ui) || draftIntervention(profile, focus);
   const counts = interventionCounts(intervention);
-  const nextTitle = coachLabel(nextAction.title || "Add observation");
-  const nextDue = nextAction.dueOn || focus?.reviewDate || "No date set";
   const modeLabel = pitchModeLabel(intervention.pitchMode);
-  const playerName = normalizeText(profile.playerName || profile.name, "Individual player");
-  const focusTitle = normalizeText(focus?.title, "Current focus");
-  const objective = interventionObjective(intervention, focus);
   return `
     <aside class="idp-player-board-panel idp-player-board-tactical-shell">
-      <header class="idp-player-board-head idp-player-board-tactical-head">
-        <div>
-          <span>IDP Player Board</span>
-          <strong>${escapeHtml(playerName)}</strong>
-          <small>${escapeHtml(focusTitle)}</small>
-        </div>
+      <header class="idp-player-board-head idp-player-board-tactical-head is-action-only">
         <button type="button" data-idp-player-board-open aria-label="Open IDP Player Board">Edit Board</button>
       </header>
       <button type="button" class="idp-player-board-preview idp-player-board-tactical-preview" data-idp-player-board-open aria-label="Open IDP Player Board">
@@ -378,16 +360,6 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
           <span class="idp-player-board-canvas">
             ${renderPreviewToolRail()}
             ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-preview-arrow" })}
-          </span>
-          <span class="idp-player-board-insight-row">
-            <span>
-              <strong>${escapeHtml(intervention.title || "Individual exercise")}</strong>
-              <small>${escapeHtml(objective)}</small>
-            </span>
-            <span>
-              <strong>${escapeHtml(nextTitle)}</strong>
-              <small>${escapeHtml(nextDue)}</small>
-            </span>
           </span>
         </span>
       </button>

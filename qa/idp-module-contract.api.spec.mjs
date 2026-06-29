@@ -339,7 +339,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain("idp-player-board-bank-item");
   expect(playerBoardHtml).toContain("Exercise Bank");
   expect(playerBoardHtml).toContain("idp-player-board-player-name");
-  expect(playerBoardHtml).toContain("idp-player-board-insight-row");
+  expect(playerBoardHtml).not.toContain("idp-player-board-insight-row");
   expect(playerBoardHtml).toContain("New Exercise");
   expect(playerBoardHtml).toContain("Edit Board");
   expect(playerBoardHtml).toContain("Link Clip");
@@ -1177,7 +1177,8 @@ test("idp profile shows Squad-owned inactive IDP status", async () => {
     { canEdit: true, users: [] }
   );
   expect(playerBoardHtml).toContain("idp-profile-player-board-page");
-  expect(playerBoardHtml).toContain("No IDP action required");
+  expect(playerBoardHtml).toContain("No Active IDP");
+  expect(playerBoardHtml).not.toContain("idp-player-board-insight-row");
   expect(playerBoardHtml).not.toContain("Old active focus");
 });
 

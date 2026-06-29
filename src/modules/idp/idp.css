@@ -6893,6 +6893,11 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.idp-player-board-tactical-head.is-action-only {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .idp-player-board-tactical-head span {
   color: rgba(226, 232, 240, .56);
   font-size: .64rem;

@@ -76,6 +76,29 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     return `${html.length}:${hash}`;
   }
 
+  function isDashboardChatPreviewMessage(message = {}) {
+    return Boolean(
+      message?.previewOnly ||
+        message?.metadata?.previewOnly ||
+        String(message?.status || "").trim().toLowerCase() === "preview"
+    );
+  }
+
+  function getDashboardChatExpectedMessageCount(thread = null) {
+    return Math.max(
+      0,
+      Number(thread?.messageCount || 0) ||
+        Number(thread?.message_count || 0) ||
+        Number(thread?.apiThread?.messageCount || 0) ||
+        Number(thread?.apiThread?.message_count || 0) ||
+        0
+    );
+  }
+
+  function isDashboardChatThreadHistoryComplete(thread = null) {
+    return Boolean(thread?.historyComplete || thread?.history_complete || thread?.apiThread?.historyComplete || thread?.apiThread?.history_complete);
+  }
+
   function showDashboardChatWidgetToast(messageText, threadId = dashboardChatTeamThreadId) {
     const root = ui.dashboardChatWidgetRoot;
     if (!root) {
@@ -247,7 +270,14 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
 
     const hydratedThreadIds = getDashboardHydratedThreadIds();
     const activeThread = threads.find((thread) => thread.threadId === activeThreadId) || null;
-    const activeThreadMessageCount = resolvedMessages.filter((message) => message.threadId === activeThreadId).length;
+    const activeThreadMessages = resolvedMessages.filter((message) => message.threadId === activeThreadId);
+    const activeThreadRealMessageCount = activeThreadMessages.filter((message) => !isDashboardChatPreviewMessage(message)).length;
+    const activeThreadExpectedMessageCount = getDashboardChatExpectedMessageCount(activeThread);
+    const activeThreadHasPartialHistory = Boolean(
+      activeThreadExpectedMessageCount &&
+        activeThreadRealMessageCount < activeThreadExpectedMessageCount &&
+        !isDashboardChatThreadHistoryComplete(activeThread)
+    );
     const activeThreadHasServerActivity = Boolean(
       activeThread &&
         (
@@ -265,10 +295,11 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
         hydratedThreadIds instanceof Set &&
         (
           !hydratedThreadIds.has(activeThreadId) ||
-          (activeThreadHasServerActivity && activeThreadMessageCount === 0)
+          (activeThreadHasServerActivity && activeThreadRealMessageCount === 0) ||
+          activeThreadHasPartialHistory
         )
     );
-    if (activeThreadId && activeThreadMessageCount > 0) {
+    if (activeThreadId && activeThreadRealMessageCount > 0 && !activeThreadHasPartialHistory) {
       dashboardChatHydrationAttemptAtByThread.delete(activeThreadId);
     }
     const lastHydrationAttemptAt = Number(dashboardChatHydrationAttemptAtByThread.get(activeThreadId) || 0);

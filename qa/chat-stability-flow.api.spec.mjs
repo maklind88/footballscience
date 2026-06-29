@@ -892,6 +892,66 @@ test("rendered chat conversation can hydrate active server-backed thread even wh
   expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0, forceNetwork: true }]);
 });
 
+test("open chat rehydrates active server-backed thread when local history is partial", () => {
+  const threadId = "team";
+  const hydratedThreadIds = new Set([threadId]);
+  const queuedThreadLoads = [];
+  const localMessages = [{
+    id: "m-local-latest",
+    threadId,
+    userId: coachActor.id,
+    text: "Latest only",
+    createdAt: "2026-06-27T01:08:00.000Z",
+    readBy: [coachActor.id],
+    mentionedUserIds: [],
+  }];
+  const runtime = createDashboardChatWidgetRuntime({
+    dashboardChatWidgetRenderer: {
+      render: () => ({ html: "<section data-dashboard-chat-list></section>", activeThreadId: threadId, replyDraft: null }),
+    },
+    getCurrentPlatformUser: () => coachActor,
+    getPlatformUsers: () => [coachActor, teammateActor],
+    getDashboardChatThreadList: () => [{
+      threadId,
+      label: "North Carolina Courage Chat",
+      messageCount: 7,
+      lastMessage: localMessages[0],
+      lastActivityAt: "2026-06-27T01:08:00.000Z",
+      apiThread: {
+        messageCount: 7,
+        lastMessageAt: "2026-06-27T01:08:00.000Z",
+      },
+    }],
+    readDashboardMessages: () => localMessages,
+    readDashboardChatWidgetState: () => ({ isOpen: true, selectedThreadId: threadId }),
+    getDashboardHydratedThreadIds: () => hydratedThreadIds,
+    queueDashboardChatApiRefresh: (options) => {
+      queuedThreadLoads.push(options);
+    },
+    ui: {
+      dashboardChatWidgetRoot: {
+        dataset: {},
+        innerHTML: "",
+        querySelector: () => null,
+      },
+    },
+    documentRef: {
+      activeElement: null,
+      body: {
+        classList: {
+          add: () => {},
+          remove: () => {},
+          toggle: () => {},
+        },
+      },
+    },
+  });
+
+  runtime.renderDashboardChatWidget();
+
+  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0 }]);
+});
+
 test("open chat throttles repeated empty active thread hydration requests", () => {
   const threadId = "dm:coach-qa:teammate-qa";
   const hydratedThreadIds = new Set([threadId]);

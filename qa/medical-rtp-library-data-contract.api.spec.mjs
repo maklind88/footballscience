@@ -24,8 +24,8 @@ test("Medical RTP Library provides searchable medical-safe injury profiles", () 
   expect(profiles.every((profile) => profile.criteria.length >= 4 && profile.redFlags.length >= 4)).toBe(true);
   expect(RTP_LIBRARY_RESEARCH_AUDIT_SCOPE.displaySourcesInUi).toBe(false);
   expect(RTP_LIBRARY_RESEARCH_AUDIT_SCOPE.scope).toContain("RTP continuum and criteria-based progression");
-  expect(profiles.every((profile) => profile.researchAuditStatus === "research-informed-template-review-v1")).toBe(true);
-  expect(profiles.every((profile) => profile.researchAuditReviewedAt === "2026-06-26")).toBe(true);
+  expect(profiles.every((profile) => profile.researchAuditStatus === "research-informed-clinical-hardening-v2")).toBe(true);
+  expect(profiles.every((profile) => profile.researchAuditReviewedAt === "2026-06-29")).toBe(true);
   expect(profiles.every((profile) => profile.researchAuditFamily === profile.family)).toBe(true);
   expect(hamstring).toMatchObject({
     name: "Hamstring Strain",
@@ -114,6 +114,43 @@ test("expanded RTP Library profiles use injury-family specific clinical language
   expect(goalkeeperLoad).toMatchObject({ family: "goalkeeper" });
   expect(goalkeeperLoad.summary).toContain("goalkeeper-specific RTP");
   expect(goalkeeperLoad.trainingChecklist).toContain("controlled dives");
+});
+
+test("expanded RTP Library profiles now carry profile-specific clinical decision logic", () => {
+  const expandedProfiles = medicalRtpLibraryProfiles.slice(15);
+  const normalizedSummaryGroups = new Map();
+
+  for (const profile of expandedProfiles) {
+    const specificity = profile.clinicalSpecificity;
+    expect(specificity?.decisionFocus).toContain(profile.name);
+    expect(specificity?.primarySymptom).toBeTruthy();
+    expect(specificity?.primaryExposure).toBeTruthy();
+    expect(specificity?.primaryRisk).toBeTruthy();
+    expect(profile.summary).toContain("Profile-specific decision focus:");
+    expect(profile.goldStandardSections.find((section) => section.title === "Overview")?.items).toContain(specificity.decisionFocus);
+    expect(profile.goldStandardSections.find((section) => section.title === "Assessment Protocols")?.items).toContain(specificity.measurementFocus);
+    expect(profile.redFlags.some((item) => item.startsWith("progression before ") || item.startsWith("worsening ") || item.includes("Medical"))).toBe(true);
+    const normalizedSummary = profile.summary
+      .replaceAll(profile.name, "{name}")
+      .replaceAll(profile.bodyArea, "{bodyArea}");
+    normalizedSummaryGroups.set(normalizedSummary, (normalizedSummaryGroups.get(normalizedSummary) || 0) + 1);
+  }
+
+  expect(expandedProfiles).toHaveLength(185);
+  expect(Math.max(...normalizedSummaryGroups.values())).toBe(1);
+});
+
+test("medical red-flag RTP profiles keep Medical clearance ahead of performance exposure", () => {
+  const cardiac = getMedicalRtpLibraryProfileById("cardiac-symptoms-red-flag");
+  const syncope = getMedicalRtpLibraryProfileById("dizziness-syncope-red-flag");
+  const compartment = getMedicalRtpLibraryProfileById("compartment-syndrome-concern");
+
+  for (const profile of [cardiac, syncope, compartment]) {
+    expect(profile.criteria.some((item) => item.includes("Medical clearance documented before any"))).toBe(true);
+    expect(profile.matchChecklist).toContain("no match availability until Medical has cleared participation");
+    expect(profile.loadText.some((item) => item.includes("hold until Medical clears"))).toBe(true);
+    expect(profile.mistakes.join(" ")).toContain("before Medical clearance");
+  }
 });
 
 test("core RTP profiles retain hand-written specificity while adopting research audit updates", () => {

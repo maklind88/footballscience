@@ -112,6 +112,7 @@ const CODE_WINDOW_PIP_MIN_HEIGHT = 220;
 const CODE_PIP_MARGIN = 8;
 const CODE_PIP_BOUND_MARGIN = 0;
 const CODE_MODE_LAYOUT_VERSION = 4;
+const VIDEO_ANALYSIS_TOAST_DISMISS_MS = 1600;
 const FS_PLAYER_HISTORY_GUARD_KEY = "__footballScienceFsPlayerHistoryGuard";
 const FS_PLAYER_HISTORY_GUARD_DEPTH_KEY = "__footballScienceFsPlayerHistoryGuardDepth";
 const FS_PLAYER_HISTORY_GUARD_DEPTH = 3;
@@ -145,6 +146,8 @@ function createRuntime(context = {}) {
     historyGuardBound: false,
     fullscreenBound: false,
     codePipInteraction: null,
+    toastDismissTimer: null,
+    toastDismissMessage: "",
     fsPlayerHistoryGuardArmed: false,
     fsPlayerHistoryGuardDepth: 0,
     fsPlayerPointerInsideShuttle: false,
@@ -759,6 +762,35 @@ function applyCodePipBox(deck = null, box = {}) {
   deck.style.setProperty(`${config.cssPrefix}-y`, `${box.y}px`);
   deck.style.setProperty(`${config.cssPrefix}-width`, `${box.width}px`);
   deck.style.setProperty(`${config.cssPrefix}-height`, `${box.height}px`);
+}
+
+function clearToastDismissTimer(run = runtime) {
+  if (!run?.toastDismissTimer) return;
+  const winRef = run.context?.win || globalThis.window;
+  winRef?.clearTimeout?.(run.toastDismissTimer);
+  run.toastDismissTimer = null;
+}
+
+function scheduleToastDismiss(context = {}, state = {}) {
+  const run = ensureRuntime(context);
+  const winRef = context.win || globalThis.window;
+  const message = String(state.message || "");
+  if (!message || state.error || !winRef?.setTimeout) {
+    clearToastDismissTimer(run);
+    run.toastDismissMessage = "";
+    return;
+  }
+  if (run.toastDismissTimer && run.toastDismissMessage === message) return;
+  clearToastDismissTimer(run);
+  run.toastDismissMessage = message;
+  run.toastDismissTimer = winRef.setTimeout(() => {
+    run.toastDismissTimer = null;
+    run.toastDismissMessage = "";
+    run.store.update((current) => {
+      if (current.message !== message || current.error) return current;
+      return { ...current, message: "" };
+    });
+  }, VIDEO_ANALYSIS_TOAST_DISMISS_MS);
 }
 
 function isCodePipBlockedDragTarget(target = null) {
@@ -3046,7 +3078,10 @@ export function render(context = {}) {
     wheel: handleWheel,
   });
   if (!run.unsubscribe) {
-    run.unsubscribe = run.store.subscribe((state) => paint(root, state));
+    run.unsubscribe = run.store.subscribe((state) => {
+      scheduleToastDismiss(context, state);
+      paint(root, state);
+    });
   }
   bindFsPlayerLifecycle(context);
   bindFsPlayerHistoryGuard(context);
@@ -3082,11 +3117,14 @@ export function render(context = {}) {
     });
     run.pointerGuardBound = true;
   }
-  paint(root, run.store.getState());
+  const currentState = run.store.getState();
+  scheduleToastDismiss(context, currentState);
+  paint(root, currentState);
   if (run.store.getState().status === "idle") initialize(context);
 }
 
 export function resetVideoAnalysisRuntimeForTests() {
+  clearToastDismissTimer(runtime);
   runtime?.unsubscribe?.();
   runtime?.workspaceObserver?.disconnect?.();
   runtime?.context?.doc?.documentElement?.classList?.remove?.(

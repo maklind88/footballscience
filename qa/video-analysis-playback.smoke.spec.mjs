@@ -1250,6 +1250,8 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).toHaveClass(/is-code-mode/);
   await page.locator("[data-video-analysis-code-mode]").click();
   await expect(page.locator("[data-video-analysis-fs-player-workstation]")).not.toHaveClass(/is-code-mode/);
+  await expect(page.locator(".video-analysis-toast")).toContainText("Code Mode closed.");
+  await expect(page.locator(".video-analysis-toast")).toHaveCount(0, { timeout: 2500 });
   const standardCodeWindowLayout = await page.evaluate(() => {
     const deck = document.querySelector(".video-analysis-fs-player-deck")?.getBoundingClientRect();
     const dock = document.querySelector(".video-analysis-code-window-dock")?.getBoundingClientRect();

@@ -524,6 +524,15 @@ test("database chat group creation normalizes unsupported team visibility before
   expect(appSource).toContain('visibility: "members"');
 });
 
+test("database chat coalesces duplicate legacy threads for logical conversation history", () => {
+  expect(chatDatabaseSource).toContain("async function readThreadsByLegacyKey");
+  expect(chatDatabaseSource).toContain("function combineLogicalThreadSummaries");
+  expect(chatDatabaseSource).toContain("async function readAccessibleLogicalThreads");
+  expect(chatDatabaseSource).toContain("thread_id=${inFilter(logicalThreadIds)}");
+  expect(chatDatabaseSource).toContain("filterMessagesForActorByThread(actor, messages, threadsById)");
+  expect(chatDatabaseSource).toContain("logicalThreadSourceIds");
+});
+
 test("custom database groups keep their own title instead of managed room templates", () => {
   expect(chatDomainSource).toContain("const templateByLegacyId = legacyThreadId");
   expect(chatDomainSource).toContain('const templateByManagedType = ["medical", "matchday", "training", "announcement"].includes(type)');
@@ -538,6 +547,7 @@ test("custom groups support top placement, avatar metadata, and safe delete", ()
   expect(chatApiUiActionsSource).toContain("archiveThreadWithApi");
   expect(chatApiUiActionsSource).toContain('action: "archiveThread"');
   expect(chatDatabaseSource).toContain("async function archiveThread");
+  expect(chatDatabaseSource).toContain("const thread = await resolveThreadForAction(actor, body, { createIfMissing: false });");
   expect(chatDatabaseSource).toContain('thread?.type !== "group"');
   expect(chatDatabaseSource).toContain("archived_at: now");
   expect(chatDatabaseSource).toContain("avatarUrl");

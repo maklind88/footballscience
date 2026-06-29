@@ -7,6 +7,7 @@ import { createDashboardChatApiRuntime } from "../src/modules/chat/dashboard-cha
 import { createDashboardChatApiDomainRuntime } from "../src/modules/chat/dashboard-chat-api-domain-runtime.mjs";
 import { createDashboardChatDomainRuntime } from "../src/modules/chat/dashboard-chat-domain-runtime.mjs";
 import { createDashboardChatMessageRuntime } from "../src/modules/chat/dashboard-chat-message-runtime.mjs";
+import { createDashboardChatThreadRuntime } from "../src/modules/chat/dashboard-chat-thread-runtime.mjs";
 import { createDashboardChatWidgetRuntime } from "../src/modules/chat/dashboard-chat-widget-runtime.mjs";
 
 const require = createRequire(import.meta.url);
@@ -134,6 +135,56 @@ test("chat thread sorting is driven by pinned state and message activity, not se
   expect(chatThreadRuntimeSource).toContain("return secondTime - firstTime;");
   expect(chatThreadRuntimeSource).not.toContain("firstIsSelectedEmptyGroup");
   expect(chatThreadRuntimeSource).not.toContain("secondIsSelectedEmptyGroup");
+});
+
+test("direct and group chats expose baseline private cleanup permissions from thread data", () => {
+  const currentUser = { id: "coach-qa", firstName: "Casey", lastName: "Coach", role: "coach", status: "active" };
+  const teammate = { id: "teammate-qa", firstName: "Taylor", lastName: "Teammate", role: "analyst", status: "active" };
+  const runtime = createDashboardChatThreadRuntime({
+    getCurrentPlatformUser: () => currentUser,
+    getPlatformUsers: () => [currentUser, teammate],
+    getDashboardChatApiThreads: () => [
+      {
+        threadId: "dm:coach-qa:teammate-qa",
+        type: "dm",
+        title: "Direct message",
+        participants: [
+          { userId: currentUser.id, participantRole: "member" },
+          { userId: teammate.id, participantRole: "member" },
+        ],
+        permissions: {},
+      },
+      {
+        threadId: "group:staff-room",
+        type: "group",
+        title: "Staff room",
+        participants: [
+          { userId: currentUser.id, participantRole: "owner" },
+          { userId: teammate.id, participantRole: "member" },
+        ],
+        permissions: {},
+      },
+    ],
+    normalizeDashboardChatThreadId: (threadId, fallback = "team") => String(threadId || fallback || "team"),
+    isSameDashboardUser: (first, second) => String(first?.id || first?.userId || "") === String(second?.id || second?.userId || ""),
+    formatDashboardChatThreadLabel: () => "Taylor Teammate",
+    formatUserName: (user = {}) => `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.id,
+  });
+
+  const directThread = runtime.getDashboardChatThreadData("dm:coach-qa:teammate-qa");
+  const groupThread = runtime.getDashboardChatThreadData("group:staff-room");
+
+  expect(directThread.permissions).toMatchObject({
+    canArchiveForMe: true,
+    canDeleteForMe: true,
+    canBlock: true,
+  });
+  expect(groupThread.permissions).toMatchObject({
+    canArchiveForMe: true,
+    canDeleteForMe: true,
+    canLeave: true,
+    canManageParticipants: true,
+  });
 });
 
 test("chat history pagination keeps older loaded API pages in the runtime cache", () => {
@@ -941,6 +992,46 @@ test("chat API runtime keeps active thread unhydrated when history payload is em
   ]);
   expect(hydratedThreadIds.has("team")).toBe(false);
   expect(rendered).toBe(1);
+});
+
+test("chat API runtime keeps active thread unhydrated when payload is smaller than reported history", async () => {
+  const hydratedThreadIds = new Set();
+  const runtime = createDashboardChatApiRuntime({
+    fetchDashboardChatApi: async () => ({
+      ok: true,
+      status: 200,
+      result: {
+        thread: {
+          threadId: "team",
+          type: "team",
+          messageCount: 7,
+          lastMessageAt: "2026-06-26T20:00:00.000Z",
+        },
+        messages: [
+          {
+            id: "msg-only-visible",
+            threadId: "team",
+            text: "Only one payload row",
+            userId: "coach-qa",
+            createdAt: "2026-06-26T20:00:00.000Z",
+          },
+        ],
+      },
+    }),
+    getDashboardChatCurrentViewState: () => ({ isOpen: true, selectedThreadId: "team" }),
+    getDashboardHydratedThreadIds: () => hydratedThreadIds,
+    setDashboardHydratedThreadIds: (nextValue) => {
+      hydratedThreadIds.clear();
+      Array.from(nextValue || []).forEach((value) => hydratedThreadIds.add(value));
+    },
+    mergeDashboardChatApiMessages: (messages) => messages,
+    renderDashboardChatWidget: () => {},
+  });
+
+  const result = await runtime.refreshDashboardChatFromApi({ threadId: "team", limit: 40 });
+
+  expect(result.ok).toBe(true);
+  expect(hydratedThreadIds.has("team")).toBe(false);
 });
 
 test("chat summary seeds active server last message while full thread history hydrates", async () => {

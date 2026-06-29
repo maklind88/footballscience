@@ -996,8 +996,13 @@ function legacyThreadKey(value, type = "team") {
 }
 
 async function readThreadByLegacyKey(scope, legacyKey, type = "team") {
+  const threads = await readThreadsByLegacyKey(scope, legacyKey, type);
+  return threads[0] || null;
+}
+
+async function readThreadsByLegacyKey(scope, legacyKey, type = "team") {
   if (!scope?.organizationId || !legacyKey) {
-    return null;
+    return [];
   }
 
   const filters = [
@@ -1014,7 +1019,116 @@ async function readThreadByLegacyKey(scope, legacyKey, type = "team") {
   }
 
   const threads = await selectMany("chat_threads", filters.join("&"));
-  return threads.find((thread) => thread?.metadata?.legacyThreadId === legacyKey) || null;
+  return threads.filter((thread) => thread?.metadata?.legacyThreadId === legacyKey);
+}
+
+function logicalThreadSummaryKey(thread = {}) {
+  const legacyThreadId = toLegacyThreadId(thread);
+  const type = normalizeThreadType(thread.type);
+  return [
+    normalizeId(thread.organization_id || thread.organizationId || ""),
+    normalizeId(thread.team_id || thread.teamId || ""),
+    type,
+    legacyThreadId || normalizeId(thread.id || ""),
+  ].join(":");
+}
+
+function threadSummaryTime(summary = {}) {
+  return Math.max(
+    Date.parse(summary.lastMessage?.createdAt || summary.last_message?.createdAt || summary.last_message?.created_at || "") || 0,
+    Date.parse(summary.lastMessageAt || summary.last_message_at || "") || 0,
+    Date.parse(summary.updated_at || summary.updatedAt || "") || 0,
+    Date.parse(summary.created_at || summary.createdAt || "") || 0
+  );
+}
+
+function mergeThreadParticipants(first = [], second = []) {
+  const byUserId = new Map();
+  [...first, ...second].forEach((participant) => {
+    const userId = normalizeId(participant?.userId || participant?.user_id || participant?.id || "");
+    if (!userId) {
+      return;
+    }
+    byUserId.set(userId, {
+      ...(byUserId.get(userId) || {}),
+      ...participant,
+      id: userId,
+      userId,
+    });
+  });
+  return Array.from(byUserId.values());
+}
+
+function combineLogicalThreadSummaries(summaries = []) {
+  const byLogicalThread = new Map();
+  summaries.forEach((summary) => {
+    if (!summary?.id) {
+      return;
+    }
+    const key = logicalThreadSummaryKey(summary);
+    const existing = byLogicalThread.get(key);
+    if (!existing) {
+      byLogicalThread.set(key, {
+        ...summary,
+        messageCount: Number(summary.messageCount || summary.message_count || 0) || 0,
+        message_count: Number(summary.messageCount || summary.message_count || 0) || 0,
+        unreadCount: Number(summary.unreadCount || summary.unread_count || 0) || 0,
+        logicalThreadSourceIds: [summary.id],
+      });
+      return;
+    }
+
+    const existingCount = Number(existing.messageCount || existing.message_count || 0) || 0;
+    const summaryCount = Number(summary.messageCount || summary.message_count || 0) || 0;
+    const useSummaryAsLatest = threadSummaryTime(summary) > threadSummaryTime(existing);
+    const latest = useSummaryAsLatest ? summary : existing;
+    const mergedCount = existingCount + summaryCount;
+    byLogicalThread.set(key, {
+      ...existing,
+      ...(useSummaryAsLatest
+        ? {
+            last_message_id: summary.last_message_id || summary.lastMessageId || existing.last_message_id || existing.lastMessageId || null,
+            lastMessageId: summary.lastMessageId || summary.last_message_id || existing.lastMessageId || existing.last_message_id || "",
+            last_message_at: summary.last_message_at || summary.lastMessageAt || existing.last_message_at || existing.lastMessageAt || null,
+            lastMessageAt: summary.lastMessageAt || summary.last_message_at || existing.lastMessageAt || existing.last_message_at || "",
+            lastMessage: summary.lastMessage || summary.last_message || null,
+            last_message: summary.last_message || summary.lastMessage || null,
+            lastMessagePreview: summary.lastMessagePreview || summary.last_message_preview || "",
+          }
+        : {}),
+      updated_at: latest.updated_at || latest.updatedAt || existing.updated_at || "",
+      updatedAt: latest.updatedAt || latest.updated_at || existing.updatedAt || "",
+      participants: mergeThreadParticipants(existing.participants || [], summary.participants || []),
+      permissions: {
+        ...(existing.permissions || {}),
+        ...(summary.permissions || {}),
+      },
+      messageCount: mergedCount,
+      message_count: mergedCount,
+      unreadCount: (Number(existing.unreadCount || existing.unread_count || 0) || 0) + (Number(summary.unreadCount || summary.unread_count || 0) || 0),
+      logicalThreadSourceIds: Array.from(new Set([...(existing.logicalThreadSourceIds || []), summary.id].filter(Boolean))),
+    });
+  });
+  return Array.from(byLogicalThread.values()).sort((first, second) => threadSummaryTime(second) - threadSummaryTime(first));
+}
+
+async function readAccessibleLogicalThreads(actor, scope, thread, requestedThreadId = "") {
+  if (!thread?.id) {
+    return [];
+  }
+  if (isUuid(requestedThreadId) || !scope?.organizationId) {
+    return [thread];
+  }
+
+  const candidates = await readThreadsByLegacyKey(scope, toLegacyThreadId(thread), normalizeThreadType(thread.type)).catch(() => []);
+  const accessibleThreads = [];
+  for (const candidateThread of candidates.length ? candidates : [thread]) {
+    const access = await ensureThreadAccess(actor, candidateThread).catch(() => ({ ok: false }));
+    if (access.ok && candidateThread?.id) {
+      accessibleThreads.push(candidateThread);
+    }
+  }
+  return accessibleThreads.length ? accessibleThreads : [thread];
 }
 
 function getParticipantIdsFromLegacyKey(legacyKey, type = "team") {
@@ -2010,20 +2124,28 @@ async function handleDatabaseGet(req, res, actor) {
   }
 
   if (threadId || query.has("threadId")) {
+    const requestedThreadId = threadId || "team";
+    const requestedThreadType = query.get("threadType") || (String(requestedThreadId || "").startsWith("dm:") ? "dm" : "team");
     const thread = await resolveThreadForAction(actor, {
       organizationId: scope.organizationId,
       teamId: scope.teamId,
-      threadId: threadId || "team",
-      type: query.get("threadType") || (String(threadId || "").startsWith("dm:") ? "dm" : "team"),
+      threadId: requestedThreadId,
+      type: requestedThreadType,
     });
     const access = await ensureThreadAccess(actor, thread);
     if (!access.ok) {
       return sendJson(res, access.status || 403, access);
     }
 
+    const activeThreads = await readAccessibleLogicalThreads(actor, scope, thread, requestedThreadId);
+    const logicalThreadIds = Array.from(new Set(activeThreads.map((candidateThread) => candidateThread.id).filter(Boolean)));
+    const threadFilter = logicalThreadIds.length === 1
+      ? `thread_id=eq.${filterValue(logicalThreadIds[0])}`
+      : `thread_id=${inFilter(logicalThreadIds)}`;
+
     const filters = [
       `select=${MESSAGE_SELECT}`,
-      `thread_id=eq.${filterValue(thread.id)}`,
+      threadFilter,
       "deleted_at=is.null",
       "order=created_at.desc",
       `limit=${limit}`,
@@ -2034,18 +2156,24 @@ async function handleDatabaseGet(req, res, actor) {
     }
 
     const messages = await selectMany("chat_messages", filters.join("&"));
-    const filteredMessages = await filterMessagesForActor(actor, messages, thread);
+    const threadsById = new Map(activeThreads.map((candidateThread) => [candidateThread.id, candidateThread]));
+    const filteredMessages = await filterMessagesForActorByThread(actor, messages, threadsById);
     const nextCursor = messages.length === limit ? messages[messages.length - 1]?.created_at || "" : "";
-    const enrichedMessages = await enrichMessages([...filteredMessages].reverse(), thread);
-    const [threadSummary] = await enrichThreadSummaries(actor, [thread]);
-    const responseThread = threadSummary || thread;
+    const enrichedMessages = await enrichMessages([...filteredMessages].reverse(), null, {
+      threadIds: logicalThreadIds,
+      threadsById,
+    });
+    const threadSummaries = combineLogicalThreadSummaries(
+      (await enrichThreadSummaries(actor, activeThreads)).filter(shouldShowThreadForActor)
+    );
+    const responseThread = threadSummaries[0] || (await enrichThreadSummaries(actor, [thread]))[0] || thread;
     return sendJson(res, 200, {
       ok: true,
       schema: "footballscience-chat-database-v1",
       mode: "database",
       scope,
       thread: responseThread,
-      threads: [responseThread],
+      threads: threadSummaries.length ? threadSummaries : [responseThread],
       messages: enrichedMessages,
       nextCursor,
     });
@@ -2105,7 +2233,9 @@ async function handleDatabaseGet(req, res, actor) {
     }
     return String(first.title || "").localeCompare(String(second.title || ""), undefined, { sensitivity: "base" });
   });
-  const threadSummaries = (await enrichThreadSummaries(actor, threads)).filter(shouldShowThreadForActor);
+  const threadSummaries = combineLogicalThreadSummaries(
+    (await enrichThreadSummaries(actor, threads)).filter(shouldShowThreadForActor)
+  );
   return sendJson(res, 200, {
     ok: true,
     schema: "footballscience-chat-database-v1",
@@ -2733,7 +2863,7 @@ async function archiveThread(actor, body) {
     return { ok: false, status: 400, reason: "threadId is required." };
   }
 
-  const thread = await readThread(threadId);
+  const thread = await resolveThreadForAction(actor, body, { createIfMissing: false });
   const access = await ensureThreadAccess(actor, thread, { manager: true });
   if (!access.ok) {
     return access;
@@ -2743,14 +2873,30 @@ async function archiveThread(actor, body) {
   }
 
   const now = new Date().toISOString();
-  const [updatedThread] = await patchRows("chat_threads", `id=eq.${filterValue(thread.id)}`, {
-    archived_at: now,
-    metadata: {
-      ...(isPlainObject(thread.metadata) ? thread.metadata : {}),
-      archivedBy: actor.id || "",
-      archivedAt: now,
-    },
+  const scope = await resolveChatScope(actor, {
+    organizationId: thread.organization_id,
+    teamId: thread.team_id || body.teamId || body.team_id,
   });
+  const targetThreads = await readAccessibleLogicalThreads(actor, scope, thread, threadId);
+  const archivedThreads = [];
+  for (const targetThread of targetThreads) {
+    const targetAccess = await ensureThreadAccess(actor, targetThread, { manager: true }).catch(() => ({ ok: false }));
+    if (!targetAccess.ok || targetThread?.type !== "group") {
+      continue;
+    }
+    const [updatedThread] = await patchRows("chat_threads", `id=eq.${filterValue(targetThread.id)}`, {
+      archived_at: now,
+      metadata: {
+        ...(isPlainObject(targetThread.metadata) ? targetThread.metadata : {}),
+        archivedBy: actor.id || "",
+        archivedAt: now,
+      },
+    });
+    archivedThreads.push(updatedThread || { ...targetThread, archived_at: now });
+  }
+  if (!archivedThreads.length) {
+    return { ok: false, status: 403, reason: "Chat manager access required." };
+  }
   const audit = await insertAudit(actor, "archiveThread", {
     organization_id: thread.organization_id,
     team_id: thread.team_id,
@@ -2758,9 +2904,10 @@ async function archiveThread(actor, body) {
   }, {
     title: thread.title,
     type: thread.type,
+    logicalThreadSourceIds: archivedThreads.map((archivedThread) => archivedThread.id).filter(Boolean),
   });
 
-  return { ok: true, action: "archiveThread", thread: updatedThread || { ...thread, archived_at: now }, auditId: audit?.id || "" };
+  return { ok: true, action: "archiveThread", thread: archivedThreads[0], auditId: audit?.id || "" };
 }
 
 async function setThreadUserState(actor, body) {
@@ -2785,49 +2932,64 @@ async function setThreadUserState(actor, body) {
   }
 
   const now = new Date().toISOString();
-  const participant = await ensureActorThreadParticipant(actor, thread);
-  if (!participant) {
+  const scope = await resolveChatScope(actor, {
+    organizationId: thread.organization_id,
+    teamId: thread.team_id || body.teamId || body.team_id,
+  });
+  const targetThreads = await readAccessibleLogicalThreads(actor, scope, thread, threadId);
+  const targetThreadIds = [];
+  const participants = [];
+  for (const targetThread of targetThreads) {
+    const participant = await ensureActorThreadParticipant(actor, targetThread);
+    if (participant) {
+      participants.push({ thread: targetThread, participant });
+      targetThreadIds.push(targetThread.id);
+    }
+  }
+  if (!participants.length) {
     return { ok: false, status: 403, reason: "You do not have access to this chat thread." };
   }
 
   let blockedUserId = normalizeId(body.blockedUserId || body.blocked_user_id || "");
   if (operation === "block" && !blockedUserId) {
-    const participants = await readThreadParticipantRows([thread.id]);
-    blockedUserId = normalizeId(participants.find((row) => row.user_id && row.user_id !== actor.id)?.user_id || "");
+    const rows = await readThreadParticipantRows(targetThreadIds.length ? targetThreadIds : [thread.id]);
+    blockedUserId = normalizeId(rows.find((row) => row.user_id && row.user_id !== actor.id)?.user_id || "");
   }
 
-  const metadata = stripEmptyThreadUserState(participant.metadata);
-  if (operation === "archive") {
-    metadata.archivedAt = now;
-  } else if (operation === "unarchive") {
-    delete metadata.archivedAt;
-  } else if (operation === "hide") {
-    metadata.hiddenAt = now;
-  } else if (operation === "delete") {
-    metadata.deletedForUserAt = now;
-    delete metadata.archivedAt;
-    delete metadata.hiddenAt;
-  } else if (operation === "block") {
-    metadata.blockedAt = now;
-    metadata.blockedUserId = blockedUserId;
-  } else if (operation === "unblock") {
-    delete metadata.blockedAt;
-    delete metadata.blockedUserId;
-  } else if (operation === "restore") {
-    delete metadata.archivedAt;
-    delete metadata.hiddenAt;
-    delete metadata.deletedForUserAt;
-    delete metadata.blockedAt;
-    delete metadata.blockedUserId;
-  }
-  metadata.userStateUpdatedAt = now;
-  metadata.userStateUpdatedBy = actor.id || "";
+  for (const { thread: targetThread, participant } of participants) {
+    const metadata = stripEmptyThreadUserState(participant.metadata);
+    if (operation === "archive") {
+      metadata.archivedAt = now;
+    } else if (operation === "unarchive") {
+      delete metadata.archivedAt;
+    } else if (operation === "hide") {
+      metadata.hiddenAt = now;
+    } else if (operation === "delete") {
+      metadata.deletedForUserAt = now;
+      delete metadata.archivedAt;
+      delete metadata.hiddenAt;
+    } else if (operation === "block") {
+      metadata.blockedAt = now;
+      metadata.blockedUserId = blockedUserId;
+    } else if (operation === "unblock") {
+      delete metadata.blockedAt;
+      delete metadata.blockedUserId;
+    } else if (operation === "restore") {
+      delete metadata.archivedAt;
+      delete metadata.hiddenAt;
+      delete metadata.deletedForUserAt;
+      delete metadata.blockedAt;
+      delete metadata.blockedUserId;
+    }
+    metadata.userStateUpdatedAt = now;
+    metadata.userStateUpdatedBy = actor.id || "";
 
-  await patchRows(
-    "chat_thread_participants",
-    `thread_id=eq.${filterValue(thread.id)}&user_id=eq.${filterValue(actor.id)}`,
-    { metadata }
-  );
+    await patchRows(
+      "chat_thread_participants",
+      `thread_id=eq.${filterValue(targetThread.id)}&user_id=eq.${filterValue(actor.id)}`,
+      { metadata }
+    );
+  }
 
   const audit = await insertAudit(actor, "setThreadUserState", {
     organization_id: thread.organization_id,
@@ -2836,8 +2998,9 @@ async function setThreadUserState(actor, body) {
   }, {
     operation,
     blockedUserId: operation === "block" ? blockedUserId : "",
+    logicalThreadSourceIds: targetThreadIds,
   });
-  const [threadSummary] = await enrichThreadSummaries(actor, [thread]);
+  const [threadSummary] = combineLogicalThreadSummaries(await enrichThreadSummaries(actor, targetThreads));
   return { ok: true, action: "setThreadUserState", thread: threadSummary || thread, auditId: audit?.id || "" };
 }
 

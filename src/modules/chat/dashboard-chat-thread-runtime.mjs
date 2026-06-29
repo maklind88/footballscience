@@ -1,6 +1,6 @@
 export function createDashboardChatThreadRuntime(dependencies = {}) {
   const {
-    dashboardChatAdvancedThreadTemplates = () => [],
+    dashboardChatAdvancedThreadTemplates = [],
     dashboardChatTeamThreadId = "team",
     dashboardChatThreadSettings = null,
     getCurrentPlatformUser = () => null,
@@ -23,6 +23,11 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     dashboardNotificationSeenStorageKey = "football-dashboard-notification-seen-v1",
     formatUserName = () => "Unknown",
   } = dependencies;
+  const advancedThreadTemplates = Array.isArray(dashboardChatAdvancedThreadTemplates)
+    ? dashboardChatAdvancedThreadTemplates
+    : typeof dashboardChatAdvancedThreadTemplates === "function"
+      ? dashboardChatAdvancedThreadTemplates()
+      : [];
 
   function getDashboardChatThreadMessages(messages = readDashboardMessages(), threadId = dashboardChatTeamThreadId) {
     const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
@@ -63,7 +68,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
   ) {
     const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
     const isTeamThread = normalizedThreadId === dashboardChatTeamThreadId;
-    const isManagedThread = dashboardChatAdvancedThreadTemplates.some((template) => template.key === normalizedThreadId);
+    const isManagedThread = advancedThreadTemplates.some((template) => template.key === normalizedThreadId);
     const isGroupThread = normalizedThreadId.startsWith("group-") || normalizedThreadId.startsWith("group:");
     const participants = isTeamThread || isManagedThread
       ? []
@@ -100,7 +105,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
         )
       : getDashboardChatEmptyThreadActivityMs(apiThread, threadSettings);
 
-    const managedTemplate = dashboardChatAdvancedThreadTemplates.find((template) => template.key === normalizedThreadId);
+    const managedTemplate = advancedThreadTemplates.find((template) => template.key === normalizedThreadId);
     const isDirectThread = !isTeamThread && !isManagedThread && normalizedThreadId.startsWith("dm:");
     const fallbackThreadLabel = formatDashboardChatThreadLabel(normalizedThreadId, currentUser, users);
     const apiThreadTitle = String(apiThread?.title || "").trim();
@@ -142,6 +147,10 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
           (currentParticipantRole === "owner" || ["admin", "club-admin", "team-admin", "coach"].includes(currentUserRole)))
     );
     const permissions = {
+      canArchiveForMe: !isTeamThread,
+      canDeleteForMe: !isTeamThread,
+      canBlock: isDirectThread,
+      canLeave: isGroupLikeThread,
       ...(apiThread?.permissions || {}),
       ...(canManageParticipants ? { canManageParticipants: true } : {}),
     };
@@ -189,7 +198,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
       selectedThreadId && (selectedThreadId.startsWith("group-") || selectedThreadId.startsWith("group:")) ? [selectedThreadId] : [];
     const advancedThreadIds = Array.from(
       new Set([
-        ...dashboardChatAdvancedThreadTemplates.map((template) => template.key),
+        ...advancedThreadTemplates.map((template) => template.key),
         ...selectedGroupThreadIds,
         ...apiThreads
           .filter((thread) => thread.threadId !== dashboardChatTeamThreadId && !String(thread.threadId).startsWith("dm:"))

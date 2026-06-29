@@ -547,10 +547,19 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     const payload = result.result || {};
     const payloadMessages = Array.isArray(payload.messages) ? payload.messages : [];
     const payloadThread = payload.thread || null;
+    const payloadThreadMessageCount = Number(payloadThread?.messageCount || payloadThread?.message_count || 0) || 0;
+    const requestedMessageLimit = Math.max(1, Number(options.limit || dashboardChatApiPageLimit) || dashboardChatApiPageLimit);
+    const expectedInitialPayloadCount = payloadThreadMessageCount
+      ? Math.min(payloadThreadMessageCount, requestedMessageLimit)
+      : 0;
+    const payloadHasCompleteInitialHistory = Boolean(
+      payloadMessages.length &&
+        (!expectedInitialPayloadCount || payloadMessages.length >= expectedInitialPayloadCount)
+    );
     const payloadThreadHasServerActivity = Boolean(
       payloadThread &&
         (
-          Number(payloadThread.messageCount || payloadThread.message_count || 0) > 0 ||
+          payloadThreadMessageCount > 0 ||
           payloadThread.lastMessage ||
           payloadThread.last_message ||
           payloadThread.lastMessageId ||
@@ -565,7 +574,7 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       replaceThread: !options.cursor && !options.search,
     });
 
-    if (payloadMessages.length || !payloadThreadHasServerActivity || options.cursor || options.search) {
+    if (payloadHasCompleteInitialHistory || !payloadThreadHasServerActivity || options.cursor || options.search) {
       markThreadHydrated(threadId);
     } else {
       unmarkThreadHydrated(threadId);

@@ -531,6 +531,12 @@ test("database chat coalesces duplicate legacy threads for logical conversation 
   expect(chatDatabaseSource).toContain("thread_id=${inFilter(logicalThreadIds)}");
   expect(chatDatabaseSource).toContain("filterMessagesForActorByThread(actor, messages, threadsById)");
   expect(chatDatabaseSource).toContain("logicalThreadSourceIds");
+  expect(chatDatabaseSource).toContain("function withDetailResponseMessageCount");
+  expect(chatDatabaseSource).toContain("rawMessageCount: messages.length");
+  expect(chatDatabaseSource).toContain("visibleMessageCount: enrichedMessages.length");
+  expect(chatDatabaseSource).toContain("threads: responseThreads");
+  expect(chatDatabaseSource).toContain("historyComplete: exhaustedInitialPage");
+  expect(chatDomainSource).toContain("historyComplete: Boolean");
 });
 
 test("custom database groups keep their own title instead of managed room templates", () => {

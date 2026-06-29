@@ -488,6 +488,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       lastMessage,
       lastMessageId,
       lastMessagePreview: String(thread.lastMessagePreview || thread.last_message_preview || "").trim(),
+      historyComplete: Boolean(thread.historyComplete || thread.history_complete || thread.metadata?.historyComplete || thread.metadata?.history_complete),
       participants: Array.isArray(thread.participants)
         ? thread.participants.map(normalizeDashboardApiParticipant).filter(Boolean)
         : [],

@@ -1112,6 +1112,30 @@ function combineLogicalThreadSummaries(summaries = []) {
   return Array.from(byLogicalThread.values()).sort((first, second) => threadSummaryTime(second) - threadSummaryTime(first));
 }
 
+function getThreadSummaryMessageCount(thread = {}) {
+  return Number(thread?.messageCount || thread?.message_count || 0) || 0;
+}
+
+function withDetailResponseMessageCount(thread = {}, options = {}) {
+  const requestedLimit = Math.max(1, Number(options.requestedLimit || PAGE_SIZE_DEFAULT) || PAGE_SIZE_DEFAULT);
+  const rawMessageCount = Math.max(0, Number(options.rawMessageCount || 0) || 0);
+  const visibleMessageCount = Math.max(0, Number(options.visibleMessageCount || 0) || 0);
+  const summaryMessageCount = getThreadSummaryMessageCount(thread);
+  const hasMoreHistory = Boolean(options.nextCursor);
+  const exhaustedInitialPage = !hasMoreHistory && rawMessageCount < requestedLimit;
+  const messageCount = exhaustedInitialPage
+    ? visibleMessageCount
+    : Math.max(summaryMessageCount, visibleMessageCount);
+
+  return {
+    ...thread,
+    messageCount,
+    message_count: messageCount,
+    historyComplete: exhaustedInitialPage || Boolean(thread?.historyComplete || thread?.history_complete),
+    history_complete: exhaustedInitialPage || Boolean(thread?.historyComplete || thread?.history_complete),
+  };
+}
+
 async function readAccessibleLogicalThreads(actor, scope, thread, requestedThreadId = "") {
   if (!thread?.id) {
     return [];
@@ -2166,14 +2190,25 @@ async function handleDatabaseGet(req, res, actor) {
     const threadSummaries = combineLogicalThreadSummaries(
       (await enrichThreadSummaries(actor, activeThreads)).filter(shouldShowThreadForActor)
     );
-    const responseThread = threadSummaries[0] || (await enrichThreadSummaries(actor, [thread]))[0] || thread;
+    const responseThread = withDetailResponseMessageCount(
+      threadSummaries[0] || (await enrichThreadSummaries(actor, [thread]))[0] || thread,
+      {
+        requestedLimit: limit,
+        rawMessageCount: messages.length,
+        visibleMessageCount: enrichedMessages.length,
+        nextCursor,
+      }
+    );
+    const responseThreads = threadSummaries.length
+      ? [responseThread, ...threadSummaries.slice(1)]
+      : [responseThread];
     return sendJson(res, 200, {
       ok: true,
       schema: "footballscience-chat-database-v1",
       mode: "database",
       scope,
       thread: responseThread,
-      threads: threadSummaries.length ? threadSummaries : [responseThread],
+      threads: responseThreads,
       messages: enrichedMessages,
       nextCursor,
     });

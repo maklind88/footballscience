@@ -994,8 +994,10 @@ test("chat API runtime keeps active thread unhydrated when history payload is em
   expect(rendered).toBe(1);
 });
 
-test("chat API runtime keeps active thread unhydrated when payload is smaller than reported history", async () => {
+test("chat API runtime preserves cached history when payload is smaller than reported history", async () => {
   const hydratedThreadIds = new Set();
+  let pagination = {};
+  const mergeCalls = [];
   const runtime = createDashboardChatApiRuntime({
     fetchDashboardChatApi: async () => ({
       ok: true,
@@ -1024,14 +1026,170 @@ test("chat API runtime keeps active thread unhydrated when payload is smaller th
       hydratedThreadIds.clear();
       Array.from(nextValue || []).forEach((value) => hydratedThreadIds.add(value));
     },
-    mergeDashboardChatApiMessages: (messages) => messages,
+    getDashboardApiPagination: () => pagination,
+    setDashboardApiPagination: (nextValue) => {
+      pagination = nextValue;
+    },
+    mergeDashboardChatApiMessages: (messages, options) => {
+      mergeCalls.push({ messages, options });
+      return messages;
+    },
+    renderDashboardChatWidget: () => {},
+  });
+
+  const result = await runtime.refreshDashboardChatFromApi({ threadId: "team", limit: 40, autoLoadOlder: false });
+
+  expect(result.ok).toBe(true);
+  expect(hydratedThreadIds.has("team")).toBe(false);
+  expect(pagination.team).toBe("2026-06-26T20:00:00.000Z");
+  expect(mergeCalls).toEqual([
+    expect.objectContaining({
+      messages: [expect.objectContaining({ id: "msg-only-visible" })],
+      options: expect.objectContaining({
+        keepThread: true,
+        replaceThreadId: "team",
+      }),
+    }),
+  ]);
+});
+
+test("chat API runtime auto-loads the older page when initial history is shorter than the thread count", async () => {
+  const hydratedThreadIds = new Set();
+  const fetchQueries = [];
+  const mergeCalls = [];
+  const runtime = createDashboardChatApiRuntime({
+    fetchDashboardChatApi: async (query) => {
+      fetchQueries.push(query);
+      if (query.cursor) {
+        return {
+          ok: true,
+          status: 200,
+          result: {
+            thread: {
+              threadId: "team",
+              type: "team",
+              messageCount: 7,
+              lastMessageAt: "2026-06-26T20:00:00.000Z",
+            },
+            messages: [
+              {
+                id: "msg-earlier-one",
+                threadId: "team",
+                text: "Earlier one",
+                userId: "coach-qa",
+                createdAt: "2026-06-26T19:58:00.000Z",
+              },
+              {
+                id: "msg-earlier-two",
+                threadId: "team",
+                text: "Earlier two",
+                userId: "coach-qa",
+                createdAt: "2026-06-26T19:59:00.000Z",
+              },
+            ],
+            nextCursor: "",
+          },
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        result: {
+          thread: {
+            threadId: "team",
+            type: "team",
+            messageCount: 7,
+            lastMessageAt: "2026-06-26T20:00:00.000Z",
+          },
+          messages: [
+            {
+              id: "msg-only-visible",
+              threadId: "team",
+              text: "Only one payload row",
+              userId: "coach-qa",
+              createdAt: "2026-06-26T20:00:00.000Z",
+            },
+          ],
+        },
+      };
+    },
+    getDashboardChatCurrentViewState: () => ({ isOpen: true, selectedThreadId: "team" }),
+    getDashboardHydratedThreadIds: () => hydratedThreadIds,
+    setDashboardHydratedThreadIds: (nextValue) => {
+      hydratedThreadIds.clear();
+      Array.from(nextValue || []).forEach((value) => hydratedThreadIds.add(value));
+    },
+    mergeDashboardChatApiMessages: (messages, options) => {
+      mergeCalls.push({ messages, options });
+      return messages;
+    },
     renderDashboardChatWidget: () => {},
   });
 
   const result = await runtime.refreshDashboardChatFromApi({ threadId: "team", limit: 40 });
 
   expect(result.ok).toBe(true);
-  expect(hydratedThreadIds.has("team")).toBe(false);
+  expect(result.recoveredOlderHistory).toBe(true);
+  expect(fetchQueries).toEqual([
+    expect.objectContaining({ threadId: "team", limit: 40 }),
+    expect.objectContaining({ threadId: "team", cursor: "2026-06-26T20:00:00.000Z" }),
+  ]);
+  expect(mergeCalls[0]).toEqual(expect.objectContaining({
+    messages: [expect.objectContaining({ id: "msg-only-visible" })],
+    options: expect.objectContaining({ keepThread: true, replaceThreadId: "team" }),
+  }));
+  expect(mergeCalls[1]).toEqual(expect.objectContaining({
+    messages: [
+      expect.objectContaining({ id: "msg-earlier-one" }),
+      expect.objectContaining({ id: "msg-earlier-two" }),
+    ],
+  }));
+  expect(hydratedThreadIds.has("team")).toBe(true);
+});
+
+test("chat API runtime keeps verified exhausted history count over stale summaries", () => {
+  let apiThreads = [
+    {
+      threadId: "team",
+      type: "team",
+      messageCount: 1,
+      lastMessageId: "msg-only-visible",
+      lastMessageAt: "2026-06-26T20:00:00.000Z",
+      historyComplete: true,
+    },
+  ];
+  const runtime = createDashboardChatApiRuntime({
+    getDashboardApiThreads: () => apiThreads,
+    setDashboardApiThreads: (nextThreads) => {
+      apiThreads = nextThreads;
+    },
+    getDashboardChatCurrentViewState: () => ({ isOpen: true, selectedThreadId: "team" }),
+    getDashboardMessages: () => [{ id: "msg-only-visible", threadId: "team", text: "Only one visible", userId: "coach-qa" }],
+    normalizeDashboardApiThread: (thread) => ({
+      ...thread,
+      threadId: thread.threadId || "team",
+      messageCount: Number(thread.messageCount || thread.message_count || 0) || 0,
+      lastMessageId: thread.lastMessageId || thread.last_message_id || "",
+      lastMessageAt: thread.lastMessageAt || thread.last_message_at || "",
+      historyComplete: Boolean(thread.historyComplete || thread.history_complete),
+      participants: [],
+      permissions: {},
+      settings: {},
+    }),
+  });
+
+  runtime.applyDashboardChatApiPayload({
+    threads: [{
+      threadId: "team",
+      type: "team",
+      messageCount: 7,
+      lastMessageId: "msg-only-visible",
+      lastMessageAt: "2026-06-26T20:00:00.000Z",
+    }],
+  }, { replaceThreadList: true });
+
+  expect(apiThreads[0].messageCount).toBe(1);
+  expect(apiThreads[0].historyComplete).toBe(true);
 });
 
 test("chat summary seeds active server last message while full thread history hydrates", async () => {

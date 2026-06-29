@@ -177,6 +177,25 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     setDashboardApiPagination(nextPagination && typeof nextPagination === "object" && !Array.isArray(nextPagination) ? nextPagination : {});
   }
 
+  function getOldestPayloadMessageCursor(messages = []) {
+    let oldestCursor = "";
+    let oldestMs = Number.POSITIVE_INFINITY;
+    (Array.isArray(messages) ? messages : []).forEach((message) => {
+      const cursor = String(message?.createdAt || message?.created_at || "").trim();
+      if (!cursor) {
+        return;
+      }
+      const cursorMs = Date.parse(cursor);
+      if (Number.isFinite(cursorMs) && cursorMs < oldestMs) {
+        oldestMs = cursorMs;
+        oldestCursor = cursor;
+      } else if (!oldestCursor) {
+        oldestCursor = cursor;
+      }
+    });
+    return oldestCursor;
+  }
+
   function getThreadSummarySyncTimer() {
     const value = Number(getDashboardChatApiThreadSummarySyncTimer?.() || 0);
     return Number.isFinite(value) ? value : 0;
@@ -317,22 +336,40 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
         byId.delete(thread.threadId);
       } else {
         const existingThread = existingById.get(thread.threadId) || null;
-        byId.set(thread.threadId, existingThread
-          ? {
-              ...existingThread,
-              ...thread,
-              createdAt: thread.createdAt || existingThread.createdAt || "",
-              lastMessageAt: thread.lastMessageAt || existingThread.lastMessageAt || "",
-              lastReadAt: thread.lastReadAt || existingThread.lastReadAt || "",
-              participants: Array.isArray(thread.participants) && thread.participants.length
-                ? thread.participants
-                : existingThread.participants || [],
-              permissions: Object.keys(thread.permissions || {}).length
-                ? thread.permissions
-                : existingThread.permissions || {},
-              settings: Object.keys(thread.settings || {}).length ? thread.settings : existingThread.settings || {},
-            }
-          : thread);
+        if (!existingThread) {
+          byId.set(thread.threadId, thread);
+          return;
+        }
+
+        const sameLastMessage = Boolean(
+          (thread.lastMessageId && existingThread.lastMessageId && thread.lastMessageId === existingThread.lastMessageId) ||
+            (thread.lastMessageAt && existingThread.lastMessageAt && thread.lastMessageAt === existingThread.lastMessageAt)
+        );
+        const keepVerifiedMessageCount = Boolean(
+          existingThread.historyComplete &&
+            !thread.historyComplete &&
+            sameLastMessage &&
+            Number(existingThread.messageCount || 0) < Number(thread.messageCount || 0)
+        );
+        const nextThread = {
+          ...existingThread,
+          ...thread,
+          createdAt: thread.createdAt || existingThread.createdAt || "",
+          lastMessageAt: thread.lastMessageAt || existingThread.lastMessageAt || "",
+          lastReadAt: thread.lastReadAt || existingThread.lastReadAt || "",
+          participants: Array.isArray(thread.participants) && thread.participants.length
+            ? thread.participants
+            : existingThread.participants || [],
+          permissions: Object.keys(thread.permissions || {}).length
+            ? thread.permissions
+            : existingThread.permissions || {},
+          settings: Object.keys(thread.settings || {}).length ? thread.settings : existingThread.settings || {},
+          historyComplete: Boolean(thread.historyComplete || (existingThread.historyComplete && sameLastMessage)),
+        };
+        if (keepVerifiedMessageCount) {
+          nextThread.messageCount = existingThread.messageCount;
+        }
+        byId.set(thread.threadId, nextThread);
       }
     });
     setApiThreads(Array.from(byId.values()).filter((thread) => !isArchivedApiThread(thread)));
@@ -400,14 +437,15 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       updateDashboardChatApiThreads([payload.thread]);
     }
 
-    if (payload.nextCursor !== undefined) {
+    if (payload.nextCursor !== undefined || options.nextCursorFallback !== undefined) {
+      const cursorValue = payload.nextCursor !== undefined ? payload.nextCursor : options.nextCursorFallback;
       const threadId = normalizeDashboardChatThreadId(
         options.threadId || payload.thread?.threadId || payload.thread?.legacyThreadId || payload.thread?.metadata?.legacyThreadId || dashboardChatTeamThreadId,
         dashboardChatTeamThreadId
       );
       const nextPagination = {
         ...getPagination(),
-        [threadId]: String(payload.nextCursor || ""),
+        [threadId]: String(cursorValue || ""),
       };
       setPagination(nextPagination);
     }
@@ -419,7 +457,7 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       mergeDashboardChatApiMessages(payload.messages, {
         render: false,
         thread: payloadThread,
-        keepThread: Boolean(payload.nextCursor),
+        keepThread: Boolean(payload.nextCursor || options.keepThread),
         replaceThreadId: options.replaceThread
           ? options.threadId || payloadThread?.threadId || payloadThread?.legacyThreadId || payloadThread?.metadata?.legacyThreadId
           : "",
@@ -552,6 +590,16 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     const expectedInitialPayloadCount = payloadThreadMessageCount
       ? Math.min(payloadThreadMessageCount, requestedMessageLimit)
       : 0;
+    const payloadHasIncompleteInitialHistory = Boolean(
+      !options.cursor &&
+        !options.search &&
+        payloadMessages.length &&
+        expectedInitialPayloadCount &&
+        payloadMessages.length < expectedInitialPayloadCount
+    );
+    const recoveryCursor = payloadHasIncompleteInitialHistory
+      ? String(payload.nextCursor || getOldestPayloadMessageCursor(payloadMessages) || "").trim()
+      : "";
     const payloadHasCompleteInitialHistory = Boolean(
       payloadMessages.length &&
         (!expectedInitialPayloadCount || payloadMessages.length >= expectedInitialPayloadCount)
@@ -572,6 +620,8 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     applyDashboardChatApiPayload(payload, {
       threadId,
       replaceThread: !options.cursor && !options.search,
+      keepThread: payloadHasIncompleteInitialHistory,
+      nextCursorFallback: payloadHasIncompleteInitialHistory && payload.nextCursor === undefined ? recoveryCursor : undefined,
     });
 
     if (payloadHasCompleteInitialHistory || !payloadThreadHasServerActivity || options.cursor || options.search) {
@@ -580,6 +630,19 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       unmarkThreadHydrated(threadId);
     }
     renderDashboardChatWidget();
+    if (recoveryCursor && options.autoLoadOlder !== false) {
+      const recoveryResult = await refreshDashboardChatFromApi({
+        threadId,
+        cursor: recoveryCursor,
+        forceNetwork: options.forceNetwork,
+        autoLoadOlder: false,
+      });
+      return {
+        ...result,
+        recoveredOlderHistory: Boolean(recoveryResult?.ok),
+        olderResult: recoveryResult,
+      };
+    }
     return result;
   }
 

@@ -379,10 +379,11 @@ export function createIdpActions({ store, api, context = {} }) {
   }
 
   async function checkForExternalUpdates() {
-    if (store.getState().ui.loading) return false;
+    const currentState = store.getState();
+    if (currentState.ui.loading || currentState.ui.playerBoardOpen) return false;
     const payload = await api.loadSync();
     const nextSync = normalizeSyncPayload(payload);
-    const currentRevision = normalizeText(store.getState().sync?.revision, 120);
+    const currentRevision = normalizeText(currentState.sync?.revision, 120);
     if (!nextSync.revision || !currentRevision) {
       store.setState({ sync: nextSync });
       return false;

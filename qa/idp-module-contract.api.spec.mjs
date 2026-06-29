@@ -1106,6 +1106,64 @@ test("idp sync refreshes overview and selected player after an external central 
   expect(state.playerDetail.reviews[0].progressSummary).toBe("Updated by another coach");
 });
 
+test("idp sync does not close the player board editor while an exercise is being edited", async () => {
+  const squadPlayers = [
+    {
+      id: "p1",
+      name: "Kailen Sheridan",
+      position: "Goalkeeper",
+      primaryRole: "GK",
+      idp: { primaryFocus: "Distribution under pressure" },
+    },
+  ];
+  const store = createIdpStore({
+    ui: {
+      selectedPlayerId: "p1",
+      profileView: "player-board",
+      playerBoardOpen: true,
+      playerBoardInterventionId: "intervention-1",
+    },
+    playerDetail: buildLegacyPlayerDetail(squadPlayers[0]),
+    sync: { revision: "2026-06-15T10:00:00.000Z" },
+  });
+  let syncLoads = 0;
+  let dashboardLoads = 0;
+  let playerLoads = 0;
+  const actions = createIdpActions({
+    store,
+    api: {
+      loadSync: async () => {
+        syncLoads += 1;
+        return {
+          schema: "footballscience-idp-v1",
+          sync: { revision: "2026-06-15T10:05:00.000Z", updatedAt: "2026-06-15T10:05:00.000Z" },
+        };
+      },
+      loadDashboard: async () => {
+        dashboardLoads += 1;
+        return { schema: "footballscience-idp-v1", players: [] };
+      },
+      loadPlayer: async () => {
+        playerLoads += 1;
+        return { schema: "footballscience-idp-v1" };
+      },
+    },
+    context: { getPlayerProfilesState: () => ({ players: squadPlayers }) },
+  });
+
+  await expect(actions.checkForExternalUpdates()).resolves.toBe(false);
+
+  expect(syncLoads).toBe(0);
+  expect(dashboardLoads).toBe(0);
+  expect(playerLoads).toBe(0);
+  expect(store.getState().ui).toMatchObject({
+    selectedPlayerId: "p1",
+    profileView: "player-board",
+    playerBoardOpen: true,
+    playerBoardInterventionId: "intervention-1",
+  });
+});
+
 test("idp profile shows Squad-owned inactive IDP status", async () => {
   const injuredPlayer = {
     id: "p-injured",

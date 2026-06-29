@@ -115,6 +115,30 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     if (empty) empty.hidden = visibleCount !== 0;
   };
 
+  const filterMedicalRtpExerciseCatalog = () => {
+    const catalog = queryWorkspace(workspaceElement, "[data-medical-rtp-exercise-catalog]");
+    if (!catalog) return;
+    const query = String(catalog.querySelector("[data-medical-rtp-exercise-search]")?.value || "").trim().toLowerCase();
+    const filters = Array.from(catalog.querySelectorAll("[data-medical-rtp-exercise-filter]")).reduce((acc, control) => {
+      acc[control.dataset.medicalRtpExerciseFilter] = String(control.value || "all").toLowerCase();
+      return acc;
+    }, {});
+    let visibleCount = 0;
+    catalog.querySelectorAll("[data-medical-rtp-exercise]").forEach((card) => {
+      const matchesQuery = !query || String(card.dataset.search || "").toLowerCase().includes(query);
+      const matchesPhase = !filters.phase || filters.phase === "all" || String(card.dataset.phase || "").toLowerCase().includes(filters.phase);
+      const matchesTissue = !filters.tissue || filters.tissue === "all" || String(card.dataset.tissue || "").toLowerCase().includes(filters.tissue);
+      const matchesRisk = !filters.risk || filters.risk === "all" || String(card.dataset.risk || "").toLowerCase() === filters.risk;
+      const isVisible = matchesQuery && matchesPhase && matchesTissue && matchesRisk;
+      card.hidden = !isVisible;
+      visibleCount += isVisible ? 1 : 0;
+    });
+    const count = catalog.querySelector("[data-medical-rtp-exercise-count]");
+    if (count) count.textContent = String(visibleCount);
+    const empty = catalog.querySelector("[data-medical-rtp-exercise-empty]");
+    if (empty) empty.hidden = visibleCount !== 0;
+  };
+
   const closeMedicalRtpProfileModal = () => {
     queryWorkspaceAll(workspaceElement, "[data-medical-rtp-profile-modal]").forEach((modal) => {
       modal.hidden = true;
@@ -770,6 +794,10 @@ ${renderRtpExerciseCards(profile, 3)}
       filterMedicalRtpLibrary();
       return;
     }
+    if (event.target.closest("[data-medical-rtp-exercise-search]")) {
+      filterMedicalRtpExerciseCatalog();
+      return;
+    }
     const injuryPlanForm = event.target.closest("#medicalInjuryPlanForm");
     if (injuryPlanForm) {
       actions.persistMedicalInjuryPlanDraftFromForm?.(injuryPlanForm);
@@ -786,6 +814,10 @@ ${renderRtpExerciseCards(profile, 3)}
   const onChange = (event) => {
     if (event.target.closest("[data-medical-rtp-library-filter]")) {
       filterMedicalRtpLibrary();
+      return;
+    }
+    if (event.target.closest("[data-medical-rtp-exercise-filter]")) {
+      filterMedicalRtpExerciseCatalog();
       return;
     }
     const planRtpGuide = event.target.closest("[data-medical-plan-rtp-guide]");

@@ -5,6 +5,7 @@ import {
   medicalRtpLibraryFilterOptions,
   medicalRtpLibraryProfiles as defaultMedicalRtpLibraryProfiles,
 } from "./medical-rtp-library-data.mjs";
+import { createMedicalRtpExerciseCatalogRenderer } from "./medical-rtp-exercise-catalog-renderer.mjs";
 import { createMedicalRtpProgramWorkspaceRenderer } from "./medical-rtp-program-workspace-renderer.mjs";
 import { createMedicalRtpProgramRenderer } from "./medical-rtp-program-renderer.mjs";
 
@@ -84,6 +85,7 @@ ${renderTabs(activeTab, tabOptions, "medical-ops-tabs-top")}
     medicalClearanceRoles,
     medicalLoadGateOptions,
   });
+  const rtpExerciseCatalogRenderer = createMedicalRtpExerciseCatalogRenderer({ escapeHtml });
 
   const normalizeRtpCaseText = (value) =>
     String(value ?? "")
@@ -526,6 +528,7 @@ ${renderSelect("Movement plane", "movement", medicalRtpLibraryFilterOptions.move
 <span><strong data-medical-rtp-library-count>${profiles.length}</strong> guides visible</span>
 <span>Evidence and expert consensus are separated in every injury guide.</span>
 </div>
+${rtpExerciseCatalogRenderer.renderExerciseCatalog()}
 <div class="medical-rtp-profile-grid">
 ${profiles
   .map((profileItem) => {

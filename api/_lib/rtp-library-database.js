@@ -5,6 +5,7 @@ const { buildSupabaseKeyHeaders, readConfig } = require("./supabase-admin.js");
 const RTP_LIBRARY_SCHEMA = "footballscience-rtp-library-v1";
 const RTP_LIBRARY_WRITES_ENABLED = false;
 const MAX_LIBRARY_LIMIT = 250;
+const MAX_EXERCISE_LIMIT = 120;
 const READ_ROLES = new Set(["admin", "club-admin", "team-admin", "medical", "performance"]);
 
 let fallbackLibraryPromise = null;
@@ -158,6 +159,8 @@ function profileDetail(profile = {}) {
 }
 
 function exerciseItem(exercise = {}) {
+  const media = Array.isArray(exercise.media) ? exercise.media : [];
+  const thumbnail = exercise.thumbnail && typeof exercise.thumbnail === "object" ? exercise.thumbnail : null;
   return {
     id: normalizeId(exercise.id),
     name: normalizeText(exercise.name, 180),
@@ -180,6 +183,68 @@ function exerciseItem(exercise = {}) {
     performanceNotes: normalizeText(exercise.performanceNotes || exercise.performance_notes, 800),
     coachSafeLabel: normalizeText(exercise.coachSafeLabel || exercise.coach_safe_label, 120),
     evidenceRefs: normalizeArray(exercise.evidenceRefs || exercise.evidence_refs),
+    bodyRegions: normalizeArray(exercise.bodyRegions || exercise.body_regions),
+    symptomTags: normalizeArray(exercise.symptomTags || exercise.symptom_tags),
+    mechanismTags: normalizeArray(exercise.mechanismTags || exercise.mechanism_tags),
+    positionDemands: normalizeArray(exercise.positionDemands || exercise.position_demands),
+    clinicalTags: normalizeArray(exercise.clinicalTags || exercise.clinical_tags),
+    setup: normalizeText(exercise.setup, 900),
+    execution: normalizeText(exercise.execution, 900),
+    coachingCues: normalizeArray(exercise.coachingCues || exercise.coaching_cues),
+    qualityChecks: normalizeArray(exercise.qualityChecks || exercise.quality_checks),
+    commonErrors: normalizeArray(exercise.commonErrors || exercise.common_errors),
+    programBuilder:
+      exercise.programBuilder && typeof exercise.programBuilder === "object"
+        ? exercise.programBuilder
+        : exercise.program_builder && typeof exercise.program_builder === "object"
+          ? exercise.program_builder
+          : {},
+    mediaStatus: normalizeText(exercise.mediaStatus || exercise.media_status, 40) || "missing",
+    thumbnail: thumbnail || {
+      kind: exercise.thumbnail_storage_path || exercise.thumbnail_url ? "image" : exercise.diagram_key ? "diagram" : "",
+      storagePath: normalizeText(exercise.thumbnailStoragePath || exercise.thumbnail_storage_path, 500),
+      url: normalizeText(exercise.thumbnailUrl || exercise.thumbnail_url, 500),
+      diagramKey: normalizeText(exercise.diagramKey || exercise.diagram_key, 160),
+      altText: normalizeText(exercise.thumbnailAltText || `${exercise.name || "Exercise"} thumbnail`, 220),
+      status: normalizeText(exercise.mediaStatus || exercise.media_status, 40) || "missing",
+    },
+    media,
+    mediaSummary: {
+      total: media.length,
+      hasVideo: media.some((item) => item?.type === "video" || item?.mediaType === "video" || item?.media_type === "video"),
+      hasImage: media.some((item) => item?.type === "image" || item?.mediaType === "image" || item?.media_type === "image"),
+      hasDiagram: media.some((item) => item?.type === "diagram" || item?.mediaType === "diagram" || item?.media_type === "diagram") || Boolean(exercise.diagram_key),
+    },
+  };
+}
+
+function exerciseListItem(exercise = {}) {
+  const item = exerciseItem(exercise);
+  return {
+    id: item.id,
+    name: item.name,
+    family: item.family,
+    intent: item.intent,
+    tissueTypes: item.tissueTypes,
+    phases: item.phases,
+    movementPlanes: item.movementPlanes,
+    footballDemands: item.footballDemands,
+    equipment: item.equipment,
+    riskLevel: item.riskLevel,
+    evidenceLevel: item.evidenceLevel,
+    bodyRegions: item.bodyRegions,
+    mechanismTags: item.mechanismTags,
+    positionDemands: item.positionDemands,
+    programBuilder: {
+      phase: item.programBuilder?.phase || item.phases[0] || "",
+      loadFocus: normalizeText(item.programBuilder?.loadFocus, 260),
+      gateCriteria: normalizeArray(item.programBuilder?.gateCriteria).slice(0, 2),
+      nextExposure: normalizeText(item.programBuilder?.nextExposure, 260),
+      holdRules: normalizeArray(item.programBuilder?.holdRules).slice(0, 2),
+    },
+    mediaStatus: item.mediaStatus,
+    thumbnail: item.thumbnail,
+    mediaSummary: item.mediaSummary,
   };
 }
 
@@ -225,6 +290,54 @@ function summarizeExercises(exercises = []) {
     phases: Array.from(new Set(exercises.flatMap((item) => item.phases))).sort(),
     footballDemands: Array.from(new Set(exercises.flatMap((item) => item.footballDemands))).sort(),
   };
+}
+
+function getExerciseSearchText(exercise = {}) {
+  return [
+    exercise.id,
+    exercise.name,
+    exercise.family,
+    exercise.intent,
+    exercise.tissueTypes || exercise.tissue_types,
+    exercise.phases,
+    exercise.movementPlanes || exercise.movement_planes,
+    exercise.footballDemands || exercise.football_demands,
+    exercise.equipment,
+    exercise.riskLevel || exercise.risk_level,
+    exercise.evidenceLevel || exercise.evidence_level,
+    exercise.evidenceSummary || exercise.evidence_summary,
+    exercise.consensusNote || exercise.consensus_note,
+    exercise.bodyRegions || exercise.body_regions,
+    exercise.symptomTags || exercise.symptom_tags,
+    exercise.mechanismTags || exercise.mechanism_tags,
+    exercise.positionDemands || exercise.position_demands,
+    exercise.clinicalTags || exercise.clinical_tags,
+    exercise.setup,
+    exercise.execution,
+    exercise.coachingCues || exercise.coaching_cues,
+    exercise.qualityChecks || exercise.quality_checks,
+    exercise.commonErrors || exercise.common_errors,
+    exercise.programBuilder?.loadFocus || exercise.program_builder?.loadFocus,
+    exercise.programBuilder?.gateCriteria || exercise.program_builder?.gateCriteria,
+    exercise.programBuilder?.nextExposure || exercise.program_builder?.nextExposure,
+    exercise.programBuilder?.holdRules || exercise.program_builder?.holdRules,
+  ].flat().map((item) => normalizeText(item, 300).toLowerCase()).join(" ");
+}
+
+function filterExercises(exercises = [], query = {}) {
+  const search = normalizeText(query.q || query.search, 180).toLowerCase();
+  const phase = normalizeText(query.phase, 80).toLowerCase();
+  const tissue = normalizeText(query.tissue || query.tissueType || query.tissue_type, 80).toLowerCase();
+  const demand = normalizeText(query.demand || query.footballDemand || query.football_demand, 120).toLowerCase();
+  const risk = normalizeText(query.risk || query.riskLevel || query.risk_level, 80).toLowerCase();
+  return exercises.filter((exercise) => {
+    if (search && !getExerciseSearchText(exercise).includes(search)) return false;
+    if (phase && phase !== "all" && !normalizeArray(exercise.phases).some((item) => item.toLowerCase() === phase)) return false;
+    if (tissue && tissue !== "all" && !normalizeArray(exercise.tissueTypes || exercise.tissue_types).some((item) => item.toLowerCase() === tissue)) return false;
+    if (demand && demand !== "all" && !normalizeArray(exercise.footballDemands || exercise.football_demands).some((item) => item.toLowerCase().includes(demand))) return false;
+    if (risk && risk !== "all" && normalizeText(exercise.riskLevel || exercise.risk_level, 80).toLowerCase() !== risk) return false;
+    return true;
+  });
 }
 
 function buildFallbackProfileListResponse(fallback, query = {}, reason = "") {
@@ -328,6 +441,77 @@ async function getDatabaseExercisesForProfile(profileId = "") {
   };
 }
 
+const EXERCISE_LIST_SELECT = [
+  "id",
+  "status",
+  "name",
+  "family",
+  "intent",
+  "tissue_types",
+  "phases",
+  "movement_planes",
+  "football_demands",
+  "equipment",
+  "risk_level",
+  "evidence_level",
+  "body_regions",
+  "mechanism_tags",
+  "position_demands",
+  "program_builder",
+  "media_status",
+  "thumbnail_storage_path",
+  "thumbnail_url",
+  "diagram_key",
+  "sort_order",
+].join(",");
+
+async function getDatabaseExerciseCatalog(query = {}) {
+  const result = await dbRequest(`/rtp_library_exercises?select=${encodeURIComponent(EXERCISE_LIST_SELECT)}&status=eq.published&order=sort_order.asc,name.asc&limit=${asLimit(query.limit, MAX_EXERCISE_LIMIT)}`);
+  if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) {
+    return { ok: false, reason: result.reason || "RTP Exercise Bank database is empty.", status: result.status };
+  }
+  return {
+    ok: true,
+    exercises: filterExercises(result.data.map(exerciseListItem), query),
+  };
+}
+
+async function getDatabaseExercise(exerciseId = "") {
+  const normalizedExerciseId = normalizeId(exerciseId);
+  if (!normalizedExerciseId) {
+    return { ok: false, reason: "exerciseId is required.", status: 400 };
+  }
+  const result = await dbRequest(
+    `/rtp_library_exercises?select=*&id=eq.${encodeURIComponent(normalizedExerciseId)}&status=eq.published&limit=1`
+  );
+  if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) {
+    return { ok: false, reason: result.reason || "RTP exercise was not found.", status: result.status };
+  }
+  const media = await dbRequest(
+    `/rtp_library_exercise_media?select=*&exercise_id=eq.${encodeURIComponent(normalizedExerciseId)}&status=eq.published&order=sort_order.asc`
+  );
+  const mediaItems = media.ok && Array.isArray(media.data)
+    ? media.data.map((item) => ({
+        id: normalizeText(item.id, 120),
+        type: normalizeText(item.media_type, 40),
+        title: normalizeText(item.title, 180),
+        altText: normalizeText(item.alt_text, 240),
+        storageBucket: normalizeText(item.storage_bucket, 160),
+        storagePath: normalizeText(item.storage_path, 500),
+        externalUrl: normalizeText(item.external_url, 500),
+        posterStoragePath: normalizeText(item.poster_storage_path, 500),
+        posterUrl: normalizeText(item.poster_url, 500),
+        diagramKey: normalizeText(item.diagram_key, 160),
+        mimeType: normalizeText(item.mime_type, 120),
+        durationSeconds: Number.isFinite(Number(item.duration_seconds)) ? Number(item.duration_seconds) : null,
+      }))
+    : [];
+  return {
+    ok: true,
+    exercise: exerciseItem({ ...result.data[0].content, ...result.data[0], media: mediaItems }),
+  };
+}
+
 async function buildRtpLibraryProfilesResponse(actor = {}, query = {}) {
   if (!canReadRtpLibrary(actor)) {
     return {
@@ -417,8 +601,9 @@ async function buildRtpLibraryExercisesResponse(actor = {}, query = {}) {
   }
 
   const profileId = normalizeId(query.profileId || query.profile_id || query.id);
-  const database = profileId ? await getDatabaseExercisesForProfile(profileId) : { ok: false };
+  const database = profileId ? await getDatabaseExercisesForProfile(profileId) : await getDatabaseExerciseCatalog(query);
   if (database.ok && database.exercises.length) {
+    const exercises = filterExercises(database.exercises, query).slice(0, asLimit(query.limit, MAX_EXERCISE_LIMIT));
     return {
       ok: true,
       schema: RTP_LIBRARY_SCHEMA,
@@ -426,14 +611,17 @@ async function buildRtpLibraryExercisesResponse(actor = {}, query = {}) {
       source: "database",
       writesEnabled: RTP_LIBRARY_WRITES_ENABLED,
       profileId,
-      total: database.exercises.length,
-      exercises: database.exercises,
-      exerciseSummary: summarizeExercises(database.exercises),
+      total: exercises.length,
+      exercises: exercises.map(exerciseListItem),
+      exerciseSummary: summarizeExercises(exercises),
     };
   }
 
   const fallback = await loadFallbackLibrary();
-  const exercises = (profileId ? fallback.getExercisesForProfile?.(profileId) : fallback.exercises || []).map(exerciseItem);
+  const exercises = filterExercises(
+    (profileId ? fallback.getExercisesForProfile?.(profileId) : fallback.exercises || []).map(exerciseItem),
+    query
+  ).slice(0, asLimit(query.limit, MAX_EXERCISE_LIMIT));
   return {
     ok: true,
     schema: RTP_LIBRARY_SCHEMA,
@@ -443,8 +631,50 @@ async function buildRtpLibraryExercisesResponse(actor = {}, query = {}) {
     writesEnabled: RTP_LIBRARY_WRITES_ENABLED,
     profileId,
     total: exercises.length,
-    exercises,
+    exercises: exercises.map(exerciseListItem),
     exerciseSummary: summarizeExercises(exercises),
+  };
+}
+
+async function buildRtpLibraryExerciseResponse(actor = {}, query = {}) {
+  if (!canReadRtpLibrary(actor)) {
+    return {
+      ok: false,
+      status: 403,
+      reason: "RTP Library is visible to Medical, Performance and platform administrators.",
+    };
+  }
+
+  const exerciseId = normalizeId(query.exerciseId || query.exercise_id || query.id);
+  if (!exerciseId) {
+    return { ok: false, status: 400, reason: "exerciseId is required." };
+  }
+
+  const database = await getDatabaseExercise(exerciseId);
+  if (database.ok) {
+    return {
+      ok: true,
+      schema: RTP_LIBRARY_SCHEMA,
+      view: "library-exercise",
+      source: "database",
+      writesEnabled: RTP_LIBRARY_WRITES_ENABLED,
+      exercise: database.exercise,
+    };
+  }
+
+  const fallback = await loadFallbackLibrary();
+  const exercise = exerciseItem((fallback.exercises || []).find((item) => normalizeId(item.id) === exerciseId));
+  if (!exercise.id) {
+    return { ok: false, status: 404, reason: "RTP exercise was not found." };
+  }
+  return {
+    ok: true,
+    schema: RTP_LIBRARY_SCHEMA,
+    view: "library-exercise",
+    source: "module-fallback",
+    sourceReason: database.reason,
+    writesEnabled: RTP_LIBRARY_WRITES_ENABLED,
+    exercise,
   };
 }
 
@@ -459,12 +689,16 @@ async function buildRtpLibraryReadResponse(actor = {}, query = {}) {
   if (view === "library-exercises" || view === "rtp-library-exercises") {
     return buildRtpLibraryExercisesResponse(actor, query);
   }
+  if (view === "library-exercise" || view === "rtp-library-exercise") {
+    return buildRtpLibraryExerciseResponse(actor, query);
+  }
   return null;
 }
 
 module.exports = {
   RTP_LIBRARY_SCHEMA,
   RTP_LIBRARY_WRITES_ENABLED,
+  buildRtpLibraryExerciseResponse,
   buildRtpLibraryExercisesResponse,
   buildRtpLibraryProfileResponse,
   buildRtpLibraryProfilesResponse,

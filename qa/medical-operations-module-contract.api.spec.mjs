@@ -173,6 +173,15 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(rtpMarkup).toContain("Clinical search");
   expect(rtpMarkup).toContain("Movement plane");
   expect(rtpMarkup).toContain("RTP injury guides");
+  expect(rtpMarkup).toContain("RTP Exercise Bank");
+  expect(rtpMarkup).toContain("Professional exercise catalogue");
+  expect(rtpMarkup).toContain('data-medical-rtp-exercise-catalog');
+  expect(rtpMarkup).toContain('data-medical-rtp-exercise-search');
+  expect(rtpMarkup).toContain('data-medical-rtp-exercise-filter="tissue"');
+  expect(rtpMarkup).toContain('data-medical-rtp-exercise-filter="phase"');
+  expect(rtpMarkup).toContain('data-medical-rtp-exercise-filter="risk"');
+  expect(rtpMarkup).toContain("linked profiles");
+  expect(rtpMarkup).toContain("diagram placeholder");
   expect(rtpMarkup).toContain("Add injury guide");
   expect(rtpMarkup).toContain("Medical authoring");
   expect(rtpMarkup).toContain("Copy guide template");

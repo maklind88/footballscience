@@ -4018,6 +4018,218 @@ body.is-dark-mode .medical-modal-close {
   background: rgba(23, 100, 73, 0.04);
 }
 
+.medical-rtp-exercise-catalog {
+  display: grid;
+  gap: 0.72rem;
+  margin: 0.86rem 0 1rem;
+  padding: 0.86rem;
+  border: 1px solid rgba(23, 100, 73, 0.14);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(248, 252, 250, 0.96), rgba(239, 247, 244, 0.88));
+}
+
+.medical-rtp-exercise-catalog > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.medical-rtp-exercise-catalog > header div {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.medical-rtp-exercise-catalog > header span,
+.medical-rtp-exercise-controls span,
+.medical-rtp-exercise-catalog-card footer small {
+  color: #176449;
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-exercise-catalog > header strong {
+  color: #10231b;
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.medical-rtp-exercise-catalog > header small {
+  color: #556860;
+  font-size: 0.74rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.medical-rtp-exercise-catalog > header b {
+  flex: 0 0 auto;
+  padding: 0.32rem 0.58rem;
+  border-radius: 999px;
+  background: rgba(23, 100, 73, 0.11);
+  color: #176449;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.medical-rtp-exercise-controls {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1.4fr) repeat(3, minmax(8rem, 0.75fr));
+  gap: 0.5rem;
+}
+
+.medical-rtp-exercise-controls label {
+  display: grid;
+  gap: 0.24rem;
+}
+
+.medical-rtp-exercise-controls input,
+.medical-rtp-exercise-controls select {
+  width: 100%;
+  min-height: 2.7rem;
+  padding: 0.62rem 0.72rem;
+  border: 1px solid rgba(29, 31, 29, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #13251c;
+  font: inherit;
+  font-weight: 850;
+  outline: none;
+}
+
+.medical-rtp-exercise-controls input:focus,
+.medical-rtp-exercise-controls select:focus {
+  border-color: rgba(23, 100, 73, 0.58);
+  box-shadow: 0 0 0 3px rgba(23, 100, 73, 0.12);
+}
+
+.medical-rtp-exercise-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 0.62rem;
+}
+
+.medical-rtp-exercise-catalog-card {
+  display: grid;
+  grid-template-columns: 5.4rem minmax(0, 1fr);
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.64rem;
+  border: 1px solid rgba(29, 31, 29, 0.09);
+  border-left: 4px solid rgba(23, 100, 73, 0.42);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #34453d;
+}
+
+.medical-rtp-exercise-catalog-card[hidden] {
+  display: none;
+}
+
+.medical-rtp-exercise-catalog-card.medical-rtp-exercise-moderate {
+  border-left-color: rgba(176, 137, 38, 0.72);
+}
+
+.medical-rtp-exercise-catalog-card.medical-rtp-exercise-high {
+  border-left-color: rgba(168, 67, 57, 0.74);
+}
+
+.medical-rtp-exercise-thumb {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.28rem;
+  min-height: 5.2rem;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(23, 100, 73, 0.12), rgba(74, 124, 165, 0.1)),
+    repeating-linear-gradient(45deg, rgba(23, 100, 73, 0.08) 0 1px, transparent 1px 8px);
+  text-align: center;
+}
+
+.medical-rtp-exercise-thumb span {
+  max-width: 4.6rem;
+  color: #103d2d;
+  font-size: 0.64rem;
+  font-weight: 950;
+  line-height: 1.08;
+  text-transform: uppercase;
+}
+
+.medical-rtp-exercise-thumb small {
+  color: #51655d;
+  font-size: 0.56rem;
+  font-weight: 850;
+}
+
+.medical-rtp-exercise-catalog-body {
+  display: grid;
+  gap: 0.44rem;
+  min-width: 0;
+}
+
+.medical-rtp-exercise-catalog-body header {
+  display: grid;
+  gap: 0.16rem;
+}
+
+.medical-rtp-exercise-catalog-body header span {
+  color: #176449;
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-exercise-catalog-body header strong {
+  color: #10231b;
+  font-size: 0.9rem;
+  line-height: 1.16;
+}
+
+.medical-rtp-exercise-catalog-body p,
+.medical-rtp-exercise-program-row span {
+  margin: 0;
+  color: #5d6d66;
+  font-size: 0.72rem;
+  font-weight: 760;
+  line-height: 1.34;
+}
+
+.medical-rtp-exercise-program-row {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.medical-rtp-exercise-program-row span {
+  display: grid;
+  gap: 0.08rem;
+  padding: 0.42rem;
+  border-radius: 8px;
+  background: rgba(23, 100, 73, 0.055);
+}
+
+.medical-rtp-exercise-program-row strong {
+  color: #176449;
+  font-size: 0.58rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-exercise-catalog-card footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+}
+
+.medical-rtp-exercise-catalog-card footer small {
+  padding: 0.18rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(23, 100, 73, 0.08);
+}
+
 body.is-dark-mode .medical-rtp-program-blueprint,
 body.is-dark-mode .medical-rtp-program-guide-loader,
 body.is-dark-mode .medical-rtp-program-flow span,
@@ -4040,6 +4252,9 @@ body.is-dark-mode .medical-rtp-guide-authoring-panel,
 body.is-dark-mode .medical-rtp-profile-summary div,
 body.is-dark-mode .medical-rtp-profile-sections section,
 body.is-dark-mode .medical-rtp-gold-standard-sections details,
+body.is-dark-mode .medical-rtp-exercise-catalog,
+body.is-dark-mode .medical-rtp-exercise-catalog-card,
+body.is-dark-mode .medical-rtp-exercise-program-row span,
 body.is-dark-mode .medical-rtp-exercise-card,
 body.is-dark-mode .medical-rtp-exercise-empty,
 body.is-dark-mode .medical-rtp-program-summary-tracker,
@@ -4093,6 +4308,8 @@ body.is-dark-mode .medical-rtp-profile-modal-close {
 body.is-dark-mode .medical-rtp-profile-header-meta span,
 body.is-dark-mode .medical-rtp-profile-quick-nav a,
 body.is-dark-mode .medical-rtp-gold-standard-sections summary span,
+body.is-dark-mode .medical-rtp-exercise-catalog > header b,
+body.is-dark-mode .medical-rtp-exercise-catalog-card footer small,
 body.is-dark-mode .medical-rtp-profile-actions-info b,
 body.is-dark-mode .medical-rtp-program-workflow strong,
 body.is-dark-mode .medical-rtp-case-linker-steps strong {
@@ -4105,6 +4322,8 @@ body.is-dark-mode .medical-rtp-program-guide-loader strong,
 body.is-dark-mode .medical-rtp-action-queue > header strong,
 body.is-dark-mode .medical-rtp-action-metric strong,
 body.is-dark-mode .medical-rtp-action-row strong,
+body.is-dark-mode .medical-rtp-exercise-catalog > header strong,
+body.is-dark-mode .medical-rtp-exercise-catalog-body header strong,
 body.is-dark-mode .medical-rtp-library-toolbar strong,
 body.is-dark-mode .medical-rtp-guide-authoring-panel h4,
 body.is-dark-mode .medical-rtp-profile-trigger strong,
@@ -4139,6 +4358,10 @@ body.is-dark-mode .medical-rtp-profile-dialog > header small,
 body.is-dark-mode .medical-rtp-profile-dialog-content > header span,
 body.is-dark-mode .medical-rtp-profile-dialog-content > header small,
 body.is-dark-mode .medical-rtp-library-toolbar small,
+body.is-dark-mode .medical-rtp-exercise-catalog > header small,
+body.is-dark-mode .medical-rtp-exercise-catalog-body p,
+body.is-dark-mode .medical-rtp-exercise-program-row span,
+body.is-dark-mode .medical-rtp-exercise-thumb small,
 body.is-dark-mode .medical-rtp-guide-authoring-panel p,
 body.is-dark-mode .medical-rtp-guide-actions small,
 body.is-dark-mode .medical-rtp-guide-status-strip span,
@@ -4195,6 +4418,7 @@ body.is-dark-mode .medical-rtp-tracker-row select {
 @media (max-width: 760px) {
   .medical-rtp-action-queue > header,
   .medical-rtp-library-toolbar,
+  .medical-rtp-exercise-catalog > header,
   .medical-rtp-programs-header,
   .medical-rtp-program-builder-brief,
   .medical-rtp-plan-focus > header,
@@ -4208,6 +4432,7 @@ body.is-dark-mode .medical-rtp-tracker-row select {
   }
 
   .medical-rtp-library-controls,
+  .medical-rtp-exercise-controls,
   .medical-rtp-action-metrics,
   .medical-rtp-program-guide-loader,
   .medical-rtp-program-flow,
@@ -4225,6 +4450,18 @@ body.is-dark-mode .medical-rtp-tracker-row select {
 
   .medical-rtp-profile-grid {
     grid-template-columns: 1fr;
+  }
+
+  .medical-rtp-exercise-catalog-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .medical-rtp-exercise-catalog-card {
+    grid-template-columns: 1fr;
+  }
+
+  .medical-rtp-exercise-thumb {
+    min-height: 4.6rem;
   }
 
   .medical-rtp-profile-modal {

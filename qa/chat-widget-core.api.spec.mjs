@@ -1131,6 +1131,10 @@ test("open chat uses a calm professional conversation shell", () => {
   expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-compose-more .dashboard-chat-compose-more-panel");
   expect(dashboardChatCss).toContain("bottom:calc(100% + .45rem)!important;");
   expect(dashboardChatCss).toContain("top:auto!important;");
+  expect(dashboardChatCss).toContain("chat send button has a stronger touch target");
+  expect(dashboardChatCss).toContain('.dashboard-chat-widget.is-open .dashboard-chat-form>button[type="submit"]');
+  expect(dashboardChatCss).toContain("min-width:5.05rem!important;");
+  expect(dashboardChatCss).toContain("min-height:3.05rem!important;");
 });
 
 test("chat message actions stay behind a compact hover menu", () => {

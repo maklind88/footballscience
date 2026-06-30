@@ -195,6 +195,7 @@ ${suggestedProfiles
   const rtpProgramWorkspaceRenderer = createMedicalRtpProgramWorkspaceRenderer({
     escapeHtml,
     renderCaseRtpStarterLinker,
+    renderExerciseCatalog: rtpExerciseCatalogRenderer.renderExerciseCatalog,
     renderOpsStat,
     renderRtpCaseProgramCards: rtpProgramRenderer.renderRtpCaseProgramCards,
   });
@@ -398,7 +399,6 @@ ${summary.activeCases.length
 `;
 
   const renderRtpLibrary = () => {
-    const selectedPlayer = getSelectedMedicalPlayer();
     const profiles = getMedicalRtpLibraryProfiles();
     const renderSelect = (label, key, options = []) => `
 <label>
@@ -528,7 +528,6 @@ ${renderSelect("Movement plane", "movement", medicalRtpLibraryFilterOptions.move
 <span><strong data-medical-rtp-library-count>${profiles.length}</strong> guides visible</span>
 <span>Evidence and expert consensus are separated in every injury guide.</span>
 </div>
-${rtpExerciseCatalogRenderer.renderExerciseCatalog()}
 <div class="medical-rtp-profile-grid">
 ${profiles
   .map((profileItem) => {

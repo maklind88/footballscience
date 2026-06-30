@@ -23,6 +23,7 @@ export function createMedicalRtpProgramWorkspaceRenderer({
   escapeHtml = defaultEscapeHtml,
   renderCaseRtpStarterLinker = () => "",
   renderOpsStat = () => "",
+  renderExerciseCatalog = () => "",
   renderRtpCaseProgramCards = () => "",
 } = {}) {
   const renderWorkflow = () => `
@@ -73,6 +74,7 @@ ${renderOpsStat("Action queue", String(actionSummary.total), "hold / review / ex
 </div>
 ${renderProgramBuilderBrief()}
 ${renderWorkflow()}
+${renderExerciseCatalog()}
 ${renderCaseRtpStarterLinker(summary)}
 ${renderRtpCaseProgramCards(summary)}
 </div>

@@ -95,10 +95,6 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     );
   }
 
-  function isDashboardChatThreadHistoryComplete(thread = null) {
-    return Boolean(thread?.historyComplete || thread?.history_complete || thread?.apiThread?.historyComplete || thread?.apiThread?.history_complete);
-  }
-
   function showDashboardChatWidgetToast(messageText, threadId = dashboardChatTeamThreadId) {
     const root = ui.dashboardChatWidgetRoot;
     if (!root) {
@@ -275,8 +271,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     const activeThreadExpectedMessageCount = getDashboardChatExpectedMessageCount(activeThread);
     const activeThreadHasPartialHistory = Boolean(
       activeThreadExpectedMessageCount &&
-        activeThreadRealMessageCount < activeThreadExpectedMessageCount &&
-        !isDashboardChatThreadHistoryComplete(activeThread)
+        activeThreadRealMessageCount < activeThreadExpectedMessageCount
     );
     const activeThreadHasServerActivity = Boolean(
       activeThread &&

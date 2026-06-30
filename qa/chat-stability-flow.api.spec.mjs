@@ -980,7 +980,9 @@ test("open chat rehydrates active server-backed thread when local history is par
       apiThread: {
         messageCount: 7,
         lastMessageAt: "2026-06-27T01:08:00.000Z",
+        historyComplete: true,
       },
+      historyComplete: true,
     }],
     readDashboardMessages: () => localMessages,
     readDashboardChatWidgetState: () => ({ isOpen: true, selectedThreadId: threadId }),

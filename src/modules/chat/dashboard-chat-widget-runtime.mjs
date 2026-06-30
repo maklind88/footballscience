@@ -309,14 +309,14 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       widgetAppearsOpen &&
       activeThreadId &&
       activeThreadNeedsHydration &&
-      !getDashboardChatApiSyncTimer() &&
       canQueueActiveThreadHydration
     ) {
       dashboardChatHydrationAttemptAtByThread.set(activeThreadId, Date.now());
       queueDashboardChatApiRefresh({
         threadId: activeThreadId,
         delayMs: 0,
-        ...(!state.isOpen ? { forceNetwork: true } : {}),
+        immediate: true,
+        forceNetwork: true,
       });
     }
 

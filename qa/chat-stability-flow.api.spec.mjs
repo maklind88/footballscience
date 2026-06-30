@@ -850,7 +850,7 @@ test("open chat queues first thread load without marking the thread hydrated bef
 
   runtime.renderDashboardChatWidget();
 
-  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0 }]);
+  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0, immediate: true, forceNetwork: true }]);
   expect(hydratedThreadIds.has(threadId)).toBe(false);
 });
 
@@ -900,7 +900,7 @@ test("open chat rehydrates active server-backed thread when local message store 
 
   runtime.renderDashboardChatWidget();
 
-  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0 }]);
+  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0, immediate: true, forceNetwork: true }]);
 });
 
 test("rendered chat conversation can hydrate active server-backed thread even when session open state drifted", () => {
@@ -949,7 +949,7 @@ test("rendered chat conversation can hydrate active server-backed thread even wh
 
   runtime.renderDashboardChatWidget();
 
-  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0, forceNetwork: true }]);
+  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0, immediate: true, forceNetwork: true }]);
 });
 
 test("open chat rehydrates active server-backed thread when local history is partial", () => {
@@ -1011,7 +1011,67 @@ test("open chat rehydrates active server-backed thread when local history is par
 
   runtime.renderDashboardChatWidget();
 
-  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0 }]);
+  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0, immediate: true, forceNetwork: true }]);
+});
+
+test("open chat active history load supersedes a pending chat refresh timer", () => {
+  const threadId = "team";
+  const hydratedThreadIds = new Set([threadId]);
+  const queuedThreadLoads = [];
+  const localMessages = [{
+    id: "m-local-latest",
+    threadId,
+    userId: coachActor.id,
+    text: "Latest only",
+    createdAt: "2026-06-27T01:08:00.000Z",
+    readBy: [coachActor.id],
+    mentionedUserIds: [],
+  }];
+  const runtime = createDashboardChatWidgetRuntime({
+    dashboardChatWidgetRenderer: {
+      render: () => ({ html: "<section data-dashboard-chat-list></section>", activeThreadId: threadId, replyDraft: null }),
+    },
+    getCurrentPlatformUser: () => coachActor,
+    getPlatformUsers: () => [coachActor, teammateActor],
+    getDashboardChatThreadList: () => [{
+      threadId,
+      label: "North Carolina Courage Chat",
+      messageCount: 7,
+      lastMessage: localMessages[0],
+      apiThread: {
+        messageCount: 7,
+        lastMessageAt: "2026-06-27T01:08:00.000Z",
+      },
+    }],
+    readDashboardMessages: () => localMessages,
+    readDashboardChatWidgetState: () => ({ isOpen: true, selectedThreadId: threadId }),
+    getDashboardHydratedThreadIds: () => hydratedThreadIds,
+    getDashboardChatApiSyncTimer: () => 123,
+    queueDashboardChatApiRefresh: (options) => {
+      queuedThreadLoads.push(options);
+    },
+    ui: {
+      dashboardChatWidgetRoot: {
+        dataset: {},
+        innerHTML: "",
+        querySelector: () => null,
+      },
+    },
+    documentRef: {
+      activeElement: null,
+      body: {
+        classList: {
+          add: () => {},
+          remove: () => {},
+          toggle: () => {},
+        },
+      },
+    },
+  });
+
+  runtime.renderDashboardChatWidget();
+
+  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0, immediate: true, forceNetwork: true }]);
 });
 
 test("open chat throttles repeated empty active thread hydration requests", () => {
@@ -1061,7 +1121,7 @@ test("open chat throttles repeated empty active thread hydration requests", () =
   runtime.renderDashboardChatWidget();
   runtime.renderDashboardChatWidget();
 
-  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0 }]);
+  expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0, immediate: true, forceNetwork: true }]);
 });
 
 test("chat API runtime keeps active thread unhydrated when history payload is empty but server has activity", async () => {
@@ -1629,6 +1689,47 @@ test("chat API GET coalesces duplicate reads and reuses short settled results", 
   expect(second.ok).toBe(true);
   expect(third.ok).toBe(true);
   expect(fetchCount).toBe(1);
+});
+
+test("chat API GET forceNetwork bypasses short settled read cache without leaking the flag", async () => {
+  let fetchCount = 0;
+  const capturedUrls = [];
+  const runtime = createDashboardChatApiDomainRuntime({
+    chatApiReadDedupeWindowMs: 5000,
+    chatApiReadMinimumGapMs: 0,
+    getCurrentPlatformUser: () => ({ id: "admin-qa" }),
+    getPlatformAuthStore: () => ({
+      getAccessToken: async () => "token",
+    }),
+    fetchImpl: async (url) => {
+      fetchCount += 1;
+      capturedUrls.push(url);
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => "" },
+        text: async () => JSON.stringify({ ok: true, messages: [{ id: `server-${fetchCount}` }] }),
+      };
+    },
+    win: {
+      location: { hostname: "footballscience.xyz" },
+      setTimeout,
+      clearTimeout,
+    },
+  });
+
+  const first = await runtime.fetchDashboardChatApi({ threadId: "team", limit: 40 });
+  const cached = await runtime.fetchDashboardChatApi({ threadId: "team", limit: 40 });
+  const forced = await runtime.fetchDashboardChatApi({ threadId: "team", limit: 40, __forceNetwork: true });
+
+  expect(first.ok).toBe(true);
+  expect(cached.result.messages[0].id).toBe("server-1");
+  expect(forced.result.messages[0].id).toBe("server-2");
+  expect(fetchCount).toBe(2);
+  expect(capturedUrls).toEqual([
+    "/api/chat?limit=40&threadId=team",
+    "/api/chat?limit=40&threadId=team",
+  ]);
 });
 
 test("chat API GET paces different read queries through one client budget", async () => {

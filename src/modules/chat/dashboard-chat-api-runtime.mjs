@@ -635,6 +635,7 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       threadType: getDashboardChatThreadTypeForApi(threadId),
       limit: options.limit || dashboardChatApiPageLimit,
       __activeChatRead: true,
+      ...(options.forceNetwork ? { __forceNetwork: true } : {}),
     };
 
     if (options.cursor) {
@@ -728,11 +729,14 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       win.clearTimeout(getApiSyncTimer());
     }
 
-    const delayMs = refreshDelayWithBudget(
-      options.delayMs ?? 160,
-      dashboardChatApiLastRequestedAt,
-      DASHBOARD_CHAT_API_REFRESH_MIN_INTERVAL_MS
-    );
+    const shouldBypassRefreshBudget = Boolean(options.forceNetwork || options.immediate);
+    const delayMs = shouldBypassRefreshBudget
+      ? normalizeRefreshDelay(options.delayMs ?? 0)
+      : refreshDelayWithBudget(
+          options.delayMs ?? 160,
+          dashboardChatApiLastRequestedAt,
+          DASHBOARD_CHAT_API_REFRESH_MIN_INTERVAL_MS
+        );
     setApiSyncTimer(
       win.setTimeout(() => {
         setApiSyncTimer(0);

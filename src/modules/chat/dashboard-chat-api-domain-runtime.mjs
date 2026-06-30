@@ -4,6 +4,7 @@ function isLocalHost(hostname = "") {
 }
 
 const activeChatReadQueryKey = "__activeChatRead";
+const forceNetworkReadQueryKey = "__forceNetwork";
 const activeChatReadHeader = "X-FootballScience-Chat-Active";
 
 export function createDashboardChatApiDomainRuntime(dependencies = {}) {
@@ -103,6 +104,8 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
   function getDashboardChatPublicReadQuery(query = {}) {
     const publicQuery = { ...(query || {}) };
     delete publicQuery[activeChatReadQueryKey];
+    delete publicQuery[forceNetworkReadQueryKey];
+    delete publicQuery.forceNetwork;
     return publicQuery;
   }
 
@@ -309,14 +312,15 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
     }
 
     const activeChatRead = Boolean(query?.[activeChatReadQueryKey]);
+    const forceNetworkRead = Boolean(query?.[forceNetworkReadQueryKey] || query?.forceNetwork);
     const params = buildDashboardChatApiReadParams(query);
     const readCacheKey = getDashboardChatApiReadCacheKey(query);
     const nowMs = Date.now();
     const cachedRequest = dashboardChatApiReadRequests.get(readCacheKey);
-    if (cachedRequest?.inFlight) {
+    if (!forceNetworkRead && cachedRequest?.inFlight) {
       return cachedRequest.inFlight;
     }
-    if (cachedRequest?.result?.ok && cachedRequest.expiresAt > nowMs) {
+    if (!forceNetworkRead && cachedRequest?.result?.ok && cachedRequest.expiresAt > nowMs) {
       return cloneDashboardChatApiReadResult(cachedRequest.result);
     }
 

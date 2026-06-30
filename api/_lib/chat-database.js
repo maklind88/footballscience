@@ -2305,6 +2305,8 @@ async function createThread(actor, body) {
 async function sendMessage(actor, body) {
   const text = normalizeMessageText(body.text || body.message || body.body);
   const clientMessageId = normalizeString(body.clientMessageId || body.client_message_id || body.id, 120);
+  const requestedReplyToId = normalizeId(body.replyToId || body.reply_to_id);
+  const replyToId = isUuid(requestedReplyToId) ? requestedReplyToId : null;
 
   if (!text) {
     return { ok: false, status: 400, reason: "Message text is required." };
@@ -2352,7 +2354,7 @@ async function sendMessage(actor, body) {
       author_id: actor.id || null,
       body: text,
       priority: normalizePriority(body.priority),
-      reply_to_id: normalizeId(body.replyToId || body.reply_to_id) || null,
+      reply_to_id: replyToId,
       client_message_id: clientMessageId || null,
       metadata: {
         authorName: normalizeString(`${actor.firstName || ""} ${actor.lastName || ""}`.trim() || actor.username || actor.email),
@@ -2626,7 +2628,8 @@ async function setReaction(actor, body, shouldAdd) {
 
 async function markThreadRead(actor, body) {
   const threadId = normalizeId(body.threadId || body.thread_id || body.id);
-  const lastReadMessageId = normalizeId(body.lastReadMessageId || body.last_read_message_id);
+  const requestedLastReadMessageId = normalizeId(body.lastReadMessageId || body.last_read_message_id);
+  const lastReadMessageId = isUuid(requestedLastReadMessageId) ? requestedLastReadMessageId : "";
   if (!threadId) {
     return { ok: false, status: 400, reason: "threadId is required." };
   }

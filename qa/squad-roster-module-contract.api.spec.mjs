@@ -72,6 +72,8 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
   expect(markup).toContain('data-player-profile-select="p1"');
   expect(markup).toContain("is-selected");
   expect(markup).toContain("Mak Player");
+  expect(markup).not.toContain("<th>Squad</th>");
+  expect(markup).not.toContain(">Important<");
   expect(markup).toContain("Training guests");
   expect(markup).toContain("Guest Player");
   expect(renderer.renderStatusChip("injured", { returnLabel: "10 Jun" })).toContain("10 Jun");

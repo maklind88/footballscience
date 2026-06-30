@@ -62,6 +62,10 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
   expect(panelMarkup).toContain('name="playerId"');
   expect(panelMarkup).toContain("Role Suitability");
   expect(panelMarkup).toContain('data-player-profile-remove="p1"');
+  expect(panelMarkup).not.toContain('name="squadStatus"');
+  expect(panelMarkup).not.toContain("Squad status");
+  expect(panelMarkup).not.toContain('name="careerPhase"');
+  expect(panelMarkup).not.toContain("Career phase");
   const modalMarkup = renderer.renderModal(player);
   expect(modalMarkup).toContain("data-player-profile-modal-overlay");
   expect(modalMarkup).toContain("Mak Player player profile");

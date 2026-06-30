@@ -151,18 +151,6 @@ export function createSquadProfileSelectedRenderer({
                 ${renderPlayerProfileOptionSet(playerProfileRoleGroupOptions, player.roleGroup)}
               </select>
             </label>
-            <label class="squad-tab-field-overview">
-              <span>Squad status</span>
-              <select name="squadStatus" ${canEdit ? "" : "disabled"}>
-                ${renderPlayerProfileOptionSet(playerProfileSquadStatusOptions, player.squadStatus)}
-              </select>
-            </label>
-            <label class="squad-tab-field-overview">
-              <span>Career phase</span>
-              <select name="careerPhase" ${canEdit ? "" : "disabled"}>
-                ${renderPlayerProfileOptionSet(playerProfileCareerPhaseOptions, player.careerPhase)}
-              </select>
-            </label>
             ${temporaryRosterFields}
           </div>
           <div class="squad-rating-grid squad-tab-panel-roles" aria-label="Profile ratings">

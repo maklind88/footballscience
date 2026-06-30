@@ -26,7 +26,6 @@ export function createSquadRosterRenderer({
   playerProfileCountsInSquad,
   playerProfileIdpStatusOptions = [],
   playerProfileStatusOptions = [],
-  playerProfileSquadStatusOptions = [],
   renderPlayerProfileAvatar,
 } = {}) {
   const renderStatusChip = (statusKey, medicalSnapshot = null) => {
@@ -42,11 +41,6 @@ export function createSquadRosterRenderer({
       <small class="squad-return-date">${escapeHtml(returnLabel)}</small>
     </span>
   `;
-  };
-
-  const renderOptionPill = (options, key) => {
-    const option = getPlayerProfileOption(options, key);
-    return `<span class="squad-option-pill">${escapeHtml(option.label)}</span>`;
   };
 
   const renderRoleStack = (player) => {
@@ -83,15 +77,6 @@ export function createSquadRosterRenderer({
   const renderAgeCell = (player) => {
     const age = getPlayerProfileDisplayAgeValue(player);
     return `<span class="squad-age-cell">${escapeHtml(age || "-")}</span>`;
-  };
-
-  const renderPlanningCell = (player) => {
-    const isTemporary = isTemporaryPlayerProfile(player);
-    const pills = [
-      isTemporary ? "" : renderOptionPill(playerProfileSquadStatusOptions, player.squadStatus),
-      isTemporary ? renderRosterTypePill(player) : "",
-    ].join("");
-    return `<div class="squad-planning-cell"><div class="squad-pill-stack">${pills}</div></div>`;
   };
 
   const renderIdpCell = (player) => {
@@ -131,7 +116,6 @@ export function createSquadRosterRenderer({
       </td>
       <td>${renderAgeCell(player)}</td>
       <td>${renderRoleCell(player)}</td>
-      <td>${renderPlanningCell(player)}</td>
       <td>${renderStatusChip(effectiveStatus, medicalSnapshot)}</td>
       <td>${renderIdpCell(player)}</td>
       <td>${renderProfileProgressCell(completeness)}</td>
@@ -147,7 +131,6 @@ export function createSquadRosterRenderer({
             <th>Player</th>
             <th>Age</th>
             <th>Roles</th>
-            <th>Squad</th>
             <th>Status</th>
             <th>IDP</th>
             <th>Profile</th>
@@ -157,7 +140,7 @@ export function createSquadRosterRenderer({
           ${
             players.length
               ? players.map(renderPlayerRow).join("")
-              : `<tr><td colspan="7"><div class="squad-empty-row">${escapeHtml(emptyText)}</div></td></tr>`
+              : `<tr><td colspan="6"><div class="squad-empty-row">${escapeHtml(emptyText)}</div></td></tr>`
           }
         </tbody>
       </table>
@@ -233,13 +216,11 @@ export function createSquadRosterRenderer({
 
   return {
     renderStatusChip,
-    renderOptionPill,
     renderRoleStack,
     renderRosterTypePill,
     renderRosterMeta,
     renderRoleCell,
     renderAgeCell,
-    renderPlanningCell,
     renderIdpCell,
     renderProfileProgressCell,
     renderPlayerRow,

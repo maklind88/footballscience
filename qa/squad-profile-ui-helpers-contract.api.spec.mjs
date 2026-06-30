@@ -67,6 +67,20 @@ test("Squad profile UI helpers parse profile form values without owning writes",
   });
 });
 
+test("Squad profile UI helpers preserve hidden squad status and career phase when fields are omitted", () => {
+  const formData = new FormData();
+  formData.set("playerId", "p-1");
+  formData.set("name", "Ada");
+  formData.set("status", "available");
+  formData.set("primaryRole", "8");
+
+  const readValues = createPlayerProfileFormValueReader();
+  const values = readValues(formData);
+
+  expect(values).not.toHaveProperty("squadStatus");
+  expect(values).not.toHaveProperty("careerPhase");
+});
+
 test("Squad medical status service preserves medical snapshot golden-master behavior", () => {
   const records = [
     {

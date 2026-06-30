@@ -38,8 +38,6 @@ export function createPlayerProfileFormValueReader(options = {}) {
       number: String(data.get("number") ?? "").trim(),
       position: String(data.get("position") ?? "").trim(),
       status: String(data.get("status") ?? "").trim(),
-      squadStatus: String(data.get("squadStatus") ?? "").trim(),
-      careerPhase: String(data.get("careerPhase") ?? "").trim(),
       primaryRole: String(data.get("primaryRole") ?? "").trim(),
       secondaryRoles: data.getAll("secondaryRoles").map((role) => String(role).trim()),
       preferredSide: String(data.get("preferredSide") ?? "").trim(),
@@ -56,6 +54,8 @@ export function createPlayerProfileFormValueReader(options = {}) {
       },
       futureData,
     };
+    if (hasField("squadStatus")) values.squadStatus = String(data.get("squadStatus") ?? "").trim();
+    if (hasField("careerPhase")) values.careerPhase = String(data.get("careerPhase") ?? "").trim();
     if (hasField("age")) values.age = String(data.get("age") ?? "").trim();
     if (hasField("birthDate")) values.birthDate = String(data.get("birthDate") ?? "").trim();
     if (hasField("rosterType")) values.rosterType = String(data.get("rosterType") ?? "").trim();

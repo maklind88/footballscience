@@ -160,6 +160,26 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
     purgeDashboardDeletedMessagesFromStorage();
   }
 
+  function forgetDashboardDeletedMessageIds(messageIds = []) {
+    const normalizedIds = Array.from(
+      new Set(
+        (Array.isArray(messageIds) ? messageIds : [messageIds])
+          .map((id) => String(id || "").trim())
+          .filter(Boolean)
+      )
+    );
+    if (!normalizedIds.length) {
+      return;
+    }
+
+    const currentIds = Array.from(readDashboardDeletedMessageIds());
+    const nextIds = currentIds.filter((id) => !normalizedIds.includes(id));
+    if (nextIds.length === currentIds.length) {
+      return;
+    }
+    writeDashboardJson(dashboardChatDeletedMessageIdsStorageKey, nextIds);
+  }
+
   function purgeDashboardDeletedMessagesFromStorage(options = {}) {
     const deletedMessageIds = readDashboardDeletedMessageIds();
     if (!deletedMessageIds.size) {
@@ -238,19 +258,34 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
     const existingThreadMessages = replaceThreadId ? existingMessages.filter((message) => message.threadId === replaceThreadId) : [];
     const keepThread = Boolean(options.keepThread);
 
-    const incomingApiMessages = messages.map((sourceMessage) => ({
-      sourceMessage,
-      message: normalizeDashboardApiMessage(sourceMessage, messageThread),
-      sourceMessageId: String(sourceMessage?.id || sourceMessage?.messageId || "").trim(),
-      clientMessageId: String(
+    const incomingApiMessages = messages.map((sourceMessage) => {
+      const message = normalizeDashboardApiMessage(sourceMessage, messageThread);
+      const sourceMessageId = String(sourceMessage?.id || sourceMessage?.messageId || "").trim();
+      const clientMessageId = String(
         sourceMessage?.clientMessageId ||
           sourceMessage?.client_message_id ||
           sourceMessage?.metadata?.clientMessageId ||
           sourceMessage?.metadata?.client_message_id ||
           ""
-      ).trim(),
-      deletedAt: String(sourceMessage?.deletedAt || sourceMessage?.deleted_at || "").trim(),
-    }));
+      ).trim();
+      const deletedAt = String(sourceMessage?.deletedAt || sourceMessage?.deleted_at || "").trim();
+
+      if (!deletedAt) {
+        forgetDashboardDeletedMessageIds([
+          sourceMessageId,
+          clientMessageId,
+          ...getDashboardMessageIdentityKeys(message),
+        ]);
+      }
+
+      return {
+        sourceMessage,
+        message,
+        sourceMessageId,
+        clientMessageId,
+        deletedAt,
+      };
+    });
 
     const incomingIdentityKeys = new Set();
     let incomingMaxCreatedAtMs = 0;
@@ -364,5 +399,6 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
     readDashboardMessages,
     writeDashboardMessages,
     mergeDashboardChatApiMessages,
+    forgetDashboardDeletedMessageIds,
   };
 }

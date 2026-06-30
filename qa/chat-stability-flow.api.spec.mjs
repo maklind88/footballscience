@@ -247,6 +247,66 @@ test("chat history pagination keeps older loaded API pages in the runtime cache"
   expect(persistedWrites.at(-1).value.map((message) => message.id)).toContain("history-000");
 });
 
+test("server-visible chat history clears stale local deleted tombstones", () => {
+  let runtimeMessages = [];
+  const storage = new Map([
+    ["football-dashboard-chat-v1", []],
+    ["football-dashboard-chat-deleted-message-ids-v1", ["server-history-1"]],
+  ]);
+  const normalizeThreadId = (threadId, fallback = "team") => String(threadId || fallback || "team").trim();
+  const normalizeMessage = (message = {}) => ({
+    id: String(message.id || message.messageId || ""),
+    clientMessageId: String(message.clientMessageId || message.client_message_id || ""),
+    userId: String(message.userId || message.authorId || message.author_id || "coach-qa"),
+    threadId: normalizeThreadId(message.threadId || message.thread_id, "team"),
+    text: String(message.text || message.body || ""),
+    createdAt: String(message.createdAt || message.created_at || ""),
+    readBy: Array.isArray(message.readBy) ? message.readBy : [],
+    mentionedUserIds: Array.isArray(message.mentionedUserIds) ? message.mentionedUserIds : [],
+    reactions: message.reactions || {},
+    priority: String(message.priority || "normal"),
+    attachments: Array.isArray(message.attachments) ? message.attachments : [],
+    status: String(message.status || "sent"),
+  });
+  const messageTime = (message = {}) => Date.parse(message.createdAt || message.created_at || "") || 0;
+  const runtime = createDashboardChatMessageRuntime({
+    getDashboardChatRuntimeMessages: () => runtimeMessages,
+    setDashboardChatRuntimeMessages: (nextMessages) => {
+      runtimeMessages = nextMessages;
+    },
+    readDashboardJson: (key, fallback) => storage.get(key) ?? fallback,
+    writeDashboardJson: (key, value) => {
+      storage.set(key, value);
+    },
+    normalizeDashboardChatThreadId: normalizeThreadId,
+    normalizeDashboardMessage: normalizeMessage,
+    normalizeDashboardApiMessage: normalizeMessage,
+    getDashboardMessageIdentityKeys: (message = {}) => [message.id, message.messageId, message.clientMessageId].filter(Boolean),
+    getDashboardMessageCreatedAtMs: messageTime,
+    compareDashboardChatMessages: (first, second) =>
+      messageTime(first) - messageTime(second) || String(first.id || "").localeCompare(String(second.id || "")),
+    renderDashboardChatWidget: () => {},
+  });
+
+  const mergedMessages = runtime.mergeDashboardChatApiMessages(
+    [
+      {
+        id: "server-history-1",
+        thread_id: "team",
+        author_id: coachActor.id,
+        body: "Older server history",
+        created_at: "2026-06-04T11:45:22.000Z",
+        deleted_at: null,
+      },
+    ],
+    { thread: { threadId: "team" }, replaceThreadId: "team", render: false }
+  );
+
+  expect(mergedMessages.map((message) => message.id)).toContain("server-history-1");
+  expect(runtimeMessages.map((message) => message.id)).toContain("server-history-1");
+  expect(storage.get("football-dashboard-chat-deleted-message-ids-v1")).toEqual([]);
+});
+
 test("closed chat receives realtime summary refresh for unread notifications", async () => {
   const fetchCalls = [];
   const timers = [];

@@ -6,7 +6,7 @@ import { createDashboardChatApiDomainRuntime } from "./src/modules/chat/dashboar
 import { createDashboardChatApiRuntime } from "./src/modules/chat/dashboard-chat-api-runtime.mjs?v=chat-history-hydration-20260629";
 import { createDashboardChatThreadSettingsStore } from "./src/modules/chat/chat-thread-settings.mjs";
 import { createDashboardChatDomainRuntime } from "./src/modules/chat/dashboard-chat-domain-runtime.mjs";
-import { createDashboardChatMessageRuntime } from "./src/modules/chat/dashboard-chat-message-runtime.mjs";
+import { createDashboardChatMessageRuntime } from "./src/modules/chat/dashboard-chat-message-runtime.mjs?v=chat-history-tombstone-20260629";
 import { createDashboardChatMessageActionsRuntime } from "./src/modules/chat/dashboard-chat-message-actions-runtime.mjs";
 import { createDashboardChatMessageRenderRuntime } from "./src/modules/chat/dashboard-chat-message-render-runtime.mjs";
 import { createDashboardChatWidgetRuntime } from "./src/modules/chat/dashboard-chat-widget-runtime.mjs?v=chat-history-hydration-20260629";

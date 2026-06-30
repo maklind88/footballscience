@@ -2234,7 +2234,7 @@ dashboardChatApiRuntime = createDashboardChatApiRuntime({
   renderDashboardChatWidget,
   platformNavigationController,
   normalizeDashboardApiThread,
-  mergeDashboardChatApiMessages,
+  mergeDashboardChatApiMessages: (...args) => mergeDashboardChatApiMessages(...args),
   normalizeDashboardApiMessage,
   logDashboardChatApiFailure,
   dashboardChatSubmittedComposerDrafts,

@@ -643,6 +643,7 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(chatApiSource).toContain("readThread: 18");
   expect(databaseSource).toContain("readThread: 120");
   expect(chatApiRuntimeSource).toContain("mergeActiveThreadLastMessageFromSummary");
+  expect(appSource).toContain("mergeDashboardChatApiMessages: (...args) => mergeDashboardChatApiMessages(...args)");
   expect(appSource).toContain("refreshDashboardChatFromApi({ threadId, forceNetwork: true })");
   expect(appSource).toContain("refreshDashboardChatFromApi({");
   expect(appSource).toContain("forceNetwork: true");

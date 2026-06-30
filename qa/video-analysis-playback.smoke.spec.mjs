@@ -1220,6 +1220,33 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   expect(codeModeLayout.deckBottom).toBeLessThanOrEqual(codeModeLayout.timelineY + 2);
   expect(codeModeLayout.timelineOverflowY).toBe("auto");
   expect(codeModeLayout.transportHeight).toBeLessThanOrEqual(52);
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    if (!video) return;
+    video.__videoAnalysisTestCurrentTime = 0;
+    Object.defineProperty(video, "currentTime", {
+      configurable: true,
+      get() {
+        return this.__videoAnalysisTestCurrentTime || 0;
+      },
+      set(value) {
+        this.__videoAnalysisTestCurrentTime = Number(value) || 0;
+      },
+    });
+  });
+  const timelineBeforeScrub = await page.locator('[data-video-analysis-code-pip="timeline"]').boundingBox();
+  const codeModeRuler = await page.locator(".video-analysis-fs-player-timeline [data-video-analysis-timeline-ruler]").boundingBox();
+  expect(timelineBeforeScrub).toBeTruthy();
+  expect(codeModeRuler).toBeTruthy();
+  await page.mouse.move(codeModeRuler.x + 8, codeModeRuler.y + Math.min(10, codeModeRuler.height / 2));
+  await page.mouse.down();
+  await page.mouse.move(codeModeRuler.x + codeModeRuler.width / 2, codeModeRuler.y + Math.min(10, codeModeRuler.height / 2));
+  await page.mouse.up();
+  const timelineAfterScrub = await page.locator('[data-video-analysis-code-pip="timeline"]').boundingBox();
+  expect(timelineAfterScrub).toBeTruthy();
+  expect(Math.abs(timelineAfterScrub.x - timelineBeforeScrub.x)).toBeLessThanOrEqual(2);
+  expect(Math.abs(timelineAfterScrub.y - timelineBeforeScrub.y)).toBeLessThanOrEqual(2);
+  await expect.poll(() => page.evaluate(() => document.querySelector("[data-video-analysis-video]")?.currentTime || 0)).toBeGreaterThan(3300);
   await expect(page.locator("[data-video-analysis-code-pip-drag]")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-code-pip-resize]")).toHaveCount(24);
   const deckBeforeMove = await page.locator('[data-video-analysis-code-pip="video"]').boundingBox();

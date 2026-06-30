@@ -146,16 +146,17 @@ ${renderTabs(activeTab, tabOptions, "medical-ops-tabs-top")}
 <section class="medical-rtp-case-linker" aria-label="Apply RTP Library starters to active cases">
 <header>
 <div>
-<span>Medical Plan starter needed</span>
-<strong>${casesNeedingStarter.length}/${summary.activeCases.length} active case${summary.activeCases.length === 1 ? "" : "s"} need an RTP Library starter</strong>
-<small>Apply a guide into the existing Medical Plan draft, then individualize before saving.</small>
+<span>Activate from case</span>
+<strong>${casesNeedingStarter.length}/${summary.activeCases.length} active case${summary.activeCases.length === 1 ? "" : "s"} can become an RTP program</strong>
+<small>Apply a Library guide to the player's Medical Plan draft. The program is active only after Medical reviews and saves that plan.</small>
 </div>
-<b>Coach sharing off</b>
+<b>Medical Plan is source</b>
 </header>
 <div class="medical-rtp-case-linker-steps" aria-label="RTP starter workflow">
-<span><strong>1</strong> Match guide</span>
-<span><strong>2</strong> Review Medical Plan</span>
-<span><strong>3</strong> Save player-specific program</span>
+<span><strong>1</strong> Select case</span>
+<span><strong>2</strong> Apply guide</span>
+<span><strong>3</strong> Save Medical Plan</span>
+<span><strong>4</strong> Player Profile updates</span>
 </div>
 <div class="medical-rtp-case-linker-grid">
 ${casesNeedingStarter
@@ -182,6 +183,7 @@ ${suggestedProfiles
 </select>
 </label>
 <button type="submit">Apply guide to Medical Plan</button>
+<small>Opens the player's Medical Plan before anything is saved.</small>
 </form>
 </article>
 `;

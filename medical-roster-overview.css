@@ -3415,6 +3415,120 @@ body.is-dark-mode .medical-modal-close {
   font-size: 0.72rem;
 }
 
+.medical-rtp-program-activation {
+  display: grid;
+  gap: 0.62rem;
+  padding: 0.82rem;
+  border: 1px solid rgba(47, 143, 107, 0.2);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(239, 248, 244, 0.88));
+  box-shadow: 0 12px 28px rgba(12, 24, 20, 0.05);
+}
+
+.medical-rtp-program-activation > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.72rem;
+}
+
+.medical-rtp-program-activation > header div {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.medical-rtp-program-activation > header span,
+.medical-rtp-program-sync-path strong {
+  color: #176449;
+  font-size: 0.64rem;
+  font-weight: 950;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-program-activation > header strong {
+  color: #10231b;
+  font-size: 0.94rem;
+  line-height: 1.12;
+}
+
+.medical-rtp-program-activation > header small,
+.medical-rtp-program-activation-status small,
+.medical-rtp-program-sync-path span {
+  color: #64716b;
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.32;
+}
+
+.medical-rtp-program-activation > header b {
+  flex: 0 0 auto;
+  padding: 0.34rem 0.56rem;
+  border-radius: 999px;
+  background: rgba(47, 143, 107, 0.12);
+  color: #176449;
+  font-size: 0.66rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.medical-rtp-program-sync-path {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.44rem;
+}
+
+.medical-rtp-program-sync-path span {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+  padding: 0.54rem;
+  border: 1px solid rgba(23, 100, 73, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.medical-rtp-program-activation-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.72rem;
+  padding: 0.62rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 8px;
+  background: rgba(247, 250, 248, 0.84);
+}
+
+.medical-rtp-program-activation-status strong {
+  color: #10231b;
+  font-size: 0.86rem;
+  line-height: 1.16;
+}
+
+.medical-rtp-program-activation-status button {
+  flex: 0 0 auto;
+  min-height: 2.2rem;
+  border: 0;
+  border-radius: 8px;
+  background: #193827;
+  color: #fff;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 0 0.82rem;
+}
+
+.medical-rtp-program-activation-status.needs-action {
+  border-color: rgba(214, 146, 49, 0.24);
+  background: rgba(214, 146, 49, 0.1);
+}
+
+.medical-rtp-program-activation-status.is-ready {
+  border-color: rgba(47, 143, 107, 0.22);
+  background: rgba(47, 143, 107, 0.09);
+}
+
 .medical-rtp-action-queue {
   display: grid;
   gap: 0.58rem;
@@ -3628,7 +3742,7 @@ body.is-dark-mode .medical-modal-close {
 
 .medical-rtp-case-linker-steps {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.42rem;
 }
 
@@ -3679,6 +3793,15 @@ body.is-dark-mode .medical-modal-close {
   flex: 1.6 1 19rem;
   align-items: end;
   justify-content: flex-end;
+}
+
+.medical-rtp-case-linker-card form > small {
+  flex: 1 0 100%;
+  color: #64716b;
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1.28;
+  text-align: right;
 }
 
 .medical-rtp-case-linker-card label {
@@ -4238,6 +4361,9 @@ body.is-dark-mode .medical-rtp-guide-preview li,
 body.is-dark-mode .medical-rtp-programs-header,
 body.is-dark-mode .medical-rtp-program-builder-brief,
 body.is-dark-mode .medical-rtp-program-workflow span,
+body.is-dark-mode .medical-rtp-program-activation,
+body.is-dark-mode .medical-rtp-program-sync-path span,
+body.is-dark-mode .medical-rtp-program-activation-status,
 body.is-dark-mode .medical-rtp-action-queue,
 body.is-dark-mode .medical-rtp-plan-focus,
 body.is-dark-mode .medical-rtp-case-linker,
@@ -4284,6 +4410,10 @@ body.is-dark-mode .medical-rtp-case-workspace {
 }
 
 body.is-dark-mode .medical-rtp-case-linker {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(21, 38, 31, 0.7));
+}
+
+body.is-dark-mode .medical-rtp-program-activation {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(21, 38, 31, 0.7));
 }
 
@@ -4421,6 +4551,8 @@ body.is-dark-mode .medical-rtp-tracker-row select {
   .medical-rtp-exercise-catalog > header,
   .medical-rtp-programs-header,
   .medical-rtp-program-builder-brief,
+  .medical-rtp-program-activation > header,
+  .medical-rtp-program-activation-status,
   .medical-rtp-plan-focus > header,
   .medical-rtp-case-linker > header,
   .medical-rtp-case-linker-card,
@@ -4437,6 +4569,7 @@ body.is-dark-mode .medical-rtp-tracker-row select {
   .medical-rtp-program-guide-loader,
   .medical-rtp-program-flow,
   .medical-rtp-program-workflow,
+  .medical-rtp-program-sync-path,
   .medical-rtp-plan-focus-grid,
   .medical-rtp-tracker-grid,
   .medical-rtp-guide-status-strip,

@@ -332,8 +332,8 @@ ${renderProgramField({
     return `
 <article class="medical-modal-main-card medical-injury-plan-card">
 <div class="medical-card-headline">
-<h2>${isEditing ? "Edit Availability Plan" : "Availability Plan"}</h2>
-<span>${isEditing ? "Updates the active restriction and automatic availability" : "Auto-applies across date range, no daily entry needed"}</span>
+<h2>${isEditing ? "Edit Medical Plan" : "Medical Plan"}</h2>
+<span>${isEditing ? "Updates restriction, RTP program and Player Profile summary" : "Create the player-specific case, restriction and RTP program"}</span>
 </div>
 <form id="medicalInjuryPlanForm" class="medical-profile-form">
 <input type="hidden" name="planId" value="${escapeHtml(draft.planId)}" />

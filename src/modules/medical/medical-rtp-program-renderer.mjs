@@ -133,8 +133,8 @@ aria-label="Open Medical Plan RTP focus for ${escapeHtml(item.playerName)}"
 <section class="medical-rtp-case-workspace" aria-label="Medical RTP program workspace">
 <header>
 <div>
-<span>RTP Programs</span>
-<strong>Medical-owned player programs from the RTP Library</strong>
+<span>Active player RTP programs</span>
+<strong>Saved Medical Plans using RTP Library starters</strong>
 </div>
 <small>${rtpCases.length}/${activeCases.length} active cases have a structured starter</small>
 </header>
@@ -179,7 +179,7 @@ ${renderRtpProgramSection("Hold rules", getRtpProgramItems(plan.rtpProgramHoldRu
   })
   .join("")}
 </div>`
-    : `<div class="medical-empty-inline">No active case is currently using an RTP Library starter.</div>`
+    : `<div class="medical-empty-inline">No player-specific RTP program has been saved yet. Apply a Library guide to an active case, review the Medical Plan, then save it.</div>`
 }
 </section>
 `;

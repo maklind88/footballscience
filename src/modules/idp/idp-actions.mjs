@@ -97,13 +97,15 @@ function normalizeDashboardEntry(entry = {}, fallbackEntry = {}) {
   const profile = mergeProfileWithFallback(entry.profile || {}, fallbackEntry.profile || {});
   const inactive = isInactiveIdpProfile(profile);
   const focus = inactive ? null : mergeFocusWithFallback(entry.focus || null, fallbackEntry.focus || null, profile.playerId);
+  const nextAction = normalizeText(entry.nextAction, 180) || normalizeText(fallbackEntry.nextAction, 180);
+  const overallStatus = normalizeText(entry.overallStatus, 80) || normalizeText(fallbackEntry.overallStatus || "On Track", 80);
   return {
     profile,
     focus,
     evidenceCount: numberOrFallback(entry.evidenceCount, fallbackEntry.evidenceCount),
     newClipCount: numberOrFallback(entry.newClipCount, fallbackEntry.newClipCount),
-    nextAction: inactive ? "IDP inactive" : normalizeText(entry.nextAction, 180) || normalizeText(fallbackEntry.nextAction, 180),
-    overallStatus: inactive ? "No Active IDP" : normalizeText(entry.overallStatus, 80) || normalizeText(fallbackEntry.overallStatus || "On Track", 80),
+    nextAction: inactive ? "IDP inactive" : focus ? nextAction : "Create current focus",
+    overallStatus: inactive ? "No Active IDP" : focus ? overallStatus : "No Active Focus",
   };
 }
 
@@ -415,10 +417,7 @@ export function createIdpActions({ store, api, context = {} }) {
     if (formFocusId) return formFocusId;
     const existingFocusId = persistedFocusId(primaryFocus(detail));
     if (existingFocusId) return existingFocusId;
-    const created = await api.createFocus(observationFocusPayload(detail, playerId));
-    const createdFocusId = normalizeText(created?.focus?.id, 160);
-    if (!createdFocusId) throw new Error("Could not start an IDP focus for this observation.");
-    return createdFocusId;
+    throw new Error("Create a current focus before adding observations.");
   }
 
   async function addEvidence(formData) {

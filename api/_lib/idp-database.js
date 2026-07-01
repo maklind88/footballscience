@@ -309,7 +309,7 @@ function dashboardStatus(profile = {}, focus = null, clipCount = 0) {
 
 function buildNextAction(profile = {}, focus = null, explicitAction = null, clipCount = 0) {
   if (explicitAction?.title) return explicitAction.title;
-  if (!focus) return "Create next focus";
+  if (!focus) return "Create current focus";
   if (clipCount > 0) return "Review clip bank";
   if (focus.evidence_status === "Needs Evidence") return "Add evidence";
   if (focus.status === "Ready For Review") return "Complete review";

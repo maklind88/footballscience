@@ -246,7 +246,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("idp-header is-player-context");
   expect(profileHtml).toContain("<h1>Player One</h1>");
   expect(profileHtml).not.toContain("<h1>Player Development</h1>");
-  expect(profileHtml).toContain("Active · FW / 9 · Mak Lind");
+  expect(profileHtml).toContain("No Active Focus · FW / 9 · Mak Lind");
   expect(profileHtml).toContain("idp-player-profile-mark has-photo");
   expect(profileHtml).toContain("data:image/png;base64,abc123");
   expect(profileHtml).not.toContain("idp-profile-stage");
@@ -264,7 +264,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("data-idp-action=\"evidence\"");
   expect(profileHtml).toContain("Quick actions");
   expect(profileHtml).toContain("Assign Coach");
-  expect(profileHtml).toContain("Update Focus");
+  expect(profileHtml).toContain("Create Focus");
   expect(profileHtml).toContain("New Goal");
   expect(profileHtml).toContain("Leadership Goal");
   expect(profileHtml).toContain("Add Observation");
@@ -286,11 +286,13 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("idp-goals-snapshot");
   expect(profileHtml).toContain("idp-latest-goal-panel");
   expect(profileHtml).toContain("Latest Goal");
-  expect(profileHtml).toContain("Most recently added");
-  expect(profileHtml).toContain("Own the next on-pitch action");
+  expect(profileHtml).toContain("No active goal");
+  expect(profileHtml).toContain("No development goals yet");
+  expect(profileHtml).not.toContain("Most recently added");
+  expect(profileHtml).not.toContain("Own the next on-pitch action");
   expect(profileHtml).not.toContain("Make receive under pressure visible");
-  expect(profileHtml).toContain("data-idp-edit-goal");
-  expect(profileHtml).toContain("data-idp-goal-checkin");
+  expect(profileHtml).not.toContain("data-idp-edit-goal");
+  expect(profileHtml).not.toContain("data-idp-goal-checkin");
   expect(profileHtml).not.toContain("idp-intelligence-board");
   expect(profileHtml).not.toContain("Development Lens");
   expect(profileHtml).not.toContain("idp-lens-compass");
@@ -412,10 +414,11 @@ test("idp renderer separates the overview from the player development profile", 
   }, staffOptions);
   expect(goalsHtml).toContain("idp-profile-goals-page");
   expect(goalsHtml).toContain("Goals & Leadership");
-  expect(goalsHtml).toContain("Own the next on-pitch action");
-  expect(goalsHtml).toContain("Make receive under pressure visible");
-  expect(goalsHtml).toContain("Development Goals");
-  expect(goalsHtml).toContain("Leadership & Responsibility");
+  expect(goalsHtml).toContain("No development goals yet");
+  expect(goalsHtml).not.toContain("Own the next on-pitch action");
+  expect(goalsHtml).not.toContain("Make receive under pressure visible");
+  expect(goalsHtml).not.toContain("Development Goals");
+  expect(goalsHtml).not.toContain("Leadership & Responsibility");
   expect(goalsHtml).toContain("data-idp-action=\"goal\"");
   expect(goalsHtml).toContain("data-idp-action=\"leadership-goal\"");
   expect((goalsHtml.match(/data-idp-profile-view="development"/g) || []).length).toBe(1);
@@ -433,7 +436,8 @@ test("idp renderer separates the overview from the player development profile", 
   expect(observationHtml).toContain("data-idp-add-evidence");
   expect(observationHtml).toContain("Observation type");
   expect(observationHtml).toContain("Add observation");
-  expect(observationHtml).not.toContain("<button type=\"submit\" disabled>Add observation</button>");
+  expect(observationHtml).toContain("Create a current focus before adding observations.");
+  expect(observationHtml).toContain("<button type=\"submit\" disabled>Add observation</button>");
   const editObservationHtml = renderIdpWorkspace(
     { ...profileState, ui: { ...profileState.ui, actionMode: "edit-evidence", editEvidenceId: "evidence-2" } },
     staffOptions
@@ -449,8 +453,27 @@ test("idp renderer separates the overview from the player development profile", 
   const leadershipGoalHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "leadership-goal" } }, staffOptions);
   expect(leadershipGoalHtml).toContain("Create leadership goal");
   expect(leadershipGoalHtml).toContain("Leadership moments");
+  const checkinState = {
+    ...profileState,
+    playerDetail: {
+      ...profileState.playerDetail,
+      goals: [
+        {
+          id: "saved-goal-1",
+          playerId: "p1",
+          title: "First saved coach goal",
+          metricLabel: "Coach observations",
+          metricType: "observation",
+          currentValue: 0,
+          targetValue: 3,
+          cadence: "weekly",
+          status: "active",
+        },
+      ],
+    },
+  };
   const goalCheckinHtml = renderIdpWorkspace(
-    { ...profileState, ui: { ...profileState.ui, actionMode: "goal-checkin", editGoalId: profileState.playerDetail.goals[0].id } },
+    { ...checkinState, ui: { ...checkinState.ui, actionMode: "goal-checkin", editGoalId: "saved-goal-1" } },
     staffOptions
   );
   expect(goalCheckinHtml).toContain("data-idp-add-goal-checkin");
@@ -477,7 +500,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, staffOptions)).toContain("data-idp-complete-review");
 });
 
-test("idp observation creates a saved focus when the player only has a Squad fallback focus", async () => {
+test("idp observation requires a saved current focus instead of using Squad fallback focus", async () => {
   const player = {
     id: "p1",
     name: "Kailen Sheridan",
@@ -549,29 +572,16 @@ test("idp observation creates a saved focus when the player only has a Squad fal
     context: { getPlayerProfilesState: () => ({ players: [player] }) },
   });
 
-  await actions.addEvidence({
+  await expect(actions.addEvidence({
     get: (key) => {
       if (key === "evidenceType") return "Coach Note";
       if (key === "note") return "Stayed composed.";
       return "";
     },
-  });
+  })).rejects.toThrow("Create a current focus before adding observations.");
 
-  expect(createdFocuses).toHaveLength(1);
-  expect(createdFocuses[0]).toMatchObject({
-    playerId: "p1",
-    title: "Distribution under pressure",
-    category: "Tactical",
-    status: "Active",
-  });
-  expect(evidencePayloads[0]).toMatchObject({
-    playerId: "p1",
-    focusId: "server-focus",
-    evidenceType: "Coach Note",
-    note: "Stayed composed.",
-    sourceModule: "idp",
-  });
-  expect(store.getState().ui.message).toBe("Observation added.");
+  expect(createdFocuses).toHaveLength(0);
+  expect(evidencePayloads).toHaveLength(0);
 });
 
 test("idp observation edit and delete stay server-owned and refresh the selected player", async () => {
@@ -966,8 +976,17 @@ test("idp adapter derives read-only fallback from Squad state", () => {
 
   expect(dashboard).toHaveLength(2);
   expect(dashboard[0].profile).toMatchObject({ playerId: "p1", playerName: "Player One", squadNumber: "18" });
-  expect(dashboard[0].focus.title).toBe("Scan before receive");
-  expect(dashboard[0].nextAction).toBe("Add evidence");
+  expect(dashboard[0]).toMatchObject({
+    focus: null,
+    nextAction: "Create current focus",
+    overallStatus: "No Active Focus",
+  });
+  expect(buildLegacyPlayerDetail({ id: "p1", name: "Player One", idp: { primaryFocus: "Scan before receive" } })).toMatchObject({
+    profile: { playerId: "p1" },
+    focuses: [],
+    goals: [],
+    interventions: [],
+  });
   expect(dashboard[1]).toMatchObject({
     profile: { playerId: "p3", playerName: "Injured Player", status: "none" },
     focus: null,
@@ -1018,8 +1037,8 @@ test("idp assignment refresh preserves the full squad roster and player identity
           focus: null,
           evidenceCount: 2,
           newClipCount: 1,
-          nextAction: "Set review date",
-          overallStatus: "On Track",
+          nextAction: "Create current focus",
+          overallStatus: "No Active Focus",
         },
       ],
     }),
@@ -1054,7 +1073,11 @@ test("idp assignment refresh preserves the full squad roster and player identity
     position: "Goalkeeper",
     squadNumber: "1",
   });
-  expect(state.dashboardPlayers[0].focus.title).toBe("Distribution under pressure");
+  expect(state.dashboardPlayers[0]).toMatchObject({
+    focus: null,
+    nextAction: "Create current focus",
+    overallStatus: "No Active Focus",
+  });
   expect(state.playerDetail.profile).toMatchObject({
     playerId: "p1",
     playerName: "Kailen Sheridan",
@@ -1062,7 +1085,7 @@ test("idp assignment refresh preserves the full squad roster and player identity
     position: "Goalkeeper",
     squadNumber: "1",
   });
-  expect(state.playerDetail.focuses[0].title).toBe("Distribution under pressure");
+  expect(state.playerDetail.focuses).toEqual([]);
 });
 
 test("idp sync refreshes overview and selected player after an external central update", async () => {

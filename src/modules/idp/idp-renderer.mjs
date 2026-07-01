@@ -672,7 +672,7 @@ function buildCoachAssist(detail = {}, profile = {}, focus = null, idpInactive =
       eyebrow: "Recommended next step",
       title: "Define one behaviour before you collect more",
       body: `Choose the exact ${role} behaviour the staff wants to improve, then connect every observation and clip to that focus.`,
-      primary: { label: "Update focus", action: "focus" },
+      primary: { label: "Create focus", action: "focus" },
       secondary: { label: "Open goals", profileView: "goals" },
       stats,
     };
@@ -962,15 +962,16 @@ function renderPlayerVoice(detail = {}, profile = {}) {
 
 function renderStageQuickActions(canEdit = false, focusId = "", idpInactive = false) {
   if (!canEdit || idpInactive) return "";
+  const requiresFocus = !focusId;
   return `
     <details class="idp-stage-actions">
       <summary aria-label="Open quick actions" title="Quick actions">+</summary>
       <div class="idp-stage-actions-menu" role="menu" aria-label="Quick actions">
         <button type="button" data-idp-action="ownership" role="menuitem">Assign Coach</button>
-        <button type="button" data-idp-action="focus" role="menuitem">Update Focus</button>
+        <button type="button" data-idp-action="focus" role="menuitem">${requiresFocus ? "Create Focus" : "Update Focus"}</button>
         <button type="button" data-idp-action="goal" role="menuitem">New Goal</button>
         <button type="button" data-idp-action="leadership-goal" role="menuitem">Leadership Goal</button>
-        <button type="button" data-idp-action="evidence" role="menuitem">Add Observation</button>
+        <button type="button" data-idp-action="evidence" role="menuitem" ${requiresFocus ? "disabled aria-disabled=\"true\"" : ""}>Add Observation</button>
         <button type="button" data-idp-action="review" role="menuitem" ${focusId ? "" : "disabled aria-disabled=\"true\""}>Complete Review</button>
       </div>
     </details>
@@ -1083,7 +1084,7 @@ function renderFocusForm(focus = null) {
 function renderEvidenceForm(focus = null, evidence = null) {
   const isEditing = Boolean(evidence?.id);
   const focusId = evidence?.focusId || (focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "");
-  const focusTitle = normalizeText(focus?.title, "General development notes");
+  const needsFocus = !focusId && !isEditing;
   return `
     <form class="idp-action-form" ${isEditing ? "data-idp-update-evidence" : "data-idp-add-evidence"}>
       ${isEditing ? `<input type="hidden" name="evidenceId" value="${escapeHtml(evidence.id)}">` : ""}
@@ -1096,10 +1097,10 @@ function renderEvidenceForm(focus = null, evidence = null) {
         <span>Note</span>
         <textarea name="note" rows="4" placeholder="What did the player show?">${escapeHtml(evidence?.note || "")}</textarea>
       </label>
-      ${focusId || isEditing ? "" : `<div class="idp-form-note">This observation will start a saved IDP note thread for ${escapeHtml(focusTitle)}.</div>`}
+      ${needsFocus ? `<div class="idp-form-note">Create a current focus before adding observations.</div>` : ""}
       <div class="idp-action-form-actions">
         <button type="button" class="idp-secondary-action" data-idp-close-action>Cancel</button>
-        <button type="submit">${isEditing ? "Save observation" : "Add observation"}</button>
+        <button type="submit" ${needsFocus ? "disabled" : ""}>${isEditing ? "Save observation" : "Add observation"}</button>
       </div>
     </form>
   `;
@@ -1254,9 +1255,12 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
   const editingGoal = ["edit-goal", "goal-checkin"].includes(mode)
     ? (state.playerDetail?.goals || []).find((item) => item.id === state.ui?.editGoalId) || null
     : null;
+  const hasSavedFocus = Boolean(focus?.id && !String(focus.id).startsWith("legacy-focus-"));
   const copy = {
     ownership: ["Assign IDP Coach", "Choose who owns this player's development follow-up."],
-    focus: ["Update focus", "Change the player's current development priority, status, and review date."],
+    focus: hasSavedFocus
+      ? ["Update focus", "Change the player's current development priority, status, and review date."]
+      : ["Create focus", "Set the player's current development priority, status, and review date."],
     goal: ["Create development goal", "Set a measurable outcome or behavior that supports this player's IDP."],
     "edit-goal": ["Edit development goal", "Adjust the target, measurement or cadence without losing goal history."],
     "goal-checkin": ["Goal check-in", "Log the latest progress signal for this goal."],
@@ -1296,7 +1300,7 @@ function renderActionOverlay(state = {}, focus = null, canEdit = false, options 
         </header>
         <div class="idp-action-context" aria-label="Action context">
           <span><small>Player</small><strong>${escapeHtml(profile.playerName || "Player")}</strong></span>
-          <span><small>Current Focus</small><strong>${escapeHtml(focus?.title || "Create current focus")}</strong></span>
+          <span><small>Current Focus</small><strong>${escapeHtml(focus?.title || "No active focus")}</strong></span>
           <span><small>IDP Coach</small><strong>${escapeHtml(formatStaffName(ownerId, options))}</strong></span>
         </div>
         ${form}
@@ -1670,7 +1674,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
           <div class="idp-focus-clarity-head">
             <div>
               <div class="idp-section-kicker">Current Focus</div>
-              <h3>${escapeHtml(idpInactive ? "No active IDP" : focus?.title || "Create current focus")}</h3>
+              <h3>${escapeHtml(idpInactive ? "No active IDP" : focus?.title || "No active focus")}</h3>
             </div>
             <div class="idp-focus-side">
               <div class="idp-focus-meta">

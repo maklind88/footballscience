@@ -1437,6 +1437,43 @@ function renderWorkflowMore(items = [], renderItem = () => "", summaryAttributes
   `;
 }
 
+function isObservationMilestone(milestone = {}) {
+  const raw = `${milestone.title || ""} ${milestone.milestoneType || ""}`.toLowerCase();
+  return /evidence added|observation added|first evidence added|first observation added/.test(raw);
+}
+
+function timelineObservationType(item = null) {
+  const type = coachLabel(item?.evidenceType || "");
+  if (!type) return "";
+  if (/^video clip$/i.test(type)) return "Clip Observation";
+  return type;
+}
+
+function sameCalendarDate(first = "", second = "") {
+  const firstDate = normalizeText(first, "").slice(0, 10);
+  const secondDate = normalizeText(second, "").slice(0, 10);
+  return Boolean(firstDate && secondDate && firstDate === secondDate);
+}
+
+function timelineObservationForMilestone(milestone = {}, evidenceById = new Map(), observations = []) {
+  const sourceId = normalizeText(milestone.sourceId || milestone.source_id, "");
+  if (sourceId && evidenceById.has(sourceId)) return evidenceById.get(sourceId);
+  const milestoneDate = milestone.occurredOn || milestone.createdAt || "";
+  return newestFirst(observations, "createdAt").find((item) => (
+    sameCalendarDate(item.createdAt, milestoneDate)
+    && (!milestone.playerId || !item.playerId || item.playerId === milestone.playerId)
+    && (!milestone.focusId || !item.focusId || item.focusId === milestone.focusId)
+  )) || null;
+}
+
+function timelineMilestoneLabel(milestone = {}, evidenceById = new Map(), observations = []) {
+  if (isObservationMilestone(milestone)) {
+    const observationType = timelineObservationType(timelineObservationForMilestone(milestone, evidenceById, observations));
+    return observationType ? `${observationType} added` : "Observation added";
+  }
+  return coachLabel(milestone.title || milestone.milestoneType || "Timeline update");
+}
+
 function renderProfileObservationItem(item = {}, canEdit = false) {
   return `
     <div class="idp-stream-item">
@@ -1474,8 +1511,8 @@ function renderProfileSignalStream(detail = {}, canEdit = false) {
   `;
 }
 
-function renderTimelineRiverItem(milestone = {}, options = {}) {
-  const label = coachLabel(milestone.title || milestone.milestoneType || "Timeline update");
+function renderTimelineRiverItem(milestone = {}, options = {}, evidenceById = new Map(), observations = []) {
+  const label = timelineMilestoneLabel(milestone, evidenceById, observations);
   const date = milestone.occurredOn || milestone.createdAt || "";
   const actor = timelineActorLabel(milestone, options);
   const actorText = actor === "Actor not captured" ? actor : `By ${actor}`;
@@ -1496,6 +1533,8 @@ function renderTimelineRiverItem(milestone = {}, options = {}) {
 }
 
 function renderProfileTimelineRiver(detail = {}, options = {}) {
+  const observations = detail.evidence || [];
+  const evidenceById = new Map(observations.map((item) => [item.id, item]).filter(([id]) => id));
   const milestones = newestFirst(detail.milestones || [], "occurredOn");
   const visibleMilestones = milestones.slice(0, profileWorkflowPreviewLimit);
   const hiddenMilestones = milestones.slice(profileWorkflowPreviewLimit);
@@ -1510,8 +1549,8 @@ function renderProfileTimelineRiver(detail = {}, options = {}) {
       <div class="idp-timeline-river">
         ${milestones.length
           ? `
-            ${visibleMilestones.map((milestone) => renderTimelineRiverItem(milestone, options)).join("")}
-            ${renderWorkflowMore(hiddenMilestones, (milestone) => renderTimelineRiverItem(milestone, options), "data-idp-timeline-more")}
+            ${visibleMilestones.map((milestone) => renderTimelineRiverItem(milestone, options, evidenceById, observations)).join("")}
+            ${renderWorkflowMore(hiddenMilestones, (milestone) => renderTimelineRiverItem(milestone, options, evidenceById, observations), "data-idp-timeline-more")}
           `
           : `<div class="idp-empty-signal">The first completed action will start the timeline.</div>`}
       </div>

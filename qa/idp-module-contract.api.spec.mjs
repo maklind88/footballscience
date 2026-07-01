@@ -196,7 +196,7 @@ test("idp renderer separates the overview from the player development profile", 
     id: `evidence-${index + 1}`,
     playerId: "p1",
     focusId: "legacy-focus-p1",
-    evidenceType: "Coach Note",
+    evidenceType: index === 0 ? "Player Reflection" : index === 1 ? "Video Clip" : "Coach Note",
     note: index === 7 ? "Observation eight is visible." : `Observation ${index + 1}`,
     createdAt: "2026-06-16T10:00:00.000Z",
   }));
@@ -204,10 +204,11 @@ test("idp renderer separates the overview from the player development profile", 
     id: `milestone-${index + 1}`,
     playerId: "p1",
     focusId: "legacy-focus-p1",
-    milestoneType: index === 0 ? "First Evidence Added" : "Current Focus Updated",
-    title: index === 0 ? "Evidence added" : `Timeline update ${index + 1}`,
+    milestoneType: "First Evidence Added",
+    title: "Evidence added",
     occurredOn: `2026-06-${String(16 - index).padStart(2, "0")}`,
     sourceModule: "idp",
+    sourceId: `evidence-${index + 1}`,
     createdBy: "coach-1",
   }));
   const overviewHtml = renderIdpWorkspace(state, staffOptions);
@@ -309,7 +310,10 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("Show more");
   expect(profileHtml).toContain("<strong>2</strong>");
   expect(profileHtml).toContain("By Mak Lind");
-  expect(profileHtml).toContain("Observation added");
+  expect(profileHtml).toContain("Player Reflection added");
+  expect(profileHtml).toContain("Clip Observation added");
+  expect(profileHtml).toContain("Coach Note added");
+  expect(profileHtml).not.toContain("<strong>Observation added</strong>");
   expect(profileHtml).not.toContain("idp-ownership-studio");
   expect(profileHtml).not.toContain("Primary IDP Coach");
   expect(profileHtml).not.toContain("Current Focus Owner");

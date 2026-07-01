@@ -571,25 +571,6 @@ function buildDevelopmentObjective(profile = {}, focus = null, idpInactive = fal
   return `Collect match and training evidence for this focus, then decide the next coaching action for ${role}${context ? ` in ${context}` : ""}.`;
 }
 
-function buildSuccessCriteria(detail = {}, focus = null, profile = {}, idpInactive = false) {
-  if (idpInactive) {
-    return [
-      { label: "Availability reviewed", state: "watch" },
-      { label: "Historical observations preserved", state: "done" },
-      { label: "Reactivate when Squad status changes", state: "next" },
-    ];
-  }
-  const observations = detail.evidence?.length || 0;
-  const clips = detail.clipBank?.length || 0;
-  const reviewDate = profile.nextReviewOn || focus?.reviewDate || "";
-  return [
-    { label: `${focus?.category || "Tactical"} behavior is visible in training and match context`, state: observations >= 2 ? "done" : "next" },
-    { label: observations >= 3 ? "3+ relevant observations logged" : `Log ${Math.max(1, 3 - observations)} more relevant observation${3 - observations === 1 ? "" : "s"}`, state: observations >= 3 ? "done" : "next" },
-    { label: clips ? "Clip bank has reviewable moments" : "Capture at least one video moment", state: clips ? "done" : "watch" },
-    { label: reviewDate ? `Review loop set for ${formatShortDate(reviewDate)}` : "Set the next review date", state: reviewDate ? "done" : "watch" },
-  ];
-}
-
 function goalRoleLabel(role = "supporting") {
   return {
     primary: "Primary",
@@ -1192,19 +1173,6 @@ function renderOwnershipPanel(detail = {}, focus = null, canEdit = false, option
   `;
 }
 
-function renderCriteriaTrack(criteria = []) {
-  return `
-    <div class="idp-criteria-track" aria-label="Success Criteria">
-      ${criteria.map((item, index) => `
-        <div class="idp-criteria-node is-${escapeHtml(item.state || "next")}">
-          <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
-          <strong>${escapeHtml(item.label)}</strong>
-        </div>
-      `).join("")}
-    </div>
-  `;
-}
-
 function renderProfileFilmstrip(detail = {}, canEdit = false, ui = {}) {
   return renderClipBankOrganizer(detail, canEdit, ui);
 }
@@ -1475,7 +1443,6 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
   const nextAction = detail.nextActions?.find((action) => action.status === "open") || detail.nextActions?.[0] || {};
   const ownerId = primaryOwnerId(profile, focus || {});
   const pulse = progressPulse(detail, focus, idpInactive);
-  const criteria = buildSuccessCriteria(detail, focus, profile, idpInactive);
   const strengths = Array.isArray(profile.strengths) ? profile.strengths.slice(0, 3) : [];
   const profileView = normalizeProfileView(state.ui?.profileView || "");
   return `
@@ -1533,8 +1500,6 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
               <div class="idp-strength-row">${strengths.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
             </div>
           ` : ""}
-          <div class="idp-section-kicker">Success Criteria</div>
-          ${renderCriteriaTrack(criteria)}
         </article>
       </section>
       ${renderGoalsSnapshot(detail, canEdit && !idpInactive, options)}

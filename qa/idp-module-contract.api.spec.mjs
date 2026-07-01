@@ -259,7 +259,8 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("idp-player-board-panel");
   expect(profileHtml).not.toContain("idp-stage-scoreboard");
   expect(profileHtml).not.toContain("Player development pulse");
-  expect(profileHtml).toContain("Success Criteria");
+  expect(profileHtml).not.toContain("Success Criteria");
+  expect(profileHtml).not.toContain("idp-criteria-track");
   expect(profileHtml).toContain("Goals & Responsibility");
   expect(profileHtml).toContain("data-idp-edit-goal");
   expect(profileHtml).toContain("data-idp-goal-checkin");

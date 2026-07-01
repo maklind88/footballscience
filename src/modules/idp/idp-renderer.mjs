@@ -725,6 +725,15 @@ function activeGoals(detail = {}) {
     });
 }
 
+function latestAddedGoal(detail = {}) {
+  const goals = activeGoals(detail);
+  return [...goals].sort((a, b) => {
+    const first = normalizeText(a.createdAt || a.updatedAt || "");
+    const second = normalizeText(b.createdAt || b.updatedAt || "");
+    return second.localeCompare(first) || goals.indexOf(a) - goals.indexOf(b);
+  })[0] || null;
+}
+
 function goalCheckins(detail = {}, goalId = "") {
   return newestFirst(detail.goalCheckins || [], ["checkinOn", "createdAt"])
     .filter((item) => item.goalId === goalId);
@@ -799,24 +808,21 @@ function renderGoalEmpty(canEdit = false) {
   `;
 }
 
-function renderGoalsSnapshot(detail = {}, canEdit = false, options = {}) {
-  const goals = activeGoals(detail);
-  const visibleGoals = goals.slice(0, 3);
+function renderLatestGoalPanel(detail = {}, canEdit = false, options = {}) {
+  const goal = latestAddedGoal(detail);
   return `
-    <section class="idp-goals-snapshot" aria-label="Player development goals">
-      <div class="idp-profile-subsection-head">
+    <article class="idp-latest-goal-panel">
+      <div class="idp-section-head">
         <div>
-          <span>Goals & Responsibility</span>
-          <strong>${escapeHtml(goals.length ? `${goals.length} active goal${goals.length === 1 ? "" : "s"}` : "No active goals")}</strong>
+          <span>Latest Goal</span>
+          <strong>${escapeHtml(goal ? "Most recently added" : "No active goal")}</strong>
         </div>
-        ${canEdit ? `<button type="button" data-idp-action="goal">New Goal</button>` : ""}
+        <button type="button" data-idp-profile-view="goals">Goals</button>
       </div>
-      <div class="idp-goals-grid">
-        ${visibleGoals.length
-          ? visibleGoals.map((goal) => renderGoalCard(goal, detail, canEdit, options)).join("")
-          : renderGoalEmpty(canEdit)}
+      <div class="idp-latest-goal-body">
+        ${goal ? renderGoalCard(goal, detail, canEdit, options) : renderGoalEmpty(canEdit)}
       </div>
-    </section>
+    </article>
   `;
 }
 
@@ -1629,9 +1635,9 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
           ` : ""}
         </article>
       </section>
-      ${renderGoalsSnapshot(detail, canEdit && !idpInactive, options)}
       <section class="idp-workflow-board">
         ${renderProfileSignalStream(detail, canEdit && !idpInactive)}
+        ${renderLatestGoalPanel(detail, canEdit && !idpInactive, options)}
         ${renderProfileTimelineRiver(detail, options)}
       </section>
       `}

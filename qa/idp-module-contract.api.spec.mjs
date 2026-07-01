@@ -192,6 +192,11 @@ test("idp renderer separates the overview from the player development profile", 
   state.dashboardPlayers[0].profile.ownerId = "coach-1";
   state.playerDetail.profile.ownerId = "coach-1";
   state.playerDetail.ownership = [{ owner_id: "coach-1", ownership_type: "player-owner", status: "active" }];
+  state.playerDetail.goals = state.playerDetail.goals.map((goal, index) => ({
+    ...goal,
+    createdAt: index === 0 ? "2026-06-16T09:00:00.000Z" : "2026-06-27T09:00:00.000Z",
+    updatedAt: index === 0 ? "2026-06-16T09:00:00.000Z" : "2026-06-27T09:00:00.000Z",
+  }));
   state.playerDetail.evidence = Array.from({ length: 8 }, (_, index) => ({
     id: `evidence-${index + 1}`,
     playerId: "p1",
@@ -271,7 +276,12 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("Player development pulse");
   expect(profileHtml).not.toContain("Success Criteria");
   expect(profileHtml).not.toContain("idp-criteria-track");
-  expect(profileHtml).toContain("Goals & Responsibility");
+  expect(profileHtml).not.toContain("idp-goals-snapshot");
+  expect(profileHtml).toContain("idp-latest-goal-panel");
+  expect(profileHtml).toContain("Latest Goal");
+  expect(profileHtml).toContain("Most recently added");
+  expect(profileHtml).toContain("Own the next on-pitch action");
+  expect(profileHtml).not.toContain("Make receive under pressure visible");
   expect(profileHtml).toContain("data-idp-edit-goal");
   expect(profileHtml).toContain("data-idp-goal-checkin");
   expect(profileHtml).not.toContain("idp-intelligence-board");
@@ -395,6 +405,8 @@ test("idp renderer separates the overview from the player development profile", 
   }, staffOptions);
   expect(goalsHtml).toContain("idp-profile-goals-page");
   expect(goalsHtml).toContain("Goals & Leadership");
+  expect(goalsHtml).toContain("Own the next on-pitch action");
+  expect(goalsHtml).toContain("Make receive under pressure visible");
   expect(goalsHtml).toContain("Development Goals");
   expect(goalsHtml).toContain("Leadership & Responsibility");
   expect(goalsHtml).toContain("data-idp-action=\"goal\"");

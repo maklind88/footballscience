@@ -5085,6 +5085,110 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   gap: 12px;
 }
 
+.idp-profile-scouting-radar {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(15, 118, 110, .1), transparent 18rem),
+    linear-gradient(135deg, rgba(255, 255, 255, .98), rgba(248, 250, 252, .9)),
+    #fff;
+  border: 1px solid var(--idp-profile-line);
+  border-radius: 8px;
+  box-shadow: 0 16px 42px rgba(16, 24, 40, .055);
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.idp-profile-scouting-radar-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.idp-profile-scouting-radar-head div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.idp-profile-scouting-radar-head p {
+  color: var(--idp-profile-muted);
+  font-size: .72rem;
+  font-weight: 950;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.idp-profile-scouting-radar-head h2 {
+  color: #101828;
+  font-size: clamp(1.16rem, 1.7vw, 1.55rem);
+  line-height: 1.06;
+  margin: 0;
+}
+
+.idp-profile-scouting-radar-head > span {
+  color: #475467;
+  flex: 0 0 auto;
+  font-size: .72rem;
+  font-weight: 900;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.idp-profile-scouting-radar .player-profile-scouting-spider-layout {
+  align-items: center;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(15rem, .82fr) minmax(18rem, 1fr);
+}
+
+.idp-profile-scouting-radar .player-profile-scouting-spider {
+  display: block;
+  height: auto;
+  justify-self: center;
+  max-width: 260px;
+  width: min(100%, 260px);
+}
+
+.idp-profile-scouting-radar .player-profile-scouting-metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.idp-profile-scouting-radar .player-profile-scouting-metrics > div,
+.idp-profile-scouting-radar .player-profile-scouting-spider-layout > p {
+  background: rgba(248, 250, 252, .82);
+  border: 1px solid var(--idp-profile-soft-line);
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.idp-profile-scouting-radar .player-profile-scouting-metrics span {
+  color: var(--idp-profile-muted);
+  font-size: .64rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.idp-profile-scouting-radar .player-profile-scouting-metrics strong {
+  color: #0f766e;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.idp-profile-scouting-radar .player-profile-scouting-metrics small,
+.idp-profile-scouting-radar .player-profile-scouting-spider-layout > p {
+  color: #475467;
+  font-size: .74rem;
+  font-weight: 760;
+  line-height: 1.25;
+}
+
 .idp-profile-subpage-head {
   align-items: center;
   background:
@@ -5889,6 +5993,7 @@ body.is-dark-mode .idp-shell.is-profile-mode .idp-header,
 body.is-dark-mode .idp-profile-stage,
 body.is-dark-mode .idp-stage-actions-menu,
 body.is-dark-mode .idp-coach-board,
+body.is-dark-mode .idp-profile-scouting-radar,
 body.is-dark-mode .idp-profile-subpage-head,
 body.is-dark-mode .idp-profile-actions-deck,
 body.is-dark-mode .idp-action-dialog {
@@ -5932,6 +6037,8 @@ body.is-dark-mode .idp-goals-snapshot,
 body.is-dark-mode .idp-goals-board > section,
 body.is-dark-mode .idp-goal-card,
 body.is-dark-mode .idp-goal-metrics span,
+body.is-dark-mode .idp-profile-scouting-radar .player-profile-scouting-metrics > div,
+body.is-dark-mode .idp-profile-scouting-radar .player-profile-scouting-spider-layout > p,
 body.is-dark-mode .idp-goals-page-summary span,
 body.is-dark-mode .idp-goals-empty {
   background: rgba(255, 255, 255, .84);
@@ -5947,6 +6054,8 @@ body.is-dark-mode .idp-profile-actions-deck .idp-action-rail button strong,
 body.is-dark-mode .idp-focus-story h3,
 body.is-dark-mode .idp-goal-card strong,
 body.is-dark-mode .idp-goals-empty strong,
+body.is-dark-mode .idp-profile-scouting-radar-head h2,
+body.is-dark-mode .idp-profile-scouting-radar .player-profile-scouting-metrics strong,
 body.is-dark-mode .idp-profile-subsection-head strong,
 body.is-dark-mode .idp-profile-experience .idp-development-objective,
 body.is-dark-mode .idp-player-voice-card blockquote,
@@ -5983,6 +6092,8 @@ body.is-dark-mode .idp-profile-menu button.is-active {
 
 body.is-dark-mode .idp-profile-experience .idp-section-kicker,
 body.is-dark-mode .idp-profile-experience .idp-snapshot-label,
+body.is-dark-mode .idp-profile-scouting-radar-head p,
+body.is-dark-mode .idp-profile-scouting-radar-head > span,
 body.is-dark-mode .idp-stage-identity p,
 body.is-dark-mode .idp-stage-scoreboard span,
 body.is-dark-mode .idp-pulse-orb span,
@@ -6056,6 +6167,11 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
 
   .idp-profile-stage {
     grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .idp-profile-scouting-radar .player-profile-scouting-spider-layout,
+  .idp-profile-scouting-radar .player-profile-scouting-metrics {
+    grid-template-columns: 1fr;
   }
 
   .idp-player-board-modal-layout {

@@ -795,6 +795,32 @@ function renderProfileMenu(profileView = "development") {
   `;
 }
 
+function renderProfileScoutingRadar(profile = {}, options = {}) {
+  const renderSpider = typeof options.renderPlayerProfileScoutingSpider === "function"
+    ? options.renderPlayerProfileScoutingSpider
+    : null;
+  const playerName = normalizeText(profile.playerName || profile.name, "");
+  if (!renderSpider || !playerName) return "";
+  return renderSpider(
+    {
+      id: profile.playerId || profile.id || "",
+      name: playerName,
+      playerName,
+      number: playerSquadNumber(profile),
+      position: profile.position || "",
+      primaryRole: profile.role || profile.primaryRole || "",
+      role: profile.role || profile.primaryRole || "",
+      roleGroup: profile.roleGroup || "",
+    },
+    {
+      cardClassName: "idp-profile-scouting-radar player-profile-scouting-spider-card",
+      headerClassName: "idp-profile-scouting-radar-head",
+      kickerLabel: "NWSL Data Spider",
+      titleLabel: "Performance Radar",
+    }
+  );
+}
+
 function renderObservationButtons(item = {}, canEdit = false) {
   if (!canEdit || !item.id) return "";
   const id = escapeHtml(item.id);
@@ -1477,6 +1503,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
             state.ui || {}
           )
           : `
+      ${renderProfileScoutingRadar(profile, options)}
       <section class="idp-development-board is-focus-only">
         <article class="idp-focus-story idp-focus-clarity-card">
           <div class="idp-focus-clarity-head">

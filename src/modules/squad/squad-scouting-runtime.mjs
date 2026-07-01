@@ -140,6 +140,6 @@ export function createSquadScoutingRuntime(deps = {}) {
     ...playerProfileScoutingHelpers,
     getPlayerProfileScoutingDatabase,
     queuePlayerProfileScoutingDatabaseLoad,
-    renderPlayerProfileScoutingSpider: (player) => squadScoutingSpiderRenderer.render(player),
+    renderPlayerProfileScoutingSpider: (player, renderOptions = {}) => squadScoutingSpiderRenderer.render(player, renderOptions),
   };
 }

@@ -1594,7 +1594,13 @@ renderPlayerProfileScoutingSpider,
 } = createSquadScoutingRuntime({
 escapeHtml,
 platformModuleLoader,
-renderWorkspace: () => renderPlayerProfilesWorkspace(),
+renderWorkspace: () => {
+if (hubState?.activeWorkspaceId === "idp") {
+renderIdpWorkspace();
+return;
+}
+renderPlayerProfilesWorkspace();
+},
 win,
 });
 let selectedStaffUserId = null;
@@ -1899,6 +1905,7 @@ formatUserName,
 getPlayerProfilesState: () => playerProfilesState,
 getPlayerProfilesStateForGameplan: () => playerProfilesState || readPlayerProfilesState(),
 getPlayerProfilesStateForTransferRoom: () => playerProfilesState || readPlayerProfilesState(),
+renderPlayerProfileScoutingSpider,
 getSafeWorkspaceId,
 getScheduleState: () => scheduleState,
 getScheduleStateForGameplan: () => scheduleState || readScheduleState(),

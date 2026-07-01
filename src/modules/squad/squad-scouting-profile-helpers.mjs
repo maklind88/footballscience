@@ -66,7 +66,7 @@ export function createSquadScoutingProfileHelpers(options = {}) {
   function getPlayerProfileScoutingPositionGroup(recordOrPosition, player = null) {
     const position = Array.isArray(recordOrPosition)
       ? recordOrPosition[recordIndex.position]
-      : recordOrPosition || player?.position || player?.primaryRole || "";
+      : recordOrPosition || player?.position || player?.primaryRole || player?.role || "";
     const tokens = String(position ?? "").toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
     if (tokens.some((token) => token.includes("GK"))) return "GK";
     if (tokens.some((token) => ["CB", "RCB", "LCB"].includes(token))) return "CB";
@@ -88,7 +88,7 @@ export function createSquadScoutingProfileHelpers(options = {}) {
 
   function findPlayerProfileNwslScoutingRecord(player) {
     const database = getDatabase();
-    const playerName = normalizePlayerProfileScoutingText(player?.name);
+    const playerName = normalizePlayerProfileScoutingText(player?.name || player?.playerName);
     if (!database || !playerName) return null;
     const candidates = database.records
       .filter((record) => isPlayerProfileNwslScoutingRecord(record))

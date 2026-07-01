@@ -270,6 +270,7 @@ export function createPlatformRuntimeServices(deps = {}) {
     getPlayerProfilesStateForGameplan,
     getPlayerProfilesStateForVideoAnalysis: () => deps.getPlayerProfilesState?.() || readPlayerProfilesState(),
     getPlayerProfilesStateForIdp: () => deps.getPlayerProfilesState?.() || readPlayerProfilesState(),
+    renderPlayerProfileScoutingSpider: deps.renderPlayerProfileScoutingSpider,
     canEditGameplan: () => canCurrentUserEditWorkspace("gameplan"),
     canEditVideoAnalysis: () => canCurrentUserEditWorkspace("analysis-room"),
     canEditIdp: () => canCurrentUserEditWorkspace("idp"),

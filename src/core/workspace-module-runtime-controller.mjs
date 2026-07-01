@@ -12,6 +12,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     getPlayerProfilesStateForGameplan = () => ({}),
     getPlayerProfilesStateForVideoAnalysis = getPlayerProfilesStateForGameplan,
     getPlayerProfilesStateForIdp = getPlayerProfilesStateForVideoAnalysis,
+    renderPlayerProfileScoutingSpider = () => "",
     canEditGameplan = () => false,
     canEditVideoAnalysis = () => false,
     canEditIdp = () => false,
@@ -175,6 +176,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
       teamLogoUrl: getPlatformTeamLogoUrl(team),
       getAuthToken,
       getPlayerProfilesState: getPlayerProfilesStateForIdp,
+      renderPlayerProfileScoutingSpider,
       canEdit: canEditIdp,
     };
   }

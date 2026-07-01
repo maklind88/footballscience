@@ -31,6 +31,8 @@ function normalizeContext(context = {}) {
     getAuthToken: typeof context.getAuthToken === "function" ? context.getAuthToken : () => "",
     getPlayerProfilesState:
       typeof context.getPlayerProfilesState === "function" ? context.getPlayerProfilesState : () => ({}),
+    renderPlayerProfileScoutingSpider:
+      typeof context.renderPlayerProfileScoutingSpider === "function" ? context.renderPlayerProfileScoutingSpider : () => "",
     canEdit: typeof context.canEdit === "function" ? context.canEdit : () => Boolean(context.canEdit),
   };
 }
@@ -162,6 +164,7 @@ function paint(activeRuntime = runtime) {
     team: activeRuntime.context.team,
     teamLogoUrl: activeRuntime.context.teamLogoUrl,
     teamName: activeRuntime.context.teamName,
+    renderPlayerProfileScoutingSpider: activeRuntime.context.renderPlayerProfileScoutingSpider,
   });
   restoreSearchFocus(activeRuntime, searchFocus);
   setupIdpClipPreviewPlayback(activeRuntime);

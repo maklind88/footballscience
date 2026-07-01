@@ -67,9 +67,19 @@ test("Squad scouting spider renderer renders radar metrics from callback data", 
     recordIndex,
   });
 
-  const markup = renderer.render({ name: "Mak Lind" });
+  const markup = renderer.render(
+    { playerName: "Mak Lind" },
+    {
+      cardClassName: "idp-profile-scouting-radar player-profile-scouting-spider-card",
+      headerClassName: "idp-profile-scouting-radar-head",
+      kickerLabel: "NWSL Data Spider",
+    }
+  );
 
   expect(markup).toContain("NCC / 2026");
+  expect(markup).toContain("idp-profile-scouting-radar");
+  expect(markup).toContain("idp-profile-scouting-radar-head");
+  expect(markup).toContain("NWSL Data Spider");
   expect(markup).toContain("NWSL performance spider");
   expect(markup).toContain("<strong>P88</strong>");
   expect(markup).toContain("DUELS: 2.1 / low is good");

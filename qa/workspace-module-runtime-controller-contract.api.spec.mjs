@@ -91,6 +91,7 @@ function createRuntime(overrides = {}) {
     getPlayerProfilesStateForGameplan: () => ({ players: [] }),
     getPlayerProfilesStateForVideoAnalysis: () => ({ players: [{ id: "p1", name: "Player One" }] }),
     getPlayerProfilesStateForIdp: () => ({ players: [{ id: "p-idp", name: "IDP Player" }] }),
+    renderPlayerProfileScoutingSpider: (player) => `radar:${player.name || player.playerName}`,
     canEditGameplan: () => true,
     canEditVideoAnalysis: () => true,
     canEditIdp: () => true,
@@ -184,6 +185,7 @@ test("workspace module runtime owns Gameplan, Scouting, and Video Analysis lazy 
   expect(calls.idpRender[0].formatUserName({ firstName: "Alex", lastName: "Coach" })).toBe("Alex Coach");
   expect(calls.idpRender[0].canEdit()).toBe(true);
   expect(calls.idpRender[0].getPlayerProfilesState().players[0].id).toBe("p-idp");
+  expect(calls.idpRender[0].renderPlayerProfileScoutingSpider({ name: "IDP Player" })).toBe("radar:IDP Player");
 });
 
 test("workspace module runtime hydrates and preloads the correct module families", async () => {

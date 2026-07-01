@@ -183,6 +183,11 @@ test("idp renderer separates the overview from the player development profile", 
       { id: "coach-1", name: "Mak Lind", role: "coach" },
       { id: "analyst-1", name: "Video Analyst", role: "analyst" },
     ],
+    renderPlayerProfileScoutingSpider: (player, renderOptions = {}) => `
+      <article class="${renderOptions.cardClassName || ""}" data-test-scouting-radar="${player.name}">
+        <h2>${renderOptions.titleLabel || "Performance Radar"}</h2>
+      </article>
+    `,
   };
   state.dashboardPlayers[0].profile.ownerId = "coach-1";
   state.playerDetail.profile.ownerId = "coach-1";
@@ -235,6 +240,10 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml.indexOf("idp-stage-actions")).toBeLessThan(profileHtml.indexOf("data-idp-back-overview"));
   expect(profileHtml.indexOf("data-idp-back-overview")).toBeLessThan(profileHtml.indexOf('data-idp-profile-view="development"'));
   expect(profileHtml.indexOf('data-idp-profile-view="development"')).toBeLessThan(profileHtml.indexOf('data-idp-profile-view="goals"'));
+  expect(profileHtml).toContain('class="idp-profile-scouting-radar player-profile-scouting-spider-card"');
+  expect(profileHtml).toContain('data-test-scouting-radar="Player One"');
+  expect(profileHtml.indexOf("idp-profile-scouting-radar")).toBeGreaterThan(profileHtml.indexOf("idp-profile-menu"));
+  expect(profileHtml.indexOf("idp-profile-scouting-radar")).toBeLessThan(profileHtml.indexOf("Current Focus"));
   expect(profileHtml.indexOf("idp-profile-menu")).toBeLessThan(profileHtml.indexOf("Current Focus"));
   expect(profileHtml).toContain("data-idp-action=\"ownership\"");
   expect(profileHtml).toContain("data-idp-action=\"focus\"");
@@ -351,6 +360,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).not.toContain("idp-focus-clarity-card");
   expect(playerBoardHtml).not.toContain("idp-workflow-board");
   expect(playerBoardHtml).not.toContain("idp-clip-bank-organizer");
+  expect(playerBoardHtml).not.toContain("idp-profile-scouting-radar");
 
   const clipBankHtml = renderIdpWorkspace({
     ...profileState,
@@ -364,6 +374,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect((clipBankHtml.match(/data-idp-profile-view="development"/g) || []).length).toBe(1);
   expect(clipBankHtml).not.toContain("idp-focus-clarity-card");
   expect(clipBankHtml).not.toContain("idp-workflow-board");
+  expect(clipBankHtml).not.toContain("idp-profile-scouting-radar");
 
   const goalsHtml = renderIdpWorkspace({
     ...profileState,
@@ -377,6 +388,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(goalsHtml).toContain("data-idp-action=\"leadership-goal\"");
   expect((goalsHtml.match(/data-idp-profile-view="development"/g) || []).length).toBe(1);
   expect(goalsHtml).not.toContain("idp-workflow-board");
+  expect(goalsHtml).not.toContain("idp-profile-scouting-radar");
 
   const assignmentHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "ownership" } }, staffOptions);
   expect(assignmentHtml).toContain("data-idp-assign-owner");

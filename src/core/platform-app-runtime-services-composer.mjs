@@ -103,6 +103,7 @@ export function createPlatformAppRuntimeServices(deps = {}) {
     getPlayerProfilesState: deps.getPlayerProfilesState,
     getPlayerProfilesStateForGameplan: deps.getPlayerProfilesStateForGameplan,
     getPlayerProfilesStateForTransferRoom: deps.getPlayerProfilesStateForTransferRoom,
+    renderPlayerProfileScoutingSpider: deps.renderPlayerProfileScoutingSpider,
     getSafeWorkspaceId: deps.getSafeWorkspaceId,
     getScheduleDayWarningsFromModule,
     getScheduleMainEventFromModule,

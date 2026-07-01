@@ -26,6 +26,19 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
   const getMetric = typeof options.getMetric === "function" ? options.getMetric : () => null;
   const templates = options.templates || {};
   const recordIndex = options.recordIndex || {};
+  const defaultCardClassName = options.cardClassName || "squad-profile-section player-profile-scouting-spider-card";
+  const defaultHeaderClassName = options.headerClassName || "squad-section-head";
+  const defaultKickerLabel = options.kickerLabel || "NWSL data spider";
+  const defaultTitleLabel = options.titleLabel || "Performance Radar";
+
+  function getRenderOptions(renderOptions = {}) {
+    return {
+      cardClassName: renderOptions.cardClassName || defaultCardClassName,
+      headerClassName: renderOptions.headerClassName || defaultHeaderClassName,
+      kickerLabel: renderOptions.kickerLabel || defaultKickerLabel,
+      titleLabel: renderOptions.titleLabel || defaultTitleLabel,
+    };
+  }
 
   function renderNoDataSpider(message = "No data") {
     return `
@@ -39,13 +52,14 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
   `;
   }
 
-  function renderEmptyCard(status, message) {
+  function renderEmptyCard(status, message, renderOptions = {}) {
+    const { cardClassName, headerClassName, kickerLabel, titleLabel } = getRenderOptions(renderOptions);
     return `
-      <article class="squad-profile-section player-profile-scouting-spider-card">
-        <header class="squad-section-head">
+      <article class="${escapeHtml(cardClassName)}">
+        <header class="${escapeHtml(headerClassName)}">
           <div>
-            <p>NWSL data spider</p>
-            <h2>Performance Radar</h2>
+            <p>${escapeHtml(kickerLabel)}</p>
+            <h2>${escapeHtml(titleLabel)}</h2>
           </div>
           <span>${escapeHtml(status)}</span>
         </header>
@@ -57,20 +71,22 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
     `;
   }
 
-  function render(player) {
+  function render(player, renderOptions = {}) {
     const database = getDatabase();
     if (!database) {
       queueDatabaseLoad();
       return renderEmptyCard(
         "Loading data",
-        "Scouting player database data is being loaded. If no matching row exists after import, this stays as a clean no-data spider."
+        "Scouting player database data is being loaded. If no matching row exists after import, this stays as a clean no-data spider.",
+        renderOptions
       );
     }
     const record = findRecord(player);
     if (!record) {
       return renderEmptyCard(
         "No verified data",
-        "No linked scouting player database row exists for this player yet. When imported data matches the profile name, this spider will become data-driven."
+        "No linked scouting player database row exists for this player yet. When imported data matches the profile name, this spider will become data-driven.",
+        renderOptions
       );
     }
     const group = getPositionGroup(record, player);
@@ -86,7 +102,11 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
       })
       .filter(Boolean);
     if (axes.length < 3) {
-      return renderEmptyCard(record[recordIndex.season] || "NWSL", "NWSL row found, but not enough comparable KPI fields exist to draw a reliable spider.");
+      return renderEmptyCard(
+        record[recordIndex.season] || "NWSL",
+        "NWSL row found, but not enough comparable KPI fields exist to draw a reliable spider.",
+        renderOptions
+      );
     }
     const center = 110;
     const radius = 74;
@@ -105,12 +125,13 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
       };
     });
     const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
+    const { cardClassName, headerClassName, kickerLabel, titleLabel } = getRenderOptions(renderOptions);
     return `
-    <article class="squad-profile-section player-profile-scouting-spider-card">
-      <header class="squad-section-head">
+    <article class="${escapeHtml(cardClassName)}">
+      <header class="${escapeHtml(headerClassName)}">
         <div>
-          <p>NWSL data spider</p>
-          <h2>Performance Radar</h2>
+          <p>${escapeHtml(kickerLabel)}</p>
+          <h2>${escapeHtml(titleLabel)}</h2>
         </div>
         <span>${escapeHtml([record[recordIndex.team], record[recordIndex.season]].filter(Boolean).join(" / ") || "NWSL")}</span>
       </header>

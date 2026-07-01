@@ -50,7 +50,7 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
     renderPlayerProfileMedicalPanel: () => "",
     renderPlayerProfileOptionSet: optionSet,
     renderPlayerProfileRoleOptions: () => '<option value="8" selected>8</option>',
-    renderPlayerProfileScoutingSpider: () => "",
+    renderPlayerProfileScoutingSpider: () => "<article>Performance Radar</article>",
     renderPlayerProfileSecondaryRoleOptions: () => '<option value="10" selected>10</option>',
     renderPlayerProfileStatusChip: () => '<span class="squad-status-pill">Available</span>',
     renderPlayerProfileTabs: () => '<nav class="squad-profile-tabs"></nav>',
@@ -66,6 +66,7 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
   expect(panelMarkup).not.toContain("Squad status");
   expect(panelMarkup).not.toContain('name="careerPhase"');
   expect(panelMarkup).not.toContain("Career phase");
+  expect(panelMarkup).not.toContain("Performance Radar");
   const modalMarkup = renderer.renderModal(player);
   expect(modalMarkup).toContain("data-player-profile-modal-overlay");
   expect(modalMarkup).toContain("Mak Player player profile");

@@ -45,6 +45,7 @@ test("app runtime services composer preserves the moved dependency map", () => {
     "getScoutingTeamName,",
     "getScheduleDayWarningsFromModule,",
     "getScheduleMainEventFromModule,",
+    "renderPlayerProfileScoutingSpider: deps.renderPlayerProfileScoutingSpider",
     "periodizationStateAdapter.isDateValueInYear",
     "periodizationStateAdapter.normalizePeriodizationDay",
     "platformDefaultClubId,",

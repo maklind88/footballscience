@@ -33,7 +33,6 @@ export function createSquadProfileSelectedRenderer({
   renderPlayerProfileMedicalPanel,
   renderPlayerProfileOptionSet,
   renderPlayerProfileRoleOptions,
-  renderPlayerProfileScoutingSpider,
   renderPlayerProfileSecondaryRoleOptions,
   renderPlayerProfileStatusChip,
   renderPlayerProfileTabs,
@@ -93,7 +92,6 @@ export function createSquadProfileSelectedRenderer({
         </header>
       </article>
       ${renderPlayerProfileTabs()}
-      ${activeTab === "overview" ? renderPlayerProfileScoutingSpider(player) : ""}
       <article class="squad-profile-section squad-editor-section">
         <header class="squad-section-head">
           <div>

@@ -277,7 +277,10 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("Development Lens");
   expect(profileHtml).not.toContain("idp-lens-compass");
   expect(profileHtml).not.toContain("Signal Map");
-  expect(profileHtml).toContain("Player Voice");
+  expect(profileHtml).not.toContain("Player Voice");
+  expect(profileHtml).not.toContain("Last Review");
+  expect(profileHtml).not.toContain("idp-player-voice-card");
+  expect(profileHtml).not.toContain("idp-review-card");
   expect(profileHtml).toContain("idp-focus-coach-cue");
   expect(profileHtml).not.toContain("data-idp-player-board-open");
   expect(profileHtml).not.toContain("idp-player-board-boardbar");
@@ -331,9 +334,11 @@ test("idp renderer separates the overview from the player development profile", 
       })),
     },
   }, staffOptions);
-  expect(richWorkflowHtml).toContain("5 latest reflections");
-  expect(richWorkflowHtml).toContain("5 latest reviews");
-  expect((richWorkflowHtml.match(/<span>Show more<\/span>/g) || []).length).toBeGreaterThanOrEqual(4);
+  expect(richWorkflowHtml).not.toContain("5 latest reflections");
+  expect(richWorkflowHtml).not.toContain("5 latest reviews");
+  expect(richWorkflowHtml).not.toContain("idp-player-voice-card");
+  expect(richWorkflowHtml).not.toContain("idp-review-card");
+  expect((richWorkflowHtml.match(/<span>Show more<\/span>/g) || []).length).toBeGreaterThanOrEqual(2);
 
   const playerBoardHtml = renderIdpWorkspace({
     ...profileState,

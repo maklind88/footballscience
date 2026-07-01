@@ -34,7 +34,6 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
     isCurrentPlatformUserAdmin: () => true,
     isProfileModalOpen: () => true,
     normalizePlayerProfileTab: (tab) => tab,
-    playerProfileAttributeGroups: [{ key: "tactical", label: "Tactical" }],
     playerProfileCareerPhaseOptions: [{ key: "prime", label: "Prime" }],
     playerProfileIdpStatusOptions: [{ key: "active", label: "Active" }],
     playerProfilePreferredSideOptions: [{ key: "center", label: "Center" }],
@@ -61,6 +60,9 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
   expect(panelMarkup).toContain('id="playerProfileEditForm"');
   expect(panelMarkup).toContain('name="playerId"');
   expect(panelMarkup).toContain("Role Suitability");
+  expect(panelMarkup).not.toContain("Profile ratings");
+  expect(panelMarkup).not.toContain("squad-rating-grid");
+  expect(panelMarkup).not.toContain('name="rating.tactical"');
   expect(panelMarkup).toContain('data-player-profile-remove="p1"');
   expect(panelMarkup).not.toContain('name="squadStatus"');
   expect(panelMarkup).not.toContain("Squad status");

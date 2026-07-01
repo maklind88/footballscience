@@ -17,7 +17,6 @@ export function createSquadProfileSelectedRenderer({
   isCurrentPlatformUserAdmin,
   isProfileModalOpen,
   normalizePlayerProfileTab,
-  playerProfileAttributeGroups = [],
   playerProfileCareerPhaseOptions = [],
   playerProfileIdpStatusOptions = [],
   playerProfilePreferredSideOptions = [],
@@ -150,19 +149,6 @@ export function createSquadProfileSelectedRenderer({
               </select>
             </label>
             ${temporaryRosterFields}
-          </div>
-          <div class="squad-rating-grid squad-tab-panel-roles" aria-label="Profile ratings">
-            ${playerProfileAttributeGroups
-              .map(
-                (group) => `
-<label>
-<span>${escapeHtml(group.label)}</span>
-<input name="rating.${escapeHtml(group.key)}" type="range" min="1" max="5" value="${escapeHtml(player.attributeRatings[group.key])}" ${canEdit ? "" : "disabled"} />
-<strong>${escapeHtml(player.attributeRatings[group.key])}/5</strong>
-</label>
-`
-              )
-              .join("")}
           </div>
           <section class="squad-idp-editor squad-tab-panel-idp">
             <header class="squad-section-head">

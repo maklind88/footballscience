@@ -5131,14 +5131,14 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   border-radius: 8px;
   box-shadow: 0 16px 42px rgba(16, 24, 40, .055);
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: 10px;
+  padding: 12px 14px;
 }
 
 .idp-profile-scouting-radar-head {
   align-items: flex-start;
   display: flex;
-  gap: 14px;
+  gap: 12px;
   justify-content: space-between;
   min-width: 0;
 }
@@ -5159,7 +5159,7 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
 
 .idp-profile-scouting-radar-head h2 {
   color: #101828;
-  font-size: clamp(1.16rem, 1.7vw, 1.55rem);
+  font-size: clamp(1.08rem, 1.42vw, 1.34rem);
   line-height: 1.06;
   margin: 0;
 }
@@ -5176,22 +5176,22 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
 .idp-profile-scouting-radar .player-profile-scouting-spider-layout {
   align-items: center;
   display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(15rem, .82fr) minmax(18rem, 1fr);
+  gap: 12px;
+  grid-template-columns: minmax(12rem, .54fr) minmax(20rem, 1.46fr);
 }
 
 .idp-profile-scouting-radar .player-profile-scouting-spider {
   display: block;
   height: auto;
   justify-self: center;
-  max-width: 260px;
-  width: min(100%, 260px);
+  max-width: 190px;
+  width: min(100%, 190px);
 }
 
 .idp-profile-scouting-radar .player-profile-scouting-metrics {
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(13.25rem, 1fr));
 }
 
 .idp-profile-scouting-radar .player-profile-scouting-metrics > div,
@@ -5200,9 +5200,9 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   border: 1px solid var(--idp-profile-soft-line);
   border-radius: 8px;
   display: grid;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
-  padding: 10px;
+  padding: 8px 9px;
 }
 
 .idp-profile-scouting-radar .player-profile-scouting-metrics span {
@@ -5214,14 +5214,14 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
 
 .idp-profile-scouting-radar .player-profile-scouting-metrics strong {
   color: #0f766e;
-  font-size: 1rem;
+  font-size: .94rem;
   line-height: 1;
 }
 
 .idp-profile-scouting-radar .player-profile-scouting-metrics small,
 .idp-profile-scouting-radar .player-profile-scouting-spider-layout > p {
   color: #475467;
-  font-size: .74rem;
+  font-size: .7rem;
   font-weight: 760;
   line-height: 1.25;
 }
@@ -6310,6 +6310,10 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   }
 
   .idp-goal-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .idp-profile-scouting-radar .player-profile-scouting-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

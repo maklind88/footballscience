@@ -185,6 +185,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     getDefaultPlayerProfileRole: deps.getDefaultPlayerProfileRole,
     getHubState: deps.getHubState,
     getLatestMedicalRecord: deps.getLatestMedicalRecord,
+    getMedicalRecommendationActivityContext: deps.getMedicalRecommendationActivityContext,
     getMedicalRecordStatus: deps.getMedicalRecordStatus,
     getMedicalRtpPhaseOption: deps.getMedicalRtpPhaseOption,
     getMedicalState: deps.getMedicalState,

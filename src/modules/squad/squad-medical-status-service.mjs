@@ -1,3 +1,5 @@
+import { getSquadTrainingAvailabilitySummary } from "./squad-training-availability-summary.mjs";
+
 export function createSquadMedicalStatusService(deps = {}) {
   const {
     ensureMedicalState = () => {},
@@ -5,6 +7,7 @@ export function createSquadMedicalStatusService(deps = {}) {
     formatMedicalDateLabel = (value) => String(value || ""),
     getActiveMedicalInjuryPlan = () => null,
     getLatestMedicalRecord = () => null,
+    getMedicalRecommendationActivityContext = () => null,
     getMedicalRecordStatus = () => ({ label: "" }),
     getMedicalRtpPhaseOption = () => ({ label: "" }),
     getMedicalState = () => ({ records: [] }),
@@ -88,6 +91,12 @@ export function createSquadMedicalStatusService(deps = {}) {
     const returnDate = activePlan?.endDate || "";
     const returnDateLabel = returnDate ? formatMedicalDateLabel(returnDate) : "";
     const activeInjuryLabel = activePlan ? [activePlan.injuryType, activePlan.bodyArea].filter(Boolean).join(" / ") : "";
+    const trainingAvailability = getSquadTrainingAvailabilitySummary({
+      playerId,
+      records: getMedicalState().records || [],
+      referenceDateValue: dateValue,
+      getActivityContext: getMedicalRecommendationActivityContext,
+    });
     return {
       currentAvailability: availabilityLabel,
       rtpStatus,
@@ -104,6 +113,7 @@ export function createSquadMedicalStatusService(deps = {}) {
       medicalSource,
       hasActivePlan: Boolean(activePlan),
       isOpenEndedMedicalStatus: Boolean(openEndedLog),
+      trainingAvailability,
     };
   }
 

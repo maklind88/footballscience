@@ -22,4 +22,5 @@ export * from "./squad-medical-status-service.mjs";
 export * from "./squad-scouting-profile-helpers.mjs";
 export * from "./squad-scouting-runtime.mjs";
 export * from "./squad-scouting-spider-renderer.mjs";
+export * from "./squad-training-availability-summary.mjs";
 export * from "./squad-workspace-renderer.mjs";

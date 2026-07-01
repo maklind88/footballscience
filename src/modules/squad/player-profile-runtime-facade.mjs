@@ -172,6 +172,7 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     formatMedicalDateLabel: deps.formatMedicalDateLabel,
     getActiveMedicalInjuryPlan: deps.getActiveMedicalInjuryPlan,
     getLatestMedicalRecord: deps.getLatestMedicalRecord,
+    getMedicalRecommendationActivityContext: deps.getMedicalRecommendationActivityContext,
     getMedicalRecordStatus: deps.getMedicalRecordStatus,
     getMedicalRtpPhaseOption: deps.getMedicalRtpPhaseOption,
     getMedicalState,

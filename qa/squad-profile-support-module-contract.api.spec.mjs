@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSquadProfileSupportRenderer } from "../src/modules/squad/index.mjs";
+import { createSquadProfileSupportRenderer, getSquadTrainingAvailabilitySummary } from "../src/modules/squad/index.mjs";
 
 test("Squad profile support renderer owns option lists, support panels, and add-player modal", () => {
   const player = {
@@ -27,6 +27,13 @@ test("Squad profile support renderer owns option lists, support panels, and add-
       coachNote: "Ready",
       latestLogSummary: "No issues",
       returnDateLabel: "",
+      trainingAvailability: {
+        hasData: true,
+        loggedCount: 2,
+        week: { average: 75, count: 2 },
+        month: { average: 75, count: 2 },
+        season: { average: 75, count: 2 },
+      },
     }),
     getRecentPlayerProfileChangeLog: () => [],
     isNewPlayerModalOpen: () => true,
@@ -42,7 +49,10 @@ test("Squad profile support renderer owns option lists, support panels, and add-
   expect(renderer.renderRoleOptions("CB")).toContain('value="CB" selected');
   expect(renderer.renderSecondaryRoleOptions(["8"])).toContain('value="8" selected');
   expect(renderer.renderOptionSet([{ key: "active", label: "Active" }], "active")).toContain("Active");
-  expect(renderer.renderMedicalPanel(player)).toContain("Medical Snapshot");
+  const medicalPanel = renderer.renderMedicalPanel(player);
+  expect(medicalPanel).toContain("Medical Snapshot");
+  expect(medicalPanel).toContain("Training availability");
+  expect(medicalPanel).toContain("7d 75%");
   expect(renderer.renderFuturePanel(player)).toContain("Match / Load / Analysis");
   expect(renderer.renderHistoryPanel(player)).toContain("Profile Audit Trail");
   expect(renderer.renderTabs()).toContain('data-player-profile-tab="medical"');
@@ -61,4 +71,28 @@ test("Squad profile support renderer owns option lists, support panels, and add-
   expect(modalMarkup).toContain('name="number" value="7"');
   expect(modalMarkup).toContain('name="birthDate" type="date" value="1999-01-02"');
   expect(modalMarkup).toContain('value="8" selected');
+});
+
+test("Squad training availability summary averages logged training decisions", () => {
+  const summary = getSquadTrainingAvailabilitySummary({
+    playerId: "p1",
+    referenceDateValue: "2026-06-10",
+    records: [
+      { playerId: "p1", date: "2026-06-10", participation: 100, updatedAt: "2026-06-10T14:00:00Z" },
+      { playerId: "p1", date: "2026-06-09", participation: 50, updatedAt: "2026-06-09T10:00:00Z" },
+      { playerId: "p1", date: "2026-06-09", participation: 75, updatedAt: "2026-06-09T12:00:00Z" },
+      { playerId: "p1", date: "2026-06-08", participation: 100, updatedAt: "2026-06-08T12:00:00Z" },
+      { playerId: "p1", date: "2026-05-01", participation: 25, updatedAt: "2026-05-01T12:00:00Z" },
+      { playerId: "p1", date: "2027-01-01", participation: 0, updatedAt: "2027-01-01T12:00:00Z" },
+      { playerId: "p2", date: "2026-06-10", participation: 0, updatedAt: "2026-06-10T12:00:00Z" },
+      { playerId: "p1", date: "2026-06-01", participation: 100, archivedAt: "2026-06-02T12:00:00Z" },
+    ],
+    getActivityContext: (dateValue) => ({ type: dateValue === "2026-06-08" ? "match" : "training" }),
+  });
+
+  expect(summary.hasData).toBe(true);
+  expect(summary.loggedCount).toBe(3);
+  expect(summary.week).toEqual({ average: 88, count: 2 });
+  expect(summary.month).toEqual({ average: 88, count: 2 });
+  expect(summary.season).toEqual({ average: 67, count: 3 });
 });

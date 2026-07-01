@@ -38,6 +38,13 @@ export function createSquadProfileSupportRenderer({
 
   const renderMedicalPanel = (player) => {
     const snapshot = getPlayerProfileMedicalSnapshot(player.id);
+    const trainingAvailability = snapshot.trainingAvailability || {};
+    const renderAvailabilityValue = (item = {}) => (Number.isFinite(Number(item.average)) ? `${Number(item.average)}%` : "--");
+    const trainingAvailabilityMarkup = trainingAvailability.hasData
+      ? `<strong>7d ${escapeHtml(renderAvailabilityValue(trainingAvailability.week))} · 30d ${escapeHtml(renderAvailabilityValue(trainingAvailability.month))} · Season ${escapeHtml(renderAvailabilityValue(trainingAvailability.season))}</strong>
+          <small>${escapeHtml(trainingAvailability.loggedCount)} logged training decision${trainingAvailability.loggedCount === 1 ? "" : "s"}</small>`
+      : `<strong>No training data yet</strong>
+          <small>Log Medical recommendations to build 7d, 30d and season trends.</small>`;
     return `
     <article class="squad-profile-section squad-medical-snapshot">
       <header class="squad-section-head">
@@ -63,6 +70,10 @@ export function createSquadProfileSupportRenderer({
         <div>
           <span>Latest medical log</span>
           <strong>${escapeHtml(snapshot.latestLogSummary)}</strong>
+        </div>
+        <div class="squad-training-availability-card">
+          <span>Training availability</span>
+          ${trainingAvailabilityMarkup}
         </div>
         ${
           snapshot.returnDateLabel

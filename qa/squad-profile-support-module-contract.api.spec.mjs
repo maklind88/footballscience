@@ -58,6 +58,7 @@ test("Squad profile support renderer owns option lists, support panels, and add-
   expect(historyPanel).toContain("Profile Audit Trail");
   expect(historyPanel).toContain("Mak Player");
   expect(historyPanel).not.toContain("Recent Squad Room activity");
+  expect(historyPanel).not.toContain("player changes");
   expect(renderer.renderTabs()).toContain('data-player-profile-tab="medical"');
   const modalMarkup = renderer.renderNewPlayerModal({
     name: "Grace Hopper",

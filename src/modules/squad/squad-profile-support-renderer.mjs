@@ -169,7 +169,6 @@ ${entry.changes
           <p>Change History</p>
           <h2>Profile Audit Trail</h2>
         </div>
-        <span>${playerEntries.length} player changes</span>
       </header>
       <div class="squad-change-history-grid squad-change-history-grid-single">
         <section>

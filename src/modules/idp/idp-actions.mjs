@@ -60,6 +60,7 @@ function mergeProfileWithFallback(profile = {}, fallbackProfile = {}) {
     squadNumber: normalized.squadNumber || fallback.squadNumber,
     position: normalized.position || fallback.position,
     role: normalized.role || fallback.role,
+    photoUrl: normalized.photoUrl || fallback.photoUrl,
     ownerId: normalized.ownerId || fallback.ownerId,
     status,
     lastReviewOn: normalized.lastReviewOn || fallback.lastReviewOn,

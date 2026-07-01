@@ -132,6 +132,7 @@ export function normalizeIdpProfile(value = {}) {
     squadNumber: normalizeText(value.squadNumber || value.squad_number || value.number || value.shirtNumber || value.shirt_number, 20),
     position: normalizeText(value.position || value.positionLabel || value.position_label, 80),
     role: normalizeText(value.role || value.roleLabel || value.role_label || value.primaryRole, 120),
+    photoUrl: normalizeText(value.photoUrl || value.photo_url || value.imageUrl || value.image_url || value.profileImageUrl || value.profile_image_url, 1000),
     ownerId: normalizeText(value.ownerId || value.owner_id || value.primaryOwnerId || value.primary_owner_id, 160),
     status: normalizeText(value.status || "active", 40),
     lastReviewOn: normalizeDate(value.lastReviewOn || value.last_review_on),

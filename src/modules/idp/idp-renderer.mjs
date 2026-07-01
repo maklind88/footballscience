@@ -286,6 +286,75 @@ function renderTeamMark(options = {}) {
   `;
 }
 
+function getPlayerPhotoUrl(profile = {}) {
+  return normalizeText(
+    profile.photoUrl
+      || profile.photo_url
+      || profile.imageUrl
+      || profile.image_url
+      || profile.profileImageUrl
+      || profile.profile_image_url,
+    ""
+  );
+}
+
+function renderPlayerHeaderMark(profile = {}) {
+  const playerName = normalizeText(profile.playerName || profile.name, "Player");
+  const photoUrl = getPlayerPhotoUrl(profile);
+  return `
+    <span class="idp-team-mark idp-player-profile-mark${photoUrl ? " has-photo" : " is-initials"}" aria-label="${escapeHtml(`${playerName} profile image`)}">
+      ${photoUrl
+        ? `<img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(`${playerName} profile image`)}" loading="lazy">`
+        : `<strong>${escapeHtml(initialsFromName(playerName, "P"))}</strong>`}
+    </span>
+  `;
+}
+
+function renderWorkspaceHeader(state = {}, canEdit = false, options = {}) {
+  const ui = { ...defaultUiState, ...(state.ui || {}) };
+  const hasSelectedPlayer = Boolean(ui.selectedPlayerId);
+  const detail = state.playerDetail || {};
+  const profile = detail.profile || {};
+  const focus = activeFocus(detail);
+  if (hasSelectedPlayer && profile.playerId) {
+    const idpInactive = isInactiveIdpProfile(profile);
+    const focusId = focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "";
+    const ownerId = primaryOwnerId(profile, focus || {});
+    const status = coachLabel(idpStatusLabel(profile, focus));
+    const position = [profile.position, profile.role].filter(Boolean).join(" / ") || "Squad";
+    const ownerLabel = formatStaffName(ownerId, options);
+    return `
+      <header class="idp-header is-player-context">
+        <div class="idp-title-lockup">
+          ${renderPlayerHeaderMark(profile)}
+          <div>
+            <p>IDP</p>
+            <h1>${escapeHtml(profile.playerName || "Player")}</h1>
+            <span>${escapeHtml([status, position, ownerLabel].filter(Boolean).join(" · "))}</span>
+          </div>
+        </div>
+        ${renderStageQuickActions(canEdit, focusId, idpInactive)}
+      </header>
+    `;
+  }
+  const teamName = getTeamName(options);
+  return `
+    <header class="idp-header">
+      <div class="idp-title-lockup">
+        ${renderTeamMark(options)}
+        <div>
+          <p>IDP</p>
+          <h1>Player Development</h1>
+          <span>${escapeHtml(teamName)}</span>
+        </div>
+      </div>
+      <div class="idp-summary-strip" aria-label="Player development overview">
+        ${renderSummary(state)}
+      </div>
+    </header>
+  `;
+}
+
 function filterDashboardRows(state = {}, options = {}) {
   const { selectedPlayerId, statusFilter, ownerFilter, categoryFilter, searchQuery } = { ...defaultUiState, ...(state.ui || {}) };
   const query = String(searchQuery || "").trim().toLowerCase();
@@ -1572,27 +1641,12 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
   const profile = detail.profile;
   const focus = activeFocus(detail);
   const idpInactive = isInactiveIdpProfile(profile);
-  const focusId = focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "";
   const nextAction = detail.nextActions?.find((action) => action.status === "open") || detail.nextActions?.[0] || {};
-  const ownerId = primaryOwnerId(profile, focus || {});
   const pulse = progressPulse(detail, focus, idpInactive);
   const strengths = Array.isArray(profile.strengths) ? profile.strengths.slice(0, 3) : [];
   const profileView = normalizeProfileView(state.ui?.profileView || "");
   return `
     <section class="idp-player-profile idp-profile-experience">
-      <header class="idp-profile-stage">
-        <div class="idp-stage-identity">
-          <span class="idp-stage-watermark" aria-hidden="true">${escapeHtml(initialsFromName(profile.playerName || "Player", "P"))}</span>
-          <h2>${escapeHtml(profile.playerName || "Player")}</h2>
-          <p>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</p>
-          <div class="idp-stage-tags">
-            <span class="idp-status-pill is-${statusTone(idpStatusLabel(profile, focus))}">${escapeHtml(coachLabel(idpStatusLabel(profile, focus)))}</span>
-            <span>${escapeHtml(formatStaffName(ownerId, options))}</span>
-            <span>${escapeHtml(reviewUrgencyLabel(profile, focus))}</span>
-          </div>
-        </div>
-        ${renderStageQuickActions(canEdit, focusId, idpInactive)}
-      </header>
       ${idpInactive ? `<div class="idp-notice is-warning">IDP is inactive from Squad Room. Historical observations, clips and ownership remain visible here.</div>` : ""}
       ${renderProfileMenu(profileView)}
       ${profileView === "clip-bank"
@@ -1651,25 +1705,10 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
 export function renderIdpWorkspace(state = {}, options = {}) {
   const canEdit = Boolean(options.canEdit);
   const ui = { ...defaultUiState, ...(state.ui || {}) };
-  const teamName = getTeamName(options);
   const hasSelectedPlayer = Boolean(ui.selectedPlayerId);
   return `
     <section class="idp-shell${hasSelectedPlayer ? " is-profile-mode" : " is-overview-mode"}">
-      <header class="idp-header">
-        <div class="idp-title-lockup">
-          ${renderTeamMark(options)}
-          <div>
-            <p>IDP</p>
-            <h1>Player Development</h1>
-            <span>${escapeHtml(teamName)}</span>
-          </div>
-        </div>
-        ${hasSelectedPlayer ? "" : `
-          <div class="idp-summary-strip" aria-label="Player development overview">
-            ${renderSummary(state)}
-          </div>
-        `}
-      </header>
+      ${renderWorkspaceHeader(state, canEdit, options)}
       ${ui.loading ? `<div class="idp-notice">Loading player development plans.</div>` : ""}
       ${ui.error ? `<div class="idp-notice is-warning">${escapeHtml(ui.error)}</div>` : ""}
       ${ui.message ? `<div class="idp-notice">${escapeHtml(ui.message)}</div>` : ""}

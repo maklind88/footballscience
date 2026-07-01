@@ -171,6 +171,7 @@ test("idp renderer separates the overview from the player development profile", 
     playerDetail: buildLegacyPlayerDetail({
       id: "p1",
       name: "Player One",
+      photoUrl: "data:image/png;base64,abc123",
       position: "FW",
       primaryRole: "9",
       idp: { primaryFocus: "Receive under pressure", nextAction: "Add evidence" },
@@ -242,6 +243,13 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain('data-idp-profile-view="player-board"');
   expect(profileHtml).toContain('data-idp-profile-view="clip-bank"');
   expect(profileHtml).toContain("idp-profile-menu");
+  expect(profileHtml).toContain("idp-header is-player-context");
+  expect(profileHtml).toContain("<h1>Player One</h1>");
+  expect(profileHtml).not.toContain("<h1>Player Development</h1>");
+  expect(profileHtml).toContain("Active · FW / 9 · Mak Lind");
+  expect(profileHtml).toContain("idp-player-profile-mark has-photo");
+  expect(profileHtml).toContain("data:image/png;base64,abc123");
+  expect(profileHtml).not.toContain("idp-profile-stage");
   expect(profileHtml).toContain("idp-stage-actions");
   expect(profileHtml.indexOf("idp-stage-actions")).toBeLessThan(profileHtml.indexOf("data-idp-back-overview"));
   expect(profileHtml.indexOf("data-idp-back-overview")).toBeLessThan(profileHtml.indexOf('data-idp-profile-view="development"'));
@@ -266,7 +274,6 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("Player development overview");
   expect(profileHtml).not.toContain("Player Development Profile");
   expect(profileHtml).not.toContain("Player Snapshot");
-  expect(profileHtml).toContain('class="idp-status-pill is-good">Active');
   expect(profileHtml).toContain("idp-focus-clarity-card");
   expect(profileHtml).not.toContain("Coach cue");
   expect(profileHtml).not.toContain("Receive under pressure so the player");
@@ -1268,7 +1275,10 @@ test("idp profile shows Squad-owned inactive IDP status", async () => {
     { canEdit: true, users: [] }
   );
   expect(html).toContain("No Active IDP");
-  expect(html).toContain('class="idp-status-pill is-neutral">No Active IDP');
+  expect(html).toContain("idp-header is-player-context");
+  expect(html).toContain("<h1>Long Term Injury</h1>");
+  expect(html).toContain("No Active IDP · Forward / ST · Unassigned");
+  expect(html).not.toContain("idp-profile-stage");
   expect(html).toContain("IDP is inactive from Squad Room");
   expect(html).toContain("No active IDP");
   expect(html).not.toContain("Old active focus");

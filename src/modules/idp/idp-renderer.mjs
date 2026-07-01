@@ -568,7 +568,138 @@ function buildDevelopmentObjective(profile = {}, focus = null, idpInactive = fal
     cleaned = cleaned.replace(/^so\s+/i, "To ");
     return cleaned || description;
   }
-  return `Collect match and training evidence for this focus, then decide the next coaching action for ${role}${context ? ` in ${context}` : ""}.`;
+  return `Collect match and training observations for this focus, then decide the next coaching action for ${role}${context ? ` in ${context}` : ""}.`;
+}
+
+function buildCoachAssist(detail = {}, profile = {}, focus = null, idpInactive = false) {
+  const observations = detail.evidence?.length || 0;
+  const clips = detail.clipBank?.filter((clip) => !["Archived", "Hidden"].includes(clip.status))?.length || 0;
+  const reviewLabel = reviewUrgencyLabel(profile, focus);
+  const role = [profile.position, profile.role].filter(Boolean).join(" / ") || "this player";
+  const focusTitle = normalizeText(focus?.title, "");
+  const hasActiveFocus = focusTitle && !/^create current focus$/i.test(focusTitle);
+  const reviewIsClose = /overdue|today|days to review/i.test(reviewLabel);
+  const stats = [
+    { label: "Observations", value: String(observations) },
+    { label: "Clips", value: String(clips) },
+    { label: "Review", value: reviewLabel },
+  ];
+
+  if (idpInactive) {
+    return {
+      kicker: "Availability",
+      eyebrow: "Coach Assist",
+      title: "IDP is paused from Squad Room",
+      body: "Keep the learning context visible, monitor availability and reactivate the plan when the player is ready for full development work.",
+      primary: null,
+      secondary: null,
+      stats,
+    };
+  }
+
+  if (!hasActiveFocus) {
+    return {
+      kicker: "Set focus",
+      eyebrow: "Recommended next step",
+      title: "Define one behaviour before you collect more",
+      body: `Choose the exact ${role} behaviour the staff wants to improve, then connect every observation and clip to that focus.`,
+      primary: { label: "Update focus", action: "focus" },
+      secondary: { label: "Open goals", profileView: "goals" },
+      stats,
+    };
+  }
+
+  if (!observations) {
+    return {
+      kicker: "First signal",
+      eyebrow: "Recommended next step",
+      title: "Capture the first real observation",
+      body: `Use one match or training moment to check whether "${focusTitle}" is actually visible in the player's context.`,
+      primary: { label: "Add observation", action: "evidence" },
+      secondary: clips ? { label: "Open clip bank", profileView: "clip-bank" } : null,
+      stats,
+    };
+  }
+
+  if (clips) {
+    return {
+      kicker: "Clip decision",
+      eyebrow: "Recommended next step",
+      title: `${clips} clip${clips === 1 ? "" : "s"} can sharpen the coaching message`,
+      body: "Open the Clip Bank, pick the clearest moment and connect it to the coaching conversation before the next review.",
+      primary: { label: "Open clip bank", profileView: "clip-bank" },
+      secondary: { label: "Add observation", action: "evidence" },
+      stats,
+    };
+  }
+
+  if (reviewIsClose || observations >= 3) {
+    return {
+      kicker: reviewIsClose ? "Review loop" : "Pattern check",
+      eyebrow: "Recommended next step",
+      title: reviewIsClose ? reviewLabel : "Turn the observations into a decision",
+      body: "Use the captured pattern to decide whether to continue this focus, adjust the coaching message or move the player to the next development target.",
+      primary: { label: "Complete review", action: "review" },
+      secondary: { label: "Add observation", action: "evidence" },
+      stats,
+    };
+  }
+
+  return {
+    kicker: "Keep building",
+    eyebrow: "Recommended next step",
+    title: "Add one more observation before changing the plan",
+    body: coachLabel(buildDevelopmentObjective(profile, focus, idpInactive)),
+    primary: { label: "Add observation", action: "evidence" },
+    secondary: { label: "Open goals", profileView: "goals" },
+    stats,
+  };
+}
+
+function renderAssistAction(action = null, canEdit = false, className = "") {
+  if (!action) return "";
+  const classes = className ? ` class="${escapeHtml(className)}"` : "";
+  if (action.profileView) {
+    return `<button type="button"${classes} data-idp-profile-view="${escapeHtml(action.profileView)}">${escapeHtml(action.label)}</button>`;
+  }
+  if (action.action && canEdit) {
+    return `<button type="button"${classes} data-idp-action="${escapeHtml(action.action)}">${escapeHtml(action.label)}</button>`;
+  }
+  return "";
+}
+
+function renderCoachAssist(detail = {}, profile = {}, focus = null, idpInactive = false, canEdit = false) {
+  const assist = buildCoachAssist(detail, profile, focus, idpInactive);
+  const primaryAction = renderAssistAction(assist.primary, canEdit, "is-primary");
+  const secondaryAction = renderAssistAction(assist.secondary, canEdit, "");
+  const actions = [primaryAction, secondaryAction].filter(Boolean).join("");
+  return `
+    <details class="idp-coach-assist">
+      <summary aria-label="Open Coach Assist">
+        <span class="idp-coach-assist-mark" aria-hidden="true">?</span>
+        <span>
+          <strong>Coach Assist</strong>
+          <small>${escapeHtml(assist.kicker)}</small>
+        </span>
+      </summary>
+      <div class="idp-coach-assist-popover" role="group" aria-label="Coach assistance">
+        <div class="idp-coach-assist-card">
+          <span>${escapeHtml(assist.eyebrow)}</span>
+          <strong>${escapeHtml(assist.title)}</strong>
+          <p>${escapeHtml(assist.body)}</p>
+          <div class="idp-coach-assist-stats" aria-label="Development context">
+            ${assist.stats.map((item) => `
+              <span>
+                <em>${escapeHtml(item.label)}</em>
+                <strong>${escapeHtml(item.value)}</strong>
+              </span>
+            `).join("")}
+          </div>
+          ${actions ? `<div class="idp-coach-assist-actions">${actions}</div>` : ""}
+        </div>
+      </div>
+    </details>
+  `;
 }
 
 function goalRoleLabel(role = "supporting") {
@@ -1211,7 +1342,7 @@ function renderProfileClipBankPage(detail = {}, canEdit = false, ui = {}) {
         <div>
           <span>Player Clip Bank</span>
           <strong>${escapeHtml(String(clips.length))} clips connected to this IDP</strong>
-          <small>Match and training evidence for this player's development loop.</small>
+          <small>Match and training observations for this player's development loop.</small>
         </div>
       </div>
       ${renderProfileFilmstrip(detail, canEdit, ui)}
@@ -1442,15 +1573,14 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
               <div class="idp-section-kicker">Current Focus</div>
               <h3>${escapeHtml(idpInactive ? "No active IDP" : focus?.title || "Create current focus")}</h3>
             </div>
-            <div class="idp-focus-meta">
-              <span>${escapeHtml(idpInactive ? "Paused" : focus?.category || "Tactical")}</span>
-              <span>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</span>
-              <span>${escapeHtml(reviewUrgencyLabel(profile, focus))}</span>
+            <div class="idp-focus-side">
+              <div class="idp-focus-meta">
+                <span>${escapeHtml(idpInactive ? "Paused" : focus?.category || "Tactical")}</span>
+                <span>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</span>
+                <span>${escapeHtml(reviewUrgencyLabel(profile, focus))}</span>
+              </div>
+              ${renderCoachAssist(detail, profile, focus, idpInactive, canEdit && !idpInactive)}
             </div>
-          </div>
-          <div class="idp-focus-coach-cue">
-            <span>Coach cue</span>
-            <strong>${escapeHtml(buildDevelopmentObjective(profile, focus, idpInactive))}</strong>
           </div>
           ${strengths.length ? `
             <div class="idp-focus-strengths">

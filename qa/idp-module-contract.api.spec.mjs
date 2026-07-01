@@ -262,7 +262,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("Player Snapshot");
   expect(profileHtml).toContain('class="idp-status-pill is-good">Active');
   expect(profileHtml).toContain("idp-focus-clarity-card");
-  expect(profileHtml).toContain("Coach cue");
+  expect(profileHtml).not.toContain("Coach cue");
   expect(profileHtml).not.toContain("Receive under pressure so the player");
   expect(profileHtml).toContain("Player Board");
   expect(profileHtml).not.toContain("idp-player-board-panel");
@@ -281,7 +281,11 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("Last Review");
   expect(profileHtml).not.toContain("idp-player-voice-card");
   expect(profileHtml).not.toContain("idp-review-card");
-  expect(profileHtml).toContain("idp-focus-coach-cue");
+  expect(profileHtml).not.toContain("idp-focus-coach-cue");
+  expect(profileHtml).toContain("idp-coach-assist");
+  expect(profileHtml).toContain("Coach Assist");
+  expect(profileHtml).toContain("Recommended next step");
+  expect(profileHtml).not.toContain("Collect match and training evidence");
   expect(profileHtml).not.toContain("data-idp-player-board-open");
   expect(profileHtml).not.toContain("idp-player-board-boardbar");
   expect(profileHtml).not.toContain("idp-player-board-exercise-bank");

@@ -540,8 +540,8 @@ export function handleClick(event) {
     runtime?.store.setState({ ui: uiPatch });
     return;
   }
-  if (!event?.target?.closest?.(".idp-stage-actions")) {
-    getRoot(runtime?.context)?.querySelectorAll?.(".idp-stage-actions[open]")?.forEach((node) => {
+  if (!event?.target?.closest?.(".idp-stage-actions, .idp-coach-assist")) {
+    getRoot(runtime?.context)?.querySelectorAll?.(".idp-stage-actions[open], .idp-coach-assist[open]")?.forEach((node) => {
       node.removeAttribute("open");
     });
   }

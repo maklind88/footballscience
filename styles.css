@@ -5,3 +5,4 @@
 .platform-sidebar{pointer-events:none}.platform-sidebar>*{pointer-events:auto}
 /* Chat module: keep only actual sidebar controls clickable, not the nav column's empty overlay. */
 .platform-sidebar>.platform-nav{pointer-events:none}.platform-sidebar>.platform-nav .platform-nav-item{pointer-events:auto}
+.squad-change-history-grid-single{grid-template-columns:1fr}

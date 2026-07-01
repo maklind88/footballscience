@@ -162,7 +162,6 @@ ${entry.changes
 
   const renderHistoryPanel = (player) => {
     const playerEntries = getPlayerProfileChangeLog(player.id);
-    const recentEntries = getRecentPlayerProfileChangeLog(5);
     return `
     <article class="squad-profile-section squad-change-history">
       <header class="squad-section-head">
@@ -172,17 +171,11 @@ ${entry.changes
         </div>
         <span>${playerEntries.length} player changes</span>
       </header>
-      <div class="squad-change-history-grid">
+      <div class="squad-change-history-grid squad-change-history-grid-single">
         <section>
           <h3>${escapeHtml(player.name)}</h3>
           <div class="squad-change-list">
             ${renderChangeLogRows(playerEntries)}
-          </div>
-        </section>
-        <section>
-          <h3>Recent Squad Room activity</h3>
-          <div class="squad-change-list">
-            ${renderChangeLogRows(recentEntries)}
           </div>
         </section>
       </div>

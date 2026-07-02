@@ -2661,7 +2661,7 @@ try {
 if (!("Notification" in win) || win.Notification.permission !== "granted") {
 return false;
 }
-if (document.visibilityState === "visible" && readDashboardChatWidgetState().isOpen) {
+if (document.visibilityState === "visible" && isDashboardChatThreadActivelyViewed(notification.threadId)) {
 return false;
 }
 const title = String(notification.title || "Football Science chat").trim();

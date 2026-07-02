@@ -187,6 +187,59 @@ test("direct and group chats expose baseline private cleanup permissions from th
   });
 });
 
+test("chat unread badges keep API unread when local history cache is stale", () => {
+  const currentUser = { id: "coach-qa", firstName: "Casey", lastName: "Coach", role: "coach", status: "active" };
+  const teammate = { id: "teammate-qa", firstName: "Taylor", lastName: "Teammate", role: "analyst", status: "active" };
+  const threadId = "dm:coach-qa:teammate-qa";
+  const runtime = createDashboardChatThreadRuntime({
+    getCurrentPlatformUser: () => currentUser,
+    getPlatformUsers: () => [currentUser, teammate],
+    getDashboardChatApiThreads: () => [
+      {
+        threadId,
+        type: "dm",
+        title: "Taylor Teammate",
+        unreadCount: 1,
+        messageCount: 2,
+        lastMessageAt: "2026-06-30T12:10:00.000Z",
+        lastMessage: {
+          id: "api-new-unread",
+          threadId,
+          userId: teammate.id,
+          text: "New server-side message",
+          createdAt: "2026-06-30T12:10:00.000Z",
+          readBy: [teammate.id],
+        },
+        participants: [
+          { userId: currentUser.id, participantRole: "member" },
+          { userId: teammate.id, participantRole: "member" },
+        ],
+      },
+    ],
+    readDashboardMessages: () => [
+      {
+        id: "cached-old-read",
+        threadId,
+        userId: teammate.id,
+        text: "Old cached message",
+        createdAt: "2026-06-30T12:00:00.000Z",
+        readBy: [teammate.id, currentUser.id],
+        mentionedUserIds: [],
+      },
+    ],
+    normalizeDashboardApiMessage: (message, thread) => ({ ...message, threadId: message.threadId || thread.threadId }),
+    normalizeDashboardChatThreadId: (threadId, fallback = "team") => String(threadId || fallback || "team"),
+    isSameDashboardUser: (first, second) => String(first?.id || first?.userId || "") === String(second?.id || second?.userId || ""),
+    formatDashboardChatThreadLabel: () => "Taylor Teammate",
+    formatUserName: (user = {}) => `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.id,
+  });
+
+  const thread = runtime.getDashboardChatThreadData(threadId);
+
+  expect(thread.unreadCount).toBe(1);
+  expect(runtime.getDashboardChatUnreadCountForCurrentUser(currentUser)).toBe(1);
+});
+
 test("chat history pagination keeps older loaded API pages in the runtime cache", () => {
   let runtimeMessages = [];
   const persistedWrites = [];
@@ -644,6 +697,8 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(databaseSource).toContain("readThread: 120");
   expect(chatApiRuntimeSource).toContain("mergeActiveThreadLastMessageFromSummary");
   expect(appSource).toContain("mergeDashboardChatApiMessages: (...args) => mergeDashboardChatApiMessages(...args)");
+  expect(appSource).toContain("isDashboardChatThreadActivelyViewed(notification.threadId)");
+  expect(appSource).not.toContain("document.visibilityState === \"visible\" && readDashboardChatWidgetState().isOpen");
   expect(appSource).toContain("refreshDashboardChatFromApi({ threadId, forceNetwork: true })");
   expect(appSource).toContain("refreshDashboardChatFromApi({");
   expect(appSource).toContain("forceNetwork: true");

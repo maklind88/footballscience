@@ -90,9 +90,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     const apiThread = apiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
     const apiLastMessage = apiThread?.lastMessage ? normalizeDashboardApiMessage(apiThread.lastMessage, apiThread) : null;
     const lastMessage = getDashboardChatNewestThreadMessage(threadMessages) || apiLastMessage;
-    const effectiveUnreadCount = threadMessages.length
-      ? unreadCount
-      : Number(apiThread?.unreadCount || 0) || 0;
+    const effectiveUnreadCount = Math.max(unreadCount, Number(apiThread?.unreadCount || 0) || 0);
     const hasMessageActivity = Boolean(threadMessages.length || apiLastMessage || Number(apiThread?.messageCount || 0) > 0);
     const threadSettings = dashboardChatThreadSettings && dashboardChatThreadSettings.merge
       ? dashboardChatThreadSettings.merge(normalizedThreadId, apiThread?.settings || {})

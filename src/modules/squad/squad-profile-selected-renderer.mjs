@@ -129,13 +129,13 @@ export function createSquadProfileSelectedRenderer({
             </label>
             <label class="squad-tab-field-overview">
               <span>Primary role</span>
-              <select name="primaryRole" ${canEdit ? "" : "disabled"}>
+              <select class="squad-role-select" name="primaryRole" ${canEdit ? "" : "disabled"}>
                 ${renderPlayerProfileRoleOptions(player.primaryRole)}
               </select>
             </label>
             <label class="squad-tab-field-overview">
               <span>Secondary roles</span>
-              <select name="secondaryRoles" multiple size="5" ${canEdit ? "" : "disabled"}>
+              <select class="squad-role-select squad-role-select-scroll" name="secondaryRoles" multiple size="5" ${canEdit ? "" : "disabled"}>
                 ${renderPlayerProfileSecondaryRoleOptions(player.secondaryRoles)}
               </select>
             </label>

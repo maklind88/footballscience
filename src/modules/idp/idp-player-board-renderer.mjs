@@ -369,7 +369,6 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
           <button type="button" class="is-primary" data-idp-player-board-open>Edit Board</button>
           <button type="button" data-idp-player-board-new>New Exercise</button>
           <button type="button" data-idp-player-board-link-clip>Link Clip</button>
-          <button type="button" data-idp-action="evidence">Add Observation</button>
         </div>
       ` : ""}
     </aside>

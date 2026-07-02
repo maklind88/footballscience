@@ -418,6 +418,12 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain("New Exercise");
   expect(playerBoardHtml).toContain("Edit Board");
   expect(playerBoardHtml).toContain("Link Clip");
+  const playerBoardActionsHtml = (playerBoardHtml.match(/<div class="idp-player-board-actions">[\s\S]*?<\/div>/) || [""])[0];
+  expect(playerBoardActionsHtml).toContain("New Exercise");
+  expect(playerBoardActionsHtml).toContain("Edit Board");
+  expect(playerBoardActionsHtml).toContain("Link Clip");
+  expect(playerBoardActionsHtml).not.toContain("Add Observation");
+  expect(playerBoardActionsHtml).not.toContain('data-idp-action="evidence"');
   expect(playerBoardHtml).not.toContain("idp-focus-clarity-card");
   expect(playerBoardHtml).not.toContain("idp-workflow-board");
   expect(playerBoardHtml).not.toContain("idp-clip-bank-organizer");

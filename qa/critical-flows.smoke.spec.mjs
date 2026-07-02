@@ -2224,6 +2224,9 @@ test("Session Planner player board tidy selected keeps nearby player tokens read
             const block = state.sessions?.[dateValue]?.blocks?.find((candidate) => candidate.id === "qa-tidy-block");
             const positions = block?.playerBoardPositions || {};
             const selectedPositions = playerIds.map((playerId) => positions[playerId]).filter(Boolean);
+            const sortedX = [...selectedPositions].sort((first, second) => Number(first.x) - Number(second.x));
+            const xGaps = sortedX.slice(1).map((position, index) => Number(position.x) - Number(sortedX[index].x));
+            const yValues = selectedPositions.map((position) => Number(position.y));
             const pairsReadable = selectedPositions.every((position, index) =>
               selectedPositions.slice(index + 1).every((otherPosition) => {
                 const dx = Math.abs(Number(otherPosition.x) - Number(position.x));
@@ -2241,6 +2244,8 @@ test("Session Planner player board tidy selected keeps nearby player tokens read
               mode: block?.playerBoardLayoutMode,
               count: selectedPositions.length,
               pairsReadable,
+              rowAligned: Math.max(...yValues) - Math.min(...yValues) < 0.8,
+              symmetricSpacing: Math.max(...xGaps) - Math.min(...xGaps) < 0.8,
               keptNearOriginalArea: Math.abs(center.x - 44) < 18 && Math.abs(center.y - 42.2) < 18,
               anchorStable: positions[anchorId]?.x === 82 && positions[anchorId]?.y === 74,
             };
@@ -2253,6 +2258,8 @@ test("Session Planner player board tidy selected keeps nearby player tokens read
       mode: "manual",
       count: 3,
       pairsReadable: true,
+      rowAligned: true,
+      symmetricSpacing: true,
       keptNearOriginalArea: true,
       anchorStable: true,
     });

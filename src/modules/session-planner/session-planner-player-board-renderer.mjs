@@ -475,7 +475,6 @@ return `
 }
 function renderSessionPlannerPlayerBoardCopyTools(block) {
 const sourceBlocks = getSourceBlocks(block);
-const selectedCount = getSelectedColorIds().length;
 const sourceOptions = sourceBlocks
 .map(({ block: sourceBlock, index }) => {
 const colors = Object.keys(getDataObject(sourceBlock.playerBoardColors)).length;
@@ -494,13 +493,20 @@ return `
         </label>
         <button type="submit" class="session-player-board-tool-button is-copy" data-session-player-board-copy-teams ${sourceBlocks.length ? "" : "disabled"}>Copy</button>
 	      </form>
+	  `;
+}
+function renderSessionPlannerPlayerBoardAlignButton() {
+const selectedCount = getSelectedColorIds().length;
+return `
         <button
           type="button"
           class="session-player-board-tool-button is-tidy"
           data-session-player-board-tidy-selected
+          title="Align selected players into a cleaner shape"
+          aria-label="Smart align selected players"
           ${selectedCount > 1 ? "" : "disabled"}
         >
-          Tidy selected
+          Smart Align
         </button>
 	  `;
 }
@@ -688,7 +694,8 @@ return `
 	        <div class="session-player-board-modal-layout">
 	          <div class="session-player-board-stage${warnings.hasWarnings ? " has-warnings" : ""}">
 	            <div class="session-player-board-boardbar${warnings.hasWarnings ? " has-warnings" : ""}">
-	              <div class="session-player-board-boardbar-warning">
+	              <div class="session-player-board-boardbar-warning session-player-board-boardbar-left">
+	                ${renderSessionPlannerPlayerBoardAlignButton()}
 	                ${warnings.hasWarnings ? renderSessionPlannerPlayerBoardWarnings(block) : ""}
 	              </div>
 	              <div class="session-player-board-boardbar-actions">

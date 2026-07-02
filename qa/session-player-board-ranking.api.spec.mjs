@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
@@ -140,4 +140,52 @@ test("Session Planner Player Board can tidy selected player tokens without chang
   expect(runtimeSource).toContain("relaxTidyEntries");
   expect(runtimeSource).toContain("\"tidySelectedSessionPlannerPlayerBoardPlayers\"");
   expect(overrideSource).toContain(".session-player-board-tool-button.is-tidy");
+});
+
+test("Session Planner Player Board Smart Align preserves rough shape with symmetric spacing", async () => {
+  const helperPath = pathToFileURL(
+    path.join(rootDir, "src/modules/session-planner/session-planner-player-board-tidy-helpers.mjs")
+  ).href;
+  const { createSessionPlannerPlayerBoardTidyHelpers } = await import(`${helperPath}?test=${Date.now()}`);
+  const { getTidiedPlayerBoardPositions } = createSessionPlannerPlayerBoardTidyHelpers();
+  const settings = { minX: 8, minY: 6, minBoundsX: 4, maxBoundsX: 96, minBoundsY: 7, maxBoundsY: 93 };
+
+  const row = getTidiedPlayerBoardPositions(
+    [
+      { id: "a", order: 0, x: 39, y: 42 },
+      { id: "b", order: 1, x: 44, y: 42.3 },
+      { id: "c", order: 2, x: 49, y: 42.2 },
+    ],
+    [],
+    settings
+  ).sort((first, second) => first.x - second.x);
+  expect(Math.max(...row.map((entry) => entry.y)) - Math.min(...row.map((entry) => entry.y))).toBeLessThan(0.8);
+  expect(Math.abs((row[1].x - row[0].x) - (row[2].x - row[1].x))).toBeLessThan(0.8);
+
+  const column = getTidiedPlayerBoardPositions(
+    [
+      { id: "a", order: 0, x: 58.4, y: 34 },
+      { id: "b", order: 1, x: 58, y: 42 },
+      { id: "c", order: 2, x: 57.6, y: 50 },
+    ],
+    [],
+    settings
+  ).sort((first, second) => first.y - second.y);
+  expect(Math.max(...column.map((entry) => entry.x)) - Math.min(...column.map((entry) => entry.x))).toBeLessThan(0.8);
+  expect(Math.abs((column[1].y - column[0].y) - (column[2].y - column[1].y))).toBeLessThan(0.8);
+
+  const grid = getTidiedPlayerBoardPositions(
+    [
+      { id: "a", order: 0, x: 40, y: 36 },
+      { id: "b", order: 1, x: 48, y: 35.5 },
+      { id: "c", order: 2, x: 39.4, y: 44 },
+      { id: "d", order: 3, x: 48.3, y: 44.4 },
+    ],
+    [],
+    settings
+  );
+  const roundedX = new Set(grid.map((entry) => Math.round(entry.x)));
+  const roundedY = new Set(grid.map((entry) => Math.round(entry.y)));
+  expect(roundedX.size).toBe(2);
+  expect(roundedY.size).toBe(2);
 });

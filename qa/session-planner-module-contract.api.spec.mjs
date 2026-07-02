@@ -377,6 +377,7 @@ test("Session Planner player board renderer owns player board, Squad Bridge, Ass
   expect(overlayMarkup).toContain("data-session-player-board-tools");
   expect(overlayMarkup).toContain("data-session-player-board-copy-form");
   expect(overlayMarkup).toContain("data-session-player-board-tidy-selected");
+  expect(overlayMarkup).toContain("Smart Align");
   expect(overlayMarkup).toContain("data-session-selection-assistant-overlay");
   expect(overlayMarkup).toContain("data-session-player-board-profile-overlay");
   expect(overlayMarkup).toContain("data-session-player-board-person-form");

@@ -959,7 +959,12 @@ function renderGoalEmpty(canEdit = false) {
     <div class="idp-goals-empty">
       <strong>No development goals yet</strong>
       <span>Create 1-2 measurable goals plus one leadership responsibility for this player.</span>
-      ${canEdit ? `<button type="button" data-idp-action="goal">Create goal</button>` : ""}
+      ${canEdit ? `
+        <div class="idp-goals-empty-actions">
+          <button type="button" data-idp-action="goal">Create goal</button>
+          <button type="button" data-idp-action="leadership-goal">Leadership goal</button>
+        </div>
+      ` : ""}
     </div>
   `;
 }
@@ -1559,23 +1564,18 @@ function renderProfileGoalsPage(detail = {}, focus = {}, profile = {}, canEdit =
   const checkinCount = Array.isArray(detail.goalCheckins) ? detail.goalCheckins.length : 0;
   return `
     <section class="idp-profile-subpage idp-profile-goals-page">
-      <div class="idp-profile-subpage-head">
-        <div>
-          <span>Goals & Leadership</span>
-          <strong>${escapeHtml(profile.playerName || "Player")} development room</strong>
-          <small>Measurable goals, on-pitch responsibility and progress check-ins for this player's IDP.</small>
-        </div>
-        <div class="idp-profile-subpage-actions">
-          ${canEdit ? `<button type="button" data-idp-action="leadership-goal">Leadership Goal</button>` : ""}
-          ${canEdit ? `<button type="button" data-idp-action="goal">New Goal</button>` : ""}
-        </div>
-      </div>
       <div class="idp-goals-page-summary">
         <span><strong>${escapeHtml(String(developmentGoals.length))}</strong><small>Development goals</small></span>
         <span><strong>${escapeHtml(String(leadershipGoals.length))}</strong><small>Leadership goals</small></span>
         <span><strong>${escapeHtml(String(checkinCount))}</strong><small>Check-ins</small></span>
         <span><strong>${escapeHtml(formatShortDate(profile.nextReviewOn || focus?.reviewDate, "--"))}</strong><small>Next review</small></span>
       </div>
+      ${canEdit && goals.length ? `
+        <div class="idp-goals-page-actions" aria-label="Goal actions">
+          <button type="button" data-idp-action="leadership-goal">Leadership goal</button>
+          <button type="button" data-idp-action="goal">New goal</button>
+        </div>
+      ` : ""}
       ${goals.length ? `
         <div class="idp-goals-board">
           <section>

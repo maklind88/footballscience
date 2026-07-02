@@ -167,7 +167,8 @@ test("idp development goals are IDP-owned, measurable and server-versioned", () 
   expect(databaseSource).toContain("OPTIONAL_MIGRATION_TABLES");
   expect(databaseSource).toContain("development_goal.checkin_added");
   expect(renderer).toContain('data-idp-profile-view="goals"');
-  expect(renderer).toContain("Goals & Leadership");
+  expect(renderer).toContain("idp-goals-page-summary");
+  expect(renderer).toContain("idp-goals-empty-actions");
   expect(renderer).toContain("data-idp-save-goal");
   expect(renderer).toContain("data-idp-add-goal-checkin");
   expect(idpRuntime).toContain("data-idp-edit-goal");
@@ -442,7 +443,9 @@ test("idp renderer separates the overview from the player development profile", 
     ui: { ...profileState.ui, profileView: "goals" },
   }, staffOptions);
   expect(goalsHtml).toContain("idp-profile-goals-page");
-  expect(goalsHtml).toContain("Goals & Leadership");
+  expect(goalsHtml).not.toContain("idp-profile-subpage-head");
+  expect(goalsHtml).not.toContain("Goals & Leadership");
+  expect(goalsHtml).not.toContain("development room");
   expect(goalsHtml).toContain("No development goals yet");
   expect(goalsHtml).not.toContain("Own the next on-pitch action");
   expect(goalsHtml).not.toContain("Make receive under pressure visible");

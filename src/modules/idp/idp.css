@@ -5611,7 +5611,9 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
 .idp-profile-subsection-head button:hover,
 .idp-profile-subsection-head button:focus-visible,
 .idp-goals-empty button:hover,
-.idp-goals-empty button:focus-visible {
+.idp-goals-empty button:focus-visible,
+.idp-goals-page-actions button:hover,
+.idp-goals-page-actions button:focus-visible {
   background: #0f766e;
   border-color: #0f766e;
   color: #fff;
@@ -5628,6 +5630,39 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   padding: 16px;
   place-content: center;
   text-align: center;
+}
+
+.idp-goals-empty-actions,
+.idp-goals-page-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.idp-goals-page-actions {
+  justify-content: flex-end;
+  margin-top: -2px;
+}
+
+.idp-goals-page-actions button {
+  appearance: none;
+  background: rgba(255, 255, 255, .86);
+  border: 1px solid rgba(17, 24, 39, .08);
+  border-radius: 999px;
+  color: #101828;
+  cursor: pointer;
+  font: inherit;
+  font-size: .74rem;
+  font-weight: 920;
+  min-height: 32px;
+  padding: 0 13px;
+}
+
+.idp-goals-page-actions button:last-child {
+  background: #101828;
+  color: #fff;
 }
 
 .idp-goals-empty strong {
@@ -6443,7 +6478,8 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   }
 
   .idp-profile-subpage-actions,
-  .idp-profile-subsection-head {
+  .idp-profile-subsection-head,
+  .idp-goals-page-actions {
     justify-content: flex-start;
   }
 

@@ -53,6 +53,16 @@ export function createSquadProfileSelectedRenderer({
     const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
     const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);
     const isSquadPlayer = playerProfileCountsInSquad(player);
+    const removePlayerAction =
+      activeTab === "history" && isCurrentPlatformUserAdmin()
+        ? `
+      <article class="squad-profile-section squad-history-danger-zone">
+        <div class="squad-form-actions">
+          <button type="button" class="squad-danger-button" data-player-profile-remove="${escapeHtml(player.id)}">Remove</button>
+        </div>
+      </article>
+    `
+        : "";
     const rosterTypeField = `
             <label class="squad-tab-field-overview">
               <span>Roster type</span>
@@ -208,12 +218,11 @@ export function createSquadProfileSelectedRenderer({
               </label>
             </div>
           </section>
-          ${isCurrentPlatformUserAdmin() ? `<div class="squad-form-actions"><button type="button" class="squad-danger-button" data-player-profile-remove="${escapeHtml(player.id)}">Remove</button></div>` : ""}
         </form>
       </article>
       ${activeTab === "medical" ? renderPlayerProfileMedicalPanel(player) : ""}
       ${activeTab === "performance" ? renderPlayerProfileFuturePanel(player) : ""}
-      ${activeTab === "history" ? renderPlayerProfileHistoryPanel(player) : ""}
+      ${activeTab === "history" ? `${renderPlayerProfileHistoryPanel(player)}${removePlayerAction}` : ""}
     </aside>
   `;
   };

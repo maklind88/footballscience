@@ -37,8 +37,13 @@ const formatDateLabel = (dateValue, formatMedicalDateLabel) => {
   }
 };
 
-const resolveMedicalActor = (item = {}, resolveActorLabel, fallback = "Medical team") =>
-  resolveActorLabel(cleanText(item.updatedBy || item.createdBy), fallback);
+const resolveMedicalActor = (item = {}, resolveActorLabel, fallback = "Medical team") => {
+  try {
+    return cleanText(resolveActorLabel(cleanText(item.updatedBy || item.createdBy), fallback), fallback);
+  } catch {
+    return fallback;
+  }
+};
 
 const createProfileChangeEntry = (entry = {}, index = 0, player = {}) => {
   const changes = Array.isArray(entry.changes) ? entry.changes : [];

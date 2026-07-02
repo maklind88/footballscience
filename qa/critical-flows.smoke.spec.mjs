@@ -3427,6 +3427,7 @@ test("Squad removal keeps default roster players hidden after reload", async ({ 
   await expect(removedPlayerRow).toContainText("Ally Schlegel");
   await removedPlayerRow.click();
   await expect(page.locator(".squad-profile-modal")).toBeVisible();
+  await page.locator('[data-player-profile-tab="history"]').click();
   await page.locator(`[data-player-profile-remove="${removedPlayerId}"]`).click();
 
   await expect(page.locator(`[data-player-profile-select="${removedPlayerId}"]`)).toHaveCount(0);
@@ -3742,6 +3743,7 @@ test("Squad removal archives matching Medical player and removes planner availab
   await openWorkspace(page, "player-profiles");
   await page.locator(`[data-player-profile-select="${squadPlayerId}"]`).click();
   await expect(page.locator(".squad-profile-modal")).toBeVisible();
+  await page.locator('[data-player-profile-tab="history"]').click();
   await page.locator(`[data-player-profile-remove="${squadPlayerId}"]`).click();
   await expect(page.locator(`[data-player-profile-select="${squadPlayerId}"]`)).toHaveCount(0);
 
@@ -4217,7 +4219,10 @@ test("Squad profile modal autosaves edits and keeps its size across tabs", async
   const modal = page.locator(".squad-profile-modal:has(#playerProfileEditForm)").first();
   await expect(modal).toBeVisible();
   await expect(modal.locator('button[type="submit"]')).toHaveCount(0);
+  await expect(modal.locator("[data-player-profile-remove]")).toHaveCount(0);
+  await modal.locator('[data-player-profile-tab="history"]').click();
   await expect(modal.locator("[data-player-profile-remove]")).toBeVisible();
+  await modal.locator('[data-player-profile-tab="overview"]').click();
   await expect(modal.locator(".squad-profile-strip")).toHaveCount(0);
   await expect(modal.locator('input[name="photoUrl"]')).toHaveCount(0);
   await expect(modal.locator('select[name="rosterType"]')).toBeVisible();
@@ -4575,5 +4580,7 @@ test("Squad profile remove is hidden for coach editors", async ({ page }) => {
   await expect(modal).toBeVisible();
   await expect(modal.locator('input[name="position"]')).toBeEnabled();
   await expect(modal.locator('button[type="submit"]')).toHaveCount(0);
+  await expect(modal.locator("[data-player-profile-remove]")).toHaveCount(0);
+  await modal.locator('[data-player-profile-tab="history"]').click();
   await expect(modal.locator("[data-player-profile-remove]")).toHaveCount(0);
 });

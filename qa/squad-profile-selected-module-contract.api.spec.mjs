@@ -80,7 +80,7 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
   expect(panelMarkup).not.toContain("Profile ratings");
   expect(panelMarkup).not.toContain("squad-rating-grid");
   expect(panelMarkup).not.toContain('name="rating.tactical"');
-  expect(panelMarkup).toContain('data-player-profile-remove="p1"');
+  expect(panelMarkup).not.toContain('data-player-profile-remove="p1"');
   expect(panelMarkup).not.toContain('name="squadStatus"');
   expect(panelMarkup).not.toContain("Squad status");
   expect(panelMarkup).not.toContain('name="careerPhase"');
@@ -89,6 +89,57 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
   const modalMarkup = renderer.renderModal(player);
   expect(modalMarkup).toContain("data-player-profile-modal-overlay");
   expect(modalMarkup).toContain("Mak Player player profile");
+});
+
+test("Squad selected profile renderer keeps remove action on history only", () => {
+  const player = {
+    id: "p1",
+    name: "Mak Player",
+    number: "8",
+    position: "CM",
+    status: "available",
+    rosterType: "squad",
+    primaryRole: "8",
+    secondaryRoles: ["10"],
+    preferredSide: "center",
+    roleGroup: "midfielder",
+    idp: { status: "active", primaryFocus: "Scanning" },
+    futureData: { performanceNotes: "", scoutingNotes: "", analysisNotes: "" },
+    coachNotes: "",
+  };
+  const renderer = createSquadProfileSelectedRenderer({
+    escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
+    canEditPlayerProfiles: () => true,
+    getActiveTab: () => "history",
+    getPlayerProfileDisplayBirthDateValue: () => "",
+    getPlayerProfileEffectiveStatusFromSnapshot: () => "available",
+    getPlayerProfileMedicalSnapshot: () => ({ returnLabel: "" }),
+    getPlayerProfileOption: (options, key) => options.find((option) => option.key === key) || options[0],
+    isCurrentPlatformUserAdmin: () => true,
+    isProfileModalOpen: () => true,
+    normalizePlayerProfileTab: (tab) => tab,
+    playerProfileIdpStatusOptions: [{ key: "active", label: "Active" }],
+    playerProfilePreferredSideOptions: [{ key: "center", label: "Center" }],
+    playerProfileRoleGroupOptions: [{ key: "midfielder", label: "Midfielder" }],
+    playerProfileRosterTypeOptions: [{ key: "squad", label: "Squad" }],
+    playerProfileStatusOptions: [{ key: "available", label: "Available" }],
+    playerProfileTabOptions: [{ key: "history", label: "History" }],
+    playerProfileCountsInSquad: () => true,
+    renderPlayerProfileAvatarUpload: () => '<span class="avatar-upload"></span>',
+    renderPlayerProfileFuturePanel: () => "",
+    renderPlayerProfileHistoryPanel: () => "<article>Profile Audit Trail</article>",
+    renderPlayerProfileMedicalPanel: () => "",
+    renderPlayerProfileOptionSet: optionSet,
+    renderPlayerProfileRoleOptions: () => '<option value="8" selected>8</option>',
+    renderPlayerProfileSecondaryRoleOptions: () => '<option value="10" selected>10</option>',
+    renderPlayerProfileStatusChip: () => '<span class="squad-status-pill">Available</span>',
+    renderPlayerProfileTabs: () => '<nav class="squad-profile-tabs"></nav>',
+  });
+
+  const panelMarkup = renderer.renderSelectedPanel(player);
+  expect(panelMarkup).toContain("Profile Audit Trail");
+  expect(panelMarkup).toContain('data-player-profile-remove="p1"');
+  expect(panelMarkup).toContain("squad-history-danger-zone");
 });
 
 test("Squad player profile tabs keep role editing in overview", () => {

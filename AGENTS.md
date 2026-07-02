@@ -84,6 +84,7 @@ This section works together with the Release Ownership Agreement above and overr
 - `Deploy` and `Deploy fast` mean the fast everyday path: use `npm run deploy:ui` for clean Fast UI Lane changes, otherwise `npm run deploy`, unless the change is risky.
 - `Deploy safe` means the full safe path: `npm run deploy:safe`.
 - `Live` means the full sync-to-production flow below: make branch information, `main`, GitHub, production deploy, and postdeploy verification agree.
+- For explicit staging/commit control, use `npm run release:ship:fast -- --stage-all --commit "<message>" --push --deploy` for low-risk UI work or `npm run release:ship:safe -- --stage-all --commit "<message>" --push --deploy` for risky releases; when the intended files are already staged, the `release:ship:fast:deploy` and `release:ship:safe:deploy` aliases are allowed.
 - Do not ask the user which deploy path to use when the intent is clear.
 - Do not auto-deploy just because work is finished; deploy only when the user's product intent calls for a live result, the current chat owns the release, and all safety conditions pass.
 - Fast deploy is for normal UI/UX/content/CSS/frontend polish and narrow low-risk fixes.
@@ -241,5 +242,7 @@ npm run deploy:safe
 - Production deploy commands must fail closed if the worktree is linked to the wrong Vercel project; keep `.vercel/project.json` on the canonical `footballscience` project before deploying.
 - Do not use emergency overrides unless the user explicitly confirms an urgent hotfix.
 - Do not put secrets in source files. Vercel/GitHub/Supabase secrets stay in their respective dashboards.
+- Use `npm run release:gate` only when manual safe-step control is required; it is not the everyday deploy path.
 - After deployment, verify the live domain and protected backup endpoint through `npm run release:postdeploy`.
 - For recurring live health monitoring or manual postdeploy follow-up, use `npm run release:monitor`; it runs monitor-mode postdeploy verification, staging/live isolation, auth health, backup freshness/readiness checks, restore drill, and authenticated live smoke.
+- For release alerting readiness checks before relying on GitHub incident automation, run `npm run release:incident-readiness`.

@@ -102,7 +102,7 @@ const platformPermissionMatrix = Object.freeze([
     observe: ["admin", "coach"],
   }, {
     storageKeys: ["football-dashboard-chat-v1"],
-    routes: ["/api/chat"],
+    routes: ["/api/chat", "/api/push-subscriptions"],
   }),
   moduleContract("schedule", "Schedule", "team", {
     read: allAuthenticatedRoles,
@@ -388,6 +388,12 @@ const apiRouteSecurity = Object.freeze({
     moduleId: "chat",
     actions: Object.freeze({ GET: "read", POST: "write" }),
     rateLimits: Object.freeze({ read: 60, write: 60 }),
+    enforcePermission: true,
+  }),
+  "/api/push-subscriptions": Object.freeze({
+    moduleId: "chat",
+    actions: Object.freeze({ GET: "read", POST: "write", DELETE: "delete" }),
+    rateLimits: Object.freeze({ read: 30, write: 20, delete: 12 }),
     enforcePermission: true,
   }),
   "/api/gameplan-player-brief": Object.freeze({

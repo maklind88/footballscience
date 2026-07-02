@@ -11,6 +11,7 @@ const dashboardChatCreateCss = readFileSync(resolve(__dirname, "../dashboard-cha
 const indexSource = readFileSync(resolve(__dirname, "../index.html"), "utf8");
 const platformNavigationCss = readFileSync(resolve(__dirname, "../platform-navigation.css"), "utf8");
 const appRuntimeSource = readFileSync(resolve(__dirname, "../app-runtime.js"), "utf8");
+const chatPushClientSource = readFileSync(resolve(__dirname, "../src/modules/chat/chat-push-client.mjs"), "utf8");
 const composerRuntimeSource = readFileSync(resolve(__dirname, "../src/modules/chat/dashboard-chat-composer-runtime.mjs"), "utf8");
 const widgetRuntimeSource = readFileSync(resolve(__dirname, "../src/modules/chat/dashboard-chat-widget-runtime.mjs"), "utf8");
 
@@ -607,7 +608,8 @@ test("chat message menu exposes WhatsApp baseline actions", () => {
 
 test("chat runtime supports browser notification permission and delivery hook", () => {
   expect(appRuntimeSource).toContain("sendDashboardChatBrowserNotification");
-  expect(appRuntimeSource).toContain("win.Notification.requestPermission()");
+  expect(appRuntimeSource).toContain("dashboardChatPushClient.toggleFromNotificationLevel");
+  expect(chatPushClientSource).toContain("win.Notification.requestPermission()");
   expect(widgetRuntimeSource).toContain("sendBrowserNotification");
   expect(widgetRuntimeSource).toContain("New message from");
   expect(widgetRuntimeSource).toContain("mentioned you");

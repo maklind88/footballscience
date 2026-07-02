@@ -5,6 +5,7 @@ const {
   listAllAuthUsers,
   buildSupabaseKeyHeaders,
 } = require("./supabase-admin.js");
+const { notifyChatMessageCreated } = require("./chat-push-notifications.js");
 
 const CHAT_DATABASE_MODE_VALUES = new Set(["database", "db", "postgres", "supabase"]);
 const CHAT_LEGACY_MODE_VALUES = new Set(["legacy", "storage", "app-state", "appstate", "local", "off", "false", "0"]);
@@ -2451,6 +2452,17 @@ async function sendMessage(actor, body) {
     attachmentCount: attachmentIds.length,
   });
   const [enrichedMessage] = await enrichMessages([message], thread);
+  await notifyChatMessageCreated(actor, { thread: updatedThread || thread, message }).catch((error) => {
+    console.warn(JSON.stringify({
+      schema: "footballscience-chat-push-delivery-warning-v1",
+      level: "warning",
+      eventType: "chat.push.delivery_failed",
+      threadId: thread.id,
+      messageId: message.id,
+      reason: normalizeString(error?.message || "Push delivery failed.", 180),
+      timestamp: new Date().toISOString(),
+    }));
+  });
 
   return { ok: true, action: "sendMessage", thread: updatedThread, message: enrichedMessage || message, auditId: audit?.id || "" };
 }

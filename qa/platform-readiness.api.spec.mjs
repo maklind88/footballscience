@@ -68,7 +68,7 @@ test("platform module map exposes data ownership, api routes, permissions, and i
 
   expect(modules.find((module) => module.id === "chat")).toMatchObject({
     implementation: "database-backed-module",
-    apiRoutes: ["/api/chat"],
+    apiRoutes: ["/api/chat", "/api/push-subscriptions"],
     scope: "team",
     status: platformReadinessStatuses.pass,
   });

@@ -13,6 +13,7 @@ import { createDashboardChatWidgetRuntime } from "./src/modules/chat/dashboard-c
 import { createDashboardChatComposerRuntime } from "./src/modules/chat/dashboard-chat-composer-runtime.mjs";
 import { createDashboardChatThreadRuntime } from "./src/modules/chat/dashboard-chat-thread-runtime.mjs";
 import { createDashboardChatPresenceRuntime } from "./src/modules/chat/dashboard-chat-presence-runtime.mjs";
+import { createChatPushClient } from "./src/modules/chat/chat-push-client.mjs";
 import { uploadDashboardChatAttachmentFile as uploadDashboardChatAttachmentFileWithClient } from "./src/modules/chat/chat-attachment-storage.mjs";
 import {
   createDashboardHomeCardsRenderer,
@@ -1086,6 +1087,14 @@ let dashboardChatCreatorMode = "group";
 let dashboardChatThreadSettingsDialog = null;
 let dashboardChatApiRuntime = null;
 let dashboardChatSubmittedComposerDrafts = new Map();
+
+const dashboardChatPushClient = createChatPushClient({
+  win,
+  getAuthStore: getPlatformAuthStore,
+  getChatScope: () => dashboardChatApiScope || {},
+  getAssetVersion: () => window.__assetVersion || Date.now(),
+  showToast: (message) => showDashboardChatWidgetToast(message, readDashboardChatWidgetState().selectedThreadId || dashboardChatTeamThreadId),
+});
 
 const getDashboardChatComposerAttachmentDraft = () => dashboardChatComposerAttachmentDraft;
 const setDashboardChatComposerAttachmentDraft = (next) => {
@@ -2198,6 +2207,7 @@ dashboardChatApiRuntime = createDashboardChatApiRuntime({
   getDashboardApiScope: () => dashboardChatApiScope,
   setDashboardApiScope: (nextScope) => {
     dashboardChatApiScope = nextScope;
+    dashboardChatPushClient.refreshExistingSubscription(readDashboardChatWidgetNotificationState().level || "all").catch(() => {});
   },
   getDashboardApiThreads: () => dashboardChatApiThreads,
   setDashboardApiThreads: (nextThreads = []) => {
@@ -2723,6 +2733,31 @@ return true;
 return false;
 }
 }
+
+function applyDashboardChatDeepLinkFromUrl() {
+try {
+const params = new URLSearchParams(win.location.search || "");
+const rawThreadId = params.get("chatThread") || params.get("threadId") || "";
+const threadId = normalizeDashboardChatThreadId(rawThreadId, "");
+if (!threadId) {
+return false;
+}
+const workspaceId = getSafeWorkspaceId(params.get("workspace") || "home");
+if (workspaceId) {
+setActiveWorkspace(workspaceId);
+}
+writeDashboardChatWidgetState({
+...readDashboardChatWidgetState(),
+isOpen: true,
+selectedThreadId: threadId,
+});
+dashboardChatMobileConversationOpen = true;
+renderDashboardChatWidget();
+return true;
+} catch {
+return false;
+}
+}
 const {
   renderDashboardChatWidget: _renderDashboardChatWidget,
   syncDashboardChatWidgetNotificationCursor: _syncDashboardChatWidgetNotificationCursor,
@@ -3114,6 +3149,7 @@ ui,
 win,
 writeWorkspaceHubState,
 });
+applyDashboardChatDeepLinkFromUrl();
 ui.workspaceSearch?.addEventListener("input", () => {
 renderWorkspaceChrome();
 });
@@ -3688,11 +3724,13 @@ const toggleNotifications = event.target.closest("[data-dashboard-chat-widget-to
 if (toggleNotifications) {
 const notifications = readDashboardChatWidgetNotificationState();
 const nextLevel = notifications.level === "all" ? "mentions" : notifications.level === "mentions" ? "muted" : "all";
-if (nextLevel !== "muted" && "Notification" in win && win.Notification.permission === "default") {
-try {
-await win.Notification.requestPermission();
-} catch {
-}
+const pushResult = await dashboardChatPushClient.toggleFromNotificationLevel(nextLevel).catch((error) => {
+showDashboardChatWidgetToast(error?.message || "Push notifications could not be updated.");
+return { ok: false };
+});
+if (nextLevel !== "muted" && !pushResult?.ok) {
+renderDashboardChatWidget();
+return;
 }
 writeDashboardChatWidgetNotificationState({ level: nextLevel });
 renderDashboardChatWidget();

@@ -94,6 +94,8 @@ test("platform user runtime service preserves role, token, profile, and account 
 
   expect(await service.getPlatformApiAccessToken()).toBe("token-1");
   expect(service.normalizePlatformRole("platform owner")).toBe("admin");
+  expect(service.normalizePlatformRole("Head Coach", "guest")).toBe("coach");
+  expect(service.normalizePlatformRole("assistant coach", "guest")).toBe("coach");
   expect(service.isPlatformManagementUser(user)).toBe(true);
   expect(service.isCurrentPlatformUserAdmin()).toBe(true);
   expect(service.getAssignableRolesForUser({ role: "team-admin" })).toEqual(["coach", "scout", "analyst", "performance", "medical", "guest"]);

@@ -9,6 +9,10 @@ const platformRoleAliases = Object.freeze({
   "platform owner": "admin",
   owner: "admin",
   "admin-role": "admin",
+  "head coach": "coach",
+  "head-coach": "coach",
+  "assistant coach": "coach",
+  "assistant-coach": "coach",
 });
 
 export function createPlatformUserRuntimeService(options = {}) {

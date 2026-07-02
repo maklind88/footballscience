@@ -7,6 +7,7 @@ const {
   sendJson,
 } = require("./_lib/supabase-admin.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
+const { publicChatPushConfig } = require("./_lib/chat-push-notifications.js");
 
 const MAX_IDENTIFIER_LENGTH = 180;
 const MAX_PASSWORD_LENGTH = 256;
@@ -259,5 +260,6 @@ module.exports = async (req, res) => {
     url,
     anonKey,
     hasServiceRoleKey: Boolean(serviceRoleKey),
+    chatPush: publicChatPushConfig(),
   });
 };

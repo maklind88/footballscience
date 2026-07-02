@@ -26,39 +26,15 @@ export function createMedicalRtpProgramWorkspaceRenderer({
   renderExerciseCatalog = () => "",
   renderRtpCaseProgramCards = () => "",
 } = {}) {
-  const renderWorkflow = () => `
-<section class="medical-rtp-program-workflow" aria-label="RTP program workflow">
-<span><strong>1</strong> Active Medical case</span>
-<span><strong>2</strong> Apply Library guide</span>
-<span><strong>3</strong> Save Medical Plan</span>
-<span><strong>4</strong> Player Profile sync</span>
-</section>
-`;
-
-  const renderProgramBuilderBrief = () => `
-<section class="medical-rtp-program-builder-brief" aria-label="RTP Program Builder guidance">
-<div>
-<span>How it works</span>
-<strong>Programs are activated from a player's Medical Plan</strong>
-<small>RTP Library provides the guide, Exercise Bank provides starters, and the saved Medical Plan is the player-specific source that appears on the Player Profile.</small>
-</div>
-<div class="medical-rtp-program-builder-rules">
-<span>Medical-owned</span>
-<span>Player-specific only after save</span>
-<span>Coach-safe summary separate</span>
-</div>
-</section>
-`;
-
   const renderActivationState = (cases = [], needingStarter = 0, withStarter = 0) => {
     const hasCases = cases.length > 0;
     return `
 <section class="medical-rtp-program-activation" aria-label="Start RTP program workflow">
 <header>
 <div>
-<span>Start RTP Program</span>
-<strong>${hasCases ? "Convert an active Medical case into a player RTP program" : "Create an active Medical case first"}</strong>
-<small>${hasCases ? "Choose a guide, review the Medical Plan draft, then save it. That saved plan is what syncs to the player's profile." : "Programs are not standalone library items. Start with the player and case so notes, restrictions, gates and privacy stay attached to the right player."}</small>
+<span>Program workflow</span>
+<strong>${hasCases ? "Convert an active Medical case into a player RTP program" : "Start with a player case"}</strong>
+<small>${hasCases ? "Apply a Library guide, review the Medical Plan draft, then save. The saved Medical Plan is the player-specific source that syncs to the Player Profile." : "Programs are not standalone library items. Create the player case first so notes, restrictions, gates and privacy stay attached to the right player."}</small>
 </div>
 <b>${escapeHtml(withStarter)}/${escapeHtml(cases.length)} active</b>
 </header>
@@ -84,6 +60,20 @@ ${
 `;
   };
 
+  const renderExerciseDrawer = () => `
+<details class="medical-rtp-exercise-drawer">
+<summary>
+<div>
+<span>Exercise Bank</span>
+<strong>Open only when building or editing a Medical Plan</strong>
+<small>Exercise content supports the player program, but it should not dominate the program workflow.</small>
+</div>
+<b>Open bank</b>
+</summary>
+${renderExerciseCatalog()}
+</details>
+`;
+
   const renderRtpProgramsWorkspace = (summary = {}) => {
     const cases = getCases(summary);
     const withStarter = countCasesWithStarter(cases);
@@ -95,8 +85,8 @@ ${
 <header class="medical-rtp-programs-header">
 <div>
 <span>RTP Programs</span>
-<strong>Medical-owned RTP workflow</strong>
-<small>Start from an active case, apply a Library guide, save the Medical Plan, then follow the program from the player's profile.</small>
+<strong>Medical-owned RTP command center</strong>
+<small>One flow: player case, Library guide, Medical Plan, Player Profile. No separate program source of truth.</small>
 </div>
 <b>${escapeHtml(withStarter)}/${escapeHtml(cases.length)} with starter</b>
 </header>
@@ -106,12 +96,10 @@ ${renderOpsStat("Need starter", String(needingStarter), "active cases without a 
 ${renderOpsStat("Tracked programs", String(trackedPrograms), "gates / next steps / hold rules", trackedPrograms ? "low" : "neutral")}
 ${renderOpsStat("Action queue", String(actionSummary.total), "hold / review / exposure", actionSummary.hold ? "high" : actionSummary.total ? "medium" : "clear")}
 </div>
-${renderProgramBuilderBrief()}
-${renderWorkflow()}
 ${renderActivationState(cases, needingStarter, withStarter)}
 ${renderCaseRtpStarterLinker(summary)}
 ${renderRtpCaseProgramCards(summary)}
-${renderExerciseCatalog()}
+${renderExerciseDrawer()}
 </div>
 `;
   };

@@ -129,6 +129,17 @@ aria-label="Open Medical Plan RTP focus for ${escapeHtml(item.playerName)}"
   const renderRtpCaseProgramCards = (summary = {}) => {
     const activeCases = Array.isArray(summary.activeCases) ? summary.activeCases : [];
     const rtpCases = activeCases.filter(({ plan }) => hasRtpProgramStarter(plan)).slice(0, 6);
+    if (!activeCases.length) {
+      return `
+<section class="medical-rtp-program-empty-board" aria-label="No active RTP programs">
+<div>
+<span>Active player RTP programs</span>
+<strong>No player-specific RTP program is active yet</strong>
+<small>Create or open a player's Medical Plan, apply a Library guide, then save it. That saved plan will appear here and on the Player Profile.</small>
+</div>
+</section>
+`;
+    }
     return `
 <section class="medical-rtp-case-workspace" aria-label="Medical RTP program workspace">
 <header>

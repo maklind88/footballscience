@@ -3363,7 +3363,25 @@ body.is-dark-mode .medical-modal-close {
 }
 
 .medical-rtp-programs-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.44rem;
   margin: 0;
+}
+
+.medical-rtp-programs-stats .medical-ops-stat {
+  min-height: 0;
+  padding: 0.58rem 0.64rem;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.medical-rtp-programs-stats .medical-ops-stat strong {
+  font-size: 1rem;
+}
+
+.medical-rtp-programs-stats .medical-ops-stat small {
+  white-space: normal;
 }
 
 .medical-rtp-program-builder-rules {
@@ -3418,7 +3436,7 @@ body.is-dark-mode .medical-modal-close {
 .medical-rtp-program-activation {
   display: grid;
   gap: 0.62rem;
-  padding: 0.82rem;
+  padding: 0.9rem;
   border: 1px solid rgba(47, 143, 107, 0.2);
   border-radius: 8px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(239, 248, 244, 0.88));
@@ -3527,6 +3545,126 @@ body.is-dark-mode .medical-modal-close {
 .medical-rtp-program-activation-status.is-ready {
   border-color: rgba(47, 143, 107, 0.22);
   background: rgba(47, 143, 107, 0.09);
+}
+
+.medical-rtp-program-empty-board {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.78rem 0.84rem;
+  border: 1px dashed rgba(23, 100, 73, 0.22);
+  border-radius: 8px;
+  background: rgba(247, 250, 248, 0.74);
+}
+
+.medical-rtp-program-empty-board div {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.medical-rtp-program-empty-board span {
+  color: #176449;
+  font-size: 0.64rem;
+  font-weight: 950;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-program-empty-board strong {
+  color: #10231b;
+  font-size: 0.92rem;
+  line-height: 1.14;
+}
+
+.medical-rtp-program-empty-board small {
+  color: #64716b;
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.34;
+}
+
+.medical-rtp-exercise-drawer {
+  overflow: hidden;
+  border: 1px solid rgba(29, 31, 29, 0.09);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.medical-rtp-exercise-drawer > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.72rem;
+  cursor: pointer;
+  list-style: none;
+  padding: 0.78rem 0.84rem;
+}
+
+.medical-rtp-exercise-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.medical-rtp-exercise-drawer > summary div {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.medical-rtp-exercise-drawer > summary span {
+  color: #176449;
+  font-size: 0.64rem;
+  font-weight: 950;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-exercise-drawer > summary strong {
+  color: #10231b;
+  font-size: 0.92rem;
+  line-height: 1.14;
+}
+
+.medical-rtp-exercise-drawer > summary small {
+  color: #64716b;
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.34;
+}
+
+.medical-rtp-exercise-drawer > summary b {
+  flex: 0 0 auto;
+  padding: 0.34rem 0.56rem;
+  border-radius: 999px;
+  background: #193827;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.medical-rtp-exercise-drawer[open] > summary {
+  border-bottom: 1px solid rgba(29, 31, 29, 0.08);
+}
+
+.medical-rtp-exercise-drawer[open] > summary b {
+  background: rgba(47, 143, 107, 0.14);
+  color: #176449;
+}
+
+.medical-rtp-exercise-drawer:not([open]) .medical-rtp-exercise-catalog {
+  display: none;
+}
+
+.medical-rtp-exercise-drawer .medical-rtp-exercise-catalog {
+  border: 0;
+  border-radius: 0;
+  background: rgba(247, 250, 248, 0.74);
+  box-shadow: none;
+}
+
+.medical-rtp-exercise-drawer .medical-rtp-exercise-catalog-grid {
+  max-height: 34rem;
+  overflow: auto;
+  padding-right: 0.18rem;
 }
 
 .medical-rtp-action-queue {
@@ -4364,6 +4502,8 @@ body.is-dark-mode .medical-rtp-program-workflow span,
 body.is-dark-mode .medical-rtp-program-activation,
 body.is-dark-mode .medical-rtp-program-sync-path span,
 body.is-dark-mode .medical-rtp-program-activation-status,
+body.is-dark-mode .medical-rtp-program-empty-board,
+body.is-dark-mode .medical-rtp-exercise-drawer,
 body.is-dark-mode .medical-rtp-action-queue,
 body.is-dark-mode .medical-rtp-plan-focus,
 body.is-dark-mode .medical-rtp-case-linker,
@@ -4415,6 +4555,10 @@ body.is-dark-mode .medical-rtp-case-linker {
 
 body.is-dark-mode .medical-rtp-program-activation {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(21, 38, 31, 0.7));
+}
+
+body.is-dark-mode .medical-rtp-exercise-drawer .medical-rtp-exercise-catalog {
+  background: rgba(15, 23, 42, 0.28);
 }
 
 body.is-dark-mode .medical-rtp-profile-dialog > header,
@@ -4553,6 +4697,7 @@ body.is-dark-mode .medical-rtp-tracker-row select {
   .medical-rtp-program-builder-brief,
   .medical-rtp-program-activation > header,
   .medical-rtp-program-activation-status,
+  .medical-rtp-exercise-drawer > summary,
   .medical-rtp-plan-focus > header,
   .medical-rtp-case-linker > header,
   .medical-rtp-case-linker-card,
@@ -4566,6 +4711,7 @@ body.is-dark-mode .medical-rtp-tracker-row select {
   .medical-rtp-library-controls,
   .medical-rtp-exercise-controls,
   .medical-rtp-action-metrics,
+  .medical-rtp-programs-stats,
   .medical-rtp-program-guide-loader,
   .medical-rtp-program-flow,
   .medical-rtp-program-workflow,

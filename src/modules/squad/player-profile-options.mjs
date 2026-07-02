@@ -194,7 +194,6 @@ export const playerProfileAttributeGroups = [
 
 export const playerProfileTabOptions = [
   { key: "overview", label: "Overview" },
-  { key: "roles", label: "Roles" },
   { key: "idp", label: "IDP" },
   { key: "medical", label: "Medical" },
   { key: "performance", label: "Performance" },

@@ -95,7 +95,7 @@ export function createSquadProfileSelectedRenderer({
         <header class="squad-section-head">
           <div>
             <p>${escapeHtml(activeTabTitle)}</p>
-            <h2>${escapeHtml(activeTab === "roles" ? "Role Suitability" : activeTab === "idp" ? "Player Development Status" : activeTab === "performance" ? "Performance Record" : activeTab === "notes" ? "Staff Notes" : "Planning Profile")}</h2>
+            <h2>${escapeHtml(activeTab === "idp" ? "Player Development Status" : activeTab === "performance" ? "Performance Record" : activeTab === "notes" ? "Staff Notes" : "Planning Profile")}</h2>
           </div>
         </header>
         <form id="playerProfileEditForm" class="squad-profile-form">
@@ -118,6 +118,18 @@ export function createSquadProfileSelectedRenderer({
               <input name="position" value="${escapeHtml(player.position)}" ${canEdit ? "" : "disabled"} />
             </label>
             <label class="squad-tab-field-overview">
+              <span>Primary role</span>
+              <select name="primaryRole" ${canEdit ? "" : "disabled"}>
+                ${renderPlayerProfileRoleOptions(player.primaryRole)}
+              </select>
+            </label>
+            <label class="squad-tab-field-overview">
+              <span>Secondary roles</span>
+              <select name="secondaryRoles" multiple size="5" ${canEdit ? "" : "disabled"}>
+                ${renderPlayerProfileSecondaryRoleOptions(player.secondaryRoles)}
+              </select>
+            </label>
+            <label class="squad-tab-field-overview">
               <span>Role group</span>
               <select name="roleGroup" ${canEdit ? "" : "disabled"}>
                 ${renderPlayerProfileOptionSet(playerProfileRoleGroupOptions, player.roleGroup)}
@@ -136,18 +148,6 @@ export function createSquadProfileSelectedRenderer({
               </select>
             </label>
             ${rosterTypeField}
-            <label class="squad-tab-field-roles">
-              <span>Primary role</span>
-              <select name="primaryRole" ${canEdit ? "" : "disabled"}>
-                ${renderPlayerProfileRoleOptions(player.primaryRole)}
-              </select>
-            </label>
-            <label class="squad-tab-field-roles">
-              <span>Secondary roles</span>
-              <select name="secondaryRoles" multiple size="5" ${canEdit ? "" : "disabled"}>
-                ${renderPlayerProfileSecondaryRoleOptions(player.secondaryRoles)}
-              </select>
-            </label>
             ${temporaryRosterFields}
           </div>
           <section class="squad-idp-editor squad-tab-panel-idp">

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { createSquadProfileSelectedRenderer } from "../src/modules/squad/index.mjs";
+import { createSquadProfileSelectedRenderer, playerProfileTabOptions } from "../src/modules/squad/index.mjs";
 
 const optionSet = (options, selectedKey = "") =>
   options.map((option) => `<option value="${option.key}" ${option.key === selectedKey ? "selected" : ""}>${option.label}</option>`).join("");
@@ -26,7 +26,7 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
   const renderer = createSquadProfileSelectedRenderer({
     escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
     canEditPlayerProfiles: () => true,
-    getActiveTab: () => "roles",
+    getActiveTab: () => "overview",
     getPlayerProfileDisplayBirthDateValue: () => "2000-01-01",
     getPlayerProfileEffectiveStatusFromSnapshot: () => "available",
     getPlayerProfileMedicalSnapshot: () => ({ returnLabel: "" }),
@@ -41,7 +41,7 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
     playerProfileRosterTypeOptions: [{ key: "squad", label: "Squad" }],
     playerProfileSquadStatusOptions: [{ key: "important", label: "Important" }],
     playerProfileStatusOptions: [{ key: "available", label: "Available" }],
-    playerProfileTabOptions: [{ key: "roles", label: "Roles" }],
+    playerProfileTabOptions: [{ key: "overview", label: "Overview" }],
     playerProfileCountsInSquad: () => true,
     renderPlayerProfileAvatarUpload: () => '<span class="avatar-upload"></span>',
     renderPlayerProfileFuturePanel: () => "",
@@ -59,10 +59,15 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
   expect(panelMarkup).toContain("squad-player-workbench");
   expect(panelMarkup).toContain('id="playerProfileEditForm"');
   expect(panelMarkup).toContain('name="playerId"');
-  expect(panelMarkup).toContain("Role Suitability");
+  expect(panelMarkup).toContain("Planning Profile");
+  expect(panelMarkup).not.toContain("Role Suitability");
   expect(panelMarkup).toContain("Player Development System");
   expect(panelMarkup).toContain('name="idpStatus"');
   expect(panelMarkup).toContain("Open Player Development");
+  expect(panelMarkup).toContain('<label class="squad-tab-field-overview">\n              <span>Primary role</span>');
+  expect(panelMarkup).not.toContain('<label class="squad-tab-field-roles">\n              <span>Primary role</span>');
+  expect(panelMarkup).toContain('<label class="squad-tab-field-overview">\n              <span>Secondary roles</span>');
+  expect(panelMarkup).not.toContain('<label class="squad-tab-field-roles">\n              <span>Secondary roles</span>');
   expect(panelMarkup).toContain('<label class="squad-tab-field-overview">\n              <span>Role group</span>');
   expect(panelMarkup).not.toContain('<label class="squad-tab-field-roles">\n              <span>Role group</span>');
   expect(panelMarkup).toContain('<label class="squad-tab-field-overview">\n              <span>Preferred side</span>');
@@ -84,4 +89,8 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
   const modalMarkup = renderer.renderModal(player);
   expect(modalMarkup).toContain("data-player-profile-modal-overlay");
   expect(modalMarkup).toContain("Mak Player player profile");
+});
+
+test("Squad player profile tabs keep role editing in overview", () => {
+  expect(playerProfileTabOptions.map((tab) => tab.key)).toEqual(["overview", "idp", "medical", "performance", "notes", "history"]);
 });

@@ -640,6 +640,24 @@ function buildDevelopmentObjective(profile = {}, focus = null, idpInactive = fal
   return `Collect match and training observations for this focus, then decide the next coaching action for ${role}${context ? ` in ${context}` : ""}.`;
 }
 
+function buildFocusAreaSummary(focus = null) {
+  const summary = [
+    focus?.description,
+    focus?.focusAreas,
+    focus?.focus_areas,
+    focus?.focusArea,
+    focus?.focus_area,
+    focus?.objective,
+  ].map((value) => normalizeText(value, "")).find(Boolean);
+  if (!summary) return "No focus area set yet.";
+
+  const title = normalizeText(focus?.title || focus?.primaryFocus, "");
+  if (!title || !summary.toLowerCase().startsWith(title.toLowerCase())) return summary;
+
+  const cleaned = summary.slice(title.length).replace(/^[\s,.:;-]+/, "");
+  return cleaned || summary;
+}
+
 function hasCurrentFocus(focus = null) {
   const title = normalizeText(focus?.title, "");
   return Boolean(title && !/^create current focus$/i.test(title));
@@ -786,7 +804,7 @@ function renderCurrentFocusWorkspace(detail = {}, profile = {}, focus = null, id
   const description = idpInactive
     ? "This player's IDP is paused from Squad Room. Historical learning stays visible here until the plan is reactivated."
     : focusReady
-      ? buildDevelopmentObjective(profile, focus, false)
+      ? buildFocusAreaSummary(focus)
       : "Create one clear development focus before adding observations, clips or review decisions for this player.";
   const focusStats = [
     { label: "Lens", value: idpInactive ? "Paused" : focus?.category || "Tactical" },

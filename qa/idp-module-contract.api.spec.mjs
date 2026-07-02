@@ -548,6 +548,34 @@ test("idp renderer separates the overview from the player development profile", 
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, staffOptions)).toContain("data-idp-complete-review");
 });
 
+test("idp current focus card shows the focus title and focus area separately", () => {
+  const detail = buildLegacyPlayerDetail({
+    id: "p1",
+    name: "Kailen Sheridan",
+    position: "Goalkeeper",
+    primaryRole: "GK",
+    idp: { status: "active" },
+  });
+  detail.focuses = [{
+    id: "focus-1",
+    playerId: "p1",
+    title: "Distribution, claiming space and defensive organisation",
+    focus_areas: "Control depth, claim crosses and restart the attack with clear decisions.",
+    category: "Tactical",
+    status: "Active",
+  }];
+
+  const html = renderIdpWorkspace({
+    ui: { selectedPlayerId: "p1", profileView: "development" },
+    dashboardPlayers: [],
+    playerDetail: detail,
+  }, { canEdit: true, teamName: "North Carolina Courage", users: [] });
+
+  expect(html).toContain("<h3>Distribution, claiming space and defensive organisation</h3>");
+  expect(html).toContain("<p>Control depth, claim crosses and restart the attack with clear decisions.</p>");
+  expect(html).not.toContain("Collect match and training observations for this focus");
+});
+
 test("idp observation requires a saved current focus instead of using Squad fallback focus", async () => {
   const player = {
     id: "p1",

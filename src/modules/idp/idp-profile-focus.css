@@ -551,6 +551,16 @@ body.is-dark-mode .idp-player-profile .idp-profile-actions-deck .idp-action-rail
     width: 100%;
   }
 
+  .idp-header.is-player-context .idp-stage-toolbar {
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  .idp-header.is-player-context .idp-stage-toolbar .idp-coach-assist,
+  .idp-header.is-player-context .idp-stage-toolbar .idp-coach-assist summary {
+    width: auto;
+  }
+
   .idp-coach-assist-popover {
     margin-top: 8px;
     position: static;

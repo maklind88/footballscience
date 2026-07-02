@@ -270,9 +270,16 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("data:image/png;base64,abc123");
   expect(profileHtml).not.toContain("idp-profile-stage");
   expect(profileHtml).toContain("idp-stage-actions");
+  expect(profileHtml).toContain("idp-stage-toolbar");
+  expect((profileHtml.match(/class="idp-coach-assist"/g) || []).length).toBe(1);
+  expect(profileHtml.indexOf("idp-coach-assist")).toBeGreaterThan(profileHtml.indexOf("idp-header is-player-context"));
+  expect(profileHtml.indexOf("idp-coach-assist")).toBeLessThan(profileHtml.indexOf("idp-stage-actions"));
   expect(profileHtml.indexOf("idp-stage-actions")).toBeLessThan(profileHtml.indexOf("data-idp-back-overview"));
-  expect(profileHtml.indexOf("data-idp-back-overview")).toBeLessThan(profileHtml.indexOf('data-idp-profile-view="development"'));
-  expect(profileHtml.indexOf('data-idp-profile-view="development"')).toBeLessThan(profileHtml.indexOf('data-idp-profile-view="goals"'));
+  const profileMenuIndex = profileHtml.indexOf("idp-profile-menu");
+  const menuDevelopmentIndex = profileHtml.indexOf('data-idp-profile-view="development"', profileMenuIndex);
+  const menuGoalsIndex = profileHtml.indexOf('data-idp-profile-view="goals"', profileMenuIndex);
+  expect(profileHtml.indexOf("data-idp-back-overview")).toBeLessThan(menuDevelopmentIndex);
+  expect(menuDevelopmentIndex).toBeLessThan(menuGoalsIndex);
   expect(profileHtml).toContain('class="idp-profile-scouting-radar player-profile-scouting-spider-card"');
   expect(profileHtml).toContain('data-test-scouting-radar="Player One"');
   expect(profileHtml.indexOf("idp-profile-scouting-radar")).toBeGreaterThan(profileHtml.indexOf("idp-profile-menu"));

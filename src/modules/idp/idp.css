@@ -5118,6 +5118,19 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   line-height: 1.2;
 }
 
+.idp-header.is-player-context .idp-stage-toolbar {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.idp-header.is-player-context .idp-stage-toolbar .idp-coach-assist {
+  flex: 0 0 auto;
+}
+
 .idp-player-profile-mark {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, .92), rgba(248, 250, 252, .82)),

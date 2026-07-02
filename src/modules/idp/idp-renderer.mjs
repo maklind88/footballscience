@@ -323,6 +323,10 @@ function renderWorkspaceHeader(state = {}, canEdit = false, options = {}) {
     const status = coachLabel(idpStatusLabel(profile, focus));
     const position = [profile.position, profile.role].filter(Boolean).join(" / ") || "Squad";
     const ownerLabel = formatStaffName(ownerId, options);
+    const headerActions = [
+      renderCoachAssist(detail, profile, focus, idpInactive, canEdit),
+      renderStageQuickActions(canEdit, focusId, idpInactive),
+    ].filter(Boolean).join("");
     return `
       <header class="idp-header is-player-context">
         <div class="idp-title-lockup">
@@ -333,7 +337,7 @@ function renderWorkspaceHeader(state = {}, canEdit = false, options = {}) {
             <span>${escapeHtml([status, position, ownerLabel].filter(Boolean).join(" · "))}</span>
           </div>
         </div>
-        ${renderStageQuickActions(canEdit, focusId, idpInactive)}
+        ${headerActions ? `<div class="idp-stage-toolbar">${headerActions}</div>` : ""}
       </header>
     `;
   }
@@ -825,7 +829,6 @@ function renderCurrentFocusWorkspace(detail = {}, profile = {}, focus = null, id
             <span>${escapeHtml(position)}</span>
             <span>${escapeHtml(reviewLabel)}</span>
           </div>
-          ${renderCoachAssist(detail, profile, focus, idpInactive, canEdit)}
         </div>
       </div>
       <div class="idp-current-focus-body">

@@ -1561,15 +1561,8 @@ function renderProfileGoalsPage(detail = {}, focus = {}, profile = {}, canEdit =
   const goals = activeGoals(detail);
   const leadershipGoals = goals.filter((goal) => goal.goalRole === "leadership" || goal.category === "Leadership");
   const developmentGoals = goals.filter((goal) => !(goal.goalRole === "leadership" || goal.category === "Leadership"));
-  const checkinCount = Array.isArray(detail.goalCheckins) ? detail.goalCheckins.length : 0;
   return `
     <section class="idp-profile-subpage idp-profile-goals-page">
-      <div class="idp-goals-page-summary">
-        <span><strong>${escapeHtml(String(developmentGoals.length))}</strong><small>Development goals</small></span>
-        <span><strong>${escapeHtml(String(leadershipGoals.length))}</strong><small>Leadership goals</small></span>
-        <span><strong>${escapeHtml(String(checkinCount))}</strong><small>Check-ins</small></span>
-        <span><strong>${escapeHtml(formatShortDate(profile.nextReviewOn || focus?.reviewDate, "--"))}</strong><small>Next review</small></span>
-      </div>
       ${canEdit && goals.length ? `
         <div class="idp-goals-page-actions" aria-label="Goal actions">
           <button type="button" data-idp-action="leadership-goal">Leadership goal</button>

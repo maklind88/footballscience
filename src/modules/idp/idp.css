@@ -5557,8 +5557,7 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.idp-goal-metrics span,
-.idp-goals-page-summary span {
+.idp-goal-metrics span {
   background: rgba(248, 250, 252, .86);
   border: 1px solid rgba(17, 24, 39, .06);
   border-radius: 8px;
@@ -5568,16 +5567,14 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   padding: 8px;
 }
 
-.idp-goal-metrics small,
-.idp-goals-page-summary small {
+.idp-goal-metrics small {
   color: #667085;
   font-size: .64rem;
   font-weight: 880;
   text-transform: uppercase;
 }
 
-.idp-goal-metrics strong,
-.idp-goals-page-summary strong {
+.idp-goal-metrics strong {
   color: #101828;
   font-size: .78rem;
   overflow: hidden;
@@ -5677,16 +5674,6 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
 
 .idp-profile-goals-page {
   gap: 14px;
-}
-
-.idp-goals-page-summary {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.idp-goals-page-summary strong {
-  font-size: 1.15rem;
 }
 
 .idp-goals-board {
@@ -6217,7 +6204,6 @@ body.is-dark-mode .idp-goal-metrics span,
 body.is-dark-mode .idp-latest-goal-panel .idp-section-head button,
 body.is-dark-mode .idp-profile-scouting-radar .player-profile-scouting-metrics > div,
 body.is-dark-mode .idp-profile-scouting-radar .player-profile-scouting-spider-layout > p,
-body.is-dark-mode .idp-goals-page-summary span,
 body.is-dark-mode .idp-goals-empty {
   background: rgba(255, 255, 255, .84);
   color: #111827;
@@ -6487,8 +6473,7 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
     justify-self: start;
   }
 
-  .idp-goals-grid,
-  .idp-goals-page-summary {
+  .idp-goals-grid {
     grid-template-columns: 1fr;
   }
 

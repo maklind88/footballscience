@@ -122,10 +122,11 @@ function captureSearchFocus(activeRuntime = runtime) {
   const activeElement = getDocument(activeRuntime)?.activeElement;
   const isOverviewSearch = Boolean(activeElement?.matches?.("[data-idp-search]"));
   const isClipSearch = Boolean(activeElement?.matches?.("[data-idp-clip-search]"));
-  if (!isOverviewSearch && !isClipSearch) return null;
+  const isPlayerBoardSearch = Boolean(activeElement?.matches?.("[data-idp-player-board-search]"));
+  if (!isOverviewSearch && !isClipSearch && !isPlayerBoardSearch) return null;
   const value = activeElement.value || "";
   return {
-    selector: isClipSearch ? "[data-idp-clip-search]" : "[data-idp-search]",
+    selector: isPlayerBoardSearch ? "[data-idp-player-board-search]" : isClipSearch ? "[data-idp-clip-search]" : "[data-idp-search]",
     end: Number.isInteger(activeElement.selectionEnd) ? activeElement.selectionEnd : value.length,
     start: Number.isInteger(activeElement.selectionStart) ? activeElement.selectionStart : value.length,
   };
@@ -496,6 +497,10 @@ export function handleInput(event) {
     runtime?.store.setState({ ui: { clipBankSearchQuery: target.value || "" } });
     return;
   }
+  if (target?.matches?.("[data-idp-player-board-search]")) {
+    runtime?.store.setState({ ui: { playerBoardSearchQuery: target.value || "" } });
+    return;
+  }
   if (target?.matches?.("[data-idp-search]")) {
     runtime?.store.setState({ ui: { searchQuery: target.value || "" } });
   }
@@ -549,7 +554,7 @@ export function handleClick(event) {
   if (backTrigger) {
     event?.preventDefault?.();
     revokePreviewUrl(runtime);
-    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", error: "", message: "" } });
+    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", playerBoardSearchQuery: "", error: "", message: "" } });
     scrollWorkspaceTop(runtime);
     return;
   }
@@ -637,6 +642,21 @@ export function handleClick(event) {
     }
     return;
   }
+  const playerBoardSearchTrigger = event?.target?.closest?.("[data-idp-player-board-search-submit]");
+  if (playerBoardSearchTrigger) {
+    event?.preventDefault?.();
+    const root = getRoot(runtime?.context);
+    const input = root?.querySelector?.("[data-idp-player-board-search]");
+    runtime?.store.setState({ ui: { playerBoardSearchQuery: input?.value || "" } });
+    const focusSearch = () => getRoot(runtime?.context)?.querySelector?.("[data-idp-player-board-search]")?.focus?.();
+    const win = runtime?.context?.win || globalThis;
+    if (typeof win.requestAnimationFrame === "function") {
+      win.requestAnimationFrame(focusSearch);
+    } else {
+      focusSearch();
+    }
+    return;
+  }
   const closeActionTrigger = event?.target?.closest?.("[data-idp-close-action]");
   if (closeActionTrigger || event?.target?.matches?.("[data-idp-action-layer]")) {
     runtime?.store.setState({ ui: { actionMode: "", editEvidenceId: "", editGoalId: "" } });
@@ -697,6 +717,12 @@ export function handleClick(event) {
   if (playerBoardNew) {
     event?.preventDefault?.();
     runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: "__new", actionMode: "", error: "", message: "" } });
+    return;
+  }
+  const playerBoardPreviewSelect = event?.target?.closest?.("[data-idp-player-board-preview-select]");
+  if (playerBoardPreviewSelect) {
+    event?.preventDefault?.();
+    runtime?.store.setState({ ui: { playerBoardOpen: false, playerBoardInterventionId: playerBoardPreviewSelect.dataset.idpPlayerBoardPreviewSelect || "", error: "", message: "" } });
     return;
   }
   const playerBoardOpen = event?.target?.closest?.("[data-idp-player-board-open]");

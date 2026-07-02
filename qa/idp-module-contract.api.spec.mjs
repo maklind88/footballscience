@@ -121,6 +121,7 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("data-idp-board-tool=\"cone\"");
   expect(playerBoardRenderer).toContain("data-idp-board-color-choice");
   expect(playerBoardRenderer).toContain("data-idp-board-editor-pitch");
+  expect(playerBoardRenderer).toContain("data-idp-player-board-preview-select");
   expect(playerBoardRenderer).toContain("Linked goal");
   expect(playerBoardRenderer).toContain("Success criteria");
   expect(idpRuntime).toContain("applyBoardPitchPoint");
@@ -398,11 +399,42 @@ test("idp renderer separates the overview from the player development profile", 
 
   const playerBoardHtml = renderIdpWorkspace({
     ...profileState,
-    ui: { ...profileState.ui, profileView: "player-board" },
+    playerDetail: {
+      ...profileState.playerDetail,
+      interventions: [
+        {
+          id: "intervention-a",
+          playerId: "p1",
+          focusId: "legacy-focus-p1",
+          title: "Goalkeeper box release",
+          objective: "Distribution pattern from the box",
+          status: "active",
+          pitchMode: "goalkeeper",
+          boardState: { player: { x: 50, y: 82 }, frames: [{ id: "frame-1", label: "Start" }] },
+        },
+        {
+          id: "intervention-b",
+          playerId: "p1",
+          focusId: "legacy-focus-p1",
+          title: "Short game scanning",
+          objective: "Find the third player before release",
+          status: "draft",
+          pitchMode: "attacking-half",
+          boardState: { player: { x: 47, y: 66 }, frames: [{ id: "frame-1", label: "Start" }] },
+        },
+      ],
+    },
+    ui: { ...profileState.ui, profileView: "player-board", playerBoardInterventionId: "intervention-b", playerBoardSearchQuery: "short" },
   }, staffOptions);
   expect(playerBoardHtml).toContain("idp-profile-player-board-page");
   expect(playerBoardHtml).toContain("Player Board");
-  expect(playerBoardHtml).toContain("individual exercises");
+  expect(playerBoardHtml).toContain("Individuell övningsbank");
+  expect(playerBoardHtml).toContain("Sök övning");
+  expect(playerBoardHtml).toContain("data-idp-player-board-search");
+  expect(playerBoardHtml).toContain("Short game scanning");
+  expect(playerBoardHtml).toContain('data-idp-player-board-preview-select="intervention-b"');
+  expect(playerBoardHtml).toContain('aria-pressed="true"');
+  expect(playerBoardHtml).not.toContain("Kailen Sheridan individual exercises");
   expect(playerBoardHtml).toContain('class="idp-profile-menu"');
   expect(playerBoardHtml).toContain('data-idp-profile-view="player-board"');
   expect(playerBoardHtml).toContain('data-idp-profile-view="development"');
@@ -1491,7 +1523,7 @@ test("idp profile overview navigation is not blocked by stale filter state", asy
   expect(indexSource.indexOf("const backTrigger = event?.target?.closest?.(\"[data-idp-back-overview]\")"))
     .toBeLessThan(indexSource.indexOf("const openFilterMenu = runtime?.store.getState?.()?.ui?.openFilterMenu"));
   expect(indexSource).toContain(".idp-stage-actions[open]");
-  expect(indexSource).toContain('openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", error: "", message: ""');
+  expect(indexSource).toContain('openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", playerBoardSearchQuery: "", error: "", message: ""');
 
   const store = createIdpStore({ ui: { openFilterMenu: "owner" } });
   const actions = createIdpActions({

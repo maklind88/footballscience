@@ -291,25 +291,40 @@ function interventionObjective(intervention = {}, focus = {}) {
   );
 }
 
-function renderExerciseBank(detail = {}, current = {}, focus = {}) {
+function exerciseBankSearchText(item = {}, focus = {}) {
+  return [
+    item.title,
+    item.objective,
+    item.pitchMode,
+    item.status,
+    focus?.title,
+    focus?.category,
+  ].map((value) => normalizeText(value, "").toLowerCase()).join(" ");
+}
+
+function renderExerciseBank(detail = {}, current = {}, focus = {}, ui = {}) {
   const interventions = Array.isArray(detail.interventions)
     ? detail.interventions.filter((item) => item.status !== "archived")
     : [];
   const items = interventions.length ? interventions : [current];
-  const visibleItems = items.slice(0, 3);
-  const remainingCount = Math.max(0, items.length - visibleItems.length);
+  const searchQuery = normalizeText(ui.playerBoardSearchQuery, "").toLowerCase();
+  const matchingItems = searchQuery
+    ? items.filter((item) => exerciseBankSearchText(item, focus).includes(searchQuery))
+    : items;
+  const visibleItems = matchingItems.slice(0, searchQuery ? 5 : 3);
+  const remainingCount = Math.max(0, matchingItems.length - visibleItems.length);
   return `
-    <div class="idp-player-board-exercise-bank" aria-label="IDP individual exercise bank">
+    <div class="idp-player-board-exercise-bank${searchQuery ? " is-searching" : ""}" aria-label="IDP individual exercise bank">
       <div class="idp-player-board-bank-head">
         <span>Exercise Bank</span>
-        <strong>${escapeHtml(items.length === 1 ? "1 individual exercise" : `${items.length} individual exercises`)}</strong>
+        <strong>${escapeHtml(searchQuery ? `${matchingItems.length} match${matchingItems.length === 1 ? "" : "es"}` : items.length === 1 ? "1 individual exercise" : `${items.length} individual exercises`)}</strong>
       </div>
       <div class="idp-player-board-bank-list">
-        ${visibleItems.map((item, index) => {
+        ${visibleItems.length ? visibleItems.map((item, index) => {
           const itemCounts = interventionCounts(item);
           const isCurrent = item === current || (item.id && item.id === current.id);
           const actionAttr = item.id
-            ? `data-idp-player-board-select="${escapeHtml(item.id)}"`
+            ? `data-idp-player-board-preview-select="${escapeHtml(item.id)}"`
             : "data-idp-player-board-new";
           return `
             <button type="button" class="idp-player-board-bank-item${isCurrent ? " is-current" : ""}" ${actionAttr}>
@@ -324,7 +339,12 @@ function renderExerciseBank(detail = {}, current = {}, focus = {}) {
               </span>
             </button>
           `;
-        }).join("")}
+        }).join("") : `
+          <div class="idp-player-board-bank-empty">
+            <strong>No matching exercise</strong>
+            <small>Try another search term or create a new exercise.</small>
+          </div>
+        `}
         ${remainingCount ? `<span class="idp-player-board-bank-more">+${escapeHtml(String(remainingCount))} more in editor</span>` : ""}
       </div>
     </div>
@@ -363,7 +383,7 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
           </span>
         </span>
       </button>
-      ${renderExerciseBank(detail, intervention, focus)}
+      ${renderExerciseBank(detail, intervention, focus, ui)}
       ${canEdit ? `
         <div class="idp-player-board-actions">
           <button type="button" class="is-primary" data-idp-player-board-open>Edit Board</button>

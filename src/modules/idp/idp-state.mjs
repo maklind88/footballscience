@@ -22,6 +22,7 @@ export const idpInitialUiState = Object.freeze({
   clipPreviewObjectUrl: "",
   playerBoardOpen: false,
   playerBoardInterventionId: "",
+  playerBoardSearchQuery: "",
   playerBoardMode: "edit",
 });
 

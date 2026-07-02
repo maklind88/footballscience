@@ -27,6 +27,7 @@ const defaultUiState = Object.freeze({
   clipBankSearchQuery: "",
   actionMode: "",
   editGoalId: "",
+  playerBoardSearchQuery: "",
   message: "",
   error: "",
   loading: false,
@@ -1539,17 +1540,95 @@ function renderProfileClipBankPage(detail = {}, canEdit = false, ui = {}) {
   `;
 }
 
-function renderProfilePlayerBoardPage(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}) {
+function playerBoardInterventions(detail = {}) {
+  return Array.isArray(detail.interventions)
+    ? detail.interventions.filter((item) => item.status !== "archived")
+    : [];
+}
+
+function playerBoardExerciseSearchText(item = {}, focus = {}) {
+  return [
+    item.title,
+    item.objective,
+    item.pitchMode,
+    item.status,
+    focus?.title,
+    focus?.category,
+  ].map((value) => normalizeText(value, "").toLowerCase()).join(" ");
+}
+
+function playerBoardSelectedIntervention(detail = {}, ui = {}) {
+  const interventions = playerBoardInterventions(detail);
+  return interventions.find((item) => item.id && item.id === ui.playerBoardInterventionId) || interventions[0] || null;
+}
+
+function renderPlayerBoardLibraryResult(item = {}, index = 0, focus = {}, selectedId = "") {
+  const itemId = normalizeText(item.id, "");
+  const isSelected = itemId && itemId === selectedId;
+  return `
+    <button
+      type="button"
+      class="idp-player-board-library-result${isSelected ? " is-active" : ""}"
+      data-idp-player-board-preview-select="${escapeHtml(itemId)}"
+      aria-pressed="${isSelected ? "true" : "false"}"
+    >
+      <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+      <strong>${escapeHtml(item.title || "Individual exercise")}</strong>
+      <small>${escapeHtml(item.objective || focus?.description || "Player-specific intervention")}</small>
+    </button>
+  `;
+}
+
+function renderPlayerBoardLibraryCommand(detail = {}, focus = {}, profile = {}, canEdit = false, ui = {}) {
+  const interventions = playerBoardInterventions(detail);
+  const query = normalizeText(ui.playerBoardSearchQuery, "");
+  const normalizedQuery = query.toLowerCase();
+  const selected = playerBoardSelectedIntervention(detail, ui);
+  const selectedId = normalizeText(selected?.id, "");
+  const matches = normalizedQuery
+    ? interventions.filter((item) => playerBoardExerciseSearchText(item, focus).includes(normalizedQuery))
+    : interventions;
+  const visibleMatches = matches.slice(0, 5);
   const playerName = normalizeText(profile.playerName || profile.name, "Player");
+  const countLabel = interventions.length === 1 ? "1 sparad övning" : `${interventions.length} sparade övningar`;
+  const selectedTitle = selected ? normalizeText(selected.title, "vald övning") : "";
+  const summaryLabel = selected ? `${countLabel} / Visar ${selectedTitle}` : countLabel;
+
+  return `
+    <section class="idp-player-board-library-command" aria-label="Individual exercise bank">
+      <div class="idp-player-board-library-copy">
+        <span>Individuell övningsbank</span>
+        <strong>${escapeHtml(selectedTitle || `${playerName} övningsbank`)}</strong>
+        <small>${escapeHtml(summaryLabel)}</small>
+      </div>
+      <div class="idp-player-board-library-search">
+        <label>
+          <span>Sök övning</span>
+          <input type="search" data-idp-player-board-search value="${escapeHtml(query)}" placeholder="Sök övning, fokus eller anteckning" autocomplete="off">
+        </label>
+        <button type="button" data-idp-player-board-search-submit aria-label="Search exercise bank">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
+        </button>
+      </div>
+      <div class="idp-player-board-library-results" aria-label="Exercise search results">
+        ${visibleMatches.length
+          ? visibleMatches.map((item, index) => renderPlayerBoardLibraryResult(item, index, focus, selectedId)).join("")
+          : `
+            <div class="idp-player-board-library-empty">
+              <strong>${escapeHtml(interventions.length ? "Ingen träff" : "Ingen sparad övning ännu")}</strong>
+              <small>${escapeHtml(interventions.length ? "Testa ett annat sökord." : "Skapa första individuella övningen för spelaren.")}</small>
+            </div>
+          `}
+        ${canEdit ? `<button type="button" class="idp-player-board-library-new" data-idp-player-board-new>Ny övning</button>` : ""}
+      </div>
+    </section>
+  `;
+}
+
+function renderProfilePlayerBoardPage(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}) {
   return `
     <section class="idp-profile-subpage idp-profile-player-board-page">
-      <div class="idp-profile-subpage-head">
-        <div>
-          <span>Player Board</span>
-          <strong>${escapeHtml(playerName)} individual exercises</strong>
-          <small>Create player-specific interventions, draw the exercise and keep clips, notes and frames tied to this IDP.</small>
-        </div>
-      </div>
+      ${renderPlayerBoardLibraryCommand(detail, focus, profile, canEdit, ui)}
       <div class="idp-player-board-page-shell">
         ${renderIdpPlayerBoardPanel(detail, focus, profile, pulse, nextAction, canEdit, ui)}
       </div>

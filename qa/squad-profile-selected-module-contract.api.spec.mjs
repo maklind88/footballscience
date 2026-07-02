@@ -65,6 +65,8 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
   expect(panelMarkup).toContain("Open Player Development");
   expect(panelMarkup).toContain('<label class="squad-tab-field-overview">\n              <span>Role group</span>');
   expect(panelMarkup).not.toContain('<label class="squad-tab-field-roles">\n              <span>Role group</span>');
+  expect(panelMarkup).toContain('<label class="squad-tab-field-overview">\n              <span>Preferred side</span>');
+  expect(panelMarkup).not.toContain('<label class="squad-tab-field-roles">\n              <span>Preferred side</span>');
   expect(panelMarkup).not.toContain("Individual Development Plan");
   expect(panelMarkup).not.toContain('name="idpPrimaryFocus"');
   expect(panelMarkup).not.toContain('name="idpFocusAreas"');

@@ -124,6 +124,12 @@ export function createSquadProfileSelectedRenderer({
               </select>
             </label>
             <label class="squad-tab-field-overview">
+              <span>Preferred side</span>
+              <select name="preferredSide" ${canEdit ? "" : "disabled"}>
+                ${renderPlayerProfileOptionSet(playerProfilePreferredSideOptions, player.preferredSide)}
+              </select>
+            </label>
+            <label class="squad-tab-field-overview">
               <span>Availability status</span>
               <select name="status" ${canEdit ? "" : "disabled"}>
                 ${renderPlayerProfileOptionSet(playerProfileStatusOptions, player.status)}
@@ -140,12 +146,6 @@ export function createSquadProfileSelectedRenderer({
               <span>Secondary roles</span>
               <select name="secondaryRoles" multiple size="5" ${canEdit ? "" : "disabled"}>
                 ${renderPlayerProfileSecondaryRoleOptions(player.secondaryRoles)}
-              </select>
-            </label>
-            <label class="squad-tab-field-roles">
-              <span>Preferred side</span>
-              <select name="preferredSide" ${canEdit ? "" : "disabled"}>
-                ${renderPlayerProfileOptionSet(playerProfilePreferredSideOptions, player.preferredSide)}
               </select>
             </label>
             ${temporaryRosterFields}

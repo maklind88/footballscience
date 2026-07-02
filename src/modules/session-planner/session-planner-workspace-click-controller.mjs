@@ -104,6 +104,21 @@ export function bindSessionPlannerWorkspaceClickController(deps = {}) {
     return true;
   }
 
+  function getPostSessionNotesField(trigger) {
+    const card = trigger?.closest?.(".session-post-notes-card");
+    return card?.querySelector?.('[data-session-field="postSessionNotes"]') || null;
+  }
+
+  function focusPostSessionNotesField(trigger) {
+    const field = getPostSessionNotesField(trigger);
+    if (!field) {
+      return;
+    }
+    field.focus();
+    const cursorPosition = String(field.value || "").length;
+    field.setSelectionRange?.(cursorPosition, cursorPosition);
+  }
+
   function handleClick(event) {
     if (getSuppressNextClick()) {
       setSuppressNextClick(false);
@@ -126,6 +141,7 @@ export function bindSessionPlannerWorkspaceClickController(deps = {}) {
     if (callIfClosest(event, "[data-session-tactical-number]", (el) => updateTacticalPlayerNumber(el.dataset.sessionTacticalNumberElement, el.dataset.sessionTacticalNumber))) return;
     if (matches(event, "[data-session-player-board-profile-overlay]")) { closePlayerBoardProfile(); return; }
     if (callIfClosest(event, "[data-session-close-player-board-profile]", () => closePlayerBoardProfile())) return;
+    if (callIfClosest(event, "[data-session-post-notes-reflection]", (el) => focusPostSessionNotesField(el))) return;
     if (matches(event, "[data-session-selection-assistant-overlay]")) { setPlayerBoardAssistantOpen(false); renderWorkspace({ preserveDateStripScroll: true }); return; }
     if (callIfClosest(event, "[data-session-selection-assistant-open]", () => { setPlayerBoardAssistantOpen(true); setPlayerBoardSelectedPlayerId(""); renderWorkspace({ preserveDateStripScroll: true }); })) return;
     if (callIfClosest(event, "[data-session-selection-assistant-close]", () => { setPlayerBoardAssistantOpen(false); renderWorkspace({ preserveDateStripScroll: true }); })) return;

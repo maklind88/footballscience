@@ -251,12 +251,20 @@ ${listOptions
         </span>
       </summary>
       <div class="session-post-notes-body">
-        <div class="session-post-notes-prompt-grid" aria-hidden="true">
-          <span>What worked</span>
-          <span>What to adjust</span>
-          <span>Player response</span>
-          <span>Next session</span>
-        </div>
+        ${
+          isAdmin
+            ? `
+              <div class="session-post-notes-actions" role="group" aria-label="Post-session note actions">
+                <button type="button" class="session-post-notes-action is-reflection" data-session-post-notes-reflection>
+                  Today reflection
+                </button>
+                <button type="button" class="session-post-notes-action is-save" data-session-post-notes-save>
+                  Save notes
+                </button>
+              </div>
+            `
+            : ""
+        }
         ${
           isAdmin
             ? `
@@ -265,7 +273,7 @@ ${listOptions
                 <textarea
                   data-session-field="postSessionNotes"
                   rows="6"
-                  placeholder="Capture the session while it is fresh..."
+                  placeholder="How did this exercise go today?"
                 >${escapeHtml(noteValue)}</textarea>
               </label>
             `

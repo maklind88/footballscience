@@ -15,7 +15,51 @@ test("Squad profile support renderer owns option lists, support panels, and add-
   };
   const renderer = createSquadProfileSupportRenderer({
     escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
+    formatMedicalDateLabel: (value) =>
+      ({
+        "2026-06-01": "Mon 1 Jun",
+        "2026-06-02": "Tue 2 Jun",
+        "2026-06-06": "Sat 6 Jun",
+        "2026-06-08": "Mon 8 Jun",
+      })[value] || value || "",
     formatPlayerProfileChangeTime: () => "Today",
+    getMedicalPlayerInjuryPlans: () => [
+      {
+        id: "plan-1",
+        playerId: "p1",
+        injuryType: "Hamstring",
+        bodyArea: "Thigh",
+        startDate: "2026-06-01",
+        endDate: "2026-06-08",
+        status: "modified",
+        rtpPhase: "modified-team",
+        participation: 75,
+        reviewDate: "2026-06-06",
+        coachNote: "Modified sprint load",
+        shareWithCoach: true,
+        createdBy: "medical-1",
+        createdAt: "2026-06-01T08:00:00Z",
+        updatedAt: "2026-06-01T08:00:00Z",
+      },
+    ],
+    getMedicalPlayerRecords: () => [
+      {
+        id: "record-1",
+        playerId: "p1",
+        date: "2026-06-02",
+        status: "full",
+        participation: 100,
+        rtpPhase: "full-training",
+        coachNote: "Ready for full team training",
+        comment: "Private clinical note",
+        shareWithCoach: true,
+        createdBy: "medical-1",
+        createdAt: "2026-06-02T09:00:00Z",
+        updatedAt: "2026-06-02T10:00:00Z",
+      },
+    ],
+    getMedicalRecordStatus: (record) => ({ label: record?.status === "full" ? "Full Training" : "Modified Training" }),
+    getMedicalRtpPhaseOption: (key) => ({ label: key === "full-training" ? "Full training" : "Modified team" }),
     getActiveTab: () => "medical",
     getPlayerProfileChangeLog: () => [
       { summary: "Profile updated", actor: "Coach", createdAt: "2026-05-31T11:14:00Z", type: "profile-update", changes: [{ field: "role", from: "8", to: "10" }] },
@@ -44,6 +88,7 @@ test("Squad profile support renderer owns option lists, support panels, and add-
       { key: "overview", label: "Overview" },
       { key: "medical", label: "Medical" },
     ],
+    resolvePlayerWorkActorLabel: (actorId, fallback) => (actorId === "medical-1" ? "Medical Lead" : fallback),
   });
 
   expect(renderer.renderRoleOptions("CB")).toContain('value="CB" selected');
@@ -55,8 +100,15 @@ test("Squad profile support renderer owns option lists, support panels, and add-
   expect(medicalPanel).toContain("7d 75%");
   expect(renderer.renderFuturePanel(player)).toContain("Match / Load / Analysis");
   const historyPanel = renderer.renderHistoryPanel(player);
-  expect(historyPanel).toContain("Profile Audit Trail");
+  expect(historyPanel).toContain("Player Work History");
   expect(historyPanel).toContain("Mak Player");
+  expect(historyPanel).toContain("Squad Room");
+  expect(historyPanel).toContain("Medical");
+  expect(historyPanel).toContain("Medical Lead");
+  expect(historyPanel).toContain("Full Training / 100%");
+  expect(historyPanel).toContain("Availability plan");
+  expect(historyPanel).toContain("Modified sprint load");
+  expect(historyPanel).not.toContain("Private clinical note");
   expect(historyPanel).not.toContain("Recent Squad Room activity");
   expect(historyPanel).not.toContain("player changes");
   expect(renderer.renderTabs()).toContain('data-player-profile-tab="medical"');

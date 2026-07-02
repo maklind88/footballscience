@@ -1,3 +1,5 @@
+import { createSquadPlayerHistoryTimeline } from "./squad-player-history-timeline.mjs";
+
 const defaultEscapeHtml = (value) =>
   String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -9,7 +11,12 @@ const defaultEscapeHtml = (value) =>
 export function createSquadProfileSupportRenderer({
   escapeHtml = defaultEscapeHtml,
   formatPlayerProfileChangeTime,
+  formatMedicalDateLabel = (value) => String(value || ""),
   getActiveTab,
+  getMedicalPlayerInjuryPlans = () => [],
+  getMedicalPlayerRecords = () => [],
+  getMedicalRecordStatus = () => ({ label: "" }),
+  getMedicalRtpPhaseOption = () => ({ label: "" }),
   getPlayerProfileChangeLog,
   getPlayerProfileMedicalSnapshot,
   getRecentPlayerProfileChangeLog,
@@ -18,7 +25,11 @@ export function createSquadProfileSupportRenderer({
   playerProfileRoleOptions = [],
   playerProfileRosterTypeOptions = [],
   playerProfileTabOptions = [],
+  resolvePlayerWorkActorLabel = (_actorId, fallback = "Football Science") => fallback,
 } = {}) {
+  const formatHistoryTime = (value) =>
+    typeof formatPlayerProfileChangeTime === "function" ? formatPlayerProfileChangeTime(value) : String(value || "");
+
   const renderRoleOptions = (selectedRole = "") =>
     playerProfileRoleOptions
       .map((role) => `<option value="${escapeHtml(role)}" ${role === selectedRole ? "selected" : ""}>${escapeHtml(role)}</option>`)
@@ -122,31 +133,36 @@ export function createSquadProfileSupportRenderer({
   `;
   };
 
-  const renderChangeLogRows = (entries = []) => {
+  const renderHistoryRows = (entries = []) => {
     if (!entries.length) {
-      return `<p class="squad-change-empty">No changes tracked for this player yet.</p>`;
+      return `<p class="squad-change-empty">No player work has been recorded yet.</p>`;
     }
     return entries
       .map(
         (entry) => `
-      <article class="squad-change-row">
+      <article class="squad-change-row squad-work-history-row">
         <header>
           <div>
-            <strong>${escapeHtml(entry.summary || "Profile updated")}</strong>
-            <span>${escapeHtml(entry.actor || "Football Science")} · ${escapeHtml(formatPlayerProfileChangeTime(entry.createdAt))}</span>
+            <strong>${escapeHtml(entry.title || "Player work updated")}</strong>
+            <span>${escapeHtml(entry.module || "Player")} · ${escapeHtml(entry.actor || "Football Science")} · ${escapeHtml(formatHistoryTime(entry.createdAt))}</span>
           </div>
-          <em>${escapeHtml(entry.type.replaceAll("-", " "))}</em>
+          <em>${escapeHtml(entry.typeLabel || "update")}</em>
         </header>
         ${
-          entry.changes.length
+          entry.summary
+            ? `<p class="squad-work-history-summary">${escapeHtml(entry.summary)}</p>`
+            : ""
+        }
+        ${
+          entry.details.length
             ? `<div class="squad-change-diff">
-${entry.changes
-  .slice(0, 5)
+${entry.details
+  .slice(0, 8)
   .map(
-    (change) => `
+    (detail) => `
                     <span>
-                      <b>${escapeHtml(change.field)}</b>
-                      <small>${escapeHtml(change.from)} -> ${escapeHtml(change.to)}</small>
+                      <b>${escapeHtml(detail.label)}</b>
+                      <small>${escapeHtml(detail.value)}</small>
                     </span>
                   `
   )
@@ -161,20 +177,29 @@ ${entry.changes
   };
 
   const renderHistoryPanel = (player) => {
-    const playerEntries = getPlayerProfileChangeLog(player.id);
+    const playerEntries = createSquadPlayerHistoryTimeline({
+      player,
+      profileChanges: getPlayerProfileChangeLog(player.id),
+      medicalRecords: getMedicalPlayerRecords(player.id, { includeArchived: true }),
+      medicalPlans: getMedicalPlayerInjuryPlans(player.id, { includeArchived: true }),
+      getMedicalRecordStatus,
+      getMedicalRtpPhaseOption,
+      formatMedicalDateLabel,
+      resolveActorLabel: resolvePlayerWorkActorLabel,
+    });
     return `
     <article class="squad-profile-section squad-change-history">
       <header class="squad-section-head">
         <div>
-          <p>Change History</p>
-          <h2>Profile Audit Trail</h2>
+          <p>Player Timeline</p>
+          <h2>Player Work History</h2>
         </div>
       </header>
       <div class="squad-change-history-grid squad-change-history-grid-single">
         <section>
           <h3>${escapeHtml(player.name)}</h3>
           <div class="squad-change-list">
-            ${renderChangeLogRows(playerEntries)}
+            ${renderHistoryRows(playerEntries)}
           </div>
         </section>
       </div>
@@ -295,7 +320,8 @@ ${escapeHtml(tab.label)}
     renderOptionSet,
     renderMedicalPanel,
     renderFuturePanel,
-    renderChangeLogRows,
+    renderChangeLogRows: renderHistoryRows,
+    renderHistoryRows,
     renderHistoryPanel,
     renderTabs,
     renderNewPlayerCard,

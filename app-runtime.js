@@ -1607,6 +1607,31 @@ let selectedStaffUserId = null;
 let staffCreateUserEditorOpen = false;
 let staffCreateUserDraft = null;
 let adminRuntimeService = null;
+const resolvePlayerWorkActorLabel = (actorId, fallback = "Football Science") => {
+  const cleanActorId = String(actorId ?? "").trim();
+  if (!cleanActorId) {
+    return fallback;
+  }
+  if (cleanActorId === "squad-room") {
+    return "Squad Room";
+  }
+  if (cleanActorId === "coach-safe") {
+    return "Coach view";
+  }
+  const currentUser = getCurrentPlatformUser?.();
+  const teamUsers = getAdminUsersForTeam?.(getUserTeamId?.() || "") || [];
+  const candidates = [currentUser, ...teamUsers].filter(Boolean);
+  const actor = candidates.find((user) =>
+    [user.id, user.userId, user.email, user.name]
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .includes(cleanActorId)
+  );
+  if (actor) {
+    return formatUserName(actor);
+  }
+  return cleanActorId.includes("@") ? cleanActorId : fallback;
+};
 const {
 adminAccessRenderer,
 adminReadinessRenderer,
@@ -1626,6 +1651,7 @@ canEditPlayerProfiles,
 dashboardTaskListRenderer,
 defaultTeamId: platformDefaultTeamId,
 escapeHtml,
+formatMedicalDateLabel,
 formatPlayerProfileChangeTime,
 formatUserName,
 getAdminAuditState,
@@ -1637,6 +1663,10 @@ getAssignableRolesForUser,
 getClubById: getPlatformClubById,
 getFilteredPlayerProfiles: () => playerProfilesState.players,
 getHomeAppearanceImpactSummary,
+getMedicalPlayerInjuryPlans,
+getMedicalPlayerRecords,
+getMedicalRecordStatus,
+getMedicalRtpPhaseOption,
 getPlayerProfileActiveTab: () => playerProfileActiveTab,
 getPlayerProfileChangeLog,
 getPlayerProfileCompleteness,
@@ -1702,6 +1732,7 @@ renderPlayerProfileStatusChip,
 renderTaskList: dashboardTaskListRenderer.renderTaskList,
 renderTeamLogoMark: renderPlatformTeamLogoMark,
 renderUserAvatar,
+resolvePlayerWorkActorLabel,
 });
 adminRuntimeService = createAdminRuntimeService({
 adminWorkspaceRenderer,

@@ -16,6 +16,7 @@ export * from "./squad-data-foundation.mjs";
 export * from "./squad-import-planner.mjs";
 export * from "./squad-app-runtime-composer.mjs";
 export * from "./squad-profile-selected-renderer.mjs";
+export * from "./squad-player-history-timeline.mjs";
 export * from "./squad-profile-support-renderer.mjs";
 export * from "./squad-roster-renderer.mjs";
 export * from "./squad-medical-status-service.mjs";

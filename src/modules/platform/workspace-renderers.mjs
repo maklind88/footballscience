@@ -24,6 +24,7 @@ export function createPlatformWorkspaceRenderers(deps = {}) {
     canEditPlayerProfiles,
     dashboardTaskListRenderer,
     escapeHtml,
+    formatMedicalDateLabel,
     formatPlayerProfileChangeTime,
     formatUserName,
     getAdminManagedWorkspaces,
@@ -33,6 +34,10 @@ export function createPlatformWorkspaceRenderers(deps = {}) {
     getClubById,
     getFilteredPlayerProfiles,
     getHomeAppearanceImpactSummary,
+    getMedicalPlayerInjuryPlans,
+    getMedicalPlayerRecords,
+    getMedicalRecordStatus,
+    getMedicalRtpPhaseOption,
     getPlayerProfileChangeLog,
     getPlayerProfileCompleteness,
     getPlayerProfileDisplayAgeValue,
@@ -94,6 +99,7 @@ export function createPlatformWorkspaceRenderers(deps = {}) {
     renderTaskList,
     renderTeamLogoMark,
     renderUserAvatar,
+    resolvePlayerWorkActorLabel,
   } = deps;
 
   const adminUserRenderer = createAdminUserRenderer({
@@ -218,8 +224,13 @@ export function createPlatformWorkspaceRenderers(deps = {}) {
   const squadWorkspaceRenderer = createSquadWorkspaceRenderer({ escapeHtml });
   const squadProfileSupportRenderer = createSquadProfileSupportRenderer({
     escapeHtml,
+    formatMedicalDateLabel,
     formatPlayerProfileChangeTime,
     getActiveTab: deps.getPlayerProfileActiveTab,
+    getMedicalPlayerInjuryPlans,
+    getMedicalPlayerRecords,
+    getMedicalRecordStatus,
+    getMedicalRtpPhaseOption,
     getPlayerProfileChangeLog,
     getPlayerProfileMedicalSnapshot,
     getRecentPlayerProfileChangeLog,
@@ -228,6 +239,7 @@ export function createPlatformWorkspaceRenderers(deps = {}) {
     playerProfileRoleOptions,
     playerProfileRosterTypeOptions,
     playerProfileTabOptions,
+    resolvePlayerWorkActorLabel,
   });
   const squadProfileSelectedRenderer = createSquadProfileSelectedRenderer({
     escapeHtml,

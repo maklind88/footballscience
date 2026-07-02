@@ -436,8 +436,8 @@ test("Session Planner renderer owns block form fields, multiselects, notes, and 
   expect(fieldMarkup).toContain('aria-expanded="true"');
   expect(headerMarkup).toContain('data-session-field="title"');
   expect(notesMarkup).toContain("Post Session Notes");
-  expect(notesMarkup).toContain('data-session-post-notes-reflection');
-  expect(notesMarkup).toContain('data-session-post-notes-save');
+  expect(notesMarkup).toContain("What worked");
+  expect(notesMarkup).toContain("Capture the session while it is fresh");
   expect(notesMarkup).toContain("Previous Review Notes");
   expect(notesMarkup).toContain("Good transfer");
   expect(blockListMarkup).toContain('data-session-block-id="block-1"');

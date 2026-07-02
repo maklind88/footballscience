@@ -2099,13 +2099,10 @@ test("Session Planner post-session notes stay attached to library exercises", as
   await expect(postNotesCard).not.toHaveAttribute("open", "");
   await expect(postNotesCard.locator("summary")).toContainText("Ready after training");
   await postNotesCard.locator("[data-session-post-notes-toggle]").click();
-  await expect(postNotesCard.locator("[data-session-post-notes-reflection]")).toBeVisible();
-  await expect(postNotesCard.locator("[data-session-post-notes-save]")).toBeVisible();
-  await postNotesCard.locator("[data-session-post-notes-reflection]").click();
   const notesField = sessionPlannerWorkspace.locator('[data-session-field="postSessionNotes"]').first();
   await expect(notesField).toBeVisible();
   await notesField.fill(note);
-  await postNotesCard.locator("[data-session-post-notes-save]").click();
+  await notesField.blur();
   await expectStorageContains(page, sessionPlannerKey, note);
   await expect
     .poll(() =>

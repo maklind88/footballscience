@@ -273,6 +273,17 @@ function goalAuditSummary(row = {}) {
   };
 }
 
+function focusAuditSummary(row = {}) {
+  return {
+    title: normalizeText(row.title, 180),
+    status: normalizeText(row.status, 40),
+    evidence_status: normalizeText(row.evidence_status, 80),
+    category: normalizeText(row.category, 40),
+    owner_id: normalizeText(row.owner_id, 160),
+    review_date: normalizeText(row.review_date, 40),
+  };
+}
+
 async function insertAuditEvent(scope, event = {}) {
   return insertRow("idp_audit_events", {
     organization_id: scope.organizationId,
@@ -592,6 +603,48 @@ async function updateFocus(payload, actor) {
   const focus = result.payload?.[0] || null;
   const sync = await buildSyncMeta(scope, focus?.player_id || "");
   return { ok: true, payload: { schema: IDP_SCHEMA, focus, sync: sync.ok ? sync.payload : null } };
+}
+
+async function closeFocus(payload, actor, lifecycleAction = "archive") {
+  const scope = actorScope(actor);
+  const focusId = normalizeUuid(payload.id || payload.focusId || payload.focus_id);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  if (!focusId || !playerId) return { ok: false, status: 400, reason: "focusId and playerId are required." };
+  const current = await requireOwnedFocus(scope, playerId, focusId);
+  if (!current.ok) return current;
+  const before = current.payload;
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${focusId}`);
+  params.set("player_id", `eq.${playerId}`);
+  params.set("deleted_at", "is.null");
+  const result = await patchRows("idp_focuses", params, {
+    status: "Archived",
+    deleted_at: new Date().toISOString(),
+    deleted_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  if (!result.ok) return result;
+  const focus = result.payload?.[0] || null;
+  if (!focus) return { ok: false, status: 404, reason: "Focus was not found." };
+  await insertAuditEvent(scope, {
+    playerId,
+    action: lifecycleAction === "delete" ? "focus.deleted" : "focus.archived",
+    entityType: "idp_focus",
+    entityId: focus.id,
+    changedFields: ["status", "deleted_at", "deleted_by"],
+    beforeSummary: focusAuditSummary(before),
+    afterSummary: focusAuditSummary(focus),
+  });
+  const sync = await buildSyncMeta(scope, playerId);
+  return { ok: true, payload: { schema: IDP_SCHEMA, focus, sync: sync.ok ? sync.payload : null } };
+}
+
+async function archiveFocus(payload, actor) {
+  return closeFocus(payload, actor, "archive");
+}
+
+async function deleteFocus(payload, actor) {
+  return closeFocus(payload, actor, "delete");
 }
 
 async function upsertClipBankItem(payload, actor) {
@@ -1375,35 +1428,39 @@ async function handleIdpRequest(req, res, actor) {
       ? await createFocus(body.focus || body, actor)
       : action === "update-focus"
         ? await updateFocus(body.focus || body, actor)
-        : action === "video-player-tagged"
-          ? await upsertClipBankItem(body.clip || body, actor)
-          : action === "review-clip-bank"
-            ? await reviewClipBank(body.clipBankItem || body, actor)
-            : action === "add-evidence"
-              ? await addEvidence(body.evidence || body, actor)
-              : action === "update-evidence"
-                ? await updateEvidence(body.evidence || body, actor)
-                : action === "delete-evidence"
-                  ? await deleteEvidence(body.evidence || body, actor)
-                  : action === "assign-owner"
-                    ? await assignOwner(body.ownership || body, actor)
-                    : action === "complete-review"
-                      ? await completeReview(body.review || body, actor)
-                      : action === "create-goal"
-                        ? await createDevelopmentGoal(body.goal || body, actor)
-                        : action === "update-goal"
-                          ? await updateDevelopmentGoal(body.goal || body, actor)
-                          : action === "archive-goal"
-                            ? await archiveDevelopmentGoal(body.goal || body, actor)
-                            : action === "add-goal-checkin"
-                              ? await addGoalCheckin(body.checkin || body, actor)
-                              : action === "create-intervention"
-                                ? await createDevelopmentIntervention(body.intervention || body, actor)
-                                : action === "update-intervention"
-                                  ? await updateDevelopmentIntervention(body.intervention || body, actor)
-                                  : action === "archive-intervention"
-                                    ? await archiveDevelopmentIntervention(body.intervention || body, actor)
-                                    : { ok: false, status: 400, reason: "Unsupported IDP action." };
+        : action === "archive-focus"
+          ? await archiveFocus(body.focus || body, actor)
+          : action === "delete-focus"
+            ? await deleteFocus(body.focus || body, actor)
+            : action === "video-player-tagged"
+              ? await upsertClipBankItem(body.clip || body, actor)
+              : action === "review-clip-bank"
+                ? await reviewClipBank(body.clipBankItem || body, actor)
+                : action === "add-evidence"
+                  ? await addEvidence(body.evidence || body, actor)
+                  : action === "update-evidence"
+                    ? await updateEvidence(body.evidence || body, actor)
+                    : action === "delete-evidence"
+                      ? await deleteEvidence(body.evidence || body, actor)
+                      : action === "assign-owner"
+                        ? await assignOwner(body.ownership || body, actor)
+                        : action === "complete-review"
+                          ? await completeReview(body.review || body, actor)
+                          : action === "create-goal"
+                            ? await createDevelopmentGoal(body.goal || body, actor)
+                            : action === "update-goal"
+                              ? await updateDevelopmentGoal(body.goal || body, actor)
+                              : action === "archive-goal"
+                                ? await archiveDevelopmentGoal(body.goal || body, actor)
+                                : action === "add-goal-checkin"
+                                  ? await addGoalCheckin(body.checkin || body, actor)
+                                  : action === "create-intervention"
+                                    ? await createDevelopmentIntervention(body.intervention || body, actor)
+                                    : action === "update-intervention"
+                                      ? await updateDevelopmentIntervention(body.intervention || body, actor)
+                                      : action === "archive-intervention"
+                                        ? await archiveDevelopmentIntervention(body.intervention || body, actor)
+                                        : { ok: false, status: 400, reason: "Unsupported IDP action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }
 
@@ -1411,6 +1468,7 @@ module.exports = {
   IDP_SCHEMA,
   addEvidence,
   addGoalCheckin,
+  archiveFocus,
   archiveDevelopmentIntervention,
   archiveDevelopmentGoal,
   assignOwner,
@@ -1420,6 +1478,7 @@ module.exports = {
   createDevelopmentIntervention,
   createFocus,
   dashboardStatus,
+  deleteFocus,
   deleteEvidence,
   getSyncStatus,
   handleIdpRequest,

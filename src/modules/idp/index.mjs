@@ -642,6 +642,28 @@ export function handleClick(event) {
     runtime?.store.setState({ ui: { actionMode: "", editEvidenceId: "", editGoalId: "" } });
     return;
   }
+  const archiveFocusTrigger = event?.target?.closest?.("[data-idp-archive-focus]");
+  if (archiveFocusTrigger) {
+    event?.preventDefault?.();
+    const win = runtime?.context?.win || globalThis;
+    const confirmed = typeof win.confirm === "function"
+      ? win.confirm("Archive this focus? It will leave the active IDP view and you can create a new current focus afterwards.")
+      : true;
+    if (!confirmed) return;
+    runAction(() => runtime?.actions.archiveFocus(archiveFocusTrigger.dataset.idpArchiveFocus || ""));
+    return;
+  }
+  const deleteFocusTrigger = event?.target?.closest?.("[data-idp-delete-focus]");
+  if (deleteFocusTrigger) {
+    event?.preventDefault?.();
+    const win = runtime?.context?.win || globalThis;
+    const confirmed = typeof win.confirm === "function"
+      ? win.confirm("Delete this focus from the active IDP view? This cannot be undone from the player profile.")
+      : true;
+    if (!confirmed) return;
+    runAction(() => runtime?.actions.deleteFocus(deleteFocusTrigger.dataset.idpDeleteFocus || ""));
+    return;
+  }
   const boardColorChoice = event?.target?.closest?.("[data-idp-board-color-choice]");
   if (boardColorChoice) {
     event?.preventDefault?.();

@@ -1120,6 +1120,7 @@ function renderObservationButtons(item = {}, canEdit = false) {
 
 function renderFocusForm(focus = null) {
   const focusId = focus?.id && !String(focus.id).startsWith("legacy-focus-") ? focus.id : "";
+  const hasSavedFocus = Boolean(focusId);
   return `
     <form class="idp-action-form" data-idp-create-focus>
       <input type="hidden" name="focusId" value="${escapeHtml(focusId)}">
@@ -1143,6 +1144,19 @@ function renderFocusForm(focus = null) {
         <span>Review date</span>
         <input name="reviewDate" type="date" value="${escapeHtml(focus?.reviewDate || "")}">
       </label>
+      ${hasSavedFocus ? `
+        <div class="idp-focus-lifecycle-panel">
+          <div>
+            <span>Focus lifecycle</span>
+            <strong>Ready to move this focus out of the active plan?</strong>
+            <p>Archive keeps the development story intact and opens space for a new current focus. Delete removes it from the active IDP view when it should not be used anymore.</p>
+          </div>
+          <div class="idp-focus-lifecycle-actions">
+            <button type="button" class="idp-secondary-action" data-idp-archive-focus="${escapeHtml(focusId)}">Archive focus</button>
+            <button type="button" class="idp-danger-action" data-idp-delete-focus="${escapeHtml(focusId)}">Delete focus</button>
+          </div>
+        </div>
+      ` : ""}
       <div class="idp-action-form-actions">
         <button type="button" class="idp-secondary-action" data-idp-close-action>Cancel</button>
         <button type="submit">Save focus</button>

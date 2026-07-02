@@ -40,6 +40,8 @@ export function createIdpApiService(context = {}) {
       request(`/api/idp?action=sync${playerId ? `&playerId=${encodeURIComponent(playerId)}` : ""}`),
     createFocus: (focus) => request("/api/idp", { method: "POST", body: { action: "create-focus", focus } }),
     updateFocus: (focus) => request("/api/idp", { method: "POST", body: { action: "update-focus", focus } }),
+    archiveFocus: (focus) => request("/api/idp", { method: "POST", body: { action: "archive-focus", focus } }),
+    deleteFocus: (focus) => request("/api/idp", { method: "POST", body: { action: "delete-focus", focus } }),
     reviewClipBank: (clipBankItem) => request("/api/idp", { method: "POST", body: { action: "review-clip-bank", clipBankItem } }),
     addEvidence: (evidence) => request("/api/idp", { method: "POST", body: { action: "add-evidence", evidence } }),
     updateEvidence: (evidence) => request("/api/idp", { method: "POST", body: { action: "update-evidence", evidence } }),

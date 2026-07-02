@@ -63,6 +63,25 @@ test("idp evidence edits and deletes stay behind the server-owned database bound
   expect(databaseSource).not.toContain('deleteRows("idp_evidence"');
 });
 
+test("idp focus archive and delete stay behind the server-owned database boundary", () => {
+  const apiService = read("src/modules/idp/services/idp-api-service.mjs");
+  const databaseSource = read("api/_lib/idp-database.js");
+  const idpRuntime = read("src/modules/idp/index.mjs");
+
+  expect(apiService).toContain('action: "archive-focus"');
+  expect(apiService).toContain('action: "delete-focus"');
+  expect(databaseSource).toContain("async function archiveFocus");
+  expect(databaseSource).toContain("async function deleteFocus");
+  expect(databaseSource).toContain('patchRows("idp_focuses"');
+  expect(databaseSource).toContain('"focus.archived"');
+  expect(databaseSource).toContain('"focus.deleted"');
+  expect(databaseSource).toContain("deleted_at: new Date().toISOString()");
+  expect(databaseSource).toContain("deleted_by: scope.actorId");
+  expect(databaseSource).not.toContain('deleteRows("idp_focuses"');
+  expect(idpRuntime).toContain("data-idp-archive-focus");
+  expect(idpRuntime).toContain("data-idp-delete-focus");
+});
+
 test("idp player board interventions are IDP-owned and server-versioned", () => {
   const apiService = read("src/modules/idp/services/idp-api-service.mjs");
   const databaseSource = read("api/_lib/idp-database.js");
@@ -438,6 +457,29 @@ test("idp renderer separates the overview from the player development profile", 
   expect(focusFormHtml).toContain("data-idp-create-focus");
   expect(focusFormHtml).toContain('name="description"');
   expect(focusFormHtml).toContain("Focus areas");
+  expect(focusFormHtml).not.toContain("data-idp-archive-focus");
+  expect(focusFormHtml).not.toContain("data-idp-delete-focus");
+  const savedFocusState = {
+    ...profileState,
+    playerDetail: {
+      ...profileState.playerDetail,
+      focuses: [{
+        id: "11111111-1111-4111-8111-111111111111",
+        playerId: "p1",
+        title: "Distribution and defensive organisation",
+        description: "Control the next action after distribution.",
+        category: "Tactical",
+        status: "Active",
+        reviewDate: "2026-07-10",
+      }],
+    },
+  };
+  const savedFocusFormHtml = renderIdpWorkspace({ ...savedFocusState, ui: { ...savedFocusState.ui, actionMode: "focus" } }, staffOptions);
+  expect(savedFocusFormHtml).toContain("Focus lifecycle");
+  expect(savedFocusFormHtml).toContain('data-idp-archive-focus="11111111-1111-4111-8111-111111111111"');
+  expect(savedFocusFormHtml).toContain('data-idp-delete-focus="11111111-1111-4111-8111-111111111111"');
+  expect(savedFocusFormHtml).toContain("Archive focus");
+  expect(savedFocusFormHtml).toContain("Delete focus");
   const observationHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "evidence" } }, staffOptions);
   expect(observationHtml).toContain("data-idp-add-evidence");
   expect(observationHtml).toContain("Observation type");
@@ -653,6 +695,68 @@ test("idp observation edit and delete stay server-owned and refresh the selected
   expect(deletePayloads[0]).toMatchObject({ id: "evidence-1", playerId: "p1" });
   expect(loadPlayerCalls).toBe(2);
   expect(store.getState().ui.message).toBe("Observation deleted.");
+});
+
+test("idp focus archive and delete stay server-owned and refresh the selected player", async () => {
+  const player = {
+    id: "p1",
+    name: "Kailen Sheridan",
+    position: "Goalkeeper",
+    primaryRole: "GK",
+    idp: { primaryFocus: "Distribution under pressure", nextAction: "Add observation" },
+  };
+  const focusId = "11111111-1111-4111-8111-111111111111";
+  const detail = buildLegacyPlayerDetail(player);
+  detail.focuses = [{ id: focusId, playerId: "p1", title: "Distribution under pressure", status: "Active" }];
+  const store = createIdpStore({
+    ui: { selectedPlayerId: "p1" },
+    playerDetail: detail,
+  });
+  const archivedFocuses = [];
+  const deletedFocuses = [];
+  let loadPlayerCalls = 0;
+  const api = {
+    archiveFocus: async (payload) => {
+      archivedFocuses.push(payload);
+      return { schema: "footballscience-idp-v1", focus: { id: payload.id, player_id: payload.playerId, status: "Archived" } };
+    },
+    deleteFocus: async (payload) => {
+      deletedFocuses.push(payload);
+      return { schema: "footballscience-idp-v1", focus: { id: payload.id, player_id: payload.playerId, status: "Archived", deleted_at: "2026-06-16T11:00:00.000Z" } };
+    },
+    loadDashboard: async () => ({ schema: "footballscience-idp-v1", players: [] }),
+    loadPlayer: async () => {
+      loadPlayerCalls += 1;
+      return {
+        schema: "footballscience-idp-v1",
+        profile: { id: "profile-p1", player_id: "p1" },
+        focuses: [],
+        clipBank: [],
+        evidence: [],
+        reviews: [],
+        nextActions: [],
+        milestones: [],
+        ownership: [],
+      };
+    },
+  };
+  const actions = createIdpActions({
+    store,
+    api,
+    context: { getPlayerProfilesState: () => ({ players: [player] }) },
+  });
+
+  await actions.archiveFocus(focusId);
+  expect(archivedFocuses[0]).toMatchObject({ id: focusId, playerId: "p1" });
+  expect(store.getState().ui.message).toContain("Focus archived");
+
+  store.setState({ ui: { selectedPlayerId: "p1" }, playerDetail: detail });
+  await actions.deleteFocus(focusId);
+
+  expect(deletedFocuses[0]).toMatchObject({ id: focusId, playerId: "p1" });
+  expect(loadPlayerCalls).toBe(2);
+  expect(store.getState().ui.message).toBe("Focus deleted from the active IDP view.");
+  expect(store.getState().playerDetail.focuses).toEqual([]);
 });
 
 test("idp individual exercise save and archive stay behind the server boundary", async () => {

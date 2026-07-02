@@ -1690,6 +1690,57 @@
   margin-top: 4px;
 }
 
+.idp-focus-lifecycle-panel {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, .94), rgba(248, 250, 252, .82)),
+    radial-gradient(circle at top left, rgba(14, 165, 164, .14), transparent 38%);
+  border: 1px solid rgba(20, 32, 51, .09);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .72);
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 14px;
+}
+
+.idp-focus-lifecycle-panel span {
+  color: var(--idp-teal);
+  display: block;
+  font-size: .66rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.idp-focus-lifecycle-panel strong {
+  color: var(--idp-ink);
+  display: block;
+  font-size: .92rem;
+  line-height: 1.18;
+}
+
+.idp-focus-lifecycle-panel p {
+  color: var(--idp-muted);
+  font-size: .78rem;
+  line-height: 1.35;
+  margin: 6px 0 0;
+}
+
+.idp-focus-lifecycle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.idp-action-form .idp-danger-action {
+  background: rgba(180, 35, 24, .1);
+  border: 1px solid rgba(180, 35, 24, .16);
+  color: #b42318;
+}
+
 .idp-action-form .idp-secondary-action {
   background: rgba(20, 32, 51, .1);
   color: var(--idp-ink);
@@ -1924,8 +1975,14 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   .idp-detail-grid,
   .idp-profile-command,
   .idp-action-rail,
+  .idp-focus-lifecycle-panel,
   .idp-profile-work {
     grid-template-columns: 1fr;
+  }
+
+  .idp-focus-lifecycle-actions,
+  .idp-focus-lifecycle-actions button {
+    width: 100%;
   }
 
   .idp-overview-head {

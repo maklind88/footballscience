@@ -412,6 +412,24 @@ export function createIdpActions({ store, api, context = {} }) {
     await refreshSelectedPlayer();
   }
 
+  async function archiveFocus(focusId = "") {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const safeFocusId = persistedFocusId({ id: focusId });
+    if (!playerId || !safeFocusId) throw new Error("Current focus could not be archived.");
+    await api.archiveFocus({ id: safeFocusId, playerId });
+    store.setState({ ui: { actionMode: "", message: "Focus archived. Create a new current focus when you are ready." } });
+    await refreshSelectedPlayer();
+  }
+
+  async function deleteFocus(focusId = "") {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const safeFocusId = persistedFocusId({ id: focusId });
+    if (!playerId || !safeFocusId) throw new Error("Current focus could not be deleted.");
+    await api.deleteFocus({ id: safeFocusId, playerId });
+    store.setState({ ui: { actionMode: "", message: "Focus deleted from the active IDP view." } });
+    await refreshSelectedPlayer();
+  }
+
   async function ensureObservationFocus(playerId, detail = {}, formData) {
     const formFocusId = persistedFocusId({ id: formData.get("focusId") || "" });
     if (formFocusId) return formFocusId;
@@ -600,6 +618,8 @@ export function createIdpActions({ store, api, context = {} }) {
     checkForExternalUpdates,
     completeReview,
     createFocus,
+    archiveFocus,
+    deleteFocus,
     deleteEvidence,
     loadDashboard,
     refreshSelectedPlayer,

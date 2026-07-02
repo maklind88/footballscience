@@ -1948,7 +1948,7 @@ test("Periodization day notes persist after refresh", async ({ page }) => {
 
   await page.locator("#periodizationTodayButton").click();
   await expect(page.locator("[data-periodization-overlay]")).toHaveCount(0);
-  await page.locator(".periodization-day-card.is-selected").click();
+  await page.locator(".periodization-day-card[data-periodization-date]").first().click();
   await expect(page.locator("[data-periodization-overlay]")).toBeVisible();
   await page.locator("[data-periodization-edit-selected]").click();
   const notesField = page.locator('textarea[data-periodization-field="sessionNotes"]').first();
@@ -1978,7 +1978,7 @@ test("Periodization edit overlay keeps scroll position while saving fields", asy
 
   await page.locator("#periodizationTodayButton").click();
   await expect(page.locator("[data-periodization-overlay]")).toHaveCount(0);
-  await page.locator(".periodization-day-card.is-selected").click();
+  await page.locator(".periodization-day-card[data-periodization-date]").first().click();
   await expect(page.locator("[data-periodization-overlay]")).toBeVisible();
   await page.locator("[data-periodization-edit-selected]").click();
   const panel = page.locator("[data-periodization-overlay] .periodization-day-panel").first();

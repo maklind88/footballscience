@@ -27,6 +27,14 @@ async function clearHandleDatabase(page) {
   }));
 }
 
+async function openScheduleTrainingDay(page) {
+  await expect(page.locator("[data-video-analysis-library]")).toBeVisible();
+  await page.locator('[data-video-analysis-library-filter="date"]').fill("2026-06-02");
+  const scheduleDay = page.locator('[data-video-analysis-open-library-item="schedule:schedule-training-1"]').first();
+  await expect(scheduleDay).toBeVisible();
+  await scheduleDay.click();
+}
+
 test("local video handle store saves, restores, lists and removes IndexedDB handles", async ({ page }) => {
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
   await clearHandleDatabase(page);
@@ -222,7 +230,7 @@ test("schedule days restore a persisted local handle and recreate video metadata
 
   test.skip(!setup.supported, "Origin Private File System handles are not available in this browser.");
 
-  await page.locator('[data-video-analysis-open-library-item="schedule:schedule-training-1"]').click();
+  await openScheduleTrainingDay(page);
   await expect(page.locator("[data-video-analysis-video]")).toBeVisible();
   await expect(page.locator(".video-analysis-player h2")).toContainText("schedule-restore.mp4");
   await expect.poll(() => page.evaluate(() => {

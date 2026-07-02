@@ -66,7 +66,10 @@ async function installFixedDate(page, fixedIso = "2026-06-15T12:00:00.000Z") {
 
 async function openScheduleDayForLocalVideo(page) {
   await expect(page.locator("[data-video-analysis-library]")).toBeVisible();
-  await page.locator('[data-video-analysis-open-library-item^="schedule:"]').first().click();
+  await page.locator('[data-video-analysis-library-filter="date"]').fill("2026-06-02");
+  const scheduleDay = page.locator('[data-video-analysis-open-library-item="schedule:schedule-training-1"]').first();
+  await expect(scheduleDay).toBeVisible();
+  await scheduleDay.click();
   await expect(page.locator("[data-video-analysis-file]")).toHaveCount(1);
 }
 

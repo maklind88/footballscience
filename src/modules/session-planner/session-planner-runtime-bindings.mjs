@@ -67,6 +67,7 @@ export function bindSessionPlannerRuntimeBindings(deps = {}) {
     normalizePlayerBoardFormationValue,
     setPlayerBoardFormationInput: (formationInput) => setLocalStateValue(localUiState, "sessionPlannerPlayerBoardFormationInput", formationInput),
     applyPlayerBoardFormation: runtimeDelegates.applySessionPlannerPlayerBoardFormation,
+    tidyPlayerBoardSelectedPlayers: runtimeDelegates.tidySelectedSessionPlannerPlayerBoardPlayers,
     updatePlayerBoardSelectedColor: runtimeDelegates.updateSessionPlannerPlayerBoardSelectedColor,
     resetPlayerBoardPositions: runtimeDelegates.resetSessionPlannerPlayerBoardPositions,
     clearPlayerBoardSelectedColors: runtimeDelegates.clearSessionPlannerPlayerBoardSelectedColors,

@@ -475,6 +475,7 @@ return `
 }
 function renderSessionPlannerPlayerBoardCopyTools(block) {
 const sourceBlocks = getSourceBlocks(block);
+const selectedCount = getSelectedColorIds().length;
 const sourceOptions = sourceBlocks
 .map(({ block: sourceBlock, index }) => {
 const colors = Object.keys(getDataObject(sourceBlock.playerBoardColors)).length;
@@ -493,6 +494,14 @@ return `
         </label>
         <button type="submit" class="session-player-board-tool-button is-copy" data-session-player-board-copy-teams ${sourceBlocks.length ? "" : "disabled"}>Copy</button>
 	      </form>
+        <button
+          type="button"
+          class="session-player-board-tool-button is-tidy"
+          data-session-player-board-tidy-selected
+          ${selectedCount > 1 ? "" : "disabled"}
+        >
+          Tidy selected
+        </button>
 	  `;
 }
 function renderSessionPlannerPlayerBoardTools() {

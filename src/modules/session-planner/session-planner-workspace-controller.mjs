@@ -1,3 +1,5 @@
+import { createSessionPlannerPlayerBoardTidyHelpers } from "./session-planner-player-board-tidy-helpers.mjs";
+
 export function createSessionPlannerWorkspaceController(deps = {}) {
   const {
     assignSessionPlannerBlockFieldValue,
@@ -125,6 +127,7 @@ export function createSessionPlannerWorkspaceController(deps = {}) {
       return true;
     },
   });
+  const { getTidiedPlayerBoardPositions } = createSessionPlannerPlayerBoardTidyHelpers({ clamp });
 
 function getSessionPlannerSelectedSession() {
 if (!local.sessionPlannerState) {
@@ -530,10 +533,13 @@ ui.sessionPlannerWorkspace
 "[data-session-player-board-clear-colors]",
 "[data-session-player-board-apply-formation]",
 "[data-session-player-board-prioritize]",
+"[data-session-player-board-tidy-selected]",
 ].join(", ")
 )
 .forEach((button) => {
-button.disabled = selectedCount === 0;
+button.disabled = button.matches("[data-session-player-board-tidy-selected]")
+? selectedCount < 2
+: selectedCount === 0;
 });
 }
 function getSessionPlannerPlayerBoardSelectedColorIds() {
@@ -568,6 +574,68 @@ return;
 }
 updateSessionPlannerPlayerBoardSelectedColor("");
 showSessionPlannerToast(`Colour cleared for ${selectedIds.length} player${selectedIds.length === 1 ? "" : "s"}.`);
+}
+function tidySelectedSessionPlannerPlayerBoardPlayers() {
+if (!canEditSessionPlanner()) {
+return;
+}
+const block = getSessionPlannerSelectedBlock();
+if (!block) {
+return;
+}
+const selectedIds = normalizeSessionPlannerPlayerBoardSelectedIds(local.sessionPlannerPlayerBoardSelectedPlayerIds, block);
+if (selectedIds.length < 2) {
+showSessionPlannerToast("Select at least two players to tidy.", "error");
+return;
+}
+const selectedIdSet = new Set(selectedIds);
+const boardPlayers = getSessionPlannerPlayerBoardPlayers(block);
+const spacing = getSessionPlannerPlayerBoardReadableSpacing(boardPlayers.length, "preview");
+const selectedEntries = [];
+const fixedEntries = [];
+boardPlayers.forEach((item, index) => {
+const playerId = item?.player?.id;
+if (!playerId) {
+return;
+}
+const position = getSessionPlannerPlayerBoardPosition(block, item, index, boardPlayers);
+const entry = {
+id: playerId,
+order: index,
+x: clamp(Number(position.x) || 50, 4, 96),
+y: clamp(Number(position.y) || 50, 7, 93),
+};
+if (selectedIdSet.has(playerId)) {
+selectedEntries.push(entry);
+} else {
+fixedEntries.push(entry);
+}
+});
+const arrangedEntries = getTidiedPlayerBoardPositions(selectedEntries, fixedEntries, {
+minX: spacing.minX,
+minY: spacing.minY,
+minBoundsX: 4,
+maxBoundsX: 96,
+minBoundsY: 7,
+maxBoundsY: 93,
+});
+if (!arrangedEntries.length) {
+return;
+}
+if (!block.playerBoardPositions || typeof block.playerBoardPositions !== "object") {
+block.playerBoardPositions = {};
+}
+block.playerBoardLayoutMode = "manual";
+arrangedEntries.forEach((entry) => {
+block.playerBoardPositions[entry.id] = {
+x: Number(entry.x.toFixed(2)),
+y: Number(entry.y.toFixed(2)),
+};
+});
+markSessionPlannerBlockFieldsUpdated(block, ["playerBoardLayoutMode", "playerBoardPositions"]);
+writeSessionPlannerState();
+renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
+showSessionPlannerToast(`Tidied ${arrangedEntries.length} selected player${arrangedEntries.length === 1 ? "" : "s"}.`);
 }
 function getSessionPlannerPlayerBoardContextPosition(event, board) {
 const rect = board?.getBoundingClientRect?.();
@@ -2830,6 +2898,7 @@ let profileWorkspaceFlashTimer = null;
     applySessionPlannerPlayerBoardAutoTeamFormation,
     applySessionPlannerPlayerBoardAutoSelect,
     applySessionPlannerPlayerBoardFormation,
+    tidySelectedSessionPlannerPlayerBoardPlayers,
     getSessionPlannerPlayerBoardPosition,
     getSessionPlannerPlayerBoardPositionById,
     getSessionPlannerPlayerBoardReadableSpacing,

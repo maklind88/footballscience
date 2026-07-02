@@ -181,6 +181,7 @@ export const sessionPlannerRuntimeDelegateMethodNames = Object.freeze([
   "applySessionPlannerPlayerBoardAutoTeamFormation",
   "applySessionPlannerPlayerBoardAutoSelect",
   "applySessionPlannerPlayerBoardFormation",
+  "tidySelectedSessionPlannerPlayerBoardPlayers",
   "copySessionPlannerPlayerBoardTeamsFromBlock",
   "getSessionPlannerHistoryPanelContext",
   "loadSessionPlannerHistory",

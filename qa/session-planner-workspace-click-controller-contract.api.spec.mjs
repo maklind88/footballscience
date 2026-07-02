@@ -115,6 +115,7 @@ test("Session Planner click controller preserves player board, history, and add 
       formationInput = value;
     },
     applyPlayerBoardFormation: (options) => calls.push(`formation:${options.prioritize}`),
+    tidyPlayerBoardSelectedPlayers: () => calls.push("tidy-selected"),
     getHistoryOpen: () => historyOpen,
     setHistoryOpen: (open) => {
       historyOpen = open;
@@ -141,6 +142,9 @@ test("Session Planner click controller preserves player board, history, and add 
   listeners.click(createClick(createTarget({ closest: { "[data-session-player-board-prioritize]": { dataset: {} } } })));
   expect(formationInput).toBe("shape:4-3-3");
   expect(calls).toContain("formation:true");
+
+  listeners.click(createClick(createTarget({ closest: { "[data-session-player-board-tidy-selected]": { dataset: {} } } })));
+  expect(calls).toContain("tidy-selected");
 
   listeners.click(createClick(createTarget({ closest: { "[data-session-toggle-history]": { dataset: {} } } })));
   expect(historyOpen).toBe(true);

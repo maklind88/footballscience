@@ -16,6 +16,37 @@
   z-index: 660;
 }
 
+#sessionPlannerWorkspace .session-player-board-boardbar-actions {
+  gap: 0.36rem;
+  align-items: center;
+}
+
+#sessionPlannerWorkspace .session-player-board-boardbar-actions .session-player-board-copy-tools {
+  min-width: min(19rem, 100%);
+}
+
+#sessionPlannerWorkspace .session-player-board-tool-button.is-tidy {
+  flex: 0 0 auto;
+  min-height: 2rem;
+  padding: 0 0.78rem;
+  color: #0d4f86;
+  background: rgba(10, 132, 255, 0.12);
+  border: 1px solid rgba(10, 132, 255, 0.18);
+  white-space: nowrap;
+}
+
+#sessionPlannerWorkspace .session-player-board-tool-button.is-tidy:disabled {
+  color: rgba(29, 29, 31, 0.34);
+  background: rgba(29, 29, 31, 0.06);
+  border-color: rgba(29, 29, 31, 0.08);
+}
+
+body.is-dark-mode #sessionPlannerWorkspace .session-player-board-tool-button.is-tidy {
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(96, 165, 250, 0.26);
+}
+
 /*
   The overview card renders the same tactical coordinates on a smaller pitch
   than the edit overlay. Scale placed objects down here so players/equipment

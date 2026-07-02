@@ -22,6 +22,7 @@ export function bindSessionPlannerWorkspaceClickController(deps = {}) {
     setPlayerBoardFormationInput = () => {},
     applyPlayerBoardFormation = () => {},
     updatePlayerBoardSelectedColor = () => {},
+    tidyPlayerBoardSelectedPlayers = () => {},
     resetPlayerBoardPositions = () => {},
     clearPlayerBoardSelectedColors = () => {},
     closePlayerBoardCustomPersonEditor = () => {},
@@ -153,6 +154,7 @@ export function bindSessionPlannerWorkspaceClickController(deps = {}) {
       applyPlayerBoardFormation({ prioritize: true });
     })) return;
     if (callIfClosest(event, "[data-session-player-board-color]", (el) => updatePlayerBoardSelectedColor(el.dataset.sessionPlayerBoardColor))) return;
+    if (callIfClosest(event, "[data-session-player-board-tidy-selected]", () => tidyPlayerBoardSelectedPlayers())) return;
     if (callIfClosest(event, "[data-session-player-board-reset-positions]", () => resetPlayerBoardPositions())) return;
     if (callIfClosest(event, "[data-session-player-board-clear-colors]", () => clearPlayerBoardSelectedColors())) return;
     if (callIfClosest(event, "[data-session-player-board-person-cancel]", () => closePlayerBoardCustomPersonEditor())) return;

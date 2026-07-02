@@ -121,3 +121,23 @@ test("Session Planner Player Board spaces compact print and preview tokens for r
   expect(printRendererSource).toContain("printPositions.get(item.player.id)");
   expect(runtimeSource).toContain("overlapX <= 0 || overlapY <= 0");
 });
+
+test("Session Planner Player Board can tidy selected player tokens without changing formation", () => {
+  const accessorsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-accessors.mjs");
+  const runtimeBindingsSource = readProjectFile("src/modules/session-planner/session-planner-runtime-bindings.mjs");
+  const delegatesSource = readProjectFile("src/modules/session-planner/session-planner-runtime-delegates.mjs");
+  const workspaceControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-controller.mjs");
+  const tidyHelpersSource = readProjectFile("src/modules/session-planner/session-planner-player-board-tidy-helpers.mjs");
+  const clickControllerSource = readProjectFile("src/modules/session-planner/session-planner-workspace-click-controller.mjs");
+  const playerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
+  const overrideSource = readProjectFile("session-planner-overrides.css");
+  const runtimeSource = `${accessorsSource}\n${runtimeBindingsSource}\n${delegatesSource}\n${workspaceControllerSource}\n${tidyHelpersSource}\n${clickControllerSource}`;
+
+  expect(playerBoardRendererSource).toContain("data-session-player-board-tidy-selected");
+  expect(runtimeSource).toContain("function tidySelectedSessionPlannerPlayerBoardPlayers");
+  expect(runtimeSource).toContain("tidyPlayerBoardSelectedPlayers");
+  expect(runtimeSource).toContain("getTidiedPlayerBoardPositions");
+  expect(runtimeSource).toContain("relaxTidyEntries");
+  expect(runtimeSource).toContain("\"tidySelectedSessionPlannerPlayerBoardPlayers\"");
+  expect(overrideSource).toContain(".session-player-board-tool-button.is-tidy");
+});

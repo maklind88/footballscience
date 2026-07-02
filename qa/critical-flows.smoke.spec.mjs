@@ -2141,6 +2141,123 @@ test("Session Planner post-session notes stay attached to library exercises", as
   await expect(page.locator(".session-library-view-dialog")).toContainText(note);
 });
 
+test("Session Planner player board tidy selected keeps nearby player tokens readable", async ({ page }) => {
+  const dateValue = "2026-05-19";
+  const playerIds = [
+    "player-board-person-qa-tidy-p1",
+    "player-board-person-qa-tidy-p2",
+    "player-board-person-qa-tidy-p3",
+  ];
+  const anchorId = "player-board-person-qa-tidy-anchor";
+  await page.addInitScript(
+    ({ sessionKey, dateValue, playerIds, anchorId }) => {
+      window.localStorage.setItem(
+        sessionKey,
+        JSON.stringify({
+          selectedDate: dateValue,
+          sessions: {
+            [dateValue]: {
+              id: `session-${dateValue}`,
+              date: dateValue,
+              title: "QA Training",
+              theme: "QA tidy player board",
+              selectedBlockId: "qa-tidy-block",
+              blocks: [
+                {
+                  id: "qa-tidy-block",
+                  label: "Block 1",
+                  title: "QA Tidy Board",
+                  focus: "Player board",
+                  phase: "Out of Possession",
+                  subPhase: "Block Defending",
+                  minutes: 12,
+                  intensity: 3,
+                  pitchSize: "SSG",
+                  material: "",
+                  objective: "",
+                  why: "",
+                  organization: "",
+                  principles: "",
+                  diagram: "empty",
+                  playerBoardLayoutMode: "manual",
+                  playerBoardPositions: {
+                    [playerIds[0]]: { x: 39, y: 42 },
+                    [playerIds[1]]: { x: 44, y: 42.2 },
+                    [playerIds[2]]: { x: 49, y: 42.3 },
+                    [anchorId]: { x: 82, y: 74 },
+                  },
+                  playerBoardColors: {},
+                  playerBoardCustomPeople: [
+                    { id: playerIds[0], name: "Tidy Alpha", role: "CB", kind: "player", createdAt: "2026-05-19T10:00:00.000Z" },
+                    { id: playerIds[1], name: "Tidy Beta", role: "CB", kind: "player", createdAt: "2026-05-19T10:01:00.000Z" },
+                    { id: playerIds[2], name: "Tidy Gamma", role: "CB", kind: "player", createdAt: "2026-05-19T10:02:00.000Z" },
+                    { id: anchorId, name: "Tidy Anchor", role: "ST", kind: "player", createdAt: "2026-05-19T10:03:00.000Z" },
+                  ],
+                },
+              ],
+            },
+          },
+        })
+      );
+    },
+    { sessionKey: sessionPlannerKey, dateValue, playerIds, anchorId }
+  );
+
+  await bootApp(page);
+  await openWorkspace(page, "session-planner");
+  const sessionPlannerWorkspace = await waitForSessionPlannerWorkspace(page);
+  await sessionPlannerWorkspace.locator("[data-session-open-player-board]").click();
+  const boardOverlay = page.locator(".session-player-board-overlay");
+  await expect(boardOverlay).toBeVisible();
+  await boardOverlay.locator(`[data-session-player-board-token="${playerIds[0]}"]`).click();
+  await boardOverlay.locator(`[data-session-player-board-token="${playerIds[1]}"]`).click({ modifiers: ["Shift"] });
+  await boardOverlay.locator(`[data-session-player-board-token="${playerIds[2]}"]`).click({ modifiers: ["Shift"] });
+  await expect(boardOverlay.locator("[data-session-player-board-selected-count]")).toContainText("3 selected");
+  await boardOverlay.locator("[data-session-player-board-tidy-selected]").click();
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          ({ sessionKey, dateValue, playerIds, anchorId }) => {
+            const state = JSON.parse(window.localStorage.getItem(sessionKey) || "{}");
+            const block = state.sessions?.[dateValue]?.blocks?.find((candidate) => candidate.id === "qa-tidy-block");
+            const positions = block?.playerBoardPositions || {};
+            const selectedPositions = playerIds.map((playerId) => positions[playerId]).filter(Boolean);
+            const pairsReadable = selectedPositions.every((position, index) =>
+              selectedPositions.slice(index + 1).every((otherPosition) => {
+                const dx = Math.abs(Number(otherPosition.x) - Number(position.x));
+                const dy = Math.abs(Number(otherPosition.y) - Number(position.y));
+                return dx >= 6 || dy >= 5.4;
+              })
+            );
+            const center = selectedPositions.reduce(
+              (sum, position) => ({ x: sum.x + Number(position.x), y: sum.y + Number(position.y) }),
+              { x: 0, y: 0 }
+            );
+            center.x /= Math.max(selectedPositions.length, 1);
+            center.y /= Math.max(selectedPositions.length, 1);
+            return {
+              mode: block?.playerBoardLayoutMode,
+              count: selectedPositions.length,
+              pairsReadable,
+              keptNearOriginalArea: Math.abs(center.x - 44) < 18 && Math.abs(center.y - 42.2) < 18,
+              anchorStable: positions[anchorId]?.x === 82 && positions[anchorId]?.y === 74,
+            };
+          },
+          { sessionKey: sessionPlannerKey, dateValue, playerIds, anchorId }
+        ),
+      { timeout: 10_000 }
+    )
+    .toEqual({
+      mode: "manual",
+      count: 3,
+      pairsReadable: true,
+      keptNearOriginalArea: true,
+      anchorStable: true,
+    });
+});
+
 test("Medical recommendation edits persist after refresh", async ({ page }) => {
   const comment = `QA Medical ${Date.now()}`;
   await page.addInitScript(({ storageKey }) => {

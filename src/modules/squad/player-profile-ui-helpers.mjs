@@ -32,6 +32,10 @@ export function createPlayerProfileFormValueReader(options = {}) {
       scoutingNotes: String(data.get("scoutingNotes") ?? "").trim(),
       analysisNotes: String(data.get("analysisNotes") ?? "").trim(),
     };
+    const idp = {};
+    if (hasField("idpStatus")) {
+      idp.status = String(data.get("idpStatus") ?? "").trim();
+    }
     const values = {
       playerId: String(data.get("playerId") ?? "").trim(),
       name: String(data.get("name") ?? "").trim(),
@@ -44,14 +48,7 @@ export function createPlayerProfileFormValueReader(options = {}) {
       roleGroup: String(data.get("roleGroup") ?? "").trim(),
       coachNotes: String(data.get("coachNotes") ?? "").trim(),
       attributeRatings,
-      idp: {
-        status: String(data.get("idpStatus") ?? "").trim(),
-        primaryFocus: String(data.get("idpPrimaryFocus") ?? "").trim(),
-        strengths: String(data.get("idpStrengths") ?? "").trim(),
-        focusAreas: String(data.get("idpFocusAreas") ?? "").trim(),
-        nextAction: String(data.get("idpNextAction") ?? "").trim(),
-        reviewDate: String(data.get("idpReviewDate") ?? "").trim(),
-      },
+      idp,
       futureData,
     };
     if (hasField("squadStatus")) values.squadStatus = String(data.get("squadStatus") ?? "").trim();
@@ -180,8 +177,6 @@ export function getPlayerProfileCompleteness(player = {}) {
     player.preferredSide,
     player.squadStatus,
     player.careerPhase,
-    player.idp?.primaryFocus,
-    player.idp?.nextAction || player.idp?.focusAreas,
     player.futureData?.performanceNotes || player.futureData?.scoutingNotes,
     player.coachNotes,
   ];

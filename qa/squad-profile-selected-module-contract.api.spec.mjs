@@ -60,6 +60,14 @@ test("Squad selected profile renderer owns selected workbench and modal markup",
   expect(panelMarkup).toContain('id="playerProfileEditForm"');
   expect(panelMarkup).toContain('name="playerId"');
   expect(panelMarkup).toContain("Role Suitability");
+  expect(panelMarkup).toContain("Player Development System");
+  expect(panelMarkup).toContain('name="idpStatus"');
+  expect(panelMarkup).toContain("Open Player Development");
+  expect(panelMarkup).not.toContain("Individual Development Plan");
+  expect(panelMarkup).not.toContain('name="idpPrimaryFocus"');
+  expect(panelMarkup).not.toContain('name="idpFocusAreas"');
+  expect(panelMarkup).not.toContain('name="idpNextAction"');
+  expect(panelMarkup).not.toContain('name="idpReviewDate"');
   expect(panelMarkup).not.toContain("Profile ratings");
   expect(panelMarkup).not.toContain("squad-rating-grid");
   expect(panelMarkup).not.toContain('name="rating.tactical"');

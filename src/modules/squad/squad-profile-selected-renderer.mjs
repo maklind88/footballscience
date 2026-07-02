@@ -95,7 +95,7 @@ export function createSquadProfileSelectedRenderer({
         <header class="squad-section-head">
           <div>
             <p>${escapeHtml(activeTabTitle)}</p>
-            <h2>${escapeHtml(activeTab === "roles" ? "Role Suitability" : activeTab === "idp" ? "Individual Development Plan" : activeTab === "performance" ? "Performance Record" : activeTab === "notes" ? "Staff Notes" : "Planning Profile")}</h2>
+            <h2>${escapeHtml(activeTab === "roles" ? "Role Suitability" : activeTab === "idp" ? "Player Development Status" : activeTab === "performance" ? "Performance Record" : activeTab === "notes" ? "Staff Notes" : "Planning Profile")}</h2>
           </div>
         </header>
         <form id="playerProfileEditForm" class="squad-profile-form">
@@ -154,33 +154,22 @@ export function createSquadProfileSelectedRenderer({
             <header class="squad-section-head">
               <div>
                 <p>IDP</p>
-                <h2>Individual Development Plan</h2>
+                <h2>Player Development System</h2>
               </div>
               <select name="idpStatus" ${canEdit ? "" : "disabled"} aria-label="IDP status">
                 ${renderPlayerProfileOptionSet(playerProfileIdpStatusOptions, player.idp?.status || "active")}
               </select>
             </header>
-            <div class="squad-form-grid">
-              <label class="squad-form-wide">
-                <span>Primary development focus</span>
-                <input name="idpPrimaryFocus" value="${escapeHtml(player.idp?.primaryFocus || "")}" ${canEdit ? "" : "disabled"} />
-              </label>
-              <label>
-                <span>Strengths</span>
-                <textarea name="idpStrengths" rows="3" ${canEdit ? "" : "disabled"}>${escapeHtml(player.idp?.strengths || "")}</textarea>
-              </label>
-              <label>
-                <span>Focus areas</span>
-                <textarea name="idpFocusAreas" rows="3" ${canEdit ? "" : "disabled"}>${escapeHtml(player.idp?.focusAreas || "")}</textarea>
-              </label>
-              <label class="squad-form-wide">
-                <span>Next action</span>
-                <input name="idpNextAction" value="${escapeHtml(player.idp?.nextAction || "")}" ${canEdit ? "" : "disabled"} />
-              </label>
-              <label>
-                <span>Review date</span>
-                <input name="idpReviewDate" type="date" value="${escapeHtml(player.idp?.reviewDate || "")}" ${canEdit ? "" : "disabled"} />
-              </label>
+            <div class="squad-idp-handoff">
+              <div>
+                <span>Current focus</span>
+                <strong>Managed in Player Development</strong>
+                <small>Create, edit and review the player's focus inside the Player Development Profile.</small>
+              </div>
+              <a class="squad-idp-system-link" href="?workspace=idp">Open Player Development</a>
+            </div>
+            <div class="squad-idp-status-note">
+              Squad Room only controls whether the player's IDP is active or paused. Development focus, observations and reviews are stored centrally in Player Development.
             </div>
           </section>
           <section class="squad-data-editor squad-tab-panel-performance">

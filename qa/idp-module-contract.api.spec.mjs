@@ -275,6 +275,9 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("Player Development Profile");
   expect(profileHtml).not.toContain("Player Snapshot");
   expect(profileHtml).toContain("idp-focus-clarity-card");
+  expect(profileHtml).toContain("idp-current-focus-card");
+  expect(profileHtml).toContain("No active focus yet");
+  expect(profileHtml).toContain("Create one clear development focus before adding observations");
   expect(profileHtml).not.toContain("Coach cue");
   expect(profileHtml).not.toContain("Receive under pressure so the player");
   expect(profileHtml).toContain("Player Board");
@@ -431,7 +434,10 @@ test("idp renderer separates the overview from the player development profile", 
   expect(assignmentHtml).toContain("Primary IDP Coach");
   expect(assignmentHtml).toContain("Save assignment");
   expect(assignmentHtml).not.toContain("Video Analyst");
-  expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "focus" } }, staffOptions)).toContain("data-idp-create-focus");
+  const focusFormHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "focus" } }, staffOptions);
+  expect(focusFormHtml).toContain("data-idp-create-focus");
+  expect(focusFormHtml).toContain('name="description"');
+  expect(focusFormHtml).toContain("Focus areas");
   const observationHtml = renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "evidence" } }, staffOptions);
   expect(observationHtml).toContain("data-idp-add-evidence");
   expect(observationHtml).toContain("Observation type");

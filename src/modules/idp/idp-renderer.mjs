@@ -640,13 +640,18 @@ function buildDevelopmentObjective(profile = {}, focus = null, idpInactive = fal
   return `Collect match and training observations for this focus, then decide the next coaching action for ${role}${context ? ` in ${context}` : ""}.`;
 }
 
+function hasCurrentFocus(focus = null) {
+  const title = normalizeText(focus?.title, "");
+  return Boolean(title && !/^create current focus$/i.test(title));
+}
+
 function buildCoachAssist(detail = {}, profile = {}, focus = null, idpInactive = false) {
   const observations = detail.evidence?.length || 0;
   const clips = detail.clipBank?.filter((clip) => !["Archived", "Hidden"].includes(clip.status))?.length || 0;
   const reviewLabel = reviewUrgencyLabel(profile, focus);
   const role = [profile.position, profile.role].filter(Boolean).join(" / ") || "this player";
   const focusTitle = normalizeText(focus?.title, "");
-  const hasActiveFocus = focusTitle && !/^create current focus$/i.test(focusTitle);
+  const hasActiveFocus = hasCurrentFocus(focus);
   const reviewIsClose = /overdue|today|days to review/i.test(reviewLabel);
   const stats = [
     { label: "Observations", value: String(observations) },
@@ -768,6 +773,67 @@ function renderCoachAssist(detail = {}, profile = {}, focus = null, idpInactive 
         </div>
       </div>
     </details>
+  `;
+}
+
+function renderCurrentFocusWorkspace(detail = {}, profile = {}, focus = null, idpInactive = false, canEdit = false, options = {}, strengths = []) {
+  const focusReady = hasCurrentFocus(focus);
+  const ownerId = primaryOwnerId(profile, focus || {});
+  const ownerLabel = formatStaffName(ownerId, options);
+  const reviewLabel = reviewUrgencyLabel(profile, focus);
+  const position = [profile.position, profile.role].filter(Boolean).join(" / ") || "Squad";
+  const title = idpInactive ? "No active IDP" : focusReady ? focus.title : "No active focus yet";
+  const description = idpInactive
+    ? "This player's IDP is paused from Squad Room. Historical learning stays visible here until the plan is reactivated."
+    : focusReady
+      ? buildDevelopmentObjective(profile, focus, false)
+      : "Create one clear development focus before adding observations, clips or review decisions for this player.";
+  const focusStats = [
+    { label: "Lens", value: idpInactive ? "Paused" : focus?.category || "Tactical" },
+    { label: "Status", value: idpInactive ? "No Active IDP" : coachLabel(focus?.status || "Not set") },
+    { label: "IDP Coach", value: ownerLabel },
+    { label: "Review", value: reviewLabel },
+  ];
+  return `
+    <article class="idp-focus-story idp-focus-clarity-card idp-current-focus-card ${focusReady ? "has-focus" : "is-empty"}">
+      <div class="idp-focus-clarity-head">
+        <div>
+          <div class="idp-section-kicker">Current Focus</div>
+          <h3>${escapeHtml(title)}</h3>
+        </div>
+        <div class="idp-focus-side">
+          <div class="idp-focus-meta">
+            <span>${escapeHtml(idpInactive ? "Paused" : focus?.category || "Tactical")}</span>
+            <span>${escapeHtml(position)}</span>
+            <span>${escapeHtml(reviewLabel)}</span>
+          </div>
+          ${renderCoachAssist(detail, profile, focus, idpInactive, canEdit)}
+        </div>
+      </div>
+      <div class="idp-current-focus-body">
+        <p>${escapeHtml(description)}</p>
+        ${canEdit && !idpInactive ? `
+          <div class="idp-current-focus-actions">
+            <button type="button" class="is-primary" data-idp-action="focus">${escapeHtml(focusReady ? "Edit focus" : "Create focus")}</button>
+            ${focusReady ? `<button type="button" data-idp-action="evidence">Add observation</button>` : ""}
+          </div>
+        ` : ""}
+      </div>
+      <div class="idp-current-focus-grid" aria-label="Current focus context">
+        ${focusStats.map((item) => `
+          <span>
+            <small>${escapeHtml(item.label)}</small>
+            <strong>${escapeHtml(item.value)}</strong>
+          </span>
+        `).join("")}
+      </div>
+      ${strengths.length ? `
+        <div class="idp-focus-strengths">
+          <span>Player strengths</span>
+          <div class="idp-strength-row">${strengths.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
+        </div>
+      ` : ""}
+    </article>
   `;
 }
 
@@ -1064,6 +1130,10 @@ function renderFocusForm(focus = null) {
       <label>
         <span>Category</span>
         <select name="category">${optionList(idpDevelopmentCategories, focus?.category || "Tactical")}</select>
+      </label>
+      <label class="idp-form-wide">
+        <span>Focus areas</span>
+        <textarea name="description" rows="4" placeholder="What should the player work on right now?">${escapeHtml(focus?.description || "")}</textarea>
       </label>
       <label>
         <span>Status</span>
@@ -1670,28 +1740,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
           : `
       ${renderProfileScoutingRadar(profile, options)}
       <section class="idp-development-board is-focus-only">
-        <article class="idp-focus-story idp-focus-clarity-card">
-          <div class="idp-focus-clarity-head">
-            <div>
-              <div class="idp-section-kicker">Current Focus</div>
-              <h3>${escapeHtml(idpInactive ? "No active IDP" : focus?.title || "No active focus")}</h3>
-            </div>
-            <div class="idp-focus-side">
-              <div class="idp-focus-meta">
-                <span>${escapeHtml(idpInactive ? "Paused" : focus?.category || "Tactical")}</span>
-                <span>${escapeHtml([profile.position, profile.role].filter(Boolean).join(" / ") || "Squad")}</span>
-                <span>${escapeHtml(reviewUrgencyLabel(profile, focus))}</span>
-              </div>
-              ${renderCoachAssist(detail, profile, focus, idpInactive, canEdit && !idpInactive)}
-            </div>
-          </div>
-          ${strengths.length ? `
-            <div class="idp-focus-strengths">
-              <span>Player strengths</span>
-              <div class="idp-strength-row">${strengths.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>
-            </div>
-          ` : ""}
-        </article>
+        ${renderCurrentFocusWorkspace(detail, profile, focus, idpInactive, canEdit && !idpInactive, options, strengths)}
       </section>
       <section class="idp-workflow-board">
         ${renderProfileSignalStream(detail, canEdit && !idpInactive)}

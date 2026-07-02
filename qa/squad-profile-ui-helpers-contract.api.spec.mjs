@@ -53,9 +53,6 @@ test("Squad profile UI helpers parse profile form values without owning writes",
     attributeRatings: { technical: 5, physical: 2 },
     idp: {
       status: "active",
-      primaryFocus: "Scanning",
-      nextAction: "Video",
-      reviewDate: "2026-06-20",
     },
     futureData: {
       performanceNotes: "High ceiling",
@@ -269,7 +266,6 @@ test("Squad profile UI helpers preserve change summaries and completeness scorin
       preferredSide: "right",
       squadStatus: "important",
       careerPhase: "prime",
-      idp: { primaryFocus: "Scanning", nextAction: "Video" },
       futureData: { performanceNotes: "High ceiling" },
       coachNotes: "Starter",
     })

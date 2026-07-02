@@ -59,7 +59,7 @@ function createHarness({ canEdit = true } = {}) {
   const mutable = {
     activeTab: "overview",
     autosaveSignature: "",
-    collapsed: false,
+    collapsed: true,
     importPlan: { canApply: true, rows: [{ row: 2, action: "update", playerName: "Ada", message: "ok" }] },
     modalOpen: true,
     newModalOpen: true,
@@ -168,6 +168,22 @@ test("Player profile runtime bindings preserve import apply and cancel behavior"
   expect(mutable.importPlan).toBe(null);
   expect(calls.at(-1)[0]).toBe("render");
   expect(calls.at(-1)[1].items[0]).toContain("Row 4: SKIP Ada");
+});
+
+test("Player profile runtime bindings open temporary section from the hidden default", () => {
+  const { calls, mutable, workspace } = createHarness();
+
+  expect(mutable.collapsed).toBe(true);
+  workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-squad-temporary-toggle]": { dataset: {} } },
+  })));
+  expect(mutable.collapsed).toBe(false);
+  expect(calls).toContain("render-list");
+
+  workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-squad-temporary-toggle]": { dataset: {} } },
+  })));
+  expect(mutable.collapsed).toBe(true);
 });
 
 test("Player profile runtime bindings preserve filters, search, remove, and new-player submit", () => {

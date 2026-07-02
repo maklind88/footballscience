@@ -137,7 +137,7 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
     if (temporaryToggle) {
       event.preventDefault();
       event.stopPropagation();
-      setStateValue(state, "PlayerProfilesTemporarySectionCollapsed", !getStateValue(state, "PlayerProfilesTemporarySectionCollapsed", false));
+      setStateValue(state, "PlayerProfilesTemporarySectionCollapsed", !getStateValue(state, "PlayerProfilesTemporarySectionCollapsed", true));
       renderRosterListOnly();
       return;
     }

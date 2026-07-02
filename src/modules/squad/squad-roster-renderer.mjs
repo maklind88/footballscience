@@ -21,7 +21,7 @@ export function createSquadRosterRenderer({
   getPlayerProfileRosterTypeOption,
   getPlayerProfileTemporaryWindowLabel,
   getSelectedPlayerId,
-  getTemporarySectionCollapsed,
+  getTemporarySectionCollapsed = () => true,
   isTemporaryPlayerProfile,
   playerProfileCountsInSquad,
   playerProfileIdpStatusOptions = [],

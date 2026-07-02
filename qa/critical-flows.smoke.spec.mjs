@@ -4037,7 +4037,13 @@ test("Academy Squad add is available for session planning without Medical cleara
   const guestSection = page.locator('[data-squad-roster-section="temporary"]');
   await expect(squadSection).toBeVisible();
   await expect(guestSection).toBeVisible();
+  const guestToggle = guestSection.locator("[data-squad-temporary-toggle]");
   const guestRow = guestSection.locator(".squad-player-row", { hasText: playerName });
+  await expect(guestToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(guestToggle).toContainText("Show");
+  await expect(guestRow).toHaveCount(0);
+  await guestToggle.click();
+  await expect(guestToggle).toHaveAttribute("aria-expanded", "true");
   await expect(guestRow).toBeVisible();
   await expect(guestRow.locator(".squad-planning-cell")).toContainText("Academy training");
   await expect(guestRow.locator(".squad-planning-cell")).not.toContainText("Squad depth");
@@ -4045,7 +4051,6 @@ test("Academy Squad add is available for session planning without Medical cleara
   await page.locator("[data-player-profile-roster-filter]").selectOption("squad");
   await expect(guestSection).toBeVisible();
   await expect(guestRow).toBeVisible();
-  const guestToggle = guestSection.locator("[data-squad-temporary-toggle]");
   await expect(guestToggle).toHaveAttribute("aria-expanded", "true");
   await guestToggle.click();
   await expect(guestToggle).toHaveAttribute("aria-expanded", "false");
@@ -4130,7 +4135,12 @@ test("Squad training guests keeps inactive temporary players visible", async ({ 
   const guestSection = page.locator('[data-squad-roster-section="temporary"]');
   await expect(squadSection).toBeVisible();
   await expect(guestSection).toBeVisible();
+  const guestToggle = guestSection.locator("[data-squad-temporary-toggle]");
   const guestRow = guestSection.locator(".squad-player-row", { hasText: playerName });
+  await expect(guestToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(guestRow).toHaveCount(0);
+  await guestToggle.click();
+  await expect(guestToggle).toHaveAttribute("aria-expanded", "true");
   await expect(guestRow).toBeVisible();
   await expect(guestRow.locator(".squad-planning-cell")).toContainText("Guest");
   await expect(guestRow).toContainText("Academy Training Group");
@@ -4189,14 +4199,18 @@ test("Squad Room shows legacy Medical training guests outside their active dates
 
   const guestSection = page.locator('[data-squad-roster-section="temporary"]');
   await expect(guestSection).toBeVisible();
+  const guestToggle = guestSection.locator("[data-squad-temporary-toggle]");
   const guestRow = guestSection.locator(".squad-player-row", { hasText: playerName });
+  await expect(guestToggle).toHaveAttribute("aria-expanded", "false");
+  await expect(guestRow).toHaveCount(0);
+  await guestToggle.click();
+  await expect(guestToggle).toHaveAttribute("aria-expanded", "true");
   await expect(guestRow).toBeVisible();
   await expect(guestRow).toContainText("Academy Training Group");
   await expect(guestRow).toContainText("2026-05-01 to 2026-05-02");
   await page.locator("[data-player-profile-roster-filter]").selectOption("squad");
   await expect(guestRow).toBeVisible();
 
-  const guestToggle = guestSection.locator("[data-squad-temporary-toggle]");
   await expect(guestToggle).toHaveAttribute("aria-expanded", "true");
   await guestToggle.click();
   await expect(guestSection.locator(".squad-player-row", { hasText: playerName })).toHaveCount(0);

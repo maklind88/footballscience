@@ -1619,16 +1619,23 @@ const resolvePlayerWorkActorLabel = (actorId, fallback = "Football Science") => 
     return "Coach view";
   }
   const currentUser = getCurrentPlatformUser?.();
-  const teamUsers = getAdminUsersForTeam?.(getUserTeamId?.() || "") || [];
-  const candidates = [currentUser, ...teamUsers].filter(Boolean);
-  const actor = candidates.find((user) =>
-    [user.id, user.userId, user.email, user.name]
-      .map((value) => String(value ?? "").trim())
-      .filter(Boolean)
-      .includes(cleanActorId)
-  );
-  if (actor) {
-    return formatUserName(actor);
+  try {
+    const scopedUserList = getScopedPlatformUsers?.();
+    const scopedUsers = Array.isArray(scopedUserList) ? scopedUserList : [];
+    const teamId = getUserTeamId?.(currentUser) || "";
+    const teamUsers = getAdminUsersForTeam?.(scopedUsers, teamId) || [];
+    const candidates = [currentUser, ...teamUsers].filter(Boolean);
+    const actor = candidates.find((user) =>
+      [user.id, user.userId, user.email, user.name]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+        .includes(cleanActorId)
+    );
+    if (actor) {
+      return formatUserName(actor);
+    }
+  } catch {
+    return fallback;
   }
   return cleanActorId.includes("@") ? cleanActorId : fallback;
 };

@@ -741,6 +741,17 @@ ${renderActionIcon("pencil")}
   `;
   }
 
+  function hasViewValue(value) {
+    if (Array.isArray(value)) {
+      return value.some((item) => String(item ?? "").trim());
+    }
+    return Boolean(String(value ?? "").trim());
+  }
+
+  function renderViewItemIfSet(label, value, className = "") {
+    return hasViewValue(value) ? renderViewItem(label, renderViewValue(value), className) : "";
+  }
+
   function renderViewLink(label, value) {
     const url = String(value || "").trim();
     const content = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Open link</a>` : "Not set";
@@ -748,11 +759,15 @@ ${renderActionIcon("pencil")}
   }
 
   function renderViewSection(title, items) {
+    const renderedItems = items.filter(Boolean);
+    if (!renderedItems.length) {
+      return "";
+    }
     return `
     <section class="periodization-view-section">
       <h3>${escapeHtml(title)}</h3>
       <div class="periodization-view-list">
-        ${items.join("")}
+        ${renderedItems.join("")}
       </div>
     </section>
   `;
@@ -822,8 +837,8 @@ ${renderActionIcon("pencil")}
           renderViewItem("Mini-Game Principles", renderViewValue(normalizePeriodizationMultiValue(day.miniGamePrinciples))),
         ])}
         ${renderViewSection("Training Blocks", [
-          ...trainingBlocks.map(([label, value]) => renderViewItem(label, renderViewValue(value))),
-          renderViewItem("Session Notes", renderViewValue(day.sessionNotes)),
+          ...trainingBlocks.map(([label, value]) => renderViewItemIfSet(label, value)),
+          renderViewItemIfSet("Session Notes", day.sessionNotes),
         ])}
         ${renderViewSection("Links", [
           renderViewLink("Session Plan Link", day.sessionPlanLink),

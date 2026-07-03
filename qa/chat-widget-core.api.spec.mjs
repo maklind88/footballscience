@@ -1132,6 +1132,10 @@ test("open chat uses a calm professional conversation shell", () => {
   expect(dashboardChatCss).toContain("chat menus must float above empty conversation states");
   expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-more-menu[open]");
   expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-empty-state{z-index:0!important;pointer-events:none!important}");
+  expect(dashboardChatCss).toContain("chat header menus must sit above conversation content");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-widget-header{position:relative!important;z-index:420!important;overflow:visible!important}");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-more-menu[open] .dashboard-chat-more-menu-panel{z-index:450!important;pointer-events:auto!important}");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-conversation .dashboard-chat-list{position:relative!important;z-index:0!important}");
   expect(dashboardChatCss).toContain("chat composer priority menu opens upward from the bottom input");
   expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-compose-more .dashboard-chat-compose-more-panel");
   expect(dashboardChatCss).toContain("bottom:calc(100% + .45rem)!important;");

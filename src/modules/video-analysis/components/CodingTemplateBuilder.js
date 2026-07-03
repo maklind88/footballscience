@@ -3,7 +3,7 @@ import { renderMiniGamePrincipleLauncher, renderMiniGamePrinciplePicker } from "
 import { renderPanelBuilderOverlay } from "./PanelBuilderOverlay.js";
 import { escapeHtml } from "./renderHelpers.js";
 
-const hiddenCodingGroups = new Set(["Team Principle", "Mini-game Principle"]);
+const hiddenCodingGroups = new Set(["Phase", "Team Principle", "Mini-game Principle"]);
 
 function secondsFromMs(value = 0, fallback = 15) {
   const seconds = Math.round(Number(value || 0) / 1000);

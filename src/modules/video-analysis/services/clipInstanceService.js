@@ -1,6 +1,7 @@
 import { normalizeClipInstance, normalizeMs } from "../domain/clipInstance.model.js";
 import { descriptorApiKeys } from "../constants/descriptors.js";
 import { isValidCodingSelection, splitTags } from "./taggingService.js";
+import { phaseForSubPhase, withPhaseForSubPhase } from "./footballLanguageService.js";
 import { buildMiniGamePrincipleLabels, uniqueMiniGamePrincipleIds, withMiniGamePrinciples } from "./miniGamePrincipleService.js";
 
 export function createClipDraftFromPlayerTime(draft = {}, videoElement) {
@@ -15,10 +16,11 @@ export function createClipDraftFromPlayerTime(draft = {}, videoElement) {
 export function buildClipPayload(state = {}) {
   const draft = state.draft || {};
   const session = state.codingSession || {};
+  const phase = phaseForSubPhase(draft.subPhase, draft.phase);
   if (!state.match?.id || !state.video?.id) {
     throw new Error("Load a local video before saving a clip.");
   }
-  if (!isValidCodingSelection(draft)) {
+  if (!isValidCodingSelection({ ...draft, phase })) {
     throw new Error("Choose a valid phase, sub-phase, and outcome.");
   }
   const selectedPlayer = (state.players || []).find((player) => player.id === draft.playerId);
@@ -32,7 +34,7 @@ export function buildClipPayload(state = {}) {
     startMs: draft.startMs,
     endMs: draft.endMs,
     period: draft.period,
-    phase: draft.phase,
+    phase,
     subPhase: draft.subPhase,
     teamPrincipleId: draft.teamPrincipleId,
     miniGamePrincipleId: miniGamePrincipleIds[0] || "",
@@ -112,7 +114,7 @@ export function applyCodingButtonToClip(clip = {}, button = {}, players = []) {
   const value = button.value || button.label || "";
   if (targetField === "tags") return { ...clip, tags: uniqueTags(clip.tags, value) };
   if (targetField === "phase") return { ...clip, phase: value };
-  if (targetField === "subPhase") return { ...clip, subPhase: value, sub_phase: value };
+  if (targetField === "subPhase") return withPhaseForSubPhase({ ...clip, subPhase: value, sub_phase: value });
   if (targetField === "teamPrincipleId") return { ...clip, teamPrincipleId: value, team_principle_id: value };
   if (targetField === "miniGamePrincipleId") return withMiniGamePrinciples(clip, [value]);
   if (targetField === "outcome") return { ...clip, outcome: value };

@@ -42,6 +42,8 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/services/videoPlaybackService.js",
     "src/modules/video-analysis/services/videoLibraryService.js",
     "src/modules/video-analysis/services/clipInstanceService.js",
+    "src/modules/video-analysis/services/codingInteractionService.js",
+    "src/modules/video-analysis/services/footballLanguageService.js",
     "src/modules/video-analysis/services/taggingService.js",
     "src/modules/video-analysis/services/playlistService.js",
     "src/modules/video-analysis/services/localVideoBridgeService.js",
@@ -339,6 +341,97 @@ test("coding tag panel creates 15 second button-owned clip actions", async () =>
   expect(action.nextDraft.miniGamePrincipleId).toBe("third-player");
   expect(action.nextDraft.miniGamePrincipleIds || []).toEqual([]);
   expect(action.nextSession.mode).toBe("instant");
+});
+
+test("sub-phase buttons own phase assignment for coaching language", async () => {
+  const templateService = await import(pathToFileURL(path.join(moduleDir, "services/codingTemplateService.js")).href);
+  const clipService = await import(pathToFileURL(path.join(moduleDir, "services/clipInstanceService.js")).href);
+  const languageService = await import(pathToFileURL(path.join(moduleDir, "services/footballLanguageService.js")).href);
+  const templateBuilder = await import(pathToFileURL(path.join(moduleDir, "components/CodingTemplateBuilder.js")).href);
+  const template = templateService.createDefaultCodingTemplate();
+  const buttonByValue = (value) => template.buttons.find((item) => item.value === value);
+  const actionFor = (value) => templateService.buildCodingButtonAction({
+    template,
+    draft: {
+      startMs: 0,
+      endMs: 15000,
+      phase: "Out of Possession",
+      subPhase: "High Press",
+      outcome: "Neutral",
+    },
+    codingSession: { mode: template.defaultMode, defaultClipDurationMs: template.defaultClipDurationMs },
+  }, buttonByValue(value), 10000);
+
+  expect(languageService.phaseForSubPhase("Build Up With GK")).toBe("In Possession");
+  expect(actionFor("Build With GK").nextDraft.phase).toBe("In Possession");
+  expect(actionFor("Build Up").nextDraft.phase).toBe("In Possession");
+  expect(actionFor("High Press").nextDraft.phase).toBe("Out of Possession");
+  expect(actionFor("Offensive Set Pieces").nextDraft.phase).toBe("Set Pieces");
+  expect(templateService.findButtonByHotkey(template, "1")).toBeNull();
+
+  const payload = clipService.buildClipPayload({
+    match: { id: "match-1" },
+    video: { id: "video-1" },
+    template,
+    players: [],
+    codingSession: { mode: "instant" },
+    draft: {
+      startMs: 20000,
+      endMs: 35000,
+      phase: "Out of Possession",
+      subPhase: "Build Up",
+      outcome: "Neutral",
+    },
+  });
+  expect(payload).toMatchObject({ phase: "In Possession", subPhase: "Build Up" });
+  expect(clipService.applyCodingButtonToClip({ id: "clip-1", phase: "In Possession" }, buttonByValue("Box Defending"))).toMatchObject({
+    phase: "Out of Possession",
+    subPhase: "Box Defending",
+  });
+
+  const panelHtml = templateBuilder.renderCodingTemplateBuilder({
+    template,
+    codingSession: { panelMode: "use" },
+    draft: { subPhase: "Build Up" },
+    players: [],
+  });
+  expect(panelHtml).not.toContain('data-video-analysis-code-group="Phase"');
+  expect(panelHtml).not.toContain('data-video-analysis-code-button="phase-');
+});
+
+test("dependent tag actions only target clips under the current playhead", async () => {
+  const service = await import(pathToFileURL(path.join(moduleDir, "services/codingInteractionService.js")).href);
+  const state = {
+    selectedClipId: "old-selected",
+    codingSession: { lastClipId: "old-last" },
+    timeline: { playheadMs: 10500, selectedCategory: { activeClipId: "old-category" } },
+    clips: [
+      { id: "old-selected", startMs: 1000, endMs: 3000, subPhase: "Build Up" },
+      { id: "old-category", startMs: 3500, endMs: 4500, subPhase: "High Press" },
+      { id: "old-last", startMs: 5000, endMs: 6500, subPhase: "Finishing Phase" },
+      { id: "current", startMs: 10000, endMs: 16000, subPhase: "Creating Phase" },
+    ],
+  };
+
+  expect(service.resolveCodingTargetClip(state, 10500)?.id).toBe("current");
+  expect(service.resolveCurrentCodingTargetClip(state)?.id).toBe("current");
+  expect(service.resolveCodingTargetClip(state, 50000)).toBeNull();
+});
+
+test("dependent tag actions keep an explicit selection only while the playhead is inside it", async () => {
+  const service = await import(pathToFileURL(path.join(moduleDir, "services/codingInteractionService.js")).href);
+  const state = {
+    selectedClipId: "selected",
+    codingSession: { lastClipId: "shorter-overlap" },
+    clips: [
+      { id: "selected", startMs: 10000, endMs: 30000 },
+      { id: "shorter-overlap", startMs: 12000, endMs: 18000 },
+      { id: "next", startMs: 40000, endMs: 55000 },
+    ],
+  };
+
+  expect(service.resolveCodingTargetClip(state, 15000)?.id).toBe("selected");
+  expect(service.resolveCodingTargetClip(state, 42000)?.id).toBe("next");
 });
 
 test("coding tag panel builder creates custom timeline tag buttons", async () => {

@@ -1,4 +1,5 @@
 import { miniGamePrinciplePickerGroups, miniGamePrinciplePickerIds } from "../constants/miniGamePrinciples.js";
+import { resolveCurrentCodingTargetClip } from "../services/codingInteractionService.js";
 import { clipMiniGamePrincipleIds, miniGamePrincipleLabel, uniqueMiniGamePrincipleIds } from "../services/miniGamePrincipleService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
@@ -20,15 +21,6 @@ function principleMatchesSearch(principle = {}, groupLabel = "", query = "") {
   if (!query) return true;
   return [principle.label, principle.id, groupLabel]
     .some((value) => String(value || "").toLowerCase().includes(query));
-}
-
-function selectedTargetClip(state = {}) {
-  const clips = [
-    ...(Array.isArray(state.clips) ? state.clips : []),
-    ...(Array.isArray(state.allClips) ? state.allClips : []),
-  ];
-  const selectedId = state.selectedClipId || state.codingSession?.lastClipId || state.timeline?.selectedCategory?.activeClipId || "";
-  return clips.find((clip) => clip.id && clip.id === selectedId) || null;
 }
 
 function activeSubPhaseLabel(state = {}, targetClip = null) {
@@ -91,7 +83,7 @@ export function selectedMiniGamePrincipleIds(state = {}) {
   ) {
     return pickerVisiblePrincipleIds(state.codingSession.miniGamePrincipleDraftIds);
   }
-  const targetClip = selectedTargetClip(state);
+  const targetClip = resolveCurrentCodingTargetClip(state);
   if (targetClip) return pickerVisiblePrincipleIds(clipMiniGamePrincipleIds(targetClip));
   return pickerVisiblePrincipleIds([
     ...(Array.isArray(state.codingSession?.miniGamePrincipleDraftIds) ? state.codingSession.miniGamePrincipleDraftIds : []),
@@ -126,7 +118,7 @@ export function renderMiniGamePrincipleLauncher(state = {}) {
 export function renderMiniGamePrinciplePicker(state = {}) {
   if (!state.codingSession?.miniGamePrinciplePickerOpen) return "";
   const selectedIds = new Set(selectedMiniGamePrincipleIds(state));
-  const targetClip = selectedTargetClip(state);
+  const targetClip = resolveCurrentCodingTargetClip(state);
   const capture = state.codingSession?.miniGamePrincipleCapture || null;
   const searchValue = String(state.codingSession?.miniGamePrincipleSearch || "");
   const searchQuery = normalizeSearchText(searchValue);

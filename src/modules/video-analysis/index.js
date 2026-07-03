@@ -45,6 +45,7 @@ import {
   updateCodingButtonField,
   updateCodingButtonMsField,
 } from "./services/codingTemplateService.js";
+import { resolveCodingTargetClip } from "./services/codingInteractionService.js";
 import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.js";
 import { createLocalVideoReference, revokeLocalVideoReference } from "./services/localVideoBridgeService.js";
 import { createPlayableLocalCopy } from "./services/localPlaybackTranscodeService.js";
@@ -3339,19 +3340,7 @@ async function preparePlayableCopy(context = {}) {
 }
 
 function findClipForLabelAction(state = {}, playheadMs = 0) {
-  const clips = [
-    ...(Array.isArray(state.clips) ? state.clips : []),
-    ...(Array.isArray(state.allClips) ? state.allClips : []),
-  ];
-  const selectedId = state.selectedClipId || state.codingSession?.lastClipId || state.timeline?.selectedCategory?.activeClipId || "";
-  const selectedClip = clips.find((clip) => clip.id && clip.id === selectedId);
-  if (selectedClip) return selectedClip;
-  const currentMs = Math.max(0, Math.round(Number(playheadMs || 0)));
-  return clips.find((clip) => {
-    const startMs = Math.max(0, Math.round(Number(clip.startMs ?? clip.start_ms ?? 0)));
-    const endMs = Math.max(startMs + 1, Math.round(Number(clip.endMs ?? clip.end_ms ?? startMs + 1)));
-    return currentMs >= startMs && currentMs <= endMs;
-  }) || null;
+  return resolveCodingTargetClip(state, playheadMs);
 }
 
 async function saveButtonLabelOnClip(button = {}, action = {}, context = {}, state = {}, playheadMs = 0) {

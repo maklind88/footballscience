@@ -2,6 +2,7 @@ import { videoAnalysisOutcomes } from "../constants/outcomes.js";
 import { videoAnalysisPhases } from "../constants/phases.js";
 import { videoAnalysisSubPhases } from "../constants/subPhases.js";
 import { groupCodingTemplateButtons, rebuildTemplateFromGroups } from "./codingTemplateLayoutService.js";
+import { withPhaseForSubPhase } from "./footballLanguageService.js";
 
 export {
   groupCodingTemplateButtons,
@@ -286,13 +287,19 @@ export function findTemplateButton(template = {}, buttonId = "") {
 
 export function findButtonByHotkey(template = {}, key = "") {
   const normalized = String(key || "").toLowerCase();
-  return (template.buttons || []).find((item) => String(item.hotkey || "").toLowerCase() === normalized) || null;
+  return (template.buttons || []).find((item) => (
+    String(item.hotkey || "").toLowerCase() === normalized
+    && (item.targetField || item.type) !== "phase"
+  )) || null;
 }
 
 export function applyCodingButtonToDraft(draft = {}, template = {}, button = {}) {
   const targetField = button?.targetField || button?.type;
   if (!targetField) return draft;
   const nextDraft = { ...draft, [targetField]: button.value };
+  if (targetField === "subPhase") {
+    Object.assign(nextDraft, withPhaseForSubPhase(nextDraft));
+  }
   if (targetField === "tags") {
     const existingTags = String(draft.tags || "")
       .split(",")

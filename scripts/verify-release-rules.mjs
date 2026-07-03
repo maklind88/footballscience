@@ -95,6 +95,8 @@ requireText("scripts/verify-vercel-token.mjs", "Vercel deployment token: ok", "C
 requireText("scripts/verify-vercel-release-traffic.mjs", "Production Deploy", "deploy tooling must avoid concurrent production deploy traffic");
 requireText("scripts/verify-staging-live-isolation.mjs", "staging branch", "release tooling must compare staging branch, staging alias, and live alias");
 requireText("scripts/verify-staging-live-isolation.mjs", '"alias", "set"', "release tooling must be able to repair the staging alias after direct production deploys");
+requireText("scripts/restore-staging-alias.mjs", "listLatestStagingDeployments", "staging alias restore must not trust a stale branch alias");
+requireText("scripts/restore-staging-alias.mjs", "assertHostServesCurrentRuntime", "staging alias restore must prove the alias serves the release runtime");
 requireText("scripts/quick-ui-deploy.mjs", "release:staging-isolation:repair", "fast UI deploy must repair staging/live alias drift after Vercel CLI production deploys");
 requireText("scripts/release-ship.mjs", "release:traffic", "deploy commands must check release traffic before calling Vercel");
 requireText("scripts/release-ship.mjs", "release:staging-isolation", "deploy commands must verify staging/live isolation before production deploy");

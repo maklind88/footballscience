@@ -20,12 +20,14 @@ import { createClipRepository } from "./repositories/clipRepository.js";
 import { createPlaylistRepository } from "./repositories/playlistRepository.js";
 import { createPresentationRepository } from "./repositories/presentationRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
-import { applyCodingButtonToClip, buildClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
+import { applyCodingButtonToClip, buildClipPayload, buildPlayerOnlyClipPayload, isPlayerOnlyClip, toApiClipPayload } from "./services/clipInstanceService.js";
 import { buildClipLibraryClipOrder, clipEndMs, clipMatchesLibraryGroup, clipStartMs } from "./services/clipLibraryService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
+import { phaseForSubPhase } from "./services/footballLanguageService.js";
 import {
   clipMiniGamePrincipleIds,
   miniGamePrincipleLabel,
+  subPhaseForMiniGamePrinciple,
   uniqueMiniGamePrincipleIds,
   withMiniGamePrinciples,
 } from "./services/miniGamePrincipleService.js";
@@ -45,7 +47,7 @@ import {
   updateCodingButtonField,
   updateCodingButtonMsField,
 } from "./services/codingTemplateService.js";
-import { resolveCodingTargetClip } from "./services/codingInteractionService.js";
+import { resolveCodingTargetClip, resolveSameMomentCodingTargetClips } from "./services/codingInteractionService.js";
 import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.js";
 import { createLocalVideoReference, revokeLocalVideoReference } from "./services/localVideoBridgeService.js";
 import { createPlayableLocalCopy } from "./services/localPlaybackTranscodeService.js";
@@ -2336,25 +2338,29 @@ function patchMiniGamePrincipleDraftState(state = {}, ids = []) {
   };
 }
 
-function buildMiniGamePrincipleCapture(state = {}, startMs = 0) {
+function buildMiniGamePrincipleCapture(state = {}, startMs = 0, targetClip = null) {
   const durationMs = Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
   const draft = state.draft || {};
+  const clip = targetClip || {};
+  const players = Array.isArray(clip.players) ? clip.players : [];
+  const player = players[0] || null;
   return {
     startMs: Math.max(0, Math.round(Number(startMs || 0))),
     durationMs,
-    period: draft.period || "1",
-    phase: draft.phase || "",
-    subPhase: draft.subPhase || "",
-    teamPrincipleId: draft.teamPrincipleId || "",
-    outcome: draft.outcome || "",
-    playerId: draft.playerId || "",
-    playerRole: draft.playerRole || "primary",
+    targetClipId: clip.id || "",
+    period: clip.period || draft.period || "1",
+    phase: clip.phase || clip.phase_id || draft.phase || "",
+    subPhase: clip.subPhase || clip.sub_phase || draft.subPhase || "",
+    teamPrincipleId: clip.teamPrincipleId || clip.team_principle_id || draft.teamPrincipleId || "",
+    outcome: clip.outcome || draft.outcome || "",
+    playerId: player?.playerId || player?.player_id || draft.playerId || "",
+    playerRole: player?.role || draft.playerRole || "primary",
     unit: draft.unit || "",
     pitchZone: draft.pitchZone || "",
     pressure: draft.pressure || "",
     decision: draft.decision || "",
     execution: draft.execution || "",
-    visibility: draft.visibility || draft.clipVisibility || "private",
+    visibility: clip.visibility || draft.visibility || draft.clipVisibility || "private",
   };
 }
 
@@ -3343,6 +3349,17 @@ function findClipForLabelAction(state = {}, playheadMs = 0) {
   return resolveCodingTargetClip(state, playheadMs);
 }
 
+function findClipsForSameMomentLabelAction(state = {}, playheadMs = 0) {
+  return resolveSameMomentCodingTargetClips(state, playheadMs, {
+    toleranceMs: 750,
+    sameMomentToleranceMs: 1000,
+  });
+}
+
+function replaceClipsInState(current = {}, nextClips = []) {
+  return nextClips.reduce((nextState, clip) => replaceClipInState(nextState, clip), current);
+}
+
 async function saveButtonLabelOnClip(button = {}, action = {}, context = {}, state = {}, playheadMs = 0) {
   const run = ensureRuntime(context);
   const targetClip = findClipForLabelAction(state, playheadMs);
@@ -3470,7 +3487,8 @@ function openMiniGamePrincipleCapture(context = {}) {
     }
   }
   syncPlaybackControls(context, video, false);
-  const capture = buildMiniGamePrincipleCapture(state, currentMs);
+  const targetClip = findClipForLabelAction(state, currentMs);
+  const capture = buildMiniGamePrincipleCapture(state, currentMs, targetClip);
   run.store.update((current) => ({
     ...current,
     codingSession: {
@@ -3518,6 +3536,11 @@ async function createMiniGamePrincipleTagFromCapture(principleId = "", context =
   const durationMs = Math.max(1000, Number(capture.durationMs || state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
   const endMs = startMs + durationMs;
   const nextIds = pickerVisibleMiniGamePrincipleIds([...existingIds, id]);
+  const subPhase = subPhaseForMiniGamePrinciple(id, capture.targetClipId ? capture.subPhase : "")
+    || capture.subPhase
+    || state.draft?.subPhase
+    || "";
+  const phase = phaseForSubPhase(subPhase, capture.phase || state.draft?.phase || "");
   const nextState = {
     ...state,
     draft: {
@@ -3525,8 +3548,8 @@ async function createMiniGamePrincipleTagFromCapture(principleId = "", context =
       startMs,
       endMs,
       period: capture.period || state.draft?.period || "1",
-      phase: capture.phase || state.draft?.phase || "",
-      subPhase: capture.subPhase || state.draft?.subPhase || "",
+      phase,
+      subPhase,
       teamPrincipleId: capture.teamPrincipleId || state.draft?.teamPrincipleId || "",
       outcome: capture.outcome || state.draft?.outcome || "",
       playerId: capture.playerId || state.draft?.playerId || "",
@@ -3675,6 +3698,50 @@ async function applyCodeButton(buttonId = "", context = {}) {
     message: action.message,
     error: "",
   };
+  const targetField = button.targetField || button.type || "";
+  const playerOnlyTarget = targetField === "subPhase" ? findClipForLabelAction(state, currentMs) : null;
+  if (action.shouldCreateClip && state.match?.id && state.video?.id && isPlayerOnlyClip(playerOnlyTarget)) {
+    const nextClip = normalizeClipInstance(applyCodingButtonToClip(playerOnlyTarget, button, state.players || []));
+    run.store.update((current) => ({
+      ...replaceClipInState(current, nextClip),
+      status: "saving-clip",
+      selectedClipId: nextClip.id,
+      codingSession: {
+        ...(action.nextSession || current.codingSession || {}),
+        lastClipId: nextClip.id,
+      },
+      timeline: {
+        ...(current.timeline || {}),
+        playheadMs: currentMs,
+      },
+      message: `${button.label || "Sub-phase"} linked to player tag.`,
+      error: "",
+    }));
+    try {
+      const payload = await run.clips.save(toApiClipPayload(nextClip));
+      const savedClip = normalizeClipInstance(payload?.clip || nextClip);
+      run.store.update((current) => ({
+        ...replaceClipInState(current, savedClip),
+        status: "ready",
+        selectedClipId: savedClip.id,
+        codingSession: {
+          ...(current.codingSession || {}),
+          lastClipId: savedClip.id,
+        },
+        message: `${button.label || "Sub-phase"} linked to player tag.`,
+        error: "",
+      }));
+      await loadClips();
+      return true;
+    } catch (error) {
+      run.store.update((current) => ({
+        ...replaceClipInState(current, playerOnlyTarget),
+        status: "error",
+        error: error.message || "Could not link sub-phase to player tag.",
+      }));
+      return false;
+    }
+  }
   if (action.shouldCreateClip && state.match?.id && state.video?.id) {
     run.store.update(() => nextState);
     await saveDraftClip(context, nextState);
@@ -3712,19 +3779,76 @@ async function applyPlayerQuickTag(playerId = "", context = {}) {
 
   const currentMs = currentPlayheadMs(context, state);
   const durationMs = Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
-  const nextState = {
-    ...state,
-    draft: {
-      ...(state.draft || {}),
-      playerId: player.id || id,
-      playerRole: "primary",
-      startMs: currentMs,
-      endMs: currentMs + durationMs,
-      visibility: "idp",
-      clipVisibility: "idp",
-    },
+  const targetClips = findClipsForSameMomentLabelAction(state, currentMs);
+  const playerButton = { targetField: "playerId", type: "playerId", value: player.id || id, label: playerLabel(player) };
+  if (targetClips.length) {
+    const nextClips = targetClips.map((clip) => normalizeClipInstance(applyCodingButtonToClip(clip, playerButton, state.players || [])));
+    run.store.update((current) => ({
+      ...replaceClipsInState(current, nextClips),
+      status: "saving-clip",
+      selectedClipId: nextClips[0]?.id || current.selectedClipId,
+      codingSession: {
+        ...(current.codingSession || {}),
+        mode: "instant",
+        activePlayerId: player.id || id,
+        lastPlayerTagId: player.id || id,
+        lastClipId: nextClips[0]?.id || current.codingSession?.lastClipId || "",
+      },
+      timeline: {
+        ...(current.timeline || {}),
+        playheadMs: currentMs,
+      },
+      message: `${playerLabel(player)} linked to current tag.`,
+      error: "",
+    }));
+    try {
+      const savedClips = [];
+      for (const nextClip of nextClips) {
+        const payload = await run.clips.save(toApiClipPayload(nextClip));
+        savedClips.push(normalizeClipInstance(payload?.clip || nextClip));
+      }
+      run.store.update((current) => ({
+        ...replaceClipsInState(current, savedClips),
+        status: "ready",
+        selectedClipId: savedClips[0]?.id || current.selectedClipId,
+        codingSession: {
+          ...(current.codingSession || {}),
+          mode: "instant",
+          activePlayerId: player.id || id,
+          lastPlayerTagId: player.id || id,
+          lastClipId: savedClips[0]?.id || current.codingSession?.lastClipId || "",
+        },
+        timeline: {
+          ...(current.timeline || {}),
+          playheadMs: currentMs,
+        },
+        message: `${playerLabel(player)} linked to ${savedClips.length > 1 ? `${savedClips.length} tags` : "current tag"}.`,
+        error: "",
+      }));
+      await loadClips();
+      return true;
+    } catch (error) {
+      run.store.update((current) => ({
+        ...replaceClipsInState(current, targetClips),
+        status: "error",
+        error: error.message || "Could not link player to current tag.",
+      }));
+      return false;
+    }
+  }
+
+  let playerClip = null;
+  try {
+    playerClip = buildPlayerOnlyClipPayload(state, player, currentMs, durationMs);
+  } catch (error) {
+    run.store.setState({ status: "error", message: "", error: error.message || "Could not tag player." });
+    return false;
+  }
+  run.store.update((current) => ({
+    ...current,
+    status: "saving-clip",
     codingSession: {
-      ...(state.codingSession || {}),
+      ...(current.codingSession || {}),
       mode: "instant",
       preRollMs: 0,
       postRollMs: durationMs,
@@ -3732,34 +3856,38 @@ async function applyPlayerQuickTag(playerId = "", context = {}) {
       lastPlayerTagId: player.id || id,
     },
     timeline: {
-      ...(state.timeline || {}),
+      ...(current.timeline || {}),
       playheadMs: currentMs,
     },
     message: `${playerLabel(player)} tagged for IDP.`,
     error: "",
-  };
-  run.store.update(() => nextState);
-  const saved = await saveDraftClip(context, nextState);
-  if (saved) {
+  }));
+  try {
+    const payload = await run.clips.save(toApiClipPayload(playerClip));
+    const savedClip = normalizeClipInstance(payload?.clip || playerClip);
     run.store.update((current) => ({
       ...current,
-      draft: {
-        ...(current.draft || {}),
-        playerId: "",
-        playerRole: "primary",
-        visibility: "private",
-        clipVisibility: "private",
-      },
+      status: "ready",
+      selectedClipId: savedClip.id || current.selectedClipId,
       codingSession: {
         ...(current.codingSession || {}),
-        activePlayerId: "",
+        activePlayerId: player.id || id,
         lastPlayerTagId: player.id || id,
+        lastClipId: savedClip.id || current.codingSession?.lastClipId || "",
       },
-      message: `${playerLabel(player)} sent to IDP.`,
+      message: `${playerLabel(player)} sent to IDP clips.`,
       error: "",
     }));
+    await loadClips();
+    return true;
+  } catch (error) {
+    run.store.update((current) => ({
+      ...current,
+      status: "error",
+      error: error.message || "Could not tag player.",
+    }));
+    return false;
   }
-  return saved;
 }
 
 export function handlePointerDown(event, context = {}) {

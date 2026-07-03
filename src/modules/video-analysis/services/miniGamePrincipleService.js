@@ -1,7 +1,32 @@
-import { miniGamePrinciples } from "../constants/miniGamePrinciples.js";
+import { miniGamePrincipleGroups, miniGamePrinciples } from "../constants/miniGamePrinciples.js";
+import { videoAnalysisSubPhases } from "../constants/subPhases.js";
 
 const principleById = new Map(miniGamePrinciples.map((principle) => [principle.id, principle]));
 const principleIdByLabel = new Map(miniGamePrinciples.map((principle) => [principle.label.toLowerCase(), principle.id]));
+const subPhaseSet = new Set(videoAnalysisSubPhases);
+const subPhaseByNormalizedLabel = new Map(videoAnalysisSubPhases.map((label) => [normalizeTextKey(label), label]));
+const subPhaseByPrincipleId = new Map(miniGamePrincipleGroups.flatMap((group) => {
+  const subPhase = subPhaseForGroup(group);
+  return group.principles.map((principle) => [principle.id, subPhase]);
+}));
+
+function normalizeTextKey(value = "") {
+  return String(value || "").trim().toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function subPhaseForGroup(group = {}) {
+  const explicit = subPhaseByNormalizedLabel.get(normalizeTextKey(group.label));
+  if (explicit) return explicit;
+  const aliases = new Map([
+    ["build with gk", "Build With GK"],
+    ["build up with gk", "Build With GK"],
+    ["high press vs gk and high press", "High Press"],
+    ["throw ins off", "Throw-ins"],
+    ["throw ins def", "Throw-ins"],
+    ["goalkicks off", "Build With GK"],
+  ]);
+  return aliases.get(normalizeTextKey(group.label)) || "";
+}
 
 function labelType(entry = {}) {
   return String(entry.type || entry.labelType || entry.label_type || "").trim().toLowerCase();
@@ -23,6 +48,14 @@ export function miniGamePrincipleLabel(value = "") {
   const text = String(value || "").trim();
   if (!text) return "";
   return principleById.get(text)?.label || text;
+}
+
+export function subPhaseForMiniGamePrinciple(value = "", fallbackSubPhase = "") {
+  const id = normalizeMiniGamePrincipleId(value);
+  const fallback = String(fallbackSubPhase || "").trim();
+  if (subPhaseSet.has(fallback)) return fallback;
+  const mapped = subPhaseByPrincipleId.get(id);
+  return mapped && subPhaseSet.has(mapped) ? mapped : "";
 }
 
 export function normalizeMiniGamePrincipleId(value = "") {

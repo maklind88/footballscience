@@ -4,6 +4,8 @@ import { isValidCodingSelection, splitTags } from "./taggingService.js";
 import { phaseForSubPhase, withPhaseForSubPhase } from "./footballLanguageService.js";
 import { buildMiniGamePrincipleLabels, uniqueMiniGamePrincipleIds, withMiniGamePrinciples } from "./miniGamePrincipleService.js";
 
+const playerOnlyClipKind = "player";
+
 export function createClipDraftFromPlayerTime(draft = {}, videoElement) {
   const currentMs = normalizeMs((videoElement?.currentTime || 0) * 1000);
   return {
@@ -48,10 +50,59 @@ export function buildClipPayload(state = {}) {
     tags: splitTags(draft.tags),
     descriptors: buildDescriptorPayload(draft, selectedPlayer),
     labels: buildMiniGamePrincipleLabels(miniGamePrincipleIds),
+    metadata: draft.metadata && typeof draft.metadata === "object" ? draft.metadata : {},
     players: selectedPlayer
       ? [{ playerId: selectedPlayer.id, playerLabel: selectedPlayer.name, role: draft.playerRole || "primary" }]
       : [],
     notes: draft.note ? [{ note: draft.note }] : [],
+  });
+}
+
+export function isPlayerOnlyClip(clip = {}) {
+  return String(clip.metadata?.clipKind || clip.metadata?.clip_kind || "").trim() === playerOnlyClipKind;
+}
+
+function playerIdValue(player = {}) {
+  return String(player.id || player.playerId || player.player_id || "").trim();
+}
+
+function playerNameValue(player = {}) {
+  return String(player.name || player.playerLabel || player.player_label || playerIdValue(player)).trim();
+}
+
+export function buildPlayerOnlyClipPayload(state = {}, player = {}, startMs = 0, durationMs = 15000) {
+  if (!state.match?.id || !state.video?.id) {
+    throw new Error("Load a local video before tagging a player.");
+  }
+  const playerId = playerIdValue(player);
+  if (!playerId) {
+    throw new Error("Player is not available in the current squad.");
+  }
+  const start = normalizeMs(startMs);
+  const duration = Math.max(1000, normalizeMs(durationMs, 15000));
+  const label = playerNameValue(player);
+  return normalizeClipInstance({
+    matchId: state.match.id,
+    videoId: state.video.id,
+    startMs: start,
+    endMs: start + duration,
+    period: state.draft?.period || "1",
+    phase: "In Possession",
+    subPhase: "Player",
+    outcome: state.draft?.outcome || "Neutral",
+    codingMode: "instant",
+    codingTemplateId: state.template?.databaseId || state.template?.id || "",
+    preRollMs: 0,
+    postRollMs: duration,
+    visibility: "idp",
+    descriptors: [{ type: "player", value: playerId, label, descriptor_type: "player", descriptor_value: playerId, descriptor_label: label }],
+    labels: [{ type: "player", value: playerId, label, label_type: "player", label_value: playerId, label_text: label }],
+    players: [{ playerId, player_id: playerId, playerLabel: label, player_label: label, role: "primary" }],
+    metadata: {
+      clipKind: playerOnlyClipKind,
+      labelOnly: true,
+      source: "player-quick-tag",
+    },
   });
 }
 
@@ -102,9 +153,14 @@ function withPlayer(clip = {}, playerId = "", players = []) {
   const player = players.find((item) => item.id === id || item.playerId === id || item.player_id === id);
   const label = player?.name || player?.playerLabel || player?.player_label || id;
   const existing = Array.isArray(clip.players) ? clip.players : [];
-  if (existing.some((item) => (item.playerId || item.player_id) === id)) return clip;
+  if (existing.some((item) => (item.playerId || item.player_id) === id)) {
+    return { ...clip, visibility: "idp", clipVisibility: "idp", idpShared: true };
+  }
   return {
     ...clip,
+    visibility: "idp",
+    clipVisibility: "idp",
+    idpShared: true,
     players: [...existing, { playerId: id, player_id: id, playerLabel: label, player_label: label, role: "primary" }],
   };
 }
@@ -114,7 +170,12 @@ export function applyCodingButtonToClip(clip = {}, button = {}, players = []) {
   const value = button.value || button.label || "";
   if (targetField === "tags") return { ...clip, tags: uniqueTags(clip.tags, value) };
   if (targetField === "phase") return { ...clip, phase: value };
-  if (targetField === "subPhase") return withPhaseForSubPhase({ ...clip, subPhase: value, sub_phase: value });
+  if (targetField === "subPhase") {
+    const metadata = isPlayerOnlyClip(clip)
+      ? { ...(clip.metadata || {}), clipKind: "coded", labelOnly: false, upgradedFrom: playerOnlyClipKind }
+      : clip.metadata;
+    return withPhaseForSubPhase({ ...clip, metadata, subPhase: value, sub_phase: value });
+  }
   if (targetField === "teamPrincipleId") return { ...clip, teamPrincipleId: value, team_principle_id: value };
   if (targetField === "miniGamePrincipleId") return withMiniGamePrinciples(clip, [value]);
   if (targetField === "outcome") return { ...clip, outcome: value };
@@ -145,6 +206,7 @@ export function toApiClipPayload(clip = {}) {
     postRollMs: clip.postRollMs,
     visibility: clip.visibility || (clip.idpShared ? "idp" : clip.isShared ? "team" : "private"),
     isShared: Boolean(clip.isShared || clip.visibility === "team" || clip.visibility === "idp" || clip.idpShared),
+    metadata: clip.metadata || {},
     tags: clip.tags || [],
     labels: clip.labels || [],
     descriptors: clip.descriptors || [],

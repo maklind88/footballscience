@@ -1,9 +1,11 @@
 import { clipEndMs, clipStartMs, playerEntries } from "../services/clipLibraryService.js";
+import { isPlayerOnlyClip } from "../services/clipInstanceService.js";
 import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
 function previewTitle(clip = {}) {
+  if (isPlayerOnlyClip(clip)) return previewPlayerLabel(clip);
   const phase = String(clip.phase || "Uncoded").trim();
   const subPhase = String(clip.subPhase || clip.sub_phase || "").trim();
   return [subPhase, phase].filter(Boolean).join(" / ") || "Uncoded clip";

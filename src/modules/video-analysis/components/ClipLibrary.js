@@ -7,6 +7,7 @@ import {
   clipLibraryGroupModes,
   playerEntries,
 } from "../services/clipLibraryService.js";
+import { isPlayerOnlyClip } from "../services/clipInstanceService.js";
 import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
 import { formatVideoTime } from "../services/videoPlaybackService.js";
 import { renderClipPreviewOverlay } from "./ClipLibraryPreview.js";
@@ -17,6 +18,7 @@ function primaryPlayerLabel(clip = {}) {
 }
 
 function clipTitle(clip = {}) {
+  if (isPlayerOnlyClip(clip)) return primaryPlayerLabel(clip);
   const phase = String(clip.phase || "Uncoded").trim();
   const subPhase = String(clip.subPhase || clip.sub_phase || "").trim();
   return [subPhase, phase].filter(Boolean).join(" / ") || "Uncoded clip";

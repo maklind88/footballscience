@@ -1,4 +1,5 @@
 import { clipMiniGamePrincipleLabels, miniGamePrincipleLabel } from "../services/miniGamePrincipleService.js";
+import { isPlayerOnlyClip } from "../services/clipInstanceService.js";
 
 export function clipValue(clip = {}, camelKey = "", snakeKey = "") {
   return clip[camelKey] ?? clip[snakeKey] ?? "";
@@ -39,6 +40,7 @@ export function getClipMiniGamePrincipleLabel(clip = {}) {
 export function getTimelineLaneValue(clip = {}, laneMode = "phase") {
   if (laneMode === "all") return "All Tags";
   if (laneMode === "player") return firstPlayerLabel(clip);
+  if (isPlayerOnlyClip(clip) && (laneMode === "phase" || laneMode === "subPhase")) return "Player";
   if (laneMode === "tags") return Array.isArray(clip.tags) && clip.tags.length ? clip.tags[0] : "No tag";
   if (laneMode === "unit") return firstDescriptorValue(clip, "unit") || "Unit";
   if (laneMode === "outcome") return clipValue(clip, "outcome", "outcome") || "Neutral";
@@ -48,12 +50,14 @@ export function getTimelineLaneValue(clip = {}, laneMode = "phase") {
 }
 
 export function getClipPrimaryLabel(clip = {}, laneMode = "phase") {
+  if (isPlayerOnlyClip(clip)) return firstPlayerLabel(clip);
   if (laneMode === "outcome") return clipValue(clip, "phase", "phase") || "Uncoded";
   if (laneMode === "tags") return clipValue(clip, "outcome", "outcome") || "Neutral";
   return clipValue(clip, "outcome", "outcome") || getTimelineLaneValue(clip, laneMode);
 }
 
 export function getClipSecondaryLabel(clip = {}) {
+  if (isPlayerOnlyClip(clip)) return firstPlayerLabel(clip);
   const phase = clipValue(clip, "phase", "phase") || "Uncoded";
   const subPhase = clipValue(clip, "subPhase", "sub_phase") || "";
   const player = firstPlayerLabel(clip);

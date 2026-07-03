@@ -1,4 +1,5 @@
 import { formatVideoTime } from "../services/videoPlaybackService.js";
+import { isPlayerOnlyClip } from "../services/clipInstanceService.js";
 import { clipMiniGamePrincipleLabels } from "../services/miniGamePrincipleService.js";
 import { escapeHtml } from "./renderHelpers.js";
 
@@ -45,13 +46,14 @@ function renderClip(clip = {}, canEdit = false) {
   const descriptors = descriptorSummary(clip);
   const visibility = clipVisibility(clip);
   const miniGameLabels = clipMiniGamePrincipleLabels(clip);
+  const title = isPlayerOnlyClip(clip) ? playerLabel(clip) : `${clip.phase} / ${clip.subPhase || clip.sub_phase}`;
   return `
     <article class="video-analysis-clip" data-video-analysis-clip="${escapeHtml(clip.id)}">
       <button type="button" class="video-analysis-clip__time" data-video-analysis-seek="${escapeHtml(clip.id)}">
         ${escapeHtml(formatVideoTime(startMs))}
       </button>
       <div class="video-analysis-clip__body">
-        <strong>${escapeHtml(clip.phase)} / ${escapeHtml(clip.subPhase || clip.sub_phase)}</strong>
+        <strong>${escapeHtml(title)}</strong>
         ${miniGameLabels.length ? `
           <span class="video-analysis-clip__principles">${miniGameLabels.map((label) => `<em>${escapeHtml(label)}</em>`).join("")}</span>
         ` : `<span class="video-analysis-muted">No MG principles</span>`}

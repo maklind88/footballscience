@@ -399,6 +399,62 @@ test("sub-phase buttons own phase assignment for coaching language", async () =>
   expect(panelHtml).not.toContain('data-video-analysis-code-button="phase-');
 });
 
+test("player quick tags stay player-only unless they are linked to a coding tag", async () => {
+  const clipService = await import(pathToFileURL(path.join(moduleDir, "services/clipInstanceService.js")).href);
+  const playerOnly = clipService.buildPlayerOnlyClipPayload({
+    match: { id: "match-1" },
+    video: { id: "video-1" },
+    template: { id: "template-1" },
+    draft: {
+      phase: "In Possession",
+      subPhase: "Build Up",
+      outcome: "Development",
+    },
+  }, { id: "player-8", name: "Player Eight" }, 42000, 15000);
+
+  expect(playerOnly).toMatchObject({
+    matchId: "match-1",
+    videoId: "video-1",
+    startMs: 42000,
+    endMs: 57000,
+    subPhase: "Player",
+    outcome: "Development",
+    visibility: "idp",
+    metadata: { clipKind: "player", labelOnly: true },
+  });
+  expect(clipService.isPlayerOnlyClip(playerOnly)).toBe(true);
+  expect(clipService.toApiClipPayload(playerOnly).metadata).toMatchObject({ clipKind: "player" });
+
+  const linked = clipService.applyCodingButtonToClip(playerOnly, { targetField: "subPhase", value: "High Press", label: "High Press" });
+  expect(linked).toMatchObject({
+    phase: "Out of Possession",
+    subPhase: "High Press",
+    metadata: { clipKind: "coded", upgradedFrom: "player" },
+  });
+  expect(clipService.isPlayerOnlyClip(linked)).toBe(false);
+
+  const playerLinked = clipService.applyCodingButtonToClip({
+    id: "clip-1",
+    players: [],
+    visibility: "private",
+  }, { targetField: "playerId", value: "player-8" }, [{ id: "player-8", name: "Player Eight" }]);
+  expect(playerLinked).toMatchObject({
+    visibility: "idp",
+    clipVisibility: "idp",
+    idpShared: true,
+    players: [{ playerId: "player-8", playerLabel: "Player Eight", role: "primary" }],
+  });
+});
+
+test("MG principles derive their searchable sub-phase from the principle group", async () => {
+  const service = await import(pathToFileURL(path.join(moduleDir, "services/miniGamePrincipleService.js")).href);
+
+  expect(service.subPhaseForMiniGamePrinciple("zonal-marking")).toBe("Box Defending");
+  expect(service.subPhaseForMiniGamePrinciple("delivery-quality")).toBe("Offensive Set Pieces");
+  expect(service.subPhaseForMiniGamePrinciple("quick-restart")).toBe("Throw-ins");
+  expect(service.subPhaseForMiniGamePrinciple("drive-past-press", "Build With GK")).toBe("Build With GK");
+});
+
 test("dependent tag actions only target clips under the current playhead", async () => {
   const service = await import(pathToFileURL(path.join(moduleDir, "services/codingInteractionService.js")).href);
   const state = {
@@ -410,11 +466,17 @@ test("dependent tag actions only target clips under the current playhead", async
       { id: "old-category", startMs: 3500, endMs: 4500, subPhase: "High Press" },
       { id: "old-last", startMs: 5000, endMs: 6500, subPhase: "Finishing Phase" },
       { id: "current", startMs: 10000, endMs: 16000, subPhase: "Creating Phase" },
+      { id: "current-mg", startMs: 10050, endMs: 17050, subPhase: "Creating Phase" },
+      { id: "different-start-overlap", startMs: 8000, endMs: 14000, subPhase: "Build Up" },
     ],
   };
 
   expect(service.resolveCodingTargetClip(state, 10500)?.id).toBe("current");
   expect(service.resolveCurrentCodingTargetClip(state)?.id).toBe("current");
+  expect(service.resolveSameMomentCodingTargetClips(state, 10500, { sameMomentToleranceMs: 1000 }).map((clip) => clip.id)).toEqual([
+    "current",
+    "current-mg",
+  ]);
   expect(service.resolveCodingTargetClip(state, 50000)).toBeNull();
 });
 

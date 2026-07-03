@@ -1,6 +1,7 @@
 import { miniGamePrinciples } from "../constants/miniGamePrinciples.js";
 import { videoAnalysisOutcomes } from "../constants/outcomes.js";
 import { videoAnalysisSubPhases } from "../constants/subPhases.js";
+import { isPlayerOnlyClip } from "./clipInstanceService.js";
 import { clipMiniGamePrincipleLabels } from "./miniGamePrincipleService.js";
 
 export const clipLibraryGroupModes = Object.freeze([
@@ -54,6 +55,7 @@ export function clipLibraryGroupValues(clip = {}, groupBy = "subPhase") {
     return labels.length ? labels : ["No MG principle"];
   }
   if (groupBy === "outcome") return [String(clip.outcome || "Neutral").trim() || "Neutral"];
+  if (isPlayerOnlyClip(clip)) return ["Player"];
   return [String(clip.subPhase || clip.sub_phase || "No sub-phase").trim() || "No sub-phase"];
 }
 
@@ -106,7 +108,7 @@ export function buildClipLibraryStats(clips = []) {
   return {
     clips: clips.length,
     durationMs: clips.reduce((total, clip) => total + clipDurationMs(clip), 0),
-    subPhases: uniqueClipValues(clips.map((clip) => clip.subPhase || clip.sub_phase)).length,
+    subPhases: uniqueClipValues(clips.map((clip) => (isPlayerOnlyClip(clip) ? "Player" : clip.subPhase || clip.sub_phase))).length,
     players: uniqueClipValues(clips.flatMap((clip) => playerEntries(clip).map((player) => player.label || player.id))).length,
     principles: uniqueClipValues(clips.flatMap((clip) => clipMiniGamePrincipleLabels(clip))).length,
   };

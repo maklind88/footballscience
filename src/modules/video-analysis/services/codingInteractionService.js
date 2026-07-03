@@ -1,4 +1,5 @@
 const defaultTargetToleranceMs = 250;
+const defaultSameMomentToleranceMs = 1000;
 
 function normalizeMs(value = 0, fallback = 0) {
   const number = Math.round(Number(value ?? fallback));
@@ -64,6 +65,25 @@ export function resolveCodingTargetClip(state = {}, playheadMs = 0, options = {}
   return clips
     .filter((clip) => clipContainsPlayhead(clip, playheadMs, toleranceMs))
     .sort(compareSpecificClip)[0] || null;
+}
+
+export function resolveSameMomentCodingTargetClips(state = {}, playheadMs = 0, options = {}) {
+  const targetClip = resolveCodingTargetClip(state, playheadMs, options);
+  if (!targetClip) return [];
+  const clips = codingClipsFromState(state);
+  const toleranceMs = options.toleranceMs ?? defaultTargetToleranceMs;
+  const sameMomentToleranceMs = Math.max(0, normalizeMs(options.sameMomentToleranceMs, defaultSameMomentToleranceMs));
+  const targetId = clipId(targetClip);
+  const targetStartMs = codingClipStartMs(targetClip);
+  return clips
+    .filter((clip) => (
+      clipId(clip) === targetId
+      || (
+        clipContainsPlayhead(clip, playheadMs, toleranceMs)
+        && Math.abs(codingClipStartMs(clip) - targetStartMs) <= sameMomentToleranceMs
+      )
+    ))
+    .sort(compareSpecificClip);
 }
 
 export function currentCodingPlayheadMs(state = {}) {

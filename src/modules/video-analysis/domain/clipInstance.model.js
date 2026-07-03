@@ -14,6 +14,9 @@ export function normalizeOutcome(value) {
 export function normalizeClipInstance(value = {}) {
   const startMs = normalizeMs(value.startMs ?? value.start_ms);
   const endMs = normalizeMs(value.endMs ?? value.end_ms, startMs + 5000);
+  const metadata = value.metadata && typeof value.metadata === "object" && !Array.isArray(value.metadata)
+    ? value.metadata
+    : {};
   return {
     id: String(value.id || ""),
     matchId: String(value.matchId || value.match_id || ""),
@@ -41,6 +44,7 @@ export function normalizeClipInstance(value = {}) {
     notes: Array.isArray(value.notes) ? value.notes : [],
     labels: Array.isArray(value.labels) ? value.labels : [],
     descriptors: Array.isArray(value.descriptors) ? value.descriptors : [],
+    metadata,
     visibility: String(value.visibility || value.clipVisibility || value.clip_visibility || "private"),
     isShared: Boolean(value.isShared ?? value.is_shared),
     ownerId: String(value.ownerId || value.owner_id || ""),

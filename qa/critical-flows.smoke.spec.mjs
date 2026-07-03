@@ -3910,10 +3910,9 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
     })
     .toBeLessThanOrEqual(90);
   await expect(page.locator(".squad-player-row").first().locator(".squad-role-cell small")).toHaveCount(0);
-  await expect(page.locator(".squad-player-row").first().locator(".squad-planning-cell small")).toHaveCount(0);
-  await expect(page.locator(".squad-player-row").first().locator(".squad-planning-cell")).not.toContainText(
-    "Squad player"
-  );
+  await expect(page.locator(".squad-table thead").first()).not.toContainText("Planning");
+  await expect(page.locator(".squad-player-row").first().locator(".squad-planning-cell")).toHaveCount(0);
+  await expect(page.locator(".squad-player-row").first()).not.toContainText("Squad player");
   const firstIdpCell = page.locator(".squad-player-row").first().locator(".squad-idp-cell");
   await expect(firstIdpCell).toContainText(/IDP|Review|Monitor/);
   await expect(firstIdpCell).toContainText(/Review|Next:|follow-up|No IDP focus|No active IDP/);
@@ -4045,8 +4044,8 @@ test("Academy Squad add is available for session planning without Medical cleara
   await guestToggle.click();
   await expect(guestToggle).toHaveAttribute("aria-expanded", "true");
   await expect(guestRow).toBeVisible();
-  await expect(guestRow.locator(".squad-planning-cell")).toContainText("Academy training");
-  await expect(guestRow.locator(".squad-planning-cell")).not.toContainText("Squad depth");
+  await expect(guestRow).toContainText("Academy training");
+  await expect(guestRow).not.toContainText("Squad depth");
   await expect(squadSection.locator(".squad-player-row", { hasText: playerName })).toHaveCount(0);
   await page.locator("[data-player-profile-roster-filter]").selectOption("squad");
   await expect(guestSection).toBeVisible();
@@ -4142,7 +4141,7 @@ test("Squad training guests keeps inactive temporary players visible", async ({ 
   await guestToggle.click();
   await expect(guestToggle).toHaveAttribute("aria-expanded", "true");
   await expect(guestRow).toBeVisible();
-  await expect(guestRow.locator(".squad-planning-cell")).toContainText("Guest");
+  await expect(guestRow).toContainText("Guest");
   await expect(guestRow).toContainText("Academy Training Group");
   await expect(guestRow).toContainText("Unavailable");
   await expect(squadSection.locator(".squad-player-row", { hasText: playerName })).toHaveCount(0);

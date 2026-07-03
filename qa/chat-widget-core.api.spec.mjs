@@ -610,6 +610,8 @@ test("chat runtime supports browser notification permission and delivery hook", 
   expect(appRuntimeSource).toContain("sendDashboardChatBrowserNotification");
   expect(appRuntimeSource).toContain("dashboardChatPushClient.toggleFromNotificationLevel");
   expect(appRuntimeSource).toContain("dashboardChatPushClient.sendTest");
+  expect(appRuntimeSource).toContain("let testPushMessage =");
+  expect(appRuntimeSource).toContain("renderDashboardChatWidget();\nshowDashboardChatWidgetToast(testPushMessage);");
   expect(chatPushClientSource).toContain("win.Notification.requestPermission()");
   expect(chatPushClientSource).toContain("async function sendTest");
   expect(widgetRuntimeSource).toContain("sendBrowserNotification");

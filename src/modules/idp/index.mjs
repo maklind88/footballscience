@@ -17,6 +17,36 @@ import { createIdpApiService } from "./services/idp-api-service.mjs";
 let runtime = null;
 const IDP_SYNC_INTERVAL_MS = 30000;
 const IDP_SYNC_FOCUS_COOLDOWN_MS = 5000;
+const BOARD_HISTORY_FIELDS = [
+  "playerX",
+  "playerY",
+  "referenceLabel",
+  "referenceX",
+  "referenceY",
+  "cone1X",
+  "cone1Y",
+  "cone2X",
+  "cone2Y",
+  "cone3X",
+  "cone3Y",
+  "zoneLabel",
+  "zoneX",
+  "zoneY",
+  "zoneWidth",
+  "zoneHeight",
+  "arrowLabel",
+  "arrowFromX",
+  "arrowFromY",
+  "arrowToX",
+  "arrowToY",
+  "arrowType",
+  "arrowColor",
+  "arrowLineStyle",
+  "arrowLineWidth",
+  "noteText",
+  "noteX",
+  "noteY",
+];
 
 function normalizeContext(context = {}) {
   return {
@@ -169,6 +199,7 @@ function paint(activeRuntime = runtime) {
   });
   restoreSearchFocus(activeRuntime, searchFocus);
   setupIdpClipPreviewPlayback(activeRuntime);
+  updateBoardHistoryButtons(root.querySelector?.(".idp-player-board-modal"));
 }
 
 function ensureRuntime(context = {}) {
@@ -183,6 +214,11 @@ function ensureRuntime(context = {}) {
   runtime = {
     actions,
     api,
+    boardDrag: null,
+    boardPointerEventsBound: false,
+    boardRedoStack: [],
+    boardSuppressNextClick: false,
+    boardUndoStack: [],
     context: nextContext,
     initialized: false,
     lastSyncCheckAt: 0,
@@ -255,7 +291,7 @@ function ensureBoardNotePin(pitch, text = "Coach note") {
   const svgLayer = pitch.querySelector?.(".idp-tactical-board-notes");
   if (svgLayer && doc?.createElementNS) {
     note = doc.createElementNS("http://www.w3.org/2000/svg", "g");
-    note.setAttribute("class", "session-tactical-marker session-tactical-text idp-player-board-note-pin");
+    note.setAttribute("class", "idp-player-board-note-pin");
     note.setAttribute("data-idp-board-object", "note");
     note.setAttribute("data-idp-board-note", "1");
     note.setAttribute("transform", "translate(12 14)");
@@ -323,11 +359,24 @@ function boardMovementPoints(modal) {
   };
 }
 
+function updateBoardMovementHandles(modal) {
+  const { fromX, fromY, toX, toY } = boardMovementPoints(modal);
+  const fromHandle = modal?.querySelector?.('[data-idp-board-movement-handle="from"]');
+  const toHandle = modal?.querySelector?.('[data-idp-board-movement-handle="to"]');
+  fromHandle?.setAttribute?.("cx", String(fromX));
+  fromHandle?.setAttribute?.("cy", String(fromY));
+  toHandle?.setAttribute?.("cx", String(toX));
+  toHandle?.setAttribute?.("cy", String(toY));
+}
+
 function setBoardMovementCoordinates(modal) {
   const element = boardMovementElement(modal);
   const type = modal?.querySelector?.('[name="arrowType"]')?.value || element?.dataset?.idpBoardArrowType || "run";
   const { fromX, fromY, toX, toY } = boardMovementPoints(modal);
-  if (!element) return;
+  if (!element) {
+    updateBoardMovementHandles(modal);
+    return;
+  }
   if (type === "line" || type === "curve") {
     element.removeAttribute("marker-end");
   } else if (!element.getAttribute("marker-end")) {
@@ -335,12 +384,14 @@ function setBoardMovementCoordinates(modal) {
   }
   if (type === "run" || element.tagName?.toLowerCase?.() === "path") {
     element.setAttribute("d", boardMovementPath(fromX, fromY, toX, toY));
+    updateBoardMovementHandles(modal);
     return;
   }
   element.setAttribute("x1", String(fromX));
   element.setAttribute("y1", String(fromY));
   element.setAttribute("x2", String(toX));
   element.setAttribute("y2", String(toY));
+  updateBoardMovementHandles(modal);
 }
 
 function ensureBoardMovementElement(modal, type = "run") {
@@ -402,6 +453,218 @@ function updateBoardArrowStyle(modal) {
   modal?.querySelectorAll?.("[data-idp-board-color-choice]")?.forEach((button) => {
     button.classList.toggle("is-active", String(button.dataset.idpBoardColorChoice || "").toLowerCase() === String(color || "").toLowerCase());
   });
+}
+
+function captureBoardSnapshot(modal) {
+  const snapshot = {};
+  BOARD_HISTORY_FIELDS.forEach((name) => {
+    snapshot[name] = modal?.querySelector?.(`[name="${name}"]`)?.value ?? "";
+  });
+  return snapshot;
+}
+
+function boardSnapshotsEqual(a = {}, b = {}) {
+  return BOARD_HISTORY_FIELDS.every((name) => String(a[name] ?? "") === String(b[name] ?? ""));
+}
+
+function updateBoardZoneVisual(modal) {
+  const zone = modal?.querySelector?.(".idp-player-board-zone");
+  if (!zone) return;
+  const x = boardFormNumber(modal, "zoneX", 34);
+  const y = boardFormNumber(modal, "zoneY", 28);
+  const width = boardFormNumber(modal, "zoneWidth", 32);
+  const height = boardFormNumber(modal, "zoneHeight", 28);
+  if (zone.namespaceURI === "http://www.w3.org/2000/svg") {
+    zone.setAttribute("x", String(x));
+    zone.setAttribute("y", String(y));
+    zone.setAttribute("width", String(width));
+    zone.setAttribute("height", String(height));
+    const label = modal.querySelector?.('[data-idp-board-zone-label="1"]');
+    label?.setAttribute?.("x", String(clampBoardPercent(x + width / 2)));
+    label?.setAttribute?.("y", String(clampBoardPercent(y + height / 2)));
+    return;
+  }
+  zone.style.left = `${x}%`;
+  zone.style.top = `${y}%`;
+  zone.style.width = `${width}%`;
+  zone.style.height = `${height}%`;
+}
+
+function updateBoardNoteVisual(modal) {
+  const note = modal?.querySelector?.(".idp-player-board-note-pin");
+  if (!note) return;
+  const point = {
+    x: boardFormNumber(modal, "noteX", 12),
+    y: boardFormNumber(modal, "noteY", 14),
+  };
+  setMarkerPosition(note, point);
+  const text = modal.querySelector?.('[name="noteText"]')?.value || "Coach note";
+  const label = note.querySelector?.("text");
+  if (label) label.textContent = text.slice(0, 18);
+  if (!label) note.textContent = text;
+}
+
+function applyBoardSnapshot(modal, snapshot = {}) {
+  BOARD_HISTORY_FIELDS.forEach((name) => {
+    if (Object.prototype.hasOwnProperty.call(snapshot, name)) {
+      setBoardFormValue(modal, name, snapshot[name]);
+    }
+  });
+  setMarkerPosition(modal?.querySelector?.(".idp-player-board-player"), {
+    x: boardFormNumber(modal, "playerX", 50),
+    y: boardFormNumber(modal, "playerY", 70),
+  });
+  setMarkerPosition(modal?.querySelector?.(".idp-player-board-reference"), {
+    x: boardFormNumber(modal, "referenceX", 50),
+    y: boardFormNumber(modal, "referenceY", 44),
+  });
+  [1, 2, 3].forEach((index) => {
+    setMarkerPosition(modal?.querySelector?.(`[data-idp-board-cone="${index}"]`), {
+      x: boardFormNumber(modal, `cone${index}X`, 50),
+      y: boardFormNumber(modal, `cone${index}Y`, 50),
+    });
+  });
+  ensureBoardMovementElement(modal, modal?.querySelector?.('[name="arrowType"]')?.value || "run");
+  setBoardMovementCoordinates(modal);
+  updateBoardArrowStyle(modal);
+  updateBoardZoneVisual(modal);
+  updateBoardNoteVisual(modal);
+}
+
+function updateBoardHistoryButtons(modal) {
+  const undoButton = modal?.querySelector?.("[data-idp-board-undo]");
+  const redoButton = modal?.querySelector?.("[data-idp-board-redo]");
+  if (undoButton) undoButton.disabled = !(runtime?.boardUndoStack?.length);
+  if (redoButton) redoButton.disabled = !(runtime?.boardRedoStack?.length);
+}
+
+function resetBoardHistory(activeRuntime = runtime) {
+  if (!activeRuntime) return;
+  activeRuntime.boardUndoStack = [];
+  activeRuntime.boardRedoStack = [];
+}
+
+function pushBoardHistory(activeRuntime = runtime, modal, before = null, after = null) {
+  if (!activeRuntime || !modal || !before || !after || boardSnapshotsEqual(before, after)) return;
+  activeRuntime.boardUndoStack = [...(activeRuntime.boardUndoStack || []), before].slice(-40);
+  activeRuntime.boardRedoStack = [];
+  updateBoardHistoryButtons(modal);
+}
+
+function undoBoardHistory(activeRuntime = runtime, modal) {
+  const previous = activeRuntime?.boardUndoStack?.pop?.();
+  if (!previous || !modal) return false;
+  activeRuntime.boardRedoStack = [...(activeRuntime.boardRedoStack || []), captureBoardSnapshot(modal)].slice(-40);
+  applyBoardSnapshot(modal, previous);
+  updateBoardHistoryButtons(modal);
+  return true;
+}
+
+function redoBoardHistory(activeRuntime = runtime, modal) {
+  const next = activeRuntime?.boardRedoStack?.pop?.();
+  if (!next || !modal) return false;
+  activeRuntime.boardUndoStack = [...(activeRuntime.boardUndoStack || []), captureBoardSnapshot(modal)].slice(-40);
+  applyBoardSnapshot(modal, next);
+  updateBoardHistoryButtons(modal);
+  return true;
+}
+
+function boardObjectLabel(object) {
+  const type = object?.dataset?.idpBoardObject || "";
+  if (type === "player") return "Player marker";
+  if (type === "reference") return "Reference player";
+  if (type === "cone") return `Cone ${object?.dataset?.idpBoardCone || 1}`;
+  if (type === "zone") return "Development zone";
+  if (type === "movement-from") return "Movement start";
+  if (type === "movement-to") return "Movement end";
+  if (type === "movement") return "Movement path";
+  if (type === "note") return "Coach note";
+  return "Board object";
+}
+
+function selectBoardObject(modal, object) {
+  if (!modal || !object) return;
+  modal.querySelectorAll?.("[data-idp-board-object].is-selected")?.forEach((node) => {
+    node.classList.remove("is-selected");
+  });
+  object.classList?.add("is-selected");
+  if (["movement", "movement-from", "movement-to"].includes(object.dataset?.idpBoardObject || "")) {
+    modal.querySelector?.(".idp-player-board-movement")?.classList?.add("is-selected");
+  }
+  const label = boardObjectLabel(object);
+  modal.querySelectorAll?.("[data-idp-board-selected-object]")?.forEach((node) => {
+    node.textContent = label;
+  });
+}
+
+function movementDragHandleForPoint(modal, point) {
+  const { fromX, fromY, toX, toY } = boardMovementPoints(modal);
+  const fromDistance = Math.hypot(point.x - fromX, point.y - fromY);
+  const toDistance = Math.hypot(point.x - toX, point.y - toY);
+  return fromDistance < toDistance ? "from" : "to";
+}
+
+function boardObjectForPointer(modal, object, point) {
+  const type = object?.dataset?.idpBoardObject || "";
+  if (!modal || !object || !point || type !== "movement-from") return object;
+  const playerX = boardFormNumber(modal, "playerX", 50);
+  const playerY = boardFormNumber(modal, "playerY", 70);
+  if (Math.hypot(point.x - playerX, point.y - playerY) <= 6) {
+    return modal.querySelector?.(".idp-player-board-player") || object;
+  }
+  return object;
+}
+
+function setBoardObjectPoint(modal, pitch, object, point) {
+  if (!modal || !pitch || !object || !point) return false;
+  const type = object.dataset?.idpBoardObject || "";
+  if (type === "player") {
+    setBoardFormValue(modal, "playerX", point.x);
+    setBoardFormValue(modal, "playerY", point.y);
+    setMarkerPosition(modal.querySelector(".idp-player-board-player"), point);
+    return true;
+  }
+  if (type === "reference") {
+    setBoardFormValue(modal, "referenceX", point.x);
+    setBoardFormValue(modal, "referenceY", point.y);
+    setMarkerPosition(modal.querySelector(".idp-player-board-reference"), point);
+    return true;
+  }
+  if (type === "cone") {
+    const coneIndex = Number(object.dataset?.idpBoardCone || 1);
+    const safeIndex = [1, 2, 3].includes(coneIndex) ? coneIndex : 1;
+    setBoardFormValue(modal, `cone${safeIndex}X`, point.x);
+    setBoardFormValue(modal, `cone${safeIndex}Y`, point.y);
+    setMarkerPosition(modal.querySelector(`[data-idp-board-cone="${safeIndex}"]`), point);
+    return true;
+  }
+  if (type === "zone") {
+    const width = boardFormNumber(modal, "zoneWidth", 32);
+    const height = boardFormNumber(modal, "zoneHeight", 28);
+    setBoardFormValue(modal, "zoneX", clampBoardPercent(point.x - width / 2));
+    setBoardFormValue(modal, "zoneY", clampBoardPercent(point.y - height / 2));
+    updateBoardZoneVisual(modal);
+    return true;
+  }
+  if (type === "movement-from" || (type === "movement" && modal.dataset.idpBoardMovementDragHandle === "from")) {
+    setBoardFormValue(modal, "arrowFromX", point.x);
+    setBoardFormValue(modal, "arrowFromY", point.y);
+    setBoardMovementCoordinates(modal);
+    return true;
+  }
+  if (type === "movement-to" || type === "movement") {
+    setBoardFormValue(modal, "arrowToX", point.x);
+    setBoardFormValue(modal, "arrowToY", point.y);
+    setBoardMovementCoordinates(modal);
+    return true;
+  }
+  if (type === "note") {
+    setBoardFormValue(modal, "noteX", point.x);
+    setBoardFormValue(modal, "noteY", point.y);
+    updateBoardNoteVisual(modal);
+    return true;
+  }
+  return false;
 }
 
 function setBoardArrowPreset(modal, tool = "arrow") {
@@ -534,10 +797,73 @@ function selectBoardTool(toolButton) {
   return true;
 }
 
+function handleBoardPointerDown(event, activeRuntime = runtime) {
+  const object = event?.target?.closest?.("[data-idp-board-object]");
+  const modal = object?.closest?.(".idp-player-board-modal");
+  const pitch = object?.closest?.("[data-idp-board-editor-pitch]");
+  if (!object || !modal || !pitch) return;
+  event.preventDefault?.();
+  const point = boardPointFromEvent(event, pitch);
+  const selectedObject = boardObjectForPointer(modal, object, point);
+  selectBoardObject(modal, selectedObject);
+  if (selectedObject.dataset?.idpBoardObject === "movement") {
+    modal.dataset.idpBoardMovementDragHandle = movementDragHandleForPoint(modal, point || { x: 50, y: 50 });
+  } else {
+    delete modal.dataset.idpBoardMovementDragHandle;
+  }
+  activeRuntime.boardSuppressNextClick = true;
+  activeRuntime.boardDrag = {
+    before: captureBoardSnapshot(modal),
+    modal,
+    moved: false,
+    object: selectedObject,
+    pitch,
+    pointerId: event.pointerId,
+  };
+  try {
+    selectedObject.setPointerCapture?.(event.pointerId);
+  } catch {
+    // SVG elements do not all expose pointer capture consistently.
+  }
+}
+
+function handleBoardPointerMove(event, activeRuntime = runtime) {
+  const drag = activeRuntime?.boardDrag;
+  if (!drag?.modal || !drag.pitch || !drag.object) return;
+  event.preventDefault?.();
+  const point = boardPointFromEvent(event, drag.pitch);
+  if (!point) return;
+  drag.moved = setBoardObjectPoint(drag.modal, drag.pitch, drag.object, point) || drag.moved;
+}
+
+function handleBoardPointerUp(event, activeRuntime = runtime) {
+  const drag = activeRuntime?.boardDrag;
+  if (!drag?.modal) return;
+  event?.preventDefault?.();
+  if (drag.moved) {
+    pushBoardHistory(activeRuntime, drag.modal, drag.before, captureBoardSnapshot(drag.modal));
+  }
+  delete drag.modal.dataset.idpBoardMovementDragHandle;
+  activeRuntime.boardDrag = null;
+  activeRuntime.boardSuppressNextClick = true;
+}
+
+function bindBoardPointerEvents(activeRuntime = runtime) {
+  const root = getRoot(activeRuntime?.context);
+  if (!root || root.__idpBoardPointerEventsBound) return;
+  const doc = getDocument(activeRuntime);
+  root.addEventListener?.("pointerdown", (event) => handleBoardPointerDown(event, runtime));
+  doc?.addEventListener?.("pointermove", (event) => handleBoardPointerMove(event, runtime));
+  doc?.addEventListener?.("pointerup", (event) => handleBoardPointerUp(event, runtime));
+  root.__idpBoardPointerEventsBound = true;
+  activeRuntime.boardPointerEventsBound = true;
+}
+
 export function render(context = {}) {
   const activeRuntime = ensureRuntime(context);
   paint(activeRuntime);
   startAutoSync(activeRuntime);
+  bindBoardPointerEvents(activeRuntime);
   runAction(() => boot(activeRuntime));
 }
 
@@ -756,20 +1082,43 @@ export function handleClick(event) {
     selectBoardTool(boardToolTrigger);
     return;
   }
+  const boardUndoTrigger = event?.target?.closest?.("[data-idp-board-undo]");
+  if (boardUndoTrigger) {
+    event?.preventDefault?.();
+    undoBoardHistory(runtime, boardUndoTrigger.closest?.(".idp-player-board-modal"));
+    return;
+  }
+  const boardRedoTrigger = event?.target?.closest?.("[data-idp-board-redo]");
+  if (boardRedoTrigger) {
+    event?.preventDefault?.();
+    redoBoardHistory(runtime, boardRedoTrigger.closest?.(".idp-player-board-modal"));
+    return;
+  }
   const boardEditorPitch = event?.target?.closest?.("[data-idp-board-editor-pitch]");
   if (boardEditorPitch) {
     event?.preventDefault?.();
-    if (applyBoardPitchPoint(event, boardEditorPitch)) return;
+    if (runtime?.boardSuppressNextClick) {
+      runtime.boardSuppressNextClick = false;
+      return;
+    }
+    const modal = boardEditorPitch.closest?.(".idp-player-board-modal");
+    const before = captureBoardSnapshot(modal);
+    if (applyBoardPitchPoint(event, boardEditorPitch)) {
+      pushBoardHistory(runtime, modal, before, captureBoardSnapshot(modal));
+      return;
+    }
   }
   const playerBoardClose = event?.target?.closest?.("[data-idp-player-board-close]");
   if (playerBoardClose || event?.target?.matches?.("[data-idp-player-board-layer]")) {
     event?.preventDefault?.();
+    resetBoardHistory(runtime);
     runtime?.store.setState({ ui: { playerBoardOpen: false, playerBoardInterventionId: "" } });
     return;
   }
   const playerBoardNew = event?.target?.closest?.("[data-idp-player-board-new]");
   if (playerBoardNew) {
     event?.preventDefault?.();
+    resetBoardHistory(runtime);
     runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: "__new", actionMode: "", error: "", message: "" } });
     return;
   }
@@ -782,12 +1131,14 @@ export function handleClick(event) {
   const playerBoardOpen = event?.target?.closest?.("[data-idp-player-board-open]");
   if (playerBoardOpen) {
     event?.preventDefault?.();
+    resetBoardHistory(runtime);
     runtime?.store.setState({ ui: { playerBoardOpen: true, actionMode: "", error: "", message: "" } });
     return;
   }
   const playerBoardSelect = event?.target?.closest?.("[data-idp-player-board-select]");
   if (playerBoardSelect) {
     event?.preventDefault?.();
+    resetBoardHistory(runtime);
     runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: playerBoardSelect.dataset.idpPlayerBoardSelect || "" } });
     return;
   }

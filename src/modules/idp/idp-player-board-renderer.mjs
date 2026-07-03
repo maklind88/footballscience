@@ -235,7 +235,7 @@ function renderBoardZone(zone = {}, index = 0) {
   const labelY = Math.min(96, Math.max(4, y + height / 2));
   return `
     <rect
-      class="idp-player-board-zone session-tactical-zone"
+      class="idp-player-board-zone"
       data-idp-board-object="zone"
       data-idp-board-zone="${index + 1}"
       x="${x}"
@@ -252,7 +252,7 @@ function renderBoardCone(cone = {}, index = 0) {
   const x = clampPercent(cone.x, 50);
   const y = clampPercent(cone.y, 50);
   return `
-    <g class="session-tactical-marker session-tactical-cone idp-player-board-cone" data-idp-board-object="cone" data-idp-board-cone="${index + 1}" transform="translate(${x} ${y})">
+    <g class="idp-player-board-cone" data-idp-board-object="cone" data-idp-board-cone="${index + 1}" transform="translate(${x} ${y})">
       <path d="M 0 -2.9 L 2.75 2.55 L -2.75 2.55 Z"></path>
       <line x1="-3.15" y1="2.9" x2="3.15" y2="2.9"></line>
     </g>
@@ -265,9 +265,8 @@ function renderBoardPlayerMarker(item = {}, options = {}) {
   const label = normalizeText(item.label, options.fallbackLabel || "P").slice(0, 3).toUpperCase();
   const name = normalizeText(item.name, "");
   const classes = [
-    "session-tactical-marker",
-    "session-tactical-player",
-    options.neutral ? "session-tactical-neutral-player" : "session-tactical-blue-player",
+    "idp-tactical-player-marker",
+    options.neutral ? "is-neutral" : "is-player",
     options.className || "",
   ].filter(Boolean).join(" ");
   return `
@@ -285,7 +284,7 @@ function renderBoardNote(note = {}, index = 0) {
   const y = clampPercent(note.y, 14);
   const text = normalizeText(note.text, "Coach note");
   return `
-    <g class="session-tactical-marker session-tactical-text idp-player-board-note-pin" data-idp-board-object="note" data-idp-board-note="${index + 1}" transform="translate(${x} ${y})">
+    <g class="idp-player-board-note-pin" data-idp-board-object="note" data-idp-board-note="${index + 1}" transform="translate(${x} ${y})">
       <rect x="-8" y="-4.2" width="16" height="8.4" rx="1.8"></rect>
       <text y=".45">${renderSvgText(text, 18)}</text>
     </g>
@@ -303,13 +302,17 @@ function renderArrowElement(arrow = {}, markerId = "idp-player-board-arrow") {
   const lineWidth = renderBoardLineWidth(arrow.lineWidth, 2.4);
   const dash = boardLineDasharray(lineStyle);
   const style = `fill:none;stroke:${escapeHtml(color)};stroke-width:${lineWidth};stroke-linecap:round;stroke-linejoin:round;${dash ? `stroke-dasharray:${escapeHtml(dash)};` : ""}`;
+  const handles = `
+    <circle class="idp-player-board-movement-handle is-from" data-idp-board-object="movement-from" data-idp-board-movement-handle="from" cx="${fromX}" cy="${fromY}" r="1.55"></circle>
+    <circle class="idp-player-board-movement-handle is-to" data-idp-board-object="movement-to" data-idp-board-movement-handle="to" cx="${toX}" cy="${toY}" r="1.75"></circle>
+  `;
   if (type === "run" || type === "curve") {
     const controlX = (fromX + toX) / 2;
     const controlY = Math.min(fromY, toY) - Math.max(6, Math.abs(toX - fromX) / 5);
-    return `<path class="session-tactical-${escapeHtml(type)} idp-player-board-movement" d="M ${fromX} ${fromY} Q ${controlX} ${controlY} ${toX} ${toY}" ${type === "curve" ? "" : `marker-end="url(#${escapeHtml(markerId)})"`} data-idp-board-arrow-type="${escapeHtml(type)}" style="${style}"></path>`;
+    return `<path class="session-tactical-${escapeHtml(type)} idp-player-board-movement" d="M ${fromX} ${fromY} Q ${controlX} ${controlY} ${toX} ${toY}" ${type === "curve" ? "" : `marker-end="url(#${escapeHtml(markerId)})"`} data-idp-board-object="movement" data-idp-board-arrow-type="${escapeHtml(type)}" style="${style}"></path>${handles}`;
   }
   const shouldUseArrow = type !== "line";
-  return `<line class="session-tactical-${escapeHtml(type)} idp-player-board-movement" x1="${fromX}" y1="${fromY}" x2="${toX}" y2="${toY}" ${shouldUseArrow ? `marker-end="url(#${escapeHtml(markerId)})"` : ""} data-idp-board-arrow-type="${escapeHtml(type)}" style="${style}"></line>`;
+  return `<line class="session-tactical-${escapeHtml(type)} idp-player-board-movement" x1="${fromX}" y1="${fromY}" x2="${toX}" y2="${toY}" ${shouldUseArrow ? `marker-end="url(#${escapeHtml(markerId)})"` : ""} data-idp-board-object="movement" data-idp-board-arrow-type="${escapeHtml(type)}" style="${style}"></line>${handles}`;
 }
 
 function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options = {}) {
@@ -563,6 +566,10 @@ function renderBoardFrameStrip(frames = []) {
           <button type="button" class="session-tacticalboard-frame idp-player-board-frame${index === 0 ? " is-active" : ""}" title="${escapeHtml(frame.label || `Frame ${index + 1}`)}">${index + 1}</button>
         `).join("")}
       </div>
+      <div class="idp-player-board-history-controls" aria-label="Tactical board history">
+        <button type="button" data-idp-board-undo disabled title="Undo">Undo</button>
+        <button type="button" data-idp-board-redo disabled title="Redo">Redo</button>
+      </div>
     </div>
   `;
 }
@@ -657,6 +664,7 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
             <section class="idp-tactical-inspector-card is-selected" data-idp-board-inspector>
               <span>Selected Tool</span>
               <strong data-idp-board-active-tool-label>Move Player</strong>
+              <small data-idp-board-selected-object>Player marker</small>
               <p data-idp-board-hint-state>Click the pitch to place or update the selected element.</p>
             </section>
             <section class="session-tacticalboard-settings idp-player-board-settings" aria-label="Board settings">

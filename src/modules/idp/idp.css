@@ -2559,7 +2559,7 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   bottom: -1px;
 }
 
-.idp-player-board-zone {
+.idp-player-board-surface > .idp-player-board-zone {
   align-items: start;
   background: rgba(226, 232, 240, .16);
   border: 1px dashed rgba(255, 255, 255, .48);
@@ -2593,16 +2593,16 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   fill: #fef3c7;
 }
 
-.idp-player-board-cone,
-.idp-player-board-reference,
-.idp-player-board-player,
-.idp-player-board-note-pin {
+.idp-player-board-surface > .idp-player-board-cone,
+.idp-player-board-surface > .idp-player-board-reference,
+.idp-player-board-surface > .idp-player-board-player,
+.idp-player-board-surface > .idp-player-board-note-pin {
   position: absolute;
   transform: translate(-50%, -50%);
   z-index: 3;
 }
 
-.idp-player-board-cone {
+.idp-player-board-surface > .idp-player-board-cone {
   border-bottom: 12px solid #f59e0b;
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
@@ -2611,7 +2611,7 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   width: 0;
 }
 
-.idp-player-board-reference {
+.idp-player-board-surface > .idp-player-board-reference {
   align-items: center;
   background: rgba(248, 250, 252, .94);
   border: 1px solid rgba(17, 24, 39, .12);
@@ -2626,7 +2626,7 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   padding: 0 7px;
 }
 
-.idp-player-board-player {
+.idp-player-board-surface > .idp-player-board-player {
   align-items: center;
   background: radial-gradient(circle at 35% 25%, #3b82f6, #12213b 62%, #07111f);
   border: 2px solid #fff;
@@ -2641,7 +2641,7 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   width: 40px;
 }
 
-.idp-player-board-player-name {
+.idp-player-board-surface > .idp-player-board-player-name {
   background: rgba(2, 8, 23, .72);
   border: 1px solid rgba(255, 255, 255, .18);
   border-radius: 999px;
@@ -2658,7 +2658,7 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   z-index: 4;
 }
 
-.idp-player-board-note-pin {
+.idp-player-board-surface > .idp-player-board-note-pin {
   background: rgba(16, 24, 40, .82);
   border: 1px solid rgba(255, 255, 255, .24);
   border-radius: 8px;
@@ -8431,7 +8431,7 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   z-index: 8;
 }
 
-.idp-player-board-zone {
+.idp-player-board-surface > .idp-player-board-zone {
   align-items: center;
   background: rgba(245, 158, 11, .24);
   border: 1px dashed rgba(146, 64, 14, .58);
@@ -8448,7 +8448,7 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   z-index: 3;
 }
 
-.idp-player-board-player-name {
+.idp-player-board-surface > .idp-player-board-player-name {
   background: rgba(17, 24, 39, .86);
   border: 1px solid rgba(255, 255, 255, .18);
   border-radius: 999px;
@@ -9228,7 +9228,7 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   top: 12px;
 }
 
-.idp-player-board-zone {
+.idp-player-board-surface > .idp-player-board-zone {
   background: rgba(16, 185, 129, .16);
   border: 1px dashed rgba(6, 95, 70, .42);
   color: #064e3b;
@@ -9237,11 +9237,11 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   text-shadow: none;
 }
 
-.idp-player-board-player {
+.idp-player-board-surface > .idp-player-board-player {
   box-shadow: 0 10px 24px rgba(2, 8, 23, .2), 0 0 0 5px rgba(255, 255, 255, .2), 0 0 0 10px rgba(59, 130, 246, .13);
 }
 
-.idp-player-board-player-name {
+.idp-player-board-surface > .idp-player-board-player-name {
   background: rgba(16, 24, 40, .82);
   color: #fff;
 }
@@ -9275,6 +9275,27 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   position: absolute;
   width: 100%;
   z-index: 3;
+}
+
+.idp-player-board-pitch .idp-player-board-surface[data-idp-board-editor-pitch] .idp-tactical-board-svg {
+  pointer-events: auto;
+}
+
+.idp-player-board-pitch .idp-tactical-pitch-lines,
+.idp-player-board-pitch .idp-tactical-board-zone-layer text,
+.idp-player-board-pitch .idp-tactical-board-notes text,
+.idp-player-board-pitch .idp-tactical-player-badge,
+.idp-player-board-pitch .idp-player-board-player-name {
+  pointer-events: none;
+}
+
+.idp-player-board-pitch [data-idp-board-object] {
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.idp-player-board-pitch [data-idp-board-object]:active {
+  cursor: grabbing;
 }
 
 .idp-player-board-pitch .idp-tactical-board-svg .session-pitch-diagram,
@@ -9368,6 +9389,19 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   vector-effect: non-scaling-stroke;
 }
 
+.idp-player-board-pitch .idp-player-board-movement-handle {
+  fill: #fff;
+  filter: drop-shadow(0 .8px 1.2px rgba(2, 8, 23, .28));
+  stroke: #0f766e;
+  stroke-width: .42;
+  vector-effect: non-scaling-stroke;
+}
+
+.idp-player-board-pitch .idp-player-board-movement-handle.is-to {
+  fill: #14b8a6;
+  stroke: #fff;
+}
+
 .idp-player-board-pitch .idp-player-board-cone path {
   fill: #fb923c;
   stroke: #c2410c;
@@ -9430,6 +9464,21 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   stroke: none;
 }
 
+.idp-player-board-pitch [data-idp-board-object].is-selected .idp-tactical-player-halo,
+.idp-player-board-pitch .idp-player-board-zone.is-selected,
+.idp-player-board-pitch .idp-player-board-cone.is-selected path,
+.idp-player-board-pitch .idp-player-board-note-pin.is-selected rect,
+.idp-player-board-pitch .idp-player-board-movement.is-selected,
+.idp-player-board-pitch .idp-player-board-movement-handle.is-selected {
+  filter: drop-shadow(0 0 4px rgba(45, 212, 191, .72));
+  stroke: #5eead4;
+  stroke-width: .68;
+}
+
+.idp-player-board-pitch .idp-player-board-movement.is-selected {
+  stroke-width: 1.2 !important;
+}
+
 .idp-player-board-pitch .idp-player-board-surface[data-idp-board-editor-pitch] {
   cursor: crosshair;
 }
@@ -9450,6 +9499,37 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
     #0b1421;
   border: 1px solid rgba(226, 232, 240, .1);
   border-radius: 14px;
+}
+
+.idp-player-board-history-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.idp-player-board-history-controls button {
+  appearance: none;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  color: rgba(241, 245, 249, .9);
+  cursor: pointer;
+  font: inherit;
+  font-size: .68rem;
+  font-weight: 900;
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.idp-player-board-history-controls button:not(:disabled):hover,
+.idp-player-board-history-controls button:not(:disabled):focus-visible {
+  background: #e5edf7;
+  color: #07111f;
+  outline: none;
+}
+
+.idp-player-board-history-controls button:disabled {
+  cursor: not-allowed;
+  opacity: .38;
 }
 
 .idp-tactical-inspector-card {
@@ -9475,6 +9555,13 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   color: #fff;
   font-size: 1.02rem;
   line-height: 1.1;
+}
+
+.idp-tactical-inspector-card small {
+  color: #a7f3d0;
+  font-size: .72rem;
+  font-weight: 850;
+  line-height: 1.15;
 }
 
 .idp-tactical-inspector-card p {

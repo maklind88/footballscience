@@ -457,6 +457,8 @@ export function createIdpActions({ store, api, context = {} }) {
         clipPreviewObjectUrl: "",
         playerBoardOpen: false,
         playerBoardInterventionId: "",
+        playerBoardPreviewFrameIndex: 0,
+        playerBoardPreviewPlaying: false,
       },
     });
     const fallbackPlayer = findSquadPlayer(getSquadState(), safePlayerId);

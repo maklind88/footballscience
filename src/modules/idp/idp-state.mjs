@@ -24,6 +24,8 @@ export const idpInitialUiState = Object.freeze({
   playerBoardInterventionId: "",
   playerBoardSearchQuery: "",
   playerBoardMode: "edit",
+  playerBoardPreviewFrameIndex: 0,
+  playerBoardPreviewPlaying: false,
 });
 
 export const idpInitialSyncState = Object.freeze({

@@ -467,14 +467,84 @@ function exerciseBankSearchText(item = {}, focus = {}) {
 
 export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}) {
   const intervention = activeIntervention(detail, ui) || draftIntervention(profile, focus);
+  const rawState = boardState(intervention, focus, profile);
+  const frames = boardFramesFromState(rawState);
+  const frameIndex = normalizeFrameIndex(ui.playerBoardPreviewFrameIndex ?? rawState.activeFrameIndex, frames.length);
+  const state = boardStateForFrame(rawState, frameIndex);
+  const frame = state.frames?.[frameIndex] || state.frames?.[0] || {};
+  const counts = interventionCounts(intervention);
+  const frameCount = Math.max(1, frames.length || 1);
+  const isPlaying = Boolean(ui.playerBoardPreviewPlaying) && frameCount > 1;
+  const playerName = normalizeText(profile.playerName || profile.name, "Player");
+  const objective = interventionObjective(intervention, focus);
+  const clipAnchor = normalizeText(frame.clipAnchor || state.clipAnchor, "");
+  const coachCue = normalizeText(frame.coachCue || state.coachCue, "Coach cue has not been added yet.");
+  const playerCue = normalizeText(frame.playerCue || state.playerCue, objective);
   return `
-    <aside class="idp-player-board-panel idp-player-board-tactical-shell">
-      <div class="idp-player-board-preview idp-player-board-tactical-preview" aria-label="IDP Player Board preview">
-        <span class="idp-player-board-surface">
-          <span class="idp-player-board-canvas">
-            ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-preview-arrow" })}
+    <aside class="idp-player-board-panel idp-player-board-tactical-shell idp-player-board-playback-shell" data-idp-player-board-preview data-idp-player-board-frame-count="${escapeHtml(String(frameCount))}">
+      <header class="idp-player-board-playback-head">
+        <div>
+          <span>Coach Playback</span>
+          <strong>${escapeHtml(intervention.title || `${playerName} individual exercise`)}</strong>
+          <small>${escapeHtml(objective)}</small>
+        </div>
+        <div class="idp-player-board-playback-controls" aria-label="Exercise playback controls">
+          <span>${escapeHtml(`${frameIndex + 1} / ${frameCount}`)}</span>
+          <button type="button" data-idp-player-board-preview-play${frameCount <= 1 || isPlaying ? " hidden" : ""}>Play</button>
+          <button type="button" data-idp-player-board-preview-stop${isPlaying ? "" : " hidden"}>Stop</button>
+          ${canEdit ? `<button type="button" class="is-primary" data-idp-player-board-open>Redigera</button>` : ""}
+        </div>
+      </header>
+      <div class="idp-player-board-playback-stage">
+        <div class="idp-player-board-preview idp-player-board-tactical-preview" aria-label="IDP Player Board preview">
+          <span class="idp-player-board-surface">
+            <span class="idp-player-board-canvas">
+              ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-preview-arrow", frameIndex })}
+            </span>
           </span>
-        </span>
+        </div>
+        <section class="idp-player-board-playback-card" aria-label="Frame coaching cue">
+          <div class="idp-player-board-playback-card-head">
+            <span>${escapeHtml(String(frameIndex + 1).padStart(2, "0"))}</span>
+            <div>
+              <strong>${escapeHtml(frame.label || `Frame ${frameIndex + 1}`)}</strong>
+              <small>${escapeHtml(`${pitchModeLabel(intervention.pitchMode)} / ${interventionStatusLabel(intervention.status)}`)}</small>
+            </div>
+          </div>
+          <div class="idp-player-board-playback-cues">
+            <article>
+              <span>Coach Cue</span>
+              <p>${escapeHtml(coachCue)}</p>
+            </article>
+            <article>
+              <span>Player Cue</span>
+              <p>${escapeHtml(playerCue)}</p>
+            </article>
+            <article>
+              <span>Clip Anchor</span>
+              <p>${escapeHtml(clipAnchor || `${counts.clips || 0} clips linked`)}</p>
+            </article>
+          </div>
+        </section>
+      </div>
+      <div class="idp-player-board-playback-frames" aria-label="Exercise frames">
+        ${frames.map((item, index) => {
+          const label = item.label || `Frame ${index + 1}`;
+          const cue = item.playerCue || item.coachCue || "";
+          const hasCue = Boolean(item.playerCue || item.coachCue || item.clipAnchor);
+          return `
+            <button
+              type="button"
+              class="${index === frameIndex ? "is-active" : ""}${hasCue ? " has-cue" : ""}"
+              data-idp-player-board-preview-frame="${index}"
+              aria-pressed="${index === frameIndex ? "true" : "false"}"
+              title="${escapeHtml(cue || label)}"
+            >
+              <strong>${escapeHtml(String(index + 1).padStart(2, "0"))}</strong>
+              <span>${escapeHtml(label)}</span>
+            </button>
+          `;
+        }).join("")}
       </div>
     </aside>
   `;

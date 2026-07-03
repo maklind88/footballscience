@@ -939,6 +939,71 @@ function stopBoardPlayback(activeRuntime = runtime, modal = null) {
   setBoardPlaybackState(modal || getRoot(activeRuntime?.context)?.querySelector?.(".idp-player-board-modal"), false);
 }
 
+function playerBoardPreviewFrameCount(activeRuntime = runtime) {
+  const state = activeRuntime?.store?.getState?.() || {};
+  const detail = state.playerDetail || {};
+  const interventions = Array.isArray(detail.interventions)
+    ? detail.interventions.filter((item) => item.status !== "archived")
+    : [];
+  const selectedId = state.ui?.playerBoardInterventionId || "";
+  const intervention = interventions.find((item) => item.id && item.id === selectedId) || interventions[0] || null;
+  const frames = intervention?.boardState?.frames;
+  return Math.max(1, Array.isArray(frames) && frames.length ? frames.length : 1);
+}
+
+function normalizePlayerBoardPreviewFrame(value = 0, total = 1) {
+  const count = Math.max(1, Number(total) || 1);
+  const index = Number(value);
+  return Number.isInteger(index) && index >= 0 && index < count ? index : 0;
+}
+
+function stopPlayerBoardPreviewPlayback(activeRuntime = runtime, options = {}) {
+  if (activeRuntime?.playerBoardPreviewTimer) {
+    clearInterval(activeRuntime.playerBoardPreviewTimer);
+    activeRuntime.playerBoardPreviewTimer = null;
+  }
+  if (options.updateState === false) return;
+  activeRuntime?.store?.setState?.({ ui: { playerBoardPreviewPlaying: false } });
+}
+
+function setPlayerBoardPreviewFrame(activeRuntime = runtime, index = 0, options = {}) {
+  if (options.stopPlayback !== false) {
+    stopPlayerBoardPreviewPlayback(activeRuntime, { updateState: false });
+  }
+  const count = playerBoardPreviewFrameCount(activeRuntime);
+  activeRuntime?.store?.setState?.({
+    ui: {
+      playerBoardPreviewFrameIndex: normalizePlayerBoardPreviewFrame(index, count),
+      playerBoardPreviewPlaying: options.playing === true,
+    },
+  });
+}
+
+function playPlayerBoardPreviewFrames(activeRuntime = runtime) {
+  const count = playerBoardPreviewFrameCount(activeRuntime);
+  if (count <= 1) return false;
+  stopPlayerBoardPreviewPlayback(activeRuntime, { updateState: false });
+  const win = activeRuntime?.context?.win || globalThis;
+  if (typeof win.setInterval !== "function") return false;
+  activeRuntime?.store?.setState?.({ ui: { playerBoardPreviewPlaying: true } });
+  activeRuntime.playerBoardPreviewTimer = win.setInterval(() => {
+    const state = activeRuntime?.store?.getState?.() || {};
+    const nextCount = playerBoardPreviewFrameCount(activeRuntime);
+    if (nextCount <= 1 || state.ui?.profileView !== "player-board" || state.ui?.playerBoardOpen) {
+      stopPlayerBoardPreviewPlayback(activeRuntime);
+      return;
+    }
+    const current = normalizePlayerBoardPreviewFrame(state.ui?.playerBoardPreviewFrameIndex, nextCount);
+    activeRuntime?.store?.setState?.({
+      ui: {
+        playerBoardPreviewFrameIndex: (current + 1) % nextCount,
+        playerBoardPreviewPlaying: true,
+      },
+    });
+  }, 1200);
+  return true;
+}
+
 function playBoardFrames(activeRuntime = runtime, modal) {
   if (!modal) return false;
   const frames = syncActiveBoardFrameFromModal(modal);
@@ -1375,7 +1440,8 @@ export function handleClick(event) {
   if (backTrigger) {
     event?.preventDefault?.();
     revokePreviewUrl(runtime);
-    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", playerBoardSearchQuery: "", error: "", message: "" } });
+    stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
+    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", playerBoardSearchQuery: "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, error: "", message: "" } });
     scrollWorkspaceTop(runtime);
     return;
   }
@@ -1383,6 +1449,7 @@ export function handleClick(event) {
   if (profileViewTrigger) {
     event?.preventDefault?.();
     revokePreviewUrl(runtime);
+    stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
     const requestedProfileView = profileViewTrigger.dataset.idpProfileView || "";
     const profileView = ["clip-bank", "player-board", "goals"].includes(requestedProfileView) ? requestedProfileView : "development";
     runtime?.store.setState({
@@ -1393,6 +1460,8 @@ export function handleClick(event) {
         editGoalId: "",
         playerBoardOpen: false,
         playerBoardInterventionId: "",
+        playerBoardPreviewFrameIndex: 0,
+        playerBoardPreviewPlaying: false,
         clipPreviewOpen: false,
         clipPreviewQueueIds: [],
         clipPreviewActiveIndex: 0,
@@ -1476,6 +1545,24 @@ export function handleClick(event) {
     } else {
       focusSearch();
     }
+    return;
+  }
+  const playerBoardPreviewFrame = event?.target?.closest?.("[data-idp-player-board-preview-frame]");
+  if (playerBoardPreviewFrame) {
+    event?.preventDefault?.();
+    setPlayerBoardPreviewFrame(runtime, Number(playerBoardPreviewFrame.dataset.idpPlayerBoardPreviewFrame || 0));
+    return;
+  }
+  const playerBoardPreviewPlay = event?.target?.closest?.("[data-idp-player-board-preview-play]");
+  if (playerBoardPreviewPlay) {
+    event?.preventDefault?.();
+    playPlayerBoardPreviewFrames(runtime);
+    return;
+  }
+  const playerBoardPreviewStop = event?.target?.closest?.("[data-idp-player-board-preview-stop]");
+  if (playerBoardPreviewStop) {
+    event?.preventDefault?.();
+    stopPlayerBoardPreviewPlayback(runtime);
     return;
   }
   const closeActionTrigger = event?.target?.closest?.("[data-idp-close-action]");
@@ -1591,23 +1678,26 @@ export function handleClick(event) {
   const playerBoardNew = event?.target?.closest?.("[data-idp-player-board-new]");
   if (playerBoardNew) {
     event?.preventDefault?.();
+    stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
     stopBoardPlayback(runtime, playerBoardNew.closest?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
-    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: "__new", actionMode: "", error: "", message: "" } });
+    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: "__new", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, actionMode: "", error: "", message: "" } });
     return;
   }
   const playerBoardPreviewSelect = event?.target?.closest?.("[data-idp-player-board-preview-select]");
   if (playerBoardPreviewSelect) {
     event?.preventDefault?.();
-    runtime?.store.setState({ ui: { playerBoardOpen: false, playerBoardInterventionId: playerBoardPreviewSelect.dataset.idpPlayerBoardPreviewSelect || "", error: "", message: "" } });
+    stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
+    runtime?.store.setState({ ui: { playerBoardOpen: false, playerBoardInterventionId: playerBoardPreviewSelect.dataset.idpPlayerBoardPreviewSelect || "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, error: "", message: "" } });
     return;
   }
   const playerBoardOpen = event?.target?.closest?.("[data-idp-player-board-open]");
   if (playerBoardOpen) {
     event?.preventDefault?.();
+    stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
     stopBoardPlayback(runtime, playerBoardOpen.closest?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
-    runtime?.store.setState({ ui: { playerBoardOpen: true, actionMode: "", error: "", message: "" } });
+    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardPreviewPlaying: false, actionMode: "", error: "", message: "" } });
     return;
   }
   const playerBoardSelect = event?.target?.closest?.("[data-idp-player-board-select]");
@@ -1697,6 +1787,7 @@ export function handleClick(event) {
   const playerTrigger = event?.target?.closest?.("[data-idp-player]");
   if (playerTrigger) {
     revokePreviewUrl(runtime);
+    stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
     runAction(async () => {
       await runtime?.actions.selectPlayer(playerTrigger.dataset.idpPlayer || "");
       scrollWorkspaceTop(runtime);

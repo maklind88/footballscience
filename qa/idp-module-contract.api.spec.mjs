@@ -89,6 +89,7 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   const playerBoardRenderer = read("src/modules/idp/idp-player-board-renderer.mjs");
   const idpRenderer = read("src/modules/idp/idp-renderer.mjs");
   const idpRuntime = read("src/modules/idp/index.mjs");
+  const idpState = read("src/modules/idp/idp-state.mjs");
 
   expect(apiService).toContain('action: "create-intervention"');
   expect(apiService).toContain('action: "update-intervention"');
@@ -133,6 +134,11 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("data-idp-board-frame-add");
   expect(playerBoardRenderer).toContain("data-idp-board-frame-duplicate");
   expect(playerBoardRenderer).toContain("data-idp-board-play");
+  expect(playerBoardRenderer).toContain("data-idp-player-board-preview");
+  expect(playerBoardRenderer).toContain("data-idp-player-board-preview-frame");
+  expect(playerBoardRenderer).toContain("data-idp-player-board-preview-play");
+  expect(playerBoardRenderer).toContain("data-idp-player-board-preview-stop");
+  expect(playerBoardRenderer).toContain("Coach Playback");
   expect(playerBoardRenderer).toContain("idp-player-board-frame-inspector");
   expect(playerBoardRenderer).toContain("data-idp-board-frame-meta");
   expect(playerBoardRenderer).toContain("frameCoachCue");
@@ -164,6 +170,11 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(idpRuntime).toContain("setBoardActiveToolState");
   expect(idpRuntime).toContain("selectBoardTool");
   expect(idpRuntime).toContain("setBoardArrowPreset");
+  expect(idpRuntime).toContain("playPlayerBoardPreviewFrames");
+  expect(idpRuntime).toContain("stopPlayerBoardPreviewPlayback");
+  expect(idpRuntime).toContain("setPlayerBoardPreviewFrame");
+  expect(idpState).toContain("playerBoardPreviewFrameIndex");
+  expect(idpState).toContain("playerBoardPreviewPlaying");
   expect(playerBoardRenderer).not.toContain("data-session-");
 });
 
@@ -457,11 +468,18 @@ test("idp renderer separates the overview from the player development profile", 
           objective: "Find the third player before release",
           status: "draft",
           pitchMode: "attacking-half",
-          boardState: { player: { x: 47, y: 66 }, frames: [{ id: "frame-1", label: "Start" }] },
+          boardState: {
+            schema: "idp-player-board-v2",
+            player: { x: 47, y: 66 },
+            frames: [
+              { id: "frame-1", label: "Start", coachCue: "Open body shape", playerCue: "Scan before touch" },
+              { id: "frame-2", label: "Third player", coachCue: "Find the bounce pass", playerCue: "Play forward after scan", clipAnchor: "clip-12 @ 01:18" },
+            ],
+          },
         },
       ],
     },
-    ui: { ...profileState.ui, profileView: "player-board", playerBoardInterventionId: "intervention-b", playerBoardSearchQuery: "short" },
+    ui: { ...profileState.ui, profileView: "player-board", playerBoardInterventionId: "intervention-b", playerBoardSearchQuery: "short", playerBoardPreviewFrameIndex: 1 },
   }, staffOptions);
   expect(playerBoardHtml).toContain("idp-profile-player-board-page");
   expect(playerBoardHtml).toContain("Player Board");
@@ -482,6 +500,16 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain("Redigera");
   expect(playerBoardHtml).toContain("Ny övning");
   expect(playerBoardHtml).toContain("Koppla klipp");
+  expect(playerBoardHtml).toContain("Coach Playback");
+  expect(playerBoardHtml).toContain("data-idp-player-board-preview");
+  expect(playerBoardHtml).toContain('data-idp-player-board-frame-count="2"');
+  expect(playerBoardHtml).toContain("data-idp-player-board-preview-play");
+  expect(playerBoardHtml).toContain("data-idp-player-board-preview-stop hidden");
+  expect(playerBoardHtml).toContain('data-idp-player-board-preview-frame="1"');
+  expect(playerBoardHtml).toContain("Third player");
+  expect(playerBoardHtml).toContain("Find the bounce pass");
+  expect(playerBoardHtml).toContain("Play forward after scan");
+  expect(playerBoardHtml).toContain("clip-12 @ 01:18");
   expect(playerBoardHtml).toContain("session-pitch-touchline");
   expect(playerBoardHtml).toContain("idp-tactical-board-svg");
   expect(playerBoardHtml).toContain('data-idp-board-object="player"');
@@ -1612,7 +1640,7 @@ test("idp profile overview navigation is not blocked by stale filter state", asy
   expect(indexSource.indexOf("const backTrigger = event?.target?.closest?.(\"[data-idp-back-overview]\")"))
     .toBeLessThan(indexSource.indexOf("const openFilterMenu = runtime?.store.getState?.()?.ui?.openFilterMenu"));
   expect(indexSource).toContain(".idp-stage-actions[open]");
-  expect(indexSource).toContain('openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", playerBoardSearchQuery: "", error: "", message: ""');
+  expect(indexSource).toContain('openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", playerBoardSearchQuery: "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, error: "", message: ""');
 
   const store = createIdpStore({ ui: { openFilterMenu: "owner" } });
   const actions = createIdpActions({

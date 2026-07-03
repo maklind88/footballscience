@@ -120,6 +120,55 @@ function boardState(intervention = {}, focus = {}, profile = {}) {
   };
 }
 
+function normalizeFrameIndex(value, total = 1) {
+  const count = Math.max(1, Number(total) || 1);
+  const index = Number(value);
+  return Number.isInteger(index) && index >= 0 && index < count ? index : 0;
+}
+
+function boardFrameArray(sourceItems = [], fallbackItems = [], limit = 8) {
+  const source = Array.isArray(sourceItems) && sourceItems.length ? sourceItems : fallbackItems;
+  return Array.isArray(source) ? source.slice(0, limit).map((item) => ({ ...item })) : [];
+}
+
+function boardFrameFromState(state = {}, frame = {}, index = 0) {
+  return {
+    id: normalizeText(frame.id, `frame-${index + 1}`) || `frame-${index + 1}`,
+    label: normalizeText(frame.label, index === 0 ? "Start" : `Frame ${index + 1}`) || `Frame ${index + 1}`,
+    player: {
+      x: clampPercent(frame.player?.x, clampPercent(state.player?.x, 50)),
+      y: clampPercent(frame.player?.y, clampPercent(state.player?.y, 70)),
+    },
+    referencePlayers: boardFrameArray(frame.referencePlayers, state.referencePlayers, 6),
+    cones: boardFrameArray(frame.cones, state.cones, 12),
+    zones: boardFrameArray(frame.zones, state.zones, 6),
+    arrows: boardFrameArray(frame.arrows, state.arrows, 8),
+    notes: boardFrameArray(frame.notes, state.notes, 6),
+  };
+}
+
+function boardFramesFromState(state = {}) {
+  const sourceFrames = Array.isArray(state.frames) && state.frames.length ? state.frames.slice(0, 8) : [{ id: "frame-1", label: "Start" }];
+  return sourceFrames.map((frame, index) => boardFrameFromState(state, frame, index));
+}
+
+function boardStateForFrame(state = {}, frameIndex = 0) {
+  const frames = boardFramesFromState(state);
+  const safeIndex = normalizeFrameIndex(frameIndex ?? state.activeFrameIndex, frames.length);
+  const frame = frames[safeIndex] || frames[0] || boardFrameFromState(state);
+  return {
+    ...state,
+    activeFrameIndex: safeIndex,
+    frames,
+    player: frame.player,
+    referencePlayers: frame.referencePlayers,
+    cones: frame.cones,
+    zones: frame.zones,
+    arrows: frame.arrows,
+    notes: frame.notes,
+  };
+}
+
 function activeIntervention(detail = {}, ui = {}) {
   const interventions = Array.isArray(detail.interventions) ? detail.interventions.filter((item) => item.status !== "archived") : [];
   const selected = interventions.find((item) => item.id && item.id === ui.playerBoardInterventionId);
@@ -316,7 +365,7 @@ function renderArrowElement(arrow = {}, markerId = "idp-player-board-arrow") {
 }
 
 function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options = {}) {
-  const state = boardState(intervention, focus, profile);
+  const state = boardStateForFrame(boardState(intervention, focus, profile), options.frameIndex);
   const player = state.player || {};
   const initials = initialsFromName(profile.playerName || profile.name || "Player", "P");
   const playerName = normalizeText(profile.playerName || profile.name || "Player", "Player");
@@ -552,23 +601,36 @@ function renderBoardToolGroups(activeTool = "player") {
   `).join("");
 }
 
-function renderBoardFrameStrip(frames = []) {
+function renderBoardFrameStrip(frames = [], activeFrameIndex = 0) {
   const safeFrames = Array.isArray(frames) && frames.length ? frames.slice(0, 6) : [{ id: "frame-1", label: "Start" }];
-  const frameStatusLabel = `1 / ${safeFrames.length || 1}`;
+  const safeIndex = normalizeFrameIndex(activeFrameIndex, safeFrames.length);
+  const frameStatusLabel = `${safeIndex + 1} / ${safeFrames.length || 1}`;
   return `
     <div class="session-tacticalboard-frames idp-player-board-editor-framebar" aria-label="IDP board frames">
       <div class="session-tacticalboard-panel-head idp-player-board-editor-panel-head">
         <span>Frames</span>
-        <small>${escapeHtml(frameStatusLabel)}</small>
+        <small data-idp-board-frame-status>${escapeHtml(frameStatusLabel)}</small>
       </div>
       <div class="session-tacticalboard-frame-list idp-player-board-frame-list">
         ${safeFrames.map((frame, index) => `
-          <button type="button" class="session-tacticalboard-frame idp-player-board-frame${index === 0 ? " is-active" : ""}" title="${escapeHtml(frame.label || `Frame ${index + 1}`)}">${index + 1}</button>
+          <button
+            type="button"
+            class="session-tacticalboard-frame idp-player-board-frame${index === safeIndex ? " is-active" : ""}"
+            data-idp-board-frame-index="${index}"
+            aria-pressed="${index === safeIndex ? "true" : "false"}"
+            title="${escapeHtml(frame.label || `Frame ${index + 1}`)}"
+          >${index + 1}</button>
         `).join("")}
       </div>
       <div class="idp-player-board-history-controls" aria-label="Tactical board history">
         <button type="button" data-idp-board-undo disabled title="Undo">Undo</button>
         <button type="button" data-idp-board-redo disabled title="Redo">Redo</button>
+      </div>
+      <div class="idp-player-board-frame-actions" aria-label="Frame controls">
+        <button type="button" data-idp-board-frame-add title="Add frame">New</button>
+        <button type="button" data-idp-board-frame-duplicate title="Duplicate active frame">Duplicate</button>
+        <button type="button" data-idp-board-play title="Play frames">Play</button>
+        <button type="button" data-idp-board-stop hidden title="Stop playback">Stop</button>
       </div>
     </div>
   `;
@@ -578,7 +640,10 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
   if (!ui.playerBoardOpen) return "";
   const interventions = Array.isArray(detail.interventions) ? detail.interventions.filter((item) => item.status !== "archived") : [];
   const intervention = selectedEditorIntervention(detail, focus, profile, ui);
-  const state = boardState(intervention, focus, profile);
+  const rawState = boardState(intervention, focus, profile);
+  const frames = boardFramesFromState(rawState);
+  const activeFrameIndex = normalizeFrameIndex(rawState.activeFrameIndex, frames.length);
+  const state = boardStateForFrame(rawState, activeFrameIndex);
   const player = state.player || {};
   const reference = state.referencePlayers?.[0] || {};
   const cones = Array.isArray(state.cones) ? state.cones : [];
@@ -589,7 +654,7 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
   const arrowLineStyle = normalizeBoardLineStyle(arrow.lineStyle, arrowType === "pass" ? "dotted" : arrowType === "run" ? "dashed" : "solid");
   const arrowLineWidth = normalizeBoardLineWidth(arrow.lineWidth, 2.5);
   const note = state.notes?.[0] || {};
-  const frame = state.frames?.[0] || {};
+  const frame = state.frames?.[activeFrameIndex] || state.frames?.[0] || {};
   const counts = interventionCounts(intervention);
   const linkedClipIds = Array.isArray(state.linkedClipIds) ? state.linkedClipIds.join(", ") : "";
   return `
@@ -646,9 +711,9 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
             </div>
           </aside>
           <div class="session-tacticalboard-canvas-wrap idp-player-board-canvas-wrap" data-idp-player-board-canvas-wrap>
-            ${renderBoardFrameStrip(state.frames)}
+            ${renderBoardFrameStrip(state.frames, activeFrameIndex)}
             <div class="idp-player-board-editor-stage">
-              ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-editor-arrow", editor: true })}
+              ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-editor-arrow", editor: true, frameIndex: activeFrameIndex })}
             </div>
             <div class="session-tacticalboard-hint idp-player-board-editor-hint">
               <strong data-idp-board-hint-tool>Move Player</strong>
@@ -660,6 +725,8 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
             <input type="hidden" name="focusId" value="${fieldValue(focus?.id)}">
             <input type="hidden" name="rowVersion" value="${fieldValue(intervention.rowVersion || 1)}">
             <input type="hidden" name="arrowType" value="${fieldValue(arrowType)}" data-idp-board-arrow-type>
+            <input type="hidden" name="activeFrameIndex" value="${fieldValue(String(activeFrameIndex))}" data-idp-board-active-frame-index>
+            <input type="hidden" name="boardFramesJson" value="${fieldValue(JSON.stringify(state.frames || []))}" data-idp-board-frames>
             ${renderBoardGeometryInputs({ player, reference, cones, zone, arrow, note })}
             <section class="idp-tactical-inspector-card is-selected" data-idp-board-inspector>
               <span>Selected Tool</span>

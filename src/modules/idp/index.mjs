@@ -46,6 +46,7 @@ const BOARD_HISTORY_FIELDS = [
   "noteText",
   "noteX",
   "noteY",
+  "frameLabel",
 ];
 
 function normalizeContext(context = {}) {
@@ -216,6 +217,7 @@ function ensureRuntime(context = {}) {
     api,
     boardDrag: null,
     boardPointerEventsBound: false,
+    boardPlaybackTimer: null,
     boardRedoStack: [],
     boardSuppressNextClick: false,
     boardUndoStack: [],
@@ -467,6 +469,153 @@ function boardSnapshotsEqual(a = {}, b = {}) {
   return BOARD_HISTORY_FIELDS.every((name) => String(a[name] ?? "") === String(b[name] ?? ""));
 }
 
+function boardFormText(modal, name, fallback = "") {
+  return String(modal?.querySelector?.(`[name="${name}"]`)?.value || fallback).trim();
+}
+
+function escapeBoardHtml(value = "") {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function readBoardFrames(modal) {
+  const input = modal?.querySelector?.("[data-idp-board-frames]");
+  try {
+    const parsed = JSON.parse(input?.value || "[]");
+    return Array.isArray(parsed) ? parsed.slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeBoardFrames(modal, frames = []) {
+  const input = modal?.querySelector?.("[data-idp-board-frames]");
+  if (!input) return;
+  input.value = JSON.stringify(Array.isArray(frames) ? frames.slice(0, 8) : []);
+}
+
+function activeBoardFrameIndex(modal, total = 1) {
+  const count = Math.max(1, Number(total) || 1);
+  const value = Number(modal?.querySelector?.("[data-idp-board-active-frame-index]")?.value);
+  return Number.isInteger(value) && value >= 0 && value < count ? value : 0;
+}
+
+function setActiveBoardFrameIndex(modal, index = 0, total = 1) {
+  const count = Math.max(1, Number(total) || 1);
+  const safeIndex = Number.isInteger(Number(index)) ? Math.min(count - 1, Math.max(0, Number(index))) : 0;
+  const input = modal?.querySelector?.("[data-idp-board-active-frame-index]");
+  if (input) input.value = String(safeIndex);
+  modal?.querySelectorAll?.("[data-idp-board-frame-index]")?.forEach((button) => {
+    const isActive = Number(button.dataset.idpBoardFrameIndex || 0) === safeIndex;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+  modal?.querySelectorAll?.("[data-idp-board-frame-status]")?.forEach((node) => {
+    node.textContent = `${safeIndex + 1} / ${count}`;
+  });
+}
+
+function boardFrameFromModal(modal, existingFrame = {}, index = 0) {
+  const arrowType = boardFormText(modal, "arrowType", "run");
+  const arrowLabel = boardFormText(modal, "arrowLabel", "Action path");
+  const noteText = boardFormText(modal, "noteText", "");
+  const referenceLabel = boardFormText(modal, "referenceLabel", "REF");
+  const zoneLabel = boardFormText(modal, "zoneLabel", "Development zone");
+  return {
+    id: existingFrame.id || `frame-${index + 1}`,
+    label: boardFormText(modal, "frameLabel", existingFrame.label || (index === 0 ? "Start" : `Frame ${index + 1}`)),
+    player: {
+      x: boardFormNumber(modal, "playerX", 50),
+      y: boardFormNumber(modal, "playerY", 70),
+    },
+    referencePlayers: referenceLabel ? [{
+      id: existingFrame.referencePlayers?.[0]?.id || "reference-1",
+      label: referenceLabel,
+      x: boardFormNumber(modal, "referenceX", 50),
+      y: boardFormNumber(modal, "referenceY", 44),
+    }] : [],
+    cones: [1, 2, 3].map((coneIndex) => ({
+      id: existingFrame.cones?.[coneIndex - 1]?.id || `cone-${coneIndex}`,
+      x: boardFormNumber(modal, `cone${coneIndex}X`, coneIndex === 1 ? 40 : coneIndex === 2 ? 60 : 50),
+      y: boardFormNumber(modal, `cone${coneIndex}Y`, coneIndex === 3 ? 42 : 58),
+    })),
+    zones: zoneLabel ? [{
+      id: existingFrame.zones?.[0]?.id || "zone-1",
+      label: zoneLabel,
+      x: boardFormNumber(modal, "zoneX", 34),
+      y: boardFormNumber(modal, "zoneY", 28),
+      width: boardFormNumber(modal, "zoneWidth", 32),
+      height: boardFormNumber(modal, "zoneHeight", 28),
+    }] : [],
+    arrows: arrowLabel ? [{
+      id: existingFrame.arrows?.[0]?.id || "arrow-1",
+      type: arrowType,
+      label: arrowLabel,
+      color: boardFormText(modal, "arrowColor", "#38bdf8"),
+      lineStyle: boardFormText(modal, "arrowLineStyle", "dashed"),
+      lineWidth: boardFormNumber(modal, "arrowLineWidth", 2.5),
+      from: {
+        x: boardFormNumber(modal, "arrowFromX", boardFormNumber(modal, "playerX", 50)),
+        y: boardFormNumber(modal, "arrowFromY", boardFormNumber(modal, "playerY", 70)),
+      },
+      to: {
+        x: boardFormNumber(modal, "arrowToX", 62),
+        y: boardFormNumber(modal, "arrowToY", 42),
+      },
+    }] : [],
+    notes: noteText ? [{
+      id: existingFrame.notes?.[0]?.id || "note-1",
+      text: noteText,
+      x: boardFormNumber(modal, "noteX", 12),
+      y: boardFormNumber(modal, "noteY", 14),
+    }] : [],
+  };
+}
+
+function boardSnapshotFromFrame(frame = {}) {
+  const player = frame.player || {};
+  const reference = frame.referencePlayers?.[0] || {};
+  const cones = Array.isArray(frame.cones) ? frame.cones : [];
+  const zone = frame.zones?.[0] || {};
+  const arrow = frame.arrows?.[0] || {};
+  const note = frame.notes?.[0] || {};
+  return {
+    playerX: player.x ?? 50,
+    playerY: player.y ?? 70,
+    referenceLabel: reference.label || "REF",
+    referenceX: reference.x ?? 50,
+    referenceY: reference.y ?? 44,
+    cone1X: cones[0]?.x ?? 40,
+    cone1Y: cones[0]?.y ?? 58,
+    cone2X: cones[1]?.x ?? 60,
+    cone2Y: cones[1]?.y ?? 58,
+    cone3X: cones[2]?.x ?? 50,
+    cone3Y: cones[2]?.y ?? 42,
+    zoneLabel: zone.label || "Development zone",
+    zoneX: zone.x ?? 34,
+    zoneY: zone.y ?? 28,
+    zoneWidth: zone.width ?? 32,
+    zoneHeight: zone.height ?? 28,
+    arrowLabel: arrow.label || "Action path",
+    arrowFromX: arrow.from?.x ?? player.x ?? 50,
+    arrowFromY: arrow.from?.y ?? player.y ?? 70,
+    arrowToX: arrow.to?.x ?? 62,
+    arrowToY: arrow.to?.y ?? 42,
+    arrowType: arrow.type || "run",
+    arrowColor: arrow.color || "#38bdf8",
+    arrowLineStyle: arrow.lineStyle || "dashed",
+    arrowLineWidth: arrow.lineWidth ?? 2.5,
+    noteText: note.text || "",
+    noteX: note.x ?? 12,
+    noteY: note.y ?? 14,
+    frameLabel: frame.label || "Frame",
+  };
+}
+
 function updateBoardZoneVisual(modal) {
   const zone = modal?.querySelector?.(".idp-player-board-zone");
   if (!zone) return;
@@ -531,6 +680,106 @@ function applyBoardSnapshot(modal, snapshot = {}) {
   updateBoardNoteVisual(modal);
 }
 
+function syncActiveBoardFrameFromModal(modal) {
+  if (!modal) return [];
+  const frames = readBoardFrames(modal);
+  const index = activeBoardFrameIndex(modal, frames.length || 1);
+  const safeFrames = frames.length ? frames : [boardFrameFromModal(modal, {}, 0)];
+  safeFrames[index] = boardFrameFromModal(modal, safeFrames[index], index);
+  writeBoardFrames(modal, safeFrames);
+  setActiveBoardFrameIndex(modal, index, safeFrames.length);
+  return safeFrames;
+}
+
+function applyBoardFrameToModal(modal, frame = {}, index = 0) {
+  if (!modal) return;
+  applyBoardSnapshot(modal, boardSnapshotFromFrame(frame));
+  setActiveBoardFrameIndex(modal, index, readBoardFrames(modal).length || 1);
+  modal.querySelectorAll?.("[data-idp-board-color-choice]")?.forEach((button) => {
+    button.classList.toggle("is-active", String(button.dataset.idpBoardColorChoice || "").toLowerCase() === boardFormText(modal, "arrowColor", "").toLowerCase());
+  });
+}
+
+function selectBoardFrame(modal, index = 0) {
+  if (!modal) return false;
+  stopBoardPlayback(runtime, modal);
+  const frames = syncActiveBoardFrameFromModal(modal);
+  const safeIndex = activeBoardFrameIndex({ querySelector: () => ({ value: String(index) }) }, frames.length);
+  writeBoardFrames(modal, frames);
+  setActiveBoardFrameIndex(modal, safeIndex, frames.length);
+  applyBoardFrameToModal(modal, frames[safeIndex], safeIndex);
+  resetBoardHistory(runtime);
+  updateBoardHistoryButtons(modal);
+  return true;
+}
+
+function rebuildBoardFrameButtons(modal, frames = [], activeIndex = 0) {
+  const list = modal?.querySelector?.(".idp-player-board-frame-list");
+  if (!list) return;
+  list.innerHTML = frames.map((frame, index) => `
+    <button
+      type="button"
+      class="session-tacticalboard-frame idp-player-board-frame${index === activeIndex ? " is-active" : ""}"
+      data-idp-board-frame-index="${index}"
+      aria-pressed="${index === activeIndex ? "true" : "false"}"
+      title="${escapeBoardHtml(frame.label || `Frame ${index + 1}`)}"
+    >${index + 1}</button>
+  `).join("");
+  setActiveBoardFrameIndex(modal, activeIndex, frames.length || 1);
+}
+
+function addBoardFrame(modal, duplicateActive = false) {
+  if (!modal) return false;
+  stopBoardPlayback(runtime, modal);
+  const frames = syncActiveBoardFrameFromModal(modal);
+  if (frames.length >= 8) return false;
+  const currentIndex = activeBoardFrameIndex(modal, frames.length || 1);
+  const source = duplicateActive ? frames[currentIndex] : boardFrameFromModal(modal, {}, currentIndex);
+  const nextIndex = frames.length;
+  const nextFrame = {
+    ...(source || {}),
+    id: `frame-${nextIndex + 1}`,
+    label: duplicateActive ? `${source?.label || `Frame ${currentIndex + 1}`} copy` : `Frame ${nextIndex + 1}`,
+  };
+  const nextFrames = [...frames, nextFrame].slice(0, 8);
+  writeBoardFrames(modal, nextFrames);
+  rebuildBoardFrameButtons(modal, nextFrames, nextIndex);
+  applyBoardFrameToModal(modal, nextFrame, nextIndex);
+  resetBoardHistory(runtime);
+  updateBoardHistoryButtons(modal);
+  return true;
+}
+
+function setBoardPlaybackState(modal, isPlaying = false) {
+  const playButton = modal?.querySelector?.("[data-idp-board-play]");
+  const stopButton = modal?.querySelector?.("[data-idp-board-stop]");
+  if (playButton) playButton.hidden = isPlaying;
+  if (stopButton) stopButton.hidden = !isPlaying;
+}
+
+function stopBoardPlayback(activeRuntime = runtime, modal = null) {
+  if (activeRuntime?.boardPlaybackTimer) {
+    clearInterval(activeRuntime.boardPlaybackTimer);
+    activeRuntime.boardPlaybackTimer = null;
+  }
+  setBoardPlaybackState(modal || getRoot(activeRuntime?.context)?.querySelector?.(".idp-player-board-modal"), false);
+}
+
+function playBoardFrames(activeRuntime = runtime, modal) {
+  if (!modal) return false;
+  const frames = syncActiveBoardFrameFromModal(modal);
+  if (frames.length < 2) return false;
+  stopBoardPlayback(activeRuntime, modal);
+  let index = activeBoardFrameIndex(modal, frames.length);
+  setBoardPlaybackState(modal, true);
+  activeRuntime.boardPlaybackTimer = setInterval(() => {
+    index = (index + 1) % frames.length;
+    setActiveBoardFrameIndex(modal, index, frames.length);
+    applyBoardFrameToModal(modal, frames[index], index);
+  }, 900);
+  return true;
+}
+
 function updateBoardHistoryButtons(modal) {
   const undoButton = modal?.querySelector?.("[data-idp-board-undo]");
   const redoButton = modal?.querySelector?.("[data-idp-board-redo]");
@@ -556,6 +805,7 @@ function undoBoardHistory(activeRuntime = runtime, modal) {
   if (!previous || !modal) return false;
   activeRuntime.boardRedoStack = [...(activeRuntime.boardRedoStack || []), captureBoardSnapshot(modal)].slice(-40);
   applyBoardSnapshot(modal, previous);
+  syncActiveBoardFrameFromModal(modal);
   updateBoardHistoryButtons(modal);
   return true;
 }
@@ -565,6 +815,7 @@ function redoBoardHistory(activeRuntime = runtime, modal) {
   if (!next || !modal) return false;
   activeRuntime.boardUndoStack = [...(activeRuntime.boardUndoStack || []), captureBoardSnapshot(modal)].slice(-40);
   applyBoardSnapshot(modal, next);
+  syncActiveBoardFrameFromModal(modal);
   updateBoardHistoryButtons(modal);
   return true;
 }
@@ -803,6 +1054,7 @@ function handleBoardPointerDown(event, activeRuntime = runtime) {
   const pitch = object?.closest?.("[data-idp-board-editor-pitch]");
   if (!object || !modal || !pitch) return;
   event.preventDefault?.();
+  stopBoardPlayback(activeRuntime, modal);
   const point = boardPointFromEvent(event, pitch);
   const selectedObject = boardObjectForPointer(modal, object, point);
   selectBoardObject(modal, selectedObject);
@@ -842,6 +1094,7 @@ function handleBoardPointerUp(event, activeRuntime = runtime) {
   event?.preventDefault?.();
   if (drag.moved) {
     pushBoardHistory(activeRuntime, drag.modal, drag.before, captureBoardSnapshot(drag.modal));
+    syncActiveBoardFrameFromModal(drag.modal);
   }
   delete drag.modal.dataset.idpBoardMovementDragHandle;
   activeRuntime.boardDrag = null;
@@ -1094,6 +1347,36 @@ export function handleClick(event) {
     redoBoardHistory(runtime, boardRedoTrigger.closest?.(".idp-player-board-modal"));
     return;
   }
+  const boardFrameTrigger = event?.target?.closest?.("[data-idp-board-frame-index]");
+  if (boardFrameTrigger) {
+    event?.preventDefault?.();
+    selectBoardFrame(boardFrameTrigger.closest?.(".idp-player-board-modal"), Number(boardFrameTrigger.dataset.idpBoardFrameIndex || 0));
+    return;
+  }
+  const boardFrameAdd = event?.target?.closest?.("[data-idp-board-frame-add]");
+  if (boardFrameAdd) {
+    event?.preventDefault?.();
+    addBoardFrame(boardFrameAdd.closest?.(".idp-player-board-modal"), false);
+    return;
+  }
+  const boardFrameDuplicate = event?.target?.closest?.("[data-idp-board-frame-duplicate]");
+  if (boardFrameDuplicate) {
+    event?.preventDefault?.();
+    addBoardFrame(boardFrameDuplicate.closest?.(".idp-player-board-modal"), true);
+    return;
+  }
+  const boardPlay = event?.target?.closest?.("[data-idp-board-play]");
+  if (boardPlay) {
+    event?.preventDefault?.();
+    playBoardFrames(runtime, boardPlay.closest?.(".idp-player-board-modal"));
+    return;
+  }
+  const boardStop = event?.target?.closest?.("[data-idp-board-stop]");
+  if (boardStop) {
+    event?.preventDefault?.();
+    stopBoardPlayback(runtime, boardStop.closest?.(".idp-player-board-modal"));
+    return;
+  }
   const boardEditorPitch = event?.target?.closest?.("[data-idp-board-editor-pitch]");
   if (boardEditorPitch) {
     event?.preventDefault?.();
@@ -1105,12 +1388,14 @@ export function handleClick(event) {
     const before = captureBoardSnapshot(modal);
     if (applyBoardPitchPoint(event, boardEditorPitch)) {
       pushBoardHistory(runtime, modal, before, captureBoardSnapshot(modal));
+      syncActiveBoardFrameFromModal(modal);
       return;
     }
   }
   const playerBoardClose = event?.target?.closest?.("[data-idp-player-board-close]");
   if (playerBoardClose || event?.target?.matches?.("[data-idp-player-board-layer]")) {
     event?.preventDefault?.();
+    stopBoardPlayback(runtime, playerBoardClose?.closest?.(".idp-player-board-modal") || getRoot(runtime?.context)?.querySelector?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
     runtime?.store.setState({ ui: { playerBoardOpen: false, playerBoardInterventionId: "" } });
     return;
@@ -1118,6 +1403,7 @@ export function handleClick(event) {
   const playerBoardNew = event?.target?.closest?.("[data-idp-player-board-new]");
   if (playerBoardNew) {
     event?.preventDefault?.();
+    stopBoardPlayback(runtime, playerBoardNew.closest?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
     runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: "__new", actionMode: "", error: "", message: "" } });
     return;
@@ -1131,6 +1417,7 @@ export function handleClick(event) {
   const playerBoardOpen = event?.target?.closest?.("[data-idp-player-board-open]");
   if (playerBoardOpen) {
     event?.preventDefault?.();
+    stopBoardPlayback(runtime, playerBoardOpen.closest?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
     runtime?.store.setState({ ui: { playerBoardOpen: true, actionMode: "", error: "", message: "" } });
     return;
@@ -1138,6 +1425,7 @@ export function handleClick(event) {
   const playerBoardSelect = event?.target?.closest?.("[data-idp-player-board-select]");
   if (playerBoardSelect) {
     event?.preventDefault?.();
+    stopBoardPlayback(runtime, playerBoardSelect.closest?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
     runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: playerBoardSelect.dataset.idpPlayerBoardSelect || "" } });
     return;
@@ -1239,6 +1527,10 @@ export function handleSubmit(event) {
     return;
   }
   event.preventDefault();
+  if (form.matches("[data-idp-save-intervention]")) {
+    syncActiveBoardFrameFromModal(form.closest?.(".idp-player-board-modal"));
+    stopBoardPlayback(runtime, form.closest?.(".idp-player-board-modal"));
+  }
   const formData = new FormData(form);
   if (form.matches("[data-idp-create-focus]")) {
     runAction(() => runtime?.actions.createFocus(formData));

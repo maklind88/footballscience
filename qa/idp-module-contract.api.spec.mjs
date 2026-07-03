@@ -130,6 +130,10 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("data-idp-board-undo");
   expect(playerBoardRenderer).toContain("data-idp-board-redo");
   expect(playerBoardRenderer).toContain("data-idp-board-movement-handle");
+  expect(playerBoardRenderer).toContain("data-idp-board-frame-add");
+  expect(playerBoardRenderer).toContain("data-idp-board-frame-duplicate");
+  expect(playerBoardRenderer).toContain("data-idp-board-play");
+  expect(playerBoardRenderer).toContain("boardFramesJson");
   expect(idpRenderer).toContain("data-idp-player-board-preview-select");
   expect(playerBoardRenderer).toContain("Linked goal");
   expect(playerBoardRenderer).toContain("Success criteria");
@@ -141,6 +145,10 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(idpRuntime).toContain("pushBoardHistory");
   expect(idpRuntime).toContain("undoBoardHistory");
   expect(idpRuntime).toContain("redoBoardHistory");
+  expect(idpRuntime).toContain("selectBoardFrame");
+  expect(idpRuntime).toContain("addBoardFrame");
+  expect(idpRuntime).toContain("playBoardFrames");
+  expect(idpRuntime).toContain("syncActiveBoardFrameFromModal");
   expect(idpRuntime).toContain("selectBoardTool");
   expect(idpRuntime).toContain("setBoardArrowPreset");
   expect(playerBoardRenderer).not.toContain("data-session-");
@@ -618,6 +626,10 @@ test("idp renderer separates the overview from the player development profile", 
   expect(boardHtml).toContain('data-idp-board-object="movement-to"');
   expect(boardHtml).toContain("data-idp-board-undo");
   expect(boardHtml).toContain("data-idp-board-redo");
+  expect(boardHtml).toContain("data-idp-board-frame-add");
+  expect(boardHtml).toContain("data-idp-board-frame-duplicate");
+  expect(boardHtml).toContain("data-idp-board-play");
+  expect(boardHtml).toContain("data-idp-board-active-frame-index");
   expect(boardHtml).toContain("Movement colour");
   expect(boardHtml).toContain("Linked clip ids");
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, staffOptions)).toContain("data-idp-complete-review");
@@ -952,6 +964,23 @@ test("idp individual exercise save and archive stay behind the server boundary",
     ["noteX", "12"],
     ["noteY", "14"],
     ["frameLabel", "Frame one"],
+    ["activeFrameIndex", "1"],
+    ["boardFramesJson", JSON.stringify([
+      {
+        id: "frame-1",
+        label: "Start",
+        player: { x: 42, y: 76 },
+        cones: [{ id: "cone-1", x: 38, y: 60 }],
+        arrows: [{ id: "arrow-1", type: "run", label: "Start run", from: { x: 42, y: 76 }, to: { x: 54, y: 52 } }],
+      },
+      {
+        id: "frame-2",
+        label: "Frame two",
+        player: { x: 48, y: 72 },
+        cones: [{ id: "cone-1", x: 46, y: 61 }],
+        arrows: [{ id: "arrow-1", type: "pass", label: "Release pass", from: { x: 48, y: 72 }, to: { x: 62, y: 42 } }],
+      },
+    ])],
     ["linkedClipIds", "clip-1, clip-2"],
   ]);
 
@@ -970,6 +999,8 @@ test("idp individual exercise save and archive stay behind the server boundary",
     successCriteria: ["Early body shape", "Clear first pass"],
   });
   expect(updatePayloads[0].boardState).toMatchObject({
+    schema: "idp-player-board-v2",
+    activeFrameIndex: 1,
     player: { x: 50, y: 82 },
     cones: [
       { id: "cone-1", x: 44, y: 60 },
@@ -979,6 +1010,14 @@ test("idp individual exercise save and archive stay behind the server boundary",
     arrows: [{ type: "run", color: "#38bdf8", lineStyle: "dashed", lineWidth: 3.25 }],
     linkedClipIds: ["clip-1", "clip-2"],
   });
+  expect(updatePayloads[0].boardState.frames).toHaveLength(2);
+  expect(updatePayloads[0].boardState.frames[0]).toMatchObject({ id: "frame-1", label: "Start", player: { x: 42, y: 76 } });
+  expect(updatePayloads[0].boardState.frames[1]).toMatchObject({
+    id: "frame-2",
+    label: "Frame one",
+    player: { x: 50, y: 82 },
+  });
+  expect(updatePayloads[0].boardState.frames[1].cones[0]).toMatchObject({ id: "cone-1", x: 44, y: 60 });
   expect(archivePayloads[0]).toMatchObject({ id: "intervention-1", playerId: "p1", rowVersion: 3 });
 });
 

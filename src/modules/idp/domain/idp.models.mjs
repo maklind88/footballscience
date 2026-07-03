@@ -55,6 +55,90 @@ function normalizeBoardArrowType(value, fallback = "run") {
   return ["arrow", "pass", "run", "line", "curve"].includes(type) ? type : fallback;
 }
 
+function normalizeBoardPlayer(value = {}, fallback = {}) {
+  return {
+    x: normalizeDecimal(value?.x, normalizeDecimal(fallback?.x, 50)),
+    y: normalizeDecimal(value?.y, normalizeDecimal(fallback?.y, 70)),
+  };
+}
+
+function normalizeBoardReferencePlayers(values = [], fallback = []) {
+  const source = Array.isArray(values) && values.length ? values : fallback;
+  return Array.isArray(source) ? source.slice(0, 6).map((item = {}, index) => ({
+    id: normalizeText(item.id || `ref-${index + 1}`, 80),
+    label: normalizeText(item.label || "REF", 24),
+    x: normalizeDecimal(item.x, 50),
+    y: normalizeDecimal(item.y, 45),
+  })) : [];
+}
+
+function normalizeBoardCones(values = [], fallback = []) {
+  const source = Array.isArray(values) && values.length ? values : fallback;
+  return Array.isArray(source) ? source.slice(0, 12).map((item = {}, index) => ({
+    id: normalizeText(item.id || `cone-${index + 1}`, 80),
+    x: normalizeDecimal(item.x, 50),
+    y: normalizeDecimal(item.y, 50),
+  })) : [];
+}
+
+function normalizeBoardZones(values = [], fallback = []) {
+  const source = Array.isArray(values) && values.length ? values : fallback;
+  return Array.isArray(source) ? source.slice(0, 6).map((item = {}, index) => ({
+    id: normalizeText(item.id || `zone-${index + 1}`, 80),
+    label: normalizeText(item.label || "Development zone", 80),
+    x: normalizeDecimal(item.x, 36),
+    y: normalizeDecimal(item.y, 34),
+    width: normalizeDecimal(item.width, 28),
+    height: normalizeDecimal(item.height, 22),
+  })) : [];
+}
+
+function normalizeBoardArrows(values = [], fallback = []) {
+  const source = Array.isArray(values) && values.length ? values : fallback;
+  return Array.isArray(source) ? source.slice(0, 8).map((item = {}, index) => {
+    const type = normalizeBoardArrowType(item.type, "run");
+    return {
+      id: normalizeText(item.id || `arrow-${index + 1}`, 80),
+      type,
+      label: normalizeText(item.label || "Movement", 80),
+      color: normalizeBoardColor(item.color, type === "pass" ? "#fbbf24" : "#38bdf8"),
+      lineStyle: normalizeBoardLineStyle(item.lineStyle || item.line_style, type === "pass" ? "dotted" : type === "run" ? "dashed" : "solid"),
+      lineWidth: normalizeBoardLineWidth(item.lineWidth || item.line_width, 2.5),
+      from: { x: normalizeDecimal(item.from?.x, 45), y: normalizeDecimal(item.from?.y, 70) },
+      to: { x: normalizeDecimal(item.to?.x, 60), y: normalizeDecimal(item.to?.y, 44) },
+    };
+  }) : [];
+}
+
+function normalizeBoardNotes(values = [], fallback = []) {
+  const source = Array.isArray(values) && values.length ? values : fallback;
+  return Array.isArray(source) ? source.slice(0, 6).map((item = {}, index) => ({
+    id: normalizeText(item.id || `note-${index + 1}`, 80),
+    text: normalizeText(item.text, 220),
+    x: normalizeDecimal(item.x, 12),
+    y: normalizeDecimal(item.y, 14),
+  })).filter((item) => item.text) : [];
+}
+
+function normalizeBoardFrame(value = {}, index = 0, fallbackState = {}) {
+  return {
+    id: normalizeText(value.id || `frame-${index + 1}`, 80),
+    label: normalizeText(value.label || `Frame ${index + 1}`, 80),
+    player: normalizeBoardPlayer(value.player, fallbackState.player),
+    referencePlayers: normalizeBoardReferencePlayers(value.referencePlayers, fallbackState.referencePlayers),
+    cones: normalizeBoardCones(value.cones, fallbackState.cones),
+    zones: normalizeBoardZones(value.zones, fallbackState.zones),
+    arrows: normalizeBoardArrows(value.arrows, fallbackState.arrows),
+    notes: normalizeBoardNotes(value.notes, fallbackState.notes),
+  };
+}
+
+function normalizeBoardFrameIndex(value, total = 1) {
+  const count = Math.max(1, Number(total) || 1);
+  const index = Number(value);
+  return Number.isInteger(index) && index >= 0 && index < count ? index : 0;
+}
+
 function normalizeLabelList(values = []) {
   return Array.isArray(values)
     ? values.map((entry) => ({
@@ -72,54 +156,29 @@ function pickOption(value, options, fallback) {
 
 function normalizeBoardState(value = {}) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const fallbackState = {
+    player: normalizeBoardPlayer(source.player),
+    referencePlayers: normalizeBoardReferencePlayers(source.referencePlayers),
+    cones: normalizeBoardCones(source.cones),
+    zones: normalizeBoardZones(source.zones),
+    arrows: normalizeBoardArrows(source.arrows),
+    notes: normalizeBoardNotes(source.notes),
+  };
+  const frames = Array.isArray(source.frames)
+    ? source.frames.slice(0, 8).map((item = {}, index) => normalizeBoardFrame(item, index, fallbackState))
+    : [];
+  const activeFrameIndex = normalizeBoardFrameIndex(source.activeFrameIndex ?? source.active_frame_index, frames.length || 1);
+  const primaryFrame = frames[activeFrameIndex] || frames[0] || {};
   return {
     schema: normalizeText(source.schema || "idp-player-board-v1", 80),
-    player: {
-      x: normalizeDecimal(source.player?.x, 50),
-      y: normalizeDecimal(source.player?.y, 70),
-    },
-    referencePlayers: Array.isArray(source.referencePlayers) ? source.referencePlayers.slice(0, 6).map((item = {}, index) => ({
-      id: normalizeText(item.id || `ref-${index + 1}`, 80),
-      label: normalizeText(item.label || "REF", 24),
-      x: normalizeDecimal(item.x, 50),
-      y: normalizeDecimal(item.y, 45),
-    })) : [],
-    cones: Array.isArray(source.cones) ? source.cones.slice(0, 12).map((item = {}, index) => ({
-      id: normalizeText(item.id || `cone-${index + 1}`, 80),
-      x: normalizeDecimal(item.x, 50),
-      y: normalizeDecimal(item.y, 50),
-    })) : [],
-    zones: Array.isArray(source.zones) ? source.zones.slice(0, 6).map((item = {}, index) => ({
-      id: normalizeText(item.id || `zone-${index + 1}`, 80),
-      label: normalizeText(item.label || "Development zone", 80),
-      x: normalizeDecimal(item.x, 36),
-      y: normalizeDecimal(item.y, 34),
-      width: normalizeDecimal(item.width, 28),
-      height: normalizeDecimal(item.height, 22),
-    })) : [],
-    arrows: Array.isArray(source.arrows) ? source.arrows.slice(0, 8).map((item = {}, index) => {
-      const type = normalizeBoardArrowType(item.type, "run");
-      return {
-        id: normalizeText(item.id || `arrow-${index + 1}`, 80),
-        type,
-        label: normalizeText(item.label || "Movement", 80),
-        color: normalizeBoardColor(item.color, type === "pass" ? "#fbbf24" : "#38bdf8"),
-        lineStyle: normalizeBoardLineStyle(item.lineStyle || item.line_style, type === "pass" ? "dotted" : type === "run" ? "dashed" : "solid"),
-        lineWidth: normalizeBoardLineWidth(item.lineWidth || item.line_width, 2.5),
-        from: { x: normalizeDecimal(item.from?.x, 45), y: normalizeDecimal(item.from?.y, 70) },
-        to: { x: normalizeDecimal(item.to?.x, 60), y: normalizeDecimal(item.to?.y, 44) },
-      };
-    }) : [],
-    notes: Array.isArray(source.notes) ? source.notes.slice(0, 6).map((item = {}, index) => ({
-      id: normalizeText(item.id || `note-${index + 1}`, 80),
-      text: normalizeText(item.text, 220),
-      x: normalizeDecimal(item.x, 12),
-      y: normalizeDecimal(item.y, 14),
-    })).filter((item) => item.text) : [],
-    frames: Array.isArray(source.frames) ? source.frames.slice(0, 8).map((item = {}, index) => ({
-      id: normalizeText(item.id || `frame-${index + 1}`, 80),
-      label: normalizeText(item.label || `Frame ${index + 1}`, 80),
-    })) : [],
+    activeFrameIndex,
+    player: primaryFrame.player || fallbackState.player,
+    referencePlayers: primaryFrame.referencePlayers || fallbackState.referencePlayers,
+    cones: primaryFrame.cones || fallbackState.cones,
+    zones: primaryFrame.zones || fallbackState.zones,
+    arrows: primaryFrame.arrows || fallbackState.arrows,
+    notes: primaryFrame.notes || fallbackState.notes,
+    frames,
     linkedClipIds: Array.isArray(source.linkedClipIds) ? source.linkedClipIds.slice(0, 12).map((item) => normalizeText(item, 160)).filter(Boolean) : [],
   };
 }

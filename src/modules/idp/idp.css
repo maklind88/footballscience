@@ -9506,7 +9506,18 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   gap: 6px;
 }
 
+.idp-player-board-frame-actions {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .idp-player-board-history-controls button {
+  min-width: 0;
+}
+
+.idp-player-board-history-controls button,
+.idp-player-board-frame-actions button {
   appearance: none;
   background: rgba(255, 255, 255, .08);
   border: 1px solid rgba(255, 255, 255, .12);
@@ -9521,13 +9532,16 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
 }
 
 .idp-player-board-history-controls button:not(:disabled):hover,
-.idp-player-board-history-controls button:not(:disabled):focus-visible {
+.idp-player-board-history-controls button:not(:disabled):focus-visible,
+.idp-player-board-frame-actions button:not(:disabled):hover,
+.idp-player-board-frame-actions button:not(:disabled):focus-visible {
   background: #e5edf7;
   color: #07111f;
   outline: none;
 }
 
-.idp-player-board-history-controls button:disabled {
+.idp-player-board-history-controls button:disabled,
+.idp-player-board-frame-actions button:disabled {
   cursor: not-allowed;
   opacity: .38;
 }

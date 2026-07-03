@@ -1637,11 +1637,11 @@ function renderPlayerBoardLibraryCommand(detail = {}, focus = {}, profile = {}, 
   `;
 }
 
-function renderProfilePlayerBoardPage(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}) {
+function renderProfilePlayerBoardPage(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}, options = {}) {
   return `
     <section class="idp-profile-subpage idp-profile-player-board-page">
       ${renderPlayerBoardLibraryCommand(detail, focus, profile, canEdit, ui)}
-      ${renderIdpPlayerBoardTemplateBank(detail, focus, profile, ui, canEdit)}
+      ${renderIdpPlayerBoardTemplateBank(detail, focus, profile, ui, canEdit, options)}
       <div class="idp-player-board-page-shell">
         ${renderIdpPlayerBoardPanel(detail, focus, profile, pulse, nextAction, canEdit, ui)}
       </div>
@@ -1855,7 +1855,8 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
             pulse,
             idpInactive ? { title: "No IDP action required", dueOn: "Paused" } : nextAction,
             canEdit && !idpInactive,
-            state.ui || {}
+            state.ui || {},
+            options
           )
           : `
       ${renderProfileScoutingRadar(profile, options)}
@@ -1869,7 +1870,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
       </section>
       `}
       ${renderActionOverlay(state, focus, canEdit && !idpInactive, options)}
-      ${renderIdpPlayerBoardOverlay(detail, focus || {}, profile, state.ui || {}, canEdit && !idpInactive)}
+      ${renderIdpPlayerBoardOverlay(detail, focus || {}, profile, state.ui || {}, canEdit && !idpInactive, options)}
       ${renderIdpPlayerBoardHandout(detail, focus || {}, profile, state.ui || {}, canEdit && !idpInactive)}
       ${renderIdpClipPreviewOverlay(detail, state.ui || {})}
     </section>

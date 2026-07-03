@@ -650,23 +650,25 @@ function renderTemplateBankCard(template = {}, index = 0, selectedId = "") {
   `;
 }
 
-export function renderIdpPlayerBoardTemplateBank(detail = {}, focus = {}, profile = {}, ui = {}, canEdit = false) {
+export function renderIdpPlayerBoardTemplateBank(detail = {}, focus = {}, profile = {}, ui = {}, canEdit = false, options = {}) {
   if (!canEdit) return "";
+  const sourceLibrary = Array.isArray(options.exerciseLibraryTemplates) ? options.exerciseLibraryTemplates : [];
   const query = normalizeText(ui.playerBoardTemplateSearchQuery, "");
-  const templates = filterIdpBoardTemplates(query).slice(0, 5);
-  const requestedTemplate = idpBoardTemplateById(ui.playerBoardTemplateId || "");
+  const templates = filterIdpBoardTemplates(query, sourceLibrary).slice(0, 5);
+  const requestedTemplate = idpBoardTemplateById(ui.playerBoardTemplateId || "", sourceLibrary);
   const selectedTemplate = requestedTemplate && (!query || templates.some((template) => template.id === requestedTemplate.id))
     ? requestedTemplate
     : templates[0] || null;
   const selectedId = normalizeText(selectedTemplate?.id, "");
-  const selectedDraft = selectedTemplate ? idpBoardTemplateDraft(selectedId, profile, focus) : null;
+  const selectedDraft = selectedTemplate ? idpBoardTemplateDraft(selectedId, profile, focus, sourceLibrary) : null;
+  const sourceLabel = selectedTemplate?.sourceType === "saved-exercise-library" ? "Saved team library" : "Default templates";
   return `
     <section class="idp-player-board-template-bank" aria-label="Player Board template bank">
       <div class="idp-player-board-template-head">
         <div>
           <span>Template Bank</span>
           <strong>Team exercise templates</strong>
-          <small>Search, preview and use a template as a player-specific IDP draft.</small>
+          <small>${escapeHtml(sourceLabel)}. Search, preview and use a template as a player-specific IDP draft.</small>
         </div>
         <label>
           <span>Search templates</span>
@@ -948,9 +950,10 @@ function renderGoalOptions(detail = {}, selected = "") {
   ].join("");
 }
 
-function selectedEditorIntervention(detail = {}, focus = {}, profile = {}, ui = {}) {
+function selectedEditorIntervention(detail = {}, focus = {}, profile = {}, ui = {}, options = {}) {
   const templateId = idpBoardTemplateIdFromInterventionId(ui.playerBoardInterventionId);
-  if (templateId) return idpBoardTemplateDraft(templateId, profile, focus) || draftIntervention(profile, focus);
+  const sourceLibrary = Array.isArray(options.exerciseLibraryTemplates) ? options.exerciseLibraryTemplates : [];
+  if (templateId) return idpBoardTemplateDraft(templateId, profile, focus, sourceLibrary) || draftIntervention(profile, focus);
   const selected = activeIntervention(detail, ui);
   return ui.playerBoardInterventionId === "__new" || !selected ? draftIntervention(profile, focus) : selected;
 }
@@ -1099,10 +1102,10 @@ function renderBoardFrameStrip(frames = [], activeFrameIndex = 0) {
   `;
 }
 
-export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {}, ui = {}, canEdit = false) {
+export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {}, ui = {}, canEdit = false, options = {}) {
   if (!ui.playerBoardOpen) return "";
   const interventions = Array.isArray(detail.interventions) ? detail.interventions.filter((item) => item.status !== "archived") : [];
-  const intervention = selectedEditorIntervention(detail, focus, profile, ui);
+  const intervention = selectedEditorIntervention(detail, focus, profile, ui, options);
   const rawState = boardState(intervention, focus, profile);
   const frames = boardFramesFromState(rawState);
   const activeFrameIndex = normalizeFrameIndex(rawState.activeFrameIndex, frames.length);

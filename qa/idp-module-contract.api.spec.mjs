@@ -92,6 +92,8 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   const idpRenderer = read("src/modules/idp/idp-renderer.mjs");
   const idpRuntime = read("src/modules/idp/index.mjs");
   const idpState = read("src/modules/idp/idp-state.mjs");
+  const workspaceModuleRuntime = read("src/core/workspace-module-runtime-controller.mjs");
+  const platformRuntimeServices = read("src/core/platform-runtime-services-composer.mjs");
 
   expect(apiService).toContain('action: "create-intervention"');
   expect(apiService).toContain('action: "update-intervention"');
@@ -128,6 +130,10 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardTemplates).toContain("idpBoardTemplateInterventionId");
   expect(playerBoardTemplates).toContain("sourceTemplateId");
   expect(playerBoardTemplates).toContain("source: \"exercise-library-template\"");
+  expect(playerBoardTemplates).toContain("sourceTemplateLibrary");
+  expect(playerBoardTemplates).toContain("saved-exercise-library");
+  expect(playerBoardTemplates).toContain("archivedAt");
+  expect(playerBoardTemplates).toContain("tacticalFrames");
   expect(playerBoardRenderer).toContain("data-idp-save-intervention");
   expect(playerBoardRenderer).toContain("data-idp-board-tool");
   expect(playerBoardRenderer).toContain("data-idp-board-tool=\"run\"");
@@ -158,6 +164,8 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("data-idp-player-board-template-search");
   expect(playerBoardRenderer).toContain("Template Bank");
   expect(playerBoardRenderer).toContain("Use for player");
+  expect(playerBoardRenderer).toContain("exerciseLibraryTemplates");
+  expect(playerBoardRenderer).toContain("Saved team library");
   expect(playerBoardRenderer).toContain("frameClipTarget");
   expect(playerBoardRenderer).toContain("clipBankItemId");
   expect(playerBoardRenderer).toContain("Coach Playback");
@@ -193,6 +201,8 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(idpRuntime).toContain("data-idp-player-board-template-use");
   expect(idpRuntime).toContain("data-idp-player-board-template-search");
   expect(idpRuntime).toContain("idpBoardTemplateInterventionId");
+  expect(idpRuntime).toContain("getExerciseLibrary");
+  expect(idpRuntime).toContain("exerciseLibraryTemplates");
   expect(idpRuntime).toContain("filterBoardClipPicker");
   expect(idpRuntime).toContain("pickBoardClip");
   expect(idpRuntime).toContain("clearBoardClipAnchor");
@@ -216,6 +226,9 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(idpState).toContain("playerBoardHandoutOpen");
   expect(idpState).toContain("playerBoardTemplateSearchQuery");
   expect(idpState).toContain("playerBoardTemplateId");
+  expect(workspaceModuleRuntime).toContain("getExerciseLibraryForIdp");
+  expect(platformRuntimeServices).toContain("function getExerciseLibraryForIdp");
+  expect(platformRuntimeServices).toContain("readSessionPlannerExerciseLibrary()");
   expect(playerBoardRenderer).not.toContain("data-session-");
 });
 
@@ -610,6 +623,64 @@ test("idp renderer separates the overview from the player development profile", 
   expect(templateDraftHtml).toContain("Create width, depth and third-player options");
   expect(templateDraftHtml).toContain("idp-tactical-board-svg");
   expect(templateDraftHtml).toContain("Save IDP Board");
+
+  const savedExerciseLibrary = [
+    {
+      id: "saved-team-press-trap",
+      title: "Team Press Trap",
+      focus: "Force the next pass wide and arrive together",
+      phase: "Out of Possession",
+      subPhase: "High Press",
+      objective: "Lock the touchline and win the second ball after the trap cue.",
+      organization: "Start from a high pressing picture with the target player reading the trigger.",
+      principles: "Lock touchline, screen inside pass and jump when the body shape turns backwards.",
+      tacticalPitchMode: "attacking-half",
+      tacticalFrames: [
+        {
+          id: "trap-frame",
+          label: "Trap cue",
+          elements: [
+            { id: "reference-8", type: "blue-player", x: 42, y: 48, playerNumber: "8", label: "Pressing support" },
+            { id: "trap-cone", type: "cone", x: 55, y: 56 },
+            { id: "trap-pass", type: "pass", x: 45, y: 68, x2: 62, y2: 44, lineStyle: "dotted", color: "#fbbf24" },
+          ],
+        },
+      ],
+    },
+    {
+      id: "archived-shadow-exercise",
+      title: "Archived Shadow Exercise",
+      archivedAt: "2026-01-01T00:00:00.000Z",
+    },
+  ];
+  const savedTemplateHtml = renderIdpWorkspace(playerBoardState, {
+    ...staffOptions,
+    exerciseLibraryTemplates: savedExerciseLibrary,
+  });
+  expect(savedTemplateHtml).toContain("Saved team library");
+  expect(savedTemplateHtml).toContain("Team Press Trap");
+  expect(savedTemplateHtml).toContain("Lock the touchline and win the second ball");
+  expect(savedTemplateHtml).not.toContain("Build-up Rhythm");
+  expect(savedTemplateHtml).not.toContain("Archived Shadow Exercise");
+
+  const savedTemplateDraftHtml = renderIdpWorkspace({
+    ...playerBoardState,
+    ui: {
+      ...playerBoardState.ui,
+      playerBoardOpen: true,
+      playerBoardInterventionId: "__template:saved-team-press-trap",
+      playerBoardTemplateId: "saved-team-press-trap",
+    },
+  }, {
+    ...staffOptions,
+    exerciseLibraryTemplates: savedExerciseLibrary,
+  });
+  expect(savedTemplateDraftHtml).toContain("Team Press Trap");
+  expect(savedTemplateDraftHtml).toContain('name="interventionId" value=""');
+  expect(savedTemplateDraftHtml).toContain("Lock the touchline and win the second ball");
+  expect(savedTemplateDraftHtml).toContain("Trap cue");
+  expect(savedTemplateDraftHtml).toContain("idp-tactical-board-svg");
+  expect(savedTemplateDraftHtml).toContain("Save IDP Board");
 
   const playerBoardHandoutHtml = renderIdpWorkspace({
     ...playerBoardState,

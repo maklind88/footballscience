@@ -71,6 +71,8 @@ function normalizeContext(context = {}) {
     getAuthToken: typeof context.getAuthToken === "function" ? context.getAuthToken : () => "",
     getPlayerProfilesState:
       typeof context.getPlayerProfilesState === "function" ? context.getPlayerProfilesState : () => ({}),
+    getExerciseLibrary:
+      typeof context.getExerciseLibrary === "function" ? context.getExerciseLibrary : () => [],
     renderPlayerProfileScoutingSpider:
       typeof context.renderPlayerProfileScoutingSpider === "function" ? context.renderPlayerProfileScoutingSpider : () => "",
     canEdit: typeof context.canEdit === "function" ? context.canEdit : () => Boolean(context.canEdit),
@@ -304,6 +306,7 @@ function paint(activeRuntime = runtime) {
     team: activeRuntime.context.team,
     teamLogoUrl: activeRuntime.context.teamLogoUrl,
     teamName: activeRuntime.context.teamName,
+    exerciseLibraryTemplates: activeRuntime.context.getExerciseLibrary?.() || [],
     renderPlayerProfileScoutingSpider: activeRuntime.context.renderPlayerProfileScoutingSpider,
   });
   restoreSearchFocus(activeRuntime, searchFocus);

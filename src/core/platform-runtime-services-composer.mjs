@@ -254,6 +254,17 @@ export function createPlatformRuntimeServices(deps = {}) {
     logEvent,
   });
 
+  function getExerciseLibraryForIdp() {
+    let exerciseLibrary = deps.getSessionPlannerExerciseLibrary?.();
+    if (!Array.isArray(exerciseLibrary)) {
+      exerciseLibrary = readSessionPlannerExerciseLibrary();
+      setSessionPlannerExerciseLibrary(exerciseLibrary);
+    }
+    return Array.isArray(exerciseLibrary)
+      ? exerciseLibrary.filter((exercise) => !exercise?.archivedAt)
+      : [];
+  }
+
   const workspaceModuleRuntimeController = createWorkspaceModuleRuntimeController({
     ui,
     win,
@@ -270,6 +281,7 @@ export function createPlatformRuntimeServices(deps = {}) {
     getPlayerProfilesStateForGameplan,
     getPlayerProfilesStateForVideoAnalysis: () => deps.getPlayerProfilesState?.() || readPlayerProfilesState(),
     getPlayerProfilesStateForIdp: () => deps.getPlayerProfilesState?.() || readPlayerProfilesState(),
+    getExerciseLibraryForIdp,
     renderPlayerProfileScoutingSpider: deps.renderPlayerProfileScoutingSpider,
     canEditGameplan: () => canCurrentUserEditWorkspace("gameplan"),
     canEditVideoAnalysis: () => canCurrentUserEditWorkspace("analysis-room"),
@@ -345,6 +357,9 @@ export function createPlatformRuntimeServices(deps = {}) {
       idp: () => {
         if (!deps.getPlayerProfilesState()) {
           setPlayerProfilesState(readPlayerProfilesState());
+        }
+        if (!deps.getSessionPlannerExerciseLibrary?.()) {
+          setSessionPlannerExerciseLibrary(readSessionPlannerExerciseLibrary());
         }
       },
       transferRoom: () => {

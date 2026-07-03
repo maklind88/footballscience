@@ -3178,6 +3178,68 @@ platformNavigationController.hideTopIconTooltip();
 });
 dashboardRuntimeController.bindInteractions();
 function closeChatMenus(x = null) { ui.dashboardChatWidgetRoot?.querySelectorAll(".dashboard-chat-message-menu[open]").forEach((menu) => { if (menu !== x) menu.removeAttribute("open"); }); }
+let dashboardChatPushActionInFlight = false;
+async function runDashboardChatNotificationToggleAction() {
+if (dashboardChatPushActionInFlight) return;
+dashboardChatPushActionInFlight = true;
+try {
+const notifications = readDashboardChatWidgetNotificationState();
+const nextLevel = notifications.level === "all" ? "mentions" : notifications.level === "mentions" ? "muted" : "all";
+const pushResult = await dashboardChatPushClient.toggleFromNotificationLevel(nextLevel).catch((error) => ({
+ok: false,
+reason: error?.message || "Push notifications could not be updated.",
+}));
+let notificationMessage = nextLevel === "muted" ? "Chat notifications muted." : nextLevel === "mentions" ? "Only mentions will notify you." : "Chat notifications enabled.";
+if (nextLevel !== "muted" && !pushResult?.ok) {
+notificationMessage = pushResult?.reason || "Push notifications could not be updated.";
+renderDashboardChatWidget();
+showDashboardChatWidgetToast(notificationMessage);
+return;
+}
+writeDashboardChatWidgetNotificationState({ level: nextLevel });
+renderDashboardChatWidget();
+showDashboardChatWidgetToast(notificationMessage);
+} finally {
+dashboardChatPushActionInFlight = false;
+}
+}
+async function runDashboardChatPushTestAction() {
+if (dashboardChatPushActionInFlight) return;
+dashboardChatPushActionInFlight = true;
+try {
+const notifications = readDashboardChatWidgetNotificationState();
+const level = notifications.level === "muted" ? "all" : notifications.level || "all";
+showDashboardChatWidgetToast("Sending test push to this device...");
+const testResult = await dashboardChatPushClient.sendTest(level).catch((error) => ({
+ok: false,
+reason: error?.message || "Push test failed.",
+}));
+let testPushMessage = testResult?.reason || "Push test could not be sent to this device.";
+if (testResult?.ok && Number(testResult.sent || 0) > 0) {
+writeDashboardChatWidgetNotificationState({ level });
+testPushMessage = "Test push sent. If Football Science is in the background, it should appear as a system notification.";
+}
+renderDashboardChatWidget();
+showDashboardChatWidgetToast(testPushMessage);
+} finally {
+dashboardChatPushActionInFlight = false;
+}
+}
+document.addEventListener("click", (event) => {
+const pushButton = event.target.closest?.("[data-dashboard-chat-widget-test-push]");
+const notificationButton = event.target.closest?.("[data-dashboard-chat-widget-toggle-notifications]");
+const actionButton = pushButton || notificationButton;
+if (!actionButton || !ui.dashboardChatWidgetRoot?.contains(actionButton)) {
+return;
+}
+event.preventDefault();
+event.stopPropagation();
+if (pushButton) {
+void runDashboardChatPushTestAction();
+} else {
+void runDashboardChatNotificationToggleAction();
+}
+}, true);
 function focusDashboardChatWidgetLauncher() {
 requestAnimationFrame(() => {
 ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-widget-toggle]")?.focus?.();
@@ -3729,36 +3791,12 @@ return;
 }
 const toggleNotifications = event.target.closest("[data-dashboard-chat-widget-toggle-notifications]");
 if (toggleNotifications) {
-const notifications = readDashboardChatWidgetNotificationState();
-const nextLevel = notifications.level === "all" ? "mentions" : notifications.level === "mentions" ? "muted" : "all";
-const pushResult = await dashboardChatPushClient.toggleFromNotificationLevel(nextLevel).catch((error) => {
-showDashboardChatWidgetToast(error?.message || "Push notifications could not be updated.");
-return { ok: false };
-});
-if (nextLevel !== "muted" && !pushResult?.ok) {
-renderDashboardChatWidget();
-return;
-}
-writeDashboardChatWidgetNotificationState({ level: nextLevel });
-renderDashboardChatWidget();
+await runDashboardChatNotificationToggleAction();
 return;
 }
 const testPushNotifications = event.target.closest("[data-dashboard-chat-widget-test-push]");
 if (testPushNotifications) {
-const notifications = readDashboardChatWidgetNotificationState();
-const level = notifications.level === "muted" ? "all" : notifications.level || "all";
-showDashboardChatWidgetToast("Sending test push to this device...");
-const testResult = await dashboardChatPushClient.sendTest(level).catch((error) => ({
-ok: false,
-reason: error?.message || "Push test failed.",
-}));
-let testPushMessage = testResult?.reason || "Push test could not be sent to this device.";
-if (testResult?.ok && Number(testResult.sent || 0) > 0) {
-writeDashboardChatWidgetNotificationState({ level });
-testPushMessage = "Test push sent. If Football Science is in the background, it should appear as a system notification.";
-}
-renderDashboardChatWidget();
-showDashboardChatWidgetToast(testPushMessage);
+await runDashboardChatPushTestAction();
 return;
 }
 const threadFilterButton = event.target.closest("[data-dashboard-chat-thread-filter]");

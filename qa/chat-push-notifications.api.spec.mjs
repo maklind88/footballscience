@@ -48,6 +48,10 @@ test("chat push client subscribes through PushManager and secure API route", () 
   expect(appRuntime).toContain("createChatPushClient");
   expect(appRuntime).toContain("dashboardChatPushClient.toggleFromNotificationLevel");
   expect(appRuntime).toContain("dashboardChatPushClient.sendTest");
+  expect(appRuntime).toContain("runDashboardChatNotificationToggleAction");
+  expect(appRuntime).toContain("runDashboardChatPushTestAction");
+  expect(appRuntime).toContain('event.target.closest?.("[data-dashboard-chat-widget-test-push]")');
+  expect(appRuntime).toContain('event.target.closest?.("[data-dashboard-chat-widget-toggle-notifications]")');
   expect(appRuntime).toContain("let testPushMessage =");
   expect(appRuntime).toContain("renderDashboardChatWidget();\nshowDashboardChatWidgetToast(testPushMessage);");
   expect(clientConfig).toContain("chatPush: publicChatPushConfig()");

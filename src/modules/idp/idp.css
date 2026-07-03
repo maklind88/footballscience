@@ -10011,6 +10011,177 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   gap: 5px;
 }
 
+.idp-player-board-clip-picker {
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .11);
+  border-radius: 14px;
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+}
+
+.idp-player-board-clip-picker-head,
+.idp-player-board-clip-picker-status {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.idp-player-board-clip-picker-head span {
+  color: #fff;
+  font-size: .8rem;
+  font-weight: 950;
+  line-height: 1.08;
+}
+
+.idp-player-board-clip-picker-head small,
+.idp-player-board-clip-picker-status span {
+  color: rgba(226, 232, 240, .7);
+  font-size: .68rem;
+  font-weight: 850;
+  line-height: 1.12;
+}
+
+.idp-player-board-clip-picker-search {
+  display: grid;
+  gap: 5px;
+}
+
+.idp-player-board-clip-picker-search input {
+  background: rgba(255, 255, 255, .92);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 999px;
+  color: #101828;
+  font-size: .78rem;
+  font-weight: 780;
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.idp-player-board-clip-picker-search input:focus {
+  border-color: rgba(45, 212, 191, .55);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, .16);
+  outline: none;
+}
+
+.idp-player-board-clip-picker-list {
+  display: grid;
+  gap: 6px;
+  max-height: 218px;
+  overflow: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+.idp-player-board-clip-option {
+  appearance: none;
+  background: rgba(255, 255, 255, .9);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: 12px;
+  color: #101828;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 9px 10px;
+  position: relative;
+  text-align: left;
+}
+
+.idp-player-board-clip-option[hidden] {
+  display: none;
+}
+
+.idp-player-board-clip-option:hover,
+.idp-player-board-clip-option:focus-visible {
+  border-color: rgba(15, 118, 110, .34);
+  box-shadow: 0 12px 24px rgba(15, 118, 110, .12);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.idp-player-board-clip-option.is-selected {
+  background: #ecfdf3;
+  border-color: rgba(15, 118, 110, .34);
+  box-shadow: inset 0 0 0 1px rgba(15, 118, 110, .14);
+}
+
+.idp-player-board-clip-option.is-selected::after {
+  background: #0f766e;
+  border-radius: 999px;
+  color: #fff;
+  content: "Linked";
+  font-size: .6rem;
+  font-weight: 950;
+  padding: 3px 6px;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+}
+
+.idp-player-board-clip-option strong,
+.idp-player-board-clip-option span,
+.idp-player-board-clip-option small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  padding-right: 52px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-board-clip-option strong {
+  color: #101828;
+  font-size: .78rem;
+  font-weight: 950;
+}
+
+.idp-player-board-clip-option span {
+  color: #475467;
+  font-size: .7rem;
+  font-weight: 780;
+}
+
+.idp-player-board-clip-option small {
+  color: #0f766e;
+  font-size: .68rem;
+  font-weight: 900;
+}
+
+.idp-player-board-clip-picker-empty {
+  background: rgba(255, 255, 255, .08);
+  border: 1px dashed rgba(255, 255, 255, .16);
+  border-radius: 12px;
+  color: rgba(226, 232, 240, .76);
+  font-size: .74rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0;
+  padding: 10px;
+}
+
+.idp-player-board-clip-picker-status button {
+  appearance: none;
+  background: rgba(255, 255, 255, .88);
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 999px;
+  color: #101828;
+  cursor: pointer;
+  font: inherit;
+  font-size: .68rem;
+  font-weight: 920;
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.idp-player-board-clip-picker-status button:hover,
+.idp-player-board-clip-picker-status button:focus-visible {
+  border-color: rgba(15, 118, 110, .34);
+  outline: none;
+}
+
 .idp-player-board-frame-preview {
   background: rgba(3, 7, 18, .28);
   border: 1px solid rgba(255, 255, 255, .09);

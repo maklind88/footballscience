@@ -147,6 +147,10 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("frameCoachCue");
   expect(playerBoardRenderer).toContain("framePlayerCue");
   expect(playerBoardRenderer).toContain("frameClipAnchor");
+  expect(playerBoardRenderer).toContain("data-idp-board-clip-picker-search");
+  expect(playerBoardRenderer).toContain("data-idp-board-clip-pick");
+  expect(playerBoardRenderer).toContain("data-idp-board-clip-clear");
+  expect(playerBoardRenderer).toContain("data-idp-board-linked-clip-ids");
   expect(playerBoardRenderer).toContain("boardFramesJson");
   expect(idpRenderer).toContain("data-idp-player-board-preview-select");
   expect(playerBoardRenderer).toContain("Linked goal");
@@ -163,6 +167,10 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(idpRuntime).toContain("addBoardFrame");
   expect(idpRuntime).toContain("playBoardFrames");
   expect(idpRuntime).toContain("data-idp-player-board-preview-clip");
+  expect(idpRuntime).toContain("filterBoardClipPicker");
+  expect(idpRuntime).toContain("pickBoardClip");
+  expect(idpRuntime).toContain("clearBoardClipAnchor");
+  expect(idpRuntime).toContain("bindBoardClipPickerInputEvents");
   expect(idpRuntime).toContain("syncActiveBoardFrameFromModal");
   expect(idpRuntime).toContain("updateBoardFrameMetaPreview");
   expect(idpRuntime).toContain("boardFrameButtonHtml");
@@ -692,7 +700,36 @@ test("idp renderer separates the overview from the player development profile", 
   expect(boardHtml).toContain("data-idp-board-play");
   expect(boardHtml).toContain("data-idp-board-active-frame-index");
   expect(boardHtml).toContain("Movement colour");
-  expect(boardHtml).toContain("Linked clip ids");
+  expect(boardHtml).toContain("data-idp-board-linked-clip-ids");
+  expect(boardHtml).toContain("data-idp-board-clip-picker");
+  expect(boardHtml).not.toContain("Linked clip ids");
+  const boardWithClipPickerHtml = renderIdpWorkspace(
+    {
+      ...profileState,
+      playerDetail: {
+        ...profileState.playerDetail,
+        clipBank: [
+          {
+            id: "clip-12",
+            matchTitle: "NCC Training",
+            videoTitle: "Distribution build-up",
+            matchDate: "2026-07-03",
+            eventType: "training",
+            startMs: 78000,
+            endMs: 90000,
+            subPhase: "Third-player release",
+            phase: "Build-up",
+          },
+        ],
+      },
+      ui: { ...profileState.ui, playerBoardOpen: true, playerBoardInterventionId: "__new" },
+    },
+    staffOptions
+  );
+  expect(boardWithClipPickerHtml).toContain("data-idp-board-clip-picker-search");
+  expect(boardWithClipPickerHtml).toContain('data-idp-board-clip-pick="clip-12"');
+  expect(boardWithClipPickerHtml).toContain('data-idp-board-clip-anchor="clip-12 @ 1:18"');
+  expect(boardWithClipPickerHtml).toContain("Third-player release / Build-up");
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, staffOptions)).toContain("data-idp-complete-review");
 });
 

@@ -162,12 +162,21 @@ function captureSearchFocus(activeRuntime = runtime) {
   const isOverviewSearch = Boolean(activeElement?.matches?.("[data-idp-search]"));
   const isClipSearch = Boolean(activeElement?.matches?.("[data-idp-clip-search]"));
   const isPlayerBoardSearch = Boolean(activeElement?.matches?.("[data-idp-player-board-search]"));
-  if (!isOverviewSearch && !isClipSearch && !isPlayerBoardSearch) return null;
+  const isBoardClipPickerSearch = Boolean(activeElement?.matches?.("[data-idp-board-clip-picker-search]"));
+  if (!isOverviewSearch && !isClipSearch && !isPlayerBoardSearch && !isBoardClipPickerSearch) return null;
   const value = activeElement.value || "";
   return {
-    selector: isPlayerBoardSearch ? "[data-idp-player-board-search]" : isClipSearch ? "[data-idp-clip-search]" : "[data-idp-search]",
+    preserveValue: isBoardClipPickerSearch,
+    selector: isBoardClipPickerSearch
+      ? "[data-idp-board-clip-picker-search]"
+      : isPlayerBoardSearch
+        ? "[data-idp-player-board-search]"
+        : isClipSearch
+          ? "[data-idp-clip-search]"
+          : "[data-idp-search]",
     end: Number.isInteger(activeElement.selectionEnd) ? activeElement.selectionEnd : value.length,
     start: Number.isInteger(activeElement.selectionStart) ? activeElement.selectionStart : value.length,
+    value,
   };
 }
 
@@ -175,6 +184,7 @@ function restoreSearchFocus(activeRuntime = runtime, focusState = null) {
   if (!focusState) return;
   const input = getRoot(activeRuntime?.context)?.querySelector?.(focusState.selector || "[data-idp-search]");
   if (!input) return;
+  if (focusState.preserveValue) input.value = focusState.value || "";
   const valueLength = input.value?.length || 0;
   const start = Math.min(focusState.start ?? valueLength, valueLength);
   const end = Math.min(focusState.end ?? start, valueLength);
@@ -187,6 +197,9 @@ function restoreSearchFocus(activeRuntime = runtime, focusState = null) {
     input.setSelectionRange?.(start, end);
   } catch {
     // Some browser/input combinations do not expose selection for this field.
+  }
+  if (focusState.selector === "[data-idp-board-clip-picker-search]") {
+    filterBoardClipPicker(input);
   }
 }
 
@@ -293,6 +306,7 @@ function paint(activeRuntime = runtime) {
   restorePlayerBoardDraft(activeRuntime, boardDraft);
   setupIdpClipPreviewPlayback(activeRuntime);
   updateBoardHistoryButtons(root.querySelector?.(".idp-player-board-modal"));
+  bindBoardClipPickerInputEvents(activeRuntime);
 }
 
 function ensureRuntime(context = {}) {
@@ -565,6 +579,91 @@ function boardFormText(modal, name, fallback = "") {
   return String(modal?.querySelector?.(`[name="${name}"]`)?.value || fallback).trim();
 }
 
+function boardTokenList(value = "") {
+  return String(value || "")
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+function boardClipAnchorIds(anchor = "") {
+  const text = String(anchor || "").trim();
+  const beforeTime = text.split("@")[0]?.trim() || "";
+  return new Set([
+    beforeTime,
+    ...text.split(/[\s,;|]+/),
+  ].map((item) => item.trim()).filter(Boolean));
+}
+
+function updateBoardClipPickerSelection(modal) {
+  if (!modal) return;
+  const anchor = boardFormText(modal, "frameClipAnchor", "");
+  const anchorIds = boardClipAnchorIds(anchor);
+  let selectedButton = null;
+  modal.querySelectorAll?.("[data-idp-board-clip-pick]")?.forEach((button) => {
+    const id = button.dataset.idpBoardClipPick || "";
+    const selected = Boolean(id && anchorIds.has(id));
+    button.classList.toggle("is-selected", selected);
+    if (selected && !selectedButton) selectedButton = button;
+  });
+  const status = modal.querySelector?.("[data-idp-board-clip-picker-status]");
+  const clear = modal.querySelector?.("[data-idp-board-clip-clear]");
+  const title = selectedButton?.querySelector?.("strong")?.textContent?.trim?.() || "";
+  if (status) status.textContent = title ? `Linked: ${title}` : anchor ? `Linked: ${anchor}` : "No frame clip selected";
+  if (clear) clear.hidden = !anchor;
+}
+
+function addBoardLinkedClipId(modal, clipId = "") {
+  const input = modal?.querySelector?.("[data-idp-board-linked-clip-ids], [name=\"linkedClipIds\"]");
+  const id = String(clipId || "").trim();
+  if (!input || !id) return;
+  const tokens = boardTokenList(input.value || "");
+  if (!tokens.includes(id)) tokens.push(id);
+  input.value = tokens.slice(0, 12).join(", ");
+}
+
+function filterBoardClipPicker(input) {
+  const picker = input?.closest?.("[data-idp-board-clip-picker]");
+  if (!picker) return;
+  const query = String(input.value || "").trim().toLowerCase();
+  let visible = 0;
+  const buttons = Array.from(picker.querySelectorAll?.("[data-idp-board-clip-pick]") || []);
+  buttons.forEach((button) => {
+    const searchText = String(button.dataset.idpBoardClipSearch || button.textContent || "").toLowerCase();
+    const show = !query || searchText.includes(query);
+    button.hidden = !show;
+    if (show) visible += 1;
+  });
+  const empty = picker.querySelector?.("[data-idp-board-clip-picker-empty]");
+  const count = picker.querySelector?.("[data-idp-board-clip-picker-count]");
+  if (empty) empty.hidden = visible > 0;
+  if (count) count.textContent = query ? `${visible}/${buttons.length} shown` : `${buttons.length} clips`;
+}
+
+function pickBoardClip(button) {
+  const modal = button?.closest?.(".idp-player-board-modal");
+  if (!modal) return false;
+  const clipId = button.dataset.idpBoardClipPick || "";
+  const anchor = button.dataset.idpBoardClipAnchor || clipId;
+  stopBoardPlayback(runtime, modal);
+  setBoardFormValue(modal, "frameClipAnchor", anchor);
+  addBoardLinkedClipId(modal, clipId);
+  syncActiveBoardFrameFromModal(modal);
+  updateBoardClipPickerSelection(modal);
+  return true;
+}
+
+function clearBoardClipAnchor(button) {
+  const modal = button?.closest?.(".idp-player-board-modal");
+  if (!modal) return false;
+  stopBoardPlayback(runtime, modal);
+  setBoardFormValue(modal, "frameClipAnchor", "");
+  syncActiveBoardFrameFromModal(modal);
+  updateBoardClipPickerSelection(modal);
+  return true;
+}
+
 function escapeBoardHtml(value = "") {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -732,6 +831,7 @@ function updateBoardFrameMetaPreview(modal) {
   if (title) title.textContent = label || `Frame ${index + 1}`;
   if (previewCue) previewCue.textContent = cue || "No cue on this frame yet";
   if (previewAnchor) previewAnchor.textContent = clipAnchor || "No clip anchor";
+  updateBoardClipPickerSelection(modal);
   const button = modal.querySelector?.(`[data-idp-board-frame-index="${index}"]`);
   const buttonLabel = button?.querySelector?.("[data-idp-board-frame-button-label]");
   if (buttonLabel) buttonLabel.textContent = label || `Frame ${index + 1}`;
@@ -1359,16 +1459,31 @@ function bindBoardPointerEvents(activeRuntime = runtime) {
   activeRuntime.boardPointerEventsBound = true;
 }
 
+function bindBoardClipPickerInputEvents(activeRuntime = runtime) {
+  const root = getRoot(activeRuntime?.context);
+  if (!root) return;
+  root.querySelectorAll?.("[data-idp-board-clip-picker-search]")?.forEach((input) => {
+    if (input.dataset.idpBoardClipPickerInputBound === "true") return;
+    input.dataset.idpBoardClipPickerInputBound = "true";
+    input.addEventListener?.("input", () => filterBoardClipPicker(input));
+  });
+}
+
 export function render(context = {}) {
   const activeRuntime = ensureRuntime(context);
   paint(activeRuntime);
   startAutoSync(activeRuntime);
   bindBoardPointerEvents(activeRuntime);
+  bindBoardClipPickerInputEvents(activeRuntime);
   runAction(() => boot(activeRuntime));
 }
 
 export function handleInput(event) {
   const target = event?.target;
+  if (target?.matches?.("[data-idp-board-clip-picker-search]")) {
+    filterBoardClipPicker(target);
+    return;
+  }
   if (target?.matches?.("[data-idp-board-color-input], [data-idp-board-line-width]")) {
     updateBoardArrowStyle(target.closest?.(".idp-player-board-modal"));
     return;
@@ -1570,6 +1685,18 @@ export function handleClick(event) {
     event?.preventDefault?.();
     stopPlayerBoardPreviewPlayback(runtime);
     openClipPreview(runtime, [playerBoardPreviewClip.dataset.idpPlayerBoardPreviewClip || ""]);
+    return;
+  }
+  const boardClipPick = event?.target?.closest?.("[data-idp-board-clip-pick]");
+  if (boardClipPick) {
+    event?.preventDefault?.();
+    pickBoardClip(boardClipPick);
+    return;
+  }
+  const boardClipClear = event?.target?.closest?.("[data-idp-board-clip-clear]");
+  if (boardClipClear) {
+    event?.preventDefault?.();
+    clearBoardClipAnchor(boardClipClear);
     return;
   }
   const closeActionTrigger = event?.target?.closest?.("[data-idp-close-action]");

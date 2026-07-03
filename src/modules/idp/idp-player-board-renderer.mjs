@@ -467,6 +467,65 @@ function clipBankItemLabel(clip = {}) {
   );
 }
 
+function clipTimeValue(value = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.round(number)) : 0;
+}
+
+function formatBoardClipTime(ms = 0) {
+  const totalSeconds = Math.max(0, Math.floor(clipTimeValue(ms) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function clipSourceTitle(clip = {}) {
+  return normalizeText(
+    clip.matchTitle || clip.videoTitle || (normalizeText(clip.eventType).toLowerCase() === "match" ? "Match video" : "Training video"),
+    "Training video"
+  );
+}
+
+function clipTacticalTitle(clip = {}) {
+  return [clip.subPhase, clip.phase].map((item) => normalizeText(item)).filter(Boolean).join(" / ")
+    || clipBankItemLabel(clip);
+}
+
+function clipDateLabel(clip = {}) {
+  const date = normalizeText(clip.matchDate || clip.createdAt).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "No date";
+}
+
+function clipPickerSearchBlob(clip = {}) {
+  return [
+    clipTacticalTitle(clip),
+    clipSourceTitle(clip),
+    clipDateLabel(clip),
+    formatBoardClipTime(clip.startMs),
+    clip.outcome,
+    clip.status,
+  ].map((item) => normalizeText(item).toLowerCase()).join(" ");
+}
+
+function clipPickerAnchor(clip = {}) {
+  const id = clipBankItemId(clip);
+  if (!id) return "";
+  const time = clipTimeValue(clip.startMs) > 0 ? ` @ ${formatBoardClipTime(clip.startMs)}` : "";
+  return `${id}${time}`;
+}
+
+function sortedBoardClipBank(detail = {}) {
+  const clips = Array.isArray(detail.clipBank) ? detail.clipBank.filter((clip) => clipBankItemId(clip)) : [];
+  return [...clips].sort((first, second) => {
+    const firstStamp = normalizeText(first.matchDate || first.createdAt);
+    const secondStamp = normalizeText(second.matchDate || second.createdAt);
+    if (firstStamp !== secondStamp) return secondStamp.localeCompare(firstStamp);
+    return clipTimeValue(first.startMs) - clipTimeValue(second.startMs);
+  });
+}
+
 function clipAnchorIds(anchor = "") {
   const text = normalizeText(anchor, "");
   const beforeTime = text.split("@")[0]?.trim() || "";
@@ -499,6 +558,63 @@ function exerciseBankSearchText(item = {}, focus = {}) {
     focus?.title,
     focus?.category,
   ].map((value) => normalizeText(value, "").toLowerCase()).join(" ");
+}
+
+function renderBoardClipPicker(detail = {}, state = {}, frame = {}) {
+  const clips = sortedBoardClipBank(detail).slice(0, 10);
+  const selectedClipId = clipBankItemId(frameClipTarget(frame, state, detail));
+  const currentAnchor = normalizeText(frame.clipAnchor || state.clipAnchor, "");
+  if (!clips.length) {
+    return `
+      <section class="idp-player-board-clip-picker is-empty" data-idp-board-clip-picker>
+        <div class="idp-player-board-clip-picker-head">
+          <span>Clip Picker</span>
+          <small>No clips yet</small>
+        </div>
+        <p class="idp-player-board-clip-picker-empty">Clip Bank is empty for this player.</p>
+      </section>
+    `;
+  }
+  return `
+    <section class="idp-player-board-clip-picker" data-idp-board-clip-picker>
+      <div class="idp-player-board-clip-picker-head">
+        <span>Clip Picker</span>
+        <small data-idp-board-clip-picker-count>${escapeHtml(`${clips.length} clips`)}</small>
+      </div>
+      <label class="idp-player-board-clip-picker-search">
+        <span>Search Clip Bank</span>
+        <input type="search" data-idp-board-clip-picker-search placeholder="Search moment, source or time" autocomplete="off">
+      </label>
+      <div class="idp-player-board-clip-picker-list" data-idp-board-clip-picker-results>
+        ${clips.map((clip) => {
+          const id = clipBankItemId(clip);
+          const anchor = clipPickerAnchor(clip);
+          const title = clipTacticalTitle(clip);
+          const source = clipSourceTitle(clip);
+          const time = formatBoardClipTime(clip.startMs);
+          return `
+            <button
+              type="button"
+              class="idp-player-board-clip-option${id === selectedClipId ? " is-selected" : ""}"
+              data-idp-board-clip-pick="${escapeHtml(id)}"
+              data-idp-board-clip-anchor="${escapeHtml(anchor)}"
+              data-idp-board-clip-search="${escapeHtml(clipPickerSearchBlob(clip))}"
+              title="${escapeHtml(`${title} / ${source}`)}"
+            >
+              <strong>${escapeHtml(title)}</strong>
+              <span>${escapeHtml(source)}</span>
+              <small>${escapeHtml(`${clipDateLabel(clip)} · ${time}`)}</small>
+            </button>
+          `;
+        }).join("")}
+      </div>
+      <p class="idp-player-board-clip-picker-empty" data-idp-board-clip-picker-empty hidden>No matching clips.</p>
+      <div class="idp-player-board-clip-picker-status">
+        <span data-idp-board-clip-picker-status>${escapeHtml(currentAnchor ? `Linked: ${currentAnchor}` : "No frame clip selected")}</span>
+        <button type="button" data-idp-board-clip-clear ${currentAnchor ? "" : "hidden"}>Clear</button>
+      </div>
+    </section>
+  `;
 }
 
 export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}) {
@@ -855,6 +971,7 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
             <input type="hidden" name="arrowType" value="${fieldValue(arrowType)}" data-idp-board-arrow-type>
             <input type="hidden" name="activeFrameIndex" value="${fieldValue(String(activeFrameIndex))}" data-idp-board-active-frame-index>
             <input type="hidden" name="boardFramesJson" value="${fieldValue(JSON.stringify(state.frames || []))}" data-idp-board-frames>
+            <input type="hidden" name="linkedClipIds" value="${fieldValue(linkedClipIds)}" data-idp-board-linked-clip-ids>
             ${renderBoardGeometryInputs({ player, reference, cones, zone, arrow, note })}
             <section class="idp-tactical-inspector-card is-selected" data-idp-board-inspector>
               <span>Selected Tool</span>
@@ -879,10 +996,8 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
                 <span>Player cue</span>
                 <textarea name="framePlayerCue" rows="2" data-idp-board-frame-meta placeholder="Short player-facing instruction">${fieldValue(frame.playerCue || "")}</textarea>
               </label>
-              <label>
-                <span>Clip anchor</span>
-                <input name="frameClipAnchor" value="${fieldValue(frame.clipAnchor || "")}" autocomplete="off" data-idp-board-frame-meta placeholder="Clip ID, match moment or timestamp">
-              </label>
+              <input type="hidden" name="frameClipAnchor" value="${fieldValue(frame.clipAnchor || "")}" data-idp-board-frame-meta data-idp-board-frame-clip-anchor>
+              ${renderBoardClipPicker(detail, state, frame)}
               <div class="idp-player-board-frame-preview" aria-live="polite">
                 <strong data-idp-board-frame-preview-title>${escapeHtml(frame.label || "Start")}</strong>
                 <small data-idp-board-frame-preview-cue>${escapeHtml(frame.playerCue || frame.coachCue || "No cue on this frame yet")}</small>
@@ -931,7 +1046,6 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
               <label><span>Coaching cue</span><textarea name="coachingCue" rows="2">${fieldValue(intervention.coachingCue || "")}</textarea></label>
               <label><span>Success criteria</span><textarea name="successCriteria" rows="2" placeholder="One criterion per line">${fieldValue(Array.isArray(intervention.successCriteria) ? intervention.successCriteria.join("\n") : "")}</textarea></label>
               <label><span>Board note</span><textarea name="noteText" rows="2">${fieldValue(note.text)}</textarea></label>
-              <label><span>Linked clip ids</span><input name="linkedClipIds" value="${fieldValue(linkedClipIds)}" autocomplete="off" placeholder="clip-id, clip-id"></label>
             </section>
             <footer>
               ${intervention.id ? `<button type="button" class="is-danger" data-idp-archive-intervention="${escapeHtml(intervention.id)}">Archive</button>` : ""}

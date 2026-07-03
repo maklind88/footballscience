@@ -328,6 +328,11 @@ function parseStoredBoardFrames(value = "") {
   }
 }
 
+function parseBoardActive(value, fallback = true) {
+  if (value === null || value === undefined) return fallback;
+  return String(value || "").trim() !== "0";
+}
+
 function buildInterventionBoardFrame(formData, existingFrame = {}, index = 0) {
   const zoneLabel = normalizeText(formData.get("zoneLabel"), 80);
   const arrowLabel = normalizeText(formData.get("arrowLabel"), 80);
@@ -355,11 +360,13 @@ function buildInterventionBoardFrame(formData, existingFrame = {}, index = 0) {
       x: parseBoardNumber(formData.get("referenceX"), 50),
       y: parseBoardNumber(formData.get("referenceY"), 44),
     }] : [],
-    cones: [
-      { id: "cone-1", x: parseBoardNumber(formData.get("cone1X"), 40), y: parseBoardNumber(formData.get("cone1Y"), 58) },
-      { id: "cone-2", x: parseBoardNumber(formData.get("cone2X"), 60), y: parseBoardNumber(formData.get("cone2Y"), 58) },
-      { id: "cone-3", x: parseBoardNumber(formData.get("cone3X"), 50), y: parseBoardNumber(formData.get("cone3Y"), 42) },
-    ],
+    cones: [1, 2, 3]
+      .filter((coneIndex) => parseBoardActive(formData.get(`cone${coneIndex}Active`), true))
+      .map((coneIndex, activeIndex) => ({
+        id: existingFrame.cones?.[activeIndex]?.id || `cone-${activeIndex + 1}`,
+        x: parseBoardNumber(formData.get(`cone${coneIndex}X`), coneIndex === 1 ? 40 : coneIndex === 2 ? 60 : 50),
+        y: parseBoardNumber(formData.get(`cone${coneIndex}Y`), coneIndex === 3 ? 42 : 58),
+      })),
     zones: zoneLabel ? [{
       id: "zone-1",
       label: zoneLabel,

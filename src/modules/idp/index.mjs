@@ -33,10 +33,13 @@ const BOARD_HISTORY_FIELDS = [
   "referenceLabel",
   "referenceX",
   "referenceY",
+  "cone1Active",
   "cone1X",
   "cone1Y",
+  "cone2Active",
   "cone2X",
   "cone2Y",
+  "cone3Active",
   "cone3X",
   "cone3Y",
   "zoneLabel",
@@ -415,6 +418,51 @@ function boardFormNumber(modal, name, fallback) {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function boardFormBoolean(modal, name, fallback = true) {
+  const input = modal?.querySelector?.(`[name="${name}"]`);
+  if (!input) return fallback;
+  return String(input.value || "").trim() !== "0";
+}
+
+function elementClassTokens(element) {
+  return String(element?.getAttribute?.("class") || element?.className || "")
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function setElementClass(element, className = "", enabled = true) {
+  if (!element || !className) return;
+  if (element.classList && typeof element.classList.toggle === "function") {
+    element.classList.toggle(className, Boolean(enabled));
+    return;
+  }
+  const tokens = new Set(elementClassTokens(element));
+  if (enabled) tokens.add(className);
+  if (!enabled) tokens.delete(className);
+  element.setAttribute?.("class", Array.from(tokens).join(" "));
+}
+
+function setBoardObjectHidden(element, hidden = false) {
+  if (!element) return;
+  setElementClass(element, "is-board-hidden", hidden);
+  if (element.style) element.style.display = hidden ? "none" : "";
+  element.setAttribute?.("aria-hidden", hidden ? "true" : "false");
+}
+
+function boardConeActive(modal, index = 1) {
+  return boardFormBoolean(modal, `cone${index}Active`, true);
+}
+
+function setBoardConeActive(modal, index = 1, active = true) {
+  setBoardFormValue(modal, `cone${index}Active`, active ? "1" : "0");
+  setElementClass(modal, `idp-board-cone-${index}-hidden`, !active);
+  const cone = modal && typeof modal.querySelector === "function"
+    ? modal.querySelector(`[data-idp-board-cone="${index}"]`)
+    : null;
+  setBoardObjectHidden(cone, !active);
+}
+
 function ensureBoardNotePin(pitch, text = "Coach note") {
   let note = pitch?.querySelector?.(".idp-player-board-note-pin");
   if (note || !pitch) return note;
@@ -767,10 +815,10 @@ function setActiveBoardFrameIndex(modal, index = 0, total = 1) {
 
 function boardFrameFromModal(modal, existingFrame = {}, index = 0) {
   const arrowType = boardFormText(modal, "arrowType", "run");
-  const arrowLabel = boardFormText(modal, "arrowLabel", "Action path");
+  const arrowLabel = boardFormText(modal, "arrowLabel", "");
   const noteText = boardFormText(modal, "noteText", "");
-  const referenceLabel = boardFormText(modal, "referenceLabel", "REF");
-  const zoneLabel = boardFormText(modal, "zoneLabel", "Development zone");
+  const referenceLabel = boardFormText(modal, "referenceLabel", "");
+  const zoneLabel = boardFormText(modal, "zoneLabel", "");
   return {
     id: existingFrame.id || `frame-${index + 1}`,
     label: boardFormText(modal, "frameLabel", existingFrame.label || (index === 0 ? "Start" : `Frame ${index + 1}`)),
@@ -787,11 +835,13 @@ function boardFrameFromModal(modal, existingFrame = {}, index = 0) {
       x: boardFormNumber(modal, "referenceX", 50),
       y: boardFormNumber(modal, "referenceY", 44),
     }] : [],
-    cones: [1, 2, 3].map((coneIndex) => ({
-      id: existingFrame.cones?.[coneIndex - 1]?.id || `cone-${coneIndex}`,
-      x: boardFormNumber(modal, `cone${coneIndex}X`, coneIndex === 1 ? 40 : coneIndex === 2 ? 60 : 50),
-      y: boardFormNumber(modal, `cone${coneIndex}Y`, coneIndex === 3 ? 42 : 58),
-    })),
+    cones: [1, 2, 3]
+      .filter((coneIndex) => boardConeActive(modal, coneIndex))
+      .map((coneIndex, activeIndex) => ({
+        id: existingFrame.cones?.[activeIndex]?.id || `cone-${activeIndex + 1}`,
+        x: boardFormNumber(modal, `cone${coneIndex}X`, coneIndex === 1 ? 40 : coneIndex === 2 ? 60 : 50),
+        y: boardFormNumber(modal, `cone${coneIndex}Y`, coneIndex === 3 ? 42 : 58),
+      })),
     zones: zoneLabel ? [{
       id: existingFrame.zones?.[0]?.id || "zone-1",
       label: zoneLabel,
@@ -835,21 +885,24 @@ function boardSnapshotFromFrame(frame = {}) {
   return {
     playerX: player.x ?? 50,
     playerY: player.y ?? 70,
-    referenceLabel: reference.label || "REF",
+    referenceLabel: reference.label || "",
     referenceX: reference.x ?? 50,
     referenceY: reference.y ?? 44,
     cone1X: cones[0]?.x ?? 40,
     cone1Y: cones[0]?.y ?? 58,
+    cone1Active: cones[0] ? "1" : "0",
     cone2X: cones[1]?.x ?? 60,
     cone2Y: cones[1]?.y ?? 58,
+    cone2Active: cones[1] ? "1" : "0",
     cone3X: cones[2]?.x ?? 50,
     cone3Y: cones[2]?.y ?? 42,
-    zoneLabel: zone.label || "Development zone",
+    cone3Active: cones[2] ? "1" : "0",
+    zoneLabel: zone.label || "",
     zoneX: zone.x ?? 34,
     zoneY: zone.y ?? 28,
     zoneWidth: zone.width ?? 32,
     zoneHeight: zone.height ?? 28,
-    arrowLabel: arrow.label || "Action path",
+    arrowLabel: arrow.label || "",
     arrowFromX: arrow.from?.x ?? player.x ?? 50,
     arrowFromY: arrow.from?.y ?? player.y ?? 70,
     arrowToX: arrow.to?.x ?? 62,
@@ -968,6 +1021,27 @@ function updateBoardNoteVisual(modal) {
   if (!label) note.textContent = text;
 }
 
+function refreshBoardObjectVisibility(modal) {
+  if (!modal) return;
+  const referenceHidden = !boardFormText(modal, "referenceLabel", "");
+  setElementClass(modal, "idp-board-reference-hidden", referenceHidden);
+  setBoardObjectHidden(modal.querySelector?.(".idp-player-board-reference"), referenceHidden);
+  [1, 2, 3].forEach((index) => setBoardConeActive(modal, index, boardConeActive(modal, index)));
+  const zoneHidden = !boardFormText(modal, "zoneLabel", "");
+  setElementClass(modal, "idp-board-zone-hidden", zoneHidden);
+  setBoardObjectHidden(modal.querySelector?.(".idp-player-board-zone"), zoneHidden);
+  setBoardObjectHidden(modal.querySelector?.('[data-idp-board-zone-label="1"]'), zoneHidden);
+  const movementHidden = !boardFormText(modal, "arrowLabel", "");
+  setElementClass(modal, "idp-board-movement-hidden", movementHidden);
+  setBoardObjectHidden(modal.querySelector?.(".idp-player-board-movement"), movementHidden);
+  modal.querySelectorAll?.("[data-idp-board-movement-handle]")?.forEach((handle) => {
+    setBoardObjectHidden(handle, movementHidden);
+  });
+  const noteHidden = !boardFormText(modal, "noteText", "");
+  setElementClass(modal, "idp-board-note-hidden", noteHidden);
+  setBoardObjectHidden(modal.querySelector?.(".idp-player-board-note-pin"), noteHidden);
+}
+
 function applyBoardSnapshot(modal, snapshot = {}) {
   BOARD_HISTORY_FIELDS.forEach((name) => {
     if (Object.prototype.hasOwnProperty.call(snapshot, name)) {
@@ -993,7 +1067,9 @@ function applyBoardSnapshot(modal, snapshot = {}) {
   updateBoardArrowStyle(modal);
   updateBoardZoneVisual(modal);
   updateBoardNoteVisual(modal);
+  refreshBoardObjectVisibility(modal);
   updateBoardFrameMetaPreview(modal);
+  updateBoardLayerList(modal);
 }
 
 function syncActiveBoardFrameFromModal(modal) {
@@ -1003,6 +1079,7 @@ function syncActiveBoardFrameFromModal(modal) {
   writeBoardFrames(modal, safeFrames);
   setActiveBoardFrameIndex(modal, index, safeFrames.length);
   updateBoardFrameMetaPreview(modal);
+  updateBoardLayerList(modal);
   return safeFrames;
 }
 
@@ -1025,6 +1102,7 @@ function applyBoardFrameToModal(modal, frame = {}, index = 0) {
     button.classList.toggle("is-active", String(button.dataset.idpBoardColorChoice || "").toLowerCase() === boardFormText(modal, "arrowColor", "").toLowerCase());
   });
   updateBoardFrameMetaPreview(modal);
+  updateBoardLayerList(modal);
   clearBoardFrameApplyingSoon(modal);
 }
 
@@ -1245,6 +1323,31 @@ function boardObjectLabel(object) {
   return "Board object";
 }
 
+function boardObjectKey(object) {
+  const type = object?.dataset?.idpBoardObject || "";
+  if (type === "player") return "player";
+  if (type === "reference") return "reference:1";
+  if (type === "cone") return `cone:${object?.dataset?.idpBoardCone || 1}`;
+  if (type === "zone") return `zone:${object?.dataset?.idpBoardZone || 1}`;
+  if (type === "movement" || type === "movement-from" || type === "movement-to") {
+    return `movement:${object?.dataset?.idpBoardArrow || 1}`;
+  }
+  if (type === "note") return `note:${object?.dataset?.idpBoardNote || 1}`;
+  return "";
+}
+
+function boardObjectForKey(modal, key = "") {
+  const [type, rawIndex = "1"] = String(key || "").split(":");
+  const index = Number(rawIndex) || 1;
+  if (type === "player") return modal?.querySelector?.(".idp-player-board-player");
+  if (type === "reference") return modal?.querySelector?.(".idp-player-board-reference");
+  if (type === "cone") return modal?.querySelector?.(`[data-idp-board-cone="${index}"]`);
+  if (type === "zone") return modal?.querySelector?.(`[data-idp-board-zone="${index}"]`) || modal?.querySelector?.(".idp-player-board-zone");
+  if (type === "movement") return modal?.querySelector?.(`[data-idp-board-object="movement"][data-idp-board-arrow="${index}"]`) || boardMovementElement(modal);
+  if (type === "note") return modal?.querySelector?.(`[data-idp-board-note="${index}"]`);
+  return null;
+}
+
 function selectedBoardObject(modal) {
   return modal?.querySelector?.("[data-idp-board-object].is-selected")
     || modal?.querySelector?.(".idp-player-board-player")
@@ -1299,10 +1402,118 @@ function boardPointLabel(point = null) {
   return `${Math.round(Number(point.x) || 0)} / ${Math.round(Number(point.y) || 0)}`;
 }
 
+function escapeBoardAttribute(value = "") {
+  return escapeBoardHtml(value).replace(/`/g, "&#096;");
+}
+
+function boardLayerEntriesFromModal(modal) {
+  const entries = [{
+    canDelete: false,
+    canDuplicate: false,
+    detail: boardPointLabel(boardObjectPoint(modal, modal?.querySelector?.(".idp-player-board-player"))),
+    key: "player",
+    label: "Player marker",
+    meta: "Player",
+  }];
+  if (boardFormText(modal, "referenceLabel", "")) {
+    entries.push({
+      canDelete: true,
+      canDuplicate: false,
+      detail: boardPointLabel(boardObjectPoint(modal, modal?.querySelector?.(".idp-player-board-reference"))),
+      key: "reference:1",
+      label: boardFormText(modal, "referenceLabel", "Reference"),
+      meta: "Reference",
+    });
+  }
+  if (boardFormText(modal, "arrowLabel", "")) {
+    entries.push({
+      canDelete: true,
+      canDuplicate: false,
+      detail: normalizeBoardArrowType(modal?.querySelector?.('[name="arrowType"]')?.value || "run"),
+      key: "movement:1",
+      label: boardFormText(modal, "arrowLabel", "Movement path"),
+      meta: "Movement",
+    });
+  }
+  if (boardFormText(modal, "zoneLabel", "")) {
+    entries.push({
+      canDelete: true,
+      canDuplicate: false,
+      detail: boardPointLabel(boardObjectPoint(modal, modal?.querySelector?.(".idp-player-board-zone"))),
+      key: "zone:1",
+      label: boardFormText(modal, "zoneLabel", "Development zone"),
+      meta: "Zone",
+    });
+  }
+  const activeConeIndexes = [1, 2, 3].filter((index) => boardConeActive(modal, index));
+  activeConeIndexes.forEach((index) => {
+    entries.push({
+      canDelete: true,
+      canDuplicate: activeConeIndexes.length < 3,
+      detail: boardPointLabel(boardObjectPoint(modal, modal?.querySelector?.(`[data-idp-board-cone="${index}"]`))),
+      key: `cone:${index}`,
+      label: `Cone ${index}`,
+      meta: "Cone",
+    });
+  });
+  if (boardFormText(modal, "noteText", "")) {
+    entries.push({
+      canDelete: true,
+      canDuplicate: false,
+      detail: boardPointLabel(boardObjectPoint(modal, modal?.querySelector?.(".idp-player-board-note-pin"))),
+      key: "note:1",
+      label: boardFormText(modal, "noteText", "Coach note"),
+      meta: "Note",
+    });
+  }
+  return entries;
+}
+
+function boardLayerItemHtml(entry = {}, selectedKey = "player") {
+  const isSelected = entry.key === selectedKey;
+  return `
+    <article class="idp-board-layer-item${isSelected ? " is-selected" : ""}" data-idp-board-layer-item="${escapeBoardAttribute(entry.key)}">
+      <button type="button" class="idp-board-layer-select" data-idp-board-layer-select="${escapeBoardAttribute(entry.key)}" aria-pressed="${isSelected ? "true" : "false"}">
+        <span class="idp-board-layer-glyph" aria-hidden="true">${escapeBoardHtml(String(entry.meta || "Obj").slice(0, 2).toUpperCase())}</span>
+        <span class="idp-board-layer-copy">
+          <strong>${escapeBoardHtml(entry.label || "Board object")}</strong>
+          <small>${escapeBoardHtml(entry.meta || "Object")} · ${escapeBoardHtml(entry.detail || "--")}</small>
+        </span>
+      </button>
+      <span class="idp-board-layer-actions">
+        <button type="button" ${entry.canDuplicate ? "" : "disabled"} data-idp-board-object-duplicate="${escapeBoardAttribute(entry.key)}">Copy</button>
+        <button type="button" ${entry.canDelete ? "" : "disabled"} data-idp-board-object-delete="${escapeBoardAttribute(entry.key)}">Delete</button>
+      </span>
+    </article>
+  `;
+}
+
+function updateBoardLayerSelection(modal) {
+  if (!modal) return;
+  const selectedKey = modal.dataset?.idpBoardSelectedObjectKey || boardObjectKey(selectedBoardObject(modal)) || "player";
+  modal.querySelectorAll?.("[data-idp-board-layer-item]")?.forEach((item) => {
+    const isSelected = item.dataset.idpBoardLayerItem === selectedKey;
+    item.classList.toggle("is-selected", isSelected);
+    item.querySelector?.("[data-idp-board-layer-select]")?.setAttribute?.("aria-pressed", isSelected ? "true" : "false");
+  });
+}
+
+function updateBoardLayerList(modal) {
+  if (!modal) return;
+  const list = modal.querySelector?.("[data-idp-board-layer-list]");
+  if (!list) return;
+  const selectedKey = modal.dataset?.idpBoardSelectedObjectKey || boardObjectKey(selectedBoardObject(modal)) || "player";
+  const entries = boardLayerEntriesFromModal(modal);
+  list.innerHTML = entries.map((entry) => boardLayerItemHtml(entry, selectedKey)).join("");
+  const count = modal.querySelector?.("[data-idp-board-layer-count]");
+  if (count) count.textContent = `${entries.length} objects`;
+}
+
 function updateBoardSelectedObjectMeta(modal, object = selectedBoardObject(modal)) {
   if (!modal) return;
   const label = boardObjectLabel(object);
   const point = boardObjectPoint(modal, object);
+  if (modal.dataset) modal.dataset.idpBoardSelectedObjectKey = boardObjectKey(object) || "player";
   modal.querySelectorAll?.("[data-idp-board-selected-object]")?.forEach((node) => {
     node.textContent = label;
   });
@@ -1312,18 +1523,91 @@ function updateBoardSelectedObjectMeta(modal, object = selectedBoardObject(modal
   modal.querySelectorAll?.("[data-idp-board-precision-state]")?.forEach((node) => {
     node.textContent = `${IDP_BOARD_GRID_SIZE}%`;
   });
+  updateBoardLayerSelection(modal);
 }
 
 function selectBoardObject(modal, object) {
   if (!modal || !object) return;
   modal.querySelectorAll?.("[data-idp-board-object].is-selected")?.forEach((node) => {
-    node.classList.remove("is-selected");
+    setElementClass(node, "is-selected", false);
   });
-  object.classList?.add("is-selected");
+  setElementClass(object, "is-selected", true);
   if (["movement", "movement-from", "movement-to"].includes(object.dataset?.idpBoardObject || "")) {
-    modal.querySelector?.(".idp-player-board-movement")?.classList?.add("is-selected");
+    setElementClass(modal.querySelector?.(".idp-player-board-movement"), "is-selected", true);
   }
   updateBoardSelectedObjectMeta(modal, object);
+}
+
+function selectBoardObjectByKey(modal, key = "") {
+  const object = boardObjectForKey(modal, key);
+  if (!modal || !object) return false;
+  selectBoardObject(modal, object);
+  return true;
+}
+
+function nextAvailableConeIndex(modal) {
+  return [1, 2, 3].find((index) => !boardConeActive(modal, index)) || 0;
+}
+
+function deleteBoardObjectByKey(modal, key = "") {
+  if (!modal || !key || key === "player") return false;
+  const [type, rawIndex = "1"] = String(key).split(":");
+  const index = Number(rawIndex) || 1;
+  if (type === "reference") {
+    setBoardFormValue(modal, "referenceLabel", "");
+  } else if (type === "cone") {
+    setBoardConeActive(modal, index, false);
+  } else if (type === "zone") {
+    setBoardFormValue(modal, "zoneLabel", "");
+  } else if (type === "movement") {
+    setBoardFormValue(modal, "arrowLabel", "");
+    delete modal.dataset.idpBoardArrowStart;
+  } else if (type === "note") {
+    setBoardFormValue(modal, "noteText", "");
+  } else {
+    return false;
+  }
+  refreshBoardObjectVisibility(modal);
+  selectBoardObjectByKey(modal, "player");
+  updateBoardLayerList(modal);
+  return true;
+}
+
+function duplicateBoardObjectByKey(modal, key = "") {
+  if (!modal || !key) return false;
+  const [type, rawIndex = "1"] = String(key).split(":");
+  if (type !== "cone") return false;
+  const sourceIndex = Number(rawIndex) || 1;
+  if (!boardConeActive(modal, sourceIndex)) return false;
+  const targetIndex = nextAvailableConeIndex(modal);
+  if (!targetIndex) return false;
+  const sourcePoint = {
+    x: boardFormNumber(modal, `cone${sourceIndex}X`, sourceIndex === 1 ? 40 : sourceIndex === 2 ? 60 : 50),
+    y: boardFormNumber(modal, `cone${sourceIndex}Y`, sourceIndex === 3 ? 42 : 58),
+  };
+  const targetPoint = offsetTacticalBoardPoint(sourcePoint, { x: 4, y: 4 }, { gridSize: IDP_BOARD_GRID_SIZE, precision: 1 });
+  setBoardFormValue(modal, `cone${targetIndex}X`, targetPoint.x);
+  setBoardFormValue(modal, `cone${targetIndex}Y`, targetPoint.y);
+  setBoardConeActive(modal, targetIndex, true);
+  setMarkerPosition(modal.querySelector?.(`[data-idp-board-cone="${targetIndex}"]`), targetPoint);
+  refreshBoardObjectVisibility(modal);
+  selectBoardObjectByKey(modal, `cone:${targetIndex}`);
+  updateBoardLayerList(modal);
+  return true;
+}
+
+function mutateBoardObjectLayer(modal, key = "", mutation = "select") {
+  if (!modal || !key) return false;
+  if (mutation === "select") return selectBoardObjectByKey(modal, key);
+  stopBoardPlayback(runtime, modal);
+  const before = captureBoardSnapshot(modal);
+  const changed = mutation === "duplicate"
+    ? duplicateBoardObjectByKey(modal, key)
+    : deleteBoardObjectByKey(modal, key);
+  if (!changed) return false;
+  pushBoardHistory(runtime, modal, before, captureBoardSnapshot(modal));
+  syncActiveBoardFrameFromModal(modal);
+  return true;
 }
 
 function movementDragHandleForPoint(modal, point) {
@@ -1461,18 +1745,30 @@ function applyBoardPitchPoint(event, pitch) {
     return true;
   }
   if (tool === "reference") {
+    const referenceLabel = modal.querySelector?.('[name="referenceLabel"]');
+    if (referenceLabel && !String(referenceLabel.value || "").trim()) referenceLabel.value = "REF";
     setBoardFormValue(modal, "referenceX", point.x);
     setBoardFormValue(modal, "referenceY", point.y);
     setMarkerPosition(pitch.querySelector(".idp-player-board-reference"), point);
+    refreshBoardObjectVisibility(modal);
+    selectBoardObjectByKey(modal, "reference:1");
     return true;
   }
   if (tool === "cone") {
-    setBoardFormValue(modal, "cone1X", point.x);
-    setBoardFormValue(modal, "cone1Y", point.y);
-    setMarkerPosition(pitch.querySelector('[data-idp-board-cone="1"]'), point);
+    const selectedCone = selectedBoardObject(modal);
+    const selectedIndex = selectedCone?.dataset?.idpBoardObject === "cone" ? Number(selectedCone.dataset.idpBoardCone || 1) : 0;
+    const coneIndex = selectedIndex || nextAvailableConeIndex(modal) || 1;
+    setBoardFormValue(modal, `cone${coneIndex}X`, point.x);
+    setBoardFormValue(modal, `cone${coneIndex}Y`, point.y);
+    setBoardConeActive(modal, coneIndex, true);
+    setMarkerPosition(pitch.querySelector(`[data-idp-board-cone="${coneIndex}"]`), point);
+    refreshBoardObjectVisibility(modal);
+    selectBoardObjectByKey(modal, `cone:${coneIndex}`);
     return true;
   }
   if (tool === "zone") {
+    const zoneLabel = modal.querySelector?.('[name="zoneLabel"]');
+    if (zoneLabel && !String(zoneLabel.value || "").trim()) zoneLabel.value = "Development zone";
     const width = boardFormNumber(modal, "zoneWidth", 32);
     const height = boardFormNumber(modal, "zoneHeight", 28);
     const zonePoint = {
@@ -1482,6 +1778,8 @@ function applyBoardPitchPoint(event, pitch) {
     setBoardFormValue(modal, "zoneX", zonePoint.x);
     setBoardFormValue(modal, "zoneY", zonePoint.y);
     updateBoardZoneVisual(modal);
+    refreshBoardObjectVisibility(modal);
+    selectBoardObjectByKey(modal, "zone:1");
     return true;
   }
   if (["arrow", "run", "pass", "line", "curve"].includes(tool)) {
@@ -1498,6 +1796,8 @@ function applyBoardPitchPoint(event, pitch) {
     setBoardFormValue(modal, "arrowToX", point.x);
     setBoardFormValue(modal, "arrowToY", point.y);
     setBoardMovementCoordinates(modal);
+    refreshBoardObjectVisibility(modal);
+    selectBoardObjectByKey(modal, "movement:1");
     modal.dataset.idpBoardArrowStart = "1";
     return true;
   }
@@ -1508,6 +1808,8 @@ function applyBoardPitchPoint(event, pitch) {
     setBoardFormValue(modal, "noteY", point.y);
     const note = ensureBoardNotePin(pitch, noteText?.value || "Coach note");
     setMarkerPosition(note, point);
+    refreshBoardObjectVisibility(modal);
+    selectBoardObjectByKey(modal, "note:1");
     return true;
   }
   return false;
@@ -1969,6 +2271,24 @@ export function handleClick(event) {
       button.classList.toggle("is-active", button === boardColorChoice);
     });
     updateBoardArrowStyle(modal);
+    return;
+  }
+  const boardLayerDuplicate = event?.target?.closest?.("[data-idp-board-object-duplicate]");
+  if (boardLayerDuplicate) {
+    event?.preventDefault?.();
+    mutateBoardObjectLayer(boardLayerDuplicate.closest?.(".idp-player-board-modal"), boardLayerDuplicate.dataset.idpBoardObjectDuplicate || "", "duplicate");
+    return;
+  }
+  const boardLayerDelete = event?.target?.closest?.("[data-idp-board-object-delete]");
+  if (boardLayerDelete) {
+    event?.preventDefault?.();
+    mutateBoardObjectLayer(boardLayerDelete.closest?.(".idp-player-board-modal"), boardLayerDelete.dataset.idpBoardObjectDelete || "", "delete");
+    return;
+  }
+  const boardLayerSelect = event?.target?.closest?.("[data-idp-board-layer-select]");
+  if (boardLayerSelect) {
+    event?.preventDefault?.();
+    mutateBoardObjectLayer(boardLayerSelect.closest?.(".idp-player-board-modal"), boardLayerSelect.dataset.idpBoardLayerSelect || "", "select");
     return;
   }
   const boardToolTrigger = event?.target?.closest?.("[data-idp-board-tool]");

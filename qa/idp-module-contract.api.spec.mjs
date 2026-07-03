@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildIdpDashboardFromSquadState, buildLegacyPlayerDetail } from "../src/modules/idp/idp-adapter.mjs";
 import { createIdpActions } from "../src/modules/idp/idp-actions.mjs";
+import { normalizeIdpDevelopmentIntervention } from "../src/modules/idp/domain/idp.models.mjs";
 import { renderIdpWorkspace } from "../src/modules/idp/idp-renderer.mjs";
 import { createIdpStore } from "../src/modules/idp/idp-state.mjs";
 
@@ -48,6 +49,32 @@ test("idp UI modules avoid direct database access and use only the API service f
   expect(read("src/modules/idp/services/idp-api-service.mjs")).toContain("/api/idp");
   expect(read("api/idp.js")).toContain('route: "/api/idp"');
   expect(read("api/idp.js")).toContain('moduleId: "idp"');
+});
+
+test("idp board normalization preserves explicitly empty object layers", () => {
+  const intervention = normalizeIdpDevelopmentIntervention({
+    id: "board-1",
+    board_state: {
+      schema: "idp-player-board-v2",
+      player: { x: 50, y: 70 },
+      cones: [{ id: "top-cone", x: 40, y: 58 }],
+      zones: [{ id: "top-zone", label: "Top zone", x: 30, y: 30 }],
+      arrows: [{ id: "top-arrow", type: "run", label: "Top run", from: { x: 50, y: 70 }, to: { x: 60, y: 40 } }],
+      notes: [{ id: "top-note", text: "Top note", x: 12, y: 14 }],
+      activeFrameIndex: 1,
+      frames: [
+        { id: "frame-1", label: "Inherited object frame" },
+        { id: "frame-2", label: "Empty object frame", cones: [], zones: [], arrows: [], notes: [] },
+      ],
+    },
+  });
+
+  expect(intervention.boardState.frames[0].cones).toHaveLength(1);
+  expect(intervention.boardState.frames[1].cones).toEqual([]);
+  expect(intervention.boardState.frames[1].zones).toEqual([]);
+  expect(intervention.boardState.frames[1].arrows).toEqual([]);
+  expect(intervention.boardState.frames[1].notes).toEqual([]);
+  expect(intervention.boardState.cones).toEqual([]);
 });
 
 test("idp evidence edits and deletes stay behind the server-owned database boundary", () => {
@@ -167,10 +194,18 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(idpRuntime).toContain("snapTacticalBoardPoint");
   expect(idpRuntime).toContain("nudgeBoardObject");
   expect(idpRuntime).toContain("handleBoardKeyboardDown");
+  expect(idpRuntime).toContain("deleteBoardObjectByKey");
+  expect(idpRuntime).toContain("duplicateBoardObjectByKey");
+  expect(idpRuntime).toContain("updateBoardLayerList");
+  expect(idpRuntime).toContain("cone1Active");
   expect(idpRuntime).toContain('element.dataset.idpBoardObject = "movement"');
   expect(idpCss).toContain("idp-player-board-hit-target");
   expect(idpCss).toContain("idp-board-interaction-strip");
+  expect(idpCss).toContain("idp-board-layer-manager");
   expect(playerBoardRenderer).toContain("data-idp-board-object");
+  expect(playerBoardRenderer).toContain("data-idp-board-layer-list");
+  expect(playerBoardRenderer).toContain("data-idp-board-object-delete");
+  expect(playerBoardRenderer).toContain("data-idp-board-object-duplicate");
   expect(playerBoardRenderer).toContain("idp-tactical-inspector-card");
   expect(playerBoardRenderer).toContain("idp-player-board-hidden-state");
   expect(playerBoardRenderer).toContain("data-idp-board-undo");
@@ -874,6 +909,11 @@ test("idp renderer separates the overview from the player development profile", 
   expect(boardHtml).toContain("Movement colour");
   expect(boardHtml).toContain("data-idp-board-selected-position");
   expect(boardHtml).toContain("data-idp-board-precision-state");
+  expect(boardHtml).toContain("data-idp-board-layer-list");
+  expect(boardHtml).toContain("data-idp-board-layer-select=\"player\"");
+  expect(boardHtml).toContain("data-idp-board-object-delete");
+  expect(boardHtml).toContain("data-idp-board-object-duplicate");
+  expect(boardHtml).toContain("cone1Active");
   expect(boardHtml).toContain("data-idp-board-linked-clip-ids");
   expect(boardHtml).toContain("data-idp-board-clip-picker");
   expect(boardHtml).not.toContain("Linked clip ids");

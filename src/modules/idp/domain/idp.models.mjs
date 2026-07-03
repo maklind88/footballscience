@@ -121,6 +121,7 @@ function normalizeBoardNotes(values = [], fallback = []) {
 }
 
 function normalizeBoardFrame(value = {}, index = 0, fallbackState = {}) {
+  const hasOwn = (key) => Object.prototype.hasOwnProperty.call(value, key);
   return {
     id: normalizeText(value.id || `frame-${index + 1}`, 80),
     label: normalizeText(value.label || `Frame ${index + 1}`, 80),
@@ -128,11 +129,11 @@ function normalizeBoardFrame(value = {}, index = 0, fallbackState = {}) {
     playerCue: normalizeText(value.playerCue || value.player_cue, 220),
     clipAnchor: normalizeText(value.clipAnchor || value.clip_anchor, 160),
     player: normalizeBoardPlayer(value.player, fallbackState.player),
-    referencePlayers: normalizeBoardReferencePlayers(value.referencePlayers, fallbackState.referencePlayers),
-    cones: normalizeBoardCones(value.cones, fallbackState.cones),
-    zones: normalizeBoardZones(value.zones, fallbackState.zones),
-    arrows: normalizeBoardArrows(value.arrows, fallbackState.arrows),
-    notes: normalizeBoardNotes(value.notes, fallbackState.notes),
+    referencePlayers: normalizeBoardReferencePlayers(value.referencePlayers, hasOwn("referencePlayers") ? [] : fallbackState.referencePlayers),
+    cones: normalizeBoardCones(value.cones, hasOwn("cones") ? [] : fallbackState.cones),
+    zones: normalizeBoardZones(value.zones, hasOwn("zones") ? [] : fallbackState.zones),
+    arrows: normalizeBoardArrows(value.arrows, hasOwn("arrows") ? [] : fallbackState.arrows),
+    notes: normalizeBoardNotes(value.notes, hasOwn("notes") ? [] : fallbackState.notes),
   };
 }
 

@@ -10218,6 +10218,22 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   cursor: grabbing;
 }
 
+.idp-player-board-pitch .is-board-hidden {
+  display: none;
+}
+
+.idp-player-board-modal.idp-board-reference-hidden .idp-player-board-reference,
+.idp-player-board-modal.idp-board-cone-1-hidden [data-idp-board-cone="1"],
+.idp-player-board-modal.idp-board-cone-2-hidden [data-idp-board-cone="2"],
+.idp-player-board-modal.idp-board-cone-3-hidden [data-idp-board-cone="3"],
+.idp-player-board-modal.idp-board-zone-hidden .idp-player-board-zone,
+.idp-player-board-modal.idp-board-zone-hidden [data-idp-board-zone-label],
+.idp-player-board-modal.idp-board-movement-hidden .idp-player-board-movement,
+.idp-player-board-modal.idp-board-movement-hidden [data-idp-board-movement-handle],
+.idp-player-board-modal.idp-board-note-hidden .idp-player-board-note-pin {
+  display: none !important;
+}
+
 .idp-player-board-pitch .idp-tactical-board-svg .session-pitch-diagram,
 .idp-player-board-pitch .idp-tactical-board-svg .session-pitch-touchline,
 .idp-player-board-pitch .idp-tactical-board-svg .session-pitch-halfway-line,
@@ -10616,6 +10632,153 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   font-weight: 760;
   line-height: 1.22;
   margin: 0;
+}
+
+.idp-board-layer-manager {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .045)),
+    rgba(15, 23, 42, .18);
+  border: 1px solid rgba(226, 232, 240, .1);
+  border-radius: 16px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.idp-board-layer-manager-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.idp-board-layer-manager-head span {
+  color: rgba(226, 232, 240, .7);
+  font-size: .66rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.idp-board-layer-manager-head small {
+  color: rgba(167, 243, 208, .9);
+  font-size: .68rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.idp-board-layer-list {
+  display: grid;
+  gap: 6px;
+}
+
+.idp-board-layer-item {
+  align-items: center;
+  background: rgba(15, 23, 42, .34);
+  border: 1px solid rgba(226, 232, 240, .08);
+  border-radius: 13px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  padding: 5px;
+}
+
+.idp-board-layer-item.is-selected {
+  background: rgba(20, 184, 166, .16);
+  border-color: rgba(94, 234, 212, .46);
+  box-shadow: inset 3px 0 0 #2dd4bf;
+}
+
+.idp-board-layer-select {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
+  padding: 2px;
+  text-align: left;
+}
+
+.idp-board-layer-select:focus-visible,
+.idp-board-layer-actions button:focus-visible {
+  outline: 2px solid rgba(94, 234, 212, .85);
+  outline-offset: 2px;
+}
+
+.idp-board-layer-glyph {
+  align-items: center;
+  background: rgba(226, 232, 240, .12);
+  border: 1px solid rgba(226, 232, 240, .1);
+  border-radius: 10px;
+  color: #e2e8f0;
+  display: grid;
+  font-size: .62rem;
+  font-weight: 950;
+  height: 30px;
+  justify-items: center;
+  line-height: 1;
+  width: 30px;
+}
+
+.idp-board-layer-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.idp-board-layer-copy strong {
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 950;
+  line-height: 1.08;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-board-layer-copy small {
+  color: rgba(203, 213, 225, .68);
+  font-size: .62rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-board-layer-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.idp-board-layer-actions button {
+  appearance: none;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  color: rgba(241, 245, 249, .9);
+  cursor: pointer;
+  font: inherit;
+  font-size: .58rem;
+  font-weight: 950;
+  min-height: 24px;
+  padding: 0 8px;
+}
+
+.idp-board-layer-actions button:not(:disabled):hover {
+  background: #e5edf7;
+  color: #07111f;
+}
+
+.idp-board-layer-actions button:disabled {
+  cursor: not-allowed;
+  opacity: .36;
 }
 
 .idp-player-board-frame-inspector {

@@ -89,6 +89,11 @@ function boardToolIcon(tool = "player") {
   }[tool] || "T";
 }
 
+function boardObjectPointLabel(point = null) {
+  if (!point) return "--";
+  return `${Math.round(Number(point.x) || 0)} / ${Math.round(Number(point.y) || 0)}`;
+}
+
 function renderBoardToolSvgIcon(tool = "player") {
   const icons = {
     player: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2.4"></circle></svg>',
@@ -142,8 +147,8 @@ function normalizeFrameIndex(value, total = 1) {
   return Number.isInteger(index) && index >= 0 && index < count ? index : 0;
 }
 
-function boardFrameArray(sourceItems = [], fallbackItems = [], limit = 8) {
-  const source = Array.isArray(sourceItems) && sourceItems.length ? sourceItems : fallbackItems;
+function boardFrameArray(sourceItems, fallbackItems = [], limit = 8) {
+  const source = Array.isArray(sourceItems) ? sourceItems : fallbackItems;
   return Array.isArray(source) ? source.slice(0, limit).map((item) => ({ ...item })) : [];
 }
 
@@ -244,9 +249,9 @@ function idpTacticalBoardClassName(baseClassName = "", element = {}, slot = "ele
     return "idp-player-board-hit-target";
   }
   if (element.idpBoardObject === "movement") {
-    return `session-tactical-${escapeHtml(boardArrowType(element.type))} idp-player-board-movement`;
+    return `session-tactical-${escapeHtml(boardArrowType(element.type))} idp-player-board-movement${element.idpBoardInactive ? " is-board-hidden" : ""}`;
   }
-  return baseClassName;
+  return `${baseClassName}${element.idpBoardInactive ? " is-board-hidden" : ""}`;
 }
 
 function idpTacticalBoardAttributes(element = {}, slot = "element") {
@@ -262,6 +267,9 @@ function idpTacticalBoardAttributes(element = {}, slot = "element") {
   }
   if (element.idpBoardArrowType) {
     attributes.push(`data-idp-board-arrow-type="${escapeHtml(element.idpBoardArrowType)}"`);
+  }
+  if (element.idpBoardArrowIndex) {
+    attributes.push(`data-idp-board-arrow="${escapeHtml(element.idpBoardArrowIndex)}"`);
   }
   return attributes.join(" ");
 }
@@ -307,6 +315,7 @@ function boardZoneToTacticalElement(zone = {}, index = 0) {
     lineWidth: normalizeBoardLineWidth(zone.lineWidth, 1.2),
     idpBoardObject: "zone",
     idpBoardZoneIndex: index + 1,
+    idpBoardInactive: zone.inactive === true,
   };
 }
 
@@ -320,7 +329,7 @@ function renderBoardZone(zone = {}, index = 0) {
   const labelY = Math.min(96, Math.max(4, y + height / 2));
   return `
     ${renderIdpTacticalBoardElement(element)}
-    <text class="idp-player-board-zone-label" data-idp-board-zone-label="${index + 1}" x="${labelX}" y="${labelY}">${renderSvgText(zone.label || "Zone", 24)}</text>
+    <text class="idp-player-board-zone-label${zone.inactive === true ? " is-board-hidden" : ""}" data-idp-board-zone-label="${index + 1}" x="${labelX}" y="${labelY}">${renderSvgText(zone.label || "Zone", 24)}</text>
   `;
 }
 
@@ -328,7 +337,7 @@ function renderBoardCone(cone = {}, index = 0) {
   const x = clampPercent(cone.x, 50);
   const y = clampPercent(cone.y, 50);
   return `
-    <g class="idp-player-board-cone" data-idp-board-object="cone" data-idp-board-cone="${index + 1}" transform="translate(${x} ${y})">
+    <g class="idp-player-board-cone${cone.inactive === true ? " is-board-hidden" : ""}" data-idp-board-object="cone" data-idp-board-cone="${index + 1}" transform="translate(${x} ${y})">
       <path d="M 0 -2.9 L 2.75 2.55 L -2.75 2.55 Z"></path>
       <line x1="-3.15" y1="2.9" x2="3.15" y2="2.9"></line>
     </g>
@@ -343,6 +352,7 @@ function renderBoardPlayerMarker(item = {}, options = {}) {
   const classes = [
     "idp-tactical-player-marker",
     options.neutral ? "is-neutral" : "is-player",
+    options.hidden ? "is-board-hidden" : "",
     options.className || "",
   ].filter(Boolean).join(" ");
   return `
@@ -360,14 +370,14 @@ function renderBoardNote(note = {}, index = 0) {
   const y = clampPercent(note.y, 14);
   const text = normalizeText(note.text, "Coach note");
   return `
-    <g class="idp-player-board-note-pin" data-idp-board-object="note" data-idp-board-note="${index + 1}" transform="translate(${x} ${y})">
+    <g class="idp-player-board-note-pin${note.inactive === true ? " is-board-hidden" : ""}" data-idp-board-object="note" data-idp-board-note="${index + 1}" transform="translate(${x} ${y})">
       <rect x="-8" y="-4.2" width="16" height="8.4" rx="1.8"></rect>
       <text y=".45">${renderSvgText(text, 18)}</text>
     </g>
   `;
 }
 
-function renderArrowElement(arrow = {}, markerId = "idp-player-board-arrow") {
+function renderArrowElement(arrow = {}, markerId = "idp-player-board-arrow", index = 0) {
   const type = boardArrowType(arrow.type || "arrow");
   const fromX = clampPercent(arrow.from?.x, 50);
   const fromY = clampPercent(arrow.from?.y, 70);
@@ -385,17 +395,59 @@ function renderArrowElement(arrow = {}, markerId = "idp-player-board-arrow") {
     lineWidth: normalizeBoardLineWidth(arrow.lineWidth, 2.4),
     idpBoardObject: "movement",
     idpBoardArrowType: type,
+    idpBoardArrowIndex: index + 1,
+    idpBoardInactive: arrow.inactive === true,
   };
   const handles = `
-    <circle class="idp-player-board-movement-handle is-from" data-idp-board-object="movement-from" data-idp-board-movement-handle="from" cx="${fromX}" cy="${fromY}" r="1.55"></circle>
-    <circle class="idp-player-board-movement-handle is-to" data-idp-board-object="movement-to" data-idp-board-movement-handle="to" cx="${toX}" cy="${toY}" r="1.75"></circle>
+    <circle class="idp-player-board-movement-handle is-from${arrow.inactive === true ? " is-board-hidden" : ""}" data-idp-board-object="movement-from" data-idp-board-arrow="${index + 1}" data-idp-board-movement-handle="from" cx="${fromX}" cy="${fromY}" r="1.55"></circle>
+    <circle class="idp-player-board-movement-handle is-to${arrow.inactive === true ? " is-board-hidden" : ""}" data-idp-board-object="movement-to" data-idp-board-arrow="${index + 1}" data-idp-board-movement-handle="to" cx="${toX}" cy="${toY}" r="1.75"></circle>
   `;
   return `${renderIdpTacticalBoardElement(element, markerId, { curveBend: type === "run" ? 10 : 13 })}${handles}`;
+}
+
+function editorBoardCones(cones = []) {
+  const fallback = [
+    { id: "cone-1", x: 40, y: 58 },
+    { id: "cone-2", x: 60, y: 58 },
+    { id: "cone-3", x: 50, y: 42 },
+  ];
+  return fallback.map((item, index) => cones[index] ? cones[index] : { ...item, inactive: true });
+}
+
+function editorBoardZones(zones = []) {
+  return zones.length ? zones : [{ id: "zone-1", label: "Development zone", x: 34, y: 28, width: 32, height: 28, inactive: true }];
+}
+
+function editorBoardArrows(arrows = [], player = {}) {
+  return arrows.length ? arrows : [{
+    id: "arrow-1",
+    type: "run",
+    label: "Action path",
+    color: "#38bdf8",
+    lineStyle: "dashed",
+    lineWidth: 2.5,
+    from: { x: player.x ?? 50, y: player.y ?? 70 },
+    to: { x: 62, y: 42 },
+    inactive: true,
+  }];
+}
+
+function editorBoardReferencePlayers(referencePlayers = []) {
+  return referencePlayers.length ? referencePlayers : [{ id: "reference-1", label: "REF", x: 50, y: 44, inactive: true }];
+}
+
+function editorBoardNotes(notes = []) {
+  return notes.length ? notes.slice(0, 3) : [{ id: "note-1", text: "Coach note", x: 12, y: 14, inactive: true }];
 }
 
 function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options = {}) {
   const state = boardStateForFrame(boardState(intervention, focus, profile), options.frameIndex);
   const player = state.player || {};
+  const referencePlayers = options.editor ? editorBoardReferencePlayers(state.referencePlayers || []) : state.referencePlayers || [];
+  const cones = options.editor ? editorBoardCones(state.cones || []) : state.cones || [];
+  const zones = options.editor ? editorBoardZones(state.zones || []) : state.zones || [];
+  const arrows = options.editor ? editorBoardArrows(state.arrows || [], player) : state.arrows || [];
+  const notes = options.editor ? editorBoardNotes(state.notes || []) : (state.notes || []).slice(0, 3);
   const initials = initialsFromName(profile.playerName || profile.name || "Player", "P");
   const playerName = normalizeText(profile.playerName || profile.name || "Player", "Player");
   const markerId = options.markerId || "idp-player-board-arrow";
@@ -411,21 +463,22 @@ function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options =
           </defs>
           ${renderSessionPitchDiagram(pitchMode)}
           <g class="idp-tactical-board-zone-layer" aria-label="Development zones">
-            ${Array.isArray(state.zones) ? state.zones.map((zone, index) => renderBoardZone(zone, index)).join("") : ""}
+            ${Array.isArray(zones) ? zones.map((zone, index) => renderBoardZone(zone, index)).join("") : ""}
           </g>
           <g class="idp-player-board-arrow-layer idp-tactical-board-movement-layer" aria-label="Movement paths">
-            ${Array.isArray(state.arrows) ? state.arrows.map((arrow) => renderArrowElement(arrow, markerId)).join("") : ""}
+            ${Array.isArray(arrows) ? arrows.map((arrow, index) => renderArrowElement(arrow, markerId, index)).join("") : ""}
           </g>
           <g class="idp-tactical-board-equipment-layer" aria-label="Equipment">
-            ${Array.isArray(state.cones) ? state.cones.map((cone, index) => renderBoardCone(cone, index)).join("") : ""}
+            ${Array.isArray(cones) ? cones.map((cone, index) => renderBoardCone(cone, index)).join("") : ""}
           </g>
           <g class="idp-tactical-board-player-layer" aria-label="Players">
-            ${Array.isArray(state.referencePlayers) ? state.referencePlayers.map((item) => renderBoardPlayerMarker({
+            ${Array.isArray(referencePlayers) ? referencePlayers.map((item) => renderBoardPlayerMarker({
               ...item,
               name: item.name || item.label || "Reference",
             }, {
               className: "idp-player-board-reference",
               fallbackLabel: "REF",
+              hidden: item.inactive === true,
               neutral: true,
               objectType: "reference",
             })).join("") : ""}
@@ -441,7 +494,7 @@ function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options =
             })}
           </g>
           <g class="idp-tactical-board-notes" aria-label="Coach notes">
-            ${Array.isArray(state.notes) ? state.notes.slice(0, 3).map((note, index) => renderBoardNote(note, index)).join("") : ""}
+            ${Array.isArray(notes) ? notes.map((note, index) => renderBoardNote(note, index)).join("") : ""}
           </g>
         </svg>
       </div>
@@ -1006,25 +1059,25 @@ function hiddenInput(name, value = "") {
 }
 
 function renderBoardGeometryInputs({ player = {}, reference = {}, cones = [], zone = {}, arrow = {}, note = {} } = {}) {
+  const coneSlots = editorBoardCones(cones);
   return `
     <div class="idp-player-board-hidden-state" aria-hidden="true">
       ${hiddenInput("playerX", player.x ?? 50)}
       ${hiddenInput("playerY", player.y ?? 70)}
-      ${hiddenInput("referenceLabel", reference.label || "REF")}
+      ${hiddenInput("referenceLabel", reference.label || "")}
       ${hiddenInput("referenceX", reference.x ?? 50)}
       ${hiddenInput("referenceY", reference.y ?? 44)}
-      ${hiddenInput("cone1X", cones[0]?.x ?? 40)}
-      ${hiddenInput("cone1Y", cones[0]?.y ?? 58)}
-      ${hiddenInput("cone2X", cones[1]?.x ?? 60)}
-      ${hiddenInput("cone2Y", cones[1]?.y ?? 58)}
-      ${hiddenInput("cone3X", cones[2]?.x ?? 50)}
-      ${hiddenInput("cone3Y", cones[2]?.y ?? 42)}
-      ${hiddenInput("zoneLabel", zone.label || "Development zone")}
+      ${coneSlots.map((cone, index) => `
+        ${hiddenInput(`cone${index + 1}Active`, cone.inactive === true ? "0" : "1")}
+        ${hiddenInput(`cone${index + 1}X`, cone.x ?? (index === 0 ? 40 : index === 1 ? 60 : 50))}
+        ${hiddenInput(`cone${index + 1}Y`, cone.y ?? (index === 2 ? 42 : 58))}
+      `).join("")}
+      ${hiddenInput("zoneLabel", zone.label || "")}
       ${hiddenInput("zoneX", zone.x ?? 34)}
       ${hiddenInput("zoneY", zone.y ?? 28)}
       ${hiddenInput("zoneWidth", zone.width ?? 32)}
       ${hiddenInput("zoneHeight", zone.height ?? 28)}
-      ${hiddenInput("arrowLabel", arrow.label || "Action path")}
+      ${hiddenInput("arrowLabel", arrow.label || "")}
       ${hiddenInput("arrowFromX", arrow.from?.x ?? player.x ?? 50)}
       ${hiddenInput("arrowFromY", arrow.from?.y ?? player.y ?? 70)}
       ${hiddenInput("arrowToX", arrow.to?.x ?? 62)}
@@ -1032,6 +1085,112 @@ function renderBoardGeometryInputs({ player = {}, reference = {}, cones = [], zo
       ${hiddenInput("noteX", note.x ?? 12)}
       ${hiddenInput("noteY", note.y ?? 14)}
     </div>
+  `;
+}
+
+function boardLayerEntries(state = {}, profile = {}) {
+  const player = state.player || {};
+  const playerName = normalizeText(profile.playerName || profile.name || "Player", "Player");
+  const entries = [{
+    canDelete: false,
+    canDuplicate: false,
+    detail: boardObjectPointLabel(player),
+    key: "player",
+    label: playerName,
+    meta: "Player marker",
+  }];
+  const reference = state.referencePlayers?.[0];
+  if (reference) {
+    entries.push({
+      canDelete: true,
+      canDuplicate: false,
+      detail: boardObjectPointLabel(reference),
+      key: "reference:1",
+      label: reference.label || "Reference",
+      meta: "Reference",
+    });
+  }
+  const arrow = state.arrows?.[0];
+  if (arrow) {
+    entries.push({
+      canDelete: true,
+      canDuplicate: false,
+      detail: `${boardArrowType(arrow.type || "run")} path`,
+      key: "movement:1",
+      label: arrow.label || "Movement path",
+      meta: "Movement",
+    });
+  }
+  const zone = state.zones?.[0];
+  if (zone) {
+    entries.push({
+      canDelete: true,
+      canDuplicate: false,
+      detail: boardObjectPointLabel({
+        x: clampPercent((zone.x ?? 34) + (zone.width ?? 32) / 2),
+        y: clampPercent((zone.y ?? 28) + (zone.height ?? 28) / 2),
+      }),
+      key: "zone:1",
+      label: zone.label || "Development zone",
+      meta: "Zone",
+    });
+  }
+  const activeCones = Array.isArray(state.cones) ? state.cones.slice(0, 3) : [];
+  activeCones.forEach((cone, index) => {
+    entries.push({
+      canDelete: true,
+      canDuplicate: activeCones.length < 3,
+      detail: boardObjectPointLabel(cone),
+      key: `cone:${index + 1}`,
+      label: `Cone ${index + 1}`,
+      meta: "Cone",
+    });
+  });
+  const note = state.notes?.[0];
+  if (note) {
+    entries.push({
+      canDelete: true,
+      canDuplicate: false,
+      detail: boardObjectPointLabel(note),
+      key: "note:1",
+      label: note.text || "Coach note",
+      meta: "Note",
+    });
+  }
+  return entries;
+}
+
+function renderBoardLayerItem(entry = {}, selectedKey = "player") {
+  const isSelected = entry.key === selectedKey;
+  return `
+    <article class="idp-board-layer-item${isSelected ? " is-selected" : ""}" data-idp-board-layer-item="${escapeHtml(entry.key)}">
+      <button type="button" class="idp-board-layer-select" data-idp-board-layer-select="${escapeHtml(entry.key)}" aria-pressed="${isSelected ? "true" : "false"}">
+        <span class="idp-board-layer-glyph" aria-hidden="true">${escapeHtml(String(entry.meta || "Obj").slice(0, 2).toUpperCase())}</span>
+        <span class="idp-board-layer-copy">
+          <strong>${escapeHtml(entry.label || "Board object")}</strong>
+          <small>${escapeHtml(entry.meta || "Object")} · ${escapeHtml(entry.detail || "--")}</small>
+        </span>
+      </button>
+      <span class="idp-board-layer-actions">
+        <button type="button" ${entry.canDuplicate ? "" : "disabled"} data-idp-board-object-duplicate="${escapeHtml(entry.key)}">Copy</button>
+        <button type="button" ${entry.canDelete ? "" : "disabled"} data-idp-board-object-delete="${escapeHtml(entry.key)}">Delete</button>
+      </span>
+    </article>
+  `;
+}
+
+function renderBoardLayerList(state = {}, profile = {}) {
+  const entries = boardLayerEntries(state, profile);
+  return `
+    <section class="idp-board-layer-manager" aria-label="Board objects">
+      <div class="idp-board-layer-manager-head">
+        <span>Object Layers</span>
+        <small data-idp-board-layer-count>${escapeHtml(`${entries.length} objects`)}</small>
+      </div>
+      <div class="idp-board-layer-list" data-idp-board-layer-list>
+        ${entries.map((entry) => renderBoardLayerItem(entry)).join("")}
+      </div>
+    </section>
   `;
 }
 
@@ -1220,6 +1379,7 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
               </div>
               <p data-idp-board-hint-state>Click the pitch to place or update the selected element.</p>
             </section>
+            ${renderBoardLayerList(state, profile)}
             <section class="idp-player-board-frame-inspector" data-idp-board-frame-inspector>
               <div class="idp-player-board-frame-inspector-head">
                 <span>Frame Inspector</span>

@@ -2,6 +2,11 @@ import { createIdpActions } from "./idp-actions.mjs";
 import { createIdpStore } from "./idp-state.mjs";
 import { renderIdpWorkspace as renderMarkup } from "./idp-renderer.mjs";
 import {
+  applyTacticalBoardSvgElementGeometry,
+  getTacticalBoardSvgElementTagName,
+  tacticalBoardDefaultCurveControlPoint,
+} from "../tactical-board/index.mjs";
+import {
   closeClipPreview,
   ensureClipBankStyles,
   jumpClipPreview,
@@ -455,10 +460,19 @@ function boardRenderLineWidth(value, fallback = 2.5) {
   return Math.min(3.15, Math.max(.16, Math.round(logicalWidth * .52 * 100) / 100));
 }
 
-function boardMovementPath(fromX, fromY, toX, toY) {
-  const controlX = (Number(fromX) + Number(toX)) / 2;
-  const controlY = Math.min(Number(fromY), Number(toY)) - Math.max(6, Math.abs(Number(toX) - Number(fromX)) / 5);
-  return `M ${fromX} ${fromY} Q ${controlX} ${controlY} ${toX} ${toY}`;
+function normalizeBoardArrowType(value = "run") {
+  const type = String(value || "run").trim();
+  return ["run", "pass", "arrow", "line", "curve"].includes(type) ? type : "run";
+}
+
+function boardSvgClamp(value, min, max) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(max, Math.max(min, Math.round(number * 10) / 10)) : min;
+}
+
+function normalizeBoardColor(value = "", fallback = "#38bdf8") {
+  const color = String(value || "").trim();
+  return /^#[0-9a-f]{3,8}$/i.test(color) ? color : fallback;
 }
 
 function boardMovementElement(modal) {
@@ -484,45 +498,73 @@ function updateBoardMovementHandles(modal) {
   toHandle?.setAttribute?.("cy", String(toY));
 }
 
+function boardMovementTacticalElement(modal, typeOverride = "") {
+  const type = normalizeBoardArrowType(typeOverride || modal?.querySelector?.('[name="arrowType"]')?.value || "run");
+  const { fromX, fromY, toX, toY } = boardMovementPoints(modal);
+  return {
+    id: "arrow-1",
+    type,
+    x: fromX,
+    y: fromY,
+    x2: toX,
+    y2: toY,
+    color: normalizeBoardColor(modal?.querySelector?.('[name="arrowColor"]')?.value || "", type === "pass" ? "#fbbf24" : "#38bdf8"),
+    lineStyle: modal?.querySelector?.('[name="arrowLineStyle"]')?.value || (type === "pass" ? "dotted" : type === "run" ? "dashed" : "solid"),
+    lineWidth: boardFormNumber(modal, "arrowLineWidth", 2.5),
+  };
+}
+
+function boardMovementRenderOptions(type = "run") {
+  return {
+    clamp: boardSvgClamp,
+    normalizeColor: normalizeBoardColor,
+    getDefaultColor: (candidateType = "arrow") => (candidateType === "pass" ? "#fbbf24" : "#38bdf8"),
+    getRenderStrokeWidth: boardRenderLineWidth,
+    getStrokeDasharray: boardLineDasharray,
+    getDefaultLineStyle: (candidateType = "arrow") => (candidateType === "pass" ? "dotted" : candidateType === "run" ? "dashed" : "solid"),
+    getDefaultCurveControlPoint: (from = {}, to = {}) => tacticalBoardDefaultCurveControlPoint(from, to, { bend: type === "run" ? 10 : 13 }),
+    getCurveControlPoint: (_element = {}, coordinates = {}) => tacticalBoardDefaultCurveControlPoint(
+      { x: coordinates.x, y: coordinates.y },
+      { x: coordinates.x2, y: coordinates.y2 },
+      { bend: 13 }
+    ),
+  };
+}
+
+function applyBoardMovementIdentity(element, type = "run") {
+  if (!element) return;
+  const safeType = normalizeBoardArrowType(type);
+  element.dataset.idpBoardObject = "movement";
+  element.dataset.idpBoardArrowType = safeType;
+  element.setAttribute("class", `session-tactical-${safeType} idp-player-board-movement`);
+}
+
 function setBoardMovementCoordinates(modal) {
   const element = boardMovementElement(modal);
-  const type = modal?.querySelector?.('[name="arrowType"]')?.value || element?.dataset?.idpBoardArrowType || "run";
-  const { fromX, fromY, toX, toY } = boardMovementPoints(modal);
-  if (!element) {
-    updateBoardMovementHandles(modal);
-    return;
+  const type = normalizeBoardArrowType(modal?.querySelector?.('[name="arrowType"]')?.value || element?.dataset?.idpBoardArrowType || "run");
+  if (element) {
+    applyBoardMovementIdentity(element, type);
+    applyTacticalBoardSvgElementGeometry(
+      element,
+      boardMovementTacticalElement(modal, type),
+      "idp-player-board-editor-arrow",
+      boardMovementRenderOptions(type)
+    );
   }
-  if (type === "line" || type === "curve") {
-    element.removeAttribute("marker-end");
-  } else if (!element.getAttribute("marker-end")) {
-    element.setAttribute("marker-end", "url(#idp-player-board-editor-arrow)");
-  }
-  if (type === "run" || element.tagName?.toLowerCase?.() === "path") {
-    element.setAttribute("d", boardMovementPath(fromX, fromY, toX, toY));
-    updateBoardMovementHandles(modal);
-    return;
-  }
-  element.setAttribute("x1", String(fromX));
-  element.setAttribute("y1", String(fromY));
-  element.setAttribute("x2", String(toX));
-  element.setAttribute("y2", String(toY));
   updateBoardMovementHandles(modal);
 }
 
 function ensureBoardMovementElement(modal, type = "run") {
+  const safeType = normalizeBoardArrowType(type);
   const svg = modal?.querySelector?.(".idp-player-board-arrow-layer");
   const current = boardMovementElement(modal);
   if (!svg) return current;
-  const targetTag = type === "run" || type === "curve" ? "path" : "line";
+  const targetTag = getTacticalBoardSvgElementTagName(boardMovementTacticalElement(modal, safeType));
   if (!current) {
     const doc = svg.ownerDocument || getDocument(runtime);
     const next = doc?.createElementNS?.("http://www.w3.org/2000/svg", targetTag);
     if (!next) return null;
-    next.dataset.idpBoardArrowType = type;
-    next.setAttribute("class", `session-tactical-${type} idp-player-board-movement`);
-    if (type !== "line" && type !== "curve") {
-      next.setAttribute("marker-end", "url(#idp-player-board-editor-arrow)");
-    }
+    applyBoardMovementIdentity(next, safeType);
     svg.appendChild(next);
     setBoardMovementCoordinates(modal);
     updateBoardArrowStyle(modal);
@@ -530,18 +572,13 @@ function ensureBoardMovementElement(modal, type = "run") {
   }
   const currentTag = current.tagName?.toLowerCase?.();
   if (currentTag === targetTag) {
-    current.dataset.idpBoardArrowType = type;
-    current.setAttribute("class", `session-tactical-${type} idp-player-board-movement`);
+    applyBoardMovementIdentity(current, safeType);
     return current;
   }
   const doc = current.ownerDocument || getDocument(runtime);
   const next = doc?.createElementNS?.("http://www.w3.org/2000/svg", targetTag);
   if (!next) return current;
-  next.dataset.idpBoardArrowType = type;
-  next.setAttribute("class", `session-tactical-${type} idp-player-board-movement`);
-  if (type !== "line" && type !== "curve") {
-    next.setAttribute("marker-end", current.getAttribute("marker-end") || "url(#idp-player-board-editor-arrow)");
-  }
+  applyBoardMovementIdentity(next, safeType);
   current.replaceWith(next);
   setBoardMovementCoordinates(modal);
   return next;
@@ -549,19 +586,16 @@ function ensureBoardMovementElement(modal, type = "run") {
 
 function updateBoardArrowStyle(modal) {
   const color = modal?.querySelector?.('[name="arrowColor"]')?.value || "#38bdf8";
-  const lineStyle = modal?.querySelector?.('[name="arrowLineStyle"]')?.value || "dashed";
-  const lineWidth = Number(modal?.querySelector?.('[name="arrowLineWidth"]')?.value || 2.5);
-  const renderLineWidth = boardRenderLineWidth(lineWidth, 2.5);
+  const type = normalizeBoardArrowType(modal?.querySelector?.('[name="arrowType"]')?.value || "run");
   const element = boardMovementElement(modal);
-  element?.setAttribute?.("stroke", color);
-  element?.setAttribute?.("stroke-width", String(renderLineWidth));
-  element?.setAttribute?.("stroke-dasharray", boardLineDasharray(lineStyle));
-  element?.setAttribute?.("fill", "none");
-  if (element?.style) {
-    element.style.stroke = color;
-    element.style.strokeWidth = String(renderLineWidth);
-    element.style.strokeDasharray = boardLineDasharray(lineStyle);
-    element.style.fill = "none";
+  if (element) {
+    applyBoardMovementIdentity(element, type);
+    applyTacticalBoardSvgElementGeometry(
+      element,
+      boardMovementTacticalElement(modal, type),
+      "idp-player-board-editor-arrow",
+      boardMovementRenderOptions(type)
+    );
   }
   modal?.querySelector?.(".idp-player-board-arrow-layer marker path")?.setAttribute?.("fill", color);
   modal?.querySelector?.(".idp-player-board-arrow-layer marker path")?.setAttribute?.("stroke", color);
@@ -874,14 +908,33 @@ function updateBoardZoneVisual(modal) {
   const y = boardFormNumber(modal, "zoneY", 28);
   const width = boardFormNumber(modal, "zoneWidth", 32);
   const height = boardFormNumber(modal, "zoneHeight", 28);
+  const zoneElement = {
+    id: "zone-1",
+    type: "zone",
+    x,
+    y,
+    x2: clampBoardPercent(x + width),
+    y2: clampBoardPercent(y + height),
+    color: "#10b981",
+    lineStyle: "dashed",
+    lineWidth: 1.2,
+  };
   if (zone.namespaceURI === "http://www.w3.org/2000/svg") {
-    zone.setAttribute("x", String(x));
-    zone.setAttribute("y", String(y));
-    zone.setAttribute("width", String(width));
-    zone.setAttribute("height", String(height));
+    applyTacticalBoardSvgElementGeometry(zone, zoneElement, "idp-player-board-editor-arrow", {
+      clamp: boardSvgClamp,
+      normalizeColor: normalizeBoardColor,
+      getDefaultColor: () => "#10b981",
+      getRenderStrokeWidth: boardRenderLineWidth,
+      getStrokeDasharray: boardLineDasharray,
+      getDefaultLineStyle: () => "dashed",
+    });
+    const rectX = Math.min(zoneElement.x, zoneElement.x2);
+    const rectY = Math.min(zoneElement.y, zoneElement.y2);
+    const rectWidth = Math.max(Math.abs(zoneElement.x2 - zoneElement.x), 4);
+    const rectHeight = Math.max(Math.abs(zoneElement.y2 - zoneElement.y), 4);
     const label = modal.querySelector?.('[data-idp-board-zone-label="1"]');
-    label?.setAttribute?.("x", String(clampBoardPercent(x + width / 2)));
-    label?.setAttribute?.("y", String(clampBoardPercent(y + height / 2)));
+    label?.setAttribute?.("x", String(clampBoardPercent(rectX + rectWidth / 2)));
+    label?.setAttribute?.("y", String(clampBoardPercent(rectY + rectHeight / 2)));
     return;
   }
   zone.style.left = `${x}%`;
@@ -1324,23 +1377,7 @@ function applyBoardPitchPoint(event, pitch) {
     };
     setBoardFormValue(modal, "zoneX", zonePoint.x);
     setBoardFormValue(modal, "zoneY", zonePoint.y);
-    const zone = pitch.querySelector(".idp-player-board-zone");
-    if (zone) {
-      if (zone.namespaceURI === "http://www.w3.org/2000/svg") {
-        zone.setAttribute("x", String(zonePoint.x));
-        zone.setAttribute("y", String(zonePoint.y));
-        zone.setAttribute("width", String(width));
-        zone.setAttribute("height", String(height));
-        const label = pitch.querySelector?.('[data-idp-board-zone-label="1"]');
-        label?.setAttribute?.("x", String(clampBoardPercent(zonePoint.x + width / 2)));
-        label?.setAttribute?.("y", String(clampBoardPercent(zonePoint.y + height / 2)));
-      } else {
-        zone.style.left = `${zonePoint.x}%`;
-        zone.style.top = `${zonePoint.y}%`;
-        zone.style.width = `${width}%`;
-        zone.style.height = `${height}%`;
-      }
-    }
+    updateBoardZoneVisual(modal);
     return true;
   }
   if (["arrow", "run", "pass", "line", "curve"].includes(tool)) {

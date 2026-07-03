@@ -207,6 +207,132 @@ export function getTacticalBoardElementEndpointCoordinates(element = {}, options
   return coordinates;
 }
 
+export function getTacticalBoardSvgElementTagName(element = {}) {
+  if (["arrow", "pass", "line", "dashed-line"].includes(element.type)) return "line";
+  if (["curve", "run", "freehand"].includes(element.type)) return "path";
+  if (["zone", "dashed-zone"].includes(element.type)) return "rect";
+  if (element.type === "ellipse") return "ellipse";
+  return "";
+}
+
+export function getTacticalBoardSvgElementGeometryAttributes(element = {}, markerId = "tactical-board-arrow", options = {}) {
+  const localClamp = typeof options.clamp === "function" ? options.clamp : clamp;
+  const normalizeColor =
+    typeof options.normalizeColor === "function"
+      ? options.normalizeColor
+      : (value, fallback = "#111827") => {
+        const color = String(value || "").trim();
+        return /^#[0-9a-f]{3,8}$/i.test(color) ? color : fallback;
+      };
+  const getDefaultColor =
+    typeof options.getDefaultColor === "function" ? options.getDefaultColor : () => "#111827";
+  const getRenderStrokeWidth =
+    typeof options.getRenderStrokeWidth === "function" ? options.getRenderStrokeWidth : (value) => localClamp(Number(value) || 1.1, 0.16, 3.15);
+  const getStrokeDasharray =
+    typeof options.getStrokeDasharray === "function" ? options.getStrokeDasharray : () => "";
+  const getDefaultLineStyle =
+    typeof options.getDefaultLineStyle === "function" ? options.getDefaultLineStyle : () => "solid";
+  const getDefaultCurveControlPoint =
+    typeof options.getDefaultCurveControlPoint === "function"
+      ? options.getDefaultCurveControlPoint
+      : tacticalBoardDefaultCurveControlPoint;
+  const getCurveControlPoint =
+    typeof options.getCurveControlPoint === "function"
+      ? options.getCurveControlPoint
+      : (candidate = {}, coordinates = null) => getDefaultCurveControlPoint(candidate, coordinates || candidate);
+  const coordinates = getTacticalBoardElementEndpointCoordinates(element, {
+    clamp: localClamp,
+    getCurveControlPoint,
+  });
+  const x = coordinates?.x ?? tacticalBoardSvgNumber(element.x, 50, localClamp);
+  const y = coordinates?.y ?? tacticalBoardSvgNumber(element.y, 50, localClamp);
+  const x2 = coordinates?.x2 ?? localClamp(x + 10, 0, 100);
+  const y2 = coordinates?.y2 ?? y;
+  const color = normalizeColor(element.color, getDefaultColor(element.type));
+  const lineWidth = getRenderStrokeWidth(element.lineWidth);
+  const dashArray = getStrokeDasharray(element.lineStyle || getDefaultLineStyle(element.type));
+  const markerEnd = `url(#${String(markerId || "tactical-board-arrow")})`;
+  const baseLineAttributes = {
+    stroke: color,
+    "stroke-width": String(lineWidth),
+  };
+  if (dashArray) baseLineAttributes["stroke-dasharray"] = dashArray;
+  if (["arrow", "pass", "line", "dashed-line"].includes(element.type)) {
+    const attributes = {
+      x1: String(x),
+      y1: String(y),
+      x2: String(x2),
+      y2: String(y2),
+      ...baseLineAttributes,
+    };
+    if (element.type !== "line" && element.type !== "dashed-line") {
+      attributes["marker-end"] = markerEnd;
+    }
+    return {
+      tagName: "line",
+      attributes,
+      removeAttributes: ["d", "fill", "rx", "width", "height", "x", "y", "marker-end", "stroke-dasharray"],
+    };
+  }
+  if (element.type === "curve" || element.type === "run") {
+    const controlPoint = element.type === "curve"
+      ? getCurveControlPoint(element, { x, y, x2, y2 })
+      : getDefaultCurveControlPoint({ x, y }, { x: x2, y: y2 });
+    const attributes = {
+      d: `M ${x} ${y} Q ${controlPoint.x} ${controlPoint.y} ${x2} ${y2}`,
+      fill: "none",
+      ...baseLineAttributes,
+    };
+    if (element.type === "run") {
+      attributes["marker-end"] = markerEnd;
+    }
+    return {
+      tagName: "path",
+      attributes,
+      removeAttributes: ["x1", "y1", "x2", "y2", "rx", "width", "height", "x", "y", "marker-end", "stroke-dasharray"],
+    };
+  }
+  if (element.type === "zone" || element.type === "dashed-zone") {
+    const rectX = Math.min(x, x2);
+    const rectY = Math.min(y, y2);
+    const rectWidth = Math.max(Math.abs(x2 - x), 4);
+    const rectHeight = Math.max(Math.abs(y2 - y), 4);
+    const attributes = {
+      x: String(rectX),
+      y: String(rectY),
+      width: String(rectWidth),
+      height: String(rectHeight),
+      rx: "3",
+      fill: element.type === "dashed-zone" ? "none" : color,
+      stroke: color,
+      "stroke-width": String(Math.max(0.16, lineWidth * 0.72)),
+    };
+    if (dashArray) attributes["stroke-dasharray"] = dashArray;
+    return {
+      tagName: "rect",
+      attributes,
+      removeAttributes: ["d", "x1", "y1", "x2", "y2", "marker-end", "stroke-dasharray"],
+    };
+  }
+  return { tagName: getTacticalBoardSvgElementTagName(element), attributes: {}, removeAttributes: [] };
+}
+
+export function applyTacticalBoardSvgElementGeometry(node, element = {}, markerId = "tactical-board-arrow", options = {}) {
+  const model = getTacticalBoardSvgElementGeometryAttributes(element, markerId, options);
+  if (!node || !model.tagName || typeof node.setAttribute !== "function") return false;
+  if (String(node.tagName || "").toLowerCase() !== model.tagName) return false;
+  const attributes = model.attributes || {};
+  model.removeAttributes?.forEach?.((name) => {
+    if (!Object.prototype.hasOwnProperty.call(attributes, name)) {
+      node.removeAttribute?.(name);
+    }
+  });
+  Object.entries(attributes).forEach(([name, value]) => {
+    node.setAttribute(name, String(value));
+  });
+  return true;
+}
+
 export function renderTacticalBoardSvgElement(element = {}, markerId = "tactical-board-arrow", options = {}) {
   const escapeHtml = typeof options.escapeHtml === "function" ? options.escapeHtml : defaultEscapeHtml;
   const localClamp = typeof options.clamp === "function" ? options.clamp : clamp;

@@ -3,7 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  applyTacticalBoardSvgElementGeometry,
   getTacticalBoardElementEndpointCoordinates,
+  getTacticalBoardSvgElementGeometryAttributes,
+  getTacticalBoardSvgElementTagName,
   renderTacticalBoardSvgElement,
 } from "../src/modules/tactical-board/index.mjs";
 import {
@@ -171,4 +174,56 @@ test("Session Planner tactical SVG rendering uses the shared Tactical Board core
   expect(customZone).toContain('class="shared-board-zone qa-element"');
   expect(customZone).toContain('data-qa-slot="element"');
   expect(customZone).toContain('data-qa-slot="hit-target"');
+});
+
+test("shared Tactical Board core applies SVG geometry to live board elements", () => {
+  const runElement = {
+    id: "run-1",
+    type: "run",
+    x: 10,
+    y: 70,
+    x2: 40,
+    y2: 35,
+    color: "#38bdf8",
+    lineStyle: "dashed",
+    lineWidth: 2.5,
+  };
+  const runGeometry = getTacticalBoardSvgElementGeometryAttributes(runElement, "shared-arrow", {
+    getDefaultCurveControlPoint: () => ({ x: 28, y: 46 }),
+    getStrokeDasharray: () => "6 4",
+    getRenderStrokeWidth: () => 1.3,
+  });
+
+  expect(getTacticalBoardSvgElementTagName(runElement)).toBe("path");
+  expect(runGeometry.tagName).toBe("path");
+  expect(runGeometry.attributes.d).toBe("M 10 70 Q 28 46 40 35");
+  expect(runGeometry.attributes["marker-end"]).toBe("url(#shared-arrow)");
+
+  const attributes = new Map([
+    ["marker-end", "url(#old-arrow)"],
+    ["stroke-dasharray", "1 1"],
+  ]);
+  const fakePath = {
+    tagName: "path",
+    setAttribute(name, value) {
+      attributes.set(name, value);
+    },
+    removeAttribute(name) {
+      attributes.delete(name);
+    },
+  };
+
+  expect(applyTacticalBoardSvgElementGeometry(fakePath, runElement, "shared-arrow", {
+    getDefaultCurveControlPoint: () => ({ x: 28, y: 46 }),
+    getStrokeDasharray: () => "6 4",
+    getRenderStrokeWidth: () => 1.3,
+  })).toBe(true);
+  expect(attributes.get("d")).toBe("M 10 70 Q 28 46 40 35");
+  expect(attributes.get("stroke")).toBe("#38bdf8");
+  expect(attributes.get("stroke-width")).toBe("1.3");
+  expect(attributes.get("stroke-dasharray")).toBe("6 4");
+
+  const lineElement = { ...runElement, type: "line" };
+  expect(getTacticalBoardSvgElementTagName(lineElement)).toBe("line");
+  expect(applyTacticalBoardSvgElementGeometry(fakePath, lineElement, "shared-arrow")).toBe(false);
 });

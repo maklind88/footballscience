@@ -156,7 +156,13 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(tacticalBoardCore).toContain("getClassName");
   expect(tacticalBoardCore).toContain("getAttributes");
   expect(tacticalBoardCore).toContain("tacticalBoardDefaultCurveControlPoint");
+  expect(tacticalBoardCore).toContain("applyTacticalBoardSvgElementGeometry");
+  expect(tacticalBoardCore).toContain("getTacticalBoardSvgElementTagName");
   expect(idpRuntime).toContain(".idp-player-board-arrow-layer .idp-player-board-movement");
+  expect(idpRuntime).toContain("applyTacticalBoardSvgElementGeometry");
+  expect(idpRuntime).toContain("boardMovementTacticalElement");
+  expect(idpRuntime).toContain("getTacticalBoardSvgElementTagName");
+  expect(idpRuntime).toContain('element.dataset.idpBoardObject = "movement"');
   expect(idpCss).toContain("idp-player-board-hit-target");
   expect(playerBoardRenderer).toContain("data-idp-board-object");
   expect(playerBoardRenderer).toContain("idp-tactical-inspector-card");

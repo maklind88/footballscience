@@ -1,3 +1,9 @@
+import {
+  tacticalBoardPitchDimensions,
+  tacticalBoardPitchModeKeys,
+  tacticalBoardPitchModeOptions,
+} from "../tactical-board/index.mjs";
+
 export const sessionPlannerPlayerBoardColorOptions = [
   { label: "Blue", value: "#1d8bff" },
   { label: "Red", value: "#ff4f4f" },
@@ -16,20 +22,9 @@ export const sessionPlannerPlayerBoardAutoModeOptions = [
 
 export const sessionPlannerPlayerBoardMaxTeamCount = sessionPlannerPlayerBoardColorOptions.length;
 
-export const sessionPlannerTacticalPitchDimensions = {
-  length: 105,
-  width: 65,
-};
-
-export const sessionPlannerTacticalPitchModeOptions = [
-  { key: "full", label: "Full pitch", dimensions: { x: 65, y: 105 }, landscape: false },
-  { key: "full-wide", label: "Full pitch wide", dimensions: { x: 105, y: 65 }, landscape: true },
-  { key: "attacking-half", label: "Attacking half", dimensions: { x: 65, y: 52.5 }, landscape: false },
-  { key: "defending-half", label: "Defending half", dimensions: { x: 65, y: 52.5 }, landscape: false },
-  { key: "goalkeeper", label: "Goalkeeper box", dimensions: { x: 65, y: 33 }, landscape: false },
-];
-
-export const sessionPlannerTacticalPitchModeKeys = new Set(sessionPlannerTacticalPitchModeOptions.map((option) => option.key));
+export const sessionPlannerTacticalPitchDimensions = tacticalBoardPitchDimensions;
+export const sessionPlannerTacticalPitchModeOptions = tacticalBoardPitchModeOptions;
+export const sessionPlannerTacticalPitchModeKeys = tacticalBoardPitchModeKeys;
 export const sessionPlannerTacticalSnapStep = 2.5;
 export const sessionPlannerTacticalMaxFrames = 12;
 

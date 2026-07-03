@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
 import {
+  tacticalBoardPitchDimensions,
+  tacticalBoardPitchModeKeys,
+  tacticalBoardPitchModeOptions,
+} from "../src/modules/tactical-board/index.mjs";
+import {
   sessionPlannerPlayerBoardAutoModeOptions,
   sessionPlannerPlayerBoardColorOptions,
   sessionPlannerPlayerBoardMaxTeamCount,
@@ -25,4 +30,10 @@ test("Session Planner options expose stable board, tactical, and print defaults"
   expect(sessionPlannerPrintPaperOptions.letter.pageSize).toBe("letter landscape");
   expect(sessionPlannerPrintPaperOptions.a4.width).toBe("297mm");
   expect(sessionPlannerPrintSectionOptions.map((option) => option.key)).toContain("medical");
+});
+
+test("Session Planner tactical pitch options come from the shared Tactical Board core", () => {
+  expect(sessionPlannerTacticalPitchDimensions).toBe(tacticalBoardPitchDimensions);
+  expect(sessionPlannerTacticalPitchModeOptions).toBe(tacticalBoardPitchModeOptions);
+  expect(sessionPlannerTacticalPitchModeKeys).toBe(tacticalBoardPitchModeKeys);
 });

@@ -1,3 +1,8 @@
+import {
+  getTacticalBoardElementEndpointCoordinates,
+  renderTacticalBoardSvgElement,
+} from "../tactical-board/index.mjs";
+
 function defaultEscapeHtml(value = "") {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -174,147 +179,22 @@ function getSessionPlannerVisualElementId(block) {
 return `session-arrow-${String(block?.id || "block").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 function renderSessionPlannerTacticalSvgElement(element, arrowId) {
-const idAttribute = `data-session-tactical-element-id="${escapeHtml(element.id)}"`;
-const selectedClass = isSessionPlannerTacticalElementSelected(element.id) ? " is-selected" : "";
-const previewClass = element.preview ? " is-preview" : "";
-const x = Number.isFinite(Number(element.x)) ? clamp(Number(element.x), 0, 100) : 50;
-const y = Number.isFinite(Number(element.y)) ? clamp(Number(element.y), 0, 100) : 50;
-const hasEndPoint = Number.isFinite(Number(element.x2)) && Number.isFinite(Number(element.y2));
-const isRectangularElement = element.type === "zone" || element.type === "dashed-zone";
-const x2 = hasEndPoint ? clamp(Number(element.x2), 0, 100) : clamp(x + (isRectangularElement ? 24 : 10), 0, 100);
-const y2 = hasEndPoint ? clamp(Number(element.y2), 0, 100) : clamp(y + (isRectangularElement ? 14 : 0), 0, 100);
-const color = normalizeTacticalColor(element.color, getDefaultTacticalColor(element.type));
-const lineWidth = getSessionPlannerTacticalRenderStrokeWidth(element.lineWidth);
-const dashArray = getTacticalStrokeDasharray(element.lineStyle || getDefaultTacticalLineStyle(element.type));
-const dashAttribute = dashArray ? `stroke-dasharray="${escapeHtml(dashArray)}"` : "";
-if (["arrow", "pass", "line", "dashed-line"].includes(element.type)) {
-const shouldUseArrow = element.type !== "line" && element.type !== "dashed-line";
-return `
-      <line
-        ${idAttribute}
-        class="session-tactical-${escapeHtml(element.type)}${selectedClass}${previewClass}"
-        x1="${x}"
-        y1="${y}"
-        x2="${x2}"
-        y2="${y2}"
-        stroke="${escapeHtml(color)}"
-        stroke-width="${lineWidth}"
-        ${dashAttribute}
-        ${shouldUseArrow ? `marker-end="url(#${escapeHtml(arrowId)})"` : ""}
-      ></line>
-      <line
-        ${idAttribute}
-        class="session-tactical-hit-target"
-        x1="${x}"
-        y1="${y}"
-        x2="${x2}"
-        y2="${y2}"
-      ></line>
-    `;
-}
-if (element.type === "curve" || element.type === "run") {
-const controlPoint = element.type === "curve"
-? getSessionPlannerTacticalCurveControlPoint(element, { x, y, x2, y2 })
-: getSessionPlannerTacticalDefaultCurveControlPoint({ x, y }, { x: x2, y: y2 });
-const controlX = controlPoint.x;
-const controlY = controlPoint.y;
-return `
-      <path
-        ${idAttribute}
-        class="session-tactical-${escapeHtml(element.type)}${selectedClass}${previewClass}"
-        d="M ${x} ${y} Q ${controlX} ${controlY} ${x2} ${y2}"
-        stroke="${escapeHtml(color)}"
-        stroke-width="${lineWidth}"
-        ${dashAttribute}
-        ${element.type === "run" ? `marker-end="url(#${escapeHtml(arrowId)})"` : ""}
-      ></path>
-      <path
-        ${idAttribute}
-        class="session-tactical-hit-target"
-        d="M ${x} ${y} Q ${controlX} ${controlY} ${x2} ${y2}"
-      ></path>
-    `;
-}
-if (isRectangularElement) {
-const rectX = Math.min(x, x2);
-const rectY = Math.min(y, y2);
-const rectWidth = Math.max(Math.abs(x2 - x), 4);
-const rectHeight = Math.max(Math.abs(y2 - y), 4);
-const isDashedZone = element.type === "dashed-zone";
-return `
-      <rect
-        ${idAttribute}
-        class="session-tactical-${escapeHtml(element.type)}${selectedClass}${previewClass}"
-        x="${rectX}"
-        y="${rectY}"
-        width="${rectWidth}"
-        height="${rectHeight}"
-        rx="3"
-        fill="${isDashedZone ? "none" : escapeHtml(color)}"
-        stroke="${escapeHtml(color)}"
-        stroke-width="${Math.max(0.16, lineWidth * 0.72)}"
-        ${dashAttribute}
-      ></rect>
-      <rect
-        ${idAttribute}
-        class="session-tactical-hit-target session-tactical-shape-hit-target"
-        x="${rectX}"
-        y="${rectY}"
-        width="${rectWidth}"
-        height="${rectHeight}"
-        rx="3"
-      ></rect>
-    `;
-}
-if (element.type === "ellipse") {
-const rectX = Math.min(x, x2);
-const rectY = Math.min(y, y2);
-const rectWidth = Math.max(Math.abs(x2 - x), 5);
-const rectHeight = Math.max(Math.abs(y2 - y), 5);
-return `
-      <ellipse
-        ${idAttribute}
-        class="session-tactical-ellipse${selectedClass}${previewClass}"
-        cx="${rectX + rectWidth / 2}"
-        cy="${rectY + rectHeight / 2}"
-        rx="${rectWidth / 2}"
-        ry="${rectHeight / 2}"
-        fill="${escapeHtml(color)}"
-        stroke="${escapeHtml(color)}"
-        stroke-width="${Math.max(0.16, lineWidth * 0.72)}"
-        ${dashAttribute}
-      ></ellipse>
-      <ellipse
-        ${idAttribute}
-        class="session-tactical-hit-target session-tactical-shape-hit-target"
-        cx="${rectX + rectWidth / 2}"
-        cy="${rectY + rectHeight / 2}"
-        rx="${rectWidth / 2}"
-        ry="${rectHeight / 2}"
-      ></ellipse>
-    `;
-}
-if (element.type === "freehand" && Array.isArray(element.points) && element.points.length > 1) {
-const d = element.points
-.map((point, index) => `${index === 0 ? "M" : "L"} ${clamp(point.x, 0, 100)} ${clamp(point.y, 0, 100)}`)
-.join(" ");
-return `
-      <path
-        ${idAttribute}
-        class="session-tactical-freehand${selectedClass}${previewClass}"
-        d="${escapeHtml(d)}"
-        stroke="${escapeHtml(color)}"
-        stroke-width="${lineWidth}"
-        ${dashAttribute}
-      ></path>
-      <path
-        ${idAttribute}
-        class="session-tactical-hit-target"
-        d="${escapeHtml(d)}"
-      ></path>
-    `;
-}
-return "";
+return renderTacticalBoardSvgElement(element, arrowId, {
+  escapeHtml,
+  clamp,
+  isSelected: isSessionPlannerTacticalElementSelected,
+  normalizeColor: normalizeTacticalColor,
+  getDefaultColor: getDefaultTacticalColor,
+  getRenderStrokeWidth: getSessionPlannerTacticalRenderStrokeWidth,
+  getStrokeDasharray: getTacticalStrokeDasharray,
+  getDefaultLineStyle: getDefaultTacticalLineStyle,
+  getDefaultCurveControlPoint: getSessionPlannerTacticalDefaultCurveControlPoint,
+  getCurveControlPoint: getSessionPlannerTacticalCurveControlPoint,
+  dataAttributeName: "data-session-tactical-element-id",
+  classPrefix: "session-tactical",
+  hitTargetClassName: "session-tactical-hit-target",
+  shapeHitTargetClassName: "session-tactical-shape-hit-target",
+});
 }
 function renderSessionPlannerTacticalHtmlElement(element) {
 const x = Number.isFinite(Number(element.x)) ? Number(element.x) : 50;
@@ -429,25 +309,11 @@ return `
 return "";
 }
 function getSessionPlannerTacticalEndpointCoordinates(element) {
-if (!element || !isSessionPlannerTacticalEndpointElement(element)) {
-return null;
-}
-const x = Number.isFinite(Number(element.x)) ? clamp(Number(element.x), 0, 100) : 50;
-const y = Number.isFinite(Number(element.y)) ? clamp(Number(element.y), 0, 100) : 50;
-const isRectangularElement = element.type === "zone" || element.type === "dashed-zone";
-const hasEndPoint = Number.isFinite(Number(element.x2)) && Number.isFinite(Number(element.y2));
-const x2 = hasEndPoint ? clamp(Number(element.x2), 0, 100) : clamp(x + (isRectangularElement ? 24 : 10), 0, 100);
-const y2 = hasEndPoint ? clamp(Number(element.y2), 0, 100) : clamp(y + (isRectangularElement ? 14 : 0), 0, 100);
-const coordinates = { x, y, x2, y2 };
-if (element.type === "curve") {
-const controlPoint = getSessionPlannerTacticalCurveControlPoint(element, coordinates);
-return {
-...coordinates,
-controlX: controlPoint.x,
-controlY: controlPoint.y,
-};
-}
-return coordinates;
+return getTacticalBoardElementEndpointCoordinates(element, {
+  clamp,
+  isEndpointElement: isSessionPlannerTacticalEndpointElement,
+  getCurveControlPoint: getSessionPlannerTacticalCurveControlPoint,
+});
 }
 function getSessionPlannerTacticalPointDistanceMeters(from = {}, to = {}) {
 const dimensions = getSessionPlannerTacticalPitchDimensionsForBlock();

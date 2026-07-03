@@ -4,6 +4,14 @@ import {
   idpBoardTemplateDraft,
   idpBoardTemplateIdFromInterventionId,
 } from "./idp-player-board-template-library.mjs";
+import {
+  normalizeTacticalBoardPitchMode,
+  renderTacticalBoardArrowMarkerDef,
+  renderTacticalBoardPitchSvgLines,
+  tacticalBoardDefaultCurveControlPoint,
+  tacticalBoardPitchMeasurementLabel,
+  tacticalBoardPitchModeLabel,
+} from "../tactical-board/index.mjs";
 
 function escapeHtml(value = "") {
   return String(value ?? "")
@@ -201,86 +209,23 @@ function draftIntervention(profile = {}, focus = {}) {
 }
 
 function normalizePitchMode(mode = "attacking-half") {
-  const aliases = {
-    half: "attacking-half",
-    "final-third": "attacking-half",
-    box: "goalkeeper",
-  };
-  const normalized = normalizeText(mode, "attacking-half");
-  return ["full", "full-wide", "attacking-half", "defending-half", "goalkeeper"].includes(normalized)
-    ? normalized
-    : aliases[normalized] || "attacking-half";
+  return normalizeTacticalBoardPitchMode(mode, "attacking-half");
 }
 
 function pitchModeLabel(mode = "half") {
-  return {
-    full: "Full pitch",
-    "full-wide": "Full pitch wide",
-    "attacking-half": "Attacking half",
-    "defending-half": "Defending half",
-    goalkeeper: "Goalkeeper box",
-    half: "Attacking half",
-    "final-third": "Attacking half",
-    box: "Goalkeeper box",
-  }[mode] || "Attacking half";
+  return tacticalBoardPitchModeLabel(mode, "attacking-half");
 }
 
 function pitchMeasurementLabel(mode = "attacking-half") {
-  return {
-    full: "65 x 105 m",
-    "full-wide": "105 x 65 m",
-    "attacking-half": "65 x 52.5 m",
-    "defending-half": "65 x 52.5 m",
-    goalkeeper: "65 x 33 m",
-  }[normalizePitchMode(mode)] || "65 x 52.5 m";
+  return tacticalBoardPitchMeasurementLabel(mode);
 }
 
 function renderSessionPitchDiagram(mode = "attacking-half") {
-  const pitchMode = normalizePitchMode(mode);
-  const isWide = pitchMode === "full-wide";
-  const includeTop = ["full", "attacking-half", "goalkeeper"].includes(pitchMode);
-  const includeBottom = ["full", "defending-half"].includes(pitchMode);
-  const includeCenter = ["full", "full-wide"].includes(pitchMode);
-  const includeHalfLine = !["goalkeeper"].includes(pitchMode);
-  if (isWide) {
-    return `
-      <g class="session-pitch-diagram session-pitch-diagram-mode-${escapeHtml(pitchMode)} idp-tactical-pitch-lines" aria-label="IDP tactical pitch lines">
-        <rect class="session-pitch-touchline" x="3" y="3" width="94" height="94" rx="1.1"></rect>
-        <line class="session-pitch-halfway-line" x1="50" y1="3" x2="50" y2="97"></line>
-        <circle class="session-pitch-centre-circle" cx="50" cy="50" r="8.8"></circle>
-        <circle class="session-pitch-centre-spot" cx="50" cy="50" r=".55"></circle>
-        <rect class="session-pitch-goal session-pitch-goal-top" x=".8" y="44.4" width="2.2" height="11.2" rx=".35"></rect>
-        <rect class="session-pitch-goal session-pitch-goal-bottom" x="97" y="44.4" width="2.2" height="11.2" rx=".35"></rect>
-        <rect class="session-pitch-box session-pitch-box-top" x="3" y="20.35" width="15.7" height="59.3"></rect>
-        <rect class="session-pitch-box session-pitch-box-bottom" x="81.3" y="20.35" width="15.7" height="59.3"></rect>
-        <rect class="session-pitch-goal-area session-pitch-goal-area-top" x="3" y="36.55" width="5.25" height="26.9"></rect>
-        <rect class="session-pitch-goal-area session-pitch-goal-area-bottom" x="91.75" y="36.55" width="5.25" height="26.9"></rect>
-        <circle class="session-pitch-penalty-spot session-pitch-penalty-spot-top" cx="13.48" cy="50" r=".55"></circle>
-        <circle class="session-pitch-penalty-spot session-pitch-penalty-spot-bottom" cx="86.52" cy="50" r=".55"></circle>
-      </g>
-    `;
-  }
-  return `
-    <g class="session-pitch-diagram session-pitch-diagram-mode-${escapeHtml(pitchMode)} idp-tactical-pitch-lines" aria-label="IDP tactical pitch lines">
-      <rect class="session-pitch-touchline" x="3" y="3" width="94" height="94" rx="1.1"></rect>
-      ${includeHalfLine ? `<line class="session-pitch-halfway-line" x1="3" y1="${pitchMode === "attacking-half" ? "97" : pitchMode === "defending-half" ? "3" : "50"}" x2="97" y2="${pitchMode === "attacking-half" ? "97" : pitchMode === "defending-half" ? "3" : "50"}"></line>` : ""}
-      ${includeCenter ? '<circle class="session-pitch-centre-circle" cx="50" cy="50" r="8.8"></circle><circle class="session-pitch-centre-spot" cx="50" cy="50" r=".55"></circle>' : ""}
-      ${pitchMode === "attacking-half" ? '<circle class="session-pitch-centre-circle session-pitch-centre-circle-partial" cx="50" cy="97" r="8.8"></circle>' : ""}
-      ${pitchMode === "defending-half" ? '<circle class="session-pitch-centre-circle session-pitch-centre-circle-partial" cx="50" cy="3" r="8.8"></circle>' : ""}
-      ${includeTop ? `
-        <rect class="session-pitch-goal session-pitch-goal-top" x="44.4" y=".8" width="11.2" height="2.2" rx=".35"></rect>
-        <rect class="session-pitch-box session-pitch-box-top" x="20.35" y="3" width="59.3" height="${pitchMode === "goalkeeper" ? "50" : "15.7"}"></rect>
-        <rect class="session-pitch-goal-area session-pitch-goal-area-top" x="36.55" y="3" width="26.9" height="${pitchMode === "goalkeeper" ? "16.7" : "5.25"}"></rect>
-        <circle class="session-pitch-penalty-spot session-pitch-penalty-spot-top" cx="50" cy="${pitchMode === "goalkeeper" ? "36.3" : "13.48"}" r=".55"></circle>
-      ` : ""}
-      ${includeBottom ? `
-        <rect class="session-pitch-goal session-pitch-goal-bottom" x="44.4" y="97" width="11.2" height="2.2" rx=".35"></rect>
-        <rect class="session-pitch-box session-pitch-box-bottom" x="20.35" y="81.3" width="59.3" height="15.7"></rect>
-        <rect class="session-pitch-goal-area session-pitch-goal-area-bottom" x="36.55" y="91.75" width="26.9" height="5.25"></rect>
-        <circle class="session-pitch-penalty-spot session-pitch-penalty-spot-bottom" cx="50" cy="86.52" r=".55"></circle>
-      ` : ""}
-    </g>
-  `;
+  return renderTacticalBoardPitchSvgLines(mode, {
+    ariaLabel: "IDP tactical pitch lines",
+    className: "idp-tactical-pitch-lines",
+    escapeHtml,
+  });
 }
 
 function renderSvgText(value = "", maxLength = 28) {
@@ -369,8 +314,13 @@ function renderArrowElement(arrow = {}, markerId = "idp-player-board-arrow") {
     <circle class="idp-player-board-movement-handle is-to" data-idp-board-object="movement-to" data-idp-board-movement-handle="to" cx="${toX}" cy="${toY}" r="1.75"></circle>
   `;
   if (type === "run" || type === "curve") {
-    const controlX = (fromX + toX) / 2;
-    const controlY = Math.min(fromY, toY) - Math.max(6, Math.abs(toX - fromX) / 5);
+    const control = tacticalBoardDefaultCurveControlPoint(
+      { x: fromX, y: fromY },
+      { x: toX, y: toY },
+      { bend: type === "run" ? 10 : 13 }
+    );
+    const controlX = Math.round(control.x * 10) / 10;
+    const controlY = Math.round(control.y * 10) / 10;
     return `<path class="session-tactical-${escapeHtml(type)} idp-player-board-movement" d="M ${fromX} ${fromY} Q ${controlX} ${controlY} ${toX} ${toY}" ${type === "curve" ? "" : `marker-end="url(#${escapeHtml(markerId)})"`} data-idp-board-object="movement" data-idp-board-arrow-type="${escapeHtml(type)}" style="${style}"></path>${handles}`;
   }
   const shouldUseArrow = type !== "line";
@@ -391,9 +341,7 @@ function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options =
         <span class="idp-player-board-mode-chip">${escapeHtml(pitchModeLabel(pitchMode))}</span>
         <svg class="session-tactical-svg-layer idp-tactical-board-svg" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(`${playerName} tactical board`)}">
           <defs>
-            <marker id="${escapeHtml(markerId)}" markerWidth="6" markerHeight="6" refX="5.45" refY="3" orient="auto" markerUnits="strokeWidth" viewBox="0 0 6 6">
-              <path d="M0.75,0.6 L5.45,3 L0.75,5.4 Z" fill="context-stroke" stroke="context-stroke" stroke-width="0.22" stroke-linejoin="round"></path>
-            </marker>
+            ${renderTacticalBoardArrowMarkerDef(markerId, { escapeHtml })}
           </defs>
           ${renderSessionPitchDiagram(pitchMode)}
           <g class="idp-tactical-board-zone-layer" aria-label="Development zones">

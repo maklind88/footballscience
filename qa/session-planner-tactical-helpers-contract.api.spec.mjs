@@ -1,8 +1,17 @@
 import { expect, test } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  getTacticalBoardElementEndpointCoordinates,
+  renderTacticalBoardSvgElement,
+} from "../src/modules/tactical-board/index.mjs";
 import {
   createSessionPlannerTacticalHelpers,
   sessionPlannerTacticalPitchModeOptions,
 } from "../src/modules/session-planner/index.mjs";
+
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function createHelpers(overrides = {}) {
   return createSessionPlannerTacticalHelpers({
@@ -99,4 +108,50 @@ test("Session Planner tactical helpers preserve pitch mode and line element beha
     controlPoint: { x: 18, y: 28 },
   });
   expect(curve).toMatchObject({ controlX: 18, controlY: 28 });
+});
+
+test("Session Planner tactical SVG rendering uses the shared Tactical Board core", () => {
+  const visualRendererSource = fs.readFileSync(
+    path.join(rootDir, "src/modules/session-planner/session-planner-visual-renderer.mjs"),
+    "utf8",
+  );
+
+  expect(visualRendererSource).toContain("renderTacticalBoardSvgElement");
+  expect(visualRendererSource).toContain("getTacticalBoardElementEndpointCoordinates");
+
+  const coordinates = getTacticalBoardElementEndpointCoordinates({
+    id: "curve-1",
+    type: "curve",
+    x: 10,
+    y: 20,
+    x2: 30,
+    y2: 40,
+    controlX: 18,
+    controlY: 28,
+  });
+  expect(coordinates).toEqual({ x: 10, y: 20, x2: 30, y2: 40, controlX: 18, controlY: 28 });
+
+  const pass = renderTacticalBoardSvgElement({
+    id: "pass-1",
+    type: "pass",
+    x: 12,
+    y: 24,
+    x2: 44,
+    y2: 52,
+    color: "#2563eb",
+    lineStyle: "dashed",
+  }, "shared-arrow", {
+    isSelected: () => true,
+    classPrefix: "session-tactical",
+    dataAttributeName: "data-session-tactical-element-id",
+    hitTargetClassName: "session-tactical-hit-target",
+    shapeHitTargetClassName: "session-tactical-shape-hit-target",
+    getStrokeDasharray: () => "3 2",
+    getRenderStrokeWidth: () => 1.04,
+  });
+
+  expect(pass).toContain('data-session-tactical-element-id="pass-1"');
+  expect(pass).toContain('class="session-tactical-pass is-selected"');
+  expect(pass).toContain('marker-end="url(#shared-arrow)"');
+  expect(pass).toContain('class="session-tactical-hit-target"');
 });

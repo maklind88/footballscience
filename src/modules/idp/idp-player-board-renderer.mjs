@@ -1172,8 +1172,22 @@ function renderBoardLayerItem(entry = {}, selectedKey = "player") {
         </span>
       </button>
       <span class="idp-board-layer-actions">
-        <button type="button" ${entry.canDuplicate ? "" : "disabled"} data-idp-board-object-duplicate="${escapeHtml(entry.key)}">Copy</button>
-        <button type="button" ${entry.canDelete ? "" : "disabled"} data-idp-board-object-delete="${escapeHtml(entry.key)}">Delete</button>
+        <button
+          type="button"
+          class="idp-board-layer-action is-copy"
+          ${entry.canDuplicate ? "" : "disabled"}
+          data-idp-board-object-duplicate="${escapeHtml(entry.key)}"
+          title="${escapeHtml(`Copy ${entry.label || "object"}`)}"
+          aria-label="${escapeHtml(`Copy ${entry.label || "object"}`)}"
+        ><span class="idp-board-layer-action-label">Copy</span></button>
+        <button
+          type="button"
+          class="idp-board-layer-action is-delete"
+          ${entry.canDelete ? "" : "disabled"}
+          data-idp-board-object-delete="${escapeHtml(entry.key)}"
+          title="${escapeHtml(`Delete ${entry.label || "object"}`)}"
+          aria-label="${escapeHtml(`Delete ${entry.label || "object"}`)}"
+        ><span class="idp-board-layer-action-label">Delete</span></button>
       </span>
     </article>
   `;
@@ -1184,8 +1198,8 @@ function renderBoardLayerList(state = {}, profile = {}) {
   return `
     <section class="idp-board-layer-manager" aria-label="Board objects">
       <div class="idp-board-layer-manager-head">
-        <span>Object Layers</span>
-        <small data-idp-board-layer-count>${escapeHtml(`${entries.length} objects`)}</small>
+        <span>Layers</span>
+        <small data-idp-board-layer-count>${escapeHtml(String(entries.length))}</small>
       </div>
       <div class="idp-board-layer-list" data-idp-board-layer-list>
         ${entries.map((entry) => renderBoardLayerItem(entry)).join("")}
@@ -1302,9 +1316,9 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
       <section class="session-library-modal session-tacticalboard-modal idp-player-board-modal idp-player-board-modal-tool-player" role="dialog" aria-modal="true" aria-label="IDP Player Board editor" data-idp-board-active-tool="player">
         <header class="session-library-modal-head idp-player-board-modal-head">
           <div>
-            <span>IDP Tacticalboard</span>
-            <h2>IDP Playerboard</h2>
-            <small>${escapeHtml(profile.playerName || "Player")} / ${escapeHtml(focus?.title || "Individual development")}</small>
+            <span>IDP Board</span>
+            <h2>${escapeHtml(profile.playerName || "Player Board")}</h2>
+            <small>${escapeHtml(focus?.title || "Individual development")}</small>
             <div class="session-tacticalboard-status-strip idp-player-board-status-strip" aria-label="Board state">
               <span data-idp-board-active-tool-label>Move Player</span>
               <span>${escapeHtml(interventionStatusLabel(intervention.status))}</span>
@@ -1369,6 +1383,7 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
             <input type="hidden" name="boardFramesJson" value="${fieldValue(JSON.stringify(state.frames || []))}" data-idp-board-frames>
             <input type="hidden" name="linkedClipIds" value="${fieldValue(linkedClipIds)}" data-idp-board-linked-clip-ids>
             ${renderBoardGeometryInputs({ player, reference, cones, zone, arrow, note })}
+            ${renderBoardLayerList(state, profile)}
             <section class="idp-tactical-inspector-card is-selected" data-idp-board-inspector>
               <span>Selected Tool</span>
               <strong data-idp-board-active-tool-label>Move Player</strong>
@@ -1379,75 +1394,83 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
               </div>
               <p data-idp-board-hint-state>Click the pitch to place or update the selected element.</p>
             </section>
-            ${renderBoardLayerList(state, profile)}
-            <section class="idp-player-board-frame-inspector" data-idp-board-frame-inspector>
-              <div class="idp-player-board-frame-inspector-head">
+            <details class="idp-player-board-frame-inspector idp-board-disclosure" data-idp-board-frame-inspector>
+              <summary class="idp-player-board-frame-inspector-head">
                 <span>Frame Inspector</span>
                 <small data-idp-board-frame-inspector-status>${escapeHtml(frameStatusLabel)}</small>
-              </div>
-              <label>
-                <span>Frame title</span>
-                <input name="frameLabel" value="${fieldValue(frame.label || "Start")}" autocomplete="off" data-idp-board-frame-meta>
-              </label>
-              <label>
-                <span>Coach cue</span>
-                <textarea name="frameCoachCue" rows="2" data-idp-board-frame-meta placeholder="What should the coach reinforce here?">${fieldValue(frame.coachCue || "")}</textarea>
-              </label>
-              <label>
-                <span>Player cue</span>
-                <textarea name="framePlayerCue" rows="2" data-idp-board-frame-meta placeholder="Short player-facing instruction">${fieldValue(frame.playerCue || "")}</textarea>
-              </label>
-              <input type="hidden" name="frameClipAnchor" value="${fieldValue(frame.clipAnchor || "")}" data-idp-board-frame-meta data-idp-board-frame-clip-anchor>
-              ${renderBoardClipPicker(detail, state, frame)}
-              <div class="idp-player-board-frame-preview" aria-live="polite">
-                <strong data-idp-board-frame-preview-title>${escapeHtml(frame.label || "Start")}</strong>
-                <small data-idp-board-frame-preview-cue>${escapeHtml(frame.playerCue || frame.coachCue || "No cue on this frame yet")}</small>
-                <span data-idp-board-frame-preview-anchor>${escapeHtml(frame.clipAnchor || "No clip anchor")}</span>
-              </div>
-            </section>
-            <section class="session-tacticalboard-settings idp-player-board-settings" aria-label="Board settings">
-              <label>
-                <span>Pitch view</span>
-                <select name="pitchMode">${renderPitchModeOptions(intervention.pitchMode || "half")}</select>
-              </label>
-              <label>
-                <span>Linked goal</span>
-                <select name="goalId">${renderGoalOptions(detail, intervention.goalId || "")}</select>
-              </label>
-              <label class="idp-player-board-color-control">
-                <span>Movement colour</span>
-                <div class="session-tacticalboard-colour-row idp-player-board-color-row">
-                  <input name="arrowColor" type="color" value="${fieldValue(arrowColor)}" data-idp-board-color-input>
-                  <div class="session-tacticalboard-colour-swatches idp-player-board-color-swatches">${renderBoardColorSwatches(arrowColor)}</div>
+              </summary>
+              <div class="idp-board-disclosure-body">
+                <label>
+                  <span>Frame title</span>
+                  <input name="frameLabel" value="${fieldValue(frame.label || "Start")}" autocomplete="off" data-idp-board-frame-meta>
+                </label>
+                <label>
+                  <span>Coach cue</span>
+                  <textarea name="frameCoachCue" rows="2" data-idp-board-frame-meta placeholder="What should the coach reinforce here?">${fieldValue(frame.coachCue || "")}</textarea>
+                </label>
+                <label>
+                  <span>Player cue</span>
+                  <textarea name="framePlayerCue" rows="2" data-idp-board-frame-meta placeholder="Short player-facing instruction">${fieldValue(frame.playerCue || "")}</textarea>
+                </label>
+                <input type="hidden" name="frameClipAnchor" value="${fieldValue(frame.clipAnchor || "")}" data-idp-board-frame-meta data-idp-board-frame-clip-anchor>
+                ${renderBoardClipPicker(detail, state, frame)}
+                <div class="idp-player-board-frame-preview" aria-live="polite">
+                  <strong data-idp-board-frame-preview-title>${escapeHtml(frame.label || "Start")}</strong>
+                  <small data-idp-board-frame-preview-cue>${escapeHtml(frame.playerCue || frame.coachCue || "No cue on this frame yet")}</small>
+                  <span data-idp-board-frame-preview-anchor>${escapeHtml(frame.clipAnchor || "No clip anchor")}</span>
                 </div>
-              </label>
-              <div class="idp-player-board-form-grid">
+              </div>
+            </details>
+            <details class="session-tacticalboard-settings idp-player-board-settings idp-board-disclosure" aria-label="Board settings">
+              <summary><span>Board Settings</span><small>Pitch + movement style</small></summary>
+              <div class="idp-board-disclosure-body">
                 <label>
-                  <span>Width</span>
-                  <input name="arrowLineWidth" type="range" min="0.75" max="6" step="0.25" value="${fieldValue(arrowLineWidth)}" data-idp-board-line-width>
+                  <span>Pitch view</span>
+                  <select name="pitchMode">${renderPitchModeOptions(intervention.pitchMode || "half")}</select>
                 </label>
                 <label>
-                  <span>Style</span>
-                  <select name="arrowLineStyle" data-idp-board-line-style>${renderLineStyleOptions(arrowLineStyle)}</select>
+                  <span>Linked goal</span>
+                  <select name="goalId">${renderGoalOptions(detail, intervention.goalId || "")}</select>
                 </label>
+                <label class="idp-player-board-color-control">
+                  <span>Movement colour</span>
+                  <div class="session-tacticalboard-colour-row idp-player-board-color-row">
+                    <input name="arrowColor" type="color" value="${fieldValue(arrowColor)}" data-idp-board-color-input>
+                    <div class="session-tacticalboard-colour-swatches idp-player-board-color-swatches">${renderBoardColorSwatches(arrowColor)}</div>
+                  </div>
+                </label>
+                <div class="idp-player-board-form-grid">
+                  <label>
+                    <span>Width</span>
+                    <input name="arrowLineWidth" type="range" min="0.75" max="6" step="0.25" value="${fieldValue(arrowLineWidth)}" data-idp-board-line-width>
+                  </label>
+                  <label>
+                    <span>Style</span>
+                    <select name="arrowLineStyle" data-idp-board-line-style>${renderLineStyleOptions(arrowLineStyle)}</select>
+                  </label>
+                </div>
               </div>
-            </section>
-            <section class="idp-player-board-editor-group is-featured">
-              <strong>Active Individual Exercise</strong>
-              <label><span>Title</span><input name="title" value="${fieldValue(intervention.title, "Individual exercise")}" autocomplete="off"></label>
-              <label><span>Objective</span><textarea name="objective" rows="3">${fieldValue(intervention.objective || focus?.description || "")}</textarea></label>
-              <div class="idp-player-board-form-grid">
-                <label><span>Status</span><select name="status">
-                  ${["draft", "active", "review", "completed"].map((status) => `<option value="${status}"${status === intervention.status ? " selected" : ""}>${escapeHtml(status)}</option>`).join("")}
-                </select></label>
+            </details>
+            <details class="idp-player-board-editor-group is-featured idp-board-disclosure">
+              <summary><span>Exercise Details</span><small>${escapeHtml(interventionStatusLabel(intervention.status))}</small></summary>
+              <div class="idp-board-disclosure-body">
+                <label><span>Title</span><input name="title" value="${fieldValue(intervention.title, "Individual exercise")}" autocomplete="off"></label>
+                <label><span>Objective</span><textarea name="objective" rows="3">${fieldValue(intervention.objective || focus?.description || "")}</textarea></label>
+                <div class="idp-player-board-form-grid">
+                  <label><span>Status</span><select name="status">
+                    ${["draft", "active", "review", "completed"].map((status) => `<option value="${status}"${status === intervention.status ? " selected" : ""}>${escapeHtml(status)}</option>`).join("")}
+                  </select></label>
+                </div>
               </div>
-            </section>
-            <section class="idp-player-board-editor-group">
-              <strong>Coach Notes</strong>
-              <label><span>Coaching cue</span><textarea name="coachingCue" rows="2">${fieldValue(intervention.coachingCue || "")}</textarea></label>
-              <label><span>Success criteria</span><textarea name="successCriteria" rows="2" placeholder="One criterion per line">${fieldValue(Array.isArray(intervention.successCriteria) ? intervention.successCriteria.join("\n") : "")}</textarea></label>
-              <label><span>Board note</span><textarea name="noteText" rows="2">${fieldValue(note.text)}</textarea></label>
-            </section>
+            </details>
+            <details class="idp-player-board-editor-group idp-board-disclosure">
+              <summary><span>Coach Notes</span><small>Cues + criteria</small></summary>
+              <div class="idp-board-disclosure-body">
+                <label><span>Coaching cue</span><textarea name="coachingCue" rows="2">${fieldValue(intervention.coachingCue || "")}</textarea></label>
+                <label><span>Success criteria</span><textarea name="successCriteria" rows="2" placeholder="One criterion per line">${fieldValue(Array.isArray(intervention.successCriteria) ? intervention.successCriteria.join("\n") : "")}</textarea></label>
+                <label><span>Board note</span><textarea name="noteText" rows="2">${fieldValue(note.text)}</textarea></label>
+              </div>
+            </details>
             <footer>
               ${intervention.id ? `<button type="button" class="is-danger" data-idp-archive-intervention="${escapeHtml(intervention.id)}">Archive</button>` : ""}
               <button type="button" data-idp-player-board-close>Cancel</button>

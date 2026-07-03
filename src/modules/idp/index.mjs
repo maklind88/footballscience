@@ -1565,6 +1565,13 @@ export function handleClick(event) {
     stopPlayerBoardPreviewPlayback(runtime);
     return;
   }
+  const playerBoardPreviewClip = event?.target?.closest?.("[data-idp-player-board-preview-clip]");
+  if (playerBoardPreviewClip) {
+    event?.preventDefault?.();
+    stopPlayerBoardPreviewPlayback(runtime);
+    openClipPreview(runtime, [playerBoardPreviewClip.dataset.idpPlayerBoardPreviewClip || ""]);
+    return;
+  }
   const closeActionTrigger = event?.target?.closest?.("[data-idp-close-action]");
   if (closeActionTrigger || event?.target?.matches?.("[data-idp-action-layer]")) {
     runtime?.store.setState({ ui: { actionMode: "", editEvidenceId: "", editGoalId: "" } });

@@ -9124,12 +9124,42 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   padding: 10px;
 }
 
+.idp-player-board-playback-cues article.has-linked-clip {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(15, 118, 110, .11), transparent 12rem),
+    #f8fafc;
+  border-color: rgba(15, 118, 110, .18);
+}
+
 .idp-player-board-playback-cues p {
   color: #182230;
   font-size: .88rem;
   font-weight: 820;
   line-height: 1.24;
   margin: 0;
+}
+
+.idp-player-board-playback-cues button[data-idp-player-board-preview-clip] {
+  appearance: none;
+  background: #0f766e;
+  border: 1px solid rgba(15, 118, 110, .22);
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 920;
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 12px;
+}
+
+.idp-player-board-playback-cues button[data-idp-player-board-preview-clip]:hover,
+.idp-player-board-playback-cues button[data-idp-player-board-preview-clip]:focus-visible {
+  background: #115e59;
+  box-shadow: 0 10px 20px rgba(15, 118, 110, .18);
+  outline: none;
+  transform: translateY(-1px);
 }
 
 .idp-player-board-playback-frames {

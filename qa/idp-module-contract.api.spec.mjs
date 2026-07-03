@@ -138,6 +138,9 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("data-idp-player-board-preview-frame");
   expect(playerBoardRenderer).toContain("data-idp-player-board-preview-play");
   expect(playerBoardRenderer).toContain("data-idp-player-board-preview-stop");
+  expect(playerBoardRenderer).toContain("data-idp-player-board-preview-clip");
+  expect(playerBoardRenderer).toContain("frameClipTarget");
+  expect(playerBoardRenderer).toContain("clipBankItemId");
   expect(playerBoardRenderer).toContain("Coach Playback");
   expect(playerBoardRenderer).toContain("idp-player-board-frame-inspector");
   expect(playerBoardRenderer).toContain("data-idp-board-frame-meta");
@@ -159,6 +162,7 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(idpRuntime).toContain("selectBoardFrame");
   expect(idpRuntime).toContain("addBoardFrame");
   expect(idpRuntime).toContain("playBoardFrames");
+  expect(idpRuntime).toContain("data-idp-player-board-preview-clip");
   expect(idpRuntime).toContain("syncActiveBoardFrameFromModal");
   expect(idpRuntime).toContain("updateBoardFrameMetaPreview");
   expect(idpRuntime).toContain("boardFrameButtonHtml");
@@ -449,6 +453,19 @@ test("idp renderer separates the overview from the player development profile", 
     ...profileState,
     playerDetail: {
       ...profileState.playerDetail,
+      clipBank: [
+        {
+          id: "clip-12",
+          matchTitle: "NCC Training",
+          videoTitle: "Distribution build-up",
+          matchDate: "2026-07-03",
+          eventType: "training",
+          startMs: 78000,
+          endMs: 90000,
+          subPhase: "Third-player release",
+          phase: "Build-up",
+        },
+      ],
       interventions: [
         {
           id: "intervention-a",
@@ -510,6 +527,9 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain("Find the bounce pass");
   expect(playerBoardHtml).toContain("Play forward after scan");
   expect(playerBoardHtml).toContain("clip-12 @ 01:18");
+  expect(playerBoardHtml).toContain('data-idp-player-board-preview-clip="clip-12"');
+  expect(playerBoardHtml).toContain("Open Third-player release");
+  expect(playerBoardHtml).toContain("has-linked-clip");
   expect(playerBoardHtml).toContain("session-pitch-touchline");
   expect(playerBoardHtml).toContain("idp-tactical-board-svg");
   expect(playerBoardHtml).toContain('data-idp-board-object="player"');

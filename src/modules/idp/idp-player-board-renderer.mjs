@@ -454,6 +454,42 @@ function interventionObjective(intervention = {}, focus = {}) {
   );
 }
 
+function clipBankItemId(clip = {}) {
+  const item = clip || {};
+  return normalizeText(item.id || item.clipInstanceId, "");
+}
+
+function clipBankItemLabel(clip = {}) {
+  const item = clip || {};
+  return normalizeText(
+    item.subPhase || item.phase || item.matchTitle || item.videoTitle || clipBankItemId(item),
+    "Open clip"
+  );
+}
+
+function clipAnchorIds(anchor = "") {
+  const text = normalizeText(anchor, "");
+  const beforeTime = text.split("@")[0]?.trim() || "";
+  return new Set([
+    beforeTime,
+    ...text.split(/[\s,;|]+/),
+  ].map((item) => item.trim()).filter(Boolean));
+}
+
+function frameClipTarget(frame = {}, state = {}, detail = {}) {
+  const clips = Array.isArray(detail.clipBank) ? detail.clipBank : [];
+  if (!clips.length) return null;
+  const anchorIds = clipAnchorIds(frame.clipAnchor || state.clipAnchor || "");
+  const linkedIds = Array.isArray(state.linkedClipIds) ? state.linkedClipIds.map((id) => normalizeText(id, "")).filter(Boolean) : [];
+  const candidateIds = new Set([...anchorIds, ...linkedIds]);
+  const exactMatch = clips.find((clip) => candidateIds.has(clipBankItemId(clip)));
+  if (exactMatch) return exactMatch;
+  if (anchorIds.size) {
+    return clips.find((clip) => [...anchorIds].some((id) => id && clipBankItemId(clip).includes(id))) || null;
+  }
+  return linkedIds.length ? clips.find((clip) => linkedIds.includes(clipBankItemId(clip))) || null : null;
+}
+
 function exerciseBankSearchText(item = {}, focus = {}) {
   return [
     item.title,
@@ -478,6 +514,8 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
   const playerName = normalizeText(profile.playerName || profile.name, "Player");
   const objective = interventionObjective(intervention, focus);
   const clipAnchor = normalizeText(frame.clipAnchor || state.clipAnchor, "");
+  const clipTarget = frameClipTarget(frame, state, detail);
+  const clipTargetId = clipBankItemId(clipTarget);
   const coachCue = normalizeText(frame.coachCue || state.coachCue, "Coach cue has not been added yet.");
   const playerCue = normalizeText(frame.playerCue || state.playerCue, objective);
   return `
@@ -520,9 +558,14 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
               <span>Player Cue</span>
               <p>${escapeHtml(playerCue)}</p>
             </article>
-            <article>
+            <article class="${clipTargetId ? "has-linked-clip" : ""}">
               <span>Clip Anchor</span>
               <p>${escapeHtml(clipAnchor || `${counts.clips || 0} clips linked`)}</p>
+              ${clipTargetId ? `
+                <button type="button" data-idp-player-board-preview-clip="${escapeHtml(clipTargetId)}">
+                  Open ${escapeHtml(clipBankItemLabel(clipTarget))}
+                </button>
+              ` : ""}
             </article>
           </div>
         </section>

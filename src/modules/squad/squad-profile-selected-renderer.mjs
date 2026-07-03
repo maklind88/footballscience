@@ -87,6 +87,17 @@ export function createSquadProfileSelectedRenderer({
               <input name="temporaryTo" type="date" value="${escapeHtml(player.temporaryTo)}" ${canEdit ? "" : "disabled"} />
             </label>
           `;
+    const idpStatusControl =
+      activeTab === "idp"
+        ? `
+          <label class="squad-idp-status-control">
+            <span>IDP status</span>
+            <select class="squad-idp-status-select" name="idpStatus" ${canEdit ? "" : "disabled"} aria-label="IDP status">
+              ${renderPlayerProfileOptionSet(playerProfileIdpStatusOptions, player.idp?.status || "active")}
+            </select>
+          </label>
+        `
+        : "";
     return `
     <aside class="squad-player-workbench" data-active-tab="${escapeHtml(activeTab)}" aria-label="Selected player profile">
       <article class="squad-profile-identity">
@@ -102,14 +113,15 @@ export function createSquadProfileSelectedRenderer({
       </article>
       ${renderPlayerProfileTabs()}
       <article class="squad-profile-section squad-editor-section">
-        <header class="squad-section-head">
-          <div>
-            <p>${escapeHtml(activeTabTitle)}</p>
-            <h2>${escapeHtml(activeTab === "idp" ? "Player Development Status" : activeTab === "performance" ? "Performance Record" : activeTab === "notes" ? "Staff Notes" : "Planning Profile")}</h2>
-          </div>
-        </header>
         <form id="playerProfileEditForm" class="squad-profile-form">
           <input type="hidden" name="playerId" value="${escapeHtml(player.id)}" />
+          <header class="squad-section-head">
+            <div>
+              <p>${escapeHtml(activeTabTitle)}</p>
+              <h2>${escapeHtml(activeTab === "idp" ? "Player Development Status" : activeTab === "performance" ? "Performance Record" : activeTab === "notes" ? "Staff Notes" : "Planning Profile")}</h2>
+            </div>
+            ${idpStatusControl}
+          </header>
           <div class="squad-form-grid squad-core-grid">
             <label class="squad-tab-field-overview">
               <span>Name</span>
@@ -161,15 +173,6 @@ export function createSquadProfileSelectedRenderer({
             ${temporaryRosterFields}
           </div>
           <section class="squad-idp-editor squad-tab-panel-idp">
-            <header class="squad-section-head">
-              <div>
-                <p>IDP</p>
-                <h2>Player Development System</h2>
-              </div>
-              <select name="idpStatus" ${canEdit ? "" : "disabled"} aria-label="IDP status">
-                ${renderPlayerProfileOptionSet(playerProfileIdpStatusOptions, player.idp?.status || "active")}
-              </select>
-            </header>
             <div class="squad-idp-handoff">
               <div>
                 <span>Current focus</span>

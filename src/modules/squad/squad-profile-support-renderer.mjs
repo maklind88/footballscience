@@ -50,11 +50,48 @@ export function createSquadProfileSupportRenderer({
   const renderMedicalPanel = (player) => {
     const snapshot = getPlayerProfileMedicalSnapshot(player.id);
     const trainingAvailability = snapshot.trainingAvailability || {};
-    const renderAvailabilityValue = (item = {}) => (Number.isFinite(Number(item.average)) ? `${Number(item.average)}%` : "--");
+    const getAvailabilityNumber = (item = {}) => {
+      const average = Number(item.average);
+      return Number.isFinite(average) ? Math.max(0, Math.min(100, average)) : null;
+    };
+    const renderAvailabilityValue = (item = {}) => {
+      const average = getAvailabilityNumber(item);
+      return average === null ? "--" : `${average}%`;
+    };
+    const getAvailabilityTone = (item = {}) => {
+      const average = getAvailabilityNumber(item);
+      if (average === null) return "empty";
+      if (average >= 85) return "high";
+      if (average >= 65) return "medium";
+      return "low";
+    };
+    const renderAvailabilityWindow = (label, item = {}) => {
+      const average = getAvailabilityNumber(item);
+      const styleValue = average === null ? 0 : average;
+      return `
+            <div class="squad-training-availability-window is-${escapeHtml(getAvailabilityTone(item))}" style="--availability:${styleValue}%">
+              <span>${escapeHtml(label)}</span>
+              <strong>${escapeHtml(renderAvailabilityValue(item))}</strong>
+              <i aria-hidden="true"></i>
+            </div>
+          `;
+    };
     const trainingAvailabilityMarkup = trainingAvailability.hasData
-      ? `<strong>7d ${escapeHtml(renderAvailabilityValue(trainingAvailability.week))} · 30d ${escapeHtml(renderAvailabilityValue(trainingAvailability.month))} · Season ${escapeHtml(renderAvailabilityValue(trainingAvailability.season))}</strong>
+      ? `<div class="squad-training-availability-head">
+            <span>Training availability</span>
+            <strong>${escapeHtml(renderAvailabilityValue(trainingAvailability.season))}</strong>
+          </div>
+          <div class="squad-training-availability-windows">
+            ${renderAvailabilityWindow("7d", trainingAvailability.week)}
+            ${renderAvailabilityWindow("30d", trainingAvailability.month)}
+            ${renderAvailabilityWindow("Season", trainingAvailability.season)}
+          </div>
           <small>${escapeHtml(trainingAvailability.loggedCount)} logged training decision${trainingAvailability.loggedCount === 1 ? "" : "s"}</small>`
-      : `<strong>No training data yet</strong>
+      : `<div class="squad-training-availability-head">
+            <span>Training availability</span>
+            <strong>--</strong>
+          </div>
+          <div class="squad-training-availability-empty">No training data yet</div>
           <small>Log Medical recommendations to build 7d, 30d and season trends.</small>`;
     return `
     <article class="squad-profile-section squad-medical-snapshot">
@@ -83,7 +120,6 @@ export function createSquadProfileSupportRenderer({
           <strong>${escapeHtml(snapshot.latestLogSummary)}</strong>
         </div>
         <div class="squad-training-availability-card">
-          <span>Training availability</span>
           ${trainingAvailabilityMarkup}
         </div>
         ${

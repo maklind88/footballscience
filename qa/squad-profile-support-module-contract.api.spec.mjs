@@ -97,7 +97,10 @@ test("Squad profile support renderer owns option lists, support panels, and add-
   const medicalPanel = renderer.renderMedicalPanel(player);
   expect(medicalPanel).toContain("Medical Snapshot");
   expect(medicalPanel).toContain("Training availability");
-  expect(medicalPanel).toContain("7d 75%");
+  expect(medicalPanel).toContain("squad-training-availability-windows");
+  expect(medicalPanel).toContain('style="--availability:75%"');
+  expect(medicalPanel).toContain("<span>7d</span>");
+  expect(medicalPanel).toContain("<strong>75%</strong>");
   expect(renderer.renderFuturePanel(player)).toContain("Match / Load / Analysis");
   const historyPanel = renderer.renderHistoryPanel(player);
   expect(historyPanel).toContain("Player Work History");

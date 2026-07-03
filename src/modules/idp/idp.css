@@ -9512,6 +9512,79 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-frame-list {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-frame {
+  align-items: center;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 14px;
+  color: rgba(226, 232, 240, .84);
+  display: grid;
+  gap: 6px;
+  grid-template-columns: auto minmax(0, 1fr);
+  height: auto;
+  justify-content: stretch;
+  min-height: 38px;
+  min-width: 0;
+  padding: 6px 8px;
+  position: relative;
+  text-align: left;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-frame strong {
+  align-items: center;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 999px;
+  color: #fff;
+  display: grid;
+  font-size: .68rem;
+  height: 22px;
+  justify-items: center;
+  line-height: 1;
+  width: 22px;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-frame span {
+  display: block;
+  font-size: .68rem;
+  font-weight: 900;
+  line-height: 1.08;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-frame.has-cue::after {
+  background: #2dd4bf;
+  border: 2px solid #07111f;
+  border-radius: 999px;
+  content: "";
+  height: 9px;
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  width: 9px;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-frame.is-active {
+  background: #e5edf7;
+  border-color: rgba(255, 255, 255, .42);
+  color: #07111f;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-frame.is-active strong {
+  background: #07111f;
+  border-color: #07111f;
+  color: #fff;
+}
+
 .idp-player-board-history-controls button {
   min-width: 0;
 }
@@ -9584,6 +9657,79 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   font-weight: 760;
   line-height: 1.22;
   margin: 0;
+}
+
+.idp-player-board-frame-inspector {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(45, 212, 191, .16), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, .13), rgba(255, 255, 255, .055));
+  border: 1px solid rgba(125, 211, 252, .22);
+  border-radius: 16px;
+  display: grid;
+  gap: 8px;
+  padding: 11px;
+}
+
+.idp-player-board-frame-inspector-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.idp-player-board-frame-inspector-head span,
+.idp-player-board-frame-inspector label > span {
+  color: rgba(226, 232, 240, .62);
+  font-size: .66rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.idp-player-board-frame-inspector-head small {
+  background: rgba(45, 212, 191, .12);
+  border: 1px solid rgba(45, 212, 191, .22);
+  border-radius: 999px;
+  color: #ccfbf1;
+  font-size: .68rem;
+  font-weight: 900;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.idp-player-board-frame-inspector label {
+  display: grid;
+  gap: 5px;
+}
+
+.idp-player-board-frame-preview {
+  background: rgba(3, 7, 18, .28);
+  border: 1px solid rgba(255, 255, 255, .09);
+  border-radius: 14px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.idp-player-board-frame-preview strong {
+  color: #fff;
+  font-size: .94rem;
+  line-height: 1.08;
+}
+
+.idp-player-board-frame-preview small {
+  color: #a7f3d0;
+  font-size: .76rem;
+  font-weight: 850;
+  line-height: 1.18;
+}
+
+.idp-player-board-frame-preview span {
+  color: rgba(226, 232, 240, .66);
+  font-size: .7rem;
+  font-weight: 820;
+  line-height: 1.16;
 }
 
 .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-settings {

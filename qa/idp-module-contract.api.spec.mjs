@@ -133,6 +133,11 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("data-idp-board-frame-add");
   expect(playerBoardRenderer).toContain("data-idp-board-frame-duplicate");
   expect(playerBoardRenderer).toContain("data-idp-board-play");
+  expect(playerBoardRenderer).toContain("idp-player-board-frame-inspector");
+  expect(playerBoardRenderer).toContain("data-idp-board-frame-meta");
+  expect(playerBoardRenderer).toContain("frameCoachCue");
+  expect(playerBoardRenderer).toContain("framePlayerCue");
+  expect(playerBoardRenderer).toContain("frameClipAnchor");
   expect(playerBoardRenderer).toContain("boardFramesJson");
   expect(idpRenderer).toContain("data-idp-player-board-preview-select");
   expect(playerBoardRenderer).toContain("Linked goal");
@@ -149,6 +154,8 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(idpRuntime).toContain("addBoardFrame");
   expect(idpRuntime).toContain("playBoardFrames");
   expect(idpRuntime).toContain("syncActiveBoardFrameFromModal");
+  expect(idpRuntime).toContain("updateBoardFrameMetaPreview");
+  expect(idpRuntime).toContain("boardFrameButtonHtml");
   expect(idpRuntime).toContain("selectBoardTool");
   expect(idpRuntime).toContain("setBoardArrowPreset");
   expect(playerBoardRenderer).not.toContain("data-session-");
@@ -964,11 +971,15 @@ test("idp individual exercise save and archive stay behind the server boundary",
     ["noteX", "12"],
     ["noteY", "14"],
     ["frameLabel", "Frame one"],
+    ["frameCoachCue", "Force the first touch cue."],
+    ["framePlayerCue", "Scan before release."],
+    ["frameClipAnchor", "clip-2 @ 00:14"],
     ["activeFrameIndex", "1"],
     ["boardFramesJson", JSON.stringify([
       {
         id: "frame-1",
         label: "Start",
+        coachCue: "Hold the line.",
         player: { x: 42, y: 76 },
         cones: [{ id: "cone-1", x: 38, y: 60 }],
         arrows: [{ id: "arrow-1", type: "run", label: "Start run", from: { x: 42, y: 76 }, to: { x: 54, y: 52 } }],
@@ -976,6 +987,9 @@ test("idp individual exercise save and archive stay behind the server boundary",
       {
         id: "frame-2",
         label: "Frame two",
+        coachCue: "Old cue",
+        playerCue: "Old player cue",
+        clipAnchor: "old-clip",
         player: { x: 48, y: 72 },
         cones: [{ id: "cone-1", x: 46, y: 61 }],
         arrows: [{ id: "arrow-1", type: "pass", label: "Release pass", from: { x: 48, y: 72 }, to: { x: 62, y: 42 } }],
@@ -1015,6 +1029,9 @@ test("idp individual exercise save and archive stay behind the server boundary",
   expect(updatePayloads[0].boardState.frames[1]).toMatchObject({
     id: "frame-2",
     label: "Frame one",
+    coachCue: "Force the first touch cue.",
+    playerCue: "Scan before release.",
+    clipAnchor: "clip-2 @ 00:14",
     player: { x: 50, y: 82 },
   });
   expect(updatePayloads[0].boardState.frames[1].cones[0]).toMatchObject({ id: "cone-1", x: 44, y: 60 });

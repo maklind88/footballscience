@@ -268,6 +268,9 @@ function normalizeStoredBoardFrame(value = {}, index = 0) {
   return {
     id: normalizeText(value.id || `frame-${index + 1}`, 80),
     label: normalizeText(value.label || (index === 0 ? "Start" : `Frame ${index + 1}`), 80),
+    coachCue: normalizeText(value.coachCue || value.coach_cue, 220),
+    playerCue: normalizeText(value.playerCue || value.player_cue, 220),
+    clipAnchor: normalizeText(value.clipAnchor || value.clip_anchor, 160),
     player: {
       x: parseBoardNumber(value.player?.x, 50),
       y: parseBoardNumber(value.player?.y, 70),
@@ -332,10 +335,16 @@ function buildInterventionBoardFrame(formData, existingFrame = {}, index = 0) {
   const defaultLineStyle = arrowType === "pass" ? "dotted" : arrowType === "run" ? "dashed" : "solid";
   const noteText = normalizeText(formData.get("noteText"), 220);
   const frameLabel = normalizeText(formData.get("frameLabel"), 80);
+  const frameCoachCue = normalizeText(formData.get("frameCoachCue"), 220);
+  const framePlayerCue = normalizeText(formData.get("framePlayerCue"), 220);
+  const frameClipAnchor = normalizeText(formData.get("frameClipAnchor"), 160);
   const referenceLabel = normalizeText(formData.get("referenceLabel"), 24);
   return {
     id: normalizeText(existingFrame.id || `frame-${index + 1}`, 80),
     label: frameLabel || existingFrame.label || (index === 0 ? "Start" : `Frame ${index + 1}`),
+    coachCue: formData.has("frameCoachCue") ? frameCoachCue : existingFrame.coachCue || "",
+    playerCue: formData.has("framePlayerCue") ? framePlayerCue : existingFrame.playerCue || "",
+    clipAnchor: formData.has("frameClipAnchor") ? frameClipAnchor : existingFrame.clipAnchor || "",
     player: {
       x: parseBoardNumber(formData.get("playerX"), 50),
       y: parseBoardNumber(formData.get("playerY"), 70),

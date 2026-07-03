@@ -124,6 +124,9 @@ function normalizeBoardFrame(value = {}, index = 0, fallbackState = {}) {
   return {
     id: normalizeText(value.id || `frame-${index + 1}`, 80),
     label: normalizeText(value.label || `Frame ${index + 1}`, 80),
+    coachCue: normalizeText(value.coachCue || value.coach_cue, 220),
+    playerCue: normalizeText(value.playerCue || value.player_cue, 220),
+    clipAnchor: normalizeText(value.clipAnchor || value.clip_anchor, 160),
     player: normalizeBoardPlayer(value.player, fallbackState.player),
     referencePlayers: normalizeBoardReferencePlayers(value.referencePlayers, fallbackState.referencePlayers),
     cones: normalizeBoardCones(value.cones, fallbackState.cones),

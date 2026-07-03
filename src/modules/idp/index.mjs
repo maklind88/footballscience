@@ -47,6 +47,9 @@ const BOARD_HISTORY_FIELDS = [
   "noteX",
   "noteY",
   "frameLabel",
+  "frameCoachCue",
+  "framePlayerCue",
+  "frameClipAnchor",
 ];
 
 function normalizeContext(context = {}) {
@@ -517,6 +520,9 @@ function setActiveBoardFrameIndex(modal, index = 0, total = 1) {
   modal?.querySelectorAll?.("[data-idp-board-frame-status]")?.forEach((node) => {
     node.textContent = `${safeIndex + 1} / ${count}`;
   });
+  modal?.querySelectorAll?.("[data-idp-board-frame-inspector-status]")?.forEach((node) => {
+    node.textContent = `${safeIndex + 1} / ${count}`;
+  });
 }
 
 function boardFrameFromModal(modal, existingFrame = {}, index = 0) {
@@ -528,6 +534,9 @@ function boardFrameFromModal(modal, existingFrame = {}, index = 0) {
   return {
     id: existingFrame.id || `frame-${index + 1}`,
     label: boardFormText(modal, "frameLabel", existingFrame.label || (index === 0 ? "Start" : `Frame ${index + 1}`)),
+    coachCue: boardFormText(modal, "frameCoachCue", ""),
+    playerCue: boardFormText(modal, "framePlayerCue", ""),
+    clipAnchor: boardFormText(modal, "frameClipAnchor", ""),
     player: {
       x: boardFormNumber(modal, "playerX", 50),
       y: boardFormNumber(modal, "playerY", 70),
@@ -613,7 +622,53 @@ function boardSnapshotFromFrame(frame = {}) {
     noteX: note.x ?? 12,
     noteY: note.y ?? 14,
     frameLabel: frame.label || "Frame",
+    frameCoachCue: frame.coachCue || "",
+    framePlayerCue: frame.playerCue || "",
+    frameClipAnchor: frame.clipAnchor || "",
   };
+}
+
+function updateBoardFrameMetaPreview(modal) {
+  if (!modal) return;
+  const frames = readBoardFrames(modal);
+  const index = activeBoardFrameIndex(modal, frames.length || 1);
+  const label = boardFormText(modal, "frameLabel", index === 0 ? "Start" : `Frame ${index + 1}`);
+  const coachCue = boardFormText(modal, "frameCoachCue", "");
+  const playerCue = boardFormText(modal, "framePlayerCue", "");
+  const clipAnchor = boardFormText(modal, "frameClipAnchor", "");
+  const cue = playerCue || coachCue;
+  const title = modal.querySelector?.("[data-idp-board-frame-preview-title]");
+  const previewCue = modal.querySelector?.("[data-idp-board-frame-preview-cue]");
+  const previewAnchor = modal.querySelector?.("[data-idp-board-frame-preview-anchor]");
+  if (title) title.textContent = label || `Frame ${index + 1}`;
+  if (previewCue) previewCue.textContent = cue || "No cue on this frame yet";
+  if (previewAnchor) previewAnchor.textContent = clipAnchor || "No clip anchor";
+  const button = modal.querySelector?.(`[data-idp-board-frame-index="${index}"]`);
+  const buttonLabel = button?.querySelector?.("[data-idp-board-frame-button-label]");
+  if (buttonLabel) buttonLabel.textContent = label || `Frame ${index + 1}`;
+  if (button) {
+    button.classList.toggle("has-cue", Boolean(coachCue || playerCue || clipAnchor));
+    button.setAttribute("title", cue || label || `Frame ${index + 1}`);
+  }
+}
+
+function setBoardFrameApplying(modal, value = false) {
+  if (!modal?.dataset) return;
+  if (value) {
+    modal.dataset.idpBoardApplyingFrame = "1";
+    return;
+  }
+  delete modal.dataset.idpBoardApplyingFrame;
+}
+
+function clearBoardFrameApplyingSoon(modal) {
+  const win = runtime?.context?.win || globalThis;
+  const clear = () => setBoardFrameApplying(modal, false);
+  if (typeof win.setTimeout === "function") {
+    win.setTimeout(clear, 0);
+    return;
+  }
+  clear();
 }
 
 function updateBoardZoneVisual(modal) {
@@ -678,26 +733,39 @@ function applyBoardSnapshot(modal, snapshot = {}) {
   updateBoardArrowStyle(modal);
   updateBoardZoneVisual(modal);
   updateBoardNoteVisual(modal);
+  updateBoardFrameMetaPreview(modal);
 }
 
 function syncActiveBoardFrameFromModal(modal) {
+  if (!modal) return [];
+  const safeFrames = captureBoardFramesFromModal(modal);
+  const index = activeBoardFrameIndex(modal, safeFrames.length || 1);
+  writeBoardFrames(modal, safeFrames);
+  setActiveBoardFrameIndex(modal, index, safeFrames.length);
+  updateBoardFrameMetaPreview(modal);
+  return safeFrames;
+}
+
+function captureBoardFramesFromModal(modal) {
   if (!modal) return [];
   const frames = readBoardFrames(modal);
   const index = activeBoardFrameIndex(modal, frames.length || 1);
   const safeFrames = frames.length ? frames : [boardFrameFromModal(modal, {}, 0)];
   safeFrames[index] = boardFrameFromModal(modal, safeFrames[index], index);
-  writeBoardFrames(modal, safeFrames);
-  setActiveBoardFrameIndex(modal, index, safeFrames.length);
   return safeFrames;
 }
 
 function applyBoardFrameToModal(modal, frame = {}, index = 0) {
   if (!modal) return;
+  setBoardFrameApplying(modal, true);
+  setActiveBoardFrameIndex(modal, index, readBoardFrames(modal).length || 1);
   applyBoardSnapshot(modal, boardSnapshotFromFrame(frame));
   setActiveBoardFrameIndex(modal, index, readBoardFrames(modal).length || 1);
   modal.querySelectorAll?.("[data-idp-board-color-choice]")?.forEach((button) => {
     button.classList.toggle("is-active", String(button.dataset.idpBoardColorChoice || "").toLowerCase() === boardFormText(modal, "arrowColor", "").toLowerCase());
   });
+  updateBoardFrameMetaPreview(modal);
+  clearBoardFrameApplyingSoon(modal);
 }
 
 function selectBoardFrame(modal, index = 0) {
@@ -708,43 +776,60 @@ function selectBoardFrame(modal, index = 0) {
   writeBoardFrames(modal, frames);
   setActiveBoardFrameIndex(modal, safeIndex, frames.length);
   applyBoardFrameToModal(modal, frames[safeIndex], safeIndex);
+  writeBoardFrames(modal, frames);
+  setActiveBoardFrameIndex(modal, safeIndex, frames.length);
   resetBoardHistory(runtime);
   updateBoardHistoryButtons(modal);
   return true;
 }
 
+function boardFrameButtonHtml(frame = {}, index = 0, activeIndex = 0) {
+  const label = frame.label || `Frame ${index + 1}`;
+  const cue = frame.playerCue || frame.coachCue || "";
+  const hasCue = Boolean(frame.coachCue || frame.playerCue || frame.clipAnchor);
+  return `
+    <button
+      type="button"
+      class="session-tacticalboard-frame idp-player-board-frame${index === activeIndex ? " is-active" : ""}${hasCue ? " has-cue" : ""}"
+      data-idp-board-frame-index="${index}"
+      aria-pressed="${index === activeIndex ? "true" : "false"}"
+      title="${escapeBoardHtml(cue || label)}"
+    >
+      <strong>${index + 1}</strong>
+      <span data-idp-board-frame-button-label>${escapeBoardHtml(label)}</span>
+    </button>
+  `;
+}
+
 function rebuildBoardFrameButtons(modal, frames = [], activeIndex = 0) {
   const list = modal?.querySelector?.(".idp-player-board-frame-list");
   if (!list) return;
-  list.innerHTML = frames.map((frame, index) => `
-    <button
-      type="button"
-      class="session-tacticalboard-frame idp-player-board-frame${index === activeIndex ? " is-active" : ""}"
-      data-idp-board-frame-index="${index}"
-      aria-pressed="${index === activeIndex ? "true" : "false"}"
-      title="${escapeBoardHtml(frame.label || `Frame ${index + 1}`)}"
-    >${index + 1}</button>
-  `).join("");
+  list.innerHTML = frames.map((frame, index) => boardFrameButtonHtml(frame, index, activeIndex)).join("");
   setActiveBoardFrameIndex(modal, activeIndex, frames.length || 1);
 }
 
 function addBoardFrame(modal, duplicateActive = false) {
   if (!modal) return false;
   stopBoardPlayback(runtime, modal);
-  const frames = syncActiveBoardFrameFromModal(modal);
+  const frames = captureBoardFramesFromModal(modal);
   if (frames.length >= 8) return false;
   const currentIndex = activeBoardFrameIndex(modal, frames.length || 1);
-  const source = duplicateActive ? frames[currentIndex] : boardFrameFromModal(modal, {}, currentIndex);
+  const source = frames[currentIndex] || boardFrameFromModal(modal, {}, currentIndex);
   const nextIndex = frames.length;
   const nextFrame = {
     ...(source || {}),
     id: `frame-${nextIndex + 1}`,
     label: duplicateActive ? `${source?.label || `Frame ${currentIndex + 1}`} copy` : `Frame ${nextIndex + 1}`,
+    coachCue: duplicateActive ? source?.coachCue || "" : "",
+    playerCue: duplicateActive ? source?.playerCue || "" : "",
+    clipAnchor: duplicateActive ? source?.clipAnchor || "" : "",
   };
   const nextFrames = [...frames, nextFrame].slice(0, 8);
   writeBoardFrames(modal, nextFrames);
   rebuildBoardFrameButtons(modal, nextFrames, nextIndex);
   applyBoardFrameToModal(modal, nextFrame, nextIndex);
+  writeBoardFrames(modal, nextFrames);
+  setActiveBoardFrameIndex(modal, nextIndex, nextFrames.length);
   resetBoardHistory(runtime);
   updateBoardHistoryButtons(modal);
   return true;
@@ -776,6 +861,8 @@ function playBoardFrames(activeRuntime = runtime, modal) {
     index = (index + 1) % frames.length;
     setActiveBoardFrameIndex(modal, index, frames.length);
     applyBoardFrameToModal(modal, frames[index], index);
+    writeBoardFrames(modal, frames);
+    setActiveBoardFrameIndex(modal, index, frames.length);
   }, 900);
   return true;
 }
@@ -1124,6 +1211,12 @@ export function handleInput(event) {
   const target = event?.target;
   if (target?.matches?.("[data-idp-board-color-input], [data-idp-board-line-width]")) {
     updateBoardArrowStyle(target.closest?.(".idp-player-board-modal"));
+    return;
+  }
+  if (target?.matches?.("[data-idp-board-frame-meta]")) {
+    const modal = target.closest?.(".idp-player-board-modal");
+    if (modal?.dataset?.idpBoardApplyingFrame === "1") return;
+    syncActiveBoardFrameFromModal(modal);
     return;
   }
   if (target?.matches?.("[data-idp-clip-search]")) {

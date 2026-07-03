@@ -135,6 +135,9 @@ function boardFrameFromState(state = {}, frame = {}, index = 0) {
   return {
     id: normalizeText(frame.id, `frame-${index + 1}`) || `frame-${index + 1}`,
     label: normalizeText(frame.label, index === 0 ? "Start" : `Frame ${index + 1}`) || `Frame ${index + 1}`,
+    coachCue: normalizeText(frame.coachCue || frame.coach_cue, state.coachCue || state.coach_cue || ""),
+    playerCue: normalizeText(frame.playerCue || frame.player_cue, state.playerCue || state.player_cue || ""),
+    clipAnchor: normalizeText(frame.clipAnchor || frame.clip_anchor, state.clipAnchor || state.clip_anchor || ""),
     player: {
       x: clampPercent(frame.player?.x, clampPercent(state.player?.x, 50)),
       y: clampPercent(frame.player?.y, clampPercent(state.player?.y, 70)),
@@ -166,6 +169,9 @@ function boardStateForFrame(state = {}, frameIndex = 0) {
     zones: frame.zones,
     arrows: frame.arrows,
     notes: frame.notes,
+    coachCue: frame.coachCue,
+    playerCue: frame.playerCue,
+    clipAnchor: frame.clipAnchor,
   };
 }
 
@@ -602,7 +608,7 @@ function renderBoardToolGroups(activeTool = "player") {
 }
 
 function renderBoardFrameStrip(frames = [], activeFrameIndex = 0) {
-  const safeFrames = Array.isArray(frames) && frames.length ? frames.slice(0, 6) : [{ id: "frame-1", label: "Start" }];
+  const safeFrames = Array.isArray(frames) && frames.length ? frames.slice(0, 8) : [{ id: "frame-1", label: "Start" }];
   const safeIndex = normalizeFrameIndex(activeFrameIndex, safeFrames.length);
   const frameStatusLabel = `${safeIndex + 1} / ${safeFrames.length || 1}`;
   return `
@@ -612,15 +618,23 @@ function renderBoardFrameStrip(frames = [], activeFrameIndex = 0) {
         <small data-idp-board-frame-status>${escapeHtml(frameStatusLabel)}</small>
       </div>
       <div class="session-tacticalboard-frame-list idp-player-board-frame-list">
-        ${safeFrames.map((frame, index) => `
+        ${safeFrames.map((frame, index) => {
+          const label = frame.label || `Frame ${index + 1}`;
+          const cue = frame.playerCue || frame.coachCue || "";
+          const hasCue = Boolean(frame.coachCue || frame.playerCue || frame.clipAnchor);
+          return `
           <button
             type="button"
-            class="session-tacticalboard-frame idp-player-board-frame${index === safeIndex ? " is-active" : ""}"
+            class="session-tacticalboard-frame idp-player-board-frame${index === safeIndex ? " is-active" : ""}${hasCue ? " has-cue" : ""}"
             data-idp-board-frame-index="${index}"
             aria-pressed="${index === safeIndex ? "true" : "false"}"
-            title="${escapeHtml(frame.label || `Frame ${index + 1}`)}"
-          >${index + 1}</button>
-        `).join("")}
+            title="${escapeHtml(cue || label)}"
+          >
+            <strong>${index + 1}</strong>
+            <span data-idp-board-frame-button-label>${escapeHtml(label)}</span>
+          </button>
+        `;
+        }).join("")}
       </div>
       <div class="idp-player-board-history-controls" aria-label="Tactical board history">
         <button type="button" data-idp-board-undo disabled title="Undo">Undo</button>
@@ -655,6 +669,7 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
   const arrowLineWidth = normalizeBoardLineWidth(arrow.lineWidth, 2.5);
   const note = state.notes?.[0] || {};
   const frame = state.frames?.[activeFrameIndex] || state.frames?.[0] || {};
+  const frameStatusLabel = `${activeFrameIndex + 1} / ${state.frames?.length || 1}`;
   const counts = interventionCounts(intervention);
   const linkedClipIds = Array.isArray(state.linkedClipIds) ? state.linkedClipIds.join(", ") : "";
   return `
@@ -734,6 +749,33 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
               <small data-idp-board-selected-object>Player marker</small>
               <p data-idp-board-hint-state>Click the pitch to place or update the selected element.</p>
             </section>
+            <section class="idp-player-board-frame-inspector" data-idp-board-frame-inspector>
+              <div class="idp-player-board-frame-inspector-head">
+                <span>Frame Inspector</span>
+                <small data-idp-board-frame-inspector-status>${escapeHtml(frameStatusLabel)}</small>
+              </div>
+              <label>
+                <span>Frame title</span>
+                <input name="frameLabel" value="${fieldValue(frame.label || "Start")}" autocomplete="off" data-idp-board-frame-meta>
+              </label>
+              <label>
+                <span>Coach cue</span>
+                <textarea name="frameCoachCue" rows="2" data-idp-board-frame-meta placeholder="What should the coach reinforce here?">${fieldValue(frame.coachCue || "")}</textarea>
+              </label>
+              <label>
+                <span>Player cue</span>
+                <textarea name="framePlayerCue" rows="2" data-idp-board-frame-meta placeholder="Short player-facing instruction">${fieldValue(frame.playerCue || "")}</textarea>
+              </label>
+              <label>
+                <span>Clip anchor</span>
+                <input name="frameClipAnchor" value="${fieldValue(frame.clipAnchor || "")}" autocomplete="off" data-idp-board-frame-meta placeholder="Clip ID, match moment or timestamp">
+              </label>
+              <div class="idp-player-board-frame-preview" aria-live="polite">
+                <strong data-idp-board-frame-preview-title>${escapeHtml(frame.label || "Start")}</strong>
+                <small data-idp-board-frame-preview-cue>${escapeHtml(frame.playerCue || frame.coachCue || "No cue on this frame yet")}</small>
+                <span data-idp-board-frame-preview-anchor>${escapeHtml(frame.clipAnchor || "No clip anchor")}</span>
+              </div>
+            </section>
             <section class="session-tacticalboard-settings idp-player-board-settings" aria-label="Board settings">
               <label>
                 <span>Pitch view</span>
@@ -769,7 +811,6 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
                 <label><span>Status</span><select name="status">
                   ${["draft", "active", "review", "completed"].map((status) => `<option value="${status}"${status === intervention.status ? " selected" : ""}>${escapeHtml(status)}</option>`).join("")}
                 </select></label>
-                <label><span>Frame</span><input name="frameLabel" value="${fieldValue(frame.label || "Start")}" autocomplete="off"></label>
               </div>
             </section>
             <section class="idp-player-board-editor-group">

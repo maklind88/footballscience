@@ -17,6 +17,10 @@ function createHarness(options = {}) {
   const documentRef = {
     activeElement: options.activeElement || null,
     hasFocus: () => options.hasFocus !== false,
+    platformOverlay: options.platformOverlay || null,
+    querySelectorAll() {
+      return this.platformOverlay ? [this.platformOverlay] : [];
+    },
     visibilityState: options.visibilityState || "visible",
   };
   const service = createCentralAppStateReloadService({
@@ -71,6 +75,7 @@ function createHarness(options = {}) {
       },
     },
     win: {
+      getComputedStyle: () => ({ display: "block", opacity: "1", visibility: "visible" }),
       setInterval: (callback, delay) => {
         timers.push({ callback, delay });
         return timers.length;
@@ -133,6 +138,25 @@ test("central app-state reload service preserves defer, pending, and flush behav
 
   const sessionOverlayHarness = createHarness({ localUiState: { sessionPlannerPlayerBoardOpen: true } });
   expect(sessionOverlayHarness.service.shouldDeferCentralizedAppStateReload()).toBe(true);
+});
+
+test("central app-state reload service defers workspace reload while a platform overlay is active", () => {
+  const overlayNode = {
+    hidden: false,
+    closest() { return null; },
+    getBoundingClientRect() { return { width: 360, height: 280 }; },
+  };
+  const overlayHarness = createHarness({ platformOverlay: overlayNode });
+
+  expect(overlayHarness.service.shouldDeferCentralizedAppStateReload()).toBe(true);
+  overlayHarness.service.requestCentralizedAppStateReload();
+  expect(overlayHarness.service.isCentralizedAppStateReloadPending()).toBe(true);
+  expect(overlayHarness.calls).not.toContain("render-workspace");
+
+  overlayHarness.documentRef.platformOverlay = null;
+  overlayHarness.service.flushDeferredCentralizedAppStateReload();
+  expect(overlayHarness.service.isCentralizedAppStateReloadPending()).toBe(false);
+  expect(overlayHarness.calls).toContain("render-workspace");
 });
 
 test("central app-state reload service preserves central refresh throttling and interval setup", async () => {

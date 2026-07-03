@@ -56,11 +56,18 @@ export function createSquadRosterRenderer({
     if (!isTemporaryPlayerProfile(player)) {
       return "";
     }
-    const rosterLabel = getPlayerProfileRosterLabel(player);
+    const rosterLabel =
+      String(
+        getPlayerProfileRosterLabel(player) ||
+          getPlayerProfileRosterTypeOption(player.rosterType).label ||
+          getPlayerProfileRosterTypeOption(player.rosterType).shortLabel ||
+          "Temporary",
+      ).trim() ||
+      "Temporary";
     const windowLabel = getPlayerProfileTemporaryWindowLabel(player);
     return `
     <small class="squad-player-temporary-meta">
-      ${escapeHtml(rosterLabel || getPlayerProfileRosterTypeOption(player.rosterType).label || "Temporary")}
+      ${escapeHtml(rosterLabel)}
       ${windowLabel ? ` / ${escapeHtml(windowLabel)}` : ""}
     </small>
   `;

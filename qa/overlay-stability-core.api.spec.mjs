@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 import {
   createPlatformOverlayStabilityInstaller,
+  hasActivePlatformOverlay,
   installPlatformOverlayStability,
+  isPlatformOverlayNodeVisible,
   platformOverlayStabilityRootSelectors,
 } from "../src/core/overlay-stability.mjs";
 
@@ -10,7 +12,39 @@ test("Overlay stability core keeps platform overlay selector contract", () => {
   expect(platformOverlayStabilityRootSelectors).toContain("[data-admin-user-editor-overlay]");
   expect(platformOverlayStabilityRootSelectors).toContain("[data-player-profile-modal-overlay]");
   expect(platformOverlayStabilityRootSelectors).toContain(".medical-modal-layer");
+  expect(platformOverlayStabilityRootSelectors).toContain("[data-medical-rtp-profile-modal]:not([hidden])");
   expect(platformOverlayStabilityRootSelectors).toContain(".scouting-profile-modal");
+  expect(platformOverlayStabilityRootSelectors).toContain("[data-scouting-profile-modal]");
+  expect(platformOverlayStabilityRootSelectors).toContain("[data-transfer-target-profile-overlay]");
+  expect(platformOverlayStabilityRootSelectors).toContain("[data-dashboard-chat-settings-backdrop]");
+  expect(platformOverlayStabilityRootSelectors).toContain("[data-video-analysis-template-overlay]");
+});
+
+test("Overlay stability exposes reusable active overlay detection", () => {
+  const visibleOverlay = {
+    hidden: false,
+    closest() { return null; },
+    getBoundingClientRect() { return { width: 320, height: 240 }; },
+  };
+  const hiddenOverlay = {
+    hidden: true,
+    closest() { return null; },
+    getBoundingClientRect() { return { width: 320, height: 240 }; },
+  };
+  const win = {
+    getComputedStyle() {
+      return { display: "block", opacity: "1", visibility: "visible" };
+    },
+  };
+  const documentRef = {
+    querySelectorAll() {
+      return [visibleOverlay];
+    },
+  };
+
+  expect(isPlatformOverlayNodeVisible(visibleOverlay, { win })).toBe(true);
+  expect(isPlatformOverlayNodeVisible(hiddenOverlay, { win })).toBe(false);
+  expect(hasActivePlatformOverlay({ document: documentRef, rootSelectors: ["[data-overlay]"], win })).toBe(true);
 });
 
 test("Overlay stability installer is a safe no-op without a DOM", () => {

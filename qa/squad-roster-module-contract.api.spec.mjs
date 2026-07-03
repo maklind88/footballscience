@@ -25,6 +25,7 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
     secondaryRoles: [],
     squadStatus: "development",
     rosterType: "guest",
+    temporaryGroup: "Academy Training Group",
     status: "injured",
     idp: { status: "none" },
   };
@@ -38,7 +39,8 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
     getPlayerProfileIdpFollowUpLabel: () => "Review in 7d",
     getPlayerProfileMedicalSnapshot: (playerId) => ({ returnLabel: playerId === "p2" ? "10 Jun" : "" }),
     getPlayerProfileOption: getOption,
-    getPlayerProfileRosterLabel: (player) => (player.rosterType === "guest" ? "Training guest" : "Squad"),
+    getPlayerProfileRosterLabel: (player) =>
+      player.rosterType === "guest" ? `Guest / ${player.temporaryGroup || "Training guest"}` : "Squad",
     getPlayerProfileRosterSummary: (players) => ({
       squadCount: players.filter((player) => player.rosterType === "squad").length,
       temporaryCount: players.filter((player) => player.rosterType !== "squad").length,
@@ -82,7 +84,7 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
   expect(markup).not.toContain(">Important<");
   expect(markup).toContain("Training guests");
   expect(markup).toContain("Guest Player");
-  expect(markup).toContain("Training guest");
+  expect(markup).toContain("Guest / Academy Training Group");
   expect(markup).toContain("1 Jun - 7 Jun");
   expect(markup).not.toContain("Squad player");
   expect(renderer.renderStatusChip("injured", { returnLabel: "10 Jun" })).toContain("10 Jun");

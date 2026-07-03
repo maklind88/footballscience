@@ -2,7 +2,9 @@ export const platformOverlayStabilityRootSelectors = Object.freeze([
   '[role="dialog"][aria-modal="true"]',
   "[data-session-library-overlay]",
   "[data-session-save-conflict-overlay]",
+  "[data-session-central-conflict-overlay]",
   "[data-session-visual-preview-overlay]",
+  "[data-session-print-overlay]",
   "[data-session-tacticalboard-overlay]",
   "[data-session-player-board-overlay]",
   "[data-session-player-board-profile-overlay]",
@@ -16,8 +18,68 @@ export const platformOverlayStabilityRootSelectors = Object.freeze([
   "[data-player-profile-new-modal-overlay]",
   ".dashboard-modal-root:not([hidden])",
   ".medical-modal-layer",
+  "[data-medical-rtp-profile-modal]:not([hidden])",
+  "[data-medical-rtp-guide-draft-modal]:not([hidden])",
   ".scouting-profile-modal",
+  "[data-scouting-profile-modal]",
+  "[data-scouting-role-model-overlay]",
+  "[data-scouting-report-builder-overlay]",
+  "[data-scouting-saved-views-overlay]",
+  "[data-scouting-settings-overlay]",
+  "[data-transfer-target-profile-overlay]",
+  "[data-dashboard-chat-confirm-backdrop]",
+  "[data-dashboard-chat-settings-backdrop]",
+  "[data-dashboard-chat-group-create-backdrop]",
+  "[data-video-analysis-template-overlay]",
+  ".video-analysis-tag-filter-overlay",
+  ".video-analysis-mg-picker-overlay",
+  "[data-video-analysis-clip-library-preview]",
 ]);
+
+function getDefaultElementGuard(win, ElementCtor) {
+  return function isElementLike(node) {
+    return Boolean(
+      node &&
+      typeof node === "object" &&
+      (
+        (ElementCtor && node instanceof ElementCtor) ||
+        typeof node.getBoundingClientRect === "function" ||
+        typeof node.querySelectorAll === "function"
+      )
+    );
+  };
+}
+
+export function isPlatformOverlayNodeVisible(node, options = {}) {
+  const win = options.win ?? globalThis.window;
+  const ElementCtor = options.Element ?? win?.Element ?? globalThis.Element;
+  const isElement = options.isElement ?? getDefaultElementGuard(win, ElementCtor);
+  if (!isElement(node) || node.hidden || node.closest?.("[hidden]")) {
+    return false;
+  }
+  const style = typeof win?.getComputedStyle === "function" ? win.getComputedStyle(node) : null;
+  if (style && (style.display === "none" || style.visibility === "hidden" || style.opacity === "0")) {
+    return false;
+  }
+  const rect = typeof node.getBoundingClientRect === "function" ? node.getBoundingClientRect() : null;
+  if (!rect) {
+    return true;
+  }
+  return (rect.width ?? 0) > 0 && (rect.height ?? 0) > 0;
+}
+
+export function hasActivePlatformOverlay(options = {}) {
+  const doc = options.document ?? options.documentRef ?? globalThis.document;
+  const rootSelectors = options.rootSelectors ?? platformOverlayStabilityRootSelectors;
+  if (!doc?.querySelectorAll || !Array.isArray(rootSelectors) || !rootSelectors.length) {
+    return false;
+  }
+  try {
+    return Array.from(doc.querySelectorAll(rootSelectors.join(","))).some((node) => isPlatformOverlayNodeVisible(node, options));
+  } catch {
+    return false;
+  }
+}
 
 export function createPlatformOverlayStabilityInstaller(options = {}) {
   const win = options.win ?? globalThis.window;
@@ -64,15 +126,7 @@ export function createPlatformOverlayStabilityInstaller(options = {}) {
   }
 
   function isOverlayElementVisible(node) {
-    if (!isElement(node) || node.hidden || node.closest("[hidden]")) {
-      return false;
-    }
-    const style = win.getComputedStyle(node);
-    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
-      return false;
-    }
-    const rect = node.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0;
+    return isPlatformOverlayNodeVisible(node, { Element: ElementCtor, isElement, win });
   }
 
   function normalizeOverlayRoot(node) {

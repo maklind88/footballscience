@@ -1,9 +1,12 @@
+import { hasActivePlatformOverlay, platformOverlayStabilityRootSelectors } from "./overlay-stability.mjs";
+
 export function createCentralAppStateReloadService(deps = {}) {
   const {
     activeRefreshMinMs = 30000,
     defaultActiveWorkspaceId = "home",
     documentRef = globalThis.document,
     intervalRefreshMinMs = 120000,
+    overlayRootSelectors = platformOverlayStabilityRootSelectors,
     refreshIntervalMs = 120000,
     sessionPlannerLocalUiState = { state: {} },
     ui = {},
@@ -75,6 +78,9 @@ export function createCentralAppStateReloadService(deps = {}) {
   function shouldDeferCentralizedAppStateReload() {
     const activeElement = documentRef.activeElement;
     if (call("isEditableKeyboardTarget", activeElement)) {
+      return true;
+    }
+    if (hasActivePlatformOverlay({ document: documentRef, rootSelectors: overlayRootSelectors, win })) {
       return true;
     }
     if (getHubState()?.activeWorkspaceId === "scouting") {

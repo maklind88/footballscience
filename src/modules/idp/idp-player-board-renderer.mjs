@@ -1214,6 +1214,10 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
               <span>Selected Tool</span>
               <strong data-idp-board-active-tool-label>Move Player</strong>
               <small data-idp-board-selected-object>Player marker</small>
+              <div class="idp-board-interaction-strip" aria-label="Board precision">
+                <span><small>Precision</small><strong data-idp-board-precision-state>1%</strong></span>
+                <span><small>Position</small><strong data-idp-board-selected-position>${escapeHtml(`${Math.round(Number(player.x ?? 50))} / ${Math.round(Number(player.y ?? 70))}`)}</strong></span>
+              </div>
               <p data-idp-board-hint-state>Click the pitch to place or update the selected element.</p>
             </section>
             <section class="idp-player-board-frame-inspector" data-idp-board-frame-inspector>

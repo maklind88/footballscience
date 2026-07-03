@@ -135,6 +135,42 @@ export function tacticalBoardDefaultCurveControlPoint(from = {}, to = {}, option
   };
 }
 
+export function snapTacticalBoardCoordinate(value, options = {}) {
+  const min = Number.isFinite(Number(options.min)) ? Number(options.min) : 0;
+  const max = Number.isFinite(Number(options.max)) ? Number(options.max) : 100;
+  const gridSize = Math.max(0, Number(options.gridSize) || 0);
+  const precision = Number.isFinite(Number(options.precision)) ? Math.max(0, Number(options.precision)) : 1;
+  const number = Number(value);
+  const clamped = Number.isFinite(number) ? clamp(number, min, max) : min;
+  const snapped = gridSize > 0 ? Math.round(clamped / gridSize) * gridSize : clamped;
+  const factor = 10 ** precision;
+  return clamp(Math.round(snapped * factor) / factor, min, max);
+}
+
+export function snapTacticalBoardPoint(point = {}, options = {}) {
+  return {
+    x: snapTacticalBoardCoordinate(point.x, options),
+    y: snapTacticalBoardCoordinate(point.y, options),
+  };
+}
+
+export function offsetTacticalBoardPoint(point = {}, delta = {}, options = {}) {
+  return snapTacticalBoardPoint({
+    x: Number(point.x) + Number(delta.x || 0),
+    y: Number(point.y) + Number(delta.y || 0),
+  }, options);
+}
+
+export function getTacticalBoardKeyboardNudge(key = "", options = {}) {
+  const step = Number(options.shiftKey) ? Number(options.largeStep || 5) : Number(options.step || 1);
+  const normalizedStep = Number.isFinite(step) ? step : 1;
+  if (key === "ArrowUp") return { x: 0, y: -normalizedStep };
+  if (key === "ArrowDown") return { x: 0, y: normalizedStep };
+  if (key === "ArrowLeft") return { x: -normalizedStep, y: 0 };
+  if (key === "ArrowRight") return { x: normalizedStep, y: 0 };
+  return null;
+}
+
 function tacticalBoardSvgNumber(value, fallback = 50, localClamp = clamp) {
   return Number.isFinite(Number(value)) ? localClamp(Number(value), 0, 100) : fallback;
 }

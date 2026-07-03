@@ -158,12 +158,18 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(tacticalBoardCore).toContain("tacticalBoardDefaultCurveControlPoint");
   expect(tacticalBoardCore).toContain("applyTacticalBoardSvgElementGeometry");
   expect(tacticalBoardCore).toContain("getTacticalBoardSvgElementTagName");
+  expect(tacticalBoardCore).toContain("snapTacticalBoardPoint");
+  expect(tacticalBoardCore).toContain("getTacticalBoardKeyboardNudge");
   expect(idpRuntime).toContain(".idp-player-board-arrow-layer .idp-player-board-movement");
   expect(idpRuntime).toContain("applyTacticalBoardSvgElementGeometry");
   expect(idpRuntime).toContain("boardMovementTacticalElement");
   expect(idpRuntime).toContain("getTacticalBoardSvgElementTagName");
+  expect(idpRuntime).toContain("snapTacticalBoardPoint");
+  expect(idpRuntime).toContain("nudgeBoardObject");
+  expect(idpRuntime).toContain("handleBoardKeyboardDown");
   expect(idpRuntime).toContain('element.dataset.idpBoardObject = "movement"');
   expect(idpCss).toContain("idp-player-board-hit-target");
+  expect(idpCss).toContain("idp-board-interaction-strip");
   expect(playerBoardRenderer).toContain("data-idp-board-object");
   expect(playerBoardRenderer).toContain("idp-tactical-inspector-card");
   expect(playerBoardRenderer).toContain("idp-player-board-hidden-state");
@@ -866,6 +872,8 @@ test("idp renderer separates the overview from the player development profile", 
   expect(boardHtml).toContain("data-idp-board-play");
   expect(boardHtml).toContain("data-idp-board-active-frame-index");
   expect(boardHtml).toContain("Movement colour");
+  expect(boardHtml).toContain("data-idp-board-selected-position");
+  expect(boardHtml).toContain("data-idp-board-precision-state");
   expect(boardHtml).toContain("data-idp-board-linked-clip-ids");
   expect(boardHtml).toContain("data-idp-board-clip-picker");
   expect(boardHtml).not.toContain("Linked clip ids");

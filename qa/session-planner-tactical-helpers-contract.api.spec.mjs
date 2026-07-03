@@ -4,10 +4,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   applyTacticalBoardSvgElementGeometry,
+  getTacticalBoardKeyboardNudge,
   getTacticalBoardElementEndpointCoordinates,
   getTacticalBoardSvgElementGeometryAttributes,
   getTacticalBoardSvgElementTagName,
+  offsetTacticalBoardPoint,
   renderTacticalBoardSvgElement,
+  snapTacticalBoardPoint,
 } from "../src/modules/tactical-board/index.mjs";
 import {
   createSessionPlannerTacticalHelpers,
@@ -226,4 +229,9 @@ test("shared Tactical Board core applies SVG geometry to live board elements", (
   const lineElement = { ...runElement, type: "line" };
   expect(getTacticalBoardSvgElementTagName(lineElement)).toBe("line");
   expect(applyTacticalBoardSvgElementGeometry(fakePath, lineElement, "shared-arrow")).toBe(false);
+
+  expect(snapTacticalBoardPoint({ x: 12.44, y: 77.61 }, { gridSize: 1 })).toEqual({ x: 12, y: 78 });
+  expect(offsetTacticalBoardPoint({ x: 99.8, y: 1.1 }, { x: 5, y: -5 }, { gridSize: 1 })).toEqual({ x: 100, y: 0 });
+  expect(getTacticalBoardKeyboardNudge("ArrowLeft", { step: 1 })).toEqual({ x: -1, y: 0 });
+  expect(getTacticalBoardKeyboardNudge("ArrowDown", { shiftKey: true, largeStep: 5 })).toEqual({ x: 0, y: 5 });
 });

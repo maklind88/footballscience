@@ -4,6 +4,9 @@ import { renderIdpWorkspace as renderMarkup } from "./idp-renderer.mjs";
 import {
   applyTacticalBoardSvgElementGeometry,
   getTacticalBoardSvgElementTagName,
+  getTacticalBoardKeyboardNudge,
+  offsetTacticalBoardPoint,
+  snapTacticalBoardPoint,
   tacticalBoardDefaultCurveControlPoint,
 } from "../tactical-board/index.mjs";
 import {
@@ -23,6 +26,7 @@ import { idpBoardTemplateInterventionId } from "./idp-player-board-template-libr
 let runtime = null;
 const IDP_SYNC_INTERVAL_MS = 30000;
 const IDP_SYNC_FOCUS_COOLDOWN_MS = 5000;
+const IDP_BOARD_GRID_SIZE = 1;
 const BOARD_HISTORY_FIELDS = [
   "playerX",
   "playerY",
@@ -384,13 +388,20 @@ function clampBoardPercent(value) {
   return Number.isFinite(number) ? Math.min(100, Math.max(0, Math.round(number * 10) / 10)) : 50;
 }
 
+function snapBoardPoint(point = {}, options = {}) {
+  return snapTacticalBoardPoint(point, {
+    gridSize: options.gridSize ?? IDP_BOARD_GRID_SIZE,
+    precision: 1,
+  });
+}
+
 function boardPointFromEvent(event, pitch) {
   const rect = pitch?.getBoundingClientRect?.();
   if (!rect?.width || !rect?.height) return null;
-  return {
+  return snapBoardPoint({
     x: clampBoardPercent(((event.clientX - rect.left) / rect.width) * 100),
     y: clampBoardPercent(((event.clientY - rect.top) / rect.height) * 100),
-  };
+  });
 }
 
 function setBoardFormValue(modal, name, value) {
@@ -1234,6 +1245,75 @@ function boardObjectLabel(object) {
   return "Board object";
 }
 
+function selectedBoardObject(modal) {
+  return modal?.querySelector?.("[data-idp-board-object].is-selected")
+    || modal?.querySelector?.(".idp-player-board-player")
+    || null;
+}
+
+function boardObjectPoint(modal, object) {
+  const type = object?.dataset?.idpBoardObject || "";
+  if (type === "player") {
+    return { x: boardFormNumber(modal, "playerX", 50), y: boardFormNumber(modal, "playerY", 70) };
+  }
+  if (type === "reference") {
+    return { x: boardFormNumber(modal, "referenceX", 50), y: boardFormNumber(modal, "referenceY", 44) };
+  }
+  if (type === "cone") {
+    const coneIndex = Number(object.dataset?.idpBoardCone || 1);
+    const safeIndex = [1, 2, 3].includes(coneIndex) ? coneIndex : 1;
+    return {
+      x: boardFormNumber(modal, `cone${safeIndex}X`, safeIndex === 1 ? 40 : safeIndex === 2 ? 60 : 50),
+      y: boardFormNumber(modal, `cone${safeIndex}Y`, safeIndex === 3 ? 42 : 58),
+    };
+  }
+  if (type === "zone") {
+    const x = boardFormNumber(modal, "zoneX", 34);
+    const y = boardFormNumber(modal, "zoneY", 28);
+    return {
+      x: clampBoardPercent(x + boardFormNumber(modal, "zoneWidth", 32) / 2),
+      y: clampBoardPercent(y + boardFormNumber(modal, "zoneHeight", 28) / 2),
+    };
+  }
+  if (type === "movement-from") {
+    return {
+      x: boardFormNumber(modal, "arrowFromX", boardFormNumber(modal, "playerX", 50)),
+      y: boardFormNumber(modal, "arrowFromY", boardFormNumber(modal, "playerY", 70)),
+    };
+  }
+  if (type === "movement-to") {
+    return { x: boardFormNumber(modal, "arrowToX", 62), y: boardFormNumber(modal, "arrowToY", 42) };
+  }
+  if (type === "movement") {
+    const { fromX, fromY, toX, toY } = boardMovementPoints(modal);
+    return { x: clampBoardPercent((fromX + toX) / 2), y: clampBoardPercent((fromY + toY) / 2) };
+  }
+  if (type === "note") {
+    return { x: boardFormNumber(modal, "noteX", 12), y: boardFormNumber(modal, "noteY", 14) };
+  }
+  return null;
+}
+
+function boardPointLabel(point = null) {
+  if (!point) return "--";
+  return `${Math.round(Number(point.x) || 0)} / ${Math.round(Number(point.y) || 0)}`;
+}
+
+function updateBoardSelectedObjectMeta(modal, object = selectedBoardObject(modal)) {
+  if (!modal) return;
+  const label = boardObjectLabel(object);
+  const point = boardObjectPoint(modal, object);
+  modal.querySelectorAll?.("[data-idp-board-selected-object]")?.forEach((node) => {
+    node.textContent = label;
+  });
+  modal.querySelectorAll?.("[data-idp-board-selected-position]")?.forEach((node) => {
+    node.textContent = boardPointLabel(point);
+  });
+  modal.querySelectorAll?.("[data-idp-board-precision-state]")?.forEach((node) => {
+    node.textContent = `${IDP_BOARD_GRID_SIZE}%`;
+  });
+}
+
 function selectBoardObject(modal, object) {
   if (!modal || !object) return;
   modal.querySelectorAll?.("[data-idp-board-object].is-selected")?.forEach((node) => {
@@ -1243,10 +1323,7 @@ function selectBoardObject(modal, object) {
   if (["movement", "movement-from", "movement-to"].includes(object.dataset?.idpBoardObject || "")) {
     modal.querySelector?.(".idp-player-board-movement")?.classList?.add("is-selected");
   }
-  const label = boardObjectLabel(object);
-  modal.querySelectorAll?.("[data-idp-board-selected-object]")?.forEach((node) => {
-    node.textContent = label;
-  });
+  updateBoardSelectedObjectMeta(modal, object);
 }
 
 function movementDragHandleForPoint(modal, point) {
@@ -1270,17 +1347,21 @@ function boardObjectForPointer(modal, object, point) {
 function setBoardObjectPoint(modal, pitch, object, point) {
   if (!modal || !pitch || !object || !point) return false;
   const type = object.dataset?.idpBoardObject || "";
+  const markChanged = () => {
+    updateBoardSelectedObjectMeta(modal, object);
+    return true;
+  };
   if (type === "player") {
     setBoardFormValue(modal, "playerX", point.x);
     setBoardFormValue(modal, "playerY", point.y);
     setMarkerPosition(modal.querySelector(".idp-player-board-player"), point);
-    return true;
+    return markChanged();
   }
   if (type === "reference") {
     setBoardFormValue(modal, "referenceX", point.x);
     setBoardFormValue(modal, "referenceY", point.y);
     setMarkerPosition(modal.querySelector(".idp-player-board-reference"), point);
-    return true;
+    return markChanged();
   }
   if (type === "cone") {
     const coneIndex = Number(object.dataset?.idpBoardCone || 1);
@@ -1288,7 +1369,7 @@ function setBoardObjectPoint(modal, pitch, object, point) {
     setBoardFormValue(modal, `cone${safeIndex}X`, point.x);
     setBoardFormValue(modal, `cone${safeIndex}Y`, point.y);
     setMarkerPosition(modal.querySelector(`[data-idp-board-cone="${safeIndex}"]`), point);
-    return true;
+    return markChanged();
   }
   if (type === "zone") {
     const width = boardFormNumber(modal, "zoneWidth", 32);
@@ -1296,27 +1377,50 @@ function setBoardObjectPoint(modal, pitch, object, point) {
     setBoardFormValue(modal, "zoneX", clampBoardPercent(point.x - width / 2));
     setBoardFormValue(modal, "zoneY", clampBoardPercent(point.y - height / 2));
     updateBoardZoneVisual(modal);
-    return true;
+    return markChanged();
   }
   if (type === "movement-from" || (type === "movement" && modal.dataset.idpBoardMovementDragHandle === "from")) {
     setBoardFormValue(modal, "arrowFromX", point.x);
     setBoardFormValue(modal, "arrowFromY", point.y);
     setBoardMovementCoordinates(modal);
-    return true;
+    return markChanged();
   }
   if (type === "movement-to" || type === "movement") {
     setBoardFormValue(modal, "arrowToX", point.x);
     setBoardFormValue(modal, "arrowToY", point.y);
     setBoardMovementCoordinates(modal);
-    return true;
+    return markChanged();
   }
   if (type === "note") {
     setBoardFormValue(modal, "noteX", point.x);
     setBoardFormValue(modal, "noteY", point.y);
     updateBoardNoteVisual(modal);
-    return true;
+    return markChanged();
   }
   return false;
+}
+
+function nudgeBoardObject(modal, object, delta = {}) {
+  const pitch = modal?.querySelector?.("[data-idp-board-editor-pitch]");
+  if (!modal || !pitch || !object || !delta) return false;
+  const type = object.dataset?.idpBoardObject || "";
+  const snapOptions = { gridSize: IDP_BOARD_GRID_SIZE, precision: 1 };
+  if (type === "movement") {
+    const { fromX, fromY, toX, toY } = boardMovementPoints(modal);
+    const nextFrom = offsetTacticalBoardPoint({ x: fromX, y: fromY }, delta, snapOptions);
+    const nextTo = offsetTacticalBoardPoint({ x: toX, y: toY }, delta, snapOptions);
+    setBoardFormValue(modal, "arrowFromX", nextFrom.x);
+    setBoardFormValue(modal, "arrowFromY", nextFrom.y);
+    setBoardFormValue(modal, "arrowToX", nextTo.x);
+    setBoardFormValue(modal, "arrowToY", nextTo.y);
+    setBoardMovementCoordinates(modal);
+    updateBoardSelectedObjectMeta(modal, object);
+    return true;
+  }
+  const current = boardObjectPoint(modal, object);
+  if (!current) return false;
+  const next = offsetTacticalBoardPoint(current, delta, snapOptions);
+  return setBoardObjectPoint(modal, pitch, object, next);
 }
 
 function setBoardArrowPreset(modal, tool = "arrow") {
@@ -1492,6 +1596,37 @@ function handleBoardPointerUp(event, activeRuntime = runtime) {
   activeRuntime.boardSuppressNextClick = true;
 }
 
+function isBoardKeyboardInputTarget(target) {
+  return Boolean(target?.closest?.("button, input, textarea, select, [contenteditable='true']"));
+}
+
+function handleBoardKeyboardDown(event, activeRuntime = runtime) {
+  const root = getRoot(activeRuntime?.context);
+  const modal = root?.querySelector?.(".idp-player-board-modal");
+  if (!modal || isBoardKeyboardInputTarget(event?.target)) return;
+  if ((event?.metaKey || event?.ctrlKey) && String(event?.key || "").toLowerCase() === "d") {
+    event.preventDefault?.();
+    stopBoardPlayback(activeRuntime, modal);
+    addBoardFrame(modal, true);
+    return;
+  }
+  const delta = getTacticalBoardKeyboardNudge(event?.key || "", {
+    shiftKey: Boolean(event?.shiftKey),
+    step: IDP_BOARD_GRID_SIZE,
+    largeStep: 5,
+  });
+  if (!delta) return;
+  const object = selectedBoardObject(modal);
+  if (!object) return;
+  event.preventDefault?.();
+  stopBoardPlayback(activeRuntime, modal);
+  const before = captureBoardSnapshot(modal);
+  if (nudgeBoardObject(modal, object, delta)) {
+    pushBoardHistory(activeRuntime, modal, before, captureBoardSnapshot(modal));
+    syncActiveBoardFrameFromModal(modal);
+  }
+}
+
 function bindBoardPointerEvents(activeRuntime = runtime) {
   const root = getRoot(activeRuntime?.context);
   if (!root || root.__idpBoardPointerEventsBound) return;
@@ -1499,6 +1634,7 @@ function bindBoardPointerEvents(activeRuntime = runtime) {
   root.addEventListener?.("pointerdown", (event) => handleBoardPointerDown(event, runtime));
   doc?.addEventListener?.("pointermove", (event) => handleBoardPointerMove(event, runtime));
   doc?.addEventListener?.("pointerup", (event) => handleBoardPointerUp(event, runtime));
+  doc?.addEventListener?.("keydown", (event) => handleBoardKeyboardDown(event, runtime));
   root.__idpBoardPointerEventsBound = true;
   activeRuntime.boardPointerEventsBound = true;
 }

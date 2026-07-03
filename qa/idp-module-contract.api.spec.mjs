@@ -156,6 +156,12 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(idpRuntime).toContain("syncActiveBoardFrameFromModal");
   expect(idpRuntime).toContain("updateBoardFrameMetaPreview");
   expect(idpRuntime).toContain("boardFrameButtonHtml");
+  expect(idpRuntime).toContain("BOARD_DRAFT_EXCLUDED_FIELDS");
+  expect(idpRuntime).toContain("capturePlayerBoardDraft");
+  expect(idpRuntime).toContain("restorePlayerBoardDraft");
+  expect(idpRuntime).toContain("restoreBoardDraftFocus");
+  expect(idpRuntime).toContain("restorePlayerBoardDraft(activeRuntime, boardDraft)");
+  expect(idpRuntime).toContain("setBoardActiveToolState");
   expect(idpRuntime).toContain("selectBoardTool");
   expect(idpRuntime).toContain("setBoardArrowPreset");
   expect(playerBoardRenderer).not.toContain("data-session-");

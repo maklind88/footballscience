@@ -51,6 +51,11 @@ const BOARD_HISTORY_FIELDS = [
   "framePlayerCue",
   "frameClipAnchor",
 ];
+const BOARD_DRAFT_EXCLUDED_FIELDS = new Set([
+  "interventionId",
+  "focusId",
+  "rowVersion",
+]);
 
 function normalizeContext(context = {}) {
   return {
@@ -185,12 +190,95 @@ function restoreSearchFocus(activeRuntime = runtime, focusState = null) {
   }
 }
 
+function playerBoardDraftKey(activeRuntime = runtime, form = null) {
+  const state = activeRuntime?.store?.getState?.() || {};
+  const playerId = state.ui?.selectedPlayerId || "";
+  const uiInterventionId = state.ui?.playerBoardInterventionId || "";
+  const formInterventionId = form?.querySelector?.('[name="interventionId"]')?.value || "";
+  return `${playerId}::${uiInterventionId || formInterventionId || "__active"}`;
+}
+
+function captureBoardDraftFocus(activeRuntime = runtime, form = null) {
+  const activeElement = getDocument(activeRuntime)?.activeElement;
+  if (!form?.contains?.(activeElement) || !activeElement?.name) return null;
+  const value = activeElement.value || "";
+  return {
+    name: activeElement.name,
+    end: Number.isInteger(activeElement.selectionEnd) ? activeElement.selectionEnd : value.length,
+    start: Number.isInteger(activeElement.selectionStart) ? activeElement.selectionStart : value.length,
+  };
+}
+
+function restoreBoardDraftFocus(activeRuntime = runtime, form = null, focusState = null) {
+  if (!form || !focusState?.name) return;
+  const target = form.elements?.namedItem?.(focusState.name) || form.querySelector?.(`[name="${focusState.name}"]`);
+  if (!target) return;
+  const valueLength = target.value?.length || 0;
+  const start = Math.min(focusState.start ?? valueLength, valueLength);
+  const end = Math.min(focusState.end ?? start, valueLength);
+  try {
+    target.focus?.({ preventScroll: true });
+  } catch {
+    target.focus?.();
+  }
+  try {
+    target.setSelectionRange?.(start, end);
+  } catch {
+    // Some inputs do not expose a selectable text range.
+  }
+}
+
+function capturePlayerBoardDraft(activeRuntime = runtime) {
+  const root = getRoot(activeRuntime?.context);
+  const modal = root?.querySelector?.(".idp-player-board-modal");
+  const form = modal?.querySelector?.("[data-idp-save-intervention]");
+  if (!modal || !form) return null;
+  syncActiveBoardFrameFromModal(modal);
+  const values = {};
+  form.querySelectorAll?.("[name]")?.forEach((field) => {
+    const name = field.getAttribute("name") || "";
+    if (!name || BOARD_DRAFT_EXCLUDED_FIELDS.has(name)) return;
+    values[name] = field.value ?? "";
+  });
+  return {
+    activeFrameIndex: activeBoardFrameIndex(modal, readBoardFrames(modal).length || 1),
+    activeTool: modal.dataset?.idpBoardActiveTool || "player",
+    focus: captureBoardDraftFocus(activeRuntime, form),
+    frames: readBoardFrames(modal),
+    key: playerBoardDraftKey(activeRuntime, form),
+    values,
+  };
+}
+
+function restorePlayerBoardDraft(activeRuntime = runtime, draft = null) {
+  if (!draft?.key) return;
+  const root = getRoot(activeRuntime?.context);
+  const modal = root?.querySelector?.(".idp-player-board-modal");
+  const form = modal?.querySelector?.("[data-idp-save-intervention]");
+  if (!modal || !form || playerBoardDraftKey(activeRuntime, form) !== draft.key) return;
+  Object.entries(draft.values || {}).forEach(([name, value]) => {
+    setBoardFormValue(modal, name, value);
+  });
+  const frames = Array.isArray(draft.frames) && draft.frames.length ? draft.frames.slice(0, 8) : readBoardFrames(modal);
+  const activeIndex = activeBoardFrameIndex({ querySelector: () => ({ value: String(draft.activeFrameIndex || 0) }) }, frames.length || 1);
+  writeBoardFrames(modal, frames);
+  rebuildBoardFrameButtons(modal, frames, activeIndex);
+  applyBoardFrameToModal(modal, frames[activeIndex] || frames[0] || {}, activeIndex);
+  writeBoardFrames(modal, frames);
+  setActiveBoardFrameIndex(modal, activeIndex, frames.length || 1);
+  const toolButton = draft.activeTool ? modal.querySelector?.(`[data-idp-board-tool="${draft.activeTool}"]`) : null;
+  setBoardActiveToolState(modal, toolButton, draft.activeTool || "player");
+  updateBoardHistoryButtons(modal);
+  restoreBoardDraftFocus(activeRuntime, form, draft.focus);
+}
+
 function paint(activeRuntime = runtime) {
   const root = getRoot(activeRuntime?.context);
   if (!root) return;
   ensureClipBankStyles(activeRuntime);
   ensureIdpProfileStyles(activeRuntime);
   const searchFocus = captureSearchFocus(activeRuntime);
+  const boardDraft = capturePlayerBoardDraft(activeRuntime);
   root.innerHTML = renderMarkup(activeRuntime.store.getState(), {
     canEdit: canEdit(activeRuntime.context),
     currentUser: activeRuntime.context.currentUser,
@@ -202,6 +290,7 @@ function paint(activeRuntime = runtime) {
     renderPlayerProfileScoutingSpider: activeRuntime.context.renderPlayerProfileScoutingSpider,
   });
   restoreSearchFocus(activeRuntime, searchFocus);
+  restorePlayerBoardDraft(activeRuntime, boardDraft);
   setupIdpClipPreviewPlayback(activeRuntime);
   updateBoardHistoryButtons(root.querySelector?.(".idp-player-board-modal"));
 }
@@ -1111,9 +1200,8 @@ function applyBoardPitchPoint(event, pitch) {
   return false;
 }
 
-function selectBoardTool(toolButton) {
-  const modal = toolButton?.closest?.(".idp-player-board-modal");
-  const tool = toolButton?.dataset?.idpBoardTool || "player";
+function setBoardActiveToolState(modal, toolButton = null, fallbackTool = "player") {
+  const tool = toolButton?.dataset?.idpBoardTool || fallbackTool || "player";
   if (!modal) return false;
   modal.dataset.idpBoardActiveTool = tool;
   delete modal.dataset.idpBoardArrowStart;
@@ -1131,6 +1219,13 @@ function selectBoardTool(toolButton) {
   modal.querySelectorAll?.("[data-idp-board-hint-tool]")?.forEach((node) => {
     node.textContent = label;
   });
+  return true;
+}
+
+function selectBoardTool(toolButton) {
+  const modal = toolButton?.closest?.(".idp-player-board-modal");
+  const tool = toolButton?.dataset?.idpBoardTool || "player";
+  if (!setBoardActiveToolState(modal, toolButton, tool)) return false;
   setBoardArrowPreset(modal, tool);
   return true;
 }

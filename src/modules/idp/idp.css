@@ -11341,6 +11341,21 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   white-space: nowrap;
 }
 
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-framebar .idp-player-board-history-controls button,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-framebar .idp-player-board-frame-actions button {
+  background: #fff;
+  border-color: rgba(16, 24, 40, .1);
+  color: #344054;
+  opacity: 1;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-framebar .idp-player-board-history-controls button:disabled,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-framebar .idp-player-board-frame-actions button:disabled {
+  background: #f2f4f7;
+  color: #667085;
+  opacity: .52;
+}
+
 .idp-player-board-modal-layout.is-idp-tacticalboard [data-idp-board-frame-duplicate] {
   min-width: 74px;
 }

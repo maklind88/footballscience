@@ -91,6 +91,7 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   const playerBoardTemplates = read("src/modules/idp/idp-player-board-template-library.mjs");
   const idpRenderer = read("src/modules/idp/idp-renderer.mjs");
   const idpRuntime = read("src/modules/idp/index.mjs");
+  const idpCss = read("src/modules/idp/idp.css");
   const idpState = read("src/modules/idp/idp-state.mjs");
   const tacticalBoardCore = read("src/modules/tactical-board/tactical-board-core.mjs");
   const workspaceModuleRuntime = read("src/core/workspace-module-runtime-controller.mjs");
@@ -145,10 +146,18 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("../tactical-board/index.mjs");
   expect(playerBoardRenderer).toContain("renderTacticalBoardPitchSvgLines");
   expect(playerBoardRenderer).toContain("renderTacticalBoardArrowMarkerDef");
+  expect(playerBoardRenderer).toContain("renderTacticalBoardSvgElement");
+  expect(playerBoardRenderer).toContain("boardZoneToTacticalElement");
+  expect(playerBoardRenderer).toContain("idpTacticalBoardAttributes");
   expect(playerBoardRenderer).toContain("tacticalBoardDefaultCurveControlPoint");
   expect(tacticalBoardCore).toContain("tacticalBoardPitchModeOptions");
   expect(tacticalBoardCore).toContain("renderTacticalBoardPitchSvgLines");
+  expect(tacticalBoardCore).toContain("renderTacticalBoardSvgElement");
+  expect(tacticalBoardCore).toContain("getClassName");
+  expect(tacticalBoardCore).toContain("getAttributes");
   expect(tacticalBoardCore).toContain("tacticalBoardDefaultCurveControlPoint");
+  expect(idpRuntime).toContain(".idp-player-board-arrow-layer .idp-player-board-movement");
+  expect(idpCss).toContain("idp-player-board-hit-target");
   expect(playerBoardRenderer).toContain("data-idp-board-object");
   expect(playerBoardRenderer).toContain("idp-tactical-inspector-card");
   expect(playerBoardRenderer).toContain("idp-player-board-hidden-state");

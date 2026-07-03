@@ -153,6 +153,18 @@ function defaultIsTacticalBoardEndpointElement(element = {}) {
   ].includes(element.type));
 }
 
+function tacticalBoardClassName(baseClassName = "", element = {}, slot = "element", options = {}) {
+  const getClassName = typeof options.getClassName === "function" ? options.getClassName : null;
+  const className = getClassName ? getClassName(baseClassName, element, slot) : baseClassName;
+  return defaultEscapeHtml(String(className || "").trim());
+}
+
+function tacticalBoardAttributes(element = {}, slot = "element", options = {}) {
+  const getAttributes = typeof options.getAttributes === "function" ? options.getAttributes : null;
+  const attributes = getAttributes ? String(getAttributes(element, slot) || "").trim() : "";
+  return attributes ? ` ${attributes}` : "";
+}
+
 export function getTacticalBoardElementEndpointCoordinates(element = {}, options = {}) {
   const isEndpointElement =
     typeof options.isEndpointElement === "function"
@@ -241,12 +253,14 @@ export function renderTacticalBoardSvgElement(element = {}, markerId = "tactical
   const lineWidth = getRenderStrokeWidth(element.lineWidth);
   const dashArray = getStrokeDasharray(element.lineStyle || getDefaultLineStyle(element.type));
   const dashAttribute = dashArray ? `stroke-dasharray="${escapeHtml(dashArray)}"` : "";
+  const elementAttributes = tacticalBoardAttributes(element, "element", options);
+  const hitTargetAttributes = tacticalBoardAttributes(element, "hit-target", options);
   if (["arrow", "pass", "line", "dashed-line"].includes(element.type)) {
     const shouldUseArrow = element.type !== "line" && element.type !== "dashed-line";
     return `
       <line
-        ${idAttribute}
-        class="${classPrefix}-${escapeHtml(element.type)}${selectedClass}${previewClass}"
+        ${idAttribute}${elementAttributes}
+        class="${tacticalBoardClassName(`${classPrefix}-${escapeHtml(element.type)}${selectedClass}${previewClass}`, element, "element", options)}"
         x1="${x}"
         y1="${y}"
         x2="${x2}"
@@ -257,8 +271,8 @@ export function renderTacticalBoardSvgElement(element = {}, markerId = "tactical
         ${shouldUseArrow ? `marker-end="url(#${escapeHtml(markerId)})"` : ""}
       ></line>
       <line
-        ${idAttribute}
-        class="${hitTargetClassName}"
+        ${idAttribute}${hitTargetAttributes}
+        class="${tacticalBoardClassName(hitTargetClassName, element, "hit-target", options)}"
         x1="${x}"
         y1="${y}"
         x2="${x2}"
@@ -274,8 +288,8 @@ export function renderTacticalBoardSvgElement(element = {}, markerId = "tactical
     const controlY = controlPoint.y;
     return `
       <path
-        ${idAttribute}
-        class="${classPrefix}-${escapeHtml(element.type)}${selectedClass}${previewClass}"
+        ${idAttribute}${elementAttributes}
+        class="${tacticalBoardClassName(`${classPrefix}-${escapeHtml(element.type)}${selectedClass}${previewClass}`, element, "element", options)}"
         d="M ${x} ${y} Q ${controlX} ${controlY} ${x2} ${y2}"
         stroke="${escapeHtml(color)}"
         stroke-width="${lineWidth}"
@@ -283,8 +297,8 @@ export function renderTacticalBoardSvgElement(element = {}, markerId = "tactical
         ${element.type === "run" ? `marker-end="url(#${escapeHtml(markerId)})"` : ""}
       ></path>
       <path
-        ${idAttribute}
-        class="${hitTargetClassName}"
+        ${idAttribute}${hitTargetAttributes}
+        class="${tacticalBoardClassName(hitTargetClassName, element, "hit-target", options)}"
         d="M ${x} ${y} Q ${controlX} ${controlY} ${x2} ${y2}"
       ></path>
     `;
@@ -297,8 +311,8 @@ export function renderTacticalBoardSvgElement(element = {}, markerId = "tactical
     const isDashedZone = element.type === "dashed-zone";
     return `
       <rect
-        ${idAttribute}
-        class="${classPrefix}-${escapeHtml(element.type)}${selectedClass}${previewClass}"
+        ${idAttribute}${elementAttributes}
+        class="${tacticalBoardClassName(`${classPrefix}-${escapeHtml(element.type)}${selectedClass}${previewClass}`, element, "element", options)}"
         x="${rectX}"
         y="${rectY}"
         width="${rectWidth}"
@@ -310,8 +324,8 @@ export function renderTacticalBoardSvgElement(element = {}, markerId = "tactical
         ${dashAttribute}
       ></rect>
       <rect
-        ${idAttribute}
-        class="${hitTargetClassName} ${shapeHitTargetClassName}"
+        ${idAttribute}${hitTargetAttributes}
+        class="${tacticalBoardClassName(`${hitTargetClassName} ${shapeHitTargetClassName}`, element, "hit-target", options)}"
         x="${rectX}"
         y="${rectY}"
         width="${rectWidth}"
@@ -327,8 +341,8 @@ export function renderTacticalBoardSvgElement(element = {}, markerId = "tactical
     const rectHeight = Math.max(Math.abs(y2 - y), 5);
     return `
       <ellipse
-        ${idAttribute}
-        class="${classPrefix}-ellipse${selectedClass}${previewClass}"
+        ${idAttribute}${elementAttributes}
+        class="${tacticalBoardClassName(`${classPrefix}-ellipse${selectedClass}${previewClass}`, element, "element", options)}"
         cx="${rectX + rectWidth / 2}"
         cy="${rectY + rectHeight / 2}"
         rx="${rectWidth / 2}"
@@ -339,8 +353,8 @@ export function renderTacticalBoardSvgElement(element = {}, markerId = "tactical
         ${dashAttribute}
       ></ellipse>
       <ellipse
-        ${idAttribute}
-        class="${hitTargetClassName} ${shapeHitTargetClassName}"
+        ${idAttribute}${hitTargetAttributes}
+        class="${tacticalBoardClassName(`${hitTargetClassName} ${shapeHitTargetClassName}`, element, "hit-target", options)}"
         cx="${rectX + rectWidth / 2}"
         cy="${rectY + rectHeight / 2}"
         rx="${rectWidth / 2}"
@@ -354,16 +368,16 @@ export function renderTacticalBoardSvgElement(element = {}, markerId = "tactical
       .join(" ");
     return `
       <path
-        ${idAttribute}
-        class="${classPrefix}-freehand${selectedClass}${previewClass}"
+        ${idAttribute}${elementAttributes}
+        class="${tacticalBoardClassName(`${classPrefix}-freehand${selectedClass}${previewClass}`, element, "element", options)}"
         d="${escapeHtml(d)}"
         stroke="${escapeHtml(color)}"
         stroke-width="${lineWidth}"
         ${dashAttribute}
       ></path>
       <path
-        ${idAttribute}
-        class="${hitTargetClassName}"
+        ${idAttribute}${hitTargetAttributes}
+        class="${tacticalBoardClassName(hitTargetClassName, element, "hit-target", options)}"
         d="${escapeHtml(d)}"
       ></path>
     `;

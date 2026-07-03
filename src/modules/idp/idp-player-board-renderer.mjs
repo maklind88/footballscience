@@ -8,6 +8,7 @@ import {
   normalizeTacticalBoardPitchMode,
   renderTacticalBoardArrowMarkerDef,
   renderTacticalBoardPitchSvgLines,
+  renderTacticalBoardSvgElement,
   tacticalBoardDefaultCurveControlPoint,
   tacticalBoardPitchMeasurementLabel,
   tacticalBoardPitchModeLabel,
@@ -233,24 +234,92 @@ function renderSvgText(value = "", maxLength = 28) {
   return escapeHtml(text);
 }
 
-function renderBoardZone(zone = {}, index = 0) {
+function boardSvgClamp(value, min, max) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(max, Math.max(min, Math.round(number * 10) / 10)) : min;
+}
+
+function idpTacticalBoardClassName(baseClassName = "", element = {}, slot = "element") {
+  if (slot === "hit-target") {
+    return "idp-player-board-hit-target";
+  }
+  if (element.idpBoardObject === "movement") {
+    return `session-tactical-${escapeHtml(boardArrowType(element.type))} idp-player-board-movement`;
+  }
+  return baseClassName;
+}
+
+function idpTacticalBoardAttributes(element = {}, slot = "element") {
+  if (slot === "hit-target") {
+    return `data-idp-board-hit-target="${escapeHtml(element.idpBoardObject || element.type || "object")}"`;
+  }
+  const attributes = [];
+  if (element.idpBoardObject) {
+    attributes.push(`data-idp-board-object="${escapeHtml(element.idpBoardObject)}"`);
+  }
+  if (element.idpBoardZoneIndex) {
+    attributes.push(`data-idp-board-zone="${escapeHtml(element.idpBoardZoneIndex)}"`);
+  }
+  if (element.idpBoardArrowType) {
+    attributes.push(`data-idp-board-arrow-type="${escapeHtml(element.idpBoardArrowType)}"`);
+  }
+  return attributes.join(" ");
+}
+
+function renderIdpTacticalBoardElement(element = {}, markerId = "idp-player-board-arrow", options = {}) {
+  return renderTacticalBoardSvgElement(element, markerId, {
+    escapeHtml,
+    clamp: boardSvgClamp,
+    normalizeColor: normalizeBoardColor,
+    getDefaultColor: (type = "arrow") => (type === "pass" ? "#fbbf24" : "#38bdf8"),
+    getRenderStrokeWidth: renderBoardLineWidth,
+    getStrokeDasharray: boardLineDasharray,
+    getDefaultLineStyle: (type = "arrow") => (type === "pass" ? "dotted" : type === "run" ? "dashed" : "solid"),
+    getDefaultCurveControlPoint: (from = {}, to = {}) => tacticalBoardDefaultCurveControlPoint(from, to, { bend: options.curveBend || 10 }),
+    getCurveControlPoint: (_element = {}, coordinates = {}) => tacticalBoardDefaultCurveControlPoint(
+      { x: coordinates.x, y: coordinates.y },
+      { x: coordinates.x2, y: coordinates.y2 },
+      { bend: options.curveBend || 13 }
+    ),
+    dataAttributeName: "data-idp-board-element-id",
+    classPrefix: "idp-player-board",
+    hitTargetClassName: "idp-player-board-hit-target",
+    shapeHitTargetClassName: "idp-player-board-shape-hit-target",
+    getClassName: idpTacticalBoardClassName,
+    getAttributes: idpTacticalBoardAttributes,
+  });
+}
+
+function boardZoneToTacticalElement(zone = {}, index = 0) {
   const x = clampPercent(zone.x, 34);
   const y = clampPercent(zone.y, 28);
   const width = clampPercent(zone.width, 32);
   const height = clampPercent(zone.height, 28);
+  return {
+    id: normalizeText(zone.id, `zone-${index + 1}`),
+    type: "zone",
+    x,
+    y,
+    x2: clampPercent(x + width, 66),
+    y2: clampPercent(y + height, 56),
+    color: normalizeBoardColor(zone.color, "#10b981"),
+    lineStyle: normalizeBoardLineStyle(zone.lineStyle, "dashed"),
+    lineWidth: normalizeBoardLineWidth(zone.lineWidth, 1.2),
+    idpBoardObject: "zone",
+    idpBoardZoneIndex: index + 1,
+  };
+}
+
+function renderBoardZone(zone = {}, index = 0) {
+  const element = boardZoneToTacticalElement(zone, index);
+  const x = element.x;
+  const y = element.y;
+  const width = Math.max(4, element.x2 - element.x);
+  const height = Math.max(4, element.y2 - element.y);
   const labelX = Math.min(96, Math.max(4, x + width / 2));
   const labelY = Math.min(96, Math.max(4, y + height / 2));
   return `
-    <rect
-      class="idp-player-board-zone"
-      data-idp-board-object="zone"
-      data-idp-board-zone="${index + 1}"
-      x="${x}"
-      y="${y}"
-      width="${width}"
-      height="${height}"
-      rx="1.8"
-    ></rect>
+    ${renderIdpTacticalBoardElement(element)}
     <text class="idp-player-board-zone-label" data-idp-board-zone-label="${index + 1}" x="${labelX}" y="${labelY}">${renderSvgText(zone.label || "Zone", 24)}</text>
   `;
 }
@@ -304,27 +373,24 @@ function renderArrowElement(arrow = {}, markerId = "idp-player-board-arrow") {
   const fromY = clampPercent(arrow.from?.y, 70);
   const toX = clampPercent(arrow.to?.x, 62);
   const toY = clampPercent(arrow.to?.y, 42);
-  const color = normalizeBoardColor(arrow.color, type === "pass" ? "#fbbf24" : "#38bdf8");
-  const lineStyle = normalizeBoardLineStyle(arrow.lineStyle, type === "pass" ? "dotted" : type === "run" ? "dashed" : "solid");
-  const lineWidth = renderBoardLineWidth(arrow.lineWidth, 2.4);
-  const dash = boardLineDasharray(lineStyle);
-  const style = `fill:none;stroke:${escapeHtml(color)};stroke-width:${lineWidth};stroke-linecap:round;stroke-linejoin:round;${dash ? `stroke-dasharray:${escapeHtml(dash)};` : ""}`;
+  const element = {
+    id: normalizeText(arrow.id, "arrow-1"),
+    type,
+    x: fromX,
+    y: fromY,
+    x2: toX,
+    y2: toY,
+    color: normalizeBoardColor(arrow.color, type === "pass" ? "#fbbf24" : "#38bdf8"),
+    lineStyle: normalizeBoardLineStyle(arrow.lineStyle, type === "pass" ? "dotted" : type === "run" ? "dashed" : "solid"),
+    lineWidth: normalizeBoardLineWidth(arrow.lineWidth, 2.4),
+    idpBoardObject: "movement",
+    idpBoardArrowType: type,
+  };
   const handles = `
     <circle class="idp-player-board-movement-handle is-from" data-idp-board-object="movement-from" data-idp-board-movement-handle="from" cx="${fromX}" cy="${fromY}" r="1.55"></circle>
     <circle class="idp-player-board-movement-handle is-to" data-idp-board-object="movement-to" data-idp-board-movement-handle="to" cx="${toX}" cy="${toY}" r="1.75"></circle>
   `;
-  if (type === "run" || type === "curve") {
-    const control = tacticalBoardDefaultCurveControlPoint(
-      { x: fromX, y: fromY },
-      { x: toX, y: toY },
-      { bend: type === "run" ? 10 : 13 }
-    );
-    const controlX = Math.round(control.x * 10) / 10;
-    const controlY = Math.round(control.y * 10) / 10;
-    return `<path class="session-tactical-${escapeHtml(type)} idp-player-board-movement" d="M ${fromX} ${fromY} Q ${controlX} ${controlY} ${toX} ${toY}" ${type === "curve" ? "" : `marker-end="url(#${escapeHtml(markerId)})"`} data-idp-board-object="movement" data-idp-board-arrow-type="${escapeHtml(type)}" style="${style}"></path>${handles}`;
-  }
-  const shouldUseArrow = type !== "line";
-  return `<line class="session-tactical-${escapeHtml(type)} idp-player-board-movement" x1="${fromX}" y1="${fromY}" x2="${toX}" y2="${toY}" ${shouldUseArrow ? `marker-end="url(#${escapeHtml(markerId)})"` : ""} data-idp-board-object="movement" data-idp-board-arrow-type="${escapeHtml(type)}" style="${style}"></line>${handles}`;
+  return `${renderIdpTacticalBoardElement(element, markerId, { curveBend: type === "run" ? 10 : 13 })}${handles}`;
 }
 
 function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options = {}) {

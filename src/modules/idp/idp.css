@@ -10309,6 +10309,14 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   vector-effect: non-scaling-stroke;
 }
 
+.idp-player-board-pitch .idp-player-board-hit-target {
+  fill: none;
+  pointer-events: none;
+  stroke: transparent;
+  stroke-width: 5;
+  vector-effect: non-scaling-stroke;
+}
+
 .idp-player-board-pitch .idp-player-board-movement-handle {
   fill: #fff;
   filter: drop-shadow(0 .8px 1.2px rgba(2, 8, 23, .28));

@@ -462,7 +462,7 @@ function boardMovementPath(fromX, fromY, toX, toY) {
 }
 
 function boardMovementElement(modal) {
-  return modal?.querySelector?.(".idp-player-board-arrow-layer line, .idp-player-board-arrow-layer path[data-idp-board-arrow-type]");
+  return modal?.querySelector?.(".idp-player-board-arrow-layer .idp-player-board-movement");
 }
 
 function boardMovementPoints(modal) {

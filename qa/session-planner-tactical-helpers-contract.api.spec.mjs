@@ -154,4 +154,21 @@ test("Session Planner tactical SVG rendering uses the shared Tactical Board core
   expect(pass).toContain('class="session-tactical-pass is-selected"');
   expect(pass).toContain('marker-end="url(#shared-arrow)"');
   expect(pass).toContain('class="session-tactical-hit-target"');
+
+  const customZone = renderTacticalBoardSvgElement({
+    id: "zone-1",
+    type: "zone",
+    x: 20,
+    y: 20,
+    x2: 40,
+    y2: 35,
+  }, "shared-arrow", {
+    classPrefix: "shared-board",
+    getClassName: (baseClassName, _element, slot) => `${baseClassName} qa-${slot}`,
+    getAttributes: (_element, slot) => `data-qa-slot="${slot}"`,
+  });
+
+  expect(customZone).toContain('class="shared-board-zone qa-element"');
+  expect(customZone).toContain('data-qa-slot="element"');
+  expect(customZone).toContain('data-qa-slot="hit-target"');
 });

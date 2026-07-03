@@ -43,10 +43,24 @@ test("chat push client subscribes through PushManager and secure API route", () 
   expect(client).toContain("applicationServerKey");
   expect(client).toContain('"/api/push-subscriptions"');
   expect(client).toContain("notificationLevel");
+  expect(client).toContain("async function sendTest");
+  expect(client).toContain('action: "test"');
   expect(appRuntime).toContain("createChatPushClient");
   expect(appRuntime).toContain("dashboardChatPushClient.toggleFromNotificationLevel");
+  expect(appRuntime).toContain("dashboardChatPushClient.sendTest");
   expect(clientConfig).toContain("chatPush: publicChatPushConfig()");
   expect(permissionMatrix).toContain('"/api/push-subscriptions"');
+});
+
+test("chat push test delivery fails clearly without a registered device", () => {
+  const pushService = readSource("api/_lib/chat-push-notifications.js");
+  const renderer = readSource("src/modules/chat/chat-widget-renderer.mjs");
+
+  expect(pushService).toContain("No push-enabled device is registered for this account.");
+  expect(pushService).toContain("ok: sent > 0");
+  expect(pushService).toContain("markSubscriptionFailure(subscription.id, error)");
+  expect(renderer).toContain("data-dashboard-chat-widget-test-push");
+  expect(renderer).toContain("Test push");
 });
 
 test("chat sendMessage queues push after the database message exists", () => {

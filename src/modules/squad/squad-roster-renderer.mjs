@@ -56,10 +56,11 @@ export function createSquadRosterRenderer({
     if (!isTemporaryPlayerProfile(player)) {
       return "";
     }
+    const rosterLabel = getPlayerProfileRosterLabel(player);
     const windowLabel = getPlayerProfileTemporaryWindowLabel(player);
     return `
     <small class="squad-player-temporary-meta">
-      ${escapeHtml(getPlayerProfileRosterTypeOption(player.rosterType).shortLabel || "Temporary")}
+      ${escapeHtml(rosterLabel || getPlayerProfileRosterTypeOption(player.rosterType).label || "Temporary")}
       ${windowLabel ? ` / ${escapeHtml(windowLabel)}` : ""}
     </small>
   `;

@@ -82,7 +82,7 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
   expect(markup).not.toContain(">Important<");
   expect(markup).toContain("Training guests");
   expect(markup).toContain("Guest Player");
-  expect(markup).toContain("Guest");
+  expect(markup).toContain("Training guest");
   expect(markup).toContain("1 Jun - 7 Jun");
   expect(markup).not.toContain("Squad player");
   expect(renderer.renderStatusChip("injured", { returnLabel: "10 Jun" })).toContain("10 Jun");

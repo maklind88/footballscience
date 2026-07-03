@@ -408,6 +408,15 @@ async function sendChatPushTest(actor = {}, body = {}) {
       "limit=20",
     ].join("&")
   );
+  if (!subscriptions.length) {
+    return {
+      ok: false,
+      status: 409,
+      reason: "No push-enabled device is registered for this account.",
+      sent: 0,
+      failed: 0,
+    };
+  }
   const payload = {
     schema: "footballscience-chat-push-v1",
     title: "Football Science notifications",
@@ -421,9 +430,26 @@ async function sendChatPushTest(actor = {}, body = {}) {
       TTL: 600,
       urgency: "normal",
       timeout: PUSH_SEND_TIMEOUT_MS,
-    }).then(() => ({ ok: true })).catch((error) => ({ ok: false, reason: error?.message || "Push failed." }))
+    }).then(async (result) => {
+      await patchRows("chat_push_subscriptions", `id=eq.${filterValue(subscription.id)}`, {
+        last_success_at: new Date().toISOString(),
+        failure_count: 0,
+      }).catch(() => []);
+      return { ok: true, providerStatus: Number(result?.statusCode || 201) || 201 };
+    }).catch(async (error) => {
+      const providerStatus = await markSubscriptionFailure(subscription.id, error);
+      return { ok: false, reason: error?.message || "Push failed.", providerStatus };
+    })
   ));
-  return { ok: true, sent: attempts.filter((attempt) => attempt.ok).length, failed: attempts.filter((attempt) => !attempt.ok).length };
+  const sent = attempts.filter((attempt) => attempt.ok).length;
+  const failed = attempts.filter((attempt) => !attempt.ok).length;
+  return {
+    ok: sent > 0,
+    status: sent > 0 ? 200 : 502,
+    sent,
+    failed,
+    reason: sent > 0 ? "" : attempts.find((attempt) => !attempt.ok)?.reason || "Push test failed.",
+  };
 }
 
 module.exports = {

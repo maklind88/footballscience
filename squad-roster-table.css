@@ -1,0 +1,27 @@
+.squad-table {
+  table-layout: fixed;
+}
+
+.squad-table th:nth-child(1) {
+  width: 25%;
+}
+
+.squad-table th:nth-child(2) {
+  width: 6%;
+}
+
+.squad-table th:nth-child(3) {
+  width: 13%;
+}
+
+.squad-table th:nth-child(4) {
+  width: 15%;
+}
+
+.squad-table th:nth-child(5) {
+  width: 31%;
+}
+
+.squad-table th:nth-child(6) {
+  width: 10%;
+}

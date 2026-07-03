@@ -1672,6 +1672,14 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                       Notifications
                       <small>${escapeHtml(notificationLabel)}</small>
                     </button>
+                    <button
+                      type="button"
+                      class="dashboard-chat-more-action"
+                      data-dashboard-chat-widget-test-push
+                    >
+                      Test push
+                      <small>Send to this device</small>
+                    </button>
                     ${
                       headerCanManageGroup
                         ? `

@@ -3743,6 +3743,24 @@ writeDashboardChatWidgetNotificationState({ level: nextLevel });
 renderDashboardChatWidget();
 return;
 }
+const testPushNotifications = event.target.closest("[data-dashboard-chat-widget-test-push]");
+if (testPushNotifications) {
+const notifications = readDashboardChatWidgetNotificationState();
+const level = notifications.level === "muted" ? "all" : notifications.level || "all";
+showDashboardChatWidgetToast("Sending test push to this device...");
+const testResult = await dashboardChatPushClient.sendTest(level).catch((error) => ({
+ok: false,
+reason: error?.message || "Push test failed.",
+}));
+if (testResult?.ok && Number(testResult.sent || 0) > 0) {
+writeDashboardChatWidgetNotificationState({ level });
+showDashboardChatWidgetToast("Test push sent. If Football Science is in the background, it should appear as a system notification.");
+} else {
+showDashboardChatWidgetToast(testResult?.reason || "Push test could not be sent to this device.");
+}
+renderDashboardChatWidget();
+return;
+}
 const threadFilterButton = event.target.closest("[data-dashboard-chat-thread-filter]");
 if (threadFilterButton) {
 dashboardChatThreadFilter = ["all", "unread", "mentions", "pinned"].includes(threadFilterButton.dataset.dashboardChatThreadFilter)

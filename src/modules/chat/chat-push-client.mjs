@@ -154,6 +154,21 @@ export function createChatPushClient(options = {}) {
     return { ok: true, permission, hint: platformHint() };
   }
 
+  async function sendTest(notificationLevel = "all") {
+    const subscribeResult = await subscribe(notificationLevel);
+    if (!subscribeResult?.ok) {
+      return subscribeResult;
+    }
+    const payload = await apiRequest("POST", {
+      action: "test",
+      body: "Test notification from Football Science.",
+    });
+    return {
+      ...payload,
+      hint: platformHint(),
+    };
+  }
+
   async function unsubscribe() {
     const subscription = await currentSubscription();
     if (subscription) {
@@ -218,6 +233,7 @@ export function createChatPushClient(options = {}) {
 
   return {
     refreshExistingSubscription,
+    sendTest,
     status,
     subscribe,
     supported,

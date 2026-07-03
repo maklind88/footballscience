@@ -252,6 +252,26 @@ function ensureBoardNotePin(pitch, text = "Coach note") {
   let note = pitch?.querySelector?.(".idp-player-board-note-pin");
   if (note || !pitch) return note;
   const doc = pitch.ownerDocument || getDocument(runtime);
+  const svgLayer = pitch.querySelector?.(".idp-tactical-board-notes");
+  if (svgLayer && doc?.createElementNS) {
+    note = doc.createElementNS("http://www.w3.org/2000/svg", "g");
+    note.setAttribute("class", "session-tactical-marker session-tactical-text idp-player-board-note-pin");
+    note.setAttribute("data-idp-board-object", "note");
+    note.setAttribute("data-idp-board-note", "1");
+    note.setAttribute("transform", "translate(12 14)");
+    const rect = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", "-8");
+    rect.setAttribute("y", "-4.2");
+    rect.setAttribute("width", "16");
+    rect.setAttribute("height", "8.4");
+    rect.setAttribute("rx", "1.8");
+    const label = doc.createElementNS("http://www.w3.org/2000/svg", "text");
+    label.setAttribute("y", ".45");
+    label.textContent = text;
+    note.append(rect, label);
+    svgLayer.appendChild(note);
+    return note;
+  }
   note = doc?.createElement?.("span");
   if (!note) return null;
   note.className = "idp-player-board-note-pin";
@@ -262,6 +282,12 @@ function ensureBoardNotePin(pitch, text = "Coach note") {
 
 function setMarkerPosition(marker, point) {
   if (!marker || !point) return;
+  if (typeof marker.setAttribute === "function" && marker.namespaceURI === "http://www.w3.org/2000/svg") {
+    marker.setAttribute("transform", `translate(${point.x} ${point.y})`);
+    marker.dataset.x = String(point.x);
+    marker.dataset.y = String(point.y);
+    return;
+  }
   marker.style.left = `${point.x}%`;
   marker.style.top = `${point.y}%`;
 }
@@ -320,17 +346,33 @@ function setBoardMovementCoordinates(modal) {
 function ensureBoardMovementElement(modal, type = "run") {
   const svg = modal?.querySelector?.(".idp-player-board-arrow-layer");
   const current = boardMovementElement(modal);
-  if (!svg || !current) return current;
-  const currentTag = current.tagName?.toLowerCase?.();
+  if (!svg) return current;
   const targetTag = type === "run" || type === "curve" ? "path" : "line";
+  if (!current) {
+    const doc = svg.ownerDocument || getDocument(runtime);
+    const next = doc?.createElementNS?.("http://www.w3.org/2000/svg", targetTag);
+    if (!next) return null;
+    next.dataset.idpBoardArrowType = type;
+    next.setAttribute("class", `session-tactical-${type} idp-player-board-movement`);
+    if (type !== "line" && type !== "curve") {
+      next.setAttribute("marker-end", "url(#idp-player-board-editor-arrow)");
+    }
+    svg.appendChild(next);
+    setBoardMovementCoordinates(modal);
+    updateBoardArrowStyle(modal);
+    return next;
+  }
+  const currentTag = current.tagName?.toLowerCase?.();
   if (currentTag === targetTag) {
     current.dataset.idpBoardArrowType = type;
+    current.setAttribute("class", `session-tactical-${type} idp-player-board-movement`);
     return current;
   }
   const doc = current.ownerDocument || getDocument(runtime);
   const next = doc?.createElementNS?.("http://www.w3.org/2000/svg", targetTag);
   if (!next) return current;
   next.dataset.idpBoardArrowType = type;
+  next.setAttribute("class", `session-tactical-${type} idp-player-board-movement`);
   if (type !== "line" && type !== "curve") {
     next.setAttribute("marker-end", current.getAttribute("marker-end") || "url(#idp-player-board-editor-arrow)");
   }
@@ -422,10 +464,20 @@ function applyBoardPitchPoint(event, pitch) {
     setBoardFormValue(modal, "zoneY", zonePoint.y);
     const zone = pitch.querySelector(".idp-player-board-zone");
     if (zone) {
-      zone.style.left = `${zonePoint.x}%`;
-      zone.style.top = `${zonePoint.y}%`;
-      zone.style.width = `${width}%`;
-      zone.style.height = `${height}%`;
+      if (zone.namespaceURI === "http://www.w3.org/2000/svg") {
+        zone.setAttribute("x", String(zonePoint.x));
+        zone.setAttribute("y", String(zonePoint.y));
+        zone.setAttribute("width", String(width));
+        zone.setAttribute("height", String(height));
+        const label = pitch.querySelector?.('[data-idp-board-zone-label="1"]');
+        label?.setAttribute?.("x", String(clampBoardPercent(zonePoint.x + width / 2)));
+        label?.setAttribute?.("y", String(clampBoardPercent(zonePoint.y + height / 2)));
+      } else {
+        zone.style.left = `${zonePoint.x}%`;
+        zone.style.top = `${zonePoint.y}%`;
+        zone.style.width = `${width}%`;
+        zone.style.height = `${height}%`;
+      }
     }
     return true;
   }
@@ -472,10 +524,12 @@ function selectBoardTool(toolButton) {
     button.classList.toggle("is-active", button === toolButton);
   });
   const label = toolButton?.getAttribute?.("aria-label") || toolButton?.textContent?.trim?.() || "Player";
-  const activeLabel = modal.querySelector?.("[data-idp-board-active-tool-label]");
-  const hintTool = modal.querySelector?.("[data-idp-board-hint-tool]");
-  if (activeLabel) activeLabel.textContent = label;
-  if (hintTool) hintTool.textContent = label;
+  modal.querySelectorAll?.("[data-idp-board-active-tool-label]")?.forEach((node) => {
+    node.textContent = label;
+  });
+  modal.querySelectorAll?.("[data-idp-board-hint-tool]")?.forEach((node) => {
+    node.textContent = label;
+  });
   setBoardArrowPreset(modal, tool);
   return true;
 }

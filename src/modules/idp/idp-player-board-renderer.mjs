@@ -175,22 +175,120 @@ function pitchMeasurementLabel(mode = "attacking-half") {
 
 function renderSessionPitchDiagram(mode = "attacking-half") {
   const pitchMode = normalizePitchMode(mode);
-  const landscapeClass = pitchMode === "full-wide" ? " session-pitch-diagram-landscape" : "";
+  const isWide = pitchMode === "full-wide";
+  const includeTop = ["full", "attacking-half", "goalkeeper"].includes(pitchMode);
+  const includeBottom = ["full", "defending-half"].includes(pitchMode);
+  const includeCenter = ["full", "full-wide"].includes(pitchMode);
+  const includeHalfLine = !["goalkeeper"].includes(pitchMode);
+  if (isWide) {
+    return `
+      <g class="session-pitch-diagram session-pitch-diagram-mode-${escapeHtml(pitchMode)} idp-tactical-pitch-lines" aria-label="IDP tactical pitch lines">
+        <rect class="session-pitch-touchline" x="3" y="3" width="94" height="94" rx="1.1"></rect>
+        <line class="session-pitch-halfway-line" x1="50" y1="3" x2="50" y2="97"></line>
+        <circle class="session-pitch-centre-circle" cx="50" cy="50" r="8.8"></circle>
+        <circle class="session-pitch-centre-spot" cx="50" cy="50" r=".55"></circle>
+        <rect class="session-pitch-goal session-pitch-goal-top" x=".8" y="44.4" width="2.2" height="11.2" rx=".35"></rect>
+        <rect class="session-pitch-goal session-pitch-goal-bottom" x="97" y="44.4" width="2.2" height="11.2" rx=".35"></rect>
+        <rect class="session-pitch-box session-pitch-box-top" x="3" y="20.35" width="15.7" height="59.3"></rect>
+        <rect class="session-pitch-box session-pitch-box-bottom" x="81.3" y="20.35" width="15.7" height="59.3"></rect>
+        <rect class="session-pitch-goal-area session-pitch-goal-area-top" x="3" y="36.55" width="5.25" height="26.9"></rect>
+        <rect class="session-pitch-goal-area session-pitch-goal-area-bottom" x="91.75" y="36.55" width="5.25" height="26.9"></rect>
+        <circle class="session-pitch-penalty-spot session-pitch-penalty-spot-top" cx="13.48" cy="50" r=".55"></circle>
+        <circle class="session-pitch-penalty-spot session-pitch-penalty-spot-bottom" cx="86.52" cy="50" r=".55"></circle>
+      </g>
+    `;
+  }
   return `
-    <div class="session-pitch-diagram session-pitch-diagram-empty session-pitch-diagram-mode-${escapeHtml(pitchMode)}${landscapeClass}" aria-label="IDP tactical pitch">
-      <div class="session-pitch-touchline"></div>
-      <div class="session-pitch-halfway-line"></div>
-      <div class="session-pitch-centre-circle"></div>
-      <span class="session-pitch-centre-spot"></span>
-      <div class="session-pitch-goal session-pitch-goal-top"></div>
-      <div class="session-pitch-goal session-pitch-goal-bottom"></div>
-      <div class="session-pitch-box session-pitch-box-top"></div>
-      <div class="session-pitch-box session-pitch-box-bottom"></div>
-      <div class="session-pitch-goal-area session-pitch-goal-area-top"></div>
-      <div class="session-pitch-goal-area session-pitch-goal-area-bottom"></div>
-      <span class="session-pitch-penalty-spot session-pitch-penalty-spot-top"></span>
-      <span class="session-pitch-penalty-spot session-pitch-penalty-spot-bottom"></span>
-    </div>
+    <g class="session-pitch-diagram session-pitch-diagram-mode-${escapeHtml(pitchMode)} idp-tactical-pitch-lines" aria-label="IDP tactical pitch lines">
+      <rect class="session-pitch-touchline" x="3" y="3" width="94" height="94" rx="1.1"></rect>
+      ${includeHalfLine ? `<line class="session-pitch-halfway-line" x1="3" y1="${pitchMode === "attacking-half" ? "97" : pitchMode === "defending-half" ? "3" : "50"}" x2="97" y2="${pitchMode === "attacking-half" ? "97" : pitchMode === "defending-half" ? "3" : "50"}"></line>` : ""}
+      ${includeCenter ? '<circle class="session-pitch-centre-circle" cx="50" cy="50" r="8.8"></circle><circle class="session-pitch-centre-spot" cx="50" cy="50" r=".55"></circle>' : ""}
+      ${pitchMode === "attacking-half" ? '<circle class="session-pitch-centre-circle session-pitch-centre-circle-partial" cx="50" cy="97" r="8.8"></circle>' : ""}
+      ${pitchMode === "defending-half" ? '<circle class="session-pitch-centre-circle session-pitch-centre-circle-partial" cx="50" cy="3" r="8.8"></circle>' : ""}
+      ${includeTop ? `
+        <rect class="session-pitch-goal session-pitch-goal-top" x="44.4" y=".8" width="11.2" height="2.2" rx=".35"></rect>
+        <rect class="session-pitch-box session-pitch-box-top" x="20.35" y="3" width="59.3" height="${pitchMode === "goalkeeper" ? "50" : "15.7"}"></rect>
+        <rect class="session-pitch-goal-area session-pitch-goal-area-top" x="36.55" y="3" width="26.9" height="${pitchMode === "goalkeeper" ? "16.7" : "5.25"}"></rect>
+        <circle class="session-pitch-penalty-spot session-pitch-penalty-spot-top" cx="50" cy="${pitchMode === "goalkeeper" ? "36.3" : "13.48"}" r=".55"></circle>
+      ` : ""}
+      ${includeBottom ? `
+        <rect class="session-pitch-goal session-pitch-goal-bottom" x="44.4" y="97" width="11.2" height="2.2" rx=".35"></rect>
+        <rect class="session-pitch-box session-pitch-box-bottom" x="20.35" y="81.3" width="59.3" height="15.7"></rect>
+        <rect class="session-pitch-goal-area session-pitch-goal-area-bottom" x="36.55" y="91.75" width="26.9" height="5.25"></rect>
+        <circle class="session-pitch-penalty-spot session-pitch-penalty-spot-bottom" cx="50" cy="86.52" r=".55"></circle>
+      ` : ""}
+    </g>
+  `;
+}
+
+function renderSvgText(value = "", maxLength = 28) {
+  const text = normalizeText(value, "").slice(0, maxLength);
+  return escapeHtml(text);
+}
+
+function renderBoardZone(zone = {}, index = 0) {
+  const x = clampPercent(zone.x, 34);
+  const y = clampPercent(zone.y, 28);
+  const width = clampPercent(zone.width, 32);
+  const height = clampPercent(zone.height, 28);
+  const labelX = Math.min(96, Math.max(4, x + width / 2));
+  const labelY = Math.min(96, Math.max(4, y + height / 2));
+  return `
+    <rect
+      class="idp-player-board-zone session-tactical-zone"
+      data-idp-board-object="zone"
+      data-idp-board-zone="${index + 1}"
+      x="${x}"
+      y="${y}"
+      width="${width}"
+      height="${height}"
+      rx="1.8"
+    ></rect>
+    <text class="idp-player-board-zone-label" data-idp-board-zone-label="${index + 1}" x="${labelX}" y="${labelY}">${renderSvgText(zone.label || "Zone", 24)}</text>
+  `;
+}
+
+function renderBoardCone(cone = {}, index = 0) {
+  const x = clampPercent(cone.x, 50);
+  const y = clampPercent(cone.y, 50);
+  return `
+    <g class="session-tactical-marker session-tactical-cone idp-player-board-cone" data-idp-board-object="cone" data-idp-board-cone="${index + 1}" transform="translate(${x} ${y})">
+      <path d="M 0 -2.9 L 2.75 2.55 L -2.75 2.55 Z"></path>
+      <line x1="-3.15" y1="2.9" x2="3.15" y2="2.9"></line>
+    </g>
+  `;
+}
+
+function renderBoardPlayerMarker(item = {}, options = {}) {
+  const x = clampPercent(item.x, 50);
+  const y = clampPercent(item.y, 50);
+  const label = normalizeText(item.label, options.fallbackLabel || "P").slice(0, 3).toUpperCase();
+  const name = normalizeText(item.name, "");
+  const classes = [
+    "session-tactical-marker",
+    "session-tactical-player",
+    options.neutral ? "session-tactical-neutral-player" : "session-tactical-blue-player",
+    options.className || "",
+  ].filter(Boolean).join(" ");
+  return `
+    <g class="${escapeHtml(classes)}" data-idp-board-object="${escapeHtml(options.objectType || "player")}" transform="translate(${x} ${y})">
+      <circle class="idp-tactical-player-halo" r="${options.neutral ? "4.4" : "5.2"}"></circle>
+      <circle class="idp-tactical-player-disc" r="${options.neutral ? "3.2" : "3.75"}"></circle>
+      <text class="session-tactical-player-badge idp-tactical-player-badge" y=".45">${escapeHtml(label)}</text>
+      ${name ? `<text class="idp-player-board-player-name" y="${options.neutral ? "7.6" : "-6.2"}">${renderSvgText(name, 26)}</text>` : ""}
+    </g>
+  `;
+}
+
+function renderBoardNote(note = {}, index = 0) {
+  const x = clampPercent(note.x, 12);
+  const y = clampPercent(note.y, 14);
+  const text = normalizeText(note.text, "Coach note");
+  return `
+    <g class="session-tactical-marker session-tactical-text idp-player-board-note-pin" data-idp-board-object="note" data-idp-board-note="${index + 1}" transform="translate(${x} ${y})">
+      <rect x="-8" y="-4.2" width="16" height="8.4" rx="1.8"></rect>
+      <text y=".45">${renderSvgText(text, 18)}</text>
+    </g>
   `;
 }
 
@@ -222,45 +320,51 @@ function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options =
   const markerId = options.markerId || "idp-player-board-arrow";
   const editorAttr = options.editor ? " data-idp-board-editor-pitch" : "";
   const pitchMode = normalizePitchMode(intervention.pitchMode || "attacking-half");
-  const playerY = clampPercent(player.y, 70);
-  const playerLabelTop = clampPercent(playerY > 66 ? playerY - 11 : playerY + 9, 79);
   return `
     <div class="session-visual-board session-visual-board-large session-visual-board-mode-${escapeHtml(pitchMode)} idp-player-board-pitch is-${escapeHtml(pitchMode)}" aria-label="IDP Playerboard tactical visual">
       <div class="session-visual-board-surface idp-player-board-surface"${editorAttr}>
         <span class="idp-player-board-mode-chip">${escapeHtml(pitchModeLabel(pitchMode))}</span>
-        ${renderSessionPitchDiagram(pitchMode)}
-        ${Array.isArray(state.zones) ? state.zones.map((zone) => `
-          <span class="idp-player-board-zone session-tactical-zone" style="left:${clampPercent(zone.x, 34)}%;top:${clampPercent(zone.y, 28)}%;width:${clampPercent(zone.width, 32)}%;height:${clampPercent(zone.height, 28)}%;">
-            ${escapeHtml(zone.label || "Zone")}
-          </span>
-        `).join("") : ""}
-        <svg class="session-tactical-svg-layer idp-player-board-arrow-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <svg class="session-tactical-svg-layer idp-tactical-board-svg" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(`${playerName} tactical board`)}">
           <defs>
             <marker id="${escapeHtml(markerId)}" markerWidth="6" markerHeight="6" refX="5.45" refY="3" orient="auto" markerUnits="strokeWidth" viewBox="0 0 6 6">
               <path d="M0.75,0.6 L5.45,3 L0.75,5.4 Z" fill="context-stroke" stroke="context-stroke" stroke-width="0.22" stroke-linejoin="round"></path>
             </marker>
           </defs>
-          ${Array.isArray(state.arrows) ? state.arrows.map((arrow) => renderArrowElement(arrow, markerId)).join("") : ""}
+          ${renderSessionPitchDiagram(pitchMode)}
+          <g class="idp-tactical-board-zone-layer" aria-label="Development zones">
+            ${Array.isArray(state.zones) ? state.zones.map((zone, index) => renderBoardZone(zone, index)).join("") : ""}
+          </g>
+          <g class="idp-player-board-arrow-layer idp-tactical-board-movement-layer" aria-label="Movement paths">
+            ${Array.isArray(state.arrows) ? state.arrows.map((arrow) => renderArrowElement(arrow, markerId)).join("") : ""}
+          </g>
+          <g class="idp-tactical-board-equipment-layer" aria-label="Equipment">
+            ${Array.isArray(state.cones) ? state.cones.map((cone, index) => renderBoardCone(cone, index)).join("") : ""}
+          </g>
+          <g class="idp-tactical-board-player-layer" aria-label="Players">
+            ${Array.isArray(state.referencePlayers) ? state.referencePlayers.map((item) => renderBoardPlayerMarker({
+              ...item,
+              name: item.name || item.label || "Reference",
+            }, {
+              className: "idp-player-board-reference",
+              fallbackLabel: "REF",
+              neutral: true,
+              objectType: "reference",
+            })).join("") : ""}
+            ${renderBoardPlayerMarker({
+              ...player,
+              label: initials,
+              name: playerName,
+            }, {
+              className: "idp-player-board-player",
+              fallbackLabel: initials,
+              neutral: false,
+              objectType: "player",
+            })}
+          </g>
+          <g class="idp-tactical-board-notes" aria-label="Coach notes">
+            ${Array.isArray(state.notes) ? state.notes.slice(0, 3).map((note, index) => renderBoardNote(note, index)).join("") : ""}
+          </g>
         </svg>
-        <div class="session-tactical-html-layer idp-player-board-html-layer" aria-hidden="true">
-          ${Array.isArray(state.cones) ? state.cones.map((cone, index) => `
-            <span class="session-tactical-marker session-tactical-cone idp-player-board-cone" data-idp-board-cone="${index + 1}" style="left:${clampPercent(cone.x, 50)}%;top:${clampPercent(cone.y, 50)}%;"></span>
-          `).join("") : ""}
-          ${Array.isArray(state.referencePlayers) ? state.referencePlayers.map((item) => `
-            <span class="session-tactical-marker session-tactical-player session-tactical-neutral-player has-badge idp-player-board-reference" style="left:${clampPercent(item.x, 50)}%;top:${clampPercent(item.y, 45)}%;">
-              <span class="session-tactical-player-badge${String(item.label || "REF").length > 1 ? " is-wide" : ""}">${escapeHtml(item.label || "REF")}</span>
-            </span>
-          `).join("") : ""}
-          ${Array.isArray(state.notes) ? state.notes.slice(0, 2).map((note) => `
-            <span class="session-tactical-marker session-tactical-text idp-player-board-note-pin" style="left:${clampPercent(note.x, 12)}%;top:${clampPercent(note.y, 14)}%;">${escapeHtml(note.text)}</span>
-          `).join("") : ""}
-          <span class="session-tactical-marker session-tactical-player session-tactical-blue-player has-badge idp-player-board-player" style="left:${clampPercent(player.x, 50)}%;top:${playerY}%;">
-            <span class="session-tactical-player-badge${initials.length > 1 ? " is-wide" : ""}">${escapeHtml(initials)}</span>
-          </span>
-          <span class="idp-player-board-player-name" style="left:${clampPercent(player.x, 50)}%;top:${playerLabelTop}%;">
-            ${escapeHtml(playerName)}
-          </span>
-        </div>
       </div>
     </div>
   `;
@@ -371,6 +475,40 @@ function renderBoardColorSwatches(selected = "#38bdf8") {
       aria-label="${escapeHtml(label)}"
     ></button>
   `).join("");
+}
+
+function hiddenInput(name, value = "") {
+  return `<input type="hidden" name="${escapeHtml(name)}" value="${fieldValue(value)}">`;
+}
+
+function renderBoardGeometryInputs({ player = {}, reference = {}, cones = [], zone = {}, arrow = {}, note = {} } = {}) {
+  return `
+    <div class="idp-player-board-hidden-state" aria-hidden="true">
+      ${hiddenInput("playerX", player.x ?? 50)}
+      ${hiddenInput("playerY", player.y ?? 70)}
+      ${hiddenInput("referenceLabel", reference.label || "REF")}
+      ${hiddenInput("referenceX", reference.x ?? 50)}
+      ${hiddenInput("referenceY", reference.y ?? 44)}
+      ${hiddenInput("cone1X", cones[0]?.x ?? 40)}
+      ${hiddenInput("cone1Y", cones[0]?.y ?? 58)}
+      ${hiddenInput("cone2X", cones[1]?.x ?? 60)}
+      ${hiddenInput("cone2Y", cones[1]?.y ?? 58)}
+      ${hiddenInput("cone3X", cones[2]?.x ?? 50)}
+      ${hiddenInput("cone3Y", cones[2]?.y ?? 42)}
+      ${hiddenInput("zoneLabel", zone.label || "Development zone")}
+      ${hiddenInput("zoneX", zone.x ?? 34)}
+      ${hiddenInput("zoneY", zone.y ?? 28)}
+      ${hiddenInput("zoneWidth", zone.width ?? 32)}
+      ${hiddenInput("zoneHeight", zone.height ?? 28)}
+      ${hiddenInput("arrowLabel", arrow.label || "Action path")}
+      ${hiddenInput("arrowFromX", arrow.from?.x ?? player.x ?? 50)}
+      ${hiddenInput("arrowFromY", arrow.from?.y ?? player.y ?? 70)}
+      ${hiddenInput("arrowToX", arrow.to?.x ?? 62)}
+      ${hiddenInput("arrowToY", arrow.to?.y ?? 42)}
+      ${hiddenInput("noteX", note.x ?? 12)}
+      ${hiddenInput("noteY", note.y ?? 14)}
+    </div>
+  `;
 }
 
 const boardToolGroups = [
@@ -515,7 +653,13 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
             <input type="hidden" name="focusId" value="${fieldValue(focus?.id)}">
             <input type="hidden" name="rowVersion" value="${fieldValue(intervention.rowVersion || 1)}">
             <input type="hidden" name="arrowType" value="${fieldValue(arrowType)}" data-idp-board-arrow-type>
-            <div class="session-tacticalboard-settings idp-player-board-settings" aria-label="Board settings">
+            ${renderBoardGeometryInputs({ player, reference, cones, zone, arrow, note })}
+            <section class="idp-tactical-inspector-card is-selected" data-idp-board-inspector>
+              <span>Selected Tool</span>
+              <strong data-idp-board-active-tool-label>Move Player</strong>
+              <p data-idp-board-hint-state>Click the pitch to place or update the selected element.</p>
+            </section>
+            <section class="session-tacticalboard-settings idp-player-board-settings" aria-label="Board settings">
               <label>
                 <span>Pitch view</span>
                 <select name="pitchMode">${renderPitchModeOptions(intervention.pitchMode || "half")}</select>
@@ -524,85 +668,42 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
                 <span>Linked goal</span>
                 <select name="goalId">${renderGoalOptions(detail, intervention.goalId || "")}</select>
               </label>
-              <label>
+              <label class="idp-player-board-color-control">
                 <span>Movement colour</span>
                 <div class="session-tacticalboard-colour-row idp-player-board-color-row">
                   <input name="arrowColor" type="color" value="${fieldValue(arrowColor)}" data-idp-board-color-input>
                   <div class="session-tacticalboard-colour-swatches idp-player-board-color-swatches">${renderBoardColorSwatches(arrowColor)}</div>
                 </div>
               </label>
-              <label>
-                <span>Width</span>
-                <input name="arrowLineWidth" type="range" min="0.75" max="6" step="0.25" value="${fieldValue(arrowLineWidth)}" data-idp-board-line-width>
-              </label>
-              <label>
-                <span>Style</span>
-                <select name="arrowLineStyle" data-idp-board-line-style>${renderLineStyleOptions(arrowLineStyle)}</select>
-              </label>
-            </div>
-            <div class="idp-player-board-editor-group">
+              <div class="idp-player-board-form-grid">
+                <label>
+                  <span>Width</span>
+                  <input name="arrowLineWidth" type="range" min="0.75" max="6" step="0.25" value="${fieldValue(arrowLineWidth)}" data-idp-board-line-width>
+                </label>
+                <label>
+                  <span>Style</span>
+                  <select name="arrowLineStyle" data-idp-board-line-style>${renderLineStyleOptions(arrowLineStyle)}</select>
+                </label>
+              </div>
+            </section>
+            <section class="idp-player-board-editor-group is-featured">
               <strong>Active Individual Exercise</strong>
               <label><span>Title</span><input name="title" value="${fieldValue(intervention.title, "Individual exercise")}" autocomplete="off"></label>
               <label><span>Objective</span><textarea name="objective" rows="3">${fieldValue(intervention.objective || focus?.description || "")}</textarea></label>
-              <label><span>Coaching cue</span><textarea name="coachingCue" rows="2">${fieldValue(intervention.coachingCue || "")}</textarea></label>
-              <label><span>Success criteria</span><textarea name="successCriteria" rows="2" placeholder="One criterion per line">${fieldValue(Array.isArray(intervention.successCriteria) ? intervention.successCriteria.join("\n") : "")}</textarea></label>
               <div class="idp-player-board-form-grid">
                 <label><span>Status</span><select name="status">
                   ${["draft", "active", "review", "completed"].map((status) => `<option value="${status}"${status === intervention.status ? " selected" : ""}>${escapeHtml(status)}</option>`).join("")}
                 </select></label>
                 <label><span>Frame</span><input name="frameLabel" value="${fieldValue(frame.label || "Start")}" autocomplete="off"></label>
               </div>
-            </div>
-            <div class="idp-player-board-editor-group">
-              <strong>Move Player</strong>
-              <div class="idp-player-board-form-grid">
-                <label><span>X</span><input name="playerX" type="number" min="0" max="100" step="1" value="${fieldValue(player.x, "50")}"></label>
-                <label><span>Y</span><input name="playerY" type="number" min="0" max="100" step="1" value="${fieldValue(player.y, "70")}"></label>
-              </div>
-            </div>
-            <div class="idp-player-board-editor-group">
-              <strong>Reference & Equipment</strong>
-              <div class="idp-player-board-form-grid">
-                <label><span>Ref label</span><input name="referenceLabel" value="${fieldValue(reference.label || "REF")}" autocomplete="off"></label>
-                <label><span>Ref X</span><input name="referenceX" type="number" min="0" max="100" step="1" value="${fieldValue(reference.x, "50")}"></label>
-                <label><span>Ref Y</span><input name="referenceY" type="number" min="0" max="100" step="1" value="${fieldValue(reference.y, "44")}"></label>
-                <label><span>Cone 1 X</span><input name="cone1X" type="number" min="0" max="100" step="1" value="${fieldValue(cones[0]?.x, "40")}"></label>
-                <label><span>Cone 1 Y</span><input name="cone1Y" type="number" min="0" max="100" step="1" value="${fieldValue(cones[0]?.y, "58")}"></label>
-                <label><span>Cone 2 X</span><input name="cone2X" type="number" min="0" max="100" step="1" value="${fieldValue(cones[1]?.x, "60")}"></label>
-                <label><span>Cone 2 Y</span><input name="cone2Y" type="number" min="0" max="100" step="1" value="${fieldValue(cones[1]?.y, "58")}"></label>
-                <label><span>Cone 3 X</span><input name="cone3X" type="number" min="0" max="100" step="1" value="${fieldValue(cones[2]?.x, "50")}"></label>
-                <label><span>Cone 3 Y</span><input name="cone3Y" type="number" min="0" max="100" step="1" value="${fieldValue(cones[2]?.y, "42")}"></label>
-              </div>
-            </div>
-            <div class="idp-player-board-editor-group">
-              <strong>Zone</strong>
-              <label><span>Zone label</span><input name="zoneLabel" value="${fieldValue(zone.label || focus?.category || "Development zone")}" autocomplete="off"></label>
-              <div class="idp-player-board-form-grid">
-                <label><span>X</span><input name="zoneX" type="number" min="0" max="100" step="1" value="${fieldValue(zone.x, "34")}"></label>
-                <label><span>Y</span><input name="zoneY" type="number" min="0" max="100" step="1" value="${fieldValue(zone.y, "28")}"></label>
-                <label><span>W</span><input name="zoneWidth" type="number" min="8" max="80" step="1" value="${fieldValue(zone.width, "32")}"></label>
-                <label><span>H</span><input name="zoneHeight" type="number" min="8" max="80" step="1" value="${fieldValue(zone.height, "28")}"></label>
-              </div>
-            </div>
-            <div class="idp-player-board-editor-group">
-              <strong>Arrow / Run</strong>
-              <label><span>Label</span><input name="arrowLabel" value="${fieldValue(arrow.label || "Action path")}" autocomplete="off"></label>
-              <div class="idp-player-board-form-grid">
-                <label><span>From X</span><input name="arrowFromX" type="number" min="0" max="100" step="1" value="${fieldValue(arrow.from?.x, player.x || "50")}"></label>
-                <label><span>From Y</span><input name="arrowFromY" type="number" min="0" max="100" step="1" value="${fieldValue(arrow.from?.y, player.y || "70")}"></label>
-                <label><span>To X</span><input name="arrowToX" type="number" min="0" max="100" step="1" value="${fieldValue(arrow.to?.x, "62")}"></label>
-                <label><span>To Y</span><input name="arrowToY" type="number" min="0" max="100" step="1" value="${fieldValue(arrow.to?.y, "42")}"></label>
-              </div>
-            </div>
-            <div class="idp-player-board-editor-group">
-              <strong>Notes / Clips</strong>
-              <label><span>Coach note</span><textarea name="noteText" rows="2">${fieldValue(note.text)}</textarea></label>
-              <div class="idp-player-board-form-grid">
-                <label><span>Note X</span><input name="noteX" type="number" min="0" max="100" step="1" value="${fieldValue(note.x, "12")}"></label>
-                <label><span>Note Y</span><input name="noteY" type="number" min="0" max="100" step="1" value="${fieldValue(note.y, "14")}"></label>
-              </div>
+            </section>
+            <section class="idp-player-board-editor-group">
+              <strong>Coach Notes</strong>
+              <label><span>Coaching cue</span><textarea name="coachingCue" rows="2">${fieldValue(intervention.coachingCue || "")}</textarea></label>
+              <label><span>Success criteria</span><textarea name="successCriteria" rows="2" placeholder="One criterion per line">${fieldValue(Array.isArray(intervention.successCriteria) ? intervention.successCriteria.join("\n") : "")}</textarea></label>
+              <label><span>Board note</span><textarea name="noteText" rows="2">${fieldValue(note.text)}</textarea></label>
               <label><span>Linked clip ids</span><input name="linkedClipIds" value="${fieldValue(linkedClipIds)}" autocomplete="off" placeholder="clip-id, clip-id"></label>
-            </div>
+            </section>
             <footer>
               ${intervention.id ? `<button type="button" class="is-danger" data-idp-archive-intervention="${escapeHtml(intervention.id)}">Archive</button>` : ""}
               <button type="button" data-idp-player-board-close>Cancel</button>

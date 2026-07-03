@@ -9260,3 +9260,280 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
     width: 100%;
   }
 }
+
+/* IDP Tactical Board v1: SVG pitch, object layer, compact inspector. */
+.idp-player-board-hidden-state {
+  display: none;
+}
+
+.idp-player-board-pitch .idp-tactical-board-svg {
+  display: block;
+  height: 100%;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+  z-index: 3;
+}
+
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-diagram,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-touchline,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-halfway-line,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-centre-circle,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-goal,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-box,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-goal-area,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-penalty-spot,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-centre-spot {
+  background: none;
+  border: 0;
+  display: initial;
+  height: auto;
+  inset: auto;
+  left: auto;
+  position: static;
+  top: auto;
+  transform: none;
+  width: auto;
+}
+
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-touchline,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-halfway-line,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-centre-circle,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-box,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-goal-area {
+  fill: none;
+  stroke: rgba(255, 255, 255, .78);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: .42;
+  vector-effect: non-scaling-stroke;
+}
+
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-touchline {
+  stroke-width: .62;
+}
+
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-halfway-line,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-centre-circle {
+  opacity: .78;
+}
+
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-goal {
+  fill: rgba(255, 255, 255, .72);
+  stroke: rgba(255, 255, 255, .72);
+  stroke-width: .3;
+}
+
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-penalty-spot,
+.idp-player-board-pitch .idp-tactical-board-svg .session-pitch-centre-spot {
+  fill: rgba(255, 255, 255, .9);
+  stroke: none;
+}
+
+.idp-player-board-pitch .idp-player-board-zone {
+  fill: rgba(16, 185, 129, .18);
+  stroke: rgba(6, 95, 70, .74);
+  stroke-dasharray: 1.4 1.1;
+  stroke-width: .42;
+  vector-effect: non-scaling-stroke;
+}
+
+.idp-player-board-pitch .idp-player-board-zone-label,
+.idp-player-board-pitch .idp-player-board-player-name,
+.idp-player-board-pitch .idp-tactical-player-badge,
+.idp-player-board-pitch .idp-player-board-note-pin text {
+  dominant-baseline: middle;
+  font-family: inherit;
+  font-weight: 950;
+  letter-spacing: 0;
+  paint-order: stroke;
+  pointer-events: none;
+  text-anchor: middle;
+}
+
+.idp-player-board-pitch .idp-player-board-zone-label {
+  fill: #064e3b;
+  font-size: 2.25px;
+  stroke: rgba(236, 253, 245, .72);
+  stroke-width: .7px;
+}
+
+.idp-player-board-pitch .idp-player-board-movement {
+  fill: none;
+  filter: drop-shadow(0 .8px 1.2px rgba(2, 8, 23, .22));
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.idp-player-board-pitch .idp-player-board-cone path {
+  fill: #fb923c;
+  stroke: #c2410c;
+  stroke-width: .34;
+  vector-effect: non-scaling-stroke;
+}
+
+.idp-player-board-pitch .idp-player-board-cone line {
+  stroke: #7c2d12;
+  stroke-linecap: round;
+  stroke-width: .38;
+  vector-effect: non-scaling-stroke;
+}
+
+.idp-player-board-pitch .idp-tactical-player-halo {
+  fill: rgba(255, 255, 255, .25);
+  stroke: rgba(255, 255, 255, .32);
+  stroke-width: .35;
+  vector-effect: non-scaling-stroke;
+}
+
+.idp-player-board-pitch .idp-tactical-player-disc {
+  fill: #e8f2ff;
+  stroke: rgba(15, 23, 42, .24);
+  stroke-width: .42;
+  vector-effect: non-scaling-stroke;
+}
+
+.idp-player-board-pitch .idp-player-board-player .idp-tactical-player-disc {
+  fill: #eff6ff;
+}
+
+.idp-player-board-pitch .idp-player-board-reference .idp-tactical-player-disc {
+  fill: #f8fafc;
+}
+
+.idp-player-board-pitch .idp-tactical-player-badge {
+  fill: #0f172a;
+  font-size: 2.2px;
+  stroke: none;
+}
+
+.idp-player-board-pitch .idp-player-board-player-name {
+  fill: #fff;
+  font-size: 2.55px;
+  stroke: rgba(15, 23, 42, .68);
+  stroke-width: 1.5px;
+}
+
+.idp-player-board-pitch .idp-player-board-note-pin rect {
+  fill: rgba(15, 23, 42, .82);
+  stroke: rgba(255, 255, 255, .2);
+  stroke-width: .28;
+  vector-effect: non-scaling-stroke;
+}
+
+.idp-player-board-pitch .idp-player-board-note-pin text {
+  fill: #fff;
+  font-size: 2.05px;
+  stroke: none;
+}
+
+.idp-player-board-pitch .idp-player-board-surface[data-idp-board-editor-pitch] {
+  cursor: crosshair;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard {
+  grid-template-columns: minmax(210px, 250px) minmax(540px, 1fr) minmax(280px, 330px);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-canvas-wrap {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(20, 184, 166, .14), transparent 34%),
+    linear-gradient(180deg, rgba(15, 23, 42, .86), rgba(7, 17, 31, .92));
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-stage {
+  background:
+    linear-gradient(180deg, rgba(226, 232, 240, .08), rgba(15, 23, 42, .28)),
+    #0b1421;
+  border: 1px solid rgba(226, 232, 240, .1);
+  border-radius: 14px;
+}
+
+.idp-tactical-inspector-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .06)),
+    rgba(255, 255, 255, .06);
+  border: 1px solid rgba(45, 212, 191, .2);
+  border-radius: 13px;
+  display: grid;
+  gap: 4px;
+  padding: 11px;
+}
+
+.idp-tactical-inspector-card span {
+  color: rgba(226, 232, 240, .58);
+  font-size: .66rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.idp-tactical-inspector-card strong {
+  color: #fff;
+  font-size: 1.02rem;
+  line-height: 1.1;
+}
+
+.idp-tactical-inspector-card p {
+  color: rgba(226, 232, 240, .7);
+  font-size: .76rem;
+  font-weight: 760;
+  line-height: 1.22;
+  margin: 0;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-settings {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-settings .idp-player-board-form-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-group {
+  gap: 8px;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-inspector textarea {
+  min-height: 58px;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-inspector footer {
+  background: rgba(255, 255, 255, .06);
+  border-color: rgba(255, 255, 255, .1);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-inspector footer .is-danger {
+  grid-column: 1 / -1;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-inspector footer button[type="submit"] {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1120px) {
+  .idp-player-board-modal-layout.is-idp-tacticalboard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-toolbox {
+    display: grid;
+    grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-toolbox {
+    grid-template-columns: 1fr;
+  }
+
+  .idp-player-board-pitch .idp-player-board-player-name {
+    font-size: 3px;
+  }
+}

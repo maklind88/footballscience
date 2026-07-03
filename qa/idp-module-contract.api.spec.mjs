@@ -123,6 +123,10 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("data-idp-board-tool=\"cone\"");
   expect(playerBoardRenderer).toContain("data-idp-board-color-choice");
   expect(playerBoardRenderer).toContain("data-idp-board-editor-pitch");
+  expect(playerBoardRenderer).toContain("idp-tactical-board-svg");
+  expect(playerBoardRenderer).toContain("data-idp-board-object");
+  expect(playerBoardRenderer).toContain("idp-tactical-inspector-card");
+  expect(playerBoardRenderer).toContain("idp-player-board-hidden-state");
   expect(idpRenderer).toContain("data-idp-player-board-preview-select");
   expect(playerBoardRenderer).toContain("Linked goal");
   expect(playerBoardRenderer).toContain("Success criteria");
@@ -448,6 +452,9 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain("Ny övning");
   expect(playerBoardHtml).toContain("Koppla klipp");
   expect(playerBoardHtml).toContain("session-pitch-touchline");
+  expect(playerBoardHtml).toContain("idp-tactical-board-svg");
+  expect(playerBoardHtml).toContain('data-idp-board-object="player"');
+  expect(playerBoardHtml).toContain("idp-tactical-board-zone-layer");
   expect(playerBoardHtml).not.toContain("idp-player-board-boardbar");
   expect(playerBoardHtml).not.toContain("idp-player-board-exercise-bank");
   expect(playerBoardHtml).not.toContain("Exercise Bank");
@@ -592,6 +599,11 @@ test("idp renderer separates the overview from the player development profile", 
   expect(boardHtml).toContain("idp-player-board-toolbox");
   expect(boardHtml).toContain("idp-player-board-canvas-wrap");
   expect(boardHtml).toContain("idp-player-board-inspector");
+  expect(boardHtml).toContain("idp-tactical-inspector-card");
+  expect(boardHtml).toContain("idp-player-board-hidden-state");
+  expect(boardHtml).toContain("idp-tactical-board-svg");
+  expect(boardHtml).toContain('data-idp-board-object="player"');
+  expect(boardHtml).toContain('data-idp-board-object="zone"');
   expect(boardHtml).toContain("Movement colour");
   expect(boardHtml).toContain("Linked clip ids");
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, staffOptions)).toContain("data-idp-complete-review");

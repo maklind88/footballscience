@@ -68,7 +68,8 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
 
   expect(markup).toContain("squad-roster-section");
   expect(markup).toContain("Squad List");
-  expect(markup).toContain("1/1 squad + 1 temporary");
+  expect(markup).toContain("1/1 squad");
+  expect(markup).not.toContain("1/1 squad + 1 temporary");
   expect(markup).toContain('data-player-profile-select="p1"');
   expect(markup).toContain("is-selected");
   expect(markup).toContain("Mak Player");

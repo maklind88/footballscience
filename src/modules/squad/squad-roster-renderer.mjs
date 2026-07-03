@@ -178,10 +178,7 @@ export function createSquadRosterRenderer({
   };
 
   const getRosterListSummary = (visibleSummary = {}, rosterSummary = {}) => {
-    const squadText = `${visibleSummary.squadCount || 0}/${rosterSummary.squadCount || 0} squad`;
-    const hasTemporaryPlayers = Boolean(rosterSummary.temporaryCount || 0);
-    const temporaryText = hasTemporaryPlayers ? ` + ${rosterSummary.temporaryCount || 0} temporary` : "";
-    return `${squadText}${temporaryText}`;
+    return `${visibleSummary.squadCount || 0}/${rosterSummary.squadCount || 0} squad`;
   };
 
   const renderRosterSections = (visiblePlayers = [], summaries = {}) => {

@@ -421,6 +421,49 @@ test("Periodization renderer keeps the day card and overlay contract", () => {
   expect(panel).toContain('data-periodization-multi-field="teamPrinciples"');
 });
 
+test("Periodization day view reads planned exercise names from Session Planner blocks without writes", () => {
+  const renderer = createPeriodizationRenderer({
+    escapeHtml,
+    formatDateValue,
+    parseDateValue,
+    getState: () => ({ selectedDate: "2026-05-08" }),
+    getDay: () => ({
+      daySchedule: "Training",
+      sessionType: "Training",
+      physicalLoad: "Moderate",
+      pitchSize: "SSG",
+      matchDay: "N/A",
+      block2: "Manual Periodization Block",
+    }),
+    canEdit: () => true,
+    isOffDay: () => false,
+    getSessionPlannerState: () => ({
+      sessions: {
+        "2026-05-08": {
+          blocks: [
+            { id: "warm-up", label: "Warm Up", title: "Mobility Prep" },
+            { id: "block-1", label: "Block 1", title: "Passing Gates" },
+            { id: "block-2", label: "Block 2", title: "New Exercise" },
+            { id: "block-3", label: "Block 3", title: "Finishing Waves" },
+            { id: "block-4", label: "Block 4", title: "11v11 Transfer" },
+          ],
+        },
+      },
+    }),
+    getMultiSelectOpenField: () => "",
+    renderActionIcon: () => "icon",
+  });
+
+  const panel = renderer.renderDayPanel("2026-05-08", { isOverlay: true, mode: "view" });
+
+  expect(panel).toContain("Mobility Prep");
+  expect(panel).toContain("Passing Gates");
+  expect(panel).toContain("Manual Periodization Block");
+  expect(panel).toContain("Finishing Waves");
+  expect(panel).toContain("11v11 Transfer");
+  expect(panel).not.toContain("New Exercise");
+});
+
 test("Periodization state derives match-day context from Schedule without overwriting manual match-day edits", () => {
   const allScheduleEvents = [
     { id: "training", date: "2026-05-08", type: "training", title: "Training" },

@@ -52,6 +52,8 @@ export function createPeriodizationRenderer(options = {}) {
   const isOffDay = typeof options.isOffDay === "function" ? options.isOffDay : () => false;
   const getScheduleEventsForDate =
     typeof options.getScheduleEventsForDate === "function" ? options.getScheduleEventsForDate : () => [];
+  const getSessionPlannerState =
+    typeof options.getSessionPlannerState === "function" ? options.getSessionPlannerState : () => null;
   const getMultiSelectOpenField =
     typeof options.getMultiSelectOpenField === "function" ? options.getMultiSelectOpenField : () => "";
   const renderActionIcon = typeof options.renderActionIcon === "function" ? options.renderActionIcon : () => "";
@@ -752,6 +754,48 @@ ${renderActionIcon("pencil")}
     return hasViewValue(value) ? renderViewItem(label, renderViewValue(value), className) : "";
   }
 
+  function isUnsetTrainingBlockValue(value) {
+    const text = String(value ?? "").trim().toLowerCase();
+    return !text || text === "not set";
+  }
+
+  function isPlannedExerciseTitle(value) {
+    const text = String(value ?? "").trim().toLowerCase();
+    return Boolean(text && text !== "new exercise" && text !== "empty block");
+  }
+
+  function getSessionPlannerBlockForPeriodizationLabel(dateValue, label) {
+    const blocks = getSessionPlannerState()?.sessions?.[dateValue]?.blocks;
+    if (!Array.isArray(blocks) || !blocks.length) {
+      return null;
+    }
+    const normalizedLabel = String(label || "").trim().toLowerCase();
+    if (normalizedLabel === "warm up") {
+      return blocks.find((block) => String(block?.label || "").trim().toLowerCase() === "warm up") || blocks[0] || null;
+    }
+    const blockMatch = normalizedLabel.match(/^block\s+(\d+)$/);
+    if (!blockMatch) {
+      return null;
+    }
+    const blockNumber = Number(blockMatch[1]);
+    const exactLabel = `block ${blockNumber}`;
+    const labeledBlock = blocks.find((block) => String(block?.label || "").trim().toLowerCase() === exactLabel);
+    if (labeledBlock) {
+      return labeledBlock;
+    }
+    const exerciseBlocks = blocks.filter((block) => /^block\s+\d+$/i.test(String(block?.label || "").trim()));
+    const plannedBlocks = blocks.filter((block) => String(block?.label || "").trim().toLowerCase() !== "warm up");
+    return exerciseBlocks[blockNumber - 1] || plannedBlocks[blockNumber - 1] || blocks[blockNumber] || null;
+  }
+
+  function getTrainingBlockViewValue(dateValue, label, periodizationValue) {
+    if (!isUnsetTrainingBlockValue(periodizationValue)) {
+      return periodizationValue;
+    }
+    const sessionPlannerTitle = getSessionPlannerBlockForPeriodizationLabel(dateValue, label)?.title;
+    return isPlannedExerciseTitle(sessionPlannerTitle) ? String(sessionPlannerTitle).trim() : "";
+  }
+
   function renderViewLink(label, value) {
     const url = String(value || "").trim();
     const content = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Open link</a>` : "Not set";
@@ -837,7 +881,9 @@ ${renderActionIcon("pencil")}
           renderViewItem("Mini-Game Principles", renderViewValue(normalizePeriodizationMultiValue(day.miniGamePrinciples))),
         ])}
         ${renderViewSection("Training Blocks", [
-          ...trainingBlocks.map(([label, value]) => renderViewItemIfSet(label, value)),
+          ...trainingBlocks.map(([label, value]) =>
+            renderViewItemIfSet(label, getTrainingBlockViewValue(dateValue, label, value))
+          ),
           renderViewItemIfSet("Session Notes", day.sessionNotes),
         ])}
         ${renderViewSection("Links", [

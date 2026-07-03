@@ -964,6 +964,12 @@ isPeriodizationOffDay,
 normalizePeriodizationDay,
 normalizePeriodizationMultiValue,
 } = periodizationStateAdapter;
+function getPeriodizationSessionPlannerState() {
+if (!sessionPlannerState) {
+sessionPlannerState = readSessionPlannerState();
+}
+return sessionPlannerState;
+}
 const periodizationRenderer = createPeriodizationRenderer({
 escapeHtml,
 formatDateValue: formatScheduleDateValue,
@@ -973,6 +979,7 @@ getDay: getPeriodizationDay,
 canEdit: canEditPeriodizationWorkspace,
 isOffDay: isPeriodizationOffDay,
 getScheduleEventsForDate,
+getSessionPlannerState: getPeriodizationSessionPlannerState,
 getMultiSelectOpenField: getPeriodizationMultiSelectOpenField,
 renderActionIcon: renderSessionPlannerActionIcon,
 });

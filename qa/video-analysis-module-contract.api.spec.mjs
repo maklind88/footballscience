@@ -467,15 +467,22 @@ test("dependent tag actions only target clips under the current playhead", async
       { id: "old-last", startMs: 5000, endMs: 6500, subPhase: "Finishing Phase" },
       { id: "current", startMs: 10000, endMs: 16000, subPhase: "Creating Phase" },
       { id: "current-mg", startMs: 10050, endMs: 17050, subPhase: "Creating Phase" },
-      { id: "different-start-overlap", startMs: 8000, endMs: 14000, subPhase: "Build Up" },
+      { id: "different-start-overlap", startMs: 8000, endMs: 15000, subPhase: "Build Up" },
+      { id: "outside-two-second-window", startMs: 7900, endMs: 17000, subPhase: "High Press" },
     ],
   };
 
   expect(service.resolveCodingTargetClip(state, 10500)?.id).toBe("current");
   expect(service.resolveCurrentCodingTargetClip(state)?.id).toBe("current");
+  expect(service.sameMomentTagWindowMs).toBe(2000);
   expect(service.resolveSameMomentCodingTargetClips(state, 10500, { sameMomentToleranceMs: 1000 }).map((clip) => clip.id)).toEqual([
     "current",
     "current-mg",
+  ]);
+  expect(service.resolveSameMomentCodingTargetClips(state, 10500).map((clip) => clip.id)).toEqual([
+    "current",
+    "current-mg",
+    "different-start-overlap",
   ]);
   expect(service.resolveCodingTargetClip(state, 50000)).toBeNull();
 });

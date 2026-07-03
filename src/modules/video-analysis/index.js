@@ -47,7 +47,7 @@ import {
   updateCodingButtonField,
   updateCodingButtonMsField,
 } from "./services/codingTemplateService.js";
-import { resolveCodingTargetClip, resolveSameMomentCodingTargetClips } from "./services/codingInteractionService.js";
+import { resolveCodingTargetClip, resolveSameMomentCodingTargetClips, sameMomentTagWindowMs } from "./services/codingInteractionService.js";
 import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.js";
 import { createLocalVideoReference, revokeLocalVideoReference } from "./services/localVideoBridgeService.js";
 import { createPlayableLocalCopy } from "./services/localPlaybackTranscodeService.js";
@@ -3352,7 +3352,7 @@ function findClipForLabelAction(state = {}, playheadMs = 0) {
 function findClipsForSameMomentLabelAction(state = {}, playheadMs = 0) {
   return resolveSameMomentCodingTargetClips(state, playheadMs, {
     toleranceMs: 750,
-    sameMomentToleranceMs: 1000,
+    sameMomentToleranceMs: sameMomentTagWindowMs,
   });
 }
 

@@ -1,5 +1,6 @@
 const defaultTargetToleranceMs = 250;
-const defaultSameMomentToleranceMs = 1000;
+export const sameMomentTagWindowMs = 2000;
+const defaultSameMomentToleranceMs = sameMomentTagWindowMs;
 
 function normalizeMs(value = 0, fallback = 0) {
   const number = Math.round(Number(value ?? fallback));
@@ -72,7 +73,10 @@ export function resolveSameMomentCodingTargetClips(state = {}, playheadMs = 0, o
   if (!targetClip) return [];
   const clips = codingClipsFromState(state);
   const toleranceMs = options.toleranceMs ?? defaultTargetToleranceMs;
-  const sameMomentToleranceMs = Math.max(0, normalizeMs(options.sameMomentToleranceMs, defaultSameMomentToleranceMs));
+  const sameMomentToleranceMs = Math.max(
+    0,
+    normalizeMs(options.sameMomentToleranceMs ?? defaultSameMomentToleranceMs, defaultSameMomentToleranceMs)
+  );
   const targetId = clipId(targetClip);
   const targetStartMs = codingClipStartMs(targetClip);
   return clips

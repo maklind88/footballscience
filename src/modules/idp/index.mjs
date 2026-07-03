@@ -1556,7 +1556,7 @@ export function handleClick(event) {
     event?.preventDefault?.();
     revokePreviewUrl(runtime);
     stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
-    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", playerBoardSearchQuery: "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, error: "", message: "" } });
+    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", playerBoardSearchQuery: "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, error: "", message: "" } });
     scrollWorkspaceTop(runtime);
     return;
   }
@@ -1577,6 +1577,7 @@ export function handleClick(event) {
         playerBoardInterventionId: "",
         playerBoardPreviewFrameIndex: 0,
         playerBoardPreviewPlaying: false,
+        playerBoardHandoutOpen: false,
         clipPreviewOpen: false,
         clipPreviewQueueIds: [],
         clipPreviewActiveIndex: 0,
@@ -1678,6 +1679,19 @@ export function handleClick(event) {
   if (playerBoardPreviewStop) {
     event?.preventDefault?.();
     stopPlayerBoardPreviewPlayback(runtime);
+    return;
+  }
+  const playerBoardHandoutClose = event?.target?.closest?.("[data-idp-player-board-handout-close]");
+  if (playerBoardHandoutClose || event?.target?.matches?.("[data-idp-player-board-handout-layer]")) {
+    event?.preventDefault?.();
+    runtime?.store.setState({ ui: { playerBoardHandoutOpen: false } });
+    return;
+  }
+  const playerBoardPrint = event?.target?.closest?.("[data-idp-player-board-print]");
+  if (playerBoardPrint) {
+    event?.preventDefault?.();
+    const win = runtime?.context?.win || globalThis;
+    if (typeof win.print === "function") win.print();
     return;
   }
   const playerBoardPreviewClip = event?.target?.closest?.("[data-idp-player-board-preview-clip]");
@@ -1806,7 +1820,7 @@ export function handleClick(event) {
     event?.preventDefault?.();
     stopBoardPlayback(runtime, playerBoardClose?.closest?.(".idp-player-board-modal") || getRoot(runtime?.context)?.querySelector?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
-    runtime?.store.setState({ ui: { playerBoardOpen: false, playerBoardInterventionId: "" } });
+    runtime?.store.setState({ ui: { playerBoardOpen: false, playerBoardInterventionId: "", playerBoardHandoutOpen: false } });
     return;
   }
   const playerBoardNew = event?.target?.closest?.("[data-idp-player-board-new]");
@@ -1815,14 +1829,21 @@ export function handleClick(event) {
     stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
     stopBoardPlayback(runtime, playerBoardNew.closest?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
-    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: "__new", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, actionMode: "", error: "", message: "" } });
+    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: "__new", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, actionMode: "", error: "", message: "" } });
     return;
   }
   const playerBoardPreviewSelect = event?.target?.closest?.("[data-idp-player-board-preview-select]");
   if (playerBoardPreviewSelect) {
     event?.preventDefault?.();
     stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
-    runtime?.store.setState({ ui: { playerBoardOpen: false, playerBoardInterventionId: playerBoardPreviewSelect.dataset.idpPlayerBoardPreviewSelect || "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, error: "", message: "" } });
+    runtime?.store.setState({ ui: { playerBoardOpen: false, playerBoardInterventionId: playerBoardPreviewSelect.dataset.idpPlayerBoardPreviewSelect || "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, error: "", message: "" } });
+    return;
+  }
+  const playerBoardHandoutOpen = event?.target?.closest?.("[data-idp-player-board-handout-open]");
+  if (playerBoardHandoutOpen) {
+    event?.preventDefault?.();
+    stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
+    runtime?.store.setState({ ui: { playerBoardHandoutOpen: true, playerBoardPreviewPlaying: false, error: "", message: "" } });
     return;
   }
   const playerBoardOpen = event?.target?.closest?.("[data-idp-player-board-open]");
@@ -1831,7 +1852,7 @@ export function handleClick(event) {
     stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
     stopBoardPlayback(runtime, playerBoardOpen.closest?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
-    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardPreviewPlaying: false, actionMode: "", error: "", message: "" } });
+    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, actionMode: "", error: "", message: "" } });
     return;
   }
   const playerBoardSelect = event?.target?.closest?.("[data-idp-player-board-select]");
@@ -1839,13 +1860,13 @@ export function handleClick(event) {
     event?.preventDefault?.();
     stopBoardPlayback(runtime, playerBoardSelect.closest?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
-    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: playerBoardSelect.dataset.idpPlayerBoardSelect || "" } });
+    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: playerBoardSelect.dataset.idpPlayerBoardSelect || "", playerBoardHandoutOpen: false } });
     return;
   }
   const playerBoardLinkClip = event?.target?.closest?.("[data-idp-player-board-link-clip]");
   if (playerBoardLinkClip) {
     event?.preventDefault?.();
-    runtime?.store.setState({ ui: { actionMode: "evidence", playerBoardOpen: false, message: "Link a clip by marking it as IDP observation from Clip Bank." } });
+    runtime?.store.setState({ ui: { actionMode: "evidence", playerBoardOpen: false, playerBoardHandoutOpen: false, message: "Link a clip by marking it as IDP observation from Clip Bank." } });
     return;
   }
   const archiveIntervention = event?.target?.closest?.("[data-idp-archive-intervention]");

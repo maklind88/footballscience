@@ -12,6 +12,7 @@ import {
   renderIdpClipPreviewOverlay,
 } from "./idp-clip-bank-renderer.mjs";
 import {
+  renderIdpPlayerBoardHandout,
   renderIdpPlayerBoardOverlay,
   renderIdpPlayerBoardPanel,
 } from "./idp-player-board-renderer.mjs";
@@ -28,6 +29,7 @@ const defaultUiState = Object.freeze({
   actionMode: "",
   editGoalId: "",
   playerBoardSearchQuery: "",
+  playerBoardHandoutOpen: false,
   message: "",
   error: "",
   loading: false,
@@ -1615,6 +1617,7 @@ function renderPlayerBoardLibraryCommand(detail = {}, focus = {}, profile = {}, 
           <button type="button" class="is-primary" data-idp-player-board-open>Redigera</button>
           <button type="button" data-idp-player-board-new>Ny övning</button>
           <button type="button" data-idp-player-board-link-clip>Koppla klipp</button>
+          <button type="button" data-idp-player-board-handout-open>Session View</button>
         </div>
       ` : ""}
       <div class="idp-player-board-library-results" aria-label="Exercise search results">
@@ -1863,6 +1866,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
       `}
       ${renderActionOverlay(state, focus, canEdit && !idpInactive, options)}
       ${renderIdpPlayerBoardOverlay(detail, focus || {}, profile, state.ui || {}, canEdit && !idpInactive)}
+      ${renderIdpPlayerBoardHandout(detail, focus || {}, profile, state.ui || {}, canEdit && !idpInactive)}
       ${renderIdpClipPreviewOverlay(detail, state.ui || {})}
     </section>
   `;

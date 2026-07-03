@@ -709,6 +709,131 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
   `;
 }
 
+function handoutClipTargets(detail = {}, state = {}, frames = []) {
+  const clipsById = new Map();
+  const clips = Array.isArray(detail.clipBank) ? detail.clipBank : [];
+  frames.forEach((frame, index) => {
+    const frameState = boardStateForFrame(state, index);
+    const clip = frameClipTarget(frame, frameState, detail);
+    const id = clipBankItemId(clip);
+    if (id) clipsById.set(id, clip);
+  });
+  const linkedIds = Array.isArray(state.linkedClipIds)
+    ? state.linkedClipIds.map((id) => normalizeText(id, "")).filter(Boolean)
+    : [];
+  linkedIds.forEach((id) => {
+    const clip = clips.find((item) => clipBankItemId(item) === id);
+    if (clip) clipsById.set(id, clip);
+  });
+  return [...clipsById.values()];
+}
+
+function renderHandoutFrame(frame = {}, index = 0, state = {}, detail = {}) {
+  const frameState = boardStateForFrame(state, index);
+  const coachCue = normalizeText(frame.coachCue || frameState.coachCue, "Coach cue not set yet.");
+  const playerCue = normalizeText(frame.playerCue || frameState.playerCue, "Player cue not set yet.");
+  const clip = frameClipTarget(frame, frameState, detail);
+  const clipId = clipBankItemId(clip);
+  return `
+    <article class="idp-player-board-handout-frame">
+      <div class="idp-player-board-handout-frame-index">${escapeHtml(String(index + 1).padStart(2, "0"))}</div>
+      <div class="idp-player-board-handout-frame-body">
+        <strong>${escapeHtml(frame.label || `Frame ${index + 1}`)}</strong>
+        <dl>
+          <div>
+            <dt>Coach</dt>
+            <dd>${escapeHtml(coachCue)}</dd>
+          </div>
+          <div>
+            <dt>Player</dt>
+            <dd>${escapeHtml(playerCue)}</dd>
+          </div>
+          <div>
+            <dt>Clip</dt>
+            <dd>
+              ${clipId ? `
+                <button type="button" data-idp-player-board-preview-clip="${escapeHtml(clipId)}">
+                  ${escapeHtml(clipTacticalTitle(clip))} / ${escapeHtml(formatBoardClipTime(clip.startMs))}
+                </button>
+              ` : escapeHtml(normalizeText(frame.clipAnchor || frameState.clipAnchor, "No clip linked"))}
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </article>
+  `;
+}
+
+export function renderIdpPlayerBoardHandout(detail = {}, focus = {}, profile = {}, ui = {}, canEdit = false) {
+  if (!ui.playerBoardHandoutOpen) return "";
+  const intervention = activeIntervention(detail, ui) || draftIntervention(profile, focus);
+  const state = boardState(intervention, focus, profile);
+  const frames = boardFramesFromState(state);
+  const frameIndex = normalizeFrameIndex(ui.playerBoardPreviewFrameIndex ?? state.activeFrameIndex, frames.length);
+  const playerName = normalizeText(profile.playerName || profile.name, "Player");
+  const objective = interventionObjective(intervention, focus);
+  const clipTargets = handoutClipTargets(detail, state, frames);
+  const frameLabel = frames.length === 1 ? "1 frame" : `${frames.length} frames`;
+  const momentLabel = frames.length === 1 ? "1 coaching moment" : `${frames.length} coaching moments`;
+  return `
+    <section class="idp-player-board-handout-layer" data-idp-player-board-handout-layer>
+      <article class="idp-player-board-handout" role="dialog" aria-modal="true" aria-label="Coach Handout">
+        <header class="idp-player-board-handout-head">
+          <div>
+            <span>Coach Handout</span>
+            <strong>${escapeHtml(intervention.title || `${playerName} individual exercise`)}</strong>
+            <small>${escapeHtml(`${playerName} / ${pitchModeLabel(intervention.pitchMode)} / ${frameLabel}`)}</small>
+          </div>
+          <div class="idp-player-board-handout-actions">
+            ${canEdit ? `<button type="button" data-idp-player-board-open>Edit</button>` : ""}
+            <button type="button" data-idp-player-board-print>Print</button>
+            <button type="button" aria-label="Close Coach Handout" data-idp-player-board-handout-close>Close</button>
+          </div>
+        </header>
+        <div class="idp-player-board-handout-grid">
+          <section class="idp-player-board-handout-stage" aria-label="Session pitch">
+            <div class="idp-player-board-handout-pitch">
+              ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-handout-arrow", frameIndex })}
+            </div>
+            <div class="idp-player-board-handout-brief">
+              <span>Session Purpose</span>
+              <p>${escapeHtml(objective || focus?.title || "Use the frame sequence to guide the individual development action.")}</p>
+            </div>
+          </section>
+          <aside class="idp-player-board-handout-sequence" aria-label="Session sequence">
+            <div class="idp-player-board-handout-sequence-head">
+              <span>Frame Sequence</span>
+              <strong>${escapeHtml(momentLabel)}</strong>
+            </div>
+            <div class="idp-player-board-handout-frames">
+              ${frames.map((frame, index) => renderHandoutFrame(frame, index, state, detail)).join("")}
+            </div>
+          </aside>
+        </div>
+        <section class="idp-player-board-handout-clips" aria-label="Linked clips">
+          <div>
+            <span>Linked Clips</span>
+            <strong>${escapeHtml(clipTargets.length ? `${clipTargets.length} review moments` : "No clips linked")}</strong>
+          </div>
+          <div class="idp-player-board-handout-clip-list">
+            ${clipTargets.length
+              ? clipTargets.map((clip) => {
+                const id = clipBankItemId(clip);
+                return `
+                  <button type="button" data-idp-player-board-preview-clip="${escapeHtml(id)}">
+                    <strong>${escapeHtml(clipTacticalTitle(clip))}</strong>
+                    <small>${escapeHtml(`${clipSourceTitle(clip)} / ${clipDateLabel(clip)} / ${formatBoardClipTime(clip.startMs)}`)}</small>
+                  </button>
+                `;
+              }).join("")
+              : `<p>No Clip Bank moments are attached to this exercise yet.</p>`}
+          </div>
+        </section>
+      </article>
+    </section>
+  `;
+}
+
 function fieldValue(value, fallback = "") {
   return escapeHtml(normalizeText(value, fallback));
 }

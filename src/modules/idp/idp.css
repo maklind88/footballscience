@@ -7010,7 +7010,7 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   align-items: end;
   display: grid;
   gap: 7px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .idp-player-board-library-actions button {
@@ -9241,6 +9241,366 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   border-color: rgba(15, 118, 110, .24);
   box-shadow: 0 10px 22px rgba(16, 24, 40, .08);
   outline: none;
+}
+
+.idp-player-board-handout-layer {
+  align-items: center;
+  background: rgba(242, 244, 247, .72);
+  backdrop-filter: blur(22px);
+  display: grid;
+  inset: 0;
+  overflow: auto;
+  padding: clamp(18px, 3vw, 34px);
+  padding-left: max(104px, clamp(18px, 3vw, 34px));
+  position: fixed;
+  z-index: 80;
+}
+
+.idp-player-board-handout {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(15, 118, 110, .1), transparent 24rem),
+    linear-gradient(180deg, rgba(255, 255, 255, .98), rgba(248, 250, 252, .96));
+  border: 1px solid rgba(29, 29, 31, .1);
+  border-radius: 18px;
+  box-shadow: 0 36px 84px rgba(16, 24, 40, .18);
+  color: #101828;
+  display: grid;
+  gap: 14px;
+  margin: auto;
+  max-width: min(1180px, 100%);
+  min-width: 0;
+  padding: clamp(14px, 2vw, 22px);
+  width: 100%;
+}
+
+.idp-player-board-handout-head {
+  align-items: center;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.idp-player-board-handout-head > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.idp-player-board-handout-head span,
+.idp-player-board-handout-brief span,
+.idp-player-board-handout-sequence-head span,
+.idp-player-board-handout-clips span,
+.idp-player-board-handout-frame dt {
+  color: #667085;
+  font-size: .68rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.idp-player-board-handout-head strong {
+  color: #101828;
+  font-size: clamp(1.4rem, 3vw, 2.25rem);
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.idp-player-board-handout-head small {
+  color: #475467;
+  font-size: .82rem;
+  font-weight: 820;
+}
+
+.idp-player-board-handout-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.idp-player-board-handout-actions button,
+.idp-player-board-handout-frame button,
+.idp-player-board-handout-clip-list button {
+  appearance: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 920;
+  min-height: 36px;
+  padding: 0 13px;
+}
+
+.idp-player-board-handout-actions button {
+  background: rgba(255, 255, 255, .92);
+  border: 1px solid rgba(29, 29, 31, .1);
+  color: #101828;
+}
+
+.idp-player-board-handout-actions button[data-idp-player-board-print] {
+  background: #101828;
+  border-color: #101828;
+  color: #fff;
+  box-shadow: 0 14px 26px rgba(16, 24, 40, .16);
+}
+
+.idp-player-board-handout-actions button:hover,
+.idp-player-board-handout-actions button:focus-visible,
+.idp-player-board-handout-frame button:hover,
+.idp-player-board-handout-frame button:focus-visible,
+.idp-player-board-handout-clip-list button:hover,
+.idp-player-board-handout-clip-list button:focus-visible {
+  border-color: rgba(15, 118, 110, .28);
+  box-shadow: 0 12px 24px rgba(16, 24, 40, .1);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.idp-player-board-handout-grid {
+  align-items: stretch;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1.28fr) minmax(300px, .72fr);
+  min-width: 0;
+}
+
+.idp-player-board-handout-stage,
+.idp-player-board-handout-sequence,
+.idp-player-board-handout-clips {
+  background: rgba(255, 255, 255, .74);
+  border: 1px solid rgba(29, 29, 31, .08);
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .72);
+  min-width: 0;
+}
+
+.idp-player-board-handout-stage {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.idp-player-board-handout-pitch {
+  align-items: center;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(15, 118, 110, .08), transparent 22rem),
+    linear-gradient(180deg, #ffffff, #f7fafc);
+  border: 1px solid rgba(29, 29, 31, .07);
+  border-radius: 12px;
+  display: grid;
+  justify-items: center;
+  min-height: 430px;
+  overflow: hidden;
+  padding: 18px;
+}
+
+.idp-player-board-handout-pitch .idp-player-board-pitch {
+  max-height: 540px;
+  width: min(100%, 560px);
+}
+
+.idp-player-board-handout-pitch .idp-player-board-pitch.is-full-wide {
+  width: min(100%, 720px);
+}
+
+.idp-player-board-handout-brief {
+  background: rgba(248, 250, 252, .92);
+  border: 1px solid rgba(29, 29, 31, .07);
+  border-radius: 12px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.idp-player-board-handout-brief p {
+  color: #182230;
+  font-size: .9rem;
+  font-weight: 820;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.idp-player-board-handout-sequence {
+  align-content: start;
+  display: grid;
+  gap: 10px;
+  max-height: 640px;
+  overflow: auto;
+  padding: 14px;
+}
+
+.idp-player-board-handout-sequence-head,
+.idp-player-board-handout-clips > div:first-child {
+  align-items: end;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.idp-player-board-handout-sequence-head strong,
+.idp-player-board-handout-clips strong {
+  color: #101828;
+  font-size: .92rem;
+  font-weight: 950;
+}
+
+.idp-player-board-handout-frames {
+  display: grid;
+  gap: 9px;
+}
+
+.idp-player-board-handout-frame {
+  background: rgba(248, 250, 252, .88);
+  border: 1px solid rgba(29, 29, 31, .07);
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 10px;
+}
+
+.idp-player-board-handout-frame-index {
+  align-items: center;
+  background: #101828;
+  border-radius: 999px;
+  color: #fff;
+  display: grid;
+  font-size: .74rem;
+  font-weight: 950;
+  height: 34px;
+  justify-items: center;
+  width: 34px;
+}
+
+.idp-player-board-handout-frame-body {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.idp-player-board-handout-frame-body > strong {
+  color: #101828;
+  font-size: .95rem;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.idp-player-board-handout-frame dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+
+.idp-player-board-handout-frame dl > div {
+  display: grid;
+  gap: 2px;
+}
+
+.idp-player-board-handout-frame dd {
+  color: #344054;
+  font-size: .78rem;
+  font-weight: 780;
+  line-height: 1.26;
+  margin: 0;
+}
+
+.idp-player-board-handout-frame button,
+.idp-player-board-handout-clip-list button {
+  background: #0f766e;
+  border: 1px solid rgba(15, 118, 110, .18);
+  color: #fff;
+}
+
+.idp-player-board-handout-clips {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.idp-player-board-handout-clip-list {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.idp-player-board-handout-clip-list button {
+  border-radius: 12px;
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  min-height: 58px;
+  padding: 9px 12px;
+  text-align: left;
+}
+
+.idp-player-board-handout-clip-list button strong,
+.idp-player-board-handout-clip-list button small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.idp-player-board-handout-clip-list button small {
+  color: rgba(255, 255, 255, .78);
+  font-size: .7rem;
+  font-weight: 780;
+}
+
+.idp-player-board-handout-clip-list p {
+  color: #667085;
+  font-size: .82rem;
+  font-weight: 780;
+  margin: 0;
+}
+
+@media (max-width: 980px) {
+  .idp-player-board-handout-grid,
+  .idp-player-board-handout-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .idp-player-board-handout-actions {
+    justify-content: flex-start;
+  }
+
+  .idp-player-board-handout-sequence {
+    max-height: none;
+  }
+}
+
+@media print {
+  body:has(.idp-player-board-handout-layer) * {
+    visibility: hidden;
+  }
+
+  body:has(.idp-player-board-handout-layer) .idp-player-board-handout,
+  body:has(.idp-player-board-handout-layer) .idp-player-board-handout * {
+    visibility: visible;
+  }
+
+  .idp-player-board-handout-layer {
+    background: #fff;
+    display: block;
+    inset: auto;
+    overflow: visible;
+    padding: 0;
+    position: static;
+  }
+
+  .idp-player-board-handout {
+    border: 0;
+    box-shadow: none;
+    max-width: none;
+    padding: 0;
+  }
+
+  .idp-player-board-handout-actions {
+    display: none;
+  }
 }
 
 .idp-profile-player-board-page .idp-player-board-tactical-preview {

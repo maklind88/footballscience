@@ -117,6 +117,8 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(migration).toContain("grant select, insert, update, delete on public.idp_development_interventions to service_role");
   expect(migration).toContain("idp_development_interventions_prevent_hard_delete");
   expect(idpRenderer).toContain("data-idp-player-board-open");
+  expect(idpRenderer).toContain("data-idp-player-board-handout-open");
+  expect(idpRenderer).toContain("renderIdpPlayerBoardHandout");
   expect(idpRenderer).toContain("idp-player-board-library-actions");
   expect(playerBoardRenderer).toContain("data-idp-save-intervention");
   expect(playerBoardRenderer).toContain("data-idp-board-tool");
@@ -139,6 +141,10 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("data-idp-player-board-preview-play");
   expect(playerBoardRenderer).toContain("data-idp-player-board-preview-stop");
   expect(playerBoardRenderer).toContain("data-idp-player-board-preview-clip");
+  expect(playerBoardRenderer).toContain("renderIdpPlayerBoardHandout");
+  expect(playerBoardRenderer).toContain("data-idp-player-board-handout-layer");
+  expect(playerBoardRenderer).toContain("data-idp-player-board-print");
+  expect(playerBoardRenderer).toContain("Coach Handout");
   expect(playerBoardRenderer).toContain("frameClipTarget");
   expect(playerBoardRenderer).toContain("clipBankItemId");
   expect(playerBoardRenderer).toContain("Coach Playback");
@@ -167,6 +173,9 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(idpRuntime).toContain("addBoardFrame");
   expect(idpRuntime).toContain("playBoardFrames");
   expect(idpRuntime).toContain("data-idp-player-board-preview-clip");
+  expect(idpRuntime).toContain("data-idp-player-board-handout-open");
+  expect(idpRuntime).toContain("data-idp-player-board-handout-close");
+  expect(idpRuntime).toContain("data-idp-player-board-print");
   expect(idpRuntime).toContain("filterBoardClipPicker");
   expect(idpRuntime).toContain("pickBoardClip");
   expect(idpRuntime).toContain("clearBoardClipAnchor");
@@ -187,6 +196,7 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(idpRuntime).toContain("setPlayerBoardPreviewFrame");
   expect(idpState).toContain("playerBoardPreviewFrameIndex");
   expect(idpState).toContain("playerBoardPreviewPlaying");
+  expect(idpState).toContain("playerBoardHandoutOpen");
   expect(playerBoardRenderer).not.toContain("data-session-");
 });
 
@@ -457,7 +467,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(richWorkflowHtml).not.toContain("idp-review-card");
   expect((richWorkflowHtml.match(/<span>Show more<\/span>/g) || []).length).toBeGreaterThanOrEqual(2);
 
-  const playerBoardHtml = renderIdpWorkspace({
+  const playerBoardState = {
     ...profileState,
     playerDetail: {
       ...profileState.playerDetail,
@@ -505,7 +515,8 @@ test("idp renderer separates the overview from the player development profile", 
       ],
     },
     ui: { ...profileState.ui, profileView: "player-board", playerBoardInterventionId: "intervention-b", playerBoardSearchQuery: "short", playerBoardPreviewFrameIndex: 1 },
-  }, staffOptions);
+  };
+  const playerBoardHtml = renderIdpWorkspace(playerBoardState, staffOptions);
   expect(playerBoardHtml).toContain("idp-profile-player-board-page");
   expect(playerBoardHtml).toContain("Player Board");
   expect(playerBoardHtml).toContain("Individuell övningsbank");
@@ -525,6 +536,8 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain("Redigera");
   expect(playerBoardHtml).toContain("Ny övning");
   expect(playerBoardHtml).toContain("Koppla klipp");
+  expect(playerBoardHtml).toContain("Session View");
+  expect(playerBoardHtml).toContain("data-idp-player-board-handout-open");
   expect(playerBoardHtml).toContain("Coach Playback");
   expect(playerBoardHtml).toContain("data-idp-player-board-preview");
   expect(playerBoardHtml).toContain('data-idp-player-board-frame-count="2"');
@@ -555,6 +568,23 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).not.toContain("idp-workflow-board");
   expect(playerBoardHtml).not.toContain("idp-clip-bank-organizer");
   expect(playerBoardHtml).not.toContain("idp-profile-scouting-radar");
+
+  const playerBoardHandoutHtml = renderIdpWorkspace({
+    ...playerBoardState,
+    ui: { ...playerBoardState.ui, playerBoardHandoutOpen: true },
+  }, staffOptions);
+  expect(playerBoardHandoutHtml).toContain("data-idp-player-board-handout-layer");
+  expect(playerBoardHandoutHtml).toContain("Coach Handout");
+  expect(playerBoardHandoutHtml).toContain("Session Purpose");
+  expect(playerBoardHandoutHtml).toContain("Frame Sequence");
+  expect(playerBoardHandoutHtml).toContain("data-idp-player-board-print");
+  expect(playerBoardHandoutHtml).toContain("data-idp-player-board-handout-close");
+  expect(playerBoardHandoutHtml).toContain("2 coaching moments");
+  expect(playerBoardHandoutHtml).toContain("Short game scanning");
+  expect(playerBoardHandoutHtml).toContain("Third player");
+  expect(playerBoardHandoutHtml).toContain("Play forward after scan");
+  expect(playerBoardHandoutHtml).toContain('data-idp-player-board-preview-clip="clip-12"');
+  expect(playerBoardHandoutHtml).toContain("Linked Clips");
 
   const clipBankHtml = renderIdpWorkspace({
     ...profileState,
@@ -1697,7 +1727,7 @@ test("idp profile overview navigation is not blocked by stale filter state", asy
   expect(indexSource.indexOf("const backTrigger = event?.target?.closest?.(\"[data-idp-back-overview]\")"))
     .toBeLessThan(indexSource.indexOf("const openFilterMenu = runtime?.store.getState?.()?.ui?.openFilterMenu"));
   expect(indexSource).toContain(".idp-stage-actions[open]");
-  expect(indexSource).toContain('openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", playerBoardSearchQuery: "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, error: "", message: ""');
+  expect(indexSource).toContain('openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", playerBoardSearchQuery: "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, error: "", message: ""');
 
   const store = createIdpStore({ ui: { openFilterMenu: "owner" } });
   const actions = createIdpActions({

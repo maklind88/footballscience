@@ -459,6 +459,7 @@ export function createIdpActions({ store, api, context = {} }) {
         playerBoardInterventionId: "",
         playerBoardPreviewFrameIndex: 0,
         playerBoardPreviewPlaying: false,
+        playerBoardHandoutOpen: false,
       },
     });
     const fallbackPlayer = findSquadPlayer(getSquadState(), safePlayerId);

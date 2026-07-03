@@ -11274,6 +11274,7 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
 .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-frame-list {
   display: flex;
   gap: 6px;
+  max-width: min(34vw, 360px);
   min-width: 0;
   overflow-x: auto;
   padding-bottom: 1px;
@@ -11284,9 +11285,10 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   border-color: rgba(16, 24, 40, .08);
   color: #344054;
   flex: 0 0 auto;
+  justify-content: center;
   min-height: 34px;
-  min-width: 82px;
-  padding: 5px 8px;
+  min-width: 40px;
+  padding: 5px;
 }
 
 .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-frame strong {
@@ -11309,12 +11311,38 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   color: #fff;
 }
 
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-frame [data-idp-board-frame-button-label] {
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-history-controls,
+.idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-frame-actions {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  min-width: max-content;
+}
+
 .idp-player-board-history-controls button,
 .idp-player-board-frame-actions button {
   background: #f2f4f7;
   border-color: rgba(16, 24, 40, .08);
   color: #344054;
-  min-height: 30px;
+  font-size: .68rem;
+  letter-spacing: 0;
+  min-height: 32px;
+  min-width: 42px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.idp-player-board-modal-layout.is-idp-tacticalboard [data-idp-board-frame-duplicate] {
+  min-width: 74px;
 }
 
 .idp-player-board-modal-layout.is-idp-tacticalboard .idp-player-board-editor-stage {

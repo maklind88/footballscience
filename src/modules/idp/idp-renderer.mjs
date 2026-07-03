@@ -1610,6 +1610,13 @@ function renderPlayerBoardLibraryCommand(detail = {}, focus = {}, profile = {}, 
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
         </button>
       </div>
+      ${canEdit ? `
+        <div class="idp-player-board-library-actions" aria-label="Exercise bank actions">
+          <button type="button" class="is-primary" data-idp-player-board-open>Redigera</button>
+          <button type="button" data-idp-player-board-new>Ny övning</button>
+          <button type="button" data-idp-player-board-link-clip>Koppla klipp</button>
+        </div>
+      ` : ""}
       <div class="idp-player-board-library-results" aria-label="Exercise search results">
         ${visibleMatches.length
           ? visibleMatches.map((item, index) => renderPlayerBoardLibraryResult(item, index, focus, selectedId)).join("")
@@ -1619,7 +1626,6 @@ function renderPlayerBoardLibraryCommand(detail = {}, focus = {}, profile = {}, 
               <small>${escapeHtml(interventions.length ? "Testa ett annat sökord." : "Skapa första individuella övningen för spelaren.")}</small>
             </div>
           `}
-        ${canEdit ? `<button type="button" class="idp-player-board-library-new" data-idp-player-board-new>Ny övning</button>` : ""}
       </div>
     </section>
   `;

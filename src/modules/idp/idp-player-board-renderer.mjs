@@ -178,6 +178,10 @@ function renderSessionPitchDiagram(mode = "attacking-half") {
   const landscapeClass = pitchMode === "full-wide" ? " session-pitch-diagram-landscape" : "";
   return `
     <div class="session-pitch-diagram session-pitch-diagram-empty session-pitch-diagram-mode-${escapeHtml(pitchMode)}${landscapeClass}" aria-label="IDP tactical pitch">
+      <div class="session-pitch-touchline"></div>
+      <div class="session-pitch-halfway-line"></div>
+      <div class="session-pitch-centre-circle"></div>
+      <span class="session-pitch-centre-spot"></span>
       <div class="session-pitch-goal session-pitch-goal-top"></div>
       <div class="session-pitch-goal session-pitch-goal-bottom"></div>
       <div class="session-pitch-box session-pitch-box-top"></div>
@@ -186,9 +190,6 @@ function renderSessionPitchDiagram(mode = "attacking-half") {
       <div class="session-pitch-goal-area session-pitch-goal-area-bottom"></div>
       <span class="session-pitch-penalty-spot session-pitch-penalty-spot-top"></span>
       <span class="session-pitch-penalty-spot session-pitch-penalty-spot-bottom"></span>
-      <div class="session-pitch-halfway-edge session-pitch-halfway-edge-top"></div>
-      <div class="session-pitch-halfway-edge session-pitch-halfway-edge-bottom"></div>
-      <div class="session-pitch-circle"></div>
     </div>
   `;
 }
@@ -302,95 +303,17 @@ function exerciseBankSearchText(item = {}, focus = {}) {
   ].map((value) => normalizeText(value, "").toLowerCase()).join(" ");
 }
 
-function renderExerciseBank(detail = {}, current = {}, focus = {}, ui = {}) {
-  const interventions = Array.isArray(detail.interventions)
-    ? detail.interventions.filter((item) => item.status !== "archived")
-    : [];
-  const items = interventions.length ? interventions : [current];
-  const searchQuery = normalizeText(ui.playerBoardSearchQuery, "").toLowerCase();
-  const matchingItems = searchQuery
-    ? items.filter((item) => exerciseBankSearchText(item, focus).includes(searchQuery))
-    : items;
-  const visibleItems = matchingItems.slice(0, searchQuery ? 5 : 3);
-  const remainingCount = Math.max(0, matchingItems.length - visibleItems.length);
-  return `
-    <div class="idp-player-board-exercise-bank${searchQuery ? " is-searching" : ""}" aria-label="IDP individual exercise bank">
-      <div class="idp-player-board-bank-head">
-        <span>Exercise Bank</span>
-        <strong>${escapeHtml(searchQuery ? `${matchingItems.length} match${matchingItems.length === 1 ? "" : "es"}` : items.length === 1 ? "1 individual exercise" : `${items.length} individual exercises`)}</strong>
-      </div>
-      <div class="idp-player-board-bank-list">
-        ${visibleItems.length ? visibleItems.map((item, index) => {
-          const itemCounts = interventionCounts(item);
-          const isCurrent = item === current || (item.id && item.id === current.id);
-          const actionAttr = item.id
-            ? `data-idp-player-board-preview-select="${escapeHtml(item.id)}"`
-            : "data-idp-player-board-new";
-          return `
-            <button type="button" class="idp-player-board-bank-item${isCurrent ? " is-current" : ""}" ${actionAttr}>
-              <span class="idp-player-board-bank-number">${String(index + 1).padStart(2, "0")}</span>
-              <span class="idp-player-board-bank-copy">
-                <strong>${escapeHtml(item.title || "Individual exercise")}</strong>
-                <small>${escapeHtml(interventionObjective(item, focus))}</small>
-              </span>
-              <span class="idp-player-board-bank-meta">
-                <strong>${escapeHtml(interventionStatusLabel(item.status))}</strong>
-                <small>${escapeHtml(`${itemCounts.frames || 1} frame${itemCounts.frames === 1 ? "" : "s"} / ${itemCounts.clips} clips`)}</small>
-              </span>
-            </button>
-          `;
-        }).join("") : `
-          <div class="idp-player-board-bank-empty">
-            <strong>No matching exercise</strong>
-            <small>Try another search term or create a new exercise.</small>
-          </div>
-        `}
-        ${remainingCount ? `<span class="idp-player-board-bank-more">+${escapeHtml(String(remainingCount))} more in editor</span>` : ""}
-      </div>
-    </div>
-  `;
-}
-
-function renderPreviewToolRail() {
-  return `
-    <span class="idp-player-board-tool-rail" aria-hidden="true">
-      ${["player", "reference", "cone", "zone", "run"].map((tool) => `
-        <span title="${escapeHtml(boardToolLabel(tool))}">${renderBoardToolSvgIcon(tool)}</span>
-      `).join("")}
-    </span>
-  `;
-}
-
 export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}) {
   const intervention = activeIntervention(detail, ui) || draftIntervention(profile, focus);
-  const counts = interventionCounts(intervention);
-  const modeLabel = pitchModeLabel(intervention.pitchMode);
   return `
     <aside class="idp-player-board-panel idp-player-board-tactical-shell">
-      <header class="idp-player-board-head idp-player-board-tactical-head is-action-only">
-        <button type="button" data-idp-player-board-open aria-label="Open IDP Player Board">Edit Board</button>
-      </header>
-      <button type="button" class="idp-player-board-preview idp-player-board-tactical-preview" data-idp-player-board-open aria-label="Open IDP Player Board">
+      <div class="idp-player-board-preview idp-player-board-tactical-preview" aria-label="IDP Player Board preview">
         <span class="idp-player-board-surface">
-          <span class="idp-player-board-boardbar" aria-hidden="true">
-            <span><strong>01</strong><small>Individual</small></span>
-            <span><strong>${escapeHtml(modeLabel)}</strong><small>Pitch view</small></span>
-            <span><strong>${escapeHtml(String(Math.max(1, counts.frames)))}</strong><small>Frames</small></span>
-          </span>
           <span class="idp-player-board-canvas">
-            ${renderPreviewToolRail()}
             ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-preview-arrow" })}
           </span>
         </span>
-      </button>
-      ${renderExerciseBank(detail, intervention, focus, ui)}
-      ${canEdit ? `
-        <div class="idp-player-board-actions">
-          <button type="button" class="is-primary" data-idp-player-board-open>Edit Board</button>
-          <button type="button" data-idp-player-board-new>New Exercise</button>
-          <button type="button" data-idp-player-board-link-clip>Link Clip</button>
-        </div>
-      ` : ""}
+      </div>
     </aside>
   `;
 }

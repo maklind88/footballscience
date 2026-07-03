@@ -612,10 +612,14 @@ test("chat runtime supports browser notification permission and delivery hook", 
   expect(appRuntimeSource).toContain("dashboardChatPushClient.sendTest");
   expect(appRuntimeSource).toContain("runDashboardChatNotificationToggleAction");
   expect(appRuntimeSource).toContain("runDashboardChatPushTestAction");
-  expect(appRuntimeSource).toContain('document.addEventListener("click", (event) => {');
-  expect(appRuntimeSource).toContain('event.target.closest?.("[data-dashboard-chat-widget-test-push]")');
-  expect(appRuntimeSource).toContain('event.target.closest?.("[data-dashboard-chat-widget-toggle-notifications]")');
-  expect(appRuntimeSource).toContain("event.stopPropagation();\nif (pushButton) {");
+  expect(appRuntimeSource).toContain("function findDashboardChatActionTarget(event, selector)");
+  expect(appRuntimeSource).toContain("event.composedPath");
+  expect(appRuntimeSource).toContain('findDashboardChatActionTarget(event, "[data-dashboard-chat-widget-test-push]")');
+  expect(appRuntimeSource).toContain('findDashboardChatActionTarget(event, "[data-dashboard-chat-widget-toggle-notifications]")');
+  expect(appRuntimeSource).toContain("function isDashboardChatActionTarget(actionButton)");
+  expect(appRuntimeSource).toContain('document.addEventListener("pointerdown", handleDashboardChatPushActionEvent, true)');
+  expect(appRuntimeSource).toContain('document.addEventListener("click", handleDashboardChatPushActionEvent, true)');
+  expect(appRuntimeSource).toContain("event.stopImmediatePropagation?.();\nif (pushButton) {");
   expect(appRuntimeSource).toContain("let testPushMessage =");
   expect(appRuntimeSource).toContain("renderDashboardChatWidget();\nshowDashboardChatWidgetToast(testPushMessage);");
   expect(chatPushClientSource).toContain("win.Notification.requestPermission()");

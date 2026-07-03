@@ -132,7 +132,10 @@ export function createChatPushClient(options = {}) {
     }
     const permission = await win.Notification.requestPermission();
     if (permission !== "granted") {
-      return { ok: false, reason: "Notifications were not allowed.", permission, hint: platformHint() };
+      const reason = permission === "denied"
+        ? "Notifications are blocked in this browser. Allow notifications for footballscience.xyz in browser settings, then test again."
+        : "Notifications were not allowed. Allow notifications to receive chat push outside the platform.";
+      return { ok: false, reason, permission, hint: platformHint() };
     }
     const registration = await registerServiceWorker();
     const existing = await registration.pushManager.getSubscription();

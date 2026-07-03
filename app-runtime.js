@@ -3190,6 +3190,22 @@ platformNavigationController.hideTopIconTooltip();
 dashboardRuntimeController.bindInteractions();
 function closeChatMenus(x = null) { ui.dashboardChatWidgetRoot?.querySelectorAll(".dashboard-chat-message-menu[open]").forEach((menu) => { if (menu !== x) menu.removeAttribute("open"); }); }
 let dashboardChatPushActionInFlight = false;
+let dashboardChatPushActionObserver = null;
+function findDashboardChatActionTarget(event, selector) {
+const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+for (const entry of path) {
+if (entry?.matches?.(selector)) return entry;
+const closestEntry = entry?.closest?.(selector);
+if (closestEntry) return closestEntry;
+}
+const target = event.target?.nodeType === 3 ? event.target.parentElement : event.target;
+return target?.closest?.(selector) || null;
+}
+function isDashboardChatActionTarget(actionButton) {
+if (!actionButton) return false;
+const root = ui.dashboardChatWidgetRoot || document.getElementById("dashboardChatWidgetRoot");
+return Boolean(root?.contains(actionButton));
+}
 async function runDashboardChatNotificationToggleAction() {
 if (dashboardChatPushActionInFlight) return;
 dashboardChatPushActionInFlight = true;
@@ -3236,21 +3252,45 @@ showDashboardChatWidgetToast(testPushMessage);
 dashboardChatPushActionInFlight = false;
 }
 }
-document.addEventListener("click", (event) => {
-const pushButton = event.target.closest?.("[data-dashboard-chat-widget-test-push]");
-const notificationButton = event.target.closest?.("[data-dashboard-chat-widget-toggle-notifications]");
+function handleDashboardChatPushActionEvent(event) {
+const pushButton = findDashboardChatActionTarget(event, "[data-dashboard-chat-widget-test-push]");
+const notificationButton = findDashboardChatActionTarget(event, "[data-dashboard-chat-widget-toggle-notifications]");
 const actionButton = pushButton || notificationButton;
-if (!actionButton || !ui.dashboardChatWidgetRoot?.contains(actionButton)) {
+if (!isDashboardChatActionTarget(actionButton)) {
 return;
 }
 event.preventDefault();
 event.stopPropagation();
+event.stopImmediatePropagation?.();
 if (pushButton) {
 void runDashboardChatPushTestAction();
 } else {
 void runDashboardChatNotificationToggleAction();
 }
-}, true);
+}
+document.addEventListener("pointerdown", handleDashboardChatPushActionEvent, true);
+document.addEventListener("click", handleDashboardChatPushActionEvent, true);
+function bindDashboardChatPushActionButtons() {
+const root = ui.dashboardChatWidgetRoot || document.getElementById("dashboardChatWidgetRoot");
+if (!root) return;
+root
+.querySelectorAll("[data-dashboard-chat-widget-test-push], [data-dashboard-chat-widget-toggle-notifications]")
+.forEach((button) => {
+if (button.dataset.dashboardChatPushActionBound === "true") return;
+button.dataset.dashboardChatPushActionBound = "true";
+["pointerdown", "mousedown", "click", "touchstart"].forEach((type) => {
+button.addEventListener(type, handleDashboardChatPushActionEvent, { capture: true, passive: false });
+});
+});
+}
+function startDashboardChatPushActionObserver() {
+const root = ui.dashboardChatWidgetRoot || document.getElementById("dashboardChatWidgetRoot");
+if (!root || dashboardChatPushActionObserver) return;
+bindDashboardChatPushActionButtons();
+dashboardChatPushActionObserver = new MutationObserver(() => bindDashboardChatPushActionButtons());
+dashboardChatPushActionObserver.observe(root, { childList: true, subtree: true });
+}
+startDashboardChatPushActionObserver();
 function focusDashboardChatWidgetLauncher() {
 requestAnimationFrame(() => {
 ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-widget-toggle]")?.focus?.();

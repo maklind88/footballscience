@@ -13,6 +13,7 @@ import {
   toggleClipBankSelection,
 } from "./idp-clip-preview-controller.mjs";
 import { createIdpApiService } from "./services/idp-api-service.mjs";
+import { idpBoardTemplateInterventionId } from "./idp-player-board-template-library.mjs";
 
 let runtime = null;
 const IDP_SYNC_INTERVAL_MS = 30000;
@@ -162,8 +163,9 @@ function captureSearchFocus(activeRuntime = runtime) {
   const isOverviewSearch = Boolean(activeElement?.matches?.("[data-idp-search]"));
   const isClipSearch = Boolean(activeElement?.matches?.("[data-idp-clip-search]"));
   const isPlayerBoardSearch = Boolean(activeElement?.matches?.("[data-idp-player-board-search]"));
+  const isPlayerBoardTemplateSearch = Boolean(activeElement?.matches?.("[data-idp-player-board-template-search]"));
   const isBoardClipPickerSearch = Boolean(activeElement?.matches?.("[data-idp-board-clip-picker-search]"));
-  if (!isOverviewSearch && !isClipSearch && !isPlayerBoardSearch && !isBoardClipPickerSearch) return null;
+  if (!isOverviewSearch && !isClipSearch && !isPlayerBoardSearch && !isPlayerBoardTemplateSearch && !isBoardClipPickerSearch) return null;
   const value = activeElement.value || "";
   return {
     preserveValue: isBoardClipPickerSearch,
@@ -171,9 +173,11 @@ function captureSearchFocus(activeRuntime = runtime) {
       ? "[data-idp-board-clip-picker-search]"
       : isPlayerBoardSearch
         ? "[data-idp-player-board-search]"
-        : isClipSearch
-          ? "[data-idp-clip-search]"
-          : "[data-idp-search]",
+        : isPlayerBoardTemplateSearch
+          ? "[data-idp-player-board-template-search]"
+          : isClipSearch
+            ? "[data-idp-clip-search]"
+            : "[data-idp-search]",
     end: Number.isInteger(activeElement.selectionEnd) ? activeElement.selectionEnd : value.length,
     start: Number.isInteger(activeElement.selectionStart) ? activeElement.selectionStart : value.length,
     value,
@@ -1502,6 +1506,10 @@ export function handleInput(event) {
     runtime?.store.setState({ ui: { playerBoardSearchQuery: target.value || "" } });
     return;
   }
+  if (target?.matches?.("[data-idp-player-board-template-search]")) {
+    runtime?.store.setState({ ui: { playerBoardTemplateSearchQuery: target.value || "" } });
+    return;
+  }
   if (target?.matches?.("[data-idp-search]")) {
     runtime?.store.setState({ ui: { searchQuery: target.value || "" } });
   }
@@ -1556,7 +1564,7 @@ export function handleClick(event) {
     event?.preventDefault?.();
     revokePreviewUrl(runtime);
     stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
-    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", playerBoardSearchQuery: "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, error: "", message: "" } });
+    runtime?.store.setState({ ui: { openFilterMenu: "", selectedPlayerId: "", profileView: "development", actionMode: "", editEvidenceId: "", editGoalId: "", playerBoardOpen: false, playerBoardInterventionId: "", playerBoardSearchQuery: "", playerBoardTemplateSearchQuery: "", playerBoardTemplateId: "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, error: "", message: "" } });
     scrollWorkspaceTop(runtime);
     return;
   }
@@ -1575,6 +1583,7 @@ export function handleClick(event) {
         editGoalId: "",
         playerBoardOpen: false,
         playerBoardInterventionId: "",
+        playerBoardTemplateId: "",
         playerBoardPreviewFrameIndex: 0,
         playerBoardPreviewPlaying: false,
         playerBoardHandoutOpen: false,
@@ -1661,6 +1670,40 @@ export function handleClick(event) {
     } else {
       focusSearch();
     }
+    return;
+  }
+  const playerBoardTemplatePreview = event?.target?.closest?.("[data-idp-player-board-template-preview]");
+  if (playerBoardTemplatePreview) {
+    event?.preventDefault?.();
+    runtime?.store.setState({
+      ui: {
+        playerBoardTemplateId: playerBoardTemplatePreview.dataset.idpPlayerBoardTemplatePreview || "",
+        playerBoardHandoutOpen: false,
+        error: "",
+        message: "",
+      },
+    });
+    return;
+  }
+  const playerBoardTemplateUse = event?.target?.closest?.("[data-idp-player-board-template-use]");
+  if (playerBoardTemplateUse) {
+    event?.preventDefault?.();
+    const templateId = playerBoardTemplateUse.dataset.idpPlayerBoardTemplateUse || "";
+    stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
+    resetBoardHistory(runtime);
+    runtime?.store.setState({
+      ui: {
+        playerBoardOpen: true,
+        playerBoardInterventionId: idpBoardTemplateInterventionId(templateId),
+        playerBoardTemplateId: templateId,
+        playerBoardPreviewFrameIndex: 0,
+        playerBoardPreviewPlaying: false,
+        playerBoardHandoutOpen: false,
+        actionMode: "",
+        error: "",
+        message: "Template loaded. Review and save it to the player's IDP.",
+      },
+    });
     return;
   }
   const playerBoardPreviewFrame = event?.target?.closest?.("[data-idp-player-board-preview-frame]");
@@ -1829,14 +1872,14 @@ export function handleClick(event) {
     stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
     stopBoardPlayback(runtime, playerBoardNew.closest?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
-    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: "__new", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, actionMode: "", error: "", message: "" } });
+    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: "__new", playerBoardTemplateId: "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, actionMode: "", error: "", message: "" } });
     return;
   }
   const playerBoardPreviewSelect = event?.target?.closest?.("[data-idp-player-board-preview-select]");
   if (playerBoardPreviewSelect) {
     event?.preventDefault?.();
     stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
-    runtime?.store.setState({ ui: { playerBoardOpen: false, playerBoardInterventionId: playerBoardPreviewSelect.dataset.idpPlayerBoardPreviewSelect || "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, error: "", message: "" } });
+    runtime?.store.setState({ ui: { playerBoardOpen: false, playerBoardInterventionId: playerBoardPreviewSelect.dataset.idpPlayerBoardPreviewSelect || "", playerBoardTemplateId: "", playerBoardPreviewFrameIndex: 0, playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, error: "", message: "" } });
     return;
   }
   const playerBoardHandoutOpen = event?.target?.closest?.("[data-idp-player-board-handout-open]");
@@ -1852,7 +1895,7 @@ export function handleClick(event) {
     stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
     stopBoardPlayback(runtime, playerBoardOpen.closest?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
-    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, actionMode: "", error: "", message: "" } });
+    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardTemplateId: "", playerBoardPreviewPlaying: false, playerBoardHandoutOpen: false, actionMode: "", error: "", message: "" } });
     return;
   }
   const playerBoardSelect = event?.target?.closest?.("[data-idp-player-board-select]");
@@ -1860,7 +1903,7 @@ export function handleClick(event) {
     event?.preventDefault?.();
     stopBoardPlayback(runtime, playerBoardSelect.closest?.(".idp-player-board-modal"));
     resetBoardHistory(runtime);
-    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: playerBoardSelect.dataset.idpPlayerBoardSelect || "", playerBoardHandoutOpen: false } });
+    runtime?.store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: playerBoardSelect.dataset.idpPlayerBoardSelect || "", playerBoardTemplateId: "", playerBoardHandoutOpen: false } });
     return;
   }
   const playerBoardLinkClip = event?.target?.closest?.("[data-idp-player-board-link-clip]");

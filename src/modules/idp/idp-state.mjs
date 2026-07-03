@@ -23,6 +23,8 @@ export const idpInitialUiState = Object.freeze({
   playerBoardOpen: false,
   playerBoardInterventionId: "",
   playerBoardSearchQuery: "",
+  playerBoardTemplateSearchQuery: "",
+  playerBoardTemplateId: "",
   playerBoardMode: "edit",
   playerBoardPreviewFrameIndex: 0,
   playerBoardPreviewPlaying: false,

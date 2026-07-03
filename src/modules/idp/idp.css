@@ -7156,6 +7156,248 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   font-weight: 760;
 }
 
+.idp-player-board-template-bank {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .98), rgba(248, 250, 252, .94));
+  border: 1px solid var(--idp-profile-line);
+  border-radius: 12px;
+  box-shadow: 0 16px 42px rgba(16, 24, 40, .055);
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.idp-player-board-template-head {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, .46fr);
+  min-width: 0;
+}
+
+.idp-player-board-template-head > div,
+.idp-player-board-template-head label,
+.idp-player-board-template-preview-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.idp-player-board-template-head span,
+.idp-player-board-template-head label span,
+.idp-player-board-template-preview-copy span {
+  color: var(--idp-profile-muted);
+  font-size: .64rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.idp-player-board-template-head strong,
+.idp-player-board-template-preview-copy strong {
+  color: #101828;
+  font-size: clamp(1rem, 1.4vw, 1.34rem);
+  font-weight: 950;
+  line-height: 1.04;
+}
+
+.idp-player-board-template-head small,
+.idp-player-board-template-preview-copy small {
+  color: #667085;
+  font-size: .72rem;
+  font-weight: 780;
+}
+
+.idp-player-board-template-head input {
+  appearance: none;
+  background: rgba(248, 250, 252, .96);
+  border: 1px solid rgba(16, 24, 40, .1);
+  border-radius: 8px;
+  color: #101828;
+  font: inherit;
+  font-size: .84rem;
+  font-weight: 760;
+  height: 42px;
+  outline: none;
+  padding: 0 12px;
+}
+
+.idp-player-board-template-head input:focus {
+  background: #fff;
+  border-color: rgba(15, 118, 110, .28);
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, .1);
+}
+
+.idp-player-board-template-layout {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(260px, .75fr) minmax(0, 1.25fr);
+  min-width: 0;
+}
+
+.idp-player-board-template-results {
+  align-content: start;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.idp-player-board-template-card {
+  background: rgba(255, 255, 255, .78);
+  border: 1px solid rgba(29, 29, 31, .08);
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  padding: 8px;
+  transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease;
+}
+
+.idp-player-board-template-card.is-active {
+  border-color: rgba(15, 118, 110, .24);
+  box-shadow: inset 3px 0 0 #0f766e, 0 12px 24px rgba(16, 24, 40, .07);
+}
+
+.idp-player-board-template-card button,
+.idp-player-board-template-preview > button {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.idp-player-board-template-card button:first-child {
+  background: transparent;
+  border: 0;
+  color: #101828;
+  display: grid;
+  gap: 2px 8px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.idp-player-board-template-card button:first-child span {
+  align-items: center;
+  background: #eef2f6;
+  border-radius: 999px;
+  color: #344054;
+  display: grid;
+  font-size: .66rem;
+  font-weight: 950;
+  grid-row: span 2;
+  height: 28px;
+  justify-items: center;
+  width: 28px;
+}
+
+.idp-player-board-template-card button:first-child strong,
+.idp-player-board-template-card button:first-child small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-player-board-template-card button:first-child strong {
+  font-size: .82rem;
+  font-weight: 940;
+}
+
+.idp-player-board-template-card button:first-child small {
+  color: #667085;
+  font-size: .68rem;
+  font-weight: 780;
+}
+
+.idp-player-board-template-card .is-use,
+.idp-player-board-template-preview > button {
+  align-self: center;
+  background: #101828;
+  border: 1px solid rgba(16, 24, 40, .12);
+  border-radius: 999px;
+  color: #fff;
+  font-size: .74rem;
+  font-weight: 920;
+  min-height: 34px;
+  padding: 0 12px;
+  white-space: nowrap;
+}
+
+.idp-player-board-template-card:hover,
+.idp-player-board-template-card:focus-within {
+  border-color: rgba(15, 118, 110, .24);
+  box-shadow: 0 12px 24px rgba(16, 24, 40, .08);
+  transform: translateY(-1px);
+}
+
+.idp-player-board-template-card .is-use:hover,
+.idp-player-board-template-card .is-use:focus-visible,
+.idp-player-board-template-preview > button:hover,
+.idp-player-board-template-preview > button:focus-visible {
+  background: #0f766e;
+  outline: none;
+}
+
+.idp-player-board-template-preview {
+  background: rgba(255, 255, 255, .76);
+  border: 1px solid rgba(29, 29, 31, .08);
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, .45fr) minmax(0, .55fr) auto;
+  min-width: 0;
+  padding: 10px;
+}
+
+.idp-player-board-template-preview-copy p {
+  color: #344054;
+  font-size: .82rem;
+  font-weight: 780;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.idp-player-board-template-preview-pitch {
+  align-items: center;
+  background: linear-gradient(180deg, #fff, #f8fafc);
+  border: 1px solid rgba(29, 29, 31, .07);
+  border-radius: 10px;
+  display: grid;
+  justify-items: center;
+  min-height: 190px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.idp-player-board-template-preview-pitch .idp-player-board-pitch {
+  max-height: 220px;
+  width: min(100%, 260px);
+}
+
+.idp-player-board-template-empty {
+  background: rgba(248, 250, 252, .86);
+  border: 1px dashed rgba(16, 24, 40, .14);
+  border-radius: 10px;
+  color: #667085;
+  display: grid;
+  gap: 2px;
+  padding: 14px;
+}
+
+.idp-player-board-template-empty strong {
+  color: #344054;
+  font-size: .84rem;
+  font-weight: 920;
+}
+
+.idp-player-board-template-empty small {
+  font-size: .72rem;
+  font-weight: 780;
+}
+
 .idp-player-board-page-shell {
   display: grid;
   min-width: 0;
@@ -9569,6 +9811,16 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
 
   .idp-player-board-handout-sequence {
     max-height: none;
+  }
+
+  .idp-player-board-template-head,
+  .idp-player-board-template-layout,
+  .idp-player-board-template-preview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .idp-player-board-template-preview > button {
+    justify-self: start;
   }
 }
 

@@ -1,3 +1,10 @@
+import {
+  filterIdpBoardTemplates,
+  idpBoardTemplateById,
+  idpBoardTemplateDraft,
+  idpBoardTemplateIdFromInterventionId,
+} from "./idp-player-board-template-library.mjs";
+
 function escapeHtml(value = "") {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -617,6 +624,92 @@ function renderBoardClipPicker(detail = {}, state = {}, frame = {}) {
   `;
 }
 
+function templateMetaLabel(template = {}) {
+  return [template.phase, template.subPhase].map((item) => normalizeText(item)).filter(Boolean).join(" / ")
+    || "Exercise template";
+}
+
+function renderTemplateBankCard(template = {}, index = 0, selectedId = "") {
+  const templateId = normalizeText(template.id, "");
+  const isSelected = templateId && templateId === selectedId;
+  return `
+    <article class="idp-player-board-template-card${isSelected ? " is-active" : ""}">
+      <button
+        type="button"
+        data-idp-player-board-template-preview="${escapeHtml(templateId)}"
+        aria-pressed="${isSelected ? "true" : "false"}"
+      >
+        <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+        <strong>${escapeHtml(template.title || "Exercise template")}</strong>
+        <small>${escapeHtml(templateMetaLabel(template))}</small>
+      </button>
+      <button type="button" class="is-use" data-idp-player-board-template-use="${escapeHtml(templateId)}">
+        Use for player
+      </button>
+    </article>
+  `;
+}
+
+export function renderIdpPlayerBoardTemplateBank(detail = {}, focus = {}, profile = {}, ui = {}, canEdit = false) {
+  if (!canEdit) return "";
+  const query = normalizeText(ui.playerBoardTemplateSearchQuery, "");
+  const templates = filterIdpBoardTemplates(query).slice(0, 5);
+  const requestedTemplate = idpBoardTemplateById(ui.playerBoardTemplateId || "");
+  const selectedTemplate = requestedTemplate && (!query || templates.some((template) => template.id === requestedTemplate.id))
+    ? requestedTemplate
+    : templates[0] || null;
+  const selectedId = normalizeText(selectedTemplate?.id, "");
+  const selectedDraft = selectedTemplate ? idpBoardTemplateDraft(selectedId, profile, focus) : null;
+  return `
+    <section class="idp-player-board-template-bank" aria-label="Player Board template bank">
+      <div class="idp-player-board-template-head">
+        <div>
+          <span>Template Bank</span>
+          <strong>Team exercise templates</strong>
+          <small>Search, preview and use a template as a player-specific IDP draft.</small>
+        </div>
+        <label>
+          <span>Search templates</span>
+          <input type="search" data-idp-player-board-template-search value="${escapeHtml(query)}" placeholder="Search exercise, phase or coaching point" autocomplete="off">
+        </label>
+      </div>
+      <div class="idp-player-board-template-layout">
+        <div class="idp-player-board-template-results" aria-label="Template search results">
+          ${templates.length
+            ? templates.map((template, index) => renderTemplateBankCard(template, index, selectedId)).join("")
+            : `
+              <div class="idp-player-board-template-empty">
+                <strong>No template found</strong>
+                <small>Try another exercise, phase or coaching point.</small>
+              </div>
+            `}
+        </div>
+        <article class="idp-player-board-template-preview" aria-label="Template preview">
+          ${selectedTemplate && selectedDraft ? `
+            <div class="idp-player-board-template-preview-copy">
+              <span>Visual Preview</span>
+              <strong>${escapeHtml(selectedTemplate.title || "Exercise template")}</strong>
+              <small>${escapeHtml(templateMetaLabel(selectedTemplate))}</small>
+              <p>${escapeHtml(selectedTemplate.objective || selectedTemplate.focus || "Use this template as a starting point for the player's IDP board.")}</p>
+            </div>
+            <div class="idp-player-board-template-preview-pitch">
+              ${renderBoardPitch(selectedDraft, profile, focus, { markerId: "idp-player-board-template-arrow", frameIndex: 0 })}
+            </div>
+            <button type="button" data-idp-player-board-template-use="${escapeHtml(selectedId)}">
+              Use for player
+            </button>
+          ` : `
+            <div class="idp-player-board-template-empty">
+              <strong>No visual preview</strong>
+              <small>Select a template to preview it here.</small>
+            </div>
+          `}
+        </article>
+      </div>
+    </section>
+  `;
+}
+
 export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}) {
   const intervention = activeIntervention(detail, ui) || draftIntervention(profile, focus);
   const rawState = boardState(intervention, focus, profile);
@@ -856,6 +949,8 @@ function renderGoalOptions(detail = {}, selected = "") {
 }
 
 function selectedEditorIntervention(detail = {}, focus = {}, profile = {}, ui = {}) {
+  const templateId = idpBoardTemplateIdFromInterventionId(ui.playerBoardInterventionId);
+  if (templateId) return idpBoardTemplateDraft(templateId, profile, focus) || draftIntervention(profile, focus);
   const selected = activeIntervention(detail, ui);
   return ui.playerBoardInterventionId === "__new" || !selected ? draftIntervention(profile, focus) : selected;
 }

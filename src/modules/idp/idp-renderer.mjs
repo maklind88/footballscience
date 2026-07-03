@@ -15,6 +15,7 @@ import {
   renderIdpPlayerBoardHandout,
   renderIdpPlayerBoardOverlay,
   renderIdpPlayerBoardPanel,
+  renderIdpPlayerBoardTemplateBank,
 } from "./idp-player-board-renderer.mjs";
 
 const defaultUiState = Object.freeze({
@@ -29,6 +30,8 @@ const defaultUiState = Object.freeze({
   actionMode: "",
   editGoalId: "",
   playerBoardSearchQuery: "",
+  playerBoardTemplateSearchQuery: "",
+  playerBoardTemplateId: "",
   playerBoardHandoutOpen: false,
   message: "",
   error: "",
@@ -1638,6 +1641,7 @@ function renderProfilePlayerBoardPage(detail = {}, focus = {}, profile = {}, pul
   return `
     <section class="idp-profile-subpage idp-profile-player-board-page">
       ${renderPlayerBoardLibraryCommand(detail, focus, profile, canEdit, ui)}
+      ${renderIdpPlayerBoardTemplateBank(detail, focus, profile, ui, canEdit)}
       <div class="idp-player-board-page-shell">
         ${renderIdpPlayerBoardPanel(detail, focus, profile, pulse, nextAction, canEdit, ui)}
       </div>

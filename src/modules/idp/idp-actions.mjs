@@ -457,6 +457,8 @@ export function createIdpActions({ store, api, context = {} }) {
         clipPreviewObjectUrl: "",
         playerBoardOpen: false,
         playerBoardInterventionId: "",
+        playerBoardTemplateId: "",
+        playerBoardTemplateSearchQuery: "",
         playerBoardPreviewFrameIndex: 0,
         playerBoardPreviewPlaying: false,
         playerBoardHandoutOpen: false,
@@ -702,7 +704,7 @@ export function createIdpActions({ store, api, context = {} }) {
       nextInterventionId = normalizeText(result?.intervention?.id, 160);
     }
     await refreshSelectedPlayer();
-    store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: nextInterventionId || "", actionMode: "", message: "Individual exercise saved." } });
+    store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: nextInterventionId || "", playerBoardTemplateId: "", actionMode: "", message: "Individual exercise saved." } });
   }
 
   async function archiveIntervention(interventionId = "") {

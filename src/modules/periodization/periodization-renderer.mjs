@@ -754,6 +754,10 @@ ${renderActionIcon("pencil")}
     return hasViewValue(value) ? renderViewItem(label, renderViewValue(value), className) : "";
   }
 
+  function renderViewTextWithBreaks(value) {
+    return escapeHtml(String(value ?? "").trim()).replaceAll("\n", "<br>");
+  }
+
   function isUnsetTrainingBlockValue(value) {
     const text = String(value ?? "").trim().toLowerCase();
     return !text || text === "not set";
@@ -796,10 +800,27 @@ ${renderActionIcon("pencil")}
     return isPlannedExerciseTitle(sessionPlannerTitle) ? String(sessionPlannerTitle).trim() : "";
   }
 
-  function renderViewLink(label, value) {
-    const url = String(value || "").trim();
-    const content = url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Open link</a>` : "Not set";
-    return renderViewItem(label, content);
+  function getSessionPlannerReflectionLabel(block = {}) {
+    const label = String(block.label || "").trim();
+    const title = String(block.title || "").trim();
+    if (label && title && isPlannedExerciseTitle(title)) {
+      return `${label} - ${title}`;
+    }
+    return label || (isPlannedExerciseTitle(title) ? title : "Session block");
+  }
+
+  function renderSessionPlannerReflectionItems(dateValue) {
+    const blocks = getSessionPlannerState()?.sessions?.[dateValue]?.blocks;
+    if (!Array.isArray(blocks) || !blocks.length) {
+      return [];
+    }
+    return blocks
+      .map((block) => ({
+        label: getSessionPlannerReflectionLabel(block),
+        note: String(block?.postSessionNotes || "").trim(),
+      }))
+      .filter((item) => item.note)
+      .map((item) => renderViewItem(item.label, renderViewTextWithBreaks(item.note), "periodization-session-note-item"));
   }
 
   function renderViewSection(title, items) {
@@ -886,11 +907,7 @@ ${renderActionIcon("pencil")}
           ),
           renderViewItemIfSet("Session Notes", day.sessionNotes),
         ])}
-        ${renderViewSection("Links", [
-          renderViewLink("Session Plan Link", day.sessionPlanLink),
-          renderViewLink("Session Video Link", day.sessionVideoLink),
-          renderViewLink("Session GPS Report Link", day.sessionGpsReportLink),
-        ])}
+        ${renderViewSection("Session Notes", renderSessionPlannerReflectionItems(dateValue))}
       </div>
     </aside>
   `;

@@ -464,6 +464,51 @@ test("Periodization day view reads planned exercise names from Session Planner b
   expect(panel).not.toContain("New Exercise");
 });
 
+test("Periodization day view replaces Links with Session Planner block reflections", () => {
+  const renderer = createPeriodizationRenderer({
+    escapeHtml,
+    formatDateValue,
+    parseDateValue,
+    getState: () => ({ selectedDate: "2026-05-08" }),
+    getDay: () => ({
+      daySchedule: "Training",
+      sessionType: "Training",
+      physicalLoad: "Moderate",
+      pitchSize: "SSG",
+      matchDay: "N/A",
+      sessionPlanLink: "https://example.com/session",
+      sessionVideoLink: "https://example.com/video",
+      sessionGpsReportLink: "https://example.com/gps",
+    }),
+    canEdit: () => true,
+    isOffDay: () => false,
+    getSessionPlannerState: () => ({
+      sessions: {
+        "2026-05-08": {
+          blocks: [
+            { id: "warm-up", label: "Warm Up", title: "Mobility Prep", postSessionNotes: "Good readiness." },
+            { id: "block-1", label: "Block 1", title: "Passing Gates", postSessionNotes: "Need cleaner angles.\nRepeat next week." },
+            { id: "block-2", label: "Block 2", title: "Finishing Waves", postSessionNotes: "" },
+          ],
+        },
+      },
+    }),
+    getMultiSelectOpenField: () => "",
+    renderActionIcon: () => "icon",
+  });
+
+  const panel = renderer.renderDayPanel("2026-05-08", { isOverlay: true, mode: "view" });
+
+  expect(panel).toContain("<h3>Session Notes</h3>");
+  expect(panel).toContain("Warm Up - Mobility Prep");
+  expect(panel).toContain("Good readiness.");
+  expect(panel).toContain("Block 1 - Passing Gates");
+  expect(panel).toContain("Need cleaner angles.<br>Repeat next week.");
+  expect(panel).not.toContain("<h3>Links</h3>");
+  expect(panel).not.toContain("Session Plan Link");
+  expect(panel).not.toContain("Session GPS Report Link");
+});
+
 test("Periodization state derives match-day context from Schedule without overwriting manual match-day edits", () => {
   const allScheduleEvents = [
     { id: "training", date: "2026-05-08", type: "training", title: "Training" },

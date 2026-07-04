@@ -92,7 +92,7 @@ function clipKey(clip = {}) {
   return normalizeText(clip.id || clip.clipInstanceId);
 }
 
-function renderClipCard(clip = {}, index = 0, selected = false) {
+function renderClipCard(clip = {}, index = 0, selected = false, canEdit = false) {
   const id = clipKey(clip);
   const principles = principleLabels(clip);
   return `
@@ -110,6 +110,7 @@ function renderClipCard(clip = {}, index = 0, selected = false) {
         ${principles.map((label) => `<span>${escapeHtml(label)}</span>`).join("")}
         ${clip.outcome ? `<span>${escapeHtml(clip.outcome)}</span>` : ""}
       </div>
+      ${canEdit ? `<button type="button" class="idp-clip-bank-remove" data-idp-clip-remove="${escapeHtml(id)}" title="Remove from Clip Bank">Remove</button>` : ""}
       <button type="button" class="idp-clip-bank-play" data-idp-clip-play="${escapeHtml(id)}">Play</button>
     </article>
   `;
@@ -150,7 +151,7 @@ export function renderClipBankOrganizer(detail = {}, canEdit = false, ui = {}) {
       </label>
       <div class="idp-clip-bank-list">
         ${visibleClips.length
-          ? visibleClips.map((clip, index) => renderClipCard(clip, index, selectedIds.has(clipKey(clip)))).join("")
+          ? visibleClips.map((clip, index) => renderClipCard(clip, index, selectedIds.has(clipKey(clip)), canEdit)).join("")
           : `<div class="idp-empty-signal">${clips.length ? "No clips match this search." : "No clips waiting."}</div>`}
       </div>
       ${filteredClips.length > visibleClips.length ? `<div class="idp-clip-bank-more">${escapeHtml(String(filteredClips.length - visibleClips.length))} more clips in this player bank.</div>` : ""}

@@ -591,6 +591,15 @@ export function createIdpActions({ store, api, context = {} }) {
     await refreshSelectedPlayer();
   }
 
+  async function removeClipBankItem(clipBankItemId = "") {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const safeClipBankItemId = normalizeText(clipBankItemId, 160);
+    if (!playerId || !safeClipBankItemId) throw new Error("Clip could not be removed from the player Clip Bank.");
+    await api.removeClipBankItem({ id: safeClipBankItemId, playerId });
+    store.setState({ ui: { clipPreviewOpen: false, clipPreviewQueueIds: [], selectedClipBankIds: [], message: "Clip removed from this player's Clip Bank." } });
+    await refreshSelectedPlayer();
+  }
+
   async function assignOwner(formData) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const detail = store.getState().playerDetail;
@@ -738,6 +747,7 @@ export function createIdpActions({ store, api, context = {} }) {
     deleteEvidence,
     loadDashboard,
     refreshSelectedPlayer,
+    removeClipBankItem,
     saveIntervention,
     saveGoal,
     selectPlayer,

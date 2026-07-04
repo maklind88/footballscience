@@ -43,6 +43,7 @@ export function createIdpApiService(context = {}) {
     archiveFocus: (focus) => request("/api/idp", { method: "POST", body: { action: "archive-focus", focus } }),
     deleteFocus: (focus) => request("/api/idp", { method: "POST", body: { action: "delete-focus", focus } }),
     reviewClipBank: (clipBankItem) => request("/api/idp", { method: "POST", body: { action: "review-clip-bank", clipBankItem } }),
+    removeClipBankItem: (clipBankItem) => request("/api/idp", { method: "POST", body: { action: "remove-clip-bank-item", clipBankItem } }),
     addEvidence: (evidence) => request("/api/idp", { method: "POST", body: { action: "add-evidence", evidence } }),
     updateEvidence: (evidence) => request("/api/idp", { method: "POST", body: { action: "update-evidence", evidence } }),
     deleteEvidence: (evidence) => request("/api/idp", { method: "POST", body: { action: "delete-evidence", evidence } }),

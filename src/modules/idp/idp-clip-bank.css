@@ -25,6 +25,7 @@
 
 .idp-clip-bank-actions button,
 .idp-clip-bank-play,
+.idp-clip-bank-remove,
 .idp-clip-preview-header button,
 .idp-clip-preview-footer button {
   appearance: none;
@@ -110,7 +111,7 @@
   border-radius: 14px;
   display: grid;
   gap: 10px;
-  grid-template-columns: 48px minmax(160px, 1fr) minmax(120px, 0.7fr) auto;
+  grid-template-columns: 48px minmax(160px, 1fr) minmax(120px, 0.7fr) auto auto;
   min-height: 64px;
   padding: 8px;
   transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
@@ -191,6 +192,20 @@
 .idp-clip-bank-play {
   background: #175cd3;
   min-width: 58px;
+}
+
+.idp-clip-bank-remove {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(180, 35, 24, 0.18);
+  color: #b42318;
+  min-width: 72px;
+}
+
+.idp-clip-bank-remove:hover,
+.idp-clip-bank-remove:focus-visible {
+  background: #fff1f0;
+  border-color: rgba(180, 35, 24, 0.34);
+  outline: none;
 }
 
 .idp-clip-bank-more {

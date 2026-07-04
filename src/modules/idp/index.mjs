@@ -2120,6 +2120,17 @@ export function handleClick(event) {
     openClipPreview(runtime, [id]);
     return;
   }
+  const clipRemove = event?.target?.closest?.("[data-idp-clip-remove]");
+  if (clipRemove) {
+    event?.preventDefault?.();
+    const win = runtime?.context?.win || globalThis;
+    const confirmed = typeof win.confirm === "function"
+      ? win.confirm("Remove this clip from the player's IDP Clip Bank? The original video remains in Video Analysis.")
+      : true;
+    if (!confirmed) return;
+    runAction(() => runtime?.actions.removeClipBankItem(clipRemove.dataset.idpClipRemove || ""));
+    return;
+  }
   const searchTrigger = event?.target?.closest?.("[data-idp-search-submit]");
   if (searchTrigger) {
     event?.preventDefault?.();

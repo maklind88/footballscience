@@ -90,6 +90,18 @@ test("idp api exposes a server-owned assignment action", () => {
   expect(typeof api.assignOwner).toBe("function");
 });
 
+test("idp api exposes server-owned clip bank removal without hard delete", () => {
+  const source = fs.readFileSync(new URL("../api/_lib/idp-database.js", import.meta.url), "utf8");
+  expect(source).toContain('action === "remove-clip-bank-item"');
+  expect(source).toContain("async function removeClipBankItem");
+  expect(source).toContain('patchRows("idp_clip_bank_items"');
+  expect(source).toContain('action: "clip_bank.removed"');
+  expect(source).toContain('status: "Hidden"');
+  expect(source).toContain("deleted_at: new Date().toISOString()");
+  expect(source).not.toContain('deleteRows("idp_clip_bank_items"');
+  expect(typeof api.removeClipBankItem).toBe("function");
+});
+
 test("idp api exposes a central sync revision endpoint", () => {
   const source = fs.readFileSync(new URL("../api/_lib/idp-database.js", import.meta.url), "utf8");
   expect(source).toContain('action === "sync"');

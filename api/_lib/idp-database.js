@@ -273,6 +273,16 @@ function goalAuditSummary(row = {}) {
   };
 }
 
+function clipBankAuditSummary(row = {}) {
+  return {
+    status: normalizeText(row.status, 80),
+    player_id: normalizeText(row.player_id, 160),
+    clip_instance_id: normalizeText(row.clip_instance_id, 80),
+    linked_focus_id: normalizeText(row.linked_focus_id, 80),
+    source_module: normalizeText(row.source_module, 80),
+  };
+}
+
 function focusAuditSummary(row = {}) {
   return {
     title: normalizeText(row.title, 180),
@@ -714,6 +724,47 @@ async function reviewClipBank(payload, actor) {
     }, actor);
   }
   const sync = await buildSyncMeta(scope, item?.player_id || "");
+  return { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: item, sync: sync.ok ? sync.payload : null } };
+}
+
+async function removeClipBankItem(payload, actor) {
+  const scope = actorScope(actor);
+  const itemId = normalizeUuid(payload.id || payload.clipBankItemId || payload.clip_bank_item_id);
+  const playerId = normalizeText(payload.playerId || payload.player_id, 160);
+  if (!itemId || !playerId) return { ok: false, status: 400, reason: "clip bank item id and playerId are required." };
+  const beforeParams = buildTeamParams(scope);
+  beforeParams.set("select", "*");
+  beforeParams.set("id", `eq.${itemId}`);
+  beforeParams.set("player_id", `eq.${playerId}`);
+  beforeParams.set("deleted_at", "is.null");
+  beforeParams.set("limit", "1");
+  const beforeResult = await selectRows("idp_clip_bank_items", beforeParams);
+  if (!beforeResult.ok) return beforeResult;
+  const before = beforeResult.payload?.[0] || null;
+  if (!before) return { ok: false, status: 404, reason: "Clip bank item was not found." };
+  const params = buildTeamParams(scope);
+  params.set("id", `eq.${itemId}`);
+  params.set("player_id", `eq.${playerId}`);
+  params.set("deleted_at", "is.null");
+  const result = await patchRows("idp_clip_bank_items", params, {
+    status: "Hidden",
+    deleted_at: new Date().toISOString(),
+    deleted_by: scope.actorId,
+    updated_by: scope.actorId,
+  });
+  if (!result.ok) return result;
+  const item = result.payload?.[0] || null;
+  if (!item) return { ok: false, status: 404, reason: "Clip bank item was not found." };
+  await insertAuditEvent(scope, {
+    playerId,
+    action: "clip_bank.removed",
+    entityType: "idp_clip_bank_item",
+    entityId: item.id,
+    changedFields: ["status", "deleted_at", "deleted_by"],
+    beforeSummary: clipBankAuditSummary(before),
+    afterSummary: clipBankAuditSummary(item),
+  });
+  const sync = await buildSyncMeta(scope, playerId);
   return { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: item, sync: sync.ok ? sync.payload : null } };
 }
 
@@ -1436,8 +1487,10 @@ async function handleIdpRequest(req, res, actor) {
               ? await upsertClipBankItem(body.clip || body, actor)
               : action === "review-clip-bank"
                 ? await reviewClipBank(body.clipBankItem || body, actor)
-                : action === "add-evidence"
-                  ? await addEvidence(body.evidence || body, actor)
+                : action === "remove-clip-bank-item"
+                  ? await removeClipBankItem(body.clipBankItem || body, actor)
+                  : action === "add-evidence"
+                    ? await addEvidence(body.evidence || body, actor)
                   : action === "update-evidence"
                     ? await updateEvidence(body.evidence || body, actor)
                     : action === "delete-evidence"
@@ -1483,6 +1536,7 @@ module.exports = {
   getSyncStatus,
   handleIdpRequest,
   normalizeCategory,
+  removeClipBankItem,
   reviewClipBank,
   updateDevelopmentGoal,
   updateDevelopmentIntervention,

@@ -91,6 +91,25 @@ test("idp evidence edits and deletes stay behind the server-owned database bound
   expect(databaseSource).not.toContain('deleteRows("idp_evidence"');
 });
 
+test("idp clip bank removal is server-owned and soft-deleted", () => {
+  const apiService = read("src/modules/idp/services/idp-api-service.mjs");
+  const databaseSource = read("api/_lib/idp-database.js");
+  const idpRuntime = read("src/modules/idp/index.mjs");
+  const clipBankRenderer = read("src/modules/idp/idp-clip-bank-renderer.mjs");
+
+  expect(apiService).toContain('action: "remove-clip-bank-item"');
+  expect(databaseSource).toContain("async function removeClipBankItem");
+  expect(databaseSource).toContain('patchRows("idp_clip_bank_items"');
+  expect(databaseSource).toContain('action: "clip_bank.removed"');
+  expect(databaseSource).toContain('entityType: "idp_clip_bank_item"');
+  expect(databaseSource).toContain('status: "Hidden"');
+  expect(databaseSource).toContain("deleted_at: new Date().toISOString()");
+  expect(databaseSource).toContain("deleted_by: scope.actorId");
+  expect(databaseSource).not.toContain('deleteRows("idp_clip_bank_items"');
+  expect(idpRuntime).toContain("data-idp-clip-remove");
+  expect(clipBankRenderer).toContain("Remove from Clip Bank");
+});
+
 test("idp focus archive and delete stay behind the server-owned database boundary", () => {
   const apiService = read("src/modules/idp/services/idp-api-service.mjs");
   const databaseSource = read("api/_lib/idp-database.js");
@@ -1149,6 +1168,76 @@ test("idp observation edit and delete stay server-owned and refresh the selected
   expect(store.getState().ui.message).toBe("Observation deleted.");
 });
 
+test("idp clip bank remove action stays server-owned and refreshes the selected player", async () => {
+  const player = {
+    id: "p1",
+    name: "Kailen Sheridan",
+    position: "Goalkeeper",
+    primaryRole: "GK",
+  };
+  const detail = buildLegacyPlayerDetail(player);
+  detail.clipBank = [
+    {
+      id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+      playerId: "p1",
+      clipInstanceId: "62eca2cc-7e93-44d5-9a0c-61b416c7bb22",
+      matchTitle: "Training video",
+      matchDate: "2026-06-22",
+      status: "New",
+    },
+  ];
+  const store = createIdpStore({
+    ui: { selectedPlayerId: "p1", profileView: "clip-bank", selectedClipBankIds: ["2a4e615e-f3e7-4fc7-bb70-a02db63c9152"] },
+    playerDetail: detail,
+  });
+  const removedPayloads = [];
+  let loadPlayerCalls = 0;
+  const api = {
+    removeClipBankItem: async (payload) => {
+      removedPayloads.push(payload);
+      return {
+        schema: "footballscience-idp-v1",
+        clipBankItem: {
+          id: payload.id,
+          player_id: payload.playerId,
+          status: "Hidden",
+          deleted_at: "2026-07-04T18:00:00.000Z",
+        },
+      };
+    },
+    loadDashboard: async () => ({ schema: "footballscience-idp-v1", players: [] }),
+    loadPlayer: async () => {
+      loadPlayerCalls += 1;
+      return {
+        schema: "footballscience-idp-v1",
+        profile: { id: "profile-p1", player_id: "p1" },
+        focuses: [],
+        clipBank: [],
+        evidence: [],
+        reviews: [],
+        nextActions: [],
+        milestones: [],
+        ownership: [],
+      };
+    },
+  };
+  const actions = createIdpActions({
+    store,
+    api,
+    context: { getPlayerProfilesState: () => ({ players: [player] }) },
+  });
+
+  await actions.removeClipBankItem("2a4e615e-f3e7-4fc7-bb70-a02db63c9152");
+
+  expect(removedPayloads[0]).toMatchObject({
+    id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+    playerId: "p1",
+  });
+  expect(loadPlayerCalls).toBe(1);
+  expect(store.getState().ui.selectedClipBankIds).toEqual([]);
+  expect(store.getState().ui.message).toBe("Clip removed from this player's Clip Bank.");
+});
+
 test("idp focus archive and delete stay server-owned and refresh the selected player", async () => {
   const player = {
     id: "p1",
@@ -1541,6 +1630,8 @@ test("idp clip bank is a date-sorted organizer with play queue metadata", () => 
   expect(html).toContain("data-idp-clip-play-selected");
   expect(html).toContain("Play selected (1)");
   expect(html).toContain("data-idp-clip-play=\"bank-new\"");
+  expect(html).toContain("data-idp-clip-remove=\"bank-new\"");
+  expect(html).toContain("Remove from Clip Bank");
   expect(html).toContain("NCC - Louisville");
   expect(html).not.toContain("Training + Lift");
   expect(html).toContain("2026-06-27");

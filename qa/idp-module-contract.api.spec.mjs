@@ -484,6 +484,13 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("Latest Goal");
   expect(profileHtml).toContain("No active goal");
   expect(profileHtml).toContain("No development goals yet");
+  const latestGoalPanelHtml = profileHtml.slice(
+    profileHtml.indexOf("idp-latest-goal-panel"),
+    profileHtml.indexOf("idp-river-panel", profileHtml.indexOf("idp-latest-goal-panel")),
+  );
+  expect(latestGoalPanelHtml).toContain(">Create Goal<");
+  expect((latestGoalPanelHtml.match(/data-idp-action=/g) || []).length).toBe(1);
+  expect(latestGoalPanelHtml).not.toContain(">Leadership goal<");
   expect(profileHtml).not.toContain("Most recently added");
   expect(profileHtml).not.toContain("Own the next on-pitch action");
   expect(profileHtml).not.toContain("Make receive under pressure visible");

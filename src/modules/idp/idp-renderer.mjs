@@ -957,15 +957,20 @@ function renderGoalCard(goal = {}, detail = {}, canEdit = false, options = {}) {
   `;
 }
 
-function renderGoalEmpty(canEdit = false) {
+function renderGoalEmpty(canEdit = false, options = {}) {
+  const singleCreateAction = Boolean(options.singleCreateAction);
   return `
     <div class="idp-goals-empty">
       <strong>No development goals yet</strong>
       <span>Create 1-2 measurable goals plus one leadership responsibility for this player.</span>
       ${canEdit ? `
         <div class="idp-goals-empty-actions">
-          <button type="button" data-idp-action="goal">Create goal</button>
-          <button type="button" data-idp-action="leadership-goal">Leadership goal</button>
+          ${singleCreateAction ? `
+            <button type="button" data-idp-action="goal">Create Goal</button>
+          ` : `
+            <button type="button" data-idp-action="goal">Create goal</button>
+            <button type="button" data-idp-action="leadership-goal">Leadership goal</button>
+          `}
         </div>
       ` : ""}
     </div>
@@ -984,7 +989,7 @@ function renderLatestGoalPanel(detail = {}, canEdit = false, options = {}) {
         <button type="button" data-idp-profile-view="goals">Goals</button>
       </div>
       <div class="idp-latest-goal-body">
-        ${goal ? renderGoalCard(goal, detail, canEdit, options) : renderGoalEmpty(canEdit)}
+        ${goal ? renderGoalCard(goal, detail, canEdit, options) : renderGoalEmpty(canEdit, { singleCreateAction: true })}
       </div>
     </article>
   `;

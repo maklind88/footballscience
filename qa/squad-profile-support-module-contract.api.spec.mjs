@@ -77,6 +77,7 @@ test("Squad profile support renderer owns option lists, support panels, and add-
         week: { average: 75, count: 2 },
         month: { average: 75, count: 2 },
         season: { average: 75, count: 2 },
+        lastFive: { average: 75, count: 2 },
       },
     }),
     getRecentPlayerProfileChangeLog: () => [],
@@ -141,6 +142,9 @@ test("Squad training availability summary averages logged training decisions", (
       { playerId: "p1", date: "2026-06-09", participation: 50, updatedAt: "2026-06-09T10:00:00Z" },
       { playerId: "p1", date: "2026-06-09", participation: 75, updatedAt: "2026-06-09T12:00:00Z" },
       { playerId: "p1", date: "2026-06-08", participation: 100, updatedAt: "2026-06-08T12:00:00Z" },
+      { playerId: "p1", date: "2026-06-07", participation: 40, updatedAt: "2026-06-07T12:00:00Z" },
+      { playerId: "p1", date: "2026-06-06", participation: 60, updatedAt: "2026-06-06T12:00:00Z" },
+      { playerId: "p1", date: "2026-06-05", participation: 80, updatedAt: "2026-06-05T12:00:00Z" },
       { playerId: "p1", date: "2026-05-01", participation: 25, updatedAt: "2026-05-01T12:00:00Z" },
       { playerId: "p1", date: "2027-01-01", participation: 0, updatedAt: "2027-01-01T12:00:00Z" },
       { playerId: "p2", date: "2026-06-10", participation: 0, updatedAt: "2026-06-10T12:00:00Z" },
@@ -150,8 +154,9 @@ test("Squad training availability summary averages logged training decisions", (
   });
 
   expect(summary.hasData).toBe(true);
-  expect(summary.loggedCount).toBe(3);
-  expect(summary.week).toEqual({ average: 88, count: 2 });
-  expect(summary.month).toEqual({ average: 88, count: 2 });
-  expect(summary.season).toEqual({ average: 67, count: 3 });
+  expect(summary.loggedCount).toBe(6);
+  expect(summary.week).toEqual({ average: 71, count: 5 });
+  expect(summary.month).toEqual({ average: 71, count: 5 });
+  expect(summary.season).toEqual({ average: 63, count: 6 });
+  expect(summary.lastFive).toEqual({ average: 71, count: 5 });
 });

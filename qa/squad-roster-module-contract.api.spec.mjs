@@ -33,11 +33,16 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
     escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
     getAllPlayerProfiles: () => [squadPlayer, temporaryPlayer],
     getAllTemporaryPlayerProfiles: () => [temporaryPlayer],
-    getPlayerProfileCompleteness: () => 75,
     getPlayerProfileDisplayAgeValue: () => "24",
     getPlayerProfileEffectiveStatusFromSnapshot: (player) => player.status,
     getPlayerProfileIdpFollowUpLabel: () => "Review in 7d",
-    getPlayerProfileMedicalSnapshot: (playerId) => ({ returnLabel: playerId === "p2" ? "10 Jun" : "" }),
+    getPlayerProfileMedicalSnapshot: (playerId) => ({
+      returnLabel: playerId === "p2" ? "10 Jun" : "",
+      trainingAvailability: {
+        season: { average: 82, count: 12 },
+        lastFive: { average: 90, count: 5 },
+      },
+    }),
     getPlayerProfileOption: getOption,
     getPlayerProfileRosterLabel: (player) =>
       player.rosterType === "guest" ? `Guest / ${player.temporaryGroup || "Training guest"}` : "Squad",
@@ -79,7 +84,14 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
   expect(markup).not.toContain("<th>Planning</th>");
   expect(markup).toContain("<th>Status</th>");
   expect(markup).toContain("<th>IDP</th>");
-  expect(markup).toContain("<th>Profile</th>");
+  expect(markup).toContain("<th>Season availability</th>");
+  expect(markup).toContain("<th>Last 5 trainings</th>");
+  expect(markup).not.toContain("<th>Profile</th>");
+  expect(markup).not.toContain("% complete");
+  expect(markup).toContain("82%");
+  expect(markup).toContain("12 trainings");
+  expect(markup).toContain("90%");
+  expect(markup).toContain("5 trainings");
   expect(markup).not.toContain("squad-planning-cell");
   expect(markup).not.toContain(">Important<");
   expect(markup).toContain("Training guests");
@@ -115,11 +127,10 @@ test("Squad roster renderer defaults training guests to hidden", () => {
     escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
     getAllPlayerProfiles: () => [squadPlayer, temporaryPlayer],
     getAllTemporaryPlayerProfiles: () => [temporaryPlayer],
-    getPlayerProfileCompleteness: () => 75,
     getPlayerProfileDisplayAgeValue: () => "24",
     getPlayerProfileEffectiveStatusFromSnapshot: (player) => player.status,
     getPlayerProfileIdpFollowUpLabel: () => "Review in 7d",
-    getPlayerProfileMedicalSnapshot: () => ({ returnLabel: "" }),
+    getPlayerProfileMedicalSnapshot: () => ({ returnLabel: "", trainingAvailability: {} }),
     getPlayerProfileOption: getOption,
     getPlayerProfileRosterLabel: (player) => (player.rosterType === "guest" ? "Training guest" : "Squad"),
     getPlayerProfileRosterSummary: (players) => ({

@@ -10,7 +10,6 @@ export function createSquadRosterRenderer({
   escapeHtml = defaultEscapeHtml,
   getAllPlayerProfiles = () => [],
   getAllTemporaryPlayerProfiles,
-  getPlayerProfileCompleteness,
   getPlayerProfileDisplayAgeValue,
   getPlayerProfileEffectiveStatusFromSnapshot,
   getPlayerProfileIdpFollowUpLabel,
@@ -91,14 +90,40 @@ export function createSquadRosterRenderer({
   `;
   };
 
-  const renderProfileProgressCell = (completeness) =>
-    `<div class="squad-profile-progress-cell"><span class="squad-completion"><span style="width: ${completeness}%"></span></span><small class="squad-completion-label">${completeness}% complete</small></div>`;
+  const getAvailabilityNumber = (item = {}) => {
+    const average = Number(item.average);
+    return Number.isFinite(average) ? Math.max(0, Math.min(100, Math.round(average))) : null;
+  };
+
+  const getAvailabilityTone = (average) => {
+    if (average === null) return "empty";
+    if (average >= 85) return "high";
+    if (average >= 65) return "medium";
+    return "low";
+  };
+
+  const renderAvailabilityCell = (item = {}, emptyLabel = "No training data") => {
+    const average = getAvailabilityNumber(item);
+    const count = Number(item.count);
+    const cleanCount = Number.isFinite(count) && count > 0 ? Math.round(count) : 0;
+    const value = average === null ? "-" : `${average}%`;
+    const tone = getAvailabilityTone(average);
+    const width = average === null ? 0 : average;
+    const countLabel = cleanCount ? `${cleanCount} training${cleanCount === 1 ? "" : "s"}` : emptyLabel;
+    return `
+    <div class="squad-availability-cell is-${escapeHtml(tone)}" title="${escapeHtml(`${value} - ${countLabel}`)}">
+      <strong>${escapeHtml(value)}</strong>
+      <span class="squad-availability-track" aria-hidden="true"><i style="width:${width}%"></i></span>
+      <small>${escapeHtml(countLabel)}</small>
+    </div>
+  `;
+  };
 
   const renderPlayerRow = (player) => {
     const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
     const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);
     const isSelected = player.id === getSelectedPlayerId();
-    const completeness = getPlayerProfileCompleteness(player);
+    const trainingAvailability = medicalSnapshot?.trainingAvailability || {};
     return `
     <tr
       class="squad-player-row${isSelected ? " is-selected" : ""}${isTemporaryPlayerProfile(player) ? " is-temporary" : ""}"
@@ -119,7 +144,8 @@ export function createSquadRosterRenderer({
       <td>${renderRoleCell(player)}</td>
       <td>${renderStatusChip(effectiveStatus, medicalSnapshot)}</td>
       <td>${renderIdpCell(player)}</td>
-      <td>${renderProfileProgressCell(completeness)}</td>
+      <td>${renderAvailabilityCell(trainingAvailability.season, "No season data")}</td>
+      <td>${renderAvailabilityCell(trainingAvailability.lastFive, "No recent data")}</td>
     </tr>
   `;
   };
@@ -134,14 +160,15 @@ export function createSquadRosterRenderer({
             <th>Roles</th>
             <th>Status</th>
             <th>IDP</th>
-            <th>Profile</th>
+            <th>Season availability</th>
+            <th>Last 5 trainings</th>
           </tr>
         </thead>
         <tbody>
           ${
             players.length
               ? players.map(renderPlayerRow).join("")
-              : `<tr><td colspan="6"><div class="squad-empty-row">${escapeHtml(emptyText)}</div></td></tr>`
+              : `<tr><td colspan="7"><div class="squad-empty-row">${escapeHtml(emptyText)}</div></td></tr>`
           }
         </tbody>
       </table>
@@ -219,7 +246,7 @@ export function createSquadRosterRenderer({
     renderRoleCell,
     renderAgeCell,
     renderIdpCell,
-    renderProfileProgressCell,
+    renderAvailabilityCell,
     renderPlayerRow,
     renderPlayerTable,
     renderRosterSection,

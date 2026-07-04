@@ -86,6 +86,7 @@ export function getSquadTrainingAvailabilitySummary({
       week: { average: null, count: 0 },
       month: { average: null, count: 0 },
       season: { average: null, count: 0 },
+      lastFive: { average: null, count: 0 },
     };
   }
 
@@ -106,6 +107,7 @@ export function getSquadTrainingAvailabilitySummary({
   const referenceYear = referenceDate.getUTCFullYear();
   const getAgeDays = (recordDate) => Math.floor((referenceDate - recordDate) / dayMs);
   const seasonRecords = completedRecords.filter((record) => record.dateValue.getUTCFullYear() === referenceYear);
+  const lastFiveRecords = completedRecords.slice(-5);
 
   return {
     hasData: completedRecords.length > 0,
@@ -120,5 +122,6 @@ export function getSquadTrainingAvailabilitySummary({
       return ageDays >= 0 && ageDays <= 29;
     }),
     season: buildWindow(seasonRecords, () => true),
+    lastFive: buildWindow(lastFiveRecords, () => true),
   };
 }

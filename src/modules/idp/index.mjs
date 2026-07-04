@@ -182,7 +182,7 @@ function captureSearchFocus(activeRuntime = runtime) {
   if (!isOverviewSearch && !isClipSearch && !isPlayerBoardSearch && !isPlayerBoardTemplateSearch && !isBoardClipPickerSearch) return null;
   const value = activeElement.value || "";
   return {
-    preserveValue: isBoardClipPickerSearch,
+    preserveValue: isClipSearch || isBoardClipPickerSearch,
     selector: isBoardClipPickerSearch
       ? "[data-idp-board-clip-picker-search]"
       : isPlayerBoardSearch

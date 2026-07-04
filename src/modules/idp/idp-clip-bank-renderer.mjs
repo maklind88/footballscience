@@ -146,7 +146,7 @@ export function renderClipBankOrganizer(detail = {}, canEdit = false, ui = {}) {
       </div>
       <label class="idp-clip-bank-search">
         <span>Search clips</span>
-        <input type="search" data-idp-clip-search value="${escapeHtml(query)}" placeholder="Find clip, player, date or principle">
+        <input type="text" data-idp-clip-search value="${escapeHtml(query)}" placeholder="Find clip, player, date or principle" autocomplete="off" spellcheck="false">
         <strong>${escapeHtml(countLabel)}</strong>
       </label>
       <div class="idp-clip-bank-list">

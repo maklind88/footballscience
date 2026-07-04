@@ -812,7 +812,7 @@ test("idp renderer separates the overview from the player development profile", 
     ui: { ...profileState.ui, profileView: "clip-bank" },
   }, staffOptions);
   expect(clipBankHtml).toContain("idp-profile-clip-bank-page");
-  expect(clipBankHtml).toContain("Player Clip Bank");
+  expect(clipBankHtml).not.toContain("Player Clip Bank");
   expect(clipBankHtml).toContain("idp-clip-bank-organizer");
   expect(clipBankHtml).toContain("Search clips");
   expect(clipBankHtml).toContain('data-idp-profile-view="development"');
@@ -1640,6 +1640,16 @@ test("idp clip bank is a date-sorted organizer with play queue metadata", () => 
   expect(html).toContain("data-idp-clip-preview-video");
   expect(html).toContain("1 of 2");
   expect(html).not.toContain("b8f41622-57b5-4ed6-908f-b6d6d1e5fe30");
+});
+
+test("idp clip bank search preserves typed spaces through workspace rerenders", () => {
+  const indexSource = read("src/modules/idp/index.mjs");
+  const clipBankSource = read("src/modules/idp/idp-clip-bank-renderer.mjs");
+
+  expect(indexSource).toContain("preserveValue: isClipSearch || isBoardClipPickerSearch");
+  expect(clipBankSource).toContain('<input type="text" data-idp-clip-search');
+  expect(clipBankSource).toContain('autocomplete="off"');
+  expect(clipBankSource).toContain('spellcheck="false"');
 });
 
 test("idp adapter derives read-only fallback from Squad state", () => {

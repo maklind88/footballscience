@@ -428,6 +428,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain('data-idp-profile-view="goals"');
   expect(profileHtml).toContain('data-idp-profile-view="player-board"');
   expect(profileHtml).toContain('data-idp-profile-view="clip-bank"');
+  expect(profileHtml).toContain('data-idp-profile-view="history"');
   expect(profileHtml).toContain("idp-profile-menu");
   expect(profileHtml).toContain("idp-header is-player-context");
   expect(profileHtml).toContain("<h1>Player One</h1>");
@@ -445,8 +446,10 @@ test("idp renderer separates the overview from the player development profile", 
   const profileMenuIndex = profileHtml.indexOf("idp-profile-menu");
   const menuDevelopmentIndex = profileHtml.indexOf('data-idp-profile-view="development"', profileMenuIndex);
   const menuGoalsIndex = profileHtml.indexOf('data-idp-profile-view="goals"', profileMenuIndex);
+  const menuHistoryIndex = profileHtml.indexOf('data-idp-profile-view="history"', profileMenuIndex);
   expect(profileHtml.indexOf("data-idp-back-overview")).toBeLessThan(menuDevelopmentIndex);
   expect(menuDevelopmentIndex).toBeLessThan(menuGoalsIndex);
+  expect(menuGoalsIndex).toBeLessThan(menuHistoryIndex);
   expect(profileHtml).toContain('class="idp-profile-scouting-radar player-profile-scouting-spider-card"');
   expect(profileHtml).toContain('data-test-scouting-radar="Player One"');
   expect(profileHtml.indexOf("idp-profile-scouting-radar")).toBeGreaterThan(profileHtml.indexOf("idp-profile-menu"));
@@ -484,9 +487,10 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("Latest Goal");
   expect(profileHtml).toContain("No active goal");
   expect(profileHtml).toContain("No development goals yet");
+  const latestGoalPanelStart = profileHtml.indexOf("idp-latest-goal-panel");
   const latestGoalPanelHtml = profileHtml.slice(
-    profileHtml.indexOf("idp-latest-goal-panel"),
-    profileHtml.indexOf("idp-river-panel", profileHtml.indexOf("idp-latest-goal-panel")),
+    latestGoalPanelStart,
+    profileHtml.indexOf("</article>", latestGoalPanelStart) + "</article>".length,
   );
   expect(latestGoalPanelHtml).toContain(">Create Goal<");
   expect((latestGoalPanelHtml.match(/data-idp-action=/g) || []).length).toBe(1);
@@ -525,20 +529,33 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain('data-idp-action="evidence" title="Add observation" disabled');
   expect(profileHtml).toContain("Clip Bank");
   expect(profileHtml).not.toContain("idp-clip-bank-organizer");
-  expect(profileHtml).toContain("Development Timeline");
-  expect(profileHtml).toContain("5 latest updates");
-  expect(profileHtml).toContain("data-idp-timeline-more");
-  expect(profileHtml).toContain("idp-workflow-more");
-  expect(profileHtml).toContain("Show more");
-  expect(profileHtml).toContain("<strong>2</strong>");
-  expect(profileHtml).toContain("By Mak Lind");
-  expect(profileHtml).toContain("Player Reflection added");
-  expect(profileHtml).toContain("Clip Observation added");
-  expect(profileHtml).toContain("Coach Note added");
+  expect(profileHtml).not.toContain("Development Timeline");
+  expect(profileHtml).not.toContain("idp-river-panel");
+  expect(profileHtml).not.toContain("data-idp-timeline-more");
   expect(profileHtml).not.toContain("<strong>Observation added</strong>");
   expect(profileHtml).not.toContain("idp-ownership-studio");
   expect(profileHtml).not.toContain("Primary IDP Coach");
   expect(profileHtml).not.toContain("Current Focus Owner");
+
+  const historyHtml = renderIdpWorkspace({
+    ...profileState,
+    ui: { ...profileState.ui, profileView: "history" },
+  }, staffOptions);
+  expect(historyHtml).toContain("idp-profile-history-page");
+  expect(historyHtml).toContain('data-idp-profile-view="history"');
+  expect(historyHtml).toContain('aria-pressed="true"');
+  expect(historyHtml).toContain("idp-river-panel");
+  expect(historyHtml).toContain("History");
+  expect(historyHtml).toContain("5 latest updates");
+  expect(historyHtml).toContain("data-idp-timeline-more");
+  expect(historyHtml).toContain("idp-workflow-more");
+  expect(historyHtml).toContain("Show more");
+  expect(historyHtml).toContain("<strong>2</strong>");
+  expect(historyHtml).toContain("By Mak Lind");
+  expect(historyHtml).toContain("Player Reflection added");
+  expect(historyHtml).toContain("Clip Observation added");
+  expect(historyHtml).toContain("Coach Note added");
+  expect(historyHtml).not.toContain("<strong>Observation added</strong>");
 
   const richWorkflowHtml = renderIdpWorkspace({
     ...profileState,
@@ -568,7 +585,8 @@ test("idp renderer separates the overview from the player development profile", 
   expect(richWorkflowHtml).not.toContain("5 latest reviews");
   expect(richWorkflowHtml).not.toContain("idp-player-voice-card");
   expect(richWorkflowHtml).not.toContain("idp-review-card");
-  expect((richWorkflowHtml.match(/<span>Show more<\/span>/g) || []).length).toBeGreaterThanOrEqual(2);
+  expect(richWorkflowHtml).not.toContain("idp-river-panel");
+  expect((richWorkflowHtml.match(/<span>Show more<\/span>/g) || []).length).toBe(1);
 
   const playerBoardState = {
     ...profileState,

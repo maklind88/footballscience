@@ -1082,6 +1082,7 @@ function normalizeProfileView(value = "") {
   if (value === "clip-bank") return "clip-bank";
   if (value === "player-board") return "player-board";
   if (value === "goals") return "goals";
+  if (value === "history") return "history";
   return "development";
 }
 
@@ -1091,6 +1092,7 @@ function renderProfileMenu(profileView = "development") {
   const isGoals = normalizedView === "goals";
   const isPlayerBoard = normalizedView === "player-board";
   const isClipBank = normalizedView === "clip-bank";
+  const isHistory = normalizedView === "history";
   return `
     <nav class="idp-profile-menu" aria-label="Player profile navigation">
       <button type="button" data-idp-back-overview>Overview</button>
@@ -1098,6 +1100,7 @@ function renderProfileMenu(profileView = "development") {
       <button type="button" class="${isGoals ? "is-active" : ""}" data-idp-profile-view="goals" aria-pressed="${isGoals ? "true" : "false"}">Goals</button>
       <button type="button" class="${isPlayerBoard ? "is-active" : ""}" data-idp-profile-view="player-board" aria-pressed="${isPlayerBoard ? "true" : "false"}">Player Board</button>
       <button type="button" class="${isClipBank ? "is-active" : ""}" data-idp-profile-view="clip-bank" aria-pressed="${isClipBank ? "true" : "false"}">Clip Bank</button>
+      <button type="button" class="${isHistory ? "is-active" : ""}" data-idp-profile-view="history" aria-pressed="${isHistory ? "true" : "false"}">History</button>
     </nav>
   `;
 }
@@ -1809,11 +1812,12 @@ function renderProfileTimelineRiver(detail = {}, options = {}) {
   const milestones = newestFirst(detail.milestones || [], "occurredOn");
   const visibleMilestones = milestones.slice(0, profileWorkflowPreviewLimit);
   const hiddenMilestones = milestones.slice(profileWorkflowPreviewLimit);
+  const title = options.timelineTitle || "Development Timeline";
   return `
     <article class="idp-river-panel">
       <div class="idp-section-head">
         <div>
-          <span>Development Timeline</span>
+          <span>${escapeHtml(title)}</span>
           <strong>${escapeHtml(milestones.length ? `${Math.min(milestones.length, profileWorkflowPreviewLimit)} latest updates` : "No milestones yet")}</strong>
         </div>
       </div>
@@ -1826,6 +1830,14 @@ function renderProfileTimelineRiver(detail = {}, options = {}) {
           : `<div class="idp-empty-signal">The first completed action will start the timeline.</div>`}
       </div>
     </article>
+  `;
+}
+
+function renderProfileHistoryPage(detail = {}, options = {}) {
+  return `
+    <section class="idp-profile-subpage idp-profile-history-page">
+      ${renderProfileTimelineRiver(detail, { ...options, timelineTitle: "History" })}
+    </section>
   `;
 }
 
@@ -1849,6 +1861,8 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
         ? renderProfileClipBankPage(detail, canEdit && !idpInactive, state.ui || {})
         : profileView === "goals"
           ? renderProfileGoalsPage(detail, focus || {}, profile, canEdit && !idpInactive, options)
+        : profileView === "history"
+          ? renderProfileHistoryPage(detail, options)
         : profileView === "player-board"
           ? renderProfilePlayerBoardPage(
             detail,
@@ -1868,7 +1882,6 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
       <section class="idp-workflow-board">
         ${renderProfileSignalStream(detail, canEdit && !idpInactive)}
         ${renderLatestGoalPanel(detail, canEdit && !idpInactive, options)}
-        ${renderProfileTimelineRiver(detail, options)}
       </section>
       `}
       ${renderActionOverlay(state, focus, canEdit && !idpInactive, options)}

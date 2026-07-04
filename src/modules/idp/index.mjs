@@ -2052,7 +2052,7 @@ export function handleClick(event) {
     revokePreviewUrl(runtime);
     stopPlayerBoardPreviewPlayback(runtime, { updateState: false });
     const requestedProfileView = profileViewTrigger.dataset.idpProfileView || "";
-    const profileView = ["clip-bank", "player-board", "goals"].includes(requestedProfileView) ? requestedProfileView : "development";
+    const profileView = ["clip-bank", "player-board", "goals", "history"].includes(requestedProfileView) ? requestedProfileView : "development";
     runtime?.store.setState({
       ui: {
         profileView,

@@ -8525,11 +8525,11 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   }
 }
 
-/* IDP profile workflow: keep the four insight cards visually symmetric. */
+/* IDP profile workflow: keep the active work cards visually symmetric. */
 .idp-player-profile .idp-workflow-board {
   align-items: stretch;
   gap: 12px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .idp-player-profile .idp-workflow-board > article {
@@ -8579,10 +8579,16 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   min-height: 48px;
 }
 
-@media (max-width: 1220px) {
-  .idp-player-profile .idp-workflow-board {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.idp-profile-history-page .idp-river-panel {
+  min-height: clamp(360px, 46vh, 560px);
+}
+
+.idp-profile-history-page .idp-timeline-river {
+  gap: 12px;
+}
+
+.idp-profile-history-page .idp-river-item {
+  min-height: 58px;
 }
 
 @media (max-width: 900px) {

@@ -358,9 +358,6 @@ function renderWorkspaceHeader(state = {}, canEdit = false, options = {}) {
           <span>${escapeHtml(teamName)}</span>
         </div>
       </div>
-      <div class="idp-summary-strip" aria-label="Player development overview">
-        ${renderSummary(state)}
-      </div>
     </header>
   `;
 }

@@ -147,6 +147,20 @@
   font-weight: 800;
 }
 
+.idp-shell.is-overview-mode .idp-header {
+  justify-content: flex-start;
+}
+
+.idp-shell.is-overview-mode .idp-title-lockup {
+  flex: 1 1 auto;
+}
+
+.idp-shell.is-overview-mode .idp-title-lockup h1 {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+}
+
 .idp-notice {
   background: rgba(15, 118, 110, .1);
   border: 1px solid rgba(15, 118, 110, .22);

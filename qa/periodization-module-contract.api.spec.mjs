@@ -421,6 +421,38 @@ test("Periodization renderer keeps the day card and overlay contract", () => {
   expect(panel).toContain('data-periodization-multi-field="teamPrinciples"');
 });
 
+test("Periodization month view includes the week that contains the first day of the month", () => {
+  const renderer = createPeriodizationRenderer({
+    escapeHtml,
+    formatDateValue,
+    parseDateValue,
+    getState: () => ({ selectedDate: "2026-07-04" }),
+    getDay: () => ({
+      daySchedule: "Training",
+      sessionType: "Training",
+      physicalLoad: "Moderate",
+      matchDay: "N/A",
+    }),
+    canEdit: () => false,
+    isOffDay: () => false,
+    getMultiSelectOpenField: () => "",
+    renderActionIcon: () => "icon",
+  });
+
+  const rendered = renderer.renderWorkspace({
+    selectedYear: 2026,
+    selectedMonthIndex: 6,
+    selectedDate: "2026-07-04",
+  });
+
+  expect(rendered.bodyHtml).toContain('data-periodization-week-start="2026-06-29"');
+  expect(rendered.bodyHtml).toContain("Jun 29 - Jul 5");
+  expect(rendered.bodyHtml).toContain('data-periodization-date="2026-07-04"');
+  expect(rendered.bodyHtml.indexOf('data-periodization-date="2026-07-04"')).toBeLessThan(
+    rendered.bodyHtml.indexOf('data-periodization-date="2026-07-06"')
+  );
+});
+
 test("Periodization day view reads planned exercise names from Session Planner blocks without writes", () => {
   const renderer = createPeriodizationRenderer({
     escapeHtml,

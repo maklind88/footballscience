@@ -22,10 +22,10 @@ function addCalendarDays(date, days) {
   return nextDate;
 }
 
-function getFirstMondayInMonth(year, monthIndex) {
+function getFirstWeekMondayForMonth(year, monthIndex) {
   const firstDay = new Date(year, monthIndex, 1);
-  const offset = (8 - firstDay.getDay()) % 7;
-  return addCalendarDays(firstDay, offset);
+  const offset = (firstDay.getDay() + 6) % 7;
+  return addCalendarDays(firstDay, -offset);
 }
 
 function getLastSundayForMonth(year, monthIndex) {
@@ -59,7 +59,7 @@ export function createPeriodizationRenderer(options = {}) {
   const renderActionIcon = typeof options.renderActionIcon === "function" ? options.renderActionIcon : () => "";
 
   function getWeeksForMonth(year, monthIndex) {
-    const startDate = getFirstMondayInMonth(year, monthIndex);
+    const startDate = getFirstWeekMondayForMonth(year, monthIndex);
     const endDate = getLastSundayForMonth(year, monthIndex);
     const weeks = [];
     let cursor = new Date(startDate);

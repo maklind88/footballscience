@@ -1535,16 +1535,8 @@ function renderProfileFilmstrip(detail = {}, canEdit = false, ui = {}) {
 }
 
 function renderProfileClipBankPage(detail = {}, canEdit = false, ui = {}) {
-  const clips = Array.isArray(detail.clipBank) ? detail.clipBank : [];
   return `
     <section class="idp-profile-subpage idp-profile-clip-bank-page">
-      <div class="idp-profile-subpage-head">
-        <div>
-          <span>Player Clip Bank</span>
-          <strong>${escapeHtml(String(clips.length))} clips connected to this IDP</strong>
-          <small>Match and training observations for this player's development loop.</small>
-        </div>
-      </div>
       ${renderProfileFilmstrip(detail, canEdit, ui)}
     </section>
   `;

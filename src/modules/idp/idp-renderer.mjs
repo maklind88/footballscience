@@ -1668,7 +1668,7 @@ function renderProfileGoalsPage(detail = {}, focus = {}, profile = {}, canEdit =
               </div>
             </div>
             <div class="idp-goals-grid">
-              ${developmentGoals.length ? developmentGoals.map((goal) => renderGoalCard(goal, detail, canEdit, options)).join("") : renderGoalEmpty(canEdit)}
+              ${developmentGoals.length ? developmentGoals.map((goal) => renderGoalCard(goal, detail, canEdit, options)).join("") : renderGoalEmpty(canEdit, { singleCreateAction: true })}
             </div>
           </section>
           <section>
@@ -1679,11 +1679,11 @@ function renderProfileGoalsPage(detail = {}, focus = {}, profile = {}, canEdit =
               </div>
             </div>
             <div class="idp-goals-grid">
-              ${leadershipGoals.length ? leadershipGoals.map((goal) => renderGoalCard(goal, detail, canEdit, options)).join("") : renderGoalEmpty(canEdit)}
+              ${leadershipGoals.length ? leadershipGoals.map((goal) => renderGoalCard(goal, detail, canEdit, options)).join("") : renderGoalEmpty(canEdit, { singleCreateAction: true })}
             </div>
           </section>
         </div>
-      ` : renderGoalEmpty(canEdit)}
+      ` : renderGoalEmpty(canEdit, { singleCreateAction: true })}
     </section>
   `;
 }

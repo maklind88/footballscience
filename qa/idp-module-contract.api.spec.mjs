@@ -835,8 +835,15 @@ test("idp renderer separates the overview from the player development profile", 
   expect(goalsHtml).not.toContain("Make receive under pressure visible");
   expect(goalsHtml).not.toContain("Development Goals");
   expect(goalsHtml).not.toContain("Leadership & Responsibility");
-  expect(goalsHtml).toContain("data-idp-action=\"goal\"");
-  expect(goalsHtml).toContain("data-idp-action=\"leadership-goal\"");
+  const goalsEmptyStart = goalsHtml.indexOf("idp-goals-empty");
+  const goalsEmptyHtml = goalsHtml.slice(
+    goalsEmptyStart,
+    goalsHtml.indexOf("</div>", goalsHtml.indexOf("idp-goals-empty-actions")) + "</div>".length,
+  );
+  expect(goalsEmptyHtml).toContain(">Create Goal<");
+  expect(goalsEmptyHtml).toContain("data-idp-action=\"goal\"");
+  expect((goalsEmptyHtml.match(/data-idp-action=/g) || []).length).toBe(1);
+  expect(goalsEmptyHtml).not.toContain("data-idp-action=\"leadership-goal\"");
   expect((goalsHtml.match(/data-idp-profile-view="development"/g) || []).length).toBe(1);
   expect(goalsHtml).not.toContain("idp-workflow-board");
   expect(goalsHtml).not.toContain("idp-profile-scouting-radar");

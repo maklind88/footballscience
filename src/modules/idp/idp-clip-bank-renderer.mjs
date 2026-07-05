@@ -160,7 +160,6 @@ export function renderClipBankOrganizer(detail = {}, canEdit = false, ui = {}) {
         <div>
           <span>Clip Bank</span>
           <strong>${escapeHtml(countLabel)}</strong>
-          <small>Search by match, training, sub-phase, outcome or principle.</small>
         </div>
         <div class="idp-clip-bank-actions">
           ${canEdit ? `<button type="button" data-idp-action="evidence">Log observation</button>` : ""}

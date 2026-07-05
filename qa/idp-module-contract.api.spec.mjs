@@ -1640,6 +1640,7 @@ test("idp clip bank is a date-sorted organizer with play queue metadata", () => 
   expect(html).toContain("data-idp-clip-search");
   expect(html).toContain("1 of 2 clips");
   expect(html).toContain("Find clip, player, date or principle");
+  expect(html).not.toContain("Search by match, training, sub-phase, outcome or principle.");
   expect(html).not.toContain("data-idp-clip-play-selected");
   expect(html).not.toContain("Play selected");
   expect(html).toContain("data-idp-clip-play=\"bank-new\"");

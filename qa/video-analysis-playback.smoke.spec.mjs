@@ -1789,8 +1789,8 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
   await expect(buttonsList).toBeVisible();
   await expect(inspector).toContainText("Preview");
   await inspector.locator('input[data-video-analysis-button-field$=":label"]').fill("Jump press");
-  await inspector.locator('input[data-video-analysis-button-field$=":hotkey"]').fill("1");
-  await expect(overlay.locator(".video-analysis-hotkey-warning")).toContainText("already used");
+  await inspector.locator('input[data-video-analysis-button-field$=":hotkey"]').fill("enter");
+  await expect(overlay.locator(".video-analysis-hotkey-warning")).toContainText("reserved");
   await inspector.locator('input[data-video-analysis-button-field$=":hotkey"]').fill("j");
   await expect(overlay.locator(".video-analysis-hotkey-warning")).toHaveCount(0);
   await inspector.locator('select[data-video-analysis-button-field$=":targetField"]').selectOption("tags");
@@ -1816,7 +1816,7 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
   });
   expect(savedPressingButton).toMatchObject({
     label: "Jump press",
-    groupSortOrder: 2,
+    groupSortOrder: 1,
     sortOrder: 0,
     defaultDurationMs: 8000,
     startOffsetMs: -2000,

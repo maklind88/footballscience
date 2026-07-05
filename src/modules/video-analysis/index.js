@@ -20,7 +20,7 @@ import { createClipRepository } from "./repositories/clipRepository.js";
 import { createPlaylistRepository } from "./repositories/playlistRepository.js";
 import { createPresentationRepository } from "./repositories/presentationRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
-import { applyCodingButtonToClip, buildClipPayload, buildPhaseOnlyClipPayload, buildPlayerOnlyClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
+import { applyCodingButtonToClip, buildClipPayload, buildPhaseOnlyClipPayload, buildPlayerOnlyClipPayload, isPhaseOnlyClip, toApiClipPayload } from "./services/clipInstanceService.js";
 import { buildClipLibraryClipOrder, clipEndMs, clipMatchesLibraryGroup, clipStartMs } from "./services/clipLibraryService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
 import { phaseForSubPhase } from "./services/footballLanguageService.js";
@@ -122,6 +122,8 @@ const FS_PLAYER_HISTORY_GUARD_DEPTH_KEY = "__footballScienceFsPlayerHistoryGuard
 const FS_PLAYER_HISTORY_GUARD_DEPTH = 3;
 const videoShuttleTimers = new WeakMap();
 const videoShuttleSessions = new WeakMap();
+const inFlightSubPhaseTagKeys = new Set();
+const inFlightAutoPhaseTagKeys = new Set();
 
 function normalizePlaybackRate(value = 1) {
   const numeric = Number(value);
@@ -3376,6 +3378,41 @@ function momentKeyForTagAction(state = {}, playheadMs = 0) {
   return sameMoment.map(clipMomentKey).find(Boolean) || buildMomentKey(state, playheadMs);
 }
 
+function subPhaseTagActionKey(state = {}, button = {}, startMs = 0, endMs = 0, momentKey = "") {
+  return [
+    state.match?.id || "",
+    state.video?.id || "",
+    button.databaseId || button.id || button.value || "",
+    Math.max(0, Math.round(Number(startMs || 0))),
+    Math.max(0, Math.round(Number(endMs || 0))),
+    momentKey,
+  ].join(":");
+}
+
+function autoPhaseTagActionKey(state = {}, phase = "", startMs = 0, endMs = 0, momentKey = "") {
+  return [
+    state.match?.id || "",
+    state.video?.id || "",
+    String(phase || "").trim(),
+    Math.max(0, Math.round(Number(startMs || 0))),
+    Math.max(0, Math.round(Number(endMs || 0))),
+    momentKey,
+  ].join(":");
+}
+
+function hasAutoPhaseTagForMoment(state = {}, phase = "", startMs = 0, endMs = 0, momentKey = "") {
+  const label = String(phase || "").trim();
+  const start = Math.max(0, Math.round(Number(startMs || 0)));
+  const end = Math.max(start + 1, Math.round(Number(endMs || start + 1)));
+  return (state.clips || []).some((clip) => (
+    isPhaseOnlyClip(clip)
+    && String(clip.phase || clip.phase_id || "").trim() === label
+    && Math.max(0, Math.round(Number(clip.startMs ?? clip.start_ms ?? 0))) === start
+    && Math.max(0, Math.round(Number(clip.endMs ?? clip.end_ms ?? 0))) === end
+    && (!momentKey || clipMomentKey(clip) === momentKey)
+  ));
+}
+
 async function saveButtonLabelOnClip(button = {}, action = {}, context = {}, state = {}, playheadMs = 0) {
   const run = ensureRuntime(context);
   const targetClip = findClipForLabelAction(state, playheadMs);
@@ -3722,6 +3759,11 @@ async function applyCodeButton(buttonId = "", context = {}) {
       const durationMs = endMs - startMs;
       const resolvedPhase = phaseForSubPhase(action.nextDraft?.subPhase, action.nextDraft?.phase);
       const momentKey = momentKeyForTagAction(state, startMs);
+      const subPhaseActionKey = subPhaseTagActionKey(state, button, startMs, endMs, momentKey);
+      if (inFlightSubPhaseTagKeys.has(subPhaseActionKey)) {
+        return true;
+      }
+      inFlightSubPhaseTagKeys.add(subPhaseActionKey);
       const subPhaseState = {
         ...nextState,
         draft: {
@@ -3736,10 +3778,33 @@ async function applyCodeButton(buttonId = "", context = {}) {
           },
         },
       };
-      run.store.update(() => subPhaseState);
-      const savedSubPhaseClip = await saveDraftClip(context, subPhaseState);
-      if (!savedSubPhaseClip) return false;
+      let phaseActionKey = "";
       try {
+        run.store.update(() => subPhaseState);
+        const savedSubPhaseClip = await saveDraftClip(context, subPhaseState);
+        if (!savedSubPhaseClip) return false;
+        const currentAfterSubPhase = run.store.getState();
+        phaseActionKey = autoPhaseTagActionKey(state, resolvedPhase, startMs, endMs, momentKey);
+        if (hasAutoPhaseTagForMoment(currentAfterSubPhase, resolvedPhase, startMs, endMs, momentKey)
+          || inFlightAutoPhaseTagKeys.has(phaseActionKey)) {
+          run.store.update((current) => ({
+            ...current,
+            status: "ready",
+            selectedClipId: savedSubPhaseClip.id || current.selectedClipId,
+            codingSession: {
+              ...(current.codingSession || {}),
+              lastClipId: savedSubPhaseClip.id || current.codingSession?.lastClipId || "",
+            },
+            timeline: {
+              ...(current.timeline || {}),
+              playheadMs: startMs,
+            },
+            message: `${button.label || "Sub-phase"} tagged.`,
+            error: "",
+          }));
+          return true;
+        }
+        inFlightAutoPhaseTagKeys.add(phaseActionKey);
         const phaseClip = buildPhaseOnlyClipPayload(subPhaseState, resolvedPhase, startMs, durationMs, {
           momentKey,
           metadata: {
@@ -3749,6 +3814,7 @@ async function applyCodeButton(buttonId = "", context = {}) {
         });
         const payload = await run.clips.save(toApiClipPayload(phaseClip));
         const savedPhaseClip = normalizeClipInstance(payload?.clip || phaseClip);
+        inFlightAutoPhaseTagKeys.delete(phaseActionKey);
         run.store.update((current) => ({
           ...replaceClipInState(current, savedPhaseClip),
           status: "ready",
@@ -3772,6 +3838,9 @@ async function applyCodeButton(buttonId = "", context = {}) {
           error: error.message || "Sub-phase was saved, but automatic phase tag could not be created.",
         });
         return false;
+      } finally {
+        if (phaseActionKey) inFlightAutoPhaseTagKeys.delete(phaseActionKey);
+        inFlightSubPhaseTagKeys.delete(subPhaseActionKey);
       }
       return true;
     }

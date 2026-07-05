@@ -1682,6 +1682,10 @@ test("Video Analysis Tag Panel uses the red timeline playhead when video metadat
     "phase:Out of Possession/Out of Possession",
     "subPhase:Out of Possession/High Press",
   ]);
+  await expect(page.locator('[data-video-analysis-timeline-category-label="Out of Possession"]')).toContainText("Out of Possession (1)");
+  await page.locator("[data-video-analysis-timeline-lane-select]").selectOption("subPhase");
+  await expect(page.locator('[data-video-analysis-timeline-category-label="High Press"]')).toContainText("High Press (1)");
+  await expect(page.locator('[data-video-analysis-timeline-category-label="Out of Possession"]')).toHaveCount(0);
   await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:00:42");
 });
 

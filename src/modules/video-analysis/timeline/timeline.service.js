@@ -67,12 +67,14 @@ export function buildTimelineIndex(clips = [], laneMode = DEFAULT_TIMELINE_LANE_
   let minStartMs = Number.POSITIVE_INFINITY;
   let maxEndMs = 0;
   let codedMs = 0;
+  let clipCount = 0;
 
   sourceClips.forEach((clip, index) => {
     const id = clipId(clip, `timeline-clip-${index}`);
     const startMs = getClipStartMs(clip);
     const endMs = getClipEndMs(clip);
-    const laneLabels = getTimelineLaneValues(clip, normalizedLaneMode);
+    const laneLabels = getTimelineLaneValues(clip, normalizedLaneMode).filter(Boolean);
+    if (!laneLabels.length) return;
     for (const laneLabel of laneLabels) {
       if (!laneMap.has(laneLabel)) laneMap.set(laneLabel, []);
       laneMap.get(laneLabel).push(clip);
@@ -82,6 +84,7 @@ export function buildTimelineIndex(clips = [], laneMode = DEFAULT_TIMELINE_LANE_
     minStartMs = Math.min(minStartMs, startMs);
     maxEndMs = Math.max(maxEndMs, endMs);
     codedMs += Math.max(0, endMs - startMs);
+    clipCount += 1;
   });
 
   const lanes = [...laneMap.entries()]
@@ -117,7 +120,7 @@ export function buildTimelineIndex(clips = [], laneMode = DEFAULT_TIMELINE_LANE_
     clipIdsByLane,
     clipTimeRanges,
     lanes,
-    clipCount: sourceClips.length,
+    clipCount,
     laneCount: lanes.length,
     maxClipsInLane,
     minStartMs: Number.isFinite(minStartMs) ? minStartMs : 0,

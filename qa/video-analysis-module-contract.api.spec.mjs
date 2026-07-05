@@ -440,6 +440,7 @@ test("sub-phase buttons own phase assignment for coaching language", async () =>
 
 test("player, phase, and sub-phase tags stay separate clip instances", async () => {
   const clipService = await import(pathToFileURL(path.join(moduleDir, "services/clipInstanceService.js")).href);
+  const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
   const playerOnly = clipService.buildPlayerOnlyClipPayload({
     match: { id: "match-1" },
     video: { id: "video-1" },
@@ -500,6 +501,23 @@ test("player, phase, and sub-phase tags stay separate clip instances", async () 
     players: [],
     metadata: { clipKind: "subPhase", labelOnly: false, momentKey: "video-1:42000" },
   });
+
+  const clips = [playerOnly, phaseOnly, subPhasePayload];
+  const phaseIndex = timelineService.buildTimelineIndex(clips, "phase");
+  expect(phaseIndex.clipCount).toBe(1);
+  expect(phaseIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Out of Possession:1"]);
+
+  const subPhaseIndex = timelineService.buildTimelineIndex(clips, "subPhase");
+  expect(subPhaseIndex.clipCount).toBe(1);
+  expect(subPhaseIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["High Press:1"]);
+
+  const playerIndex = timelineService.buildTimelineIndex(clips, "player");
+  expect(playerIndex.clipCount).toBe(1);
+  expect(playerIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Player Eight:1"]);
+
+  const allIndex = timelineService.buildTimelineIndex(clips, "all");
+  expect(allIndex.clipCount).toBe(3);
+  expect(allIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["All Tags:3"]);
 });
 
 test("MG principles derive their searchable sub-phase from the principle group", async () => {

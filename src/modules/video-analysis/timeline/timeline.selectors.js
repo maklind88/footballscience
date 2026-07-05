@@ -53,14 +53,15 @@ export function getTimelineLaneValues(clip = {}, laneMode = "phase") {
   if (laneMode === "all") return ["All Tags"];
   if (laneMode === "player") {
     const players = playerLaneLabels(clip);
-    return players.length ? players : ["Unit"];
+    if (players.length) return players;
+    return isPlayerOnlyClip(clip) ? ["Player"] : [];
   }
   if (isPhaseOnlyClip(clip)) {
     if (laneMode === "phase") return [clipValue(clip, "phase", "phase") || "Phase"];
-    if (laneMode === "subPhase") return ["Phase"];
+    if (laneMode === "subPhase") return [];
   }
-  if (isPlayerOnlyClip(clip) && (laneMode === "phase" || laneMode === "subPhase")) return ["Player"];
-  if (isSubPhaseOnlyClip(clip) && laneMode === "phase") return ["Sub-phase"];
+  if (isPlayerOnlyClip(clip) && (laneMode === "phase" || laneMode === "subPhase")) return [];
+  if (isSubPhaseOnlyClip(clip) && laneMode === "phase") return [];
   if (laneMode === "tags") return [Array.isArray(clip.tags) && clip.tags.length ? clip.tags[0] : "No tag"];
   if (laneMode === "unit") return [firstDescriptorValue(clip, "unit") || "Unit"];
   if (laneMode === "outcome") return [clipValue(clip, "outcome", "outcome") || "Neutral"];

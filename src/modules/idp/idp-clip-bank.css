@@ -195,17 +195,55 @@
 }
 
 .idp-clip-bank-remove {
-  background: rgba(255, 255, 255, 0.92);
-  border-color: rgba(180, 35, 24, 0.18);
+  align-items: center;
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(180, 35, 24, 0.16);
+  box-shadow: 0 8px 18px rgba(16, 24, 40, 0.045);
   color: #b42318;
-  min-width: 72px;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  min-width: 34px;
+  padding: 0;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+  width: 34px;
+}
+
+.idp-clip-bank-remove svg {
+  display: block;
+  fill: none;
+  height: 17px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+  width: 17px;
+}
+
+.idp-clip-bank-remove svg path:first-child,
+.idp-clip-bank-remove svg path:nth-child(2) {
+  fill: currentColor;
+  stroke: none;
 }
 
 .idp-clip-bank-remove:hover,
 .idp-clip-bank-remove:focus-visible {
-  background: #fff1f0;
-  border-color: rgba(180, 35, 24, 0.34);
+  background: #b42318;
+  border-color: #b42318;
+  box-shadow: 0 12px 26px rgba(180, 35, 24, 0.24), 0 0 0 4px rgba(180, 35, 24, 0.1);
+  color: #fff;
   outline: none;
+  transform: translateY(-1px);
+}
+
+.idp-clip-bank-remove:active {
+  box-shadow: 0 7px 16px rgba(180, 35, 24, 0.18), 0 0 0 3px rgba(180, 35, 24, 0.08);
+  transform: translateY(0);
 }
 
 .idp-clip-bank-more {

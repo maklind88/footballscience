@@ -110,7 +110,21 @@ function renderClipCard(clip = {}, index = 0, selected = false, canEdit = false)
         ${principles.map((label) => `<span>${escapeHtml(label)}</span>`).join("")}
         ${clip.outcome ? `<span>${escapeHtml(clip.outcome)}</span>` : ""}
       </div>
-      ${canEdit ? `<button type="button" class="idp-clip-bank-remove" data-idp-clip-remove="${escapeHtml(id)}" title="Remove from Clip Bank">Remove</button>` : ""}
+      ${canEdit ? `
+        <button
+          type="button"
+          class="idp-clip-bank-remove"
+          data-idp-clip-remove="${escapeHtml(id)}"
+          title="Remove from Clip Bank"
+          aria-label="Remove clip from Clip Bank"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M9 3h6l1 2h4v2H4V5h4l1-2Z"></path>
+            <path d="M7 9h10l-.7 10.2c-.1 1-1 1.8-2 1.8H9.7c-1 0-1.9-.8-2-1.8L7 9Z"></path>
+            <path d="M10 11v7M14 11v7"></path>
+          </svg>
+        </button>
+      ` : ""}
       <button type="button" class="idp-clip-bank-play" data-idp-clip-play="${escapeHtml(id)}">Play</button>
     </article>
   `;

@@ -163,6 +163,7 @@ test("Squad medical status service preserves medical snapshot golden-master beha
       week: { average: 80, count: 1 },
       month: { average: 80, count: 1 },
       season: { average: 80, count: 1 },
+      lastFive: { average: 80, count: 1 },
     },
   });
   expect(service.getPlayerProfileEffectiveStatus({ id: "p1", status: "available" }, "2026-06-07")).toBe("injured");

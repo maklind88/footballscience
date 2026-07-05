@@ -36,6 +36,16 @@ const buttonTypeByField = Object.freeze({
   teamPrincipleId: "team_principle",
   miniGamePrincipleId: "mini_game_principle",
 });
+const canonicalTargetFields = Object.freeze({
+  sub_phase: "subPhase",
+  team_principle: "teamPrincipleId",
+  team_principle_id: "teamPrincipleId",
+  mini_game_principle: "miniGamePrincipleId",
+  mini_game_principle_id: "miniGamePrincipleId",
+  player: "playerId",
+  player_id: "playerId",
+  pitch_zone: "pitchZone",
+});
 
 function slug(value = "") {
   return String(value || "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
@@ -56,6 +66,11 @@ function normalizeHotkey(value = "") {
 
 function behaviorSettings(behavior = defaultButtonBehavior) {
   return buttonBehaviorSettings[behavior] || buttonBehaviorSettings.create_tag;
+}
+
+export function canonicalCodingTargetField(value = "") {
+  const field = String(value || "").trim();
+  return canonicalTargetFields[field] || field;
 }
 
 function normalizeGroupName(value = "") {
@@ -121,7 +136,7 @@ function button(id, type, label, value, hotkey = "", group = type, options = {})
     buttonBehavior,
     createsClip: options.createsClip ?? settings.createsClip,
     appliesLabel: options.appliesLabel ?? settings.appliesLabel,
-    targetField: options.targetField || type,
+    targetField: canonicalCodingTargetField(options.targetField || type),
     instantEnabled: options.instantEnabled !== false,
     sortOrder: Number(options.sortOrder ?? 0),
   };
@@ -214,10 +229,11 @@ export function duplicateCodingButtonInTemplate(template = {}, buttonId = "") {
 }
 
 function targetFieldForBehavior(currentTargetField = "", behavior = defaultButtonBehavior) {
-  if (currentTargetField && currentTargetField !== "tags") return currentTargetField;
+  const targetField = canonicalCodingTargetField(currentTargetField);
+  if (targetField && targetField !== "tags") return targetField;
   if (behavior === "descriptor") return "unit";
   if (behavior === "player_tag") return "playerId";
-  return currentTargetField || "tags";
+  return targetField || "tags";
 }
 
 export function removeCodingButtonFromTemplate(template = {}, buttonId = "") {
@@ -240,7 +256,11 @@ export function updateCodingButtonField(template = {}, buttonId = "", fieldName 
     : fieldName === "color"
       ? normalizeColor(value)
       : value;
-  const nextValue = numericFields.has(fieldName) ? Math.round(Number(value || 0)) : normalizedValue;
+  const nextValue = fieldName === "targetField"
+    ? canonicalCodingTargetField(normalizedValue)
+    : numericFields.has(fieldName)
+      ? Math.round(Number(value || 0))
+      : normalizedValue;
   return {
     ...template,
     buttons: (template.buttons || []).map((item) => {
@@ -294,7 +314,7 @@ export function findButtonByHotkey(template = {}, key = "") {
 }
 
 export function applyCodingButtonToDraft(draft = {}, template = {}, button = {}) {
-  const targetField = button?.targetField || button?.type;
+  const targetField = canonicalCodingTargetField(button?.targetField || button?.type);
   if (!targetField) return draft;
   const nextDraft = { ...draft, [targetField]: button.value };
   if (targetField === "subPhase") {

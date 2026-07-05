@@ -388,6 +388,25 @@ test("sub-phase buttons own phase assignment for coaching language", async () =>
     phase: "Out of Possession",
     subPhase: "Box Defending",
   });
+  const persistedSnakeCaseAction = templateService.buildCodingButtonAction({
+    template,
+    draft: {
+      startMs: 0,
+      endMs: 15000,
+      phase: "Out of Possession",
+      subPhase: "High Press",
+      outcome: "Neutral",
+    },
+    codingSession: { mode: template.defaultMode, defaultClipDurationMs: template.defaultClipDurationMs },
+  }, { ...buttonByValue("Build Up"), targetField: "sub_phase" }, 12000);
+  expect(persistedSnakeCaseAction.shouldCreateClip).toBe(true);
+  expect(persistedSnakeCaseAction.nextDraft).toMatchObject({
+    phase: "In Possession",
+    subPhase: "Build Up",
+    startMs: 12000,
+    endMs: 27000,
+  });
+  expect(persistedSnakeCaseAction.nextDraft.sub_phase).toBeUndefined();
 
   const panelHtml = templateBuilder.renderCodingTemplateBuilder({
     template,
@@ -432,6 +451,13 @@ test("player quick tags stay player-only unless they are linked to a coding tag"
     metadata: { clipKind: "coded", upgradedFrom: "player" },
   });
   expect(clipService.isPlayerOnlyClip(linked)).toBe(false);
+
+  const snakeCaseLinked = clipService.applyCodingButtonToClip(playerOnly, { targetField: "sub_phase", value: "Box Defending", label: "Box Defending" });
+  expect(snakeCaseLinked).toMatchObject({
+    phase: "Out of Possession",
+    subPhase: "Box Defending",
+    metadata: { clipKind: "coded", upgradedFrom: "player" },
+  });
 
   const playerLinked = clipService.applyCodingButtonToClip({
     id: "clip-1",
@@ -631,6 +657,8 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(templateApi).toContain("writeCodingButtonRow");
   expect(templateApi).toContain("defaultClipDurationMs: template.defaultClipDurationMs");
   expect(templateApi).toContain("defaultDurationMs: button.defaultDurationMs");
+  expect(templateApi).toContain("CANONICAL_CODING_TARGET_FIELDS");
+  expect(templateApi).toContain('sub_phase: "subPhase"');
   expect(api).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
   expect(templateApi).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
 });

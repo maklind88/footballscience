@@ -25,6 +25,16 @@ const BUTTON_TYPE_TO_CODING_FIELD = Object.freeze({
   team_principle: "teamPrincipleId",
   mini_game_principle: "miniGamePrincipleId",
 });
+const CANONICAL_CODING_TARGET_FIELDS = Object.freeze({
+  sub_phase: "subPhase",
+  team_principle: "teamPrincipleId",
+  team_principle_id: "teamPrincipleId",
+  mini_game_principle: "miniGamePrincipleId",
+  mini_game_principle_id: "miniGamePrincipleId",
+  player: "playerId",
+  player_id: "playerId",
+  pitch_zone: "pitchZone",
+});
 const BUTTON_TYPE_GROUPS = Object.freeze({
   phase: "Phase",
   sub_phase: "Sub-phase",
@@ -70,7 +80,7 @@ function normalizeCodingButtonType(value) {
 
 function normalizeCodingTargetField(value, type = "custom") {
   const targetField = normalizeText(value, 120);
-  if (targetField) return targetField;
+  if (targetField) return CANONICAL_CODING_TARGET_FIELDS[targetField] || targetField;
   return BUTTON_TYPE_TO_CODING_FIELD[type] || type;
 }
 

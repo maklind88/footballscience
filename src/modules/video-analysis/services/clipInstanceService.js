@@ -5,6 +5,21 @@ import { phaseForSubPhase, withPhaseForSubPhase } from "./footballLanguageServic
 import { buildMiniGamePrincipleLabels, uniqueMiniGamePrincipleIds, withMiniGamePrinciples } from "./miniGamePrincipleService.js";
 
 const playerOnlyClipKind = "player";
+const canonicalTargetFields = Object.freeze({
+  sub_phase: "subPhase",
+  team_principle: "teamPrincipleId",
+  team_principle_id: "teamPrincipleId",
+  mini_game_principle: "miniGamePrincipleId",
+  mini_game_principle_id: "miniGamePrincipleId",
+  player: "playerId",
+  player_id: "playerId",
+  pitch_zone: "pitchZone",
+});
+
+function canonicalClipTargetField(value = "") {
+  const field = String(value || "").trim();
+  return canonicalTargetFields[field] || field;
+}
 
 export function createClipDraftFromPlayerTime(draft = {}, videoElement) {
   const currentMs = normalizeMs((videoElement?.currentTime || 0) * 1000);
@@ -166,7 +181,7 @@ function withPlayer(clip = {}, playerId = "", players = []) {
 }
 
 export function applyCodingButtonToClip(clip = {}, button = {}, players = []) {
-  const targetField = button.targetField || button.type || "tags";
+  const targetField = canonicalClipTargetField(button.targetField || button.type || "tags");
   const value = button.value || button.label || "";
   if (targetField === "tags") return { ...clip, tags: uniqueTags(clip.tags, value) };
   if (targetField === "phase") return { ...clip, phase: value };

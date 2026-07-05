@@ -2051,7 +2051,7 @@ status: { label: kind === "staff" ? "Staff added" : "Added manually" },
 function getSessionPlannerPlayerBoardPlayers(block = getSessionPlannerSelectedBlock()) {
 const rule = getSessionPlannerPlayerBoardRule(block);
 const availabilityItems = getSessionPlannerAvailabilityItems(local.sessionPlannerState?.selectedDate)
-.filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player))
+.filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player, local.sessionPlannerState?.selectedDate))
 .filter((item) => (item.record || item.planningOnly) && isSessionPlannerPlayerVisibleForBoard(item.participation, rule))
 .map((item) => ({
 ...item,

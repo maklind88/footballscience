@@ -74,11 +74,11 @@ export function createMedicalDisplayHelpers(options = {}) {
     return `<span class="medical-temporary-badge${isActiveToday ? "" : " is-outside-window"}">${escapeHtml(label)}</span>`;
   }
 
-  function renderMedicalSquadAvailabilityBadge(player = {}) {
-    if (!isMedicalPlayerBlockedBySquadAvailability(player)) {
+  function renderMedicalSquadAvailabilityBadge(player = {}, dateValue = getSelectedDate()) {
+    if (!isMedicalPlayerBlockedBySquadAvailability(player, dateValue)) {
       return "";
     }
-    const option = getMedicalPlayerAvailabilityStatusOption(player);
+    const option = getMedicalPlayerAvailabilityStatusOption(player, dateValue);
     return `<span class="medical-squad-availability-badge is-${escapeHtml(option.tone || option.key)}">${escapeHtml(option.label)}</span>`;
   }
 

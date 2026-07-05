@@ -113,7 +113,7 @@ ${escapeHtml(value)}
     const selectedDate = getSelectedDate();
     const canEdit = canEditMedicalTeam();
     const activityContext = getMedicalRecommendationActivityContext(selectedDate);
-    const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player);
+    const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player, selectedDate);
     const canRecommend = canEdit && activityContext.isRecommendable && !squadBlockReason;
     const label = squadBlockReason || activityContext.quickLabel;
     return `
@@ -161,7 +161,7 @@ ${renderMedicalPlayerAvatar(player)}
 ${player.number ? `<span>#${escapeHtml(player.number)}</span>` : ""}
 <span>${escapeHtml(player.position || "Position")}</span>
 ${renderMedicalTemporaryPlayerBadge(player)}
-${renderMedicalSquadAvailabilityBadge(player)}
+${renderMedicalSquadAvailabilityBadge(player, selectedDate)}
 </div>
 </div>
 </div>

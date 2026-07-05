@@ -127,10 +127,10 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
   }
 
   function createMedicalRecordFromSquadAvailabilityBlock(player, dateValue) {
-    if (!player || !isDateValue(dateValue) || !isPlayerBlockedBySquadAvailability(player)) {
+    if (!player || !isDateValue(dateValue) || !isPlayerBlockedBySquadAvailability(player, dateValue)) {
       return null;
     }
-    const option = getMedicalPlayerAvailabilityStatusOption(player);
+    const option = getMedicalPlayerAvailabilityStatusOption(player, dateValue);
     const reason = option.label || "Unavailable";
     return {
       id: `squad-availability:${player.id}:${dateValue}`,
@@ -167,7 +167,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
     }
     const state = readState();
     const player = (state.players || []).find((candidate) => candidate.id === playerId);
-    const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player);
+    const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player, dateValue);
     if (squadBlockReason) {
       return squadBlockReason;
     }

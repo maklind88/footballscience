@@ -2617,6 +2617,20 @@ test("Medical availability blocks training recommendations for Squad non-availab
         updatedAt: "2026-05-18T08:00:00.000Z",
       },
       {
+        id: "qa-future-injury",
+        name: "QA Future Injury",
+        number: "3",
+        position: "Defender",
+        primaryRole: "CB",
+        roleGroup: "defender",
+        status: "injured",
+        squadStatus: "rotation",
+        rosterType: "squad",
+        countsInSquad: true,
+        createdAt: "2026-05-18T08:00:00.000Z",
+        updatedAt: "2026-05-20T08:00:00.000Z",
+      },
+      {
         id: "qa-available-training",
         name: "QA Available Training",
         number: "10",
@@ -2639,6 +2653,13 @@ test("Medical availability blocks training recommendations for Squad non-availab
         selectedPlayerId: "qa-international",
         players,
         removedPlayerIds: [],
+        changeLog: [
+          {
+            playerId: "qa-future-injury",
+            createdAt: "2026-05-20T08:00:00.000Z",
+            changes: [{ field: "Availability status", from: "Available", to: "Injured" }],
+          },
+        ],
         updatedAt: "2026-05-18T08:00:00.000Z",
       })
     );
@@ -2673,26 +2694,33 @@ test("Medical availability blocks training recommendations for Squad non-availab
   await page.locator('[data-medical-ops-tab="availability"]').click();
 
   const internationalRow = page.locator('[data-medical-roster-row="qa-international"]');
+  const futureInjuryRow = page.locator('[data-medical-roster-row="qa-future-injury"]');
   const availableRow = page.locator('[data-medical-roster-row="qa-available-training"]');
   await expect(internationalRow.locator(".medical-squad-availability-badge")).toHaveText("International duty");
   await expect(internationalRow.locator(".medical-quick-rec-button.is-active")).toHaveText("0%");
   await expect(internationalRow.locator('[data-medical-quick-participation="100"]')).toBeDisabled();
+  await expect(futureInjuryRow.locator(".medical-squad-availability-badge")).toHaveCount(0);
+  await expect(futureInjuryRow.locator('[data-medical-quick-participation="100"]')).toBeEnabled();
   await expect(availableRow.locator('[data-medical-quick-participation="100"]')).toBeEnabled();
   await expect(page.locator(".medical-bulk-panel")).toHaveCount(0);
   await expect(page.locator("[data-medical-bulk-toggle]")).toHaveCount(0);
   await expect(page.locator("[data-medical-bulk-menu-toggle]")).toHaveCount(0);
 
   await availableRow.locator('[data-medical-quick-participation="75"]').click();
+  await futureInjuryRow.locator('[data-medical-quick-participation="50"]').click();
 
   await expect
     .poll(() =>
       page.evaluate((storageKey) => {
         const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
         const internationalRecords = (state.records || []).filter((record) => record.playerId === "qa-international");
+        const futureInjuryRecords = (state.records || []).filter((record) => record.playerId === "qa-future-injury");
         const availableRecords = (state.records || []).filter((record) => record.playerId === "qa-available-training");
         return {
           internationalCount: internationalRecords.length,
           internationalParticipation: internationalRecords[0]?.participation,
+          futureInjuryCount: futureInjuryRecords.length,
+          futureInjuryParticipation: futureInjuryRecords[0]?.participation,
           availableCount: availableRecords.length,
           availableParticipation: availableRecords[0]?.participation,
         };
@@ -2701,6 +2729,8 @@ test("Medical availability blocks training recommendations for Squad non-availab
     .toEqual({
       internationalCount: 1,
       internationalParticipation: 100,
+      futureInjuryCount: 1,
+      futureInjuryParticipation: 50,
       availableCount: 1,
       availableParticipation: 75,
     });

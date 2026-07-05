@@ -285,7 +285,7 @@ ${renderRecommendationModalCard(context)}
     const selectedDate = getSelectedDate();
     const canEdit = canEditMedicalTeam();
     const activityContext = getMedicalRecommendationActivityContext(selectedDate);
-    const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player);
+    const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player, selectedDate);
     const canRecommend = canEdit && activityContext.isRecommendable && !squadBlockReason;
     const record = getLatestMedicalRecord(player.id, selectedDate);
     const status = getMedicalRecordStatus(record);

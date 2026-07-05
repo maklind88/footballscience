@@ -31,7 +31,7 @@ export function createSessionPlannerMedicalAvailabilitySelectors({
       .filter((profile) => !existingIds.has(String(profile.id ?? "").trim()))
       .map((profile) => buildMedicalPlayerFromPlayerProfile(profile))
       .filter((player) => player && player.id && player.name)
-      .filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player))
+      .filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player, dateValue))
       .map((player) => ({
         player,
         record: createMedicalRecordFromSquadAvailabilityBlock(player, dateValue),
@@ -51,7 +51,7 @@ export function createSessionPlannerMedicalAvailabilitySelectors({
         ...item,
         player: getSessionPlannerPlayerBoardSyncedPlayer(item.player),
       }))
-      .filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player))
+      .filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player, dateValue))
       .filter((item) => !isTemporaryPlayerProfile(item.player) || isPlayerProfileTemporaryActiveOnDate(item.player, dateValue))
       .map((item) =>
         !isTemporaryPlayerProfile(item.player) || item.record

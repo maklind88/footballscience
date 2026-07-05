@@ -258,3 +258,30 @@ test("Medical runtime activity selectors preserve player, record, activity, and 
   selectors.clearMedicalInjuryPlanDraft("p1");
   expect(draftMap.has("p1")).toBe(false);
 });
+
+test("Medical runtime activity selectors only apply Squad availability blocks on eligible dates", () => {
+  const { selectors, state } = createSelectors({
+    getMedicalPlayerAvailabilityStatusOption: (player, dateValue) => ({
+      label: player?.status === "injured" && dateValue >= "2026-06-01" ? "Injured" : "Available",
+    }),
+    getMedicalPlayerSquadAvailabilityBlockReason: (player, dateValue) =>
+      player?.status === "injured" && dateValue >= "2026-06-01" ? "Blocked by Squad Room" : "",
+    isPlayerBlockedBySquadAvailability: (player, dateValue) => player?.status === "injured" && dateValue >= "2026-06-01",
+  });
+  state.players.push({
+    id: "p6",
+    name: "Future Injury",
+    status: "injured",
+    updatedAt: "2026-06-01T08:00:00.000Z",
+  });
+
+  expect(selectors.getLatestMedicalRecord("p6", "2026-05-31")).toBeNull();
+  expect(selectors.getMedicalRecommendationBlockReason("p6", 100, "2026-05-31")).toBe("");
+  expect(selectors.getLatestMedicalRecord("p6", "2026-06-01")).toMatchObject({
+    id: "squad-availability:p6:2026-06-01",
+    status: "unavailable",
+    participation: 0,
+    coachNote: "Injured - not available for team activity",
+  });
+  expect(selectors.getMedicalRecommendationBlockReason("p6", 100, "2026-06-01")).toBe("Blocked by Squad Room");
+});

@@ -45,7 +45,10 @@ test("Session Planner Player Board hides Squad-unavailable roster players", () =
   expect(runtimeSource).toContain("sessionPlannerMedicalAvailabilitySelectors.getAvailabilityItems");
   expect(availabilitySource).toContain("record: createMedicalRecordFromSquadAvailabilityBlock(player, dateValue)");
   expect(availabilitySource).toContain("participation: record ? record.participation : 100");
-  expect(availabilitySource).toContain(".filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player))");
+  expect(availabilitySource).toContain(".filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player, dateValue))");
+  expect(workspaceControllerSource).toContain(
+    ".filter((item) => !isMedicalPlayerBlockedBySquadAvailability(item.player, local.sessionPlannerState?.selectedDate))"
+  );
 });
 
 test("Session Planner Player Board ranks by role, squad status, and career phase", () => {

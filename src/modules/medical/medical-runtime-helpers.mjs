@@ -62,7 +62,16 @@ export function createMedicalRuntimeHelpers(deps = {}) {
 
   function normalizeMedicalPlayerAvailabilityStatus(value, fallback = "available") {
     const status = String(value ?? "").trim().toLowerCase();
-    return playerProfileStatusOptions.some((option) => option.key === status) || status === "unknown" ? status : fallback;
+    const option = playerProfileStatusOptions.find(
+      (candidate) =>
+        String(candidate.key || "").toLowerCase() === status ||
+        String(candidate.label || "").toLowerCase() === status ||
+        String(candidate.tone || "").toLowerCase() === status
+    );
+    if (option?.key) {
+      return option.key;
+    }
+    return status === "unknown" ? status : fallback;
   }
 
   function getMedicalLinkedPlayerProfile(player = {}) {
@@ -116,8 +125,66 @@ export function createMedicalRuntimeHelpers(deps = {}) {
     );
   }
 
-  function getMedicalPlayerAvailabilityStatusOption(player = {}) {
-    const statusKey = getMedicalPlayerAvailabilityStatus(player);
+  function getProfileAvailabilityStatusChangeEvents(profile = {}) {
+    const profileState = getPlayerProfilesState();
+    const profileId = String(profile?.id ?? "").trim();
+    if (!profileId) {
+      return [];
+    }
+    return (Array.isArray(profileState?.changeLog) ? profileState.changeLog : [])
+      .filter((entry) => String(entry?.playerId ?? "").trim() === profileId)
+      .flatMap((entry) =>
+        (Array.isArray(entry.changes) ? entry.changes : [])
+          .filter((change) => String(change?.field ?? "").trim().toLowerCase() === "availability status")
+          .map((change) => ({
+            dateValue: String(entry.createdAt || "").slice(0, 10),
+            timestamp: Date.parse(entry.createdAt || ""),
+            from: normalizeMedicalPlayerAvailabilityStatus(change.from, ""),
+            to: normalizeMedicalPlayerAvailabilityStatus(change.to, ""),
+          }))
+      )
+      .filter((event) => isDateValue(event.dateValue) && (event.from || event.to))
+      .sort((first, second) => first.timestamp - second.timestamp || first.dateValue.localeCompare(second.dateValue));
+  }
+
+  function getMedicalPlayerAvailabilityStatusForDate(player = {}, dateValue = "") {
+    const currentStatus = getMedicalPlayerAvailabilityStatus(player);
+    const cleanDate = String(dateValue || "").slice(0, 10);
+    if (!isDateValue(cleanDate)) {
+      return currentStatus;
+    }
+    const profile = getMedicalLinkedPlayerProfile(player);
+    const events = getProfileAvailabilityStatusChangeEvents(profile);
+    if (events.length) {
+      const firstEvent = events[0];
+      let status = firstEvent.from ||
+        (
+          firstEvent.dateValue > cleanDate && medicalSquadAvailabilityBlockStatusKeys.has(currentStatus)
+            ? "available"
+            : currentStatus || "available"
+        );
+      events.forEach((event) => {
+        if (event.dateValue <= cleanDate && event.to) {
+          status = event.to;
+        }
+      });
+      return normalizeMedicalPlayerAvailabilityStatus(status, currentStatus || "available");
+    }
+    const statusUpdatedDate = [profile?.updatedAt, profile?.updated_at, player.updatedAt, player.updated_at]
+      .map((value) => String(value || "").slice(0, 10))
+      .find(isDateValue);
+    if (
+      statusUpdatedDate &&
+      statusUpdatedDate > cleanDate &&
+      medicalSquadAvailabilityBlockStatusKeys.has(currentStatus)
+    ) {
+      return "available";
+    }
+    return currentStatus;
+  }
+
+  function getMedicalPlayerAvailabilityStatusOption(player = {}, dateValue = "") {
+    const statusKey = getMedicalPlayerAvailabilityStatusForDate(player, dateValue);
     return (
       playerProfileStatusOptions.find((option) => option.key === statusKey) || {
         key: statusKey,
@@ -127,15 +194,15 @@ export function createMedicalRuntimeHelpers(deps = {}) {
     );
   }
 
-  function isMedicalPlayerBlockedBySquadAvailability(player = {}) {
-    return medicalSquadAvailabilityBlockStatusKeys.has(getMedicalPlayerAvailabilityStatus(player));
+  function isMedicalPlayerBlockedBySquadAvailability(player = {}, dateValue = "") {
+    return medicalSquadAvailabilityBlockStatusKeys.has(getMedicalPlayerAvailabilityStatusForDate(player, dateValue));
   }
 
-  function getMedicalPlayerSquadAvailabilityBlockReason(player = {}) {
-    if (!isMedicalPlayerBlockedBySquadAvailability(player)) {
+  function getMedicalPlayerSquadAvailabilityBlockReason(player = {}, dateValue = "") {
+    if (!isMedicalPlayerBlockedBySquadAvailability(player, dateValue)) {
       return "";
     }
-    const option = getMedicalPlayerAvailabilityStatusOption(player);
+    const option = getMedicalPlayerAvailabilityStatusOption(player, dateValue);
     return `${player.name || "Player"} is marked ${option.label} in Squad Room and should not receive a team-activity recommendation.`;
   }
 
@@ -340,6 +407,7 @@ export function createMedicalRuntimeHelpers(deps = {}) {
     getMedicalGateOption,
     getMedicalLinkedPlayerProfile,
     getMedicalPlayerAvailabilityStatus,
+    getMedicalPlayerAvailabilityStatusForDate,
     getMedicalPlayerAvailabilityStatusOption,
     getMedicalPlayerNumberRank,
     getMedicalPlayerPositionRank,

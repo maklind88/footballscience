@@ -105,7 +105,7 @@ export function createMedicalRuntimeWriteService(deps = {}) {
     if (!player || !isDateValue(values.date)) {
       return null;
     }
-    if (isMedicalPlayerBlockedBySquadAvailability(player)) {
+    if (isMedicalPlayerBlockedBySquadAvailability(player, values.date)) {
       return null;
     }
     const participation = normalizeMedicalParticipation(values.participation);

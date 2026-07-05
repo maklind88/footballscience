@@ -189,7 +189,7 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     const medicalState = readState();
     const validIds = new Set(
       getActiveMedicalPlayersForDate(medicalState.selectedDate)
-        .filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player))
+        .filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player, medicalState.selectedDate))
         .map((player) => player.id)
     );
     const nextSelectedIds = new Set(
@@ -206,17 +206,17 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
   }
 
   function getMedicalBulkRecommendationEligiblePlayers(players = getFilteredMedicalPlayers()) {
-    return players.filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player));
+    return players.filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player, getMedicalState().selectedDate));
   }
 
   function toggleMedicalBulkPlayer(playerId) {
     const medicalState = getMedicalState();
     const selectedIds = getMedicalValidBulkSelection();
     const player = getActiveMedicalPlayersForDate(medicalState.selectedDate).find((candidate) => candidate.id === playerId);
-    if (isMedicalPlayerBlockedBySquadAvailability(player)) {
+    if (isMedicalPlayerBlockedBySquadAvailability(player, medicalState.selectedDate)) {
       selectedIds.delete(playerId);
       setBulkSelectedPlayerIds(selectedIds);
-      renderMedicalTeamWorkspace(getMedicalPlayerSquadAvailabilityBlockReason(player));
+      renderMedicalTeamWorkspace(getMedicalPlayerSquadAvailabilityBlockReason(player, medicalState.selectedDate));
       return;
     }
     if (selectedIds.has(playerId)) {
@@ -232,7 +232,7 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
   function setMedicalBulkSelection(playerIds = [], dateValue = getMedicalState().selectedDate) {
     const validIds = new Set(
       getActiveMedicalPlayersForDate(dateValue)
-        .filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player))
+        .filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player, dateValue))
         .map((player) => player.id)
     );
     setBulkSelectedPlayerIds(new Set(playerIds.filter((playerId) => validIds.has(playerId))));
@@ -250,7 +250,7 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     }
     setMedicalBulkSelection(
       players
-        .filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player))
+        .filter((player) => !isMedicalPlayerBlockedBySquadAvailability(player, bulkDate))
         .filter((player) => !getLatestMedicalRecord(player.id, bulkDate))
         .map((player) => player.id),
       bulkDate

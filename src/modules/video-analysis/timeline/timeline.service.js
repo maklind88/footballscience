@@ -10,7 +10,7 @@ import {
   getClipDurationMs,
   getClipEndMs,
   getClipStartMs,
-  getTimelineLaneValue,
+  getTimelineLaneValues,
 } from "./timeline.selectors.js";
 
 function clampPercent(value = 0) {
@@ -72,9 +72,11 @@ export function buildTimelineIndex(clips = [], laneMode = DEFAULT_TIMELINE_LANE_
     const id = clipId(clip, `timeline-clip-${index}`);
     const startMs = getClipStartMs(clip);
     const endMs = getClipEndMs(clip);
-    const laneLabel = getTimelineLaneValue(clip, normalizedLaneMode);
-    if (!laneMap.has(laneLabel)) laneMap.set(laneLabel, []);
-    laneMap.get(laneLabel).push(clip);
+    const laneLabels = getTimelineLaneValues(clip, normalizedLaneMode);
+    for (const laneLabel of laneLabels) {
+      if (!laneMap.has(laneLabel)) laneMap.set(laneLabel, []);
+      laneMap.get(laneLabel).push(clip);
+    }
     clipsById.set(id, clip);
     clipTimeRanges.set(id, { startMs, endMs });
     minStartMs = Math.min(minStartMs, startMs);

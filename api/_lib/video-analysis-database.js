@@ -445,6 +445,18 @@ async function replaceClipChildRows(table, scope = {}, clipId = "") {
   return { ok: true };
 }
 
+async function replaceClipRelationRows(scope = {}, clipId = "") {
+  const tables = [
+    "video_clip_players",
+    "video_clip_tags",
+    "video_clip_labels",
+    "video_clip_descriptors",
+    "video_clip_notes",
+  ];
+  const results = await Promise.all(tables.map((table) => replaceClipChildRows(table, scope, clipId)));
+  return results.find((result) => !result.ok) || { ok: true };
+}
+
 async function listClips(query, actor) {
   const scope = actorScope(actor);
   const dateMatchIds = await matchIdsForDate(query, scope);
@@ -522,8 +534,8 @@ async function saveClip(payload, actor) {
   const saved = clipResult.payload?.[0];
   if (!saved?.id) return { ok: false, status: 500, reason: "Clip could not be saved." };
   if (existing) {
-    const labelsReplaced = await replaceClipChildRows("video_clip_labels", scope, saved.id);
-    if (!labelsReplaced.ok) return labelsReplaced;
+    const relationsReplaced = await replaceClipRelationRows(scope, saved.id);
+    if (!relationsReplaced.ok) return relationsReplaced;
   }
   const childWrites = [];
   for (const player of clip.players) {

@@ -188,6 +188,26 @@ test("video analysis timeline indexes 500 clips for dense workstations", async (
   expect(density).toMatchObject({ isDense: true, clipCount: 500, laneCount: 5, maxClipsInLane: 100 });
 });
 
+test("video analysis timeline can show one coded moment in every involved player lane", async () => {
+  const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
+  const index = timelineService.buildTimelineIndex([{
+    id: "clip-high-press",
+    startMs: 120000,
+    endMs: 135000,
+    phase: "Out of Possession",
+    subPhase: "High Press",
+    outcome: "Neutral",
+    players: [
+      { playerId: "player-8", playerLabel: "Player Eight" },
+      { playerId: "player-9", playerLabel: "Player Nine" },
+    ],
+  }], "player");
+
+  expect(index.lanes.map((lane) => lane.label)).toEqual(["Player Eight", "Player Nine"]);
+  expect(index.clipIdsByLane.get("Player Eight")).toEqual(["clip-high-press"]);
+  expect(index.clipIdsByLane.get("Player Nine")).toEqual(["clip-high-press"]);
+});
+
 test("video player transport time follows timeline duration and live video time updates", async () => {
   const player = await import(pathToFileURL(path.join(moduleDir, "components/VideoPlayer.js")).href);
   const timelineInteraction = read("src/modules/video-analysis/timeline/timeline.interaction.js");
@@ -472,6 +492,40 @@ test("player quick tags stay player-only unless they are linked to a coding tag"
   });
 });
 
+test("same-moment coded clips can carry multiple linked players without collapsing tag types", async () => {
+  const clipService = await import(pathToFileURL(path.join(moduleDir, "services/clipInstanceService.js")).href);
+  const templateService = await import(pathToFileURL(path.join(moduleDir, "services/codingTemplateService.js")).href);
+  const template = templateService.createDefaultCodingTemplate();
+  const payload = clipService.buildClipPayload({
+    match: { id: "match-1" },
+    video: { id: "video-1" },
+    template,
+    players: [
+      { id: "player-8", name: "Player Eight" },
+      { id: "player-9", name: "Player Nine" },
+    ],
+    codingSession: { mode: "instant" },
+    draft: {
+      startMs: 20000,
+      endMs: 35000,
+      phase: "In Possession",
+      subPhase: "High Press",
+      outcome: "Neutral",
+      playerIds: ["player-8", "player-9"],
+    },
+  });
+
+  expect(payload).toMatchObject({
+    phase: "Out of Possession",
+    subPhase: "High Press",
+    visibility: "idp",
+    players: [
+      { playerId: "player-8", playerLabel: "Player Eight", role: "primary" },
+      { playerId: "player-9", playerLabel: "Player Nine", role: "primary" },
+    ],
+  });
+});
+
 test("MG principles derive their searchable sub-phase from the principle group", async () => {
   const service = await import(pathToFileURL(path.join(moduleDir, "services/miniGamePrincipleService.js")).href);
 
@@ -659,6 +713,12 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(templateApi).toContain("defaultDurationMs: button.defaultDurationMs");
   expect(templateApi).toContain("CANONICAL_CODING_TARGET_FIELDS");
   expect(templateApi).toContain('sub_phase: "subPhase"');
+  expect(shell).toContain("playerIdsFromSameMomentClips");
+  expect(shell).toContain("canonicalCodingTargetField(button.targetField || button.type || \"\")");
+  expect(shell).not.toContain("linked to player tag");
+  expect(api).toContain("replaceClipRelationRows");
+  expect(api).toContain("\"video_clip_players\"");
+  expect(api).toContain("\"video_clip_descriptors\"");
   expect(api).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
   expect(templateApi).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea)\b/i);
 });

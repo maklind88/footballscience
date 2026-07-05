@@ -40,7 +40,11 @@ export function buildClipPayload(state = {}) {
   if (!isValidCodingSelection({ ...draft, phase })) {
     throw new Error("Choose a valid phase, sub-phase, and outcome.");
   }
-  const selectedPlayer = (state.players || []).find((player) => player.id === draft.playerId);
+  const selectedPlayerIds = draftPlayerIds(draft);
+  const selectedPlayers = selectedPlayerIds
+    .map((id) => (state.players || []).find((player) => playerIdValue(player) === id) || { id, name: id })
+    .filter((player) => playerIdValue(player));
+  const selectedPlayer = selectedPlayers[0] || null;
   const miniGamePrincipleIds = uniqueMiniGamePrincipleIds([
     ...(Array.isArray(draft.miniGamePrincipleIds) ? draft.miniGamePrincipleIds : []),
     draft.miniGamePrincipleId,
@@ -61,14 +65,16 @@ export function buildClipPayload(state = {}) {
     codingButtonId: session.activeButtonDatabaseId || session.activeButtonId || "",
     preRollMs: session.preRollMs || 0,
     postRollMs: session.postRollMs || 0,
-    visibility: selectedPlayer ? "idp" : draft.visibility || draft.clipVisibility || "private",
+    visibility: selectedPlayers.length ? "idp" : draft.visibility || draft.clipVisibility || "private",
     tags: splitTags(draft.tags),
     descriptors: buildDescriptorPayload(draft, selectedPlayer),
     labels: buildMiniGamePrincipleLabels(miniGamePrincipleIds),
     metadata: draft.metadata && typeof draft.metadata === "object" ? draft.metadata : {},
-    players: selectedPlayer
-      ? [{ playerId: selectedPlayer.id, playerLabel: selectedPlayer.name, role: draft.playerRole || "primary" }]
-      : [],
+    players: selectedPlayers.map((player) => ({
+      playerId: playerIdValue(player),
+      playerLabel: playerNameValue(player),
+      role: draft.playerRole || "primary",
+    })),
     notes: draft.note ? [{ note: draft.note }] : [],
   });
 }
@@ -83,6 +89,23 @@ function playerIdValue(player = {}) {
 
 function playerNameValue(player = {}) {
   return String(player.name || player.playerLabel || player.player_label || playerIdValue(player)).trim();
+}
+
+function draftPlayerIds(draft = {}) {
+  const values = [
+    ...(Array.isArray(draft.playerIds) ? draft.playerIds : []),
+    ...(Array.isArray(draft.player_ids) ? draft.player_ids : []),
+    draft.playerId,
+    draft.player_id,
+  ];
+  const seen = new Set();
+  return values
+    .map((value) => String(value || "").trim())
+    .filter((value) => {
+      if (!value || seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    });
 }
 
 export function buildPlayerOnlyClipPayload(state = {}, player = {}, startMs = 0, durationMs = 15000) {

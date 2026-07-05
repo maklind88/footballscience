@@ -24,6 +24,14 @@ export function firstPlayerLabel(clip = {}) {
   return player?.player_label || player?.playerLabel || player?.player_id || player?.playerId || "Unit";
 }
 
+export function playerLaneLabels(clip = {}) {
+  const labels = (Array.isArray(clip.players) ? clip.players : [])
+    .map((player) => player?.player_label || player?.playerLabel || player?.name || player?.player_id || player?.playerId || "")
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  return [...new Set(labels)];
+}
+
 export function firstDescriptorValue(clip = {}, type = "") {
   return (clip.descriptors || []).find((entry) => (
     entry.descriptor_type === type || entry.type === type
@@ -38,15 +46,22 @@ export function getClipMiniGamePrincipleLabel(clip = {}) {
 }
 
 export function getTimelineLaneValue(clip = {}, laneMode = "phase") {
-  if (laneMode === "all") return "All Tags";
-  if (laneMode === "player") return firstPlayerLabel(clip);
-  if (isPlayerOnlyClip(clip) && (laneMode === "phase" || laneMode === "subPhase")) return "Player";
-  if (laneMode === "tags") return Array.isArray(clip.tags) && clip.tags.length ? clip.tags[0] : "No tag";
-  if (laneMode === "unit") return firstDescriptorValue(clip, "unit") || "Unit";
-  if (laneMode === "outcome") return clipValue(clip, "outcome", "outcome") || "Neutral";
-  if (laneMode === "subPhase") return clipValue(clip, "subPhase", "sub_phase") || "No sub-phase";
-  if (laneMode === "miniGamePrinciple") return getClipMiniGamePrincipleLabel(clip);
-  return clipValue(clip, "phase", "phase") || "Uncoded";
+  return getTimelineLaneValues(clip, laneMode)[0] || "Uncoded";
+}
+
+export function getTimelineLaneValues(clip = {}, laneMode = "phase") {
+  if (laneMode === "all") return ["All Tags"];
+  if (laneMode === "player") {
+    const players = playerLaneLabels(clip);
+    return players.length ? players : ["Unit"];
+  }
+  if (isPlayerOnlyClip(clip) && (laneMode === "phase" || laneMode === "subPhase")) return ["Player"];
+  if (laneMode === "tags") return [Array.isArray(clip.tags) && clip.tags.length ? clip.tags[0] : "No tag"];
+  if (laneMode === "unit") return [firstDescriptorValue(clip, "unit") || "Unit"];
+  if (laneMode === "outcome") return [clipValue(clip, "outcome", "outcome") || "Neutral"];
+  if (laneMode === "subPhase") return [clipValue(clip, "subPhase", "sub_phase") || "No sub-phase"];
+  if (laneMode === "miniGamePrinciple") return [getClipMiniGamePrincipleLabel(clip)];
+  return [clipValue(clip, "phase", "phase") || "Uncoded"];
 }
 
 export function getClipPrimaryLabel(clip = {}, laneMode = "phase") {

@@ -1,5 +1,4 @@
 import { videoAnalysisOutcomes } from "../constants/outcomes.js";
-import { videoAnalysisPhases } from "../constants/phases.js";
 import { videoAnalysisSubPhases } from "../constants/subPhases.js";
 import { groupCodingTemplateButtons, rebuildTemplateFromGroups } from "./codingTemplateLayoutService.js";
 import { withPhaseForSubPhase } from "./footballLanguageService.js";
@@ -14,7 +13,6 @@ export {
   templateHotkeyIssues,
 } from "./codingTemplateLayoutService.js";
 
-const phaseHotkeys = ["1", "2", "3", "4", "5"];
 const defaultClipDurationMs = 15000;
 const defaultButtonBehavior = "create_tag";
 const buttonBehaviorSettings = Object.freeze({
@@ -155,9 +153,8 @@ function buttonsFromList(type, items, hotkeys = [], group = type, groupSortOrder
 
 export function createDefaultCodingTemplate() {
   const buttons = [
-    ...buttonsFromList("phase", videoAnalysisPhases, phaseHotkeys, "Phase", 0),
-    ...buttonsFromList("subPhase", videoAnalysisSubPhases, [], "Sub-phase", 1),
-    ...buttonsFromList("outcome", videoAnalysisOutcomes, ["z", "x", "c"], "Outcome", 2),
+    ...buttonsFromList("subPhase", videoAnalysisSubPhases, [], "Sub-phase", 0),
+    ...buttonsFromList("outcome", videoAnalysisOutcomes, ["z", "x", "c"], "Outcome", 1),
   ];
   return {
     id: "football-science-default-template",

@@ -5,6 +5,8 @@ import { phaseForSubPhase, withPhaseForSubPhase } from "./footballLanguageServic
 import { buildMiniGamePrincipleLabels, uniqueMiniGamePrincipleIds, withMiniGamePrinciples } from "./miniGamePrincipleService.js";
 
 const playerOnlyClipKind = "player";
+const phaseClipKind = "phase";
+const subPhaseClipKind = "subPhase";
 const canonicalTargetFields = Object.freeze({
   sub_phase: "subPhase",
   team_principle: "teamPrincipleId",
@@ -69,7 +71,9 @@ export function buildClipPayload(state = {}) {
     tags: splitTags(draft.tags),
     descriptors: buildDescriptorPayload(draft, selectedPlayer),
     labels: buildMiniGamePrincipleLabels(miniGamePrincipleIds),
-    metadata: draft.metadata && typeof draft.metadata === "object" ? draft.metadata : {},
+    metadata: draft.metadata?.clipKind
+      ? tagMomentMetadata(draft.metadata, draft.metadata.clipKind, draft.metadata.momentKey || draft.metadata.moment_key)
+      : (draft.metadata && typeof draft.metadata === "object" ? draft.metadata : {}),
     players: selectedPlayers.map((player) => ({
       playerId: playerIdValue(player),
       playerLabel: playerNameValue(player),
@@ -81,6 +85,14 @@ export function buildClipPayload(state = {}) {
 
 export function isPlayerOnlyClip(clip = {}) {
   return String(clip.metadata?.clipKind || clip.metadata?.clip_kind || "").trim() === playerOnlyClipKind;
+}
+
+export function isPhaseOnlyClip(clip = {}) {
+  return String(clip.metadata?.clipKind || clip.metadata?.clip_kind || "").trim() === phaseClipKind;
+}
+
+export function isSubPhaseOnlyClip(clip = {}) {
+  return String(clip.metadata?.clipKind || clip.metadata?.clip_kind || "").trim() === subPhaseClipKind;
 }
 
 function playerIdValue(player = {}) {
@@ -108,7 +120,46 @@ function draftPlayerIds(draft = {}) {
     });
 }
 
-export function buildPlayerOnlyClipPayload(state = {}, player = {}, startMs = 0, durationMs = 15000) {
+function tagMomentMetadata(base = {}, clipKind = "", momentKey = "") {
+  return {
+    ...(base && typeof base === "object" ? base : {}),
+    clipKind,
+    labelOnly: clipKind !== subPhaseClipKind,
+    ...(momentKey ? { momentKey } : {}),
+  };
+}
+
+export function buildPhaseOnlyClipPayload(state = {}, phase = "", startMs = 0, durationMs = 15000, options = {}) {
+  if (!state.match?.id || !state.video?.id) {
+    throw new Error("Load a local video before tagging a phase.");
+  }
+  const label = String(phase || "").trim();
+  if (!label) {
+    throw new Error("Sub-phase did not resolve to a phase.");
+  }
+  const start = normalizeMs(startMs);
+  const duration = Math.max(1000, normalizeMs(durationMs, 15000));
+  return normalizeClipInstance({
+    matchId: state.match.id,
+    videoId: state.video.id,
+    startMs: start,
+    endMs: start + duration,
+    period: state.draft?.period || "1",
+    phase: label,
+    subPhase: label,
+    outcome: state.draft?.outcome || "Neutral",
+    codingMode: "instant",
+    codingTemplateId: state.template?.databaseId || state.template?.id || "",
+    codingButtonId: state.codingSession?.activeButtonDatabaseId || state.codingSession?.activeButtonId || "",
+    preRollMs: 0,
+    postRollMs: duration,
+    visibility: options.visibility || state.draft?.visibility || state.draft?.clipVisibility || "private",
+    labels: [{ type: "phase", value: label, label }],
+    metadata: tagMomentMetadata(options.metadata, phaseClipKind, options.momentKey),
+  });
+}
+
+export function buildPlayerOnlyClipPayload(state = {}, player = {}, startMs = 0, durationMs = 15000, options = {}) {
   if (!state.match?.id || !state.video?.id) {
     throw new Error("Load a local video before tagging a player.");
   }
@@ -136,11 +187,10 @@ export function buildPlayerOnlyClipPayload(state = {}, player = {}, startMs = 0,
     descriptors: [{ type: "player", value: playerId, label, descriptor_type: "player", descriptor_value: playerId, descriptor_label: label }],
     labels: [{ type: "player", value: playerId, label, label_type: "player", label_value: playerId, label_text: label }],
     players: [{ playerId, player_id: playerId, playerLabel: label, player_label: label, role: "primary" }],
-    metadata: {
-      clipKind: playerOnlyClipKind,
-      labelOnly: true,
+    metadata: tagMomentMetadata({
       source: "player-quick-tag",
-    },
+      ...(options.metadata && typeof options.metadata === "object" ? options.metadata : {}),
+    }, playerOnlyClipKind, options.momentKey),
   });
 }
 
@@ -207,12 +257,10 @@ export function applyCodingButtonToClip(clip = {}, button = {}, players = []) {
   const targetField = canonicalClipTargetField(button.targetField || button.type || "tags");
   const value = button.value || button.label || "";
   if (targetField === "tags") return { ...clip, tags: uniqueTags(clip.tags, value) };
-  if (targetField === "phase") return { ...clip, phase: value };
+  if (targetField === "phase") return isPlayerOnlyClip(clip) ? clip : { ...clip, phase: value };
   if (targetField === "subPhase") {
-    const metadata = isPlayerOnlyClip(clip)
-      ? { ...(clip.metadata || {}), clipKind: "coded", labelOnly: false, upgradedFrom: playerOnlyClipKind }
-      : clip.metadata;
-    return withPhaseForSubPhase({ ...clip, metadata, subPhase: value, sub_phase: value });
+    if (isPlayerOnlyClip(clip)) return clip;
+    return withPhaseForSubPhase({ ...clip, subPhase: value, sub_phase: value });
   }
   if (targetField === "teamPrincipleId") return { ...clip, teamPrincipleId: value, team_principle_id: value };
   if (targetField === "miniGamePrincipleId") return withMiniGamePrinciples(clip, [value]);

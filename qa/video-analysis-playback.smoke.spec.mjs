@@ -1476,6 +1476,18 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     codingMode: "instant",
     visibility: "private",
   });
+  await expect.poll(() => page.evaluate(() => {
+    const clips = (window.__videoAnalysisRequests || [])
+      .filter((item) => item.action === "save-clip" && item.body?.clip?.startMs === 83000)
+      .map((item) => item.body.clip);
+    if (clips.length < 2) return [];
+    return clips
+      .map((clip) => `${clip.metadata?.clipKind || ""}:${clip.phase || ""}/${clip.subPhase || ""}:${clip.startMs}-${clip.endMs}`)
+      .sort();
+  })).toEqual([
+    "phase:In Possession/In Possession:83000-98000",
+    "subPhase:In Possession/Build Up:83000-98000",
+  ]);
   const codeModeAfterTag = await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
     const frame = document.querySelector(".video-analysis-fs-player-deck .video-analysis-video-frame")?.getBoundingClientRect();
@@ -1643,7 +1655,7 @@ test("Video Analysis Tag Panel uses the red timeline playhead when video metadat
   });
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
 
-  await page.locator('[data-video-analysis-code-button="phase-offensive-transition"]').click();
+  await page.locator('[data-video-analysis-code-button="subPhase-high-press"]').click();
   await expect.poll(() => {
     return page.evaluate(() => {
       const request = (window.__videoAnalysisRequests || []).find((item) => item.action === "save-clip");
@@ -1652,10 +1664,24 @@ test("Video Analysis Tag Panel uses the red timeline playhead when video metadat
   }).toMatchObject({
     startMs: 42000,
     endMs: 57000,
-    phase: "Offensive Transition",
+    phase: "Out of Possession",
+    subPhase: "High Press",
+    metadata: { clipKind: "subPhase" },
     codingMode: "instant",
     visibility: "private",
   });
+  await expect.poll(() => page.evaluate(() => {
+    const clips = (window.__videoAnalysisRequests || [])
+      .filter((item) => item.action === "save-clip" && item.body?.clip?.startMs === 42000)
+      .map((item) => item.body.clip);
+    if (clips.length < 2) return [];
+    return clips
+      .map((clip) => `${clip.metadata?.clipKind || ""}:${clip.phase || ""}/${clip.subPhase || ""}`)
+      .sort();
+  })).toEqual([
+    "phase:Out of Possession/Out of Possession",
+    "subPhase:Out of Possession/High Press",
+  ]);
   await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:00:42");
 });
 
@@ -1704,11 +1730,21 @@ test("Video Analysis player buttons create IDP player clips from the playhead", 
     startMs: 121000,
     endMs: 136000,
     visibility: "idp",
+    metadata: { clipKind: "player", labelOnly: true },
     players: [
       { playerId: "p1", playerLabel: "Alex Morgan", role: "primary" },
     ],
   });
-  await expect(page.locator(".video-analysis-notifications")).toContainText("Alex Morgan sent to IDP.");
+  await page.locator('[data-video-analysis-player-tag="p1"]').click();
+  await expect.poll(() => page.evaluate(() => {
+    return (window.__videoAnalysisRequests || [])
+      .filter((item) => item.action === "save-clip"
+        && item.body?.clip?.metadata?.clipKind === "player"
+        && item.body?.clip?.startMs === 121000
+        && item.body?.clip?.players?.[0]?.playerId === "p1")
+      .length;
+  })).toBe(2);
+  await expect(page.locator(".video-analysis-notifications")).toContainText("Alex Morgan player tag created.");
 });
 
 test("Video Analysis Panel Builder creates a custom tag button", async ({ page }) => {

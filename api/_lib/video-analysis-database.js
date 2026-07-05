@@ -130,14 +130,32 @@ function normalizeDescriptors(payload = {}) {
     .slice(0, 30);
 }
 
+function clipKindValue(clip = {}) {
+  const value = normalizeText(clip.metadata?.clipKind || clip.metadata?.clip_kind, 80);
+  return value === "sub_phase" ? "subPhase" : value;
+}
+
 function normalizeLabels(payload = {}, clip = {}) {
-  const base = [
+  const clipKind = clipKindValue(clip);
+  let base = [
     ["phase", clip.phase, clip.phase],
     ["sub_phase", clip.subPhase, clip.subPhase],
     ["team_principle", clip.teamPrincipleId, clip.teamPrincipleId],
     ["mini_game_principle", clip.miniGamePrincipleId, clip.miniGamePrincipleId],
     ["outcome", clip.outcome, clip.outcome],
   ];
+  if (clipKind === "player") {
+    base = [];
+  } else if (clipKind === "phase") {
+    base = [["phase", clip.phase, clip.phase]];
+  } else if (clipKind === "subPhase") {
+    base = [
+      ["sub_phase", clip.subPhase, clip.subPhase],
+      ["team_principle", clip.teamPrincipleId, clip.teamPrincipleId],
+      ["mini_game_principle", clip.miniGamePrincipleId, clip.miniGamePrincipleId],
+      ["outcome", clip.outcome, clip.outcome],
+    ];
+  }
   const custom = Array.isArray(payload.labels) ? payload.labels : [];
   const seen = new Set();
   return custom.map((entry = {}) => ({

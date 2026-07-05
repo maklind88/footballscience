@@ -352,9 +352,9 @@ test("coding tag panel creates 15 second button-owned clip actions", async () =>
   expect(button.targetField).toBe("subPhase");
   expect(button.databaseId).toBe("");
   const defaultGroups = service.groupCodingTemplateButtons(template);
-  expect(defaultGroups.map((group) => group.label)).toEqual(["Phase", "Sub-phase", "Outcome"]);
-  expect(defaultGroups.map((group) => group.sortOrder)).toEqual([0, 1, 2]);
-  expect(defaultGroups[1].buttons.map((item) => item.sortOrder).slice(0, 3)).toEqual([0, 1, 2]);
+  expect(defaultGroups.map((group) => group.label)).toEqual(["Sub-phase", "Outcome"]);
+  expect(defaultGroups.map((group) => group.sortOrder)).toEqual([0, 1]);
+  expect(defaultGroups[0].buttons.map((item) => item.sortOrder).slice(0, 3)).toEqual([0, 1, 2]);
   expect(action.shouldCreateClip).toBe(true);
   expect(action.nextDraft.startMs).toBe(831000);
   expect(action.nextDraft.endMs).toBe(846000);
@@ -438,7 +438,7 @@ test("sub-phase buttons own phase assignment for coaching language", async () =>
   expect(panelHtml).not.toContain('data-video-analysis-code-button="phase-');
 });
 
-test("player quick tags stay player-only unless they are linked to a coding tag", async () => {
+test("player, phase, and sub-phase tags stay separate clip instances", async () => {
   const clipService = await import(pathToFileURL(path.join(moduleDir, "services/clipInstanceService.js")).href);
   const playerOnly = clipService.buildPlayerOnlyClipPayload({
     match: { id: "match-1" },
@@ -449,7 +449,7 @@ test("player quick tags stay player-only unless they are linked to a coding tag"
       subPhase: "Build Up",
       outcome: "Development",
     },
-  }, { id: "player-8", name: "Player Eight" }, 42000, 15000);
+  }, { id: "player-8", name: "Player Eight" }, 42000, 15000, { momentKey: "video-1:42000" });
 
   expect(playerOnly).toMatchObject({
     matchId: "match-1",
@@ -459,51 +459,30 @@ test("player quick tags stay player-only unless they are linked to a coding tag"
     subPhase: "Player",
     outcome: "Development",
     visibility: "idp",
-    metadata: { clipKind: "player", labelOnly: true },
+    metadata: { clipKind: "player", labelOnly: true, momentKey: "video-1:42000" },
   });
   expect(clipService.isPlayerOnlyClip(playerOnly)).toBe(true);
   expect(clipService.toApiClipPayload(playerOnly).metadata).toMatchObject({ clipKind: "player" });
+  expect(clipService.applyCodingButtonToClip(playerOnly, { targetField: "subPhase", value: "High Press", label: "High Press" })).toBe(playerOnly);
 
-  const linked = clipService.applyCodingButtonToClip(playerOnly, { targetField: "subPhase", value: "High Press", label: "High Press" });
-  expect(linked).toMatchObject({
-    phase: "Out of Possession",
-    subPhase: "High Press",
-    metadata: { clipKind: "coded", upgradedFrom: "player" },
-  });
-  expect(clipService.isPlayerOnlyClip(linked)).toBe(false);
-
-  const snakeCaseLinked = clipService.applyCodingButtonToClip(playerOnly, { targetField: "sub_phase", value: "Box Defending", label: "Box Defending" });
-  expect(snakeCaseLinked).toMatchObject({
-    phase: "Out of Possession",
-    subPhase: "Box Defending",
-    metadata: { clipKind: "coded", upgradedFrom: "player" },
-  });
-
-  const playerLinked = clipService.applyCodingButtonToClip({
-    id: "clip-1",
-    players: [],
-    visibility: "private",
-  }, { targetField: "playerId", value: "player-8" }, [{ id: "player-8", name: "Player Eight" }]);
-  expect(playerLinked).toMatchObject({
-    visibility: "idp",
-    clipVisibility: "idp",
-    idpShared: true,
-    players: [{ playerId: "player-8", playerLabel: "Player Eight", role: "primary" }],
-  });
-});
-
-test("same-moment coded clips can carry multiple linked players without collapsing tag types", async () => {
-  const clipService = await import(pathToFileURL(path.join(moduleDir, "services/clipInstanceService.js")).href);
-  const templateService = await import(pathToFileURL(path.join(moduleDir, "services/codingTemplateService.js")).href);
-  const template = templateService.createDefaultCodingTemplate();
-  const payload = clipService.buildClipPayload({
+  const phaseOnly = clipService.buildPhaseOnlyClipPayload({
     match: { id: "match-1" },
     video: { id: "video-1" },
-    template,
-    players: [
-      { id: "player-8", name: "Player Eight" },
-      { id: "player-9", name: "Player Nine" },
-    ],
+    template: { id: "template-1" },
+    draft: { outcome: "Neutral" },
+  }, "Out of Possession", 42000, 15000, { momentKey: "video-1:42000" });
+  expect(phaseOnly).toMatchObject({
+    phase: "Out of Possession",
+    subPhase: "Out of Possession",
+    players: [],
+    metadata: { clipKind: "phase", labelOnly: true, momentKey: "video-1:42000" },
+  });
+
+  const subPhasePayload = clipService.buildClipPayload({
+    match: { id: "match-1" },
+    video: { id: "video-1" },
+    template: { id: "template-1" },
+    players: [],
     codingSession: { mode: "instant" },
     draft: {
       startMs: 20000,
@@ -511,18 +490,15 @@ test("same-moment coded clips can carry multiple linked players without collapsi
       phase: "In Possession",
       subPhase: "High Press",
       outcome: "Neutral",
-      playerIds: ["player-8", "player-9"],
+      metadata: { clipKind: "subPhase", momentKey: "video-1:42000" },
     },
   });
-
-  expect(payload).toMatchObject({
+  expect(subPhasePayload).toMatchObject({
     phase: "Out of Possession",
     subPhase: "High Press",
-    visibility: "idp",
-    players: [
-      { playerId: "player-8", playerLabel: "Player Eight", role: "primary" },
-      { playerId: "player-9", playerLabel: "Player Nine", role: "primary" },
-    ],
+    visibility: "private",
+    players: [],
+    metadata: { clipKind: "subPhase", labelOnly: false, momentKey: "video-1:42000" },
   });
 });
 
@@ -613,7 +589,7 @@ test("coding tag panel builder creates custom timeline tag buttons", async () =>
   expect(renamedButton.label).toBe("Jump press");
   expect(renamedButton.value).toBe("Jump press");
 
-  const conflictingHotkey = service.updateCodingButtonField(renamed, customButton.id, "hotkey", "1");
+  const conflictingHotkey = service.updateCodingButtonField(renamed, customButton.id, "hotkey", "z");
   expect(service.templateHotkeyIssues(conflictingHotkey, customButton.id).map((issue) => issue.type)).toContain("duplicate");
 
   const colored = service.updateCodingButtonField(renamed, customButton.id, "color", "#d92d20");
@@ -713,9 +689,16 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(templateApi).toContain("defaultDurationMs: button.defaultDurationMs");
   expect(templateApi).toContain("CANONICAL_CODING_TARGET_FIELDS");
   expect(templateApi).toContain('sub_phase: "subPhase"');
-  expect(shell).toContain("playerIdsFromSameMomentClips");
+  expect(shell).toContain("momentKeyForTagAction");
+  expect(shell).toContain("buildPhaseOnlyClipPayload");
+  expect(shell).not.toContain("playerIdsFromSameMomentClips");
+  expect(shell).not.toContain("nextCodedClips");
   expect(shell).toContain("canonicalCodingTargetField(button.targetField || button.type || \"\")");
   expect(shell).not.toContain("linked to player tag");
+  expect(api).toContain("clipKindValue");
+  expect(api).toContain('clipKind === "player"');
+  expect(api).toContain('clipKind === "phase"');
+  expect(api).toContain('clipKind === "subPhase"');
   expect(api).toContain("replaceClipRelationRows");
   expect(api).toContain("\"video_clip_players\"");
   expect(api).toContain("\"video_clip_descriptors\"");

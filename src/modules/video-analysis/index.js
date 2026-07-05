@@ -20,7 +20,7 @@ import { createClipRepository } from "./repositories/clipRepository.js";
 import { createPlaylistRepository } from "./repositories/playlistRepository.js";
 import { createPresentationRepository } from "./repositories/presentationRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
-import { applyCodingButtonToClip, buildClipPayload, buildPlayerOnlyClipPayload, isPlayerOnlyClip, toApiClipPayload } from "./services/clipInstanceService.js";
+import { applyCodingButtonToClip, buildClipPayload, buildPhaseOnlyClipPayload, buildPlayerOnlyClipPayload, toApiClipPayload } from "./services/clipInstanceService.js";
 import { buildClipLibraryClipOrder, clipEndMs, clipMatchesLibraryGroup, clipStartMs } from "./services/clipLibraryService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
 import { phaseForSubPhase } from "./services/footballLanguageService.js";
@@ -3281,7 +3281,7 @@ async function saveDraftClip(context = {}, stateOverride = null) {
       message: "Clip saved.",
     }));
     await loadClips();
-    return true;
+    return savedClip;
   } catch (error) {
     run.store.setState({ status: "error", error: error.message || "Could not save clip." });
     return false;
@@ -3357,36 +3357,23 @@ function findClipsForSameMomentLabelAction(state = {}, playheadMs = 0) {
   });
 }
 
-function clipPlayerIds(clip = {}) {
-  const ids = (Array.isArray(clip.players) ? clip.players : [])
-    .map((player) => player?.playerId || player?.player_id || player?.id || "")
-    .map((id) => String(id || "").trim())
-    .filter(Boolean);
-  return [...new Set(ids)];
-}
-
-function clipHasPlayer(clip = {}, playerId = "") {
-  const id = String(playerId || "").trim();
-  return Boolean(id && clipPlayerIds(clip).includes(id));
-}
-
-function playerIdsFromSameMomentClips(clips = []) {
-  const ids = clips.flatMap((clip) => clipPlayerIds(clip));
-  return [...new Set(ids)];
-}
-
-function withDraftPlayerIds(draft = {}, playerIds = []) {
-  const ids = [...new Set(playerIds.map((id) => String(id || "").trim()).filter(Boolean))];
-  if (!ids.length) return draft;
-  return {
-    ...draft,
-    playerId: draft.playerId || ids[0],
-    playerIds: ids,
-  };
-}
-
 function replaceClipsInState(current = {}, nextClips = []) {
   return nextClips.reduce((nextState, clip) => replaceClipInState(nextState, clip), current);
+}
+
+function clipMomentKey(clip = {}) {
+  return String(clip.metadata?.momentKey || clip.metadata?.moment_key || "").trim();
+}
+
+function buildMomentKey(state = {}, startMs = 0) {
+  const videoId = state.video?.id || state.videoId || "video";
+  const bucketMs = Math.round(Math.max(0, Number(startMs || 0)) / 2000) * 2000;
+  return `${videoId}:${bucketMs}`;
+}
+
+function momentKeyForTagAction(state = {}, playheadMs = 0) {
+  const sameMoment = findClipsForSameMomentLabelAction(state, playheadMs);
+  return sameMoment.map(clipMomentKey).find(Boolean) || buildMomentKey(state, playheadMs);
 }
 
 async function saveButtonLabelOnClip(button = {}, action = {}, context = {}, state = {}, playheadMs = 0) {
@@ -3729,14 +3716,67 @@ async function applyCodeButton(buttonId = "", context = {}) {
   };
   const targetField = canonicalCodingTargetField(button.targetField || button.type || "");
   if (action.shouldCreateClip && state.match?.id && state.video?.id) {
-    const sameMomentPlayerIds = targetField === "subPhase"
-      ? playerIdsFromSameMomentClips(findClipsForSameMomentLabelAction(state, currentMs))
-      : [];
-    const linkedState = sameMomentPlayerIds.length
-      ? { ...nextState, draft: withDraftPlayerIds(nextState.draft, sameMomentPlayerIds) }
-      : nextState;
-    run.store.update(() => linkedState);
-    await saveDraftClip(context, linkedState);
+    if (targetField === "subPhase") {
+      const startMs = Math.max(0, Math.round(Number(action.nextDraft?.startMs ?? currentMs)));
+      const endMs = Math.max(startMs + 1000, Math.round(Number(action.nextDraft?.endMs ?? startMs + 15000)));
+      const durationMs = endMs - startMs;
+      const resolvedPhase = phaseForSubPhase(action.nextDraft?.subPhase, action.nextDraft?.phase);
+      const momentKey = momentKeyForTagAction(state, startMs);
+      const subPhaseState = {
+        ...nextState,
+        draft: {
+          ...(nextState.draft || {}),
+          playerId: "",
+          playerIds: [],
+          metadata: {
+            ...(nextState.draft?.metadata && typeof nextState.draft.metadata === "object" ? nextState.draft.metadata : {}),
+            clipKind: "subPhase",
+            momentKey,
+            source: "sub-phase-button",
+          },
+        },
+      };
+      run.store.update(() => subPhaseState);
+      const savedSubPhaseClip = await saveDraftClip(context, subPhaseState);
+      if (!savedSubPhaseClip) return false;
+      try {
+        const phaseClip = buildPhaseOnlyClipPayload(subPhaseState, resolvedPhase, startMs, durationMs, {
+          momentKey,
+          metadata: {
+            source: "auto-phase-from-sub-phase",
+            sourceSubPhase: action.nextDraft?.subPhase || "",
+          },
+        });
+        const payload = await run.clips.save(toApiClipPayload(phaseClip));
+        const savedPhaseClip = normalizeClipInstance(payload?.clip || phaseClip);
+        run.store.update((current) => ({
+          ...replaceClipInState(current, savedPhaseClip),
+          status: "ready",
+          selectedClipId: savedSubPhaseClip.id || savedPhaseClip.id || current.selectedClipId,
+          codingSession: {
+            ...(current.codingSession || {}),
+            lastClipId: savedSubPhaseClip.id || current.codingSession?.lastClipId || "",
+          },
+          timeline: {
+            ...(current.timeline || {}),
+            playheadMs: startMs,
+          },
+          message: `${button.label || "Sub-phase"} tagged with ${resolvedPhase}.`,
+          error: "",
+        }));
+        await loadClips();
+      } catch (error) {
+        run.store.setState({
+          status: "error",
+          message: "",
+          error: error.message || "Sub-phase was saved, but automatic phase tag could not be created.",
+        });
+        return false;
+      }
+      return true;
+    }
+    run.store.update(() => nextState);
+    await saveDraftClip(context, nextState);
     return true;
   }
   if (action.shouldCreateClip && (!state.match?.id || !state.video?.id)) {
@@ -3771,104 +3811,61 @@ async function applyPlayerQuickTag(playerId = "", context = {}) {
 
   const currentMs = currentPlayheadMs(context, state);
   const durationMs = Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
-  const targetClips = findClipsForSameMomentLabelAction(state, currentMs);
-  const playerButton = { targetField: "playerId", type: "playerId", value: player.id || id, label: playerLabel(player) };
-  const codedTargetClips = targetClips.filter((clip) => !isPlayerOnlyClip(clip));
-  const existingPlayerOnlyClip = targetClips.find((clip) => isPlayerOnlyClip(clip) && clipHasPlayer(clip, player.id || id));
-  const nextCodedClips = codedTargetClips.map((clip) => normalizeClipInstance(applyCodingButtonToClip(clip, playerButton, state.players || [])));
+  const momentKey = momentKeyForTagAction(state, currentMs);
   let playerClip = null;
-  if (!existingPlayerOnlyClip) {
-    try {
-      playerClip = buildPlayerOnlyClipPayload(state, player, currentMs, durationMs);
-    } catch (error) {
-      run.store.setState({ status: "error", message: "", error: error.message || "Could not tag player." });
-      return false;
-    }
-  }
-
-  if (nextCodedClips.length || playerClip) {
-    run.store.update((current) => ({
-      ...replaceClipsInState(current, nextCodedClips),
-      status: "saving-clip",
-      selectedClipId: nextCodedClips[0]?.id || existingPlayerOnlyClip?.id || current.selectedClipId,
-      codingSession: {
-        ...(current.codingSession || {}),
-        mode: "instant",
-        activePlayerId: player.id || id,
-        lastPlayerTagId: player.id || id,
-        lastClipId: nextCodedClips[0]?.id || existingPlayerOnlyClip?.id || current.codingSession?.lastClipId || "",
-      },
-      timeline: {
-        ...(current.timeline || {}),
-        playheadMs: currentMs,
-      },
-      message: playerClip
-        ? `${playerLabel(player)} tagged and linked to this moment.`
-        : `${playerLabel(player)} linked to this moment.`,
-      error: "",
-    }));
-    try {
-      const savedClips = [];
-      for (const nextClip of nextCodedClips) {
-        const payload = await run.clips.save(toApiClipPayload(nextClip));
-        savedClips.push(normalizeClipInstance(payload?.clip || nextClip));
-      }
-      if (playerClip) {
-        const payload = await run.clips.save(toApiClipPayload(playerClip));
-        savedClips.push(normalizeClipInstance(payload?.clip || playerClip));
-      }
-      const selectedSavedClip = savedClips.find((clip) => isPlayerOnlyClip(clip) && clipHasPlayer(clip, player.id || id))
-        || savedClips[0]
-        || existingPlayerOnlyClip;
-      run.store.update((current) => ({
-        ...replaceClipsInState(current, savedClips),
-        status: "ready",
-        selectedClipId: selectedSavedClip?.id || current.selectedClipId,
-        codingSession: {
-          ...(current.codingSession || {}),
-          mode: "instant",
-          activePlayerId: player.id || id,
-          lastPlayerTagId: player.id || id,
-          lastClipId: selectedSavedClip?.id || current.codingSession?.lastClipId || "",
-        },
-        timeline: {
-          ...(current.timeline || {}),
-          playheadMs: currentMs,
-        },
-        message: `${playerLabel(player)} ${nextCodedClips.length ? `linked to ${nextCodedClips.length} coded tag${nextCodedClips.length === 1 ? "" : "s"}` : "tagged for IDP"}.`,
-        error: "",
-      }));
-      await loadClips();
-      return true;
-    } catch (error) {
-      run.store.update((current) => ({
-        ...replaceClipsInState(current, targetClips),
-        status: "error",
-        error: error.message || "Could not tag player for this moment.",
-      }));
-      return false;
-    }
+  try {
+    playerClip = buildPlayerOnlyClipPayload(state, player, currentMs, durationMs, {
+      momentKey,
+      metadata: { source: "player-button" },
+    });
+  } catch (error) {
+    run.store.setState({ status: "error", message: "", error: error.message || "Could not tag player." });
+    return false;
   }
 
   run.store.update((current) => ({
     ...current,
-    status: "ready",
-    selectedClipId: existingPlayerOnlyClip?.id || current.selectedClipId,
+    status: "saving-clip",
     codingSession: {
       ...(current.codingSession || {}),
       mode: "instant",
       activePlayerId: player.id || id,
       lastPlayerTagId: player.id || id,
-      lastClipId: existingPlayerOnlyClip?.id || current.codingSession?.lastClipId || "",
     },
     timeline: {
       ...(current.timeline || {}),
       playheadMs: currentMs,
     },
-    message: `${playerLabel(player)} is already tagged at this moment.`,
+    message: `${playerLabel(player)} tagged.`,
     error: "",
   }));
-  return true;
+  try {
+    const payload = await run.clips.save(toApiClipPayload(playerClip));
+    const savedClip = normalizeClipInstance(payload?.clip || playerClip);
+    run.store.update((current) => ({
+      ...replaceClipInState(current, savedClip),
+      status: "ready",
+      selectedClipId: savedClip.id || current.selectedClipId,
+      codingSession: {
+        ...(current.codingSession || {}),
+        mode: "instant",
+        activePlayerId: player.id || id,
+        lastPlayerTagId: player.id || id,
+        lastClipId: savedClip.id || current.codingSession?.lastClipId || "",
+      },
+      timeline: {
+        ...(current.timeline || {}),
+        playheadMs: currentMs,
+      },
+      message: `${playerLabel(player)} player tag created.`,
+      error: "",
+    }));
+    await loadClips();
+    return true;
+  } catch (error) {
+    run.store.setState({ status: "error", message: "", error: error.message || "Could not tag player for this moment." });
+    return false;
+  }
 }
 
 export function handlePointerDown(event, context = {}) {

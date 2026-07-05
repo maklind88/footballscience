@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildIdpDashboardFromSquadState, buildLegacyPlayerDetail } from "../src/modules/idp/idp-adapter.mjs";
 import { createIdpActions } from "../src/modules/idp/idp-actions.mjs";
+import { selectedClipIds } from "../src/modules/idp/idp-clip-preview-controller.mjs";
 import { normalizeIdpDevelopmentIntervention } from "../src/modules/idp/domain/idp.models.mjs";
 import { renderIdpWorkspace } from "../src/modules/idp/idp-renderer.mjs";
 import { createIdpStore } from "../src/modules/idp/idp-state.mjs";
@@ -1639,8 +1640,8 @@ test("idp clip bank is a date-sorted organizer with play queue metadata", () => 
   expect(html).toContain("data-idp-clip-search");
   expect(html).toContain("1 of 2 clips");
   expect(html).toContain("Find clip, player, date or principle");
-  expect(html).toContain("data-idp-clip-play-selected");
-  expect(html).toContain("Play selected (1)");
+  expect(html).not.toContain("data-idp-clip-play-selected");
+  expect(html).not.toContain("Play selected");
   expect(html).toContain("data-idp-clip-play=\"bank-new\"");
   expect(html).toContain("idp-clip-bank-row__actions");
   expect(html).toContain("Play clip");
@@ -1657,6 +1658,30 @@ test("idp clip bank is a date-sorted organizer with play queue metadata", () => 
   expect(html).toContain("data-idp-clip-preview-video");
   expect(html).toContain("1 of 2");
   expect(html).not.toContain("b8f41622-57b5-4ed6-908f-b6d6d1e5fe30");
+});
+
+test("idp clip play starts the selected queue in marking order", () => {
+  const indexSource = read("src/modules/idp/index.mjs");
+  const clipPreviewSource = read("src/modules/idp/idp-clip-preview-controller.mjs");
+  const store = createIdpStore({
+    playerDetail: {
+      clipBank: [
+        { id: "bank-new", matchDate: "2026-06-27" },
+        { id: "bank-old", matchDate: "2026-06-15" },
+        { id: "bank-middle", matchDate: "2026-06-20" },
+      ],
+    },
+    ui: {
+      selectedClipBankIds: ["bank-old", "bank-new", "missing", "bank-old", "bank-middle"],
+    },
+  });
+
+  expect(selectedClipIds({ store })).toEqual(["bank-old", "bank-new", "bank-middle"]);
+  expect(indexSource).not.toContain("data-idp-clip-play-selected");
+  expect(indexSource).toContain("const selectedIds = selectedClipIds(runtime);");
+  expect(indexSource).toContain("openClipPreview(runtime, selectedIds.length ? selectedIds : [id]);");
+  expect(clipPreviewSource).toContain("const queueIds = ids.map");
+  expect(clipPreviewSource).not.toContain("const sorted = currentClipBank");
 });
 
 test("idp clip bank search preserves typed spaces through workspace rerenders", () => {

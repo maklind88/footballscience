@@ -2107,17 +2107,12 @@ export function handleClick(event) {
     jumpClipPreview(runtime, Number(clipPreviewJump.dataset.idpClipPreviewJump || 0));
     return;
   }
-  const clipPlaySelected = event?.target?.closest?.("[data-idp-clip-play-selected]");
-  if (clipPlaySelected) {
-    event?.preventDefault?.();
-    openClipPreview(runtime, selectedClipIds(runtime));
-    return;
-  }
   const clipPlay = event?.target?.closest?.("[data-idp-clip-play]");
   if (clipPlay) {
     event?.preventDefault?.();
     const id = clipPlay.dataset.idpClipPlay || "";
-    openClipPreview(runtime, [id]);
+    const selectedIds = selectedClipIds(runtime);
+    openClipPreview(runtime, selectedIds.length ? selectedIds : [id]);
     return;
   }
   const clipRemove = event?.target?.closest?.("[data-idp-clip-remove]");

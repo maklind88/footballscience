@@ -150,7 +150,6 @@ export function renderClipBankOrganizer(detail = {}, canEdit = false, ui = {}) {
     ? clips.filter((clip) => clipSearchBlob(clip).includes(normalizedQuery))
     : clips;
   const selectedIds = new Set(Array.isArray(ui.selectedClipBankIds) ? ui.selectedClipBankIds : []);
-  const selectedCount = clips.filter((clip) => selectedIds.has(clipKey(clip))).length;
   const visibleClips = filteredClips.slice(0, 24);
   const countLabel = normalizedQuery
     ? `${filteredClips.length} of ${clips.length} clips`
@@ -164,9 +163,6 @@ export function renderClipBankOrganizer(detail = {}, canEdit = false, ui = {}) {
           <small>Search by match, training, sub-phase, outcome or principle.</small>
         </div>
         <div class="idp-clip-bank-actions">
-          <button type="button" data-idp-clip-play-selected ${selectedCount ? "" : "disabled"}>
-            Play selected${selectedCount ? ` (${escapeHtml(String(selectedCount))})` : ""}
-          </button>
           ${canEdit ? `<button type="button" data-idp-action="evidence">Log observation</button>` : ""}
         </div>
       </div>

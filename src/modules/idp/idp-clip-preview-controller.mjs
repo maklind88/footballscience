@@ -129,8 +129,15 @@ export function ensureClipBankStyles(activeRuntime = {}) {
 }
 
 export function selectedClipIds(activeRuntime = {}) {
-  const selected = new Set(activeRuntime?.store?.getState?.()?.ui?.selectedClipBankIds || []);
-  return currentClipBank(activeRuntime).map(clipId).filter((id) => selected.has(id));
+  const available = new Set(currentClipBank(activeRuntime).map(clipId));
+  const seen = new Set();
+  return (activeRuntime?.store?.getState?.()?.ui?.selectedClipBankIds || [])
+    .map((id) => String(id || ""))
+    .filter((id) => {
+      if (!id || !available.has(id) || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
 }
 
 export function toggleClipBankSelection(activeRuntime = {}, id = "", checked = false) {
@@ -152,9 +159,13 @@ export function revokePreviewUrl(activeRuntime = {}) {
 }
 
 export function openClipPreview(activeRuntime = {}, ids = []) {
-  const sorted = currentClipBank(activeRuntime).map(clipId);
-  const requested = new Set(ids.filter(Boolean));
-  const queueIds = sorted.filter((id) => requested.has(id));
+  const available = new Set(currentClipBank(activeRuntime).map(clipId));
+  const seen = new Set();
+  const queueIds = ids.map((id) => String(id || "")).filter((id) => {
+    if (!id || !available.has(id) || seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
   if (!queueIds.length) return;
   activeRuntime?.store?.setState?.({
     ui: {

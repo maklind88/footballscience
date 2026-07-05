@@ -107,6 +107,9 @@ test("idp clip bank removal is server-owned and soft-deleted", () => {
   expect(databaseSource).toContain("deleted_by: scope.actorId");
   expect(databaseSource).not.toContain('deleteRows("idp_clip_bank_items"');
   expect(idpRuntime).toContain("data-idp-clip-remove");
+  expect(clipBankRenderer).toContain("idp-clip-bank-row__actions");
+  expect(clipBankRenderer).toContain('aria-label="Play clip"');
+  expect(clipBankRenderer).toContain('d="M8 5v14l11-7L8 5Z"');
   expect(clipBankRenderer).toContain("Remove from Clip Bank");
   expect(clipBankRenderer).toContain('aria-label="Remove clip from Clip Bank"');
   expect(clipBankRenderer).toContain("<svg viewBox=\"0 0 24 24\"");
@@ -1639,6 +1642,9 @@ test("idp clip bank is a date-sorted organizer with play queue metadata", () => 
   expect(html).toContain("data-idp-clip-play-selected");
   expect(html).toContain("Play selected (1)");
   expect(html).toContain("data-idp-clip-play=\"bank-new\"");
+  expect(html).toContain("idp-clip-bank-row__actions");
+  expect(html).toContain("Play clip");
+  expect(html).toContain("M8 5v14l11-7L8 5Z");
   expect(html).toContain("data-idp-clip-remove=\"bank-new\"");
   expect(html).toContain("Remove from Clip Bank");
   expect(html).toContain("Remove clip from Clip Bank");

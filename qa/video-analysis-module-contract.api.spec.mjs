@@ -520,6 +520,50 @@ test("player, phase, and sub-phase tags stay separate clip instances", async () 
   expect(allIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["All Tags:3"]);
 });
 
+test("legacy phase clips do not appear as Phase lanes in sub-phase timeline", async () => {
+  const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
+  const clips = [
+    {
+      id: "legacy-phase-generic",
+      matchId: "match-1",
+      videoId: "video-1",
+      startMs: 0,
+      endMs: 15000,
+      phase: "Out of Possession",
+      subPhase: "Phase",
+      metadata: {},
+    },
+    {
+      id: "legacy-phase-label",
+      matchId: "match-1",
+      videoId: "video-1",
+      startMs: 16000,
+      endMs: 31000,
+      phase: "Out of Possession",
+      subPhase: "Out of Possession",
+      metadata: {},
+    },
+    {
+      id: "legacy-sub-phase",
+      matchId: "match-1",
+      videoId: "video-1",
+      startMs: 32000,
+      endMs: 47000,
+      phase: "Out of Possession",
+      subPhase: "High Press",
+      metadata: {},
+    },
+  ];
+
+  const subPhaseIndex = timelineService.buildTimelineIndex(clips, "subPhase");
+  expect(subPhaseIndex.clipCount).toBe(1);
+  expect(subPhaseIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["High Press:1"]);
+
+  const phaseIndex = timelineService.buildTimelineIndex(clips, "phase");
+  expect(phaseIndex.clipCount).toBe(2);
+  expect(phaseIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Out of Possession:2"]);
+});
+
 test("MG principles derive their searchable sub-phase from the principle group", async () => {
   const service = await import(pathToFileURL(path.join(moduleDir, "services/miniGamePrincipleService.js")).href);
 

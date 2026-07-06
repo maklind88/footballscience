@@ -50,7 +50,7 @@ function getActivityType(record = {}, getActivityContext = () => null) {
   return "training";
 }
 
-function getLatestRecordPerDate(records = []) {
+function getLatestRecordMapByDate(records = []) {
   const latestByDate = new Map();
   records.forEach((record) => {
     const existing = latestByDate.get(record.date);
@@ -58,11 +58,15 @@ function getLatestRecordPerDate(records = []) {
       latestByDate.set(record.date, record);
     }
   });
-  return Array.from(latestByDate.values());
+  return latestByDate;
 }
 
-function buildWindow(records, predicate) {
-  const windowRecords = records.filter((record) => predicate(record.dateValue));
+function getLatestRecordPerDate(records = []) {
+  return Array.from(getLatestRecordMapByDate(records).values());
+}
+
+function buildWindow(items, predicate) {
+  const windowRecords = items.filter((record) => predicate(record.dateValue));
   return {
     average: windowRecords.length
       ? Math.round(windowRecords.reduce((sum, record) => sum + record.participation, 0) / windowRecords.length)
@@ -78,12 +82,46 @@ function isExcusedClubAbsenceStatus(value = "") {
   return excusedClubAbsenceStatusKeys.has(status);
 }
 
+function normalizeDateValue(value = "") {
+  return isDateValue(value) ? String(value).slice(0, 10) : "";
+}
+
+function getTrainingDateValueFromRecord(record = {}, getActivityContext = () => null) {
+  if (!isDateValue(record?.date) || getActivityType(record, getActivityContext) !== "training") {
+    return "";
+  }
+  return record.date;
+}
+
+function getFallbackTeamTrainingDateValues(records = [], getActivityContext = () => null) {
+  return Array.from(
+    new Set(
+      records
+        .filter((record) => !isArchivedRecord(record))
+        .map((record) => getTrainingDateValueFromRecord(record, getActivityContext))
+        .filter(Boolean)
+    )
+  ).sort((first, second) => first.localeCompare(second));
+}
+
+function getTeamTrainingDateValuesForSummary({
+  records = [],
+  getActivityContext = () => null,
+  getTeamTrainingDateValues = () => [],
+} = {}) {
+  const rawScheduledDates = getTeamTrainingDateValues();
+  const scheduledDates = Array.isArray(rawScheduledDates) ? rawScheduledDates.map(normalizeDateValue).filter(Boolean) : [];
+  const fallbackDates = getFallbackTeamTrainingDateValues(records, getActivityContext);
+  return Array.from(new Set([...scheduledDates, ...fallbackDates])).sort((first, second) => first.localeCompare(second));
+}
+
 export function getSquadTrainingAvailabilitySummary({
   playerId = "",
   records = [],
   referenceDateValue = defaultFormatDateValue(new Date()),
   getActivityContext = () => null,
   getPlayerAvailabilityStatusForDate = () => "",
+  getTeamTrainingDateValues = () => [],
 } = {}) {
   const cleanPlayerId = String(playerId || "").trim();
   const referenceDate = parseDateValue(referenceDateValue) || parseDateValue(defaultFormatDateValue(new Date()));
@@ -104,7 +142,6 @@ export function getSquadTrainingAvailabilitySummary({
       .filter((record) => !isArchivedRecord(record))
       .filter((record) => isDateValue(record?.date))
       .filter((record) => getActivityType(record, getActivityContext) === "training")
-      .filter((record) => !isExcusedClubAbsenceStatus(getPlayerAvailabilityStatusForDate(cleanPlayerId, record.date, record)))
       .map((record) => ({
         ...record,
         participation: normalizeParticipation(record.participation),
@@ -115,18 +152,42 @@ export function getSquadTrainingAvailabilitySummary({
 
   const referenceYear = referenceDate.getUTCFullYear();
   const getAgeDays = (recordDate) => Math.floor((referenceDate - recordDate) / dayMs);
-  const seasonRecords = completedRecords.filter((record) => record.dateValue.getUTCFullYear() === referenceYear);
-  const lastFiveRecords = completedRecords.slice(-5);
+  const playerRecordByDate = getLatestRecordMapByDate(completedRecords);
+  const trainingDateValues = getTeamTrainingDateValuesForSummary({
+    records,
+    getActivityContext,
+    getTeamTrainingDateValues,
+  });
+  const trainingOpportunities = trainingDateValues
+    .map((date) => {
+      const dateValue = parseDateValue(date);
+      if (!dateValue || dateValue > referenceDate) {
+        return null;
+      }
+      const status = getPlayerAvailabilityStatusForDate(cleanPlayerId, date, playerRecordByDate.get(date));
+      if (isExcusedClubAbsenceStatus(status)) {
+        return null;
+      }
+      return {
+        date,
+        dateValue,
+        participation: playerRecordByDate.get(date)?.participation ?? 0,
+      };
+    })
+    .filter(Boolean)
+    .sort((first, second) => first.date.localeCompare(second.date));
+  const seasonRecords = trainingOpportunities.filter((record) => record.dateValue.getUTCFullYear() === referenceYear);
+  const lastFiveRecords = trainingOpportunities.slice(-5);
 
   return {
-    hasData: completedRecords.length > 0,
+    hasData: trainingOpportunities.length > 0,
     loggedCount: completedRecords.length,
     latestDate: completedRecords.at(-1)?.date || "",
-    week: buildWindow(completedRecords, (recordDate) => {
+    week: buildWindow(trainingOpportunities, (recordDate) => {
       const ageDays = getAgeDays(recordDate);
       return ageDays >= 0 && ageDays <= 6;
     }),
-    month: buildWindow(completedRecords, (recordDate) => {
+    month: buildWindow(trainingOpportunities, (recordDate) => {
       const ageDays = getAgeDays(recordDate);
       return ageDays >= 0 && ageDays <= 29;
     }),

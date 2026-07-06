@@ -214,6 +214,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     getSessionPlannerPlayerProfileContracts: deps.getSessionPlannerPlayerProfileContracts,
     getSquadChangeSummary: deps.getSquadChangeSummary,
     getTemporaryRosterTypeFromPlayerSource: deps.getTemporaryRosterTypeFromPlayerSource,
+    getTeamTrainingDateValues: deps.getTeamTrainingDateValues,
     isCurrentPlatformUserAdmin: deps.isCurrentPlatformUserAdmin,
     isMedicalItemArchived: deps.isMedicalItemArchived,
     isTemporaryPlayerProfile: deps.isTemporaryPlayerProfile,

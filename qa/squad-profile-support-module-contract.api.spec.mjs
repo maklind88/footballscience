@@ -133,7 +133,7 @@ test("Squad profile support renderer owns option lists, support panels, and add-
   expect(modalMarkup).toContain('value="8" selected');
 });
 
-test("Squad training availability summary averages logged training decisions", () => {
+test("Squad training availability summary averages against team training opportunities", () => {
   const summary = getSquadTrainingAvailabilitySummary({
     playerId: "p1",
     referenceDateValue: "2026-06-10",
@@ -151,6 +151,14 @@ test("Squad training availability summary averages logged training decisions", (
       { playerId: "p1", date: "2026-06-01", participation: 100, archivedAt: "2026-06-02T12:00:00Z" },
     ],
     getActivityContext: (dateValue) => ({ type: dateValue === "2026-06-08" ? "match" : "training" }),
+    getTeamTrainingDateValues: () => [
+      "2026-05-01",
+      "2026-06-05",
+      "2026-06-06",
+      "2026-06-07",
+      "2026-06-09",
+      "2026-06-10",
+    ],
   });
 
   expect(summary.hasData).toBe(true);
@@ -159,6 +167,36 @@ test("Squad training availability summary averages logged training decisions", (
   expect(summary.month).toEqual({ average: 71, count: 5 });
   expect(summary.season).toEqual({ average: 63, count: 6 });
   expect(summary.lastFive).toEqual({ average: 71, count: 5 });
+});
+
+test("Squad training availability summary counts missed scheduled trainings as zero", () => {
+  const summary = getSquadTrainingAvailabilitySummary({
+    playerId: "p1",
+    referenceDateValue: "2026-06-10",
+    records: [
+      { playerId: "p1", date: "2026-06-10", participation: 100, updatedAt: "2026-06-10T14:00:00Z" },
+      { playerId: "p1", date: "2026-06-08", participation: 50, updatedAt: "2026-06-08T12:00:00Z" },
+    ],
+    getTeamTrainingDateValues: () => [
+      "2026-06-01",
+      "2026-06-02",
+      "2026-06-03",
+      "2026-06-04",
+      "2026-06-05",
+      "2026-06-06",
+      "2026-06-07",
+      "2026-06-08",
+      "2026-06-09",
+      "2026-06-10",
+    ],
+  });
+
+  expect(summary.hasData).toBe(true);
+  expect(summary.loggedCount).toBe(2);
+  expect(summary.week).toEqual({ average: 21, count: 7 });
+  expect(summary.month).toEqual({ average: 15, count: 10 });
+  expect(summary.season).toEqual({ average: 15, count: 10 });
+  expect(summary.lastFive).toEqual({ average: 30, count: 5 });
 });
 
 test("Squad training availability summary excludes international-duty club absences", () => {
@@ -172,10 +210,11 @@ test("Squad training availability summary excludes international-duty club absen
     ],
     getPlayerAvailabilityStatusForDate: (playerId, dateValue) =>
       playerId === "p1" && dateValue === "2026-06-09" ? "national-team" : "available",
+    getTeamTrainingDateValues: () => ["2026-06-08", "2026-06-09", "2026-06-10"],
   });
 
   expect(summary.hasData).toBe(true);
-  expect(summary.loggedCount).toBe(2);
+  expect(summary.loggedCount).toBe(3);
   expect(summary.week).toEqual({ average: 75, count: 2 });
   expect(summary.month).toEqual({ average: 75, count: 2 });
   expect(summary.season).toEqual({ average: 75, count: 2 });

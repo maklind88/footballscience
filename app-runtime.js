@@ -2932,6 +2932,14 @@ getPlayerRoleDnaDefinition,
 getSafeWorkspaceId,
 getScheduleSessionEventForDate,
 getScheduledSessionTitleForDate,
+getTeamTrainingDateValues: () => {
+if (!scheduleState) {
+scheduleState = readScheduleState();
+}
+return Array.from(
+new Set((scheduleState?.events || []).filter((event) => event?.date && isScheduleSessionEvent(event)).map((event) => event.date))
+).sort((first, second) => first.localeCompare(second));
+},
 getScopedPlatformUsers,
 getSelectedStaffUserId: () => selectedStaffUserId,
 getStaffCreateUserDraft: () => staffCreateUserDraft,

@@ -11,6 +11,7 @@ export function createSquadMedicalStatusService(deps = {}) {
     getMedicalRecordStatus = () => ({ label: "" }),
     getMedicalRtpPhaseOption = () => ({ label: "" }),
     getMedicalState = () => ({ records: [] }),
+    getPlayerAvailabilityStatusForDate = () => "",
   } = deps;
 
   function getLatestManualMedicalLog(playerId) {
@@ -96,6 +97,7 @@ export function createSquadMedicalStatusService(deps = {}) {
       records: getMedicalState().records || [],
       referenceDateValue: dateValue,
       getActivityContext: getMedicalRecommendationActivityContext,
+      getPlayerAvailabilityStatusForDate,
     });
     return {
       currentAvailability: availabilityLabel,

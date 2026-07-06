@@ -71,11 +71,19 @@ function buildWindow(records, predicate) {
   };
 }
 
+const excusedClubAbsenceStatusKeys = new Set(["national-team"]);
+
+function isExcusedClubAbsenceStatus(value = "") {
+  const status = String(value || "").trim().toLowerCase();
+  return excusedClubAbsenceStatusKeys.has(status);
+}
+
 export function getSquadTrainingAvailabilitySummary({
   playerId = "",
   records = [],
   referenceDateValue = defaultFormatDateValue(new Date()),
   getActivityContext = () => null,
+  getPlayerAvailabilityStatusForDate = () => "",
 } = {}) {
   const cleanPlayerId = String(playerId || "").trim();
   const referenceDate = parseDateValue(referenceDateValue) || parseDateValue(defaultFormatDateValue(new Date()));
@@ -96,6 +104,7 @@ export function getSquadTrainingAvailabilitySummary({
       .filter((record) => !isArchivedRecord(record))
       .filter((record) => isDateValue(record?.date))
       .filter((record) => getActivityType(record, getActivityContext) === "training")
+      .filter((record) => !isExcusedClubAbsenceStatus(getPlayerAvailabilityStatusForDate(cleanPlayerId, record.date, record)))
       .map((record) => ({
         ...record,
         participation: normalizeParticipation(record.participation),
@@ -125,3 +134,5 @@ export function getSquadTrainingAvailabilitySummary({
     lastFive: buildWindow(lastFiveRecords, () => true),
   };
 }
+
+export { isExcusedClubAbsenceStatus as isSquadTrainingAvailabilityExcusedStatus };

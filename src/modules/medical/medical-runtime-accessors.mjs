@@ -31,6 +31,7 @@ export function getMedicalGateOption(...args) { return callHelper("getMedicalGat
 export function getMedicalLoadGateValues(...args) { return callHelper("getMedicalLoadGateValues", args); }
 export function getMedicalLinkedPlayerProfile(...args) { return callHelper("getMedicalLinkedPlayerProfile", args); }
 export function getMedicalPlayerAvailabilityStatus(...args) { return callHelper("getMedicalPlayerAvailabilityStatus", args); }
+export function getMedicalPlayerAvailabilityStatusForDate(...args) { return callHelper("getMedicalPlayerAvailabilityStatusForDate", args); }
 export function getMedicalPlayerAvailabilityStatusOption(...args) { return callHelper("getMedicalPlayerAvailabilityStatusOption", args); }
 export function getMedicalPlayerNumberRank(...args) { return callHelper("getMedicalPlayerNumberRank", args); }
 export function getMedicalPlayerPositionRank(...args) { return callHelper("getMedicalPlayerPositionRank", args); }

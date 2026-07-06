@@ -379,7 +379,7 @@ export const moduleStandardContracts = Object.freeze([
     migrationStatus: moduleMigrationStatuses.partialExtraction,
     mountId: "scoutingWorkspace",
     currentFiles: ["scouting-workspace.js", "scouting-workspace.css", "scouting-database-worker.js", "src/modules/scouting"],
-    cssFiles: ["scouting-workspace.css"],
+    cssFiles: ["scouting-workspace.css", "src/modules/scouting/scouting-theme.css"],
     testFiles: ["qa/scouting-workspace.smoke.spec.mjs", "qa/scouting-click-performance.smoke.spec.mjs"],
     extractionOrder: 17,
     riskLevel: "high",

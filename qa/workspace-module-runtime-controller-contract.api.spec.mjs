@@ -162,6 +162,8 @@ test("workspace module runtime owns Gameplan, Scouting, and Video Analysis lazy 
   expect(ui.scoutingWorkspace.innerHTML).toContain("Loading Scouting");
   await flushPromises();
   expect(calls.modules).toContain("scouting-workspace");
+  expect(calls.stylesheets).toContain("scouting-workspace");
+  expect(calls.stylesheets).toContain("scouting-theme");
   expect(calls.scoutingRender[0]).toMatchObject({ teamName: "First Team" });
 
   controller.renderAnalysisRoomWorkspace();

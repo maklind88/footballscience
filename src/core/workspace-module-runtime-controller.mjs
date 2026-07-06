@@ -245,11 +245,15 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
           id: "scoutingWorkspaceStylesheet",
           required: true,
         }),
+        platformModuleLoader.loadStylesheet("scouting-theme", "src/modules/scouting/scouting-theme.css", {
+          id: "scoutingThemeStylesheet",
+          required: true,
+        }),
         platformModuleLoader.loadModule("scouting-workspace", () =>
           import(`../../scouting-workspace.js?v=${encodeURIComponent(getAssetVersion())}`)
         ),
       ])
-        .then(([, module]) => {
+        .then(([, , module]) => {
           scoutingWorkspaceModule = module;
           return module;
         })

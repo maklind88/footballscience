@@ -1,0 +1,306 @@
+/* Scouting theme bridge.
+   This file loads after the legacy Scouting stylesheet and maps the module to
+   the platform theme tokens without changing Scouting data or runtime logic. */
+
+body.is-dark-mode #scoutingWorkspace {
+  --scout-ink: var(--fs-text);
+  --scout-strong: var(--fs-text-strong);
+  --scout-muted: var(--fs-text-muted);
+  --scout-subtle: var(--fs-text-subtle);
+  --scout-soft: var(--fs-panel-bg-soft);
+  --scout-panel: var(--fs-panel-bg);
+  --scout-panel-strong: var(--fs-panel-bg-strong);
+  --scout-line: var(--fs-border);
+  --scout-line-strong: var(--fs-border-strong);
+  --scout-green: var(--fs-accent);
+  --scout-green-2: var(--fs-brand-2);
+  --scout-blue: var(--fs-info-soft);
+  --scout-gold: var(--fs-warning-soft);
+  --scout-danger: var(--fs-danger);
+  --scout-danger-soft: var(--fs-danger-soft);
+  --scout-control-bg: var(--fs-button-bg);
+  --scout-control-hover: var(--fs-button-bg-hover);
+  --scout-control-selected: var(--fs-button-selected-bg);
+  --scout-control-selected-line: var(--fs-button-selected-border);
+  --scout-input-bg: var(--fs-input-bg);
+  --scout-input-line: var(--fs-input-border);
+  --scout-chip-bg: var(--fs-chip-bg);
+  --scout-chip-line: var(--fs-chip-border);
+  --scout-focus: var(--fs-focus-ring);
+  --scout-shadow: var(--fs-shadow-soft);
+  --scout-shadow-strong: var(--fs-shadow);
+  color: var(--scout-ink);
+}
+
+body.is-dark-mode .platform-scouting-view {
+  background: linear-gradient(180deg, var(--fs-page-bg-soft), var(--fs-page-bg)) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace .scouting-hero {
+  background: linear-gradient(135deg, var(--fs-panel-bg-strong), var(--fs-panel-bg)) !important;
+  border-color: var(--scout-line) !important;
+  color: var(--scout-strong) !important;
+  box-shadow: var(--scout-shadow) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace .scouting-hero :where(h1, strong) {
+  color: var(--scout-strong) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace .scouting-hero :where(p, span, small, .placeholder-tag) {
+  color: var(--scout-muted) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(
+  .scouting-command-bar,
+  .scouting-load-panel,
+  .scouting-database-panel,
+  .scouting-database-results-header,
+  .scouting-database-controls,
+  .scouting-lists-panel,
+  .scouting-shadow-card,
+  .scouting-list-card,
+  .scouting-profile-modal,
+  .scouting-profile-radar,
+  .scouting-profile-metrics,
+  .scouting-season-table,
+  .scouting-target-form,
+  .scouting-target-card,
+  .scouting-target-board,
+  .scouting-target-board-column,
+  .scouting-comparison-lab,
+  .scouting-comparison-studio,
+  .scouting-comparison-form,
+  .scouting-comparison-radar,
+  .scouting-comparison-winners,
+  .scouting-role-models,
+  .scouting-reports-form-card,
+  .scouting-reports-list,
+  .scouting-budget-board,
+  .scouting-data-quality,
+  .scouting-import-panel,
+  .scouting-import-preview,
+  .scouting-saved-views-modal,
+  .scouting-saved-view-save,
+  .scouting-empty-panel
+) {
+  background: var(--scout-panel) !important;
+  border-color: var(--scout-line) !important;
+  color: var(--scout-ink) !important;
+  box-shadow: var(--scout-shadow) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(
+  .scouting-record-card,
+  .scouting-list-menu div,
+  .scouting-mini-list button,
+  .scouting-list-players button,
+  .scouting-metric-stack div,
+  .scouting-profile-decision-strip div,
+  .scouting-market-radar,
+  .scouting-market-intelligence > article,
+  .scouting-action-card,
+  .scouting-similar-profiles,
+  .scouting-similar-grid button,
+  .scouting-cockpit > article,
+  .scouting-cockpit-roles,
+  .scouting-cockpit-hotlist,
+  .scouting-cockpit-queue,
+  .scouting-cockpit-queue-grid article,
+  .scouting-next-actions,
+  .scouting-next-actions > article,
+  .scouting-next-action-list button,
+  .scouting-alert-center,
+  .scouting-alert-grid button,
+  .scouting-profile-report-list,
+  .scouting-profile-history-table,
+  .scouting-contact-form-card,
+  .scouting-contact-list-card,
+  .scouting-contact-list article,
+  .scouting-profile-timeline,
+  .scouting-timeline-list article,
+  .scouting-squad-fit-lead,
+  .scouting-squad-fit-grid article,
+  .scouting-comparison-decision > div,
+  .scouting-comparison-selected-player,
+  .scouting-comparison-drawer-section,
+  .scouting-comparison-drawer-selected-card,
+  .scouting-comparison-table,
+  .scouting-comparison-winners article,
+  .scouting-role-model-card,
+  .scouting-role-model-card-notes,
+  .scouting-role-model-card-matches,
+  .scouting-role-metric-search,
+  .scouting-role-metric-row,
+  .scouting-my-team-slot-card,
+  .scouting-my-team-player,
+  .scouting-my-team-info-panel,
+  .scouting-my-team-menu div,
+  .scouting-shadow-empty
+) {
+  background: var(--scout-soft) !important;
+  border-color: var(--scout-line) !important;
+  color: var(--scout-ink) !important;
+  box-shadow: none !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(
+  button,
+  summary,
+  .scouting-tab,
+  .scouting-secondary-button,
+  .scouting-comparison-candidate-toggle,
+  .scouting-saved-views-trigger,
+  .scouting-list-menu summary,
+  .scouting-profile-close,
+  .scouting-star-button,
+  .scouting-my-team-info-trigger,
+  .scouting-my-team-menu summary,
+  .scouting-my-team-add-to-slot,
+  .scouting-shadow-profile-trigger
+) {
+  background: var(--scout-control-bg) !important;
+  border-color: var(--scout-line) !important;
+  color: var(--scout-ink) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(
+  button:not(:disabled):hover,
+  summary:hover,
+  .scouting-tab:hover,
+  .scouting-secondary-button:hover,
+  .scouting-comparison-candidate-toggle:hover
+) {
+  background: var(--scout-control-hover) !important;
+  border-color: var(--scout-line-strong) !important;
+  color: var(--scout-strong) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(
+  .scouting-tab.is-active,
+  .scouting-profile-tabs button.is-active,
+  .scouting-filter-toggle.is-open,
+  .scouting-comparison-candidate-toggle.is-open
+) {
+  background: var(--scout-control-selected) !important;
+  border-color: var(--scout-control-selected-line) !important;
+  color: var(--scout-strong) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(
+  .scouting-primary-button,
+  .scouting-filter-toggle,
+  .scouting-target-form button,
+  .scouting-target-actions button,
+  .scouting-database-controls button[type="submit"]
+) {
+  background: var(--fs-button-primary-bg) !important;
+  border-color: var(--fs-button-primary-bg) !important;
+  color: var(--fs-button-primary-text) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(input, select, textarea, [contenteditable="true"]) {
+  background: var(--scout-input-bg) !important;
+  border-color: var(--scout-input-line) !important;
+  color: var(--scout-ink) !important;
+  caret-color: var(--scout-green);
+}
+
+body.is-dark-mode #scoutingWorkspace :where(input:focus, select:focus, textarea:focus, summary:focus-visible) {
+  border-color: var(--scout-control-selected-line) !important;
+  box-shadow: 0 0 0 4px var(--scout-focus) !important;
+  outline: 0;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(
+  .scouting-profile-identity-meta span,
+  .scouting-profile-shadow-count,
+  .scouting-record-rolefit-badge,
+  .scouting-role-model-card-head em,
+  .scouting-role-model-signal-pills span,
+  .scouting-workflow-meta span,
+  .scouting-report-scoreline span,
+  .scouting-squad-fit-metrics span,
+  .scouting-comparison-candidate-action
+) {
+  background: var(--scout-chip-bg) !important;
+  border-color: var(--scout-chip-line) !important;
+  color: var(--scout-ink) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(h1, h2, h3, h4, strong, th) {
+  color: var(--scout-strong) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(
+  p,
+  small,
+  em,
+  label,
+  .scouting-muted,
+  .scouting-result-summary,
+  .scouting-database-paging,
+  .scouting-record-table-cell,
+  .scouting-record-nationality,
+  .scouting-record-card-score span,
+  .scouting-record-card-meta-cell span,
+  .scouting-record-best-role span,
+  .scouting-record-card-recommendation span,
+  .scouting-note-line,
+  .scouting-fit-line,
+  .placeholder-tag,
+  .scouting-muted-label
+) {
+  color: var(--scout-muted) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(
+  .scouting-list-menu button,
+  .scouting-my-team-trash,
+  .scouting-role-metric-row button[data-remove-role-model-metric],
+  .scouting-role-model-card-actions .scouting-secondary-button:last-child,
+  .scouting-comparison-selected-player button,
+  .scouting-comparison-drawer-selected-card button,
+  .scouting-contact-list article > button
+) {
+  background: var(--scout-danger-soft) !important;
+  border-color: color-mix(in srgb, var(--scout-danger) 40%, transparent) !important;
+  color: var(--scout-danger) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(.scouting-profile-backdrop, .scouting-saved-views-overlay, .scouting-role-model-overlay, .scouting-settings-overlay) {
+  background: var(--fs-overlay) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace :where(.scouting-radar-ring, .scouting-radar-axis) {
+  stroke: var(--scout-line-strong) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace .scouting-radar-label {
+  fill: var(--scout-ink) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace .scouting-record-rolefit-badge.is-elite {
+  background: var(--fs-success-soft) !important;
+  border-color: color-mix(in srgb, var(--fs-success) 42%, transparent) !important;
+  color: var(--fs-success) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace .scouting-record-rolefit-badge.is-strong {
+  background: var(--fs-info-soft) !important;
+  border-color: color-mix(in srgb, var(--fs-info) 42%, transparent) !important;
+  color: var(--fs-info) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace .scouting-record-rolefit-badge.is-monitor {
+  background: var(--fs-warning-soft) !important;
+  border-color: color-mix(in srgb, var(--fs-warning) 42%, transparent) !important;
+  color: var(--fs-warning) !important;
+}
+
+body.is-dark-mode #scoutingWorkspace .scouting-record-rolefit-badge.is-risk {
+  background: var(--fs-danger-soft) !important;
+  border-color: color-mix(in srgb, var(--fs-danger) 42%, transparent) !important;
+  color: var(--fs-danger) !important;
+}

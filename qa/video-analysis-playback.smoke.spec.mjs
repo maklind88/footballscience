@@ -428,7 +428,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   })).toBe(true);
   await expect(page.locator(".video-analysis-workspace-nav")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-timeline-module]")).toBeVisible();
-  await expect(page.locator(".video-analysis-timeline-status")).toContainText("1 clip");
+  await expect(page.locator(".video-analysis-timeline-status")).toHaveCount(0);
   await expect(page.locator(".video-analysis-coding-panel")).toHaveCount(0);
   await expect(page.locator(".video-analysis-presentation")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-header")).toHaveCount(0);
@@ -437,7 +437,7 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-timeline-view-select")).toContainText("Timeline");
   await expect(page.locator("[data-video-analysis-timeline-lane-select]")).toHaveValue("all");
   await expect(page.locator("[data-video-analysis-timeline-lane-select] option")).toHaveCount(8);
-  await expect(page.locator("[data-video-analysis-timeline-lane-select] option").first()).toContainText("All Tags");
+  await expect(page.locator("[data-video-analysis-timeline-lane-select] option").first()).toContainText("All Tags (1)");
   await expect(page.locator(".video-analysis-lane__label").first()).toContainText("All Tags");
   await expect(page.locator(".video-analysis-timeline-controls")).toHaveCount(0);
   await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
@@ -809,7 +809,8 @@ test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) =
   const timeline = page.locator("[data-video-analysis-timeline-module]");
   await expect(timeline).toHaveAttribute("data-video-analysis-timeline-density", "dense");
   await expect(timeline).toHaveAttribute("data-video-analysis-timeline-clip-count", "500");
-  await expect(page.locator(".video-analysis-timeline-status")).toContainText("500 clips");
+  await expect(page.locator(".video-analysis-timeline-status")).toHaveCount(0);
+  await expect(page.locator("[data-video-analysis-timeline-lane-select] option").first()).toContainText("All Tags (500)");
   await expect(page.locator(".video-analysis-code-window-dock [data-video-analysis-code-window]")).toBeVisible();
   await expect(page.locator(".video-analysis-clip-block")).toHaveCount(500);
   await expect(page.locator(".video-analysis-clip-block__copy small")).toHaveCount(0);

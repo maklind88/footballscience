@@ -64,6 +64,14 @@ export function getClipMiniGamePrincipleLabel(clip = {}) {
   return miniGamePrincipleLabel(id) || "No MG principle";
 }
 
+export function getClipMiniGamePrincipleLaneLabels(clip = {}) {
+  const labels = clipMiniGamePrincipleLabels(clip);
+  if (labels.length) return labels;
+  const id = String(clipValue(clip, "miniGamePrincipleId", "mini_game_principle_id") || "").trim();
+  const label = miniGamePrincipleLabel(id);
+  return label ? [label] : [];
+}
+
 export function getTimelineLaneValue(clip = {}, laneMode = "phase") {
   return getTimelineLaneValues(clip, laneMode)[0] || "Uncoded";
 }
@@ -89,7 +97,7 @@ export function getTimelineLaneValues(clip = {}, laneMode = "phase") {
   if (laneMode === "tags") return [Array.isArray(clip.tags) && clip.tags.length ? clip.tags[0] : "No tag"];
   if (laneMode === "unit") return [firstDescriptorValue(clip, "unit") || "Unit"];
   if (laneMode === "outcome") return [clipValue(clip, "outcome", "outcome") || "Neutral"];
-  if (laneMode === "miniGamePrinciple") return [getClipMiniGamePrincipleLabel(clip)];
+  if (laneMode === "miniGamePrinciple") return getClipMiniGamePrincipleLaneLabels(clip);
   return [clipValue(clip, "phase", "phase") || "Uncoded"];
 }
 

@@ -564,6 +564,37 @@ test("legacy phase clips do not appear as Phase lanes in sub-phase timeline", as
   expect(phaseIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Out of Possession:2"]);
 });
 
+test("timeline MG Principle view only shows clips with tagged MG principles", async () => {
+  const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
+  const clips = [
+    {
+      id: "without-mg",
+      matchId: "match-1",
+      videoId: "video-1",
+      startMs: 0,
+      endMs: 15000,
+      phase: "Out of Possession",
+      subPhase: "High Press",
+      metadata: { clipKind: "subPhase" },
+    },
+    {
+      id: "with-mg",
+      matchId: "match-1",
+      videoId: "video-1",
+      startMs: 16000,
+      endMs: 31000,
+      phase: "In Possession",
+      subPhase: "Build Up",
+      miniGamePrincipleId: "third-player",
+      metadata: { clipKind: "subPhase" },
+    },
+  ];
+
+  const miniGameIndex = timelineService.buildTimelineIndex(clips, "miniGamePrinciple");
+  expect(miniGameIndex.clipCount).toBe(1);
+  expect(miniGameIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Third Player:1"]);
+});
+
 test("MG principles derive their searchable sub-phase from the principle group", async () => {
   const service = await import(pathToFileURL(path.join(moduleDir, "services/miniGamePrincipleService.js")).href);
 

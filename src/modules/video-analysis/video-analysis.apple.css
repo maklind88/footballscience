@@ -538,8 +538,7 @@
 }
 
 #analysisRoomWorkspace .video-analysis-code-button__meta small,
-#analysisRoomWorkspace .video-analysis-code-button kbd,
-#analysisRoomWorkspace .video-analysis-timeline-status span {
+#analysisRoomWorkspace .video-analysis-code-button kbd {
   border: 1px solid rgba(24, 34, 29, 0.08);
   background: rgba(255, 255, 255, 0.76);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);

@@ -2568,7 +2568,9 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   gap: 4px;
 }
 
-.video-analysis-code-window-dock .video-analysis-mg-picker-button {
+.video-analysis-code-window-dock .video-analysis-mg-picker-button,
+.video-analysis-code-window-dock .video-analysis-unit-picker-button,
+.video-analysis-code-window-dock .video-analysis-outcome-tag-button {
   width: min(100%, calc((100% - 8px) / 3));
   min-width: 86px;
 }
@@ -2843,6 +2845,11 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   backdrop-filter: blur(28px);
 }
 
+.video-analysis-unit-picker-panel {
+  width: min(520px, calc(100vw - 64px));
+  max-height: min(460px, calc(100vh - 56px));
+}
+
 .video-analysis-mg-picker-header,
 .video-analysis-mg-picker-footer {
   display: flex;
@@ -2967,6 +2974,17 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
+}
+
+.video-analysis-unit-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.video-analysis-unit-chip {
+  justify-content: center;
+  border-radius: 12px;
 }
 
 .video-analysis-mg-picker-empty {

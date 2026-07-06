@@ -2,8 +2,9 @@ import { groupCodingTemplateButtons } from "../services/codingTemplateService.js
 import { renderMiniGamePrincipleLauncher, renderMiniGamePrinciplePicker } from "./MiniGamePrinciplePicker.js";
 import { renderPanelBuilderOverlay } from "./PanelBuilderOverlay.js";
 import { escapeHtml } from "./renderHelpers.js";
+import { renderOutcomeTagLauncher, renderUnitLauncher, renderUnitPicker } from "./UnitOutcomeTags.js";
 
-const hiddenCodingGroups = new Set(["Phase", "Team Principle", "Mini-game Principle"]);
+const hiddenCodingGroups = new Set(["Phase", "Team Principle", "Mini-game Principle", "Outcome"]);
 
 function secondsFromMs(value = 0, fallback = 15) {
   const seconds = Math.round(Number(value || 0) / 1000);
@@ -90,6 +91,14 @@ function renderPlayersPanel(state = {}) {
   `;
 }
 
+function renderMomentTagLaunchers(state = {}) {
+  return `
+    ${renderMiniGamePrincipleLauncher(state)}
+    ${renderUnitLauncher(state)}
+    ${renderOutcomeTagLauncher(state)}
+  `;
+}
+
 export function renderCodingTemplateBuilder(state = {}) {
   const template = state.template || {};
   const editing = state.codingSession?.panelMode === "edit";
@@ -115,13 +124,14 @@ export function renderCodingTemplateBuilder(state = {}) {
       <div class="video-analysis-template-scroll">
         ${groupEntries.map(([group, buttons]) => `
           ${renderButtonGroup(group, buttons, codingState)}
-          ${group === "Sub-phase" ? renderMiniGamePrincipleLauncher(state) : ""}
+          ${group === "Sub-phase" ? renderMomentTagLaunchers(state) : ""}
         `).join("")}
-        ${groupEntries.some(([group]) => group === "Sub-phase") ? "" : renderMiniGamePrincipleLauncher(state)}
+        ${groupEntries.some(([group]) => group === "Sub-phase") ? "" : renderMomentTagLaunchers(state)}
         ${renderPlayersPanel(state)}
       </div>
     </section>
     ${editing ? renderPanelBuilderOverlay(state, groups) : ""}
     ${renderMiniGamePrinciplePicker(state)}
+    ${renderUnitPicker(state)}
   `;
 }

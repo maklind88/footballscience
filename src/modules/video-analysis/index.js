@@ -9,6 +9,7 @@ import { renderTagFilterOverlay } from "./components/TagFilterOverlay.js";
 import { renderTimeline } from "./components/Timeline.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderVideoPlayer } from "./components/VideoPlayer.js";
+import { descriptorGroups } from "./constants/descriptors.js";
 import { miniGamePrinciplePickerGroups, miniGamePrinciplePickerIds } from "./constants/miniGamePrinciples.js";
 import { escapeHtml } from "./components/renderHelpers.js";
 import { createDrawingController } from "./controllers/drawingController.js";
@@ -21,7 +22,7 @@ import { createClipRepository } from "./repositories/clipRepository.js";
 import { createPlaylistRepository } from "./repositories/playlistRepository.js";
 import { createPresentationRepository } from "./repositories/presentationRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
-import { applyCodingButtonToClip, buildClipPayload, buildPhaseOnlyClipPayload, buildPlayerOnlyClipPayload, isPhaseOnlyClip, toApiClipPayload } from "./services/clipInstanceService.js";
+import { applyCodingButtonToClip, buildClipPayload, buildOutcomeOnlyClipPayload, buildPhaseOnlyClipPayload, buildPlayerOnlyClipPayload, buildUnitOnlyClipPayload, isPhaseOnlyClip, toApiClipPayload } from "./services/clipInstanceService.js";
 import { buildClipLibraryClipOrder, clipEndMs, clipMatchesLibraryGroup, clipStartMs } from "./services/clipLibraryService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
 import { phaseForSubPhase } from "./services/footballLanguageService.js";
@@ -95,6 +96,8 @@ const pickerMiniGamePrincipleIdSet = new Set(miniGamePrinciplePickerIds);
 const pickerMiniGamePrinciples = miniGamePrinciplePickerGroups.flatMap((group) => (
   group.principles.map((principle) => ({ ...principle, groupLabel: group.label }))
 ));
+const unitTagOptions = descriptorGroups.find((group) => group.id === "unit")?.options || [];
+const unitTagOptionSet = new Set(unitTagOptions);
 const CLIP_PAGE_LIMIT = 200;
 const CLIP_WORKSPACE_LIMIT = 1000;
 const PLAYBACK_RATE_OPTIONS = [0.5, 1, 1.5, 2, 3];
@@ -2343,7 +2346,7 @@ function patchMiniGamePrincipleDraftState(state = {}, ids = []) {
 }
 
 function buildMiniGamePrincipleCapture(state = {}, startMs = 0, targetClip = null) {
-  const durationMs = Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
+  const durationMs = defaultMomentTagDurationMs(state);
   const draft = state.draft || {};
   const clip = targetClip || {};
   const players = Array.isArray(clip.players) ? clip.players : [];
@@ -2376,6 +2379,21 @@ function closeMiniGamePrinciplePickerState(state = {}) {
       miniGamePrinciplePickerOpen: false,
       miniGamePrincipleSearch: "",
       miniGamePrincipleCapture: null,
+    },
+  };
+}
+
+function defaultMomentTagDurationMs(state = {}) {
+  return Math.max(1000, Number(state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
+}
+
+function closeUnitPickerState(state = {}) {
+  return {
+    ...state,
+    codingSession: {
+      ...(state.codingSession || {}),
+      unitPickerOpen: false,
+      unitCapture: null,
     },
   };
 }
@@ -3597,7 +3615,7 @@ async function createMiniGamePrincipleTagFromCapture(principleId = "", context =
     return true;
   }
   const startMs = Math.max(0, Math.round(Number(capture.startMs || 0)));
-  const durationMs = Math.max(1000, Number(capture.durationMs || state.template?.defaultClipDurationMs || state.codingSession?.defaultClipDurationMs || 15000));
+  const durationMs = Math.max(1000, Number(capture.durationMs || defaultMomentTagDurationMs(state)));
   const endMs = startMs + durationMs;
   const nextIds = pickerVisibleMiniGamePrincipleIds([...existingIds, id]);
   const subPhase = subPhaseForMiniGamePrinciple(id, capture.targetClipId ? capture.subPhase : "")
@@ -3736,6 +3754,197 @@ async function toggleMiniGamePrincipleForActiveClip(principleId = "", context = 
       status: "error",
       error: error.message || "Could not save MG principles.",
     }));
+    return false;
+  }
+}
+
+function openUnitCapture(context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  if (!state.match?.id || !state.video?.id) {
+    run.store.setState({
+      status: "error",
+      message: "",
+      error: "Link a local match or training video before tagging a unit.",
+    });
+    return false;
+  }
+  const currentMs = currentPlayheadMs(context, state);
+  const video = videoElement(context);
+  if (video) {
+    try {
+      video.pause();
+    } catch {
+      // Best-effort pause; the timestamp capture is still valid if playback rejects pause.
+    }
+  }
+  syncPlaybackControls(context, video, false);
+  const capture = {
+    startMs: Math.max(0, Math.round(Number(currentMs || 0))),
+    durationMs: defaultMomentTagDurationMs(state),
+    period: state.draft?.period || "1",
+    visibility: state.draft?.visibility || state.draft?.clipVisibility || "private",
+  };
+  run.store.update((current) => ({
+    ...current,
+    codingSession: {
+      ...(current.codingSession || {}),
+      mode: "instant",
+      unitPickerOpen: true,
+      unitCapture: capture,
+    },
+    timeline: {
+      ...(current.timeline || {}),
+      playheadMs: capture.startMs,
+    },
+    message: "Unit timestamp captured. Choose the involved unit.",
+    error: "",
+  }));
+  return true;
+}
+
+async function createUnitTagFromCapture(unit = "", context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const label = String(unit || "").trim();
+  const capture = state.codingSession?.unitCapture || null;
+  if (!capture) return false;
+  if (!unitTagOptionSet.has(label)) return false;
+  if (!state.match?.id || !state.video?.id) {
+    run.store.setState({ status: "error", message: "", error: "Link a local match or training video before tagging a unit." });
+    return false;
+  }
+  const startMs = Math.max(0, Math.round(Number(capture.startMs || 0)));
+  const durationMs = Math.max(1000, Number(capture.durationMs || defaultMomentTagDurationMs(state)));
+  const momentKey = momentKeyForTagAction(state, startMs);
+  let unitClip = null;
+  try {
+    unitClip = buildUnitOnlyClipPayload({
+      ...state,
+      draft: {
+        ...(state.draft || {}),
+        period: capture.period || state.draft?.period || "1",
+        visibility: capture.visibility || state.draft?.visibility || "private",
+        clipVisibility: capture.visibility || state.draft?.clipVisibility || "private",
+      },
+    }, label, startMs, durationMs, {
+      momentKey,
+      metadata: { source: "unit-button" },
+    });
+  } catch (error) {
+    run.store.setState({ status: "error", message: "", error: error.message || "Could not tag unit." });
+    return false;
+  }
+  run.store.update((current) => ({
+    ...current,
+    status: "saving-clip",
+    codingSession: {
+      ...(current.codingSession || {}),
+      mode: "instant",
+      unitPickerOpen: true,
+      lastUnitTag: label,
+    },
+    draft: {
+      ...(current.draft || {}),
+      unit: label,
+    },
+    timeline: {
+      ...(current.timeline || {}),
+      playheadMs: startMs,
+    },
+    message: `${label} tagged.`,
+    error: "",
+  }));
+  try {
+    const payload = await run.clips.save(toApiClipPayload(unitClip));
+    const savedClip = normalizeClipInstance(payload?.clip || unitClip);
+    run.store.update((current) => ({
+      ...replaceClipInState(closeUnitPickerState(current), savedClip),
+      status: "ready",
+      selectedClipId: savedClip.id || current.selectedClipId,
+      codingSession: {
+        ...(current.codingSession || {}),
+        mode: "instant",
+        unitPickerOpen: false,
+        unitCapture: null,
+        lastUnitTag: label,
+        lastClipId: savedClip.id || current.codingSession?.lastClipId || "",
+      },
+      timeline: {
+        ...(current.timeline || {}),
+        playheadMs: startMs,
+      },
+      message: `${label} unit tag created.`,
+      error: "",
+    }));
+    await loadClips();
+    return true;
+  } catch (error) {
+    run.store.setState({ status: "error", message: "", error: error.message || "Could not tag unit for this moment." });
+    return false;
+  }
+}
+
+async function applyOutcomeQuickTag(outcome = "", context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const label = String(outcome || "").trim();
+  if (!state.match?.id || !state.video?.id) {
+    run.store.setState({ status: "error", message: "", error: "Link a local match or training video before tagging an outcome." });
+    return false;
+  }
+  const currentMs = currentPlayheadMs(context, state);
+  const durationMs = defaultMomentTagDurationMs(state);
+  const momentKey = momentKeyForTagAction(state, currentMs);
+  let outcomeClip = null;
+  try {
+    outcomeClip = buildOutcomeOnlyClipPayload(state, label, currentMs, durationMs, {
+      momentKey,
+      metadata: { source: "outcome-button" },
+    });
+  } catch (error) {
+    run.store.setState({ status: "error", message: "", error: error.message || "Could not tag outcome." });
+    return false;
+  }
+  run.store.update((current) => ({
+    ...current,
+    status: "saving-clip",
+    codingSession: {
+      ...(current.codingSession || {}),
+      mode: "instant",
+      lastOutcomeTag: label,
+    },
+    timeline: {
+      ...(current.timeline || {}),
+      playheadMs: currentMs,
+    },
+    message: `${label} tagged.`,
+    error: "",
+  }));
+  try {
+    const payload = await run.clips.save(toApiClipPayload(outcomeClip));
+    const savedClip = normalizeClipInstance(payload?.clip || outcomeClip);
+    run.store.update((current) => ({
+      ...replaceClipInState(current, savedClip),
+      status: "ready",
+      selectedClipId: savedClip.id || current.selectedClipId,
+      codingSession: {
+        ...(current.codingSession || {}),
+        mode: "instant",
+        lastOutcomeTag: label,
+        lastClipId: savedClip.id || current.codingSession?.lastClipId || "",
+      },
+      timeline: {
+        ...(current.timeline || {}),
+        playheadMs: currentMs,
+      },
+      message: `${label} outcome tag created.`,
+      error: "",
+    }));
+    await loadClips();
+    return true;
+  } catch (error) {
+    run.store.setState({ status: "error", message: "", error: error.message || "Could not tag outcome for this moment." });
     return false;
   }
 }
@@ -4408,6 +4617,23 @@ export function handleClick(event, context = {}) {
       message: "Button color updated.",
       error: "",
     }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-unit-open]")) {
+    return openUnitCapture(context);
+  }
+  if (target.closest("[data-video-analysis-unit-close]")) {
+    run.store.update((state) => closeUnitPickerState(state));
+    return true;
+  }
+  const unitTagButton = target.closest("[data-video-analysis-unit-tag]");
+  if (unitTagButton) {
+    createUnitTagFromCapture(unitTagButton.dataset.videoAnalysisUnitTag, context);
+    return true;
+  }
+  const outcomeTagButton = target.closest("[data-video-analysis-outcome-tag]");
+  if (outcomeTagButton) {
+    applyOutcomeQuickTag(outcomeTagButton.dataset.videoAnalysisOutcomeTag, context);
     return true;
   }
   if (target.closest("[data-video-analysis-mg-principles-open]")) {

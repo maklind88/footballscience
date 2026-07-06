@@ -1758,6 +1758,78 @@ test("Video Analysis player buttons create IDP player clips from the playhead", 
   await expect(page.locator(".video-analysis-notifications")).toContainText("Alex Morgan player tag created.");
 });
 
+test("Video Analysis Unit and Development buttons create separate moment tags", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__videoAnalysisInitialState = {
+      view: "workspace",
+      match: {
+        id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        title: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+      },
+      video: {
+        id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+      },
+      source: {
+        id: "source-1",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        local_video_identifier: "existing-video",
+      },
+      videoRef: {
+        objectUrl: "data:video/mp4;base64,AAAA",
+        durationMs: 7267240,
+        displayName: "Match #11 @ Angel City - May 31st - Angle 1.mp4",
+      },
+      localFileStatus: "native-ready",
+      localFileMessage: "Native playback ready",
+      nativePlaybackReady: true,
+    };
+  });
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  await expect(page.locator("[data-video-analysis-unit-open]")).toBeVisible();
+  await expect(page.locator('[data-video-analysis-outcome-tag="Development"]')).toBeVisible();
+  await expect(page.locator('[data-video-analysis-code-group="Outcome"]')).toHaveCount(0);
+
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "currentTime", { configurable: true, value: 33 });
+  });
+  await page.locator("[data-video-analysis-unit-open]").click();
+  await expect(page.locator(".video-analysis-unit-picker-panel")).toContainText("Unit");
+  await page.locator('[data-video-analysis-unit-tag="Midfield"]').click();
+  await expect.poll(() => page.evaluate(() => {
+    const request = [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "save-clip");
+    return request?.body?.clip || null;
+  })).toMatchObject({
+    startMs: 33000,
+    endMs: 48000,
+    phase: "Unit",
+    subPhase: "Unit",
+    metadata: { clipKind: "unit", labelOnly: true },
+    descriptors: [{ type: "unit", value: "Midfield" }],
+  });
+
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "currentTime", { configurable: true, value: 44 });
+  });
+  await page.locator('[data-video-analysis-outcome-tag="Development"]').click();
+  await expect.poll(() => page.evaluate(() => {
+    const request = [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "save-clip");
+    return request?.body?.clip || null;
+  })).toMatchObject({
+    startMs: 44000,
+    endMs: 59000,
+    phase: "Outcome",
+    subPhase: "Outcome",
+    outcome: "Development",
+    metadata: { clipKind: "outcome", labelOnly: true },
+    labels: [{ type: "outcome", value: "Development" }],
+  });
+});
+
 test("Video Analysis Panel Builder creates a custom tag button", async ({ page }) => {
   await page.addInitScript(() => {
     window.__videoAnalysisInitialState = {

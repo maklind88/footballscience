@@ -31,6 +31,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/components/ClipFilters.js",
     "src/modules/video-analysis/components/ClipIntelligence.js",
     "src/modules/video-analysis/components/CodingTemplateBuilder.js",
+    "src/modules/video-analysis/components/UnitOutcomeTags.js",
     "src/modules/video-analysis/components/PresentationModule.js",
     "src/modules/video-analysis/components/PresentationSources.js",
     "src/modules/video-analysis/components/PresentationOutline.js",
@@ -439,6 +440,10 @@ test("sub-phase buttons own phase assignment for coaching language", async () =>
   });
   expect(panelHtml).not.toContain('data-video-analysis-code-group="Phase"');
   expect(panelHtml).not.toContain('data-video-analysis-code-button="phase-');
+  expect(panelHtml).not.toContain('data-video-analysis-code-group="Outcome"');
+  expect(panelHtml).toContain("data-video-analysis-mg-principles-open");
+  expect(panelHtml).toContain("data-video-analysis-unit-open");
+  expect(panelHtml).toContain('data-video-analysis-outcome-tag="Development"');
 });
 
 test("player, phase, and sub-phase tags stay separate clip instances", async () => {
@@ -521,6 +526,52 @@ test("player, phase, and sub-phase tags stay separate clip instances", async () 
   const allIndex = timelineService.buildTimelineIndex(clips, "all");
   expect(allIndex.clipCount).toBe(3);
   expect(allIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["All Tags:3"]);
+});
+
+test("unit and outcome quick tags stay separate from sub-phase timeline lanes", async () => {
+  const clipService = await import(pathToFileURL(path.join(moduleDir, "services/clipInstanceService.js")).href);
+  const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
+  const state = {
+    match: { id: "match-1" },
+    video: { id: "video-1" },
+    template: { id: "template-1" },
+    draft: {
+      period: "1",
+      outcome: "Neutral",
+      visibility: "private",
+    },
+  };
+
+  const unitOnly = clipService.buildUnitOnlyClipPayload(state, "Midfield", 12000, 15000, { momentKey: "video-1:12000" });
+  const outcomeOnly = clipService.buildOutcomeOnlyClipPayload(state, "Development", 12000, 15000, { momentKey: "video-1:12000" });
+
+  expect(unitOnly).toMatchObject({
+    phase: "Unit",
+    subPhase: "Unit",
+    descriptors: [{ type: "unit", value: "Midfield" }],
+    metadata: { clipKind: "unit", labelOnly: true, momentKey: "video-1:12000" },
+  });
+  expect(outcomeOnly).toMatchObject({
+    phase: "Outcome",
+    subPhase: "Outcome",
+    outcome: "Development",
+    labels: [{ type: "outcome", value: "Development" }],
+    metadata: { clipKind: "outcome", labelOnly: true, momentKey: "video-1:12000" },
+  });
+  expect(clipService.isUnitOnlyClip(unitOnly)).toBe(true);
+  expect(clipService.isOutcomeOnlyClip(outcomeOnly)).toBe(true);
+
+  const subPhaseIndex = timelineService.buildTimelineIndex([unitOnly, outcomeOnly], "subPhase");
+  expect(subPhaseIndex.clipCount).toBe(0);
+  expect(subPhaseIndex.lanes).toEqual([]);
+
+  const unitIndex = timelineService.buildTimelineIndex([unitOnly, outcomeOnly], "unit");
+  expect(unitIndex.clipCount).toBe(1);
+  expect(unitIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Midfield:1"]);
+
+  const outcomeIndex = timelineService.buildTimelineIndex([unitOnly, outcomeOnly], "outcome");
+  expect(outcomeIndex.clipCount).toBe(2);
+  expect(outcomeIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Development:1", "Neutral:1"]);
 });
 
 test("legacy phase clips do not appear as Phase lanes in sub-phase timeline", async () => {

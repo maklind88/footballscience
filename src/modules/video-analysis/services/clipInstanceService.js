@@ -1,5 +1,6 @@
 import { normalizeClipInstance, normalizeMs } from "../domain/clipInstance.model.js";
 import { descriptorApiKeys } from "../constants/descriptors.js";
+import { videoAnalysisOutcomes } from "../constants/outcomes.js";
 import { isValidCodingSelection, splitTags } from "./taggingService.js";
 import { phaseForSubPhase, withPhaseForSubPhase } from "./footballLanguageService.js";
 import { buildMiniGamePrincipleLabels, uniqueMiniGamePrincipleIds, withMiniGamePrinciples } from "./miniGamePrincipleService.js";
@@ -7,6 +8,8 @@ import { buildMiniGamePrincipleLabels, uniqueMiniGamePrincipleIds, withMiniGameP
 const playerOnlyClipKind = "player";
 const phaseClipKind = "phase";
 const subPhaseClipKind = "subPhase";
+const unitOnlyClipKind = "unit";
+const outcomeOnlyClipKind = "outcome";
 const canonicalTargetFields = Object.freeze({
   sub_phase: "subPhase",
   team_principle: "teamPrincipleId",
@@ -93,6 +96,14 @@ export function isPhaseOnlyClip(clip = {}) {
 
 export function isSubPhaseOnlyClip(clip = {}) {
   return String(clip.metadata?.clipKind || clip.metadata?.clip_kind || "").trim() === subPhaseClipKind;
+}
+
+export function isUnitOnlyClip(clip = {}) {
+  return String(clip.metadata?.clipKind || clip.metadata?.clip_kind || "").trim() === unitOnlyClipKind;
+}
+
+export function isOutcomeOnlyClip(clip = {}) {
+  return String(clip.metadata?.clipKind || clip.metadata?.clip_kind || "").trim() === outcomeOnlyClipKind;
 }
 
 function playerIdValue(player = {}) {
@@ -191,6 +202,71 @@ export function buildPlayerOnlyClipPayload(state = {}, player = {}, startMs = 0,
       source: "player-quick-tag",
       ...(options.metadata && typeof options.metadata === "object" ? options.metadata : {}),
     }, playerOnlyClipKind, options.momentKey),
+  });
+}
+
+export function buildUnitOnlyClipPayload(state = {}, unit = "", startMs = 0, durationMs = 15000, options = {}) {
+  if (!state.match?.id || !state.video?.id) {
+    throw new Error("Load a local video before tagging a unit.");
+  }
+  const label = String(unit || "").trim();
+  if (!label) {
+    throw new Error("Choose the involved unit.");
+  }
+  const start = normalizeMs(startMs);
+  const duration = Math.max(1000, normalizeMs(durationMs, 15000));
+  return normalizeClipInstance({
+    matchId: state.match.id,
+    videoId: state.video.id,
+    startMs: start,
+    endMs: start + duration,
+    period: state.draft?.period || "1",
+    phase: "Unit",
+    subPhase: "Unit",
+    outcome: state.draft?.outcome || "Neutral",
+    codingMode: "instant",
+    codingTemplateId: state.template?.databaseId || state.template?.id || "",
+    preRollMs: 0,
+    postRollMs: duration,
+    visibility: options.visibility || state.draft?.visibility || state.draft?.clipVisibility || "private",
+    descriptors: [{ type: "unit", value: label, label, descriptor_type: "unit", descriptor_value: label, descriptor_label: label }],
+    labels: [{ type: "unit", value: label, label, label_type: "unit", label_value: label, label_text: label }],
+    metadata: tagMomentMetadata({
+      source: "unit-button",
+      ...(options.metadata && typeof options.metadata === "object" ? options.metadata : {}),
+    }, unitOnlyClipKind, options.momentKey),
+  });
+}
+
+export function buildOutcomeOnlyClipPayload(state = {}, outcome = "", startMs = 0, durationMs = 15000, options = {}) {
+  if (!state.match?.id || !state.video?.id) {
+    throw new Error("Load a local video before tagging an outcome.");
+  }
+  const label = String(outcome || "").trim();
+  if (!videoAnalysisOutcomes.includes(label)) {
+    throw new Error("Choose a valid outcome.");
+  }
+  const start = normalizeMs(startMs);
+  const duration = Math.max(1000, normalizeMs(durationMs, 15000));
+  return normalizeClipInstance({
+    matchId: state.match.id,
+    videoId: state.video.id,
+    startMs: start,
+    endMs: start + duration,
+    period: state.draft?.period || "1",
+    phase: "Outcome",
+    subPhase: "Outcome",
+    outcome: label,
+    codingMode: "instant",
+    codingTemplateId: state.template?.databaseId || state.template?.id || "",
+    preRollMs: 0,
+    postRollMs: duration,
+    visibility: options.visibility || state.draft?.visibility || state.draft?.clipVisibility || "private",
+    labels: [{ type: "outcome", value: label, label, label_type: "outcome", label_value: label, label_text: label }],
+    metadata: tagMomentMetadata({
+      source: "outcome-button",
+      ...(options.metadata && typeof options.metadata === "object" ? options.metadata : {}),
+    }, outcomeOnlyClipKind, options.momentKey),
   });
 }
 

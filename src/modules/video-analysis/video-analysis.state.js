@@ -120,6 +120,10 @@ export function createInitialVideoAnalysisState(context = {}) {
       miniGamePrincipleDraftIds: [],
       miniGamePrincipleSearch: "",
       miniGamePrincipleCapture: null,
+      unitPickerOpen: false,
+      unitCapture: null,
+      lastUnitTag: "",
+      lastOutcomeTag: "",
     },
     timeline: {
       zoom: 1,

@@ -1,3 +1,5 @@
+import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
+
 export function createSessionPlannerTacticalController(deps = {}) {
   const {
     canEditSessionPlanner,
@@ -39,6 +41,14 @@ export function createSessionPlannerTacticalController(deps = {}) {
       return true;
     },
   });
+
+  function confirmTacticalAction(config = {}) {
+  return confirmPlatformAction({
+  eyebrow: "Tactical Board",
+  win,
+  ...config,
+  });
+  }
 
   function refreshSessionPlannerTacticalboardCanvas(options = {}) {
   const block = getSessionPlannerSelectedBlock();
@@ -255,7 +265,7 @@ export function createSessionPlannerTacticalController(deps = {}) {
   clearSessionPlannerTacticalSelection();
   renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
   }
-  function clearSelectedSessionPlannerTacticalBoard() {
+  async function clearSelectedSessionPlannerTacticalBoard() {
   if (!canEditSessionPlanner()) {
   return;
   }
@@ -267,7 +277,12 @@ export function createSessionPlannerTacticalController(deps = {}) {
   if (!hasDrawings) {
   return;
   }
-  const shouldDeleteAll = win.confirm("Delete all drawings from this exercise board?");
+  const shouldDeleteAll = await confirmTacticalAction({
+  title: "Delete all drawings?",
+  message: "Delete all drawings from this exercise board?",
+  confirmLabel: "Delete drawings",
+  tone: "danger",
+  });
   if (!shouldDeleteAll) {
   return;
   }

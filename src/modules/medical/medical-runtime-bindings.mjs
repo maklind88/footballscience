@@ -1,3 +1,5 @@
+import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
+
 function callOptional(fn, ...args) {
   return typeof fn === "function" ? fn(...args) : undefined;
 }
@@ -460,7 +462,7 @@ ${renderRtpExerciseCards(profile, 3)}
     if (nextVisibleCount >= rows.length) showMoreButton.hidden = true;
   };
 
-  const onClick = (event) => {
+  const onClick = async (event) => {
     const closeModalButton = event.target.closest("[data-medical-close-modal]");
     if (closeModalButton) {
       callOptional(actions.closeMedicalPlayerModal);
@@ -690,7 +692,15 @@ ${renderRtpExerciseCards(profile, 3)}
     }
     const deleteRecordButton = event.target.closest("[data-medical-delete-record]");
     if (deleteRecordButton && canEdit()) {
-      if (win.confirm?.("Archive this medical log entry? It will remain in protected clinical history.")) {
+      const confirmed = await confirmPlatformAction({
+        eyebrow: "Medical Room",
+        title: "Archive log entry?",
+        message: "Archive this medical log entry? It will remain in protected clinical history.",
+        confirmLabel: "Archive",
+        tone: "warning",
+        win,
+      });
+      if (confirmed) {
         const recordId = deleteRecordButton.dataset.medicalDeleteRecord;
         const medicalState = getMedicalState(state);
         const record = medicalState.records.find((entry) => entry.id === recordId) ?? null;
@@ -707,7 +717,15 @@ ${renderRtpExerciseCards(profile, 3)}
     }
     const deleteInjuryPlanButton = event.target.closest("[data-medical-delete-injury-plan]");
     if (deleteInjuryPlanButton && canEdit()) {
-      if (win.confirm?.("Archive this availability plan? It will remain in protected clinical history.")) {
+      const confirmed = await confirmPlatformAction({
+        eyebrow: "Medical Room",
+        title: "Archive availability plan?",
+        message: "Archive this availability plan? It will remain in protected clinical history.",
+        confirmLabel: "Archive",
+        tone: "warning",
+        win,
+      });
+      if (confirmed) {
         const planId = deleteInjuryPlanButton.dataset.medicalDeleteInjuryPlan;
         const medicalState = getMedicalState(state);
         const plan = medicalState.injuryPlans.find((entry) => entry.id === planId) ?? null;
@@ -757,7 +775,17 @@ ${renderRtpExerciseCards(profile, 3)}
     if (removePlayerButton && canEdit()) {
       const medicalState = getMedicalState(state);
       const player = medicalState.players.find((candidate) => candidate.id === removePlayerButton.dataset.medicalRemovePlayer);
-      if (player && win.confirm?.(`Archive ${player.name} from Medical Room? Medical history will remain protected.`)) {
+      const confirmed = player
+        ? await confirmPlatformAction({
+            eyebrow: "Medical Room",
+            title: "Archive player?",
+            message: `Archive ${player.name} from Medical Room? Medical history will remain protected.`,
+            confirmLabel: "Archive",
+            tone: "warning",
+            win,
+          })
+        : false;
+      if (player && confirmed) {
         const archivedPlayer = actions.removeMedicalPlayer?.(player.id);
         recordSync("player-archived", {
           playerId: player.id,

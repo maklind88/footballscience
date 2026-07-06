@@ -1,3 +1,5 @@
+import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
+
 async function waitForAuthReady(win = globalThis) {
   if (win.platformAuthReadyPromise instanceof Promise) {
     try {
@@ -191,7 +193,15 @@ export function bindProfileStaffRuntimeBindings(deps = {}) {
       }
       const removeTaskButton = event.target.closest("[data-dashboard-remove-task]");
       if (!removeTaskButton) return;
-      if (win.confirm?.("Remove this To-Do?")) {
+      const confirmed = await confirmPlatformAction({
+        eyebrow: "Profile",
+        title: "Remove To-Do?",
+        message: "Remove this To-Do?",
+        confirmLabel: "Remove",
+        tone: "danger",
+        win,
+      });
+      if (confirmed) {
         actions.removeDashboardTask?.(removeTaskButton.dataset.dashboardRemoveTask);
         actions.refreshDashboardSurfaces?.();
       }
@@ -245,7 +255,15 @@ export function bindProfileStaffRuntimeBindings(deps = {}) {
         actions.renderStaffWorkspace?.("This user is outside your admin scope.");
         return;
       }
-      if (!win.confirm?.(`Remove ${actions.formatUserName?.(staffUser)}?`)) return;
+      const confirmed = await confirmPlatformAction({
+        eyebrow: "Staff",
+        title: "Remove user?",
+        message: `Remove ${actions.formatUserName?.(staffUser)}?`,
+        confirmLabel: "Remove",
+        tone: "danger",
+        win,
+      });
+      if (!confirmed) return;
       const result = await actions.getPlatformAuthStore?.()?.removeUser?.(userId);
       if (!result?.ok) {
         actions.renderStaffWorkspace?.(result?.reason ?? "User could not be removed.");

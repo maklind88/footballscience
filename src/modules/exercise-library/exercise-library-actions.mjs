@@ -253,7 +253,7 @@ export function createExerciseLibraryActions(options = {}) {
     );
   }
 
-  function archiveFolder(folderId) {
+  async function archiveFolder(folderId) {
     if (!canEdit()) {
       return;
     }
@@ -261,9 +261,13 @@ export function createExerciseLibraryActions(options = {}) {
     if (!folder || isFolderArchived(folder)) {
       return;
     }
-    const shouldArchive = confirmAction(
-      `Archive folder "${folder.name}"?\n\nExercises inside it will stay in the library and remain available from All Exercises.`
-    );
+    const shouldArchive = await Promise.resolve(confirmAction({
+      eyebrow: "Exercise Library",
+      title: "Archive folder?",
+      message: `Archive folder "${folder.name}"?\n\nExercises inside it will stay in the library and remain available from All Exercises.`,
+      confirmLabel: "Archive",
+      tone: "warning",
+    }));
     if (!shouldArchive) {
       return;
     }
@@ -746,7 +750,7 @@ export function createExerciseLibraryActions(options = {}) {
     commitExercise(exercise, "new");
   }
 
-  function archiveExercise(exerciseId) {
+  async function archiveExercise(exerciseId) {
     if (!canEdit()) {
       return;
     }
@@ -759,9 +763,13 @@ export function createExerciseLibraryActions(options = {}) {
       showToast(`"${exercise.title || "Exercise"}" is already archived.`, "warning");
       return;
     }
-    const shouldArchive = confirmAction(
-      `Archive "${exercise.title || "this exercise"}" from the library?\n\nIt will stay saved and can be restored from Archive.`
-    );
+    const shouldArchive = await Promise.resolve(confirmAction({
+      eyebrow: "Exercise Library",
+      title: "Archive exercise?",
+      message: `Archive "${exercise.title || "this exercise"}" from the library?\n\nIt will stay saved and can be restored from Archive.`,
+      confirmLabel: "Archive",
+      tone: "warning",
+    }));
     if (!shouldArchive) {
       return;
     }

@@ -1,4 +1,5 @@
 import { createSessionPlannerPlayerBoardTidyHelpers } from "./session-planner-player-board-tidy-helpers.mjs";
+import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 
 export function createSessionPlannerWorkspaceController(deps = {}) {
   const {
@@ -127,6 +128,14 @@ export function createSessionPlannerWorkspaceController(deps = {}) {
       return true;
     },
   });
+
+  function confirmSessionPlannerAction(config = {}) {
+    return confirmPlatformAction({
+      eyebrow: "Session Planner",
+      win,
+      ...config,
+    });
+  }
   const { getTidiedPlayerBoardPositions } = createSessionPlannerPlayerBoardTidyHelpers({ clamp });
 
 function getSessionPlannerSelectedSession() {
@@ -341,7 +350,7 @@ folderDropTarget.dataset.sessionLibraryFolderDrop
 clearSessionPlannerLibraryDragState();
 return shouldDrop;
 }
-function deleteSessionPlannerBlock(blockId) {
+async function deleteSessionPlannerBlock(blockId) {
 if (!canEditSessionPlanner()) {
 return;
 }
@@ -352,7 +361,12 @@ return;
 }
 const block = session.blocks[blockIndex];
 const exerciseName = block?.title || block?.label || "this exercise";
-const shouldDelete = win.confirm(`Are you sure you want to delete "${exerciseName}" from this session?`);
+const shouldDelete = await confirmSessionPlannerAction({
+title: "Delete exercise?",
+message: `Are you sure you want to delete "${exerciseName}" from this session?`,
+confirmLabel: "Delete",
+tone: "danger",
+});
 if (!shouldDelete) {
 return;
 }
@@ -381,12 +395,17 @@ local.sessionPlannerLibraryViewExerciseId = "";
 }
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
-function closeSessionPlannerLibrary() {
+async function closeSessionPlannerLibrary() {
 const editExercise = getSessionPlannerLibraryEditExercise();
 if (
 editExercise &&
 hasSessionPlannerLibraryExerciseEditChanges(editExercise) &&
-!win.confirm("Discard unsaved exercise edits?")
+!(await confirmSessionPlannerAction({
+title: "Discard edits?",
+message: "Discard unsaved exercise edits?",
+confirmLabel: "Discard",
+tone: "warning",
+}))
 ) {
 return;
 }
@@ -654,7 +673,7 @@ function getSessionPlannerPlayerBoardCustomPersonKind(role, name) {
 const text = `${role || ""} ${name || ""}`.toLowerCase();
 return /staff|coach|leader|ledare|tr[aä]nare|assistent/.test(text) ? "staff" : "player";
 }
-function removeSessionPlannerPlayerBoardCustomPerson(playerId) {
+async function removeSessionPlannerPlayerBoardCustomPerson(playerId) {
 const block = getSessionPlannerSelectedBlock();
 if (!block || !playerId) {
 return;
@@ -664,7 +683,12 @@ const person = people.find((item) => item.id === playerId);
 if (!person) {
 return;
 }
-const shouldRemove = win.confirm(`Remove ${person.name} from this player board?`);
+const shouldRemove = await confirmSessionPlannerAction({
+title: "Remove from board?",
+message: `Remove ${person.name} from this player board?`,
+confirmLabel: "Remove",
+tone: "danger",
+});
 if (!shouldRemove) {
 return;
 }
@@ -785,7 +809,7 @@ mode: "add",
 position: getSessionPlannerPlayerBoardContextPosition(event, board),
 });
 }
-function resetSessionPlannerPlayerBoardPositions() {
+async function resetSessionPlannerPlayerBoardPositions() {
 if (!canEditSessionPlanner()) {
 return;
 }
@@ -793,9 +817,12 @@ const block = getSessionPlannerSelectedBlock();
 if (!block) {
 return;
 }
-const shouldReset = win.confirm(
-"Reset player board? This will move the players back to their starting positions and restore the player buttons."
-);
+const shouldReset = await confirmSessionPlannerAction({
+title: "Reset player board?",
+message: "This will move the players back to their starting positions and restore the player buttons.",
+confirmLabel: "Reset",
+tone: "warning",
+});
 if (!shouldReset) {
 return;
 }
@@ -944,7 +971,7 @@ const nextFrames = [...frames];
 nextFrames.splice(activeIndex + 1, 0, duplicateFrame);
 commitSessionPlannerTacticalFrames(block, nextFrames, duplicateFrame.id);
 }
-function deleteSessionPlannerTacticalFrame() {
+async function deleteSessionPlannerTacticalFrame() {
 if (!canEditSessionPlanner()) {
 return;
 }
@@ -957,7 +984,13 @@ if (frames.length <= 1) {
 showSessionPlannerToast("Keep at least one frame on the board.", "warning");
 return;
 }
-if (!win.confirm("Delete this tactical board frame?")) {
+const confirmed = await confirmSessionPlannerAction({
+title: "Delete frame?",
+message: "Delete this tactical board frame?",
+confirmLabel: "Delete",
+tone: "danger",
+});
+if (!confirmed) {
 return;
 }
 const activeFrameId = getSessionPlannerTacticalActiveFrameId(block);
@@ -2534,11 +2567,14 @@ showSessionPlannerToast("History entry could not be found.", "error");
 return;
 }
 const willRemoveSession = !historyEntry.beforeSession;
-const confirmed = win.confirm(
-willRemoveSession
+const confirmed = await confirmSessionPlannerAction({
+title: willRemoveSession ? "Undo created session?" : "Restore previous version?",
+message: willRemoveSession
 ? `Undo the session created at ${formatSessionPlannerHistoryTime(historyEntry.createdAt)}?\n\nThis will remove the current session for ${historyEntry.date}.`
-: `Restore the previous version from ${formatSessionPlannerHistoryTime(historyEntry.createdAt)}?\n\nThis will replace the current session for ${historyEntry.date}.`
-);
+: `Restore the previous version from ${formatSessionPlannerHistoryTime(historyEntry.createdAt)}?\n\nThis will replace the current session for ${historyEntry.date}.`,
+confirmLabel: willRemoveSession ? "Undo" : "Restore",
+tone: "warning",
+});
 if (!confirmed) {
 return;
 }

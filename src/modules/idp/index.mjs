@@ -9,6 +9,7 @@ import {
   snapTacticalBoardPoint,
   tacticalBoardDefaultCurveControlPoint,
 } from "../tactical-board/index.mjs";
+import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 import {
   closeClipPreview,
   ensureClipBankStyles,
@@ -384,6 +385,15 @@ function runAction(action) {
   Promise.resolve()
     .then(action)
     .catch(setError);
+}
+
+function confirmIdpAction(config = {}) {
+  return confirmPlatformAction({
+    eyebrow: "Player Development",
+    tone: "danger",
+    win: runtime?.context?.win || globalThis,
+    ...config,
+  });
 }
 
 function clampBoardPercent(value) {
@@ -2118,12 +2128,15 @@ export function handleClick(event) {
   const clipRemove = event?.target?.closest?.("[data-idp-clip-remove]");
   if (clipRemove) {
     event?.preventDefault?.();
-    const win = runtime?.context?.win || globalThis;
-    const confirmed = typeof win.confirm === "function"
-      ? win.confirm("Remove this clip from the player's IDP Clip Bank? The original video remains in Video Analysis.")
-      : true;
-    if (!confirmed) return;
-    runAction(() => runtime?.actions.removeClipBankItem(clipRemove.dataset.idpClipRemove || ""));
+    runAction(async () => {
+      const confirmed = await confirmIdpAction({
+        title: "Remove clip?",
+        message: "Remove this clip from the player's IDP Clip Bank? The original video remains in Video Analysis.",
+        confirmLabel: "Remove",
+      });
+      if (!confirmed) return;
+      return runtime?.actions.removeClipBankItem(clipRemove.dataset.idpClipRemove || "");
+    });
     return;
   }
   const searchTrigger = event?.target?.closest?.("[data-idp-search-submit]");
@@ -2248,23 +2261,29 @@ export function handleClick(event) {
   const archiveFocusTrigger = event?.target?.closest?.("[data-idp-archive-focus]");
   if (archiveFocusTrigger) {
     event?.preventDefault?.();
-    const win = runtime?.context?.win || globalThis;
-    const confirmed = typeof win.confirm === "function"
-      ? win.confirm("Archive this focus? It will leave the active IDP view and you can create a new current focus afterwards.")
-      : true;
-    if (!confirmed) return;
-    runAction(() => runtime?.actions.archiveFocus(archiveFocusTrigger.dataset.idpArchiveFocus || ""));
+    runAction(async () => {
+      const confirmed = await confirmIdpAction({
+        title: "Archive focus?",
+        message: "Archive this focus? It will leave the active IDP view and you can create a new current focus afterwards.",
+        confirmLabel: "Archive",
+      });
+      if (!confirmed) return;
+      return runtime?.actions.archiveFocus(archiveFocusTrigger.dataset.idpArchiveFocus || "");
+    });
     return;
   }
   const deleteFocusTrigger = event?.target?.closest?.("[data-idp-delete-focus]");
   if (deleteFocusTrigger) {
     event?.preventDefault?.();
-    const win = runtime?.context?.win || globalThis;
-    const confirmed = typeof win.confirm === "function"
-      ? win.confirm("Delete this focus from the active IDP view? This cannot be undone from the player profile.")
-      : true;
-    if (!confirmed) return;
-    runAction(() => runtime?.actions.deleteFocus(deleteFocusTrigger.dataset.idpDeleteFocus || ""));
+    runAction(async () => {
+      const confirmed = await confirmIdpAction({
+        title: "Delete focus?",
+        message: "Delete this focus from the active IDP view? This cannot be undone from the player profile.",
+        confirmLabel: "Delete",
+      });
+      if (!confirmed) return;
+      return runtime?.actions.deleteFocus(deleteFocusTrigger.dataset.idpDeleteFocus || "");
+    });
     return;
   }
   const boardColorChoice = event?.target?.closest?.("[data-idp-board-color-choice]");
@@ -2417,10 +2436,15 @@ export function handleClick(event) {
   const archiveIntervention = event?.target?.closest?.("[data-idp-archive-intervention]");
   if (archiveIntervention) {
     event?.preventDefault?.();
-    const win = runtime?.context?.win || globalThis;
-    const confirmed = typeof win.confirm === "function" ? win.confirm("Archive this individual exercise?") : true;
-    if (!confirmed) return;
-    runAction(() => runtime?.actions.archiveIntervention(archiveIntervention.dataset.idpArchiveIntervention || ""));
+    runAction(async () => {
+      const confirmed = await confirmIdpAction({
+        title: "Archive exercise?",
+        message: "Archive this individual exercise?",
+        confirmLabel: "Archive",
+      });
+      if (!confirmed) return;
+      return runtime?.actions.archiveIntervention(archiveIntervention.dataset.idpArchiveIntervention || "");
+    });
     return;
   }
   const editEvidenceTrigger = event?.target?.closest?.("[data-idp-edit-evidence]");
@@ -2439,10 +2463,15 @@ export function handleClick(event) {
   const deleteEvidenceTrigger = event?.target?.closest?.("[data-idp-delete-evidence]");
   if (deleteEvidenceTrigger) {
     event?.preventDefault?.();
-    const win = runtime?.context?.win || globalThis;
-    const confirmed = typeof win.confirm === "function" ? win.confirm("Delete this observation?") : true;
-    if (!confirmed) return;
-    runAction(() => runtime?.actions.deleteEvidence(deleteEvidenceTrigger.dataset.idpDeleteEvidence || ""));
+    runAction(async () => {
+      const confirmed = await confirmIdpAction({
+        title: "Delete observation?",
+        message: "Delete this observation?",
+        confirmLabel: "Delete",
+      });
+      if (!confirmed) return;
+      return runtime?.actions.deleteEvidence(deleteEvidenceTrigger.dataset.idpDeleteEvidence || "");
+    });
     return;
   }
   const editGoalTrigger = event?.target?.closest?.("[data-idp-edit-goal]");
@@ -2460,10 +2489,15 @@ export function handleClick(event) {
   const archiveGoalTrigger = event?.target?.closest?.("[data-idp-archive-goal]");
   if (archiveGoalTrigger) {
     event?.preventDefault?.();
-    const win = runtime?.context?.win || globalThis;
-    const confirmed = typeof win.confirm === "function" ? win.confirm("Archive this development goal?") : true;
-    if (!confirmed) return;
-    runAction(() => runtime?.actions.archiveGoal(archiveGoalTrigger.dataset.idpArchiveGoal || ""));
+    runAction(async () => {
+      const confirmed = await confirmIdpAction({
+        title: "Archive goal?",
+        message: "Archive this development goal?",
+        confirmLabel: "Archive",
+      });
+      if (!confirmed) return;
+      return runtime?.actions.archiveGoal(archiveGoalTrigger.dataset.idpArchiveGoal || "");
+    });
     return;
   }
   const actionTrigger = event?.target?.closest?.("[data-idp-action]");

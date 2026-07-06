@@ -15,6 +15,7 @@ import { createSessionPlannerBlockHelpers } from "./session-planner-block-helper
 import { createSessionPlannerLocalUiState } from "./session-planner-local-ui-state.mjs";
 import { createSessionPlannerRuntimeDelegates } from "./session-planner-runtime-delegates.mjs";
 import { createSessionPlannerRuntimeRenderers } from "./session-planner-runtime-renderers.mjs";
+import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 import { createSessionPlannerSessionFactory } from "./session-planner-session-factory.mjs";
 import { createSessionPlannerTacticalHelpers } from "./session-planner-tactical-helpers.mjs";
 
@@ -361,7 +362,7 @@ export function createSessionPlannerAppRuntimeComposition(deps = {}) {
 
   exerciseLibraryActions = createExerciseLibraryActions({
     canEdit: deps.canEditSessionPlanner,
-    confirm: (message) => deps.win.confirm(message),
+    confirm: (config) => confirmPlatformAction({ win: deps.win, ...config }),
     showToast: deps.showSessionPlannerToast,
     renderWorkspace: deps.renderSessionPlannerWorkspace,
     renderResults: renderSessionPlannerLibraryResults,

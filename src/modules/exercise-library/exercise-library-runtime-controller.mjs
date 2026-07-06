@@ -1,3 +1,5 @@
+import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
+
 function defaultNoop() {}
 
 function createSafeStorageResult(kind, items, error = null) {
@@ -646,9 +648,20 @@ export function createExerciseLibraryRuntimeController(options = {}) {
     renderWorkspace({ preserveDateStripScroll: true });
   }
 
-  function cancelSessionPlannerLibraryExerciseEdit() {
+  async function cancelSessionPlannerLibraryExerciseEdit() {
     const exercise = getSessionPlannerLibraryExerciseById(state().editExerciseId);
-    if (exercise && hasSessionPlannerLibraryExerciseEditChanges(exercise) && !win.confirm("Discard unsaved exercise edits?")) {
+    if (
+      exercise &&
+      hasSessionPlannerLibraryExerciseEditChanges(exercise) &&
+      !(await confirmPlatformAction({
+        eyebrow: "Exercise Library",
+        title: "Discard edits?",
+        message: "Discard unsaved exercise edits?",
+        confirmLabel: "Discard",
+        tone: "warning",
+        win,
+      }))
+    ) {
       return;
     }
     setUiState({ editExerciseId: "", viewExerciseId: "" });

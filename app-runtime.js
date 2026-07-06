@@ -1,4 +1,5 @@
 import { createDashboardChatMessageTextRenderer, createDashboardChatWidgetRenderer, renderDashboardChatMessageStatus } from "./src/modules/chat/chat-widget-renderer.mjs";
+import { confirmPlatformAction } from "./src/core/platform-confirm-dialog.mjs";
 import { createDashboardChatAttachmentRenderer } from "./src/modules/chat/chat-attachment-renderer.mjs";
 import { createDashboardChatAttachmentPreview } from "./src/modules/chat/chat-attachment-preview.mjs";
 import { createDashboardChatApiUiActions } from "./src/modules/chat/chat-api-ui-actions.mjs";
@@ -622,7 +623,7 @@ renderProfileWorkspace: (message) => renderProfileWorkspace(message),
 syncChatNotificationCursor: syncDashboardChatWidgetNotificationCursor,
 setActiveWorkspace: (workspaceId) => setActiveWorkspace(workspaceId),
 getFormValues: getPlatformFormValues,
-confirm: (message) => win.confirm(message),
+confirm: (config) => confirmPlatformAction({ win, ...config }),
 openScheduleDate: (dateValue) => {
 if (dateValue) {
 if (!scheduleState) {

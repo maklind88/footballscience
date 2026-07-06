@@ -1,3 +1,5 @@
+import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
+
 function normalizeText(value) {
   return String(value ?? "").trim();
 }
@@ -243,8 +245,17 @@ export function createDashboardChatApiUiActions(dependencies = {}) {
       }
       const user = (getUsers() || []).find((candidate) => candidate.id === participantId);
       const label = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "this participant" : "this participant";
-      if (!window.confirm(`Remove ${label} from this chat?`)) return true;
-      void setThreadParticipantsWithApi(threadId, currentIds.filter((userId) => userId !== participantId));
+      void confirmPlatformAction({
+        eyebrow: "Team Room",
+        title: "Remove participant?",
+        message: `Remove ${label} from this chat?`,
+        confirmLabel: "Remove",
+        tone: "danger",
+        win: window,
+      }).then((confirmed) => {
+        if (!confirmed) return;
+        void setThreadParticipantsWithApi(threadId, currentIds.filter((userId) => userId !== participantId));
+      });
       return true;
     }
     return false;

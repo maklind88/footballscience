@@ -1,4 +1,5 @@
 import { renderClipFilters } from "./components/ClipFilters.js";
+import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 import { renderClipIntelligence } from "./components/ClipIntelligence.js";
 import { renderClipLibrary } from "./components/ClipLibrary.js";
 import { renderClipList } from "./components/ClipList.js";
@@ -2653,11 +2654,15 @@ function timelineDeleteIntent(event = {}, state = {}, context = {}) {
 
 function confirmTimelineCategoryDelete(intent = {}, context = {}) {
   const count = intent.clipIds?.length || 0;
-  if (!count) return false;
-  const confirm = (context.win || window).confirm || (() => false);
-  return confirm(
-    `Delete the "${intent.label}" timeline row?\n\n${count} tag${count === 1 ? "" : "s"} will be archived from this timeline. This cannot be undone from here.`
-  );
+  if (!count) return Promise.resolve(false);
+  return confirmPlatformAction({
+    eyebrow: "Video Analysis",
+    title: "Delete timeline row?",
+    message: `Delete the "${intent.label}" timeline row?\n\n${count} tag${count === 1 ? "" : "s"} will be archived from this timeline. This cannot be undone from here.`,
+    confirmLabel: "Delete row",
+    tone: "danger",
+    win: context.win || window,
+  });
 }
 
 function deleteTimelineSelectionByKeyboard(event = {}, context = {}) {
@@ -2668,8 +2673,14 @@ function deleteTimelineSelectionByKeyboard(event = {}, context = {}) {
   if (!intent) return false;
   event.preventDefault?.();
   event.stopPropagation?.();
-  if (intent.type === "category" && !confirmTimelineCategoryDelete(intent, context)) return true;
-  void archiveTimelineClips(context, intent.clipIds, { clearCategory: intent.type === "category" });
+  if (intent.type === "category") {
+    void confirmTimelineCategoryDelete(intent, context).then((confirmed) => {
+      if (!confirmed) return;
+      void archiveTimelineClips(context, intent.clipIds, { clearCategory: true });
+    });
+    return true;
+  }
+  void archiveTimelineClips(context, intent.clipIds, { clearCategory: false });
   return true;
 }
 

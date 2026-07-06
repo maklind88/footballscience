@@ -1,3 +1,5 @@
+import { confirmPlatformAction } from "./platform-confirm-dialog.mjs";
+
 export function createDataSafetyRuntimeService(deps = {}) {
   const {
     win = globalThis,
@@ -453,7 +455,14 @@ export function createDataSafetyRuntimeService(deps = {}) {
       return;
     }
     const createdAt = backup.createdAt ? new Date(backup.createdAt).toLocaleString() : "unknown time";
-    const confirmed = win.confirm?.(`Restore Football Science data from ${createdAt}?\n\nCurrent local data will be snapshotted first, then the page will reload.`);
+    const confirmed = await confirmPlatformAction({
+      eyebrow: "Data Safety",
+      title: "Restore backup?",
+      message: `Restore Football Science data from ${createdAt}?\n\nCurrent local data will be snapshotted first, then the page will reload.`,
+      confirmLabel: "Restore",
+      tone: "warning",
+      win,
+    });
     if (!confirmed) return;
     await saveSnapshot("before-restore");
     try {

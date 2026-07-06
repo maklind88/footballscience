@@ -1,3 +1,5 @@
+import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
+
 function callOptional(fn, ...args) {
   return typeof fn === "function" ? fn(...args) : undefined;
 }
@@ -35,7 +37,7 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
   const renderRosterListOnly = actions.renderPlayerProfilesRosterListOnly ?? (() => {});
   const canEdit = actions.canEditPlayerProfiles ?? (() => false);
 
-  const onClick = (event) => {
+  const onClick = async (event) => {
     if (event.target.matches("[data-player-profile-modal-overlay]") || event.target.closest("[data-player-profile-modal-close]")) {
       callOptional(actions.closePlayerProfileModal);
       return;
@@ -154,7 +156,17 @@ export function bindPlayerProfileRuntimeBindings(deps = {}) {
     }
     callOptional(actions.ensurePlayerProfilesState);
     const player = getStateValue(state, "PlayerProfilesState", { players: [] }).players.find((candidate) => candidate.id === removeButton.dataset.playerProfileRemove);
-    if (player && win.confirm?.(`Remove ${player.name} from Player Profiles?`)) {
+    const confirmed = player
+      ? await confirmPlatformAction({
+          eyebrow: "Squad Room",
+          title: "Remove player?",
+          message: `Remove ${player.name} from Player Profiles?`,
+          confirmLabel: "Remove",
+          tone: "danger",
+          win,
+        })
+      : false;
+    if (player && confirmed) {
       const removed = actions.removePlayerProfile?.(player.id);
       setStateValue(state, "PlayerProfileModalOpen", false);
       setStateValue(state, "PlayerProfileNewPlayerModalOpen", false);

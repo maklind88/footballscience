@@ -1,0 +1,290 @@
+.platform-confirm-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.56), transparent 38%),
+    rgba(15, 23, 42, 0.28);
+  -webkit-backdrop-filter: blur(20px) saturate(1.24);
+  backdrop-filter: blur(20px) saturate(1.24);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.platform-confirm-layer.is-open {
+  opacity: 1;
+}
+
+.platform-confirm-dialog {
+  position: relative;
+  width: min(500px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 30px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(246, 248, 251, 0.9)),
+    rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 34px 90px rgba(15, 23, 42, 0.26),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  color: #101827;
+  transform: translateY(10px) scale(0.98);
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.platform-confirm-layer.is-open .platform-confirm-dialog {
+  transform: translateY(0) scale(1);
+}
+
+.platform-confirm-dialog::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.92), transparent);
+}
+
+.platform-confirm-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  background: rgba(248, 250, 252, 0.82);
+  color: #475569;
+  cursor: pointer;
+  font: 800 20px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  transition: transform 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.platform-confirm-close:hover {
+  background: rgba(226, 232, 240, 0.9);
+  color: #0f172a;
+  transform: translateY(-1px);
+}
+
+.platform-confirm-identity {
+  padding: 34px 34px 4px;
+}
+
+.platform-confirm-mark {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 24px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(226, 232, 240, 0.76)),
+    rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 18px 42px rgba(15, 23, 42, 0.16),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.platform-confirm-mark::before {
+  content: "";
+  position: absolute;
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #123a5d, #0f766e);
+  box-shadow: 0 10px 26px rgba(15, 118, 110, 0.28);
+}
+
+.platform-confirm-dialog[data-platform-confirm-tone="danger"] .platform-confirm-mark::before {
+  background: linear-gradient(145deg, #8a1f2d, #dc2626);
+  box-shadow: 0 10px 26px rgba(220, 38, 38, 0.26);
+}
+
+.platform-confirm-mark-dot,
+.platform-confirm-mark-stem {
+  position: relative;
+  z-index: 1;
+  display: block;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.platform-confirm-mark-dot {
+  width: 5px;
+  height: 5px;
+  margin-bottom: 16px;
+  border-radius: 999px;
+}
+
+.platform-confirm-mark-stem {
+  width: 5px;
+  height: 22px;
+  margin-top: -10px;
+  border-radius: 999px;
+}
+
+.platform-confirm-copy {
+  padding: 14px 34px 4px;
+}
+
+.platform-confirm-eyebrow {
+  display: block;
+  margin-bottom: 8px;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.platform-confirm-copy h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: clamp(1.45rem, 4.8vw, 1.9rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.platform-confirm-message {
+  margin-top: 14px;
+  color: #334155;
+  font-size: 1.02rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.platform-confirm-message p {
+  margin: 0 0 10px;
+}
+
+.platform-confirm-message p:last-child {
+  margin-bottom: 0;
+}
+
+.platform-confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 28px 34px 34px;
+}
+
+.platform-confirm-button {
+  min-height: 50px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font: 850 0.98rem/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.platform-confirm-button:hover {
+  transform: translateY(-1px);
+}
+
+.platform-confirm-button:focus-visible,
+.platform-confirm-close:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.28);
+  outline-offset: 3px;
+}
+
+.platform-confirm-button.is-secondary {
+  background: rgba(226, 232, 240, 0.74);
+  color: #0f172a;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.76) inset;
+}
+
+.platform-confirm-button.is-secondary:hover {
+  background: rgba(203, 213, 225, 0.86);
+}
+
+.platform-confirm-button.is-primary {
+  background: #0f1b2d;
+  color: #fff;
+  box-shadow: 0 12px 30px rgba(15, 27, 45, 0.24);
+}
+
+.platform-confirm-button.is-primary:hover {
+  background: #14243a;
+  box-shadow: 0 15px 34px rgba(15, 27, 45, 0.28);
+}
+
+.platform-confirm-dialog[data-platform-confirm-tone="danger"] .platform-confirm-button.is-primary {
+  background: #b91c1c;
+  box-shadow: 0 12px 30px rgba(185, 28, 28, 0.22);
+}
+
+.platform-confirm-dialog[data-platform-confirm-tone="danger"] .platform-confirm-button.is-primary:hover {
+  background: #991b1b;
+  box-shadow: 0 15px 34px rgba(185, 28, 28, 0.28);
+}
+
+body.is-dark-mode .platform-confirm-layer {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(30, 41, 59, 0.55), transparent 42%),
+    rgba(2, 6, 23, 0.58);
+}
+
+body.is-dark-mode .platform-confirm-dialog {
+  border-color: rgba(148, 163, 184, 0.18);
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.86)),
+    rgba(15, 23, 42, 0.92);
+  color: #e2e8f0;
+  box-shadow:
+    0 34px 90px rgba(0, 0, 0, 0.46),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+body.is-dark-mode .platform-confirm-copy h2,
+body.is-dark-mode .platform-confirm-button.is-secondary {
+  color: #f8fafc;
+}
+
+body.is-dark-mode .platform-confirm-message {
+  color: #cbd5e1;
+}
+
+body.is-dark-mode .platform-confirm-eyebrow {
+  color: #94a3b8;
+}
+
+body.is-dark-mode .platform-confirm-close,
+body.is-dark-mode .platform-confirm-button.is-secondary {
+  background: rgba(30, 41, 59, 0.86);
+}
+
+@media (max-width: 560px) {
+  .platform-confirm-layer {
+    align-items: end;
+    padding: 16px;
+  }
+
+  .platform-confirm-dialog {
+    width: 100%;
+    border-radius: 28px;
+  }
+
+  .platform-confirm-identity {
+    padding: 28px 26px 2px;
+  }
+
+  .platform-confirm-copy {
+    padding: 12px 26px 0;
+  }
+
+  .platform-confirm-actions {
+    grid-template-columns: 1fr;
+    padding: 24px 26px 28px;
+  }
+}

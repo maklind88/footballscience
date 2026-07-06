@@ -1,3 +1,5 @@
+import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
+
 function getStateValue(state = {}, key, fallback = undefined) {
   const getter = state[`get${key}`];
   return typeof getter === "function" ? getter() : fallback;
@@ -261,7 +263,15 @@ export function bindAdminRuntimeBindings(deps = {}) {
       await sendTemporaryLogin(adminUser);
       return;
     }
-    if (!win.confirm?.(`Remove ${actions.formatUserName?.(adminUser)}?`)) return;
+    const confirmed = await confirmPlatformAction({
+      eyebrow: "Admin",
+      title: "Remove user?",
+      message: `Remove ${actions.formatUserName?.(adminUser)}?`,
+      confirmLabel: "Remove",
+      tone: "danger",
+      win,
+    });
+    if (!confirmed) return;
     const result = await actions.getPlatformAuthStore?.()?.removeUser?.(userId);
     if (!result?.ok) {
       renderAdmin(result?.reason ?? "User could not be removed.");

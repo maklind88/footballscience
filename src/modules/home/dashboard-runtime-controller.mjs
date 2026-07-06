@@ -331,10 +331,17 @@ export function createDashboardRuntimeController(dependencies = {}) {
     }
     const removeTaskButton = event.target.closest("[data-dashboard-remove-task]");
     if (removeTaskButton) {
-      if (confirm("Remove this task?")) {
+      Promise.resolve(confirm({
+        eyebrow: "Home",
+        title: "Remove task?",
+        message: "Remove this task?",
+        confirmLabel: "Remove",
+        tone: "danger",
+      })).then((confirmed) => {
+        if (!confirmed) return;
         removeTask(removeTaskButton.dataset.dashboardRemoveTask);
         refreshSurfaces();
-      }
+      });
       return true;
     }
     const scheduleDateButton = event.target.closest("[data-dashboard-open-schedule-date]");

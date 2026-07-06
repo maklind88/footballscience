@@ -30,9 +30,20 @@ test("theme foundation loads after legacy styles and owns core tokens", () => {
     "--fs-success",
     "--fs-warning",
     "--fs-danger",
+    "--fs-page-bg",
+    "--fs-panel-bg",
+    "--fs-button-bg",
+    "--fs-button-primary-bg",
+    "--fs-button-selected-bg",
+    "--fs-input-bg",
+    "--fs-chip-bg",
   ]) {
     expect(foundation).toContain(token);
   }
+
+  expect(foundation).toContain("Dark Mode Foundation v2");
+  expect(foundation).not.toContain("  .is-active,\n");
+  expect(foundation).not.toContain("  .is-active,\r\n");
 
   for (const selector of [
     "body.is-dark-mode",
@@ -55,6 +66,6 @@ test("theme guard is present and supports strict mode for future hard-coded colo
   expect(guard).toContain("THEME_GUARD_STRICT");
   expect(guard).toContain("platform-theme-foundation.css");
   expect(guard).toContain("New hard-coded color outside theme foundation");
-  expect(docs).toContain("Dark Mode Foundation v1");
+  expect(docs).toContain("Dark Mode Foundation v2");
   expect(docs).toContain("Do not add new hard-coded colors");
 });

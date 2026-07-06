@@ -17,6 +17,14 @@ function luminance({ rgb: [red, green, blue] }) {
   return 0.2126 * values[0] + 0.7152 * values[1] + 0.0722 * values[2];
 }
 
+function contrastRatio(foreground, background) {
+  const foregroundLum = luminance(foreground);
+  const backgroundLum = luminance(background);
+  const lighter = Math.max(foregroundLum, backgroundLum);
+  const darker = Math.min(foregroundLum, backgroundLum);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 async function waitForPlatformShell(page) {
   await page.waitForFunction(
     () => {
@@ -37,7 +45,111 @@ async function waitForPlatformShell(page) {
   );
 }
 
-test("dark mode foundation keeps shell surfaces dark and readable", async ({ page }) => {
+async function collectThemeRows(page, rootSelector, auditName) {
+  return page.evaluate(
+    ({ rootSelector: selector, auditName: name }) => {
+      function parseAlpha(value) {
+        const match = String(value || "").match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?/i);
+        if (!match) return 0;
+        return match[4] === undefined ? 1 : Number(match[4]);
+      }
+
+      function visible(element) {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return rect.width >= 8 && rect.height >= 8 && style.visibility !== "hidden" && style.display !== "none";
+      }
+
+      function effectiveBackground(element) {
+        let node = element;
+        while (node && node.nodeType === Node.ELEMENT_NODE) {
+          const background = window.getComputedStyle(node).backgroundColor;
+          if (parseAlpha(background) >= 0.2) return background;
+          node = node.parentElement;
+        }
+        return window.getComputedStyle(document.body).backgroundColor;
+      }
+
+      const root = document.querySelector(selector) || document.body;
+      const candidates = [
+        root,
+        ...root.querySelectorAll(
+          [
+            "button",
+            "input",
+            "select",
+            "textarea",
+            "a",
+            "[role='button']",
+            "[role='tab']",
+            "[class*='-hero']",
+            "[class*='-card']",
+            "[class*='-panel']",
+            "[class*='-row']",
+            "[class*='-item']",
+            "[class*='-chip']",
+            "[class*='-pill']",
+            "[class*='-badge']",
+          ].join(", ")
+        ),
+      ];
+
+      return candidates
+        .filter((element, index, list) => list.indexOf(element) === index)
+        .filter(visible)
+        .slice(0, 90)
+        .map((element) => {
+          const style = window.getComputedStyle(element);
+          const className = typeof element.className === "string" ? element.className : "";
+          return {
+            name,
+            tagName: element.tagName.toLowerCase(),
+            className,
+            color: style.color,
+            backgroundColor: style.backgroundColor,
+            effectiveBackgroundColor: effectiveBackground(element),
+            isPrimaryAction: element.matches("button[type='submit'], .primary, .is-primary, .primary-button"),
+            isSurface: element.matches(
+              [
+                ".platform-sidebar",
+                ".platform-topbar",
+                ".workspace-view",
+                "[class*='-hero']",
+                "[class*='-card']",
+                "[class*='-panel']",
+                "[class*='-row']",
+                "[class*='-item']",
+              ].join(", ")
+            ),
+            isMuted: element.matches("small, [class*='-muted'], [class*='-meta'], [class*='-subtitle'], [class*='-hint'], [class*='-empty']"),
+          };
+        });
+    },
+    { rootSelector, auditName }
+  );
+}
+
+function assertDarkThemeRows(rows, auditName) {
+  expect.soft(rows.length, `${auditName} should expose themed surfaces`).toBeGreaterThan(0);
+
+  for (const row of rows) {
+    const text = parseRgb(row.color);
+    const background = parseRgb(row.effectiveBackgroundColor);
+    if (!text || !background || background.alpha < 0.2) continue;
+
+    const ratio = contrastRatio(text, background);
+    const backgroundLum = luminance(background);
+    const minimumRatio = row.isPrimaryAction ? 4.5 : row.isMuted ? 2.7 : 3.0;
+
+    expect.soft(ratio, `${row.name}:${row.tagName}.${row.className} needs readable dark-mode contrast`).toBeGreaterThanOrEqual(minimumRatio);
+
+    if (row.isSurface && !row.isPrimaryAction) {
+      expect.soft(backgroundLum, `${row.name}:${row.tagName}.${row.className} should not leak a light surface in dark mode`).toBeLessThan(0.54);
+    }
+  }
+}
+
+test("dark mode foundation keeps all major workspaces visually consistent and readable", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.addInitScript(() => {
@@ -50,42 +162,7 @@ test("dark mode foundation keeps shell surfaces dark and readable", async ({ pag
   await expect(page.locator("body")).toHaveClass(/is-dark-mode/);
   await expect(page.locator("body")).toHaveAttribute("data-theme-mode", "dark");
 
-  const audit = await page.evaluate(() => {
-    const selectors = [
-      "body",
-      ".coach-platform",
-      ".platform-sidebar",
-      ".platform-content",
-      ".platform-home-hero",
-      ".workspace-heading",
-      ".platform-nav-item",
-      ".platform-profile-menu",
-    ];
-    return selectors
-      .map((selector) => {
-        const element = document.querySelector(selector);
-        if (!element) return null;
-        const styles = window.getComputedStyle(element);
-        return {
-          selector,
-          color: styles.color,
-          backgroundColor: styles.backgroundColor,
-          borderColor: styles.borderColor,
-        };
-      })
-      .filter(Boolean);
-  });
-
-  expect(audit.length).toBeGreaterThanOrEqual(6);
-  for (const row of audit) {
-    const text = parseRgb(row.color);
-    const background = parseRgb(row.backgroundColor);
-    if (!text || !background || background.alpha < 0.2) continue;
-    const textLum = luminance(text);
-    const backgroundLum = luminance(background);
-    expect.soft(backgroundLum, `${row.selector} should not stay light in dark mode`).toBeLessThan(0.42);
-    expect.soft(Math.abs(textLum - backgroundLum), `${row.selector} needs visible contrast`).toBeGreaterThan(0.25);
-  }
+  assertDarkThemeRows(await collectThemeRows(page, "body", "shell"), "shell");
 
   for (const workspaceId of [
     "player-profiles",
@@ -113,37 +190,7 @@ test("dark mode foundation keeps shell surfaces dark and readable", async ({ pag
 
     await navItem.click();
     await expect(navItem).toHaveClass(/is-active/);
-
-    const workspaceAudit = await page.evaluate((workspaceName) => {
-      const activeView = document.querySelector(".workspace-view.is-active");
-      if (!activeView) return [];
-      return [activeView, ...activeView.querySelectorAll('[class*="-hero"], [class*="-card"], [class*="-panel"], [class*="-row"], input, select, textarea')]
-        .filter((element) => {
-          const rect = element.getBoundingClientRect();
-          return rect.width > 20 && rect.height > 20;
-        })
-        .slice(0, 10)
-        .map((element) => {
-          const styles = window.getComputedStyle(element);
-          return {
-            selector: `${workspaceName}:${element.className || element.tagName}`,
-            color: styles.color,
-            backgroundColor: styles.backgroundColor,
-            borderColor: styles.borderColor,
-          };
-        });
-    }, workspaceId);
-
-    expect.soft(workspaceAudit.length, `${workspaceId} should expose themed surfaces`).toBeGreaterThan(0);
-    for (const row of workspaceAudit) {
-      const text = parseRgb(row.color);
-      const background = parseRgb(row.backgroundColor);
-      if (!text || !background || background.alpha < 0.2) continue;
-      const textLum = luminance(text);
-      const backgroundLum = luminance(background);
-      expect.soft(backgroundLum, `${row.selector} should not stay light in dark mode`).toBeLessThan(0.5);
-      expect.soft(Math.abs(textLum - backgroundLum), `${row.selector} needs visible contrast`).toBeGreaterThan(0.18);
-    }
+    assertDarkThemeRows(await collectThemeRows(page, ".workspace-view.is-active", workspaceId), workspaceId);
   }
 
   expect(pageErrors).toEqual([]);

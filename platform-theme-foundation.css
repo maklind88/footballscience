@@ -35,46 +35,76 @@
   --fs-brand: #20382b;
   --fs-brand-2: #2f8f6b;
   --fs-brand-contrast: #ffffff;
+  --fs-page-bg: var(--fs-bg);
+  --fs-page-bg-soft: #eceef1;
+  --fs-panel-bg: var(--fs-surface);
+  --fs-panel-bg-soft: var(--fs-surface-soft);
+  --fs-panel-bg-strong: var(--fs-surface-strong);
+  --fs-button-bg: #ffffff;
+  --fs-button-bg-hover: #f4f7fb;
+  --fs-button-primary-bg: #1d1d1f;
+  --fs-button-primary-text: #ffffff;
+  --fs-button-selected-bg: #eaf4ff;
+  --fs-button-selected-border: #0a84ff45;
+  --fs-input-bg: #ffffff;
+  --fs-input-border: var(--fs-border-strong);
+  --fs-chip-bg: #ffffffcc;
+  --fs-chip-border: var(--fs-border);
 }
 
 body.is-dark-mode {
   color-scheme: dark;
-  --fs-bg: #070b12;
-  --fs-bg-elevated: #0b111c;
-  --fs-surface: #111827e8;
-  --fs-surface-soft: #0f172ad9;
-  --fs-surface-strong: #172033;
-  --fs-surface-muted: #1e293b;
-  --fs-text: #e7edf6;
-  --fs-text-strong: #f8fafc;
-  --fs-text-muted: #a8b3c4;
-  --fs-text-subtle: #8794a8;
-  --fs-border: #94a3b833;
-  --fs-border-strong: #cbd5e15c;
-  --fs-accent: #7ab7ff;
-  --fs-accent-soft: #60a5fa24;
-  --fs-success: #67d7a1;
+  --fs-bg: #101112;
+  --fs-bg-elevated: #151619;
+  --fs-surface: #1b1d21e8;
+  --fs-surface-soft: #17191dde;
+  --fs-surface-strong: #24272d;
+  --fs-surface-muted: #2b2f36;
+  --fs-text: #f1f3f5;
+  --fs-text-strong: #ffffff;
+  --fs-text-muted: #c4c9d1;
+  --fs-text-subtle: #969da8;
+  --fs-border: #ffffff1f;
+  --fs-border-strong: #ffffff36;
+  --fs-accent: #8ed8ad;
+  --fs-accent-soft: #8ed8ad24;
+  --fs-success: #8ed8ad;
   --fs-success-soft: #34d39924;
-  --fs-warning: #f8d47a;
-  --fs-warning-soft: #f59e0b2b;
-  --fs-danger: #ff8c82;
-  --fs-danger-soft: #f8717126;
-  --fs-info: #93c5fd;
-  --fs-info-soft: #60a5fa24;
-  --fs-focus-ring: #60a5fa40;
+  --fs-warning: #f2c86b;
+  --fs-warning-soft: #f2c86b26;
+  --fs-danger: #ff9a92;
+  --fs-danger-soft: #ff9a9224;
+  --fs-info: #9fc7ff;
+  --fs-info-soft: #9fc7ff24;
+  --fs-focus-ring: #8ed8ad42;
   --fs-shadow: 0 22px 58px #00000066;
   --fs-shadow-soft: 0 12px 32px #0000004d;
-  --fs-surface-glass: #111827d9;
-  --fs-control-bg: #0b1220;
-  --fs-control-muted: #111827;
-  --fs-hover-bg: #1e293b;
-  --fs-active-bg: #1f456d;
-  --fs-row-bg: #111827cc;
-  --fs-row-hover: #172033;
-  --fs-overlay: #020617a8;
-  --fs-brand: #67d7a1;
-  --fs-brand-2: #7ab7ff;
-  --fs-brand-contrast: #07111f;
+  --fs-surface-glass: #1b1d21d9;
+  --fs-control-bg: #131518;
+  --fs-control-muted: #1b1d21;
+  --fs-hover-bg: #24272d;
+  --fs-active-bg: #26372e;
+  --fs-row-bg: #1b1d21cc;
+  --fs-row-hover: #24272d;
+  --fs-overlay: #050607b8;
+  --fs-brand: #8ed8ad;
+  --fs-brand-2: #9fc7ff;
+  --fs-brand-contrast: #101112;
+  --fs-page-bg: #101112;
+  --fs-page-bg-soft: #151619;
+  --fs-panel-bg: #1b1d21e8;
+  --fs-panel-bg-soft: #17191dde;
+  --fs-panel-bg-strong: #24272d;
+  --fs-button-bg: #24272d;
+  --fs-button-bg-hover: #2b2f36;
+  --fs-button-primary-bg: #f4f7fb;
+  --fs-button-primary-text: #111318;
+  --fs-button-selected-bg: #26372e;
+  --fs-button-selected-border: #8ed8ad66;
+  --fs-input-bg: #111316;
+  --fs-input-border: #ffffff36;
+  --fs-chip-bg: #202328;
+  --fs-chip-border: #ffffff24;
   --bg: var(--fs-bg);
   --panel: var(--fs-surface);
   --ink: var(--fs-text);
@@ -93,9 +123,7 @@ body.is-dark-mode {
 }
 
 body.is-dark-mode :where(.coach-platform, .platform-main, .platform-content) {
-  background:
-    radial-gradient(circle at 18% 0%, #123c5538, transparent 28rem),
-    linear-gradient(180deg, #0b111c 0%, #070b12 100%) !important;
+  background: linear-gradient(180deg, var(--fs-page-bg-soft) 0%, var(--fs-page-bg) 100%) !important;
   color: var(--fs-text) !important;
 }
 
@@ -225,8 +253,8 @@ body.is-dark-mode :where(
 }
 
 body.is-dark-mode :where(input, select, textarea, [contenteditable="true"]) {
-  background: #08111f !important;
-  border-color: var(--fs-border-strong) !important;
+  background: var(--fs-input-bg) !important;
+  border-color: var(--fs-input-border) !important;
   color: var(--fs-text) !important;
   caret-color: var(--fs-accent);
 }
@@ -246,20 +274,28 @@ body.is-dark-mode :where(button, .mode-button, .secondary, .platform-domain-link
 }
 
 body.is-dark-mode :where(button:not([disabled]):hover, .mode-button:not([disabled]):hover, .platform-nav-item:hover) {
-  background-color: var(--fs-surface-strong) !important;
+  background-color: var(--fs-button-bg-hover) !important;
   color: var(--fs-text-strong) !important;
 }
 
+body.is-dark-mode :where(button[type="submit"], .primary, .is-primary, .primary-button) {
+  border-color: #ffffff00 !important;
+  background: var(--fs-button-primary-bg) !important;
+  color: var(--fs-button-primary-text) !important;
+}
+
 body.is-dark-mode :where(
-  button[type="submit"],
-  .primary,
-  .is-active,
+  [aria-pressed="true"],
   .platform-nav-item.is-active,
-  .top-icon-menu-item.is-active
+  .platform-sidebar-profile[aria-expanded="true"],
+  .top-icon-menu-item.is-active,
+  .mode-button.is-active,
+  .tab-button.is-active,
+  [role="tab"][aria-selected="true"]
 ) {
-  border-color: #7ab7ff55 !important;
-  background: linear-gradient(180deg, #1f456d, #123150) !important;
-  color: #f8fbff !important;
+  border-color: var(--fs-button-selected-border) !important;
+  background: var(--fs-button-selected-bg) !important;
+  color: var(--fs-text-strong) !important;
 }
 
 body.is-dark-mode :where(table, thead, tbody, tr, th, td, [role="table"], [role="row"], [role="cell"]) {
@@ -394,9 +430,7 @@ body.is-dark-mode :where(
   .platform-placeholder-view,
   .workspace-view
 ) {
-  background:
-    radial-gradient(circle at 15% 0%, #123c5538, transparent 22rem),
-    linear-gradient(180deg, var(--fs-bg-elevated), var(--fs-bg)) !important;
+  background: linear-gradient(180deg, var(--fs-page-bg-soft), var(--fs-page-bg)) !important;
   color: var(--module-text) !important;
 }
 
@@ -740,7 +774,7 @@ body.is-dark-mode :where(
   --session-border: var(--fs-border);
 }
 
-body.is-dark-mode :where(.transfer-room, .transfer-room-shell, .gameplan-shell, .gameplan-workspace) {
+body.is-dark-mode :where(.transfer-room, .transfer-room-workspace, .transfer-room-shell, .gameplan-shell, .gameplan-workspace) {
   --transfer-surface: var(--fs-surface);
   --transfer-surface-soft: var(--fs-surface-soft);
   --transfer-text: var(--fs-text);
@@ -754,6 +788,7 @@ body.is-dark-mode :where(.transfer-room, .transfer-room-shell, .gameplan-shell, 
 }
 
 body.is-dark-mode :where(.transfer-room-workspace, .transfer-room-shell) :where(
+  .transfer-room-hero,
   .transfer-room-hero-main,
   .transfer-room-panel,
   .transfer-room-table-shell,
@@ -782,4 +817,194 @@ body.is-dark-mode :where(.idp-shell, .idp-workspace, .idp-player-profile) {
 
 body.is-dark-mode :where([class*="-overlay"], [class*="-backdrop"]) {
   background-color: var(--fs-overlay) !important;
+}
+
+/* Dark Mode Foundation v2
+   Keep dark mode as the same Football Science product in a darker material
+   system: neutral graphite canvas, readable text, restrained accents, and one
+   button/control language across modules. */
+body.is-dark-mode {
+  accent-color: var(--fs-accent);
+}
+
+body.is-dark-mode :where(.platform-sidebar, .platform-topbar) {
+  background: var(--fs-panel-bg) !important;
+  background: color-mix(in srgb, var(--fs-panel-bg) 88%, transparent) !important;
+  border-color: var(--fs-border) !important;
+  color: var(--fs-text) !important;
+  box-shadow: 0 1px 0 #ffffff0a inset;
+}
+
+body.is-dark-mode :where(.platform-content, .workspace-view.is-active) {
+  background: linear-gradient(180deg, var(--fs-page-bg-soft), var(--fs-page-bg)) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode :where(
+  .platform-home-hero,
+  .platform-profile-menu,
+  .login-card,
+  .dashboard-panel,
+  .workspace-card,
+  .workspace-panel,
+  .admin-card,
+  .admin-panel,
+  .profile-card,
+  .profile-panel,
+  .medical-card,
+  .medical-panel,
+  .transfer-room-hero,
+  .squad-card,
+  .squad-panel,
+  .scouting-card,
+  .scouting-panel,
+  .video-analysis-card,
+  .video-analysis-panel,
+  .session-planner-card,
+  .session-planner-panel,
+  .transfer-room-panel,
+  .gameplan-card,
+  .gameplan-panel,
+  .idp-card,
+  .idp-panel,
+  [role="dialog"]
+) {
+  background: var(--fs-panel-bg) !important;
+  border-color: var(--fs-border) !important;
+  color: var(--fs-text) !important;
+  box-shadow: var(--fs-shadow-soft) !important;
+}
+
+body.is-dark-mode :where(
+  .platform-nav-item,
+  .top-icon-menu,
+  .top-icon-menu-item,
+  .platform-account-button,
+  .profile-menu-head,
+  .platform-theme-switcher,
+  .dashboard-card,
+  .workspace-row,
+  .workspace-item,
+  .medical-date-strip,
+  .schedule-planner-day,
+  .schedule-planner-month,
+  .medical-window-day,
+  .medical-roster-row,
+  .squad-roster-row,
+  .scouting-record-card,
+  .scouting-list-card,
+  .idp-player-card
+) {
+  background: var(--fs-panel-bg-soft) !important;
+  border-color: var(--fs-border) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode :where(
+  button,
+  .mode-button,
+  .tab-button,
+  .workspace-action,
+  .platform-domain-link,
+  .platform-status-pill,
+  [role="button"]
+) {
+  background: var(--fs-button-bg) !important;
+  border-color: var(--fs-border) !important;
+  color: var(--fs-text) !important;
+  box-shadow: none;
+}
+
+body.is-dark-mode :where(
+  button:not([disabled]):hover,
+  .mode-button:not([disabled]):hover,
+  .tab-button:not([disabled]):hover,
+  .workspace-action:not([disabled]):hover,
+  [role="button"]:not([disabled]):hover
+) {
+  background: var(--fs-button-bg-hover) !important;
+  border-color: var(--fs-border-strong) !important;
+  color: var(--fs-text-strong) !important;
+}
+
+body.is-dark-mode :where(button[type="submit"], .primary, .is-primary, .primary-button) {
+  background: var(--fs-button-primary-bg) !important;
+  border-color: #ffffff00 !important;
+  color: var(--fs-button-primary-text) !important;
+}
+
+body.is-dark-mode :where(
+  .platform-nav-item.is-active,
+  .top-icon-menu-item.is-active,
+  .mode-button.is-active,
+  .tab-button.is-active,
+  .medical-window-day.is-active,
+  [aria-pressed="true"],
+  [role="tab"][aria-selected="true"]
+) {
+  background: var(--fs-button-selected-bg) !important;
+  border-color: var(--fs-button-selected-border) !important;
+  color: var(--fs-text-strong) !important;
+}
+
+body.is-dark-mode :where(.medical-window-day.is-active, .medical-window-day.is-today) :where(span, small) {
+  color: inherit !important;
+}
+
+body.is-dark-mode .medical-window-day.is-active {
+  background: var(--fs-button-selected-bg) !important;
+  background-color: var(--fs-button-selected-bg) !important;
+  background-image: none !important;
+  border-color: var(--fs-button-selected-border) !important;
+  color: var(--fs-text-strong) !important;
+}
+
+body.is-dark-mode .medical-window-day.is-today:not(.is-active) {
+  background: var(--fs-accent-soft) !important;
+  background-color: var(--fs-accent-soft) !important;
+  border-color: var(--fs-button-selected-border) !important;
+  color: var(--fs-text-strong) !important;
+}
+
+body.is-dark-mode :where(input, select, textarea, [contenteditable="true"]) {
+  background: var(--fs-input-bg) !important;
+  border-color: var(--fs-input-border) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode :where(
+  .badge,
+  .chip,
+  .pill,
+  [class*="-badge"],
+  [class*="-chip"],
+  [class*="-pill"]
+) {
+  background: var(--fs-chip-bg) !important;
+  border-color: var(--fs-chip-border) !important;
+  color: var(--fs-text) !important;
+}
+
+body.is-dark-mode :where(
+  .platform-title h1,
+  .platform-brand strong,
+  .platform-nav-text strong,
+  .platform-account-copy strong,
+  .profile-menu-head strong,
+  .workspace-heading h1,
+  .workspace-heading h2,
+  .workspace-heading h3
+) {
+  color: var(--fs-text-strong) !important;
+}
+
+body.is-dark-mode :where(
+  .platform-brand span:not(.platform-mark),
+  .platform-nav-text small,
+  .platform-account-copy small,
+  .profile-menu-head span,
+  .platform-theme-switcher-label,
+  .dashboard-welcome
+) {
+  color: var(--fs-text-muted) !important;
 }

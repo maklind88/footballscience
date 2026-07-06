@@ -74,6 +74,13 @@ for (const token of [
   "--fs-success",
   "--fs-warning",
   "--fs-danger",
+  "--fs-page-bg",
+  "--fs-panel-bg",
+  "--fs-button-bg",
+  "--fs-button-primary-bg",
+  "--fs-button-selected-bg",
+  "--fs-input-bg",
+  "--fs-chip-bg",
 ]) {
   requireText("platform-theme-foundation.css", token, `Missing theme token ${token}.`);
 }

@@ -239,7 +239,7 @@ test("Exercise Library review helpers own session block to library exercise mapp
   expect(exercise.playerBoardPositions).toEqual({ p1: { x: 10, y: 20 } });
 });
 
-test("Exercise Library actions archive, restore, and move folder membership without deleting exercises", () => {
+test("Exercise Library actions archive, restore, and move folder membership without deleting exercises", async () => {
   const adapter = createTestAdapter();
   let exercises = adapter.normalizeExercises([
     { id: "ex-1", title: "Pressing Game" },
@@ -286,7 +286,7 @@ test("Exercise Library actions archive, restore, and move folder membership with
     },
   });
 
-  actions.archiveExercise("ex-1");
+  await actions.archiveExercise("ex-1");
   expect(exercises).toHaveLength(2);
   expect(exercises.find((exercise) => exercise.id === "ex-1")?.archivedAt).toBe("2026-05-02T10:00:00.000Z");
 

@@ -40,6 +40,16 @@ async function markVideoMetadataReady(page, duration = 55.5) {
   }, duration);
 }
 
+async function confirmPlatformDialog(page, expectedTitle = "") {
+  const dialog = page.locator(".platform-confirm-dialog");
+  await expect(dialog).toBeVisible();
+  if (expectedTitle) {
+    await expect(dialog.locator("h2")).toHaveText(expectedTitle);
+  }
+  await dialog.locator("[data-platform-confirm-ok]").click();
+  await expect(dialog).toHaveCount(0);
+}
+
 async function installFixedDate(page, fixedIso = "2026-06-15T12:00:00.000Z") {
   await page.addInitScript((value) => {
     const RealDate = Date;
@@ -937,14 +947,10 @@ test("Video Analysis confirms before deleting an entire timeline row", async ({ 
   await expect(page.locator(".video-analysis-clip-block")).toHaveCount(3);
   await page.locator("[data-video-analysis-timeline-lane-select]").selectOption("subPhase");
   await page.locator('[data-video-analysis-timeline-category-label="Build Up"]').click();
-  let confirmMessage = "";
-  page.once("dialog", async (dialog) => {
-    confirmMessage = dialog.message();
-    await dialog.accept();
-  });
   await page.keyboard.press("Delete");
 
-  await expect.poll(() => confirmMessage).toContain("Delete the \"Build Up\" timeline row?");
+  await expect(page.locator(".platform-confirm-message")).toContainText("Delete the \"Build Up\" timeline row?");
+  await confirmPlatformDialog(page, "Delete timeline row?");
   await expect.poll(() => page.evaluate(() => {
     const request = [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "archive-clips");
     return request?.body?.ids || [];

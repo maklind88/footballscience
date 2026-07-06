@@ -207,21 +207,21 @@ test("Medical runtime bindings register the expected workspace listeners", () =>
   expect(typeof workspace.listeners.submit).toBe("function");
 });
 
-test("Medical runtime bindings preserve quick recommendation, archive, and plan edit behavior", () => {
+test("Medical runtime bindings preserve quick recommendation, archive, and plan edit behavior", async () => {
   const { calls, mutable, workspace } = createHarness();
 
-  workspace.listeners.click(createEvent(createTarget({
+  await workspace.listeners.click(createEvent(createTarget({
     closest: { "[data-medical-quick-recommend]": { dataset: { medicalQuickRecommend: "full", medicalQuickParticipation: "100" } } },
   })));
   expect(calls).toContainEqual(["sync", "recommendation-saved", expect.objectContaining({ playerId: "p-1" })]);
   expect(calls).toContainEqual(["render", "Ada: 100% recommendation saved."]);
 
-  workspace.listeners.click(createEvent(createTarget({
+  await workspace.listeners.click(createEvent(createTarget({
     closest: { "[data-medical-delete-record]": { dataset: { medicalDeleteRecord: "r-1" } } },
   })));
   expect(calls).toContainEqual(["sync", "record-archived", expect.objectContaining({ recordId: "r-1" })]);
 
-  workspace.listeners.click(createEvent(createTarget({
+  await workspace.listeners.click(createEvent(createTarget({
     closest: {
       "[data-medical-edit-injury-plan]": {
         dataset: {

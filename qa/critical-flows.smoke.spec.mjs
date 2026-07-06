@@ -113,6 +113,16 @@ async function dismissDashboardModal(page) {
     .toBe(true);
 }
 
+async function confirmPlatformDialog(page, expectedTitle = "") {
+  const dialog = page.locator(".platform-confirm-dialog");
+  await expect(dialog).toBeVisible();
+  if (expectedTitle) {
+    await expect(dialog.locator("h2")).toHaveText(expectedTitle);
+  }
+  await dialog.locator("[data-platform-confirm-ok]").click();
+  await expect(dialog).toHaveCount(0);
+}
+
 async function waitForPlatformShell(page) {
   await page.waitForFunction(
     () => {
@@ -2383,6 +2393,7 @@ test("Medical archive keeps clinical records and plans protected", async ({ page
   expect(archiveRecordBox?.width ?? 0).toBeGreaterThan(56);
   expect(archiveRecordBox?.height ?? 99).toBeLessThan(40);
   await archiveRecordButton.click();
+  await confirmPlatformDialog(page, "Archive log entry?");
 
   await expect
     .poll(() =>
@@ -2401,6 +2412,7 @@ test("Medical archive keeps clinical records and plans protected", async ({ page
   const archivePlanButton = page.locator('[data-medical-delete-injury-plan="qa-archive-plan"]');
   await expect(archivePlanButton).toHaveText("Archive");
   await archivePlanButton.click();
+  await confirmPlatformDialog(page, "Archive availability plan?");
 
   await expect
     .poll(() =>
@@ -3433,6 +3445,7 @@ test("Squad removal keeps default roster players hidden after reload", async ({ 
   await expect(page.locator(".squad-profile-modal")).toBeVisible();
   await page.locator('[data-player-profile-tab="history"]').click();
   await page.locator(`[data-player-profile-remove="${removedPlayerId}"]`).click();
+  await confirmPlatformDialog(page, "Remove player?");
 
   await expect(page.locator(`[data-player-profile-select="${removedPlayerId}"]`)).toHaveCount(0);
   await expect
@@ -3749,6 +3762,7 @@ test("Squad removal archives matching Medical player and removes planner availab
   await expect(page.locator(".squad-profile-modal")).toBeVisible();
   await page.locator('[data-player-profile-tab="history"]').click();
   await page.locator(`[data-player-profile-remove="${squadPlayerId}"]`).click();
+  await confirmPlatformDialog(page, "Remove player?");
   await expect(page.locator(`[data-player-profile-select="${squadPlayerId}"]`)).toHaveCount(0);
 
   await expect

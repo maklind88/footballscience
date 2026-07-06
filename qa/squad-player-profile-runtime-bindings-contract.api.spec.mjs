@@ -186,7 +186,7 @@ test("Player profile runtime bindings open temporary section from the hidden def
   expect(mutable.collapsed).toBe(true);
 });
 
-test("Player profile runtime bindings preserve filters, search, remove, and new-player submit", () => {
+test("Player profile runtime bindings preserve filters, search, remove, and new-player submit", async () => {
   const { calls, mutable, workspace } = createHarness();
   const newPlayerForm = { reset: () => calls.push("reset-new-player") };
 
@@ -202,7 +202,7 @@ test("Player profile runtime bindings preserve filters, search, remove, and new-
   })));
   expect(mutable.roleGroupFilter).toBe("defender");
 
-  workspace.listeners.click(createEvent(createTarget({
+  await workspace.listeners.click(createEvent(createTarget({
     closest: { "[data-player-profile-remove]": { dataset: { playerProfileRemove: "p-1" } } },
   })));
   expect(calls).toContain("ensure-state");

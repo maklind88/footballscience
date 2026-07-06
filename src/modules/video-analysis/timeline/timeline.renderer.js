@@ -66,24 +66,40 @@ function findClipButton(clip = {}, lookup = {}) {
   return null;
 }
 
-function renderLaneSelector(activeLaneMode = "phase", totalMs = 1, clipCount = 0) {
+function timelineModeCount(mode = {}, modeCounts = {}, activeLaneMode = "phase", clipCount = 0) {
+  const count = Number(modeCounts[mode.id]);
+  if (Number.isFinite(count)) return count;
+  return mode.id === activeLaneMode ? Number(clipCount || 0) : 0;
+}
+
+function formatTimelineModeLabel(mode = {}, modeCounts = {}, activeLaneMode = "phase", clipCount = 0) {
+  return `${mode.label} (${timelineModeCount(mode, modeCounts, activeLaneMode, clipCount)})`;
+}
+
+function buildTimelineLaneModeCounts(clips = []) {
+  return TIMELINE_LANE_MODES.reduce((counts, mode) => ({
+    ...counts,
+    [mode.id]: buildTimelineIndex(clips, mode.id).clipCount,
+  }), {});
+}
+
+function renderLaneSelector(activeLaneMode = "phase", totalMs = 1, clipCount = 0, modeCounts = {}) {
   return `
     <label class="video-analysis-timeline-view-select">
       <span>Timeline</span>
       <select data-video-analysis-timeline-lane-select aria-label="Timeline view">
         ${TIMELINE_LANE_MODES.map((mode) => `
-          <option value="${escapeHtml(mode.id)}"${activeLaneMode === mode.id ? " selected" : ""}>${escapeHtml(mode.label)}</option>
+          <option value="${escapeHtml(mode.id)}"${activeLaneMode === mode.id ? " selected" : ""}>${escapeHtml(formatTimelineModeLabel(mode, modeCounts, activeLaneMode, clipCount))}</option>
         `).join("")}
       </select>
-      ${renderTimelineStatus(totalMs, clipCount)}
+      ${renderTimelineStatus(totalMs)}
     </label>
   `;
 }
 
-function renderTimelineStatus(totalMs = 1, clipCount = 0) {
+function renderTimelineStatus(totalMs = 1) {
   return `
     <div class="video-analysis-timeline-status" aria-label="Timeline status">
-      <span>${escapeHtml(`${clipCount} clip${clipCount === 1 ? "" : "s"}`)}</span>
       <span>${escapeHtml(formatVideoTime(totalMs))}</span>
     </div>
   `;
@@ -265,6 +281,7 @@ export function renderTimeline(state = {}) {
   const zoom = normalizeTimelineZoom(timeline.zoom);
   const timelineIndex = buildTimelineIndex(clips, laneMode);
   const lanes = timelineIndex.lanes;
+  const laneModeCounts = buildTimelineLaneModeCounts(clips);
   const ticks = buildTimelineTicks(totalMs, { zoom });
   const density = getTimelineDensity(timelineIndex, totalMs);
   const selectedLane = selectedTimelineLane(lanes, laneMode, timeline);
@@ -280,7 +297,7 @@ export function renderTimeline(state = {}) {
       <div class="video-analysis-timeline-scroll" data-video-analysis-timeline-pan>
         <div class="video-analysis-timeline-canvas" style="${timelineCanvasStyle(zoom)}">
           <div class="video-analysis-timeline-toolbar">
-            ${renderLaneSelector(laneMode, totalMs, density.clipCount)}
+            ${renderLaneSelector(laneMode, totalMs, density.clipCount, laneModeCounts)}
             ${renderTimelineRuler(ticks, totalMs)}
           </div>
           <div

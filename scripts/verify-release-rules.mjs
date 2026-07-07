@@ -90,6 +90,7 @@ requireText("scripts/verify-production-deploy.mjs", "/api/app-state-backup-statu
 requireText("scripts/verify-production-deploy.mjs", "/api/auth-health", "postdeploy must verify the auth health endpoint exists");
 requireText("scripts/verify-production-deploy.mjs", "Live app.js hash does not match this release", "postdeploy must prove production is serving the expected release asset");
 requireText("scripts/verify-production-deploy.mjs", "RELEASE_ALLOW_LIVE_HASH_MISMATCH", "production monitor must verify live health even when main is ahead of live");
+requireText("scripts/verify-production-deploy.mjs", "chatPushConfig.enabled === true", "postdeploy must fail closed when chat push is not configured");
 requireText("scripts/verify-ci-release-env.mjs", "CRON_SECRET", "production CI must include the cron secret used for backup freshness checks");
 requireText("scripts/verify-vercel-token.mjs", "Vercel deployment token: ok", "CI must verify the Vercel token before deployment commands run");
 requireText("scripts/verify-vercel-release-traffic.mjs", "Production Deploy", "deploy tooling must avoid concurrent production deploy traffic");

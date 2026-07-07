@@ -133,6 +133,12 @@ expect(clientConfigResponse.ok, `/api/client-config did not return 2xx: ${client
 expect(clientConfig.ok === true, "/api/client-config did not return ok:true.");
 expect(Boolean(clientConfig.url && clientConfig.anonKey), "/api/client-config is missing Supabase browser config.");
 expect(clientConfig.hasServiceRoleKey === true, "/api/client-config reports missing service role key.");
+const chatPushConfig = clientConfig.chatPush || clientConfig.publicChatPushConfig || {};
+expect(
+  chatPushConfig.enabled === true,
+  "/api/client-config reports chat push disabled. Set CHAT_PUSH_VAPID_PUBLIC_KEY and CHAT_PUSH_VAPID_PRIVATE_KEY in Vercel Production, then redeploy."
+);
+expect(Boolean(chatPushConfig.publicKey), "/api/client-config is missing the chat push public key.");
 
 const authHealthResponse = await fetch(new URL("/api/auth-health", baseUrl), { cache: "no-store" });
 const authHealth = await authHealthResponse.json().catch(() => ({}));
@@ -183,6 +189,7 @@ if (failures.length) {
     );
   }
   console.log("- client config: ok");
+  console.log("- chat push config: ok");
   console.log(`- auth health endpoint: ${authHealth.ok === true ? "ok" : "warning"}`);
   console.log("- backup protection: ok");
   console.log("- backup status protection: ok");

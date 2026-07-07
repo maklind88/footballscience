@@ -2568,11 +2568,32 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   gap: 4px;
 }
 
+.video-analysis-code-window-dock .video-analysis-moment-tag-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
+}
+
+.video-analysis-code-window-dock .video-analysis-moment-tag-row .video-analysis-code-group {
+  min-width: 0;
+}
+
+.video-analysis-code-window-dock .video-analysis-moment-tag-row .video-analysis-code-group__header {
+  min-width: 0;
+}
+
+.video-analysis-code-window-dock .video-analysis-moment-tag-row .video-analysis-code-group__header span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .video-analysis-code-window-dock .video-analysis-mg-picker-button,
 .video-analysis-code-window-dock .video-analysis-unit-picker-button,
 .video-analysis-code-window-dock .video-analysis-outcome-tag-button {
-  width: min(100%, calc((100% - 8px) / 3));
-  min-width: 86px;
+  width: 100%;
+  min-width: 0;
 }
 
 .video-analysis-code-window-dock .video-analysis-code-button {

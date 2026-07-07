@@ -441,6 +441,15 @@ test("sub-phase buttons own phase assignment for coaching language", async () =>
   expect(panelHtml).not.toContain('data-video-analysis-code-group="Phase"');
   expect(panelHtml).not.toContain('data-video-analysis-code-button="phase-');
   expect(panelHtml).not.toContain('data-video-analysis-code-group="Outcome"');
+  expect(panelHtml).toContain('class="video-analysis-moment-tag-row"');
+  const momentRowIndex = panelHtml.indexOf('class="video-analysis-moment-tag-row"');
+  const mgIndex = panelHtml.indexOf("data-video-analysis-mg-principles-open", momentRowIndex);
+  const unitIndex = panelHtml.indexOf("data-video-analysis-unit-open", momentRowIndex);
+  const outcomeIndex = panelHtml.indexOf('data-video-analysis-outcome-tag="Development"', momentRowIndex);
+  expect(momentRowIndex).toBeGreaterThan(-1);
+  expect(mgIndex).toBeGreaterThan(momentRowIndex);
+  expect(unitIndex).toBeGreaterThan(mgIndex);
+  expect(outcomeIndex).toBeGreaterThan(unitIndex);
   expect(panelHtml).toContain("data-video-analysis-mg-principles-open");
   expect(panelHtml).toContain("data-video-analysis-unit-open");
   expect(panelHtml).toContain('data-video-analysis-outcome-tag="Development"');

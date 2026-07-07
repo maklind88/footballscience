@@ -93,9 +93,11 @@ function renderPlayersPanel(state = {}) {
 
 function renderMomentTagLaunchers(state = {}) {
   return `
-    ${renderMiniGamePrincipleLauncher(state)}
-    ${renderUnitLauncher(state)}
-    ${renderOutcomeTagLauncher(state)}
+    <section class="video-analysis-moment-tag-row" aria-label="Moment tags">
+      ${renderMiniGamePrincipleLauncher(state)}
+      ${renderUnitLauncher(state)}
+      ${renderOutcomeTagLauncher(state)}
+    </section>
   `;
 }
 

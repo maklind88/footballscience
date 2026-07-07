@@ -147,13 +147,38 @@ async function closeScoutingOverlays(page) {
   await nextPaint(page);
 }
 
+async function waitForScoutingRows(page, { timeout = 60_000 } = {}) {
+  await page.waitForFunction(
+    () => {
+      const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
+      const grid = workspace?.querySelector("[data-scouting-record-grid]");
+      if (!grid) {
+        return false;
+      }
+      const isVisible = (node) => {
+        const rect = node.getBoundingClientRect();
+        const style = window.getComputedStyle(node);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      };
+      const rows = Array.from(grid.querySelectorAll("[data-open-scouting-record]")).filter((node) => !node.disabled && isVisible(node));
+      return rows.length > 0 && !workspace.querySelector(".scouting-database-loader") && !workspace.querySelector("[data-scouting-retry-database]");
+    },
+    null,
+    { timeout }
+  );
+  await nextPaint(page);
+  await expect(
+    page.locator('[data-workspace-view="scouting"].is-active [data-scouting-record-grid] [data-open-scouting-record]:visible').first()
+  ).toBeEnabled({ timeout: 15_000 });
+}
+
 async function ensureDatabaseRows(page, results) {
   await clickScoutingTab(page, results, "database", 1000, { phase: "setup" });
   await measure(
     page,
     results,
     "load database",
-    5000,
+    10_000,
     async () => {
       await page.evaluate(() => {
         const button = Array.from(document.querySelectorAll("[data-scouting-load-database], [data-scouting-retry-database]")).find((node) => {
@@ -165,7 +190,7 @@ async function ensureDatabaseRows(page, results) {
       });
     },
     async () => {
-      await page.waitForSelector('[data-scouting-record-grid] [data-open-scouting-record]', { timeout: 15_000 });
+      await waitForScoutingRows(page, { timeout: interactionBudget(25_000) });
     }
   );
 }

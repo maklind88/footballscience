@@ -102,19 +102,21 @@ export function createSquadRosterRenderer({
     return "low";
   };
 
-  const renderAvailabilityCell = (item = {}, emptyLabel = "No training data") => {
+  const renderAvailabilityCell = (item = {}, emptyLabel = "No training data", options = {}) => {
     const average = getAvailabilityNumber(item);
     const count = Number(item.count);
     const cleanCount = Number.isFinite(count) && count > 0 ? Math.round(count) : 0;
     const value = average === null ? "-" : `${average}%`;
     const tone = getAvailabilityTone(average);
     const width = average === null ? 0 : average;
+    const showCount = options.showCount !== false;
     const countLabel = cleanCount ? `${cleanCount} training${cleanCount === 1 ? "" : "s"}` : emptyLabel;
+    const title = showCount ? `${value} - ${countLabel}` : average === null ? emptyLabel : value;
     return `
-    <div class="squad-availability-cell is-${escapeHtml(tone)}" title="${escapeHtml(`${value} - ${countLabel}`)}">
+    <div class="squad-availability-cell is-${escapeHtml(tone)}" title="${escapeHtml(title)}">
       <strong>${escapeHtml(value)}</strong>
       <span class="squad-availability-track" aria-hidden="true"><i style="width:${width}%"></i></span>
-      <small>${escapeHtml(countLabel)}</small>
+      ${showCount ? `<small>${escapeHtml(countLabel)}</small>` : ""}
     </div>
   `;
   };
@@ -145,7 +147,7 @@ export function createSquadRosterRenderer({
       <td>${renderStatusChip(effectiveStatus, medicalSnapshot)}</td>
       <td>${renderIdpCell(player)}</td>
       <td>${renderAvailabilityCell(trainingAvailability.season, "No season data")}</td>
-      <td>${renderAvailabilityCell(trainingAvailability.lastFive, "No recent data")}</td>
+      <td>${renderAvailabilityCell(trainingAvailability.lastFive, "No recent data", { showCount: false })}</td>
     </tr>
   `;
   };

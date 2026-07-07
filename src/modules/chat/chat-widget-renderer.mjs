@@ -1205,6 +1205,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       currentUser,
       users = [],
       notificationState = { enabled: true },
+      pushDiagnostics = null,
       state = { isOpen: false, selectedThreadId: teamThreadId },
       messages = [],
       threads = [],
@@ -1284,6 +1285,13 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const teamPresenceLabel = getThreadStatus({ isTeamThread: true }, users);
     const notificationLevel = notificationState.level || (notificationState.enabled ? "all" : "muted");
     const notificationLabel = { all: "All", mentions: "Mentions", muted: "Muted" }[notificationLevel] || "All";
+    const normalizedPushDiagnostics = pushDiagnostics && typeof pushDiagnostics === "object" ? pushDiagnostics : {};
+    const pushHealthLabel = normalizedPushDiagnostics.label || "Check status";
+    const pushHealthDetail = normalizedPushDiagnostics.detail || normalizedPushDiagnostics.hint || "Verify this device can receive push.";
+    const pushHealthStatus = String(normalizedPushDiagnostics.status || "unknown")
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .slice(0, 40) || "unknown";
     const groupCreateUsers = users
       .filter((user) => user?.id && user.id !== currentUser?.id)
       .slice(0, 18);
@@ -1666,6 +1674,15 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                     <button
                       type="button"
                       class="dashboard-chat-more-action"
+                      data-dashboard-chat-widget-refresh-push-status
+                      title="${escapeHtml(pushHealthDetail)}"
+                    >
+                      Notification health
+                      <small>${escapeHtml(pushHealthLabel)}</small>
+                    </button>
+                    <button
+                      type="button"
+                      class="dashboard-chat-more-action is-${escapeHtml(pushHealthStatus)}"
                       data-dashboard-chat-widget-toggle-notifications
                       aria-pressed="${notificationState.enabled}"
                     >
@@ -1678,7 +1695,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                       data-dashboard-chat-widget-test-push
                     >
                       Test push
-                      <small>Send to this device</small>
+                      <small>${escapeHtml(pushHealthStatus === "ready" ? "Send system notification" : "Register this device")}</small>
                     </button>
                     ${
                       headerCanManageGroup

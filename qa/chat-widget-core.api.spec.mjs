@@ -202,6 +202,41 @@ test("chat widget renders direct message bodies in the active conversation pane"
   expect(result.html).not.toContain("No messages yet");
 });
 
+test("chat widget renders push notification health in the More menu", () => {
+  const currentUser = { id: "u1", name: "Mak", status: "active" };
+  const users = [currentUser, { id: "u2", name: "Medical Lead", status: "active" }];
+  const renderer = createRenderer([]);
+
+  const result = renderer.render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    activeThreadId: "team",
+    messages: [],
+    threads: [
+      {
+        threadId: "team",
+        label: "Team Chat",
+        isTeamThread: true,
+        participants: users,
+        messageCount: 0,
+      },
+    ],
+    notificationState: { enabled: true, level: "all" },
+    pushDiagnostics: {
+      status: "ready",
+      label: "Ready - 1 device",
+      detail: "This account has an active push device registration.",
+    },
+  });
+
+  expect(result.html).toContain("Notification health");
+  expect(result.html).toContain("Ready - 1 device");
+  expect(result.html).toContain('data-dashboard-chat-widget-refresh-push-status');
+  expect(result.html).toContain('title="This account has an active push device registration."');
+  expect(result.html).toContain("Send system notification");
+});
+
 test("chat widget keeps loaded older history visible in the active conversation pane", () => {
   const currentUser = { id: "u1", name: "Mak" };
   const users = [currentUser, { id: "u2", name: "Coach A", status: "active" }];
@@ -610,12 +645,15 @@ test("chat runtime supports browser notification permission and delivery hook", 
   expect(appRuntimeSource).toContain("sendDashboardChatBrowserNotification");
   expect(appRuntimeSource).toContain("dashboardChatPushClient.toggleFromNotificationLevel");
   expect(appRuntimeSource).toContain("dashboardChatPushClient.sendTest");
+  expect(appRuntimeSource).toContain("dashboardChatPushClient.status");
+  expect(appRuntimeSource).toContain("refreshDashboardChatPushDiagnostics");
   expect(appRuntimeSource).toContain("runDashboardChatNotificationToggleAction");
   expect(appRuntimeSource).toContain("runDashboardChatPushTestAction");
   expect(appRuntimeSource).toContain("function findDashboardChatActionTarget(event, selector)");
   expect(appRuntimeSource).toContain("event.composedPath");
   expect(appRuntimeSource).toContain('findDashboardChatActionTarget(event, "[data-dashboard-chat-widget-test-push]")');
   expect(appRuntimeSource).toContain('findDashboardChatActionTarget(event, "[data-dashboard-chat-widget-toggle-notifications]")');
+  expect(appRuntimeSource).toContain('findDashboardChatActionTarget(event, "[data-dashboard-chat-widget-refresh-push-status]")');
   expect(appRuntimeSource).toContain("function isDashboardChatActionTarget(actionButton)");
   expect(appRuntimeSource).toContain('document.addEventListener("pointerdown", handleDashboardChatPushActionEvent, true)');
   expect(appRuntimeSource).toContain('document.addEventListener("click", handleDashboardChatPushActionEvent, true)');

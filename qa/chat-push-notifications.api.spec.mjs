@@ -48,12 +48,15 @@ test("chat push client subscribes through PushManager and secure API route", () 
   expect(appRuntime).toContain("createChatPushClient");
   expect(appRuntime).toContain("dashboardChatPushClient.toggleFromNotificationLevel");
   expect(appRuntime).toContain("dashboardChatPushClient.sendTest");
+  expect(appRuntime).toContain("dashboardChatPushClient.status");
+  expect(appRuntime).toContain("refreshDashboardChatPushDiagnostics");
   expect(appRuntime).toContain("runDashboardChatNotificationToggleAction");
   expect(appRuntime).toContain("runDashboardChatPushTestAction");
   expect(appRuntime).toContain("function findDashboardChatActionTarget(event, selector)");
   expect(appRuntime).toContain("event.composedPath");
   expect(appRuntime).toContain('findDashboardChatActionTarget(event, "[data-dashboard-chat-widget-test-push]")');
   expect(appRuntime).toContain('findDashboardChatActionTarget(event, "[data-dashboard-chat-widget-toggle-notifications]")');
+  expect(appRuntime).toContain('findDashboardChatActionTarget(event, "[data-dashboard-chat-widget-refresh-push-status]")');
   expect(appRuntime).toContain('document.addEventListener("pointerdown", handleDashboardChatPushActionEvent, true)');
   expect(appRuntime).toContain('document.addEventListener("click", handleDashboardChatPushActionEvent, true)');
   expect(appRuntime).toContain("let testPushMessage =");
@@ -70,6 +73,8 @@ test("chat push test delivery fails clearly without a registered device", () => 
   expect(pushService).toContain("ok: sent > 0");
   expect(pushService).toContain("markSubscriptionFailure(subscription.id, error)");
   expect(renderer).toContain("data-dashboard-chat-widget-test-push");
+  expect(renderer).toContain("data-dashboard-chat-widget-refresh-push-status");
+  expect(renderer).toContain("Notification health");
   expect(renderer).toContain("Test push");
 });
 
@@ -91,6 +96,9 @@ test("chat push recipient filter skips sender, muted and mentions-only users", (
   expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "muted", notification_level: "muted" })).toBe("muted");
   expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "quiet", notification_level: "mentions" })).toBe("mentions-only");
   expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "user-mentioned", notification_level: "mentions" })).toBe("");
+  expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "archived", metadata: { archivedAt: "2026-07-02T11:00:00.000Z" } })).toBe("hidden");
+  expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "blocked", metadata: { blockedAt: "2026-07-02T11:00:00.000Z" } })).toBe("hidden");
+  expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "deleted", metadata: { deletedForUserAt: "2026-07-02T12:30:00.000Z" } })).toBe("deleted-for-user");
   expect(hashEndpoint("https://push.example/sub")).toHaveLength(64);
   expect(normalizePushSubscription({
     endpoint: "https://push.example/sub",

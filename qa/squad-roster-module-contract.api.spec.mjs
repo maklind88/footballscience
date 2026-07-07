@@ -91,7 +91,8 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
   expect(markup).toContain("82%");
   expect(markup).toContain("12 trainings");
   expect(markup).toContain("90%");
-  expect(markup).toContain("5 trainings");
+  expect(markup).not.toContain("<small>5 trainings</small>");
+  expect(markup).not.toContain('title="90% - 5 trainings"');
   expect(markup).not.toContain("squad-planning-cell");
   expect(markup).not.toContain(">Important<");
   expect(markup).toContain("Training guests");

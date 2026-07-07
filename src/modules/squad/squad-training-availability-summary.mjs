@@ -86,8 +86,24 @@ function normalizeDateValue(value = "") {
   return isDateValue(value) ? String(value).slice(0, 10) : "";
 }
 
+function getExplicitOrContextActivityType(record = {}, getActivityContext = () => null) {
+  const explicitType = String(record.activityType || record.eventType || record.sessionType || "").trim().toLowerCase();
+  if (explicitType.includes("match")) {
+    return "match";
+  }
+  if (explicitType.includes("training")) {
+    return "training";
+  }
+  const context = getActivityContext(record.date) || {};
+  const contextType = String(context.type || context.rawType || "").trim().toLowerCase();
+  if (contextType === "match" || contextType === "training") {
+    return contextType;
+  }
+  return "";
+}
+
 function getTrainingDateValueFromRecord(record = {}, getActivityContext = () => null) {
-  if (!isDateValue(record?.date) || getActivityType(record, getActivityContext) !== "training") {
+  if (!isDateValue(record?.date) || getExplicitOrContextActivityType(record, getActivityContext) !== "training") {
     return "";
   }
   return record.date;

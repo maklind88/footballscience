@@ -220,3 +220,22 @@ test("Squad training availability summary excludes international-duty club absen
   expect(summary.season).toEqual({ average: 75, count: 2 });
   expect(summary.lastFive).toEqual({ average: 75, count: 2 });
 });
+
+test("Squad training availability summary does not infer team trainings from off-day medical records", () => {
+  const summary = getSquadTrainingAvailabilitySummary({
+    playerId: "p1",
+    referenceDateValue: "2026-06-10",
+    records: [
+      { playerId: "p1", date: "2026-06-08", participation: 50, updatedAt: "2026-06-08T12:00:00Z" },
+    ],
+    getActivityContext: () => ({ type: "off" }),
+    getTeamTrainingDateValues: () => [],
+  });
+
+  expect(summary.hasData).toBe(false);
+  expect(summary.loggedCount).toBe(1);
+  expect(summary.week).toEqual({ average: null, count: 0 });
+  expect(summary.month).toEqual({ average: null, count: 0 });
+  expect(summary.season).toEqual({ average: null, count: 0 });
+  expect(summary.lastFive).toEqual({ average: null, count: 0 });
+});

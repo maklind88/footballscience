@@ -137,6 +137,7 @@ test("Squad medical status service preserves medical snapshot golden-master beha
     getMedicalRecordStatus: (record) => ({ label: `Status ${record.status}` }),
     getMedicalRtpPhaseOption: (phaseKey) => ({ label: `RTP ${phaseKey}` }),
     getMedicalState: () => ({ records }),
+    getTeamTrainingDateValues: () => ["2026-06-05", "2026-06-06", "2026-06-07"],
   });
 
   expect(service.getLatestManualMedicalLog("p1")).toMatchObject({ status: "controlled", participation: 80 });

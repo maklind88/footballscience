@@ -9,6 +9,7 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     getDashboardChatThreadParticipants = () => [],
     getDashboardChatTeamChatTitle = () => "Team Chat",
     getPlatformUsers = () => [],
+    isDashboardChatThreadLocallyHidden = () => false,
     isGenericDashboardChatThreadTitle = () => false,
     isSameDashboardUser = () => false,
     normalizeDashboardApiMessage = (message = {}, thread = null) => message,
@@ -86,7 +87,9 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
         ).length
       : 0;
 
-    const apiThreads = getDashboardChatApiThreads().filter((thread) => !thread?.archivedAt && !thread?.archived_at);
+    const apiThreads = getDashboardChatApiThreads().filter(
+      (thread) => !thread?.archivedAt && !thread?.archived_at && !isDashboardChatThreadLocallyHidden(thread.threadId)
+    );
     const apiThread = apiThreads.find((thread) => thread.threadId === normalizedThreadId) || null;
     const apiLastMessage = apiThread?.lastMessage ? normalizeDashboardApiMessage(apiThread.lastMessage, apiThread) : null;
     const lastMessage = getDashboardChatNewestThreadMessage(threadMessages) || apiLastMessage;
@@ -190,10 +193,14 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     const activeUsers = users.filter((candidate) => candidate.status === "active" && !isSameDashboardUser(candidate, currentUser));
     const threadRows = [getDashboardChatThreadData(dashboardChatTeamThreadId, currentUser, users, messages)];
 
-    const apiThreads = getDashboardChatApiThreads();
+    const apiThreads = getDashboardChatApiThreads().filter((thread) => !isDashboardChatThreadLocallyHidden(thread.threadId));
     const selectedThreadId = normalizeDashboardChatThreadId(getDashboardChatCurrentViewState?.().selectedThreadId || "", "");
     const selectedGroupThreadIds =
-      selectedThreadId && (selectedThreadId.startsWith("group-") || selectedThreadId.startsWith("group:")) ? [selectedThreadId] : [];
+      selectedThreadId &&
+      (selectedThreadId.startsWith("group-") || selectedThreadId.startsWith("group:")) &&
+      !isDashboardChatThreadLocallyHidden(selectedThreadId)
+        ? [selectedThreadId]
+        : [];
     const advancedThreadIds = Array.from(
       new Set([
         ...advancedThreadTemplates.map((template) => template.key),

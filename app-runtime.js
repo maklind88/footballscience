@@ -1080,6 +1080,7 @@ let dashboardChatApiThreads = [];
 let dashboardChatApiPagination = {};
 let dashboardChatRuntimeMessages = [];
 let dashboardChatHydratedThreadIds = new Set();
+let dashboardChatLocallyHiddenThreadIds = new Set();
 let dashboardChatMessageSearchQuery = "";
 let dashboardChatMessageSearchActiveIndex = 0;
 let dashboardChatModerationOpen = false;
@@ -2467,9 +2468,11 @@ const dashboardChatApiUiActions = createDashboardChatApiUiActions({
   settingsStore: dashboardChatThreadSettings,
   showToast: showDashboardChatWidgetToast,
   archiveThreadLocal: (threadId) => {
-    dashboardChatApiThreads = dashboardChatApiThreads.filter((thread) => thread.threadId !== threadId);
-    clearDashboardMessagesForThread(threadId, { skipCentralSync: true });
-    dashboardChatThreadSettings.remove(threadId);
+    const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+    dashboardChatLocallyHiddenThreadIds.add(normalizedThreadId);
+    dashboardChatApiThreads = dashboardChatApiThreads.filter((thread) => thread.threadId !== normalizedThreadId);
+    clearDashboardMessagesForThread(normalizedThreadId, { skipCentralSync: true });
+    dashboardChatThreadSettings.remove(normalizedThreadId);
     writeDashboardChatWidgetState({ isOpen: true, selectedThreadId: dashboardChatTeamThreadId });
     dashboardChatDetailsOpen = false;
   },
@@ -2588,6 +2591,8 @@ const dashboardChatThreadRuntime = createDashboardChatThreadRuntime({
   getCurrentPlatformUser,
   getDashboardChatCurrentViewState: () => readDashboardChatWidgetState(),
   getDashboardChatApiThreads: () => dashboardChatApiThreads,
+  isDashboardChatThreadLocallyHidden: (threadId) =>
+    dashboardChatLocallyHiddenThreadIds.has(normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId)),
   getDashboardChatThreadParticipants,
   getDashboardChatTeamChatTitle,
   getPlatformUsers,

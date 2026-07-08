@@ -4819,6 +4819,7 @@ body.is-dark-mode .idp-player-voice-card {
   background: rgba(235, 240, 255, .72);
   border-color: rgba(36, 87, 166, .12);
   border-radius: 7px;
+  flex: 0 0 34px;
   height: 34px;
   width: 34px;
 }
@@ -5101,6 +5102,7 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   }
 
   .idp-overview-row .idp-player-avatar {
+    flex-basis: 30px;
     height: 30px;
     width: 30px;
   }

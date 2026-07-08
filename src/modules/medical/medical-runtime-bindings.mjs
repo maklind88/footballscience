@@ -547,14 +547,19 @@ ${renderRtpExerciseCards(profile, 3)}
           idempotencyKey: `recommendation-saved:${result.record.id}`,
         });
       }
-      if (result.archivedRecord) {
+      const archivedRecords = Array.isArray(result.archivedRecords)
+        ? result.archivedRecords
+        : result.archivedRecord
+          ? [result.archivedRecord]
+          : [];
+      archivedRecords.forEach((archivedRecord) => {
         recordSync("record-archived", {
-          playerId: result.archivedRecord.playerId,
-          recordId: result.archivedRecord.id,
-          archivedAt: result.archivedRecord.archivedAt,
-          idempotencyKey: `record-archived:${result.archivedRecord.id}:${result.archivedRecord.archivedAt || "quick-toggle"}`,
+          playerId: archivedRecord.playerId,
+          recordId: archivedRecord.id,
+          archivedAt: archivedRecord.archivedAt,
+          idempotencyKey: `record-archived:${archivedRecord.id}:${archivedRecord.archivedAt || "quick-toggle"}`,
         });
-      }
+      });
       const playerName = result.player?.name || "Player";
       renderWorkspace(
         result.record

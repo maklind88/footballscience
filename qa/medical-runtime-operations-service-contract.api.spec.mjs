@@ -82,6 +82,15 @@ function createHarness(overrides = {}) {
     getMedicalCoachHandoverItems: () => [{ playerId: "p1" }],
     getMedicalDataSafetyCounts: () => ({ archivedPlayers: 1, archivedRecords: 2, archivedPlans: 3 }),
     getMedicalDailyStats: () => ({ fullCount: 1, modifiedCount: 1, unavailableCount: 0, unloggedCount: 1 }),
+    getMedicalPlayerRecords: (playerId) => state.records.filter((record) =>
+      record.playerId === playerId && !record.archivedAt
+    ).sort((first, second) => {
+      const dateComparison = second.date.localeCompare(first.date);
+      if (dateComparison !== 0) {
+        return dateComparison;
+      }
+      return new Date(second.updatedAt || second.createdAt) - new Date(first.updatedAt || first.createdAt);
+    }),
     getMedicalPlayerSquadAvailabilityBlockReason: (player) => player?.blocked ? "Blocked by Squad Room" : "",
     getMedicalRecommendationActivityContext: (dateValue) => dateValue === "2026-06-02"
       ? { isRecommendable: false, blockReason: "No recommendable activity", type: "off", activityLabel: "Off", scheduleLabel: "Off" }
@@ -243,6 +252,32 @@ test("Medical runtime operations service preserves filtering, bulk recommendatio
     participation: 75,
     rtpPhase: "modified-team",
   });
+
+  harness.state.records = [
+    {
+      id: "latest-zero",
+      playerId: "p1",
+      date: "2026-05-31",
+      status: "unavailable",
+      participation: 0,
+      createdAt: "2026-05-31T10:00:00.000Z",
+    },
+    {
+      id: "older-full",
+      playerId: "p1",
+      date: "2026-05-31",
+      status: "full",
+      participation: 100,
+      createdAt: "2026-05-31T09:00:00.000Z",
+    },
+    ...harness.state.records.filter((record) => record.playerId !== "p1" || record.date !== "2026-05-31"),
+  ];
+  const stackedQuickUndo = harness.service.applyMedicalQuickRecommendation("p1", 0);
+  expect(stackedQuickUndo).toMatchObject({ toggledOff: true });
+  expect(stackedQuickUndo.archivedRecords.map((record) => record.id).sort()).toEqual(["latest-zero", "older-full"]);
+  expect(harness.state.records.filter((record) =>
+    record.playerId === "p1" && record.date === "2026-05-31" && !record.archivedAt
+  )).toEqual([]);
 
   harness.state.records = [
     {

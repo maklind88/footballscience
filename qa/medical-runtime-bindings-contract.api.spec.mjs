@@ -221,12 +221,17 @@ test("Medical runtime bindings preserve quick recommendation, archive, and plan 
     player: { name: "Ada" },
     record: null,
     archivedRecord: { id: "r-quick", playerId: "p-1", archivedAt: "now" },
+    archivedRecords: [
+      { id: "r-quick", playerId: "p-1", archivedAt: "now" },
+      { id: "r-older", playerId: "p-1", archivedAt: "later" },
+    ],
     toggledOff: true,
   };
   await workspace.listeners.click(createEvent(createTarget({
     closest: { "[data-medical-quick-recommend]": { dataset: { medicalQuickRecommend: "full", medicalQuickParticipation: "100" } } },
   })));
   expect(calls).toContainEqual(["sync", "record-archived", expect.objectContaining({ recordId: "r-quick", playerId: "p-1" })]);
+  expect(calls).toContainEqual(["sync", "record-archived", expect.objectContaining({ recordId: "r-older", playerId: "p-1" })]);
   expect(calls).toContainEqual(["render", "Ada: recommendation cleared."]);
 
   await workspace.listeners.click(createEvent(createTarget({

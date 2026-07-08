@@ -18,6 +18,7 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     getMedicalDataSafetyCounts = () => ({}),
     getMedicalDailyStats = () => ({}),
     getMedicalPlayerSquadAvailabilityBlockReason = () => "",
+    getMedicalPlayerRecords = () => [],
     getMedicalRecommendationActivityContext = () => ({ isRecommendable: true, type: "" }),
     getMedicalRecommendationBlockReason = () => "",
     getMedicalRecordStatus = () => ({ key: "not-set" }),
@@ -268,7 +269,23 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     );
   }
 
-  function getQuickRecommendationToggleBlockReason(record, participation) {
+  function isPlainMedicalQuickRecommendationRecord(record) {
+    return Boolean(record) &&
+      !record.source &&
+      !record.injuryPlanId &&
+      !hasMedicalQuickRecommendationDetails(record);
+  }
+
+  function getSameDayManualMedicalRecords(playerId, dateValue, currentRecord = null) {
+    const records = (getMedicalPlayerRecords(playerId) || [])
+      .filter((record) => record?.playerId === playerId && record.date === dateValue && !isMedicalItemArchived(record));
+    if (records.length || !currentRecord || currentRecord.source || currentRecord.injuryPlanId) {
+      return records;
+    }
+    return [currentRecord];
+  }
+
+  function getQuickRecommendationToggleBlockReason(record, participation, sameDayRecords = []) {
     if (!record || normalizeMedicalParticipation(record.participation, null) !== participation) {
       return "";
     }
@@ -278,15 +295,27 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     if (hasMedicalQuickRecommendationDetails(record)) {
       return "Open the player profile to archive this recommendation because it includes logged details.";
     }
+    if (sameDayRecords.some((candidate) => !isPlainMedicalQuickRecommendationRecord(candidate))) {
+      return "Open the player profile to archive this recommendation because this day includes logged details.";
+    }
     return "";
   }
 
-  function isQuickRecommendationToggleable(record, participation) {
+  function getQuickRecommendationArchiveTargets(record, participation, sameDayRecords = []) {
+    const blockReason = getQuickRecommendationToggleBlockReason(record, participation, sameDayRecords);
+    if (blockReason) {
+      return [];
+    }
+    return sameDayRecords.filter(isPlainMedicalQuickRecommendationRecord);
+  }
+
+  function isQuickRecommendationToggleable(record, participation, sameDayRecords = []) {
     return Boolean(record) &&
       normalizeMedicalParticipation(record.participation, null) === participation &&
       !record.source &&
       !record.injuryPlanId &&
-      !hasMedicalQuickRecommendationDetails(record);
+      !hasMedicalQuickRecommendationDetails(record) &&
+      getQuickRecommendationArchiveTargets(record, participation, sameDayRecords).length > 0;
   }
 
   function applyMedicalQuickRecommendation(playerId, participationValue) {
@@ -298,17 +327,22 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     const dateValue = medicalState.selectedDate;
     const participation = normalizeMedicalParticipation(participationValue, 75);
     const currentRecord = getLatestMedicalRecord(player.id, dateValue);
-    if (isQuickRecommendationToggleable(currentRecord, participation)) {
-      const archivedRecord = removeMedicalRecord(currentRecord.id);
+    const sameDayRecords = getSameDayManualMedicalRecords(player.id, dateValue, currentRecord);
+    if (isQuickRecommendationToggleable(currentRecord, participation, sameDayRecords)) {
+      const archivedRecords = getQuickRecommendationArchiveTargets(currentRecord, participation, sameDayRecords)
+        .map((record) => removeMedicalRecord(record.id))
+        .filter(Boolean);
+      const archivedRecord = archivedRecords[0] || null;
       return {
         player,
         record: null,
         archivedRecord,
-        toggledOff: Boolean(archivedRecord),
-        blockReason: archivedRecord ? "" : "Recommendation could not be cleared.",
+        archivedRecords,
+        toggledOff: archivedRecords.length > 0,
+        blockReason: archivedRecords.length > 0 ? "" : "Recommendation could not be cleared.",
       };
     }
-    const toggleBlockReason = getQuickRecommendationToggleBlockReason(currentRecord, participation);
+    const toggleBlockReason = getQuickRecommendationToggleBlockReason(currentRecord, participation, sameDayRecords);
     if (toggleBlockReason) {
       return { player, record: null, archivedRecord: null, toggledOff: false, blockReason: toggleBlockReason };
     }

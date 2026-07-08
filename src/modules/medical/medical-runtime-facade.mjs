@@ -242,6 +242,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
     getMedicalDataSafetyCounts: deps.getMedicalDataSafetyCounts,
     getMedicalDailyStats,
     getMedicalPlayerSquadAvailabilityBlockReason: deps.getMedicalPlayerSquadAvailabilityBlockReason,
+    getMedicalPlayerRecords,
     getMedicalRecommendationActivityContext,
     getMedicalRecommendationBlockReason,
     getMedicalRecordStatus,

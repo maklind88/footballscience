@@ -8671,6 +8671,50 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
   min-height: 58px;
 }
 
+.idp-river-item .idp-river-detail-list {
+  border: 0;
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+  min-width: 0;
+  padding: 0;
+}
+
+.idp-river-detail-row {
+  background: rgba(248, 250, 252, .92);
+  border: 1px solid rgba(16, 24, 40, .07);
+  border-radius: 12px;
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.idp-river-detail-label {
+  color: #667085;
+  font-size: .62rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.idp-river-detail-value {
+  color: #101828;
+  font-size: .82rem;
+  font-weight: 780;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+body.is-dark-mode .idp-river-detail-row {
+  background: rgba(255, 255, 255, .06);
+  border-color: rgba(255, 255, 255, .08);
+}
+
+body.is-dark-mode .idp-river-detail-value {
+  color: rgba(255, 255, 255, .9);
+}
+
 @media (max-width: 900px) {
   .idp-player-profile .idp-workflow-board {
     grid-template-columns: 1fr;

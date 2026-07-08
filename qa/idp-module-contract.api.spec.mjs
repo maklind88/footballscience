@@ -562,8 +562,27 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).not.toContain("Primary IDP Coach");
   expect(profileHtml).not.toContain("Current Focus Owner");
 
+  const historyDetail = {
+    ...profileState.playerDetail,
+    focuses: [{
+      id: "focus-created-1",
+      playerId: "p1",
+      title: "Back shoulder timing",
+      description: "Attack the blindside run after the first pressing cue.",
+      category: "Tactical",
+      status: "Active",
+    }],
+    milestones: profileState.playerDetail.milestones.map((milestone, index) => (index === 3 ? {
+      ...milestone,
+      focusId: "focus-created-1",
+      milestoneType: "Current Focus Created",
+      title: "Current focus created",
+      sourceId: "focus-created-1",
+    } : milestone)),
+  };
   const historyHtml = renderIdpWorkspace({
     ...profileState,
+    playerDetail: historyDetail,
     ui: { ...profileState.ui, profileView: "history" },
   }, staffOptions);
   expect(historyHtml).toContain("idp-profile-history-page");
@@ -580,6 +599,11 @@ test("idp renderer separates the overview from the player development profile", 
   expect(historyHtml).toContain("Player Reflection added");
   expect(historyHtml).toContain("Clip Observation added");
   expect(historyHtml).toContain("Coach Note added");
+  expect(historyHtml).toContain("idp-river-detail-list");
+  expect(historyHtml).toContain("Observation 3");
+  expect(historyHtml).toContain("Current focus created");
+  expect(historyHtml).toContain("Back shoulder timing");
+  expect(historyHtml).toContain("Attack the blindside run after the first pressing cue.");
   expect(historyHtml).not.toContain("<strong>Observation added</strong>");
 
   const richWorkflowHtml = renderIdpWorkspace({

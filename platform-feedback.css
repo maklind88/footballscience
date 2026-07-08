@@ -41,7 +41,7 @@
 .idp-notice[role="status"]:not(.is-warning) {
   position: fixed !important;
   top: max(5.35rem, calc(env(safe-area-inset-top, 0px) + 1rem)) !important;
-  right: max(1rem, env(safe-area-inset-right)) !important;
+  right: max(1.25rem, env(safe-area-inset-right)) !important;
   bottom: auto !important;
   left: auto !important;
   z-index: 520 !important;

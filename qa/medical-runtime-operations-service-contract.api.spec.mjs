@@ -76,7 +76,9 @@ function createHarness(overrides = {}) {
     getBulkRecommendationOpen: () => bulkRecommendationOpen,
     getBulkSelectedPlayerIds: () => bulkSelectedPlayerIds,
     getCurrentPlatformUser: () => ({ id: "medical-user" }),
-    getLatestMedicalRecord: (playerId, dateValue) => state.records.find((record) => record.playerId === playerId && record.date === dateValue) || null,
+    getLatestMedicalRecord: (playerId, dateValue) => state.records.find((record) =>
+      record.playerId === playerId && record.date === dateValue && !record.archivedAt
+    ) || null,
     getMedicalCoachHandoverItems: () => [{ playerId: "p1" }],
     getMedicalDataSafetyCounts: () => ({ archivedPlayers: 1, archivedRecords: 2, archivedPlans: 3 }),
     getMedicalDailyStats: () => ({ fullCount: 1, modifiedCount: 1, unavailableCount: 0, unloggedCount: 1 }),
@@ -104,6 +106,20 @@ function createHarness(overrides = {}) {
     normalizeMedicalParticipation: (value, fallback = 100) => {
       const numeric = Number(value);
       return Number.isFinite(numeric) ? numeric : fallback;
+    },
+    removeMedicalRecord: (recordId) => {
+      const record = state.records.find((candidate) => candidate.id === recordId);
+      if (!record) {
+        return null;
+      }
+      const archivedRecord = {
+        ...record,
+        archivedAt: "2026-05-31T10:00:00.000Z",
+        archiveReason: "Manual archive from Medical Room",
+      };
+      state.records = state.records.map((candidate) => candidate.id === recordId ? archivedRecord : candidate);
+      commits.push({ type: "record-archived", summary: recordId });
+      return archivedRecord;
     },
     renderMedicalTeamWorkspace: (message = "") => renders.push(message),
     setBulkRecommendationOpen: (isOpen) => {
@@ -212,6 +228,40 @@ test("Medical runtime operations service preserves filtering, bulk recommendatio
     rtpPhase: "modified-team",
   });
   expect(harness.commits.at(-1)).toMatchObject({ type: "recommendation-saved" });
+
+  const quickUndo = harness.service.applyMedicalQuickRecommendation("p1", 75);
+  expect(quickUndo).toMatchObject({ toggledOff: true });
+  expect(quickUndo.archivedRecord).toMatchObject({
+    playerId: "p1",
+    participation: 75,
+    archivedAt: "2026-05-31T10:00:00.000Z",
+  });
+  expect(harness.commits.at(-1)).toMatchObject({ type: "record-archived" });
+  const quickAgain = harness.service.applyMedicalQuickRecommendation("p1", 75);
+  expect(quickAgain.record).toMatchObject({
+    playerId: "p1",
+    participation: 75,
+    rtpPhase: "modified-team",
+  });
+
+  harness.state.records = [
+    {
+      id: "record-with-actual",
+      playerId: "p1",
+      date: "2026-05-31",
+      status: "modified",
+      participation: 75,
+      actualParticipation: 50,
+    },
+    ...harness.state.records.filter((record) => record.playerId !== "p1" || record.date !== "2026-05-31" || record.archivedAt),
+  ];
+  const protectedQuickUndo = harness.service.applyMedicalQuickRecommendation("p1", 75);
+  expect(protectedQuickUndo).toMatchObject({
+    record: null,
+    archivedRecord: null,
+    toggledOff: false,
+  });
+  expect(protectedQuickUndo.blockReason).toContain("logged details");
 
   harness.service.setMedicalBulkSelection(["p1", "p2", "p3"], "2026-06-01");
   expect(Array.from(harness.bulkSelectedPlayerIds).sort()).toEqual(["p1", "p2"]);

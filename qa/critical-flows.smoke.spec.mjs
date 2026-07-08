@@ -2882,10 +2882,32 @@ test("Medical availability hides bulk controls while quick recommendations remai
     .poll(() =>
       page.evaluate((storageKey) => {
         const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
-        return (state.records || []).filter((record) => record.date === "2026-05-15").map((record) => `${record.playerId}:${record.participation}`).sort();
+        return (state.records || [])
+          .filter((record) => record.date === "2026-05-15" && !record.archivedAt)
+          .map((record) => `${record.playerId}:${record.participation}`)
+          .sort();
       }, medicalKey)
     )
     .toEqual(["bulk-one:100", "bulk-two:25"]);
+
+  await page.locator('[data-medical-roster-row="bulk-two"] [data-medical-quick-participation="25"]').click();
+
+  await expect
+    .poll(() =>
+      page.evaluate((storageKey) => {
+        const state = JSON.parse(window.localStorage.getItem(storageKey) || "{}");
+        return {
+          activeRecords: (state.records || [])
+            .filter((record) => record.date === "2026-05-15" && !record.archivedAt)
+            .map((record) => `${record.playerId}:${record.participation}`)
+            .sort(),
+          archivedBulkTwo: (state.records || []).some((record) =>
+            record.playerId === "bulk-two" && record.date === "2026-05-15" && Boolean(record.archivedAt)
+          ),
+        };
+      }, medicalKey)
+    )
+    .toEqual({ activeRecords: ["bulk-one:100"], archivedBulkTwo: true });
 });
 
 test("Medical recommendations use match context and lock non-activity days", async ({ page }) => {

@@ -261,6 +261,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
     navigatorRef: deps.navigatorRef,
     normalizeMedicalGovernancePolicy: deps.normalizeMedicalGovernancePolicy,
     normalizeMedicalParticipation: deps.normalizeParticipation,
+    removeMedicalRecord,
     renderMedicalTeamWorkspace,
     setBulkRecommendationOpen: deps.setMedicalBulkRecommendationOpen,
     setBulkSelectedPlayerIds: deps.setMedicalBulkSelectedPlayerIds,

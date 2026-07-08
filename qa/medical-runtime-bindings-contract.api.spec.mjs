@@ -62,6 +62,7 @@ function createHarness({ canEdit = true } = {}) {
     modalOpen: true,
     modalTab: "availability",
     operationsTab: "availability",
+    quickRecommendationResult: { player: { name: "Ada" }, record: { id: "r-quick", playerId: "p-1", participation: 100 } },
     rosterSearch: "",
     selectedPlayerId: "",
     statusFilter: "all",
@@ -95,7 +96,7 @@ function createHarness({ canEdit = true } = {}) {
       addMedicalInjuryPlan: () => ({ id: "plan-2", playerId: "p-1", updatedAt: "now" }),
       addMedicalRecord: () => ({ id: "r-2", playerId: "p-1" }),
       applyMedicalBulkRecommendation: () => ({ savedCount: 1, records: [{ id: "bulk-1" }], blockedCount: 0, blockedNames: [] }),
-      applyMedicalQuickRecommendation: () => ({ player: { name: "Ada" }, record: { id: "r-quick", playerId: "p-1", participation: 100 } }),
+      applyMedicalQuickRecommendation: () => mutable.quickRecommendationResult,
       canEditMedicalTeam: () => canEdit,
       clearMedicalInjuryPlanDraft: (playerId) => calls.push(`clear-draft:${playerId}`),
       closeMedicalPlayerModal: () => calls.push("close-modal"),
@@ -215,6 +216,18 @@ test("Medical runtime bindings preserve quick recommendation, archive, and plan 
   })));
   expect(calls).toContainEqual(["sync", "recommendation-saved", expect.objectContaining({ playerId: "p-1" })]);
   expect(calls).toContainEqual(["render", "Ada: 100% recommendation saved."]);
+
+  mutable.quickRecommendationResult = {
+    player: { name: "Ada" },
+    record: null,
+    archivedRecord: { id: "r-quick", playerId: "p-1", archivedAt: "now" },
+    toggledOff: true,
+  };
+  await workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-quick-recommend]": { dataset: { medicalQuickRecommend: "full", medicalQuickParticipation: "100" } } },
+  })));
+  expect(calls).toContainEqual(["sync", "record-archived", expect.objectContaining({ recordId: "r-quick", playerId: "p-1" })]);
+  expect(calls).toContainEqual(["render", "Ada: recommendation cleared."]);
 
   await workspace.listeners.click(createEvent(createTarget({
     closest: { "[data-medical-delete-record]": { dataset: { medicalDeleteRecord: "r-1" } } },

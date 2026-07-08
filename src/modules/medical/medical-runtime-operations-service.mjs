@@ -37,6 +37,7 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     navigatorRef = globalThis.navigator || {},
     normalizeMedicalGovernancePolicy = (value) => value || {},
     normalizeMedicalParticipation = (value, fallback = 100) => (Number.isFinite(Number(value)) ? Number(value) : fallback),
+    removeMedicalRecord = () => null,
     renderMedicalTeamWorkspace = () => {},
     setBulkRecommendationOpen = () => {},
     setBulkSelectedPlayerIds = () => {},
@@ -257,6 +258,37 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     );
   }
 
+  function hasMedicalQuickRecommendationDetails(record) {
+    const actualParticipation = record?.actualParticipation ?? medicalActualParticipationFallback;
+    return (
+      (actualParticipation !== medicalActualParticipationFallback && actualParticipation !== "") ||
+      Boolean(String(record?.comment || "").trim()) ||
+      Boolean(String(record?.coachNote || "").trim()) ||
+      Boolean(record?.shareWithCoach)
+    );
+  }
+
+  function getQuickRecommendationToggleBlockReason(record, participation) {
+    if (!record || normalizeMedicalParticipation(record.participation, null) !== participation) {
+      return "";
+    }
+    if (record.source || record.injuryPlanId) {
+      return "This availability is controlled by Squad Room or an active medical plan.";
+    }
+    if (hasMedicalQuickRecommendationDetails(record)) {
+      return "Open the player profile to archive this recommendation because it includes logged details.";
+    }
+    return "";
+  }
+
+  function isQuickRecommendationToggleable(record, participation) {
+    return Boolean(record) &&
+      normalizeMedicalParticipation(record.participation, null) === participation &&
+      !record.source &&
+      !record.injuryPlanId &&
+      !hasMedicalQuickRecommendationDetails(record);
+  }
+
   function applyMedicalQuickRecommendation(playerId, participationValue) {
     const medicalState = readState();
     const player = medicalState.players.find((candidate) => candidate.id === playerId);
@@ -265,6 +297,21 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     }
     const dateValue = medicalState.selectedDate;
     const participation = normalizeMedicalParticipation(participationValue, 75);
+    const currentRecord = getLatestMedicalRecord(player.id, dateValue);
+    if (isQuickRecommendationToggleable(currentRecord, participation)) {
+      const archivedRecord = removeMedicalRecord(currentRecord.id);
+      return {
+        player,
+        record: null,
+        archivedRecord,
+        toggledOff: Boolean(archivedRecord),
+        blockReason: archivedRecord ? "" : "Recommendation could not be cleared.",
+      };
+    }
+    const toggleBlockReason = getQuickRecommendationToggleBlockReason(currentRecord, participation);
+    if (toggleBlockReason) {
+      return { player, record: null, archivedRecord: null, toggledOff: false, blockReason: toggleBlockReason };
+    }
     const status = getMedicalStatusForParticipation(participation);
     const blockReason = getMedicalRecommendationBlockReason(player.id, participation, dateValue);
     if (blockReason) {

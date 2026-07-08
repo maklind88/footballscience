@@ -547,8 +547,22 @@ ${renderRtpExerciseCards(profile, 3)}
           idempotencyKey: `recommendation-saved:${result.record.id}`,
         });
       }
+      if (result.archivedRecord) {
+        recordSync("record-archived", {
+          playerId: result.archivedRecord.playerId,
+          recordId: result.archivedRecord.id,
+          archivedAt: result.archivedRecord.archivedAt,
+          idempotencyKey: `record-archived:${result.archivedRecord.id}:${result.archivedRecord.archivedAt || "quick-toggle"}`,
+        });
+      }
       const playerName = result.player?.name || "Player";
-      renderWorkspace(result.record ? `${playerName}: ${result.record.participation}% recommendation saved.` : result.blockReason || "Recommendation could not be saved.");
+      renderWorkspace(
+        result.record
+          ? `${playerName}: ${result.record.participation}% recommendation saved.`
+          : result.toggledOff
+            ? `${playerName}: recommendation cleared.`
+            : result.blockReason || "Recommendation could not be saved."
+      );
       return;
     }
     const bulkToggleButton = event.target.closest("[data-medical-bulk-toggle]");

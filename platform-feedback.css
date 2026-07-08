@@ -33,7 +33,12 @@
 
 .platform-autosave-status,
 .platform-inline-toast,
-.session-toast {
+.session-toast,
+.video-analysis-toast,
+.staff-message[role="status"],
+.medical-message[role="status"],
+.player-profile-message[role="status"],
+.idp-notice[role="status"]:not(.is-warning) {
   position: fixed !important;
   top: max(5.35rem, calc(env(safe-area-inset-top, 0px) + 1rem)) !important;
   right: max(1rem, env(safe-area-inset-right)) !important;
@@ -113,7 +118,12 @@
 }
 
 .platform-inline-toast,
-.session-toast {
+.session-toast,
+.video-analysis-toast,
+.staff-message[role="status"],
+.medical-message[role="status"],
+.player-profile-message[role="status"],
+.idp-notice[role="status"]:not(.is-warning) {
   display: grid !important;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start !important;
@@ -129,7 +139,12 @@
 }
 
 .platform-inline-toast::before,
-.session-toast::before {
+.session-toast::before,
+.video-analysis-toast::before,
+.staff-message[role="status"]::before,
+.medical-message[role="status"]::before,
+.player-profile-message[role="status"]::before,
+.idp-notice[role="status"]:not(.is-warning)::before {
   content: "";
   grid-column: 1;
   grid-row: 1;
@@ -142,19 +157,34 @@
 }
 
 .platform-inline-toast > *,
-.session-toast > * {
+.session-toast > *,
+.video-analysis-toast > *,
+.staff-message[role="status"] > *,
+.medical-message[role="status"] > *,
+.player-profile-message[role="status"] > *,
+.idp-notice[role="status"]:not(.is-warning) > * {
   grid-column: 2;
   min-width: 0;
 }
 
 .platform-inline-toast:not(.is-error):not(.is-warning),
-.session-toast:not(.is-error):not(.is-warning) {
+.session-toast:not(.is-error):not(.is-warning),
+.video-analysis-toast:not(.is-error):not(.is-warning),
+.staff-message[role="status"]:not(.is-error):not(.is-warning),
+.medical-message[role="status"]:not(.is-error):not(.is-warning),
+.player-profile-message[role="status"]:not(.is-error):not(.is-warning),
+.idp-notice[role="status"]:not(.is-warning):not(.is-error) {
   animation: platformToastLifecycle 3.2s ease both !important;
 }
 
 .platform-inline-toast p,
 .session-toast p,
-.session-toast strong {
+.session-toast strong,
+.video-analysis-toast p,
+.staff-message[role="status"] p,
+.medical-message[role="status"] p,
+.player-profile-message[role="status"] p,
+.idp-notice[role="status"]:not(.is-warning) p {
   margin: 0 !important;
   font: inherit !important;
   color: inherit !important;
@@ -173,7 +203,12 @@
 }
 
 .platform-inline-toast.is-error,
-.session-toast.is-error {
+.session-toast.is-error,
+.video-analysis-toast.is-error,
+.staff-message[role="status"].is-error,
+.medical-message[role="status"].is-error,
+.player-profile-message[role="status"].is-error,
+.idp-notice[role="status"].is-error {
   border-color: #fecaca !important;
   background: #fff1f1f2 !important;
   color: #991b1b !important;
@@ -181,13 +216,22 @@
 }
 
 .platform-inline-toast.is-error::before,
-.session-toast.is-error::before {
+.session-toast.is-error::before,
+.video-analysis-toast.is-error::before,
+.staff-message[role="status"].is-error::before,
+.medical-message[role="status"].is-error::before,
+.player-profile-message[role="status"].is-error::before,
+.idp-notice[role="status"].is-error::before {
   background: #d92d20;
   box-shadow: 0 0 0 0.18rem #d92d2024;
 }
 
 .platform-inline-toast.is-warning,
-.session-toast.is-warning {
+.session-toast.is-warning,
+.video-analysis-toast.is-warning,
+.staff-message[role="status"].is-warning,
+.medical-message[role="status"].is-warning,
+.player-profile-message[role="status"].is-warning {
   border-color: #fde68a !important;
   background: #fffbebf2 !important;
   color: #854d0e !important;
@@ -195,13 +239,22 @@
 }
 
 .platform-inline-toast.is-warning::before,
-.session-toast.is-warning::before {
+.session-toast.is-warning::before,
+.video-analysis-toast.is-warning::before,
+.staff-message[role="status"].is-warning::before,
+.medical-message[role="status"].is-warning::before,
+.player-profile-message[role="status"].is-warning::before {
   background: #f59e0b;
   box-shadow: 0 0 0 0.18rem #f59e0b24;
 }
 
 .platform-inline-toast.is-success,
-.session-toast.is-success {
+.session-toast.is-success,
+.video-analysis-toast.is-success,
+.staff-message[role="status"].is-success,
+.medical-message[role="status"].is-success,
+.player-profile-message[role="status"].is-success,
+.idp-notice[role="status"].is-success {
   border-color: #bbf7d0 !important;
   background: #f0fdf4f2 !important;
   color: #166534 !important;
@@ -209,7 +262,12 @@
 
 body.is-dark-mode .platform-autosave-status,
 body.is-dark-mode .platform-inline-toast,
-body.is-dark-mode .session-toast {
+body.is-dark-mode .session-toast,
+body.is-dark-mode .video-analysis-toast,
+body.is-dark-mode .staff-message[role="status"],
+body.is-dark-mode .medical-message[role="status"],
+body.is-dark-mode .player-profile-message[role="status"],
+body.is-dark-mode .idp-notice[role="status"]:not(.is-warning) {
   border-color: #94a3b852 !important;
   background: #0f172af2 !important;
   color: #e5edf8 !important;
@@ -221,21 +279,35 @@ body.is-dark-mode .platform-autosave-status small {
 }
 
 body.is-dark-mode .platform-inline-toast.is-error,
-body.is-dark-mode .session-toast.is-error {
+body.is-dark-mode .session-toast.is-error,
+body.is-dark-mode .video-analysis-toast.is-error,
+body.is-dark-mode .staff-message[role="status"].is-error,
+body.is-dark-mode .medical-message[role="status"].is-error,
+body.is-dark-mode .player-profile-message[role="status"].is-error,
+body.is-dark-mode .idp-notice[role="status"].is-error {
   background: #451a1af0 !important;
   border-color: #f8717159 !important;
   color: #fecaca !important;
 }
 
 body.is-dark-mode .platform-inline-toast.is-warning,
-body.is-dark-mode .session-toast.is-warning {
+body.is-dark-mode .session-toast.is-warning,
+body.is-dark-mode .video-analysis-toast.is-warning,
+body.is-dark-mode .staff-message[role="status"].is-warning,
+body.is-dark-mode .medical-message[role="status"].is-warning,
+body.is-dark-mode .player-profile-message[role="status"].is-warning {
   background: #422006f0 !important;
   border-color: #fbbf2459 !important;
   color: #fde68a !important;
 }
 
 body.is-dark-mode .platform-inline-toast.is-success,
-body.is-dark-mode .session-toast.is-success {
+body.is-dark-mode .session-toast.is-success,
+body.is-dark-mode .video-analysis-toast.is-success,
+body.is-dark-mode .staff-message[role="status"].is-success,
+body.is-dark-mode .medical-message[role="status"].is-success,
+body.is-dark-mode .player-profile-message[role="status"].is-success,
+body.is-dark-mode .idp-notice[role="status"].is-success {
   background: #052e1df0 !important;
   border-color: #34d39959 !important;
   color: #bbf7d0 !important;
@@ -244,7 +316,12 @@ body.is-dark-mode .session-toast.is-success {
 @media (max-width: 760px) {
   .platform-autosave-status,
   .platform-inline-toast,
-  .session-toast {
+  .session-toast,
+  .video-analysis-toast,
+  .staff-message[role="status"],
+  .medical-message[role="status"],
+  .player-profile-message[role="status"],
+  .idp-notice[role="status"]:not(.is-warning) {
     top: auto !important;
     right: max(0.75rem, env(safe-area-inset-right)) !important;
     left: auto !important;
@@ -260,7 +337,12 @@ body.is-dark-mode .session-toast.is-success {
 
 @media (prefers-reduced-motion: reduce) {
   .platform-inline-toast:not(.is-error):not(.is-warning),
-  .session-toast:not(.is-error):not(.is-warning) {
+  .session-toast:not(.is-error):not(.is-warning),
+  .video-analysis-toast:not(.is-error):not(.is-warning),
+  .staff-message[role="status"]:not(.is-error):not(.is-warning),
+  .medical-message[role="status"]:not(.is-error):not(.is-warning),
+  .player-profile-message[role="status"]:not(.is-error):not(.is-warning),
+  .idp-notice[role="status"]:not(.is-warning):not(.is-error) {
     animation: platformToastReducedLifecycle 3.2s linear both !important;
   }
 }

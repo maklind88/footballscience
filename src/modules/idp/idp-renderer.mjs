@@ -307,11 +307,13 @@ function getPlayerPhotoUrl(profile = {}) {
 function renderPlayerHeaderMark(profile = {}) {
   const playerName = normalizeText(profile.playerName || profile.name, "Player");
   const photoUrl = getPlayerPhotoUrl(profile);
+  const initials = initialsFromName(playerName, "P");
   return `
     <span class="idp-team-mark idp-player-profile-mark${photoUrl ? " has-photo" : " is-initials"}" aria-label="${escapeHtml(`${playerName} profile image`)}">
       ${photoUrl
-        ? `<img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(`${playerName} profile image`)}" loading="lazy">`
-        : `<strong>${escapeHtml(initialsFromName(playerName, "P"))}</strong>`}
+        ? `<img src="${escapeHtml(photoUrl)}" alt="" loading="lazy" onerror="this.hidden=true;this.closest('.idp-player-profile-mark')?.classList.remove('has-photo');this.closest('.idp-player-profile-mark')?.classList.add('is-initials');">`
+        : ""}
+      <strong class="idp-player-profile-mark-initials">${escapeHtml(initials)}</strong>
     </span>
   `;
 }
@@ -1893,7 +1895,7 @@ export function renderIdpWorkspace(state = {}, options = {}) {
       ${renderWorkspaceHeader(state, canEdit, options)}
       ${ui.loading ? `<div class="idp-notice">Loading player development plans.</div>` : ""}
       ${ui.error ? `<div class="idp-notice is-warning">${escapeHtml(ui.error)}</div>` : ""}
-      ${ui.message ? `<div class="idp-notice">${escapeHtml(ui.message)}</div>` : ""}
+      ${ui.message ? `<div class="idp-notice platform-inline-toast is-success" role="status" aria-live="polite">${escapeHtml(ui.message)}</div>` : ""}
       ${hasSelectedPlayer ? renderPlayerProfile(state, canEdit, options) : renderOverviewBoard(state, ui, options)}
     </section>
   `;

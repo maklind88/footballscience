@@ -176,6 +176,10 @@
   color: #92400e;
 }
 
+.idp-shell > .idp-notice.platform-inline-toast {
+  margin: 0 !important;
+}
+
 .idp-workbench {
   align-items: start;
   display: grid;
@@ -5153,11 +5157,28 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .92), 0 10px 26px rgba(16, 24, 40, .08);
   color: #2457a6;
   height: 58px;
+  position: relative;
   width: 58px;
 }
 
 .idp-player-profile-mark.has-photo img {
+  inset: 0;
+  position: absolute;
+  z-index: 2;
   object-fit: cover;
+}
+
+.idp-player-profile-mark-initials {
+  position: relative;
+  z-index: 1;
+}
+
+.idp-player-profile-mark.has-photo .idp-player-profile-mark-initials {
+  opacity: 0;
+}
+
+.idp-player-profile-mark.is-initials .idp-player-profile-mark-initials {
+  opacity: 1;
 }
 
 .idp-header.is-player-context .idp-stage-actions {

@@ -1640,10 +1640,10 @@ function renderProfilePlayerBoardPage(detail = {}, focus = {}, profile = {}, pul
   return `
     <section class="idp-profile-subpage idp-profile-player-board-page">
       ${renderPlayerBoardLibraryCommand(detail, focus, profile, canEdit, ui)}
-      ${renderIdpPlayerBoardTemplateBank(detail, focus, profile, ui, canEdit, options)}
       <div class="idp-player-board-page-shell">
         ${renderIdpPlayerBoardPanel(detail, focus, profile, pulse, nextAction, canEdit, ui)}
       </div>
+      ${renderIdpPlayerBoardTemplateBank(detail, focus, profile, ui, canEdit, options)}
     </section>
   `;
 }

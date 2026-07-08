@@ -729,14 +729,19 @@ export function renderIdpPlayerBoardTemplateBank(detail = {}, focus = {}, profil
   const selectedId = normalizeText(selectedTemplate?.id, "");
   const selectedDraft = selectedTemplate ? idpBoardTemplateDraft(selectedId, profile, focus, sourceLibrary) : null;
   const sourceLabel = selectedTemplate?.sourceType === "saved-exercise-library" ? "Saved team library" : "Default templates";
+  const shouldOpen = Boolean(query || ui.playerBoardTemplateId);
   return `
-    <section class="idp-player-board-template-bank" aria-label="Player Board template bank">
-      <div class="idp-player-board-template-head">
+    <details class="idp-player-board-template-bank" aria-label="Player Board template bank"${shouldOpen ? " open" : ""}>
+      <summary class="idp-player-board-template-summary">
         <div>
           <span>Template Bank</span>
           <strong>Team exercise templates</strong>
-          <small>${escapeHtml(sourceLabel)}. Search, preview and use a template as a player-specific IDP draft.</small>
+          <small>${escapeHtml(sourceLabel)} · starta från en färdig övning när du behöver det</small>
         </div>
+        <span class="idp-player-board-template-toggle">Öppna mallar</span>
+      </summary>
+      <div class="idp-player-board-template-body">
+      <div class="idp-player-board-template-head">
         <label>
           <span>Search templates</span>
           <input type="search" data-idp-player-board-template-search value="${escapeHtml(query)}" placeholder="Search exercise, phase or coaching point" autocomplete="off">
@@ -775,7 +780,8 @@ export function renderIdpPlayerBoardTemplateBank(detail = {}, focus = {}, profil
           `}
         </article>
       </div>
-    </section>
+      </div>
+    </details>
   `;
 }
 

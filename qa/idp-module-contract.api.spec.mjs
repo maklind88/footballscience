@@ -670,6 +670,12 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain("data-idp-player-board-search");
   expect(playerBoardHtml).toContain("Template Bank");
   expect(playerBoardHtml).toContain("Team exercise templates");
+  expect(playerBoardHtml).toContain('<details class="idp-player-board-template-bank"');
+  const playerBoardShellIndex = playerBoardHtml.indexOf("idp-player-board-page-shell");
+  const playerBoardTemplateIndex = playerBoardHtml.indexOf("idp-player-board-template-bank");
+  expect(playerBoardShellIndex).toBeGreaterThan(-1);
+  expect(playerBoardTemplateIndex).toBeGreaterThan(-1);
+  expect(playerBoardShellIndex).toBeLessThan(playerBoardTemplateIndex);
   expect(playerBoardHtml).toContain("data-idp-player-board-template-search");
   expect(playerBoardHtml).toContain("data-idp-player-board-template-preview");
   expect(playerBoardHtml).toContain("data-idp-player-board-template-use");

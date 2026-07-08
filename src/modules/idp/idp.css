@@ -11792,3 +11792,328 @@ body.is-dark-mode .idp-player-board-panel .idp-player-board-actions button:not(.
     min-height: 430px;
   }
 }
+
+/* Playerboard cockpit cleanup: keep the active exercise visual first, with templates as support. */
+.idp-profile-player-board-page {
+  gap: 12px;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-command {
+  align-items: end;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(15, 118, 110, .08), transparent 28rem),
+    linear-gradient(180deg, rgba(255, 255, 255, .96), rgba(248, 250, 252, .9));
+  border: 1px solid rgba(29, 29, 31, .08);
+  border-radius: 18px;
+  box-shadow: 0 18px 48px rgba(16, 24, 40, .06);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(15rem, .7fr) minmax(19rem, 1fr) auto;
+  padding: 12px;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-copy {
+  align-self: center;
+  padding: 0;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-copy strong {
+  font-size: clamp(1.05rem, 1.35vw, 1.42rem);
+}
+
+.idp-profile-player-board-page .idp-player-board-library-copy small {
+  max-width: 30rem;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-search {
+  align-items: end;
+  grid-template-columns: minmax(0, 1fr) 42px;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-search input,
+.idp-profile-player-board-page .idp-player-board-template-head input {
+  background: rgba(255, 255, 255, .88);
+  border-color: rgba(29, 29, 31, .09);
+  border-radius: 14px;
+  height: 44px;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-search button {
+  border-radius: 14px;
+  height: 44px;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-actions {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-actions button {
+  border-radius: 999px;
+  height: 38px;
+  min-width: 0;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-actions button:not(.is-primary) {
+  background: rgba(255, 255, 255, .74);
+}
+
+.idp-profile-player-board-page .idp-player-board-library-results {
+  display: flex;
+  gap: 8px;
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 1px 1px 3px;
+  scrollbar-width: thin;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-result {
+  align-items: center;
+  border-radius: 14px;
+  flex: 0 0 min(24rem, 42vw);
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 50px;
+  padding: 8px 10px;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-result span {
+  border-radius: 999px;
+  height: 28px;
+  width: 28px;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-result small {
+  grid-column: 2;
+}
+
+.idp-profile-player-board-page .idp-player-board-page-shell {
+  display: grid;
+  min-width: 0;
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-shell {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(20, 184, 166, .08), transparent 28rem),
+    linear-gradient(180deg, rgba(255, 255, 255, .98), rgba(248, 250, 252, .94));
+  border: 1px solid rgba(29, 29, 31, .08);
+  border-radius: 20px;
+  box-shadow: 0 22px 60px rgba(16, 24, 40, .07);
+  padding: 12px;
+}
+
+.idp-profile-player-board-page .idp-player-board-playback-head {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 4px 4px 10px;
+}
+
+.idp-profile-player-board-page .idp-player-board-playback-head > div:first-child span {
+  color: #0f766e;
+}
+
+.idp-profile-player-board-page .idp-player-board-playback-head strong {
+  font-size: clamp(1.22rem, 2vw, 1.9rem);
+}
+
+.idp-profile-player-board-page .idp-player-board-playback-stage {
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-preview > .idp-player-board-surface {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(15, 118, 110, .07), transparent 24rem),
+    linear-gradient(180deg, #ffffff, #f6f8fb);
+  border-radius: 16px;
+  min-height: clamp(370px, 43vw, 620px);
+  padding: clamp(12px, 1.8vw, 22px);
+  place-items: center;
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-preview .idp-player-board-canvas {
+  height: 100%;
+  width: 100%;
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-preview .idp-player-board-pitch.session-visual-board {
+  max-height: 600px;
+  width: min(100%, 980px);
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-preview .idp-player-board-pitch.session-visual-board.is-full {
+  width: min(100%, 560px);
+}
+
+.idp-profile-player-board-page .idp-player-board-tactical-preview .idp-player-board-pitch.session-visual-board.is-goalkeeper {
+  width: min(100%, 960px);
+}
+
+.idp-profile-player-board-page .idp-player-board-playback-card {
+  align-content: start;
+  border-radius: 16px;
+  gap: 10px;
+}
+
+.idp-profile-player-board-page .idp-player-board-playback-cues article {
+  border-radius: 14px;
+}
+
+.idp-profile-player-board-page .idp-player-board-playback-frames {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.idp-profile-player-board-page .idp-player-board-playback-frames button {
+  border-radius: 14px;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-bank {
+  background: rgba(255, 255, 255, .72);
+  border: 1px solid rgba(29, 29, 31, .08);
+  border-radius: 18px;
+  box-shadow: none;
+  display: block;
+  padding: 0;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-bank[open] {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(15, 118, 110, .06), transparent 24rem),
+    linear-gradient(180deg, rgba(255, 255, 255, .96), rgba(248, 250, 252, .92));
+  box-shadow: 0 18px 48px rgba(16, 24, 40, .055);
+  padding-bottom: 12px;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-summary {
+  align-items: center;
+  cursor: pointer;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  list-style: none;
+  padding: 12px;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-summary::-webkit-details-marker {
+  display: none;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-summary > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-summary span:first-child,
+.idp-profile-player-board-page .idp-player-board-template-head label span,
+.idp-profile-player-board-page .idp-player-board-template-preview-copy span {
+  color: #667085;
+  font-size: .64rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-summary strong {
+  color: #101828;
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-summary small {
+  color: #667085;
+  font-size: .76rem;
+  font-weight: 780;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-toggle {
+  background: #f2f4f7;
+  border: 1px solid rgba(29, 29, 31, .08);
+  border-radius: 999px;
+  color: #344054;
+  font-size: .74rem;
+  font-weight: 900;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-bank[open] .idp-player-board-template-toggle {
+  background: #101828;
+  color: #fff;
+  font-size: 0;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-bank[open] .idp-player-board-template-toggle::before {
+  content: "Stäng mallar";
+  font-size: .74rem;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 12px;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-head {
+  grid-template-columns: minmax(0, 24rem);
+  justify-content: end;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-layout {
+  grid-template-columns: minmax(240px, .52fr) minmax(0, 1fr);
+}
+
+.idp-profile-player-board-page .idp-player-board-template-card,
+.idp-profile-player-board-page .idp-player-board-template-preview {
+  border-radius: 14px;
+}
+
+.idp-profile-player-board-page .idp-player-board-template-preview {
+  grid-template-columns: minmax(220px, .46fr) minmax(0, .54fr) auto;
+}
+
+@media (max-width: 1120px) {
+  .idp-profile-player-board-page .idp-player-board-library-command,
+  .idp-profile-player-board-page .idp-player-board-playback-stage,
+  .idp-profile-player-board-page .idp-player-board-template-layout,
+  .idp-profile-player-board-page .idp-player-board-template-preview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .idp-profile-player-board-page .idp-player-board-library-actions {
+    justify-content: flex-start;
+  }
+
+  .idp-profile-player-board-page .idp-player-board-library-result {
+    flex-basis: min(22rem, 82vw);
+  }
+
+  .idp-profile-player-board-page .idp-player-board-template-head {
+    justify-content: stretch;
+  }
+}
+
+@media (max-width: 640px) {
+  .idp-profile-player-board-page .idp-player-board-library-command,
+  .idp-profile-player-board-page .idp-player-board-tactical-shell {
+    border-radius: 16px;
+    padding: 10px;
+  }
+
+  .idp-profile-player-board-page .idp-player-board-library-search {
+    grid-template-columns: minmax(0, 1fr) 40px;
+  }
+
+  .idp-profile-player-board-page .idp-player-board-library-actions button {
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  .idp-profile-player-board-page .idp-player-board-template-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

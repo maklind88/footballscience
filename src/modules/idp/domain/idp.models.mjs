@@ -14,6 +14,12 @@ export function normalizeText(value = "", maxLength = 240) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
+const maxIdpProfileImageUrlLength = 900000;
+
+function normalizeImageUrl(value = "") {
+  return String(value ?? "").trim().replace(/\s+/g, "").slice(0, maxIdpProfileImageUrlLength);
+}
+
 export function normalizeDate(value = "") {
   const text = normalizeText(value, 24);
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
@@ -195,7 +201,7 @@ export function normalizeIdpProfile(value = {}) {
     squadNumber: normalizeText(value.squadNumber || value.squad_number || value.number || value.shirtNumber || value.shirt_number, 20),
     position: normalizeText(value.position || value.positionLabel || value.position_label, 80),
     role: normalizeText(value.role || value.roleLabel || value.role_label || value.primaryRole, 120),
-    photoUrl: normalizeText(value.photoUrl || value.photo_url || value.imageUrl || value.image_url || value.profileImageUrl || value.profile_image_url, 1000),
+    photoUrl: normalizeImageUrl(value.photoUrl || value.photo_url || value.imageUrl || value.image_url || value.profileImageUrl || value.profile_image_url),
     ownerId: normalizeText(value.ownerId || value.owner_id || value.primaryOwnerId || value.primary_owner_id, 160),
     status: normalizeText(value.status || "active", 40),
     lastReviewOn: normalizeDate(value.lastReviewOn || value.last_review_on),

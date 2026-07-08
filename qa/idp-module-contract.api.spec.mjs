@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildIdpDashboardFromSquadState, buildLegacyPlayerDetail } from "../src/modules/idp/idp-adapter.mjs";
 import { createIdpActions } from "../src/modules/idp/idp-actions.mjs";
 import { selectedClipIds } from "../src/modules/idp/idp-clip-preview-controller.mjs";
-import { normalizeIdpDevelopmentIntervention } from "../src/modules/idp/domain/idp.models.mjs";
+import { normalizeIdpDevelopmentIntervention, normalizeIdpProfile } from "../src/modules/idp/domain/idp.models.mjs";
 import { renderIdpWorkspace } from "../src/modules/idp/idp-renderer.mjs";
 import { createIdpStore } from "../src/modules/idp/idp-state.mjs";
 
@@ -1002,6 +1002,42 @@ test("idp renderer separates the overview from the player development profile", 
   expect(boardWithClipPickerHtml).toContain('data-idp-board-clip-anchor="clip-12 @ 1:18"');
   expect(boardWithClipPickerHtml).toContain("Third-player release / Build-up");
   expect(renderIdpWorkspace({ ...profileState, ui: { ...profileState.ui, actionMode: "review" } }, staffOptions)).toContain("data-idp-complete-review");
+});
+
+test("idp profile preserves Squad Room data-url player images", () => {
+  const longDataUrl = `data:image/webp;base64,${"A".repeat(3200)}`;
+  const profile = normalizeIdpProfile({
+    playerId: "p-photo",
+    playerName: "Photo Player",
+    photoUrl: longDataUrl,
+  });
+
+  expect(profile.photoUrl).toBe(longDataUrl);
+  expect(profile.photoUrl.length).toBeGreaterThan(1000);
+
+  const html = renderIdpWorkspace(
+    {
+      ui: { selectedPlayerId: "p-photo", profileView: "development" },
+      playerDetail: {
+        profile,
+        focuses: [],
+        clipBank: [],
+        evidence: [],
+        reviews: [],
+        nextActions: [],
+        goals: [],
+        goalCheckins: [],
+        milestones: [],
+        ownership: [],
+        interventions: [],
+      },
+    },
+    { canEdit: true, users: [] }
+  );
+
+  expect(html).toContain("idp-player-profile-mark has-photo");
+  expect(html).toContain(longDataUrl);
+  expect(html).not.toContain("idp-player-profile-mark is-initials");
 });
 
 test("idp current focus card shows the focus title and focus area separately", () => {

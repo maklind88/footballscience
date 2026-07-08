@@ -121,6 +121,8 @@ export function createInitialVideoAnalysisState(context = {}) {
       miniGamePrincipleSearch: "",
       miniGamePrincipleCapture: null,
       unitPickerOpen: false,
+      unitEditorOpen: false,
+      unitEditorDraft: [],
       unitCapture: null,
       lastUnitTag: "",
       lastOutcomeTag: "",

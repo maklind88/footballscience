@@ -176,10 +176,12 @@ function isMissingColumn(result = {}, table = "", columns = []) {
     result.payload?.details,
     result.payload?.code,
   ].filter(Boolean).join(" "));
-  if (!/schema cache|column|PGRST204/i.test(reason)) return false;
-  if (table && !reason.includes(table)) return false;
+  const normalizedReason = reason.toLowerCase();
+  const normalizedTable = String(table || "").toLowerCase();
+  if (!/schema cache|column|pgrst204/i.test(normalizedReason)) return false;
+  if (normalizedTable && !normalizedReason.includes(normalizedTable)) return false;
   if (!columns.length) return true;
-  return columns.some((column) => reason.includes(column));
+  return columns.some((column) => normalizedReason.includes(String(column || "").toLowerCase()));
 }
 
 function omitColumns(row = {}, columns = []) {

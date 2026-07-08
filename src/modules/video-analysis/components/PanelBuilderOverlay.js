@@ -268,11 +268,6 @@ function renderButtonInspector(state = {}, selectedButton = null) {
           ></button>
         `).join("")}
       </div>
-      <div class="video-analysis-builder-timing">
-        <div><strong>${escapeHtml(String(durationSeconds))}s</strong><span>Length</span></div>
-        <div><strong>${escapeHtml(String(leadSeconds))}s</strong><span>Lead</span></div>
-        <div><strong>${escapeHtml(String(endAfterClickSeconds))}s</strong><span>End after click</span></div>
-      </div>
       <div class="video-analysis-button-editor-grid video-analysis-button-editor-grid--timing">
         <label>Length sec<input type="number" min="1" max="900" step="1" data-video-analysis-button-ms-field="${escapeHtml(selectedButton.id)}:defaultDurationMs" value="${escapeHtml(durationSeconds)}"></label>
         <label>Lead sec<input type="number" min="0" max="120" step="1" data-video-analysis-button-ms-field="${escapeHtml(selectedButton.id)}:startOffsetMs:lead" value="${escapeHtml(leadSeconds)}"></label>

@@ -39,6 +39,11 @@ const TIMELINE_NICE_STEPS_MS = Object.freeze([
 ]);
 
 function laneSortIndex(laneMode = DEFAULT_TIMELINE_LANE_MODE, label = "") {
+  if (laneMode === "all") {
+    const allModeOrder = ["Phase /", "Sub-phase /", "MG Principle /", "Tag /", "Player /", "Unit /"];
+    const index = allModeOrder.findIndex((prefix) => String(label || "").startsWith(prefix));
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  }
   const order = TIMELINE_LANE_ORDER[laneMode] || [];
   const index = order.indexOf(label);
   return index === -1 ? Number.MAX_SAFE_INTEGER : index;

@@ -436,9 +436,12 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-timeline-tabs")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-view-select")).toContainText("Timeline");
   await expect(page.locator("[data-video-analysis-timeline-lane-select]")).toHaveValue("all");
-  await expect(page.locator("[data-video-analysis-timeline-lane-select] option")).toHaveCount(8);
+  await expect(page.locator("[data-video-analysis-timeline-lane-select] option")).toHaveCount(6);
   await expect(page.locator("[data-video-analysis-timeline-lane-select] option").first()).toContainText("All Tags (1)");
-  await expect(page.locator(".video-analysis-lane__label").first()).toContainText("All Tags");
+  await expect.poll(() => page.locator("[data-video-analysis-timeline-lane-select] option").evaluateAll((options) => (
+    options.map((option) => option.value)
+  ))).toEqual(["all", "phase", "subPhase", "miniGamePrinciple", "player", "unit"]);
+  await expect(page.locator(".video-analysis-lane__label").first()).toContainText("Sub-phase / Build Up");
   await expect(page.locator(".video-analysis-timeline-controls")).toHaveCount(0);
   await expect(page.locator(".video-analysis-filters")).toHaveCount(0);
   await expect(page.locator(".video-analysis-intelligence")).toHaveCount(0);
@@ -493,9 +496,6 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   expect(playheadMarker.markerBottom).toBeLessThan(playheadMarker.timeLabelTop);
   expect(await page.locator(".video-analysis-playhead").first().getAttribute("role")).toBeNull();
 
-  await page.locator("[data-video-analysis-timeline-lane-select]").selectOption("outcome");
-  await expect(page.locator("[data-video-analysis-timeline-lane-select]")).toHaveValue("outcome");
-  await expect(page.locator(".video-analysis-lane__label").first()).toContainText(/Positive|Development|Neutral/);
   await page.locator("[data-video-analysis-timeline-category]").first().click();
   await expect(page.locator(".video-analysis-timeline-category-tray")).toHaveCount(0);
   await page.locator("[data-video-analysis-timeline-category]").first().click({ button: "right" });
@@ -812,7 +812,7 @@ test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) =
   await expect(page.locator(".video-analysis-timeline-status")).toHaveCount(0);
   await expect(page.locator("[data-video-analysis-timeline-lane-select] option").first()).toContainText("All Tags (500)");
   await expect(page.locator(".video-analysis-code-window-dock [data-video-analysis-code-window]")).toBeVisible();
-  await expect(page.locator(".video-analysis-clip-block")).toHaveCount(500);
+  await expect(page.locator(".video-analysis-clip-block")).toHaveCount(1000);
   await expect(page.locator(".video-analysis-clip-block__copy small")).toHaveCount(0);
   await page.locator("[data-video-analysis-timeline-lane-select]").selectOption("subPhase");
   const subPhaseLane = page.locator('[data-video-analysis-timeline-category-label="Build Up"]');
@@ -1521,7 +1521,7 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
       playheadLeft: playhead ? Number.parseFloat(playhead.style.left || "0") : null,
     };
   })).toMatchObject({
-    blockNumber: "2",
+    blockNumber: "1",
   });
   const alignment = await page.evaluate(() => {
     const block = [...document.querySelectorAll(".video-analysis-clip-block")]
@@ -1926,8 +1926,8 @@ test("Video Analysis Panel Builder creates a custom tag button", async ({ page }
     preRollMs: 2000,
     postRollMs: 10000,
   });
-  await page.locator("[data-video-analysis-timeline-lane-select]").selectOption("tags");
-  await expect(page.locator(".video-analysis-lane__label").filter({ hasText: "Jump press" })).toBeVisible();
+  await page.locator("[data-video-analysis-timeline-lane-select]").selectOption("all");
+  await expect(page.locator(".video-analysis-lane__label").filter({ hasText: "Tag / Jump press" })).toBeVisible();
   const jumpPressBlock = await page.evaluate(() => {
     const block = [...document.querySelectorAll(".video-analysis-clip-block")]
       .find((item) => String(item.getAttribute("title") || "").includes("Jump press"));
@@ -1970,7 +1970,7 @@ test("Video Analysis Label selected buttons update the selected timeline clip", 
   });
   await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
 
-  await page.locator('[data-video-analysis-seek="clip-1"]').click();
+  await page.locator('[data-video-analysis-seek="clip-1"]').first().click();
   await page.locator('[data-video-analysis-panel-mode="edit"]').click();
   await expect(page.locator("[data-video-analysis-template-overlay]")).toBeVisible();
   await page.locator('[data-video-analysis-template-builder-field="newGroupName"]').fill("Clip Labels");
@@ -1993,7 +1993,7 @@ test("Video Analysis Label selected buttons update the selected timeline clip", 
     endMs: 18000,
     tags: ["wide", "third-player", "Press trigger"],
   });
-  await expect(page.locator('[data-video-analysis-seek="clip-1"]')).toHaveCount(1);
+  await expect(page.locator('[data-video-analysis-seek="clip-1"]').first()).toBeVisible();
   await expect(page.locator(".video-analysis-template-builder")).toContainText("Press trigger");
 });
 

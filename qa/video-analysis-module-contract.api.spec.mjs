@@ -269,6 +269,7 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(panelBuilderOverlay).toContain("targetFieldOptions");
   expect(panelBuilderOverlay).toContain("Lead sec");
   expect(panelBuilderOverlay).toContain("End after click");
+  expect(panelBuilderOverlay).not.toContain("video-analysis-builder-timing");
   expect(panelBuilderOverlay).toContain("Unsaved changes");
   expect(panelBuilderOverlay).toContain("Saving...");
   expect(panelBuilderOverlay).toContain("Preview");
@@ -326,7 +327,10 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timelineStyles).not.toContain("video-analysis-timeline-status");
   expect(timelineStyles).toContain(".video-analysis-timeline-toolbar .video-analysis-timeline-ruler");
   expect(timelineStyles).toContain("text-transform: none");
-  expect(read("src/modules/video-analysis/timeline/timeline.constants.js")).toContain('id: "tags"');
+  const timelineConstants = read("src/modules/video-analysis/timeline/timeline.constants.js");
+  expect(timelineConstants).toContain('id: "all"');
+  expect(timelineConstants).not.toContain('id: "tags"');
+  expect(timelineConstants).not.toContain('id: "outcome"');
   expect(intelligence).toContain("Phase x Outcome");
   expect(intelligence).toContain("Principle x Player");
   expect(intelligence).toContain("Principle x Unit");
@@ -453,6 +457,18 @@ test("sub-phase buttons own phase assignment for coaching language", async () =>
   expect(panelHtml).toContain("data-video-analysis-mg-principles-open");
   expect(panelHtml).toContain("data-video-analysis-unit-open");
   expect(panelHtml).toContain('data-video-analysis-outcome-tag="Development"');
+
+  const unitPickerHtml = templateBuilder.renderCodingTemplateBuilder({
+    template: { ...template, settings: { unitOptions: ["Line One", "Line Two"] } },
+    codingSession: { panelMode: "use", unitPickerOpen: true, unitEditorOpen: true, unitEditorDraft: ["Line One", "Line Two"] },
+    draft: {},
+    players: [],
+  });
+  expect(unitPickerHtml).toContain("data-video-analysis-unit-edit-open");
+  expect(unitPickerHtml).toContain("data-video-analysis-unit-editor-name");
+  expect(unitPickerHtml).toContain("data-video-analysis-unit-editor-add");
+  expect(unitPickerHtml).toContain("data-video-analysis-unit-editor-save");
+  expect(unitPickerHtml).not.toContain("Choose the involved unit for this timestamp.");
 });
 
 test("player, phase, and sub-phase tags stay separate clip instances", async () => {
@@ -534,7 +550,11 @@ test("player, phase, and sub-phase tags stay separate clip instances", async () 
 
   const allIndex = timelineService.buildTimelineIndex(clips, "all");
   expect(allIndex.clipCount).toBe(3);
-  expect(allIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["All Tags:3"]);
+  expect(allIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual([
+    "Phase / Out of Possession:1",
+    "Sub-phase / High Press:1",
+    "Player / Player Eight:1",
+  ]);
 });
 
 test("unit and outcome quick tags stay separate from sub-phase timeline lanes", async () => {
@@ -578,9 +598,9 @@ test("unit and outcome quick tags stay separate from sub-phase timeline lanes", 
   expect(unitIndex.clipCount).toBe(1);
   expect(unitIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Midfield:1"]);
 
-  const outcomeIndex = timelineService.buildTimelineIndex([unitOnly, outcomeOnly], "outcome");
-  expect(outcomeIndex.clipCount).toBe(2);
-  expect(outcomeIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Development:1", "Neutral:1"]);
+  const allIndex = timelineService.buildTimelineIndex([unitOnly, outcomeOnly], "all");
+  expect(allIndex.clipCount).toBe(1);
+  expect(allIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Unit / Midfield:1"]);
 });
 
 test("legacy phase clips do not appear as Phase lanes in sub-phase timeline", async () => {
@@ -839,6 +859,8 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(templateApi).toContain("video_coding_buttons");
   expect(templateApi).toContain("groupSortOrder");
   expect(templateApi).toContain("isMissingColumn");
+  expect(templateApi).toContain("normalizedReason");
+  expect(templateApi).toContain("column || \"\").toLowerCase()");
   expect(templateApi).toContain("omitColumns(row, TEMPLATE_BEHAVIOR_COLUMNS)");
   expect(templateApi).toContain("writeCodingButtonRow");
   expect(templateApi).toContain("defaultClipDurationMs: template.defaultClipDurationMs");

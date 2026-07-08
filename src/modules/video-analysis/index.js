@@ -9,7 +9,6 @@ import { renderTagFilterOverlay } from "./components/TagFilterOverlay.js";
 import { renderTimeline } from "./components/Timeline.js";
 import { renderVideoLibrary } from "./components/VideoLibrary.js";
 import { renderVideoPlayer } from "./components/VideoPlayer.js";
-import { descriptorGroups } from "./constants/descriptors.js";
 import { miniGamePrinciplePickerGroups, miniGamePrinciplePickerIds } from "./constants/miniGamePrinciples.js";
 import { escapeHtml } from "./components/renderHelpers.js";
 import { createDrawingController } from "./controllers/drawingController.js";
@@ -78,6 +77,7 @@ import {
   updatePresentationSection,
 } from "./services/presentationService.js";
 import { buildTimelineLanes, normalizeTimelineLaneMode, trimClipDraft } from "./services/timelineService.js";
+import { normalizeUnitTagOptions, unitTagOptionsForState, withUnitTagOptions } from "./services/unitTagService.js";
 import { describeVideoPlaybackError, getVideoCurrentMs, seekVideoToMs, toggleVideoPlayback } from "./services/videoPlaybackService.js";
 import { createTimelineScrubController } from "./timeline/timeline.interaction.js";
 import { findScheduleCandidate } from "./services/videoLibraryService.js";
@@ -96,8 +96,6 @@ const pickerMiniGamePrincipleIdSet = new Set(miniGamePrinciplePickerIds);
 const pickerMiniGamePrinciples = miniGamePrinciplePickerGroups.flatMap((group) => (
   group.principles.map((principle) => ({ ...principle, groupLabel: group.label }))
 ));
-const unitTagOptions = descriptorGroups.find((group) => group.id === "unit")?.options || [];
-const unitTagOptionSet = new Set(unitTagOptions);
 const CLIP_PAGE_LIMIT = 200;
 const CLIP_WORKSPACE_LIMIT = 1000;
 const PLAYBACK_RATE_OPTIONS = [0.5, 1, 1.5, 2, 3];
@@ -2393,9 +2391,32 @@ function closeUnitPickerState(state = {}) {
     codingSession: {
       ...(state.codingSession || {}),
       unitPickerOpen: false,
+      unitEditorOpen: false,
+      unitEditorDraft: [],
       unitCapture: null,
     },
   };
+}
+
+function closeUnitEditorState(state = {}) {
+  return {
+    ...state,
+    codingSession: {
+      ...(state.codingSession || {}),
+      unitEditorOpen: false,
+      unitEditorDraft: [],
+    },
+  };
+}
+
+function nextUnitEditorLabel(options = []) {
+  const labels = new Set((Array.isArray(options) ? options : [])
+    .map((option) => String(option || "").trim().toLowerCase())
+    .filter(Boolean));
+  if (!labels.has("new unit")) return "New unit";
+  let index = 2;
+  while (labels.has(`new unit ${index}`)) index += 1;
+  return `New unit ${index}`;
 }
 
 function clipHasTag(clip = {}, tag = "") {
@@ -3803,13 +3824,128 @@ function openUnitCapture(context = {}) {
   return true;
 }
 
+function openUnitEditor(context = {}) {
+  const run = ensureRuntime(context);
+  run.store.update((state) => ({
+    ...state,
+    codingSession: {
+      ...(state.codingSession || {}),
+      unitEditorOpen: true,
+      unitEditorDraft: unitTagOptionsForState(state),
+    },
+    message: "",
+    error: "",
+  }));
+  return true;
+}
+
+function updateUnitEditorDraft(index = 0, value = "", context = {}) {
+  const run = ensureRuntime(context);
+  const draftIndex = Math.max(0, Number(index || 0));
+  run.store.update((state) => {
+    const draft = Array.isArray(state.codingSession?.unitEditorDraft)
+      ? [...state.codingSession.unitEditorDraft]
+      : unitTagOptionsForState(state);
+    draft[draftIndex] = String(value ?? "");
+    return {
+      ...state,
+      codingSession: {
+        ...(state.codingSession || {}),
+        unitEditorDraft: draft,
+      },
+    };
+  });
+  return true;
+}
+
+function addUnitEditorDraftOption(context = {}) {
+  const run = ensureRuntime(context);
+  run.store.update((state) => {
+    const draft = Array.isArray(state.codingSession?.unitEditorDraft)
+      ? [...state.codingSession.unitEditorDraft]
+      : unitTagOptionsForState(state);
+    return {
+      ...state,
+      codingSession: {
+        ...(state.codingSession || {}),
+        unitEditorOpen: true,
+        unitEditorDraft: [...draft, nextUnitEditorLabel(draft)],
+      },
+      message: "",
+      error: "",
+    };
+  });
+  return true;
+}
+
+function removeUnitEditorDraftOption(index = 0, context = {}) {
+  const run = ensureRuntime(context);
+  const draftIndex = Math.max(0, Number(index || 0));
+  run.store.update((state) => {
+    const draft = Array.isArray(state.codingSession?.unitEditorDraft)
+      ? [...state.codingSession.unitEditorDraft]
+      : unitTagOptionsForState(state);
+    const nextDraft = draft.filter((_, optionIndex) => optionIndex !== draftIndex);
+    return {
+      ...state,
+      codingSession: {
+        ...(state.codingSession || {}),
+        unitEditorOpen: true,
+        unitEditorDraft: nextDraft.length ? nextDraft : [""],
+      },
+      message: "",
+      error: "",
+    };
+  });
+  return true;
+}
+
+function saveUnitEditorOptions(context = {}) {
+  const run = ensureRuntime(context);
+  run.store.update((state) => {
+    const draft = Array.isArray(state.codingSession?.unitEditorDraft)
+      ? state.codingSession.unitEditorDraft
+      : unitTagOptionsForState(state);
+    const options = normalizeUnitTagOptions(draft);
+    if (!options.length) {
+      return {
+        ...state,
+        message: "",
+        error: "Keep at least one unit button.",
+      };
+    }
+    const currentUnit = String(state.draft?.unit || "").trim();
+    const currentLastUnit = String(state.codingSession?.lastUnitTag || "").trim();
+    const hasCurrentUnit = !currentUnit || options.includes(currentUnit);
+    const hasLastUnit = !currentLastUnit || options.includes(currentLastUnit);
+    return {
+      ...state,
+      template: withUnitTagOptions(state.template || {}, options),
+      draft: {
+        ...(state.draft || {}),
+        unit: hasCurrentUnit ? currentUnit : "",
+      },
+      codingSession: {
+        ...(state.codingSession || {}),
+        unitEditorOpen: false,
+        unitEditorDraft: [],
+        lastUnitTag: hasLastUnit ? currentLastUnit : "",
+        templateDirty: true,
+      },
+      message: "Unit buttons updated.",
+      error: "",
+    };
+  });
+  return true;
+}
+
 async function createUnitTagFromCapture(unit = "", context = {}) {
   const run = ensureRuntime(context);
   const state = run.store.getState();
   const label = String(unit || "").trim();
   const capture = state.codingSession?.unitCapture || null;
   if (!capture) return false;
-  if (!unitTagOptionSet.has(label)) return false;
+  if (!unitTagOptionsForState(state).includes(label)) return false;
   if (!state.match?.id || !state.video?.id) {
     run.store.setState({ status: "error", message: "", error: "Link a local match or training video before tagging a unit." });
     return false;
@@ -4622,6 +4758,23 @@ export function handleClick(event, context = {}) {
   if (target.closest("[data-video-analysis-unit-open]")) {
     return openUnitCapture(context);
   }
+  if (target.closest("[data-video-analysis-unit-edit-open]")) {
+    return openUnitEditor(context);
+  }
+  if (target.closest("[data-video-analysis-unit-editor-close]")) {
+    run.store.update((state) => closeUnitEditorState(state));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-unit-editor-add]")) {
+    return addUnitEditorDraftOption(context);
+  }
+  const unitEditorRemove = target.closest("[data-video-analysis-unit-editor-remove]");
+  if (unitEditorRemove) {
+    return removeUnitEditorDraftOption(unitEditorRemove.dataset.videoAnalysisUnitEditorRemove, context);
+  }
+  if (target.closest("[data-video-analysis-unit-editor-save]")) {
+    return saveUnitEditorOptions(context);
+  }
   if (target.closest("[data-video-analysis-unit-close]")) {
     run.store.update((state) => closeUnitPickerState(state));
     return true;
@@ -4738,7 +4891,7 @@ export function handleClick(event, context = {}) {
       ...state,
       timeline: {
         ...(state.timeline || {}),
-        laneMode: "tags",
+        laneMode: "all",
         tagFilterOpen: true,
       },
     }));
@@ -5300,6 +5453,10 @@ export function handleInput(event, context = {}) {
       },
     }));
     return true;
+  }
+  const unitEditorField = target.closest("[data-video-analysis-unit-editor-name]");
+  if (unitEditorField) {
+    return updateUnitEditorDraft(unitEditorField.dataset.videoAnalysisUnitEditorName, unitEditorField.value, context);
   }
   const buttonField = target.closest("[data-video-analysis-button-field]");
   if (buttonField) {

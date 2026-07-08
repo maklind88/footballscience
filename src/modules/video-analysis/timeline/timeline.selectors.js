@@ -1,5 +1,5 @@
 import { clipMiniGamePrincipleLabels, miniGamePrincipleLabel } from "../services/miniGamePrincipleService.js";
-import { isOutcomeOnlyClip, isPhaseOnlyClip, isPlayerOnlyClip, isSubPhaseOnlyClip, isUnitOnlyClip } from "../services/clipInstanceService.js";
+import { isPhaseOnlyClip, isPlayerOnlyClip, isSubPhaseOnlyClip, isUnitOnlyClip } from "../services/clipInstanceService.js";
 import { videoAnalysisPhases } from "../constants/phases.js";
 import { videoAnalysisSubPhases } from "../constants/subPhases.js";
 
@@ -37,12 +37,18 @@ export function playerLaneLabels(clip = {}) {
   return [...new Set(labels)];
 }
 
+export function tagLaneLabels(clip = {}) {
+  const labels = (Array.isArray(clip.tags) ? clip.tags : [])
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  return [...new Set(labels)];
+}
+
 export function inferredTimelineClipKind(clip = {}) {
   if (isPlayerOnlyClip(clip)) return "player";
   if (isPhaseOnlyClip(clip)) return "phase";
   if (isSubPhaseOnlyClip(clip)) return "subPhase";
   if (isUnitOnlyClip(clip)) return "unit";
-  if (isOutcomeOnlyClip(clip)) return "outcome";
   const phase = String(clipValue(clip, "phase", "phase") || "").trim();
   const subPhase = String(clipValue(clip, "subPhase", "sub_phase") || "").trim();
   if (subPhase === "Player" && playerLaneLabels(clip).length) return "player";
@@ -78,8 +84,26 @@ export function getTimelineLaneValue(clip = {}, laneMode = "phase") {
   return getTimelineLaneValues(clip, laneMode)[0] || "Uncoded";
 }
 
+function prefixedLaneLabels(prefix = "", labels = []) {
+  return labels
+    .map((label) => String(label || "").trim())
+    .filter(Boolean)
+    .map((label) => `${prefix} / ${label}`);
+}
+
+export function getAllTimelineLaneValues(clip = {}) {
+  return [
+    ...getTimelineLaneValues(clip, "phase").map((label) => `Phase / ${label}`),
+    ...getTimelineLaneValues(clip, "subPhase").map((label) => `Sub-phase / ${label}`),
+    ...prefixedLaneLabels("MG Principle", getClipMiniGamePrincipleLaneLabels(clip)),
+    ...prefixedLaneLabels("Tag", tagLaneLabels(clip)),
+    ...prefixedLaneLabels("Player", playerLaneLabels(clip)),
+    ...prefixedLaneLabels("Unit", getTimelineLaneValues(clip, "unit")),
+  ];
+}
+
 export function getTimelineLaneValues(clip = {}, laneMode = "phase") {
-  if (laneMode === "all") return ["All Tags"];
+  if (laneMode === "all") return getAllTimelineLaneValues(clip);
   const clipKind = inferredTimelineClipKind(clip);
   if (laneMode === "player") {
     const players = playerLaneLabels(clip);
@@ -96,12 +120,10 @@ export function getTimelineLaneValues(clip = {}, laneMode = "phase") {
     const subPhase = String(clipValue(clip, "subPhase", "sub_phase") || "").trim();
     return subPhaseLabels.has(subPhase) ? [subPhase] : [];
   }
-  if (laneMode === "tags") return [Array.isArray(clip.tags) && clip.tags.length ? clip.tags[0] : "No tag"];
   if (laneMode === "unit") {
     const unit = firstDescriptorValue(clip, "unit");
     return unit ? [unit] : [];
   }
-  if (laneMode === "outcome") return [clipValue(clip, "outcome", "outcome") || "Neutral"];
   if (laneMode === "miniGamePrinciple") return getClipMiniGamePrincipleLaneLabels(clip);
   return [clipValue(clip, "phase", "phase") || "Uncoded"];
 }
@@ -111,9 +133,6 @@ export function getClipPrimaryLabel(clip = {}, laneMode = "phase") {
   if (isSubPhaseOnlyClip(clip)) return clipValue(clip, "subPhase", "sub_phase") || "Sub-phase";
   if (isPlayerOnlyClip(clip)) return firstPlayerLabel(clip);
   if (isUnitOnlyClip(clip)) return firstDescriptorValue(clip, "unit") || "Unit";
-  if (isOutcomeOnlyClip(clip)) return clipValue(clip, "outcome", "outcome") || "Outcome";
-  if (laneMode === "outcome") return clipValue(clip, "phase", "phase") || "Uncoded";
-  if (laneMode === "tags") return clipValue(clip, "outcome", "outcome") || "Neutral";
   return clipValue(clip, "outcome", "outcome") || getTimelineLaneValue(clip, laneMode);
 }
 
@@ -122,7 +141,6 @@ export function getClipSecondaryLabel(clip = {}) {
   if (isSubPhaseOnlyClip(clip)) return clipValue(clip, "phase", "phase") || "Sub-phase";
   if (isPlayerOnlyClip(clip)) return firstPlayerLabel(clip);
   if (isUnitOnlyClip(clip)) return "Unit";
-  if (isOutcomeOnlyClip(clip)) return "Outcome";
   const phase = clipValue(clip, "phase", "phase") || "Uncoded";
   const subPhase = clipValue(clip, "subPhase", "sub_phase") || "";
   const player = firstPlayerLabel(clip);

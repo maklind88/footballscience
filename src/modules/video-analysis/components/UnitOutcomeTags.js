@@ -1,12 +1,15 @@
-import { descriptorGroups } from "../constants/descriptors.js";
+import { unitTagOptionsForState } from "../services/unitTagService.js";
 import { escapeHtml } from "./renderHelpers.js";
-
-const unitOptions = Object.freeze(
-  descriptorGroups.find((group) => group.id === "unit")?.options || []
-);
 
 function selectedUnitLabel(state = {}) {
   return String(state.codingSession?.lastUnitTag || state.draft?.unit || "").trim();
+}
+
+function unitEditorDraftOptions(state = {}) {
+  if (Array.isArray(state.codingSession?.unitEditorDraft)) {
+    return state.codingSession.unitEditorDraft.map((option) => String(option ?? ""));
+  }
+  return unitTagOptionsForState(state);
 }
 
 export function renderUnitLauncher(state = {}) {
@@ -49,9 +52,55 @@ export function renderOutcomeTagLauncher(state = {}) {
   `;
 }
 
+function renderUnitEditor(state = {}) {
+  if (!state.codingSession?.unitEditorOpen) return "";
+  const draftOptions = unitEditorDraftOptions(state);
+  const hasSavableOption = draftOptions.some((option) => String(option || "").trim());
+  return `
+    <div class="video-analysis-unit-editor-overlay" role="dialog" aria-modal="true" aria-labelledby="video-analysis-unit-editor-title">
+      <button type="button" class="video-analysis-unit-editor-backdrop" data-video-analysis-unit-editor-close aria-label="Close unit editor"></button>
+      <section class="video-analysis-unit-editor-panel">
+        <header class="video-analysis-unit-editor-header">
+          <div>
+            <p class="video-analysis-kicker">Units</p>
+            <h4 id="video-analysis-unit-editor-title">Edit unit buttons</h4>
+          </div>
+          <button type="button" class="video-analysis-mg-picker-close" data-video-analysis-unit-editor-close aria-label="Close"></button>
+        </header>
+        <div class="video-analysis-unit-editor-list">
+          ${draftOptions.map((unit, index) => `
+            <label class="video-analysis-unit-editor-row">
+              <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+              <input
+                type="text"
+                value="${escapeHtml(unit)}"
+                data-video-analysis-unit-editor-name="${escapeHtml(index)}"
+                aria-label="Unit name ${escapeHtml(index + 1)}"
+              >
+              <button
+                type="button"
+                data-video-analysis-unit-editor-remove="${escapeHtml(index)}"
+                aria-label="Remove ${escapeHtml(unit || `unit ${index + 1}`)}"
+              >Remove</button>
+            </label>
+          `).join("")}
+        </div>
+        <footer class="video-analysis-unit-editor-footer">
+          <button type="button" class="video-analysis-unit-editor-add" data-video-analysis-unit-editor-add>Add unit</button>
+          <div>
+            <button type="button" class="video-analysis-unit-editor-cancel" data-video-analysis-unit-editor-close>Cancel</button>
+            <button type="button" class="video-analysis-unit-editor-save" data-video-analysis-unit-editor-save ${hasSavableOption ? "" : "disabled"}>Save units</button>
+          </div>
+        </footer>
+      </section>
+    </div>
+  `;
+}
+
 export function renderUnitPicker(state = {}) {
   if (!state.codingSession?.unitPickerOpen) return "";
   const selected = selectedUnitLabel(state);
+  const unitOptions = unitTagOptionsForState(state);
   return `
     <div class="video-analysis-mg-picker-overlay video-analysis-unit-picker-overlay" role="dialog" aria-modal="true" aria-labelledby="video-analysis-unit-picker-title">
       <button type="button" class="video-analysis-mg-picker-backdrop" data-video-analysis-unit-close aria-label="Close unit picker"></button>
@@ -60,7 +109,10 @@ export function renderUnitPicker(state = {}) {
           <div class="video-analysis-mg-picker-titlebar">
             <h3 id="video-analysis-unit-picker-title">Unit</h3>
           </div>
-          <button type="button" class="video-analysis-mg-picker-close" data-video-analysis-unit-close aria-label="Close"></button>
+          <div class="video-analysis-mg-picker-header-actions">
+            <button type="button" class="video-analysis-unit-picker-edit" data-video-analysis-unit-edit-open>Edit</button>
+            <button type="button" class="video-analysis-mg-picker-close" data-video-analysis-unit-close aria-label="Close"></button>
+          </div>
         </header>
         <div class="video-analysis-mg-picker-body">
           <section class="video-analysis-unit-picker-group">
@@ -78,14 +130,8 @@ export function renderUnitPicker(state = {}) {
             </div>
           </section>
         </div>
-        <footer class="video-analysis-mg-picker-footer">
-          <span>Choose the involved unit for this timestamp.</span>
-        </footer>
       </section>
+      ${renderUnitEditor(state)}
     </div>
   `;
-}
-
-export function unitTagOptions() {
-  return [...unitOptions];
 }

@@ -3704,7 +3704,7 @@ async function createMiniGamePrincipleTagFromCapture(principleId = "", context =
         postRollMs: durationMs,
         miniGamePrincipleDraftIds: nextIds,
         miniGamePrinciplePickerOpen: true,
-        miniGamePrincipleSearch: state.codingSession?.miniGamePrincipleSearch || "",
+        miniGamePrincipleSearch: current.codingSession?.miniGamePrincipleSearch || state.codingSession?.miniGamePrincipleSearch || "",
         miniGamePrincipleCapture: capture,
       },
       timeline: {

@@ -402,6 +402,7 @@ test("idp renderer separates the overview from the player development profile", 
     `,
   };
   state.dashboardPlayers[0].profile.ownerId = "coach-1";
+  state.dashboardPlayers[0].profile.photoUrl = "data:image/png;base64,overview123";
   state.playerDetail.profile.ownerId = "coach-1";
   state.playerDetail.ownership = [{ owner_id: "coach-1", ownership_type: "player-owner", status: "active" }];
   state.playerDetail.goals = state.playerDetail.goals.map((goal, index) => ({
@@ -439,6 +440,8 @@ test("idp renderer separates the overview from the player development profile", 
   expect(overviewHtml).not.toContain("Video Analyst");
   expect(overviewHtml).toContain("Player Development");
   expect(overviewHtml).toContain("North Carolina Courage");
+  expect(overviewHtml).toContain('class="idp-player-avatar has-photo"');
+  expect(overviewHtml).toContain("data:image/png;base64,overview123");
   expect(overviewHtml).toContain("Current Focus");
   expect(overviewHtml).toContain("Next Action");
   expect(overviewHtml).toContain("Observations");

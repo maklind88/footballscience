@@ -600,7 +600,31 @@
   font-weight: 900;
   height: 34px;
   justify-content: center;
+  overflow: hidden;
+  position: relative;
   width: 34px;
+}
+
+.idp-player-avatar img {
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  width: 100%;
+}
+
+.idp-player-avatar.has-photo {
+  background: #fff;
+  border-color: rgba(16, 24, 40, .09);
+}
+
+.idp-player-avatar.has-photo strong {
+  display: none;
+}
+
+.idp-player-avatar.is-initials img {
+  display: none;
 }
 
 .idp-player-avatar.is-large {

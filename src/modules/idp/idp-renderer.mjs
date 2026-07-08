@@ -318,6 +318,20 @@ function renderPlayerHeaderMark(profile = {}) {
   `;
 }
 
+function renderOverviewPlayerAvatar(profile = {}) {
+  const playerName = normalizeText(profile.playerName || profile.name, "Player");
+  const photoUrl = getPlayerPhotoUrl(profile);
+  const initials = initialsFromName(playerName, "P");
+  return `
+    <span class="idp-player-avatar${photoUrl ? " has-photo" : " is-initials"}" aria-label="${escapeHtml(`${playerName} profile image`)}">
+      ${photoUrl
+        ? `<img src="${escapeHtml(photoUrl)}" alt="" loading="lazy" onerror="this.hidden=true;this.closest('.idp-player-avatar')?.classList.remove('has-photo');this.closest('.idp-player-avatar')?.classList.add('is-initials');">`
+        : ""}
+      <strong>${escapeHtml(initials)}</strong>
+    </span>
+  `;
+}
+
 function renderWorkspaceHeader(state = {}, canEdit = false, options = {}) {
   const ui = { ...defaultUiState, ...(state.ui || {}) };
   const hasSelectedPlayer = Boolean(ui.selectedPlayerId);
@@ -489,7 +503,7 @@ function renderOverviewRows(state = {}, dashboard = filterDashboardRows(state), 
       <button type="button" class="idp-overview-row is-${escapeHtml(tone)}${active ? " is-active" : ""}" data-idp-player="${escapeHtml(profile.playerId)}">
         <span class="idp-overview-rank" aria-label="${escapeHtml(squadNumber ? `Squad number ${squadNumber}` : "Squad number not set")}">${escapeHtml(squadNumber || "-")}</span>
         <span class="idp-overview-player">
-          <span class="idp-player-avatar" aria-hidden="true">${escapeHtml(initialsFromName(playerName, "P"))}</span>
+          ${renderOverviewPlayerAvatar(profile)}
           <span>
             <strong>${escapeHtml(playerName)}</strong>
             <small>

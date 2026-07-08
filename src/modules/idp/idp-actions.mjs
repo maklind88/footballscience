@@ -194,6 +194,15 @@ function primaryFocus(detail = {}) {
   return Array.isArray(detail?.focuses) ? detail.focuses[0] || null : null;
 }
 
+function hasActiveEditingSurface(ui = {}) {
+  return Boolean(
+    ui.actionMode ||
+    ui.playerBoardOpen ||
+    ui.playerBoardHandoutOpen ||
+    ui.clipPreviewOpen
+  );
+}
+
 function observationFocusTitle(detail = {}) {
   const focus = primaryFocus(detail);
   const title = normalizeText(focus?.title, 180);
@@ -498,10 +507,12 @@ export function createIdpActions({ store, api, context = {} }) {
 
   async function checkForExternalUpdates() {
     const currentState = store.getState();
-    if (currentState.ui.loading || currentState.ui.playerBoardOpen) return false;
+    if (currentState.ui.loading || hasActiveEditingSurface(currentState.ui)) return false;
     const payload = await api.loadSync();
+    const latestState = store.getState();
+    if (latestState.ui.loading || hasActiveEditingSurface(latestState.ui)) return false;
     const nextSync = normalizeSyncPayload(payload);
-    const currentRevision = normalizeText(currentState.sync?.revision, 120);
+    const currentRevision = normalizeText(latestState.sync?.revision, 120);
     if (!nextSync.revision || !currentRevision) {
       store.setState({ sync: nextSync });
       return false;

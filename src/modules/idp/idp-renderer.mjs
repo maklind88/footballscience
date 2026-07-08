@@ -1893,7 +1893,7 @@ export function renderIdpWorkspace(state = {}, options = {}) {
   return `
     <section class="idp-shell${hasSelectedPlayer ? " is-profile-mode" : " is-overview-mode"}">
       ${renderWorkspaceHeader(state, canEdit, options)}
-      ${ui.loading ? `<div class="idp-notice">Loading player development plans.</div>` : ""}
+      ${ui.loading ? `<div class="idp-notice is-loading platform-inline-toast" role="status" aria-live="polite">Loading player development plans.</div>` : ""}
       ${ui.error ? `<div class="idp-notice is-warning">${escapeHtml(ui.error)}</div>` : ""}
       ${ui.message ? `<div class="idp-notice platform-inline-toast is-success" role="status" aria-live="polite">${escapeHtml(ui.message)}</div>` : ""}
       ${hasSelectedPlayer ? renderPlayerProfile(state, canEdit, options) : renderOverviewBoard(state, ui, options)}

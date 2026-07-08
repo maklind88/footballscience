@@ -176,8 +176,67 @@
   color: #92400e;
 }
 
-.idp-shell > .idp-notice.platform-inline-toast {
+.idp-shell > .idp-notice:not(.is-warning) {
+  align-items: start !important;
+  animation: platformToastLifecycle 3.2s ease both !important;
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  background: linear-gradient(180deg, #fffffff5, #f2fbf6f0) !important;
+  border: 1px solid #c8ead8 !important;
+  border-radius: 999px !important;
+  bottom: auto !important;
+  box-shadow: 0 18px 48px #0f172a1f, 0 1px 0 #ffffff inset !important;
+  box-sizing: border-box;
+  color: #145f49 !important;
+  column-gap: .5rem;
+  display: grid !important;
+  font-size: .74rem !important;
+  font-weight: 850 !important;
+  grid-template-columns: auto minmax(0, 1fr);
+  left: auto !important;
+  line-height: 1.16 !important;
   margin: 0 !important;
+  max-width: min(21rem, calc(100vw - 2rem)) !important;
+  min-height: 2.05rem !important;
+  min-width: 0 !important;
+  overflow-wrap: anywhere;
+  padding: .52rem .74rem !important;
+  pointer-events: none;
+  position: fixed !important;
+  right: max(1rem, env(safe-area-inset-right)) !important;
+  row-gap: .18rem;
+  top: max(5.35rem, calc(env(safe-area-inset-top, 0px) + 1rem)) !important;
+  transform: translate3d(0, 0, 0);
+  width: max-content !important;
+  z-index: 720 !important;
+}
+
+.idp-shell > .idp-notice:not(.is-warning)::before {
+  background: #1f8f65;
+  border-radius: 999px;
+  box-shadow: 0 0 0 .18rem #1f8f6521;
+  content: "";
+  grid-column: 1;
+  grid-row: 1;
+  height: .52rem;
+  margin-top: .16rem;
+  width: .52rem;
+}
+
+.idp-shell > .idp-notice:not(.is-warning) > * {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.idp-shell > .idp-notice.is-loading {
+  background: linear-gradient(180deg, #fffffff5, #f5f8fff0) !important;
+  border-color: rgba(36, 87, 166, .2) !important;
+  color: #1d4f91 !important;
+}
+
+.idp-shell > .idp-notice.is-loading::before {
+  background: #2f6fed;
+  box-shadow: 0 0 0 .18rem rgba(47, 111, 237, .14);
 }
 
 .idp-workbench {

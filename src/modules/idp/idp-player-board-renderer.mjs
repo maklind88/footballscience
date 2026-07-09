@@ -1219,15 +1219,15 @@ function renderBoardLayerItem(entry = {}, selectedKey = "player") {
 function renderBoardLayerList(state = {}, profile = {}) {
   const entries = boardLayerEntries(state, profile);
   return `
-    <section class="idp-board-layer-manager" aria-label="Board objects">
-      <div class="idp-board-layer-manager-head">
+    <details class="idp-board-layer-manager idp-board-disclosure" aria-label="Board objects">
+      <summary class="idp-board-layer-manager-head">
         <span>Layers</span>
         <small data-idp-board-layer-count>${escapeHtml(String(entries.length))}</small>
-      </div>
+      </summary>
       <div class="idp-board-layer-list" data-idp-board-layer-list>
         ${entries.map((entry) => renderBoardLayerItem(entry)).join("")}
       </div>
-    </section>
+    </details>
   `;
 }
 
@@ -1276,7 +1276,7 @@ function renderBoardFrameStrip(frames = [], activeFrameIndex = 0) {
   return `
     <div class="session-tacticalboard-frames idp-player-board-editor-framebar" aria-label="IDP board frames">
       <div class="session-tacticalboard-panel-head idp-player-board-editor-panel-head">
-        <span>Frames</span>
+        <span>Animation</span>
         <small data-idp-board-frame-status>${escapeHtml(frameStatusLabel)}</small>
       </div>
       <div class="session-tacticalboard-frame-list idp-player-board-frame-list">
@@ -1303,7 +1303,7 @@ function renderBoardFrameStrip(frames = [], activeFrameIndex = 0) {
         <button type="button" data-idp-board-redo disabled title="Redo">Redo</button>
       </div>
       <div class="idp-player-board-frame-actions" aria-label="Frame controls">
-        <button type="button" data-idp-board-frame-add title="Add frame">New</button>
+        <button type="button" data-idp-board-frame-add title="Add frame">New frame</button>
         <button type="button" data-idp-board-frame-duplicate title="Duplicate active frame">Duplicate</button>
         <button type="button" data-idp-board-play title="Play frames">Play</button>
         <button type="button" data-idp-board-stop hidden title="Stop playback">Stop</button>
@@ -1333,6 +1333,12 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
   const frame = state.frames?.[activeFrameIndex] || state.frames?.[0] || {};
   const frameStatusLabel = `${activeFrameIndex + 1} / ${state.frames?.length || 1}`;
   const linkedClipIds = Array.isArray(state.linkedClipIds) ? state.linkedClipIds.join(", ") : "";
+  const focusTitle = focus?.title || "No active focus";
+  const focusLinkLabel = !focus?.id
+    ? "Create a current focus before saving this exercise."
+    : intervention.focusId && intervention.focusId !== focus.id
+      ? "This board was created for another focus. Save to sync it to the current IDP."
+      : "Board language follows the current IDP focus.";
   return `
     <div class="session-library-overlay session-tacticalboard-overlay idp-player-board-layer" data-idp-player-board-layer>
       <section class="session-library-modal session-tacticalboard-modal idp-player-board-modal idp-player-board-modal-tool-player" role="dialog" aria-modal="true" aria-label="IDP Player Board editor" data-idp-board-active-tool="player">
@@ -1397,7 +1403,11 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
             <input type="hidden" name="boardFramesJson" value="${fieldValue(JSON.stringify(state.frames || []))}" data-idp-board-frames>
             <input type="hidden" name="linkedClipIds" value="${fieldValue(linkedClipIds)}" data-idp-board-linked-clip-ids>
             ${renderBoardGeometryInputs({ player, reference, cones, zone, arrow, note })}
-            ${renderBoardLayerList(state, profile)}
+            <section class="idp-board-focus-context">
+              <span>Current IDP focus</span>
+              <strong>${escapeHtml(focusTitle)}</strong>
+              <small>${escapeHtml(focusLinkLabel)}</small>
+            </section>
             <section class="idp-tactical-inspector-card is-selected" data-idp-board-inspector>
               <span>Selected Tool</span>
               <strong data-idp-board-active-tool-label>Move Player</strong>
@@ -1408,6 +1418,7 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
               </div>
               <p data-idp-board-hint-state>Click the pitch to place or update the selected element.</p>
             </section>
+            ${renderBoardLayerList(state, profile)}
             <details class="idp-player-board-frame-inspector idp-board-disclosure" data-idp-board-frame-inspector>
               <summary class="idp-player-board-frame-inspector-head">
                 <span>Frame Inspector</span>

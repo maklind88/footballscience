@@ -168,7 +168,7 @@ export function renderMiniGamePrinciplePicker(state = {}) {
           ${hasResults ? "" : `<section class="video-analysis-mg-picker-empty">No principles found.</section>`}
         </div>
         <footer class="video-analysis-mg-picker-footer">
-          <span>${capture ? escapeHtml(`${selectedIds.size} tag${selectedIds.size === 1 ? "" : "s"} created at ${Math.round(Number(capture.startMs || 0))}ms`) : escapeHtml(`${selectedIds.size} selected`)}</span>
+          <span>${capture ? escapeHtml(`${selectedIds.size} principle${selectedIds.size === 1 ? "" : "s"} selected at ${Math.round(Number(capture.startMs || 0))}ms`) : escapeHtml(`${selectedIds.size} selected`)}</span>
           ${capture ? "" : `<button type="button" data-video-analysis-mg-principles-clear>Clear</button>`}
           <button type="button" class="video-analysis-primary-action" data-video-analysis-mg-principles-apply>
             ${capture ? "Done" : targetClip ? "Save to clip" : "Use for next tag"}

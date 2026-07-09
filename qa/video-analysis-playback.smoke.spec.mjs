@@ -1557,6 +1557,42 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await expect(page.locator("[data-video-analysis-mg-principles-open]")).not.toContainText("choose");
   await page.evaluate(() => {
     const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "currentTime", { configurable: true, value: 100 });
+    Object.defineProperty(video, "paused", { configurable: true, value: false });
+  });
+  const saveCountBeforeExistingClipMg = await page.evaluate(() => {
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
+  });
+  await page.locator("[data-video-analysis-mg-principles-open]").click();
+  await expect(page.locator(".video-analysis-mg-picker-overlay")).toBeVisible();
+  await page.locator('[data-video-analysis-mg-principle-toggle="drive-past-press"]').click();
+  await expect.poll(() => page.evaluate(() => {
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
+  })).toBe(saveCountBeforeExistingClipMg + 1);
+  await expect.poll(() => page.evaluate(() => {
+    const request = (window.__videoAnalysisRequests || [])
+      .filter((item) => item.action === "save-clip")
+      .at(-1);
+    const clip = request?.body?.clip || {};
+    return {
+      hasId: Boolean(clip.id),
+      startMs: clip.startMs,
+      endMs: clip.endMs,
+      labels: (clip.labels || []).map((label) => label.value || label.label_value),
+      miniGamePrincipleId: clip.miniGamePrincipleId,
+    };
+  })).toEqual({
+    hasId: true,
+    startMs: 96000,
+    endMs: 111000,
+    labels: ["drive-past-press"],
+    miniGamePrincipleId: "drive-past-press",
+  });
+  await page.locator("[data-video-analysis-mg-principles-apply]").click();
+  await expect(page.locator(".video-analysis-mg-picker-overlay")).toHaveCount(0);
+
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
     Object.defineProperty(video, "currentTime", { configurable: true, value: 123.456 });
     Object.defineProperty(video, "paused", { configurable: true, value: false });
   });
@@ -1573,7 +1609,7 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await expect(page.locator(".video-analysis-mg-picker-overlay")).not.toContainText("Stored as suggestions");
   await expect(page.locator(".video-analysis-mg-picker-overlay")).not.toContainText("Football Science Core");
   await expect(page.locator(".video-analysis-mg-picker-search")).toBeVisible();
-  await expect(page.locator(".video-analysis-mg-picker-footer")).toContainText("0 tags created at 123456ms");
+  await expect(page.locator(".video-analysis-mg-picker-footer")).toContainText("0 principles selected at 123456ms");
   await expect(page.locator(".video-analysis-mg-picker-group").first()).toContainText("Suggested for Build Up");
   await expect(page.locator(".video-analysis-mg-picker-group").first()).toContainText("Drive past press");
   await expect(page.locator(".video-analysis-mg-picker-group").first()).toContainText("FT3");
@@ -1581,7 +1617,7 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
   await expect.poll(() => page.evaluate(() => {
     return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
   })).toBe(saveCountBeforeMgCapture + 1);
-  await expect(page.locator(".video-analysis-mg-picker-footer")).toContainText("1 tag created at 123456ms");
+  await expect(page.locator(".video-analysis-mg-picker-footer")).toContainText("1 principle selected at 123456ms");
   await page.locator(".video-analysis-mg-picker-search").fill("FT3");
   await expect(page.locator(".video-analysis-mg-picker-overlay")).toContainText("FT3 (Find the Third)");
   await expect(page.locator(".video-analysis-mg-picker-overlay")).not.toContainText("Drive past press");
@@ -1591,6 +1627,7 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     const requests = (window.__videoAnalysisRequests || [])
       .filter((item) => item.action === "save-clip" && [123456, 123457].includes(item.body?.clip?.startMs));
     return requests.map((item) => ({
+      hasId: Boolean(item.body?.clip?.id),
       startMs: item.body?.clip?.startMs,
       endMs: item.body?.clip?.endMs,
       labels: (item.body?.clip?.labels || []).map((label) => label.value || label.label_value),
@@ -1598,19 +1635,21 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
     }));
   })).toEqual([
     {
+      hasId: false,
       startMs: 123456,
       endMs: 138456,
       labels: ["drive-past-press"],
       miniGamePrincipleId: "drive-past-press",
     },
     {
+      hasId: true,
       startMs: 123456,
       endMs: 138456,
-      labels: ["ft3-find-the-third"],
-      miniGamePrincipleId: "ft3-find-the-third",
+      labels: ["drive-past-press", "ft3-find-the-third"],
+      miniGamePrincipleId: "drive-past-press",
     },
   ]);
-  await expect(page.locator(".video-analysis-mg-picker-footer")).toContainText("2 tags created at 123456ms");
+  await expect(page.locator(".video-analysis-mg-picker-footer")).toContainText("2 principles selected at 123456ms");
   await page.locator("[data-video-analysis-mg-principles-apply]").click();
   await expect(page.locator(".video-analysis-mg-picker-overlay")).toHaveCount(0);
 

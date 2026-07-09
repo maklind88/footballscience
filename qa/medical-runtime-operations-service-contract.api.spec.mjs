@@ -308,15 +308,27 @@ test("Medical runtime operations service preserves filtering, bulk recommendatio
       status: "modified",
       participation: 75,
       actualParticipation: 50,
+      comment: "Limited after warmup.",
+      coachNote: "Monitor change of direction.",
+      shareWithCoach: true,
     },
     ...harness.state.records.filter((record) => record.playerId !== "p1" || record.date !== "2026-05-31" || record.archivedAt),
   ];
-  const protectedQuickClear = harness.service.clearMedicalQuickRecommendation("p1");
-  expect(protectedQuickClear).toMatchObject({
-    archivedRecord: null,
-    cleared: false,
+  const detailQuickClear = harness.service.clearMedicalQuickRecommendation("p1");
+  expect(detailQuickClear).toMatchObject({
+    cleared: true,
+    archivedRecord: {
+      id: "record-with-actual",
+      actualParticipation: 50,
+      comment: "Limited after warmup.",
+      coachNote: "Monitor change of direction.",
+      shareWithCoach: true,
+      archivedAt: "2026-05-31T10:00:00.000Z",
+    },
   });
-  expect(protectedQuickClear.blockReason).toContain("logged details");
+  expect(harness.state.records.filter((record) =>
+    record.playerId === "p1" && record.date === "2026-05-31" && !record.archivedAt
+  )).toEqual([]);
 
   harness.service.setMedicalBulkSelection(["p1", "p2", "p3"], "2026-06-01");
   expect(Array.from(harness.bulkSelectedPlayerIds).sort()).toEqual(["p1", "p2"]);

@@ -259,21 +259,10 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     );
   }
 
-  function hasMedicalQuickRecommendationDetails(record) {
-    const actualParticipation = record?.actualParticipation ?? medicalActualParticipationFallback;
-    return (
-      (actualParticipation !== medicalActualParticipationFallback && actualParticipation !== "") ||
-      Boolean(String(record?.comment || "").trim()) ||
-      Boolean(String(record?.coachNote || "").trim()) ||
-      Boolean(record?.shareWithCoach)
-    );
-  }
-
-  function isPlainMedicalQuickRecommendationRecord(record) {
+  function isManualMedicalQuickRecommendationRecord(record) {
     return Boolean(record) &&
       !record.source &&
-      !record.injuryPlanId &&
-      !hasMedicalQuickRecommendationDetails(record);
+      !record.injuryPlanId;
   }
 
   function getSameDayManualMedicalRecords(playerId, dateValue, currentRecord = null) {
@@ -292,11 +281,8 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     if (record.source || record.injuryPlanId) {
       return "This availability is controlled by Squad Room or an active medical plan.";
     }
-    if (hasMedicalQuickRecommendationDetails(record)) {
-      return "Open the player profile to archive this recommendation because it includes logged details.";
-    }
-    if (sameDayRecords.some((candidate) => !isPlainMedicalQuickRecommendationRecord(candidate))) {
-      return "Open the player profile to archive this recommendation because this day includes logged details.";
+    if (!sameDayRecords.some(isManualMedicalQuickRecommendationRecord)) {
+      return "No manual recommendation to clear.";
     }
     return "";
   }
@@ -306,7 +292,7 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     if (blockReason) {
       return [];
     }
-    return sameDayRecords.filter(isPlainMedicalQuickRecommendationRecord);
+    return sameDayRecords.filter(isManualMedicalQuickRecommendationRecord);
   }
 
   function applyMedicalQuickRecommendation(playerId, participationValue) {

@@ -209,6 +209,33 @@ test("video analysis timeline can show one coded moment in every involved player
   expect(index.clipIdsByLane.get("Player Nine")).toEqual(["clip-high-press"]);
 });
 
+test("video analysis timeline shows exact timing for the selected clip", async () => {
+  const timelineRenderer = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.renderer.js")).href);
+  const html = timelineRenderer.renderTimeline({
+    selectedClipId: "clip-high-press",
+    videoRef: { durationMs: 315000 },
+    timeline: { laneMode: "subPhase", playheadMs: 38000 },
+    clips: [{
+      id: "clip-high-press",
+      startMs: 30000,
+      endMs: 45000,
+      phase: "Out of Possession",
+      subPhase: "High Press",
+      outcome: "Neutral",
+      miniGamePrincipleId: "press-within-press-radius",
+      metadata: { clipKind: "subPhase" },
+    }],
+  });
+
+  expect(html).toContain("data-video-analysis-timeline-focus");
+  expect(html).toContain("data-video-analysis-timeline-focus-window");
+  expect(html).toContain("High Press");
+  expect(html).toContain("0:00:30");
+  expect(html).toContain("0:00:45");
+  expect(html).toContain("0:00:15");
+  expect(html).toContain("Press (within press-radius)");
+});
+
 test("video player transport time follows timeline duration and live video time updates", async () => {
   const player = await import(pathToFileURL(path.join(moduleDir, "components/VideoPlayer.js")).href);
   const timelineInteraction = read("src/modules/video-analysis/timeline/timeline.interaction.js");

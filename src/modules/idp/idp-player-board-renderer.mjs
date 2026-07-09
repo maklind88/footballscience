@@ -97,9 +97,19 @@ function boardObjectPointLabel(point = null) {
 function renderBoardToolSvgIcon(tool = "player") {
   const icons = {
     player: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2.4"></circle></svg>',
+    "red-player": '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><path d="M12 8v8"></path><path d="M8 12h8"></path></svg>',
     reference: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><path d="M8.5 15.5 15.5 8.5"></path></svg>',
+    neutral: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><path d="M8 16 16 8"></path></svg>',
+    ball: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>',
+    coach: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"></circle><path d="M9 12h6"></path><path d="M12 9v6"></path></svg>',
     cone: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5h4l2 12H8l2-12Z"></path><path d="M6 19h12"></path><path d="M9 13h6"></path></svg>',
+    goal: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17V7h14v10"></path><path d="M5 17h14"></path><path d="M9 17V7"></path><path d="M15 17V7"></path></svg>',
+    dummy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M9 8h6"></path><path d="M10 19h4"></path><circle cx="12" cy="5" r="1.5"></circle></svg>',
+    pole: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16"></path><path d="M8 20h8"></path></svg>',
+    gate: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18V8"></path><path d="M18 18V8"></path><path d="M6 18h12"></path></svg>',
+    "dashed-zone": '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="7" width="14" height="10" rx="2" stroke-dasharray="2 2"></rect></svg>',
     zone: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="7" width="14" height="10" rx="2"></rect><path d="M8 10h8"></path></svg>',
+    circle: '<svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="7" ry="4"></ellipse></svg>',
     arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18 18 5"></path><path d="M12 5h6v6"></path></svg>',
     pass: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13"></path><path d="m14 8 4 4-4 4"></path><circle cx="5" cy="12" r="1.5"></circle></svg>',
     run: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18c3-8 8-11 14-12"></path><path d="M14 5h5v5"></path><path d="M8 15l2 2"></path></svg>',
@@ -1182,8 +1192,8 @@ function renderBoardLayerList(state = {}, profile = {}) {
   return `
     <details class="idp-board-layer-manager idp-board-disclosure" aria-label="Board objects">
       <summary class="idp-board-layer-manager-head">
-        <span>Board Objects</span>
-        <small data-idp-board-layer-count>${escapeHtml(String(entries.length))}</small>
+        <span>Arrange</span>
+        <small data-idp-board-layer-count>0 selected</small>
       </summary>
       <div class="idp-board-layer-list" data-idp-board-layer-list>
         ${entries.map((entry) => renderBoardLayerItem(entry)).join("")}
@@ -1212,9 +1222,42 @@ function renderBoardFocusContext(focus = {}, intervention = {}) {
 }
 
 const boardToolGroups = [
-  { label: "Players", tools: [["player", "Player"], ["reference", "Reference"]] },
-  { label: "Equipment", tools: [["cone", "Cone"], ["zone", "Zone"]] },
-  { label: "Draw", tools: [["arrow", "Arrow"], ["pass", "Pass"], ["run", "Run"], ["line", "Line"], ["curve", "Curve"], ["note", "Text"]] },
+  {
+    label: "Players",
+    tools: [
+      { tool: "player", label: "Blue", icon: "player" },
+      { tool: "reference", label: "Red", icon: "red-player" },
+      { tool: "reference", label: "Neutral", icon: "neutral" },
+      { tool: "note", label: "Ball", icon: "ball" },
+      { tool: "reference", label: "Coach", icon: "coach" },
+    ],
+  },
+  {
+    label: "Equipment",
+    tools: [
+      { tool: "cone", label: "Cone", icon: "cone" },
+      { tool: "zone", label: "Goal", icon: "goal" },
+      { tool: "zone", label: "11v11 pitch", icon: "goal" },
+      { tool: "reference", label: "Dummy", icon: "dummy" },
+      { tool: "line", label: "Pole", icon: "pole" },
+      { tool: "line", label: "Gate", icon: "gate" },
+      { tool: "zone", label: "Dashed zone", icon: "dashed-zone" },
+      { tool: "zone", label: "Zone", icon: "zone" },
+      { tool: "line", label: "Dashed line", icon: "line" },
+      { tool: "curve", label: "Circle", icon: "circle" },
+    ],
+  },
+  {
+    label: "Draw",
+    tools: [
+      { tool: "run", label: "Run", icon: "run" },
+      { tool: "pass", label: "Pass", icon: "pass" },
+      { tool: "arrow", label: "Arrow", icon: "arrow" },
+      { tool: "line", label: "Line", icon: "line" },
+      { tool: "curve", label: "Curve", icon: "curve" },
+      { tool: "note", label: "Text", icon: "note" },
+    ],
+  },
 ];
 
 const boardToolDataAttributes = {
@@ -1222,30 +1265,38 @@ const boardToolDataAttributes = {
   cone: 'data-idp-board-tool="cone"',
 };
 
-function renderBoardToolButton(tool, label, activeTool = "player") {
+function renderBoardToolButton(config = {}, activeTool = "player", isActive = false) {
+  const tool = config.tool || "player";
+  const label = config.label || boardToolLabel(tool);
+  const icon = config.icon || tool;
   const dataAttribute = boardToolDataAttributes[tool] || `data-idp-board-tool="${escapeHtml(tool)}"`;
   return `
     <button
       type="button"
-      class="session-tactical-tool-button idp-player-board-tool-button${activeTool === tool ? " is-active" : ""}"
+      class="session-tactical-tool-button idp-player-board-tool-button${isActive ? " is-active" : ""}"
       ${dataAttribute}
       title="${escapeHtml(label)}"
       aria-label="${escapeHtml(label)}"
     >
-      <span class="session-tactical-tool-icon idp-player-board-tool-icon" aria-hidden="true">${renderBoardToolSvgIcon(tool)}</span>
+      <span class="session-tactical-tool-icon idp-player-board-tool-icon" aria-hidden="true">${renderBoardToolSvgIcon(icon)}</span>
       <span class="session-tactical-tool-label idp-player-board-tool-label">${escapeHtml(label)}</span>
     </button>
   `;
 }
 
 function renderBoardToolGroups(activeTool = "player") {
+  const usedActiveTools = new Set();
   return boardToolGroups.map((group) => `
-    <div class="session-tacticalboard-tool-group idp-player-board-tool-group">
+    <section class="session-tacticalboard-tool-group idp-player-board-tool-group">
       <span>${escapeHtml(group.label)}</span>
       <div class="session-tacticalboard-tool-row idp-player-board-tool-row">
-        ${group.tools.map(([tool, label]) => renderBoardToolButton(tool, label, activeTool)).join("")}
+        ${group.tools.map((config) => {
+          const isActive = activeTool === config.tool && !usedActiveTools.has(config.tool);
+          if (isActive) usedActiveTools.add(config.tool);
+          return renderBoardToolButton(config, activeTool, isActive);
+        }).join("")}
       </div>
-    </div>
+    </section>
   `).join("");
 }
 
@@ -1285,8 +1336,7 @@ function renderBoardFrameStrip(frames = [], activeFrameIndex = 0) {
       <div class="idp-player-board-frame-actions" aria-label="Frame controls">
         <button type="button" data-idp-board-frame-add title="Add frame">New</button>
         <button type="button" data-idp-board-frame-duplicate title="Duplicate active frame">Duplicate</button>
-        <button type="button" data-idp-board-play title="Play frames">Play</button>
-        <button type="button" data-idp-board-stop hidden title="Stop playback">Stop</button>
+        <button type="button" disabled title="Delete active frame">Delete</button>
       </div>
     </div>
   `;
@@ -1312,37 +1362,35 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
   const frame = state.frames?.[activeFrameIndex] || state.frames?.[0] || {};
   const frameStatusLabel = `${activeFrameIndex + 1} / ${state.frames?.length || 1}`;
   const linkedClipIds = Array.isArray(state.linkedClipIds) ? state.linkedClipIds.join(", ") : "";
+  const editorTitle = normalizeText(intervention.title, focus?.title || `${profile.playerName || "Player"} board`);
+  const pitchMode = normalizePitchMode(intervention.pitchMode || "full");
+  const boardMeasurement = pitchMeasurementLabel(pitchMode).toUpperCase();
   return `
     <div class="session-library-overlay session-tacticalboard-overlay idp-player-board-layer" data-idp-player-board-layer>
-      <section class="session-library-modal session-tacticalboard-modal idp-player-board-modal idp-player-board-modal-tool-player" role="dialog" aria-modal="true" aria-label="IDP Player Board editor" data-idp-board-active-tool="player">
+      <section class="session-library-modal session-tacticalboard-modal idp-player-board-modal idp-player-board-modal-tool-player is-player-board-v5" role="dialog" aria-modal="true" aria-label="IDP Player Board editor" data-idp-board-active-tool="player">
         <header class="session-library-modal-head idp-player-board-modal-head">
-          <div>
-            <span>IDP Board</span>
-            <h2>${escapeHtml(profile.playerName || "Player Board")}</h2>
-            <small>${escapeHtml(focus?.title || "Individual development")}</small>
+          <div class="idp-player-board-modal-title">
+            <span>Tacticalboard</span>
+            <h2>${escapeHtml(editorTitle)}</h2>
+            <div class="idp-player-board-modal-chips" aria-label="Board state">
+              <span data-idp-board-active-tool-label>Blue</span>
+              <span>0 selected</span>
+              <span>${escapeHtml(boardMeasurement)}</span>
+            </div>
           </div>
           <button type="button" class="session-library-close-button" data-idp-player-board-close aria-label="Close IDP Playerboard">Close</button>
         </header>
-        <div class="session-tacticalboard-layout idp-player-board-modal-layout is-tactical-style is-idp-tacticalboard is-player-board-v3">
+        <div class="session-tacticalboard-layout idp-player-board-modal-layout is-tactical-style is-idp-tacticalboard is-player-board-v3 is-player-board-v5">
           <aside class="session-tacticalboard-side session-tacticalboard-toolbox idp-player-board-toolbox">
             <div class="session-tacticalboard-tools idp-player-board-editor-bank idp-player-board-tool-bank">
-              <div class="session-tacticalboard-panel-head idp-player-board-editor-panel-head">
-                <span>Tools</span>
-                <small>IDP board</small>
-              </div>
               <div class="session-tacticalboard-tools idp-player-board-tools" aria-label="IDP board tools">
                 ${renderBoardToolGroups("player")}
               </div>
             </div>
           </aside>
           <div class="session-tacticalboard-canvas-wrap idp-player-board-canvas-wrap" data-idp-player-board-canvas-wrap>
-            ${renderBoardFrameStrip(state.frames, activeFrameIndex)}
             <div class="idp-player-board-editor-stage">
               ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-editor-arrow", editor: true, frameIndex: activeFrameIndex })}
-            </div>
-            <div class="session-tacticalboard-hint idp-player-board-editor-hint">
-              <strong data-idp-board-hint-tool>Move Player</strong>
-              <span data-idp-board-hint-state>Click the pitch to place the selected IDP element. Save keeps it on this player's IDP only.</span>
             </div>
           </div>
           <form class="session-tacticalboard-side session-tacticalboard-inspector idp-player-board-form idp-player-board-inspector" data-idp-save-intervention>
@@ -1354,10 +1402,35 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
             <input type="hidden" name="boardFramesJson" value="${fieldValue(JSON.stringify(state.frames || []))}" data-idp-board-frames>
             <input type="hidden" name="linkedClipIds" value="${fieldValue(linkedClipIds)}" data-idp-board-linked-clip-ids>
             ${renderBoardGeometryInputs({ player, reference, cones, zone, arrow, note })}
+            <section class="session-tacticalboard-settings idp-player-board-settings idp-board-property-card" aria-label="Board settings">
+              <label>
+                <span>Pitch view</span>
+                <select name="pitchMode">${renderPitchModeOptions(intervention.pitchMode || "full")}</select>
+              </label>
+            </section>
+            <section class="idp-board-property-card idp-player-board-style-card" aria-label="Board style">
+              <label class="idp-player-board-color-control">
+                <span>Colour</span>
+                <div class="session-tacticalboard-colour-row idp-player-board-color-row">
+                  <input name="arrowColor" type="color" value="${fieldValue(arrowColor)}" data-idp-board-color-input>
+                  <div class="session-tacticalboard-colour-swatches idp-player-board-color-swatches">${renderBoardColorSwatches(arrowColor)}</div>
+                </div>
+              </label>
+              <label>
+                <span>Width</span>
+                <input name="arrowLineWidth" type="range" min="0.75" max="6" step="0.25" value="${fieldValue(arrowLineWidth)}" data-idp-board-line-width>
+              </label>
+              <label>
+                <span>Style</span>
+                <select name="arrowLineStyle" data-idp-board-line-style>${renderLineStyleOptions(arrowLineStyle)}</select>
+              </label>
+            </section>
+            ${renderBoardFrameStrip(state.frames, activeFrameIndex)}
+            ${renderBoardLayerList(state, profile)}
             ${renderBoardFocusContext(focus, intervention)}
             <section class="idp-tactical-inspector-card is-selected" data-idp-board-inspector>
               <span>Selected Tool</span>
-              <strong data-idp-board-active-tool-label>Move Player</strong>
+              <strong data-idp-board-hint-tool>Blue</strong>
               <small data-idp-board-selected-object>Player marker</small>
               <div class="idp-board-interaction-strip" aria-label="Board precision">
                 <span><small>Precision</small><strong data-idp-board-precision-state>1%</strong></span>
@@ -1392,37 +1465,7 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
                 </div>
               </div>
             </details>
-            ${renderBoardLayerList(state, profile)}
-            <details class="session-tacticalboard-settings idp-player-board-settings idp-board-disclosure" aria-label="Board settings">
-              <summary><span>Board Settings</span><small>Pitch + movement style</small></summary>
-              <div class="idp-board-disclosure-body">
-                <label>
-                  <span>Pitch view</span>
-                  <select name="pitchMode">${renderPitchModeOptions(intervention.pitchMode || "half")}</select>
-                </label>
-                <label>
-                  <span>Linked goal</span>
-                  <select name="goalId">${renderGoalOptions(detail, intervention.goalId || "")}</select>
-                </label>
-                <label class="idp-player-board-color-control">
-                  <span>Movement colour</span>
-                  <div class="session-tacticalboard-colour-row idp-player-board-color-row">
-                    <input name="arrowColor" type="color" value="${fieldValue(arrowColor)}" data-idp-board-color-input>
-                    <div class="session-tacticalboard-colour-swatches idp-player-board-color-swatches">${renderBoardColorSwatches(arrowColor)}</div>
-                  </div>
-                </label>
-                <div class="idp-player-board-form-grid">
-                  <label>
-                    <span>Width</span>
-                    <input name="arrowLineWidth" type="range" min="0.75" max="6" step="0.25" value="${fieldValue(arrowLineWidth)}" data-idp-board-line-width>
-                  </label>
-                  <label>
-                    <span>Style</span>
-                    <select name="arrowLineStyle" data-idp-board-line-style>${renderLineStyleOptions(arrowLineStyle)}</select>
-                  </label>
-                </div>
-              </div>
-            </details>
+            <input type="hidden" name="goalId" value="${fieldValue(intervention.goalId || "")}">
             <details class="idp-player-board-editor-group is-featured idp-board-disclosure">
               <summary><span>Exercise Details</span><small>${escapeHtml(interventionStatusLabel(intervention.status))}</small></summary>
               <div class="idp-board-disclosure-body">

@@ -255,8 +255,7 @@ export function renderIdpClipPreviewOverlay(detail = {}, ui = {}) {
                   <span class="idp-clip-preview-item__order">${escapeHtml(String(index + 1))}</span>
                   <span class="idp-clip-preview-item__body">
                     <strong>${escapeHtml(tacticalTitle(clip))}</strong>
-                    <small>${escapeHtml(sourceMeta(clip))}</small>
-                    <em>${escapeHtml([formatClipTime(clip.startMs), durationLabel(clip)].filter(Boolean).join(" · "))}</em>
+                    <small>${escapeHtml([sourceMeta(clip), formatClipTime(clip.startMs), durationLabel(clip)].filter(Boolean).join(" · "))}</small>
                     ${principles.length || clip.outcome ? `<span class="idp-clip-preview-item__tags">
                       ${principles.map((label) => `<i>${escapeHtml(label)}</i>`).join("")}
                       ${clip.outcome ? `<i>${escapeHtml(clip.outcome)}</i>` : ""}

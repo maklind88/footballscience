@@ -16,9 +16,12 @@ import {
   jumpClipPreview,
   moveClipPreview,
   openClipPreview,
+  reconnectClipPreviewLocalFile,
   revokePreviewUrl,
   selectedClipIds,
+  setClipPreviewSpeed,
   setupIdpClipPreviewPlayback,
+  toggleClipPreviewPlayback,
   toggleClipBankSelection,
 } from "./idp-clip-preview-controller.mjs";
 import { createIdpApiService } from "./services/idp-api-service.mjs";
@@ -1912,6 +1915,29 @@ function isBoardKeyboardInputTarget(target) {
   return Boolean(target?.closest?.("button, input, textarea, select, [contenteditable='true']"));
 }
 
+function isTextEntryTarget(target) {
+  return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true']"));
+}
+
+function handleClipPreviewKeyboardDown(event, activeRuntime = runtime) {
+  if (!activeRuntime?.store?.getState?.()?.ui?.clipPreviewOpen || isTextEntryTarget(event?.target)) return;
+  const key = String(event?.key || "");
+  if (key === "Escape") {
+    event.preventDefault?.();
+    closeClipPreview(activeRuntime);
+    return;
+  }
+  if (key === "ArrowLeft") {
+    event.preventDefault?.();
+    moveClipPreview(activeRuntime, -1);
+    return;
+  }
+  if (key === "ArrowRight") {
+    event.preventDefault?.();
+    moveClipPreview(activeRuntime, 1);
+  }
+}
+
 function handleBoardKeyboardDown(event, activeRuntime = runtime) {
   const root = getRoot(activeRuntime?.context);
   const modal = root?.querySelector?.(".idp-player-board-modal");
@@ -1946,6 +1972,7 @@ function bindBoardPointerEvents(activeRuntime = runtime) {
   root.addEventListener?.("pointerdown", (event) => handleBoardPointerDown(event, runtime));
   doc?.addEventListener?.("pointermove", (event) => handleBoardPointerMove(event, runtime));
   doc?.addEventListener?.("pointerup", (event) => handleBoardPointerUp(event, runtime));
+  doc?.addEventListener?.("keydown", (event) => handleClipPreviewKeyboardDown(event, runtime));
   doc?.addEventListener?.("keydown", (event) => handleBoardKeyboardDown(event, runtime));
   root.__idpBoardPointerEventsBound = true;
   activeRuntime.boardPointerEventsBound = true;
@@ -2111,10 +2138,34 @@ export function handleClick(event) {
     moveClipPreview(runtime, 1);
     return;
   }
+  const clipPreviewReconnect = event?.target?.closest?.("[data-idp-clip-preview-reconnect]");
+  if (clipPreviewReconnect) {
+    event?.preventDefault?.();
+    reconnectClipPreviewLocalFile(runtime);
+    return;
+  }
   const clipPreviewJump = event?.target?.closest?.("[data-idp-clip-preview-jump]");
   if (clipPreviewJump) {
     event?.preventDefault?.();
     jumpClipPreview(runtime, Number(clipPreviewJump.dataset.idpClipPreviewJump || 0));
+    return;
+  }
+  const clipPreviewToggle = event?.target?.closest?.("[data-idp-clip-preview-toggle]");
+  if (clipPreviewToggle) {
+    event?.preventDefault?.();
+    toggleClipPreviewPlayback(runtime);
+    return;
+  }
+  const clipPreviewSpeed = event?.target?.closest?.("[data-idp-clip-preview-speed]");
+  if (clipPreviewSpeed) {
+    event?.preventDefault?.();
+    setClipPreviewSpeed(runtime, Number(clipPreviewSpeed.dataset.idpClipPreviewSpeed || 1));
+    return;
+  }
+  const clipPlaySelected = event?.target?.closest?.("[data-idp-clip-play-selected]");
+  if (clipPlaySelected) {
+    event?.preventDefault?.();
+    openClipPreview(runtime, selectedClipIds(runtime));
     return;
   }
   const clipPlay = event?.target?.closest?.("[data-idp-clip-play]");

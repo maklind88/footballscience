@@ -48,6 +48,10 @@ function durationLabel(clip = {}) {
   return duration ? `${Math.round(duration / 1000)}s` : "";
 }
 
+function durationMs(clip = {}) {
+  return Math.max(0, timeValue(clip.endMs) - timeValue(clip.startMs));
+}
+
 function dateLabel(clip = {}) {
   const date = normalizeText(clip.matchDate || clip.createdAt).slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "No date";
@@ -58,6 +62,10 @@ function sourceTitle(clip = {}) {
     clip.matchTitle || clip.videoTitle || (clip.eventType === "match" ? "Match video" : "Training video"),
     "Training video"
   );
+}
+
+function sourceMeta(clip = {}) {
+  return [eventTypeLabel(clip), sourceTitle(clip), dateLabel(clip)].filter(Boolean).join(" · ");
 }
 
 function eventTypeLabel(clip = {}) {
@@ -150,6 +158,7 @@ export function renderClipBankOrganizer(detail = {}, canEdit = false, ui = {}) {
     ? clips.filter((clip) => clipSearchBlob(clip).includes(normalizedQuery))
     : clips;
   const selectedIds = new Set(Array.isArray(ui.selectedClipBankIds) ? ui.selectedClipBankIds : []);
+  const selectedCount = clips.filter((clip) => selectedIds.has(clipKey(clip))).length;
   const visibleClips = filteredClips.slice(0, 24);
   const countLabel = normalizedQuery
     ? `${filteredClips.length} of ${clips.length} clips`
@@ -162,6 +171,7 @@ export function renderClipBankOrganizer(detail = {}, canEdit = false, ui = {}) {
           <strong>${escapeHtml(countLabel)}</strong>
         </div>
         <div class="idp-clip-bank-actions">
+          ${selectedCount ? `<button type="button" data-idp-clip-play-selected>Open selected (${escapeHtml(String(selectedCount))})</button>` : ""}
           ${canEdit ? `<button type="button" data-idp-action="evidence">Log observation</button>` : ""}
         </div>
       </div>
@@ -186,38 +196,77 @@ export function renderIdpClipPreviewOverlay(detail = {}, ui = {}) {
   const queueIds = Array.isArray(ui.clipPreviewQueueIds) ? ui.clipPreviewQueueIds : [];
   const activeIndex = Math.max(0, Math.min(Number(ui.clipPreviewActiveIndex || 0), Math.max(0, queueIds.length - 1)));
   const queueMap = new Map(clips.map((clip) => [clipKey(clip), clip]));
-  const activeClip = queueMap.get(queueIds[activeIndex]) || clips[0] || {};
+  const queueClips = queueIds.map((id) => queueMap.get(id)).filter(Boolean);
+  const activeClip = queueClips[activeIndex] || queueMap.get(queueIds[activeIndex]) || clips[0] || {};
   const url = normalizeText(ui.clipPreviewObjectUrl);
   const ready = ui.clipPreviewStatus === "ready" && url;
+  const canReconnect = new Set(["browser-unplayable", "error", "missing", "missing-file", "missing-handle", "missing-metadata", "permission-needed"]).has(normalizeText(ui.clipPreviewStatus));
+  const totalQueueDuration = queueClips.reduce((total, clip) => total + durationMs(clip), 0);
   return `
     <div class="idp-clip-preview-layer" data-idp-clip-preview-layer>
-      <section class="idp-clip-preview-panel" role="dialog" aria-modal="true" aria-label="Clip preview">
-        <header class="idp-clip-preview-header">
-          <div>
-            <span>${escapeHtml(`${activeIndex + 1} of ${Math.max(1, queueIds.length)}`)}</span>
-            <strong>${escapeHtml(sourceTitle(activeClip))}</strong>
-            <small>${escapeHtml([dateLabel(activeClip), tacticalTitle(activeClip), formatClipTime(activeClip.startMs)].filter(Boolean).join(" · "))}</small>
+      <section class="idp-clip-preview-panel" role="dialog" aria-modal="true" aria-label="Player Clip Bank review player">
+        <main class="idp-clip-preview-stage">
+          <header class="idp-clip-preview-header">
+            <div>
+              <span>${escapeHtml(`${activeIndex + 1} of ${Math.max(1, queueClips.length || queueIds.length)} clips`)}</span>
+              <strong>${escapeHtml(tacticalTitle(activeClip))}</strong>
+              <small>${escapeHtml([sourceTitle(activeClip), dateLabel(activeClip), formatClipTime(activeClip.startMs), durationLabel(activeClip)].filter(Boolean).join(" · "))}</small>
+            </div>
+          </header>
+          <div class="idp-clip-preview-video-wrap">
+            ${ready
+              ? `<video data-idp-clip-preview-video playsinline src="${escapeHtml(url)}" data-start-ms="${escapeHtml(String(timeValue(activeClip.startMs)))}" data-end-ms="${escapeHtml(String(timeValue(activeClip.endMs)))}"></video>`
+              : `<div class="idp-clip-preview-status">
+                  <strong>${escapeHtml(ui.clipPreviewMessage || "Connecting local video")}</strong>
+                  <span>The clip metadata is central, but playback needs the local file on this device.</span>
+                  ${canReconnect ? `<button type="button" data-idp-clip-preview-reconnect>Reconnect local file</button>` : ""}
+                </div>`}
           </div>
-          <button type="button" data-idp-clip-preview-close aria-label="Close preview">Close</button>
-        </header>
-        <div class="idp-clip-preview-video-wrap">
-          ${ready
-            ? `<video data-idp-clip-preview-video controls playsinline src="${escapeHtml(url)}" data-start-ms="${escapeHtml(String(timeValue(activeClip.startMs)))}" data-end-ms="${escapeHtml(String(timeValue(activeClip.endMs)))}"></video>`
-            : `<div class="idp-clip-preview-status">
-                <strong>${escapeHtml(ui.clipPreviewMessage || "Connecting local video")}</strong>
-                <span>The clip metadata is central, but playback needs the local file on this device.</span>
-              </div>`}
-        </div>
-        <footer class="idp-clip-preview-footer">
-          <button type="button" data-idp-clip-preview-prev ${activeIndex <= 0 ? "disabled" : ""}>Previous</button>
-          <div class="idp-clip-preview-queue">
-            ${queueIds.slice(0, 10).map((id, index) => {
-              const clip = queueMap.get(id) || {};
-              return `<button type="button" class="${index === activeIndex ? "is-active" : ""}" data-idp-clip-preview-jump="${escapeHtml(String(index))}">${escapeHtml(formatClipTime(clip.startMs))}</button>`;
+          <footer class="idp-clip-preview-footer">
+            <div class="idp-clip-preview-progress">
+              <span data-idp-clip-preview-progress-bar></span>
+            </div>
+            <div class="idp-clip-preview-controls">
+              <button type="button" data-idp-clip-preview-prev ${activeIndex <= 0 ? "disabled" : ""}>Previous</button>
+              <button type="button" class="idp-clip-preview-play" data-idp-clip-preview-toggle ${ready ? "" : "disabled"}>
+                <span data-idp-clip-preview-toggle-label>Play</span>
+              </button>
+              <button type="button" data-idp-clip-preview-next ${activeIndex >= queueIds.length - 1 ? "disabled" : ""}>Next</button>
+              <div class="idp-clip-preview-speeds" aria-label="Playback speed">
+                ${[0.5, 1, 1.5, 2, 3].map((speed) => `<button type="button" class="${speed === 1 ? "is-active" : ""}" data-idp-clip-preview-speed="${escapeHtml(String(speed))}" ${ready ? "" : "disabled"}>${escapeHtml(`${speed}x`)}</button>`).join("")}
+              </div>
+              <strong data-idp-clip-preview-time>${escapeHtml(`0:00 / ${durationLabel(activeClip) || "0s"}`)}</strong>
+            </div>
+          </footer>
+        </main>
+        <aside class="idp-clip-preview-sidebar">
+          <header>
+            <div>
+              <strong>My Clips</strong>
+              <span>${escapeHtml(`${queueClips.length || queueIds.length} clips · ${Math.round(totalQueueDuration / 1000)}s`)}</span>
+            </div>
+            <button type="button" data-idp-clip-preview-close aria-label="Close preview">Close</button>
+          </header>
+          <div class="idp-clip-preview-list">
+            ${queueClips.map((clip, index) => {
+              const principles = principleLabels(clip);
+              return `
+                <button type="button" class="idp-clip-preview-item${index === activeIndex ? " is-active" : ""}" data-idp-clip-preview-jump="${escapeHtml(String(index))}">
+                  <span class="idp-clip-preview-item__order">${escapeHtml(String(index + 1))}</span>
+                  <span class="idp-clip-preview-item__body">
+                    <strong>${escapeHtml(tacticalTitle(clip))}</strong>
+                    <small>${escapeHtml(sourceMeta(clip))}</small>
+                    <em>${escapeHtml([formatClipTime(clip.startMs), durationLabel(clip)].filter(Boolean).join(" · "))}</em>
+                    ${principles.length || clip.outcome ? `<span class="idp-clip-preview-item__tags">
+                      ${principles.map((label) => `<i>${escapeHtml(label)}</i>`).join("")}
+                      ${clip.outcome ? `<i>${escapeHtml(clip.outcome)}</i>` : ""}
+                    </span>` : ""}
+                  </span>
+                </button>
+              `;
             }).join("")}
           </div>
-          <button type="button" data-idp-clip-preview-next ${activeIndex >= queueIds.length - 1 ? "disabled" : ""}>Next</button>
-        </footer>
+        </aside>
       </section>
     </div>
   `;

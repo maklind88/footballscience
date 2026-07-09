@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildIdpDashboardFromSquadState, buildLegacyPlayerDetail } from "../src/modules/idp/idp-adapter.mjs";
 import { createIdpActions } from "../src/modules/idp/idp-actions.mjs";
 import { selectedClipIds } from "../src/modules/idp/idp-clip-preview-controller.mjs";
+import { renderIdpClipPreviewOverlay } from "../src/modules/idp/idp-clip-bank-renderer.mjs";
 import { normalizeIdpDevelopmentIntervention, normalizeIdpProfile } from "../src/modules/idp/domain/idp.models.mjs";
 import { renderIdpWorkspace } from "../src/modules/idp/idp-renderer.mjs";
 import { createIdpStore } from "../src/modules/idp/idp-state.mjs";
@@ -1710,8 +1711,8 @@ test("idp clip bank is a date-sorted organizer with play queue metadata", () => 
   expect(html).toContain("1 of 2 clips");
   expect(html).toContain("Find clip, player, date or principle");
   expect(html).not.toContain("Search by match, training, sub-phase, outcome or principle.");
-  expect(html).not.toContain("data-idp-clip-play-selected");
-  expect(html).not.toContain("Play selected");
+  expect(html).toContain("data-idp-clip-play-selected");
+  expect(html).toContain("Open selected (1)");
   expect(html).toContain("data-idp-clip-play=\"bank-new\"");
   expect(html).toContain("idp-clip-bank-row__actions");
   expect(html).toContain("Play clip");
@@ -1721,11 +1722,18 @@ test("idp clip bank is a date-sorted organizer with play queue metadata", () => 
   expect(html).toContain("Remove clip from Clip Bank");
   expect(html).toContain("<svg viewBox=\"0 0 24 24\"");
   expect(html).toContain("NCC - Louisville");
-  expect(html).not.toContain("Training + Lift");
+  expect(html).toContain("Training + Lift");
   expect(html).toContain("2026-06-27");
   expect(html).toContain("Build Up / In Possession");
   expect(html).toContain("Counterpress 5s");
   expect(html).toContain("data-idp-clip-preview-video");
+  expect(html).toContain("idp-clip-preview-sidebar");
+  expect(html).toContain("My Clips");
+  expect(html).toContain("2 clips · 30s");
+  expect(html).toContain("data-idp-clip-preview-jump=\"1\"");
+  expect(html).toContain("idp-clip-preview-item is-active");
+  expect(html).toContain("data-idp-clip-preview-toggle");
+  expect(html).toContain("data-idp-clip-preview-speed=\"2\"");
   expect(html).toContain("1 of 2");
   expect(html).not.toContain("b8f41622-57b5-4ed6-908f-b6d6d1e5fe30");
 });
@@ -1747,11 +1755,50 @@ test("idp clip play starts the selected queue in marking order", () => {
   });
 
   expect(selectedClipIds({ store })).toEqual(["bank-old", "bank-new", "bank-middle"]);
-  expect(indexSource).not.toContain("data-idp-clip-play-selected");
+  expect(indexSource).toContain("data-idp-clip-play-selected");
   expect(indexSource).toContain("const selectedIds = selectedClipIds(runtime);");
   expect(indexSource).toContain("openClipPreview(runtime, selectedIds.length ? selectedIds : [id]);");
   expect(clipPreviewSource).toContain("const queueIds = ids.map");
   expect(clipPreviewSource).not.toContain("const sorted = currentClipBank");
+  expect(clipPreviewSource).toContain("if (hasNext) moveClipPreview(activeRuntime, 1);");
+  expect(clipPreviewSource).toContain("setClipPreviewSpeed");
+  expect(clipPreviewSource).toContain("reconnectClipPreviewLocalFile");
+  expect(clipPreviewSource).toContain("pickLocalVideoFile(win)");
+  expect(clipPreviewSource).toContain("persistLocalVideoHandle");
+  expect(indexSource).toContain("data-idp-clip-preview-reconnect");
+  expect(indexSource).toContain("reconnectClipPreviewLocalFile(runtime)");
+});
+
+test("idp clip preview keeps the review queue visible when the local file is missing", () => {
+  const html = renderIdpClipPreviewOverlay({
+    clipBank: [
+      {
+        id: "clip-one",
+        matchTitle: "NCC - Louisville",
+        matchDate: "2026-06-27",
+        eventType: "match",
+        startMs: 10000,
+        endMs: 30000,
+        subPhase: "Build Up",
+        phase: "In Possession",
+      },
+    ],
+  }, {
+    clipPreviewActiveIndex: 0,
+    clipPreviewMessage: "Local video is not linked on this device yet.",
+    clipPreviewOpen: true,
+    clipPreviewQueueIds: ["clip-one"],
+    clipPreviewStatus: "missing-handle",
+  });
+
+  expect(html).toContain("Local video is not linked on this device yet.");
+  expect(html).toContain("The clip metadata is central, but playback needs the local file on this device.");
+  expect(html).toContain("data-idp-clip-preview-reconnect");
+  expect(html).toContain("Reconnect local file");
+  expect(html).toContain("idp-clip-preview-sidebar");
+  expect(html).toContain("My Clips");
+  expect(html).toContain("Build Up / In Possession");
+  expect(html).toContain("Match · NCC - Louisville · 2026-06-27");
 });
 
 test("idp clip bank search preserves typed spaces through workspace rerenders", () => {

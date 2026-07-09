@@ -27,7 +27,8 @@
 .idp-clip-bank-play,
 .idp-clip-bank-remove,
 .idp-clip-preview-header button,
-.idp-clip-preview-footer button {
+.idp-clip-preview-footer button,
+.idp-clip-preview-sidebar > header button {
   appearance: none;
   background: #0f172a;
   border: 1px solid rgba(15, 23, 42, 0.1);
@@ -305,25 +306,33 @@
 
 .idp-clip-preview-layer {
   align-items: center;
-  background: rgba(15, 23, 42, 0.58);
+  background: rgba(3, 7, 18, 0.82);
   display: flex;
   inset: 0;
   justify-content: center;
-  padding: 28px;
+  padding: 18px;
   position: fixed;
   z-index: 10040;
 }
 
 .idp-clip-preview-panel {
-  background: rgba(248, 250, 252, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 24px;
-  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.32);
+  background: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.64);
+  border-radius: 18px;
+  box-shadow: 0 36px 120px rgba(0, 0, 0, 0.44);
   display: grid;
-  max-height: min(760px, calc(100vh - 56px));
-  max-width: min(1120px, calc(100vw - 56px));
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  height: min(900px, calc(100vh - 36px));
+  max-width: min(1560px, calc(100vw - 36px));
   overflow: hidden;
   width: 100%;
+}
+
+.idp-clip-preview-stage {
+  background: #020617;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
 }
 
 .idp-clip-preview-header,
@@ -336,7 +345,8 @@
 }
 
 .idp-clip-preview-header {
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: #020617;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .idp-clip-preview-header div {
@@ -347,13 +357,13 @@
 
 .idp-clip-preview-header span,
 .idp-clip-preview-header small {
-  color: #667085;
+  color: #94a3b8;
   font-size: 12px;
   font-weight: 800;
 }
 
 .idp-clip-preview-header strong {
-  color: #0f172a;
+  color: #fff;
   font-size: 18px;
   font-weight: 950;
   overflow: hidden;
@@ -363,14 +373,16 @@
 
 .idp-clip-preview-video-wrap {
   background: #030712;
-  min-height: 420px;
+  display: grid;
+  min-height: 0;
+  place-items: center;
 }
 
 .idp-clip-preview-video-wrap video {
   aspect-ratio: 16 / 9;
   background: #030712;
+  height: 100%;
   display: block;
-  max-height: calc(100vh - 210px);
   object-fit: contain;
   width: 100%;
 }
@@ -398,8 +410,209 @@
   margin-top: 6px;
 }
 
+.idp-clip-preview-status button {
+  background: #fff;
+  border: 0;
+  border-radius: 14px;
+  color: #0f172a;
+  font-weight: 950;
+  margin-top: 18px;
+  padding: 12px 18px;
+}
+
+.idp-clip-preview-status button:hover,
+.idp-clip-preview-status button:focus-visible {
+  background: #e0f2fe;
+  outline: 3px solid rgba(56, 189, 248, 0.32);
+}
+
 .idp-clip-preview-footer {
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  background: #020617;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  gap: 12px;
+  padding: 12px 16px 14px;
+}
+
+.idp-clip-preview-progress {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  height: 4px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.idp-clip-preview-progress span {
+  background: #38bdf8;
+  display: block;
+  height: 100%;
+  width: 0;
+}
+
+.idp-clip-preview-controls {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.idp-clip-preview-controls button,
+.idp-clip-preview-sidebar button {
+  border-radius: 12px;
+}
+
+.idp-clip-preview-play {
+  min-width: 98px;
+}
+
+.idp-clip-preview-speeds {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+}
+
+.idp-clip-preview-speeds button {
+  background: transparent;
+  border-color: transparent;
+  color: #cbd5e1;
+  min-width: 42px;
+}
+
+.idp-clip-preview-speeds button.is-active {
+  background: #fff;
+  color: #0f172a;
+}
+
+.idp-clip-preview-controls strong {
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 900;
+  min-width: 86px;
+}
+
+.idp-clip-preview-sidebar {
+  background: #fff;
+  border-left: 1px solid rgba(15, 23, 42, 0.08);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+}
+
+.idp-clip-preview-sidebar > header {
+  align-items: center;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.idp-clip-preview-sidebar > header div {
+  display: grid;
+  gap: 3px;
+}
+
+.idp-clip-preview-sidebar > header strong {
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.idp-clip-preview-sidebar > header span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.idp-clip-preview-list {
+  display: grid;
+  overflow: auto;
+}
+
+.idp-clip-preview-item {
+  align-items: start;
+  background: #fff;
+  border: 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 0;
+  color: #0f172a;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  justify-content: stretch;
+  min-height: 94px;
+  padding: 14px 16px;
+  text-align: left;
+  width: 100%;
+}
+
+.idp-clip-preview-item:hover,
+.idp-clip-preview-item:focus-visible {
+  background: #f8fafc;
+  outline: none;
+}
+
+.idp-clip-preview-item.is-active {
+  background: #eff6ff;
+  box-shadow: inset 4px 0 0 #2563eb;
+}
+
+.idp-clip-preview-item__order {
+  align-items: center;
+  background: #eef2f7;
+  border-radius: 10px;
+  color: #334155;
+  display: inline-flex;
+  font-weight: 950;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.idp-clip-preview-item.is-active .idp-clip-preview-item__order {
+  background: #2563eb;
+  color: #fff;
+}
+
+.idp-clip-preview-item__body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.idp-clip-preview-item__body strong {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.idp-clip-preview-item__body small,
+.idp-clip-preview-item__body em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 760;
+}
+
+.idp-clip-preview-item__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.idp-clip-preview-item__tags i {
+  background: #ecfdf3;
+  border-radius: 999px;
+  color: #067647;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+  padding: 3px 7px;
 }
 
 .idp-clip-preview-queue {
@@ -441,6 +654,19 @@
   }
 
   .idp-clip-preview-layer {
-    padding: 12px;
+    padding: 0;
+  }
+
+  .idp-clip-preview-panel {
+    border-radius: 0;
+    grid-template-columns: 1fr;
+    height: 100vh;
+    max-width: 100vw;
+  }
+
+  .idp-clip-preview-sidebar {
+    border-left: 0;
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
+    max-height: 38vh;
   }
 }

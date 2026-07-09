@@ -1569,7 +1569,10 @@ function playerBoardExerciseSearchText(item = {}, focus = {}) {
     item.objective,
     item.pitchMode,
     item.status,
+    item.focusId,
+    item.goalId,
     focus?.title,
+    focus?.description,
     focus?.category,
   ].map((value) => normalizeText(value, "").toLowerCase()).join(" ");
 }
@@ -1579,9 +1582,72 @@ function playerBoardSelectedIntervention(detail = {}, ui = {}) {
   return interventions.find((item) => item.id && item.id === ui.playerBoardInterventionId) || interventions[0] || null;
 }
 
+function playerBoardFocusTerms(focus = {}) {
+  return [
+    focus?.title,
+    focus?.description,
+    focus?.category,
+  ].flatMap((value) => normalizeText(value, "").toLowerCase().split(/[^a-z0-9åäö]+/i))
+    .filter((term) => term.length >= 4)
+    .slice(0, 8);
+}
+
+function playerBoardFocusMatchScore(item = {}, focus = {}) {
+  const focusId = normalizeText(focus?.id, "");
+  const itemFocusId = normalizeText(item.focusId, "");
+  const haystack = playerBoardExerciseSearchText(item, focus);
+  const terms = playerBoardFocusTerms(focus);
+  let score = focusId && itemFocusId && focusId === itemFocusId ? 40 : 0;
+  terms.forEach((term) => {
+    if (haystack.includes(term)) score += 4;
+  });
+  return score;
+}
+
+function playerBoardFocusLinkState(focus = {}, selected = {}) {
+  const focusTitle = normalizeText(focus?.title, "");
+  const focusDescription = normalizeText(focus?.description, "");
+  const focusCategory = normalizeText(focus?.category, "Focus");
+  const focusId = normalizeText(focus?.id, "");
+  const selectedFocusId = normalizeText(selected?.focusId, "");
+  const hasCurrentFocus = Boolean(focusTitle || focusDescription || focusId);
+  if (!hasCurrentFocus) {
+    return {
+      tone: "empty",
+      label: "No active focus",
+      title: "Saknar current focus",
+      body: "Skapa ett current focus först, sedan byggs tactical board mot samma språk.",
+    };
+  }
+  if (focusId && selectedFocusId && focusId === selectedFocusId) {
+    return {
+      tone: "synced",
+      label: "Synkad",
+      title: focusTitle || focusCategory,
+      body: focusDescription || `${focusCategory} är kopplat till den valda boarden.`,
+    };
+  }
+  if (selected?.id) {
+    return {
+      tone: "needs-sync",
+      label: "Koppla focus",
+      title: focusTitle || focusCategory,
+      body: "Redigera och spara boarden för att koppla den till spelarens aktuella focus.",
+    };
+  }
+  return {
+    tone: "draft",
+    label: "Ny från focus",
+    title: focusTitle || focusCategory,
+    body: focusDescription || `${focusCategory} används som startpunkt för nästa board.`,
+  };
+}
+
 function renderPlayerBoardLibraryResult(item = {}, index = 0, focus = {}, selectedId = "") {
   const itemId = normalizeText(item.id, "");
   const isSelected = itemId && itemId === selectedId;
+  const focusScore = playerBoardFocusMatchScore(item, focus);
+  const badge = isSelected ? "Öppen nedan" : focusScore > 0 ? "Focus-match" : "Sparad";
   return `
     <button
       type="button"
@@ -1591,6 +1657,7 @@ function renderPlayerBoardLibraryResult(item = {}, index = 0, focus = {}, select
     >
       <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
       <strong>${escapeHtml(item.title || "Individual exercise")}</strong>
+      <em>${escapeHtml(badge)}</em>
       <small>${escapeHtml(item.objective || focus?.description || "Player-specific intervention")}</small>
     </button>
   `;
@@ -1605,18 +1672,33 @@ function renderPlayerBoardLibraryCommand(detail = {}, focus = {}, profile = {}, 
   const matches = normalizedQuery
     ? interventions.filter((item) => playerBoardExerciseSearchText(item, focus).includes(normalizedQuery))
     : interventions;
-  const visibleMatches = matches.slice(0, 5);
+  const visibleMatches = matches
+    .slice()
+    .sort((a, b) => {
+      const selectedA = normalizeText(a.id, "") === selectedId ? 1000 : 0;
+      const selectedB = normalizeText(b.id, "") === selectedId ? 1000 : 0;
+      return (selectedB + playerBoardFocusMatchScore(b, focus)) - (selectedA + playerBoardFocusMatchScore(a, focus));
+    })
+    .slice(0, 4);
   const playerName = normalizeText(profile.playerName || profile.name, "Player");
   const countLabel = interventions.length === 1 ? "1 sparad övning" : `${interventions.length} sparade övningar`;
   const selectedTitle = selected ? normalizeText(selected.title, "vald övning") : "";
-  const summaryLabel = selected ? `${countLabel} / Visar ${selectedTitle}` : countLabel;
+  const summaryLabel = selected ? `${countLabel} · vald övning öppnas nedanför` : countLabel;
+  const focusLink = playerBoardFocusLinkState(focus, selected);
 
   return `
     <section class="idp-player-board-library-command" aria-label="Individual exercise bank">
-      <div class="idp-player-board-library-copy">
-        <span>Individuell övningsbank</span>
-        <strong>${escapeHtml(selectedTitle || `${playerName} övningsbank`)}</strong>
-        <small>${escapeHtml(summaryLabel)}</small>
+      <div class="idp-player-board-library-core">
+        <div class="idp-player-board-library-copy">
+          <span>Individuell övningsbank</span>
+          <strong>${escapeHtml(selectedTitle || `${playerName} övningsbank`)}</strong>
+          <small>${escapeHtml(summaryLabel)}</small>
+        </div>
+        <div class="idp-player-board-focus-link is-${escapeHtml(focusLink.tone)}">
+          <span>${escapeHtml(focusLink.label)}</span>
+          <strong>${escapeHtml(focusLink.title)}</strong>
+          <small>${escapeHtml(focusLink.body)}</small>
+        </div>
       </div>
       <div class="idp-player-board-library-search">
         <label>
@@ -1629,8 +1711,8 @@ function renderPlayerBoardLibraryCommand(detail = {}, focus = {}, profile = {}, 
       </div>
       ${canEdit ? `
         <div class="idp-player-board-library-actions" aria-label="Exercise bank actions">
-          <button type="button" class="is-primary" data-idp-player-board-open>Redigera</button>
-          <button type="button" data-idp-player-board-new>Ny övning</button>
+          <button type="button" class="is-primary" data-idp-player-board-open>Redigera board</button>
+          <button type="button" data-idp-player-board-new>Ny från focus</button>
           <button type="button" data-idp-player-board-link-clip>Koppla klipp</button>
           <button type="button" data-idp-player-board-handout-open>Session View</button>
         </div>

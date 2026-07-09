@@ -11869,7 +11869,7 @@ body.is-dark-mode .idp-river-detail-value {
 }
 
 .idp-profile-player-board-page .idp-player-board-library-command {
-  align-items: end;
+  align-items: center;
   background:
     radial-gradient(circle at 8% 0%, rgba(15, 118, 110, .08), transparent 28rem),
     linear-gradient(180deg, rgba(255, 255, 255, .96), rgba(248, 250, 252, .9));
@@ -11877,55 +11877,132 @@ body.is-dark-mode .idp-river-detail-value {
   border-radius: 18px;
   box-shadow: 0 18px 48px rgba(16, 24, 40, .06);
   display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(15rem, .7fr) minmax(19rem, 1fr) auto;
-  padding: 12px;
+  gap: 8px;
+  grid-template-columns: minmax(25rem, 1fr) minmax(18rem, .72fr) auto;
+  padding: 10px;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-core {
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, .82fr) minmax(13rem, .58fr);
+  min-width: 0;
 }
 
 .idp-profile-player-board-page .idp-player-board-library-copy {
   align-self: center;
-  padding: 0;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 2px;
 }
 
 .idp-profile-player-board-page .idp-player-board-library-copy strong {
-  font-size: clamp(1.05rem, 1.35vw, 1.42rem);
+  font-size: clamp(1rem, 1.12vw, 1.22rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .idp-profile-player-board-page .idp-player-board-library-copy small {
-  max-width: 30rem;
+  max-width: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-profile-player-board-page .idp-player-board-focus-link {
+  align-content: center;
+  background: rgba(255, 255, 255, .76);
+  border: 1px solid rgba(29, 29, 31, .075);
+  border-radius: 14px;
+  display: grid;
+  gap: 1px;
+  min-height: 54px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.idp-profile-player-board-page .idp-player-board-focus-link span,
+.idp-profile-player-board-page .idp-player-board-focus-ribbon span {
+  color: #667085;
+  font-size: .62rem;
+  font-weight: 950;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.idp-profile-player-board-page .idp-player-board-focus-link strong,
+.idp-profile-player-board-page .idp-player-board-focus-ribbon strong {
+  color: #101828;
+  font-size: .83rem;
+  font-weight: 950;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-profile-player-board-page .idp-player-board-focus-link small,
+.idp-profile-player-board-page .idp-player-board-focus-ribbon small {
+  color: #667085;
+  font-size: .71rem;
+  font-weight: 760;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.idp-profile-player-board-page .idp-player-board-focus-link.is-synced,
+.idp-profile-player-board-page .idp-player-board-focus-ribbon.is-synced {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(15, 118, 110, .12), transparent 8rem),
+    rgba(240, 253, 250, .9);
+  border-color: rgba(15, 118, 110, .18);
+}
+
+.idp-profile-player-board-page .idp-player-board-focus-link.is-needs-sync,
+.idp-profile-player-board-page .idp-player-board-focus-ribbon.is-needs-sync,
+.idp-profile-player-board-page .idp-player-board-focus-link.is-draft {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(37, 99, 235, .11), transparent 8rem),
+    rgba(239, 246, 255, .88);
+  border-color: rgba(37, 99, 235, .16);
 }
 
 .idp-profile-player-board-page .idp-player-board-library-search {
-  align-items: end;
-  grid-template-columns: minmax(0, 1fr) 42px;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  min-width: 0;
 }
 
 .idp-profile-player-board-page .idp-player-board-library-search input,
 .idp-profile-player-board-page .idp-player-board-template-head input {
   background: rgba(255, 255, 255, .88);
   border-color: rgba(29, 29, 31, .09);
-  border-radius: 14px;
-  height: 44px;
+  border-radius: 13px;
+  height: 40px;
 }
 
 .idp-profile-player-board-page .idp-player-board-library-search button {
-  border-radius: 14px;
-  height: 44px;
+  border-radius: 13px;
+  height: 40px;
 }
 
 .idp-profile-player-board-page .idp-player-board-library-actions {
-  align-items: end;
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   justify-content: flex-end;
 }
 
 .idp-profile-player-board-page .idp-player-board-library-actions button {
   border-radius: 999px;
-  height: 38px;
+  height: 36px;
   min-width: 0;
-  padding: 0 14px;
+  padding: 0 12px;
   white-space: nowrap;
 }
 
@@ -11943,23 +12020,56 @@ body.is-dark-mode .idp-river-detail-value {
   scrollbar-width: thin;
 }
 
+.idp-profile-player-board-page .idp-player-board-library-empty {
+  align-items: center;
+  background: rgba(255, 255, 255, .58);
+  border-color: rgba(29, 29, 31, .08);
+  border-radius: 12px;
+  display: flex;
+  gap: 10px;
+  min-height: 38px;
+  padding: 7px 10px;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-empty strong,
+.idp-profile-player-board-page .idp-player-board-library-empty small {
+  line-height: 1.1;
+}
+
 .idp-profile-player-board-page .idp-player-board-library-result {
   align-items: center;
   border-radius: 14px;
-  flex: 0 0 min(24rem, 42vw);
-  grid-template-columns: auto minmax(0, 1fr);
-  min-height: 50px;
+  flex: 0 0 min(21rem, 36vw);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 46px;
   padding: 8px 10px;
 }
 
 .idp-profile-player-board-page .idp-player-board-library-result span {
   border-radius: 999px;
-  height: 28px;
-  width: 28px;
+  height: 26px;
+  width: 26px;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-result em {
+  align-self: start;
+  background: #f2f4f7;
+  border-radius: 999px;
+  color: #475467;
+  font-size: .64rem;
+  font-style: normal;
+  font-weight: 900;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.idp-profile-player-board-page .idp-player-board-library-result.is-active em {
+  background: #0f766e;
+  color: #fff;
 }
 
 .idp-profile-player-board-page .idp-player-board-library-result small {
-  grid-column: 2;
+  grid-column: 2 / 4;
 }
 
 .idp-profile-player-board-page .idp-player-board-page-shell {
@@ -12211,6 +12321,22 @@ body.is-dark-mode .idp-river-detail-value {
   min-height: 36px;
 }
 
+.idp-profile-player-board-page .idp-player-board-focus-ribbon {
+  align-items: center;
+  background: rgba(255, 255, 255, .84);
+  border: 1px solid rgba(29, 29, 31, .075);
+  border-radius: 14px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(10rem, .38fr) minmax(0, 1fr);
+  margin-top: -4px;
+  padding: 8px 10px;
+}
+
+.idp-profile-player-board-page .idp-player-board-focus-ribbon.is-empty {
+  background: rgba(248, 250, 252, .92);
+}
+
 .idp-profile-player-board-page .idp-player-board-playback-stage {
   gap: 12px;
   grid-template-columns: minmax(0, 1fr);
@@ -12345,6 +12471,7 @@ body.is-dark-mode .idp-river-detail-value {
 
 @media (max-width: 1120px) {
   .idp-profile-player-board-page .idp-player-board-library-command,
+  .idp-profile-player-board-page .idp-player-board-library-core,
   .idp-profile-player-board-page .idp-player-board-playback-stage,
   .idp-profile-player-board-page .idp-player-board-template-layout,
   .idp-profile-player-board-page .idp-player-board-template-preview {
@@ -12357,6 +12484,10 @@ body.is-dark-mode .idp-river-detail-value {
 
   .idp-profile-player-board-page .idp-player-board-library-result {
     flex-basis: min(22rem, 82vw);
+  }
+
+  .idp-profile-player-board-page .idp-player-board-focus-ribbon {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .idp-profile-player-board-page .idp-player-board-template-head {
@@ -12382,6 +12513,15 @@ body.is-dark-mode .idp-river-detail-value {
 
   .idp-profile-player-board-page .idp-player-board-library-actions button {
     flex: 1 1 calc(50% - 8px);
+  }
+
+  .idp-profile-player-board-page .idp-player-board-library-copy strong,
+  .idp-profile-player-board-page .idp-player-board-library-copy small,
+  .idp-profile-player-board-page .idp-player-board-focus-link strong,
+  .idp-profile-player-board-page .idp-player-board-focus-link small,
+  .idp-profile-player-board-page .idp-player-board-focus-ribbon strong,
+  .idp-profile-player-board-page .idp-player-board-focus-ribbon small {
+    white-space: normal;
   }
 
   .idp-profile-player-board-page .idp-player-board-template-summary {

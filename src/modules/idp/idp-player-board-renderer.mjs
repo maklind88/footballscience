@@ -214,6 +214,36 @@ function draftIntervention(profile = {}, focus = {}) {
   };
 }
 
+function focusBoardLinkState(intervention = {}, focus = {}) {
+  const focusId = normalizeText(focus?.id, "");
+  const interventionFocusId = normalizeText(intervention?.focusId, "");
+  const focusTitle = normalizeText(focus?.title, "");
+  const focusDescription = normalizeText(focus?.description, "");
+  const focusCategory = normalizeText(focus?.category, "Focus");
+  if (!focusId && !focusTitle && !focusDescription) {
+    return {
+      tone: "empty",
+      label: "No active focus",
+      title: "Board saknar current focus",
+      body: "Skapa focus först så övningen, cues och tactical board pratar samma språk.",
+    };
+  }
+  if (focusId && interventionFocusId && focusId === interventionFocusId) {
+    return {
+      tone: "synced",
+      label: "Focus-synkad",
+      title: focusTitle || focusCategory,
+      body: focusDescription || `${focusCategory} styr den här boarden.`,
+    };
+  }
+  return {
+    tone: "needs-sync",
+    label: "Behöver kopplas",
+    title: focusTitle || focusCategory,
+    body: "Redigera och spara boarden för att koppla den till current focus.",
+  };
+}
+
 function normalizePitchMode(mode = "attacking-half") {
   return normalizeTacticalBoardPitchMode(mode, "attacking-half");
 }
@@ -802,6 +832,7 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
   const clipTargetId = clipBankItemId(clipTarget);
   const coachCue = normalizeText(frame.coachCue || state.coachCue, "Coach cue has not been added yet.");
   const playerCue = normalizeText(frame.playerCue || state.playerCue, objective);
+  const focusLink = focusBoardLinkState(intervention, focus);
   return `
     <aside class="idp-player-board-panel idp-player-board-tactical-shell idp-player-board-playback-shell" data-idp-player-board-preview data-idp-player-board-frame-count="${escapeHtml(String(frameCount))}">
       <header class="idp-player-board-playback-head">
@@ -817,6 +848,11 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
           ${canEdit ? `<button type="button" class="is-primary" data-idp-player-board-open>Redigera</button>` : ""}
         </div>
       </header>
+      <div class="idp-player-board-focus-ribbon is-${escapeHtml(focusLink.tone)}">
+        <span>${escapeHtml(focusLink.label)}</span>
+        <strong>${escapeHtml(focusLink.title)}</strong>
+        <small>${escapeHtml(focusLink.body)}</small>
+      </div>
       <div class="idp-player-board-playback-stage">
         <div class="idp-player-board-preview idp-player-board-tactical-preview" aria-label="IDP Player Board preview">
           <span class="idp-player-board-surface">

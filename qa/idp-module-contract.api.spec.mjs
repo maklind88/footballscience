@@ -695,6 +695,11 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain("Player Board");
   expect(playerBoardHtml).toContain("Individuell övningsbank");
   expect(playerBoardHtml).toContain("Sök övning");
+  expect(playerBoardHtml).toContain("idp-player-board-library-core");
+  expect(playerBoardHtml).toContain("idp-player-board-focus-link");
+  expect(playerBoardHtml).toContain("Saknar current focus");
+  expect(playerBoardHtml).toContain("Board saknar current focus");
+  expect(playerBoardHtml).toContain("Öppen nedan");
   expect(playerBoardHtml).toContain("data-idp-player-board-search");
   expect(playerBoardHtml).not.toContain("Template Bank");
   expect(playerBoardHtml).not.toContain("Team exercise templates");
@@ -718,11 +723,12 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain("data-idp-player-board-open");
   expect(playerBoardHtml).toContain("idp-player-board-library-actions");
   expect(playerBoardHtml).toContain("Redigera");
-  expect(playerBoardHtml).toContain("Ny övning");
+  expect(playerBoardHtml).toContain("Ny från focus");
   expect(playerBoardHtml).toContain("Koppla klipp");
   expect(playerBoardHtml).toContain("Session View");
   expect(playerBoardHtml).toContain("data-idp-player-board-handout-open");
   expect(playerBoardHtml).toContain("Tactical Board");
+  expect(playerBoardHtml).toContain("idp-player-board-focus-ribbon");
   expect(playerBoardHtml).toContain("data-idp-player-board-preview");
   expect(playerBoardHtml).toContain('data-idp-player-board-frame-count="2"');
   expect(playerBoardHtml).toContain("data-idp-player-board-preview-play");

@@ -1734,7 +1734,6 @@ function renderPlayerBoardLibraryCommand(detail = {}, focus = {}, profile = {}, 
 function renderProfilePlayerBoardPage(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}, options = {}) {
   return `
     <section class="idp-profile-subpage idp-profile-player-board-page">
-      ${renderPlayerBoardLibraryCommand(detail, focus, profile, canEdit, ui)}
       <div class="idp-player-board-page-shell">
         ${renderIdpPlayerBoardPanel(detail, focus, profile, pulse, nextAction, canEdit, ui)}
       </div>

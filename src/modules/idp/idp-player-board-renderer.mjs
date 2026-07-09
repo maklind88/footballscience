@@ -482,7 +482,7 @@ function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options =
   const playerName = normalizeText(profile.playerName || profile.name || "Player", "Player");
   const markerId = options.markerId || "idp-player-board-arrow";
   const editorAttr = options.editor ? " data-idp-board-editor-pitch" : "";
-  const pitchMode = normalizePitchMode(intervention.pitchMode || "attacking-half");
+  const pitchMode = normalizePitchMode(options.pitchMode || intervention.pitchMode || "attacking-half");
   return `
     <div class="session-visual-board session-visual-board-large session-visual-board-mode-${escapeHtml(pitchMode)} idp-player-board-pitch is-${escapeHtml(pitchMode)}" aria-label="IDP Playerboard tactical visual">
       <div class="session-visual-board-surface idp-player-board-surface"${editorAttr}>
@@ -504,7 +504,7 @@ function renderBoardPitch(intervention = {}, profile = {}, focus = {}, options =
           <g class="idp-tactical-board-player-layer" aria-label="Players">
             ${Array.isArray(referencePlayers) ? referencePlayers.map((item) => renderBoardPlayerMarker({
               ...item,
-              name: item.name || item.label || "Reference",
+              name: item.name || item.label || "",
             }, {
               className: "idp-player-board-reference",
               fallbackLabel: "REF",
@@ -820,76 +820,37 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
   const rawState = boardState(intervention, focus, profile);
   const frames = boardFramesFromState(rawState);
   const frameIndex = normalizeFrameIndex(ui.playerBoardPreviewFrameIndex ?? rawState.activeFrameIndex, frames.length);
-  const state = boardStateForFrame(rawState, frameIndex);
-  const frame = state.frames?.[frameIndex] || state.frames?.[0] || {};
-  const counts = interventionCounts(intervention);
-  const frameCount = Math.max(1, frames.length || 1);
-  const isPlaying = Boolean(ui.playerBoardPreviewPlaying) && frameCount > 1;
   const playerName = normalizeText(profile.playerName || profile.name, "Player");
-  const objective = interventionObjective(intervention, focus);
-  const clipAnchor = normalizeText(frame.clipAnchor || state.clipAnchor, "");
-  const clipTarget = frameClipTarget(frame, state, detail);
-  const clipTargetId = clipBankItemId(clipTarget);
-  const coachCue = normalizeText(frame.coachCue || state.coachCue, "Coach cue has not been added yet.");
-  const playerCue = normalizeText(frame.playerCue || state.playerCue, objective);
-  const focusLink = focusBoardLinkState(intervention, focus);
+  const frameCount = Math.max(1, frames.length || 1);
   return `
-    <aside class="idp-player-board-panel idp-player-board-tactical-shell idp-player-board-playback-shell is-player-board-v3" data-idp-player-board-preview data-idp-player-board-frame-count="${escapeHtml(String(frameCount))}">
-      <header class="idp-player-board-playback-head">
-        <div class="idp-player-board-playback-title">
-          <span>Coach Playback</span>
-          <strong>${escapeHtml(intervention.title || `${playerName} individual exercise`)}</strong>
-          <small>${escapeHtml(objective)}</small>
-        </div>
-        <div class="idp-player-board-playback-controls" aria-label="Exercise playback controls">
-          <span>${escapeHtml(`${frameIndex + 1} / ${frameCount}`)}</span>
-          <button type="button" data-idp-player-board-preview-play${frameCount <= 1 || isPlaying ? " hidden" : ""}>Play</button>
-          <button type="button" data-idp-player-board-preview-stop${isPlaying ? "" : " hidden"}>Stop</button>
-          ${canEdit ? `<button type="button" class="is-primary" data-idp-player-board-open>Redigera</button>` : ""}
-        </div>
+    <aside class="idp-player-board-panel idp-player-board-visual-card is-player-board-v4" data-idp-player-board-preview data-idp-player-board-frame-count="${escapeHtml(String(frameCount))}">
+      <header class="idp-player-board-visual-head">
+        <span>Board</span>
+        <strong>Exercise visual</strong>
       </header>
-      <div class="idp-player-board-playback-stage">
-        <div class="idp-player-board-preview idp-player-board-tactical-preview" aria-label="IDP Player Board preview">
-          <span class="idp-player-board-surface">
-            <span class="idp-player-board-canvas">
-              ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-preview-arrow", frameIndex })}
-            </span>
+      <div class="idp-player-board-visual-stage">
+        <div class="idp-player-board-preview idp-player-board-tactical-preview idp-player-board-visual-preview" aria-label="${escapeHtml(`${playerName} exercise visual`)}">
+          <span class="idp-player-board-visual-surface">
+            ${renderBoardPitch(intervention, profile, focus, { markerId: "idp-player-board-preview-arrow", frameIndex, pitchMode: "full" })}
           </span>
         </div>
-        <section class="idp-player-board-playback-card" aria-label="Exercise coaching brief">
-          <article class="idp-player-board-focus-ribbon is-${escapeHtml(focusLink.tone)}">
-            <span>${escapeHtml(focusLink.label)}</span>
-            <strong>${escapeHtml(focusLink.title)}</strong>
-            <small>${escapeHtml(focusLink.body)}</small>
-          </article>
-          <div class="idp-player-board-playback-card-head">
-            <span>${escapeHtml(String(frameIndex + 1).padStart(2, "0"))}</span>
-            <div>
-              <strong>${escapeHtml(frame.label || `Frame ${frameIndex + 1}`)}</strong>
-              <small>${escapeHtml(`${pitchModeLabel(intervention.pitchMode)} / ${interventionStatusLabel(intervention.status)}`)}</small>
-            </div>
-          </div>
-          <div class="idp-player-board-playback-cues">
-            <article>
-              <span>Coach Cue</span>
-              <p>${escapeHtml(coachCue)}</p>
-            </article>
-            <article>
-              <span>Player Cue</span>
-              <p>${escapeHtml(playerCue)}</p>
-            </article>
-            <article class="${clipTargetId ? "has-linked-clip" : ""}">
-              <span>Clip Anchor</span>
-              <p>${escapeHtml(clipAnchor || `${counts.clips || 0} clips linked`)}</p>
-              ${clipTargetId ? `
-                <button type="button" data-idp-player-board-preview-clip="${escapeHtml(clipTargetId)}">
-                  Open ${escapeHtml(clipBankItemLabel(clipTarget))}
-                </button>
-              ` : ""}
-            </article>
-          </div>
-        </section>
       </div>
+      <footer class="idp-player-board-visual-actions" aria-label="Player Board actions">
+        <button type="button" data-idp-player-board-handout-open>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          <span>Preview</span>
+        </button>
+        ${canEdit ? `
+          <button type="button" data-idp-player-board-open>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z"></path></svg>
+            <span>Edit</span>
+          </button>
+          <button type="button" data-idp-player-board-link-clip>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4"></path><path d="m7 9 5-5 5 5"></path><path d="M5 20h14"></path></svg>
+            <span>Upload</span>
+          </button>
+        ` : ""}
+      </footer>
     </aside>
   `;
 }

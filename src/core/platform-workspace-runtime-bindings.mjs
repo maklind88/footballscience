@@ -150,6 +150,7 @@ export function bindPlatformWorkspaceRuntimeBindings(deps = {}) {
       applyMedicalQuickRecommendation: actions.applyMedicalQuickRecommendation,
       canEditMedicalTeam: actions.canEditMedicalTeam,
       clearMedicalInjuryPlanDraft: actions.clearMedicalInjuryPlanDraft,
+      clearMedicalQuickRecommendation: actions.clearMedicalQuickRecommendation,
       closeMedicalPlayerModal: actions.closeMedicalPlayerModal,
       copyMedicalCoachHandoverToClipboard: actions.copyMedicalCoachHandoverToClipboard,
       formatScheduleDateValue: actions.formatScheduleDateValue,

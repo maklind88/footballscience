@@ -55,6 +55,8 @@ test("Medical roster renderer owns availability workspace and roster rows", () =
   expect(workspace).toContain("medical-roster-panel");
   expect(workspace).toContain("Mak Player");
   expect(workspace).toContain("data-medical-quick-recommend");
+  expect(workspace).toContain("data-medical-quick-clear");
+  expect(workspace).toContain("medical-quick-rec-row has-clear");
   expect(workspace).not.toContain("medical-bulk-panel");
   expect(workspace).not.toContain("data-medical-bulk-toggle");
   expect(renderer.renderRosterSetup()).toContain("medicalRosterImportForm");

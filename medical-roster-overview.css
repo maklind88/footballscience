@@ -636,6 +636,10 @@ body.is-dark-mode .medical-plan-edit:focus-visible {
   min-width: 0;
 }
 
+.medical-quick-rec-row.has-clear {
+  grid-template-columns: minmax(3.1rem, 0.58fr) repeat(6, minmax(2.35rem, 1fr));
+}
+
 .medical-quick-rec-button {
   min-width: 0;
   height: 2.15rem;
@@ -669,6 +673,19 @@ body.is-dark-mode .medical-plan-edit:focus-visible {
   background: #13241c;
   border-color: #13241c;
   color: #fff;
+}
+
+.medical-quick-clear {
+  border-color: rgba(82, 91, 107, 0.14);
+  color: #4b5563;
+  background: rgba(236, 239, 244, 0.94);
+}
+
+.medical-quick-clear:hover,
+.medical-quick-clear:focus-visible {
+  border-color: rgba(82, 91, 107, 0.22);
+  background: #e5e7eb;
+  color: #17251e;
 }
 
 .medical-quick-unavailable:not(.is-active) {
@@ -1567,6 +1584,19 @@ body.is-dark-mode .medical-row-select-button.is-selected {
 
 body.is-dark-mode .medical-row-select-button {
   color: transparent;
+}
+
+body.is-dark-mode .medical-quick-clear {
+  border-color: rgba(203, 213, 225, 0.18);
+  background: rgba(148, 163, 184, 0.16);
+  color: #d5e3ec;
+}
+
+body.is-dark-mode .medical-quick-clear:hover,
+body.is-dark-mode .medical-quick-clear:focus-visible {
+  border-color: rgba(203, 213, 225, 0.28);
+  background: rgba(148, 163, 184, 0.26);
+  color: #fff;
 }
 
 body.is-dark-mode .medical-row-select-button::before {

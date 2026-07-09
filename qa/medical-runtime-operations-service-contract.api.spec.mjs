@@ -170,6 +170,7 @@ test("Medical runtime operations service owns operations outside app-runtime", (
   expect(app).toContain("configureMedicalRuntimeAccessors(() => medicalRuntimeService);");
   expect(runtimeService).toContain("createMedicalRuntimeFacade({");
   expect(accessors).toContain('export function applyMedicalBulkRecommendation(...args) { return callFacade("applyMedicalBulkRecommendation", args); }');
+  expect(accessors).toContain('export function clearMedicalQuickRecommendation(...args) { return callFacade("clearMedicalQuickRecommendation", args); }');
   expect(app).not.toContain("createMedicalRuntimeOperationsService({");
   expect(app).not.toContain("function applyMedicalBulkRecommendation(values = {}) {");
   expect(app).not.toContain("function recordMedicalDatabaseSyncEvent(eventType, payload = {}) {");
@@ -238,9 +239,12 @@ test("Medical runtime operations service preserves filtering, bulk recommendatio
   });
   expect(harness.commits.at(-1)).toMatchObject({ type: "recommendation-saved" });
 
-  const quickUndo = harness.service.applyMedicalQuickRecommendation("p1", 75);
-  expect(quickUndo).toMatchObject({ toggledOff: true });
-  expect(quickUndo.archivedRecord).toMatchObject({
+  const quickSame = harness.service.applyMedicalQuickRecommendation("p1", 75);
+  expect(quickSame).toMatchObject({ unchanged: true, record: null });
+
+  const quickClear = harness.service.clearMedicalQuickRecommendation("p1");
+  expect(quickClear).toMatchObject({ cleared: true });
+  expect(quickClear.archivedRecord).toMatchObject({
     playerId: "p1",
     participation: 75,
     archivedAt: "2026-05-31T10:00:00.000Z",
@@ -272,12 +276,29 @@ test("Medical runtime operations service preserves filtering, bulk recommendatio
     },
     ...harness.state.records.filter((record) => record.playerId !== "p1" || record.date !== "2026-05-31"),
   ];
-  const stackedQuickUndo = harness.service.applyMedicalQuickRecommendation("p1", 0);
-  expect(stackedQuickUndo).toMatchObject({ toggledOff: true });
-  expect(stackedQuickUndo.archivedRecords.map((record) => record.id).sort()).toEqual(["latest-zero", "older-full"]);
+  const stackedQuickClear = harness.service.clearMedicalQuickRecommendation("p1");
+  expect(stackedQuickClear).toMatchObject({ cleared: true });
+  expect(stackedQuickClear.archivedRecords.map((record) => record.id).sort()).toEqual(["latest-zero", "older-full"]);
   expect(harness.state.records.filter((record) =>
     record.playerId === "p1" && record.date === "2026-05-31" && !record.archivedAt
   )).toEqual([]);
+
+  harness.state.records = [
+    {
+      id: "plan-controlled",
+      playerId: "p1",
+      date: "2026-05-31",
+      status: "unavailable",
+      participation: 0,
+      injuryPlanId: "plan-acl",
+      createdAt: "2026-05-31T11:00:00.000Z",
+    },
+  ];
+  const controlledClear = harness.service.clearMedicalQuickRecommendation("p1");
+  expect(controlledClear).toMatchObject({
+    cleared: false,
+    blockReason: "This availability is controlled by Squad Room or an active medical plan.",
+  });
 
   harness.state.records = [
     {
@@ -290,13 +311,12 @@ test("Medical runtime operations service preserves filtering, bulk recommendatio
     },
     ...harness.state.records.filter((record) => record.playerId !== "p1" || record.date !== "2026-05-31" || record.archivedAt),
   ];
-  const protectedQuickUndo = harness.service.applyMedicalQuickRecommendation("p1", 75);
-  expect(protectedQuickUndo).toMatchObject({
-    record: null,
+  const protectedQuickClear = harness.service.clearMedicalQuickRecommendation("p1");
+  expect(protectedQuickClear).toMatchObject({
     archivedRecord: null,
-    toggledOff: false,
+    cleared: false,
   });
-  expect(protectedQuickUndo.blockReason).toContain("logged details");
+  expect(protectedQuickClear.blockReason).toContain("logged details");
 
   harness.service.setMedicalBulkSelection(["p1", "p2", "p3"], "2026-06-01");
   expect(Array.from(harness.bulkSelectedPlayerIds).sort()).toEqual(["p1", "p2"]);

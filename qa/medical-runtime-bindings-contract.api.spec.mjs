@@ -62,6 +62,15 @@ function createHarness({ canEdit = true } = {}) {
     modalOpen: true,
     modalTab: "availability",
     operationsTab: "availability",
+    quickClearResult: {
+      player: { name: "Ada" },
+      archivedRecord: { id: "r-quick", playerId: "p-1", archivedAt: "now" },
+      archivedRecords: [
+        { id: "r-quick", playerId: "p-1", archivedAt: "now" },
+        { id: "r-older", playerId: "p-1", archivedAt: "later" },
+      ],
+      cleared: true,
+    },
     quickRecommendationResult: { player: { name: "Ada" }, record: { id: "r-quick", playerId: "p-1", participation: 100 } },
     rosterSearch: "",
     selectedPlayerId: "",
@@ -98,6 +107,7 @@ function createHarness({ canEdit = true } = {}) {
       applyMedicalBulkRecommendation: () => ({ savedCount: 1, records: [{ id: "bulk-1" }], blockedCount: 0, blockedNames: [] }),
       applyMedicalQuickRecommendation: () => mutable.quickRecommendationResult,
       canEditMedicalTeam: () => canEdit,
+      clearMedicalQuickRecommendation: () => mutable.quickClearResult,
       clearMedicalInjuryPlanDraft: (playerId) => calls.push(`clear-draft:${playerId}`),
       closeMedicalPlayerModal: () => calls.push("close-modal"),
       copyMedicalCoachHandoverToClipboard: () => calls.push("copy-handover"),
@@ -186,8 +196,10 @@ test("Medical runtime bindings own Medical workspace event binding outside app-r
   const indexSource = readProjectFile("src/modules/medical/index.mjs");
 
   expect(appSource).toContain("bindPlatformWorkspaceRuntimeBindings({");
+  expect(appSource).toContain("clearMedicalQuickRecommendation");
   expect(appSource).not.toContain("bindMedicalRuntimeBindings({");
   expect(platformBindingsSource).toContain("bindMedicalRuntimeBindings({");
+  expect(platformBindingsSource).toContain("clearMedicalQuickRecommendation");
   expect(appSource).not.toContain('ui.medicalTeamWorkspace?.addEventListener("click"');
   expect(appSource).not.toContain('ui.medicalTeamWorkspace?.addEventListener("submit"');
   expect(bindingsSource).toContain('workspaceElement.addEventListener("click"');
@@ -208,7 +220,7 @@ test("Medical runtime bindings register the expected workspace listeners", () =>
   expect(typeof workspace.listeners.submit).toBe("function");
 });
 
-test("Medical runtime bindings preserve quick recommendation, archive, and plan edit behavior", async () => {
+test("Medical runtime bindings preserve quick recommendation, clear, archive, and plan edit behavior", async () => {
   const { calls, mutable, workspace } = createHarness();
 
   await workspace.listeners.click(createEvent(createTarget({
@@ -217,22 +229,18 @@ test("Medical runtime bindings preserve quick recommendation, archive, and plan 
   expect(calls).toContainEqual(["sync", "recommendation-saved", expect.objectContaining({ playerId: "p-1" })]);
   expect(calls).toContainEqual(["render", "Ada: 100% recommendation saved."]);
 
-  mutable.quickRecommendationResult = {
-    player: { name: "Ada" },
-    record: null,
-    archivedRecord: { id: "r-quick", playerId: "p-1", archivedAt: "now" },
-    archivedRecords: [
-      { id: "r-quick", playerId: "p-1", archivedAt: "now" },
-      { id: "r-older", playerId: "p-1", archivedAt: "later" },
-    ],
-    toggledOff: true,
-  };
   await workspace.listeners.click(createEvent(createTarget({
-    closest: { "[data-medical-quick-recommend]": { dataset: { medicalQuickRecommend: "full", medicalQuickParticipation: "100" } } },
+    closest: { "[data-medical-quick-clear]": { dataset: { medicalQuickClear: "p-1" } } },
   })));
   expect(calls).toContainEqual(["sync", "record-archived", expect.objectContaining({ recordId: "r-quick", playerId: "p-1" })]);
   expect(calls).toContainEqual(["sync", "record-archived", expect.objectContaining({ recordId: "r-older", playerId: "p-1" })]);
   expect(calls).toContainEqual(["render", "Ada: recommendation cleared."]);
+
+  mutable.quickRecommendationResult = { player: { name: "Ada" }, record: null, unchanged: true };
+  await workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-quick-recommend]": { dataset: { medicalQuickRecommend: "full", medicalQuickParticipation: "100" } } },
+  })));
+  expect(calls).toContainEqual(["render", "Ada: recommendation already set."]);
 
   await workspace.listeners.click(createEvent(createTarget({
     closest: { "[data-medical-delete-record]": { dataset: { medicalDeleteRecord: "r-1" } } },

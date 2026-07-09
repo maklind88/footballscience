@@ -145,6 +145,7 @@ export function setMedicalBulkSelection(...args) { return callFacade("setMedical
 export function setMedicalBulkNotSetSelection(...args) { return callFacade("setMedicalBulkNotSetSelection", args); }
 export function applyMedicalQuickRecommendation(...args) { return callFacade("applyMedicalQuickRecommendation", args); }
 export function applyMedicalBulkRecommendation(...args) { return callFacade("applyMedicalBulkRecommendation", args); }
+export function clearMedicalQuickRecommendation(...args) { return callFacade("clearMedicalQuickRecommendation", args); }
 export function updateMedicalBulkActivityControls(...args) { return callFacade("updateMedicalBulkActivityControls", args); }
 export function updateMedicalGovernancePolicy(...args) { return callFacade("updateMedicalGovernancePolicy", args); }
 export function getMedicalPlanTotalDays(...args) { return callFacade("getMedicalPlanTotalDays", args); }

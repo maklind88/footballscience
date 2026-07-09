@@ -115,9 +115,19 @@ ${escapeHtml(value)}
     const activityContext = getMedicalRecommendationActivityContext(selectedDate);
     const squadBlockReason = getMedicalPlayerSquadAvailabilityBlockReason(player, selectedDate);
     const canRecommend = canEdit && activityContext.isRecommendable && !squadBlockReason;
+    const canClearManualRecord = canEdit && Boolean(record) && !record?.source && !record?.injuryPlanId;
     const label = squadBlockReason || activityContext.quickLabel;
     return `
-<div class="medical-quick-rec-row" role="group" aria-label="${escapeHtml(label)} for ${escapeHtml(player.name)}">
+<div class="medical-quick-rec-row${canClearManualRecord ? " has-clear" : ""}" role="group" aria-label="${escapeHtml(label)} for ${escapeHtml(player.name)}">
+${canClearManualRecord ? `
+<button
+type="button"
+class="medical-quick-rec-button medical-quick-clear"
+data-medical-quick-clear="${escapeHtml(player.id)}"
+aria-label="Clear ${escapeHtml(player.name)} manual recommendation for ${escapeHtml(formatMedicalDateLabel(selectedDate, "long"))}"
+title="Clear manual recommendation"
+>Clear</button>
+` : ""}
 ${medicalParticipationOptions
   .map((participation) => {
     const statusKey = getMedicalStatusForParticipation(participation);

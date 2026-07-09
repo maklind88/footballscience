@@ -531,6 +531,35 @@ ${renderRtpExerciseCards(profile, 3)}
       callOptional(actions.copyMedicalCoachHandoverToClipboard);
       return;
     }
+    const quickClearButton = event.target.closest("[data-medical-quick-clear]");
+    if (quickClearButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!canEdit()) return;
+      const result = actions.clearMedicalQuickRecommendation?.(
+        quickClearButton.dataset.medicalQuickClear
+      ) ?? {};
+      const archivedRecords = Array.isArray(result.archivedRecords)
+        ? result.archivedRecords
+        : result.archivedRecord
+          ? [result.archivedRecord]
+          : [];
+      archivedRecords.forEach((archivedRecord) => {
+        recordSync("record-archived", {
+          playerId: archivedRecord.playerId,
+          recordId: archivedRecord.id,
+          archivedAt: archivedRecord.archivedAt,
+          idempotencyKey: `record-archived:${archivedRecord.id}:${archivedRecord.archivedAt || "quick-clear"}`,
+        });
+      });
+      const playerName = result.player?.name || "Player";
+      renderWorkspace(
+        result.cleared
+          ? `${playerName}: recommendation cleared.`
+          : result.blockReason || "Recommendation could not be cleared."
+      );
+      return;
+    }
     const quickRecommendationButton = event.target.closest("[data-medical-quick-recommend]");
     if (quickRecommendationButton) {
       event.preventDefault();
@@ -564,8 +593,8 @@ ${renderRtpExerciseCards(profile, 3)}
       renderWorkspace(
         result.record
           ? `${playerName}: ${result.record.participation}% recommendation saved.`
-          : result.toggledOff
-            ? `${playerName}: recommendation cleared.`
+          : result.unchanged
+            ? `${playerName}: recommendation already set.`
             : result.blockReason || "Recommendation could not be saved."
       );
       return;

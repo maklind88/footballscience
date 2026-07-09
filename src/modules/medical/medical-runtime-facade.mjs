@@ -319,6 +319,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
   function setMedicalBulkNotSetSelection(...args) { return method(operationsService, "setMedicalBulkNotSetSelection", ...args); }
   function applyMedicalQuickRecommendation(...args) { return method(operationsService, "applyMedicalQuickRecommendation", ...args); }
   function applyMedicalBulkRecommendation(...args) { return method(operationsService, "applyMedicalBulkRecommendation", ...args); }
+  function clearMedicalQuickRecommendation(...args) { return method(operationsService, "clearMedicalQuickRecommendation", ...args); }
   function updateMedicalBulkActivityControls(...args) { return method(operationsService, "updateMedicalBulkActivityControls", ...args); }
   function updateMedicalGovernancePolicy(...args) { return method(operationsService, "updateMedicalGovernancePolicy", ...args); }
   function upsertMedicalPlayers(...args) { return method(writeService, "upsertMedicalPlayers", ...args); }
@@ -338,7 +339,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
   return {
     addMedicalInjuryPlan, addMedicalRecord, applyMedicalBulkRecommendation, applyMedicalQuickRecommendation,
     buildMedicalCoachHandoverText, buildMedicalDatabaseStateSummary, clearMedicalInjuryPlanDraft,
-    closeMedicalPlayerModal, copyMedicalCoachHandoverToClipboard, createMedicalRecordFromInjuryPlan,
+    clearMedicalQuickRecommendation, closeMedicalPlayerModal, copyMedicalCoachHandoverToClipboard, createMedicalRecordFromInjuryPlan,
     createMedicalRecordFromSquadAvailabilityBlock, getActiveMedicalInjuryPlan, getActiveMedicalPlayers,
     getActiveMedicalPlayersForDate, getDefaultMedicalInjuryPlanDraft, getFilteredMedicalPlayers,
     getLatestMedicalRecord, getMedicalAccessLabel, getMedicalActiveCaseItems, getMedicalAttentionPlayers,

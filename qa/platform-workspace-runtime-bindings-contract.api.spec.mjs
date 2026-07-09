@@ -44,6 +44,7 @@ function createHarness() {
   };
   const actions = {
     exportFootballScienceDataBackup: () => calls.push("export"),
+    clearMedicalQuickRecommendation: () => calls.push("medical-clear-quick"),
     getAdminRuntimeBindingState: () => ({ selected: "admin-state" }),
     getMedicalRtpLibraryProfile: () => ({ id: "hamstring-strain" }),
     importFootballScienceDataBackupFile: (file) => calls.push(["import", file]),
@@ -119,7 +120,10 @@ test("platform workspace runtime bindings preserve binding order and injected co
   })]);
   expect(calls).toContainEqual(["medical-config", expect.objectContaining({
     workspaceElement: { id: "medical" },
-    actions: expect.objectContaining({ getMedicalRtpLibraryProfile: expect.any(Function) }),
+    actions: expect.objectContaining({
+      clearMedicalQuickRecommendation: expect.any(Function),
+      getMedicalRtpLibraryProfile: expect.any(Function),
+    }),
   })]);
   expect(calls).toContainEqual(["player-config", expect.objectContaining({ workspaceElement: { id: "players" } })]);
   expect(calls).toContainEqual(["session-config", expect.objectContaining({ workspaceElement: { id: "session" } })]);

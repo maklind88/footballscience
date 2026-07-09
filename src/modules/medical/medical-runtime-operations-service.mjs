@@ -285,9 +285,9 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     return [currentRecord];
   }
 
-  function getQuickRecommendationToggleBlockReason(record, participation, sameDayRecords = []) {
-    if (!record || normalizeMedicalParticipation(record.participation, null) !== participation) {
-      return "";
+  function getQuickRecommendationClearBlockReason(record, sameDayRecords = []) {
+    if (!record) {
+      return "No manual recommendation to clear.";
     }
     if (record.source || record.injuryPlanId) {
       return "This availability is controlled by Squad Room or an active medical plan.";
@@ -301,21 +301,12 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     return "";
   }
 
-  function getQuickRecommendationArchiveTargets(record, participation, sameDayRecords = []) {
-    const blockReason = getQuickRecommendationToggleBlockReason(record, participation, sameDayRecords);
+  function getQuickRecommendationArchiveTargets(record, sameDayRecords = []) {
+    const blockReason = getQuickRecommendationClearBlockReason(record, sameDayRecords);
     if (blockReason) {
       return [];
     }
     return sameDayRecords.filter(isPlainMedicalQuickRecommendationRecord);
-  }
-
-  function isQuickRecommendationToggleable(record, participation, sameDayRecords = []) {
-    return Boolean(record) &&
-      normalizeMedicalParticipation(record.participation, null) === participation &&
-      !record.source &&
-      !record.injuryPlanId &&
-      !hasMedicalQuickRecommendationDetails(record) &&
-      getQuickRecommendationArchiveTargets(record, participation, sameDayRecords).length > 0;
   }
 
   function applyMedicalQuickRecommendation(playerId, participationValue) {
@@ -327,24 +318,8 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     const dateValue = medicalState.selectedDate;
     const participation = normalizeMedicalParticipation(participationValue, 75);
     const currentRecord = getLatestMedicalRecord(player.id, dateValue);
-    const sameDayRecords = getSameDayManualMedicalRecords(player.id, dateValue, currentRecord);
-    if (isQuickRecommendationToggleable(currentRecord, participation, sameDayRecords)) {
-      const archivedRecords = getQuickRecommendationArchiveTargets(currentRecord, participation, sameDayRecords)
-        .map((record) => removeMedicalRecord(record.id))
-        .filter(Boolean);
-      const archivedRecord = archivedRecords[0] || null;
-      return {
-        player,
-        record: null,
-        archivedRecord,
-        archivedRecords,
-        toggledOff: archivedRecords.length > 0,
-        blockReason: archivedRecords.length > 0 ? "" : "Recommendation could not be cleared.",
-      };
-    }
-    const toggleBlockReason = getQuickRecommendationToggleBlockReason(currentRecord, participation, sameDayRecords);
-    if (toggleBlockReason) {
-      return { player, record: null, archivedRecord: null, toggledOff: false, blockReason: toggleBlockReason };
+    if (currentRecord && normalizeMedicalParticipation(currentRecord.participation, null) === participation) {
+      return { player, record: null, unchanged: true, blockReason: "" };
     }
     const status = getMedicalStatusForParticipation(participation);
     const blockReason = getMedicalRecommendationBlockReason(player.id, participation, dateValue);
@@ -367,6 +342,32 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
       ),
     });
     return { player, record, blockReason: "" };
+  }
+
+  function clearMedicalQuickRecommendation(playerId) {
+    const medicalState = readState();
+    const player = medicalState.players.find((candidate) => candidate.id === playerId);
+    if (!player) {
+      return { player: null, archivedRecord: null, archivedRecords: [], cleared: false, blockReason: "Player could not be found." };
+    }
+    const dateValue = medicalState.selectedDate;
+    const currentRecord = getLatestMedicalRecord(player.id, dateValue);
+    const sameDayRecords = getSameDayManualMedicalRecords(player.id, dateValue, currentRecord);
+    const blockReason = getQuickRecommendationClearBlockReason(currentRecord, sameDayRecords);
+    if (blockReason) {
+      return { player, archivedRecord: null, archivedRecords: [], cleared: false, blockReason };
+    }
+    const archivedRecords = getQuickRecommendationArchiveTargets(currentRecord, sameDayRecords)
+      .map((record) => removeMedicalRecord(record.id))
+      .filter(Boolean);
+    const archivedRecord = archivedRecords[0] || null;
+    return {
+      player,
+      archivedRecord,
+      archivedRecords,
+      cleared: archivedRecords.length > 0,
+      blockReason: archivedRecords.length > 0 ? "" : "Recommendation could not be cleared.",
+    };
   }
 
   function applyMedicalBulkRecommendation(values = {}) {
@@ -492,6 +493,7 @@ export function createMedicalRuntimeOperationsService(deps = {}) {
     applyMedicalBulkRecommendation,
     applyMedicalQuickRecommendation,
     buildMedicalDatabaseStateSummary,
+    clearMedicalQuickRecommendation,
     copyMedicalCoachHandoverToClipboard,
     getFilteredMedicalPlayers,
     getMedicalBulkRecommendationEligiblePlayers,

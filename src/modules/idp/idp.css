@@ -9047,26 +9047,6 @@ body.is-dark-mode .idp-river-detail-value {
   padding: .9rem 1rem .78rem;
 }
 
-.idp-player-board-modal .session-tacticalboard-status-strip.idp-player-board-status-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .36rem;
-  margin-top: .42rem;
-}
-
-.idp-player-board-modal .session-tacticalboard-status-strip.idp-player-board-status-strip span,
-.idp-player-board-modal .session-tacticalboard-status-strip.idp-player-board-status-strip span:first-child {
-  background: #eef5f8;
-  border: 1px solid rgba(29, 29, 31, .08);
-  border-radius: 999px;
-  color: #20313f;
-  font-size: .7rem;
-  font-weight: 850;
-  min-height: 1.72rem;
-  padding: 0 .58rem;
-  text-transform: none;
-}
-
 .idp-player-board-modal-layout.session-tacticalboard-layout.is-idp-tacticalboard {
   background: #edf1f6;
   display: grid;

@@ -1332,7 +1332,6 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
   const note = state.notes?.[0] || {};
   const frame = state.frames?.[activeFrameIndex] || state.frames?.[0] || {};
   const frameStatusLabel = `${activeFrameIndex + 1} / ${state.frames?.length || 1}`;
-  const counts = interventionCounts(intervention);
   const linkedClipIds = Array.isArray(state.linkedClipIds) ? state.linkedClipIds.join(", ") : "";
   return `
     <div class="session-library-overlay session-tacticalboard-overlay idp-player-board-layer" data-idp-player-board-layer>
@@ -1342,14 +1341,6 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
             <span>IDP Board</span>
             <h2>${escapeHtml(profile.playerName || "Player Board")}</h2>
             <small>${escapeHtml(focus?.title || "Individual development")}</small>
-            <div class="session-tacticalboard-status-strip idp-player-board-status-strip" aria-label="Board state">
-              <span data-idp-board-active-tool-label>Move Player</span>
-              <span>${escapeHtml(interventionStatusLabel(intervention.status))}</span>
-              <span>${escapeHtml(`${Math.max(1, counts.frames)} frames`)}</span>
-              <span>${escapeHtml(`${counts.clips} clips`)}</span>
-              <span>${escapeHtml(pitchMeasurementLabel(intervention.pitchMode))}</span>
-              <span>IDP only</span>
-            </div>
           </div>
           <button type="button" class="session-library-close-button" data-idp-player-board-close aria-label="Close IDP Playerboard">Close</button>
         </header>

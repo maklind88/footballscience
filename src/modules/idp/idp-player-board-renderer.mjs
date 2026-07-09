@@ -834,10 +834,10 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
   const playerCue = normalizeText(frame.playerCue || state.playerCue, objective);
   const focusLink = focusBoardLinkState(intervention, focus);
   return `
-    <aside class="idp-player-board-panel idp-player-board-tactical-shell idp-player-board-playback-shell" data-idp-player-board-preview data-idp-player-board-frame-count="${escapeHtml(String(frameCount))}">
+    <aside class="idp-player-board-panel idp-player-board-tactical-shell idp-player-board-playback-shell is-player-board-v3" data-idp-player-board-preview data-idp-player-board-frame-count="${escapeHtml(String(frameCount))}">
       <header class="idp-player-board-playback-head">
         <div class="idp-player-board-playback-title">
-          <span>Tactical Board</span>
+          <span>Coach Playback</span>
           <strong>${escapeHtml(intervention.title || `${playerName} individual exercise`)}</strong>
           <small>${escapeHtml(objective)}</small>
         </div>
@@ -848,11 +848,6 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
           ${canEdit ? `<button type="button" class="is-primary" data-idp-player-board-open>Redigera</button>` : ""}
         </div>
       </header>
-      <div class="idp-player-board-focus-ribbon is-${escapeHtml(focusLink.tone)}">
-        <span>${escapeHtml(focusLink.label)}</span>
-        <strong>${escapeHtml(focusLink.title)}</strong>
-        <small>${escapeHtml(focusLink.body)}</small>
-      </div>
       <div class="idp-player-board-playback-stage">
         <div class="idp-player-board-preview idp-player-board-tactical-preview" aria-label="IDP Player Board preview">
           <span class="idp-player-board-surface">
@@ -861,7 +856,12 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
             </span>
           </span>
         </div>
-        <section class="idp-player-board-playback-card" aria-label="Frame coaching cue">
+        <section class="idp-player-board-playback-card" aria-label="Exercise coaching brief">
+          <article class="idp-player-board-focus-ribbon is-${escapeHtml(focusLink.tone)}">
+            <span>${escapeHtml(focusLink.label)}</span>
+            <strong>${escapeHtml(focusLink.title)}</strong>
+            <small>${escapeHtml(focusLink.body)}</small>
+          </article>
           <div class="idp-player-board-playback-card-head">
             <span>${escapeHtml(String(frameIndex + 1).padStart(2, "0"))}</span>
             <div>
@@ -1221,13 +1221,32 @@ function renderBoardLayerList(state = {}, profile = {}) {
   return `
     <details class="idp-board-layer-manager idp-board-disclosure" aria-label="Board objects">
       <summary class="idp-board-layer-manager-head">
-        <span>Layers</span>
+        <span>Board Objects</span>
         <small data-idp-board-layer-count>${escapeHtml(String(entries.length))}</small>
       </summary>
       <div class="idp-board-layer-list" data-idp-board-layer-list>
         ${entries.map((entry) => renderBoardLayerItem(entry)).join("")}
       </div>
     </details>
+  `;
+}
+
+function renderBoardFocusContext(focus = {}, intervention = {}) {
+  const focusTitle = normalizeText(focus?.title, "No active IDP focus");
+  const focusDescription = normalizeText(focus?.description, "Create or select a current focus before saving a new exercise.");
+  const focusCategory = normalizeText(focus?.category, "Player development");
+  const focusSyncLabel = !focus?.id
+    ? "Needs focus"
+    : intervention.focusId && intervention.focusId !== focus.id
+      ? "Needs sync"
+      : "Synced";
+  return `
+    <section class="idp-board-focus-context" aria-label="Current IDP focus">
+      <span>Current IDP Focus</span>
+      <strong>${escapeHtml(focusTitle)}</strong>
+      <small>${escapeHtml(focusDescription)}</small>
+      <em>${escapeHtml(focusCategory)} · ${escapeHtml(focusSyncLabel)}</em>
+    </section>
   `;
 }
 
@@ -1276,7 +1295,7 @@ function renderBoardFrameStrip(frames = [], activeFrameIndex = 0) {
   return `
     <div class="session-tacticalboard-frames idp-player-board-editor-framebar" aria-label="IDP board frames">
       <div class="session-tacticalboard-panel-head idp-player-board-editor-panel-head">
-        <span>Animation</span>
+        <span>Frames</span>
         <small data-idp-board-frame-status>${escapeHtml(frameStatusLabel)}</small>
       </div>
       <div class="session-tacticalboard-frame-list idp-player-board-frame-list">
@@ -1303,7 +1322,7 @@ function renderBoardFrameStrip(frames = [], activeFrameIndex = 0) {
         <button type="button" data-idp-board-redo disabled title="Redo">Redo</button>
       </div>
       <div class="idp-player-board-frame-actions" aria-label="Frame controls">
-        <button type="button" data-idp-board-frame-add title="Add frame">New frame</button>
+        <button type="button" data-idp-board-frame-add title="Add frame">New</button>
         <button type="button" data-idp-board-frame-duplicate title="Duplicate active frame">Duplicate</button>
         <button type="button" data-idp-board-play title="Play frames">Play</button>
         <button type="button" data-idp-board-stop hidden title="Stop playback">Stop</button>
@@ -1314,7 +1333,6 @@ function renderBoardFrameStrip(frames = [], activeFrameIndex = 0) {
 
 export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {}, ui = {}, canEdit = false, options = {}) {
   if (!ui.playerBoardOpen) return "";
-  const interventions = Array.isArray(detail.interventions) ? detail.interventions.filter((item) => item.status !== "archived") : [];
   const intervention = selectedEditorIntervention(detail, focus, profile, ui, options);
   const rawState = boardState(intervention, focus, profile);
   const frames = boardFramesFromState(rawState);
@@ -1333,12 +1351,6 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
   const frame = state.frames?.[activeFrameIndex] || state.frames?.[0] || {};
   const frameStatusLabel = `${activeFrameIndex + 1} / ${state.frames?.length || 1}`;
   const linkedClipIds = Array.isArray(state.linkedClipIds) ? state.linkedClipIds.join(", ") : "";
-  const focusTitle = focus?.title || "No active focus";
-  const focusLinkLabel = !focus?.id
-    ? "Create a current focus before saving this exercise."
-    : intervention.focusId && intervention.focusId !== focus.id
-      ? "This board was created for another focus. Save to sync it to the current IDP."
-      : "Board language follows the current IDP focus.";
   return `
     <div class="session-library-overlay session-tacticalboard-overlay idp-player-board-layer" data-idp-player-board-layer>
       <section class="session-library-modal session-tacticalboard-modal idp-player-board-modal idp-player-board-modal-tool-player" role="dialog" aria-modal="true" aria-label="IDP Player Board editor" data-idp-board-active-tool="player">
@@ -1350,7 +1362,7 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
           </div>
           <button type="button" class="session-library-close-button" data-idp-player-board-close aria-label="Close IDP Playerboard">Close</button>
         </header>
-        <div class="session-tacticalboard-layout idp-player-board-modal-layout is-tactical-style is-idp-tacticalboard">
+        <div class="session-tacticalboard-layout idp-player-board-modal-layout is-tactical-style is-idp-tacticalboard is-player-board-v3">
           <aside class="session-tacticalboard-side session-tacticalboard-toolbox idp-player-board-toolbox">
             <div class="session-tacticalboard-tools idp-player-board-editor-bank idp-player-board-tool-bank">
               <div class="session-tacticalboard-panel-head idp-player-board-editor-panel-head">
@@ -1360,28 +1372,6 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
               <div class="session-tacticalboard-tools idp-player-board-tools" aria-label="IDP board tools">
                 ${renderBoardToolGroups("player")}
               </div>
-            </div>
-            <div class="session-tacticalboard-frames idp-player-board-editor-bank idp-player-board-mini-bank">
-              <div class="session-tacticalboard-panel-head idp-player-board-editor-panel-head">
-                <span>Exercise Bank</span>
-                <small>${escapeHtml(interventions.length || 1)} saved</small>
-              </div>
-              <button type="button" class="idp-player-board-bank-item${intervention.id ? "" : " is-current"}" data-idp-player-board-new>
-                <span class="idp-player-board-bank-number">+</span>
-                <span class="idp-player-board-bank-copy">
-                  <strong>New Individual Exercise</strong>
-                  <small>Single player intervention for this focus</small>
-                </span>
-              </button>
-              ${interventions.map((item, index) => `
-                <button type="button" class="idp-player-board-bank-item${item.id === intervention.id ? " is-current" : ""}" data-idp-player-board-select="${escapeHtml(item.id)}">
-                  <span class="idp-player-board-bank-number">${String(index + 1).padStart(2, "0")}</span>
-                  <span class="idp-player-board-bank-copy">
-                    <strong>${escapeHtml(item.title || "Individual exercise")}</strong>
-                    <small>${escapeHtml(interventionObjective(item, focus))}</small>
-                  </span>
-                </button>
-              `).join("")}
             </div>
           </aside>
           <div class="session-tacticalboard-canvas-wrap idp-player-board-canvas-wrap" data-idp-player-board-canvas-wrap>
@@ -1403,11 +1393,7 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
             <input type="hidden" name="boardFramesJson" value="${fieldValue(JSON.stringify(state.frames || []))}" data-idp-board-frames>
             <input type="hidden" name="linkedClipIds" value="${fieldValue(linkedClipIds)}" data-idp-board-linked-clip-ids>
             ${renderBoardGeometryInputs({ player, reference, cones, zone, arrow, note })}
-            <section class="idp-board-focus-context">
-              <span>Current IDP focus</span>
-              <strong>${escapeHtml(focusTitle)}</strong>
-              <small>${escapeHtml(focusLinkLabel)}</small>
-            </section>
+            ${renderBoardFocusContext(focus, intervention)}
             <section class="idp-tactical-inspector-card is-selected" data-idp-board-inspector>
               <span>Selected Tool</span>
               <strong data-idp-board-active-tool-label>Move Player</strong>
@@ -1418,10 +1404,9 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
               </div>
               <p data-idp-board-hint-state>Click the pitch to place or update the selected element.</p>
             </section>
-            ${renderBoardLayerList(state, profile)}
             <details class="idp-player-board-frame-inspector idp-board-disclosure" data-idp-board-frame-inspector>
               <summary class="idp-player-board-frame-inspector-head">
-                <span>Frame Inspector</span>
+                <span>Frame Cue</span>
                 <small data-idp-board-frame-inspector-status>${escapeHtml(frameStatusLabel)}</small>
               </summary>
               <div class="idp-board-disclosure-body">
@@ -1446,6 +1431,7 @@ export function renderIdpPlayerBoardOverlay(detail = {}, focus = {}, profile = {
                 </div>
               </div>
             </details>
+            ${renderBoardLayerList(state, profile)}
             <details class="session-tacticalboard-settings idp-player-board-settings idp-board-disclosure" aria-label="Board settings">
               <summary><span>Board Settings</span><small>Pitch + movement style</small></summary>
               <div class="idp-board-disclosure-body">

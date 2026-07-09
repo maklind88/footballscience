@@ -4,6 +4,7 @@ const {
   normalizeUuid,
   selectRows,
 } = require("./idp-database-core.js");
+const { aggregateMiniGamePrincipleLabelsForClip } = require("./idp-clip-bank-moments.js");
 
 function rowList(result) {
   return result.ok && Array.isArray(result.payload) ? result.payload : [];
@@ -117,12 +118,23 @@ async function selectMiniGameLabelsByClipIds(scope, clipIds = []) {
   return labelsByClip;
 }
 
+async function selectMomentClipsByVideoIds(scope, videoIds = []) {
+  const safeIds = uniqueValues(videoIds).map(normalizeUuid).filter(Boolean);
+  if (!safeIds.length) return [];
+  const params = buildTeamParams(scope);
+  params.set("select", "id,match_id,video_id,start_ms,end_ms,metadata,created_at");
+  params.set("video_id", idFilter(safeIds));
+  params.set("limit", String(Math.max(1, safeIds.length * 1000)));
+  const result = await selectRows("video_clip_instances", params);
+  return result.ok ? rowList(result) : [];
+}
+
 async function enrichClipBankItems(items = [], scope = {}) {
   const clipIds = uniqueValues(items.map((item) => item.clip_instance_id)).map(normalizeUuid).filter(Boolean);
   if (!clipIds.length) return items.sort(compareClipBankItems);
 
   const clipParams = buildTeamParams(scope);
-  clipParams.set("select", "id,organization_id,team_id,match_id,video_id,start_ms,end_ms,phase,sub_phase,outcome,mini_game_principle_id,created_at");
+  clipParams.set("select", "id,organization_id,team_id,match_id,video_id,start_ms,end_ms,phase,sub_phase,outcome,mini_game_principle_id,metadata,created_at");
   clipParams.set("id", idFilter(clipIds));
   clipParams.set("limit", String(Math.max(1, clipIds.length)));
   const clipsResult = await selectRows("video_clip_instances", clipParams);
@@ -132,12 +144,13 @@ async function enrichClipBankItems(items = [], scope = {}) {
   const clipMap = new Map(clips.map((clip) => [clip.id, clip]));
   const matchIds = clips.map((clip) => clip.match_id).filter(Boolean);
   const videoIds = clips.map((clip) => clip.video_id).filter(Boolean);
-  const [matchesResult, videosResult, sources, labelsByClip] = await Promise.all([
+  const [matchesResult, videosResult, sources, momentClips] = await Promise.all([
     selectRowsByIds("video_matches", scope, matchIds, "id,title,match_date,opponent,metadata,created_at"),
     selectRowsByIds("video_videos", scope, videoIds, "id,title,match_id,duration_ms,local_video_identifier,created_at"),
     selectSourcesByVideoIds(scope, videoIds),
-    selectMiniGameLabelsByClipIds(scope, clipIds),
+    selectMomentClipsByVideoIds(scope, videoIds),
   ]);
+  const labelsByClip = await selectMiniGameLabelsByClipIds(scope, uniqueValues([...clipIds, ...momentClips.map((clip) => clip.id)]));
   const matchMap = mapRowsById(matchesResult);
   const videoMap = mapRowsById(videosResult);
   const sourcesByVideo = groupRowsBy(sources, "video_id");
@@ -165,7 +178,7 @@ async function enrichClipBankItems(items = [], scope = {}) {
       sub_phase: normalizeText(clip.sub_phase, 80),
       outcome: normalizeText(clip.outcome, 40),
       mini_game_principle_id: normalizeText(clip.mini_game_principle_id, 120),
-      mini_game_principles: labelsByClip.get(item.clip_instance_id) || [],
+      mini_game_principles: aggregateMiniGamePrincipleLabelsForClip(clip, momentClips, labelsByClip),
       match_title: title || (eventType === "match" ? "Match video" : "Training video"),
       match_date: normalizeText(match.match_date || metadata.matchDate || metadata.match_date || clip.created_at || item.created_at, 40),
       event_type: normalizeVideoEventType(eventType),

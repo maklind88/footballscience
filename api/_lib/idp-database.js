@@ -12,6 +12,7 @@ const {
   selectRows,
 } = require("./idp-database-core.js");
 const { enrichClipBankItems } = require("./idp-clip-bank-metadata.js");
+const { clipsShareIdpMoment } = require("./idp-clip-bank-moments.js");
 
 const IDP_SCHEMA = "footballscience-idp-v1";
 const CATEGORIES = new Set(["Technical", "Tactical", "Physical", "Psychological", "Leadership"]);
@@ -508,6 +509,44 @@ async function ensureProfile(scope, playerId, payload = {}) {
   return result.ok ? { ok: true, payload: result.payload?.[0] || null } : result;
 }
 
+async function selectVideoClipMoment(scope, clipId) {
+  const safeClipId = normalizeUuid(clipId);
+  if (!safeClipId) return null;
+  const params = buildTeamParams(scope);
+  params.set("select", "id,match_id,video_id,start_ms,end_ms,metadata,created_at");
+  params.set("id", `eq.${safeClipId}`);
+  params.set("limit", "1");
+  const result = await selectRows("video_clip_instances", params);
+  return result.ok ? result.payload?.[0] || null : null;
+}
+
+async function findExistingClipBankItemForMoment(scope, playerId, incomingClip) {
+  if (!incomingClip?.id) return null;
+  const itemParams = buildTeamParams(scope);
+  itemParams.set("select", "*");
+  itemParams.set("player_id", `eq.${playerId}`);
+  itemParams.set("source_module", "eq.video-analysis");
+  itemParams.set("deleted_at", "is.null");
+  itemParams.set("order", "created_at.desc");
+  itemParams.set("limit", "500");
+  const items = await selectRows("idp_clip_bank_items", itemParams);
+  if (!items.ok) return null;
+
+  const candidateItems = rowList(items).filter((item) => item.clip_instance_id && item.clip_instance_id !== incomingClip.id);
+  const clipIds = candidateItems.map((item) => normalizeUuid(item.clip_instance_id)).filter(Boolean);
+  if (!clipIds.length) return null;
+
+  const clipParams = buildTeamParams(scope);
+  clipParams.set("select", "id,match_id,video_id,start_ms,end_ms,metadata,created_at");
+  clipParams.set("id", idFilter(clipIds));
+  clipParams.set("limit", String(Math.max(1, clipIds.length)));
+  const clips = await selectRows("video_clip_instances", clipParams);
+  if (!clips.ok) return null;
+
+  const clipsById = new Map(rowList(clips).map((clip) => [clip.id, clip]));
+  return candidateItems.find((item) => clipsShareIdpMoment(incomingClip, clipsById.get(item.clip_instance_id))) || null;
+}
+
 async function requireOwnedFocus(scope, playerId, focusId) {
   const safeFocusId = normalizeUuid(focusId);
   if (!safeFocusId) return { ok: false, status: 400, reason: "focusId is invalid." };
@@ -675,6 +714,12 @@ async function upsertClipBankItem(payload, actor) {
   if (existing.payload[0]) {
     const sync = await buildSyncMeta(scope, playerId);
     return { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: existing.payload[0], created: false, sync: sync.ok ? sync.payload : null } };
+  }
+  const incomingClip = await selectVideoClipMoment(scope, clipId);
+  const existingMomentItem = await findExistingClipBankItemForMoment(scope, playerId, incomingClip);
+  if (existingMomentItem) {
+    const sync = await buildSyncMeta(scope, playerId);
+    return { ok: true, payload: { schema: IDP_SCHEMA, clipBankItem: existingMomentItem, created: false, sync: sync.ok ? sync.payload : null } };
   }
   const result = await insertRow("idp_clip_bank_items", {
     organization_id: scope.organizationId,

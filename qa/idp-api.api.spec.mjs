@@ -5,6 +5,7 @@ import fs from "node:fs";
 const require = createRequire(import.meta.url);
 const api = require("../api/_lib/idp-database.js");
 const core = require("../api/_lib/idp-database-core.js");
+const moments = require("../api/_lib/idp-clip-bank-moments.js");
 
 const actor = {
   id: "coach-1",
@@ -135,12 +136,75 @@ test("idp clip bank enriches player clips with video metadata without storing lo
   const source = [
     fs.readFileSync(new URL("../api/_lib/idp-database.js", import.meta.url), "utf8"),
     fs.readFileSync(new URL("../api/_lib/idp-clip-bank-metadata.js", import.meta.url), "utf8"),
+    fs.readFileSync(new URL("../api/_lib/idp-clip-bank-moments.js", import.meta.url), "utf8"),
   ].join("\n");
   expect(source).toContain("enrichClipBankItems");
+  expect(source).toContain("findExistingClipBankItemForMoment");
+  expect(source).toContain("aggregateMiniGamePrincipleLabelsForClip");
   expect(source).toContain("video_clip_instances");
   expect(source).toContain("video_matches");
   expect(source).toContain("video_videos");
   expect(source).toContain("mini_game_principles");
   expect(source).toContain("local_video_identifier");
   expect(source).not.toMatch(/\b(video_path|local_path|file_path|storage_bucket|bucket_id|base64|bytea|data:image)\b/i);
+});
+
+test("idp clip bank groups player moments without merging timeline tags", () => {
+  const playerClip = {
+    id: "player-clip",
+    video_id: "video-1",
+    start_ms: 10000,
+    end_ms: 25000,
+    metadata: { momentKey: "video-1:10000" },
+  };
+  const principleClip = {
+    id: "principle-clip",
+    video_id: "video-1",
+    start_ms: 11200,
+    end_ms: 26200,
+    metadata: { moment_key: "video-1:10000" },
+  };
+  const lateClip = {
+    id: "late-clip",
+    video_id: "video-1",
+    start_ms: 15000,
+    end_ms: 30000,
+  };
+  const nearbyClip = {
+    id: "nearby-clip",
+    video_id: "video-1",
+    start_ms: 11800,
+    end_ms: 26800,
+  };
+  const nearbyDifferentKeyClip = {
+    id: "nearby-different-key-clip",
+    video_id: "video-1",
+    start_ms: 11800,
+    end_ms: 26800,
+    metadata: { momentKey: "video-1:11800" },
+  };
+
+  expect(moments.clipsShareIdpMoment(playerClip, principleClip)).toBe(true);
+  expect(moments.clipsShareIdpMoment({ ...playerClip, metadata: {} }, nearbyClip)).toBe(true);
+  expect(moments.clipsShareIdpMoment(playerClip, nearbyDifferentKeyClip)).toBe(true);
+  expect(moments.clipsShareIdpMoment({ ...playerClip, metadata: {} }, lateClip)).toBe(false);
+});
+
+test("idp clip bank aggregates related MG principles onto one player moment", () => {
+  const playerClip = { id: "player-clip", video_id: "video-1", start_ms: 10000, metadata: { momentKey: "video-1:10000" } };
+  const relatedClips = [
+    { id: "principle-a", video_id: "video-1", start_ms: 10050, metadata: { momentKey: "video-1:10000" } },
+    { id: "principle-b", video_id: "video-1", start_ms: 10100, metadata: { momentKey: "video-1:10000" } },
+    { id: "principle-c", video_id: "video-1", start_ms: 18000, metadata: { momentKey: "video-1:18000" } },
+  ];
+  const labelsByClip = new Map([
+    ["principle-a", [{ value: "third-player", label: "Third Player" }]],
+    ["principle-b", [{ value: "ft3", label: "FT3" }, { value: "third-player", label: "Third Player" }]],
+    ["principle-c", [{ value: "late", label: "Late" }]],
+  ]);
+
+  expect(moments.aggregateMiniGamePrincipleLabelsForClip(playerClip, relatedClips, labelsByClip)).toEqual([
+    { type: "mini_game_principle", value: "third-player", label: "Third Player" },
+    { type: "mini_game_principle", value: "ft3", label: "FT3" },
+  ]);
 });

@@ -25,7 +25,7 @@ jobs:
       LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: 24

@@ -55,7 +55,7 @@ jobs:
       EXPECTED_STATUS_FIELD_COUNT: ${{ inputs.expected_status_field_count }}
       EXPECTED_SQUAD_STATUS_FIELD_COUNT: ${{ inputs.expected_squad_status_field_count }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: 24

@@ -805,8 +805,8 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
   return `
     <aside class="idp-player-board-panel idp-player-board-tactical-shell idp-player-board-playback-shell" data-idp-player-board-preview data-idp-player-board-frame-count="${escapeHtml(String(frameCount))}">
       <header class="idp-player-board-playback-head">
-        <div>
-          <span>Coach Playback</span>
+        <div class="idp-player-board-playback-title">
+          <span>Tactical Board</span>
           <strong>${escapeHtml(intervention.title || `${playerName} individual exercise`)}</strong>
           <small>${escapeHtml(objective)}</small>
         </div>

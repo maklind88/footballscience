@@ -258,7 +258,7 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("Saved team library");
   expect(playerBoardRenderer).toContain("frameClipTarget");
   expect(playerBoardRenderer).toContain("clipBankItemId");
-  expect(playerBoardRenderer).toContain("Coach Playback");
+  expect(playerBoardRenderer).toContain("Tactical Board");
   expect(playerBoardRenderer).toContain("idp-player-board-frame-inspector");
   expect(playerBoardRenderer).toContain("data-idp-board-frame-meta");
   expect(playerBoardRenderer).toContain("frameCoachCue");
@@ -722,7 +722,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain("Koppla klipp");
   expect(playerBoardHtml).toContain("Session View");
   expect(playerBoardHtml).toContain("data-idp-player-board-handout-open");
-  expect(playerBoardHtml).toContain("Coach Playback");
+  expect(playerBoardHtml).toContain("Tactical Board");
   expect(playerBoardHtml).toContain("data-idp-player-board-preview");
   expect(playerBoardHtml).toContain('data-idp-player-board-frame-count="2"');
   expect(playerBoardHtml).toContain("data-idp-player-board-preview-play");

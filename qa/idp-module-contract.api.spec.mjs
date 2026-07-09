@@ -178,7 +178,7 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(idpRenderer).toContain("data-idp-player-board-open");
   expect(idpRenderer).toContain("data-idp-player-board-handout-open");
   expect(idpRenderer).toContain("renderIdpPlayerBoardHandout");
-  expect(idpRenderer).toContain("renderIdpPlayerBoardTemplateBank");
+  expect(idpRenderer).not.toContain("renderIdpPlayerBoardTemplateBank");
   expect(idpRenderer).toContain("idp-player-board-library-actions");
   expect(playerBoardTemplates).toContain("sessionPlannerDefaultExerciseLibrary");
   expect(playerBoardTemplates).toContain("idpBoardTemplateDraft");
@@ -241,7 +241,7 @@ test("idp player board interventions are IDP-owned and server-versioned", () => 
   expect(playerBoardRenderer).toContain("data-idp-board-frame-duplicate");
   expect(playerBoardRenderer).toContain("data-idp-board-play");
   expect(playerBoardRenderer).toContain("data-idp-player-board-preview");
-  expect(playerBoardRenderer).toContain("data-idp-player-board-preview-frame");
+  expect(playerBoardRenderer).not.toContain("data-idp-player-board-preview-frame");
   expect(playerBoardRenderer).toContain("data-idp-player-board-preview-play");
   expect(playerBoardRenderer).toContain("data-idp-player-board-preview-stop");
   expect(playerBoardRenderer).toContain("data-idp-player-board-preview-clip");
@@ -696,20 +696,17 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain("Individuell övningsbank");
   expect(playerBoardHtml).toContain("Sök övning");
   expect(playerBoardHtml).toContain("data-idp-player-board-search");
-  expect(playerBoardHtml).toContain("Template Bank");
-  expect(playerBoardHtml).toContain("Team exercise templates");
-  expect(playerBoardHtml).toContain('<details class="idp-player-board-template-bank"');
+  expect(playerBoardHtml).not.toContain("Template Bank");
+  expect(playerBoardHtml).not.toContain("Team exercise templates");
+  expect(playerBoardHtml).not.toContain('<details class="idp-player-board-template-bank"');
   const playerBoardShellIndex = playerBoardHtml.indexOf("idp-player-board-page-shell");
-  const playerBoardTemplateIndex = playerBoardHtml.indexOf("idp-player-board-template-bank");
   expect(playerBoardShellIndex).toBeGreaterThan(-1);
-  expect(playerBoardTemplateIndex).toBeGreaterThan(-1);
-  expect(playerBoardShellIndex).toBeLessThan(playerBoardTemplateIndex);
-  expect(playerBoardHtml).toContain("data-idp-player-board-template-search");
-  expect(playerBoardHtml).toContain("data-idp-player-board-template-preview");
-  expect(playerBoardHtml).toContain("data-idp-player-board-template-use");
-  expect(playerBoardHtml).toContain("Build-up Rhythm");
-  expect(playerBoardHtml).toContain("Visual Preview");
-  expect(playerBoardHtml).toContain("Short game scanning");
+  expect(playerBoardHtml).not.toContain("idp-player-board-template-bank");
+  expect(playerBoardHtml).not.toContain("data-idp-player-board-template-search");
+  expect(playerBoardHtml).not.toContain("data-idp-player-board-template-preview");
+  expect(playerBoardHtml).not.toContain("data-idp-player-board-template-use");
+  expect(playerBoardHtml).not.toContain("Build-up Rhythm");
+  expect(playerBoardHtml).not.toContain("Visual Preview");
   expect(playerBoardHtml).toContain('data-idp-player-board-preview-select="intervention-b"');
   expect(playerBoardHtml).toContain('aria-pressed="true"');
   expect(playerBoardHtml).not.toContain("Kailen Sheridan individual exercises");
@@ -730,7 +727,8 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain('data-idp-player-board-frame-count="2"');
   expect(playerBoardHtml).toContain("data-idp-player-board-preview-play");
   expect(playerBoardHtml).toContain("data-idp-player-board-preview-stop hidden");
-  expect(playerBoardHtml).toContain('data-idp-player-board-preview-frame="1"');
+  expect(playerBoardHtml).not.toContain("idp-player-board-playback-frames");
+  expect(playerBoardHtml).not.toContain("data-idp-player-board-preview-frame");
   expect(playerBoardHtml).toContain("Third player");
   expect(playerBoardHtml).toContain("Find the bounce pass");
   expect(playerBoardHtml).toContain("Play forward after scan");
@@ -805,9 +803,9 @@ test("idp renderer separates the overview from the player development profile", 
     ...staffOptions,
     exerciseLibraryTemplates: savedExerciseLibrary,
   });
-  expect(savedTemplateHtml).toContain("Saved team library");
-  expect(savedTemplateHtml).toContain("Team Press Trap");
-  expect(savedTemplateHtml).toContain("Lock the touchline and win the second ball");
+  expect(savedTemplateHtml).not.toContain("Saved team library");
+  expect(savedTemplateHtml).not.toContain("Team Press Trap");
+  expect(savedTemplateHtml).not.toContain("Lock the touchline and win the second ball");
   expect(savedTemplateHtml).not.toContain("Build-up Rhythm");
   expect(savedTemplateHtml).not.toContain("Archived Shadow Exercise");
 

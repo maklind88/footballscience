@@ -854,25 +854,6 @@ export function renderIdpPlayerBoardPanel(detail = {}, focus = {}, profile = {},
           </div>
         </section>
       </div>
-      <div class="idp-player-board-playback-frames" aria-label="Exercise frames">
-        ${frames.map((item, index) => {
-          const label = item.label || `Frame ${index + 1}`;
-          const cue = item.playerCue || item.coachCue || "";
-          const hasCue = Boolean(item.playerCue || item.coachCue || item.clipAnchor);
-          return `
-            <button
-              type="button"
-              class="${index === frameIndex ? "is-active" : ""}${hasCue ? " has-cue" : ""}"
-              data-idp-player-board-preview-frame="${index}"
-              aria-pressed="${index === frameIndex ? "true" : "false"}"
-              title="${escapeHtml(cue || label)}"
-            >
-              <strong>${escapeHtml(String(index + 1).padStart(2, "0"))}</strong>
-              <span>${escapeHtml(label)}</span>
-            </button>
-          `;
-        }).join("")}
-      </div>
     </aside>
   `;
 }

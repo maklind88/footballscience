@@ -15,7 +15,6 @@ import {
   renderIdpPlayerBoardHandout,
   renderIdpPlayerBoardOverlay,
   renderIdpPlayerBoardPanel,
-  renderIdpPlayerBoardTemplateBank,
 } from "./idp-player-board-renderer.mjs";
 
 const defaultUiState = Object.freeze({
@@ -1657,7 +1656,6 @@ function renderProfilePlayerBoardPage(detail = {}, focus = {}, profile = {}, pul
       <div class="idp-player-board-page-shell">
         ${renderIdpPlayerBoardPanel(detail, focus, profile, pulse, nextAction, canEdit, ui)}
       </div>
-      ${renderIdpPlayerBoardTemplateBank(detail, focus, profile, ui, canEdit, options)}
     </section>
   `;
 }

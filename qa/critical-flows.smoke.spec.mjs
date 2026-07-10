@@ -3395,6 +3395,7 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);
 
   await operationsMenu.locator('[data-medical-ops-tab="programs"]').click();
+  await expect(operations.locator(".medical-rtp-case-workspace")).toHaveCount(0);
   await expect(operations.locator(".medical-rtp-case-linker")).toHaveCount(0);
   await expect(operations).toContainText("Clinical exercise catalogue for RTP programs");
   await expect(operations).toContainText("Save player program");

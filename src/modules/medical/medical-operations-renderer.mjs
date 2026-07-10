@@ -203,7 +203,6 @@ ${suggestedProfiles
     escapeHtml,
     renderExerciseCatalog: rtpExerciseCatalogRenderer.renderExerciseCatalog,
     renderOpsStat,
-    renderRtpCaseProgramCards: rtpProgramRenderer.renderRtpCaseProgramCards,
   });
 
   const renderPrograms = (summary) => rtpProgramWorkspaceRenderer.renderRtpProgramsWorkspace(summary);

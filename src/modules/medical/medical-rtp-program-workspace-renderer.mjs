@@ -1,6 +1,5 @@
 export function createMedicalRtpProgramWorkspaceRenderer({
   renderExerciseCatalog = () => "",
-  renderRtpCaseProgramCards = () => "",
 } = {}) {
   const renderExerciseBankOverlay = () => `
 <section class="medical-rtp-exercise-launcher" aria-label="Exercise Bank workflow">
@@ -47,7 +46,6 @@ ${renderExerciseCatalog()}
   const renderRtpProgramsWorkspace = (summary = {}) => {
     return `
 <div class="medical-rtp-programs-workspace">
-${renderRtpCaseProgramCards(summary)}
 ${renderExerciseBankOverlay()}
 </div>
 `;

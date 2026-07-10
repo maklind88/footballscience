@@ -8,6 +8,7 @@ import { selectedClipIds } from "../src/modules/idp/idp-clip-preview-controller.
 import { renderIdpClipPreviewOverlay } from "../src/modules/idp/idp-clip-bank-renderer.mjs";
 import { normalizeIdpDevelopmentIntervention, normalizeIdpProfile } from "../src/modules/idp/domain/idp.models.mjs";
 import { renderIdpWorkspace } from "../src/modules/idp/idp-renderer.mjs";
+import { bindIdpPlayerBoardEvents, getIdpPlayerBoardRuntimeUi } from "../src/modules/idp/idp-player-board-runtime.mjs";
 import { createIdpStore } from "../src/modules/idp/idp-state.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -201,6 +202,96 @@ test("idp player board interventions remain server-owned and isolated from Sessi
   expect(idpState).toContain("idpPlayerBoardClipboard");
   expect(read("src/modules/session-planner/session-planner-renderer.mjs")).not.toContain("idpPlayerBoard");
   expect(read("src/modules/session-planner/session-planner-workspace-controller.mjs")).not.toContain("idpPlayerBoard");
+});
+
+test("idp player board tactical modal places objects from canvas coordinates without page repainting transient state", () => {
+  const rootListeners = {};
+  const windowListeners = {};
+  const canvasRect = { left: 100, top: 200, width: 400, height: 600 };
+  const canvas = {
+    getBoundingClientRect: () => canvasRect,
+    closest: (selector) => selector === "[data-session-tactical-canvas]" ? canvas : null,
+  };
+  const canvasWrap = { innerHTML: "" };
+  const root = {
+    addEventListener: (type, listener) => {
+      rootListeners[type] = listener;
+    },
+    removeEventListener: () => {},
+    querySelector: (selector) => selector === "[data-session-tactical-canvas-wrap]" ? canvasWrap : null,
+    querySelectorAll: () => [],
+  };
+  const store = createIdpStore({
+    ui: {
+      idpPlayerBoardOpen: true,
+      idpPlayerBoardTool: "red-player",
+      idpPlayerBoardSnapEnabled: false,
+    },
+    playerDetail: {
+      profile: { playerId: "player-1", playerName: "Test Player" },
+      focuses: [{ id: "focus-1", title: "Current focus", status: "active" }],
+      interventions: [],
+    },
+  });
+  const originalSetState = store.setState;
+  let setStateCalls = 0;
+  store.setState = (patch) => {
+    setStateCalls += 1;
+    originalSetState(patch);
+  };
+  const runtime = {
+    context: {
+      canEdit: () => true,
+      ui: { idpWorkspace: root },
+      win: {
+        addEventListener: (type, listener) => {
+          windowListeners[type] = listener;
+        },
+        removeEventListener: () => {},
+        document: {},
+        FileReader: class {},
+        Image: class {},
+        prompt: () => "",
+      },
+    },
+    paint: () => {},
+    store,
+  };
+
+  bindIdpPlayerBoardEvents(runtime);
+  rootListeners.pointerdown({
+    target: canvas,
+    clientX: 220,
+    clientY: 380,
+    preventDefault() {},
+    stopPropagation() {},
+  });
+
+  const runtimeUi = getIdpPlayerBoardRuntimeUi(runtime);
+  expect(runtimeUi.idpPlayerBoardSelectionState?.startPoint).toEqual({ x: 30, y: 30 });
+  expect(store.getState().ui.idpPlayerBoardSelectionState).toBeNull();
+  expect(setStateCalls).toBe(0);
+
+  const doubleClickEvent = {
+    target: canvas,
+    clientX: 260,
+    clientY: 440,
+    preventDefault() {
+      this.defaultPrevented = true;
+    },
+    stopPropagation() {
+      this.propagationStopped = true;
+    },
+  };
+  rootListeners.dblclick(doubleClickEvent);
+
+  const intervention = store.getState().playerDetail.interventions[0];
+  const placedElement = intervention?.boardState?.tacticalElements?.[0];
+  expect(doubleClickEvent.defaultPrevented).toBe(true);
+  expect(doubleClickEvent.propagationStopped).toBe(true);
+  expect(placedElement?.type).toBe("red-player");
+  expect(placedElement?.x).toBe(40);
+  expect(placedElement?.y).toBe(40);
 });
 
 test("idp development goals are IDP-owned, measurable and server-versioned", () => {

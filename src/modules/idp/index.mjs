@@ -4,6 +4,7 @@ import { renderIdpWorkspace as renderMarkup } from "./idp-renderer.mjs";
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 import {
   bindIdpPlayerBoardEvents,
+  getIdpPlayerBoardRuntimeUi,
   handleIdpPlayerBoardChange,
   handleIdpPlayerBoardClick,
   handleIdpPlayerBoardInput,
@@ -171,7 +172,12 @@ function paint(activeRuntime = runtime) {
   ensureClipBankStyles(activeRuntime);
   ensureIdpProfileStyles(activeRuntime);
   const searchFocus = captureSearchFocus(activeRuntime);
-  root.innerHTML = renderMarkup(activeRuntime.store.getState(), {
+  const state = activeRuntime.store.getState();
+  const renderState = {
+    ...state,
+    ui: getIdpPlayerBoardRuntimeUi(activeRuntime),
+  };
+  root.innerHTML = renderMarkup(renderState, {
     canEdit: canEdit(activeRuntime.context),
     currentUser: activeRuntime.context.currentUser,
     users: activeRuntime.context.users,

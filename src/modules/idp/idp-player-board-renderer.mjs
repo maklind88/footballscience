@@ -102,7 +102,6 @@ export function renderIdpPlayerBoardPage(detail = {}, canEdit = false, ui = {}) 
         <header class="idp-player-board-head">
           <div>
             <span>PLAYER BOARD</span>
-            <h2>${escapeHtml(block.title || "IDP Player Board")}</h2>
             <small>${escapeHtml(focusTitle)}</small>
           </div>
           <div class="idp-player-board-actions">

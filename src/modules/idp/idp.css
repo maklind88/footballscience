@@ -5446,14 +5446,6 @@ body.is-dark-mode .idp-river-detail-value {
   text-transform: uppercase;
 }
 
-.idp-player-board-head h2 {
-  color: #101828;
-  font-size: clamp(2rem, 3vw, 3.15rem);
-  letter-spacing: 0;
-  line-height: .96;
-  margin: 3px 0 7px;
-}
-
 .idp-player-board-actions {
   align-items: center;
   display: flex;

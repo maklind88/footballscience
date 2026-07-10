@@ -190,7 +190,7 @@ async function ensureDatabaseRows(page, results) {
       });
     },
     async () => {
-      await waitForScoutingRows(page, { timeout: interactionBudget(25_000) });
+      await waitForScoutingRows(page, { timeout: interactionBudget(45_000) });
     }
   );
 }

@@ -28,6 +28,9 @@ test("idp module keeps the required isolated file structure", () => {
     "src/modules/idp/idp-state.mjs",
     "src/modules/idp/idp.css",
     "src/modules/idp/idp-clip-bank.css",
+    "src/modules/idp/idp-player-board-helpers.mjs",
+    "src/modules/idp/idp-player-board-renderer.mjs",
+    "src/modules/idp/idp-player-board-runtime.mjs",
     "src/modules/idp/idp-profile-focus.css",
     "src/modules/idp/constants/idp-options.mjs",
     "src/modules/idp/domain/idp.models.mjs",
@@ -134,19 +137,22 @@ test("idp focus archive and delete stay behind the server-owned database boundar
   expect(idpRuntime).toContain("data-idp-delete-focus");
 });
 
-test("idp development interventions remain server-owned after the player-board UI removal", () => {
+test("idp player board interventions remain server-owned and isolated from Session Planner", () => {
   const apiService = read("src/modules/idp/services/idp-api-service.mjs");
   const databaseSource = read("api/_lib/idp-database.js");
   const migration = read("supabase/migrations/20260621230015_add_idp_development_interventions.sql");
   const domainModels = read("src/modules/idp/domain/idp.models.mjs");
   const idpRenderer = read("src/modules/idp/idp-renderer.mjs");
   const idpRuntime = read("src/modules/idp/index.mjs");
+  const boardHelpers = read("src/modules/idp/idp-player-board-helpers.mjs");
+  const boardRenderer = read("src/modules/idp/idp-player-board-renderer.mjs");
+  const boardRuntime = read("src/modules/idp/idp-player-board-runtime.mjs");
   const idpCss = read("src/modules/idp/idp.css");
   const idpState = read("src/modules/idp/idp-state.mjs");
 
-  expect(apiService).not.toContain('action: "create-intervention"');
-  expect(apiService).not.toContain('action: "update-intervention"');
-  expect(apiService).not.toContain('action: "archive-intervention"');
+  expect(apiService).toContain('action: "create-intervention"');
+  expect(apiService).toContain('action: "update-intervention"');
+  expect(apiService).toContain('action: "archive-intervention"');
   expect(apiService).toContain('action: "create-goal"');
   expect(databaseSource).toContain("idp_development_interventions");
   expect(databaseSource).toContain("async function createDevelopmentIntervention");
@@ -161,25 +167,40 @@ test("idp development interventions remain server-owned after the player-board U
   expect(databaseSource).toContain("isMissingOptionalTable");
   expect(databaseSource).toContain("normalizeBoardLineStyle");
   expect(databaseSource).toContain("lineWidth");
+  expect(databaseSource).toContain("normalizeTacticalFrames");
+  expect(databaseSource).toContain("tacticalFrames");
+  expect(databaseSource).toContain("tacticalElements");
   expect(databaseSource).toContain("goal_id");
   expect(databaseSource).toContain("success_criteria");
   expect(domainModels).toContain("function normalizeBoardState");
   expect(domainModels).toContain("normalizeBoardLineStyle");
   expect(domainModels).toContain("lineWidth");
+  expect(domainModels).toContain("normalizeTacticalFrames");
+  expect(domainModels).toContain("tacticalFrames");
+  expect(domainModels).toContain("tacticalElements");
   expect(migration).toContain("create table if not exists public.idp_development_interventions");
   expect(migration).toContain("board_state jsonb");
   expect(migration).toContain("alter table public.idp_development_interventions enable row level security");
   expect(migration).toContain("revoke all on public.idp_development_interventions from anon, authenticated");
   expect(migration).toContain("grant select, insert, update, delete on public.idp_development_interventions to service_role");
   expect(migration).toContain("idp_development_interventions_prevent_hard_delete");
-  expect(idpRenderer).not.toContain("data-idp-player-board-open");
-  expect(idpRenderer).not.toContain("data-idp-profile-view=\"player-board\"");
-  expect(idpRuntime).not.toContain("data-idp-save-intervention");
-  expect(idpRuntime).not.toContain("playerBoardOpen");
-  expect(idpRuntime).not.toContain("playerBoardInterventionId");
-  expect(idpCss).not.toContain("idp-player-board-hit-target");
-  expect(idpState).not.toContain("playerBoardPreviewFrameIndex");
-  expect(idpState).not.toContain("playerBoardHandoutOpen");
+  expect(idpRenderer).toContain("renderIdpPlayerBoardPage");
+  expect(idpRenderer).toContain("data-idp-profile-view=\"player-board\"");
+  expect(idpRuntime).toContain("handleIdpPlayerBoardClick");
+  expect(idpRuntime).toContain("saveCurrentPlayerBoardDraft");
+  expect(boardHelpers).toContain("idp-player-board-tactical-v1");
+  expect(boardRenderer).toContain("createSessionPlannerVisualRenderer");
+  expect(boardRenderer).toContain("data-idp-board-open");
+  expect(boardRenderer).toContain("data-idp-board-save");
+  expect(boardRuntime).toContain("createSessionPlannerTacticalController");
+  expect(boardRuntime).toContain("persistIdpPlayerBoardDraft");
+  expect(boardRuntime).toContain("savePlayerBoard");
+  expect(idpCss).toContain("idp-profile-player-board-page");
+  expect(idpState).toContain("idpPlayerBoardUiDefaults");
+  expect(boardHelpers).toContain("idpPlayerBoardOpen");
+  expect(idpState).toContain("idpPlayerBoardClipboard");
+  expect(read("src/modules/session-planner/session-planner-renderer.mjs")).not.toContain("idpPlayerBoard");
+  expect(read("src/modules/session-planner/session-planner-workspace-controller.mjs")).not.toContain("idpPlayerBoard");
 });
 
 test("idp development goals are IDP-owned, measurable and server-versioned", () => {
@@ -315,8 +336,8 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("data-idp-back-overview");
   expect(profileHtml).toContain('data-idp-profile-view="development"');
   expect(profileHtml).toContain('data-idp-profile-view="goals"');
-  expect(profileHtml).not.toContain('data-idp-profile-view="player-board"');
   expect(profileHtml).toContain('data-idp-profile-view="clip-bank"');
+  expect(profileHtml).toContain('data-idp-profile-view="player-board"');
   expect(profileHtml).toContain('data-idp-profile-view="history"');
   expect(profileHtml).toContain("idp-profile-menu");
   expect(profileHtml).toContain("idp-header is-player-context");
@@ -335,9 +356,14 @@ test("idp renderer separates the overview from the player development profile", 
   const profileMenuIndex = profileHtml.indexOf("idp-profile-menu");
   const menuDevelopmentIndex = profileHtml.indexOf('data-idp-profile-view="development"', profileMenuIndex);
   const menuGoalsIndex = profileHtml.indexOf('data-idp-profile-view="goals"', profileMenuIndex);
+  const menuClipBankIndex = profileHtml.indexOf('data-idp-profile-view="clip-bank"', profileMenuIndex);
+  const menuPlayerBoardIndex = profileHtml.indexOf('data-idp-profile-view="player-board"', profileMenuIndex);
   const menuHistoryIndex = profileHtml.indexOf('data-idp-profile-view="history"', profileMenuIndex);
   expect(profileHtml.indexOf("data-idp-back-overview")).toBeLessThan(menuDevelopmentIndex);
   expect(menuDevelopmentIndex).toBeLessThan(menuGoalsIndex);
+  expect(menuGoalsIndex).toBeLessThan(menuClipBankIndex);
+  expect(menuClipBankIndex).toBeLessThan(menuPlayerBoardIndex);
+  expect(menuPlayerBoardIndex).toBeLessThan(menuHistoryIndex);
   expect(menuGoalsIndex).toBeLessThan(menuHistoryIndex);
   expect(profileHtml).toContain('class="idp-profile-scouting-radar player-profile-scouting-spider-card"');
   expect(profileHtml).toContain('data-test-scouting-radar="Player One"');
@@ -365,7 +391,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("Create one clear development focus before adding observations");
   expect(profileHtml).not.toContain("Coach cue");
   expect(profileHtml).not.toContain("Receive under pressure so the player");
-  expect(profileHtml).not.toContain("Player Board");
+  expect(profileHtml).toContain("Player Board");
   expect(profileHtml).not.toContain("idp-player-board-panel");
   expect(profileHtml).not.toContain("idp-stage-scoreboard");
   expect(profileHtml).not.toContain("Player development pulse");
@@ -402,7 +428,7 @@ test("idp renderer separates the overview from the player development profile", 
   expect(profileHtml).toContain("Coach Assist");
   expect(profileHtml).toContain("Recommended next step");
   expect(profileHtml).not.toContain("Collect match and training evidence");
-  expect(profileHtml).not.toContain("data-idp-player-board-open");
+  expect(profileHtml).not.toContain("data-idp-board-open");
   expect(profileHtml).not.toContain("idp-player-board-boardbar");
   expect(profileHtml).not.toContain("idp-player-board-exercise-bank");
   expect(profileHtml).not.toContain("data-session-");
@@ -501,23 +527,19 @@ test("idp renderer separates the overview from the player development profile", 
   expect(richWorkflowHtml).not.toContain("idp-river-panel");
   expect((richWorkflowHtml.match(/<span>Show more<\/span>/g) || []).length).toBe(1);
 
-  const removedPlayerBoardHtml = renderIdpWorkspace({
+  const playerBoardHtml = renderIdpWorkspace({
     ...profileState,
     ui: {
       ...profileState.ui,
       profileView: "player-board",
-      playerBoardOpen: true,
-      playerBoardInterventionId: "intervention-b",
-      playerBoardTemplateId: "legacy-template",
-      playerBoardHandoutOpen: true,
     },
   }, staffOptions);
-  expect(removedPlayerBoardHtml).not.toContain('data-idp-profile-view="player-board"');
-  expect(removedPlayerBoardHtml).not.toContain("idp-profile-player-board-page");
-  expect(removedPlayerBoardHtml).not.toContain("data-idp-player-board-open");
-  expect(removedPlayerBoardHtml).not.toContain("data-idp-player-board-handout-layer");
-  expect(removedPlayerBoardHtml).toContain('data-idp-profile-view="development"');
-  expect(removedPlayerBoardHtml).toContain("idp-focus-clarity-card");
+  expect(playerBoardHtml).toContain('data-idp-profile-view="player-board"');
+  expect(playerBoardHtml).toContain("idp-profile-player-board-page");
+  expect(playerBoardHtml).toContain("idp-player-board-panel");
+  expect(playerBoardHtml).toContain("data-idp-board-open");
+  expect(playerBoardHtml).toContain("data-idp-board-save");
+  expect(playerBoardHtml).not.toContain("data-idp-player-board-handout-layer");
 
   const clipBankHtml = renderIdpWorkspace({
     ...profileState,
@@ -1036,7 +1058,7 @@ test("idp intervention records normalize safely without frontend mutation action
     objective: "Rehearse claiming space.",
     coachingCue: "Scan, claim, release.",
     successCriteria: ["Early body shape", "Clear first pass"],
-    pitchMode: "box",
+    pitchMode: "goalkeeper",
     rowVersion: 3,
   });
   expect(intervention.boardState).toMatchObject({
@@ -1047,9 +1069,11 @@ test("idp intervention records normalize safely without frontend mutation action
     linkedClipIds: ["clip-1", "clip-2"],
   });
   expect(intervention.boardState.frames[0]).toMatchObject({ id: "frame-1", label: "Start", player: { x: 42, y: 76 } });
-  expect(apiService).not.toContain("createIntervention");
-  expect(apiService).not.toContain("updateIntervention");
-  expect(apiService).not.toContain("archiveIntervention");
+  expect(intervention.boardState).toHaveProperty("tacticalFrames");
+  expect(intervention.boardState).toHaveProperty("tacticalElements");
+  expect(apiService).toContain("createIntervention");
+  expect(apiService).toContain("updateIntervention");
+  expect(apiService).toContain("archiveIntervention");
   expect(databaseSource).toContain("async function createDevelopmentIntervention");
   expect(databaseSource).toContain("async function updateDevelopmentIntervention");
   expect(databaseSource).toContain("async function archiveDevelopmentIntervention");
@@ -1701,15 +1725,16 @@ test("idp profile shows Squad-owned inactive IDP status", async () => {
   expect(html).not.toContain("Old active focus");
   expect(html).not.toContain("data-idp-action=\"focus\"");
 
-  const removedPlayerBoardHtml = renderIdpWorkspace(
+  const inactivePlayerBoardHtml = renderIdpWorkspace(
     { ...state, ui: { ...state.ui, selectedPlayerId: "p-injured", profileView: "player-board" } },
     { canEdit: true, users: [] }
   );
-  expect(removedPlayerBoardHtml).not.toContain("idp-profile-player-board-page");
-  expect(removedPlayerBoardHtml).toContain("No Active IDP");
-  expect(removedPlayerBoardHtml).toContain("IDP is inactive from Squad Room");
-  expect(removedPlayerBoardHtml).not.toContain("idp-player-board-insight-row");
-  expect(removedPlayerBoardHtml).not.toContain("Old active focus");
+  expect(inactivePlayerBoardHtml).toContain("idp-profile-player-board-page");
+  expect(inactivePlayerBoardHtml).toContain("No Active IDP");
+  expect(inactivePlayerBoardHtml).toContain("IDP is inactive from Squad Room");
+  expect(inactivePlayerBoardHtml).toContain("Create a current focus first");
+  expect(inactivePlayerBoardHtml).not.toContain("idp-player-board-insight-row");
+  expect(inactivePlayerBoardHtml).not.toContain("Old active focus");
 });
 
 test("fs player syncs saved player clips to idp clip bank through the server boundary", () => {

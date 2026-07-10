@@ -153,14 +153,13 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(programsMarkup).toContain("medical-rtp-programs-workspace");
   expect(programsMarkup).not.toContain("medical-rtp-programs-stats");
   expect(programsMarkup).not.toContain("Program starters");
+  expect(programsMarkup).not.toContain("medical-rtp-program-activation");
+  expect(programsMarkup).not.toContain("Program workflow");
+  expect(programsMarkup).not.toContain("Convert an active Medical case into a player RTP program");
   expect(programsMarkup).toContain("Medical-owned RTP command center");
   expect(programsMarkup).toContain("One flow: player case, Library guide, Medical Plan, Player Profile");
-  expect(programsMarkup).toContain("Program workflow");
-  expect(programsMarkup).toContain("Convert an active Medical case into a player RTP program");
   expect(programsMarkup).toContain("RTP Library guide");
   expect(programsMarkup).toContain("Medical Plan draft");
-  expect(programsMarkup).toContain("Player-specific RTP program");
-  expect(programsMarkup).toContain("Player Profile / Medical Plan");
   expect(programsMarkup).toContain("medical-rtp-exercise-drawer");
   expect(programsMarkup).toContain("Open only when building or editing a Medical Plan");
   expect(programsMarkup).toContain("Open bank");

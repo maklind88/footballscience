@@ -8,6 +8,7 @@ test("Medical operations selectors build read-only operations summaries without 
       { id: "p2", name: "Ava Defender", position: "CB" },
       { id: "p-guest", name: "Guest Risk", position: "FW", rosterType: "guest", countsInSquad: false },
       { id: "p3", name: "Archived Player", position: "ST", archivedAt: "2026-05-01T08:00:00.000Z" },
+      { id: "p4", name: "Duplicate History", position: "FW" },
     ],
     records: [
       {
@@ -42,6 +43,39 @@ test("Medical operations selectors build read-only operations summaries without 
         rtpPhase: "medical-restriction",
         shareWithCoach: false,
         updatedAt: "2026-05-31T10:00:00.000Z",
+      },
+      {
+        id: "r-duplicate-old",
+        playerId: "p4",
+        date: "2026-05-30",
+        participation: 0,
+        actualParticipation: "not-logged",
+        status: "unavailable",
+        rtpPhase: "medical-restriction",
+        shareWithCoach: false,
+        updatedAt: "2026-05-30T08:00:00.000Z",
+      },
+      {
+        id: "r-duplicate-latest",
+        playerId: "p4",
+        date: "2026-05-30",
+        participation: 25,
+        actualParticipation: "not-logged",
+        status: "modified",
+        rtpPhase: "rehab",
+        shareWithCoach: true,
+        updatedAt: "2026-05-30T11:00:00.000Z",
+      },
+      {
+        id: "r-duplicate-mid",
+        playerId: "p4",
+        date: "2026-05-30",
+        participation: 10,
+        actualParticipation: "not-logged",
+        status: "modified",
+        rtpPhase: "rehab",
+        shareWithCoach: false,
+        updatedAt: "2026-05-30T09:00:00.000Z",
       },
     ],
     injuryPlans: [
@@ -120,6 +154,9 @@ test("Medical operations selectors build read-only operations summaries without 
   expect(history.find((event) => event.id === "r1")?.title).toContain("75%");
   expect(history.find((event) => event.id === "r2")).toBeUndefined();
   expect(history.find((event) => event.id === "plan-1")).toBeUndefined();
+  expect(history.find((event) => event.id === "r-duplicate-old")).toBeUndefined();
+  expect(history.find((event) => event.id === "r-duplicate-mid")).toBeUndefined();
+  expect(history.find((event) => event.id === "r-duplicate-latest")?.title).toContain("25%");
 
   const season = selectors.getMedicalSeasonSummary("2026-05-31");
   expect(season.plans).toHaveLength(1);

@@ -23,6 +23,28 @@ function isRestrictedParticipation(value) {
   return Number.isFinite(participation) && participation < 100;
 }
 
+function getMedicalHistorySortTimeValue(value) {
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function getLatestMedicalRecommendationHistoryEvents(events = []) {
+  const latestRecommendationByPlayerDate = new Map();
+  const retainedEvents = [];
+  events.forEach((event) => {
+    if (event.type !== "Recommendation" || !event.player?.id || !event.date) {
+      retainedEvents.push(event);
+      return;
+    }
+    const key = `${event.player.id}:${event.date}`;
+    const current = latestRecommendationByPlayerDate.get(key);
+    if (!current || getMedicalHistorySortTimeValue(event.sortTime) >= getMedicalHistorySortTimeValue(current.sortTime)) {
+      latestRecommendationByPlayerDate.set(key, event);
+    }
+  });
+  return [...latestRecommendationByPlayerDate.values(), ...retainedEvents];
+}
+
 function isMedicalRegularSquadPlayer(player = {}) {
   return player.countsInSquad !== false && String(player.rosterType || "squad").trim() === "squad";
 }
@@ -146,14 +168,14 @@ export function createMedicalOperationsSelectors({
           coachShared: plan.shareWithCoach,
         };
       });
-    return [...recommendationEvents, ...caseEvents]
+    return getLatestMedicalRecommendationHistoryEvents([...recommendationEvents, ...caseEvents])
       .filter((event) => event.player)
       .sort((first, second) => {
         const dateComparison = second.date.localeCompare(first.date);
         if (dateComparison !== 0) {
           return dateComparison;
         }
-        return new Date(second.sortTime) - new Date(first.sortTime);
+        return getMedicalHistorySortTimeValue(second.sortTime) - getMedicalHistorySortTimeValue(first.sortTime);
       })
       .slice(0, limit);
   }

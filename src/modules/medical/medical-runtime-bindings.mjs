@@ -1060,7 +1060,7 @@ ${renderRtpExerciseCards(profile, 3)}
       setStateValue(state, "MedicalSelectedPlayerId", draft.playerId);
       setStateValue(state, "MedicalPlayerModalOpen", true);
       setStateValue(state, "MedicalPlayerModalTab", "plan");
-      renderWorkspace(`${draft.rtpLibraryProfileName || draft.injuryType} starter ready for active case. Review and save Medical Plan.`);
+      renderWorkspace(`${draft.rtpLibraryProfileName || draft.injuryType} starter opened in Medical Plan draft. Review and save before it becomes active.`);
       return;
     }
     const rtpLibraryControls = event.target.closest("[data-medical-rtp-library-controls]");

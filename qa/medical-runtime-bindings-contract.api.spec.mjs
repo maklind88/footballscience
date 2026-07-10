@@ -288,7 +288,7 @@ test("Medical runtime bindings preserve quick recommendation, clear, archive, an
   expect(mutable.selectedPlayerId).toBe("p-1");
   expect(mutable.modalOpen).toBe(true);
   expect(mutable.modalTab).toBe("plan");
-  expect(calls).toContainEqual(["render", "ACL Reconstruction RTP starter ready for active case. Review and save Medical Plan."]);
+  expect(calls).toContainEqual(["render", "ACL Reconstruction RTP starter opened in Medical Plan draft. Review and save before it becomes active."]);
 
   const preview = { innerHTML: "" };
   const guideChangeForm = {

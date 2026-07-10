@@ -143,20 +143,23 @@ ${renderTabs(activeTab, tabOptions, "medical-ops-tabs-top")}
       return "";
     }
     return `
-<section class="medical-rtp-case-linker" aria-label="Apply RTP Library starters to active cases">
+<section class="medical-rtp-case-linker" aria-label="Open RTP starter drafts from active cases">
 <header>
-<div>
-<span>Activate from case</span>
-<strong>${casesNeedingStarter.length}/${summary.activeCases.length} active case${summary.activeCases.length === 1 ? "" : "s"} can become an RTP program</strong>
-<small>Apply a Library guide to the player's Medical Plan draft. The program is active only after Medical reviews and saves that plan.</small>
+<div class="medical-rtp-case-linker-heading">
+<span>RTP Starter Queue</span>
+<strong>${casesNeedingStarter.length} active case${casesNeedingStarter.length === 1 ? "" : "s"} ${casesNeedingStarter.length === 1 ? "needs" : "need"} a Library guide</strong>
+<small>Choose the best RTP guide, open the player's Medical Plan draft, then review and save. Nothing becomes active until Medical saves the plan.</small>
 </div>
-<b>Medical Plan is source</b>
+<div class="medical-rtp-case-linker-source">
+<b>${casesNeedingStarter.length}/${summary.activeCases.length} need starter</b>
+<small>Medical Plan remains source</small>
+</div>
 </header>
-<div class="medical-rtp-case-linker-steps" aria-label="RTP starter workflow">
-<span><strong>1</strong> Select case</span>
-<span><strong>2</strong> Apply guide</span>
-<span><strong>3</strong> Save Medical Plan</span>
-<span><strong>4</strong> Player Profile updates</span>
+<div class="medical-rtp-case-linker-steps" aria-label="Safe RTP starter workflow">
+<span><strong>1</strong><b>Case</b><small>Confirm injury context</small></span>
+<span><strong>2</strong><b>Guide</b><small>Select RTP Library starter</small></span>
+<span><strong>3</strong><b>Draft</b><small>Open Medical Plan</small></span>
+<span><strong>4</strong><b>Save</b><small>Medical approves program</small></span>
 </div>
 <div class="medical-rtp-case-linker-grid">
 ${casesNeedingStarter
@@ -165,25 +168,27 @@ ${casesNeedingStarter
     const topProfile = suggestedProfiles[0] || profiles[0];
     return `
 <article class="medical-rtp-case-linker-card medical-ops-tone-${escapeHtml(severity.tone)}">
-<div>
+<div class="medical-rtp-case-linker-player">
+<span>Active case</span>
 <strong>${escapeHtml(player.name)}</strong>
 <small>${escapeHtml([player.position || "Position", plan.injuryType, plan.bodyArea].filter(Boolean).join(" / "))}</small>
 </div>
-<span>
+<div class="medical-rtp-case-linker-guide">
+<span>Suggested guide</span>
 <strong>${escapeHtml(review.label)}</strong>
-<small>${topProfile ? `Best guide match: ${escapeHtml(topProfile.name)}` : "Select RTP guide"}</small>
-</span>
+<small>${topProfile ? `Best match: ${escapeHtml(topProfile.name)}` : "Select the RTP Library guide that fits this case."}</small>
+</div>
 <form data-medical-rtp-case-linker-form data-medical-plan-id="${escapeHtml(plan.id)}">
 <label>
-<span>RTP Library guide</span>
+<span>Guide to load</span>
 <select data-medical-rtp-case-profile aria-label="RTP Library guide for ${escapeHtml(player.name)}">
 ${suggestedProfiles
   .map((profileItem, index) => `<option value="${escapeHtml(profileItem.id)}">${index === 0 ? "Suggested: " : ""}${escapeHtml(profileItem.name)}</option>`)
   .join("")}
 </select>
 </label>
-<button type="submit">Apply guide to Medical Plan</button>
-<small>Opens the player's Medical Plan before anything is saved.</small>
+<button type="submit">Open Medical Plan draft</button>
+<small>No program is saved yet. Medical reviews the draft and saves the plan.</small>
 </form>
 </article>
 `;

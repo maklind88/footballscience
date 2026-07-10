@@ -144,9 +144,23 @@ function closeTransientTacticalState(activeRuntime = {}) {
   Object.assign(getRuntimeLocalUi(activeRuntime), createTransientIdpPlayerBoardUi());
 }
 
-function persistBlockToDetail(activeRuntime = {}, block = null) {
+function getDraftDetailForCurrentPlayer(activeRuntime = {}, detail = {}) {
+  const draftDetail = activeRuntime.idpPlayerBoardDraftDetail;
+  const playerId = detail?.profile?.playerId || "";
+  if (!draftDetail?.profile?.playerId || draftDetail.profile.playerId !== playerId) {
+    if (draftDetail?.profile?.playerId && draftDetail.profile.playerId !== playerId) {
+      activeRuntime.idpPlayerBoardDraftDetail = null;
+    }
+    return null;
+  }
+  return draftDetail;
+}
+
+function persistBlockToDetail(activeRuntime = {}, block = null, options = {}) {
   const state = activeRuntime.store?.getState?.() || {};
-  const detail = state.playerDetail || {};
+  const storeDetail = state.playerDetail || {};
+  const detail = getDraftDetailForCurrentPlayer(activeRuntime, storeDetail) || storeDetail;
+  const syncStore = Boolean(options?.syncStore);
   if (!detail?.profile?.playerId) return null;
   const sourceBlock = block || activeRuntime.idpPlayerBoardActiveBlock || buildIdpPlayerBoardBlock(detail);
   const boardState = createBoardStateFromBlock(sourceBlock);
@@ -174,12 +188,17 @@ function persistBlockToDetail(activeRuntime = {}, block = null) {
     interventions: nextInterventions,
   };
   activeRuntime.idpPlayerBoardActiveBlock = buildIdpPlayerBoardBlock(nextDetail, { intervention: nextIntervention });
-  activeRuntime.store?.setState?.({ playerDetail: nextDetail });
+  activeRuntime.idpPlayerBoardActivePlayerId = nextDetail.profile?.playerId || "";
+  activeRuntime.idpPlayerBoardDraftDetail = nextDetail;
+  if (syncStore) {
+    activeRuntime.store?.setState?.({ playerDetail: nextDetail });
+  }
   return activeRuntime.idpPlayerBoardActiveBlock;
 }
 
 function getCurrentBlock(activeRuntime = {}) {
-  const detail = activeRuntime.store?.getState?.()?.playerDetail || {};
+  const storeDetail = activeRuntime.store?.getState?.()?.playerDetail || {};
+  const detail = getDraftDetailForCurrentPlayer(activeRuntime, storeDetail) || storeDetail;
   if (!activeRuntime.idpPlayerBoardActiveBlock || activeRuntime.idpPlayerBoardActivePlayerId !== detail.profile?.playerId) {
     activeRuntime.idpPlayerBoardActiveBlock = buildIdpPlayerBoardBlock(detail);
     activeRuntime.idpPlayerBoardActivePlayerId = detail.profile?.playerId || "";
@@ -260,6 +279,7 @@ function commitFrames(activeRuntime = {}, frames = [], activeFrameId = "") {
   block.tacticalElements = activeFrame.elements.map(idpPlayerBoardHelpers.cloneTacticalElement);
   closeTransientTacticalState(activeRuntime);
   persistBlockToDetail(activeRuntime, block);
+  getController(activeRuntime).refreshSessionPlannerTacticalboardCanvas();
 }
 
 function addFrame(activeRuntime = {}) {
@@ -312,7 +332,7 @@ function deleteFrame(activeRuntime = {}) {
 
 function setBoardOpen(activeRuntime = {}, isOpen = false) {
   if (isOpen) {
-    activeRuntime.idpPlayerBoardActiveBlock = buildIdpPlayerBoardBlock(activeRuntime.store?.getState?.()?.playerDetail || {});
+    activeRuntime.idpPlayerBoardActiveBlock = getCurrentBlock(activeRuntime);
   }
   closeTransientTacticalState(activeRuntime);
   activeRuntime.store?.setState?.({
@@ -334,7 +354,7 @@ function setPreviewOpen(activeRuntime = {}, isOpen = false) {
 }
 
 export function persistIdpPlayerBoardDraft(activeRuntime = {}) {
-  const block = persistBlockToDetail(activeRuntime, getCurrentBlock(activeRuntime)) || getCurrentBlock(activeRuntime);
+  const block = persistBlockToDetail(activeRuntime, getCurrentBlock(activeRuntime), { syncStore: true }) || getCurrentBlock(activeRuntime);
   return blockToInterventionPatch(block);
 }
 
@@ -347,13 +367,13 @@ async function handleVisualUpload(activeRuntime = {}, file = null) {
     const visualImage = await getVisualUploadHelpers(activeRuntime).normalizeVisualUpload(file);
     const targetBlock = getCurrentBlock(activeRuntime);
     targetBlock.visualImage = visualImage;
-    persistBlockToDetail(activeRuntime, targetBlock);
+    persistBlockToDetail(activeRuntime, targetBlock, { syncStore: true });
     renderWorkspace(activeRuntime);
     activeRuntime.store?.setState?.({ ui: { message: "Board image uploaded." } });
   } catch {
     const targetBlock = getCurrentBlock(activeRuntime);
     targetBlock.visualImage = previousVisualImage;
-    persistBlockToDetail(activeRuntime, targetBlock);
+    persistBlockToDetail(activeRuntime, targetBlock, { syncStore: true });
     activeRuntime.store?.setState?.({ ui: { error: "The image could not be uploaded." } });
   }
 }

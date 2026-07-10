@@ -8,7 +8,7 @@ import { selectedClipIds } from "../src/modules/idp/idp-clip-preview-controller.
 import { renderIdpClipPreviewOverlay } from "../src/modules/idp/idp-clip-bank-renderer.mjs";
 import { normalizeIdpDevelopmentIntervention, normalizeIdpProfile } from "../src/modules/idp/domain/idp.models.mjs";
 import { renderIdpWorkspace } from "../src/modules/idp/idp-renderer.mjs";
-import { bindIdpPlayerBoardEvents, getIdpPlayerBoardRuntimeUi } from "../src/modules/idp/idp-player-board-runtime.mjs";
+import { bindIdpPlayerBoardEvents, getIdpPlayerBoardRuntimeUi, persistIdpPlayerBoardDraft } from "../src/modules/idp/idp-player-board-runtime.mjs";
 import { createIdpStore } from "../src/modules/idp/idp-state.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -285,13 +285,18 @@ test("idp player board tactical modal places objects from canvas coordinates wit
   };
   rootListeners.dblclick(doubleClickEvent);
 
-  const intervention = store.getState().playerDetail.interventions[0];
-  const placedElement = intervention?.boardState?.tacticalElements?.[0];
+  expect(store.getState().playerDetail.interventions).toHaveLength(0);
+  expect(setStateCalls).toBe(0);
+
+  const draftPayload = persistIdpPlayerBoardDraft(runtime);
+  const placedElement = draftPayload?.boardState?.tacticalElements?.[0];
   expect(doubleClickEvent.defaultPrevented).toBe(true);
   expect(doubleClickEvent.propagationStopped).toBe(true);
   expect(placedElement?.type).toBe("red-player");
   expect(placedElement?.x).toBe(40);
   expect(placedElement?.y).toBe(40);
+  expect(store.getState().playerDetail.interventions[0]?.boardState?.tacticalElements?.[0]?.type).toBe("red-player");
+  expect(setStateCalls).toBe(1);
 });
 
 test("idp development goals are IDP-owned, measurable and server-versioned", () => {

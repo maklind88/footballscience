@@ -1,4 +1,5 @@
 import { createPasswordRevealInputRenderer } from "../../core/form-renderers.mjs";
+import { renderPlatformInstallAppAdminPanel } from "../../core/install-app-controller.mjs";
 import {
   adminDepartmentSuggestions,
   adminTitleSuggestions,
@@ -176,6 +177,7 @@ export function createPlatformWorkspaceRenderers(deps = {}) {
     renderAdminTransferRoomAccessPanel: (users, structure) => adminAccessRenderer.renderTransferRoomAccessPanel(users, structure),
     renderPasswordRevealInput: passwordRevealInputRenderer,
     renderPlatformAppearanceGovernancePanel: () => adminReadinessRenderer.renderAppearanceGovernancePanel(),
+    renderPlatformInstallAppPanel: () => renderPlatformInstallAppAdminPanel(),
     renderPlatformReadinessDashboard: () => adminReadinessRenderer.renderReadinessDashboard(),
     titleSuggestions: adminTitleSuggestions,
     departmentSuggestions: adminDepartmentSuggestions,

@@ -22,6 +22,8 @@ export function createAdminWorkspaceRenderer(options = {}) {
   const renderPasswordRevealInput = typeof options.renderPasswordRevealInput === "function" ? options.renderPasswordRevealInput : () => "";
   const renderPlatformAppearanceGovernancePanel =
     typeof options.renderPlatformAppearanceGovernancePanel === "function" ? options.renderPlatformAppearanceGovernancePanel : () => "";
+  const renderPlatformInstallAppPanel =
+    typeof options.renderPlatformInstallAppPanel === "function" ? options.renderPlatformInstallAppPanel : () => "";
   const renderPlatformReadinessDashboard = typeof options.renderPlatformReadinessDashboard === "function" ? options.renderPlatformReadinessDashboard : () => "";
   const titleSuggestions = Array.isArray(options.titleSuggestions) ? options.titleSuggestions : [];
   const departmentSuggestions = Array.isArray(options.departmentSuggestions) ? options.departmentSuggestions : [];
@@ -151,6 +153,7 @@ ${canRemoveSelectedUser ? `<button type="button" class="staff-remove-button" dat
       ${message ? `<p class="staff-message platform-inline-toast" role="status" aria-live="polite">${escapeHtml(message)}</p>` : ""}
       ${renderAdminStructurePanel(currentUser, structure, users)}
       ${currentUserIsPlatformAdmin ? renderPlatformReadinessDashboard() : ""}
+      ${currentUserIsPlatformAdmin ? renderPlatformInstallAppPanel() : ""}
       ${currentUserIsPlatformAdmin ? renderPlatformAppearanceGovernancePanel() : ""}
       <section class="admin-layout is-users-only">
         <article class="admin-card">

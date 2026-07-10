@@ -55,10 +55,20 @@ test("PWA manifest is installable from the live domain without local coupling", 
 
 test("iOS home-screen metadata points to the shared app shell assets", () => {
   const index = read("index.html");
+  const installController = read("src/core/install-app-controller.mjs");
 
   expect(index).toContain('name=apple-mobile-web-app-capable content=yes');
   expect(index).toContain('name=apple-mobile-web-app-title content="Football Science"');
   expect(index).toContain('rel=apple-touch-icon sizes=180x180 href=assets/pwa/apple-touch-icon-180.png');
   expect(index).toContain("manifest.webmanifest");
+  expect(index).toContain("platform-install-app.css");
+  expect(index).toContain('data-install-app-surface="login"');
+  expect(index).toContain('data-install-app-surface="profile"');
+  expect(index).toContain('data-install-app-surface="prompt"');
+  expect(index).toContain('id="platformInstallGuideHost"');
   expect(index).not.toContain("serviceWorker.register");
+  expect(installController).toContain("beforeinstallprompt");
+  expect(installController).toContain("Add to Home Screen");
+  expect(installController).not.toContain("localhost");
+  expect(installController).not.toContain("file://");
 });

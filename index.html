@@ -60,7 +60,8 @@
     <link id=r rel=stylesheet>
     <link id=u rel=stylesheet>
     <link id=w rel=stylesheet>
-    <script>{const v=window.__assetVersion=Date.now(),d=document;["styles.css","platform-module-overrides.css","medical-roster-overview.css","session-print-overrides.css","platform-feedback.css","platform-navigation.css","dashboard-chat-launcher.css","dashboard-chat-create.css","session-planner-overrides.css","schedule-planner-overrides.css","tacticalboard-overrides.css","platform-theme-foundation.css","squad-profile-panels.css","squad-roster-table.css"].map((f,i)=>d.getElementById("svmpfncdoqtruw"[i]).href=f+"?v="+v)}</script>
+    <link id=i rel=stylesheet>
+    <script>{const v=window.__assetVersion=Date.now(),d=document;["styles.css","platform-module-overrides.css","medical-roster-overview.css","session-print-overrides.css","platform-feedback.css","platform-navigation.css","dashboard-chat-launcher.css","dashboard-chat-create.css","session-planner-overrides.css","schedule-planner-overrides.css","tacticalboard-overrides.css","platform-theme-foundation.css","squad-profile-panels.css","squad-roster-table.css","platform-install-app.css"].map((f,i)=>d.getElementById("svmpfncdoqtruwi"[i]).href=f+"?v="+v)}</script>
     <script>
       (function () {
         const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -145,6 +146,7 @@
             <button type="button" id="forgotPasswordCancel" class="secondary">Cancel</button>
           </div>
         </form>
+        <div id="platformInstallLoginSurface" data-install-app-surface="login" hidden></div>
       </div>
     </section>
     <div id="hubShell" class="coach-platform" hidden>
@@ -195,6 +197,7 @@
                   <option value="dark">Dark</option>
                 </select>
               </div>
+              <div id="platformInstallProfileSurface" data-install-app-surface="profile" role="none" hidden></div>
               <button id="dataSafetyExportButton" type="button" role="menuitem">Export Data Backup</button>
               <button id="dataSafetyImportButton" type="button" role="menuitem">Restore Data Backup</button>
               <input id="dataSafetyImportInput" type="file" accept="application/json" hidden />
@@ -889,6 +892,8 @@
         </div>
       </main>
     </div>
+    <div id="platformInstallPromptHost" data-install-app-surface="prompt" hidden></div>
+    <div id="platformInstallGuideHost"></div>
     <script src=medical-merge.js></script>
     <script src=platform-auth-boot.js?v=20260613 data-auth-ready=platformAuthReadyPromise data-auth-contract="refreshAccessToken,getSupabaseClient"></script>
     <script type="module">
@@ -901,7 +906,7 @@
         const u=async(v)=>{const l=await g();if(!l)return v;if(v&&l!==v&&s()){p(l);await c();const t=new URL(location.href);t.searchParams.set("_build",l);location.replace(t);return l}p(l);return l};
         const L=String((await g())||s()||window.__assetVersion||Date.now()).trim().slice(0,m);
         window.__assetVersion=L;
-        for(const[i,f]of[["s","styles.css"],["v","platform-module-overrides.css"],["m","medical-roster-overview.css"],["f","platform-feedback.css"],["n","platform-navigation.css"],["c","dashboard-chat-launcher.css"],["d","dashboard-chat-create.css"],["q","schedule-planner-overrides.css"],["u","squad-profile-panels.css"],["w","squad-roster-table.css"]]){const e=document.getElementById(i);if(e)e.href=`${f}?v=${L}`}
+        for(const[i,f]of[["s","styles.css"],["v","platform-module-overrides.css"],["m","medical-roster-overview.css"],["f","platform-feedback.css"],["n","platform-navigation.css"],["c","dashboard-chat-launcher.css"],["d","dashboard-chat-create.css"],["q","schedule-planner-overrides.css"],["u","squad-profile-panels.css"],["w","squad-roster-table.css"],["i","platform-install-app.css"]]){const e=document.getElementById(i);if(e)e.href=`${f}?v=${L}`}
         const latest=await u(s()||L);if(latest!==L)return;
         const load=(f)=>new Promise((r)=>{const n=document.createElement("script");n.src=f;n.onload=r;n.onerror=r;document.head.append(n)});
         const start=()=>{let w=!1;const f=async()=>{if(w||document.hidden)return;w=!0;try{await u(L)}finally{w=!1}};setInterval(f,n);addEventListener("visibilitychange",()=>{if(!document.hidden)f()})};

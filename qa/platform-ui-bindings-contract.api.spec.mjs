@@ -44,6 +44,10 @@ test("platform UI bindings preserve element ids and non-id selectors", () => {
 
   expect(ui.hubShell).toEqual({ id: "hubShell" });
   expect(ui.dashboardChatWidgetRoot).toEqual({ id: "dashboardChatWidgetRoot" });
+  expect(ui.platformInstallLoginSurface).toEqual({ id: "platformInstallLoginSurface" });
+  expect(ui.platformInstallProfileSurface).toEqual({ id: "platformInstallProfileSurface" });
+  expect(ui.platformInstallPromptHost).toEqual({ id: "platformInstallPromptHost" });
+  expect(ui.platformInstallGuideHost).toEqual({ id: "platformInstallGuideHost" });
   expect(ui.sessionPlannerWorkspace).toEqual({ id: "sessionPlannerWorkspace" });
   expect(ui.scheduleOverviewSpanButtons).toEqual([{ selector: "[data-schedule-span]" }]);
   expect(lookedUpIds).toContain("pitchStage");

@@ -1,0 +1,281 @@
+.platform-install-card {
+  display: grid;
+  grid-template-columns: 2.45rem minmax(0, 1fr);
+  gap: .72rem;
+  align-items: start;
+  padding: .78rem;
+  border: 1px solid rgba(31, 61, 46, .14);
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, .92), rgba(244, 249, 246, .78)),
+    rgba(255, 255, 255, .82);
+  box-shadow: 0 14px 34px rgba(20, 28, 34, .08);
+  color: var(--ink);
+}
+
+.platform-install-card.is-login {
+  margin-top: .1rem;
+}
+
+.platform-install-card.is-profile {
+  margin: .32rem 0 .4rem;
+  padding: .68rem;
+  border-radius: 16px;
+  box-shadow: none;
+}
+
+.platform-install-admin-panel .platform-install-card {
+  box-shadow: none;
+}
+
+.platform-install-card.is-prompt {
+  position: fixed;
+  right: clamp(1rem, 3vw, 1.6rem);
+  bottom: clamp(1rem, 3vw, 1.6rem);
+  z-index: 270;
+  width: min(25rem, calc(100vw - 2rem));
+  border-color: rgba(47, 143, 107, .28);
+  box-shadow: 0 26px 76px rgba(5, 17, 12, .24);
+  backdrop-filter: blur(24px);
+}
+
+.platform-install-icon {
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(47, 143, 107, .96), rgba(20, 95, 73, .96)),
+    #145f49;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), 0 12px 26px rgba(20, 95, 73, .22);
+  position: relative;
+}
+
+.platform-install-icon::before,
+.platform-install-icon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+
+.platform-install-icon::before {
+  width: .96rem;
+  height: .14rem;
+  border-radius: 999px;
+}
+
+.platform-install-icon::after {
+  width: .14rem;
+  height: .96rem;
+  border-radius: 999px;
+}
+
+.platform-install-copy {
+  min-width: 0;
+  display: grid;
+  gap: .2rem;
+}
+
+.platform-install-copy strong {
+  color: #17251e;
+  font-size: .92rem;
+  line-height: 1.15;
+}
+
+.platform-install-copy p {
+  margin: 0;
+  color: #607067;
+  font-size: .76rem;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.platform-install-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .42rem;
+  align-items: center;
+}
+
+.platform-install-actions button,
+.platform-install-chip {
+  min-height: 2.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 .78rem;
+  font: inherit;
+  font-size: .75rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.platform-install-primary {
+  background: #20382b;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(32, 56, 43, .2);
+}
+
+.platform-install-primary:hover,
+.platform-install-primary:focus-visible {
+  background: #145f49;
+  transform: translateY(-1px);
+}
+
+.platform-install-muted {
+  background: rgba(31, 61, 46, .08);
+  color: #40544a;
+  box-shadow: none;
+}
+
+.platform-install-muted:hover,
+.platform-install-muted:focus-visible {
+  background: rgba(31, 61, 46, .14);
+  box-shadow: none;
+}
+
+.platform-install-chip {
+  background: rgba(47, 143, 107, .12);
+  color: #145f49;
+}
+
+.platform-install-chip.is-installed {
+  background: rgba(35, 160, 111, .16);
+  color: #176449;
+}
+
+.platform-install-steps,
+.platform-install-modal-steps {
+  margin: .25rem 0 0;
+  padding-left: 1.05rem;
+  color: #50635a;
+  font-size: .76rem;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.platform-install-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 340;
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 3vw, 2rem);
+  background: rgba(8, 15, 12, .48);
+  backdrop-filter: blur(18px);
+}
+
+.platform-install-modal {
+  width: min(32rem, 100%);
+  display: grid;
+  gap: .9rem;
+  padding: 1rem;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, .72);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .96), rgba(247, 250, 248, .9)),
+    #fff;
+  box-shadow: 0 36px 100px rgba(4, 10, 8, .34);
+  color: #17251e;
+}
+
+.platform-install-modal header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .9rem;
+}
+
+.platform-install-modal header p {
+  margin: 0 0 .16rem;
+  color: #2f8f6b;
+  font-size: .7rem;
+  font-weight: 950;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.platform-install-modal h2 {
+  margin: 0;
+  font-size: 1.18rem;
+  line-height: 1.1;
+}
+
+.platform-install-modal > p {
+  margin: 0;
+  color: #56675f;
+  font-size: .88rem;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.platform-install-modal header button {
+  min-height: 2.2rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 .78rem;
+  background: rgba(31, 61, 46, .1);
+  color: #20382b;
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 900;
+}
+
+body.is-dark-mode .platform-install-card,
+body.is-dark-mode .platform-install-modal {
+  border-color: rgba(148, 163, 184, .34);
+  background:
+    linear-gradient(145deg, rgba(30, 41, 59, .92), rgba(15, 23, 42, .86)),
+    #0f172a;
+  color: var(--ink);
+}
+
+body.is-dark-mode .platform-install-copy strong,
+body.is-dark-mode .platform-install-modal h2 {
+  color: #e5edf2;
+}
+
+body.is-dark-mode .platform-install-copy p,
+body.is-dark-mode .platform-install-modal > p,
+body.is-dark-mode .platform-install-steps,
+body.is-dark-mode .platform-install-modal-steps {
+  color: #a8b6c5;
+}
+
+body.is-dark-mode .platform-install-muted,
+body.is-dark-mode .platform-install-modal header button {
+  background: rgba(148, 163, 184, .14);
+  color: #d6e2ea;
+}
+
+body.is-dark-mode .platform-install-chip {
+  background: rgba(47, 143, 107, .2);
+  color: #b8f3d5;
+}
+
+body.is-dark-mode .platform-install-modal-backdrop {
+  background: rgba(2, 6, 12, .7);
+}
+
+@media (max-width: 760px) {
+  .platform-install-card.is-prompt {
+    right: .75rem;
+    bottom: .75rem;
+    width: calc(100vw - 1.5rem);
+  }
+
+  .platform-install-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .platform-install-actions button,
+  .platform-install-chip {
+    width: 100%;
+  }
+}

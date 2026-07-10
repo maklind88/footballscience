@@ -610,7 +610,7 @@ ${renderGuideAuthoringModal()}
     return haystack.includes(query);
   };
 
-  const renderHistoryFilters = ({ dateOptions, playerOptions, selectedDate, selectedPlayerId, searchQuery, visibleCount, totalCount }) => `
+  const renderHistoryFilters = ({ dateOptions, playerOptions, selectedDate, selectedPlayerId, searchQuery }) => `
 <form class="medical-ops-history-controls" id="medicalHistoryFilterForm" data-medical-history-filter-form aria-label="Filter medical history">
 <label class="medical-ops-history-search">
 <span>Search</span>
@@ -631,7 +631,6 @@ ${dateOptions.map((date) => `<option value="${escapeHtml(date)}"${date === selec
 ${playerOptions.map((player) => `<option value="${escapeHtml(player.id)}"${player.id === selectedPlayerId ? " selected" : ""}>${escapeHtml(player.name)}</option>`).join("")}
 </select>
 </label>
-<small>${visibleCount}/${totalCount} restricted items</small>
 </form>
 `;
 

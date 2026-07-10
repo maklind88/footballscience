@@ -306,4 +306,5 @@ test("Medical history renders restricted items in batches of 25", () => {
   expect((markup.match(/data-medical-history-row-visible="false"/g) || []).length).toBe(5);
   expect(markup).toContain('data-medical-history-show-more');
   expect(markup).toContain("Showing 25 of 30");
+  expect(markup).not.toContain("restricted items");
 });

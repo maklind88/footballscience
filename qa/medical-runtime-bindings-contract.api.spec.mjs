@@ -436,7 +436,27 @@ test("Medical runtime bindings open and close RTP Library profile overlays", () 
   expect(content.innerHTML).toContain("Nordic hamstring progression");
   expect(content.innerHTML).toContain("Gold Standard Template");
   expect(content.innerHTML).toContain("37 sections");
+  expect(content.innerHTML).toContain('data-medical-rtp-profile-jump="medical-rtp-hamstring-strain-full-guide"');
   expect(content.innerHTML).toContain("RTP Risk Score");
+
+  const criteriaSection = {
+    id: "medical-rtp-hamstring-strain-criteria",
+    getBoundingClientRect: () => ({ top: 260 }),
+  };
+  const dialogBody = {
+    scrollTop: 20,
+    getBoundingClientRect: () => ({ top: 100 }),
+    querySelectorAll: (selector) => (selector === "[id]" ? [criteriaSection] : []),
+    scrollTo: (options) => calls.push(["jump-scroll", options.top]),
+  };
+  const jumpLink = {
+    dataset: { medicalRtpProfileJump: "medical-rtp-hamstring-strain-criteria" },
+    closest: (selector) => (selector === ".medical-rtp-profile-dialog-body" ? dialogBody : null),
+  };
+  workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-rtp-profile-jump]": jumpLink },
+  })));
+  expect(calls).toContainEqual(["jump-scroll", 172]);
 
   workspace.listeners.keydown(createEvent(createTarget(), {
     key: "Escape",

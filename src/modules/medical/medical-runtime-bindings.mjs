@@ -168,6 +168,22 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     });
   };
 
+  const jumpToMedicalRtpProfileSection = (trigger) => {
+    const targetId = String(trigger?.dataset?.medicalRtpProfileJump || trigger?.getAttribute?.("href")?.replace(/^#/, "") || "");
+    if (!targetId) return;
+    const dialogBody = trigger.closest?.(".medical-rtp-profile-dialog-body");
+    const content = trigger.closest?.("[data-medical-rtp-profile-dialog-content]");
+    const targetRoot = dialogBody || content || queryWorkspace(workspaceElement, "[data-medical-rtp-profile-dialog-content]");
+    const target = Array.from(targetRoot?.querySelectorAll?.("[id]") ?? []).find((candidate) => candidate.id === targetId);
+    if (!target) return;
+    if (dialogBody?.scrollTo && target.getBoundingClientRect && dialogBody.getBoundingClientRect) {
+      const targetTop = target.getBoundingClientRect().top - dialogBody.getBoundingClientRect().top + (dialogBody.scrollTop || 0) - 8;
+      dialogBody.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+      return;
+    }
+    target.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  };
+
   const getRtpProfileAnchorId = (profileId = "", suffix = "") =>
     `medical-rtp-${String(profileId || "guide").replace(/[^a-z0-9_-]/gi, "-").toLowerCase()}-${suffix}`;
 
@@ -231,15 +247,19 @@ ${exercises
 
   const renderRtpProfileQuickNav = (profile = {}) => {
     const profileId = profile.id || "guide";
+    const renderJump = (label, suffix) => {
+      const anchorId = getRtpProfileAnchorId(profileId, suffix);
+      return `<a href="#${escapeHtml(anchorId)}" data-medical-rtp-profile-jump="${escapeHtml(anchorId)}">${escapeHtml(label)}</a>`;
+    };
     return `
 <nav class="medical-rtp-profile-quick-nav" aria-label="RTP guide quick sections">
-<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "summary"))}">Summary</a>
-<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "red-flags"))}">Red flags</a>
-<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "criteria"))}">Criteria</a>
-<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "exercises"))}">Exercises</a>
-<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "training"))}">Training</a>
-<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "match"))}">Match</a>
-<a href="#${escapeHtml(getRtpProfileAnchorId(profileId, "full-guide"))}">37 sections</a>
+${renderJump("Summary", "summary")}
+${renderJump("Red flags", "red-flags")}
+${renderJump("Criteria", "criteria")}
+${renderJump("Exercises", "exercises")}
+${renderJump("Training", "training")}
+${renderJump("Match", "match")}
+${renderJump("37 sections", "full-guide")}
 </nav>
 `;
   };
@@ -707,6 +727,12 @@ ${renderRtpExerciseCards(profile, 3)}
     if (openRtpProfileButton) {
       event.preventDefault();
       openMedicalRtpProfileModal(openRtpProfileButton.dataset.medicalOpenRtpProfile);
+      return;
+    }
+    const rtpProfileJumpButton = event.target.closest("[data-medical-rtp-profile-jump]");
+    if (rtpProfileJumpButton) {
+      event.preventDefault();
+      jumpToMedicalRtpProfileSection(rtpProfileJumpButton);
       return;
     }
     const loadRtpGuideButton = event.target.closest("[data-medical-plan-load-rtp-guide]");

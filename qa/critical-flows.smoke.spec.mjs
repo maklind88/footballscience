@@ -3390,6 +3390,13 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(rtpModal).toContainText("To build a player program");
   await expect(rtpModal).toContainText("Knowledge only");
   await expect(rtpModal.locator("[data-medical-apply-rtp-starter]")).toHaveCount(0);
+  const rtpDialogBody = rtpModal.locator(".medical-rtp-profile-dialog-body");
+  const fullGuideJump = rtpModal.locator('[data-medical-rtp-profile-jump="medical-rtp-hamstring-strain-full-guide"]');
+  await expect(fullGuideJump).toBeVisible();
+  await fullGuideJump.click();
+  await expect
+    .poll(async () => rtpDialogBody.evaluate((element) => element.scrollTop), { timeout: 3000 })
+    .toBeGreaterThan(20);
   await rtpModal.locator("[data-medical-close-rtp-profile]").last().click();
   await expect(rtpModal).toBeHidden();
   await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);

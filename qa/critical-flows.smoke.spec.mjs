@@ -3394,6 +3394,18 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(rtpModal).toBeHidden();
   await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);
 
+  await operationsMenu.locator('[data-medical-ops-tab="programs"]').click();
+  await expect(operations).toContainText("Clinical exercise catalogue for RTP programs");
+  await expect(operations).toContainText("Save player program");
+  const exerciseOverlay = operations.locator("[data-medical-rtp-exercise-overlay]");
+  await expect(exerciseOverlay).toBeHidden();
+  await operations.locator("[data-medical-rtp-exercise-open]").click();
+  await expect(exerciseOverlay).toBeVisible();
+  await expect(exerciseOverlay).toContainText("Search first. Place through Medical Plan.");
+  await expect(exerciseOverlay.locator("[data-medical-rtp-exercise-search]")).toBeVisible();
+  await exerciseOverlay.locator("[data-medical-rtp-exercise-close]").click();
+  await expect(exerciseOverlay).toBeHidden();
+
   await operationsMenu.locator('[data-medical-ops-tab="season"]').click();
   await expect(operations).toContainText("Managed days");
   await expect(operations).toContainText("Major");

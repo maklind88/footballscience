@@ -656,6 +656,83 @@ test("Medical runtime bindings filter RTP Exercise Bank catalog by metadata", ()
   expect(empty.hidden).toBe(true);
 });
 
+test("Medical runtime bindings open and close the RTP Exercise Bank overlay", () => {
+  const bodyClasses = new Set();
+  const dialog = {
+    focused: false,
+    focus() {
+      this.focused = true;
+    },
+  };
+  const overlay = {
+    attributes: { "aria-hidden": "true" },
+    hidden: true,
+    querySelector(selector) {
+      return selector === "[role='dialog']" ? dialog : null;
+    },
+    removeAttribute(name) {
+      delete this.attributes[name];
+    },
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
+  };
+  const catalog = {
+    querySelector() {
+      return null;
+    },
+    querySelectorAll() {
+      return [];
+    },
+  };
+  const workspace = {
+    listeners: {},
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    },
+    querySelector(selector) {
+      if (selector === "[data-medical-rtp-exercise-overlay]") return overlay;
+      if (selector === "[data-medical-rtp-exercise-overlay]:not([hidden])") return overlay.hidden ? null : overlay;
+      if (selector === "[data-medical-rtp-exercise-catalog]") return catalog;
+      return null;
+    },
+    querySelectorAll(selector) {
+      return selector === "[data-medical-rtp-exercise-overlay]" ? [overlay] : [];
+    },
+  };
+
+  bindMedicalRuntimeBindings({
+    workspaceElement: workspace,
+    win: {
+      document: {
+        body: {
+          classList: {
+            add: (value) => bodyClasses.add(value),
+            remove: (value) => bodyClasses.delete(value),
+          },
+        },
+      },
+    },
+    state: {},
+    actions: { canEditMedicalTeam: () => false },
+  });
+
+  workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-rtp-exercise-open]": {} },
+  })));
+
+  expect(overlay.hidden).toBe(false);
+  expect(overlay.attributes["aria-hidden"]).toBeUndefined();
+  expect(dialog.focused).toBe(true);
+  expect(bodyClasses.has("medical-rtp-exercise-overlay-open")).toBe(true);
+
+  workspace.listeners.keydown(createEvent(createTarget({}), { key: "Escape" }));
+
+  expect(overlay.hidden).toBe(true);
+  expect(overlay.attributes["aria-hidden"]).toBe("true");
+  expect(bodyClasses.has("medical-rtp-exercise-overlay-open")).toBe(false);
+});
+
 test("Medical runtime bindings reveal restricted history rows in batches", () => {
   const rows = Array.from({ length: 30 }, (_, index) => ({
     hidden: index >= 25,

@@ -3612,34 +3612,25 @@ body.is-dark-mode .medical-modal-close {
   line-height: 1.34;
 }
 
-.medical-rtp-exercise-drawer {
-  overflow: hidden;
-  border: 1px solid rgba(29, 31, 29, 0.09);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.78);
-}
-
-.medical-rtp-exercise-drawer > summary {
+.medical-rtp-exercise-launcher {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.72rem;
-  cursor: pointer;
-  list-style: none;
-  padding: 0.78rem 0.84rem;
+  padding: 0.82rem 0.86rem;
+  border: 1px solid rgba(23, 100, 73, 0.14);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(248, 252, 250, 0.96), rgba(239, 247, 244, 0.88));
 }
 
-.medical-rtp-exercise-drawer > summary::-webkit-details-marker {
-  display: none;
-}
-
-.medical-rtp-exercise-drawer > summary div {
+.medical-rtp-exercise-launcher-copy {
   display: grid;
   gap: 0.08rem;
   min-width: 0;
 }
 
-.medical-rtp-exercise-drawer > summary span {
+.medical-rtp-exercise-launcher-copy span,
+.medical-rtp-exercise-overlay-header span {
   color: #176449;
   font-size: 0.64rem;
   font-weight: 950;
@@ -3647,54 +3638,156 @@ body.is-dark-mode .medical-modal-close {
   text-transform: uppercase;
 }
 
-.medical-rtp-exercise-drawer > summary strong {
+.medical-rtp-exercise-launcher-copy strong,
+.medical-rtp-exercise-overlay-header strong {
   color: #10231b;
-  font-size: 0.92rem;
+  font-size: 1rem;
   line-height: 1.14;
 }
 
-.medical-rtp-exercise-drawer > summary small {
+.medical-rtp-exercise-launcher-copy small,
+.medical-rtp-exercise-overlay-header small {
   color: #64716b;
   font-size: 0.72rem;
   font-weight: 750;
   line-height: 1.34;
 }
 
-.medical-rtp-exercise-drawer > summary b {
+.medical-rtp-exercise-launcher-flow,
+.medical-rtp-exercise-overlay-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.38rem;
+  min-width: min(30rem, 42vw);
+}
+
+.medical-rtp-exercise-launcher-flow span,
+.medical-rtp-exercise-overlay-flow span {
+  min-width: 0;
+  padding: 0.42rem 0.5rem;
+  border: 1px solid rgba(29, 31, 29, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+  color: #33443c;
+  font-size: 0.66rem;
+  font-weight: 900;
+  line-height: 1.18;
+}
+
+.medical-rtp-exercise-overlay-flow b {
+  display: block;
+  color: #176449;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
+.medical-rtp-exercise-open-button,
+.medical-rtp-exercise-close-button {
   flex: 0 0 auto;
-  padding: 0.34rem 0.56rem;
+  border: 0;
   border-radius: 999px;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.medical-rtp-exercise-open-button {
+  padding: 0.48rem 0.72rem;
   background: #193827;
   color: #fff;
-  font-size: 0.66rem;
-  font-weight: 950;
+  box-shadow: 0 10px 18px rgba(16, 35, 27, 0.12);
   white-space: nowrap;
 }
 
-.medical-rtp-exercise-drawer[open] > summary {
-  border-bottom: 1px solid rgba(29, 31, 29, 0.08);
+.medical-rtp-exercise-close-button {
+  padding: 0.42rem 0.64rem;
+  background: rgba(16, 35, 27, 0.08);
+  color: #193827;
 }
 
-.medical-rtp-exercise-drawer[open] > summary b {
-  background: rgba(47, 143, 107, 0.14);
-  color: #176449;
+.medical-rtp-exercise-open-button:hover,
+.medical-rtp-exercise-open-button:focus-visible {
+  background: #10231b;
 }
 
-.medical-rtp-exercise-drawer:not([open]) .medical-rtp-exercise-catalog {
+.medical-rtp-exercise-close-button:hover,
+.medical-rtp-exercise-close-button:focus-visible {
+  background: rgba(16, 35, 27, 0.14);
+}
+
+.medical-rtp-exercise-overlay[hidden] {
   display: none;
 }
 
-.medical-rtp-exercise-drawer .medical-rtp-exercise-catalog {
-  border: 0;
-  border-radius: 0;
-  background: rgba(247, 250, 248, 0.74);
-  box-shadow: none;
+body.medical-rtp-exercise-overlay-open {
+  overflow: hidden;
 }
 
-.medical-rtp-exercise-drawer .medical-rtp-exercise-catalog-grid {
-  max-height: 34rem;
+.medical-rtp-exercise-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: clamp(0.8rem, 2vw, 1.6rem);
+  background: rgba(10, 18, 15, 0.55);
+  backdrop-filter: blur(10px);
+}
+
+.medical-rtp-exercise-overlay-panel {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 0.72rem;
+  width: min(72rem, 96vw);
+  max-height: min(88vh, 54rem);
+  min-height: min(44rem, 88vh);
+  overflow: hidden;
+  padding: 0.86rem;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  background: rgba(250, 252, 251, 0.98);
+  box-shadow: 0 34px 90px rgba(9, 18, 14, 0.34);
+  outline: none;
+}
+
+.medical-rtp-exercise-overlay-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.82rem;
+  padding: 0.72rem 0.76rem;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(226, 245, 237, 0.92), rgba(255, 255, 255, 0.92));
+}
+
+.medical-rtp-exercise-overlay-header div {
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+}
+
+.medical-rtp-exercise-overlay-body {
+  min-height: 0;
   overflow: auto;
-  padding-right: 0.18rem;
+  padding-right: 0.2rem;
+}
+
+.medical-rtp-exercise-overlay-body .medical-rtp-exercise-catalog {
+  margin: 0;
+}
+
+.medical-rtp-exercise-overlay-body .medical-rtp-exercise-catalog-grid {
+  max-height: none;
+}
+
+.medical-rtp-exercise-launcher-flow span {
+  white-space: nowrap;
+}
+
+.medical-rtp-exercise-catalog > header b,
+.medical-rtp-exercise-open-button {
+  border-radius: 999px;
 }
 
 .medical-rtp-action-queue {
@@ -4533,7 +4626,9 @@ body.is-dark-mode .medical-rtp-program-activation,
 body.is-dark-mode .medical-rtp-program-sync-path span,
 body.is-dark-mode .medical-rtp-program-activation-status,
 body.is-dark-mode .medical-rtp-program-empty-board,
-body.is-dark-mode .medical-rtp-exercise-drawer,
+body.is-dark-mode .medical-rtp-exercise-launcher,
+body.is-dark-mode .medical-rtp-exercise-launcher-flow span,
+body.is-dark-mode .medical-rtp-exercise-overlay-flow span,
 body.is-dark-mode .medical-rtp-action-queue,
 body.is-dark-mode .medical-rtp-plan-focus,
 body.is-dark-mode .medical-rtp-case-linker,
@@ -4587,7 +4682,16 @@ body.is-dark-mode .medical-rtp-program-activation {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(21, 38, 31, 0.7));
 }
 
-body.is-dark-mode .medical-rtp-exercise-drawer .medical-rtp-exercise-catalog {
+body.is-dark-mode .medical-rtp-exercise-overlay-panel {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.96);
+}
+
+body.is-dark-mode .medical-rtp-exercise-overlay-header {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+body.is-dark-mode .medical-rtp-exercise-overlay-body .medical-rtp-exercise-catalog {
   background: rgba(15, 23, 42, 0.28);
 }
 
@@ -4727,7 +4831,8 @@ body.is-dark-mode .medical-rtp-tracker-row select {
   .medical-rtp-program-builder-brief,
   .medical-rtp-program-activation > header,
   .medical-rtp-program-activation-status,
-  .medical-rtp-exercise-drawer > summary,
+  .medical-rtp-exercise-launcher,
+  .medical-rtp-exercise-overlay-header,
   .medical-rtp-plan-focus > header,
   .medical-rtp-case-linker > header,
   .medical-rtp-case-linker-card,
@@ -4746,6 +4851,8 @@ body.is-dark-mode .medical-rtp-tracker-row select {
   .medical-rtp-program-flow,
   .medical-rtp-program-workflow,
   .medical-rtp-program-sync-path,
+  .medical-rtp-exercise-launcher-flow,
+  .medical-rtp-exercise-overlay-flow,
   .medical-rtp-plan-focus-grid,
   .medical-rtp-tracker-grid,
   .medical-rtp-guide-status-strip,
@@ -4767,6 +4874,22 @@ body.is-dark-mode .medical-rtp-tracker-row select {
 
   .medical-rtp-exercise-catalog-card {
     grid-template-columns: 1fr;
+  }
+
+  .medical-rtp-exercise-overlay {
+    align-items: stretch;
+    padding: 0.55rem;
+  }
+
+  .medical-rtp-exercise-overlay-panel {
+    width: 100%;
+    max-height: calc(100dvh - 1.1rem);
+    min-height: calc(100dvh - 1.1rem);
+  }
+
+  .medical-rtp-exercise-open-button,
+  .medical-rtp-exercise-close-button {
+    width: 100%;
   }
 
   .medical-rtp-exercise-thumb {

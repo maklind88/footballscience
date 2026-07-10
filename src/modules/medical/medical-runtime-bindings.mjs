@@ -141,6 +141,26 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     if (empty) empty.hidden = visibleCount !== 0;
   };
 
+  const closeMedicalRtpExerciseOverlay = () => {
+    queryWorkspaceAll(workspaceElement, "[data-medical-rtp-exercise-overlay]").forEach((overlay) => {
+      overlay.hidden = true;
+      overlay.setAttribute?.("aria-hidden", "true");
+    });
+    win.document?.body?.classList?.remove?.("medical-rtp-exercise-overlay-open");
+  };
+
+  const openMedicalRtpExerciseOverlay = () => {
+    const overlay = queryWorkspace(workspaceElement, "[data-medical-rtp-exercise-overlay]");
+    if (!overlay) return;
+    closeMedicalRtpGuideDraftModal();
+    closeMedicalRtpProfileModal();
+    overlay.hidden = false;
+    overlay.removeAttribute?.("aria-hidden");
+    win.document?.body?.classList?.add?.("medical-rtp-exercise-overlay-open");
+    filterMedicalRtpExerciseCatalog();
+    overlay.querySelector?.("[role='dialog']")?.focus?.();
+  };
+
   const closeMedicalRtpProfileModal = () => {
     queryWorkspaceAll(workspaceElement, "[data-medical-rtp-profile-modal]").forEach((modal) => {
       modal.hidden = true;
@@ -641,6 +661,24 @@ ${renderRtpExerciseCards(profile, 3)}
       showMoreMedicalHistoryRows(historyShowMoreButton);
       return;
     }
+    const openExerciseOverlayButton = event.target.closest("[data-medical-rtp-exercise-open]");
+    if (openExerciseOverlayButton) {
+      event.preventDefault();
+      openMedicalRtpExerciseOverlay();
+      return;
+    }
+    const closeExerciseOverlayButton = event.target.closest("[data-medical-rtp-exercise-close]");
+    if (closeExerciseOverlayButton) {
+      event.preventDefault();
+      closeMedicalRtpExerciseOverlay();
+      return;
+    }
+    const exerciseOverlay = event.target.closest("[data-medical-rtp-exercise-overlay]");
+    if (exerciseOverlay && event.target === exerciseOverlay) {
+      event.preventDefault();
+      closeMedicalRtpExerciseOverlay();
+      return;
+    }
     const closeRtpGuideDraftButton = event.target.closest("[data-medical-close-rtp-guide-draft]");
     if (closeRtpGuideDraftButton) {
       event.preventDefault();
@@ -847,6 +885,11 @@ ${renderRtpExerciseCards(profile, 3)}
   };
 
   const onKeydown = (event) => {
+    if (event.key === "Escape" && queryWorkspace(workspaceElement, "[data-medical-rtp-exercise-overlay]:not([hidden])")) {
+      event.preventDefault();
+      closeMedicalRtpExerciseOverlay();
+      return;
+    }
     if (event.key === "Escape" && queryWorkspace(workspaceElement, "[data-medical-rtp-guide-draft-modal]:not([hidden])")) {
       event.preventDefault();
       closeMedicalRtpGuideDraftModal();

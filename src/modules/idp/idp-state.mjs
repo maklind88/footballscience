@@ -20,15 +20,6 @@ export const idpInitialUiState = Object.freeze({
   clipPreviewStatus: "",
   clipPreviewMessage: "",
   clipPreviewObjectUrl: "",
-  playerBoardOpen: false,
-  playerBoardInterventionId: "",
-  playerBoardSearchQuery: "",
-  playerBoardTemplateSearchQuery: "",
-  playerBoardTemplateId: "",
-  playerBoardMode: "edit",
-  playerBoardPreviewFrameIndex: 0,
-  playerBoardPreviewPlaying: false,
-  playerBoardHandoutOpen: false,
 });
 
 export const idpInitialSyncState = Object.freeze({

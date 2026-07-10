@@ -197,8 +197,6 @@ function primaryFocus(detail = {}) {
 function hasActiveEditingSurface(ui = {}) {
   return Boolean(
     ui.actionMode ||
-    ui.playerBoardOpen ||
-    ui.playerBoardHandoutOpen ||
     ui.clipPreviewOpen
   );
 }
@@ -227,207 +225,12 @@ function numericFieldValue(value) {
   return text === "" ? "" : text;
 }
 
-function parseBoardNumber(value, fallback) {
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.min(100, Math.max(0, Math.round(number * 10) / 10)) : fallback;
-}
-
 function splitTokenList(value = "") {
   return String(value || "")
     .split(/[\n,]+/)
     .map((item) => normalizeText(item, 160))
     .filter(Boolean)
     .slice(0, 12);
-}
-
-function normalizeBoardLineStyle(value = "", fallback = "dashed") {
-  const normalized = normalizeText(value, 20).toLowerCase();
-  return ["solid", "dashed", "dotted"].includes(normalized) ? normalized : fallback;
-}
-
-function normalizeBoardColor(value = "", fallback = "#38bdf8") {
-  const normalized = normalizeText(value, 20);
-  return /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : fallback;
-}
-
-function parseBoardLineWidth(value, fallback = 2.5) {
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.min(6, Math.max(.75, Math.round(number * 4) / 4)) : fallback;
-}
-
-function normalizeBoardArrowType(value = "", fallback = "run") {
-  const normalized = normalizeText(value, 20).toLowerCase();
-  return ["arrow", "pass", "run", "line", "curve"].includes(normalized) ? normalized : fallback;
-}
-
-function parseBoardFrameIndex(value, total = 1) {
-  const count = Math.max(1, Number(total) || 1);
-  const index = Number(value);
-  return Number.isInteger(index) && index >= 0 && index < count ? index : 0;
-}
-
-function normalizeBoardFrameArray(value = [], limit = 12) {
-  return Array.isArray(value) ? value.slice(0, limit).map((item = {}) => ({ ...item })) : [];
-}
-
-function normalizeStoredBoardFrame(value = {}, index = 0) {
-  const arrow = normalizeBoardFrameArray(value.arrows, 8)[0] || {};
-  const arrowType = normalizeBoardArrowType(arrow.type, "run");
-  const defaultLineStyle = arrowType === "pass" ? "dotted" : arrowType === "run" ? "dashed" : "solid";
-  return {
-    id: normalizeText(value.id || `frame-${index + 1}`, 80),
-    label: normalizeText(value.label || (index === 0 ? "Start" : `Frame ${index + 1}`), 80),
-    coachCue: normalizeText(value.coachCue || value.coach_cue, 220),
-    playerCue: normalizeText(value.playerCue || value.player_cue, 220),
-    clipAnchor: normalizeText(value.clipAnchor || value.clip_anchor, 160),
-    player: {
-      x: parseBoardNumber(value.player?.x, 50),
-      y: parseBoardNumber(value.player?.y, 70),
-    },
-    referencePlayers: normalizeBoardFrameArray(value.referencePlayers, 6).map((item = {}, refIndex) => ({
-      id: normalizeText(item.id || `reference-${refIndex + 1}`, 80),
-      label: normalizeText(item.label || "REF", 24),
-      x: parseBoardNumber(item.x, 50),
-      y: parseBoardNumber(item.y, 44),
-    })).filter((item) => item.label),
-    cones: normalizeBoardFrameArray(value.cones, 12).map((item = {}, coneIndex) => ({
-      id: normalizeText(item.id || `cone-${coneIndex + 1}`, 80),
-      x: parseBoardNumber(item.x, coneIndex === 0 ? 40 : coneIndex === 1 ? 60 : 50),
-      y: parseBoardNumber(item.y, coneIndex === 2 ? 42 : 58),
-    })),
-    zones: normalizeBoardFrameArray(value.zones, 6).map((item = {}, zoneIndex) => ({
-      id: normalizeText(item.id || `zone-${zoneIndex + 1}`, 80),
-      label: normalizeText(item.label || "Development zone", 80),
-      x: parseBoardNumber(item.x, 36),
-      y: parseBoardNumber(item.y, 32),
-      width: parseBoardNumber(item.width, 28),
-      height: parseBoardNumber(item.height, 22),
-    })).filter((item) => item.label),
-    arrows: arrow.label || arrow.type ? [{
-      id: normalizeText(arrow.id || "arrow-1", 80),
-      type: arrowType,
-      label: normalizeText(arrow.label || "Action path", 80),
-      color: normalizeBoardColor(arrow.color, arrowType === "pass" ? "#fbbf24" : "#38bdf8"),
-      lineStyle: normalizeBoardLineStyle(arrow.lineStyle || arrow.line_style, defaultLineStyle),
-      lineWidth: parseBoardLineWidth(arrow.lineWidth || arrow.line_width, 2.5),
-      from: {
-        x: parseBoardNumber(arrow.from?.x, 50),
-        y: parseBoardNumber(arrow.from?.y, 70),
-      },
-      to: {
-        x: parseBoardNumber(arrow.to?.x, 62),
-        y: parseBoardNumber(arrow.to?.y, 42),
-      },
-    }] : [],
-    notes: normalizeBoardFrameArray(value.notes, 6).map((item = {}, noteIndex) => ({
-      id: normalizeText(item.id || `note-${noteIndex + 1}`, 80),
-      text: normalizeText(item.text, 220),
-      x: parseBoardNumber(item.x, 12),
-      y: parseBoardNumber(item.y, 14),
-    })).filter((item) => item.text),
-  };
-}
-
-function parseStoredBoardFrames(value = "") {
-  try {
-    const parsed = JSON.parse(String(value || "[]"));
-    return Array.isArray(parsed) ? parsed.slice(0, 8).map((frame, index) => normalizeStoredBoardFrame(frame, index)) : [];
-  } catch {
-    return [];
-  }
-}
-
-function parseBoardActive(value, fallback = true) {
-  if (value === null || value === undefined) return fallback;
-  return String(value || "").trim() !== "0";
-}
-
-function buildInterventionBoardFrame(formData, existingFrame = {}, index = 0) {
-  const zoneLabel = normalizeText(formData.get("zoneLabel"), 80);
-  const arrowLabel = normalizeText(formData.get("arrowLabel"), 80);
-  const arrowType = normalizeBoardArrowType(formData.get("arrowType"), "run");
-  const defaultLineStyle = arrowType === "pass" ? "dotted" : arrowType === "run" ? "dashed" : "solid";
-  const noteText = normalizeText(formData.get("noteText"), 220);
-  const frameLabel = normalizeText(formData.get("frameLabel"), 80);
-  const frameCoachCue = normalizeText(formData.get("frameCoachCue"), 220);
-  const framePlayerCue = normalizeText(formData.get("framePlayerCue"), 220);
-  const frameClipAnchor = normalizeText(formData.get("frameClipAnchor"), 160);
-  const referenceLabel = normalizeText(formData.get("referenceLabel"), 24);
-  return {
-    id: normalizeText(existingFrame.id || `frame-${index + 1}`, 80),
-    label: frameLabel || existingFrame.label || (index === 0 ? "Start" : `Frame ${index + 1}`),
-    coachCue: formData.has("frameCoachCue") ? frameCoachCue : existingFrame.coachCue || "",
-    playerCue: formData.has("framePlayerCue") ? framePlayerCue : existingFrame.playerCue || "",
-    clipAnchor: formData.has("frameClipAnchor") ? frameClipAnchor : existingFrame.clipAnchor || "",
-    player: {
-      x: parseBoardNumber(formData.get("playerX"), 50),
-      y: parseBoardNumber(formData.get("playerY"), 70),
-    },
-    referencePlayers: referenceLabel ? [{
-      id: "reference-1",
-      label: referenceLabel,
-      x: parseBoardNumber(formData.get("referenceX"), 50),
-      y: parseBoardNumber(formData.get("referenceY"), 44),
-    }] : [],
-    cones: [1, 2, 3]
-      .filter((coneIndex) => parseBoardActive(formData.get(`cone${coneIndex}Active`), true))
-      .map((coneIndex, activeIndex) => ({
-        id: existingFrame.cones?.[activeIndex]?.id || `cone-${activeIndex + 1}`,
-        x: parseBoardNumber(formData.get(`cone${coneIndex}X`), coneIndex === 1 ? 40 : coneIndex === 2 ? 60 : 50),
-        y: parseBoardNumber(formData.get(`cone${coneIndex}Y`), coneIndex === 3 ? 42 : 58),
-      })),
-    zones: zoneLabel ? [{
-      id: "zone-1",
-      label: zoneLabel,
-      x: parseBoardNumber(formData.get("zoneX"), 36),
-      y: parseBoardNumber(formData.get("zoneY"), 32),
-      width: parseBoardNumber(formData.get("zoneWidth"), 28),
-      height: parseBoardNumber(formData.get("zoneHeight"), 22),
-    }] : [],
-    arrows: arrowLabel ? [{
-      id: "arrow-1",
-      type: arrowType,
-      label: arrowLabel,
-      color: normalizeBoardColor(formData.get("arrowColor"), arrowType === "pass" ? "#fbbf24" : "#38bdf8"),
-      lineStyle: normalizeBoardLineStyle(formData.get("arrowLineStyle"), defaultLineStyle),
-      lineWidth: parseBoardLineWidth(formData.get("arrowLineWidth"), 2.5),
-      from: {
-        x: parseBoardNumber(formData.get("arrowFromX"), parseBoardNumber(formData.get("playerX"), 50)),
-        y: parseBoardNumber(formData.get("arrowFromY"), parseBoardNumber(formData.get("playerY"), 70)),
-      },
-      to: {
-        x: parseBoardNumber(formData.get("arrowToX"), 62),
-        y: parseBoardNumber(formData.get("arrowToY"), 42),
-      },
-    }] : [],
-    notes: noteText ? [{
-      id: "note-1",
-      text: noteText,
-      x: parseBoardNumber(formData.get("noteX"), 12),
-      y: parseBoardNumber(formData.get("noteY"), 14),
-    }] : [],
-  };
-}
-
-function buildInterventionBoardState(formData) {
-  const storedFrames = parseStoredBoardFrames(formData.get("boardFramesJson"));
-  const activeFrameIndex = parseBoardFrameIndex(formData.get("activeFrameIndex"), storedFrames.length || 1);
-  const activeFrame = buildInterventionBoardFrame(formData, storedFrames[activeFrameIndex], activeFrameIndex);
-  const frames = storedFrames.length ? storedFrames : [activeFrame];
-  frames[activeFrameIndex] = activeFrame;
-  const primary = frames[activeFrameIndex] || frames[0] || activeFrame;
-  return {
-    schema: "idp-player-board-v2",
-    activeFrameIndex,
-    player: primary.player,
-    referencePlayers: primary.referencePlayers,
-    cones: primary.cones,
-    zones: primary.zones,
-    arrows: primary.arrows,
-    notes: primary.notes,
-    frames: frames.slice(0, 8),
-    linkedClipIds: splitTokenList(formData.get("linkedClipIds")),
-  };
 }
 
 export function createIdpActions({ store, api, context = {} }) {
@@ -471,13 +274,6 @@ export function createIdpActions({ store, api, context = {} }) {
         clipPreviewStatus: "",
         clipPreviewMessage: "",
         clipPreviewObjectUrl: "",
-        playerBoardOpen: false,
-        playerBoardInterventionId: "",
-        playerBoardTemplateId: "",
-        playerBoardTemplateSearchQuery: "",
-        playerBoardPreviewFrameIndex: 0,
-        playerBoardPreviewPlaying: false,
-        playerBoardHandoutOpen: false,
       },
     });
     const fallbackPlayer = findSquadPlayer(getSquadState(), safePlayerId);
@@ -696,58 +492,9 @@ export function createIdpActions({ store, api, context = {} }) {
     await refreshSelectedPlayer();
   }
 
-  async function ensureInterventionFocus(playerId, detail = {}, formData) {
-    const formFocusId = persistedFocusId({ id: formData.get("focusId") || "" });
-    if (formFocusId) return formFocusId;
-    return ensureObservationFocus(playerId, detail, formData);
-  }
-
-  async function saveIntervention(formData) {
-    const playerId = selectedPlayerIdFromState(store.getState());
-    const detail = store.getState().playerDetail;
-    const focusId = await ensureInterventionFocus(playerId, detail, formData);
-    const interventionId = normalizeText(formData.get("interventionId"), 160);
-    const payload = {
-      id: interventionId,
-      playerId,
-      focusId,
-      goalId: formData.get("goalId") || "",
-      title: formData.get("title") || "Individual exercise",
-      objective: formData.get("objective") || "",
-      coachingCue: formData.get("coachingCue") || "",
-      successCriteria: splitTokenList(formData.get("successCriteria")),
-      pitchMode: formData.get("pitchMode") || "half",
-      status: formData.get("status") || "active",
-      boardState: buildInterventionBoardState(formData),
-    };
-    let nextInterventionId = interventionId;
-    if (interventionId) {
-      await api.updateIntervention({
-        ...payload,
-        rowVersion: formData.get("rowVersion"),
-      });
-    } else {
-      const result = await api.createIntervention(payload);
-      nextInterventionId = normalizeText(result?.intervention?.id, 160);
-    }
-    await refreshSelectedPlayer();
-    store.setState({ ui: { playerBoardOpen: true, playerBoardInterventionId: nextInterventionId || "", playerBoardTemplateId: "", actionMode: "", message: "Individual exercise saved." } });
-  }
-
-  async function archiveIntervention(interventionId = "") {
-    const playerId = selectedPlayerIdFromState(store.getState());
-    const safeInterventionId = normalizeText(interventionId, 160);
-    const intervention = (store.getState().playerDetail?.interventions || []).find((item) => item.id === safeInterventionId);
-    if (!playerId || !intervention?.id) throw new Error("Individual exercise could not be archived.");
-    await api.archiveIntervention({ id: intervention.id, playerId, rowVersion: intervention.rowVersion });
-    await refreshSelectedPlayer();
-    store.setState({ ui: { playerBoardInterventionId: "", playerBoardOpen: true, message: "Individual exercise archived." } });
-  }
-
   return {
     addEvidence,
     addGoalCheckin,
-    archiveIntervention,
     archiveGoal,
     assignOwner,
     checkForExternalUpdates,
@@ -759,7 +506,6 @@ export function createIdpActions({ store, api, context = {} }) {
     loadDashboard,
     refreshSelectedPlayer,
     removeClipBankItem,
-    saveIntervention,
     saveGoal,
     selectPlayer,
     updateEvidence,

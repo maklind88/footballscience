@@ -11,11 +11,6 @@ import {
   renderClipBankOrganizer,
   renderIdpClipPreviewOverlay,
 } from "./idp-clip-bank-renderer.mjs";
-import {
-  renderIdpPlayerBoardHandout,
-  renderIdpPlayerBoardOverlay,
-  renderIdpPlayerBoardPanel,
-} from "./idp-player-board-renderer.mjs";
 
 const defaultUiState = Object.freeze({
   selectedPlayerId: "",
@@ -28,10 +23,6 @@ const defaultUiState = Object.freeze({
   clipBankSearchQuery: "",
   actionMode: "",
   editGoalId: "",
-  playerBoardSearchQuery: "",
-  playerBoardTemplateSearchQuery: "",
-  playerBoardTemplateId: "",
-  playerBoardHandoutOpen: false,
   message: "",
   error: "",
   loading: false,
@@ -1095,7 +1086,6 @@ function renderStageQuickActions(canEdit = false, focusId = "", idpInactive = fa
 
 function normalizeProfileView(value = "") {
   if (value === "clip-bank") return "clip-bank";
-  if (value === "player-board") return "player-board";
   if (value === "goals") return "goals";
   if (value === "history") return "history";
   return "development";
@@ -1105,7 +1095,6 @@ function renderProfileMenu(profileView = "development") {
   const normalizedView = normalizeProfileView(profileView);
   const isDevelopment = normalizedView === "development";
   const isGoals = normalizedView === "goals";
-  const isPlayerBoard = normalizedView === "player-board";
   const isClipBank = normalizedView === "clip-bank";
   const isHistory = normalizedView === "history";
   return `
@@ -1113,7 +1102,6 @@ function renderProfileMenu(profileView = "development") {
       <button type="button" data-idp-back-overview>Overview</button>
       <button type="button" class="${isDevelopment ? "is-active" : ""}" data-idp-profile-view="development" aria-pressed="${isDevelopment ? "true" : "false"}">Player Profile</button>
       <button type="button" class="${isGoals ? "is-active" : ""}" data-idp-profile-view="goals" aria-pressed="${isGoals ? "true" : "false"}">Goals</button>
-      <button type="button" class="${isPlayerBoard ? "is-active" : ""}" data-idp-profile-view="player-board" aria-pressed="${isPlayerBoard ? "true" : "false"}">Player Board</button>
       <button type="button" class="${isClipBank ? "is-active" : ""}" data-idp-profile-view="clip-bank" aria-pressed="${isClipBank ? "true" : "false"}">Clip Bank</button>
       <button type="button" class="${isHistory ? "is-active" : ""}" data-idp-profile-view="history" aria-pressed="${isHistory ? "true" : "false"}">History</button>
     </nav>
@@ -1557,190 +1545,6 @@ function renderProfileClipBankPage(detail = {}, canEdit = false, ui = {}) {
   `;
 }
 
-function playerBoardInterventions(detail = {}) {
-  return Array.isArray(detail.interventions)
-    ? detail.interventions.filter((item) => item.status !== "archived")
-    : [];
-}
-
-function playerBoardExerciseSearchText(item = {}, focus = {}) {
-  return [
-    item.title,
-    item.objective,
-    item.pitchMode,
-    item.status,
-    item.focusId,
-    item.goalId,
-    focus?.title,
-    focus?.description,
-    focus?.category,
-  ].map((value) => normalizeText(value, "").toLowerCase()).join(" ");
-}
-
-function playerBoardSelectedIntervention(detail = {}, ui = {}) {
-  const interventions = playerBoardInterventions(detail);
-  return interventions.find((item) => item.id && item.id === ui.playerBoardInterventionId) || interventions[0] || null;
-}
-
-function playerBoardFocusTerms(focus = {}) {
-  return [
-    focus?.title,
-    focus?.description,
-    focus?.category,
-  ].flatMap((value) => normalizeText(value, "").toLowerCase().split(/[^a-z0-9åäö]+/i))
-    .filter((term) => term.length >= 4)
-    .slice(0, 8);
-}
-
-function playerBoardFocusMatchScore(item = {}, focus = {}) {
-  const focusId = normalizeText(focus?.id, "");
-  const itemFocusId = normalizeText(item.focusId, "");
-  const haystack = playerBoardExerciseSearchText(item, focus);
-  const terms = playerBoardFocusTerms(focus);
-  let score = focusId && itemFocusId && focusId === itemFocusId ? 40 : 0;
-  terms.forEach((term) => {
-    if (haystack.includes(term)) score += 4;
-  });
-  return score;
-}
-
-function playerBoardFocusLinkState(focus = {}, selected = {}) {
-  const focusTitle = normalizeText(focus?.title, "");
-  const focusDescription = normalizeText(focus?.description, "");
-  const focusCategory = normalizeText(focus?.category, "Focus");
-  const focusId = normalizeText(focus?.id, "");
-  const selectedFocusId = normalizeText(selected?.focusId, "");
-  const hasCurrentFocus = Boolean(focusTitle || focusDescription || focusId);
-  if (!hasCurrentFocus) {
-    return {
-      tone: "empty",
-      label: "No active focus",
-      title: "Saknar current focus",
-      body: "Skapa ett current focus först, sedan byggs tactical board mot samma språk.",
-    };
-  }
-  if (focusId && selectedFocusId && focusId === selectedFocusId) {
-    return {
-      tone: "synced",
-      label: "Synkad",
-      title: focusTitle || focusCategory,
-      body: focusDescription || `${focusCategory} är kopplat till den valda boarden.`,
-    };
-  }
-  if (selected?.id) {
-    return {
-      tone: "needs-sync",
-      label: "Koppla focus",
-      title: focusTitle || focusCategory,
-      body: "Redigera och spara boarden för att koppla den till spelarens aktuella focus.",
-    };
-  }
-  return {
-    tone: "draft",
-    label: "Ny från focus",
-    title: focusTitle || focusCategory,
-    body: focusDescription || `${focusCategory} används som startpunkt för nästa board.`,
-  };
-}
-
-function renderPlayerBoardLibraryResult(item = {}, index = 0, focus = {}, selectedId = "") {
-  const itemId = normalizeText(item.id, "");
-  const isSelected = itemId && itemId === selectedId;
-  const focusScore = playerBoardFocusMatchScore(item, focus);
-  const badge = isSelected ? "Öppen nedan" : focusScore > 0 ? "Focus-match" : "Sparad";
-  return `
-    <button
-      type="button"
-      class="idp-player-board-library-result${isSelected ? " is-active" : ""}"
-      data-idp-player-board-preview-select="${escapeHtml(itemId)}"
-      aria-pressed="${isSelected ? "true" : "false"}"
-    >
-      <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
-      <strong>${escapeHtml(item.title || "Individual exercise")}</strong>
-      <em>${escapeHtml(badge)}</em>
-      <small>${escapeHtml(item.objective || focus?.description || "Player-specific intervention")}</small>
-    </button>
-  `;
-}
-
-function renderPlayerBoardLibraryCommand(detail = {}, focus = {}, profile = {}, canEdit = false, ui = {}) {
-  const interventions = playerBoardInterventions(detail);
-  const query = normalizeText(ui.playerBoardSearchQuery, "");
-  const normalizedQuery = query.toLowerCase();
-  const selected = playerBoardSelectedIntervention(detail, ui);
-  const selectedId = normalizeText(selected?.id, "");
-  const matches = normalizedQuery
-    ? interventions.filter((item) => playerBoardExerciseSearchText(item, focus).includes(normalizedQuery))
-    : interventions;
-  const visibleMatches = matches
-    .slice()
-    .sort((a, b) => {
-      const selectedA = normalizeText(a.id, "") === selectedId ? 1000 : 0;
-      const selectedB = normalizeText(b.id, "") === selectedId ? 1000 : 0;
-      return (selectedB + playerBoardFocusMatchScore(b, focus)) - (selectedA + playerBoardFocusMatchScore(a, focus));
-    })
-    .slice(0, 4);
-  const playerName = normalizeText(profile.playerName || profile.name, "Player");
-  const countLabel = interventions.length === 1 ? "1 sparad övning" : `${interventions.length} sparade övningar`;
-  const selectedTitle = selected ? normalizeText(selected.title, "vald övning") : "";
-  const summaryLabel = selected ? `${countLabel} · vald övning öppnas nedanför` : countLabel;
-  const focusLink = playerBoardFocusLinkState(focus, selected);
-
-  return `
-    <section class="idp-player-board-library-command" aria-label="Individual exercise bank">
-      <div class="idp-player-board-library-core">
-        <div class="idp-player-board-library-copy">
-          <span>Individuell övningsbank</span>
-          <strong>${escapeHtml(selectedTitle || `${playerName} övningsbank`)}</strong>
-          <small>${escapeHtml(summaryLabel)}</small>
-        </div>
-        <div class="idp-player-board-focus-link is-${escapeHtml(focusLink.tone)}">
-          <span>${escapeHtml(focusLink.label)}</span>
-          <strong>${escapeHtml(focusLink.title)}</strong>
-          <small>${escapeHtml(focusLink.body)}</small>
-        </div>
-      </div>
-      <div class="idp-player-board-library-search">
-        <label>
-          <span>Sök övning</span>
-          <input type="search" data-idp-player-board-search value="${escapeHtml(query)}" placeholder="Sök övning, fokus eller anteckning" autocomplete="off">
-        </label>
-        <button type="button" data-idp-player-board-search-submit aria-label="Search exercise bank">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="m16 16 4 4"></path></svg>
-        </button>
-      </div>
-      ${canEdit ? `
-        <div class="idp-player-board-library-actions" aria-label="Exercise bank actions">
-          <button type="button" class="is-primary" data-idp-player-board-open>Redigera board</button>
-          <button type="button" data-idp-player-board-new>Ny från focus</button>
-          <button type="button" data-idp-player-board-link-clip>Koppla klipp</button>
-          <button type="button" data-idp-player-board-handout-open>Session View</button>
-        </div>
-      ` : ""}
-      <div class="idp-player-board-library-results" aria-label="Exercise search results">
-        ${visibleMatches.length
-          ? visibleMatches.map((item, index) => renderPlayerBoardLibraryResult(item, index, focus, selectedId)).join("")
-          : `
-            <div class="idp-player-board-library-empty">
-              <strong>${escapeHtml(interventions.length ? "Ingen träff" : "Ingen sparad övning ännu")}</strong>
-              <small>${escapeHtml(interventions.length ? "Testa ett annat sökord." : "Skapa första individuella övningen för spelaren.")}</small>
-            </div>
-          `}
-      </div>
-    </section>
-  `;
-}
-
-function renderProfilePlayerBoardPage(detail = {}, focus = {}, profile = {}, pulse = {}, nextAction = {}, canEdit = false, ui = {}, options = {}) {
-  return `
-    <section class="idp-profile-subpage idp-profile-player-board-page">
-      <div class="idp-player-board-page-shell">
-        ${renderIdpPlayerBoardPanel(detail, focus, profile, pulse, nextAction, canEdit, ui)}
-      </div>
-    </section>
-  `;
-}
-
 function renderProfileGoalsPage(detail = {}, focus = {}, profile = {}, canEdit = false, options = {}) {
   const goals = activeGoals(detail);
   const leadershipGoals = goals.filter((goal) => goal.goalRole === "leadership" || goal.category === "Leadership");
@@ -2013,17 +1817,6 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
           ? renderProfileGoalsPage(detail, focus || {}, profile, canEdit && !idpInactive, options)
         : profileView === "history"
           ? renderProfileHistoryPage(detail, options)
-        : profileView === "player-board"
-          ? renderProfilePlayerBoardPage(
-            detail,
-            focus || {},
-            profile,
-            pulse,
-            idpInactive ? { title: "No IDP action required", dueOn: "Paused" } : nextAction,
-            canEdit && !idpInactive,
-            state.ui || {},
-            options
-          )
           : `
       ${renderProfileScoutingRadar(profile, options)}
       <section class="idp-development-board is-focus-only">
@@ -2035,8 +1828,6 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
       </section>
       `}
       ${renderActionOverlay(state, focus, canEdit && !idpInactive, options)}
-      ${renderIdpPlayerBoardOverlay(detail, focus || {}, profile, state.ui || {}, canEdit && !idpInactive, options)}
-      ${renderIdpPlayerBoardHandout(detail, focus || {}, profile, state.ui || {}, canEdit && !idpInactive)}
       ${renderIdpClipPreviewOverlay(detail, state.ui || {})}
     </section>
   `;

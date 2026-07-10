@@ -5,7 +5,6 @@ import {
   medicalRtpLibraryFilterOptions,
   medicalRtpLibraryProfiles as defaultMedicalRtpLibraryProfiles,
 } from "./medical-rtp-library-data.mjs";
-import { createMedicalRtpExerciseCatalogRenderer } from "./medical-rtp-exercise-catalog-renderer.mjs";
 import { createMedicalRtpProgramWorkspaceRenderer } from "./medical-rtp-program-workspace-renderer.mjs";
 import { createMedicalRtpProgramRenderer } from "./medical-rtp-program-renderer.mjs";
 
@@ -85,7 +84,6 @@ ${renderTabs(activeTab, tabOptions, "medical-ops-tabs-top")}
     medicalClearanceRoles,
     medicalLoadGateOptions,
   });
-  const rtpExerciseCatalogRenderer = createMedicalRtpExerciseCatalogRenderer({ escapeHtml });
 
   const normalizeRtpCaseText = (value) =>
     String(value ?? "")
@@ -199,11 +197,7 @@ ${suggestedProfiles
 `;
   };
 
-  const rtpProgramWorkspaceRenderer = createMedicalRtpProgramWorkspaceRenderer({
-    escapeHtml,
-    renderExerciseCatalog: rtpExerciseCatalogRenderer.renderExerciseCatalog,
-    renderOpsStat,
-  });
+  const rtpProgramWorkspaceRenderer = createMedicalRtpProgramWorkspaceRenderer();
 
   const renderPrograms = (summary) => rtpProgramWorkspaceRenderer.renderRtpProgramsWorkspace(summary);
 

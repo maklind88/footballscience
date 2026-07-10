@@ -1,19 +1,4 @@
-import { hasMedicalRtpProgramStarter } from "./medical-rtp-tracker-helpers.mjs";
-
-const defaultEscapeHtml = (value) =>
-  String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-
-const getCases = (summary = {}) => (Array.isArray(summary.activeCases) ? summary.activeCases : []);
-
-const countCasesWithStarter = (cases = []) => cases.filter(({ plan }) => hasMedicalRtpProgramStarter(plan)).length;
-
 export function createMedicalRtpProgramWorkspaceRenderer({
-  escapeHtml = defaultEscapeHtml,
   renderCaseRtpStarterLinker = () => "",
   renderExerciseCatalog = () => "",
   renderRtpCaseProgramCards = () => "",
@@ -33,18 +18,8 @@ ${renderExerciseCatalog()}
 `;
 
   const renderRtpProgramsWorkspace = (summary = {}) => {
-    const cases = getCases(summary);
-    const withStarter = countCasesWithStarter(cases);
     return `
 <div class="medical-rtp-programs-workspace">
-<header class="medical-rtp-programs-header">
-<div>
-<span>RTP Programs</span>
-<strong>Medical-owned RTP command center</strong>
-<small>One flow: player case, Library guide, Medical Plan, Player Profile. No separate program source of truth.</small>
-</div>
-<b>${escapeHtml(withStarter)}/${escapeHtml(cases.length)} with starter</b>
-</header>
 ${renderCaseRtpStarterLinker(summary)}
 ${renderRtpCaseProgramCards(summary)}
 ${renderExerciseDrawer()}

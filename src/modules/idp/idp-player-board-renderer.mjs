@@ -104,16 +104,18 @@ export function renderIdpPlayerBoardPage(detail = {}, canEdit = false, ui = {}) 
             <span>PLAYER BOARD</span>
             <small>${escapeHtml(focusTitle)}</small>
           </div>
+        </header>
+        <div class="idp-player-board-visual-stack">
+          <div class="idp-player-board-stage">
+            ${hasBoardContent
+              ? renderer.renderExerciseVisual(block, { large: true })
+              : renderPlayerBoardEmpty(block, canEdit)}
+          </div>
           <div class="idp-player-board-actions">
             <button type="button" data-idp-board-preview ${hasBoardContent ? "" : "disabled"}>Preview</button>
             <button type="button" data-idp-board-open ${canOpenBoard ? "" : "disabled"}>Edit</button>
             <button type="button" class="is-primary" data-idp-board-save ${saveDisabled}>Save board</button>
           </div>
-        </header>
-        <div class="idp-player-board-stage">
-          ${hasBoardContent
-            ? renderer.renderExerciseVisual(block, { large: true })
-            : renderPlayerBoardEmpty(block, canEdit)}
         </div>
       </article>
       ${renderer.renderVisualPreviewOverlay(block)}

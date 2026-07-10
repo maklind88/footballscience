@@ -5417,20 +5417,22 @@ body.is-dark-mode .idp-river-detail-value {
 }
 
 .idp-player-board-panel {
+  align-items: start;
   background: rgba(255, 255, 255, .92);
   border: 1px solid rgba(16, 24, 40, .08);
   border-radius: 20px;
   box-shadow: 0 24px 70px rgba(16, 24, 40, .08);
   display: grid;
   gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 34rem);
   padding: clamp(18px, 2vw, 28px);
 }
 
 .idp-player-board-head {
-  align-items: end;
-  display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  align-self: start;
+  display: block;
+  max-width: 26rem;
+  padding-top: 2px;
 }
 
 .idp-player-board-head span,
@@ -5444,6 +5446,14 @@ body.is-dark-mode .idp-river-detail-value {
 
 .idp-player-board-head span {
   text-transform: uppercase;
+}
+
+.idp-player-board-visual-stack {
+  display: grid;
+  gap: 12px;
+  grid-column: 2;
+  justify-self: end;
+  width: min(100%, 31rem);
 }
 
 .idp-player-board-actions {
@@ -5492,15 +5502,16 @@ body.is-dark-mode .idp-river-detail-value {
     linear-gradient(180deg, rgba(248, 250, 252, .9), rgba(255, 255, 255, .88));
   border: 1px solid rgba(16, 24, 40, .08);
   border-radius: 22px;
-  min-height: clamp(560px, 68vh, 980px);
+  min-height: 0;
   overflow: hidden;
-  padding: clamp(14px, 2vw, 24px);
+  padding: clamp(10px, 1.35vw, 16px);
 }
 
 .idp-player-board-stage .session-visual-board {
-  margin: 0 auto;
+  margin: 0 0 0 auto;
   max-height: none;
-  min-height: clamp(520px, 64vh, 900px);
+  min-height: clamp(340px, 48vh, 620px);
+  width: min(100%, 25rem);
 }
 
 .idp-player-board-empty {
@@ -5510,7 +5521,7 @@ body.is-dark-mode .idp-river-detail-value {
   display: grid;
   gap: 12px;
   justify-items: center;
-  min-height: clamp(360px, 45vh, 620px);
+  min-height: clamp(280px, 40vh, 520px);
   padding: 28px;
   text-align: center;
 }
@@ -5535,16 +5546,26 @@ body.is-dark-mode .idp-river-detail-value {
 }
 
 @media (max-width: 900px) {
-  .idp-player-board-head {
-    align-items: start;
+  .idp-player-board-panel {
     grid-template-columns: 1fr;
+  }
+
+  .idp-player-board-head {
+    max-width: none;
+  }
+
+  .idp-player-board-visual-stack {
+    grid-column: 1;
+    justify-self: stretch;
+    width: 100%;
   }
 
   .idp-player-board-actions {
     justify-content: flex-start;
   }
 
-  .idp-player-board-stage {
+  .idp-player-board-stage .session-visual-board {
+    margin: 0 auto;
     min-height: 520px;
   }
 }

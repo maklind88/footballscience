@@ -1,21 +1,38 @@
 {
-  "name": "Football Science",
+  "id": "/?app=football-science",
+  "name": "Football Science Coaching Platform",
   "short_name": "Football Science",
-  "description": "Football Science coaching platform",
+  "description": "One live coaching workspace for squad, medical, schedule, scouting, video and staff workflows.",
   "start_url": "/?workspace=home",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "fullscreen", "browser"],
   "background_color": "#ffffff",
   "theme_color": "#0f3d2e",
+  "orientation": "any",
+  "categories": ["sports", "productivity", "business"],
+  "lang": "en",
+  "dir": "ltr",
   "icons": [
     {
-      "src": "/assets/football-science-mark.png",
+      "src": "/assets/pwa/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/assets/football-science-mark.png",
+      "src": "/assets/pwa/icon-512.png",
       "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/pwa/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/assets/pwa/apple-touch-icon-180.png",
+      "sizes": "180x180",
       "type": "image/png"
     }
   ]

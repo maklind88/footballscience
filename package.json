@@ -56,7 +56,8 @@
     "release:monitor": "npm run release:monitor-postdeploy && npm run qa:auth-health && npm run release:staging-isolation && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required",
     "release:rules": "node scripts/verify-release-rules.mjs",
     "security:audit": "npm audit --audit-level=high",
-    "qa:auth-health": "node scripts/verify-auth-health.mjs"
+    "qa:auth-health": "node scripts/verify-auth-health.mjs",
+    "qa:mobile-app": "playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/mobile-app-shell-contract.api.spec.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

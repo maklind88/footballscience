@@ -197,7 +197,9 @@ function primaryFocus(detail = {}) {
 function hasActiveEditingSurface(ui = {}) {
   return Boolean(
     ui.actionMode ||
-    ui.clipPreviewOpen
+    ui.clipPreviewOpen ||
+    ui.idpPlayerBoardOpen ||
+    ui.idpPlayerBoardPreviewOpen
   );
 }
 
@@ -407,6 +409,42 @@ export function createIdpActions({ store, api, context = {} }) {
     await refreshSelectedPlayer();
   }
 
+  async function savePlayerBoard(payload = {}) {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const safePayload = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+    const focusId = persistedFocusId({ id: safePayload.focusId || "" });
+    if (!playerId || !focusId) {
+      throw new Error("Create a current focus before saving Player Board.");
+    }
+    const interventionId = normalizeText(safePayload.id || safePayload.interventionId, 160);
+    const rowVersion = numberOrFallback(safePayload.rowVersion, 0);
+    if (interventionId && rowVersion > 0) {
+      await api.updateIntervention({
+        ...safePayload,
+        id: interventionId,
+        playerId,
+        focusId,
+        rowVersion,
+      });
+    } else {
+      await api.createIntervention({
+        ...safePayload,
+        playerId,
+        focusId,
+      });
+    }
+    store.setState({
+      ui: {
+        idpPlayerBoardOpen: false,
+        idpPlayerBoardPreviewOpen: false,
+        idpPlayerBoardSelectedElementId: "",
+        idpPlayerBoardSelectedElementIds: [],
+        message: "Player Board saved.",
+      },
+    });
+    await refreshSelectedPlayer();
+  }
+
   async function assignOwner(formData) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const detail = store.getState().playerDetail;
@@ -506,6 +544,7 @@ export function createIdpActions({ store, api, context = {} }) {
     loadDashboard,
     refreshSelectedPlayer,
     removeClipBankItem,
+    savePlayerBoard,
     saveGoal,
     selectPlayer,
     updateEvidence,

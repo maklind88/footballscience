@@ -3,6 +3,13 @@ import { createIdpStore } from "./idp-state.mjs";
 import { renderIdpWorkspace as renderMarkup } from "./idp-renderer.mjs";
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 import {
+  bindIdpPlayerBoardEvents,
+  handleIdpPlayerBoardChange,
+  handleIdpPlayerBoardClick,
+  handleIdpPlayerBoardInput,
+  persistIdpPlayerBoardDraft,
+} from "./idp-player-board-runtime.mjs";
+import {
   closeClipPreview,
   ensureClipBankStyles,
   jumpClipPreview,
@@ -177,6 +184,7 @@ function paint(activeRuntime = runtime) {
   });
   restoreSearchFocus(activeRuntime, searchFocus);
   setupIdpClipPreviewPlayback(activeRuntime);
+  bindIdpPlayerBoardEvents(activeRuntime);
 }
 
 function ensureRuntime(context = {}) {
@@ -200,6 +208,8 @@ function ensureRuntime(context = {}) {
     syncListening: false,
     syncListeners: null,
   };
+  runtime.paint = paint;
+  runtime.runAction = runAction;
   store.subscribe(() => paint(runtime));
   return runtime;
 }
@@ -279,6 +289,7 @@ export function render(context = {}) {
 }
 
 export function handleInput(event) {
+  if (handleIdpPlayerBoardInput(event, runtime)) return;
   const target = event?.target;
   if (target?.matches?.("[data-idp-clip-search]")) {
     runtime?.store.setState({ ui: { clipBankSearchQuery: target.value || "" } });
@@ -290,6 +301,7 @@ export function handleInput(event) {
 }
 
 export function handleChange(event) {
+  if (handleIdpPlayerBoardChange(event, runtime)) return;
   const target = event?.target;
   const clipSelect = target?.closest?.("[data-idp-clip-select]");
   if (clipSelect) {
@@ -305,6 +317,7 @@ export function handleChange(event) {
 }
 
 export function handleClick(event) {
+  if (handleIdpPlayerBoardClick(event, runtime)) return;
   const filterToggle = event?.target?.closest?.("[data-idp-filter-toggle]");
   if (filterToggle) {
     event?.preventDefault?.();
@@ -342,7 +355,7 @@ export function handleClick(event) {
     event?.preventDefault?.();
     revokePreviewUrl(runtime);
     const requestedProfileView = profileViewTrigger.dataset.idpProfileView || "";
-    const profileView = ["clip-bank", "goals", "history"].includes(requestedProfileView) ? requestedProfileView : "development";
+    const profileView = ["clip-bank", "player-board", "goals", "history"].includes(requestedProfileView) ? requestedProfileView : "development";
     runtime?.store.setState({
       ui: {
         profileView,
@@ -355,6 +368,8 @@ export function handleClick(event) {
         clipPreviewStatus: "",
         clipPreviewMessage: "",
         clipPreviewObjectUrl: "",
+        idpPlayerBoardOpen: false,
+        idpPlayerBoardPreviewOpen: false,
         error: "",
         message: "",
       },
@@ -599,4 +614,8 @@ export function handleSubmit(event) {
   if (form.matches("[data-idp-add-goal-checkin]")) {
     runAction(() => runtime?.actions.addGoalCheckin(formData));
   }
+}
+
+export function saveCurrentPlayerBoardDraft() {
+  return persistIdpPlayerBoardDraft(runtime);
 }

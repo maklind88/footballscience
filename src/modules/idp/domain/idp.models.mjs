@@ -61,6 +61,100 @@ function normalizeBoardArrowType(value, fallback = "run") {
   return ["arrow", "pass", "run", "line", "curve"].includes(type) ? type : fallback;
 }
 
+function normalizeTacticalElementType(value, fallback = "blue-player") {
+  const type = normalizeText(value, 40).toLowerCase();
+  return [
+    "blue-player",
+    "red-player",
+    "neutral-player",
+    "coach",
+    "ball",
+    "cone",
+    "mini-goal",
+    "big-goal",
+    "mannequin",
+    "pole",
+    "gate",
+    "dashed-line",
+    "zone",
+    "dashed-zone",
+    "ellipse",
+    "arrow",
+    "pass",
+    "run",
+    "line",
+    "curve",
+    "freehand",
+    "text",
+  ].includes(type) ? type : fallback;
+}
+
+function normalizeTacticalPlayerBadge(value = "") {
+  return normalizeText(value, 8).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 2);
+}
+
+function normalizeTacticalElement(value = {}, index = 0) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const type = normalizeTacticalElementType(value.type);
+  const points = Array.isArray(value.points)
+    ? value.points.slice(0, 200).map((point = {}) => ({
+      x: normalizeDecimal(point.x, 50),
+      y: normalizeDecimal(point.y, 50),
+    }))
+    : [];
+  return {
+    id: normalizeText(value.id || `tactical-${index + 1}`, 120),
+    type,
+    x: normalizeDecimal(value.x, 50),
+    y: normalizeDecimal(value.y, 50),
+    x2: value.x2 === null || value.x2 === undefined ? null : normalizeDecimal(value.x2, 50),
+    y2: value.y2 === null || value.y2 === undefined ? null : normalizeDecimal(value.y2, 50),
+    controlX: value.controlX === null || value.controlX === undefined ? null : normalizeDecimal(value.controlX, 50),
+    controlY: value.controlY === null || value.controlY === undefined ? null : normalizeDecimal(value.controlY, 50),
+    label: normalizeText(value.label, 180),
+    playerNumber: normalizeTacticalPlayerBadge(value.playerNumber || value.player_number) || null,
+    color: normalizeBoardColor(value.color, "#111827"),
+    lineWidth: normalizeBoardLineWidth(value.lineWidth || value.line_width, 1.1),
+    lineStyle: normalizeBoardLineStyle(value.lineStyle || value.line_style, "solid"),
+    size: Math.min(1.65, Math.max(0.75, Number(value.size) || 1)),
+    rotation: Number.isFinite(Number(value.rotation)) ? Math.round(((Number(value.rotation) % 360) + 360) % 360) : 0,
+    points,
+  };
+}
+
+function normalizeTacticalElements(values = [], limit = 250) {
+  return Array.isArray(values)
+    ? values.slice(0, limit).map(normalizeTacticalElement).filter(Boolean)
+    : [];
+}
+
+function normalizeTacticalFrame(value = {}, index = 0) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return {
+    id: normalizeText(value.id || `tactical-frame-${index + 1}`, 120),
+    label: normalizeText(value.label || `Frame ${index + 1}`, 80),
+    elements: normalizeTacticalElements(value.elements),
+  };
+}
+
+function normalizeTacticalFrames(values = []) {
+  return Array.isArray(values)
+    ? values.slice(0, 8).map(normalizeTacticalFrame).filter(Boolean)
+    : [];
+}
+
+function normalizeTacticalPitchMode(value = "full") {
+  const normalized = normalizeText(value, 40);
+  const aliases = { half: "attacking-half", "final-third": "attacking-half", box: "goalkeeper" };
+  const resolved = aliases[normalized] || normalized;
+  return ["full", "full-wide", "attacking-half", "defending-half", "goalkeeper"].includes(resolved) ? resolved : "full";
+}
+
+function normalizeTacticalActiveFrameId(value = "", frames = []) {
+  const activeFrameId = normalizeText(value, 120);
+  return frames.some((frame) => frame.id === activeFrameId) ? activeFrameId : frames[0]?.id || "";
+}
+
 function normalizeBoardPlayer(value = {}, fallback = {}) {
   return {
     x: normalizeDecimal(value?.x, normalizeDecimal(fallback?.x, 50)),
@@ -179,9 +273,21 @@ function normalizeBoardState(value = {}) {
     : [];
   const activeFrameIndex = normalizeBoardFrameIndex(source.activeFrameIndex ?? source.active_frame_index, frames.length || 1);
   const primaryFrame = frames[activeFrameIndex] || frames[0] || {};
+  const tacticalFrames = normalizeTacticalFrames(source.tacticalFrames || source.tactical_frames);
+  const tacticalActiveFrameId = normalizeTacticalActiveFrameId(source.tacticalActiveFrameId || source.tactical_active_frame_id, tacticalFrames);
+  const activeTacticalFrame = tacticalFrames.find((frame) => frame.id === tacticalActiveFrameId) || tacticalFrames[0] || null;
+  const tacticalElements = normalizeTacticalElements(source.tacticalElements || source.tactical_elements || activeTacticalFrame?.elements || []);
   return {
     schema: normalizeText(source.schema || "idp-player-board-v1", 80),
     activeFrameIndex,
+    tacticalPitchMode: normalizeTacticalPitchMode(source.tacticalPitchMode || source.tactical_pitch_mode || source.pitchMode || source.pitch_mode),
+    tacticalActiveFrameId,
+    tacticalFrames: tacticalFrames.map((frame) => ({
+      ...frame,
+      elements: frame.id === tacticalActiveFrameId ? tacticalElements : frame.elements,
+    })),
+    tacticalElements,
+    visualImage: normalizeText(source.visualImage || source.visual_image, 4000),
     player: primaryFrame.player || fallbackState.player,
     referencePlayers: primaryFrame.referencePlayers || fallbackState.referencePlayers,
     cones: primaryFrame.cones || fallbackState.cones,
@@ -372,7 +478,7 @@ export function normalizeIdpDevelopmentIntervention(value = {}) {
     successCriteria: Array.isArray(value.successCriteria || value.success_criteria)
       ? (value.successCriteria || value.success_criteria).map((item) => normalizeText(item, 160)).filter(Boolean).slice(0, 6)
       : [],
-    pitchMode: normalizeText(value.pitchMode || value.pitch_mode || "half", 40),
+    pitchMode: normalizeTacticalPitchMode(value.pitchMode || value.pitch_mode || value.boardState?.tacticalPitchMode || value.board_state?.tacticalPitchMode || "full"),
     boardState: normalizeBoardState(value.boardState || value.board_state),
     status: normalizeText(value.status || "active", 40),
     rowVersion: Number(value.rowVersion || value.row_version || 1) || 1,

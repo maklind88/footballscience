@@ -1,3 +1,5 @@
+import { idpPlayerBoardUiDefaults } from "./idp-player-board-helpers.mjs";
+
 export const idpInitialUiState = Object.freeze({
   selectedPlayerId: "",
   statusFilter: "All",
@@ -20,6 +22,7 @@ export const idpInitialUiState = Object.freeze({
   clipPreviewStatus: "",
   clipPreviewMessage: "",
   clipPreviewObjectUrl: "",
+  ...idpPlayerBoardUiDefaults,
 });
 
 export const idpInitialSyncState = Object.freeze({
@@ -57,6 +60,12 @@ export function createIdpStore(initialState = {}) {
           clipPreviewQueueIds: Array.isArray(patch.ui?.clipPreviewQueueIds)
             ? patch.ui.clipPreviewQueueIds
             : state.ui.clipPreviewQueueIds,
+          idpPlayerBoardSelectedElementIds: Array.isArray(patch.ui?.idpPlayerBoardSelectedElementIds)
+            ? patch.ui.idpPlayerBoardSelectedElementIds
+            : state.ui.idpPlayerBoardSelectedElementIds,
+          idpPlayerBoardClipboard: Array.isArray(patch.ui?.idpPlayerBoardClipboard)
+            ? patch.ui.idpPlayerBoardClipboard
+            : state.ui.idpPlayerBoardClipboard,
         },
         sync: patch.sync ? { ...state.sync, ...patch.sync } : state.sync,
       };

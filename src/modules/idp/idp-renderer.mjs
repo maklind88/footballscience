@@ -11,6 +11,7 @@ import {
   renderClipBankOrganizer,
   renderIdpClipPreviewOverlay,
 } from "./idp-clip-bank-renderer.mjs";
+import { renderIdpPlayerBoardPage } from "./idp-player-board-renderer.mjs";
 
 const defaultUiState = Object.freeze({
   selectedPlayerId: "",
@@ -27,6 +28,10 @@ const defaultUiState = Object.freeze({
   error: "",
   loading: false,
   selectedClipBankIds: [],
+  idpPlayerBoardOpen: false,
+  idpPlayerBoardPreviewOpen: false,
+  idpPlayerBoardSelectedElementIds: [],
+  idpPlayerBoardClipboard: [],
 });
 
 const profileWorkflowPreviewLimit = 5;
@@ -1086,6 +1091,7 @@ function renderStageQuickActions(canEdit = false, focusId = "", idpInactive = fa
 
 function normalizeProfileView(value = "") {
   if (value === "clip-bank") return "clip-bank";
+  if (value === "player-board") return "player-board";
   if (value === "goals") return "goals";
   if (value === "history") return "history";
   return "development";
@@ -1096,6 +1102,7 @@ function renderProfileMenu(profileView = "development") {
   const isDevelopment = normalizedView === "development";
   const isGoals = normalizedView === "goals";
   const isClipBank = normalizedView === "clip-bank";
+  const isPlayerBoard = normalizedView === "player-board";
   const isHistory = normalizedView === "history";
   return `
     <nav class="idp-profile-menu" aria-label="Player profile navigation">
@@ -1103,6 +1110,7 @@ function renderProfileMenu(profileView = "development") {
       <button type="button" class="${isDevelopment ? "is-active" : ""}" data-idp-profile-view="development" aria-pressed="${isDevelopment ? "true" : "false"}">Player Profile</button>
       <button type="button" class="${isGoals ? "is-active" : ""}" data-idp-profile-view="goals" aria-pressed="${isGoals ? "true" : "false"}">Goals</button>
       <button type="button" class="${isClipBank ? "is-active" : ""}" data-idp-profile-view="clip-bank" aria-pressed="${isClipBank ? "true" : "false"}">Clip Bank</button>
+      <button type="button" class="${isPlayerBoard ? "is-active" : ""}" data-idp-profile-view="player-board" aria-pressed="${isPlayerBoard ? "true" : "false"}">Player Board</button>
       <button type="button" class="${isHistory ? "is-active" : ""}" data-idp-profile-view="history" aria-pressed="${isHistory ? "true" : "false"}">History</button>
     </nav>
   `;
@@ -1813,6 +1821,8 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
       ${renderProfileMenu(profileView)}
       ${profileView === "clip-bank"
         ? renderProfileClipBankPage(detail, canEdit && !idpInactive, state.ui || {})
+        : profileView === "player-board"
+          ? renderIdpPlayerBoardPage(detail, canEdit && !idpInactive, state.ui || {})
         : profileView === "goals"
           ? renderProfileGoalsPage(detail, focus || {}, profile, canEdit && !idpInactive, options)
         : profileView === "history"

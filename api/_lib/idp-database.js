@@ -19,7 +19,7 @@ const CATEGORIES = new Set(["Technical", "Tactical", "Physical", "Psychological"
 const FOCUS_STATUSES = new Set(["Draft", "Active", "Needs Evidence", "Ready For Review", "Reviewed", "Completed", "Archived"]);
 const CLIP_STATUSES = new Set(["New", "Reviewed", "Linked To Focus", "Marked As Evidence", "Archived", "Hidden"]);
 const INTERVENTION_STATUSES = new Set(["draft", "active", "review", "completed", "archived"]);
-const PITCH_MODES = new Set(["full", "half", "final-third", "box"]);
+const PITCH_MODES = new Set(["full", "half", "final-third", "box", "full-wide", "attacking-half", "defending-half", "goalkeeper"]);
 const GOAL_ROLES = new Set(["primary", "supporting", "leadership"]);
 const GOAL_METRIC_TYPES = new Set(["observation", "count", "percentage", "rating", "time", "distance", "custom"]);
 const GOAL_CADENCES = new Set(["daily", "weekly", "biweekly", "monthly", "review"]);
@@ -188,12 +188,109 @@ function normalizeBoardArrowType(value, fallback = "run") {
   return ["arrow", "pass", "run", "line", "curve"].includes(type) ? type : fallback;
 }
 
+function normalizeTacticalElementType(value, fallback = "blue-player") {
+  const type = normalizeBoardLabel(value, 40).toLowerCase();
+  return [
+    "blue-player",
+    "red-player",
+    "neutral-player",
+    "coach",
+    "ball",
+    "cone",
+    "mini-goal",
+    "big-goal",
+    "mannequin",
+    "pole",
+    "gate",
+    "dashed-line",
+    "zone",
+    "dashed-zone",
+    "ellipse",
+    "arrow",
+    "pass",
+    "run",
+    "line",
+    "curve",
+    "freehand",
+    "text",
+  ].includes(type) ? type : fallback;
+}
+
+function normalizeTacticalPlayerBadge(value) {
+  return normalizeBoardLabel(value, 8).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 2);
+}
+
+function normalizeTacticalElement(value = {}, index = 0) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const type = normalizeTacticalElementType(value.type);
+  const points = normalizeBoardArray(value.points, 200, (point = {}) => ({
+    x: clampPercent(point.x, 50),
+    y: clampPercent(point.y, 50),
+  }));
+  return {
+    id: normalizeBoardLabel(value.id || `tactical-${index + 1}`, 120),
+    type,
+    x: clampPercent(value.x, 50),
+    y: clampPercent(value.y, 50),
+    x2: value.x2 === null || value.x2 === undefined ? null : clampPercent(value.x2, 50),
+    y2: value.y2 === null || value.y2 === undefined ? null : clampPercent(value.y2, 50),
+    controlX: value.controlX === null || value.controlX === undefined ? null : clampPercent(value.controlX, 50),
+    controlY: value.controlY === null || value.controlY === undefined ? null : clampPercent(value.controlY, 50),
+    label: normalizeBoardLabel(value.label, 180),
+    playerNumber: normalizeTacticalPlayerBadge(value.playerNumber || value.player_number) || null,
+    color: normalizeBoardColor(value.color, "#111827"),
+    lineWidth: normalizeBoardLineWidth(value.lineWidth || value.line_width, 1.1),
+    lineStyle: normalizeBoardLineStyle(value.lineStyle || value.line_style, "solid"),
+    size: Math.min(1.65, Math.max(0.75, Number(value.size) || 1)),
+    rotation: Number.isFinite(Number(value.rotation)) ? Math.round(((Number(value.rotation) % 360) + 360) % 360) : 0,
+    points,
+  };
+}
+
+function normalizeTacticalElements(values = [], limit = 250) {
+  return normalizeBoardArray(values, limit, normalizeTacticalElement);
+}
+
+function normalizeTacticalFrame(value = {}, index = 0) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return {
+    id: normalizeBoardLabel(value.id || `tactical-frame-${index + 1}`, 120),
+    label: normalizeBoardLabel(value.label || `Frame ${index + 1}`, 80),
+    elements: normalizeTacticalElements(value.elements, 250),
+  };
+}
+
+function normalizeTacticalFrames(values = []) {
+  return normalizeBoardArray(values, 8, normalizeTacticalFrame);
+}
+
+function normalizeTacticalActiveFrameId(value = "", frames = []) {
+  const activeFrameId = normalizeBoardLabel(value, 120);
+  return frames.some((frame) => frame.id === activeFrameId) ? activeFrameId : frames[0]?.id || "";
+}
+
 function normalizeBoardState(value = {}) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const player = normalizeBoardPoints(source.player, { x: 50, y: 70 });
+  const tacticalFrames = normalizeTacticalFrames(source.tacticalFrames || source.tactical_frames);
+  const tacticalActiveFrameId = normalizeTacticalActiveFrameId(source.tacticalActiveFrameId || source.tactical_active_frame_id, tacticalFrames);
+  const activeTacticalFrame = tacticalFrames.find((frame) => frame.id === tacticalActiveFrameId) || tacticalFrames[0] || null;
+  const tacticalElements = normalizeTacticalElements(
+    source.tacticalElements || source.tactical_elements || activeTacticalFrame?.elements || []
+  );
   return {
-    schema: "idp-player-board-v1",
+    schema: normalizeBoardLabel(source.schema || "idp-player-board-v1", 80),
     player,
+    tacticalPitchMode: normalizePitchMode(source.tacticalPitchMode || source.tactical_pitch_mode || source.pitchMode || source.pitch_mode, "full"),
+    tacticalActiveFrameId,
+    tacticalFrames: tacticalFrames.length
+      ? tacticalFrames.map((frame) => ({
+        ...frame,
+        elements: frame.id === tacticalActiveFrameId ? tacticalElements : frame.elements,
+      }))
+      : [],
+    tacticalElements,
+    visualImage: normalizeText(source.visualImage || source.visual_image, 4000),
     referencePlayers: normalizeBoardArray(source.referencePlayers, 6, (item = {}, index) => ({
       id: normalizeBoardLabel(item.id || `ref-${index + 1}`, 80),
       label: normalizeBoardLabel(item.label || "REF", 24) || "REF",
@@ -242,6 +339,7 @@ function normalizeBoardState(value = {}) {
 
 function boardStateSummary(boardState = {}) {
   return {
+    tacticalObjects: Array.isArray(boardState.tacticalElements) ? boardState.tacticalElements.length : 0,
     zones: Array.isArray(boardState.zones) ? boardState.zones.length : 0,
     arrows: Array.isArray(boardState.arrows) ? boardState.arrows.length : 0,
     notes: Array.isArray(boardState.notes) ? boardState.notes.length : 0,

@@ -1,5 +1,4 @@
 export function createMedicalRtpProgramWorkspaceRenderer({
-  renderCaseRtpStarterLinker = () => "",
   renderExerciseCatalog = () => "",
   renderRtpCaseProgramCards = () => "",
 } = {}) {
@@ -48,7 +47,6 @@ ${renderExerciseCatalog()}
   const renderRtpProgramsWorkspace = (summary = {}) => {
     return `
 <div class="medical-rtp-programs-workspace">
-${renderCaseRtpStarterLinker(summary)}
 ${renderRtpCaseProgramCards(summary)}
 ${renderExerciseBankOverlay()}
 </div>

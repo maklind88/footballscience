@@ -201,7 +201,6 @@ ${suggestedProfiles
 
   const rtpProgramWorkspaceRenderer = createMedicalRtpProgramWorkspaceRenderer({
     escapeHtml,
-    renderCaseRtpStarterLinker,
     renderExerciseCatalog: rtpExerciseCatalogRenderer.renderExerciseCatalog,
     renderOpsStat,
     renderRtpCaseProgramCards: rtpProgramRenderer.renderRtpCaseProgramCards,

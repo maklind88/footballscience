@@ -3395,9 +3395,7 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(page.locator("[data-medical-availability-workspace]")).toHaveCount(0);
 
   await operationsMenu.locator('[data-medical-ops-tab="programs"]').click();
-  await expect(operations).toContainText("RTP Starter Queue");
-  await expect(operations).toContainText("Open Medical Plan draft");
-  await expect(operations).toContainText("Medical Plan remains source");
+  await expect(operations.locator(".medical-rtp-case-linker")).toHaveCount(0);
   await expect(operations).toContainText("Clinical exercise catalogue for RTP programs");
   await expect(operations).toContainText("Save player program");
   const exerciseOverlay = operations.locator("[data-medical-rtp-exercise-overlay]");

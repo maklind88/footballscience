@@ -161,8 +161,8 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(programsMarkup).not.toContain("medical-rtp-programs-header");
   expect(programsMarkup).not.toContain("Medical-owned RTP command center");
   expect(programsMarkup).not.toContain("One flow: player case, Library guide, Medical Plan, Player Profile");
-  expect(programsMarkup).toContain("RTP Library guide");
-  expect(programsMarkup).toContain("Medical Plan draft");
+  expect(programsMarkup).toContain("Active player RTP programs");
+  expect(programsMarkup).toContain("Saved Medical Plans using RTP Library starters");
   expect(programsMarkup).not.toContain("medical-rtp-exercise-drawer");
   expect(programsMarkup).toContain("medical-rtp-exercise-launcher");
   expect(programsMarkup).toContain("data-medical-rtp-exercise-open");
@@ -181,7 +181,8 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(programsMarkup).toContain('data-medical-rtp-exercise-filter="risk"');
   expect(programsMarkup).toContain("linked profiles");
   expect(programsMarkup).toContain("diagram placeholder");
-  expect(programsMarkup).toContain("RTP Starter Queue");
+  expect(programsMarkup).not.toContain("RTP Starter Queue");
+  expect(programsMarkup).not.toContain("medical-rtp-case-linker");
   expect(programsMarkup).toContain("RTP Action Queue");
   expect(programsMarkup).toContain("Open Medical Plan");
   const rtpMarkup = renderer.renderPrivateSystem(summary, "rtp-library", "2026-05-31");

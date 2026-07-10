@@ -89,20 +89,6 @@ function renderPlayerBoardEmpty(block = {}, canEdit = false) {
   `;
 }
 
-function renderBoardMeta(block = {}) {
-  const frames = Array.isArray(block.tacticalFrames) ? block.tacticalFrames.length : 0;
-  const elements = Array.isArray(block.tacticalElements) ? block.tacticalElements.length : 0;
-  const pitchLabel = idpPlayerBoardHelpers.getTacticalPitchModeOption(block.tacticalPitchMode)?.label || "Full pitch";
-  return `
-    <div class="idp-player-board-meta">
-      <span><strong>${escapeHtml(String(frames || 1))}</strong><small>Frames</small></span>
-      <span><strong>${escapeHtml(String(elements))}</strong><small>Objects</small></span>
-      <span><strong>${escapeHtml(pitchLabel)}</strong><small>Pitch view</small></span>
-      <span><strong>${escapeHtml(block.isDraft ? "Draft" : "Saved")}</strong><small>Status</small></span>
-    </div>
-  `;
-}
-
 export function renderIdpPlayerBoardPage(detail = {}, canEdit = false, ui = {}) {
   const block = buildIdpPlayerBoardBlock(detail);
   const renderer = createIdpPlayerBoardVisualRenderer(block, ui);
@@ -125,7 +111,6 @@ export function renderIdpPlayerBoardPage(detail = {}, canEdit = false, ui = {}) 
             <button type="button" class="is-primary" data-idp-board-save ${saveDisabled}>Save board</button>
           </div>
         </header>
-        ${renderBoardMeta(block)}
         <div class="idp-player-board-stage">
           ${hasBoardContent
             ? renderer.renderExerciseVisual(block, { large: true })

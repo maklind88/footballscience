@@ -5495,35 +5495,6 @@ body.is-dark-mode .idp-river-detail-value {
   transform: none;
 }
 
-.idp-player-board-meta {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.idp-player-board-meta span {
-  background: rgba(248, 250, 252, .94);
-  border: 1px solid rgba(16, 24, 40, .07);
-  border-radius: 14px;
-  display: grid;
-  gap: 2px;
-  padding: 12px 14px;
-}
-
-.idp-player-board-meta strong {
-  color: #101828;
-  font-size: 1.05rem;
-  line-height: 1;
-}
-
-.idp-player-board-meta small {
-  color: #667085;
-  font-size: .64rem;
-  font-weight: 900;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
 .idp-player-board-stage {
   background:
     linear-gradient(180deg, rgba(248, 250, 252, .9), rgba(255, 255, 255, .88));
@@ -5581,20 +5552,12 @@ body.is-dark-mode .idp-river-detail-value {
     justify-content: flex-start;
   }
 
-  .idp-player-board-meta {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .idp-player-board-stage {
     min-height: 520px;
   }
 }
 
 @media (max-width: 560px) {
-  .idp-player-board-meta {
-    grid-template-columns: 1fr;
-  }
-
   .idp-player-board-actions button {
     flex: 1 1 100%;
   }

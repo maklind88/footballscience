@@ -89,13 +89,20 @@ test("chat sendMessage queues push after the database message exists", () => {
 });
 
 test("chat push recipient filter skips sender, muted and mentions-only users", () => {
-  const { shouldSkipRecipient, normalizePushSubscription, hashEndpoint } = pushModule._private;
+  const { shouldSkipRecipient, mentionsRecipient, messageMentionedUserIds, normalizePushSubscription, hashEndpoint } = pushModule._private;
   const message = { id: "m1", metadata: { mentionedUserIds: ["user-mentioned"] }, created_at: "2026-07-02T12:00:00.000Z" };
+  const topLevelMentionMessage = { id: "m2", mentionedUserIds: ["top-level-mentioned"], created_at: "2026-07-02T12:00:00.000Z" };
 
   expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "sender" })).toBe("sender");
   expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "muted", notification_level: "muted" })).toBe("muted");
   expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "quiet", notification_level: "mentions" })).toBe("mentions-only");
   expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "user-mentioned", notification_level: "mentions" })).toBe("");
+  expect(shouldSkipRecipient({ id: "sender" }, {}, topLevelMentionMessage, { user_id: "top-level-mentioned", notification_level: "mentions" })).toBe("");
+  expect(mentionsRecipient(topLevelMentionMessage, { user_id: "top-level-mentioned" })).toBe(true);
+  expect(messageMentionedUserIds({ mentioned_user_ids: ["snake-mentioned"], metadata: { mentionedUserIds: ["metadata-mentioned"] } })).toEqual([
+    "snake-mentioned",
+    "metadata-mentioned",
+  ]);
   expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "archived", metadata: { archivedAt: "2026-07-02T11:00:00.000Z" } })).toBe("hidden");
   expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "blocked", metadata: { blockedAt: "2026-07-02T11:00:00.000Z" } })).toBe("hidden");
   expect(shouldSkipRecipient({ id: "sender" }, {}, message, { user_id: "deleted", metadata: { deletedForUserAt: "2026-07-02T12:30:00.000Z" } })).toBe("deleted-for-user");

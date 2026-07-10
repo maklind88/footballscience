@@ -409,14 +409,10 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
   }
 
   function canFallbackDashboardChatApiResult(result = {}) {
-    if (result.retryable) {
-      return true;
-    }
-
     const host = win.location?.hostname || "";
     const isLocal = isLocalHost(host);
     const isDevAuth = Boolean(getPlatformAuthStore()?.isDevMode?.());
-    return Boolean(isLocal && isDevAuth && result.status === 401);
+    return Boolean(isLocal && isDevAuth && (result.status === 401 || result.retryable));
   }
 
   function logDashboardChatApiFailure(action, result = {}) {

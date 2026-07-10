@@ -201,6 +201,16 @@ function isAfterIso(value = "", threshold = "") {
   return Number.isFinite(valueMs) && Number.isFinite(thresholdMs) && valueMs > thresholdMs;
 }
 
+function messageMentionedUserIds(message = {}) {
+  const metadata = isPlainObject(message.metadata) ? message.metadata : {};
+  return Array.from(new Set([
+    ...(Array.isArray(message.mentionedUserIds) ? message.mentionedUserIds : []),
+    ...(Array.isArray(message.mentioned_user_ids) ? message.mentioned_user_ids : []),
+    ...(Array.isArray(metadata.mentionedUserIds) ? metadata.mentionedUserIds : []),
+    ...(Array.isArray(metadata.mentioned_user_ids) ? metadata.mentioned_user_ids : []),
+  ].map((value) => normalizeId(value)).filter(Boolean)));
+}
+
 async function readNotificationRecipients(thread = {}, message = {}) {
   const type = normalizeString(thread.type || "team", 40).toLowerCase();
   if (type === "dm" || type === "group" || type === "system") {
@@ -229,8 +239,7 @@ async function readNotificationRecipients(thread = {}, message = {}) {
 }
 
 function mentionsRecipient(message = {}, recipient = {}) {
-  const mentionedIds = Array.isArray(message.metadata?.mentionedUserIds) ? message.metadata.mentionedUserIds : [];
-  return mentionedIds.includes(recipient.user_id);
+  return messageMentionedUserIds(message).includes(recipient.user_id);
 }
 
 function shouldSkipRecipient(actor = {}, thread = {}, message = {}, recipient = {}) {
@@ -462,6 +471,8 @@ module.exports = {
   upsertChatPushSubscription,
   _private: {
     hashEndpoint,
+    mentionsRecipient,
+    messageMentionedUserIds,
     normalizePushSubscription,
     shouldSkipRecipient,
   },

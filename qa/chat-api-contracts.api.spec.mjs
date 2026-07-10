@@ -12,6 +12,7 @@ const chatDomainSource = readFileSync(path.join(__dirname, "../src/modules/chat/
 const chatThreadRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-thread-runtime.mjs"), "utf8");
 const chatApiUiActionsSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-api-ui-actions.mjs"), "utf8");
 const chatApi = require("../api/chat.js");
+const chatDatabase = require("../api/_lib/chat-database.js");
 const {
   applyChatActionToState,
   applyRetentionPolicy,
@@ -19,6 +20,11 @@ const {
   filterChatStateForActor,
   normalizeMessageText,
 } = chatApi._private;
+const {
+  messageMentionedUserIds,
+  normalizeMentionedUserIds,
+  threadRequiresParticipantAccess,
+} = chatDatabase._private;
 
 const staffActor = {
   id: "coach-1",
@@ -120,6 +126,42 @@ test("database read receipts resolve legacy thread ids before writing", () => {
   expect(chatDatabaseSource).toContain("body.thread_type");
   expect(chatDatabaseSource).toContain("const thread = await resolveThreadForAction(actor, body, { createIfMissing: false });");
   expect(chatDatabaseSource).toContain("const [threadSummary] = await enrichThreadSummaries(actor, [thread]);");
+});
+
+test("database chat mirrors RLS participant access for private threads", () => {
+  expect(threadRequiresParticipantAccess({ type: "dm" })).toBe(true);
+  expect(threadRequiresParticipantAccess({ type: "group" })).toBe(true);
+  expect(threadRequiresParticipantAccess({ type: "system" })).toBe(true);
+  expect(threadRequiresParticipantAccess({ type: "team" })).toBe(false);
+  expect(threadRequiresParticipantAccess({ type: "medical" })).toBe(false);
+  expect(chatDatabaseSource).toContain("if (threadRequiresParticipantAccess(thread))");
+  expect(chatDatabaseSource).toContain("if (!actorParticipant)");
+  expect(chatDatabaseSource).toContain("filterThreadsForActorAccess(actor, candidateThreads)");
+  expect(chatDatabaseSource).toContain("filterThreadsForActorAccess(actor, Array.from(threadsById.values()))");
+  expect(chatDatabaseSource).not.toContain('["team", "group", "medical", "matchday", "training", "announcement"]');
+});
+
+test("database messages preserve mentioned users for client payloads and push filtering", () => {
+  const userOne = "11111111-1111-4111-8111-111111111111";
+  const userTwo = "22222222-2222-4222-8222-222222222222";
+
+  expect(normalizeMentionedUserIds([userOne, userOne, "bad-id", userTwo])).toEqual([userOne, userTwo]);
+  expect(messageMentionedUserIds({
+    mentioned_user_ids: [userTwo],
+    metadata: { mentionedUserIds: [userOne, userOne] },
+  })).toEqual([userTwo, userOne]);
+  expect(chatDatabaseSource).toContain("mentionedUserIds,");
+  expect(chatDatabaseSource).toContain("mentionHandles: mentions");
+  expect(chatDatabaseSource).toContain("mentioned_user_id: userId");
+  expect(chatDatabaseSource).toContain("message: enrichedMessage || message");
+});
+
+test("database sendMessage fails closed when attachment linking cannot be verified", () => {
+  expect(chatDatabaseSource).toContain("Message text or an attachment is required.");
+  expect(chatDatabaseSource).toContain("foundAttachmentIds.size !== attachmentIds.length");
+  expect(chatDatabaseSource).toContain("Attachment could not be linked. Message was not sent.");
+  expect(chatDatabaseSource).toContain("linkedAttachments.length !== attachmentIds.length");
+  expect(chatDatabaseSource).toContain("deleted_at: new Date().toISOString()");
 });
 
 test("chat API reads have client-side timeout and retry metadata", () => {

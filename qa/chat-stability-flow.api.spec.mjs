@@ -300,6 +300,27 @@ test("chat history pagination keeps older loaded API pages in the runtime cache"
   expect(persistedWrites.at(-1).value.map((message) => message.id)).toContain("history-000");
 });
 
+test("retryable chat API write failures only use local dev fallback", () => {
+  const productionRuntime = createDashboardChatApiDomainRuntime({
+    getPlatformAuthStore: () => ({ isDevMode: () => true }),
+    win: { location: { hostname: "footballscience.xyz" } },
+  });
+  const localRuntime = createDashboardChatApiDomainRuntime({
+    getPlatformAuthStore: () => ({ isDevMode: () => true }),
+    win: { location: { hostname: "localhost" } },
+  });
+  const localNonDevRuntime = createDashboardChatApiDomainRuntime({
+    getPlatformAuthStore: () => ({ isDevMode: () => false }),
+    win: { location: { hostname: "localhost" } },
+  });
+
+  expect(productionRuntime.canFallbackDashboardChatApiResult({ retryable: true, status: 503 })).toBe(false);
+  expect(localRuntime.canFallbackDashboardChatApiResult({ retryable: true, status: 503 })).toBe(true);
+  expect(localRuntime.canFallbackDashboardChatApiResult({ status: 401 })).toBe(true);
+  expect(localNonDevRuntime.canFallbackDashboardChatApiResult({ retryable: true, status: 503 })).toBe(false);
+  expect(chatApiDomainRuntimeSource).toContain("isLocal && isDevAuth && (result.status === 401 || result.retryable)");
+});
+
 test("server-visible chat history clears stale local deleted tombstones", () => {
   let runtimeMessages = [];
   const storage = new Map([

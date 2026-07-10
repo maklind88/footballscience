@@ -109,6 +109,7 @@ const MESSAGE_SELECT = [
 ].join(",");
 const REACTION_SELECT = "message_id,user_id,reaction,created_at";
 const RECEIPT_SELECT = "thread_id,user_id,last_read_message_id,last_read_at";
+const MENTION_SELECT = "message_id,mentioned_user_id,handle,created_at";
 const THREAD_READ_MODEL_SELECT = [
   "thread_id",
   "last_message",
@@ -206,6 +207,10 @@ function normalizeThreadType(value) {
     : "team";
 }
 
+function threadRequiresParticipantAccess(thread = {}) {
+  return ["dm", "group", "system"].includes(normalizeThreadType(thread?.type));
+}
+
 function normalizeThreadVisibility(value, type = "team") {
   const visibility = normalizeString(value, 40).toLowerCase();
   if (visibility === "team") {
@@ -224,6 +229,21 @@ function normalizePriority(value) {
 
 function normalizeBoolean(value) {
   return value === true || value === "true" || value === 1 || value === "1";
+}
+
+function normalizeMentionedUserIds(value = []) {
+  const source = Array.isArray(value) ? value : [];
+  return Array.from(new Set(source.map((item) => normalizeId(item)).filter(isUuid))).slice(0, 40);
+}
+
+function messageMentionedUserIds(message = {}) {
+  const metadata = isPlainObject(message.metadata) ? message.metadata : {};
+  return normalizeMentionedUserIds([
+    ...(Array.isArray(message.mentionedUserIds) ? message.mentionedUserIds : []),
+    ...(Array.isArray(message.mentioned_user_ids) ? message.mentioned_user_ids : []),
+    ...(Array.isArray(metadata.mentionedUserIds) ? metadata.mentionedUserIds : []),
+    ...(Array.isArray(metadata.mentioned_user_ids) ? metadata.mentioned_user_ids : []),
+  ]);
 }
 
 function hasOwn(value, key) {
@@ -1439,7 +1459,18 @@ async function ensureThreadAccess(actor, thread, options = {}) {
   const membership = await readMembership(actor, thread.organization_id, thread.team_id);
   const actorParticipant = await readActorThreadParticipant(actor, thread.id);
 
-  if (["team", "group", "medical", "matchday", "training", "announcement"].includes(type) && membership) {
+  if (threadRequiresParticipantAccess(thread)) {
+    if (!actorParticipant) {
+      return { ok: false, status: 403, reason: "You do not have access to this chat thread." };
+    }
+    const isGroupOwner = normalizeParticipantRole(actorParticipant.participant_role) === "owner";
+    if (options.manager && actorRole(actor) !== "admin" && !canManageByRole(membership?.role) && !isGroupOwner) {
+      return { ok: false, status: 403, reason: "Chat manager access required." };
+    }
+    return { ok: true, membership, participant: actorParticipant };
+  }
+
+  if (["team", "medical", "matchday", "training", "announcement"].includes(type) && membership) {
     if (type === "medical" && !["admin", "club-admin", "team-admin", "coach", "medical", "performance"].includes(String(membership.role || "").toLowerCase())) {
       return { ok: false, status: 403, reason: "Medical chat access required." };
     }
@@ -1448,15 +1479,6 @@ async function ensureThreadAccess(actor, thread, options = {}) {
       return { ok: false, status: 403, reason: "Chat manager access required." };
     }
     return { ok: true, membership, participant: actorParticipant };
-  }
-
-  const participant = actorParticipant;
-  if (participant) {
-    const isGroupOwner = normalizeParticipantRole(participant.participant_role) === "owner";
-    if (options.manager && actorRole(actor) !== "admin" && !isGroupOwner) {
-      return { ok: false, status: 403, reason: "Chat manager access required." };
-    }
-    return { ok: true, membership, participant };
   }
 
   if (actorRole(actor) === "admin" && membership) {
@@ -1589,6 +1611,20 @@ function shouldShowThreadForActor(thread = {}) {
   return true;
 }
 
+async function filterThreadsForActorAccess(actor, threads = []) {
+  const sourceThreads = Array.isArray(threads) ? threads : [];
+  if (!sourceThreads.length) {
+    return [];
+  }
+  const accessResults = await Promise.all(
+    sourceThreads.map(async (thread) => {
+      const access = await ensureThreadAccess(actor, thread).catch(() => ({ ok: false }));
+      return access.ok ? thread : null;
+    })
+  );
+  return accessResults.filter(Boolean);
+}
+
 async function readHiddenMessageStateRows(actor, messageIds = []) {
   const ids = Array.from(new Set(messageIds.filter(Boolean)));
   if (!actor?.id || !ids.length) {
@@ -1683,7 +1719,7 @@ function threadPermissionsForActor(actor, thread = {}) {
   };
 }
 
-function buildMessageEnrichment(reactionRows = [], attachmentRows = [], receiptRows = []) {
+function buildMessageEnrichment(reactionRows = [], attachmentRows = [], receiptRows = [], mentionRows = []) {
   const reactionsByMessage = reactionRows.reduce((map, row) => {
     const reactions = map.get(row.message_id) || {};
     const key = normalizeString(row.reaction || "like", 32);
@@ -1695,10 +1731,19 @@ function buildMessageEnrichment(reactionRows = [], attachmentRows = [], receiptR
     map.set(row.message_id, [...(map.get(row.message_id) || []), row]);
     return map;
   }, new Map());
+  const mentionsByMessage = mentionRows.reduce((map, row) => {
+    const messageId = normalizeId(row.message_id);
+    const mentionedUserId = normalizeId(row.mentioned_user_id);
+    if (messageId && isUuid(mentionedUserId)) {
+      map.set(messageId, [...(map.get(messageId) || []), mentionedUserId]);
+    }
+    return map;
+  }, new Map());
 
   return {
     reactionsByMessage,
     attachmentsByMessage,
+    mentionsByMessage,
     receiptRows: Array.isArray(receiptRows) ? receiptRows : [],
   };
 }
@@ -1721,7 +1766,7 @@ async function loadMessageEnrichment(messages = [], options = {}) {
       ? `select=${RECEIPT_SELECT}&thread_id=eq.${filterValue(threadIds[0])}`
       : `select=${RECEIPT_SELECT}&thread_id=${inFilter(threadIds)}`
     : "";
-  const [reactionRows, attachmentRows, fetchedReceiptRows] = await Promise.all([
+  const [reactionRows, attachmentRows, fetchedReceiptRows, mentionRows] = await Promise.all([
     selectMany(
       "chat_reactions",
       `select=${REACTION_SELECT}&message_id=${inFilter(messageIds)}`
@@ -1731,9 +1776,13 @@ async function loadMessageEnrichment(messages = [], options = {}) {
       `select=${ATTACHMENT_SELECT}&message_id=${inFilter(messageIds)}&status=in.(pending,ready)`
     ).catch(() => []),
     receiptQuery ? selectMany("chat_read_receipts", receiptQuery).catch(() => []) : Promise.resolve([]),
+    selectMany(
+      "chat_message_mentions",
+      `select=${MENTION_SELECT}&message_id=${inFilter(messageIds)}`
+    ).catch(() => []),
   ]);
 
-  return buildMessageEnrichment(reactionRows, attachmentRows, providedReceiptRows || fetchedReceiptRows);
+  return buildMessageEnrichment(reactionRows, attachmentRows, providedReceiptRows || fetchedReceiptRows, mentionRows);
 }
 
 function mapEnrichedMessage(message = {}, thread = null, enrichment = buildMessageEnrichment()) {
@@ -1753,6 +1802,11 @@ function mapEnrichedMessage(message = {}, thread = null, enrichment = buildMessa
     })
     .map((receipt) => receipt.user_id);
 
+  const mentionedUserIds = normalizeMentionedUserIds([
+    ...messageMentionedUserIds(message),
+    ...(enrichment.mentionsByMessage.get(message.id) || []),
+  ]);
+
   return {
     ...message,
     legacyThreadId: thread ? toLegacyThreadId(thread) : "",
@@ -1766,6 +1820,7 @@ function mapEnrichedMessage(message = {}, thread = null, enrichment = buildMessa
     pinnedAt: message.pinned_at || "",
     pinnedBy: message.pinned_by || "",
     metadata: isPlainObject(message.metadata) ? message.metadata : {},
+    mentionedUserIds,
     forwardedFromMessageId: normalizeId(message.metadata?.forwardedFromMessageId || message.metadata?.forwarded_from_message_id || ""),
     forwardedFromThreadId: normalizeId(message.metadata?.forwardedFromThreadId || message.metadata?.forwarded_from_thread_id || ""),
     author: {
@@ -2110,28 +2165,31 @@ async function handleDatabaseGet(req, res, actor) {
         ).catch(() => [])
       : [];
     const participantThreadIds = new Set(participantRows.map((row) => row.thread_id).filter(Boolean));
+    const searchFetchLimit = Math.min(PAGE_SIZE_MAX * 5, Math.max(limit * 5, limit));
     const filters = [
       `select=${MESSAGE_SELECT}`,
       `organization_id=eq.${filterValue(scope.organizationId)}`,
       "deleted_at=is.null",
       `body=ilike.*${filterValue(search)}*`,
       "order=created_at.desc",
-      `limit=${limit}`,
+      `limit=${searchFetchLimit}`,
     ];
     const messages = await selectMany("chat_messages", filters.join("&"));
     const threads = messages.length
       ? await selectMany("chat_threads", `select=${THREAD_SELECT}&id=${inFilter(Array.from(new Set(messages.map((message) => message.thread_id))))}`)
       : [];
-    const threadsById = new Map(
+    const candidateThreads = Array.from(new Map(
       threads
         .filter((thread) => thread.team_id === scope.teamId || (thread.type === "dm" && participantThreadIds.has(thread.id)))
         .map((thread) => [thread.id, thread])
-    );
+    ).values());
+    const accessibleThreads = await filterThreadsForActorAccess(actor, candidateThreads);
+    const threadsById = new Map(accessibleThreads.map((thread) => [thread.id, thread]));
     const searchableThreadSummaries = await enrichThreadSummaries(actor, Array.from(threadsById.values()));
     const visibleThreadIds = new Set(searchableThreadSummaries.filter(shouldShowThreadForActor).map((thread) => thread.id));
     const visibleMessages = await filterMessagesForActorByThread(
       actor,
-      messages.reverse().filter((message) => threadsById.has(message.thread_id) && visibleThreadIds.has(message.thread_id)),
+      messages.reverse().filter((message) => threadsById.has(message.thread_id) && visibleThreadIds.has(message.thread_id)).slice(-limit),
       threadsById
     );
     const enriched = await enrichMessages(visibleMessages, null, {
@@ -2261,7 +2319,7 @@ async function handleDatabaseGet(req, res, actor) {
       threadsById.set(thread.id, thread);
     }
   });
-  const threads = Array.from(threadsById.values()).sort((first, second) => {
+  const threads = (await filterThreadsForActorAccess(actor, Array.from(threadsById.values()))).sort((first, second) => {
     const firstTime = Date.parse(first.last_message_at || "") || 0;
     const secondTime = Date.parse(second.last_message_at || "") || 0;
     if (firstTime !== secondTime) {
@@ -2308,9 +2366,16 @@ async function sendMessage(actor, body) {
   const clientMessageId = normalizeString(body.clientMessageId || body.client_message_id || body.id, 120);
   const requestedReplyToId = normalizeId(body.replyToId || body.reply_to_id);
   const replyToId = isUuid(requestedReplyToId) ? requestedReplyToId : null;
+  const attachmentIds = Array.from(new Set(
+    Array.isArray(body.attachmentIds)
+      ? body.attachmentIds.map((value) => normalizeId(value)).filter(isUuid)
+      : []
+  )).slice(0, 10);
+  const mentionedUserIds = normalizeMentionedUserIds(body.mentionedUserIds || body.mentioned_user_ids || body.metadata?.mentionedUserIds);
+  const mentions = mentionHandles(text);
 
-  if (!text) {
-    return { ok: false, status: 400, reason: "Message text is required." };
+  if (!text && !attachmentIds.length) {
+    return { ok: false, status: 400, reason: "Message text or an attachment is required." };
   }
 
   const thread = await resolveThreadForAction(actor, body);
@@ -2321,6 +2386,23 @@ async function sendMessage(actor, body) {
 
   if (thread?.metadata?.announcementOnly && !canManageByRole(access.membership?.role) && !canAdmin(actor)) {
     return { ok: false, status: 403, reason: "Only chat managers can post announcements." };
+  }
+
+  if (attachmentIds.length) {
+    const attachmentRows = await selectMany(
+      "chat_attachments",
+      [
+        `select=${ATTACHMENT_SELECT}`,
+        `id=${inFilter(attachmentIds)}`,
+        `uploaded_by=eq.${filterValue(actor.id)}`,
+        `thread_id=eq.${filterValue(thread.id)}`,
+        "status=in.(pending,ready)",
+      ].join("&")
+    ).catch(() => []);
+    const foundAttachmentIds = new Set(attachmentRows.map((attachment) => attachment.id).filter(Boolean));
+    if (foundAttachmentIds.size !== attachmentIds.length) {
+      return { ok: false, status: 400, reason: "Attachment could not be linked. Message was not sent." };
+    }
   }
 
   if (clientMessageId) {
@@ -2360,6 +2442,8 @@ async function sendMessage(actor, body) {
       metadata: {
         authorName: normalizeString(`${actor.firstName || ""} ${actor.lastName || ""}`.trim() || actor.username || actor.email),
         authorRole: actorRole(actor),
+        mentionedUserIds,
+        mentionHandles: mentions,
       },
     });
   } catch (error) {
@@ -2389,25 +2473,31 @@ async function sendMessage(actor, body) {
     };
   }
   const message = rows[0];
-  const mentions = mentionHandles(text);
-  const attachmentIds = Array.isArray(body.attachmentIds)
-    ? body.attachmentIds.map((value) => normalizeId(value)).filter(isUuid).slice(0, 10)
-    : [];
+  const mentionRows = [
+    ...mentions.map((handle) => ({
+      message_id: message.id,
+      organization_id: thread.organization_id,
+      team_id: thread.team_id,
+      handle,
+    })),
+    ...mentionedUserIds.map((userId) => ({
+      message_id: message.id,
+      organization_id: thread.organization_id,
+      team_id: thread.team_id,
+      mentioned_user_id: userId,
+      handle: `user:${userId}`,
+    })),
+  ].filter((row, index, rowsToInsert) => rowsToInsert.findIndex((candidate) => candidate.handle === row.handle) === index);
 
-  if (mentions.length) {
+  if (mentionRows.length) {
     await insertRows(
       "chat_message_mentions",
-      mentions.map((handle) => ({
-        message_id: message.id,
-        organization_id: thread.organization_id,
-        team_id: thread.team_id,
-        handle,
-      }))
+      mentionRows
     );
   }
 
   if (attachmentIds.length) {
-    await patchRows(
+    const linkedAttachments = await patchRows(
       "chat_attachments",
       `id=${inFilter(attachmentIds)}&uploaded_by=eq.${filterValue(actor.id)}`,
       {
@@ -2415,7 +2505,15 @@ async function sendMessage(actor, body) {
         message_id: message.id,
         status: "ready",
       }
-    ).catch(() => null);
+    ).catch(() => []);
+    if (linkedAttachments.length !== attachmentIds.length) {
+      await patchRows("chat_messages", `id=eq.${filterValue(message.id)}`, {
+        body: "",
+        deleted_at: new Date().toISOString(),
+        deleted_by: isUuid(actor.id) ? actor.id : null,
+      }).catch(() => []);
+      return { ok: false, status: 409, reason: "Attachment could not be linked. Message was not sent." };
+    }
   }
 
   const updatedThread = await recalculateThreadSummary({
@@ -2447,12 +2545,12 @@ async function sendMessage(actor, body) {
     message_id: message.id,
   }, {
     textLength: text.length,
-    mentionCount: mentions.length,
+    mentionCount: mentionRows.length,
     priority: message.priority,
     attachmentCount: attachmentIds.length,
   });
   const [enrichedMessage] = await enrichMessages([message], thread);
-  await notifyChatMessageCreated(actor, { thread: updatedThread || thread, message }).catch((error) => {
+  await notifyChatMessageCreated(actor, { thread: updatedThread || thread, message: enrichedMessage || message }).catch((error) => {
     console.warn(JSON.stringify({
       schema: "footballscience-chat-push-delivery-warning-v1",
       level: "warning",
@@ -3486,9 +3584,12 @@ module.exports = {
     getDatabaseChatReadAction,
     hasActiveChatReadIntent,
     isUuid,
+    messageMentionedUserIds,
     normalizeMessageText,
+    normalizeMentionedUserIds,
     normalizePriority,
     normalizeThreadType,
+    threadRequiresParticipantAccess,
     toLegacyThreadId,
   },
 };

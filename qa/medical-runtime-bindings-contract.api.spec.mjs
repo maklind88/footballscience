@@ -14,14 +14,15 @@ function createWorkspace() {
   const listeners = {};
   return {
     listeners,
+    nodesBySelector: {},
     addEventListener(type, listener) {
       listeners[type] = listener;
     },
-    querySelector() {
-      return null;
+    querySelector(selector) {
+      return this.nodesBySelector[selector]?.[0] ?? null;
     },
-    querySelectorAll() {
-      return [];
+    querySelectorAll(selector) {
+      return this.nodesBySelector[selector] || [];
     },
   };
 }
@@ -45,15 +46,18 @@ function createTarget(matches = {}) {
 function createEvent(target, extra = {}) {
   return {
     target,
+    clientX: extra.clientX,
+    clientY: extra.clientY,
     key: extra.key || "",
     preventDefault: extra.preventDefault || (() => {}),
     stopPropagation: extra.stopPropagation || (() => {}),
   };
 }
 
-function createHarness({ canEdit = true } = {}) {
+function createHarness({ canEdit = true, configureWorkspace = () => {}, win = { confirm: () => true } } = {}) {
   const calls = [];
   const workspace = createWorkspace();
+  configureWorkspace(workspace);
   const mutable = {
     bulkOpen: false,
     historyDateFilter: "all",
@@ -81,12 +85,13 @@ function createHarness({ canEdit = true } = {}) {
       policy: { updatedAt: "2026-05-29T10:00:00.000Z" },
       players: [{ id: "p-1", name: "Ada Lovelace" }],
       records: [{ id: "r-1", playerId: "p-1" }],
-      injuryPlans: [{ id: "plan-1", playerId: "p-1" }],
+      injuryPlans: [{ id: "plan-1", playerId: "p-1", medicalBoard: { pitchMode: "full-wide", elements: [], exercises: [] }, rtpProgramExercises: [] }],
     },
+    lastUpdatedPlanValues: null,
   };
   const controllers = bindMedicalRuntimeBindings({
     workspaceElement: workspace,
-    win: { confirm: () => true },
+    win,
     state: {
       getMedicalState: () => mutable.medicalState,
       setMedicalSelectedPlayerId: (value) => { mutable.selectedPlayerId = value; mutable.medicalState.selectedPlayerId = value; },
@@ -180,7 +185,13 @@ function createHarness({ canEdit = true } = {}) {
       toggleMedicalBulkPlayer: (playerId) => calls.push(`bulk-toggle:${playerId}`),
       updateMedicalBulkActivityControls: () => calls.push("bulk-activity"),
       updateMedicalGovernancePolicy: () => true,
-      updateMedicalInjuryPlan: () => ({ id: "plan-1", playerId: "p-1", updatedAt: "now" }),
+      updateMedicalInjuryPlan: (values) => {
+        mutable.lastUpdatedPlanValues = values;
+        const currentPlan = mutable.medicalState.injuryPlans.find((plan) => plan.id === values.planId);
+        const nextPlan = { ...(currentPlan || { id: values.planId, playerId: "p-1" }), ...values, id: values.planId, updatedAt: "now" };
+        mutable.medicalState.injuryPlans = mutable.medicalState.injuryPlans.map((plan) => (plan.id === values.planId ? nextPlan : plan));
+        return nextPlan;
+      },
       updateMedicalPlanClearance: () => ({ id: "plan-1", playerId: "p-1", updatedAt: "now" }),
       updateMedicalPlayerProfile: () => true,
       upsertMedicalPlayers: (players) => calls.push(["upsert", players.map((player) => player.id)]),
@@ -531,6 +542,93 @@ test("Medical runtime bindings open RTP guide authoring draft and copy the templ
   expect(modal.hidden).toBe(true);
   expect(modal["aria-hidden"]).toBe("true");
   expect(calls).toContain("prevent-guide-escape");
+});
+
+test("Medical runtime bindings save player-specific Medical Board drawings and exercises to the active plan", async () => {
+  const bodyClasses = new Set();
+  const dialog = { focused: false, focus() { this.focused = true; } };
+  const activeTool = { dataset: { medicalBoardTool: "cone" }, classList: { toggle: () => {} } };
+  const overlay = {
+    hidden: true,
+    dataset: { medicalBoardEditorOverlay: "plan-1" },
+    attributes: {},
+    querySelector(selector) {
+      if (selector === "[role='dialog']") return dialog;
+      if (selector === "[data-medical-board-tool].is-active") return activeTool;
+      return null;
+    },
+    querySelectorAll(selector) {
+      return selector === "[data-medical-board-tool]" ? [activeTool] : [];
+    },
+    removeAttribute(name) {
+      delete this.attributes[name];
+    },
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
+  };
+  const canvas = {
+    dataset: { medicalBoardCanvas: "plan-1" },
+    closest(selector) {
+      return selector === "[data-medical-board-editor-overlay]" ? overlay : null;
+    },
+    getBoundingClientRect() {
+      return { left: 0, top: 0, width: 200, height: 100 };
+    },
+  };
+  const { calls, mutable, workspace } = createHarness({
+    configureWorkspace: (targetWorkspace) => {
+      targetWorkspace.nodesBySelector["[data-medical-board-editor-overlay]"] = [overlay];
+    },
+    win: {
+      confirm: () => true,
+      document: {
+        body: {
+          classList: {
+            add: (value) => bodyClasses.add(value),
+            remove: (value) => bodyClasses.delete(value),
+          },
+        },
+      },
+    },
+  });
+
+  await workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-open-board-plan]": { dataset: { medicalOpenBoardPlan: "plan-1" } } },
+  })));
+  expect(overlay.hidden).toBe(false);
+  expect(dialog.focused).toBe(true);
+  expect(bodyClasses.has("medical-board-editor-open")).toBe(true);
+
+  await workspace.listeners.click(createEvent(createTarget({
+    closest: {
+      "[data-medical-board-canvas]": canvas,
+      "[data-medical-board-player-home]": null,
+    },
+  }), { clientX: 100, clientY: 50 }));
+  expect(mutable.lastUpdatedPlanValues.medicalBoard.elements[0]).toMatchObject({
+    type: "cone",
+    x: 50,
+    y: 50,
+    label: "Cone",
+  });
+  expect(calls).toContainEqual(["sync", "medical-board-updated", expect.objectContaining({ planId: "plan-1", playerId: "p-1" })]);
+  expect(calls).toContainEqual(["render", "Medical Board drawing saved."]);
+
+  const form = {
+    dataset: { medicalBoardExerciseForm: "plan-1" },
+    values: { title: "Box entry pattern", phase: "Rehab", detail: "2 x 4 controlled reps" },
+  };
+  workspace.listeners.submit(createEvent(createTarget({
+    closest: { "[data-medical-board-exercise-form]": form },
+  })));
+  expect(mutable.lastUpdatedPlanValues.medicalBoard.exercises[0]).toMatchObject({
+    title: "Box entry pattern",
+    phase: "Rehab",
+    detail: "2 x 4 controlled reps",
+  });
+  expect(mutable.lastUpdatedPlanValues.rtpProgramExercises).toContain("Box entry pattern | Rehab | 2 x 4 controlled reps");
+  expect(calls).toContainEqual(["render", "Box entry pattern added to Medical Board."]);
 });
 
 test("Medical runtime bindings filter RTP Library by structured clinical search domains", () => {

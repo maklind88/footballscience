@@ -161,6 +161,111 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     overlay.querySelector?.("[role='dialog']")?.focus?.();
   };
 
+  const closeMedicalBoardEditorOverlay = () => {
+    queryWorkspaceAll(workspaceElement, "[data-medical-board-editor-overlay]").forEach((overlay) => {
+      overlay.hidden = true;
+      overlay.setAttribute?.("aria-hidden", "true");
+    });
+    win.document?.body?.classList?.remove?.("medical-board-editor-open");
+  };
+
+  const openMedicalBoardEditorOverlay = (planId) => {
+    const normalizedPlanId = String(planId || "").trim();
+    const overlay =
+      queryWorkspaceAll(workspaceElement, "[data-medical-board-editor-overlay]").find(
+        (candidate) => candidate.dataset?.medicalBoardEditorOverlay === normalizedPlanId
+      ) ?? null;
+    if (!overlay) return false;
+    closeMedicalRtpExerciseOverlay();
+    closeMedicalRtpGuideDraftModal();
+    closeMedicalRtpProfileModal();
+    closeMedicalBoardEditorOverlay();
+    overlay.hidden = false;
+    overlay.removeAttribute?.("aria-hidden");
+    win.document?.body?.classList?.add?.("medical-board-editor-open");
+    overlay.querySelector?.("[role='dialog']")?.focus?.();
+    return true;
+  };
+
+  const getMedicalPlanById = (planId) => {
+    const normalizedPlanId = String(planId || "").trim();
+    return getMedicalState(state).injuryPlans.find((entry) => entry.id === normalizedPlanId && !actions.isMedicalItemArchived?.(entry)) || null;
+  };
+
+  const getMedicalBoardFromPlan = (plan = {}) => {
+    const source = plan.medicalBoard && typeof plan.medicalBoard === "object" ? plan.medicalBoard : {};
+    return {
+      pitchMode: source.pitchMode || "full-wide",
+      elements: Array.isArray(source.elements) ? source.elements.map((item) => ({ ...item })) : [],
+      exercises: Array.isArray(source.exercises) ? source.exercises.map((item) => ({ ...item })) : [],
+      updatedAt: source.updatedAt || "",
+    };
+  };
+
+  const saveMedicalBoardForPlan = (planId, updater, message = "Medical Board updated.") => {
+    const plan = getMedicalPlanById(planId);
+    if (!plan || typeof updater !== "function") {
+      return false;
+    }
+    const board = getMedicalBoardFromPlan(plan);
+    const result = updater(board, plan) || {};
+    const nextBoard = {
+      ...board,
+      ...(result.medicalBoard || result.board || {}),
+      updatedAt: new Date().toISOString(),
+    };
+    const saved = actions.updateMedicalInjuryPlan?.({
+      planId: plan.id,
+      medicalBoard: nextBoard,
+      ...(result.values || {}),
+    });
+    if (saved) {
+      recordSync("medical-board-updated", {
+        playerId: saved.playerId,
+        planId: saved.id,
+        plan: saved,
+        idempotencyKey: `medical-board-updated:${saved.id}:${saved.updatedAt || Date.now()}`,
+      });
+      renderWorkspace(message);
+      openMedicalBoardEditorOverlay(saved.id);
+      return true;
+    }
+    return false;
+  };
+
+  const getMedicalBoardTool = (overlay) =>
+    String(overlay?.querySelector?.("[data-medical-board-tool].is-active")?.dataset?.medicalBoardTool || "arrow").trim() || "arrow";
+
+  const getMedicalBoardPointFromEvent = (event, canvas) => {
+    const rect = canvas?.getBoundingClientRect?.();
+    if (!rect?.width || !rect?.height) {
+      return null;
+    }
+    const clamp = (value) => Math.max(4, Math.min(96, Number(value) || 50));
+    return {
+      x: Math.round(clamp(((event.clientX - rect.left) / rect.width) * 100) * 10) / 10,
+      y: Math.round(clamp(((event.clientY - rect.top) / rect.height) * 100) * 10) / 10,
+    };
+  };
+
+  const createMedicalBoardElement = (tool, point) => {
+    const id = `medical-board-${tool}-${Date.now()}`;
+    const base = { id, type: tool, x: point.x, y: point.y, createdAt: new Date().toISOString() };
+    if (tool === "zone") {
+      return { ...base, x2: Math.min(96, point.x + 18), y2: Math.min(96, point.y + 14), color: "#f59e0b", label: "Work zone" };
+    }
+    if (tool === "run") {
+      return { ...base, x2: Math.min(96, point.x + 18), y2: Math.max(4, point.y - 8), color: "#2563eb", label: "Run" };
+    }
+    if (tool === "cone") {
+      return { ...base, color: "#f97316", label: "Cone" };
+    }
+    if (tool === "text") {
+      return { ...base, color: "#0f172a", label: "Note" };
+    }
+    return { ...base, type: "arrow", x2: Math.min(96, point.x + 18), y2: point.y, color: "#0f766e", label: "Arrow" };
+  };
+
   const closeMedicalRtpProfileModal = () => {
     queryWorkspaceAll(workspaceElement, "[data-medical-rtp-profile-modal]").forEach((modal) => {
       modal.hidden = true;
@@ -698,6 +803,69 @@ ${renderRtpExerciseCards(profile, 3)}
       closeMedicalRtpExerciseOverlay();
       return;
     }
+    const openBoardButton = event.target.closest("[data-medical-open-board-plan]");
+    if (openBoardButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      openMedicalBoardEditorOverlay(openBoardButton.dataset.medicalOpenBoardPlan);
+      return;
+    }
+    const closeBoardButton = event.target.closest("[data-medical-close-board-editor]");
+    if (closeBoardButton) {
+      event.preventDefault();
+      closeMedicalBoardEditorOverlay();
+      return;
+    }
+    const boardOverlay = event.target.closest("[data-medical-board-editor-overlay]");
+    if (boardOverlay && event.target === boardOverlay) {
+      event.preventDefault();
+      closeMedicalBoardEditorOverlay();
+      return;
+    }
+    const boardToolButton = event.target.closest("[data-medical-board-tool]");
+    if (boardToolButton) {
+      event.preventDefault();
+      const overlay = boardToolButton.closest("[data-medical-board-editor-overlay]");
+      overlay?.querySelectorAll?.("[data-medical-board-tool]").forEach((button) => {
+        button.classList.toggle("is-active", button === boardToolButton);
+      });
+      return;
+    }
+    const boardCanvas = event.target.closest("[data-medical-board-canvas]");
+    if (boardCanvas && canEdit() && !event.target.closest("[data-medical-board-player-home]")) {
+      event.preventDefault();
+      const point = getMedicalBoardPointFromEvent(event, boardCanvas);
+      const planId = boardCanvas.dataset.medicalBoardCanvas;
+      const overlay = boardCanvas.closest("[data-medical-board-editor-overlay]");
+      const tool = getMedicalBoardTool(overlay);
+      if (!point || !planId) return;
+      saveMedicalBoardForPlan(planId, (board) => ({
+        board: {
+          ...board,
+          elements: [...board.elements, createMedicalBoardElement(tool, point)],
+        },
+      }), "Medical Board drawing saved.");
+      return;
+    }
+    const removeBoardExerciseButton = event.target.closest("[data-medical-remove-board-exercise]");
+    if (removeBoardExerciseButton && canEdit()) {
+      event.preventDefault();
+      const [planId, exerciseId] = String(removeBoardExerciseButton.dataset.medicalRemoveBoardExercise || "").split(":");
+      if (!planId || !exerciseId) return;
+      saveMedicalBoardForPlan(planId, (board, plan) => {
+        const removedExercise = board.exercises.find((exercise) => exercise.id === exerciseId);
+        const removedTitle = String(removedExercise?.title || "").trim();
+        const nextExercises = board.exercises.filter((exercise) => exercise.id !== exerciseId);
+        const nextProgramExercises = Array.isArray(plan.rtpProgramExercises)
+          ? plan.rtpProgramExercises.filter((item) => !removedTitle || !String(item || "").startsWith(removedTitle))
+          : [];
+        return {
+          board: { ...board, exercises: nextExercises },
+          values: { rtpProgramExercises: nextProgramExercises },
+        };
+      }, "Medical Board exercise removed.");
+      return;
+    }
     const closeRtpGuideDraftButton = event.target.closest("[data-medical-close-rtp-guide-draft]");
     if (closeRtpGuideDraftButton) {
       event.preventDefault();
@@ -868,6 +1036,7 @@ ${renderRtpExerciseCards(profile, 3)}
       if (plan) {
         event.preventDefault();
         event.stopPropagation();
+        closeMedicalBoardEditorOverlay();
         actions.setMedicalInjuryPlanDraftFromPlan?.(plan);
         setStateValue(state, "MedicalSelectedPlayerId", plan.playerId);
         setStateValue(state, "MedicalPlayerModalOpen", true);
@@ -919,6 +1088,11 @@ ${renderRtpExerciseCards(profile, 3)}
   };
 
   const onKeydown = (event) => {
+    if (event.key === "Escape" && queryWorkspace(workspaceElement, "[data-medical-board-editor-overlay]:not([hidden])")) {
+      event.preventDefault();
+      closeMedicalBoardEditorOverlay();
+      return;
+    }
     if (event.key === "Escape" && queryWorkspace(workspaceElement, "[data-medical-rtp-exercise-overlay]:not([hidden])")) {
       event.preventDefault();
       closeMedicalRtpExerciseOverlay();
@@ -1077,6 +1251,41 @@ ${renderRtpExerciseCards(profile, 3)}
   };
 
   const onSubmit = (event) => {
+    const boardExerciseForm = event.target.closest("[data-medical-board-exercise-form]");
+    if (boardExerciseForm) {
+      event.preventDefault();
+      if (!canEdit()) return;
+      const planId = boardExerciseForm.dataset.medicalBoardExerciseForm;
+      const values = actions.getPlatformFormValues?.(boardExerciseForm) || {};
+      const title = String(values.title || "").trim();
+      if (!planId || !title) {
+        renderWorkspace("Add an exercise name first.");
+        openMedicalBoardEditorOverlay(planId);
+        return;
+      }
+      const phase = String(values.phase || "").trim();
+      const detail = String(values.detail || "").trim();
+      const exercise = {
+        id: `medical-board-exercise-${Date.now()}`,
+        title,
+        phase,
+        detail,
+        createdAt: new Date().toISOString(),
+      };
+      saveMedicalBoardForPlan(planId, (board, plan) => {
+        const exerciseLine = [title, phase, detail].filter(Boolean).join(" | ");
+        const currentProgramExercises = Array.isArray(plan.rtpProgramExercises) ? plan.rtpProgramExercises : [];
+        return {
+          board: { ...board, exercises: [exercise, ...board.exercises] },
+          values: {
+            rtpProgramExercises: currentProgramExercises.includes(exerciseLine)
+              ? currentProgramExercises
+              : [exerciseLine, ...currentProgramExercises],
+          },
+        };
+      }, `${title} added to Medical Board.`);
+      return;
+    }
     const rtpCaseLinkerForm = event.target.closest("[data-medical-rtp-case-linker-form]");
     if (rtpCaseLinkerForm) {
       event.preventDefault();

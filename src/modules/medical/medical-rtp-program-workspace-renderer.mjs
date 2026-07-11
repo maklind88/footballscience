@@ -79,6 +79,12 @@ const getBoardItems = (summary = {}) =>
       return String(first.player?.name || "").localeCompare(String(second.player?.name || ""));
     });
 
+const getMedicalBoardElements = (plan = {}) =>
+  (Array.isArray(plan?.medicalBoard?.elements) ? plan.medicalBoard.elements : []).filter(Boolean);
+
+const getMedicalBoardExercises = (plan = {}) =>
+  (Array.isArray(plan?.medicalBoard?.exercises) ? plan.medicalBoard.exercises : []).filter(Boolean);
+
 const getBoardPlayerPosition = (player = {}, index = 0, groupCounts = {}, groupIndexes = {}) => {
   const bucket = normalizePositionBucket(player.position);
   const columns = {
@@ -167,8 +173,8 @@ ${renderProgramAction(item)}
 type="button"
 class="medical-board-player medical-board-player-${escapeHtml(tone)}"
 style="--medical-board-x: ${position.x}%; --medical-board-y: ${position.y}%;"
-data-medical-edit-injury-plan="${escapeHtml(plan.id)}"
-aria-label="Open ${escapeHtml(player.name)} medical program"
+data-medical-open-board-plan="${escapeHtml(plan.id)}"
+aria-label="Open ${escapeHtml(player.name)} Medical Board"
 >
 <span class="medical-board-player-dot">${escapeHtml(getPlayerInitials(player.name))}</span>
 <span class="medical-board-player-label">
@@ -197,7 +203,7 @@ aria-label="Open ${escapeHtml(player.name)} medical program"
 <span>Medical Board</span>
 <strong>${items.length ? `${items.length} active program${items.length === 1 ? "" : "s"}` : "No active programs"}</strong>
 </div>
-${items[0]?.plan?.id ? `<button type="button" data-medical-edit-injury-plan="${escapeHtml(items[0].plan.id)}">Edit</button>` : ""}
+${items[0]?.plan?.id ? `<button type="button" data-medical-open-board-plan="${escapeHtml(items[0].plan.id)}">Edit</button>` : ""}
 </header>
 <div class="medical-board-surface" aria-label="Medical Board">
 <svg class="medical-board-pitch" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -219,6 +225,130 @@ ${items.length ? renderBoardPlayers(items) : `<div class="medical-board-empty">N
 </article>
 `;
   };
+
+  const renderMedicalBoardElement = (element = {}, markerId = "medical-board-editor-arrow") => {
+    if (!["arrow", "run", "zone", "dashed-zone", "ellipse"].includes(element.type)) return "";
+    return renderTacticalBoardSvgElement(
+      {
+        lineWidth: 1.35,
+        lineStyle: element.type === "zone" ? "solid" : "dashed",
+        ...element,
+        type: element.type === "zone" ? "dashed-zone" : element.type,
+      },
+      markerId,
+      { escapeHtml, classPrefix: "medical-board-editor-shape" }
+    );
+  };
+
+  const renderMedicalBoardMarker = (element = {}) => {
+    if (!["cone", "text"].includes(element.type)) return "";
+    const label = element.label || (element.type === "cone" ? "Cone" : "Note");
+    return `
+<span
+class="medical-board-editor-marker medical-board-editor-marker-${escapeHtml(element.type)}"
+style="--medical-board-x: ${Number(element.x) || 50}%; --medical-board-y: ${Number(element.y) || 50}%; --medical-board-color: ${escapeHtml(element.color || "#0f766e")};"
+>
+${element.type === "cone" ? `<i aria-hidden="true"></i>` : ""}
+<b>${escapeHtml(label)}</b>
+</span>
+`;
+  };
+
+  const renderMedicalBoardExerciseList = (plan = {}) => {
+    const exercises = getMedicalBoardExercises(plan);
+    if (!exercises.length) {
+      return `<div class="medical-board-editor-empty">No player-specific board exercises yet.</div>`;
+    }
+    return exercises
+      .map(
+        (exercise) => `
+<article class="medical-board-exercise-item">
+<div>
+<strong>${escapeHtml(exercise.title)}</strong>
+<small>${escapeHtml([exercise.phase, exercise.detail].filter(Boolean).join(" / ") || "No detail")}</small>
+</div>
+<button type="button" data-medical-remove-board-exercise="${escapeHtml(plan.id)}:${escapeHtml(exercise.id)}" aria-label="Remove ${escapeHtml(exercise.title)}">Remove</button>
+</article>
+`
+      )
+      .join("");
+  };
+
+  const renderMedicalBoardEditorOverlay = ({ player = {}, plan = {} } = {}) => {
+    if (!player?.id || !plan?.id) return "";
+    const markerId = `medical-board-editor-arrow-${String(plan.id).replace(/[^a-z0-9_-]/giu, "-")}`;
+    const participation = Number(plan.participation ?? 0);
+    const phaseLabel = getMedicalRtpPhaseOption(plan.rtpPhase).label;
+    const elements = getMedicalBoardElements(plan);
+    const svgElements = elements.map((element) => renderMedicalBoardElement(element, markerId)).join("");
+    const htmlMarkers = elements.map(renderMedicalBoardMarker).join("");
+    return `
+<div class="medical-board-editor-overlay" data-medical-board-editor-overlay="${escapeHtml(plan.id)}" hidden aria-hidden="true">
+<section class="medical-board-editor-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(player.name || "Player")} Medical Board" tabindex="-1">
+<header class="medical-board-editor-header">
+<div class="medical-board-editor-player">
+<span class="medical-program-avatar">${escapeHtml(getPlayerInitials(player.name))}</span>
+<div>
+<span>Medical Board</span>
+<h3>${escapeHtml(player.name || "Player")}</h3>
+<small>${escapeHtml([player.position, plan.injuryType, `${participation}%`, phaseLabel].filter(Boolean).join(" / "))}</small>
+</div>
+</div>
+<div class="medical-board-editor-actions">
+<button type="button" data-medical-edit-injury-plan="${escapeHtml(plan.id)}">Open Medical Plan</button>
+<button type="button" data-medical-close-board-editor aria-label="Close Medical Board">Close</button>
+</div>
+</header>
+<div class="medical-board-editor-layout">
+<aside class="medical-board-editor-tools" aria-label="Medical Board tools">
+<div>
+<span>Draw</span>
+<button type="button" class="is-active" data-medical-board-tool="arrow">Arrow</button>
+<button type="button" data-medical-board-tool="run">Run</button>
+<button type="button" data-medical-board-tool="zone">Zone</button>
+<button type="button" data-medical-board-tool="cone">Cone</button>
+<button type="button" data-medical-board-tool="text">Text</button>
+</div>
+<form class="medical-board-exercise-form" data-medical-board-exercise-form="${escapeHtml(plan.id)}">
+<span>Create exercise</span>
+<input name="title" placeholder="Exercise name" autocomplete="off" />
+<input name="phase" placeholder="Phase / exposure" autocomplete="off" />
+<textarea name="detail" rows="3" placeholder="Dose, area, constraint or coaching point"></textarea>
+<button type="submit">Add exercise</button>
+</form>
+</aside>
+<div class="medical-board-editor-stage">
+<div class="medical-board-editor-surface" data-medical-board-canvas="${escapeHtml(plan.id)}" aria-label="${escapeHtml(player.name || "Player")} board canvas">
+<svg class="medical-board-editor-pitch" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+<defs>${renderTacticalBoardArrowMarkerDef(markerId, { escapeHtml })}</defs>
+${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medical-board-editor-pitch-lines", ariaLabel: "Medical board pitch" })}
+<g class="medical-board-editor-layer">${svgElements}</g>
+</svg>
+<div class="medical-board-editor-html-layer">${htmlMarkers}</div>
+<button type="button" class="medical-board-editor-player-chip" data-medical-board-player-home style="--medical-board-x: 50%; --medical-board-y: 50%;">
+<span>${escapeHtml(getPlayerInitials(player.name))}</span>
+<strong>${escapeHtml(player.name || "Player")}</strong>
+</button>
+</div>
+<div class="medical-board-editor-hint">
+<span>${elements.length} board item${elements.length === 1 ? "" : "s"}</span>
+<span>Medical Plan source</span>
+</div>
+</div>
+<aside class="medical-board-editor-exercises" aria-label="Player board exercises">
+<header>
+<span>Player exercises</span>
+<strong>${getMedicalBoardExercises(plan).length}</strong>
+</header>
+<div>${renderMedicalBoardExerciseList(plan)}</div>
+</aside>
+</div>
+</section>
+</div>
+`;
+  };
+
+  const renderMedicalBoardEditorOverlays = (items = []) => items.map(renderMedicalBoardEditorOverlay).join("");
 
   const renderRtpProgramsWorkspace = (summary = {}) => {
     const playerItems = getProgramPlayerItems(summary);
@@ -242,6 +372,7 @@ ${playerItems.length ? playerItems.map(renderPlayerProgramRow).join("") : `<div 
 </article>
 ${renderMedicalBoard(boardItems)}
 </section>
+${renderMedicalBoardEditorOverlays(boardItems)}
 </div>
 `;
   };

@@ -404,6 +404,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       rtpProgramNextSteps: [],
       rtpProgramHoldRules: [],
       rtpProgramTracker: {},
+      medicalBoard: { pitchMode: "full-wide", elements: [], exercises: [], updatedAt: "" },
     };
   }
 
@@ -423,6 +424,16 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
     } catch {
     }
     return text.split(/\n|;/u).map((item) => item.trim()).filter(Boolean).slice(0, 12);
+  }
+
+  function normalizeMedicalBoardDraft(value = {}) {
+    const source = value && typeof value === "object" ? value : {};
+    return {
+      pitchMode: String(source.pitchMode || "full-wide").trim() || "full-wide",
+      elements: (Array.isArray(source.elements) ? source.elements : []).map((item) => ({ ...item })).slice(0, 40),
+      exercises: (Array.isArray(source.exercises) ? source.exercises : []).map((item) => ({ ...item })).slice(0, 24),
+      updatedAt: String(source.updatedAt || "").trim(),
+    };
   }
 
   function normalizeMedicalInjuryPlanDraft(draft = {}, playerId = draft.playerId) {
@@ -479,6 +490,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       rtpProgramNextSteps,
       rtpProgramHoldRules,
       rtpProgramTracker: normalizeMedicalRtpProgramTracker(draft.rtpProgramTracker || draft, rtpProgramSource),
+      medicalBoard: normalizeMedicalBoardDraft(draft.medicalBoard ?? defaults.medicalBoard),
     };
   }
 

@@ -227,6 +227,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
       rtpProgramNextSteps: [],
       rtpProgramHoldRules: [],
       rtpProgramTracker: {},
+      medicalBoard: { pitchMode: "full-wide", elements: [], exercises: [], updatedAt: "" },
       createdBy: "coach-safe",
     };
   }

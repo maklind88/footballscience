@@ -136,6 +136,55 @@ export function createMedicalClinicalNormalizers(deps = {}) {
     return text.split(/\n|;/u).map((item) => item.trim()).filter(Boolean).slice(0, 12);
   }
 
+  function normalizeMedicalBoardItem(item = {}, index = 0) {
+    const type = ["arrow", "run", "zone", "cone", "text"].includes(item.type) ? item.type : "cone";
+    const clampBoardNumber = (value, fallback) => {
+      const number = Number(value);
+      return Number.isFinite(number) ? Math.min(96, Math.max(4, number)) : fallback;
+    };
+    const x = clampBoardNumber(item.x, 48);
+    const y = clampBoardNumber(item.y, 48);
+    return {
+      id: String(item.id || `medical-board-item-${Date.now()}-${index}`).trim(),
+      type,
+      x,
+      y,
+      x2: clampBoardNumber(item.x2, Math.min(94, x + 14)),
+      y2: clampBoardNumber(item.y2, y),
+      label: String(item.label ?? "").trim().slice(0, 80),
+      color: /^#[0-9a-f]{6}$/iu.test(String(item.color || "")) ? String(item.color) : "#0f766e",
+      createdAt: normalizeMedicalTimestamp(item.createdAt) || new Date().toISOString(),
+    };
+  }
+
+  function normalizeMedicalBoardExercise(item = {}, index = 0) {
+    const title = String(item.title ?? item.name ?? "").trim().slice(0, 90);
+    if (!title) return null;
+    return {
+      id: String(item.id || `medical-board-exercise-${Date.now()}-${index}`).trim(),
+      title,
+      phase: String(item.phase ?? "").trim().slice(0, 60),
+      detail: String(item.detail ?? item.note ?? "").trim().slice(0, 180),
+      createdAt: normalizeMedicalTimestamp(item.createdAt) || new Date().toISOString(),
+    };
+  }
+
+  function normalizeMedicalBoard(value = {}) {
+    const source = value && typeof value === "object" ? value : {};
+    return {
+      pitchMode: String(source.pitchMode || "full-wide").trim() || "full-wide",
+      elements: (Array.isArray(source.elements) ? source.elements : [])
+        .map(normalizeMedicalBoardItem)
+        .filter((item) => item.id)
+        .slice(0, 40),
+      exercises: (Array.isArray(source.exercises) ? source.exercises : [])
+        .map(normalizeMedicalBoardExercise)
+        .filter(Boolean)
+        .slice(0, 24),
+      updatedAt: normalizeMedicalTimestamp(source.updatedAt) || "",
+    };
+  }
+
   function normalizeMedicalInjuryPlan(plan = {}) {
     const playerId = String(plan.playerId ?? "").trim();
     const startDate = isDateValue(plan.startDate) ? plan.startDate : formatDateValue(new Date());
@@ -204,6 +253,7 @@ export function createMedicalClinicalNormalizers(deps = {}) {
       rtpProgramNextSteps,
       rtpProgramHoldRules,
       rtpProgramTracker: normalizeMedicalRtpProgramTracker(plan.rtpProgramTracker || plan, rtpProgramSource),
+      medicalBoard: normalizeMedicalBoard(plan.medicalBoard),
       createdAt,
       updatedAt: normalizeMedicalTimestamp(plan.updatedAt) || archivedAt || createdAt,
       createdBy: plan.createdBy || getCurrentUser()?.id || "",

@@ -164,6 +164,8 @@ export function createMedicalClinicalNormalizers(deps = {}) {
       id: String(item.id || `medical-board-exercise-${Date.now()}-${index}`).trim(),
       title,
       phase: String(item.phase ?? "").trim().slice(0, 60),
+      dose: String(item.dose ?? item.data ?? "").trim().slice(0, 90),
+      focusArea: String(item.focusArea ?? item.focus ?? "").trim().slice(0, 60),
       detail: String(item.detail ?? item.note ?? "").trim().slice(0, 180),
       createdAt: normalizeMedicalTimestamp(item.createdAt) || new Date().toISOString(),
     };

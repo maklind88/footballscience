@@ -61,6 +61,18 @@ test("Medical operations renderer owns operations tabs, private system, and coac
           rtpProgramExercises: ["Nordic hamstring progression | phase: full | demand: max velocity"],
           rtpProgramNextSteps: ["linear sprint exposure"],
           rtpProgramHoldRules: ["pain with walking after 48 hours"],
+          medicalBoard: {
+            exercises: [
+              {
+                id: "exercise-1",
+                title: "Nordic hamstring progression",
+                phase: "Strength",
+                dose: "3 sets x 5 reps",
+                focusArea: "posterior-thigh",
+                detail: "Stop if sprint pain increases next day.",
+              },
+            ],
+          },
           rtpProgramTracker: {
             gateCriteria: ["passed"],
             nextSteps: ["in-progress"],
@@ -185,6 +197,11 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(programsMarkup).toContain('data-medical-create-program="p3"');
   expect(programsMarkup).toContain("medical-board-pitch-lines");
   expect(programsMarkup).toContain("medical-board-player");
+  expect(programsMarkup).toContain("Individual Rehab Program");
+  expect(programsMarkup).toContain("Nordic hamstring progression");
+  expect(programsMarkup).toContain("3 sets x 5 reps");
+  expect(programsMarkup).toContain("Posterior thigh");
+  expect(programsMarkup).toContain("medical-rehab-focus-map");
   expect(programsMarkup).not.toContain("medical-rtp-program-guide-loader");
   expect(programsMarkup).not.toContain("medical-rtp-programs-stats");
   expect(programsMarkup).not.toContain("Program starters");

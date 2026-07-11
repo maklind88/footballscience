@@ -85,6 +85,39 @@ const getMedicalBoardElements = (plan = {}) =>
 const getMedicalBoardExercises = (plan = {}) =>
   (Array.isArray(plan?.medicalBoard?.exercises) ? plan.medicalBoard.exercises : []).filter(Boolean);
 
+const rehabProgramFocusAreas = Object.freeze([
+  { key: "posterior-thigh", label: "Posterior thigh", aliases: ["hamstring", "posterior thigh", "baklar", "baksida"] },
+  { key: "anterior-thigh", label: "Anterior thigh", aliases: ["quad", "quadriceps", "front thigh", "framsida"] },
+  { key: "groin", label: "Groin / adductor", aliases: ["groin", "adductor", "adduktor", "ljumske"] },
+  { key: "hip", label: "Hip / glute", aliases: ["hip", "glute", "hoft", "sate"] },
+  { key: "knee", label: "Knee", aliases: ["knee", "acl", "mcl", "meniscus", "patella", "kna"] },
+  { key: "calf", label: "Calf", aliases: ["calf", "soleus", "gastrocnemius", "vad"] },
+  { key: "ankle", label: "Ankle", aliases: ["ankle", "achilles", "foot", "fot", "hal"] },
+  { key: "trunk", label: "Trunk / core", aliases: ["trunk", "core", "back", "lumbar", "rygg"] },
+  { key: "shoulder", label: "Shoulder", aliases: ["shoulder", "arm", "skuldra"] },
+  { key: "general", label: "General", aliases: ["general", "whole body", "capacity"] },
+]);
+
+const normalizeFocusText = (value = "") => String(value || "").trim().toLowerCase();
+
+const getRehabFocusArea = (...values) => {
+  const text = normalizeFocusText(values.filter(Boolean).join(" "));
+  const fallback = rehabProgramFocusAreas[rehabProgramFocusAreas.length - 1];
+  if (!text) return fallback;
+  return (
+    rehabProgramFocusAreas.find((area) => (
+      area.key === text ||
+      normalizeFocusText(area.label) === text ||
+      area.aliases.some((alias) => text.includes(normalizeFocusText(alias)))
+    )) || fallback
+  );
+};
+
+const renderRehabFocusOptions = (selectedKey = "") =>
+  rehabProgramFocusAreas
+    .map((area) => `<option value="${area.key}"${area.key === selectedKey ? " selected" : ""}>${area.label}</option>`)
+    .join("");
+
 const getBoardPlayerPosition = (player = {}, index = 0, groupCounts = {}, groupIndexes = {}) => {
   const bucket = normalizePositionBucket(player.position);
   const columns = {
@@ -262,7 +295,154 @@ ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medica
 </svg>
 ${items.length ? items.map((item, index) => renderBoardView(item, selectedPlanId, index)).join("") : `<div class="medical-board-empty">No player program is active on the board.</div>`}
 </div>
+${items.length ? items.map((item, index) => renderIndividualRehabProgram(item, selectedPlanId, index)).join("") : ""}
 </article>
+`;
+  };
+
+  const renderRehabIllustration = (exercise = {}) => {
+    const focusArea = getRehabFocusArea(exercise.focusArea, exercise.focus, exercise.detail).key;
+    return `
+<div class="medical-rehab-illustration" aria-hidden="true">
+<span class="medical-rehab-illustration-mat"></span>
+<span class="medical-rehab-figure-line medical-rehab-figure-line-torso"></span>
+<span class="medical-rehab-figure-line medical-rehab-figure-line-arm"></span>
+<span class="medical-rehab-figure-line medical-rehab-figure-line-leg-one"></span>
+<span class="medical-rehab-figure-line medical-rehab-figure-line-leg-two"></span>
+<span class="medical-rehab-figure-dot"></span>
+<span class="medical-rehab-illustration-focus medical-rehab-illustration-focus-${escapeHtml(focusArea)}"></span>
+</div>
+`;
+  };
+
+  const renderRehabFocusMap = (exercise = {}, plan = {}) => {
+    const focusArea = getRehabFocusArea(exercise.focusArea, exercise.focus, plan.bodyArea, plan.injuryType);
+    const active = (key) => (focusArea.key === key || (focusArea.key === "general" && key === "trunk") ? " is-active" : "");
+    return `
+<figure class="medical-rehab-focus-map" aria-label="Training focus: ${escapeHtml(focusArea.label)}">
+<svg viewBox="0 0 164 122" role="img" aria-hidden="true" focusable="false">
+<g class="medical-rehab-body medical-rehab-body-front">
+<circle cx="38" cy="18" r="8"></circle>
+<path d="M29 31h18l4 30H25z"></path>
+<path d="M25 35 13 68"></path>
+<path d="M51 35 63 68"></path>
+<path d="M32 61 27 108"></path>
+<path d="M44 61 49 108"></path>
+<ellipse class="medical-rehab-zone${active("shoulder")}" cx="50" cy="35" rx="8" ry="7"></ellipse>
+<ellipse class="medical-rehab-zone${active("trunk")}" cx="38" cy="48" rx="14" ry="18"></ellipse>
+<ellipse class="medical-rehab-zone${active("groin")}" cx="38" cy="66" rx="11" ry="7"></ellipse>
+<ellipse class="medical-rehab-zone${active("anterior-thigh")}" cx="30" cy="79" rx="6" ry="16"></ellipse>
+<ellipse class="medical-rehab-zone${active("anterior-thigh")}" cx="46" cy="79" rx="6" ry="16"></ellipse>
+<ellipse class="medical-rehab-zone${active("knee")}" cx="29" cy="96" rx="6" ry="6"></ellipse>
+<ellipse class="medical-rehab-zone${active("knee")}" cx="47" cy="96" rx="6" ry="6"></ellipse>
+<ellipse class="medical-rehab-zone${active("calf")}" cx="27" cy="108" rx="5" ry="10"></ellipse>
+<ellipse class="medical-rehab-zone${active("calf")}" cx="49" cy="108" rx="5" ry="10"></ellipse>
+<ellipse class="medical-rehab-zone${active("ankle")}" cx="26" cy="116" rx="6" ry="4"></ellipse>
+<ellipse class="medical-rehab-zone${active("ankle")}" cx="50" cy="116" rx="6" ry="4"></ellipse>
+</g>
+<g class="medical-rehab-body medical-rehab-body-back">
+<circle cx="125" cy="18" r="8"></circle>
+<path d="M116 31h18l4 30h-26z"></path>
+<path d="M112 35 100 68"></path>
+<path d="M138 35 150 68"></path>
+<path d="M119 61 114 108"></path>
+<path d="M131 61 136 108"></path>
+<ellipse class="medical-rehab-zone${active("shoulder")}" cx="114" cy="35" rx="8" ry="7"></ellipse>
+<ellipse class="medical-rehab-zone${active("trunk")}" cx="125" cy="48" rx="14" ry="18"></ellipse>
+<ellipse class="medical-rehab-zone${active("hip")}" cx="125" cy="64" rx="15" ry="9"></ellipse>
+<ellipse class="medical-rehab-zone${active("posterior-thigh")}" cx="117" cy="80" rx="6" ry="17"></ellipse>
+<ellipse class="medical-rehab-zone${active("posterior-thigh")}" cx="133" cy="80" rx="6" ry="17"></ellipse>
+<ellipse class="medical-rehab-zone${active("knee")}" cx="116" cy="96" rx="6" ry="6"></ellipse>
+<ellipse class="medical-rehab-zone${active("knee")}" cx="134" cy="96" rx="6" ry="6"></ellipse>
+<ellipse class="medical-rehab-zone${active("calf")}" cx="114" cy="108" rx="5" ry="10"></ellipse>
+<ellipse class="medical-rehab-zone${active("calf")}" cx="136" cy="108" rx="5" ry="10"></ellipse>
+<ellipse class="medical-rehab-zone${active("ankle")}" cx="113" cy="116" rx="6" ry="4"></ellipse>
+<ellipse class="medical-rehab-zone${active("ankle")}" cx="137" cy="116" rx="6" ry="4"></ellipse>
+</g>
+</svg>
+<figcaption>${escapeHtml(focusArea.label)}</figcaption>
+</figure>
+`;
+  };
+
+  const renderRehabProgramExercise = (exercise = {}, plan = {}, index = 0) => {
+    const dose = String(exercise.dose || exercise.data || "").trim();
+    const detail = String(exercise.detail || "").trim();
+    return `
+<article class="medical-rehab-program-row">
+<div class="medical-rehab-program-exercise">
+<span>${index + 1}</span>
+<strong>${escapeHtml(exercise.title)}</strong>
+<small>${escapeHtml(exercise.phase || "Rehab")}</small>
+<button type="button" class="medical-rehab-program-remove" data-medical-remove-board-exercise="${escapeHtml(plan.id)}:${escapeHtml(exercise.id)}" aria-label="Remove ${escapeHtml(exercise.title)}">Remove</button>
+</div>
+${renderRehabIllustration(exercise)}
+${renderRehabFocusMap(exercise, plan)}
+<div class="medical-rehab-program-dose">${escapeHtml(dose || "Dose not set")}</div>
+<div class="medical-rehab-program-note">${escapeHtml(detail || "Add clinical coaching note.")}</div>
+</article>
+`;
+  };
+
+  const renderIndividualRehabProgram = (item = {}, selectedPlanId = "", index = 0) => {
+    const { player = {}, plan = {} } = item;
+    const isSelected = selectedPlanId ? plan.id === selectedPlanId : index === 0;
+    const exercises = getMedicalBoardExercises(plan);
+    const phaseLabel = getMedicalRtpPhaseOption(plan.rtpPhase).label;
+    const defaultFocusKey = getRehabFocusArea(plan.bodyArea, plan.injuryType).key;
+    return `
+<section class="medical-rehab-program-panel" data-medical-rehab-program-panel="${escapeHtml(plan.id)}" ${isSelected ? "" : "hidden"}>
+<header class="medical-rehab-program-header">
+<div>
+<span>Individual Rehab Program</span>
+<strong>${escapeHtml(player.name || "Player")}</strong>
+<small>${escapeHtml([plan.injuryType, plan.bodyArea, phaseLabel].filter(Boolean).join(" / "))}</small>
+</div>
+<b>${exercises.length} exercise${exercises.length === 1 ? "" : "s"}</b>
+</header>
+<form class="medical-rehab-program-form medical-board-exercise-form" data-medical-board-exercise-form="${escapeHtml(plan.id)}">
+<label>
+<span>Exercise</span>
+<input name="title" placeholder="e.g. Foam roll: anterior thigh" autocomplete="off" />
+</label>
+<label>
+<span>Phase</span>
+<select name="phase">
+<option value="Medical restriction">Medical restriction</option>
+<option value="Rehab" selected>Rehab</option>
+<option value="Strength">Strength</option>
+<option value="Modified team">Modified team</option>
+<option value="Field exposure">Field exposure</option>
+<option value="Match return">Match return</option>
+</select>
+</label>
+<label>
+<span>Dose</span>
+<input name="dose" placeholder="2 sets x 10 reps" autocomplete="off" />
+</label>
+<label>
+<span>Focus area</span>
+<select name="focusArea">${renderRehabFocusOptions(defaultFocusKey)}</select>
+</label>
+<label class="medical-rehab-program-note-field">
+<span>Comment</span>
+<textarea name="detail" rows="2" placeholder="Clinical cue, pain response, tempo or hold rule"></textarea>
+</label>
+<button type="submit">Add exercise</button>
+</form>
+<div class="medical-rehab-program-table" aria-label="${escapeHtml(player.name || "Player")} individual rehab program">
+<div class="medical-rehab-program-columns" aria-hidden="true">
+<span>Exercise</span>
+<span>Illustration</span>
+<span>Training focus</span>
+<span>Dose</span>
+<span>Comment</span>
+</div>
+${exercises.length
+    ? exercises.map((exercise, exerciseIndex) => renderRehabProgramExercise(exercise, plan, exerciseIndex)).join("")
+    : `<div class="medical-rehab-program-empty">No individual rehab exercises yet. Add the first exercise for this injury plan.</div>`}
+</div>
+</section>
 `;
   };
 
@@ -352,8 +532,17 @@ ${element.type === "cone" ? `<i aria-hidden="true"></i>` : ""}
 <form class="medical-board-exercise-form" data-medical-board-exercise-form="${escapeHtml(plan.id)}">
 <span>Create exercise</span>
 <input name="title" placeholder="Exercise name" autocomplete="off" />
-<input name="phase" placeholder="Phase / exposure" autocomplete="off" />
-<textarea name="detail" rows="3" placeholder="Dose, area, constraint or coaching point"></textarea>
+<select name="phase">
+<option value="Medical restriction">Medical restriction</option>
+<option value="Rehab" selected>Rehab</option>
+<option value="Strength">Strength</option>
+<option value="Modified team">Modified team</option>
+<option value="Field exposure">Field exposure</option>
+<option value="Match return">Match return</option>
+</select>
+<input name="dose" placeholder="Dose, sets, reps or time" autocomplete="off" />
+<select name="focusArea">${renderRehabFocusOptions(getRehabFocusArea(plan.bodyArea, plan.injuryType).key)}</select>
+<textarea name="detail" rows="3" placeholder="Clinical cue, pain response or coaching point"></textarea>
 <button type="submit">Add exercise</button>
 </form>
 </aside>

@@ -206,6 +206,9 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     queryWorkspaceAll(workspaceElement, "[data-medical-board-edit-button]").forEach((button) => {
       button.hidden = button.dataset?.medicalBoardEditButton !== normalizedPlanId;
     });
+    queryWorkspaceAll(workspaceElement, "[data-medical-rehab-program-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset?.medicalRehabProgramPanel !== normalizedPlanId;
+    });
     queryWorkspaceAll(workspaceElement, "[data-medical-board-footer-option]").forEach((node) => {
       node.hidden = node.dataset?.medicalBoardFooterOption !== normalizedPlanId;
     });
@@ -1304,16 +1307,20 @@ ${renderRtpExerciseCards(profile, 3)}
         return;
       }
       const phase = String(values.phase || "").trim();
+      const dose = String(values.dose || "").trim();
+      const focusArea = String(values.focusArea || "").trim();
       const detail = String(values.detail || "").trim();
       const exercise = {
         id: `medical-board-exercise-${Date.now()}`,
         title,
         phase,
+        dose,
+        focusArea,
         detail,
         createdAt: new Date().toISOString(),
       };
       saveMedicalBoardForPlan(planId, (board, plan) => {
-        const exerciseLine = [title, phase, detail].filter(Boolean).join(" | ");
+        const exerciseLine = [title, phase, dose, focusArea, detail].filter(Boolean).join(" | ");
         const currentProgramExercises = Array.isArray(plan.rtpProgramExercises) ? plan.rtpProgramExercises : [];
         return {
           board: { ...board, exercises: [exercise, ...board.exercises] },

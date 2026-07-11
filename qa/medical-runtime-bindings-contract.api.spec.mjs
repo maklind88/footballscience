@@ -617,7 +617,13 @@ test("Medical runtime bindings save player-specific RTP Field Board drawings and
 
   const form = {
     dataset: { medicalBoardExerciseForm: "plan-1" },
-    values: { title: "Box entry pattern", phase: "Rehab", detail: "2 x 4 controlled reps" },
+    values: {
+      title: "Box entry pattern",
+      phase: "Rehab",
+      dose: "2 x 4 controlled reps",
+      focusArea: "knee",
+      detail: "Stop on swelling response",
+    },
   };
   workspace.listeners.submit(createEvent(createTarget({
     closest: { "[data-medical-board-exercise-form]": form },
@@ -625,9 +631,11 @@ test("Medical runtime bindings save player-specific RTP Field Board drawings and
   expect(mutable.lastUpdatedPlanValues.medicalBoard.exercises[0]).toMatchObject({
     title: "Box entry pattern",
     phase: "Rehab",
-    detail: "2 x 4 controlled reps",
+    dose: "2 x 4 controlled reps",
+    focusArea: "knee",
+    detail: "Stop on swelling response",
   });
-  expect(mutable.lastUpdatedPlanValues.rtpProgramExercises).toContain("Box entry pattern | Rehab | 2 x 4 controlled reps");
+  expect(mutable.lastUpdatedPlanValues.rtpProgramExercises).toContain("Box entry pattern | Rehab | 2 x 4 controlled reps | knee | Stop on swelling response");
   expect(calls).toContainEqual(["render", "Box entry pattern added to RTP Field Board."]);
 });
 
@@ -657,6 +665,8 @@ test("Medical runtime bindings switch the RTP Field Board preview from the progr
   const metaTwo = makeBoardNode({ medicalBoardMetaOption: "plan-2" }, true);
   const editOne = makeBoardNode({ medicalBoardEditButton: "plan-1" });
   const editTwo = makeBoardNode({ medicalBoardEditButton: "plan-2" }, true);
+  const rehabOne = makeBoardNode({ medicalRehabProgramPanel: "plan-1" });
+  const rehabTwo = makeBoardNode({ medicalRehabProgramPanel: "plan-2" }, true);
   const footerOne = makeBoardNode({ medicalBoardFooterOption: "plan-1" });
   const footerTwo = makeBoardNode({ medicalBoardFooterOption: "plan-2" }, true);
   const rowOne = makeRow("plan-1");
@@ -667,6 +677,7 @@ test("Medical runtime bindings switch the RTP Field Board preview from the progr
       targetWorkspace.nodesBySelector["[data-medical-board-name-option]"] = [nameOne, nameTwo];
       targetWorkspace.nodesBySelector["[data-medical-board-meta-option]"] = [metaOne, metaTwo];
       targetWorkspace.nodesBySelector["[data-medical-board-edit-button]"] = [editOne, editTwo];
+      targetWorkspace.nodesBySelector["[data-medical-rehab-program-panel]"] = [rehabOne, rehabTwo];
       targetWorkspace.nodesBySelector["[data-medical-board-footer-option]"] = [footerOne, footerTwo];
       targetWorkspace.nodesBySelector["[data-medical-select-board-plan]"] = [rowOne, rowTwo];
     },
@@ -684,6 +695,8 @@ test("Medical runtime bindings switch the RTP Field Board preview from the progr
   expect(metaTwo.hidden).toBe(false);
   expect(editOne.hidden).toBe(true);
   expect(editTwo.hidden).toBe(false);
+  expect(rehabOne.hidden).toBe(true);
+  expect(rehabTwo.hidden).toBe(false);
   expect(footerOne.hidden).toBe(true);
   expect(footerTwo.hidden).toBe(false);
   expect(rowOne.classList.selected).toBe(false);

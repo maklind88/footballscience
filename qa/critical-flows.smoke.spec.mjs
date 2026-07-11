@@ -3341,7 +3341,7 @@ test("Medical operations board separates signals, cases, history and season view
   await operationsMenu.locator('[data-medical-ops-tab="programs"]').click();
   await expect(operations.locator(".medical-programs-layout")).toBeVisible();
   await expect(operations.locator(".medical-program-list-panel")).toContainText("QA Long Term ACL");
-  await expect(operations.locator(".medical-program-board-card")).toContainText("Medical Board");
+  await expect(operations.locator(".medical-program-board-card")).toContainText("RTP Field Board");
 
   await operationsMenu.locator('[data-medical-ops-tab="history"]').click();
   await expect(operations).toContainText("Case opened");

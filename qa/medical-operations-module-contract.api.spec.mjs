@@ -173,8 +173,8 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(programsMarkup).toContain("medical-programs-layout");
   expect(programsMarkup).toContain("Player programs");
   expect(programsMarkup).toContain("1 active / 2 squad players");
-  expect(programsMarkup).toContain("Medical Board");
-  expect(programsMarkup).toContain("2 active programs");
+  expect(programsMarkup).toContain("RTP Field Board");
+  expect(programsMarkup).not.toContain("2 active programs");
   expect(programsMarkup).toContain("medical-board-surface");
   expect(programsMarkup).toContain("Mak Player");
   expect(programsMarkup).toContain("Clear Player");

@@ -232,7 +232,7 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     };
   };
 
-  const saveMedicalBoardForPlan = (planId, updater, message = "Medical Board updated.") => {
+  const saveMedicalBoardForPlan = (planId, updater, message = "RTP Field Board updated.") => {
     const plan = getMedicalPlanById(planId);
     if (!plan || typeof updater !== "function") {
       return false;
@@ -884,7 +884,7 @@ ${renderRtpExerciseCards(profile, 3)}
           ...board,
           elements: [...board.elements, createMedicalBoardElement(tool, point)],
         },
-      }), "Medical Board drawing saved.");
+      }), "RTP Field Board drawing saved.");
       return;
     }
     const removeBoardExerciseButton = event.target.closest("[data-medical-remove-board-exercise]");
@@ -903,7 +903,7 @@ ${renderRtpExerciseCards(profile, 3)}
           board: { ...board, exercises: nextExercises },
           values: { rtpProgramExercises: nextProgramExercises },
         };
-      }, "Medical Board exercise removed.");
+      }, "RTP Field Board exercise removed.");
       return;
     }
     const closeRtpGuideDraftButton = event.target.closest("[data-medical-close-rtp-guide-draft]");
@@ -1323,7 +1323,7 @@ ${renderRtpExerciseCards(profile, 3)}
               : [exerciseLine, ...currentProgramExercises],
           },
         };
-      }, `${title} added to Medical Board.`);
+      }, `${title} added to RTP Field Board.`);
       return;
     }
     const rtpCaseLinkerForm = event.target.closest("[data-medical-rtp-case-linker-form]");

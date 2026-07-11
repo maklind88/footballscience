@@ -544,7 +544,7 @@ test("Medical runtime bindings open RTP guide authoring draft and copy the templ
   expect(calls).toContain("prevent-guide-escape");
 });
 
-test("Medical runtime bindings save player-specific Medical Board drawings and exercises to the active plan", async () => {
+test("Medical runtime bindings save player-specific RTP Field Board drawings and exercises to the active plan", async () => {
   const bodyClasses = new Set();
   const dialog = { focused: false, focus() { this.focused = true; } };
   const activeTool = { dataset: { medicalBoardTool: "cone" }, classList: { toggle: () => {} } };
@@ -613,7 +613,7 @@ test("Medical runtime bindings save player-specific Medical Board drawings and e
     label: "Cone",
   });
   expect(calls).toContainEqual(["sync", "medical-board-updated", expect.objectContaining({ planId: "plan-1", playerId: "p-1" })]);
-  expect(calls).toContainEqual(["render", "Medical Board drawing saved."]);
+  expect(calls).toContainEqual(["render", "RTP Field Board drawing saved."]);
 
   const form = {
     dataset: { medicalBoardExerciseForm: "plan-1" },
@@ -628,10 +628,10 @@ test("Medical runtime bindings save player-specific Medical Board drawings and e
     detail: "2 x 4 controlled reps",
   });
   expect(mutable.lastUpdatedPlanValues.rtpProgramExercises).toContain("Box entry pattern | Rehab | 2 x 4 controlled reps");
-  expect(calls).toContainEqual(["render", "Box entry pattern added to Medical Board."]);
+  expect(calls).toContainEqual(["render", "Box entry pattern added to RTP Field Board."]);
 });
 
-test("Medical runtime bindings switch the Medical Board preview from the program list", async () => {
+test("Medical runtime bindings switch the RTP Field Board preview from the program list", async () => {
   const makeBoardNode = (key, hidden = false) => ({
     hidden,
     dataset: key,

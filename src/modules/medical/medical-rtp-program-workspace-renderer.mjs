@@ -167,7 +167,7 @@ type="button"
 class="medical-board-player medical-board-player-${escapeHtml(tone)}"
 style="--medical-board-x: 50%; --medical-board-y: 50%;"
 data-medical-open-board-plan="${escapeHtml(plan.id)}"
-aria-label="Open ${escapeHtml(player.name)} Medical Board"
+aria-label="Open ${escapeHtml(player.name)} RTP Field Board"
 >
 <span class="medical-board-player-dot">${escapeHtml(getPlayerInitials(player.name))}</span>
 <span class="medical-board-player-label">
@@ -251,14 +251,14 @@ ${renderBoardPlayer({ player, plan })}
 <article class="medical-program-board-card" data-medical-board-card>
 <header>
 <div>
-<span>Medical Board</span>
+<span>RTP Field Board</span>
 ${renderNameOptions()}
 </div>
 <div class="medical-board-edit-actions">${renderEditButtons()}</div>
 </header>
-<div class="medical-board-surface" aria-label="Medical Board">
+<div class="medical-board-surface" aria-label="RTP Field Board">
 <svg class="medical-board-pitch" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medical-board-pitch-lines", ariaLabel: "Medical board pitch" })}
+${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medical-board-pitch-lines", ariaLabel: "RTP field board pitch" })}
 </svg>
 ${items.length ? items.map((item, index) => renderBoardView(item, selectedPlanId, index)).join("") : `<div class="medical-board-empty">No player program is active on the board.</div>`}
 </div>
@@ -324,23 +324,23 @@ ${element.type === "cone" ? `<i aria-hidden="true"></i>` : ""}
     const htmlMarkers = elements.map(renderMedicalBoardMarker).join("");
     return `
 <div class="medical-board-editor-overlay" data-medical-board-editor-overlay="${escapeHtml(plan.id)}" hidden aria-hidden="true">
-<section class="medical-board-editor-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(player.name || "Player")} Medical Board" tabindex="-1">
+<section class="medical-board-editor-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(player.name || "Player")} RTP Field Board" tabindex="-1">
 <header class="medical-board-editor-header">
 <div class="medical-board-editor-player">
 <span class="medical-program-avatar">${escapeHtml(getPlayerInitials(player.name))}</span>
 <div>
-<span>Medical Board</span>
+<span>RTP Field Board</span>
 <h3>${escapeHtml(player.name || "Player")}</h3>
 <small>${escapeHtml([player.position, plan.injuryType, `${participation}%`, phaseLabel].filter(Boolean).join(" / "))}</small>
 </div>
 </div>
 <div class="medical-board-editor-actions">
 <button type="button" data-medical-edit-injury-plan="${escapeHtml(plan.id)}">Open Medical Plan</button>
-<button type="button" data-medical-close-board-editor aria-label="Close Medical Board">Close</button>
+<button type="button" data-medical-close-board-editor aria-label="Close RTP Field Board">Close</button>
 </div>
 </header>
 <div class="medical-board-editor-layout">
-<aside class="medical-board-editor-tools" aria-label="Medical Board tools">
+<aside class="medical-board-editor-tools" aria-label="RTP Field Board tools">
 <div>
 <span>Draw</span>
 <button type="button" class="is-active" data-medical-board-tool="arrow">Arrow</button>
@@ -361,7 +361,7 @@ ${element.type === "cone" ? `<i aria-hidden="true"></i>` : ""}
 <div class="medical-board-editor-surface" data-medical-board-canvas="${escapeHtml(plan.id)}" aria-label="${escapeHtml(player.name || "Player")} board canvas">
 <svg class="medical-board-editor-pitch" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
 <defs>${renderTacticalBoardArrowMarkerDef(markerId, { escapeHtml })}</defs>
-${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medical-board-editor-pitch-lines", ariaLabel: "Medical board pitch" })}
+${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medical-board-editor-pitch-lines", ariaLabel: "RTP field board pitch" })}
 <g class="medical-board-editor-layer">${svgElements}</g>
 </svg>
 <div class="medical-board-editor-html-layer">${htmlMarkers}</div>

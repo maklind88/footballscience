@@ -401,34 +401,6 @@
   transform: translate(-50%, -50%);
 }
 
-.medical-program-board-card > footer {
-  padding: 0 0.72rem 0.72rem;
-}
-
-.medical-board-footer-view {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
-}
-
-.medical-program-board-card > footer span {
-  min-width: 0;
-  border: 1px solid rgba(15, 35, 27, 0.08);
-  border-radius: 8px;
-  padding: 0.54rem 0.62rem;
-  background: rgba(255, 255, 255, 0.78);
-  color: #5c6a64;
-  font-size: 0.7rem;
-  font-weight: 850;
-}
-
-.medical-program-board-card > footer b {
-  display: block;
-  color: #10231b;
-  font-size: 1rem;
-  line-height: 1;
-}
-
 body.medical-board-editor-open {
   overflow: hidden;
 }
@@ -879,7 +851,6 @@ body.is-dark-mode .medical-board-exercise-item small {
 body.is-dark-mode .medical-program-list-panel,
 body.is-dark-mode .medical-program-board-card,
 body.is-dark-mode .medical-program-player-row,
-body.is-dark-mode .medical-program-board-card > footer span,
 body.is-dark-mode .medical-program-empty {
   border-color: rgba(148, 163, 184, 0.24);
   background: rgba(255, 255, 255, 0.08);
@@ -890,15 +861,13 @@ body.is-dark-mode .medical-program-board-card > header strong,
 body.is-dark-mode .medical-program-player-identity strong,
 body.is-dark-mode .medical-program-player-case strong,
 body.is-dark-mode .medical-program-player-window strong,
-body.is-dark-mode .medical-program-board-card > footer b,
 body.is-dark-mode .medical-program-empty {
   color: #f8fafc;
 }
 
 body.is-dark-mode .medical-program-player-identity small,
 body.is-dark-mode .medical-program-player-case small,
-body.is-dark-mode .medical-program-player-window small,
-body.is-dark-mode .medical-program-board-card > footer span {
+body.is-dark-mode .medical-program-player-window small {
   color: #cbd5e1;
 }
 

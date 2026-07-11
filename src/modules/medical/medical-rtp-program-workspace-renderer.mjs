@@ -247,21 +247,6 @@ ${renderBoardPlayer({ player, plan })}
 <button type="button" data-medical-board-edit-button="${escapeHtml(plan.id)}" data-medical-open-board-plan="${escapeHtml(plan.id)}" ${isSelected ? "" : "hidden"}>Edit</button>
 `;
       }).join("");
-    const renderFooterOptions = () =>
-      items.length
-        ? items.map(({ plan }, index) => {
-          const isSelected = selectedPlanId ? plan.id === selectedPlanId : index === 0;
-          const participation = Number(plan.participation ?? 0);
-          const phaseLabel = getMedicalRtpPhaseOption(plan.rtpPhase).label;
-          return `
-<div class="medical-board-footer-view" data-medical-board-footer-option="${escapeHtml(plan.id)}" ${isSelected ? "" : "hidden"}>
-<span><b>${getMedicalBoardElements(plan).length}</b> board items</span>
-<span><b>${getMedicalBoardExercises(plan).length}</b> exercises</span>
-<span><b>${Number.isFinite(participation) ? participation : 0}%</b> ${escapeHtml(phaseLabel)}</span>
-</div>
-`;
-        }).join("")
-        : `<div class="medical-board-footer-view"><span><b>0</b> board items</span><span><b>0</b> exercises</span><span><b>-</b> status</span></div>`;
     return `
 <article class="medical-program-board-card" data-medical-board-card>
 <header>
@@ -277,9 +262,6 @@ ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medica
 </svg>
 ${items.length ? items.map((item, index) => renderBoardView(item, selectedPlanId, index)).join("") : `<div class="medical-board-empty">No player program is active on the board.</div>`}
 </div>
-<footer>
-${renderFooterOptions()}
-</footer>
 </article>
 `;
   };

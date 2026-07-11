@@ -64,6 +64,17 @@
   line-height: 1.05;
 }
 
+.medical-program-board-card > header small {
+  min-width: 0;
+  overflow: hidden;
+  color: #5c6a64;
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .medical-program-list-panel > header small {
   flex: 0 0 auto;
   align-self: flex-start;
@@ -85,6 +96,12 @@
   font-size: 0.74rem;
   font-weight: 950;
   cursor: pointer;
+}
+
+.medical-board-edit-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
 }
 
 .medical-program-player-list {
@@ -120,6 +137,16 @@
 
 .medical-program-player-row-full {
   border-color: rgba(34, 197, 94, 0.18);
+}
+
+.medical-program-player-row[data-medical-select-board-plan] {
+  cursor: pointer;
+}
+
+.medical-program-player-row.is-board-selected {
+  border-color: rgba(15, 118, 110, 0.34);
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.98), rgba(255, 255, 255, 0.94));
+  box-shadow: inset 4px 0 0 #0f766e, 0 10px 24px rgba(15, 118, 110, 0.08);
 }
 
 .medical-program-player-identity {
@@ -227,6 +254,25 @@
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.medical-board-plan-view {
+  position: absolute;
+  inset: 0;
+}
+
+.medical-board-plan-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.medical-board-html-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .medical-board-surface .session-pitch-touchline,
@@ -356,10 +402,13 @@
 }
 
 .medical-program-board-card > footer {
+  padding: 0 0.72rem 0.72rem;
+}
+
+.medical-board-footer-view {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
-  padding: 0 0.72rem 0.72rem;
 }
 
 .medical-program-board-card > footer span {
@@ -851,6 +900,12 @@ body.is-dark-mode .medical-program-player-case small,
 body.is-dark-mode .medical-program-player-window small,
 body.is-dark-mode .medical-program-board-card > footer span {
   color: #cbd5e1;
+}
+
+body.is-dark-mode .medical-program-player-row.is-board-selected {
+  border-color: rgba(167, 243, 208, 0.38);
+  background: linear-gradient(135deg, rgba(20, 83, 45, 0.42), rgba(15, 23, 42, 0.74));
+  box-shadow: inset 4px 0 0 #a7f3d0, 0 10px 24px rgba(2, 6, 23, 0.2);
 }
 
 @media (max-width: 1020px) {

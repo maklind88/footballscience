@@ -119,7 +119,7 @@ export function createMedicalRtpProgramWorkspaceRenderer({
     return `<button type="button" class="medical-program-row-action medical-program-row-action-secondary" data-medical-create-program="${escapeHtml(player.id)}">Create program</button>`;
   };
 
-  const renderPlayerProgramRow = (item) => {
+  const renderPlayerProgramRow = (item, selectedPlanId = "") => {
     const { player, plan, signal, tracker, hasProgramStarter } = item;
     const participation = Number(plan?.participation ?? signal.record?.participation ?? 100);
     const tone = plan ? getParticipationTone(participation) : "neutral";
@@ -132,8 +132,11 @@ export function createMedicalRtpProgramWorkspaceRenderer({
     const windowLabel = plan
       ? `${formatMedicalDateLabel(plan.startDate)} - ${formatMedicalDateLabel(plan.endDate)}`
       : "Create only when clinically needed";
+    const boardAttrs = plan?.id
+      ? `data-medical-select-board-plan="${escapeHtml(plan.id)}" aria-selected="${plan.id === selectedPlanId ? "true" : "false"}"`
+      : "";
     return `
-<article class="medical-program-player-row medical-program-player-row-${escapeHtml(tone)}">
+<article class="medical-program-player-row medical-program-player-row-${escapeHtml(tone)}${plan?.id === selectedPlanId ? " is-board-selected" : ""}" ${boardAttrs}>
 <div class="medical-program-player-identity">
 <span class="medical-program-avatar">${escapeHtml(getPlayerInitials(player.name))}</span>
 <span>
@@ -154,25 +157,15 @@ ${renderProgramAction(item)}
 `;
   };
 
-  const renderBoardPlayers = (items) => {
-    const groupCounts = items.reduce((result, { player }) => {
-      const bucket = normalizePositionBucket(player.position);
-      result[bucket] = (result[bucket] || 0) + 1;
-      return result;
-    }, {});
-    const groupIndexes = {};
-    return items
-      .slice(0, 18)
-      .map(({ player, plan }, index) => {
-        const position = getBoardPlayerPosition(player, index, groupCounts, groupIndexes);
-        const participation = Number(plan?.participation ?? 0);
-        const tone = getParticipationTone(participation);
-        const phaseLabel = getMedicalRtpPhaseOption(plan?.rtpPhase).label;
-        return `
+  const renderBoardPlayer = ({ player = {}, plan = {} } = {}) => {
+    const participation = Number(plan?.participation ?? 0);
+    const tone = getParticipationTone(participation);
+    const phaseLabel = getMedicalRtpPhaseOption(plan?.rtpPhase).label;
+    return `
 <button
 type="button"
 class="medical-board-player medical-board-player-${escapeHtml(tone)}"
-style="--medical-board-x: ${position.x}%; --medical-board-y: ${position.y}%;"
+style="--medical-board-x: 50%; --medical-board-y: 50%;"
 data-medical-open-board-plan="${escapeHtml(plan.id)}"
 aria-label="Open ${escapeHtml(player.name)} Medical Board"
 >
@@ -183,44 +176,99 @@ aria-label="Open ${escapeHtml(player.name)} Medical Board"
 </span>
 </button>
 `;
-      })
-      .join("");
+  };
+
+  const renderMedicalBoardPreviewElement = (element = {}, markerId = "medical-board-preview-arrow") => {
+    if (!["arrow", "run", "zone", "dashed-zone", "ellipse"].includes(element.type)) return "";
+    return renderTacticalBoardSvgElement(
+      {
+        lineWidth: 1.35,
+        lineStyle: element.type === "zone" ? "solid" : "dashed",
+        ...element,
+        type: element.type === "zone" ? "dashed-zone" : element.type,
+      },
+      markerId,
+      { escapeHtml, classPrefix: "medical-board-shape" }
+    );
+  };
+
+  const renderMedicalBoardPreviewMarker = (element = {}) => {
+    if (!["cone", "text"].includes(element.type)) return "";
+    const label = element.label || (element.type === "cone" ? "Cone" : "Note");
+    return `
+<span
+class="medical-board-editor-marker medical-board-editor-marker-${escapeHtml(element.type)}"
+style="--medical-board-x: ${Number(element.x) || 50}%; --medical-board-y: ${Number(element.y) || 50}%; --medical-board-color: ${escapeHtml(element.color || "#0f766e")};"
+>
+${element.type === "cone" ? `<i aria-hidden="true"></i>` : ""}
+<b>${escapeHtml(label)}</b>
+</span>
+`;
+  };
+
+  const renderBoardView = (item, index = 0) => {
+    const { player = {}, plan = {} } = item;
+    const markerId = `medical-board-preview-arrow-${String(plan.id).replace(/[^a-z0-9_-]/giu, "-")}`;
+    const elements = getMedicalBoardElements(plan);
+    const svgElements = elements.map((element) => renderMedicalBoardPreviewElement(element, markerId)).join("");
+    const htmlMarkers = elements.map(renderMedicalBoardPreviewMarker).join("");
+    return `
+<div class="medical-board-plan-view" data-medical-board-plan-view="${escapeHtml(plan.id)}" ${index ? "hidden" : ""}>
+<svg class="medical-board-plan-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+<defs>${renderTacticalBoardArrowMarkerDef(markerId, { escapeHtml })}</defs>
+<g class="medical-board-tactical-layer">${svgElements}</g>
+</svg>
+<div class="medical-board-player-layer">
+<div class="medical-board-html-markers">${htmlMarkers}</div>
+${renderBoardPlayer({ player, plan })}
+</div>
+</div>
+`;
   };
 
   const renderMedicalBoard = (items) => {
-    const markerId = "medical-board-arrow";
-    const boardElements = [
-      { id: "medical-board-rehab-zone", type: "dashed-zone", x: 7, y: 13, x2: 33, y2: 87, color: "#ef4444", lineWidth: 0.72, lineStyle: "dashed" },
-      { id: "medical-board-modified-zone", type: "zone", x: 35, y: 18, x2: 65, y2: 82, color: "#f59e0b", lineWidth: 0.32 },
-      { id: "medical-board-return-arrow", type: "arrow", x: 18, y: 50, x2: 83, y2: 50, color: "#0f766e", lineWidth: 1.05 },
-    ];
-    const fullyUnavailable = items.filter(({ plan }) => Number(plan?.participation) <= 0).length;
-    const modified = items.filter(({ plan }) => Number(plan?.participation) > 0 && Number(plan?.participation) < 100).length;
+    const renderNameOptions = () =>
+      items.length
+        ? items.map(({ player, plan }, index) => `
+<strong data-medical-board-name-option="${escapeHtml(plan.id)}" ${index ? "hidden" : ""}>${escapeHtml(player.name || "Player")}</strong>
+<small data-medical-board-meta-option="${escapeHtml(plan.id)}" ${index ? "hidden" : ""}>${escapeHtml([player.position, plan.injuryType, `${Number(plan.participation ?? 0)}%`, getMedicalRtpPhaseOption(plan.rtpPhase).label].filter(Boolean).join(" / "))}</small>
+`).join("")
+        : `<strong>Select a player</strong><small>Open a medical program from the list</small>`;
+    const renderEditButtons = () =>
+      items.map(({ player, plan }, index) => `
+<button type="button" data-medical-board-edit-button="${escapeHtml(plan.id)}" data-medical-open-board-plan="${escapeHtml(plan.id)}" ${index ? "hidden" : ""}>Edit</button>
+`).join("");
+    const renderFooterOptions = () =>
+      items.length
+        ? items.map(({ plan }, index) => {
+          const participation = Number(plan.participation ?? 0);
+          const phaseLabel = getMedicalRtpPhaseOption(plan.rtpPhase).label;
+          return `
+<div class="medical-board-footer-view" data-medical-board-footer-option="${escapeHtml(plan.id)}" ${index ? "hidden" : ""}>
+<span><b>${getMedicalBoardElements(plan).length}</b> board items</span>
+<span><b>${getMedicalBoardExercises(plan).length}</b> exercises</span>
+<span><b>${Number.isFinite(participation) ? participation : 0}%</b> ${escapeHtml(phaseLabel)}</span>
+</div>
+`;
+        }).join("")
+        : `<div class="medical-board-footer-view"><span><b>0</b> board items</span><span><b>0</b> exercises</span><span><b>-</b> status</span></div>`;
     return `
-<article class="medical-program-board-card">
+<article class="medical-program-board-card" data-medical-board-card>
 <header>
 <div>
 <span>Medical Board</span>
-<strong>${items.length ? `${items.length} active program${items.length === 1 ? "" : "s"}` : "No active programs"}</strong>
+${renderNameOptions()}
 </div>
-${items[0]?.plan?.id ? `<button type="button" data-medical-open-board-plan="${escapeHtml(items[0].plan.id)}">Edit</button>` : ""}
+<div class="medical-board-edit-actions">${renderEditButtons()}</div>
 </header>
 <div class="medical-board-surface" aria-label="Medical Board">
 <svg class="medical-board-pitch" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-<defs>${renderTacticalBoardArrowMarkerDef(markerId, { escapeHtml })}</defs>
 ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medical-board-pitch-lines", ariaLabel: "Medical board pitch" })}
-<g class="medical-board-tactical-layer">
-${boardElements.map((element) => renderTacticalBoardSvgElement(element, markerId, { escapeHtml, classPrefix: "medical-board-shape" })).join("")}
-</g>
 </svg>
-<div class="medical-board-player-layer">
-${items.length ? renderBoardPlayers(items) : `<div class="medical-board-empty">No player program is active on the board.</div>`}
-</div>
+${items.length ? items.map(renderBoardView).join("") : `<div class="medical-board-empty">No player program is active on the board.</div>`}
 </div>
 <footer>
-<span><b>${fullyUnavailable}</b> unavailable</span>
-<span><b>${modified}</b> modified</span>
-<span><b>${items.length - fullyUnavailable - modified}</b> full / monitoring</span>
+${renderFooterOptions()}
 </footer>
 </article>
 `;
@@ -353,6 +401,7 @@ ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medica
   const renderRtpProgramsWorkspace = (summary = {}) => {
     const playerItems = getProgramPlayerItems(summary);
     const boardItems = getBoardItems(summary);
+    const selectedPlanId = boardItems[0]?.plan?.id || "";
     const activePrograms = playerItems.filter((item) => item.plan).length;
     const structuredPrograms = playerItems.filter((item) => item.hasProgramStarter).length;
     return `
@@ -367,7 +416,7 @@ ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medica
 <small>${structuredPrograms} structured</small>
 </header>
 <div class="medical-program-player-list">
-${playerItems.length ? playerItems.map(renderPlayerProgramRow).join("") : `<div class="medical-program-empty">No squad players available.</div>`}
+${playerItems.length ? playerItems.map((item) => renderPlayerProgramRow(item, selectedPlanId)).join("") : `<div class="medical-program-empty">No squad players available.</div>`}
 </div>
 </article>
 ${renderMedicalBoard(boardItems)}

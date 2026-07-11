@@ -187,6 +187,35 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     return true;
   };
 
+  const selectMedicalBoardPlan = (planId) => {
+    const normalizedPlanId = String(planId || "").trim();
+    if (!normalizedPlanId) return false;
+    const views = queryWorkspaceAll(workspaceElement, "[data-medical-board-plan-view]");
+    const hasView = views.some((view) => view.dataset?.medicalBoardPlanView === normalizedPlanId);
+    if (!hasView) return false;
+    views.forEach((view) => {
+      view.hidden = view.dataset?.medicalBoardPlanView !== normalizedPlanId;
+    });
+    queryWorkspaceAll(workspaceElement, "[data-medical-board-name-option]").forEach((node) => {
+      node.hidden = node.dataset?.medicalBoardNameOption !== normalizedPlanId;
+    });
+    queryWorkspaceAll(workspaceElement, "[data-medical-board-meta-option]").forEach((node) => {
+      node.hidden = node.dataset?.medicalBoardMetaOption !== normalizedPlanId;
+    });
+    queryWorkspaceAll(workspaceElement, "[data-medical-board-edit-button]").forEach((button) => {
+      button.hidden = button.dataset?.medicalBoardEditButton !== normalizedPlanId;
+    });
+    queryWorkspaceAll(workspaceElement, "[data-medical-board-footer-option]").forEach((node) => {
+      node.hidden = node.dataset?.medicalBoardFooterOption !== normalizedPlanId;
+    });
+    queryWorkspaceAll(workspaceElement, "[data-medical-select-board-plan]").forEach((row) => {
+      const isSelected = row.dataset?.medicalSelectBoardPlan === normalizedPlanId;
+      row.classList?.toggle?.("is-board-selected", isSelected);
+      row.setAttribute?.("aria-selected", isSelected ? "true" : "false");
+    });
+    return true;
+  };
+
   const getMedicalPlanById = (planId) => {
     const normalizedPlanId = String(planId || "").trim();
     return getMedicalState(state).injuryPlans.find((entry) => entry.id === normalizedPlanId && !actions.isMedicalItemArchived?.(entry)) || null;
@@ -801,6 +830,14 @@ ${renderRtpExerciseCards(profile, 3)}
     if (exerciseOverlay && event.target === exerciseOverlay) {
       event.preventDefault();
       closeMedicalRtpExerciseOverlay();
+      return;
+    }
+    const boardSelectionRow = event.target.closest("[data-medical-select-board-plan]");
+    const boardSelectionInteractive = event.target.closest("button,a,input,textarea,select,[data-medical-edit-injury-plan],[data-medical-create-program]");
+    if (boardSelectionRow && !boardSelectionInteractive) {
+      event.preventDefault();
+      event.stopPropagation();
+      selectMedicalBoardPlan(boardSelectionRow.dataset.medicalSelectBoardPlan);
       return;
     }
     const openBoardButton = event.target.closest("[data-medical-open-board-plan]");

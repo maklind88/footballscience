@@ -631,6 +631,67 @@ test("Medical runtime bindings save player-specific Medical Board drawings and e
   expect(calls).toContainEqual(["render", "Box entry pattern added to Medical Board."]);
 });
 
+test("Medical runtime bindings switch the Medical Board preview from the program list", async () => {
+  const makeBoardNode = (key, hidden = false) => ({
+    hidden,
+    dataset: key,
+  });
+  const makeRow = (planId) => ({
+    dataset: { medicalSelectBoardPlan: planId },
+    attributes: {},
+    classList: {
+      selected: false,
+      toggle(name, value) {
+        if (name === "is-board-selected") this.selected = value;
+      },
+    },
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
+  });
+  const viewOne = makeBoardNode({ medicalBoardPlanView: "plan-1" });
+  const viewTwo = makeBoardNode({ medicalBoardPlanView: "plan-2" }, true);
+  const nameOne = makeBoardNode({ medicalBoardNameOption: "plan-1" });
+  const nameTwo = makeBoardNode({ medicalBoardNameOption: "plan-2" }, true);
+  const metaOne = makeBoardNode({ medicalBoardMetaOption: "plan-1" });
+  const metaTwo = makeBoardNode({ medicalBoardMetaOption: "plan-2" }, true);
+  const editOne = makeBoardNode({ medicalBoardEditButton: "plan-1" });
+  const editTwo = makeBoardNode({ medicalBoardEditButton: "plan-2" }, true);
+  const footerOne = makeBoardNode({ medicalBoardFooterOption: "plan-1" });
+  const footerTwo = makeBoardNode({ medicalBoardFooterOption: "plan-2" }, true);
+  const rowOne = makeRow("plan-1");
+  const rowTwo = makeRow("plan-2");
+  const { workspace } = createHarness({
+    configureWorkspace: (targetWorkspace) => {
+      targetWorkspace.nodesBySelector["[data-medical-board-plan-view]"] = [viewOne, viewTwo];
+      targetWorkspace.nodesBySelector["[data-medical-board-name-option]"] = [nameOne, nameTwo];
+      targetWorkspace.nodesBySelector["[data-medical-board-meta-option]"] = [metaOne, metaTwo];
+      targetWorkspace.nodesBySelector["[data-medical-board-edit-button]"] = [editOne, editTwo];
+      targetWorkspace.nodesBySelector["[data-medical-board-footer-option]"] = [footerOne, footerTwo];
+      targetWorkspace.nodesBySelector["[data-medical-select-board-plan]"] = [rowOne, rowTwo];
+    },
+  });
+
+  workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-select-board-plan]": rowTwo },
+  })));
+
+  expect(viewOne.hidden).toBe(true);
+  expect(viewTwo.hidden).toBe(false);
+  expect(nameOne.hidden).toBe(true);
+  expect(nameTwo.hidden).toBe(false);
+  expect(metaOne.hidden).toBe(true);
+  expect(metaTwo.hidden).toBe(false);
+  expect(editOne.hidden).toBe(true);
+  expect(editTwo.hidden).toBe(false);
+  expect(footerOne.hidden).toBe(true);
+  expect(footerTwo.hidden).toBe(false);
+  expect(rowOne.classList.selected).toBe(false);
+  expect(rowTwo.classList.selected).toBe(true);
+  expect(rowOne.attributes["aria-selected"]).toBe("false");
+  expect(rowTwo.attributes["aria-selected"]).toBe("true");
+});
+
 test("Medical runtime bindings filter RTP Library by structured clinical search domains", () => {
   const hamstringCard = {
     hidden: false,

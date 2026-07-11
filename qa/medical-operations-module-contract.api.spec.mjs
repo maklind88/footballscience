@@ -151,6 +151,8 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(casesMarkup).toContain("Load focus");
   expect(casesMarkup).toContain("Risk watch");
   expect(casesMarkup).toContain("Warning point");
+  expect(casesMarkup.indexOf("medical-ops-cases-table")).toBeLessThan(casesMarkup.indexOf("RTP Starter Queue"));
+  expect(casesMarkup.indexOf("medical-ops-cases-table")).toBeLessThan(casesMarkup.indexOf("Active player RTP programs"));
   const programsMarkup = renderer.renderPrivateSystem(summary, "programs", "2026-05-31");
   expect(programsMarkup).toContain("medical-rtp-programs-workspace");
   expect(programsMarkup).not.toContain("medical-rtp-programs-stats");

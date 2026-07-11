@@ -368,8 +368,6 @@ ${summary.signals
 
   const renderCases = (summary) => `
 <div class="medical-rtp-case-layout">
-${rtpProgramRenderer.renderRtpCaseProgramCards(summary)}
-${renderCaseRtpStarterLinker(summary)}
 <div class="medical-ops-table medical-ops-cases-table">
 <div class="medical-ops-table-head" aria-hidden="true">
 <span>Player</span>
@@ -394,6 +392,8 @@ ${summary.activeCases.length
       .join("")
   : `<div class="medical-empty-inline">No active clinical cases today.</div>`}
 </div>
+${rtpProgramRenderer.renderRtpCaseProgramCards(summary)}
+${renderCaseRtpStarterLinker(summary)}
 </div>
 `;
 

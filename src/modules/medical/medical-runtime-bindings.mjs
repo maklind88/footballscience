@@ -787,6 +787,15 @@ ${renderRtpExerciseCards(profile, 3)}
       actions.openMedicalPlayerModal?.(selectPlayerCard.dataset.medicalSelectPlayer);
       return;
     }
+    const createProgramButton = event.target.closest("[data-medical-create-program]");
+    if (createProgramButton && canEdit()) {
+      const playerId = createProgramButton.dataset.medicalCreateProgram;
+      setStateValue(state, "MedicalSelectedPlayerId", playerId);
+      setStateValue(state, "MedicalPlayerModalOpen", true);
+      setStateValue(state, "MedicalPlayerModalTab", "plan");
+      renderWorkspace("Medical Plan ready.");
+      return;
+    }
     const shiftDateButton = event.target.closest("[data-medical-shift-date]");
     if (shiftDateButton) {
       actions.shiftMedicalSelectedDate?.(Number(shiftDateButton.dataset.medicalShiftDate) || 0);

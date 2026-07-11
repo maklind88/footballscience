@@ -26,9 +26,23 @@ test("Medical operations renderer owns operations tabs, private system, and coac
     drivers: [{ label: "75% recommendation", severity: 2 }],
     activePlan: null,
   };
+  const clearSignal = {
+    player: { id: "p3", name: "Clear Player", position: "GK" },
+    record: null,
+    status: { label: "Not set" },
+    trailing: { average: null, records: [] },
+    actionTone: "clear",
+    tone: "clear",
+    actionLabel: "No action",
+    primaryActionDriver: "No action required",
+    actionSeverity: 0,
+    label: "Clear",
+    drivers: [],
+    activePlan: null,
+  };
   const summary = {
     actionSignals: [signal],
-    signals: [signal],
+    signals: [signal, clearSignal],
     activeCases: [
       {
         player: signal.player,
@@ -93,6 +107,7 @@ test("Medical operations renderer owns operations tabs, private system, and coac
       topPlayerDays: [],
     },
   };
+  signal.activePlan = summary.activeCases[0].plan;
   const renderer = createMedicalOperationsRenderer({
     escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
     formatMedicalDateLabel: () => "31 May",
@@ -155,6 +170,22 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(casesMarkup.indexOf("medical-ops-cases-table")).toBeLessThan(casesMarkup.indexOf("Active player RTP programs"));
   const programsMarkup = renderer.renderPrivateSystem(summary, "programs", "2026-05-31");
   expect(programsMarkup).toContain("medical-rtp-programs-workspace");
+  expect(programsMarkup).toContain("medical-programs-layout");
+  expect(programsMarkup).toContain("Player programs");
+  expect(programsMarkup).toContain("1 active / 2 squad players");
+  expect(programsMarkup).toContain("Medical Board");
+  expect(programsMarkup).toContain("2 active programs");
+  expect(programsMarkup).toContain("medical-board-surface");
+  expect(programsMarkup).toContain("Mak Player");
+  expect(programsMarkup).toContain("Clear Player");
+  expect(programsMarkup).toContain("Hamstring Strain");
+  expect(programsMarkup).toContain("Return to train");
+  expect(programsMarkup).toContain('data-medical-edit-injury-plan="plan-1"');
+  expect(programsMarkup).toContain('data-medical-edit-injury-plan="plan-2"');
+  expect(programsMarkup).toContain('data-medical-create-program="p3"');
+  expect(programsMarkup).toContain("medical-board-pitch-lines");
+  expect(programsMarkup).toContain("medical-board-player");
+  expect(programsMarkup).not.toContain("medical-rtp-program-guide-loader");
   expect(programsMarkup).not.toContain("medical-rtp-programs-stats");
   expect(programsMarkup).not.toContain("Program starters");
   expect(programsMarkup).not.toContain("medical-rtp-program-activation");

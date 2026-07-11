@@ -3338,6 +3338,11 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(operations).toContainText("Review overdue");
   await expect(operations).toContainText("1/3 sign-off");
 
+  await operationsMenu.locator('[data-medical-ops-tab="programs"]').click();
+  await expect(operations.locator(".medical-programs-layout")).toBeVisible();
+  await expect(operations.locator(".medical-program-list-panel")).toContainText("QA Long Term ACL");
+  await expect(operations.locator(".medical-program-board-card")).toContainText("Medical Board");
+
   await operationsMenu.locator('[data-medical-ops-tab="history"]').click();
   await expect(operations).toContainText("Case opened");
   await expect(operations).toContainText("Recommendation");

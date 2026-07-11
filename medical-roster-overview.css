@@ -5,6 +5,425 @@
   min-width: 0;
 }
 
+.medical-programs-workspace {
+  display: block;
+}
+
+.medical-programs-layout {
+  display: grid;
+  grid-template-columns: minmax(20rem, 0.92fr) minmax(24rem, 1.08fr);
+  gap: 0.82rem;
+  align-items: stretch;
+}
+
+.medical-program-list-panel,
+.medical-program-board-card {
+  min-width: 0;
+  border: 1px solid rgba(15, 35, 27, 0.08);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(243, 250, 247, 0.9));
+  box-shadow: 0 16px 34px rgba(12, 24, 20, 0.065);
+}
+
+.medical-program-list-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.medical-program-list-panel > header,
+.medical-program-board-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.72rem;
+  padding: 0.82rem;
+  border-bottom: 1px solid rgba(15, 35, 27, 0.07);
+}
+
+.medical-program-list-panel > header div,
+.medical-program-board-card > header div {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.medical-program-list-panel > header span,
+.medical-program-board-card > header span {
+  color: #176449;
+  font-size: 0.66rem;
+  font-weight: 950;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.medical-program-list-panel > header strong,
+.medical-program-board-card > header strong {
+  color: #10231b;
+  font-size: 1.04rem;
+  line-height: 1.05;
+}
+
+.medical-program-list-panel > header small {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  padding: 0.28rem 0.48rem;
+  border-radius: 999px;
+  background: rgba(47, 143, 107, 0.1);
+  color: #176449;
+  font-size: 0.66rem;
+  font-weight: 950;
+}
+
+.medical-program-board-card > header button {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.52rem 0.8rem;
+  background: #10231b;
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.medical-program-player-list {
+  display: grid;
+  align-content: start;
+  gap: 0.48rem;
+  max-height: min(64vh, 44rem);
+  overflow: auto;
+  padding: 0.64rem;
+}
+
+.medical-program-player-row {
+  display: grid;
+  grid-template-columns: minmax(11rem, 1fr) minmax(10rem, 1.1fr) minmax(9rem, 0.84fr) auto;
+  align-items: center;
+  gap: 0.58rem;
+  min-width: 0;
+  padding: 0.62rem;
+  border: 1px solid rgba(15, 35, 27, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.medical-program-player-row-unavailable {
+  border-color: rgba(239, 68, 68, 0.2);
+  background: linear-gradient(135deg, rgba(254, 242, 242, 0.94), rgba(255, 255, 255, 0.92));
+}
+
+.medical-program-player-row-modified {
+  border-color: rgba(245, 158, 11, 0.22);
+  background: linear-gradient(135deg, rgba(255, 251, 235, 0.94), rgba(255, 255, 255, 0.92));
+}
+
+.medical-program-player-row-full {
+  border-color: rgba(34, 197, 94, 0.18);
+}
+
+.medical-program-player-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.medical-program-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  background: #10231b;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 950;
+}
+
+.medical-program-player-identity span:last-child,
+.medical-program-player-case,
+.medical-program-player-window {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.medical-program-player-identity strong,
+.medical-program-player-case strong,
+.medical-program-player-window strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #10231b;
+  font-size: 0.78rem;
+  font-weight: 950;
+  line-height: 1.12;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-program-player-identity small,
+.medical-program-player-case small,
+.medical-program-player-window small {
+  min-width: 0;
+  overflow: hidden;
+  color: #5c6a64;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.16;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-program-row-action {
+  justify-self: end;
+  border: 1px solid rgba(16, 35, 27, 0.12);
+  border-radius: 8px;
+  padding: 0.48rem 0.68rem;
+  background: #10231b;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 950;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.medical-program-row-action-secondary {
+  background: rgba(255, 255, 255, 0.9);
+  color: #10231b;
+}
+
+.medical-program-empty {
+  border: 1px dashed rgba(15, 35, 27, 0.16);
+  border-radius: 8px;
+  padding: 0.9rem;
+  color: #5c6a64;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.medical-program-board-card {
+  display: grid;
+  grid-template-rows: auto minmax(18rem, 1fr) auto;
+  overflow: hidden;
+}
+
+.medical-board-surface {
+  position: relative;
+  min-height: 27rem;
+  margin: 0.72rem;
+  overflow: hidden;
+  border: 1px solid rgba(7, 95, 78, 0.18);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.16), transparent 34%),
+    linear-gradient(90deg, rgba(6, 78, 59, 0.95), rgba(15, 118, 110, 0.9));
+}
+
+.medical-board-pitch {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.medical-board-surface .session-pitch-touchline,
+.medical-board-surface .session-pitch-halfway-line,
+.medical-board-surface .session-pitch-centre-circle,
+.medical-board-surface .session-pitch-box,
+.medical-board-surface .session-pitch-goal-area,
+.medical-board-surface .session-pitch-goal {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.62);
+  stroke-width: 0.38;
+  vector-effect: non-scaling-stroke;
+}
+
+.medical-board-surface .session-pitch-centre-spot,
+.medical-board-surface .session-pitch-penalty-spot {
+  fill: rgba(255, 255, 255, 0.72);
+  stroke: none;
+}
+
+.medical-board-shape-zone {
+  opacity: 0.12;
+}
+
+.medical-board-shape-dashed-zone {
+  opacity: 0.55;
+}
+
+.medical-board-shape-arrow {
+  opacity: 0.78;
+}
+
+.medical-board-shape-hit-target,
+.medical-board-shape-shape-hit-target {
+  display: none;
+}
+
+.medical-board-player-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.medical-board-player {
+  position: absolute;
+  left: var(--medical-board-x);
+  top: var(--medical-board-y);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.34rem;
+  min-width: 8.8rem;
+  max-width: 13rem;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 999px;
+  padding: 0.24rem 0.44rem 0.24rem 0.24rem;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 22px rgba(2, 44, 34, 0.2);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.medical-board-player-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.72rem;
+  height: 1.72rem;
+  border-radius: 999px;
+  background: #10231b;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 950;
+}
+
+.medical-board-player-label {
+  display: grid;
+  gap: 0.02rem;
+  min-width: 0;
+  text-align: left;
+}
+
+.medical-board-player-label strong,
+.medical-board-player-label small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-board-player-label strong {
+  color: #10231b;
+  font-size: 0.66rem;
+  font-weight: 950;
+}
+
+.medical-board-player-label small {
+  color: #5c6a64;
+  font-size: 0.58rem;
+  font-weight: 850;
+}
+
+.medical-board-player-unavailable .medical-board-player-dot {
+  background: #991b1b;
+}
+
+.medical-board-player-modified .medical-board-player-dot {
+  background: #92400e;
+}
+
+.medical-board-player-full .medical-board-player-dot {
+  background: #166534;
+}
+
+.medical-board-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(18rem, calc(100% - 2rem));
+  border-radius: 8px;
+  padding: 0.86rem;
+  background: rgba(255, 255, 255, 0.9);
+  color: #10231b;
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.medical-program-board-card > footer {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0 0.72rem 0.72rem;
+}
+
+.medical-program-board-card > footer span {
+  min-width: 0;
+  border: 1px solid rgba(15, 35, 27, 0.08);
+  border-radius: 8px;
+  padding: 0.54rem 0.62rem;
+  background: rgba(255, 255, 255, 0.78);
+  color: #5c6a64;
+  font-size: 0.7rem;
+  font-weight: 850;
+}
+
+.medical-program-board-card > footer b {
+  display: block;
+  color: #10231b;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+body.is-dark-mode .medical-program-list-panel,
+body.is-dark-mode .medical-program-board-card,
+body.is-dark-mode .medical-program-player-row,
+body.is-dark-mode .medical-program-board-card > footer span,
+body.is-dark-mode .medical-program-empty {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+body.is-dark-mode .medical-program-list-panel > header strong,
+body.is-dark-mode .medical-program-board-card > header strong,
+body.is-dark-mode .medical-program-player-identity strong,
+body.is-dark-mode .medical-program-player-case strong,
+body.is-dark-mode .medical-program-player-window strong,
+body.is-dark-mode .medical-program-board-card > footer b,
+body.is-dark-mode .medical-program-empty {
+  color: #f8fafc;
+}
+
+body.is-dark-mode .medical-program-player-identity small,
+body.is-dark-mode .medical-program-player-case small,
+body.is-dark-mode .medical-program-player-window small,
+body.is-dark-mode .medical-program-board-card > footer span {
+  color: #cbd5e1;
+}
+
+@media (max-width: 1020px) {
+  .medical-programs-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .medical-program-player-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .medical-program-row-action {
+    justify-self: stretch;
+  }
+
+  .medical-board-surface {
+    min-height: 22rem;
+  }
+}
+
 .medical-availability-workspace {
   display: grid;
   gap: 0.72rem;

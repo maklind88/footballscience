@@ -197,7 +197,11 @@ ${suggestedProfiles
 `;
   };
 
-  const rtpProgramWorkspaceRenderer = createMedicalRtpProgramWorkspaceRenderer();
+  const rtpProgramWorkspaceRenderer = createMedicalRtpProgramWorkspaceRenderer({
+    escapeHtml,
+    formatMedicalDateLabel,
+    getMedicalRtpPhaseOption,
+  });
 
   const renderPrograms = (summary) => rtpProgramWorkspaceRenderer.renderRtpProgramsWorkspace(summary);
 

@@ -289,7 +289,6 @@ ${renderJump("37 sections", "full-guide")}
   const renderRtpGoldStandardSections = (sections = []) => `
 <section class="medical-rtp-gold-standard-sections" aria-label="Gold Standard RTP profile sections">
 <header>
-<span>Gold Standard Template</span>
 <strong>${sections.length} sections</strong>
 </header>
 ${sections

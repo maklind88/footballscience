@@ -3389,7 +3389,7 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(rtpModal).toContainText("Quick Summary");
   await expect(rtpModal).toContainText("Medical-safe Evidence");
   await expect(rtpModal).toContainText("Next field exposure");
-  await expect(rtpModal).toContainText("Gold Standard Template");
+  await expect(rtpModal).not.toContainText("Gold Standard Template");
   await expect(rtpModal).toContainText("37 sections");
   await expect(rtpModal).toContainText("Club-neutral knowledge");
   await expect(rtpModal).toContainText("To build a player program");

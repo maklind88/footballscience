@@ -434,7 +434,7 @@ test("Medical runtime bindings open and close RTP Library profile overlays", () 
   expect(content.innerHTML).toContain("Next field exposure");
   expect(content.innerHTML).toContain("Exercise Bank starters");
   expect(content.innerHTML).toContain("Nordic hamstring progression");
-  expect(content.innerHTML).toContain("Gold Standard Template");
+  expect(content.innerHTML).not.toContain("Gold Standard Template");
   expect(content.innerHTML).toContain("37 sections");
   expect(content.innerHTML).toContain('data-medical-rtp-profile-jump="medical-rtp-hamstring-strain-full-guide"');
   expect(content.innerHTML).toContain("RTP Risk Score");

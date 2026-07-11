@@ -661,7 +661,7 @@ test("Medical runtime bindings switch the Medical Board preview from the program
   const footerTwo = makeBoardNode({ medicalBoardFooterOption: "plan-2" }, true);
   const rowOne = makeRow("plan-1");
   const rowTwo = makeRow("plan-2");
-  const { workspace } = createHarness({
+  const { mutable, workspace } = createHarness({
     configureWorkspace: (targetWorkspace) => {
       targetWorkspace.nodesBySelector["[data-medical-board-plan-view]"] = [viewOne, viewTwo];
       targetWorkspace.nodesBySelector["[data-medical-board-name-option]"] = [nameOne, nameTwo];
@@ -690,6 +690,7 @@ test("Medical runtime bindings switch the Medical Board preview from the program
   expect(rowTwo.classList.selected).toBe(true);
   expect(rowOne.attributes["aria-selected"]).toBe("false");
   expect(rowTwo.attributes["aria-selected"]).toBe("true");
+  expect(mutable.medicalState.selectedMedicalBoardPlanId).toBe("plan-2");
 });
 
 test("Medical runtime bindings filter RTP Library by structured clinical search domains", () => {

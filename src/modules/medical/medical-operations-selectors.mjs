@@ -343,6 +343,7 @@ export function createMedicalOperationsSelectors({
   }
 
   function getMedicalOperationsSummary(dateValue = getSelectedDate()) {
+    const state = getState();
     const signals = getMedicalRiskSignals(dateValue);
     const actionSignals = signals.filter((signal) => signal.actionSeverity > 0);
     const activeCases = getMedicalActiveCaseItems(dateValue);
@@ -359,6 +360,7 @@ export function createMedicalOperationsSelectors({
       actionRequired,
       actualMissing,
       season: getMedicalSeasonSummary(dateValue),
+      selectedMedicalBoardPlanId: state.selectedMedicalBoardPlanId || "",
     };
   }
 

@@ -206,14 +206,15 @@ ${element.type === "cone" ? `<i aria-hidden="true"></i>` : ""}
 `;
   };
 
-  const renderBoardView = (item, index = 0) => {
+  const renderBoardView = (item, selectedPlanId = "", index = 0) => {
     const { player = {}, plan = {} } = item;
+    const isSelected = selectedPlanId ? plan.id === selectedPlanId : index === 0;
     const markerId = `medical-board-preview-arrow-${String(plan.id).replace(/[^a-z0-9_-]/giu, "-")}`;
     const elements = getMedicalBoardElements(plan);
     const svgElements = elements.map((element) => renderMedicalBoardPreviewElement(element, markerId)).join("");
     const htmlMarkers = elements.map(renderMedicalBoardPreviewMarker).join("");
     return `
-<div class="medical-board-plan-view" data-medical-board-plan-view="${escapeHtml(plan.id)}" ${index ? "hidden" : ""}>
+<div class="medical-board-plan-view" data-medical-board-plan-view="${escapeHtml(plan.id)}" ${isSelected ? "" : "hidden"}>
 <svg class="medical-board-plan-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
 <defs>${renderTacticalBoardArrowMarkerDef(markerId, { escapeHtml })}</defs>
 <g class="medical-board-tactical-layer">${svgElements}</g>
@@ -226,25 +227,34 @@ ${renderBoardPlayer({ player, plan })}
 `;
   };
 
-  const renderMedicalBoard = (items) => {
+  const renderMedicalBoard = (items, selectedPlanId = "") => {
     const renderNameOptions = () =>
       items.length
-        ? items.map(({ player, plan }, index) => `
-<strong data-medical-board-name-option="${escapeHtml(plan.id)}" ${index ? "hidden" : ""}>${escapeHtml(player.name || "Player")}</strong>
-<small data-medical-board-meta-option="${escapeHtml(plan.id)}" ${index ? "hidden" : ""}>${escapeHtml([player.position, plan.injuryType, `${Number(plan.participation ?? 0)}%`, getMedicalRtpPhaseOption(plan.rtpPhase).label].filter(Boolean).join(" / "))}</small>
-`).join("")
+        ? items.map(({ player, plan }, index) => {
+          const isSelected = selectedPlanId ? plan.id === selectedPlanId : index === 0;
+          return `
+<strong data-medical-board-name-option="${escapeHtml(plan.id)}" ${isSelected ? "" : "hidden"}>${escapeHtml(player.name || "Player")}</strong>
+<small data-medical-board-meta-option="${escapeHtml(plan.id)}" ${isSelected ? "" : "hidden"}>${escapeHtml([player.position, plan.injuryType, `${Number(plan.participation ?? 0)}%`, getMedicalRtpPhaseOption(plan.rtpPhase).label].filter(Boolean).join(" / "))}</small>
+`;
+        }
+        )
+        .join("")
         : `<strong>Select a player</strong><small>Open a medical program from the list</small>`;
     const renderEditButtons = () =>
-      items.map(({ player, plan }, index) => `
-<button type="button" data-medical-board-edit-button="${escapeHtml(plan.id)}" data-medical-open-board-plan="${escapeHtml(plan.id)}" ${index ? "hidden" : ""}>Edit</button>
-`).join("");
+      items.map(({ plan }, index) => {
+        const isSelected = selectedPlanId ? plan.id === selectedPlanId : index === 0;
+        return `
+<button type="button" data-medical-board-edit-button="${escapeHtml(plan.id)}" data-medical-open-board-plan="${escapeHtml(plan.id)}" ${isSelected ? "" : "hidden"}>Edit</button>
+`;
+      }).join("");
     const renderFooterOptions = () =>
       items.length
         ? items.map(({ plan }, index) => {
+          const isSelected = selectedPlanId ? plan.id === selectedPlanId : index === 0;
           const participation = Number(plan.participation ?? 0);
           const phaseLabel = getMedicalRtpPhaseOption(plan.rtpPhase).label;
           return `
-<div class="medical-board-footer-view" data-medical-board-footer-option="${escapeHtml(plan.id)}" ${index ? "hidden" : ""}>
+<div class="medical-board-footer-view" data-medical-board-footer-option="${escapeHtml(plan.id)}" ${isSelected ? "" : "hidden"}>
 <span><b>${getMedicalBoardElements(plan).length}</b> board items</span>
 <span><b>${getMedicalBoardExercises(plan).length}</b> exercises</span>
 <span><b>${Number.isFinite(participation) ? participation : 0}%</b> ${escapeHtml(phaseLabel)}</span>
@@ -265,7 +275,7 @@ ${renderNameOptions()}
 <svg class="medical-board-pitch" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
 ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medical-board-pitch-lines", ariaLabel: "Medical board pitch" })}
 </svg>
-${items.length ? items.map(renderBoardView).join("") : `<div class="medical-board-empty">No player program is active on the board.</div>`}
+${items.length ? items.map((item, index) => renderBoardView(item, selectedPlanId, index)).join("") : `<div class="medical-board-empty">No player program is active on the board.</div>`}
 </div>
 <footer>
 ${renderFooterOptions()}
@@ -401,7 +411,10 @@ ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medica
   const renderRtpProgramsWorkspace = (summary = {}) => {
     const playerItems = getProgramPlayerItems(summary);
     const boardItems = getBoardItems(summary);
-    const selectedPlanId = boardItems[0]?.plan?.id || "";
+    const requestedSelectedPlanId = String(summary.selectedMedicalBoardPlanId || "");
+    const selectedPlanId = boardItems.some((item) => item.plan?.id === requestedSelectedPlanId)
+      ? requestedSelectedPlanId
+      : boardItems[0]?.plan?.id || "";
     const activePrograms = playerItems.filter((item) => item.plan).length;
     const structuredPrograms = playerItems.filter((item) => item.hasProgramStarter).length;
     return `
@@ -419,7 +432,7 @@ ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medica
 ${playerItems.length ? playerItems.map((item) => renderPlayerProgramRow(item, selectedPlanId)).join("") : `<div class="medical-program-empty">No squad players available.</div>`}
 </div>
 </article>
-${renderMedicalBoard(boardItems)}
+${renderMedicalBoard(boardItems, selectedPlanId)}
 </section>
 ${renderMedicalBoardEditorOverlays(boardItems)}
 </div>

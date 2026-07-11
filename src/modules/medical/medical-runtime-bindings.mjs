@@ -193,6 +193,7 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     const views = queryWorkspaceAll(workspaceElement, "[data-medical-board-plan-view]");
     const hasView = views.some((view) => view.dataset?.medicalBoardPlanView === normalizedPlanId);
     if (!hasView) return false;
+    getMedicalState(state).selectedMedicalBoardPlanId = normalizedPlanId;
     views.forEach((view) => {
       view.hidden = view.dataset?.medicalBoardPlanView !== normalizedPlanId;
     });
@@ -844,7 +845,9 @@ ${renderRtpExerciseCards(profile, 3)}
     if (openBoardButton) {
       event.preventDefault();
       event.stopPropagation();
-      openMedicalBoardEditorOverlay(openBoardButton.dataset.medicalOpenBoardPlan);
+      const planId = openBoardButton.dataset.medicalOpenBoardPlan;
+      selectMedicalBoardPlan(planId);
+      openMedicalBoardEditorOverlay(planId);
       return;
     }
     const closeBoardButton = event.target.closest("[data-medical-close-board-editor]");

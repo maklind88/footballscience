@@ -615,15 +615,15 @@ ${renderActionIcon("pencil")}
 `
           : ""
       }
-      <span class="periodization-day-topline">
+      <span class="periodization-day-topline"${matchDayLabel ? ` style="grid-row:1"` : ""}>
         <strong>${escapeHtml(date.toLocaleDateString("en-US", { weekday: "short" }))}</strong>
         <span>${date.getDate()}</span>
       </span>
-      <span class="periodization-day-main${dayScheduleLabel ? "" : " is-empty"}">
+      <span class="periodization-day-main${dayScheduleLabel ? "" : " is-empty"}"${matchDayLabel ? ` style="grid-row:2"` : ""}>
         ${escapeHtml(dayScheduleLabel)}
       </span>
-      ${matchDayLabel ? `<span><i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i></span>` : ""}
-      <span class="periodization-day-details">
+      ${matchDayLabel ? `<span class="periodization-day-md-row" style="grid-row:3"><i class="periodization-day-md">${escapeHtml(matchDayLabel)}</i></span>` : ""}
+      <span class="periodization-day-details"${matchDayLabel ? ` style="grid-row:4"` : ""}>
         ${renderCardDetail("Video", escapeHtml(preTrainingVideoLabel))}
         ${renderCardDetail("Phase", escapeHtml(phaseLabel))}
         ${renderCardDetail("Load", renderLoadMeter(loadLabel), "is-load")}

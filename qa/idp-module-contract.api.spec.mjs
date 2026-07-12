@@ -204,7 +204,7 @@ test("idp player board interventions remain server-owned and isolated from Sessi
   expect(read("src/modules/session-planner/session-planner-workspace-controller.mjs")).not.toContain("idpPlayerBoard");
 });
 
-test("idp player board tactical modal places objects from canvas coordinates without page repainting transient state", () => {
+test("idp player board tactical modal places objects from single-click canvas coordinates without page repainting transient state", () => {
   const rootListeners = {};
   const windowListeners = {};
   const canvasRect = { left: 100, top: 200, width: 400, height: 600 };
@@ -272,30 +272,101 @@ test("idp player board tactical modal places objects from canvas coordinates wit
   expect(store.getState().ui.idpPlayerBoardSelectionState).toBeNull();
   expect(setStateCalls).toBe(0);
 
-  const doubleClickEvent = {
-    target: canvas,
-    clientX: 260,
-    clientY: 440,
-    preventDefault() {
-      this.defaultPrevented = true;
-    },
-    stopPropagation() {
-      this.propagationStopped = true;
-    },
-  };
-  rootListeners.dblclick(doubleClickEvent);
+  windowListeners.pointerup({});
 
   expect(store.getState().playerDetail.interventions).toHaveLength(0);
   expect(setStateCalls).toBe(0);
 
   const draftPayload = persistIdpPlayerBoardDraft(runtime);
   const placedElement = draftPayload?.boardState?.tacticalElements?.[0];
-  expect(doubleClickEvent.defaultPrevented).toBe(true);
-  expect(doubleClickEvent.propagationStopped).toBe(true);
   expect(placedElement?.type).toBe("red-player");
-  expect(placedElement?.x).toBe(40);
-  expect(placedElement?.y).toBe(40);
+  expect(placedElement?.x).toBe(30);
+  expect(placedElement?.y).toBe(30);
   expect(store.getState().playerDetail.interventions[0]?.boardState?.tacticalElements?.[0]?.type).toBe("red-player");
+  expect(setStateCalls).toBe(1);
+});
+
+test("idp player board tactical modal draws line tools from canvas coordinates without page repainting transient state", () => {
+  const rootListeners = {};
+  const windowListeners = {};
+  const canvasRect = { left: 100, top: 200, width: 400, height: 600 };
+  const canvas = {
+    getBoundingClientRect: () => canvasRect,
+    closest: (selector) => selector === "[data-session-tactical-canvas]" ? canvas : null,
+  };
+  const canvasWrap = { innerHTML: "" };
+  const root = {
+    addEventListener: (type, listener) => {
+      rootListeners[type] = listener;
+    },
+    removeEventListener: () => {},
+    querySelector: (selector) => selector === "[data-session-tactical-canvas-wrap]" ? canvasWrap : null,
+    querySelectorAll: () => [],
+  };
+  const store = createIdpStore({
+    ui: {
+      idpPlayerBoardOpen: true,
+      idpPlayerBoardTool: "pass",
+      idpPlayerBoardSnapEnabled: false,
+    },
+    playerDetail: {
+      profile: { playerId: "player-1", playerName: "Test Player" },
+      focuses: [{ id: "focus-1", title: "Current focus", status: "active" }],
+      interventions: [],
+    },
+  });
+  const originalSetState = store.setState;
+  let setStateCalls = 0;
+  store.setState = (patch) => {
+    setStateCalls += 1;
+    originalSetState(patch);
+  };
+  const runtime = {
+    context: {
+      canEdit: () => true,
+      ui: { idpWorkspace: root },
+      win: {
+        addEventListener: (type, listener) => {
+          windowListeners[type] = listener;
+        },
+        removeEventListener: () => {},
+        document: {},
+        FileReader: class {},
+        Image: class {},
+        prompt: () => "",
+      },
+    },
+    paint: () => {},
+    store,
+  };
+  const clickCanvas = (clientX, clientY) => {
+    rootListeners.pointerdown({
+      target: canvas,
+      clientX,
+      clientY,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    windowListeners.pointerup({});
+  };
+
+  bindIdpPlayerBoardEvents(runtime);
+  clickCanvas(220, 380);
+
+  const runtimeUi = getIdpPlayerBoardRuntimeUi(runtime);
+  expect(runtimeUi.idpPlayerBoardPendingPoint).toMatchObject({ type: "pass", x: 30, y: 30 });
+  expect(store.getState().playerDetail.interventions).toHaveLength(0);
+  expect(setStateCalls).toBe(0);
+
+  clickCanvas(300, 500);
+
+  expect(store.getState().playerDetail.interventions).toHaveLength(0);
+  expect(setStateCalls).toBe(0);
+
+  const draftPayload = persistIdpPlayerBoardDraft(runtime);
+  const drawnElement = draftPayload?.boardState?.tacticalElements?.[0];
+  expect(drawnElement).toMatchObject({ type: "pass", x: 30, y: 30, x2: 50, y2: 50 });
+  expect(store.getState().playerDetail.interventions[0]?.boardState?.tacticalElements?.[0]?.type).toBe("pass");
   expect(setStateCalls).toBe(1);
 });
 

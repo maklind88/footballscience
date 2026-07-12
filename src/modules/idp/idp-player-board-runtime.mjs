@@ -533,7 +533,18 @@ function handlePointerMove(event, activeRuntime = {}) {
 
 function handlePointerUp(_event, activeRuntime = {}) {
   if (!activeRuntime.store?.getState?.()?.ui?.idpPlayerBoardOpen) return;
-  getController(activeRuntime).finishSessionPlannerTacticalDrag();
+  const controller = getController(activeRuntime);
+  const runtimeUi = getIdpPlayerBoardRuntimeUi(activeRuntime);
+  const selection = runtimeUi.idpPlayerBoardSelectionState;
+  if (selection?.startPoint && !selection.moved && controller.isSessionPlannerTacticalPlacementTool()) {
+    setLocalState(activeRuntime, { sessionPlannerTacticalSelectionState: null });
+    controller.setSessionPlannerTacticalClickSuppression(true);
+    if (!controller.addSessionPlannerTacticalPlacementElement(selection.startPoint)) {
+      controller.refreshSessionPlannerTacticalboardCanvas();
+    }
+    return;
+  }
+  controller.finishSessionPlannerTacticalDrag();
 }
 
 function handleDoubleClick(event, activeRuntime = {}) {

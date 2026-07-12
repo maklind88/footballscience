@@ -66,6 +66,7 @@ export function createMedicalOperationsSelectors({
   getMedicalRecordStatus = defaultStatus,
   getMedicalRtpPhaseOption = () => ({ label: "Not set" }),
   getMedicalState = () => ({ players: [], records: [], injuryPlans: [] }),
+  getMedicalTodayValue = () => formatDateValue(new Date()),
   getMedicalTrailingRecommendationSummary = () => ({
     records: [],
     modifiedDays: 0,
@@ -84,6 +85,11 @@ export function createMedicalOperationsSelectors({
     return getMedicalState() ?? { players: [], records: [], injuryPlans: [] };
   }
 
+  function getClinicalDateValue() {
+    const todayValue = getMedicalTodayValue();
+    return isMedicalDateValue(todayValue) ? todayValue : formatDateValue(new Date());
+  }
+
   function getMedicalSeasonWindow(dateValue = getSelectedDate()) {
     const selected = isMedicalDateValue(dateValue) ? parseDateValue(dateValue) : new Date();
     const yearStart = new Date(selected.getFullYear(), 0, 1);
@@ -100,7 +106,7 @@ export function createMedicalOperationsSelectors({
     return state.injuryPlans.filter((plan) => !isMedicalItemArchived(plan) && planOverlapsWindow(plan, startDate, endDate));
   }
 
-  function getMedicalActiveCaseItems(dateValue = getSelectedDate()) {
+  function getMedicalActiveCaseItems(dateValue = getClinicalDateValue()) {
     ensureMedicalState();
     const state = getState();
     return state.injuryPlans
@@ -180,7 +186,7 @@ export function createMedicalOperationsSelectors({
       .slice(0, limit);
   }
 
-  function getMedicalSeasonSummary(dateValue = getSelectedDate()) {
+  function getMedicalSeasonSummary(dateValue = getClinicalDateValue()) {
     const state = getState();
     const plans = getMedicalSeasonPlans(dateValue);
     const summary = {
@@ -222,7 +228,7 @@ export function createMedicalOperationsSelectors({
     return summary;
   }
 
-  function getMedicalPlayerRiskSignal(player, dateValue = getSelectedDate()) {
+  function getMedicalPlayerRiskSignal(player, dateValue = getClinicalDateValue()) {
     const record = getLatestMedicalRecord(player.id, dateValue);
     const status = getMedicalRecordStatus(record);
     const activePlan = getActiveMedicalInjuryPlan(player.id, dateValue);
@@ -317,7 +323,7 @@ export function createMedicalOperationsSelectors({
     };
   }
 
-  function getMedicalRiskSignals(dateValue = getSelectedDate()) {
+  function getMedicalRiskSignals(dateValue = getClinicalDateValue()) {
     ensureMedicalState();
     const state = getState();
     return state.players
@@ -344,12 +350,14 @@ export function createMedicalOperationsSelectors({
 
   function getMedicalOperationsSummary(dateValue = getSelectedDate()) {
     const state = getState();
-    const signals = getMedicalRiskSignals(dateValue);
+    const clinicalDate = getClinicalDateValue();
+    const selectedDate = isMedicalDateValue(dateValue) ? dateValue : getSelectedDate();
+    const signals = getMedicalRiskSignals(clinicalDate);
     const actionSignals = signals.filter((signal) => signal.actionSeverity > 0);
-    const activeCases = getMedicalActiveCaseItems(dateValue);
+    const activeCases = getMedicalActiveCaseItems(clinicalDate);
     const clearanceBlockers = activeCases.filter((item) => item.plan.participation >= 100 && !item.clearance.isCleared);
     const actionRequired = actionSignals.length;
-    const actualMissing = getMedicalAvailabilityItems(dateValue).filter(
+    const actualMissing = getMedicalAvailabilityItems(clinicalDate).filter(
       (item) => isMedicalRegularSquadPlayer(item.player) && item.record && item.record.participation > 0 && item.record.actualParticipation === medicalActualParticipationFallback
     ).length;
     return {
@@ -359,7 +367,9 @@ export function createMedicalOperationsSelectors({
       clearanceBlockers,
       actionRequired,
       actualMissing,
-      season: getMedicalSeasonSummary(dateValue),
+      season: getMedicalSeasonSummary(clinicalDate),
+      selectedDate,
+      clinicalDate,
       selectedMedicalBoardPlanId: state.selectedMedicalBoardPlanId || "",
     };
   }

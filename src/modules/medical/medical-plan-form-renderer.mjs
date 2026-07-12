@@ -24,6 +24,7 @@ export function createMedicalPlanFormRenderer({
   getMedicalRtpExercisesForProfile = getDefaultMedicalRtpExercisesForProfile,
   getMedicalRtpLibraryProfiles = getDefaultMedicalRtpLibraryProfiles,
   getSelectedDate,
+  getMedicalClinicalDateValue = getSelectedDate,
   isMedicalPlanCleared,
   medicalClearanceRoles = [],
   medicalInjuryDurationPresets = [],
@@ -451,7 +452,7 @@ ${isEditing ? `<button type="button" class="secondary medical-secondary-button" 
   };
 
   const renderClearanceChecklist = (player, canEdit) => {
-    const plan = getActiveMedicalInjuryPlan(player.id, getSelectedDate()) ?? getMedicalPlayerInjuryPlans(player.id)[0] ?? null;
+    const plan = getActiveMedicalInjuryPlan(player.id, getMedicalClinicalDateValue()) ?? getMedicalPlayerInjuryPlans(player.id)[0] ?? null;
     if (!plan) {
       return `
 <article class="medical-side-card medical-clearance-card">

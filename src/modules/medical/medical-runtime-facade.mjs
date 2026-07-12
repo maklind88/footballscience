@@ -16,6 +16,17 @@ export function createMedicalRuntimeFacade(deps = {}) {
   const safeText = (value, fallback = "") => String(value || "").trim().slice(0, 200) || fallback;
   const normalizePlayerId = (playerId) => safeText(playerId).trim();
 
+  function getMedicalTodayValue() {
+    const todayValue = deps.formatDateValue?.(new Date()) ?? new Date().toISOString().slice(0, 10);
+    return typeof deps.isDateValue === "function" && !deps.isDateValue(todayValue)
+      ? new Date().toISOString().slice(0, 10)
+      : todayValue;
+  }
+
+  function getMedicalClinicalDateValue() {
+    return getMedicalTodayValue();
+  }
+
   function getMedicalAccessLabel(...args) { return method(activitySelectors, "getMedicalAccessLabel", ...args); }
   function getMedicalHeroTeamName(...args) { return method(activitySelectors, "getMedicalHeroTeamName", ...args); }
   function getSelectedMedicalPlayer(...args) { return method(activitySelectors, "getSelectedMedicalPlayer", ...args); }
@@ -135,6 +146,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
     getMedicalRtpPhaseOption: deps.getMedicalRtpPhaseOption,
     getMedicalState,
     getMedicalStatusOptionForDate: deps.getMedicalStatusOptionForDate,
+    getMedicalTodayValue,
     getPlatformStructureState: deps.getPlatformStructureState,
     getPlatformTeamDisplayName: deps.getPlatformTeamDisplayName,
     getRemovedSquadPlayerIdSet: deps.getRemovedSquadPlayerIdSet,
@@ -178,20 +190,20 @@ export function createMedicalRuntimeFacade(deps = {}) {
   function getMedicalCoachHandoverItems(dateValue = getMedicalState()?.selectedDate) { return deps.medicalCommandSelectors.getMedicalCoachHandoverItems(dateValue); }
   function buildMedicalCoachHandoverText(dateValue = getMedicalState()?.selectedDate) { return deps.medicalCommandSelectors.buildMedicalCoachHandoverText(dateValue); }
 
-  function getMedicalPlayerProfileSummary(player, dateValue = getMedicalState()?.selectedDate) { return deps.medicalProfileSummarySelectors.getMedicalPlayerProfileSummary(player, dateValue); }
+  function getMedicalPlayerProfileSummary(player, dateValue = getMedicalClinicalDateValue()) { return deps.medicalProfileSummarySelectors.getMedicalPlayerProfileSummary(player, dateValue); }
   function getMedicalPlanTotalDays(plan) { return deps.medicalPlanSelectors.getMedicalPlanTotalDays(plan); }
-  function getMedicalPlanElapsedDays(plan, dateValue = getMedicalState()?.selectedDate) { return deps.medicalPlanSelectors.getMedicalPlanElapsedDays(plan, dateValue); }
-  function getMedicalPlanDaysRemaining(plan, dateValue = getMedicalState()?.selectedDate) { return deps.medicalPlanSelectors.getMedicalPlanDaysRemaining(plan, dateValue); }
+  function getMedicalPlanElapsedDays(plan, dateValue = getMedicalClinicalDateValue()) { return deps.medicalPlanSelectors.getMedicalPlanElapsedDays(plan, dateValue); }
+  function getMedicalPlanDaysRemaining(plan, dateValue = getMedicalClinicalDateValue()) { return deps.medicalPlanSelectors.getMedicalPlanDaysRemaining(plan, dateValue); }
   function getMedicalPlanSeverity(plan) { return deps.medicalPlanSelectors.getMedicalPlanSeverity(plan); }
   function getMedicalPlanClearanceSummary(plan) { return deps.medicalPlanSelectors.getMedicalPlanClearanceSummary(plan); }
-  function getMedicalPlanReviewState(plan, dateValue = getMedicalState()?.selectedDate) { return deps.medicalPlanSelectors.getMedicalPlanReviewState(plan, dateValue); }
+  function getMedicalPlanReviewState(plan, dateValue = getMedicalClinicalDateValue()) { return deps.medicalPlanSelectors.getMedicalPlanReviewState(plan, dateValue); }
   function getMedicalTrailingRecommendationSummary(playerId, dateValue = getMedicalState()?.selectedDate) { return deps.medicalPlanSelectors.getMedicalTrailingRecommendationSummary(playerId, dateValue); }
-  function getMedicalSeasonPlans(dateValue = getMedicalState()?.selectedDate) { return deps.medicalOperationsSelectors.getMedicalSeasonPlans(dateValue); }
-  function getMedicalActiveCaseItems(dateValue = getMedicalState()?.selectedDate) { return deps.medicalOperationsSelectors.getMedicalActiveCaseItems(dateValue); }
+  function getMedicalSeasonPlans(dateValue = getMedicalClinicalDateValue()) { return deps.medicalOperationsSelectors.getMedicalSeasonPlans(dateValue); }
+  function getMedicalActiveCaseItems(dateValue = getMedicalClinicalDateValue()) { return deps.medicalOperationsSelectors.getMedicalActiveCaseItems(dateValue); }
   function getMedicalHistoryEvents(limit = 40) { return deps.medicalOperationsSelectors.getMedicalHistoryEvents(limit); }
-  function getMedicalSeasonSummary(dateValue = getMedicalState()?.selectedDate) { return deps.medicalOperationsSelectors.getMedicalSeasonSummary(dateValue); }
-  function getMedicalPlayerRiskSignal(player, dateValue = getMedicalState()?.selectedDate) { return deps.medicalOperationsSelectors.getMedicalPlayerRiskSignal(player, dateValue); }
-  function getMedicalRiskSignals(dateValue = getMedicalState()?.selectedDate) { return deps.medicalOperationsSelectors.getMedicalRiskSignals(dateValue); }
+  function getMedicalSeasonSummary(dateValue = getMedicalClinicalDateValue()) { return deps.medicalOperationsSelectors.getMedicalSeasonSummary(dateValue); }
+  function getMedicalPlayerRiskSignal(player, dateValue = getMedicalClinicalDateValue()) { return deps.medicalOperationsSelectors.getMedicalPlayerRiskSignal(player, dateValue); }
+  function getMedicalRiskSignals(dateValue = getMedicalClinicalDateValue()) { return deps.medicalOperationsSelectors.getMedicalRiskSignals(dateValue); }
   function getMedicalOperationsSummary(dateValue = getMedicalState()?.selectedDate) { return deps.medicalOperationsSelectors.getMedicalOperationsSummary(dateValue); }
   function getMedicalRosterPositionGroups(players = []) { return deps.medicalRosterSelectors.getMedicalRosterPositionGroups(players); }
   function getMedicalRosterPositionStats(players = []) { return deps.medicalRosterSelectors.getMedicalRosterPositionStats(players); }

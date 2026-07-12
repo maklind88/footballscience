@@ -19,6 +19,7 @@ export function createMedicalRecommendationRenderer({
   getMedicalStatusForParticipation,
   getMedicalStatusOption,
   getSelectedDate,
+  getMedicalClinicalDateValue = getSelectedDate,
   isMedicalInjuryPlanActive,
   isMedicalItemArchived,
   isMedicalPlanCleared,
@@ -141,7 +142,8 @@ ${isFallback ? "Not logged" : `${value}%`}
 
   const getPlayerRtpProgramPlan = (player) => {
     const plans = player ? getMedicalPlayerInjuryPlans(player.id) : [];
-    return plans.find((plan) => hasRtpProgram(plan) && isMedicalInjuryPlanActive(plan, getSelectedDate())) || plans.find(hasRtpProgram) || null;
+    const clinicalDate = getMedicalClinicalDateValue();
+    return plans.find((plan) => hasRtpProgram(plan) && isMedicalInjuryPlanActive(plan, clinicalDate)) || plans.find(hasRtpProgram) || null;
   };
 
   const renderPlanProgramLine = (label, items = []) =>
@@ -230,7 +232,7 @@ ${
     return plans
       .map((plan) => {
         const status = getMedicalStatusOption(plan.status);
-        const isActive = isMedicalInjuryPlanActive(plan, getSelectedDate());
+        const isActive = isMedicalInjuryPlanActive(plan, getMedicalClinicalDateValue());
         const phase = getMedicalRtpPhaseOption(plan.rtpPhase);
         const isCleared = isMedicalPlanCleared(plan);
         return `

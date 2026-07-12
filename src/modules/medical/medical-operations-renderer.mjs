@@ -254,18 +254,19 @@ ${
   };
 
   const renderOverview = (summary, selectedDate) => {
+    const clinicalDate = summary.clinicalDate || selectedDate;
     const actionSignals = summary.actionSignals.slice(0, 5);
     const briefing = summary.actionRequired
       ? `${summary.actionRequired} player${summary.actionRequired === 1 ? "" : "s"} need medical action before the next football decision.`
       : summary.activeCases.length
         ? `${summary.activeCases.length} active case${summary.activeCases.length === 1 ? "" : "s"} under control.`
-        : "No active medical blockers for the selected date.";
+        : "No active medical blockers today.";
     return `
 <div class="medical-ops-overview">
 <article class="medical-ops-brief">
 <span>Medical Briefing</span>
 <strong>${escapeHtml(briefing)}</strong>
-<small>${escapeHtml(formatMedicalDateLabel(selectedDate, "long"))}</small>
+<small>${escapeHtml(formatMedicalDateLabel(clinicalDate, "long"))}</small>
 </article>
 <div class="medical-ops-stats">
 ${renderOpsStat("Action required", String(summary.actionRequired), "review / clearance / mismatch", summary.actionRequired ? "high" : "clear")}
@@ -292,7 +293,7 @@ ${actionSignals.length
 `
       )
       .join("")
-  : `<div class="medical-empty-inline">No medical actions required for the selected date.</div>`}
+  : `<div class="medical-empty-inline">No medical actions required today.</div>`}
 </div>
 </article>
 ${renderMedicalDailyHuddle()}

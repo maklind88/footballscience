@@ -133,6 +133,7 @@ test("Medical operations selectors build read-only operations summaries without 
     getMedicalRecordStatus: (record) => ({ key: record?.status || "not-set", label: record?.status === "full" ? "Full" : "Modified" }),
     getMedicalRtpPhaseOption: () => ({ label: "Return to train" }),
     getMedicalState: () => state,
+    getMedicalTodayValue: () => "2026-05-31",
     getMedicalTrailingRecommendationSummary: (playerId) =>
       playerId === "p1"
         ? { records: [1, 2, 3], modifiedDays: 3, unavailableDays: 0, exceededCount: 1, average: 80 }
@@ -173,4 +174,73 @@ test("Medical operations selectors build read-only operations summaries without 
   expect(summary.clearanceBlockers).toHaveLength(1);
   expect(summary.actualMissing).toBe(1);
   expect(ensureCount).toBeGreaterThan(0);
+});
+
+test("Medical operations keep clinical case calculations anchored to today while availability can view another date", () => {
+  const state = {
+    players: [{ id: "p1", name: "Current Injury", position: "DF" }],
+    records: [],
+    injuryPlans: [
+      {
+        id: "plan-current",
+        playerId: "p1",
+        startDate: "2026-06-05",
+        endDate: "2026-06-20",
+        reviewDate: "2026-06-12",
+        participation: 0,
+        injuryType: "ACL injury",
+        rtpPhase: "medical-restriction",
+        updatedAt: "2026-06-05T10:00:00.000Z",
+        createdAt: "2026-06-05T10:00:00.000Z",
+      },
+    ],
+  };
+  const isDateValue = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
+  const daySpan = (startDate, endDate) => {
+    if (!isDateValue(startDate) || !isDateValue(endDate)) {
+      return null;
+    }
+    const dayMs = 24 * 60 * 60 * 1000;
+    return Math.max(1, Math.round((new Date(`${endDate}T00:00:00.000Z`) - new Date(`${startDate}T00:00:00.000Z`)) / dayMs) + 1);
+  };
+  const selectors = createMedicalOperationsSelectors({
+    compareMedicalPlayers: (first, second) => first.name.localeCompare(second.name),
+    ensureMedicalState: () => {},
+    formatDateValue: (date) => new Date(date).toISOString().slice(0, 10),
+    getActiveMedicalInjuryPlan: (playerId, dateValue) =>
+      state.injuryPlans.find((plan) => plan.playerId === playerId && plan.startDate <= dateValue && plan.endDate >= dateValue) ?? null,
+    getLatestMedicalRecord: () => null,
+    getMedicalAvailabilityItems: () => [],
+    getMedicalPlanClearanceSummary: () => ({ isCleared: false, signOffCount: 0, gatePassCount: 0, gateFailCount: 0, gateMonitorCount: 0 }),
+    getMedicalPlanDaysRemaining: (plan, dateValue) => daySpan(dateValue, plan.endDate),
+    getMedicalPlanElapsedDays: (plan, dateValue) => daySpan(plan.startDate, dateValue),
+    getMedicalPlanReviewState: (plan, dateValue) =>
+      plan.reviewDate <= dateValue ? { key: "due", label: "Review due", severity: 2 } : { key: "scheduled", label: "Review scheduled", severity: 0 },
+    getMedicalPlanSeverity: () => ({ key: "major", label: "Major", tone: "high", weight: 4 }),
+    getMedicalPlanTotalDays: (plan) => daySpan(plan.startDate, plan.endDate),
+    getMedicalPlayerInjuryPlans: (playerId) => state.injuryPlans.filter((plan) => plan.playerId === playerId),
+    getMedicalRecordStatus: () => ({ key: "not-set", label: "Not set" }),
+    getMedicalRtpPhaseOption: () => ({ label: "Medical restriction" }),
+    getMedicalState: () => state,
+    getMedicalTodayValue: () => "2026-06-10",
+    getMedicalTrailingRecommendationSummary: () => ({ records: [], modifiedDays: 0, unavailableDays: 0, exceededCount: 0, average: null }),
+    getSelectedDate: () => "2026-06-01",
+    isMedicalDateValue: isDateValue,
+    isMedicalInjuryPlanActive: (plan, dateValue) => plan.startDate <= dateValue && plan.endDate >= dateValue,
+    isMedicalItemArchived: () => false,
+    medicalActualParticipationFallback: "not-logged",
+    parseDateValue: (value) => new Date(`${value}T00:00:00.000Z`),
+  });
+
+  expect(selectors.getMedicalActiveCaseItems()).toHaveLength(1);
+  expect(selectors.getMedicalActiveCaseItems("2026-06-01")).toHaveLength(0);
+
+  const summary = selectors.getMedicalOperationsSummary("2026-06-01");
+  expect(summary.selectedDate).toBe("2026-06-01");
+  expect(summary.clinicalDate).toBe("2026-06-10");
+  expect(summary.activeCases).toHaveLength(1);
+  expect(summary.activeCases[0].elapsedDays).toBe(6);
+  expect(summary.activeCases[0].daysRemaining).toBe(11);
+  expect(summary.signals[0].activePlan.id).toBe("plan-current");
+  expect(summary.season.activeCount).toBe(1);
 });

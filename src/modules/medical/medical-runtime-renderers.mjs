@@ -121,6 +121,7 @@ export function createMedicalRuntimeRenderers(deps = {}) {
 
   const getOptionalSelectedDate = () => getMedicalState()?.selectedDate;
   const getSelectedDate = () => getMedicalState().selectedDate;
+  const getMedicalTodayValue = () => formatScheduleDateValue(new Date());
 
   const medicalOptionSelectors = createMedicalOptionSelectors({
     getMedicalRecommendationActivityContext,
@@ -198,6 +199,7 @@ export function createMedicalRuntimeRenderers(deps = {}) {
     getMedicalRecordStatus,
     getMedicalRtpPhaseOption,
     getMedicalState,
+    getMedicalTodayValue,
     getMedicalTrailingRecommendationSummary,
     getSelectedDate: getOptionalSelectedDate,
     isMedicalDateValue,
@@ -333,6 +335,7 @@ export function createMedicalRuntimeRenderers(deps = {}) {
     getMedicalRtpPhaseOption,
     getMedicalStatusForParticipation,
     getMedicalStatusOption,
+    getMedicalClinicalDateValue: getMedicalTodayValue,
     getSelectedDate,
     isMedicalInjuryPlanActive,
     isMedicalItemArchived,
@@ -347,6 +350,7 @@ export function createMedicalRuntimeRenderers(deps = {}) {
     getActiveMedicalInjuryPlan,
     getMedicalInjuryPlanDraft,
     getMedicalPlayerInjuryPlans,
+    getMedicalClinicalDateValue: getMedicalTodayValue,
     getSelectedDate,
     isMedicalPlanCleared,
     medicalClearanceRoles,
@@ -418,7 +422,7 @@ export function createMedicalRuntimeRenderers(deps = {}) {
     renderMedicalActualParticipationOptions,
     renderMedicalParticipationOptions,
     renderMedicalPlayerAvatar,
-    renderMedicalPlayerProfileSummary: (player) => medicalProfileSummaryRenderer.render(getMedicalPlayerProfileSummary(player, getSelectedDate())),
+    renderMedicalPlayerProfileSummary: (player) => medicalProfileSummaryRenderer.render(getMedicalPlayerProfileSummary(player, getMedicalTodayValue())),
     renderMedicalRecommendationPresets: (selectedParticipation, canEdit) => medicalRecommendationRenderer.renderRecommendationPresets(selectedParticipation, canEdit),
     renderMedicalRtpPhaseOptions,
     renderMedicalStatusOptions,

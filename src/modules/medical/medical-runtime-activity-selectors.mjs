@@ -20,6 +20,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
     getMedicalRtpPhaseOption = () => ({ key: "", status: "", participation: 0 }),
     getMedicalState = () => null,
     getMedicalStatusOptionForDate = () => ({ key: "not-set", label: "Not set", tone: "unset", defaultParticipation: null }),
+    getMedicalTodayValue = () => formatDateValue(new Date()),
     getPlatformStructureState = () => null,
     getPlatformTeamDisplayName = () => "",
     getRemovedSquadPlayerIdSet = () => new Set(),
@@ -55,6 +56,11 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
 
   function getSelectedDate() {
     return getMedicalState()?.selectedDate || "";
+  }
+
+  function getClinicalDateValue() {
+    const todayValue = getMedicalTodayValue();
+    return isDateValue(todayValue) ? todayValue : formatDateValue(new Date());
   }
 
   function getMedicalAccessLabel() {
@@ -102,12 +108,13 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
   function getMedicalPlayerInjuryPlans(playerId, options = {}) {
     const state = readState();
     const includeArchived = Boolean(options.includeArchived);
+    const clinicalDate = getClinicalDateValue();
     return (state.injuryPlans || [])
       .filter((plan) => plan.playerId === playerId && (includeArchived || !isItemArchived(plan)))
       .sort((first, second) => {
         const activeComparison =
-          Number(isMedicalInjuryPlanActive(second, state.selectedDate)) -
-          Number(isMedicalInjuryPlanActive(first, state.selectedDate));
+          Number(isMedicalInjuryPlanActive(second, clinicalDate)) -
+          Number(isMedicalInjuryPlanActive(first, clinicalDate));
         if (activeComparison !== 0) {
           return activeComparison;
         }
@@ -119,7 +126,7 @@ export function createMedicalRuntimeActivitySelectors(deps = {}) {
       });
   }
 
-  function getActiveMedicalInjuryPlan(playerId, dateValue = getSelectedDate()) {
+  function getActiveMedicalInjuryPlan(playerId, dateValue = getClinicalDateValue()) {
     const state = readState();
     return (state.injuryPlans || [])
       .filter((plan) => plan.playerId === playerId && isMedicalInjuryPlanActive(plan, dateValue))

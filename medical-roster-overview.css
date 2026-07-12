@@ -233,13 +233,14 @@
 
 .medical-program-board-card {
   display: grid;
-  grid-template-rows: auto minmax(18rem, 1fr) auto;
+  grid-template-rows: auto auto auto;
+  align-content: start;
   overflow: hidden;
 }
 
 .medical-board-surface {
   position: relative;
-  min-height: 27rem;
+  min-height: clamp(15rem, 34vh, 24rem);
   margin: 0.72rem;
   overflow: hidden;
   border: 1px solid rgba(7, 95, 78, 0.18);
@@ -247,6 +248,10 @@
   background:
     radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.16), transparent 34%),
     linear-gradient(90deg, rgba(6, 78, 59, 0.95), rgba(15, 118, 110, 0.9));
+}
+
+.medical-board-surface-empty {
+  min-height: clamp(11rem, 24vh, 16rem);
 }
 
 .medical-rehab-program-panel {
@@ -261,6 +266,13 @@
 
 .medical-rehab-program-panel[hidden] {
   display: none;
+}
+
+.medical-rehab-program-panel-empty {
+  border-color: rgba(7, 95, 78, 0.16);
+  background:
+    radial-gradient(circle at 95% 10%, rgba(47, 143, 107, 0.12), transparent 30%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(239, 248, 244, 0.92));
 }
 
 .medical-rehab-program-header {
@@ -307,6 +319,52 @@
   color: #176449;
   font-size: 0.66rem;
   font-weight: 950;
+}
+
+.medical-rehab-starter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.44rem;
+}
+
+.medical-rehab-starter-grid article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.1rem 0.42rem;
+  min-width: 0;
+  border: 1px solid rgba(15, 35, 27, 0.08);
+  border-radius: 8px;
+  padding: 0.58rem;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.medical-rehab-starter-grid article span {
+  grid-row: 1 / 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: #dff7e8;
+  color: #176449;
+  font-size: 0.68rem;
+  font-weight: 950;
+}
+
+.medical-rehab-starter-grid article strong {
+  min-width: 0;
+  color: #10231b;
+  font-size: 0.8rem;
+  line-height: 1.05;
+}
+
+.medical-rehab-starter-grid article small {
+  min-width: 0;
+  color: #5c6a64;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .medical-rehab-program-form {
@@ -1160,6 +1218,26 @@ body.is-dark-mode .medical-rehab-program-empty {
   background: rgba(15, 23, 42, 0.62);
 }
 
+body.is-dark-mode .medical-rehab-program-panel-empty {
+  border-color: rgba(148, 163, 184, 0.22);
+  background:
+    radial-gradient(circle at 95% 10%, rgba(94, 234, 212, 0.12), transparent 30%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.74), rgba(14, 35, 30, 0.64));
+}
+
+body.is-dark-mode .medical-rehab-starter-grid article {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.58);
+}
+
+body.is-dark-mode .medical-rehab-starter-grid article strong {
+  color: #f8fafc;
+}
+
+body.is-dark-mode .medical-rehab-starter-grid article small {
+  color: #cbd5e1;
+}
+
 body.is-dark-mode .medical-rehab-illustration,
 body.is-dark-mode .medical-rehab-focus-map {
   border-color: rgba(148, 163, 184, 0.2);
@@ -1254,6 +1332,10 @@ body.is-dark-mode .medical-program-player-row.is-board-selected {
   .medical-rehab-program-form,
   .medical-rehab-program-columns,
   .medical-rehab-program-row {
+    grid-template-columns: 1fr;
+  }
+
+  .medical-rehab-starter-grid {
     grid-template-columns: 1fr;
   }
 

@@ -280,6 +280,45 @@ ${renderBoardPlayer({ player, plan })}
 <button type="button" data-medical-board-edit-button="${escapeHtml(plan.id)}" data-medical-open-board-plan="${escapeHtml(plan.id)}" ${isSelected ? "" : "hidden"}>Edit</button>
 `;
       }).join("");
+    const renderEmptyRehabProgramStarter = () => `
+<section class="medical-rehab-program-panel medical-rehab-program-panel-empty" data-medical-rehab-program-starter>
+<header class="medical-rehab-program-header">
+<div>
+<span>Individual Rehab Program</span>
+<strong>Start a player rehab plan</strong>
+<small>Select a squad player on the left, create the Medical Plan, then build the exercise program here.</small>
+</div>
+<b>${items.length} active</b>
+</header>
+<div class="medical-rehab-starter-grid" aria-label="Individual rehab program workflow">
+<article>
+<span>1</span>
+<strong>Select player</strong>
+<small>Use Create program on the player row.</small>
+</article>
+<article>
+<span>2</span>
+<strong>Save Medical Plan</strong>
+<small>Injury, body area, dates and RTP phase become the source.</small>
+</article>
+<article>
+<span>3</span>
+<strong>Add exercises</strong>
+<small>Exercise, dose, phase, comment and red focus area.</small>
+</article>
+</div>
+<div class="medical-rehab-program-table" aria-label="Individual rehab program preview">
+<div class="medical-rehab-program-columns" aria-hidden="true">
+<span>Exercise</span>
+<span>Illustration</span>
+<span>Training focus</span>
+<span>Dose</span>
+<span>Comment</span>
+</div>
+<div class="medical-rehab-program-empty">No player rehab program is active yet. Click <strong>Create program</strong> next to a player to open the Medical Plan and unlock this exercise table.</div>
+</div>
+</section>
+`;
     return `
 <article class="medical-program-board-card" data-medical-board-card>
 <header>
@@ -289,13 +328,13 @@ ${renderNameOptions()}
 </div>
 <div class="medical-board-edit-actions">${renderEditButtons()}</div>
 </header>
-<div class="medical-board-surface" aria-label="RTP Field Board">
+<div class="medical-board-surface${items.length ? "" : " medical-board-surface-empty"}" aria-label="RTP Field Board">
 <svg class="medical-board-pitch" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
 ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medical-board-pitch-lines", ariaLabel: "RTP field board pitch" })}
 </svg>
-${items.length ? items.map((item, index) => renderBoardView(item, selectedPlanId, index)).join("") : `<div class="medical-board-empty">No player program is active on the board.</div>`}
+${items.length ? items.map((item, index) => renderBoardView(item, selectedPlanId, index)).join("") : `<div class="medical-board-empty">No player program is active on the board. Use Create program in the player list to start one.</div>`}
 </div>
-${items.length ? items.map((item, index) => renderIndividualRehabProgram(item, selectedPlanId, index)).join("") : ""}
+${items.length ? items.map((item, index) => renderIndividualRehabProgram(item, selectedPlanId, index)).join("") : renderEmptyRehabProgramStarter()}
 </article>
 `;
   };

@@ -223,6 +223,25 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(programsMarkup).not.toContain("RTP Starter Queue");
   expect(programsMarkup).not.toContain("medical-rtp-case-linker");
   expect(programsMarkup).not.toContain("RTP Action Queue");
+  const emptyProgramsMarkup = renderer.renderPrivateSystem(
+    {
+      ...summary,
+      signals: [clearSignal],
+      actionSignals: [],
+      activeCases: [],
+      clearanceBlockers: [],
+      actionRequired: 0,
+    },
+    "programs",
+    "2026-05-31"
+  );
+  expect(emptyProgramsMarkup).toContain("RTP Field Board");
+  expect(emptyProgramsMarkup).toContain("No player program is active on the board");
+  expect(emptyProgramsMarkup).toContain("Individual Rehab Program");
+  expect(emptyProgramsMarkup).toContain("Start a player rehab plan");
+  expect(emptyProgramsMarkup).toContain("Click <strong>Create program</strong>");
+  expect(emptyProgramsMarkup).toContain("Training focus");
+  expect(emptyProgramsMarkup).toContain("data-medical-rehab-program-starter");
   const rtpMarkup = renderer.renderPrivateSystem(summary, "rtp-library", "2026-05-31");
   expect(rtpMarkup).not.toContain("medical-rtp-library-hero");
   expect(rtpMarkup).not.toContain("<h2>RTP Library</h2>");

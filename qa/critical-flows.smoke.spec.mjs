@@ -6,10 +6,11 @@ const sessionPlannerKey = "football-session-planner-v3";
 const sessionPlannerLibraryKey = "football-session-exercise-library-v1";
 const medicalKey = "football-medical-team-v1";
 const playerProfilesKey = "football-player-profiles-v1";
-const dashboardChatKey = "football-dashboard-chat-v1";
 const workspaceHubKey = "football-workspace-hub-v3";
 const workspaceLastActiveKey = "football-workspace-last-active-local-v1";
 const qaSessionPlannerTrainingDate = "2026-05-19";
+const qaChatCurrentUserId = "dev-user-mak";
+const qaChatTeamThreadId = "team";
 
 function createQaPlayerProfilesState(players = [], options = {}) {
   const normalizedPlayers = players.map((player, index) => ({
@@ -176,6 +177,108 @@ async function bootApp(page, options = {}) {
   };
 }
 
+function getQaChatMessageThreadId(message = {}) {
+  return String(message.threadId || message.thread_id || qaChatTeamThreadId).trim() || qaChatTeamThreadId;
+}
+
+function getQaChatNewestMessage(messages = []) {
+  return [...messages].sort((first, second) => {
+    const firstTime = Date.parse(first?.createdAt || first?.created_at || "") || 0;
+    const secondTime = Date.parse(second?.createdAt || second?.created_at || "") || 0;
+    return secondTime - firstTime;
+  })[0] || null;
+}
+
+function createQaChatThread(threadId = qaChatTeamThreadId, messages = [], options = {}) {
+  const normalizedThreadId = String(threadId || qaChatTeamThreadId).trim() || qaChatTeamThreadId;
+  const threadMessages = messages.filter((message) => getQaChatMessageThreadId(message) === normalizedThreadId);
+  const lastMessage = options.lastMessage || getQaChatNewestMessage(threadMessages);
+  const type = options.type || (normalizedThreadId === qaChatTeamThreadId ? "team" : normalizedThreadId.startsWith("dm:") ? "dm" : "group");
+  const unreadCount = options.unreadCount ?? threadMessages.filter((message) => {
+    const readBy = Array.isArray(message.readBy) ? message.readBy : [];
+    return message.userId !== qaChatCurrentUserId && !readBy.includes(qaChatCurrentUserId);
+  }).length;
+
+  return {
+    id: options.id || `db-${normalizedThreadId}`,
+    threadId: normalizedThreadId,
+    legacyThreadId: normalizedThreadId,
+    type,
+    title: options.title || (type === "team" ? "North Carolina Courage Chat" : type === "dm" ? "Direct message" : "QA Chat"),
+    visibility: options.visibility || (type === "dm" ? "private" : "members"),
+    messageCount: options.messageCount ?? threadMessages.length,
+    unreadCount,
+    lastMessage,
+    lastMessageId: options.lastMessageId || lastMessage?.id || "",
+    lastMessageAt: options.lastMessageAt || lastMessage?.createdAt || "",
+    participants: Array.isArray(options.participants) ? options.participants : [],
+    permissions: options.permissions || {},
+    settings: options.settings || {},
+    metadata: { legacyThreadId: normalizedThreadId, ...(options.metadata || {}) },
+  };
+}
+
+function createQaChatPayload(messages = [], options = {}) {
+  const threadIds = options.threadIds || Array.from(new Set(messages.map(getQaChatMessageThreadId)));
+  const threads = Array.isArray(options.threads) && options.threads.length
+    ? options.threads
+    : threadIds.map((threadId) => createQaChatThread(threadId, messages, options.threadOptions?.[threadId] || {}));
+
+  return {
+    ok: true,
+    scope: {
+      organizationId: "qa-org",
+      teamId: "qa-team",
+      teamName: "North Carolina Courage",
+    },
+    threads,
+    messages,
+    pagination: options.pagination || {},
+  };
+}
+
+async function fulfillQaChatPayload(route, messages = [], options = {}) {
+  await route.fulfill({
+    contentType: "application/json",
+    body: JSON.stringify(createQaChatPayload(messages, options)),
+  });
+}
+
+async function installQaChatApiAuth(page) {
+  await page.addInitScript((token) => {
+    const patchAuthStore = (store) => {
+      if (!store || typeof store !== "object") return store;
+      store.getAccessToken = async () => token;
+      store.refreshAccessToken = async () => token;
+      return store;
+    };
+
+    const descriptor = Object.getOwnPropertyDescriptor(window, "platformAuthStore");
+    if (descriptor?.configurable === false) {
+      const timer = window.setInterval(() => {
+        if (window.platformAuthStore) {
+          patchAuthStore(window.platformAuthStore);
+          window.clearInterval(timer);
+        }
+      }, 0);
+      return;
+    }
+
+    let currentStore = descriptor?.get ? descriptor.get.call(window) : window.platformAuthStore;
+    Object.defineProperty(window, "platformAuthStore", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return currentStore;
+      },
+      set(value) {
+        currentStore = patchAuthStore(value);
+      },
+    });
+    patchAuthStore(currentStore);
+  }, "qa-chat-token");
+}
+
 async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await dismissDashboardModal(page);
   const visibleTrigger = page.locator(`[data-open-workspace="${workspaceId}"]:visible`).first();
@@ -337,52 +440,53 @@ test("Profile updates sync to the account menu and local dev keeps Mak signed in
 
 test("Chat launcher shows unread chat until the thread is opened", async ({ page }) => {
   const messageId = `qa-chat-unread-${Date.now()}`;
+  const now = new Date().toISOString();
+  const chatActions = [];
+  const serverMessages = [
+    {
+      id: messageId,
+      userId: "qa-colleague",
+      threadId: "team",
+      text: "QA unread chat notification",
+      createdAt: now,
+      deliveredAt: now,
+      readBy: ["qa-colleague"],
+      mentionedUserIds: [],
+      author: {
+        id: "qa-colleague",
+        firstName: "QA",
+        lastName: "Colleague",
+        role: "coach",
+        status: "active",
+      },
+    },
+  ];
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    const request = route.request();
+    if (request.method() === "GET") {
+      await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
+      return;
+    }
+
+    const payload = request.postDataJSON();
+    chatActions.push(payload);
+    if (payload.action === "markThreadRead") {
+      serverMessages.forEach((message) => {
+        if (getQaChatMessageThreadId(message) === (payload.threadId || "team")) {
+          message.readBy = Array.from(new Set([...(message.readBy || []), qaChatCurrentUserId]));
+        }
+      });
+    }
+    await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
+  });
+
   await bootApp(page);
 
-  await page.evaluate(
-    ({ key, id }) => {
-      const existingMessages = JSON.parse(window.localStorage.getItem(key) || "[]");
-      const nextMessages = [
-        ...existingMessages.filter((message) => message.id !== id),
-        {
-          id,
-          userId: "qa-colleague",
-          threadId: "team",
-          text: "QA unread chat notification",
-          createdAt: new Date().toISOString(),
-          deliveredAt: new Date().toISOString(),
-          readBy: ["qa-colleague"],
-          mentionedUserIds: [],
-          author: {
-            id: "qa-colleague",
-            firstName: "QA",
-            lastName: "Colleague",
-            role: "coach",
-            status: "active",
-          },
-        },
-      ];
-      window.localStorage.setItem(key, JSON.stringify(nextMessages));
-      window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(nextMessages) }));
-    },
-    { key: dashboardChatKey, id: messageId }
-  );
-
-  await expect(page.locator(".dashboard-chat-launcher .dashboard-chat-header-badge")).toContainText("1");
+  await expect(page.locator(".dashboard-chat-launcher .dashboard-chat-header-badge")).toContainText("1", { timeout: 8_000 });
   await expect(page.locator('.top-icon-menu-item[data-open-workspace="home"].has-notification')).toHaveCount(0);
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          ({ key, id }) => {
-            const message = JSON.parse(window.localStorage.getItem(key) || "[]").find((entry) => entry.id === id);
-            return Boolean(message?.readBy?.includes("dev-user-mak"));
-          },
-          { key: dashboardChatKey, id: messageId }
-        ),
-      { timeout: 3_000 }
-    )
-    .toBe(false);
+  expect(serverMessages[0].readBy.includes(qaChatCurrentUserId)).toBe(false);
 
   await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
   await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
@@ -392,18 +496,9 @@ test("Chat launcher shows unread chat until the thread is opened", async ({ page
   await expect(railToggle).toHaveClass(/is-active/);
   await expect(railToggle).toHaveAttribute("aria-expanded", "true");
   await expect
-    .poll(
-      () =>
-        page.evaluate(
-          ({ key, id }) => {
-            const message = JSON.parse(window.localStorage.getItem(key) || "[]").find((entry) => entry.id === id);
-            return Boolean(message?.readBy?.includes("dev-user-mak"));
-          },
-          { key: dashboardChatKey, id: messageId }
-        ),
-      { timeout: 5_000 }
-    )
+    .poll(() => serverMessages[0].readBy.includes(qaChatCurrentUserId), { timeout: 5_000 })
     .toBe(true);
+  expect(chatActions.some((payload) => payload.action === "markThreadRead" && payload.threadId === "team")).toBe(true);
   await expect(page.locator(".dashboard-chat-launcher .dashboard-chat-header-badge")).toHaveCount(0);
   await expect(page.locator('.top-icon-menu-item[data-open-workspace="home"].has-notification')).toHaveCount(0);
 
@@ -415,19 +510,7 @@ test("Chat launcher shows unread chat until the thread is opened", async ({ page
   await dismissDashboardModal(page);
   await expect(page.locator(".dashboard-chat-launcher .dashboard-chat-header-badge")).toHaveCount(0);
   await expect(page.locator('.top-icon-menu-item[data-open-workspace="home"].has-notification')).toHaveCount(0);
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          ({ key, id }) => {
-            const message = JSON.parse(window.localStorage.getItem(key) || "[]").find((entry) => entry.id === id);
-            return Boolean(message?.readBy?.includes("dev-user-mak"));
-          },
-          { key: dashboardChatKey, id: messageId }
-        ),
-      { timeout: 5_000 }
-    )
-    .toBe(true);
+  expect(serverMessages[0].readBy.includes(qaChatCurrentUserId)).toBe(true);
 });
 
 test("Chat group creator creates a focused group from the plus menu", async ({ page }) => {
@@ -435,6 +518,7 @@ test("Chat group creator creates a focused group from the plus menu", async ({ p
   const chatActions = [];
   const createdThreads = [];
 
+  await installQaChatApiAuth(page);
   await page.route("**/api/chat**", async (route) => {
     const request = route.request();
     if (request.method() === "GET") {
@@ -546,6 +630,7 @@ test("Chat direct creator opens a private chat by tapping a teammate", async ({ 
   const chatActions = [];
   const createdThreads = [];
 
+  await installQaChatApiAuth(page);
   await page.route("**/api/chat**", async (route) => {
     const request = route.request();
     if (request.method() === "GET") {
@@ -669,6 +754,7 @@ test("Chat group settings can rename, set avatar, and delete a group", async ({ 
   const chatActions = [];
   let createdThread = null;
 
+  await installQaChatApiAuth(page);
   await page.route("**/api/chat**", async (route) => {
     const request = route.request();
     if (request.method() === "GET") {
@@ -828,6 +914,81 @@ test("Chat message grouping and latest thread sorting survive reload", async ({ 
   const teamFirstId = `qa-chat-grouped-first-${baseTime}`;
   const teamSecondId = `qa-chat-grouped-second-${baseTime}`;
   const olderDirectId = `qa-chat-older-direct-${baseTime}`;
+  const makeIso = (offsetMs) => new Date(baseTime + offsetMs).toISOString();
+  const serverMessages = [
+    {
+      id: olderDirectId,
+      userId: "qa-chat-austin",
+      threadId: "dm:dev-user-mak:qa-chat-austin",
+      text: "Older direct message",
+      createdAt: makeIso(-120_000),
+      deliveredAt: makeIso(-120_000),
+      readBy: ["qa-chat-austin"],
+      mentionedUserIds: [],
+      author: {
+        id: "qa-chat-austin",
+        firstName: "Austin",
+        lastName: "Da Luz",
+        role: "scout",
+        status: "active",
+      },
+    },
+    {
+      id: teamFirstId,
+      userId: "dev-user-mak",
+      threadId: "team",
+      text: "QA grouped message one",
+      createdAt: makeIso(-20_000),
+      deliveredAt: makeIso(-20_000),
+      readBy: ["dev-user-mak"],
+      mentionedUserIds: [],
+      author: {
+        id: "dev-user-mak",
+        firstName: "Mak",
+        lastName: "Lind",
+        role: "coach",
+        status: "active",
+      },
+    },
+    {
+      id: teamSecondId,
+      userId: "dev-user-mak",
+      threadId: "team",
+      text: "QA grouped message two",
+      createdAt: makeIso(-10_000),
+      deliveredAt: makeIso(-10_000),
+      readBy: ["dev-user-mak"],
+      mentionedUserIds: [],
+      author: {
+        id: "dev-user-mak",
+        firstName: "Mak",
+        lastName: "Lind",
+        role: "coach",
+        status: "active",
+      },
+    },
+  ];
+  const directParticipants = [
+    { id: "dev-user-mak", userId: "dev-user-mak", participantRole: "owner" },
+    { id: "qa-chat-austin", userId: "qa-chat-austin", participantRole: "member" },
+  ];
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    const request = route.request();
+    if (request.method() !== "GET") {
+      await fulfillQaChatPayload(route, serverMessages, {
+        threadIds: ["team", "dm:dev-user-mak:qa-chat-austin"],
+        threadOptions: { "dm:dev-user-mak:qa-chat-austin": { participants: directParticipants } },
+      });
+      return;
+    }
+
+    await fulfillQaChatPayload(route, serverMessages, {
+      threadIds: ["team", "dm:dev-user-mak:qa-chat-austin"],
+      threadOptions: { "dm:dev-user-mak:qa-chat-austin": { participants: directParticipants } },
+    });
+  });
 
   await bootApp(page);
   await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
@@ -855,77 +1016,6 @@ test("Chat message grouping and latest thread sorting survive reload", async ({ 
     window.platformAuthStore.setCurrentUser?.(currentUserId);
   });
 
-  await page.evaluate(
-    ({ key, base, firstId, secondId, directId }) => {
-      const makeIso = (offsetMs) => new Date(base + offsetMs).toISOString();
-      const teamMessages = [
-        {
-          id: firstId,
-          userId: "dev-user-mak",
-          threadId: "team",
-          text: "QA grouped message one",
-          createdAt: makeIso(-20_000),
-          deliveredAt: makeIso(-20_000),
-          readBy: ["dev-user-mak"],
-          mentionedUserIds: [],
-          author: {
-            id: "dev-user-mak",
-            firstName: "Mak",
-            lastName: "Lind",
-            role: "coach",
-            status: "active",
-          },
-        },
-        {
-          id: secondId,
-          userId: "dev-user-mak",
-          threadId: "team",
-          text: "QA grouped message two",
-          createdAt: makeIso(-10_000),
-          deliveredAt: makeIso(-10_000),
-          readBy: ["dev-user-mak"],
-          mentionedUserIds: [],
-          author: {
-            id: "dev-user-mak",
-            firstName: "Mak",
-            lastName: "Lind",
-            role: "coach",
-            status: "active",
-          },
-        },
-      ];
-      const messages = [
-        {
-          id: directId,
-          userId: "qa-chat-austin",
-          threadId: "dm:dev-user-mak:qa-chat-austin",
-          text: "Older direct message",
-          createdAt: makeIso(-120_000),
-          deliveredAt: makeIso(-120_000),
-          readBy: ["qa-chat-austin"],
-          mentionedUserIds: [],
-          author: {
-            id: "qa-chat-austin",
-            firstName: "Austin",
-            lastName: "Da Luz",
-            role: "scout",
-            status: "active",
-          },
-        },
-        ...teamMessages,
-      ];
-      window.localStorage.setItem(key, JSON.stringify(messages));
-      window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(messages) }));
-    },
-    {
-      key: dashboardChatKey,
-      base: baseTime,
-      firstId: teamFirstId,
-      secondId: teamSecondId,
-      directId: olderDirectId,
-    }
-  );
-
   await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
   await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
   await expect(page.locator("[data-dashboard-chat-thread]").first()).toHaveAttribute("data-dashboard-chat-thread", "team");
@@ -949,6 +1039,55 @@ test("Chat thread click does not change latest activity sorting", async ({ page 
   const baseTime = Date.now();
   const latestTeamId = `qa-chat-latest-team-${baseTime}`;
   const olderDirectId = `qa-chat-clicked-direct-${baseTime}`;
+  const makeIso = (offsetMs) => new Date(baseTime + offsetMs).toISOString();
+  const serverMessages = [
+    {
+      id: olderDirectId,
+      userId: "qa-chat-austin",
+      threadId: "dm:dev-user-mak:qa-chat-austin",
+      text: "Older clicked thread should stay below latest team chat",
+      createdAt: makeIso(-180_000),
+      deliveredAt: makeIso(-180_000),
+      readBy: ["qa-chat-austin"],
+      mentionedUserIds: [],
+      author: {
+        id: "qa-chat-austin",
+        firstName: "Austin",
+        lastName: "Da Luz",
+        role: "scout",
+        status: "active",
+      },
+    },
+    {
+      id: latestTeamId,
+      userId: "dev-user-mak",
+      threadId: "team",
+      text: "Latest team activity",
+      createdAt: makeIso(-10_000),
+      deliveredAt: makeIso(-10_000),
+      readBy: ["dev-user-mak"],
+      mentionedUserIds: [],
+      author: {
+        id: "dev-user-mak",
+        firstName: "Mak",
+        lastName: "Lind",
+        role: "coach",
+        status: "active",
+      },
+    },
+  ];
+  const directParticipants = [
+    { id: "dev-user-mak", userId: "dev-user-mak", participantRole: "owner" },
+    { id: "qa-chat-austin", userId: "qa-chat-austin", participantRole: "member" },
+  ];
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    await fulfillQaChatPayload(route, serverMessages, {
+      threadIds: ["team", "dm:dev-user-mak:qa-chat-austin"],
+      threadOptions: { "dm:dev-user-mak:qa-chat-austin": { participants: directParticipants } },
+    });
+  });
 
   await bootApp(page);
   await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
@@ -975,56 +1114,6 @@ test("Chat thread click does not change latest activity sorting", async ({ page 
     window.platformAuthStore.setCurrentUser?.(currentUserId);
   });
 
-  await page.evaluate(
-    ({ key, base, teamId, directId }) => {
-      const makeIso = (offsetMs) => new Date(base + offsetMs).toISOString();
-      const messages = [
-        {
-          id: directId,
-          userId: "qa-chat-austin",
-          threadId: "dm:dev-user-mak:qa-chat-austin",
-          text: "Older clicked thread should stay below latest team chat",
-          createdAt: makeIso(-180_000),
-          deliveredAt: makeIso(-180_000),
-          readBy: ["qa-chat-austin"],
-          mentionedUserIds: [],
-          author: {
-            id: "qa-chat-austin",
-            firstName: "Austin",
-            lastName: "Da Luz",
-            role: "scout",
-            status: "active",
-          },
-        },
-        {
-          id: teamId,
-          userId: "dev-user-mak",
-          threadId: "team",
-          text: "Latest team activity",
-          createdAt: makeIso(-10_000),
-          deliveredAt: makeIso(-10_000),
-          readBy: ["dev-user-mak"],
-          mentionedUserIds: [],
-          author: {
-            id: "dev-user-mak",
-            firstName: "Mak",
-            lastName: "Lind",
-            role: "coach",
-            status: "active",
-          },
-        },
-      ];
-      window.localStorage.setItem(key, JSON.stringify(messages));
-      window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(messages) }));
-    },
-    {
-      key: dashboardChatKey,
-      base: baseTime,
-      teamId: latestTeamId,
-      directId: olderDirectId,
-    }
-  );
-
   await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
   await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
   await expect(page.locator("[data-dashboard-chat-thread]").first()).toHaveAttribute("data-dashboard-chat-thread", "team");
@@ -1050,43 +1139,44 @@ test("Chat delete message does not resurrect after reload", async ({ page }) => 
   const messageId = `qa-chat-delete-${Date.now()}`;
   const messageText = `QA delete stays deleted ${Date.now()}`;
   const deleteActions = [];
+  const now = new Date().toISOString();
+  const serverMessages = [
+    {
+      id: messageId,
+      userId: "dev-user-mak",
+      threadId: "team",
+      text: messageText,
+      createdAt: now,
+      deliveredAt: now,
+      readBy: ["dev-user-mak"],
+      mentionedUserIds: [],
+      author: {
+        id: "dev-user-mak",
+        firstName: "Mak",
+        lastName: "Lind",
+        role: "admin",
+        status: "active",
+      },
+    },
+  ];
 
-  await page.route("**/api/chat", async (route) => {
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
     const request = route.request();
     if (request.method() !== "POST") {
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) });
+      await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
       return;
     }
 
     const payload = request.postDataJSON();
     if (payload.action === "deleteMessage") {
       deleteActions.push(payload);
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({
-          ok: true,
-          messages: [],
-          thread: {
-            id: "team",
-            threadId: "team",
-            legacyThreadId: "team",
-            type: "team",
-            title: "North Carolina Courage Chat",
-            messageCount: 0,
-            unreadCount: 0,
-            metadata: { legacyThreadId: "team" },
-          },
-          threads: [],
-          pagination: {},
-        }),
-      });
+      serverMessages.splice(0, serverMessages.length);
+      await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
       return;
     }
 
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ ok: true, messages: [], threads: [], pagination: {} }),
-    });
+    await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
   });
 
   await bootApp(page);
@@ -1108,41 +1198,15 @@ test("Chat delete message does not resurrect after reload", async ({ page }) => 
     window.platformAuthStore.setCurrentUser?.("dev-user-mak");
   });
 
-  await page.evaluate(
-    ({ key, id, text }) => {
-      const now = new Date().toISOString();
-      const messages = [
-        {
-          id,
-          userId: "dev-user-mak",
-          threadId: "team",
-          text,
-          createdAt: now,
-          deliveredAt: now,
-          readBy: ["dev-user-mak"],
-          mentionedUserIds: [],
-          author: {
-            id: "dev-user-mak",
-            firstName: "Mak",
-            lastName: "Lind",
-            role: "admin",
-            status: "active",
-          },
-        },
-      ];
-      window.localStorage.setItem(key, JSON.stringify(messages));
-      window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(messages) }));
-    },
-    { key: dashboardChatKey, id: messageId, text: messageText }
-  );
-
   await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
   await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
   await expect(page.locator(`[data-dashboard-chat-message-id="${messageId}"]`)).toBeVisible();
 
   const message = page.locator(`[data-dashboard-chat-message-id="${messageId}"]`);
   await message.locator(".dashboard-chat-message-menu summary").click();
-  await message.locator(`[data-dashboard-remove-message="${messageId}"]`).click();
+  const removeMessageButton = page.locator(`[data-dashboard-remove-message="${messageId}"]`);
+  await expect(removeMessageButton).toHaveCount(1);
+  await removeMessageButton.dispatchEvent("click");
   await expect(page.locator(".dashboard-chat-confirm-card")).toBeVisible();
   await page.locator("[data-dashboard-chat-confirm-apply]").click();
 
@@ -1166,21 +1230,20 @@ test("Chat delete message does not resurrect after reload", async ({ page }) => 
 test("Chat compose send clears input and keeps sent message after reload", async ({ page }) => {
   const messageText = `QA compose send ${Date.now()}`;
   const chatActions = [];
+  const serverMessages = [];
 
-  await page.route("**/api/chat", async (route) => {
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
     const request = route.request();
     if (request.method() !== "POST") {
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true }) });
+      await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
       return;
     }
 
     const payload = request.postDataJSON();
     chatActions.push(payload);
     if (payload.action !== "sendMessage") {
-      await route.fulfill({
-        contentType: "application/json",
-        body: JSON.stringify({ ok: true, messages: [], threads: [], pagination: {} }),
-      });
+      await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
       return;
     }
 
@@ -1203,13 +1266,14 @@ test("Chat compose send clears input and keeps sent message after reload", async
         status: "active",
       },
     };
+    serverMessages.push(message);
 
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify({
         ok: true,
         message,
-        messages: [message],
+        messages: serverMessages,
         thread: {
           id: "team",
           threadId: "team",
@@ -1218,9 +1282,10 @@ test("Chat compose send clears input and keeps sent message after reload", async
           title: "North Carolina Courage Chat",
           messageCount: 1,
           unreadCount: 0,
+          lastMessage: message,
           lastMessageAt: now,
         },
-        threads: [],
+        threads: [createQaChatThread("team", serverMessages)],
         pagination: {},
       }),
     });
@@ -1272,6 +1337,42 @@ test("Chat attachment preview opens above chat with toolbar controls", async ({ 
   const messageId = `qa-chat-attachment-${Date.now()}`;
   const attachmentName = "qa-preview.svg";
   const signedUrl = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><rect width="320" height="180" rx="18" fill="#0f172a"/><text x="160" y="96" text-anchor="middle" font-family="Arial" font-size="24" fill="#ffffff">QA preview</text></svg>')}`;
+  const now = new Date().toISOString();
+  const serverMessages = [
+    {
+      id: messageId,
+      userId: "dev-user-mak",
+      threadId: "team",
+      text: `Attachment: ${attachmentName}`,
+      createdAt: now,
+      deliveredAt: now,
+      readBy: ["dev-user-mak"],
+      mentionedUserIds: [],
+      author: {
+        id: "dev-user-mak",
+        firstName: "Mak",
+        lastName: "Lind",
+        role: "coach",
+        status: "active",
+      },
+      attachments: [
+        {
+          id: `${messageId}-file`,
+          bucket: "chat-attachments",
+          path: "qa/preview.svg",
+          fileName: attachmentName,
+          mimeType: "image/svg+xml",
+          byte_size: 2048,
+          status: "ready",
+        },
+      ],
+    },
+  ];
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
+  });
 
   await bootApp(page);
   await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
@@ -1295,45 +1396,6 @@ test("Chat attachment preview opens above chat with toolbar controls", async ({ 
       removeChannel: () => {},
     });
   }, signedUrl);
-
-  await page.evaluate(
-    ({ key, id, name }) => {
-      const now = new Date().toISOString();
-      const nextMessages = [
-        {
-          id,
-          userId: "dev-user-mak",
-          threadId: "team",
-          text: `Attachment: ${name}`,
-          createdAt: now,
-          deliveredAt: now,
-          readBy: ["dev-user-mak"],
-          mentionedUserIds: [],
-          author: {
-            id: "dev-user-mak",
-            firstName: "Mak",
-            lastName: "Lind",
-            role: "coach",
-            status: "active",
-          },
-          attachments: [
-            {
-              id: `${id}-file`,
-              bucket: "chat-attachments",
-              path: "qa/preview.svg",
-              fileName: name,
-              mimeType: "image/svg+xml",
-              byte_size: 2048,
-              status: "ready",
-            },
-          ],
-        },
-      ];
-      window.localStorage.setItem(key, JSON.stringify(nextMessages));
-      window.dispatchEvent(new StorageEvent("storage", { key, newValue: JSON.stringify(nextMessages) }));
-    },
-    { key: dashboardChatKey, id: messageId, name: attachmentName }
-  );
 
   await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
   await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();

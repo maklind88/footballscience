@@ -300,6 +300,85 @@ test("chat history pagination keeps older loaded API pages in the runtime cache"
   expect(persistedWrites.at(-1).value.map((message) => message.id)).toContain("history-000");
 });
 
+test("server-first chat runtime ignores legacy local history and does not persist API history", () => {
+  let runtimeMessages = [];
+  const writes = [];
+  const storage = new Map([
+    [
+      "football-dashboard-chat-v1",
+      [
+        {
+          id: "legacy-local-only",
+          userId: "coach-qa",
+          threadId: "team",
+          text: "This local cache must not become chat truth.",
+          createdAt: "2026-06-01T08:00:00.000Z",
+        },
+      ],
+    ],
+    ["football-dashboard-chat-deleted-message-ids-v1", ["server-v2"]],
+  ]);
+  const normalizeThreadId = (threadId, fallback = "team") => String(threadId || fallback || "team").trim();
+  const normalizeMessage = (message = {}) => ({
+    id: String(message.id || message.messageId || ""),
+    clientMessageId: String(message.clientMessageId || message.client_message_id || ""),
+    userId: String(message.userId || message.authorId || message.author_id || "coach-qa"),
+    threadId: normalizeThreadId(message.threadId || message.thread_id, "team"),
+    text: String(message.text || message.body || ""),
+    createdAt: String(message.createdAt || message.created_at || ""),
+    readBy: Array.isArray(message.readBy) ? message.readBy : [],
+    mentionedUserIds: Array.isArray(message.mentionedUserIds) ? message.mentionedUserIds : [],
+    reactions: message.reactions || {},
+    priority: String(message.priority || "normal"),
+    attachments: Array.isArray(message.attachments) ? message.attachments : [],
+    status: String(message.status || "sent"),
+  });
+  const messageTime = (message = {}) => Date.parse(message.createdAt || message.created_at || "") || 0;
+  const runtime = createDashboardChatMessageRuntime({
+    readMessagesFromStorage: false,
+    persistMessagesToStorage: false,
+    respectDeletedMessageIdsFromStorage: false,
+    persistDeletedMessageIdsToStorage: false,
+    getDashboardChatRuntimeMessages: () => runtimeMessages,
+    setDashboardChatRuntimeMessages: (nextMessages) => {
+      runtimeMessages = nextMessages;
+    },
+    readDashboardJson: (key, fallback) => storage.get(key) ?? fallback,
+    writeDashboardJson: (key, value) => {
+      writes.push({ key, value });
+      storage.set(key, value);
+    },
+    normalizeDashboardChatThreadId: normalizeThreadId,
+    normalizeDashboardMessage: normalizeMessage,
+    normalizeDashboardApiMessage: normalizeMessage,
+    getDashboardMessageIdentityKeys: (message = {}) => [message.id, message.messageId, message.clientMessageId].filter(Boolean),
+    getDashboardMessageCreatedAtMs: messageTime,
+    compareDashboardChatMessages: (first, second) =>
+      messageTime(first) - messageTime(second) || String(first.id || "").localeCompare(String(second.id || "")),
+    renderDashboardChatWidget: () => {},
+  });
+
+  expect(runtime.readDashboardMessages()).toEqual([]);
+
+  const mergedMessages = runtime.mergeDashboardChatApiMessages(
+    [
+      {
+        id: "server-v2",
+        thread_id: "team",
+        author_id: coachActor.id,
+        body: "Server-backed truth",
+        created_at: "2026-06-04T11:45:22.000Z",
+      },
+    ],
+    { thread: { threadId: "team" }, replaceThreadId: "team", render: false }
+  );
+
+  expect(mergedMessages.map((message) => message.id)).toEqual(["server-v2"]);
+  expect(runtimeMessages.map((message) => message.id)).toEqual(["server-v2"]);
+  expect(writes.some((entry) => entry.key === "football-dashboard-chat-v1")).toBe(false);
+  expect(writes.some((entry) => entry.key === "football-dashboard-chat-deleted-message-ids-v1")).toBe(false);
+});
+
 test("retryable chat API write failures only use local dev fallback", () => {
   const productionRuntime = createDashboardChatApiDomainRuntime({
     getPlatformAuthStore: () => ({ isDevMode: () => true }),
@@ -696,10 +775,15 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(readNumericConstant(chatApiRuntimeSource, "DASHBOARD_CHAT_THREAD_SUMMARY_REFRESH_MIN_INTERVAL_MS")).toBeGreaterThanOrEqual(15000);
   expect(chatApiRuntimeSource).toContain("refreshDelayWithBudget");
   expect(appSource).toContain("Compatibility marker only");
+  expect(appSource).toContain("readMessagesFromStorage: false");
+  expect(appSource).toContain("persistMessagesToStorage: false");
+  expect(appSource).toContain("respectDeletedMessageIdsFromStorage: false");
+  expect(appSource).toContain("persistDeletedMessageIdsToStorage: false");
   expect(appSource).not.toContain('localStorage.setItem(dashboardChatStorageKey, "[]")');
   expect(appSource).not.toContain('localStorage.setItem(dashboardChatDeletedMessageIdsStorageKey, "[]")');
   expect(appSource).not.toContain('localStorage.setItem(dashboardChatWidgetNotificationCursorStorageKey, "{}")');
   expect(appSource).not.toContain('localStorage.setItem(dashboardChatWidgetNotificationStateStorageKey, "{}")');
+  expect(databaseSource).toContain("CHAT_ALLOW_LEGACY_STORAGE_FALLBACK");
   expect(chatApiDomainRuntimeSource).toContain("response.status === 429");
   expect(chatApiDomainRuntimeSource).toContain("getRetryAfterMs(response)");
   expect(chatApiDomainRuntimeSource).toContain("dashboardChatApiReadRequests");
@@ -848,8 +932,8 @@ test("chat API runtime skips network refreshes while the browser tab is hidden",
   expect(fetchCount).toBe(0);
 });
 
-test("closed chat widget does not queue background API summaries", () => {
-  let summaryRefreshCount = 0;
+test("closed chat widget queues server summaries for unread badges", () => {
+  const queuedSummaryRefreshes = [];
   let widgetState = { isOpen: false, selectedThreadId: "team" };
   const runtime = createDashboardChatWidgetRuntime({
     dashboardChatWidgetRenderer: {
@@ -859,8 +943,8 @@ test("closed chat widget does not queue background API summaries", () => {
     getPlatformUsers: () => [{ id: "admin-qa", firstName: "Admin", lastName: "QA", status: "active" }],
     getDashboardChatThreadList: () => [{ threadId: "team", label: "Team Chat" }],
     readDashboardChatWidgetState: () => widgetState,
-    queueDashboardChatThreadSummaryRefresh: () => {
-      summaryRefreshCount += 1;
+    queueDashboardChatThreadSummaryRefresh: (options = {}) => {
+      queuedSummaryRefreshes.push(options);
     },
     ui: {
       dashboardChatWidgetRoot: {
@@ -882,11 +966,13 @@ test("closed chat widget does not queue background API summaries", () => {
   });
 
   runtime.renderDashboardChatWidget();
-  expect(summaryRefreshCount).toBe(0);
+  expect(queuedSummaryRefreshes).toHaveLength(1);
+  expect(queuedSummaryRefreshes[0]).toMatchObject({ render: true, forceNetwork: true });
 
   widgetState = { isOpen: true, selectedThreadId: "team" };
   runtime.renderDashboardChatWidget();
-  expect(summaryRefreshCount).toBe(1);
+  expect(queuedSummaryRefreshes).toHaveLength(2);
+  expect(queuedSummaryRefreshes[1]).toMatchObject({ render: true, forceNetwork: false });
 });
 
 test("open chat queues first thread load without marking the thread hydrated before API success", () => {

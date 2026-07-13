@@ -219,8 +219,12 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     const state = readDashboardChatWidgetState();
     const lastRequestedAt = Number(getDashboardChatThreadSummaryLastRequestedAt?.() || 0);
     const syncTimer = Number(getDashboardChatThreadSummarySyncTimer?.() || 0);
-    if (state.isOpen && !syncTimer && Date.now() - lastRequestedAt > 30000) {
-      queueDashboardChatThreadSummaryRefresh({ delayMs: 50, render: true });
+    if (!syncTimer && Date.now() - lastRequestedAt > 30000) {
+      queueDashboardChatThreadSummaryRefresh({
+        delayMs: 50,
+        render: true,
+        forceNetwork: !state.isOpen,
+      });
     }
 
     const users = getPlatformUsers().filter((user) => user.status === "active");
@@ -322,7 +326,9 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       });
     }
 
-    const unreadCount = getDashboardChatUnreadCountForCurrentUser(currentUser, resolvedMessages);
+    const localUnreadCount = getDashboardChatUnreadCountForCurrentUser(currentUser, resolvedMessages);
+    const apiUnreadCount = threads.reduce((total, thread) => total + (Number(thread?.unreadCount || 0) || 0), 0);
+    const unreadCount = Math.max(localUnreadCount, apiUnreadCount);
     const apiPagination = getDashboardApiPagination?.() || {};
     const renderedWidget = dashboardChatWidgetRenderer.render({
       currentUser,

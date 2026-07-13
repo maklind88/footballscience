@@ -155,12 +155,17 @@ function isDatabaseChatEnabled() {
     return true;
   }
   if (CHAT_LEGACY_MODE_VALUES.has(mode)) {
-    return false;
+    return isLegacyChatFallbackAllowed() ? false : true;
   }
   if (CHAT_DATABASE_MODE_VALUES.has(mode)) {
     return true;
   }
   return true;
+}
+
+function isLegacyChatFallbackAllowed() {
+  const value = String(process.env.CHAT_ALLOW_LEGACY_STORAGE_FALLBACK || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
 function normalizeString(value, maxLength = MAX_TEXT_LENGTH) {

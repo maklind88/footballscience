@@ -17,6 +17,10 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
     dashboardChatPersistedThreadMessageLimit = 120,
     dashboardChatPersistedGlobalMessageLimit = 800,
     dashboardChatPinnedMessageCacheLimit = 20,
+    readMessagesFromStorage = true,
+    persistMessagesToStorage = true,
+    respectDeletedMessageIdsFromStorage = true,
+    persistDeletedMessageIdsToStorage = true,
     centralStateWriteSuppressionKeys = null,
     readDashboardJson = () => null,
     writeDashboardJson = () => {},
@@ -143,6 +147,9 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
   }
 
   function readDashboardDeletedMessageIds() {
+    if (!respectDeletedMessageIdsFromStorage) {
+      return new Set();
+    }
     const parsed = readDashboardJson(dashboardChatDeletedMessageIdsStorageKey, []);
     return new Set(Array.isArray(parsed) ? parsed.map((id) => String(id || "").trim()).filter(Boolean) : []);
   }
@@ -150,6 +157,9 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
   function rememberDashboardDeletedMessageId(messageId) {
     const normalizedMessageId = String(messageId || "").trim();
     if (!normalizedMessageId) {
+      return;
+    }
+    if (!persistDeletedMessageIdsToStorage) {
       return;
     }
     const nextIds = [
@@ -169,6 +179,9 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
       )
     );
     if (!normalizedIds.length) {
+      return;
+    }
+    if (!persistDeletedMessageIdsToStorage) {
       return;
     }
 
@@ -209,7 +222,7 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
   }
 
   function readDashboardMessages() {
-    if (!getDashboardChatRuntimeMessages().length) {
+    if (readMessagesFromStorage && !getDashboardChatRuntimeMessages().length) {
       const parsed = readDashboardJson(dashboardChatStorageKey, []);
       setDashboardChatRuntimeMessages(
         Array.isArray(parsed) ? parsed : Array.isArray(parsed?.messages) ? parsed.messages : []
@@ -234,6 +247,10 @@ export function createDashboardChatMessageRuntime(dependencies = {}) {
     });
 
     setDashboardChatRuntimeMessages(runtimeMessages);
+
+    if (!persistMessagesToStorage || options.skipStorage === true || options.persist === false) {
+      return;
+    }
 
     if (centralStateWriteSuppressionKeys?.add && centralStateWriteSuppressionKeys?.delete) {
       centralStateWriteSuppressionKeys.add(dashboardChatStorageKey);

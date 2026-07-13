@@ -4,9 +4,11 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const chatDatabase = require("../api/_lib/chat-database.js");
 
-test("chat database adapter is database-first with explicit legacy override", () => {
+test("chat database adapter is database-first and requires an explicit emergency legacy flag", () => {
   const previous = process.env.CHAT_STORAGE_MODE;
+  const previousAllowLegacy = process.env.CHAT_ALLOW_LEGACY_STORAGE_FALLBACK;
   delete process.env.CHAT_STORAGE_MODE;
+  delete process.env.CHAT_ALLOW_LEGACY_STORAGE_FALLBACK;
 
   expect(chatDatabase.isDatabaseChatEnabled()).toBe(true);
 
@@ -14,12 +16,20 @@ test("chat database adapter is database-first with explicit legacy override", ()
   expect(chatDatabase.isDatabaseChatEnabled()).toBe(true);
 
   process.env.CHAT_STORAGE_MODE = "legacy";
+  expect(chatDatabase.isDatabaseChatEnabled()).toBe(true);
+
+  process.env.CHAT_ALLOW_LEGACY_STORAGE_FALLBACK = "1";
   expect(chatDatabase.isDatabaseChatEnabled()).toBe(false);
 
   if (previous === undefined) {
     delete process.env.CHAT_STORAGE_MODE;
   } else {
     process.env.CHAT_STORAGE_MODE = previous;
+  }
+  if (previousAllowLegacy === undefined) {
+    delete process.env.CHAT_ALLOW_LEGACY_STORAGE_FALLBACK;
+  } else {
+    process.env.CHAT_ALLOW_LEGACY_STORAGE_FALLBACK = previousAllowLegacy;
   }
 });
 

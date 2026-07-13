@@ -49,11 +49,12 @@ requirePackageScript("release:restore-readiness", "node scripts/verify-app-state
 requirePackageScript("release:restore-drill", "node scripts/verify-app-state-restore-drill.mjs");
 requirePackageScript("release:monitor-postdeploy", "RELEASE_ALLOW_LIVE_HASH_MISMATCH=1 node scripts/verify-production-deploy.mjs");
 requirePackageScript("qa:auth-health", "node scripts/verify-auth-health.mjs");
-requirePackageScript("release:monitor", "npm run release:monitor-postdeploy && npm run qa:auth-health && npm run release:staging-isolation && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required");
+requirePackageScript("release:monitor", "npm run release:monitor-postdeploy && npm run release:firewall && npm run qa:auth-health && npm run release:staging-isolation && npm run release:backup && npm run release:restore-readiness && npm run release:restore-drill && npm run qa:live:required");
 requirePackageScript("release:incident-alert", "node scripts/create-incident-alert.mjs");
 requirePackageScript("release:incident-readiness", "node scripts/verify-incident-readiness.mjs");
 requirePackageScript("release:rules", "node scripts/verify-release-rules.mjs");
 requirePackageScript("release:traffic", "node scripts/verify-vercel-release-traffic.mjs");
+requirePackageScript("release:firewall", "node scripts/verify-vercel-firewall-drift.mjs");
 requirePackageScript("release:staging-isolation", "node scripts/verify-staging-live-isolation.mjs");
 requirePackageScript("release:staging-isolation:repair", "node scripts/verify-staging-live-isolation.mjs --repair");
 requirePackageScript("release:vercel-token", "node scripts/verify-vercel-token.mjs");
@@ -74,6 +75,8 @@ requireText("scripts/verify-storage-key-policy.mjs", "approvedLocalOnlyStorageKe
 requireText("scripts/verify-platform-security.mjs", "Platform security verification: ok", "platform tenant isolation and permission matrix must stay testable");
 requireText("scripts/verify-platform-security.mjs", "validateTrafficSafetyContracts", "traffic spike prevention must remain part of the platform security gate");
 requireText("src/core/traffic-safety-contracts.cjs", "footballscience-traffic-safety-contract-v1", "traffic safety contract must stay explicit and testable");
+requireText("scripts/verify-vercel-firewall-drift.mjs", "readFirewallConfig", "production monitor must read the active Vercel Firewall config");
+requireText("scripts/verify-vercel-firewall-drift.mjs", "validateVercelFirewallConfig", "production monitor must compare Vercel Firewall config against the traffic contract");
 requireText("src/core/permission-matrix.cjs", "platformPermissionMatrix", "backend permissions must live in the central permission matrix");
 requireText("api/_lib/platform-security.js", "footballscience-api-security-event-v1", "API observability must keep a stable structured log schema");
 requireText("api/_lib/platform-security.js", "X-RateLimit-Limit", "API guard must expose rate limit state");
@@ -141,6 +144,10 @@ requireText(".github/workflows/production-deploy.yml", "CRON_SECRET", "productio
 requireText(".github/workflows/production-smoke.yml", "schedule:", "production monitoring must run automatically");
 requireText(".github/workflows/production-smoke.yml", "npm run release:monitor", "production monitoring must run postdeploy and live smoke");
 requireText("package.json", "npm run release:staging-isolation", "production monitoring must verify staging/live isolation");
+requireText("package.json", "npm run release:firewall", "production monitoring must verify Vercel Firewall drift");
+requireText(".github/workflows/production-smoke.yml", "VERCEL_TOKEN", "production monitoring must receive the Vercel token for firewall drift checks");
+requireText(".github/workflows/production-smoke.yml", "VERCEL_PROJECT_ID", "production monitoring must receive the Vercel project id for firewall drift checks");
+requireText(".github/workflows/production-smoke.yml", "VERCEL_ORG_ID", "production monitoring should receive the Vercel org id for team-scoped firewall checks");
 requireText(".github/workflows/production-smoke.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "production monitoring must prove the live QA account still has admin access");
 requireText(".github/workflows/production-smoke.yml", "LIVE_QA_PEER_USERNAME", "production monitoring must pass peer live QA credentials for two-account chat smoke");
 requireText(".github/workflows/production-smoke.yml", "vars.LIVE_QA_REQUIRE_PEER_CHAT || '1'", "production monitoring must require two-account chat smoke by default");

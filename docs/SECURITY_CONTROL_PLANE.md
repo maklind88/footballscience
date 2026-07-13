@@ -42,6 +42,8 @@ Backend route budgets mirror the same intent but stay identity-aware:
 
 High-churn endpoints must pass a shared traffic-safety contract before release. The contract lives in `src/core/traffic-safety-contracts.cjs` and is enforced by `npm run security:platform`.
 
+Production also verifies the active Vercel Firewall configuration with `npm run release:firewall`. That check reads the deployed `active` firewall config from Vercel and fails if the required chat/presence edge rule is disabled, renamed away from the contract, missing `/api/push-subscriptions`, using a weaker window/limit, or no longer denying traffic after the limit.
+
 Each protected route must declare:
 
 - backend API-guard budgets from `src/core/permission-matrix.cjs`

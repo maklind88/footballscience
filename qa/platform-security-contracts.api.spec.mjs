@@ -9,6 +9,7 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const permissionMatrix = require("../src/core/permission-matrix.cjs");
 const platformSecurity = require("../api/_lib/platform-security.js");
 const trafficSafety = require("../src/core/traffic-safety-contracts.cjs");
+const { validateVercelFirewallConfig } = await import("../scripts/verify-vercel-firewall-drift.mjs");
 
 function readProjectFile(relativePath) {
   return fs.readFileSync(path.join(rootDir, relativePath), "utf8");
@@ -194,6 +195,85 @@ test("traffic safety contracts bind high-churn endpoints to backend, edge and cl
 
   const platformSecurityVerifier = readProjectFile("scripts/verify-platform-security.mjs");
   expect(platformSecurityVerifier).toContain("validateTrafficSafetyContracts");
+});
+
+test("Vercel Firewall drift check validates the active chat and presence edge control", () => {
+  const firewallConfig = {
+    firewallEnabled: true,
+    rules: [
+      {
+        name: "Rate limit chat presence APIs",
+        active: true,
+        valid: true,
+        conditionGroup: [
+          {
+            conditions: [
+              {
+                type: "path",
+                op: "re",
+                value: "^/api/(chat|presence|push-subscriptions)$",
+              },
+            ],
+          },
+        ],
+        action: {
+          mitigate: {
+            action: "rate_limit",
+            rateLimit: {
+              algo: "fixed_window",
+              window: "60",
+              limit: "80",
+              keys: ["ip"],
+              action: "deny",
+            },
+          },
+        },
+      },
+    ],
+  };
+
+  expect(validateVercelFirewallConfig(firewallConfig)).toEqual([]);
+
+  const weakenedConfig = {
+    ...firewallConfig,
+    rules: [
+      {
+        ...firewallConfig.rules[0],
+        active: false,
+        conditionGroup: [
+          {
+            conditions: [
+              {
+                type: "path",
+                op: "re",
+                value: "^/api/(chat|presence)$",
+              },
+            ],
+          },
+        ],
+        action: {
+          mitigate: {
+            action: "rate_limit",
+            rateLimit: {
+              algo: "fixed_window",
+              window: "120",
+              limit: "250",
+              keys: ["user_agent"],
+              action: "challenge",
+            },
+          },
+        },
+      },
+    ],
+  };
+
+  const failures = validateVercelFirewallConfig(weakenedConfig).join("\n");
+  expect(failures).toContain("must be active");
+  expect(failures).toContain("must match /api/push-subscriptions");
+  expect(failures).toContain("window must be <= 60 seconds");
+  expect(failures).toContain("limit must be <= 80 requests per window");
+  expect(failures).toContain("rate limit key must include ip");
+  expect(failures).toContain("rate limit action must be deny");
 });
 
 test("API guard blocks module actions outside the backend permission matrix", () => {

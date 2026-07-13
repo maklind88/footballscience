@@ -27,6 +27,9 @@ jobs:
       LIVE_QA_REQUIRE_PEER_CHAT: ${{ vars.LIVE_QA_REQUIRE_PEER_CHAT || '1' }}
       LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6

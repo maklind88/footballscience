@@ -182,6 +182,83 @@ async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await expect(page.locator(`[data-workspace-view="${viewId}"].is-active`)).toBeVisible();
 }
 
+async function getLiveAccessToken(page) {
+  await expect
+    .poll(() => page.evaluate(async () => String((await window.platformAuthStore?.getAccessToken?.()) || "")), {
+      timeout: 20_000,
+    })
+    .not.toBe("");
+  return page.evaluate(async () => String((await window.platformAuthStore?.getAccessToken?.()) || ""));
+}
+
+async function requestLiveChat(page, token, query = "threadId=team&threadType=team&limit=80") {
+  const endpointBase = new URL("/", page.url()).origin;
+  const response = await page.request.get(`${endpointBase}/api/chat?${query}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    timeout: 45_000,
+  });
+  const payload = await response.json().catch(() => ({}));
+  expect(
+    response.ok(),
+    `Live chat read failed: ${response.status()} ${payload?.reason || payload?.message || "no reason"}`
+  ).toBeTruthy();
+  expect(payload.ok, "Live chat read did not return ok=true.").toBe(true);
+  return payload;
+}
+
+function getLiveChatMessageText(message = {}) {
+  return String(message.text ?? message.body ?? message.message ?? "").trim();
+}
+
+async function findLiveChatMessageByText(page, token, text) {
+  const payload = await requestLiveChat(page, token);
+  const messages = Array.isArray(payload.messages) ? payload.messages : [];
+  return messages.find((message) => getLiveChatMessageText(message) === text) || null;
+}
+
+async function deleteLiveChatMessage(page, token, messageId) {
+  if (!messageId) {
+    return false;
+  }
+  const endpointBase = new URL("/", page.url()).origin;
+  const response = await page.request.post(`${endpointBase}/api/chat`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    data: {
+      action: "deleteMessage",
+      messageId,
+    },
+    timeout: 45_000,
+  });
+  const payload = await response.json().catch(() => ({}));
+  expect(
+    response.ok(),
+    `Live chat cleanup failed: ${response.status()} ${payload?.reason || payload?.message || "no reason"}`
+  ).toBeTruthy();
+  expect(payload.ok, "Live chat cleanup did not return ok=true.").toBe(true);
+  return true;
+}
+
+async function openTeamChat(page) {
+  await dismissDashboardModal(page);
+  const alreadyOpen = await page.locator(".dashboard-chat-widget.is-open").count();
+  if (!alreadyOpen) {
+    const toggle = page.locator("[data-dashboard-chat-widget-toggle]").first();
+    await expect(toggle).toBeVisible({ timeout: 20_000 });
+    await toggle.click();
+  }
+
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible({ timeout: 20_000 });
+  const teamThread = page.locator('[data-dashboard-chat-thread="team"]').first();
+  if ((await teamThread.count()) > 0) {
+    await teamThread.click();
+  }
+  await expect(page.locator("[data-dashboard-chat-input]")).toBeVisible({ timeout: 20_000 });
+}
+
 async function expectStorageContains(page, key, text) {
   await expect
     .poll(
@@ -341,6 +418,63 @@ test("production test account can open the unified Scouting database", async ({ 
       { timeout: 45_000 }
     )
     .toMatch(/^(ready|terminal-error)$/);
+});
+
+test("production test account can send, reload, and clean up a chat message", async ({ page }) => {
+  const messageText = `QA Live Chat ${Date.now()}`;
+  let token = "";
+  let messageId = "";
+
+  await signIn(page);
+  token = await getLiveAccessToken(page);
+
+  try {
+    const initialPayload = await requestLiveChat(page, token);
+    expect(Array.isArray(initialPayload.messages), "Live chat response must include messages.").toBe(true);
+
+    await openTeamChat(page);
+    await page.locator("[data-dashboard-chat-input]").fill(messageText);
+    await page.locator("[data-dashboard-chat-form] button[type='submit']").click();
+    await expect(page.locator("[data-dashboard-chat-input]")).toHaveValue("");
+    await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText, { timeout: 45_000 });
+
+    await expect
+      .poll(
+        async () => {
+          const message = await findLiveChatMessageByText(page, token, messageText);
+          messageId = String(message?.id || message?.messageId || "");
+          return Boolean(messageId);
+        },
+        { timeout: 45_000, intervals: [750, 1_500, 3_000] }
+      )
+      .toBe(true);
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await signIn(page);
+    token = await getLiveAccessToken(page);
+    await openTeamChat(page);
+    await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText, { timeout: 45_000 });
+
+    await deleteLiveChatMessage(page, token, messageId);
+    await expect
+      .poll(
+        async () => {
+          const message = await findLiveChatMessageByText(page, token, messageText);
+          return Boolean(message);
+        },
+        { timeout: 30_000, intervals: [750, 1_500, 3_000] }
+      )
+      .toBe(false);
+    messageId = "";
+  } finally {
+    if (!messageId && token) {
+      const message = await findLiveChatMessageByText(page, token, messageText).catch(() => null);
+      messageId = String(message?.id || message?.messageId || "");
+    }
+    if (messageId && token) {
+      await deleteLiveChatMessage(page, token, messageId).catch(() => {});
+    }
+  }
 });
 
 test("production test account can save and reload a schedule record", async ({ page }) => {

@@ -543,6 +543,99 @@ test("closed chat receives realtime summary refresh for unread notifications", a
   });
 });
 
+test("chat api runtime records visible sync health for failures and recovery", async () => {
+  const fetchCalls = [];
+  let shouldFail = true;
+  let apiStatus = { key: "idle" };
+  let apiThreads = [];
+  let messages = [];
+  let hydratedThreadIds = new Set();
+  let renderCount = 0;
+
+  const runtime = createDashboardChatApiRuntime({
+    canFallbackDashboardChatApiResult: () => false,
+    fetchDashboardChatApi: async (query) => {
+      fetchCalls.push(query);
+      if (shouldFail) {
+        return {
+          ok: false,
+          status: 503,
+          reason: "Database is temporarily unavailable.",
+          retryable: true,
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        result: {
+          threads: [
+            {
+              threadId: "team",
+              type: "team",
+              messageCount: 0,
+              unreadCount: 0,
+            },
+          ],
+          messages: [],
+          pagination: {},
+        },
+      };
+    },
+    getDashboardChatApiStatus: () => apiStatus,
+    setDashboardChatApiStatus: (nextStatus) => {
+      apiStatus = nextStatus;
+    },
+    getDashboardApiThreads: () => apiThreads,
+    setDashboardApiThreads: (nextThreads) => {
+      apiThreads = nextThreads;
+    },
+    getDashboardMessages: () => messages,
+    setDashboardMessages: (nextMessages) => {
+      messages = nextMessages;
+    },
+    getDashboardHydratedThreadIds: () => hydratedThreadIds,
+    setDashboardHydratedThreadIds: (nextValue) => {
+      hydratedThreadIds = nextValue instanceof Set ? nextValue : new Set(nextValue || []);
+    },
+    getDashboardChatCurrentViewState: () => ({ isOpen: true, selectedThreadId: "team" }),
+    normalizeDashboardChatThreadId: (threadId, fallback = "team") => String(threadId || fallback || "team"),
+    getDashboardChatThreadTypeForApi: () => "team",
+    normalizeDashboardApiThread: (thread) => thread,
+    normalizeDashboardApiMessage: (message) => message,
+    mergeDashboardChatApiMessages: (nextMessages) => {
+      messages = nextMessages;
+      return messages;
+    },
+    renderDashboardChatWidget: () => {
+      renderCount += 1;
+    },
+    syncDashboardChatWidgetNotificationCursor: () => {},
+  });
+
+  const failed = await runtime.refreshDashboardChatFromApi({ threadId: "team", forceNetwork: true });
+  expect(failed.ok).toBe(false);
+  expect(apiStatus).toMatchObject({
+    key: "server-error",
+    label: "Chat server issue",
+    detail: "Database is temporarily unavailable.",
+    retryable: true,
+    status: 503,
+  });
+  expect(renderCount).toBeGreaterThanOrEqual(1);
+
+  shouldFail = false;
+  const recovered = await runtime.refreshDashboardChatFromApi({ threadId: "team", forceNetwork: true });
+  expect(recovered.ok).toBe(true);
+  expect(apiStatus).toMatchObject({
+    key: "ready",
+    label: "Chat synced",
+    retryable: false,
+    status: 200,
+  });
+  expect(fetchCalls).toHaveLength(2);
+  expect(hydratedThreadIds.has("team")).toBe(true);
+});
+
 test("dm flow stays scoped to participants and does not leak to other staff", () => {
   const dmThreadId = "dm:coach-qa:teammate-qa";
   const seededState = {
@@ -1336,7 +1429,7 @@ test("chat API runtime keeps active thread unhydrated when history payload is em
     }),
   ]);
   expect(hydratedThreadIds.has("team")).toBe(false);
-  expect(rendered).toBe(1);
+  expect(rendered).toBe(2);
 });
 
 test("chat API runtime hydrates active thread from legacy state payload without leaking other thread messages", async () => {

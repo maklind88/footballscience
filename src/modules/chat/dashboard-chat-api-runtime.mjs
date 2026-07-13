@@ -69,6 +69,8 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     setDashboardChatRealtimeLastEventAt = () => {},
     getDashboardChatRealtimeRecoveryTimer = () => 0,
     setDashboardChatRealtimeRecoveryTimer = () => {},
+    getDashboardChatApiStatus = () => ({ key: "idle" }),
+    setDashboardChatApiStatus = () => {},
     getDashboardChatModerationState = () => ({ loading: false, audits: [], failedUploads: [], retentionPolicy: null, health: null, filters: dashboardChatModerationDefaultFilters, error: "" }),
     setDashboardChatModerationState = () => {},
     getDashboardChatRuntimeState = () => ({
@@ -265,6 +267,75 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
 
   function setRealtimeRecoveryTimer(value = 0) {
     setDashboardChatRealtimeRecoveryTimer(Number(value) || 0);
+  }
+
+  function getChatApiStatus() {
+    const status = getDashboardChatApiStatus?.() || {};
+    return status && typeof status === "object" && !Array.isArray(status) ? status : { key: "idle" };
+  }
+
+  function setChatApiStatus(nextStatus = {}) {
+    setDashboardChatApiStatus({
+      ...getChatApiStatus(),
+      ...nextStatus,
+      checkedAt: Date.now(),
+    });
+  }
+
+  function setChatApiSyncingStatus(operation = "messages") {
+    const label = operation === "threads" ? "Syncing conversations" : "Syncing chat";
+    const detail = operation === "threads" ? "Loading the latest chat list." : "Loading the latest messages.";
+    setChatApiStatus({ key: "syncing", label, detail, operation, retryable: false, status: 0 });
+  }
+
+  function setChatApiResultStatus(result = {}, operation = "messages") {
+    if (result?.skipped) {
+      return;
+    }
+
+    if (result?.ok) {
+      setChatApiStatus({
+        key: "ready",
+        label: "Chat synced",
+        detail: operation === "threads" ? "Conversation list is up to date." : "Messages are up to date.",
+        operation,
+        retryable: false,
+        status: Number(result.status || 200) || 200,
+      });
+      return;
+    }
+
+    const statusCode = Number(result?.status || 0) || 0;
+    const reason = String(result?.reason || result?.message || "").trim();
+    const retryable = Boolean(result?.retryable || statusCode === 0 || statusCode === 429 || statusCode >= 500);
+    const key =
+      statusCode === 401 || statusCode === 403
+        ? "auth"
+        : statusCode === 429
+          ? "rate-limited"
+          : statusCode >= 500
+            ? "server-error"
+            : statusCode === 0 || retryable
+              ? "offline"
+              : "error";
+    const label = {
+      auth: "Chat needs sign-in",
+      "rate-limited": "Chat is slowing down",
+      "server-error": "Chat server issue",
+      offline: "Chat connection issue",
+      error: "Chat could not sync",
+    }[key] || "Chat could not sync";
+    const fallbackDetail = retryable
+      ? "Retrying automatically. You can also retry now."
+      : "Open the menu and retry when the session is ready.";
+    setChatApiStatus({
+      key,
+      label,
+      detail: reason || fallbackDetail,
+      operation,
+      retryable,
+      status: statusCode,
+    });
   }
 
   function getHydratedThreadIds() {
@@ -558,10 +629,18 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     if (!options.forceNetwork && !getDashboardChatCurrentViewState()?.isOpen) {
       return createDashboardChatClosedResult();
     }
+    setChatApiSyncingStatus("threads");
+    if (options.render !== false) {
+      renderDashboardChatWidget();
+    }
     const result = await fetchDashboardChatApi({ view: "threads", limit: options.limit || 80, __activeChatRead: true });
+    setChatApiResultStatus(result, "threads");
     if (!result.ok) {
       if (!canFallbackDashboardChatApiResult(result)) {
         logDashboardChatApiFailure("threads", result);
+      }
+      if (options.render !== false) {
+        renderDashboardChatWidget();
       }
       return result;
     }
@@ -647,12 +726,16 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
       delete query.threadId;
     }
 
+    setChatApiSyncingStatus("messages");
+    renderDashboardChatWidget();
     const result = await fetchDashboardChatApi(query);
+    setChatApiResultStatus(result, "messages");
     if (!result.ok) {
       unmarkThreadHydrated(threadId);
       if (!canFallbackDashboardChatApiResult(result)) {
         logDashboardChatApiFailure("load", result);
       }
+      renderDashboardChatWidget();
       return result;
     }
 

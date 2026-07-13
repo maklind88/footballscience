@@ -44,6 +44,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     getDashboardChatThreadFilter = () => "all",
     getDashboardChatThreadSettingsDialog = () => null,
     getDashboardChatPushDiagnosticsState = () => null,
+    getDashboardChatApiStatus = () => ({ key: "idle" }),
     dashboardChatThreadSettings = { get: () => ({ muted: false }) },
     dashboardChatModerationState = {},
     normalizeDashboardChatThreadId = (threadId, fallback = dashboardChatTeamThreadId) => threadId || fallback,
@@ -230,6 +231,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     const users = getPlatformUsers().filter((user) => user.status === "active");
     const notificationState = readDashboardChatWidgetNotificationState();
     const pushDiagnostics = getDashboardChatPushDiagnosticsState();
+    const apiStatus = getDashboardChatApiStatus();
 
     documentRef?.body?.classList.add("has-dashboard-chat-widget");
     documentRef?.body?.classList.toggle("is-dashboard-chat-open", Boolean(state.isOpen));
@@ -335,6 +337,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       users,
       notificationState,
       pushDiagnostics,
+      apiStatus,
       state,
       messages: resolvedMessages,
       threads,

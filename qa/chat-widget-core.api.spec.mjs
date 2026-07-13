@@ -237,6 +237,65 @@ test("chat widget renders push notification health in the More menu", () => {
   expect(result.html).toContain("Send system notification");
 });
 
+test("chat widget surfaces API sync failures with a real retry action", () => {
+  const currentUser = { id: "u1", name: "Mak", status: "active" };
+  const users = [currentUser, { id: "u2", name: "Medical Lead", status: "active" }];
+  const renderer = createRenderer([]);
+
+  const degraded = renderer.render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    activeThreadId: "team",
+    messages: [],
+    threads: [
+      {
+        threadId: "team",
+        label: "Team Chat",
+        isTeamThread: true,
+        participants: users,
+        messageCount: 0,
+      },
+    ],
+    apiStatus: {
+      key: "server-error",
+      label: "Chat server issue",
+      detail: "Database is temporarily unavailable.",
+      retryable: true,
+    },
+  });
+  const ready = renderer.render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    activeThreadId: "team",
+    messages: [],
+    threads: [
+      {
+        threadId: "team",
+        label: "Team Chat",
+        isTeamThread: true,
+        participants: users,
+        messageCount: 0,
+      },
+    ],
+    apiStatus: { key: "ready", label: "Chat synced", detail: "Messages are up to date." },
+  });
+
+  expect(degraded.html).toContain('data-dashboard-chat-sync-status');
+  expect(degraded.html).toContain("Chat server issue");
+  expect(degraded.html).toContain("Database is temporarily unavailable.");
+  expect(degraded.html).toContain('data-dashboard-chat-retry-sync="team"');
+  expect(degraded.html).toContain("Chat sync");
+  expect(degraded.html).toContain("dashboard-chat-more-action is-server-error");
+  expect(ready.html).not.toContain("data-dashboard-chat-sync-status");
+  expect(ready.html).toContain("dashboard-chat-more-action is-ready");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-sync-status");
+  expect(appRuntimeSource).toContain('event.target.closest("[data-dashboard-chat-retry-sync]")');
+  expect(appRuntimeSource).toContain("await refreshDashboardChatFromApi({ threadId, forceNetwork: true });");
+  expect(widgetRuntimeSource).toContain("getDashboardChatApiStatus");
+});
+
 test("chat widget keeps loaded older history visible in the active conversation pane", () => {
   const currentUser = { id: "u1", name: "Mak" };
   const users = [currentUser, { id: "u2", name: "Coach A", status: "active" }];

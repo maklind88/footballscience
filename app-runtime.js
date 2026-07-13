@@ -1092,6 +1092,12 @@ let dashboardChatApiRealtimeRecoveryTimer = 0;
 let dashboardChatApiScope = null;
 let dashboardChatApiThreads = [];
 let dashboardChatApiPagination = {};
+let dashboardChatApiStatus = {
+key: "idle",
+label: "Chat ready",
+detail: "Open a conversation to sync.",
+checkedAt: 0,
+};
 let dashboardChatRuntimeMessages = [];
 let dashboardChatHydratedThreadIds = new Set();
 let dashboardChatLocallyHiddenThreadIds = new Set();
@@ -2398,6 +2404,13 @@ dashboardChatApiRuntime = createDashboardChatApiRuntime({
   setDashboardChatRealtimeRecoveryTimer: (value = 0) => {
     dashboardChatApiRealtimeRecoveryTimer = Number(value) || 0;
   },
+  getDashboardChatApiStatus: () => dashboardChatApiStatus,
+  setDashboardChatApiStatus: (nextStatus = {}) => {
+    dashboardChatApiStatus = {
+      ...dashboardChatApiStatus,
+      ...(nextStatus && typeof nextStatus === "object" && !Array.isArray(nextStatus) ? nextStatus : {}),
+    };
+  },
   getDashboardChatModerationState: () => dashboardChatModerationState,
   setDashboardChatModerationState: (nextState) => {
     dashboardChatModerationState = { ...dashboardChatModerationState, ...nextState };
@@ -2960,6 +2973,7 @@ const {
   getDashboardChatThreadFilter: () => dashboardChatThreadFilter,
   getDashboardChatThreadSettingsDialog: () => dashboardChatThreadSettingsDialog,
   getDashboardChatPushDiagnosticsState: () => dashboardChatPushDiagnosticsState,
+  getDashboardChatApiStatus: () => dashboardChatApiStatus,
   moderationState: dashboardChatModerationState,
   normalizeDashboardChatThreadId,
   normalizeDashboardApiMessage,
@@ -3829,6 +3843,18 @@ return;
 const retryMessageButton = event.target.closest("[data-dashboard-retry-message]");
 if (retryMessageButton) {
 await retryDashboardMessageWithApi(retryMessageButton.dataset.dashboardRetryMessage);
+return;
+}
+const retrySyncButton = event.target.closest("[data-dashboard-chat-retry-sync]");
+if (retrySyncButton) {
+const currentState = readDashboardChatWidgetState();
+const threadId = normalizeDashboardChatThreadId(
+retrySyncButton.dataset.dashboardChatRetrySync || currentState.selectedThreadId,
+dashboardChatTeamThreadId
+);
+queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: false, forceNetwork: true });
+await refreshDashboardChatFromApi({ threadId, forceNetwork: true });
+renderDashboardChatWidget();
 return;
 }
 const reactionButton = event.target.closest("[data-dashboard-message-reaction][data-dashboard-reaction-key]");

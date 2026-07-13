@@ -181,6 +181,65 @@ export function renderDashboardChatMessageStatus(message = {}, currentUser = {},
   return `<div class="dashboard-chat-status is-${statusKey}" title="${escapeHtml(statusLabel)}" aria-label="${escapeHtml(statusLabel)}"><span class="dashboard-chat-check-label" aria-hidden="true">${statusIcon}</span></div>`;
 }
 
+function normalizeDashboardChatApiStatus(apiStatus = {}) {
+  const status = apiStatus && typeof apiStatus === "object" && !Array.isArray(apiStatus) ? apiStatus : {};
+  const rawKey = String(status.key || status.state || status.status || "idle")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-");
+  const knownKeys = new Set(["idle", "ready", "syncing", "auth", "rate-limited", "server-error", "offline", "error"]);
+  const key = knownKeys.has(rawKey) ? rawKey : "error";
+  const fallbackLabel = {
+    idle: "Chat ready",
+    ready: "Chat synced",
+    syncing: "Syncing chat",
+    auth: "Chat needs sign-in",
+    "rate-limited": "Chat is slowing down",
+    "server-error": "Chat server issue",
+    offline: "Chat connection issue",
+    error: "Chat could not sync",
+  }[key] || "Chat could not sync";
+  const fallbackDetail = {
+    idle: "Open a conversation to sync.",
+    ready: "Messages are up to date.",
+    syncing: "Loading the latest messages.",
+    auth: "Sign in again to keep messages synced.",
+    "rate-limited": "Retrying automatically. You can also retry now.",
+    "server-error": "Retrying automatically. You can also retry now.",
+    offline: "Check the connection, then retry.",
+    error: "Retry when the session is ready.",
+  }[key] || "Retry when the session is ready.";
+
+  return {
+    key,
+    label: String(status.label || fallbackLabel).trim().slice(0, 80) || fallbackLabel,
+    detail: String(status.detail || status.reason || fallbackDetail).trim().slice(0, 180) || fallbackDetail,
+  };
+}
+
+function shouldRenderDashboardChatApiStatus(status = {}) {
+  return Boolean(status && !["idle", "ready"].includes(status.key));
+}
+
+function renderDashboardChatApiStatusBanner(status = {}, activeThreadId = "", escapeHtml = defaultEscapeHtml) {
+  if (!shouldRenderDashboardChatApiStatus(status)) {
+    return "";
+  }
+  const retryMarkup = status.key === "syncing"
+    ? ""
+    : `<button type="button" data-dashboard-chat-retry-sync="${escapeHtml(activeThreadId || "team")}">Retry</button>`;
+  return `
+    <section class="dashboard-chat-sync-status is-${escapeHtml(status.key)}" data-dashboard-chat-sync-status role="status" aria-live="polite" aria-atomic="true">
+      <span class="dashboard-chat-sync-status-dot" aria-hidden="true"></span>
+      <span class="dashboard-chat-sync-status-copy">
+        <strong>${escapeHtml(status.label)}</strong>
+        <small>${escapeHtml(status.detail)}</small>
+      </span>
+      ${retryMarkup}
+    </section>
+  `;
+}
+
 function defaultRenderMessageText(message = {}, options = {}, escapeHtml = defaultEscapeHtml) {
   return renderDashboardChatTextPartWithSearchHighlight(message?.text, options.searchQuery, escapeHtml);
 }
@@ -1206,6 +1265,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       users = [],
       notificationState = { enabled: true },
       pushDiagnostics = null,
+      apiStatus = null,
       state = { isOpen: false, selectedThreadId: teamThreadId },
       messages = [],
       threads = [],
@@ -1292,6 +1352,8 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       .toLowerCase()
       .replace(/[^a-z0-9-]+/g, "-")
       .slice(0, 40) || "unknown";
+    const normalizedApiStatus = normalizeDashboardChatApiStatus(apiStatus);
+    const apiStatusBannerMarkup = renderDashboardChatApiStatusBanner(normalizedApiStatus, activeThreadId, escapeHtml);
     const groupCreateUsers = users
       .filter((user) => user?.id && user.id !== currentUser?.id)
       .slice(0, 18);
@@ -1697,6 +1759,15 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                       Test push
                       <small>${escapeHtml(pushHealthStatus === "ready" ? "Send system notification" : "Register this device")}</small>
                     </button>
+                    <button
+                      type="button"
+                      class="dashboard-chat-more-action is-${escapeHtml(normalizedApiStatus.key)}"
+                      data-dashboard-chat-retry-sync="${escapeHtml(activeThreadId)}"
+                      title="${escapeHtml(normalizedApiStatus.detail)}"
+                    >
+                      Chat sync
+                      <small>${escapeHtml(normalizedApiStatus.label)}</small>
+                    </button>
                     ${
                       headerCanManageGroup
                         ? `
@@ -1860,6 +1931,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <small>${escapeHtml(activeThreadSubLabel)}</small>
             </span>
           </div>
+          ${apiStatusBannerMarkup}
           ${moderationMarkup}
           ${hasThreadMessages.length ? renderCoachWorkflowPanel({ activeThreadId, messages, pinnedMessages, users, currentUser }) : ""}
           ${hasThreadMessages.length ? renderConversationIntelligenceRail({ activeThreadId, messages, pinnedMessages, users, currentUser }) : ""}

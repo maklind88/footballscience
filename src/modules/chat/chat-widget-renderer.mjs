@@ -183,6 +183,7 @@ export function renderDashboardChatMessageStatus(message = {}, currentUser = {},
 
 function normalizeDashboardChatApiStatus(apiStatus = {}) {
   const status = apiStatus && typeof apiStatus === "object" && !Array.isArray(apiStatus) ? apiStatus : {};
+  const checkedAtSource = status.checkedAt ?? status.checked_at ?? status.updatedAt ?? status.updated_at ?? 0;
   const rawKey = String(status.key || status.state || status.status || "idle")
     .trim()
     .toLowerCase()
@@ -214,6 +215,8 @@ function normalizeDashboardChatApiStatus(apiStatus = {}) {
     key,
     label: String(status.label || fallbackLabel).trim().slice(0, 80) || fallbackLabel,
     detail: String(status.detail || status.reason || fallbackDetail).trim().slice(0, 180) || fallbackDetail,
+    checkedAt: Number(checkedAtSource) || checkedAtSource || 0,
+    retryable: Boolean(status.retryable),
   };
 }
 
@@ -488,6 +491,80 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       mentions: threads.filter((thread) => doesThreadMatchFilter(thread, "mentions")).length,
       pinned: threads.filter((thread) => doesThreadMatchFilter(thread, "pinned")).length,
     };
+  }
+
+  function formatTrustTime(value = "") {
+    const numericValue = Number(value || 0);
+    if (Number.isFinite(numericValue) && numericValue > 0) {
+      return formatTime(new Date(numericValue).toISOString());
+    }
+    const parsedTime = Date.parse(String(value || ""));
+    return Number.isFinite(parsedTime) ? formatTime(new Date(parsedTime).toISOString()) : "";
+  }
+
+  function getChatSyncTrustLabel(status = {}) {
+    const timeLabel = formatTrustTime(status.checkedAt);
+    if (status.key === "ready") {
+      return timeLabel ? `Synced ${timeLabel}` : "Synced";
+    }
+    if (status.key === "syncing") {
+      return "Syncing now";
+    }
+    if (status.key === "idle") {
+      return "Sync pending";
+    }
+    return status.retryable ? "Retry sync" : status.label || "Sync needs attention";
+  }
+
+  function getInboxTrustSummary(threads = [], unreadCount = 0, status = {}) {
+    const sourceThreads = Array.isArray(threads) ? threads : [];
+    const activeCount = sourceThreads.filter(hasThreadConversationActivity).length;
+    const mentionCount = sourceThreads.reduce((total, thread) => total + (Number(thread?.mentionCount || 0) || 0), 0);
+    const primary = unreadCount
+      ? `${unreadCount} unread`
+      : `${sourceThreads.length} conversation${sourceThreads.length === 1 ? "" : "s"}`;
+    const detailParts = [
+      activeCount ? `${activeCount} active` : "No active chats",
+      mentionCount ? `${mentionCount} mention${mentionCount === 1 ? "" : "s"}` : "No mentions",
+      getChatSyncTrustLabel(status),
+    ];
+    return {
+      primary,
+      detail: detailParts.filter(Boolean).join(" - "),
+    };
+  }
+
+  function getConversationDeliveryTrust(messages = [], currentUser = {}) {
+    const currentUserId = String(currentUser?.id || "").trim();
+    const ownMessages = messages.filter((message) => String(message?.userId || "").trim() === currentUserId);
+    const failedCount = ownMessages.filter((message) => String(message?.status || "").trim().toLowerCase() === "failed").length;
+    const pendingCount = ownMessages.filter((message) => String(message?.status || "").trim().toLowerCase() === "pending").length;
+    if (failedCount) {
+      return `${failedCount} not sent`;
+    }
+    if (pendingCount) {
+      return `${pendingCount} sending`;
+    }
+    return ownMessages.length ? "All sent" : "Ready to send";
+  }
+
+  function renderConversationTrustStrip({ status = {}, activeThread = null, messages = [], currentUser = {}, users = [] } = {}) {
+    const syncLabel = getChatSyncTrustLabel(status);
+    const deliveryLabel = getConversationDeliveryTrust(messages, currentUser);
+    const messageCount = Number(activeThread?.messageCount || messages.length || 0) || 0;
+    const contextLabel = activeThread
+      ? `${messageCount} message${messageCount === 1 ? "" : "s"} - ${getThreadStatus(activeThread, users)}`
+      : "No active conversation";
+    return `
+      <section class="dashboard-chat-sync-status dashboard-chat-trust-strip is-${escapeHtml(status.key || "idle")}" data-dashboard-chat-trust role="status" aria-live="polite" aria-atomic="true">
+        <span class="dashboard-chat-sync-status-dot" aria-hidden="true"></span>
+        <span class="dashboard-chat-sync-status-copy">
+          <strong data-dashboard-chat-trust-sync>${escapeHtml(syncLabel)}</strong>
+          <small data-dashboard-chat-trust-context>${escapeHtml(contextLabel)}</small>
+        </span>
+        <span data-dashboard-chat-trust-delivery>${escapeHtml(deliveryLabel)}</span>
+      </section>
+    `;
   }
 
   function renderThreadFilters(activeFilter = "all", threads = []) {
@@ -1364,6 +1441,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       ? simpleInboxThreads
       : threads.filter((thread) => doesThreadMatchFilter(thread, normalizedThreadFilter));
     const threadFilterMarkup = renderThreadFilters(normalizedThreadFilter, simpleInboxThreads);
+    const inboxTrustSummary = getInboxTrustSummary(simpleInboxThreads, unreadCount, normalizedApiStatus);
     const directCreateMarkup = groupCreateUsers.length
       ? `
           <form class="dashboard-chat-direct-create-form" aria-label="Start a private chat" data-dashboard-chat-direct-create-form>
@@ -1894,8 +1972,9 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         <section class="dashboard-chat-thread-list" aria-label="Chat threads">
           <div class="dashboard-chat-inbox-head">
             <div>
-              <strong>Chats</strong>
-              <small>${escapeHtml(unreadCount ? `${unreadCount} unread` : `${simpleInboxThreads.length} conversation${simpleInboxThreads.length === 1 ? "" : "s"}`)}</small>
+              <strong>Inbox</strong>
+              <small>${escapeHtml(inboxTrustSummary.primary)}</small>
+              <small class="dashboard-chat-inbox-trust" data-dashboard-chat-inbox-trust>${escapeHtml(inboxTrustSummary.detail)}</small>
             </div>
             ${threadPresetMarkup}
             <input
@@ -1932,6 +2011,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             </span>
           </div>
           ${apiStatusBannerMarkup}
+          ${renderConversationTrustStrip({ status: normalizedApiStatus, activeThread, messages: hasThreadMessages, currentUser, users })}
           ${moderationMarkup}
           ${hasThreadMessages.length ? renderCoachWorkflowPanel({ activeThreadId, messages, pinnedMessages, users, currentUser }) : ""}
           ${hasThreadMessages.length ? renderConversationIntelligenceRail({ activeThreadId, messages, pinnedMessages, users, currentUser }) : ""}

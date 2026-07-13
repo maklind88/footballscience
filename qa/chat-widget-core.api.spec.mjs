@@ -296,6 +296,77 @@ test("chat widget surfaces API sync failures with a real retry action", () => {
   expect(widgetRuntimeSource).toContain("getDashboardChatApiStatus");
 });
 
+test("chat inbox renders trust summary and conversation delivery state", () => {
+  const currentUser = { id: "u1", name: "Mak", status: "active" };
+  const peer = { id: "u2", name: "Analyst", status: "active" };
+  const messages = [
+    {
+      id: "m1",
+      userId: "u2",
+      threadId: "team",
+      text: "Mentioning you for the match plan.",
+      createdAt: "2026-01-01T10:00:00.000Z",
+      readBy: ["u2"],
+      mentionedUserIds: ["u1"],
+      reactions: {},
+      priority: "normal",
+    },
+    {
+      id: "m2",
+      userId: "u1",
+      threadId: "team",
+      text: "I will check it.",
+      createdAt: "2026-01-01T10:01:00.000Z",
+      readBy: ["u1"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "normal",
+      status: "failed",
+    },
+  ];
+  const threads = [
+    {
+      threadId: "team",
+      label: "Team Chat",
+      isTeamThread: true,
+      messageCount: 2,
+      unreadCount: 1,
+      mentionCount: 1,
+      lastMessage: messages[1],
+      participants: [currentUser, peer],
+      settings: {},
+    },
+  ];
+
+  const result = createRenderer(messages).render({
+    currentUser,
+    users: [currentUser, peer],
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads,
+    activeThreadId: "team",
+    unreadCount: 1,
+    apiStatus: {
+      key: "ready",
+      label: "Chat synced",
+      detail: "Messages are up to date.",
+      checkedAt: Date.UTC(2026, 0, 1, 10, 15),
+    },
+  });
+
+  expect(result.html).toContain("<strong>Inbox</strong>");
+  expect(result.html).toContain('data-dashboard-chat-inbox-trust');
+  expect(result.html).toContain("1 unread");
+  expect(result.html).toContain("1 active - 1 mention - Synced 10:15");
+  expect(result.html).toContain('data-dashboard-chat-trust');
+  expect(result.html).toContain('data-dashboard-chat-trust-sync');
+  expect(result.html).toContain("Synced 10:15");
+  expect(result.html).toContain('data-dashboard-chat-trust-delivery');
+  expect(result.html).toContain("1 not sent");
+  expect(result.html).toContain('data-dashboard-chat-trust-context');
+  expect(result.html).toContain("2 messages - 2 online");
+});
+
 test("chat widget preserves open dialog drafts across sync rerenders", () => {
   expect(widgetRuntimeSource).toContain("readDashboardChatDialogDrafts");
   expect(widgetRuntimeSource).toContain("restoreDashboardChatDialogDrafts(root, previousDialogDrafts)");
@@ -599,7 +670,7 @@ test("chat inbox defaults to relevant conversations instead of empty staff DMs",
     threadFilter: "all",
   });
 
-  expect(result.html).toContain("<strong>Chats</strong>");
+  expect(result.html).toContain("<strong>Inbox</strong>");
   expect(result.html).toContain("3 conversations");
   expect(result.html).toContain('data-dashboard-chat-thread="team"');
   expect(result.html).toContain('data-dashboard-chat-thread="medical"');

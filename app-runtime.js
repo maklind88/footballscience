@@ -2978,14 +2978,14 @@ return false;
 }
 root.querySelectorAll(".dashboard-chat-message.is-deep-link-target").forEach((node) => {
 if (node !== messageNode) {
-node.classList.remove("is-deep-link-target");
+node.classList.remove("is-deep-link-target", "is-search-match", "is-active-search-match");
 }
 });
-messageNode.classList.add("is-deep-link-target");
+messageNode.classList.add("is-deep-link-target", "is-search-match", "is-active-search-match");
 messageNode.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
 win.clearTimeout(scrollTimer);
 scrollTimer = win.setTimeout(() => {
-messageNode.classList.remove("is-deep-link-target");
+messageNode.classList.remove("is-deep-link-target", "is-search-match", "is-active-search-match");
 }, 4200);
 return true;
 };

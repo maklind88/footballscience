@@ -96,6 +96,23 @@ function shouldGroupWithPreviousMessage(message = {}, previousMessage = null, cu
   return Math.abs(currentTime - previousTime) <= MESSAGE_GROUP_WINDOW_MS;
 }
 
+function isUnreadForCurrentUser(message = {}, currentUser = null) {
+  const currentUserId = String(currentUser?.id || "").trim();
+  if (!currentUserId || !message?.id || String(message.userId || "") === currentUserId) {
+    return false;
+  }
+  const status = String(message.status || "sent").trim().toLowerCase();
+  if (message.isDeleted || ["deleted", "failed", "pending", "preview"].includes(status)) {
+    return false;
+  }
+  const readBy = Array.isArray(message.readBy) ? message.readBy.map((userId) => String(userId || "")) : [];
+  return !readBy.includes(currentUserId);
+}
+
+function getFirstUnreadMessageId(messages = [], currentUser = null) {
+  return String((Array.isArray(messages) ? messages : []).find((message) => isUnreadForCurrentUser(message, currentUser))?.id || "");
+}
+
 function formatFileSize(value) {
   const bytes = Number(value || 0);
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -708,6 +725,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const isTextSearchMatch = Boolean(searchQuery && String(message.text || "").toLowerCase().includes(searchQuery.toLowerCase()));
     const isActiveSearchMatch = Boolean(searchQuery && options.activeSearchMatchId && String(message.id) === String(options.activeSearchMatchId));
     const isSearchMatch = Boolean(isTextSearchMatch || isActiveSearchMatch);
+    const isFirstUnread = Boolean(options.isFirstUnread);
     const messageStatus = String(message.status || "sent").trim().toLowerCase().replace(/[^a-z-]/g, "");
     const normalizedPriority = normalizePriority(message?.priority);
     const user = users.find((candidate) => candidate.id === message.userId) ?? message.author ?? null;
@@ -762,7 +780,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       : "";
 
     return `
-    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isPreviewOnly ? " is-preview" : ""}${isMentioned ? " is-mentioned" : ""}${isSearchMatch ? " is-search-match" : ""}${isActiveSearchMatch ? " is-active-search-match" : ""}${message.pinnedAt ? " is-pinned" : ""}${isGroupedWithPrevious ? " is-grouped-with-previous" : ""}${isGroupedWithNext ? " is-grouped-with-next" : ""}${messageStatus ? ` is-${escapeHtml(messageStatus)} is-status-${escapeHtml(messageStatus)}` : ""}${cardStateClasses}" data-dashboard-chat-message-id="${escapeHtml(message.id)}" data-dashboard-chat-message-card${isActiveSearchMatch ? ' data-dashboard-chat-search-active="true"' : ""} aria-label="${escapeHtml(`${userName}${timeLabel ? `, ${timeLabel}` : ""}`)}">
+    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isPreviewOnly ? " is-preview" : ""}${isMentioned ? " is-mentioned" : ""}${isSearchMatch ? " is-search-match" : ""}${isActiveSearchMatch ? " is-active-search-match" : ""}${isFirstUnread ? " is-first-unread" : ""}${message.pinnedAt ? " is-pinned" : ""}${isGroupedWithPrevious ? " is-grouped-with-previous" : ""}${isGroupedWithNext ? " is-grouped-with-next" : ""}${messageStatus ? ` is-${escapeHtml(messageStatus)} is-status-${escapeHtml(messageStatus)}` : ""}${cardStateClasses}" data-dashboard-chat-message-id="${escapeHtml(message.id)}" data-dashboard-chat-message-card${isActiveSearchMatch ? ' data-dashboard-chat-search-active="true"' : ""}${isFirstUnread ? ' data-dashboard-chat-first-unread-message="true"' : ""} aria-label="${escapeHtml(`${userName}${timeLabel ? `, ${timeLabel}` : ""}`)}">
       ${metaMarkup}
       <div class="dashboard-chat-bubble">
         ${isPreviewOnly ? "" : `<details class="dashboard-chat-message-menu">
@@ -834,11 +852,15 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         const separator = hasSeparator
           ? `<div class="dashboard-chat-date-separator"><span>${escapeHtml(formatDateSeparator(message.createdAt))}</span></div>`
           : "";
+        const isFirstUnread = Boolean(options.firstUnreadMessageId && String(message.id) === String(options.firstUnreadMessageId));
+        const unreadSeparator = isFirstUnread
+          ? `<div class="dashboard-chat-unread-separator" data-dashboard-chat-first-unread data-dashboard-chat-first-unread-message-id="${escapeHtml(message.id)}" role="status" aria-live="polite"><span>Unread messages</span></div>`
+          : "";
         const groupedWithPrevious = !hasSeparator && shouldGroupWithPreviousMessage(message, previousMessage, currentKey, previousKey, currentUser);
         const groupedWithNext = shouldGroupWithPreviousMessage(nextMessage, message, nextKey, currentKey, currentUser);
         previousKey = currentKey || previousKey;
         previousMessage = message;
-        return `${separator}${renderMessage(message, users, currentUser, { groupedWithPrevious, groupedWithNext, searchQuery: options.searchQuery, activeSearchMatchId: options.activeSearchMatchId })}`;
+        return `${separator}${unreadSeparator}${renderMessage(message, users, currentUser, { groupedWithPrevious, groupedWithNext, searchQuery: options.searchQuery, activeSearchMatchId: options.activeSearchMatchId, isFirstUnread })}`;
       })
       .join("");
   }
@@ -1394,6 +1416,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       chatCreatorMode = "group",
       threadFilter = "all",
       threadSettingsDialog = null,
+      firstUnreadMessageId = "",
     } = options;
     const isOpen = Boolean(state.isOpen);
     const activeThread = threads.find((thread) => thread.threadId === activeThreadId);
@@ -1423,6 +1446,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       ? []
       : getThreadPreviewFallbackMessages(activeThread, activeThreadId, users, currentUser);
     const conversationMessages = visibleMessages.length ? visibleMessages : previewFallbackMessages;
+    const requestedFirstUnreadMessageId = normalizedMessageSearch ? "" : String(firstUnreadMessageId || getFirstUnreadMessageId(hasThreadMessages, currentUser)).trim();
+    const visibleFirstUnreadMessageId = requestedFirstUnreadMessageId && conversationMessages.some((message) => String(message.id) === requestedFirstUnreadMessageId)
+      ? requestedFirstUnreadMessageId
+      : "";
     const pinnedMessages = getPinnedMessagesForThread(messages, activeThreadId);
     const latestThread = threads.find((thread) => thread.unreadCount) || getLatestThread(threads);
     const activeThreadLabel = activeThread?.label || teamChatTitle;
@@ -2043,9 +2070,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           ${hasThreadMessages.length ? renderCoachWorkflowPanel({ activeThreadId, messages, pinnedMessages, users, currentUser }) : ""}
           ${hasThreadMessages.length ? renderConversationIntelligenceRail({ activeThreadId, messages, pinnedMessages, users, currentUser }) : ""}
           ${renderPinnedMessages(pinnedMessages, users, currentUser)}
-          <div class="dashboard-chat-list" data-dashboard-chat-list aria-live="polite">
+          ${visibleFirstUnreadMessageId ? `<button type="button" class="dashboard-chat-unread-jump" data-dashboard-chat-jump-unread="${escapeHtml(activeThreadId)}">Jump to unread</button>` : ""}
+          <div class="dashboard-chat-list" data-dashboard-chat-list data-dashboard-chat-active-thread="${escapeHtml(activeThreadId)}" aria-live="polite">
             ${hasOlderMessages && !normalizedMessageSearch ? `<button type="button" class="dashboard-chat-load-more" data-dashboard-chat-load-earlier="${escapeHtml(activeThreadId)}">Load earlier</button>` : ""}
-            ${conversationMessages.length ? renderMessagesWithDateSeparators(conversationMessages, users, currentUser, { searchQuery: normalizedMessageSearch, activeSearchMatchId }) : `<div class="dashboard-chat-empty-state"><strong>No messages yet</strong><span>${escapeHtml(activeThread?.isTeamThread ? "Start the team thread." : `Start a direct message with ${activeThreadLabel}.`)}</span></div>`}
+            ${conversationMessages.length ? renderMessagesWithDateSeparators(conversationMessages, users, currentUser, { searchQuery: normalizedMessageSearch, activeSearchMatchId, firstUnreadMessageId: visibleFirstUnreadMessageId }) : `<div class="dashboard-chat-empty-state"><strong>No messages yet</strong><span>${escapeHtml(activeThread?.isTeamThread ? "Start the team thread." : `Start a direct message with ${activeThreadLabel}.`)}</span></div>`}
           </div>
           ${renderTypingIndicator(activeThreadId, users, currentUser)}
           ${replyComposerMarkup}

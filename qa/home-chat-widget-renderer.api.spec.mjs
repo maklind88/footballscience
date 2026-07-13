@@ -108,3 +108,47 @@ test("home chat widget renderer drops stale reply drafts when the selected threa
   expect(result.replyDraft).toBeNull();
   expect(result.html).not.toContain("data-reply-ref");
 });
+
+test("home chat widget renderer exposes first unread navigation inside the active thread", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [currentUser, { id: "u2", name: "Coach A", status: "active" }];
+  const messages = [
+    {
+      id: "m-read",
+      userId: "u2",
+      threadId: "team",
+      text: "Already handled",
+      createdAt: "2026-01-01T10:00:00.000Z",
+      readBy: ["u1", "u2"],
+      mentionedUserIds: [],
+      reactions: {},
+    },
+    {
+      id: "m-unread",
+      userId: "u2",
+      threadId: "team",
+      text: "Needs attention",
+      createdAt: "2026-01-01T10:01:00.000Z",
+      readBy: ["u2"],
+      mentionedUserIds: [],
+      reactions: {},
+    },
+  ];
+  const renderer = createRenderer(messages);
+  const result = renderer.render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads: [{ threadId: "team", label: "Team Chat", isTeamThread: true, messageCount: 2, unreadCount: 1, lastMessage: messages[1] }],
+    firstUnreadMessageId: "m-unread",
+  });
+
+  expect(result.html).toContain("data-dashboard-chat-jump-unread=\"team\"");
+  expect(result.html).toContain("data-dashboard-chat-first-unread");
+  expect(result.html).toContain("data-dashboard-chat-first-unread-message=\"true\"");
+  expect(result.html).toContain("data-dashboard-chat-active-thread=\"team\"");
+  expect(result.html.indexOf("data-dashboard-chat-first-unread-message-id=\"m-unread\"")).toBeLessThan(
+    result.html.indexOf("data-dashboard-chat-message-id=\"m-unread\"")
+  );
+});

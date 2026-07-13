@@ -1070,6 +1070,7 @@ let dashboardChatWidgetRuntimeFunctions = {
   showDashboardChatWidgetToast: () => {},
   hideDashboardChatWidgetToast: () => {},
   focusDashboardChatWidgetComposer: () => {},
+  scrollDashboardChatFirstUnread: () => false,
 };
 let dashboardChatWidgetRuntime = null;
 
@@ -1079,6 +1080,7 @@ syncDashboardChatWidgetNotificationCursor = (...args) =>
 const showDashboardChatWidgetToast = (...args) => dashboardChatWidgetRuntimeFunctions.showDashboardChatWidgetToast(...args);
 const hideDashboardChatWidgetToast = (...args) => dashboardChatWidgetRuntimeFunctions.hideDashboardChatWidgetToast(...args);
 const focusDashboardChatWidgetComposer = (...args) => dashboardChatWidgetRuntimeFunctions.focusDashboardChatWidgetComposer(...args);
+const scrollDashboardChatFirstUnread = (...args) => dashboardChatWidgetRuntimeFunctions.scrollDashboardChatFirstUnread(...args);
 let dashboardChatReplyDraft = null;
 let dashboardChatPriorityDraft = "normal";
 let dashboardChatConfirmAction = null;
@@ -3003,6 +3005,7 @@ const {
   showDashboardChatWidgetToast: _showDashboardChatWidgetToast,
   hideDashboardChatWidgetToast: _hideDashboardChatWidgetToast,
   focusDashboardChatWidgetComposer: _focusDashboardChatWidgetComposer,
+  scrollDashboardChatFirstUnread: _scrollDashboardChatFirstUnread,
 } = (dashboardChatWidgetRuntime = createDashboardChatWidgetRuntime({
   dashboardChatTeamThreadId,
   dashboardChatWidgetRenderer,
@@ -3071,6 +3074,7 @@ dashboardChatWidgetRuntimeFunctions = {
   showDashboardChatWidgetToast: _showDashboardChatWidgetToast || (() => {}),
   hideDashboardChatWidgetToast: _hideDashboardChatWidgetToast || (() => {}),
   focusDashboardChatWidgetComposer: _focusDashboardChatWidgetComposer || (() => {}),
+  scrollDashboardChatFirstUnread: _scrollDashboardChatFirstUnread || (() => false),
 };
 const workspaceRuntimeComposition = createWorkspaceRuntimeComposition({
 applyUserAvatar,
@@ -3944,6 +3948,12 @@ return;
 const loadEarlierButton = event.target.closest("[data-dashboard-chat-load-earlier]");
 if (loadEarlierButton) {
 await loadOlderDashboardChatMessagesWithApi(loadEarlierButton.dataset.dashboardChatLoadEarlier);
+return;
+}
+const jumpUnreadButton = event.target.closest("[data-dashboard-chat-jump-unread]");
+if (jumpUnreadButton) {
+event.preventDefault();
+scrollDashboardChatFirstUnread();
 return;
 }
 const openDirectCreatorButton = event.target.closest("[data-dashboard-chat-open-direct-creator]");

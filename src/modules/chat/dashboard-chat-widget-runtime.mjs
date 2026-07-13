@@ -327,6 +327,48 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     }, 0);
   }
 
+  function scrollDashboardChatFirstUnread(options = {}) {
+    const root = ui.dashboardChatWidgetRoot;
+    const target =
+      root?.querySelector("[data-dashboard-chat-first-unread]") ||
+      root?.querySelector("[data-dashboard-chat-first-unread-message='true']");
+    if (!target?.scrollIntoView) {
+      return false;
+    }
+    target.scrollIntoView({
+      block: options.block || "center",
+      inline: "nearest",
+      behavior: options.behavior || "smooth",
+    });
+    return true;
+  }
+
+  function getDashboardChatFirstUnreadMessageId(messages = [], threadId = "", currentUser = null) {
+    const currentUserId = String(currentUser?.id || "").trim();
+    const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+    if (!currentUserId || !normalizedThreadId) {
+      return "";
+    }
+    return String(
+      (Array.isArray(messages) ? messages : []).find((message) => {
+        const messageThreadId = normalizeDashboardChatThreadId(message?.threadId, "");
+        const messageUserId = String(message?.userId || "").trim();
+        const status = String(message?.status || "sent").trim().toLowerCase();
+        if (
+          !message?.id ||
+          messageThreadId !== normalizedThreadId ||
+          messageUserId === currentUserId ||
+          message?.isDeleted ||
+          ["deleted", "failed", "pending", "preview"].includes(status)
+        ) {
+          return false;
+        }
+        const readBy = Array.isArray(message.readBy) ? message.readBy.map((userId) => String(userId || "")) : [];
+        return !readBy.includes(currentUserId);
+      })?.id || ""
+    );
+  }
+
   function isDashboardChatNotificationCursorCurrentForMessage(cursor = {}, message = {}) {
     if (!cursor || !message?.id) {
       return false;
@@ -421,6 +463,8 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     const previousThreadListScrollTop = existingThreadList?.scrollTop ?? 0;
     const previousThreadListScrollLeft = existingThreadList?.scrollLeft ?? 0;
     const existingChatList = root.querySelector("[data-dashboard-chat-list]");
+    const previousWidgetWasOpen = Boolean(root.querySelector(".dashboard-chat-widget.is-open"));
+    const previousActiveChatThreadId = String(existingChatList?.dataset?.dashboardChatActiveThread || previousComposerThreadId || "");
     const previousChatListScrollTop = existingChatList?.scrollTop ?? null;
     const previousChatListScrollHeight = existingChatList?.scrollHeight ?? 0;
     const previousChatListClientHeight = existingChatList?.clientHeight ?? 0;
@@ -439,6 +483,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     const activeThreadId = threads.some((thread) => thread.threadId === state.selectedThreadId)
       ? state.selectedThreadId
       : threads[0]?.threadId || dashboardChatTeamThreadId;
+    const firstUnreadMessageId = getDashboardChatFirstUnreadMessageId(messages, activeThreadId, currentUser);
 
     const hydratedThreadIds = getDashboardHydratedThreadIds();
     const activeThread = threads.find((thread) => thread.threadId === activeThreadId) || null;
@@ -529,6 +574,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       chatCreatorMode: getDashboardChatCreatorMode(),
       threadFilter: getDashboardChatThreadFilter(),
       threadSettingsDialog: getDashboardChatThreadSettingsDialog(),
+      firstUnreadMessageId,
     });
 
     setDashboardChatReplyDraft(renderedWidget.replyDraft);
@@ -581,8 +627,16 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
 
     const nextChatList = root.querySelector("[data-dashboard-chat-list]");
     const activeSearchMatchElement = root.querySelector("[data-dashboard-chat-search-active='true']");
+    const firstUnreadTarget = root.querySelector("[data-dashboard-chat-first-unread]");
+    const shouldScrollToFirstUnread = Boolean(
+      firstUnreadTarget &&
+        state.isOpen &&
+        (!previousWidgetWasOpen || previousActiveChatThreadId !== renderedWidget.activeThreadId)
+    );
     if (activeSearchMatchElement) {
       activeSearchMatchElement.scrollIntoView({ block: "center", inline: "nearest" });
+    } else if (shouldScrollToFirstUnread) {
+      scrollDashboardChatFirstUnread({ behavior: "auto" });
     } else if (nextChatList && previousChatListScrollTop !== null && previousComposerThreadId === renderedWidget.activeThreadId) {
       const nextMaxScrollTop = Math.max(0, nextChatList.scrollHeight - nextChatList.clientHeight);
       const nextScrollTop = preserveChatScroll
@@ -729,5 +783,6 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     showDashboardChatWidgetToast,
     hideDashboardChatWidgetToast,
     focusDashboardChatWidgetComposer,
+    scrollDashboardChatFirstUnread,
   };
 }

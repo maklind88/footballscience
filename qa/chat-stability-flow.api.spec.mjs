@@ -914,6 +914,10 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(chatWidgetRuntimeContractSource).toContain("markDashboardMessagesReadForCurrentUser");
   expect(chatWidgetRuntimeContractSource).toContain("previousThreadListScrollTop");
   expect(chatWidgetRuntimeContractSource).toContain("previousChatListWasAtBottom");
+  expect(chatWidgetRuntimeContractSource).toContain("firstUnreadMessageId");
+  expect(chatWidgetRuntimeContractSource).toContain("data-dashboard-chat-first-unread");
+  expect(chatWidgetRuntimeContractSource).toContain("data-dashboard-chat-jump-unread");
+  expect(appSource).toContain("scrollDashboardChatFirstUnread");
 
   expect(rendererSource).toContain("data-dashboard-chat-message-retry");
   expect(rendererSource).toContain("data-dashboard-chat-mobile-back");
@@ -925,6 +929,7 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(rendererSource).toContain("dashboard-chat-more-menu");
   expect(rendererSource).toContain("dashboard-chat-support-diagnostics");
   expect(rendererSource).toContain("is-active-search-match");
+  expect(rendererSource).toContain("is-first-unread");
   expect(rendererSource).toContain("groupedWithNext");
   expect(rendererSource).toContain("MESSAGE_GROUP_WINDOW_MS = 15 * 60 * 1000");
 
@@ -934,6 +939,8 @@ test("frontend stability contract covers retry, unread, attachments, mobile, and
   expect(chatCssSource).toContain("dashboard-chat-details-section-head");
   expect(chatCssSource).toContain("dashboard-chat-moderation-filters");
   expect(chatCssSource).toContain("dashboard-chat-search-nav");
+  expect(chatCssSource).toContain("dashboard-chat-unread-separator");
+  expect(chatCssSource).toContain("dashboard-chat-unread-jump");
   expect(chatCssSource).toContain("dashboard-chat-more-menu");
   expect(chatCssSource).toContain("dashboard-chat-support-diagnostics");
   expect(chatCssSource).toContain("dashboard-chat-attachment-preview-empty");
@@ -1108,6 +1115,123 @@ test("open chat queues first thread load without marking the thread hydrated bef
 
   expect(queuedThreadLoads).toEqual([{ threadId, delayMs: 0, immediate: true, forceNetwork: true }]);
   expect(hydratedThreadIds.has(threadId)).toBe(false);
+});
+
+test("open chat captures first unread before marking the active thread read", () => {
+  const threadId = "team";
+  const unreadMessageId = "message-unread";
+  const messages = [
+    {
+      id: "message-read",
+      threadId,
+      userId: teammateActor.id,
+      text: "Already read",
+      createdAt: "2026-06-27T09:00:00.000Z",
+      readBy: [teammateActor.id, coachActor.id],
+      mentionedUserIds: [],
+    },
+    {
+      id: unreadMessageId,
+      threadId,
+      userId: teammateActor.id,
+      text: "Unread update",
+      createdAt: "2026-06-27T09:01:00.000Z",
+      readBy: [teammateActor.id],
+      mentionedUserIds: [],
+    },
+  ];
+  let rendered = false;
+  let htmlValue = "";
+  let capturedRenderOptions = null;
+  let markedReadThreadId = "";
+  const scrollCalls = [];
+  const firstUnreadTarget = {
+    scrollIntoView: (options) => {
+      scrollCalls.push(options);
+    },
+  };
+  const chatList = {
+    scrollTop: 0,
+    scrollHeight: 800,
+    clientHeight: 320,
+    dataset: { dashboardChatActiveThread: threadId },
+  };
+  const root = {
+    dataset: {},
+    get innerHTML() {
+      return htmlValue;
+    },
+    set innerHTML(nextValue) {
+      htmlValue = nextValue;
+      rendered = Boolean(nextValue);
+    },
+    querySelector: (selector) => {
+      if (!rendered) {
+        return null;
+      }
+      if (selector === "[data-dashboard-chat-list]") {
+        return chatList;
+      }
+      if (selector === "[data-dashboard-chat-first-unread]") {
+        return firstUnreadTarget;
+      }
+      return null;
+    },
+    querySelectorAll: () => [],
+  };
+  const runtime = createDashboardChatWidgetRuntime({
+    dashboardChatWidgetRenderer: {
+      render: (options) => {
+        capturedRenderOptions = options;
+        return {
+          html: "<section class=\"dashboard-chat-widget is-open\"><div data-dashboard-chat-list data-dashboard-chat-active-thread=\"team\"><div data-dashboard-chat-first-unread></div></div></section>",
+          activeThreadId: threadId,
+          replyDraft: null,
+        };
+      },
+    },
+    getCurrentPlatformUser: () => coachActor,
+    getPlatformUsers: () => [coachActor, teammateActor],
+    getDashboardChatThreadList: () => [{
+      threadId,
+      label: "Team Chat",
+      messageCount: 2,
+      unreadCount: 1,
+      lastMessage: messages[1],
+      lastActivityAt: "2026-06-27T09:01:00.000Z",
+    }],
+    readDashboardMessages: () => messages,
+    readDashboardChatWidgetState: () => ({ isOpen: true, selectedThreadId: threadId }),
+    isDashboardChatThreadActivelyViewed: () => true,
+    markDashboardMessagesReadForCurrentUser: (sourceMessages, nextThreadId) => {
+      markedReadThreadId = nextThreadId;
+      return sourceMessages.map((message) => ({
+        ...message,
+        readBy: Array.from(new Set([...(message.readBy || []), coachActor.id])),
+      }));
+    },
+    getDashboardHydratedThreadIds: () => new Set([threadId]),
+    ui: {
+      dashboardChatWidgetRoot: root,
+    },
+    documentRef: {
+      activeElement: null,
+      body: {
+        classList: {
+          add: () => {},
+          remove: () => {},
+          toggle: () => {},
+        },
+      },
+    },
+  });
+
+  runtime.renderDashboardChatWidget();
+
+  expect(markedReadThreadId).toBe(threadId);
+  expect(capturedRenderOptions.firstUnreadMessageId).toBe(unreadMessageId);
+  expect(capturedRenderOptions.messages.find((message) => message.id === unreadMessageId)?.readBy).toContain(coachActor.id);
+  expect(scrollCalls).toEqual([expect.objectContaining({ block: "center", behavior: "auto" })]);
 });
 
 test("open chat rehydrates active server-backed thread when local message store is empty", () => {

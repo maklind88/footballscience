@@ -99,7 +99,7 @@ test("staging and secret requirements are explicit without exposing secret value
   expect(staging.some((entry) => entry.required.includes("STAGING_SUPABASE_PROJECT_REF"))).toBe(true);
   expect(accounts.some((entry) => entry.required.includes("VERCEL_TOKEN"))).toBe(true);
   expect(accounts.some((entry) => entry.required.includes("LIVE_QA_USERNAME"))).toBe(true);
-  expect(accounts.some((entry) => entry.id === "live-qa-peer-chat" && entry.required.includes("LIVE_QA_PEER_USERNAME"))).toBe(true);
+  expect(accounts.some((entry) => entry.id === "live-qa-peer-chat" && entry.recommended.includes("LIVE_QA_PEER_USERNAME"))).toBe(true);
   expect(accounts.some((entry) => entry.id === "live-qa-peer-chat" && entry.missing.includes("LIVE_QA_REQUIRE_PEER_CHAT"))).toBe(true);
   expect(report.environment.every((entry) => !JSON.stringify(entry).includes("secret-value"))).toBe(true);
 });

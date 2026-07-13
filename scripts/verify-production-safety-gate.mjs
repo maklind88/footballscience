@@ -142,8 +142,11 @@ for (const name of [
 }
 
 if (clean(process.env.LIVE_QA_REQUIRE_PEER_CHAT) === "1") {
-  requireEnv("LIVE_QA_PEER_USERNAME");
-  requireEnv("LIVE_QA_PEER_PASSWORD");
+  const hasPeerSecrets = Boolean(clean(process.env.LIVE_QA_PEER_USERNAME) && clean(process.env.LIVE_QA_PEER_PASSWORD));
+  const canCreateDynamicPeer = clean(process.env.LIVE_QA_EXPECT_ADMIN) === "1";
+  if (!hasPeerSecrets && !canCreateDynamicPeer) {
+    failures.push("LIVE_QA_REQUIRE_PEER_CHAT=1 requires peer credentials or LIVE_QA_EXPECT_ADMIN=1 for dynamic peer setup.");
+  }
 }
 
 if (!productionHost) {

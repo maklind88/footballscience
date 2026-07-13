@@ -16,10 +16,10 @@ const required = [
 
 const missing = required.filter((name) => !String(process.env[name] || "").trim());
 if (process.env.LIVE_QA_REQUIRE_PEER_CHAT === "1") {
-  for (const name of ["LIVE_QA_PEER_USERNAME", "LIVE_QA_PEER_PASSWORD"]) {
-    if (!String(process.env[name] || "").trim()) {
-      missing.push(name);
-    }
+  const hasPeerSecrets = ["LIVE_QA_PEER_USERNAME", "LIVE_QA_PEER_PASSWORD"].every((name) => String(process.env[name] || "").trim());
+  const canCreateDynamicPeer = process.env.LIVE_QA_EXPECT_ADMIN === "1";
+  if (!hasPeerSecrets && !canCreateDynamicPeer) {
+    missing.push("LIVE_QA_PEER_USERNAME/LIVE_QA_PEER_PASSWORD or LIVE_QA_EXPECT_ADMIN=1");
   }
 }
 

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { expect, test } from "@playwright/test";
 
 const scheduleKey = "football-schedule-v1";
@@ -12,6 +13,9 @@ const peerLiveCredentials = {
 const hasLiveCredentials = Boolean(primaryLiveCredentials.username && primaryLiveCredentials.password);
 const hasPeerLiveCredentials = Boolean(peerLiveCredentials.username && peerLiveCredentials.password);
 const expectsAdminCredentials = process.env.LIVE_QA_EXPECT_ADMIN === "1";
+const dynamicPeerEmail = String(process.env.LIVE_QA_DYNAMIC_PEER_EMAIL || "live-chat-peer@footballscience.qa").trim().toLowerCase();
+const dynamicPeerUsername = String(process.env.LIVE_QA_DYNAMIC_PEER_USERNAME || "live.chat.peer").trim().toLowerCase();
+const canCreateDynamicPeerLiveAccount = expectsAdminCredentials;
 
 test.skip(!hasLiveCredentials, "Set LIVE_QA_USERNAME and LIVE_QA_PASSWORD for production-safe live smoke.");
 
@@ -185,6 +189,11 @@ async function getLiveCurrentUser(page) {
       email: String(user.email || ""),
       username: String(user.username || ""),
       role: String(user.role || ""),
+      clubId: String(user.clubId || ""),
+      clubName: String(user.clubName || ""),
+      teamId: String(user.teamId || ""),
+      teamName: String(user.teamName || ""),
+      team: String(user.team || ""),
       name: String(user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || ""),
     };
   });
@@ -258,6 +267,99 @@ async function postLiveChatAction(page, token, data, label) {
   ).toBeTruthy();
   expect(payload.ok, `${label} did not return ok=true.`).toBe(true);
   return payload;
+}
+
+function generateLiveQaPassword() {
+  return `LiveQa-${crypto.randomBytes(12).toString("base64url")}!7`;
+}
+
+async function requestLiveAdminUsers(page, token, options = {}) {
+  const endpointBase = new URL("/", page.url()).origin;
+  const method = String(options.method || "GET").toUpperCase();
+  const requestOptions = {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    timeout: 45_000,
+  };
+  if (options.data) {
+    requestOptions.data = options.data;
+  }
+
+  const url = `${endpointBase}/api/admin-users${options.query || ""}`;
+  const response =
+    method === "POST"
+      ? await page.request.post(url, requestOptions)
+      : method === "PUT"
+        ? await page.request.put(url, requestOptions)
+        : method === "DELETE"
+          ? await page.request.delete(url, requestOptions)
+          : await page.request.get(url, requestOptions);
+  const payload = await response.json().catch(() => ({}));
+  expect(
+    response.ok(),
+    `Live admin users ${method} failed: ${response.status()} ${payload?.reason || payload?.message || "no reason"}`
+  ).toBeTruthy();
+  expect(payload.ok, `Live admin users ${method} did not return ok=true.`).toBe(true);
+  return payload;
+}
+
+async function ensureLivePeerCredentials(page, token, primaryUser = {}) {
+  if (hasPeerLiveCredentials) {
+    return {
+      credentials: peerLiveCredentials,
+      source: "secrets",
+      user: null,
+    };
+  }
+
+  expect(canCreateDynamicPeerLiveAccount, "Dynamic peer live QA needs LIVE_QA_EXPECT_ADMIN=1.").toBe(true);
+
+  const usersPayload = await requestLiveAdminUsers(page, token);
+  const users = Array.isArray(usersPayload.users) ? usersPayload.users : [];
+  const existingPeer = users.find((user) => {
+    const email = String(user?.email || "").trim().toLowerCase();
+    const username = String(user?.username || "").trim().toLowerCase();
+    return email === dynamicPeerEmail || username === dynamicPeerUsername;
+  });
+  const password = generateLiveQaPassword();
+  const teamName = primaryUser.teamName || primaryUser.team || "North Carolina Courage";
+  const peerPayload = {
+    email: dynamicPeerEmail,
+    password,
+    username: dynamicPeerUsername,
+    firstName: "Live",
+    lastName: "Chat QA",
+    role: "coach",
+    title: "QA Peer",
+    department: "Football",
+    status: "active",
+    clubId: primaryUser.clubId || "club-ncc",
+    clubName: primaryUser.clubName || "North Carolina Courage",
+    teamId: primaryUser.teamId || "team-ncc-first",
+    teamName,
+    team: teamName,
+  };
+  const payload = existingPeer?.id
+    ? await requestLiveAdminUsers(page, token, {
+        method: "PUT",
+        query: `?userId=${encodeURIComponent(existingPeer.id)}`,
+        data: peerPayload,
+      })
+    : await requestLiveAdminUsers(page, token, {
+        method: "POST",
+        data: peerPayload,
+      });
+  const user = payload.user || existingPeer || {};
+
+  return {
+    credentials: {
+      username: String(user.email || dynamicPeerEmail),
+      password,
+    },
+    source: existingPeer?.id ? "dynamic-existing" : "dynamic-created",
+    user,
+  };
 }
 
 function getLiveChatMessageText(message = {}) {
@@ -530,7 +632,10 @@ test("production test account can send, reload, and clean up a chat message", as
 });
 
 test("production peer accounts prove DM unread state and read receipt end-to-end", async ({ browser, page }) => {
-  test.skip(!hasPeerLiveCredentials, "Set LIVE_QA_PEER_USERNAME and LIVE_QA_PEER_PASSWORD for two-account chat live smoke.");
+  test.skip(
+    !hasPeerLiveCredentials && !canCreateDynamicPeerLiveAccount,
+    "Set LIVE_QA_PEER_USERNAME/LIVE_QA_PEER_PASSWORD or run with LIVE_QA_EXPECT_ADMIN=1 for dynamic peer live smoke."
+  );
 
   const messageText = `QA Live DM ${Date.now()}`;
   let primaryToken = "";
@@ -541,13 +646,14 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
   await signIn(page);
   primaryToken = await getLiveAccessToken(page);
   const primaryUser = await getLiveCurrentUser(page);
+  const peerAccount = await ensureLivePeerCredentials(page, primaryToken, primaryUser);
 
   peerContext = await browser.newContext({
     baseURL: getLiveBaseUrl(),
     storageState: { cookies: [], origins: [] },
   });
   const peerPage = await peerContext.newPage();
-  await signIn(peerPage, peerLiveCredentials);
+  await signIn(peerPage, peerAccount.credentials);
   const peerToken = await getLiveAccessToken(peerPage);
   const peerUser = await getLiveCurrentUser(peerPage);
 
@@ -601,7 +707,7 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
       .toMatchObject({ hasThread: true, unreadCount: 1 });
 
     await peerPage.reload({ waitUntil: "domcontentloaded" });
-    await signIn(peerPage, peerLiveCredentials);
+    await signIn(peerPage, peerAccount.credentials);
     await openTeamChat(peerPage);
     const peerThreadButton = peerPage.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
     await expect(peerThreadButton).toBeVisible({ timeout: 45_000 });

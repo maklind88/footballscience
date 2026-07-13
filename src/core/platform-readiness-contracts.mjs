@@ -104,12 +104,12 @@ export const platformReadinessEnvironmentRequirements = Object.freeze([
     id: "live-qa-peer-chat",
     area: "accounts-secrets",
     label: "Two-account chat live QA",
-    location: "GitHub Secrets + GitHub Variables",
-    required: Object.freeze(["LIVE_QA_PEER_USERNAME", "LIVE_QA_PEER_PASSWORD", "LIVE_QA_REQUIRE_PEER_CHAT"]),
+    location: "GitHub Variables or production workflow defaults",
+    required: Object.freeze(["LIVE_QA_REQUIRE_PEER_CHAT"]),
     requiredValues: Object.freeze({
       LIVE_QA_REQUIRE_PEER_CHAT: "1",
     }),
-    recommended: Object.freeze([]),
+    recommended: Object.freeze(["LIVE_QA_PEER_USERNAME", "LIVE_QA_PEER_PASSWORD", "LIVE_QA_DYNAMIC_PEER_EMAIL"]),
     critical: true,
   }),
   Object.freeze({

@@ -326,9 +326,13 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(liveSpec).toContain("LIVE_QA_USERNAME");
   expect(liveSpec).toContain("LIVE_QA_PASSWORD");
   expect(liveSpec).toContain("LIVE_QA_PEER_USERNAME");
+  expect(liveSpec).toContain("LIVE_QA_DYNAMIC_PEER_EMAIL");
+  expect(liveSpec).toContain("ensureLivePeerCredentials");
   expect(liveSpec).toContain("production peer accounts prove DM unread state and read receipt end-to-end");
   expect(readProjectFile("scripts/verify-live-qa-env.mjs")).toContain("LIVE_QA_REQUIRE_PEER_CHAT");
+  expect(readProjectFile("scripts/verify-live-qa-env.mjs")).toContain("dynamic peer account");
   expect(productionDeployWorkflow).toContain("LIVE_QA_PEER_USERNAME");
+  expect(productionDeployWorkflow).toContain("vars.LIVE_QA_REQUIRE_PEER_CHAT || '1'");
   expect(liveSpec).toContain("production-safe live smoke");
   expect(liveSpec).toContain("production admin account can open Access & Users");
   expect(liveSpec).toContain('toBe("admin")');

@@ -112,6 +112,7 @@ requireText("qa/platform-identity-backfill.api.spec.mjs", "app_metadata", "platf
 requireText("qa/production.live.spec.mjs", "production admin account can open Access & Users", "live smoke must prove admin access");
 requireText("qa/production.live.spec.mjs", 'toBe("admin")', "live smoke must fail if the release QA account loses admin");
 requireText("qa/production.live.spec.mjs", "production peer accounts prove DM unread state and read receipt end-to-end", "live smoke must prove two-account chat delivery and read receipts");
+requireText("qa/production.live.spec.mjs", "ensureLivePeerCredentials", "live smoke must support dynamic two-account chat proof when peer secrets are absent");
 requireText("scripts/verify-live-qa-env.mjs", "LIVE_QA_REQUIRE_PEER_CHAT", "live QA environment verifier must support mandatory peer chat smoke");
 
 requireText(".github/workflows/staging-deploy.yml", "branches:", "staging must deploy from the staging branch");
@@ -132,6 +133,7 @@ requireText(".github/workflows/production-deploy.yml", "npm run release:staging-
 requireText(".github/workflows/production-deploy.yml", "npm run qa:live:required", "production deploy must run authenticated live smoke");
 requireText(".github/workflows/production-deploy.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "production deploy must prove the live QA account still has admin access");
 requireText(".github/workflows/production-deploy.yml", "LIVE_QA_PEER_USERNAME", "production deploy must pass peer live QA credentials for two-account chat smoke");
+requireText(".github/workflows/production-deploy.yml", "vars.LIVE_QA_REQUIRE_PEER_CHAT || '1'", "production deploy must require two-account chat smoke by default");
 requireText(".github/workflows/production-deploy.yml", "CRON_SECRET", "production deploy must receive the cron secret required by the release environment gate");
 
 requireText(".github/workflows/production-smoke.yml", "schedule:", "production monitoring must run automatically");
@@ -139,6 +141,7 @@ requireText(".github/workflows/production-smoke.yml", "npm run release:monitor",
 requireText("package.json", "npm run release:staging-isolation", "production monitoring must verify staging/live isolation");
 requireText(".github/workflows/production-smoke.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "production monitoring must prove the live QA account still has admin access");
 requireText(".github/workflows/production-smoke.yml", "LIVE_QA_PEER_USERNAME", "production monitoring must pass peer live QA credentials for two-account chat smoke");
+requireText(".github/workflows/production-smoke.yml", "vars.LIVE_QA_REQUIRE_PEER_CHAT || '1'", "production monitoring must require two-account chat smoke by default");
 requireText(".github/workflows/production-smoke.yml", "CRON_SECRET", "production monitoring must verify backup freshness with the cron secret");
 
 requireText(".github/workflows/production-incident-alert.yml", "workflow_run:", "incident alerting must watch workflow completions");
@@ -153,6 +156,7 @@ requireText(".github/workflows/production-rollback.yml", "npm run release:vercel
 requireText(".github/workflows/production-rollback.yml", "vercel@53.2.0 rollback", "rollback must use the pinned Vercel CLI");
 requireText(".github/workflows/production-rollback.yml", "npm run release:staging-isolation:repair", "rollback must repair staging/live alias drift before live verification");
 requireText(".github/workflows/production-rollback.yml", "LIVE_QA_PEER_USERNAME", "rollback verification must pass peer live QA credentials for two-account chat smoke");
+requireText(".github/workflows/production-rollback.yml", "vars.LIVE_QA_REQUIRE_PEER_CHAT || '1'", "rollback must require two-account chat smoke by default");
 requireText(".github/workflows/production-rollback.yml", "npm run release:postdeploy", "rollback must verify the live domain");
 requireText(".github/workflows/production-rollback.yml", "npm run qa:live:required", "rollback must run authenticated live smoke");
 requireText(".github/workflows/production-rollback.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "rollback verification must prove the live QA account still has admin access");

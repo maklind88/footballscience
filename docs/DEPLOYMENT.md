@@ -184,6 +184,20 @@ LIVE_QA_BASE_URL
 
 `LIVE_QA_BASE_URL` defaults to `https://footballscience.xyz`.
 
+Two-account chat smoke is mandatory in production deploy, production monitor, and rollback workflows. It can run in either of two safe modes:
+
+```bash
+# Optional permanent peer account
+LIVE_QA_PEER_USERNAME
+LIVE_QA_PEER_PASSWORD
+
+# Or dynamic peer setup through the admin QA account
+LIVE_QA_EXPECT_ADMIN=1
+LIVE_QA_REQUIRE_PEER_CHAT=1
+```
+
+When peer credentials are absent and `LIVE_QA_EXPECT_ADMIN=1`, the live smoke creates or refreshes the dedicated `live-chat-peer@footballscience.qa` account through `/api/admin-users`, sets a fresh temporary password for that run, proves DM unread state and read receipt end to end, and cleans up the test message.
+
 Production monitoring runs through `.github/workflows/production-smoke.yml` under the GitHub Actions name `Production Monitor`. It runs every six hours and can also be started manually. The monitor runs `npm run release:monitor`, which verifies the live domain/API without requiring the current `main` checkout to match the live `app.js` hash, checks that the latest app-state backup pointer matches a real Supabase Storage backup, verifies sanitized restore-readiness metadata for every protected module key, runs a read-only restore drill against the latest backup entries, and then runs authenticated live smoke. It fails clearly if the live QA or cron secrets are missing.
 
 Production incident alerting runs through `.github/workflows/production-incident-alert.yml` under the GitHub Actions name `Production Incident Alert`. It opens or updates a GitHub issue when `main` QA, Supabase migrations, production deploy, production monitor, or rollback fails. The workflow has `issues: write` only so it can create an incident record; it must not include secrets, raw backup entries, auth tokens, or user content.

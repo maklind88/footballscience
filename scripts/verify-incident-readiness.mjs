@@ -35,6 +35,7 @@ requirePackageScript("release:incident-readiness", "node scripts/verify-incident
 
 requireText("package.json", "npm run release:incident-readiness", "full QA must prove incident alerting is still wired");
 requireText("package.json", "scripts/create-incident-alert.mjs", "syntax checks must include the incident alert script");
+requireText("package.json", "scripts/collect-traffic-incident-snapshot.mjs", "syntax checks must include the traffic incident snapshot script");
 requireText("package.json", "scripts/verify-incident-readiness.mjs", "syntax checks must include the incident readiness verifier");
 
 requireText(".github/workflows/production-incident-alert.yml", "workflow_run:", "incident alerting must follow completed workflow runs");
@@ -45,10 +46,15 @@ requireText(".github/workflows/production-incident-alert.yml", "Supabase Migrati
 requireText(".github/workflows/production-incident-alert.yml", "github.event.workflow_run.head_branch == 'main'", "QA failures should only alert for main");
 requireText(".github/workflows/production-incident-alert.yml", "issues: write", "workflow must be able to create incident issues");
 requireText(".github/workflows/production-incident-alert.yml", "npm run release:incident-alert", "workflow must call the incident script");
+requireText(".github/workflows/production-incident-alert.yml", "VERCEL_TOKEN", "workflow must pass Vercel credentials for traffic snapshot enrichment");
+requireText(".github/workflows/production-incident-alert.yml", "VERCEL_PROJECT_ID", "workflow must pass the Vercel project id for traffic snapshot enrichment");
 
 requireText("scripts/create-incident-alert.mjs", "Production incident:", "issues must have a stable incident title");
 requireText("scripts/create-incident-alert.mjs", "production-incident", "issues must carry a production incident label");
 requireText("scripts/create-incident-alert.mjs", "createOrUpdateIncidentIssue", "repeated failures must update existing incident issues");
+requireText("scripts/create-incident-alert.mjs", "collectTrafficIncidentSnapshot", "failed incidents must include traffic snapshot enrichment");
+requireText("scripts/collect-traffic-incident-snapshot.mjs", "footballscience-traffic-incident-snapshot-v1", "traffic snapshot must have a stable schema");
+requireText("scripts/collect-traffic-incident-snapshot.mjs", "hashSensitive", "traffic snapshot must not expose raw IP addresses");
 requireText("scripts/create-incident-alert.mjs", "isResolvedConclusion", "successful runs must be handled as incident resolutions");
 requireText("scripts/create-incident-alert.mjs", "resolveOpenIncidentIssue", "successful runs must close stale incident issues instead of creating new ones");
 requireText("scripts/create-incident-alert.mjs", "isSupersededCancelledRun", "superseded cancelled production deploys must not create false incidents");

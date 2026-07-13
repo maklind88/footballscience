@@ -1,5 +1,9 @@
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import {
+  buildTrafficIncidentSnapshotMarkdown,
+  collectTrafficIncidentSnapshot,
+} from "./collect-traffic-incident-snapshot.mjs";
 
 const defaultLabels = [
   {
@@ -76,7 +80,7 @@ function buildIncidentTitle(context) {
   return `Production incident: ${context.workflowName}`;
 }
 
-function buildIncidentBody(context) {
+function buildIncidentBody(context, trafficSnapshotMarkdown = "") {
   return [
     "## What happened",
     "",
@@ -100,13 +104,15 @@ function buildIncidentBody(context) {
     `- Event: ${context.event}`,
     `- Actor: ${context.actor}`,
     "",
+    clean(trafficSnapshotMarkdown),
+    clean(trafficSnapshotMarkdown) ? "" : "",
     "## Guardrail",
     "",
     "Do not deploy over this incident until the failing signal is understood or an explicit rollback/hotfix path has passed the release gates.",
   ].join("\n");
 }
 
-function buildIncidentComment(context) {
+function buildIncidentComment(context, trafficSnapshotMarkdown = "") {
   return [
     `Another **${context.workflowName}** run ended with **${context.conclusion}**.`,
     "",
@@ -114,6 +120,8 @@ function buildIncidentComment(context) {
     `- Branch: ${context.branch}`,
     `- Commit: ${shortSha(context.sha)}`,
     `- Actor: ${context.actor}`,
+    "",
+    clean(trafficSnapshotMarkdown),
   ].join("\n");
 }
 
@@ -186,7 +194,7 @@ async function findOpenIncidentIssue({ repo, token, title }) {
   return payload?.items?.find((issue) => issue.title === title) || null;
 }
 
-async function createOrUpdateIncidentIssue(context, token) {
+async function createOrUpdateIncidentIssue(context, token, { trafficSnapshotMarkdown = "" } = {}) {
   await ensureLabels({ repo: context.repo, token });
 
   const title = buildIncidentTitle(context);
@@ -196,7 +204,7 @@ async function createOrUpdateIncidentIssue(context, token) {
     await githubJson(`/repos/${context.repo}/issues/${existingIssue.number}/comments`, {
       method: "POST",
       token,
-      body: { body: buildIncidentComment(context) },
+      body: { body: buildIncidentComment(context, trafficSnapshotMarkdown) },
     });
     console.log(`Incident alert updated: #${existingIssue.number}`);
     return { action: "updated", number: existingIssue.number, url: existingIssue.html_url };
@@ -207,7 +215,7 @@ async function createOrUpdateIncidentIssue(context, token) {
     token,
     body: {
       title,
-      body: buildIncidentBody(context),
+      body: buildIncidentBody(context, trafficSnapshotMarkdown),
       labels: defaultLabels.map((label) => label.name),
     },
   });
@@ -252,6 +260,11 @@ export {
   isSupersededCancelledRun,
   resolveOpenIncidentIssue,
 };
+
+async function buildTrafficSnapshotForIncident() {
+  const snapshot = await collectTrafficIncidentSnapshot();
+  return buildTrafficIncidentSnapshotMarkdown(snapshot);
+}
 
 async function main() {
   const context = getIncidentContext();
@@ -298,7 +311,8 @@ async function main() {
     return;
   }
 
-  await createOrUpdateIncidentIssue(context, token);
+  const trafficSnapshotMarkdown = await buildTrafficSnapshotForIncident();
+  await createOrUpdateIncidentIssue(context, token, { trafficSnapshotMarkdown });
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

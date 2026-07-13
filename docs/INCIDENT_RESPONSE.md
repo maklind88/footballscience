@@ -14,15 +14,16 @@ It watches:
 - `Production Monitor`
 - `Production Rollback`
 
-The issue contains the workflow run, branch, commit, live URL, actor, and first-response checklist. It must never include secrets, passwords, auth tokens, backup data, or user content.
+The issue contains the workflow run, branch, commit, live URL, actor, first-response checklist, and a best-effort Traffic Snapshot from Vercel runtime logs. The snapshot summarizes top API routes, status codes, rate-limit/server-error counts, anonymized actor hashes, and broad user-agent classes. It must never include secrets, passwords, auth tokens, backup data, raw IP addresses, full user agents, or user content.
 
 ## First Response
 
 1. Open the linked workflow run and find the first failing step.
 2. Check [footballscience.xyz](https://footballscience.xyz) before assuming users are affected.
-3. If live is broken, use the manual `Production Rollback` workflow with a known-good deployment URL or id.
-4. After any rollback or hotfix, confirm `npm run release:postdeploy` and authenticated live smoke pass.
-5. Comment on the incident issue with the action taken and close it only after the signal is green again.
+3. Read the Traffic Snapshot to identify whether the incident is dominated by `/api/chat`, `/api/presence`, `/api/app-state`, auth/permission failures, or runtime `5xx`.
+4. If live is broken, use the manual `Production Rollback` workflow with a known-good deployment URL or id.
+5. After any rollback or hotfix, confirm `npm run release:postdeploy` and authenticated live smoke pass.
+6. Comment on the incident issue with the action taken and close it only after the signal is green again.
 
 ## Safety Rules
 

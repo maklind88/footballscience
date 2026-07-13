@@ -67,6 +67,8 @@ Production incident rules should watch these signals:
 
 `Production Incident Alert` opens or updates a GitHub issue when QA on `main`, Supabase migrations, production deploy, production monitor, or rollback fails. This makes failed release and live-health signals visible without exposing secrets or backup content in the alert.
 
+Traffic-like incidents include a privacy-safe Traffic Snapshot from Vercel runtime logs. It summarizes route/status patterns, rate-limit and server-error counts, anonymized actor hashes, and broad user-agent classes; it does not publish raw IP addresses, full user agents, auth tokens, backup data, or user content.
+
 ## Required Checks
 
 Run before release:

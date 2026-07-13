@@ -112,6 +112,10 @@ requireText("scripts/release-ship.mjs", "footballscience", "fast deploys must ta
 requireText("scripts/release-auto.mjs", "requireCanonicalVercelProjectLink", "legacy deploys must fail closed when a worktree is linked to the wrong Vercel project");
 requireText("scripts/release-auto.mjs", "release:staging-isolation:repair", "legacy deploys must repair staging/live alias drift after direct production deploys");
 requireText("scripts/verify-incident-readiness.mjs", "Incident readiness verification: ok", "incident alerting must stay testable");
+requireText("scripts/create-incident-alert.mjs", "collectTrafficIncidentSnapshot", "incident alerting must enrich failed monitor runs with traffic snapshots");
+requireText("scripts/collect-traffic-incident-snapshot.mjs", "footballscience-traffic-incident-snapshot-v1", "traffic incident snapshots must keep a stable schema");
+requireText(".github/workflows/production-incident-alert.yml", "VERCEL_TOKEN", "incident alerting must receive Vercel credentials for traffic enrichment");
+requireText(".github/workflows/production-incident-alert.yml", "VERCEL_PROJECT_ID", "incident alerting must receive the Vercel project id for traffic enrichment");
 requireText("scripts/platform-identity-backfill.mjs", "BACKFILL_PLATFORM_IDENTITY", "platform identity backfill must require explicit apply confirmation");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "app_metadata", "platform identity backfill tests must prove server-owned role derivation");
 requireText("qa/production.live.spec.mjs", "production admin account can open Access & Users", "live smoke must prove admin access");

@@ -534,6 +534,16 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     };
   }
 
+  function getMessageReadByCount(message = {}, currentUser = {}) {
+    const currentUserId = String(currentUser?.id || "").trim();
+    const messageUserId = String(message?.userId || "").trim();
+    return new Set(
+      (Array.isArray(message?.readBy) ? message.readBy : [])
+        .map((userId) => String(userId || "").trim())
+        .filter((userId) => userId && userId !== currentUserId && userId !== messageUserId)
+    ).size;
+  }
+
   function getConversationDeliveryTrust(messages = [], currentUser = {}) {
     const currentUserId = String(currentUser?.id || "").trim();
     const ownMessages = messages.filter((message) => String(message?.userId || "").trim() === currentUserId);
@@ -545,7 +555,24 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     if (pendingCount) {
       return `${pendingCount} sending`;
     }
-    return ownMessages.length ? "All sent" : "Ready to send";
+    const latestOwnMessage = ownMessages
+      .filter((message) => {
+        const status = String(message?.status || "").trim().toLowerCase();
+        return status !== "deleted" && status !== "preview";
+      })
+      .at(-1);
+    const readCount = getMessageReadByCount(latestOwnMessage, currentUser);
+    if (readCount) {
+      return `Read by ${readCount}`;
+    }
+    const latestOwnStatus = String(latestOwnMessage?.status || "").trim().toLowerCase();
+    if (latestOwnStatus === "read") {
+      return "Read";
+    }
+    if (latestOwnStatus === "delivered") {
+      return "Delivered";
+    }
+    return latestOwnMessage ? "Sent" : "Ready to send";
   }
 
   function renderConversationTrustStrip({ status = {}, activeThread = null, messages = [], currentUser = {}, users = [] } = {}) {

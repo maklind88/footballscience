@@ -367,6 +367,79 @@ test("chat inbox renders trust summary and conversation delivery state", () => {
   expect(result.html).toContain("2 messages - 2 online");
 });
 
+test("chat conversation trust shows when the peer has read the latest message", () => {
+  const currentUser = { id: "u1", name: "Mak", status: "active" };
+  const peer = { id: "u2", name: "Analyst", status: "active" };
+  const messages = [
+    {
+      id: "m1",
+      userId: "u1",
+      threadId: "dm:u1:u2",
+      text: "Can you review the press plan?",
+      createdAt: "2026-01-01T10:00:00.000Z",
+      readBy: ["u1", "u2", "u2"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "normal",
+      status: "sent",
+    },
+  ];
+  const threads = [
+    {
+      threadId: "dm:u1:u2",
+      label: "Analyst",
+      type: "dm",
+      isTeamThread: false,
+      messageCount: 1,
+      unreadCount: 0,
+      mentionCount: 0,
+      lastMessage: messages[0],
+      participant: peer,
+      participants: [currentUser, peer],
+      settings: {},
+    },
+  ];
+
+  const readResult = createRenderer(messages).render({
+    currentUser,
+    users: [currentUser, peer],
+    state: { isOpen: true, selectedThreadId: "dm:u1:u2" },
+    messages,
+    threads,
+    activeThreadId: "dm:u1:u2",
+    unreadCount: 0,
+    apiStatus: { key: "ready", checkedAt: Date.UTC(2026, 0, 1, 10, 15) },
+  });
+
+  const sentResult = createRenderer([{ ...messages[0], readBy: ["u1"] }]).render({
+    currentUser,
+    users: [currentUser, peer],
+    state: { isOpen: true, selectedThreadId: "dm:u1:u2" },
+    messages: [{ ...messages[0], readBy: ["u1"] }],
+    threads,
+    activeThreadId: "dm:u1:u2",
+    unreadCount: 0,
+    apiStatus: { key: "ready", checkedAt: Date.UTC(2026, 0, 1, 10, 15) },
+  });
+  const deliveredResult = createRenderer([{ ...messages[0], readBy: ["u1"], status: "delivered" }]).render({
+    currentUser,
+    users: [currentUser, peer],
+    state: { isOpen: true, selectedThreadId: "dm:u1:u2" },
+    messages: [{ ...messages[0], readBy: ["u1"], status: "delivered" }],
+    threads,
+    activeThreadId: "dm:u1:u2",
+    unreadCount: 0,
+    apiStatus: { key: "ready", checkedAt: Date.UTC(2026, 0, 1, 10, 15) },
+  });
+
+  expect(readResult.html).toContain('data-dashboard-chat-trust-delivery');
+  expect(readResult.html).toContain("Read by 1");
+  expect(readResult.html).toContain("1 message - Online");
+  expect(sentResult.html).toContain("Sent");
+  expect(deliveredResult.html).toContain("Delivered");
+  expect(sentResult.html).not.toContain("All sent");
+});
+
 test("chat widget preserves open dialog drafts across sync rerenders", () => {
   expect(widgetRuntimeSource).toContain("readDashboardChatDialogDrafts");
   expect(widgetRuntimeSource).toContain("restoreDashboardChatDialogDrafts(root, previousDialogDrafts)");

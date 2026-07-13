@@ -45,6 +45,10 @@ test("chat database adapter normalizes message constraints", () => {
   expect(chatDatabase._private.normalizeMessageText("x".repeat(1800))).toHaveLength(1600);
   expect(chatDatabase._private.normalizePriority("urgent")).toBe("urgent");
   expect(chatDatabase._private.normalizePriority("unknown")).toBe("normal");
+  expect(chatDatabase._private.normalizeActionItemPriority("high")).toBe("urgent");
+  expect(chatDatabase._private.normalizeActionItemPriority("medium")).toBe("important");
+  expect(chatDatabase._private.normalizeActionItemStatus("done")).toBe("done");
+  expect(chatDatabase._private.normalizeActionItemStatus("weird")).toBe("open");
   expect(chatDatabase._private.normalizeThreadType("matchday")).toBe("matchday");
   expect(chatDatabase._private.normalizeThreadType("announcement")).toBe("announcement");
 });
@@ -74,6 +78,25 @@ test("chat database adapter exposes server-side participant management", () => {
   expect(source).toContain("chat_thread_participants");
   expect(source).toContain("participantClientPayload");
   expect(source).toContain("result = await setThreadParticipants(actor, body)");
+});
+
+test("chat database adapter exposes persistent action item API", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const { fileURLToPath } = require("node:url");
+  const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../api/_lib/chat-database.js"), "utf8");
+
+  expect(source).toContain("createActionItem: 30");
+  expect(source).toContain("updateActionItem: 40");
+  expect(source).toContain("ACTION_ITEM_SELECT");
+  expect(source).toContain("async function createActionItem");
+  expect(source).toContain("async function updateActionItem");
+  expect(source).toContain("readActionItemsForThreads(logicalThreadIds)");
+  expect(source).toContain('action: "createActionItem"');
+  expect(source).toContain('action: "updateActionItem"');
+  expect(source).toContain("client_action_id=eq");
+  expect(source).toContain("message:${requestedMessageId}");
+  expect(source).toContain("isMissingOptionalTableError(error, \"chat_action_items\")");
 });
 
 test("chat database adapter exposes WhatsApp-style private and group actions", () => {

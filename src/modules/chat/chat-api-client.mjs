@@ -93,8 +93,14 @@ export function createChatApiClient(options = {}) {
     sendMessage(payload = {}) {
       return action({ ...payload, action: "sendMessage" });
     },
+    createActionItem(payload = {}) {
+      return action({ ...payload, action: "createActionItem" });
+    },
     editMessage(payload = {}) {
       return action({ ...payload, action: "editMessage" });
+    },
+    updateActionItem(payload = {}) {
+      return action({ ...payload, action: "updateActionItem" });
     },
     deleteMessage(payload = {}) {
       return action({ ...payload, action: "deleteMessage" });

@@ -18,6 +18,11 @@ function getMessageAuthorName(message = {}, users = [], formatUserName = () => "
   return user ? formatUserName(user) : "Staff";
 }
 
+function getUserNameById(userId = "", users = [], formatUserName = () => "Staff") {
+  const user = users.find((candidate) => String(candidate?.id || "") === String(userId || ""));
+  return user ? formatUserName(user) : "";
+}
+
 function getMentionedOwners(message = {}, users = [], formatUserName = () => "Staff") {
   const mentionedIds = new Set((Array.isArray(message.mentionedUserIds) ? message.mentionedUserIds : []).map(String));
   return users
@@ -56,35 +61,80 @@ function getActionPriority(message = {}) {
   return "Normal";
 }
 
+function getPersistedActionPriority(actionItem = {}) {
+  const priority = String(actionItem.priority || "normal").trim().toLowerCase();
+  if (priority === "urgent") return "Urgent";
+  if (priority === "important") return "Important";
+  return "Normal";
+}
+
+function getPersistedActionOwner(actionItem = {}, users = [], formatUserName = () => "Staff") {
+  return normalizeText(actionItem.ownerLabel) ||
+    getUserNameById(actionItem.ownerId, users, formatUserName) ||
+    "Unassigned";
+}
+
+function getPersistedActionDue(actionItem = {}, formatTime = () => "") {
+  return normalizeText(actionItem.dueLabel) ||
+    (actionItem.dueAt ? formatTime(actionItem.dueAt) : "") ||
+    "No deadline";
+}
+
 function getMessageSummary(message = {}) {
   return truncateText(message.text || "Message");
 }
 
-function buildThreadActionPlan({ messages = [], activeThreadId = "team", users = [], pinnedMessages = [], formatUserName = () => "Staff" } = {}) {
+function normalizePersistedActionItems(actionItems = [], activeThreadId = "team", users = [], formatUserName = () => "Staff", formatTime = () => "") {
+  return (Array.isArray(actionItems) ? actionItems : [])
+    .filter((actionItem) => String(actionItem?.threadId || activeThreadId) === String(activeThreadId))
+    .filter((actionItem) => String(actionItem?.status || "open").toLowerCase() !== "archived")
+    .map((actionItem) => ({
+      actionItem,
+      actionItemId: String(actionItem.id || actionItem.actionItemId || "").trim(),
+      persisted: true,
+      message: { id: actionItem.messageId || "", createdAt: actionItem.createdAt || "" },
+      owner: getPersistedActionOwner(actionItem, users, formatUserName),
+      due: getPersistedActionDue(actionItem, formatTime),
+      priority: getPersistedActionPriority(actionItem),
+      status: String(actionItem.status || "open").toLowerCase() === "done" ? "done" : "open",
+      summary: truncateText(actionItem.title || "Action item"),
+      createdAt: actionItem.createdAt || "",
+    }))
+    .filter((action) => action.actionItemId && action.summary);
+}
+
+function buildThreadActionPlan({ messages = [], activeThreadId = "team", users = [], pinnedMessages = [], actionItems = [], formatUserName = () => "Staff", formatTime = () => "" } = {}) {
   const threadMessages = getThreadMessages(messages, activeThreadId);
   const signalMessages = threadMessages.map((message) => ({
     message,
     signals: getDashboardChatMessageWorkflowSignals(message),
   }));
-  const actions = signalMessages
+  const persistedActions = normalizePersistedActionItems(actionItems, activeThreadId, users, formatUserName, formatTime);
+  const persistedMessageIds = new Set(persistedActions.map((action) => String(action.message?.id || "")).filter(Boolean));
+  const signalActions = signalMessages
     .filter((entry) => entry.signals.includes("action"))
+    .filter((entry) => !persistedMessageIds.has(String(entry.message?.id || "")))
     .map(({ message }) => ({
       message,
+      persisted: false,
+      status: "signal",
       owner: getActionOwner(message, users, formatUserName),
       due: getActionDueLabel(message.text),
       priority: getActionPriority(message),
       summary: getMessageSummary(message),
     }));
+  const actions = [...persistedActions, ...signalActions];
   const decisions = [
     ...signalMessages.filter((entry) => entry.signals.includes("decision")).map((entry) => entry.message),
     ...getThreadMessages(pinnedMessages, activeThreadId),
   ].filter((message, index, source) => source.findIndex((candidate) => candidate?.id === message?.id) === index);
   const evidenceCount = signalMessages.filter((entry) => entry.signals.includes("evidence")).length;
   const reviewCount = signalMessages.filter((entry) => entry.signals.includes("review")).length;
-  const latestAction = actions.at(-1) || null;
+  const latestAction = actions.find((action) => action.persisted && action.status !== "done") || actions.at(-1) || null;
 
   return {
     actions,
+    persistedActions,
     decisions,
     evidenceCount,
     reviewCount,
@@ -118,17 +168,26 @@ export function createDashboardChatActionPlanRenderer(dependencies = {}) {
 
   function renderActionItem(action = {}) {
     const messageId = String(action.message?.id || "").trim();
+    const actionItemId = String(action.actionItemId || "").trim();
+    const status = String(action.status || "").trim().toLowerCase();
+    const statusDetail = action.persisted ? (status === "done" ? "Done" : "Saved") : "Signal";
     return `
-      <article class="dashboard-chat-intelligence-card dashboard-chat-action-item is-${escapeHtml(action.priority.toLowerCase())}" data-dashboard-chat-action-item data-dashboard-chat-action-message="${escapeHtml(messageId)}">
+      <article class="dashboard-chat-intelligence-card dashboard-chat-action-item is-${escapeHtml(action.priority.toLowerCase())} ${action.persisted ? "is-persisted" : "is-signal"} ${status === "done" ? "is-done" : ""}" data-dashboard-chat-action-item data-dashboard-chat-action-message="${escapeHtml(messageId)}" data-dashboard-chat-action-item-id="${escapeHtml(actionItemId)}">
         <div>
           <span class="dashboard-chat-intelligence-thumb">ACT</span>
           <span class="dashboard-chat-intelligence-copy">
-            <small>${escapeHtml(`${action.priority} - ${action.owner}`)}</small>
+            <small>${escapeHtml(`${action.priority} - ${action.owner} - ${statusDetail}`)}</small>
             <strong>${escapeHtml(action.summary)}</strong>
             <em>${escapeHtml(action.due)}</em>
           </span>
         </div>
-        ${messageId ? `<footer class="dashboard-chat-intelligence-actions"><button type="button" data-dashboard-copy-message="${escapeHtml(messageId)}" data-dashboard-chat-promote-target="task">Task</button></footer>` : ""}
+        ${
+          action.persisted && actionItemId
+            ? `<footer class="dashboard-chat-intelligence-actions"><button type="button" data-dashboard-chat-action-item-status="${escapeHtml(status === "done" ? "open" : "done")}" data-dashboard-chat-action-item-id="${escapeHtml(actionItemId)}">${escapeHtml(status === "done" ? "Reopen" : "Done")}</button></footer>`
+            : messageId
+              ? `<footer class="dashboard-chat-intelligence-actions"><button type="button" data-dashboard-copy-message="${escapeHtml(messageId)}" data-dashboard-chat-promote-target="task" data-dashboard-chat-action-title="${escapeHtml(action.summary)}" data-dashboard-chat-action-owner-label="${escapeHtml(action.owner)}" data-dashboard-chat-action-due-label="${escapeHtml(action.due)}" data-dashboard-chat-action-priority="${escapeHtml(action.priority.toLowerCase())}">Task</button></footer>`
+              : ""
+        }
       </article>
     `;
   }
@@ -148,14 +207,14 @@ export function createDashboardChatActionPlanRenderer(dependencies = {}) {
     `;
   }
 
-  function renderThreadActionPlanPanel({ messages = [], activeThreadId = teamThreadId, users = [], pinnedMessages = [] } = {}) {
-    const plan = buildThreadActionPlan({ messages, activeThreadId, users, pinnedMessages, formatUserName });
+  function renderThreadActionPlanPanel({ messages = [], activeThreadId = teamThreadId, users = [], pinnedMessages = [], actionItems = [] } = {}) {
+    const plan = buildThreadActionPlan({ messages, activeThreadId, users, pinnedMessages, actionItems, formatUserName, formatTime });
     const latestActionTime = plan.latestAction?.message?.createdAt ? formatTime(plan.latestAction.message.createdAt) : "";
     return `
       <div class="dashboard-chat-details-section dashboard-chat-action-plan" data-dashboard-chat-action-plan>
         <div class="dashboard-chat-details-section-head">
           <strong>Action plan</strong>
-          <small>${escapeHtml(plan.actions.length ? `${plan.actions.length} active signal${plan.actions.length === 1 ? "" : "s"}` : "No active actions")}</small>
+          <small>${escapeHtml(plan.persistedActions.length ? `${plan.persistedActions.length} saved action${plan.persistedActions.length === 1 ? "" : "s"}` : plan.actions.length ? `${plan.actions.length} active signal${plan.actions.length === 1 ? "" : "s"}` : "No active actions")}</small>
         </div>
         <div class="dashboard-chat-details-grid">
           ${renderActionSummaryCard("owner", "Owner", plan.summary.owner, latestActionTime || "Latest action owner")}

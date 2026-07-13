@@ -507,6 +507,8 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
             ? thread.permissions
             : existingThread.permissions || {},
           settings: Object.keys(thread.settings || {}).length ? thread.settings : existingThread.settings || {},
+          actionItems: thread.hasActionItemsPayload ? thread.actionItems || [] : existingThread.actionItems || [],
+          hasActionItemsPayload: Boolean(thread.hasActionItemsPayload || existingThread.hasActionItemsPayload),
           historyComplete: Boolean(thread.historyComplete || (existingThread.historyComplete && sameLastMessage)),
         };
         if (keepVerifiedMessageCount) {

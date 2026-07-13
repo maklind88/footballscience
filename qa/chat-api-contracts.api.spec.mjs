@@ -11,6 +11,7 @@ const appSource = readFileSync(path.join(__dirname, "../app-runtime.js"), "utf8"
 const chatDomainSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-api-domain-runtime.mjs"), "utf8");
 const chatThreadRuntimeSource = readFileSync(path.join(__dirname, "../src/modules/chat/dashboard-chat-thread-runtime.mjs"), "utf8");
 const chatApiUiActionsSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-api-ui-actions.mjs"), "utf8");
+const chatApiClientSource = readFileSync(path.join(__dirname, "../src/modules/chat/chat-api-client.mjs"), "utf8");
 const chatApi = require("../api/chat.js");
 const chatDatabase = require("../api/_lib/chat-database.js");
 const {
@@ -162,6 +163,20 @@ test("database sendMessage fails closed when attachment linking cannot be verifi
   expect(chatDatabaseSource).toContain("Attachment could not be linked. Message was not sent.");
   expect(chatDatabaseSource).toContain("linkedAttachments.length !== attachmentIds.length");
   expect(chatDatabaseSource).toContain("deleted_at: new Date().toISOString()");
+});
+
+test("chat action items are promoted through the server API", () => {
+  expect(chatApiClientSource).toContain("createActionItem(payload = {})");
+  expect(chatApiClientSource).toContain('action: "createActionItem"');
+  expect(chatApiClientSource).toContain("updateActionItem(payload = {})");
+  expect(chatApiClientSource).toContain('action: "updateActionItem"');
+  expect(chatApiUiActionsSource).toContain("async function createActionItemFromMessageWithApi");
+  expect(chatApiUiActionsSource).toContain("async function updateActionItemStatusWithApi");
+  expect(chatApiUiActionsSource).toContain('action: "createActionItem"');
+  expect(chatApiUiActionsSource).toContain('action: "updateActionItem"');
+  expect(appSource).toContain('copyMessageButton.dataset.dashboardChatPromoteTarget === "task"');
+  expect(appSource).toContain("dashboardChatApiUiActions.createActionItemFromMessageWithApi");
+  expect(appSource).toContain("dashboardChatApiUiActions.updateActionItemStatusWithApi");
 });
 
 test("chat API reads have client-side timeout and retry metadata", () => {

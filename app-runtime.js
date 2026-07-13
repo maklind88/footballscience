@@ -3881,8 +3881,25 @@ renderDashboardChatWidget();
 focusDashboardChatWidgetComposer();
 return;
 }
+const actionItemStatusButton = event.target.closest("[data-dashboard-chat-action-item-status]");
+if (actionItemStatusButton) {
+const currentState = readDashboardChatWidgetState();
+await dashboardChatApiUiActions.updateActionItemStatusWithApi(
+actionItemStatusButton.dataset.dashboardChatActionItemId,
+actionItemStatusButton.dataset.dashboardChatActionItemStatus,
+currentState.selectedThreadId
+);
+return;
+}
 const copyMessageButton = event.target.closest("[data-dashboard-copy-message]");
 if (copyMessageButton) {
+if (copyMessageButton.dataset.dashboardChatPromoteTarget === "task") {
+await dashboardChatApiUiActions.createActionItemFromMessageWithApi(
+copyMessageButton.dataset.dashboardCopyMessage,
+copyMessageButton.dataset
+);
+return;
+}
 const message = getDashboardMessageById(copyMessageButton.dataset.dashboardCopyMessage);
 const text = String(message?.text || "");
 const copied = Boolean(text && navigator.clipboard?.writeText && await navigator.clipboard.writeText(text).then(() => true, () => false));

@@ -63,6 +63,8 @@ const RATE_LIMITS = {
   archiveThread: 5,
   createAttachmentIntent: 20,
   uploadAttachmentObject: 20,
+  createActionItem: 30,
+  updateActionItem: 40,
   readThreads: 60,
   readThread: 120,
   searchMessages: 8,
@@ -131,6 +133,27 @@ const ATTACHMENT_SELECT = [
   "status",
   "created_at",
   "updated_at",
+  "metadata",
+].join(",");
+const ACTION_ITEM_SELECT = [
+  "id",
+  "organization_id",
+  "team_id",
+  "thread_id",
+  "message_id",
+  "client_action_id",
+  "title",
+  "status",
+  "priority",
+  "owner_id",
+  "due_label",
+  "due_at",
+  "created_by",
+  "completed_by",
+  "created_at",
+  "updated_at",
+  "completed_at",
+  "archived_at",
   "metadata",
 ].join(",");
 const AUDIT_SELECT = [
@@ -230,6 +253,40 @@ function normalizeThreadVisibility(value, type = "team") {
 function normalizePriority(value) {
   const priority = normalizeString(value, 24).toLowerCase();
   return ["low", "normal", "medium", "high", "urgent", "critical"].includes(priority) ? priority : "normal";
+}
+
+function normalizeActionItemPriority(value) {
+  const priority = normalizeString(value, 24).toLowerCase();
+  if (priority === "urgent" || priority === "critical" || priority === "high") {
+    return "urgent";
+  }
+  if (priority === "important" || priority === "medium") {
+    return "important";
+  }
+  return "normal";
+}
+
+function normalizeActionItemStatus(value) {
+  const status = normalizeString(value || "open", 24).toLowerCase();
+  return ["open", "done", "archived"].includes(status) ? status : "open";
+}
+
+function normalizeActionItemTitle(value) {
+  return normalizeString(value, 240).replace(/\s+/g, " ").trim();
+}
+
+function normalizeActionItemDueLabel(value) {
+  const label = normalizeString(value, 120).replace(/\s+/g, " ").trim();
+  return label || null;
+}
+
+function normalizeOptionalIsoDate(value) {
+  const raw = normalizeString(value, 80);
+  if (!raw) {
+    return null;
+  }
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
 function normalizeBoolean(value) {
@@ -2002,6 +2059,68 @@ async function recalculateThreadSummary(thread = {}) {
   };
 }
 
+function isMissingOptionalTableError(error, tableName = "") {
+  const payload = error?.payload && typeof error.payload === "object" ? error.payload : {};
+  const haystack = [
+    payload.code,
+    payload.message,
+    payload.details,
+    payload.hint,
+    error?.message,
+  ].map((value) => String(value || "")).join(" ");
+  return payload.code === "42P01" || (tableName && haystack.includes(tableName) && /schema cache|does not exist|not found/i.test(haystack));
+}
+
+function actionItemClientPayload(row = {}) {
+  const metadata = isPlainObject(row.metadata) ? row.metadata : {};
+  return {
+    id: normalizeId(row.id || ""),
+    actionItemId: normalizeId(row.id || ""),
+    organizationId: normalizeId(row.organization_id || ""),
+    teamId: normalizeId(row.team_id || ""),
+    threadId: normalizeId(row.thread_id || ""),
+    messageId: normalizeId(row.message_id || ""),
+    clientActionId: normalizeString(row.client_action_id || "", 120),
+    title: normalizeActionItemTitle(row.title || ""),
+    status: normalizeActionItemStatus(row.status || "open"),
+    priority: normalizeActionItemPriority(row.priority || "normal"),
+    ownerId: normalizeId(row.owner_id || ""),
+    dueLabel: normalizeActionItemDueLabel(row.due_label || "") || "",
+    dueAt: normalizeString(row.due_at || "", 80),
+    createdBy: normalizeId(row.created_by || ""),
+    completedBy: normalizeId(row.completed_by || ""),
+    createdAt: normalizeString(row.created_at || "", 80),
+    updatedAt: normalizeString(row.updated_at || "", 80),
+    completedAt: normalizeString(row.completed_at || "", 80),
+    archivedAt: normalizeString(row.archived_at || "", 80),
+    metadata,
+  };
+}
+
+async function readActionItemsForThreads(threadIds = [], options = {}) {
+  const ids = Array.from(new Set((Array.isArray(threadIds) ? threadIds : []).map(normalizeId).filter(isUuid)));
+  if (!ids.length) {
+    return [];
+  }
+  const limit = Math.max(1, Math.min(100, Number(options.limit) || 50));
+  const filters = [
+    `select=${ACTION_ITEM_SELECT}`,
+    ids.length === 1 ? `thread_id=eq.${filterValue(ids[0])}` : `thread_id=${inFilter(ids)}`,
+    "status=neq.archived",
+    "order=created_at.desc",
+    `limit=${limit}`,
+  ];
+  try {
+    const rows = await selectMany("chat_action_items", filters.join("&"));
+    return rows.map(actionItemClientPayload);
+  } catch (error) {
+    if (isMissingOptionalTableError(error, "chat_action_items")) {
+      return [];
+    }
+    throw error;
+  }
+}
+
 async function handleDatabaseGet(req, res, actor) {
   const query = new URL(req.url, "http://localhost").searchParams;
   const view = normalizeString(query.get("view"), 40).toLowerCase();
@@ -2263,6 +2382,9 @@ async function handleDatabaseGet(req, res, actor) {
         nextCursor,
       }
     );
+    const actionItems = await readActionItemsForThreads(logicalThreadIds);
+    responseThread.actionItems = actionItems;
+    responseThread.action_items = actionItems;
     const responseThreads = threadSummaries.length
       ? [responseThread, ...threadSummaries.slice(1)]
       : [responseThread];
@@ -2274,6 +2396,7 @@ async function handleDatabaseGet(req, res, actor) {
       thread: responseThread,
       threads: responseThreads,
       messages: enrichedMessages,
+      actionItems,
       nextCursor,
     });
   }
@@ -2570,6 +2693,132 @@ async function sendMessage(actor, body) {
   return { ok: true, action: "sendMessage", thread: updatedThread, message: enrichedMessage || message, auditId: audit?.id || "" };
 }
 
+function actionItemUnavailableResult() {
+  return {
+    ok: false,
+    status: 503,
+    reason: "Chat action items are not available until the latest database migration has been applied.",
+  };
+}
+
+async function createActionItem(actor, body = {}) {
+  const requestedMessageId = normalizeId(body.messageId || body.message_id || "");
+  if ((body.messageId || body.message_id) && !isUuid(requestedMessageId)) {
+    return { ok: false, status: 400, reason: "messageId must be a valid message id." };
+  }
+
+  let sourceMessage = null;
+  let thread = null;
+  if (requestedMessageId) {
+    sourceMessage = await selectOne("chat_messages", `select=${MESSAGE_SELECT}&id=eq.${filterValue(requestedMessageId)}`);
+    if (!sourceMessage || sourceMessage.deleted_at) {
+      return { ok: false, status: 404, reason: "Message not found." };
+    }
+    thread = await readThread(sourceMessage.thread_id);
+  } else {
+    thread = await resolveThreadForAction(actor, body);
+  }
+
+  const access = await ensureThreadAccess(actor, thread);
+  if (!access.ok) {
+    return access;
+  }
+
+  const title = normalizeActionItemTitle(body.title || body.summary || body.text || messagePreviewText(sourceMessage || {}));
+  if (!title) {
+    return { ok: false, status: 400, reason: "Action item title is required." };
+  }
+
+  const ownerId = normalizeId(body.ownerId || body.owner_id || "");
+  const dueAt = normalizeOptionalIsoDate(body.dueAt || body.due_at || "");
+  if ((body.dueAt || body.due_at) && !dueAt) {
+    return { ok: false, status: 400, reason: "dueAt must be a valid date." };
+  }
+
+  const clientActionId = normalizeString(
+    body.clientActionId || body.client_action_id || (requestedMessageId ? `message:${requestedMessageId}` : ""),
+    120
+  ) || null;
+  const metadata = isPlainObject(body.metadata) ? body.metadata : {};
+  const row = {
+    organization_id: thread.organization_id,
+    team_id: thread.team_id,
+    thread_id: thread.id,
+    message_id: requestedMessageId || null,
+    client_action_id: clientActionId,
+    title,
+    status: "open",
+    priority: normalizeActionItemPriority(body.priority || sourceMessage?.priority || "normal"),
+    owner_id: isUuid(ownerId) ? ownerId : null,
+    due_label: normalizeActionItemDueLabel(body.dueLabel || body.due_label || metadata.dueLabel || metadata.due_label || ""),
+    due_at: dueAt,
+    created_by: isUuid(actor.id) ? actor.id : null,
+    metadata: {
+      ...metadata,
+      source: normalizeString(metadata.source || body.source || (requestedMessageId ? "chat-message" : "manual"), 80),
+      ownerLabel: normalizeString(body.ownerLabel || body.owner_label || metadata.ownerLabel || metadata.owner_label || "", 120),
+    },
+  };
+
+  try {
+    if (clientActionId) {
+      const existing = await selectOne(
+        "chat_action_items",
+        [
+          `select=${ACTION_ITEM_SELECT}`,
+          `thread_id=eq.${filterValue(thread.id)}`,
+          `client_action_id=eq.${filterValue(clientActionId)}`,
+        ].join("&")
+      ).catch((error) => {
+        if (isMissingOptionalTableError(error, "chat_action_items")) {
+          return null;
+        }
+        throw error;
+      });
+      if (existing) {
+        const actionItems = await readActionItemsForThreads([thread.id]);
+        return {
+          ok: true,
+          action: "createActionItem",
+          duplicate: true,
+          thread: { ...thread, actionItems, action_items: actionItems },
+          actionItem: actionItemClientPayload(existing),
+          actionItems,
+          auditId: "",
+        };
+      }
+    }
+
+    const rows = await insertRows("chat_action_items", row);
+    const actionItem = actionItemClientPayload(rows[0] || row);
+    const audit = await insertAudit(actor, "createActionItem", {
+      organization_id: thread.organization_id,
+      team_id: thread.team_id,
+      thread_id: thread.id,
+      message_id: requestedMessageId || null,
+    }, {
+      actionItemId: actionItem.id,
+      priority: actionItem.priority,
+      hasOwner: Boolean(actionItem.ownerId || actionItem.metadata?.ownerLabel),
+      hasDue: Boolean(actionItem.dueLabel || actionItem.dueAt),
+    });
+    const actionItems = await readActionItemsForThreads([thread.id]);
+    return {
+      ok: true,
+      action: "createActionItem",
+      thread: { ...thread, actionItems, action_items: actionItems },
+      actionItem,
+      actionItems,
+      auditId: audit?.id || "",
+    };
+  } catch (error) {
+    if (isMissingOptionalTableError(error, "chat_action_items")) {
+      return actionItemUnavailableResult();
+    }
+    throw error;
+  }
+}
+
 async function editMessage(actor, body) {
   const messageId = normalizeId(body.messageId || body.message_id || body.id);
   const text = normalizeMessageText(body.text || body.message || body.body);
@@ -2611,6 +2860,124 @@ async function editMessage(actor, body) {
   const [enrichedMessage] = await enrichMessages([updatedMessage], thread);
 
   return { ok: true, action: "editMessage", thread, message: enrichedMessage || updatedMessage, auditId: audit?.id || "" };
+}
+
+async function updateActionItem(actor, body = {}) {
+  const actionItemId = normalizeId(body.actionItemId || body.action_item_id || body.id || "");
+  if (!isUuid(actionItemId)) {
+    return { ok: false, status: 400, reason: "actionItemId is required." };
+  }
+
+  let existing = null;
+  try {
+    existing = await selectOne("chat_action_items", `select=${ACTION_ITEM_SELECT}&id=eq.${filterValue(actionItemId)}`);
+  } catch (error) {
+    if (isMissingOptionalTableError(error, "chat_action_items")) {
+      return actionItemUnavailableResult();
+    }
+    throw error;
+  }
+
+  if (!existing) {
+    return { ok: false, status: 404, reason: "Action item not found." };
+  }
+
+  const thread = await readThread(existing.thread_id);
+  const access = await ensureThreadAccess(actor, thread);
+  if (!access.ok) {
+    return access;
+  }
+
+  const patch = {};
+  if (hasOwn(body, "title")) {
+    const title = normalizeActionItemTitle(body.title);
+    if (!title) {
+      return { ok: false, status: 400, reason: "Action item title is required." };
+    }
+    patch.title = title;
+  }
+  if (hasOwn(body, "priority")) {
+    patch.priority = normalizeActionItemPriority(body.priority);
+  }
+  if (hasOwn(body, "ownerId") || hasOwn(body, "owner_id")) {
+    const ownerId = normalizeId(body.ownerId || body.owner_id || "");
+    patch.owner_id = isUuid(ownerId) ? ownerId : null;
+  }
+  if (hasOwn(body, "dueLabel") || hasOwn(body, "due_label")) {
+    patch.due_label = normalizeActionItemDueLabel(body.dueLabel || body.due_label || "");
+  }
+  if (hasOwn(body, "dueAt") || hasOwn(body, "due_at")) {
+    const dueAt = normalizeOptionalIsoDate(body.dueAt || body.due_at || "");
+    if ((body.dueAt || body.due_at) && !dueAt) {
+      return { ok: false, status: 400, reason: "dueAt must be a valid date." };
+    }
+    patch.due_at = dueAt;
+  }
+  if (hasOwn(body, "metadata") && isPlainObject(body.metadata)) {
+    patch.metadata = {
+      ...(isPlainObject(existing.metadata) ? existing.metadata : {}),
+      ...body.metadata,
+    };
+  }
+  if (hasOwn(body, "status")) {
+    const status = normalizeActionItemStatus(body.status);
+    const now = new Date().toISOString();
+    patch.status = status;
+    if (status === "done") {
+      patch.completed_at = existing.completed_at || now;
+      patch.completed_by = isUuid(actor.id) ? actor.id : null;
+      patch.archived_at = null;
+    } else if (status === "archived") {
+      patch.archived_at = existing.archived_at || now;
+      patch.completed_at = existing.completed_at || null;
+      patch.completed_by = existing.completed_by || null;
+    } else {
+      patch.completed_at = null;
+      patch.completed_by = null;
+      patch.archived_at = null;
+    }
+  }
+
+  if (!Object.keys(patch).length) {
+    const actionItems = await readActionItemsForThreads([thread.id]);
+    return {
+      ok: true,
+      action: "updateActionItem",
+      thread: { ...thread, actionItems, action_items: actionItems },
+      actionItem: actionItemClientPayload(existing),
+      actionItems,
+      auditId: "",
+    };
+  }
+
+  try {
+    const rows = await patchRows("chat_action_items", `id=eq.${filterValue(existing.id)}`, patch);
+    const actionItem = actionItemClientPayload(rows[0] || { ...existing, ...patch });
+    const audit = await insertAudit(actor, "updateActionItem", {
+      organization_id: existing.organization_id,
+      team_id: existing.team_id,
+      thread_id: existing.thread_id,
+      message_id: existing.message_id,
+    }, {
+      actionItemId: actionItem.id,
+      status: actionItem.status,
+      changedFields: Object.keys(patch).sort(),
+    });
+    const actionItems = await readActionItemsForThreads([thread.id]);
+    return {
+      ok: true,
+      action: "updateActionItem",
+      thread: { ...thread, actionItems, action_items: actionItems },
+      actionItem,
+      actionItems,
+      auditId: audit?.id || "",
+    };
+  } catch (error) {
+    if (isMissingOptionalTableError(error, "chat_action_items")) {
+      return actionItemUnavailableResult();
+    }
+    throw error;
+  }
 }
 
 async function updateMessageFlag(actor, body, action) {
@@ -3514,8 +3881,12 @@ async function handleDatabasePost(req, res, actor) {
     result = await createThread(actor, body);
   } else if (action === "sendMessage") {
     result = await sendMessage(actor, body);
+  } else if (action === "createActionItem") {
+    result = await createActionItem(actor, body);
   } else if (action === "editMessage") {
     result = await editMessage(actor, body);
+  } else if (action === "updateActionItem") {
+    result = await updateActionItem(actor, body);
   } else if (action === "setMessagePinned" || action === "setMessagePriority") {
     result = await updateMessageFlag(actor, body, action);
   } else if (action === "deleteMessage") {
@@ -3590,6 +3961,8 @@ module.exports = {
     hasActiveChatReadIntent,
     isUuid,
     messageMentionedUserIds,
+    normalizeActionItemPriority,
+    normalizeActionItemStatus,
     normalizeMessageText,
     normalizeMentionedUserIds,
     normalizePriority,

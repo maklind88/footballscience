@@ -20,6 +20,14 @@ const whatsappStateMigration = readFileSync(
   resolve(__dirname, "../supabase/migrations/20260626170000_chat_whatsapp_user_state.sql"),
   "utf8"
 );
+const actionItemsMigration = readFileSync(
+  resolve(__dirname, "../supabase/migrations/20260713195237_chat_action_items.sql"),
+  "utf8"
+);
+const actionItemIndexesMigration = readFileSync(
+  resolve(__dirname, "../supabase/migrations/20260713195408_chat_action_item_fk_indexes.sql"),
+  "utf8"
+);
 
 test("chat database migration includes multi-tenant core tables", () => {
   [
@@ -94,4 +102,28 @@ test("chat WhatsApp user-state migration keeps private deletes per-user", () => 
   expect(whatsappStateMigration).toContain("video/mp4");
   expect(whatsappStateMigration).toContain("video/quicktime");
   expect(whatsappStateMigration).toContain("video/webm");
+});
+
+test("chat action items migration is server-write first and thread scoped", () => {
+  expect(actionItemsMigration).toContain("public.chat_action_items");
+  expect(actionItemsMigration).toContain("thread_id uuid not null references public.chat_threads(id) on delete cascade");
+  expect(actionItemsMigration).toContain("message_id uuid references public.chat_messages(id) on delete set null");
+  expect(actionItemsMigration).toContain("status text not null default 'open' check (status in ('open', 'done', 'archived'))");
+  expect(actionItemsMigration).toContain("priority text not null default 'normal' check (priority in ('normal', 'important', 'urgent'))");
+  expect(actionItemsMigration).toContain("chat_action_items_thread_status_idx");
+  expect(actionItemsMigration).toContain("alter table public.chat_action_items enable row level security");
+  expect(actionItemsMigration).toContain("revoke all on public.chat_action_items from anon, authenticated");
+  expect(actionItemsMigration).toContain("grant select on public.chat_action_items to authenticated");
+  expect(actionItemsMigration).not.toContain("grant insert on public.chat_action_items to authenticated");
+  expect(actionItemsMigration).toContain("app_private.can_access_chat_thread(thread_id)");
+  expect(actionItemsMigration).toContain("alter publication supabase_realtime add table public.chat_action_items");
+});
+
+test("chat action items foreign keys have focused covering indexes", () => {
+  expect(actionItemIndexesMigration).toContain("chat_action_items_team_fk_idx");
+  expect(actionItemIndexesMigration).toContain("on public.chat_action_items (team_id)");
+  expect(actionItemIndexesMigration).toContain("chat_action_items_created_by_fk_idx");
+  expect(actionItemIndexesMigration).toContain("on public.chat_action_items (created_by)");
+  expect(actionItemIndexesMigration).toContain("chat_action_items_completed_by_fk_idx");
+  expect(actionItemIndexesMigration).toContain("on public.chat_action_items (completed_by)");
 });

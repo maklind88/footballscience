@@ -1289,7 +1289,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           </article>
         </div>
         ${renderThreadIntelligencePanel({ activeThreadId, activeThreadLabel, messages, pinnedMessages, users, currentUser })}
-        ${renderThreadActionPlanPanel({ activeThreadId, messages, pinnedMessages, users, currentUser })}
+        ${renderThreadActionPlanPanel({ activeThreadId, messages, pinnedMessages, users, currentUser, actionItems: activeThread?.apiThread?.actionItems || activeThread?.actionItems || [] })}
         <label class="dashboard-chat-details-search">
           <span>Search conversation</span>
           <input type="search" data-dashboard-chat-message-search value="${escapeHtml(normalizedSearch)}" placeholder="${escapeHtml(`Search ${activeThreadLabel}`)}" autocomplete="off">

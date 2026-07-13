@@ -202,6 +202,69 @@ test("chat widget renders direct message bodies in the active conversation pane"
   expect(result.html).not.toContain("No messages yet");
 });
 
+test("chat details render persisted action items ahead of action signals", () => {
+  const currentUser = { id: "u1", name: "Mak", status: "active" };
+  const users = [currentUser, { id: "u2", name: "Analyst", status: "active" }];
+  const messages = [
+    {
+      id: "m-action",
+      userId: "u2",
+      threadId: "team",
+      text: "Action: review opponent buildup owner: Analyst deadline: tomorrow",
+      createdAt: "2026-07-13T10:00:00.000Z",
+      readBy: ["u2"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "urgent",
+    },
+  ];
+  const threads = [
+    {
+      threadId: "team",
+      label: "Team Chat",
+      isTeamThread: true,
+      messageCount: 1,
+      unreadCount: 0,
+      mentionCount: 0,
+      lastMessage: messages[0],
+      participant: null,
+      settings: {},
+      apiThread: {
+        actionItems: [
+          {
+            id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            threadId: "team",
+            messageId: "m-action",
+            title: "Review opponent buildup",
+            priority: "urgent",
+            status: "open",
+            ownerLabel: "Analyst",
+            dueLabel: "tomorrow",
+            createdAt: "2026-07-13T10:01:00.000Z",
+          },
+        ],
+      },
+    },
+  ];
+
+  const result = createRenderer(messages).render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads,
+    activeThreadId: "team",
+    detailsOpen: true,
+  });
+
+  expect(result.html).toContain("1 saved action");
+  expect(result.html).toContain("Review opponent buildup");
+  expect(result.html).toContain("Urgent - Analyst - Saved");
+  expect(result.html).toContain('data-dashboard-chat-action-item-status="done"');
+  expect(result.html).toContain('data-dashboard-chat-action-item-id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"');
+  expect(result.html).not.toContain('data-dashboard-chat-action-title="Action: review opponent buildup');
+});
+
 test("chat widget renders push notification health in the More menu", () => {
   const currentUser = { id: "u1", name: "Mak", status: "active" };
   const users = [currentUser, { id: "u2", name: "Medical Lead", status: "active" }];

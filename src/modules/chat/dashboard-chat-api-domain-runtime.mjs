@@ -450,6 +450,38 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       : null;
   }
 
+  function normalizeDashboardApiActionItem(actionItem = {}, thread = null) {
+    const metadata = actionItem.metadata && typeof actionItem.metadata === "object" ? actionItem.metadata : {};
+    const rawPriority = String(actionItem.priority || "normal").trim().toLowerCase();
+    const rawStatus = String(actionItem.status || "open").trim().toLowerCase();
+    return {
+      id: String(actionItem.id || actionItem.actionItemId || actionItem.action_item_id || "").trim(),
+      actionItemId: String(actionItem.actionItemId || actionItem.action_item_id || actionItem.id || "").trim(),
+      threadId: normalizeDashboardChatThreadId(
+        thread?.threadId || actionItem.legacyThreadId || actionItem.legacy_thread_id || actionItem.threadId || actionItem.thread_id || "",
+        dashboardChatTeamThreadId
+      ),
+      databaseThreadId: String(actionItem.thread_id || actionItem.databaseThreadId || thread?.databaseThreadId || thread?.id || "").trim(),
+      messageId: String(actionItem.messageId || actionItem.message_id || "").trim(),
+      clientActionId: String(actionItem.clientActionId || actionItem.client_action_id || "").trim(),
+      title: String(actionItem.title || actionItem.summary || "").trim(),
+      status: ["open", "done", "archived"].includes(rawStatus) ? rawStatus : "open",
+      priority: ["urgent", "important", "normal"].includes(rawPriority) ? rawPriority : "normal",
+      ownerId: String(actionItem.ownerId || actionItem.owner_id || "").trim(),
+      ownerLabel: String(actionItem.ownerLabel || actionItem.owner_label || metadata.ownerLabel || metadata.owner_label || "").trim(),
+      dueLabel: String(actionItem.dueLabel || actionItem.due_label || "").trim(),
+      dueAt: String(actionItem.dueAt || actionItem.due_at || "").trim(),
+      createdBy: String(actionItem.createdBy || actionItem.created_by || "").trim(),
+      completedBy: String(actionItem.completedBy || actionItem.completed_by || "").trim(),
+      createdAt: String(actionItem.createdAt || actionItem.created_at || "").trim(),
+      updatedAt: String(actionItem.updatedAt || actionItem.updated_at || "").trim(),
+      completedAt: String(actionItem.completedAt || actionItem.completed_at || "").trim(),
+      archivedAt: String(actionItem.archivedAt || actionItem.archived_at || "").trim(),
+      persisted: true,
+      metadata,
+    };
+  }
+
   function normalizeDashboardApiThread(thread = {}) {
     const type = String(thread.type || "team").trim().toLowerCase();
     const legacyThreadId = String(thread.metadata?.legacyThreadId || thread.legacyThreadId || "").trim();
@@ -466,13 +498,20 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       : null;
     const template = templateByLegacyId || templateByManagedType;
     const resolvedLegacyThreadId = legacyThreadId || template?.key || "";
+    const threadId = normalizeDashboardChatThreadId(
+      resolvedLegacyThreadId || (type === "team" ? dashboardChatTeamThreadId : thread.id),
+      dashboardChatTeamThreadId
+    );
+    const databaseThreadId = String(thread.id || "").trim();
+    const sourceActionItems = Array.isArray(thread.actionItems)
+      ? thread.actionItems
+      : Array.isArray(thread.action_items)
+        ? thread.action_items
+        : [];
 
     return {
-      threadId: normalizeDashboardChatThreadId(
-        resolvedLegacyThreadId || (type === "team" ? dashboardChatTeamThreadId : thread.id),
-        dashboardChatTeamThreadId
-      ),
-      databaseThreadId: String(thread.id || "").trim(),
+      threadId,
+      databaseThreadId,
       type,
       title: String(
         thread.title || thread.name || template?.title || (type === "team" ? getDashboardChatTeamChatTitle() : "Chat")
@@ -496,6 +535,8 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       settings: getThreadSettingsStore()?.normalize ? getThreadSettingsStore().normalize(thread.settings || thread.threadSettings || {}) : {},
       userState: thread.userState && typeof thread.userState === "object" ? thread.userState : {},
       notificationLevel: String(thread.notificationLevel || thread.notification_level || "all").trim() || "all",
+      actionItems: sourceActionItems.map((actionItem) => normalizeDashboardApiActionItem(actionItem, { ...thread, threadId, databaseThreadId })),
+      hasActionItemsPayload: Array.isArray(thread.actionItems) || Array.isArray(thread.action_items),
       metadata: thread.metadata || {},
     };
   }
@@ -558,6 +599,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
     getDashboardMessageIdentityKeys,
     logDashboardChatApiFailure,
     normalizeDashboardApiMessage,
+    normalizeDashboardApiActionItem,
     normalizeDashboardApiParticipant,
     normalizeDashboardApiThread,
     sendDashboardChatApiAction,

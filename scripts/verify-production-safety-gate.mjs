@@ -141,6 +141,11 @@ for (const name of [
   requireEnv(name);
 }
 
+if (clean(process.env.LIVE_QA_REQUIRE_PEER_CHAT) === "1") {
+  requireEnv("LIVE_QA_PEER_USERNAME");
+  requireEnv("LIVE_QA_PEER_PASSWORD");
+}
+
 if (!productionHost) {
   failures.push("LIVE_QA_BASE_URL must be a valid production URL.");
 }

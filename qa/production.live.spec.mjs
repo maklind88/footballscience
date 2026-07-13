@@ -1,10 +1,23 @@
 import { expect, test } from "@playwright/test";
 
 const scheduleKey = "football-schedule-v1";
-const hasLiveCredentials = Boolean(process.env.LIVE_QA_USERNAME && process.env.LIVE_QA_PASSWORD);
+const primaryLiveCredentials = {
+  username: String(process.env.LIVE_QA_USERNAME || "").trim(),
+  password: String(process.env.LIVE_QA_PASSWORD || "").trim(),
+};
+const peerLiveCredentials = {
+  username: String(process.env.LIVE_QA_PEER_USERNAME || "").trim(),
+  password: String(process.env.LIVE_QA_PEER_PASSWORD || "").trim(),
+};
+const hasLiveCredentials = Boolean(primaryLiveCredentials.username && primaryLiveCredentials.password);
+const hasPeerLiveCredentials = Boolean(peerLiveCredentials.username && peerLiveCredentials.password);
 const expectsAdminCredentials = process.env.LIVE_QA_EXPECT_ADMIN === "1";
 
 test.skip(!hasLiveCredentials, "Set LIVE_QA_USERNAME and LIVE_QA_PASSWORD for production-safe live smoke.");
+
+function getLiveBaseUrl() {
+  return process.env.PLAYWRIGHT_BASE_URL || process.env.LIVE_QA_BASE_URL || "https://footballscience.xyz";
+}
 
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -84,12 +97,12 @@ async function waitForCentralStateReady(page, options = {}) {
     .toBe("ready");
 }
 
-async function establishServerBackedSession(page) {
+async function establishServerBackedSession(page, credentials = primaryLiveCredentials) {
   const endpointBase = new URL("/", page.url()).origin;
   const loginResponse = await page.request.post(`${endpointBase}/api/client-config`, {
     data: {
-      email: process.env.LIVE_QA_USERNAME,
-      password: process.env.LIVE_QA_PASSWORD,
+      email: credentials.username,
+      password: credentials.password,
     },
     timeout: 75_000,
   });
@@ -135,14 +148,14 @@ async function establishServerBackedSession(page) {
     .not.toBe("");
 }
 
-async function signIn(page) {
-  await page.goto("/", { waitUntil: "domcontentloaded" });
+async function signIn(page, credentials = primaryLiveCredentials) {
+  await page.goto(getLiveBaseUrl(), { waitUntil: "domcontentloaded" });
   await waitForAuthReady(page);
   await waitForAppReady(page);
   if (await page.locator("#loginScreen:visible").count()) {
     await expect(page.locator('#loginForm button[type="submit"]')).toBeEnabled();
-    await page.locator("#loginUsername").fill(process.env.LIVE_QA_USERNAME);
-    await page.locator("#loginPassword").fill(process.env.LIVE_QA_PASSWORD);
+    await page.locator("#loginUsername").fill(credentials.username);
+    await page.locator("#loginPassword").fill(credentials.password);
     await page.locator('#loginForm button[type="submit"]').click();
   }
 
@@ -151,10 +164,30 @@ async function signIn(page) {
   try {
     await waitForCentralStateReady(page, { timeout: 15_000 });
   } catch {
-    await establishServerBackedSession(page);
+    await establishServerBackedSession(page, credentials);
     await waitForCentralStateReady(page);
   }
   await dismissDashboardModal(page);
+}
+
+async function getLiveCurrentUser(page) {
+  await expect
+    .poll(
+      () => page.evaluate(() => String(window.platformAuthStore?.getCurrentUser?.()?.id || "")),
+      { timeout: 20_000 }
+    )
+    .not.toBe("");
+
+  return page.evaluate(() => {
+    const user = window.platformAuthStore?.getCurrentUser?.() || {};
+    return {
+      id: String(user.id || ""),
+      email: String(user.email || ""),
+      username: String(user.username || ""),
+      role: String(user.role || ""),
+      name: String(user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || ""),
+    };
+  });
 }
 
 async function openWorkspace(page, workspaceId, viewId = workspaceId) {
@@ -209,8 +242,34 @@ async function requestLiveChat(page, token, query = "threadId=team&threadType=te
   return payload;
 }
 
+async function postLiveChatAction(page, token, data, label) {
+  const endpointBase = new URL("/", page.url()).origin;
+  const response = await page.request.post(`${endpointBase}/api/chat`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    data,
+    timeout: 45_000,
+  });
+  const payload = await response.json().catch(() => ({}));
+  expect(
+    response.ok(),
+    `${label} failed: ${response.status()} ${payload?.reason || payload?.message || "no reason"}`
+  ).toBeTruthy();
+  expect(payload.ok, `${label} did not return ok=true.`).toBe(true);
+  return payload;
+}
+
 function getLiveChatMessageText(message = {}) {
   return String(message.text ?? message.body ?? message.message ?? "").trim();
+}
+
+function findLiveChatThreadById(payload, threadId) {
+  return (Array.isArray(payload?.threads) ? payload.threads : []).find((thread) => String(thread?.threadId || thread?.legacyThreadId || "") === threadId) || null;
+}
+
+function findLiveChatMessageInPayload(payload, text) {
+  return (Array.isArray(payload?.messages) ? payload.messages : []).find((message) => getLiveChatMessageText(message) === text) || null;
 }
 
 async function findLiveChatMessageByText(page, token, text) {
@@ -223,23 +282,15 @@ async function deleteLiveChatMessage(page, token, messageId) {
   if (!messageId) {
     return false;
   }
-  const endpointBase = new URL("/", page.url()).origin;
-  const response = await page.request.post(`${endpointBase}/api/chat`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    data: {
+  await postLiveChatAction(
+    page,
+    token,
+    {
       action: "deleteMessage",
       messageId,
     },
-    timeout: 45_000,
-  });
-  const payload = await response.json().catch(() => ({}));
-  expect(
-    response.ok(),
-    `Live chat cleanup failed: ${response.status()} ${payload?.reason || payload?.message || "no reason"}`
-  ).toBeTruthy();
-  expect(payload.ok, "Live chat cleanup did not return ok=true.").toBe(true);
+    "Live chat cleanup"
+  );
   return true;
 }
 
@@ -475,6 +526,117 @@ test("production test account can send, reload, and clean up a chat message", as
     if (messageId && token) {
       await deleteLiveChatMessage(page, token, messageId).catch(() => {});
     }
+  }
+});
+
+test("production peer accounts prove DM unread state and read receipt end-to-end", async ({ browser, page }) => {
+  test.skip(!hasPeerLiveCredentials, "Set LIVE_QA_PEER_USERNAME and LIVE_QA_PEER_PASSWORD for two-account chat live smoke.");
+
+  const messageText = `QA Live DM ${Date.now()}`;
+  let primaryToken = "";
+  let messageId = "";
+  let threadId = "";
+  let peerContext = null;
+
+  await signIn(page);
+  primaryToken = await getLiveAccessToken(page);
+  const primaryUser = await getLiveCurrentUser(page);
+
+  peerContext = await browser.newContext({
+    baseURL: getLiveBaseUrl(),
+    storageState: { cookies: [], origins: [] },
+  });
+  const peerPage = await peerContext.newPage();
+  await signIn(peerPage, peerLiveCredentials);
+  const peerToken = await getLiveAccessToken(peerPage);
+  const peerUser = await getLiveCurrentUser(peerPage);
+
+  expect(peerUser.id, "Peer account must be a different live user.").not.toBe(primaryUser.id);
+
+  try {
+    const createPayload = await postLiveChatAction(
+      page,
+      primaryToken,
+      {
+        action: "createThread",
+        threadId: `dm:${primaryUser.id}:${peerUser.id}`,
+        type: "dm",
+        title: "Direct message",
+        visibility: "private",
+        participantIds: [primaryUser.id, peerUser.id],
+      },
+      "Create peer live DM"
+    );
+    threadId = String(createPayload?.thread?.threadId || createPayload?.thread?.legacyThreadId || createPayload?.thread?.metadata?.legacyThreadId || "");
+    expect(threadId, "Live DM create did not return a logical threadId.").toBeTruthy();
+
+    const sendPayload = await postLiveChatAction(
+      page,
+      primaryToken,
+      {
+        action: "sendMessage",
+        threadId,
+        threadType: "dm",
+        text: messageText,
+        clientMessageId: `live-dm-${Date.now()}`,
+      },
+      "Send peer live DM"
+    );
+    messageId = String(sendPayload?.message?.id || sendPayload?.message?.messageId || "");
+    expect(messageId, "Live DM send did not return a message id.").toBeTruthy();
+
+    await expect
+      .poll(
+        async () => {
+          const peerInbox = await requestLiveChat(peerPage, peerToken, "limit=80");
+          const peerThread = findLiveChatThreadById(peerInbox, threadId);
+          return {
+            hasThread: Boolean(peerThread),
+            unreadCount: Number(peerThread?.unreadCount || 0) || 0,
+            preview: String(peerThread?.lastMessagePreview || peerThread?.lastMessage?.text || ""),
+          };
+        },
+        { timeout: 45_000, intervals: [750, 1_500, 3_000] }
+      )
+      .toMatchObject({ hasThread: true, unreadCount: 1 });
+
+    await peerPage.reload({ waitUntil: "domcontentloaded" });
+    await signIn(peerPage, peerLiveCredentials);
+    await openTeamChat(peerPage);
+    const peerThreadButton = peerPage.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
+    await expect(peerThreadButton).toBeVisible({ timeout: 45_000 });
+    await expect(peerThreadButton.locator(".dashboard-chat-thread-unread")).toContainText("1", { timeout: 15_000 });
+    await peerThreadButton.click();
+    await expect(peerPage.locator("[data-dashboard-chat-list]")).toContainText(messageText, { timeout: 45_000 });
+
+    await expect
+      .poll(
+        async () => {
+          const primaryThreadPayload = await requestLiveChat(page, primaryToken, `threadId=${encodeURIComponent(threadId)}&threadType=dm&limit=80`);
+          const message = findLiveChatMessageInPayload(primaryThreadPayload, messageText);
+          return Array.isArray(message?.readBy) && message.readBy.includes(peerUser.id);
+        },
+        { timeout: 45_000, intervals: [750, 1_500, 3_000] }
+      )
+      .toBe(true);
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await signIn(page);
+    primaryToken = await getLiveAccessToken(page);
+    await openTeamChat(page);
+    const primaryThreadButton = page.locator(`[data-dashboard-chat-thread="${threadId}"]`).first();
+    await expect(primaryThreadButton).toBeVisible({ timeout: 45_000 });
+    await primaryThreadButton.click();
+    await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText, { timeout: 45_000 });
+    await expect(page.locator("[data-dashboard-chat-trust-delivery]")).toContainText("Read by 1", { timeout: 45_000 });
+
+    await deleteLiveChatMessage(page, primaryToken, messageId);
+    messageId = "";
+  } finally {
+    if (messageId && primaryToken) {
+      await deleteLiveChatMessage(page, primaryToken, messageId).catch(() => {});
+    }
+    await peerContext?.close().catch(() => {});
   }
 });
 

@@ -29,6 +29,9 @@ jobs:
       LIVE_QA_BASE_URL: ${{ vars.LIVE_QA_BASE_URL || 'https://footballscience.xyz' }}
       LIVE_QA_EXPECT_ADMIN: "1"
       LIVE_QA_PASSWORD: ${{ secrets.LIVE_QA_PASSWORD }}
+      LIVE_QA_PEER_PASSWORD: ${{ secrets.LIVE_QA_PEER_PASSWORD }}
+      LIVE_QA_PEER_USERNAME: ${{ secrets.LIVE_QA_PEER_USERNAME }}
+      LIVE_QA_REQUIRE_PEER_CHAT: ${{ vars.LIVE_QA_REQUIRE_PEER_CHAT || '0' }}
       LIVE_QA_USERNAME: ${{ secrets.LIVE_QA_USERNAME }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -50,7 +53,11 @@ jobs:
             exit 1
           fi
           missing=()
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID LIVE_QA_USERNAME LIVE_QA_PASSWORD; do
+          required_names=(VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID LIVE_QA_USERNAME LIVE_QA_PASSWORD)
+          if [ "$LIVE_QA_REQUIRE_PEER_CHAT" = "1" ]; then
+            required_names+=(LIVE_QA_PEER_USERNAME LIVE_QA_PEER_PASSWORD)
+          fi
+          for name in "${required_names[@]}"; do
             if [ -z "${!name}" ]; then
               missing+=("$name")
             fi

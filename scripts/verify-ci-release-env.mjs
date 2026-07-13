@@ -15,6 +15,13 @@ const required = [
 ];
 
 const missing = required.filter((name) => !String(process.env[name] || "").trim());
+if (process.env.LIVE_QA_REQUIRE_PEER_CHAT === "1") {
+  for (const name of ["LIVE_QA_PEER_USERNAME", "LIVE_QA_PEER_PASSWORD"]) {
+    if (!String(process.env[name] || "").trim()) {
+      missing.push(name);
+    }
+  }
+}
 
 if (missing.length) {
   console.error("CI release environment is missing required secret(s):");

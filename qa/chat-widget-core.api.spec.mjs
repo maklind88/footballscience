@@ -592,7 +592,7 @@ test("chat widget renders coach workflow and evidence intelligence layers", () =
       id: "clip-1",
       userId: "u2",
       threadId: "team",
-      text: "Needs action: @PlayerNine review later with the training session clip.",
+      text: "Needs action: @PlayerNine review later with the training session clip. Deadline Friday.",
       createdAt: "2026-01-01T10:05:00.000Z",
       readBy: ["u2"],
       mentionedUserIds: ["p1"],
@@ -632,6 +632,15 @@ test("chat widget renders coach workflow and evidence intelligence layers", () =
   });
 
   expect(result.html).toContain("data-dashboard-chat-coach-workflow");
+  expect(result.html).toContain("data-dashboard-chat-action-plan");
+  expect(result.html).toContain("Action plan");
+  expect(result.html).toContain('data-dashboard-chat-action-plan-summary="owner"');
+  expect(result.html).toContain('data-dashboard-chat-action-plan-summary="due"');
+  expect(result.html).toContain('data-dashboard-chat-action-plan-summary="decision"');
+  expect(result.html).toContain('data-dashboard-chat-action-plan-summary="evidence"');
+  expect(result.html).toContain('data-dashboard-chat-action-message="clip-1"');
+  expect(result.html).toContain("Player Nine");
+  expect(result.html).toContain("Friday");
   expect(result.html).toContain("Needs action");
   expect(result.html).toContain("Decision made");
   expect(result.html).toContain("Evidence attached");

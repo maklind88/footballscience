@@ -1,3 +1,4 @@
+import { createDashboardChatActionPlanRenderer } from "./chat-action-plan-renderer.mjs";
 import { createDashboardChatIntelligenceRenderer } from "./chat-intelligence-renderer.mjs";
 
 function defaultEscapeHtml(value) {
@@ -300,12 +301,19 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     formatTime,
     renderPresenceAvatar,
   });
+  const chatActionPlanRenderer = createDashboardChatActionPlanRenderer({
+    teamThreadId,
+    escapeHtml,
+    formatUserName,
+    formatTime,
+  });
   const {
     renderCoachWorkflowPanel,
     renderConversationIntelligenceRail,
     renderThreadIntelligencePanel,
     renderMessagePromoteActions,
   } = chatIntelligenceRenderer;
+  const { renderThreadActionPlanPanel } = chatActionPlanRenderer;
 
   function renderMessagePriority(message, normalizedPriority = "") {
     const priority = normalizedPriority || normalizePriority(message?.priority);
@@ -1281,6 +1289,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           </article>
         </div>
         ${renderThreadIntelligencePanel({ activeThreadId, activeThreadLabel, messages, pinnedMessages, users, currentUser })}
+        ${renderThreadActionPlanPanel({ activeThreadId, messages, pinnedMessages, users, currentUser })}
         <label class="dashboard-chat-details-search">
           <span>Search conversation</span>
           <input type="search" data-dashboard-chat-message-search value="${escapeHtml(normalizedSearch)}" placeholder="${escapeHtml(`Search ${activeThreadLabel}`)}" autocomplete="off">

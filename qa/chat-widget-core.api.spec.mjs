@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import { createDashboardChatWidgetRenderer } from "../src/modules/chat/chat-widget-renderer.mjs";
+import { createDashboardChatWidgetRenderer, renderDashboardChatMessageStatus } from "../src/modules/chat/chat-widget-renderer.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dashboardChatCss = readFileSync(resolve(__dirname, "../dashboard-chat.css"), "utf8");
@@ -362,9 +362,15 @@ test("chat inbox renders trust summary and conversation delivery state", () => {
   expect(result.html).toContain('data-dashboard-chat-trust-sync');
   expect(result.html).toContain("Synced 10:15");
   expect(result.html).toContain('data-dashboard-chat-trust-delivery');
+  expect(result.html).toContain('data-dashboard-chat-delivery-state="failed"');
+  expect(result.html).toContain('data-dashboard-chat-trust-delivery-detail');
   expect(result.html).toContain("1 not sent");
+  expect(result.html).toContain("Retry the failed message.");
+  expect(result.html).toContain('data-dashboard-chat-delivery-retry="m2"');
+  expect(result.html).toContain('data-dashboard-retry-message="m2"');
   expect(result.html).toContain('data-dashboard-chat-trust-context');
   expect(result.html).toContain("2 messages - 2 online");
+  expect(dashboardChatCss).toContain(".dashboard-chat-delivery-pill");
 });
 
 test("chat conversation trust shows when the peer has read the latest message", () => {
@@ -433,11 +439,34 @@ test("chat conversation trust shows when the peer has read the latest message", 
   });
 
   expect(readResult.html).toContain('data-dashboard-chat-trust-delivery');
+  expect(readResult.html).toContain('data-dashboard-chat-delivery-state="read"');
   expect(readResult.html).toContain("Read by 1");
+  expect(readResult.html).toContain("Latest message has been read.");
   expect(readResult.html).toContain("1 message - Online");
+  expect(sentResult.html).toContain('data-dashboard-chat-delivery-state="sent"');
   expect(sentResult.html).toContain("Sent");
+  expect(sentResult.html).toContain("Latest message is safely stored.");
+  expect(deliveredResult.html).toContain('data-dashboard-chat-delivery-state="delivered"');
   expect(deliveredResult.html).toContain("Delivered");
+  expect(deliveredResult.html).toContain("Latest message reached the conversation.");
   expect(sentResult.html).not.toContain("All sent");
+});
+
+test("chat delivery status labels are explicit on own message footers", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const sent = renderDashboardChatMessageStatus({ id: "m1", userId: "u1", status: "sent", readBy: ["u1"] }, currentUser, escapeHtml);
+  const pending = renderDashboardChatMessageStatus({ id: "m2", userId: "u1", status: "pending", readBy: ["u1"] }, currentUser, escapeHtml);
+  const failed = renderDashboardChatMessageStatus({ id: "m3", userId: "u1", status: "failed", readBy: ["u1"] }, currentUser, escapeHtml);
+  const read = renderDashboardChatMessageStatus({ id: "m4", userId: "u1", status: "sent", readBy: ["u1", "u2"] }, currentUser, escapeHtml);
+
+  expect(sent).toContain('data-dashboard-chat-message-delivery-status="sent"');
+  expect(sent).toContain("Sent");
+  expect(pending).toContain('data-dashboard-chat-message-delivery-status="pending"');
+  expect(pending).toContain("Sending");
+  expect(failed).toContain('data-dashboard-chat-message-delivery-status="failed"');
+  expect(failed).toContain("Not sent");
+  expect(read).toContain('data-dashboard-chat-message-delivery-status="read"');
+  expect(read).toContain("Read by 1");
 });
 
 test("chat widget preserves open dialog drafts across sync rerenders", () => {

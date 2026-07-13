@@ -195,7 +195,7 @@ export function renderDashboardChatMessageStatus(message = {}, currentUser = {},
   const statusIcon = statusKey === "pending" ? "..." : statusKey === "failed" ? "!" : statusKey === "sent" ? "✓" : "✓✓";
   const statusLabel =
     statusKey === "pending" ? "Sending" : statusKey === "failed" ? "Not sent" : statusKey === "read" ? (readCount ? `Read by ${readCount}` : "Read") : statusKey === "delivered" ? "Delivered" : "Sent";
-  return `<div class="dashboard-chat-status is-${statusKey}" title="${escapeHtml(statusLabel)}" aria-label="${escapeHtml(statusLabel)}"><span class="dashboard-chat-check-label" aria-hidden="true">${statusIcon}</span></div>`;
+  return `<div class="dashboard-chat-status is-${statusKey}" data-dashboard-chat-message-delivery-status="${escapeHtml(statusKey)}" title="${escapeHtml(statusLabel)}" aria-label="${escapeHtml(statusLabel)}"><span class="dashboard-chat-check-label" aria-hidden="true">${statusIcon}</span><span class="dashboard-chat-status-text">${escapeHtml(statusLabel)}</span></div>`;
 }
 
 function normalizeDashboardChatApiStatus(apiStatus = {}) {
@@ -561,40 +561,74 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     ).size;
   }
 
-  function getConversationDeliveryTrust(messages = [], currentUser = {}) {
+  function getOwnDeliveryMessages(messages = [], currentUser = {}) {
     const currentUserId = String(currentUser?.id || "").trim();
-    const ownMessages = messages.filter((message) => String(message?.userId || "").trim() === currentUserId);
-    const failedCount = ownMessages.filter((message) => String(message?.status || "").trim().toLowerCase() === "failed").length;
-    const pendingCount = ownMessages.filter((message) => String(message?.status || "").trim().toLowerCase() === "pending").length;
-    if (failedCount) {
-      return `${failedCount} not sent`;
+    return (Array.isArray(messages) ? messages : []).filter((message) => {
+      const status = String(message?.status || "").trim().toLowerCase();
+      return (
+        currentUserId &&
+        String(message?.userId || "").trim() === currentUserId &&
+        status !== "deleted" &&
+        status !== "preview" &&
+        !message?.isDeleted
+      );
+    });
+  }
+
+  function getConversationDeliveryState(messages = [], currentUser = {}) {
+    const ownMessages = getOwnDeliveryMessages(messages, currentUser);
+    const failedMessages = ownMessages.filter((message) => String(message?.status || "").trim().toLowerCase() === "failed");
+    const pendingMessages = ownMessages.filter((message) => String(message?.status || "").trim().toLowerCase() === "pending");
+    if (failedMessages.length) {
+      const latestFailedMessage = failedMessages.at(-1);
+      return {
+        key: "failed",
+        label: `${failedMessages.length} not sent`,
+        detail: failedMessages.length === 1 ? "Retry the failed message." : "Retry the latest failed message.",
+        retryMessageId: latestFailedMessage?.id || "",
+      };
     }
-    if (pendingCount) {
-      return `${pendingCount} sending`;
+    if (pendingMessages.length) {
+      return {
+        key: "pending",
+        label: `${pendingMessages.length} sending`,
+        detail: "Waiting for server confirmation.",
+        retryMessageId: "",
+      };
     }
-    const latestOwnMessage = ownMessages
-      .filter((message) => {
-        const status = String(message?.status || "").trim().toLowerCase();
-        return status !== "deleted" && status !== "preview";
-      })
-      .at(-1);
+    const latestOwnMessage = ownMessages.at(-1);
     const readCount = getMessageReadByCount(latestOwnMessage, currentUser);
     if (readCount) {
-      return `Read by ${readCount}`;
+      return {
+        key: "read",
+        label: `Read by ${readCount}`,
+        detail: readCount === 1 ? "Latest message has been read." : "Latest message has been read by teammates.",
+        retryMessageId: "",
+      };
     }
     const latestOwnStatus = String(latestOwnMessage?.status || "").trim().toLowerCase();
     if (latestOwnStatus === "read") {
-      return "Read";
+      return { key: "read", label: "Read", detail: "Latest message has been read.", retryMessageId: "" };
     }
     if (latestOwnStatus === "delivered") {
-      return "Delivered";
+      return { key: "delivered", label: "Delivered", detail: "Latest message reached the conversation.", retryMessageId: "" };
     }
-    return latestOwnMessage ? "Sent" : "Ready to send";
+    return latestOwnMessage
+      ? { key: "sent", label: "Sent", detail: "Latest message is safely stored.", retryMessageId: "" }
+      : { key: "ready", label: "Ready to send", detail: "No outgoing messages yet.", retryMessageId: "" };
+  }
+
+  function getConversationDeliveryTrust(messages = [], currentUser = {}) {
+    return getConversationDeliveryState(messages, currentUser).label;
   }
 
   function renderConversationTrustStrip({ status = {}, activeThread = null, messages = [], currentUser = {}, users = [] } = {}) {
     const syncLabel = getChatSyncTrustLabel(status);
-    const deliveryLabel = getConversationDeliveryTrust(messages, currentUser);
+    const deliveryState = getConversationDeliveryState(messages, currentUser);
+    const deliveryAriaLabel = `${deliveryState.label}. ${deliveryState.detail}`;
+    const deliveryRetryMarkup = deliveryState.retryMessageId
+      ? `<button type="button" data-dashboard-retry-message="${escapeHtml(deliveryState.retryMessageId)}" data-dashboard-chat-delivery-retry="${escapeHtml(deliveryState.retryMessageId)}">Retry</button>`
+      : "";
     const messageCount = Number(activeThread?.messageCount || messages.length || 0) || 0;
     const contextLabel = activeThread
       ? `${messageCount} message${messageCount === 1 ? "" : "s"} - ${getThreadStatus(activeThread, users)}`
@@ -606,7 +640,11 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           <strong data-dashboard-chat-trust-sync>${escapeHtml(syncLabel)}</strong>
           <small data-dashboard-chat-trust-context>${escapeHtml(contextLabel)}</small>
         </span>
-        <span data-dashboard-chat-trust-delivery>${escapeHtml(deliveryLabel)}</span>
+        <span class="dashboard-chat-delivery-pill is-${escapeHtml(deliveryState.key)}" data-dashboard-chat-delivery-state="${escapeHtml(deliveryState.key)}" aria-label="${escapeHtml(deliveryAriaLabel)}">
+          <strong data-dashboard-chat-trust-delivery>${escapeHtml(deliveryState.label)}</strong>
+          <small data-dashboard-chat-trust-delivery-detail>${escapeHtml(deliveryState.detail)}</small>
+          ${deliveryRetryMarkup}
+        </span>
       </section>
     `;
   }

@@ -196,6 +196,7 @@ async function requestLiveChat(page, token, query = "threadId=team&threadType=te
   const response = await page.request.get(`${endpointBase}/api/chat?${query}`, {
     headers: {
       Authorization: `Bearer ${token}`,
+      "x-footballscience-chat-active": "active",
     },
     timeout: 45_000,
   });
@@ -429,10 +430,10 @@ test("production test account can send, reload, and clean up a chat message", as
   token = await getLiveAccessToken(page);
 
   try {
+    await openTeamChat(page);
     const initialPayload = await requestLiveChat(page, token);
     expect(Array.isArray(initialPayload.messages), "Live chat response must include messages.").toBe(true);
 
-    await openTeamChat(page);
     await page.locator("[data-dashboard-chat-input]").fill(messageText);
     await page.locator("[data-dashboard-chat-form] button[type='submit']").click();
     await expect(page.locator("[data-dashboard-chat-input]")).toHaveValue("");

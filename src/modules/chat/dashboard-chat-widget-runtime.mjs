@@ -70,6 +70,174 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
 
   const runtimeDashboardChatAttachmentRenderer = dashboardChatAttachmentRenderer || { queueSignedUrls: () => {} };
 
+  function readInputDraft(input = null) {
+    if (!input) {
+      return null;
+    }
+    return {
+      value: input.value || "",
+      wasFocused: Boolean(documentRef?.activeElement === input),
+      selectionStart: input.selectionStart,
+      selectionEnd: input.selectionEnd,
+    };
+  }
+
+  function restoreInputDraft(input = null, draft = null) {
+    if (!input || !draft) {
+      return;
+    }
+    input.value = draft.value || "";
+    if (draft.wasFocused) {
+      input.focus();
+      if (draft.selectionStart !== null && draft.selectionEnd !== null) {
+        input.setSelectionRange(draft.selectionStart, draft.selectionEnd);
+      }
+    }
+  }
+
+  function readDashboardChatDialogDrafts(root = null) {
+    const groupForm = root?.querySelector("[data-dashboard-chat-group-create-form]");
+    const directForm = root?.querySelector("[data-dashboard-chat-direct-create-form]");
+    const settingsForm = root?.querySelector("[data-dashboard-chat-settings-form]");
+    return {
+      group: groupForm
+        ? {
+            title: readInputDraft(groupForm.querySelector("[data-dashboard-chat-group-name-input]")),
+            avatar: readInputDraft(groupForm.querySelector("[data-dashboard-chat-group-avatar-input]")),
+            filter: readInputDraft(groupForm.querySelector("[data-dashboard-chat-group-user-filter]")),
+            participantIds: Array.from(groupForm.querySelectorAll("input[name='participantIds']:checked"))
+              .map((input) => String(input.value || "").trim())
+              .filter(Boolean),
+          }
+        : null,
+      direct: directForm
+        ? {
+            filter: readInputDraft(directForm.querySelector("[data-dashboard-chat-direct-user-filter]")),
+            participantId: String(directForm.querySelector("input[name='participantId']:checked")?.value || "").trim(),
+          }
+        : null,
+      settings: settingsForm
+        ? {
+            type: String(settingsForm.dataset.dashboardChatSettingsType || "").trim(),
+            threadId: String(settingsForm.dataset.dashboardChatThread || "").trim(),
+            value: readInputDraft(settingsForm.querySelector("[data-dashboard-chat-settings-input]")),
+          }
+        : null,
+    };
+  }
+
+  function applyDashboardChatUserFilter(form = null, selector = "", query = "") {
+    const normalizedQuery = String(query || "").trim().toLowerCase();
+    form?.querySelectorAll(selector).forEach((row) => {
+      const searchableText =
+        row.dataset.dashboardChatGroupUserSearch ||
+        row.dataset.dashboardChatDirectUserSearch ||
+        row.textContent ||
+        "";
+      row.hidden = Boolean(normalizedQuery) && !searchableText.toLowerCase().includes(normalizedQuery);
+    });
+  }
+
+  function refreshDashboardChatGroupCreateForm(form = null) {
+    if (!form) {
+      return;
+    }
+    const titleInput = form.querySelector("[data-dashboard-chat-group-name-input]");
+    const selectedInputs = Array.from(form.querySelectorAll("input[name='participantIds']:checked"));
+    const selectedCount = selectedInputs.length;
+    const minLength = Number(titleInput?.getAttribute("minlength") || 2) || 2;
+    const hasTitle = String(titleInput?.value || "").trim().replace(/\s+/g, " ").length >= minLength;
+    const isReady = Boolean(hasTitle && selectedCount);
+    const submitButton = form.querySelector("[data-dashboard-chat-group-create-submit]");
+    const visibleCount = Array.from(form.querySelectorAll("[data-dashboard-chat-group-user-search]")).filter((row) => !row.hidden).length;
+    const statusElement = form.querySelector("[data-dashboard-chat-group-filter-status]");
+    const selectedList = form.querySelector("[data-dashboard-chat-group-selected-list]");
+    form.querySelectorAll("[data-dashboard-chat-group-user-search]").forEach((row) => {
+      const checkbox = row.querySelector("input[name='participantIds']");
+      row.classList.toggle("is-selected", Boolean(checkbox?.checked));
+    });
+    if (submitButton) {
+      submitButton.disabled = !isReady || form.dataset.busy === "true";
+      submitButton.setAttribute("aria-disabled", submitButton.disabled ? "true" : "false");
+      submitButton.title = isReady
+        ? "Create group"
+        : `${hasTitle ? "Choose at least one teammate" : `Add a group name with at least ${minLength} characters`}${!hasTitle && !selectedCount ? " and choose at least one teammate" : ""}`;
+      if (form.dataset.busy !== "true") {
+        submitButton.textContent = selectedCount ? `Create group (${selectedCount})` : "Create group";
+      }
+    }
+    if (statusElement) {
+      statusElement.textContent = `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} visible - ${selectedCount} selected`;
+    }
+    if (selectedList) {
+      const selectedNames = selectedInputs
+        .map((input) => String(input.dataset.dashboardChatGroupParticipantName || input.value || "").trim())
+        .filter(Boolean)
+        .slice(0, 6);
+      selectedList.hidden = !selectedNames.length;
+      selectedList.textContent = selectedNames.join(", ");
+    }
+  }
+
+  function refreshDashboardChatDirectCreateForm(form = null) {
+    if (!form) {
+      return;
+    }
+    const selectedInput = form.querySelector("input[name='participantId']:checked");
+    const visibleCount = Array.from(form.querySelectorAll("[data-dashboard-chat-direct-user-search]")).filter((row) => !row.hidden).length;
+    const submitButton = form.querySelector("[data-dashboard-chat-direct-create-submit]");
+    const statusElement = form.querySelector("[data-dashboard-chat-direct-filter-status]");
+    form.querySelectorAll("[data-dashboard-chat-direct-user-search]").forEach((row) => {
+      const radio = row.querySelector("input[name='participantId']");
+      row.classList.toggle("is-selected", Boolean(radio?.checked));
+    });
+    if (submitButton) {
+      submitButton.disabled = !selectedInput || form.dataset.busy === "true";
+      submitButton.setAttribute("aria-disabled", submitButton.disabled ? "true" : "false");
+      submitButton.title = selectedInput ? "Start chat" : "Choose a teammate";
+    }
+    if (statusElement) {
+      statusElement.textContent = selectedInput
+        ? `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} visible - 1 selected`
+        : `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} available - tap a person to start`;
+    }
+  }
+
+  function restoreDashboardChatDialogDrafts(root = null, drafts = {}) {
+    const groupForm = root?.querySelector("[data-dashboard-chat-group-create-form]");
+    if (groupForm && drafts.group) {
+      restoreInputDraft(groupForm.querySelector("[data-dashboard-chat-group-name-input]"), drafts.group.title);
+      restoreInputDraft(groupForm.querySelector("[data-dashboard-chat-group-avatar-input]"), drafts.group.avatar);
+      restoreInputDraft(groupForm.querySelector("[data-dashboard-chat-group-user-filter]"), drafts.group.filter);
+      const selectedIds = new Set(drafts.group.participantIds || []);
+      groupForm.querySelectorAll("input[name='participantIds']").forEach((input) => {
+        input.checked = selectedIds.has(String(input.value || "").trim());
+      });
+      applyDashboardChatUserFilter(groupForm, "[data-dashboard-chat-group-user-search]", drafts.group.filter?.value || "");
+      refreshDashboardChatGroupCreateForm(groupForm);
+    }
+
+    const directForm = root?.querySelector("[data-dashboard-chat-direct-create-form]");
+    if (directForm && drafts.direct) {
+      restoreInputDraft(directForm.querySelector("[data-dashboard-chat-direct-user-filter]"), drafts.direct.filter);
+      directForm.querySelectorAll("input[name='participantId']").forEach((input) => {
+        input.checked = String(input.value || "").trim() === drafts.direct.participantId;
+      });
+      applyDashboardChatUserFilter(directForm, "[data-dashboard-chat-direct-user-search]", drafts.direct.filter?.value || "");
+      refreshDashboardChatDirectCreateForm(directForm);
+    }
+
+    const settingsForm = root?.querySelector("[data-dashboard-chat-settings-form]");
+    if (
+      settingsForm &&
+      drafts.settings &&
+      String(settingsForm.dataset.dashboardChatSettingsType || "").trim() === drafts.settings.type &&
+      String(settingsForm.dataset.dashboardChatThread || "").trim() === drafts.settings.threadId
+    ) {
+      restoreInputDraft(settingsForm.querySelector("[data-dashboard-chat-settings-input]"), drafts.settings.value);
+    }
+  }
+
   function getDashboardChatRenderSignature(html = "") {
     let hash = 0;
     for (let index = 0; index < html.length; index += 1) {
@@ -387,9 +555,11 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     );
     const previousMessageSearchSelectionStart = wasMessageSearchFocused ? previousMessageSearchInput.selectionStart : null;
     const previousMessageSearchSelectionEnd = wasMessageSearchFocused ? previousMessageSearchInput.selectionEnd : null;
+    const previousDialogDrafts = readDashboardChatDialogDrafts(root);
 
     root.innerHTML = renderedWidget.html;
     root.dataset.dashboardChatRenderSignature = renderSignature;
+    restoreDashboardChatDialogDrafts(root, previousDialogDrafts);
     if (shouldClearSubmittedComposerDraft) {
       dashboardChatSubmittedComposerDrafts.delete(previousComposerThreadId);
     }

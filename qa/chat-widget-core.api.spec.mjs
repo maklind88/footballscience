@@ -296,6 +296,15 @@ test("chat widget surfaces API sync failures with a real retry action", () => {
   expect(widgetRuntimeSource).toContain("getDashboardChatApiStatus");
 });
 
+test("chat widget preserves open dialog drafts across sync rerenders", () => {
+  expect(widgetRuntimeSource).toContain("readDashboardChatDialogDrafts");
+  expect(widgetRuntimeSource).toContain("restoreDashboardChatDialogDrafts(root, previousDialogDrafts)");
+  expect(widgetRuntimeSource).toContain("[data-dashboard-chat-group-create-form]");
+  expect(widgetRuntimeSource).toContain("[data-dashboard-chat-settings-form]");
+  expect(widgetRuntimeSource).toContain("input[name='participantIds']:checked");
+  expect(widgetRuntimeSource).toContain("[data-dashboard-chat-settings-input]");
+});
+
 test("chat widget keeps loaded older history visible in the active conversation pane", () => {
   const currentUser = { id: "u1", name: "Mak" };
   const users = [currentUser, { id: "u2", name: "Coach A", status: "active" }];

@@ -101,6 +101,18 @@ export const platformReadinessEnvironmentRequirements = Object.freeze([
     critical: true,
   }),
   Object.freeze({
+    id: "live-qa-peer-chat",
+    area: "accounts-secrets",
+    label: "Two-account chat live QA",
+    location: "GitHub Secrets + GitHub Variables",
+    required: Object.freeze(["LIVE_QA_PEER_USERNAME", "LIVE_QA_PEER_PASSWORD", "LIVE_QA_REQUIRE_PEER_CHAT"]),
+    requiredValues: Object.freeze({
+      LIVE_QA_REQUIRE_PEER_CHAT: "1",
+    }),
+    recommended: Object.freeze([]),
+    critical: true,
+  }),
+  Object.freeze({
     id: "backup-cron",
     area: "observability",
     label: "Backup and restore monitor",
@@ -487,7 +499,12 @@ function normalizeReadinessStatus(status) {
 }
 
 function evaluateEnvironmentRequirement(requirement, env = {}) {
-  const missing = requirement.required.filter((name) => !hasValue(env, name));
+  const requiredValues = requirement.requiredValues || {};
+  const missingRequired = requirement.required.filter((name) => !hasValue(env, name));
+  const mismatchedRequiredValues = Object.entries(requiredValues)
+    .filter(([name, expectedValue]) => hasValue(env, name) && String(env[name] || "").trim() !== String(expectedValue))
+    .map(([name, expectedValue]) => `${name}=${expectedValue}`);
+  const missing = [...missingRequired, ...mismatchedRequiredValues];
   const missingRecommended = requirement.recommended.filter((name) => !hasValue(env, name));
   const status = missing.length
     ? platformReadinessStatuses.missing
@@ -498,7 +515,11 @@ function evaluateEnvironmentRequirement(requirement, env = {}) {
   return Object.freeze({
     ...requirement,
     status,
-    present: Object.freeze(requirement.required.filter((name) => hasValue(env, name))),
+    present: Object.freeze(
+      requirement.required.filter(
+        (name) => hasValue(env, name) && !mismatchedRequiredValues.some((entry) => entry.startsWith(`${name}=`))
+      )
+    ),
     missing: Object.freeze(missing),
     missingRecommended: Object.freeze(missingRecommended),
   });

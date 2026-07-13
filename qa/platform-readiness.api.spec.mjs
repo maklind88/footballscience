@@ -33,7 +33,7 @@ const readinessScripts = {
 };
 const completeEnv = Object.fromEntries(
   platformReadinessEnvironmentRequirements.flatMap((requirement) => [
-    ...requirement.required.map((name) => [name, `${name.toLowerCase()}-value`]),
+    ...requirement.required.map((name) => [name, requirement.requiredValues?.[name] || `${name.toLowerCase()}-value`]),
     ...requirement.recommended.map((name) => [name, `${name.toLowerCase()}-value`]),
   ])
 );
@@ -99,7 +99,25 @@ test("staging and secret requirements are explicit without exposing secret value
   expect(staging.some((entry) => entry.required.includes("STAGING_SUPABASE_PROJECT_REF"))).toBe(true);
   expect(accounts.some((entry) => entry.required.includes("VERCEL_TOKEN"))).toBe(true);
   expect(accounts.some((entry) => entry.required.includes("LIVE_QA_USERNAME"))).toBe(true);
+  expect(accounts.some((entry) => entry.id === "live-qa-peer-chat" && entry.required.includes("LIVE_QA_PEER_USERNAME"))).toBe(true);
+  expect(accounts.some((entry) => entry.id === "live-qa-peer-chat" && entry.missing.includes("LIVE_QA_REQUIRE_PEER_CHAT"))).toBe(true);
   expect(report.environment.every((entry) => !JSON.stringify(entry).includes("secret-value"))).toBe(true);
+});
+
+test("chat peer live QA is only ready when the mandatory flag is enabled", () => {
+  const report = createPlatformReadinessReport({
+    env: {
+      ...completeEnv,
+      LIVE_QA_REQUIRE_PEER_CHAT: "0",
+    },
+    scripts: readinessScripts,
+  });
+  const peerChat = report.environment.find((entry) => entry.id === "live-qa-peer-chat");
+
+  expect(peerChat).toMatchObject({
+    status: platformReadinessStatuses.missing,
+  });
+  expect(peerChat.missing).toContain("LIVE_QA_REQUIRE_PEER_CHAT=1");
 });
 
 test("observability covers deploy, api, saves, backup, auth, and performance signals", () => {

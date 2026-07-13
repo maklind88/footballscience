@@ -3390,7 +3390,8 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(page.locator("[data-medical-operations-system]")).toHaveCount(0);
 
   await operationsMenu.locator('[data-medical-ops-tab="signals"]').click();
-  await expect(operations).toContainText("Actual exceeded recommendation");
+  await expect(operations).toContainText("75% recommendation");
+  await expect(operations).not.toContainText("Actual exceeded recommendation");
   const signalsTable = operations.locator(".medical-ops-signals-table");
   await expect(signalsTable).toContainText("QA Risk Player");
   await expect(signalsTable).toContainText("QA Clear Player");

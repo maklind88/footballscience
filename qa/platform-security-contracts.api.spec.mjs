@@ -8,6 +8,7 @@ const require = createRequire(import.meta.url);
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const permissionMatrix = require("../src/core/permission-matrix.cjs");
 const platformSecurity = require("../api/_lib/platform-security.js");
+const trafficSafety = require("../src/core/traffic-safety-contracts.cjs");
 
 function readProjectFile(relativePath) {
   return fs.readFileSync(path.join(rootDir, relativePath), "utf8");
@@ -166,6 +167,33 @@ test("chat and presence API budgets stay conservative during traffic spikes", ()
   expect(latestResponse.statusCode).toBe(429);
   expect(latestResponse.headers["x-ratelimit-limit"]).toBe("60");
   expect(latestResponse.headers["retry-after"]).toBeTruthy();
+});
+
+test("traffic safety contracts bind high-churn endpoints to backend, edge and client-loop guards", () => {
+  const routes = trafficSafety.trafficSafetyContracts.map((contract) => contract.route);
+  expect(routes).toEqual(expect.arrayContaining([
+    "/api/app-state",
+    "/api/chat",
+    "/api/client-config",
+    "/api/presence",
+    "/api/push-subscriptions",
+  ]));
+
+  const failures = trafficSafety.validateTrafficSafetyContracts({
+    apiRouteSecurity: permissionMatrix.apiRouteSecurity,
+    readFile: readProjectFile,
+  });
+  expect(failures).toEqual([]);
+
+  const edgeControl = trafficSafety.trafficSafetyEdgeControls["chat-presence-rate-limit"];
+  expect(edgeControl.name).toBe("Rate limit chat presence APIs");
+  expect(edgeControl.rateLimit).toMatchObject({ windowSeconds: 60, limit: 80, key: "ip", action: "deny" });
+  for (const route of ["/api/chat", "/api/presence", "/api/push-subscriptions"]) {
+    expect(trafficSafety.edgeControlMatchesRoute(edgeControl, route), `${route} edge control`).toBe(true);
+  }
+
+  const platformSecurityVerifier = readProjectFile("scripts/verify-platform-security.mjs");
+  expect(platformSecurityVerifier).toContain("validateTrafficSafetyContracts");
 });
 
 test("API guard blocks module actions outside the backend permission matrix", () => {

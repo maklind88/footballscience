@@ -72,6 +72,8 @@ requireText("api/platform-readiness.js", "/api/platform-readiness", "admin dashb
 requireTextInAny(["app.js", "src/modules/admin/admin-readiness-renderer.mjs"], "Platform Readiness", "admin must expose a platform readiness dashboard");
 requireText("scripts/verify-storage-key-policy.mjs", "approvedLocalOnlyStorageKeys", "new local-only storage keys must be explicitly justified");
 requireText("scripts/verify-platform-security.mjs", "Platform security verification: ok", "platform tenant isolation and permission matrix must stay testable");
+requireText("scripts/verify-platform-security.mjs", "validateTrafficSafetyContracts", "traffic spike prevention must remain part of the platform security gate");
+requireText("src/core/traffic-safety-contracts.cjs", "footballscience-traffic-safety-contract-v1", "traffic safety contract must stay explicit and testable");
 requireText("src/core/permission-matrix.cjs", "platformPermissionMatrix", "backend permissions must live in the central permission matrix");
 requireText("api/_lib/platform-security.js", "footballscience-api-security-event-v1", "API observability must keep a stable structured log schema");
 requireText("api/_lib/platform-security.js", "X-RateLimit-Limit", "API guard must expose rate limit state");

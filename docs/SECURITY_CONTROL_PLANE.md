@@ -38,6 +38,19 @@ Backend route budgets mirror the same intent but stay identity-aware:
 - `/api/push-subscriptions`: `read 30/min`, `write 20/min`, `delete 12/min`.
 - `/api/presence`: `read 30/min`, `write 20/min`.
 
+## Traffic Safety Contract
+
+High-churn endpoints must pass a shared traffic-safety contract before release. The contract lives in `src/core/traffic-safety-contracts.cjs` and is enforced by `npm run security:platform`.
+
+Each protected route must declare:
+
+- backend API-guard budgets from `src/core/permission-matrix.cjs`
+- required Vercel Firewall edge control when the endpoint is timer-driven or chat/presence related
+- client-loop guard evidence such as in-flight locks, cache/cooldown, 429/error backoff, and hidden-tab pause behavior
+- observability expectations for `429`, `5xx`, and route spike incident signals
+
+The first protected group covers `/api/chat`, `/api/presence`, `/api/push-subscriptions`, `/api/app-state`, and `/api/client-config`. Future polling, realtime, autosave, notification, sync, upload, or presence-style endpoints must be added to this contract before they are considered production-safe.
+
 ## Observability
 
 API requests emit structured JSON logs with schema `footballscience-api-security-event-v1`. The logs include route, action, module, actor role, status, duration, and reason for failed requests.

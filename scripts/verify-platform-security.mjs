@@ -11,6 +11,7 @@ const {
   permissionActions,
   platformPermissionMatrix,
 } = require("../src/core/permission-matrix.cjs");
+const { validateTrafficSafetyContracts } = require("../src/core/traffic-safety-contracts.cjs");
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
@@ -88,6 +89,7 @@ requireText("api/_lib/platform-security.js", "footballscience-api-security-event
 requireText("api/_lib/platform-security.js", "X-RateLimit-Limit", "API guard must expose rate limit headers");
 requireText("api/_lib/platform-security.js", "api.permission_denied", "API guard must log permission denials");
 requireText("api/_lib/supabase-admin.js", "finishApiRequest", "sendJson must close structured observability spans");
+failures.push(...validateTrafficSafetyContracts({ apiRouteSecurity, readFile: read }));
 
 const migrationFile = "supabase/migrations/20260510030705_platform_security_control_plane.sql";
 const migration = read(migrationFile);

@@ -69,6 +69,8 @@ Production incident rules should watch these signals:
 
 Traffic-like incidents include a privacy-safe Traffic Snapshot from Vercel runtime logs. It summarizes route/status patterns, rate-limit and server-error counts, anonymized actor hashes, and broad user-agent classes; it does not publish raw IP addresses, full user agents, auth tokens, backup data, or user content.
 
+Platform Admins also get a read-only Platform Health cockpit inside Admin. It combines contract status with bounded live checks for production runtime, GitHub deploy/monitor runs, backup freshness, `/api/auth-health`, Vercel Firewall drift, production-incident issues, egress guardrails, live QA, and staging readiness. The cockpit must never expose tokens, raw IP addresses, full user agents, backup entries, or user content.
+
 ## Required Checks
 
 Run before release:

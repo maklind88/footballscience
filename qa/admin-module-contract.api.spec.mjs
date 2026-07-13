@@ -156,6 +156,11 @@ test("Admin readiness renderer owns readiness status and appearance markup", () 
         environment: [{ label: "Vercel", location: "secret", missing: [], status: "pass" }],
         observabilitySignals: [{ label: "API", source: "logs" }],
         liveSignals: [{ label: "Production", details: "OK", status: "pass" }],
+        healthCockpitSummary: { total: 2, ready: 1, warning: 1, missing: 0 },
+        healthCockpit: [
+          { id: "production-monitor", label: "Production Monitor", group: "Monitoring", owner: "GitHub Actions", status: "pass", details: "success 2h ago.", nextStep: "Keep green." },
+          { id: "traffic-firewall", label: "Traffic Firewall", group: "Abuse Protection", owner: "Vercel Firewall", status: "warning", details: "Token not connected.", nextStep: "Run release:firewall." },
+        ],
         operatingPriorities: [{ priority: 1, label: "Keep stable", nextStep: "Monitor" }],
         databasePrimaryMigrationPlan: [{ priority: 1, moduleId: "admin", nextStep: "Move pure UI" }],
         scoutingPerformance: { datasetRules: { firstPageMaxRecords: 50, requiresWorkerSource: true }, requiredSignals: ["load"] },
@@ -179,6 +184,9 @@ test("Admin readiness renderer owns readiness status and appearance markup", () 
   const readinessMarkup = renderer.renderReadinessDashboard();
   expect(readinessMarkup).toContain("Platform Health");
   expect(readinessMarkup).toContain("Live Health");
+  expect(readinessMarkup).toContain("Production Monitor");
+  expect(readinessMarkup).toContain("Traffic Firewall");
+  expect(readinessMarkup).toContain("Read-only");
   expect(readinessMarkup).toContain("Scouting Speed");
   expect(readinessMarkup).toContain("Refresh");
   const appearanceMarkup = renderer.renderAppearanceGovernancePanel();

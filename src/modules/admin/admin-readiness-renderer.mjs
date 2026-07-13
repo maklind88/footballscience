@@ -1,4 +1,5 @@
 import { formatAdminDateTime } from "./admin-display-helpers.mjs";
+import { createAdminHealthCockpitRenderer } from "./admin-health-cockpit-renderer.mjs";
 
 const readinessStatusLabels = Object.freeze({
   pass: "Ready",
@@ -45,6 +46,11 @@ export function createAdminReadinessRenderer({
     }
     return `<div class="pr-empty">Readiness loads from admin API.</div>`;
   };
+  const healthCockpitRenderer = createAdminHealthCockpitRenderer({
+    escapeHtml,
+    normalizeReadinessStatus,
+    renderReadinessStatus,
+  });
 
   const createReadinessFallbackReport = () => ({
     summary: { readySections: 0, totalSections: 0, totalModules: 0, legacyModules: 0 },
@@ -123,6 +129,7 @@ export function createAdminReadinessRenderer({
       <section class="pr-section is-${esc(overallStatus)}">
         <div><strong>Live Health</strong><p>${esc(nextPriority?.nextStep || `Ready ${score}, Missing env ${missingEnv}.`)}</p></div>${renderReadinessStatus(overallStatus)}
       </section>
+      ${healthCockpitRenderer.renderHealthCockpit(report)}
       <section class="pr-section-grid">${sectionCards}</section>
       <section class="pr-detail-grid">
         ${detailPanel("Live Signals", liveRows)}

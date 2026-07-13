@@ -16,6 +16,10 @@ import {
   platformReadinessStatuses,
   platformScoutingPerformanceContract,
 } from "../src/core/platform-readiness-contracts.mjs";
+import {
+  createPlatformHealthCockpit,
+  summarizePlatformHealthCockpit,
+} from "../src/core/platform-health-cockpit-contracts.mjs";
 import { platformModules, protectedStorageKeys } from "../src/core/platform-contracts.mjs";
 import { createAdminReadinessRenderer } from "../src/modules/admin/index.mjs";
 
@@ -163,7 +167,12 @@ test("live health signals cover production, checks, backup, egress, and live QA 
     expect.arrayContaining([
       "vercel-production",
       "github-checks",
+      "production-deploy-run",
+      "production-monitor-run",
       "backup-freshness",
+      "auth-health",
+      "traffic-firewall",
+      "incident-alerts",
       "supabase-egress",
       "live-qa",
       "release-monitor",
@@ -222,6 +231,50 @@ test("operating priorities define the long-term platform hardening order", () =>
     expect(priority.nextStep, priority.id).toBeTruthy();
     expect(priority.evidence.length, priority.id).toBeGreaterThan(0);
   }
+});
+
+test("platform health cockpit summarizes release, monitor, backup, auth, firewall, incidents, and egress", () => {
+  const report = createPlatformReadinessReport({
+    env: {
+      ...completeEnv,
+      VERCEL_ENV: "production",
+      VERCEL_URL: "footballscience.xyz",
+      VERCEL_GIT_REPO_OWNER: "maklind88",
+      VERCEL_GIT_REPO_SLUG: "footballscience",
+      VERCEL_GIT_COMMIT_SHA: "abc123456789",
+      GITHUB_TOKEN: "secret-value",
+    },
+    scripts: readinessScripts,
+    liveSignals: {
+      "production-deploy-run": { status: platformReadinessStatuses.pass, details: "success 10m ago." },
+      "production-monitor-run": { status: platformReadinessStatuses.pass, details: "success 2h ago." },
+      "backup-freshness": { status: platformReadinessStatuses.pass, details: "Latest backup is 5 minutes old." },
+      "auth-health": { status: platformReadinessStatuses.pass, details: "Supabase Auth reachable in 120ms." },
+      "traffic-firewall": { status: platformReadinessStatuses.pass, details: "Vercel Firewall matches traffic-safety contract." },
+      "incident-alerts": { status: platformReadinessStatuses.pass, details: "No open production incident issues." },
+    },
+  });
+  const cockpitIds = report.healthCockpit.map((item) => item.id);
+  const cockpit = createPlatformHealthCockpit(report);
+  const summary = summarizePlatformHealthCockpit(cockpit);
+
+  expect(cockpitIds).toEqual(
+    expect.arrayContaining([
+      "production-runtime",
+      "last-production-deploy",
+      "production-monitor",
+      "backup-restore",
+      "auth-health",
+      "traffic-firewall",
+      "open-incidents",
+      "egress-usage",
+      "live-qa",
+      "staging-mirror",
+    ])
+  );
+  expect(summary.total).toBeGreaterThanOrEqual(10);
+  expect(report.summary.healthCockpitItems).toBe(summary.total);
+  expect(JSON.stringify(report.healthCockpit)).not.toContain("secret-value");
 });
 
 test("database-primary migration plan covers high-risk legacy and hybrid modules without touching chat", () => {
@@ -291,6 +344,10 @@ test("admin workspace exposes the platform health cockpit", () => {
 
   expect(markup).toContain("Platform Health");
   expect(markup).toContain("Live Health");
+  expect(markup).toContain("Production Monitor");
+  expect(markup).toContain("Traffic Firewall");
+  expect(markup).toContain("Auth Health");
+  expect(markup).toContain("Open Incidents");
   expect(markup).toContain("Live Signals");
   expect(markup).toContain("Next Actions");
   expect(markup).toContain("Database Migration");
@@ -298,5 +355,8 @@ test("admin workspace exposes the platform health cockpit", () => {
   expect(markup).toContain("Missing VERCEL_ENV");
   expect(markup).toContain("data-pr-refresh");
   expect(apiSource).toContain("collectPlatformLiveSignals");
+  expect(apiSource).toContain("collectGithubWorkflowRunSignals");
+  expect(apiSource).toContain("collectAuthHealthLiveSignal");
+  expect(apiSource).toContain("collectFirewallLiveSignal");
   expect(apiSource).toContain("/api/app-state-backup-status");
 });

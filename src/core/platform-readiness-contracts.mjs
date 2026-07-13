@@ -1,6 +1,10 @@
 import { platformModules, protectedStorageKeys } from "./platform-contracts.mjs";
 import { dataSafetyContracts } from "./data-safety-contracts.mjs";
 import { platformPermissionMatrix } from "./permission-matrix.mjs";
+import {
+  createPlatformHealthCockpit,
+  summarizePlatformHealthCockpit,
+} from "./platform-health-cockpit-contracts.mjs";
 
 export const PLATFORM_READINESS_SCHEMA = "footballscience-platform-readiness-v1";
 
@@ -266,12 +270,52 @@ export const platformLiveSignalContracts = Object.freeze([
     evidence: Object.freeze([".github/workflows/production-deploy.yml", "qa/release-automation.api.spec.mjs"]),
   }),
   Object.freeze({
+    id: "production-deploy-run",
+    label: "Last Production Deploy",
+    source: "GitHub Production Deploy workflow",
+    required: Object.freeze(["VERCEL_GIT_REPO_OWNER", "VERCEL_GIT_REPO_SLUG"]),
+    recommended: Object.freeze(["GITHUB_TOKEN"]),
+    evidence: Object.freeze([".github/workflows/production-deploy.yml", "docs/DEPLOYMENT.md"]),
+  }),
+  Object.freeze({
+    id: "production-monitor-run",
+    label: "Production Monitor Run",
+    source: "GitHub Production Monitor workflow",
+    required: Object.freeze(["VERCEL_GIT_REPO_OWNER", "VERCEL_GIT_REPO_SLUG"]),
+    recommended: Object.freeze(["GITHUB_TOKEN"]),
+    evidence: Object.freeze([".github/workflows/production-smoke.yml", "docs/DEPLOYMENT.md"]),
+  }),
+  Object.freeze({
     id: "backup-freshness",
     label: "Backup Freshness",
     source: "/api/app-state-backup-status",
     required: Object.freeze(["CRON_SECRET"]),
     recommended: Object.freeze(["APP_STATE_BACKUP_STATUS_TOKEN"]),
     evidence: Object.freeze(["scripts/verify-app-state-backup-freshness.mjs", "api/app-state-backup.js"]),
+  }),
+  Object.freeze({
+    id: "auth-health",
+    label: "Auth Health",
+    source: "/api/auth-health",
+    required: Object.freeze(["SUPABASE_URL", "SUPABASE_ANON_KEY"]),
+    recommended: Object.freeze(["SUPABASE_SERVICE_ROLE_KEY"]),
+    evidence: Object.freeze(["api/auth-health.js", "scripts/verify-auth-health.mjs"]),
+  }),
+  Object.freeze({
+    id: "traffic-firewall",
+    label: "Traffic Firewall",
+    source: "Vercel Firewall traffic-safety contract",
+    required: Object.freeze(["VERCEL_TOKEN", "VERCEL_PROJECT_ID"]),
+    recommended: Object.freeze(["VERCEL_ORG_ID"]),
+    evidence: Object.freeze(["scripts/verify-vercel-firewall-drift.mjs", "src/core/traffic-safety-contracts.cjs"]),
+  }),
+  Object.freeze({
+    id: "incident-alerts",
+    label: "Production Incidents",
+    source: "GitHub production-incident issues",
+    required: Object.freeze(["VERCEL_GIT_REPO_OWNER", "VERCEL_GIT_REPO_SLUG"]),
+    recommended: Object.freeze(["GITHUB_TOKEN"]),
+    evidence: Object.freeze([".github/workflows/production-incident-alert.yml", "scripts/create-incident-alert.mjs"]),
   }),
   Object.freeze({
     id: "supabase-egress",
@@ -715,6 +759,14 @@ export function createPlatformReadinessReport(options = {}) {
       evidence: ["api/_lib/platform-security.js", "scripts/performance-budget.mjs"],
     }),
   ]);
+  const healthCockpit = createPlatformHealthCockpit({
+    environment,
+    liveSignals,
+    observabilitySignals: platformObservabilitySignals,
+    sections,
+    workflows,
+  });
+  const healthCockpitSummary = summarizePlatformHealthCockpit(healthCockpit);
 
   const summary = Object.freeze({
     totalSections: sections.length,
@@ -730,6 +782,10 @@ export function createPlatformReadinessReport(options = {}) {
     scoutingPerformanceSignals: platformScoutingPerformanceContract.requiredSignals.length,
     liveSignals: liveSignals.length,
     readyLiveSignals: liveSignals.filter((signal) => signal.status === platformReadinessStatuses.pass).length,
+    healthCockpitItems: healthCockpitSummary.total,
+    readyHealthCockpitItems: healthCockpitSummary.ready,
+    warningHealthCockpitItems: healthCockpitSummary.warning,
+    missingHealthCockpitItems: healthCockpitSummary.missing,
   });
 
   return Object.freeze({
@@ -743,6 +799,8 @@ export function createPlatformReadinessReport(options = {}) {
     workflows: Object.freeze(workflows),
     observabilitySignals: platformObservabilitySignals,
     liveSignals,
+    healthCockpit,
+    healthCockpitSummary,
     operatingPriorities: platformOperatingPriorities,
     databasePrimaryMigrationPlan: platformDatabasePrimaryMigrationPlan,
     scoutingPerformance: platformScoutingPerformanceContract,
@@ -790,6 +848,12 @@ export function assertPlatformReadinessContract(options = {}) {
   for (const priority of platformOperatingPriorities) {
     if (!priority.evidence.length || !priority.nextStep) {
       failures.push(`Operating priority ${priority.id} is missing evidence or next step.`);
+    }
+  }
+
+  for (const item of report.healthCockpit) {
+    if (!item.id || !item.label || !item.owner || !item.nextStep) {
+      failures.push(`Health cockpit item ${item.id || "unknown"} is missing identity, owner, or next step.`);
     }
   }
 

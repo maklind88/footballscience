@@ -71,7 +71,7 @@ The platform hardening order is now code-owned in `src/core/platform-readiness-c
 Current long-term priorities:
 
 - Keep the performance ratchet green while extracting `app.js`, `styles.css`, and `index.html` into smaller module-owned surfaces.
-- Use Platform Health as the source for a future admin dashboard covering release, staging, backup, API, egress, module, QA, and performance health.
+- Keep the Admin Platform Health cockpit as the read-only control-plane surface for production runtime, latest deploy, Production Monitor, backups, auth health, firewall drift, open incidents, egress, staging, live QA, module, and performance health.
 - Move high-risk modules to database-primary storage through staged, audited, tenant-scoped migrations.
 - Treat Scouting as a high-priority speed and pagination surface because it is data-heavy and click-sensitive.
 - Harden staging into a real mirror before risky Live releases.

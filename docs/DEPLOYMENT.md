@@ -202,6 +202,8 @@ Production monitoring runs through `.github/workflows/production-smoke.yml` unde
 
 Production incident alerting runs through `.github/workflows/production-incident-alert.yml` under the GitHub Actions name `Production Incident Alert`. It opens or updates a GitHub issue when `main` QA, Supabase migrations, production deploy, production monitor, or rollback fails. The workflow has `issues: write` only so it can create an incident record. For traffic-like failures it adds a best-effort Vercel runtime-log Traffic Snapshot with top API routes, status codes, anonymized actor hashes, and broad user-agent classes. It must not include secrets, raw backup entries, auth tokens, raw IP addresses, full user agents, or user content.
 
+Platform Admins can review the same release/control-plane direction from the read-only Admin Platform Health cockpit. It summarizes production runtime, latest production deploy, Production Monitor freshness, backup freshness, Auth Health, Vercel Firewall drift, open production-incident issues, egress guardrails, live QA, staging mirror, and observability readiness without exposing secret values or raw incident evidence.
+
 Run the incident guard locally with:
 
 ```bash

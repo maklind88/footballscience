@@ -1,5 +1,6 @@
 export * from "./admin-access-renderer.mjs";
 export * from "./admin-display-helpers.mjs";
+export * from "./admin-health-cockpit-renderer.mjs";
 export * from "./admin-readiness-renderer.mjs";
 export * from "./admin-runtime-bindings.mjs";
 export * from "./admin-runtime-service.mjs";

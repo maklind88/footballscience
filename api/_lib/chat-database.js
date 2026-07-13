@@ -1810,6 +1810,57 @@ function buildMessageEnrichment(reactionRows = [], attachmentRows = [], receiptR
   };
 }
 
+function buildMessageDeliveryState(message = {}, thread = null, receiptRows = []) {
+  const messageId = normalizeId(message.id || message.message_id || "");
+  const threadId = normalizeId(thread?.id || message.thread_id || message.threadId || "");
+  const authorId = normalizeId(message.author_id || message.authorId || message.userId || "");
+  const createdAt = normalizeString(message.created_at || message.createdAt || "", 80);
+  if (message.deleted_at || message.deletedAt || message.isDeleted) {
+    return {
+      status: "deleted",
+      deliveredAt: "",
+      readAt: "",
+      readBy: [],
+      readCount: 0,
+      source: "chat_messages",
+    };
+  }
+
+  const readers = (Array.isArray(receiptRows) ? receiptRows : [])
+    .filter((receipt) => {
+      const receiptUserId = normalizeId(receipt?.user_id || receipt?.userId || "");
+      if (!receiptUserId || receiptUserId === authorId) {
+        return false;
+      }
+      if (threadId && normalizeId(receipt?.thread_id || receipt?.threadId || "") !== threadId) {
+        return false;
+      }
+      if (receipt.last_read_message_id === messageId || receipt.lastReadMessageId === messageId) {
+        return true;
+      }
+      return Date.parse(receipt.last_read_at || receipt.lastReadAt || "") >= Date.parse(createdAt || "");
+    })
+    .map((receipt) => ({
+      userId: normalizeId(receipt.user_id || receipt.userId || ""),
+      readAt: normalizeString(receipt.last_read_at || receipt.lastReadAt || "", 80),
+    }))
+    .filter((reader) => reader.userId);
+  const readBy = Array.from(new Set(readers.map((reader) => reader.userId)));
+  const readAt = readers
+    .map((reader) => reader.readAt)
+    .filter(Boolean)
+    .sort((first, second) => (Date.parse(second) || 0) - (Date.parse(first) || 0))[0] || "";
+
+  return {
+    status: readBy.length ? "read" : messageId ? "delivered" : "sent",
+    deliveredAt: createdAt,
+    readAt,
+    readBy,
+    readCount: readBy.length,
+    source: "chat_read_receipts",
+  };
+}
+
 async function loadMessageEnrichment(messages = [], options = {}) {
   const sourceMessages = Array.isArray(messages) ? messages : [];
   const messageIds = Array.from(new Set(sourceMessages.map((message) => message.id).filter(Boolean)));
@@ -1848,21 +1899,7 @@ async function loadMessageEnrichment(messages = [], options = {}) {
 }
 
 function mapEnrichedMessage(message = {}, thread = null, enrichment = buildMessageEnrichment()) {
-  const messageThreadId = normalizeId(thread?.id || message.thread_id || "");
-  const readBy = (enrichment.receiptRows || [])
-    .filter((receipt) => {
-      if (!receipt.user_id) {
-        return false;
-      }
-      if (messageThreadId && normalizeId(receipt.thread_id) !== messageThreadId) {
-        return false;
-      }
-      if (receipt.last_read_message_id === message.id) {
-        return true;
-      }
-      return Date.parse(receipt.last_read_at || "") >= Date.parse(message.created_at || "");
-    })
-    .map((receipt) => receipt.user_id);
+  const delivery = buildMessageDeliveryState(message, thread, enrichment.receiptRows || []);
 
   const mentionedUserIds = normalizeMentionedUserIds([
     ...messageMentionedUserIds(message),
@@ -1892,7 +1929,9 @@ function mapEnrichedMessage(message = {}, thread = null, enrichment = buildMessa
       role: normalizeString(message.metadata?.authorRole || "coach", 40),
     },
     reactions: enrichment.reactionsByMessage.get(message.id) || {},
-    readBy: Array.from(new Set([message.author_id, ...readBy].filter(Boolean))),
+    readBy: Array.from(new Set([message.author_id, ...delivery.readBy].filter(Boolean))),
+    delivery,
+    deliveredAt: delivery.deliveredAt,
     attachments: (enrichment.attachmentsByMessage.get(message.id) || []).map(attachmentClientPayload),
     status: message.deleted_at ? "deleted" : "sent",
   };
@@ -3967,6 +4006,7 @@ module.exports = {
     normalizeMentionedUserIds,
     normalizePriority,
     normalizeThreadType,
+    buildMessageDeliveryState,
     threadRequiresParticipantAccess,
     toLegacyThreadId,
   },

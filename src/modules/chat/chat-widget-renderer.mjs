@@ -190,9 +190,22 @@ export function renderDashboardChatMessageStatus(message = {}, currentUser = {},
   if (message.userId !== currentUser?.id) {
     return "";
   }
-  const readCount = (Array.isArray(message?.readBy) ? message.readBy : []).filter((userId) => userId !== currentUser?.id && userId !== message.userId).length;
+  const delivery = message?.delivery && typeof message.delivery === "object" && !Array.isArray(message.delivery) ? message.delivery : {};
+  const deliveryStatus = String(delivery.status || "").trim().toLowerCase();
+  const deliveryReadBy = Array.isArray(delivery.readBy) ? delivery.readBy : [];
+  const readCount = new Set(
+    [...(Array.isArray(message?.readBy) ? message.readBy : []), ...deliveryReadBy]
+      .map((userId) => String(userId || "").trim())
+      .filter((userId) => userId && userId !== currentUser?.id && userId !== message.userId)
+  ).size;
   const status = String(message?.status || "").trim().toLowerCase();
-  const statusKey = status === "failed" || status === "pending" || status === "delivered" ? status : readCount || status === "read" ? "read" : "sent";
+  const statusKey = status === "failed" || status === "pending"
+    ? status
+    : readCount || deliveryStatus === "read" || status === "read"
+      ? "read"
+      : deliveryStatus === "delivered" || status === "delivered"
+        ? "delivered"
+        : "sent";
   const statusIcon = statusKey === "pending" ? "..." : statusKey === "failed" ? "!" : statusKey === "sent" ? "✓" : "✓✓";
   const statusLabel =
     statusKey === "pending" ? "Sending" : statusKey === "failed" ? "Not sent" : statusKey === "read" ? (readCount ? `Read by ${readCount}` : "Read") : statusKey === "delivered" ? "Delivered" : "Sent";
@@ -562,8 +575,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
   function getMessageReadByCount(message = {}, currentUser = {}) {
     const currentUserId = String(currentUser?.id || "").trim();
     const messageUserId = String(message?.userId || "").trim();
+    const delivery = message?.delivery && typeof message.delivery === "object" && !Array.isArray(message.delivery) ? message.delivery : {};
+    const deliveryReadBy = Array.isArray(delivery.readBy) ? delivery.readBy : [];
     return new Set(
-      (Array.isArray(message?.readBy) ? message.readBy : [])
+      [...(Array.isArray(message?.readBy) ? message.readBy : []), ...deliveryReadBy]
         .map((userId) => String(userId || "").trim())
         .filter((userId) => userId && userId !== currentUserId && userId !== messageUserId)
     ).size;
@@ -618,7 +633,11 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     if (latestOwnStatus === "read") {
       return { key: "read", label: "Read", detail: "Latest message has been read.", retryMessageId: "" };
     }
-    if (latestOwnStatus === "delivered") {
+    const latestOwnDeliveryStatus = String(latestOwnMessage?.delivery?.status || "").trim().toLowerCase();
+    if (latestOwnDeliveryStatus === "read") {
+      return { key: "read", label: "Read", detail: "Latest message has been read.", retryMessageId: "" };
+    }
+    if (latestOwnDeliveryStatus === "delivered" || latestOwnStatus === "delivered") {
       return { key: "delivered", label: "Delivered", detail: "Latest message reached the conversation.", retryMessageId: "" };
     }
     return latestOwnMessage

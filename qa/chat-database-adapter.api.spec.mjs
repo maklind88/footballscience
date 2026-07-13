@@ -53,6 +53,45 @@ test("chat database adapter normalizes message constraints", () => {
   expect(chatDatabase._private.normalizeThreadType("announcement")).toBe("announcement");
 });
 
+test("chat database adapter builds explicit delivery state from read receipts", () => {
+  const message = {
+    id: "11111111-1111-4111-8111-111111111111",
+    thread_id: "22222222-2222-4222-8222-222222222222",
+    author_id: "33333333-3333-4333-8333-333333333333",
+    created_at: "2026-07-13T12:00:00.000Z",
+  };
+  const delivery = chatDatabase._private.buildMessageDeliveryState(message, { id: message.thread_id }, [
+    {
+      thread_id: message.thread_id,
+      user_id: message.author_id,
+      last_read_message_id: message.id,
+      last_read_at: "2026-07-13T12:00:00.000Z",
+    },
+    {
+      thread_id: message.thread_id,
+      user_id: "44444444-4444-4444-8444-444444444444",
+      last_read_message_id: message.id,
+      last_read_at: "2026-07-13T12:02:00.000Z",
+    },
+  ]);
+
+  expect(delivery).toMatchObject({
+    status: "read",
+    deliveredAt: "2026-07-13T12:00:00.000Z",
+    readAt: "2026-07-13T12:02:00.000Z",
+    readBy: ["44444444-4444-4444-8444-444444444444"],
+    readCount: 1,
+    source: "chat_read_receipts",
+  });
+
+  expect(chatDatabase._private.buildMessageDeliveryState(message, { id: message.thread_id }, [])).toMatchObject({
+    status: "delivered",
+    deliveredAt: "2026-07-13T12:00:00.000Z",
+    readBy: [],
+    readCount: 0,
+  });
+});
+
 test("chat database adapter exposes persisted thread settings action", () => {
   const { readFileSync } = require("node:fs");
   const path = require("node:path");

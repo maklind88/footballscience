@@ -515,12 +515,120 @@ test("chat conversation trust shows when the peer has read the latest message", 
   expect(sentResult.html).not.toContain("All sent");
 });
 
+test("chat conversation trust prioritizes API delivery contracts", () => {
+  const currentUser = { id: "u1", name: "Mak", status: "active" };
+  const peer = { id: "u2", name: "Analyst", status: "active" };
+  const baseMessage = {
+    id: "m1",
+    userId: "u1",
+    threadId: "dm:u1:u2",
+    text: "The server owns this delivery state.",
+    createdAt: "2026-01-01T10:00:00.000Z",
+    readBy: ["u1"],
+    mentionedUserIds: [],
+    reactions: {},
+    priority: "normal",
+    status: "sent",
+  };
+  const threads = [
+    {
+      threadId: "dm:u1:u2",
+      label: "Analyst",
+      type: "dm",
+      isTeamThread: false,
+      messageCount: 1,
+      unreadCount: 0,
+      mentionCount: 0,
+      lastMessage: baseMessage,
+      participant: peer,
+      participants: [currentUser, peer],
+      settings: {},
+    },
+  ];
+
+  const deliveredResult = createRenderer([{ ...baseMessage, delivery: { status: "delivered", deliveredAt: baseMessage.createdAt } }]).render({
+    currentUser,
+    users: [currentUser, peer],
+    state: { isOpen: true, selectedThreadId: "dm:u1:u2" },
+    messages: [{ ...baseMessage, delivery: { status: "delivered", deliveredAt: baseMessage.createdAt } }],
+    threads,
+    activeThreadId: "dm:u1:u2",
+    unreadCount: 0,
+    apiStatus: { key: "ready", checkedAt: Date.UTC(2026, 0, 1, 10, 15) },
+  });
+  const readMessage = {
+    ...baseMessage,
+    delivery: {
+      status: "read",
+      deliveredAt: baseMessage.createdAt,
+      readAt: "2026-01-01T10:02:00.000Z",
+      readBy: ["u2"],
+      readCount: 1,
+    },
+  };
+  const readResult = createRenderer([readMessage]).render({
+    currentUser,
+    users: [currentUser, peer],
+    state: { isOpen: true, selectedThreadId: "dm:u1:u2" },
+    messages: [readMessage],
+    threads,
+    activeThreadId: "dm:u1:u2",
+    unreadCount: 0,
+    apiStatus: { key: "ready", checkedAt: Date.UTC(2026, 0, 1, 10, 15) },
+  });
+
+  expect(deliveredResult.html).toContain('data-dashboard-chat-delivery-state="delivered"');
+  expect(renderDashboardChatMessageStatus({ ...baseMessage, delivery: { status: "delivered" } }, currentUser, escapeHtml)).toContain(
+    'data-dashboard-chat-message-delivery-status="delivered"'
+  );
+  expect(readResult.html).toContain('data-dashboard-chat-delivery-state="read"');
+  expect(readResult.html).toContain("Read by 1");
+  expect(renderDashboardChatMessageStatus(readMessage, currentUser, escapeHtml)).toContain(
+    'data-dashboard-chat-message-delivery-status="read"'
+  );
+});
+
+test("chat API domain keeps explicit delivery payloads after normalization", async () => {
+  const { createDashboardChatApiDomainRuntime } = await import("../src/modules/chat/dashboard-chat-api-domain-runtime.mjs");
+  const runtime = createDashboardChatApiDomainRuntime({
+    getCurrentPlatformUser: () => ({ id: "u1" }),
+    normalizeDashboardMessage: (message) => message,
+  });
+  const message = runtime.normalizeDashboardApiMessage({
+    id: "m1",
+    threadId: "team",
+    userId: "u1",
+    text: "Stored",
+    createdAt: "2026-01-01T10:00:00.000Z",
+    status: "sent",
+    delivery: {
+      status: "read",
+      deliveredAt: "2026-01-01T10:00:00.000Z",
+      readAt: "2026-01-01T10:01:00.000Z",
+      readBy: ["u2"],
+      readCount: 1,
+      source: "chat_read_receipts",
+    },
+  });
+
+  expect(message.delivery).toEqual({
+    status: "read",
+    deliveredAt: "2026-01-01T10:00:00.000Z",
+    readAt: "2026-01-01T10:01:00.000Z",
+    readBy: ["u2"],
+    readCount: 1,
+    source: "chat_read_receipts",
+  });
+  expect(message.readBy).toEqual(["u1", "u2"]);
+});
+
 test("chat delivery status labels are explicit on own message footers", () => {
   const currentUser = { id: "u1", name: "Mak" };
   const sent = renderDashboardChatMessageStatus({ id: "m1", userId: "u1", status: "sent", readBy: ["u1"] }, currentUser, escapeHtml);
   const pending = renderDashboardChatMessageStatus({ id: "m2", userId: "u1", status: "pending", readBy: ["u1"] }, currentUser, escapeHtml);
   const failed = renderDashboardChatMessageStatus({ id: "m3", userId: "u1", status: "failed", readBy: ["u1"] }, currentUser, escapeHtml);
   const read = renderDashboardChatMessageStatus({ id: "m4", userId: "u1", status: "sent", readBy: ["u1", "u2"] }, currentUser, escapeHtml);
+  const delivered = renderDashboardChatMessageStatus({ id: "m5", userId: "u1", status: "sent", readBy: ["u1"], delivery: { status: "delivered" } }, currentUser, escapeHtml);
 
   expect(sent).toContain('data-dashboard-chat-message-delivery-status="sent"');
   expect(sent).toContain("Sent");
@@ -530,6 +638,8 @@ test("chat delivery status labels are explicit on own message footers", () => {
   expect(failed).toContain("Not sent");
   expect(read).toContain('data-dashboard-chat-message-delivery-status="read"');
   expect(read).toContain("Read by 1");
+  expect(delivered).toContain('data-dashboard-chat-message-delivery-status="delivered"');
+  expect(delivered).toContain("Delivered");
 });
 
 test("chat widget preserves open dialog drafts across sync rerenders", () => {

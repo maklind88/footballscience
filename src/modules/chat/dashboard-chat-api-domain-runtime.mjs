@@ -482,6 +482,36 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
     };
   }
 
+  function normalizeDashboardApiMessageDelivery(delivery = {}, message = {}) {
+    const source = delivery && typeof delivery === "object" && !Array.isArray(delivery) ? delivery : {};
+    const rawStatus = String(source.status || source.state || "").trim().toLowerCase();
+    const fallbackStatus = String(message.status || "").trim().toLowerCase();
+    const authorId = String(message.userId || message.author_id || message.authorId || "").trim();
+    const readBy = Array.from(new Set(
+      (Array.isArray(source.readBy) ? source.readBy : Array.isArray(message.readBy) ? message.readBy : [])
+        .map((userId) => String(userId || "").trim())
+        .filter((userId) => userId && userId !== authorId)
+    ));
+    const status = ["pending", "failed", "sent", "delivered", "read", "deleted"].includes(rawStatus)
+      ? rawStatus
+      : readBy.length || fallbackStatus === "read"
+        ? "read"
+        : ["pending", "failed", "deleted"].includes(fallbackStatus)
+          ? fallbackStatus
+          : String(message.id || message.messageId || "").trim()
+            ? "delivered"
+            : "sent";
+
+    return {
+      status,
+      deliveredAt: String(source.deliveredAt || source.delivered_at || message.deliveredAt || message.delivered_at || message.createdAt || message.created_at || "").trim(),
+      readAt: String(source.readAt || source.read_at || "").trim(),
+      readBy,
+      readCount: Number(source.readCount || source.read_count || readBy.length) || 0,
+      source: String(source.source || (Object.keys(source).length ? "api" : "derived")).trim(),
+    };
+  }
+
   function normalizeDashboardApiThread(thread = {}) {
     const type = String(thread.type || "team").trim().toLowerCase();
     const legacyThreadId = String(thread.metadata?.legacyThreadId || thread.legacyThreadId || "").trim();
@@ -557,6 +587,15 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
     );
     const author = message.author || message.user || null;
     const authorId = message.userId || message.author_id || message.authorId || "";
+    const delivery = normalizeDashboardApiMessageDelivery(message.delivery, {
+      ...message,
+      userId: authorId,
+    });
+    const readBy = Array.from(new Set([
+      authorId,
+      ...(Array.isArray(message.readBy) ? message.readBy : []),
+      ...delivery.readBy,
+    ].map((userId) => String(userId || "").trim()).filter(Boolean)));
 
     return normalizeDashboardMessage({
       id: message.id || message.messageId,
@@ -571,8 +610,9 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
       userId: authorId,
       createdAt: message.createdAt || message.created_at,
       editedAt: message.editedAt || message.edited_at || "",
-      deliveredAt: message.deliveredAt || message.createdAt || message.created_at,
-      readBy: Array.isArray(message.readBy) ? message.readBy : [],
+      deliveredAt: delivery.deliveredAt || message.deliveredAt || message.createdAt || message.created_at,
+      readBy,
+      delivery,
       mentionedUserIds: Array.isArray(message.mentionedUserIds) ? message.mentionedUserIds : [],
       reactions: message.reactions || {},
       replyToId: message.replyToId || message.reply_to_id || "",
@@ -599,6 +639,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
     getDashboardMessageIdentityKeys,
     logDashboardChatApiFailure,
     normalizeDashboardApiMessage,
+    normalizeDashboardApiMessageDelivery,
     normalizeDashboardApiActionItem,
     normalizeDashboardApiParticipant,
     normalizeDashboardApiThread,

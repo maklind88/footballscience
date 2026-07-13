@@ -1122,6 +1122,9 @@ let dashboardChatPushDiagnosticsState = {
   hint: "",
   checkedAt: "",
 };
+let dashboardChatPushDiagnosticsInFlight = null;
+let dashboardChatPushDiagnosticsLastCheckedAt = 0;
+const dashboardChatPushDiagnosticsAutoCooldownMs = 60 * 1000;
 let dashboardChatThreadSummarySyncTimer = 0;
 let dashboardChatThreadSummaryLastRequestedAt = 0;
 let dashboardChatComposerAttachmentDraft = null;
@@ -1216,7 +1219,27 @@ function normalizeDashboardChatPushDiagnostics(result = {}) {
   };
 }
 
-async function refreshDashboardChatPushDiagnostics({ render = false, showToast = false } = {}) {
+async function refreshDashboardChatPushDiagnostics({ render = false, showToast = false, force = false } = {}) {
+  const shouldUseCached =
+    !force &&
+    !showToast &&
+    dashboardChatPushDiagnosticsLastCheckedAt &&
+    Date.now() - dashboardChatPushDiagnosticsLastCheckedAt < dashboardChatPushDiagnosticsAutoCooldownMs &&
+    dashboardChatPushDiagnosticsState.status !== "checking";
+  if (shouldUseCached) {
+    if (render) {
+      renderDashboardChatWidget();
+    }
+    return dashboardChatPushDiagnosticsState;
+  }
+  if (dashboardChatPushDiagnosticsInFlight) {
+    return dashboardChatPushDiagnosticsInFlight.then((state) => {
+      if (render) {
+        renderDashboardChatWidget();
+      }
+      return state;
+    });
+  }
   dashboardChatPushDiagnosticsState = normalizeDashboardChatPushDiagnostics({
     ...dashboardChatPushDiagnosticsState,
     loading: true,
@@ -1225,21 +1248,27 @@ async function refreshDashboardChatPushDiagnostics({ render = false, showToast =
   if (render) {
     renderDashboardChatWidget();
   }
-  const result = await dashboardChatPushClient.status().catch((error) => ({
-    ok: false,
-    status: "error",
-    supported: dashboardChatPushClient.supported?.() === true,
-    permission: win?.Notification?.permission || dashboardChatPushDiagnosticsState.permission || "unknown",
-    reason: error?.message || "Push notification status could not be checked.",
-  }));
-  dashboardChatPushDiagnosticsState = normalizeDashboardChatPushDiagnostics(result);
-  if (render) {
-    renderDashboardChatWidget();
-  }
-  if (showToast) {
-    showDashboardChatWidgetToast(dashboardChatPushDiagnosticsState.detail || dashboardChatPushDiagnosticsState.label);
-  }
-  return dashboardChatPushDiagnosticsState;
+  dashboardChatPushDiagnosticsInFlight = (async () => {
+    const result = await dashboardChatPushClient.status({ force }).catch((error) => ({
+      ok: false,
+      status: "error",
+      supported: dashboardChatPushClient.supported?.() === true,
+      permission: win?.Notification?.permission || dashboardChatPushDiagnosticsState.permission || "unknown",
+      reason: error?.message || "Push notification status could not be checked.",
+    }));
+    dashboardChatPushDiagnosticsState = normalizeDashboardChatPushDiagnostics(result);
+    dashboardChatPushDiagnosticsLastCheckedAt = Date.now();
+    if (render) {
+      renderDashboardChatWidget();
+    }
+    if (showToast) {
+      showDashboardChatWidgetToast(dashboardChatPushDiagnosticsState.detail || dashboardChatPushDiagnosticsState.label);
+    }
+    return dashboardChatPushDiagnosticsState;
+  })().finally(() => {
+    dashboardChatPushDiagnosticsInFlight = null;
+  });
+  return dashboardChatPushDiagnosticsInFlight;
 }
 
 const getDashboardChatComposerAttachmentDraft = () => dashboardChatComposerAttachmentDraft;
@@ -2355,8 +2384,13 @@ dashboardChatApiRuntime = createDashboardChatApiRuntime({
     dashboardChatApiScope = nextScope;
     dashboardChatPushClient
       .refreshExistingSubscription(readDashboardChatWidgetNotificationState().level || "all")
-      .then(() => refreshDashboardChatPushDiagnostics({ render: false }))
-      .catch(() => refreshDashboardChatPushDiagnostics({ render: false }));
+      .then((result) => {
+        if (result?.ok && !result.cached) {
+          return refreshDashboardChatPushDiagnostics({ render: false });
+        }
+        return null;
+      })
+      .catch(() => {});
   },
   getDashboardApiThreads: () => dashboardChatApiThreads,
   setDashboardApiThreads: (nextThreads = []) => {
@@ -3376,13 +3410,13 @@ reason: error?.message || "Push notifications could not be updated.",
 let notificationMessage = nextLevel === "muted" ? "Chat notifications muted." : nextLevel === "mentions" ? "Only mentions will notify you." : "Chat notifications enabled.";
 if (nextLevel !== "muted" && !pushResult?.ok) {
 notificationMessage = pushResult?.reason || "Push notifications could not be updated.";
-void refreshDashboardChatPushDiagnostics({ render: false });
+void refreshDashboardChatPushDiagnostics({ render: false, force: true });
 renderDashboardChatWidget();
 showDashboardChatWidgetToast(notificationMessage);
 return;
 }
 writeDashboardChatWidgetNotificationState({ level: nextLevel });
-void refreshDashboardChatPushDiagnostics({ render: false });
+void refreshDashboardChatPushDiagnostics({ render: false, force: true });
 renderDashboardChatWidget();
 showDashboardChatWidgetToast(notificationMessage);
 } finally {
@@ -3405,7 +3439,7 @@ if (testResult?.ok && Number(testResult.sent || 0) > 0) {
 writeDashboardChatWidgetNotificationState({ level });
 testPushMessage = "Test push sent. If Football Science is in the background, it should appear as a system notification.";
 }
-void refreshDashboardChatPushDiagnostics({ render: false });
+void refreshDashboardChatPushDiagnostics({ render: false, force: true });
 renderDashboardChatWidget();
 showDashboardChatWidgetToast(testPushMessage);
 } finally {
@@ -3426,7 +3460,7 @@ event.stopImmediatePropagation?.();
 if (pushButton) {
 void runDashboardChatPushTestAction();
 } else if (statusButton) {
-void refreshDashboardChatPushDiagnostics({ render: true, showToast: true });
+void refreshDashboardChatPushDiagnostics({ render: true, showToast: true, force: true });
 } else {
 void runDashboardChatNotificationToggleAction();
 }
@@ -4028,7 +4062,7 @@ return;
 }
 const refreshPushStatus = event.target.closest("[data-dashboard-chat-widget-refresh-push-status]");
 if (refreshPushStatus) {
-await refreshDashboardChatPushDiagnostics({ render: true, showToast: true });
+await refreshDashboardChatPushDiagnostics({ render: true, showToast: true, force: true });
 return;
 }
 const threadFilterButton = event.target.closest("[data-dashboard-chat-thread-filter]");

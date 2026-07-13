@@ -1,5 +1,8 @@
 const clientConfigEndpoint = "/api/client-config";
 const pushSubscriptionEndpoint = "/api/push-subscriptions";
+const defaultStatusCacheMs = 60 * 1000;
+const defaultStatusErrorBackoffMs = 2 * 60 * 1000;
+const defaultSubscriptionRefreshCooldownMs = 5 * 60 * 1000;
 
 function normalizeString(value, maxLength = 240) {
   return String(value || "").trim().slice(0, maxLength);
@@ -46,9 +49,24 @@ export function createChatPushClient(options = {}) {
   const getChatScope = options.getChatScope || (() => ({}));
   const getAssetVersion = options.getAssetVersion || (() => win?.__assetVersion || Date.now());
   const showToast = options.showToast || (() => {});
+  const nowMs = typeof options.now === "function" ? options.now : () => Date.now();
+  const statusCacheMs = Math.max(0, Number(options.statusCacheMs ?? defaultStatusCacheMs) || defaultStatusCacheMs);
+  const statusErrorBackoffMs = Math.max(0, Number(options.statusErrorBackoffMs ?? defaultStatusErrorBackoffMs) || defaultStatusErrorBackoffMs);
+  const refreshCooldownMs = Math.max(
+    0,
+    Number(options.subscriptionRefreshCooldownMs ?? defaultSubscriptionRefreshCooldownMs) ||
+      defaultSubscriptionRefreshCooldownMs
+  );
 
   let cachedConfig = null;
   let refreshInFlight = null;
+  let statusInFlight = null;
+  let cachedStatus = null;
+  let cachedStatusAt = 0;
+  let lastStatusErrorAt = 0;
+  let lastRefreshAt = 0;
+  let lastRefreshSignature = "";
+  let lastRefreshResult = null;
 
   function supported() {
     return Boolean(
@@ -85,6 +103,50 @@ export function createChatPushClient(options = {}) {
       return normalizeString(await authStore.getAccessToken(), 4096);
     }
     return "";
+  }
+
+  function cloneStatusResult(value = {}) {
+    if (!value || typeof value !== "object") return value;
+    return {
+      ...value,
+      serverSubscriptions: Array.isArray(value.serverSubscriptions)
+        ? value.serverSubscriptions.map((subscription) => ({ ...subscription }))
+        : [],
+    };
+  }
+
+  function rememberStatusResult(result = {}) {
+    cachedStatus = cloneStatusResult(result);
+    cachedStatusAt = nowMs();
+    return cloneStatusResult(cachedStatus);
+  }
+
+  function clearStatusCache() {
+    cachedStatus = null;
+    cachedStatusAt = 0;
+    lastStatusErrorAt = 0;
+  }
+
+  function readScopeSignature() {
+    const scope = getChatScope() || {};
+    return [
+      normalizeString(scope.organizationId || scope.organization_id || "", 120),
+      normalizeString(scope.teamId || scope.team_id || "", 120),
+    ].join(":");
+  }
+
+  function shouldUseCachedStatus(force = false) {
+    if (force || !cachedStatus || statusCacheMs <= 0) {
+      return false;
+    }
+    return nowMs() - cachedStatusAt < statusCacheMs;
+  }
+
+  function shouldBackoffStatus(force = false) {
+    if (force || !cachedStatus || statusErrorBackoffMs <= 0 || !lastStatusErrorAt) {
+      return false;
+    }
+    return nowMs() - lastStatusErrorAt < statusErrorBackoffMs;
   }
 
   async function apiRequest(method, body = null) {
@@ -154,6 +216,7 @@ export function createChatPushClient(options = {}) {
       organizationId: scope.organizationId || scope.organization_id || "",
       teamId: scope.teamId || scope.team_id || "",
     });
+    clearStatusCache();
     return { ok: true, permission, hint: platformHint() };
   }
 
@@ -180,24 +243,46 @@ export function createChatPushClient(options = {}) {
     } else {
       await apiRequest("POST", { action: "unsubscribe" }).catch(() => null);
     }
+    clearStatusCache();
     return { ok: true };
   }
 
-  async function status() {
-    const subscription = await currentSubscription().catch(() => null);
-    const serverStatus = await apiRequest("GET").catch(() => null);
-    return {
-      ok: true,
-      supported: supported(),
-      permission: win?.Notification?.permission || "unsupported",
-      subscribed: Boolean(subscription),
-      serverConfigured: Boolean(serverStatus?.configured),
-      serverSubscriptions: Array.isArray(serverStatus?.subscriptions) ? serverStatus.subscriptions : [],
-      hint: platformHint(),
-    };
+  async function status({ force = false } = {}) {
+    if (shouldUseCachedStatus(force) || shouldBackoffStatus(force)) {
+      return cloneStatusResult(cachedStatus);
+    }
+    if (statusInFlight) {
+      return statusInFlight;
+    }
+    statusInFlight = (async () => {
+      const subscription = await currentSubscription().catch(() => null);
+      let serverStatus = null;
+      let statusError = null;
+      try {
+        serverStatus = await apiRequest("GET");
+        lastStatusErrorAt = 0;
+      } catch (error) {
+        statusError = error;
+        lastStatusErrorAt = nowMs();
+      }
+      return rememberStatusResult({
+        ok: !statusError,
+        status: statusError ? "error" : "ok",
+        reason: statusError?.message || "",
+        supported: supported(),
+        permission: win?.Notification?.permission || "unsupported",
+        subscribed: Boolean(subscription),
+        serverConfigured: Boolean(serverStatus?.configured),
+        serverSubscriptions: Array.isArray(serverStatus?.subscriptions) ? serverStatus.subscriptions : [],
+        hint: platformHint(),
+      });
+    })().finally(() => {
+      statusInFlight = null;
+    });
+    return statusInFlight;
   }
 
-  async function refreshExistingSubscription(notificationLevel = "all") {
+  async function refreshExistingSubscription(notificationLevel = "all", { force = false } = {}) {
     if (refreshInFlight) return refreshInFlight;
     refreshInFlight = (async () => {
       if (!supported() || win.Notification.permission !== "granted") {
@@ -207,16 +292,41 @@ export function createChatPushClient(options = {}) {
       if (!subscription) {
         return { ok: false };
       }
+      const signature = [
+        normalizeString(notificationLevel || "all", 40),
+        readScopeSignature(),
+        normalizeString(subscription.endpoint || "", 2048),
+      ].join("|");
+      if (
+        !force &&
+        lastRefreshResult &&
+        lastRefreshSignature === signature &&
+        refreshCooldownMs > 0 &&
+        nowMs() - lastRefreshAt < refreshCooldownMs
+      ) {
+        return { ...lastRefreshResult, cached: true };
+      }
       const scope = getChatScope() || {};
-      await apiRequest("POST", {
-        action: "subscribe",
-        subscription: subscription.toJSON(),
-        permission: "granted",
-        notificationLevel,
-        organizationId: scope.organizationId || scope.organization_id || "",
-        teamId: scope.teamId || scope.team_id || "",
-      });
-      return { ok: true };
+      let result = { ok: true };
+      try {
+        await apiRequest("POST", {
+          action: "subscribe",
+          subscription: subscription.toJSON(),
+          permission: "granted",
+          notificationLevel,
+          organizationId: scope.organizationId || scope.organization_id || "",
+          teamId: scope.teamId || scope.team_id || "",
+        });
+      } catch (error) {
+        result = { ok: false, reason: error?.message || "Push subscription refresh failed." };
+      }
+      lastRefreshSignature = signature;
+      lastRefreshAt = nowMs();
+      lastRefreshResult = result;
+      if (result.ok) {
+        clearStatusCache();
+      }
+      return result;
     })().finally(() => {
       refreshInFlight = null;
     });

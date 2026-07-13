@@ -29,12 +29,13 @@ Vercel Firewall/WAF remains the outer layer for volumetric abuse and bot filteri
 
 Active edge controls:
 
-- `Rate limit chat presence APIs`: Vercel Firewall custom rule on `^/api/(chat|presence)$`, fixed window `240` requests per `60s` per `ip`, deny on exceed.
+- `Rate limit chat presence APIs`: Vercel Firewall custom rule on `^/api/(chat|presence|push-subscriptions)$`, fixed window `80` requests per `60s` per `ip`, deny on exceed.
 - AI bot managed rule: enabled with `deny`.
 
 Backend route budgets mirror the same intent but stay identity-aware:
 
-- `/api/chat`: `read 120/min`, `write 60/min`.
+- `/api/chat`: `read 60/min`, `write 60/min`.
+- `/api/push-subscriptions`: `read 30/min`, `write 20/min`, `delete 12/min`.
 - `/api/presence`: `read 30/min`, `write 20/min`.
 
 ## Observability

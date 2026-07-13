@@ -3,12 +3,42 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createChatPushClient } from "../src/modules/chat/chat-push-client.mjs";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
 const readSource = (filePath) => readFileSync(path.join(root, filePath), "utf8");
 const pushModule = require("../api/_lib/chat-push-notifications.js");
+
+function createPushClientTestWindow(subscription = null) {
+  const registration = {
+    scope: "https://footballscience.xyz/",
+    pushManager: {
+      getSubscription: async () => subscription,
+      subscribe: async () => subscription,
+    },
+  };
+  return {
+    isSecureContext: true,
+    PushManager: function PushManager() {},
+    Notification: {
+      permission: "granted",
+      requestPermission: async () => "granted",
+    },
+    navigator: {
+      userAgent: "Playwright",
+      platform: "MacIntel",
+      maxTouchPoints: 0,
+      serviceWorker: {
+        getRegistration: async () => registration,
+        register: async () => registration,
+        ready: Promise.resolve(registration),
+      },
+    },
+    matchMedia: () => ({ matches: false }),
+  };
+}
 
 test("chat push server keeps endpoint subscriptions service-owned and private", () => {
   const migration = readSource("supabase/migrations/20260702124301_chat_web_push_notifications.sql");
@@ -63,6 +93,115 @@ test("chat push client subscribes through PushManager and secure API route", () 
   expect(appRuntime).toContain("renderDashboardChatWidget();\nshowDashboardChatWidgetToast(testPushMessage);");
   expect(clientConfig).toContain("chatPush: publicChatPushConfig()");
   expect(permissionMatrix).toContain('"/api/push-subscriptions"');
+});
+
+test("chat push client coalesces status checks and caches automatic refreshes", async () => {
+  let now = 1_000;
+  let pushStatusReads = 0;
+  const subscription = {
+    endpoint: "https://push.example/device-1",
+    toJSON: () => ({
+      endpoint: "https://push.example/device-1",
+      keys: { p256dh: "p256dh-key-value", auth: "auth-key-value" },
+    }),
+  };
+  const client = createChatPushClient({
+    win: createPushClientTestWindow(subscription),
+    fetchImpl: async (url, init = {}) => {
+      if (String(url).endsWith("/api/push-subscriptions") && init.method === "GET") {
+        pushStatusReads += 1;
+        return new Response(JSON.stringify({
+          ok: true,
+          configured: true,
+          subscriptions: [{ id: "sub-1", user_id: "u1" }],
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ ok: true, chatPush: { enabled: true, publicKey: "" } }), { status: 200 });
+    },
+    getAuthStore: () => ({ getAccessToken: async () => "token" }),
+    now: () => now,
+    statusCacheMs: 60_000,
+  });
+
+  const [first, second] = await Promise.all([client.status(), client.status()]);
+  expect(first.serverConfigured).toBe(true);
+  expect(second.serverSubscriptions).toHaveLength(1);
+  expect(pushStatusReads).toBe(1);
+
+  await client.status();
+  expect(pushStatusReads).toBe(1);
+
+  now += 61_000;
+  await client.status();
+  expect(pushStatusReads).toBe(2);
+});
+
+test("chat push client rate-limits repeated existing subscription refreshes", async () => {
+  let now = 10_000;
+  let pushSubscribeWrites = 0;
+  const subscription = {
+    endpoint: "https://push.example/device-2",
+    toJSON: () => ({
+      endpoint: "https://push.example/device-2",
+      keys: { p256dh: "p256dh-key-value", auth: "auth-key-value" },
+    }),
+  };
+  const client = createChatPushClient({
+    win: createPushClientTestWindow(subscription),
+    fetchImpl: async (url, init = {}) => {
+      if (String(url).endsWith("/api/push-subscriptions") && init.method === "POST") {
+        pushSubscribeWrites += 1;
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    },
+    getAuthStore: () => ({ getAccessToken: async () => "token" }),
+    getChatScope: () => ({ organizationId: "org-1", teamId: "team-1" }),
+    now: () => now,
+    subscriptionRefreshCooldownMs: 300_000,
+  });
+
+  await client.refreshExistingSubscription("all");
+  await client.refreshExistingSubscription("all");
+  expect(pushSubscribeWrites).toBe(1);
+
+  now += 301_000;
+  await client.refreshExistingSubscription("all");
+  expect(pushSubscribeWrites).toBe(2);
+});
+
+test("chat push client backs off failed automatic subscription refreshes", async () => {
+  let now = 20_000;
+  let pushSubscribeWrites = 0;
+  const subscription = {
+    endpoint: "https://push.example/device-3",
+    toJSON: () => ({
+      endpoint: "https://push.example/device-3",
+      keys: { p256dh: "p256dh-key-value", auth: "auth-key-value" },
+    }),
+  };
+  const client = createChatPushClient({
+    win: createPushClientTestWindow(subscription),
+    fetchImpl: async (url, init = {}) => {
+      if (String(url).endsWith("/api/push-subscriptions") && init.method === "POST") {
+        pushSubscribeWrites += 1;
+        return new Response(JSON.stringify({ ok: false, reason: "Too many requests." }), { status: 429 });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    },
+    getAuthStore: () => ({ getAccessToken: async () => "token" }),
+    now: () => now,
+    subscriptionRefreshCooldownMs: 300_000,
+  });
+
+  const first = await client.refreshExistingSubscription("all");
+  const second = await client.refreshExistingSubscription("all");
+  expect(first.ok).toBe(false);
+  expect(second.cached).toBe(true);
+  expect(pushSubscribeWrites).toBe(1);
+
+  now += 301_000;
+  await client.refreshExistingSubscription("all");
+  expect(pushSubscribeWrites).toBe(2);
 });
 
 test("chat push test delivery fails clearly without a registered device", () => {

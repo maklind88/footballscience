@@ -62,6 +62,21 @@ test("chat push service worker handles closed-app notifications and clicks", () 
   expect(serviceWorker).toContain("target.origin === self.location.origin");
 });
 
+test("chat push deep links open the exact message in the app", () => {
+  const pushService = readSource("api/_lib/chat-push-notifications.js");
+  const appRuntime = readSource("app-runtime.js");
+  const renderer = readSource("src/modules/chat/chat-widget-renderer.mjs");
+  const chatCss = readSource("dashboard-chat.css");
+
+  expect(pushService).toContain("chatThread=");
+  expect(pushService).toContain("&message=");
+  expect(appRuntime).toContain('params.get("message")');
+  expect(appRuntime).toContain("scrollDashboardChatDeepLinkMessage");
+  expect(appRuntime).toContain("is-deep-link-target");
+  expect(renderer).toContain("data-dashboard-chat-message-id");
+  expect(chatCss).toContain("dashboard-chat-deep-link-pulse");
+});
+
 test("chat push client subscribes through PushManager and secure API route", () => {
   const client = readSource("src/modules/chat/chat-push-client.mjs");
   const appRuntime = readSource("app-runtime.js");

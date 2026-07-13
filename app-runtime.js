@@ -2951,10 +2951,51 @@ selectedThreadId: threadId,
 });
 dashboardChatMobileConversationOpen = true;
 renderDashboardChatWidget();
+scrollDashboardChatDeepLinkMessage(params.get("message"));
 return true;
 } catch {
 return false;
 }
+}
+
+function getDashboardChatSelectorValue(value = "") {
+const normalizedValue = String(value || "");
+return globalThis.CSS?.escape ? globalThis.CSS.escape(normalizedValue) : normalizedValue.replace(/["\\]/g, "\\$&");
+}
+
+function scrollDashboardChatDeepLinkMessage(messageId = "") {
+const normalizedMessageId = String(messageId || "").trim();
+if (!normalizedMessageId) {
+return false;
+}
+let scrollTimer = 0;
+const highlightMessage = () => {
+const root = ui.dashboardChatWidgetRoot || document.getElementById("dashboardChatWidgetRoot");
+const selector = `[data-dashboard-chat-message-id="${getDashboardChatSelectorValue(normalizedMessageId)}"]`;
+const messageNode = root?.querySelector(selector);
+if (!messageNode) {
+return false;
+}
+root.querySelectorAll(".dashboard-chat-message.is-deep-link-target").forEach((node) => {
+if (node !== messageNode) {
+node.classList.remove("is-deep-link-target");
+}
+});
+messageNode.classList.add("is-deep-link-target");
+messageNode.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+win.clearTimeout(scrollTimer);
+scrollTimer = win.setTimeout(() => {
+messageNode.classList.remove("is-deep-link-target");
+}, 4200);
+return true;
+};
+if (highlightMessage()) {
+return true;
+}
+[180, 600, 1400].forEach((delay) => {
+win.setTimeout(highlightMessage, delay);
+});
+return false;
 }
 const {
   renderDashboardChatWidget: _renderDashboardChatWidget,

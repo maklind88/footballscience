@@ -346,14 +346,16 @@ test("chat widget surfaces API sync failures with a real retry action", () => {
   });
 
   expect(degraded.html).toContain('data-dashboard-chat-sync-status');
+  expect(degraded.html).toContain('data-dashboard-chat-status-overlay');
   expect(degraded.html).toContain("Chat server issue");
   expect(degraded.html).toContain("Database is temporarily unavailable.");
   expect(degraded.html).toContain('data-dashboard-chat-retry-sync="team"');
   expect(degraded.html).toContain("Chat sync");
   expect(degraded.html).toContain("dashboard-chat-more-action is-server-error");
   expect(ready.html).not.toContain("data-dashboard-chat-sync-status");
+  expect(ready.html).not.toContain("data-dashboard-chat-status-overlay");
   expect(ready.html).toContain("dashboard-chat-more-action is-ready");
-  expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-sync-status");
+  expect(dashboardChatCss).toContain(".dashboard-chat-status-overlay");
   expect(appRuntimeSource).toContain('event.target.closest("[data-dashboard-chat-retry-sync]")');
   expect(appRuntimeSource).toContain("await refreshDashboardChatFromApi({ threadId, forceNetwork: true });");
   expect(widgetRuntimeSource).toContain("getDashboardChatApiStatus");
@@ -420,10 +422,10 @@ test("chat inbox renders trust summary and conversation delivery state", () => {
   expect(result.html).toContain("<strong>Inbox</strong>");
   expect(result.html).toContain('data-dashboard-chat-inbox-trust');
   expect(result.html).toContain("1 unread");
-  expect(result.html).toContain("1 active - 1 mention - Synced 10:15");
+  expect(result.html).toContain("1 active - 1 mention - Synced");
   expect(result.html).toContain('data-dashboard-chat-trust');
   expect(result.html).toContain('data-dashboard-chat-trust-sync');
-  expect(result.html).toContain("Synced 10:15");
+  expect(result.html).toContain("Synced");
   expect(result.html).toContain('data-dashboard-chat-trust-delivery');
   expect(result.html).toContain('data-dashboard-chat-delivery-state="failed"');
   expect(result.html).toContain('data-dashboard-chat-trust-delivery-detail');
@@ -436,7 +438,7 @@ test("chat inbox renders trust summary and conversation delivery state", () => {
   expect(dashboardChatCss).toContain(".dashboard-chat-delivery-pill");
 });
 
-test("chat conversation trust shows when the peer has read the latest message", () => {
+test("chat conversation trust stays quiet for normal delivered and read states", () => {
   const currentUser = { id: "u1", name: "Mak", status: "active" };
   const peer = { id: "u2", name: "Analyst", status: "active" };
   const messages = [
@@ -501,17 +503,15 @@ test("chat conversation trust shows when the peer has read the latest message", 
     apiStatus: { key: "ready", checkedAt: Date.UTC(2026, 0, 1, 10, 15) },
   });
 
-  expect(readResult.html).toContain('data-dashboard-chat-trust-delivery');
-  expect(readResult.html).toContain('data-dashboard-chat-delivery-state="read"');
-  expect(readResult.html).toContain("Read by 1");
-  expect(readResult.html).toContain("Latest message has been read.");
-  expect(readResult.html).toContain("1 message - Online");
-  expect(sentResult.html).toContain('data-dashboard-chat-delivery-state="sent"');
-  expect(sentResult.html).toContain("Sent");
-  expect(sentResult.html).toContain("Latest message is safely stored.");
-  expect(deliveredResult.html).toContain('data-dashboard-chat-delivery-state="delivered"');
-  expect(deliveredResult.html).toContain("Delivered");
-  expect(deliveredResult.html).toContain("Latest message reached the conversation.");
+  expect(readResult.html).not.toContain('data-dashboard-chat-trust');
+  expect(readResult.html).not.toContain('data-dashboard-chat-status-overlay');
+  expect(sentResult.html).not.toContain('data-dashboard-chat-trust');
+  expect(deliveredResult.html).not.toContain('data-dashboard-chat-trust');
+  expect(renderDashboardChatMessageStatus(messages[0], currentUser, escapeHtml)).toContain('title="Read by 1"');
+  expect(renderDashboardChatMessageStatus({ ...messages[0], readBy: ["u1"] }, currentUser, escapeHtml)).toContain('title="Sent"');
+  expect(renderDashboardChatMessageStatus({ ...messages[0], readBy: ["u1"], status: "delivered" }, currentUser, escapeHtml)).toContain(
+    'title="Delivered"'
+  );
   expect(sentResult.html).not.toContain("All sent");
 });
 
@@ -577,15 +577,17 @@ test("chat conversation trust prioritizes API delivery contracts", () => {
     apiStatus: { key: "ready", checkedAt: Date.UTC(2026, 0, 1, 10, 15) },
   });
 
-  expect(deliveredResult.html).toContain('data-dashboard-chat-delivery-state="delivered"');
+  expect(deliveredResult.html).not.toContain('data-dashboard-chat-trust');
+  expect(deliveredResult.html).not.toContain('data-dashboard-chat-delivery-state="delivered"');
+  expect(readResult.html).not.toContain('data-dashboard-chat-trust');
+  expect(readResult.html).not.toContain('data-dashboard-chat-delivery-state="read"');
   expect(renderDashboardChatMessageStatus({ ...baseMessage, delivery: { status: "delivered" } }, currentUser, escapeHtml)).toContain(
     'data-dashboard-chat-message-delivery-status="delivered"'
   );
-  expect(readResult.html).toContain('data-dashboard-chat-delivery-state="read"');
-  expect(readResult.html).toContain("Read by 1");
   expect(renderDashboardChatMessageStatus(readMessage, currentUser, escapeHtml)).toContain(
     'data-dashboard-chat-message-delivery-status="read"'
   );
+  expect(renderDashboardChatMessageStatus(readMessage, currentUser, escapeHtml)).toContain('title="Read by 1"');
 });
 
 test("chat API domain keeps explicit delivery payloads after normalization", async () => {

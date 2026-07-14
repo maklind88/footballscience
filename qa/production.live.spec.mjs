@@ -734,7 +734,8 @@ test("production peer accounts prove DM unread state and read receipt end-to-end
     await expect(primaryThreadButton).toBeVisible({ timeout: 45_000 });
     await primaryThreadButton.click();
     await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText, { timeout: 45_000 });
-    await expect(page.locator("[data-dashboard-chat-trust-delivery]")).toContainText("Read by 1", { timeout: 45_000 });
+    const readReceiptStatus = page.locator('[data-dashboard-chat-message-delivery-status="read"]').last();
+    await expect(readReceiptStatus).toHaveAttribute("title", /Read by 1/, { timeout: 45_000 });
 
     await deleteLiveChatMessage(page, primaryToken, messageId);
     messageId = "";

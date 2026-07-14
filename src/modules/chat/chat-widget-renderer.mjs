@@ -252,7 +252,23 @@ function normalizeDashboardChatApiStatus(apiStatus = {}) {
 }
 
 function shouldRenderDashboardChatApiStatus(status = {}) {
-  return Boolean(status && !["idle", "ready"].includes(status.key));
+  return Boolean(status && !["idle", "ready", "syncing"].includes(status.key));
+}
+
+function getStableDashboardChatApiDisplayStatus(status = {}) {
+  if (!status || typeof status !== "object") {
+    return status;
+  }
+  if (status.key !== "syncing") {
+    return status;
+  }
+  return {
+    ...status,
+    key: "ready",
+    label: "Chat synced",
+    detail: "Messages update quietly in the background.",
+    checkedAt: 0,
+  };
 }
 
 function renderDashboardChatApiStatusBanner(status = {}, activeThreadId = "", escapeHtml = defaultEscapeHtml) {
@@ -531,22 +547,9 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     };
   }
 
-  function formatTrustTime(value = "") {
-    const numericValue = Number(value || 0);
-    if (Number.isFinite(numericValue) && numericValue > 0) {
-      return formatTime(new Date(numericValue).toISOString());
-    }
-    const parsedTime = Date.parse(String(value || ""));
-    return Number.isFinite(parsedTime) ? formatTime(new Date(parsedTime).toISOString()) : "";
-  }
-
   function getChatSyncTrustLabel(status = {}) {
-    const timeLabel = formatTrustTime(status.checkedAt);
-    if (status.key === "ready") {
-      return timeLabel ? `Synced ${timeLabel}` : "Synced";
-    }
-    if (status.key === "syncing") {
-      return "Syncing now";
+    if (status.key === "ready" || status.key === "syncing") {
+      return "Synced";
     }
     if (status.key === "idle") {
       return "Sync pending";
@@ -645,13 +648,14 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       : { key: "ready", label: "Ready to send", detail: "No outgoing messages yet.", retryMessageId: "" };
   }
 
-  function getConversationDeliveryTrust(messages = [], currentUser = {}) {
-    return getConversationDeliveryState(messages, currentUser).label;
-  }
-
   function renderConversationTrustStrip({ status = {}, activeThread = null, messages = [], currentUser = {}, users = [] } = {}) {
     const syncLabel = getChatSyncTrustLabel(status);
     const deliveryState = getConversationDeliveryState(messages, currentUser);
+    const shouldRenderSync = shouldRenderDashboardChatApiStatus(status);
+    const shouldRenderDelivery = deliveryState.key === "failed" || deliveryState.key === "pending";
+    if (!shouldRenderSync && !shouldRenderDelivery) {
+      return "";
+    }
     const deliveryAriaLabel = `${deliveryState.label}. ${deliveryState.detail}`;
     const deliveryRetryMarkup = deliveryState.retryMessageId
       ? `<button type="button" data-dashboard-retry-message="${escapeHtml(deliveryState.retryMessageId)}" data-dashboard-chat-delivery-retry="${escapeHtml(deliveryState.retryMessageId)}">Retry</button>`
@@ -667,11 +671,15 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           <strong data-dashboard-chat-trust-sync>${escapeHtml(syncLabel)}</strong>
           <small data-dashboard-chat-trust-context>${escapeHtml(contextLabel)}</small>
         </span>
-        <span class="dashboard-chat-delivery-pill is-${escapeHtml(deliveryState.key)}" data-dashboard-chat-delivery-state="${escapeHtml(deliveryState.key)}" aria-label="${escapeHtml(deliveryAriaLabel)}">
-          <strong data-dashboard-chat-trust-delivery>${escapeHtml(deliveryState.label)}</strong>
-          <small data-dashboard-chat-trust-delivery-detail>${escapeHtml(deliveryState.detail)}</small>
-          ${deliveryRetryMarkup}
-        </span>
+        ${
+          shouldRenderDelivery
+            ? `<span class="dashboard-chat-delivery-pill is-${escapeHtml(deliveryState.key)}" data-dashboard-chat-delivery-state="${escapeHtml(deliveryState.key)}" aria-label="${escapeHtml(deliveryAriaLabel)}">
+                <strong data-dashboard-chat-trust-delivery>${escapeHtml(deliveryState.label)}</strong>
+                <small data-dashboard-chat-trust-delivery-detail>${escapeHtml(deliveryState.detail)}</small>
+                ${deliveryRetryMarkup}
+              </span>`
+            : ""
+        }
       </section>
     `;
   }
@@ -1549,7 +1557,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       .toLowerCase()
       .replace(/[^a-z0-9-]+/g, "-")
       .slice(0, 40) || "unknown";
-    const normalizedApiStatus = normalizeDashboardChatApiStatus(apiStatus);
+    const normalizedApiStatus = getStableDashboardChatApiDisplayStatus(normalizeDashboardChatApiStatus(apiStatus));
     const apiStatusBannerMarkup = renderDashboardChatApiStatusBanner(normalizedApiStatus, activeThreadId, escapeHtml);
     const groupCreateUsers = users
       .filter((user) => user?.id && user.id !== currentUser?.id)
@@ -1562,6 +1570,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       : threads.filter((thread) => doesThreadMatchFilter(thread, normalizedThreadFilter));
     const threadFilterMarkup = renderThreadFilters(normalizedThreadFilter, simpleInboxThreads);
     const inboxTrustSummary = getInboxTrustSummary(simpleInboxThreads, unreadCount, normalizedApiStatus);
+    const conversationTrustMarkup = renderConversationTrustStrip({ status: normalizedApiStatus, activeThread, messages: hasThreadMessages, currentUser, users });
+    const chatStatusOverlayMarkup = apiStatusBannerMarkup || conversationTrustMarkup
+      ? `<div class="dashboard-chat-status-overlay" data-dashboard-chat-status-overlay>${apiStatusBannerMarkup}${conversationTrustMarkup}</div>`
+      : "";
     const directCreateMarkup = groupCreateUsers.length
       ? `
           <form class="dashboard-chat-direct-create-form" aria-label="Start a private chat" data-dashboard-chat-direct-create-form>
@@ -2130,8 +2142,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <small>${escapeHtml(activeThreadSubLabel)}</small>
             </span>
           </div>
-          ${apiStatusBannerMarkup}
-          ${renderConversationTrustStrip({ status: normalizedApiStatus, activeThread, messages: hasThreadMessages, currentUser, users })}
+          ${chatStatusOverlayMarkup}
           ${moderationMarkup}
           ${hasThreadMessages.length ? renderCoachWorkflowPanel({ activeThreadId, messages, pinnedMessages, users, currentUser }) : ""}
           ${hasThreadMessages.length ? renderConversationIntelligenceRail({ activeThreadId, messages, pinnedMessages, users, currentUser }) : ""}

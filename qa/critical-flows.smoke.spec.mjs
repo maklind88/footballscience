@@ -279,6 +279,53 @@ async function installQaChatApiAuth(page) {
   }, "qa-chat-token");
 }
 
+async function readQaChatLayoutMetrics(page) {
+  return page.evaluate(() => {
+    const list = document.querySelector("[data-dashboard-chat-list]");
+    const firstMessage = list?.querySelector("[data-dashboard-chat-message-card]");
+    const listRect = list?.getBoundingClientRect();
+    const firstMessageRect = firstMessage?.getBoundingClientRect();
+    return {
+      listTop: listRect?.top ?? 0,
+      listHeight: listRect?.height ?? 0,
+      scrollTop: list?.scrollTop ?? 0,
+      scrollHeight: list?.scrollHeight ?? 0,
+      clientHeight: list?.clientHeight ?? 0,
+      firstMessageTop: firstMessageRect?.top ?? 0,
+      syncStatusCount: document.querySelectorAll("[data-dashboard-chat-sync-status]").length,
+      statusOverlayCount: document.querySelectorAll("[data-dashboard-chat-status-overlay]").length,
+    };
+  });
+}
+
+async function readQaChatLayoutMetricsWhenAttached(page, selector) {
+  return page.locator(selector).first().evaluate((element) => {
+    const list = document.querySelector("[data-dashboard-chat-list]");
+    const firstMessage = list?.querySelector("[data-dashboard-chat-message-card]");
+    const listRect = list?.getBoundingClientRect();
+    const firstMessageRect = firstMessage?.getBoundingClientRect();
+    return {
+      listTop: listRect?.top ?? 0,
+      listHeight: listRect?.height ?? 0,
+      scrollTop: list?.scrollTop ?? 0,
+      scrollHeight: list?.scrollHeight ?? 0,
+      clientHeight: list?.clientHeight ?? 0,
+      firstMessageTop: firstMessageRect?.top ?? 0,
+      syncStatusCount: element?.matches?.("[data-dashboard-chat-sync-status]") ? 1 : 0,
+      statusOverlayCount: element?.closest?.("[data-dashboard-chat-status-overlay]") ? 1 : 0,
+    };
+  });
+}
+
+function expectQaChatLayoutStable(baseline, current, label) {
+  const listDelta = Math.abs(current.listTop - baseline.listTop);
+  const scrollDelta = Math.abs(current.scrollTop - baseline.scrollTop);
+  const firstMessageDelta = Math.abs(current.firstMessageTop - baseline.firstMessageTop);
+  expect(listDelta, `${label}: chat list top moved ${listDelta}px`).toBeLessThanOrEqual(1);
+  expect(scrollDelta, `${label}: chat scrollTop moved ${scrollDelta}px`).toBeLessThanOrEqual(1);
+  expect(firstMessageDelta, `${label}: first message top moved ${firstMessageDelta}px`).toBeLessThanOrEqual(1);
+}
+
 async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await dismissDashboardModal(page);
   const visibleTrigger = page.locator(`[data-open-workspace="${workspaceId}"]:visible`).first();
@@ -511,6 +558,143 @@ test("Chat launcher shows unread chat until the thread is opened", async ({ page
   await expect(page.locator(".dashboard-chat-launcher .dashboard-chat-header-badge")).toHaveCount(0);
   await expect(page.locator('.top-icon-menu-item[data-open-workspace="home"].has-notification')).toHaveCount(0);
   expect(serverMessages[0].readBy.includes(qaChatCurrentUserId)).toBe(true);
+});
+
+test("Chat launcher sync overlay does not shift the open message list", async ({ page }) => {
+  const nowMs = Date.now();
+  const serverMessages = Array.from({ length: 18 }, (_, index) => {
+    const createdAt = new Date(nowMs + index * 1000).toISOString();
+    return {
+      id: `qa-chat-stable-sync-${nowMs}-${index}`,
+      userId: index % 5 === 1 ? qaChatCurrentUserId : "qa-colleague",
+      threadId: "team",
+      text: `QA stable sync message ${index + 1}`,
+      createdAt,
+      deliveredAt: createdAt,
+      readBy: index % 5 === 1 ? [qaChatCurrentUserId] : ["qa-colleague", qaChatCurrentUserId],
+      mentionedUserIds: [],
+      status: "sent",
+      author: {
+        id: index % 5 === 1 ? qaChatCurrentUserId : "qa-colleague",
+        firstName: index % 5 === 1 ? "Mak" : "QA",
+        lastName: index % 5 === 1 ? "Lind" : "Colleague",
+        role: "coach",
+        status: "active",
+      },
+    };
+  });
+  let heldChatGets = null;
+  let pendingChatRequests = 0;
+  let forceChatGetError = false;
+
+  function holdNextChatGets(mode = "ok") {
+    let resolveStarted;
+    let release;
+    const hold = {
+      mode,
+      count: 0,
+      started: new Promise((resolve) => {
+        resolveStarted = resolve;
+      }),
+      released: new Promise((resolve) => {
+        release = resolve;
+      }),
+      resolveStarted: () => {
+        hold.count += 1;
+        resolveStarted(hold.count);
+      },
+      release: () => {
+        if (hold.mode === "error") {
+          forceChatGetError = true;
+        }
+        if (heldChatGets === hold) {
+          heldChatGets = null;
+        }
+        release();
+      },
+    };
+    heldChatGets = hold;
+    return hold;
+  }
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    pendingChatRequests += 1;
+    try {
+      const request = route.request();
+      if (request.method() === "GET") {
+        const activeHold = heldChatGets;
+        if (activeHold) {
+          activeHold.resolveStarted();
+          await activeHold.released;
+          if (activeHold.mode === "error") {
+            await route.fulfill({
+              status: 200,
+              contentType: "application/json",
+              body: JSON.stringify({ ok: false, reason: "QA transient sync failure." }),
+            });
+            return;
+          }
+        }
+        if (forceChatGetError) {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ ok: false, reason: "QA transient sync failure." }),
+          });
+          return;
+        }
+        await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
+        return;
+      }
+
+      const payload = request.postDataJSON();
+      if (payload.action === "markThreadRead") {
+        serverMessages.forEach((message) => {
+          if (getQaChatMessageThreadId(message) === (payload.threadId || "team")) {
+            message.readBy = Array.from(new Set([...(message.readBy || []), qaChatCurrentUserId]));
+          }
+        });
+      }
+      await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
+    } finally {
+      pendingChatRequests -= 1;
+    }
+  });
+
+  await bootApp(page);
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect(page.locator("[data-dashboard-chat-list]")).toContainText("QA stable sync message 18");
+  await expect.poll(() => pendingChatRequests, { timeout: 5_000 }).toBe(0);
+  await page.waitForTimeout(200);
+  await expect.poll(() => pendingChatRequests, { timeout: 5_000 }).toBe(0);
+  await page.locator("[data-dashboard-chat-list]").evaluate((element) => {
+    element.scrollTop = 0;
+  });
+
+  const baseline = await readQaChatLayoutMetrics(page);
+  expect(baseline.listTop).toBeGreaterThan(0);
+  expect(baseline.firstMessageTop).toBeGreaterThan(0);
+  expect(baseline.scrollHeight).toBeGreaterThan(baseline.clientHeight + 96);
+  expect(baseline.syncStatusCount).toBe(0);
+  expect(baseline.statusOverlayCount).toBe(0);
+
+  forceChatGetError = true;
+  const failedSync = holdNextChatGets("error");
+  await page.locator('[data-dashboard-chat-thread="team"]').first().click();
+  await failedSync.started;
+  await page.waitForTimeout(80);
+  const syncingLayout = await readQaChatLayoutMetrics(page);
+  expect(syncingLayout.syncStatusCount).toBe(0);
+  expect(syncingLayout.statusOverlayCount).toBe(0);
+  expectQaChatLayoutStable(baseline, syncingLayout, "syncing refresh");
+
+  failedSync.release();
+  const failedLayout = await readQaChatLayoutMetricsWhenAttached(page, "[data-dashboard-chat-status-overlay] [data-dashboard-chat-sync-status]");
+  expect(failedLayout.syncStatusCount).toBe(1);
+  expect(failedLayout.statusOverlayCount).toBe(1);
+  expectQaChatLayoutStable(baseline, failedLayout, "sync failure overlay");
 });
 
 test("Chat group creator creates a focused group from the plus menu", async ({ page }) => {

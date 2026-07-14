@@ -5,6 +5,9 @@ import {
   createPlatformHealthCockpit,
   summarizePlatformHealthCockpit,
 } from "./platform-health-cockpit-contracts.mjs";
+import {
+  summarizePlatformHealthHistory,
+} from "./platform-health-history-contracts.mjs";
 
 export const PLATFORM_READINESS_SCHEMA = "footballscience-platform-readiness-v1";
 
@@ -122,7 +125,7 @@ export const platformReadinessEnvironmentRequirements = Object.freeze([
     label: "Backup and restore monitor",
     location: "GitHub/Vercel Secrets",
     required: Object.freeze(["CRON_SECRET"]),
-    recommended: Object.freeze(["APP_STATE_BACKUP_STATUS_TOKEN"]),
+    recommended: Object.freeze(["APP_STATE_BACKUP_STATUS_TOKEN", "PLATFORM_HEALTH_SNAPSHOT_TOKEN"]),
     critical: true,
   }),
   Object.freeze({
@@ -401,8 +404,8 @@ export const platformOperatingPriorities = Object.freeze([
     label: "Incident observability",
     risk: "Usage spikes, API errors, or stale backups can stay invisible until users feel them.",
     target: "Release, egress, API, auth, permission, backup, and restore signals produce actionable alerts.",
-    nextStep: "Feed Supabase usage and backup/restore checks into the platform health surface.",
-    evidence: Object.freeze(["scripts/create-incident-alert.mjs", "scripts/verify-app-state-backup-freshness.mjs"]),
+    nextStep: "Write Production Monitor snapshots into platform_observability_signals and review trend history from Admin.",
+    evidence: Object.freeze(["api/platform-health-history.js", "supabase/migrations/20260714122414_platform_observability_history.sql"]),
   }),
 ]);
 
@@ -767,6 +770,8 @@ export function createPlatformReadinessReport(options = {}) {
     workflows,
   });
   const healthCockpitSummary = summarizePlatformHealthCockpit(healthCockpit);
+  const healthHistory = Object.freeze(Array.isArray(options.healthHistory) ? [...options.healthHistory] : []);
+  const healthHistorySummary = summarizePlatformHealthHistory(healthHistory);
 
   const summary = Object.freeze({
     totalSections: sections.length,
@@ -786,6 +791,8 @@ export function createPlatformReadinessReport(options = {}) {
     readyHealthCockpitItems: healthCockpitSummary.ready,
     warningHealthCockpitItems: healthCockpitSummary.warning,
     missingHealthCockpitItems: healthCockpitSummary.missing,
+    healthHistorySnapshots: healthHistorySummary.snapshots,
+    healthHistoryTrend: healthHistorySummary.trend,
   });
 
   return Object.freeze({
@@ -801,6 +808,8 @@ export function createPlatformReadinessReport(options = {}) {
     liveSignals,
     healthCockpit,
     healthCockpitSummary,
+    healthHistory,
+    healthHistorySummary,
     operatingPriorities: platformOperatingPriorities,
     databasePrimaryMigrationPlan: platformDatabasePrimaryMigrationPlan,
     scoutingPerformance: platformScoutingPerformanceContract,

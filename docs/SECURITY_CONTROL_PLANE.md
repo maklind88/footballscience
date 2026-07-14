@@ -71,6 +71,8 @@ Traffic-like incidents include a privacy-safe Traffic Snapshot from Vercel runti
 
 Platform Admins also get a read-only Platform Health cockpit inside Admin. It combines contract status with bounded live checks for production runtime, GitHub deploy/monitor runs, backup freshness, `/api/auth-health`, Vercel Firewall drift, production-incident issues, egress guardrails, live QA, and staging readiness. The cockpit must never expose tokens, raw IP addresses, full user agents, backup entries, or user content.
 
+Platform Health history is server-owned and append-only. `POST /api/platform-health-history` requires `PLATFORM_HEALTH_SNAPSHOT_TOKEN` or an approved monitor secret and stores normalized snapshots in `platform_observability_signals` and `platform_release_checks`. Authenticated users cannot insert/update/delete those tables directly; Platform Admins can read them through RLS and the guarded API. Stored evidence must stay privacy-safe: no tokens, raw IP addresses, full user agents, backup entries, or user content.
+
 ## Required Checks
 
 Run before release:

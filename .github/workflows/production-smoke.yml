@@ -30,6 +30,7 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      PLATFORM_HEALTH_SNAPSHOT_TOKEN: ${{ secrets.PLATFORM_HEALTH_SNAPSHOT_TOKEN || secrets.CRON_SECRET }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -38,3 +39,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run release:monitor
+      - run: npm run platform:health:snapshot

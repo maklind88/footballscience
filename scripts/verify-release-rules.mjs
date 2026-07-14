@@ -152,6 +152,9 @@ requireText("package.json", "npm run release:firewall", "production monitoring m
 requireText(".github/workflows/production-smoke.yml", "VERCEL_TOKEN", "production monitoring must receive the Vercel token for firewall drift checks");
 requireText(".github/workflows/production-smoke.yml", "VERCEL_PROJECT_ID", "production monitoring must receive the Vercel project id for firewall drift checks");
 requireText(".github/workflows/production-smoke.yml", "VERCEL_ORG_ID", "production monitoring should receive the Vercel org id for team-scoped firewall checks");
+requirePackageScript("platform:health:snapshot", "node scripts/write-platform-health-snapshot.mjs");
+requireText(".github/workflows/production-smoke.yml", "PLATFORM_HEALTH_SNAPSHOT_TOKEN", "production monitoring should receive a platform health snapshot token");
+requireText(".github/workflows/production-smoke.yml", "npm run platform:health:snapshot", "production monitoring should write platform health history");
 requireText(".github/workflows/production-smoke.yml", 'LIVE_QA_EXPECT_ADMIN: "1"', "production monitoring must prove the live QA account still has admin access");
 requireText(".github/workflows/production-smoke.yml", "LIVE_QA_PEER_USERNAME", "production monitoring must pass peer live QA credentials for two-account chat smoke");
 requireText(".github/workflows/production-smoke.yml", "vars.LIVE_QA_REQUIRE_PEER_CHAT || '1'", "production monitoring must require two-account chat smoke by default");

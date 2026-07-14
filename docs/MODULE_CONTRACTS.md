@@ -59,10 +59,11 @@ Rules:
 - `id`: `platform-readiness`
 - `purpose`: admin-only health map for GitHub, Vercel, Supabase, staging, release, module ownership, data safety, design system, and observability readiness.
 - `data`: no user content; generated from contracts, environment presence checks, package scripts, and release signals.
+- `api`: `/api/platform-readiness` reads the current admin health map. `/api/platform-health-history` is the server-owned history endpoint: `POST` writes a privacy-safe snapshot with a system token, `GET` lets Platform Admins read recent snapshots.
 - `permissions`: Platform Admin only.
 - `events`: readiness viewed, readiness refreshed.
 - `qa`: `qa/platform-readiness.api.spec.mjs` and `npm run platform:readiness` must prove the readiness contract remains wired.
-- `migration`: keep as a core contract/dashboard first; if history is needed later, write snapshots to `platform_release_checks` and `platform_observability_signals` with organization scope and no secret values.
+- `migration`: history snapshots write to `platform_release_checks` and `platform_observability_signals` with RLS, admin-only reads, service-role-only inserts, organization/team columns for future tenant scoping, and no secret values.
 
 ### Platform Health Operating Model
 
@@ -72,10 +73,11 @@ Current long-term priorities:
 
 - Keep the performance ratchet green while extracting `app.js`, `styles.css`, and `index.html` into smaller module-owned surfaces.
 - Keep the Admin Platform Health cockpit as the read-only control-plane surface for production runtime, latest deploy, Production Monitor, backups, auth health, firewall drift, open incidents, egress, staging, live QA, module, and performance health.
+- Store Production Monitor snapshots as append-only health history so Admin can see whether a signal is new, stable, improving, or worsening over time.
 - Move high-risk modules to database-primary storage through staged, audited, tenant-scoped migrations.
 - Treat Scouting as a high-priority speed and pagination surface because it is data-heavy and click-sensitive.
 - Harden staging into a real mirror before risky Live releases.
-- Feed incident signals for deploys, egress, API errors, auth/permission spikes, saves, backups, and restore readiness into the health surface.
+- Feed incident signals for deploys, egress, API errors, auth/permission spikes, saves, backups, and restore readiness into the health surface and its history tables.
 
 Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Exercise Library, Sessions, Periodization, Gameplan, Transfer Room, and Game Simulator. Chat is tracked as an already database-backed module and should remain under its dedicated ownership path.
 

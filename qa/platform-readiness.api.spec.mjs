@@ -20,6 +20,13 @@ import {
   createPlatformHealthCockpit,
   summarizePlatformHealthCockpit,
 } from "../src/core/platform-health-cockpit-contracts.mjs";
+import {
+  PLATFORM_HEALTH_HISTORY_SCHEMA,
+  assertPlatformHealthSnapshotContract,
+  createPlatformHealthHistoryRows,
+  createPlatformHealthSnapshot,
+  summarizePlatformHealthHistory,
+} from "../src/core/platform-health-history-contracts.mjs";
 import { platformModules, protectedStorageKeys } from "../src/core/platform-contracts.mjs";
 import { createAdminReadinessRenderer } from "../src/modules/admin/index.mjs";
 
@@ -80,7 +87,7 @@ test("platform module map exposes data ownership, api routes, permissions, and i
   expect(modules.find((module) => module.id === "session-planner")?.implementation).toBe("partial-extraction");
   expect(modules.find((module) => module.id === "platform-readiness")).toMatchObject({
     implementation: "core-contract",
-    apiRoutes: ["/api/platform-readiness"],
+    apiRoutes: ["/api/platform-readiness", "/api/platform-health-history"],
     scope: "organization",
   });
   expect(modules.find((module) => module.id === "platform-identity")).toMatchObject({
@@ -277,6 +284,51 @@ test("platform health cockpit summarizes release, monitor, backup, auth, firewal
   expect(JSON.stringify(report.healthCockpit)).not.toContain("secret-value");
 });
 
+test("platform health history snapshots are privacy-safe append-only contracts", () => {
+  const report = createPlatformReadinessReport({
+    env: { ...completeEnv, VERCEL_ENV: "production", VERCEL_GIT_COMMIT_SHA: "abc123456789" },
+    scripts: readinessScripts,
+    liveSignals: {
+      "production-monitor-run": {
+        status: platformReadinessStatuses.warning,
+        details: "Bearer secret-token should not survive.",
+        checkedAt: "2026-07-14T12:00:00.000Z",
+      },
+    },
+  });
+  const snapshot = createPlatformHealthSnapshot(report, {
+    snapshotId: "11111111-1111-4111-8111-111111111111",
+    observedAt: "2026-07-14T12:00:00.000Z",
+    source: "production-monitor",
+    environment: "production",
+    releaseSha: "abc123456789",
+  });
+  const rows = createPlatformHealthHistoryRows(snapshot);
+  const summary = summarizePlatformHealthHistory([snapshot]);
+
+  expect(snapshot.schema).toBe(PLATFORM_HEALTH_HISTORY_SCHEMA);
+  expect(assertPlatformHealthSnapshotContract(snapshot)).toBe(true);
+  expect(rows.observabilitySignals.length).toBe(snapshot.signals.length);
+  expect(rows.releaseChecks.length).toBeGreaterThan(0);
+  expect(summary.trend).toBe("baseline");
+  expect(JSON.stringify(snapshot)).not.toContain("secret-token");
+  expect(rows.observabilitySignals[0]).toHaveProperty("snapshot_id", snapshot.snapshotId);
+});
+
+test("platform observability history migration is RLS protected and server-owned", () => {
+  const source = readProjectFile("supabase/migrations/20260714122414_platform_observability_history.sql");
+
+  expect(source).toContain("create table if not exists public.platform_observability_signals");
+  expect(source).toContain("create table if not exists public.platform_release_checks");
+  expect(source).toContain("alter table public.platform_observability_signals enable row level security");
+  expect(source).toContain("alter table public.platform_release_checks enable row level security");
+  expect(source).toContain("revoke all on public.platform_observability_signals from anon, authenticated");
+  expect(source).toContain("revoke all on public.platform_release_checks from anon, authenticated");
+  expect(source).toContain("grant select, insert on public.platform_observability_signals to service_role");
+  expect(source).toContain("grant select, insert on public.platform_release_checks to service_role");
+  expect(source).not.toMatch(/grant\s+(?:insert|update|delete)[^;]+to\s+authenticated/i);
+});
+
 test("database-primary migration plan covers high-risk legacy and hybrid modules without touching chat", () => {
   const knownModules = new Set(platformModules.map((module) => module.id));
   const migrationModuleIds = platformDatabasePrimaryMigrationPlan.map((item) => item.moduleId);
@@ -328,9 +380,19 @@ test("scouting performance contract stays explicit and conservative", () => {
 
 test("admin workspace exposes the platform health cockpit", () => {
   const apiSource = readProjectFile("api/platform-readiness.js");
+  const liveSignalSource = readProjectFile("api/_lib/platform-readiness-live-signals.js");
   const report = createPlatformReadinessReport({
     env: completeEnv,
     scripts: readinessScripts,
+    healthHistory: [
+      createPlatformHealthSnapshot(
+        { healthCockpit: [], healthCockpitSummary: { total: 0, ready: 0, warning: 0, missing: 0 } },
+        {
+          snapshotId: "22222222-2222-4222-8222-222222222222",
+          observedAt: "2026-07-14T12:00:00.000Z",
+        }
+      ),
+    ],
   });
   const readinessRenderer = createAdminReadinessRenderer({
     getReadinessState: () => ({
@@ -345,6 +407,8 @@ test("admin workspace exposes the platform health cockpit", () => {
   expect(markup).toContain("Platform Health");
   expect(markup).toContain("Live Health");
   expect(markup).toContain("Production Monitor");
+  expect(markup).toContain("History");
+  expect(markup).toContain("Read-only");
   expect(markup).toContain("Traffic Firewall");
   expect(markup).toContain("Auth Health");
   expect(markup).toContain("Open Incidents");
@@ -355,8 +419,9 @@ test("admin workspace exposes the platform health cockpit", () => {
   expect(markup).toContain("Missing VERCEL_ENV");
   expect(markup).toContain("data-pr-refresh");
   expect(apiSource).toContain("collectPlatformLiveSignals");
-  expect(apiSource).toContain("collectGithubWorkflowRunSignals");
-  expect(apiSource).toContain("collectAuthHealthLiveSignal");
-  expect(apiSource).toContain("collectFirewallLiveSignal");
-  expect(apiSource).toContain("/api/app-state-backup-status");
+  expect(apiSource).toContain("readPlatformHealthHistory");
+  expect(liveSignalSource).toContain("collectGithubWorkflowRunSignals");
+  expect(liveSignalSource).toContain("collectAuthHealthLiveSignal");
+  expect(liveSignalSource).toContain("collectFirewallLiveSignal");
+  expect(liveSignalSource).toContain("/api/app-state-backup-status");
 });

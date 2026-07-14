@@ -23,6 +23,7 @@ Current coordination rule:
 | Chat server-first | Database-first default, compatibility cache still active | `chat_*` tables and `/api/chat` | Verify active environment migrations, attachment storage, realtime, and retention jobs; block new generic app-state writes | Safe deploy only |
 | Football Science DB | Foundation started | `fsdb_*` global player identity tables and `/api/football-science-db` | Import Reep identity data, then connect roster/stat providers without frontend blobs | Safe deploy only |
 | Scouting server-first | Schema/API foundation exists, client still heavy | `scouting_*` tables and `/api/scouting` | Server-side search/filter/profile pages before loading client blobs | Safe deploy only |
+| Platform health history | Foundation started | `platform_observability_signals`, `platform_release_checks`, `/api/platform-health-history` | Wire Production Monitor to write snapshots every run and show trend deltas in Admin | Safe deploy only |
 
 ## Non-Negotiable Definition Of Done
 

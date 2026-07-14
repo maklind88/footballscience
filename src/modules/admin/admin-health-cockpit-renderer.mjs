@@ -30,12 +30,16 @@ export function createAdminHealthCockpitRenderer({
   function renderSummary(report = {}) {
     const items = getItems(report);
     const summary = report.healthCockpitSummary || summarizeItems(items);
+    const history = report.healthHistorySummary || {};
+    const historyLabel = history.snapshots
+      ? `${history.snapshots} · ${history.trend || "stable"}`
+      : "No history";
     return `
       <section class="pr-score-grid" aria-label="Platform health summary">
         <div><span>Signals</span><strong>${esc(summary.ready || 0)} / ${esc(summary.total || 0)}</strong></div>
         <div><span>Warnings</span><strong>${esc(summary.warning || 0)}</strong></div>
         <div><span>Actions</span><strong>${esc(summary.missing || 0)}</strong></div>
-        <div><span>Mode</span><strong>Read-only</strong></div>
+        <div><span>History</span><strong>${esc(`Read-only · ${historyLabel}`)}</strong></div>
       </section>
     `;
   }

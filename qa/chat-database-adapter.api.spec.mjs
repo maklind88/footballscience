@@ -92,6 +92,66 @@ test("chat database adapter builds explicit delivery state from read receipts", 
   });
 });
 
+test("chat database adapter preserves direct participant identity for client labels", () => {
+  const actor = {
+    id: "11111111-1111-4111-8111-111111111111",
+    firstName: "Mak",
+    lastName: "Lind",
+    email: "mak@example.com",
+    username: "mak.lind",
+  };
+  const participantId = "22222222-2222-4222-8222-222222222222";
+  const metadata = chatDatabase._private.participantMetadataForThreadRow(
+    actor,
+    {
+      participants: [
+        {
+          id: actor.id,
+          firstName: "Mak",
+          lastName: "Lind",
+          email: "mak@example.com",
+          username: "mak.lind",
+        },
+        {
+          id: participantId,
+          name: "Ceri Bowley",
+          email: "ceri@example.com",
+          username: "ceri.bowley",
+        },
+      ],
+    },
+    participantId
+  );
+
+  expect(metadata).toEqual({
+    profile: {
+      id: participantId,
+      userId: participantId,
+      name: "Ceri Bowley",
+      firstName: "Ceri",
+      lastName: "Bowley",
+      email: "ceri@example.com",
+      username: "ceri.bowley",
+    },
+  });
+
+  expect(chatDatabase._private.participantClientPayload({
+    user_id: participantId,
+    participant_role: "member",
+    notification_level: "all",
+    metadata,
+  })).toMatchObject({
+    id: participantId,
+    userId: participantId,
+    name: "Ceri Bowley",
+    firstName: "Ceri",
+    lastName: "Bowley",
+    email: "ceri@example.com",
+    username: "ceri.bowley",
+    participantRole: "member",
+  });
+});
+
 test("chat database adapter exposes persisted thread settings action", () => {
   const { readFileSync } = require("node:fs");
   const path = require("node:path");

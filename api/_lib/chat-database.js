@@ -1336,7 +1336,7 @@ async function resolveParticipantIdsForThread(actor, body = {}, legacyKey = "", 
   return Array.from(new Set([...directIds, ...resolvedIds].filter((userId) => isUuid(userId)))).slice(0, 80);
 }
 
-async function ensureThreadParticipants(actor, thread, participantIds = []) {
+async function ensureThreadParticipants(actor, thread, participantIds = [], body = {}) {
   if (!thread?.id || !participantIds.length) {
     return;
   }
@@ -1358,6 +1358,7 @@ async function ensureThreadParticipants(actor, thread, participantIds = []) {
       user_id: userId,
       participant_role: userId === actor.id ? "owner" : "member",
       created_by: isUuid(actor.id) ? actor.id : null,
+      metadata: participantMetadataForThreadRow(actor, body, userId),
     }))
   ).catch(() => null);
 }
@@ -1385,7 +1386,7 @@ async function ensureScopedThread(actor, body = {}, scope, options = {}) {
   const legacyKey = legacyThreadKey(canonicalThreadId || body.legacyThreadId || type, type) || `${type}:${actor.id || "staff"}`;
   const existing = await readThreadByLegacyKey(scope, legacyKey, type);
   if (existing) {
-    await ensureThreadParticipants(actor, existing, getParticipantIdsForThread(actor, body, legacyKey, type));
+    await ensureThreadParticipants(actor, existing, getParticipantIdsForThread(actor, body, legacyKey, type), body);
     return existing;
   }
 
@@ -1429,6 +1430,7 @@ async function ensureScopedThread(actor, body = {}, scope, options = {}) {
         user_id: userId,
         participant_role: userId === actor.id ? "owner" : "member",
         created_by: isUuid(actor.id) ? actor.id : null,
+        metadata: participantMetadataForThreadRow(actor, body, userId),
       }))
     ).catch(() => null);
   }
@@ -1614,13 +1616,95 @@ function threadParticipantIds(thread = {}) {
   );
 }
 
+function splitProfileName(value = "") {
+  const parts = normalizeString(value, MAX_TEXT_LENGTH).split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] || "",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function normalizeParticipantProfileMetadata(source = {}, fallbackId = "") {
+  const metadata = isPlainObject(source.metadata) ? source.metadata : {};
+  const profile = isPlainObject(metadata.profile) ? metadata.profile : metadata;
+  const name = normalizeString(
+    source.name ||
+      source.fullName ||
+      source.full_name ||
+      profile.name ||
+      profile.fullName ||
+      profile.full_name ||
+      [source.firstName || source.first_name || profile.firstName || profile.first_name, source.lastName || source.last_name || profile.lastName || profile.last_name]
+        .filter(Boolean)
+        .join(" "),
+    MAX_TEXT_LENGTH
+  );
+  const fallbackName = splitProfileName(name);
+  const firstName = normalizeString(source.firstName || source.first_name || profile.firstName || profile.first_name || fallbackName.firstName, 80);
+  const lastName = normalizeString(source.lastName || source.last_name || profile.lastName || profile.last_name || fallbackName.lastName, 120);
+  const email = normalizeString(source.email || profile.email || "", MAX_TEXT_LENGTH).toLowerCase();
+  const username = normalizeString(source.username || source.userName || profile.username || profile.userName || "", MAX_TEXT_LENGTH);
+  const id = normalizeId(source.userId || source.user_id || source.id || fallbackId);
+  const participantProfile = {
+    id,
+    userId: id,
+    name: name || [firstName, lastName].filter(Boolean).join(" "),
+    firstName,
+    lastName,
+    email,
+    username,
+  };
+  Object.keys(participantProfile).forEach((key) => {
+    if (!participantProfile[key]) {
+      delete participantProfile[key];
+    }
+  });
+  return participantProfile;
+}
+
+function participantSourceMatchesUserId(source = {}, userId = "") {
+  const normalizedUserId = normalizeId(userId);
+  return Boolean(
+    normalizedUserId &&
+      [
+        source.userId,
+        source.user_id,
+        source.id,
+      ].map((value) => normalizeId(value)).includes(normalizedUserId)
+  );
+}
+
+function participantMetadataForThreadRow(actor = {}, body = {}, userId = "") {
+  const normalizedUserId = normalizeId(userId);
+  const participantSource = Array.isArray(body.participants)
+    ? body.participants.find((participant) => participantSourceMatchesUserId(participant, normalizedUserId))
+    : null;
+  const actorSource = normalizedUserId && normalizeId(actor.id) === normalizedUserId
+    ? {
+        id: actor.id,
+        firstName: actor.firstName,
+        lastName: actor.lastName,
+        email: actor.email,
+        username: actor.username,
+      }
+    : null;
+  const profile = normalizeParticipantProfileMetadata(participantSource || actorSource || { id: normalizedUserId }, normalizedUserId);
+  return Object.keys(profile).length ? { profile } : {};
+}
+
 function participantClientPayload(row = {}, receipt = null) {
   const userId = normalizeId(row.user_id || row.id || row.userId);
   const metadata = isPlainObject(row.metadata) ? row.metadata : {};
+  const profile = normalizeParticipantProfileMetadata(metadata.profile || metadata, userId);
   const participantRole = normalizeParticipantRole(row.participant_role || row.participantRole);
   return {
     id: userId,
     userId,
+    name: profile.name || "",
+    firstName: profile.firstName || "",
+    lastName: profile.lastName || "",
+    email: profile.email || "",
+    username: profile.username || "",
     participantRole,
     role: participantRole,
     chatParticipantRole: participantRole,
@@ -4006,6 +4090,9 @@ module.exports = {
     normalizeMentionedUserIds,
     normalizePriority,
     normalizeThreadType,
+    normalizeParticipantProfileMetadata,
+    participantClientPayload,
+    participantMetadataForThreadRow,
     buildMessageDeliveryState,
     threadRequiresParticipantAccess,
     toLegacyThreadId,

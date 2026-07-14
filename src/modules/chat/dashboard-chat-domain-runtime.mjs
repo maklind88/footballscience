@@ -131,14 +131,29 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
     if (normalized === dashboardChatTeamThreadId || templates.some((template) => template.key === normalized)) {
       return [];
     }
-    if (normalized.startsWith("group-") || normalized.startsWith("group:")) {
-      const dashboardChatApiThreads = getDashboardChatApiThreads();
-      const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalized);
-      const apiParticipants = Array.isArray(apiThread?.participants) ? apiThread.participants : [];
+    const dashboardChatApiThreads = getDashboardChatApiThreads();
+    const apiThread = dashboardChatApiThreads.find((thread) => thread.threadId === normalized);
+    const apiParticipants = Array.isArray(apiThread?.participants) ? apiThread.participants : [];
+    if (apiParticipants.length) {
       return apiParticipants
         .map((participant) => {
           const userId = String(participant.userId || participant.id || "").trim();
-          return users.find((user) => user.id === userId) || (userId ? { ...participant, id: userId } : null);
+          const platformUser =
+            users.find((user) => user.id === userId) ||
+            users.find((user) => isSameDashboardUser(user, participant)) ||
+            null;
+          return userId || platformUser
+            ? {
+                ...(platformUser || {}),
+                ...participant,
+                id: userId || platformUser?.id || "",
+                userId: userId || platformUser?.id || "",
+                firstName: participant.firstName || participant.first_name || platformUser?.firstName || "",
+                lastName: participant.lastName || participant.last_name || platformUser?.lastName || "",
+                email: participant.email || platformUser?.email || "",
+                username: participant.username || participant.userName || platformUser?.username || "",
+              }
+            : null;
         })
         .filter(Boolean);
     }

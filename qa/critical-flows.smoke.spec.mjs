@@ -1048,6 +1048,177 @@ test("Chat direct creator opens a private chat by tapping a teammate", async ({ 
   ))).toBe(true);
 });
 
+test("Chat compose send delivers inside a direct message thread", async ({ page }) => {
+  const messageText = `QA direct message ${Date.now()}`;
+  const chatActions = [];
+  const createdThreads = [];
+  const serverMessages = [];
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    const request = route.request();
+    if (request.method() === "GET") {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, threads: createdThreads, messages: serverMessages, pagination: {} }),
+      });
+      return;
+    }
+
+    let payload = {};
+    try {
+      payload = request.postDataJSON();
+    } catch {
+      payload = {};
+    }
+    chatActions.push(payload);
+
+    if (payload.action === "createThread") {
+      const now = new Date().toISOString();
+      const participantIds = Array.isArray(payload.participantIds) ? payload.participantIds : [];
+      const participants = Array.isArray(payload.participants)
+        ? payload.participants.map((participant, index) => ({
+            id: participant.id,
+            userId: participant.id,
+            name: participant.name,
+            email: participant.email || "",
+            username: participant.username || "",
+            participantRole: index === 0 ? "owner" : "member",
+            joinedAt: now,
+          }))
+        : participantIds.map((userId, index) => ({
+            userId,
+            id: userId,
+            participantRole: index === 0 ? "owner" : "member",
+            joinedAt: now,
+          }));
+      const thread = {
+        id: `db-${payload.threadId || "qa-dm"}`,
+        threadId: payload.threadId || "qa-dm",
+        legacyThreadId: payload.threadId || "qa-dm",
+        type: "dm",
+        title: payload.title || "Direct message",
+        visibility: "private",
+        createdAt: now,
+        created_at: now,
+        messageCount: 0,
+        participants,
+        permissions: {},
+        metadata: { legacyThreadId: payload.threadId || "qa-dm" },
+      };
+      createdThreads.splice(0, createdThreads.length, thread);
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, action: "createThread", thread }),
+      });
+      return;
+    }
+
+    if (payload.action === "sendMessage") {
+      const now = new Date().toISOString();
+      const thread = createdThreads.find((candidate) => candidate.threadId === payload.threadId) || createdThreads[0];
+      const message = {
+        id: payload.clientMessageId || payload.id || `qa-direct-sent-${Date.now()}`,
+        clientMessageId: payload.clientMessageId || payload.id || "",
+        userId: qaChatCurrentUserId,
+        threadId: payload.threadId,
+        text: payload.text,
+        createdAt: now,
+        deliveredAt: now,
+        readBy: [qaChatCurrentUserId],
+        mentionedUserIds: payload.mentionedUserIds || [],
+        status: "sent",
+        author: {
+          id: qaChatCurrentUserId,
+          firstName: "Mak",
+          lastName: "Lind",
+          role: "coach",
+          status: "active",
+        },
+      };
+      serverMessages.push(message);
+      if (thread) {
+        thread.messageCount = serverMessages.filter((item) => item.threadId === thread.threadId).length;
+        thread.lastMessage = message;
+        thread.lastMessageId = message.id;
+        thread.lastMessageAt = now;
+      }
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, action: "sendMessage", thread, message }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, threads: createdThreads, messages: serverMessages, pagination: {} }),
+    });
+  });
+
+  await bootApp(page);
+  await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
+  await page.evaluate(() => {
+    window.platformAuthStore.getAccessToken = async () => "qa-chat-token";
+    window.platformAuthStore.refreshAccessToken = async () => "qa-chat-token";
+    const currentUser = window.platformAuthStore.getCurrentUser?.() || {};
+    window.platformAuthStore.writeUsers?.([
+      {
+        ...currentUser,
+        id: currentUser.id || "dev-user-mak",
+        firstName: currentUser.firstName || "Mak",
+        lastName: currentUser.lastName || "Lind",
+        role: "team-admin",
+        status: "active",
+      },
+      {
+        id: "qa-chat-ceri",
+        firstName: "Ceri",
+        lastName: "Bowley",
+        role: "scout",
+        status: "active",
+        team: currentUser.team || "North Carolina Courage",
+      },
+    ]);
+    window.platformAuthStore.setCurrentUser?.(currentUser.id || "dev-user-mak");
+  });
+
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await page.locator("[data-dashboard-chat-thread-presets] > summary").click();
+  await page.locator("[data-dashboard-chat-open-direct-creator]").click();
+  const overlay = page.locator(".dashboard-chat-group-create-overlay");
+  await expect(overlay).toBeVisible();
+  await overlay.locator("[data-dashboard-chat-direct-user-search]").filter({ hasText: "Ceri Bowley" }).first().click();
+
+  await expect(overlay).toHaveCount(0);
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("aria-label", /Ceri Bowley|Direct message/i);
+  await page.locator("[data-dashboard-chat-input]").fill(messageText);
+  await page.locator("[data-dashboard-chat-form] button[type='submit']").click();
+
+  await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText);
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveValue("");
+  expect(chatActions.some((payload) => (
+    payload.action === "sendMessage" &&
+    payload.type !== "team" &&
+    payload.threadType === "dm" &&
+    payload.text === messageText &&
+    Array.isArray(payload.participantIds) &&
+    payload.participantIds.includes("qa-chat-ceri")
+  ))).toBe(true);
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await dismissDashboardModal(page);
+  if (!(await page.locator(".dashboard-chat-widget.is-open").count())) {
+    await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  }
+
+  await expect(page.locator("[data-dashboard-chat-thread]").filter({ hasText: "Ceri Bowley" })).toHaveCount(1);
+  await page.locator("[data-dashboard-chat-thread]").filter({ hasText: "Ceri Bowley" }).first().click();
+  await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText);
+});
+
 test("Chat group settings can rename, set avatar, and delete a group", async ({ page }) => {
   const groupTitle = `QA Manage Group ${Date.now()}`;
   const renamedTitle = `QA Renamed Group ${Date.now()}`;

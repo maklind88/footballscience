@@ -424,10 +424,43 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
 
   function normalizeDashboardApiParticipant(participant = {}) {
     if (participant && typeof participant === "object" && !Array.isArray(participant)) {
+      const metadata = participant.metadata && typeof participant.metadata === "object" ? participant.metadata : {};
+      const profile = metadata.profile && typeof metadata.profile === "object" ? metadata.profile : metadata;
       const userId = String(participant.userId || participant.user_id || participant.id || "").trim();
+      const displayName = String(
+        participant.name ||
+          participant.fullName ||
+          participant.full_name ||
+          profile.name ||
+          profile.fullName ||
+          profile.full_name ||
+          ""
+      ).trim();
+      const [fallbackFirstName = "", ...fallbackLastNameParts] = displayName.split(/\s+/).filter(Boolean);
+      const firstName = String(
+        participant.firstName ||
+          participant.first_name ||
+          profile.firstName ||
+          profile.first_name ||
+          fallbackFirstName ||
+          ""
+      ).trim();
+      const lastName = String(
+        participant.lastName ||
+          participant.last_name ||
+          profile.lastName ||
+          profile.last_name ||
+          fallbackLastNameParts.join(" ") ||
+          ""
+      ).trim();
       return {
         id: userId,
         userId,
+        name: displayName || [firstName, lastName].filter(Boolean).join(" ").trim(),
+        firstName,
+        lastName,
+        email: String(participant.email || profile.email || "").trim().toLowerCase(),
+        username: String(participant.username || participant.userName || profile.username || profile.userName || "").trim(),
         participantRole:
           String(participant.participantRole || participant.participant_role || participant.role || "member").trim().toLowerCase() || "member",
         role:
@@ -435,7 +468,7 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
         chatParticipantRole:
           String(participant.chatParticipantRole || participant.participantRole || participant.participant_role || participant.role || "member").trim().toLowerCase() || "member",
         notificationLevel: String(participant.notificationLevel || participant.notification_level || "all").trim() || "all",
-        metadata: participant.metadata && typeof participant.metadata === "object" ? participant.metadata : {},
+        metadata,
         userState: participant.userState && typeof participant.userState === "object" ? participant.userState : {},
         joinedAt: String(participant.joinedAt || participant.joined_at || "").trim(),
         leftAt: String(participant.leftAt || participant.left_at || "").trim(),

@@ -326,6 +326,47 @@ function expectQaChatLayoutStable(baseline, current, label) {
   expect(firstMessageDelta, `${label}: first message top moved ${firstMessageDelta}px`).toBeLessThanOrEqual(1);
 }
 
+async function readQaChatThreadGeometry(page) {
+  return page.evaluate(() => {
+    const list = document.querySelector("[data-dashboard-chat-thread-list]");
+    const items = Array.from(document.querySelectorAll("[data-dashboard-chat-thread]")).slice(0, 6);
+    const listRect = list?.getBoundingClientRect();
+    return {
+      listTop: listRect?.top ?? 0,
+      listHeight: listRect?.height ?? 0,
+      listScrollTop: list?.scrollTop ?? 0,
+      items: items.map((item) => {
+        const rect = item.getBoundingClientRect();
+        return {
+          threadId: item.getAttribute("data-dashboard-chat-thread") || "",
+          top: rect.top,
+          left: rect.left,
+          width: rect.width,
+          height: rect.height,
+          transform: window.getComputedStyle(item).transform,
+        };
+      }),
+    };
+  });
+}
+
+function expectQaChatThreadGeometryStable(baseline, current, label) {
+  expect(current.items.length, `${label}: thread item count changed`).toBe(baseline.items.length);
+  expect(Math.abs(current.listTop - baseline.listTop), `${label}: thread list top moved`).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(current.listHeight - baseline.listHeight), `${label}: thread list height moved`).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(current.listScrollTop - baseline.listScrollTop), `${label}: thread list scrolled`).toBeLessThanOrEqual(0.5);
+
+  baseline.items.forEach((baseItem, index) => {
+    const currentItem = current.items[index];
+    expect(currentItem.threadId, `${label}: thread ${index} changed identity`).toBe(baseItem.threadId);
+    expect(Math.abs(currentItem.top - baseItem.top), `${label}: ${baseItem.threadId} top moved`).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(currentItem.left - baseItem.left), `${label}: ${baseItem.threadId} left moved`).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(currentItem.width - baseItem.width), `${label}: ${baseItem.threadId} width moved`).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(currentItem.height - baseItem.height), `${label}: ${baseItem.threadId} height moved`).toBeLessThanOrEqual(0.5);
+    expect(currentItem.transform, `${label}: ${baseItem.threadId} hover transform`).toBe("none");
+  });
+}
+
 async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await dismissDashboardModal(page);
   const visibleTrigger = page.locator(`[data-open-workspace="${workspaceId}"]:visible`).first();
@@ -695,6 +736,82 @@ test("Chat launcher sync overlay does not shift the open message list", async ({
   expect(failedLayout.syncStatusCount).toBe(1);
   expect(failedLayout.statusOverlayCount).toBe(1);
   expectQaChatLayoutStable(baseline, failedLayout, "sync failure overlay");
+});
+
+test("Chat launcher thread hover keeps conversation geometry stable", async ({ page }) => {
+  const nowMs = Date.now();
+  const threadIds = ["team", "medical", "training", "matchday", "dm:qa-austin"];
+  const threadOptions = {
+    team: { type: "team", title: "North Carolina Courage Chat" },
+    medical: { type: "group", title: "Medical staff" },
+    training: { type: "group", title: "Training planning" },
+    matchday: { type: "group", title: "Matchday staff" },
+    "dm:qa-austin": {
+      type: "dm",
+      title: "Austin Da Luz",
+      participants: [{ userId: qaChatCurrentUserId }, { userId: "qa-chat-austin" }],
+    },
+  };
+  const serverMessages = threadIds.map((threadId, index) => {
+    const createdAt = new Date(nowMs + index * 1000).toISOString();
+    const isOwnMessage = index === 2;
+    return {
+      id: `qa-chat-hover-stable-${nowMs}-${index}`,
+      userId: isOwnMessage ? qaChatCurrentUserId : "qa-colleague",
+      threadId,
+      text: `QA hover stable message ${index + 1}`,
+      createdAt,
+      deliveredAt: createdAt,
+      readBy: ["qa-colleague", qaChatCurrentUserId],
+      mentionedUserIds: [],
+      status: "sent",
+      author: {
+        id: isOwnMessage ? qaChatCurrentUserId : "qa-colleague",
+        firstName: isOwnMessage ? "Mak" : "QA",
+        lastName: isOwnMessage ? "Lind" : "Colleague",
+        role: "coach",
+        status: "active",
+      },
+    };
+  });
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    const request = route.request();
+    if (request.method() === "POST") {
+      const payload = request.postDataJSON();
+      if (payload.action === "markThreadRead") {
+        serverMessages.forEach((message) => {
+          if (getQaChatMessageThreadId(message) === (payload.threadId || "team")) {
+            message.readBy = Array.from(new Set([...(message.readBy || []), qaChatCurrentUserId]));
+          }
+        });
+      }
+    }
+
+    await fulfillQaChatPayload(route, serverMessages, { threadIds, threadOptions });
+  });
+
+  await bootApp(page);
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  const threads = page.locator("[data-dashboard-chat-thread]");
+  await expect(threads.nth(4)).toBeVisible();
+  await page.waitForTimeout(120);
+
+  const baseline = await readQaChatThreadGeometry(page);
+  expect(baseline.items.length).toBeGreaterThanOrEqual(5);
+  baseline.items.forEach((item) => {
+    expect(item.transform, `${item.threadId}: baseline transform`).toBe("none");
+  });
+
+  const hoverCount = Math.min(5, baseline.items.length);
+  for (let index = 0; index < hoverCount; index += 1) {
+    await threads.nth(index).hover();
+    await page.waitForTimeout(80);
+    const hovered = await readQaChatThreadGeometry(page);
+    expectQaChatThreadGeometryStable(baseline, hovered, `thread hover ${index + 1}`);
+  }
 });
 
 test("Chat group creator creates a focused group from the plus menu", async ({ page }) => {

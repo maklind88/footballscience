@@ -44,3 +44,71 @@ body.is-dashboard-chat-closed .dashboard-chat-launcher{display:flex!important;al
 @keyframes dashboard-chat-status-overlay-fade{0%,72%{opacity:1;transform:none;pointer-events:auto}100%{opacity:0;transform:translateY(-.3rem);pointer-events:none}}
 @media(max-width:760px){.dashboard-chat-status-overlay{top:calc(.56rem + env(safe-area-inset-top))!important;right:.62rem!important;max-width:calc(100% - 1.24rem)!important}.dashboard-chat-status-overlay .dashboard-chat-sync-status-copy small{display:none!important}}
 @media(prefers-reduced-motion:reduce){.dashboard-chat-status-overlay .dashboard-chat-sync-status{animation:none!important}.dashboard-chat-widget .dashboard-chat-status-text{transition:none!important}}
+
+/* Chat visual stability: dense hover targets must not move under the pointer. */
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item:hover,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item:focus-visible,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item.is-active,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item.is-active:hover,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item.is-active:focus-visible,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item[aria-current="true"],
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item[aria-current="true"]:hover,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item[aria-current="true"]:focus-visible {
+  transform: none !important;
+  will-change: auto !important;
+}
+
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item {
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease !important;
+}
+
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item:hover,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item:focus-visible {
+  border-color: rgba(35, 120, 91, 0.24) !important;
+  background: #ffffff !important;
+  box-shadow: inset 0 0 0 1px rgba(35, 120, 91, 0.06), 0 8px 18px rgba(17, 24, 39, 0.055) !important;
+  outline: 0 !important;
+}
+
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item.is-active,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item.is-active:hover,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item.is-active:focus-visible,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item[aria-current="true"],
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item[aria-current="true"]:hover,
+.dashboard-chat-widget.is-open .dashboard-chat-thread-item[aria-current="true"]:focus-visible {
+  border-color: rgba(35, 120, 91, 0.34) !important;
+  background: #f4fbf7 !important;
+  box-shadow: inset 3px 0 0 #1f6f54, 0 8px 18px rgba(17, 24, 39, 0.055) !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-message-menu,
+.dashboard-chat-widget .dashboard-chat-message:hover .dashboard-chat-message-menu,
+.dashboard-chat-widget .dashboard-chat-message:focus-within .dashboard-chat-message-menu,
+.dashboard-chat-widget .dashboard-chat-message-menu[open],
+.dashboard-chat-widget .dashboard-chat-message-menu summary,
+.dashboard-chat-widget .dashboard-chat-message-menu summary:hover,
+.dashboard-chat-widget .dashboard-chat-message-menu summary:focus-visible,
+.dashboard-chat-widget .dashboard-chat-message-menu[open] summary,
+.dashboard-chat-group-create-card > header button,
+.dashboard-chat-group-create-card > header button:hover,
+.dashboard-chat-group-create-card > header button:focus-visible,
+.dashboard-chat-widget .dashboard-chat-status-text,
+.dashboard-chat-widget .dashboard-chat-status:hover .dashboard-chat-status-text {
+  transform: none !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-message-menu,
+.dashboard-chat-widget .dashboard-chat-message-menu summary,
+.dashboard-chat-widget .dashboard-chat-status-text {
+  transition: opacity 120ms ease, background-color 120ms ease, border-color 120ms ease, color 120ms ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-chat-widget.is-open .dashboard-chat-thread-item,
+  .dashboard-chat-widget .dashboard-chat-message-menu,
+  .dashboard-chat-widget .dashboard-chat-message-menu summary,
+  .dashboard-chat-widget .dashboard-chat-status-text {
+    transition: none !important;
+  }
+}

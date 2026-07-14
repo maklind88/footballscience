@@ -565,3 +565,26 @@ body.has-dashboard-chat-widget .dashboard-chat-direct-create-submit[hidden] {
     margin-top: 0.18rem !important;
   }
 }
+
+/* Chat create/direct-user stability: hover feedback must not shift rows. */
+body.has-dashboard-chat-widget .dashboard-chat-group-user:not(.dashboard-chat-direct-user),
+body.has-dashboard-chat-widget .dashboard-chat-group-user:not(.dashboard-chat-direct-user):hover,
+body.has-dashboard-chat-widget .dashboard-chat-group-user:not(.dashboard-chat-direct-user):focus-within,
+body.has-dashboard-chat-widget .dashboard-chat-direct-user,
+body.has-dashboard-chat-widget .dashboard-chat-direct-user:hover,
+body.has-dashboard-chat-widget .dashboard-chat-direct-user:focus-within {
+  transform: none !important;
+  will-change: auto !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-group-user:not(.dashboard-chat-direct-user),
+body.has-dashboard-chat-widget .dashboard-chat-direct-user {
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.has-dashboard-chat-widget .dashboard-chat-group-user:not(.dashboard-chat-direct-user),
+  body.has-dashboard-chat-widget .dashboard-chat-direct-user {
+    transition: none !important;
+  }
+}

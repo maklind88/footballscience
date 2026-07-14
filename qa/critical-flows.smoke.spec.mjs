@@ -739,6 +739,7 @@ test("Chat launcher sync overlay does not shift the open message list", async ({
 });
 
 test("Chat launcher thread hover keeps conversation geometry stable", async ({ page }) => {
+  test.setTimeout(90_000);
   const nowMs = Date.now();
   const threadIds = ["team", "medical", "training", "matchday", "dm:qa-austin"];
   const threadOptions = {
@@ -805,10 +806,25 @@ test("Chat launcher thread hover keeps conversation geometry stable", async ({ p
     expect(item.transform, `${item.threadId}: baseline transform`).toBe("none");
   });
 
-  const hoverCount = Math.min(5, baseline.items.length);
-  for (let index = 0; index < hoverCount; index += 1) {
-    await threads.nth(index).hover();
-    await page.waitForTimeout(80);
+  const hoverTargets = baseline.items.slice(0, Math.min(5, baseline.items.length)).map((item) => ({
+    threadId: item.threadId,
+    x: item.left + item.width / 2,
+    y: item.top + item.height / 2,
+  }));
+  for (const [index, target] of hoverTargets.entries()) {
+    await page.mouse.move(target.x, target.y);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            ({ x, y }) =>
+              document.elementFromPoint(x, y)?.closest("[data-dashboard-chat-thread]")?.getAttribute("data-dashboard-chat-thread") || "",
+            { x: target.x, y: target.y }
+          ),
+        { timeout: 2_000 }
+      )
+      .toBe(target.threadId);
+    await page.waitForTimeout(40);
     const hovered = await readQaChatThreadGeometry(page);
     expectQaChatThreadGeometryStable(baseline, hovered, `thread hover ${index + 1}`);
   }

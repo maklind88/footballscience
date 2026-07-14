@@ -367,6 +367,53 @@ function expectQaChatThreadGeometryStable(baseline, current, label) {
   });
 }
 
+async function readQaChatMessageGeometry(page) {
+  return page.evaluate(() => {
+    const list = document.querySelector("[data-dashboard-chat-list]");
+    const listRect = list?.getBoundingClientRect();
+    const allItems = Array.from(list?.querySelectorAll("[data-dashboard-chat-message-card]") || []);
+    const items = allItems
+      .map((item) => {
+        const rect = item.getBoundingClientRect();
+        return { item, rect };
+      })
+      .filter(({ rect }) => !listRect || (rect.bottom > listRect.top && rect.top < listRect.bottom))
+      .slice(0, 6)
+      .map(({ item, rect }) => ({
+        messageId: item.getAttribute("data-dashboard-chat-message-id") || "",
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+        transform: window.getComputedStyle(item).transform,
+      }));
+
+    return {
+      listTop: listRect?.top ?? 0,
+      listHeight: listRect?.height ?? 0,
+      listScrollTop: list?.scrollTop ?? 0,
+      items,
+    };
+  });
+}
+
+function expectQaChatMessageGeometryStable(baseline, current, label) {
+  expect(current.items.length, `${label}: message item count changed`).toBe(baseline.items.length);
+  expect(Math.abs(current.listTop - baseline.listTop), `${label}: chat list top moved`).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(current.listHeight - baseline.listHeight), `${label}: chat list height moved`).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(current.listScrollTop - baseline.listScrollTop), `${label}: chat list scrolled`).toBeLessThanOrEqual(0.5);
+
+  baseline.items.forEach((baseItem, index) => {
+    const currentItem = current.items[index];
+    expect(currentItem.messageId, `${label}: message ${index} changed identity`).toBe(baseItem.messageId);
+    expect(Math.abs(currentItem.top - baseItem.top), `${label}: ${baseItem.messageId} top moved`).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(currentItem.left - baseItem.left), `${label}: ${baseItem.messageId} left moved`).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(currentItem.width - baseItem.width), `${label}: ${baseItem.messageId} width moved`).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(currentItem.height - baseItem.height), `${label}: ${baseItem.messageId} height moved`).toBeLessThanOrEqual(0.5);
+    expect(currentItem.transform, `${label}: ${baseItem.messageId} hover transform`).toBe("none");
+  });
+}
+
 async function openWorkspace(page, workspaceId, viewId = workspaceId) {
   await dismissDashboardModal(page);
   const visibleTrigger = page.locator(`[data-open-workspace="${workspaceId}"]:visible`).first();
@@ -736,6 +783,83 @@ test("Chat launcher sync overlay does not shift the open message list", async ({
   expect(failedLayout.syncStatusCount).toBe(1);
   expect(failedLayout.statusOverlayCount).toBe(1);
   expectQaChatLayoutStable(baseline, failedLayout, "sync failure overlay");
+});
+
+test("Chat message grouping hover keeps message geometry stable", async ({ page }) => {
+  const nowMs = Date.now();
+  const serverMessages = Array.from({ length: 18 }, (_, index) => {
+    const isOwnMessage = index % 4 === 1;
+    const createdAt = new Date(nowMs + index * 1000).toISOString();
+    return {
+      id: `qa-chat-message-hover-${nowMs}-${index}`,
+      userId: isOwnMessage ? qaChatCurrentUserId : "qa-colleague",
+      threadId: "team",
+      text: `QA message hover stability line ${index + 1} with enough text to make the bubble menu edge meaningful`,
+      createdAt,
+      deliveredAt: createdAt,
+      readBy: ["qa-colleague", qaChatCurrentUserId],
+      mentionedUserIds: [],
+      status: "sent",
+      author: {
+        id: isOwnMessage ? qaChatCurrentUserId : "qa-colleague",
+        firstName: isOwnMessage ? "Mak" : "QA",
+        lastName: isOwnMessage ? "Lind" : "Colleague",
+        role: "coach",
+        status: "active",
+      },
+    };
+  });
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    const request = route.request();
+    if (request.method() === "POST") {
+      const payload = request.postDataJSON();
+      if (payload.action === "markThreadRead") {
+        serverMessages.forEach((message) => {
+          if (getQaChatMessageThreadId(message) === (payload.threadId || "team")) {
+            message.readBy = Array.from(new Set([...(message.readBy || []), qaChatCurrentUserId]));
+          }
+        });
+      }
+    }
+    await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
+  });
+
+  await bootApp(page);
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect(page.locator("[data-dashboard-chat-list]")).toContainText("QA message hover stability line 18");
+  await page.waitForTimeout(120);
+
+  const baseline = await readQaChatMessageGeometry(page);
+  expect(baseline.items.length).toBeGreaterThanOrEqual(2);
+  baseline.items.forEach((item) => {
+    expect(item.transform, `${item.messageId}: baseline transform`).toBe("none");
+  });
+
+  const hoverTargets = baseline.items.slice(0, Math.min(4, baseline.items.length)).map((item) => ({
+    messageId: item.messageId,
+    x: item.left + item.width - 12,
+    y: item.top + Math.min(18, Math.max(8, item.height / 2)),
+  }));
+  for (const [index, target] of hoverTargets.entries()) {
+    await page.mouse.move(target.x, target.y);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            ({ x, y }) =>
+              document.elementFromPoint(x, y)?.closest("[data-dashboard-chat-message-card]")?.getAttribute("data-dashboard-chat-message-id") || "",
+            { x: target.x, y: target.y }
+          ),
+        { timeout: 2_000 }
+      )
+      .toBe(target.messageId);
+    await page.waitForTimeout(50);
+    const hovered = await readQaChatMessageGeometry(page);
+    expectQaChatMessageGeometryStable(baseline, hovered, `message hover ${index + 1}`);
+  }
 });
 
 test("Chat launcher thread hover keeps conversation geometry stable", async ({ page }) => {

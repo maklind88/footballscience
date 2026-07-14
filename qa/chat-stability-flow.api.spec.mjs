@@ -1117,7 +1117,7 @@ test("open chat queues first thread load without marking the thread hydrated bef
   expect(hydratedThreadIds.has(threadId)).toBe(false);
 });
 
-test("open chat captures first unread before marking the active thread read", () => {
+test("open chat captures first unread before marking the active thread read without auto-scroll", () => {
   const threadId = "team";
   const unreadMessageId = "message-unread";
   const messages = [
@@ -1231,7 +1231,108 @@ test("open chat captures first unread before marking the active thread read", ()
   expect(markedReadThreadId).toBe(threadId);
   expect(capturedRenderOptions.firstUnreadMessageId).toBe(unreadMessageId);
   expect(capturedRenderOptions.messages.find((message) => message.id === unreadMessageId)?.readBy).toContain(coachActor.id);
-  expect(scrollCalls).toEqual([expect.objectContaining({ block: "center", behavior: "auto" })]);
+  expect(scrollCalls).toEqual([]);
+  expect(chatList.scrollTop).toBe(480);
+});
+
+test("chat render opens a switched thread at the latest message instead of reusing previous scroll", () => {
+  const previousThreadId = "team";
+  const nextThreadId = "dm:coach-qa:teammate-qa";
+  let renderPhase = "before";
+  let capturedRenderOptions = null;
+  const previousChatList = {
+    scrollTop: 0,
+    scrollHeight: 900,
+    clientHeight: 300,
+    dataset: { dashboardChatActiveThread: previousThreadId },
+  };
+  const nextChatList = {
+    scrollTop: 0,
+    scrollHeight: 1200,
+    clientHeight: 300,
+    dataset: { dashboardChatActiveThread: nextThreadId },
+  };
+  const root = {
+    dataset: {},
+    get innerHTML() {
+      return "";
+    },
+    set innerHTML(_nextValue) {
+      renderPhase = "after";
+    },
+    querySelector: (selector) => {
+      if (selector === ".dashboard-chat-widget.is-open") {
+        return {};
+      }
+      if (selector === "[data-dashboard-chat-list]") {
+        return renderPhase === "before" ? previousChatList : nextChatList;
+      }
+      return null;
+    },
+    querySelectorAll: () => [],
+  };
+  const runtime = createDashboardChatWidgetRuntime({
+    dashboardChatWidgetRenderer: {
+      render: (options) => {
+        capturedRenderOptions = options;
+        return {
+          html: "<section class=\"dashboard-chat-widget is-open\"><div data-dashboard-chat-list data-dashboard-chat-active-thread=\"dm:coach-qa:teammate-qa\"></div></section>",
+          activeThreadId: nextThreadId,
+          replyDraft: null,
+        };
+      },
+    },
+    getCurrentPlatformUser: () => coachActor,
+    getPlatformUsers: () => [coachActor, teammateActor],
+    getDashboardChatThreadList: () => [{
+      threadId: nextThreadId,
+      label: "Teammate QA",
+      messageCount: 40,
+      unreadCount: 0,
+      lastMessage: {
+        id: "message-latest",
+        threadId: nextThreadId,
+        userId: teammateActor.id,
+        text: "Latest update",
+        createdAt: "2026-06-27T09:40:00.000Z",
+        readBy: [teammateActor.id, coachActor.id],
+      },
+      lastActivityAt: "2026-06-27T09:40:00.000Z",
+    }],
+    readDashboardMessages: () => [
+      {
+        id: "message-latest",
+        threadId: nextThreadId,
+        userId: teammateActor.id,
+        text: "Latest update",
+        createdAt: "2026-06-27T09:40:00.000Z",
+        readBy: [teammateActor.id, coachActor.id],
+        mentionedUserIds: [],
+      },
+    ],
+    readDashboardChatWidgetState: () => ({ isOpen: true, selectedThreadId: nextThreadId }),
+    isDashboardChatThreadActivelyViewed: () => true,
+    markDashboardMessagesReadForCurrentUser: (sourceMessages) => sourceMessages,
+    getDashboardHydratedThreadIds: () => new Set([nextThreadId]),
+    ui: {
+      dashboardChatWidgetRoot: root,
+    },
+    documentRef: {
+      activeElement: null,
+      body: {
+        classList: {
+          add: () => {},
+          remove: () => {},
+          toggle: () => {},
+        },
+      },
+    },
+  });
+
+  runtime.renderDashboardChatWidget();
+
+  expect(capturedRenderOptions.activeThreadId).toBe(nextThreadId);
+  expect(nextChatList.scrollTop).toBe(900);
 });
 
 test("open chat rehydrates active server-backed thread when local message store is empty", () => {

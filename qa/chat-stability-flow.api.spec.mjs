@@ -1654,7 +1654,7 @@ test("chat API runtime keeps active thread unhydrated when history payload is em
     }),
   ]);
   expect(hydratedThreadIds.has("team")).toBe(false);
-  expect(rendered).toBe(2);
+  expect(rendered).toBe(1);
 });
 
 test("chat API runtime hydrates active thread from legacy state payload without leaking other thread messages", async () => {

@@ -631,10 +631,17 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     if (!options.forceNetwork && !getDashboardChatCurrentViewState()?.isOpen) {
       return createDashboardChatClosedResult();
     }
+    const previousThreadSummarySignature = JSON.stringify(getApiThreads());
+    const previousMessageSummarySignature = JSON.stringify(
+      getDashboardMessages().map((message) => [
+        message?.id,
+        message?.threadId,
+        message?.text,
+        message?.createdAt,
+        Array.isArray(message?.readBy) ? message.readBy.join(",") : "",
+      ])
+    );
     setChatApiSyncingStatus("threads");
-    if (options.render !== false) {
-      renderDashboardChatWidget();
-    }
     const result = await fetchDashboardChatApi({ view: "threads", limit: options.limit || 80, __activeChatRead: true });
     setChatApiResultStatus(result, "threads");
     if (!result.ok) {
@@ -649,8 +656,23 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
 
     applyDashboardChatApiPayload(result.result || {}, { replaceThreadList: true });
     syncDashboardChatWidgetNotificationCursor();
+    const nextThreadSummarySignature = JSON.stringify(getApiThreads());
+    const nextMessageSummarySignature = JSON.stringify(
+      getDashboardMessages().map((message) => [
+        message?.id,
+        message?.threadId,
+        message?.text,
+        message?.createdAt,
+        Array.isArray(message?.readBy) ? message.readBy.join(",") : "",
+      ])
+    );
     if (options.render !== false) {
-      renderDashboardChatWidget();
+      if (
+        previousThreadSummarySignature !== nextThreadSummarySignature ||
+        previousMessageSummarySignature !== nextMessageSummarySignature
+      ) {
+        renderDashboardChatWidget();
+      }
     }
     return result;
   }
@@ -729,7 +751,6 @@ export function createDashboardChatApiRuntime(dependencies = {}) {
     }
 
     setChatApiSyncingStatus("messages");
-    renderDashboardChatWidget();
     const result = await fetchDashboardChatApi(query);
     setChatApiResultStatus(result, "messages");
     if (!result.ok) {

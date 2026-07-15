@@ -65,6 +65,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
 
   let dashboardChatWidgetToastTimer = null;
   let dashboardChatWidgetToastState = null;
+  let dashboardChatScrollToLatestRequest = { threadId: "", requestedAt: 0 };
   const dashboardChatHydrationAttemptAtByThread = new Map();
   const dashboardChatHydrationRetryWindowMs = 10 * 1000;
 
@@ -323,8 +324,90 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
 
   function focusDashboardChatWidgetComposer() {
     win.setTimeout(() => {
-      ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-input]")?.focus();
+      const composer = ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-input]");
+      if (!composer?.focus) {
+        return;
+      }
+      try {
+        composer.focus({ preventScroll: true });
+      } catch {
+        composer.focus();
+      }
     }, 0);
+  }
+
+  function focusDashboardChatElement(element) {
+    if (!element?.focus) {
+      return;
+    }
+    try {
+      element.focus({ preventScroll: true });
+    } catch {
+      element.focus();
+    }
+  }
+
+  function applyDashboardChatListScrollTop(chatList, scrollTop, threadId = "") {
+    if (!chatList) {
+      return;
+    }
+    const expectedThreadId = String(threadId || chatList.dataset?.dashboardChatActiveThread || "").trim();
+    const apply = () => {
+      if (expectedThreadId && String(chatList.dataset?.dashboardChatActiveThread || "").trim() !== expectedThreadId) {
+        return;
+      }
+      const maxScrollTop = Math.max(0, (chatList.scrollHeight || 0) - (chatList.clientHeight || 0));
+      const targetScrollTop = typeof scrollTop === "function" ? scrollTop(chatList, maxScrollTop) : scrollTop;
+      const nextScrollTop = Math.min(Math.max(0, Number(targetScrollTop) || 0), maxScrollTop);
+      if (typeof chatList.scrollTo === "function") {
+        chatList.scrollTo({ top: nextScrollTop, behavior: "auto" });
+      } else {
+        chatList.scrollTop = nextScrollTop;
+      }
+    };
+    apply();
+    const raf = typeof win.requestAnimationFrame === "function"
+      ? win.requestAnimationFrame.bind(win)
+      : (callback) => win.setTimeout(callback, 0);
+    raf(() => {
+      apply();
+      raf(apply);
+    });
+  }
+
+  function scrollDashboardChatListToLatest(chatList, threadId = "") {
+    if (!chatList) {
+      return;
+    }
+    applyDashboardChatListScrollTop(chatList, (_chatList, maxScrollTop) => maxScrollTop, threadId);
+  }
+
+  function requestDashboardChatScrollToLatest(threadId = "") {
+    dashboardChatScrollToLatestRequest = {
+      threadId: normalizeDashboardChatThreadId(threadId || readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId),
+      requestedAt: Date.now(),
+    };
+  }
+
+  function clearDashboardChatScrollToLatestRequest(threadId = "") {
+    const normalizedThreadId = normalizeDashboardChatThreadId(threadId || dashboardChatScrollToLatestRequest.threadId, dashboardChatTeamThreadId);
+    if (!dashboardChatScrollToLatestRequest.threadId || dashboardChatScrollToLatestRequest.threadId !== normalizedThreadId) {
+      return;
+    }
+    dashboardChatScrollToLatestRequest = { threadId: "", requestedAt: 0 };
+  }
+
+  function scrollDashboardChatActiveThreadToLatest(threadId = "") {
+    const root = ui.dashboardChatWidgetRoot;
+    const chatList = root?.querySelector("[data-dashboard-chat-list]");
+    const targetThreadId = normalizeDashboardChatThreadId(threadId || chatList?.dataset?.dashboardChatActiveThread, dashboardChatTeamThreadId);
+    if (!chatList || String(chatList.dataset?.dashboardChatActiveThread || "").trim() !== targetThreadId) {
+      requestDashboardChatScrollToLatest(targetThreadId);
+      return false;
+    }
+    scrollDashboardChatListToLatest(chatList, targetThreadId);
+    clearDashboardChatScrollToLatestRequest(targetThreadId);
+    return true;
   }
 
   function scrollDashboardChatFirstUnread(options = {}) {
@@ -618,7 +701,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     if (wasMessageSearchFocused) {
       const nextMessageSearchInput = root.querySelector("[data-dashboard-chat-message-search]");
       if (nextMessageSearchInput) {
-        nextMessageSearchInput.focus();
+        focusDashboardChatElement(nextMessageSearchInput);
         if (previousMessageSearchSelectionStart !== null && previousMessageSearchSelectionEnd !== null) {
           nextMessageSearchInput.setSelectionRange(previousMessageSearchSelectionStart, previousMessageSearchSelectionEnd);
         }
@@ -628,18 +711,28 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     const nextChatList = root.querySelector("[data-dashboard-chat-list]");
     const activeSearchMatchElement = root.querySelector("[data-dashboard-chat-search-active='true']");
     const previousChatListThreadMatches = previousActiveChatThreadId === renderedWidget.activeThreadId;
+    const shouldForceLatestScroll = Boolean(
+      dashboardChatScrollToLatestRequest.threadId &&
+        dashboardChatScrollToLatestRequest.threadId === renderedWidget.activeThreadId &&
+        Date.now() - Number(dashboardChatScrollToLatestRequest.requestedAt || 0) < 1800
+    );
     if (activeSearchMatchElement) {
       activeSearchMatchElement.scrollIntoView({ block: "center", inline: "nearest" });
+    } else if (nextChatList && shouldForceLatestScroll) {
+      scrollDashboardChatListToLatest(nextChatList, renderedWidget.activeThreadId);
+      clearDashboardChatScrollToLatestRequest(renderedWidget.activeThreadId);
     } else if (nextChatList && previousChatListScrollTop !== null && previousChatListThreadMatches) {
       const nextMaxScrollTop = Math.max(0, nextChatList.scrollHeight - nextChatList.clientHeight);
       const nextScrollTop = preserveChatScroll
         ? previousChatListScrollTop + Math.max(0, nextChatList.scrollHeight - previousChatListScrollHeight)
         : previousChatListScrollTop;
-      nextChatList.scrollTop = previousChatListWasAtBottom
-        ? nextMaxScrollTop
-        : Math.min(Math.max(0, nextScrollTop), nextMaxScrollTop);
+      if (previousChatListWasAtBottom) {
+        scrollDashboardChatListToLatest(nextChatList, renderedWidget.activeThreadId);
+      } else {
+        applyDashboardChatListScrollTop(nextChatList, Math.min(Math.max(0, nextScrollTop), nextMaxScrollTop), renderedWidget.activeThreadId);
+      }
     } else if (nextChatList && state.isOpen && (!previousWidgetWasOpen || !previousChatListThreadMatches)) {
-      nextChatList.scrollTop = Math.max(0, nextChatList.scrollHeight - nextChatList.clientHeight);
+      scrollDashboardChatListToLatest(nextChatList, renderedWidget.activeThreadId);
     }
 
     setDashboardChatPageScroll(false);
@@ -652,7 +745,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
           characterCount.textContent = `${String(previousComposerDraft || "").length}/${nextComposer.getAttribute("maxlength") || ""}`;
         }
         if (wasComposerFocused) {
-          nextComposer.focus();
+          focusDashboardChatElement(nextComposer);
         }
         if (wasComposerFocused && previousComposerSelectionStart !== null && previousComposerSelectionEnd !== null) {
           nextComposer.setSelectionRange(previousComposerSelectionStart, previousComposerSelectionEnd);
@@ -779,5 +872,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     hideDashboardChatWidgetToast,
     focusDashboardChatWidgetComposer,
     scrollDashboardChatFirstUnread,
+    requestDashboardChatScrollToLatest,
+    scrollDashboardChatActiveThreadToLatest,
   };
 }

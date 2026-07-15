@@ -175,6 +175,28 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
     return template?.type || "dm";
   }
 
+  function getDashboardChatPublicThreadId(rawThreadId = "") {
+    const threadId = String(rawThreadId || "").trim();
+    if (!threadId) {
+      return "";
+    }
+
+    const sanitizedThreadId = threadId.replace(/[^a-zA-Z0-9_.:-]/g, "-");
+    const templateKeys = new Set(getAdvancedThreadTemplates().map((template) => template?.key).filter(Boolean));
+    if (
+      threadId === dashboardChatTeamThreadId ||
+      threadId.startsWith("dm:") ||
+      sanitizedThreadId.startsWith("group-") ||
+      sanitizedThreadId.startsWith("group:") ||
+      templateKeys.has(threadId) ||
+      templateKeys.has(sanitizedThreadId)
+    ) {
+      return normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+    }
+
+    return "";
+  }
+
   function getDashboardChatParticipantIdsForApi(threadId) {
     return (getDashboardChatThreadParticipants(threadId) || [])
       .map((user) => user?.id)
@@ -615,7 +637,12 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
         ""
     ).trim();
     const threadId = normalizeDashboardChatThreadId(
-      messageLegacyThreadId || apiThread?.threadId || message.threadId || message.thread_id || dashboardChatTeamThreadId,
+      getDashboardChatPublicThreadId(messageLegacyThreadId) ||
+        getDashboardChatPublicThreadId(message.threadId || message.thread_id) ||
+        apiThread?.threadId ||
+        message.threadId ||
+        message.thread_id ||
+        dashboardChatTeamThreadId,
       dashboardChatTeamThreadId
     );
     const author = message.author || message.user || null;

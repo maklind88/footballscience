@@ -841,7 +841,10 @@ test("Chat message grouping hover keeps message geometry stable", async ({ page 
   const hoverTargets = baseline.items.slice(0, Math.min(4, baseline.items.length)).map((item) => ({
     messageId: item.messageId,
     x: item.left + item.width - 12,
-    y: item.top + Math.min(18, Math.max(8, item.height / 2)),
+    y: Math.min(
+      baseline.listTop + baseline.listHeight - 8,
+      Math.max(baseline.listTop + 8, item.top + Math.min(18, Math.max(8, item.height / 2)))
+    ),
   }));
   for (const [index, target] of hoverTargets.entries()) {
     await page.mouse.move(target.x, target.y);
@@ -1745,6 +1748,188 @@ test("Chat thread click does not change latest activity sorting", async ({ page 
 
   await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
   await expect(page.locator("[data-dashboard-chat-thread]").first()).toHaveAttribute("data-dashboard-chat-thread", "team");
+});
+
+test("Chat thread click keeps long histories scrollable during background sync", async ({ page }) => {
+  const baseTime = Date.now();
+  const directThreadId = "dm:dev-user-mak:qa-chat-ceri";
+  const pageErrors = [];
+  const makeIso = (offsetMs) => new Date(baseTime + offsetMs).toISOString();
+  const makeAuthor = (id, firstName, lastName, role = "coach") => ({
+    id,
+    firstName,
+    lastName,
+    role,
+    status: "active",
+  });
+  const teamMessages = Array.from({ length: 80 }, (_, index) => {
+    const isOwn = index % 3 === 0;
+    const createdAt = makeIso(120_000 + index * 1000);
+    return {
+      id: `qa-chat-long-team-${baseTime}-${index + 1}`,
+      userId: isOwn ? qaChatCurrentUserId : "qa-chat-ceri",
+      threadId: "team",
+      text: `QA long team thread message ${index + 1}`,
+      createdAt,
+      deliveredAt: createdAt,
+      readBy: isOwn ? [qaChatCurrentUserId] : [],
+      mentionedUserIds: [],
+      author: isOwn
+        ? makeAuthor(qaChatCurrentUserId, "Mak", "Lind", "team-admin")
+        : makeAuthor("qa-chat-ceri", "Ceri", "Bowley", "scout"),
+    };
+  });
+  const directMessages = Array.from({ length: 55 }, (_, index) => {
+    const isOwn = index % 2 === 0;
+    const createdAt = makeIso(index * 1000);
+    return {
+      id: `qa-chat-long-dm-${baseTime}-${index + 1}`,
+      userId: isOwn ? qaChatCurrentUserId : "qa-chat-ceri",
+      threadId: directThreadId,
+      text: `QA long DM thread message ${index + 1}`,
+      createdAt,
+      deliveredAt: createdAt,
+      readBy: isOwn ? [qaChatCurrentUserId] : [],
+      mentionedUserIds: [],
+      author: isOwn
+        ? makeAuthor(qaChatCurrentUserId, "Mak", "Lind", "team-admin")
+        : makeAuthor("qa-chat-ceri", "Ceri", "Bowley", "scout"),
+    };
+  });
+  const serverMessages = [...directMessages, ...teamMessages];
+  const directParticipants = [
+    { id: qaChatCurrentUserId, userId: qaChatCurrentUserId, participantRole: "owner" },
+    { id: "qa-chat-ceri", userId: "qa-chat-ceri", participantRole: "member" },
+  ];
+
+  page.on("pageerror", (error) => {
+    pageErrors.push(error.message);
+  });
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    const request = route.request();
+    if (request.method() === "POST") {
+      const payload = request.postDataJSON();
+      if (payload.action === "markThreadRead") {
+        const threadId = getQaChatMessageThreadId({ threadId: payload.threadId });
+        serverMessages.forEach((message) => {
+          if (getQaChatMessageThreadId(message) === threadId) {
+            message.readBy = Array.from(new Set([...(message.readBy || []), qaChatCurrentUserId]));
+          }
+        });
+      }
+    }
+    await fulfillQaChatPayload(route, serverMessages, {
+      threadIds: ["team", directThreadId],
+      threadOptions: {
+        [directThreadId]: {
+          title: "Ceri Bowley",
+          participants: directParticipants,
+        },
+      },
+    });
+  });
+
+  const readThreadViewState = () =>
+    page.locator("[data-dashboard-chat-list]").evaluate((list) => {
+      const listRect = list.getBoundingClientRect();
+      const visibleText = Array.from(list.querySelectorAll("[data-dashboard-chat-message-card]"))
+        .filter((item) => {
+          const rect = item.getBoundingClientRect();
+          return rect.bottom > listRect.top && rect.top < listRect.bottom;
+        })
+        .map((item) => item.textContent || "")
+        .join("\n");
+      const styles = window.getComputedStyle(list);
+      return {
+        activeThread: list.getAttribute("data-dashboard-chat-active-thread") || "",
+        display: styles.display,
+        scrollBehavior: styles.scrollBehavior,
+        scrollTop: list.scrollTop,
+        maxScrollTop: Math.max(0, list.scrollHeight - list.clientHeight),
+        visibleText,
+      };
+    });
+
+  const boot = await bootApp(page);
+  await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
+  await page.evaluate(() => {
+    const currentUser = window.platformAuthStore.getCurrentUser?.() || {};
+    window.platformAuthStore.writeUsers?.([
+      {
+        ...currentUser,
+        id: "dev-user-mak",
+        firstName: currentUser.firstName || "Mak",
+        lastName: currentUser.lastName || "Lind",
+        role: "team-admin",
+        status: "active",
+      },
+      {
+        id: "qa-chat-ceri",
+        firstName: "Ceri",
+        lastName: "Bowley",
+        role: "scout",
+        status: "active",
+        team: currentUser.team || "North Carolina Courage",
+      },
+    ]);
+    window.platformAuthStore.setCurrentUser?.("dev-user-mak");
+  });
+
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect(page.locator("[data-dashboard-chat-thread]").first()).toHaveAttribute("data-dashboard-chat-thread", "team");
+  await expect
+    .poll(async () => (await readThreadViewState()).visibleText, { timeout: 7_000 })
+    .toContain("QA long team thread message 80");
+
+  const teamState = await readThreadViewState();
+  expect(teamState.activeThread).toBe("team");
+  expect(teamState.display).toBe("flex");
+  expect(teamState.scrollBehavior).toBe("auto");
+  expect(teamState.scrollTop).toBeGreaterThan(0);
+  expect(teamState.maxScrollTop).toBeGreaterThan(400);
+
+  const idleMutationCount = await page.evaluate(async () => {
+    const root = document.querySelector(".dashboard-chat-widget");
+    let count = 0;
+    const observer = new MutationObserver((records) => {
+      count += records.reduce(
+        (total, record) => total + record.addedNodes.length + record.removedNodes.length + (record.type === "attributes" ? 1 : 0),
+        0
+      );
+    });
+    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-current", "class"] });
+    await new Promise((resolve) => window.setTimeout(resolve, 4200));
+    observer.disconnect();
+    return count;
+  });
+  expect(idleMutationCount).toBeLessThanOrEqual(60);
+
+  await page.locator("[data-dashboard-chat-list]").evaluate((list) => {
+    list.scrollTo({ top: 0, behavior: "auto" });
+  });
+  await expect.poll(async () => (await readThreadViewState()).scrollTop, { timeout: 3_000 }).toBeLessThan(4);
+  await page.locator("[data-dashboard-chat-list]").hover();
+  await page.mouse.wheel(0, 900);
+  await expect.poll(async () => (await readThreadViewState()).scrollTop, { timeout: 3_000 }).toBeGreaterThan(80);
+
+  const directThread = page.locator(`[data-dashboard-chat-thread="${directThreadId}"]`).first();
+  await expect(directThread).toBeVisible();
+  await directThread.click();
+  await expect
+    .poll(async () => (await readThreadViewState()).activeThread, { timeout: 7_000 })
+    .toBe(directThreadId);
+  await expect
+    .poll(async () => (await readThreadViewState()).visibleText, { timeout: 7_000 })
+    .toContain("QA long DM thread message 55");
+
+  const directState = await readThreadViewState();
+  expect(directState.scrollTop).toBeGreaterThan(0);
+  expect(directState.maxScrollTop).toBeGreaterThan(400);
+  expect(directState.visibleText).not.toContain("QA long team thread message 80");
+  expect(pageErrors).toEqual([]);
+  expect(boot.pageErrors).toEqual([]);
 });
 
 test("Chat delete message does not resurrect after reload", async ({ page }) => {

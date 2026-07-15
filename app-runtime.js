@@ -3,14 +3,14 @@ import { confirmPlatformAction } from "./src/core/platform-confirm-dialog.mjs";
 import { createDashboardChatAttachmentRenderer } from "./src/modules/chat/chat-attachment-renderer.mjs";
 import { createDashboardChatAttachmentPreview } from "./src/modules/chat/chat-attachment-preview.mjs";
 import { createDashboardChatApiUiActions } from "./src/modules/chat/chat-api-ui-actions.mjs";
-import { createDashboardChatApiDomainRuntime } from "./src/modules/chat/dashboard-chat-api-domain-runtime.mjs?v=chat-dm-send-20260714";
-import { createDashboardChatApiRuntime } from "./src/modules/chat/dashboard-chat-api-runtime.mjs?v=chat-active-history-20260630";
+import { createDashboardChatApiDomainRuntime } from "./src/modules/chat/dashboard-chat-api-domain-runtime.mjs?v=chat-thread-scroll-recovery-20260715";
+import { createDashboardChatApiRuntime } from "./src/modules/chat/dashboard-chat-api-runtime.mjs?v=chat-thread-scroll-recovery-20260715";
 import { createDashboardChatThreadSettingsStore } from "./src/modules/chat/chat-thread-settings.mjs";
 import { createDashboardChatDomainRuntime } from "./src/modules/chat/dashboard-chat-domain-runtime.mjs?v=chat-dm-send-20260714";
 import { createDashboardChatMessageRuntime } from "./src/modules/chat/dashboard-chat-message-runtime.mjs?v=chat-history-tombstone-20260629";
 import { createDashboardChatMessageActionsRuntime } from "./src/modules/chat/dashboard-chat-message-actions-runtime.mjs";
 import { createDashboardChatMessageRenderRuntime } from "./src/modules/chat/dashboard-chat-message-render-runtime.mjs";
-import { createDashboardChatWidgetRuntime } from "./src/modules/chat/dashboard-chat-widget-runtime.mjs?v=chat-scroll-hover-stability-20260714";
+import { createDashboardChatWidgetRuntime } from "./src/modules/chat/dashboard-chat-widget-runtime.mjs?v=chat-thread-scroll-recovery-20260715";
 import { createDashboardChatComposerRuntime } from "./src/modules/chat/dashboard-chat-composer-runtime.mjs";
 import { createDashboardChatThreadRuntime } from "./src/modules/chat/dashboard-chat-thread-runtime.mjs";
 import { createDashboardChatPresenceRuntime } from "./src/modules/chat/dashboard-chat-presence-runtime.mjs";
@@ -1071,6 +1071,8 @@ let dashboardChatWidgetRuntimeFunctions = {
   hideDashboardChatWidgetToast: () => {},
   focusDashboardChatWidgetComposer: () => {},
   scrollDashboardChatFirstUnread: () => false,
+  requestDashboardChatScrollToLatest: () => {},
+  scrollDashboardChatActiveThreadToLatest: () => false,
 };
 let dashboardChatWidgetRuntime = null;
 
@@ -1081,6 +1083,8 @@ const showDashboardChatWidgetToast = (...args) => dashboardChatWidgetRuntimeFunc
 const hideDashboardChatWidgetToast = (...args) => dashboardChatWidgetRuntimeFunctions.hideDashboardChatWidgetToast(...args);
 const focusDashboardChatWidgetComposer = (...args) => dashboardChatWidgetRuntimeFunctions.focusDashboardChatWidgetComposer(...args);
 const scrollDashboardChatFirstUnread = (...args) => dashboardChatWidgetRuntimeFunctions.scrollDashboardChatFirstUnread(...args);
+const requestDashboardChatScrollToLatest = (...args) => dashboardChatWidgetRuntimeFunctions.requestDashboardChatScrollToLatest(...args);
+const scrollDashboardChatActiveThreadToLatest = (...args) => dashboardChatWidgetRuntimeFunctions.scrollDashboardChatActiveThreadToLatest(...args);
 let dashboardChatReplyDraft = null;
 let dashboardChatPriorityDraft = "normal";
 let dashboardChatConfirmAction = null;
@@ -3075,6 +3079,8 @@ dashboardChatWidgetRuntimeFunctions = {
   hideDashboardChatWidgetToast: _hideDashboardChatWidgetToast || (() => {}),
   focusDashboardChatWidgetComposer: _focusDashboardChatWidgetComposer || (() => {}),
   scrollDashboardChatFirstUnread: _scrollDashboardChatFirstUnread || (() => false),
+  requestDashboardChatScrollToLatest: dashboardChatWidgetRuntime.requestDashboardChatScrollToLatest || (() => {}),
+  scrollDashboardChatActiveThreadToLatest: dashboardChatWidgetRuntime.scrollDashboardChatActiveThreadToLatest || (() => false),
 };
 const workspaceRuntimeComposition = createWorkspaceRuntimeComposition({
 applyUserAvatar,
@@ -3637,9 +3643,11 @@ isOpen: true,
 selectedThreadId: threadId,
 });
 dashboardChatMobileConversationOpen = true;
+requestDashboardChatScrollToLatest(threadId);
 markDashboardChatWidgetNotificationSeenForThread(threadId);
 hideDashboardChatWidgetToast();
 renderDashboardChatWidget();
+scrollDashboardChatActiveThreadToLatest(threadId);
 focusDashboardChatWidgetComposer();
 return;
 }
@@ -4105,6 +4113,7 @@ writeDashboardChatWidgetState(nextState);
 if (nextState.isOpen) {
 dashboardChatMobileConversationOpen = false;
 hideDashboardChatWidgetToast();
+requestDashboardChatScrollToLatest(nextState.selectedThreadId || dashboardChatTeamThreadId);
 queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: false, forceNetwork: true });
 void refreshDashboardChatFromApi({
 threadId: normalizeDashboardChatThreadId(nextState.selectedThreadId, dashboardChatTeamThreadId),
@@ -4113,6 +4122,9 @@ forceNetwork: true,
 void refreshDashboardChatPushDiagnostics({ render: false });
 }
 renderDashboardChatWidget();
+if (nextState.isOpen) {
+scrollDashboardChatActiveThreadToLatest(nextState.selectedThreadId || dashboardChatTeamThreadId);
+}
 if (nextState.isOpen) {
 focusDashboardChatWidgetComposer();
 }
@@ -4147,6 +4159,8 @@ const threadId = normalizeDashboardChatThreadId(threadSwitchButton.dataset.dashb
 if (!threadId) {
 return;
 }
+const currentThreadId = normalizeDashboardChatThreadId(readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId);
+const isThreadSwitch = threadId !== currentThreadId;
 clearDashboardChatTyping();
 setDashboardChatReplyDraft("", "");
 setDashboardChatPriorityDraft("normal");
@@ -4159,9 +4173,15 @@ writeDashboardChatWidgetState({
 isOpen: true,
 selectedThreadId: threadId,
 });
+if (isThreadSwitch) {
+requestDashboardChatScrollToLatest(threadId);
+}
 markDashboardChatWidgetNotificationSeenForThread(threadId);
 hideDashboardChatWidgetToast();
 renderDashboardChatWidget();
+if (isThreadSwitch) {
+scrollDashboardChatActiveThreadToLatest(threadId);
+}
 queueDashboardChatThreadSummaryRefresh({ delayMs: 0, render: false, forceNetwork: true });
 void refreshDashboardChatFromApi({ threadId, forceNetwork: true });
 focusDashboardChatWidgetComposer();
@@ -4400,6 +4420,20 @@ to: String(formData.get("to") || "").trim(),
 await loadDashboardChatModerationFromApi();
 });
 document.addEventListener("click", (event) => {
+const chatThreadButton = event.target.closest("[data-dashboard-chat-thread]");
+const chatToggleButton = event.target.closest("[data-dashboard-chat-widget-toggle]");
+if (chatThreadButton || chatToggleButton) {
+const targetThreadId = normalizeDashboardChatThreadId(
+chatThreadButton?.dataset?.dashboardChatThread || readDashboardChatWidgetState().selectedThreadId,
+dashboardChatTeamThreadId
+);
+const currentThreadId = normalizeDashboardChatThreadId(readDashboardChatWidgetState().selectedThreadId, dashboardChatTeamThreadId);
+const shouldScrollToLatest = Boolean(chatToggleButton || targetThreadId !== currentThreadId);
+if (shouldScrollToLatest) {
+requestDashboardChatScrollToLatest(targetThreadId);
+win.setTimeout(() => scrollDashboardChatActiveThreadToLatest(targetThreadId), 0);
+}
+}
 if (event.target.closest("[data-dashboard-read-receipt]")) {
 return;
 }

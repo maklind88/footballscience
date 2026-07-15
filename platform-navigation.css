@@ -657,8 +657,8 @@ body.is-dark-mode .platform-sidebar .platform-profile-menu {
   :root {
     --platform-rail-item-size: 3rem;
     --platform-rail-item-gap: 0.38rem;
-    --platform-rail-chat-mobile-left: 27.74rem;
-    --platform-rail-chat-mobile-bottom: calc(0.85rem + env(safe-area-inset-bottom));
+    --platform-rail-chat-mobile-right: max(0.85rem, env(safe-area-inset-right));
+    --platform-rail-chat-mobile-bottom: calc(5.35rem + env(safe-area-inset-bottom));
   }
 
   .coach-platform,

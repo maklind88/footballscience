@@ -1234,10 +1234,13 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(dashboardChatLauncherCss).toContain("right: 0.24rem !important;");
   expect(dashboardChatLauncherCss).toContain("background: #ff3b30 !important;");
   expect(dashboardChatLauncherCss).toContain("box-shadow: 0 0 0 0.13rem #101716 !important;");
-  expect(dashboardChatLauncherCss).toContain("left: var(--platform-rail-chat-mobile-left, 27.74rem) !important;");
-  expect(dashboardChatLauncherCss).toContain("bottom: var(--platform-rail-chat-mobile-bottom, calc(0.85rem + env(safe-area-inset-bottom))) !important;");
-  expect(platformNavigationCss).toContain("--platform-rail-chat-mobile-left: 27.74rem;");
-  expect(platformNavigationCss).toContain("--platform-rail-chat-mobile-bottom: calc(0.85rem + env(safe-area-inset-bottom));");
+  expect(dashboardChatLauncherCss).toContain("left: auto !important;");
+  expect(dashboardChatLauncherCss).toContain("right: var(--platform-rail-chat-mobile-right, max(0.85rem, env(safe-area-inset-right))) !important;");
+  expect(dashboardChatLauncherCss).toContain("bottom: var(--platform-rail-chat-mobile-bottom, calc(5.35rem + env(safe-area-inset-bottom))) !important;");
+  expect(dashboardChatLauncherCss).toContain("background: #101828 !important;");
+  expect(dashboardChatLauncherCss).toContain("box-shadow: 0 16px 34px #10182840 !important;");
+  expect(platformNavigationCss).toContain("--platform-rail-chat-mobile-right: max(0.85rem, env(safe-area-inset-right));");
+  expect(platformNavigationCss).toContain("--platform-rail-chat-mobile-bottom: calc(5.35rem + env(safe-area-inset-bottom));");
   expect(platformNavigationCss).toContain("--platform-rail-item-left: 1.334rem;");
   expect(platformNavigationCss).toContain("--platform-rail-chat-slot-top: calc(50vh + 8.93rem);");
   expect(platformNavigationCss).toContain("body.has-dashboard-chat-widget .platform-nav-more {\n    margin-top: 0;\n    margin-left: calc(var(--platform-rail-item-size) + var(--platform-rail-item-gap));\n  }");

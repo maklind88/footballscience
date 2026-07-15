@@ -4468,6 +4468,7 @@ return;
 if (submitButton) {
 submitButton.disabled = true;
 }
+requestDashboardChatScrollToLatest(threadId);
 dashboardChatSubmittedComposerDrafts.set(threadId, messageText);
 if (input) {
 input.value = "";
@@ -4491,7 +4492,9 @@ setDashboardChatReplyDraft("", "");
 setDashboardChatPriorityDraft("normal");
 queueDashboardChatThreadSummaryRefresh({ delayMs: 50 });
 void refreshDashboardChatFromApi({ threadId, forceNetwork: true });
+requestDashboardChatScrollToLatest(threadId);
 renderDashboardChatWidget();
+scrollDashboardChatActiveThreadToLatest(threadId);
 focusDashboardChatWidgetComposer();
 platformNavigationController.renderTopIconMenu();
 });

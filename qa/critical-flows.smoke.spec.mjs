@@ -648,6 +648,73 @@ test("Chat launcher shows unread chat until the thread is opened", async ({ page
   expect(serverMessages[0].readBy.includes(qaChatCurrentUserId)).toBe(true);
 });
 
+test("Chat launcher mobile stays inside the viewport and opens chat", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const now = new Date().toISOString();
+  const serverMessages = [
+    {
+      id: `qa-chat-mobile-launcher-${Date.now()}`,
+      userId: "qa-colleague",
+      threadId: "team",
+      text: "QA mobile launcher unread chat",
+      createdAt: now,
+      deliveredAt: now,
+      readBy: ["qa-colleague"],
+      mentionedUserIds: [],
+      author: {
+        id: "qa-colleague",
+        firstName: "QA",
+        lastName: "Colleague",
+        role: "coach",
+        status: "active",
+      },
+    },
+  ];
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    const request = route.request();
+    if (request.method() === "POST") {
+      const payload = request.postDataJSON();
+      if (payload.action === "markThreadRead") {
+        serverMessages.forEach((message) => {
+          if (getQaChatMessageThreadId(message) === (payload.threadId || "team")) {
+            message.readBy = Array.from(new Set([...(message.readBy || []), qaChatCurrentUserId]));
+          }
+        });
+      }
+    }
+    await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
+  });
+
+  await bootApp(page);
+  const launcher = page.locator("[data-dashboard-chat-widget-toggle]").first();
+  await expect(launcher).toBeVisible();
+  const launcherRect = await launcher.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  expect(launcherRect.width).toBeGreaterThan(0);
+  expect(launcherRect.height).toBeGreaterThan(0);
+  expect(launcherRect.left).toBeGreaterThanOrEqual(0);
+  expect(launcherRect.top).toBeGreaterThanOrEqual(0);
+  expect(launcherRect.right).toBeLessThanOrEqual(launcherRect.viewportWidth);
+  expect(launcherRect.bottom).toBeLessThanOrEqual(launcherRect.viewportHeight);
+
+  await launcher.click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect(page.locator("[data-dashboard-chat-list]")).toContainText("QA mobile launcher unread chat");
+});
+
 test("Chat launcher sync overlay does not shift the open message list", async ({ page }) => {
   const nowMs = Date.now();
   const serverMessages = Array.from({ length: 18 }, (_, index) => {
@@ -1360,6 +1427,124 @@ test("Chat compose send delivers inside a direct message thread", async ({ page 
   await expect(page.locator("[data-dashboard-chat-thread]").filter({ hasText: "Ceri Bowley" })).toHaveCount(1);
   await page.locator("[data-dashboard-chat-thread]").filter({ hasText: "Ceri Bowley" }).first().click();
   await expect(page.locator("[data-dashboard-chat-list]")).toContainText(messageText);
+});
+
+test("Chat compose send scrolls the sent message into view", async ({ page }) => {
+  const messageText = `QA visible sent message ${Date.now()}`;
+  const nowMs = Date.now();
+  const chatActions = [];
+  const serverMessages = Array.from({ length: 20 }, (_, index) => {
+    const isOwnMessage = index % 4 === 1;
+    const createdAt = new Date(nowMs - (20 - index) * 1000).toISOString();
+    return {
+      id: `qa-chat-visible-send-${nowMs}-${index}`,
+      userId: isOwnMessage ? qaChatCurrentUserId : "qa-colleague",
+      threadId: "team",
+      text: `QA visible send history ${index + 1}`,
+      createdAt,
+      deliveredAt: createdAt,
+      readBy: [qaChatCurrentUserId, "qa-colleague"],
+      mentionedUserIds: [],
+      status: "sent",
+      author: {
+        id: isOwnMessage ? qaChatCurrentUserId : "qa-colleague",
+        firstName: isOwnMessage ? "Mak" : "QA",
+        lastName: isOwnMessage ? "Lind" : "Colleague",
+        role: "coach",
+        status: "active",
+      },
+    };
+  });
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST") {
+      await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
+      return;
+    }
+
+    const payload = request.postDataJSON();
+    chatActions.push(payload);
+    if (payload.action === "markThreadRead") {
+      serverMessages.forEach((message) => {
+        if (getQaChatMessageThreadId(message) === (payload.threadId || "team")) {
+          message.readBy = Array.from(new Set([...(message.readBy || []), qaChatCurrentUserId]));
+        }
+      });
+      await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
+      return;
+    }
+    if (payload.action === "sendMessage") {
+      const createdAt = new Date().toISOString();
+      const message = {
+        id: payload.clientMessageId || payload.id || `qa-visible-sent-${Date.now()}`,
+        clientMessageId: payload.clientMessageId || payload.id || "",
+        userId: qaChatCurrentUserId,
+        threadId: payload.threadId || "team",
+        text: payload.text,
+        createdAt,
+        deliveredAt: createdAt,
+        readBy: [qaChatCurrentUserId],
+        mentionedUserIds: payload.mentionedUserIds || [],
+        status: "sent",
+        author: {
+          id: qaChatCurrentUserId,
+          firstName: "Mak",
+          lastName: "Lind",
+          role: "coach",
+          status: "active",
+        },
+      };
+      serverMessages.push(message);
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          message,
+          messages: serverMessages,
+          threads: [createQaChatThread("team", serverMessages)],
+          thread: createQaChatThread("team", serverMessages),
+          pagination: {},
+        }),
+      });
+      return;
+    }
+    await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
+  });
+
+  await bootApp(page);
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await expect(page.locator("[data-dashboard-chat-list]")).toContainText("QA visible send history 20");
+
+  const chatList = page.locator("[data-dashboard-chat-list]");
+  await chatList.evaluate((element) => {
+    element.scrollTop = 0;
+  });
+  await expect.poll(() => chatList.evaluate((element) => element.scrollTop)).toBe(0);
+
+  await page.locator("[data-dashboard-chat-input]").fill(messageText);
+  await page.locator("[data-dashboard-chat-form] button[type='submit']").click();
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveValue("");
+  await expect(chatList).toContainText(messageText);
+  await expect
+    .poll(
+      () =>
+        chatList.evaluate((element, expectedText) => {
+          const listRect = element.getBoundingClientRect();
+          const sentCard = Array.from(element.querySelectorAll("[data-dashboard-chat-message-card]"))
+            .find((card) => (card.textContent || "").includes(expectedText));
+          if (!sentCard) {
+            return false;
+          }
+          const sentRect = sentCard.getBoundingClientRect();
+          return sentRect.top >= listRect.top && sentRect.bottom <= listRect.bottom;
+        }, messageText),
+      { timeout: 5_000 }
+    )
+    .toBe(true);
+  expect(chatActions.some((payload) => payload.action === "sendMessage" && payload.text === messageText)).toBe(true);
 });
 
 test("Chat group settings can rename, set avatar, and delete a group", async ({ page }) => {

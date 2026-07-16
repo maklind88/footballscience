@@ -193,14 +193,15 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       row.classList.toggle("is-selected", Boolean(radio?.checked));
     });
     if (submitButton) {
+      const selectedHasExistingThread = Boolean(selectedInput?.dataset.dashboardChatDirectExistingThread);
       submitButton.disabled = !selectedInput || form.dataset.busy === "true";
       submitButton.setAttribute("aria-disabled", submitButton.disabled ? "true" : "false");
-      submitButton.title = selectedInput ? "Start chat" : "Choose a teammate";
+      submitButton.title = selectedInput ? (selectedHasExistingThread ? "Open chat" : "Start chat") : "Choose a teammate";
     }
     if (statusElement) {
       statusElement.textContent = selectedInput
         ? `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} visible - 1 selected`
-        : `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} available - tap a person to start`;
+        : `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} available - start new or open existing`;
     }
   }
 

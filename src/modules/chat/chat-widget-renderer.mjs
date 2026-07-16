@@ -1139,6 +1139,51 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     return [thread.participant].filter(Boolean);
   }
 
+  function getDirectThreadForUser(user = {}, threads = [], currentUser = null) {
+    const targetKeys = new Set(
+      [user.id, user.userId, user.email, user.username]
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+    const currentKeys = new Set(
+      [currentUser?.id, currentUser?.userId, currentUser?.email, currentUser?.username]
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+    if (!targetKeys.size || !currentKeys.size) {
+      return null;
+    }
+
+    return threads.find((thread) => {
+      const threadId = String(thread?.threadId || thread?.legacyThreadId || thread?.metadata?.legacyThreadId || "").trim().toLowerCase();
+      const type = String(thread?.type || thread?.threadType || "").trim().toLowerCase();
+      const isDirectLike = type === "dm" || threadId.startsWith("dm:") || Boolean(thread?.participant && !thread?.isTeamThread);
+      const hasPersistedConversation = Boolean(
+        thread?.apiThread ||
+          thread?.createdAt ||
+          thread?.created_at ||
+          thread?.lastActivityAt ||
+          thread?.lastMessage ||
+          Number(thread?.messageCount || 0) > 0
+      );
+      if (!isDirectLike || thread?.isTeamThread || !hasPersistedConversation) {
+        return false;
+      }
+
+      const participants = Array.isArray(thread.participants) && thread.participants.length
+        ? thread.participants
+        : [thread.participant].filter(Boolean);
+      const participantKeys = participants.map((participant) =>
+        [participant?.id, participant?.userId, participant?.email, participant?.username]
+          .map((value) => String(value || "").trim().toLowerCase())
+          .filter(Boolean)
+      );
+      const hasTarget = participantKeys.some((keys) => keys.some((key) => targetKeys.has(key)));
+      const hasCurrent = participantKeys.some((keys) => keys.some((key) => currentKeys.has(key)));
+      return hasTarget && (hasCurrent || Boolean(thread?.participant));
+    }) || null;
+  }
+
   function getThreadFiles(messages = [], activeThreadId = teamThreadId) {
     return messages
       .filter((message) => message.threadId === activeThreadId)
@@ -1606,7 +1651,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <input type="search" placeholder="Search name, role or email" autocomplete="off" data-dashboard-chat-direct-user-filter>
             </label>
             <div class="dashboard-chat-group-create-status" data-dashboard-chat-direct-filter-status aria-live="polite" aria-atomic="true">
-              ${escapeHtml(`${groupCreateUsers.length} teammates available · tap a person to start`)}
+              ${escapeHtml(`${groupCreateUsers.length} teammates available · start new or open existing`)}
             </div>
             <div class="dashboard-chat-group-create-users is-direct" role="list" aria-label="Start a private chat">
               ${groupCreateUsers
@@ -1617,14 +1662,19 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                   const userDomId = String(user.id || userName || userInitial).trim().replace(/[^a-zA-Z0-9_-]+/g, "-") || "member";
                   const userMetaId = `dashboardChatDirectUserMeta-${userDomId}`;
                   const userSearch = `${userName} ${userMeta} ${user.email || ""} ${user.username || ""}`.toLowerCase();
+                  const existingDirectThread = getDirectThreadForUser(user, threads, currentUser);
+                  const existingDirectThreadId = String(existingDirectThread?.threadId || existingDirectThread?.legacyThreadId || existingDirectThread?.metadata?.legacyThreadId || "").trim();
+                  const directActionLabel = existingDirectThreadId ? "Open" : "Start";
+                  const directActionVerb = existingDirectThreadId ? "Open" : "Start";
                   return `
-                    <label class="dashboard-chat-group-user dashboard-chat-direct-user" role="listitem" data-dashboard-chat-direct-user-search="${escapeHtml(userSearch)}">
+                    <label class="dashboard-chat-group-user dashboard-chat-direct-user${existingDirectThreadId ? " is-existing-thread" : " is-new-thread"}" role="listitem" data-dashboard-chat-direct-user-search="${escapeHtml(userSearch)}"${existingDirectThreadId ? ` data-dashboard-chat-direct-existing-thread="${escapeHtml(existingDirectThreadId)}"` : ""}>
                       <input
                         type="radio"
                         name="participantId"
                         value="${escapeHtml(user.id)}"
-                        aria-label="${escapeHtml(`Open private chat with ${userName} (${userMeta})`)}"
+                        aria-label="${escapeHtml(`${directActionVerb} private chat with ${userName} (${userMeta})`)}"
                         aria-describedby="${escapeHtml(userMetaId)}"
+                        data-dashboard-chat-direct-existing-thread="${escapeHtml(existingDirectThreadId)}"
                         data-dashboard-chat-direct-participant-email="${escapeHtml(user.email || "")}"
                         data-dashboard-chat-direct-participant-username="${escapeHtml(user.username || "")}"
                         data-dashboard-chat-direct-participant-name="${escapeHtml(userName)}"
@@ -1634,13 +1684,13 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                         <strong>${escapeHtml(userName)}</strong>
                         <small id="${escapeHtml(userMetaId)}">${escapeHtml(userMeta)}</small>
                       </span>
-                      <span class="dashboard-chat-direct-user-action" aria-hidden="true">Open</span>
+                      <span class="dashboard-chat-direct-user-action" aria-hidden="true">${escapeHtml(directActionLabel)}</span>
                     </label>
                   `;
                 })
                 .join("")}
             </div>
-            <p class="dashboard-chat-direct-create-hint">Tap a teammate to open the private chat.</p>
+            <p class="dashboard-chat-direct-create-hint">Tap a teammate to start or open the private chat.</p>
             <button type="submit" class="dashboard-chat-direct-create-submit" data-dashboard-chat-direct-create-submit hidden aria-hidden="true" tabindex="-1" aria-label="Start selected private chat" title="Start chat">Start chat</button>
           </form>
         `

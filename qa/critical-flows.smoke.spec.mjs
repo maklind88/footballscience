@@ -1358,6 +1358,14 @@ test("Chat direct creator opens a private chat by tapping a teammate", async ({ 
         status: "active",
         team: currentUser.team || "North Carolina Courage",
       },
+      {
+        id: "qa-chat-austin",
+        firstName: "Austin",
+        lastName: "Da Luz",
+        role: "coach",
+        status: "active",
+        team: currentUser.team || "North Carolina Courage",
+      },
     ];
     window.platformAuthStore.writeUsers?.(teammates);
     window.platformAuthStore.setCurrentUser?.(currentUser.id || "dev-user-mak");
@@ -1371,18 +1379,106 @@ test("Chat direct creator opens a private chat by tapping a teammate", async ({ 
 
   const overlay = page.locator(".dashboard-chat-group-create-overlay");
   await expect(overlay).toBeVisible();
-  await expect(overlay.locator("[data-dashboard-chat-direct-filter-status]")).toContainText("tap a person to start");
-  await overlay.locator("[data-dashboard-chat-direct-user-search]").filter({ hasText: "Ceri Bowley" }).first().click();
+  await expect(overlay.locator("[data-dashboard-chat-direct-filter-status]")).toContainText("start new or open existing");
+  const austinRow = overlay.locator("[data-dashboard-chat-direct-user-search]").filter({ hasText: "Austin Da Luz" }).first();
+  await expect(austinRow.locator(".dashboard-chat-direct-user-action")).toHaveText("Start");
+  await austinRow.click();
 
   await expect(overlay).toHaveCount(0);
   await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("placeholder", "Message");
-  await expect(page.locator("[data-dashboard-chat-thread]").filter({ hasText: "Ceri Bowley" })).toHaveCount(1);
+  await expect(page.locator("[data-dashboard-chat-thread]").filter({ hasText: "Austin Da Luz" })).toHaveCount(1);
   expect(chatActions.some((payload) => (
     payload.action === "createThread"
     && payload.type === "dm"
     && Array.isArray(payload.participantIds)
-    && payload.participantIds.includes("qa-chat-ceri")
+    && payload.participantIds.includes("qa-chat-austin")
   ))).toBe(true);
+});
+
+test("Chat direct creator opens an existing private chat instead of recreating it", async ({ page }) => {
+  const chatActions = [];
+  const now = new Date().toISOString();
+  const existingThread = {
+    id: "db-dm-existing-ceri",
+    threadId: "dm:dev-user-mak:qa-chat-ceri",
+    legacyThreadId: "dm:dev-user-mak:qa-chat-ceri",
+    type: "dm",
+    title: "Direct message",
+    visibility: "private",
+    createdAt: now,
+    created_at: now,
+    messageCount: 0,
+    participants: [
+      { id: "dev-user-mak", userId: "dev-user-mak", name: "Mak Lind", participantRole: "owner", joinedAt: now },
+      { id: "qa-chat-ceri", userId: "qa-chat-ceri", name: "Ceri Bowley", participantRole: "member", joinedAt: now },
+    ],
+    permissions: {},
+    metadata: { legacyThreadId: "dm:dev-user-mak:qa-chat-ceri" },
+  };
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    const request = route.request();
+    if (request.method() !== "GET") {
+      let payload = {};
+      try {
+        payload = request.postDataJSON();
+      } catch {
+        payload = {};
+      }
+      chatActions.push(payload);
+    }
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, threads: [existingThread], messages: [], pagination: {} }),
+    });
+  });
+
+  await bootApp(page);
+  await page.waitForFunction(() => Boolean(window.platformAuthStore), null, { timeout: 15_000 });
+  await page.evaluate(() => {
+    window.platformAuthStore.getAccessToken = async () => "qa-chat-token";
+    window.platformAuthStore.refreshAccessToken = async () => "qa-chat-token";
+    const currentUser = window.platformAuthStore.getCurrentUser?.() || {};
+    window.platformAuthStore.writeUsers?.([
+      {
+        ...currentUser,
+        id: "dev-user-mak",
+        firstName: "Mak",
+        lastName: "Lind",
+        role: "team-admin",
+        status: "active",
+      },
+      {
+        id: "qa-chat-ceri",
+        firstName: "Ceri",
+        lastName: "Bowley",
+        role: "scout",
+        status: "active",
+        team: currentUser.team || "North Carolina Courage",
+      },
+    ]);
+    window.platformAuthStore.setCurrentUser?.("dev-user-mak");
+  });
+
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await page.locator("[data-dashboard-chat-thread-presets] > summary").click();
+  await page.locator("[data-dashboard-chat-open-direct-creator]").click();
+
+  const overlay = page.locator(".dashboard-chat-group-create-overlay");
+  await expect(overlay).toBeVisible();
+  const ceriRow = overlay.locator("[data-dashboard-chat-direct-user-search]").filter({ hasText: "Ceri Bowley" }).first();
+  await expect(ceriRow.locator(".dashboard-chat-direct-user-action")).toHaveText("Open");
+  await expect(ceriRow.locator("input[name='participantId']")).toHaveAttribute(
+    "data-dashboard-chat-direct-existing-thread",
+    "dm:dev-user-mak:qa-chat-ceri"
+  );
+  await ceriRow.click();
+
+  await expect(overlay).toHaveCount(0);
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveAttribute("aria-label", /Ceri Bowley|Direct message/i);
+  expect(chatActions.some((payload) => payload.action === "createThread")).toBe(false);
 });
 
 test("Chat compose send delivers inside a direct message thread", async ({ page }) => {

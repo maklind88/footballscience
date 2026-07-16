@@ -248,6 +248,26 @@ export function createDashboardChatComposerRuntime({
       `dm:${currentUser.id}:${selectedParticipant.id || selectedParticipant.email || selectedParticipant.username}`,
       dashboardChatTeamThreadId
     );
+    const rawExistingThreadId = String(selectedInput?.dataset.dashboardChatDirectExistingThread || "").trim();
+    const existingThreadId = rawExistingThreadId
+      ? normalizeDashboardChatThreadId(rawExistingThreadId, dashboardChatTeamThreadId)
+      : "";
+    if (existingThreadId) {
+      writeDashboardChatWidgetState({
+        isOpen: true,
+        selectedThreadId: existingThreadId,
+      });
+      setDashboardChatGroupCreatorOpen(false);
+      form.reset();
+      renderDashboardChatWidget();
+      focusDashboardChatWidgetComposer();
+      showDashboardChatWidgetToast(`Chat opened${selectedParticipant.name ? ` with ${selectedParticipant.name}` : ""}.`, existingThreadId);
+      if (typeof refreshDashboardChatFromApi === "function") {
+        void refreshDashboardChatFromApi({ threadId: existingThreadId, forceNetwork: true });
+      }
+      return { threadId: existingThreadId };
+    }
+
     if (!legacyThreadId || legacyThreadId === dashboardChatTeamThreadId) {
       setDashboardChatGroupCreateError(form, "This private chat could not be started.");
       showDashboardChatWidgetToast("This private chat could not be started.", getDashboardChatActiveToastThreadId());

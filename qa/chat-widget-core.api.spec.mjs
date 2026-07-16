@@ -1458,6 +1458,7 @@ test("chat creator exposes private-message mode before group creation", () => {
   const users = [
     currentUser,
     { id: "u2", name: "Ceri Bowley", role: "scout", email: "ceri@example.com", status: "active" },
+    { id: "u3", name: "Austin Da Luz", role: "coach", email: "austin@example.com", status: "active" },
   ];
   const threads = [
     {
@@ -1467,6 +1468,19 @@ test("chat creator exposes private-message mode before group creation", () => {
       messageCount: 0,
       unreadCount: 0,
       mentionCount: 0,
+      lastMessage: null,
+    },
+    {
+      threadId: "dm:u1:u2",
+      label: "Ceri Bowley",
+      type: "dm",
+      visibility: "private",
+      createdAt: "2026-07-16T10:00:00.000Z",
+      messageCount: 0,
+      participants: [
+        { id: "u1", userId: "u1", name: "Mak" },
+        { id: "u2", userId: "u2", name: "Ceri Bowley", email: "ceri@example.com" },
+      ],
       lastMessage: null,
     },
   ];
@@ -1486,12 +1500,18 @@ test("chat creator exposes private-message mode before group creation", () => {
   expect(result.html).toContain("Choose one person and start a private conversation.");
   expect(result.html).toContain("data-dashboard-chat-direct-create-form");
   expect(result.html).toContain("data-dashboard-chat-direct-user-filter");
-  expect(result.html).toContain("teammates available · tap a person to start");
+  expect(result.html).toContain("teammates available · start new or open existing");
   expect(result.html).toContain('role="list" aria-label="Start a private chat"');
   expect(result.html).toContain('name="participantId"');
   expect(result.html).toContain('aria-label="Open private chat with Ceri Bowley (scout)"');
+  expect(result.html).toContain('data-dashboard-chat-direct-existing-thread="dm:u1:u2"');
+  expect(result.html).toContain('aria-label="Start private chat with Austin Da Luz (coach)"');
   expect(result.html).toContain('class="dashboard-chat-direct-user-action"');
-  expect(result.html).toContain("Tap a teammate to open the private chat.");
+  expect(result.html).toContain('class="dashboard-chat-group-user dashboard-chat-direct-user is-existing-thread"');
+  expect(result.html).toContain('class="dashboard-chat-group-user dashboard-chat-direct-user is-new-thread"');
+  expect(result.html).toContain('<span class="dashboard-chat-direct-user-action" aria-hidden="true">Open</span>');
+  expect(result.html).toContain('<span class="dashboard-chat-direct-user-action" aria-hidden="true">Start</span>');
+  expect(result.html).toContain("Tap a teammate to start or open the private chat.");
   expect(result.html).toContain('data-dashboard-chat-direct-create-submit hidden aria-hidden="true" tabindex="-1"');
   expect(result.html).toContain("data-dashboard-chat-open-direct-creator");
   expect(result.html).toContain("Private message");
@@ -1506,6 +1526,8 @@ test("chat creator exposes private-message mode before group creation", () => {
   expect(appRuntimeSource).toContain("filterDashboardChatDirectCreateUsers");
   expect(appRuntimeSource).toContain("await createDashboardDirectThreadFromForm(directCreateForm);");
   expect(composerRuntimeSource).toContain("createDashboardDirectThreadFromForm");
+  expect(composerRuntimeSource).toContain("dashboardChatDirectExistingThread");
+  expect(composerRuntimeSource).toContain("selectedThreadId: existingThreadId");
   expect(composerRuntimeSource).toContain('action: "createThread"');
   expect(composerRuntimeSource).toContain('type: "dm"');
 });

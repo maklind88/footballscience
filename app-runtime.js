@@ -1382,19 +1382,21 @@ function syncDashboardChatDirectCreateForm(form) {
     row.classList.toggle("is-starting", Boolean(radio?.checked && form.dataset.busy === "true"));
   });
   if (submitButton) {
+    const selectedHasExistingThread = Boolean(selectedInput?.dataset.dashboardChatDirectExistingThread);
     submitButton.disabled = !selectedInput || form.dataset.busy === "true";
     submitButton.setAttribute("aria-disabled", submitButton.disabled ? "true" : "false");
-    submitButton.title = selectedInput ? "Opening chat..." : "Choose a teammate";
+    submitButton.title = selectedInput ? (selectedHasExistingThread ? "Opening chat..." : "Starting chat...") : "Choose a teammate";
     if (form.dataset.busy !== "true") {
       submitButton.textContent = selectedInput
-        ? `Open chat with ${String(selectedInput.dataset.dashboardChatDirectParticipantName || "teammate").trim() || "teammate"}`
+        ? `${selectedHasExistingThread ? "Open" : "Start"} chat with ${String(selectedInput.dataset.dashboardChatDirectParticipantName || "teammate").trim() || "teammate"}`
         : "Start chat";
     }
   }
   if (statusElement) {
+    const selectedHasExistingThread = Boolean(selectedInput?.dataset.dashboardChatDirectExistingThread);
     statusElement.textContent = selectedInput
-      ? `Opening ${String(selectedInput.dataset.dashboardChatDirectParticipantName || "chat").trim() || "chat"}...`
-      : `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} visible · tap a person to start`;
+      ? `${selectedHasExistingThread ? "Opening" : "Starting"} ${String(selectedInput.dataset.dashboardChatDirectParticipantName || "chat").trim() || "chat"}...`
+      : `${visibleCount} teammate${visibleCount === 1 ? "" : "s"} visible · start new or open existing`;
   }
 }
 

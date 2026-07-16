@@ -1449,6 +1449,11 @@ test("group creator overlay exposes a labelled dialog contract", () => {
   expect(result.html).toContain('role="menuitem" data-dashboard-chat-open-group-creator aria-haspopup="dialog" aria-controls="dashboardChatGroupCreateDialog"');
   expect(dashboardChatCreateCss).toContain(".dashboard-chat-group-create-flow");
   expect(dashboardChatCreateCss).toContain(".dashboard-chat-group-user-action");
+  expect(dashboardChatCreateCss).toContain(".dashboard-chat-group-create-close::before");
+  expect(dashboardChatCreateCss).toContain(".dashboard-chat-group-create-close::after");
+  expect(dashboardChatCreateCss).toContain("width: 2.12rem !important;");
+  expect(dashboardChatCreateCss).toContain("font-size: 0 !important;");
+  expect(dashboardChatCreateCss).toContain("box-shadow: 0 14px 28px rgba(15, 23, 42, 0.2) !important;");
   expect(dashboardChatCreateCss).toContain('content: "Added"');
   expect(dashboardChatCreateCss).toContain("position: sticky");
 });

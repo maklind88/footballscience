@@ -1251,6 +1251,28 @@ test("Chat group creator creates a focused group from the plus menu", async ({ p
 
   const overlay = page.locator(".dashboard-chat-group-create-overlay");
   await expect(overlay).toBeVisible();
+  const closeButtonMetrics = await overlay.locator("[data-dashboard-chat-group-create-close]").evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    const styles = window.getComputedStyle(button);
+    const before = window.getComputedStyle(button, "::before");
+    const after = window.getComputedStyle(button, "::after");
+    return {
+      width: rect.width,
+      height: rect.height,
+      fontSize: styles.fontSize,
+      beforeWidth: before.width,
+      beforeTransform: before.transform,
+      afterTransform: after.transform,
+    };
+  });
+  expect(closeButtonMetrics.width).toBeGreaterThanOrEqual(32);
+  expect(closeButtonMetrics.width).toBeLessThanOrEqual(36);
+  expect(closeButtonMetrics.height).toBeGreaterThanOrEqual(32);
+  expect(closeButtonMetrics.height).toBeLessThanOrEqual(36);
+  expect(closeButtonMetrics.fontSize).toBe("0px");
+  expect(closeButtonMetrics.beforeWidth).not.toBe("auto");
+  expect(closeButtonMetrics.beforeTransform).not.toBe("none");
+  expect(closeButtonMetrics.afterTransform).not.toBe("none");
   await overlay.locator("[data-dashboard-chat-group-name-input]").fill(groupTitle);
   await overlay.locator("[data-dashboard-chat-group-user-search]").filter({ hasText: "Ceri Bowley" }).click();
   await expect(overlay.locator("[data-dashboard-chat-group-selected-list]")).toContainText("Ceri Bowley");

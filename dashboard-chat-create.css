@@ -44,19 +44,65 @@ body.has-dashboard-chat-widget .dashboard-chat-group-create-card > header small 
 }
 
 body.has-dashboard-chat-widget .dashboard-chat-group-create-close {
-  width: 2.28rem !important;
-  min-width: 2.28rem !important;
-  height: 2.28rem !important;
-  min-height: 2.28rem !important;
+  position: relative !important;
+  width: 2.12rem !important;
+  min-width: 2.12rem !important;
+  height: 2.12rem !important;
+  min-height: 2.12rem !important;
   display: grid !important;
   place-items: center !important;
-  border: 1px solid rgba(17, 24, 39, 0.08) !important;
+  padding: 0 !important;
+  border: 1px solid rgba(16, 24, 40, 0.12) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: transparent !important;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12), 0 1px 0 rgba(255, 255, 255, 0.9) inset !important;
+  font-size: 0 !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  overflow: hidden !important;
+  cursor: pointer !important;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-group-create-close::before,
+body.has-dashboard-chat-widget .dashboard-chat-group-create-close::after {
+  content: "" !important;
+  position: absolute !important;
+  width: 0.86rem !important;
+  height: 2px !important;
   border-radius: 999px !important;
   background: #111827 !important;
-  color: #ffffff !important;
-  box-shadow: none !important;
-  font-size: 1rem !important;
-  font-weight: 800 !important;
+  transform-origin: center !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-group-create-close::before {
+  transform: rotate(45deg) !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-group-create-close::after {
+  transform: rotate(-45deg) !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-group-create-close:hover,
+body.has-dashboard-chat-widget .dashboard-chat-group-create-close:focus-visible {
+  border-color: rgba(17, 24, 39, 0.92) !important;
+  background: #111827 !important;
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.2) !important;
+  outline: 0 !important;
+}
+
+body.has-dashboard-chat-widget .dashboard-chat-group-create-close:hover::before,
+body.has-dashboard-chat-widget .dashboard-chat-group-create-close:hover::after,
+body.has-dashboard-chat-widget .dashboard-chat-group-create-close:focus-visible::before,
+body.has-dashboard-chat-widget .dashboard-chat-group-create-close:focus-visible::after {
+  background: #ffffff !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.has-dashboard-chat-widget .dashboard-chat-group-create-close {
+    transition: none !important;
+  }
 }
 
 body.has-dashboard-chat-widget .dashboard-chat-group-create-form {

@@ -937,18 +937,33 @@ test("Chat message grouping hover keeps message geometry stable", async ({ page 
       },
     };
   });
+  const chatActionPayloads = [];
 
   await installQaChatApiAuth(page);
   await page.route("**/api/chat**", async (route) => {
     const request = route.request();
     if (request.method() === "POST") {
       const payload = request.postDataJSON();
+      chatActionPayloads.push(payload);
       if (payload.action === "markThreadRead") {
         serverMessages.forEach((message) => {
           if (getQaChatMessageThreadId(message) === (payload.threadId || "team")) {
             message.readBy = Array.from(new Set([...(message.readBy || []), qaChatCurrentUserId]));
           }
         });
+      } else if (payload.action === "addReaction" || payload.action === "removeReaction") {
+        const message = serverMessages.find((candidate) => candidate.id === payload.messageId);
+        if (message && payload.reaction) {
+          const reactions = { ...(message.reactions || {}) };
+          const currentSet = new Set(reactions[payload.reaction] || []);
+          if (payload.action === "addReaction") {
+            currentSet.add(qaChatCurrentUserId);
+          } else {
+            currentSet.delete(qaChatCurrentUserId);
+          }
+          reactions[payload.reaction] = Array.from(currentSet);
+          message.reactions = reactions;
+        }
       }
     }
     await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
@@ -987,10 +1002,61 @@ test("Chat message grouping hover keeps message geometry stable", async ({ page 
         { timeout: 2_000 }
       )
       .toBe(target.messageId);
-    await page.waitForTimeout(50);
+    await page.waitForTimeout(index === 0 ? 150 : 50);
+    if (index === 0) {
+      const hoverActionMetrics = await page.evaluate((messageId) => {
+        const card = document.querySelector(`[data-dashboard-chat-message-id="${messageId}"]`);
+        const menu = card?.querySelector(".dashboard-chat-message-menu");
+        const reaction = card?.querySelector(".dashboard-chat-message-reaction-menu");
+        const menuSummary = menu?.querySelector("summary");
+        const reactionSummary = reaction?.querySelector("summary");
+        const menuRect = menuSummary?.getBoundingClientRect();
+        const reactionRect = reactionSummary?.getBoundingClientRect();
+        return {
+          menuLabel: menuSummary?.getAttribute("aria-label") || "",
+          reactionLabel: reactionSummary?.getAttribute("aria-label") || "",
+          menuOpacity: Number(menu ? window.getComputedStyle(menu).opacity : 0),
+          reactionOpacity: Number(reaction ? window.getComputedStyle(reaction).opacity : 0),
+          menuWidth: menuRect?.width || 0,
+          menuHeight: menuRect?.height || 0,
+          reactionWidth: reactionRect?.width || 0,
+          reactionHeight: reactionRect?.height || 0,
+          reactionPanelPresent: Boolean(card?.querySelector(".dashboard-chat-message-reaction-panel .dashboard-chat-reactions")),
+        };
+      }, target.messageId);
+
+      expect(hoverActionMetrics.menuLabel).toBe("Open message actions");
+      expect(hoverActionMetrics.reactionLabel).toBe("React to message");
+      expect(hoverActionMetrics.menuOpacity).toBeGreaterThan(0.9);
+      expect(hoverActionMetrics.reactionOpacity).toBeGreaterThan(0.9);
+      expect(hoverActionMetrics.menuWidth).toBeLessThanOrEqual(24);
+      expect(hoverActionMetrics.menuHeight).toBeLessThanOrEqual(24);
+      expect(hoverActionMetrics.reactionWidth).toBeLessThanOrEqual(24);
+      expect(hoverActionMetrics.reactionHeight).toBeLessThanOrEqual(24);
+      expect(hoverActionMetrics.reactionPanelPresent).toBe(true);
+    }
     const hovered = await readQaChatMessageGeometry(page);
     expectQaChatMessageGeometryStable(baseline, hovered, `message hover ${index + 1}`);
   }
+
+  const reactionTargetId = hoverTargets[0]?.messageId || "";
+  await page.locator(`[data-dashboard-chat-message-id="${reactionTargetId}"] .dashboard-chat-message-reaction-menu summary`).click();
+  const reactionButton = page
+    .locator(
+      `[data-dashboard-chat-message-id="${reactionTargetId}"] .dashboard-chat-message-reaction-panel [data-dashboard-message-reaction="${reactionTargetId}"][data-dashboard-reaction-key]`
+    )
+    .first();
+  const reactionKey = await reactionButton.getAttribute("data-dashboard-reaction-key");
+  await reactionButton.click();
+  await expect
+    .poll(
+      () =>
+        chatActionPayloads.some(
+          (payload) => payload.action === "addReaction" && payload.messageId === reactionTargetId && payload.reaction === reactionKey
+        ),
+      { timeout: 2_000 }
+    )
+    .toBe(true);
 });
 
 test("Chat launcher thread hover keeps conversation geometry stable", async ({ page }) => {

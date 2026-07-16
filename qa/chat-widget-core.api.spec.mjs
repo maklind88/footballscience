@@ -1691,6 +1691,17 @@ test("chat message actions stay behind a compact hover menu", () => {
   expect(dashboardChatCss).toContain("grid-template-columns:1.25rem minmax(0,1fr)!important;");
   expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-menu-action.is-danger");
   expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-menu-reaction-group");
+  expect(dashboardChatCss).toContain("Chat hover actions: compact chevron plus a dedicated emoji reaction affordance");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-message-reaction-menu");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-message-reaction-menu{right:2.08rem!important}");
+  expect(dashboardChatCss).toContain("width:1.42rem!important;");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-message-reaction-panel .dashboard-chat-reactions button");
+  expect(appRuntimeSource).toContain(".dashboard-chat-message-menu[open], .dashboard-chat-message-reaction-menu[open]");
+  expect(appRuntimeSource).toContain('findDashboardChatActionTarget(event, ".dashboard-chat-message-menu, .dashboard-chat-message-reaction-menu")');
+  expect(appRuntimeSource).toContain('findDashboardChatActionTarget(event, "[data-dashboard-message-reaction][data-dashboard-reaction-key]")');
+  expect(appRuntimeSource).toContain("handleDashboardChatReactionActionEvent");
+  expect(appRuntimeSource).toContain('document.addEventListener("click", handleDashboardChatReactionActionEvent, true)');
+  expect(appRuntimeSource).toContain("function toggleDashboardMessageReactionWithApi(messageId, reactionKey)");
 
   const currentUser = { id: "u1", name: "Mak" };
   const users = [currentUser, { id: "u2", name: "Coach" }];
@@ -1719,7 +1730,11 @@ test("chat message actions stay behind a compact hover menu", () => {
 
   expect(result.html).toContain('class="dashboard-chat-message-menu"');
   expect(result.html).toContain('class="dashboard-chat-message-menu-panel"');
+  expect(result.html).toContain('class="dashboard-chat-message-reaction-menu"');
+  expect(result.html).toContain('class="dashboard-chat-message-reaction-panel"');
   expect(result.html).toContain("Open message actions");
+  expect(result.html).toContain("React to message");
+  expect(result.html).toContain("&#128578;");
   expect(result.html).toContain("Reply");
   expect(result.html).toContain("Copy");
   expect(result.html).toContain("Delete");

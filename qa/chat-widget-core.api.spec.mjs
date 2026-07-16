@@ -1008,7 +1008,7 @@ test("chat composer keeps priority behind message options and renders message bu
   expect(result.html).toContain("dashboard-chat-compose-more-panel");
   expect(result.html).toContain('class="dashboard-chat-priority-label">Urgent</span>');
   expect(result.html).toContain("dashboard-chat-bubble-footer");
-  expect(result.html).toContain('<time datetime="2026-01-01T10:00:00.000Z">10:15</time>');
+  expect(result.html).toContain('<time class="dashboard-chat-bubble-time" datetime="2026-01-01T10:00:00.000Z" title="10:15">10:15</time>');
   expect(result.html).not.toMatch(/<span class="dashboard-chat-author">[\s\S]*?<small>10:15<\/small>[\s\S]*?<\/span>/);
   expect(result.html).toContain("data-message-status");
   expect(result.html).not.toContain("dashboard-chat-character-count");
@@ -1016,6 +1016,52 @@ test("chat composer keeps priority behind message options and renders message bu
   expect(result.html).not.toContain("dashboard-chat-realtime-pill");
   expect(result.html).not.toContain("dashboard-chat-priority is-urgent");
   expect(result.html).not.toContain("dashboard-chat-message-signals");
+});
+
+test("chat message bubble shows only the clock time inside the bubble", () => {
+  const currentUser = { id: "u1", name: "Mak" };
+  const users = [currentUser, { id: "u2", name: "Coach A", status: "active" }];
+  const messages = [
+    {
+      id: "m-older",
+      userId: "u2",
+      threadId: "team",
+      text: "Older message should keep date out of the visible bubble timestamp.",
+      createdAt: "2026-06-04T07:45:00",
+      readBy: ["u2"],
+      mentionedUserIds: [],
+      reactions: {},
+      priority: "normal",
+    },
+  ];
+  const renderer = createDashboardChatWidgetRenderer({
+    priorityOptions,
+    escapeHtml,
+    formatUserName: (user = {}) => user?.name || "Staff",
+    formatTime: () => "04 Jun 07:45",
+    normalizePriority: () => "normal",
+    renderMessageText: renderTextWithSearch,
+    renderMessageReactions: () => "",
+    renderPinnedMessages: () => "",
+    renderTypingIndicator: () => "",
+    getPinnedMessagesForThread: () => [],
+    canDeleteMessage: () => false,
+  });
+  const threads = [{ threadId: "team", label: "Team Chat", isTeamThread: true, messageCount: 1, lastMessage: messages[0], settings: {} }];
+  const result = renderer.render({
+    currentUser,
+    users,
+    state: { isOpen: true, selectedThreadId: "team" },
+    messages,
+    threads,
+    activeThreadId: "team",
+  });
+
+  expect(result.html).toContain('<time class="dashboard-chat-bubble-time" datetime="2026-06-04T07:45:00" title="04 Jun 07:45">07:45</time>');
+  expect(result.html).toContain('aria-label="Coach A, 04 Jun 07:45"');
+  expect(dashboardChatCss).toContain("Chat message timestamps live inside the bubble");
+  expect(dashboardChatCss).toContain(".dashboard-chat-bubble:has(.dashboard-chat-bubble-footer) p");
+  expect(dashboardChatCss).toContain("position:absolute!important;right:.62rem!important;bottom:.42rem!important;");
 });
 
 test("chat message menu exposes WhatsApp baseline actions", () => {

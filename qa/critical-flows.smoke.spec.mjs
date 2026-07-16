@@ -854,6 +854,65 @@ test("Chat launcher sync overlay does not shift the open message list", async ({
   expectQaChatLayoutStable(baseline, failedLayout, "sync failure overlay");
 });
 
+test("Chat message timestamp stays inside the message bubble", async ({ page }) => {
+  const serverMessages = [
+    {
+      id: "qa-chat-bubble-time",
+      userId: "qa-colleague",
+      threadId: "team",
+      text: "QA older message keeps its timestamp inside the bubble.",
+      createdAt: "2026-06-04T07:45:00.000Z",
+      deliveredAt: "2026-06-04T07:45:00.000Z",
+      readBy: ["qa-colleague", qaChatCurrentUserId],
+      mentionedUserIds: [],
+      status: "sent",
+      author: {
+        id: "qa-colleague",
+        firstName: "QA",
+        lastName: "Colleague",
+        role: "coach",
+        status: "active",
+      },
+    },
+  ];
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
+  });
+
+  await bootApp(page);
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  const message = page.locator('[data-dashboard-chat-message-id="qa-chat-bubble-time"]');
+  await expect(message).toContainText("QA older message keeps its timestamp inside the bubble.");
+
+  const timestamp = message.locator(".dashboard-chat-bubble-footer time");
+  await expect(timestamp).toHaveText(/^\d{2}:\d{2}$/);
+  await expect(timestamp).not.toContainText("Jun");
+
+  const geometry = await message.evaluate((node) => {
+    const bubbleSurface = node.querySelector(".dashboard-chat-bubble p");
+    const footer = node.querySelector(".dashboard-chat-bubble-footer");
+    const bubbleRect = bubbleSurface?.getBoundingClientRect();
+    const footerRect = footer?.getBoundingClientRect();
+    return {
+      bubbleTop: bubbleRect?.top ?? 0,
+      bubbleRight: bubbleRect?.right ?? 0,
+      bubbleBottom: bubbleRect?.bottom ?? 0,
+      footerTop: footerRect?.top ?? 0,
+      footerRight: footerRect?.right ?? 0,
+      footerBottom: footerRect?.bottom ?? 0,
+      footerPosition: footer ? window.getComputedStyle(footer).position : "",
+    };
+  });
+
+  expect(geometry.footerPosition).toBe("absolute");
+  expect(geometry.footerTop).toBeGreaterThanOrEqual(geometry.bubbleTop);
+  expect(geometry.footerRight).toBeLessThanOrEqual(geometry.bubbleRight + 0.5);
+  expect(geometry.footerBottom).toBeLessThanOrEqual(geometry.bubbleBottom + 0.5);
+});
+
 test("Chat message grouping hover keeps message geometry stable", async ({ page }) => {
   const nowMs = Date.now();
   const serverMessages = Array.from({ length: 18 }, (_, index) => {

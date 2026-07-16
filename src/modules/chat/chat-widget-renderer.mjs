@@ -97,6 +97,23 @@ function shouldGroupWithPreviousMessage(message = {}, previousMessage = null, cu
   return Math.abs(currentTime - previousTime) <= MESSAGE_GROUP_WINDOW_MS;
 }
 
+function getMessageBubbleTimeLabel(value, fullLabel = "") {
+  const label = String(fullLabel || "").trim();
+  const labelTimeMatch = label.match(/([0-2]?\d:[0-5]\d(?:\s?[AP]M)?)$/i);
+  if (labelTimeMatch?.[1]) {
+    return labelTimeMatch[1];
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return label;
+  }
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 function isUnreadForCurrentUser(message = {}, currentUser = null) {
   const currentUserId = String(currentUser?.id || "").trim();
   if (!currentUserId || !message?.id || String(message.userId || "") === currentUserId) {
@@ -821,7 +838,8 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       hasAttachments ? " has-evidence" : "",
       reactionMarkup ? " has-reactions" : "",
     ].join("");
-    const timeLabel = formatTime(message.createdAt);
+    const fullTimeLabel = formatTime(message.createdAt);
+    const bubbleTimeLabel = getMessageBubbleTimeLabel(message.createdAt, fullTimeLabel);
     const metaMarkup = isGroupedWithPrevious
       ? ""
       : `
@@ -836,10 +854,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const forwardedMarkup = message.forwardedFromMessageId || message.metadata?.forwardedFromMessageId
       ? `<span class="dashboard-chat-forwarded-label" aria-label="Forwarded message">Forwarded</span>`
       : "";
-    const bubbleFooterMarkup = timeLabel || statusMarkup || editedMarkup
+    const bubbleFooterMarkup = bubbleTimeLabel || statusMarkup || editedMarkup
       ? `
         <div class="dashboard-chat-bubble-footer">
-          ${timeLabel ? `<time datetime="${escapeHtml(message.createdAt || "")}">${escapeHtml(timeLabel)}</time>` : ""}
+          ${bubbleTimeLabel ? `<time class="dashboard-chat-bubble-time" datetime="${escapeHtml(message.createdAt || "")}" title="${escapeHtml(fullTimeLabel || bubbleTimeLabel)}">${escapeHtml(bubbleTimeLabel)}</time>` : ""}
           ${editedMarkup}
           ${statusMarkup}
         </div>
@@ -847,7 +865,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       : "";
 
     return `
-    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isPreviewOnly ? " is-preview" : ""}${isMentioned ? " is-mentioned" : ""}${isSearchMatch ? " is-search-match" : ""}${isActiveSearchMatch ? " is-active-search-match" : ""}${isFirstUnread ? " is-first-unread" : ""}${message.pinnedAt ? " is-pinned" : ""}${isGroupedWithPrevious ? " is-grouped-with-previous" : ""}${isGroupedWithNext ? " is-grouped-with-next" : ""}${messageStatus ? ` is-${escapeHtml(messageStatus)} is-status-${escapeHtml(messageStatus)}` : ""}${cardStateClasses}" data-dashboard-chat-message-id="${escapeHtml(message.id)}" data-dashboard-chat-message-card${isActiveSearchMatch ? ' data-dashboard-chat-search-active="true"' : ""}${isFirstUnread ? ' data-dashboard-chat-first-unread-message="true"' : ""} aria-label="${escapeHtml(`${userName}${timeLabel ? `, ${timeLabel}` : ""}`)}">
+    <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isPreviewOnly ? " is-preview" : ""}${isMentioned ? " is-mentioned" : ""}${isSearchMatch ? " is-search-match" : ""}${isActiveSearchMatch ? " is-active-search-match" : ""}${isFirstUnread ? " is-first-unread" : ""}${message.pinnedAt ? " is-pinned" : ""}${isGroupedWithPrevious ? " is-grouped-with-previous" : ""}${isGroupedWithNext ? " is-grouped-with-next" : ""}${messageStatus ? ` is-${escapeHtml(messageStatus)} is-status-${escapeHtml(messageStatus)}` : ""}${cardStateClasses}" data-dashboard-chat-message-id="${escapeHtml(message.id)}" data-dashboard-chat-message-card${isActiveSearchMatch ? ' data-dashboard-chat-search-active="true"' : ""}${isFirstUnread ? ' data-dashboard-chat-first-unread-message="true"' : ""} aria-label="${escapeHtml(`${userName}${fullTimeLabel ? `, ${fullTimeLabel}` : ""}`)}">
       ${metaMarkup}
       <div class="dashboard-chat-bubble">
         ${isPreviewOnly ? "" : `<details class="dashboard-chat-message-menu">

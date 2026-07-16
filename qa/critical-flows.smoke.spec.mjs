@@ -822,6 +822,8 @@ test("Chat launcher sync overlay does not shift the open message list", async ({
   await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
   await expect(page.locator(".dashboard-chat-inbox-head")).not.toContainText("conversations");
   await expect(page.locator(".dashboard-chat-inbox-head")).not.toContainText("active");
+  await expect(page.locator(".dashboard-chat-inbox-head")).not.toContainText("No mentions");
+  await expect(page.locator(".dashboard-chat-inbox-head")).not.toContainText("Synced");
   await expect(page.locator("[data-dashboard-chat-list]")).toContainText("QA stable sync message 18");
   await expect.poll(() => pendingChatRequests, { timeout: 5_000 }).toBe(0);
   await page.waitForTimeout(200);

@@ -426,10 +426,11 @@ test("chat inbox renders trust summary and conversation delivery state", () => {
   const inboxHead = getInboxHeadMarkup(result.html);
 
   expect(result.html).toContain("<strong>Inbox</strong>");
-  expect(result.html).toContain('data-dashboard-chat-inbox-trust');
+  expect(inboxHead).not.toContain('data-dashboard-chat-inbox-trust');
   expect(inboxHead).not.toContain("1 unread");
   expect(inboxHead).not.toContain("1 active");
-  expect(inboxHead).toContain("1 mention - Synced");
+  expect(inboxHead).not.toContain("1 mention");
+  expect(inboxHead).not.toContain("Synced");
   expect(result.html).toContain('data-dashboard-chat-trust');
   expect(result.html).toContain('data-dashboard-chat-trust-sync');
   expect(result.html).toContain("Synced");
@@ -968,7 +969,8 @@ test("chat inbox defaults to relevant conversations instead of empty staff DMs",
   expect(result.html).toContain("<strong>Inbox</strong>");
   expect(inboxHead).not.toContain("3 conversations");
   expect(inboxHead).not.toContain("active");
-  expect(inboxHead).toContain("No mentions - Sync pending");
+  expect(inboxHead).not.toContain("No mentions");
+  expect(inboxHead).not.toContain("Sync pending");
   expect(result.html).toContain('data-dashboard-chat-thread="team"');
   expect(result.html).toContain('data-dashboard-chat-thread="medical"');
   expect(result.html).toContain('data-dashboard-chat-thread="dm:u3"');

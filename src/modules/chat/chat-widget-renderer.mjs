@@ -574,18 +574,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     return status.retryable ? "Retry sync" : status.label || "Sync needs attention";
   }
 
-  function getInboxTrustSummary(threads = [], status = {}) {
-    const sourceThreads = Array.isArray(threads) ? threads : [];
-    const mentionCount = sourceThreads.reduce((total, thread) => total + (Number(thread?.mentionCount || 0) || 0), 0);
-    const detailParts = [
-      mentionCount ? `${mentionCount} mention${mentionCount === 1 ? "" : "s"}` : "No mentions",
-      getChatSyncTrustLabel(status),
-    ];
-    return {
-      detail: detailParts.filter(Boolean).join(" - "),
-    };
-  }
-
   function getMessageReadByCount(message = {}, currentUser = {}) {
     const currentUserId = String(currentUser?.id || "").trim();
     const messageUserId = String(message?.userId || "").trim();
@@ -1637,7 +1625,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       ? simpleInboxThreads
       : threads.filter((thread) => doesThreadMatchFilter(thread, normalizedThreadFilter));
     const threadFilterMarkup = renderThreadFilters(normalizedThreadFilter, simpleInboxThreads);
-    const inboxTrustSummary = getInboxTrustSummary(simpleInboxThreads, normalizedApiStatus);
     const conversationTrustMarkup = renderConversationTrustStrip({ status: normalizedApiStatus, activeThread, messages: hasThreadMessages, currentUser, users });
     const chatStatusOverlayMarkup = apiStatusBannerMarkup || conversationTrustMarkup
       ? `<div class="dashboard-chat-status-overlay" data-dashboard-chat-status-overlay>${apiStatusBannerMarkup}${conversationTrustMarkup}</div>`
@@ -2178,7 +2165,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           <div class="dashboard-chat-inbox-head">
             <div>
               <strong>Inbox</strong>
-              <small class="dashboard-chat-inbox-trust" data-dashboard-chat-inbox-trust>${escapeHtml(inboxTrustSummary.detail)}</small>
             </div>
             ${threadPresetMarkup}
             <input

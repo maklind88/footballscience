@@ -147,7 +147,7 @@ export function createSquadRosterRenderer({
       <td>${renderStatusChip(effectiveStatus, medicalSnapshot)}</td>
       <td>${renderIdpCell(player)}</td>
       <td>${renderAvailabilityCell(trainingAvailability.season, "No season data")}</td>
-      <td>${renderAvailabilityCell(trainingAvailability.lastFive, "No recent data", { showCount: false })}</td>
+      <td>${renderAvailabilityCell(trainingAvailability.lastTwoWeeks || trainingAvailability.lastFive, "No recent data", { showCount: false })}</td>
     </tr>
   `;
   };
@@ -163,7 +163,7 @@ export function createSquadRosterRenderer({
             <th>Status</th>
             <th>IDP</th>
             <th>Season availability</th>
-            <th>Last 5 trainings</th>
+            <th>Last 2 Weeks</th>
           </tr>
         </thead>
         <tbody>

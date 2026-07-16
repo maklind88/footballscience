@@ -76,10 +76,16 @@ function buildWindow(items, predicate) {
 }
 
 const excusedClubAbsenceStatusKeys = new Set(["national-team"]);
+const injuryAbsenceStatusKeys = new Set(["injured", "rehab"]);
 
 function isExcusedClubAbsenceStatus(value = "") {
   const status = String(value || "").trim().toLowerCase();
   return excusedClubAbsenceStatusKeys.has(status);
+}
+
+function isInjuryAbsenceStatus(value = "") {
+  const status = String(value || "").trim().toLowerCase();
+  return injuryAbsenceStatusKeys.has(status);
 }
 
 function normalizeDateValue(value = "") {
@@ -136,6 +142,7 @@ export function getSquadTrainingAvailabilitySummary({
   records = [],
   referenceDateValue = defaultFormatDateValue(new Date()),
   getActivityContext = () => null,
+  getActiveMedicalInjuryPlan = () => null,
   getPlayerAvailabilityStatusForDate = () => "",
   getTeamTrainingDateValues = () => [],
 } = {}) {
@@ -148,6 +155,7 @@ export function getSquadTrainingAvailabilitySummary({
       week: { average: null, count: 0 },
       month: { average: null, count: 0 },
       season: { average: null, count: 0 },
+      lastTwoWeeks: { average: null, count: 0 },
       lastFive: { average: null, count: 0 },
     };
   }
@@ -182,6 +190,26 @@ export function getSquadTrainingAvailabilitySummary({
       }
       const playerRecord = playerRecordByDate.get(date);
       if (!playerRecord) {
+        const status = getPlayerAvailabilityStatusForDate(cleanPlayerId, date, null);
+        if (isExcusedClubAbsenceStatus(status)) {
+          return null;
+        }
+        const activePlan = getActiveMedicalInjuryPlan(cleanPlayerId, date);
+        const planParticipation = normalizeParticipation(activePlan?.participation);
+        if (planParticipation !== null) {
+          return {
+            date,
+            dateValue,
+            participation: planParticipation,
+          };
+        }
+        if (isInjuryAbsenceStatus(status)) {
+          return {
+            date,
+            dateValue,
+            participation: 0,
+          };
+        }
         return null;
       }
       const status = getPlayerAvailabilityStatusForDate(cleanPlayerId, date, playerRecord);
@@ -197,7 +225,11 @@ export function getSquadTrainingAvailabilitySummary({
     .filter(Boolean)
     .sort((first, second) => first.date.localeCompare(second.date));
   const seasonRecords = trainingOpportunities.filter((record) => record.dateValue.getUTCFullYear() === referenceYear);
-  const lastFiveRecords = trainingOpportunities.slice(-5);
+  const lastTwoWeekRecords = trainingOpportunities.filter((record) => {
+    const ageDays = getAgeDays(record.dateValue);
+    return ageDays >= 0 && ageDays <= 13;
+  });
+  const lastTwoWeeks = buildWindow(lastTwoWeekRecords, () => true);
 
   return {
     hasData: trainingOpportunities.length > 0,
@@ -212,7 +244,8 @@ export function getSquadTrainingAvailabilitySummary({
       return ageDays >= 0 && ageDays <= 29;
     }),
     season: buildWindow(seasonRecords, () => true),
-    lastFive: buildWindow(lastFiveRecords, () => true),
+    lastTwoWeeks,
+    lastFive: lastTwoWeeks,
   };
 }
 

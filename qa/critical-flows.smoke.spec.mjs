@@ -5277,7 +5277,7 @@ test("Squad add creates a Medical roster slot and Session Planner placement", as
   await expect(page.locator(".squad-table thead").first()).toContainText("IDP");
   await expect(page.locator(".squad-table thead").first()).not.toContainText("Profile");
   await expect(page.locator(".squad-table thead").first()).toContainText("Season availability");
-  await expect(page.locator(".squad-table thead").first()).toContainText("Last 5 trainings");
+  await expect(page.locator(".squad-table thead").first()).toContainText("Last 2 Weeks");
   await expect(page.locator(".squad-player-row").first()).toContainText("Goalkeeper");
   await expect(page.locator(".squad-player-row").first().locator(".squad-age-cell")).toHaveText(/^-|\d+$/);
   await expect(page.locator('[data-player-profile-select="ncc-2026-madison-white"] .squad-age-cell')).toHaveText(

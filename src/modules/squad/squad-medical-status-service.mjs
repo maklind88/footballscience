@@ -98,6 +98,7 @@ export function createSquadMedicalStatusService(deps = {}) {
       records: getMedicalState().records || [],
       referenceDateValue: dateValue,
       getActivityContext: getMedicalRecommendationActivityContext,
+      getActiveMedicalInjuryPlan,
       getPlayerAvailabilityStatusForDate,
       getTeamTrainingDateValues,
     });

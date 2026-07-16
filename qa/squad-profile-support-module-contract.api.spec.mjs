@@ -77,6 +77,7 @@ test("Squad profile support renderer owns option lists, support panels, and add-
         week: { average: 75, count: 2 },
         month: { average: 75, count: 2 },
         season: { average: 75, count: 2 },
+        lastTwoWeeks: { average: 75, count: 2 },
         lastFive: { average: 75, count: 2 },
       },
     }),
@@ -166,6 +167,7 @@ test("Squad training availability summary averages against team training opportu
   expect(summary.week).toEqual({ average: 71, count: 5 });
   expect(summary.month).toEqual({ average: 71, count: 5 });
   expect(summary.season).toEqual({ average: 63, count: 6 });
+  expect(summary.lastTwoWeeks).toEqual({ average: 71, count: 5 });
   expect(summary.lastFive).toEqual({ average: 71, count: 5 });
 });
 
@@ -197,7 +199,48 @@ test("Squad training availability summary ignores unrecommended trainings but co
   expect(summary.week).toEqual({ average: 50, count: 3 });
   expect(summary.month).toEqual({ average: 50, count: 3 });
   expect(summary.season).toEqual({ average: 50, count: 3 });
+  expect(summary.lastTwoWeeks).toEqual({ average: 50, count: 3 });
   expect(summary.lastFive).toEqual({ average: 50, count: 3 });
+});
+
+test("Squad training availability summary counts medical plans and injured status as absences without manual recommendations", () => {
+  const summary = getSquadTrainingAvailabilitySummary({
+    playerId: "p1",
+    referenceDateValue: "2026-06-15",
+    records: [{ playerId: "p1", date: "2026-06-15", participation: 100, updatedAt: "2026-06-15T14:00:00Z" }],
+    getActiveMedicalInjuryPlan: (playerId, dateValue) =>
+      playerId === "p1" && dateValue === "2026-06-11"
+        ? { playerId, startDate: "2026-06-11", endDate: "2026-06-20", status: "unavailable", participation: 0 }
+        : null,
+    getPlayerAvailabilityStatusForDate: (playerId, dateValue) =>
+      playerId === "p1" && dateValue === "2026-06-12" ? "injured" : "available",
+    getTeamTrainingDateValues: () => ["2026-06-10", "2026-06-11", "2026-06-12", "2026-06-15"],
+  });
+
+  expect(summary.hasData).toBe(true);
+  expect(summary.week).toEqual({ average: 33, count: 3 });
+  expect(summary.month).toEqual({ average: 33, count: 3 });
+  expect(summary.season).toEqual({ average: 33, count: 3 });
+  expect(summary.lastTwoWeeks).toEqual({ average: 33, count: 3 });
+  expect(summary.lastFive).toEqual({ average: 33, count: 3 });
+});
+
+test("Squad training availability summary uses the last fourteen calendar days for recent availability", () => {
+  const summary = getSquadTrainingAvailabilitySummary({
+    playerId: "p1",
+    referenceDateValue: "2026-06-15",
+    records: [
+      { playerId: "p1", date: "2026-06-15", participation: 100, updatedAt: "2026-06-15T14:00:00Z" },
+      { playerId: "p1", date: "2026-06-08", participation: 50, updatedAt: "2026-06-08T14:00:00Z" },
+      { playerId: "p1", date: "2026-06-02", participation: 25, updatedAt: "2026-06-02T14:00:00Z" },
+      { playerId: "p1", date: "2026-06-01", participation: 0, updatedAt: "2026-06-01T14:00:00Z" },
+    ],
+    getTeamTrainingDateValues: () => ["2026-06-01", "2026-06-02", "2026-06-08", "2026-06-15"],
+  });
+
+  expect(summary.season).toEqual({ average: 44, count: 4 });
+  expect(summary.lastTwoWeeks).toEqual({ average: 58, count: 3 });
+  expect(summary.lastFive).toEqual({ average: 58, count: 3 });
 });
 
 test("Squad training availability summary excludes international-duty club absences", () => {
@@ -219,6 +262,7 @@ test("Squad training availability summary excludes international-duty club absen
   expect(summary.week).toEqual({ average: 75, count: 2 });
   expect(summary.month).toEqual({ average: 75, count: 2 });
   expect(summary.season).toEqual({ average: 75, count: 2 });
+  expect(summary.lastTwoWeeks).toEqual({ average: 75, count: 2 });
   expect(summary.lastFive).toEqual({ average: 75, count: 2 });
 });
 
@@ -238,5 +282,6 @@ test("Squad training availability summary does not infer team trainings from off
   expect(summary.week).toEqual({ average: null, count: 0 });
   expect(summary.month).toEqual({ average: null, count: 0 });
   expect(summary.season).toEqual({ average: null, count: 0 });
+  expect(summary.lastTwoWeeks).toEqual({ average: null, count: 0 });
   expect(summary.lastFive).toEqual({ average: null, count: 0 });
 });

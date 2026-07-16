@@ -40,6 +40,7 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
       returnLabel: playerId === "p2" ? "10 Jun" : "",
       trainingAvailability: {
         season: { average: 82, count: 12 },
+        lastTwoWeeks: { average: 90, count: 5 },
         lastFive: { average: 90, count: 5 },
       },
     }),
@@ -85,7 +86,8 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
   expect(markup).toContain("<th>Status</th>");
   expect(markup).toContain("<th>IDP</th>");
   expect(markup).toContain("<th>Season availability</th>");
-  expect(markup).toContain("<th>Last 5 trainings</th>");
+  expect(markup).toContain("<th>Last 2 Weeks</th>");
+  expect(markup).not.toContain("<th>Last 5 trainings</th>");
   expect(markup).not.toContain("<th>Profile</th>");
   expect(markup).not.toContain("% complete");
   expect(markup).toContain("82%");

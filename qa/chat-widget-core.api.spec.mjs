@@ -67,6 +67,10 @@ function createRenderer(messages = []) {
   });
 }
 
+function getInboxHeadMarkup(html = "") {
+  return String(html).match(/<div class="dashboard-chat-inbox-head">[\s\S]*?<\/div>\s*<details/)?.[0] || "";
+}
+
 test("chat widget highlights searched messages and keeps search inside the details panel", () => {
   const currentUser = { id: "u1", name: "Mak" };
   const users = [currentUser, { id: "u2", name: "Medical Lead", status: "active" }];
@@ -419,10 +423,13 @@ test("chat inbox renders trust summary and conversation delivery state", () => {
     },
   });
 
+  const inboxHead = getInboxHeadMarkup(result.html);
+
   expect(result.html).toContain("<strong>Inbox</strong>");
   expect(result.html).toContain('data-dashboard-chat-inbox-trust');
-  expect(result.html).toContain("1 unread");
-  expect(result.html).toContain("1 active - 1 mention - Synced");
+  expect(inboxHead).not.toContain("1 unread");
+  expect(inboxHead).not.toContain("1 active");
+  expect(inboxHead).toContain("1 mention - Synced");
   expect(result.html).toContain('data-dashboard-chat-trust');
   expect(result.html).toContain('data-dashboard-chat-trust-sync');
   expect(result.html).toContain("Synced");
@@ -956,8 +963,12 @@ test("chat inbox defaults to relevant conversations instead of empty staff DMs",
     threadFilter: "all",
   });
 
+  const inboxHead = getInboxHeadMarkup(result.html);
+
   expect(result.html).toContain("<strong>Inbox</strong>");
-  expect(result.html).toContain("3 conversations");
+  expect(inboxHead).not.toContain("3 conversations");
+  expect(inboxHead).not.toContain("active");
+  expect(inboxHead).toContain("No mentions - Sync pending");
   expect(result.html).toContain('data-dashboard-chat-thread="team"');
   expect(result.html).toContain('data-dashboard-chat-thread="medical"');
   expect(result.html).toContain('data-dashboard-chat-thread="dm:u3"');

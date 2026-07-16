@@ -557,20 +557,14 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     return status.retryable ? "Retry sync" : status.label || "Sync needs attention";
   }
 
-  function getInboxTrustSummary(threads = [], unreadCount = 0, status = {}) {
+  function getInboxTrustSummary(threads = [], status = {}) {
     const sourceThreads = Array.isArray(threads) ? threads : [];
-    const activeCount = sourceThreads.filter(hasThreadConversationActivity).length;
     const mentionCount = sourceThreads.reduce((total, thread) => total + (Number(thread?.mentionCount || 0) || 0), 0);
-    const primary = unreadCount
-      ? `${unreadCount} unread`
-      : `${sourceThreads.length} conversation${sourceThreads.length === 1 ? "" : "s"}`;
     const detailParts = [
-      activeCount ? `${activeCount} active` : "No active chats",
       mentionCount ? `${mentionCount} mention${mentionCount === 1 ? "" : "s"}` : "No mentions",
       getChatSyncTrustLabel(status),
     ];
     return {
-      primary,
       detail: detailParts.filter(Boolean).join(" - "),
     };
   }
@@ -1569,7 +1563,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
       ? simpleInboxThreads
       : threads.filter((thread) => doesThreadMatchFilter(thread, normalizedThreadFilter));
     const threadFilterMarkup = renderThreadFilters(normalizedThreadFilter, simpleInboxThreads);
-    const inboxTrustSummary = getInboxTrustSummary(simpleInboxThreads, unreadCount, normalizedApiStatus);
+    const inboxTrustSummary = getInboxTrustSummary(simpleInboxThreads, normalizedApiStatus);
     const conversationTrustMarkup = renderConversationTrustStrip({ status: normalizedApiStatus, activeThread, messages: hasThreadMessages, currentUser, users });
     const chatStatusOverlayMarkup = apiStatusBannerMarkup || conversationTrustMarkup
       ? `<div class="dashboard-chat-status-overlay" data-dashboard-chat-status-overlay>${apiStatusBannerMarkup}${conversationTrustMarkup}</div>`
@@ -2105,7 +2099,6 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
           <div class="dashboard-chat-inbox-head">
             <div>
               <strong>Inbox</strong>
-              <small>${escapeHtml(inboxTrustSummary.primary)}</small>
               <small class="dashboard-chat-inbox-trust" data-dashboard-chat-inbox-trust>${escapeHtml(inboxTrustSummary.detail)}</small>
             </div>
             ${threadPresetMarkup}

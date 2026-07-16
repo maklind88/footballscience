@@ -1684,6 +1684,9 @@ test("open chat uses a calm professional conversation shell", () => {
   expect(dashboardChatCss).toContain("display:none!important;");
   expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-thread-filters");
   expect(dashboardChatCss).toContain("grid-template-columns:repeat(4,minmax(0,1fr))!important;");
+  expect(dashboardChatCss).toContain("Chat message width polish");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-message,.dashboard-chat-widget .dashboard-chat-message.is-own{width:100%!important;max-width:100%!important}");
+  expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-bubble,.dashboard-chat-widget .dashboard-chat-bubble p{width:100%!important;max-width:100%!important;box-sizing:border-box!important}");
   expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-thread-filters button.is-active");
   expect(dashboardChatCss).toContain("background:#1f6f54!important;");
   expect(dashboardChatCss).toContain(".dashboard-chat-widget .dashboard-chat-input-shell textarea:focus");

@@ -375,21 +375,25 @@ async function readQaChatMessageGeometry(page) {
     const items = allItems
       .map((item) => {
         const rect = item.getBoundingClientRect();
-        return { item, rect };
+        const bubble = item.querySelector(".dashboard-chat-bubble p") || item.querySelector(".dashboard-chat-bubble");
+        const bubbleRect = bubble?.getBoundingClientRect();
+        return { item, rect, bubbleRect };
       })
-      .filter(({ rect }) => !listRect || (rect.bottom > listRect.top && rect.top < listRect.bottom))
+      .filter(({ rect }) => !listRect || (rect.top >= listRect.top + 1 && rect.bottom <= listRect.bottom - 1))
       .slice(0, 6)
-      .map(({ item, rect }) => ({
+      .map(({ item, rect, bubbleRect }) => ({
         messageId: item.getAttribute("data-dashboard-chat-message-id") || "",
         top: rect.top,
         left: rect.left,
         width: rect.width,
         height: rect.height,
+        bubbleWidth: bubbleRect?.width || 0,
         transform: window.getComputedStyle(item).transform,
       }));
 
     return {
       listTop: listRect?.top ?? 0,
+      listWidth: listRect?.width ?? 0,
       listHeight: listRect?.height ?? 0,
       listScrollTop: list?.scrollTop ?? 0,
       items,
@@ -409,6 +413,7 @@ function expectQaChatMessageGeometryStable(baseline, current, label) {
     expect(Math.abs(currentItem.top - baseItem.top), `${label}: ${baseItem.messageId} top moved`).toBeLessThanOrEqual(0.5);
     expect(Math.abs(currentItem.left - baseItem.left), `${label}: ${baseItem.messageId} left moved`).toBeLessThanOrEqual(0.5);
     expect(Math.abs(currentItem.width - baseItem.width), `${label}: ${baseItem.messageId} width moved`).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(currentItem.bubbleWidth - baseItem.bubbleWidth), `${label}: ${baseItem.messageId} bubble width moved`).toBeLessThanOrEqual(0.5);
     expect(Math.abs(currentItem.height - baseItem.height), `${label}: ${baseItem.messageId} height moved`).toBeLessThanOrEqual(0.5);
     expect(currentItem.transform, `${label}: ${baseItem.messageId} hover transform`).toBe("none");
   });
@@ -979,8 +984,11 @@ test("Chat message grouping hover keeps message geometry stable", async ({ page 
 
   const baseline = await readQaChatMessageGeometry(page);
   expect(baseline.items.length).toBeGreaterThanOrEqual(2);
+  expect(baseline.listWidth).toBeGreaterThan(0);
   baseline.items.forEach((item) => {
     expect(item.transform, `${item.messageId}: baseline transform`).toBe("none");
+    expect(item.width, `${item.messageId}: message card should use the row width`).toBeGreaterThan(baseline.listWidth * 0.88);
+    expect(item.bubbleWidth, `${item.messageId}: message bubble should use the row width`).toBeGreaterThan(baseline.listWidth * 0.88);
   });
 
   const hoverTargets = baseline.items.slice(0, Math.min(4, baseline.items.length)).map((item) => ({

@@ -147,7 +147,7 @@ export function createMedicalRtpProgramWorkspaceRenderer({
 } = {}) {
   const renderProgramAction = ({ player, plan }) => {
     if (plan?.id) {
-      return `<button type="button" class="medical-program-row-action" data-medical-edit-injury-plan="${escapeHtml(plan.id)}">Open program</button>`;
+      return `<button type="button" class="medical-program-row-action" data-medical-open-program-detail="${escapeHtml(plan.id)}">Open</button>`;
     }
     return `<button type="button" class="medical-program-row-action medical-program-row-action-secondary" data-medical-create-program="${escapeHtml(player.id)}">Create program</button>`;
   };
@@ -166,7 +166,7 @@ export function createMedicalRtpProgramWorkspaceRenderer({
       ? `${formatMedicalDateLabel(plan.startDate)} - ${formatMedicalDateLabel(plan.endDate)}`
       : "Create only when clinically needed";
     const boardAttrs = plan?.id
-      ? `data-medical-select-board-plan="${escapeHtml(plan.id)}" aria-selected="${plan.id === selectedPlanId ? "true" : "false"}"`
+      ? `data-medical-select-board-plan="${escapeHtml(plan.id)}" aria-selected="${plan.id === selectedPlanId ? "true" : "false"}" tabindex="0" role="button" aria-label="Open ${escapeHtml(player.name || "player")} RTP program"`
       : "";
     return `
 <article class="medical-program-player-row medical-program-player-row-${escapeHtml(tone)}${plan?.id === selectedPlanId ? " is-board-selected" : ""}" ${boardAttrs}>
@@ -200,7 +200,7 @@ type="button"
 class="medical-board-player medical-board-player-${escapeHtml(tone)}"
 style="--medical-board-x: 50%; --medical-board-y: 50%;"
 data-medical-open-board-plan="${escapeHtml(plan.id)}"
-aria-label="Open ${escapeHtml(player.name)} RTP Field Board"
+aria-label="Open ${escapeHtml(player.name)} RTP Player Board"
 >
 <span class="medical-board-player-dot">${escapeHtml(getPlayerInitials(player.name))}</span>
 <span class="medical-board-player-label">
@@ -320,15 +320,16 @@ ${renderBoardPlayer({ player, plan })}
 </section>
 `;
     return `
-<article class="medical-program-board-card" data-medical-board-card>
-<header>
+<article class="medical-program-board-card" data-medical-board-card ${selectedPlanId ? "" : "hidden"}>
+<header class="medical-program-detail-head">
+<button type="button" class="medical-program-detail-back" data-medical-programs-back>Player Programs</button>
 <div>
-<span>RTP Field Board</span>
+<span>RTP Player Board</span>
 ${renderNameOptions()}
 </div>
 <div class="medical-board-edit-actions">${renderEditButtons()}</div>
 </header>
-<div class="medical-board-surface${items.length ? "" : " medical-board-surface-empty"}" aria-label="RTP Field Board">
+<div class="medical-board-surface${items.length ? "" : " medical-board-surface-empty"}" aria-label="RTP Player Board">
 <svg class="medical-board-pitch" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
 ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medical-board-pitch-lines", ariaLabel: "RTP field board pitch" })}
 </svg>
@@ -543,23 +544,23 @@ ${element.type === "cone" ? `<i aria-hidden="true"></i>` : ""}
     const htmlMarkers = elements.map(renderMedicalBoardMarker).join("");
     return `
 <div class="medical-board-editor-overlay" data-medical-board-editor-overlay="${escapeHtml(plan.id)}" hidden aria-hidden="true">
-<section class="medical-board-editor-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(player.name || "Player")} RTP Field Board" tabindex="-1">
+<section class="medical-board-editor-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(player.name || "Player")} RTP Player Board" tabindex="-1">
 <header class="medical-board-editor-header">
 <div class="medical-board-editor-player">
 <span class="medical-program-avatar">${escapeHtml(getPlayerInitials(player.name))}</span>
 <div>
-<span>RTP Field Board</span>
+<span>RTP Player Board</span>
 <h3>${escapeHtml(player.name || "Player")}</h3>
 <small>${escapeHtml([player.position, plan.injuryType, `${participation}%`, phaseLabel].filter(Boolean).join(" / "))}</small>
 </div>
 </div>
 <div class="medical-board-editor-actions">
 <button type="button" data-medical-edit-injury-plan="${escapeHtml(plan.id)}">Open Medical Plan</button>
-<button type="button" data-medical-close-board-editor aria-label="Close RTP Field Board">Close</button>
+<button type="button" data-medical-close-board-editor aria-label="Close RTP Player Board">Close</button>
 </div>
 </header>
 <div class="medical-board-editor-layout">
-<aside class="medical-board-editor-tools" aria-label="RTP Field Board tools">
+<aside class="medical-board-editor-tools" aria-label="RTP Player Board tools">
 <div>
 <span>Draw</span>
 <button type="button" class="is-active" data-medical-board-tool="arrow">Arrow</button>
@@ -624,13 +625,14 @@ ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medica
     const requestedSelectedPlanId = String(summary.selectedMedicalBoardPlanId || "");
     const selectedPlanId = boardItems.some((item) => item.plan?.id === requestedSelectedPlanId)
       ? requestedSelectedPlanId
-      : boardItems[0]?.plan?.id || "";
+      : "";
     const activePrograms = playerItems.filter((item) => item.plan).length;
     const structuredPrograms = playerItems.filter((item) => item.hasProgramStarter).length;
+    const programView = selectedPlanId ? "detail" : "list";
     return `
 <div class="medical-rtp-programs-workspace medical-programs-workspace">
-<section class="medical-programs-layout" aria-label="Medical programs workspace">
-<article class="medical-program-list-panel">
+<section class="medical-programs-layout medical-programs-layout-${escapeHtml(programView)}" data-medical-programs-layout data-medical-program-view="${escapeHtml(programView)}" aria-label="Medical programs workspace">
+<article class="medical-program-list-panel" data-medical-program-list-panel ${selectedPlanId ? "hidden" : ""}>
 <header>
 <div>
 <span>Player programs</span>

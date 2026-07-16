@@ -187,7 +187,45 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     return true;
   };
 
-  const selectMedicalBoardPlan = (planId) => {
+  const showMedicalProgramsList = () => {
+    const medicalState = getMedicalState(state);
+    if (medicalState) {
+      medicalState.selectedMedicalBoardPlanId = "";
+    }
+    const layout = queryWorkspace(workspaceElement, "[data-medical-programs-layout]");
+    layout?.setAttribute?.("data-medical-program-view", "list");
+    layout?.classList?.remove?.("medical-programs-layout-detail");
+    layout?.classList?.add?.("medical-programs-layout-list");
+    const listPanel = queryWorkspace(workspaceElement, "[data-medical-program-list-panel]");
+    if (listPanel) {
+      listPanel.hidden = false;
+    }
+    const boardCard = queryWorkspace(workspaceElement, "[data-medical-board-card]");
+    if (boardCard) {
+      boardCard.hidden = true;
+    }
+    queryWorkspaceAll(workspaceElement, "[data-medical-select-board-plan]").forEach((row) => {
+      row.classList?.remove?.("is-board-selected");
+      row.setAttribute?.("aria-selected", "false");
+    });
+  };
+
+  const openMedicalProgramDetail = () => {
+    const layout = queryWorkspace(workspaceElement, "[data-medical-programs-layout]");
+    layout?.setAttribute?.("data-medical-program-view", "detail");
+    layout?.classList?.remove?.("medical-programs-layout-list");
+    layout?.classList?.add?.("medical-programs-layout-detail");
+    const listPanel = queryWorkspace(workspaceElement, "[data-medical-program-list-panel]");
+    if (listPanel) {
+      listPanel.hidden = true;
+    }
+    const boardCard = queryWorkspace(workspaceElement, "[data-medical-board-card]");
+    if (boardCard) {
+      boardCard.hidden = false;
+    }
+  };
+
+  const selectMedicalBoardPlan = (planId, options = {}) => {
     const normalizedPlanId = String(planId || "").trim();
     if (!normalizedPlanId) return false;
     const views = queryWorkspaceAll(workspaceElement, "[data-medical-board-plan-view]");
@@ -217,6 +255,9 @@ export function bindMedicalRuntimeBindings(deps = {}) {
       row.classList?.toggle?.("is-board-selected", isSelected);
       row.setAttribute?.("aria-selected", isSelected ? "true" : "false");
     });
+    if (options.openDetail !== false) {
+      openMedicalProgramDetail();
+    }
     return true;
   };
 
@@ -235,7 +276,7 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     };
   };
 
-  const saveMedicalBoardForPlan = (planId, updater, message = "RTP Field Board updated.") => {
+  const saveMedicalBoardForPlan = (planId, updater, message = "RTP Player Board updated.") => {
     const plan = getMedicalPlanById(planId);
     if (!plan || typeof updater !== "function") {
       return false;
@@ -836,8 +877,22 @@ ${renderRtpExerciseCards(profile, 3)}
       closeMedicalRtpExerciseOverlay();
       return;
     }
+    const programBackButton = event.target.closest("[data-medical-programs-back]");
+    if (programBackButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      showMedicalProgramsList();
+      return;
+    }
+    const openProgramDetailButton = event.target.closest("[data-medical-open-program-detail]");
+    if (openProgramDetailButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      selectMedicalBoardPlan(openProgramDetailButton.dataset.medicalOpenProgramDetail);
+      return;
+    }
     const boardSelectionRow = event.target.closest("[data-medical-select-board-plan]");
-    const boardSelectionInteractive = event.target.closest("button,a,input,textarea,select,[data-medical-edit-injury-plan],[data-medical-create-program]");
+    const boardSelectionInteractive = event.target.closest("button,a,input,textarea,select,[data-medical-edit-injury-plan],[data-medical-open-program-detail],[data-medical-create-program]");
     if (boardSelectionRow && !boardSelectionInteractive) {
       event.preventDefault();
       event.stopPropagation();
@@ -887,7 +942,7 @@ ${renderRtpExerciseCards(profile, 3)}
           ...board,
           elements: [...board.elements, createMedicalBoardElement(tool, point)],
         },
-      }), "RTP Field Board drawing saved.");
+    }), "RTP Player Board drawing saved.");
       return;
     }
     const removeBoardExerciseButton = event.target.closest("[data-medical-remove-board-exercise]");
@@ -906,7 +961,7 @@ ${renderRtpExerciseCards(profile, 3)}
           board: { ...board, exercises: nextExercises },
           values: { rtpProgramExercises: nextProgramExercises },
         };
-      }, "RTP Field Board exercise removed.");
+      }, "RTP Player Board exercise removed.");
       return;
     }
     const closeRtpGuideDraftButton = event.target.closest("[data-medical-close-rtp-guide-draft]");
@@ -1153,6 +1208,12 @@ ${renderRtpExerciseCards(profile, 3)}
     }
     if (event.key !== "Enter" && event.key !== " ") return;
     if (event.target.closest("button, input, select, textarea, label")) return;
+    const boardSelectionRow = event.target.closest("[data-medical-select-board-plan]");
+    if (boardSelectionRow) {
+      event.preventDefault();
+      selectMedicalBoardPlan(boardSelectionRow.dataset.medicalSelectBoardPlan);
+      return;
+    }
     const selectPlayerCard = event.target.closest("[data-medical-select-player]");
     if (!selectPlayerCard) return;
     event.preventDefault();
@@ -1330,7 +1391,7 @@ ${renderRtpExerciseCards(profile, 3)}
               : [exerciseLine, ...currentProgramExercises],
           },
         };
-      }, `${title} added to RTP Field Board.`);
+      }, `${title} added to RTP Player Board.`);
       return;
     }
     const rtpCaseLinkerForm = event.target.closest("[data-medical-rtp-case-linker-form]");

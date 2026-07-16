@@ -544,7 +544,7 @@ test("Medical runtime bindings open RTP guide authoring draft and copy the templ
   expect(calls).toContain("prevent-guide-escape");
 });
 
-test("Medical runtime bindings save player-specific RTP Field Board drawings and exercises to the active plan", async () => {
+test("Medical runtime bindings save player-specific RTP Player Board drawings and exercises to the active plan", async () => {
   const bodyClasses = new Set();
   const dialog = { focused: false, focus() { this.focused = true; } };
   const activeTool = { dataset: { medicalBoardTool: "cone" }, classList: { toggle: () => {} } };
@@ -613,7 +613,7 @@ test("Medical runtime bindings save player-specific RTP Field Board drawings and
     label: "Cone",
   });
   expect(calls).toContainEqual(["sync", "medical-board-updated", expect.objectContaining({ planId: "plan-1", playerId: "p-1" })]);
-  expect(calls).toContainEqual(["render", "RTP Field Board drawing saved."]);
+  expect(calls).toContainEqual(["render", "RTP Player Board drawing saved."]);
 
   const form = {
     dataset: { medicalBoardExerciseForm: "plan-1" },
@@ -636,14 +636,33 @@ test("Medical runtime bindings save player-specific RTP Field Board drawings and
     detail: "Stop on swelling response",
   });
   expect(mutable.lastUpdatedPlanValues.rtpProgramExercises).toContain("Box entry pattern | Rehab | 2 x 4 controlled reps | knee | Stop on swelling response");
-  expect(calls).toContainEqual(["render", "Box entry pattern added to RTP Field Board."]);
+  expect(calls).toContainEqual(["render", "Box entry pattern added to RTP Player Board."]);
 });
 
-test("Medical runtime bindings switch the RTP Field Board preview from the program list", async () => {
+test("Medical runtime bindings switch the RTP Player Board preview from the program list", async () => {
   const makeBoardNode = (key, hidden = false) => ({
     hidden,
     dataset: key,
   });
+  const makeViewNode = (hidden = false) => {
+    const node = {
+      hidden,
+      attributes: {},
+      classes: new Set(),
+      setAttribute(name, value) {
+        this.attributes[name] = value;
+      },
+    };
+    node.classList = {
+      add(name) {
+        node.classes.add(name);
+      },
+      remove(name) {
+        node.classes.delete(name);
+      },
+    };
+    return node;
+  };
   const makeRow = (planId) => ({
     dataset: { medicalSelectBoardPlan: planId },
     attributes: {},
@@ -671,8 +690,14 @@ test("Medical runtime bindings switch the RTP Field Board preview from the progr
   const footerTwo = makeBoardNode({ medicalBoardFooterOption: "plan-2" }, true);
   const rowOne = makeRow("plan-1");
   const rowTwo = makeRow("plan-2");
+  const layoutNode = makeViewNode();
+  const listPanel = makeViewNode();
+  const boardCard = makeViewNode(true);
   const { mutable, workspace } = createHarness({
     configureWorkspace: (targetWorkspace) => {
+      targetWorkspace.nodesBySelector["[data-medical-programs-layout]"] = [layoutNode];
+      targetWorkspace.nodesBySelector["[data-medical-program-list-panel]"] = [listPanel];
+      targetWorkspace.nodesBySelector["[data-medical-board-card]"] = [boardCard];
       targetWorkspace.nodesBySelector["[data-medical-board-plan-view]"] = [viewOne, viewTwo];
       targetWorkspace.nodesBySelector["[data-medical-board-name-option]"] = [nameOne, nameTwo];
       targetWorkspace.nodesBySelector["[data-medical-board-meta-option]"] = [metaOne, metaTwo];
@@ -704,6 +729,20 @@ test("Medical runtime bindings switch the RTP Field Board preview from the progr
   expect(rowOne.attributes["aria-selected"]).toBe("false");
   expect(rowTwo.attributes["aria-selected"]).toBe("true");
   expect(mutable.medicalState.selectedMedicalBoardPlanId).toBe("plan-2");
+  expect(layoutNode.attributes["data-medical-program-view"]).toBe("detail");
+  expect(listPanel.hidden).toBe(true);
+  expect(boardCard.hidden).toBe(false);
+
+  workspace.listeners.click(createEvent(createTarget({
+    closest: { "[data-medical-programs-back]": {} },
+  })));
+
+  expect(layoutNode.attributes["data-medical-program-view"]).toBe("list");
+  expect(listPanel.hidden).toBe(false);
+  expect(boardCard.hidden).toBe(true);
+  expect(rowOne.attributes["aria-selected"]).toBe("false");
+  expect(rowTwo.attributes["aria-selected"]).toBe("false");
+  expect(mutable.medicalState.selectedMedicalBoardPlanId).toBe("");
 });
 
 test("Medical runtime bindings filter RTP Library by structured clinical search domains", () => {

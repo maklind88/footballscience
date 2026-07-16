@@ -4629,9 +4629,19 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(operations).toContainText("1/3 sign-off");
 
   await operationsMenu.locator('[data-medical-ops-tab="programs"]').click();
-  await expect(operations.locator(".medical-programs-layout")).toBeVisible();
+  const programsLayout = operations.locator(".medical-programs-layout");
+  await expect(programsLayout).toBeVisible();
+  await expect(programsLayout).toHaveAttribute("data-medical-program-view", "list");
   await expect(operations.locator(".medical-program-list-panel")).toContainText("QA Long Term ACL");
-  await expect(operations.locator(".medical-program-board-card")).toContainText("RTP Field Board");
+  await expect(operations.locator(".medical-program-board-card")).toBeHidden();
+  await operations.locator('[data-medical-select-board-plan="qa-long-term-case"]').click();
+  await expect(programsLayout).toHaveAttribute("data-medical-program-view", "detail");
+  await expect(operations.locator(".medical-program-list-panel")).toBeHidden();
+  await expect(operations.locator(".medical-program-board-card")).toBeVisible();
+  await expect(operations.locator(".medical-program-board-card")).toContainText("RTP Player Board");
+  await expect(operations.locator(".medical-program-board-card")).toContainText("Individual Rehab Program");
+  await operations.locator("[data-medical-programs-back]").click();
+  await expect(programsLayout).toHaveAttribute("data-medical-program-view", "list");
 
   await operationsMenu.locator('[data-medical-ops-tab="history"]').click();
   await expect(operations).toContainText("Case opened");

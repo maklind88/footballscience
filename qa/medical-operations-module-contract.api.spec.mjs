@@ -183,17 +183,18 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   const programsMarkup = renderer.renderPrivateSystem(summary, "programs", "2026-05-31");
   expect(programsMarkup).toContain("medical-rtp-programs-workspace");
   expect(programsMarkup).toContain("medical-programs-layout");
+  expect(programsMarkup).toContain('data-medical-program-view="list"');
+  expect(programsMarkup).toContain("data-medical-program-list-panel");
   expect(programsMarkup).toContain("Player programs");
   expect(programsMarkup).toContain("1 active / 2 squad players");
-  expect(programsMarkup).toContain("RTP Field Board");
+  expect(programsMarkup).toContain("RTP Player Board");
   expect(programsMarkup).not.toContain("2 active programs");
   expect(programsMarkup).toContain("medical-board-surface");
   expect(programsMarkup).toContain("Mak Player");
   expect(programsMarkup).toContain("Clear Player");
   expect(programsMarkup).toContain("Hamstring Strain");
   expect(programsMarkup).toContain("Return to train");
-  expect(programsMarkup).toContain('data-medical-edit-injury-plan="plan-1"');
-  expect(programsMarkup).toContain('data-medical-edit-injury-plan="plan-2"');
+  expect(programsMarkup).toContain('data-medical-open-program-detail="plan-1"');
   expect(programsMarkup).toContain('data-medical-create-program="p3"');
   expect(programsMarkup).toContain("medical-board-pitch-lines");
   expect(programsMarkup).toContain("medical-board-player");
@@ -223,6 +224,17 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(programsMarkup).not.toContain("RTP Starter Queue");
   expect(programsMarkup).not.toContain("medical-rtp-case-linker");
   expect(programsMarkup).not.toContain("RTP Action Queue");
+  const selectedProgramsMarkup = renderer.renderPrivateSystem(
+    { ...summary, selectedMedicalBoardPlanId: "plan-1" },
+    "programs",
+    "2026-05-31"
+  );
+  expect(selectedProgramsMarkup).toContain('data-medical-program-view="detail"');
+  expect(selectedProgramsMarkup).toContain("data-medical-programs-back");
+  expect(selectedProgramsMarkup).toContain("RTP Player Board");
+  expect(selectedProgramsMarkup).toContain("Mak Player");
+  expect(selectedProgramsMarkup).toContain("Individual Rehab Program");
+  expect(selectedProgramsMarkup).toContain("Nordic hamstring progression");
   const emptyProgramsMarkup = renderer.renderPrivateSystem(
     {
       ...summary,
@@ -235,7 +247,8 @@ test("Medical operations renderer owns operations tabs, private system, and coac
     "programs",
     "2026-05-31"
   );
-  expect(emptyProgramsMarkup).toContain("RTP Field Board");
+  expect(emptyProgramsMarkup).toContain('data-medical-program-view="list"');
+  expect(emptyProgramsMarkup).toContain("RTP Player Board");
   expect(emptyProgramsMarkup).toContain("No player program is active on the board");
   expect(emptyProgramsMarkup).toContain("Individual Rehab Program");
   expect(emptyProgramsMarkup).toContain("Start a player rehab plan");

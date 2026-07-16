@@ -180,14 +180,18 @@ export function getSquadTrainingAvailabilitySummary({
       if (!dateValue || dateValue > referenceDate) {
         return null;
       }
-      const status = getPlayerAvailabilityStatusForDate(cleanPlayerId, date, playerRecordByDate.get(date));
+      const playerRecord = playerRecordByDate.get(date);
+      if (!playerRecord) {
+        return null;
+      }
+      const status = getPlayerAvailabilityStatusForDate(cleanPlayerId, date, playerRecord);
       if (isExcusedClubAbsenceStatus(status)) {
         return null;
       }
       return {
         date,
         dateValue,
-        participation: playerRecordByDate.get(date)?.participation ?? 0,
+        participation: playerRecord.participation,
       };
     })
     .filter(Boolean)

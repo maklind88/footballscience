@@ -5616,16 +5616,14 @@ body.is-dark-mode .idp-river-detail-value {
   margin: 0;
 }
 
-.idp-player-board-focus-meta,
-.idp-player-board-stage-meta {
+.idp-player-board-focus-meta {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
 }
 
-.idp-player-board-focus-meta small,
-.idp-player-board-stage-meta small {
+.idp-player-board-focus-meta small {
   background: rgba(15, 118, 110, .08);
   border: 1px solid rgba(15, 118, 110, .12);
   border-radius: 999px;
@@ -5795,7 +5793,7 @@ body.is-dark-mode .idp-river-detail-value {
   align-items: start;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   margin: 0 0 12px;
 }
 

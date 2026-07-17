@@ -1149,45 +1149,37 @@ test("Chat message grouping hover keeps message geometry stable", async ({ page 
       const hoverActionMetrics = await page.evaluate((messageId) => {
         const card = document.querySelector(`[data-dashboard-chat-message-id="${messageId}"]`);
         const menu = card?.querySelector(".dashboard-chat-message-menu");
-        const reaction = card?.querySelector(".dashboard-chat-message-reaction-menu");
         const menuSummary = menu?.querySelector("summary");
-        const reactionSummary = reaction?.querySelector("summary");
         const menuRect = menuSummary?.getBoundingClientRect();
-        const reactionRect = reactionSummary?.getBoundingClientRect();
         return {
           menuLabel: menuSummary?.getAttribute("aria-label") || "",
-          reactionLabel: reactionSummary?.getAttribute("aria-label") || "",
           menuOpacity: Number(menu ? window.getComputedStyle(menu).opacity : 0),
-          reactionOpacity: Number(reaction ? window.getComputedStyle(reaction).opacity : 0),
           menuWidth: menuRect?.width || 0,
           menuHeight: menuRect?.height || 0,
-          reactionWidth: reactionRect?.width || 0,
-          reactionHeight: reactionRect?.height || 0,
-          reactionPanelPresent: Boolean(card?.querySelector(".dashboard-chat-message-reaction-panel .dashboard-chat-reactions")),
+          quickReactionPresent: Boolean(card?.querySelector(".dashboard-chat-message-reaction-menu")),
+          quickReactionPanelPresent: Boolean(card?.querySelector(".dashboard-chat-message-reaction-panel .dashboard-chat-reactions")),
         };
       }, target.messageId);
 
       expect(hoverActionMetrics.menuLabel).toBe("Open message actions");
-      expect(hoverActionMetrics.reactionLabel).toBe("React to message");
       expect(hoverActionMetrics.menuOpacity).toBeGreaterThan(0.9);
-      expect(hoverActionMetrics.reactionOpacity).toBeGreaterThan(0.9);
       expect(hoverActionMetrics.menuWidth).toBeLessThanOrEqual(24);
       expect(hoverActionMetrics.menuHeight).toBeLessThanOrEqual(24);
-      expect(hoverActionMetrics.reactionWidth).toBeLessThanOrEqual(24);
-      expect(hoverActionMetrics.reactionHeight).toBeLessThanOrEqual(24);
-      expect(hoverActionMetrics.reactionPanelPresent).toBe(true);
+      expect(hoverActionMetrics.quickReactionPresent).toBe(false);
+      expect(hoverActionMetrics.quickReactionPanelPresent).toBe(false);
     }
     const hovered = await readQaChatMessageGeometry(page);
     expectQaChatMessageGeometryStable(baseline, hovered, `message hover ${index + 1}`);
   }
 
   const reactionTargetId = hoverTargets[0]?.messageId || "";
-  await page.locator(`[data-dashboard-chat-message-id="${reactionTargetId}"] .dashboard-chat-message-reaction-menu summary`).click();
+  await page.locator(`[data-dashboard-chat-message-id="${reactionTargetId}"] .dashboard-chat-message-menu summary`).click();
   const reactionButton = page
     .locator(
-      `[data-dashboard-chat-message-id="${reactionTargetId}"] .dashboard-chat-message-reaction-panel [data-dashboard-message-reaction="${reactionTargetId}"][data-dashboard-reaction-key]`
+      `[data-dashboard-chat-message-id="${reactionTargetId}"] .dashboard-chat-menu-reaction-group [data-dashboard-message-reaction="${reactionTargetId}"][data-dashboard-reaction-key]`
     )
     .first();
+  await expect(reactionButton).toBeVisible();
   const reactionKey = await reactionButton.getAttribute("data-dashboard-reaction-key");
   await reactionButton.click();
   await expect

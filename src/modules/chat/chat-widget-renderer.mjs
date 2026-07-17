@@ -864,22 +864,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const messageStatusFooterMarkup = messageStatusMarkup
       ? `<div class="dashboard-chat-message-status">${messageStatusMarkup}</div>`
       : "";
-    const quickReactionMarkup = !isPreviewOnly && reactionMarkup
-      ? `<details class="dashboard-chat-message-reaction-menu">
-          <summary aria-label="React to message" title="React to message">
-            <span aria-hidden="true">&#128578;</span>
-          </summary>
-          <div class="dashboard-chat-message-reaction-panel" role="group" aria-label="React to message">
-            ${reactionMarkup}
-          </div>
-        </details>`
-      : "";
-
     return `
     <article class="dashboard-chat-message${isOwn ? " is-own" : ""}${isPreviewOnly ? " is-preview" : ""}${isMentioned ? " is-mentioned" : ""}${isSearchMatch ? " is-search-match" : ""}${isActiveSearchMatch ? " is-active-search-match" : ""}${isFirstUnread ? " is-first-unread" : ""}${message.pinnedAt ? " is-pinned" : ""}${isGroupedWithPrevious ? " is-grouped-with-previous" : ""}${isGroupedWithNext ? " is-grouped-with-next" : ""}${messageStatus ? ` is-${escapeHtml(messageStatus)} is-status-${escapeHtml(messageStatus)}` : ""}${cardStateClasses}" data-dashboard-chat-message-id="${escapeHtml(message.id)}" data-dashboard-chat-message-card${isActiveSearchMatch ? ' data-dashboard-chat-search-active="true"' : ""}${isFirstUnread ? ' data-dashboard-chat-first-unread-message="true"' : ""} aria-label="${escapeHtml(`${userName}${fullTimeLabel ? `, ${fullTimeLabel}` : ""}`)}">
       ${metaMarkup}
       <div class="dashboard-chat-bubble">
-        ${quickReactionMarkup}
         ${isPreviewOnly ? "" : `<details class="dashboard-chat-message-menu">
           <summary aria-label="Open message actions">
             <span aria-hidden="true">&#8964;</span>

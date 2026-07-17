@@ -10,6 +10,7 @@ function createHarness(options = {}) {
   let lab = normalizeScoutingComparisonLab(options.lab || { playerIds: ["", "", "", ""], metricIds: ["xg"] });
   let playerSearchQuery = "";
   let candidatesOpen = false;
+  let searchNameReads = 0;
   const localRecords = options.localRecords || [
     { id: "record-1", name: "Alex Morgan", team: "San Diego", league: "NWSL", position: "CF", nationality: "USA" },
     { id: "record-2", name: "Alicia Wing", team: "Seattle", league: "NWSL", position: "LW", nationality: "USA" },
@@ -29,7 +30,10 @@ function createHarness(options = {}) {
     getRecordById: (recordId) => localRecords.find((record) => record.id === recordId) || null,
     getRecordId: (record) => record?.id || "",
     getRecordLeague: (record) => record?.league || "",
-    getRecordName: (record) => record?.name || "",
+    getRecordName: (record) => {
+      searchNameReads += 1;
+      return record?.name || "";
+    },
     getRecordNationality: (record) => record?.nationality || "",
     getRecordPosition: (record) => record?.position || "",
     getRecordTeam: (record) => record?.team || "",
@@ -64,7 +68,14 @@ function createHarness(options = {}) {
       return 17;
     },
   });
-  return { actions, calls, get candidatesOpen() { return candidatesOpen; }, get lab() { return lab; }, get playerSearchQuery() { return playerSearchQuery; } };
+  return {
+    actions,
+    calls,
+    get candidatesOpen() { return candidatesOpen; },
+    get lab() { return lab; },
+    get playerSearchQuery() { return playerSearchQuery; },
+    get searchNameReads() { return searchNameReads; },
+  };
 }
 
 test("Scouting comparison actions normalize lab player and metric bounds", () => {
@@ -163,4 +174,21 @@ test("Scouting comparison actions remove players through a lightweight workspace
     ["candidates", true],
     ["render-workspace", { preserveFocus: true }],
   ]);
+});
+
+test("Scouting comparison local search stops scanning after its result limit", () => {
+  const localRecords = Array.from({ length: 1000 }, (_, index) => ({
+    id: `record-${index}`,
+    name: `Alice Player ${index}`,
+    team: "Test FC",
+    league: "Test League",
+    position: "CM",
+    nationality: "SE",
+  }));
+  const harness = createHarness({ localRecords, remoteRecords: [] });
+
+  const cache = harness.actions.queuePlayerSearch("alice");
+
+  expect(cache.records).toHaveLength(24);
+  expect(harness.searchNameReads).toBe(24);
 });

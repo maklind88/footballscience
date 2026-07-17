@@ -1,5 +1,7 @@
 import { normalizeScoutingComparisonLab, normalizeScoutingText } from "./scouting-state.mjs";
 
+const comparisonSearchTextCache = new WeakMap();
+
 function normalizeText(deps = {}, value = "", limit = 160) {
   if (typeof deps.normalizeText === "function") {
     return deps.normalizeText(value, limit);
@@ -20,7 +22,10 @@ function getComparisonSearchKey(deps = {}, query = "") {
 }
 
 function getComparisonSearchText(deps = {}, record) {
-  return [
+  if (record && typeof record === "object" && comparisonSearchTextCache.has(record)) {
+    return comparisonSearchTextCache.get(record);
+  }
+  const searchText = [
     deps.getRecordName?.(record),
     deps.getRecordTeam?.(record),
     deps.getRecordLeague?.(record),
@@ -30,6 +35,10 @@ function getComparisonSearchText(deps = {}, record) {
     .map((value) => normalizeText(deps, value, 160).toLowerCase())
     .filter(Boolean)
     .join(" ");
+  if (record && typeof record === "object") {
+    comparisonSearchTextCache.set(record, searchText);
+  }
+  return searchText;
 }
 
 function getLocalComparisonSearchRecords(deps = {}, query = "", limit = 24) {
@@ -39,7 +48,16 @@ function getLocalComparisonSearchRecords(deps = {}, query = "", limit = 24) {
   }
   const database = deps.getDatabase?.();
   const records = Array.isArray(database?.records) ? database.records : [];
-  return records.filter((record) => getComparisonSearchText(deps, record).includes(normalizedQuery)).slice(0, limit);
+  const matches = [];
+  for (const record of records) {
+    if (getComparisonSearchText(deps, record).includes(normalizedQuery)) {
+      matches.push(record);
+      if (matches.length >= limit) {
+        break;
+      }
+    }
+  }
+  return matches;
 }
 
 function renderComparisonWorkspace(deps = {}, options = { preserveFocus: true }) {

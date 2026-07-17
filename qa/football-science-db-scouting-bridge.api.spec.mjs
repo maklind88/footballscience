@@ -23,6 +23,19 @@ function loadScoutingWorkerSandbox() {
   return sandbox;
 }
 
+test("Scouting worker honors lightweight query payload flags", () => {
+  const sandbox = loadScoutingWorkerSandbox();
+  const query = sandbox.normalizeQuery({
+    includeMetrics: "0",
+    includeOptions: "false",
+    limit: 50,
+  });
+
+  expect(query.includeMetrics).toBe(false);
+  expect(query.includeOptions).toBe(false);
+  expect(query.limit).toBe(50);
+});
+
 test("Scouting database keeps source enrichment behind one visual player database", () => {
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
   const client = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-client.mjs"), "utf8");

@@ -48,6 +48,8 @@ export * from "./scouting-database-paging-renderer.mjs";
 export * from "./scouting-database-refresh-controller.mjs";
 export * from "./scouting-database-results-service.mjs";
 export * from "./scouting-database-source-policy.mjs";
+export * from "./scouting-worker-request-manager.mjs";
+export * from "./scouting-person-cluster-service.mjs";
 export * from "./scouting-api-profile-service.mjs";
 export * from "./scouting-football-science-db-client.mjs";
 export * from "./scouting-football-science-db-adapter.mjs";

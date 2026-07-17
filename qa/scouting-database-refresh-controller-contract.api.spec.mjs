@@ -18,6 +18,7 @@ function createHarness(overrides = {}) {
     loadedApi: 0,
     loadedFsdb: 0,
     perf: [],
+    refreshStatuses: [],
     renderedResults: 0,
     requestedWorkers: [],
     setApiTimers: [],
@@ -51,6 +52,7 @@ function createHarness(overrides = {}) {
       calls.loadedFsdb += 1;
       return overrides.loadFsdbResult || Promise.resolve({ source: "fsdb" });
     },
+    onRefreshStatus: (status) => calls.refreshStatuses.push(status),
     renderResults: () => {
       calls.renderedResults += 1;
     },
@@ -62,7 +64,8 @@ function createHarness(overrides = {}) {
     },
     requestWorkerQuery: (payload) => {
       calls.requestedWorkers.push(payload);
-      return overrides.workerResult || Promise.resolve({ source: "worker" });
+      const requestIndex = calls.requestedWorkers.length - 1;
+      return overrides.workerResults?.[requestIndex] || overrides.workerResult || Promise.resolve({ source: "worker" });
     },
     setApiRefreshTimer: (timer) => {
       apiRefreshTimer = timer || 0;
@@ -154,13 +157,40 @@ test("Scouting database refresh controller refreshes worker sources and falls ba
   harness.runTimer(20);
   await flushMicrotasks();
 
-  expect(harness.calls.requestedWorkers).toEqual([{ timeoutMs: 15000 }]);
+  expect(harness.calls.requestedWorkers).toEqual([{ timeoutMs: 45000 }]);
   expect(harness.calls.appliedWorkers).toEqual([{ source: "worker" }]);
   expect(harness.calls.renderedResults).toBe(0);
   expect(harness.calls.perf[0]).toMatchObject({ label: "database.refresh", detail: { source: "worker" }, ended: { status: "fallback" } });
   expect(harness.calls.setFrames).toEqual([50]);
   harness.runFrame(50);
   expect(harness.calls.renderedResults).toBe(1);
+});
+
+test("Scouting database refresh controller ignores stale worker results", async () => {
+  let resolveFirst;
+  let resolveSecond;
+  const firstResult = new Promise((resolve) => {
+    resolveFirst = resolve;
+  });
+  const secondResult = new Promise((resolve) => {
+    resolveSecond = resolve;
+  });
+  const harness = createHarness({ source: "worker", workerResults: [firstResult, secondResult] });
+
+  harness.controller.scheduleRefresh();
+  harness.runTimer(20);
+  harness.controller.scheduleRefresh();
+  harness.runTimer(21);
+
+  resolveSecond({ source: "worker", marker: "new" });
+  await flushMicrotasks();
+  resolveFirst({ source: "worker", marker: "old" });
+  await flushMicrotasks();
+
+  expect(harness.calls.appliedWorkers).toEqual([{ source: "worker", marker: "new" }]);
+  expect(harness.calls.renderedResults).toBe(1);
+  expect(harness.calls.perf.map((entry) => entry.ended?.status).sort()).toEqual(["loaded", "stale"]);
+  expect(harness.calls.refreshStatuses).toContainEqual({ revision: 2, source: "worker", status: "loaded" });
 });
 
 test("Scouting database refresh controller avoids stale renders after leaving Database", async () => {

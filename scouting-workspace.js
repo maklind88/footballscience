@@ -13,6 +13,7 @@ import {
   createScoutingDatabaseRefreshController,
   createScoutingDatabaseResultsService,
   createScoutingDatabaseSourcePolicy,
+  createScoutingWorkerRequestManager,
   createScoutingFavoritesActions,
   createScoutingMiniRadarService,
   createScoutingMyTeamPitchService,
@@ -39,6 +40,7 @@ import {
   createScoutingShadowXiActions,
   SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS as SCOUTING_FSDB_GENDER_SEGMENT_POLICY_OPTIONS,
   normalizeScoutingComparisonLab,
+  buildScoutingPersonClusters,
   renderScoutingActiveContentByTab,
 } from "./src/modules/scouting/index.mjs";
 import {
@@ -84,7 +86,6 @@ let scoutingDatabaseWorker = null;
 let scoutingDatabaseWorkerPreloadPromise = null;
 let scoutingDatabaseWorkerFullPreloadPromise = null;
 let scoutingDatabaseWorkerFullReady = false;
-let scoutingDatabaseWorkerRequestId = 0;
 let scoutingDatabaseError = "";
 let scoutingDatabaseOptionCache = null;
 let scoutingDatabaseOptionLoadPromise = null;
@@ -180,7 +181,19 @@ let scoutingOppositionFilters = { team: "", season: "all", minMinutes: 450 };
 let scoutingOppositionLatestSnapshot = null;
 let scoutingDataQualitySummaryCache = { key: "", value: null };
 const SCOUTING_API_ACCESS_TOKEN_MAX_LENGTH = 6000;
-const scoutingDatabaseWorkerRequests = new Map();
+const scoutingDatabaseWorkerRequestManager = createScoutingWorkerRequestManager({
+  clearTimeout: (timer) => globalThis.window.clearTimeout(timer),
+  onTimeout: ({ pendingCount, requestId, timeoutMs, type }) => {
+    console.warn("[scouting-worker-timeout]", {
+      pendingCount,
+      requestId,
+      timeoutMs,
+      type,
+    });
+  },
+  setTimeout: (callback, delayMs) => globalThis.window.setTimeout(callback, delayMs),
+  windowRef: typeof globalThis !== "undefined" ? globalThis.window : null,
+});
 const scoutingWorkerRecordHydrationQueue = new Set();
 const scoutingWorkerRecordHydrationInFlight = new Set();
 let scoutingWorkerRecordHydrationTimer = 0;
@@ -449,6 +462,26 @@ const scoutingDatabaseBackgroundController = createScoutingDatabaseBackgroundCon
   scheduleDatabaseRefresh: scheduleScoutingDatabaseRefresh,
   windowRef: typeof globalThis !== "undefined" ? globalThis.window : null,
 });
+function syncScoutingDatabaseRefreshStatus({ revision = 0, status = "" } = {}) {
+  const panel = ui.scoutingWorkspace?.querySelector(".scouting-database-panel");
+  const summary = panel?.querySelector("[data-scouting-result-summary]");
+  if (!panel) {
+    return;
+  }
+  const currentRevision = Number(panel.dataset.scoutingRefreshRevision) || 0;
+  if (revision < currentRevision) {
+    return;
+  }
+  panel.dataset.scoutingRefreshRevision = String(revision);
+  if (status === "loading") {
+    panel.setAttribute("aria-busy", "true");
+    if (summary) {
+      summary.textContent = "Updating results...";
+    }
+    return;
+  }
+  panel.removeAttribute("aria-busy");
+}
 const scoutingDatabaseRefreshController = createScoutingDatabaseRefreshController({
   applyWorkerDatabase: applyScoutingWorkerDatabase,
   cancelAnimationFrame: (frame) => window.cancelAnimationFrame(frame),
@@ -461,6 +494,7 @@ const scoutingDatabaseRefreshController = createScoutingDatabaseRefreshControlle
   isWorkerDatabaseActive: isScoutingWorkerDatabaseActive,
   loadApiDatabase: loadScoutingDatabaseWithApi,
   loadFootballScienceDbDatabase,
+  onRefreshStatus: syncScoutingDatabaseRefreshStatus,
   renderResults: renderScoutingDatabaseResults,
   requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
   requestWorkerQuery: requestScoutingDatabaseWorkerQuery,
@@ -1993,9 +2027,15 @@ function getScoutingApiQueryFromState() {
   };
 }
 function getScoutingWorkerQueryFromState() {
+  const options = getScoutingDatabase()?.options;
+  const hasWorkerOptions =
+    Array.isArray(options?.leagues) &&
+    Array.isArray(options?.teams) &&
+    Array.isArray(options?.seasons) &&
+    Array.isArray(options?.positions);
   return {
     ...getScoutingApiQueryFromState(),
-    includeOptions: "1",
+    includeOptions: hasWorkerOptions ? "0" : "1",
   };
 }
 function shouldUseScoutingWorkerPreviewFirst(filters = normalizeScoutingDatabaseFilters(ensureScoutingState().databaseFilters)) {
@@ -2941,12 +2981,7 @@ function loadScoutingDatabaseWithScript() {
     .then(() => getScoutingDatabase());
 }
 function rejectPendingScoutingDatabaseWorkerRequests(error) {
-  const requestError = error instanceof Error ? error : new Error(error?.message || "Scouting player database worker failed.");
-  for (const request of scoutingDatabaseWorkerRequests.values()) {
-    window.clearTimeout(request.timeoutId);
-    request.reject(requestError);
-  }
-  scoutingDatabaseWorkerRequests.clear();
+  scoutingDatabaseWorkerRequestManager.rejectAll(error);
 }
 function getOrCreateScoutingDatabaseWorker() {
   if (scoutingDatabaseWorker) {
@@ -2958,27 +2993,7 @@ function getOrCreateScoutingDatabaseWorker() {
   const worker = new Worker(`scouting-database-worker.js?v=${getScoutingAssetVersion()}`);
   scoutingDatabaseWorker = worker;
   worker.onmessage = (event) => {
-    const message = event.data || {};
-    const requestId = Number(message.requestId) || 0;
-    const request = scoutingDatabaseWorkerRequests.get(requestId);
-    if (!request) {
-      return;
-    }
-    scoutingDatabaseWorkerRequests.delete(requestId);
-    window.clearTimeout(request.timeoutId);
-    if (message.type === "database") {
-      request.resolve(message.database || null);
-      return;
-    }
-    if (message.type === "records") {
-      request.resolve(Array.isArray(message.records) ? message.records : []);
-      return;
-    }
-    if (message.type === "preloaded") {
-      request.resolve(true);
-      return;
-    }
-    request.reject(new Error(message.message || "Scouting player database could not be loaded."));
+    scoutingDatabaseWorkerRequestManager.handleMessage(event.data || {});
   };
   worker.onerror = (error) => {
     if (scoutingDatabaseWorker === worker) {
@@ -2995,30 +3010,19 @@ function requestScoutingDatabaseWorkerQuery(options = {}) {
   if (!worker) {
     return Promise.reject(new Error("Scouting player database worker is unavailable."));
   }
-  const requestId = (scoutingDatabaseWorkerRequestId += 1);
   const timeoutMs = Math.max(1000, Math.floor(Number(options.timeoutMs) || 45000));
-  return new Promise((resolve, reject) => {
-    const timeoutId = window.setTimeout(() => {
-      scoutingDatabaseWorkerRequests.delete(requestId);
-      if (scoutingDatabaseWorker === worker) {
-        scoutingDatabaseWorker = null;
-        scoutingDatabaseWorkerFullReady = false;
-      }
-      worker.terminate();
-      reject(new Error("Scouting player database timed out while loading."));
-      rejectPendingScoutingDatabaseWorkerRequests(new Error("Scouting player database timed out while loading."));
-    }, timeoutMs);
-    scoutingDatabaseWorkerRequests.set(requestId, { resolve, reject, timeoutId });
-    worker.postMessage({
+  return scoutingDatabaseWorkerRequestManager.request(
+    worker,
+    {
       type: options.type || "query",
-      requestId,
       scriptUrl: `scouting-import-data.js?v=${getScoutingAssetVersion()}`,
       previewScriptUrl: `scouting-import-preview-data.js?v=${getScoutingAssetVersion()}`,
       manifestScriptUrl: `scouting-import-manifest.js?v=${getScoutingAssetVersion()}`,
       query: options.query && typeof options.query === "object" ? options.query : getScoutingWorkerQueryFromState(),
       recordIds: Array.isArray(options.recordIds) ? options.recordIds : [],
-    });
-  });
+    },
+    { timeoutMs, type: options.type || "query" }
+  );
 }
 function requestScoutingDatabaseWorkerRecords(recordIds = [], options = {}) {
   const ids = normalizeScoutingRecordIds(recordIds);
@@ -4705,42 +4709,14 @@ function chooseScoutingRepresentativeRecord(records = [], filters = {}) {
   })[0] || null;
 }
 function buildScoutingDatabasePersonClusters(records = []) {
-  const clusters = [];
-  for (const record of Array.isArray(records) ? records : []) {
-    const strongKey = getScoutingRecordStrongPersonKey(record);
-    const softKey = getScoutingRecordSoftPersonKey(record);
-    let cluster = strongKey
-      ? clusters.find((item) => item.strongKey && item.strongKey === strongKey)
-      : null;
-    if (!cluster && softKey) {
-      cluster = clusters.find((item) => item.softKey && item.softKey === softKey && item.records.every((candidate) => areScoutingRecordsLikelySamePerson(record, candidate)));
-    }
-    if (!cluster) {
-      cluster = clusters.find((item) => {
-        if (
-          strongKey &&
-          item.strongKey &&
-          item.strongKey !== strongKey &&
-          (isScoutingHardPersonKey(strongKey) || isScoutingHardPersonKey(item.strongKey))
-        ) {
-          return false;
-        }
-        return item.records.every((candidate) => areScoutingRecordsLikelySamePerson(record, candidate));
-      });
-    }
-    if (cluster) {
-      cluster.records.push(record);
-      if (strongKey && !cluster.strongKey) {
-        cluster.strongKey = strongKey;
-      }
-      if (softKey && !cluster.softKey) {
-        cluster.softKey = softKey;
-      }
-    } else {
-      clusters.push({ strongKey, softKey, records: [record] });
-    }
-  }
-  return clusters;
+  return buildScoutingPersonClusters(records, {
+    getAliasKey: getScoutingRecordPersonAliasKey,
+    getNameKey: getScoutingRecordPersonNameKey,
+    getSoftKey: getScoutingRecordSoftPersonKey,
+    getStrongKey: getScoutingRecordStrongPersonKey,
+    isHardKey: isScoutingHardPersonKey,
+    isSamePerson: areScoutingRecordsLikelySamePerson,
+  });
 }
 function attachScoutingMergedSeasonRecords(record, records = []) {
   if (!record) {

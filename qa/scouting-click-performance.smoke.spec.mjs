@@ -12,8 +12,8 @@ const budgets = {
   openWorkspace: budget(1200, 3000),
   switchTab: budget(1000, 3000),
   loadDatabase: budget(5000, 15_000),
-  searchDatabase: budget(1000, 6000),
-  filterDatabase: budget(1000, 4000),
+  searchDatabase: budget(1000, 4000),
+  filterDatabase: budget(1000, 3000),
   openProfile: budget(1000, 4000),
   favoriteToggle: budget(500, 2000),
   addToShadow: budget(1000, 4000),
@@ -161,6 +161,39 @@ async function waitForScoutingRows(page, { timeout = 60_000 } = {}) {
   return firstRow;
 }
 
+async function getScoutingResultState(page) {
+  return page.evaluate(() => {
+    const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
+    const panel = workspace?.querySelector(".scouting-database-panel");
+    const database = window.__footballScienceScoutingDatabase || {};
+    const recordIds = (Array.isArray(database.records) ? database.records : [])
+      .map((record) => (Array.isArray(record) ? record[0] : record?.id || ""))
+      .filter(Boolean);
+    return {
+      busy: panel?.getAttribute("aria-busy") === "true",
+      recordIds,
+      refreshRevision: Number(panel?.dataset.scoutingRefreshRevision) || 0,
+      summary: panel?.querySelector("[data-scouting-result-summary]")?.textContent?.trim() || "",
+    };
+  });
+}
+
+async function waitForScoutingRefresh(page, previousRevision, { timeout = 10_000 } = {}) {
+  await page.waitForFunction(
+    (revision) => {
+      const panel = document.querySelector('[data-workspace-view="scouting"].is-active .scouting-database-panel');
+      return (
+        panel?.getAttribute("aria-busy") !== "true" &&
+        (Number(panel?.dataset.scoutingRefreshRevision) || 0) > revision
+      );
+    },
+    previousRevision,
+    { timeout }
+  );
+  await nextPaint(page);
+  return getScoutingResultState(page);
+}
+
 async function getStableSearchTerm(row) {
   const rowText = await row.innerText();
   return (
@@ -306,6 +339,7 @@ test("Scouting critical clicks stay within interaction budgets", async ({ page }
   const queryInput = page.locator('[data-scouting-database-search-form] input[name="query"]').first();
   await expect(queryInput).toBeEnabled({ timeout: 15_000 });
   await queryInput.fill(searchTerm);
+  const searchStateBefore = await getScoutingResultState(page);
   await measureInteraction(
     page,
     results,
@@ -316,6 +350,13 @@ test("Scouting critical clicks stay within interaction budgets", async ({ page }
     },
     async () => {
       await expect(queryInput).toHaveValue(searchTerm);
+      const searchStateAfter = await waitForScoutingRefresh(page, searchStateBefore.refreshRevision, {
+        timeout: budgets.searchDatabase,
+      });
+      expect(
+        searchStateAfter.summary !== searchStateBefore.summary ||
+          searchStateAfter.recordIds.join("|") !== searchStateBefore.recordIds.join("|")
+      ).toBe(true);
       await waitForScoutingRows(page, { timeout: budgets.searchDatabase });
     }
   );
@@ -323,6 +364,7 @@ test("Scouting critical clicks stay within interaction budgets", async ({ page }
   const positionSelect = page.locator('[data-scouting-filter="position"]').first();
   const matchingPosition = await getMatchingPositionFilter(page);
   if ((await positionSelect.count()) > 0 && matchingPosition) {
+    const filterStateBefore = await getScoutingResultState(page);
     await measureInteraction(
       page,
       results,
@@ -332,6 +374,26 @@ test("Scouting critical clicks stay within interaction budgets", async ({ page }
         await positionSelect.selectOption(matchingPosition);
       },
       async () => {
+        await waitForScoutingRefresh(page, filterStateBefore.refreshRevision, {
+          timeout: budgets.filterDatabase,
+        });
+        await waitForScoutingRows(page, { timeout: budgets.filterDatabase });
+      }
+    );
+
+    const resetStateBefore = await getScoutingResultState(page);
+    await measureInteraction(
+      page,
+      results,
+      "database position filter reset",
+      budgets.filterDatabase,
+      async () => {
+        await positionSelect.selectOption("all");
+      },
+      async () => {
+        await waitForScoutingRefresh(page, resetStateBefore.refreshRevision, {
+          timeout: budgets.filterDatabase,
+        });
         await waitForScoutingRows(page, { timeout: budgets.filterDatabase });
       }
     );

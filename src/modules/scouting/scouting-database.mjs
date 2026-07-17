@@ -82,7 +82,7 @@ export function renderScoutingDatabaseWorkspace(deps = {}) {
       <div class="scouting-database-workbench">
         <main class="scouting-database-main">
           <div class="scouting-database-results-header">
-            <div class="scouting-result-summary" data-scouting-result-summary>${deps.escapeHtml(results.summary)}</div>
+            <div class="scouting-result-summary" data-scouting-result-summary role="status" aria-live="polite">${deps.escapeHtml(results.summary)}</div>
             <div class="scouting-database-results-actions">
               ${deps.renderSavedViewsButton()}
               ${deps.renderDatabasePagingControls(results.paging)}

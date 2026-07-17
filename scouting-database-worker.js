@@ -23,6 +23,7 @@ let loadedDatabase = null;
 let loadedScriptUrl = "";
 let loadedFullDatabase = null;
 let loadedFullScriptUrl = "";
+let loadedFullDatabaseLoad = null;
 let loadedPreviewDatabase = null;
 let loadedPreviewScriptUrl = "";
 let optionCache = null;
@@ -517,9 +518,22 @@ async function writeWorkerCachedDatabase(kind = "full", scriptUrl = "", database
   return new Promise((resolve) => {
     try {
       const transaction = cache.transaction(workerDatabaseCacheStore, "readwrite");
+      const store = transaction.objectStore(workerDatabaseCacheStore);
       transaction.oncomplete = () => resolve(true);
       transaction.onerror = () => resolve(false);
-      transaction.objectStore(workerDatabaseCacheStore).put(payload);
+      const cursorRequest = store.openCursor();
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (!cursor) {
+          store.put(payload);
+          return;
+        }
+        if (cursor.value?.kind === kind && cursor.key !== payload.key) {
+          cursor.delete();
+        }
+        cursor.continue();
+      };
+      cursorRequest.onerror = () => store.put(payload);
     } catch {
       resolve(false);
     }
@@ -801,23 +815,38 @@ function loadPreviewDatabaseFromScript(scriptUrl = "scouting-import-preview-data
 
 async function loadDatabase(scriptUrl = "scouting-import-data.js", manifestScriptUrl = "scouting-import-manifest.js", options = {}) {
   const normalizedScriptUrl = String(scriptUrl || "scouting-import-data.js");
-  const manifest = loadDatabaseManifest(manifestScriptUrl);
   const primeOptions = options.prime && typeof options.prime === "object" ? options.prime : {};
   if (loadedFullDatabase && loadedFullScriptUrl === normalizedScriptUrl) {
     return activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
   }
-  const cachedDatabase = await readWorkerCachedDatabase("full", normalizedScriptUrl, manifest);
-  if (cachedDatabase) {
-    loadedFullDatabase = cachedDatabase;
-    loadedFullScriptUrl = normalizedScriptUrl;
-    const database = activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
-    primeDatabaseIndexes(database, primeOptions);
-    return database;
+
+  if (!loadedFullDatabaseLoad || loadedFullDatabaseLoad.scriptUrl !== normalizedScriptUrl) {
+    const manifest = loadDatabaseManifest(manifestScriptUrl);
+    const promise = (async () => {
+      const cachedDatabase = await readWorkerCachedDatabase("full", normalizedScriptUrl, manifest);
+      if (cachedDatabase) {
+        loadedFullDatabase = cachedDatabase;
+        loadedFullScriptUrl = normalizedScriptUrl;
+        return loadedFullDatabase;
+      }
+      const database = loadDatabaseFromScript(normalizedScriptUrl);
+      writeWorkerCachedDatabase("full", normalizedScriptUrl, database, manifest).catch(() => false);
+      return database;
+    })();
+    loadedFullDatabaseLoad = { promise, scriptUrl: normalizedScriptUrl };
   }
-  const database = loadDatabaseFromScript(normalizedScriptUrl);
-  primeDatabaseIndexes(database, primeOptions);
-  writeWorkerCachedDatabase("full", normalizedScriptUrl, database, manifest).catch(() => false);
-  return database;
+
+  const activeLoad = loadedFullDatabaseLoad;
+  try {
+    const database = await activeLoad.promise;
+    const activeDatabase = activateDatabase(database, normalizedScriptUrl);
+    primeDatabaseIndexes(activeDatabase, primeOptions);
+    return activeDatabase;
+  } finally {
+    if (loadedFullDatabaseLoad === activeLoad) {
+      loadedFullDatabaseLoad = null;
+    }
+  }
 }
 
 async function loadPreviewDatabase(scriptUrl = "scouting-import-preview-data.js") {
@@ -853,6 +882,8 @@ function normalizeQuery(query = {}) {
     metricIds: Array.from(new Set(metricIds)),
     metricMin: normalizeNumber(query.metricMin, NaN),
     sortMetricId: normalizeText(query.sortMetricId || query.sort || "minutes", 160) || "minutes",
+    includeMetrics: !["0", "false"].includes(String(query.includeMetrics ?? "1").toLowerCase()),
+    includeOptions: !["0", "false"].includes(String(query.includeOptions ?? "1").toLowerCase()),
     limit,
     offset,
   };
@@ -990,8 +1021,8 @@ function getDatabasePage(query = {}) {
     importedAt: database?.importedAt || "",
     fileName: database?.fileName || "",
     sheets: Array.isArray(database?.sheets) ? database.sheets : [],
-    metrics: Array.isArray(database?.metrics) ? database.metrics : [],
-    options: buildOptions(records),
+    metrics: normalizedQuery.includeMetrics && Array.isArray(database?.metrics) ? database.metrics : undefined,
+    options: normalizedQuery.includeOptions ? buildOptions(records) : undefined,
     records: pageRecords,
     page: {
       limit: normalizedQuery.limit,
@@ -1041,7 +1072,7 @@ async function handleWorkerMessage(event) {
       return;
     }
     if (event.data.type === "preload") {
-      await loadDatabase(fullScriptUrl, manifestScriptUrl, { prime: { options: false, search: false } });
+      await loadDatabase(fullScriptUrl, manifestScriptUrl, { prime: { options: true, search: true } });
       self.postMessage({
         type: "preloaded",
         requestId,

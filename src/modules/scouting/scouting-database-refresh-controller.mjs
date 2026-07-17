@@ -23,6 +23,7 @@ function getRefreshSource(deps = {}) {
 
 export function createScoutingDatabaseRefreshController(deps = {}) {
   const timers = getTimerApi(deps);
+  let refreshRevision = 0;
 
   function scheduleResultsRender() {
     const frame = deps.getResultsFrame?.() || 0;
@@ -39,14 +40,17 @@ export function createScoutingDatabaseRefreshController(deps = {}) {
     return { frame: nextFrame || 0, status: "scheduled" };
   }
 
-  function loadRefreshSource(source) {
+  function loadRefreshSource(source, revision) {
     if (source === "fsdb") {
       return deps.loadFootballScienceDbDatabase?.();
     }
     if (source === "api") {
       return deps.loadApiDatabase?.();
     }
-    return deps.requestWorkerQuery?.({ timeoutMs: 15000 }).then((database) => {
+    return deps.requestWorkerQuery?.({ timeoutMs: 45000 }).then((database) => {
+      if (revision !== refreshRevision) {
+        return { stale: true };
+      }
       const appliedDatabase = deps.applyWorkerDatabase?.(database);
       if (!appliedDatabase) {
         throw new Error("Scouting player database worker returned no records.");
@@ -57,6 +61,7 @@ export function createScoutingDatabaseRefreshController(deps = {}) {
 
   function scheduleRefresh() {
     const source = getRefreshSource(deps);
+    const revision = (refreshRevision += 1);
     if (source === "local") {
       scheduleResultsRender();
       return { mode: "local", status: "scheduled" };
@@ -66,16 +71,29 @@ export function createScoutingDatabaseRefreshController(deps = {}) {
     const timer = timers.setTimeout?.(() => {
       deps.setApiRefreshTimer?.(0);
       const perf = deps.startPerformance?.("database.refresh", { source });
-      Promise.resolve(loadRefreshSource(source))
-        .then(() => {
+      deps.onRefreshStatus?.({ revision, source, status: "loading" });
+      Promise.resolve(loadRefreshSource(source, revision))
+        .then((result) => {
+          if (revision !== refreshRevision || result?.stale) {
+            perf?.end?.({ status: "stale" });
+            deps.onRefreshStatus?.({ revision, source, status: "stale" });
+            return;
+          }
           perf?.end?.({ status: "loaded" });
           if (deps.ensureState?.()?.activeTab === "database") {
             deps.renderResults?.();
           }
+          deps.onRefreshStatus?.({ revision, source, status: "loaded" });
         })
         .catch(() => {
+          if (revision !== refreshRevision) {
+            perf?.end?.({ status: "stale" });
+            deps.onRefreshStatus?.({ revision, source, status: "stale" });
+            return;
+          }
           perf?.end?.({ status: "fallback" });
           scheduleResultsRender();
+          deps.onRefreshStatus?.({ revision, source, status: "fallback" });
         });
     }, delayMs);
     deps.setApiRefreshTimer?.(timer);
@@ -83,6 +101,7 @@ export function createScoutingDatabaseRefreshController(deps = {}) {
   }
 
   return {
+    getRefreshRevision: () => refreshRevision,
     scheduleRefresh,
     scheduleResultsRender,
   };

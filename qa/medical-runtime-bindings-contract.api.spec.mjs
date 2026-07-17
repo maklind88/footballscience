@@ -906,6 +906,7 @@ test("Medical runtime bindings filter RTP Exercise Bank catalog by metadata", ()
 
 test("Medical runtime bindings open and close the RTP Exercise Bank overlay", () => {
   const bodyClasses = new Set();
+  const overlayBody = { dataset: {}, innerHTML: "" };
   const dialog = {
     focused: false,
     focus() {
@@ -916,6 +917,7 @@ test("Medical runtime bindings open and close the RTP Exercise Bank overlay", ()
     attributes: { "aria-hidden": "true" },
     hidden: true,
     querySelector(selector) {
+      if (selector === "[data-medical-rtp-exercise-overlay-body]") return overlayBody;
       return selector === "[role='dialog']" ? dialog : null;
     },
     removeAttribute(name) {
@@ -973,6 +975,9 @@ test("Medical runtime bindings open and close the RTP Exercise Bank overlay", ()
   expect(overlay.attributes["aria-hidden"]).toBeUndefined();
   expect(dialog.focused).toBe(true);
   expect(bodyClasses.has("medical-rtp-exercise-overlay-open")).toBe(true);
+  expect(overlayBody.dataset.medicalRtpExerciseLoaded).toBe("true");
+  expect(overlayBody.innerHTML).toContain("medical-rtp-exercise-catalog");
+  expect(overlayBody.innerHTML).toContain("medical-rtp-exercise-diagram");
 
   workspace.listeners.keydown(createEvent(createTarget({}), { key: "Escape" }));
 

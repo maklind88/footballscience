@@ -223,10 +223,12 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(programsMarkup).not.toContain("Saved Medical Plans using RTP Library starters");
   expect(programsMarkup).not.toContain("medical-rtp-exercise-drawer");
   expect(programsMarkup).not.toContain("medical-rtp-exercise-launcher");
-  expect(programsMarkup).not.toContain("data-medical-rtp-exercise-open");
-  expect(programsMarkup).not.toContain("data-medical-rtp-exercise-overlay");
+  expect(programsMarkup).toContain("medical-programs-resource-bar");
+  expect(programsMarkup).toContain("data-medical-rtp-exercise-open");
+  expect(programsMarkup).toContain("data-medical-rtp-exercise-overlay");
+  expect(programsMarkup).toContain("Browse exercises");
   expect(programsMarkup).not.toContain("Clinical exercise catalogue for RTP programs");
-  expect(programsMarkup).not.toContain("Open Exercise Bank");
+  expect(programsMarkup).not.toContain("medical-rtp-exercise-catalog-card");
   expect(programsMarkup).not.toContain("RTP Starter Queue");
   expect(programsMarkup).not.toContain("medical-rtp-case-linker");
   expect(programsMarkup).not.toContain("RTP Action Queue");

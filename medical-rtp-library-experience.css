@@ -404,6 +404,73 @@
   line-height: 1.45;
 }
 
+.medical-rtp-exercise-thumb {
+  position: relative;
+  align-content: stretch;
+  gap: 0.2rem;
+  overflow: hidden;
+  padding: 0.28rem;
+  background: #edf5f0;
+}
+
+.medical-rtp-exercise-thumb > img,
+.medical-rtp-exercise-diagram {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 4rem;
+  aspect-ratio: 16 / 11;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.medical-rtp-exercise-thumb > small {
+  padding: 0.05rem 0.1rem;
+  color: #385248;
+  line-height: 1.15;
+}
+
+.medical-rtp-diagram-surface {
+  fill: #f7fbf8;
+  stroke: rgba(23, 100, 73, 0.22);
+}
+
+.medical-rtp-diagram-grid {
+  fill: none;
+  stroke: rgba(23, 100, 73, 0.1);
+  stroke-width: 1;
+}
+
+.medical-rtp-diagram-focus {
+  fill: rgba(227, 163, 55, 0.22);
+  stroke: rgba(171, 105, 18, 0.5);
+  stroke-width: 1.5;
+}
+
+.medical-rtp-diagram-athlete {
+  fill: #176449;
+  stroke: #176449;
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+path.medical-rtp-diagram-athlete {
+  fill: none;
+}
+
+.medical-rtp-diagram-motion {
+  fill: none;
+  stroke: #4279a1;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 5 4;
+}
+
+.medical-rtp-diagram-marker {
+  fill: #d58a23;
+}
+
 body.is-dark-mode .medical-rtp-library-v2,
 body.is-dark-mode .medical-rtp-library-v2 .medical-rtp-library-toolbar,
 body.is-dark-mode .medical-rtp-library-v2 .medical-rtp-library-controls,
@@ -413,6 +480,19 @@ body.is-dark-mode .medical-rtp-common-guide {
 
 body.is-dark-mode .medical-rtp-common-guides {
   background: #17231e;
+}
+
+body.is-dark-mode .medical-rtp-diagram-surface {
+  fill: #15231d;
+  stroke: rgba(168, 219, 193, 0.2);
+}
+
+body.is-dark-mode .medical-rtp-diagram-grid {
+  stroke: rgba(168, 219, 193, 0.12);
+}
+
+body.is-dark-mode .medical-rtp-exercise-thumb > small {
+  color: #c1d5cb;
 }
 
 @media (max-width: 900px) {

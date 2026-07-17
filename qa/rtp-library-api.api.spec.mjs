@@ -99,6 +99,23 @@ test("RTP Exercise Bank migration adds professional catalog media fields safely"
   expect(migration).not.toContain("drop table");
 });
 
+test("RTP Exercise Bank diagram status migration is additive and idempotent", () => {
+  const migration = fs.readFileSync(
+    new URL("../supabase/migrations/20260716234500_rtp_exercise_diagram_media_status.sql", import.meta.url),
+    "utf8"
+  );
+
+  expect(migration).toContain("drop constraint if exists rtp_library_exercises_media_status_check");
+  expect(migration).toContain("'diagram'");
+  expect(migration).toContain("content->'thumbnail'->>'diagramKey'");
+  expect(migration).toContain("body_regions = case");
+  expect(migration).toContain("program_builder = case");
+  expect(migration).toContain("media_item ||");
+  expect(migration).toContain("is distinct from 'diagram'");
+  expect(migration).not.toContain("drop table");
+  expect(migration).not.toContain("delete from");
+});
+
 test("RTP Library API serves lightweight profile lists through /api/rtp", async () => {
   await withoutSupabaseConfig(async () => {
     const res = createJsonResponse();
@@ -201,7 +218,7 @@ test("RTP Library API serves selected exercise detail with professional builder 
       writesEnabled: false,
       exercise: {
         id: "nordic-hamstring-progression",
-        mediaStatus: "placeholder",
+        mediaStatus: "diagram",
       },
     });
     expect(payload.exercise.programBuilder.gateCriteria.length).toBeGreaterThanOrEqual(2);

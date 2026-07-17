@@ -114,6 +114,9 @@ export function setMedicalInjuryPlanDraft(...args) { return callFacade("setMedic
 export function setMedicalInjuryPlanDraftFromPlan(...args) { return callFacade("setMedicalInjuryPlanDraftFromPlan", args); }
 export function getMedicalRtpLibraryProfile(...args) { return callFacade("getMedicalRtpLibraryProfile", args); }
 export function getMedicalRtpLibraryProfiles(...args) { return callFacade("getMedicalRtpLibraryProfiles", args); }
+export function getMedicalRtpLibraryReadStatus(...args) { return callFacade("getMedicalRtpLibraryReadStatus", args); }
+export function loadMedicalRtpLibraryProfile(...args) { return callFacade("loadMedicalRtpLibraryProfile", args); }
+export function loadMedicalRtpLibraryProfiles(...args) { return callFacade("loadMedicalRtpLibraryProfiles", args); }
 export function getMedicalRtpLibraryStarterDraft(...args) { return callFacade("getMedicalRtpLibraryStarterDraft", args); }
 export function getMedicalRtpLibraryStarterDraftForPlan(...args) { return callFacade("getMedicalRtpLibraryStarterDraftForPlan", args); }
 export function clearMedicalInjuryPlanDraft(...args) { return callFacade("clearMedicalInjuryPlanDraft", args); }

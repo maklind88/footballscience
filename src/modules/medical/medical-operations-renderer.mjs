@@ -1,5 +1,7 @@
+import { medicalRtpExerciseBank } from "./medical-rtp-exercise-bank-data.mjs";
 import { medicalRtpLibraryProfiles as defaultMedicalRtpLibraryProfiles } from "./medical-rtp-library-data.mjs";
 import { createMedicalRtpLibraryRenderer } from "./medical-rtp-library-renderer.mjs";
+import { createMedicalRtpProgramResourcesRenderer } from "./medical-rtp-program-resources-renderer.mjs";
 import { createMedicalRtpProgramWorkspaceRenderer } from "./medical-rtp-program-workspace-renderer.mjs";
 import { createMedicalRtpProgramRenderer } from "./medical-rtp-program-renderer.mjs";
 
@@ -198,7 +200,12 @@ ${suggestedProfiles
     getMedicalRtpPhaseOption,
   });
 
-  const renderPrograms = (summary) => rtpProgramWorkspaceRenderer.renderRtpProgramsWorkspace(summary);
+  const rtpProgramResourcesRenderer = createMedicalRtpProgramResourcesRenderer({ escapeHtml });
+  const renderPrograms = (summary) =>
+    rtpProgramResourcesRenderer.render(
+      rtpProgramWorkspaceRenderer.renderRtpProgramsWorkspace(summary),
+      medicalRtpExerciseBank.length
+    );
 
   const rtpLibraryRenderer = createMedicalRtpLibraryRenderer({
     escapeHtml,

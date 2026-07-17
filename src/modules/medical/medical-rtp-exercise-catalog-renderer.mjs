@@ -3,6 +3,7 @@ import {
   getMedicalRtpExerciseCatalogItems,
   medicalRtpExerciseBankFilterOptions,
 } from "./medical-rtp-exercise-bank-data.mjs";
+import { renderMedicalRtpExerciseThumbnail } from "./medical-rtp-exercise-diagram-renderer.mjs";
 
 const defaultEscapeHtml = (value) =>
   String(value ?? "")
@@ -43,8 +44,8 @@ data-demand="${escapeHtml((exercise.footballDemands || []).join(" "))}"
 data-risk="${escapeHtml(exercise.riskLevel || "")}"
 >
 <div class="medical-rtp-exercise-thumb" aria-label="${escapeHtml(thumbnail.altText || `${exercise.name} thumbnail`)}">
-<span>${escapeHtml(thumbnail.diagramKey || "diagram")}</span>
-<small>${escapeHtml(exercise.mediaStatus === "uploaded" ? "media" : "diagram placeholder")}</small>
+${renderMedicalRtpExerciseThumbnail(exercise, escapeHtml)}
+<small>${escapeHtml(exercise.mediaStatus === "uploaded" ? "Quality-assured media" : "Technique diagram")}</small>
 </div>
 <div class="medical-rtp-exercise-catalog-body">
 <header>

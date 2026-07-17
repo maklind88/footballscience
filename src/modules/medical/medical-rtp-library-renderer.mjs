@@ -63,6 +63,8 @@ const renderProfileCard = (profile = {}, index = 0, escapeHtml = defaultEscapeHt
 <article
 class="medical-rtp-profile-card"
 data-medical-rtp-profile
+data-profile-name="${escapeHtml(profile.name)}"
+data-library-order="${index}"
 data-search="${escapeHtml(searchText)}"
 data-clinical-search="${escapeHtml(clinicalSearchText)}"
 data-clinical-symptoms="${escapeHtml(clinicalGroups.symptoms.join(" "))}"
@@ -238,7 +240,7 @@ ${commonProfiles.map((profile) => renderGuideButton(profile, escapeHtml, "medica
 ` : ""}
 <div class="medical-rtp-library-meta">
 <span><strong data-medical-rtp-library-count>${profiles.length}</strong> approved guides</span>
-<span><strong data-medical-rtp-library-shown>${Math.min(MEDICAL_RTP_LIBRARY_PAGE_SIZE, profiles.length)}</strong> shown / sorted by relevance</span>
+<span><strong data-medical-rtp-library-shown>${Math.min(MEDICAL_RTP_LIBRARY_PAGE_SIZE, profiles.length)}</strong> shown / <span data-medical-rtp-library-order>library priority</span></span>
 </div>
 <div class="medical-rtp-profile-grid" data-medical-rtp-library-results>
 ${profiles.map((profile, index) => renderProfileCard(profile, index, escapeHtml)).join("")}

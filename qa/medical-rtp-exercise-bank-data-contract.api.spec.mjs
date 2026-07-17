@@ -65,6 +65,26 @@ test("RTP Exercise Bank covers all 200 library profiles without hardcoding UI in
   expect(medicalRtpLibraryProfiles.every((profile) => medicalRtpExerciseProfileCoverageMap.has(profile.id))).toBe(true);
 });
 
+test("RTP Exercise Bank provides deep starters without padding medical red-flag profiles", () => {
+  const intentionallyMedicalLed = new Set([
+    "allergic-reaction-medication-rtp",
+    "cardiac-symptoms-red-flag",
+    "compartment-syndrome-concern",
+    "heat-illness-rtp",
+    "mental-health-availability-consideration",
+  ]);
+  const underSix = medicalRtpLibraryProfiles
+    .map((profile) => ({ id: profile.id, count: getMedicalRtpExercisesForProfile(profile.id).length }))
+    .filter(({ count }) => count < 6);
+
+  expect(underSix.every(({ id }) => intentionallyMedicalLed.has(id))).toBe(true);
+  expect(underSix.every(({ count }) => count >= 4)).toBe(true);
+  expect(getMedicalRtpExercisesForProfile("mental-health-availability-consideration").map((item) => item.id))
+    .toContain("mental-health-load-tolerance-routine");
+  expect(getMedicalRtpExercisesForProfile("hamstring-tendon-repair-rtp").map((item) => item.id))
+    .toEqual(expect.arrayContaining(["isometric-hamstring-bridge-hold", "romanian-deadlift-hip-hinge"]));
+});
+
 test("RTP Exercise Bank maps every approved core profile to practical starter exercises", () => {
   coreProfileIds.forEach((profileId) => {
     const exercises = getMedicalRtpExercisesForProfile(profileId);

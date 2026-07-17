@@ -340,6 +340,48 @@ body.is-dark-mode .medical-program-phase-rail li {
   background: #17231e;
 }
 
+.medical-programs-resource-surface {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.medical-programs-resource-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0.68rem 0.78rem;
+  border-bottom: 1px solid rgba(15, 35, 27, 0.1);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.medical-programs-resource-bar > span {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.medical-programs-resource-bar strong {
+  color: #193827;
+  font-size: 0.8rem;
+}
+
+.medical-programs-resource-bar small {
+  color: #66746e;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+body.is-dark-mode .medical-programs-resource-bar {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+body.is-dark-mode .medical-programs-resource-bar strong {
+  color: var(--ink);
+}
+
 @media (max-width: 900px) {
   .medical-program-current-grid {
     grid-template-columns: 1fr;
@@ -355,6 +397,11 @@ body.is-dark-mode .medical-program-phase-rail li {
 }
 
 @media (max-width: 680px) {
+  .medical-programs-resource-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .medical-program-phase-rail {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

@@ -1,6 +1,11 @@
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 import { getMedicalRtpExercisesForProfile as getDefaultMedicalRtpExercisesForProfile } from "./medical-rtp-exercise-bank-data.mjs";
+import { createMedicalRtpExerciseCatalogRenderer } from "./medical-rtp-exercise-catalog-renderer.mjs";
 import { MEDICAL_RTP_LIBRARY_PAGE_SIZE } from "./medical-rtp-library-renderer.mjs";
+import {
+  normalizeMedicalRtpClinicalQuery,
+  rankMedicalRtpClinicalCards,
+} from "./medical-rtp-library-search.mjs";
 
 function callOptional(fn, ...args) {
   return typeof fn === "function" ? fn(...args) : undefined;
@@ -26,51 +31,6 @@ function queryWorkspace(workspaceElement, selector) {
 
 function queryWorkspaceAll(workspaceElement, selector) {
   return Array.from(workspaceElement?.querySelectorAll?.(selector) ?? []);
-}
-
-function normalizeRtpClinicalQuery(value = "") {
-  return String(value ?? "")
-    .toLowerCase()
-    .replaceAll("/", " ")
-    .replaceAll("-", " ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function getRtpClinicalQueryTerms(query = "") {
-  return normalizeRtpClinicalQuery(query)
-    .split(" ")
-    .map((term) => term.trim())
-    .filter((term) => term.length > 1);
-}
-
-function getRtpClinicalCardHaystack(card = {}) {
-  const dataset = card.dataset || {};
-  return normalizeRtpClinicalQuery(
-    [
-      dataset.search,
-      dataset.clinicalSearch,
-      dataset.clinicalSymptoms,
-      dataset.clinicalBodyArea,
-      dataset.clinicalMechanism,
-      dataset.clinicalRedFlags,
-      dataset.clinicalMovement,
-      dataset.clinicalTissue,
-      dataset.clinicalPositionDemand,
-      dataset.movement,
-      dataset.position,
-    ].filter(Boolean).join(" ")
-  );
-}
-
-function cardMatchesRtpClinicalQuery(card = {}, query = "") {
-  const normalizedQuery = normalizeRtpClinicalQuery(query);
-  if (!normalizedQuery) return true;
-  const haystack = getRtpClinicalCardHaystack(card);
-  if (haystack.includes(normalizedQuery)) return true;
-  const terms = getRtpClinicalQueryTerms(normalizedQuery);
-  return terms.length ? terms.every((term) => haystack.includes(term)) : false;
 }
 
 function escapeHtml(value) {
@@ -114,8 +74,14 @@ export function bindMedicalRuntimeBindings(deps = {}) {
       Number(library.dataset?.medicalRtpLibraryLimit) || MEDICAL_RTP_LIBRARY_PAGE_SIZE
     );
     const matchingCards = [];
-    library.querySelectorAll("[data-medical-rtp-profile]").forEach((card) => {
-      const matchesQuery = cardMatchesRtpClinicalQuery(card, query);
+    const allCards = Array.from(library.querySelectorAll("[data-medical-rtp-profile]"));
+    allCards.forEach((card) => {
+      card.hidden = true;
+    });
+    const rankedCards = rankMedicalRtpClinicalCards(allCards, query);
+    const resultGrid = library.querySelector("[data-medical-rtp-library-results]");
+    rankedCards.forEach(({ card }) => {
+      const matchesQuery = true;
       const movementTerms = String(filters.movement || "")
         .split("|")
         .map((term) => term.trim())
@@ -137,7 +103,7 @@ export function bindMedicalRuntimeBindings(deps = {}) {
       const matchesLevel = !filters.level || filters.level === "all" || String(card.dataset.level || "").toLowerCase().includes(filters.level);
       const matches = matchesQuery && matchesMovement && matchesPosition && matchesSeason && matchesSex && matchesLevel;
       if (matches) matchingCards.push(card);
-      card.hidden = true;
+      resultGrid?.append?.(card);
     });
     matchingCards.slice(0, visibleLimit).forEach((card) => {
       card.hidden = false;
@@ -147,6 +113,10 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     if (count) count.textContent = String(matchingCards.length);
     const shown = library.querySelector("[data-medical-rtp-library-shown]");
     if (shown) shown.textContent = String(shownCount);
+    const orderLabel = library.querySelector("[data-medical-rtp-library-order]");
+    if (orderLabel) {
+      orderLabel.textContent = normalizeMedicalRtpClinicalQuery(query) ? "clinical relevance" : "library priority";
+    }
     const empty = library.querySelector("[data-medical-rtp-library-empty]");
     if (empty) empty.hidden = matchingCards.length !== 0;
     const loadMore = library.querySelector("[data-medical-rtp-library-more]");
@@ -192,6 +162,11 @@ export function bindMedicalRuntimeBindings(deps = {}) {
   const openMedicalRtpExerciseOverlay = () => {
     const overlay = queryWorkspace(workspaceElement, "[data-medical-rtp-exercise-overlay]");
     if (!overlay) return;
+    const body = overlay.querySelector?.("[data-medical-rtp-exercise-overlay-body]");
+    if (body && body.dataset?.medicalRtpExerciseLoaded !== "true") {
+      body.innerHTML = createMedicalRtpExerciseCatalogRenderer({ escapeHtml }).renderExerciseCatalog();
+      body.dataset.medicalRtpExerciseLoaded = "true";
+    }
     closeMedicalRtpGuideDraftModal();
     closeMedicalRtpProfileModal();
     overlay.hidden = false;
@@ -957,8 +932,15 @@ ${renderRtpExerciseCards(profile, 3)}
     }
     const operationsTabButton = event.target.closest("[data-medical-ops-tab]");
     if (operationsTabButton) {
-      setStateValue(state, "MedicalOperationsTab", actions.normalizeMedicalOperationsTab?.(operationsTabButton.dataset.medicalOpsTab));
+      const nextTab = actions.normalizeMedicalOperationsTab?.(operationsTabButton.dataset.medicalOpsTab);
+      setStateValue(state, "MedicalOperationsTab", nextTab);
       renderWorkspace();
+      if (nextTab === "rtp-library" && typeof actions.loadMedicalRtpLibraryProfiles === "function") {
+        const result = await actions.loadMedicalRtpLibraryProfiles();
+        if (result?.changed && getStateValue(state, "MedicalOperationsTab") === "rtp-library") {
+          renderWorkspace();
+        }
+      }
       return;
     }
     const historyShowMoreButton = event.target.closest("[data-medical-history-show-more]");
@@ -1111,7 +1093,11 @@ ${renderRtpExerciseCards(profile, 3)}
     if (openRtpProfileButton) {
       event.preventDefault();
       lastRtpProfileTrigger = openRtpProfileButton;
-      openMedicalRtpProfileModal(openRtpProfileButton.dataset.medicalOpenRtpProfile);
+      const profileId = openRtpProfileButton.dataset.medicalOpenRtpProfile;
+      if (typeof actions.loadMedicalRtpLibraryProfile === "function") {
+        await actions.loadMedicalRtpLibraryProfile(profileId);
+      }
+      openMedicalRtpProfileModal(profileId);
       return;
     }
     const rtpGuideGroupButton = event.target.closest("[data-medical-rtp-guide-group]");

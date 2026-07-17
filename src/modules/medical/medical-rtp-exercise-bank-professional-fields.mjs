@@ -23,6 +23,27 @@ const FAMILY_VISUALS = Object.freeze({
   "medical": "medical-governed-exertion",
 });
 
+const FAMILY_VISUAL_RULES = Object.freeze([
+  [["posterior", "strength"], "posterior-chain-bridge"],
+  [["groin", "frontal"], "frontal-plane-adduction"],
+  [["calf", "achilles", "ankle", "foot", "forefoot", "midfoot", "lower leg"], "calf-achilles-loading"],
+  [["plyometric", "landing"], "energy-storage-contacts"],
+  [["knee", "quadriceps", "patellar", "single-leg"], "knee-dominant-loading"],
+  [["deceleration", "change of direction", "field exposure"], "braking-mechanics"],
+  [["running", "conditioning", "respiratory", "recovery"], "field-running-exposure"],
+  [["football exposure", "football integration"], "football-ball-exposure"],
+  [["shoulder", "upper", "hand", "contact"], "upper-body-contact-control"],
+  [["goalkeeper"], "goalkeeper-save-landing"],
+  [["surgical", "fracture"], "surgical-re-entry"],
+  [["medical", "concussion", "neck", "postpartum"], "medical-governed-exertion"],
+]);
+
+function getFamilyVisual(family = "") {
+  if (FAMILY_VISUALS[family]) return FAMILY_VISUALS[family];
+  return FAMILY_VISUAL_RULES.find(([fragments]) => fragments.some((fragment) => family.includes(fragment)))?.[1]
+    || "medical-governed-exertion";
+}
+
 function inferBodyRegions(exercise = {}) {
   const text = `${exercise.name} ${exercise.family} ${exercise.intent} ${normalizeArray(exercise.footballDemands).join(" ")}`.toLowerCase();
   const regions = [];
@@ -60,15 +81,15 @@ function inferPositionDemands(exercise = {}) {
 
 function inferMedia(exercise = {}) {
   const family = compactText(exercise.family, 80).toLowerCase();
-  const diagramKey = FAMILY_VISUALS[family] || FAMILY_VISUALS[normalizeArray(exercise.tissueTypes)[0]] || "rtp-exercise-placeholder";
-  const altText = `${exercise.name || "RTP exercise"} setup diagram placeholder`;
+  const diagramKey = getFamilyVisual(family);
+  const altText = `${exercise.name || "RTP exercise"} setup and movement diagram`;
   return {
-    mediaStatus: "placeholder",
+    mediaStatus: "diagram",
     thumbnail: {
       kind: "diagram",
       diagramKey,
       altText,
-      status: "placeholder",
+      status: "diagram",
     },
     media: [
       {
@@ -76,7 +97,7 @@ function inferMedia(exercise = {}) {
         title: `${exercise.name || "Exercise"} diagram`,
         diagramKey,
         altText,
-        status: "placeholder",
+        status: "diagram",
       },
     ],
   };

@@ -1,12 +1,14 @@
 import { createMedicalRuntimeActivitySelectors } from "./medical-runtime-activity-selectors.mjs";
 import { createMedicalRuntimeOperationsService } from "./medical-runtime-operations-service.mjs";
 import { createMedicalRuntimeWriteService } from "./medical-runtime-write-service.mjs";
+import { createMedicalRtpLibraryReadService } from "./medical-rtp-library-read-service.mjs";
 import { createMedicalWorkspaceRuntimeRenderer } from "./medical-workspace-runtime-renderer.mjs";
 
 export function createMedicalRuntimeFacade(deps = {}) {
   let activitySelectors = null;
   let operationsService = null;
   let writeService = null;
+  let rtpLibraryReadService = null;
   const rtpCoachStatusByPlayerId = new Map();
   const rtpCoachStatusLoadInFlightByPlayerId = new Map();
 
@@ -59,9 +61,12 @@ export function createMedicalRuntimeFacade(deps = {}) {
   function getMedicalInjuryPlanDraft(...args) { return method(activitySelectors, "getMedicalInjuryPlanDraft", ...args); }
   function setMedicalInjuryPlanDraft(...args) { return method(activitySelectors, "setMedicalInjuryPlanDraft", ...args); }
   function setMedicalInjuryPlanDraftFromPlan(...args) { return method(activitySelectors, "setMedicalInjuryPlanDraftFromPlan", ...args); }
-  function getMedicalRtpLibraryProfile(...args) { return method(activitySelectors, "getMedicalRtpLibraryProfile", ...args); }
-  function getMedicalRtpLibraryProfiles(...args) { return method(activitySelectors, "getMedicalRtpLibraryProfiles", ...args); }
-  function getMedicalRtpExercisesForProfile(...args) { return method(activitySelectors, "getMedicalRtpExercisesForProfile", ...args); }
+  function getMedicalRtpLibraryProfile(...args) { return rtpLibraryReadService?.getProfile(...args); }
+  function getMedicalRtpLibraryProfiles(...args) { return rtpLibraryReadService?.getProfiles(...args) || []; }
+  function getMedicalRtpExercisesForProfile(...args) { return rtpLibraryReadService?.getExercisesForProfile(...args) || []; }
+  function getMedicalRtpLibraryReadStatus(...args) { return rtpLibraryReadService?.getReadStatus(...args) || null; }
+  function loadMedicalRtpLibraryProfile(...args) { return rtpLibraryReadService?.loadProfile(...args) || null; }
+  function loadMedicalRtpLibraryProfiles(...args) { return rtpLibraryReadService?.loadProfiles(...args) || null; }
   function getMedicalRtpLibraryStarterDraft(...args) { return method(activitySelectors, "getMedicalRtpLibraryStarterDraft", ...args); }
   function getMedicalRtpLibraryStarterDraftForPlan(...args) { return method(activitySelectors, "getMedicalRtpLibraryStarterDraftForPlan", ...args); }
   function clearMedicalInjuryPlanDraft(...args) { return method(activitySelectors, "clearMedicalInjuryPlanDraft", ...args); }
@@ -173,6 +178,13 @@ export function createMedicalRuntimeFacade(deps = {}) {
     normalizeShareValue: deps.normalizeShareValue,
     parseDateValue: deps.parseDateValue,
     scheduleEventTypes: deps.scheduleEventTypes,
+  });
+  rtpLibraryReadService = createMedicalRtpLibraryReadService({
+    fallbackProfiles: method(activitySelectors, "getMedicalRtpLibraryProfiles") || [],
+    fetchRef: deps.fetchRef,
+    getAccessToken: deps.getPlatformApiAccessToken,
+    getFallbackExercises: (...args) => method(activitySelectors, "getMedicalRtpExercisesForProfile", ...args) || [],
+    getFallbackProfile: (...args) => method(activitySelectors, "getMedicalRtpLibraryProfile", ...args) || null,
   });
 
   function getMedicalDailyStats(dateValue = getMedicalState()?.selectedDate) { return deps.medicalCommandSelectors.getMedicalDailyStats(dateValue); }
@@ -359,7 +371,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
     getMedicalBulkRecommendationEligiblePlayers, getMedicalBulkSelectedPlayers, getMedicalCoachComment,
     getMedicalCoachHandoverItems, getMedicalDailyHuddle, getMedicalDailyStats, getMedicalDatabaseIdempotencyKey,
     getMedicalDatabasePlayer, getMedicalDaySpan, getMedicalHeroTeamName, getMedicalHistoryEvents,
-    getMedicalInjuryPlanDraft, getMedicalInjuryPlanFormDraft, getMedicalRtpLibraryProfile,
+    getMedicalInjuryPlanDraft, getMedicalInjuryPlanFormDraft, getMedicalRtpLibraryProfile, getMedicalRtpLibraryReadStatus,
     getMedicalRtpExercisesForProfile, getMedicalRtpLibraryProfiles, getMedicalRtpLibraryStarterDraft, getMedicalRtpLibraryStarterDraftForPlan, getMedicalMonthAverageStats,
     getMedicalMonthToDateDates, getMedicalOperationsSummary, getMedicalPastWindowDates,
     getMedicalParticipationAverageForDates, getMedicalPlanClearanceSummary, getMedicalPlanDaysRemaining,
@@ -370,6 +382,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
     getMedicalRecordStatus, getMedicalReviewAlerts, getMedicalRiskSignals, getMedicalRosterPositionGroups,
     getMedicalRosterPositionStats, getMedicalScheduleSummary, getMedicalSeasonPlans, getMedicalSeasonSummary,
     getMedicalPlayerRtpCoachStatus, loadMedicalPlayerRtpCoachStatus,
+    loadMedicalRtpLibraryProfile, loadMedicalRtpLibraryProfiles,
     getMedicalTrailingRecommendationSummary, getMedicalValidBulkSelection, getMedicalVisibleComment,
     getMedicalWindowAverage, getMedicalWindowDates, isMedicalInjuryPlanActive, isMedicalPlanCleared,
     getSelectedMedicalPlayer, isMedicalPlayerVisibleForDate, isMedicalRestrictedRecommendationRecord, normalizeMedicalInjuryPlanDraft,

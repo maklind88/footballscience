@@ -50,6 +50,26 @@ function hashContent(value) {
   return crypto.createHash("sha256").update(stableJson(value)).digest("hex");
 }
 
+const EXERCISE_COLUMNS = [
+  "id", "status", "name", "family", "intent", "tissue_types", "phases", "movement_planes",
+  "football_demands", "equipment", "risk_level", "evidence_level", "evidence_summary",
+  "consensus_note", "dosage", "progression", "regression", "hold_rules", "medical_notes",
+  "performance_notes", "coach_safe_label", "evidence_refs", "content", "sort_order",
+  "body_regions", "symptom_tags", "mechanism_tags", "position_demands", "clinical_tags",
+  "setup", "execution", "coaching_cues", "quality_checks", "common_errors", "program_builder",
+  "media_status", "thumbnail_storage_path", "thumbnail_url", "diagram_key",
+].join(", ");
+
+const EXERCISE_UPDATE_ASSIGNMENTS = [
+  "status", "name", "family", "intent", "tissue_types", "phases", "movement_planes",
+  "football_demands", "equipment", "risk_level", "evidence_level", "evidence_summary",
+  "consensus_note", "dosage", "progression", "regression", "hold_rules", "medical_notes",
+  "performance_notes", "coach_safe_label", "evidence_refs", "content", "sort_order",
+  "body_regions", "symptom_tags", "mechanism_tags", "position_demands", "clinical_tags",
+  "setup", "execution", "coaching_cues", "quality_checks", "common_errors", "program_builder",
+  "media_status", "thumbnail_storage_path", "thumbnail_url", "diagram_key",
+].map((column) => `  ${column} = excluded.${column}`).join(",\n");
+
 function profileRow(profile = {}, sortOrder = 1000) {
   const id = normalizeId(profile.id);
   const content = { ...profile };
@@ -83,6 +103,7 @@ function profileRow(profile = {}, sortOrder = 1000) {
 function exerciseRow(exercise = {}, sortOrder = 1000) {
   const id = normalizeId(exercise.id);
   const content = { ...exercise };
+  const thumbnail = exercise.thumbnail && typeof exercise.thumbnail === "object" ? exercise.thumbnail : {};
   return [
     sqlText(id),
     "'published'",
@@ -108,6 +129,21 @@ function exerciseRow(exercise = {}, sortOrder = 1000) {
     sqlTextArray(exercise.evidenceRefs),
     sqlJsonb(content),
     String(sortOrder),
+    sqlTextArray(exercise.bodyRegions),
+    sqlTextArray(exercise.symptomTags),
+    sqlTextArray(exercise.mechanismTags),
+    sqlTextArray(exercise.positionDemands),
+    sqlTextArray(exercise.clinicalTags),
+    sqlText(normalizeText(exercise.setup, 2000)),
+    sqlText(normalizeText(exercise.execution, 2000)),
+    sqlTextArray(exercise.coachingCues),
+    sqlTextArray(exercise.qualityChecks),
+    sqlTextArray(exercise.commonErrors),
+    sqlJsonb(exercise.programBuilder),
+    sqlText(normalizeText(exercise.mediaStatus || "missing", 40)),
+    sqlText(normalizeText(thumbnail.storagePath, 500)),
+    sqlText(normalizeText(thumbnail.url, 500)),
+    sqlText(normalizeText(thumbnail.diagramKey, 160)),
   ];
 }
 
@@ -163,7 +199,7 @@ function buildSql() {
   const mappings = buildProfileExerciseMappings();
   const profileIds = medicalRtpLibraryProfiles.map((profile) => normalizeId(profile.id));
 
-  return `-- Generated from Medical RTP Library module data.\n-- Club-neutral knowledge only. No player medical data is included.\n\nbegin;\n\ninsert into public.rtp_library_profiles\n  (id, profile_version, status, name, system, body_area, family, evidence_level, summary, evidence_summary, experience_summary, symptoms, positions, movement_planes, risk_tags, season, sex, level, content, source_profile_hash, sort_order, reviewed_at, published_at)\nvalues\n${valuesBlock(profiles)}\non conflict (id) do update set\n  profile_version = excluded.profile_version,\n  status = excluded.status,\n  name = excluded.name,\n  system = excluded.system,\n  body_area = excluded.body_area,\n  family = excluded.family,\n  evidence_level = excluded.evidence_level,\n  summary = excluded.summary,\n  evidence_summary = excluded.evidence_summary,\n  experience_summary = excluded.experience_summary,\n  symptoms = excluded.symptoms,\n  positions = excluded.positions,\n  movement_planes = excluded.movement_planes,\n  risk_tags = excluded.risk_tags,\n  season = excluded.season,\n  sex = excluded.sex,\n  level = excluded.level,\n  content = excluded.content,\n  source_profile_hash = excluded.source_profile_hash,\n  sort_order = excluded.sort_order,\n  reviewed_at = excluded.reviewed_at,\n  published_at = coalesce(public.rtp_library_profiles.published_at, excluded.published_at),\n  updated_at = now();\n\ninsert into public.rtp_library_exercises\n  (id, status, name, family, intent, tissue_types, phases, movement_planes, football_demands, equipment, risk_level, evidence_level, evidence_summary, consensus_note, dosage, progression, regression, hold_rules, medical_notes, performance_notes, coach_safe_label, evidence_refs, content, sort_order)\nvalues\n${valuesBlock(exercises)}\non conflict (id) do update set\n  status = excluded.status,\n  name = excluded.name,\n  family = excluded.family,\n  intent = excluded.intent,\n  tissue_types = excluded.tissue_types,\n  phases = excluded.phases,\n  movement_planes = excluded.movement_planes,\n  football_demands = excluded.football_demands,\n  equipment = excluded.equipment,\n  risk_level = excluded.risk_level,\n  evidence_level = excluded.evidence_level,\n  evidence_summary = excluded.evidence_summary,\n  consensus_note = excluded.consensus_note,\n  dosage = excluded.dosage,\n  progression = excluded.progression,\n  regression = excluded.regression,\n  hold_rules = excluded.hold_rules,\n  medical_notes = excluded.medical_notes,\n  performance_notes = excluded.performance_notes,\n  coach_safe_label = excluded.coach_safe_label,\n  evidence_refs = excluded.evidence_refs,\n  content = excluded.content,\n  sort_order = excluded.sort_order,\n  updated_at = now();\n\ndelete from public.rtp_library_profile_exercises\nwhere profile_id = any(${sqlTextArray(profileIds)});\n\ninsert into public.rtp_library_profile_exercises\n  (profile_id, exercise_id, sort_order)\nvalues\n${valuesBlock(mappings.map((mapping) => [sqlText(mapping.profileId), sqlText(mapping.exerciseId), String(mapping.sortOrder)]))}\non conflict (profile_id, exercise_id) do update set\n  sort_order = excluded.sort_order;\n\ncommit;\n`;
+  return `-- Generated from Medical RTP Library module data.\n-- Club-neutral knowledge only. No player medical data is included.\n\nbegin;\n\ninsert into public.rtp_library_profiles\n  (id, profile_version, status, name, system, body_area, family, evidence_level, summary, evidence_summary, experience_summary, symptoms, positions, movement_planes, risk_tags, season, sex, level, content, source_profile_hash, sort_order, reviewed_at, published_at)\nvalues\n${valuesBlock(profiles)}\non conflict (id) do update set\n  profile_version = excluded.profile_version,\n  status = excluded.status,\n  name = excluded.name,\n  system = excluded.system,\n  body_area = excluded.body_area,\n  family = excluded.family,\n  evidence_level = excluded.evidence_level,\n  summary = excluded.summary,\n  evidence_summary = excluded.evidence_summary,\n  experience_summary = excluded.experience_summary,\n  symptoms = excluded.symptoms,\n  positions = excluded.positions,\n  movement_planes = excluded.movement_planes,\n  risk_tags = excluded.risk_tags,\n  season = excluded.season,\n  sex = excluded.sex,\n  level = excluded.level,\n  content = excluded.content,\n  source_profile_hash = excluded.source_profile_hash,\n  sort_order = excluded.sort_order,\n  reviewed_at = excluded.reviewed_at,\n  published_at = coalesce(public.rtp_library_profiles.published_at, excluded.published_at),\n  updated_at = now();\n\ninsert into public.rtp_library_exercises\n  (${EXERCISE_COLUMNS})\nvalues\n${valuesBlock(exercises)}\non conflict (id) do update set\n${EXERCISE_UPDATE_ASSIGNMENTS},\n  updated_at = now();\n\ndelete from public.rtp_library_profile_exercises\nwhere profile_id = any(${sqlTextArray(profileIds)});\n\ninsert into public.rtp_library_profile_exercises\n  (profile_id, exercise_id, sort_order)\nvalues\n${valuesBlock(mappings.map((mapping) => [sqlText(mapping.profileId), sqlText(mapping.exerciseId), String(mapping.sortOrder)]))}\non conflict (profile_id, exercise_id) do update set\n  sort_order = excluded.sort_order;\n\ncommit;\n`;
 }
 
 function profileUpsertSql(rows) {
@@ -171,7 +207,7 @@ function profileUpsertSql(rows) {
 }
 
 function exerciseUpsertSql(rows) {
-  return `-- RTP Library exercise import chunk.\n-- Club-neutral knowledge only. No player medical data is included.\n\nbegin;\n\ninsert into public.rtp_library_exercises\n  (id, status, name, family, intent, tissue_types, phases, movement_planes, football_demands, equipment, risk_level, evidence_level, evidence_summary, consensus_note, dosage, progression, regression, hold_rules, medical_notes, performance_notes, coach_safe_label, evidence_refs, content, sort_order)\nvalues\n${valuesBlock(rows)}\non conflict (id) do update set\n  status = excluded.status,\n  name = excluded.name,\n  family = excluded.family,\n  intent = excluded.intent,\n  tissue_types = excluded.tissue_types,\n  phases = excluded.phases,\n  movement_planes = excluded.movement_planes,\n  football_demands = excluded.football_demands,\n  equipment = excluded.equipment,\n  risk_level = excluded.risk_level,\n  evidence_level = excluded.evidence_level,\n  evidence_summary = excluded.evidence_summary,\n  consensus_note = excluded.consensus_note,\n  dosage = excluded.dosage,\n  progression = excluded.progression,\n  regression = excluded.regression,\n  hold_rules = excluded.hold_rules,\n  medical_notes = excluded.medical_notes,\n  performance_notes = excluded.performance_notes,\n  coach_safe_label = excluded.coach_safe_label,\n  evidence_refs = excluded.evidence_refs,\n  content = excluded.content,\n  sort_order = excluded.sort_order,\n  updated_at = now();\n\ncommit;\n`;
+  return `-- RTP Library exercise import chunk.\n-- Club-neutral knowledge only. No player medical data is included.\n\nbegin;\n\ninsert into public.rtp_library_exercises\n  (${EXERCISE_COLUMNS})\nvalues\n${valuesBlock(rows)}\non conflict (id) do update set\n${EXERCISE_UPDATE_ASSIGNMENTS},\n  updated_at = now();\n\ncommit;\n`;
 }
 
 function mappingUpsertSql(rows, profileIds, resetMappings = false) {

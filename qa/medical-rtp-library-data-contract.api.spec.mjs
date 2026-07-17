@@ -211,7 +211,7 @@ test("Medical RTP Exercise Bank is a professional catalog linked across all RTP 
     expect(exercise.programBuilder.nextExposure).toBeTruthy();
     expect(exercise.programBuilder.holdRules.length).toBeGreaterThan(0);
     expect(exercise.thumbnail.diagramKey).toBeTruthy();
-    expect(exercise.mediaStatus).toBe("placeholder");
+    expect(exercise.mediaStatus).toBe("diagram");
   }
 
   for (const profile of medicalRtpLibraryProfiles) {

@@ -261,7 +261,6 @@ export function renderIdpPlayerBoardPage(detail = {}, canEdit = false, ui = {}) 
           <header class="idp-player-board-head">
             <span>Player Board</span>
             <strong>${escapeHtml(detail.profile?.playerName || "Player")}</strong>
-            <small>Individual exercises, focus context and saved board drawings for this player's IDP.</small>
           </header>
           ${renderFocusOverview(focus, block)}
           ${renderExerciseBank(interventions, block, canEdit, uiState.idpPlayerBoardSelectedInterventionId)}

@@ -30,6 +30,7 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher {
   position: relative !important;
   display: grid !important;
+  grid-template: 1fr / 1fr !important;
   place-items: center !important;
   padding: 0 !important;
   overflow: visible !important;
@@ -72,6 +73,9 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 }
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher > .dashboard-chat-launcher-icon {
+  grid-area: 1 / 1 !important;
+  align-self: center !important;
+  justify-self: center !important;
   width: 1.5rem !important;
   height: 1.5rem !important;
   display: grid !important;
@@ -89,6 +93,7 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
   width: 1.5rem !important;
   height: 1.5rem !important;
   display: block !important;
+  overflow: visible !important;
   fill: none !important;
   stroke: currentColor !important;
   stroke-width: 2 !important;
@@ -121,8 +126,9 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-dot {
   position: absolute !important;
-  right: 0.5rem !important;
-  bottom: 0.48rem !important;
+  top: 0.24rem !important;
+  right: 0.24rem !important;
+  bottom: auto !important;
   width: 0.42rem !important;
   height: 0.42rem !important;
   display: block !important;

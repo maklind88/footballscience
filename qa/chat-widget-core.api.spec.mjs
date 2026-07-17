@@ -1306,11 +1306,15 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(dashboardChatLauncherCss).toContain("bottom: max(1.15rem, calc(1.15rem + env(safe-area-inset-bottom))) !important;");
   expect(dashboardChatLauncherCss).toContain("width: 3.25rem !important;");
   expect(dashboardChatLauncherCss).toContain("border-radius: 999px !important;");
+  expect(dashboardChatLauncherCss).toContain("grid-template: 1fr / 1fr !important;");
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher > .dashboard-chat-launcher-icon");
+  expect(dashboardChatLauncherCss).toContain("grid-area: 1 / 1 !important;");
   expect(dashboardChatLauncherCss).toContain("place-items: center !important;");
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon svg");
   expect(dashboardChatLauncherCss).toContain("stroke-width: 2 !important;");
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
+  expect(dashboardChatLauncherCss).toContain("top: 0.24rem !important;");
+  expect(dashboardChatLauncherCss).toContain("bottom: auto !important;");
   expect(dashboardChatLauncherCss).toContain("cursor: grab !important;");
   expect(dashboardChatLauncherCss).toContain("touch-action: none !important;");
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-surface-suppressed .dashboard-chat-widget-root");

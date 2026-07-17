@@ -30,6 +30,7 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
   const defaultHeaderClassName = options.headerClassName || "squad-section-head";
   const defaultKickerLabel = options.kickerLabel || "NWSL data spider";
   const defaultTitleLabel = options.titleLabel || "Performance Radar";
+  const defaultMaxMetricCount = 6;
 
   function getRenderOptions(renderOptions = {}) {
     return {
@@ -37,7 +38,97 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
       headerClassName: renderOptions.headerClassName || defaultHeaderClassName,
       kickerLabel: renderOptions.kickerLabel || defaultKickerLabel,
       titleLabel: renderOptions.titleLabel || defaultTitleLabel,
+      maxMetricCount: Number.isInteger(renderOptions.maxMetricCount) && renderOptions.maxMetricCount > 0
+        ? renderOptions.maxMetricCount
+        : defaultMaxMetricCount,
+      metricSelectionKey: renderOptions.metricSelectionKey || "",
+      selectedMetricIds: Array.isArray(renderOptions.selectedMetricIds) ? renderOptions.selectedMetricIds : [],
+      showMetricPicker: Boolean(renderOptions.showMetricPicker),
+      includeDatabaseMetricChoices: Boolean(renderOptions.includeDatabaseMetricChoices),
+      metricPickerOpen: Boolean(renderOptions.metricPickerOpen),
     };
+  }
+
+  function uniqueMetricIds(metricIds = []) {
+    return [...new Set(metricIds.map((metricId) => String(metricId || "").trim()).filter(Boolean))];
+  }
+
+  function getComparableAxes(record, database, template = []) {
+    return template
+      .map((axis) => {
+        const value = getMetricValue(record, axis.metricId);
+        const percentile = getPercentile(record, axis.metricId, axis.direction || "higher");
+        const metric = getMetric(database, axis.metricId);
+        return metric && Number.isFinite(value) && Number.isFinite(percentile)
+          ? { ...axis, value, percentile, metric }
+          : null;
+      })
+      .filter(Boolean);
+  }
+
+  function getAvailableAxes(record, database, template = [], renderOptions = {}) {
+    const curatedAxes = getComparableAxes(record, database, template);
+    if (!renderOptions.includeDatabaseMetricChoices) return curatedAxes;
+    const curatedMetricIds = new Set(curatedAxes.map((axis) => axis.metricId));
+    const extraAxes = (database?.metrics || [])
+      .filter((metric) => metric?.id && !curatedMetricIds.has(metric.id))
+      .map((metric) => {
+        const value = getMetricValue(record, metric.id);
+        const percentile = getPercentile(record, metric.id, metric.direction || "higher");
+        return Number.isFinite(value) && Number.isFinite(percentile)
+          ? {
+              label: metric.label || metric.id,
+              metricId: metric.id,
+              direction: metric.direction || "higher",
+              value,
+              percentile,
+              metric,
+            }
+          : null;
+      })
+      .filter(Boolean);
+    return [...curatedAxes, ...extraAxes];
+  }
+
+  function selectAxes(availableAxes = [], selectedMetricIds = [], maxMetricCount = defaultMaxMetricCount) {
+    const byMetricId = new Map(availableAxes.map((axis) => [axis.metricId, axis]));
+    const selectedAxes = uniqueMetricIds(selectedMetricIds)
+      .map((metricId) => byMetricId.get(metricId))
+      .filter(Boolean);
+    if (!selectedAxes.length) return availableAxes.slice(0, maxMetricCount);
+    return selectedAxes.slice(0, maxMetricCount);
+  }
+
+  function renderMetricPicker(availableAxes = [], selectedAxes = [], renderOptions = {}) {
+    if (!renderOptions.showMetricPicker || availableAxes.length <= renderOptions.maxMetricCount) return "";
+    const selectedMetricIds = new Set(selectedAxes.map((axis) => axis.metricId));
+    const selectionKey = escapeHtml(renderOptions.metricSelectionKey || "player-profile");
+    return `
+      <details class="player-profile-scouting-metric-picker" ${renderOptions.metricPickerOpen ? "open" : ""}>
+        <summary>
+          <span>Metrics</span>
+          <strong>${escapeHtml(selectedAxes.length)}/${escapeHtml(renderOptions.maxMetricCount)}</strong>
+        </summary>
+        <div class="player-profile-scouting-metric-picker-menu" role="group" aria-label="Choose radar metrics">
+          ${availableAxes
+            .map(
+              (axis) => `
+                <label>
+                  <input
+                    type="checkbox"
+                    data-player-profile-scouting-metric-toggle="${escapeHtml(axis.metricId)}"
+                    data-player-profile-scouting-metric-key="${selectionKey}"
+                    ${selectedMetricIds.has(axis.metricId) ? "checked" : ""}
+                  >
+                  <span>${escapeHtml(axis.label)}</span>
+                  <small>P${escapeHtml(axis.percentile)}</small>
+                </label>
+              `
+            )
+            .join("")}
+        </div>
+      </details>
+    `;
   }
 
   function renderNoDataSpider(message = "No data") {
@@ -91,16 +182,9 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
     }
     const group = getPositionGroup(record, player);
     const template = templates[group] || templates.OTHER || [];
-    const axes = template
-      .map((axis) => {
-        const value = getMetricValue(record, axis.metricId);
-        const percentile = getPercentile(record, axis.metricId, axis.direction || "higher");
-        const metric = getMetric(database, axis.metricId);
-        return metric && Number.isFinite(value) && Number.isFinite(percentile)
-          ? { ...axis, value, percentile, metric }
-          : null;
-      })
-      .filter(Boolean);
+    const renderConfig = getRenderOptions(renderOptions);
+    const availableAxes = getAvailableAxes(record, database, template, renderConfig);
+    const axes = selectAxes(availableAxes, renderConfig.selectedMetricIds, renderConfig.maxMetricCount);
     if (axes.length < 3) {
       return renderEmptyCard(
         record[recordIndex.season] || "NWSL",
@@ -125,7 +209,8 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
       };
     });
     const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
-    const { cardClassName, headerClassName, kickerLabel, titleLabel } = getRenderOptions(renderOptions);
+    const { cardClassName, headerClassName, kickerLabel, titleLabel } = renderConfig;
+    const metaLabel = [record[recordIndex.team], record[recordIndex.season]].filter(Boolean).join(" / ") || "NWSL";
     return `
     <article class="${escapeHtml(cardClassName)}">
       <header class="${escapeHtml(headerClassName)}">
@@ -133,7 +218,10 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
           <p>${escapeHtml(kickerLabel)}</p>
           <h2>${escapeHtml(titleLabel)}</h2>
         </div>
-        <span>${escapeHtml([record[recordIndex.team], record[recordIndex.season]].filter(Boolean).join(" / ") || "NWSL")}</span>
+        <div class="player-profile-scouting-radar-tools">
+          <span>${escapeHtml(metaLabel)}</span>
+          ${renderMetricPicker(availableAxes, axes, renderConfig)}
+        </div>
       </header>
       <div class="player-profile-scouting-spider-layout">
         <svg class="player-profile-scouting-spider" viewBox="0 0 220 220" role="img" aria-label="NWSL performance spider">

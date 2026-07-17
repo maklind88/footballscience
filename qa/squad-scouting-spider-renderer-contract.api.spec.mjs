@@ -86,6 +86,92 @@ test("Squad scouting spider renderer renders radar metrics from callback data", 
   expect(formatPlayerProfileScoutingNumber("bad")).toBe("n/a");
 });
 
+test("Squad scouting spider renderer defaults to six metrics and keeps spider axes in sync with selected metrics", () => {
+  const metricIds = ["exits", "save", "prevention", "accuracy", "short", "volume", "shots"];
+  const record = {
+    team: "NCC",
+    season: "2026",
+    metrics: Object.fromEntries(metricIds.map((metricId, index) => [metricId, index + 1])),
+  };
+  const renderer = createSquadScoutingSpiderRenderer({
+    getDatabase: () => ({ records: [record], metrics: metricIds.map((id) => ({ id })) }),
+    findRecord: () => record,
+    getPositionGroup: () => "OTHER",
+    getMetricValue: (sourceRecord, metricId) => sourceRecord.metrics[metricId],
+    getPercentile: (_sourceRecord, metricId) => metricIds.indexOf(metricId) * 10 + 30,
+    getMetric: (_database, metricId) => ({ label: metricId.toUpperCase() }),
+    templates: {
+      OTHER: metricIds.map((metricId) => ({ label: metricId.toUpperCase(), metricId })),
+    },
+    recordIndex,
+  });
+
+  const defaultMarkup = renderer.render({ playerName: "Mak Lind" });
+  expect((defaultMarkup.match(/<strong>P/g) || []).length).toBe(6);
+  expect((defaultMarkup.match(/player-profile-scouting-axis/g) || []).length).toBe(6);
+  expect(defaultMarkup).toContain("EXITS");
+  expect(defaultMarkup).toContain("VOLUME");
+  expect(defaultMarkup).not.toContain("SHOTS: 7");
+
+  const selectedMarkup = renderer.render(
+    { playerName: "Mak Lind" },
+    {
+      maxMetricCount: 6,
+      metricSelectionKey: "p1",
+      metricPickerOpen: true,
+      selectedMetricIds: ["shots", "save", "accuracy"],
+      showMetricPicker: true,
+    }
+  );
+  expect((selectedMarkup.match(/<strong>P/g) || []).length).toBe(3);
+  expect((selectedMarkup.match(/player-profile-scouting-axis/g) || []).length).toBe(3);
+  expect(selectedMarkup).toContain('data-player-profile-scouting-metric-key="p1"');
+  expect(selectedMarkup).toContain('class="player-profile-scouting-metric-picker" open');
+  expect(selectedMarkup).toContain("SHOTS: 7");
+  expect(selectedMarkup).toContain("SAVE: 2");
+  expect(selectedMarkup).toContain("ACCURACY: 4");
+  expect(selectedMarkup).not.toContain("PREVENTION: 3");
+});
+
+test("Squad scouting spider renderer can expose database metric choices without changing the six default axes", () => {
+  const metricIds = ["role-a", "role-b", "role-c", "role-d", "role-e", "role-f", "database-extra"];
+  const record = {
+    team: "NCC",
+    season: "2026",
+    metrics: Object.fromEntries(metricIds.map((metricId, index) => [metricId, index + 1])),
+  };
+  const renderer = createSquadScoutingSpiderRenderer({
+    getDatabase: () => ({
+      records: [record],
+      metrics: metricIds.map((id) => ({ id, label: id.toUpperCase(), direction: "higher" })),
+    }),
+    findRecord: () => record,
+    getPositionGroup: () => "OTHER",
+    getMetricValue: (sourceRecord, metricId) => sourceRecord.metrics[metricId],
+    getPercentile: (_sourceRecord, metricId) => metricIds.indexOf(metricId) * 10 + 30,
+    getMetric: (_database, metricId) => ({ id: metricId, label: metricId.toUpperCase(), direction: "higher" }),
+    templates: {
+      OTHER: metricIds.slice(0, 6).map((metricId) => ({ label: metricId.toUpperCase(), metricId })),
+    },
+    recordIndex,
+  });
+
+  const markup = renderer.render(
+    { playerName: "Mak Lind" },
+    {
+      includeDatabaseMetricChoices: true,
+      metricSelectionKey: "p1",
+      showMetricPicker: true,
+    }
+  );
+
+  expect((markup.match(/<strong>P/g) || []).length).toBe(6);
+  expect((markup.match(/player-profile-scouting-axis/g) || []).length).toBe(6);
+  expect(markup).toContain('data-player-profile-scouting-metric-toggle="database-extra"');
+  expect(markup).toContain("DATABASE-EXTRA");
+  expect(markup).not.toContain("DATABASE-EXTRA: 7");
+});
+
 test("Squad scouting profile helpers own record matching, metrics, and percentiles", () => {
   const database = {
     metrics: [{ id: "shots" }, { id: "turnovers" }],

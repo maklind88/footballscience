@@ -28,6 +28,8 @@ const defaultUiState = Object.freeze({
   error: "",
   loading: false,
   selectedClipBankIds: [],
+  scoutingMetricSelections: {},
+  openScoutingMetricPickerKey: "",
   idpPlayerBoardOpen: false,
   idpPlayerBoardPreviewOpen: false,
   idpPlayerBoardSelectedElementIds: [],
@@ -1116,12 +1118,20 @@ function renderProfileMenu(profileView = "development") {
   `;
 }
 
-function renderProfileScoutingRadar(profile = {}, options = {}) {
+function getScoutingMetricSelectionKey(profile = {}) {
+  return normalizeText(profile.playerId || profile.id || profile.playerName || profile.name, "player-profile");
+}
+
+function renderProfileScoutingRadar(profile = {}, options = {}, ui = {}) {
   const renderSpider = typeof options.renderPlayerProfileScoutingSpider === "function"
     ? options.renderPlayerProfileScoutingSpider
     : null;
   const playerName = normalizeText(profile.playerName || profile.name, "");
   if (!renderSpider || !playerName) return "";
+  const metricSelectionKey = getScoutingMetricSelectionKey(profile);
+  const selectedMetricIds = Array.isArray(ui.scoutingMetricSelections?.[metricSelectionKey])
+    ? ui.scoutingMetricSelections[metricSelectionKey]
+    : [];
   return renderSpider(
     {
       id: profile.playerId || profile.id || "",
@@ -1138,6 +1148,12 @@ function renderProfileScoutingRadar(profile = {}, options = {}) {
       headerClassName: "idp-profile-scouting-radar-head",
       kickerLabel: "NWSL Data Spider",
       titleLabel: "Performance Radar",
+      maxMetricCount: 6,
+      metricSelectionKey,
+      selectedMetricIds,
+      showMetricPicker: true,
+      includeDatabaseMetricChoices: true,
+      metricPickerOpen: ui.openScoutingMetricPickerKey === metricSelectionKey,
     }
   );
 }
@@ -1828,7 +1844,7 @@ function renderPlayerProfile(state = {}, canEdit = false, options = {}) {
         : profileView === "history"
           ? renderProfileHistoryPage(detail, options)
           : `
-      ${renderProfileScoutingRadar(profile, options)}
+      ${renderProfileScoutingRadar(profile, options, state.ui || {})}
       <section class="idp-development-board is-focus-only">
         ${renderCurrentFocusWorkspace(detail, profile, focus, idpInactive, canEdit && !idpInactive, options, strengths)}
       </section>

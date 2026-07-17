@@ -284,6 +284,18 @@ function isTextEntryTarget(target) {
   return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true']"));
 }
 
+function getCheckedScoutingMetricIds(activeRuntime = runtime, selectionKey = "") {
+  const root = getRoot(activeRuntime?.context);
+  if (!root || !selectionKey) return [];
+  const escapedSelectionKey = globalThis.CSS?.escape
+    ? globalThis.CSS.escape(selectionKey)
+    : String(selectionKey).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return [...root.querySelectorAll(`[data-player-profile-scouting-metric-key="${escapedSelectionKey}"]`)]
+    .filter((input) => input.checked)
+    .map((input) => input.dataset.playerProfileScoutingMetricToggle || "")
+    .filter(Boolean);
+}
+
 function handleClipPreviewKeyboardDown(event, activeRuntime = runtime) {
   if (!activeRuntime?.store?.getState?.()?.ui?.clipPreviewOpen || isTextEntryTarget(event?.target)) return;
   const key = String(event?.key || "");
@@ -333,6 +345,22 @@ export function handleInput(event) {
 export function handleChange(event) {
   if (handleIdpPlayerBoardChange(event, runtime)) return;
   const target = event?.target;
+  const scoutingMetricToggle = target?.closest?.("[data-player-profile-scouting-metric-toggle]");
+  if (scoutingMetricToggle) {
+    const selectionKey = scoutingMetricToggle.dataset.playerProfileScoutingMetricKey || "";
+    const nextIds = getCheckedScoutingMetricIds(runtime, selectionKey).slice(0, 6);
+    const currentSelections = runtime?.store.getState?.()?.ui?.scoutingMetricSelections || {};
+    runtime?.store.setState({
+      ui: {
+        openScoutingMetricPickerKey: selectionKey,
+        scoutingMetricSelections: {
+          ...currentSelections,
+          [selectionKey]: nextIds,
+        },
+      },
+    });
+    return;
+  }
   const clipSelect = target?.closest?.("[data-idp-clip-select]");
   if (clipSelect) {
     const id = clipSelect.dataset.idpClipSelect || "";

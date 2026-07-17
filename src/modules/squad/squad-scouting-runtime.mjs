@@ -21,6 +21,9 @@ const playerProfileScoutingSpiderTemplates = Object.freeze({
     { label: "Prevention", metricId: "prevented-goals-per-90" },
     { label: "Accuracy", metricId: "accurate-passes" },
     { label: "Short game", metricId: "average-pass-length-m", direction: "lower" },
+    { label: "Pass volume", metricId: "passes-per-90" },
+    { label: "Shots faced", metricId: "shots-against-per-90", direction: "lower" },
+    { label: "Goals against", metricId: "conceded-goals-per-90", direction: "lower" },
   ],
   CB: [
     { label: "Def actions", metricId: "successful-defensive-actions-per-90" },
@@ -28,6 +31,8 @@ const playerProfileScoutingSpiderTemplates = Object.freeze({
     { label: "Interceptions", metricId: "padj-interceptions" },
     { label: "Prog pass", metricId: "progressive-passes-per-90" },
     { label: "Short game", metricId: "average-pass-length-m", direction: "lower" },
+    { label: "Accuracy", metricId: "accurate-passes" },
+    { label: "Pass volume", metricId: "passes-per-90" },
   ],
   FB: [
     { label: "Prog runs", metricId: "progressive-runs-per-90" },
@@ -35,6 +40,8 @@ const playerProfileScoutingSpiderTemplates = Object.freeze({
     { label: "Def actions", metricId: "successful-defensive-actions-per-90" },
     { label: "Key passes", metricId: "key-passes-per-90" },
     { label: "xA", metricId: "xa-per-90" },
+    { label: "Accuracy", metricId: "accurate-passes" },
+    { label: "Prog pass", metricId: "progressive-passes-per-90" },
   ],
   MID: [
     { label: "Pass volume", metricId: "passes-per-90" },
@@ -58,6 +65,8 @@ const playerProfileScoutingSpiderTemplates = Object.freeze({
     { label: "Box touches", metricId: "touches-in-box-per-90" },
     { label: "Receives", metricId: "received-passes-per-90" },
     { label: "Key passes", metricId: "key-passes-per-90" },
+    { label: "Goal conversion", metricId: "goal-conversion" },
+    { label: "Shot assists", metricId: "shot-assists-per-90" },
   ],
   OTHER: [
     { label: "Passing", metricId: "accurate-passes" },
@@ -65,6 +74,8 @@ const playerProfileScoutingSpiderTemplates = Object.freeze({
     { label: "Duels", metricId: "duels-won" },
     { label: "Def work", metricId: "successful-defensive-actions-per-90" },
     { label: "Creation", metricId: "xa-per-90" },
+    { label: "Pass volume", metricId: "passes-per-90" },
+    { label: "Receives", metricId: "received-passes-per-90" },
   ],
 });
 

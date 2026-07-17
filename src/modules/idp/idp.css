@@ -4056,13 +4056,118 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   margin: 0;
 }
 
-.idp-profile-scouting-radar-head > span {
+.idp-profile-scouting-radar-head > span,
+.idp-profile-scouting-radar-head .player-profile-scouting-radar-tools > span {
   color: #475467;
   flex: 0 0 auto;
   font-size: .72rem;
   font-weight: 900;
   line-height: 1.2;
   text-align: right;
+}
+
+.player-profile-scouting-radar-tools {
+  align-items: flex-end;
+  display: grid;
+  gap: 7px;
+  justify-items: end;
+  position: relative;
+}
+
+.player-profile-scouting-metric-picker {
+  position: relative;
+}
+
+.player-profile-scouting-metric-picker summary {
+  align-items: center;
+  background: rgba(255, 255, 255, .86);
+  border: 1px solid rgba(17, 24, 39, .08);
+  border-radius: 999px;
+  color: #344054;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 7px;
+  list-style: none;
+  min-height: 28px;
+  padding: 0 10px;
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.player-profile-scouting-metric-picker summary::-webkit-details-marker {
+  display: none;
+}
+
+.player-profile-scouting-metric-picker summary:hover,
+.player-profile-scouting-metric-picker summary:focus-visible {
+  background: #fff;
+  border-color: rgba(15, 118, 110, .2);
+  box-shadow: 0 10px 24px rgba(16, 24, 40, .1);
+  outline: none;
+}
+
+.player-profile-scouting-metric-picker summary span {
+  font-size: .68rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.player-profile-scouting-metric-picker summary strong {
+  color: #0f766e;
+  font-size: .72rem;
+  line-height: 1;
+}
+
+.player-profile-scouting-metric-picker-menu {
+  background: rgba(255, 255, 255, .98);
+  border: 1px solid rgba(17, 24, 39, .1);
+  border-radius: 8px;
+  box-shadow: 0 18px 44px rgba(16, 24, 40, .16);
+  display: grid;
+  gap: 4px;
+  max-height: min(420px, 56vh);
+  min-width: 220px;
+  overflow: auto;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+}
+
+.player-profile-scouting-metric-picker-menu label {
+  align-items: center;
+  border-radius: 7px;
+  color: #344054;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 30px;
+  padding: 5px 7px;
+}
+
+.player-profile-scouting-metric-picker-menu label:hover {
+  background: rgba(15, 118, 110, .06);
+}
+
+.player-profile-scouting-metric-picker-menu input {
+  accent-color: #0f766e;
+}
+
+.player-profile-scouting-metric-picker-menu span {
+  font-size: .76rem;
+  font-weight: 850;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-profile-scouting-metric-picker-menu small {
+  color: #0f766e;
+  font-size: .68rem;
+  font-weight: 950;
 }
 
 .idp-profile-scouting-radar .player-profile-scouting-spider-layout {
@@ -5031,6 +5136,7 @@ body.is-dark-mode .idp-profile-experience .idp-section-kicker,
 body.is-dark-mode .idp-profile-experience .idp-snapshot-label,
 body.is-dark-mode .idp-profile-scouting-radar-head p,
 body.is-dark-mode .idp-profile-scouting-radar-head > span,
+body.is-dark-mode .idp-profile-scouting-radar-head .player-profile-scouting-radar-tools > span,
 body.is-dark-mode .idp-stage-identity p,
 body.is-dark-mode .idp-stage-scoreboard span,
 body.is-dark-mode .idp-pulse-orb span,

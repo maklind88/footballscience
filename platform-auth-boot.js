@@ -617,7 +617,27 @@ async function getActiveAccessToken() {
     if (key === MEDICAL_TEAM_STATE_KEY) {
       return true;
     }
-    if (options.forceApply || !pendingEntry?.pendingCentralSync || key === MEDICAL_TEAM_STATE_KEY) {
+    if (options.forceApply) {
+      return true;
+    }
+
+    const centralRevision = Number(metadataEntry?.revision);
+    const manifestServerRevision = Number(pendingEntry?.serverRevision);
+    const hasCentralRevision = Number.isInteger(centralRevision) && centralRevision >= 0;
+    const hasManifestRevision = Number.isInteger(manifestServerRevision) && manifestServerRevision >= 0;
+    const localValue = window.localStorage.getItem(key);
+    const hasLocalValue = localValue !== null;
+
+    if (
+      hasCentralRevision &&
+      hasManifestRevision &&
+      centralRevision < manifestServerRevision &&
+      hasLocalValue
+    ) {
+      return false;
+    }
+
+    if (!pendingEntry?.pendingCentralSync) {
       return true;
     }
     const centralHash = String(metadataEntry.hash || "").trim();

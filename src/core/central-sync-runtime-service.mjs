@@ -146,6 +146,34 @@ export function createCentralSyncRuntimeService(deps = {}) {
     handleSyncedStateValue(key, valueToApply);
   }
 
+  function persistCentralStateServerRevision(key, result = {}) {
+    const revision = getCentralSyncResultRevision(result);
+    if (!Number.isInteger(revision) || revision < 0) {
+      return;
+    }
+    const normalizedKey = String(key || "");
+    if (!normalizedKey) {
+      return;
+    }
+    mutateManifest((manifest) => {
+      const currentEntry = manifest.entries[normalizedKey] || {};
+      manifest.entries[normalizedKey] = {
+        ...(currentEntry?.label
+          ? currentEntry
+          : {
+              label: getStorageLabel(normalizedKey),
+              writes: 0,
+              size: 0,
+              hash: "",
+              updatedAt: "",
+              deletedAt: "",
+            }),
+        ...currentEntry,
+        serverRevision: revision,
+      };
+    });
+  }
+
   function getCentralSyncResultValue(result = {}) {
     const candidates = [
       result?.value,
@@ -284,6 +312,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
         setAutosaveStatusForKey(write.key, "issue", result?.reason || "Sync failed.");
         return;
       }
+      persistCentralStateServerRevision(write.key, result);
       applyCentralSyncedStateValue(write, result.value);
       if (result?.merged && write.key === sessionPlannerStorageKey && getActiveWorkspaceId() === "session-planner") {
         showSessionPlannerToast("Central sync merged.", "warning");

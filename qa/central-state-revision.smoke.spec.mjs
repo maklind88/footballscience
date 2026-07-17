@@ -356,6 +356,59 @@ test("central hydration does not overwrite pending local Session Planner data wi
   }
 });
 
+test("central hydration preserves local value when central revision is stale against manifest server revision", async ({ browser, baseURL }) => {
+  const staleCentralValue = createStateValue("Original central sequence - stale");
+  const localValue = createStateValue("Original central sequence - local");
+  const centralStore = {
+    value: staleCentralValue,
+    metadata: createMetadata(2, staleCentralValue),
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "revision-guard-stale", {
+    initScript: ({ key, value, manifestKey }) => {
+      window.localStorage.setItem(key, value);
+      window.localStorage.setItem(
+        manifestKey,
+        JSON.stringify({
+          version: 1,
+          entries: {
+            [key]: {
+              label: "Simulator Sequence",
+              updatedAt: "2026-05-07T12:10:00.000Z",
+              hash: "hash-local-value",
+              writes: 1,
+              serverRevision: 4,
+            },
+          },
+        })
+      );
+    },
+    initArg: { key: revisionStateKey, value: localValue, manifestKey: dataSafetyManifestKey },
+  });
+
+  try {
+    await expect
+      .poll(
+        () => tab.page.evaluate((key) => window.localStorage.getItem(key) || "", revisionStateKey),
+        { timeout: 10_000 }
+      )
+      .toContain("Original central sequence - local");
+
+    const freshCentralValue = createStateValue("Original central sequence - remote");
+    centralStore.value = freshCentralValue;
+    centralStore.metadata = createMetadata(5, freshCentralValue);
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate());
+
+    await expect
+      .poll(
+        () => tab.page.evaluate((key) => window.localStorage.getItem(key) || "", revisionStateKey),
+        { timeout: 10_000 }
+      )
+      .toContain("Original central sequence - remote");
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
 async function writeRevisionValue(page, title) {
   await page.evaluate(
     ({ key, nextTitle }) => {

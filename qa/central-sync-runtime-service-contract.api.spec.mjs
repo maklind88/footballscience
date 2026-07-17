@@ -93,7 +93,14 @@ function createServiceHarness(options = {}) {
 }
 
 test("central sync runtime queues protected writes with revision metadata and flushes through the bridge", async () => {
-  const harness = createServiceHarness();
+  const harness = createServiceHarness({
+    syncResult: {
+      ok: true,
+      value: "{\"blocks\":[]}",
+      revision: 12,
+      metadata: { revision: 12 },
+    },
+  });
 
   harness.service.queueCentralStateWrite("football-session-planner-v1", "{\"blocks\":[]}");
   expect(harness.manifest.entries["football-session-planner-v1"]).toMatchObject({
@@ -114,6 +121,9 @@ test("central sync runtime queues protected writes with revision metadata and fl
   ]);
   expect(harness.manifest.lastCentralError).toBe("");
   expect(harness.manifest.lastCentralSyncedAt).toBe("2026-06-08T12:00:00.000Z");
+  expect(harness.manifest.entries["football-session-planner-v1"]).toMatchObject({
+    serverRevision: 12,
+  });
   expect(harness.autosaveStatuses).toContainEqual(["football-session-planner-v1", "saved", "Saved"]);
 });
 

@@ -237,6 +237,14 @@ test("Medical runtime state service auto-closes past unlogged actual participati
         createdAt: "2026-05-31T09:00:00.000Z",
       },
       {
+        id: "today-legacy-missing-actual",
+        playerId: "p1",
+        date: "2026-05-31",
+        status: "modified",
+        participation: 75,
+        createdAt: "2026-05-31T10:00:00.000Z",
+      },
+      {
         id: "future-unlogged",
         playerId: "p1",
         date: "2026-06-01",
@@ -280,6 +288,7 @@ test("Medical runtime state service auto-closes past unlogged actual participati
   expect(byId.get("past-missing-actual").actualParticipation).toBe(50);
   expect(byId.get("past-manual-actual").actualParticipation).toBe(10);
   expect(byId.get("today-unlogged").actualParticipation).toBe("not-logged");
+  expect(byId.get("today-legacy-missing-actual")).not.toHaveProperty("actualParticipation");
   expect(byId.get("future-unlogged").actualParticipation).toBe("not-logged");
   expect(byId.get("archived-unlogged").actualParticipation).toBe("not-logged");
   expect(byId.get("synthetic-unlogged").actualParticipation).toBe("not-logged");
@@ -289,6 +298,7 @@ test("Medical runtime state service auto-closes past unlogged actual participati
   const persistedById = new Map(persisted.records.map((record) => [record.id, record]));
   expect(persistedById.get("past-unlogged").actualParticipation).toBe(75);
   expect(persistedById.get("today-unlogged").actualParticipation).toBe("not-logged");
+  expect(persistedById.get("today-legacy-missing-actual")).not.toHaveProperty("actualParticipation");
 
   const coachHarness = createServiceHarness({
     canEdit: false,

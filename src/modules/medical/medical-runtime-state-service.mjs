@@ -60,6 +60,10 @@ export function createMedicalRuntimeStateService(deps = {}) {
       return null;
     }
     if (!shouldAutoCloseMedicalActual(record, rawRecord, todayValue)) {
+      if (!Object.prototype.hasOwnProperty.call(rawRecord, "actualParticipation")) {
+        const { actualParticipation, ...legacyRecord } = record;
+        return legacyRecord;
+      }
       return record;
     }
     return {

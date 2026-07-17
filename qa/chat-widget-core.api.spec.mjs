@@ -1315,8 +1315,8 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(dashboardChatLauncherCss).toContain("stroke-width: 2 !important;");
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
   expect(dashboardChatLauncherCss).toContain("bottom: -0.1rem !important;");
-  expect(dashboardChatLauncherCss).toContain("top: 0.46rem !important;");
-  expect(dashboardChatLauncherCss).toContain("right: 0.46rem !important;");
+  expect(dashboardChatLauncherCss).toContain("top: 0.98rem !important;");
+  expect(dashboardChatLauncherCss).toContain("right: 0.78rem !important;");
   expect(dashboardChatLauncherCss).toContain("background: #8dd7c1 !important;");
   expect(dashboardChatLauncherCss).toContain("bottom: auto !important;");
   expect(dashboardChatLauncherCss).toContain("cursor: grab !important;");

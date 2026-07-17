@@ -127,8 +127,8 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-dot {
   position: absolute !important;
-  top: 0.46rem !important;
-  right: 0.46rem !important;
+  top: 0.98rem !important;
+  right: 0.78rem !important;
   bottom: auto !important;
   width: 0.32rem !important;
   height: 0.32rem !important;

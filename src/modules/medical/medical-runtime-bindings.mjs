@@ -1,4 +1,6 @@
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
+import { getMedicalRtpExercisesForProfile as getDefaultMedicalRtpExercisesForProfile } from "./medical-rtp-exercise-bank-data.mjs";
+import { MEDICAL_RTP_LIBRARY_PAGE_SIZE } from "./medical-rtp-library-renderer.mjs";
 
 function callOptional(fn, ...args) {
   return typeof fn === "function" ? fn(...args) : undefined;
@@ -86,12 +88,13 @@ export function bindMedicalRuntimeBindings(deps = {}) {
 
   const renderWorkspace = actions.renderMedicalTeamWorkspace ?? (() => {});
   const canEdit = actions.canEditMedicalTeam ?? (() => false);
+  let lastRtpProfileTrigger = null;
 
   const recordSync = (eventType, payload) => {
     void actions.recordMedicalDatabaseSyncEvent?.(eventType, payload);
   };
 
-  const filterMedicalRtpLibrary = () => {
+  const filterMedicalRtpLibrary = ({ resetLimit = false } = {}) => {
     const library = queryWorkspace(workspaceElement, "[data-medical-rtp-library]");
     if (!library) return;
     const query = String(library.querySelector("[data-medical-rtp-library-search]")?.value || "").trim();
@@ -99,22 +102,59 @@ export function bindMedicalRuntimeBindings(deps = {}) {
       acc[control.dataset.medicalRtpLibraryFilter] = String(control.value || "all").toLowerCase();
       return acc;
     }, {});
-    let visibleCount = 0;
+    if (resetLimit) {
+      if (library.dataset) {
+        library.dataset.medicalRtpLibraryLimit = String(MEDICAL_RTP_LIBRARY_PAGE_SIZE);
+      } else {
+        library.setAttribute?.("data-medical-rtp-library-limit", String(MEDICAL_RTP_LIBRARY_PAGE_SIZE));
+      }
+    }
+    const visibleLimit = Math.max(
+      MEDICAL_RTP_LIBRARY_PAGE_SIZE,
+      Number(library.dataset?.medicalRtpLibraryLimit) || MEDICAL_RTP_LIBRARY_PAGE_SIZE
+    );
+    const matchingCards = [];
     library.querySelectorAll("[data-medical-rtp-profile]").forEach((card) => {
       const matchesQuery = cardMatchesRtpClinicalQuery(card, query);
-      const matchesMovement = !filters.movement || filters.movement === "all" || String(card.dataset.movement || "").toLowerCase().includes(filters.movement);
+      const movementTerms = String(filters.movement || "")
+        .split("|")
+        .map((term) => term.trim())
+        .filter(Boolean);
+      const cardMovement = [
+        card.dataset.movement,
+        card.dataset.clinicalMovement,
+        card.dataset.clinicalMechanism,
+        card.dataset.clinicalPositionDemand,
+        card.dataset.search,
+      ].filter(Boolean).join(" ").toLowerCase();
+      const matchesMovement =
+        !movementTerms.length ||
+        movementTerms.includes("all") ||
+        movementTerms.some((term) => cardMovement.includes(term));
       const matchesPosition = !filters.position || filters.position === "all" || String(card.dataset.position || "").toLowerCase().includes(filters.position);
       const matchesSeason = !filters.season || filters.season === "all" || String(card.dataset.season || "").toLowerCase().includes(filters.season);
       const matchesSex = !filters.sex || filters.sex === "all" || String(card.dataset.sex || "").toLowerCase().includes(filters.sex);
       const matchesLevel = !filters.level || filters.level === "all" || String(card.dataset.level || "").toLowerCase().includes(filters.level);
-      const isVisible = matchesQuery && matchesMovement && matchesPosition && matchesSeason && matchesSex && matchesLevel;
-      card.hidden = !isVisible;
-      visibleCount += isVisible ? 1 : 0;
+      const matches = matchesQuery && matchesMovement && matchesPosition && matchesSeason && matchesSex && matchesLevel;
+      if (matches) matchingCards.push(card);
+      card.hidden = true;
     });
+    matchingCards.slice(0, visibleLimit).forEach((card) => {
+      card.hidden = false;
+    });
+    const shownCount = Math.min(visibleLimit, matchingCards.length);
     const count = library.querySelector("[data-medical-rtp-library-count]");
-    if (count) count.textContent = String(visibleCount);
+    if (count) count.textContent = String(matchingCards.length);
+    const shown = library.querySelector("[data-medical-rtp-library-shown]");
+    if (shown) shown.textContent = String(shownCount);
     const empty = library.querySelector("[data-medical-rtp-library-empty]");
-    if (empty) empty.hidden = visibleCount !== 0;
+    if (empty) empty.hidden = matchingCards.length !== 0;
+    const loadMore = library.querySelector("[data-medical-rtp-library-more]");
+    if (loadMore) {
+      const remaining = Math.max(0, matchingCards.length - shownCount);
+      loadMore.hidden = remaining === 0;
+      loadMore.textContent = `Load ${Math.min(MEDICAL_RTP_LIBRARY_PAGE_SIZE, remaining)} more`;
+    }
   };
 
   const filterMedicalRtpExerciseCatalog = () => {
@@ -340,11 +380,29 @@ export function bindMedicalRuntimeBindings(deps = {}) {
     return { ...base, type: "arrow", x2: Math.min(96, point.x + 18), y2: point.y, color: "#0f766e", label: "Arrow" };
   };
 
-  const closeMedicalRtpProfileModal = () => {
+  const closeMedicalRtpProfileModal = ({ restoreFocus = true } = {}) => {
     queryWorkspaceAll(workspaceElement, "[data-medical-rtp-profile-modal]").forEach((modal) => {
       modal.hidden = true;
       modal.setAttribute?.("aria-hidden", "true");
     });
+    if (restoreFocus) {
+      lastRtpProfileTrigger?.focus?.();
+    }
+  };
+
+  const switchMedicalRtpGuideGroup = (trigger) => {
+    const groupKey = String(trigger?.dataset?.medicalRtpGuideGroup || "").trim();
+    const content = trigger?.closest?.("[data-medical-rtp-profile-dialog-content]");
+    if (!groupKey || !content) return false;
+    content.querySelectorAll?.("[data-medical-rtp-guide-group]")?.forEach?.((button) => {
+      button.setAttribute?.("aria-pressed", button.dataset?.medicalRtpGuideGroup === groupKey ? "true" : "false");
+    });
+    content.querySelectorAll?.("[data-medical-rtp-guide-group-panel]")?.forEach?.((panel) => {
+      panel.hidden = panel.dataset?.medicalRtpGuideGroupPanel !== groupKey;
+    });
+    const body = content.querySelector?.(".medical-rtp-profile-dialog-body");
+    body?.scrollTo?.({ top: 0, behavior: "smooth" });
+    return true;
   };
 
   const jumpToMedicalRtpProfileSection = (trigger) => {
@@ -382,8 +440,12 @@ ${items.length ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join
       .map((item) => `<span class="medical-ops-chip medical-ops-chip-low">${escapeHtml(item)}</span>`)
       .join("");
 
-  const getRtpProfileExercises = (profile = {}, limit = 6) =>
-    actions.getMedicalRtpExercisesForProfile?.(profile.id, { limit }) || [];
+  const getRtpProfileExercises = (profile = {}, limit = 6) => {
+    const fromRuntime = actions.getMedicalRtpExercisesForProfile?.(profile.id, { limit });
+    return Array.isArray(fromRuntime) && fromRuntime.length
+      ? fromRuntime
+      : getDefaultMedicalRtpExercisesForProfile(profile.id, { limit });
+  };
 
   const renderRtpExerciseCards = (profile = {}, limit = 6) => {
     const exercises = getRtpProfileExercises(profile, limit);
@@ -424,32 +486,33 @@ ${exercises
 </div>
 `;
 
-  const renderRtpProfileQuickNav = (profile = {}) => {
-    const profileId = profile.id || "guide";
-    const renderJump = (label, suffix) => {
-      const anchorId = getRtpProfileAnchorId(profileId, suffix);
-      return `<a href="#${escapeHtml(anchorId)}" data-medical-rtp-profile-jump="${escapeHtml(anchorId)}">${escapeHtml(label)}</a>`;
-    };
-    return `
-<nav class="medical-rtp-profile-quick-nav" aria-label="RTP guide quick sections">
-${renderJump("Summary", "summary")}
-${renderJump("Red flags", "red-flags")}
-${renderJump("Criteria", "criteria")}
-${renderJump("Exercises", "exercises")}
-${renderJump("Training", "training")}
-${renderJump("Match", "match")}
-${renderJump("37 sections", "full-guide")}
+  const rtpGuideGroups = Object.freeze([
+    { key: "decision", label: "Decision summary", indexes: [] },
+    { key: "clinical", label: "Clinical", indexes: [0, 1, 2, 3, 4, 5, 6, 7] },
+    { key: "rehabilitation", label: "Rehabilitation", indexes: [8, 9, 19, 20] },
+    { key: "field", label: "Field progression", indexes: [10, 11, 12, 13, 18, 27, 32] },
+    { key: "return", label: "Return decisions", indexes: [14, 15, 16, 29, 30, 31, 34, 35, 36] },
+    { key: "evidence", label: "Evidence & notes", indexes: [17, 21, 22, 23, 24, 25, 26, 28, 33] },
+  ]);
+
+  const renderRtpProfileQuickNav = () => `
+<nav class="medical-rtp-profile-quick-nav" aria-label="RTP guide work areas">
+${rtpGuideGroups
+  .map(
+    ({ key, label }, index) => `
+<button
+type="button"
+data-medical-rtp-guide-group="${escapeHtml(key)}"
+aria-pressed="${index === 0 ? "true" : "false"}"
+>${escapeHtml(label)}</button>
+`
+  )
+  .join("")}
 </nav>
 `;
-  };
 
   const renderRtpProfileDecisionStrip = (profile = {}) => `
 <section class="medical-rtp-profile-decision-strip" aria-label="RTP guide decision support">
-<div>
-<span>Library guide</span>
-<strong>Club-neutral knowledge</strong>
-<small>No player data is stored or selected inside the Library.</small>
-</div>
 <div>
 <span>Gate focus</span>
 <strong>${escapeHtml(getFirstRtpGuideItem(profile.criteria, "Set player-specific gate criteria."))}</strong>
@@ -465,16 +528,20 @@ ${renderJump("37 sections", "full-guide")}
 </section>
 `;
 
-  const renderRtpGoldStandardSections = (sections = []) => `
+  const renderRtpGoldStandardSections = (sections = [], indexes = []) => {
+    const selectedSections = indexes
+      .map((sectionIndex) => ({ section: sections[sectionIndex], sectionIndex }))
+      .filter(({ section }) => section);
+    return `
 <section class="medical-rtp-gold-standard-sections" aria-label="Gold Standard RTP profile sections">
 <header>
-<strong>${sections.length} sections</strong>
+<strong>${selectedSections.length} sections</strong>
 </header>
-${sections
+${selectedSections
   .map(
-    (section, index) => `
-<details${index < 4 ? " open" : ""}>
-<summary><span>${index + 1}</span>${escapeHtml(section.title)}</summary>
+    ({ section, sectionIndex }, index) => `
+<details${index === 0 ? " open" : ""}>
+<summary><span>${sectionIndex + 1}</span>${escapeHtml(section.title)}</summary>
 <p>${escapeHtml(section.content)}</p>
 ${Array.isArray(section.items) && section.items.length ? `<ul>${section.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
 </details>
@@ -483,29 +550,19 @@ ${Array.isArray(section.items) && section.items.length ? `<ul>${section.items.ma
   .join("")}
 </section>
 `;
+  };
 
-  const renderRtpProfileDialogContent = (profile = {}) => {
-    return `
-<header>
-<div>
-<span>Medical RTP guide</span>
-<h3 id="medical-rtp-profile-title">${escapeHtml(profile.name || "RTP injury guide")}</h3>
-${renderRtpProfileHeaderMeta(profile)}
-</div>
-<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close ${escapeHtml(profile.name || "RTP")} guide">Close</button>
-</header>
-<div class="medical-rtp-profile-dialog-body">
-<div class="medical-rtp-profile-body">
-${renderRtpProfileQuickNav(profile)}
+  const renderRtpDecisionGroup = (profile = {}) => `
+<section class="medical-rtp-guide-group-panel" data-medical-rtp-guide-group-panel="decision">
 <section class="medical-rtp-profile-summary" id="${escapeHtml(getRtpProfileAnchorId(profile.id, "summary"))}">
 <div>
-<h3>Quick Summary</h3>
+<h3>Quick clinical summary</h3>
 <p>${escapeHtml(profile.summary)}</p>
 </div>
 <div>
-<h3>Medical-safe Evidence</h3>
+<h3>Medical-safe evidence</h3>
 <p><strong>Evidence:</strong> ${escapeHtml(profile.evidence)}</p>
-<p><strong>Experience/consensus:</strong> ${escapeHtml(profile.experience)}</p>
+<p><strong>Experience / consensus:</strong> ${escapeHtml(profile.experience)}</p>
 </div>
 </section>
 <div class="medical-rtp-profile-tags">
@@ -516,22 +573,73 @@ ${renderRtpProfileDecisionStrip(profile)}
 ${renderRtpGuideList("Red flags", profile.redFlags || [], getRtpProfileAnchorId(profile.id, "red-flags"))}
 ${renderRtpGuideList("Progression criteria", profile.criteria || [], getRtpProfileAnchorId(profile.id, "criteria"))}
 <section id="${escapeHtml(getRtpProfileAnchorId(profile.id, "exercises"))}">
-<h4>Exercise Bank starters</h4>
+<div class="medical-rtp-guide-section-heading">
+<h4>Exercise starters</h4>
+<small>Mapped from the professional Exercise Bank</small>
+</div>
 ${renderRtpExerciseCards(profile, 6)}
 </section>
 ${renderRtpGuideList("Return-to-training checklist", profile.trainingChecklist || [], getRtpProfileAnchorId(profile.id, "training"))}
 ${renderRtpGuideList("Return-to-match checklist", profile.matchChecklist || [], getRtpProfileAnchorId(profile.id, "match"))}
-${renderRtpGuideList("Common mistakes / risks", profile.mistakes || [], getRtpProfileAnchorId(profile.id, "risks"))}
 </div>
-<div id="${escapeHtml(getRtpProfileAnchorId(profile.id, "full-guide"))}">
-${renderRtpGoldStandardSections(profile.goldStandardSections || [])}
+</section>
+`;
+
+  const renderRtpSectionGroups = (profile = {}) =>
+    rtpGuideGroups
+      .filter(({ key }) => key !== "decision")
+      .map(
+        ({ key, label, indexes }) => `
+<section
+class="medical-rtp-guide-group-panel"
+data-medical-rtp-guide-group-panel="${escapeHtml(key)}"
+hidden
+>
+<header class="medical-rtp-guide-group-heading">
+<div>
+<span>Gold Standard work area</span>
+<h3>${escapeHtml(label)}</h3>
 </div>
+<small>${indexes.length} of 37 sections</small>
+</header>
+${renderRtpGoldStandardSections(profile.goldStandardSections || [], indexes)}
+</section>
+`
+      )
+      .join("");
+
+  const renderRtpProfileDialogContent = (profile = {}) => {
+    return `
+<header>
+<div>
+<span>Medical RTP guide</span>
+<h3 id="medical-rtp-profile-title">${escapeHtml(profile.name || "RTP injury guide")}</h3>
+${renderRtpProfileHeaderMeta(profile)}
+<small>Club-neutral knowledge / 37 sections / reviewed ${escapeHtml(profile.researchAuditReviewedAt || "date not set")}</small>
+</div>
+<div class="medical-rtp-profile-header-actions">
+<button
+type="button"
+class="medical-rtp-profile-start-plan"
+data-medical-start-from-rtp-guide="${escapeHtml(profile.id)}"
+data-medical-start-from-rtp-guide-name="${escapeHtml(profile.name || "RTP guide")}"
+>Use in Medical Plan</button>
+<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close ${escapeHtml(profile.name || "RTP")} guide">Close</button>
+</div>
+</header>
+<div class="medical-rtp-profile-dialog-body">
+<div class="medical-rtp-profile-layout">
+${renderRtpProfileQuickNav()}
+<div class="medical-rtp-profile-body" id="${escapeHtml(getRtpProfileAnchorId(profile.id, "full-guide"))}">
+${renderRtpDecisionGroup(profile)}
+${renderRtpSectionGroups(profile)}
 <div class="medical-rtp-profile-actions medical-rtp-profile-actions-info">
 <div>
 <strong>To build a player program</strong>
-<small>Open Active Cases or the player's Medical Plan, choose this guide, then save the case-specific program there.</small>
+<small>Use this guide in Active Cases or the player's Medical Plan, individualize it, then save the case-specific program.</small>
 </div>
-<b>Knowledge only</b>
+<b>Knowledge only. No player data is stored or selected inside the Library.</b>
+</div>
 </div>
 </div>
 </div>
@@ -588,7 +696,7 @@ ${renderRtpExerciseCards(profile, 3)}
     if (profile && content) {
       content.innerHTML = renderRtpProfileDialogContent(profile);
     }
-    closeMedicalRtpProfileModal();
+    closeMedicalRtpProfileModal({ restoreFocus: false });
     modal.hidden = false;
     modal.removeAttribute?.("aria-hidden");
     modal.querySelector?.("[role='dialog']")?.focus?.();
@@ -597,7 +705,7 @@ ${renderRtpExerciseCards(profile, 3)}
   const openMedicalRtpGuideDraftModal = () => {
     const modal = queryWorkspace(workspaceElement, "[data-medical-rtp-guide-draft-modal]");
     if (!modal) return;
-    closeMedicalRtpProfileModal();
+    closeMedicalRtpProfileModal({ restoreFocus: false });
     modal.hidden = false;
     modal.removeAttribute?.("aria-hidden");
     modal.querySelector?.("[role='dialog']")?.focus?.();
@@ -982,6 +1090,17 @@ ${renderRtpExerciseCards(profile, 3)}
       copyMedicalRtpGuideTemplate();
       return;
     }
+    const loadMoreRtpGuidesButton = event.target.closest("[data-medical-rtp-library-more]");
+    if (loadMoreRtpGuidesButton) {
+      event.preventDefault();
+      const library = loadMoreRtpGuidesButton.closest("[data-medical-rtp-library]");
+      const currentLimit = Number(library?.dataset?.medicalRtpLibraryLimit) || MEDICAL_RTP_LIBRARY_PAGE_SIZE;
+      if (library) {
+        library.dataset.medicalRtpLibraryLimit = String(currentLimit + MEDICAL_RTP_LIBRARY_PAGE_SIZE);
+      }
+      filterMedicalRtpLibrary();
+      return;
+    }
     const closeRtpProfileButton = event.target.closest("[data-medical-close-rtp-profile]");
     if (closeRtpProfileButton) {
       event.preventDefault();
@@ -991,7 +1110,23 @@ ${renderRtpExerciseCards(profile, 3)}
     const openRtpProfileButton = event.target.closest("[data-medical-open-rtp-profile]");
     if (openRtpProfileButton) {
       event.preventDefault();
+      lastRtpProfileTrigger = openRtpProfileButton;
       openMedicalRtpProfileModal(openRtpProfileButton.dataset.medicalOpenRtpProfile);
+      return;
+    }
+    const rtpGuideGroupButton = event.target.closest("[data-medical-rtp-guide-group]");
+    if (rtpGuideGroupButton) {
+      event.preventDefault();
+      switchMedicalRtpGuideGroup(rtpGuideGroupButton);
+      return;
+    }
+    const startFromRtpGuideButton = event.target.closest("[data-medical-start-from-rtp-guide]");
+    if (startFromRtpGuideButton) {
+      event.preventDefault();
+      const guideName = String(startFromRtpGuideButton.dataset.medicalStartFromRtpGuideName || "RTP guide");
+      closeMedicalRtpProfileModal({ restoreFocus: false });
+      setStateValue(state, "MedicalOperationsTab", actions.normalizeMedicalOperationsTab?.("cases") || "cases");
+      renderWorkspace(`Choose an active case and apply ${guideName} in the Medical Plan.`);
       return;
     }
     const rtpProfileJumpButton = event.target.closest("[data-medical-rtp-profile-jump]");
@@ -1222,7 +1357,7 @@ ${renderRtpExerciseCards(profile, 3)}
 
   const onInput = (event) => {
     if (event.target.closest("[data-medical-rtp-library-search]")) {
-      filterMedicalRtpLibrary();
+      filterMedicalRtpLibrary({ resetLimit: true });
       return;
     }
     if (event.target.closest("[data-medical-rtp-exercise-search]")) {
@@ -1244,7 +1379,7 @@ ${renderRtpExerciseCards(profile, 3)}
 
   const onChange = (event) => {
     if (event.target.closest("[data-medical-rtp-library-filter]")) {
-      filterMedicalRtpLibrary();
+      filterMedicalRtpLibrary({ resetLimit: true });
       return;
     }
     if (event.target.closest("[data-medical-rtp-exercise-filter]")) {

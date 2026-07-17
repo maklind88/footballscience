@@ -356,7 +356,25 @@ test("Medical runtime bindings preserve quick recommendation, clear, archive, an
 
 test("Medical runtime bindings open and close RTP Library profile overlays", () => {
   const calls = [];
-  const content = { innerHTML: "" };
+  const guideGroupButtons = [
+    { dataset: { medicalRtpGuideGroup: "decision" }, setAttribute: (name, value) => calls.push(["decision-button", name, value]) },
+    { dataset: { medicalRtpGuideGroup: "clinical" }, setAttribute: (name, value) => calls.push(["clinical-button", name, value]) },
+  ];
+  const guideGroupPanels = [
+    { dataset: { medicalRtpGuideGroupPanel: "decision" }, hidden: false },
+    { dataset: { medicalRtpGuideGroupPanel: "clinical" }, hidden: true },
+  ];
+  const content = {
+    innerHTML: "",
+    querySelectorAll(selector) {
+      if (selector === "[data-medical-rtp-guide-group]") return guideGroupButtons;
+      if (selector === "[data-medical-rtp-guide-group-panel]") return guideGroupPanels;
+      return [];
+    },
+    querySelector() {
+      return null;
+    },
+  };
   const modal = {
     hidden: true,
     dataset: {},
@@ -443,31 +461,29 @@ test("Medical runtime bindings open and close RTP Library profile overlays", () 
   expect(content.innerHTML).toContain("Knowledge only");
   expect(content.innerHTML).not.toContain("data-medical-apply-rtp-starter");
   expect(content.innerHTML).toContain("Next field exposure");
-  expect(content.innerHTML).toContain("Exercise Bank starters");
+  expect(content.innerHTML).toContain("Exercise starters");
+  expect(content.innerHTML).toContain("Mapped from the professional Exercise Bank");
   expect(content.innerHTML).toContain("Nordic hamstring progression");
   expect(content.innerHTML).not.toContain("Gold Standard Template");
   expect(content.innerHTML).toContain("37 sections");
-  expect(content.innerHTML).toContain('data-medical-rtp-profile-jump="medical-rtp-hamstring-strain-full-guide"');
+  expect(content.innerHTML).toContain("Decision summary");
+  expect(content.innerHTML).toContain("Field progression");
+  expect(content.innerHTML).toContain("Use in Medical Plan");
+  expect(content.innerHTML).not.toContain("data-medical-rtp-profile-jump");
   expect(content.innerHTML).toContain("RTP Risk Score");
 
-  const criteriaSection = {
-    id: "medical-rtp-hamstring-strain-criteria",
-    getBoundingClientRect: () => ({ top: 260 }),
-  };
-  const dialogBody = {
-    scrollTop: 20,
-    getBoundingClientRect: () => ({ top: 100 }),
-    querySelectorAll: (selector) => (selector === "[id]" ? [criteriaSection] : []),
-    scrollTo: (options) => calls.push(["jump-scroll", options.top]),
-  };
-  const jumpLink = {
-    dataset: { medicalRtpProfileJump: "medical-rtp-hamstring-strain-criteria" },
-    closest: (selector) => (selector === ".medical-rtp-profile-dialog-body" ? dialogBody : null),
+  const clinicalGroupButton = {
+    dataset: { medicalRtpGuideGroup: "clinical" },
+    closest(selector) {
+      return selector === "[data-medical-rtp-profile-dialog-content]" ? content : null;
+    },
   };
   workspace.listeners.click(createEvent(createTarget({
-    closest: { "[data-medical-rtp-profile-jump]": jumpLink },
+    closest: { "[data-medical-rtp-guide-group]": clinicalGroupButton },
   })));
-  expect(calls).toContainEqual(["jump-scroll", 172]);
+  expect(calls).toContainEqual(["clinical-button", "aria-pressed", "true"]);
+  expect(guideGroupPanels[0].hidden).toBe(true);
+  expect(guideGroupPanels[1].hidden).toBe(false);
 
   workspace.listeners.keydown(createEvent(createTarget(), {
     key: "Escape",

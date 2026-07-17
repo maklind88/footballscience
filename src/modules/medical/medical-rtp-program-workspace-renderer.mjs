@@ -19,15 +19,6 @@ const defaultEscapeHtml = (value) =>
 const defaultFormatMedicalDateLabel = (value) => String(value || "-");
 const defaultGetMedicalRtpPhaseOption = (value) => ({ label: String(value || "Not set") });
 
-const normalizePositionBucket = (position = "") => {
-  const text = String(position || "").trim().toLowerCase();
-  if (/(goalkeeper|keeper|goalie|gk|mv|malvakt)/u.test(text)) return "goalkeeper";
-  if (/(defender|centre back|center back|fullback|wingback|back|cb|rb|lb|rwb|lwb)/u.test(text)) return "defender";
-  if (/(midfielder|midfield|cm|dm|am|winger|6|8|10)/u.test(text)) return "midfielder";
-  if (/(forward|striker|attacker|fw|cf|wing|wide)/u.test(text)) return "forward";
-  return "player";
-};
-
 const getParticipationTone = (participation) => {
   const value = Number(participation);
   if (!Number.isFinite(value)) return "neutral";
@@ -47,7 +38,7 @@ const getPlayerInitials = (name = "") =>
 
 const getProgramPlayerItems = (summary = {}) => {
   const signals = Array.isArray(summary.signals) ? summary.signals : [];
-  return signals
+  const items = signals
     .map((signal) => {
       const plan = signal.activePlan || null;
       return {
@@ -57,8 +48,21 @@ const getProgramPlayerItems = (summary = {}) => {
         hasProgramStarter: hasMedicalRtpProgramStarter(plan),
         tracker: plan ? getMedicalRtpTrackerSummary(plan) : null,
       };
-    })
-    .sort((first, second) => {
+    });
+  const playerIds = new Set(items.map((item) => String(item.player?.id || "")).filter(Boolean));
+  (Array.isArray(summary.activeCases) ? summary.activeCases : []).forEach(({ player = {}, plan = {} } = {}) => {
+    const playerId = String(player.id || "");
+    if (!playerId || !plan?.id || playerIds.has(playerId)) return;
+    playerIds.add(playerId);
+    items.push({
+      player,
+      plan,
+      signal: { player, activePlan: plan, primaryActionDriver: plan.injuryType || "Active RTP case" },
+      hasProgramStarter: hasMedicalRtpProgramStarter(plan),
+      tracker: getMedicalRtpTrackerSummary(plan),
+    });
+  });
+  return items.sort((first, second) => {
       const firstActive = first.plan ? 1 : 0;
       const secondActive = second.plan ? 1 : 0;
       if (firstActive !== secondActive) return secondActive - firstActive;
@@ -118,28 +122,6 @@ const renderRehabFocusOptions = (selectedKey = "") =>
     .map((area) => `<option value="${area.key}"${area.key === selectedKey ? " selected" : ""}>${area.label}</option>`)
     .join("");
 
-const getBoardPlayerPosition = (player = {}, index = 0, groupCounts = {}, groupIndexes = {}) => {
-  const bucket = normalizePositionBucket(player.position);
-  const columns = {
-    goalkeeper: 11,
-    defender: 31,
-    midfielder: 53,
-    forward: 76,
-    player: 50,
-  };
-  const count = Math.max(1, groupCounts[bucket] || 1);
-  const localIndex = groupIndexes[bucket] || 0;
-  groupIndexes[bucket] = localIndex + 1;
-  const spacing = Math.min(68, count * 13);
-  const startY = 50 - spacing / 2;
-  const y = Math.max(11, Math.min(89, startY + (localIndex + 0.5) * (spacing / count)));
-  const xJitter = count > 4 ? (localIndex % 2 === 0 ? -2.5 : 2.5) : 0;
-  return {
-    x: Math.max(6, Math.min(94, (columns[bucket] || 50) + xJitter + (index % 3) * 0.35)),
-    y,
-  };
-};
-
 export function createMedicalRtpProgramWorkspaceRenderer({
   escapeHtml = defaultEscapeHtml,
   formatMedicalDateLabel = defaultFormatMedicalDateLabel,
@@ -166,7 +148,7 @@ export function createMedicalRtpProgramWorkspaceRenderer({
       ? `${formatMedicalDateLabel(plan.startDate)} - ${formatMedicalDateLabel(plan.endDate)}`
       : "Create only when clinically needed";
     const boardAttrs = plan?.id
-      ? `data-medical-select-board-plan="${escapeHtml(plan.id)}" aria-selected="${plan.id === selectedPlanId ? "true" : "false"}" tabindex="0" role="button" aria-label="Open ${escapeHtml(player.name || "player")} RTP program"`
+      ? `data-medical-select-board-plan="${escapeHtml(plan.id)}" aria-selected="${plan.id === selectedPlanId ? "true" : "false"}"`
       : "";
     return `
 <article class="medical-program-player-row medical-program-player-row-${escapeHtml(tone)}${plan?.id === selectedPlanId ? " is-board-selected" : ""}" ${boardAttrs}>
@@ -280,62 +262,31 @@ ${renderBoardPlayer({ player, plan })}
 <button type="button" data-medical-board-edit-button="${escapeHtml(plan.id)}" data-medical-open-board-plan="${escapeHtml(plan.id)}" ${isSelected ? "" : "hidden"}>Edit</button>
 `;
       }).join("");
-    const renderEmptyRehabProgramStarter = () => `
-<section class="medical-rehab-program-panel medical-rehab-program-panel-empty" data-medical-rehab-program-starter>
-<header class="medical-rehab-program-header">
-<div>
-<span>Individual Rehab Program</span>
-<strong>Start a player rehab plan</strong>
-<small>Select a squad player on the left, create the Medical Plan, then build the exercise program here.</small>
-</div>
-<b>${items.length} active</b>
-</header>
-<div class="medical-rehab-starter-grid" aria-label="Individual rehab program workflow">
-<article>
-<span>1</span>
-<strong>Select player</strong>
-<small>Use Create program on the player row.</small>
-</article>
-<article>
-<span>2</span>
-<strong>Save Medical Plan</strong>
-<small>Injury, body area, dates and RTP phase become the source.</small>
-</article>
-<article>
-<span>3</span>
-<strong>Add exercises</strong>
-<small>Exercise, dose, phase, comment and red focus area.</small>
-</article>
-</div>
-<div class="medical-rehab-program-table" aria-label="Individual rehab program preview">
-<div class="medical-rehab-program-columns" aria-hidden="true">
-<span>Exercise</span>
-<span>Illustration</span>
-<span>Training focus</span>
-<span>Dose</span>
-<span>Comment</span>
-</div>
-<div class="medical-rehab-program-empty">No player rehab program is active yet. Click <strong>Create program</strong> next to a player to open the Medical Plan and unlock this exercise table.</div>
-</div>
-</section>
-`;
     return `
 <article class="medical-program-board-card" data-medical-board-card ${selectedPlanId ? "" : "hidden"}>
 <header class="medical-program-detail-head">
 <button type="button" class="medical-program-detail-back" data-medical-programs-back>Player Programs</button>
 <div>
-<span>RTP Player Board</span>
+<span>Medical RTP program</span>
 ${renderNameOptions()}
 </div>
-<div class="medical-board-edit-actions">${renderEditButtons()}</div>
+<div class="medical-board-edit-actions">
+${renderEditButtons()}
+</div>
 </header>
+${items.map((item, index) => renderIndividualRehabProgram(item, selectedPlanId, index)).join("")}
+<details class="medical-program-secondary-tool">
+<summary>
+<span><strong>Field Board</strong><small>Draw and document the next football exposure</small></span>
+<b>Open tool</b>
+</summary>
 <div class="medical-board-surface${items.length ? "" : " medical-board-surface-empty"}" aria-label="RTP Player Board">
 <svg class="medical-board-pitch" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
 ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medical-board-pitch-lines", ariaLabel: "RTP field board pitch" })}
 </svg>
 ${items.length ? items.map((item, index) => renderBoardView(item, selectedPlanId, index)).join("") : `<div class="medical-board-empty">No player program is active on the board. Use Create program in the player list to start one.</div>`}
 </div>
-${items.length ? items.map((item, index) => renderIndividualRehabProgram(item, selectedPlanId, index)).join("") : renderEmptyRehabProgramStarter()}
+</details>
 </article>
 `;
   };
@@ -355,72 +306,79 @@ ${items.length ? items.map((item, index) => renderIndividualRehabProgram(item, s
 `;
   };
 
-  const renderRehabFocusMap = (exercise = {}, plan = {}) => {
-    const focusArea = getRehabFocusArea(exercise.focusArea, exercise.focus, plan.bodyArea, plan.injuryType);
-    const active = (key) => (focusArea.key === key || (focusArea.key === "general" && key === "trunk") ? " is-active" : "");
-    return `
-<figure class="medical-rehab-focus-map" aria-label="Training focus: ${escapeHtml(focusArea.label)}">
-<svg viewBox="0 0 164 122" role="img" aria-hidden="true" focusable="false">
-<g class="medical-rehab-body medical-rehab-body-front">
-<circle cx="38" cy="18" r="8"></circle>
-<path d="M29 31h18l4 30H25z"></path>
-<path d="M25 35 13 68"></path>
-<path d="M51 35 63 68"></path>
-<path d="M32 61 27 108"></path>
-<path d="M44 61 49 108"></path>
-<ellipse class="medical-rehab-zone${active("shoulder")}" cx="50" cy="35" rx="8" ry="7"></ellipse>
-<ellipse class="medical-rehab-zone${active("trunk")}" cx="38" cy="48" rx="14" ry="18"></ellipse>
-<ellipse class="medical-rehab-zone${active("groin")}" cx="38" cy="66" rx="11" ry="7"></ellipse>
-<ellipse class="medical-rehab-zone${active("anterior-thigh")}" cx="30" cy="79" rx="6" ry="16"></ellipse>
-<ellipse class="medical-rehab-zone${active("anterior-thigh")}" cx="46" cy="79" rx="6" ry="16"></ellipse>
-<ellipse class="medical-rehab-zone${active("knee")}" cx="29" cy="96" rx="6" ry="6"></ellipse>
-<ellipse class="medical-rehab-zone${active("knee")}" cx="47" cy="96" rx="6" ry="6"></ellipse>
-<ellipse class="medical-rehab-zone${active("calf")}" cx="27" cy="108" rx="5" ry="10"></ellipse>
-<ellipse class="medical-rehab-zone${active("calf")}" cx="49" cy="108" rx="5" ry="10"></ellipse>
-<ellipse class="medical-rehab-zone${active("ankle")}" cx="26" cy="116" rx="6" ry="4"></ellipse>
-<ellipse class="medical-rehab-zone${active("ankle")}" cx="50" cy="116" rx="6" ry="4"></ellipse>
-</g>
-<g class="medical-rehab-body medical-rehab-body-back">
-<circle cx="125" cy="18" r="8"></circle>
-<path d="M116 31h18l4 30h-26z"></path>
-<path d="M112 35 100 68"></path>
-<path d="M138 35 150 68"></path>
-<path d="M119 61 114 108"></path>
-<path d="M131 61 136 108"></path>
-<ellipse class="medical-rehab-zone${active("shoulder")}" cx="114" cy="35" rx="8" ry="7"></ellipse>
-<ellipse class="medical-rehab-zone${active("trunk")}" cx="125" cy="48" rx="14" ry="18"></ellipse>
-<ellipse class="medical-rehab-zone${active("hip")}" cx="125" cy="64" rx="15" ry="9"></ellipse>
-<ellipse class="medical-rehab-zone${active("posterior-thigh")}" cx="117" cy="80" rx="6" ry="17"></ellipse>
-<ellipse class="medical-rehab-zone${active("posterior-thigh")}" cx="133" cy="80" rx="6" ry="17"></ellipse>
-<ellipse class="medical-rehab-zone${active("knee")}" cx="116" cy="96" rx="6" ry="6"></ellipse>
-<ellipse class="medical-rehab-zone${active("knee")}" cx="134" cy="96" rx="6" ry="6"></ellipse>
-<ellipse class="medical-rehab-zone${active("calf")}" cx="114" cy="108" rx="5" ry="10"></ellipse>
-<ellipse class="medical-rehab-zone${active("calf")}" cx="136" cy="108" rx="5" ry="10"></ellipse>
-<ellipse class="medical-rehab-zone${active("ankle")}" cx="113" cy="116" rx="6" ry="4"></ellipse>
-<ellipse class="medical-rehab-zone${active("ankle")}" cx="137" cy="116" rx="6" ry="4"></ellipse>
-</g>
-</svg>
-<figcaption>${escapeHtml(focusArea.label)}</figcaption>
-</figure>
-`;
-  };
-
   const renderRehabProgramExercise = (exercise = {}, plan = {}, index = 0) => {
     const dose = String(exercise.dose || exercise.data || "").trim();
     const detail = String(exercise.detail || "").trim();
     return `
 <article class="medical-rehab-program-row">
+${renderRehabIllustration(exercise)}
 <div class="medical-rehab-program-exercise">
 <span>${index + 1}</span>
 <strong>${escapeHtml(exercise.title)}</strong>
-<small>${escapeHtml(exercise.phase || "Rehab")}</small>
+<small>${escapeHtml([exercise.phase || "Rehab", getRehabFocusArea(exercise.focusArea, exercise.focus, plan.bodyArea).label].join(" / "))}</small>
 <button type="button" class="medical-rehab-program-remove" data-medical-remove-board-exercise="${escapeHtml(plan.id)}:${escapeHtml(exercise.id)}" aria-label="Remove ${escapeHtml(exercise.title)}">Remove</button>
 </div>
-${renderRehabIllustration(exercise)}
-${renderRehabFocusMap(exercise, plan)}
 <div class="medical-rehab-program-dose">${escapeHtml(dose || "Dose not set")}</div>
 <div class="medical-rehab-program-note">${escapeHtml(detail || "Add clinical coaching note.")}</div>
 </article>
+`;
+  };
+
+  const getProgramPhaseIndex = (plan = {}) => {
+    const phaseValue = normalizeFocusText(plan.rtpPhase);
+    if (/(match|performance)/u.test(phaseValue)) return 3;
+    if (/(full|team-training)/u.test(phaseValue)) return 2;
+    if (/(modified|field|running|on-field)/u.test(phaseValue)) return 1;
+    if (/(medical|restriction|rehab)/u.test(phaseValue)) return 0;
+    const phaseLabel = normalizeFocusText(getMedicalRtpPhaseOption(plan.rtpPhase).label);
+    if (/(match|return to performance)/u.test(phaseLabel)) return 3;
+    if (/(full|team training|return to train)/u.test(phaseLabel)) return 2;
+    if (/(modified|field|running|on-field)/u.test(phaseLabel)) return 1;
+    return 0;
+  };
+
+  const renderProgramPhaseRail = (plan = {}) => {
+    const currentIndex = getProgramPhaseIndex(plan);
+    const phases = ["Rehab", "Modified", "Full training", "Match return"];
+    return `
+<ol class="medical-program-phase-rail" aria-label="Current RTP phase">
+${phases.map((phase, index) => `
+<li class="${index < currentIndex ? "is-complete" : index === currentIndex ? "is-current" : ""}"${index === currentIndex ? ' aria-current="step"' : ""}>
+<span>${index < currentIndex ? "Passed" : index === currentIndex ? "Current" : index + 1}</span>
+<strong>${phase}</strong>
+</li>
+`).join("")}
+</ol>
+`;
+  };
+
+  const renderProgramDecisionPanel = (plan = {}, tracker = {}) => {
+    const gateItems = tracker.items.filter((item) => item.groupKey === "gateCriteria");
+    const holdItems = tracker.items.filter((item) => item.groupKey === "holdRules");
+    const nextItems = tracker.items.filter((item) => item.groupKey === "nextSteps");
+    const renderDecisionList = (items, emptyLabel) => items.length
+      ? `<ul>${items.slice(0, 4).map((item) => `<li class="is-${escapeHtml(item.status)}"><span>${escapeHtml(item.statusOption.label)}</span>${escapeHtml(item.item)}</li>`).join("")}</ul>`
+      : `<p>${escapeHtml(emptyLabel)}</p>`;
+    return `
+<aside class="medical-program-decision-panel" aria-label="Clinical program decisions">
+<section>
+<span>Next most important action</span>
+<strong>${escapeHtml(tracker.nextDecision)}</strong>
+<small>${escapeHtml(tracker.completionLabel)}</small>
+</section>
+<section>
+<span>Gate criteria</span>
+${renderDecisionList(gateItems, "No gate criteria recorded.")}
+</section>
+<section>
+<span>Hold rules</span>
+${renderDecisionList(holdItems, "No hold rules recorded.")}
+</section>
+<section>
+<span>Next exposure</span>
+${renderDecisionList(nextItems, "No next exposure recorded.")}
+</section>
+</aside>
 `;
   };
 
@@ -430,16 +388,38 @@ ${renderRehabFocusMap(exercise, plan)}
     const exercises = getMedicalBoardExercises(plan);
     const phaseLabel = getMedicalRtpPhaseOption(plan.rtpPhase).label;
     const defaultFocusKey = getRehabFocusArea(plan.bodyArea, plan.injuryType).key;
+    const tracker = getMedicalRtpTrackerSummary(plan);
     return `
 <section class="medical-rehab-program-panel" data-medical-rehab-program-panel="${escapeHtml(plan.id)}" ${isSelected ? "" : "hidden"}>
 <header class="medical-rehab-program-header">
 <div>
-<span>Individual Rehab Program</span>
+<span>Current player program</span>
 <strong>${escapeHtml(player.name || "Player")}</strong>
 <small>${escapeHtml([plan.injuryType, plan.bodyArea, phaseLabel].filter(Boolean).join(" / "))}</small>
 </div>
 <b>${exercises.length} exercise${exercises.length === 1 ? "" : "s"}</b>
 </header>
+${renderProgramPhaseRail(plan)}
+<div class="medical-program-current-grid">
+<div class="medical-program-exercise-plan">
+<header>
+<div>
+<span>Current exercise plan</span>
+<strong>${exercises.length ? `${exercises.length} planned item${exercises.length === 1 ? "" : "s"}` : "No exercises added"}</strong>
+</div>
+</header>
+<div class="medical-rehab-program-table" aria-label="${escapeHtml(player.name || "Player")} individual rehab program">
+<div class="medical-rehab-program-columns" aria-hidden="true">
+<span>Exercise</span>
+<span>Dose</span>
+<span>Medical note</span>
+</div>
+${exercises.length
+    ? exercises.map((exercise, exerciseIndex) => renderRehabProgramExercise(exercise, plan, exerciseIndex)).join("")
+    : `<div class="medical-rehab-program-empty">No exercises are assigned yet. Add the first item when the clinical plan is ready.</div>`}
+</div>
+<details class="medical-program-add-exercise">
+<summary>Add exercise</summary>
 <form class="medical-rehab-program-form medical-board-exercise-form" data-medical-board-exercise-form="${escapeHtml(plan.id)}">
 <label>
 <span>Exercise</span>
@@ -470,17 +450,9 @@ ${renderRehabFocusMap(exercise, plan)}
 </label>
 <button type="submit">Add exercise</button>
 </form>
-<div class="medical-rehab-program-table" aria-label="${escapeHtml(player.name || "Player")} individual rehab program">
-<div class="medical-rehab-program-columns" aria-hidden="true">
-<span>Exercise</span>
-<span>Illustration</span>
-<span>Training focus</span>
-<span>Dose</span>
-<span>Comment</span>
+</details>
 </div>
-${exercises.length
-    ? exercises.map((exercise, exerciseIndex) => renderRehabProgramExercise(exercise, plan, exerciseIndex)).join("")
-    : `<div class="medical-rehab-program-empty">No individual rehab exercises yet. Add the first exercise for this injury plan.</div>`}
+${renderProgramDecisionPanel(plan, tracker)}
 </div>
 </section>
 `;
@@ -621,12 +593,14 @@ ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medica
 
   const renderRtpProgramsWorkspace = (summary = {}) => {
     const playerItems = getProgramPlayerItems(summary);
+    const activeItems = playerItems.filter((item) => item.plan);
+    const inactiveItems = playerItems.filter((item) => !item.plan);
     const boardItems = getBoardItems(summary);
     const requestedSelectedPlanId = String(summary.selectedMedicalBoardPlanId || "");
     const selectedPlanId = boardItems.some((item) => item.plan?.id === requestedSelectedPlanId)
       ? requestedSelectedPlanId
       : "";
-    const activePrograms = playerItems.filter((item) => item.plan).length;
+    const activePrograms = activeItems.length;
     const structuredPrograms = playerItems.filter((item) => item.hasProgramStarter).length;
     const programView = selectedPlanId ? "detail" : "list";
     return `
@@ -635,14 +609,27 @@ ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medica
 <article class="medical-program-list-panel" data-medical-program-list-panel ${selectedPlanId ? "hidden" : ""}>
 <header>
 <div>
-<span>Player programs</span>
-<strong>${activePrograms} active / ${playerItems.length} squad players</strong>
+<span>Medical programs</span>
+<strong>Active player RTP programs</strong>
 </div>
-<small>${structuredPrograms} structured</small>
+<small>${activePrograms} active / ${structuredPrograms} structured</small>
 </header>
-<div class="medical-program-player-list">
-${playerItems.length ? playerItems.map((item) => renderPlayerProgramRow(item, selectedPlanId)).join("") : `<div class="medical-program-empty">No squad players available.</div>`}
+<div class="medical-program-player-list medical-program-active-list">
+${activeItems.length
+    ? activeItems.map((item) => renderPlayerProgramRow(item, selectedPlanId)).join("")
+    : `<div class="medical-program-empty"><strong>No active RTP programs</strong><span>Create one only when a player has a Medical Plan that requires structured return-to-performance work.</span></div>`}
 </div>
+${inactiveItems.length ? `
+<details class="medical-program-squad-starters">
+<summary>
+<span><strong>Start from squad player</strong><small>Players without an active medical program</small></span>
+<b>${inactiveItems.length}</b>
+</summary>
+<div class="medical-program-player-list">
+${inactiveItems.map((item) => renderPlayerProgramRow(item, selectedPlanId)).join("")}
+</div>
+</details>
+` : ""}
 </article>
 ${renderMedicalBoard(boardItems, selectedPlanId)}
 </section>

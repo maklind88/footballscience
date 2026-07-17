@@ -1,0 +1,540 @@
+.medical-rtp-library-v2 {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid rgba(15, 35, 27, 0.09);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(12, 24, 20, 0.055);
+}
+
+.medical-rtp-library-v2 .medical-rtp-library-toolbar,
+.medical-rtp-library-v2 .medical-rtp-library-controls {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.medical-rtp-library-v2 .medical-rtp-library-toolbar {
+  padding: 1rem 1.1rem 0.72rem;
+  background: #fff;
+}
+
+.medical-rtp-library-v2 .medical-rtp-library-toolbar > div > span,
+.medical-rtp-guide-group-heading span {
+  color: #5d6c65;
+  font-size: 0.64rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.medical-rtp-library-v2 .medical-rtp-library-toolbar strong {
+  font-size: 1.16rem;
+}
+
+.medical-rtp-library-v2 .medical-rtp-library-controls {
+  grid-template-columns: minmax(16rem, 1fr) minmax(11rem, 16rem);
+  padding: 0.2rem 1.1rem 0.9rem;
+  background: #fff;
+}
+
+.medical-rtp-library-v2 .medical-rtp-library-controls input,
+.medical-rtp-library-v2 .medical-rtp-library-controls select {
+  min-height: 2.65rem;
+  background: #f8faf9;
+}
+
+.medical-rtp-common-guides {
+  display: grid;
+  gap: 0.52rem;
+  padding: 0.8rem 1.1rem;
+  border-block: 1px solid rgba(15, 35, 27, 0.07);
+  background: #f7faf8;
+}
+
+.medical-rtp-common-guides > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.medical-rtp-common-guides > header strong {
+  color: #10231b;
+  font-size: 0.76rem;
+}
+
+.medical-rtp-common-guides > header small {
+  color: #64716b;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.medical-rtp-common-guides > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.medical-rtp-common-guide {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  min-width: 0;
+  min-height: 3.4rem;
+  border: 1px solid rgba(15, 35, 27, 0.09);
+  border-radius: 7px;
+  background: #fff;
+  color: inherit;
+  padding: 0.58rem 0.65rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.medical-rtp-common-guide:hover,
+.medical-rtp-common-guide:focus-visible {
+  border-color: rgba(23, 100, 73, 0.32);
+  box-shadow: 0 0 0 3px rgba(47, 143, 107, 0.1);
+  outline: 0;
+}
+
+.medical-rtp-common-guide > span {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.medical-rtp-common-guide strong {
+  overflow: hidden;
+  color: #10231b;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-rtp-common-guide small {
+  overflow: hidden;
+  color: #64716b;
+  font-size: 0.67rem;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-rtp-evidence-badge {
+  display: inline-flex !important;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 1.45rem;
+  border-radius: 999px;
+  background: #e8f4ed;
+  color: #176449 !important;
+  font-size: 0.62rem !important;
+  font-weight: 950 !important;
+  padding: 0 0.45rem;
+  white-space: nowrap;
+}
+
+.medical-rtp-library-v2 .medical-rtp-library-meta {
+  padding: 0.72rem 1.1rem 0.45rem;
+}
+
+.medical-rtp-library-v2 .medical-rtp-profile-grid {
+  display: block;
+  padding: 0 1.1rem;
+}
+
+.medical-rtp-library-v2 .medical-rtp-profile-card {
+  border: 0;
+  border-top: 1px solid rgba(15, 35, 27, 0.07);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.medical-rtp-library-v2 .medical-rtp-profile-trigger {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.6fr) minmax(9rem, 0.55fr) auto 1rem;
+  min-height: 4.5rem;
+  padding: 0.72rem 0.4rem;
+}
+
+.medical-rtp-profile-result-main {
+  gap: 0.16rem !important;
+}
+
+.medical-rtp-profile-result-main strong {
+  font-size: 0.86rem;
+}
+
+.medical-rtp-profile-result-main small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #52635b;
+  font-size: 0.72rem;
+  font-weight: 720;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.medical-rtp-profile-result-meta {
+  color: #52635b;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.medical-rtp-library-more {
+  justify-self: center;
+  margin: 0.8rem;
+  min-height: 2.35rem;
+  border: 1px solid rgba(15, 35, 27, 0.13);
+  border-radius: 7px;
+  background: #fff;
+  color: #193827;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 900;
+  padding: 0 0.9rem;
+  cursor: pointer;
+}
+
+.medical-rtp-library-more[hidden] {
+  display: none;
+}
+
+.medical-rtp-library-more:hover,
+.medical-rtp-library-more:focus-visible {
+  border-color: rgba(23, 100, 73, 0.36);
+  background: #f3f8f5;
+  outline: 0;
+}
+
+.medical-rtp-profile-dialog {
+  width: min(72rem, 100%);
+  max-height: min(48rem, calc(100vh - 2rem));
+}
+
+.medical-rtp-profile-dialog-content {
+  max-height: min(48rem, calc(100vh - 2rem));
+}
+
+.medical-rtp-profile-header-actions {
+  display: flex !important;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: 0.45rem !important;
+}
+
+.medical-rtp-profile-start-plan {
+  min-height: 2rem;
+  border: 0;
+  border-radius: 7px;
+  background: #193827;
+  color: #fff;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 900;
+  padding: 0 0.7rem;
+  cursor: pointer;
+}
+
+.medical-rtp-profile-layout {
+  display: grid;
+  grid-template-columns: 11.5rem minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.medical-rtp-profile-layout .medical-rtp-profile-quick-nav {
+  position: sticky;
+  top: 0;
+  display: grid;
+  gap: 0.16rem;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.medical-rtp-profile-quick-nav button {
+  min-height: 2.25rem;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: 0 5px 5px 0;
+  background: transparent;
+  color: #52635b;
+  font: inherit;
+  font-size: 0.73rem;
+  font-weight: 850;
+  padding: 0 0.65rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.medical-rtp-profile-quick-nav button[aria-pressed="true"] {
+  border-left-color: #176449;
+  background: #edf6f1;
+  color: #10231b;
+}
+
+.medical-rtp-profile-quick-nav button:hover,
+.medical-rtp-profile-quick-nav button:focus-visible {
+  background: #f3f8f5;
+  outline: 0;
+}
+
+.medical-rtp-guide-group-panel[hidden] {
+  display: none;
+}
+
+.medical-rtp-guide-group-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.65rem;
+}
+
+.medical-rtp-guide-group-heading span {
+  color: #64716b;
+  font-size: 0.64rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.medical-rtp-guide-group-heading h3 {
+  margin: 0.1rem 0 0;
+  color: #10231b;
+  font-size: 1rem;
+}
+
+.medical-rtp-guide-group-heading small {
+  color: #64716b;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.medical-rtp-profile-decision-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.medical-rtp-exercise-grid {
+  display: grid;
+  gap: 0;
+  margin-top: 0.4rem;
+  border-top: 1px solid rgba(15, 35, 27, 0.08);
+}
+
+.medical-rtp-exercise-card {
+  display: grid;
+  grid-template-columns: minmax(11rem, 1fr) minmax(12rem, 1.5fr);
+  gap: 0.25rem 0.75rem;
+  padding: 0.62rem 0;
+  border-bottom: 1px solid rgba(15, 35, 27, 0.08);
+}
+
+.medical-rtp-exercise-card header {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.medical-rtp-exercise-card header span,
+.medical-rtp-exercise-meta {
+  color: #176449;
+  font-size: 0.64rem;
+  font-weight: 850;
+}
+
+.medical-rtp-exercise-card header strong {
+  color: #10231b;
+  font-size: 0.77rem;
+}
+
+.medical-rtp-exercise-card p,
+.medical-rtp-exercise-card small {
+  margin: 0;
+  color: #52635b;
+  font-size: 0.69rem;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.medical-rtp-exercise-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.medical-rtp-gold-standard-sections {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid rgba(15, 35, 27, 0.08);
+}
+
+.medical-rtp-gold-standard-sections > header {
+  padding: 0.5rem 0;
+  color: #64716b;
+  font-size: 0.7rem;
+}
+
+.medical-rtp-gold-standard-sections details {
+  border-bottom: 1px solid rgba(15, 35, 27, 0.08);
+}
+
+.medical-rtp-gold-standard-sections summary {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.7rem 0;
+  color: #10231b;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.medical-rtp-gold-standard-sections summary span {
+  color: #176449;
+}
+
+.medical-rtp-gold-standard-sections details > p,
+.medical-rtp-gold-standard-sections details > ul {
+  margin: 0 0 0.75rem;
+  color: #3f4f48;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+body.is-dark-mode .medical-rtp-library-v2,
+body.is-dark-mode .medical-rtp-library-v2 .medical-rtp-library-toolbar,
+body.is-dark-mode .medical-rtp-library-v2 .medical-rtp-library-controls,
+body.is-dark-mode .medical-rtp-common-guide {
+  background: #121c18;
+}
+
+body.is-dark-mode .medical-rtp-common-guides {
+  background: #17231e;
+}
+
+@media (max-width: 900px) {
+  .medical-rtp-profile-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .medical-rtp-profile-layout .medical-rtp-profile-quick-nav {
+    position: static;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .medical-rtp-profile-quick-nav button {
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 5px;
+    text-align: center;
+  }
+
+  .medical-rtp-profile-quick-nav button[aria-pressed="true"] {
+    border-bottom-color: #176449;
+  }
+
+}
+
+@media (max-width: 680px) {
+  .medical-rtp-library-v2 .medical-rtp-library-toolbar,
+  .medical-rtp-profile-dialog-content > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .medical-rtp-library-v2 .medical-rtp-library-controls,
+  .medical-rtp-common-guides > div,
+  .medical-rtp-profile-summary,
+  .medical-rtp-profile-decision-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .medical-rtp-library-v2 .medical-rtp-profile-trigger {
+    grid-template-columns: minmax(0, 1fr) 1rem;
+    grid-template-rows: auto auto;
+    align-items: start;
+  }
+
+  .medical-rtp-profile-result-meta {
+    display: none !important;
+  }
+
+  .medical-rtp-library-v2 .medical-rtp-profile-trigger .medical-rtp-evidence-badge {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .medical-rtp-library-v2 .medical-rtp-profile-trigger > b {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: center;
+  }
+
+  .medical-rtp-profile-header-actions {
+    width: auto;
+    justify-content: start;
+  }
+
+  .medical-rtp-profile-header-actions .medical-rtp-profile-modal-close {
+    width: auto;
+  }
+
+  .medical-rtp-profile-start-plan {
+    white-space: nowrap;
+  }
+
+  .medical-rtp-profile-dialog-body {
+    overflow-x: hidden;
+  }
+
+  .medical-rtp-profile-layout,
+  .medical-rtp-profile-body,
+  .medical-rtp-guide-group-panel,
+  .medical-rtp-profile-summary,
+  .medical-rtp-profile-decision-strip,
+  .medical-rtp-profile-sections {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .medical-rtp-profile-layout {
+    display: block;
+  }
+
+  .medical-rtp-profile-body,
+  .medical-rtp-profile-summary,
+  .medical-rtp-profile-decision-strip,
+  .medical-rtp-profile-sections {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .medical-rtp-profile-layout .medical-rtp-profile-quick-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 0.75rem;
+  }
+
+  .medical-rtp-profile-quick-nav button {
+    min-width: 0;
+    padding: 0.4rem;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .medical-rtp-exercise-card {
+    grid-template-columns: 1fr;
+  }
+
+  .medical-rtp-profile-actions-info b {
+    max-width: 100%;
+    white-space: normal;
+  }
+}

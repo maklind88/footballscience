@@ -1,10 +1,5 @@
-import {
-  getMedicalRtpLibraryClinicalSearchGroups,
-  getMedicalRtpLibraryClinicalSearchText,
-  getMedicalRtpLibrarySearchText,
-  medicalRtpLibraryFilterOptions,
-  medicalRtpLibraryProfiles as defaultMedicalRtpLibraryProfiles,
-} from "./medical-rtp-library-data.mjs";
+import { medicalRtpLibraryProfiles as defaultMedicalRtpLibraryProfiles } from "./medical-rtp-library-data.mjs";
+import { createMedicalRtpLibraryRenderer } from "./medical-rtp-library-renderer.mjs";
 import { createMedicalRtpProgramWorkspaceRenderer } from "./medical-rtp-program-workspace-renderer.mjs";
 import { createMedicalRtpProgramRenderer } from "./medical-rtp-program-renderer.mjs";
 
@@ -205,6 +200,11 @@ ${suggestedProfiles
 
   const renderPrograms = (summary) => rtpProgramWorkspaceRenderer.renderRtpProgramsWorkspace(summary);
 
+  const rtpLibraryRenderer = createMedicalRtpLibraryRenderer({
+    escapeHtml,
+    getMedicalRtpLibraryProfiles,
+  });
+
   const renderPlayerAvailability = (summary) => {
     const players = summary.signals;
     return `
@@ -402,185 +402,7 @@ ${renderCaseRtpStarterLinker(summary)}
 </div>
 `;
 
-  const renderRtpLibrary = () => {
-    const profiles = getMedicalRtpLibraryProfiles();
-    const renderSelect = (label, key, options = []) => `
-<label>
-<span>${escapeHtml(label)}</span>
-<select data-medical-rtp-library-filter="${escapeHtml(key)}" aria-label="${escapeHtml(label)}">
-<option value="all">All</option>
-${options.map((option) => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join("")}
-</select>
-</label>
-`;
-    const renderTags = (items = [], limit = 4) =>
-      items
-        .slice(0, limit)
-        .map((item) => `<span class="medical-ops-chip medical-ops-chip-low">${escapeHtml(item)}</span>`)
-        .join("");
-    const renderList = (title, items = []) => `
-<section>
-<h4>${escapeHtml(title)}</h4>
-<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-</section>
-`;
-    const renderProfileModal = () => `
-<div class="medical-rtp-profile-modal" data-medical-rtp-profile-modal hidden aria-hidden="true">
-<button type="button" class="medical-rtp-profile-modal-backdrop" data-medical-close-rtp-profile aria-label="Close RTP guide"></button>
-<section
-id="medical-rtp-profile-dialog"
-class="medical-rtp-profile-dialog"
-role="dialog"
-aria-modal="true"
-aria-labelledby="medical-rtp-profile-title"
-tabindex="-1"
->
-<div class="medical-rtp-profile-dialog-content" data-medical-rtp-profile-dialog-content>
-<header>
-<div>
-<span>RTP guide</span>
-<h3 id="medical-rtp-profile-title">RTP injury guide</h3>
-<small>Select a guide from the library.</small>
-</div>
-<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-profile aria-label="Close RTP guide">Close</button>
-</header>
-<div class="medical-rtp-profile-dialog-body">
-<div class="medical-empty-inline">Select an RTP injury guide to open the full Gold Standard profile.</div>
-</div>
-</div>
-</section>
-</div>
-`;
-    const renderGuideAuthoringModal = () => `
-<div class="medical-rtp-profile-modal" data-medical-rtp-guide-draft-modal hidden aria-hidden="true">
-<button type="button" class="medical-rtp-profile-modal-backdrop" data-medical-close-rtp-guide-draft aria-label="Close injury guide draft"></button>
-<section
-id="medical-rtp-guide-draft-dialog"
-class="medical-rtp-profile-dialog medical-rtp-guide-authoring-dialog"
-role="dialog"
-aria-modal="true"
-aria-labelledby="medical-rtp-guide-draft-title"
-tabindex="-1"
->
-<header>
-<div>
-<span>Medical authoring</span>
-<h3 id="medical-rtp-guide-draft-title">Add injury guide</h3>
-<small>Medical-owned draft structure for expanding the RTP Library safely.</small>
-</div>
-<button type="button" class="medical-rtp-profile-modal-close" data-medical-close-rtp-guide-draft aria-label="Close injury guide draft">Close</button>
-</header>
-<div class="medical-rtp-profile-dialog-body">
-<div class="medical-rtp-guide-authoring-body">
-<section class="medical-rtp-guide-authoring-panel">
-<h4>Draft workflow</h4>
-<div class="medical-rtp-guide-status-strip">
-<span><strong>1</strong> Medical draft</span>
-<span><strong>2</strong> Performance review</span>
-<span><strong>3</strong> Governance approval</span>
-<span><strong>4</strong> Published guide</span>
-</div>
-<p>Permanent saving needs the guarded RTP Library API, RLS and audit events before custom guides become shared club knowledge.</p>
-</section>
-<section class="medical-rtp-guide-authoring-panel">
-<h4>Guide fields</h4>
-<div class="medical-rtp-guide-field-grid">
-<span>Injury name</span>
-<span>System / body area</span>
-<span>Movement plane</span>
-<span>Symptoms and risk tags</span>
-<span>Evidence level</span>
-<span>Quick summary</span>
-<span>Red flags</span>
-<span>Progression criteria</span>
-<span>Training checklist</span>
-<span>Match checklist</span>
-<span>Common mistakes</span>
-<span>Medical / Performance notes</span>
-</div>
-</section>
-<section class="medical-rtp-guide-authoring-panel">
-<h4>Authoring template</h4>
-<p>Use this template for new injuries until draft saving is enabled. It keeps evidence and expert consensus separated before Medical and Performance publish the guide.</p>
-<div class="medical-rtp-guide-actions">
-<button type="button" data-medical-copy-rtp-guide-template>Copy guide template</button>
-<small>No custom guide is saved from the browser in this phase.</small>
-</div>
-</section>
-</div>
-</div>
-</section>
-</div>
-`;
-    return `
-<div class="medical-rtp-library" data-medical-rtp-library>
-<div class="medical-rtp-library-toolbar">
-<div>
-<strong>RTP injury guides</strong>
-<small>Search, open and start Medical Plans from approved RTP Library guides.</small>
-</div>
-<button type="button" data-medical-open-rtp-guide-draft>Add injury guide</button>
-</div>
-<form class="medical-rtp-library-controls" data-medical-rtp-library-controls>
-<label class="medical-rtp-library-search">
-<span>Clinical search</span>
-<input type="search" data-medical-rtp-library-search placeholder="Search symptom, body area, mechanism, red flag or position demand" />
-</label>
-${renderSelect("Movement plane", "movement", medicalRtpLibraryFilterOptions.movementPlanes)}
-</form>
-<div class="medical-rtp-library-meta">
-<span><strong data-medical-rtp-library-count>${profiles.length}</strong> guides visible</span>
-<span>Evidence and expert consensus are separated in every injury guide.</span>
-</div>
-<div class="medical-rtp-profile-grid">
-${profiles
-  .map((profileItem) => {
-    const searchText = getMedicalRtpLibrarySearchText(profileItem);
-    const clinicalSearchText = getMedicalRtpLibraryClinicalSearchText(profileItem);
-    const clinicalGroups = getMedicalRtpLibraryClinicalSearchGroups(profileItem);
-    return `
-<article
-class="medical-rtp-profile-card"
-data-medical-rtp-profile
-data-search="${escapeHtml(searchText)}"
-data-clinical-search="${escapeHtml(clinicalSearchText)}"
-data-clinical-symptoms="${escapeHtml(clinicalGroups.symptoms.join(" "))}"
-data-clinical-body-area="${escapeHtml(clinicalGroups.bodyArea.join(" "))}"
-data-clinical-mechanism="${escapeHtml(clinicalGroups.mechanism.join(" "))}"
-data-clinical-red-flags="${escapeHtml(clinicalGroups.redFlags.join(" "))}"
-data-clinical-movement="${escapeHtml(clinicalGroups.movementPlane.join(" "))}"
-data-clinical-tissue="${escapeHtml(clinicalGroups.tissueType.join(" "))}"
-data-clinical-position-demand="${escapeHtml(clinicalGroups.positionDemand.join(" "))}"
-data-movement="${escapeHtml(profileItem.movementPlanes.join(" "))}"
-data-position="${escapeHtml(profileItem.positions.join(" "))}"
-data-season="${escapeHtml(profileItem.season.join(" "))}"
-data-sex="${escapeHtml(profileItem.sex.join(" "))}"
-data-level="${escapeHtml(profileItem.level.join(" "))}"
->
-<button
-type="button"
-class="medical-rtp-profile-trigger"
-data-medical-open-rtp-profile="${escapeHtml(profileItem.id)}"
-aria-haspopup="dialog"
-aria-controls="medical-rtp-profile-dialog-${escapeHtml(profileItem.id)}"
->
-<span>
-<strong>${escapeHtml(profileItem.name)}</strong>
-<small>${escapeHtml(profileItem.system)} / ${escapeHtml(profileItem.bodyArea)} / ${escapeHtml(profileItem.evidenceLevel)}</small>
-</span>
-<b>Open guide</b>
-</button>
-</article>
-`;
-  })
-  .join("")}
-</div>
-${renderProfileModal()}
-${renderGuideAuthoringModal()}
-<div class="medical-empty-inline medical-rtp-library-empty" data-medical-rtp-library-empty hidden>No RTP injury guides match the current search and filters.</div>
-</div>
-`;
-  };
+  const renderRtpLibrary = () => rtpLibraryRenderer.renderRtpLibrary();
 
   const normalizeHistoryFilterText = (value) =>
     String(value ?? "")

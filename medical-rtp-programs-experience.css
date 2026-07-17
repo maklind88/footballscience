@@ -1,0 +1,388 @@
+.medical-program-list-panel > header span,
+.medical-rehab-program-header span,
+.medical-program-exercise-plan > header span,
+.medical-program-decision-panel section > span {
+  color: #5d6c65;
+  font-size: 0.64rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.medical-program-list-panel,
+.medical-program-board-card {
+  border: 0;
+  background: #fff;
+  box-shadow: none;
+}
+
+.medical-program-list-panel {
+  min-height: 0;
+}
+
+.medical-program-list-panel > header {
+  padding: 0.9rem 0;
+}
+
+.medical-program-list-panel > header strong {
+  font-size: 1.15rem;
+}
+
+.medical-program-active-list {
+  padding: 0.7rem 0;
+}
+
+.medical-program-empty {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.medical-program-player-row {
+  grid-template-columns: minmax(12rem, 1.1fr) minmax(11rem, 0.9fr) minmax(11rem, 0.75fr) auto;
+  padding: 0.68rem 0.72rem;
+  box-shadow: none;
+}
+
+.medical-program-squad-starters,
+.medical-program-secondary-tool,
+.medical-program-add-exercise {
+  border: 1px solid rgba(15, 35, 27, 0.09);
+  border-radius: 7px;
+  background: #f8faf9;
+}
+
+.medical-program-squad-starters {
+  margin-top: 0.7rem;
+}
+
+.medical-program-squad-starters > summary,
+.medical-program-secondary-tool > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  min-height: 3.8rem;
+  padding: 0.65rem 0.8rem;
+  cursor: pointer;
+}
+
+.medical-program-squad-starters > summary > span,
+.medical-program-secondary-tool > summary > span {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.medical-program-squad-starters summary strong,
+.medical-program-secondary-tool summary strong {
+  color: #10231b;
+  font-size: 0.78rem;
+}
+
+.medical-program-squad-starters summary small,
+.medical-program-secondary-tool summary small {
+  color: #64716b;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.medical-program-squad-starters summary b,
+.medical-program-secondary-tool summary b {
+  color: #176449;
+  font-size: 0.7rem;
+}
+
+.medical-program-squad-starters[open] > summary,
+.medical-program-secondary-tool[open] > summary {
+  border-bottom: 1px solid rgba(15, 35, 27, 0.08);
+}
+
+.medical-program-detail-head {
+  padding: 0.8rem 0 !important;
+}
+
+.medical-program-board-card {
+  overflow: visible;
+}
+
+.medical-rehab-program-panel {
+  gap: 0.8rem;
+  margin: 0;
+  border: 0;
+  padding: 0.9rem 0;
+  background: transparent;
+}
+
+.medical-program-phase-rail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.medical-program-phase-rail li {
+  position: relative;
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.68rem 0.72rem;
+  border-block: 1px solid rgba(15, 35, 27, 0.09);
+  background: #f8faf9;
+}
+
+.medical-program-phase-rail li:first-child {
+  border-left: 1px solid rgba(15, 35, 27, 0.09);
+  border-radius: 7px 0 0 7px;
+}
+
+.medical-program-phase-rail li:last-child {
+  border-right: 1px solid rgba(15, 35, 27, 0.09);
+  border-radius: 0 7px 7px 0;
+}
+
+.medical-program-phase-rail li::after {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 1px;
+  height: 60%;
+  background: rgba(15, 35, 27, 0.09);
+  content: "";
+  transform: translateY(-50%);
+}
+
+.medical-program-phase-rail li:last-child::after {
+  display: none;
+}
+
+.medical-program-phase-rail li.is-complete,
+.medical-program-phase-rail li.is-current {
+  background: #edf6f1;
+}
+
+.medical-program-phase-rail li.is-current {
+  box-shadow: inset 0 -3px 0 #176449;
+}
+
+.medical-program-phase-rail span {
+  color: #64716b;
+  font-size: 0.6rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.medical-program-phase-rail strong {
+  overflow: hidden;
+  color: #10231b;
+  font-size: 0.73rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.medical-program-current-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(15rem, 0.72fr);
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.medical-program-exercise-plan,
+.medical-program-decision-panel {
+  min-width: 0;
+  border: 1px solid rgba(15, 35, 27, 0.09);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.medical-program-exercise-plan > header {
+  padding: 0.72rem;
+  border-bottom: 1px solid rgba(15, 35, 27, 0.08);
+}
+
+.medical-program-exercise-plan > header > div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.medical-program-exercise-plan > header strong {
+  color: #10231b;
+  font-size: 0.86rem;
+}
+
+.medical-program-exercise-plan .medical-rehab-program-table {
+  border: 0;
+}
+
+.medical-program-exercise-plan .medical-rehab-program-columns {
+  grid-template-columns: minmax(12rem, 1fr) minmax(7rem, 0.45fr) minmax(10rem, 0.8fr);
+}
+
+.medical-program-exercise-plan .medical-rehab-program-columns span:first-child {
+  padding-left: 3.8rem;
+}
+
+.medical-program-exercise-plan .medical-rehab-program-row {
+  grid-template-columns: 2.7rem minmax(12rem, 1fr) minmax(7rem, 0.45fr) minmax(10rem, 0.8fr);
+}
+
+.medical-program-exercise-plan .medical-rehab-illustration {
+  width: 2.7rem;
+  min-width: 2.7rem;
+  height: 2.7rem;
+}
+
+.medical-program-add-exercise {
+  margin: 0.68rem;
+}
+
+.medical-program-add-exercise > summary {
+  display: flex;
+  align-items: center;
+  min-height: 2.4rem;
+  padding: 0 0.68rem;
+  color: #176449;
+  font-size: 0.74rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.medical-program-add-exercise[open] > summary {
+  border-bottom: 1px solid rgba(15, 35, 27, 0.08);
+}
+
+.medical-program-add-exercise .medical-rehab-program-form {
+  border: 0;
+  background: #fff;
+}
+
+.medical-program-decision-panel {
+  display: grid;
+  overflow: hidden;
+}
+
+.medical-program-decision-panel section {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.72rem;
+  border-bottom: 1px solid rgba(15, 35, 27, 0.08);
+}
+
+.medical-program-decision-panel section:first-child {
+  background: #edf6f1;
+}
+
+.medical-program-decision-panel section:last-child {
+  border-bottom: 0;
+}
+
+.medical-program-decision-panel strong {
+  color: #10231b;
+  font-size: 0.82rem;
+  line-height: 1.32;
+}
+
+.medical-program-decision-panel small,
+.medical-program-decision-panel p {
+  margin: 0;
+  color: #64716b;
+  font-size: 0.7rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.medical-program-decision-panel ul {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.medical-program-decision-panel li {
+  display: grid;
+  gap: 0.1rem;
+  color: #3f4f48;
+  font-size: 0.71rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.medical-program-decision-panel li span {
+  color: #64716b;
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.medical-program-decision-panel li.is-hold span {
+  color: #b42318;
+}
+
+.medical-program-secondary-tool {
+  margin-top: 0.8rem;
+}
+
+.medical-program-secondary-tool .medical-board-surface {
+  min-height: 22rem;
+}
+
+body.is-dark-mode .medical-program-list-panel,
+body.is-dark-mode .medical-program-board-card,
+body.is-dark-mode .medical-program-exercise-plan,
+body.is-dark-mode .medical-program-decision-panel {
+  background: #121c18;
+}
+
+body.is-dark-mode .medical-program-squad-starters,
+body.is-dark-mode .medical-program-secondary-tool,
+body.is-dark-mode .medical-program-add-exercise,
+body.is-dark-mode .medical-program-phase-rail li {
+  background: #17231e;
+}
+
+@media (max-width: 900px) {
+  .medical-program-current-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .medical-program-player-row {
+    grid-template-columns: minmax(11rem, 1fr) minmax(10rem, 0.9fr) auto;
+  }
+
+  .medical-program-player-window {
+    display: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .medical-program-phase-rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .medical-program-phase-rail li:first-child,
+  .medical-program-phase-rail li:last-child {
+    border-radius: 0;
+  }
+
+  .medical-program-player-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .medical-program-player-case,
+  .medical-program-player-window {
+    display: none;
+  }
+
+  .medical-program-exercise-plan .medical-rehab-program-columns {
+    display: none;
+  }
+
+  .medical-program-exercise-plan .medical-rehab-program-row {
+    grid-template-columns: 2.7rem minmax(0, 1fr);
+  }
+
+  .medical-program-exercise-plan .medical-rehab-program-dose,
+  .medical-program-exercise-plan .medical-rehab-program-note {
+    grid-column: 2;
+  }
+}

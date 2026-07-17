@@ -990,6 +990,68 @@ test("Chat message timestamp stays inside the message bubble", async ({ page }) 
   expect(geometry.footerBottom).toBeLessThanOrEqual(geometry.bubbleBottom + 0.5);
 });
 
+test("Chat delivery checks and emoji composer follow the WhatsApp baseline", async ({ page }) => {
+  const serverMessages = [
+    {
+      id: "qa-chat-own-read-status",
+      userId: qaChatCurrentUserId,
+      threadId: "team",
+      text: "QA own message with a read receipt.",
+      createdAt: "2026-06-04T08:15:00.000Z",
+      deliveredAt: "2026-06-04T08:15:00.000Z",
+      readBy: [qaChatCurrentUserId, "qa-colleague"],
+      mentionedUserIds: [],
+      status: "sent",
+      author: {
+        id: qaChatCurrentUserId,
+        firstName: "Mak",
+        lastName: "Lind",
+        role: "coach",
+        status: "active",
+      },
+    },
+  ];
+
+  await installQaChatApiAuth(page);
+  await page.route("**/api/chat**", async (route) => {
+    await fulfillQaChatPayload(route, serverMessages, { threadIds: ["team"] });
+  });
+
+  await bootApp(page);
+  await page.locator("[data-dashboard-chat-widget-toggle]").first().click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+
+  const message = page.locator('[data-dashboard-chat-message-id="qa-chat-own-read-status"]');
+  const status = message.locator('[data-dashboard-chat-message-delivery-status="read"]');
+  await expect(status.locator(".dashboard-chat-check")).toHaveCount(2);
+
+  const statusGeometry = await message.evaluate((node) => {
+    const footer = node.querySelector(".dashboard-chat-bubble-footer");
+    const statusWrapper = node.querySelector(".dashboard-chat-message-status");
+    const check = node.querySelector(".dashboard-chat-check");
+    const footerRect = footer?.getBoundingClientRect();
+    const statusRect = statusWrapper?.getBoundingClientRect();
+    return {
+      footerRight: footerRect?.right ?? 0,
+      footerCenter: footerRect ? footerRect.top + footerRect.height / 2 : 0,
+      statusLeft: statusRect?.left ?? 0,
+      statusCenter: statusRect ? statusRect.top + statusRect.height / 2 : 0,
+      checkColor: check ? window.getComputedStyle(check).color : "",
+    };
+  });
+
+  expect(statusGeometry.statusLeft).toBeGreaterThanOrEqual(statusGeometry.footerRight - 0.5);
+  expect(Math.abs(statusGeometry.statusCenter - statusGeometry.footerCenter)).toBeLessThanOrEqual(3);
+  expect(statusGeometry.checkColor).toBe("rgb(83, 189, 235)");
+
+  await page.locator(".dashboard-chat-emoji-menu summary").click();
+  const thumbsUp = page.locator('[data-dashboard-chat-emoji="👍"]');
+  await expect(thumbsUp).toBeVisible();
+  await thumbsUp.click();
+  await expect(page.locator("[data-dashboard-chat-input]")).toHaveValue("👍");
+  await expect(page.locator(".dashboard-chat-emoji-menu")).not.toHaveAttribute("open", "");
+});
+
 test("Chat message grouping hover keeps message geometry stable", async ({ page }) => {
   const nowMs = Date.now();
   const serverMessages = Array.from({ length: 18 }, (_, index) => {

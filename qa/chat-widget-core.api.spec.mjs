@@ -645,14 +645,19 @@ test("chat delivery status labels are explicit on own message footers", () => {
 
   expect(sent).toContain('data-dashboard-chat-message-delivery-status="sent"');
   expect(sent).toContain("Sent");
+  expect(sent.match(/class="dashboard-chat-check"/g)).toHaveLength(1);
   expect(pending).toContain('data-dashboard-chat-message-delivery-status="pending"');
   expect(pending).toContain("Sending");
   expect(failed).toContain('data-dashboard-chat-message-delivery-status="failed"');
   expect(failed).toContain("Not sent");
   expect(read).toContain('data-dashboard-chat-message-delivery-status="read"');
   expect(read).toContain("Read by 1");
+  expect(read).toContain("dashboard-chat-check-cluster is-read");
+  expect(read.match(/class="dashboard-chat-check"/g)).toHaveLength(2);
   expect(delivered).toContain('data-dashboard-chat-message-delivery-status="delivered"');
   expect(delivered).toContain("Delivered");
+  expect(delivered).toContain("dashboard-chat-check-cluster is-checkmark");
+  expect(delivered.match(/class="dashboard-chat-check"/g)).toHaveLength(2);
 });
 
 test("chat widget preserves open dialog drafts across sync rerenders", () => {
@@ -1014,6 +1019,13 @@ test("chat composer keeps priority behind message options and renders message bu
   expect(result.html).toContain('class="dashboard-chat-priority-label">Urgent</span>');
   expect(result.html).toContain("dashboard-chat-bubble-footer");
   expect(result.html).toContain('<time class="dashboard-chat-bubble-time" datetime="2026-01-01T10:00:00.000Z" title="10:15">10:15</time>');
+  const bubbleFooterMarkup = result.html.match(/<div class="dashboard-chat-bubble-footer">[\s\S]*?<\/div>/)?.[0] || "";
+  expect(bubbleFooterMarkup).not.toContain("data-dashboard-chat-message-delivery-status");
+  expect(result.html).toContain('<div class="dashboard-chat-message-status">');
+  expect(result.html).toContain('aria-label="Open emoji picker"');
+  expect(result.html).toContain('data-dashboard-chat-emoji="👍"');
+  expect(appRuntimeSource).toContain('event.target.closest("[data-dashboard-chat-emoji]")');
+  expect(appRuntimeSource).toContain("insertDashboardChatComposerEmoji");
   expect(result.html).not.toMatch(/<span class="dashboard-chat-author">[\s\S]*?<small>10:15<\/small>[\s\S]*?<\/span>/);
   expect(result.html).toContain("data-message-status");
   expect(result.html).not.toContain("dashboard-chat-character-count");
@@ -1472,7 +1484,11 @@ test("group creator overlay exposes a labelled dialog contract", () => {
   expect(result.html).toContain('class="dashboard-chat-group-user-action"');
   expect(result.html).toContain('data-dashboard-chat-group-create-submit disabled aria-disabled="true" aria-label="Create selected group" title="Add a group name with at least 2 characters and choose at least one teammate"');
   expect(result.html).toContain('class="dashboard-chat-group-create-close" aria-controls="dashboardChatGroupCreateDialog" aria-label="Close new group dialog" title="Close new group dialog"');
-  expect(result.html).toContain('data-dashboard-chat-create-menu-trigger aria-label="Open create chat menu" title="Open create chat menu" aria-haspopup="menu" aria-controls="dashboardChatCreateMenu"');
+  expect(result.html).toContain("data-dashboard-chat-create-menu-trigger");
+  expect(result.html).toContain('aria-label="Open create chat menu"');
+  expect(result.html).toContain('title="Open create chat menu"');
+  expect(result.html).toContain('aria-haspopup="menu"');
+  expect(result.html).toContain('aria-controls="dashboardChatCreateMenu"');
   expect(result.html).toContain('id="dashboardChatCreateMenu" class="dashboard-chat-thread-preset-menu" role="menu" aria-label="Create chat"');
   expect(result.html).toContain('role="menuitem" data-dashboard-chat-open-group-creator aria-haspopup="dialog" aria-controls="dashboardChatGroupCreateDialog"');
   expect(dashboardChatCreateCss).toContain(".dashboard-chat-group-create-flow");
@@ -1591,7 +1607,8 @@ test("chat panel escape close reuses shared cleanup path", () => {
 test("group creator opening closes the menu and focuses the group name", () => {
   expect(appRuntimeSource).toContain('event.target.closest("[data-dashboard-chat-open-group-creator]")');
   expect(appRuntimeSource).toContain('openGroupCreatorButton.closest("details")?.removeAttribute("open");');
-  expect(appRuntimeSource).toContain("dashboardChatGroupCreatorOpen = true;");
+  expect(appRuntimeSource).toContain("setDashboardChatGroupCreatorOpen(true, { forceRender: true });");
+  expect(appRuntimeSource).toContain("dashboardChatGroupCreatorOpen = Boolean(next);");
   expect(appRuntimeSource).toContain("renderDashboardChatWidget();");
   expect(appRuntimeSource).toContain('querySelector("[data-dashboard-chat-group-name-input]")?.focus();');
 });

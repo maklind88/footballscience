@@ -159,7 +159,7 @@ export const moduleStandardContracts = Object.freeze([
     migrationStatus: moduleMigrationStatuses.databasePrimary,
     mountId: "dashboardChatWidget",
     currentFiles: ["app.js", "src/modules/chat", "api/chat.js", "api/_lib/chat-database.js"],
-    cssFiles: ["dashboard-chat.css"],
+    cssFiles: ["dashboard-chat.css", "dashboard-chat-create.css", "dashboard-chat-launcher.css", "dashboard-chat-message.css"],
     testFiles: ["qa/chat-api-contracts.api.spec.mjs", "qa/home-chat-widget-renderer.api.spec.mjs"],
     extractionOrder: 6,
     riskLevel: "high",

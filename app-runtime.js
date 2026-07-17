@@ -197,9 +197,7 @@ isMedicalRestrictedRecommendationRecord, getMedicalPlayerRestrictedLogRecords, g
 getMedicalPastWindowDates, getMedicalMonthToDateDates, getMedicalScheduleSummary, getMedicalRecommendationEvent,
 getMedicalRecommendationActivityContext, getMedicalRecordStatus, getDefaultMedicalInjuryPlanDraft,
 normalizeMedicalInjuryPlanDraft, getMedicalInjuryPlanDraft, setMedicalInjuryPlanDraft, setMedicalInjuryPlanDraftFromPlan,
-getMedicalRtpLibraryProfile, getMedicalRtpLibraryProfiles, getMedicalRtpLibraryReadStatus, getMedicalRtpExercisesForProfile,
-loadMedicalRtpLibraryProfile, loadMedicalRtpLibraryProfiles,
-getMedicalRtpLibraryStarterDraft, getMedicalRtpLibraryStarterDraftForPlan,
+getMedicalRtpLibraryProfile, getMedicalRtpLibraryProfiles, getMedicalRtpLibraryStarterDraft, getMedicalRtpLibraryStarterDraftForPlan,
 clearMedicalInjuryPlanDraft, getMedicalInjuryPlanFormDraft, persistMedicalInjuryPlanDraftFromForm,
 getMedicalDailyStats, getMedicalWindowAverage, getMedicalParticipationAverageForDates, getMedicalMonthAverageStats,
 getMedicalAttentionPlayers, getMedicalPositionSummaries, getMedicalDaySpan, getMedicalDailyHuddle,
@@ -1080,8 +1078,16 @@ let dashboardChatWidgetRuntimeFunctions = {
 };
 let dashboardChatWidgetRuntime = null;
 let dashboardChatLauncherRuntime = null;
+let dashboardChatGroupCreatorRenderOnOpen = false;
 
 const renderDashboardChatWidget = (...args) => {
+  if (dashboardChatGroupCreatorOpen) {
+    if (!dashboardChatGroupCreatorRenderOnOpen) {
+      dashboardChatGroupCreatorPendingRender = true;
+      return;
+    }
+    dashboardChatGroupCreatorRenderOnOpen = false;
+  }
   dashboardChatWidgetRuntimeFunctions.renderDashboardChatWidget(...args);
   dashboardChatLauncherRuntime?.applyPosition();
   dashboardChatLauncherRuntime?.syncAvailability();
@@ -1145,6 +1151,8 @@ let dashboardChatThreadSummaryLastRequestedAt = 0;
 let dashboardChatComposerAttachmentDraft = null;
 let dashboardChatGroupCreatorOpen = false;
 let dashboardChatCreatorMode = "group";
+let dashboardChatGroupCreatorPendingRender = false;
+let dashboardChatGroupCreatorPointerDownInsideCard = false;
 let dashboardChatThreadSettingsDialog = null;
 let dashboardChatApiRuntime = null;
 let dashboardChatSubmittedComposerDrafts = new Map();
@@ -1293,8 +1301,26 @@ const setDashboardChatComposerAttachmentDraft = (next) => {
 const setDashboardChatMessageSearchQuery = (next = "") => {
   dashboardChatMessageSearchQuery = String(next || "");
 };
-const setDashboardChatGroupCreatorOpen = (next = false) => {
+const setDashboardChatGroupCreatorOpen = (next = false, { render = true, forceRender = false } = {}) => {
+  const shouldOpen = Boolean(next) && !dashboardChatGroupCreatorOpen;
+  const shouldClose = !Boolean(next) && dashboardChatGroupCreatorOpen;
   dashboardChatGroupCreatorOpen = Boolean(next);
+  if (shouldOpen && forceRender) {
+    dashboardChatGroupCreatorRenderOnOpen = true;
+  }
+
+  if (shouldClose && dashboardChatGroupCreatorPendingRender) {
+    dashboardChatGroupCreatorPendingRender = false;
+  }
+
+  if (render && !dashboardChatGroupCreatorOpen) {
+    renderDashboardChatWidget();
+    return;
+  }
+
+  if (shouldOpen && forceRender) {
+    renderDashboardChatWidget();
+  }
 };
 const setDashboardChatCreatorMode = (next = "group") => {
   dashboardChatCreatorMode = next === "dm" ? "dm" : "group";
@@ -3585,10 +3611,10 @@ function closeDashboardChatGroupCreator({ focusCreateMenu = true, render = true 
 if (!dashboardChatGroupCreatorOpen) {
 return false;
 }
-dashboardChatGroupCreatorOpen = false;
+setDashboardChatGroupCreatorOpen(false, { render: false });
 dashboardChatCreatorMode = "group";
 if (render) {
-renderDashboardChatWidget();
+  renderDashboardChatWidget();
 }
 if (focusCreateMenu) {
 focusDashboardChatCreateMenuTrigger();
@@ -3616,7 +3642,7 @@ setDashboardChatReplyDraft("", "");
 setDashboardChatPriorityDraft("normal");
 setDashboardChatConfirmAction(null);
 dashboardChatDetailsOpen = false;
-dashboardChatGroupCreatorOpen = false;
+setDashboardChatGroupCreatorOpen(false, { render: false });
 dashboardChatCreatorMode = "group";
 dashboardChatThreadSettingsDialog = null;
 dashboardChatMobileConversationOpen = true;
@@ -3672,7 +3698,58 @@ dashboardChatLauncherRuntime = createDashboardChatLauncherRuntime({
     top: Math.round(position.top),
   }),
 });
-dashboardChatLauncherRuntime.start();
+  dashboardChatLauncherRuntime.start();
+ui.dashboardChatWidgetRoot?.addEventListener("pointerdown", (event) => {
+  if (!dashboardChatGroupCreatorOpen) {
+    return;
+  }
+  dashboardChatGroupCreatorPointerDownInsideCard = Boolean(
+    event.target.closest(".dashboard-chat-group-create-card, [data-dashboard-chat-group-create-form], [data-dashboard-chat-direct-create-form]")
+  );
+});
+ui.dashboardChatWidgetRoot?.addEventListener("pointerup", () => {
+  dashboardChatGroupCreatorPointerDownInsideCard = false;
+});
+ui.dashboardChatWidgetRoot?.addEventListener("pointercancel", () => {
+  dashboardChatGroupCreatorPointerDownInsideCard = false;
+});
+function insertDashboardChatComposerEmoji(nextEmoji = "") {
+  const emoji = String(nextEmoji || "").trim();
+  if (!emoji) {
+    return;
+  }
+  const input = ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-input]");
+  if (!input) {
+    return;
+  }
+  const maxLength = Number(input.getAttribute("maxlength") || dashboardChatMaxMessageLength || 0) || 0;
+  const currentValue = String(input.value || "");
+  const selectionStart = Number.isFinite(input.selectionStart) ? Number(input.selectionStart) : currentValue.length;
+  const selectionEnd = Number.isFinite(input.selectionEnd) ? Number(input.selectionEnd) : selectionStart;
+  const start = Math.min(Math.max(0, selectionStart), currentValue.length);
+  const end = Math.min(Math.max(0, selectionEnd), currentValue.length);
+  const safeStart = Math.min(start, end);
+  const safeEnd = Math.max(start, end);
+  const availableLength = Math.max(0, maxLength - (currentValue.length - (safeEnd - safeStart)));
+  const emojiValue = maxLength > 0 && emoji.length > availableLength ? "" : emoji;
+  if (!emojiValue) {
+    return;
+  }
+  input.value = `${currentValue.slice(0, safeStart)}${emojiValue}${currentValue.slice(safeEnd)}`;
+  const nextCursor = safeStart + emojiValue.length;
+  input.setSelectionRange?.(nextCursor, nextCursor);
+  const currentState = readDashboardChatWidgetState();
+  const threadId = normalizeDashboardChatThreadId(currentState.selectedThreadId, dashboardChatTeamThreadId);
+  if (input.value.trim()) {
+    queueDashboardChatTyping(threadId);
+  }
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  const currentEmojiMenu = input.closest("[data-dashboard-chat-form]")?.querySelector(".dashboard-chat-emoji-menu");
+  if (currentEmojiMenu?.open) {
+    currentEmojiMenu.open = false;
+  }
+  input.focus({ preventScroll: true });
+}
 ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
 const activeMenu = findDashboardChatActionTarget(event, ".dashboard-chat-message-menu, .dashboard-chat-message-reaction-menu");
 closeChatMenus(activeMenu);
@@ -4030,8 +4107,7 @@ if (openDirectCreatorButton) {
 event.preventDefault();
 openDirectCreatorButton.closest("details")?.removeAttribute("open");
 dashboardChatCreatorMode = "dm";
-dashboardChatGroupCreatorOpen = true;
-renderDashboardChatWidget();
+setDashboardChatGroupCreatorOpen(true, { forceRender: true });
 win.setTimeout(() => {
 ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-direct-user-filter]")?.focus();
 }, 0);
@@ -4042,8 +4118,7 @@ if (openGroupCreatorButton) {
 event.preventDefault();
 openGroupCreatorButton.closest("details")?.removeAttribute("open");
 dashboardChatCreatorMode = "group";
-dashboardChatGroupCreatorOpen = true;
-renderDashboardChatWidget();
+setDashboardChatGroupCreatorOpen(true, { forceRender: true });
 win.setTimeout(() => {
 ui.dashboardChatWidgetRoot?.querySelector("[data-dashboard-chat-group-name-input]")?.focus();
 }, 0);
@@ -4051,7 +4126,10 @@ return;
 }
 const closeGroupCreatorButton = event.target.closest("[data-dashboard-chat-group-create-close]");
 const groupCreatorBackdrop = event.target.closest("[data-dashboard-chat-group-create-backdrop]");
-if (closeGroupCreatorButton || (groupCreatorBackdrop && event.target === groupCreatorBackdrop)) {
+if (
+  closeGroupCreatorButton ||
+  (groupCreatorBackdrop && event.target === groupCreatorBackdrop && !dashboardChatGroupCreatorPointerDownInsideCard)
+) {
 event.preventDefault();
 closeDashboardChatGroupCreator();
 return;
@@ -4131,6 +4209,12 @@ if (attachmentTrigger) {
 event.preventDefault();
 const attachmentInput = attachmentTrigger.closest("[data-dashboard-chat-form]")?.querySelector("[data-dashboard-chat-attachment-input]");
 if (attachmentInput) { attachmentInput.onchange = () => { void handleDashboardChatAttachmentInputChange(attachmentInput); }; attachmentInput.click(); }
+return;
+}
+const emojiButton = event.target.closest("[data-dashboard-chat-emoji]");
+if (emojiButton) {
+event.preventDefault();
+insertDashboardChatComposerEmoji(emojiButton.dataset.dashboardChatEmoji);
 return;
 }
 const priorityButton = event.target.closest("[data-dashboard-chat-priority]");
@@ -4214,7 +4298,7 @@ setDashboardChatReplyDraft("", "");
 setDashboardChatPriorityDraft("normal");
 dashboardChatMessageSearchQuery = "";
 dashboardChatDetailsOpen = false;
-dashboardChatGroupCreatorOpen = false;
+setDashboardChatGroupCreatorOpen(false, { render: false });
 dashboardChatCreatorMode = "group";
 dashboardChatMobileConversationOpen = true;
 writeDashboardChatWidgetState({
@@ -4566,7 +4650,6 @@ setStaffCreateUserEditorOpen: (isOpen) => { staffCreateUserEditorOpen = isOpen; 
 },
 medicalState: {
 getMedicalState: () => medicalState,
-getMedicalOperationsTab: () => medicalOperationsTab,
 setMedicalSelectedPlayerId: (playerId) => { medicalState.selectedPlayerId = playerId; },
 setMedicalPlayerModalOpen: (isOpen) => { medicalPlayerModalOpen = isOpen; },
 setMedicalPlayerModalTab: (tab) => { medicalPlayerModalTab = tab; },
@@ -4624,8 +4707,7 @@ exportFootballScienceDataBackup, exportSquadDataFoundationJson, exportSquadSessi
 formatScheduleDateValue, formatUserName, getAdminManagedWorkspaces, getAdminRuntimeBindingState: () => adminRuntimeService.getBindingStateAccessors(),
 getAdminTransferRoomAccessTeamId, getCurrentPlatformUser, getFilteredMedicalPlayers, getMedicalBulkSelectedPlayers,
 getMedicalDatabasePlayer, getMedicalInjuryPlanFormDraft, getMedicalRecommendationActivityContext, getMedicalRecommendationBlockReason,
-getMedicalRtpLibraryProfile, getMedicalRtpExercisesForProfile, getMedicalRtpLibraryStarterDraft, getMedicalRtpLibraryStarterDraftForPlan,
-loadMedicalRtpLibraryProfile, loadMedicalRtpLibraryProfiles,
+getMedicalRtpLibraryProfile, getMedicalRtpLibraryStarterDraft, getMedicalRtpLibraryStarterDraftForPlan,
 getMedicalRtpPhaseForRecommendation, getMedicalRtpPhaseOption, getMedicalStatusForParticipation, getMedicalStatusOption,
 getMedicalStatusOptionForDate, getPasswordValidationMessage, getPlatformAuthStore, getPlatformFormValues, getPlatformRoles,
 getPlatformStructureState, getPlatformUsers, getPlayerProfileFormSignature, getSessionPlannerTacticalPlayerBadgeFromKeyboardEvent,

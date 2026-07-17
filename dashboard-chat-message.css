@@ -1,0 +1,102 @@
+/* Message composer and delivery-state polish. */
+.dashboard-chat-emoji-menu summary {
+  display: inline-grid !important;
+  place-items: center !important;
+  min-width: 2.2rem !important;
+  height: 2.2rem !important;
+  min-height: 2.2rem !important;
+  padding: 0 !important;
+  border-radius: 999px !important;
+  color: #475569 !important;
+  font-size: 0.92rem !important;
+}
+
+.dashboard-chat-emoji-picker {
+  display: grid !important;
+  grid-template-columns: repeat(6, minmax(1.9rem, 1fr)) !important;
+  gap: 0.22rem !important;
+  width: min(17rem, calc(100vw - 1.2rem)) !important;
+  padding: 0.42rem !important;
+}
+
+.dashboard-chat-emoji {
+  display: grid !important;
+  place-items: center !important;
+  width: 100% !important;
+  min-width: 1.95rem !important;
+  min-height: 1.95rem !important;
+  padding: 0 !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #0f172a !important;
+  box-shadow: none !important;
+  font-size: 1rem !important;
+  line-height: 1 !important;
+}
+
+.dashboard-chat-emoji:hover {
+  border-color: #1f6f54 !important;
+  background: #eff6ff !important;
+}
+
+.dashboard-chat-emoji:focus-visible {
+  outline: 2px solid #1f6f54 !important;
+  outline-offset: 1px !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-message.is-own .dashboard-chat-bubble-footer {
+  right: 2rem !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-message.is-own .dashboard-chat-bubble:has(.dashboard-chat-bubble-footer) p {
+  padding-right: 5.4rem !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-message-status {
+  position: absolute !important;
+  right: 0.5rem !important;
+  bottom: 0.36rem !important;
+  z-index: 4 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  color: #94a3b8 !important;
+  pointer-events: auto !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-message-status .dashboard-chat-status {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  min-width: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-check-cluster {
+  display: inline-flex !important;
+  align-items: center !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-check {
+  display: inline-block !important;
+  width: 0.58rem !important;
+  color: #94a3b8 !important;
+  font-size: 0.72rem !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-check + .dashboard-chat-check {
+  margin-left: -0.12rem !important;
+}
+
+.dashboard-chat-widget .dashboard-chat-status.is-read .dashboard-chat-check {
+  color: #53bdeb !important;
+}

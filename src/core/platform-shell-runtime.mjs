@@ -26,10 +26,16 @@ export function createPlatformShellRuntime(deps = {}) {
     win.setTimeout(callback, Math.min(timeout, 120));
   }
 
-  function ensureDashboardChatStylesheet() {
-    return platformModuleLoader?.loadStylesheet?.("dashboard-chat", "dashboard-chat.css", {
+  async function ensureDashboardChatStylesheet() {
+    if (!platformModuleLoader?.loadStylesheet) {
+      return null;
+    }
+    await platformModuleLoader.loadStylesheet("dashboard-chat", "dashboard-chat.css", {
       id: "dashboardChatStylesheet",
-    }) ?? Promise.resolve(null);
+    });
+    return platformModuleLoader.loadStylesheet("dashboard-chat-message", "dashboard-chat-message.css", {
+      id: "dashboardChatMessageStylesheet",
+    });
   }
 
   function queueDashboardChatStylesheetLoad() {

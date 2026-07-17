@@ -223,10 +223,21 @@ export function renderDashboardChatMessageStatus(message = {}, currentUser = {},
       : deliveryStatus === "delivered" || status === "delivered"
         ? "delivered"
         : "sent";
-  const statusIcon = statusKey === "pending" ? "..." : statusKey === "failed" ? "!" : statusKey === "sent" ? "✓" : "✓✓";
+  const statusIcon = statusKey === "pending" ? "..." : statusKey === "failed" ? "!" : "";
+  const checkCount = statusKey === "sent" ? 1 : statusKey === "delivered" || statusKey === "read" ? 2 : 0;
+  const statusMarkup = checkCount
+    ? `<span class="dashboard-chat-check-cluster ${statusKey === "read" ? "is-read" : "is-checkmark"}">
+      ${Array.from({ length: checkCount })
+        .map(() => `<span class="dashboard-chat-check" aria-hidden="true">✓</span>`)
+        .join("")}
+    </span>`
+    : `<span class="dashboard-chat-check-label" aria-hidden="true">${statusIcon}</span>`;
   const statusLabel =
     statusKey === "pending" ? "Sending" : statusKey === "failed" ? "Not sent" : statusKey === "read" ? (readCount ? `Read by ${readCount}` : "Read") : statusKey === "delivered" ? "Delivered" : "Sent";
-  return `<div class="dashboard-chat-status is-${statusKey}" data-dashboard-chat-message-delivery-status="${escapeHtml(statusKey)}" title="${escapeHtml(statusLabel)}" aria-label="${escapeHtml(statusLabel)}"><span class="dashboard-chat-check-label" aria-hidden="true">${statusIcon}</span><span class="dashboard-chat-status-text">${escapeHtml(statusLabel)}</span></div>`;
+  return `<div class="dashboard-chat-status is-${statusKey}" data-dashboard-chat-message-delivery-status="${escapeHtml(statusKey)}" title="${escapeHtml(statusLabel)}" aria-label="${escapeHtml(statusLabel)}">
+    ${statusMarkup}
+    <span class="dashboard-chat-status-text">${escapeHtml(statusLabel)}</span>
+  </div>`;
 }
 
 function normalizeDashboardChatApiStatus(apiStatus = {}) {
@@ -805,7 +816,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const avatarMarkup = user
       ? renderPresenceAvatar(user, "dashboard-chat-avatar")
       : `<span class="dashboard-chat-avatar" aria-hidden="true">?</span>`;
-    const statusMarkup = isOwn && !isGroupedWithNext && !isPreviewOnly ? renderMessageStatus(message, users, currentUser) : "";
+    const messageStatusMarkup = isOwn && !isGroupedWithNext && !isPreviewOnly ? renderMessageStatus(message, users, currentUser) : "";
     const canDeleteChat = !isPreviewOnly && canDeleteMessage(message, currentUser);
     const canDeleteForMe = !isPreviewOnly && messageStatus !== "pending" && messageStatus !== "failed" && messageStatus !== "deleted";
     const canEditChat = !isPreviewOnly && isOwn && canDeleteForMe;
@@ -842,14 +853,16 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
     const forwardedMarkup = message.forwardedFromMessageId || message.metadata?.forwardedFromMessageId
       ? `<span class="dashboard-chat-forwarded-label" aria-label="Forwarded message">Forwarded</span>`
       : "";
-    const bubbleFooterMarkup = bubbleTimeLabel || statusMarkup || editedMarkup
+    const bubbleFooterMarkup = bubbleTimeLabel || editedMarkup
       ? `
         <div class="dashboard-chat-bubble-footer">
           ${bubbleTimeLabel ? `<time class="dashboard-chat-bubble-time" datetime="${escapeHtml(message.createdAt || "")}" title="${escapeHtml(fullTimeLabel || bubbleTimeLabel)}">${escapeHtml(bubbleTimeLabel)}</time>` : ""}
           ${editedMarkup}
-          ${statusMarkup}
         </div>
       `
+      : "";
+    const messageStatusFooterMarkup = messageStatusMarkup
+      ? `<div class="dashboard-chat-message-status">${messageStatusMarkup}</div>`
       : "";
     const quickReactionMarkup = !isPreviewOnly && reactionMarkup
       ? `<details class="dashboard-chat-message-reaction-menu">
@@ -920,6 +933,7 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         ${renderMessageAttachments(message, users)}
         ${bubbleFooterMarkup}
       </div>
+      ${messageStatusFooterMarkup}
     </article>
   `;
   }
@@ -1943,6 +1957,25 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         </details>
       `
       : "";
+    const commonEmojis = ["😀", "😂", "😊", "😍", "👍", "❤️", "🔥", "🎯", "⚽", "🎉", "🙌", "👏", "🙏", "✅", "🤣", "👀", "🤝", "👋"];
+    const emojiPickerMarkup = `
+      <details class="dashboard-chat-compose-more dashboard-chat-more-menu dashboard-chat-emoji-menu">
+        <summary class="dashboard-chat-emoji-toggle" aria-label="Open emoji picker" title="Insert emoji">
+          <span aria-hidden="true">😊</span>
+        </summary>
+        <div class="dashboard-chat-more-menu-panel dashboard-chat-compose-more-panel dashboard-chat-emoji-picker" role="menu" aria-label="Insert emoji">
+          ${commonEmojis
+            .map(
+              (emoji) => `
+                <button type="button" class="dashboard-chat-emoji" data-dashboard-chat-emoji="${escapeHtml(emoji)}" aria-label="Insert ${escapeHtml(emoji)}" title="${escapeHtml(emoji)}">
+                  ${escapeHtml(emoji)}
+                </button>
+              `
+            )
+            .join("")}
+        </div>
+      </details>
+    `;
     const trimmedLauncherLabel = launcherLabel.trim() || teamChatTitle;
     const widgetDialogLabel = /\bchat$/i.test(trimmedLauncherLabel)
       ? `${trimmedLauncherLabel} panel`
@@ -2233,7 +2266,8 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
                 placeholder="Message"
                 aria-label="${escapeHtml(`Message ${activeThreadLabel}`)}"
               ></textarea>
-              <div class="dashboard-chat-compose-tools" role="group" aria-label="Message priority and attachments">
+              <div class="dashboard-chat-compose-tools" role="group" aria-label="Message tools and attachments">
+                ${emojiPickerMarkup}
                 ${priorityMenuMarkup}
                 <button type="button" class="dashboard-chat-attachment-button" data-dashboard-chat-attachment-trigger title="Attach file" aria-label="Attach file">
                   <span aria-hidden="true">&#128206;</span>

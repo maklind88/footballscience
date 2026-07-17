@@ -91,6 +91,7 @@ test("platform shell runtime owns theme and preload wiring outside app.js", () =
   expect(app).not.toContain("function startPlatformThemeScheduler");
   expect(runtime).toContain("football-platform-theme-mode-v1");
   expect(runtime).toContain("dashboard-chat.css");
+  expect(runtime).toContain("dashboard-chat-message.css");
 });
 
 test("platform shell runtime preserves theme modes and scheduled work", async () => {
@@ -114,8 +115,10 @@ test("platform shell runtime preserves theme modes and scheduled work", async ()
 
   harness.runtime.queueDashboardChatStylesheetLoad();
   await Promise.resolve();
+  await Promise.resolve();
   expect(harness.stylesheets).toEqual([
     { key: "dashboard-chat", href: "dashboard-chat.css", attrs: { id: "dashboardChatStylesheet" } },
+    { key: "dashboard-chat-message", href: "dashboard-chat-message.css", attrs: { id: "dashboardChatMessageStylesheet" } },
   ]);
 
   harness.runtime.queueCriticalWorkspacePreloads();

@@ -11,6 +11,7 @@ import { createDashboardChatMessageRuntime } from "./src/modules/chat/dashboard-
 import { createDashboardChatMessageActionsRuntime } from "./src/modules/chat/dashboard-chat-message-actions-runtime.mjs";
 import { createDashboardChatMessageRenderRuntime } from "./src/modules/chat/dashboard-chat-message-render-runtime.mjs";
 import { createDashboardChatWidgetRuntime } from "./src/modules/chat/dashboard-chat-widget-runtime.mjs?v=chat-thread-scroll-recovery-20260715";
+import { createDashboardChatLauncherRuntime } from "./src/modules/chat/dashboard-chat-launcher-runtime.mjs";
 import { createDashboardChatComposerRuntime } from "./src/modules/chat/dashboard-chat-composer-runtime.mjs";
 import { createDashboardChatThreadRuntime } from "./src/modules/chat/dashboard-chat-thread-runtime.mjs";
 import { createDashboardChatPresenceRuntime } from "./src/modules/chat/dashboard-chat-presence-runtime.mjs";
@@ -370,6 +371,7 @@ const dashboardChatDeletedMessageIdsStorageKey = "football-dashboard-chat-delete
 const dashboardChatLocalCacheResetStorageKey = "football-dashboard-chat-local-cache-reset-v1";
 const dashboardChatLocalCacheResetVersion = "2026-05-09-chat-database-only-v3";
 const dashboardChatWidgetStateStorageKey = "football-dashboard-chat-widget-state-v1";
+const dashboardChatLauncherPositionStorageKey = "football-dashboard-chat-launcher-position-v1";
 const dashboardChatWidgetNotificationCursorStorageKey = "football-dashboard-chat-widget-notification-cursor-v1";
 const dashboardChatWidgetNotificationStateStorageKey = "football-dashboard-chat-widget-notification-state-v1";
 const dashboardChatTeamThreadId = "team";
@@ -1075,8 +1077,13 @@ let dashboardChatWidgetRuntimeFunctions = {
   scrollDashboardChatActiveThreadToLatest: () => false,
 };
 let dashboardChatWidgetRuntime = null;
+let dashboardChatLauncherRuntime = null;
 
-const renderDashboardChatWidget = (...args) => dashboardChatWidgetRuntimeFunctions.renderDashboardChatWidget(...args);
+const renderDashboardChatWidget = (...args) => {
+  dashboardChatWidgetRuntimeFunctions.renderDashboardChatWidget(...args);
+  dashboardChatLauncherRuntime?.applyPosition();
+  dashboardChatLauncherRuntime?.syncAvailability();
+};
 syncDashboardChatWidgetNotificationCursor = (...args) =>
   dashboardChatWidgetRuntimeFunctions.syncDashboardChatWidgetNotificationCursor(...args);
 const showDashboardChatWidgetToast = (...args) => dashboardChatWidgetRuntimeFunctions.showDashboardChatWidgetToast(...args);
@@ -3651,6 +3658,18 @@ await dashboardChatApiUiActions.setThreadParticipantsWithApi(threadId, participa
 renderDashboardChatWidget();
 return true;
 }
+dashboardChatLauncherRuntime = createDashboardChatLauncherRuntime({
+  windowRef: win,
+  documentRef: document,
+  getRoot: () => ui.dashboardChatWidgetRoot,
+  readState: readDashboardChatWidgetState,
+  readPosition: () => readDashboardJson(dashboardChatLauncherPositionStorageKey, null),
+  writePosition: (position) => writeDashboardJson(dashboardChatLauncherPositionStorageKey, {
+    left: Math.round(position.left),
+    top: Math.round(position.top),
+  }),
+});
+dashboardChatLauncherRuntime.start();
 ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
 const activeMenu = findDashboardChatActionTarget(event, ".dashboard-chat-message-menu, .dashboard-chat-message-reaction-menu");
 closeChatMenus(activeMenu);
@@ -4120,6 +4139,10 @@ return;
 }
 const toggleChat = event.target.closest("[data-dashboard-chat-widget-toggle]");
 if (toggleChat) {
+if (toggleChat.dataset.dashboardChatLauncherIgnoreNextOpen === "true") {
+delete toggleChat.dataset.dashboardChatLauncherIgnoreNextOpen;
+return;
+}
 const currentState = readDashboardChatWidgetState();
 if (currentState.isOpen) {
 closeDashboardChatWidgetPanel({ render: false });

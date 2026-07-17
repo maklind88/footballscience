@@ -720,6 +720,76 @@ test("Chat launcher mobile stays inside the viewport and opens chat", async ({ p
   await expect(page.locator("[data-dashboard-chat-list]")).toContainText("QA mobile launcher unread chat");
 });
 
+test("Chat launcher moves without opening and hides during immersive work", async ({ page }) => {
+  await bootApp(page);
+  const launcher = page.locator(".dashboard-chat-launcher");
+  await expect(launcher).toBeVisible();
+
+  const initialBox = await launcher.boundingBox();
+  expect(initialBox).not.toBeNull();
+  const targetX = Math.max(90, initialBox.x - 180);
+  const targetY = Math.max(90, initialBox.y - 120);
+  await page.mouse.move(initialBox.x + initialBox.width / 2, initialBox.y + initialBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetX, targetY, { steps: 8 });
+  await page.mouse.up();
+
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toHaveCount(0);
+  await expect
+    .poll(async () => {
+      const movedBox = await launcher.boundingBox();
+      return movedBox ? Math.abs(movedBox.x - (targetX - initialBox.width / 2)) <= 2 : false;
+    })
+    .toBe(true);
+  const storedPosition = await page.evaluate(() => JSON.parse(window.localStorage.getItem("football-dashboard-chat-launcher-position-v1") || "null"));
+  expect(Number.isFinite(storedPosition?.left)).toBe(true);
+  expect(Number.isFinite(storedPosition?.top)).toBe(true);
+
+  await launcher.click();
+  await expect(page.locator(".dashboard-chat-widget.is-open")).toBeVisible();
+  await page.locator(".dashboard-chat-widget-close").click();
+  await expect(launcher).toBeVisible();
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await dismissDashboardModal(page);
+  const restoredBox = await page.locator(".dashboard-chat-launcher").boundingBox();
+  expect(restoredBox).not.toBeNull();
+  expect(Math.abs(restoredBox.x - storedPosition.left)).toBeLessThanOrEqual(2);
+  expect(Math.abs(restoredBox.y - storedPosition.top)).toBeLessThanOrEqual(2);
+
+  await page.evaluate(() => document.body.classList.add("is-video-analysis-fs-player-code-mode"));
+  await expect(page.locator(".dashboard-chat-launcher")).toBeHidden();
+  await page.evaluate(() => document.body.classList.remove("is-video-analysis-fs-player-code-mode"));
+  await expect(page.locator(".dashboard-chat-launcher")).toBeVisible();
+
+  await page.evaluate(() => {
+    const dialog = document.createElement("section");
+    dialog.dataset.qaExternalDialog = "true";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.style.cssText = "position:fixed;inset:1rem;display:block";
+    document.body.append(dialog);
+  });
+  await expect(page.locator(".dashboard-chat-launcher")).toBeHidden();
+  await page.evaluate(() => document.querySelector("[data-qa-external-dialog]")?.remove());
+  await expect(page.locator(".dashboard-chat-launcher")).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(async () => {
+      const mobileBox = await page.locator(".dashboard-chat-launcher").boundingBox();
+      return Boolean(
+        mobileBox
+        && mobileBox.x >= 12
+        && mobileBox.y >= 12
+        && mobileBox.x + mobileBox.width <= 378
+        && mobileBox.y + mobileBox.height <= 832
+      );
+    })
+    .toBe(true);
+});
+
 test("Chat launcher sync overlay does not shift the open message list", async ({ page }) => {
   const nowMs = Date.now();
   const serverMessages = Array.from({ length: 18 }, (_, index) => {

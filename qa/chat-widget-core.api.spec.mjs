@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
+import {
+  clampDashboardChatLauncherPosition,
+  isDashboardChatImmersiveSurfaceActive,
+} from "../src/modules/chat/dashboard-chat-launcher-runtime.mjs";
 import { createDashboardChatWidgetRenderer, renderDashboardChatMessageStatus } from "../src/modules/chat/chat-widget-renderer.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -9,7 +13,6 @@ const dashboardChatCss = readFileSync(resolve(__dirname, "../dashboard-chat.css"
 const dashboardChatLauncherCss = readFileSync(resolve(__dirname, "../dashboard-chat-launcher.css"), "utf8");
 const dashboardChatCreateCss = readFileSync(resolve(__dirname, "../dashboard-chat-create.css"), "utf8");
 const indexSource = readFileSync(resolve(__dirname, "../index.html"), "utf8");
-const platformNavigationCss = readFileSync(resolve(__dirname, "../platform-navigation.css"), "utf8");
 const appRuntimeSource = readFileSync(resolve(__dirname, "../app-runtime.js"), "utf8");
 const chatPushClientSource = readFileSync(resolve(__dirname, "../src/modules/chat/chat-push-client.mjs"), "utf8");
 const composerRuntimeSource = readFileSync(resolve(__dirname, "../src/modules/chat/dashboard-chat-composer-runtime.mjs"), "utf8");
@@ -1276,33 +1279,25 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(result.html).toContain("1 unread chat message");
   expect(indexSource).toContain("dashboard-chat-launcher.css");
   expect(indexSource).toContain('id=c rel=stylesheet');
-  expect(dashboardChatCss).toContain("closed launcher is a polished left-rail menu item, not a bottom-right bubble");
-  expect(dashboardChatLauncherCss).toContain("Closed chat launcher: rail-aligned icon with visible unread badge.");
-  expect(dashboardChatLauncherCss).toContain("body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-widget-root");
-  expect(dashboardChatLauncherCss).toContain("left: var(--platform-rail-item-left, 1.169rem) !important;");
-  expect(dashboardChatLauncherCss).toContain("top: min(var(--platform-rail-chat-slot-top, calc(50vh + 10.55rem)), calc(100vh - 8.6rem)) !important;");
-  expect(dashboardChatLauncherCss).toContain("width: var(--platform-rail-item-size, 3.05rem) !important;");
-  expect(dashboardChatLauncherCss).toContain("body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher > .dashboard-chat-launcher-icon");
+  expect(dashboardChatLauncherCss).toContain("Movable chat launcher: a stable floating control that stays out of focused work.");
+  expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-widget-root");
+  expect(dashboardChatLauncherCss).toContain("right: max(1rem, env(safe-area-inset-right)) !important;");
+  expect(dashboardChatLauncherCss).toContain("bottom: max(5.9rem, calc(1rem + env(safe-area-inset-bottom))) !important;");
+  expect(dashboardChatLauncherCss).toContain("width: 3.65rem !important;");
+  expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher > .dashboard-chat-launcher-icon");
   expect(dashboardChatLauncherCss).toContain("place-items: center !important;");
-  expect(dashboardChatLauncherCss).toContain("body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon svg");
+  expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon svg");
   expect(dashboardChatLauncherCss).toContain("stroke-width: 2 !important;");
-  expect(dashboardChatLauncherCss).toContain("body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
+  expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread");
+  expect(dashboardChatLauncherCss).toContain("cursor: grab !important;");
+  expect(dashboardChatLauncherCss).toContain("touch-action: none !important;");
+  expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-surface-suppressed .dashboard-chat-widget-root");
+  expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-video-analysis-fs-player-code-mode .dashboard-chat-widget-root");
+  expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-video-analysis-fs-player-fullscreen .dashboard-chat-widget-root");
   expect(dashboardChatLauncherCss).toContain("body.has-dashboard-chat-widget.is-dashboard-chat-open .dashboard-chat-rail-toggle");
   expect(dashboardChatLauncherCss).toContain("body.has-dashboard-chat-widget.is-dashboard-chat-open .dashboard-chat-rail-toggle .dashboard-chat-rail-toggle-icon svg");
-  expect(dashboardChatLauncherCss).toContain("top: 0.24rem !important;");
-  expect(dashboardChatLauncherCss).toContain("right: 0.24rem !important;");
-  expect(dashboardChatLauncherCss).toContain("background: #ff3b30 !important;");
-  expect(dashboardChatLauncherCss).toContain("box-shadow: 0 0 0 0.13rem #101716 !important;");
-  expect(dashboardChatLauncherCss).toContain("left: auto !important;");
-  expect(dashboardChatLauncherCss).toContain("right: var(--platform-rail-chat-mobile-right, max(0.85rem, env(safe-area-inset-right))) !important;");
-  expect(dashboardChatLauncherCss).toContain("bottom: var(--platform-rail-chat-mobile-bottom, calc(5.35rem + env(safe-area-inset-bottom))) !important;");
-  expect(dashboardChatLauncherCss).toContain("background: #101828 !important;");
-  expect(dashboardChatLauncherCss).toContain("box-shadow: 0 16px 34px #10182840 !important;");
-  expect(platformNavigationCss).toContain("--platform-rail-chat-mobile-right: max(0.85rem, env(safe-area-inset-right));");
-  expect(platformNavigationCss).toContain("--platform-rail-chat-mobile-bottom: calc(5.35rem + env(safe-area-inset-bottom));");
-  expect(platformNavigationCss).toContain("--platform-rail-item-left: 1.334rem;");
-  expect(platformNavigationCss).toContain("--platform-rail-chat-slot-top: calc(50vh + 8.93rem);");
-  expect(platformNavigationCss).toContain("body.has-dashboard-chat-widget .platform-nav-more {\n    margin-top: 0;\n    margin-left: calc(var(--platform-rail-item-size) + var(--platform-rail-item-gap));\n  }");
+  expect(appRuntimeSource).toContain("createDashboardChatLauncherRuntime");
+  expect(appRuntimeSource).toContain("football-dashboard-chat-launcher-position-v1");
   expect(dashboardChatCss).not.toContain("right:calc(.7rem + 3.14rem + .38rem + env(safe-area-inset-right))!important");
   expect(dashboardChatCss).toContain("@media(prefers-reduced-motion:reduce)");
 
@@ -1382,6 +1377,29 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   });
 
   expect(unnamedOpenResult.html).toContain('aria-label="Team Chat panel"');
+});
+
+test("chat launcher clamps saved positions and suppresses immersive surfaces", () => {
+  expect(clampDashboardChatLauncherPosition({
+    left: -200,
+    top: 900,
+    width: 58,
+    height: 58,
+    viewportWidth: 1024,
+    viewportHeight: 768,
+  })).toEqual({ left: 12, top: 698 });
+
+  const root = { contains: () => false };
+  const classNames = new Set(["is-video-analysis-fs-player-code-mode"]);
+  const documentRef = {
+    fullscreenElement: null,
+    body: { classList: { contains: (name) => classNames.has(name) } },
+    querySelectorAll: () => [],
+  };
+  expect(isDashboardChatImmersiveSurfaceActive(documentRef, root)).toBe(true);
+  classNames.clear();
+  documentRef.fullscreenElement = {};
+  expect(isDashboardChatImmersiveSurfaceActive(documentRef, root)).toBe(true);
 });
 
 test("chat notification cursor is persisted when active-thread toasts are suppressed", () => {

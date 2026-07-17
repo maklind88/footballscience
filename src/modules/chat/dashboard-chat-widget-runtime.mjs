@@ -492,6 +492,33 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     });
   }
 
+  function readOpenDashboardChatMessageMenu(root) {
+    const menu = root?.querySelector?.(
+      ".dashboard-chat-message-reaction-menu[open], .dashboard-chat-message-menu[open]"
+    );
+    const messageCard = menu?.closest?.("[data-dashboard-chat-message-id]");
+    const messageId = String(messageCard?.dataset?.dashboardChatMessageId || "").trim();
+    if (!menu || !messageId) {
+      return null;
+    }
+    return {
+      messageId,
+      type: menu.classList.contains("dashboard-chat-message-reaction-menu") ? "reaction" : "actions",
+    };
+  }
+
+  function restoreOpenDashboardChatMessageMenu(root, state) {
+    if (!root || !state?.messageId) {
+      return;
+    }
+    const messageCard = Array.from(root.querySelectorAll("[data-dashboard-chat-message-id]"))
+      .find((candidate) => candidate.dataset.dashboardChatMessageId === state.messageId);
+    const selector = state.type === "reaction"
+      ? ".dashboard-chat-message-reaction-menu"
+      : ".dashboard-chat-message-menu";
+    messageCard?.querySelector(selector)?.setAttribute("open", "");
+  }
+
   function renderDashboardChatWidget() {
     const root = ui.dashboardChatWidgetRoot;
     if (!root) {
@@ -542,6 +569,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     const shouldClearSubmittedComposerDraft = Boolean(submittedComposerDraft) &&
       (!previousComposerRawDraft || previousComposerRawDraft.trim() === submittedComposerDraft);
     const previousComposerDraft = shouldClearSubmittedComposerDraft ? "" : previousComposerRawDraft;
+    const previousOpenMessageMenuState = readOpenDashboardChatMessageMenu(root);
 
     const existingThreadList = root.querySelector("[data-dashboard-chat-thread-list]");
     const previousThreadListScrollTop = existingThreadList?.scrollTop ?? 0;
@@ -689,6 +717,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
 
     root.innerHTML = renderedWidget.html;
     root.dataset.dashboardChatRenderSignature = renderSignature;
+    restoreOpenDashboardChatMessageMenu(root, previousOpenMessageMenuState);
     restoreDashboardChatDialogDrafts(root, previousDialogDrafts);
     if (shouldClearSubmittedComposerDraft) {
       dashboardChatSubmittedComposerDrafts.delete(previousComposerThreadId);

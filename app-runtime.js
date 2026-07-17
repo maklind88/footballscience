@@ -3470,6 +3470,7 @@ return;
 event.preventDefault();
 event.stopPropagation();
 event.stopImmediatePropagation?.();
+closeChatMenus();
 await toggleDashboardMessageReactionWithApi(
 reactionButton.dataset.dashboardMessageReaction,
 reactionButton.dataset.dashboardReactionKey

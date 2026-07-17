@@ -1128,6 +1128,14 @@ test("chat message menu exposes WhatsApp baseline actions", () => {
   expect(appRuntimeSource).toContain('type: "leaveThread"');
 });
 
+test("chat runtime preserves open message action menus across background rerenders", () => {
+  expect(widgetRuntimeSource).toContain("function readOpenDashboardChatMessageMenu(root)");
+  expect(widgetRuntimeSource).toContain("function restoreOpenDashboardChatMessageMenu(root, state)");
+  expect(widgetRuntimeSource).toContain("const previousOpenMessageMenuState = readOpenDashboardChatMessageMenu(root);");
+  expect(widgetRuntimeSource).toContain("restoreOpenDashboardChatMessageMenu(root, previousOpenMessageMenuState);");
+  expect(appRuntimeSource).toContain("closeChatMenus();\nawait toggleDashboardMessageReactionWithApi(");
+});
+
 test("chat runtime supports browser notification permission and delivery hook", () => {
   expect(appRuntimeSource).toContain("sendDashboardChatBrowserNotification");
   expect(appRuntimeSource).toContain("dashboardChatPushClient.toggleFromNotificationLevel");

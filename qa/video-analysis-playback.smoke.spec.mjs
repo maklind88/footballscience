@@ -1579,13 +1579,23 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
       startMs: clip.startMs,
       endMs: clip.endMs,
       labels: (clip.labels || []).map((label) => label.value || label.label_value),
+      metadata: {
+        clipKind: clip.metadata?.clipKind,
+        labelOnly: clip.metadata?.labelOnly,
+        source: clip.metadata?.source,
+      },
       miniGamePrincipleId: clip.miniGamePrincipleId,
     };
   })).toEqual({
-    hasId: true,
-    startMs: 96000,
-    endMs: 111000,
+    hasId: false,
+    startMs: 100000,
+    endMs: 115000,
     labels: ["drive-past-press"],
+    metadata: {
+      clipKind: "miniGamePrinciple",
+      labelOnly: true,
+      source: "mg-principle-capture",
+    },
     miniGamePrincipleId: "drive-past-press",
   });
   await page.locator("[data-video-analysis-mg-principles-apply]").click();
@@ -1631,6 +1641,11 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
       startMs: item.body?.clip?.startMs,
       endMs: item.body?.clip?.endMs,
       labels: (item.body?.clip?.labels || []).map((label) => label.value || label.label_value),
+      metadata: {
+        clipKind: item.body?.clip?.metadata?.clipKind,
+        labelOnly: item.body?.clip?.metadata?.labelOnly,
+        source: item.body?.clip?.metadata?.source,
+      },
       miniGamePrincipleId: item.body?.clip?.miniGamePrincipleId,
     }));
   })).toEqual([
@@ -1639,6 +1654,11 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
       startMs: 123456,
       endMs: 138456,
       labels: ["drive-past-press"],
+      metadata: {
+        clipKind: "miniGamePrinciple",
+        labelOnly: true,
+        source: "mg-principle-capture",
+      },
       miniGamePrincipleId: "drive-past-press",
     },
     {
@@ -1646,6 +1666,11 @@ test("Video Analysis Tag Panel creates a 15 second timeline tag from a code butt
       startMs: 123456,
       endMs: 138456,
       labels: ["drive-past-press", "ft3-find-the-third"],
+      metadata: {
+        clipKind: "miniGamePrinciple",
+        labelOnly: true,
+        source: "mg-principle-capture",
+      },
       miniGamePrincipleId: "drive-past-press",
     },
   ]);
@@ -1732,6 +1757,18 @@ test("Video Analysis Tag Panel uses the red timeline playhead when video metadat
   await page.locator("[data-video-analysis-timeline-lane-select]").selectOption("subPhase");
   await expect(page.locator('[data-video-analysis-timeline-category-label="High Press"]')).toContainText("High Press (1)");
   await expect(page.locator('[data-video-analysis-timeline-category-label="Out of Possession"]')).toHaveCount(0);
+  const saveCountAfterHighPress = await page.evaluate(() => {
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
+  });
+  await page.evaluate(() => {
+    const video = document.querySelector("[data-video-analysis-video]");
+    Object.defineProperty(video, "currentTime", { configurable: true, value: 42.4 });
+  });
+  await page.locator('[data-video-analysis-code-button="subPhase-high-press"]').click();
+  await page.waitForTimeout(100);
+  expect(await page.evaluate(() => {
+    return (window.__videoAnalysisRequests || []).filter((item) => item.action === "save-clip").length;
+  })).toBe(saveCountAfterHighPress);
   await expect(page.locator(".video-analysis-playhead-time")).toContainText("0:00:42");
 });
 

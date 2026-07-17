@@ -155,6 +155,8 @@ function normalizeLabels(payload = {}, clip = {}) {
       ["mini_game_principle", clip.miniGamePrincipleId, clip.miniGamePrincipleId],
       ["outcome", clip.outcome, clip.outcome],
     ];
+  } else if (clipKind === "miniGamePrinciple") {
+    base = [["mini_game_principle", clip.miniGamePrincipleId, clip.miniGamePrincipleId]];
   }
   const custom = Array.isArray(payload.labels) ? payload.labels : [];
   const seen = new Set();

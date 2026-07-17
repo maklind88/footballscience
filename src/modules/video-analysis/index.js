@@ -21,7 +21,17 @@ import { createClipRepository } from "./repositories/clipRepository.js";
 import { createPlaylistRepository } from "./repositories/playlistRepository.js";
 import { createPresentationRepository } from "./repositories/presentationRepository.js";
 import { createVideoRepository } from "./repositories/videoRepository.js";
-import { applyCodingButtonToClip, buildClipPayload, buildOutcomeOnlyClipPayload, buildPhaseOnlyClipPayload, buildPlayerOnlyClipPayload, buildUnitOnlyClipPayload, isPhaseOnlyClip, toApiClipPayload } from "./services/clipInstanceService.js";
+import {
+  applyCodingButtonToClip,
+  buildClipPayload,
+  buildOutcomeOnlyClipPayload,
+  buildPhaseOnlyClipPayload,
+  buildPlayerOnlyClipPayload,
+  buildUnitOnlyClipPayload,
+  isMiniGamePrincipleOnlyClip,
+  isPhaseOnlyClip,
+  toApiClipPayload,
+} from "./services/clipInstanceService.js";
 import { buildClipLibraryClipOrder, clipEndMs, clipMatchesLibraryGroup, clipStartMs } from "./services/clipLibraryService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
 import { phaseForSubPhase } from "./services/footballLanguageService.js";
@@ -49,7 +59,12 @@ import {
   updateCodingButtonField,
   updateCodingButtonMsField,
 } from "./services/codingTemplateService.js";
-import { resolveCodingTargetClip, resolveSameMomentCodingTargetClips, sameMomentTagWindowMs } from "./services/codingInteractionService.js";
+import {
+  findReusableSameCategoryClip,
+  resolveCodingTargetClip,
+  resolveSameMomentCodingTargetClips,
+  sameMomentTagWindowMs,
+} from "./services/codingInteractionService.js";
 import { handleVideoAnalysisShortcut } from "./services/keyboardShortcutService.js";
 import { createLocalVideoReference, revokeLocalVideoReference } from "./services/localVideoBridgeService.js";
 import { createPlayableLocalCopy } from "./services/localPlaybackTranscodeService.js";
@@ -126,6 +141,7 @@ const videoShuttleTimers = new WeakMap();
 const videoShuttleSessions = new WeakMap();
 const inFlightSubPhaseTagKeys = new Set();
 const inFlightAutoPhaseTagKeys = new Set();
+const pendingSubPhaseTagSaves = new Map();
 
 function normalizePlaybackRate(value = 1) {
   const numeric = Number(value);
@@ -3441,6 +3457,69 @@ function subPhaseTagActionKey(state = {}, button = {}, startMs = 0, endMs = 0, m
   ].join(":");
 }
 
+function reusableSubPhaseClipForTag(state = {}, subPhase = "", startMs = 0, endMs = 0, excludeIds = []) {
+  return findReusableSameCategoryClip(state, {
+    laneMode: "subPhase",
+    label: subPhase,
+    startMs,
+    endMs,
+    toleranceMs: sameMomentTagWindowMs,
+    excludeIds,
+  });
+}
+
+function pendingSubPhaseTagForMoment(state = {}, subPhase = "", startMs = 0) {
+  const label = String(subPhase || "").trim();
+  if (!label) return null;
+  const matchId = String(state.match?.id || state.matchId || state.match_id || "").trim();
+  const videoId = String(state.video?.id || state.videoId || state.video_id || "").trim();
+  const targetStartMs = Math.max(0, Math.round(Number(startMs || 0)));
+  return [...pendingSubPhaseTagSaves.values()].find((entry) => (
+    entry
+    && entry.subPhase === label
+    && (!matchId || !entry.matchId || entry.matchId === matchId)
+    && (!videoId || !entry.videoId || entry.videoId === videoId)
+    && Math.abs(entry.startMs - targetStartMs) <= sameMomentTagWindowMs
+  )) || null;
+}
+
+function registerPendingSubPhaseTagSave(key = "", state = {}, subPhase = "", startMs = 0, endMs = 0) {
+  let resolvePending = () => {};
+  const promise = new Promise((resolve) => {
+    resolvePending = resolve;
+  });
+  const entry = {
+    key,
+    promise,
+    resolve: resolvePending,
+    matchId: String(state.match?.id || state.matchId || state.match_id || "").trim(),
+    videoId: String(state.video?.id || state.videoId || state.video_id || "").trim(),
+    subPhase: String(subPhase || "").trim(),
+    startMs: Math.max(0, Math.round(Number(startMs || 0))),
+    endMs: Math.max(0, Math.round(Number(endMs || 0))),
+  };
+  pendingSubPhaseTagSaves.set(key, entry);
+  return entry;
+}
+
+function selectReusableSubPhaseClipState(current = {}, clip = {}, startMs = 0, message = "") {
+  return {
+    ...replaceClipInState(current, clip),
+    status: "ready",
+    selectedClipId: clip.id || current.selectedClipId,
+    codingSession: {
+      ...(current.codingSession || {}),
+      lastClipId: clip.id || current.codingSession?.lastClipId || "",
+    },
+    timeline: {
+      ...(current.timeline || {}),
+      playheadMs: Math.max(0, Math.round(Number(startMs || clipStartMs(clip) || 0))),
+    },
+    message,
+    error: "",
+  };
+}
+
 function autoPhaseTagActionKey(state = {}, phase = "", startMs = 0, endMs = 0, momentKey = "") {
   return [
     state.match?.id || "",
@@ -3593,7 +3672,7 @@ function openMiniGamePrincipleCapture(context = {}) {
   }
   syncPlaybackControls(context, video, false);
   const targetClip = findClipForLabelAction(state, currentMs);
-  const capture = buildMiniGamePrincipleCapture(state, currentMs, targetClip);
+  const capture = { ...buildMiniGamePrincipleCapture(state, currentMs, targetClip), targetClipId: "" };
   run.store.update((current) => ({
     ...current,
     codingSession: {
@@ -3629,23 +3708,42 @@ async function createMiniGamePrincipleTagFromCapture(principleId = "", context =
     });
     return false;
   }
+  const startMs = Math.max(0, Math.round(Number(capture.startMs || 0)));
+  const durationMs = Math.max(1000, Number(capture.durationMs || defaultMomentTagDurationMs(state)));
+  const endMs = startMs + durationMs;
+  const subPhase = subPhaseForMiniGamePrinciple(id, capture.targetClipId ? capture.subPhase : "")
+    || capture.subPhase
+    || state.draft?.subPhase
+    || "";
+  const phase = phaseForSubPhase(subPhase, capture.phase || state.draft?.phase || "");
+  const label = miniGamePrincipleLabel(id) || "MG principle";
   const targetClip = findClipInStateById(state, capture.targetClipId);
+  const captureTargetIsMiniGameClip = Boolean(targetClip?.id && isMiniGamePrincipleOnlyClip(targetClip));
+  const reusableMiniGameClip = findReusableSameCategoryClip(state, {
+    laneMode: "miniGamePrinciple",
+    label,
+    startMs,
+    endMs,
+    toleranceMs: sameMomentTagWindowMs,
+  });
+  const targetPrincipleClip = captureTargetIsMiniGameClip
+    ? targetClip
+    : (reusableMiniGameClip?.id && isMiniGamePrincipleOnlyClip(reusableMiniGameClip) ? reusableMiniGameClip : null);
   const baseIds = pickerVisibleMiniGamePrincipleIds(
     state.codingSession?.miniGamePrincipleDraftIds?.length
       ? state.codingSession.miniGamePrincipleDraftIds
-      : targetClip
-        ? clipMiniGamePrincipleIds(targetClip)
+      : targetPrincipleClip
+        ? clipMiniGamePrincipleIds(targetPrincipleClip)
         : []
   );
   const selectedIds = new Set(baseIds);
-  const adding = !selectedIds.has(id);
+  const adding = !selectedIds.has(id) || !captureTargetIsMiniGameClip;
   if (adding) selectedIds.add(id);
   else selectedIds.delete(id);
   const nextIds = pickerVisibleMiniGamePrincipleIds([...selectedIds]);
-  const label = miniGamePrincipleLabel(id) || "MG principle";
 
-  if (targetClip?.id) {
-    const nextClip = normalizeClipInstance(withMiniGamePrinciples(targetClip, nextIds));
+  if (targetPrincipleClip?.id) {
+    const nextClip = normalizeClipInstance(withMiniGamePrinciples(targetPrincipleClip, nextIds));
     run.store.update((current) => ({
       ...replaceClipInState(patchMiniGamePrincipleDraftState(current, nextIds), nextClip),
       status: "saving-clip",
@@ -3654,7 +3752,7 @@ async function createMiniGamePrincipleTagFromCapture(principleId = "", context =
         ...(current.codingSession || {}),
         miniGamePrincipleDraftIds: nextIds,
         miniGamePrinciplePickerOpen: true,
-        miniGamePrincipleCapture: capture,
+        miniGamePrincipleCapture: { ...capture, targetClipId: nextClip.id || capture.targetClipId || "" },
         lastClipId: nextClip.id,
       },
       message: `${label} ${adding ? "tagged on clip." : "removed from clip."}`,
@@ -3672,7 +3770,7 @@ async function createMiniGamePrincipleTagFromCapture(principleId = "", context =
           ...(current.codingSession || {}),
           miniGamePrincipleDraftIds: savedIds,
           miniGamePrinciplePickerOpen: true,
-          miniGamePrincipleCapture: { ...capture, targetClipId: savedClip.id || capture.targetClipId || "" },
+          miniGamePrincipleCapture: { ...capture, targetClipId: savedClip.id || nextClip.id || capture.targetClipId || "" },
           lastClipId: savedClip.id,
         },
         message: savedIds.length ? "MG principles saved to clip." : "MG principles cleared from clip.",
@@ -3682,7 +3780,7 @@ async function createMiniGamePrincipleTagFromCapture(principleId = "", context =
       return true;
     } catch (error) {
       run.store.update((current) => ({
-        ...replaceClipInState(current, targetClip),
+        ...replaceClipInState(current, targetPrincipleClip),
         status: "error",
         error: error.message || "Could not save MG principles.",
       }));
@@ -3698,14 +3796,6 @@ async function createMiniGamePrincipleTagFromCapture(principleId = "", context =
     }));
     return true;
   }
-  const startMs = Math.max(0, Math.round(Number(capture.startMs || 0)));
-  const durationMs = Math.max(1000, Number(capture.durationMs || defaultMomentTagDurationMs(state)));
-  const endMs = startMs + durationMs;
-  const subPhase = subPhaseForMiniGamePrinciple(id, capture.targetClipId ? capture.subPhase : "")
-    || capture.subPhase
-    || state.draft?.subPhase
-    || "";
-  const phase = phaseForSubPhase(subPhase, capture.phase || state.draft?.phase || "");
   const nextState = {
     ...state,
     draft: {
@@ -3731,8 +3821,8 @@ async function createMiniGamePrincipleTagFromCapture(principleId = "", context =
       tags: "",
       note: "",
       metadata: {
-        ...(state.draft?.metadata && typeof state.draft.metadata === "object" ? state.draft.metadata : {}),
-        clipKind: "subPhase",
+        clipKind: "miniGamePrinciple",
+        momentKey: buildMomentKey(state, startMs),
         source: "mg-principle-capture",
       },
     },
@@ -4193,10 +4283,35 @@ async function applyCodeButton(buttonId = "", context = {}) {
       const resolvedPhase = phaseForSubPhase(action.nextDraft?.subPhase, action.nextDraft?.phase);
       const momentKey = momentKeyForTagAction(state, startMs);
       const subPhaseActionKey = subPhaseTagActionKey(state, button, startMs, endMs, momentKey);
+      const reusableSubPhaseClip = reusableSubPhaseClipForTag(state, action.nextDraft?.subPhase, startMs, endMs);
+      if (reusableSubPhaseClip?.id) {
+        run.store.update((current) => selectReusableSubPhaseClipState(
+          current,
+          reusableSubPhaseClip,
+          startMs,
+          `${button.label || "Sub-phase"} already tagged for this moment.`
+        ));
+        return true;
+      }
+      const pendingSubPhaseTag = pendingSubPhaseTagForMoment(state, action.nextDraft?.subPhase, startMs);
+      if (pendingSubPhaseTag?.promise) {
+        const savedPendingClip = await pendingSubPhaseTag.promise;
+        if (savedPendingClip?.id) {
+          run.store.update((current) => selectReusableSubPhaseClipState(
+            current,
+            savedPendingClip,
+            startMs,
+            `${button.label || "Sub-phase"} already tagged for this moment.`
+          ));
+          return true;
+        }
+        return false;
+      }
       if (inFlightSubPhaseTagKeys.has(subPhaseActionKey)) {
         return true;
       }
       inFlightSubPhaseTagKeys.add(subPhaseActionKey);
+      const pendingSave = registerPendingSubPhaseTagSave(subPhaseActionKey, state, action.nextDraft?.subPhase, startMs, endMs);
       const subPhaseState = {
         ...nextState,
         draft: {
@@ -4215,6 +4330,7 @@ async function applyCodeButton(buttonId = "", context = {}) {
       try {
         run.store.update(() => subPhaseState);
         const savedSubPhaseClip = await saveDraftClip(context, subPhaseState);
+        pendingSave.resolve(savedSubPhaseClip || false);
         if (!savedSubPhaseClip) return false;
         const currentAfterSubPhase = run.store.getState();
         phaseActionKey = autoPhaseTagActionKey(state, resolvedPhase, startMs, endMs, momentKey);
@@ -4265,6 +4381,7 @@ async function applyCodeButton(buttonId = "", context = {}) {
         }));
         await loadClips();
       } catch (error) {
+        pendingSave.resolve(false);
         run.store.setState({
           status: "error",
           message: "",
@@ -4273,6 +4390,7 @@ async function applyCodeButton(buttonId = "", context = {}) {
         return false;
       } finally {
         if (phaseActionKey) inFlightAutoPhaseTagKeys.delete(phaseActionKey);
+        pendingSubPhaseTagSaves.delete(subPhaseActionKey);
         inFlightSubPhaseTagKeys.delete(subPhaseActionKey);
       }
       return true;

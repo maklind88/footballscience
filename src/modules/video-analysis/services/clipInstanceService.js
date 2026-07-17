@@ -8,6 +8,7 @@ import { buildMiniGamePrincipleLabels, uniqueMiniGamePrincipleIds, withMiniGameP
 const playerOnlyClipKind = "player";
 const phaseClipKind = "phase";
 const subPhaseClipKind = "subPhase";
+const miniGamePrincipleClipKind = "miniGamePrinciple";
 const unitOnlyClipKind = "unit";
 const outcomeOnlyClipKind = "outcome";
 const canonicalTargetFields = Object.freeze({
@@ -96,6 +97,10 @@ export function isPhaseOnlyClip(clip = {}) {
 
 export function isSubPhaseOnlyClip(clip = {}) {
   return String(clip.metadata?.clipKind || clip.metadata?.clip_kind || "").trim() === subPhaseClipKind;
+}
+
+export function isMiniGamePrincipleOnlyClip(clip = {}) {
+  return String(clip?.metadata?.clipKind || clip?.metadata?.clip_kind || "").trim() === miniGamePrincipleClipKind;
 }
 
 export function isUnitOnlyClip(clip = {}) {

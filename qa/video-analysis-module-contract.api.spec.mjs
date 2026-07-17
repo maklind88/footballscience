@@ -705,6 +705,42 @@ test("timeline MG Principle view only shows clips with tagged MG principles", as
   expect(miniGameIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Third Player:1"]);
 });
 
+test("MG principle clip kind stays out of Sub-phase lanes while keeping its own MG lane", async () => {
+  const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
+  const clips = [
+    {
+      id: "sub-phase-high-press",
+      matchId: "match-1",
+      videoId: "video-1",
+      startMs: 42000,
+      endMs: 57000,
+      phase: "Out of Possession",
+      subPhase: "High Press",
+      metadata: { clipKind: "subPhase" },
+    },
+    {
+      id: "mg-press-radius",
+      matchId: "match-1",
+      videoId: "video-1",
+      startMs: 42100,
+      endMs: 57100,
+      phase: "Out of Possession",
+      subPhase: "High Press",
+      miniGamePrincipleId: "press-within-press-radius",
+      labels: [{ type: "mini_game_principle", value: "press-within-press-radius", label: "Press (within press-radius)" }],
+      metadata: { clipKind: "miniGamePrinciple", labelOnly: true },
+    },
+  ];
+
+  const subPhaseIndex = timelineService.buildTimelineIndex(clips, "subPhase");
+  expect(subPhaseIndex.clipCount).toBe(1);
+  expect(subPhaseIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["High Press:1"]);
+
+  const miniGameIndex = timelineService.buildTimelineIndex(clips, "miniGamePrinciple");
+  expect(miniGameIndex.clipCount).toBe(1);
+  expect(miniGameIndex.lanes.map((lane) => `${lane.label}:${lane.clipCount}`)).toEqual(["Press (within press-radius):1"]);
+});
+
 test("MG principles derive their searchable sub-phase from the principle group", async () => {
   const service = await import(pathToFileURL(path.join(moduleDir, "services/miniGamePrincipleService.js")).href);
 
@@ -744,6 +780,45 @@ test("dependent tag actions only target clips under the current playhead", async
     "different-start-overlap",
   ]);
   expect(service.resolveCodingTargetClip(state, 50000)).toBeNull();
+});
+
+test("same-category dedupe reuses close Sub-phase clips without collapsing later moments", async () => {
+  const service = await import(pathToFileURL(path.join(moduleDir, "services/codingInteractionService.js")).href);
+  const state = {
+    match: { id: "match-1" },
+    video: { id: "video-1" },
+    clips: [
+      { id: "high-press-current", matchId: "match-1", videoId: "video-1", startMs: 42000, endMs: 57000, phase: "Out of Possession", subPhase: "High Press", metadata: { clipKind: "subPhase" } },
+      { id: "high-press-later", matchId: "match-1", videoId: "video-1", startMs: 47000, endMs: 62000, phase: "Out of Possession", subPhase: "High Press", metadata: { clipKind: "subPhase" } },
+      { id: "build-up-current", matchId: "match-1", videoId: "video-1", startMs: 42100, endMs: 57100, phase: "In Possession", subPhase: "Build Up", metadata: { clipKind: "subPhase" } },
+      { id: "mg-current", matchId: "match-1", videoId: "video-1", startMs: 42100, endMs: 57100, phase: "Out of Possession", subPhase: "High Press", miniGamePrincipleId: "press-within-press-radius", metadata: { clipKind: "miniGamePrinciple" } },
+    ],
+  };
+
+  expect(service.findReusableSameCategoryClip(state, {
+    laneMode: "subPhase",
+    label: "High Press",
+    startMs: 42500,
+    endMs: 57500,
+  })?.id).toBe("high-press-current");
+  expect(service.findReusableSameCategoryClip(state, {
+    laneMode: "subPhase",
+    label: "High Press",
+    startMs: 44500,
+    endMs: 59500,
+  })).toBeNull();
+  expect(service.findReusableSameCategoryClip(state, {
+    laneMode: "subPhase",
+    label: "High Press",
+    startMs: 47050,
+    endMs: 62050,
+  })?.id).toBe("high-press-later");
+  expect(service.findReusableSameCategoryClip(state, {
+    laneMode: "miniGamePrinciple",
+    label: "Press (within press-radius)",
+    startMs: 42500,
+    endMs: 57500,
+  })?.id).toBe("mg-current");
 });
 
 test("dependent tag actions keep an explicit selection only while the playhead is inside it", async () => {
@@ -904,6 +979,7 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(api).toContain('clipKind === "player"');
   expect(api).toContain('clipKind === "phase"');
   expect(api).toContain('clipKind === "subPhase"');
+  expect(api).toContain('clipKind === "miniGamePrinciple"');
   expect(api).toContain("replaceClipRelationRows");
   expect(api).toContain("\"video_clip_players\"");
   expect(api).toContain("\"video_clip_descriptors\"");

@@ -1293,6 +1293,7 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(result.html).toContain('title="Open Team Chat, 1 unread chat message"');
   expect(result.html).toContain("dashboard-chat-header-badge is-unread");
   expect(result.html).toContain('<span class="dashboard-chat-launcher-icon" aria-hidden="true">');
+  expect(result.html).not.toContain("dashboard-chat-launcher-copy");
   expect(result.html).toContain('<svg viewBox="0 0 24 24" focusable="false">');
   expect(result.html).toContain('d="M4 5.5h16a1.8 1.8 0 0 1 1.8 1.8v8.2a1.8 1.8 0 0 1-1.8 1.8H9.5L5 20.5v-3.2H4a1.8 1.8 0 0 1-1.8-1.8V7.3A1.8 1.8 0 0 1 4 5.5Z"');
   expect(result.html).toContain('<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">1</span>');
@@ -1301,9 +1302,10 @@ test("closed chat launcher keeps unread badge visible in compact sidebar mode", 
   expect(indexSource).toContain('id=c rel=stylesheet');
   expect(dashboardChatLauncherCss).toContain("Movable chat launcher: a stable floating control that stays out of focused work.");
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-widget-root");
-  expect(dashboardChatLauncherCss).toContain("right: max(1rem, env(safe-area-inset-right)) !important;");
-  expect(dashboardChatLauncherCss).toContain("bottom: max(5.9rem, calc(1rem + env(safe-area-inset-bottom))) !important;");
-  expect(dashboardChatLauncherCss).toContain("width: 3.65rem !important;");
+  expect(dashboardChatLauncherCss).toContain("right: max(1.15rem, env(safe-area-inset-right)) !important;");
+  expect(dashboardChatLauncherCss).toContain("bottom: max(1.15rem, calc(1.15rem + env(safe-area-inset-bottom))) !important;");
+  expect(dashboardChatLauncherCss).toContain("width: 3.25rem !important;");
+  expect(dashboardChatLauncherCss).toContain("border-radius: 999px !important;");
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher > .dashboard-chat-launcher-icon");
   expect(dashboardChatLauncherCss).toContain("place-items: center !important;");
   expect(dashboardChatLauncherCss).toContain("html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon svg");

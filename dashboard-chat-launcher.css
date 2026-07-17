@@ -2,13 +2,13 @@
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-widget-root {
   position: fixed !important;
   left: auto !important;
-  right: max(1rem, env(safe-area-inset-right)) !important;
+  right: max(1.15rem, env(safe-area-inset-right)) !important;
   top: auto !important;
-  bottom: max(5.9rem, calc(1rem + env(safe-area-inset-bottom))) !important;
+  bottom: max(1.15rem, calc(1.15rem + env(safe-area-inset-bottom))) !important;
   z-index: 220 !important;
-  width: 3.65rem !important;
-  max-width: 3.65rem !important;
-  height: 3.65rem !important;
+  width: 3.25rem !important;
+  max-width: 3.25rem !important;
+  height: 3.25rem !important;
   pointer-events: auto !important;
   opacity: 1 !important;
   visibility: visible !important;
@@ -19,12 +19,12 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-wid
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-widget,
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher {
-  width: 3.65rem !important;
-  min-width: 3.65rem !important;
-  max-width: 3.65rem !important;
-  height: 3.65rem !important;
-  min-height: 3.65rem !important;
-  max-height: 3.65rem !important;
+  width: 3.25rem !important;
+  min-width: 3.25rem !important;
+  max-width: 3.25rem !important;
+  height: 3.25rem !important;
+  min-height: 3.25rem !important;
+  max-height: 3.25rem !important;
 }
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher {
@@ -33,11 +33,11 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
   place-items: center !important;
   padding: 0 !important;
   overflow: visible !important;
-  border: 1px solid rgba(148, 163, 184, 0.28) !important;
-  border-radius: 16px !important;
-  background: #111827 !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, #123b31, #0b241f) !important;
   color: #ffffff !important;
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
   cursor: grab !important;
   touch-action: none !important;
   user-select: none !important;
@@ -48,9 +48,9 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 }
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher:hover {
-  border-color: rgba(191, 219, 254, 0.4) !important;
-  background: #172033 !important;
-  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.34) !important;
+  background: linear-gradient(180deg, #16493c, #0d2b25) !important;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
 }
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher:focus-visible {
@@ -72,8 +72,8 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 }
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher > .dashboard-chat-launcher-icon {
-  width: 1.58rem !important;
-  height: 1.58rem !important;
+  width: 1.5rem !important;
+  height: 1.5rem !important;
   display: grid !important;
   place-items: center !important;
   color: currentColor !important;
@@ -86,8 +86,8 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 }
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-icon svg {
-  width: 1.58rem !important;
-  height: 1.58rem !important;
+  width: 1.5rem !important;
+  height: 1.5rem !important;
   display: block !important;
   fill: none !important;
   stroke: currentColor !important;
@@ -98,20 +98,20 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread {
   position: absolute !important;
-  top: -0.3rem !important;
-  right: -0.3rem !important;
-  min-width: 1.18rem !important;
-  max-width: 1.7rem !important;
-  height: 1.18rem !important;
-  min-height: 1.18rem !important;
+  top: -0.16rem !important;
+  right: -0.16rem !important;
+  min-width: 1.08rem !important;
+  max-width: 1.58rem !important;
+  height: 1.08rem !important;
+  min-height: 1.08rem !important;
   display: inline-grid !important;
   place-items: center !important;
   padding: 0 0.28rem !important;
   border: 2px solid #ffffff !important;
   border-radius: 999px !important;
-  background: #dc2626 !important;
+  background: #2563eb !important;
   color: #ffffff !important;
-  box-shadow: 0 4px 12px rgba(127, 29, 29, 0.28) !important;
+  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.32) !important;
   font-size: 0.58rem !important;
   font-weight: 900 !important;
   line-height: 1 !important;
@@ -121,12 +121,12 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-dot {
   position: absolute !important;
-  right: 0.52rem !important;
-  bottom: 0.5rem !important;
-  width: 0.48rem !important;
-  height: 0.48rem !important;
+  right: 0.5rem !important;
+  bottom: 0.48rem !important;
+  width: 0.42rem !important;
+  height: 0.42rem !important;
   display: block !important;
-  border: 1.5px solid #111827 !important;
+  border: 1.5px solid #0b241f !important;
   border-radius: 999px !important;
   background: #34d399 !important;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.82) !important;
@@ -134,9 +134,9 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 }
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher.is-dashboard-chat-launcher-dragging {
-  border-color: rgba(191, 219, 254, 0.5) !important;
-  background: #172033 !important;
-  box-shadow: 0 22px 48px rgba(15, 23, 42, 0.34) !important;
+  border-color: rgba(255, 255, 255, 0.42) !important;
+  background: linear-gradient(180deg, #16493c, #0d2b25) !important;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.32) !important;
   cursor: grabbing !important;
   transition: none !important;
 }
@@ -217,25 +217,21 @@ body.has-dashboard-chat-widget.is-dashboard-chat-open .dashboard-chat-rail-toggl
 
 @media (max-width: 820px) {
   html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-widget-root {
-    right: max(0.78rem, env(safe-area-inset-right)) !important;
-    bottom: max(5.35rem, calc(0.78rem + env(safe-area-inset-bottom))) !important;
-    width: 3.45rem !important;
-    max-width: 3.45rem !important;
-    height: 3.45rem !important;
+    right: max(0.9rem, env(safe-area-inset-right)) !important;
+    bottom: max(0.9rem, calc(0.9rem + env(safe-area-inset-bottom))) !important;
+    width: 3.2rem !important;
+    max-width: 3.2rem !important;
+    height: 3.2rem !important;
   }
 
   html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-widget,
   html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher {
-    width: 3.45rem !important;
-    min-width: 3.45rem !important;
-    max-width: 3.45rem !important;
-    height: 3.45rem !important;
-    min-height: 3.45rem !important;
-    max-height: 3.45rem !important;
-  }
-
-  html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher {
-    border-radius: 15px !important;
+    width: 3.2rem !important;
+    min-width: 3.2rem !important;
+    max-width: 3.2rem !important;
+    height: 3.2rem !important;
+    min-height: 3.2rem !important;
+    max-height: 3.2rem !important;
   }
 
   body.has-dashboard-chat-widget.is-dashboard-chat-open .dashboard-chat-rail-toggle {

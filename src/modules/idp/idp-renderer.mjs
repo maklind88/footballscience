@@ -30,6 +30,7 @@ const defaultUiState = Object.freeze({
   selectedClipBankIds: [],
   scoutingMetricSelections: {},
   openScoutingMetricPickerKey: "",
+  scoutingMetricPickerSearchQueries: {},
   idpPlayerBoardOpen: false,
   idpPlayerBoardPreviewOpen: false,
   idpPlayerBoardSelectedElementIds: [],
@@ -1132,6 +1133,7 @@ function renderProfileScoutingRadar(profile = {}, options = {}, ui = {}) {
   const selectedMetricIds = Array.isArray(ui.scoutingMetricSelections?.[metricSelectionKey])
     ? ui.scoutingMetricSelections[metricSelectionKey]
     : [];
+  const metricPickerSearchQuery = normalizeText(ui.scoutingMetricPickerSearchQueries?.[metricSelectionKey], "");
   return renderSpider(
     {
       id: profile.playerId || profile.id || "",
@@ -1154,6 +1156,7 @@ function renderProfileScoutingRadar(profile = {}, options = {}, ui = {}) {
       showMetricPicker: true,
       includeDatabaseMetricChoices: true,
       metricPickerOpen: ui.openScoutingMetricPickerKey === metricSelectionKey,
+      metricPickerSearchQuery,
     }
   );
 }

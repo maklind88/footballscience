@@ -172,6 +172,57 @@ test("Squad scouting spider renderer can expose database metric choices without 
   expect(markup).not.toContain("DATABASE-EXTRA: 7");
 });
 
+test("Squad scouting spider metric picker explains metrics and keeps hidden search matches selectable", () => {
+  const metricIds = ["def-actions", "aerial", "interceptions", "progression", "short", "accuracy", "duels"];
+  const record = {
+    team: "NCC",
+    season: "2026",
+    metrics: Object.fromEntries(metricIds.map((metricId, index) => [metricId, index + 1])),
+  };
+  const renderer = createSquadScoutingSpiderRenderer({
+    getDatabase: () => ({
+      records: [record],
+      metrics: metricIds.map((id) => ({
+        id,
+        label: id === "def-actions" ? "Successful defensive actions per 90" : id.toUpperCase(),
+        description: id === "def-actions" ? "How often the player completes defensive interventions per 90 minutes." : "",
+        direction: "higher",
+      })),
+    }),
+    findRecord: () => record,
+    getPositionGroup: () => "OTHER",
+    getMetricValue: (sourceRecord, metricId) => sourceRecord.metrics[metricId],
+    getPercentile: (_sourceRecord, metricId) => metricIds.indexOf(metricId) * 10 + 30,
+    getMetric: (database, metricId) => database.metrics.find((metric) => metric.id === metricId),
+    templates: {
+      OTHER: metricIds.slice(0, 6).map((metricId) => ({ label: metricId.toUpperCase(), metricId })),
+    },
+    recordIndex,
+  });
+
+  const markup = renderer.render(
+    { playerName: "Mak Lind" },
+    {
+      includeDatabaseMetricChoices: true,
+      metricSelectionKey: "p1",
+      metricPickerOpen: true,
+      metricPickerSearchQuery: "defensive",
+      showMetricPicker: true,
+    }
+  );
+
+  expect(markup).toContain("data-player-profile-scouting-metric-search");
+  expect(markup).toContain("Search metrics");
+  expect(markup).toContain("Tick up to 6 metrics");
+  expect(markup).toContain("Successful defensive actions per 90");
+  expect(markup).toContain("How often the player completes defensive interventions per 90 minutes.");
+  expect(markup).toContain("Current value: 1");
+  expect(markup).toContain('data-player-profile-scouting-metric-toggle="aerial"');
+  expect(markup).toContain('data-player-profile-scouting-metric-toggle="duels"');
+  expect(markup).toContain('data-player-profile-scouting-metric-search-text="');
+  expect(markup).toContain("hidden");
+});
+
 test("Squad scouting profile helpers own record matching, metrics, and percentiles", () => {
   const database = {
     metrics: [{ id: "shots" }, { id: "turnovers" }],

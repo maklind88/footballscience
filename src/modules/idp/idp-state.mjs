@@ -18,6 +18,7 @@ export const idpInitialUiState = Object.freeze({
   selectedClipBankIds: [],
   scoutingMetricSelections: {},
   openScoutingMetricPickerKey: "",
+  scoutingMetricPickerSearchQueries: {},
   clipPreviewOpen: false,
   clipPreviewQueueIds: [],
   clipPreviewActiveIndex: 0,
@@ -63,6 +64,10 @@ export function createIdpStore(initialState = {}) {
             patch.ui?.scoutingMetricSelections && typeof patch.ui.scoutingMetricSelections === "object"
               ? patch.ui.scoutingMetricSelections
               : state.ui.scoutingMetricSelections,
+          scoutingMetricPickerSearchQueries:
+            patch.ui?.scoutingMetricPickerSearchQueries && typeof patch.ui.scoutingMetricPickerSearchQueries === "object"
+              ? patch.ui.scoutingMetricPickerSearchQueries
+              : state.ui.scoutingMetricPickerSearchQueries,
           clipPreviewQueueIds: Array.isArray(patch.ui?.clipPreviewQueueIds)
             ? patch.ui.clipPreviewQueueIds
             : state.ui.clipPreviewQueueIds,

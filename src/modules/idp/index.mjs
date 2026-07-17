@@ -160,15 +160,18 @@ function captureSearchFocus(activeRuntime = runtime) {
   const isOverviewSearch = Boolean(activeElement?.matches?.("[data-idp-search]"));
   const isClipSearch = Boolean(activeElement?.matches?.("[data-idp-clip-search]"));
   const isPlayerBoardExerciseSearch = Boolean(activeElement?.matches?.("[data-idp-board-exercise-search]"));
-  if (!isOverviewSearch && !isClipSearch && !isPlayerBoardExerciseSearch) return null;
+  const isScoutingMetricSearch = Boolean(activeElement?.matches?.("[data-player-profile-scouting-metric-search]"));
+  if (!isOverviewSearch && !isClipSearch && !isPlayerBoardExerciseSearch && !isScoutingMetricSearch) return null;
   const value = activeElement.value || "";
   return {
-    preserveValue: isClipSearch || isPlayerBoardExerciseSearch,
+    preserveValue: isClipSearch || isPlayerBoardExerciseSearch || isScoutingMetricSearch,
     selector: isClipSearch
       ? "[data-idp-clip-search]"
       : isPlayerBoardExerciseSearch
         ? "[data-idp-board-exercise-search]"
-        : "[data-idp-search]",
+        : isScoutingMetricSearch
+          ? "[data-player-profile-scouting-metric-search]"
+          : "[data-idp-search]",
     end: Number.isInteger(activeElement.selectionEnd) ? activeElement.selectionEnd : value.length,
     start: Number.isInteger(activeElement.selectionStart) ? activeElement.selectionStart : value.length,
     value,
@@ -340,6 +343,20 @@ export function handleInput(event) {
   const target = event?.target;
   if (target?.matches?.("[data-idp-clip-search]")) {
     runtime?.store.setState({ ui: { clipBankSearchQuery: target.value || "" } });
+    return;
+  }
+  if (target?.matches?.("[data-player-profile-scouting-metric-search]")) {
+    const selectionKey = target.dataset.playerProfileScoutingMetricSearch || "";
+    const currentQueries = runtime?.store.getState?.()?.ui?.scoutingMetricPickerSearchQueries || {};
+    runtime?.store.setState({
+      ui: {
+        openScoutingMetricPickerKey: selectionKey,
+        scoutingMetricPickerSearchQueries: {
+          ...currentQueries,
+          [selectionKey]: target.value || "",
+        },
+      },
+    });
     return;
   }
   if (target?.matches?.("[data-idp-search]")) {

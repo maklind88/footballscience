@@ -46,6 +46,7 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
       showMetricPicker: Boolean(renderOptions.showMetricPicker),
       includeDatabaseMetricChoices: Boolean(renderOptions.includeDatabaseMetricChoices),
       metricPickerOpen: Boolean(renderOptions.metricPickerOpen),
+      metricPickerSearchQuery: String(renderOptions.metricPickerSearchQuery || "").trim(),
     };
   }
 
@@ -99,10 +100,33 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
     return selectedAxes.slice(0, maxMetricCount);
   }
 
+  function getMetricDescription(axis = {}) {
+    const metric = axis.metric || {};
+    return [
+      metric.description,
+      metric.label && metric.label !== axis.label ? metric.label : "",
+      metric.unit ? `Unit: ${metric.unit}` : "",
+    ].map((value) => String(value || "").trim()).filter(Boolean).join(" · ");
+  }
+
+  function getMetricSearchText(axis = {}) {
+    return [
+      axis.label,
+      axis.metricId,
+      axis.metric?.label,
+      axis.metric?.description,
+      axis.metric?.unit,
+      axis.direction === "lower" ? "low is good" : "",
+    ].join(" ").toLowerCase();
+  }
+
   function renderMetricPicker(availableAxes = [], selectedAxes = [], renderOptions = {}) {
     if (!renderOptions.showMetricPicker || availableAxes.length <= renderOptions.maxMetricCount) return "";
     const selectedMetricIds = new Set(selectedAxes.map((axis) => axis.metricId));
     const selectionKey = escapeHtml(renderOptions.metricSelectionKey || "player-profile");
+    const searchQuery = String(renderOptions.metricPickerSearchQuery || "").trim();
+    const normalizedSearchQuery = searchQuery.toLowerCase();
+    const visibleAxes = availableAxes.filter((axis) => !normalizedSearchQuery || getMetricSearchText(axis).includes(normalizedSearchQuery));
     return `
       <details class="player-profile-scouting-metric-picker" ${renderOptions.metricPickerOpen ? "open" : ""}>
         <summary>
@@ -110,22 +134,46 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
           <strong>${escapeHtml(selectedAxes.length)}/${escapeHtml(renderOptions.maxMetricCount)}</strong>
         </summary>
         <div class="player-profile-scouting-metric-picker-menu" role="group" aria-label="Choose radar metrics">
+          <label class="player-profile-scouting-metric-search">
+            <span>Search metrics</span>
+            <input
+              type="search"
+              value="${escapeHtml(searchQuery)}"
+              placeholder="Search metric, value or role"
+              data-player-profile-scouting-metric-search="${selectionKey}"
+            >
+          </label>
+          <p class="player-profile-scouting-metric-picker-hint">Tick up to ${escapeHtml(renderOptions.maxMetricCount)} metrics for this player's radar.</p>
           ${availableAxes
             .map(
-              (axis) => `
-                <label>
+              (axis) => {
+                const isVisible = visibleAxes.includes(axis);
+                const description = getMetricDescription(axis);
+                return `
+                <label
+                  class="player-profile-scouting-metric-option"
+                  data-player-profile-scouting-metric-row
+                  data-player-profile-scouting-metric-search-text="${escapeHtml(getMetricSearchText(axis))}"
+                  ${isVisible ? "" : "hidden"}
+                >
                   <input
                     type="checkbox"
                     data-player-profile-scouting-metric-toggle="${escapeHtml(axis.metricId)}"
                     data-player-profile-scouting-metric-key="${selectionKey}"
                     ${selectedMetricIds.has(axis.metricId) ? "checked" : ""}
                   >
-                  <span>${escapeHtml(axis.label)}</span>
-                  <small>P${escapeHtml(axis.percentile)}</small>
+                  <span>
+                    <span class="player-profile-scouting-metric-name">${escapeHtml(axis.label)}</span>
+                    <small>${escapeHtml(description || axis.metric?.label || axis.metricId)}</small>
+                    <em>Current value: ${escapeHtml(formatPlayerProfileScoutingNumber(axis.value))}${axis.direction === "lower" ? " / low is good" : ""}</em>
+                  </span>
+                  <b>P${escapeHtml(axis.percentile)}</b>
                 </label>
-              `
+              `;
+              }
             )
             .join("")}
+          ${visibleAxes.length ? "" : `<div class="player-profile-scouting-metric-picker-empty">No metrics match this search.</div>`}
         </div>
       </details>
     `;

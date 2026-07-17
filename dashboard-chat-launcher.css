@@ -103,8 +103,9 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher .dashboard-chat-header-badge.is-unread {
   position: absolute !important;
-  top: -0.16rem !important;
-  right: -0.16rem !important;
+  top: auto !important;
+  right: -0.22rem !important;
+  bottom: -0.1rem !important;
   min-width: 1.08rem !important;
   max-width: 1.58rem !important;
   height: 1.08rem !important;
@@ -126,8 +127,8 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-dot {
   position: absolute !important;
-  top: 0.24rem !important;
-  right: 0.24rem !important;
+  top: 0.2rem !important;
+  right: 0.2rem !important;
   bottom: auto !important;
   width: 0.42rem !important;
   height: 0.42rem !important;

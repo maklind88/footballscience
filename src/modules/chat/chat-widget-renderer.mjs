@@ -2173,7 +2173,8 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
               <span class="dashboard-chat-launcher-icon" aria-hidden="true">
                 ${chatNavIconMarkup}
               </span>
-              ${unreadCount ? `<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">${escapeHtml(launcherUnreadDisplay)}</span>` : `<span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>`}
+              <span class="dashboard-chat-launcher-dot" aria-hidden="true"></span>
+              ${unreadCount ? `<span class="dashboard-chat-header-badge is-unread" aria-hidden="true">${escapeHtml(launcherUnreadDisplay)}</span>` : ""}
             </button>
           `
       }

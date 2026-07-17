@@ -466,6 +466,16 @@ async function handleVisualUpload(activeRuntime = {}, file = null) {
 
 export function handleIdpPlayerBoardInput(event, activeRuntime = {}) {
   const target = event?.target;
+  const exerciseSearch = target?.closest?.("[data-idp-board-exercise-search]");
+  if (exerciseSearch) {
+    activeRuntime.store?.setState?.({
+      ui: {
+        idpPlayerBoardExerciseSearchQuery: exerciseSearch.value || "",
+        idpPlayerBoardExerciseVisibleCount: 3,
+      },
+    });
+    return true;
+  }
   const titleField = target?.closest?.("[data-idp-board-title]");
   if (titleField) {
     updateExerciseField(activeRuntime, "title", titleField.value);
@@ -550,6 +560,10 @@ export function handleIdpPlayerBoardClick(event, activeRuntime = {}) {
   if (callIfClosest("[data-session-close-visual-preview]", () => setPreviewOpen(activeRuntime, false))) return true;
   if (callIfClosest("[data-idp-board-new]", () => startNewExercise(activeRuntime))) return true;
   if (callIfClosest("[data-idp-board-select]", (el) => selectExercise(activeRuntime, el.dataset.idpBoardSelect || ""))) return true;
+  if (callIfClosest("[data-idp-board-load-more]", () => {
+    const current = Number(activeRuntime.store?.getState?.()?.ui?.idpPlayerBoardExerciseVisibleCount || 3);
+    activeRuntime.store?.setState?.({ ui: { idpPlayerBoardExerciseVisibleCount: Math.max(3, current + 3) } });
+  })) return true;
   if (callIfClosest("[data-idp-board-open], [data-session-open-tacticalboard]", () => setBoardOpen(activeRuntime, true))) return true;
   if (callIfClosest("[data-session-close-tacticalboard]", () => setBoardOpen(activeRuntime, false))) return true;
   if (callIfClosest("[data-idp-board-save]", () => saveCurrentExercise(activeRuntime))) return true;

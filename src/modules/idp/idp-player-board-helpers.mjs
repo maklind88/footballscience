@@ -43,6 +43,8 @@ export const idpPlayerBoardUiDefaults = Object.freeze({
   idpPlayerBoardLastPlacementClick: null,
   idpPlayerBoardLastPlacement: null,
   idpPlayerBoardSelectedInterventionId: "",
+  idpPlayerBoardExerciseSearchQuery: "",
+  idpPlayerBoardExerciseVisibleCount: 3,
 });
 
 export function normalizePositiveInteger(value, fallback = 1) {

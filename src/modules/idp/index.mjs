@@ -159,11 +159,16 @@ function captureSearchFocus(activeRuntime = runtime) {
   const activeElement = getDocument(activeRuntime)?.activeElement;
   const isOverviewSearch = Boolean(activeElement?.matches?.("[data-idp-search]"));
   const isClipSearch = Boolean(activeElement?.matches?.("[data-idp-clip-search]"));
-  if (!isOverviewSearch && !isClipSearch) return null;
+  const isPlayerBoardExerciseSearch = Boolean(activeElement?.matches?.("[data-idp-board-exercise-search]"));
+  if (!isOverviewSearch && !isClipSearch && !isPlayerBoardExerciseSearch) return null;
   const value = activeElement.value || "";
   return {
-    preserveValue: isClipSearch,
-    selector: isClipSearch ? "[data-idp-clip-search]" : "[data-idp-search]",
+    preserveValue: isClipSearch || isPlayerBoardExerciseSearch,
+    selector: isClipSearch
+      ? "[data-idp-clip-search]"
+      : isPlayerBoardExerciseSearch
+        ? "[data-idp-board-exercise-search]"
+        : "[data-idp-search]",
     end: Number.isInteger(activeElement.selectionEnd) ? activeElement.selectionEnd : value.length,
     start: Number.isInteger(activeElement.selectionStart) ? activeElement.selectionStart : value.length,
     value,

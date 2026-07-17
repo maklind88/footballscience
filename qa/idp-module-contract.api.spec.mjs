@@ -678,6 +678,68 @@ test("idp player board renders every supported placement material after persiste
   expect(playerBoardHtml.indexOf("data-idp-board-open")).toBeLessThan(playerBoardHtml.indexOf("idp-player-board-pitch-preview"));
 });
 
+test("idp player board exercise bank supports search and progressive loading", () => {
+  const interventions = Array.from({ length: 5 }, (_, index) => ({
+    id: `intervention-${index + 1}`,
+    rowVersion: 1,
+    playerId: "player-1",
+    focusId: "focus-1",
+    title: `Exercise ${index + 1}`,
+    objective: index === 4 ? "Pressing recovery detail" : `Objective ${index + 1}`,
+    boardState: {
+      tacticalFrames: [{ id: "frame-1", label: "Frame 1", elements: [] }],
+      tacticalElements: [],
+    },
+    status: "active",
+  }));
+  const baseState = {
+    dashboardPlayers: [],
+    ui: {
+      selectedPlayerId: "player-1",
+      profileView: "player-board",
+      idpPlayerBoardSelectedInterventionId: "intervention-1",
+    },
+    playerDetail: {
+      profile: { playerId: "player-1", playerName: "Test Player", status: "active" },
+      focuses: [{ id: "focus-1", title: "Current focus", status: "Active" }],
+      interventions,
+      clipBank: [],
+      evidence: [],
+      reviews: [],
+      nextActions: [],
+      milestones: [],
+      ownership: [],
+      goals: [],
+      goalCheckins: [],
+    },
+  };
+  const playerBoardHtml = renderIdpWorkspace(baseState, { canEdit: true, users: [] });
+
+  expect(playerBoardHtml).toContain("data-idp-board-exercise-search");
+  expect(playerBoardHtml).toContain("Search exercises");
+  expect(playerBoardHtml).toContain("Exercise 1");
+  expect(playerBoardHtml).toContain("Exercise 2");
+  expect(playerBoardHtml).toContain("Exercise 3");
+  expect(playerBoardHtml).not.toContain("Exercise 4");
+  expect(playerBoardHtml).not.toContain("Exercise 5");
+  expect(playerBoardHtml).toContain("data-idp-board-load-more");
+  expect(playerBoardHtml).toContain("2 more available");
+
+  const searchedHtml = renderIdpWorkspace({
+    ...baseState,
+    ui: {
+      ...baseState.ui,
+      idpPlayerBoardExerciseSearchQuery: "pressing",
+      idpPlayerBoardSelectedInterventionId: "intervention-5",
+    },
+  }, { canEdit: true, users: [] });
+
+  expect(searchedHtml).toContain('value="pressing"');
+  expect(searchedHtml).toContain("Exercise 5");
+  expect(searchedHtml).not.toContain("Exercise 1");
+  expect(searchedHtml).not.toContain("data-idp-board-load-more");
+});
+
 test("idp player board deletion archives the selected exercise with row-version protection", async () => {
   const player = {
     id: "player-1",

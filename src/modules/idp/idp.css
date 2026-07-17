@@ -5671,6 +5671,39 @@ body.is-dark-mode .idp-river-detail-value {
   opacity: .42;
 }
 
+.idp-player-board-bank-search {
+  display: grid;
+  gap: 5px;
+}
+
+.idp-player-board-bank-search span {
+  color: #667085;
+  font-size: .66rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.idp-player-board-bank-search input {
+  background: rgba(255, 255, 255, .88);
+  border: 1px solid rgba(16, 24, 40, .08);
+  border-radius: 999px;
+  color: #101828;
+  font-size: .82rem;
+  font-weight: 760;
+  min-height: 36px;
+  outline: none;
+  padding: 0 13px;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+  width: 100%;
+}
+
+.idp-player-board-bank-search input:focus {
+  background: #fff;
+  border-color: rgba(15, 118, 110, .28);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, .09);
+}
+
 .idp-player-board-bank-list {
   display: grid;
   gap: 8px;
@@ -5704,6 +5737,15 @@ body.is-dark-mode .idp-river-detail-value {
 
 .idp-player-board-bank-list button.is-active {
   background: rgba(236, 253, 245, .92);
+}
+
+.idp-player-board-bank-list .idp-player-board-bank-more {
+  align-items: center;
+  background: rgba(248, 250, 252, .86);
+  border-style: dashed;
+  display: flex;
+  justify-content: space-between;
+  min-height: 44px;
 }
 
 .idp-player-board-bank-list span,

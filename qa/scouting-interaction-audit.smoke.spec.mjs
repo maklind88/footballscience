@@ -172,6 +172,49 @@ async function waitForScoutingRows(page, { timeout = 60_000 } = {}) {
   ).toBeEnabled({ timeout: 15_000 });
 }
 
+async function startScoutingDatabaseLoad(page) {
+  const statusHandle = await page.waitForFunction(
+    () => {
+      const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
+      const isVisible = (node) => {
+        if (!node) {
+          return false;
+        }
+        const rect = node.getBoundingClientRect();
+        const style = window.getComputedStyle(node);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      };
+      const hasRows = Array.from(workspace?.querySelectorAll("[data-open-scouting-record]") || []).some(
+        (node) => !node.disabled && isVisible(node)
+      );
+      if (hasRows) {
+        return "loaded";
+      }
+      if (isVisible(workspace?.querySelector(".scouting-database-loader"))) {
+        return "loading";
+      }
+      const loadTrigger = Array.from(
+        workspace?.querySelectorAll("[data-scouting-load-database], [data-scouting-retry-database]") || []
+      ).find((node) => !node.disabled && isVisible(node));
+      if (!loadTrigger) {
+        return "";
+      }
+      loadTrigger.click();
+      return "clicked";
+    },
+    null,
+    { timeout: 15_000 }
+  );
+  try {
+    const status = await statusHandle.jsonValue();
+    expect(["clicked", "loading", "loaded"]).toContain(status);
+  } finally {
+    if (typeof statusHandle.dispose === "function") {
+      await statusHandle.dispose();
+    }
+  }
+}
+
 async function ensureDatabaseRows(page, results) {
   await clickScoutingTab(page, results, "database", 1000, { phase: "setup" });
   await measure(
@@ -180,14 +223,7 @@ async function ensureDatabaseRows(page, results) {
     "load database",
     10_000,
     async () => {
-      await page.evaluate(() => {
-        const button = Array.from(document.querySelectorAll("[data-scouting-load-database], [data-scouting-retry-database]")).find((node) => {
-          const rect = node.getBoundingClientRect();
-          const style = window.getComputedStyle(node);
-          return rect.width && rect.height && style.display !== "none" && style.visibility !== "hidden" && !node.disabled;
-        });
-        button?.click();
-      });
+      await startScoutingDatabaseLoad(page);
     },
     async () => {
       await waitForScoutingRows(page, { timeout: interactionBudget(45_000) });

@@ -10,6 +10,8 @@ export const idpPlayerBoardPitchModeOptions = Object.freeze([
   { key: "goalkeeper", label: "Goalkeeper box", dimensions: { x: 65, y: 33 }, landscape: false },
 ]);
 
+export const IDP_PLAYER_BOARD_NEW_EXERCISE_ID = "new-idp-player-board-exercise";
+
 const idpPlayerBoardPitchModeKeys = new Set(idpPlayerBoardPitchModeOptions.map((option) => option.key));
 
 export const idpPlayerBoardHelpers = createSessionPlannerTacticalHelpers({
@@ -40,6 +42,7 @@ export const idpPlayerBoardUiDefaults = Object.freeze({
   idpPlayerBoardSnapEnabled: true,
   idpPlayerBoardLastPlacementClick: null,
   idpPlayerBoardLastPlacement: null,
+  idpPlayerBoardSelectedInterventionId: "",
 });
 
 function normalizeText(value = "", fallback = "") {
@@ -68,6 +71,12 @@ export function activeIdpFocus(detail = {}) {
   return (Array.isArray(detail.focuses) ? detail.focuses : []).find((focus) =>
     ["Active", "Needs Evidence", "Ready For Review", "Reviewed"].includes(focus.status)
   ) || detail.focuses?.[0] || null;
+}
+
+export function listIdpPlayerBoardInterventions(detail = {}) {
+  return normalizeBoardArray(detail.interventions)
+    .filter((item) => item && !["archived", "deleted"].includes(String(item.status || "").toLowerCase()))
+    .sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
 }
 
 export function normalizeIdpPlayerBoardPitchMode(value = "full") {
@@ -205,19 +214,24 @@ export function normalizeIdpPlayerBoardState(boardState = {}, profile = {}) {
   };
 }
 
-export function findIdpPlayerBoardIntervention(detail = {}) {
+export function findIdpPlayerBoardIntervention(detail = {}, options = {}) {
   const focus = activeIdpFocus(detail);
   const focusId = normalizeText(focus?.id);
-  const candidates = normalizeBoardArray(detail.interventions)
-    .filter((item) => item && !["archived", "deleted"].includes(String(item.status || "").toLowerCase()))
-    .sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
+  const selectedInterventionId = normalizeText(options.selectedInterventionId);
+  const candidates = listIdpPlayerBoardInterventions(detail);
+  if (selectedInterventionId && selectedInterventionId !== IDP_PLAYER_BOARD_NEW_EXERCISE_ID) {
+    const selected = candidates.find((item) => item.id === selectedInterventionId);
+    if (selected) return selected;
+  }
   return candidates.find((item) => focusId && item.focusId === focusId) || candidates[0] || null;
 }
 
 export function buildIdpPlayerBoardBlock(detail = {}, options = {}) {
   const profile = detail.profile || {};
   const focus = activeIdpFocus(detail);
-  const intervention = options.intervention || findIdpPlayerBoardIntervention(detail);
+  const selectedInterventionId = normalizeText(options.selectedInterventionId);
+  const forceDraft = Boolean(options.forceDraft) || selectedInterventionId === IDP_PLAYER_BOARD_NEW_EXERCISE_ID;
+  const intervention = forceDraft ? null : options.intervention || findIdpPlayerBoardIntervention(detail, { selectedInterventionId });
   const boardState = normalizeIdpPlayerBoardState(intervention?.boardState || {}, profile);
   const fallbackTitle = normalizeText(focus?.title, "") || `${normalizeText(profile.playerName, "Player")} Player Board`;
   return {

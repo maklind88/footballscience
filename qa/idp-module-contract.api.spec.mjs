@@ -193,7 +193,10 @@ test("idp player board interventions remain server-owned and isolated from Sessi
   expect(boardRenderer).toContain("createSessionPlannerVisualRenderer");
   expect(boardRenderer).toContain("data-idp-board-open");
   expect(boardRenderer).toContain("data-idp-board-save");
+  expect(boardRenderer).toContain("data-idp-board-new");
+  expect(boardRenderer).toContain("idp-player-board-exercise-bank");
   expect(boardRuntime).toContain("createSessionPlannerTacticalController");
+  expect(boardRuntime).toContain("data-idp-board-select");
   expect(boardRuntime).toContain("persistIdpPlayerBoardDraft");
   expect(boardRuntime).toContain("savePlayerBoard");
   expect(idpCss).toContain("idp-profile-player-board-page");
@@ -704,8 +707,13 @@ test("idp renderer separates the overview from the player development profile", 
   expect(playerBoardHtml).toContain('data-idp-profile-view="player-board"');
   expect(playerBoardHtml).toContain("idp-profile-player-board-page");
   expect(playerBoardHtml).toContain("idp-player-board-panel");
+  expect(playerBoardHtml).toContain("idp-player-board-focus-card");
+  expect(playerBoardHtml).toContain("idp-player-board-exercise-bank");
+  expect(playerBoardHtml).toContain("data-idp-board-new");
   expect(playerBoardHtml).toContain("data-idp-board-open");
-  expect(playerBoardHtml).toContain("data-idp-board-save");
+  expect(playerBoardHtml).not.toContain("No saved Player Board yet");
+  expect(playerBoardHtml).not.toContain("Save board");
+  expect(playerBoardHtml).not.toContain("data-idp-board-save");
   expect(playerBoardHtml).not.toContain("data-idp-player-board-handout-layer");
 
   const clipBankHtml = renderIdpWorkspace({

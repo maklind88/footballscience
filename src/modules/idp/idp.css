@@ -5424,28 +5424,206 @@ body.is-dark-mode .idp-river-detail-value {
   box-shadow: 0 24px 70px rgba(16, 24, 40, .08);
   display: grid;
   gap: 16px;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 34rem);
+  grid-template-columns: minmax(18rem, .95fr) minmax(320px, 34rem);
   padding: clamp(18px, 2vw, 28px);
+}
+
+.idp-player-board-sidebar {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
 }
 
 .idp-player-board-head {
   align-self: start;
-  display: block;
-  max-width: 26rem;
-  padding-top: 2px;
+  display: grid;
+  gap: 7px;
+  max-width: 34rem;
 }
 
-.idp-player-board-head span,
-.idp-player-board-head small {
+.idp-player-board-head span {
   color: #667085;
   display: block;
   font-size: .72rem;
   font-weight: 900;
   letter-spacing: 0;
+  text-transform: uppercase;
 }
 
-.idp-player-board-head span {
+.idp-player-board-head strong {
+  color: #101828;
+  display: block;
+  font-size: clamp(1.75rem, 3vw, 3rem);
+  letter-spacing: 0;
+  line-height: .95;
+}
+
+.idp-player-board-head small {
+  color: #667085;
+  display: block;
+  font-size: .88rem;
+  font-weight: 780;
+  letter-spacing: 0;
+  line-height: 1.35;
+  max-width: 34rem;
+}
+
+.idp-player-board-focus-card,
+.idp-player-board-exercise-bank {
+  background: linear-gradient(180deg, rgba(248, 250, 252, .96), rgba(255, 255, 255, .94));
+  border: 1px solid rgba(16, 24, 40, .08);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .75);
+  padding: 16px;
+}
+
+.idp-player-board-focus-card {
+  border-left: 4px solid #0f766e;
+  display: grid;
+  gap: 10px;
+}
+
+.idp-player-board-focus-card span,
+.idp-player-board-bank-head span,
+.idp-player-board-stage-head span {
+  color: #667085;
+  display: block;
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: 0;
   text-transform: uppercase;
+}
+
+.idp-player-board-focus-card strong {
+  color: #101828;
+  display: block;
+  font-size: clamp(1.15rem, 1.55vw, 1.55rem);
+  letter-spacing: 0;
+  line-height: 1.08;
+}
+
+.idp-player-board-focus-card p {
+  color: #475467;
+  font-size: .88rem;
+  font-weight: 760;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.idp-player-board-focus-meta,
+.idp-player-board-stage-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.idp-player-board-focus-meta small,
+.idp-player-board-stage-meta small {
+  background: rgba(15, 118, 110, .08);
+  border: 1px solid rgba(15, 118, 110, .12);
+  border-radius: 999px;
+  color: #0f766e;
+  font-size: .73rem;
+  font-weight: 850;
+  letter-spacing: 0;
+  padding: 5px 9px;
+}
+
+.idp-player-board-exercise-bank {
+  display: grid;
+  gap: 12px;
+}
+
+.idp-player-board-bank-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.idp-player-board-bank-head strong {
+  color: #101828;
+  display: block;
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.idp-player-board-bank-head button {
+  background: #101828;
+  border: 1px solid #101828;
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  font-size: .78rem;
+  font-weight: 850;
+  min-height: 34px;
+  padding: 0 13px;
+  white-space: nowrap;
+}
+
+.idp-player-board-bank-head button:disabled {
+  cursor: default;
+  opacity: .42;
+}
+
+.idp-player-board-bank-list {
+  display: grid;
+  gap: 8px;
+}
+
+.idp-player-board-bank-list button,
+.idp-player-board-bank-empty {
+  background: rgba(255, 255, 255, .86);
+  border: 1px solid rgba(16, 24, 40, .08);
+  border-radius: 14px;
+  color: #101828;
+  display: grid;
+  gap: 3px;
+  min-height: 64px;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.idp-player-board-bank-list button {
+  cursor: pointer;
+}
+
+.idp-player-board-bank-list button:hover,
+.idp-player-board-bank-list button:focus-visible,
+.idp-player-board-bank-list button.is-active {
+  border-color: rgba(15, 118, 110, .3);
+  box-shadow: 0 16px 34px rgba(15, 118, 110, .12);
+  outline: none;
+}
+
+.idp-player-board-bank-list button.is-active {
+  background: rgba(236, 253, 245, .92);
+}
+
+.idp-player-board-bank-list span,
+.idp-player-board-bank-empty span {
+  font-size: .88rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.idp-player-board-bank-list small,
+.idp-player-board-bank-empty small {
+  color: #667085;
+  font-size: .75rem;
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+.idp-player-board-bank-list em {
+  color: #0f766e;
+  font-size: .7rem;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0;
 }
 
 .idp-player-board-visual-stack {
@@ -5507,11 +5685,57 @@ body.is-dark-mode .idp-river-detail-value {
   padding: clamp(10px, 1.35vw, 16px);
 }
 
-.idp-player-board-stage .session-visual-board {
+.idp-player-board-stage-head {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin: 0 0 12px;
+}
+
+.idp-player-board-stage-head strong {
+  color: #101828;
+  display: block;
+  font-size: clamp(1rem, 1.35vw, 1.3rem);
+  line-height: 1.05;
+}
+
+.idp-player-board-pitch-preview {
+  position: relative;
+}
+
+.idp-player-board-pitch-preview .session-visual-board {
   margin: 0 0 0 auto;
   max-height: none;
-  min-height: clamp(340px, 48vh, 620px);
-  width: min(100%, 25rem);
+  min-height: clamp(280px, 42vh, 520px);
+  width: min(100%, 29rem);
+}
+
+.idp-player-board-preview-hint {
+  background: rgba(16, 24, 40, .86);
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 16px;
+  bottom: 16px;
+  box-shadow: 0 18px 42px rgba(16, 24, 40, .22);
+  color: #fff;
+  display: grid;
+  gap: 3px;
+  left: 16px;
+  max-width: 220px;
+  padding: 11px 13px;
+  position: absolute;
+}
+
+.idp-player-board-preview-hint strong {
+  font-size: .88rem;
+  line-height: 1.1;
+}
+
+.idp-player-board-preview-hint span {
+  color: rgba(255, 255, 255, .75);
+  font-size: .74rem;
+  font-weight: 780;
+  line-height: 1.25;
 }
 
 .idp-player-board-empty {
@@ -5545,6 +5769,29 @@ body.is-dark-mode .idp-river-detail-value {
   z-index: 1200;
 }
 
+.idp-player-board-editor-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.idp-player-board-editor-save {
+  background: #101828;
+  border: 1px solid #101828;
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  font-size: .84rem;
+  font-weight: 900;
+  min-height: 2.4rem;
+  padding: 0 1rem;
+}
+
+.idp-player-board-editor-save:disabled {
+  cursor: default;
+  opacity: .42;
+}
+
 @media (max-width: 900px) {
   .idp-player-board-panel {
     grid-template-columns: 1fr;
@@ -5564,9 +5811,9 @@ body.is-dark-mode .idp-river-detail-value {
     justify-content: flex-start;
   }
 
-  .idp-player-board-stage .session-visual-board {
+  .idp-player-board-pitch-preview .session-visual-board {
     margin: 0 auto;
-    min-height: 520px;
+    min-height: 420px;
   }
 }
 

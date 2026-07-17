@@ -439,6 +439,7 @@ export function createIdpActions({ store, api, context = {} }) {
         idpPlayerBoardPreviewOpen: false,
         idpPlayerBoardSelectedElementId: "",
         idpPlayerBoardSelectedElementIds: [],
+        idpPlayerBoardSelectedInterventionId: "",
         message: "Player Board saved.",
       },
     });

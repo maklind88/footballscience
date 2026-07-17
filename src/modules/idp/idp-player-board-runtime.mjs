@@ -8,6 +8,7 @@ import {
   buildIdpPlayerBoardBlock,
   createBoardStateFromBlock,
   getIdpPlayerBoardUiState,
+  IDP_PLAYER_BOARD_NEW_EXERCISE_ID,
   idpPlayerBoardHelpers,
 } from "./idp-player-board-helpers.mjs";
 import {
@@ -45,6 +46,7 @@ const STORE_BACKED_IDP_PLAYER_BOARD_KEYS = new Set([
   "idpPlayerBoardLineWidth",
   "idpPlayerBoardLineStyle",
   "idpPlayerBoardSnapEnabled",
+  "idpPlayerBoardSelectedInterventionId",
 ]);
 
 function createTransientIdpPlayerBoardUi() {
@@ -199,9 +201,12 @@ function persistBlockToDetail(activeRuntime = {}, block = null, options = {}) {
 function getCurrentBlock(activeRuntime = {}) {
   const storeDetail = activeRuntime.store?.getState?.()?.playerDetail || {};
   const detail = getDraftDetailForCurrentPlayer(activeRuntime, storeDetail) || storeDetail;
-  if (!activeRuntime.idpPlayerBoardActiveBlock || activeRuntime.idpPlayerBoardActivePlayerId !== detail.profile?.playerId) {
-    activeRuntime.idpPlayerBoardActiveBlock = buildIdpPlayerBoardBlock(detail);
-    activeRuntime.idpPlayerBoardActivePlayerId = detail.profile?.playerId || "";
+  const ui = getIdpPlayerBoardUiState(getIdpPlayerBoardRuntimeUi(activeRuntime));
+  const selectedInterventionId = ui.idpPlayerBoardSelectedInterventionId || "";
+  const cacheKey = `${detail.profile?.playerId || ""}:${selectedInterventionId}`;
+  if (!activeRuntime.idpPlayerBoardActiveBlock || activeRuntime.idpPlayerBoardActivePlayerId !== cacheKey) {
+    activeRuntime.idpPlayerBoardActiveBlock = buildIdpPlayerBoardBlock(detail, { selectedInterventionId });
+    activeRuntime.idpPlayerBoardActivePlayerId = cacheKey;
   }
   return activeRuntime.idpPlayerBoardActiveBlock;
 }
@@ -353,6 +358,35 @@ function setPreviewOpen(activeRuntime = {}, isOpen = false) {
   });
 }
 
+function selectExercise(activeRuntime = {}, interventionId = "") {
+  closeTransientTacticalState(activeRuntime);
+  activeRuntime.idpPlayerBoardActiveBlock = null;
+  activeRuntime.idpPlayerBoardActivePlayerId = "";
+  activeRuntime.store?.setState?.({
+    ui: {
+      idpPlayerBoardSelectedInterventionId: interventionId || "",
+      idpPlayerBoardPreviewOpen: false,
+      idpPlayerBoardOpen: false,
+    },
+  });
+}
+
+function startNewExercise(activeRuntime = {}) {
+  const storeDetail = activeRuntime.store?.getState?.()?.playerDetail || {};
+  closeTransientTacticalState(activeRuntime);
+  activeRuntime.idpPlayerBoardActiveBlock = buildIdpPlayerBoardBlock(storeDetail, {
+    selectedInterventionId: IDP_PLAYER_BOARD_NEW_EXERCISE_ID,
+  });
+  activeRuntime.idpPlayerBoardActivePlayerId = `${storeDetail.profile?.playerId || ""}:${IDP_PLAYER_BOARD_NEW_EXERCISE_ID}`;
+  activeRuntime.store?.setState?.({
+    ui: {
+      idpPlayerBoardSelectedInterventionId: IDP_PLAYER_BOARD_NEW_EXERCISE_ID,
+      idpPlayerBoardPreviewOpen: false,
+      idpPlayerBoardOpen: true,
+    },
+  });
+}
+
 export function persistIdpPlayerBoardDraft(activeRuntime = {}) {
   const block = persistBlockToDetail(activeRuntime, getCurrentBlock(activeRuntime), { syncStore: true }) || getCurrentBlock(activeRuntime);
   return blockToInterventionPatch(block);
@@ -452,6 +486,8 @@ export function handleIdpPlayerBoardClick(event, activeRuntime = {}) {
   }
   if (callIfClosest("[data-idp-board-preview], [data-session-preview-visual]", () => setPreviewOpen(activeRuntime, true))) return true;
   if (callIfClosest("[data-session-close-visual-preview]", () => setPreviewOpen(activeRuntime, false))) return true;
+  if (callIfClosest("[data-idp-board-new]", () => startNewExercise(activeRuntime))) return true;
+  if (callIfClosest("[data-idp-board-select]", (el) => selectExercise(activeRuntime, el.dataset.idpBoardSelect || ""))) return true;
   if (callIfClosest("[data-idp-board-open], [data-session-open-tacticalboard]", () => setBoardOpen(activeRuntime, true))) return true;
   if (callIfClosest("[data-session-close-tacticalboard]", () => setBoardOpen(activeRuntime, false))) return true;
   if (callIfClosest("[data-idp-board-save]", () => activeRuntime.runAction?.(() => activeRuntime.actions.savePlayerBoard(persistIdpPlayerBoardDraft(activeRuntime))))) return true;

@@ -674,6 +674,8 @@ test("idp player board renders every supported placement material after persiste
   expect(playerBoardHtml).toContain("data-idp-board-objective");
   expect(playerBoardHtml).toContain('data-idp-board-delete="intervention-1"');
   expect(playerBoardHtml).toContain('data-idp-board-row-version="1"');
+  expect(playerBoardHtml.indexOf("data-idp-board-preview")).toBeGreaterThan(playerBoardHtml.indexOf("idp-player-board-stage-head"));
+  expect(playerBoardHtml.indexOf("data-idp-board-open")).toBeLessThan(playerBoardHtml.indexOf("idp-player-board-pitch-preview"));
 });
 
 test("idp player board deletion archives the selected exercise with row-version protection", async () => {

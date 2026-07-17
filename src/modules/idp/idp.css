@@ -5744,7 +5744,7 @@ body.is-dark-mode .idp-river-detail-value {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
   justify-content: flex-end;
 }
 
@@ -5755,10 +5755,10 @@ body.is-dark-mode .idp-river-detail-value {
   border-radius: 999px;
   color: #344054;
   cursor: pointer;
-  font-size: .86rem;
+  font-size: .78rem;
   font-weight: 850;
-  min-height: 40px;
-  padding: 0 18px;
+  min-height: 34px;
+  padding: 0 14px;
 }
 
 .idp-player-board-actions button:hover,
@@ -5793,9 +5793,9 @@ body.is-dark-mode .idp-river-detail-value {
 
 .idp-player-board-stage-head {
   align-items: start;
-  display: flex;
+  display: grid;
   gap: 12px;
-  justify-content: space-between;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   margin: 0 0 12px;
 }
 
@@ -5804,6 +5804,11 @@ body.is-dark-mode .idp-river-detail-value {
   display: block;
   font-size: clamp(1rem, 1.35vw, 1.3rem);
   line-height: 1.05;
+}
+
+.idp-player-board-stage-head .idp-player-board-actions {
+  align-self: start;
+  justify-self: end;
 }
 
 .idp-player-board-pitch-preview {
@@ -6031,8 +6036,16 @@ body.is-dark-mode .idp-player-board-editor-details textarea {
 }
 
 @media (max-width: 560px) {
+  .idp-player-board-stage-head {
+    grid-template-columns: 1fr;
+  }
+
+  .idp-player-board-stage-head .idp-player-board-actions {
+    justify-self: stretch;
+  }
+
   .idp-player-board-actions button {
-    flex: 1 1 100%;
+    flex: 1 1 0;
   }
 
   .idp-player-board-editor-actions {

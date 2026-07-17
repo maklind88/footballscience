@@ -162,7 +162,7 @@ function renderExerciseBank(interventions = [], block = {}, canEdit = false, sel
   `;
 }
 
-function renderBoardStage(renderer, block = {}, hasBoardContent = false) {
+function renderBoardStage(renderer, block = {}, hasBoardContent = false, canEdit = false) {
   const pitchLabel = idpPlayerBoardPitchModeOptions.find((item) => item.key === block.tacticalPitchMode)?.label || "Full pitch";
   const frameCount = Array.isArray(block.tacticalFrames) ? block.tacticalFrames.length : 1;
   const linkedClipCount = Array.isArray(block.boardState?.linkedClipIds) ? block.boardState.linkedClipIds.length : 0;
@@ -176,6 +176,10 @@ function renderBoardStage(renderer, block = {}, hasBoardContent = false) {
         <small>${escapeHtml(pitchLabel)}</small>
         <small>${escapeHtml(String(frameCount))} frame${frameCount === 1 ? "" : "s"}</small>
         <small>${escapeHtml(String(linkedClipCount))} clips</small>
+      </div>
+      <div class="idp-player-board-actions" aria-label="Board actions">
+        <button type="button" data-idp-board-preview ${hasBoardContent ? "" : "disabled"}>Preview</button>
+        <button type="button" data-idp-board-open ${canEdit ? "" : "disabled"}>Edit</button>
       </div>
     </div>
     <div class="idp-player-board-pitch-preview${hasBoardContent ? " has-content" : " is-empty"}">
@@ -272,11 +276,7 @@ export function renderIdpPlayerBoardPage(detail = {}, canEdit = false, ui = {}) 
         </aside>
         <div class="idp-player-board-visual-stack">
           <div class="idp-player-board-stage">
-            ${renderBoardStage(renderer, block, hasBoardContent)}
-          </div>
-          <div class="idp-player-board-actions">
-            <button type="button" data-idp-board-preview ${hasBoardContent ? "" : "disabled"}>Preview</button>
-            <button type="button" data-idp-board-open ${canEdit ? "" : "disabled"}>Edit</button>
+            ${renderBoardStage(renderer, block, hasBoardContent, canEdit)}
           </div>
         </div>
       </article>

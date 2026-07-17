@@ -127,16 +127,16 @@ html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-lau
 
 html body.has-dashboard-chat-widget.is-dashboard-chat-closed .dashboard-chat-launcher-dot {
   position: absolute !important;
-  top: 0.2rem !important;
-  right: 0.2rem !important;
+  top: 0.46rem !important;
+  right: 0.46rem !important;
   bottom: auto !important;
-  width: 0.42rem !important;
-  height: 0.42rem !important;
+  width: 0.32rem !important;
+  height: 0.32rem !important;
   display: block !important;
-  border: 1.5px solid #0b241f !important;
+  border: 0 !important;
   border-radius: 999px !important;
-  background: #34d399 !important;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.82) !important;
+  background: #8dd7c1 !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.54) !important;
   pointer-events: none !important;
 }
 

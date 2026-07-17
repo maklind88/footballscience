@@ -12,6 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const dashboardChatCss = readFileSync(resolve(__dirname, "../dashboard-chat.css"), "utf8");
 const dashboardChatLauncherCss = readFileSync(resolve(__dirname, "../dashboard-chat-launcher.css"), "utf8");
 const dashboardChatCreateCss = readFileSync(resolve(__dirname, "../dashboard-chat-create.css"), "utf8");
+const dashboardChatMessageCss = readFileSync(resolve(__dirname, "../dashboard-chat-message.css"), "utf8");
 const indexSource = readFileSync(resolve(__dirname, "../index.html"), "utf8");
 const appRuntimeSource = readFileSync(resolve(__dirname, "../app-runtime.js"), "utf8");
 const chatPushClientSource = readFileSync(resolve(__dirname, "../src/modules/chat/chat-push-client.mjs"), "utf8");
@@ -1023,6 +1024,9 @@ test("chat composer keeps priority behind message options and renders message bu
   expect(bubbleFooterMarkup).not.toContain("data-dashboard-chat-message-delivery-status");
   expect(result.html).toContain('<div class="dashboard-chat-message-status">');
   expect(result.html).toContain('aria-label="Open emoji picker"');
+  expect(dashboardChatMessageCss).toContain(".dashboard-chat-emoji-menu summary");
+  expect(dashboardChatMessageCss).toContain("width: 2.55rem !important;");
+  expect(dashboardChatMessageCss).toContain("font-size: 1.28rem !important;");
   expect(result.html).toContain('data-dashboard-chat-emoji="👍"');
   expect(appRuntimeSource).toContain('event.target.closest("[data-dashboard-chat-emoji]")');
   expect(appRuntimeSource).toContain("insertDashboardChatComposerEmoji");

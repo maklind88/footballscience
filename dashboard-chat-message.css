@@ -2,13 +2,25 @@
 .dashboard-chat-emoji-menu summary {
   display: inline-grid !important;
   place-items: center !important;
-  min-width: 2.2rem !important;
-  height: 2.2rem !important;
-  min-height: 2.2rem !important;
+  width: 2.55rem !important;
+  min-width: 2.55rem !important;
+  height: 2.55rem !important;
+  min-height: 2.55rem !important;
   padding: 0 !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
   border-radius: 999px !important;
+  background: #fff !important;
   color: #475569 !important;
-  font-size: 0.92rem !important;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1) !important;
+  font-size: 1.28rem !important;
+  line-height: 1 !important;
+}
+
+.dashboard-chat-emoji-menu summary:hover,
+.dashboard-chat-emoji-menu[open] summary {
+  border-color: rgba(31, 111, 84, 0.34) !important;
+  background: #eef8f3 !important;
+  color: #155c45 !important;
 }
 
 .dashboard-chat-emoji-picker {

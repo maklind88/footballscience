@@ -293,19 +293,32 @@ export function createCentralSyncRuntimeService(deps = {}) {
       if (!result?.ok) {
         if (result?.conflict || result?.status === 409) {
           const retryResult = await retryCentralStateWriteAfterConflict(write, result, bridge);
-          setCentralSyncPendingState(write.key, false, write.removed);
           if (retryResult?.ok) {
+            setCentralSyncPendingState(write.key, false, write.removed);
             persistCentralStateServerRevision(write.key, retryResult);
             queueCentralStateStatus("");
             setAutosaveStatusForKey(write.key, "saved", "Saved");
             continue;
           }
+          if (write.key !== sessionPlannerStorageKey) {
+            const hydrated = await bridge.hydrate?.({ forceApply: true }).catch(() => false);
+            if (hydrated) {
+              setCentralSyncPendingState(write.key, false, write.removed);
+              persistCentralStateServerRevision(write.key, {
+                revision: getCentralStateRevisionForKey(write.key),
+              });
+              if (rawGetItem(write.key) === write.value) {
+                queueCentralStateStatus("");
+                setAutosaveStatusForKey(write.key, "saved", "Saved");
+                continue;
+              }
+            }
+          } else {
+            setCentralSyncPendingState(write.key, false, write.removed);
+          }
           queueCentralStateStatus(result?.reason || "Central newer.");
           registerSessionPlannerCentralSyncConflict(write, result);
           setAutosaveStatusForKey(write.key, "issue", "Sync needs attention");
-          if (write.key !== sessionPlannerStorageKey) {
-            await bridge.hydrate?.({ forceApply: true }).catch(() => {});
-          }
           continue;
         }
         for (let retryIndex = index; retryIndex < writes.length; retryIndex += 1) {

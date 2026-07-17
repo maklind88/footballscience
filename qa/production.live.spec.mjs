@@ -428,64 +428,26 @@ async function expectStorageContains(page, key, text) {
 
 async function expectCentralSyncContains(page, key, text) {
   const endpointBase = new URL("/", page.url()).origin;
+  const token = await getLiveAccessToken(page);
 
   await expect
     .poll(
       async () => {
-        const value = await page.evaluate((storageKey) => window.localStorage.getItem(storageKey) || "", key);
-        if (!value.includes(text)) {
+        const localValue = await page.evaluate((storageKey) => window.localStorage.getItem(storageKey) || "", key);
+        if (!localValue.includes(text)) {
           return false;
         }
-
-        const loginResponse = await page.request.post(`${endpointBase}/api/client-config`, {
-          data: {
-            email: process.env.LIVE_QA_USERNAME,
-            password: process.env.LIVE_QA_PASSWORD,
+        const centralResponse = await page.request.get(`${endpointBase}/api/app-state?fresh=1`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-footballscience-fresh-state": "1",
           },
           timeout: 75_000,
         });
-        if (!loginResponse.ok()) {
-          return false;
-        }
-        const loginPayload = await loginResponse.json();
-        const token = loginPayload?.session?.access_token;
-        if (!token) {
-          return false;
-        }
-
-        for (let attempt = 0; attempt < 3; attempt += 1) {
-          const centralResponse = await page.request.get(`${endpointBase}/api/app-state?fresh=1`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "x-footballscience-fresh-state": "1",
-            },
-          });
-          const centralPayload = centralResponse.ok() ? await centralResponse.json() : {};
-          const baseRevision = Number(centralPayload?.metadata?.[key]?.revision) || 0;
-          const saveResponse = await page.request.post(`${endpointBase}/api/app-state`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            data: {
-              key,
-              value,
-              metadata: {
-                baseRevision,
-                revision: baseRevision,
-              },
-            },
-          });
-          if (saveResponse.ok()) {
-            return true;
-          }
-          if (saveResponse.status() !== 409) {
-            return false;
-          }
-        }
-
-        return false;
+        const centralPayload = centralResponse.ok() ? await centralResponse.json() : {};
+        return String(centralPayload?.entries?.[key] || "").includes(text);
       },
-      { timeout: 25_000 }
+      { timeout: 45_000, intervals: [500, 1_000, 2_000, 3_000] }
     )
     .toBe(true);
 }

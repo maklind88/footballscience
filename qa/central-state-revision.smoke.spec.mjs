@@ -409,6 +409,60 @@ test("central hydration preserves local value when central revision is stale aga
   }
 });
 
+test("central hydration acknowledges matching pending values across different hash formats", async ({ browser, baseURL }) => {
+  const matchingValue = createStateValue("Original central sequence");
+  const centralStore = {
+    value: matchingValue,
+    metadata: {
+      ...createMetadata(6, matchingValue),
+      hash: "sha256-server-hash",
+    },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "pending-value-ack", {
+    initScript: ({ key, value, manifestKey }) => {
+      window.localStorage.setItem(key, value);
+      window.localStorage.setItem(
+        manifestKey,
+        JSON.stringify({
+          version: 1,
+          entries: {
+            [key]: {
+              label: "Simulator Sequence",
+              updatedAt: "2026-05-07T12:05:00.000Z",
+              hash: "fnv-local-hash",
+              writes: 1,
+              pendingCentralSync: true,
+            },
+          },
+        })
+      );
+    },
+    initArg: { key: revisionStateKey, value: matchingValue, manifestKey: dataSafetyManifestKey },
+  });
+
+  try {
+    await expect
+      .poll(
+        () =>
+          tab.page.evaluate((manifestKey) => {
+            const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+            const entry = manifest.entries?.["football-simulator-sequence-v1"] || {};
+            return {
+              pendingCentralSync: entry.pendingCentralSync,
+              serverRevision: entry.serverRevision,
+            };
+          }, dataSafetyManifestKey),
+        { timeout: 10_000 }
+      )
+      .toEqual({
+        pendingCentralSync: false,
+        serverRevision: 6,
+      });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
 async function writeRevisionValue(page, title) {
   await page.evaluate(
     ({ key, nextTitle }) => {

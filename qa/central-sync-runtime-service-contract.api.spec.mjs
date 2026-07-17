@@ -24,7 +24,12 @@ function createServiceHarness(options = {}) {
   let syncResultIndex = 0;
   const win = {
     footballScienceCentralState: {
-      getStatus: () => ({ metadata: { "football-session-planner-v1": { revision } } }),
+      getStatus: () => ({
+        metadata: {
+          "football-schedule-v1": { revision },
+          "football-session-planner-v1": { revision },
+        },
+      }),
       isCentralKey: () => true,
       isHydrated: () => hydrated,
       syncKey: async (key, value, syncOptions) => {
@@ -36,8 +41,16 @@ function createServiceHarness(options = {}) {
         }
         return options.syncResult ?? { ok: true, value };
       },
-      hydrate: async () => {
-        syncCalls.push({ hydrate: true });
+      hydrate: async (hydrateOptions) => {
+        syncCalls.push({ hydrate: true, options: hydrateOptions });
+        options.onHydrate?.({
+          manifest,
+          rawValues,
+          setRevision: (nextRevision) => {
+            revision = Number(nextRevision) || 0;
+          },
+        });
+        return options.hydrateResult !== false;
       },
     },
     setTimeout: (callback) => {
@@ -180,6 +193,58 @@ test("central sync runtime persists the acknowledged revision after a conflict r
     pendingCentralSync: false,
     serverRevision: 11,
   });
+});
+
+test("central sync runtime reconciles a non-session conflict before clearing pending state", async () => {
+  const value = "{\"events\":[{\"id\":\"training-1\"}]}";
+  const harness = createServiceHarness({
+    syncResult: { ok: false, conflict: true, status: 409, currentRevision: 10 },
+    onHydrate: ({ setRevision }) => {
+      setRevision(10);
+    },
+  });
+  harness.rawValues.set("football-schedule-v1", value);
+
+  harness.service.queueCentralStateWrite("football-schedule-v1", value);
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([
+    {
+      key: "football-schedule-v1",
+      value,
+      options: { removed: false, baseRevision: 7 },
+    },
+    {
+      hydrate: true,
+      options: { forceApply: true },
+    },
+  ]);
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: false,
+    serverRevision: 10,
+  });
+  expect(harness.autosaveStatuses).toContainEqual(["football-schedule-v1", "saved", "Saved"]);
+});
+
+test("central sync runtime keeps a non-session conflict pending when fresh hydration fails", async () => {
+  const value = "{\"events\":[{\"id\":\"training-1\"}]}";
+  const harness = createServiceHarness({
+    hydrateResult: false,
+    syncResult: { ok: false, conflict: true, status: 409, currentRevision: 10 },
+  });
+  harness.rawValues.set("football-schedule-v1", value);
+
+  harness.service.queueCentralStateWrite("football-schedule-v1", value);
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+    pendingCentralSync: true,
+  });
+  expect(harness.autosaveStatuses).toContainEqual([
+    "football-schedule-v1",
+    "issue",
+    "Sync needs attention",
+  ]);
 });
 
 test("central sync runtime applies newer server values through the injected render boundary", () => {

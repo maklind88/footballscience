@@ -613,7 +613,7 @@ async function getActiveAccessToken() {
     const timestamp = Date.parse(String(value || ""));
     return Number.isFinite(timestamp) ? timestamp : 0;
   }
-  function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, options = {}) {
+  function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, centralValue = "", options = {}) {
     if (key === MEDICAL_TEAM_STATE_KEY) {
       return true;
     }
@@ -642,9 +642,13 @@ async function getActiveAccessToken() {
     }
     const centralHash = String(metadataEntry.hash || "").trim();
     const localPendingHash = String(pendingEntry.hash || "").trim();
-    return Boolean(centralHash && localPendingHash && centralHash === localPendingHash);
+    const centralMatchesLocal =
+      typeof centralValue === "string" &&
+      hasLocalValue &&
+      centralValue === localValue;
+    return centralMatchesLocal || Boolean(centralHash && localPendingHash && centralHash === localPendingHash);
   }
-  function clearCentralPendingSyncFlag(key) {
+  function clearCentralPendingSyncFlag(key, metadataEntry = {}) {
     try {
       const raw = window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY);
       const manifest = raw ? JSON.parse(raw) : null;
@@ -652,7 +656,15 @@ async function getActiveAccessToken() {
       if (!entry?.pendingCentralSync) {
         return;
       }
+      const acknowledgedRevision = Number(metadataEntry?.revision);
+      const currentRevision = Number(entry.serverRevision);
       entry.pendingCentralSync = false;
+      if (Number.isInteger(acknowledgedRevision) && acknowledgedRevision > 0) {
+        entry.serverRevision =
+          Number.isInteger(currentRevision) && currentRevision > acknowledgedRevision
+            ? currentRevision
+            : acknowledgedRevision;
+      }
       manifest.lastCentralError = "";
       manifest.lastCentralSyncedAt = new Date().toISOString();
       window.localStorage.setItem(DATA_SAFETY_MANIFEST_KEY, JSON.stringify(manifest));
@@ -1143,11 +1155,11 @@ async function getActiveAccessToken() {
       Object.entries(normalizedEntries).forEach(([key, value]) => {
         const pendingEntry = pendingEntries[key] || {};
         const metadataEntry = centralState.metadata[key] || {};
-        if (!shouldApplyCentralStateEntry(key, pendingEntry, metadataEntry, options)) {
+        if (!shouldApplyCentralStateEntry(key, pendingEntry, metadataEntry, value, options)) {
           return;
         }
         if (pendingEntry?.pendingCentralSync) {
-          resolvedPendingKeys.push(key);
+          resolvedPendingKeys.push([key, metadataEntry]);
         }
         let valueToApply = value;
         if (key === WORKSPACE_HUB_STATE_KEY) {
@@ -1183,7 +1195,7 @@ async function getActiveAccessToken() {
     } finally {
       window.__footballScienceCentralHydrating = false;
     }
-    resolvedPendingKeys.forEach(clearCentralPendingSyncFlag);
+    resolvedPendingKeys.forEach(([key, metadataEntry]) => clearCentralPendingSyncFlag(key, metadataEntry));
     writeBackEntries.forEach(([key, value]) => {
       syncCentralStateKey(key, value).catch(() => {});
     });

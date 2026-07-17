@@ -16,9 +16,26 @@ function legacyStatus(idp = {}) {
   return "No Active Focus";
 }
 
+function hasMeaningfulPlayerName(value = "") {
+  const name = normalizeText(value, 180).toLowerCase();
+  return Boolean(name && !["player", "unknown player", "unnamed player", "-"].includes(name));
+}
+
+export function hasValidIdpPlayerIdentity(profile = {}) {
+  const normalized = normalizeIdpProfile(profile || {});
+  return Boolean(normalized.playerId && hasMeaningfulPlayerName(normalized.playerName));
+}
+
+function isValidSquadPlayerForIdp(player = {}) {
+  const playerId = normalizeText(player.id || player.playerId || player.profileId, 160);
+  const playerName = normalizeText(player.name || player.playerName || player.displayName, 180);
+  return Boolean(playerId && hasMeaningfulPlayerName(playerName));
+}
+
 export function buildIdpDashboardFromSquadState(playerProfilesState = {}) {
   return asPlayerList(playerProfilesState)
     .filter((player) => player && player.countsInSquad !== false)
+    .filter(isValidSquadPlayerForIdp)
     .map((player) => {
       const playerId = normalizeText(player.id || player.playerId || player.profileId, 160);
       const idp = player.idp || {};
@@ -48,6 +65,7 @@ export function buildIdpDashboardFromSquadState(playerProfilesState = {}) {
 
 export function buildLegacyPlayerDetail(player = {}) {
   const playerId = normalizeText(player.id || player.playerId || player.profileId, 160);
+  if (!isValidSquadPlayerForIdp(player)) return null;
   const idp = player.idp || {};
   const idpInactive = idp.status === "none";
   const profile = normalizeIdpProfile({
@@ -78,5 +96,6 @@ export function buildLegacyPlayerDetail(player = {}) {
 }
 
 export function findSquadPlayer(playerProfilesState = {}, playerId = "") {
-  return asPlayerList(playerProfilesState).find((player) => String(player.id || player.playerId || "") === String(playerId)) || null;
+  return asPlayerList(playerProfilesState)
+    .find((player) => isValidSquadPlayerForIdp(player) && String(player.id || player.playerId || "") === String(playerId)) || null;
 }

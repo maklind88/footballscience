@@ -1,4 +1,9 @@
-import { buildIdpDashboardFromSquadState, buildLegacyPlayerDetail, findSquadPlayer } from "./idp-adapter.mjs";
+import {
+  buildIdpDashboardFromSquadState,
+  buildLegacyPlayerDetail,
+  findSquadPlayer,
+  hasValidIdpPlayerIdentity,
+} from "./idp-adapter.mjs";
 import {
   normalizeIdpClipBankItem,
   normalizeIdpDevelopmentIntervention,
@@ -115,7 +120,7 @@ function normalizeDashboardPayload(payload = {}, fallbackPlayers = []) {
   for (const entry of fallbackPlayers) {
     const normalized = normalizeDashboardEntry({}, entry);
     const playerId = normalized.profile.playerId || normalized.focus?.playerId || "";
-    if (!playerId) continue;
+    if (!playerId || !hasValidIdpPlayerIdentity(normalized.profile)) continue;
     fallbackOrder.push(playerId);
     playerMap.set(playerId, normalized);
   }
@@ -126,7 +131,7 @@ function normalizeDashboardPayload(payload = {}, fallbackPlayers = []) {
     const playerId = dashboardEntryPlayerId(entry);
     const merged = normalizeDashboardEntry(entry, playerId ? playerMap.get(playerId) || {} : {});
     const mergedPlayerId = merged.profile.playerId || merged.focus?.playerId || playerId;
-    if (!mergedPlayerId) continue;
+    if (!mergedPlayerId || !hasValidIdpPlayerIdentity(merged.profile)) continue;
     if (!playerMap.has(mergedPlayerId)) extraOrder.push(mergedPlayerId);
     playerMap.set(mergedPlayerId, merged);
   }

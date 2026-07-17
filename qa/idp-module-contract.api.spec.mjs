@@ -1981,6 +1981,8 @@ test("idp adapter derives read-only fallback from Squad state", () => {
         primaryRole: "ST",
         idp: { status: "none" },
       },
+      { id: "ghost-player", name: "", position: "Squad", ownerId: "coach-1" },
+      { id: "placeholder-player", name: "Player", position: "Squad", ownerId: "coach-1" },
     ],
   });
 
@@ -2047,6 +2049,14 @@ test("idp assignment refresh preserves the full squad roster and player identity
           focus: null,
           evidenceCount: 2,
           newClipCount: 1,
+          nextAction: "Create current focus",
+          overallStatus: "No Active Focus",
+        },
+        {
+          profile: { id: "idp-profile-ghost", player_id: "ghost-player", player_name: "Player", position: "Squad" },
+          focus: null,
+          evidenceCount: 0,
+          newClipCount: 0,
           nextAction: "Create current focus",
           overallStatus: "No Active Focus",
         },

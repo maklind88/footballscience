@@ -655,6 +655,8 @@ test("chat delivery status labels are explicit on own message footers", () => {
   expect(read).toContain("Read by 1");
   expect(read).toContain("dashboard-chat-check-cluster is-read");
   expect(read.match(/class="dashboard-chat-check"/g)).toHaveLength(2);
+  expect(dashboardChatMessageCss).toContain("width: 0.5rem !important;");
+  expect(dashboardChatMessageCss).toContain("margin-left: -0.24rem !important;");
   expect(delivered).toContain('data-dashboard-chat-message-delivery-status="delivered"');
   expect(delivered).toContain("Delivered");
   expect(delivered).toContain("dashboard-chat-check-cluster is-checkmark");

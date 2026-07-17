@@ -98,7 +98,7 @@
 
 .dashboard-chat-widget .dashboard-chat-check {
   display: inline-block !important;
-  width: 0.58rem !important;
+  width: 0.5rem !important;
   color: #94a3b8 !important;
   font-size: 0.72rem !important;
   font-weight: 950 !important;
@@ -106,7 +106,7 @@
 }
 
 .dashboard-chat-widget .dashboard-chat-check + .dashboard-chat-check {
-  margin-left: -0.12rem !important;
+  margin-left: -0.24rem !important;
 }
 
 .dashboard-chat-widget .dashboard-chat-status.is-read .dashboard-chat-check {

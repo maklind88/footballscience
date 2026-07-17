@@ -8,7 +8,13 @@ import { selectedClipIds } from "../src/modules/idp/idp-clip-preview-controller.
 import { renderIdpClipPreviewOverlay } from "../src/modules/idp/idp-clip-bank-renderer.mjs";
 import { normalizeIdpDevelopmentIntervention, normalizeIdpProfile } from "../src/modules/idp/domain/idp.models.mjs";
 import { renderIdpWorkspace } from "../src/modules/idp/idp-renderer.mjs";
-import { bindIdpPlayerBoardEvents, getIdpPlayerBoardRuntimeUi, persistIdpPlayerBoardDraft } from "../src/modules/idp/idp-player-board-runtime.mjs";
+import {
+  bindIdpPlayerBoardEvents,
+  getIdpPlayerBoardRuntimeUi,
+  handleIdpPlayerBoardClick,
+  handleIdpPlayerBoardInput,
+  persistIdpPlayerBoardDraft,
+} from "../src/modules/idp/idp-player-board-runtime.mjs";
 import { createIdpStore } from "../src/modules/idp/idp-state.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -194,11 +200,16 @@ test("idp player board interventions remain server-owned and isolated from Sessi
   expect(boardRenderer).toContain("data-idp-board-open");
   expect(boardRenderer).toContain("data-idp-board-save");
   expect(boardRenderer).toContain("data-idp-board-new");
+  expect(boardRenderer).toContain("data-idp-board-delete");
+  expect(boardRenderer).toContain("data-idp-board-title");
+  expect(boardRenderer).toContain("data-idp-board-objective");
   expect(boardRenderer).toContain("idp-player-board-exercise-bank");
   expect(boardRuntime).toContain("createSessionPlannerTacticalController");
   expect(boardRuntime).toContain("data-idp-board-select");
   expect(boardRuntime).toContain("persistIdpPlayerBoardDraft");
   expect(boardRuntime).toContain("savePlayerBoard");
+  expect(idpRuntime).toContain("deletePlayerBoard");
+  expect(idpRuntime).toContain("data-idp-board-delete");
   expect(idpCss).toContain("idp-profile-player-board-page");
   expect(idpState).toContain("idpPlayerBoardUiDefaults");
   expect(boardHelpers).toContain("idpPlayerBoardOpen");
@@ -277,8 +288,9 @@ test("idp player board tactical modal places objects from single-click canvas co
 
   windowListeners.pointerup({});
 
-  expect(store.getState().playerDetail.interventions).toHaveLength(0);
-  expect(setStateCalls).toBe(0);
+  expect(store.getState().playerDetail.interventions).toHaveLength(1);
+  expect(setStateCalls).toBe(1);
+  expect(canvasWrap.innerHTML).toContain("session-tactical-red-player");
 
   const draftPayload = persistIdpPlayerBoardDraft(runtime);
   const placedElement = draftPayload?.boardState?.tacticalElements?.[0];
@@ -286,7 +298,83 @@ test("idp player board tactical modal places objects from single-click canvas co
   expect(placedElement?.x).toBe(30);
   expect(placedElement?.y).toBe(30);
   expect(store.getState().playerDetail.interventions[0]?.boardState?.tacticalElements?.[0]?.type).toBe("red-player");
-  expect(setStateCalls).toBe(1);
+  expect(setStateCalls).toBe(2);
+});
+
+test("idp player board controller follows the current workspace root after a repaint", () => {
+  const rootListeners = {};
+  const windowListeners = {};
+  const canvasRect = { left: 100, top: 200, width: 400, height: 600 };
+  const canvas = {
+    getBoundingClientRect: () => canvasRect,
+    closest: (selector) => selector === "[data-session-tactical-canvas]" ? canvas : null,
+  };
+  const currentCanvasWrap = { innerHTML: "" };
+  const staleRoot = {
+    querySelector: () => null,
+    querySelectorAll: () => [],
+  };
+  const currentRoot = {
+    addEventListener: (type, listener) => {
+      rootListeners[type] = listener;
+    },
+    removeEventListener: () => {},
+    querySelector: (selector) => selector === "[data-session-tactical-canvas-wrap]" ? currentCanvasWrap : null,
+    querySelectorAll: () => [],
+  };
+  let workspaceRoot = staleRoot;
+  const store = createIdpStore({
+    ui: {
+      idpPlayerBoardOpen: true,
+      idpPlayerBoardTool: "cone",
+      idpPlayerBoardSnapEnabled: false,
+    },
+    playerDetail: {
+      profile: { playerId: "player-1", playerName: "Test Player" },
+      focuses: [{ id: "focus-1", title: "Current focus", status: "active" }],
+      interventions: [],
+    },
+  });
+  const runtime = {
+    context: {
+      canEdit: () => true,
+      ui: {
+        get idpWorkspace() {
+          return workspaceRoot;
+        },
+      },
+      win: {
+        addEventListener: (type, listener) => {
+          windowListeners[type] = listener;
+        },
+        removeEventListener: () => {},
+        document: {},
+        FileReader: class {},
+        Image: class {},
+        prompt: () => "",
+      },
+    },
+    paint: () => {},
+    store,
+  };
+  const colorField = {
+    value: "#f97316",
+    closest: (selector) => selector === "[data-session-tactical-color]" ? colorField : null,
+  };
+
+  expect(handleIdpPlayerBoardInput({ target: colorField }, runtime)).toBe(true);
+  workspaceRoot = currentRoot;
+  bindIdpPlayerBoardEvents(runtime);
+  rootListeners.pointerdown({
+    target: canvas,
+    clientX: 220,
+    clientY: 380,
+    preventDefault() {},
+    stopPropagation() {},
+  });
+  windowListeners.pointerup({});
+
+  expect(currentCanvasWrap.innerHTML).toContain("session-tactical-cone");
 });
 
 test("idp player board tactical modal draws line tools from canvas coordinates without page repainting transient state", () => {
@@ -363,14 +451,299 @@ test("idp player board tactical modal draws line tools from canvas coordinates w
 
   clickCanvas(300, 500);
 
-  expect(store.getState().playerDetail.interventions).toHaveLength(0);
-  expect(setStateCalls).toBe(0);
+  expect(store.getState().playerDetail.interventions).toHaveLength(1);
+  expect(setStateCalls).toBe(1);
 
   const draftPayload = persistIdpPlayerBoardDraft(runtime);
   const drawnElement = draftPayload?.boardState?.tacticalElements?.[0];
   expect(drawnElement).toMatchObject({ type: "pass", x: 30, y: 30, x2: 50, y2: 50 });
   expect(store.getState().playerDetail.interventions[0]?.boardState?.tacticalElements?.[0]?.type).toBe("pass");
-  expect(setStateCalls).toBe(1);
+  expect(setStateCalls).toBe(2);
+});
+
+test("idp player board captures the current drawing before async save work can repaint the editor", async () => {
+  const rootListeners = {};
+  const windowListeners = {};
+  const canvasRect = { left: 100, top: 200, width: 400, height: 600 };
+  const canvas = {
+    getBoundingClientRect: () => canvasRect,
+    closest: (selector) => selector === "[data-session-tactical-canvas]" ? canvas : null,
+  };
+  const canvasWrap = { innerHTML: "" };
+  const root = {
+    addEventListener: (type, listener) => {
+      rootListeners[type] = listener;
+    },
+    removeEventListener: () => {},
+    querySelector: (selector) => selector === "[data-session-tactical-canvas-wrap]" ? canvasWrap : null,
+    querySelectorAll: () => [],
+  };
+  const store = createIdpStore({
+    ui: {
+      idpPlayerBoardOpen: true,
+      idpPlayerBoardTool: "cone",
+      idpPlayerBoardSelectedInterventionId: "new-idp-player-board-exercise",
+      idpPlayerBoardSnapEnabled: false,
+    },
+    playerDetail: {
+      profile: { playerId: "player-1", playerName: "Test Player" },
+      focuses: [{ id: "focus-1", title: "Current focus", status: "Active" }],
+      interventions: [],
+    },
+  });
+  let savePayload = null;
+  let pendingSave = Promise.resolve();
+  const runtime = {
+    actions: {
+      savePlayerBoard: async (payload) => {
+        savePayload = payload;
+      },
+    },
+    context: {
+      canEdit: () => true,
+      ui: { idpWorkspace: root },
+      win: {
+        addEventListener: (type, listener) => {
+          windowListeners[type] = listener;
+        },
+        removeEventListener: () => {},
+        document: {},
+        FileReader: class {},
+        Image: class {},
+        prompt: () => "",
+      },
+    },
+    paint: () => {},
+    store,
+  };
+  runtime.runAction = (action) => {
+    runtime.idpPlayerBoardActiveBlock.tacticalElements = [];
+    pendingSave = Promise.resolve().then(action);
+  };
+
+  bindIdpPlayerBoardEvents(runtime);
+  rootListeners.pointerdown({
+    target: canvas,
+    clientX: 220,
+    clientY: 380,
+    preventDefault() {},
+    stopPropagation() {},
+  });
+  windowListeners.pointerup({});
+
+  const saveTarget = {
+    closest: (selector) => selector === "[data-idp-board-save]" ? saveTarget : null,
+    matches: () => false,
+  };
+  expect(handleIdpPlayerBoardClick({ target: saveTarget, preventDefault() {} }, runtime)).toBe(true);
+  await pendingSave;
+
+  expect(savePayload?.boardState?.tacticalElements).toHaveLength(1);
+  expect(savePayload?.boardState?.tacticalElements?.[0]).toMatchObject({
+    type: "cone",
+    x: 30,
+    y: 30,
+  });
+});
+
+test("idp player board exercise details remain editable and flow into the save payload", () => {
+  const heading = { textContent: "" };
+  const store = createIdpStore({
+    ui: {
+      idpPlayerBoardOpen: true,
+      idpPlayerBoardSelectedInterventionId: "intervention-1",
+    },
+    playerDetail: {
+      profile: { playerId: "player-1", playerName: "Test Player" },
+      focuses: [{ id: "focus-1", title: "Current focus", status: "Active" }],
+      interventions: [{
+        id: "intervention-1",
+        rowVersion: 2,
+        playerId: "player-1",
+        focusId: "focus-1",
+        title: "Old exercise name",
+        objective: "Old objective",
+        boardState: {},
+        status: "active",
+      }],
+    },
+  });
+  const runtime = {
+    context: {
+      ui: {
+        idpWorkspace: {
+          querySelector: (selector) => selector === ".session-library-modal-head h2" ? heading : null,
+        },
+      },
+    },
+    store,
+  };
+  const titleField = {
+    value: "New exercise name",
+    closest: (selector) => selector === "[data-idp-board-title]" ? titleField : null,
+  };
+  const objectiveField = {
+    value: "Create a clean first action after the save.",
+    closest: (selector) => selector === "[data-idp-board-objective]" ? objectiveField : null,
+  };
+
+  expect(handleIdpPlayerBoardInput({ target: titleField }, runtime)).toBe(true);
+  expect(handleIdpPlayerBoardInput({ target: objectiveField }, runtime)).toBe(true);
+  const payload = persistIdpPlayerBoardDraft(runtime);
+
+  expect(payload).toMatchObject({
+    id: "intervention-1",
+    rowVersion: 2,
+    title: "New exercise name",
+    objective: "Create a clean first action after the save.",
+  });
+  expect(heading.textContent).toBe("New exercise name");
+});
+
+test("idp player board renders every supported placement material after persistence", () => {
+  const materialTypes = [
+    "blue-player",
+    "red-player",
+    "neutral-player",
+    "ball",
+    "coach",
+    "cone",
+    "mini-goal",
+    "big-goal",
+    "mannequin",
+    "pole",
+    "gate",
+  ];
+  const tacticalElements = materialTypes.map((type, index) => ({
+    id: `material-${index + 1}`,
+    type,
+    x: 10 + index * 7,
+    y: 20 + index * 5,
+  }));
+  const playerBoardHtml = renderIdpWorkspace({
+    dashboardPlayers: [],
+    ui: {
+      selectedPlayerId: "player-1",
+      profileView: "player-board",
+      idpPlayerBoardOpen: true,
+      idpPlayerBoardSelectedInterventionId: "intervention-1",
+    },
+    playerDetail: {
+      profile: { playerId: "player-1", playerName: "Test Player", status: "active" },
+      focuses: [{ id: "focus-1", title: "Current focus", status: "Active" }],
+      interventions: [{
+        id: "intervention-1",
+        rowVersion: 1,
+        playerId: "player-1",
+        focusId: "focus-1",
+        title: "Material check",
+        objective: "Verify all equipment.",
+        boardState: {
+          tacticalPitchMode: "full",
+          tacticalActiveFrameId: "frame-1",
+          tacticalFrames: [{ id: "frame-1", label: "Frame 1", elements: tacticalElements }],
+          tacticalElements,
+        },
+        status: "active",
+      }],
+      clipBank: [],
+      evidence: [],
+      reviews: [],
+      nextActions: [],
+      milestones: [],
+      ownership: [],
+      goals: [],
+      goalCheckins: [],
+    },
+  }, { canEdit: true, users: [] });
+
+  [
+    "session-tactical-blue-player",
+    "session-tactical-red-player",
+    "session-tactical-neutral-player",
+    "session-tactical-ball",
+    "session-tactical-coach",
+    "session-tactical-cone",
+    "session-tactical-mini-goal",
+    "session-tactical-big-goal",
+    "session-tactical-mannequin",
+    "session-tactical-pole",
+    "session-tactical-gate",
+  ].forEach((className) => expect(playerBoardHtml).toContain(className));
+  expect(playerBoardHtml).toContain("data-idp-board-title");
+  expect(playerBoardHtml).toContain("data-idp-board-objective");
+  expect(playerBoardHtml).toContain('data-idp-board-delete="intervention-1"');
+  expect(playerBoardHtml).toContain('data-idp-board-row-version="1"');
+});
+
+test("idp player board deletion archives the selected exercise with row-version protection", async () => {
+  const player = {
+    id: "player-1",
+    name: "Test Player",
+    position: "Midfielder",
+    primaryRole: "8",
+    idp: { primaryFocus: "Current focus" },
+  };
+  const store = createIdpStore({
+    ui: {
+      selectedPlayerId: "player-1",
+      profileView: "player-board",
+      idpPlayerBoardOpen: true,
+      idpPlayerBoardSelectedInterventionId: "intervention-1",
+    },
+    playerDetail: {
+      profile: { playerId: "player-1", playerName: "Test Player" },
+      focuses: [{ id: "focus-1", playerId: "player-1", title: "Current focus", status: "Active" }],
+      interventions: [{
+        id: "intervention-1",
+        playerId: "player-1",
+        focusId: "focus-1",
+        title: "Exercise to delete",
+        rowVersion: 4,
+        boardState: {},
+        status: "active",
+      }],
+    },
+  });
+  const archivedPayloads = [];
+  const actions = createIdpActions({
+    store,
+    api: {
+      archiveIntervention: async (payload) => {
+        archivedPayloads.push(payload);
+        return { schema: "footballscience-idp-v1", intervention: { id: payload.id, status: "archived" } };
+      },
+      loadDashboard: async () => ({ schema: "footballscience-idp-v1", players: [] }),
+      loadPlayer: async () => ({
+        schema: "footballscience-idp-v1",
+        profile: { id: "profile-1", player_id: "player-1" },
+        focuses: [{ id: "focus-1", player_id: "player-1", title: "Current focus", status: "Active" }],
+        clipBank: [],
+        evidence: [],
+        reviews: [],
+        nextActions: [],
+        milestones: [],
+        ownership: [],
+        interventions: [],
+        goals: [],
+        goalCheckins: [],
+      }),
+    },
+    context: { getPlayerProfilesState: () => ({ players: [player] }) },
+  });
+
+  await actions.deletePlayerBoard({ id: "intervention-1", rowVersion: 4 });
+
+  expect(archivedPayloads).toEqual([{
+    id: "intervention-1",
+    playerId: "player-1",
+    rowVersion: 4,
+  }]);
+  expect(store.getState().ui).toMatchObject({
+    idpPlayerBoardOpen: false,
+    idpPlayerBoardSelectedInterventionId: "",
+    message: "Individual exercise deleted.",
+  });
 });
 
 test("idp development goals are IDP-owned, measurable and server-versioned", () => {

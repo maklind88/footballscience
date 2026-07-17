@@ -9,6 +9,7 @@ import {
   handleIdpPlayerBoardClick,
   handleIdpPlayerBoardInput,
   persistIdpPlayerBoardDraft,
+  resetIdpPlayerBoardRuntimeDraft,
 } from "./idp-player-board-runtime.mjs";
 import {
   closeClipPreview,
@@ -324,6 +325,24 @@ export function handleChange(event) {
 
 export function handleClick(event) {
   if (handleIdpPlayerBoardClick(event, runtime)) return;
+  const deletePlayerBoardTrigger = event?.target?.closest?.("[data-idp-board-delete]");
+  if (deletePlayerBoardTrigger) {
+    event?.preventDefault?.();
+    runAction(async () => {
+      const confirmed = await confirmIdpAction({
+        title: "Delete individual exercise?",
+        message: "Delete this exercise from the player's IDP exercise bank? The action is recorded in the development history.",
+        confirmLabel: "Delete exercise",
+      });
+      if (!confirmed) return;
+      await runtime?.actions.deletePlayerBoard({
+        id: deletePlayerBoardTrigger.dataset.idpBoardDelete || "",
+        rowVersion: Number(deletePlayerBoardTrigger.dataset.idpBoardRowVersion || 0),
+      });
+      resetIdpPlayerBoardRuntimeDraft(runtime);
+    });
+    return;
+  }
   const filterToggle = event?.target?.closest?.("[data-idp-filter-toggle]");
   if (filterToggle) {
     event?.preventDefault?.();

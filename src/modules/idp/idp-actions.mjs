@@ -446,6 +446,31 @@ export function createIdpActions({ store, api, context = {} }) {
     await refreshSelectedPlayer();
   }
 
+  async function deletePlayerBoard(payload = {}) {
+    const playerId = selectedPlayerIdFromState(store.getState());
+    const interventionId = normalizeText(payload.id || payload.interventionId, 160);
+    const rowVersion = numberOrFallback(payload.rowVersion, 0);
+    if (!playerId || !interventionId || rowVersion <= 0) {
+      throw new Error("Individual exercise could not be deleted.");
+    }
+    await api.archiveIntervention({
+      id: interventionId,
+      playerId,
+      rowVersion,
+    });
+    store.setState({
+      ui: {
+        idpPlayerBoardOpen: false,
+        idpPlayerBoardPreviewOpen: false,
+        idpPlayerBoardSelectedElementId: "",
+        idpPlayerBoardSelectedElementIds: [],
+        idpPlayerBoardSelectedInterventionId: "",
+        message: "Individual exercise deleted.",
+      },
+    });
+    await refreshSelectedPlayer();
+  }
+
   async function assignOwner(formData) {
     const playerId = selectedPlayerIdFromState(store.getState());
     const detail = store.getState().playerDetail;
@@ -546,6 +571,7 @@ export function createIdpActions({ store, api, context = {} }) {
     refreshSelectedPlayer,
     removeClipBankItem,
     savePlayerBoard,
+    deletePlayerBoard,
     saveGoal,
     selectPlayer,
     updateEvidence,

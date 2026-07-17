@@ -5769,10 +5769,71 @@ body.is-dark-mode .idp-river-detail-value {
   z-index: 1200;
 }
 
+.idp-profile-player-board-page .session-tacticalboard-modal {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
 .idp-player-board-editor-actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+  justify-content: flex-end;
+}
+
+.idp-player-board-editor-details {
+  align-items: end;
+  background: rgba(248, 250, 252, .96);
+  border-bottom: 1px solid rgba(16, 24, 40, .08);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(12rem, .8fr) minmax(18rem, 1.35fr) auto;
+  padding: 12px 18px;
+}
+
+.idp-player-board-editor-details label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.idp-player-board-editor-details label > span {
+  color: #667085;
+  font-size: .68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.idp-player-board-editor-details input,
+.idp-player-board-editor-details textarea {
+  background: #fff;
+  border: 1px solid rgba(16, 24, 40, .14);
+  border-radius: 8px;
+  color: #101828;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 760;
+  line-height: 1.3;
+  min-width: 0;
+  padding: 9px 10px;
+  resize: vertical;
+  width: 100%;
+}
+
+.idp-player-board-editor-details input:focus,
+.idp-player-board-editor-details textarea:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, .12);
+  outline: none;
+}
+
+.idp-player-board-editor-details > small {
+  align-self: center;
+  color: #667085;
+  font-size: .7rem;
+  font-weight: 760;
+  line-height: 1.3;
+  max-width: 13rem;
 }
 
 .idp-player-board-editor-save {
@@ -5790,6 +5851,43 @@ body.is-dark-mode .idp-river-detail-value {
 .idp-player-board-editor-save:disabled {
   cursor: default;
   opacity: .42;
+}
+
+.idp-player-board-editor-delete {
+  background: rgba(255, 255, 255, .9);
+  border: 1px solid rgba(180, 35, 24, .22);
+  border-radius: 999px;
+  color: #b42318;
+  cursor: pointer;
+  font-size: .8rem;
+  font-weight: 900;
+  min-height: 2.4rem;
+  padding: 0 .9rem;
+}
+
+.idp-player-board-editor-delete:hover,
+.idp-player-board-editor-delete:focus-visible {
+  background: #b42318;
+  border-color: #b42318;
+  color: #fff;
+  outline: none;
+}
+
+body.is-dark-mode .idp-player-board-editor-details {
+  background: rgba(15, 23, 42, .96);
+  border-color: rgba(148, 163, 184, .22);
+}
+
+body.is-dark-mode .idp-player-board-editor-details label > span,
+body.is-dark-mode .idp-player-board-editor-details > small {
+  color: #94a3b8;
+}
+
+body.is-dark-mode .idp-player-board-editor-details input,
+body.is-dark-mode .idp-player-board-editor-details textarea {
+  background: #0b1220;
+  border-color: rgba(148, 163, 184, .28);
+  color: #f8fafc;
 }
 
 @media (max-width: 900px) {
@@ -5815,10 +5913,36 @@ body.is-dark-mode .idp-river-detail-value {
     margin: 0 auto;
     min-height: 420px;
   }
+
+  .idp-player-board-editor-details {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .idp-player-board-editor-details > small {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
 }
 
 @media (max-width: 560px) {
   .idp-player-board-actions button {
     flex: 1 1 100%;
+  }
+
+  .idp-player-board-editor-actions {
+    justify-content: stretch;
+  }
+
+  .idp-player-board-editor-actions button {
+    flex: 1 1 auto;
+  }
+
+  .idp-player-board-editor-details {
+    grid-template-columns: 1fr;
+    padding: 10px 12px;
+  }
+
+  .idp-player-board-editor-details > small {
+    grid-column: 1;
   }
 }

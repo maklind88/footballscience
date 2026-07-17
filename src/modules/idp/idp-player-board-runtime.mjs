@@ -82,7 +82,11 @@ function canEdit(activeRuntime = {}) {
 }
 
 function getRoot(activeRuntime = {}) {
-  return activeRuntime?.context?.ui?.idpWorkspace || null;
+  const configuredRoot = activeRuntime?.context?.ui?.idpWorkspace || null;
+  if (configuredRoot && configuredRoot.isConnected !== false) return configuredRoot;
+  return activeRuntime?.context?.win?.document?.getElementById?.("idpWorkspace")
+    || globalThis.document?.getElementById?.("idpWorkspace")
+    || configuredRoot;
 }
 
 function getDocument(activeRuntime = {}) {
@@ -146,6 +150,13 @@ function closeTransientTacticalState(activeRuntime = {}) {
   Object.assign(getRuntimeLocalUi(activeRuntime), createTransientIdpPlayerBoardUi());
 }
 
+export function resetIdpPlayerBoardRuntimeDraft(activeRuntime = {}) {
+  activeRuntime.idpPlayerBoardActiveBlock = null;
+  activeRuntime.idpPlayerBoardActivePlayerId = "";
+  activeRuntime.idpPlayerBoardDraftDetail = null;
+  closeTransientTacticalState(activeRuntime);
+}
+
 function getDraftDetailForCurrentPlayer(activeRuntime = {}, detail = {}) {
   const draftDetail = activeRuntime.idpPlayerBoardDraftDetail;
   const playerId = detail?.profile?.playerId || "";
@@ -156,6 +167,11 @@ function getDraftDetailForCurrentPlayer(activeRuntime = {}, detail = {}) {
     return null;
   }
   return draftDetail;
+}
+
+function getActiveBlockCacheKey(activeRuntime = {}, playerId = "") {
+  const ui = getIdpPlayerBoardUiState(getIdpPlayerBoardRuntimeUi(activeRuntime));
+  return `${playerId || ""}:${ui.idpPlayerBoardSelectedInterventionId || ""}`;
 }
 
 function persistBlockToDetail(activeRuntime = {}, block = null, options = {}) {
@@ -189,8 +205,13 @@ function persistBlockToDetail(activeRuntime = {}, block = null, options = {}) {
     ...detail,
     interventions: nextInterventions,
   };
-  activeRuntime.idpPlayerBoardActiveBlock = buildIdpPlayerBoardBlock(nextDetail, { intervention: nextIntervention });
-  activeRuntime.idpPlayerBoardActivePlayerId = nextDetail.profile?.playerId || "";
+  const nextBlock = buildIdpPlayerBoardBlock(nextDetail, { intervention: nextIntervention });
+  Object.assign(sourceBlock, nextBlock);
+  activeRuntime.idpPlayerBoardActiveBlock = sourceBlock;
+  activeRuntime.idpPlayerBoardActivePlayerId = getActiveBlockCacheKey(
+    activeRuntime,
+    nextDetail.profile?.playerId || ""
+  );
   activeRuntime.idpPlayerBoardDraftDetail = nextDetail;
   if (syncStore) {
     activeRuntime.store?.setState?.({ playerDetail: nextDetail });
@@ -203,7 +224,7 @@ function getCurrentBlock(activeRuntime = {}) {
   const detail = getDraftDetailForCurrentPlayer(activeRuntime, storeDetail) || storeDetail;
   const ui = getIdpPlayerBoardUiState(getIdpPlayerBoardRuntimeUi(activeRuntime));
   const selectedInterventionId = ui.idpPlayerBoardSelectedInterventionId || "";
-  const cacheKey = `${detail.profile?.playerId || ""}:${selectedInterventionId}`;
+  const cacheKey = getActiveBlockCacheKey(activeRuntime, detail.profile?.playerId || "");
   if (!activeRuntime.idpPlayerBoardActiveBlock || activeRuntime.idpPlayerBoardActivePlayerId !== cacheKey) {
     activeRuntime.idpPlayerBoardActiveBlock = buildIdpPlayerBoardBlock(detail, { selectedInterventionId });
     activeRuntime.idpPlayerBoardActivePlayerId = cacheKey;
@@ -212,6 +233,11 @@ function getCurrentBlock(activeRuntime = {}) {
 }
 
 function renderWorkspace(activeRuntime = {}) {
+  const ui = getIdpPlayerBoardRuntimeUi(activeRuntime);
+  if (ui.idpPlayerBoardOpen && activeRuntime.idpPlayerBoardActiveBlock?.playerId) {
+    persistBlockToDetail(activeRuntime, activeRuntime.idpPlayerBoardActiveBlock, { syncStore: true });
+    return;
+  }
   activeRuntime.paint?.(activeRuntime);
 }
 
@@ -240,7 +266,8 @@ function getController(activeRuntime = {}) {
     normalizeTacticalLineStyle: idpPlayerBoardHelpers.normalizeTacticalLineStyle,
     normalizeTacticalLineWidth: idpPlayerBoardHelpers.normalizeTacticalLineWidth,
     normalizeTacticalRotation: idpPlayerBoardHelpers.normalizeTacticalRotation,
-    persistSessionPlannerTacticalElements: (block) => persistBlockToDetail(activeRuntime, block),
+    persistSessionPlannerTacticalElements: (block) =>
+      persistBlockToDetail(activeRuntime, block, { syncStore: true }),
     renderSessionPlannerExerciseVisual: (block, options = {}) =>
       renderIdpPlayerBoardExerciseVisual(block, getIdpPlayerBoardRuntimeUi(activeRuntime), options),
     renderSessionPlannerWorkspace: () => renderWorkspace(activeRuntime),
@@ -248,7 +275,11 @@ function getController(activeRuntime = {}) {
     showSessionPlannerToast: (message = "") => {
       if (message) activeRuntime.store?.setState?.({ ui: { message } });
     },
-    ui: { sessionPlannerWorkspace: getRoot(activeRuntime) },
+    ui: {
+      get sessionPlannerWorkspace() {
+        return getRoot(activeRuntime);
+      },
+    },
     undoSessionPlannerBoardHistory: () => {},
     win: activeRuntime.context?.win || globalThis,
     writeSessionPlannerState: () => persistBlockToDetail(activeRuntime),
@@ -392,6 +423,26 @@ export function persistIdpPlayerBoardDraft(activeRuntime = {}) {
   return blockToInterventionPatch(block);
 }
 
+function updateExerciseField(activeRuntime = {}, field = "", value = "") {
+  const block = getCurrentBlock(activeRuntime);
+  if (!block || !["title", "objective"].includes(field)) return;
+  const maxLength = field === "title" ? 180 : 1200;
+  block[field] = String(value ?? "").slice(0, maxLength);
+  persistBlockToDetail(activeRuntime, block);
+  if (field === "title") {
+    const heading = getRoot(activeRuntime)?.querySelector?.(".session-library-modal-head h2");
+    if (heading) heading.textContent = block.title.trim() || "Individual exercise";
+  }
+}
+
+function saveCurrentExercise(activeRuntime = {}) {
+  const payload = persistIdpPlayerBoardDraft(activeRuntime);
+  activeRuntime.runAction?.(async () => {
+    await activeRuntime.actions.savePlayerBoard(payload);
+    resetIdpPlayerBoardRuntimeDraft(activeRuntime);
+  });
+}
+
 async function handleVisualUpload(activeRuntime = {}, file = null) {
   if (!file || !canEdit(activeRuntime)) return;
   const block = getCurrentBlock(activeRuntime);
@@ -414,6 +465,16 @@ async function handleVisualUpload(activeRuntime = {}, file = null) {
 
 export function handleIdpPlayerBoardInput(event, activeRuntime = {}) {
   const target = event?.target;
+  const titleField = target?.closest?.("[data-idp-board-title]");
+  if (titleField) {
+    updateExerciseField(activeRuntime, "title", titleField.value);
+    return true;
+  }
+  const objectiveField = target?.closest?.("[data-idp-board-objective]");
+  if (objectiveField) {
+    updateExerciseField(activeRuntime, "objective", objectiveField.value);
+    return true;
+  }
   const controller = getController(activeRuntime);
   const colorField = target?.closest?.("[data-session-tactical-color]");
   if (colorField) {
@@ -490,7 +551,7 @@ export function handleIdpPlayerBoardClick(event, activeRuntime = {}) {
   if (callIfClosest("[data-idp-board-select]", (el) => selectExercise(activeRuntime, el.dataset.idpBoardSelect || ""))) return true;
   if (callIfClosest("[data-idp-board-open], [data-session-open-tacticalboard]", () => setBoardOpen(activeRuntime, true))) return true;
   if (callIfClosest("[data-session-close-tacticalboard]", () => setBoardOpen(activeRuntime, false))) return true;
-  if (callIfClosest("[data-idp-board-save]", () => activeRuntime.runAction?.(() => activeRuntime.actions.savePlayerBoard(persistIdpPlayerBoardDraft(activeRuntime))))) return true;
+  if (callIfClosest("[data-idp-board-save]", () => saveCurrentExercise(activeRuntime))) return true;
   if (callIfClosest("[data-session-tactical-number]", (el) => controller.updateSessionPlannerTacticalPlayerNumber(el.dataset.sessionTacticalNumberElement, el.dataset.sessionTacticalNumber))) return true;
   if (callIfClosest("[data-session-tactical-frame]", (el) => selectFrame(activeRuntime, el.dataset.sessionTacticalFrame))) return true;
   if (callIfClosest("[data-session-add-tactical-frame]", () => addFrame(activeRuntime))) return true;

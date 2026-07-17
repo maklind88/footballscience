@@ -15,6 +15,14 @@ export function formatPlayerProfileScoutingNumber(value) {
   return number.toLocaleString("en-US", { maximumFractionDigits: Math.abs(number) < 10 ? 2 : 1 });
 }
 
+export function formatPlayerProfileScoutingMinutes(value) {
+  const minutes = Number(value);
+  if (!Number.isFinite(minutes) || minutes < 0) {
+    return "";
+  }
+  return Math.round(minutes).toLocaleString("en-US");
+}
+
 export function createSquadScoutingSpiderRenderer(options = {}) {
   const escapeHtml = typeof options.escapeHtml === "function" ? options.escapeHtml : defaultEscapeHtml;
   const getDatabase = typeof options.getDatabase === "function" ? options.getDatabase : () => null;
@@ -259,6 +267,7 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
     const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
     const { cardClassName, headerClassName, kickerLabel, titleLabel } = renderConfig;
     const metaLabel = [record[recordIndex.team], record[recordIndex.season]].filter(Boolean).join(" / ") || "NWSL";
+    const minutesLabel = formatPlayerProfileScoutingMinutes(record[recordIndex.minutes]);
     return `
     <article class="${escapeHtml(cardClassName)}">
       <header class="${escapeHtml(headerClassName)}">
@@ -267,7 +276,10 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
           <h2>${escapeHtml(titleLabel)}</h2>
         </div>
         <div class="player-profile-scouting-radar-tools">
-          <span>${escapeHtml(metaLabel)}</span>
+          <div class="player-profile-scouting-radar-meta">
+            <span>${escapeHtml(metaLabel)}</span>
+            ${minutesLabel ? `<span>Minutes ${escapeHtml(minutesLabel)}</span>` : ""}
+          </div>
           ${renderMetricPicker(availableAxes, axes, renderConfig)}
         </div>
       </header>

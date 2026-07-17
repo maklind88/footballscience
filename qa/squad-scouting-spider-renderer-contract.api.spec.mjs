@@ -2,10 +2,11 @@ import { expect, test } from "@playwright/test";
 import {
   createSquadScoutingProfileHelpers,
   createSquadScoutingSpiderRenderer,
+  formatPlayerProfileScoutingMinutes,
   formatPlayerProfileScoutingNumber,
 } from "../src/modules/squad/index.mjs";
 
-const recordIndex = { team: "team", season: "season" };
+const recordIndex = { team: "team", season: "season", minutes: "minutes" };
 const profileRecordIndex = {
   player: "player",
   team: "team",
@@ -54,6 +55,7 @@ test("Squad scouting spider renderer renders radar metrics from callback data", 
   const record = {
     team: "NCC",
     season: "2026",
+    minutes: 1234.4,
     metrics: { passing: 91.25, progression: 7.4, duels: 2.1 },
   };
   const renderer = createSquadScoutingSpiderRenderer({
@@ -77,6 +79,8 @@ test("Squad scouting spider renderer renders radar metrics from callback data", 
   );
 
   expect(markup).toContain("NCC / 2026");
+  expect(markup).toContain("Minutes 1,234");
+  expect(markup).toContain("player-profile-scouting-radar-meta");
   expect(markup).toContain("idp-profile-scouting-radar");
   expect(markup).toContain("idp-profile-scouting-radar-head");
   expect(markup).toContain("NWSL Data Spider");
@@ -84,6 +88,8 @@ test("Squad scouting spider renderer renders radar metrics from callback data", 
   expect(markup).toContain("<strong>P88</strong>");
   expect(markup).toContain("DUELS: 2.1 / low is good");
   expect(formatPlayerProfileScoutingNumber("bad")).toBe("n/a");
+  expect(formatPlayerProfileScoutingMinutes(987.6)).toBe("988");
+  expect(formatPlayerProfileScoutingMinutes("bad")).toBe("");
 });
 
 test("Squad scouting spider renderer defaults to six metrics and keeps spider axes in sync with selected metrics", () => {

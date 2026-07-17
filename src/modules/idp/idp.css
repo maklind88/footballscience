@@ -4057,13 +4057,35 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
 }
 
 .idp-profile-scouting-radar-head > span,
-.idp-profile-scouting-radar-head .player-profile-scouting-radar-tools > span {
+.idp-profile-scouting-radar-head .player-profile-scouting-radar-tools > span,
+.idp-profile-scouting-radar-head .player-profile-scouting-radar-meta {
   color: #475467;
   flex: 0 0 auto;
   font-size: .72rem;
   font-weight: 900;
   line-height: 1.2;
   text-align: right;
+}
+
+.player-profile-scouting-radar-meta {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.player-profile-scouting-radar-meta span {
+  background: rgba(255, 255, 255, .74);
+  border: 1px solid rgba(16, 24, 40, .08);
+  border-radius: 999px;
+  color: #475467;
+  display: inline-flex;
+  font-size: .7rem;
+  font-weight: 900;
+  line-height: 1;
+  padding: 5px 8px;
+  white-space: nowrap;
 }
 
 .player-profile-scouting-radar-tools {
@@ -5210,6 +5232,7 @@ body.is-dark-mode .idp-profile-experience .idp-snapshot-label,
 body.is-dark-mode .idp-profile-scouting-radar-head p,
 body.is-dark-mode .idp-profile-scouting-radar-head > span,
 body.is-dark-mode .idp-profile-scouting-radar-head .player-profile-scouting-radar-tools > span,
+body.is-dark-mode .idp-profile-scouting-radar-head .player-profile-scouting-radar-meta,
 body.is-dark-mode .idp-stage-identity p,
 body.is-dark-mode .idp-stage-scoreboard span,
 body.is-dark-mode .idp-pulse-orb span,

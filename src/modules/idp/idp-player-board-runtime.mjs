@@ -10,6 +10,7 @@ import {
   getIdpPlayerBoardUiState,
   IDP_PLAYER_BOARD_NEW_EXERCISE_ID,
   idpPlayerBoardHelpers,
+  normalizePositiveInteger,
 } from "./idp-player-board-helpers.mjs";
 import {
   renderIdpPlayerBoardExerciseVisual,
@@ -184,7 +185,7 @@ function persistBlockToDetail(activeRuntime = {}, block = null, options = {}) {
   const boardState = createBoardStateFromBlock(sourceBlock);
   const nextIntervention = {
     id: sourceBlock.interventionId || sourceBlock.id || "draft-idp-player-board",
-    rowVersion: sourceBlock.rowVersion || 0,
+    rowVersion: normalizePositiveInteger(sourceBlock.rowVersion, sourceBlock.interventionId ? 1 : 0),
     playerId: sourceBlock.playerId || detail.profile.playerId,
     focusId: sourceBlock.focusId || detail.focuses?.[0]?.id || "",
     title: sourceBlock.title || detail.focuses?.[0]?.title || "IDP Player Board",

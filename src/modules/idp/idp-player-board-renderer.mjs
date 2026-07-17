@@ -194,12 +194,13 @@ function renderIdpTacticalboardOverlay(renderer, block = {}, canEdit = false) {
   const overlay = renderer.renderTacticalboardOverlay(block);
   if (!overlay) return "";
   const saveDisabled = !canEdit || !block.focusId ? "disabled" : "";
+  const blockRowVersion = Number(block.rowVersion);
   const deleteButton = !block.isDraft && block.interventionId ? `
             <button
               type="button"
               class="idp-player-board-editor-delete"
               data-idp-board-delete="${escapeHtml(block.interventionId)}"
-              data-idp-board-row-version="${escapeHtml(String(block.rowVersion || 0))}"
+              data-idp-board-row-version="${escapeHtml(String(blockRowVersion > 0 ? blockRowVersion : 0))}"
               ${canEdit ? "" : "disabled"}
             >Delete exercise</button>
   ` : "";
@@ -238,9 +239,14 @@ function renderIdpTacticalboardOverlay(renderer, block = {}, canEdit = false) {
             <button type="button" class="idp-player-board-editor-save" data-idp-board-save ${saveDisabled}>Save exercise</button>
             ${closeButton}
           </div>`;
-  return overlay
-    .replace(closeButton, actions)
-    .replace("</header>", `</header>${details}`);
+
+  const closeButtonPattern = /<button\b[^>]*data-session-close-tacticalboard\b[^>]*>(?:.|[\r\n])*?<\/button>/;
+  const withActions = closeButtonPattern.test(overlay)
+    ? overlay.replace(closeButtonPattern, actions)
+    : overlay.replace("</header>", `${actions}</header>`);
+  return withActions.includes("idp-player-board-editor-details")
+    ? withActions
+    : withActions.replace("</header>", `</header>${details}`);
 }
 
 export function renderIdpPlayerBoardPage(detail = {}, canEdit = false, ui = {}) {

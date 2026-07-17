@@ -45,6 +45,11 @@ export const idpPlayerBoardUiDefaults = Object.freeze({
   idpPlayerBoardSelectedInterventionId: "",
 });
 
+export function normalizePositiveInteger(value, fallback = 1) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && Number.isInteger(numeric) && numeric > 0 ? numeric : fallback;
+}
+
 function normalizeText(value = "", fallback = "") {
   return String(value || fallback).replace(/\s+/g, " ").trim();
 }
@@ -237,7 +242,7 @@ export function buildIdpPlayerBoardBlock(detail = {}, options = {}) {
   return {
     id: intervention?.id || "draft-idp-player-board",
     interventionId: intervention?.id || "",
-    rowVersion: intervention?.rowVersion || 0,
+    rowVersion: normalizePositiveInteger(intervention?.rowVersion, intervention ? 1 : 0),
     isDraft: !isPersistedId(intervention?.id),
     playerId: profile.playerId || "",
     focusId: intervention?.focusId || focus?.id || "",
@@ -290,7 +295,7 @@ export function createBoardStateFromBlock(block = {}) {
 export function blockToInterventionPatch(block = {}) {
   return {
     id: block.interventionId || "",
-    rowVersion: block.rowVersion || 0,
+    rowVersion: normalizePositiveInteger(block.rowVersion, block.interventionId ? 1 : 0),
     playerId: block.playerId || "",
     focusId: block.focusId || "",
     title: normalizeText(block.title, "Individual exercise"),

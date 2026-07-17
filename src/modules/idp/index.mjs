@@ -59,6 +59,29 @@ function canEdit(context = {}) {
   }
 }
 
+function normalizeText(value = "", fallback = "") {
+  return String(value || fallback).trim().replace(/\s+/g, " ");
+}
+
+function normalizePositiveRowVersion(value = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function resolvePlayerBoardInterventionRowVersion(activeRuntime = runtime, interventionId = "") {
+  const detail = activeRuntime?.store?.getState?.()?.playerDetail || {};
+  const interventions = Array.isArray(detail.interventions) ? detail.interventions : [];
+  const safeInterventionId = normalizeText(interventionId);
+  const intervention = interventions.find((item) => String(item.id || "") === safeInterventionId) || {};
+  const fromStore = normalizePositiveRowVersion(intervention.rowVersion);
+  if (fromStore) return fromStore;
+  const activeBlock = activeRuntime?.idpPlayerBoardActiveBlock || {};
+  if (String(activeBlock.interventionId || "") === safeInterventionId) {
+    return normalizePositiveRowVersion(activeBlock.rowVersion);
+  }
+  return 0;
+}
+
 function getRoot(context = {}) {
   return context.ui?.idpWorkspace || null;
 }
@@ -335,9 +358,19 @@ export function handleClick(event) {
         confirmLabel: "Delete exercise",
       });
       if (!confirmed) return;
+      const interventionId = deletePlayerBoardTrigger.dataset.idpBoardDelete || "";
+      const fallbackRowVersion = resolvePlayerBoardInterventionRowVersion(runtime, interventionId);
+      const rowVersion = Math.max(
+        0,
+        normalizePositiveRowVersion(deletePlayerBoardTrigger.dataset.idpBoardRowVersion)
+          || fallbackRowVersion,
+      );
+      if (!rowVersion) {
+        throw new Error("Individual exercise could not be deleted because row version is missing.");
+      }
       await runtime?.actions.deletePlayerBoard({
-        id: deletePlayerBoardTrigger.dataset.idpBoardDelete || "",
-        rowVersion: Number(deletePlayerBoardTrigger.dataset.idpBoardRowVersion || 0),
+        id: interventionId,
+        rowVersion,
       });
       resetIdpPlayerBoardRuntimeDraft(runtime);
     });

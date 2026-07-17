@@ -122,7 +122,7 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
 
   function isGenericDashboardChatThreadTitle(value = "") {
     const normalized = String(value || "").trim().toLowerCase();
-    return !normalized || ["chat", "team chat", "group chat", "direct message", "private chat"].includes(normalized);
+    return !normalized || ["chat", "team chat", "group chat", "direct message", "direct message chat", "private chat", "unknown user"].includes(normalized);
   }
 
   function getDashboardChatThreadParticipants(threadId, users = getPlatformUsers()) {
@@ -148,6 +148,7 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
                 ...participant,
                 id: userId || platformUser?.id || "",
                 userId: userId || platformUser?.id || "",
+                name: participant.name || participant.fullName || participant.full_name || platformUser?.name || "",
                 firstName: participant.firstName || participant.first_name || platformUser?.firstName || "",
                 lastName: participant.lastName || participant.last_name || platformUser?.lastName || "",
                 email: participant.email || platformUser?.email || "",

@@ -61,6 +61,32 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     );
   }
 
+  function getDashboardChatParticipantDisplayName(participant = null) {
+    if (!participant) {
+      return "";
+    }
+    const explicitName = String(
+      participant.name ||
+        participant.fullName ||
+        participant.full_name ||
+        participant.displayName ||
+        participant.display_name ||
+        ""
+    ).trim();
+    if (explicitName) {
+      return explicitName;
+    }
+    const formattedName = String(formatUserName(participant) || "").trim();
+    if (formattedName && !["unknown", "unknown user", "staff"].includes(formattedName.toLowerCase())) {
+      return formattedName;
+    }
+    const composedName = [participant.firstName || participant.first_name, participant.lastName || participant.last_name]
+      .map((part) => String(part || "").trim())
+      .filter(Boolean)
+      .join(" ");
+    return composedName || String(participant.email || participant.username || participant.userName || participant.id || participant.userId || "").trim();
+  }
+
   function getDashboardChatThreadData(
     threadId,
     currentUser = getCurrentPlatformUser(),
@@ -117,10 +143,14 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
       .map((participant) => {
         const userId = String(participant.userId || participant.id || "").trim();
         const platformUser = users.find((user) => user.id === userId) || null;
+        const participantDisplayName = getDashboardChatParticipantDisplayName(participant);
         return {
-          ...(platformUser || { id: userId, firstName: userId ? "Staff" : "Unknown", lastName: "" }),
+          ...(platformUser || { id: userId, name: participantDisplayName, firstName: "", lastName: "" }),
           ...participant,
           id: userId || platformUser?.id || "",
+          name: participant.name || participant.fullName || participant.full_name || platformUser?.name || participantDisplayName,
+          firstName: participant.firstName || participant.first_name || platformUser?.firstName || "",
+          lastName: participant.lastName || participant.last_name || platformUser?.lastName || "",
           chatParticipantRole: participant.participantRole || participant.role || "member",
           lastReadAt: participant.lastReadAt || "",
         };
@@ -155,10 +185,14 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
       ...(apiThread?.permissions || {}),
       ...(canManageParticipants ? { canManageParticipants: true } : {}),
     };
+    const directParticipantLabel = isDirectThread
+      ? getDashboardChatParticipantDisplayName(threadParticipants.find((participant) => !isSameDashboardUser(participant, currentUser)) || null)
+      : "";
+    const computedThreadLabel = directParticipantLabel || fallbackThreadLabel;
 
     return {
       threadId: normalizedThreadId,
-      label: threadSettings.customTitle || (shouldUseComputedLabel ? fallbackThreadLabel : apiThreadTitle),
+      label: threadSettings.customTitle || (shouldUseComputedLabel ? computedThreadLabel : apiThreadTitle),
       isTeamThread,
       type: apiThread?.type || (isGroupThread ? "group" : isManagedThread ? managedTemplate?.type : isTeamThread ? "team" : "dm"),
       participant: threadParticipants.find((participant) => !isSameDashboardUser(participant, currentUser)) || threadParticipants[0] || null,

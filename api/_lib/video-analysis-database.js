@@ -704,6 +704,33 @@ async function archiveClips(payload, actor) {
   return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, archivedIds: ids, clips: archived } };
 }
 
+async function restoreClips(payload, actor) {
+  const scope = actorScope(actor);
+  const ids = uniqueIds(payload.ids || payload.clipIds || payload.clip_ids || []);
+  if (!ids.length) return { ok: false, status: 400, reason: "clip ids are required." };
+  if (ids.length > 500) return { ok: false, status: 400, reason: "Restore at most 500 clips at a time." };
+
+  const existingResult = await selectClipsByIds(scope, ids);
+  if (!existingResult.ok) return existingResult;
+  const existingRows = rowList(existingResult);
+  const existingIds = new Set(existingRows.map((row) => row.id).filter(Boolean));
+  const missingIds = ids.filter((id) => !existingIds.has(id));
+  if (missingIds.length) return { ok: false, status: 404, reason: "One or more clips could not be found." };
+  if (existingRows.some((row) => !canActorMutateClip(row, actor))) {
+    return { ok: false, status: 403, reason: "Private clips can only be changed by their owner." };
+  }
+
+  const restored = [];
+  for (const chunk of chunkValues(ids, 100)) {
+    const params = buildTeamParams(scope);
+    params.set("id", `in.(${chunk.join(",")})`);
+    const result = await patchRows("video_clip_instances", params, { status: "active", archived_at: null });
+    if (!result.ok) return result;
+    restored.push(...rowList(result));
+  }
+  return { ok: true, payload: { schema: VIDEO_ANALYSIS_SCHEMA, restoredIds: ids, clips: restored } };
+}
+
 async function shareClip(payload, actor) {
   rejectForbiddenPayload(payload);
   const scope = actorScope(actor);
@@ -801,32 +828,34 @@ async function handleVideoAnalysisRequest(req, res, actor) {
         : action === "save-clip"
           ? await saveClip(body.clip || body, actor)
           : action === "trim-clip"
-          ? await trimClip(body.clip || body, actor)
-          : action === "archive-clip"
-            ? await archiveClip(body, actor)
-            : action === "archive-clips"
-              ? await archiveClips(body, actor)
-            : action === "share-clip"
-              ? await shareClip(body.clip || body, actor)
-            : action === "save-search"
-              ? await saveSearch(body.search || body, actor)
-              : action === "save-presentation"
-                ? await savePresentation(body.presentation || body, actor)
-                : action === "archive-presentation"
-                  ? await archivePresentation(body, actor)
-                  : action === "save-smart-collection"
-                    ? await saveSmartCollection(body.smartCollection || body.collection || body, actor)
-                    : action === "save-drawing-layer"
-                      ? await saveDrawingLayer(body.drawingLayer || body.layer || body, actor)
-                      : action === "save-share-targets"
-                        ? await saveShareTargets(body, actor)
-                        : action === "save-smart-collection-share-targets"
-                          ? await saveSmartCollectionShareTargets(body, actor)
-                          : action === "save-review-session"
-                            ? await saveReviewSession(body.reviewSession || body, actor)
-                            : action === "save-coding-template"
-                              ? await saveCodingTemplate(body.template || body, actor)
-                              : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
+            ? await trimClip(body.clip || body, actor)
+            : action === "archive-clip"
+              ? await archiveClip(body, actor)
+              : action === "archive-clips"
+                ? await archiveClips(body, actor)
+                : action === "restore-clips"
+                  ? await restoreClips(body, actor)
+                  : action === "share-clip"
+                    ? await shareClip(body.clip || body, actor)
+                    : action === "save-search"
+                      ? await saveSearch(body.search || body, actor)
+                      : action === "save-presentation"
+                        ? await savePresentation(body.presentation || body, actor)
+                        : action === "archive-presentation"
+                          ? await archivePresentation(body, actor)
+                          : action === "save-smart-collection"
+                            ? await saveSmartCollection(body.smartCollection || body.collection || body, actor)
+                            : action === "save-drawing-layer"
+                              ? await saveDrawingLayer(body.drawingLayer || body.layer || body, actor)
+                              : action === "save-share-targets"
+                                ? await saveShareTargets(body, actor)
+                                : action === "save-smart-collection-share-targets"
+                                  ? await saveSmartCollectionShareTargets(body, actor)
+                                  : action === "save-review-session"
+                                    ? await saveReviewSession(body.reviewSession || body, actor)
+                                    : action === "save-coding-template"
+                                      ? await saveCodingTemplate(body.template || body, actor)
+                                      : { ok: false, status: 400, reason: "Unsupported Video Analysis action." };
   return sendJson(res, result.ok ? 200 : result.status || 500, result.ok ? result.payload : { ok: false, reason: result.reason });
 }
 

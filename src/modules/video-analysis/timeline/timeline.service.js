@@ -138,18 +138,82 @@ export function buildTimelineLanes(clips = [], laneMode = DEFAULT_TIMELINE_LANE_
   return buildTimelineIndex(clips, laneMode).lanes;
 }
 
-export function clipBlockStyle(clip = {}, durationMs = 1) {
-  const safeDuration = Math.max(1, Number(durationMs || 1));
-  const startMs = getClipStartMs(clip);
-  const widthMs = getClipDurationMs(clip);
-  const left = clampPercent((startMs / safeDuration) * 100);
-  const width = Math.max(0.5, (widthMs / safeDuration) * 100);
-  return `left:${Math.min(99.5, left)}%;width:${Math.min(100 - Math.min(99.5, left), width)}%;`;
+export function packTimelineLaneClips(clips = [], gapMs = 0) {
+  const rowEndMs = [];
+  const items = (Array.isArray(clips) ? clips : [])
+    .slice()
+    .sort((first, second) => (
+      getClipStartMs(first) - getClipStartMs(second)
+      || getClipEndMs(first) - getClipEndMs(second)
+      || clipId(first).localeCompare(clipId(second))
+    ))
+    .map((clip) => {
+      const startMs = getClipStartMs(clip);
+      const endMs = getClipEndMs(clip);
+      let row = rowEndMs.findIndex((rowEnd) => startMs >= rowEnd + Math.max(0, Number(gapMs || 0)));
+      if (row === -1) {
+        row = rowEndMs.length;
+        rowEndMs.push(endMs);
+      } else {
+        rowEndMs[row] = endMs;
+      }
+      return { clip, row };
+    });
+  return {
+    items,
+    rowCount: Math.max(1, rowEndMs.length),
+  };
 }
 
-export function playheadStyle(playheadMs = 0, durationMs = 1) {
+export function clipIntersectsTimelineWindow(clip = {}, window = {}) {
+  const startMs = Math.max(0, Number(window.startMs || 0));
+  const endMs = Math.max(startMs + 1, Number(window.endMs || startMs + 1));
+  return getClipEndMs(clip) >= startMs && getClipStartMs(clip) <= endMs;
+}
+
+export function getTimelineWindow(totalMs = 1, timeline = {}, selectedClip = null) {
+  const safeTotalMs = Math.max(1, Number(totalMs || 1));
+  const requestedMode = String(timeline.viewMode || "overview") === "focus" ? "focus" : "overview";
+  if (requestedMode !== "focus" || !selectedClip) {
+    return {
+      mode: "overview",
+      startMs: 0,
+      endMs: safeTotalMs,
+      durationMs: safeTotalMs,
+    };
+  }
+  const clipStartMs = getClipStartMs(selectedClip);
+  const clipEndMs = getClipEndMs(selectedClip);
+  const clipDurationMs = Math.max(100, clipEndMs - clipStartMs);
+  const zoom = normalizeTimelineZoom(timeline.zoom || 1);
+  const baseDurationMs = Math.max(60000, clipDurationMs * 4);
+  const durationMs = Math.min(safeTotalMs, Math.max(30000, Math.round(baseDurationMs / Math.sqrt(zoom))));
+  const centerMs = clipStartMs + (clipDurationMs / 2);
+  const startMs = Math.max(0, Math.min(safeTotalMs - durationMs, Math.round(centerMs - (durationMs / 2))));
+  return {
+    mode: "focus",
+    startMs,
+    endMs: Math.min(safeTotalMs, startMs + durationMs),
+    durationMs,
+  };
+}
+
+export function clipBlockStyle(clip = {}, durationMs = 1, options = {}) {
+  const windowStartMs = Math.max(0, Number(options.windowStartMs || 0));
+  const safeDuration = Math.max(1, Number(options.windowDurationMs || durationMs || 1));
+  const startMs = getClipStartMs(clip);
+  const endMs = getClipEndMs(clip);
+  const visibleStartMs = Math.max(windowStartMs, startMs);
+  const visibleEndMs = Math.min(windowStartMs + safeDuration, endMs);
+  const left = clampPercent(((visibleStartMs - windowStartMs) / safeDuration) * 100);
+  const width = Math.max(0.1, ((visibleEndMs - visibleStartMs) / safeDuration) * 100);
+  return `left:${Math.min(99.9, left)}%;width:${Math.min(100 - Math.min(99.9, left), width)}%;`;
+}
+
+export function playheadStyle(playheadMs = 0, durationMs = 1, windowStartMs = 0) {
   const safeDuration = Math.max(1, Number(durationMs || 1));
-  return `left:${Math.min(100, Math.max(0, (Number(playheadMs || 0) / safeDuration) * 100))}%;`;
+  const relativeMs = Number(playheadMs || 0) - Math.max(0, Number(windowStartMs || 0));
+  return `left:${Math.min(100, Math.max(0, (relativeMs / safeDuration) * 100))}%;`;
 }
 
 export function timelineCanvasStyle(zoom = 1) {
@@ -221,6 +285,18 @@ export function buildTimelineTicks(durationMs = 1, tickCountOrOptions = TIMELINE
   return ticks;
 }
 
+export function buildTimelineWindowTicks(window = {}, tickCountOrOptions = TIMELINE_TICK_COUNT, zoom = 1) {
+  const startMs = Math.max(0, Number(window.startMs || 0));
+  const durationMs = Math.max(1, Number(window.durationMs || Number(window.endMs || 0) - startMs || 1));
+  const options = timelineTickOptions(tickCountOrOptions, zoom);
+  const tickZoom = window.mode === "focus" ? 1 : options.zoom;
+  return buildTimelineTicks(durationMs, { tickCount: options.tickCount, zoom: tickZoom }).map((tick) => ({
+    ...tick,
+    id: `tick-${Math.round(startMs + tick.ms)}`,
+    ms: Math.round(startMs + tick.ms),
+  }));
+}
+
 export function getTimelineDurationMs(state = {}) {
   const clips = Array.isArray(state.allClips) && state.allClips.length
     ? state.allClips
@@ -231,11 +307,11 @@ export function getTimelineDurationMs(state = {}) {
   return Math.max(1, Number(state.videoRef?.durationMs || 0), inferredClipEndMs);
 }
 
-export function timelineMsFromClientX(clientX = 0, rect = {}, durationMs = 1) {
+export function timelineMsFromClientX(clientX = 0, rect = {}, durationMs = 1, startMs = 0) {
   const width = Math.max(1, Number(rect.width || 0));
   const left = Number(rect.left || 0);
   const ratio = Math.min(1, Math.max(0, (Number(clientX || 0) - left) / width));
-  return Math.round(Math.max(1, Number(durationMs || 1)) * ratio);
+  return Math.round(Math.max(0, Number(startMs || 0)) + (Math.max(1, Number(durationMs || 1)) * ratio));
 }
 
 export function getTimelineStats(clips = [], allClips = []) {

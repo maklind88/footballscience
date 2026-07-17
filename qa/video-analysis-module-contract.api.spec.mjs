@@ -43,6 +43,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/services/videoPlaybackService.js",
     "src/modules/video-analysis/services/videoLibraryService.js",
     "src/modules/video-analysis/services/clipInstanceService.js",
+    "src/modules/video-analysis/services/clipEditingService.js",
     "src/modules/video-analysis/services/codingInteractionService.js",
     "src/modules/video-analysis/services/footballLanguageService.js",
     "src/modules/video-analysis/services/taggingService.js",
@@ -70,6 +71,7 @@ test("video analysis module keeps the required isolated file structure", () => {
     "src/modules/video-analysis/timeline/timeline.constants.js",
     "src/modules/video-analysis/timeline/timeline.interaction.js",
     "src/modules/video-analysis/timeline/timeline.renderer.js",
+    "src/modules/video-analysis/timeline/timeline.focus.renderer.js",
     "src/modules/video-analysis/timeline/timeline.selectors.js",
     "src/modules/video-analysis/timeline/timeline.service.js",
   ]) {
@@ -187,6 +189,92 @@ test("video analysis timeline indexes 500 clips for dense workstations", async (
   expect(index.clipIdsByLane.get("In Possession")).toHaveLength(100);
   expect(index.lanes[0]).toMatchObject({ label: "In Possession", clipCount: 100 });
   expect(density).toMatchObject({ isDense: true, clipCount: 500, laneCount: 5, maxClipsInLane: 100 });
+});
+
+test("video analysis timeline keeps true scale and stacks overlapping clips", async () => {
+  const timelineService = await import(pathToFileURL(path.join(moduleDir, "timeline/timeline.service.js")).href);
+  const clips = [
+    { id: "clip-a", startMs: 56000, endMs: 71000 },
+    { id: "clip-b", startMs: 64000, endMs: 79000 },
+    { id: "clip-c", startMs: 71000, endMs: 86000 },
+  ];
+  const packed = timelineService.packTimelineLaneClips(clips);
+  expect(packed.rowCount).toBe(2);
+  expect(packed.items.map((item) => [item.clip.id, item.row])).toEqual([
+    ["clip-a", 0],
+    ["clip-b", 1],
+    ["clip-c", 0],
+  ]);
+
+  const window = timelineService.getTimelineWindow(315000, { viewMode: "focus", zoom: 3 }, clips[1]);
+  expect(window.mode).toBe("focus");
+  expect(window.durationMs).toBeGreaterThanOrEqual(30000);
+  expect(window.durationMs).toBeLessThan(60000);
+  expect(window.startMs).toBeLessThanOrEqual(64000);
+  expect(window.endMs).toBeGreaterThanOrEqual(79000);
+
+  const style = timelineService.clipBlockStyle(clips[1], window.durationMs, {
+    windowStartMs: window.startMs,
+    windowDurationMs: window.durationMs,
+  });
+  expect(style).toContain("left:");
+  expect(style).toContain("width:");
+  expect(style).not.toContain("width:0.5%");
+  expect(timelineService.timelineMsFromClientX(50, { left: 0, width: 100 }, 30000, 54000)).toBe(69000);
+});
+
+test("video analysis clip editing keeps merge and undo inputs reversible", async () => {
+  const editing = await import(pathToFileURL(path.join(moduleDir, "services/clipEditingService.js")).href);
+  const clips = [
+    {
+      id: "clip-a",
+      matchId: "match-1",
+      videoId: "video-1",
+      startMs: 56000,
+      endMs: 71000,
+      phase: "Out of Possession",
+      subPhase: "High Press",
+      outcome: "Positive",
+      tags: ["press"],
+      players: [{ playerId: "player-9", playerLabel: "Player Nine", role: "primary" }],
+      labels: [{ type: "mini_game_principle", value: "press-within-press-radius", label: "Press within press radius" }],
+      metadata: { clipKind: "subPhase" },
+    },
+    {
+      id: "clip-b",
+      matchId: "match-1",
+      videoId: "video-1",
+      startMs: 64000,
+      endMs: 79000,
+      phase: "Out of Possession",
+      subPhase: "High Press",
+      outcome: "Positive",
+      tags: ["trigger"],
+      players: [{ playerId: "player-8", playerLabel: "Player Eight", role: "primary" }],
+      metadata: { clipKind: "subPhase" },
+    },
+  ];
+  expect(editing.validateTimelineMerge(clips)).toEqual({ ok: true });
+  const merged = editing.mergeTimelineClips(clips, "2026-07-16T12:00:00.000Z");
+  expect(merged).toMatchObject({
+    id: "",
+    startMs: 56000,
+    endMs: 79000,
+    subPhase: "High Press",
+    metadata: {
+      clipKind: "subPhase",
+      source: "timeline-merge",
+      mergedFromClipIds: ["clip-a", "clip-b"],
+    },
+  });
+  expect(merged.tags).toEqual(["press", "trigger"]);
+  expect(merged.players.map((player) => player.playerId)).toEqual(["player-9", "player-8"]);
+
+  const selected = editing.updateTimelineClipSelection({ timeline: {}, clips }, "clip-a");
+  const multi = editing.updateTimelineClipSelection(selected, "clip-b", { toggle: true });
+  expect(editing.timelineSelectedClipIds(multi)).toEqual(["clip-a", "clip-b"]);
+  const withHistory = editing.pushTimelineHistory(multi, { type: "archive", clipIds: ["clip-a"] });
+  expect(editing.popTimelineHistory(withHistory).entry).toMatchObject({ type: "archive", clipIds: ["clip-a"] });
 });
 
 test("video analysis timeline can show one coded moment in every involved player lane", async () => {
@@ -348,8 +436,8 @@ test("video analysis workstation keeps controls out of the video player", () => 
   expect(timeline).not.toContain("video-analysis-timeline-status");
   expect(timeline).not.toContain("${clipCount} clip");
   expect(timeline).toContain("${renderLaneSelector(laneMode, density.clipCount, laneModeCounts)}");
-  expect(timeline).toContain("${renderLaneSelector(laneMode, density.clipCount, laneModeCounts)}\n            ${renderTimelineRuler(ticks, totalMs)}");
-  expect(timeline).not.toContain("</div>\n          ${renderTimelineRuler(ticks, totalMs)}");
+  expect(timeline).toContain("${renderLaneSelector(laneMode, density.clipCount, laneModeCounts)}\n            ${renderTimelineRuler(ticks, timelineWindow)}");
+  expect(timeline).not.toContain("</div>\n          ${renderTimelineRuler(ticks, timelineWindow)}");
   const timelineStyles = read("src/modules/video-analysis/video-analysis.css");
   expect(timelineStyles).not.toContain("video-analysis-timeline-status");
   expect(timelineStyles).toContain(".video-analysis-timeline-toolbar .video-analysis-timeline-ruler");
@@ -946,12 +1034,15 @@ test("coding template persistence stays behind repositories and API actions", ()
   expect(clipRepository).toContain("trim-clip");
   expect(clipRepository).toContain("share-clip");
   expect(clipRepository).toContain("archive-clips");
+  expect(clipRepository).toContain("restore-clips");
   expect(api).toContain("trimClip");
   expect(api).toContain("shareClip");
   expect(api).toContain("archiveClips");
+  expect(api).toContain("restoreClips");
   expect(api).toContain('action === "trim-clip"');
   expect(api).toContain('action === "share-clip"');
   expect(api).toContain('action === "archive-clips"');
+  expect(api).toContain('action === "restore-clips"');
   expect(api).toContain("clipSourceMetadata");
   expect(api).toContain("match_title");
   expect(api).toContain("video_title");

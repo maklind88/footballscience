@@ -108,7 +108,39 @@ function renderOrganizer(state = {}) {
       </div>
       <div>
         <button type="button" data-video-analysis-clip-library-play-selected ${count ? "" : "disabled"}>Play selected</button>
+        <button type="button" data-video-analysis-clip-library-compare ${count > 1 ? "" : "disabled"}>Compare</button>
+        <button type="button" data-video-analysis-clip-library-create-playlist ${count ? "" : "disabled"}>Create playlist</button>
+        <button type="button" data-video-analysis-clip-library-build-report ${count ? "" : "disabled"}>Build report</button>
         <button type="button" data-video-analysis-clip-library-clear-selected ${count ? "" : "disabled"}>Clear</button>
+      </div>
+    </section>
+  `;
+}
+
+function renderComparison(state = {}, clips = []) {
+  if (state.clipLibrary?.outputMode !== "comparison") return "";
+  const selected = selectedClipIds(state);
+  const comparisonClips = clips.filter((clip) => selected.has(String(clip.id || ""))).slice(0, 4);
+  if (comparisonClips.length < 2) return "";
+  return `
+    <section class="video-analysis-clip-comparison" aria-label="Selected clip comparison">
+      <header>
+        <div>
+          <p class="video-analysis-kicker">Comparison</p>
+          <strong>${escapeHtml(`${comparisonClips.length} clips aligned by start time`)}</strong>
+        </div>
+        <button type="button" data-video-analysis-clip-library-close-output>Close</button>
+      </header>
+      <div class="video-analysis-clip-comparison__grid">
+        ${comparisonClips.map((clip) => `
+          <article>
+            <span>${escapeHtml(`${formatVideoTime(clip.startMs || clip.start_ms)} - ${formatVideoTime(clip.endMs || clip.end_ms)}`)}</span>
+            <strong>${escapeHtml(clipTitle(clip))}</strong>
+            <small>${escapeHtml(`${primaryPlayerLabel(clip)} · ${clipOutcome(clip)}`)}</small>
+            ${renderPrinciples(clip)}
+            <button type="button" data-video-analysis-clip-library-play="${escapeHtml(clip.id)}">Play</button>
+          </article>
+        `).join("")}
       </div>
     </section>
   `;
@@ -243,6 +275,7 @@ export function renderClipLibrary(state = {}) {
         ${renderSavedSearches(state.savedSearches || [])}
       </section>
       ${renderOrganizer(state)}
+      ${renderComparison(state, previewClips)}
       <section class="video-analysis-clip-library-groups">
         ${groups.length ? groups.map((group) => renderGroup(group, groupBy, state)).join("") : `
           <section class="video-analysis-clip-library-empty">

@@ -433,7 +433,9 @@ test("Video Analysis renders the FS Player Timeline module with lanes and clip b
   await expect(page.locator(".video-analysis-presentation")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-header")).toHaveCount(0);
   await expect(page.locator(".video-analysis-timeline-ruler")).toBeVisible();
-  await expect(page.locator(".video-analysis-timeline-tabs")).toHaveCount(0);
+  await expect(page.locator(".video-analysis-timeline-tabs")).toBeVisible();
+  await expect(page.locator('[data-video-analysis-timeline-view="overview"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-video-analysis-timeline-view="focus"]')).toBeDisabled();
   await expect(page.locator(".video-analysis-timeline-view-select")).toContainText("Timeline");
   await expect(page.locator("[data-video-analysis-timeline-lane-select]")).toHaveValue("all");
   await expect(page.locator("[data-video-analysis-timeline-lane-select] option")).toHaveCount(6);
@@ -726,6 +728,13 @@ test("Video Analysis Clip Library groups clips by searchable football metadata",
   await page.locator('[data-video-analysis-clip-library-select="clip-build-third"]').check({ force: true });
   await page.locator('[data-video-analysis-clip-library-select="clip-press-counter"]').check({ force: true });
   await expect(page.locator(".video-analysis-clip-library-organizer")).toContainText("2 selected");
+  await page.locator("[data-video-analysis-clip-library-compare]").click();
+  await expect(page.locator(".video-analysis-clip-comparison")).toBeVisible();
+  await expect(page.locator(".video-analysis-clip-comparison article")).toHaveCount(2);
+  await expect(page.locator(".video-analysis-clip-comparison")).toContainText("Build Up");
+  await expect(page.locator(".video-analysis-clip-comparison")).toContainText("High Press");
+  await page.locator("[data-video-analysis-clip-library-close-output]").click();
+  await expect(page.locator(".video-analysis-clip-comparison")).toHaveCount(0);
   await page.locator("[data-video-analysis-clip-library-play-selected]").click();
   await expect(page.locator("[data-video-analysis-clip-library-preview]")).toBeVisible();
   await expect(page.locator("[data-video-analysis-clip-library-preview]")).toContainText("Organizer · 1 of 2");
@@ -755,6 +764,18 @@ test("Video Analysis Clip Library groups clips by searchable football metadata",
 
   await page.locator('[data-video-analysis-clip-library-add-group="miniGamePrinciple"][data-video-analysis-clip-library-group-value="Third Player"]').click();
   await expect(page.locator(".video-analysis-toast")).toContainText("1 clips added to Presentation.");
+
+  await page.locator("[data-video-analysis-clip-library-create-playlist]").click();
+  await expect(page.locator("[data-video-analysis-presentation-module]")).toBeVisible();
+  await expect(page.locator("[data-video-analysis-presentation-title]")).toHaveValue("FS Player Playlist");
+  await expect(page.locator('[data-video-analysis-presentation-drop-section="opening"]')).toContainText("2");
+
+  await page.getByRole("button", { name: "Clip Library", exact: true }).click();
+  await expect(page.locator("[data-video-analysis-clip-library]")).toBeVisible();
+  await page.locator("[data-video-analysis-clip-library-build-report]").click();
+  await expect(page.locator("[data-video-analysis-presentation-module]")).toBeVisible();
+  await expect(page.locator("[data-video-analysis-presentation-title]")).toHaveValue("FS Player Analysis Report");
+  await expect(page.locator('[data-video-analysis-presentation-drop-section="player-focus"]')).toContainText("2");
 });
 
 test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) => {
@@ -829,6 +850,145 @@ test("Video Analysis Timeline handles a dense 500 tag match", async ({ page }) =
   ))).toBe(3);
 });
 
+test("Video Analysis Timeline keeps true scale, stacks overlaps, and undoes merges", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__videoAnalysisSmokeClips = [
+      {
+        id: "overlap-1",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 10000,
+        end_ms: 25000,
+        phase: "Out of Possession",
+        sub_phase: "High Press",
+        outcome: "Positive",
+        players: [],
+        tags: ["press"],
+        descriptors: [],
+        notes: [],
+      },
+      {
+        id: "overlap-2",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 12000,
+        end_ms: 27000,
+        phase: "Out of Possession",
+        sub_phase: "High Press",
+        outcome: "Development",
+        players: [],
+        tags: ["trigger"],
+        descriptors: [],
+        notes: [],
+      },
+      {
+        id: "later-clip",
+        match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152",
+        video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725",
+        start_ms: 60000,
+        end_ms: 75000,
+        phase: "In Possession",
+        sub_phase: "Finishing Phase",
+        outcome: "Neutral",
+        players: [],
+        tags: [],
+        descriptors: [],
+        notes: [],
+      },
+    ];
+    window.__videoAnalysisInitialState = {
+      view: "workspace",
+      activeAnalysisRoomTab: "fs-player",
+      match: { id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152", title: "Overlap match" },
+      video: { id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725", match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152" },
+      source: { id: "source-1", match_id: "2a4e615e-f3e7-4fc7-bb70-a02db63c9152", video_id: "26c70a43-5ee1-43f7-9e56-8e1c1be3a725" },
+      videoRef: { objectUrl: "data:video/mp4;base64,AAAA", durationMs: 120000, displayName: "Overlap match" },
+      localFileStatus: "native-ready",
+      localFileMessage: "Native playback ready",
+      nativePlaybackReady: true,
+    };
+  });
+  await page.goto("/qa/video-analysis-browser-smoke.html", { waitUntil: "domcontentloaded" });
+
+  await page.locator("[data-video-analysis-timeline-lane-select]").selectOption("subPhase");
+  const highPressLane = page.locator('[data-video-analysis-timeline-category-label="High Press"]').locator("..");
+  const highPressClips = highPressLane.locator(".video-analysis-clip-block");
+  await expect(highPressClips).toHaveCount(2);
+  await expect(highPressLane.locator("[data-video-analysis-timeline-track]")).toHaveAttribute(
+    "style",
+    /--video-analysis-lane-rows:2/
+  );
+  const overviewStyles = await highPressClips.evaluateAll((clips) => clips.map((clip) => clip.getAttribute("style")));
+  expect(overviewStyles).toEqual(expect.arrayContaining([
+    expect.stringContaining("width:12.5%"),
+    expect.stringContaining("--video-analysis-clip-row:0"),
+    expect.stringContaining("--video-analysis-clip-row:1"),
+  ]));
+
+  await highPressClips.first().click();
+  await page.locator('[data-video-analysis-timeline-view="focus"]').click();
+  await expect(page.locator("[data-video-analysis-timeline-module]")).toHaveAttribute(
+    "data-video-analysis-timeline-window-duration-ms",
+    "60000"
+  );
+  await expect(page.locator("[data-video-analysis-timeline-module]")).toHaveAttribute(
+    "data-video-analysis-timeline-window-start-ms",
+    "0"
+  );
+  await expect(highPressClips.first()).toHaveAttribute("style", /width:25%/);
+
+  await highPressClips.nth(1).click({ modifiers: ["Shift"] });
+  await expect(page.locator("[data-video-analysis-timeline-focus]")).toContainText("2 clips selected");
+  await page.locator("[data-video-analysis-timeline-merge]").click();
+  await expect.poll(() => page.evaluate(() => {
+    const request = [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "archive-clips");
+    return request?.body?.ids || [];
+  })).toEqual(["overlap-1", "overlap-2"]);
+  await expect(page.locator('[data-video-analysis-timeline-category-label="High Press"]')).toContainText("High Press (1)");
+  await expect(page.locator("[data-video-analysis-timeline-undo]")).toBeEnabled();
+
+  await page.locator("[data-video-analysis-timeline-undo]").click();
+  await expect.poll(() => page.evaluate(() => {
+    const request = [...(window.__videoAnalysisRequests || [])].reverse().find((item) => item.action === "restore-clips");
+    return request?.body?.ids || [];
+  })).toEqual(["overlap-1", "overlap-2"]);
+  await expect(page.locator('[data-video-analysis-timeline-category-label="High Press"]')).toContainText("High Press (2)");
+  await expect(page.locator(".video-analysis-toast")).toContainText("Timeline change undone.");
+
+  const restoredHighPressClips = page
+    .locator('[data-video-analysis-timeline-category-label="High Press"]')
+    .locator("..")
+    .locator(".video-analysis-clip-block");
+  await restoredHighPressClips.first().click();
+  await page.locator("[data-video-analysis-timeline-edit]").click();
+  await page.locator('[data-video-analysis-timeline-edit-field="outcome"]').selectOption("Neutral");
+  await page.locator('[data-video-analysis-timeline-edit-field="tags"]').fill("press, regain");
+  await page.locator('[data-video-analysis-timeline-edit-field="note"]').fill("Corrected after review.");
+  await page.locator("[data-video-analysis-timeline-edit-save]").click();
+  await expect.poll(() => page.evaluate(() => {
+    const request = [...(window.__videoAnalysisRequests || [])].reverse().find((item) => (
+      item.action === "save-clip" && item.body?.clip?.id === "overlap-1"
+    ));
+    return request?.body?.clip || null;
+  })).toMatchObject({
+    id: "overlap-1",
+    outcome: "Neutral",
+    tags: ["press", "regain"],
+    note: "Corrected after review.",
+  });
+  await page.locator("[data-video-analysis-timeline-undo]").click();
+  await expect.poll(() => page.evaluate(() => {
+    const requests = (window.__videoAnalysisRequests || []).filter((item) => (
+      item.action === "save-clip" && item.body?.clip?.id === "overlap-1"
+    ));
+    return requests.at(-1)?.body?.clip || null;
+  })).toMatchObject({
+    id: "overlap-1",
+    outcome: "Positive",
+    tags: ["press"],
+  });
+});
+
 test("Video Analysis deletes a selected timeline tag with the Delete key", async ({ page }) => {
   await page.addInitScript(() => {
     window.__videoAnalysisSmokeClips = [
@@ -883,6 +1043,12 @@ test("Video Analysis deletes a selected timeline tag with the Delete key", async
   ))).toBe("clip-delete-1");
   await expect(page.locator(".video-analysis-clip-block")).toHaveCount(1);
   await expect(page.locator(".video-analysis-toast")).toContainText("Timeline tag deleted.");
+  await expect(page.locator("[data-video-analysis-timeline-undo]")).toBeEnabled();
+  await page.locator("[data-video-analysis-timeline-undo]").click();
+  await expect.poll(() => page.evaluate(() => (
+    [...(window.__videoAnalysisRequests || [])].reverse().find((request) => request.action === "restore-clips")?.body?.ids || []
+  ))).toEqual(["clip-delete-1"]);
+  await expect(page.locator(".video-analysis-clip-block")).toHaveCount(2);
 });
 
 test("Video Analysis confirms before deleting an entire timeline row", async ({ page }) => {

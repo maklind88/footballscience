@@ -1507,6 +1507,68 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   font-weight: 800;
 }
 
+.video-analysis-timeline-window-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  border-bottom: 1px solid #e4eae5;
+  padding: 6px 8px;
+  background: #ffffff;
+}
+
+.video-analysis-timeline-window-range,
+.video-analysis-timeline-window-actions,
+.video-analysis-timeline-focus__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.video-analysis-timeline-window-range {
+  color: #56635c;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.video-analysis-timeline-window-range span {
+  min-width: 92px;
+  font-variant-numeric: tabular-nums;
+}
+
+.video-analysis-timeline-window-range button,
+.video-analysis-timeline-window-actions button,
+.video-analysis-timeline-focus__actions button,
+.video-analysis-timeline-editor button {
+  min-height: 28px;
+  border: 1px solid #cad5cf;
+  border-radius: 7px;
+  padding: 0 9px;
+  color: #28372f;
+  background: #ffffff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.video-analysis-timeline-window-range button {
+  min-width: 28px;
+  padding: 0;
+}
+
+.video-analysis-timeline-window-actions {
+  margin-left: auto;
+}
+
+.video-analysis-timeline-window-controls button:disabled,
+.video-analysis-timeline-focus__actions button:disabled,
+.video-analysis-timeline-editor button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .video-analysis-timeline-toolbar {
   display: grid;
   grid-template-columns: var(--video-analysis-timeline-label-width) minmax(600px, 1fr);
@@ -1846,14 +1908,14 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
 }
 
 .video-analysis-fs-player-timeline .video-analysis-lane__track {
-  min-height: 22px;
+  min-height: calc(4px + var(--video-analysis-lane-rows, 1) * 18px);
   border-radius: 5px;
 }
 
 .video-analysis-fs-player-timeline .video-analysis-clip-block {
-  top: 3px;
+  top: calc(3px + var(--video-analysis-clip-row, 0) * 18px);
   height: 15px;
-  min-width: 24px;
+  min-width: 0;
   justify-content: center;
   gap: 0;
   border-radius: 999px;
@@ -4230,7 +4292,7 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
 
 .video-analysis-lane__track {
   position: relative;
-  min-height: 24px;
+  min-height: calc(6px + var(--video-analysis-lane-rows, 1) * 21px);
   border-radius: 6px;
   background:
     repeating-linear-gradient(90deg, rgba(20, 53, 34, 0.07) 0 1px, transparent 1px 12.5%),
@@ -4242,12 +4304,13 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
 .video-analysis-clip-block {
   position: absolute;
   z-index: 2;
-  top: 3px;
+  top: calc(3px + var(--video-analysis-clip-row, 0) * 21px);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 4px;
-  min-width: 24px;
+  box-sizing: border-box;
+  min-width: 0;
   height: 17px;
   min-height: 0;
   overflow: hidden;
@@ -4471,6 +4534,73 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
   font-weight: 850;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.video-analysis-timeline-focus__actions {
+  grid-column: 1 / -1;
+}
+
+.video-analysis-timeline-focus__actions button:last-child {
+  color: #8a241f;
+  border-color: #e4b9b5;
+  background: #fff7f6;
+}
+
+.video-analysis-timeline-editor {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  border-top: 1px solid #d8ded7;
+  padding-top: 8px;
+}
+
+.video-analysis-timeline-editor label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.video-analysis-timeline-editor label > span {
+  color: #657168;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.video-analysis-timeline-editor input,
+.video-analysis-timeline-editor select,
+.video-analysis-timeline-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cad5cf;
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: #1f2b24;
+  background: #ffffff;
+  font: inherit;
+  font-size: 11px;
+}
+
+.video-analysis-timeline-editor select[multiple] {
+  min-height: 78px;
+}
+
+.video-analysis-timeline-editor__note,
+.video-analysis-timeline-editor__actions {
+  grid-column: 1 / -1;
+}
+
+.video-analysis-timeline-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.video-analysis-timeline-editor__actions button:last-child {
+  color: #ffffff;
+  border-color: #143522;
+  background: #143522;
 }
 
 .video-analysis-clip-block__handle {
@@ -5065,6 +5195,75 @@ html.is-video-analysis-fs-player-fullscreen:fullscreen {
 .video-analysis-clip-library-organizer button:disabled {
   cursor: default;
   opacity: 0.48;
+}
+
+.video-analysis-clip-comparison {
+  display: grid;
+  gap: 8px;
+  margin: 0 10px 8px;
+  border-top: 1px solid #dfe7e1;
+  border-bottom: 1px solid #dfe7e1;
+  padding: 10px 0;
+}
+
+.video-analysis-clip-comparison > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.video-analysis-clip-comparison > header p,
+.video-analysis-clip-comparison > header strong {
+  margin: 0;
+}
+
+.video-analysis-clip-comparison > header button,
+.video-analysis-clip-comparison article button {
+  min-height: 30px;
+  border: 1px solid #cbd6ce;
+  border-radius: 7px;
+  padding: 5px 9px;
+  color: #142018;
+  background: #ffffff;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.video-analysis-clip-comparison__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.video-analysis-clip-comparison article {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  border-left: 3px solid #2f6f4f;
+  padding: 8px 9px;
+  background: #f6f9f7;
+}
+
+.video-analysis-clip-comparison article > span,
+.video-analysis-clip-comparison article > small {
+  color: #67736c;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.video-analysis-clip-comparison article > strong {
+  overflow: hidden;
+  color: #16231b;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-analysis-clip-comparison article > button {
+  justify-self: start;
 }
 
 .video-analysis-clip-library-groups {

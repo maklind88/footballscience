@@ -32,6 +32,17 @@ import {
   isPhaseOnlyClip,
   toApiClipPayload,
 } from "./services/clipInstanceService.js";
+import {
+  clearTimelineClipSelection,
+  clipsForTimelineSelection,
+  editTimelineClip,
+  mergeTimelineClips,
+  popTimelineHistory,
+  pushTimelineHistory,
+  timelineSelectedClipIds,
+  updateTimelineClipSelection,
+  validateTimelineMerge,
+} from "./services/clipEditingService.js";
 import { buildClipLibraryClipOrder, clipEndMs, clipMatchesLibraryGroup, clipStartMs } from "./services/clipLibraryService.js";
 import { filterClipsForMatrix, savedSearchTitle } from "./services/clipIntelligenceService.js";
 import { phaseForSubPhase } from "./services/footballLanguageService.js";
@@ -2078,6 +2089,54 @@ function clipLibraryPreviewPatch(state = {}, clipIds = [], activeIndex = 0) {
   };
 }
 
+function orderedSelectedClipLibraryClips(state = {}) {
+  const selectedIds = new Set((Array.isArray(state.clipLibrary?.selectedClipIds) ? state.clipLibrary.selectedClipIds : [])
+    .map((id) => String(id || ""))
+    .filter(Boolean));
+  const source = Array.isArray(state.allClips) && state.allClips.length ? state.allClips : state.clips || [];
+  const orderedIds = buildClipLibraryClipOrder(source, state.clipLibrary?.groupBy || "subPhase");
+  const byId = new Map(source.map((clip) => [String(clip.id || ""), clip]));
+  const visible = orderedIds.filter((id) => selectedIds.has(id)).map((id) => byId.get(id)).filter(Boolean);
+  const visibleIds = new Set(visible.map((clip) => String(clip.id || "")));
+  return [
+    ...visible,
+    ...source.filter((clip) => selectedIds.has(String(clip.id || "")) && !visibleIds.has(String(clip.id || ""))),
+  ];
+}
+
+function presentationFromClipLibrarySelection(state = {}, kind = "playlist") {
+  const clips = orderedSelectedClipLibraryClips(state);
+  let current = createDefaultPresentation();
+  if (kind === "report") {
+    current = {
+      ...current,
+      title: "FS Player Analysis Report",
+      purpose: "analysis-report",
+      metadata: {
+        source: "clip-library-selection",
+        filters: { ...(state.filters || {}) },
+      },
+    };
+    for (const clip of clips) {
+      const sectionId = Array.isArray(clip.players) && clip.players.length ? "player-focus" : "team-focus";
+      current = addClipToPresentation(current, sectionId, clip);
+    }
+    return { current, activeSectionId: clips.some((clip) => Array.isArray(clip.players) && clip.players.length) ? "player-focus" : "team-focus", clips };
+  }
+  current = {
+    ...current,
+    title: "FS Player Playlist",
+    purpose: "clip-playlist",
+    metadata: {
+      source: "clip-library-selection",
+      filters: { ...(state.filters || {}) },
+    },
+  };
+  current = updatePresentationSection(current, "opening", { title: "Playlist" });
+  current = addClipsToPresentation(current, "opening", clips);
+  return { current, activeSectionId: "opening", clips };
+}
+
 function setupClipLibraryPreview(root, state = {}) {
   const previewClipId = String(state.clipLibrary?.previewClipId || "");
   const video = root?.querySelector?.("[data-video-analysis-clip-library-video]");
@@ -2463,7 +2522,7 @@ async function commitClipTrim(payload = {}, context = {}) {
       const savedClip = normalizeClipInstance(result.clip || {});
       const startMs = savedClip.startMs ?? payload.startMs;
       const endMs = savedClip.endMs ?? payload.endMs;
-      run.store.update((current) => ({
+      run.store.update((current) => pushTimelineHistory({
         ...(
           stateHasClipTimes(current, clipId, payload.startMs, payload.endMs)
             ? patchClipTimesInState(current, clipId, startMs, endMs)
@@ -2472,6 +2531,11 @@ async function commitClipTrim(payload = {}, context = {}) {
         selectedClipId: clipId,
         message: "Clip timing updated.",
         error: "",
+      }, {
+        type: "trim",
+        clipId,
+        before: { startMs: payload.originalStartMs, endMs: payload.originalEndMs },
+        after: { startMs, endMs },
       }));
       return true;
     } catch (error) {
@@ -2577,6 +2641,8 @@ function removeArchivedClipIdsFromState(state = {}, clipIds = [], options = {}) 
   if (!archivedIds.size) return state;
   const filterClips = (clips = []) => (Array.isArray(clips) ? clips.filter((clip) => !archivedIds.has(String(clip.id || ""))) : clips);
   const selectedClipId = archivedIds.has(String(state.selectedClipId || "")) ? "" : state.selectedClipId;
+  const timelineClipSelection = timelineSelectedClipIds(state)
+    .filter((id) => !archivedIds.has(String(id || "")));
   const pendingArchiveClipIds = uniqueClipIds([
     ...(Array.isArray(state.timeline?.pendingArchiveClipIds) ? state.timeline.pendingArchiveClipIds : []),
     ...archivedIds,
@@ -2603,6 +2669,8 @@ function removeArchivedClipIdsFromState(state = {}, clipIds = [], options = {}) 
     selectedClipId,
     timeline: {
       ...(state.timeline || {}),
+      selectedClipIds: timelineClipSelection,
+      editorOpen: timelineClipSelection.length === 1 ? Boolean(state.timeline?.editorOpen) : false,
       pendingArchiveClipIds,
       navigationAnchor: options.navigationAnchor || state.timeline?.navigationAnchor || null,
       selectedCategory,
@@ -2624,7 +2692,9 @@ async function archiveTimelineClips(context = {}, clipIds = [], options = {}) {
     run.store.update((state) => ({ ...state, message: "Select a timeline tag first." }));
     return false;
   }
-  const navigationAnchor = deletedTimelineNavigationAnchor(run.store.getState(), ids);
+  const stateBeforeArchive = run.store.getState();
+  const archivedClips = ids.map((id) => clipByIdFromState(stateBeforeArchive, id)).filter(Boolean);
+  const navigationAnchor = deletedTimelineNavigationAnchor(stateBeforeArchive, ids);
   try {
     run.store.update((state) => ({
       ...removeArchivedClipIdsFromState(state, ids, { ...options, navigationAnchor }),
@@ -2641,7 +2711,10 @@ async function archiveTimelineClips(context = {}, clipIds = [], options = {}) {
       error: "",
     }));
     await loadClips();
-    run.store.update((state) => removePendingArchiveClipIdsFromState(state, ids));
+    run.store.update((state) => pushTimelineHistory(
+      removePendingArchiveClipIdsFromState(state, ids),
+      { type: "archive", clipIds: ids, clips: archivedClips }
+    ));
     return true;
   } catch (error) {
     const errorMessage = error.message || "Could not delete timeline tag.";
@@ -2657,6 +2730,171 @@ async function archiveTimelineClips(context = {}, clipIds = [], options = {}) {
       status: "error",
       message: "",
       error: errorMessage,
+    }));
+    return false;
+  }
+}
+
+async function saveTimelineClipEdits(context = {}, values = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const clips = clipsForTimelineSelection(state);
+  if (clips.length !== 1) {
+    run.store.update((current) => ({ ...current, error: "Select one clip to edit." }));
+    return false;
+  }
+  const before = normalizeClipInstance(clips[0]);
+  const nextClip = editTimelineClip(before, values);
+  try {
+    run.store.update((current) => ({ ...current, status: "saving-clip", error: "", message: "Saving clip changes." }));
+    const result = await run.clips.save(toApiClipPayload(nextClip));
+    const savedClip = normalizeClipInstance(result.clip || nextClip);
+    run.store.update((current) => pushTimelineHistory({
+      ...replaceClipInState(current, savedClip),
+      status: "ready",
+      selectedClipId: savedClip.id,
+      timeline: {
+        ...(current.timeline || {}),
+        selectedClipIds: [savedClip.id],
+        editorOpen: false,
+      },
+      message: "Clip updated.",
+      error: "",
+    }, {
+      type: "edit",
+      clipId: savedClip.id,
+      before,
+      after: savedClip,
+    }));
+    return true;
+  } catch (error) {
+    run.store.update((current) => ({
+      ...current,
+      status: "error",
+      error: error.message || "Could not update clip.",
+    }));
+    return false;
+  }
+}
+
+async function mergeTimelineSelection(context = {}) {
+  const run = ensureRuntime(context);
+  const state = run.store.getState();
+  const clips = clipsForTimelineSelection(state);
+  const validation = validateTimelineMerge(clips);
+  if (!validation.ok) {
+    run.store.update((current) => ({ ...current, error: validation.reason }));
+    return false;
+  }
+  const sourceClipIds = clips.map((clip) => clip.id).filter(Boolean);
+  let savedClip = null;
+  try {
+    run.store.update((current) => ({ ...current, status: "saving-clip", error: "", message: "Merging clips." }));
+    const mergedDraft = mergeTimelineClips(clips);
+    const result = await run.clips.save(toApiClipPayload(mergedDraft));
+    savedClip = normalizeClipInstance(result.clip || {});
+    if (!savedClip.id) throw new Error("Merged clip could not be created.");
+    try {
+      await run.clips.archiveMany(sourceClipIds);
+    } catch (archiveError) {
+      await run.clips.archive(savedClip.id).catch(() => {});
+      throw archiveError;
+    }
+    await loadClips();
+    run.store.update((current) => pushTimelineHistory({
+      ...current,
+      status: "ready",
+      selectedClipId: savedClip.id,
+      timeline: {
+        ...(current.timeline || {}),
+        selectedClipIds: [savedClip.id],
+        editorOpen: false,
+        viewMode: "focus",
+        selectedCategory: {
+          ...(current.timeline?.selectedCategory || {}),
+          activeClipId: savedClip.id,
+          keyboardDeleteScope: "clip",
+        },
+      },
+      message: `${sourceClipIds.length} clips merged.`,
+      error: "",
+    }, {
+      type: "merge",
+      sourceClipIds,
+      sourceClips: clips.map(normalizeClipInstance),
+      mergedClipId: savedClip.id,
+    }));
+    return true;
+  } catch (error) {
+    await loadClips().catch(() => {});
+    run.store.update((current) => ({
+      ...current,
+      status: "error",
+      error: error.message || "Could not merge clips.",
+    }));
+    return false;
+  }
+}
+
+async function undoTimelineAction(context = {}) {
+  const run = ensureRuntime(context);
+  const currentState = run.store.getState();
+  const history = Array.isArray(currentState.timeline?.history) ? currentState.timeline.history : [];
+  const entry = history.at(-1);
+  if (!entry) {
+    run.store.update((current) => ({ ...current, message: "Nothing to undo." }));
+    return false;
+  }
+  try {
+    run.store.update((current) => ({ ...current, status: "saving-clip", error: "", message: "Undoing timeline change." }));
+    let selectedClipIds = [];
+    if (entry.type === "archive") {
+      await run.clips.restoreMany(entry.clipIds || []);
+      selectedClipIds = uniqueClipIds(entry.clipIds || []);
+    } else if (entry.type === "merge") {
+      await run.clips.restoreMany(entry.sourceClipIds || []);
+      await run.clips.archive(entry.mergedClipId);
+      selectedClipIds = uniqueClipIds(entry.sourceClipIds || []);
+    } else if (entry.type === "trim") {
+      await run.clips.trim({
+        id: entry.clipId,
+        startMs: entry.before?.startMs,
+        endMs: entry.before?.endMs,
+      });
+      selectedClipIds = uniqueClipIds([entry.clipId]);
+    } else if (entry.type === "edit") {
+      await run.clips.save(toApiClipPayload(entry.before || {}));
+      selectedClipIds = uniqueClipIds([entry.clipId]);
+    } else {
+      throw new Error("This timeline action cannot be undone.");
+    }
+    await loadClips();
+    run.store.update((current) => {
+      const popped = popTimelineHistory(current).state;
+      return {
+        ...popped,
+        status: "ready",
+        selectedClipId: selectedClipIds.at(-1) || "",
+        timeline: {
+          ...(popped.timeline || {}),
+          selectedClipIds,
+          editorOpen: false,
+          selectedCategory: {
+            ...(popped.timeline?.selectedCategory || {}),
+            activeClipId: selectedClipIds.at(-1) || "",
+            keyboardDeleteScope: "clip",
+          },
+        },
+        message: "Timeline change undone.",
+        error: "",
+      };
+    });
+    return true;
+  } catch (error) {
+    run.store.update((current) => ({
+      ...current,
+      status: "error",
+      error: error.message || "Could not undo timeline change.",
     }));
     return false;
   }
@@ -2715,7 +2953,7 @@ function confirmTimelineCategoryDelete(intent = {}, context = {}) {
   return confirmPlatformAction({
     eyebrow: "Video Analysis",
     title: "Delete timeline row?",
-    message: `Delete the "${intent.label}" timeline row?\n\n${count} tag${count === 1 ? "" : "s"} will be archived from this timeline. This cannot be undone from here.`,
+    message: `Delete the "${intent.label}" timeline row?\n\n${count} tag${count === 1 ? "" : "s"} will be archived and can be restored with Undo.`,
     confirmLabel: "Delete row",
     tone: "danger",
     win: context.win || window,
@@ -2751,6 +2989,8 @@ function selectTimelineClip(context = {}, clip = {}, laneMode = "", label = "") 
     selectedClipId: clip.id,
     timeline: {
       ...(current.timeline || {}),
+      selectedClipIds: [clip.id],
+      editorOpen: false,
       playheadMs: Math.max(0, Math.round(Number(startMs || 0))),
       selectedCategory: {
         ...(current.timeline?.selectedCategory || {}),
@@ -5056,28 +5296,122 @@ export function handleClick(event, context = {}) {
     run.store.update((state) => ({ ...state, draft: trimClipDraft(state.draft, edge, Number(delta || 0)) }));
     return true;
   }
+  const timelineViewButton = target.closest("[data-video-analysis-timeline-view]");
+  if (timelineViewButton) {
+    const viewMode = timelineViewButton.dataset.videoAnalysisTimelineView === "focus" ? "focus" : "overview";
+    run.store.update((state) => ({
+      ...state,
+      timeline: {
+        ...(state.timeline || {}),
+        viewMode,
+      },
+    }));
+    return true;
+  }
+  const timelineZoomButton = target.closest("[data-video-analysis-timeline-zoom]");
+  if (timelineZoomButton) {
+    run.store.update((state) => ({
+      ...state,
+      timeline: {
+        ...(state.timeline || {}),
+        zoom: Math.min(6, Math.max(1, Number(state.timeline?.zoom || 1) + Number(timelineZoomButton.dataset.videoAnalysisTimelineZoom || 0))),
+      },
+    }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-timeline-clear-selection]")) {
+    run.store.update((state) => clearTimelineClipSelection(state));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-timeline-edit]")) {
+    run.store.update((state) => ({
+      ...state,
+      timeline: {
+        ...(state.timeline || {}),
+        editorOpen: !state.timeline?.editorOpen,
+      },
+    }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-timeline-edit-cancel]")) {
+    run.store.update((state) => ({
+      ...state,
+      timeline: {
+        ...(state.timeline || {}),
+        editorOpen: false,
+      },
+    }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-timeline-edit-save]")) {
+    const form = target.closest("[data-video-analysis-timeline-editor]");
+    const field = (name) => form?.querySelector(`[data-video-analysis-timeline-edit-field="${name}"]`);
+    const principleSelect = field("miniGamePrincipleIds");
+    void saveTimelineClipEdits(context, {
+      subPhase: field("subPhase")?.value || "",
+      outcome: field("outcome")?.value || "",
+      miniGamePrincipleIds: [...(principleSelect?.selectedOptions || [])].map((option) => option.value),
+      tags: field("tags")?.value || "",
+      note: field("note")?.value || "",
+    });
+    return true;
+  }
+  const timelineNudgeButton = target.closest("[data-video-analysis-timeline-nudge]");
+  if (timelineNudgeButton) {
+    const [edge, deltaMs] = String(timelineNudgeButton.dataset.videoAnalysisTimelineNudge || "").split(":");
+    return trimSelectedClipByKeyboard(context, { edge, deltaMs: Number(deltaMs || 0) });
+  }
+  if (target.closest("[data-video-analysis-timeline-merge]")) {
+    void mergeTimelineSelection(context);
+    return true;
+  }
+  if (target.closest("[data-video-analysis-timeline-delete-selection]")) {
+    const state = run.store.getState();
+    const clipIds = timelineSelectedClipIds(state);
+    if (!clipIds.length) return true;
+    void confirmPlatformAction({
+      eyebrow: "Video Analysis",
+      title: clipIds.length === 1 ? "Delete timeline tag?" : "Delete selected timeline tags?",
+      message: `${clipIds.length} tag${clipIds.length === 1 ? "" : "s"} will be archived and can be restored with Undo.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+      win: context.win || window,
+    }).then((confirmed) => {
+      if (confirmed) void archiveTimelineClips(context, clipIds);
+    });
+    return true;
+  }
+  if (target.closest("[data-video-analysis-timeline-undo]")) {
+    void undoTimelineAction(context);
+    return true;
+  }
   const seekButton = target.closest("[data-video-analysis-seek]");
   if (seekButton) {
     const state = run.store.getState();
     const clip = selectedClipFromPresentationSources(state, seekButton.dataset.videoAnalysisSeek);
     const startMs = clip?.startMs ?? clip?.start_ms ?? 0;
     if (clip?.id) seekVideoToMs(videoElement(context), startMs);
-    run.store.update((current) => ({
-      ...current,
-      selectedClipId: clip?.id || "",
-      timeline: {
-        ...(current.timeline || {}),
+    const toggleSelection = Boolean(event.shiftKey || event.metaKey || event.ctrlKey);
+    run.store.update((current) => {
+      const selectedState = clip?.id
+        ? updateTimelineClipSelection(current, clip.id, { toggle: toggleSelection })
+        : current;
+      return {
+        ...selectedState,
+        timeline: {
+        ...(selectedState.timeline || {}),
         playheadMs: Math.max(0, Math.round(Number(startMs || 0))),
         selectedCategory: {
-          ...(current.timeline?.selectedCategory || {}),
+          ...(selectedState.timeline?.selectedCategory || {}),
           keyboardDeleteScope: "clip",
         },
       },
       presentation: {
-        ...(current.presentation || {}),
-        selectedClipId: clip?.id || current.presentation?.selectedClipId || "",
+        ...(selectedState.presentation || {}),
+        selectedClipId: clip?.id || selectedState.presentation?.selectedClipId || "",
       },
-    }));
+      };
+    });
     return true;
   }
   const tagFilterTrigger = target.closest("[data-video-analysis-tag-filter-trigger]");
@@ -5120,6 +5454,8 @@ export function handleClick(event, context = {}) {
       selectedClipId: clips[0]?.id || current.selectedClipId || "",
       timeline: {
         ...(current.timeline || {}),
+        selectedClipIds: clips.map((clip) => clip.id).filter(Boolean),
+        editorOpen: false,
         selectedCategory: {
           laneMode: normalizeTimelineLaneMode(laneMode),
           label,
@@ -5383,12 +5719,61 @@ export function handleClick(event, context = {}) {
     });
     return true;
   }
+  if (target.closest("[data-video-analysis-clip-library-compare]")) {
+    run.store.update((state) => ({
+      ...state,
+      clipLibrary: {
+        ...(state.clipLibrary || {}),
+        outputMode: "comparison",
+      },
+      message: "Comparison opened.",
+    }));
+    return true;
+  }
+  if (target.closest("[data-video-analysis-clip-library-close-output]")) {
+    run.store.update((state) => ({
+      ...state,
+      clipLibrary: {
+        ...(state.clipLibrary || {}),
+        outputMode: "",
+      },
+    }));
+    return true;
+  }
+  const createLibraryOutput = target.closest(
+    "[data-video-analysis-clip-library-create-playlist], [data-video-analysis-clip-library-build-report]"
+  );
+  if (createLibraryOutput) {
+    const kind = createLibraryOutput.hasAttribute("data-video-analysis-clip-library-build-report") ? "report" : "playlist";
+    run.store.update((state) => {
+      const output = presentationFromClipLibrarySelection(state, kind);
+      const firstItem = presentationQueue(output.current)[0];
+      if (!output.clips.length) return { ...state, message: "Select clips first." };
+      return {
+        ...state,
+        activeAnalysisRoomTab: "presentation",
+        selectedClipId: output.clips[0]?.id || state.selectedClipId || "",
+        message: kind === "report" ? "Analysis report draft created." : "Playlist draft created.",
+        presentation: {
+          ...(state.presentation || {}),
+          current: output.current,
+          mode: "builder",
+          activeSectionId: output.activeSectionId,
+          selectedItemId: firstItem?.id || "",
+          selectedClipId: firstItem?.clipId || "",
+        },
+      };
+    });
+    loadPresentationSources(null, { silent: true });
+    return true;
+  }
   if (target.closest("[data-video-analysis-clip-library-clear-selected]")) {
     run.store.update((state) => ({
       ...state,
       clipLibrary: {
         ...(state.clipLibrary || {}),
         selectedClipIds: [],
+        outputMode: "",
       },
     }));
     return true;
@@ -5968,6 +6353,8 @@ export function handleContextMenu(event, context = {}) {
     selectedClipId: clips[0]?.id || current.selectedClipId || "",
     timeline: {
       ...(current.timeline || {}),
+      selectedClipIds: clips.map((clip) => clip.id).filter(Boolean),
+      editorOpen: false,
       selectedCategory: {
         laneMode: normalizeTimelineLaneMode(laneMode),
         label,

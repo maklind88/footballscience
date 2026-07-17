@@ -143,6 +143,8 @@
         return delayMs ? new Promise((resolve) => setTimeout(resolve, delayMs)) : Promise.resolve();
       }
 
+      const archivedClips = new Map();
+
       window.fetch = async (url, options = {}) => {
         const parsed = new URL(url, window.location.origin);
         const action = parsed.searchParams.get("action");
@@ -276,6 +278,7 @@
           await optionalArchiveDelay();
           const id = body.id || body.clipId || body.clip_id;
           const archived = clips.find((item) => item.id === id) || null;
+          if (archived) archivedClips.set(String(id), archived);
           const nextClips = clips.filter((item) => item.id !== id);
           clips.splice(0, clips.length, ...nextClips);
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", clip: archived });
@@ -284,9 +287,24 @@
           await optionalArchiveDelay();
           const ids = new Set((body.ids || body.clipIds || body.clip_ids || []).map((id) => String(id || "")));
           const archivedIds = clips.filter((item) => ids.has(item.id)).map((item) => item.id);
+          clips.filter((item) => ids.has(item.id)).forEach((item) => archivedClips.set(String(item.id), item));
           const nextClips = clips.filter((item) => !ids.has(item.id));
           clips.splice(0, clips.length, ...nextClips);
           return Response.json({ ok: true, schema: "footballscience-video-analysis-v2", archivedIds, clips: [] });
+        }
+        if (action === "restore-clips") {
+          const ids = (body.ids || body.clipIds || body.clip_ids || []).map((id) => String(id || ""));
+          const restored = ids.map((id) => archivedClips.get(id)).filter(Boolean);
+          restored.forEach((clip) => {
+            if (!clips.some((item) => item.id === clip.id)) clips.push(clip);
+            archivedClips.delete(String(clip.id));
+          });
+          return Response.json({
+            ok: true,
+            schema: "footballscience-video-analysis-v2",
+            restoredIds: restored.map((clip) => clip.id),
+            clips: restored,
+          });
         }
         if (action === "update-match-link") {
           const match = matches.find((item) => item.id === body.matchId) || matches[0];

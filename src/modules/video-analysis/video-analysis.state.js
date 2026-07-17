@@ -102,6 +102,7 @@ export function createInitialVideoAnalysisState(context = {}) {
       previewClipId: "",
       previewQueueIds: [],
       previewActiveIndex: 0,
+      outputMode: "",
     },
     template,
     codingSession: {
@@ -129,9 +130,13 @@ export function createInitialVideoAnalysisState(context = {}) {
     },
     timeline: {
       zoom: 1,
+      viewMode: "overview",
       laneMode: "all",
       playheadMs: 0,
       tagFilterOpen: false,
+      selectedClipIds: [],
+      editorOpen: false,
+      history: [],
       selectedCategory: {
         laneMode: "",
         label: "",

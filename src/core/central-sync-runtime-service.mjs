@@ -148,7 +148,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   function persistCentralStateServerRevision(key, result = {}) {
     const revision = getCentralSyncResultRevision(result);
-    if (!Number.isInteger(revision) || revision < 0) {
+    if (!Number.isInteger(revision) || revision <= 0) {
       return;
     }
     const normalizedKey = String(key || "");
@@ -157,6 +157,9 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
     mutateManifest((manifest) => {
       const currentEntry = manifest.entries[normalizedKey] || {};
+      const currentRevision = Number(currentEntry.serverRevision);
+      const serverRevision =
+        Number.isInteger(currentRevision) && currentRevision > revision ? currentRevision : revision;
       manifest.entries[normalizedKey] = {
         ...(currentEntry?.label
           ? currentEntry
@@ -169,7 +172,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
               deletedAt: "",
             }),
         ...currentEntry,
-        serverRevision: revision,
+        serverRevision,
       };
     });
   }
@@ -292,6 +295,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
           const retryResult = await retryCentralStateWriteAfterConflict(write, result, bridge);
           setCentralSyncPendingState(write.key, false, write.removed);
           if (retryResult?.ok) {
+            persistCentralStateServerRevision(write.key, retryResult);
             queueCentralStateStatus("");
             setAutosaveStatusForKey(write.key, "saved", "Saved");
             continue;

@@ -21,6 +21,7 @@ function createServiceHarness(options = {}) {
   let timerId = 0;
   let hydrated = options.hydrated !== false;
   let revision = Number.isInteger(Number(options.revision)) ? Number(options.revision) : 7;
+  let syncResultIndex = 0;
   const win = {
     footballScienceCentralState: {
       getStatus: () => ({ metadata: { "football-session-planner-v1": { revision } } }),
@@ -28,6 +29,11 @@ function createServiceHarness(options = {}) {
       isHydrated: () => hydrated,
       syncKey: async (key, value, syncOptions) => {
         syncCalls.push({ key, value, options: syncOptions });
+        if (Array.isArray(options.syncResults)) {
+          const result = options.syncResults[Math.min(syncResultIndex, options.syncResults.length - 1)];
+          syncResultIndex += 1;
+          return result;
+        }
         return options.syncResult ?? { ok: true, value };
       },
       hydrate: async () => {
@@ -125,6 +131,55 @@ test("central sync runtime queues protected writes with revision metadata and fl
     serverRevision: 12,
   });
   expect(harness.autosaveStatuses).toContainEqual(["football-session-planner-v1", "saved", "Saved"]);
+});
+
+test("central sync runtime keeps the highest acknowledged server revision", async () => {
+  for (const syncResult of [
+    { ok: true, value: "{\"blocks\":[]}" },
+    { ok: true, value: "{\"blocks\":[]}", revision: 8 },
+  ]) {
+    const harness = createServiceHarness({ syncResult });
+    harness.manifest.entries["football-session-planner-v1"] = {
+      label: "Session Planner",
+      serverRevision: 9,
+    };
+
+    harness.service.queueCentralStateWrite("football-session-planner-v1", "{\"blocks\":[]}");
+    await harness.service.flushCentralStateWrites();
+
+    expect(harness.manifest.entries["football-session-planner-v1"]).toMatchObject({
+      serverRevision: 9,
+    });
+  }
+});
+
+test("central sync runtime persists the acknowledged revision after a conflict retry", async () => {
+  const harness = createServiceHarness({
+    syncResults: [
+      { ok: false, conflict: true, status: 409, currentRevision: 10 },
+      { ok: true, value: "{\"blocks\":[]}", revision: 11 },
+    ],
+  });
+
+  harness.service.queueCentralStateWrite("football-session-planner-v1", "{\"blocks\":[]}");
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([
+    {
+      key: "football-session-planner-v1",
+      value: "{\"blocks\":[]}",
+      options: { removed: false, baseRevision: 7 },
+    },
+    {
+      key: "football-session-planner-v1",
+      value: "{\"blocks\":[]}",
+      options: { removed: false, baseRevision: 10 },
+    },
+  ]);
+  expect(harness.manifest.entries["football-session-planner-v1"]).toMatchObject({
+    pendingCentralSync: false,
+    serverRevision: 11,
+  });
 });
 
 test("central sync runtime applies newer server values through the injected render boundary", () => {

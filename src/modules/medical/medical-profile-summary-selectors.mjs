@@ -10,11 +10,26 @@ export function createMedicalProfileSummarySelectors({
   getMedicalRtpPhaseOption = () => ({ label: "Not set" }),
   isMedicalPlanCleared = () => false,
   isMedicalRestrictedRecommendationRecord = () => false,
+  medicalActualParticipationFallback = "not-logged",
   medicalClearanceRoles = [],
   medicalLoadGateOptions = [],
   normalizeMedicalClearance = () => ({}),
   normalizeMedicalLoadGates = () => ({}),
 } = {}) {
+  function getMedicalActualParticipation(record = {}) {
+    const sourceRecord = record && typeof record === "object" ? record : {};
+    const hasActual = Object.prototype.hasOwnProperty.call(sourceRecord, "actualParticipation");
+    if (!record) {
+      return null;
+    }
+    if (hasActual && sourceRecord.actualParticipation === medicalActualParticipationFallback) {
+      return null;
+    }
+    const value = hasActual ? sourceRecord.actualParticipation : sourceRecord.participation;
+    const participation = Number(value);
+    return Number.isFinite(participation) ? Math.max(0, Math.min(100, Math.round(participation))) : null;
+  }
+
   function getMedicalPlayerProfileSummary(player, dateValue = "") {
     const currentRecord = getLatestMedicalRecord(player.id, dateValue);
     const manualRecords = getMedicalPlayerRecords(player.id);
@@ -24,9 +39,13 @@ export function createMedicalProfileSummarySelectors({
     const primaryPlan = activePlan ?? plans[0] ?? null;
     const windowRecords = getMedicalPastWindowDates(dateValue)
       .map((windowDate) => getLatestMedicalRecord(player.id, windowDate))
+      .map((record) => {
+        const actualParticipation = getMedicalActualParticipation(record);
+        return record && actualParticipation !== null ? { ...record, actualParticipationValue: actualParticipation } : null;
+      })
       .filter(Boolean);
     const windowAverage = windowRecords.length
-      ? Math.round(windowRecords.reduce((sum, record) => sum + record.participation, 0) / windowRecords.length)
+      ? Math.round(windowRecords.reduce((sum, record) => sum + record.actualParticipationValue, 0) / windowRecords.length)
       : null;
     const status = getMedicalRecordStatus(currentRecord);
     const phaseLabel = currentRecord

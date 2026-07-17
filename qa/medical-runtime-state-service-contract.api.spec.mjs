@@ -197,6 +197,110 @@ test("Medical runtime state service preserves private and coach-safe read behavi
   expect(coachState.policy).toMatchObject({ coachSafe: true });
 });
 
+test("Medical runtime state service auto-closes past unlogged actual participation only", () => {
+  const storedState = {
+    ...createStoredMedicalState(),
+    records: [
+      {
+        id: "past-unlogged",
+        playerId: "p1",
+        date: "2026-05-30",
+        status: "modified",
+        participation: 75,
+        actualParticipation: "not-logged",
+        createdAt: "2026-05-30T09:00:00.000Z",
+      },
+      {
+        id: "past-missing-actual",
+        playerId: "p1",
+        date: "2026-05-29",
+        status: "modified",
+        participation: 50,
+        createdAt: "2026-05-29T09:00:00.000Z",
+      },
+      {
+        id: "past-manual-actual",
+        playerId: "p1",
+        date: "2026-05-28",
+        status: "modified",
+        participation: 75,
+        actualParticipation: 10,
+        createdAt: "2026-05-28T09:00:00.000Z",
+      },
+      {
+        id: "today-unlogged",
+        playerId: "p1",
+        date: "2026-05-31",
+        status: "modified",
+        participation: 25,
+        actualParticipation: "not-logged",
+        createdAt: "2026-05-31T09:00:00.000Z",
+      },
+      {
+        id: "future-unlogged",
+        playerId: "p1",
+        date: "2026-06-01",
+        status: "modified",
+        participation: 25,
+        actualParticipation: "not-logged",
+        createdAt: "2026-06-01T09:00:00.000Z",
+      },
+      {
+        id: "archived-unlogged",
+        playerId: "p1",
+        date: "2026-05-27",
+        status: "modified",
+        participation: 25,
+        actualParticipation: "not-logged",
+        archivedAt: "2026-05-27T12:00:00.000Z",
+        createdAt: "2026-05-27T09:00:00.000Z",
+      },
+      {
+        id: "synthetic-unlogged",
+        playerId: "p1",
+        date: "2026-05-26",
+        status: "modified",
+        participation: 25,
+        actualParticipation: "not-logged",
+        source: "injury-plan",
+        injuryPlanId: "plan-1",
+        createdAt: "2026-05-26T09:00:00.000Z",
+      },
+    ],
+  };
+  const harness = createServiceHarness({
+    canEdit: true,
+    storage: { "football-medical-team-v1": JSON.stringify(storedState) },
+  });
+
+  const state = harness.service.readMedicalState();
+  const byId = new Map(state.records.map((record) => [record.id, record]));
+
+  expect(byId.get("past-unlogged").actualParticipation).toBe(75);
+  expect(byId.get("past-missing-actual").actualParticipation).toBe(50);
+  expect(byId.get("past-manual-actual").actualParticipation).toBe(10);
+  expect(byId.get("today-unlogged").actualParticipation).toBe("not-logged");
+  expect(byId.get("future-unlogged").actualParticipation).toBe("not-logged");
+  expect(byId.get("archived-unlogged").actualParticipation).toBe("not-logged");
+  expect(byId.get("synthetic-unlogged").actualParticipation).toBe("not-logged");
+
+  expect(harness.rawWrites).toHaveLength(1);
+  const persisted = JSON.parse(harness.storage.value(harness.medicalTeamStorageKey));
+  const persistedById = new Map(persisted.records.map((record) => [record.id, record]));
+  expect(persistedById.get("past-unlogged").actualParticipation).toBe(75);
+  expect(persistedById.get("today-unlogged").actualParticipation).toBe("not-logged");
+
+  const coachHarness = createServiceHarness({
+    canEdit: false,
+    currentUser: null,
+    storage: { "football-medical-team-v1": JSON.stringify(storedState) },
+  });
+  const coachState = coachHarness.service.readMedicalState();
+  const coachById = new Map(coachState.records.map((record) => [record.id, record]));
+  expect(coachById.get("past-unlogged").actualParticipation).toBe("not-logged");
+  expect(coachHarness.rawWrites).toHaveLength(0);
+});
+
 test("Medical runtime state service preserves write, sync-status, and profile status updates", () => {
   const harness = createServiceHarness({
     canEdit: true,

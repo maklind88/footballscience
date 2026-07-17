@@ -179,6 +179,7 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     getPlayerAvailabilityStatusForDate: (playerId, dateValue) =>
       deps.getMedicalPlayerAvailabilityStatusForDate?.({ id: playerId }, dateValue) || "",
     getTeamTrainingDateValues: deps.getTeamTrainingDateValues,
+    medicalActualParticipationFallback: deps.medicalActualParticipationFallback,
   });
 
   function getVisiblePlayerProfiles() {

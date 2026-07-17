@@ -24,6 +24,14 @@ function normalizeParticipation(value) {
   return Math.max(0, Math.min(100, Math.round(numberValue)));
 }
 
+function getRecordActualParticipation(record = {}, actualFallback = "not-logged") {
+  const hasActual = Object.prototype.hasOwnProperty.call(record, "actualParticipation");
+  if (hasActual && record.actualParticipation === actualFallback) {
+    return null;
+  }
+  return normalizeParticipation(hasActual ? record.actualParticipation : record.participation);
+}
+
 function getRecordTimestamp(record = {}) {
   const value = record.updatedAt || record.createdAt || "";
   const timestamp = Date.parse(value);
@@ -141,6 +149,7 @@ export function getSquadTrainingAvailabilitySummary({
   playerId = "",
   records = [],
   referenceDateValue = defaultFormatDateValue(new Date()),
+  medicalActualParticipationFallback = "not-logged",
   getActivityContext = () => null,
   getActiveMedicalInjuryPlan = () => null,
   getPlayerAvailabilityStatusForDate = () => "",
@@ -169,6 +178,7 @@ export function getSquadTrainingAvailabilitySummary({
       .map((record) => ({
         ...record,
         participation: normalizeParticipation(record.participation),
+        actualParticipationValue: getRecordActualParticipation(record, medicalActualParticipationFallback),
         dateValue: parseDateValue(record.date),
       }))
       .filter((record) => record.participation !== null && record.dateValue && record.dateValue <= referenceDate)
@@ -216,10 +226,13 @@ export function getSquadTrainingAvailabilitySummary({
       if (isExcusedClubAbsenceStatus(status)) {
         return null;
       }
+      if (playerRecord.actualParticipationValue === null) {
+        return null;
+      }
       return {
         date,
         dateValue,
-        participation: playerRecord.participation,
+        participation: playerRecord.actualParticipationValue,
       };
     })
     .filter(Boolean)
@@ -233,8 +246,8 @@ export function getSquadTrainingAvailabilitySummary({
 
   return {
     hasData: trainingOpportunities.length > 0,
-    loggedCount: completedRecords.length,
-    latestDate: completedRecords.at(-1)?.date || "",
+    loggedCount: trainingOpportunities.length,
+    latestDate: trainingOpportunities.at(-1)?.date || "",
     week: buildWindow(trainingOpportunities, (recordDate) => {
       const ageDays = getAgeDays(recordDate);
       return ageDays >= 0 && ageDays <= 6;

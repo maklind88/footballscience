@@ -203,6 +203,29 @@ test("Squad training availability summary ignores unrecommended trainings but co
   expect(summary.lastFive).toEqual({ average: 50, count: 3 });
 });
 
+test("Squad training availability summary uses actual participation when logged", () => {
+  const summary = getSquadTrainingAvailabilitySummary({
+    playerId: "p1",
+    referenceDateValue: "2026-06-10",
+    medicalActualParticipationFallback: "not-logged",
+    records: [
+      { playerId: "p1", date: "2026-06-10", participation: 100, actualParticipation: 50, updatedAt: "2026-06-10T14:00:00Z" },
+      { playerId: "p1", date: "2026-06-09", participation: 75, actualParticipation: "not-logged", updatedAt: "2026-06-09T14:00:00Z" },
+      { playerId: "p1", date: "2026-06-08", participation: 0, actualParticipation: 0, updatedAt: "2026-06-08T12:00:00Z" },
+      { playerId: "p1", date: "2026-06-07", participation: 25, updatedAt: "2026-06-07T12:00:00Z" },
+    ],
+    getTeamTrainingDateValues: () => ["2026-06-07", "2026-06-08", "2026-06-09", "2026-06-10"],
+  });
+
+  expect(summary.hasData).toBe(true);
+  expect(summary.loggedCount).toBe(3);
+  expect(summary.week).toEqual({ average: 25, count: 3 });
+  expect(summary.month).toEqual({ average: 25, count: 3 });
+  expect(summary.season).toEqual({ average: 25, count: 3 });
+  expect(summary.lastTwoWeeks).toEqual({ average: 25, count: 3 });
+  expect(summary.lastFive).toEqual({ average: 25, count: 3 });
+});
+
 test("Squad training availability summary counts medical plans and injured status as absences without manual recommendations", () => {
   const summary = getSquadTrainingAvailabilitySummary({
     playerId: "p1",
@@ -258,7 +281,7 @@ test("Squad training availability summary excludes international-duty club absen
   });
 
   expect(summary.hasData).toBe(true);
-  expect(summary.loggedCount).toBe(3);
+  expect(summary.loggedCount).toBe(2);
   expect(summary.week).toEqual({ average: 75, count: 2 });
   expect(summary.month).toEqual({ average: 75, count: 2 });
   expect(summary.season).toEqual({ average: 75, count: 2 });
@@ -278,7 +301,7 @@ test("Squad training availability summary does not infer team trainings from off
   });
 
   expect(summary.hasData).toBe(false);
-  expect(summary.loggedCount).toBe(1);
+  expect(summary.loggedCount).toBe(0);
   expect(summary.week).toEqual({ average: null, count: 0 });
   expect(summary.month).toEqual({ average: null, count: 0 });
   expect(summary.season).toEqual({ average: null, count: 0 });

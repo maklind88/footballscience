@@ -37,10 +37,25 @@ export function createMedicalCommandSelectors({
   getMedicalPastWindowDates = () => [],
   getNow = () => new Date(),
   getSelectedDate = () => "",
+  medicalActualParticipationFallback = "not-logged",
   medicalPositionOrder = {},
   normalizeMedicalPlayerPosition = (position) => position || "Other",
   parseDateValue = defaultParseDateValue,
 } = {}) {
+  function getMedicalActualParticipation(record = {}) {
+    const sourceRecord = record && typeof record === "object" ? record : {};
+    const hasActual = Object.prototype.hasOwnProperty.call(sourceRecord, "actualParticipation");
+    if (!record) {
+      return null;
+    }
+    if (hasActual && sourceRecord.actualParticipation === medicalActualParticipationFallback) {
+      return null;
+    }
+    const value = hasActual ? sourceRecord.actualParticipation : sourceRecord.participation;
+    const participation = Number(value);
+    return Number.isFinite(participation) ? Math.max(0, Math.min(100, Math.round(participation))) : null;
+  }
+
   function getMedicalDailyStats(dateValue = getSelectedDate()) {
     ensureMedicalState();
     const availabilityItems = getMedicalAvailabilityItems(dateValue);
@@ -70,14 +85,15 @@ export function createMedicalCommandSelectors({
     dateValues.forEach((dateValue) => {
       activePlayers.forEach((player) => {
         const record = getLatestMedicalRecord(player.id, dateValue);
-        if (record) {
-          records.push(record);
+        const actualParticipation = getMedicalActualParticipation(record);
+        if (record && actualParticipation !== null) {
+          records.push({ ...record, actualParticipationValue: actualParticipation });
         }
       });
     });
     return {
       averageParticipation: records.length
-        ? Math.round(records.reduce((sum, record) => sum + record.participation, 0) / records.length)
+        ? Math.round(records.reduce((sum, record) => sum + record.actualParticipationValue, 0) / records.length)
         : null,
       loggedCount: records.length,
       slotCount: Math.max(0, dateValues.length * activePlayers.length),

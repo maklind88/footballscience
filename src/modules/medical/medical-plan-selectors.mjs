@@ -89,13 +89,16 @@ export function createMedicalPlanSelectors({
     const unavailableDays = records.filter((record) => record.participation === 0).length;
     const loggedActual = records.filter((record) => record.actualParticipation !== medicalActualParticipationFallback);
     const exceededCount = loggedActual.filter((record) => Number(record.actualParticipation) > record.participation).length;
+    const actualParticipations = loggedActual
+      .map((record) => Number(record.actualParticipation))
+      .filter((participation) => Number.isFinite(participation));
     return {
       records,
       modifiedDays,
       unavailableDays,
       exceededCount,
-      average: records.length
-        ? Math.round(records.reduce((sum, record) => sum + record.participation, 0) / records.length)
+      average: actualParticipations.length
+        ? Math.round(actualParticipations.reduce((sum, participation) => sum + participation, 0) / actualParticipations.length)
         : null,
     };
   };

@@ -13,6 +13,7 @@ export function createSquadMedicalStatusService(deps = {}) {
     getMedicalState = () => ({ records: [] }),
     getPlayerAvailabilityStatusForDate = () => "",
     getTeamTrainingDateValues = () => [],
+    medicalActualParticipationFallback = "not-logged",
   } = deps;
 
   function getLatestManualMedicalLog(playerId) {
@@ -97,6 +98,7 @@ export function createSquadMedicalStatusService(deps = {}) {
       playerId,
       records: getMedicalState().records || [],
       referenceDateValue: dateValue,
+      medicalActualParticipationFallback,
       getActivityContext: getMedicalRecommendationActivityContext,
       getActiveMedicalInjuryPlan,
       getPlayerAvailabilityStatusForDate,

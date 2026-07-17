@@ -303,6 +303,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
     isMedicalItemArchived: deps.isItemArchived,
     isMedicalPlayerBlockedBySquadAvailability: deps.isPlayerBlockedBySquadAvailability,
     isMedicalPlayerRemovedFromSquad: deps.isMedicalPlayerRemovedFromSquad,
+    medicalActualParticipationFallback: deps.medicalActualParticipationFallback,
     medicalStatusOptions: deps.medicalStatusOptions,
     normalizeMedicalInjuryPlan: deps.normalizeMedicalInjuryPlan,
     normalizeMedicalParticipation: deps.normalizeParticipation,

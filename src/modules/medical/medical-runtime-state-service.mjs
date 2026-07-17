@@ -38,6 +38,54 @@ export function createMedicalRuntimeStateService(deps = {}) {
     return getMedicalStatusOptionForDateFromHelper(statusKey, dateValue, rtpPhase);
   }
 
+  function getMedicalTodayValue() {
+    const todayValue = formatDateValue(new Date());
+    return isMedicalDateValue(todayValue) ? todayValue : new Date().toISOString().slice(0, 10);
+  }
+
+  function shouldAutoCloseMedicalActual(record = {}, rawRecord = {}, todayValue = getMedicalTodayValue()) {
+    if (!record || record.archivedAt || record.deletedAt || rawRecord.source || rawRecord.injuryPlanId) {
+      return false;
+    }
+    if (!isMedicalDateValue(record.date) || record.date >= todayValue) {
+      return false;
+    }
+    return (record.actualParticipation ?? medicalActualParticipationFallback) === medicalActualParticipationFallback
+      && Number.isFinite(Number(record.participation));
+  }
+
+  function normalizeMedicalRecordForState(rawRecord = {}, todayValue = getMedicalTodayValue()) {
+    const record = normalizeMedicalRecord(rawRecord);
+    if (!record) {
+      return null;
+    }
+    if (!shouldAutoCloseMedicalActual(record, rawRecord, todayValue)) {
+      return record;
+    }
+    return {
+      ...record,
+      actualParticipation: normalizeMedicalParticipation(record.participation, record.participation),
+    };
+  }
+
+  function hasAutoClosedMedicalActualRecords(rawRecords = [], records = [], todayValue = getMedicalTodayValue()) {
+    if (!Array.isArray(rawRecords) || !Array.isArray(records)) {
+      return false;
+    }
+    const rawById = new Map(rawRecords.filter((record) => record?.id).map((record) => [record.id, record]));
+    return records.some((record) => {
+      const rawRecord = rawById.get(record.id) || {};
+      return shouldAutoCloseMedicalActual(
+        {
+          ...record,
+          actualParticipation: rawRecord.actualParticipation ?? medicalActualParticipationFallback,
+        },
+        rawRecord,
+        todayValue
+      );
+    });
+  }
+
   function syncMedicalPlayerAvailabilityStatusesFromProfiles() {
     const medicalState = getMedicalState();
     if (!medicalState || !Array.isArray(medicalState.players)) {
@@ -121,6 +169,8 @@ export function createMedicalRuntimeStateService(deps = {}) {
   }
 
   function cloneMedicalState(source = {}) {
+    const todayValue = getMedicalTodayValue();
+    const shouldAutoCloseActual = source.__medicalAutoCloseActual !== false;
     const shouldSeedDefaultRoster =
       !Array.isArray(source.players) || (!source.rosterVersion && source.players.length === 0);
     const players = (shouldSeedDefaultRoster ? defaultMedicalPlayers : source.players)
@@ -130,7 +180,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
     const playerIds = new Set(players.map((player) => player.id));
     const records = Array.isArray(source.records)
       ? source.records
-        .map(normalizeMedicalRecord)
+        .map((record) => shouldAutoCloseActual ? normalizeMedicalRecordForState(record, todayValue) : normalizeMedicalRecord(record))
         .filter((record) => record && playerIds.has(record.playerId))
         .sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt))
       : [];
@@ -238,6 +288,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
     }
     return cloneMedicalState({
       ...state,
+      __medicalAutoCloseActual: false,
       records: Array.isArray(state.records) ? state.records.map(sanitizeMedicalRecordForCoachView) : [],
       injuryPlans: Array.isArray(state.injuryPlans) ? state.injuryPlans.map(sanitizeMedicalInjuryPlanForCoachView) : [],
       policy: sanitizeMedicalGovernancePolicyForCoachView(),
@@ -259,7 +310,9 @@ export function createMedicalRuntimeStateService(deps = {}) {
       const state = sanitizeMedicalStateForCurrentUser(cloneMedicalState(parsed));
       const shouldPersistSeededRoster =
         !raw || (!parsed?.rosterVersion && Array.isArray(parsed?.players) && parsed.players.length === 0);
-      if (shouldPersistSeededRoster) {
+      const shouldPersistAutoClosedActual = canViewPrivateMedicalDetails()
+        && hasAutoClosedMedicalActualRecords(parsed?.records, state.records);
+      if (shouldPersistSeededRoster || shouldPersistAutoClosedActual) {
         setMedicalStateStorageValue(state, true);
       }
       return state;

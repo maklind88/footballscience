@@ -162,6 +162,53 @@ test("Medical runtime write service preserves record saves and protected archivi
   expect(harness.commits.at(-1).type).toBe("player-archived");
 });
 
+test("Medical runtime write service initializes actual participation for backdated recommendations only", () => {
+  const harness = createHarness({
+    deps: {
+      formatDateValue: () => "2026-06-03",
+      medicalActualParticipationFallback: "not-logged",
+    },
+  });
+
+  const pastRecord = harness.service.addMedicalRecord({
+    playerId: "p1",
+    date: "2026-06-01",
+    status: "modified",
+    participation: 50,
+    actualParticipation: "not-logged",
+    rtpPhase: "modified-team",
+  });
+  const todayRecord = harness.service.addMedicalRecord({
+    playerId: "p1",
+    date: "2026-06-03",
+    status: "modified",
+    participation: 75,
+    actualParticipation: "not-logged",
+    rtpPhase: "modified-team",
+  });
+  const futureRecord = harness.service.addMedicalRecord({
+    playerId: "p1",
+    date: "2026-06-04",
+    status: "modified",
+    participation: 25,
+    actualParticipation: "not-logged",
+    rtpPhase: "modified-team",
+  });
+  const manualActualRecord = harness.service.addMedicalRecord({
+    playerId: "p1",
+    date: "2026-06-01",
+    status: "modified",
+    participation: 75,
+    actualParticipation: 10,
+    rtpPhase: "modified-team",
+  });
+
+  expect(pastRecord.actualParticipation).toBe(50);
+  expect(todayRecord.actualParticipation).toBe("not-logged");
+  expect(futureRecord.actualParticipation).toBe("not-logged");
+  expect(manualActualRecord.actualParticipation).toBe(10);
+});
+
 test("Medical runtime write service preserves plans, clearance, roster upsert, and modal/date UI hooks", () => {
   const harness = createHarness();
 

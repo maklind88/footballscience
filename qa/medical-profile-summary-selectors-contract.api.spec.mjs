@@ -72,3 +72,23 @@ test("Medical profile summary selectors preserve read-only profile summary calcu
   expect(summary.coachNote).toBe("Limit high-speed exposure");
   expect(summary.cleared).toBe(false);
 });
+
+test("Medical profile summary selectors calculate windows from actual participation", () => {
+  const recordsByDate = new Map([
+    ["2026-06-07", { id: "window-actual", participation: 100, actualParticipation: 50 }],
+    ["2026-06-06", { id: "window-unlogged", participation: 25, actualParticipation: "not-logged" }],
+    ["2026-06-05", { id: "window-legacy", participation: 75 }],
+  ]);
+  const selectors = createMedicalProfileSummarySelectors({
+    getLatestMedicalRecord: (playerId, dateValue) => (playerId === "p1" ? recordsByDate.get(dateValue) ?? null : null),
+    getMedicalPastWindowDates: () => ["2026-06-07", "2026-06-06", "2026-06-05"],
+    getMedicalPlayerInjuryPlans: () => [],
+    getMedicalPlayerRecords: () => [],
+    medicalActualParticipationFallback: "not-logged",
+  });
+
+  const summary = selectors.getMedicalPlayerProfileSummary({ id: "p1", name: "Player One" }, "2026-06-07");
+
+  expect(summary.windowAverage).toBe(63);
+  expect(summary.windowLoggedCount).toBe(2);
+});

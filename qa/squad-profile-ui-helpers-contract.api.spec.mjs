@@ -159,8 +159,8 @@ test("Squad medical status service preserves medical snapshot golden-master beha
     isOpenEndedMedicalStatus: false,
     trainingAvailability: {
       hasData: true,
-      latestDate: "2026-06-05",
-      loggedCount: 1,
+      latestDate: "2026-06-07",
+      loggedCount: 2,
       week: { average: 70, count: 2 },
       month: { average: 70, count: 2 },
       season: { average: 70, count: 2 },

@@ -20,6 +20,7 @@ export function createMedicalRuntimeWriteService(deps = {}) {
     isMedicalItemArchived = () => false,
     isMedicalPlayerBlockedBySquadAvailability = () => false,
     isMedicalPlayerRemovedFromSquad = () => false,
+    medicalActualParticipationFallback = "not-logged",
     medicalStatusOptions = [],
     normalizeMedicalInjuryPlan = (value) => value || null,
     normalizeMedicalParticipation = (value, fallback = 100) => (Number.isFinite(Number(value)) ? Number(value) : fallback),
@@ -41,6 +42,21 @@ export function createMedicalRuntimeWriteService(deps = {}) {
   function replaceState(nextState) {
     setMedicalState(nextState);
     return getMedicalState();
+  }
+
+  function getMedicalTodayValue() {
+    const todayValue = formatDateValue(new Date());
+    return isDateValue(todayValue) ? todayValue : new Date().toISOString().slice(0, 10);
+  }
+
+  function getInitialActualParticipation(dateValue, participation, actualParticipation) {
+    const requestedActual = actualParticipation ?? medicalActualParticipationFallback;
+    if (requestedActual !== medicalActualParticipationFallback || !isDateValue(dateValue)) {
+      return requestedActual;
+    }
+    return dateValue < getMedicalTodayValue()
+      ? normalizeMedicalParticipation(participation, participation)
+      : medicalActualParticipationFallback;
   }
 
   function upsertMedicalPlayers(players) {
@@ -121,7 +137,7 @@ export function createMedicalRuntimeWriteService(deps = {}) {
       date: values.date,
       status,
       participation,
-      actualParticipation: values.actualParticipation,
+      actualParticipation: getInitialActualParticipation(values.date, participation, values.actualParticipation),
       comment: values.comment,
       coachNote: values.coachNote,
       shareWithCoach: values.shareWithCoach,

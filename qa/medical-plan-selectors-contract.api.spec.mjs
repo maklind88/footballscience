@@ -72,5 +72,5 @@ test("Medical plan selectors preserve plan timing, severity, clearance, review, 
   expect(trailing.modifiedDays).toBe(1);
   expect(trailing.unavailableDays).toBe(1);
   expect(trailing.exceededCount).toBe(1);
-  expect(trailing.average).toBe(58);
+  expect(trailing.average).toBe(50);
 });

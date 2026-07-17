@@ -81,3 +81,33 @@ test("Medical command selectors build huddle, attention, position, and handover 
   expect(handover).toContain("Mak Midfielder: 75% / Modified - Limit sprinting");
   expect(ensureCount).toBeGreaterThan(0);
 });
+
+test("Medical command selectors use actual participation for historical averages", () => {
+  const players = [
+    { id: "p1", name: "Actual Player", position: "CM" },
+    { id: "p2", name: "Unlogged Player", position: "CB" },
+    { id: "p3", name: "Legacy Player", position: "RW" },
+  ];
+  const records = [
+    { playerId: "p1", date: "2026-05-30", status: "full", participation: 100, actualParticipation: 50 },
+    { playerId: "p2", date: "2026-05-30", status: "modified", participation: 75, actualParticipation: "not-logged" },
+    { playerId: "p3", date: "2026-05-30", status: "modified", participation: 25 },
+  ];
+  const selectors = createMedicalCommandSelectors({
+    ensureMedicalState: () => {},
+    getActiveMedicalPlayers: () => players,
+    getLatestMedicalRecord: (playerId, dateValue) =>
+      records.find((record) => record.playerId === playerId && record.date === dateValue) ?? null,
+    getMedicalMonthToDateDates: () => ["2026-05-30"],
+    getMedicalPastWindowDates: () => ["2026-05-30"],
+    medicalActualParticipationFallback: "not-logged",
+  });
+
+  expect(selectors.getMedicalParticipationAverageForDates(["2026-05-30"])).toMatchObject({
+    averageParticipation: 38,
+    loggedCount: 2,
+    slotCount: 3,
+  });
+  expect(selectors.getMedicalWindowAverage()).toBe(38);
+  expect(selectors.getMedicalMonthAverageStats()).toMatchObject({ averageParticipation: 38, loggedCount: 2 });
+});

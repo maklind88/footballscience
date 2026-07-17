@@ -92,6 +92,41 @@ test("Squad scouting spider renderer renders radar metrics from callback data", 
   expect(formatPlayerProfileScoutingMinutes("bad")).toBe("");
 });
 
+test("Squad scouting spider renderer exposes season selection for player radar records", () => {
+  const records = [
+    { team: "NCC", season: "2025", minutes: 2400, metrics: { passing: 70, progression: 5, duels: 3 } },
+    { team: "NCC", season: "2026", minutes: 420, metrics: { passing: 92, progression: 8, duels: 2 } },
+  ];
+  const renderer = createSquadScoutingSpiderRenderer({
+    getDatabase: () => ({ records, metrics: [{ id: "passing" }, { id: "progression" }, { id: "duels" }] }),
+    findRecord: (_player, renderOptions = {}) => records.find((record) => record.season === renderOptions.selectedSeason) || records[1],
+    getPositionGroup: () => "OTHER",
+    getMetricValue: (sourceRecord, metricId) => sourceRecord.metrics[metricId],
+    getPercentile: () => 70,
+    getMetric: (_database, metricId) => ({ label: metricId.toUpperCase() }),
+    templates,
+    recordIndex,
+  });
+
+  const markup = renderer.render(
+    { playerName: "Mak Lind" },
+    {
+      metricSelectionKey: "p1",
+      seasonOptions: [
+        { label: "2026", value: "2026" },
+        { label: "2025", value: "2025" },
+      ],
+      selectedSeason: "2026",
+    }
+  );
+
+  expect(markup).toContain('data-player-profile-scouting-season-select="p1"');
+  expect(markup).toContain('<option value="2026" selected>2026</option>');
+  expect(markup).toContain('<option value="2025" >2025</option>');
+  expect(markup).toContain("NCC / 2026");
+  expect(markup).toContain("Minutes 420");
+});
+
 test("Squad scouting spider renderer defaults to six metrics and keeps spider axes in sync with selected metrics", () => {
   const metricIds = ["exits", "save", "prevention", "accuracy", "short", "volume", "shots"];
   const record = {
@@ -251,4 +286,23 @@ test("Squad scouting profile helpers own record matching, metrics, and percentil
   expect(helpers.getPlayerProfileScoutingMetricValue(database.records[0], "shots")).toBe(0.8);
   expect(helpers.getPlayerProfileScoutingPercentile(database.records[0], "shots")).toBeGreaterThan(50);
   expect(helpers.getPlayerProfileScoutingPercentile(database.records[0], "turnovers", "lower")).toBeGreaterThan(50);
+});
+
+test("Squad scouting profile helpers default player radar records to the latest available season", () => {
+  const database = {
+    metrics: [{ id: "shots" }],
+    records: [
+      { player: "Mak Lind", league: "NWSL", position: "CF", season: "2025", minutes: 2200, metrics: { shots: 1 } },
+      { player: "Mak Lind", league: "NWSL", position: "CF", season: "2026", minutes: 320, metrics: { shots: 2 } },
+      { player: "Mak Lind", league: "NWSL", position: "CF", season: "2024", minutes: 1800, metrics: { shots: 3 } },
+    ],
+  };
+  const helpers = createSquadScoutingProfileHelpers({
+    getDatabase: () => database,
+    recordIndex: profileRecordIndex,
+  });
+
+  expect(helpers.findPlayerProfileNwslScoutingRecord({ name: "Mak Lind" })?.season).toBe("2026");
+  expect(helpers.findPlayerProfileNwslScoutingRecord({ name: "Mak Lind" }, { selectedSeason: "2025" })?.season).toBe("2025");
+  expect(helpers.getPlayerProfileNwslScoutingSeasonOptions({ name: "Mak Lind" }).map((season) => season.value)).toEqual(["2026", "2025", "2024"]);
 });

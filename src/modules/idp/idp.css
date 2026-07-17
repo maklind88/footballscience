@@ -4088,6 +4088,43 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   white-space: nowrap;
 }
 
+.player-profile-scouting-season-picker {
+  align-items: center;
+  background: rgba(255, 255, 255, .86);
+  border: 1px solid rgba(16, 24, 40, .08);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 8px 0 10px;
+}
+
+.player-profile-scouting-season-picker span {
+  color: #667085;
+  font-size: .66rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.player-profile-scouting-season-picker select {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: #101828;
+  cursor: pointer;
+  font-size: .74rem;
+  font-weight: 950;
+  min-width: 4.1rem;
+  outline: none;
+  padding: 0 10px 0 0;
+}
+
+.player-profile-scouting-season-picker:focus-within {
+  border-color: rgba(15, 118, 110, .28);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, .09);
+}
+
 .player-profile-scouting-radar-tools {
   align-items: flex-end;
   display: grid;

@@ -31,6 +31,7 @@ const defaultUiState = Object.freeze({
   scoutingMetricSelections: {},
   openScoutingMetricPickerKey: "",
   scoutingMetricPickerSearchQueries: {},
+  scoutingSeasonSelections: {},
   idpPlayerBoardOpen: false,
   idpPlayerBoardPreviewOpen: false,
   idpPlayerBoardSelectedElementIds: [],
@@ -1134,6 +1135,7 @@ function renderProfileScoutingRadar(profile = {}, options = {}, ui = {}) {
     ? ui.scoutingMetricSelections[metricSelectionKey]
     : [];
   const metricPickerSearchQuery = normalizeText(ui.scoutingMetricPickerSearchQueries?.[metricSelectionKey], "");
+  const selectedSeason = normalizeText(ui.scoutingSeasonSelections?.[metricSelectionKey], "");
   return renderSpider(
     {
       id: profile.playerId || profile.id || "",
@@ -1157,6 +1159,7 @@ function renderProfileScoutingRadar(profile = {}, options = {}, ui = {}) {
       includeDatabaseMetricChoices: true,
       metricPickerOpen: ui.openScoutingMetricPickerKey === metricSelectionKey,
       metricPickerSearchQuery,
+      selectedSeason,
     }
   );
 }

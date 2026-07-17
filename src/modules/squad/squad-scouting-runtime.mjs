@@ -88,20 +88,22 @@ export function createSquadScoutingRuntime(deps = {}) {
     if (importedDatabase && Array.isArray(importedDatabase.records) && Array.isArray(importedDatabase.metrics)) {
       return importedDatabase;
     }
+    try {
+      const stored = win.localStorage?.getItem(playerProfileScoutingDatabaseStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && Array.isArray(parsed.records) && Array.isArray(parsed.metrics)) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Fall through to the bundled read-only database.
+    }
     const bundledDatabase = win.__footballScienceScoutingDatabase;
     if (bundledDatabase && Array.isArray(bundledDatabase.records) && Array.isArray(bundledDatabase.metrics)) {
       return bundledDatabase;
     }
-    try {
-      const stored = win.localStorage?.getItem(playerProfileScoutingDatabaseStorageKey);
-      if (!stored) {
-        return null;
-      }
-      const parsed = JSON.parse(stored);
-      return parsed && Array.isArray(parsed.records) && Array.isArray(parsed.metrics) ? parsed : null;
-    } catch {
-      return null;
-    }
+    return null;
   }
 
   function queuePlayerProfileScoutingDatabaseLoad() {
@@ -129,6 +131,7 @@ export function createSquadScoutingRuntime(deps = {}) {
   });
   const {
     findPlayerProfileNwslScoutingRecord,
+    getPlayerProfileNwslScoutingSeasonOptions,
     getPlayerProfileScoutingMetric,
     getPlayerProfileScoutingMetricValue,
     getPlayerProfileScoutingPercentile,
@@ -151,6 +154,17 @@ export function createSquadScoutingRuntime(deps = {}) {
     ...playerProfileScoutingHelpers,
     getPlayerProfileScoutingDatabase,
     queuePlayerProfileScoutingDatabaseLoad,
-    renderPlayerProfileScoutingSpider: (player, renderOptions = {}) => squadScoutingSpiderRenderer.render(player, renderOptions),
+    renderPlayerProfileScoutingSpider: (player, renderOptions = {}) => {
+      const seasonOptions = getPlayerProfileNwslScoutingSeasonOptions(player);
+      const requestedSeason = String(renderOptions.selectedSeason || "").trim();
+      const selectedSeason = seasonOptions.some((season) => season.value === requestedSeason)
+        ? requestedSeason
+        : seasonOptions[0]?.value || "";
+      return squadScoutingSpiderRenderer.render(player, {
+        ...renderOptions,
+        seasonOptions,
+        selectedSeason,
+      });
+    },
   };
 }

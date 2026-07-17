@@ -383,6 +383,20 @@ export function handleChange(event) {
     });
     return;
   }
+  const scoutingSeasonSelect = target?.closest?.("[data-player-profile-scouting-season-select]");
+  if (scoutingSeasonSelect) {
+    const selectionKey = scoutingSeasonSelect.dataset.playerProfileScoutingSeasonSelect || "";
+    const currentSelections = runtime?.store.getState?.()?.ui?.scoutingSeasonSelections || {};
+    runtime?.store.setState({
+      ui: {
+        scoutingSeasonSelections: {
+          ...currentSelections,
+          [selectionKey]: scoutingSeasonSelect.value || "",
+        },
+      },
+    });
+    return;
+  }
   const clipSelect = target?.closest?.("[data-idp-clip-select]");
   if (clipSelect) {
     const id = clipSelect.dataset.idpClipSelect || "";

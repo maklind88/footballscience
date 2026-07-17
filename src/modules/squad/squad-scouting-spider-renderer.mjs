@@ -55,6 +55,8 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
       includeDatabaseMetricChoices: Boolean(renderOptions.includeDatabaseMetricChoices),
       metricPickerOpen: Boolean(renderOptions.metricPickerOpen),
       metricPickerSearchQuery: String(renderOptions.metricPickerSearchQuery || "").trim(),
+      seasonOptions: Array.isArray(renderOptions.seasonOptions) ? renderOptions.seasonOptions : [],
+      selectedSeason: String(renderOptions.selectedSeason || "").trim(),
     };
   }
 
@@ -187,6 +189,28 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
     `;
   }
 
+  function renderSeasonPicker(renderOptions = {}) {
+    if (!renderOptions.seasonOptions.length) return "";
+    const selectedSeason = String(renderOptions.selectedSeason || renderOptions.seasonOptions[0]?.value || "").trim();
+    if (renderOptions.seasonOptions.length === 1) {
+      return `<span>${escapeHtml(renderOptions.seasonOptions[0].label || selectedSeason)}</span>`;
+    }
+    return `
+      <label class="player-profile-scouting-season-picker">
+        <span>Season</span>
+        <select data-player-profile-scouting-season-select="${escapeHtml(renderOptions.metricSelectionKey || "player-profile")}">
+          ${renderOptions.seasonOptions.map((season) => {
+            const value = String(season?.value || season?.label || "").trim();
+            const label = String(season?.label || value).trim();
+            return value
+              ? `<option value="${escapeHtml(value)}" ${value === selectedSeason ? "selected" : ""}>${escapeHtml(label)}</option>`
+              : "";
+          }).join("")}
+        </select>
+      </label>
+    `;
+  }
+
   function renderNoDataSpider(message = "No data") {
     return `
     <svg class="player-profile-scouting-spider" viewBox="0 0 220 220" role="img" aria-label="${escapeHtml(message)}">
@@ -228,7 +252,8 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
         renderOptions
       );
     }
-    const record = findRecord(player);
+    const renderConfig = getRenderOptions(renderOptions);
+    const record = findRecord(player, renderConfig);
     if (!record) {
       return renderEmptyCard(
         "No verified data",
@@ -238,7 +263,6 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
     }
     const group = getPositionGroup(record, player);
     const template = templates[group] || templates.OTHER || [];
-    const renderConfig = getRenderOptions(renderOptions);
     const availableAxes = getAvailableAxes(record, database, template, renderConfig);
     const axes = selectAxes(availableAxes, renderConfig.selectedMetricIds, renderConfig.maxMetricCount);
     if (axes.length < 3) {
@@ -280,6 +304,7 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
             <span>${escapeHtml(metaLabel)}</span>
             ${minutesLabel ? `<span>Minutes ${escapeHtml(minutesLabel)}</span>` : ""}
           </div>
+          ${renderSeasonPicker(renderConfig)}
           ${renderMetricPicker(availableAxes, axes, renderConfig)}
         </div>
       </header>

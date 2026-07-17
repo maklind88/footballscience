@@ -24,6 +24,13 @@ test("Squad Scouting runtime owns read-only scouting spider wiring outside app-r
   expect(indexSource).toContain('export * from "./squad-scouting-runtime.mjs";');
 });
 
+test("Squad Scouting runtime lets an imported Excel cache override the bundled fallback database", () => {
+  const runtimeSource = readProjectFile("src/modules/squad/squad-scouting-runtime.mjs");
+
+  expect(runtimeSource.indexOf("win.__footballScienceImportedScoutingDatabase")).toBeLessThan(runtimeSource.indexOf("win.localStorage?.getItem(playerProfileScoutingDatabaseStorageKey)"));
+  expect(runtimeSource.indexOf("win.localStorage?.getItem(playerProfileScoutingDatabaseStorageKey)")).toBeLessThan(runtimeSource.indexOf("win.__footballScienceScoutingDatabase"));
+});
+
 test("Squad Scouting runtime stays read-only and does not own Squad writes", () => {
   const runtimeSource = readProjectFile("src/modules/squad/squad-scouting-runtime.mjs");
 

@@ -63,6 +63,16 @@ export function createSquadScoutingProfileHelpers(options = {}) {
     return Number.isFinite(minutes) ? minutes : 0;
   }
 
+  function getPlayerProfileScoutingSeason(record) {
+    return String(record?.[recordIndex.season] || "").trim();
+  }
+
+  function getPlayerProfileScoutingSeasonYearValue(recordOrSeason) {
+    const season = typeof recordOrSeason === "string" ? recordOrSeason : getPlayerProfileScoutingSeason(recordOrSeason);
+    const years = (season.match(/\d{4}/g) || []).map(Number).filter(Number.isFinite);
+    return years.length ? Math.max(...years) : 0;
+  }
+
   function getPlayerProfileScoutingPositionGroup(recordOrPosition, player = null) {
     const position = Array.isArray(recordOrPosition)
       ? recordOrPosition[recordIndex.position]
@@ -86,14 +96,51 @@ export function createSquadScoutingProfileHelpers(options = {}) {
     return league.includes("nwsl") || league.includes("national women");
   }
 
-  function findPlayerProfileNwslScoutingRecord(player) {
+  function getPlayerProfileNwslScoutingRecords(player) {
     const database = getDatabase();
     const playerName = normalizePlayerProfileScoutingText(player?.name || player?.playerName);
-    if (!database || !playerName) return null;
-    const candidates = database.records
+    if (!database || !playerName) return [];
+    return database.records
       .filter((record) => isPlayerProfileNwslScoutingRecord(record))
-      .filter((record) => doPlayerProfileScoutingNamesMatch(playerName, record?.[recordIndex.player]))
-      .sort((first, second) => getPlayerProfileScoutingMinutes(second) - getPlayerProfileScoutingMinutes(first));
+      .filter((record) => doPlayerProfileScoutingNamesMatch(playerName, record?.[recordIndex.player]));
+  }
+
+  function sortPlayerProfileScoutingRecords(first, second) {
+    return (
+      getPlayerProfileScoutingSeasonYearValue(second) - getPlayerProfileScoutingSeasonYearValue(first) ||
+      getPlayerProfileScoutingMinutes(second) - getPlayerProfileScoutingMinutes(first)
+    );
+  }
+
+  function getPlayerProfileNwslScoutingSeasonOptions(player) {
+    const seasons = new Map();
+    getPlayerProfileNwslScoutingRecords(player).forEach((record) => {
+      const season = getPlayerProfileScoutingSeason(record);
+      if (!season) return;
+      const current = seasons.get(season);
+      const minutes = getPlayerProfileScoutingMinutes(record);
+      if (!current || minutes > current.minutes) {
+        seasons.set(season, {
+          label: season,
+          minutes,
+          value: season,
+          year: getPlayerProfileScoutingSeasonYearValue(season),
+        });
+      }
+    });
+    return [...seasons.values()].sort((first, second) => second.year - first.year || second.minutes - first.minutes);
+  }
+
+  function findPlayerProfileNwslScoutingRecord(player, options = {}) {
+    const candidates = getPlayerProfileNwslScoutingRecords(player).sort(sortPlayerProfileScoutingRecords);
+    if (!candidates.length) return null;
+    const selectedSeason = String(options.selectedSeason || "").trim();
+    if (selectedSeason) {
+      const seasonCandidates = candidates
+        .filter((record) => getPlayerProfileScoutingSeason(record) === selectedSeason)
+        .sort(sortPlayerProfileScoutingRecords);
+      if (seasonCandidates.length) return seasonCandidates[0];
+    }
     return candidates[0] || null;
   }
 
@@ -103,11 +150,13 @@ export function createSquadScoutingProfileHelpers(options = {}) {
     const metric = getPlayerProfileScoutingMetric(database, metricId);
     if (!database || !metric || !Number.isFinite(value)) return null;
     const group = getPlayerProfileScoutingPositionGroup(record);
+    const recordSeason = getPlayerProfileScoutingSeason(record);
     const values = database.records
       .filter(
         (candidate) =>
           isPlayerProfileNwslScoutingRecord(candidate) &&
           getPlayerProfileScoutingPositionGroup(candidate) === group &&
+          (!recordSeason || getPlayerProfileScoutingSeason(candidate) === recordSeason) &&
           getPlayerProfileScoutingMinutes(candidate) >= 300
       )
       .map((candidate) => getPlayerProfileScoutingMetricValue(candidate, metricId))
@@ -128,12 +177,16 @@ export function createSquadScoutingProfileHelpers(options = {}) {
   return {
     doPlayerProfileScoutingNamesMatch,
     findPlayerProfileNwslScoutingRecord,
+    getPlayerProfileNwslScoutingRecords,
+    getPlayerProfileNwslScoutingSeasonOptions,
     getPlayerProfileScoutingMetric,
     getPlayerProfileScoutingMetricIndex,
     getPlayerProfileScoutingMetricValue,
     getPlayerProfileScoutingMinutes,
     getPlayerProfileScoutingNameParts,
     getPlayerProfileScoutingPercentile,
+    getPlayerProfileScoutingSeason,
+    getPlayerProfileScoutingSeasonYearValue,
     getPlayerProfileScoutingPositionGroup,
     isPlayerProfileNwslScoutingRecord,
     normalizePlayerProfileScoutingText,

@@ -61,9 +61,41 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     );
   }
 
+  function isGenericDashboardChatParticipantLabel(value = "") {
+    const normalized = String(value || "").trim().toLowerCase();
+    return !normalized || ["unknown", "unknown user", "staff", "direct message", "private chat"].includes(normalized);
+  }
+
+  function isTechnicalDashboardChatIdentityValue(value = "") {
+    const normalized = String(value || "").trim();
+    if (!normalized) {
+      return true;
+    }
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized)) {
+      return true;
+    }
+    if (/^[a-z0-9_-]{18,}$/i.test(normalized) && /\d/.test(normalized)) {
+      return true;
+    }
+    return false;
+  }
+
   function getDashboardChatParticipantDisplayName(participant = null) {
     if (!participant) {
       return "";
+    }
+    const profile =
+      [participant.profile, participant.user, participant.userProfile, participant.user_profile, participant.metadata?.profile, participant.metadata]
+        .find((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)) || {};
+    const composedName = [
+      participant.firstName || participant.first_name || profile.firstName || profile.first_name,
+      participant.lastName || participant.last_name || profile.lastName || profile.last_name,
+    ]
+      .map((part) => String(part || "").trim())
+      .filter(Boolean)
+      .join(" ");
+    if (composedName) {
+      return composedName;
     }
     const explicitName = String(
       participant.name ||
@@ -71,20 +103,30 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
         participant.full_name ||
         participant.displayName ||
         participant.display_name ||
+        profile.name ||
+        profile.fullName ||
+        profile.full_name ||
+        profile.displayName ||
+        profile.display_name ||
         ""
     ).trim();
-    if (explicitName) {
+    if (explicitName && !isGenericDashboardChatParticipantLabel(explicitName) && !isTechnicalDashboardChatIdentityValue(explicitName)) {
       return explicitName;
     }
     const formattedName = String(formatUserName(participant) || "").trim();
-    if (formattedName && !["unknown", "unknown user", "staff"].includes(formattedName.toLowerCase())) {
+    if (
+      formattedName &&
+      !isGenericDashboardChatParticipantLabel(formattedName) &&
+      !isTechnicalDashboardChatIdentityValue(formattedName)
+    ) {
       return formattedName;
     }
-    const composedName = [participant.firstName || participant.first_name, participant.lastName || participant.last_name]
-      .map((part) => String(part || "").trim())
-      .filter(Boolean)
-      .join(" ");
-    return composedName || String(participant.email || participant.username || participant.userName || participant.id || participant.userId || "").trim();
+    const email = String(participant.email || profile.email || "").trim();
+    if (email && !isTechnicalDashboardChatIdentityValue(email.split("@", 1)[0] || email)) {
+      return email;
+    }
+    const username = String(participant.username || participant.userName || profile.username || profile.userName || "").trim();
+    return isTechnicalDashboardChatIdentityValue(username) ? "" : username;
   }
 
   function getDashboardChatThreadData(
@@ -142,15 +184,19 @@ export function createDashboardChatThreadRuntime(dependencies = {}) {
     const resolvedApiParticipants = apiParticipants
       .map((participant) => {
         const userId = String(participant.userId || participant.id || "").trim();
-        const platformUser = users.find((user) => user.id === userId) || null;
-        const participantDisplayName = getDashboardChatParticipantDisplayName(participant);
+        const platformUser =
+          users.find((user) => user.id === userId) ||
+          users.find((user) => isSameDashboardUser(user, participant)) ||
+          null;
+        const participantDisplayName = getDashboardChatParticipantDisplayName(platformUser || participant);
         return {
           ...(platformUser || { id: userId, name: participantDisplayName, firstName: "", lastName: "" }),
           ...participant,
-          id: userId || platformUser?.id || "",
-          name: participant.name || participant.fullName || participant.full_name || platformUser?.name || participantDisplayName,
-          firstName: participant.firstName || participant.first_name || platformUser?.firstName || "",
-          lastName: participant.lastName || participant.last_name || platformUser?.lastName || "",
+          id: platformUser?.id || userId || "",
+          userId: userId || platformUser?.id || "",
+          name: participantDisplayName || participant.name || participant.fullName || participant.full_name || platformUser?.name || "",
+          firstName: platformUser?.firstName || platformUser?.first_name || participant.firstName || participant.first_name || "",
+          lastName: platformUser?.lastName || platformUser?.last_name || participant.lastName || participant.last_name || "",
           chatParticipantRole: participant.participantRole || participant.role || "member",
           lastReadAt: participant.lastReadAt || "",
         };

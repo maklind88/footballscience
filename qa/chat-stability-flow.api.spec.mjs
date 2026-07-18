@@ -189,10 +189,12 @@ test("direct and group chats expose baseline private cleanup permissions from th
 
 test("chat thread labels prefer real participants and group names over generic API titles", () => {
   const currentUser = { id: "coach-qa", firstName: "Casey", lastName: "Coach", role: "coach", status: "active" };
-  const threadId = "dm:coach-qa:remote-colleague";
+  const remoteTechnicalId = "550e8400-e29b-41d4-a716-446655440000";
+  const remoteProfile = { id: "staff-emma", firstName: "Emma", lastName: "Thomson", email: "emma@example.com", status: "active" };
+  const threadId = `dm:coach-qa:${remoteTechnicalId}`;
   const runtime = createDashboardChatThreadRuntime({
     getCurrentPlatformUser: () => currentUser,
-    getPlatformUsers: () => [currentUser],
+    getPlatformUsers: () => [currentUser, remoteProfile],
     getDashboardChatApiThreads: () => [
       {
         threadId,
@@ -200,7 +202,7 @@ test("chat thread labels prefer real participants and group names over generic A
         title: "Unknown user",
         participants: [
           { userId: currentUser.id, participantRole: "member", name: "Casey Coach" },
-          { userId: "remote-colleague", participantRole: "member", name: "Emma Thomson", email: "emma@example.com" },
+          { userId: remoteTechnicalId, participantRole: "member", email: "emma@example.com" },
         ],
       },
       {
@@ -214,7 +216,11 @@ test("chat thread labels prefer real participants and group names over generic A
       },
     ],
     normalizeDashboardChatThreadId: (value, fallback = "team") => String(value || fallback || "team").trim(),
-    isSameDashboardUser: (first, second) => String(first?.id || first?.userId || "") === String(second?.id || second?.userId || ""),
+    isSameDashboardUser: (first, second) => {
+      const firstKeys = [first?.id, first?.userId, first?.email].filter(Boolean).map(String);
+      const secondKeys = new Set([second?.id, second?.userId, second?.email].filter(Boolean).map(String));
+      return firstKeys.some((key) => secondKeys.has(key));
+    },
     isGenericDashboardChatThreadTitle: (value = "") => ["", "direct message", "unknown user"].includes(String(value).trim().toLowerCase()),
     formatDashboardChatThreadLabel: () => "Direct Message",
     formatUserName: (user = {}) => [user.firstName || user.first_name, user.lastName || user.last_name].filter(Boolean).join(" ") || "Unknown user",
@@ -224,7 +230,8 @@ test("chat thread labels prefer real participants and group names over generic A
   const groupThread = runtime.getDashboardChatThreadData("group:goalkeeper-unit");
 
   expect(directThread.label).toBe("Emma Thomson");
-  expect(directThread.participant).toMatchObject({ id: "remote-colleague", name: "Emma Thomson" });
+  expect(directThread.label).not.toContain(remoteTechnicalId);
+  expect(directThread.participant).toMatchObject({ id: "staff-emma", userId: remoteTechnicalId, firstName: "Emma", lastName: "Thomson" });
   expect(groupThread.label).toBe("Goalkeeper Unit");
 });
 

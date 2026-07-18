@@ -78,6 +78,32 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
     return teamName && teamName !== "Team" ? `${teamName} Chat` : "Team Chat";
   }
 
+  function getDashboardChatParticipantDisplayName(participant = null) {
+    if (!participant) {
+      return "";
+    }
+    const profile =
+      [participant.profile, participant.user, participant.userProfile, participant.user_profile, participant.metadata?.profile, participant.metadata]
+        .find((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)) || {};
+    return (
+      [participant.firstName || participant.first_name || profile.firstName || profile.first_name, participant.lastName || participant.last_name || profile.lastName || profile.last_name]
+        .map((part) => String(part || "").trim())
+        .filter(Boolean)
+        .join(" ") ||
+      String(
+        participant.name ||
+          participant.fullName ||
+          participant.full_name ||
+          participant.displayName ||
+          participant.display_name ||
+          profile.name ||
+          profile.fullName ||
+          profile.full_name ||
+          ""
+      ).trim()
+    );
+  }
+
   function formatDashboardChatThreadLabel(threadId, currentUser, users = getPlatformUsers()) {
     const normalized = normalizeDashboardChatThreadId(threadId);
     if (normalized === dashboardChatTeamThreadId) {
@@ -96,7 +122,7 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
     }
     const participantPartner = getDashboardChatThreadParticipants(normalized, users).find((user) => !isSameDashboardUser(user, currentUser));
     if (participantPartner) {
-      return formatUserName(participantPartner);
+      return getDashboardChatParticipantDisplayName(participantPartner) || formatUserName(participantPartner);
     }
     const [, firstId = "", secondId = ""] = normalized.split(":");
     const currentUserId = currentUser?.id || "";
@@ -149,8 +175,8 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
                 id: userId || platformUser?.id || "",
                 userId: userId || platformUser?.id || "",
                 name: participant.name || participant.fullName || participant.full_name || platformUser?.name || "",
-                firstName: participant.firstName || participant.first_name || platformUser?.firstName || "",
-                lastName: participant.lastName || participant.last_name || platformUser?.lastName || "",
+                firstName: platformUser?.firstName || platformUser?.first_name || participant.firstName || participant.first_name || "",
+                lastName: platformUser?.lastName || platformUser?.last_name || participant.lastName || participant.last_name || "",
                 email: participant.email || platformUser?.email || "",
                 username: participant.username || participant.userName || platformUser?.username || "",
               }

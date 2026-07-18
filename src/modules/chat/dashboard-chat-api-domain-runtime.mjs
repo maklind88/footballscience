@@ -447,7 +447,22 @@ export function createDashboardChatApiDomainRuntime(dependencies = {}) {
   function normalizeDashboardApiParticipant(participant = {}) {
     if (participant && typeof participant === "object" && !Array.isArray(participant)) {
       const metadata = participant.metadata && typeof participant.metadata === "object" ? participant.metadata : {};
-      const profile = metadata.profile && typeof metadata.profile === "object" ? metadata.profile : metadata;
+      const profileCandidates = [
+        participant.profile,
+        participant.user,
+        participant.userProfile,
+        participant.user_profile,
+        participant.userMetadata,
+        participant.user_metadata,
+        metadata.profile,
+        metadata.user,
+        metadata.userProfile,
+        metadata.user_profile,
+        metadata.userMetadata,
+        metadata.user_metadata,
+        metadata,
+      ];
+      const profile = profileCandidates.find((candidate) => candidate && typeof candidate === "object" && !Array.isArray(candidate)) || {};
       const userId = String(participant.userId || participant.user_id || participant.id || "").trim();
       const displayName = String(
         participant.name ||

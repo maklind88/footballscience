@@ -72,6 +72,7 @@ function createFakeSupabaseScript(sessionUser = qaUser) {
 async function installCentralRevisionRoutes(context, centralStore, syncBodies, options = {}) {
   const sessionUser = options.sessionUser || qaUser;
   const profileUser = options.profileUser || qaUser;
+  const appStateGetUrls = Array.isArray(options.appStateGetUrls) ? options.appStateGetUrls : [];
 
   await context.route("**/npm/@supabase/supabase-js@2/**", async (route) => {
     await route.fulfill({
@@ -118,6 +119,7 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
     const method = request.method().toUpperCase();
 
     if (method === "GET") {
+      appStateGetUrls.push(request.url());
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -134,6 +136,8 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
     const body = JSON.parse(request.postData() || "{}");
     if (body.key !== revisionStateKey) {
       const value = String(body.value || "");
+      const baseRevision = Number(body?.metadata?.baseRevision ?? body?.baseRevision);
+      const revision = Number.isInteger(baseRevision) && baseRevision >= 0 ? baseRevision + 1 : 1;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -141,9 +145,9 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
           ok: true,
           key: body.key || "",
           value,
-          revision: 1,
+          revision,
           metadata: {
-            revision: 1,
+            revision,
             updatedAt: new Date().toISOString(),
             updatedBy: qaUser.id,
             organizationId: "org-qa",
@@ -404,6 +408,170 @@ test("central hydration preserves local value when central revision is stale aga
         { timeout: 10_000 }
       )
       .toContain("Original central sequence - remote");
+
+    await expect
+      .poll(
+        () =>
+          tab.page.evaluate((manifestKey) => {
+            const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+            return manifest.entries?.["football-simulator-sequence-v1"]?.serverRevision || 0;
+          }, dataSafetyManifestKey),
+        { timeout: 10_000 }
+      )
+      .toBe(5);
+
+    const staleAfterFreshValue = createStateValue("Original central sequence - stale after fresh");
+    centralStore.value = staleAfterFreshValue;
+    centralStore.metadata = createMetadata(3, staleAfterFreshValue);
+    await tab.page.evaluate(() => window.footballScienceCentralState.hydrate());
+
+    await expect
+      .poll(
+        () => tab.page.evaluate((key) => window.localStorage.getItem(key) || "", revisionStateKey),
+        { timeout: 10_000 }
+      )
+      .toContain("Original central sequence - remote");
+
+    await expect
+      .poll(
+        () =>
+          tab.page.evaluate(() =>
+            window.footballScienceCentralState.getStatus().metadata["football-simulator-sequence-v1"]?.revision || 0
+          ),
+        { timeout: 10_000 }
+      )
+      .toBe(5);
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("initial central hydration requests a fresh source read", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  };
+  const appStateGetUrls = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "fresh-initial-hydration", {
+    appStateGetUrls,
+  });
+
+  try {
+    expect(appStateGetUrls.length).toBeGreaterThan(0);
+    expect(new URL(appStateGetUrls[0]).searchParams.get("fresh")).toBe("1");
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("Medical hydration cannot replace a locally confirmed newer recommendation with stale central data", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const localMedicalState = {
+    selectedDate: "2026-07-20",
+    selectedPlayerId: "player-1",
+    players: [
+      {
+        id: "player-1",
+        name: "QA Player",
+        updatedAt: "2026-07-20T10:05:00.000Z",
+      },
+    ],
+    records: [
+      {
+        id: "recommendation-local",
+        playerId: "player-1",
+        date: "2026-07-20",
+        status: "controlled",
+        participation: 50,
+        coachNote: "Modified training",
+        shareWithCoach: true,
+        rtpPhase: "modified-team",
+        createdAt: "2026-07-20T10:05:00.000Z",
+        updatedAt: "2026-07-20T10:05:00.000Z",
+      },
+    ],
+    injuryPlans: [],
+  };
+  const staleCentralMedicalState = {
+    selectedDate: "2026-07-20",
+    selectedPlayerId: "player-1",
+    players: [
+      {
+        id: "player-1",
+        name: "QA Player",
+        updatedAt: "2026-07-20T10:00:00.000Z",
+      },
+    ],
+    records: [],
+    injuryPlans: [],
+  };
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: {
+      [medicalTeamStateKey]: JSON.stringify(staleCentralMedicalState),
+    },
+    metadataEntries: {
+      [medicalTeamStateKey]: {
+        ...createMetadata(4, JSON.stringify(staleCentralMedicalState)),
+        moduleId: "medical-team",
+        mergePolicy: "record-timestamp-merge",
+      },
+    },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "medical-stale-revision-guard", {
+    initScript: ({ key, value, manifestKey }) => {
+      window.localStorage.setItem(key, value);
+      window.localStorage.setItem(
+        manifestKey,
+        JSON.stringify({
+          entries: {
+            [key]: {
+              label: "Medical Room",
+              pendingCentralSync: false,
+              serverRevision: 5,
+              updatedAt: "2026-07-20T10:05:00.000Z",
+            },
+          },
+        })
+      );
+    },
+    initArg: {
+      key: medicalTeamStateKey,
+      value: JSON.stringify(localMedicalState),
+      manifestKey: dataSafetyManifestKey,
+    },
+  });
+
+  try {
+    await expect
+      .poll(
+        () =>
+          tab.page.evaluate((key) => {
+            const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+            const recommendation = state.records?.find((record) => record.id === "recommendation-local");
+            return {
+              coachNote: recommendation?.coachNote || "",
+              participation: recommendation?.participation,
+            };
+          }, medicalTeamStateKey),
+        { timeout: 10_000 }
+      )
+      .toEqual({
+        coachNote: "Modified training",
+        participation: 50,
+      });
+
+    await expect
+      .poll(
+        () =>
+          tab.page.evaluate(() =>
+            window.footballScienceCentralState.getStatus().metadata["football-medical-team-v1"]?.revision || 0
+          ),
+        { timeout: 10_000 }
+      )
+      .toBeGreaterThanOrEqual(5);
   } finally {
     await closeCentralStateContext(tab.context);
   }

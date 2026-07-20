@@ -614,17 +614,17 @@ async function getActiveAccessToken() {
     return Number.isFinite(timestamp) ? timestamp : 0;
   }
   function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, centralValue = "", options = {}) {
-    if (key === MEDICAL_TEAM_STATE_KEY) {
+    if (options.forceApply) {
       return true;
     }
-    if (options.forceApply) {
+    if (key === MEDICAL_TEAM_STATE_KEY && pendingEntry?.pendingCentralSync) {
       return true;
     }
 
     const centralRevision = Number(metadataEntry?.revision);
     const manifestServerRevision = Number(pendingEntry?.serverRevision);
-    const hasCentralRevision = Number.isInteger(centralRevision) && centralRevision >= 0;
-    const hasManifestRevision = Number.isInteger(manifestServerRevision) && manifestServerRevision >= 0;
+    const hasCentralRevision = Number.isInteger(centralRevision) && centralRevision > 0;
+    const hasManifestRevision = Number.isInteger(manifestServerRevision) && manifestServerRevision > 0;
     const localValue = window.localStorage.getItem(key);
     const hasLocalValue = localValue !== null;
 
@@ -669,6 +669,54 @@ async function getActiveAccessToken() {
       manifest.lastCentralSyncedAt = new Date().toISOString();
       window.localStorage.setItem(DATA_SAFETY_MANIFEST_KEY, JSON.stringify(manifest));
     } catch {}
+  }
+  function persistCentralHydrationRevisions(revisionEntries = []) {
+    if (!Array.isArray(revisionEntries) || !revisionEntries.length) {
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY);
+      const manifest = raw ? JSON.parse(raw) : null;
+      if (!manifest?.entries || typeof manifest.entries !== "object") {
+        return;
+      }
+      let changed = false;
+      revisionEntries.forEach(([key, metadataEntry]) => {
+        const entry = manifest.entries[key];
+        const revision = Number(metadataEntry?.revision);
+        const currentRevision = Number(entry?.serverRevision);
+        if (
+          !entry ||
+          !Number.isInteger(revision) ||
+          revision <= 0 ||
+          (Number.isInteger(currentRevision) && currentRevision >= revision)
+        ) {
+          return;
+        }
+        entry.serverRevision = revision;
+        changed = true;
+      });
+      if (changed) {
+        window.localStorage.setItem(DATA_SAFETY_MANIFEST_KEY, JSON.stringify(manifest));
+      }
+    } catch {}
+  }
+  function resolveCentralHydrationMetadata(metadataEntry = {}, pendingEntry = {}, currentEntry = {}) {
+    const incomingRevision = Number(metadataEntry?.revision);
+    const manifestRevision = Number(pendingEntry?.serverRevision);
+    const currentRevision = Number(currentEntry?.revision);
+    const highestRevision = Math.max(
+      Number.isInteger(incomingRevision) && incomingRevision > 0 ? incomingRevision : 0,
+      Number.isInteger(manifestRevision) && manifestRevision > 0 ? manifestRevision : 0,
+      Number.isInteger(currentRevision) && currentRevision > 0 ? currentRevision : 0
+    );
+    if (highestRevision === currentRevision) {
+      return { ...currentEntry };
+    }
+    return {
+      ...metadataEntry,
+      ...(highestRevision ? { revision: highestRevision } : {}),
+    };
   }
   function getCentralStateBaseRevision(metadata = {}) {
     const revision = Number(metadata?.revision);
@@ -1131,15 +1179,17 @@ async function getActiveAccessToken() {
     const normalizedEntries = Object.fromEntries(
       Object.entries(entries || {}).filter(([key, value]) => isCentralStateKey(key) && typeof value === "string")
     );
-    centralState.metadata = Object.entries(metadata || {}).reduce((normalized, [key, value]) => {
+    const incomingMetadata = Object.entries(metadata || {}).reduce((normalized, [key, value]) => {
       if (isCentralStateKey(key) && value && typeof value === "object") {
         normalized[key] = value;
       }
       return normalized;
     }, {});
     const pendingEntries = readCentralSyncManifestEntries();
+    const nextMetadata = {};
     const writeBackEntries = [];
     const resolvedPendingKeys = [];
+    const hydratedRevisionEntries = [];
     window.__footballScienceCentralHydrating = true;
     try {
       for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
@@ -1154,7 +1204,12 @@ async function getActiveAccessToken() {
       }
       Object.entries(normalizedEntries).forEach(([key, value]) => {
         const pendingEntry = pendingEntries[key] || {};
-        const metadataEntry = centralState.metadata[key] || {};
+        const metadataEntry = incomingMetadata[key] || {};
+        nextMetadata[key] = resolveCentralHydrationMetadata(
+          metadataEntry,
+          pendingEntry,
+          centralState.metadata[key] || {}
+        );
         if (!shouldApplyCentralStateEntry(key, pendingEntry, metadataEntry, value, options)) {
           return;
         }
@@ -1191,10 +1246,13 @@ async function getActiveAccessToken() {
           }
         }
         window.localStorage.setItem(key, valueToApply);
+        hydratedRevisionEntries.push([key, metadataEntry]);
       });
     } finally {
       window.__footballScienceCentralHydrating = false;
     }
+    centralState.metadata = nextMetadata;
+    persistCentralHydrationRevisions(hydratedRevisionEntries);
     resolvedPendingKeys.forEach(([key, metadataEntry]) => clearCentralPendingSyncFlag(key, metadataEntry));
     writeBackEntries.forEach(([key, value]) => {
       syncCentralStateKey(key, value).catch(() => {});
@@ -1440,7 +1498,7 @@ async function getActiveAccessToken() {
       if (runId !== postAuthHydrationRunId || authState.session?.access_token !== queuedSession.access_token) {
         return;
       }
-      await hydrateCentralState().catch(() => false);
+      await hydrateCentralState({ fresh: true }).catch(() => false);
       if (runId !== postAuthHydrationRunId || authState.session?.access_token !== queuedSession.access_token) {
         return;
       }
@@ -1499,9 +1557,9 @@ async function getActiveAccessToken() {
       return authState.currentUser;
     }
     try {
-      await withTimeout(hydrateCentralState(), 12000, "Central app data is still loading.");
+      await withTimeout(hydrateCentralState({ fresh: true }), 12000, "Central app data is still loading.");
     } catch {
-      hydrateCentralState().catch(() => {});
+      hydrateCentralState({ fresh: true }).catch(() => {});
     }
     try {
       await withTimeout(refreshUserCache(), 8000, "User list is still loading.");

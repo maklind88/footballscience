@@ -616,12 +616,24 @@ function getStaleWriteRejection(contract, previousEntry, authorization, clientBa
   };
 }
 
-async function readStateObject(key) {
+async function readStateObject(key, options = {}) {
   const path = objectPathForKey(key);
-  const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
+  const cacheNonce = options.fresh
+    ? String(options.cacheNonce || crypto.randomUUID())
+    : "";
+  const requestPath = `/object/${encodeURIComponent(STATE_BUCKET)}/${path}${
+    cacheNonce ? `?cacheNonce=${encodeURIComponent(cacheNonce)}` : ""
+  }`;
+  const result = await storageRequest(requestPath, {
     method: "GET",
     raw: true,
     contentType: "",
+    headers: cacheNonce
+      ? {
+          "Cache-Control": "no-cache, no-store",
+          Pragma: "no-cache",
+        }
+      : undefined,
   });
 
   if (!result.ok) {
@@ -740,14 +752,14 @@ function mergePeriodizationDays(existingDay = {}, incomingDay = {}) {
   return normalizePeriodizationDay(merged);
 }
 
-async function protectPeriodizationStateValue(rawValue) {
+async function protectPeriodizationStateValue(rawValue, context = {}) {
   const incomingState = parsePeriodizationStateValue(rawValue);
   if (!incomingState) {
     return { ok: false, reason: "Periodization data is invalid and was not saved." };
   }
 
   const incomingDays = getPeriodizationDays(incomingState);
-  const existingEntry = await readStateObject(PERIODIZATION_KEY);
+  const existingEntry = context.previousEntry || await readStateObject(PERIODIZATION_KEY, { fresh: true });
   const existingState = parsePeriodizationStateValue(existingEntry?.value);
   if (!existingState) {
     const normalizedState = {
@@ -1061,13 +1073,13 @@ function normalizeSessionPlannerBlockDeletionTombstonesInState(state) {
   delete state[SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY];
 }
 
-async function protectSessionPlannerStateValue(rawValue) {
+async function protectSessionPlannerStateValue(rawValue, context = {}) {
   const incomingState = parseSessionPlannerStateValue(rawValue);
   if (!incomingState) {
     return { ok: false, reason: "Session planner data is invalid and was not saved." };
   }
 
-  const existingEntry = await readStateObject(SESSION_PLANNER_KEY);
+  const existingEntry = context.previousEntry || await readStateObject(SESSION_PLANNER_KEY, { fresh: true });
   const existingState = parseSessionPlannerStateValue(existingEntry?.value);
   if (!existingState) {
     normalizeSessionPlannerReductionGuards(incomingState);
@@ -1164,13 +1176,13 @@ function chooseNewestSessionPlannerExercise(existingExercise, incomingExercise) 
   return existingTimestamp > incomingTimestamp ? existingExercise : incomingExercise;
 }
 
-async function protectSessionPlannerExerciseLibraryValue(rawValue) {
+async function protectSessionPlannerExerciseLibraryValue(rawValue, context = {}) {
   const incomingLibrary = parseSessionPlannerExerciseLibraryValue(rawValue);
   if (!incomingLibrary) {
     return { ok: false, reason: "Exercise library data is invalid and was not saved." };
   }
 
-  const existingEntry = await readStateObject(SESSION_EXERCISE_LIBRARY_KEY);
+  const existingEntry = context.previousEntry || await readStateObject(SESSION_EXERCISE_LIBRARY_KEY, { fresh: true });
   const existingLibrary = parseSessionPlannerExerciseLibraryValue(existingEntry?.value);
   if (!existingLibrary) {
     return { ok: true, value: JSON.stringify(incomingLibrary), merged: false };
@@ -1865,7 +1877,7 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
     ),
     removedPlayerIds: incomingRemovedPlayerIds,
   };
-  const existingEntry = context.previousEntry || await readStateObject(PLAYER_PROFILES_KEY);
+  const existingEntry = context.previousEntry || await readStateObject(PLAYER_PROFILES_KEY, { fresh: true });
   const existingState = restorePlayerProfilesStateExplicitFieldsFromChangeLog(parsePlayerProfilesStateValue(existingEntry?.value));
   if (!existingState || !Array.isArray(existingState.players)) {
     const normalizedValue = JSON.stringify(incomingStateWithRemovals);
@@ -2002,7 +2014,7 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
 }
 
 async function readWorkspaceHubStateValue() {
-  const entry = await readStateObject(WORKSPACE_HUB_KEY);
+  const entry = await readStateObject(WORKSPACE_HUB_KEY, { fresh: true });
   return entry?.value || "";
 }
 
@@ -2668,15 +2680,15 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
     }
 
     if (key === SESSION_PLANNER_KEY && !removed) {
-      return protectSessionPlannerStateValue(rawValue);
+      return protectSessionPlannerStateValue(rawValue, context);
     }
 
     if (key === SESSION_EXERCISE_LIBRARY_KEY && !removed) {
-      return protectSessionPlannerExerciseLibraryValue(rawValue);
+      return protectSessionPlannerExerciseLibraryValue(rawValue, context);
     }
 
     if (key === PERIODIZATION_KEY && !removed) {
-      return protectPeriodizationStateValue(rawValue);
+      return protectPeriodizationStateValue(rawValue, context);
     }
 
     if (key === PLAYER_PROFILES_KEY && !removed) {
@@ -2746,15 +2758,15 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
   }
 
   if (key === SESSION_PLANNER_KEY && !removed) {
-    return protectSessionPlannerStateValue(rawValue);
+    return protectSessionPlannerStateValue(rawValue, context);
   }
 
   if (key === SESSION_EXERCISE_LIBRARY_KEY && !removed) {
-    return protectSessionPlannerExerciseLibraryValue(rawValue);
+    return protectSessionPlannerExerciseLibraryValue(rawValue, context);
   }
 
   if (key === PERIODIZATION_KEY && !removed) {
-    return protectPeriodizationStateValue(rawValue);
+    return protectPeriodizationStateValue(rawValue, context);
   }
 
   if (key === PLAYER_PROFILES_KEY && !removed) {
@@ -3000,8 +3012,11 @@ async function listStateObjects(options = {}) {
 
   const entries = {};
   const metadata = {};
+  const sourceReadOptions = options.bypassSnapshot
+    ? { fresh: true, cacheNonce: crypto.randomUUID() }
+    : {};
   await Promise.all(Array.from(CENTRAL_STATE_KEYS).map(async (key) => {
-    const entry = await readStateObject(key);
+    const entry = await readStateObject(key, sourceReadOptions);
     if (entry?.key && !entry.removed) {
       entries[entry.key] = entry.value ?? "";
       metadata[entry.key] = getStateEntryMetadata(entry);
@@ -3023,7 +3038,7 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
     }
 
     const contract = dataSafetyRegistry.requireByKey(normalizedKey);
-    const previousEntry = await readStateObject(normalizedKey);
+    const previousEntry = await readStateObject(normalizedKey, { fresh: true });
     const clientBaseRevision = getClientBaseRevision(metadata, normalizedKey);
     const authorization = await authorizeStateWrite(actor, normalizedKey, rawValue, false, {
       previousEntry,
@@ -3158,7 +3173,7 @@ module.exports = async (req, res) => {
     const removed = req.method === "DELETE" || body?.removed === true;
     if (removed) {
       const contract = dataSafetyRegistry.requireByKey(key);
-      const previousEntry = await readStateObject(key);
+      const previousEntry = await readStateObject(key, { fresh: true });
       const clientBaseRevision = getClientBaseRevision(body?.metadata || body, key);
       const authorization = await authorizeStateWrite(actor, key, "", true, {
         previousEntry,
@@ -3187,7 +3202,7 @@ module.exports = async (req, res) => {
     }
 
     const contract = dataSafetyRegistry.requireByKey(key);
-    const previousEntry = await readStateObject(key);
+    const previousEntry = await readStateObject(key, { fresh: true });
     const clientBaseRevision = getClientBaseRevision(body?.metadata || body, key);
     const authorization = await authorizeStateWrite(actor, key, body?.value, false, {
       previousEntry,

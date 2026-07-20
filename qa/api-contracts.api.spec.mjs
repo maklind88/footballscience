@@ -260,6 +260,7 @@ function createAppStateFetchMock(initialObjects = {}, role = "coach") {
   const objects = new Map(Object.entries(initialObjects));
   const writes = [];
   const reads = [];
+  const readRequests = [];
   const deletes = [];
   const user = createMockPlatformUser(role);
 
@@ -293,6 +294,11 @@ function createAppStateFetchMock(initialObjects = {}, role = "coach") {
       const objectPath = decodeURIComponent(requestUrl.slice(objectMarkerIndex + objectMarker.length).split("?", 1)[0]);
       if (method === "GET") {
         reads.push(objectPath);
+        readRequests.push({
+          headers: Object.fromEntries(new Headers(options.headers || {}).entries()),
+          objectPath,
+          url: requestUrl,
+        });
         if (!objects.has(objectPath)) {
           return new Response("{}", { status: 404 });
         }
@@ -318,7 +324,7 @@ function createAppStateFetchMock(initialObjects = {}, role = "coach") {
     return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
   };
 
-  return { fetchMock, objects, writes, reads, deletes };
+  return { fetchMock, objects, writes, reads, readRequests, deletes };
 }
 
 test("client-config fails loudly when Supabase browser config is missing", async () => {
@@ -793,6 +799,57 @@ test("app-state bypasses shared read snapshots when a fresh central state read i
     expect(response.payload.metadata[scheduleKey].revision).toBe(9);
     expect(storage.reads).not.toContain(appStateReadSnapshotPath);
     expect(storage.reads).toContain(`global/${scheduleKey}.json`);
+    const sourceRead = storage.readRequests.find(
+      (request) => request.objectPath === `global/${scheduleKey}.json`
+    );
+    expect(new URL(sourceRead.url).searchParams.get("cacheNonce")).toBeTruthy();
+    expect(sourceRead.headers["cache-control"]).toBe("no-cache, no-store");
+    expect(sourceRead.headers.pragma).toBe("no-cache");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state uses one cache-busted source revision throughout a protected write", async () => {
+  const handler = loadFreshAppStateHandler();
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const storage = createAppStateFetchMock({
+    [`global/${scheduleKey}.json`]: {
+      ...createAppStateStorageEntry(scheduleKey, { events: [{ id: "event-old", title: "Old training" }] }),
+      revision: 4,
+    },
+  }, "admin");
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(handler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer source-revision-token",
+      },
+      body: JSON.stringify({
+        key: scheduleKey,
+        value: JSON.stringify({ events: [{ id: "event-new", title: "Updated training" }] }),
+        metadata: { baseRevision: 4 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    const sourceReads = storage.readRequests.filter(
+      (request) => request.objectPath === `global/${scheduleKey}.json`
+    );
+    expect(sourceReads).toHaveLength(1);
+    expect(new URL(sourceReads[0].url).searchParams.get("cacheNonce")).toBeTruthy();
+    expect(sourceReads[0].headers["cache-control"]).toBe("no-cache, no-store");
+    expect(response.payload.revision).toBe(5);
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);
@@ -2975,6 +3032,12 @@ test("app-state preserves Session Planner blocks during stale single-user saves"
     expect(storedBlocks.map((block) => block.id)).toEqual(["block-1", "block-2"]);
     expect(storedBlocks[0].title).toBe("Block one edited");
     expect(storedBlocks[1].title).toBe("Block two");
+    const sourceReads = storage.readRequests.filter(
+      (request) => request.objectPath === appStateSessionPlannerPath
+    );
+    expect(sourceReads).toHaveLength(1);
+    expect(new URL(sourceReads[0].url).searchParams.get("cacheNonce")).toBeTruthy();
+    expect(sourceReads[0].headers["cache-control"]).toBe("no-cache, no-store");
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

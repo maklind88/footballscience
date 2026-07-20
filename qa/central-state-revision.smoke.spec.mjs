@@ -490,6 +490,16 @@ test("Medical hydration cannot replace a locally confirmed newer recommendation 
         createdAt: "2026-07-20T10:05:00.000Z",
         updatedAt: "2026-07-20T10:05:00.000Z",
       },
+      {
+        id: "recommendation-archived",
+        playerId: "player-1",
+        date: "2026-07-20",
+        status: "full",
+        participation: 100,
+        createdAt: "2026-07-20T09:00:00.000Z",
+        updatedAt: "2026-07-20T10:06:00.000Z",
+        archivedAt: "2026-07-20T10:06:00.000Z",
+      },
     ],
     injuryPlans: [],
   };
@@ -503,7 +513,26 @@ test("Medical hydration cannot replace a locally confirmed newer recommendation 
         updatedAt: "2026-07-20T10:00:00.000Z",
       },
     ],
-    records: [],
+    records: [
+      {
+        id: "recommendation-central",
+        playerId: "player-1",
+        date: "2026-07-20",
+        status: "full",
+        participation: 100,
+        createdAt: "2026-07-20T10:04:00.000Z",
+        updatedAt: "2026-07-20T10:04:00.000Z",
+      },
+      {
+        id: "recommendation-archived",
+        playerId: "player-1",
+        date: "2026-07-20",
+        status: "full",
+        participation: 100,
+        createdAt: "2026-07-20T09:00:00.000Z",
+        updatedAt: "2026-07-20T10:00:00.000Z",
+      },
+    ],
     injuryPlans: [],
   };
   const centralStore = {
@@ -526,6 +555,7 @@ test("Medical hydration cannot replace a locally confirmed newer recommendation 
       window.localStorage.setItem(
         manifestKey,
         JSON.stringify({
+          lastCentralError: "Stale medical data needs attention.",
           entries: {
             [key]: {
               label: "Medical Room",
@@ -551,9 +581,12 @@ test("Medical hydration cannot replace a locally confirmed newer recommendation 
           tab.page.evaluate((key) => {
             const state = JSON.parse(window.localStorage.getItem(key) || "{}");
             const recommendation = state.records?.find((record) => record.id === "recommendation-local");
+            const archived = state.records?.find((record) => record.id === "recommendation-archived");
             return {
               coachNote: recommendation?.coachNote || "",
               participation: recommendation?.participation,
+              recordIds: (state.records || []).map((record) => record.id).sort(),
+              archivedAt: archived?.archivedAt || "",
             };
           }, medicalTeamStateKey),
         { timeout: 10_000 }
@@ -561,17 +594,31 @@ test("Medical hydration cannot replace a locally confirmed newer recommendation 
       .toEqual({
         coachNote: "Modified training",
         participation: 50,
+        recordIds: ["recommendation-archived", "recommendation-central", "recommendation-local"],
+        archivedAt: "2026-07-20T10:06:00.000Z",
       });
 
     await expect
       .poll(
-        () =>
-          tab.page.evaluate(() =>
-            window.footballScienceCentralState.getStatus().metadata["football-medical-team-v1"]?.revision || 0
-          ),
+        () => tab.page.evaluate((manifestKey) => {
+          const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+          const centralRevision =
+            window.footballScienceCentralState.getStatus().metadata["football-medical-team-v1"]?.revision || 0;
+          const manifestRevision = manifest.entries?.["football-medical-team-v1"]?.serverRevision || 0;
+          return {
+            revisionsAligned:
+              centralRevision >= 5 &&
+              manifestRevision >= 5 &&
+              centralRevision === manifestRevision,
+            lastCentralError: manifest.lastCentralError || "",
+          };
+        }, dataSafetyManifestKey),
         { timeout: 10_000 }
       )
-      .toBeGreaterThanOrEqual(5);
+      .toEqual({
+        revisionsAligned: true,
+        lastCentralError: "",
+      });
   } finally {
     await closeCentralStateContext(tab.context);
   }

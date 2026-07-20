@@ -613,11 +613,31 @@ async function getActiveAccessToken() {
     const timestamp = Date.parse(String(value || ""));
     return Number.isFinite(timestamp) ? timestamp : 0;
   }
+  function hasCentralHydrationRevisionRegression(pendingEntry = {}, metadataEntry = {}) {
+    const centralRevision = Number(metadataEntry?.revision);
+    const manifestServerRevision = Number(pendingEntry?.serverRevision);
+    return (
+      Number.isInteger(centralRevision) &&
+      centralRevision > 0 &&
+      Number.isInteger(manifestServerRevision) &&
+      manifestServerRevision > centralRevision
+    );
+  }
+  function shouldRecoverMedicalCentralState(key, pendingEntry = {}, metadataEntry = {}, options = {}) {
+    return (
+      key === MEDICAL_TEAM_STATE_KEY &&
+      (
+        Boolean(pendingEntry?.pendingCentralSync) ||
+        Boolean(options.forceApply) ||
+        (Boolean(options.fresh) && hasCentralHydrationRevisionRegression(pendingEntry, metadataEntry))
+      )
+    );
+  }
   function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, centralValue = "", options = {}) {
     if (options.forceApply) {
       return true;
     }
-    if (key === MEDICAL_TEAM_STATE_KEY && pendingEntry?.pendingCentralSync) {
+    if (shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options)) {
       return true;
     }
 
@@ -670,7 +690,7 @@ async function getActiveAccessToken() {
       window.localStorage.setItem(DATA_SAFETY_MANIFEST_KEY, JSON.stringify(manifest));
     } catch {}
   }
-  function persistCentralHydrationRevisions(revisionEntries = []) {
+  function persistCentralHydrationRevisions(revisionEntries = [], options = {}) {
     if (!Array.isArray(revisionEntries) || !revisionEntries.length) {
       return;
     }
@@ -681,15 +701,22 @@ async function getActiveAccessToken() {
         return;
       }
       let changed = false;
-      revisionEntries.forEach(([key, metadataEntry]) => {
+      revisionEntries.forEach(([key, metadataEntry, pendingEntry = {}]) => {
         const entry = manifest.entries[key];
         const revision = Number(metadataEntry?.revision);
         const currentRevision = Number(entry?.serverRevision);
+        const acceptAuthoritativeMedicalRevision =
+          Boolean(options.fresh || options.forceApply) &&
+          shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options);
         if (
           !entry ||
           !Number.isInteger(revision) ||
           revision <= 0 ||
-          (Number.isInteger(currentRevision) && currentRevision >= revision)
+          (
+            !acceptAuthoritativeMedicalRevision &&
+            Number.isInteger(currentRevision) &&
+            currentRevision >= revision
+          )
         ) {
           return;
         }
@@ -701,8 +728,33 @@ async function getActiveAccessToken() {
       }
     } catch {}
   }
-  function resolveCentralHydrationMetadata(metadataEntry = {}, pendingEntry = {}, currentEntry = {}) {
+  function clearResolvedCentralHydrationError() {
+    try {
+      const raw = window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY);
+      const manifest = raw ? JSON.parse(raw) : null;
+      if (!manifest || typeof manifest !== "object") {
+        return;
+      }
+      const hasPendingCentralSync = Object.values(manifest.entries || {})
+        .some((entry) => entry?.pendingCentralSync);
+      if (hasPendingCentralSync || !manifest.lastCentralError) {
+        return;
+      }
+      manifest.lastCentralError = "";
+      manifest.lastCentralSyncedAt = new Date().toISOString();
+      window.localStorage.setItem(DATA_SAFETY_MANIFEST_KEY, JSON.stringify(manifest));
+    } catch {}
+  }
+  function resolveCentralHydrationMetadata(key, metadataEntry = {}, pendingEntry = {}, currentEntry = {}, options = {}) {
     const incomingRevision = Number(metadataEntry?.revision);
+    if (
+      Number.isInteger(incomingRevision) &&
+      incomingRevision > 0 &&
+      Boolean(options.fresh || options.forceApply) &&
+      shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options)
+    ) {
+      return { ...metadataEntry, revision: incomingRevision };
+    }
     const manifestRevision = Number(pendingEntry?.serverRevision);
     const currentRevision = Number(currentEntry?.revision);
     const highestRevision = Math.max(
@@ -1175,7 +1227,7 @@ async function getActiveAccessToken() {
     const { activeWorkspaceId, ...sharedState } = state;
     return JSON.stringify(sharedState);
   }
-  function applyCentralStateEntries(entries = {}, metadata = {}, options = {}) {
+  async function applyCentralStateEntries(entries = {}, metadata = {}, options = {}) {
     const normalizedEntries = Object.fromEntries(
       Object.entries(entries || {}).filter(([key, value]) => isCentralStateKey(key) && typeof value === "string")
     );
@@ -1188,6 +1240,7 @@ async function getActiveAccessToken() {
     const pendingEntries = readCentralSyncManifestEntries();
     const nextMetadata = {};
     const writeBackEntries = [];
+    const requiredWriteBackEntries = [];
     const resolvedPendingKeys = [];
     const hydratedRevisionEntries = [];
     window.__footballScienceCentralHydrating = true;
@@ -1206,9 +1259,11 @@ async function getActiveAccessToken() {
         const pendingEntry = pendingEntries[key] || {};
         const metadataEntry = incomingMetadata[key] || {};
         nextMetadata[key] = resolveCentralHydrationMetadata(
+          key,
           metadataEntry,
           pendingEntry,
-          centralState.metadata[key] || {}
+          centralState.metadata[key] || {},
+          options
         );
         if (!shouldApplyCentralStateEntry(key, pendingEntry, metadataEntry, value, options)) {
           return;
@@ -1236,24 +1291,37 @@ async function getActiveAccessToken() {
             writeBackEntries.push([key, valueToApply]);
           }
         } else if (key === MEDICAL_TEAM_STATE_KEY) {
-          const shouldPreserveLocalMedical = Boolean(pendingEntry?.pendingCentralSync) || Boolean(options.forceApply);
+          const shouldPreserveLocalMedical =
+            shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options);
           const mergedValue = shouldPreserveLocalMedical
             ? mergeCentralMedicalStateValues(window.localStorage.getItem(key), value)
             : mergeCentralStateMediaValues(window.localStorage.getItem(key), value);
           valueToApply = mergedValue.value;
           if (mergedValue.changed) {
-            writeBackEntries.push([key, valueToApply]);
+            if (shouldPreserveLocalMedical) {
+              requiredWriteBackEntries.push([key, valueToApply]);
+            } else {
+              writeBackEntries.push([key, valueToApply]);
+            }
           }
         }
         window.localStorage.setItem(key, valueToApply);
-        hydratedRevisionEntries.push([key, metadataEntry]);
+        hydratedRevisionEntries.push([key, metadataEntry, pendingEntry]);
       });
     } finally {
       window.__footballScienceCentralHydrating = false;
     }
     centralState.metadata = nextMetadata;
-    persistCentralHydrationRevisions(hydratedRevisionEntries);
+    persistCentralHydrationRevisions(hydratedRevisionEntries, options);
+    for (const [key, value] of requiredWriteBackEntries) {
+      const result = await syncCentralStateKey(key, value);
+      if (!result?.ok) {
+        throw new Error(result?.reason || "Recovered Medical data could not be synced centrally.");
+      }
+      persistCentralHydrationRevisions([[key, result.metadata || { revision: result.revision }, {}]]);
+    }
     resolvedPendingKeys.forEach(([key, metadataEntry]) => clearCentralPendingSyncFlag(key, metadataEntry));
+    clearResolvedCentralHydrationError();
     writeBackEntries.forEach(([key, value]) => {
       syncCentralStateKey(key, value).catch(() => {});
     });
@@ -1298,7 +1366,7 @@ async function getActiveAccessToken() {
         : {};
       const hasCentralEntries = Object.keys(entries).length > 0;
       if (hasCentralEntries) {
-        applyCentralStateEntries(entries, metadata, options);
+        await applyCentralStateEntries(entries, metadata, options);
       } else {
         const localEntries = collectCentralLocalStateEntries();
         if (Object.keys(localEntries).length) {

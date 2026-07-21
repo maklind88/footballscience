@@ -160,3 +160,28 @@ test("platform global runtime bindings preserve boot, escape, and storage behavi
   win.dispatch("storage", { key: "tasks" });
   expect(calls).toEqual(expect.arrayContaining(["home-seen", "render-home"]));
 });
+
+test("platform global runtime bindings reconcile state when central hydration finished before binding", () => {
+  const calls = [];
+  const documentRef = createEventHub({
+    visibilityState: "visible",
+    querySelectorAll: () => [],
+  });
+  const win = createEventHub({
+    setInterval: () => 1,
+    setTimeout: () => 1,
+  });
+
+  bindPlatformGlobalRuntimeEvents({
+    documentRef,
+    win,
+    getCurrentPlatformUser: () => ({ id: "coach-1" }),
+    getCentralStateBridge: () => ({ isHydrated: () => true }),
+    getHubState: () => ({ activeWorkspaceId: "session-planner" }),
+    initializeWorkspaceHub: () => calls.push("initialize-workspace"),
+    requestCentralizedAppStateReload: () => calls.push("request-reload"),
+  });
+
+  expect(calls).toEqual(expect.arrayContaining(["initialize-workspace", "request-reload"]));
+  expect(calls.indexOf("request-reload")).toBeGreaterThan(calls.indexOf("initialize-workspace"));
+});

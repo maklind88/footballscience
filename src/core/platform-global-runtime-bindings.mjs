@@ -256,6 +256,9 @@ export function bindPlatformGlobalRuntimeEvents(deps = {}) {
 
   deps.refreshDataSafetyStatus?.();
   deps.initializeWorkspaceHub?.();
+  if (getCurrentPlatformUser() && getCentralStateBridge()?.isHydrated?.()) {
+    deps.requestCentralizedAppStateReload?.();
+  }
   deps.startDashboardPresenceRuntime?.();
   if (getHubState()?.activeWorkspaceId === "game-simulator") {
     deps.queueGameSimulatorControllersLoad?.();

@@ -470,7 +470,29 @@ test("central hydration keeps Session Planner and Medical view dates local while
   const initialValue = createStateValue("Original central sequence");
   const localSessionPlannerState = {
     selectedDate: "2026-07-20",
-    sessions: {},
+    blockReductionGuard: {
+      "2026-07-20": new Date().toISOString(),
+    },
+    sessions: {
+      "2026-07-20": {
+        id: "session-2026-07-20",
+        date: "2026-07-20",
+        title: "Stale browser training",
+        selectedBlockId: "monday-block",
+        blocks: [
+          {
+            id: "monday-block",
+            label: "Block 1",
+            title: "Stale browser exercise",
+            minutes: 15,
+            fieldUpdatedAt: {
+              title: "2026-07-20T09:00:00.000Z",
+              minutes: "2026-07-20T09:00:00.000Z",
+            },
+          },
+        ],
+      },
+    },
   };
   const centralSessionPlannerState = {
     selectedDate: "2026-07-22",
@@ -486,6 +508,16 @@ test("central hydration keeps Session Planner and Medical view dates local while
             label: "Block 1",
             title: "Monday possession",
             minutes: 20,
+            fieldUpdatedAt: {
+              title: "2026-07-20T10:00:00.000Z",
+              minutes: "2026-07-20T10:00:00.000Z",
+            },
+          },
+          {
+            id: "monday-block-2",
+            label: "Block 2",
+            title: "Monday finishing",
+            minutes: 25,
           },
         ],
       },
@@ -585,6 +617,8 @@ test("central hydration keeps Session Planner and Medical view dates local while
           return {
             sessionDate: sessionState.selectedDate || "",
             sessionTitle: sessionState.sessions?.["2026-07-20"]?.title || "",
+            sessionBlockTitles:
+              sessionState.sessions?.["2026-07-20"]?.blocks?.map((block) => block.title) || [],
             medicalDate: medicalState.selectedDate || "",
             selectedMedicalPlayerId: medicalState.selectedPlayerId || "",
             recommendationCount: medicalState.records?.filter((record) => record.date === "2026-07-20").length || 0,
@@ -595,6 +629,7 @@ test("central hydration keeps Session Planner and Medical view dates local while
       .toEqual({
         sessionDate: "2026-07-20",
         sessionTitle: "Central Monday training",
+        sessionBlockTitles: ["Monday possession", "Monday finishing"],
         medicalDate: "2026-07-20",
         selectedMedicalPlayerId: "player-1",
         recommendationCount: 2,

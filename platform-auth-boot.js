@@ -1299,26 +1299,11 @@ async function getActiveAccessToken() {
         } else if (key === SESSION_PLANNER_STATE_KEY) {
           const localValue = window.localStorage.getItem(key);
           const sharedValue = stripCentralStateLocalUiFields(value, SESSION_PLANNER_LOCAL_UI_FIELDS);
-          if (options.forceApply) {
-            valueToApply = mergeCentralStateLocalUiFields(
-              localValue,
-              sharedValue,
-              SESSION_PLANNER_LOCAL_UI_FIELDS
-            ).value;
-          } else {
-            const mergedValue = mergeSessionPlannerStateValues(localValue, sharedValue);
-            valueToApply = mergeCentralStateLocalUiFields(
-              localValue,
-              mergedValue.value,
-              SESSION_PLANNER_LOCAL_UI_FIELDS
-            ).value;
-            if (mergedValue.changed) {
-              writeBackEntries.push([
-                key,
-                stripCentralStateLocalUiFields(valueToApply, SESSION_PLANNER_LOCAL_UI_FIELDS),
-              ]);
-            }
-          }
+          valueToApply = mergeCentralStateLocalUiFields(
+            localValue,
+            sharedValue,
+            SESSION_PLANNER_LOCAL_UI_FIELDS
+          ).value;
         } else if (!options.forceApply && key === PLAYER_PROFILES_STATE_KEY) {
           const mergedValue = mergeCentralStateMediaValues(window.localStorage.getItem(key), value);
           valueToApply = mergedValue.value;

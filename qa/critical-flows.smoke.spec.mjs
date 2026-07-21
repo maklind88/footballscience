@@ -1146,20 +1146,32 @@ test("Chat message grouping hover keeps message geometry stable", async ({ page 
       .toBe(target.messageId);
     await page.waitForTimeout(index === 0 ? 150 : 50);
     if (index === 0) {
-      const hoverActionMetrics = await page.evaluate((messageId) => {
-        const card = document.querySelector(`[data-dashboard-chat-message-id="${messageId}"]`);
-        const menu = card?.querySelector(".dashboard-chat-message-menu");
-        const menuSummary = menu?.querySelector("summary");
-        const menuRect = menuSummary?.getBoundingClientRect();
-        return {
-          menuLabel: menuSummary?.getAttribute("aria-label") || "",
-          menuOpacity: Number(menu ? window.getComputedStyle(menu).opacity : 0),
-          menuWidth: menuRect?.width || 0,
-          menuHeight: menuRect?.height || 0,
-          quickReactionPresent: Boolean(card?.querySelector(".dashboard-chat-message-reaction-menu")),
-          quickReactionPanelPresent: Boolean(card?.querySelector(".dashboard-chat-message-reaction-panel .dashboard-chat-reactions")),
-        };
-      }, target.messageId);
+      let hoverActionMetrics = null;
+      await expect
+        .poll(
+          async () => {
+            const metrics = await page.evaluate((messageId) => {
+              const card = document.querySelector(`[data-dashboard-chat-message-id="${messageId}"]`);
+              const menu = card?.querySelector(".dashboard-chat-message-menu");
+              const menuSummary = menu?.querySelector("summary");
+              const menuRect = menuSummary?.getBoundingClientRect();
+              return {
+                menuLabel: menuSummary?.getAttribute("aria-label") || "",
+                menuOpacity: Number(menu ? window.getComputedStyle(menu).opacity : 0),
+                menuWidth: menuRect?.width || 0,
+                menuHeight: menuRect?.height || 0,
+                quickReactionPresent: Boolean(card?.querySelector(".dashboard-chat-message-reaction-menu")),
+                quickReactionPanelPresent: Boolean(card?.querySelector(".dashboard-chat-message-reaction-panel .dashboard-chat-reactions")),
+              };
+            }, target.messageId);
+            if (metrics.menuOpacity > 0.9) {
+              hoverActionMetrics = metrics;
+            }
+            return metrics.menuOpacity;
+          },
+          { timeout: 2_000 }
+        )
+        .toBeGreaterThan(0.9);
 
       expect(hoverActionMetrics.menuLabel).toBe("Open message actions");
       expect(hoverActionMetrics.menuOpacity).toBeGreaterThan(0.9);

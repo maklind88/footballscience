@@ -116,6 +116,7 @@ function createConsistencyFetchMock(initialEntry) {
   const staleStorageEntry = structuredClone(initialEntry);
   const rpcWrites = [];
   const storageWrites = [];
+  const databaseReads = [];
 
   const fetchMock = async (url, options = {}) => {
     const requestUrl = String(url);
@@ -131,6 +132,7 @@ function createConsistencyFetchMock(initialEntry) {
     }
 
     if (requestUrl.includes("/rest/v1/platform_app_state_records?")) {
+      databaseReads.push(requestUrl);
       const rows = requestUrl.includes("state_key=")
         ? (requestUrl.includes(encodeURIComponent(scheduleKey)) ? [toDatabaseRow(databaseEntry)] : [])
         : [toDatabaseRow(databaseEntry)];
@@ -196,6 +198,7 @@ function createConsistencyFetchMock(initialEntry) {
     getStaleStorageEntry: () => structuredClone(staleStorageEntry),
     rpcWrites,
     storageWrites,
+    databaseReads,
   };
 }
 
@@ -282,6 +285,54 @@ test("successful database write is immediately visible even when Storage still s
     expect(mock.getDatabaseEntry().value).toBe(nextValue);
     expect(mock.getStaleStorageEntry().value).toBe(oldValue);
     expect(mock.storageWrites.some((entry) => entry.objectPath === schedulePath)).toBe(true);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("database reads can be restricted to approved central state keys", async () => {
+  const env = snapshotEnv();
+  const originalFetch = global.fetch;
+  configureDatabaseMode();
+
+  const value = JSON.stringify({ events: [{ id: "current", title: "Current team training" }] });
+  const mock = createConsistencyFetchMock({
+    organizationId: "global",
+    key: scheduleKey,
+    moduleId: "schedule",
+    mergePolicy: "replace",
+    revision: 11,
+    value,
+    removed: false,
+    updatedBy: "coach-existing",
+    updatedAt: "2026-07-21T16:10:00.000Z",
+    hash: sha256(value),
+    metadata: {},
+  });
+  global.fetch = mock.fetchMock;
+
+  try {
+    const response = await callHandler({
+      method: "GET",
+      url: `/api/app-state?fresh=1&keys=${encodeURIComponent(scheduleKey)}`,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload.entries).toEqual({ [scheduleKey]: value });
+    expect(response.payload.metadata[scheduleKey].revision).toBe(11);
+    expect(mock.databaseReads).toHaveLength(1);
+    const readUrl = new URL(mock.databaseReads[0]);
+    expect(readUrl.searchParams.get("state_key")).toContain(scheduleKey);
+    expect(readUrl.searchParams.get("state_key")).toContain("football-workspace-hub-v3");
+
+    const unrelatedResponse = await callHandler({
+      method: "GET",
+      url: "/api/app-state?fresh=1&keys=football-medical-team-v1,not-an-approved-key",
+    });
+    expect(unrelatedResponse.status).toBe(200);
+    expect(unrelatedResponse.payload.entries).toEqual({});
+    expect(unrelatedResponse.payload.metadata).toEqual({});
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

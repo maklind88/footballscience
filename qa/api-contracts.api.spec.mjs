@@ -645,6 +645,21 @@ test("platform auth boot throttles post-login auth-dependent hydration", () => {
   expect(source).not.toMatch(/await refreshAccessToken\(\)\.catch\(\(\) => null\);\s*let sessionResult;/);
 });
 
+test("platform auth boot hydrates central state in bounded read batches", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const source = readFileSync(path.join(process.cwd(), "platform-auth-boot.js"), "utf8");
+
+  expect(source).toContain("const CENTRAL_STATE_LARGE_READ_KEYS = new Set([");
+  expect(source).toContain("const CENTRAL_STATE_READ_BATCH_SIZE = 8;");
+  expect(source).toContain("function buildCentralStateReadBatches()");
+  expect(source).toContain("async function readCentralStateBatches(options = {})");
+  expect(source).toContain("Promise.all(buildCentralStateReadBatches().map((keys)");
+  expect(source).toContain('query.set("keys", keys.join(","));');
+  expect(source).toContain("const response = await readCentralStateBatches(options);");
+  expect(source).not.toContain("const statePath = options.forceApply || options.fresh");
+});
+
 test("current actor lookup avoids duplicate admin fetches and reuses a brief validated token cache", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;

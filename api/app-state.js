@@ -240,6 +240,33 @@ function shouldBypassStateReadSnapshot(req = {}) {
   );
 }
 
+function getRequestedStateKeys(req = {}) {
+  const url = new URL(req.url || "/", "http://localhost");
+  if (!url.searchParams.has("keys")) {
+    return null;
+  }
+
+  return Array.from(new Set(
+    url.searchParams
+      .getAll("keys")
+      .flatMap((value) => String(value || "").split(","))
+      .map(sanitizeStateKey)
+      .filter(Boolean)
+  ));
+}
+
+function selectStateListResultKeys(result = {}, keys = []) {
+  const keySet = new Set(keys);
+  return {
+    entries: Object.fromEntries(
+      Object.entries(result.entries || {}).filter(([key]) => keySet.has(key))
+    ),
+    metadata: Object.fromEntries(
+      Object.entries(result.metadata || {}).filter(([key]) => keySet.has(key))
+    ),
+  };
+}
+
 function clearStateListObjectsCache() {
   stateListObjectsCache = { updatedAt: 0, result: null };
   stateReadSnapshotCache = { updatedAt: 0, result: null, pending: null };
@@ -3112,24 +3139,29 @@ async function writeStateListSnapshot(result = {}) {
 
 async function listStateObjects(options = {}) {
   const now = Date.now();
+  const requestedKeys = Array.isArray(options.keys)
+    ? Array.from(new Set(options.keys.filter((key) => CENTRAL_STATE_KEYS.has(key))))
+    : Array.from(CENTRAL_STATE_KEYS);
+  const isPartialRead = Array.isArray(options.keys);
   if (
     !isAppStateDatabaseEnabled() &&
     !options.bypassSnapshot &&
     stateListObjectsCache.result &&
     now - stateListObjectsCache.updatedAt < STATE_LIST_CACHE_TTL_MS
   ) {
-    return cloneStateListResult(stateListObjectsCache.result);
+    const cachedResult = cloneStateListResult(stateListObjectsCache.result);
+    return isPartialRead ? selectStateListResultKeys(cachedResult, requestedKeys) : cachedResult;
   }
   if (!isAppStateDatabaseEnabled() && !options.bypassSnapshot) {
     const snapshot = await readStateListSnapshot();
     if (snapshot) {
       stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(snapshot) };
-      return cloneStateListResult(snapshot);
+      return isPartialRead ? selectStateListResultKeys(snapshot, requestedKeys) : cloneStateListResult(snapshot);
     }
   }
 
   if (isAppStateDatabaseEnabled()) {
-    const databaseResult = await listAppStateRecords();
+    const databaseResult = await listAppStateRecords("global", isPartialRead ? requestedKeys : null);
     if (databaseResult.ok) {
       const recordsByKey = new Map(
         databaseResult.entries
@@ -3137,7 +3169,7 @@ async function listStateObjects(options = {}) {
           .filter((entry) => entry && CENTRAL_STATE_KEYS.has(entry.key))
           .map((entry) => [entry.key, entry])
       );
-      const missingKeys = Array.from(CENTRAL_STATE_KEYS).filter((key) => !recordsByKey.has(key));
+      const missingKeys = requestedKeys.filter((key) => !recordsByKey.has(key));
       await Promise.all(missingKeys.map(async (key) => {
         const backupEntry = await readStorageStateObject(key, { fresh: true, cacheNonce: crypto.randomUUID() });
         if (!backupEntry) {
@@ -3167,7 +3199,9 @@ async function listStateObjects(options = {}) {
         databaseMetadata[entry.key] = getStateEntryMetadata(entry);
       });
       const result = { entries: databaseEntries, metadata: databaseMetadata };
-      stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(result) };
+      if (!isPartialRead) {
+        stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(result) };
+      }
       return result;
     }
     throw new Error(databaseResult.reason || "Central app-state database list failed.");
@@ -3178,7 +3212,7 @@ async function listStateObjects(options = {}) {
   const sourceReadOptions = options.bypassSnapshot
     ? { fresh: true, cacheNonce: crypto.randomUUID() }
     : {};
-  await Promise.all(Array.from(CENTRAL_STATE_KEYS).map(async (key) => {
+  await Promise.all(requestedKeys.map(async (key) => {
     const entry = await readStateObject(key, sourceReadOptions);
     if (entry?.key && !entry.removed) {
       entries[entry.key] = entry.value ?? "";
@@ -3187,8 +3221,10 @@ async function listStateObjects(options = {}) {
   }));
 
   const result = { entries, metadata };
-  stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(result) };
-  await writeStateListSnapshot(result).catch(() => null);
+  if (!isPartialRead) {
+    stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(result) };
+    await writeStateListSnapshot(result).catch(() => null);
+  }
   return result;
 }
 
@@ -3314,8 +3350,18 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === "GET") {
-      const stateObjects = await listStateObjects({ bypassSnapshot: shouldBypassStateReadSnapshot(req) });
-      const entries = filterStateEntriesForActor(actor, stateObjects.entries);
+      const requestedKeys = getRequestedStateKeys(req);
+      const readKeys = requestedKeys === null
+        ? null
+        : Array.from(new Set([...requestedKeys, WORKSPACE_HUB_KEY]));
+      const stateObjects = await listStateObjects({
+        bypassSnapshot: shouldBypassStateReadSnapshot(req),
+        keys: readKeys,
+      });
+      const actorEntries = filterStateEntriesForActor(actor, stateObjects.entries);
+      const entries = requestedKeys === null
+        ? actorEntries
+        : selectStateListResultKeys({ entries: actorEntries }, requestedKeys).entries;
       return sendJson(res, 200, {
         ok: true,
         entries,

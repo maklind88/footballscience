@@ -87,6 +87,12 @@
     "football-simulator-sequence-v1",
     "football-simulator-sequence-library-v2",
   ]);
+  const CENTRAL_STATE_LARGE_READ_KEYS = new Set([
+    SESSION_PLANNER_STATE_KEY,
+    MEDICAL_TEAM_STATE_KEY,
+    PLAYER_PROFILES_STATE_KEY,
+  ]);
+  const CENTRAL_STATE_READ_BATCH_SIZE = 8;
   const RETIRED_CENTRAL_STATE_KEYS = new Set([
     "football-workspace-hub-v1",
     "football-workspace-hub-v2",
@@ -599,6 +605,44 @@ async function getActiveAccessToken() {
       return {};
     }
     return entries;
+  }
+  function buildCentralStateReadBatches() {
+    const largeBatches = Array.from(CENTRAL_STATE_LARGE_READ_KEYS)
+      .filter((key) => CENTRAL_STATE_KEYS.has(key))
+      .map((key) => [key]);
+    const remainingKeys = Array.from(CENTRAL_STATE_KEYS)
+      .filter((key) => !CENTRAL_STATE_LARGE_READ_KEYS.has(key));
+    const remainingBatches = [];
+    for (let index = 0; index < remainingKeys.length; index += CENTRAL_STATE_READ_BATCH_SIZE) {
+      remainingBatches.push(remainingKeys.slice(index, index + CENTRAL_STATE_READ_BATCH_SIZE));
+    }
+    return [...largeBatches, ...remainingBatches];
+  }
+  function buildCentralStateReadPath(keys = [], options = {}) {
+    const query = new URLSearchParams();
+    query.set("keys", keys.join(","));
+    if (options.forceApply || options.fresh) {
+      query.set("fresh", "1");
+    }
+    return `${API_APP_STATE}?${query.toString()}`;
+  }
+  async function readCentralStateBatches(options = {}) {
+    const responses = await Promise.all(buildCentralStateReadBatches().map((keys) =>
+      apiRequest(buildCentralStateReadPath(keys, options), {
+        method: "GET",
+        timeoutMs: 10000,
+        headers: options.forceApply || options.fresh ? { "x-footballscience-fresh-state": "1" } : undefined,
+      })
+    ));
+    const failedResponse = responses.find((response) => !response.ok);
+    if (failedResponse) {
+      return failedResponse;
+    }
+    return responses.reduce((combined, response) => {
+      Object.assign(combined.payload.entries, response.payload?.entries || {});
+      Object.assign(combined.payload.metadata, response.payload?.metadata || {});
+      return combined;
+    }, { ok: true, status: 200, payload: { entries: {}, metadata: {} } });
   }
   function readCentralSyncManifestEntries() {
     try {
@@ -1380,12 +1424,7 @@ async function getActiveAccessToken() {
     centralState.lastError = "";
     try {
       centralState.localDev = false;
-      const statePath = options.forceApply || options.fresh ? `${API_APP_STATE}?fresh=1` : API_APP_STATE;
-      const response = await apiRequest(statePath, {
-        method: "GET",
-        timeoutMs: 10000,
-        headers: options.forceApply || options.fresh ? { "x-footballscience-fresh-state": "1" } : undefined,
-      });
+      const response = await readCentralStateBatches(options);
       if (!response.ok) {
         centralState.lastError = response.payload?.reason || "Central app data could not be loaded.";
         return false;

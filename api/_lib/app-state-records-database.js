@@ -119,7 +119,7 @@ async function readAppStateRecord(key, organizationId = "global") {
   return { ok: true, enabled: true, entry: normalizeRecord(result.payload?.[0]) };
 }
 
-async function listAppStateRecords(organizationId = "global") {
+async function listAppStateRecords(organizationId = "global", keys = null) {
   if (!isAppStateDatabaseEnabled()) {
     return { ok: false, enabled: false };
   }
@@ -128,6 +128,12 @@ async function listAppStateRecords(organizationId = "global") {
     organization_id: `eq.${organizationId}`,
     order: "state_key.asc",
   });
+  if (Array.isArray(keys)) {
+    if (!keys.length) {
+      return { ok: true, enabled: true, entries: [] };
+    }
+    query.set("state_key", `in.(${keys.join(",")})`);
+  }
   const result = await databaseRequest(`/${APP_STATE_RECORDS_TABLE}?${query.toString()}`);
   if (!result.ok) {
     return result;

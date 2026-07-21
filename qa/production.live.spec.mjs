@@ -120,12 +120,15 @@ async function establishServerBackedSession(page, credentials = primaryLiveCrede
   expect(session.access_token, "API login did not return an access token.").toBeTruthy();
   expect(session.refresh_token, "API login did not return a refresh token.").toBeTruthy();
 
-  const centralResponse = await page.request.get(`${endpointBase}/api/app-state`, {
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    timeout: 15_000,
-  });
+  const centralResponse = await page.request.get(
+    `${endpointBase}/api/app-state?keys=${encodeURIComponent("football-schedule-v1")}`,
+    {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      timeout: 15_000,
+    }
+  );
   const centralPayload = await centralResponse.json().catch(() => ({}));
   expect(
     centralResponse.ok(),
@@ -437,13 +440,16 @@ async function expectCentralSyncContains(page, key, text) {
         if (!localValue.includes(text)) {
           return false;
         }
-        const centralResponse = await page.request.get(`${endpointBase}/api/app-state?fresh=1`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "x-footballscience-fresh-state": "1",
-          },
-          timeout: 75_000,
-        });
+        const centralResponse = await page.request.get(
+          `${endpointBase}/api/app-state?fresh=1&keys=${encodeURIComponent(key)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "x-footballscience-fresh-state": "1",
+            },
+            timeout: 75_000,
+          }
+        );
         const centralPayload = centralResponse.ok() ? await centralResponse.json() : {};
         return String(centralPayload?.entries?.[key] || "").includes(text);
       },

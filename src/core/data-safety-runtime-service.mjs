@@ -49,6 +49,29 @@ export function createDataSafetyRuntimeService(deps = {}) {
     }
   }
 
+  function isStorageQuotaError(error) {
+    return (
+      error?.name === "QuotaExceededError" ||
+      error?.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+      Number(error?.code) === 22 ||
+      Number(error?.code) === 1014 ||
+      /quota/i.test(String(error?.message || ""))
+    );
+  }
+
+  function getCentralCachedValue(key) {
+    const value = getCentralStateBridge()?.getCachedValue?.(String(key || ""));
+    return typeof value === "string" ? value : null;
+  }
+
+  function setCentralCachedValue(key, value) {
+    return Boolean(getCentralStateBridge()?.setCachedValue?.(String(key || ""), String(value ?? "")));
+  }
+
+  function removeCentralCachedValue(key) {
+    getCentralStateBridge()?.removeCachedValue?.(String(key || ""));
+  }
+
   function getNow() { return new Date().toISOString(); }
 
   function isInternalStorageKey(key) {
@@ -65,19 +88,36 @@ export function createDataSafetyRuntimeService(deps = {}) {
   function rawGetItem(key) {
     const storage = getStorage();
     if (!storage || !nativeGetItem) return null;
+    if (isProtectedStorageKey(key)) {
+      const cachedValue = getCentralCachedValue(key);
+      if (cachedValue !== null) return cachedValue;
+    }
     return nativeGetItem.call(storage, key);
   }
 
   function rawSetItem(key, value) {
     const storage = getStorage();
     if (!storage || !nativeSetItem) return;
-    nativeSetItem.call(storage, key, value);
+    const normalizedKey = String(key || "");
+    const normalizedValue = String(value ?? "");
+    try {
+      nativeSetItem.call(storage, normalizedKey, normalizedValue);
+      if (isProtectedStorageKey(normalizedKey)) setCentralCachedValue(normalizedKey, normalizedValue);
+    } catch (error) {
+      if (!isProtectedStorageKey(normalizedKey) || !isStorageQuotaError(error) || !setCentralCachedValue(normalizedKey, normalizedValue)) {
+        throw error;
+      }
+      try {
+        nativeRemoveItem?.call(storage, normalizedKey);
+      } catch {}
+    }
   }
 
   function rawRemoveItem(key) {
     const storage = getStorage();
     if (!storage || !nativeRemoveItem) return;
     nativeRemoveItem.call(storage, key);
+    if (isProtectedStorageKey(key)) removeCentralCachedValue(key);
   }
 
   function rawKey(index) {
@@ -516,6 +556,14 @@ export function createDataSafetyRuntimeService(deps = {}) {
     nativeRemoveItem = storageConstructor.prototype.removeItem;
     nativeClear = storageConstructor.prototype.clear;
     nativeKey = storageConstructor.prototype.key;
+    storageConstructor.prototype.getItem = function patchedDataSafetyGetItem(key) {
+      const normalizedKey = String(key || "");
+      if (this === storage && isProtectedStorageKey(normalizedKey)) {
+        const cachedValue = getCentralCachedValue(normalizedKey);
+        if (cachedValue !== null) return cachedValue;
+      }
+      return nativeGetItem.call(this, key);
+    };
     storageConstructor.prototype.setItem = function patchedDataSafetySetItem(key, value) {
       const normalizedKey = String(key || "");
       const normalizedValue = String(value ?? "");
@@ -527,7 +575,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       }
       const previousValue = rawGetItem(normalizedKey);
       try {
-        const result = nativeSetItem.call(this, normalizedKey, normalizedValue);
+        const result = rawSetItem(normalizedKey, normalizedValue);
         if (previousValue !== normalizedValue) recordWrite(normalizedKey, normalizedValue);
         return result;
       } catch (error) {
@@ -545,7 +593,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       }
       const previousValue = rawGetItem(normalizedKey);
       if (previousValue !== null) saveSnapshot("before-remove");
-      const result = nativeRemoveItem.call(this, normalizedKey);
+      const result = rawRemoveItem(normalizedKey);
       if (previousValue !== null) recordWrite(normalizedKey, "", { removed: true });
       return result;
     };
@@ -559,6 +607,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
       if (this === storage && Object.keys(collectStorageData()).length) saveSnapshot("before-clear");
       const result = nativeClear.call(this);
       if (this === storage) {
+        removedKeys.forEach((key) => removeCentralCachedValue(key));
         mutateManifest((manifest) => {
           manifest.lastSavedAt = getNow();
           manifest.lastKey = "localStorage.clear";
@@ -588,6 +637,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
 
   return {
     status,
+    getCentralCachedValue,
+    setCentralCachedValue,
+    removeCentralCachedValue,
     getNow,
     isInternalStorageKey,
     isProtectedStorageKey,

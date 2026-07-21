@@ -542,6 +542,68 @@ test("fresh Session Planner hydration recovers from a higher stale browser revis
   }
 });
 
+test("Session Planner hydration stays server-backed when localStorage quota is full", async ({ browser, baseURL }) => {
+  const centralSessionPlannerState = {
+    selectedDate: "2026-07-21",
+    sessions: {
+      "2026-07-21": {
+        date: "2026-07-21",
+        title: "Training/IDP",
+        selectedBlockId: "central-block-1",
+        blocks: [
+          { id: "central-block-1", title: "1v1 Def/Off", minutes: 15 },
+          { id: "central-block-2", title: "Possession", minutes: 25 },
+          { id: "central-block-3", title: "German Possession", minutes: 20 },
+          { id: "central-block-4", title: "Big Sided Games", minutes: 25 },
+        ],
+      },
+    },
+  };
+  const centralValue = JSON.stringify(centralSessionPlannerState);
+  const centralStore = {
+    value: createStateValue("Original central sequence"),
+    metadata: createMetadata(1, createStateValue("Original central sequence")),
+    entries: { [sessionPlannerStateKey]: centralValue },
+    metadataEntries: {
+      [sessionPlannerStateKey]: { ...createMetadata(106, centralValue), moduleId: "session-planner" },
+    },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "session-quota-fallback", {
+    initScript: ({ key }) => {
+      const originalSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function quotaAwareSetItem(storageKey, value) {
+        if (String(storageKey) === key && String(value).includes("Big Sided Games")) {
+          throw new DOMException(`Setting ${key} exceeded the quota.`, "QuotaExceededError");
+        }
+        return originalSetItem.call(this, storageKey, value);
+      };
+    },
+    initArg: { key: sessionPlannerStateKey },
+  });
+
+  try {
+    await expect
+      .poll(() => tab.page.evaluate((key) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        const status = window.footballScienceCentralState.getStatus();
+        return {
+          blockTitles: (state.sessions?.["2026-07-21"]?.blocks || []).map((block) => block.title),
+          fallbackKeys: status.cacheFallbackKeys || [],
+          hydrated: status.hydrated,
+          lastError: status.lastError || "",
+        };
+      }, sessionPlannerStateKey))
+      .toEqual({
+        blockTitles: ["1v1 Def/Off", "Possession", "German Possession", "Big Sided Games"],
+        fallbackKeys: [sessionPlannerStateKey],
+        hydrated: true,
+        lastError: "",
+      });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
 test("initial central hydration requests a fresh source read", async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");
   const centralStore = {

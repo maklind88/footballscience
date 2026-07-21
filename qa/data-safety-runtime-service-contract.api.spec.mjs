@@ -6,7 +6,7 @@ function readProjectFile(relativePath) {
   return readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
 }
 
-function createFakeStorageConstructor() {
+function createFakeStorageConstructor(options = {}) {
   function FakeStorage() {
     this.values = new Map();
   }
@@ -20,6 +20,11 @@ function createFakeStorageConstructor() {
     return this.values.has(normalizedKey) ? this.values.get(normalizedKey) : null;
   };
   FakeStorage.prototype.setItem = function setItem(key, value) {
+    if (String(key) === options.quotaKey) {
+      const error = new Error(`Setting ${String(key)} exceeded the quota.`);
+      error.name = "QuotaExceededError";
+      throw error;
+    }
     this.values.set(String(key), String(value));
   };
   FakeStorage.prototype.removeItem = function removeItem(key) {
@@ -47,8 +52,9 @@ function createStatusElement() {
 }
 
 function createHarness(options = {}) {
-  const StorageConstructor = createFakeStorageConstructor();
+  const StorageConstructor = createFakeStorageConstructor(options);
   const localStorage = new StorageConstructor();
+  const centralCache = new Map(Object.entries(options.centralCache || {}));
   const timers = new Map();
   const queuedWrites = [];
   let timerId = 0;
@@ -60,6 +66,12 @@ function createHarness(options = {}) {
       reload: () => {},
     },
     footballScienceCentralState: {
+      getCachedValue: (key) => centralCache.get(String(key)),
+      setCachedValue: (key, value) => {
+        centralCache.set(String(key), String(value));
+        return true;
+      },
+      removeCachedValue: (key) => centralCache.delete(String(key)),
       getStatus: () => options.centralStatus || {},
     },
     setTimeout: (callback, delay) => {
@@ -113,7 +125,7 @@ function createHarness(options = {}) {
     getCentralStateWriteSuppressionKeys: () => options.suppressionKeys || new Set(),
     queueCentralStateWrite: (...args) => queuedWrites.push(args),
   });
-  return { dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
+  return { centralCache, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
 }
 
 test("data safety runtime service owns protected storage body outside app-runtime", () => {
@@ -153,6 +165,23 @@ test("data safety runtime service preserves protected localStorage write trackin
   });
   expect(typeof win.footballScienceDataSafety.exportBackup).toBe("function");
   expect(timers.size).toBeGreaterThan(0);
+});
+
+test("data safety runtime service falls back to central memory when browser cache quota is full", () => {
+  const key = "football-medical-team-v1";
+  const value = JSON.stringify({ players: [{ id: "player-1", recommendation: "75%" }] });
+  const { centralCache, localStorage, queuedWrites, service } = createHarness({ quotaKey: key });
+
+  service.install();
+  expect(() => localStorage.setItem(key, value)).not.toThrow();
+
+  expect(localStorage.values.has(key)).toBe(false);
+  expect(centralCache.get(key)).toBe(value);
+  expect(localStorage.getItem(key)).toBe(value);
+  expect(service.rawGetItem(key)).toBe(value);
+  expect(service.createBackupEnvelope("quota-fallback").storage[key]).toBe(value);
+  expect(queuedWrites).toContainEqual([key, value, {}]);
+  expect(service.status.lastError).toBe("");
 });
 
 test("data safety runtime service blocks protected writes until central sync is ready", () => {

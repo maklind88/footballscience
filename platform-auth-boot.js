@@ -87,6 +87,8 @@
     "football-simulator-sequence-v1",
     "football-simulator-sequence-library-v2",
   ]);
+  const nativeLocalStorageRemoveItem = window.Storage?.prototype?.removeItem;
+  const centralStateValues = new Map();
   const CENTRAL_STATE_LARGE_READ_KEYS = new Set([
     SESSION_PLANNER_STATE_KEY,
     MEDICAL_TEAM_STATE_KEY,
@@ -666,6 +668,56 @@ async function getActiveAccessToken() {
       Number.isInteger(manifestServerRevision) &&
       manifestServerRevision > centralRevision
     );
+  }
+  function isStorageQuotaError(error) {
+    return (
+      error?.name === "QuotaExceededError" ||
+      error?.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+      Number(error?.code) === 22 ||
+      Number(error?.code) === 1014 ||
+      /quota/i.test(String(error?.message || ""))
+    );
+  }
+  function getCentralCachedValue(key) {
+    const normalizedKey = String(key || "");
+    return centralStateValues.has(normalizedKey) ? centralStateValues.get(normalizedKey) : undefined;
+  }
+  function setCentralCachedValue(key, value) {
+    const normalizedKey = String(key || "");
+    if (!isCentralStateKey(normalizedKey) || typeof value !== "string") {
+      return false;
+    }
+    centralStateValues.set(normalizedKey, value);
+    return true;
+  }
+  function removeCentralCachedValue(key) {
+    return centralStateValues.delete(String(key || ""));
+  }
+  function setCentralCacheFallbackState(key, isFallback) {
+    const fallbackKeys = new Set(centralState.cacheFallbackKeys || []);
+    if (isFallback) {
+      fallbackKeys.add(key);
+    } else {
+      fallbackKeys.delete(key);
+    }
+    centralState.cacheFallbackKeys = Array.from(fallbackKeys);
+  }
+  function cacheCentralStateValue(key, value) {
+    setCentralCachedValue(key, value);
+    try {
+      window.localStorage.setItem(key, value);
+      setCentralCacheFallbackState(key, false);
+      return true;
+    } catch (error) {
+      if (!isStorageQuotaError(error)) {
+        throw error;
+      }
+      try {
+        nativeLocalStorageRemoveItem?.call(window.localStorage, key);
+      } catch {}
+      setCentralCacheFallbackState(key, true);
+      return false;
+    }
   }
   function shouldRecoverMedicalCentralState(key, pendingEntry = {}, metadataEntry = {}, options = {}) {
     return (
@@ -1337,6 +1389,7 @@ async function getActiveAccessToken() {
           !pendingEntries[key]?.pendingCentralSync
         ) {
           window.localStorage.removeItem(key);
+          removeCentralCachedValue(key);
         }
       }
       Object.entries(normalizedEntries).forEach(([key, value]) => {
@@ -1403,7 +1456,7 @@ async function getActiveAccessToken() {
             }
           }
         }
-        window.localStorage.setItem(key, valueToApply);
+        cacheCentralStateValue(key, valueToApply);
         hydratedRevisionEntries.push([key, metadataEntry, pendingEntry]);
       });
     } finally {
@@ -1546,6 +1599,14 @@ async function getActiveAccessToken() {
           ...centralState.metadata,
           [key]: response.payload.metadata,
         };
+      }
+      if (options.removed) {
+        removeCentralCachedValue(key);
+      } else if (getCentralCachedValue(key) === undefined) {
+        setCentralCachedValue(
+          key,
+          typeof response.payload?.value === "string" ? response.payload.value : String(value ?? "")
+        );
       }
       return { ok: true, ...(response.payload || {}) };
     } catch (error) {
@@ -2619,7 +2680,7 @@ async function getActiveAccessToken() {
     isAdmin: () => ["admin", "club-admin", "team-admin"].includes(normalizeRoleForAuth(authState.currentUser?.role, "")),
     roles: authState.roles,
   };
-  window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getStatus:()=>({...centralState})};
+  window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,getCachedValue:getCentralCachedValue,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState})};
   window.footballScienceAudit={record:recordAuditEvent};
   window.footballScienceMedicalDatabase={record:recordMedicalDatabaseEvent};
   window.platformAuthReadyPromise=bootAuth();

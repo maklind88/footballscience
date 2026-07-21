@@ -2447,12 +2447,27 @@ test("Chat thread click keeps long histories scrollable during background sync",
     .poll(async () => (await readThreadViewState()).visibleText, { timeout: 7_000 })
     .toContain("QA long team thread message 80");
 
-  const teamState = await readThreadViewState();
-  expect(teamState.activeThread).toBe("team");
-  expect(teamState.display).toBe("flex");
-  expect(teamState.scrollBehavior).toBe("auto");
-  expect(teamState.scrollTop).toBeGreaterThan(0);
-  expect(teamState.maxScrollTop).toBeGreaterThan(400);
+  await expect
+    .poll(
+      async () => {
+        const state = await readThreadViewState();
+        return {
+          activeThread: state.activeThread,
+          display: state.display,
+          scrollBehavior: state.scrollBehavior,
+          isScrolled: state.scrollTop > 0,
+          hasLongHistory: state.maxScrollTop > 400,
+        };
+      },
+      { timeout: 7_000 }
+    )
+    .toEqual({
+      activeThread: "team",
+      display: "flex",
+      scrollBehavior: "auto",
+      isScrolled: true,
+      hasLongHistory: true,
+    });
 
   const idleMutationCount = await page.evaluate(async () => {
     const root = document.querySelector(".dashboard-chat-widget");

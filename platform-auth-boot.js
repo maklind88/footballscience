@@ -1008,6 +1008,8 @@ async function getActiveAccessToken() {
   }
   const SCHEDULE_LOCAL_UI_FIELDS = ["selectedYear", "selectedMonthIndex", "selectedDate", "viewMode", "overviewSpan"];
   const PERIODIZATION_LOCAL_UI_FIELDS = ["selectedYear", "selectedMonthIndex", "selectedDate"];
+  const SESSION_PLANNER_LOCAL_UI_FIELDS = ["selectedDate"];
+  const MEDICAL_LOCAL_UI_FIELDS = ["selectedDate", "selectedPlayerId"];
   const PERIODIZATION_FIELD_META_KEY = "fieldUpdatedAt";
   const PERIODIZATION_SCALAR_FIELDS = [
     "seasonPhase",
@@ -1055,6 +1057,22 @@ async function getActiveAccessToken() {
       value: changed ? JSON.stringify(mergedState) : centralValue,
       changed: false,
     };
+  }
+  function stripCentralStateLocalUiFields(value, fields) {
+    const state = parseCentralObjectStateValue(value);
+    if (!state) {
+      return value;
+    }
+    let changed = false;
+    const sharedState = { ...state };
+    fields.forEach((field) => {
+      if (!Object.prototype.hasOwnProperty.call(sharedState, field)) {
+        return;
+      }
+      delete sharedState[field];
+      changed = true;
+    });
+    return changed ? JSON.stringify(sharedState) : value;
   }
   function normalizePeriodizationCentralMultiValue(value) {
     const rawValues = Array.isArray(value) ? value : String(value ?? "").split("|");
@@ -1278,11 +1296,28 @@ async function getActiveAccessToken() {
           valueToApply = mergePeriodizationCentralStateValues(window.localStorage.getItem(key), value).value;
         } else if (key === SCHEDULE_STATE_KEY) {
           valueToApply = mergeCentralStateLocalUiFields(window.localStorage.getItem(key), value, SCHEDULE_LOCAL_UI_FIELDS).value;
-        } else if (key === SESSION_PLANNER_STATE_KEY && !options.forceApply) {
-          const mergedValue = mergeSessionPlannerStateValues(window.localStorage.getItem(key), value);
-          valueToApply = mergedValue.value;
-          if (mergedValue.changed) {
-            writeBackEntries.push([key, valueToApply]);
+        } else if (key === SESSION_PLANNER_STATE_KEY) {
+          const localValue = window.localStorage.getItem(key);
+          const sharedValue = stripCentralStateLocalUiFields(value, SESSION_PLANNER_LOCAL_UI_FIELDS);
+          if (options.forceApply) {
+            valueToApply = mergeCentralStateLocalUiFields(
+              localValue,
+              sharedValue,
+              SESSION_PLANNER_LOCAL_UI_FIELDS
+            ).value;
+          } else {
+            const mergedValue = mergeSessionPlannerStateValues(localValue, sharedValue);
+            valueToApply = mergeCentralStateLocalUiFields(
+              localValue,
+              mergedValue.value,
+              SESSION_PLANNER_LOCAL_UI_FIELDS
+            ).value;
+            if (mergedValue.changed) {
+              writeBackEntries.push([
+                key,
+                stripCentralStateLocalUiFields(valueToApply, SESSION_PLANNER_LOCAL_UI_FIELDS),
+              ]);
+            }
           }
         } else if (!options.forceApply && key === PLAYER_PROFILES_STATE_KEY) {
           const mergedValue = mergeCentralStateMediaValues(window.localStorage.getItem(key), value);
@@ -1291,17 +1326,29 @@ async function getActiveAccessToken() {
             writeBackEntries.push([key, valueToApply]);
           }
         } else if (key === MEDICAL_TEAM_STATE_KEY) {
+          const localValue = window.localStorage.getItem(key);
+          const sharedValue = stripCentralStateLocalUiFields(value, MEDICAL_LOCAL_UI_FIELDS);
           const shouldPreserveLocalMedical =
             shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options);
           const mergedValue = shouldPreserveLocalMedical
-            ? mergeCentralMedicalStateValues(window.localStorage.getItem(key), value)
-            : mergeCentralStateMediaValues(window.localStorage.getItem(key), value);
-          valueToApply = mergedValue.value;
+            ? mergeCentralMedicalStateValues(localValue, sharedValue)
+            : mergeCentralStateMediaValues(localValue, sharedValue);
+          valueToApply = mergeCentralStateLocalUiFields(
+            localValue,
+            mergedValue.value,
+            MEDICAL_LOCAL_UI_FIELDS
+          ).value;
           if (mergedValue.changed) {
             if (shouldPreserveLocalMedical) {
-              requiredWriteBackEntries.push([key, valueToApply]);
+              requiredWriteBackEntries.push([
+                key,
+                stripCentralStateLocalUiFields(valueToApply, MEDICAL_LOCAL_UI_FIELDS),
+              ]);
             } else {
-              writeBackEntries.push([key, valueToApply]);
+              writeBackEntries.push([
+                key,
+                stripCentralStateLocalUiFields(valueToApply, MEDICAL_LOCAL_UI_FIELDS),
+              ]);
             }
           }
         }

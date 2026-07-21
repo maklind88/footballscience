@@ -5,6 +5,7 @@ const periodizationStateKey = "football-periodization-v2";
 const scheduleStateKey = "football-schedule-v1";
 const sessionPlannerStateKey = "football-session-planner-v3";
 const medicalTeamStateKey = "football-medical-team-v1";
+const playerProfilesStateKey = "football-player-profiles-v1";
 const dataSafetyManifestKey = "football-data-safety-v1";
 const qaUser = {
   id: "qa-user-1",
@@ -460,6 +461,157 @@ test("initial central hydration requests a fresh source read", async ({ browser,
   try {
     expect(appStateGetUrls.length).toBeGreaterThan(0);
     expect(new URL(appStateGetUrls[0]).searchParams.get("fresh")).toBe("1");
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("central hydration keeps Session Planner and Medical view dates local while shared data updates", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const localSessionPlannerState = {
+    selectedDate: "2026-07-20",
+    sessions: {},
+  };
+  const centralSessionPlannerState = {
+    selectedDate: "2026-07-22",
+    sessions: {
+      "2026-07-20": {
+        id: "session-2026-07-20",
+        date: "2026-07-20",
+        title: "Central Monday training",
+        selectedBlockId: "monday-block",
+        blocks: [
+          {
+            id: "monday-block",
+            label: "Block 1",
+            title: "Monday possession",
+            minutes: 20,
+          },
+        ],
+      },
+    },
+  };
+  const localMedicalState = {
+    selectedDate: "2026-07-20",
+    selectedPlayerId: "player-1",
+    players: [],
+    records: [],
+    injuryPlans: [],
+  };
+  const centralMedicalState = {
+    selectedDate: "2026-07-21",
+    selectedPlayerId: "player-2",
+    players: [
+      { id: "player-1", name: "First Player", position: "Forward" },
+      { id: "player-2", name: "Second Player", position: "Midfielder" },
+    ],
+    records: [
+      {
+        id: "recommendation-full",
+        playerId: "player-1",
+        date: "2026-07-20",
+        status: "full",
+        participation: 100,
+        createdAt: "2026-07-20T10:00:00.000Z",
+      },
+      {
+        id: "recommendation-modified",
+        playerId: "player-2",
+        date: "2026-07-20",
+        status: "modified",
+        participation: 75,
+        createdAt: "2026-07-20T10:01:00.000Z",
+      },
+    ],
+    injuryPlans: [],
+  };
+  const playerProfilesState = {
+    selectedPlayerId: "player-1",
+    rosterVersion: "qa-local-view-date-v1",
+    schemaVersion: 3,
+    removedPlayerIds: [],
+    players: [
+      {
+        id: "player-1",
+        name: "First Player",
+        position: "Forward",
+        rosterType: "squad",
+        countsInSquad: true,
+        status: "available",
+      },
+      {
+        id: "player-2",
+        name: "Second Player",
+        position: "Midfielder",
+        rosterType: "squad",
+        countsInSquad: true,
+        status: "available",
+      },
+    ],
+  };
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: {
+      [sessionPlannerStateKey]: JSON.stringify(centralSessionPlannerState),
+      [medicalTeamStateKey]: JSON.stringify(centralMedicalState),
+      [playerProfilesStateKey]: JSON.stringify(playerProfilesState),
+    },
+    metadataEntries: {
+      [sessionPlannerStateKey]: createMetadata(4, JSON.stringify(centralSessionPlannerState)),
+      [medicalTeamStateKey]: createMetadata(5, JSON.stringify(centralMedicalState)),
+      [playerProfilesStateKey]: createMetadata(6, JSON.stringify(playerProfilesState)),
+    },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "local-view-dates", {
+    initScript: ({ sessionKey, sessionValue, medicalKey, medicalValue }) => {
+      window.localStorage.setItem(sessionKey, sessionValue);
+      window.localStorage.setItem(medicalKey, medicalValue);
+    },
+    initArg: {
+      sessionKey: sessionPlannerStateKey,
+      sessionValue: JSON.stringify(localSessionPlannerState),
+      medicalKey: medicalTeamStateKey,
+      medicalValue: JSON.stringify(localMedicalState),
+    },
+  });
+
+  try {
+    await expect
+      .poll(() =>
+        tab.page.evaluate(({ sessionKey, medicalKey }) => {
+          const sessionState = JSON.parse(window.localStorage.getItem(sessionKey) || "{}");
+          const medicalState = JSON.parse(window.localStorage.getItem(medicalKey) || "{}");
+          return {
+            sessionDate: sessionState.selectedDate || "",
+            sessionTitle: sessionState.sessions?.["2026-07-20"]?.title || "",
+            medicalDate: medicalState.selectedDate || "",
+            selectedMedicalPlayerId: medicalState.selectedPlayerId || "",
+            recommendationCount: medicalState.records?.filter((record) => record.date === "2026-07-20").length || 0,
+          };
+        }, { sessionKey: sessionPlannerStateKey, medicalKey: medicalTeamStateKey }),
+        { timeout: 10_000 }
+      )
+      .toEqual({
+        sessionDate: "2026-07-20",
+        sessionTitle: "Central Monday training",
+        medicalDate: "2026-07-20",
+        selectedMedicalPlayerId: "player-1",
+        recommendationCount: 2,
+      });
+
+    await tab.page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "session-planner" } }));
+    });
+    await expect(tab.page.locator("body")).toHaveAttribute("data-active-workspace", "session-planner");
+    await expect(tab.page.locator("#sessionPlannerWorkspace")).toContainText("Monday possession");
+
+    await tab.page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent("platform:open-workspace", { detail: { workspaceId: "medical-team" } }));
+    });
+    await expect(tab.page.locator("body")).toHaveAttribute("data-active-workspace", "medical-team");
+    await expect(tab.page.locator(".medical-metric-card").filter({ hasText: "Full" })).toContainText("1");
+    await expect(tab.page.locator(".medical-metric-card").filter({ hasText: "Modified" })).toContainText("1");
   } finally {
     await closeCentralStateContext(tab.context);
   }

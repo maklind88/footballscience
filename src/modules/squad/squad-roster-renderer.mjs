@@ -121,8 +121,10 @@ export function createSquadRosterRenderer({
   `;
   };
 
-  const renderPlayerRow = (player) => {
-    const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id);
+  const renderPlayerRow = (player, options = {}) => {
+    const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id, undefined, {
+      medicalStateReady: options.medicalStateReady === true,
+    });
     const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);
     const isSelected = player.id === getSelectedPlayerId();
     const trainingAvailability = medicalSnapshot?.trainingAvailability || {};
@@ -152,7 +154,7 @@ export function createSquadRosterRenderer({
   `;
   };
 
-  const renderPlayerTable = (players = [], emptyText = "No players found. Adjust search or role group filter.") => `
+  const renderPlayerTable = (players = [], emptyText = "No players found. Adjust search or role group filter.", options = {}) => `
     <div class="squad-table-wrap">
       <table class="squad-table">
         <thead>
@@ -169,7 +171,7 @@ export function createSquadRosterRenderer({
         <tbody>
           ${
             players.length
-              ? players.map(renderPlayerRow).join("")
+              ? players.map((player) => renderPlayerRow(player, options)).join("")
               : `<tr><td colspan="7"><div class="squad-empty-row">${escapeHtml(emptyText)}</div></td></tr>`
           }
         </tbody>
@@ -177,7 +179,7 @@ export function createSquadRosterRenderer({
     </div>
   `;
 
-  const renderRosterSection = (section = {}) => {
+  const renderRosterSection = (section = {}, options = {}) => {
     const players = Array.isArray(section.players) ? section.players : [];
     const key = section.key || "squad";
     const isCollapsed = Boolean(section.collapsed);
@@ -195,7 +197,7 @@ export function createSquadRosterRenderer({
             : ""
         }
       </header>
-      ${isCollapsed ? "" : renderPlayerTable(players, section.emptyText)}
+      ${isCollapsed ? "" : renderPlayerTable(players, section.emptyText, options)}
     </section>
   `;
   };
@@ -208,6 +210,7 @@ export function createSquadRosterRenderer({
     const rosterSummary = summaries.rosterSummary || getPlayerProfileRosterSummary(getAllPlayerProfiles());
     const visibleSummary = summaries.visibleSummary || getPlayerProfileRosterSummary(visiblePlayers);
     const listSummary = getRosterListSummary(visibleSummary, rosterSummary);
+    const renderOptions = { medicalStateReady: summaries.medicalStateReady === true };
     const squadPlayers = visiblePlayers.filter(playerProfileCountsInSquad);
     const temporaryPlayers = getAllTemporaryPlayerProfiles();
     if (!squadPlayers.length && !temporaryPlayers.length) {
@@ -217,7 +220,7 @@ export function createSquadRosterRenderer({
         subtitle: listSummary,
         players: [],
         emptyText: "No players found. Adjust search or role group filter.",
-      });
+      }, renderOptions);
     }
     return [
       squadPlayers.length
@@ -226,7 +229,7 @@ export function createSquadRosterRenderer({
             title: "Squad List",
             subtitle: listSummary,
             players: squadPlayers,
-          })
+          }, renderOptions)
         : "",
       temporaryPlayers.length
         ? renderRosterSection({
@@ -236,7 +239,7 @@ export function createSquadRosterRenderer({
             players: temporaryPlayers,
             collapsible: true,
             collapsed: getTemporarySectionCollapsed(),
-          })
+          }, renderOptions)
         : "",
     ].join("");
   };

@@ -152,6 +152,7 @@ export function createMedicalRuntimeService(deps = {}) {
       archiveMedicalPlayersRemovedFromSquad: deps.archiveMedicalPlayersRemovedFromSquad,
       canEditMedicalTeam: deps.canEditMedicalTeam,
       compareMedicalPlayers: fromHelpers("compareMedicalPlayers"),
+      createMedicalLinkedPlayerProfileIndex: fromHelpers("createMedicalLinkedPlayerProfileIndex"),
       defaultMedicalPlayers: deps.defaultMedicalPlayers,
       formatDateValue: deps.formatDateValue,
       getCurrentMedicalActorId: fromHelpers("getCurrentMedicalActorId"),

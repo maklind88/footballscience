@@ -312,7 +312,9 @@ export function createPlayerProfileRuntimeStateService(options = {}) {
     if (!state) {
       return false;
     }
-    options.ensureMedicalState();
+    if (syncOptions.medicalStateReady !== true) {
+      options.ensureMedicalState();
+    }
     const medicalState = getMedicalState();
     const medicalPlayers = Array.isArray(medicalState?.players) ? medicalState.players : [];
     const removedPlayerIdSet = new Set(options.normalizePlayerProfileRemovedIds(state.removedPlayerIds));
@@ -603,7 +605,7 @@ export function createPlayerProfileRuntimeStateService(options = {}) {
     }
     options.setPlayerProfileModalOpen(false);
     options.setPlayerProfileNewPlayerModalOpen(true);
-    options.renderPlayerProfilesWorkspace();
+    options.renderPlayerProfilesWorkspace("", { canEdit: true });
   }
 
   function closePlayerProfileNewPlayerModal() {

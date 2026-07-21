@@ -134,8 +134,10 @@ test("Medical runtime helpers stay read-only and do not own write paths", () => 
 test("Medical runtime helpers preserve linked Squad availability and player normalization", () => {
   const helpers = createHelpers();
   const linkedPlayer = { id: "p1", name: "Alex Morgan", number: "13", position: "striker" };
+  const profileIndex = helpers.createMedicalLinkedPlayerProfileIndex();
 
   expect(helpers.getMedicalLinkedPlayerProfile(linkedPlayer)).toMatchObject({ id: "p1" });
+  expect(helpers.getMedicalLinkedPlayerProfile(linkedPlayer, profileIndex)).toMatchObject({ id: "p1" });
   expect(helpers.getMedicalPlayerAvailabilityStatus(linkedPlayer)).toBe("injured");
   expect(helpers.isMedicalPlayerBlockedBySquadAvailability(linkedPlayer)).toBe(true);
   expect(helpers.getMedicalPlayerSquadAvailabilityBlockReason(linkedPlayer)).toContain("Injured");

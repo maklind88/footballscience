@@ -157,7 +157,7 @@ function createHarness(options = {}) {
       storage.setItem(key, value);
     },
     renderPlayerProfilesRosterListOnly: () => renders.push("roster-list"),
-    renderPlayerProfilesWorkspace: () => renders.push("workspace"),
+    renderPlayerProfilesWorkspace: (...args) => renders.push({ type: "workspace", args }),
     setPlayerProfileAgeCacheState: (nextState) => {
       playerProfileAgeCacheState = nextState;
     },
@@ -399,11 +399,14 @@ test("Squad player profile runtime state service preserves modal and age hydrati
   harness.service.openPlayerProfileModal("p1");
   expect(harness.getFlags()).toMatchObject({ modalOpen: true, newModalOpen: false });
   expect(harness.getAutosaveSignature()).toBe("form-signature");
-  expect(harness.renders).toContain("workspace");
+  expect(harness.renders).toContainEqual({ type: "workspace", args: [] });
 
   harness.service.closePlayerProfileModal();
   expect(harness.getFlags()).toMatchObject({ modalOpen: false });
   expect(harness.getFlushes()).toBe(1);
+
+  harness.service.openPlayerProfileNewPlayerModal();
+  expect(harness.renders).toContainEqual({ type: "workspace", args: ["", { canEdit: true }] });
 
   const candidates = harness.service.getPlayerProfileAgeHydrationCandidates(harness.getState().players);
   expect(candidates).toEqual([

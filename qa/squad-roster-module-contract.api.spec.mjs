@@ -4,6 +4,7 @@ import { createSquadRosterRenderer } from "../src/modules/squad/index.mjs";
 const getOption = (options, key, fallback = options[0]) => options.find((option) => option.key === key) || fallback || options[0];
 
 test("Squad roster renderer owns roster table, temporary section, and status markup", () => {
+  const medicalSnapshotCalls = [];
   const squadPlayer = {
     id: "p1",
     name: "Mak Player",
@@ -36,14 +37,17 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
     getPlayerProfileDisplayAgeValue: () => "24",
     getPlayerProfileEffectiveStatusFromSnapshot: (player) => player.status,
     getPlayerProfileIdpFollowUpLabel: () => "Review in 7d",
-    getPlayerProfileMedicalSnapshot: (playerId) => ({
-      returnLabel: playerId === "p2" ? "10 Jun" : "",
-      trainingAvailability: {
-        season: { average: 82, count: 12 },
-        lastTwoWeeks: { average: 90, count: 5 },
-        lastFive: { average: 90, count: 5 },
-      },
-    }),
+    getPlayerProfileMedicalSnapshot: (playerId, dateValue, options) => {
+      medicalSnapshotCalls.push({ playerId, dateValue, options });
+      return {
+        returnLabel: playerId === "p2" ? "10 Jun" : "",
+        trainingAvailability: {
+          season: { average: 82, count: 12 },
+          lastTwoWeeks: { average: 90, count: 5 },
+          lastFive: { average: 90, count: 5 },
+        },
+      };
+    },
     getPlayerProfileOption: getOption,
     getPlayerProfileRosterLabel: (player) =>
       player.rosterType === "guest" ? `Guest / ${player.temporaryGroup || "Training guest"}` : "Squad",
@@ -72,6 +76,7 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
   const markup = renderer.renderRosterSections([squadPlayer], {
     rosterSummary: { squadCount: 1, temporaryCount: 1 },
     visibleSummary: { squadCount: 1, temporaryCount: 0 },
+    medicalStateReady: true,
   });
 
   expect(markup).toContain("squad-roster-section");
@@ -102,6 +107,10 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
   expect(markup).toContain("Guest / Academy Training Group");
   expect(markup).toContain("1 Jun - 7 Jun");
   expect(markup).not.toContain("Squad player");
+  expect(medicalSnapshotCalls).toEqual([
+    { playerId: "p1", dateValue: undefined, options: { medicalStateReady: true } },
+    { playerId: "p2", dateValue: undefined, options: { medicalStateReady: true } },
+  ]);
   expect(renderer.renderStatusChip("injured", { returnLabel: "10 Jun" })).toContain("10 Jun");
 });
 

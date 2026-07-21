@@ -206,6 +206,7 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
 
   function renderPlayerProfilesRosterListOnly() {
     ensurePlayerProfilesState();
+    deps.ensureMedicalState();
     const listPanel = ui.playerProfilesWorkspace?.querySelector(".squad-list-panel");
     if (!listPanel) {
       renderPlayerProfilesWorkspace();
@@ -215,6 +216,7 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     listPanel.innerHTML = renderSquadRosterSections(visiblePlayers, {
       rosterSummary: deps.getPlayerProfilesRosterSummary(getProfilesState().players),
       visibleSummary: deps.getPlayerProfilesRosterSummary(visiblePlayers),
+      medicalStateReady: true,
     });
     queuePlayerProfileAgeHydration();
   }
@@ -260,13 +262,13 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     writePlayerProfilesState,
   });
 
-  function renderPlayerProfilesWorkspace(message = "") {
+  function renderPlayerProfilesWorkspace(message = "", renderOptions = {}) {
     if (!ui.playerProfilesWorkspace) {
       return;
     }
     ensurePlayerProfilesState();
     deps.ensureMedicalState();
-    syncPlayerProfilesFromMedicalTrainingGuests();
+    syncPlayerProfilesFromMedicalTrainingGuests({ medicalStateReady: true });
     const visiblePlayers = getVisiblePlayerProfiles();
     const selectedPlayer = getSelectedPlayerProfile();
     const rosterSummary = deps.getPlayerProfilesRosterSummary(getProfilesState().players);
@@ -275,9 +277,10 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     const currentPlatformUser = deps.getCurrentPlatformUser();
     const squadTeam = deps.getPlatformTeamDisplayTeam(currentPlatformUser, platformStructure);
     const squadTeamName = squadTeam?.name || deps.getPlatformTeamDisplayName(currentPlatformUser, platformStructure);
+    const canEdit = renderOptions.canEdit === true || (renderOptions.canEdit !== false && canEditPlayerProfiles());
     const newPlayerModalMarkup = deps.squadProfileSupportRenderer.renderNewPlayerModal(readPlayerProfileNewPlayerDraft());
     ui.playerProfilesWorkspace.innerHTML = deps.squadWorkspaceRenderer.renderWorkspace({
-      canEdit: canEditPlayerProfiles(),
+      canEdit,
       messageMarkup: message ? deps.renderPlayerProfilesWorkspaceMessage(message) : "",
       newPlayerModalMarkup,
       pendingImportMarkup: renderPendingPlayerProfileImport(),
@@ -285,9 +288,9 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
       roleGroupFilter: deps.getPlayerProfilesRoleGroupFilter(),
       roleGroupOptionsMarkup: deps.squadProfileSupportRenderer.renderOptionSet(deps.playerProfileRoleGroupOptions, deps.getPlayerProfilesRoleGroupFilter()),
       rosterFilterOptionsMarkup: deps.squadProfileSupportRenderer.renderOptionSet(deps.playerProfileRosterFilterOptions, deps.getPlayerProfilesRosterFilter()),
-      rosterSectionsMarkup: renderSquadRosterSections(visiblePlayers, { rosterSummary, visibleSummary }),
+      rosterSectionsMarkup: renderSquadRosterSections(visiblePlayers, { rosterSummary, visibleSummary, medicalStateReady: true }),
       searchQuery: deps.getPlayerProfilesSearchQuery(),
-      teamLogoMarkup: deps.renderPlatformTeamLogoMark(squadTeam || { name: squadTeamName }, { teamName: squadTeamName, canUpload: canEditPlayerProfiles() }),
+      teamLogoMarkup: deps.renderPlatformTeamLogoMark(squadTeam || { name: squadTeamName }, { teamName: squadTeamName, canUpload: canEdit }),
       teamName: squadTeamName,
     });
     queuePlayerProfileAgeHydration();

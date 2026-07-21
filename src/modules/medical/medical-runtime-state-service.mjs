@@ -3,6 +3,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
     archiveMedicalPlayersRemovedFromSquad = () => {},
     canEditMedicalTeam = () => false,
     compareMedicalPlayers = () => 0,
+    createMedicalLinkedPlayerProfileIndex = () => null,
     defaultMedicalPlayers = [],
     formatDateValue = (date) => new Date(date).toISOString().slice(0, 10),
     getCurrentMedicalActorId = () => "",
@@ -96,8 +97,9 @@ export function createMedicalRuntimeStateService(deps = {}) {
       return false;
     }
     let changed = false;
+    const linkedProfileIndex = createMedicalLinkedPlayerProfileIndex();
     const nextPlayers = medicalState.players.map((player) => {
-      const profile = getMedicalLinkedPlayerProfile(player);
+      const profile = getMedicalLinkedPlayerProfile(player, linkedProfileIndex);
       const profileStatus = normalizeMedicalPlayerAvailabilityStatus(
         profile?.status || profile?.availabilityStatus || profile?.availability_status,
         ""

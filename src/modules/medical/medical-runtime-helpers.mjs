@@ -74,22 +74,48 @@ export function createMedicalRuntimeHelpers(deps = {}) {
     return status === "unknown" ? status : fallback;
   }
 
-  function getMedicalLinkedPlayerProfile(player = {}) {
+  function createMedicalLinkedPlayerProfileIndex() {
     const profileState = getPlayerProfilesState();
     const profiles = Array.isArray(profileState?.players) ? profileState.players : [];
+    const byId = new Map();
+    const byName = new Map();
+    const byNameAndNumber = new Map();
+    profiles.forEach((profile, index) => {
+      const id = String(profile?.id ?? "").trim();
+      const name = normalizePlayerProfileName(profile?.name || profile?.displayName || "");
+      const number = String(profile?.number || profile?.shirtNumber || profile?.shirt_number || "").trim().toLowerCase();
+      if (id && !byId.has(id)) {
+        byId.set(id, { index, profile });
+      }
+      if (!name) {
+        return;
+      }
+      const nameMatches = byName.get(name) || [];
+      nameMatches.push(profile);
+      byName.set(name, nameMatches);
+      const nameNumberKey = `${name}\u0000${number}`;
+      if (number && !byNameAndNumber.has(nameNumberKey)) {
+        byNameAndNumber.set(nameNumberKey, profile);
+      }
+    });
+    return { profiles, byId, byName, byNameAndNumber };
+  }
+
+  function getMedicalLinkedPlayerProfile(player = {}, profileIndex = createMedicalLinkedPlayerProfileIndex()) {
+    const profiles = Array.isArray(profileIndex?.profiles) ? profileIndex.profiles : [];
     if (!profiles.length) {
       return null;
     }
-    const playerIds = new Set(
+    const playerIds =
       [player.id, player.playerId, player.profileId, player.medicalPlayerId]
         .map((value) => String(value ?? "").trim())
-        .filter(Boolean)
-    );
-    if (playerIds.size) {
-      const profile = profiles.find((candidate) => playerIds.has(String(candidate?.id ?? "").trim()));
-      if (profile) {
-        return profile;
-      }
+        .filter(Boolean);
+    const idMatch = playerIds
+      .map((id) => profileIndex.byId.get(id))
+      .filter(Boolean)
+      .sort((first, second) => first.index - second.index)[0];
+    if (idMatch) {
+      return idMatch.profile;
     }
     const targetName = normalizePlayerProfileName(player.name || player.displayName || "");
     const targetNumber = String(player.number || player.shirtNumber || player.shirt_number || "").trim().toLowerCase();
@@ -97,16 +123,12 @@ export function createMedicalRuntimeHelpers(deps = {}) {
       return null;
     }
     if (targetNumber) {
-      const profile = profiles.find((candidate) => {
-        const candidateName = normalizePlayerProfileName(candidate?.name || candidate?.displayName || "");
-        const candidateNumber = String(candidate?.number || candidate?.shirtNumber || candidate?.shirt_number || "").trim().toLowerCase();
-        return candidateName === targetName && candidateNumber === targetNumber;
-      });
+      const profile = profileIndex.byNameAndNumber.get(`${targetName}\u0000${targetNumber}`);
       if (profile) {
         return profile;
       }
     }
-    const nameMatches = profiles.filter((candidate) => normalizePlayerProfileName(candidate?.name || candidate?.displayName || "") === targetName);
+    const nameMatches = profileIndex.byName.get(targetName) || [];
     return nameMatches.length === 1 ? nameMatches[0] : null;
   }
 
@@ -400,6 +422,7 @@ export function createMedicalRuntimeHelpers(deps = {}) {
   return {
     compareMedicalPlayers,
     ...medicalClinicalNormalizers,
+    createMedicalLinkedPlayerProfileIndex,
     getCurrentMedicalActorId,
     getMedicalCanonicalPositionFromText,
     getMedicalDataSafetyCounts,

@@ -16,8 +16,10 @@ export function createSquadMedicalStatusService(deps = {}) {
     medicalActualParticipationFallback = "not-logged",
   } = deps;
 
-  function getLatestManualMedicalLog(playerId) {
-    ensureMedicalState();
+  function getLatestManualMedicalLog(playerId, options = {}) {
+    if (options.medicalStateReady !== true) {
+      ensureMedicalState();
+    }
     return (getMedicalState().records || [])
       .filter((record) => record.playerId === playerId)
       .sort((first, second) => {
@@ -55,10 +57,12 @@ export function createSquadMedicalStatusService(deps = {}) {
     return getPlayerProfileEffectiveStatusFromSnapshot(player, getPlayerProfileMedicalSnapshot(player.id, dateValue));
   }
 
-  function getPlayerProfileMedicalSnapshot(playerId, dateValue = formatDateValue(new Date())) {
-    ensureMedicalState();
+  function getPlayerProfileMedicalSnapshot(playerId, dateValue = formatDateValue(new Date()), options = {}) {
+    if (options.medicalStateReady !== true) {
+      ensureMedicalState();
+    }
     const currentRecord = getLatestMedicalRecord(playerId, dateValue);
-    const latestLog = getLatestManualMedicalLog(playerId);
+    const latestLog = getLatestManualMedicalLog(playerId, { medicalStateReady: true });
     const activePlan = getActiveMedicalInjuryPlan(playerId, dateValue);
     const openEndedLog =
       !currentRecord &&

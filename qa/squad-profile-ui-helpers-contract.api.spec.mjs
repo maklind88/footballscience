@@ -79,6 +79,7 @@ test("Squad profile UI helpers preserve hidden squad status and career phase whe
 });
 
 test("Squad medical status service preserves medical snapshot golden-master behavior", () => {
+  let ensureMedicalStateCalls = 0;
   const records = [
     {
       playerId: "p1",
@@ -129,7 +130,9 @@ test("Squad medical status service preserves medical snapshot golden-master beha
     bodyArea: "Posterior chain",
   };
   const service = createSquadMedicalStatusService({
-    ensureMedicalState: () => {},
+    ensureMedicalState: () => {
+      ensureMedicalStateCalls += 1;
+    },
     formatDateValue: () => "2026-06-07",
     formatMedicalDateLabel: (value) => `Label ${value}`,
     getActiveMedicalInjuryPlan: (playerId, dateValue) => (playerId === "p1" && dateValue === "2026-06-07" ? activePlan : null),
@@ -187,6 +190,9 @@ test("Squad medical status service preserves medical snapshot golden-master beha
     isOpenEndedMedicalStatus: true,
   });
   expect(service.getPlayerProfileEffectiveStatusFromSnapshot({ status: "available" }, openEndedSnapshot)).toBe("injured");
+  const ensureCallsBeforeReadySnapshot = ensureMedicalStateCalls;
+  service.getPlayerProfileMedicalSnapshot("p1", "2026-06-07", { medicalStateReady: true });
+  expect(ensureMedicalStateCalls).toBe(ensureCallsBeforeReadySnapshot);
 });
 
 test("Squad medical status service is a read-only extracted runtime boundary", () => {

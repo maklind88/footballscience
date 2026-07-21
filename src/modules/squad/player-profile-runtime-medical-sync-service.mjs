@@ -133,6 +133,24 @@ export function createPlayerProfileRuntimeMedicalSyncService(options = {}) {
     return { id, name, number };
   }
 
+  function buildActiveSquadProfileIdentityIndex(activeProfiles = []) {
+    const ids = new Set();
+    const profilesByName = new Map();
+    activeProfiles.forEach((profile) => {
+      const identity = getMedicalPlayerProfileIdentity(profile);
+      if (identity.id) {
+        ids.add(identity.id);
+      }
+      if (!identity.name) {
+        return;
+      }
+      const matches = profilesByName.get(identity.name) || [];
+      matches.push(identity);
+      profilesByName.set(identity.name, matches);
+    });
+    return { ids, profilesByName };
+  }
+
   function isTemporaryMedicalPlayer(player = {}) {
     const rosterType = String(player?.rosterType || "").trim().toLowerCase();
     return Boolean(rosterType && rosterType !== "squad");
@@ -145,13 +163,14 @@ export function createPlayerProfileRuntimeMedicalSyncService(options = {}) {
     const identity = getMedicalPlayerProfileIdentity(player);
     const profileState = context.profileState || getPlayerProfilesStateForMedicalSync();
     const activeProfiles = Array.isArray(context.activeProfiles) ? context.activeProfiles : getActiveSquadProfiles(profileState);
+    const identityIndex = context.identityIndex || buildActiveSquadProfileIdentityIndex(activeProfiles);
     if (!activeProfiles.length || !identity.name) {
       return true;
     }
-    if (identity.id && activeProfiles.some((profile) => getMedicalPlayerProfileIdentity(profile).id === identity.id)) {
+    if (identity.id && identityIndex.ids.has(identity.id)) {
       return true;
     }
-    const nameMatches = activeProfiles.filter((profile) => getMedicalPlayerProfileIdentity(profile).name === identity.name);
+    const nameMatches = identityIndex.profilesByName.get(identity.name) || [];
     if (!nameMatches.length) {
       return false;
     }
@@ -195,7 +214,12 @@ export function createPlayerProfileRuntimeMedicalSyncService(options = {}) {
     if (!hasRemovalAuthority && (!activeSquadProfiles.length || !hasRosterAuthority)) {
       return [];
     }
-    const syncContext = { profileState, removedNames, activeProfiles: activeSquadProfiles };
+    const syncContext = {
+      profileState,
+      removedNames,
+      activeProfiles: activeSquadProfiles,
+      identityIndex: buildActiveSquadProfileIdentityIndex(activeSquadProfiles),
+    };
     const activeRemovedPlayers = medicalState.players.filter((player) => {
       if (options.isMedicalItemArchived(player)) {
         return false;

@@ -677,11 +677,27 @@ async function getActiveAccessToken() {
       )
     );
   }
+  function shouldRecoverSessionPlannerCentralState(key, pendingEntry = {}, metadataEntry = {}, options = {}) {
+    return (
+      key === SESSION_PLANNER_STATE_KEY &&
+      (
+        Boolean(options.forceApply) ||
+        (
+          !pendingEntry?.pendingCentralSync &&
+          Boolean(options.fresh) &&
+          hasCentralHydrationRevisionRegression(pendingEntry, metadataEntry)
+        )
+      )
+    );
+  }
   function shouldApplyCentralStateEntry(key, pendingEntry = {}, metadataEntry = {}, centralValue = "", options = {}) {
     if (options.forceApply) {
       return true;
     }
-    if (shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options)) {
+    if (
+      shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options) ||
+      shouldRecoverSessionPlannerCentralState(key, pendingEntry, metadataEntry, options)
+    ) {
       return true;
     }
 
@@ -749,15 +765,18 @@ async function getActiveAccessToken() {
         const entry = manifest.entries[key];
         const revision = Number(metadataEntry?.revision);
         const currentRevision = Number(entry?.serverRevision);
-        const acceptAuthoritativeMedicalRevision =
+        const acceptAuthoritativeRevision =
           Boolean(options.fresh || options.forceApply) &&
-          shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options);
+          (
+            shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options) ||
+            shouldRecoverSessionPlannerCentralState(key, pendingEntry, metadataEntry, options)
+          );
         if (
           !entry ||
           !Number.isInteger(revision) ||
           revision <= 0 ||
           (
-            !acceptAuthoritativeMedicalRevision &&
+            !acceptAuthoritativeRevision &&
             Number.isInteger(currentRevision) &&
             currentRevision >= revision
           )
@@ -795,7 +814,10 @@ async function getActiveAccessToken() {
       Number.isInteger(incomingRevision) &&
       incomingRevision > 0 &&
       Boolean(options.fresh || options.forceApply) &&
-      shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options)
+      (
+        shouldRecoverMedicalCentralState(key, pendingEntry, metadataEntry, options) ||
+        shouldRecoverSessionPlannerCentralState(key, pendingEntry, metadataEntry, options)
+      )
     ) {
       return { ...metadataEntry, revision: incomingRevision };
     }

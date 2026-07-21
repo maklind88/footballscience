@@ -257,7 +257,10 @@ export function bindPlatformGlobalRuntimeEvents(deps = {}) {
   deps.refreshDataSafetyStatus?.();
   deps.initializeWorkspaceHub?.();
   if (getCurrentPlatformUser() && getCentralStateBridge()?.isHydrated?.()) {
+    deps.retryCentral?.();
+    callAsync(deps.flushCentralStateWrites || asyncNoop);
     deps.requestCentralizedAppStateReload?.();
+    deps.refreshDataSafetyStatus?.();
   }
   deps.startDashboardPresenceRuntime?.();
   if (getHubState()?.activeWorkspaceId === "game-simulator") {

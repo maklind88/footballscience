@@ -178,10 +178,19 @@ test("platform global runtime bindings reconcile state when central hydration fi
     getCurrentPlatformUser: () => ({ id: "coach-1" }),
     getCentralStateBridge: () => ({ isHydrated: () => true }),
     getHubState: () => ({ activeWorkspaceId: "session-planner" }),
+    flushCentralStateWrites: () => calls.push("flush-central"),
     initializeWorkspaceHub: () => calls.push("initialize-workspace"),
     requestCentralizedAppStateReload: () => calls.push("request-reload"),
+    retryCentral: () => calls.push("retry-central"),
   });
 
-  expect(calls).toEqual(expect.arrayContaining(["initialize-workspace", "request-reload"]));
+  expect(calls).toEqual(expect.arrayContaining([
+    "initialize-workspace",
+    "retry-central",
+    "flush-central",
+    "request-reload",
+  ]));
+  expect(calls.indexOf("retry-central")).toBeGreaterThan(calls.indexOf("initialize-workspace"));
+  expect(calls.indexOf("flush-central")).toBeGreaterThan(calls.indexOf("retry-central"));
   expect(calls.indexOf("request-reload")).toBeGreaterThan(calls.indexOf("initialize-workspace"));
 });

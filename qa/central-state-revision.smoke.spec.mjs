@@ -447,6 +447,101 @@ test("central hydration preserves local value when central revision is stale aga
   }
 });
 
+test("fresh Session Planner hydration recovers from a higher stale browser revision", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const localSessionPlannerState = {
+    selectedDate: "2026-07-21",
+    sessions: {
+      "2026-07-21": {
+        date: "2026-07-21",
+        title: "Training/IDP",
+        selectedBlockId: "local-block",
+        blocks: [{ id: "local-block", title: "New Exercise", minutes: 15 }],
+      },
+    },
+  };
+  const centralSessionPlannerState = {
+    selectedDate: "2026-07-24",
+    sessions: {
+      "2026-07-21": {
+        date: "2026-07-21",
+        title: "Training/IDP",
+        selectedBlockId: "central-block-1",
+        blocks: [
+          { id: "central-block-1", title: "1v1 Def/Off", minutes: 15 },
+          { id: "central-block-2", title: "Possession", minutes: 25 },
+          { id: "central-block-3", title: "German Possession", minutes: 20 },
+          { id: "central-block-4", title: "Big Sided Games", minutes: 25 },
+        ],
+      },
+    },
+  };
+  const centralValue = JSON.stringify(centralSessionPlannerState);
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: { [sessionPlannerStateKey]: centralValue },
+    metadataEntries: {
+      [sessionPlannerStateKey]: {
+        ...createMetadata(76, centralValue),
+        moduleId: "session-planner",
+      },
+    },
+  };
+  const localValue = JSON.stringify(localSessionPlannerState);
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "session-stale-browser-revision", {
+    initScript: ({ key, value, manifestKey }) => {
+      window.localStorage.setItem(key, value);
+      window.localStorage.setItem(
+        manifestKey,
+        JSON.stringify({
+          version: 1,
+          entries: {
+            [key]: {
+              label: "Session Planner",
+              updatedAt: "2026-07-21T19:20:00.000Z",
+              hash: "stale-local-hash",
+              size: value.length,
+              writes: 1,
+              serverRevision: 1407,
+              pendingCentralSync: false,
+            },
+          },
+        })
+      );
+    },
+    initArg: { key: sessionPlannerStateKey, value: localValue, manifestKey: dataSafetyManifestKey },
+  });
+
+  try {
+    await expect
+      .poll(
+        () =>
+          tab.page.evaluate(({ key, manifestKey }) => {
+            const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+            const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+            const session = state.sessions?.["2026-07-21"];
+            return {
+              blockTitles: (session?.blocks || []).map((block) => block.title),
+              selectedDate: state.selectedDate,
+              revisionsAligned:
+                Number(manifest.entries?.[key]?.serverRevision || 0) >= 76 &&
+                Number(manifest.entries?.[key]?.serverRevision || 0) ===
+                  Number(window.footballScienceCentralState.getStatus().metadata[key]?.revision || 0),
+            };
+          }, { key: sessionPlannerStateKey, manifestKey: dataSafetyManifestKey }),
+        { timeout: 10_000 }
+      )
+      .toEqual({
+        blockTitles: ["1v1 Def/Off", "Possession", "German Possession", "Big Sided Games"],
+        selectedDate: "2026-07-21",
+        revisionsAligned: true,
+      });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
 test("initial central hydration requests a fresh source read", async ({ browser, baseURL }) => {
   const initialValue = createStateValue("Original central sequence");
   const centralStore = {

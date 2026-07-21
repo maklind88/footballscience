@@ -18,6 +18,7 @@ function loadFreshAppStateHandler() {
 }
 
 const supabaseEnvKeys = [
+  "APP_STATE_DATABASE_MODE",
   "CRON_SECRET",
   "SUPABASE_URL",
   "SUPABASE_ANON_KEY",

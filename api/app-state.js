@@ -10,6 +10,12 @@ const {
 const { appendAuditLog } = require("./_lib/audit-log.js");
 const { appendSessionPlannerHistory } = require("./_lib/session-history.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
+const {
+  isAppStateDatabaseEnabled,
+  listAppStateRecords,
+  readAppStateRecord,
+  writeAppStateRecord,
+} = require("./_lib/app-state-records-database.js");
 const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
 const {
   PLATFORM_APPEARANCE_STORAGE_KEY,
@@ -468,6 +474,31 @@ function getStateEntryMetadata(entry = {}) {
   };
 }
 
+function normalizeDatabaseStateEntry(entry = {}) {
+  if (!entry?.key) {
+    return null;
+  }
+  const contract = dataSafetyRegistry.getByKey(entry.key) || {};
+  const value = String(entry.value ?? "");
+  return {
+    schema: "footballscience-app-state-v1",
+    ...entry,
+    key: String(entry.key),
+    moduleId: String(entry.moduleId || contract.moduleId || ""),
+    organizationId: String(entry.organizationId || contract.defaultOrganizationId || "global"),
+    savePipeline: entry.savePipeline || contract.savePipeline,
+    sourceOfTruth: entry.sourceOfTruth || contract.sourceOfTruth,
+    localPersistence: entry.localPersistence || contract.localPersistence,
+    mergePolicy: String(entry.mergePolicy || contract.mergePolicy || ""),
+    revision: getStateEntryRevision(entry),
+    value,
+    removed: Boolean(entry.removed),
+    updatedAt: String(entry.updatedAt || ""),
+    updatedBy: String(entry.updatedBy || ""),
+    hash: /^[a-f0-9]{64}$/.test(String(entry.hash || "")) ? String(entry.hash) : hashStateValue(value),
+  };
+}
+
 function validateStateContentValue(value, pathLabel = "value", depth = 0) {
   if (depth > MAX_CONTENT_DEPTH) {
     return `${pathLabel} is too deeply nested.`;
@@ -616,7 +647,7 @@ function getStaleWriteRejection(contract, previousEntry, authorization, clientBa
   };
 }
 
-async function readStateObject(key, options = {}) {
+async function readStorageStateObject(key, options = {}) {
   const path = objectPathForKey(key);
   const cacheNonce = options.fresh
     ? String(options.cacheNonce || crypto.randomUUID())
@@ -646,6 +677,37 @@ async function readStateObject(key, options = {}) {
   } catch {
     return null;
   }
+}
+
+async function readStateObject(key, options = {}) {
+  if (!isAppStateDatabaseEnabled()) {
+    return readStorageStateObject(key, options);
+  }
+
+  const databaseResult = await readAppStateRecord(key);
+  if (databaseResult.ok && databaseResult.entry) {
+    return normalizeDatabaseStateEntry(databaseResult.entry);
+  }
+  if (!databaseResult.ok) {
+    throw new Error(databaseResult.reason || `Central app-state database read failed for ${key}.`);
+  }
+
+  const backupEntry = await readStorageStateObject(key, { ...options, fresh: true });
+  if (!backupEntry) {
+    return null;
+  }
+  const normalizedBackupEntry = normalizeDatabaseStateEntry(backupEntry);
+  const seeded = await writeAppStateRecord(normalizedBackupEntry, 0);
+  if (seeded.ok && seeded.entry) {
+    return normalizeDatabaseStateEntry(seeded.entry);
+  }
+  if (seeded.conflict) {
+    const current = await readAppStateRecord(key);
+    if (current.ok && current.entry) {
+      return normalizeDatabaseStateEntry(current.entry);
+    }
+  }
+  throw new Error(seeded.reason || `Central app-state database bootstrap failed for ${key}.`);
 }
 
 function parsePeriodizationStateValue(rawValue) {
@@ -2842,7 +2904,7 @@ function filterStateMetadataForEntries(metadata = {}, entries = {}) {
   }, {});
 }
 
-async function writeStateObject(entry) {
+async function writeStorageStateObject(entry) {
   const path = objectPathForKey(entry.key);
   const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
     method: "PUT",
@@ -2876,7 +2938,32 @@ async function writeStateObject(entry) {
   return result;
 }
 
-async function removeStateObject(key) {
+async function writeStateObject(entry) {
+  if (!isAppStateDatabaseEnabled()) {
+    return writeStorageStateObject(entry);
+  }
+
+  const expectedRevision = Math.max(0, Number(entry?.revision || 1) - 1);
+  const databaseResult = await writeAppStateRecord(entry, expectedRevision);
+  if (!databaseResult.ok) {
+    return databaseResult;
+  }
+
+  const persistedEntry = normalizeDatabaseStateEntry({ ...entry, ...(databaseResult.entry || {}) });
+  const backupResult = await writeStorageStateObject(persistedEntry);
+  if (!backupResult.ok) {
+    console.error("[app-state] compatibility backup write failed", {
+      key: persistedEntry.key,
+      revision: persistedEntry.revision,
+      status: backupResult.status || 0,
+      reason: backupResult.reason || "unknown",
+    });
+  }
+  clearStateListObjectsCache();
+  return { ok: true, entry: persistedEntry, backupOk: Boolean(backupResult.ok) };
+}
+
+async function removeStorageStateObject(key) {
   const path = objectPathForKey(key);
   const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}`, {
     method: "DELETE",
@@ -2887,6 +2974,36 @@ async function removeStateObject(key) {
     await removeStateListSnapshot().catch(() => null);
   }
   return result;
+}
+
+async function removeStateObject(key, tombstoneEntry = null) {
+  if (!isAppStateDatabaseEnabled()) {
+    return removeStorageStateObject(key);
+  }
+  if (!tombstoneEntry) {
+    return { ok: false, status: 400, reason: "Central app-state delete requires revision metadata." };
+  }
+
+  const expectedRevision = Math.max(0, Number(tombstoneEntry.revision || 1) - 1);
+  const databaseResult = await writeAppStateRecord(tombstoneEntry, expectedRevision);
+  if (!databaseResult.ok) {
+    return databaseResult;
+  }
+  const persistedEntry = normalizeDatabaseStateEntry({
+    ...tombstoneEntry,
+    ...(databaseResult.entry || {}),
+  });
+  const backupResult = await removeStorageStateObject(key);
+  if (!backupResult.ok && backupResult.status !== 404) {
+    console.error("[app-state] compatibility backup delete failed", {
+      key,
+      revision: persistedEntry.revision,
+      status: backupResult.status || 0,
+      reason: backupResult.reason || "unknown",
+    });
+  }
+  clearStateListObjectsCache();
+  return { ok: true, entry: persistedEntry, backupOk: Boolean(backupResult.ok) };
 }
 
 async function removeStateListSnapshot() {
@@ -2996,18 +3113,64 @@ async function writeStateListSnapshot(result = {}) {
 async function listStateObjects(options = {}) {
   const now = Date.now();
   if (
+    !isAppStateDatabaseEnabled() &&
     !options.bypassSnapshot &&
     stateListObjectsCache.result &&
     now - stateListObjectsCache.updatedAt < STATE_LIST_CACHE_TTL_MS
   ) {
     return cloneStateListResult(stateListObjectsCache.result);
   }
-  if (!options.bypassSnapshot) {
+  if (!isAppStateDatabaseEnabled() && !options.bypassSnapshot) {
     const snapshot = await readStateListSnapshot();
     if (snapshot) {
       stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(snapshot) };
       return cloneStateListResult(snapshot);
     }
+  }
+
+  if (isAppStateDatabaseEnabled()) {
+    const databaseResult = await listAppStateRecords();
+    if (databaseResult.ok) {
+      const recordsByKey = new Map(
+        databaseResult.entries
+          .map(normalizeDatabaseStateEntry)
+          .filter((entry) => entry && CENTRAL_STATE_KEYS.has(entry.key))
+          .map((entry) => [entry.key, entry])
+      );
+      const missingKeys = Array.from(CENTRAL_STATE_KEYS).filter((key) => !recordsByKey.has(key));
+      await Promise.all(missingKeys.map(async (key) => {
+        const backupEntry = await readStorageStateObject(key, { fresh: true, cacheNonce: crypto.randomUUID() });
+        if (!backupEntry) {
+          return;
+        }
+        const normalizedBackupEntry = normalizeDatabaseStateEntry(backupEntry);
+        const seeded = await writeAppStateRecord(normalizedBackupEntry, 0);
+        if (seeded.ok && seeded.entry) {
+          recordsByKey.set(key, normalizeDatabaseStateEntry(seeded.entry));
+          return;
+        }
+        if (seeded.conflict) {
+          const current = await readAppStateRecord(key);
+          if (current.ok && current.entry) {
+            recordsByKey.set(key, normalizeDatabaseStateEntry(current.entry));
+          }
+        }
+      }));
+
+      const databaseEntries = {};
+      const databaseMetadata = {};
+      recordsByKey.forEach((entry) => {
+        if (!entry?.key || entry.removed) {
+          return;
+        }
+        databaseEntries[entry.key] = entry.value ?? "";
+        databaseMetadata[entry.key] = getStateEntryMetadata(entry);
+      });
+      const result = { entries: databaseEntries, metadata: databaseMetadata };
+      stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(result) };
+      return result;
+    }
+    throw new Error(databaseResult.reason || "Central app-state database list failed.");
   }
 
   const entries = {};
@@ -3074,9 +3237,10 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
 
     const result = await writeStateObject(entry);
     if (!result.ok) {
-      return { ok: false, reason: result.reason || `Could not sync ${entry.key}.` };
+      return { ok: false, status: result.status || 400, reason: result.reason || `Could not sync ${entry.key}.` };
     }
-    await appendDataSafetyWriteAudit(actor, previousEntry, entry, authorization.merged);
+    const persistedEntry = result.entry || entry;
+    await appendDataSafetyWriteAudit(actor, previousEntry, persistedEntry, authorization.merged);
     if (normalizedKey === PLATFORM_APPEARANCE_KEY) {
       await appendPlatformAppearanceAudit(actor, previousEntry, authorization.value);
     }
@@ -3100,10 +3264,10 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
       await appendTransferRoomStateAudit(actor, authorization.value);
     }
     results.push({
-      key: entry.key,
-      metadata: getStateEntryMetadata(entry),
+      key: persistedEntry.key,
+      metadata: getStateEntryMetadata(persistedEntry),
       merged: Boolean(authorization.merged),
-      revision: entry.revision,
+      revision: persistedEntry.revision,
     });
   }
 
@@ -3139,8 +3303,13 @@ module.exports = async (req, res) => {
   }
 
   const bucket = await ensureStateBucket();
-  if (!bucket.ok) {
+  if (!bucket.ok && !isAppStateDatabaseEnabled()) {
     return sendJson(res, 500, { ok: false, reason: bucket.reason || "Central state bucket is not available." });
+  }
+  if (!bucket.ok) {
+    console.error("[app-state] compatibility backup bucket unavailable", {
+      reason: bucket.reason || "unknown",
+    });
   }
 
   try {
@@ -3193,12 +3362,22 @@ module.exports = async (req, res) => {
         return sendJson(res, staleWrite.status, staleWrite);
       }
 
-      const result = await removeStateObject(key);
+      const tombstoneEntry = normalizeStateEntry(key, "", actor, true, previousEntry);
+      const result = await removeStateObject(key, tombstoneEntry);
       if (!result.ok && result.status !== 404) {
-        return sendJson(res, 400, { ok: false, reason: result.reason || "Could not remove central state." });
+        return sendJson(res, result.status || 400, {
+          ok: false,
+          currentRevision: result.currentRevision,
+          reason: result.reason || "Could not remove central state.",
+        });
       }
 
-      return sendJson(res, 200, { ok: true, key, removed: true });
+      return sendJson(res, 200, {
+        ok: true,
+        key,
+        removed: true,
+        revision: result.entry?.revision || tombstoneEntry.revision,
+      });
     }
 
     const contract = dataSafetyRegistry.requireByKey(key);
@@ -3230,10 +3409,15 @@ module.exports = async (req, res) => {
     const entry = normalizeStateEntry(key, authorization.value, actor, false, previousEntry);
     const result = await writeStateObject(entry);
     if (!result.ok) {
-      return sendJson(res, 400, { ok: false, reason: result.reason || "Could not sync central state." });
+      return sendJson(res, result.status || 400, {
+        ok: false,
+        currentRevision: result.currentRevision,
+        reason: result.reason || "Could not sync central state.",
+      });
     }
+    const persistedEntry = result.entry || entry;
 
-    await appendDataSafetyWriteAudit(actor, previousEntry, entry, authorization.merged);
+    await appendDataSafetyWriteAudit(actor, previousEntry, persistedEntry, authorization.merged);
 
     if (key === PLATFORM_APPEARANCE_KEY) {
       await appendPlatformAppearanceAudit(actor, previousEntry, authorization.value);
@@ -3280,14 +3464,14 @@ module.exports = async (req, res) => {
 
     return sendJson(res, 200, {
       ok: true,
-      key: entry.key,
-      updatedAt: entry.updatedAt,
-      updatedBy: entry.updatedBy,
-      revision: entry.revision,
-      organizationId: entry.organizationId,
-      moduleId: entry.moduleId,
-      value: entry.value,
-      metadata: getStateEntryMetadata(entry),
+      key: persistedEntry.key,
+      updatedAt: persistedEntry.updatedAt,
+      updatedBy: persistedEntry.updatedBy,
+      revision: persistedEntry.revision,
+      organizationId: persistedEntry.organizationId,
+      moduleId: persistedEntry.moduleId,
+      value: persistedEntry.value,
+      metadata: getStateEntryMetadata(persistedEntry),
       merged: Boolean(authorization.merged),
     });
   } catch (error) {

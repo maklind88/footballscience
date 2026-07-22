@@ -1939,7 +1939,38 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
         </details>
       `
       : "";
-    const commonEmojis = ["😀", "😂", "😊", "😍", "👍", "❤️", "🔥", "🎯", "⚽", "🎉", "🙌", "👏", "🙏", "✅", "🤣", "👀", "🤝", "👋"];
+    const commonEmojis = [
+      "😀",
+      "😂",
+      "🤣",
+      "😊",
+      "😍",
+      "😘",
+      "😎",
+      "😢",
+      "😭",
+      "😮",
+      "😡",
+      "👍",
+      "👏",
+      "🙌",
+      "🙏",
+      "🤝",
+      "💪",
+      "👌",
+      "❤️",
+      "🔥",
+      "🎉",
+      "✅",
+      "👀",
+      "🤔",
+      "⚽",
+      "🏆",
+      "🎯",
+      "💯",
+      "⭐",
+      "🚀",
+    ];
     const emojiPickerMarkup = `
       <details class="dashboard-chat-compose-more dashboard-chat-more-menu dashboard-chat-emoji-menu">
         <summary class="dashboard-chat-emoji-toggle" aria-label="Open emoji picker" title="Insert emoji">

@@ -656,8 +656,8 @@ test("chat delivery status labels are explicit on own message footers", () => {
   expect(read).toContain("Read by 1");
   expect(read).toContain("dashboard-chat-check-cluster is-read");
   expect(read.match(/class="dashboard-chat-check"/g)).toHaveLength(2);
-  expect(dashboardChatMessageCss).toContain("width: 0.5rem !important;");
-  expect(dashboardChatMessageCss).toContain("margin-left: -0.24rem !important;");
+  expect(dashboardChatMessageCss).toContain("width: 0.46rem !important;");
+  expect(dashboardChatMessageCss).toContain("margin-left: -0.31rem !important;");
   expect(delivered).toContain('data-dashboard-chat-message-delivery-status="delivered"');
   expect(delivered).toContain("Delivered");
   expect(delivered).toContain("dashboard-chat-check-cluster is-checkmark");
@@ -1029,8 +1029,11 @@ test("chat composer keeps priority behind message options and renders message bu
   expect(result.html).toContain('aria-label="Open emoji picker"');
   expect(dashboardChatMessageCss).toContain(".dashboard-chat-emoji-menu summary");
   expect(dashboardChatMessageCss).toContain("width: 2.55rem !important;");
-  expect(dashboardChatMessageCss).toContain("font-size: 1.28rem !important;");
+  expect(dashboardChatMessageCss).toContain("font-size: 1.34rem !important;");
+  expect(dashboardChatMessageCss).toContain("grid-template-columns: repeat(6, minmax(2rem, 1fr)) !important;");
+  expect(dashboardChatMessageCss).toContain("margin-left: -0.31rem !important;");
   expect(result.html).toContain('data-dashboard-chat-emoji="👍"');
+  expect(result.html).toContain('data-dashboard-chat-emoji="🚀"');
   expect(appRuntimeSource).toContain('event.target.closest("[data-dashboard-chat-emoji]")');
   expect(appRuntimeSource).toContain("insertDashboardChatComposerEmoji");
   expect(result.html).not.toMatch(/<span class="dashboard-chat-author">[\s\S]*?<small>10:15<\/small>[\s\S]*?<\/span>/);

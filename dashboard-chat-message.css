@@ -12,7 +12,7 @@
   background: #fff !important;
   color: #475569 !important;
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1) !important;
-  font-size: 1.28rem !important;
+  font-size: 1.34rem !important;
   line-height: 1 !important;
 }
 
@@ -25,7 +25,7 @@
 
 .dashboard-chat-emoji-picker {
   display: grid !important;
-  grid-template-columns: repeat(6, minmax(1.9rem, 1fr)) !important;
+  grid-template-columns: repeat(6, minmax(2rem, 1fr)) !important;
   gap: 0.22rem !important;
   width: min(17rem, calc(100vw - 1.2rem)) !important;
   padding: 0.42rem !important;
@@ -35,15 +35,15 @@
   display: grid !important;
   place-items: center !important;
   width: 100% !important;
-  min-width: 1.95rem !important;
-  min-height: 1.95rem !important;
+  min-width: 2.05rem !important;
+  min-height: 2.05rem !important;
   padding: 0 !important;
   border: 1px solid rgba(15, 23, 42, 0.08) !important;
   border-radius: 8px !important;
   background: #fff !important;
   color: #0f172a !important;
   box-shadow: none !important;
-  font-size: 1rem !important;
+  font-size: 1.08rem !important;
   line-height: 1 !important;
 }
 
@@ -98,7 +98,7 @@
 
 .dashboard-chat-widget .dashboard-chat-check {
   display: inline-block !important;
-  width: 0.5rem !important;
+  width: 0.46rem !important;
   color: #94a3b8 !important;
   font-size: 0.72rem !important;
   font-weight: 950 !important;
@@ -106,7 +106,7 @@
 }
 
 .dashboard-chat-widget .dashboard-chat-check + .dashboard-chat-check {
-  margin-left: -0.24rem !important;
+  margin-left: -0.31rem !important;
 }
 
 .dashboard-chat-widget .dashboard-chat-status.is-read .dashboard-chat-check {

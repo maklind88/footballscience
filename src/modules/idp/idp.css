@@ -4028,14 +4028,14 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
 }
 
 .idp-profile-scouting-radar-head {
-  align-items: flex-start;
-  display: flex;
+  align-items: start;
+  display: grid;
   gap: 12px;
-  justify-content: space-between;
+  grid-template-columns: minmax(12rem, .54fr) minmax(20rem, 1.46fr);
   min-width: 0;
 }
 
-.idp-profile-scouting-radar-head div {
+.idp-profile-scouting-radar-head > div:first-child {
   display: grid;
   gap: 2px;
   min-width: 0;
@@ -4070,9 +4070,11 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
 .player-profile-scouting-radar-meta {
   align-items: center;
   display: flex;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
   gap: 6px;
-  justify-content: flex-end;
+  justify-content: flex-start;
+  min-width: 0;
 }
 
 .player-profile-scouting-radar-meta span {
@@ -4084,8 +4086,14 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   font-size: .7rem;
   font-weight: 900;
   line-height: 1;
+  min-width: 0;
   padding: 5px 8px;
   white-space: nowrap;
+}
+
+.player-profile-scouting-radar-meta span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .player-profile-scouting-season-picker {
@@ -4094,6 +4102,7 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   border: 1px solid rgba(16, 24, 40, .08);
   border-radius: 999px;
   display: inline-flex;
+  flex: 0 0 auto;
   gap: 6px;
   min-height: 28px;
   padding: 0 8px 0 10px;
@@ -4126,14 +4135,19 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
 }
 
 .player-profile-scouting-radar-tools {
-  align-items: flex-end;
-  display: grid;
-  gap: 7px;
-  justify-items: end;
+  align-items: center;
+  align-self: start;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  justify-content: flex-end;
+  justify-self: stretch;
+  min-width: 0;
   position: relative;
 }
 
 .player-profile-scouting-metric-picker {
+  flex: 0 0 auto;
   position: relative;
 }
 
@@ -5322,6 +5336,20 @@ body.is-dark-mode .idp-stream-actions button {
   .idp-profile-scouting-radar .player-profile-scouting-spider-layout,
   .idp-profile-scouting-radar .player-profile-scouting-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .idp-profile-scouting-radar-head {
+    grid-template-columns: 1fr;
+  }
+
+  .player-profile-scouting-radar-tools {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .player-profile-scouting-radar-meta {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
   }
 }
 

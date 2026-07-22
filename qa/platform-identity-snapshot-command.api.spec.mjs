@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import {
   SNAPSHOT_CONFIRMATION,
   executePlatformIdentitySnapshot,
@@ -11,6 +12,10 @@ const teamId = "33333333-3333-4333-8333-333333333333";
 const userId = "44444444-4444-4444-8444-444444444444";
 const fixedNow = () => new Date("2026-07-22T23:00:00.000Z");
 const config = { url: "https://staging-project.supabase.co", serviceRoleKey: "secret-test-key" };
+const readOnlyWorkflow = readFileSync(
+  new URL("../.github/workflows/platform-identity-snapshot-read-only.yml", import.meta.url),
+  "utf8"
+);
 
 const authUser = {
   id: userId,
@@ -98,6 +103,20 @@ test("Platform Identity snapshot command parses capture separately from backfill
     canonicalProductionProjectRef: "production-project",
   });
   expect(options.backfill).toMatchObject({ apply: false, actorId, organization: { id: organizationId } });
+});
+
+test("Platform Identity snapshot inspection workflow is staging-only and cannot capture", () => {
+  expect(readOnlyWorkflow).toContain("workflow_dispatch:");
+  expect(readOnlyWorkflow).toContain("environment: platform-staging");
+  expect(readOnlyWorkflow).toContain("PLATFORM_BACKFILL_TARGET: staging");
+  expect(readOnlyWorkflow).toContain("Build PII-free read-only snapshot summary");
+  expect(readOnlyWorkflow).toContain("summary.dryRun !== true");
+  expect(readOnlyWorkflow).toContain("summary.stored !== false");
+  expect(readOnlyWorkflow).not.toContain("platform-production");
+  expect(readOnlyWorkflow).not.toContain("--capture");
+  expect(readOnlyWorkflow).not.toContain("--apply");
+  expect(readOnlyWorkflow).not.toContain("CAPTURE_PLATFORM_IDENTITY_SNAPSHOT");
+  expect(readOnlyWorkflow).not.toContain("actions/upload-artifact");
 });
 
 test("Platform Identity snapshot command blocks environment drift before network access", async () => {

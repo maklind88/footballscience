@@ -114,6 +114,10 @@ requireText("scripts/platform-identity-backfill.mjs", "--expected-user-count", "
 requireText("scripts/platform-identity-snapshot.mjs", "CAPTURE_PLATFORM_IDENTITY_SNAPSHOT", "platform identity snapshots must require explicit capture confirmation");
 requireText("scripts/lib/platform-identity-snapshot.mjs", "footballscience-platform-identity-snapshot-v1", "platform identity rollback must use an integrity-checked snapshot schema");
 requireText("scripts/lib/platform-identity-snapshot-io.mjs", "readAfterWriteVerified", "private identity snapshots must be re-read and hash-verified after storage");
+requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "environment: platform-staging", "platform identity snapshot inspection must be staging-only");
+requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "summary.dryRun !== true", "platform identity snapshot inspection must verify read-only mode");
+forbidText(".github/workflows/platform-identity-snapshot-read-only.yml", "--capture", "platform identity snapshot inspection must not capture data");
+forbidText(".github/workflows/platform-identity-snapshot-read-only.yml", "--apply", "platform identity snapshot inspection must not apply identity writes");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "app_metadata", "platform identity backfill tests must prove server-owned role derivation");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "stale plan before any write", "platform identity tests must prove stale plans cannot write");
 requireText("qa/platform-identity-snapshot.api.spec.mjs", "tenant scope changes", "identity rollback must fail closed on tenant scope drift");

@@ -112,6 +112,9 @@ requireText("scripts/platform-identity-backfill.mjs", "--expected-plan-sha256", 
 requireText("scripts/platform-identity-backfill.mjs", "--expected-user-count", "platform identity apply must lock the reviewed user count");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "app_metadata", "platform identity backfill tests must prove server-owned role derivation");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "stale plan before any write", "platform identity tests must prove stale plans cannot write");
+requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "workflow_dispatch:", "platform identity backfill dry-run must remain manual");
+requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "environment: platform-${{ inputs.target }}", "platform identity backfill must use isolated GitHub Environments");
+forbidText(".github/workflows/platform-identity-backfill-dry-run.yml", "--apply", "platform identity dry-run workflow must not expose writes");
 requireText("qa/production.live.spec.mjs", "production admin account can open Access & Users", "live smoke must prove admin access");
 requireText("qa/production.live.spec.mjs", 'toBe("admin")', "live smoke must fail if the release QA account loses admin");
 requireText("qa/production.live.spec.mjs", "production peer accounts prove DM unread state and read receipt end-to-end", "live smoke must prove two-account chat delivery and read receipts");

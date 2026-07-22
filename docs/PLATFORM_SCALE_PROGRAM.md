@@ -119,6 +119,8 @@ Apply only after dry-run review:
 npm run platform:identity:backfill -- --apply --confirm=BACKFILL_PLATFORM_IDENTITY --expected-plan-sha256 <reviewed-sha256> --expected-user-count <reviewed-count> --actor-id <admin-user-uuid> --organization-name "Football Science" --team-name "First Team"
 ```
 
+GitHub operational access is split into `platform-staging` and `platform-production` Environments. The initial `Platform Identity Backfill Dry Run` workflow is manual, concurrency-locked, PII-free, and intentionally has no apply path. A write workflow must not be added until pre-write snapshots, post-write coverage, and rollback verification are green in staging.
+
 ## Next Phase: Controlled Backfill
 
 Use the backfill runner behind explicit admin operations to seed production/staging tenant rows. After that, promote one module at a time into shadow reads with app-state fallback comparison still active.

@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import {
   APPLY_CONFIRMATION,
   buildTenantBootstrapBody,
   executePlatformIdentityBackfill,
   parseBackfillArgs,
 } from "../scripts/platform-identity-backfill.mjs";
+import { verifyPlatformIdentityBackfillEnvironment } from "../scripts/verify-platform-identity-backfill-env.mjs";
 
 const actorId = "11111111-1111-4111-8111-111111111111";
 const userId = "22222222-2222-4222-8222-222222222222";
@@ -13,6 +15,11 @@ const testConfig = {
   url: "https://project.supabase.co",
   serviceRoleKey: "service-role-test-key",
 };
+
+const backfillWorkflow = readFileSync(
+  new URL("../.github/workflows/platform-identity-backfill-dry-run.yml", import.meta.url),
+  "utf8"
+);
 
 function jsonResponse(payload, status = 200) {
   return {
@@ -79,6 +86,43 @@ test("platform identity backfill parses reviewed plan guards", () => {
 
   expect(options.expectedPlanSha256).toBe("a".repeat(64));
   expect(options.expectedUserCount).toBe(17);
+});
+
+test("platform identity backfill GitHub Environment validation blocks staging-to-production drift", () => {
+  const environment = {
+    PLATFORM_BACKFILL_TARGET: "staging",
+    SUPABASE_PROJECT_REF: "pokrksgempkuraueglpu",
+    CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF: "bustidorxevacosqhkcz",
+    SUPABASE_URL: "https://pokrksgempkuraueglpu.supabase.co",
+    SUPABASE_SECRET_KEY: "secret-test-key",
+    PLATFORM_BACKFILL_ACTOR_ID: actorId,
+    PLATFORM_BACKFILL_ORGANIZATION_ID: "33333333-3333-4333-8333-333333333333",
+    PLATFORM_BACKFILL_ORGANIZATION_NAME: "Football Science Staging",
+    PLATFORM_BACKFILL_ORGANIZATION_SLUG: "football-science-staging",
+    PLATFORM_BACKFILL_TEAM_ID: "55555555-5555-4555-8555-555555555555",
+    PLATFORM_BACKFILL_TEAM_NAME: "Football Science",
+    PLATFORM_BACKFILL_TEAM_SLUG: "football-science",
+  };
+
+  expect(verifyPlatformIdentityBackfillEnvironment(environment).ok).toBe(true);
+  expect(
+    verifyPlatformIdentityBackfillEnvironment({
+      ...environment,
+      SUPABASE_PROJECT_REF: environment.CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF,
+      SUPABASE_URL: `https://${environment.CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF}.supabase.co`,
+    }).failures
+  ).toContain("Staging must not use the production Supabase project.");
+  expect(verifyPlatformIdentityBackfillEnvironment({ ...environment, SUPABASE_SECRET_KEY: "" }).ok).toBe(false);
+});
+
+test("platform identity backfill workflow remains manual, isolated, and read-only", () => {
+  expect(backfillWorkflow).toContain("workflow_dispatch:");
+  expect(backfillWorkflow).toContain("environment: platform-${{ inputs.target }}");
+  expect(backfillWorkflow).toContain("group: platform-identity-backfill-dry-run-${{ inputs.target }}");
+  expect(backfillWorkflow).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
+  expect(backfillWorkflow).toContain("Generate PII-free read-only plan");
+  expect(backfillWorkflow).not.toContain("--apply");
+  expect(backfillWorkflow).not.toContain("BACKFILL_PLATFORM_IDENTITY");
 });
 
 test("platform identity backfill derives authorization role only from app_metadata", () => {

@@ -1,0 +1,74 @@
+name: Platform Identity Backfill Dry Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Isolated Supabase environment to inspect.
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-identity-backfill-dry-run-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: platform-${{ inputs.target }}
+    env:
+      PLATFORM_BACKFILL_TARGET: ${{ inputs.target }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF }}
+      PLATFORM_BACKFILL_ACTOR_ID: ${{ vars.PLATFORM_BACKFILL_ACTOR_ID }}
+      PLATFORM_BACKFILL_ORGANIZATION_ID: ${{ vars.PLATFORM_BACKFILL_ORGANIZATION_ID }}
+      PLATFORM_BACKFILL_ORGANIZATION_NAME: ${{ vars.PLATFORM_BACKFILL_ORGANIZATION_NAME }}
+      PLATFORM_BACKFILL_ORGANIZATION_SLUG: ${{ vars.PLATFORM_BACKFILL_ORGANIZATION_SLUG }}
+      PLATFORM_BACKFILL_TEAM_ID: ${{ vars.PLATFORM_BACKFILL_TEAM_ID }}
+      PLATFORM_BACKFILL_TEAM_NAME: ${{ vars.PLATFORM_BACKFILL_TEAM_NAME }}
+      PLATFORM_BACKFILL_TEAM_SLUG: ${{ vars.PLATFORM_BACKFILL_TEAM_SLUG }}
+      PLATFORM_BACKFILL_TEAM_GENDER: ${{ vars.PLATFORM_BACKFILL_TEAM_GENDER }}
+      PLATFORM_BACKFILL_LINKS: ${{ vars.PLATFORM_BACKFILL_LINKS }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run qa:supabase
+      - run: npm run platform:identity:backfill:env
+      - name: Verify backfill contracts
+        run: npx playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/platform-identity-backfill.api.spec.mjs qa/platform-tenant-bootstrap.api.spec.mjs
+      - name: Generate PII-free read-only plan
+        shell: bash
+        run: |
+          args=(
+            --json
+            --actor-id "$PLATFORM_BACKFILL_ACTOR_ID"
+            --organization-id "$PLATFORM_BACKFILL_ORGANIZATION_ID"
+            --organization-name "$PLATFORM_BACKFILL_ORGANIZATION_NAME"
+            --organization-slug "$PLATFORM_BACKFILL_ORGANIZATION_SLUG"
+            --team-id "$PLATFORM_BACKFILL_TEAM_ID"
+            --team-name "$PLATFORM_BACKFILL_TEAM_NAME"
+            --team-slug "$PLATFORM_BACKFILL_TEAM_SLUG"
+          )
+          if [ -n "$PLATFORM_BACKFILL_TEAM_GENDER" ]; then
+            args+=(--team-gender "$PLATFORM_BACKFILL_TEAM_GENDER")
+          fi
+          if [ -n "$PLATFORM_BACKFILL_LINKS" ]; then
+            IFS=',' read -ra links <<< "$PLATFORM_BACKFILL_LINKS"
+            for link in "${links[@]}"; do
+              args+=(--link "$link")
+            done
+          fi
+          node scripts/platform-identity-backfill.mjs "${args[@]}"

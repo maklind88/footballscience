@@ -111,7 +111,6 @@ export function createSafeBackfillResult(entry = {}, index = 0) {
   return {
     ok: result.ok === true,
     user: `user-${index + 1}`,
-    userFingerprint: sha256(body.user?.id).slice(0, 12),
     role: normalizeText(body.membership?.role, 40),
     scope: normalizeText(body.membership?.scope, 40),
     dryRun: body.dryRun === true,

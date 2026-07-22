@@ -2,6 +2,7 @@ const { randomUUID } = require("node:crypto");
 const { readConfig, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
 
 const PLATFORM_TENANT_BOOTSTRAP_SCHEMA = "footballscience-platform-tenant-bootstrap-v1";
+const PLATFORM_IDENTITY_BACKFILL_MARKER = "footballscience-platform-identity-backfill-v1";
 const PLATFORM_ROLES = new Set(["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"]);
 const RELATIONSHIPS = new Set(["staff", "contractor", "external", "guest"]);
 const SCOPES = new Set(["organization", "club", "team"]);
@@ -12,9 +13,9 @@ const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,78}[a-z0-9]$/;
 const MAX_METADATA_DEPTH = 3;
 const MAX_METADATA_KEYS = 40;
 
-const ORGANIZATION_SELECT = "id,slug,name,status,metadata,created_at,updated_at";
-const CLUB_SELECT = "id,organization_id,slug,name,country_code,status,metadata,created_at,updated_at";
-const TEAM_SELECT = "id,organization_id,club_id,slug,name,sport,age_group,gender,status,metadata,created_at,updated_at";
+const ORGANIZATION_SELECT = "id,slug,name,status,metadata,deleted_by,deleted_at,delete_reason,created_at,updated_at";
+const CLUB_SELECT = "id,organization_id,slug,name,country_code,status,metadata,deleted_by,deleted_at,delete_reason,created_at,updated_at";
+const TEAM_SELECT = "id,organization_id,club_id,slug,name,sport,age_group,gender,status,metadata,deleted_by,deleted_at,delete_reason,created_at,updated_at";
 const PROFILE_SELECT = [
   "user_id",
   "primary_organization_id",
@@ -27,6 +28,10 @@ const PROFILE_SELECT = [
   "title",
   "department",
   "status",
+  "metadata",
+  "deleted_by",
+  "deleted_at",
+  "delete_reason",
   "created_at",
   "updated_at",
 ].join(",");
@@ -41,6 +46,10 @@ const MEMBERSHIP_SELECT = [
   "status",
   "relationship",
   "accepted_at",
+  "metadata",
+  "deleted_by",
+  "deleted_at",
+  "delete_reason",
   "created_at",
   "updated_at",
 ].join(",");
@@ -54,6 +63,7 @@ const TENANT_LINK_SELECT = [
   "module_record_id",
   "scope",
   "status",
+  "metadata",
   "created_at",
 ].join(",");
 
@@ -342,6 +352,55 @@ function operation(type, action, row, extra = {}) {
   };
 }
 
+function isBackfillOwnedRow(row) {
+  return row?.metadata?.backfillSchema === PLATFORM_IDENTITY_BACKFILL_MARKER;
+}
+
+function isRollbackArchivedRow(row, statuses) {
+  return Boolean(row?.deleted_at) || statuses.includes(normalizeStatus(row?.status, "active"));
+}
+
+function rollbackDeletionClearPatch(actor) {
+  return {
+    deleted_by: null,
+    deleted_at: null,
+    delete_reason: null,
+    updated_by: actor.id,
+  };
+}
+
+async function reactivateBackfillRow({ type, table, keyColumn, row, patch, request, operations, extra, options, allowStatusOnly = false }) {
+  if (!isBackfillOwnedRow(row)) {
+    return {
+      ok: false,
+      status: 409,
+      reason: `Archived ${type} is not owned by Platform Identity backfill and will not be reactivated automatically.`,
+    };
+  }
+  if (!allowStatusOnly && !row?.deleted_at) {
+    return {
+      ok: false,
+      status: 409,
+      reason: `Archived ${type} is missing the rollback deletion marker and will not be reactivated automatically.`,
+    };
+  }
+  if (request.dryRun) {
+    const planned = { ...row, ...patch };
+    operations.push(operation(type, "would-reactivate", planned, extra));
+    return { ok: true, row: planned };
+  }
+  const params = new URLSearchParams();
+  params.set(keyColumn, `eq.${row[keyColumn]}`);
+  const updated = await patchRestRows(table, params, patch, options);
+  if (!updated.ok) return updated;
+  const updatedRow = firstRow(updated);
+  if (!updatedRow) {
+    return { ok: false, status: 409, reason: `Archived ${type} changed before it could be reactivated.` };
+  }
+  operations.push(operation(type, "reactivated", updatedRow, extra));
+  return { ok: true, row: updatedRow };
+}
+
 function normalizeTenantBootstrapRequest(body = {}, actor = {}) {
   const organizationInput = isPlainObject(body.organization) ? body.organization : {};
   const clubInput = isPlainObject(body.club) ? body.club : null;
@@ -460,7 +519,9 @@ async function findOrganization(request, options) {
   } else {
     params.set("slug", `eq.${request.organization.slug}`);
   }
-  params.set("deleted_at", "is.null");
+  if (!request.organization.id) {
+    params.set("deleted_at", "is.null");
+  }
   params.set("limit", "1");
   return fetchRestRows("platform_organizations", params, options);
 }
@@ -472,6 +533,25 @@ async function ensureOrganization(request, actor, operations, options) {
   }
   const row = firstRow(existing);
   if (row) {
+    if (isRollbackArchivedRow(row, ["archived"])) {
+      return reactivateBackfillRow({
+        type: "organization",
+        table: "platform_organizations",
+        keyColumn: "id",
+        row,
+        patch: {
+          slug: request.organization.slug,
+          name: request.organization.name,
+          status: request.organization.status,
+          metadata: request.organization.metadata,
+          ...rollbackDeletionClearPatch(actor),
+        },
+        request,
+        operations,
+        extra: { slug: request.organization.slug },
+        options,
+      });
+    }
     operations.push(operation("organization", "reused", row, { slug: row.slug }));
     return { ok: true, row };
   }
@@ -513,7 +593,9 @@ async function findClub(request, organizationId, options) {
     params.set("organization_id", `eq.${organizationId}`);
     params.set("slug", `eq.${request.club.slug}`);
   }
-  params.set("deleted_at", "is.null");
+  if (!request.club.id) {
+    params.set("deleted_at", "is.null");
+  }
   params.set("limit", "1");
   return fetchRestRows("platform_clubs", params, options);
 }
@@ -531,6 +613,27 @@ async function ensureClub(request, actor, organization, operations, options) {
   }
   const row = firstRow(existing);
   if (row) {
+    if (isRollbackArchivedRow(row, ["archived"])) {
+      return reactivateBackfillRow({
+        type: "club",
+        table: "platform_clubs",
+        keyColumn: "id",
+        row,
+        patch: {
+          organization_id: organization.id,
+          slug: request.club.slug,
+          name: request.club.name,
+          country_code: request.club.country_code,
+          status: request.club.status,
+          metadata: request.club.metadata,
+          ...rollbackDeletionClearPatch(actor),
+        },
+        request,
+        operations,
+        extra: { slug: request.club.slug },
+        options,
+      });
+    }
     operations.push(operation("club", "reused", row, { slug: row.slug }));
     return { ok: true, row };
   }
@@ -574,7 +677,9 @@ async function findTeam(request, organizationId, options) {
     params.set("organization_id", `eq.${organizationId}`);
     params.set("slug", `eq.${request.team.slug}`);
   }
-  params.set("deleted_at", "is.null");
+  if (!request.team.id) {
+    params.set("deleted_at", "is.null");
+  }
   params.set("limit", "1");
   return fetchRestRows("platform_teams", params, options);
 }
@@ -592,6 +697,30 @@ async function ensureTeam(request, actor, organization, club, operations, option
   }
   const row = firstRow(existing);
   if (row) {
+    if (isRollbackArchivedRow(row, ["archived"])) {
+      return reactivateBackfillRow({
+        type: "team",
+        table: "platform_teams",
+        keyColumn: "id",
+        row,
+        patch: {
+          organization_id: organization.id,
+          club_id: club?.id || null,
+          slug: request.team.slug,
+          name: request.team.name,
+          sport: request.team.sport,
+          age_group: request.team.age_group,
+          gender: request.team.gender,
+          status: request.team.status,
+          metadata: request.team.metadata,
+          ...rollbackDeletionClearPatch(actor),
+        },
+        request,
+        operations,
+        extra: { slug: request.team.slug },
+        options,
+      });
+    }
     operations.push(operation("team", "reused", row, { slug: row.slug }));
     return { ok: true, row };
   }
@@ -630,7 +759,6 @@ async function ensureTeam(request, actor, organization, club, operations, option
 async function findProfile(userId, options) {
   const params = baseParams(PROFILE_SELECT);
   params.set("user_id", `eq.${userId}`);
-  params.set("deleted_at", "is.null");
   params.set("limit", "1");
   return fetchRestRows("platform_user_profiles", params, options);
 }
@@ -661,6 +789,19 @@ async function ensureProfile(request, targetAuthUser, actor, organization, club,
   }
   const patch = profilePatch(request, targetAuthUser, organization, club, team, actor);
   const row = firstRow(existing);
+  if (row && isRollbackArchivedRow(row, ["removed"])) {
+    return reactivateBackfillRow({
+      type: "profile",
+      table: "platform_user_profiles",
+      keyColumn: "user_id",
+      row,
+      patch: { ...patch, ...rollbackDeletionClearPatch(actor) },
+      request,
+      operations,
+      extra: { userId: request.user.id },
+      options,
+    });
+  }
   if (request.dryRun) {
     operations.push(operation("profile", row ? "would-update" : "planned", row || { user_id: request.user.id }, { userId: request.user.id }));
     return { ok: true, row: row || { user_id: request.user.id, ...patch } };
@@ -710,8 +851,6 @@ async function findMembership(request, target, options) {
   params.set("role", `eq.${request.membership.role}`);
   params.set("scope", `eq.${request.membership.scope}`);
   params.set("organization_id", `eq.${target.organization_id}`);
-  params.set("status", "eq.active");
-  params.set("deleted_at", "is.null");
   if (target.club_id) {
     params.set("club_id", `eq.${target.club_id}`);
   } else {
@@ -722,7 +861,7 @@ async function findMembership(request, target, options) {
   } else {
     params.set("team_id", "is.null");
   }
-  params.set("limit", "1");
+  params.set("limit", "20");
   return fetchRestRows("platform_memberships", params, options);
 }
 
@@ -736,10 +875,31 @@ async function ensureMembership(request, actor, organization, club, team, operat
   if (!existing.ok) {
     return existing;
   }
-  const row = firstRow(existing);
+  const row = existing.rows.find((entry) => normalizeStatus(entry.status, "active") === "active" && !entry.deleted_at) || null;
   if (row) {
     operations.push(operation("membership", "reused", row, { userId: request.user.id, role: row.role, scope: row.scope }));
     return { ok: true, row };
+  }
+  const archivedRow = existing.rows.find((entry) => isBackfillOwnedRow(entry) && isRollbackArchivedRow(entry, ["removed"]));
+  if (archivedRow) {
+    return reactivateBackfillRow({
+      type: "membership",
+      table: "platform_memberships",
+      keyColumn: "id",
+      row: archivedRow,
+      patch: {
+        status: "active",
+        relationship: request.membership.relationship,
+        invited_by: actor.id,
+        accepted_at: archivedRow.accepted_at || new Date().toISOString(),
+        metadata: request.membership.metadata,
+        ...rollbackDeletionClearPatch(actor),
+      },
+      request,
+      operations,
+      extra: { userId: request.user.id, role: request.membership.role, scope: request.membership.scope },
+      options,
+    });
   }
   if (request.dryRun) {
     const planned = {
@@ -827,6 +987,23 @@ async function ensureTenantLinks(request, actor, organization, club, team, opera
           status: 409,
           reason: "Existing tenant link points to another tenant; bootstrap will not relink it automatically.",
         };
+      }
+      if (isRollbackArchivedRow(row, ["archived"])) {
+        const reactivated = await reactivateBackfillRow({
+          type: "tenant-link",
+          table: "platform_tenant_links",
+          keyColumn: "id",
+          row,
+          patch: { status: link.status, metadata: link.metadata },
+          request,
+          operations,
+          extra: { moduleId: row.module_id, moduleTable: row.module_table },
+          options,
+          allowStatusOnly: true,
+        });
+        if (!reactivated.ok) return reactivated;
+        rows.push(reactivated.row);
+        continue;
       }
       operations.push(operation("tenant-link", "reused", row, { moduleId: row.module_id, moduleTable: row.module_table }));
       rows.push(row);

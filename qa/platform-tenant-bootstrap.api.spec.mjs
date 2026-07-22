@@ -17,6 +17,7 @@ const teamId = "55555555-5555-4555-8555-555555555555";
 const membershipId = "66666666-6666-4666-8666-666666666666";
 const tenantLinkId = "77777777-7777-4777-8777-777777777777";
 const moduleRecordId = "88888888-8888-4888-8888-888888888888";
+const backfillMetadata = { backfillSchema: "footballscience-platform-identity-backfill-v1" };
 
 function readProjectFile(relativePath) {
   return fs.readFileSync(path.join(rootDir, relativePath), "utf8");
@@ -214,6 +215,196 @@ test("tenant bootstrap creates canonical tenant rows in dependency order", async
     moduleRecordId,
     scope: "team",
   });
+});
+
+test("tenant bootstrap safely reactivates rollback-archived backfill rows without duplicates", async () => {
+  const archivedAt = "2026-07-22T20:00:00.000Z";
+  const rowsByTable = {
+    platform_organizations: {
+      id: organizationId,
+      slug: "north-carolina-courage",
+      name: "North Carolina Courage",
+      status: "archived",
+      metadata: backfillMetadata,
+      deleted_at: archivedAt,
+    },
+    platform_clubs: {
+      id: clubId,
+      organization_id: organizationId,
+      slug: "ncc",
+      name: "NCC",
+      status: "archived",
+      metadata: backfillMetadata,
+      deleted_at: archivedAt,
+    },
+    platform_teams: {
+      id: teamId,
+      organization_id: organizationId,
+      club_id: clubId,
+      slug: "first-team",
+      name: "First Team",
+      status: "archived",
+      metadata: backfillMetadata,
+      deleted_at: archivedAt,
+    },
+    platform_user_profiles: {
+      user_id: targetUserId,
+      primary_organization_id: organizationId,
+      primary_club_id: clubId,
+      primary_team_id: teamId,
+      email: "coach@example.com",
+      status: "removed",
+      metadata: backfillMetadata,
+      deleted_at: archivedAt,
+    },
+    platform_memberships: {
+      id: membershipId,
+      organization_id: organizationId,
+      club_id: clubId,
+      team_id: teamId,
+      user_id: targetUserId,
+      role: "team-admin",
+      scope: "team",
+      status: "removed",
+      relationship: "staff",
+      metadata: backfillMetadata,
+      deleted_at: archivedAt,
+    },
+    platform_tenant_links: {
+      id: tenantLinkId,
+      organization_id: organizationId,
+      club_id: clubId,
+      team_id: teamId,
+      module_id: "session-planner",
+      module_table: "session_planner_sessions",
+      module_record_id: moduleRecordId,
+      scope: "team",
+      status: "archived",
+      metadata: backfillMetadata,
+    },
+  };
+  const writes = [];
+  const fetchImpl = async (url, request = {}) => {
+    const method = request.method || "GET";
+    if (String(url).includes("/auth/v1/admin/users/")) {
+      return jsonResponse({ id: targetUserId, email: "coach@example.com", app_metadata: { role: "coach" } });
+    }
+    const tableName = tableNameFromUrl(url);
+    if (method === "GET") {
+      return jsonResponse(rowsByTable[tableName] ? [rowsByTable[tableName]] : []);
+    }
+    if (method !== "PATCH") {
+      throw new Error(`Unexpected ${method} for ${tableName}`);
+    }
+    const patch = JSON.parse(request.body || "{}");
+    writes.push({ tableName, method, patch });
+    rowsByTable[tableName] = { ...rowsByTable[tableName], ...patch };
+    return jsonResponse([rowsByTable[tableName]]);
+  };
+  const body = {
+    organization: { id: organizationId, slug: "north-carolina-courage", name: "North Carolina Courage", metadata: backfillMetadata },
+    club: { id: clubId, slug: "ncc", name: "NCC", countryCode: "US", metadata: backfillMetadata },
+    team: { id: teamId, slug: "first-team", name: "First Team", gender: "women", metadata: backfillMetadata },
+    user: { id: targetUserId, metadata: backfillMetadata },
+    membership: { role: "team-admin", scope: "team", metadata: backfillMetadata },
+    links: [{ moduleId: "session-planner", moduleTable: "session_planner_sessions", moduleRecordId, scope: "team", metadata: backfillMetadata }],
+  };
+  const actor = { id: actorId, email: "admin@example.com", role: "admin", adminSource: "platform_memberships" };
+
+  const result = await tenantBootstrap.executeTenantBootstrap(body, actor, { config: testConfig, fetchImpl });
+
+  expect(result.ok).toBe(true);
+  expect(result.operations.map((entry) => entry.action)).toEqual([
+    "reactivated",
+    "reactivated",
+    "reactivated",
+    "reactivated",
+    "reactivated",
+    "reactivated",
+  ]);
+  expect(writes.map((entry) => entry.tableName)).toEqual([
+    "platform_organizations",
+    "platform_clubs",
+    "platform_teams",
+    "platform_user_profiles",
+    "platform_memberships",
+    "platform_tenant_links",
+  ]);
+  expect(writes.slice(0, 5).every((entry) => entry.patch.deleted_at === null && entry.patch.deleted_by === null)).toBe(true);
+  expect(writes.every((entry) => entry.patch.status === "active")).toBe(true);
+
+  const repeat = await tenantBootstrap.executeTenantBootstrap(body, actor, { config: testConfig, fetchImpl });
+  expect(repeat.ok).toBe(true);
+  expect(writes.every((entry) => entry.method === "PATCH")).toBe(true);
+});
+
+test("tenant bootstrap refuses to reactivate archived rows not owned by its backfill", async () => {
+  const result = await tenantBootstrap.executeTenantBootstrap(
+    {
+      organization: { id: organizationId, slug: "north-carolina-courage", name: "North Carolina Courage" },
+      user: { id: targetUserId },
+      membership: { role: "admin", scope: "organization" },
+    },
+    { id: actorId, email: "admin@example.com", role: "admin", adminSource: "app_metadata" },
+    {
+      config: testConfig,
+      fetchImpl: async (url, request = {}) => {
+        if (String(url).includes("/auth/v1/admin/users/")) {
+          return jsonResponse({ id: targetUserId, email: "coach@example.com", app_metadata: { role: "coach" } });
+        }
+        if (tableNameFromUrl(url) === "platform_organizations" && (request.method || "GET") === "GET") {
+          return jsonResponse([{ id: organizationId, slug: "north-carolina-courage", status: "archived", metadata: {}, deleted_at: "2026-07-22T20:00:00.000Z" }]);
+        }
+        throw new Error("Bootstrap must stop before writing or reading dependent rows.");
+      },
+    }
+  );
+
+  expect(result).toMatchObject({ ok: false, status: 409 });
+  expect(result.reason).toContain("not owned by Platform Identity backfill");
+});
+
+test("tenant bootstrap refuses to reactivate an archived tenant link without backfill ownership", async () => {
+  const result = await tenantBootstrap.executeTenantBootstrap(
+    {
+      dryRun: true,
+      organization: { id: organizationId, slug: "north-carolina-courage", name: "North Carolina Courage" },
+      user: { id: targetUserId },
+      membership: { role: "admin", scope: "organization" },
+      links: [{ moduleId: "session-planner", moduleTable: "session_planner_sessions", moduleRecordId, scope: "organization" }],
+    },
+    { id: actorId, email: "admin@example.com", role: "admin", adminSource: "app_metadata" },
+    {
+      config: testConfig,
+      fetchImpl: async (url) => {
+        if (String(url).includes("/auth/v1/admin/users/")) {
+          return jsonResponse({ id: targetUserId, email: "coach@example.com", app_metadata: { role: "coach" } });
+        }
+        const tableName = tableNameFromUrl(url);
+        if (tableName === "platform_organizations") {
+          return jsonResponse([{ id: organizationId, slug: "north-carolina-courage", name: "North Carolina Courage", status: "active", metadata: {} }]);
+        }
+        if (tableName === "platform_tenant_links") {
+          return jsonResponse([{
+            id: tenantLinkId,
+            organization_id: organizationId,
+            club_id: null,
+            team_id: null,
+            module_id: "session-planner",
+            module_table: "session_planner_sessions",
+            module_record_id: moduleRecordId,
+            scope: "organization",
+            status: "archived",
+            metadata: {},
+          }]);
+        }
+        return jsonResponse([]);
+      },
+    }
+  );
+
+  expect(result).toMatchObject({ ok: false, status: 409 });
+  expect(result.reason).toContain("not owned by Platform Identity backfill");
 });
 
 test("tenant bootstrap refuses to relink an existing module record to another tenant", async () => {

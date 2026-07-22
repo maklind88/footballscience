@@ -151,9 +151,9 @@ test("tenant bootstrap creates canonical tenant rows in dependency order", async
 
   const result = await tenantBootstrap.executeTenantBootstrap(
     {
-      organization: { slug: "north-carolina-courage", name: "North Carolina Courage" },
-      club: { slug: "ncc", name: "NCC", countryCode: "US" },
-      team: { slug: "first-team", name: "First Team", gender: "women" },
+      organization: { id: organizationId, slug: "north-carolina-courage", name: "North Carolina Courage" },
+      club: { id: clubId, slug: "ncc", name: "NCC", countryCode: "US" },
+      team: { id: teamId, slug: "first-team", name: "First Team", gender: "women" },
       user: { id: targetUserId, title: "Head Coach" },
       membership: { role: "team-admin", scope: "team" },
       links: [{ moduleId: "chat", moduleTable: "chat_threads", moduleRecordId, scope: "team" }],
@@ -190,6 +190,9 @@ test("tenant bootstrap creates canonical tenant rows in dependency order", async
     "platform_memberships",
     "platform_tenant_links",
   ]);
+  expect(writes.find((entry) => entry.tableName === "platform_organizations")?.body.id).toBe(organizationId);
+  expect(writes.find((entry) => entry.tableName === "platform_clubs")?.body.id).toBe(clubId);
+  expect(writes.find((entry) => entry.tableName === "platform_teams")?.body.id).toBe(teamId);
   expect(writes.find((entry) => entry.tableName === "platform_user_profiles")?.body).toMatchObject({
     user_id: targetUserId,
     primary_organization_id: organizationId,

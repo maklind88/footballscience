@@ -484,6 +484,7 @@ async function ensureOrganization(request, actor, operations, options) {
   const created = await createRestRow(
     "platform_organizations",
     {
+      ...(request.organization.id ? { id: request.organization.id } : {}),
       slug: request.organization.slug,
       name: request.organization.name,
       status: request.organization.status,
@@ -542,6 +543,7 @@ async function ensureClub(request, actor, organization, operations, options) {
   const created = await createRestRow(
     "platform_clubs",
     {
+      ...(request.club.id ? { id: request.club.id } : {}),
       organization_id: organization.id,
       slug: request.club.slug,
       name: request.club.name,
@@ -602,6 +604,7 @@ async function ensureTeam(request, actor, organization, club, operations, option
   const created = await createRestRow(
     "platform_teams",
     {
+      ...(request.team.id ? { id: request.team.id } : {}),
       organization_id: organization.id,
       club_id: club?.id || null,
       slug: request.team.slug,

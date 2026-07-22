@@ -1,9 +1,15 @@
 const { readConfig, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
-const { composeSessionPlannerLegacyState } = require("./session-planner-domain-records.js");
+const {
+  SESSION_PLANNER_DOMAIN_SCHEMA_VERSION,
+  composeSessionPlannerLegacyState,
+  hashJsonValue,
+} = require("./session-planner-domain-records.js");
 
 const SESSION_PLANNER_DATABASE_MODES = new Set(["planned", "shadow", "database"]);
 const SESSION_PLANNER_DATABASE_READ_MODES = new Set(["shadow", "database"]);
 const SESSION_PLANNER_DATABASE_TIMEOUT_MS = 10000;
+const SESSION_PLANNER_DATABASE_SCOPES_ENV = "SESSION_PLANNER_DATABASE_SCOPES";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SESSION_TABLE = "session_planner_sessions";
 const BLOCK_TABLE = "session_planner_blocks";
 
@@ -18,6 +24,108 @@ function isSessionPlannerDatabaseConfigured(env = process.env) {
 
 function isSessionPlannerDatabaseReadEnabled(env = process.env) {
   return SESSION_PLANNER_DATABASE_READ_MODES.has(getSessionPlannerDatabaseMode(env));
+}
+
+function normalizeScopeId(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return UUID_PATTERN.test(normalized) ? normalized : "";
+}
+
+function sessionPlannerScopeKey(scope = {}) {
+  const organizationId = normalizeScopeId(scope.organizationId);
+  const teamId = normalizeScopeId(scope.teamId);
+  return organizationId && teamId ? `${organizationId}:${teamId}` : "";
+}
+
+function getSessionPlannerDatabaseScopeAccess(scope = {}, env = process.env) {
+  const mode = getSessionPlannerDatabaseMode(env);
+  const scopeKey = sessionPlannerScopeKey(scope);
+  const allowlistedScopes = new Set(
+    String(env[SESSION_PLANNER_DATABASE_SCOPES_ENV] || "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean)
+  );
+  const readModeEnabled = SESSION_PLANNER_DATABASE_READ_MODES.has(mode);
+  const allowlisted = Boolean(scopeKey && allowlistedScopes.has(scopeKey));
+  return Object.freeze({
+    mode,
+    scopeKey,
+    readModeEnabled,
+    allowlisted,
+    enabled: readModeEnabled && allowlisted,
+  });
+}
+
+function createIntegrityError(code) {
+  const error = new Error("Session Planner domain snapshot failed integrity validation.");
+  error.code = code;
+  return error;
+}
+
+function validateSessionRows(rows, scope) {
+  const organizationId = normalizeScopeId(scope.organizationId);
+  const teamId = normalizeScopeId(scope.teamId);
+  const ids = new Set();
+  const dates = new Set();
+  rows.forEach((row) => {
+    if (normalizeScopeId(row.organizationId) !== organizationId || normalizeScopeId(row.teamId) !== teamId) {
+      throw createIntegrityError("session_planner_scope_mismatch");
+    }
+    if (!normalizeScopeId(row.id) || ids.has(row.id)) {
+      throw createIntegrityError("session_planner_session_identity_invalid");
+    }
+    if (!row.sessionDate || dates.has(row.sessionDate)) {
+      throw createIntegrityError("session_planner_session_date_duplicate");
+    }
+    if (row.schemaVersion !== SESSION_PLANNER_DOMAIN_SCHEMA_VERSION || row.rowVersion < 1) {
+      throw createIntegrityError("session_planner_session_version_invalid");
+    }
+    if (!row.contentHash || row.contentHash !== hashJsonValue(row.content)) {
+      throw createIntegrityError("session_planner_session_hash_mismatch");
+    }
+    ids.add(row.id);
+    dates.add(row.sessionDate);
+  });
+  return ids;
+}
+
+function validateBlockRows(rows, scope, sessionIds) {
+  const organizationId = normalizeScopeId(scope.organizationId);
+  const teamId = normalizeScopeId(scope.teamId);
+  const ids = new Set();
+  const sessionBlockKeys = new Set();
+  const sessionOrderKeys = new Set();
+  rows.forEach((row) => {
+    if (normalizeScopeId(row.organizationId) !== organizationId || normalizeScopeId(row.teamId) !== teamId) {
+      throw createIntegrityError("session_planner_scope_mismatch");
+    }
+    if (!normalizeScopeId(row.id) || ids.has(row.id) || !sessionIds.has(row.sessionId)) {
+      throw createIntegrityError("session_planner_block_identity_invalid");
+    }
+    const blockKey = `${row.sessionId}:${row.legacyBlockId}`;
+    const orderKey = `${row.sessionId}:${row.sortOrder}`;
+    if (!row.legacyBlockId || row.sortOrder < 0 || sessionBlockKeys.has(blockKey) || sessionOrderKeys.has(orderKey)) {
+      throw createIntegrityError("session_planner_block_order_invalid");
+    }
+    if (row.schemaVersion !== SESSION_PLANNER_DOMAIN_SCHEMA_VERSION || row.rowVersion < 1) {
+      throw createIntegrityError("session_planner_block_version_invalid");
+    }
+    if (!row.payloadHash || row.payloadHash !== hashJsonValue(row.payload)) {
+      throw createIntegrityError("session_planner_block_hash_mismatch");
+    }
+    ids.add(row.id);
+    sessionBlockKeys.add(blockKey);
+    sessionOrderKeys.add(orderKey);
+  });
+}
+
+function validateSessionPlannerDomainSnapshot(snapshot = {}, scope = {}) {
+  const sessions = Array.isArray(snapshot.sessions) ? snapshot.sessions : [];
+  const blocks = Array.isArray(snapshot.blocks) ? snapshot.blocks : [];
+  const sessionIds = validateSessionRows(sessions, scope);
+  validateBlockRows(blocks, scope, sessionIds);
+  return Object.freeze({ sessionCount: sessions.length, blockCount: blocks.length });
 }
 
 function databaseConfig() {
@@ -148,13 +256,21 @@ function mapBlockRow(row = {}) {
 
 async function readSessionPlannerDomainSnapshot(scope = {}, options = {}) {
   const env = options.env || process.env;
-  if (!isSessionPlannerDatabaseReadEnabled(env) && options.allowDisabled !== true) {
-    return { ok: false, enabled: false, mode: getSessionPlannerDatabaseMode(env) };
-  }
-  const organizationId = String(scope.organizationId || "").trim();
-  const teamId = String(scope.teamId || "").trim();
+  const organizationId = normalizeScopeId(scope.organizationId);
+  const teamId = normalizeScopeId(scope.teamId);
   if (!organizationId || !teamId) {
     return { ok: false, enabled: true, status: 400, reason: "Session Planner tenant scope is required." };
+  }
+  const access = getSessionPlannerDatabaseScopeAccess({ organizationId, teamId }, env);
+  if (!access.enabled && options.allowDisabled !== true) {
+    return {
+      ok: false,
+      enabled: false,
+      mode: access.mode,
+      code: access.readModeEnabled
+        ? "session_planner_scope_not_enabled"
+        : "session_planner_database_not_enabled",
+    };
   }
   const sessionQuery = new URLSearchParams({
     select: sessionSelect(),
@@ -170,8 +286,14 @@ async function readSessionPlannerDomainSnapshot(scope = {}, options = {}) {
   const sessionResult = await databaseRequest(`/${SESSION_TABLE}?${sessionQuery}`, options);
   if (!sessionResult.ok) return { ...sessionResult, enabled: true };
   const sessions = (Array.isArray(sessionResult.payload) ? sessionResult.payload : []).map(mapSessionRow);
+  let sessionIds;
+  try {
+    sessionIds = validateSessionRows(sessions, { organizationId, teamId });
+  } catch (error) {
+    return { ok: false, enabled: true, status: 409, code: error.code, reason: error.message };
+  }
   if (!sessions.length) {
-    return { ok: true, enabled: true, sessions: [], blocks: [] };
+    return { ok: true, enabled: true, organizationId, teamId, sessions: [], blocks: [] };
   }
 
   const blockQuery = new URLSearchParams({
@@ -184,13 +306,19 @@ async function readSessionPlannerDomainSnapshot(scope = {}, options = {}) {
   });
   const blockResult = await databaseRequest(`/${BLOCK_TABLE}?${blockQuery}`, options);
   if (!blockResult.ok) return { ...blockResult, enabled: true };
+  const blocks = (Array.isArray(blockResult.payload) ? blockResult.payload : []).map(mapBlockRow);
+  try {
+    validateBlockRows(blocks, { organizationId, teamId }, sessionIds);
+  } catch (error) {
+    return { ok: false, enabled: true, status: 409, code: error.code, reason: error.message };
+  }
   return {
     ok: true,
     enabled: true,
     organizationId,
     teamId,
     sessions,
-    blocks: (Array.isArray(blockResult.payload) ? blockResult.payload : []).map(mapBlockRow),
+    blocks,
   };
 }
 
@@ -211,10 +339,13 @@ module.exports = {
   BLOCK_TABLE,
   SESSION_TABLE,
   getSessionPlannerDatabaseMode,
+  getSessionPlannerDatabaseScopeAccess,
   isSessionPlannerDatabaseConfigured,
   isSessionPlannerDatabaseReadEnabled,
   mapBlockRow,
   mapSessionRow,
   readSessionPlannerDomainSnapshot,
   readSessionPlannerLegacyState,
+  sessionPlannerScopeKey,
+  validateSessionPlannerDomainSnapshot,
 };

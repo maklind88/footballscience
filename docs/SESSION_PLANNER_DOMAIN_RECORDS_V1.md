@@ -2,12 +2,12 @@
 
 ## Status
 
-Planned, additive, and disabled by default.
+Planned, additive, and disabled by default. The pure shadow comparison boundary is implemented but is not wired into user-facing reads.
 
 - Existing source of truth: `football-session-planner-v3` through `/api/app-state`.
 - Target pilot tables: `session_planner_sessions` and `session_planner_blocks`.
 - Current migration checkpoint: `planned`.
-- Database reads: disabled.
+- Database reads: disabled unless both shadow mode and an exact organization/team canary scope are configured.
 - Database writes: disabled.
 - App-state fallback: required.
 
@@ -55,6 +55,15 @@ Use a modular monolith with module-owned, bounded records:
 - Server APIs own writes and enforce permissions, revisions, idempotency, audit, and tenant scope.
 - Realtime signals may invalidate a record later, but the signal must never become the data source.
 
+Database reads are gated by both values below. A mode without an exact scope pair performs no read:
+
+```bash
+SESSION_PLANNER_DATABASE_MODE=shadow
+SESSION_PLANNER_DATABASE_SCOPES=<organization-uuid>:<team-uuid>
+```
+
+Multiple canary scopes are comma-separated. Wildcards are intentionally unsupported. Every returned session and block must match the requested tenant, supported schema version, positive row revision, unique identity/order, and stored content hash before comparison can run.
+
 ## Alternatives Rejected
 
 ### Keep enlarging the compatibility document
@@ -101,7 +110,7 @@ Both add operational complexity without solving the current ownership and payloa
 2. **Dry-run:** Read the existing app-state document and produce an in-memory migration report. No database writes.
 3. **Identity prerequisite:** Verify one canonical organization/team and its memberships. Never infer tenant ownership from labels or legacy browser IDs.
 4. **Backfill:** Translate deletion tombstones into archived rows and copy active records idempotently while app-state remains primary.
-5. **Shadow:** Read both sources server-side and compare canonical hashes. Return app-state only.
+5. **Shadow:** Read both sources server-side and compare canonical hashes. The comparison contract is now implemented, scope-gated, content-free, and fail-closed; runtime invocation remains disabled until backfill data exists. Return app-state only.
 6. **Database read canary:** Enable database reads for a controlled tenant with immediate app-state fallback.
 7. **Transactional write:** Write domain records with expected row revisions and compatibility projection in one controlled server operation.
 8. **Database primary:** Promote only after repeated multi-user, reload, restore, and tenant-isolation proof.
@@ -123,6 +132,7 @@ It resolves exactly one active team, reads only the compatibility record, verifi
 - `planned` and `shadow` modes cannot change user-facing reads.
 - App-state remains untouched during dry-run and backfill.
 - A read canary falls back to the exact app-state value on any mismatch or database error.
+- Shadow reports contain only scope identifiers, counts, hashes, status, and reason codes; coaching content is never emitted.
 - Database-primary promotion requires a known-good compatibility snapshot and restore drill.
 - Code rollback happens before any data restoration.
 

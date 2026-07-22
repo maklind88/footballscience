@@ -1073,6 +1073,7 @@ let dashboardChatWidgetRuntimeFunctions = {
   syncDashboardChatWidgetNotificationCursor: () => {},
   showDashboardChatWidgetToast: () => {},
   hideDashboardChatWidgetToast: () => {},
+  dismissDashboardChatWidgetToast: () => {},
   focusDashboardChatWidgetComposer: () => {},
   scrollDashboardChatFirstUnread: () => false,
   requestDashboardChatScrollToLatest: () => {},
@@ -1098,6 +1099,7 @@ syncDashboardChatWidgetNotificationCursor = (...args) =>
   dashboardChatWidgetRuntimeFunctions.syncDashboardChatWidgetNotificationCursor(...args);
 const showDashboardChatWidgetToast = (...args) => dashboardChatWidgetRuntimeFunctions.showDashboardChatWidgetToast(...args);
 const hideDashboardChatWidgetToast = (...args) => dashboardChatWidgetRuntimeFunctions.hideDashboardChatWidgetToast(...args);
+const dismissDashboardChatWidgetToast = (...args) => dashboardChatWidgetRuntimeFunctions.dismissDashboardChatWidgetToast(...args);
 const focusDashboardChatWidgetComposer = (...args) => dashboardChatWidgetRuntimeFunctions.focusDashboardChatWidgetComposer(...args);
 const scrollDashboardChatFirstUnread = (...args) => dashboardChatWidgetRuntimeFunctions.scrollDashboardChatFirstUnread(...args);
 const requestDashboardChatScrollToLatest = (...args) => dashboardChatWidgetRuntimeFunctions.requestDashboardChatScrollToLatest(...args);
@@ -3051,6 +3053,7 @@ const {
   syncDashboardChatWidgetNotificationCursor: _syncDashboardChatWidgetNotificationCursor,
   showDashboardChatWidgetToast: _showDashboardChatWidgetToast,
   hideDashboardChatWidgetToast: _hideDashboardChatWidgetToast,
+  dismissDashboardChatWidgetToast: _dismissDashboardChatWidgetToast,
   focusDashboardChatWidgetComposer: _focusDashboardChatWidgetComposer,
   scrollDashboardChatFirstUnread: _scrollDashboardChatFirstUnread,
 } = (dashboardChatWidgetRuntime = createDashboardChatWidgetRuntime({
@@ -3120,6 +3123,7 @@ dashboardChatWidgetRuntimeFunctions = {
   syncDashboardChatWidgetNotificationCursor: _syncDashboardChatWidgetNotificationCursor || (() => {}),
   showDashboardChatWidgetToast: _showDashboardChatWidgetToast || (() => {}),
   hideDashboardChatWidgetToast: _hideDashboardChatWidgetToast || (() => {}),
+  dismissDashboardChatWidgetToast: _dismissDashboardChatWidgetToast || (() => {}),
   focusDashboardChatWidgetComposer: _focusDashboardChatWidgetComposer || (() => {}),
   scrollDashboardChatFirstUnread: _scrollDashboardChatFirstUnread || (() => false),
   requestDashboardChatScrollToLatest: dashboardChatWidgetRuntime.requestDashboardChatScrollToLatest || (() => {}),
@@ -3755,12 +3759,20 @@ function insertDashboardChatComposerEmoji(nextEmoji = "") {
 ui.dashboardChatWidgetRoot?.addEventListener("click", async (event) => {
 const activeMenu = findDashboardChatActionTarget(event, ".dashboard-chat-message-menu, .dashboard-chat-message-reaction-menu");
 closeChatMenus(activeMenu);
+const toastDismissButton = event.target.closest("[data-dashboard-chat-toast-dismiss]");
+if (toastDismissButton && !toastDismissButton.hidden) {
+event.preventDefault();
+event.stopPropagation();
+dismissDashboardChatWidgetToast();
+return;
+}
 const toastOpenButton = event.target.closest("[data-dashboard-chat-toast-open]");
 if (toastOpenButton && !toastOpenButton.hidden) {
 const threadId = normalizeDashboardChatThreadId(
 toastOpenButton.dataset.dashboardChatToastThread,
 dashboardChatTeamThreadId
 );
+const toastMessageId = String(toastOpenButton.dataset.dashboardChatToastMessage || "").trim();
 writeDashboardChatWidgetState({
 isOpen: true,
 selectedThreadId: threadId,
@@ -3771,6 +3783,9 @@ markDashboardChatWidgetNotificationSeenForThread(threadId);
 hideDashboardChatWidgetToast();
 renderDashboardChatWidget();
 scrollDashboardChatActiveThreadToLatest(threadId);
+if (toastMessageId) {
+scrollDashboardChatDeepLinkMessage(toastMessageId);
+}
 focusDashboardChatWidgetComposer();
 return;
 }

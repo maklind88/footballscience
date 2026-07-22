@@ -18,6 +18,7 @@ const appRuntimeSource = readFileSync(resolve(__dirname, "../app-runtime.js"), "
 const chatPushClientSource = readFileSync(resolve(__dirname, "../src/modules/chat/chat-push-client.mjs"), "utf8");
 const composerRuntimeSource = readFileSync(resolve(__dirname, "../src/modules/chat/dashboard-chat-composer-runtime.mjs"), "utf8");
 const widgetRuntimeSource = readFileSync(resolve(__dirname, "../src/modules/chat/dashboard-chat-widget-runtime.mjs"), "utf8");
+const chatWidgetRendererSource = readFileSync(resolve(__dirname, "../src/modules/chat/chat-widget-renderer.mjs"), "utf8");
 
 const priorityOptions = [
   { key: "normal", label: "Normal" },
@@ -1444,7 +1445,13 @@ test("chat notification cursor is persisted when active-thread toasts are suppre
   expect(widgetRuntimeSource).toContain("writeDashboardChatWidgetNotificationCursorForMessage(activeThreadLastMessage);");
   expect(widgetRuntimeSource).toContain("if (isDashboardChatThreadActivelyViewed(latestVisibleMessage.threadId)) {");
   expect(widgetRuntimeSource).toContain("writeDashboardChatWidgetNotificationCursorForMessage(latestVisibleMessage);");
-  expect(widgetRuntimeSource).toContain("markDashboardChatWidgetNotificationSeenForThread?.(latestVisibleMessage.threadId);");
+  expect(widgetRuntimeSource).toContain("markDashboardChatWidgetNotificationSeenForThread?.(latestVisibleMessage.threadId, latestVisibleMessage);");
+  expect(widgetRuntimeSource).toContain("{ message: latestVisibleMessage }");
+  expect(widgetRuntimeSource).toContain("function dismissDashboardChatWidgetToast");
+  expect(chatWidgetRendererSource).toContain("data-dashboard-chat-toast-dismiss");
+  expect(appRuntimeSource).toContain("event.target.closest(\"[data-dashboard-chat-toast-dismiss]\")");
+  expect(appRuntimeSource).toContain("const toastMessageId = String(toastOpenButton.dataset.dashboardChatToastMessage || \"\").trim();");
+  expect(appRuntimeSource).toContain("scrollDashboardChatDeepLinkMessage(toastMessageId);");
   expect(widgetRuntimeSource).toContain("hideDashboardChatWidgetToast();");
 });
 
@@ -1753,6 +1760,8 @@ test("open chat uses a calm professional conversation shell", () => {
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-toast[hidden]");
   expect(dashboardChatCss).toContain("bottom:var(--platform-rail-chat-mobile-bottom,calc(.85rem + env(safe-area-inset-bottom)))!important;");
   expect(dashboardChatCss).toContain("body.is-dashboard-chat-closed .dashboard-chat-widget-toast");
+  expect(dashboardChatMessageCss).toContain(".dashboard-chat-widget .dashboard-chat-widget-toast-dismiss");
+  expect(dashboardChatMessageCss).toContain(".dashboard-chat-widget .dashboard-chat-widget-toast:not([hidden])");
   expect(dashboardChatCss).toContain(".dashboard-chat-widget.is-open .dashboard-chat-confirm-backdrop");
   expect(dashboardChatCss).toContain("z-index:900!important;");
   expect(dashboardChatCss).toContain("chat menus must float above empty conversation states");

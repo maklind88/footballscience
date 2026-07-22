@@ -337,7 +337,14 @@ export function createDashboardChatDomainRuntime(dependencies = {}) {
   }
 
   function markDashboardChatWidgetNotificationSeenForThread(threadId, messages = readDashboardMessages()) {
-    const latestMessage = getDashboardChatLatestNotificationMessageForThread(threadId, messages);
+    const normalizedThreadId = normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId);
+    const exactMessage =
+      !Array.isArray(messages) &&
+      messages?.id &&
+      normalizeDashboardChatThreadId(messages.threadId, dashboardChatTeamThreadId) === normalizedThreadId
+        ? messages
+        : null;
+    const latestMessage = exactMessage || getDashboardChatLatestNotificationMessageForThread(normalizedThreadId, messages);
     if (!latestMessage?.id) {
       return;
     }

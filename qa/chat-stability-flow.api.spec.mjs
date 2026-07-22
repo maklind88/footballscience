@@ -2412,3 +2412,69 @@ test("notification cursor survives reload when API replaces the local message id
   expect(cursor.threads[threadId].lastMessageId).toBe("local-temp-message");
   expect(cursor.threads[threadId].messageCreatedAtMs).toBe(Date.parse(createdAt));
 });
+
+test("notification toast writes the exact API message cursor once", () => {
+  const currentUser = { id: "coach-qa", firstName: "Casey", lastName: "Coach", status: "active" };
+  const sender = { id: "teammate-qa", firstName: "Taylor", lastName: "Teammate", status: "active" };
+  const threadId = "dm:coach-qa:teammate-qa";
+  const createdAt = "2026-05-24T10:10:00.000Z";
+  let cursor = { threads: {} };
+  const seenCalls = [];
+  const toastElement = {
+    hidden: true,
+    textContent: "",
+    dataset: {},
+  };
+  const apiMessage = {
+    id: "api-message-only",
+    userId: sender.id,
+    threadId,
+    text: "This API message should notify once.",
+    createdAt,
+    status: "sent",
+  };
+
+  const runtime = createDashboardChatWidgetRuntime({
+    getCurrentPlatformUser: () => currentUser,
+    getPlatformUsers: () => [currentUser, sender],
+    readDashboardMessages: () => [],
+    readDashboardChatWidgetNotificationState: () => ({ enabled: true, level: "all" }),
+    readDashboardChatWidgetState: () => ({ isOpen: false, selectedThreadId: "team" }),
+    readDashboardChatWidgetNotificationCursor: () => cursor,
+    writeDashboardChatWidgetNotificationCursor: (nextCursor) => {
+      cursor = {
+        ...nextCursor,
+        threads: {
+          ...(cursor.threads || {}),
+          [nextCursor.threadId]: nextCursor,
+        },
+      };
+    },
+    getDashboardApiThreads: () => [{ threadId, lastMessage: apiMessage }],
+    normalizeDashboardApiMessage: (message, thread) => ({ ...message, threadId: message.threadId || thread.threadId }),
+    getDashboardMessageCreatedAtMs: (message) => Date.parse(message.createdAt || ""),
+    normalizeDashboardChatThreadId: (value, fallback = "team") => value || fallback,
+    isDashboardChatThreadActivelyViewed: () => false,
+    markDashboardChatWidgetNotificationSeenForThread: (...args) => seenCalls.push(args),
+    formatDashboardChatThreadLabel: () => "Taylor Teammate",
+    formatUserName: (user = {}) => `${user.firstName || ""} ${user.lastName || ""}`.trim() || "Staff",
+    ui: {
+      dashboardChatWidgetRoot: {
+        querySelector: () => toastElement,
+      },
+    },
+    win: {
+      setTimeout: () => 0,
+      clearTimeout: () => {},
+    },
+  });
+
+  runtime.syncDashboardChatWidgetNotificationCursor();
+  runtime.syncDashboardChatWidgetNotificationCursor();
+
+  expect(toastElement.hidden).toBe(false);
+  expect(toastElement.textContent).toContain("New message from Taylor Teammate");
+  expect(cursor.threads[threadId].lastMessageId).toBe(apiMessage.id);
+  expect(cursor.threads[threadId].messageCreatedAtMs).toBe(Date.parse(createdAt));
+  expect(seenCalls).toEqual([[threadId, expect.objectContaining({ id: apiMessage.id })]]);
+});

@@ -2166,7 +2166,10 @@ export function createDashboardChatWidgetRenderer(dependencies = {}) {
             </button>
           `
       }
-      <button type="button" class="dashboard-chat-widget-toast" data-dashboard-chat-widget-toast data-dashboard-chat-toast-open aria-live="polite" aria-atomic="true" hidden></button>
+      <div class="dashboard-chat-widget-toast" data-dashboard-chat-widget-toast aria-live="polite" aria-atomic="true" hidden>
+        <button type="button" class="dashboard-chat-widget-toast-open" data-dashboard-chat-toast-open></button>
+        <button type="button" class="dashboard-chat-widget-toast-dismiss" data-dashboard-chat-toast-dismiss aria-label="Dismiss chat notification" title="Dismiss chat notification">&times;</button>
+      </div>
       ${renderConfirmDialog(confirmAction)}
       ${isOpen ? groupCreateOverlayMarkup : ""}
       ${isOpen ? renderThreadSettingsDialog(threadSettingsDialog, threads, users, currentUser) : ""}

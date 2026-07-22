@@ -267,7 +267,47 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     );
   }
 
-  function showDashboardChatWidgetToast(messageText, threadId = dashboardChatTeamThreadId) {
+  function setDashboardChatWidgetToastDataset(element, toastState) {
+    if (!element) {
+      return;
+    }
+    element.dataset.dashboardChatToastThread = toastState.threadId;
+    if (toastState.messageId) {
+      element.dataset.dashboardChatToastMessage = toastState.messageId;
+    } else {
+      delete element.dataset.dashboardChatToastMessage;
+    }
+  }
+
+  function clearDashboardChatWidgetToastDataset(element) {
+    if (!element) {
+      return;
+    }
+    delete element.dataset.dashboardChatToastThread;
+    delete element.dataset.dashboardChatToastMessage;
+  }
+
+  function applyDashboardChatWidgetToastState(root, toastState) {
+    const toastRoot = root?.querySelector?.("[data-dashboard-chat-widget-toast]");
+    if (!toastRoot || !toastState?.text || !toastState.visible) {
+      return false;
+    }
+
+    const toastOpenButton = toastRoot.querySelector?.("[data-dashboard-chat-toast-open]") || toastRoot;
+    const toastDismissButton = toastRoot.querySelector?.("[data-dashboard-chat-toast-dismiss]") || null;
+    toastOpenButton.textContent = toastState.text;
+    toastOpenButton.hidden = false;
+    if (toastDismissButton) {
+      toastDismissButton.hidden = false;
+    }
+    setDashboardChatWidgetToastDataset(toastRoot, toastState);
+    setDashboardChatWidgetToastDataset(toastOpenButton, toastState);
+    setDashboardChatWidgetToastDataset(toastDismissButton, toastState);
+    toastRoot.hidden = false;
+    return true;
+  }
+
+  function showDashboardChatWidgetToast(messageText, threadId = dashboardChatTeamThreadId, options = {}) {
     const root = ui.dashboardChatWidgetRoot;
     if (!root) {
       return;
@@ -282,21 +322,24 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       text: String(messageText || "").trim(),
       createdAt: Date.now(),
       threadId: normalizeDashboardChatThreadId(threadId, dashboardChatTeamThreadId),
+      message: options?.message || null,
+      messageId: String(options?.message?.id || "").trim(),
+      visible: true,
     };
 
     dashboardChatWidgetToastState = toastState;
 
-    const toastRoot = root.querySelector("[data-dashboard-chat-widget-toast]");
-    if (!toastRoot || !toastState.text) {
+    if (!applyDashboardChatWidgetToastState(root, toastState)) {
       return;
     }
 
-    toastRoot.textContent = toastState.text;
-    toastRoot.dataset.dashboardChatToastThread = toastState.threadId;
-    toastRoot.hidden = false;
     dashboardChatWidgetToastTimer = win.setTimeout(() => {
-      if (root.querySelector("[data-dashboard-chat-widget-toast]")) {
-        root.querySelector("[data-dashboard-chat-widget-toast]").hidden = true;
+      const currentToastRoot = root.querySelector("[data-dashboard-chat-widget-toast]");
+      if (currentToastRoot) {
+        currentToastRoot.hidden = true;
+      }
+      if (dashboardChatWidgetToastState === toastState) {
+        dashboardChatWidgetToastState = { ...toastState, visible: false };
       }
       dashboardChatWidgetToastTimer = null;
     }, 3900);
@@ -310,9 +353,13 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
 
     const toastRoot = root.querySelector("[data-dashboard-chat-widget-toast]");
     if (toastRoot) {
+      const toastOpenButton = toastRoot.querySelector?.("[data-dashboard-chat-toast-open]") || toastRoot;
+      const toastDismissButton = toastRoot.querySelector?.("[data-dashboard-chat-toast-dismiss]") || null;
       toastRoot.hidden = true;
-      toastRoot.textContent = "";
-      delete toastRoot.dataset.dashboardChatToastThread;
+      toastOpenButton.textContent = "";
+      clearDashboardChatWidgetToastDataset(toastRoot);
+      clearDashboardChatWidgetToastDataset(toastOpenButton);
+      clearDashboardChatWidgetToastDataset(toastDismissButton);
     }
 
     if (dashboardChatWidgetToastTimer) {
@@ -321,6 +368,17 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     }
 
     dashboardChatWidgetToastState = null;
+  }
+
+  function dismissDashboardChatWidgetToast() {
+    const toastState = dashboardChatWidgetToastState;
+    if (toastState?.message?.id) {
+      writeDashboardChatWidgetNotificationCursorForMessage(toastState.message);
+      markDashboardChatWidgetNotificationSeenForThread?.(toastState.threadId, toastState.message);
+    } else if (toastState?.threadId) {
+      markDashboardChatWidgetNotificationSeenForThread?.(toastState.threadId);
+    }
+    hideDashboardChatWidgetToast();
   }
 
   function focusDashboardChatWidgetComposer() {
@@ -717,6 +775,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
 
     root.innerHTML = renderedWidget.html;
     root.dataset.dashboardChatRenderSignature = renderSignature;
+    applyDashboardChatWidgetToastState(root, dashboardChatWidgetToastState);
     restoreOpenDashboardChatMessageMenu(root, previousOpenMessageMenuState);
     restoreDashboardChatDialogDrafts(root, previousDialogDrafts);
     if (shouldClearSubmittedComposerDraft) {
@@ -856,7 +915,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
 
     if (isDashboardChatThreadActivelyViewed(latestVisibleMessage.threadId)) {
       writeDashboardChatWidgetNotificationCursorForMessage(latestVisibleMessage);
-      markDashboardChatWidgetNotificationSeenForThread?.(latestVisibleMessage.threadId);
+      markDashboardChatWidgetNotificationSeenForThread?.(latestVisibleMessage.threadId, latestVisibleMessage);
       if (dashboardChatWidgetToastState?.threadId === latestVisibleMessage.threadId) {
         hideDashboardChatWidgetToast();
       }
@@ -883,7 +942,8 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       mentionedCurrentUser
         ? `${senderName} mentioned you in ${threadName}`
         : `New message from ${senderName} in ${threadName}`,
-      latestVisibleMessage.threadId
+      latestVisibleMessage.threadId,
+      { message: latestVisibleMessage }
     );
     sendBrowserNotification({
       title: mentionedCurrentUser ? `${senderName} mentioned you` : `New message from ${senderName}`,
@@ -892,7 +952,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
       messageId: latestVisibleMessage.id,
     });
     writeDashboardChatWidgetNotificationCursorForMessage(latestVisibleMessage);
-    markDashboardChatWidgetNotificationSeenForThread?.(latestVisibleMessage.threadId);
+    markDashboardChatWidgetNotificationSeenForThread?.(latestVisibleMessage.threadId, latestVisibleMessage);
   }
 
   return {
@@ -900,6 +960,7 @@ export function createDashboardChatWidgetRuntime(dependencies = {}) {
     syncDashboardChatWidgetNotificationCursor,
     showDashboardChatWidgetToast,
     hideDashboardChatWidgetToast,
+    dismissDashboardChatWidgetToast,
     focusDashboardChatWidgetComposer,
     scrollDashboardChatFirstUnread,
     requestDashboardChatScrollToLatest,

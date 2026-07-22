@@ -120,6 +120,10 @@ test("platform identity backfill workflow remains manual, isolated, and read-onl
   expect(backfillWorkflow).toContain("environment: platform-${{ inputs.target }}");
   expect(backfillWorkflow).toContain("group: platform-identity-backfill-dry-run-${{ inputs.target }}");
   expect(backfillWorkflow).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
+  expect(backfillWorkflow).toContain("PLATFORM_BACKFILL_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}");
+  expect(backfillWorkflow).toContain("PLATFORM_BACKFILL_ORGANIZATION_ID: ${{ secrets.PLATFORM_BACKFILL_ORGANIZATION_ID }}");
+  expect(backfillWorkflow).toContain("PLATFORM_BACKFILL_TEAM_ID: ${{ secrets.PLATFORM_BACKFILL_TEAM_ID }}");
+  expect(backfillWorkflow).not.toContain("PLATFORM_BACKFILL_ACTOR_ID: ${{ vars.PLATFORM_BACKFILL_ACTOR_ID }}");
   expect(backfillWorkflow).toContain("Generate PII-free read-only plan");
   expect(backfillWorkflow).not.toContain("--apply");
   expect(backfillWorkflow).not.toContain("BACKFILL_PLATFORM_IDENTITY");

@@ -78,7 +78,9 @@ test("Squad scouting spider renderer renders radar metrics from callback data", 
     }
   );
 
-  expect(markup).toContain("NCC / 2026");
+  expect(markup).toContain(">2026</span>");
+  expect(markup).toContain(">NCC</span>");
+  expect(markup).not.toContain("NCC / 2026");
   expect(markup).toContain("Minutes 1,234");
   expect(markup).toContain("player-profile-scouting-radar-meta");
   expect(markup).toContain("idp-profile-scouting-radar");
@@ -87,6 +89,8 @@ test("Squad scouting spider renderer renders radar metrics from callback data", 
   expect(markup).toContain("NWSL performance spider");
   expect(markup).toContain("<strong>P88</strong>");
   expect(markup).toContain("DUELS: 2.1 / low is good");
+  expect(markup.indexOf(">2026</span>")).toBeLessThan(markup.indexOf(">NCC</span>"));
+  expect(markup.indexOf(">NCC</span>")).toBeLessThan(markup.indexOf("Minutes 1,234"));
   expect(formatPlayerProfileScoutingNumber("bad")).toBe("n/a");
   expect(formatPlayerProfileScoutingMinutes(987.6)).toBe("988");
   expect(formatPlayerProfileScoutingMinutes("bad")).toBe("");
@@ -123,8 +127,10 @@ test("Squad scouting spider renderer exposes season selection for player radar r
   expect(markup).toContain('data-player-profile-scouting-season-select="p1"');
   expect(markup).toContain('<option value="2026" selected>2026</option>');
   expect(markup).toContain('<option value="2025" >2025</option>');
-  expect(markup).toContain("NCC / 2026");
+  expect(markup).toContain(">NCC</span>");
+  expect(markup).not.toContain("NCC / 2026");
   expect(markup).toContain("Minutes 420");
+  expect(markup.indexOf("player-profile-scouting-season-picker")).toBeLessThan(markup.indexOf("player-profile-scouting-radar-meta"));
 });
 
 test("Squad scouting spider renderer defaults to six metrics and keeps spider axes in sync with selected metrics", () => {
@@ -160,6 +166,11 @@ test("Squad scouting spider renderer defaults to six metrics and keeps spider ax
       maxMetricCount: 6,
       metricSelectionKey: "p1",
       metricPickerOpen: true,
+      seasonOptions: [
+        { label: "2026", value: "2026" },
+        { label: "2025", value: "2025" },
+      ],
+      selectedSeason: "2026",
       selectedMetricIds: ["shots", "save", "accuracy"],
       showMetricPicker: true,
     }
@@ -168,6 +179,8 @@ test("Squad scouting spider renderer defaults to six metrics and keeps spider ax
   expect((selectedMarkup.match(/player-profile-scouting-axis/g) || []).length).toBe(3);
   expect(selectedMarkup).toContain('data-player-profile-scouting-metric-key="p1"');
   expect(selectedMarkup).toContain('class="player-profile-scouting-metric-picker" open');
+  expect(selectedMarkup.indexOf("player-profile-scouting-season-picker")).toBeLessThan(selectedMarkup.indexOf("player-profile-scouting-radar-meta"));
+  expect(selectedMarkup.indexOf("player-profile-scouting-radar-meta")).toBeLessThan(selectedMarkup.indexOf("player-profile-scouting-metric-picker"));
   expect(selectedMarkup).toContain("SHOTS: 7");
   expect(selectedMarkup).toContain("SAVE: 2");
   expect(selectedMarkup).toContain("ACCURACY: 4");

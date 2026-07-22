@@ -290,8 +290,18 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
     });
     const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" ");
     const { cardClassName, headerClassName, kickerLabel, titleLabel } = renderConfig;
-    const metaLabel = [record[recordIndex.team], record[recordIndex.season]].filter(Boolean).join(" / ") || "NWSL";
+    const teamLabel = String(record[recordIndex.team] || "").trim() || "NWSL";
     const minutesLabel = formatPlayerProfileScoutingMinutes(record[recordIndex.minutes]);
+    const recordSeason = String(record[recordIndex.season] || "").trim();
+    const seasonControl = renderSeasonPicker({
+      ...renderConfig,
+      seasonOptions: renderConfig.seasonOptions.length
+        ? renderConfig.seasonOptions
+        : recordSeason
+          ? [{ label: recordSeason, value: recordSeason }]
+          : [],
+      selectedSeason: renderConfig.selectedSeason || recordSeason,
+    });
     return `
     <article class="${escapeHtml(cardClassName)}">
       <header class="${escapeHtml(headerClassName)}">
@@ -300,11 +310,11 @@ export function createSquadScoutingSpiderRenderer(options = {}) {
           <h2>${escapeHtml(titleLabel)}</h2>
         </div>
         <div class="player-profile-scouting-radar-tools">
+          ${seasonControl}
           <div class="player-profile-scouting-radar-meta">
-            <span>${escapeHtml(metaLabel)}</span>
+            <span>${escapeHtml(teamLabel)}</span>
             ${minutesLabel ? `<span>Minutes ${escapeHtml(minutesLabel)}</span>` : ""}
           </div>
-          ${renderSeasonPicker(renderConfig)}
           ${renderMetricPicker(availableAxes, axes, renderConfig)}
         </div>
       </header>

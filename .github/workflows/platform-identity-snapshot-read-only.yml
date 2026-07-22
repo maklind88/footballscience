@@ -1,0 +1,76 @@
+name: Platform Identity Snapshot Read Only
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-identity-snapshot-read-only-staging
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: platform-staging
+    env:
+      PLATFORM_BACKFILL_TARGET: staging
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF }}
+      PLATFORM_BACKFILL_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}
+      PLATFORM_BACKFILL_ORGANIZATION_ID: ${{ secrets.PLATFORM_BACKFILL_ORGANIZATION_ID }}
+      PLATFORM_BACKFILL_ORGANIZATION_NAME: ${{ vars.PLATFORM_BACKFILL_ORGANIZATION_NAME }}
+      PLATFORM_BACKFILL_ORGANIZATION_SLUG: ${{ vars.PLATFORM_BACKFILL_ORGANIZATION_SLUG }}
+      PLATFORM_BACKFILL_TEAM_ID: ${{ secrets.PLATFORM_BACKFILL_TEAM_ID }}
+      PLATFORM_BACKFILL_TEAM_NAME: ${{ vars.PLATFORM_BACKFILL_TEAM_NAME }}
+      PLATFORM_BACKFILL_TEAM_SLUG: ${{ vars.PLATFORM_BACKFILL_TEAM_SLUG }}
+      PLATFORM_BACKFILL_TEAM_GENDER: ${{ vars.PLATFORM_BACKFILL_TEAM_GENDER }}
+      PLATFORM_BACKFILL_LINKS: ${{ secrets.PLATFORM_BACKFILL_LINKS }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run qa:supabase
+      - run: npm run platform:identity:backfill:env
+      - name: Verify snapshot contracts
+        run: npx playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/platform-identity-backfill.api.spec.mjs qa/platform-tenant-bootstrap.api.spec.mjs qa/platform-identity-snapshot.api.spec.mjs qa/platform-identity-snapshot-command.api.spec.mjs
+      - name: Build PII-free read-only snapshot summary
+        shell: bash
+        run: |
+          args=(
+            --json
+            --actor-id "$PLATFORM_BACKFILL_ACTOR_ID"
+            --organization-id "$PLATFORM_BACKFILL_ORGANIZATION_ID"
+            --organization-name "$PLATFORM_BACKFILL_ORGANIZATION_NAME"
+            --organization-slug "$PLATFORM_BACKFILL_ORGANIZATION_SLUG"
+            --team-id "$PLATFORM_BACKFILL_TEAM_ID"
+            --team-name "$PLATFORM_BACKFILL_TEAM_NAME"
+            --team-slug "$PLATFORM_BACKFILL_TEAM_SLUG"
+          )
+          if [ -n "$PLATFORM_BACKFILL_TEAM_GENDER" ]; then
+            args+=(--team-gender "$PLATFORM_BACKFILL_TEAM_GENDER")
+          fi
+          if [ -n "$PLATFORM_BACKFILL_LINKS" ]; then
+            IFS=',' read -ra links <<< "$PLATFORM_BACKFILL_LINKS"
+            for link in "${links[@]}"; do
+              args+=(--link "$link")
+            done
+          fi
+          node scripts/platform-identity-snapshot.mjs "${args[@]}" > platform-identity-snapshot-summary.json
+      - name: Verify and print PII-free summary
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const summary = JSON.parse(fs.readFileSync("platform-identity-snapshot-summary.json", "utf8"));
+            if (summary.ok !== true || summary.dryRun !== true || summary.stored !== false || summary.piiExposed !== false) {
+              throw new Error("Platform Identity snapshot summary is not a verified read-only result.");
+            }
+          '
+          cat platform-identity-snapshot-summary.json

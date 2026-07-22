@@ -114,6 +114,7 @@ requireText("qa/platform-identity-backfill.api.spec.mjs", "app_metadata", "platf
 requireText("qa/platform-identity-backfill.api.spec.mjs", "stale plan before any write", "platform identity tests must prove stale plans cannot write");
 requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "workflow_dispatch:", "platform identity backfill dry-run must remain manual");
 requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "environment: platform-${{ inputs.target }}", "platform identity backfill must use isolated GitHub Environments");
+requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "PLATFORM_BACKFILL_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}", "platform identity actor ids must stay masked in public workflow logs");
 forbidText(".github/workflows/platform-identity-backfill-dry-run.yml", "--apply", "platform identity dry-run workflow must not expose writes");
 requireText("qa/production.live.spec.mjs", "production admin account can open Access & Users", "live smoke must prove admin access");
 requireText("qa/production.live.spec.mjs", 'toBe("admin")', "live smoke must fail if the release QA account loses admin");

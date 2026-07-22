@@ -61,6 +61,7 @@ requirePackageScript("storage:guard", "node scripts/verify-storage-key-policy.mj
 requirePackageScript("security:platform", "node scripts/verify-platform-security.mjs");
 requirePackageScript("platform:readiness", "node scripts/verify-platform-readiness.mjs");
 requirePackageScript("platform:identity:backfill", "node scripts/platform-identity-backfill.mjs");
+requirePackageScript("platform:identity:snapshot", "node scripts/platform-identity-snapshot.mjs");
 
 requireText("vercel.json", "scripts/vercel-ignore-build.mjs", "automatic Vercel production builds must stay blocked");
 requireText("package.json", "npm run storage:guard", "full QA must include the storage key policy gate");
@@ -110,12 +111,17 @@ requireText("scripts/verify-incident-readiness.mjs", "Incident readiness verific
 requireText("scripts/platform-identity-backfill.mjs", "BACKFILL_PLATFORM_IDENTITY", "platform identity backfill must require explicit apply confirmation");
 requireText("scripts/platform-identity-backfill.mjs", "--expected-plan-sha256", "platform identity apply must require a reviewed deterministic plan");
 requireText("scripts/platform-identity-backfill.mjs", "--expected-user-count", "platform identity apply must lock the reviewed user count");
+requireText("scripts/platform-identity-snapshot.mjs", "CAPTURE_PLATFORM_IDENTITY_SNAPSHOT", "platform identity snapshots must require explicit capture confirmation");
+requireText("scripts/lib/platform-identity-snapshot.mjs", "footballscience-platform-identity-snapshot-v1", "platform identity rollback must use an integrity-checked snapshot schema");
+requireText("scripts/lib/platform-identity-snapshot-io.mjs", "readAfterWriteVerified", "private identity snapshots must be re-read and hash-verified after storage");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "app_metadata", "platform identity backfill tests must prove server-owned role derivation");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "stale plan before any write", "platform identity tests must prove stale plans cannot write");
+requireText("qa/platform-identity-snapshot.api.spec.mjs", "tenant scope changes", "identity rollback must fail closed on tenant scope drift");
 requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "workflow_dispatch:", "platform identity backfill dry-run must remain manual");
 requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "environment: platform-${{ inputs.target }}", "platform identity backfill must use isolated GitHub Environments");
 requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "PLATFORM_BACKFILL_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}", "platform identity actor ids must stay masked in public workflow logs");
 forbidText(".github/workflows/platform-identity-backfill-dry-run.yml", "--apply", "platform identity dry-run workflow must not expose writes");
+forbidText(".github/workflows/platform-identity-backfill-dry-run.yml", "--capture", "platform identity dry-run workflow must not capture snapshots or expose writes");
 requireText("qa/production.live.spec.mjs", "production admin account can open Access & Users", "live smoke must prove admin access");
 requireText("qa/production.live.spec.mjs", 'toBe("admin")', "live smoke must fail if the release QA account loses admin");
 requireText("qa/production.live.spec.mjs", "production peer accounts prove DM unread state and read receipt end-to-end", "live smoke must prove two-account chat delivery and read receipts");

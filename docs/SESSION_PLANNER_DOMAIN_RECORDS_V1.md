@@ -152,3 +152,5 @@ npm run qa
 ```
 
 Production activation requires the Safe Lane, staging comparison, authenticated multi-user smoke, and explicit production verification.
+
+The identity prerequisite now includes a separate integrity-checked snapshot and rollback contract. Session Planner backfill remains blocked until the identity operation has passed that complete staging drill; adding identity tables or a successful dry-run alone is not sufficient.

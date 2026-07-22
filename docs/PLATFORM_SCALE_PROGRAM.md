@@ -121,6 +121,17 @@ npm run platform:identity:backfill -- --apply --confirm=BACKFILL_PLATFORM_IDENTI
 
 GitHub operational access is split into `platform-staging` and `platform-production` Environments. The initial `Platform Identity Backfill Dry Run` workflow is manual, concurrency-locked, PII-free, and intentionally has no apply path. A write workflow must not be added until pre-write snapshots, post-write coverage, and rollback verification are green in staging.
 
+### Snapshot and rollback checkpoint
+
+`npm run platform:identity:snapshot` adds the next fail-closed operations boundary without changing runtime behavior:
+
+- Default mode is read-only and prints only counts and integrity hashes.
+- Snapshot capture requires `--capture`, `--confirm=CAPTURE_PLATFORM_IDENTITY_SNAPSHOT`, the reviewed plan SHA-256, and its exact user count.
+- The snapshot contains only the scoped `platform_*` rows affected by the reviewed plan.
+- Captures are stored under `backups/platform-identity/` in the existing private app-state bucket and are re-read immediately to verify the SHA-256.
+- Rollback planning restores existing rows, soft-archives rows created by the backfill, and blocks tenant-scope drift, missing baseline rows, or unknown new rows.
+- No rollback executor or identity apply workflow is enabled yet. Those remain blocked until staging proves apply, audit, rollback, baseline verification, and reapply in sequence.
+
 ## Next Phase: Controlled Backfill
 
 Use the backfill runner behind explicit admin operations to seed production/staging tenant rows. After that, promote one module at a time into shadow reads with app-state fallback comparison still active.

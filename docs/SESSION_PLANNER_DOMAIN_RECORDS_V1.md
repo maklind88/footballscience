@@ -19,11 +19,15 @@ Session Planner already has a modular frontend and focused contract coverage. It
 
 Production-safe read-only inspection on 22 July 2026 found:
 
-- 45 session dates.
-- 157 blocks.
+- 46 session dates at source revision 300.
+- 156 active blocks.
 - Largest block payload approximately 31 KB.
 - 95th percentile block payload approximately 22 KB.
 - Full compatibility document approximately 1.9 MB.
+- 64 deletion tombstones and no invalid selected-block references.
+- Source hash matched the persisted database hash.
+
+The same inspection found that the production Platform Identity tables currently contain no organization, club, team, or membership rows. This is an intentional fail-closed migration blocker: domain records must not be backfilled until a canonical organization and team have been created and verified through the Platform Identity Safe Lane.
 
 The incident fixed in `f66be1de` made central hydration survive a full browser cache. Domain records remove the underlying megadocument dependency instead of relying on that fallback forever.
 
@@ -95,14 +99,23 @@ Both add operational complexity without solving the current ownership and payloa
 
 1. **Planned:** Add inert schema, pure transformer, read-only adapter, contracts, and migration checkpoint.
 2. **Dry-run:** Read the existing app-state document and produce an in-memory migration report. No database writes.
-3. **Backfill:** Translate deletion tombstones into archived rows and copy active records idempotently while app-state remains primary.
-4. **Shadow:** Read both sources server-side and compare canonical hashes. Return app-state only.
-5. **Database read canary:** Enable database reads for a controlled tenant with immediate app-state fallback.
-6. **Transactional write:** Write domain records with expected row revisions and compatibility projection in one controlled server operation.
-7. **Database primary:** Promote only after repeated multi-user, reload, restore, and tenant-isolation proof.
-8. **Compatibility retirement:** Keep the last verified app-state snapshot until rollback and retention requirements are satisfied.
+3. **Identity prerequisite:** Verify one canonical organization/team and its memberships. Never infer tenant ownership from labels or legacy browser IDs.
+4. **Backfill:** Translate deletion tombstones into archived rows and copy active records idempotently while app-state remains primary.
+5. **Shadow:** Read both sources server-side and compare canonical hashes. Return app-state only.
+6. **Database read canary:** Enable database reads for a controlled tenant with immediate app-state fallback.
+7. **Transactional write:** Write domain records with expected row revisions and compatibility projection in one controlled server operation.
+8. **Database primary:** Promote only after repeated multi-user, reload, restore, and tenant-isolation proof.
+9. **Compatibility retirement:** Keep the last verified app-state snapshot until rollback and retention requirements are satisfied.
 
 Do not keep two independent client write pipelines. Any temporary compatibility write must be performed by one server-owned transaction or command boundary.
+
+The dry-run command is intentionally read-only and has no apply mode:
+
+```bash
+npm run session-planner:domain:dry-run -- --json
+```
+
+It resolves exactly one active team, reads only the compatibility record, verifies the source hash, performs a golden-master round trip, checks payload budgets, counts tombstones, and prints no coaching content.
 
 ## Rollback
 

@@ -2,6 +2,14 @@
 import process from "node:process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import {
+  createPlatformIdentityBackfillPlan,
+  createPlatformIdentityBackfillSummary,
+  createSafeBackfillResult,
+  normalizeExpectedPlanSha256,
+  normalizeExpectedUserCount,
+  resolveBackfillMembershipScope,
+} from "./lib/platform-identity-backfill-plan.mjs";
 
 const require = createRequire(import.meta.url);
 const { readConfig } = require("../api/_lib/supabase-admin.js");
@@ -100,6 +108,8 @@ export function parseBackfillArgs(argv = process.argv.slice(2)) {
   const options = {
     apply: false,
     confirm: "",
+    expectedPlanSha256: normalizeExpectedPlanSha256(process.env.PLATFORM_BACKFILL_EXPECTED_PLAN_SHA256),
+    expectedUserCount: normalizeExpectedUserCount(process.env.PLATFORM_BACKFILL_EXPECTED_USER_COUNT),
     json: false,
     limit: 200,
     maxPages: 20,
@@ -138,6 +148,8 @@ export function parseBackfillArgs(argv = process.argv.slice(2)) {
     index += consumed;
 
     if (flag === "--confirm") options.confirm = normalizeText(value, 80);
+    if (flag === "--expected-plan-sha256") options.expectedPlanSha256 = normalizeExpectedPlanSha256(value);
+    if (flag === "--expected-user-count") options.expectedUserCount = normalizeExpectedUserCount(value);
     if (flag === "--actor-id") options.actorId = normalizeText(value, 120);
     if (flag === "--actor-email") options.actorEmail = normalizeText(value, 254).toLowerCase();
     if (flag === "--user-id") options.userIds.push(normalizeText(value, 120));
@@ -174,11 +186,11 @@ function printHelp() {
   console.log(`Platform Identity backfill
 
 Dry-run is the default. Writes require:
-  --apply --confirm=${APPLY_CONFIRMATION}
+  --apply --confirm=${APPLY_CONFIRMATION} --expected-plan-sha256 <sha256> --expected-user-count <count>
 
 Examples:
   npm run platform:identity:backfill -- --actor-id <admin-uuid> --organization-name "Football Science"
-  npm run platform:identity:backfill -- --apply --confirm=${APPLY_CONFIRMATION} --actor-id <admin-uuid> --team-name "First Team"
+  npm run platform:identity:backfill -- --apply --confirm=${APPLY_CONFIRMATION} --expected-plan-sha256 <sha256> --expected-user-count <count> --actor-id <admin-uuid> --team-name "First Team"
 
 Useful flags:
   --user-id <uuid>             Backfill one user. Repeatable. Defaults to listing auth users.
@@ -187,6 +199,8 @@ Useful flags:
   --team-name <name>           Optional canonical team.
   --limit <1-500>              Auth users per page. Default 200.
   --max-pages <1-100>          Auth user page cap. Default 20.
+  --expected-plan-sha256 <sha> Required in apply mode; must equal the reviewed dry-run plan.
+  --expected-user-count <n>    Required in apply mode; must equal the reviewed user count.
   --json                       Print machine-readable summary.
 `);
 }
@@ -278,7 +292,7 @@ function normalizeLink(value) {
 export function buildTenantBootstrapBody(user, options = {}) {
   const profile = userProfileFromAuthUser(user);
   const role = roleFromServerOwnedMetadata(user);
-  const scope = options.team ? "team" : options.club ? "club" : "organization";
+  const scope = resolveBackfillMembershipScope(role, options);
   return {
     dryRun: options.apply !== true,
     organization: {
@@ -338,6 +352,12 @@ function validateBackfillOptions(options = {}) {
   if (options.apply && options.confirm !== APPLY_CONFIRMATION) {
     failures.push(`Apply mode requires --confirm=${APPLY_CONFIRMATION}.`);
   }
+  if (options.apply && !normalizeExpectedPlanSha256(options.expectedPlanSha256)) {
+    failures.push("Apply mode requires a valid --expected-plan-sha256 from the reviewed dry-run.");
+  }
+  if (options.apply && normalizeExpectedUserCount(options.expectedUserCount) === null) {
+    failures.push("Apply mode requires --expected-user-count from the reviewed dry-run.");
+  }
   return failures;
 }
 
@@ -358,37 +378,82 @@ export async function executePlatformIdentityBackfill(options = {}) {
     ? await fetchAuthUsersById(options.userIds, { config, fetchImpl: options.fetchImpl })
     : await listAuthUsersForBackfill({ config, fetchImpl: options.fetchImpl, limit: options.limit, maxPages: options.maxPages });
   if (!userResult.ok) {
-    return { ...userResult, schema: PLATFORM_IDENTITY_BACKFILL_SCHEMA };
+    return {
+      ok: false,
+      status: userResult.status || 500,
+      schema: PLATFORM_IDENTITY_BACKFILL_SCHEMA,
+      reason: normalizeText(userResult.reason, 500) || "Auth user loading failed.",
+    };
   }
 
-  const results = [];
+  const plannedEntries = [];
   for (const user of userResult.users) {
-    const body = buildTenantBootstrapBody(user, options);
+    const body = buildTenantBootstrapBody(user, { ...options, apply: false });
     const result = await executeTenantBootstrap(body, actor, { config, fetchImpl: options.fetchImpl });
-    results.push({
-      ok: result.ok === true,
-      userId: normalizeText(user.id, 120),
-      email: normalizeText(user.email, 254).toLowerCase(),
-      role: body.membership.role,
-      dryRun: body.dryRun,
-      operations: result.operations || [],
-      reason: result.reason || "",
-    });
-    if (!result.ok && options.apply) {
+    plannedEntries.push({ body, result });
+    if (!result.ok) {
       break;
     }
   }
 
+  const plan = createPlatformIdentityBackfillPlan({ actorId: actor.id, entries: plannedEntries });
+  const plannedResults = plannedEntries.map(createSafeBackfillResult);
+  const plannedFailures = plannedResults.filter((result) => !result.ok);
+  if (plannedFailures.length) {
+    return {
+      schema: PLATFORM_IDENTITY_BACKFILL_SCHEMA,
+      ...createPlatformIdentityBackfillSummary({
+        ok: false, status: 500, usersFound: userResult.users.length, results: plannedResults, plan,
+      }),
+    };
+  }
+
+  if (!options.apply) {
+    return {
+      schema: PLATFORM_IDENTITY_BACKFILL_SCHEMA,
+      ...createPlatformIdentityBackfillSummary({
+        ok: true, status: 200, usersFound: userResult.users.length, results: plannedResults, plan,
+      }),
+    };
+  }
+
+  if (
+    plan.planSha256 !== normalizeExpectedPlanSha256(options.expectedPlanSha256) ||
+    plan.usersPlanned !== normalizeExpectedUserCount(options.expectedUserCount)
+  ) {
+    return {
+      schema: PLATFORM_IDENTITY_BACKFILL_SCHEMA,
+      ...createPlatformIdentityBackfillSummary({
+        ok: false,
+        status: 409,
+        usersFound: userResult.users.length,
+        results: plannedResults,
+        plan,
+        reason: "Apply guard mismatch. Re-run and review the dry-run before applying.",
+      }),
+    };
+  }
+
+  const appliedEntries = [];
+  for (const user of userResult.users) {
+    const body = buildTenantBootstrapBody(user, { ...options, apply: true });
+    const result = await executeTenantBootstrap(body, actor, { config, fetchImpl: options.fetchImpl });
+    appliedEntries.push({ body, result });
+    if (!result.ok) break;
+  }
+
+  const results = appliedEntries.map(createSafeBackfillResult);
   const failed = results.filter((result) => !result.ok);
   return {
-    ok: failed.length === 0,
-    status: failed.length ? 500 : 200,
     schema: PLATFORM_IDENTITY_BACKFILL_SCHEMA,
-    dryRun: options.apply !== true,
-    usersFound: userResult.users.length,
-    usersProcessed: results.length,
-    failed: failed.length,
-    results,
+    ...createPlatformIdentityBackfillSummary({
+      ok: failed.length === 0,
+      status: failed.length ? 500 : 200,
+      dryRun: false,
+      usersFound: userResult.users.length,
+      results,
+      plan,
+    }),
   };
 }
 
@@ -397,9 +462,13 @@ function printHumanSummary(summary) {
   console.log(`- users found: ${summary.usersFound || 0}`);
   console.log(`- users processed: ${summary.usersProcessed || 0}`);
   console.log(`- failed: ${summary.failed || 0}`);
+  if (summary.plan?.planSha256) {
+    console.log(`- plan sha256: ${summary.plan.planSha256}`);
+    console.log(`- expected user count: ${summary.plan.usersPlanned}`);
+  }
   for (const result of summary.results || []) {
     const actionList = result.operations.map((entry) => `${entry.type}:${entry.action}`).join(", ");
-    console.log(`  - ${result.email || result.userId}: ${result.ok ? "ok" : "failed"}${actionList ? ` (${actionList})` : ""}`);
+    console.log(`  - ${result.user}: ${result.ok ? "ok" : "failed"}${actionList ? ` (${actionList})` : ""}`);
     if (result.reason) {
       console.log(`    ${result.reason}`);
     }

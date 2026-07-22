@@ -4,15 +4,22 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import sys
+from datetime import date, datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
 
 
 DEFAULT_OUTPUT = Path("scouting-import-data.js")
+PREVIEW_OUTPUT_NAME = "scouting-import-preview-data.js"
+MANIFEST_OUTPUT_NAME = "scouting-import-manifest.js"
+ISOLATED_SHEET_NAME = "NWSL (Statsbomb)"
+ISOLATED_OUTPUT_NAME = "scouting-statsbomb-data.js"
+PREVIEW_RECORD_LIMIT = 50
 
 CORE_HEADERS = {
     "league",
@@ -60,15 +67,21 @@ def to_number(value):
         return None
 
 
-def normalize_header(value, index):
-    text = clean_text(value, 180)
-    if index == 0 and text.lower() not in {"league", "leagie"}:
-        return "League"
-    if index == 1 and text.lower() != "season":
-        return "Season"
-    if text.lower() == "leagie":
-        return "League"
-    return text
+def normalize_headers(values):
+    headers = [clean_text(value, 180) for value in values]
+    normalized = [header.lower() for header in headers]
+    has_explicit_league = any(header in {"league", "leagie"} for header in normalized)
+    has_explicit_season = "season" in normalized
+
+    for index, header in enumerate(headers):
+        lowered = header.lower()
+        if lowered == "leagie":
+            headers[index] = "League"
+        elif index == 0 and not has_explicit_league:
+            headers[index] = "League"
+        elif index == 1 and not has_explicit_season:
+            headers[index] = "Season"
+    return headers
 
 
 def metric_group(label):
@@ -114,18 +127,152 @@ def rounded_number(value):
     return round(value, 4)
 
 
+def source_sha256(source):
+    digest = hashlib.sha256()
+    with source.open("rb") as source_file:
+        for chunk in iter(lambda: source_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def serialize_source_value(value):
+    if isinstance(value, datetime):
+        return value.date().isoformat() if value.time() == datetime.min.time() else value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return clean_text(value, 1000)
+
+
+def build_isolated_columns(header_row):
+    counts = {}
+    columns = []
+    for index, value in enumerate(header_row):
+        label = clean_text(value, 240) or f"Column {index + 1}"
+        base = slugify(label, f"column-{index + 1}")
+        counts[base] = counts.get(base, 0) + 1
+        column_id = base if counts[base] == 1 else f"{base}-{counts[base]}"
+        columns.append({"id": column_id, "label": label, "index": index})
+    return columns
+
+
+def build_isolated_database(worksheet, workbook_hash):
+    iterator = worksheet.iter_rows(values_only=True)
+    header_row = next(iterator, None)
+    if not header_row or not any(cell is not None for cell in header_row):
+        raise ValueError(f"Isolated source sheet {worksheet.title!r} has no header row.")
+
+    columns = build_isolated_columns(header_row)
+    column_index = {column["id"]: column["index"] for column in columns}
+    player_index = column_index.get("player")
+    player_id_index = column_index.get("player-sbd-id")
+    if player_index is None or player_id_index is None:
+        raise ValueError(f"Isolated source sheet {worksheet.title!r} is missing Player or Player SBD ID.")
+
+    records = []
+    player_ids = set()
+    for row in iterator:
+        player = row[player_index] if player_index < len(row) else None
+        if not clean_text(player, 160):
+            continue
+        player_id = row[player_id_index] if player_id_index < len(row) else None
+        normalized_player_id = clean_text(player_id, 120)
+        if not normalized_player_id:
+            raise ValueError(f"Isolated source record {player!r} is missing Player SBD ID.")
+        if normalized_player_id in player_ids:
+            raise ValueError(f"Duplicate Player SBD ID in isolated source: {normalized_player_id}.")
+        player_ids.add(normalized_player_id)
+        padded_row = list(row[: len(columns)]) + [None] * max(0, len(columns) - len(row))
+        records.append([serialize_source_value(value) for value in padded_row])
+
+    return {
+        "schema": "football-science-statsbomb-player-database",
+        "version": f"football-science-statsbomb-nwsl-v1-{len(records)}-{len(columns)}",
+        "source": "NWSL StatsBomb",
+        "sourceSheet": worksheet.title,
+        "sourceFileSha256": workbook_hash,
+        "integrationStatus": "isolated-awaiting-rules",
+        "loadedByApplication": False,
+        "primaryKeyColumn": "player-sbd-id",
+        "columns": columns,
+        "records": records,
+    }
+
+
+def write_javascript_payload(output, assignment, payload):
+    output.write_text(
+        assignment + json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + ";\n",
+        encoding="utf-8",
+    )
+
+
+def build_preview_payload(payload, output):
+    return {
+        "schema": "football-science-scouting-preview",
+        "version": f"{payload['version']}-preview-{PREVIEW_RECORD_LIMIT}",
+        "source": payload["source"],
+        "metricEncoding": payload["metricEncoding"],
+        "recordColumns": payload["recordColumns"],
+        "metrics": payload["metrics"],
+        "sheets": payload["sheets"],
+        "importedAt": "",
+        "fileName": output.name,
+        "totalRecords": len(payload["records"]),
+        "records": payload["records"][:PREVIEW_RECORD_LIMIT],
+    }
+
+
+def build_manifest_payload(payload, preview_payload, output, preview_output, isolated_output, isolated_payload):
+    return {
+        "schema": "football-science-scouting-import-manifest",
+        "version": payload["version"],
+        "full": {
+            "script": output.name,
+            "schema": payload["schema"],
+            "version": payload["version"],
+            "records": len(payload["records"]),
+            "metrics": len(payload["metrics"]),
+        },
+        "preview": {
+            "script": preview_output.name,
+            "schema": preview_payload["schema"],
+            "version": preview_payload["version"],
+            "records": len(preview_payload["records"]),
+            "metrics": len(preview_payload["metrics"]),
+        },
+        "isolatedSources": [
+            {
+                "script": isolated_output.name,
+                "schema": isolated_payload["schema"],
+                "version": isolated_payload["version"],
+                "sourceSheet": isolated_payload["sourceSheet"],
+                "records": len(isolated_payload["records"]),
+                "columns": len(isolated_payload["columns"]),
+                "integrationStatus": isolated_payload["integrationStatus"],
+                "loadedByApplication": isolated_payload["loadedByApplication"],
+            }
+        ],
+    }
+
+
 def main():
     source_arg = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("SCOUTING_PLAYER_DATABASE_SOURCE", "")
     if not source_arg:
         raise SystemExit("Pass scouting player database source as the first argument or set SCOUTING_PLAYER_DATABASE_SOURCE.")
     source = Path(source_arg)
     output = Path(sys.argv[2]) if len(sys.argv) > 2 else DEFAULT_OUTPUT
+    preview_output = output.with_name(PREVIEW_OUTPUT_NAME)
+    manifest_output = output.with_name(MANIFEST_OUTPUT_NAME)
+    isolated_output = output.with_name(ISOLATED_OUTPUT_NAME)
     workbook = load_workbook(source, read_only=True, data_only=True)
+    workbook_hash = source_sha256(source)
 
     metric_by_label = {}
     metric_defs = []
     records = []
     sheet_summaries = []
+    isolated_payload = None
 
     def metric_id_for(label):
         if label in metric_by_label:
@@ -157,11 +304,14 @@ def main():
         return None
 
     for worksheet in workbook.worksheets:
+        if worksheet.title == ISOLATED_SHEET_NAME:
+            isolated_payload = build_isolated_database(worksheet, workbook_hash)
+            continue
         iterator = worksheet.iter_rows(values_only=True)
         header_row = next(iterator, None)
         if not header_row or not any(cell is not None for cell in header_row):
             continue
-        headers = [normalize_header(value, index) for index, value in enumerate(header_row)]
+        headers = normalize_headers(header_row)
         if not any(headers):
             continue
 
@@ -226,6 +376,9 @@ def main():
 
         sheet_summaries.append({"name": worksheet.title, "rows": row_count})
 
+    if isolated_payload is None:
+        raise ValueError(f"Required isolated source sheet {ISOLATED_SHEET_NAME!r} was not found.")
+
     payload = {
         "schema": "football-science-scouting-import",
         "version": f"scouting-player-database-v1-{len(records)}-{len(metric_defs)}",
@@ -258,13 +411,24 @@ def main():
         metric_values = record[-1]
         record[-1] = [metric_values.get(metric_id) for metric_id in metric_ids]
 
-    output.write_text(
-        "window.__footballScienceScoutingDatabase="
-        + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-        + ";\n",
-        encoding="utf-8",
+    preview_payload = build_preview_payload(payload, output)
+    manifest_payload = build_manifest_payload(
+        payload,
+        preview_payload,
+        output,
+        preview_output,
+        isolated_output,
+        isolated_payload,
     )
-    print(f"Wrote {output} with {len(records)} records and {len(metric_defs)} metrics.")
+
+    write_javascript_payload(output, "window.__footballScienceScoutingDatabase=", payload)
+    write_javascript_payload(preview_output, "window.__footballScienceScoutingPreviewDatabase=", preview_payload)
+    write_javascript_payload(manifest_output, "self.__footballScienceScoutingDatabaseManifest=", manifest_payload)
+    write_javascript_payload(isolated_output, "self.__footballScienceNwslStatsbombDatabase=", isolated_payload)
+    print(
+        f"Wrote {output} with {len(records)} records and {len(metric_defs)} metrics; "
+        f"isolated {len(isolated_payload['records'])} StatsBomb records in {isolated_output}."
+    )
 
 
 if __name__ == "__main__":

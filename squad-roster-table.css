@@ -100,3 +100,305 @@ body.is-dark-mode .platform-player-profiles-view .squad-availability-cell small 
 body.is-dark-mode .platform-player-profiles-view .squad-availability-track {
   background: rgba(148, 163, 184, 0.24);
 }
+
+.squad-birthday-calendar {
+  display: grid;
+  gap: 0.78rem;
+  margin: 0.9rem 0;
+  padding: 0.92rem;
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 248, 0.92) 62%, rgba(242, 247, 255, 0.9)),
+    rgba(255, 255, 255, 0.88);
+  box-shadow: 0 14px 32px rgba(20, 28, 34, 0.08);
+}
+
+.squad-birthday-calendar-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.72rem;
+}
+
+.squad-birthday-calendar-mark {
+  width: 2.35rem;
+  height: 2.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #17251e;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.squad-birthday-calendar-head div {
+  min-width: 0;
+}
+
+.squad-birthday-calendar-head p {
+  margin: 0 0 0.1rem;
+  color: #66746c;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.squad-birthday-calendar-head h2 {
+  margin: 0;
+  color: #17251e;
+  font-size: 1.08rem;
+  line-height: 1.12;
+}
+
+.squad-birthday-calendar-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.34rem;
+}
+
+.squad-birthday-calendar-stats span,
+.squad-birthday-calendar-foot span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.72rem;
+  padding: 0 0.58rem;
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #506058;
+  font-size: 0.7rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.squad-birthday-calendar-body {
+  display: grid;
+  grid-template-columns: minmax(13rem, 0.36fr) minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: stretch;
+}
+
+.squad-birthday-next {
+  display: grid;
+  align-content: center;
+  gap: 0.2rem;
+  min-width: 0;
+  min-height: 6.4rem;
+  padding: 0.82rem;
+  border: 1px solid rgba(47, 143, 107, 0.2);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(239, 249, 244, 0.95), rgba(255, 255, 255, 0.88));
+}
+
+.squad-birthday-next span,
+.squad-birthday-player small,
+.squad-birthday-meta {
+  color: #66746c;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.squad-birthday-next strong {
+  overflow-wrap: anywhere;
+  color: #17251e;
+  font-size: 1.18rem;
+  line-height: 1.08;
+}
+
+.squad-birthday-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.48rem;
+}
+
+.squad-birthday-item {
+  width: 100%;
+  min-width: 0;
+  min-height: 3.7rem;
+  display: grid;
+  grid-template-columns: minmax(4.9rem, 0.42fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.58rem 0.64rem;
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  color: inherit;
+  box-shadow: none;
+  text-align: left;
+}
+
+.squad-birthday-item:not(:disabled) {
+  cursor: pointer;
+}
+
+.squad-birthday-item:not(:disabled):hover,
+.squad-birthday-item:not(:disabled):focus-visible {
+  border-color: rgba(47, 143, 107, 0.34);
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(20, 28, 34, 0.11);
+  outline: 0;
+  transform: translateY(-1px);
+}
+
+.squad-birthday-date {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.16rem;
+  padding: 0 0.5rem;
+  border-radius: 8px;
+  background: rgba(23, 37, 30, 0.08);
+  color: #17251e;
+  font-size: 0.78rem;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.squad-birthday-player {
+  display: grid;
+  min-width: 0;
+  gap: 0.08rem;
+}
+
+.squad-birthday-player strong {
+  overflow: hidden;
+  color: #17251e;
+  font-size: 0.88rem;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.squad-birthday-player small,
+.squad-birthday-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.squad-birthday-meta {
+  justify-self: end;
+  max-width: 8rem;
+  color: #466a5b;
+  font-weight: 850;
+}
+
+.squad-birthday-calendar-empty {
+  display: grid;
+  gap: 0.16rem;
+  padding: 0.82rem;
+  border: 1px dashed rgba(47, 143, 107, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.squad-birthday-calendar-empty strong {
+  color: #17251e;
+  font-size: 0.95rem;
+}
+
+.squad-birthday-calendar-empty span {
+  color: #66746c;
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.squad-birthday-calendar-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-calendar {
+  border-color: rgba(148, 163, 184, 0.24);
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(20, 35, 31, 0.78) 58%, rgba(15, 23, 42, 0.88)),
+    rgba(15, 23, 42, 0.82);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.24);
+}
+
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-calendar-mark {
+  background: rgba(226, 232, 240, 0.92);
+  color: #0f172a;
+}
+
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-calendar-head h2,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-next strong,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-player strong,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-calendar-empty strong,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-date {
+  color: var(--ink);
+}
+
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-calendar-head p,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-next span,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-player small,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-calendar-empty span,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-calendar-stats span,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-calendar-foot span {
+  color: #94a3b8;
+}
+
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-next,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-item,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-calendar-empty {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(15, 23, 42, 0.62);
+}
+
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-calendar-stats span,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-calendar-foot span,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-date {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: rgba(148, 163, 184, 0.12);
+}
+
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-meta {
+  color: #b9e3ce;
+}
+
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-item:not(:disabled):hover,
+body.is-dark-mode .platform-player-profiles-view .squad-birthday-item:not(:disabled):focus-visible {
+  border-color: rgba(185, 227, 206, 0.4);
+  background: rgba(15, 23, 42, 0.86);
+}
+
+@media (max-width: 920px) {
+  .squad-birthday-calendar-head,
+  .squad-birthday-calendar-body,
+  .squad-birthday-list {
+    grid-template-columns: 1fr;
+  }
+
+  .squad-birthday-calendar-mark {
+    display: none;
+  }
+
+  .squad-birthday-calendar-stats,
+  .squad-birthday-calendar-foot {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 620px) {
+  .squad-birthday-item {
+    grid-template-columns: 1fr;
+    gap: 0.3rem;
+  }
+
+  .squad-birthday-date,
+  .squad-birthday-meta {
+    justify-self: start;
+  }
+
+  .squad-birthday-player strong,
+  .squad-birthday-player small,
+  .squad-birthday-meta {
+    white-space: normal;
+  }
+}

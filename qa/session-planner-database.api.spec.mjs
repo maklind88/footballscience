@@ -1,0 +1,139 @@
+import { createRequire } from "node:module";
+import { test, expect } from "@playwright/test";
+
+const require = createRequire(import.meta.url);
+const database = require("../api/_lib/session-planner-database.js");
+
+const organizationId = "11111111-1111-4111-8111-111111111111";
+const teamId = "22222222-2222-4222-8222-222222222222";
+const sessionId = "33333333-3333-4333-8333-333333333333";
+
+function jsonResponse(payload, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function createReadHarness() {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    if (String(url).includes("/session_planner_sessions?")) {
+      return jsonResponse([
+        {
+          id: sessionId,
+          organization_id: organizationId,
+          team_id: teamId,
+          session_date: "2026-07-22",
+          session_slot: "primary",
+          legacy_session_id: "session-2026-07-22",
+          title: "Training",
+          theme: "Pressing",
+          selected_block_legacy_id: "block-1",
+          schema_version: 1,
+          row_version: 4,
+          content: {
+            id: "session-2026-07-22",
+            date: "2026-07-22",
+            title: "Training",
+            theme: "Pressing",
+            selectedBlockId: "block-1",
+          },
+          content_hash: "a".repeat(64),
+          updated_at: "2026-07-22T12:00:00.000Z",
+        },
+      ]);
+    }
+    if (String(url).includes("/session_planner_blocks?")) {
+      return jsonResponse([
+        {
+          id: "44444444-4444-4444-8444-444444444444",
+          organization_id: organizationId,
+          team_id: teamId,
+          session_id: sessionId,
+          legacy_block_id: "block-1",
+          sort_order: 0,
+          schema_version: 1,
+          row_version: 2,
+          payload: { id: "block-1", title: "Possession", minutes: 20 },
+          payload_hash: "b".repeat(64),
+          updated_at: "2026-07-22T12:00:00.000Z",
+        },
+      ]);
+    }
+    return jsonResponse({ message: "Unexpected URL" }, 404);
+  };
+  return {
+    calls,
+    options: {
+      env: { SESSION_PLANNER_DATABASE_MODE: "shadow" },
+      config: { url: "https://example.supabase.co/rest/v1", serviceRoleKey: "server-only-key" },
+      fetchImpl,
+    },
+  };
+}
+
+test("Session Planner database adapter is disabled by default", async () => {
+  let called = false;
+  const result = await database.readSessionPlannerDomainSnapshot(
+    { organizationId, teamId },
+    { env: {}, fetchImpl: async () => { called = true; } }
+  );
+
+  expect(result).toEqual({ ok: false, enabled: false, mode: "off" });
+  expect(called).toBe(false);
+  expect(database.isSessionPlannerDatabaseConfigured({})).toBe(false);
+  expect(database.isSessionPlannerDatabaseReadEnabled({ SESSION_PLANNER_DATABASE_MODE: "planned" })).toBe(false);
+  expect(database.isSessionPlannerDatabaseReadEnabled({ SESSION_PLANNER_DATABASE_MODE: "shadow" })).toBe(true);
+});
+
+test("Session Planner shadow adapter reads only scoped sessions and their blocks", async () => {
+  const harness = createReadHarness();
+  const result = await database.readSessionPlannerDomainSnapshot(
+    { organizationId, teamId, dateFrom: "2026-07-22", dateTo: "2026-07-22" },
+    harness.options
+  );
+
+  expect(result.ok).toBe(true);
+  expect(result.sessions).toHaveLength(1);
+  expect(result.blocks).toHaveLength(1);
+  expect(result.sessions[0]).toMatchObject({ organizationId, teamId, sessionDate: "2026-07-22", rowVersion: 4 });
+  expect(result.blocks[0]).toMatchObject({ organizationId, teamId, sessionId, legacyBlockId: "block-1" });
+  expect(harness.calls).toHaveLength(2);
+  expect(harness.calls[0].options.method).toBe("GET");
+  expect(harness.calls[0].url).toContain(`organization_id=eq.${organizationId}`);
+  expect(harness.calls[0].url).toContain(`team_id=eq.${teamId}`);
+  expect(harness.calls[0].url).toContain("session_date=gte.2026-07-22");
+  expect(harness.calls[0].url).toContain("session_date=lte.2026-07-22");
+  expect(harness.calls[1].url).toContain(`session_id=in.%28${sessionId}%29`);
+});
+
+test("Session Planner shadow adapter rebuilds the unchanged legacy state shape", async () => {
+  const harness = createReadHarness();
+  const result = await database.readSessionPlannerLegacyState(
+    { organizationId, teamId },
+    { ...harness.options, selectedDate: "2026-07-22" }
+  );
+
+  expect(result.ok).toBe(true);
+  expect(result.state).toEqual({
+    selectedDate: "2026-07-22",
+    sessions: {
+      "2026-07-22": {
+        id: "session-2026-07-22",
+        date: "2026-07-22",
+        title: "Training",
+        theme: "Pressing",
+        selectedBlockId: "block-1",
+        blocks: [{ id: "block-1", title: "Possession", minutes: 20 }],
+      },
+    },
+  });
+});
+
+test("Session Planner database foundation exposes no write path", () => {
+  expect(database.writeSessionPlannerDomainSnapshot).toBeUndefined();
+  expect(database.upsertSessionPlannerSession).toBeUndefined();
+  expect(database.deleteSessionPlannerSession).toBeUndefined();
+});

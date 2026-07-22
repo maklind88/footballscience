@@ -118,6 +118,12 @@ requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "envir
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "summary.dryRun !== true", "platform identity snapshot inspection must verify read-only mode");
 forbidText(".github/workflows/platform-identity-snapshot-read-only.yml", "--capture", "platform identity snapshot inspection must not capture data");
 forbidText(".github/workflows/platform-identity-snapshot-read-only.yml", "--apply", "platform identity snapshot inspection must not apply identity writes");
+requireText(".github/workflows/platform-identity-snapshot-capture-staging.yml", "environment: platform-staging", "platform identity snapshot capture must be staging-only");
+requireText(".github/workflows/platform-identity-snapshot-capture-staging.yml", "CAPTURE_PLATFORM_IDENTITY_SNAPSHOT", "platform identity snapshot capture must require exact confirmation");
+requireText(".github/workflows/platform-identity-snapshot-capture-staging.yml", "--expected-plan-sha256", "platform identity snapshot capture must pin the reviewed plan hash");
+requireText(".github/workflows/platform-identity-snapshot-capture-staging.yml", "storage.readAfterWriteVerified !== true", "platform identity snapshot capture must verify the private stored object");
+forbidText(".github/workflows/platform-identity-snapshot-capture-staging.yml", "platform-production", "platform identity snapshot capture must not target production");
+forbidText(".github/workflows/platform-identity-snapshot-capture-staging.yml", "--apply", "platform identity snapshot capture must not apply identity writes");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "app_metadata", "platform identity backfill tests must prove server-owned role derivation");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "stale plan before any write", "platform identity tests must prove stale plans cannot write");
 requireText("qa/platform-identity-snapshot.api.spec.mjs", "tenant scope changes", "identity rollback must fail closed on tenant scope drift");

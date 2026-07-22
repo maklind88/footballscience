@@ -16,6 +16,10 @@ const readOnlyWorkflow = readFileSync(
   new URL("../.github/workflows/platform-identity-snapshot-read-only.yml", import.meta.url),
   "utf8"
 );
+const captureWorkflow = readFileSync(
+  new URL("../.github/workflows/platform-identity-snapshot-capture-staging.yml", import.meta.url),
+  "utf8"
+);
 
 const authUser = {
   id: userId,
@@ -117,6 +121,21 @@ test("Platform Identity snapshot inspection workflow is staging-only and cannot 
   expect(readOnlyWorkflow).not.toContain("--apply");
   expect(readOnlyWorkflow).not.toContain("CAPTURE_PLATFORM_IDENTITY_SNAPSHOT");
   expect(readOnlyWorkflow).not.toContain("actions/upload-artifact");
+});
+
+test("Platform Identity snapshot capture workflow is staging-only and pins the reviewed plan", () => {
+  expect(captureWorkflow).toContain("workflow_dispatch:");
+  expect(captureWorkflow).toContain("environment: platform-staging");
+  expect(captureWorkflow).toContain("group: platform-identity-write-staging");
+  expect(captureWorkflow).toContain("CAPTURE_PLATFORM_IDENTITY_SNAPSHOT");
+  expect(captureWorkflow).toContain("--expected-plan-sha256");
+  expect(captureWorkflow).toContain("--expected-user-count");
+  expect(captureWorkflow).toContain("--capture");
+  expect(captureWorkflow).toContain("storage.readAfterWriteVerified !== true");
+  expect(captureWorkflow).toContain("storage.contentSha256 !== summary.contentSha256");
+  expect(captureWorkflow).not.toContain("platform-production");
+  expect(captureWorkflow).not.toContain("--apply");
+  expect(captureWorkflow).not.toContain("actions/upload-artifact");
 });
 
 test("Platform Identity snapshot command blocks environment drift before network access", async () => {

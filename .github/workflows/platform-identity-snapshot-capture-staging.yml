@@ -1,0 +1,120 @@
+name: Platform Identity Snapshot Capture Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type CAPTURE_PLATFORM_IDENTITY_SNAPSHOT exactly.
+        required: true
+        type: string
+      expected_plan_sha256:
+        description: Exact SHA-256 from the latest read-only staging inspection.
+        required: true
+        type: string
+      expected_user_count:
+        description: Exact user count from the latest read-only staging inspection.
+        required: true
+        type: number
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-identity-write-staging
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: platform-staging
+    env:
+      PLATFORM_BACKFILL_TARGET: staging
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF }}
+      PLATFORM_BACKFILL_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}
+      PLATFORM_BACKFILL_ORGANIZATION_ID: ${{ secrets.PLATFORM_BACKFILL_ORGANIZATION_ID }}
+      PLATFORM_BACKFILL_ORGANIZATION_NAME: ${{ vars.PLATFORM_BACKFILL_ORGANIZATION_NAME }}
+      PLATFORM_BACKFILL_ORGANIZATION_SLUG: ${{ vars.PLATFORM_BACKFILL_ORGANIZATION_SLUG }}
+      PLATFORM_BACKFILL_TEAM_ID: ${{ secrets.PLATFORM_BACKFILL_TEAM_ID }}
+      PLATFORM_BACKFILL_TEAM_NAME: ${{ vars.PLATFORM_BACKFILL_TEAM_NAME }}
+      PLATFORM_BACKFILL_TEAM_SLUG: ${{ vars.PLATFORM_BACKFILL_TEAM_SLUG }}
+      PLATFORM_BACKFILL_TEAM_GENDER: ${{ vars.PLATFORM_BACKFILL_TEAM_GENDER }}
+      PLATFORM_BACKFILL_LINKS: ${{ secrets.PLATFORM_BACKFILL_LINKS }}
+      CAPTURE_CONFIRMATION: ${{ inputs.confirmation }}
+      EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
+      EXPECTED_USER_COUNT: ${{ inputs.expected_user_count }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run qa:supabase
+      - run: npm run platform:identity:backfill:env
+      - name: Verify capture inputs
+        shell: bash
+        run: |
+          if [ "$CAPTURE_CONFIRMATION" != "CAPTURE_PLATFORM_IDENTITY_SNAPSHOT" ]; then
+            echo "Exact snapshot confirmation is required." >&2
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_PLAN_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "A valid reviewed plan SHA-256 is required." >&2
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_USER_COUNT" =~ ^[0-9]+$ ]]; then
+            echo "A valid reviewed user count is required." >&2
+            exit 1
+          fi
+      - name: Verify snapshot contracts
+        run: npx playwright test --config=qa/playwright.config.mjs --project=api-contracts qa/platform-identity-backfill.api.spec.mjs qa/platform-tenant-bootstrap.api.spec.mjs qa/platform-identity-snapshot.api.spec.mjs qa/platform-identity-snapshot-command.api.spec.mjs
+      - name: Capture hash-verified private staging snapshot
+        shell: bash
+        run: |
+          args=(
+            --json
+            --capture
+            --confirm="$CAPTURE_CONFIRMATION"
+            --expected-plan-sha256="$EXPECTED_PLAN_SHA256"
+            --expected-user-count="$EXPECTED_USER_COUNT"
+            --actor-id "$PLATFORM_BACKFILL_ACTOR_ID"
+            --organization-id "$PLATFORM_BACKFILL_ORGANIZATION_ID"
+            --organization-name "$PLATFORM_BACKFILL_ORGANIZATION_NAME"
+            --organization-slug "$PLATFORM_BACKFILL_ORGANIZATION_SLUG"
+            --team-id "$PLATFORM_BACKFILL_TEAM_ID"
+            --team-name "$PLATFORM_BACKFILL_TEAM_NAME"
+            --team-slug "$PLATFORM_BACKFILL_TEAM_SLUG"
+          )
+          if [ -n "$PLATFORM_BACKFILL_TEAM_GENDER" ]; then
+            args+=(--team-gender "$PLATFORM_BACKFILL_TEAM_GENDER")
+          fi
+          if [ -n "$PLATFORM_BACKFILL_LINKS" ]; then
+            IFS=',' read -ra links <<< "$PLATFORM_BACKFILL_LINKS"
+            for link in "${links[@]}"; do
+              args+=(--link "$link")
+            done
+          fi
+          node scripts/platform-identity-snapshot.mjs "${args[@]}" > platform-identity-snapshot-capture-summary.json
+      - name: Verify and print PII-free capture summary
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const summary = JSON.parse(fs.readFileSync("platform-identity-snapshot-capture-summary.json", "utf8"));
+            const storage = summary.storage || {};
+            if (
+              summary.ok !== true ||
+              summary.dryRun !== false ||
+              summary.stored !== true ||
+              summary.piiExposed !== false ||
+              storage.bucket !== "footballscience-app-state" ||
+              storage.readAfterWriteVerified !== true ||
+              storage.contentSha256 !== summary.contentSha256
+            ) {
+              throw new Error("Platform Identity staging snapshot was not captured and verified safely.");
+            }
+          '
+          cat platform-identity-snapshot-capture-summary.json

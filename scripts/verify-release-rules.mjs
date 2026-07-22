@@ -108,7 +108,10 @@ requireText("scripts/release-auto.mjs", "requireCanonicalVercelProjectLink", "le
 requireText("scripts/release-auto.mjs", "release:staging-isolation:repair", "legacy deploys must repair staging/live alias drift after direct production deploys");
 requireText("scripts/verify-incident-readiness.mjs", "Incident readiness verification: ok", "incident alerting must stay testable");
 requireText("scripts/platform-identity-backfill.mjs", "BACKFILL_PLATFORM_IDENTITY", "platform identity backfill must require explicit apply confirmation");
+requireText("scripts/platform-identity-backfill.mjs", "--expected-plan-sha256", "platform identity apply must require a reviewed deterministic plan");
+requireText("scripts/platform-identity-backfill.mjs", "--expected-user-count", "platform identity apply must lock the reviewed user count");
 requireText("qa/platform-identity-backfill.api.spec.mjs", "app_metadata", "platform identity backfill tests must prove server-owned role derivation");
+requireText("qa/platform-identity-backfill.api.spec.mjs", "stale plan before any write", "platform identity tests must prove stale plans cannot write");
 requireText("qa/production.live.spec.mjs", "production admin account can open Access & Users", "live smoke must prove admin access");
 requireText("qa/production.live.spec.mjs", 'toBe("admin")', "live smoke must fail if the release QA account loses admin");
 requireText("qa/production.live.spec.mjs", "production peer accounts prove DM unread state and read receipt end-to-end", "live smoke must prove two-account chat delivery and read receipts");

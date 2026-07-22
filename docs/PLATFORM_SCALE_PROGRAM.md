@@ -99,11 +99,12 @@ Write authorization must not trust `user_metadata`. Authorization must come from
 Rules:
 
 - Dry-run is the default.
-- Writes require `--apply --confirm=BACKFILL_PLATFORM_IDENTITY`.
+- Writes require `--apply --confirm=BACKFILL_PLATFORM_IDENTITY`, the exact dry-run `--expected-plan-sha256`, and its `--expected-user-count`.
 - A real `--actor-id` is required so created/updated rows have an audit actor.
 - Roles are derived only from server-owned `app_metadata`, never editable `user_metadata`.
 - Profile display fields may read `user_metadata`, but authorization does not.
 - The runner calls the shared tenant bootstrap pipeline for every user instead of writing directly to tables.
+- Dry-run output is PII-free and includes a deterministic plan hash; apply recomputes the plan and stops before all writes if the hash or user count changed.
 - It does not change UI routing, app-state ownership, module reads, or module writes.
 
 Typical dry-run:
@@ -115,7 +116,7 @@ npm run platform:identity:backfill -- --actor-id <admin-user-uuid> --organizatio
 Apply only after dry-run review:
 
 ```bash
-npm run platform:identity:backfill -- --apply --confirm=BACKFILL_PLATFORM_IDENTITY --actor-id <admin-user-uuid> --organization-name "Football Science" --team-name "First Team"
+npm run platform:identity:backfill -- --apply --confirm=BACKFILL_PLATFORM_IDENTITY --expected-plan-sha256 <reviewed-sha256> --expected-user-count <reviewed-count> --actor-id <admin-user-uuid> --organization-name "Football Science" --team-name "First Team"
 ```
 
 ## Next Phase: Controlled Backfill

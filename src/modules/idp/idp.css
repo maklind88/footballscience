@@ -4144,6 +4144,7 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   justify-self: stretch;
   min-width: 0;
   position: relative;
+  top: 26px;
 }
 
 .player-profile-scouting-metric-picker {
@@ -5345,6 +5346,7 @@ body.is-dark-mode .idp-stream-actions button {
   .player-profile-scouting-radar-tools {
     flex-wrap: wrap;
     justify-content: flex-start;
+    top: 0;
   }
 
   .player-profile-scouting-radar-meta {

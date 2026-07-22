@@ -10,6 +10,7 @@ import { verifyPlatformIdentityBackfillEnvironment } from "../scripts/verify-pla
 
 const actorId = "11111111-1111-4111-8111-111111111111";
 const userId = "22222222-2222-4222-8222-222222222222";
+const moduleRecordId = "88888888-8888-4888-8888-888888888888";
 
 const testConfig = {
   url: "https://project.supabase.co",
@@ -140,12 +141,20 @@ test("platform identity backfill derives authorization role only from app_metada
     {
       organization: { name: "Football Science", slug: "football-science" },
       team: { name: "First Team", slug: "first-team", gender: "women" },
+      links: [`session-planner:session_planner_sessions:${moduleRecordId}:team`],
     }
   );
 
   expect(body.user.firstName).toBe("Alex");
   expect(body.membership.role).toBe("scout");
   expect(body.membership.metadata.roleSource).toBe("app_metadata");
+  expect(body.links[0]).toMatchObject({
+    moduleId: "session-planner",
+    moduleTable: "session_planner_sessions",
+    moduleRecordId,
+    scope: "team",
+    metadata: { backfillSchema: "footballscience-platform-identity-backfill-v1" },
+  });
 });
 
 test("platform identity backfill gives platform admins organization scope and staff team scope", () => {

@@ -337,7 +337,15 @@ export function buildTenantBootstrapBody(user, options = {}) {
         roleSource: "app_metadata",
       },
     },
-    links: (options.links || []).map(normalizeLink).filter(Boolean),
+    links: (options.links || [])
+      .map(normalizeLink)
+      .filter(Boolean)
+      .map((link) => ({
+        ...link,
+        metadata: {
+          backfillSchema: PLATFORM_IDENTITY_BACKFILL_SCHEMA,
+        },
+      })),
   };
 }
 

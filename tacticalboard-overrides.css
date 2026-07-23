@@ -82,6 +82,37 @@
   min-height: 0;
   border-radius: 18px;
   box-shadow: 0 18px 42px #0d34221f;
+  cursor: default;
+}
+
+.session-tacticalboard-canvas-wrap [data-session-tactical-canvas] {
+  cursor: default;
+}
+
+.session-tacticalboard-canvas-wrap .session-tactical-marker,
+.session-tacticalboard-canvas-wrap .session-tactical-hit-target {
+  cursor: pointer;
+}
+
+.session-tacticalboard-modal.has-selection .session-tacticalboard-canvas-wrap .is-selected,
+.session-tacticalboard-modal.has-selection .session-tacticalboard-canvas-wrap .is-selected + .session-tactical-hit-target {
+  cursor: grab;
+}
+
+.session-tacticalboard-canvas-wrap .session-tactical-edit-handle,
+.session-tacticalboard-canvas-wrap .session-tactical-rotate-handle {
+  cursor: grab;
+}
+
+.session-tacticalboard-canvas-wrap:active .session-tactical-marker.is-selected,
+.session-tacticalboard-canvas-wrap:active .session-tactical-edit-handle,
+.session-tacticalboard-canvas-wrap:active .session-tactical-rotate-handle {
+  cursor: grabbing;
+}
+
+.session-tacticalboard-modal-tool-remove .session-tacticalboard-canvas-wrap .session-tactical-marker,
+.session-tacticalboard-modal-tool-remove .session-tacticalboard-canvas-wrap .session-tactical-hit-target {
+  cursor: not-allowed;
 }
 
 .session-tacticalboard-inspector,

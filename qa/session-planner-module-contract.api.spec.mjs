@@ -155,21 +155,22 @@ test("Session Planner print renderer owns coach sheet controls, document, sectio
 });
 
 test("Session Planner visual renderer owns tactical board pitch, objects, preview, and toolbox markup", () => {
+  const rendererState = {
+    visualPreviewOpen: true,
+    tacticalboardOpen: true,
+    tool: "blue-player",
+    color: "#111827",
+    lineWidth: 1.1,
+    lineStyle: "solid",
+    pendingPoint: { x: 33, y: 44 },
+    selectedElementId: "el-1",
+    draftLineState: null,
+    freehandState: null,
+  };
   const visualRenderer = createSessionPlannerVisualRenderer({
     escapeHtml: (value) => String(value ?? "").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;"),
     clamp: (value, min, max) => Math.min(max, Math.max(min, Number(value))),
-    getState: () => ({
-      visualPreviewOpen: true,
-      tacticalboardOpen: true,
-      tool: "blue-player",
-      color: "#111827",
-      lineWidth: 1.1,
-      lineStyle: "solid",
-      pendingPoint: { x: 33, y: 44 },
-      selectedElementId: "el-1",
-      draftLineState: null,
-      freehandState: null,
-    }),
+    getState: () => rendererState,
     getPitchModeOptions: () => [{ key: "full", label: "Full pitch", dimensions: { x: 65, y: 105 }, landscape: false }],
     normalizeTacticalPitchMode: (value) => String(value || "full").trim() || "full",
     getTacticalPitchModeOption: () => ({ key: "full", label: "Full pitch", dimensions: { x: 65, y: 105 }, landscape: false }),
@@ -209,6 +210,19 @@ test("Session Planner visual renderer owns tactical board pitch, objects, previe
 
   const pitchMarkup = visualRenderer.renderPitchDiagram("build-up");
   const boardMarkup = visualRenderer.renderExerciseVisual(block, { large: true, editor: true });
+  rendererState.draftLineState = {
+    type: "arrow",
+    startPoint: { x: 12, y: 18 },
+    currentPoint: { x: 44, y: 52 },
+  };
+  rendererState.freehandState = {
+    points: [
+      { x: 8, y: 8 },
+      { x: 12, y: 14 },
+      { x: 18, y: 19 },
+    ],
+  };
+  const livePreviewMarkup = visualRenderer.renderExerciseVisual(block, { large: true, editor: true });
   const previewMarkup = visualRenderer.renderVisualPreviewOverlay(block);
   const tacticalboardMarkup = visualRenderer.renderTacticalboardOverlay(block);
 
@@ -218,6 +232,9 @@ test("Session Planner visual renderer owns tactical board pitch, objects, previe
   expect(boardMarkup).toContain("session-tactical-selection-box");
   expect(boardMarkup).toContain("session-tactical-player-badge");
   expect(boardMarkup).toContain("session-tactical-number-picker");
+  expect(livePreviewMarkup).toContain('data-session-tactical-element-id="session-tactical-draft-line"');
+  expect(livePreviewMarkup).toContain("session-tactical-arrow is-preview");
+  expect(livePreviewMarkup).toContain("session-tactical-freehand-preview");
   expect(previewMarkup).toContain("data-session-visual-preview-overlay");
   expect(tacticalboardMarkup).toContain("data-session-tacticalboard-overlay");
   expect(tacticalboardMarkup).toContain('data-session-tactical-tool="blue-player"');
@@ -227,6 +244,8 @@ test("Session Planner visual renderer owns tactical board pitch, objects, previe
   expect(tacticalboardMarkup).toContain("data-session-tactical-selected-label");
   expect(tacticalboardMarkup).toContain("data-session-tactical-hint-state");
   expect(tacticalboardMarkup).toContain("data-session-tactical-color-choice");
+  expect(readProjectFile("tacticalboard-overrides.css")).toContain("cursor: grab");
+  expect(readProjectFile("tacticalboard-overrides.css")).toContain("cursor: default");
 });
 
 test("Session Planner player board renderer owns player board, Squad Bridge, Assistant, and team tool markup", () => {

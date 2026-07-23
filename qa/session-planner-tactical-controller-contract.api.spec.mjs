@@ -195,6 +195,78 @@ test("Session Planner tactical controller places tools only from double-click an
   expect(block.tacticalElements).toHaveLength(3);
 });
 
+test("Session Planner tactical controller previews line drag before committing the stroke", () => {
+  const { block, controller, localState } = createController();
+  controller.setSessionPlannerTacticalTool("arrow");
+
+  const start = createCanvasEvent({ clientX: 10, clientY: 15 });
+  controller.startSessionPlannerTacticalDrag(start.event);
+  expect(localState.sessionPlannerTacticalDraftLineState).toMatchObject({
+    type: "arrow",
+    startPoint: { x: 10, y: 15 },
+    currentPoint: { x: 10, y: 15 },
+    moved: false,
+  });
+  expect(block.tacticalElements).toHaveLength(0);
+
+  const update = createCanvasEvent({ clientX: 55, clientY: 65 });
+  controller.updateSessionPlannerTacticalDrag(update.event);
+  expect(localState.sessionPlannerTacticalDraftLineState).toMatchObject({
+    type: "arrow",
+    currentPoint: { x: 55, y: 65 },
+    moved: true,
+  });
+  expect(block.tacticalElements).toHaveLength(0);
+
+  controller.finishSessionPlannerTacticalDrag();
+  expect(localState.sessionPlannerTacticalDraftLineState).toBeNull();
+  expect(block.tacticalElements).toHaveLength(1);
+  expect(block.tacticalElements[0]).toMatchObject({
+    type: "arrow",
+    x: 10,
+    y: 15,
+    x2: 55,
+    y2: 65,
+  });
+});
+
+test("Session Planner tactical controller builds curves from start, control, and end points", () => {
+  const { block, controller, localState } = createController();
+  controller.setSessionPlannerTacticalTool("curve");
+
+  const start = createCanvasEvent({ clientX: 20, clientY: 25, detail: 1 });
+  controller.handleSessionPlannerTacticalCanvasClick(start.event, start.canvas);
+  expect(block.tacticalElements).toHaveLength(0);
+  expect(localState.sessionPlannerTacticalPendingPoint).toMatchObject({
+    type: "curve",
+    startPoint: { x: 20, y: 25 },
+    controlPoint: null,
+  });
+
+  const control = createCanvasEvent({ clientX: 45, clientY: 65, detail: 1 });
+  controller.handleSessionPlannerTacticalCanvasClick(control.event, control.canvas);
+  expect(block.tacticalElements).toHaveLength(0);
+  expect(localState.sessionPlannerTacticalPendingPoint).toMatchObject({
+    type: "curve",
+    startPoint: { x: 20, y: 25 },
+    controlPoint: { x: 45, y: 65 },
+  });
+
+  const end = createCanvasEvent({ clientX: 80, clientY: 30, detail: 1 });
+  controller.handleSessionPlannerTacticalCanvasClick(end.event, end.canvas);
+  expect(localState.sessionPlannerTacticalPendingPoint).toBeNull();
+  expect(block.tacticalElements).toHaveLength(1);
+  expect(block.tacticalElements[0]).toMatchObject({
+    type: "curve",
+    x: 20,
+    y: 25,
+    x2: 80,
+    y2: 30,
+    controlX: 45,
+    controlY: 65,
+  });
+});
+
 test("Session Planner tactical controller box-selects without placing and moves only selected items", () => {
   const { block, controller, localState } = createController();
   controller.setSessionPlannerTacticalTool("blue-player");

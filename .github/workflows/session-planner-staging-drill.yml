@@ -1,0 +1,200 @@
+name: Session Planner Staging Drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply, verify, roll back, verify, and reapply the reviewed staging bundle.
+        required: true
+        default: false
+        type: boolean
+      confirmation:
+        description: For apply, type RUN_SESSION_PLANNER_STAGING_DRILL exactly.
+        required: false
+        type: string
+      expected_source_revision:
+        description: Exact app-state source revision from the reviewed read-only plan.
+        required: true
+        type: number
+      expected_source_hash:
+        description: Exact app-state source SHA-256 from the reviewed read-only plan.
+        required: true
+        type: string
+      expected_bundle_sha256:
+        description: For apply, exact bundle SHA-256 from the matching dry-run.
+        required: false
+        type: string
+      bundle_created_at:
+        description: Reviewed deterministic ISO timestamp shared by dry-run and apply.
+        required: true
+        type: string
+      request_id:
+        description: Unique audited operator request id.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: session-planner-migration-staging
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: platform-staging
+    env:
+      APPLY: ${{ inputs.apply }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      SESSION_PLANNER_MIGRATION_TARGET: staging
+      SESSION_PLANNER_EXPECTED_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SESSION_PLANNER_DOMAIN_ORGANIZATION_ID: ${{ secrets.PLATFORM_BACKFILL_ORGANIZATION_ID }}
+      SESSION_PLANNER_DOMAIN_TEAM_ID: ${{ secrets.PLATFORM_BACKFILL_TEAM_ID }}
+      SESSION_PLANNER_MIGRATION_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}
+      SESSION_PLANNER_APP_STATE_ORGANIZATION_ID: global
+      SESSION_PLANNER_EXPECTED_SOURCE_REVISION: ${{ inputs.expected_source_revision }}
+      SESSION_PLANNER_EXPECTED_SOURCE_HASH: ${{ inputs.expected_source_hash }}
+      SESSION_PLANNER_EXPECTED_BUNDLE_SHA256: ${{ inputs.expected_bundle_sha256 }}
+      SESSION_PLANNER_BUNDLE_CREATED_AT: ${{ inputs.bundle_created_at }}
+      SESSION_PLANNER_MIGRATION_REQUEST_ID: ${{ inputs.request_id }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Verify isolated staging context and reviewed inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            SUPABASE_URL
+            SUPABASE_PROJECT_REF
+            SUPABASE_SECRET_KEY
+            CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF
+            SESSION_PLANNER_DOMAIN_ORGANIZATION_ID
+            SESSION_PLANNER_DOMAIN_TEAM_ID
+            SESSION_PLANNER_MIGRATION_ACTOR_ID
+          )
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required platform-staging value: $name" >&2
+              exit 1
+            fi
+          done
+          printf '%s\n' \
+            "$SUPABASE_PROJECT_REF" \
+            "$CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF" \
+            "$SESSION_PLANNER_DOMAIN_ORGANIZATION_ID" \
+            "$SESSION_PLANNER_DOMAIN_TEAM_ID" \
+            "$SESSION_PLANNER_MIGRATION_ACTOR_ID" |
+            while IFS= read -r value; do echo "::add-mask::$value"; done
+          if [ "$SUPABASE_PROJECT_REF" = "$CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF" ]; then
+            echo "Staging and production Supabase refs must differ." >&2
+            exit 1
+          fi
+          if ! [[ "$SESSION_PLANNER_EXPECTED_SOURCE_REVISION" =~ ^[1-9][0-9]*$ ]]; then
+            echo "A positive reviewed source revision is required." >&2
+            exit 1
+          fi
+          if ! [[ "$SESSION_PLANNER_EXPECTED_SOURCE_HASH" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "A reviewed source SHA-256 is required." >&2
+            exit 1
+          fi
+          if [ "$APPLY" = "true" ]; then
+            if [ "$CONFIRMATION" != "RUN_SESSION_PLANNER_STAGING_DRILL" ]; then
+              echo "Exact staging drill confirmation is required." >&2
+              exit 1
+            fi
+            if ! [[ "$SESSION_PLANNER_EXPECTED_BUNDLE_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "The reviewed dry-run bundle SHA-256 is required." >&2
+              exit 1
+            fi
+          elif [ -n "$CONFIRMATION" ] || [ -n "$SESSION_PLANNER_EXPECTED_BUNDLE_SHA256" ]; then
+            echo "Apply guards must be empty for a dry-run." >&2
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run qa:supabase
+      - name: Verify operator contracts
+        run: >-
+          npx playwright test
+          --config=qa/playwright.config.mjs
+          --project=api-contracts
+          --workers=1
+          qa/session-planner-atomic-migration.api.spec.mjs
+          qa/session-planner-staging-drill.api.spec.mjs
+          qa/session-planner-staging-recovery.api.spec.mjs
+      - name: Run content-free staging drill
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--json)
+          if [ "$APPLY" = "true" ]; then
+            args+=(
+              --apply
+              --confirm="$CONFIRMATION"
+              --expected-bundle-sha256="$SESSION_PLANNER_EXPECTED_BUNDLE_SHA256"
+            )
+          fi
+          node scripts/session-planner-staging-drill.mjs "${args[@]}" \
+            > session-planner-staging-drill-summary.json
+      - name: Verify content-free drill result
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const summary = JSON.parse(
+            fs.readFileSync("session-planner-staging-drill-summary.json", "utf8")
+          );
+          const apply = process.env.APPLY === "true";
+          if (
+            summary.ok !== true ||
+            summary.ready !== true ||
+            summary.target !== "staging" ||
+            summary.projectRef !== process.env.SESSION_PLANNER_EXPECTED_PROJECT_REF ||
+            summary.containsCoachingContent !== false ||
+            summary.initialBundle?.containsCoachingContent !== false ||
+            summary.recoveryPackage?.containsCoachingContent !== false ||
+            summary.mode !== (apply ? "drill" : "dry-run")
+          ) {
+            throw new Error("Session Planner staging drill result is not safe.");
+          }
+          if (
+            apply &&
+            (
+              summary.recoveryPackageReceipt?.readAfterWriteVerified !== true ||
+              summary.firstApply?.execution?.ok !== true ||
+              summary.rollback?.execution?.ok !== true ||
+              summary.reapply?.execution?.ok !== true ||
+              summary.firstApply?.projectionSha256 !== summary.reapply?.projectionSha256
+            )
+          ) {
+            throw new Error("Session Planner staging apply/rollback/reapply proof is incomplete.");
+          }
+          const lines = [
+            "## Session Planner staging drill",
+            "",
+            `- Mode: ${summary.mode}`,
+            `- Source revision: ${summary.source.revision}`,
+            `- Source SHA-256: \`${summary.source.hash}\``,
+            `- Initial bundle SHA-256: \`${summary.initialBundle.contentSha256}\``,
+            `- Commands: ${summary.initialBundle.commandCount}`,
+            `- Recovery package SHA-256: \`${summary.recoveryPackage.contentSha256}\``,
+          ];
+          if (apply) {
+            lines.push(
+              `- Recovery path: \`${summary.recoveryPackageReceipt.path}\``,
+              `- Apply/rollback/reapply: verified`
+            );
+          } else {
+            lines.push("- Database writes: none");
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+          NODE

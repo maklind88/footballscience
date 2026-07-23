@@ -1,0 +1,194 @@
+name: Session Planner Staging Recovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply the reviewed rollback bundle to the exact staging recovery package.
+        required: true
+        default: false
+        type: boolean
+      confirmation:
+        description: For apply, type RECOVER_SESSION_PLANNER_STAGING_ROLLBACK exactly.
+        required: false
+        type: string
+      recovery_path:
+        description: Exact private recovery object path from the staging drill receipt.
+        required: true
+        type: string
+      expected_recovery_sha256:
+        description: Exact recovery package SHA-256 from the staging drill receipt.
+        required: true
+        type: string
+      expected_rollback_bundle_sha256:
+        description: For apply, exact rollback SHA-256 from the matching recovery dry-run.
+        required: false
+        type: string
+      bundle_created_at:
+        description: Reviewed deterministic ISO timestamp shared by recovery dry-run and apply.
+        required: true
+        type: string
+      request_id:
+        description: Unique audited recovery request id.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: session-planner-migration-staging
+  cancel-in-progress: false
+
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: platform-staging
+    env:
+      APPLY: ${{ inputs.apply }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      SESSION_PLANNER_MIGRATION_TARGET: staging
+      SESSION_PLANNER_EXPECTED_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SESSION_PLANNER_DOMAIN_ORGANIZATION_ID: ${{ secrets.PLATFORM_BACKFILL_ORGANIZATION_ID }}
+      SESSION_PLANNER_DOMAIN_TEAM_ID: ${{ secrets.PLATFORM_BACKFILL_TEAM_ID }}
+      SESSION_PLANNER_MIGRATION_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}
+      SESSION_PLANNER_APP_STATE_ORGANIZATION_ID: global
+      SESSION_PLANNER_RECOVERY_PATH: ${{ inputs.recovery_path }}
+      SESSION_PLANNER_EXPECTED_RECOVERY_SHA256: ${{ inputs.expected_recovery_sha256 }}
+      SESSION_PLANNER_EXPECTED_ROLLBACK_BUNDLE_SHA256: ${{ inputs.expected_rollback_bundle_sha256 }}
+      SESSION_PLANNER_RECOVERY_BUNDLE_CREATED_AT: ${{ inputs.bundle_created_at }}
+      SESSION_PLANNER_MIGRATION_REQUEST_ID: ${{ inputs.request_id }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Verify isolated staging context and reviewed inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            SUPABASE_URL
+            SUPABASE_PROJECT_REF
+            SUPABASE_SECRET_KEY
+            CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF
+            SESSION_PLANNER_DOMAIN_ORGANIZATION_ID
+            SESSION_PLANNER_DOMAIN_TEAM_ID
+            SESSION_PLANNER_MIGRATION_ACTOR_ID
+            SESSION_PLANNER_RECOVERY_PATH
+          )
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required platform-staging value: $name" >&2
+              exit 1
+            fi
+          done
+          printf '%s\n' \
+            "$SUPABASE_PROJECT_REF" \
+            "$CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF" \
+            "$SESSION_PLANNER_DOMAIN_ORGANIZATION_ID" \
+            "$SESSION_PLANNER_DOMAIN_TEAM_ID" \
+            "$SESSION_PLANNER_MIGRATION_ACTOR_ID" |
+            while IFS= read -r value; do echo "::add-mask::$value"; done
+          if [ "$SUPABASE_PROJECT_REF" = "$CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF" ]; then
+            echo "Staging and production Supabase refs must differ." >&2
+            exit 1
+          fi
+          if ! [[ "$SESSION_PLANNER_EXPECTED_RECOVERY_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "The exact recovery package SHA-256 is required." >&2
+            exit 1
+          fi
+          if [ "$APPLY" = "true" ]; then
+            if [ "$CONFIRMATION" != "RECOVER_SESSION_PLANNER_STAGING_ROLLBACK" ]; then
+              echo "Exact staging recovery confirmation is required." >&2
+              exit 1
+            fi
+            if ! [[ "$SESSION_PLANNER_EXPECTED_ROLLBACK_BUNDLE_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "The reviewed recovery bundle SHA-256 is required." >&2
+              exit 1
+            fi
+          elif [ -n "$CONFIRMATION" ] || [ -n "$SESSION_PLANNER_EXPECTED_ROLLBACK_BUNDLE_SHA256" ]; then
+            echo "Apply guards must be empty for a dry-run." >&2
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run qa:supabase
+      - name: Verify operator contracts
+        run: >-
+          npx playwright test
+          --config=qa/playwright.config.mjs
+          --project=api-contracts
+          --workers=1
+          qa/session-planner-atomic-migration.api.spec.mjs
+          qa/session-planner-staging-drill.api.spec.mjs
+          qa/session-planner-staging-recovery.api.spec.mjs
+      - name: Run content-free staging recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--json)
+          if [ "$APPLY" = "true" ]; then
+            args+=(
+              --apply
+              --confirm="$CONFIRMATION"
+              --expected-rollback-bundle-sha256="$SESSION_PLANNER_EXPECTED_ROLLBACK_BUNDLE_SHA256"
+            )
+          fi
+          node scripts/session-planner-staging-recovery.mjs "${args[@]}" \
+            > session-planner-staging-recovery-summary.json
+      - name: Verify content-free recovery result
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const summary = JSON.parse(
+            fs.readFileSync("session-planner-staging-recovery-summary.json", "utf8")
+          );
+          const apply = process.env.APPLY === "true";
+          if (
+            summary.ok !== true ||
+            summary.ready !== true ||
+            summary.target !== "staging" ||
+            summary.projectRef !== process.env.SESSION_PLANNER_EXPECTED_PROJECT_REF ||
+            summary.containsCoachingContent !== false ||
+            summary.recoveryPackage?.containsCoachingContent !== false ||
+            summary.mode !== (apply ? "recovery" : "dry-run")
+          ) {
+            throw new Error("Session Planner staging recovery result is not safe.");
+          }
+          if (
+            apply &&
+            summary.alreadyRestored !== true &&
+            (
+              summary.wroteData !== true ||
+              summary.execution?.ok !== true ||
+              !summary.restoredProjectionSha256
+            )
+          ) {
+            throw new Error("Session Planner staging recovery proof is incomplete.");
+          }
+          const lines = [
+            "## Session Planner staging recovery",
+            "",
+            `- Mode: ${summary.mode}`,
+            `- Recovery package SHA-256: \`${summary.recoveryPackage.contentSha256}\``,
+            `- Already restored: ${summary.alreadyRestored === true ? "yes" : "no"}`,
+          ];
+          if (summary.rollbackBundle?.contentSha256) {
+            lines.push(
+              `- Rollback bundle SHA-256: \`${summary.rollbackBundle.contentSha256}\``
+            );
+          }
+          lines.push(
+            apply
+              ? `- Restored projection: \`${summary.restoredProjectionSha256 || summary.baselineProjectionSha256}\``
+              : "- Database writes: none"
+          );
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+          NODE

@@ -207,6 +207,25 @@ Recovery returns a content-free rollback bundle hash. Applying it additionally r
 
 Do not run the write drill until Platform Identity has passed its own staging snapshot/rollback drill, the complete migration chain has compiled on staging, the staging database has been isolated from production, and System/Security holds the current release slot. The committed atomic SQL remains candidate code until that real database proof exists.
 
+### Staging operator workflows
+
+The operator commands are also exposed through two manual GitHub Actions workflows:
+
+- `Session Planner Staging Drill`
+- `Session Planner Staging Recovery`
+
+Both workflows use the protected `platform-staging` GitHub Environment, share the
+`session-planner-migration-staging` concurrency lock, read elevated Supabase access
+only from environment secrets, and cannot select a production environment. Dry-run
+is the default. Write execution requires the exact command confirmation plus the
+reviewed bundle hash from the matching dry-run. The workflows retain no coaching
+content and upload no artifacts; only content-free hashes, counts, and recovery
+receipts are written to the GitHub job summary.
+
+These workflows are operational rails, not promotion. They must not be dispatched
+until Platform Identity staging proof is complete and System/Security holds the
+current release slot.
+
 ## Rollback
 
 - Feature mode defaults to `off`.

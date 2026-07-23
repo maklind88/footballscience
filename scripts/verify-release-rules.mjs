@@ -124,6 +124,8 @@ requireText("scripts/session-planner-staging-recovery.mjs", "alreadyRestored", "
 requireText(".github/workflows/session-planner-staging-drill.yml", "workflow_dispatch:", "Session Planner staging drill must remain manual");
 requireText(".github/workflows/session-planner-staging-drill.yml", "environment: platform-staging", "Session Planner staging drill must use the protected staging environment");
 requireText(".github/workflows/session-planner-staging-drill.yml", "group: session-planner-migration-staging", "Session Planner migration operations must be serialized");
+requireText(".github/workflows/session-planner-staging-drill.yml", 'GITHUB_REPOSITORY" != "maklind88/footballscience', "Session Planner staging drill must run only in the canonical repository");
+requireText(".github/workflows/session-planner-staging-drill.yml", 'GITHUB_REF" != "refs/heads/main', "Session Planner staging drill must run only from canonical main");
 requireText(".github/workflows/session-planner-staging-drill.yml", "RUN_SESSION_PLANNER_STAGING_DRILL", "Session Planner staging drill apply must require exact confirmation");
 requireText(".github/workflows/session-planner-staging-drill.yml", "SESSION_PLANNER_EXPECTED_BUNDLE_SHA256", "Session Planner staging apply must bind to the reviewed dry-run bundle");
 forbidText(".github/workflows/session-planner-staging-drill.yml", "platform-production", "Session Planner staging drill must not expose a production environment");
@@ -131,6 +133,8 @@ forbidText(".github/workflows/session-planner-staging-drill.yml", "upload-artifa
 requireText(".github/workflows/session-planner-staging-recovery.yml", "workflow_dispatch:", "Session Planner staging recovery must remain manual");
 requireText(".github/workflows/session-planner-staging-recovery.yml", "environment: platform-staging", "Session Planner staging recovery must use the protected staging environment");
 requireText(".github/workflows/session-planner-staging-recovery.yml", "group: session-planner-migration-staging", "Session Planner recovery must share the migration concurrency lock");
+requireText(".github/workflows/session-planner-staging-recovery.yml", 'GITHUB_REPOSITORY" != "maklind88/footballscience', "Session Planner staging recovery must run only in the canonical repository");
+requireText(".github/workflows/session-planner-staging-recovery.yml", 'GITHUB_REF" != "refs/heads/main', "Session Planner staging recovery must run only from canonical main");
 requireText(".github/workflows/session-planner-staging-recovery.yml", "RECOVER_SESSION_PLANNER_STAGING_ROLLBACK", "Session Planner recovery apply must require exact confirmation");
 requireText(".github/workflows/session-planner-staging-recovery.yml", "SESSION_PLANNER_EXPECTED_ROLLBACK_BUNDLE_SHA256", "Session Planner recovery apply must bind to the reviewed rollback bundle");
 forbidText(".github/workflows/session-planner-staging-recovery.yml", "platform-production", "Session Planner staging recovery must not expose a production environment");

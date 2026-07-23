@@ -73,6 +73,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ] ||
+            [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Session Planner staging operations require canonical main." >&2
+            exit 1
+          fi
           required=(
             SUPABASE_URL
             SUPABASE_PROJECT_REF

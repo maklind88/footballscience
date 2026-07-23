@@ -22,6 +22,10 @@ for (const [name, workflow] of [
     expect(workflow).toContain("permissions:\n  contents: read");
     expect(workflow).toContain("SESSION_PLANNER_MIGRATION_TARGET: staging");
     expect(workflow).toContain(
+      'GITHUB_REPOSITORY" != "maklind88/footballscience'
+    );
+    expect(workflow).toContain('GITHUB_REF" != "refs/heads/main');
+    expect(workflow).toContain(
       "SESSION_PLANNER_EXPECTED_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}"
     );
     expect(workflow).toContain(

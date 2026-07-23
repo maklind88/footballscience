@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned, additive, and disabled by default. Pure shadow comparison, a scope-gated GET-only operational shadow check, a GET-only operational backfill review, content-free backfill planning, private snapshot integrity, audit-context hardening, rollback projection verification, a guarded staging-only drill candidate, and an authenticated two-user app-state canary with interruption recovery are implemented but are not wired into user-facing reads or writes.
+Planned, additive, and disabled by default. Pure shadow comparison, a scope-gated GET-only operational shadow check, a GET-only operational backfill review, content-free backfill planning, private snapshot integrity, audit-context hardening, rollback projection verification, a guarded staging-only drill candidate, an authenticated two-user app-state canary with interruption recovery, and an integrity-bound staging read-promotion gateway are implemented but are not wired into user-facing reads or writes.
 
 - Existing source of truth: `football-session-planner-v3` through `/api/app-state`.
 - Target pilot tables: `session_planner_sessions` and `session_planner_blocks`.
@@ -23,6 +23,7 @@ This foundation must not change Session Planner UI, autosave, navigation, permis
 | Read-only backfill review | `qa/session-planner-backfill-review.api.spec.mjs` | Contract proven |
 | Scope-gated, content-free shadow comparison | `qa/session-planner-shadow.api.spec.mjs`, `qa/session-planner-shadow-check.api.spec.mjs` | Contract proven; real staging comparison pending |
 | Repeated shadow-evidence gate | `qa/session-planner-shadow-evidence.api.spec.mjs` | Contract proven; three real staging reports pending |
+| Staging read promotion and exact fallback | `qa/session-planner-read-promotion.api.spec.mjs`, `qa/session-planner-read-gateway.api.spec.mjs` | Contract proven; deliberately not wired into `/api/app-state` |
 | Atomic stale-write rejection and transaction rollback | `qa/session-planner-postgres-drill.api.spec.mjs` | Local PostgreSQL proven |
 | Integrity-bound recovery and rollback | `qa/session-planner-migration-safety.api.spec.mjs`, `qa/session-planner-staging-recovery.api.spec.mjs` | Contract proven; real staging drill pending |
 | Platform Identity prerequisite | Platform Identity snapshot/capture/rollback contracts | Real staging proof pending |
@@ -84,7 +85,25 @@ SESSION_PLANNER_DATABASE_SCOPES=<organization-uuid>:<team-uuid>
 
 Multiple canary scopes are comma-separated. Wildcards are intentionally unsupported. Every returned session and block must match the requested tenant, supported schema version, positive row revision, unique identity/order, and stored content hash before comparison can run.
 
-Only `planned` and `shadow` are accepted modes in this checkpoint. A value such as `database` deliberately resolves to `off`; database-primary reads cannot be enabled by configuration until the separate canary gateway, immediate app-state fallback, staging proof, and promotion contract exist.
+Only `planned` and `shadow` are accepted modes in this checkpoint. A value such as `database` deliberately resolves to `off`; database-primary reads cannot be enabled by configuration until the separate canary gateway, immediate app-state fallback, and promotion contract exist, pass real staging proof, receive explicit approval, and are deliberately wired.
+
+The separate read gateway now exists as inert candidate code. It is disabled by
+default and is deliberately not imported by `/api/app-state`. Even in its only
+accepted `staging-canary` mode it requires all of the following before attempting
+a database read:
+
+- Exact staging Supabase URL/project ref and a different canonical production ref.
+- Exact organization/team allowlist.
+- An active Platform Identity membership that covers the same team.
+- The exact current app-state revision and raw value hash.
+- A reviewed, integrity-bound promotion receipt that expires within 24 hours.
+- Platform Identity rollback proof, repeated shadow equality, apply/rollback/reapply
+  proof, authenticated two-user reload/stale-write proof, and compatibility
+  snapshot/restore proof.
+
+Any missing, stale, altered, cross-tenant, unavailable, or mismatching evidence
+returns the exact existing app-state bytes. The gateway has no write, backfill,
+promotion, or automatic activation capability.
 
 ## Alternatives Rejected
 
@@ -133,7 +152,7 @@ Both add operational complexity without solving the current ownership and payloa
 3. **Identity prerequisite:** Verify one canonical organization/team and its memberships. Never infer tenant ownership from labels or legacy browser IDs.
 4. **Backfill:** The read-only planner now translates deletion tombstones into archive actions, emits deterministic create/update/restore actions with expected revisions, and blocks unexplained active records. It has no apply path; app-state remains primary.
 5. **Shadow:** Read both sources server-side and compare canonical hashes. The comparison contract and operator check are implemented, scope-gated, content-free, and fail-closed; automatic runtime invocation remains disabled until backfill data exists. Return app-state only.
-6. **Database read canary:** Enable database reads for a controlled tenant with immediate app-state fallback.
+6. **Database read canary:** The inert staging-only promotion/read gateway contract is implemented. Runtime wiring remains blocked until real staging evidence is complete and reviewed. When eventually connected, it can select domain records only for the exact promoted tenant and otherwise returns the exact app-state bytes.
 7. **Transactional write:** Write domain records with expected row revisions and compatibility projection in one controlled server operation.
    An inert, server-only atomic RPC contract is now prepared for the staging drill. It locks the exact app-state source checkpoint, serializes by team, validates actor/tenant/revisions, writes the migration ledger, and rolls the entire call back on any exception. Client roles have no execute grant and application runtime has no call site.
 8. **Database primary:** Promote only after repeated multi-user, reload, restore, and tenant-isolation proof.
@@ -343,6 +362,11 @@ current release slot.
 - `planned` and `shadow` modes cannot change user-facing reads.
 - App-state remains untouched during dry-run and backfill.
 - A read canary falls back to the exact app-state value on any mismatch or database error.
+- The read-canary promotion receipt is bound to the exact staging project, tenant,
+  source revision/hash, and a maximum 24-hour review window; changing any of them
+  disables domain reads before the database is contacted.
+- The read gateway is not currently imported by `/api/app-state`, so adding its
+  candidate code cannot change production reads.
 - Shadow reports contain only scope identifiers, counts, hashes, status, and reason codes; coaching content is never emitted.
 - A private migration snapshot is integrity hashed before any future apply. Its public summary contains counts and hashes only.
 - Every migration snapshot is bound to the actual Supabase project ref, explicit tenant scope, exact app-state revision, and exact app-state hash.
@@ -365,6 +389,10 @@ Every checkpoint must prove:
 - Block ordering is stable.
 - Old revisions cannot overwrite new revisions.
 - Two users see the same saved session after reload.
+- A stale, expired, rehashed-but-weakened, cross-project, or cross-tenant promotion
+  receipt cannot enable the read gateway.
+- Database timeout, integrity failure, or semantic mismatch returns the exact
+  compatibility value rather than a partial domain projection.
 - App-state remains readable throughout migration.
 - Backup and restore include the compatibility state until final retirement.
 

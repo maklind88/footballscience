@@ -166,6 +166,13 @@ requireText(".github/workflows/session-planner-staging-canary-recovery.yml", 'GI
 forbidText(".github/workflows/session-planner-staging-canary-recovery.yml", "platform-production", "Session Planner canary recovery must not expose a production environment");
 forbidText(".github/workflows/session-planner-staging-canary-recovery.yml", "upload-artifact", "Session Planner canary recovery must not upload coaching content");
 forbidText("api/_lib/session-planner-database.js", '"database"', "Session Planner database-primary mode must remain unavailable before canary promotion");
+requireText("api/_lib/session-planner-read-promotion.js", "promotion_target_not_staging", "Session Planner read promotion must remain staging-only");
+requireText("api/_lib/session-planner-read-promotion.js", "promotion_production_separation_invalid", "Session Planner read promotion must prove staging/production separation");
+requireText("api/_lib/session-planner-read-gateway.js", "SESSION_PLANNER_READ_PROMOTION_SHA256", "Session Planner read canary must bind to the reviewed promotion receipt");
+requireText("api/_lib/session-planner-read-gateway.js", "gateway_actor_scope_denied", "Session Planner read canary must require Platform Identity tenant access");
+requireText("api/_lib/session-planner-read-gateway.js", "gateway_candidate_mismatch", "Session Planner read canary must fail back on source mismatch");
+forbidText("api/_lib/session-planner-read-gateway.js", "production-canary", "Session Planner production read canary must remain unavailable");
+forbidText("api/app-state.js", "session-planner-read-gateway", "Session Planner read gateway must remain inert until staging promotion evidence is approved");
 requireText("supabase/migrations/20260723002733_session_planner_atomic_migration_rpc.sql", "session_planner_can_operate_migration", "Session Planner migration operators must be authorized for the exact tenant");
 requireText("supabase/migrations/20260723002733_session_planner_atomic_migration_rpc.sql", "p_bundle ->> 'target' <> 'staging'", "Session Planner migration RPC must remain staging-only until promotion is approved");
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "environment: platform-staging", "platform identity snapshot inspection must be staging-only");

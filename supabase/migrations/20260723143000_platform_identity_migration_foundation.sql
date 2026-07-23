@@ -24,6 +24,7 @@ for each row execute function app_private.platform_prevent_hard_delete();
 
 create table if not exists public.platform_identity_migration_runs (
   id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
   target text not null check (target = 'staging'),
   project_ref text not null check (project_ref ~ '^[a-z0-9][a-z0-9-]{2,79}$'),
   operation text not null check (operation in ('backfill', 'rollback')),
@@ -39,13 +40,14 @@ create table if not exists public.platform_identity_migration_runs (
   actor_id uuid not null references auth.users(id) on delete restrict,
   verification_summary jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  completed_at timestamptz
+  completed_at timestamptz,
+  unique (id, organization_id)
 );
 
 create table if not exists public.platform_identity_migration_events (
   id uuid primary key default gen_random_uuid(),
-  run_id uuid not null references public.platform_identity_migration_runs(id)
-    on delete restrict,
+  organization_id uuid not null,
+  run_id uuid not null,
   table_name text not null check (
     table_name in (
       'platform_organizations',
@@ -71,19 +73,31 @@ create table if not exists public.platform_identity_migration_events (
   before_record jsonb,
   after_record jsonb not null,
   actor_id uuid not null references auth.users(id) on delete restrict,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  foreign key (run_id, organization_id)
+    references public.platform_identity_migration_runs(id, organization_id)
+    on delete restrict
 );
 
 create index if not exists platform_identity_migration_runs_created_idx
-  on public.platform_identity_migration_runs (created_at desc);
+  on public.platform_identity_migration_runs (
+    organization_id,
+    created_at desc
+  );
 create index if not exists platform_identity_migration_runs_snapshot_idx
   on public.platform_identity_migration_runs (
+    organization_id,
     snapshot_sha256,
     operation,
     status
   );
 create index if not exists platform_identity_migration_events_run_idx
-  on public.platform_identity_migration_events (run_id, created_at, id);
+  on public.platform_identity_migration_events (
+    organization_id,
+    run_id,
+    created_at,
+    id
+  );
 
 alter table public.platform_identity_migration_runs enable row level security;
 alter table public.platform_identity_migration_events enable row level security;

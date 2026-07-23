@@ -5,11 +5,13 @@ import {
   createPlatformIdentityRollbackSummary,
   createPlatformIdentitySnapshot,
   createPlatformIdentitySnapshotSummary,
+  verifyPlatformIdentityRollbackState,
   verifyPlatformIdentitySnapshot,
 } from "../scripts/lib/platform-identity-snapshot.mjs";
 import {
   buildPlatformIdentitySnapshot,
   collectPlatformIdentitySnapshotRows,
+  loadPlatformIdentitySnapshot,
   storePlatformIdentitySnapshot,
 } from "../scripts/lib/platform-identity-snapshot-io.mjs";
 
@@ -243,6 +245,49 @@ test("Platform Identity rollback refuses unknown new rows and missing baseline r
   );
 });
 
+test("Platform Identity rollback verification proves restored baseline and archived creations", () => {
+  const before = snapshot();
+  const current = structuredClone(before.tables);
+  current.platform_user_profiles.push({
+    user_id: "88888888-8888-4888-8888-888888888888",
+    status: "removed",
+    deleted_at: createdAt,
+    row_version: 2,
+    metadata: { backfillSchema: PLATFORM_IDENTITY_BACKFILL_MARKER },
+  });
+  const verified = verifyPlatformIdentityRollbackState({
+    snapshot: before,
+    currentRowsByTable: current,
+  });
+  const drifted = structuredClone(current);
+  drifted.platform_organizations[0].name = "Changed";
+  const activeCreation = structuredClone(current);
+  activeCreation.platform_user_profiles[1].status = "active";
+  activeCreation.platform_user_profiles[1].deleted_at = null;
+
+  expect(verified).toMatchObject({
+    ok: true,
+    snapshotSha256: before.integrity.contentSha256,
+    blockers: [],
+  });
+  expect(
+    verifyPlatformIdentityRollbackState({
+      snapshot: before,
+      currentRowsByTable: drifted,
+    }).blockers
+  ).toContain(
+    `platform_organizations:${organizationId}:baseline-content-not-restored`
+  );
+  expect(
+    verifyPlatformIdentityRollbackState({
+      snapshot: before,
+      currentRowsByTable: activeCreation,
+    }).blockers
+  ).toContain(
+    "platform_user_profiles:88888888-8888-4888-8888-888888888888:created-row-not-archived"
+  );
+});
+
 test("Platform Identity snapshot validation rejects unreviewed or ambiguous inputs", () => {
   expect(createPlatformIdentitySnapshot({ target: "local" }).ok).toBe(false);
   expect(snapshot({ planSha256: "not-a-hash" }).failures).toContain("A reviewed plan SHA-256 is required.");
@@ -256,9 +301,13 @@ function jsonResponse(payload, status = 200) {
   });
 }
 
-function createSnapshotFetch({ publicBucket = false, corruptReadback = false } = {}) {
+function createSnapshotFetch({
+  publicBucket = false,
+  corruptReadback = false,
+  storedSnapshot = null,
+} = {}) {
   const calls = [];
-  let stored = null;
+  let stored = storedSnapshot;
   const fetchImpl = async (url, request = {}) => {
     const requestUrl = new URL(String(url));
     const method = request.method || "GET";
@@ -343,6 +392,40 @@ test("Platform Identity snapshot storage fails closed on corrupt read-after-writ
   expect(result).toMatchObject({
     ok: false,
     reason: "Stored snapshot failed read-after-write integrity verification.",
+  });
+});
+
+test("Platform Identity snapshot loading requires a private bucket and the expected hash", async () => {
+  const storedSnapshot = snapshot();
+  const harness = createSnapshotFetch({ storedSnapshot });
+  const loaded = await loadPlatformIdentitySnapshot({
+    path: "backups/platform-identity/staging/snapshot.json",
+    expectedContentSha256: storedSnapshot.integrity.contentSha256,
+    config: {
+      url: "https://project.supabase.co",
+      serviceRoleKey: "secret-test-key",
+    },
+    fetchImpl: harness.fetchImpl,
+  });
+  const rejected = await loadPlatformIdentitySnapshot({
+    path: "backups/platform-identity/staging/snapshot.json",
+    expectedContentSha256: "b".repeat(64),
+    config: {
+      url: "https://project.supabase.co",
+      serviceRoleKey: "secret-test-key",
+    },
+    fetchImpl: harness.fetchImpl,
+  });
+
+  expect(loaded).toMatchObject({
+    ok: true,
+    readVerified: true,
+    contentSha256: storedSnapshot.integrity.contentSha256,
+  });
+  expect(loaded.snapshot).toEqual(storedSnapshot);
+  expect(rejected).toMatchObject({
+    ok: false,
+    reason: "Loaded snapshot failed the expected integrity check.",
   });
 });
 

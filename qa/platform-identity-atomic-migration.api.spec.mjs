@@ -55,6 +55,12 @@ test("Platform Identity atomic RPC locks, deduplicates, journals, and proves rev
   expect(executor).toContain(
     "Platform Identity migration revision proof failed for %"
   );
+  expect(executor).toContain(
+    "Platform Identity migration command escaped the reviewed tenant."
+  );
+  expect(executor).toContain(
+    "backfill_run.organization_id = bundle_organization_id"
+  );
   expect(allSql).toContain("organization.row_version = expected_version");
   expect(allSql).toContain("team.row_version = expected_version");
   expect(allSql).toContain("profile.row_version = expected_version");

@@ -382,9 +382,15 @@ export async function executePlatformIdentityBackfill(options = {}) {
     role: "admin",
     adminSource: "platform-identity-backfill",
   };
-  const userResult = options.userIds?.length
-    ? await fetchAuthUsersById(options.userIds, { config, fetchImpl: options.fetchImpl })
-    : await listAuthUsersForBackfill({ config, fetchImpl: options.fetchImpl, limit: options.limit, maxPages: options.maxPages });
+  const readOnlyAuthUsers =
+    !options.apply && Array.isArray(options.readOnlyAuthUsers)
+      ? options.readOnlyAuthUsers.filter((user) => isUuid(user?.id))
+      : null;
+  const userResult = readOnlyAuthUsers
+    ? { ok: true, users: readOnlyAuthUsers }
+    : options.userIds?.length
+      ? await fetchAuthUsersById(options.userIds, { config, fetchImpl: options.fetchImpl })
+      : await listAuthUsersForBackfill({ config, fetchImpl: options.fetchImpl, limit: options.limit, maxPages: options.maxPages });
   if (!userResult.ok) {
     return {
       ok: false,

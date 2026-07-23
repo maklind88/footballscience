@@ -226,6 +226,59 @@ export async function storePlatformIdentitySnapshot({ snapshot, config, fetchImp
   };
 }
 
+export async function loadPlatformIdentitySnapshot({
+  path,
+  expectedContentSha256,
+  config,
+  fetchImpl = fetch,
+  bucket = PLATFORM_IDENTITY_SNAPSHOT_BUCKET,
+} = {}) {
+  if (!normalizeText(path, 900) || !normalizeText(expectedContentSha256, 64)) {
+    return {
+      ok: false,
+      status: 400,
+      reason: "Snapshot path and expected content hash are required.",
+    };
+  }
+  if (
+    !normalizeText(config?.url, 500) ||
+    !normalizeText(config?.serviceRoleKey, 2000)
+  ) {
+    return {
+      ok: false,
+      status: 400,
+      reason: "Supabase server configuration is required.",
+    };
+  }
+  const bucketResult = await verifyPrivateBucket(config, bucket, fetchImpl);
+  if (!bucketResult.ok) return bucketResult;
+  const result = await requestJson(
+    `${config.url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectPath(path)}`,
+    { method: "GET", headers: serviceHeaders(config.serviceRoleKey) },
+    fetchImpl
+  );
+  if (!result.ok) return result;
+  const verification = verifyPlatformIdentitySnapshot(result.payload);
+  if (
+    !verification.ok ||
+    verification.contentSha256 !== normalizeText(expectedContentSha256, 64)
+  ) {
+    return {
+      ok: false,
+      status: 409,
+      reason: "Loaded snapshot failed the expected integrity check.",
+    };
+  }
+  return {
+    ok: true,
+    snapshot: result.payload,
+    bucket,
+    path,
+    contentSha256: verification.contentSha256,
+    readVerified: true,
+  };
+}
+
 export async function buildPlatformIdentitySnapshot(input = {}) {
   const collected = await collectPlatformIdentitySnapshotRows(input);
   if (!collected.ok) return collected;

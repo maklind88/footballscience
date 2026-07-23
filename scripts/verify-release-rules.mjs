@@ -62,6 +62,7 @@ requirePackageScript("security:platform", "node scripts/verify-platform-security
 requirePackageScript("platform:readiness", "node scripts/verify-platform-readiness.mjs");
 requirePackageScript("platform:identity:backfill", "node scripts/platform-identity-backfill.mjs");
 requirePackageScript("platform:identity:snapshot", "node scripts/platform-identity-snapshot.mjs");
+requirePackageScript("platform:identity:staging-drill", "node scripts/platform-identity-staging-drill.mjs");
 
 requireText("vercel.json", "scripts/vercel-ignore-build.mjs", "automatic Vercel production builds must stay blocked");
 requireText("package.json", "npm run storage:guard", "full QA must include the storage key policy gate");
@@ -114,6 +115,18 @@ requireText("scripts/platform-identity-backfill.mjs", "--expected-user-count", "
 requireText("scripts/platform-identity-snapshot.mjs", "CAPTURE_PLATFORM_IDENTITY_SNAPSHOT", "platform identity snapshots must require explicit capture confirmation");
 requireText("scripts/lib/platform-identity-snapshot.mjs", "footballscience-platform-identity-snapshot-v1", "platform identity rollback must use an integrity-checked snapshot schema");
 requireText("scripts/lib/platform-identity-snapshot-io.mjs", "readAfterWriteVerified", "private identity snapshots must be re-read and hash-verified after storage");
+requireText("scripts/platform-identity-staging-drill.mjs", "Platform Identity migration drill is staging-only.", "platform identity migration execution must never target production");
+requireText("scripts/platform-identity-staging-drill.mjs", "Auth user scope changed after snapshot capture.", "platform identity migration must stop when the reviewed auth scope drifts");
+requireText("scripts/platform-identity-staging-drill.mjs", "--expected-bundle-sha256", "platform identity migration must pin the exact reviewed bundle");
+requireText("scripts/lib/platform-identity-migration-operator.mjs", "APPLY_PLATFORM_IDENTITY_ROLLBACK", "platform identity staging drill must execute the reviewed rollback");
+requireText(".github/workflows/platform-identity-atomic-staging-drill.yml", "workflow_dispatch:", "platform identity staging drill must remain manual");
+requireText(".github/workflows/platform-identity-atomic-staging-drill.yml", "environment: platform-staging", "platform identity staging drill must use the protected staging environment");
+requireText(".github/workflows/platform-identity-atomic-staging-drill.yml", "group: platform-identity-write-staging", "platform identity staging writes must be serialized");
+requireText(".github/workflows/platform-identity-atomic-staging-drill.yml", '[ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ]', "platform identity staging drill must require the canonical repository");
+requireText(".github/workflows/platform-identity-atomic-staging-drill.yml", '[ "$GITHUB_REF" != "refs/heads/main" ]', "platform identity staging drill must require canonical main");
+requireText(".github/workflows/platform-identity-atomic-staging-drill.yml", "DRILL_PLATFORM_IDENTITY_STAGING", "platform identity staging drill must require exact write confirmation");
+requireText(".github/workflows/platform-identity-atomic-staging-drill.yml", "report.rollbackVerification?.ok !== true", "platform identity staging drill must fail unless rollback restores the baseline");
+forbidText(".github/workflows/platform-identity-atomic-staging-drill.yml", "platform-production", "platform identity staging drill must not target production");
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "environment: platform-staging", "platform identity snapshot inspection must be staging-only");
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", '[ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ]', "platform identity snapshot inspection must require the canonical repository");
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", '[ "$GITHUB_REF" != "refs/heads/main" ]', "platform identity snapshot inspection must require canonical main");

@@ -134,6 +134,7 @@ test("Platform Identity migration bundle is deterministic, staging-only, and PII
 
   expect(first.ok).toBe(true);
   expect(first).toEqual(second);
+  expect(first.organizationId).toBe(organizationId);
   expect(first.executionEnabled).toBe(false);
   expect(first.transactionRequired).toBe(true);
   expect(verifyPlatformIdentityMigrationBundle(first)).toEqual({

@@ -322,4 +322,58 @@ export function createPlatformIdentityRollbackSummary(plan = {}) {
   };
 }
 
+export function verifyPlatformIdentityRollbackState({
+  snapshot,
+  currentRowsByTable = {},
+} = {}) {
+  const snapshotCheck = verifyPlatformIdentitySnapshot(snapshot);
+  if (!snapshotCheck.ok) {
+    return { ok: false, blockers: [snapshotCheck.reason] };
+  }
+  const currentTables = normalizeTables(currentRowsByTable);
+  const blockers = [];
+  for (const table of TABLES) {
+    const config = TABLE_CONFIG[table];
+    const baseline = new Map(
+      (snapshot.tables[table] || []).map((row) => [rowKey(table, row), row])
+    );
+    const current = new Map(
+      currentTables[table].map((row) => [rowKey(table, row), row])
+    );
+    for (const [key, before] of baseline) {
+      const after = current.get(key);
+      if (!after) {
+        blockers.push(`${table}:${key}:baseline-row-missing`);
+        continue;
+      }
+      if (
+        valuesDiffer(
+          selectFields(before, [...config.scope, ...config.mutable]),
+          selectFields(after, [...config.scope, ...config.mutable])
+        )
+      ) {
+        blockers.push(`${table}:${key}:baseline-content-not-restored`);
+      }
+    }
+    for (const [key, after] of current) {
+      if (baseline.has(key)) continue;
+      if (!isBackfillOwned(after)) {
+        blockers.push(`${table}:${key}:unknown-row-after-rollback`);
+        continue;
+      }
+      const archived = after.status === config.archive;
+      const deletionMarked =
+        table === "platform_tenant_links" || Boolean(after.deleted_at);
+      if (!archived || !deletionMarked) {
+        blockers.push(`${table}:${key}:created-row-not-archived`);
+      }
+    }
+  }
+  return {
+    ok: blockers.length === 0,
+    snapshotSha256: snapshotCheck.contentSha256,
+    blockers: blockers.sort(),
+  };
+}
+
 export const platformIdentitySnapshotTables = TABLES;

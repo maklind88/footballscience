@@ -391,10 +391,10 @@ test("Platform Identity SQL atomically applies, audits, and rolls back a reviewe
        order by type`
     );
     const events = await pg.query(
-      "select count(*)::integer as total from public.platform_identity_migration_events"
+      "select count(*)::integer as total, count(distinct organization_id)::integer as tenants, min(organization_id::text) as organization_id from public.platform_identity_migration_events"
     );
     const runs = await pg.query(
-      "select operation, status, applied_count from public.platform_identity_migration_runs order by operation"
+      "select organization_id::text, operation, status, applied_count from public.platform_identity_migration_runs order by operation"
     );
 
     expect(rollbackResult).toMatchObject({
@@ -409,10 +409,10 @@ test("Platform Identity SQL atomically applies, audits, and rolls back a reviewe
       { type: "profile", status: "removed" },
       { type: "team", status: "archived" },
     ]);
-    expect(events.rows[0].total).toBe(8);
+    expect(events.rows[0]).toEqual({ total: 8, tenants: 1, organization_id: organizationId });
     expect(runs.rows).toEqual([
-      { operation: "backfill", status: "rolled-back", applied_count: 4 },
-      { operation: "rollback", status: "completed", applied_count: 4 },
+      { organization_id: organizationId, operation: "backfill", status: "rolled-back", applied_count: 4 },
+      { organization_id: organizationId, operation: "rollback", status: "completed", applied_count: 4 },
     ]);
   } finally {
     await pg.close();

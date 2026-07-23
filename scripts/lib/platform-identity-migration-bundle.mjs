@@ -282,6 +282,9 @@ function validateBundleInput(input) {
   if (!isUuid(input.actorId)) {
     failures.push("A valid migration actor id is required.");
   }
+  if (!isUuid(input.snapshot?.scope?.organizationId)) {
+    failures.push("A verified snapshot organization id is required.");
+  }
   if (
     !SHA256_PATTERN.test(normalizeText(input.planSha256, 64)) ||
     input.planSha256 !== input.snapshot?.plan?.planSha256
@@ -329,6 +332,7 @@ export function createPlatformIdentityMigrationBundle(input = {}) {
     target: "staging",
     projectRef: input.projectRef,
     operation: input.operation,
+    organizationId: input.snapshot.scope.organizationId,
     actorId: input.actorId,
     requestId: normalizeText(input.requestId, 180),
     createdAt: new Date(input.createdAt).toISOString(),

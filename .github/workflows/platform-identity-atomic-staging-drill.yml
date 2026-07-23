@@ -1,0 +1,184 @@
+name: Platform Identity Atomic Staging Drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Review is read-only. Apply performs the reviewed atomic drill and rollback.
+        required: true
+        default: review
+        type: choice
+        options:
+          - review
+          - apply
+      snapshot_path:
+        description: Exact private snapshot object path from the capture workflow.
+        required: true
+        type: string
+      expected_snapshot_sha256:
+        description: Exact content SHA-256 from the captured private snapshot.
+        required: true
+        type: string
+      expected_plan_sha256:
+        description: Exact SHA-256 from the reviewed identity plan.
+        required: true
+        type: string
+      expected_user_count:
+        description: Exact user count from the reviewed identity plan.
+        required: true
+        type: number
+      request_id:
+        description: Stable request id reused for review and apply.
+        required: true
+        type: string
+      migration_created_at:
+        description: Stable ISO timestamp reused for review and apply.
+        required: true
+        type: string
+      rollback_created_at:
+        description: Stable later ISO timestamp reused for review and apply.
+        required: true
+        type: string
+      expected_bundle_sha256:
+        description: Required for apply; exact bundle SHA-256 from review.
+        required: false
+        type: string
+      confirmation:
+        description: For apply, type DRILL_PLATFORM_IDENTITY_STAGING exactly.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-identity-write-staging
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: platform-staging
+    env:
+      PLATFORM_BACKFILL_TARGET: staging
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF }}
+      PLATFORM_BACKFILL_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}
+      PLATFORM_BACKFILL_ORGANIZATION_ID: ${{ secrets.PLATFORM_BACKFILL_ORGANIZATION_ID }}
+      PLATFORM_BACKFILL_ORGANIZATION_NAME: ${{ vars.PLATFORM_BACKFILL_ORGANIZATION_NAME }}
+      PLATFORM_BACKFILL_ORGANIZATION_SLUG: ${{ vars.PLATFORM_BACKFILL_ORGANIZATION_SLUG }}
+      PLATFORM_BACKFILL_TEAM_ID: ${{ secrets.PLATFORM_BACKFILL_TEAM_ID }}
+      PLATFORM_BACKFILL_TEAM_NAME: ${{ vars.PLATFORM_BACKFILL_TEAM_NAME }}
+      PLATFORM_BACKFILL_TEAM_SLUG: ${{ vars.PLATFORM_BACKFILL_TEAM_SLUG }}
+      PLATFORM_BACKFILL_TEAM_GENDER: ${{ vars.PLATFORM_BACKFILL_TEAM_GENDER }}
+      PLATFORM_BACKFILL_LINKS: ${{ secrets.PLATFORM_BACKFILL_LINKS }}
+      DRILL_MODE: ${{ inputs.mode }}
+      SNAPSHOT_PATH: ${{ inputs.snapshot_path }}
+      EXPECTED_SNAPSHOT_SHA256: ${{ inputs.expected_snapshot_sha256 }}
+      EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
+      EXPECTED_USER_COUNT: ${{ inputs.expected_user_count }}
+      DRILL_REQUEST_ID: ${{ inputs.request_id }}
+      MIGRATION_CREATED_AT: ${{ inputs.migration_created_at }}
+      ROLLBACK_CREATED_AT: ${{ inputs.rollback_created_at }}
+      EXPECTED_BUNDLE_SHA256: ${{ inputs.expected_bundle_sha256 }}
+      DRILL_CONFIRMATION: ${{ inputs.confirmation }}
+    steps:
+      - name: Verify canonical operator context
+        shell: bash
+        run: |
+          if [ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ] ||
+            [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Platform Identity operations require canonical main." >&2
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run qa:supabase
+      - run: npm run platform:identity:backfill:env
+      - name: Verify reviewed drill inputs
+        shell: bash
+        run: |
+          if [[ ! "$EXPECTED_SNAPSHOT_SHA256" =~ ^[0-9a-f]{64}$ ]] ||
+            [[ ! "$EXPECTED_PLAN_SHA256" =~ ^[0-9a-f]{64}$ ]] ||
+            [[ ! "$EXPECTED_USER_COUNT" =~ ^[0-9]+$ ]]; then
+            echo "Reviewed snapshot, plan, and user-count guards are invalid." >&2
+            exit 1
+          fi
+          if [ "$DRILL_MODE" = "apply" ]; then
+            if [ "$DRILL_CONFIRMATION" != "DRILL_PLATFORM_IDENTITY_STAGING" ] ||
+              [[ ! "$EXPECTED_BUNDLE_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "Apply requires exact confirmation and reviewed bundle SHA-256." >&2
+              exit 1
+            fi
+          fi
+      - name: Run atomic staging drill
+        shell: bash
+        run: |
+          args=(
+            --json
+            --snapshot-path "$SNAPSHOT_PATH"
+            --expected-snapshot-sha256 "$EXPECTED_SNAPSHOT_SHA256"
+            --expected-plan-sha256 "$EXPECTED_PLAN_SHA256"
+            --expected-user-count "$EXPECTED_USER_COUNT"
+            --request-id "$DRILL_REQUEST_ID"
+            --migration-created-at "$MIGRATION_CREATED_AT"
+            --rollback-created-at "$ROLLBACK_CREATED_AT"
+            --actor-id "$PLATFORM_BACKFILL_ACTOR_ID"
+            --organization-id "$PLATFORM_BACKFILL_ORGANIZATION_ID"
+            --organization-name "$PLATFORM_BACKFILL_ORGANIZATION_NAME"
+            --organization-slug "$PLATFORM_BACKFILL_ORGANIZATION_SLUG"
+            --team-id "$PLATFORM_BACKFILL_TEAM_ID"
+            --team-name "$PLATFORM_BACKFILL_TEAM_NAME"
+            --team-slug "$PLATFORM_BACKFILL_TEAM_SLUG"
+          )
+          if [ -n "$PLATFORM_BACKFILL_TEAM_GENDER" ]; then
+            args+=(--team-gender "$PLATFORM_BACKFILL_TEAM_GENDER")
+          fi
+          if [ -n "$PLATFORM_BACKFILL_LINKS" ]; then
+            IFS=',' read -ra links <<< "$PLATFORM_BACKFILL_LINKS"
+            for link in "${links[@]}"; do
+              args+=(--link "$link")
+            done
+          fi
+          if [ "$DRILL_MODE" = "apply" ]; then
+            args+=(
+              --apply
+              --confirm "$DRILL_CONFIRMATION"
+              --expected-bundle-sha256 "$EXPECTED_BUNDLE_SHA256"
+            )
+          fi
+          node scripts/platform-identity-staging-drill.mjs "${args[@]}" \
+            > platform-identity-staging-drill-summary.json
+      - name: Verify PII-free terminal result
+        shell: bash
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const report = JSON.parse(fs.readFileSync("platform-identity-staging-drill-summary.json", "utf8"));
+            const apply = process.env.DRILL_MODE === "apply";
+            if (
+              report.ok !== true ||
+              report.piiExposed !== false ||
+              (apply && (
+                report.dryRun !== false ||
+                report.applied !== true ||
+                report.rolledBack !== true ||
+                report.recoveryRequired === true ||
+                report.rollbackVerification?.ok !== true
+              )) ||
+              (!apply && (
+                report.dryRun !== true ||
+                report.applied !== false
+              ))
+            ) {
+              throw new Error("Platform Identity staging drill did not reach a verified safe terminal state.");
+            }
+          '
+          cat platform-identity-staging-drill-summary.json

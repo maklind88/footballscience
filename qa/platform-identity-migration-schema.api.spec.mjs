@@ -41,6 +41,11 @@ test("Platform Identity migration journals are staging-only, bounded, and servic
   expect(migration).toContain(
     "command_count integer not null check (command_count between 0 and 5000)"
   );
+  expect(migration.match(/organization_id uuid not null/g)).toHaveLength(2);
+  expect(migration).toContain("foreign key (run_id, organization_id)");
+  expect(migration).toContain(
+    "references public.platform_identity_migration_runs(id, organization_id)"
+  );
   expect(migration).toContain(
     "alter table public.platform_identity_migration_runs enable row level security"
   );

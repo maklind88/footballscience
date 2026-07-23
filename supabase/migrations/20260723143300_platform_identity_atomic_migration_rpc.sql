@@ -14,6 +14,8 @@ as $$
 declare
   operation_name text := p_bundle ->> 'operation';
   actor_id uuid := nullif(p_bundle ->> 'actorId', '')::uuid;
+  bundle_organization_id uuid :=
+    nullif(p_bundle ->> 'organizationId', '')::uuid;
   bundle_plan_sha256 text := p_bundle ->> 'planSha256';
   bundle_snapshot_sha256 text := p_bundle ->> 'snapshotSha256';
   bundle_project_ref text := p_bundle ->> 'projectRef';
@@ -55,6 +57,7 @@ begin
     or coalesce(bundle_plan_sha256 ~ '^[a-f0-9]{64}$', false) is not true
     or coalesce(bundle_snapshot_sha256 ~ '^[a-f0-9]{64}$', false) is not true
     or coalesce(bundle_project_ref ~ '^[a-z0-9][a-z0-9-]{2,79}$', false) is not true
+    or bundle_organization_id is null
     or bundle_project_ref <> p_expected_project_ref
     or bundle_request_id is null
     or char_length(bundle_request_id) not between 1 and 180
@@ -84,6 +87,7 @@ begin
   );
 
   insert into public.platform_identity_migration_runs (
+    organization_id,
     target,
     project_ref,
     operation,
@@ -98,6 +102,7 @@ begin
     actor_id,
     verification_summary
   ) values (
+    bundle_organization_id,
     'staging',
     bundle_project_ref,
     operation_name,
@@ -197,6 +202,19 @@ begin
         using errcode = 'P0001';
     end if;
 
+    if (
+      case command_value ->> 'table'
+        when 'platform_organizations' then command_result #>> '{after,id}'
+        when 'platform_user_profiles' then
+          command_result #>> '{after,primary_organization_id}'
+        else command_result #>> '{after,organization_id}'
+      end
+    ) <> bundle_organization_id::text then
+      raise exception
+        'Platform Identity migration command escaped the reviewed tenant.'
+        using errcode = '42501';
+    end if;
+
     after_version := (command_result #>> '{after,row_version}')::integer;
     if after_version <> (
       case
@@ -216,6 +234,7 @@ begin
     end if;
 
     insert into public.platform_identity_migration_events (
+      organization_id,
       run_id,
       table_name,
       record_key,
@@ -225,6 +244,7 @@ begin
       after_record,
       actor_id
     ) values (
+      bundle_organization_id,
       run_id,
       command_value ->> 'table',
       (command_value ->> 'key')::uuid,
@@ -249,6 +269,7 @@ begin
     update public.platform_identity_migration_runs backfill_run
        set status = 'rolled-back'
      where backfill_run.operation = 'backfill'
+       and backfill_run.organization_id = bundle_organization_id
        and backfill_run.status = 'completed'
        and backfill_run.plan_sha256 = bundle_plan_sha256
        and backfill_run.snapshot_sha256 = bundle_snapshot_sha256;

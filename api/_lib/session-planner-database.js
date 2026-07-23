@@ -5,8 +5,8 @@ const {
   hashJsonValue,
 } = require("./session-planner-domain-records.js");
 
-const SESSION_PLANNER_DATABASE_MODES = new Set(["planned", "shadow", "database"]);
-const SESSION_PLANNER_DATABASE_READ_MODES = new Set(["shadow", "database"]);
+const SESSION_PLANNER_DATABASE_MODES = new Set(["planned", "shadow"]);
+const SESSION_PLANNER_DATABASE_READ_MODES = new Set(["shadow"]);
 const SESSION_PLANNER_DATABASE_TIMEOUT_MS = 10000;
 const SESSION_PLANNER_DATABASE_SCOPES_ENV = "SESSION_PLANNER_DATABASE_SCOPES";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

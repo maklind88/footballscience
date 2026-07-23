@@ -97,6 +97,30 @@ test("Session Planner database adapter is disabled by default", async () => {
   expect(database.isSessionPlannerDatabaseConfigured({})).toBe(false);
   expect(database.isSessionPlannerDatabaseReadEnabled({ SESSION_PLANNER_DATABASE_MODE: "planned" })).toBe(false);
   expect(database.isSessionPlannerDatabaseReadEnabled({ SESSION_PLANNER_DATABASE_MODE: "shadow" })).toBe(true);
+  expect(database.getSessionPlannerDatabaseMode({ SESSION_PLANNER_DATABASE_MODE: "database" })).toBe("off");
+  expect(database.isSessionPlannerDatabaseReadEnabled({ SESSION_PLANNER_DATABASE_MODE: "database" })).toBe(false);
+});
+
+test("Session Planner database-primary mode stays unavailable before canary promotion", async () => {
+  let called = false;
+  const result = await database.readSessionPlannerDomainSnapshot(
+    { organizationId, teamId },
+    {
+      env: {
+        SESSION_PLANNER_DATABASE_MODE: "database",
+        SESSION_PLANNER_DATABASE_SCOPES: `${organizationId}:${teamId}`,
+      },
+      fetchImpl: async () => { called = true; },
+    }
+  );
+
+  expect(result).toEqual({
+    ok: false,
+    enabled: false,
+    mode: "off",
+    code: "session_planner_database_not_enabled",
+  });
+  expect(called).toBe(false);
 });
 
 test("Session Planner database reads require the exact tenant canary scope", async () => {

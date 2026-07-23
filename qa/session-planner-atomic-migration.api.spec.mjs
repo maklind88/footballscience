@@ -25,6 +25,8 @@ test("Session Planner migration RPC is one server-only atomic command boundary",
   expect(migration).not.toMatch(
     /grant\s+execute\s+on\s+function\s+public\.execute_session_planner_migration_bundle[\s\S]*to\s+(anon|authenticated)/i
   );
+  expect(migration).toContain("p_bundle ->> 'target' <> 'staging'");
+  expect(migration).not.toContain("'staging', 'production'");
 });
 
 test("Session Planner migration RPC locks tenant and exact app-state checkpoint", () => {
@@ -39,7 +41,8 @@ test("Session Planner migration RPC locks tenant and exact app-state checkpoint"
   expect(migration).toMatch(
     /from public\.platform_teams teams[\s\S]*teams\.id = target_team_id[\s\S]*teams\.organization_id = target_organization_id/
   );
-  expect(migration).toMatch(/from auth\.users where id = actor_id/);
+  expect(migration).toContain("app_private.session_planner_can_operate_migration(");
+  expect(migration).toMatch(/from auth\.users actor[\s\S]*actor\.id = p_actor_id/);
 });
 
 test("Session Planner migration commands use optimistic revisions and fail the transaction", () => {
@@ -73,6 +76,19 @@ test("Session Planner migration RPC preserves audit attribution and idempotent l
   );
   expect(migration).toContain("session_planner_migration_runs.status = 'rolled-back'");
   expect(migration).toContain("'containsCoachingContent', false");
+});
+
+test("Session Planner migration operator must be an active platform or tenant administrator", () => {
+  expect(migration).toContain("app_private.session_planner_can_operate_migration");
+  expect(migration).toContain("actor.raw_app_meta_data ->> 'role' = 'admin'");
+  expect(migration).toContain("coalesce(actor.raw_app_meta_data ->> 'status', 'active') = 'active'");
+  expect(migration).toContain("membership.organization_id = p_organization_id");
+  expect(migration).toContain("membership.status = 'active'");
+  expect(migration).toContain("membership.deleted_at is null");
+  expect(migration).toContain("membership.club_id = target_team.club_id");
+  expect(migration).toContain("membership.team_id = target_team.id");
+  expect(migration).toContain("membership.role in ('admin', 'club-admin', 'team-admin')");
+  expect(migration).toContain("migration actor is not authorized for this tenant");
 });
 
 test("Session Planner migration RPC requires distinct explicit confirmations", () => {

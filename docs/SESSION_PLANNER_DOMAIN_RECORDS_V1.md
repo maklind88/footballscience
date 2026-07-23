@@ -64,6 +64,8 @@ SESSION_PLANNER_DATABASE_SCOPES=<organization-uuid>:<team-uuid>
 
 Multiple canary scopes are comma-separated. Wildcards are intentionally unsupported. Every returned session and block must match the requested tenant, supported schema version, positive row revision, unique identity/order, and stored content hash before comparison can run.
 
+Only `planned` and `shadow` are accepted modes in this checkpoint. A value such as `database` deliberately resolves to `off`; database-primary reads cannot be enabled by configuration until the separate canary gateway, immediate app-state fallback, staging proof, and promotion contract exist.
+
 ## Alternatives Rejected
 
 ### Keep enlarging the compatibility document
@@ -162,6 +164,10 @@ npm run session-planner:staging:drill -- \
 ```
 
 A write drill additionally requires `--apply`, the exact confirmation `--confirm=RUN_SESSION_PLANNER_STAGING_DRILL`, and `--expected-bundle-sha256 <reviewed-sha256>` from the dry-run. It refuses a target named production, refuses equal staging/production project refs, and the underlying review verifies that the configured Supabase URL resolves to the expected staging ref before any tenant or data read. Before the first domain write, the drill stores an integrity-bound recovery package containing the exact baseline snapshot, backfill plan, and initial bundle in the existing private backup bucket, rereads it, verifies its integrity hash, and prints a content-free receipt; an existing identical object can be safely reused. The full drill then applies the bundle, proves the source projection, rolls back to the baseline projection, reapplies, and proves idempotency again. All public output remains content-free.
+
+The database independently authorizes the attributed actor before executing any bundle. The actor must be active and either a platform admin or an active organization, club, or team administrator whose membership covers the exact target team. Merely existing in `auth.users` is not sufficient, and normal coaching roles cannot run the migration operator path.
+
+The RPC itself currently accepts only bundles whose target is exactly `staging`. Production execution requires a later, explicit database migration after the staging rollback proof and promotion review; changing an environment variable or operator argument cannot enable it.
 
 If the process is interrupted after the first apply, use the separate recovery command in dry-run mode with the exact private path and package hash from the receipt:
 

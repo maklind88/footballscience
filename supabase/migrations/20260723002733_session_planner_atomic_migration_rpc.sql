@@ -1,7 +1,7 @@
 -- Atomic, server-only Session Planner migration executor.
 --
 -- The application runtime does not call this RPC. It exists only for an
--- explicitly confirmed staging/production migration drill using an already
+-- explicitly confirmed staging-only migration drill using an already
 -- integrity-verified private bundle. Any exception rolls back every command.
 
 create or replace function app_private.session_planner_apply_session_command(
@@ -258,6 +258,57 @@ begin
 end;
 $$;
 
+create or replace function app_private.session_planner_can_operate_migration(
+  p_actor_id uuid,
+  p_organization_id uuid,
+  p_team_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+      from auth.users actor
+     where actor.id = p_actor_id
+       and coalesce(actor.raw_app_meta_data ->> 'status', 'active') = 'active'
+       and (
+         actor.raw_app_meta_data ->> 'role' = 'admin'
+         or exists (
+           select 1
+             from public.platform_memberships membership
+             join public.platform_teams target_team
+               on target_team.id = p_team_id
+              and target_team.organization_id = p_organization_id
+              and target_team.status = 'active'
+              and target_team.deleted_at is null
+            where membership.user_id = p_actor_id
+              and membership.organization_id = p_organization_id
+              and membership.status = 'active'
+              and membership.deleted_at is null
+              and (
+                (
+                  membership.scope = 'organization'
+                  and membership.role = 'admin'
+                )
+                or (
+                  membership.scope = 'club'
+                  and membership.club_id = target_team.club_id
+                  and membership.role in ('admin', 'club-admin')
+                )
+                or (
+                  membership.scope = 'team'
+                  and membership.team_id = target_team.id
+                  and membership.role in ('admin', 'club-admin', 'team-admin')
+                )
+              )
+         )
+       )
+  );
+$$;
+
 create or replace function public.execute_session_planner_migration_bundle(
   p_bundle jsonb,
   p_expected_bundle_sha256 text,
@@ -293,7 +344,7 @@ begin
     or coalesce((p_bundle ->> 'executionEnabled')::boolean, true)
     or coalesce((p_bundle ->> 'transactionRequired')::boolean, false) is not true
     or coalesce((p_bundle ->> 'containsCoachingContent')::boolean, false) is not true
-    or p_bundle ->> 'target' not in ('staging', 'production')
+    or p_bundle ->> 'target' <> 'staging'
     or p_bundle #>> '{source,storageKey}' <> 'football-session-planner-v3'
     or operation_name is null
     or operation_name not in ('backfill', 'rollback') then
@@ -319,8 +370,12 @@ begin
   if p_source_organization_id <> 'global' then
     raise exception 'Session Planner migration source organization must be global.' using errcode = 'P0001';
   end if;
-  if not exists (select 1 from auth.users where id = actor_id) then
-    raise exception 'Session Planner migration actor does not exist.' using errcode = '23503';
+  if not app_private.session_planner_can_operate_migration(
+    actor_id,
+    target_organization_id,
+    target_team_id
+  ) then
+    raise exception 'Session Planner migration actor is not authorized for this tenant.' using errcode = '42501';
   end if;
   if not exists (
     select 1
@@ -469,6 +524,9 @@ revoke all on function app_private.session_planner_apply_session_command(
 revoke all on function app_private.session_planner_apply_block_command(
   jsonb, uuid, uuid, uuid, text
 ) from public, anon, authenticated;
+revoke all on function app_private.session_planner_can_operate_migration(
+  uuid, uuid, uuid
+) from public, anon, authenticated;
 revoke all on function public.execute_session_planner_migration_bundle(
   jsonb, text, text, text
 ) from public, anon, authenticated;
@@ -479,6 +537,9 @@ grant execute on function app_private.session_planner_apply_session_command(
 ) to service_role;
 grant execute on function app_private.session_planner_apply_block_command(
   jsonb, uuid, uuid, uuid, text
+) to service_role;
+grant execute on function app_private.session_planner_can_operate_migration(
+  uuid, uuid, uuid
 ) to service_role;
 grant execute on function public.execute_session_planner_migration_bundle(
   jsonb, text, text, text

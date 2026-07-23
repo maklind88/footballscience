@@ -11,6 +11,7 @@ export function createSessionPlannerTacticalShortcutController(deps = {}) {
     getPlayerBadgeFromKeyboardEvent = () => "",
     getPendingPoint = () => null,
     getSelectedElementIds = () => [],
+    handleBoardKeyboardAction = () => false,
     hasClipboard = () => false,
     isTacticalboardOpen = () => false,
     pasteClipboard = () => false,
@@ -54,6 +55,10 @@ export function createSessionPlannerTacticalShortcutController(deps = {}) {
     const isPasteShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v";
     const isDeleteKey = event.key === "Backspace" || event.key === "Delete";
     const hasSelectedTacticalElements = getSelectedElementIds().length > 0;
+    if (handleBoardKeyboardAction(event)) {
+      markHandled(event);
+      return;
+    }
     if (isUndoShortcut && !isTextEditingTarget) {
       markHandled(event);
       undoSelectedBoardAction();

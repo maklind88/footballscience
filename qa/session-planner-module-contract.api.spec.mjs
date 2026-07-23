@@ -30,6 +30,14 @@ test("Session Planner extraction owns autosave and renderer module boundaries", 
     "src/modules/session-planner/session-planner-renderer.mjs",
     "src/modules/session-planner/session-planner-workspace-controller.mjs",
     "src/modules/session-planner/session-planner-visual-renderer.mjs",
+    "src/modules/session-planner/session-planner-tactical-controller.mjs",
+    "src/modules/session-planner/session-planner-tactical-interaction-controller.mjs",
+    "src/modules/session-planner/session-planner-tactical-arrange-clipboard-controller.mjs",
+    "src/modules/session-planner/session-planner-tactical-selection-helpers.mjs",
+    "src/modules/session-planner/session-planner-tactical-transform-helpers.mjs",
+    "src/modules/session-planner/session-planner-tactical-placement-helpers.mjs",
+    "src/modules/session-planner/session-planner-tactical-line-interaction-helpers.mjs",
+    "src/modules/session-planner/session-planner-tacticalboard.css",
     "src/modules/session-planner/session-planner-player-board-renderer.mjs",
     "src/modules/session-planner/session-planner-print-renderer.mjs",
   ].forEach((path) => {
@@ -182,7 +190,7 @@ test("Session Planner visual renderer owns tactical board pitch, objects, previe
     getDefaultTacticalLineStyle: () => "solid",
     getTacticalCurveControlPoint: () => ({ x: 40, y: 40 }),
     getTacticalDefaultCurveControlPoint: () => ({ x: 40, y: 40 }),
-    isTacticalGoalType: () => false,
+    isTacticalGoalType: (type) => type === "mini-goal" || type === "big-goal",
     isTacticalPlayerType: (type) => ["blue-player", "red-player", "neutral-player"].includes(type),
     normalizeTacticalRotation: (value) => Number(value) || 0,
     normalizeTacticalPlayerBadge: (value) => String(value || "").slice(0, 2),
@@ -225,6 +233,12 @@ test("Session Planner visual renderer owns tactical board pitch, objects, previe
   const livePreviewMarkup = visualRenderer.renderExerciseVisual(block, { large: true, editor: true });
   const previewMarkup = visualRenderer.renderVisualPreviewOverlay(block);
   const tacticalboardMarkup = visualRenderer.renderTacticalboardOverlay(block);
+  const rotationHandleMarkup = visualRenderer.renderTacticalRotationHandle({
+    id: "goal-1",
+    type: "big-goal",
+    x: 50,
+    y: 50,
+  });
 
   expect(pitchMarkup).toContain("session-pitch-diagram-build-up");
   expect(boardMarkup).toContain("data-session-tactical-canvas");
@@ -232,6 +246,15 @@ test("Session Planner visual renderer owns tactical board pitch, objects, previe
   expect(boardMarkup).toContain("session-tactical-selection-box");
   expect(boardMarkup).toContain("session-tactical-player-badge");
   expect(boardMarkup).toContain("session-tactical-number-picker");
+  expect(boardMarkup).toContain('role="group" aria-label="Tactical board canvas"');
+  expect(boardMarkup).toContain('role="button"');
+  expect(boardMarkup).toContain('aria-label="Arrow"');
+  expect(boardMarkup).toContain('aria-pressed="true"');
+  expect(boardMarkup).toContain('aria-label="Blue player 9"');
+  expect(boardMarkup).toContain('data-session-tactical-handle="start"');
+  expect(boardMarkup).toContain('aria-label="Move Arrow start point"');
+  expect(rotationHandleMarkup).toContain('type="button"');
+  expect(rotationHandleMarkup).toContain('aria-label="Rotate 11v11 goal"');
   expect(livePreviewMarkup).toContain('data-session-tactical-element-id="session-tactical-draft-line"');
   expect(livePreviewMarkup).toContain("session-tactical-arrow is-preview");
   expect(livePreviewMarkup).toContain("session-tactical-freehand-preview");
@@ -242,10 +265,14 @@ test("Session Planner visual renderer owns tactical board pitch, objects, previe
   expect(tacticalboardMarkup).toContain("data-session-tactical-color");
   expect(tacticalboardMarkup).toContain("session-tacticalboard-status-strip");
   expect(tacticalboardMarkup).toContain("data-session-tactical-selected-label");
+  expect(tacticalboardMarkup).toContain('data-session-tactical-selected-label aria-live="polite"');
   expect(tacticalboardMarkup).toContain("data-session-tactical-hint-state");
   expect(tacticalboardMarkup).toContain("data-session-tactical-color-choice");
-  expect(readProjectFile("tacticalboard-overrides.css")).toContain("cursor: grab");
-  expect(readProjectFile("tacticalboard-overrides.css")).toContain("cursor: default");
+  expect(tacticalboardMarkup).toContain('aria-pressed="true"');
+  expect(readProjectFile("index.html")).toContain("src/modules/session-planner/session-planner-tacticalboard.css");
+  expect(readProjectFile("src/modules/session-planner/session-planner-tacticalboard.css")).toContain("cursor: grab");
+  expect(readProjectFile("src/modules/session-planner/session-planner-tacticalboard.css")).toContain("cursor: default");
+  expect(readProjectFile("src/modules/session-planner/session-planner-tacticalboard.css")).toContain("@media (pointer: coarse)");
 });
 
 test("Session Planner player board renderer owns player board, Squad Bridge, Assistant, and team tool markup", () => {

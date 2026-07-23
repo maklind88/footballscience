@@ -1252,6 +1252,9 @@ return sessionPlannerTacticalController.handleSessionPlannerTacticalCanvasClick(
 function handleSessionPlannerTacticalCanvasDoubleClick(...args) {
 return sessionPlannerTacticalController.handleSessionPlannerTacticalCanvasDoubleClick(...args);
 }
+function handleSessionPlannerTacticalKeyboardAction(...args) {
+return sessionPlannerTacticalController.handleSessionPlannerTacticalKeyboardAction(...args);
+}
 function startSessionPlannerTacticalDrag(...args) {
 return sessionPlannerTacticalController.startSessionPlannerTacticalDrag(...args);
 }
@@ -2876,6 +2879,7 @@ let profileWorkspaceFlashTimer = null;
     addSessionPlannerTacticalPlacementElement,
     handleSessionPlannerTacticalCanvasClick,
     handleSessionPlannerTacticalCanvasDoubleClick,
+    handleSessionPlannerTacticalKeyboardAction,
     startSessionPlannerTacticalDrag,
     updateSessionPlannerTacticalDrag,
     finishSessionPlannerTacticalDrag,

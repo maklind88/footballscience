@@ -37,6 +37,11 @@ function createController() {
     toasts: [],
     writes: 0,
   };
+  const focusCandidates = [];
+  const canvasWrap = {
+    innerHTML: "",
+    querySelectorAll: () => focusCandidates,
+  };
   const helpers = createSessionPlannerTacticalHelpers({
     clamp: (value, min, max) => Math.min(max, Math.max(min, Number(value))),
     getLineState: () => ({
@@ -87,7 +92,7 @@ function createController() {
     },
     ui: {
       sessionPlannerWorkspace: {
-        querySelector: () => null,
+        querySelector: (selector) => selector === "[data-session-tactical-canvas-wrap]" ? canvasWrap : null,
         querySelectorAll: () => [],
       },
     },
@@ -106,7 +111,7 @@ function createController() {
       Object.assign(localState, patch);
     },
   });
-  return { block, calls, controller, localState };
+  return { block, calls, controller, focusCandidates, localState };
 }
 
 function createCanvasEvent({
@@ -114,6 +119,9 @@ function createCanvasEvent({
   clientY = 0,
   detail = 1,
   elementId = "",
+  handle = "",
+  rotate = false,
+  pointerType = "mouse",
   canvasRect = { left: 0, top: 0, width: 100, height: 100 },
 } = {}) {
   const canvas = {
@@ -121,19 +129,26 @@ function createCanvasEvent({
   };
   const elementTarget = elementId
     ? {
-        dataset: { sessionTacticalElementId: elementId },
+        dataset: {
+          sessionTacticalElementId: elementId,
+          ...(handle ? { sessionTacticalHandle: handle } : {}),
+        },
       }
     : null;
   const event = {
     clientX,
     clientY,
     detail,
+    pointerType,
     preventDefault: () => {},
     stopPropagation: () => {},
     target: {
       closest: (selector) => {
         if (selector === "[data-session-tactical-canvas]") return canvas;
         if (selector === "[data-session-tactical-element-id]") return elementTarget;
+        if (selector === "[data-session-tactical-handle]") return handle ? elementTarget : null;
+        if (selector === "[data-session-tactical-rotate-handle]") return rotate ? elementTarget : null;
+        if (selector === ".session-tactical-number-picker") return null;
         return null;
       },
     },
@@ -326,4 +341,163 @@ test("Session Planner tactical controller applies colour to every selected objec
   expect(firstPlayer.lineWidth).toBe(1.1);
   expect(secondPlayer.lineWidth).toBe(1.1);
   expect(line.lineWidth).toBe(4);
+});
+
+test("Session Planner tactical controller edits only the element and endpoint owned by the active handle", () => {
+  const { block, controller, localState } = createController();
+  controller.addSessionPlannerTacticalElement({
+    type: "curve",
+    x: 10,
+    y: 15,
+    x2: 70,
+    y2: 75,
+    controlX: 40,
+    controlY: 20,
+  });
+  controller.addSessionPlannerTacticalElement({
+    type: "line",
+    x: 20,
+    y: 25,
+    x2: 80,
+    y2: 85,
+  });
+  const [curve, line] = block.tacticalElements;
+
+  controller.startSessionPlannerTacticalDrag(
+    createCanvasEvent({ clientX: 10, clientY: 15, elementId: curve.id, handle: "start" }).event
+  );
+  controller.updateSessionPlannerTacticalDrag(createCanvasEvent({ clientX: 18, clientY: 22 }).event);
+  controller.finishSessionPlannerTacticalDrag();
+
+  expect(curve).toMatchObject({
+    x: 17.5,
+    y: 22.5,
+    x2: 70,
+    y2: 75,
+    controlX: 40,
+    controlY: 20,
+  });
+  expect(line).toMatchObject({ x: 20, y: 25, x2: 80, y2: 85 });
+  expect(localState.sessionPlannerTacticalSelectedElementIds).toEqual([curve.id]);
+
+  controller.startSessionPlannerTacticalDrag(
+    createCanvasEvent({ clientX: 40, clientY: 20, elementId: curve.id, handle: "control" }).event
+  );
+  controller.updateSessionPlannerTacticalDrag(createCanvasEvent({ clientX: 55, clientY: 35 }).event);
+  controller.finishSessionPlannerTacticalDrag();
+
+  expect(curve).toMatchObject({
+    x: 17.5,
+    y: 22.5,
+    x2: 70,
+    y2: 75,
+    controlX: 55,
+    controlY: 35,
+  });
+  expect(line).toMatchObject({ x: 20, y: 25, x2: 80, y2: 85 });
+});
+
+test("Session Planner tactical controller rotates only the goal owned by the active handle", () => {
+  const { block, controller } = createController();
+  controller.addSessionPlannerTacticalElement({ type: "big-goal", x: 50, y: 50, rotation: 0 });
+  controller.addSessionPlannerTacticalElement({ type: "mini-goal", x: 25, y: 25, rotation: 45 });
+  const [firstGoal, secondGoal] = block.tacticalElements;
+
+  controller.startSessionPlannerTacticalDrag(
+    createCanvasEvent({
+      clientX: 50,
+      clientY: 30,
+      elementId: firstGoal.id,
+      rotate: true,
+    }).event
+  );
+  controller.updateSessionPlannerTacticalDrag(createCanvasEvent({ clientX: 70, clientY: 50 }).event);
+  controller.finishSessionPlannerTacticalDrag();
+
+  expect(firstGoal.rotation).toBe(90);
+  expect(secondGoal.rotation).toBe(45);
+});
+
+test("Session Planner tactical controller places a selected tool with one touch tap", () => {
+  const { block, controller, localState } = createController();
+  controller.setSessionPlannerTacticalTool("cone");
+
+  controller.startSessionPlannerTacticalDrag(
+    createCanvasEvent({ clientX: 32, clientY: 44, pointerType: "touch" }).event
+  );
+  controller.finishSessionPlannerTacticalDrag();
+
+  expect(block.tacticalElements).toHaveLength(1);
+  expect(block.tacticalElements[0]).toMatchObject({ type: "cone", x: 32.5, y: 45 });
+  expect(localState.sessionPlannerTacticalSuppressNextClick).toBe(true);
+});
+
+test("Session Planner tactical controller supports keyboard selection, nudge, handles, and goal rotation", () => {
+  const { block, controller, focusCandidates, localState } = createController();
+  controller.addSessionPlannerTacticalElement({ type: "blue-player", x: 10, y: 10 });
+  controller.addSessionPlannerTacticalElement({ type: "line", x: 20, y: 20, x2: 40, y2: 40 });
+  controller.addSessionPlannerTacticalElement({ type: "big-goal", x: 60, y: 60, rotation: 0 });
+  const [player, line, goal] = block.tacticalElements;
+  const focused = [];
+  focusCandidates.push({
+    dataset: { sessionTacticalElementId: player.id },
+    focus: () => focused.push(player.id),
+    getAttribute: () => null,
+    hasAttribute: () => false,
+  });
+  const createKeyEvent = ({ key, elementId, handle = "", rotate = false, shiftKey = false }) => ({
+    key,
+    shiftKey,
+    metaKey: false,
+    ctrlKey: false,
+    preventDefault: () => {},
+    stopPropagation: () => {},
+    target: {
+      closest: (selector) => {
+        if (selector === "[data-session-tactical-element-id]") {
+          return {
+            dataset: {
+              sessionTacticalElementId: elementId,
+              ...(handle ? { sessionTacticalHandle: handle } : {}),
+            },
+          };
+        }
+        if (selector === "[data-session-tactical-handle]") {
+          return handle
+            ? { dataset: { sessionTacticalElementId: elementId, sessionTacticalHandle: handle } }
+            : null;
+        }
+        if (selector === "[data-session-tactical-rotate-handle]") {
+          return rotate ? { dataset: { sessionTacticalElementId: elementId } } : null;
+        }
+        return null;
+      },
+    },
+  });
+
+  expect(
+    controller.handleSessionPlannerTacticalKeyboardAction(
+      createKeyEvent({ key: "Enter", elementId: player.id })
+    )
+  ).toBe(true);
+  expect(localState.sessionPlannerTacticalSelectedElementIds).toEqual([player.id]);
+
+  controller.handleSessionPlannerTacticalKeyboardAction(
+    createKeyEvent({ key: "ArrowRight", elementId: player.id })
+  );
+  expect(player).toMatchObject({ x: 10.5, y: 10 });
+  expect(line).toMatchObject({ x: 20, y: 20, x2: 40, y2: 40 });
+  expect(focused).toContain(player.id);
+
+  controller.handleSessionPlannerTacticalKeyboardAction(
+    createKeyEvent({ key: "ArrowDown", elementId: line.id, handle: "end", shiftKey: true })
+  );
+  expect(line).toMatchObject({ x: 20, y: 20, x2: 40, y2: 42 });
+  expect(player).toMatchObject({ x: 10.5, y: 10 });
+
+  controller.handleSessionPlannerTacticalKeyboardAction(
+    createKeyEvent({ key: "ArrowRight", elementId: goal.id, rotate: true, shiftKey: true })
+  );
+  expect(goal.rotation).toBe(15);
+  expect(line).toMatchObject({ x: 20, y: 20, x2: 40, y2: 42 });
 });

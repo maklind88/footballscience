@@ -178,6 +178,49 @@ style="left: ${left}%; top: ${top}%;"
 function getSessionPlannerVisualElementId(block) {
 return `session-arrow-${String(block?.id || "block").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
+function getSessionPlannerTacticalElementAccessibleLabel(element = {}) {
+const labels = {
+"blue-player": "Blue player",
+"red-player": "Red player",
+"neutral-player": "Neutral player",
+coach: "Coach",
+ball: "Ball",
+cone: "Cone",
+"mini-goal": "Goal",
+"big-goal": "11v11 goal",
+mannequin: "Dummy",
+pole: "Pole",
+gate: "Gate",
+"dashed-line": "Dashed line",
+zone: "Zone",
+"dashed-zone": "Dashed box",
+ellipse: "Circle",
+arrow: "Arrow",
+pass: "Pass",
+run: "Run",
+line: "Line",
+curve: "Curve",
+freehand: "Freehand line",
+text: "Text",
+};
+const baseLabel = labels[element.type] || "Tactical object";
+if (element.type === "text" && element.label) {
+return `${baseLabel}: ${element.label}`;
+}
+const playerBadge = normalizeSessionPlannerTacticalPlayerBadge(element.playerNumber);
+return playerBadge ? `${baseLabel} ${playerBadge}` : baseLabel;
+}
+function getSessionPlannerTacticalElementAccessibilityAttributes(element = {}) {
+if (element.preview) {
+return 'tabindex="-1" aria-hidden="true"';
+}
+return [
+'tabindex="0"',
+'role="button"',
+`aria-label="${escapeHtml(getSessionPlannerTacticalElementAccessibleLabel(element))}"`,
+`aria-pressed="${isSessionPlannerTacticalElementSelected(element.id) ? "true" : "false"}"`,
+].join(" ");
+}
 function renderSessionPlannerTacticalSvgElement(element, arrowId) {
 return renderTacticalBoardSvgElement(element, arrowId, {
   escapeHtml,
@@ -194,6 +237,9 @@ return renderTacticalBoardSvgElement(element, arrowId, {
   classPrefix: "session-tactical",
   hitTargetClassName: "session-tactical-hit-target",
   shapeHitTargetClassName: "session-tactical-shape-hit-target",
+  getAttributes: (candidate, slot) => slot === "hit-target"
+    ? 'tabindex="-1" aria-hidden="true"'
+    : getSessionPlannerTacticalElementAccessibilityAttributes(candidate),
 });
 }
 function renderSessionPlannerTacticalHtmlElement(element) {
@@ -203,12 +249,14 @@ const color = normalizeTacticalColor(element.color, getDefaultTacticalColor(elem
 const rotation = isSessionPlannerTacticalGoalType(element.type) ? normalizeTacticalRotation(element.rotation) : 0;
 const style = `left: ${x}%; top: ${y}%; --session-tactical-color: ${escapeHtml(color)}; --session-tactical-rotation: ${rotation}deg;`;
 const dataAttribute = `data-session-tactical-element-id="${escapeHtml(element.id)}"`;
+const accessibilityAttributes = getSessionPlannerTacticalElementAccessibilityAttributes(element);
 const selectedClass = isSessionPlannerTacticalElementSelected(element.id) ? " is-selected" : "";
 if (element.type === "text") {
 return `
       <span
         class="session-tactical-marker session-tactical-text${selectedClass}"
         ${dataAttribute}
+        ${accessibilityAttributes}
         style="${style}"
       >${escapeHtml(element.label || "Text")}</span>
     `;
@@ -218,8 +266,8 @@ return `
       <span
         class="session-tactical-marker session-tactical-mini-goal${selectedClass}"
         ${dataAttribute}
+        ${accessibilityAttributes}
         style="${style}"
-        aria-hidden="true"
       ></span>
     `;
 }
@@ -228,8 +276,8 @@ return `
       <span
         class="session-tactical-marker session-tactical-big-goal${selectedClass}"
         ${dataAttribute}
+        ${accessibilityAttributes}
         style="${style}"
-        aria-hidden="true"
       ></span>
     `;
 }
@@ -238,8 +286,8 @@ return `
       <span
         class="session-tactical-marker session-tactical-coach${selectedClass}"
         ${dataAttribute}
+        ${accessibilityAttributes}
         style="${style}"
-        aria-label="Coach"
       >C</span>
     `;
 }
@@ -248,8 +296,8 @@ return `
       <span
         class="session-tactical-marker session-tactical-mannequin${selectedClass}"
         ${dataAttribute}
+        ${accessibilityAttributes}
         style="${style}"
-        aria-hidden="true"
       ></span>
     `;
 }
@@ -258,8 +306,8 @@ return `
       <span
         class="session-tactical-marker session-tactical-pole${selectedClass}"
         ${dataAttribute}
+        ${accessibilityAttributes}
         style="${style}"
-        aria-hidden="true"
       ></span>
     `;
 }
@@ -268,8 +316,8 @@ return `
       <span
         class="session-tactical-marker session-tactical-gate${selectedClass}"
         ${dataAttribute}
+        ${accessibilityAttributes}
         style="${style}"
-        aria-hidden="true"
       ></span>
     `;
 }
@@ -278,8 +326,8 @@ return `
       <span
         class="session-tactical-marker session-tactical-cone${selectedClass}"
         ${dataAttribute}
+        ${accessibilityAttributes}
         style="${style}"
-        aria-hidden="true"
       ></span>
     `;
 }
@@ -288,8 +336,8 @@ return `
       <span
         class="session-tactical-marker session-tactical-ball${selectedClass}"
         ${dataAttribute}
+        ${accessibilityAttributes}
         style="${style}"
-        aria-hidden="true"
       ></span>
     `;
 }
@@ -301,8 +349,8 @@ return `
       <span
         class="session-tactical-marker session-tactical-player session-tactical-${escapeHtml(element.type)}${badgeClass}${selectedClass}"
         ${dataAttribute}
+        ${accessibilityAttributes}
         style="${style}"
-        aria-hidden="true"
       >${playerBadge ? `<span class="session-tactical-player-badge${badgeSizeClass}">${escapeHtml(playerBadge)}</span>` : ""}</span>
     `;
 }
@@ -435,14 +483,16 @@ if (!coordinates) {
 return "";
 }
 const elementId = escapeHtml(element.id);
+const elementLabel = getSessionPlannerTacticalElementAccessibleLabel(element);
 const renderHandle = (handle, x, y) => `
-    <span
+    <button
+      type="button"
       class="session-tactical-edit-handle session-tactical-edit-handle-${escapeHtml(handle)}"
       data-session-tactical-element-id="${elementId}"
       data-session-tactical-handle="${escapeHtml(handle)}"
       style="left: ${x}%; top: ${y}%;"
-      aria-hidden="true"
-    ></span>
+      aria-label="Move ${escapeHtml(elementLabel)} ${escapeHtml(handle)} point"
+    ></button>
   `;
 return `
     ${renderHandle("start", coordinates.x, coordinates.y)}
@@ -463,15 +513,16 @@ const y = Number.isFinite(Number(element.y)) ? clamp(Number(element.y), 0, 100) 
 const rotation = normalizeTacticalRotation(element.rotation);
 const offset = element.type === "big-goal" ? "-3.05rem" : "-2.5rem";
 return `
-    <span
+    <button
+      type="button"
       class="session-tactical-rotate-handle"
       data-session-tactical-element-id="${escapeHtml(element.id)}"
       data-session-tactical-rotate-handle
       style="left: ${x}%; top: ${y}%; --session-tactical-rotation: ${rotation}deg; --session-tactical-rotate-offset: ${offset};"
-      aria-hidden="true"
+      aria-label="Rotate ${escapeHtml(getSessionPlannerTacticalElementAccessibleLabel(element))}"
     >
       <span></span>
-    </span>
+    </button>
   `;
 }
 function renderSessionPlannerTacticalPendingMarkers() {
@@ -489,6 +540,7 @@ return `
       <span
         class="session-tactical-marker session-tactical-pending${className ? ` ${className}` : ""}"
         style="left: ${clamp(Number(point.x), 0, 100)}%; top: ${clamp(Number(point.y), 0, 100)}%; --session-tactical-color: ${escapeHtml(getState().color)};"
+        aria-hidden="true"
       ></span>
     `;
 };
@@ -577,13 +629,13 @@ return `
       class="${classNames}"
       aria-label="Exercise tactical visual"
     >
-      <div class="session-visual-board-surface" ${options.editor ? 'data-session-tactical-canvas' : ""}>
+      <div class="session-visual-board-surface" ${options.editor ? 'data-session-tactical-canvas tabindex="0" role="group" aria-label="Tactical board canvas"' : ""}>
         ${
           block.visualImage
             ? `<img class="session-visual-image" src="${escapeHtml(block.visualImage)}" alt="Exercise visual" />`
             : renderSessionPlannerPitchDiagram(block.diagram, { landscape: options.landscape, pitchMode })
         }
-        <svg class="session-tactical-svg-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <svg class="session-tactical-svg-layer" viewBox="0 0 100 100" preserveAspectRatio="none" role="group" aria-label="Drawn tactical elements">
           <defs>
             <marker id="${escapeHtml(arrowId)}" markerWidth="6" markerHeight="6" refX="5.45" refY="3" orient="auto" markerUnits="strokeWidth" viewBox="0 0 6 6">
               <path d="M0.75,0.6 L5.45,3 L0.75,5.4 Z" fill="context-stroke" stroke="context-stroke" stroke-width="0.22" stroke-linejoin="round"></path>
@@ -598,7 +650,7 @@ return `
           }
           ${options.editor ? renderSelectionBox() : ""}
         </svg>
-        <div class="session-tactical-html-layer" aria-hidden="true">
+        <div class="session-tactical-html-layer">
           ${elements.map(renderSessionPlannerTacticalHtmlElement).join("")}
           ${options.editor ? renderSessionPlannerTacticalMeasurementLabels([selectedElement, draftLineElement]) : ""}
           ${selectedElement ? renderSessionPlannerTacticalSelectionHandles(selectedElement) : ""}
@@ -751,6 +803,8 @@ const frameButtons = tacticalFrames
         class="session-tacticalboard-frame${frame.id === activeFrameId ? " is-active" : ""}"
         data-session-tactical-frame="${escapeHtml(frame.id)}"
         title="${escapeHtml(frame.label)}"
+        aria-label="${escapeHtml(frame.label)}"
+        aria-pressed="${frame.id === activeFrameId ? "true" : "false"}"
       >
         ${index + 1}
       </button>
@@ -781,6 +835,7 @@ const colorChoiceButtons = colorChoices
                   style="--session-tactical-swatch: ${escapeHtml(color)};"
                   title="${escapeHtml(label)}"
                   aria-label="${escapeHtml(label)}"
+                  aria-pressed="${normalizedCurrentColor === color ? "true" : "false"}"
                 ></button>
               `)
 .join("");
@@ -793,7 +848,7 @@ return `
             <h2>${escapeHtml(block.title || "Exercise Board")}</h2>
             <div class="session-tacticalboard-status-strip" aria-label="Board state">
               <span data-session-tactical-active-tool-label>${escapeHtml(activeToolLabel)}</span>
-              <span data-session-tactical-selected-label>${escapeHtml(selectedLabel)}</span>
+              <span data-session-tactical-selected-label aria-live="polite">${escapeHtml(selectedLabel)}</span>
               <span data-session-tactical-pitch-label>${escapeHtml(pitchMeasurementLabel)}</span>
             </div>
           </div>
@@ -815,6 +870,7 @@ ${group.tools
                             data-session-tactical-tool="${escapeHtml(tool)}"
                             title="${escapeHtml(label)}"
                             aria-label="${escapeHtml(label)}"
+                            aria-pressed="${getState().tool === tool ? "true" : "false"}"
                           >
                             <span class="session-tactical-tool-icon" aria-hidden="true">${renderSessionPlannerTacticalToolIcon(tool)}</span>
                             <span class="session-tactical-tool-label">${escapeHtml(label)}</span>

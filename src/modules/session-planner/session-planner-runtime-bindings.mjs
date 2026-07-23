@@ -230,6 +230,7 @@ export function bindSessionPlannerRuntimeBindings(deps = {}) {
     getPendingPoint: () => state.sessionPlannerTacticalPendingPoint,
     getPlayerBadgeFromKeyboardEvent: deps.getPlayerBadgeFromKeyboardEvent || (() => ""),
     getSelectedElementIds: runtimeDelegates.getSessionPlannerTacticalSelectedElementIds,
+    handleBoardKeyboardAction: runtimeDelegates.handleSessionPlannerTacticalKeyboardAction,
     hasClipboard: () => (state.sessionPlannerTacticalClipboard || []).length > 0,
     isTacticalboardOpen: () => state.sessionPlannerTacticalboardOpen,
     pasteClipboard: runtimeDelegates.pasteSessionPlannerTacticalClipboard,

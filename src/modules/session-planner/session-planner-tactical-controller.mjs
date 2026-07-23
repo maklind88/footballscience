@@ -1,4 +1,16 @@
 import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
+import { createSessionPlannerTacticalArrangeClipboardController } from "./session-planner-tactical-arrange-clipboard-controller.mjs";
+import { createSessionPlannerTacticalInteractionController } from "./session-planner-tactical-interaction-controller.mjs";
+import { advanceSessionPlannerTacticalLineClick } from "./session-planner-tactical-line-interaction-helpers.mjs";
+import {
+  isSessionPlannerTacticalLineTool as isTacticalLineTool,
+  isSessionPlannerTacticalPlacementTool as isTacticalPlacementTool,
+  SESSION_PLANNER_TACTICAL_TOOLS,
+  shouldPlaceSessionPlannerTacticalDoubleClick as evaluateTacticalDoubleClick,
+  shouldSkipRepeatedSessionPlannerTacticalPlacement as evaluateRepeatedPlacement,
+} from "./session-planner-tactical-placement-helpers.mjs";
+import { createSessionPlannerTacticalSelectionHelpers } from "./session-planner-tactical-selection-helpers.mjs";
+import { createSessionPlannerTacticalTransformHelpers } from "./session-planner-tactical-transform-helpers.mjs";
 
 export function createSessionPlannerTacticalController(deps = {}) {
   const {
@@ -41,6 +53,112 @@ export function createSessionPlannerTacticalController(deps = {}) {
       return true;
     },
   });
+  const selectionHelpers = createSessionPlannerTacticalSelectionHelpers({
+    clamp,
+    getEndpointCoordinates: getSessionPlannerTacticalEndpointCoordinates,
+    isStrokeElement: isSessionPlannerTacticalStrokeElement,
+  });
+  const transformHelpers = createSessionPlannerTacticalTransformHelpers({
+    clamp,
+    cloneElement: cloneSessionPlannerTacticalElement,
+  });
+  const {
+    getBoundsCollection: getSessionPlannerTacticalBoundsCollection,
+    getElementBounds: getSessionPlannerTacticalElementBounds,
+    getElementSelectionPoints: getSessionPlannerTacticalElementSelectionPoints,
+    getSelectionRect: getSessionPlannerTacticalSelectionRectFromState,
+    isElementInSelectionRect: isSessionPlannerTacticalElementInSelectionRect,
+    isPointInRect: isSessionPlannerTacticalPointInRect,
+    uniqueValues,
+  } = selectionHelpers;
+  const {
+    clampMovedPoint: clampMovedTacticalPoint,
+    getArrangeSpacing: getSessionPlannerTacticalArrangeSpacing,
+    moveElementByDelta: moveSessionPlannerTacticalElementByDelta,
+    moveElementCenterTo: moveSessionPlannerTacticalElementCenterTo,
+    moveElementFromInitial: moveSessionPlannerTacticalElementFromInitial,
+  } = transformHelpers;
+  const arrangeClipboardController = createSessionPlannerTacticalArrangeClipboardController({
+    canEdit: canEditSessionPlanner,
+    clamp,
+    clearSelection: clearSessionPlannerTacticalSelection,
+    cloneElement: cloneSessionPlannerTacticalElement,
+    createStableId: createSessionPlannerStableId,
+    getArrangeSpacing: getSessionPlannerTacticalArrangeSpacing,
+    getBoundsCollection: getSessionPlannerTacticalBoundsCollection,
+    getSelectedBlock: getSessionPlannerSelectedBlock,
+    getSelectedElements: getSelectedSessionPlannerTacticalElements,
+    localState: local,
+    moveElementCenterTo: moveSessionPlannerTacticalElementCenterTo,
+    moveElementFromInitial: moveSessionPlannerTacticalElementFromInitial,
+    refreshCanvas: refreshSessionPlannerTacticalboardCanvas,
+    showToast: showSessionPlannerToast,
+  });
+  const {
+    arrangeSelectedElements: arrangeSelectedSessionPlannerTacticalElements,
+    copySelectedElements: copySelectedSessionPlannerTacticalElements,
+    pasteClipboard: pasteSessionPlannerTacticalClipboard,
+  } = arrangeClipboardController;
+  const interactionController = createSessionPlannerTacticalInteractionController({
+    addElement: addSessionPlannerTacticalElement,
+    addPlacementElement: addSessionPlannerTacticalPlacementElement,
+    canEdit: canEditSessionPlanner,
+    clearSelection: clearSessionPlannerTacticalSelection,
+    cloneElement: cloneSessionPlannerTacticalElement,
+    createLineElement: createSessionPlannerLineElement,
+    getCanvasPoint: getSessionPlannerTacticalCanvasPoint,
+    getDragElementIds: getSessionPlannerTacticalDragElementIds,
+    getElementById: getSessionPlannerTacticalElementById,
+    getElementsInRect: getSessionPlannerTacticalElementsInRect,
+    getEndpointCoordinates: getSessionPlannerTacticalEndpointCoordinates,
+    getPointFromRect: getSessionPlannerTacticalPointFromRect,
+    getRotationFromEvent: getSessionPlannerTacticalRotationFromEvent,
+    getSelectedElementIds: getSessionPlannerTacticalSelectedElementIds,
+    getSelectionRect: getSessionPlannerTacticalSelectionRect,
+    isGoalType: isSessionPlannerTacticalGoalType,
+    isLineTool: isSessionPlannerTacticalLineTool,
+    isPlacementTool: isSessionPlannerTacticalPlacementTool,
+    isSelectionToggleModifier: isSessionPlannerTacticalSelectionToggleModifier,
+    localState: local,
+    moveElementByDelta: moveSessionPlannerTacticalElementByDelta,
+    moveElements: moveSessionPlannerTacticalElements,
+    normalizeRotation: normalizeTacticalRotation,
+    refreshCanvas: refreshSessionPlannerTacticalboardCanvas,
+    setClickSuppression: setSessionPlannerTacticalClickSuppression,
+    setSelectedElements: setSessionPlannerTacticalSelectedElements,
+    shouldPlaceDoubleClick: shouldPlaceSessionPlannerTacticalDoubleClick,
+    syncInspector: syncSessionPlannerTacticalboardInspector,
+    toggleSelection: toggleSessionPlannerTacticalElementSelection,
+    updateHandle: updateSessionPlannerTacticalElementHandle,
+  });
+  const {
+    finishDrag: finishSessionPlannerTacticalDrag,
+    handleKeyboardAction: handleSessionPlannerTacticalKeyboardAction,
+    startDrag: startSessionPlannerTacticalDrag,
+    updateDrag: updateSessionPlannerTacticalDrag,
+  } = interactionController;
+
+  function restoreSessionPlannerTacticalFocus(canvasWrap, focusTarget = null) {
+  if (!focusTarget?.elementId) {
+  return;
+  }
+  const candidates = canvasWrap?.querySelectorAll?.("[data-session-tactical-element-id]") || [];
+  const target = Array.from(candidates).find((candidate) => {
+  if (candidate.dataset?.sessionTacticalElementId !== focusTarget.elementId) {
+  return false;
+  }
+  if (focusTarget.handle) {
+  return candidate.dataset?.sessionTacticalHandle === focusTarget.handle;
+  }
+  if (focusTarget.rotate) {
+  return candidate.hasAttribute?.("data-session-tactical-rotate-handle");
+  }
+  return !candidate.dataset?.sessionTacticalHandle
+  && !candidate.hasAttribute?.("data-session-tactical-rotate-handle")
+  && candidate.getAttribute?.("aria-hidden") !== "true";
+  });
+  target?.focus?.({ preventScroll: true });
+  }
 
   function confirmTacticalAction(config = {}) {
   return confirmPlatformAction({
@@ -62,25 +180,16 @@ export function createSessionPlannerTacticalController(deps = {}) {
   }
   canvasWrap.innerHTML = renderSessionPlannerExerciseVisual(block, { large: true, editor: true });
   syncSessionPlannerTacticalboardInspector();
+  restoreSessionPlannerTacticalFocus(canvasWrap, options.focusTarget);
   }
   function isSessionPlannerTacticalLineTool(tool = local.sessionPlannerTacticalTool) {
-  return ["arrow", "pass", "run", "line", "dashed-line", "curve", "zone", "dashed-zone", "ellipse"].includes(tool);
+  return isTacticalLineTool(tool);
   }
   function isSessionPlannerTacticalStrokeElement(element = {}) {
   return Boolean(element) && (isSessionPlannerTacticalLineTool(element.type) || element.type === "freehand");
   }
   function isSessionPlannerTacticalPlacementTool(tool = local.sessionPlannerTacticalTool) {
-  return Boolean(tool) && tool !== "remove" && tool !== "freehand" && !isSessionPlannerTacticalLineTool(tool);
-  }
-  function uniqueValues(values = []) {
-  const seen = new Set();
-  return (Array.isArray(values) ? values : [values]).filter((value) => {
-  if (seen.has(value)) {
-  return false;
-  }
-  seen.add(value);
-  return true;
-  });
+  return isTacticalPlacementTool(tool);
   }
   function getSessionPlannerTacticalSelectedElementIds() {
   const block = getSessionPlannerSelectedBlock();
@@ -118,7 +227,7 @@ export function createSessionPlannerTacticalController(deps = {}) {
   function isSessionPlannerTacticalSelectionToggleModifier(event) {
   return Boolean(event?.metaKey || event?.ctrlKey);
   }
-  function toggleSessionPlannerTacticalElementSelection(elementId) {
+  function toggleSessionPlannerTacticalElementSelection(elementId, options = {}) {
   if (!elementId) {
   return;
   }
@@ -133,7 +242,7 @@ export function createSessionPlannerTacticalController(deps = {}) {
   local.sessionPlannerTacticalDraftLineState = null;
   local.sessionPlannerTacticalSelectionState = null;
   syncSessionPlannerTacticalboardInspector();
-  refreshSessionPlannerTacticalboardCanvas();
+  refreshSessionPlannerTacticalboardCanvas(options);
   }
   function clearSessionPlannerTacticalSelection() {
   setSessionPlannerTacticalSelectedElements([]);
@@ -222,32 +331,7 @@ export function createSessionPlannerTacticalController(deps = {}) {
   : [elementId];
   }
   function setSessionPlannerTacticalTool(tool) {
-  const allowedTools = new Set([
-  "blue-player",
-  "red-player",
-  "neutral-player",
-  "coach",
-  "ball",
-  "cone",
-  "mini-goal",
-  "big-goal",
-  "mannequin",
-  "pole",
-  "gate",
-  "dashed-line",
-  "zone",
-  "dashed-zone",
-  "ellipse",
-  "arrow",
-  "pass",
-  "run",
-  "line",
-  "curve",
-  "freehand",
-  "text",
-  "remove",
-  ]);
-  if (!allowedTools.has(tool)) {
+  if (!SESSION_PLANNER_TACTICAL_TOOLS.has(tool)) {
   return;
   }
   local.sessionPlannerTacticalTool = tool;
@@ -389,135 +473,14 @@ export function createSessionPlannerTacticalController(deps = {}) {
   return block.tacticalElements.find((element) => element.id === elementId) ?? null;
   }
   function getSessionPlannerTacticalSelectionRect(selection = local.sessionPlannerTacticalSelectionState) {
-  if (!selection?.startPoint || !selection?.currentPoint) {
-  return null;
-  }
-  const left = Math.min(selection.startPoint.x, selection.currentPoint.x);
-  const top = Math.min(selection.startPoint.y, selection.currentPoint.y);
-  const right = Math.max(selection.startPoint.x, selection.currentPoint.x);
-  const bottom = Math.max(selection.startPoint.y, selection.currentPoint.y);
-  return {
-  left,
-  top,
-  right,
-  bottom,
-  x: left,
-  y: top,
-  width: right - left,
-  height: bottom - top,
-  };
-  }
-  function getSessionPlannerTacticalElementBounds(element) {
-  if (!element) {
-  return null;
-  }
-  const points = [];
-  const addPoint = (x, y) => {
-  const pointX = Number(x);
-  const pointY = Number(y);
-  if (Number.isFinite(pointX) && Number.isFinite(pointY)) {
-  points.push({
-  x: clamp(pointX, 0, 100),
-  y: clamp(pointY, 0, 100),
-  });
-  }
-  };
-  addPoint(element.x, element.y);
-  addPoint(element.x2, element.y2);
-  if (element.type === "curve") {
-  const curveCoordinates = getSessionPlannerTacticalEndpointCoordinates(element);
-  addPoint(curveCoordinates?.controlX, curveCoordinates?.controlY);
-  }
-  if (Array.isArray(element.points)) {
-  element.points.forEach((point) => addPoint(point.x, point.y));
-  }
-  if (!points.length) {
-  return null;
-  }
-  const left = Math.min(...points.map((point) => point.x));
-  const top = Math.min(...points.map((point) => point.y));
-  const right = Math.max(...points.map((point) => point.x));
-  const bottom = Math.max(...points.map((point) => point.y));
-  const boundsPaddingByType = {
-  "blue-player": 2.4,
-  "red-player": 2.4,
-  "neutral-player": 2.4,
-  coach: 2.5,
-  ball: 1.8,
-  cone: 2.1,
-  "mini-goal": 4.2,
-  "big-goal": 5.2,
-  mannequin: 2.8,
-  pole: 1.6,
-  gate: 3.2,
-  text: 6,
-  };
-  const padding = isSessionPlannerTacticalStrokeElement(element)
-  ? 1.2
-  : boundsPaddingByType[element.type] ?? 2.4;
-  return {
-  left: clamp(left - padding, 0, 100),
-  top: clamp(top - padding, 0, 100),
-  right: clamp(right + padding, 0, 100),
-  bottom: clamp(bottom + padding, 0, 100),
-  };
-  }
-  function isSessionPlannerTacticalPointInRect(point, rect) {
-  return Boolean(point && rect) &&
-  Number(point.x) >= rect.left &&
-  Number(point.x) <= rect.right &&
-  Number(point.y) >= rect.top &&
-  Number(point.y) <= rect.bottom;
-  }
-  function getSessionPlannerTacticalElementSelectionPoints(element) {
-  if (!element) {
-  return [];
-  }
-  const points = [];
-  const addPoint = (x, y) => {
-  const pointX = Number(x);
-  const pointY = Number(y);
-  if (Number.isFinite(pointX) && Number.isFinite(pointY)) {
-  points.push({
-  x: clamp(pointX, 0, 100),
-  y: clamp(pointY, 0, 100),
-  });
-  }
-  };
-  addPoint(element.x, element.y);
-  if (Number.isFinite(Number(element.x2)) && Number.isFinite(Number(element.y2))) {
-  addPoint(element.x2, element.y2);
-  addPoint((Number(element.x) + Number(element.x2)) / 2, (Number(element.y) + Number(element.y2)) / 2);
-  }
-  if (element.type === "curve") {
-  const coordinates = getSessionPlannerTacticalEndpointCoordinates(element);
-  addPoint(coordinates?.controlX, coordinates?.controlY);
-  }
-  if (Array.isArray(element.points)) {
-  element.points.forEach((point) => addPoint(point.x, point.y));
-  }
-  const bounds = getSessionPlannerTacticalElementBounds(element);
-  if (bounds) {
-  addPoint((bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2);
-  }
-  return points;
-  }
-  function isSessionPlannerTacticalElementInSelectionRect(element, rect) {
-  if (!element || !rect) {
-  return false;
-  }
-  return getSessionPlannerTacticalElementSelectionPoints(element).some((point) =>
-  isSessionPlannerTacticalPointInRect(point, rect)
-  );
+  return getSessionPlannerTacticalSelectionRectFromState(selection);
   }
   function getSessionPlannerTacticalElementsInRect(rect) {
   const block = getSessionPlannerSelectedBlock();
   if (!rect || !block || !Array.isArray(block.tacticalElements)) {
   return [];
   }
-  return block.tacticalElements.filter((element) =>
-  isSessionPlannerTacticalElementInSelectionRect(element, rect)
-  );
+  return selectionHelpers.getElementsInRect(block.tacticalElements, rect);
   }
   function renderSessionPlannerTacticalSelectionBox() {
   const rect = getSessionPlannerTacticalSelectionRect();
@@ -649,37 +612,6 @@ export function createSessionPlannerTacticalController(deps = {}) {
   updateSelectedSessionPlannerTacticalElement({ lineStyle: local.sessionPlannerTacticalLineStyle });
   }
   }
-  function clampMovedTacticalPoint(point, deltaX, deltaY) {
-  return {
-  x: clamp(Number(point.x) + deltaX, 0, 100),
-  y: clamp(Number(point.y) + deltaY, 0, 100),
-  };
-  }
-  function moveSessionPlannerTacticalElementFromInitial(element, initial, deltaX, deltaY) {
-  if (!element || !initial) {
-  return;
-  }
-  const moved = clampMovedTacticalPoint(initial, deltaX, deltaY);
-  element.x = moved.x;
-  element.y = moved.y;
-  if (Number.isFinite(Number(initial.x2)) && Number.isFinite(Number(initial.y2))) {
-  const movedEnd = clampMovedTacticalPoint({ x: initial.x2, y: initial.y2 }, deltaX, deltaY);
-  element.x2 = movedEnd.x;
-  element.y2 = movedEnd.y;
-  }
-  if (Number.isFinite(Number(initial.controlX)) && Number.isFinite(Number(initial.controlY))) {
-  const movedControl = clampMovedTacticalPoint(
-  { x: initial.controlX, y: initial.controlY },
-  deltaX,
-  deltaY
-  );
-  element.controlX = movedControl.x;
-  element.controlY = movedControl.y;
-  }
-  if (Array.isArray(initial.points)) {
-  element.points = initial.points.map((point) => clampMovedTacticalPoint(point, deltaX, deltaY));
-  }
-  }
   function moveSessionPlannerTacticalElements(elementIds = [], deltaX, deltaY) {
   const initialElements = Array.isArray(local.sessionPlannerTacticalDragState?.initialElements)
   ? local.sessionPlannerTacticalDragState.initialElements
@@ -692,160 +624,6 @@ export function createSessionPlannerTacticalController(deps = {}) {
   moveSessionPlannerTacticalElementFromInitial(element, initial, deltaX, deltaY);
   }
   });
-  }
-  function moveSessionPlannerTacticalElementByDelta(element, deltaX, deltaY) {
-  if (!element) {
-  return;
-  }
-  moveSessionPlannerTacticalElementFromInitial(
-  element,
-  cloneSessionPlannerTacticalElement(element),
-  deltaX,
-  deltaY
-  );
-  }
-  function getSessionPlannerTacticalBoundsCollection(elements = []) {
-  const items = elements
-  .map((element) => {
-  const bounds = getSessionPlannerTacticalElementBounds(element);
-  if (!bounds) {
-  return null;
-  }
-  return {
-  element,
-  bounds,
-  centerX: (bounds.left + bounds.right) / 2,
-  centerY: (bounds.top + bounds.bottom) / 2,
-  };
-  })
-  .filter(Boolean);
-  if (!items.length) {
-  return null;
-  }
-  return {
-  items,
-  left: Math.min(...items.map((item) => item.bounds.left)),
-  right: Math.max(...items.map((item) => item.bounds.right)),
-  top: Math.min(...items.map((item) => item.bounds.top)),
-  bottom: Math.max(...items.map((item) => item.bounds.bottom)),
-  };
-  }
-  function getSessionPlannerTacticalArrangeSpacing(count, span, fallback = 5.2) {
-  if (count <= 1) {
-  return 0;
-  }
-  const availableSpan = Math.abs(Number(span));
-  if (Number.isFinite(availableSpan) && availableSpan >= count * 2.6) {
-  return clamp(availableSpan / (count - 1), 3.2, 9.5);
-  }
-  return fallback;
-  }
-  function moveSessionPlannerTacticalElementCenterTo(item, targetCenterX, targetCenterY) {
-  if (!item?.element) {
-  return;
-  }
-  const deltaX = Number(targetCenterX) - item.centerX;
-  const deltaY = Number(targetCenterY) - item.centerY;
-  moveSessionPlannerTacticalElementByDelta(item.element, deltaX, deltaY);
-  }
-  function arrangeSelectedSessionPlannerTacticalElements(mode) {
-  if (!canEditSessionPlanner()) {
-  return;
-  }
-  const collection = getSessionPlannerTacticalBoundsCollection(getSelectedSessionPlannerTacticalElements());
-  if (!collection || collection.items.length < 2) {
-  showSessionPlannerToast("Select at least two items to arrange.", "warning");
-  return;
-  }
-  const count = collection.items.length;
-  const centerX = (collection.left + collection.right) / 2;
-  const centerY = (collection.top + collection.bottom) / 2;
-  const sortedItems = [...collection.items].sort((a, b) =>
-  a.centerY === b.centerY ? a.centerX - b.centerX : a.centerY - b.centerY
-  );
-  if (mode === "row") {
-  const rowItems = [...collection.items].sort((a, b) => a.centerX - b.centerX);
-  const spacing = getSessionPlannerTacticalArrangeSpacing(count, collection.right - collection.left, 5);
-  const startX = clamp(centerX - (spacing * (count - 1)) / 2, 3, 97 - spacing * (count - 1));
-  rowItems.forEach((item, index) => {
-  moveSessionPlannerTacticalElementCenterTo(item, startX + spacing * index, centerY);
-  });
-  } else if (mode === "column") {
-  const columnItems = [...collection.items].sort((a, b) => a.centerY - b.centerY);
-  const spacing = getSessionPlannerTacticalArrangeSpacing(count, collection.bottom - collection.top, 4.6);
-  const startY = clamp(centerY - (spacing * (count - 1)) / 2, 3, 97 - spacing * (count - 1));
-  columnItems.forEach((item, index) => {
-  moveSessionPlannerTacticalElementCenterTo(item, centerX, startY + spacing * index);
-  });
-  } else {
-  const columns = Math.ceil(Math.sqrt(count));
-  const rows = Math.ceil(count / columns);
-  const spacingX = 5.4;
-  const spacingY = 4.9;
-  const startX = clamp(centerX - (spacingX * (columns - 1)) / 2, 3, 97 - spacingX * (columns - 1));
-  const startY = clamp(centerY - (spacingY * (rows - 1)) / 2, 3, 97 - spacingY * (rows - 1));
-  sortedItems.forEach((item, index) => {
-  const columnIndex = index % columns;
-  const rowIndex = Math.floor(index / columns);
-  moveSessionPlannerTacticalElementCenterTo(item, startX + spacingX * columnIndex, startY + spacingY * rowIndex);
-  });
-  }
-  refreshSessionPlannerTacticalboardCanvas({ persist: true });
-  showSessionPlannerToast(`Arranged ${count} selected item${count === 1 ? "" : "s"}.`);
-  }
-  function copySelectedSessionPlannerTacticalElements() {
-  if (!canEditSessionPlanner()) {
-  return false;
-  }
-  const selectedElements = getSelectedSessionPlannerTacticalElements();
-  if (!selectedElements.length) {
-  showSessionPlannerToast("Select players or tools first.", "error");
-  return false;
-  }
-  local.sessionPlannerTacticalClipboard = selectedElements.map(cloneSessionPlannerTacticalElement);
-  local.sessionPlannerTacticalClipboardPasteCount = 0;
-  showSessionPlannerToast(
-  `Copied: ${selectedElements.length} item${selectedElements.length === 1 ? "" : "s"}. Paste with Cmd/Ctrl+V.`
-  );
-  return true;
-  }
-  function pasteSessionPlannerTacticalClipboard() {
-  if (!canEditSessionPlanner()) {
-  return false;
-  }
-  const block = getSessionPlannerSelectedBlock();
-  if (!block) {
-  return false;
-  }
-  if (!local.sessionPlannerTacticalClipboard.length) {
-  showSessionPlannerToast("Nothing copied yet.", "error");
-  return false;
-  }
-  if (!Array.isArray(block.tacticalElements)) {
-  block.tacticalElements = [];
-  }
-  const baseOffset = Math.min(
-  4.5,
-  Math.max(2.2, local.sessionPlannerTacticalClipboard.length > 1 ? 2.8 : 3.6)
-  );
-  const copyOffset = baseOffset * (local.sessionPlannerTacticalClipboardPasteCount + 1);
-  const duplicatedElements = local.sessionPlannerTacticalClipboard.map((element) => {
-  const duplicate = cloneSessionPlannerTacticalElement({
-  ...element,
-  id: createSessionPlannerStableId("tactical"),
-  });
-  moveSessionPlannerTacticalElementFromInitial(duplicate, element, copyOffset, copyOffset);
-  return duplicate;
-  });
-  block.tacticalElements.push(...duplicatedElements);
-  local.sessionPlannerTacticalClipboardPasteCount += 1;
-  clearSessionPlannerTacticalSelection();
-  local.sessionPlannerTacticalPendingPoint = null;
-  local.sessionPlannerTacticalDraftLineState = null;
-  local.sessionPlannerTacticalSelectionState = null;
-  refreshSessionPlannerTacticalboardCanvas({ persist: true });
-  showSessionPlannerToast(`Pasted: ${duplicatedElements.length} item${duplicatedElements.length === 1 ? "" : "s"}.`);
-  return true;
   }
   function isSessionPlannerTacticalEndpointElement(element = {}) {
   return isSessionPlannerTacticalLineTool(element.type);
@@ -883,38 +661,22 @@ export function createSessionPlannerTacticalController(deps = {}) {
   return normalizeTacticalRotation(angle);
   }
   function shouldPlaceSessionPlannerTacticalDoubleClick(point) {
-  if (!point || !isSessionPlannerTacticalPlacementTool()) {
-  local.sessionPlannerTacticalLastPlacementClick = null;
-  return false;
-  }
-  const now = Date.now();
-  const previousClick = local.sessionPlannerTacticalLastPlacementClick;
-  local.sessionPlannerTacticalLastPlacementClick = {
+  const result = evaluateTacticalDoubleClick({
+  point,
+  previousClick: local.sessionPlannerTacticalLastPlacementClick,
   tool: local.sessionPlannerTacticalTool,
-  x: point.x,
-  y: point.y,
-  time: now,
-  };
-  if (!previousClick || previousClick.tool !== local.sessionPlannerTacticalTool) {
-  return false;
-  }
-  const distance = Math.hypot(point.x - previousClick.x, point.y - previousClick.y);
-  return now - previousClick.time <= 520 && distance <= 4.5;
+  });
+  local.sessionPlannerTacticalLastPlacementClick = result.nextClick;
+  return result.shouldPlace;
   }
   function shouldSkipRepeatedSessionPlannerTacticalPlacement(point) {
-  const now = Date.now();
-  const previousPlacement = local.sessionPlannerTacticalLastPlacement;
-  local.sessionPlannerTacticalLastPlacement = {
+  const result = evaluateRepeatedPlacement({
+  point,
+  previousPlacement: local.sessionPlannerTacticalLastPlacement,
   tool: local.sessionPlannerTacticalTool,
-  x: point.x,
-  y: point.y,
-  time: now,
-  };
-  if (!previousPlacement || previousPlacement.tool !== local.sessionPlannerTacticalTool) {
-  return false;
-  }
-  const distance = Math.hypot(point.x - previousPlacement.x, point.y - previousPlacement.y);
-  return now - previousPlacement.time < 350 && distance < 0.8;
+  });
+  local.sessionPlannerTacticalLastPlacement = result.nextPlacement;
+  return result.shouldSkip;
   }
   function addSessionPlannerTacticalPlacementElement(point) {
   if (!point || !isSessionPlannerTacticalPlacementTool()) {
@@ -975,7 +737,9 @@ export function createSessionPlannerTacticalController(deps = {}) {
   setSessionPlannerTacticalSelectedElements([elementId], elementId);
   local.sessionPlannerTacticalPendingPoint = null;
   local.sessionPlannerTacticalDraftLineState = null;
-  refreshSessionPlannerTacticalboardCanvas();
+  refreshSessionPlannerTacticalboardCanvas({
+  focusTarget: { elementId },
+  });
   return;
   }
   clearSessionPlannerTacticalSelection();
@@ -986,48 +750,23 @@ export function createSessionPlannerTacticalController(deps = {}) {
   return;
   }
   const point = getSessionPlannerTacticalCanvasPoint(event, canvas);
-  const { x, y } = point;
   if (isSessionPlannerTacticalLineTool()) {
-  if (local.sessionPlannerTacticalTool === "curve") {
-  const pendingCurve = local.sessionPlannerTacticalPendingPoint?.type === "curve"
-  ? local.sessionPlannerTacticalPendingPoint
-  : null;
-  if (!pendingCurve) {
-  local.sessionPlannerTacticalPendingPoint = {
-  ...point,
-  type: "curve",
-  startPoint: point,
-  controlPoint: null,
-  };
-  refreshSessionPlannerTacticalboardCanvas();
-  return;
-  }
-  if (!pendingCurve.controlPoint) {
-  local.sessionPlannerTacticalPendingPoint = {
-  ...pendingCurve,
-  controlPoint: point,
-  };
-  refreshSessionPlannerTacticalboardCanvas();
-  return;
-  }
-  addSessionPlannerTacticalElement(
-  createSessionPlannerLineElement("curve", pendingCurve.startPoint || pendingCurve, point, {
-  controlPoint: pendingCurve.controlPoint,
-  })
+  const lineAction = advanceSessionPlannerTacticalLineClick(
+  local.sessionPlannerTacticalTool,
+  local.sessionPlannerTacticalPendingPoint,
+  point
   );
-  local.sessionPlannerTacticalPendingPoint = null;
-  return;
-  }
-  if (!local.sessionPlannerTacticalPendingPoint) {
-  local.sessionPlannerTacticalPendingPoint = { ...point, type: local.sessionPlannerTacticalTool };
+  if (lineAction.action === "pending") {
+  local.sessionPlannerTacticalPendingPoint = lineAction.pendingPoint;
   refreshSessionPlannerTacticalboardCanvas();
   return;
   }
   addSessionPlannerTacticalElement(
   createSessionPlannerLineElement(
-  local.sessionPlannerTacticalTool,
-  local.sessionPlannerTacticalPendingPoint,
-  point
+  lineAction.type,
+  lineAction.from,
+  lineAction.to,
+  lineAction.options
   )
   );
   local.sessionPlannerTacticalPendingPoint = null;
@@ -1063,311 +802,6 @@ export function createSessionPlannerTacticalController(deps = {}) {
   }
   const point = getSessionPlannerTacticalCanvasPoint(event, canvas);
   addSessionPlannerTacticalPlacementElement(point);
-  }
-  function startSessionPlannerTacticalDrag(event) {
-  if (!canEditSessionPlanner() || !local.sessionPlannerTacticalboardOpen) {
-  return;
-  }
-  if (event.target.closest?.(".session-tactical-number-picker")) {
-  return;
-  }
-  const canvas = event.target.closest?.("[data-session-tactical-canvas]");
-  if (!canvas) {
-  return;
-  }
-  const toggleTrigger = event.target.closest?.("[data-session-tactical-element-id]");
-  if (toggleTrigger && isSessionPlannerTacticalSelectionToggleModifier(event) && local.sessionPlannerTacticalTool !== "remove") {
-  event.preventDefault();
-  event.stopPropagation();
-  toggleSessionPlannerTacticalElementSelection(toggleTrigger.dataset.sessionTacticalElementId || "");
-  setSessionPlannerTacticalClickSuppression(true);
-  return;
-  }
-  const handleTrigger = event.target.closest?.("[data-session-tactical-handle]");
-  if (handleTrigger && local.sessionPlannerTacticalTool !== "remove") {
-  const element = getSessionPlannerTacticalElementById(handleTrigger.dataset.sessionTacticalElementId);
-  if (!element) {
-  return;
-  }
-  event.preventDefault();
-  setSessionPlannerTacticalSelectedElements([element.id], element.id);
-  local.sessionPlannerTacticalNumberPickerElementId = "";
-  local.sessionPlannerTacticalPendingPoint = null;
-  local.sessionPlannerTacticalDraftLineState = null;
-  local.sessionPlannerTacticalDragState = {
-  elementId: element.id,
-  handle: handleTrigger.dataset.sessionTacticalHandle,
-  canvasRect: canvas.getBoundingClientRect(),
-  moved: false,
-  };
-  refreshSessionPlannerTacticalboardCanvas();
-  return;
-  }
-  const rotateTrigger = event.target.closest?.("[data-session-tactical-rotate-handle]");
-  if (rotateTrigger && local.sessionPlannerTacticalTool !== "remove") {
-  const element = getSessionPlannerTacticalElementById(rotateTrigger.dataset.sessionTacticalElementId);
-  if (!isSessionPlannerTacticalGoalType(element?.type)) {
-  return;
-  }
-  event.preventDefault();
-  setSessionPlannerTacticalSelectedElements([element.id], element.id);
-  local.sessionPlannerTacticalNumberPickerElementId = "";
-  local.sessionPlannerTacticalPendingPoint = null;
-  local.sessionPlannerTacticalDraftLineState = null;
-  local.sessionPlannerTacticalDragState = {
-  elementId: element.id,
-  rotate: true,
-  canvasRect: canvas.getBoundingClientRect(),
-  moved: false,
-  };
-  return;
-  }
-  const elementTrigger = event.target.closest?.("[data-session-tactical-element-id]");
-  if (elementTrigger && local.sessionPlannerTacticalTool !== "remove") {
-  const element = getSessionPlannerTacticalElementById(elementTrigger.dataset.sessionTacticalElementId);
-  if (!element) {
-  return;
-  }
-  event.preventDefault();
-  const dragIds = getSessionPlannerTacticalDragElementIds(event, element.id);
-  const initialElements = dragIds
-  .map((elementId) => getSessionPlannerTacticalElementById(elementId))
-  .filter(Boolean)
-  .map(cloneSessionPlannerTacticalElement);
-  setSessionPlannerTacticalSelectedElements(dragIds, element.id);
-  local.sessionPlannerTacticalNumberPickerElementId = "";
-  local.sessionPlannerTacticalPendingPoint = null;
-  local.sessionPlannerTacticalDraftLineState = null;
-  syncSessionPlannerTacticalboardInspector();
-  local.sessionPlannerTacticalDragState = {
-  elementId: element.id,
-  elementIds: dragIds,
-  canvasRect: canvas.getBoundingClientRect(),
-  startPoint: getSessionPlannerTacticalCanvasPoint(event, canvas),
-  initialElement: cloneSessionPlannerTacticalElement(element),
-  initialElements,
-  moved: false,
-  };
-  return;
-  }
-  if (isSessionPlannerTacticalPlacementTool()) {
-  event.preventDefault();
-  local.sessionPlannerTacticalNumberPickerElementId = "";
-  const canvasRect = canvas.getBoundingClientRect();
-  const point = getSessionPlannerTacticalCanvasPoint(event, canvas, { snap: false });
-  local.sessionPlannerTacticalPendingPoint = null;
-  local.sessionPlannerTacticalDraftLineState = null;
-  local.sessionPlannerTacticalSelectionState = {
-  canvasRect,
-  startPoint: point,
-  currentPoint: point,
-  moved: false,
-  };
-  return;
-  }
-  if (local.sessionPlannerTacticalTool === "freehand") {
-  event.preventDefault();
-  const canvasRect = canvas.getBoundingClientRect();
-  const point = getSessionPlannerTacticalCanvasPoint(event, canvas, { snap: false });
-  local.sessionPlannerTacticalFreehandState = {
-  canvasRect,
-  points: [point],
-  color: local.sessionPlannerTacticalColor,
-  lineWidth: local.sessionPlannerTacticalLineWidth,
-  lineStyle: local.sessionPlannerTacticalLineStyle,
-  };
-  refreshSessionPlannerTacticalboardCanvas();
-  return;
-  }
-  if (isSessionPlannerTacticalLineTool()) {
-  event.preventDefault();
-  const canvasRect = canvas.getBoundingClientRect();
-  const point = getSessionPlannerTacticalCanvasPoint(event, canvas);
-  const pendingPointAtStart = local.sessionPlannerTacticalPendingPoint
-  ? { ...local.sessionPlannerTacticalPendingPoint }
-  : null;
-  clearSessionPlannerTacticalSelection();
-  local.sessionPlannerTacticalPendingPoint = null;
-  local.sessionPlannerTacticalDraftLineState = {
-  type: local.sessionPlannerTacticalTool,
-  canvasRect,
-  startPoint: point,
-  currentPoint: point,
-  pendingPointAtStart,
-  moved: false,
-  };
-  refreshSessionPlannerTacticalboardCanvas();
-  }
-  }
-  function updateSessionPlannerTacticalDrag(event) {
-  if (local.sessionPlannerTacticalDraftLineState) {
-  const point = getSessionPlannerTacticalPointFromRect(event, local.sessionPlannerTacticalDraftLineState.canvasRect);
-  const distance = Math.hypot(
-  point.x - local.sessionPlannerTacticalDraftLineState.startPoint.x,
-  point.y - local.sessionPlannerTacticalDraftLineState.startPoint.y
-  );
-  local.sessionPlannerTacticalDraftLineState.currentPoint = point;
-  local.sessionPlannerTacticalDraftLineState.moved = distance > 0.35;
-  refreshSessionPlannerTacticalboardCanvas();
-  return;
-  }
-  if (local.sessionPlannerTacticalSelectionState) {
-  const point = getSessionPlannerTacticalPointFromRect(event, local.sessionPlannerTacticalSelectionState.canvasRect, { snap: false });
-  const distance = Math.hypot(
-  point.x - local.sessionPlannerTacticalSelectionState.startPoint.x,
-  point.y - local.sessionPlannerTacticalSelectionState.startPoint.y
-  );
-  local.sessionPlannerTacticalSelectionState.currentPoint = point;
-  local.sessionPlannerTacticalSelectionState.moved = distance > 0.35;
-  refreshSessionPlannerTacticalboardCanvas();
-  return;
-  }
-  if (local.sessionPlannerTacticalDragState) {
-  const point = getSessionPlannerTacticalPointFromRect(event, local.sessionPlannerTacticalDragState.canvasRect);
-  if (local.sessionPlannerTacticalDragState.handle) {
-  updateSessionPlannerTacticalElementHandle(
-  local.sessionPlannerTacticalDragState.elementId,
-  local.sessionPlannerTacticalDragState.handle,
-  point
-  );
-  local.sessionPlannerTacticalDragState.moved = true;
-  refreshSessionPlannerTacticalboardCanvas();
-  return;
-  }
-  if (local.sessionPlannerTacticalDragState.rotate) {
-  const element = getSessionPlannerTacticalElementById(local.sessionPlannerTacticalDragState.elementId);
-  if (isSessionPlannerTacticalGoalType(element?.type)) {
-  element.rotation = getSessionPlannerTacticalRotationFromEvent(
-  event,
-  element,
-  local.sessionPlannerTacticalDragState.canvasRect
-  );
-  local.sessionPlannerTacticalDragState.moved = true;
-  refreshSessionPlannerTacticalboardCanvas();
-  }
-  return;
-  }
-  const deltaX = point.x - local.sessionPlannerTacticalDragState.startPoint.x;
-  const deltaY = point.y - local.sessionPlannerTacticalDragState.startPoint.y;
-  if (Math.abs(deltaX) > 0.1 || Math.abs(deltaY) > 0.1) {
-  local.sessionPlannerTacticalDragState.moved = true;
-  moveSessionPlannerTacticalElements(
-  local.sessionPlannerTacticalDragState.elementIds ?? [local.sessionPlannerTacticalDragState.elementId],
-  deltaX,
-  deltaY
-  );
-  refreshSessionPlannerTacticalboardCanvas();
-  }
-  return;
-  }
-  if (local.sessionPlannerTacticalFreehandState) {
-  const point = getSessionPlannerTacticalPointFromRect(event, local.sessionPlannerTacticalFreehandState.canvasRect, { snap: false });
-  const lastPoint = local.sessionPlannerTacticalFreehandState.points.at(-1);
-  const distance = Math.hypot(point.x - lastPoint.x, point.y - lastPoint.y);
-  if (distance > 0.55) {
-  local.sessionPlannerTacticalFreehandState.points.push(point);
-  refreshSessionPlannerTacticalboardCanvas();
-  }
-  }
-  }
-  function finishSessionPlannerTacticalDrag() {
-  if (local.sessionPlannerTacticalDraftLineState) {
-  const draftLine = local.sessionPlannerTacticalDraftLineState;
-  local.sessionPlannerTacticalDraftLineState = null;
-  setSessionPlannerTacticalClickSuppression(true);
-  if (draftLine.moved) {
-  addSessionPlannerTacticalElement(
-  createSessionPlannerLineElement(draftLine.type, draftLine.startPoint, draftLine.currentPoint)
-  );
-  return;
-  }
-  if (draftLine.pendingPointAtStart) {
-  if (draftLine.type === "curve") {
-  const pendingCurve = draftLine.pendingPointAtStart.type === "curve"
-  ? draftLine.pendingPointAtStart
-  : { ...draftLine.pendingPointAtStart, type: "curve", startPoint: draftLine.pendingPointAtStart };
-  if (!pendingCurve.controlPoint) {
-  local.sessionPlannerTacticalPendingPoint = {
-  ...pendingCurve,
-  type: "curve",
-  startPoint: pendingCurve.startPoint || draftLine.pendingPointAtStart,
-  controlPoint: draftLine.startPoint,
-  };
-  refreshSessionPlannerTacticalboardCanvas();
-  return;
-  }
-  addSessionPlannerTacticalElement(
-  createSessionPlannerLineElement(
-  "curve",
-  pendingCurve.startPoint || pendingCurve,
-  draftLine.startPoint,
-  { controlPoint: pendingCurve.controlPoint }
-  )
-  );
-  return;
-  }
-  addSessionPlannerTacticalElement(
-  createSessionPlannerLineElement(draftLine.type, draftLine.pendingPointAtStart, draftLine.startPoint)
-  );
-  return;
-  }
-  local.sessionPlannerTacticalPendingPoint =
-  draftLine.type === "curve"
-  ? {
-  ...draftLine.startPoint,
-  type: "curve",
-  startPoint: draftLine.startPoint,
-  controlPoint: null,
-  }
-  : { ...draftLine.startPoint, type: draftLine.type };
-  refreshSessionPlannerTacticalboardCanvas();
-  return;
-  }
-  if (local.sessionPlannerTacticalSelectionState) {
-  const selection = local.sessionPlannerTacticalSelectionState;
-  const rect = getSessionPlannerTacticalSelectionRect(selection);
-  local.sessionPlannerTacticalSelectionState = null;
-  setSessionPlannerTacticalClickSuppression(selection.moved);
-  if (!selection.moved && isSessionPlannerTacticalPlacementTool()) {
-  if (shouldPlaceSessionPlannerTacticalDoubleClick(selection.startPoint)) {
-  setSessionPlannerTacticalClickSuppression(true);
-  if (!addSessionPlannerTacticalPlacementElement(selection.startPoint)) {
-  refreshSessionPlannerTacticalboardCanvas();
-  }
-  return;
-  }
-  clearSessionPlannerTacticalSelection();
-  }
-  if (selection.moved && rect) {
-  const selectedIds = getSessionPlannerTacticalElementsInRect(rect).map((element) => element.id);
-  setSessionPlannerTacticalSelectedElements(selectedIds);
-  }
-  refreshSessionPlannerTacticalboardCanvas();
-  return;
-  }
-  if (local.sessionPlannerTacticalDragState) {
-  setSessionPlannerTacticalClickSuppression(local.sessionPlannerTacticalDragState.moved);
-  local.sessionPlannerTacticalDragState = null;
-  refreshSessionPlannerTacticalboardCanvas({ persist: true });
-  }
-  if (local.sessionPlannerTacticalFreehandState) {
-  const freehand = local.sessionPlannerTacticalFreehandState;
-  local.sessionPlannerTacticalFreehandState = null;
-  if (freehand.points.length > 1) {
-  addSessionPlannerTacticalElement({
-  type: "freehand",
-  x: freehand.points[0].x,
-  y: freehand.points[0].y,
-  points: freehand.points,
-  color: freehand.color,
-  lineWidth: freehand.lineWidth,
-  lineStyle: freehand.lineStyle,
-  });
-  return;
-  }
-  clearSessionPlannerTacticalSelection();
-  refreshSessionPlannerTacticalboardCanvas();
-  }
   }
 
   return {
@@ -1431,6 +865,7 @@ export function createSessionPlannerTacticalController(deps = {}) {
     addSessionPlannerTacticalPlacementElement,
     handleSessionPlannerTacticalCanvasClick,
     handleSessionPlannerTacticalCanvasDoubleClick,
+    handleSessionPlannerTacticalKeyboardAction,
     startSessionPlannerTacticalDrag,
     updateSessionPlannerTacticalDrag,
     finishSessionPlannerTacticalDrag,

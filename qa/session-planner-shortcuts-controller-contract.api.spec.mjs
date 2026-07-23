@@ -46,6 +46,11 @@ test("Session Planner shortcut controller preserves copy paste escape and delete
     getPlayerBadgeFromKeyboardEvent: (event) => (event.key === "8" ? "8" : ""),
     getPendingPoint: () => state.pendingPoint,
     getSelectedElementIds: () => state.selectedIds,
+    handleBoardKeyboardAction: (event) => {
+      if (event.key !== "ArrowRight") return false;
+      calls.push("keyboard-board");
+      return true;
+    },
     hasClipboard: () => state.clipboard.length > 0,
     isTacticalboardOpen: () => true,
     pasteClipboard: () => calls.push("paste"),
@@ -77,6 +82,11 @@ test("Session Planner shortcut controller preserves copy paste escape and delete
   const badgeEvent = createKeyboardEvent("8");
   listeners.keydown(badgeEvent);
   expect(calls).toContain("badge:8");
+
+  const nudgeEvent = createKeyboardEvent("ArrowRight");
+  listeners.keydown(nudgeEvent);
+  expect(nudgeEvent[SESSION_TACTICALBOARD_KEY_HANDLED]).toBe(true);
+  expect(calls).toContain("keyboard-board");
 
   const escapeEvent = createKeyboardEvent("Escape");
   listeners.keydown(escapeEvent);

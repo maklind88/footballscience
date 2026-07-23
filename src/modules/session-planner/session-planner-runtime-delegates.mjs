@@ -140,6 +140,7 @@ export const sessionPlannerRuntimeDelegateMethodNames = Object.freeze([
   "addSessionPlannerTacticalPlacementElement",
   "handleSessionPlannerTacticalCanvasClick",
   "handleSessionPlannerTacticalCanvasDoubleClick",
+  "handleSessionPlannerTacticalKeyboardAction",
   "startSessionPlannerTacticalDrag",
   "updateSessionPlannerTacticalDrag",
   "finishSessionPlannerTacticalDrag",

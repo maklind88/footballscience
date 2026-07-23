@@ -115,6 +115,20 @@
   cursor: not-allowed;
 }
 
+.session-tacticalboard-canvas-wrap [data-session-tactical-element-id]:focus-visible,
+.session-tacticalboard-canvas-wrap [data-session-tactical-handle]:focus-visible,
+.session-tacticalboard-canvas-wrap [data-session-tactical-rotate-handle]:focus-visible,
+.session-tacticalboard-canvas-wrap [data-session-tactical-canvas]:focus-visible {
+  outline: 3px solid #0a84ff;
+  outline-offset: 4px;
+}
+
+.session-tacticalboard-canvas-wrap [data-session-tactical-handle],
+.session-tacticalboard-canvas-wrap [data-session-tactical-rotate-handle] {
+  padding: 0;
+  font: inherit;
+}
+
 .session-tacticalboard-inspector,
 .session-tacticalboard-toolbox {
   align-self: stretch;
@@ -261,12 +275,20 @@
 
   .session-tacticalboard-layout {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(34rem, 1fr) auto;
+    grid-template-rows: max-content max-content max-content;
+    align-content: start;
     overflow: auto;
   }
 
   .session-tacticalboard-toolbox,
   .session-tacticalboard-inspector {
+    height: max-content;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .session-tacticalboard-canvas-wrap {
+    height: auto;
     max-height: none;
     overflow: visible;
   }
@@ -276,7 +298,7 @@
   }
 
   .session-tacticalboard-canvas-wrap .session-visual-board {
-    min-height: 34rem;
+    min-height: 0;
   }
 }
 
@@ -292,8 +314,23 @@
     border-radius: 20px;
   }
 
-  .session-tacticalboard-layout {
-    grid-template-rows: auto minmax(27rem, 1fr) auto;
+  .session-tacticalboard-toolbox {
+    overflow: hidden;
+  }
+
+  .session-tacticalboard-tools {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(18rem, 86%);
+    grid-template-columns: none;
+    align-items: start;
+    overflow-x: auto;
+    padding-bottom: .35rem;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+
+  .session-tacticalboard-tool-group {
+    scroll-snap-align: start;
   }
 
   .session-tacticalboard-tool-row {
@@ -336,5 +373,29 @@
     padding: 0 .55rem;
     border-radius: 13px;
     font-size: .76rem;
+  }
+}
+
+@media (pointer: coarse) {
+  .session-tacticalboard-canvas-wrap [data-session-tactical-canvas] {
+    touch-action: none;
+  }
+
+  .session-tacticalboard-canvas-wrap .session-tactical-edit-handle {
+    width: 1.55rem;
+    height: 1.55rem;
+    border-width: 4px;
+  }
+
+  .session-tacticalboard-canvas-wrap .session-tactical-rotate-handle {
+    width: 1.85rem;
+    height: 1.85rem;
+  }
+
+  .session-tactical-tool-button,
+  .session-tacticalboard-actions button,
+  .session-tacticalboard-frame-actions button,
+  .session-tacticalboard-arrange-grid button {
+    min-height: 2.75rem;
   }
 }

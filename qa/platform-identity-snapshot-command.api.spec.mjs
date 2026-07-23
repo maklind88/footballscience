@@ -112,6 +112,8 @@ test("Platform Identity snapshot command parses capture separately from backfill
 test("Platform Identity snapshot inspection workflow is staging-only and cannot capture", () => {
   expect(readOnlyWorkflow).toContain("workflow_dispatch:");
   expect(readOnlyWorkflow).toContain("environment: platform-staging");
+  expect(readOnlyWorkflow).toContain('[ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ]');
+  expect(readOnlyWorkflow).toContain('[ "$GITHUB_REF" != "refs/heads/main" ]');
   expect(readOnlyWorkflow).toContain("PLATFORM_BACKFILL_TARGET: staging");
   expect(readOnlyWorkflow).toContain("Build PII-free read-only snapshot summary");
   expect(readOnlyWorkflow).toContain("summary.dryRun !== true");
@@ -127,6 +129,8 @@ test("Platform Identity snapshot capture workflow is staging-only and pins the r
   expect(captureWorkflow).toContain("workflow_dispatch:");
   expect(captureWorkflow).toContain("environment: platform-staging");
   expect(captureWorkflow).toContain("group: platform-identity-write-staging");
+  expect(captureWorkflow).toContain('[ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ]');
+  expect(captureWorkflow).toContain('[ "$GITHUB_REF" != "refs/heads/main" ]');
   expect(captureWorkflow).toContain("CAPTURE_PLATFORM_IDENTITY_SNAPSHOT");
   expect(captureWorkflow).toContain("--expected-plan-sha256");
   expect(captureWorkflow).toContain("--expected-user-count");

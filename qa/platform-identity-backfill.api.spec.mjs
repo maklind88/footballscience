@@ -120,6 +120,8 @@ test("platform identity backfill workflow remains manual, isolated, and read-onl
   expect(backfillWorkflow).toContain("workflow_dispatch:");
   expect(backfillWorkflow).toContain("environment: platform-${{ inputs.target }}");
   expect(backfillWorkflow).toContain("group: platform-identity-backfill-dry-run-${{ inputs.target }}");
+  expect(backfillWorkflow).toContain('[ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ]');
+  expect(backfillWorkflow).toContain('[ "$GITHUB_REF" != "refs/heads/main" ]');
   expect(backfillWorkflow).toContain("SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}");
   expect(backfillWorkflow).toContain("PLATFORM_BACKFILL_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}");
   expect(backfillWorkflow).toContain("PLATFORM_BACKFILL_ORGANIZATION_ID: ${{ secrets.PLATFORM_BACKFILL_ORGANIZATION_ID }}");

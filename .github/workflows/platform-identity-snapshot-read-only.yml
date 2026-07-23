@@ -31,6 +31,14 @@ jobs:
       PLATFORM_BACKFILL_TEAM_GENDER: ${{ vars.PLATFORM_BACKFILL_TEAM_GENDER }}
       PLATFORM_BACKFILL_LINKS: ${{ secrets.PLATFORM_BACKFILL_LINKS }}
     steps:
+      - name: Verify canonical operator context
+        shell: bash
+        run: |
+          if [ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ] ||
+            [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Platform Identity operations require canonical main." >&2
+            exit 1
+          fi
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:

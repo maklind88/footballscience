@@ -115,10 +115,14 @@ requireText("scripts/platform-identity-snapshot.mjs", "CAPTURE_PLATFORM_IDENTITY
 requireText("scripts/lib/platform-identity-snapshot.mjs", "footballscience-platform-identity-snapshot-v1", "platform identity rollback must use an integrity-checked snapshot schema");
 requireText("scripts/lib/platform-identity-snapshot-io.mjs", "readAfterWriteVerified", "private identity snapshots must be re-read and hash-verified after storage");
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "environment: platform-staging", "platform identity snapshot inspection must be staging-only");
+requireText(".github/workflows/platform-identity-snapshot-read-only.yml", '[ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ]', "platform identity snapshot inspection must require the canonical repository");
+requireText(".github/workflows/platform-identity-snapshot-read-only.yml", '[ "$GITHUB_REF" != "refs/heads/main" ]', "platform identity snapshot inspection must require canonical main");
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "summary.dryRun !== true", "platform identity snapshot inspection must verify read-only mode");
 forbidText(".github/workflows/platform-identity-snapshot-read-only.yml", "--capture", "platform identity snapshot inspection must not capture data");
 forbidText(".github/workflows/platform-identity-snapshot-read-only.yml", "--apply", "platform identity snapshot inspection must not apply identity writes");
 requireText(".github/workflows/platform-identity-snapshot-capture-staging.yml", "environment: platform-staging", "platform identity snapshot capture must be staging-only");
+requireText(".github/workflows/platform-identity-snapshot-capture-staging.yml", '[ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ]', "platform identity snapshot capture must require the canonical repository");
+requireText(".github/workflows/platform-identity-snapshot-capture-staging.yml", '[ "$GITHUB_REF" != "refs/heads/main" ]', "platform identity snapshot capture must require canonical main");
 requireText(".github/workflows/platform-identity-snapshot-capture-staging.yml", "CAPTURE_PLATFORM_IDENTITY_SNAPSHOT", "platform identity snapshot capture must require exact confirmation");
 requireText(".github/workflows/platform-identity-snapshot-capture-staging.yml", "--expected-plan-sha256", "platform identity snapshot capture must pin the reviewed plan hash");
 requireText(".github/workflows/platform-identity-snapshot-capture-staging.yml", "storage.readAfterWriteVerified !== true", "platform identity snapshot capture must verify the private stored object");
@@ -129,6 +133,8 @@ requireText("qa/platform-identity-backfill.api.spec.mjs", "stale plan before any
 requireText("qa/platform-identity-snapshot.api.spec.mjs", "tenant scope changes", "identity rollback must fail closed on tenant scope drift");
 requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "workflow_dispatch:", "platform identity backfill dry-run must remain manual");
 requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "environment: platform-${{ inputs.target }}", "platform identity backfill must use isolated GitHub Environments");
+requireText(".github/workflows/platform-identity-backfill-dry-run.yml", '[ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ]', "platform identity backfill must require the canonical repository");
+requireText(".github/workflows/platform-identity-backfill-dry-run.yml", '[ "$GITHUB_REF" != "refs/heads/main" ]', "platform identity backfill must require canonical main");
 requireText(".github/workflows/platform-identity-backfill-dry-run.yml", "PLATFORM_BACKFILL_ACTOR_ID: ${{ secrets.PLATFORM_BACKFILL_ACTOR_ID }}", "platform identity actor ids must stay masked in public workflow logs");
 forbidText(".github/workflows/platform-identity-backfill-dry-run.yml", "--apply", "platform identity dry-run workflow must not expose writes");
 forbidText(".github/workflows/platform-identity-backfill-dry-run.yml", "--capture", "platform identity dry-run workflow must not capture snapshots or expose writes");

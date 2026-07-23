@@ -47,6 +47,14 @@ jobs:
       EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
       EXPECTED_USER_COUNT: ${{ inputs.expected_user_count }}
     steps:
+      - name: Verify canonical operator context
+        shell: bash
+        run: |
+          if [ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ] ||
+            [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Platform Identity operations require canonical main." >&2
+            exit 1
+          fi
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:

@@ -44,6 +44,11 @@ test("Session Planner domain tables carry tenant, revision, audit and soft-delet
 });
 
 test("Session Planner direct access is read-only and tenant-scoped", () => {
+  const readScopeFunction = migration.match(
+    /create or replace function app_private\.can_read_session_planner_scope[\s\S]*?\$\$;/
+  )?.[0];
+  expect(readScopeFunction).toContain("security definer");
+  expect(readScopeFunction).toContain("set search_path = ''");
   expect(migration).toContain("app_private.can_read_session_planner_scope(organization_id, team_id)");
   expect(migration).toContain("membership.organization_id = target_organization_id");
   expect(migration).toContain("membership.scope = 'organization'");

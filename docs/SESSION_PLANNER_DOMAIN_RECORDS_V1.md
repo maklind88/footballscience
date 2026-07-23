@@ -141,6 +141,8 @@ npm run session-planner:backfill:plan -- \
 
 The command fails before tenant or target reads if the configured Supabase project does not match the explicitly reviewed project ref. It performs GET requests only, includes active and archived rows in the private snapshot, prints no coaching payloads, and has no apply option. The audit hardening migration records the authenticated or server-supplied actor and bounded request correlation when a future server-owned write transaction is introduced; it does not enable that write path.
 
+A separate private migration-bundle contract now binds the exact snapshot hash, plan hash, project ref, tenant scope, source checkpoint, actor, request id, record projections, and expected revisions for both backfill and rollback. The private bundle contains the records needed by a future atomic staging transaction, but its public summary contains only hashes and counts. Execution remains explicitly disabled and no executor or database write path is exported.
+
 ## Rollback
 
 - Feature mode defaults to `off`.
@@ -152,6 +154,7 @@ The command fails before tenant or target reads if the configured Supabase proje
 - Every migration snapshot is bound to the actual Supabase project ref, explicit tenant scope, exact app-state revision, and exact app-state hash.
 - Rollback planning accepts only the exact baseline snapshot and backfill plan, requires expected post-backfill revisions/hashes, restores pre-existing rows, archives rows created by the backfill, and blocks concurrent drift or unknown rows.
 - Pure rollback projection verification proves the generated actions reconstruct the baseline projection without changing a database. This is contract evidence, not a substitute for the required staging apply/rollback/reapply drill.
+- Backfill and rollback bundles reject semantic tampering even if an attacker recomputes the outer bundle hash, because every command is revalidated against its record projection, action type, tenant, and expected version transition.
 - Database-primary promotion requires a known-good compatibility snapshot and restore drill.
 - Code rollback happens before any data restoration.
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned, additive, and disabled by default. Pure shadow comparison, a GET-only operational backfill review, content-free backfill planning, private snapshot integrity, audit-context hardening, rollback projection verification, and a guarded staging-only drill candidate are implemented but are not wired into user-facing reads or writes.
+Planned, additive, and disabled by default. Pure shadow comparison, a scope-gated GET-only operational shadow check, a GET-only operational backfill review, content-free backfill planning, private snapshot integrity, audit-context hardening, rollback projection verification, and a guarded staging-only drill candidate are implemented but are not wired into user-facing reads or writes.
 
 - Existing source of truth: `football-session-planner-v3` through `/api/app-state`.
 - Target pilot tables: `session_planner_sessions` and `session_planner_blocks`.
@@ -112,7 +112,7 @@ Both add operational complexity without solving the current ownership and payloa
 2. **Dry-run:** Read the existing app-state document and produce an in-memory migration report. No database writes.
 3. **Identity prerequisite:** Verify one canonical organization/team and its memberships. Never infer tenant ownership from labels or legacy browser IDs.
 4. **Backfill:** The read-only planner now translates deletion tombstones into archive actions, emits deterministic create/update/restore actions with expected revisions, and blocks unexplained active records. It has no apply path; app-state remains primary.
-5. **Shadow:** Read both sources server-side and compare canonical hashes. The comparison contract is now implemented, scope-gated, content-free, and fail-closed; runtime invocation remains disabled until backfill data exists. Return app-state only.
+5. **Shadow:** Read both sources server-side and compare canonical hashes. The comparison contract and operator check are implemented, scope-gated, content-free, and fail-closed; automatic runtime invocation remains disabled until backfill data exists. Return app-state only.
 6. **Database read canary:** Enable database reads for a controlled tenant with immediate app-state fallback.
 7. **Transactional write:** Write domain records with expected row revisions and compatibility projection in one controlled server operation.
    An inert, server-only atomic RPC contract is now prepared for the staging drill. It locks the exact app-state source checkpoint, serializes by team, validates actor/tenant/revisions, writes the migration ledger, and rolls the entire call back on any exception. Client roles have no execute grant and application runtime has no call site.
@@ -143,6 +143,23 @@ npm run session-planner:backfill:plan -- \
 ```
 
 The command fails before tenant or target reads if the configured Supabase project does not match the explicitly reviewed project ref. It performs GET requests only, includes active and archived rows in the private snapshot, prints no coaching payloads, and has no apply option. The audit hardening migration records the authenticated or server-supplied actor and bounded request correlation when a future server-owned write transaction is introduced; it does not enable that write path.
+
+After a staging backfill, run the separate read-only shadow check repeatedly against the exact reviewed source checkpoint. It requires both the `shadow` mode flag and the exact tenant allowlist, keeps app-state as the user-facing source, and exits non-zero on any mismatch, pending action, blocker, project mismatch, or disabled scope:
+
+```bash
+SESSION_PLANNER_DATABASE_MODE=shadow \
+SESSION_PLANNER_DATABASE_SCOPES=<organization-uuid>:<team-uuid> \
+npm run session-planner:shadow:check -- \
+  --target staging \
+  --expected-project-ref <staging-supabase-project-ref> \
+  --organization-id <organization-uuid> \
+  --team-id <team-uuid> \
+  --expected-source-revision <revision> \
+  --expected-source-hash <sha256> \
+  --json
+```
+
+The report contains only counts, reason codes, scope identifiers, and integrity hashes. A match never promotes database reads by itself; `promotionBlocked` remains true until the full canary gate is reviewed.
 
 A separate private migration-bundle contract now binds the exact snapshot hash, plan hash, project ref, tenant scope, source checkpoint, actor, request id, record projections, and expected revisions for both backfill and rollback. The private bundle contains the records needed by a future atomic staging transaction, but its public summary contains only hashes and counts. Execution remains explicitly disabled and no executor or database write path is exported.
 

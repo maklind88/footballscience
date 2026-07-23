@@ -22,6 +22,7 @@ This foundation must not change Session Planner UI, autosave, navigation, permis
 | Tenant scope, RLS, revision, audit, archive, and payload limits | `qa/session-planner-domain-schema.api.spec.mjs`, `qa/session-planner-postgres-drill.api.spec.mjs` | Contract and local PostgreSQL proven |
 | Read-only backfill review | `qa/session-planner-backfill-review.api.spec.mjs` | Contract proven |
 | Scope-gated, content-free shadow comparison | `qa/session-planner-shadow.api.spec.mjs`, `qa/session-planner-shadow-check.api.spec.mjs` | Contract proven; real staging comparison pending |
+| Repeated shadow-evidence gate | `qa/session-planner-shadow-evidence.api.spec.mjs` | Contract proven; three real staging reports pending |
 | Atomic stale-write rejection and transaction rollback | `qa/session-planner-postgres-drill.api.spec.mjs` | Local PostgreSQL proven |
 | Integrity-bound recovery and rollback | `qa/session-planner-migration-safety.api.spec.mjs`, `qa/session-planner-staging-recovery.api.spec.mjs` | Contract proven; real staging drill pending |
 | Platform Identity prerequisite | Platform Identity snapshot/capture/rollback contracts | Real staging proof pending |
@@ -179,6 +180,30 @@ npm run session-planner:shadow:check -- \
 ```
 
 The report contains only counts, reason codes, scope identifiers, and integrity hashes. A match never promotes database reads by itself; `promotionBlocked` remains true until the full canary gate is reviewed.
+
+Store at least three content-free shadow reports from the exact same staging
+project, tenant, source revision, and source hash in one local JSON array. The
+reports must have distinct timestamps, span at least ten minutes by default,
+remain fresh, and prove identical converged snapshots. Then evaluate them with:
+
+```bash
+npm run session-planner:shadow:evidence -- \
+  --reports-file <content-free-shadow-reports.json> \
+  --target staging \
+  --expected-project-ref <staging-supabase-project-ref> \
+  --organization-id <organization-uuid> \
+  --team-id <team-uuid> \
+  --expected-source-revision <revision> \
+  --expected-source-hash <sha256> \
+  --json
+```
+
+This command reads only the local report file. It has no network, database,
+feature-flag, or write capability. Passing the repeated-evidence gate only
+marks the evidence ready for manual review. It always returns
+`promotionBlocked: true` and `automaticPromotion: false`; Platform Identity
+staging proof, the staging apply/rollback/reapply drill, authenticated
+multi-user canary, and Safe Lane review remain mandatory.
 
 A separate private migration-bundle contract now binds the exact snapshot hash, plan hash, project ref, tenant scope, source checkpoint, actor, request id, record projections, and expected revisions for both backfill and rollback. The private bundle contains the records needed by a future atomic staging transaction, but its public summary contains only hashes and counts. Execution remains explicitly disabled and no executor or database write path is exported.
 

@@ -146,7 +146,10 @@ test("Platform Identity migration bundle is deterministic, staging-only, and PII
   expect(summary).toMatchObject({
     ok: true,
     target: "staging",
+    projectRef,
+    organizationId,
     operation: "backfill",
+    expectedUserCount: 1,
     commandCount: 2,
     piiExposed: false,
   });

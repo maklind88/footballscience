@@ -113,6 +113,7 @@ Both add operational complexity without solving the current ownership and payloa
 5. **Shadow:** Read both sources server-side and compare canonical hashes. The comparison contract is now implemented, scope-gated, content-free, and fail-closed; runtime invocation remains disabled until backfill data exists. Return app-state only.
 6. **Database read canary:** Enable database reads for a controlled tenant with immediate app-state fallback.
 7. **Transactional write:** Write domain records with expected row revisions and compatibility projection in one controlled server operation.
+   An inert, server-only atomic RPC contract is now prepared for the staging drill. It locks the exact app-state source checkpoint, serializes by team, validates actor/tenant/revisions, writes the migration ledger, and rolls the entire call back on any exception. Client roles have no execute grant and application runtime has no call site.
 8. **Database primary:** Promote only after repeated multi-user, reload, restore, and tenant-isolation proof.
 9. **Compatibility retirement:** Keep the last verified app-state snapshot until rollback and retention requirements are satisfied.
 
@@ -184,5 +185,7 @@ npm run qa
 ```
 
 Production activation requires the Safe Lane, staging comparison, authenticated multi-user smoke, and explicit production verification.
+
+The atomic RPC migration is candidate code until it has compiled against the complete staging migration chain and passed the apply/verify/rollback/verify/reapply drill. Static SQL contracts are not sufficient evidence for activation.
 
 The identity prerequisite now includes a separate integrity-checked snapshot and rollback contract. Session Planner backfill remains blocked until the identity operation has passed that complete staging drill; adding identity tables or a successful dry-run alone is not sufficient.

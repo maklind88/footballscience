@@ -350,10 +350,10 @@ begin
     or operation_name not in ('backfill', 'rollback') then
     raise exception 'Session Planner migration bundle contract is invalid.' using errcode = 'P0001';
   end if;
-  if p_confirmation <> case
+  if p_confirmation <> (case
     when operation_name = 'backfill' then 'APPLY_SESSION_PLANNER_BACKFILL'
     else 'APPLY_SESSION_PLANNER_ROLLBACK'
-  end then
+  end) then
     raise exception 'Session Planner migration confirmation is invalid.' using errcode = 'P0001';
   end if;
   if coalesce(p_expected_bundle_sha256 ~ '^[a-f0-9]{64}$', false) is not true

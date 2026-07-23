@@ -94,7 +94,8 @@ test("Session Planner migration operator must be an active platform or tenant ad
 test("Session Planner migration RPC requires distinct explicit confirmations", () => {
   expect(migration).toContain("'APPLY_SESSION_PLANNER_BACKFILL'");
   expect(migration).toContain("'APPLY_SESSION_PLANNER_ROLLBACK'");
-  expect(migration).toContain("p_confirmation <> case");
+  expect(migration).toContain("p_confirmation <> (case");
+  expect(migration).toContain("end) then");
   expect(migration).toContain(
     "p_bundle #>> '{integrity,contentSha256}' <> p_expected_bundle_sha256"
   );

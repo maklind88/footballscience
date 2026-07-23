@@ -236,7 +236,7 @@ export const platformModules = Object.freeze([
     label: "Session Planner",
     stage: "module",
     storageKeys: Object.freeze(["football-session-planner-v3"]),
-    futureTables: Object.freeze(["sessions", "session_blocks"]),
+    futureTables: Object.freeze(["session_planner_sessions", "session_planner_blocks"]),
     viewRoles: Object.freeze(staffRoles),
     editRoles: Object.freeze(managerRoles),
     emits: Object.freeze(["session.block-updated", "session.date-selected"]),

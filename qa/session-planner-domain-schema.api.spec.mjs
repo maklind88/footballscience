@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
+import { platformModuleRegistry } from "../src/core/module-registry.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const migrationPath = path.join(
@@ -27,6 +28,13 @@ test("Session Planner domain schema is additive and keeps app-state production-p
   expect(migration).not.toContain("writes_to_database = true");
   expect(migration).toContain("on conflict (module_id, source_storage_key, target_table) do nothing");
   expect(migration).not.toMatch(/on conflict[\s\S]*do update set[\s\S]*phase = excluded\.phase/i);
+});
+
+test("Session Planner platform ownership names the exact bounded domain tables", () => {
+  expect(platformModuleRegistry.require("session-planner").futureTables).toEqual([
+    "session_planner_sessions",
+    "session_planner_blocks",
+  ]);
 });
 
 test("Session Planner domain tables carry tenant, revision, audit and soft-delete fields", () => {

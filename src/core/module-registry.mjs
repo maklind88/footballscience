@@ -17,6 +17,7 @@ export function createModuleRegistry(modules = platformModules) {
   }));
   const moduleMap = new Map(normalizedModules.map((module) => [module.id, Object.freeze(module)]));
   const storageKeyMap = new Map();
+  const futureTableMap = new Map();
 
   for (const module of normalizedModules) {
     for (const key of module.storageKeys) {
@@ -24,6 +25,12 @@ export function createModuleRegistry(modules = platformModules) {
         storageKeyMap.set(key, []);
       }
       storageKeyMap.get(key).push(module.id);
+    }
+    for (const table of module.futureTables) {
+      if (!futureTableMap.has(table)) {
+        futureTableMap.set(table, []);
+      }
+      futureTableMap.get(table).push(module.id);
     }
   }
 
@@ -49,6 +56,18 @@ export function createModuleRegistry(modules = platformModules) {
     },
     ownersForStorageKey(storageKey) {
       return [...(storageKeyMap.get(String(storageKey || "").trim()) || [])];
+    },
+    ownersForFutureTable(tableName) {
+      return [...(futureTableMap.get(String(tableName || "").trim()) || [])];
+    },
+    assertFutureTableOwnershipUnique() {
+      const conflicts = [...futureTableMap.entries()]
+        .filter(([, owners]) => owners.length !== 1)
+        .map(([table, owners]) => `${table}:${owners.join(",")}`);
+      if (conflicts.length) {
+        throw new Error(`Future domain tables must have one module owner: ${conflicts.join("; ")}`);
+      }
+      return true;
     },
     assertProtectedStorageCoverage(keys = protectedStorageKeys) {
       const missing = keys.filter((key) => !storageKeyMap.has(key));

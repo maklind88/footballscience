@@ -13,6 +13,25 @@ Planned, additive, and disabled by default. Pure shadow comparison, a scope-gate
 
 This foundation must not change Session Planner UI, autosave, navigation, permissions, or saved content.
 
+## Evidence checkpoint
+
+| Requirement | Current evidence | Status |
+| --- | --- | --- |
+| Golden-master preservation and local UI exclusion | `qa/session-planner-domain-records.api.spec.mjs` | Contract proven |
+| Exact module ownership of bounded tables | `src/core/platform-contracts.mjs`, `qa/session-planner-domain-schema.api.spec.mjs` | Contract proven |
+| Tenant scope, RLS, revision, audit, archive, and payload limits | `qa/session-planner-domain-schema.api.spec.mjs`, `qa/session-planner-postgres-drill.api.spec.mjs` | Contract and local PostgreSQL proven |
+| Read-only backfill review | `qa/session-planner-backfill-review.api.spec.mjs` | Contract proven |
+| Scope-gated, content-free shadow comparison | `qa/session-planner-shadow.api.spec.mjs`, `qa/session-planner-shadow-check.api.spec.mjs` | Contract proven; real staging comparison pending |
+| Atomic stale-write rejection and transaction rollback | `qa/session-planner-postgres-drill.api.spec.mjs` | Local PostgreSQL proven |
+| Integrity-bound recovery and rollback | `qa/session-planner-migration-safety.api.spec.mjs`, `qa/session-planner-staging-recovery.api.spec.mjs` | Contract proven; real staging drill pending |
+| Platform Identity prerequisite | Platform Identity snapshot/capture/rollback contracts | Real staging proof pending |
+| Multi-user reload and unchanged user behavior | Existing central-state/browser regression plus required authenticated staging canary | Baseline proven; domain canary pending |
+| Production promotion | Safe Lane, staging isolation, repeated shadow equality, rollback readiness, and explicit production verification | Blocked until all pending staging evidence is green |
+
+Contract or local PostgreSQL evidence must never be reported as proof that a real
+staging or production operation succeeded. Pending rows above remain release
+blockers even when the repository test suite is green.
+
 ## Current State
 
 Session Planner already has a modular frontend and focused contract coverage. Its shared state is still persisted as one JSON document containing every session and block. Browser-local persistence is cache-only, but the compatibility document is large enough to exceed common `localStorage` limits when combined with other modules.

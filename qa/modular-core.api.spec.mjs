@@ -28,6 +28,9 @@ test("modular core covers protected storage keys without loading the current UI"
   expect(registry.ownersForStorageKey("football-platform-appearance-v1")).toEqual(["platform-appearance"]);
   expect(registry.ownersForStorageKey("football-session-exercise-library-backup-v1")).toEqual(["exercise-library"]);
   expect(registry.ownersForStorageKey("football-scouting-v1")).toEqual(["scouting"]);
+  expect(registry.ownersForFutureTable("session_planner_sessions")).toEqual(["session-planner"]);
+  expect(registry.ownersForFutureTable("session_planner_blocks")).toEqual(["session-planner"]);
+  expect(registry.assertFutureTableOwnershipUnique()).toBe(true);
   expect(platformModuleRegistry.ids()).toContain("session-planner");
   expect(platformModuleRegistry.ids()).toContain("scouting");
 });

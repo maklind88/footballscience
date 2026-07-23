@@ -194,7 +194,7 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 - `permissions`: platform/club/team admin and coach edit; analyst/performance/medical view where configured.
 - `events`: block updated, exercise saved, exercise archived, tactical image changed, medical availability read.
 - `qa`: session planner block edits persist after refresh; `qa/session-planner-module-contract.api.spec.mjs` locks the autosave boundary, block/form renderer selectors, tactical visual renderer markup, Player Board renderer markup, and print renderer markup so autosave status only belongs to active Session Planner writes and UI extraction keeps the same controls.
-- `migration`: autosave policy, block/form rendering, tactical visual rendering, Player Board rendering, and print rendering now live in `src/modules/session-planner`; tactical board event handling, print runtime, and save flows remain in `app.js` for later passes. Migrate exercise library before session blocks if possible; preserve library entries with soft archive, never destructive seed overwrite.
+- `migration`: autosave policy, block/form rendering, tactical visual rendering, Player Board rendering, and print rendering now live in `src/modules/session-planner`. The additive domain-record pilot owns bounded `session_planner_sessions` and `session_planner_blocks`, tenant/revision/audit contracts, scoped shadow comparison, and rollback planning while `football-session-planner-v3` remains production-primary. Normal application database writes remain disabled; staging proof and explicit promotion are required before source-of-truth changes.
 
 ## Medical Team
 

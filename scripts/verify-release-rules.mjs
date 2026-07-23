@@ -62,6 +62,8 @@ requirePackageScript("security:platform", "node scripts/verify-platform-security
 requirePackageScript("platform:readiness", "node scripts/verify-platform-readiness.mjs");
 requirePackageScript("platform:identity:backfill", "node scripts/platform-identity-backfill.mjs");
 requirePackageScript("platform:identity:snapshot", "node scripts/platform-identity-snapshot.mjs");
+requirePackageScript("session-planner:staging:canary", "node scripts/session-planner-staging-canary.mjs");
+requirePackageScript("session-planner:staging:canary:recover", "node scripts/session-planner-staging-canary-recovery.mjs");
 
 requireText("vercel.json", "scripts/vercel-ignore-build.mjs", "automatic Vercel production builds must stay blocked");
 requireText("package.json", "npm run storage:guard", "full QA must include the storage key policy gate");
@@ -121,6 +123,15 @@ requireText("scripts/lib/session-planner-migration-recovery-storage.mjs", "readA
 requireText("scripts/session-planner-staging-recovery.mjs", "RECOVER_SESSION_PLANNER_STAGING_ROLLBACK", "Session Planner interruption recovery must require explicit operator confirmation");
 requireText("scripts/session-planner-staging-recovery.mjs", "expectedRollbackBundleSha256", "Session Planner recovery must bind writes to a reviewed rollback bundle");
 requireText("scripts/session-planner-staging-recovery.mjs", "alreadyRestored", "Session Planner recovery must recognize a restored baseline without writing again");
+requireText("scripts/lib/session-planner-staging-canary-options.mjs", "RUN_SESSION_PLANNER_STAGING_CANARY", "Session Planner multi-user canary writes must require exact confirmation");
+requireText("scripts/session-planner-staging-canary.mjs", "expectedRecoverySha256", "Session Planner multi-user canary must bind writes to a reviewed recovery package");
+requireText("scripts/session-planner-staging-canary.mjs", "storeRecovery", "Session Planner multi-user canary must persist recovery before app-state writes");
+requireText("scripts/lib/session-planner-staging-canary-client.mjs", '"x-footballscience-fresh-state": "1"', "Session Planner multi-user canary must bypass stale read snapshots");
+requireText("scripts/session-planner-staging-canary-recovery.mjs", "RECOVER_SESSION_PLANNER_STAGING_CANARY", "Session Planner canary interruption recovery must require exact confirmation");
+requireText("scripts/session-planner-staging-canary-recovery.mjs", "loadRecovery", "Session Planner canary recovery must load the private integrity-bound package");
+requireText("scripts/lib/session-planner-staging-canary-recovery.mjs", "concurrentStatePreserved", "Session Planner canary cleanup must preserve concurrent colleague data");
+forbidText("scripts/session-planner-staging-canary.mjs", "platform-production", "Session Planner multi-user canary must not expose production writes");
+forbidText("scripts/session-planner-staging-canary-recovery.mjs", "platform-production", "Session Planner canary recovery must not expose production writes");
 requireText(".github/workflows/session-planner-staging-drill.yml", "workflow_dispatch:", "Session Planner staging drill must remain manual");
 requireText(".github/workflows/session-planner-staging-drill.yml", "environment: platform-staging", "Session Planner staging drill must use the protected staging environment");
 requireText(".github/workflows/session-planner-staging-drill.yml", "group: session-planner-migration-staging", "Session Planner migration operations must be serialized");
@@ -139,6 +150,21 @@ requireText(".github/workflows/session-planner-staging-recovery.yml", "RECOVER_S
 requireText(".github/workflows/session-planner-staging-recovery.yml", "SESSION_PLANNER_EXPECTED_ROLLBACK_BUNDLE_SHA256", "Session Planner recovery apply must bind to the reviewed rollback bundle");
 forbidText(".github/workflows/session-planner-staging-recovery.yml", "platform-production", "Session Planner staging recovery must not expose a production environment");
 forbidText(".github/workflows/session-planner-staging-recovery.yml", "upload-artifact", "Session Planner staging recovery must not upload migration content");
+requireText(".github/workflows/session-planner-staging-canary.yml", "workflow_dispatch:", "Session Planner multi-user canary must remain manual");
+requireText(".github/workflows/session-planner-staging-canary.yml", "environment: platform-staging", "Session Planner multi-user canary must use the protected staging environment");
+requireText(".github/workflows/session-planner-staging-canary.yml", "group: session-planner-migration-staging", "Session Planner multi-user canary must share the migration concurrency lock");
+requireText(".github/workflows/session-planner-staging-canary.yml", "STAGING_QA_PEER_USERNAME", "Session Planner multi-user canary must require a second staging account");
+requireText(".github/workflows/session-planner-staging-canary.yml", "RUN_SESSION_PLANNER_STAGING_CANARY", "Session Planner multi-user canary apply must require exact confirmation");
+requireText(".github/workflows/session-planner-staging-canary.yml", 'GITHUB_REF" != "refs/heads/main', "Session Planner multi-user canary must run only from canonical main");
+forbidText(".github/workflows/session-planner-staging-canary.yml", "platform-production", "Session Planner multi-user canary must not expose a production environment");
+forbidText(".github/workflows/session-planner-staging-canary.yml", "upload-artifact", "Session Planner multi-user canary must not upload coaching content");
+requireText(".github/workflows/session-planner-staging-canary-recovery.yml", "workflow_dispatch:", "Session Planner canary recovery must remain manual");
+requireText(".github/workflows/session-planner-staging-canary-recovery.yml", "environment: platform-staging", "Session Planner canary recovery must use the protected staging environment");
+requireText(".github/workflows/session-planner-staging-canary-recovery.yml", "group: session-planner-migration-staging", "Session Planner canary recovery must share the migration concurrency lock");
+requireText(".github/workflows/session-planner-staging-canary-recovery.yml", "RECOVER_SESSION_PLANNER_STAGING_CANARY", "Session Planner canary recovery apply must require exact confirmation");
+requireText(".github/workflows/session-planner-staging-canary-recovery.yml", 'GITHUB_REF" != "refs/heads/main', "Session Planner canary recovery must run only from canonical main");
+forbidText(".github/workflows/session-planner-staging-canary-recovery.yml", "platform-production", "Session Planner canary recovery must not expose a production environment");
+forbidText(".github/workflows/session-planner-staging-canary-recovery.yml", "upload-artifact", "Session Planner canary recovery must not upload coaching content");
 forbidText("api/_lib/session-planner-database.js", '"database"', "Session Planner database-primary mode must remain unavailable before canary promotion");
 requireText("supabase/migrations/20260723002733_session_planner_atomic_migration_rpc.sql", "session_planner_can_operate_migration", "Session Planner migration operators must be authorized for the exact tenant");
 requireText("supabase/migrations/20260723002733_session_planner_atomic_migration_rpc.sql", "p_bundle ->> 'target' <> 'staging'", "Session Planner migration RPC must remain staging-only until promotion is approved");

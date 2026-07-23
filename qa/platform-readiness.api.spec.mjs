@@ -30,6 +30,10 @@ const readinessScripts = {
   "platform:readiness": "node scripts/verify-platform-readiness.mjs",
   "platform:health": "node scripts/platform-health-report.mjs",
   "platform:identity:backfill": "node scripts/platform-identity-backfill.mjs",
+  "session-planner:staging:canary":
+    "node scripts/session-planner-staging-canary.mjs",
+  "session-planner:staging:canary:recover":
+    "node scripts/session-planner-staging-canary-recovery.mjs",
 };
 const completeEnv = Object.fromEntries(
   platformReadinessEnvironmentRequirements.flatMap((requirement) => [
@@ -90,7 +94,10 @@ test("platform module map exposes data ownership, api routes, permissions, and i
 });
 
 test("staging and secret requirements are explicit without exposing secret values", () => {
-  const report = createPlatformReadinessReport({ env: {}, scripts: {} });
+  const report = createPlatformReadinessReport({
+    env: {},
+    scripts: readinessScripts,
+  });
   const staging = report.environment.filter((entry) => entry.area === "staging-mirror");
   const accounts = report.environment.filter((entry) => entry.area === "accounts-secrets");
 
@@ -101,6 +108,32 @@ test("staging and secret requirements are explicit without exposing secret value
   expect(accounts.some((entry) => entry.required.includes("LIVE_QA_USERNAME"))).toBe(true);
   expect(accounts.some((entry) => entry.id === "live-qa-peer-chat" && entry.recommended.includes("LIVE_QA_PEER_USERNAME"))).toBe(true);
   expect(accounts.some((entry) => entry.id === "live-qa-peer-chat" && entry.missing.includes("LIVE_QA_REQUIRE_PEER_CHAT"))).toBe(true);
+  expect(
+    report.environment.some(
+      (entry) =>
+        entry.id === "staging-qa-peer-data" &&
+        entry.required.includes("STAGING_QA_PEER_USERNAME") &&
+        entry.required.includes("STAGING_QA_PEER_PASSWORD")
+    )
+  ).toBe(true);
+  expect(
+    report.workflows.some(
+      (entry) =>
+        entry.id === "session-planner-staging-canary" &&
+        entry.status === platformReadinessStatuses.pass &&
+        entry.configuredCommand ===
+          "node scripts/session-planner-staging-canary.mjs"
+    )
+  ).toBe(true);
+  expect(
+    report.workflows.some(
+      (entry) =>
+        entry.id === "session-planner-staging-canary-recovery" &&
+        entry.status === platformReadinessStatuses.pass &&
+        entry.configuredCommand ===
+          "node scripts/session-planner-staging-canary-recovery.mjs"
+    )
+  ).toBe(true);
   expect(report.environment.every((entry) => !JSON.stringify(entry).includes("secret-value"))).toBe(true);
 });
 

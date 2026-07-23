@@ -136,7 +136,13 @@ LIVE_QA_USERNAME
 LIVE_QA_PASSWORD
 STAGING_QA_USERNAME
 STAGING_QA_PASSWORD
+STAGING_QA_PEER_USERNAME
+STAGING_QA_PEER_PASSWORD
 ```
+
+The peer staging account is used by protected multi-user data-consistency
+canaries. It must be distinct from the primary staging account and must not be
+a production user.
 
 `VERCEL_TOKEN` must be a long-lived Vercel account token stored only in GitHub Secrets. Do not use a temporary local Vercel CLI session token for normal releases. Staging, production deploy, and rollback all run:
 

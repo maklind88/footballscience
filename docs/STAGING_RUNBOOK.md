@@ -31,6 +31,8 @@ Repository secrets:
 ```text
 STAGING_QA_USERNAME
 STAGING_QA_PASSWORD
+STAGING_QA_PEER_USERNAME
+STAGING_QA_PEER_PASSWORD
 VERCEL_TOKEN
 VERCEL_ORG_ID
 VERCEL_PROJECT_ID
@@ -76,3 +78,9 @@ npm run qa:staging:required
 ```
 
 `qa:staging` skips when credentials are missing. `qa:staging:required` fails loudly when staging is not fully configured.
+
+The peer credentials are required only for protected two-user collaboration
+proofs such as the Session Planner multi-user canary. They must identify a
+different staging user in the same reviewed tenant, with the reviewed
+Session Planner write permission needed for stale-write proof, and must never
+reuse a production account.

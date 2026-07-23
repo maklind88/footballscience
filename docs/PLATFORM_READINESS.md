@@ -33,7 +33,7 @@ Production release should have these configured outside source code:
 Staging should be a separate mirror:
 
 - GitHub Variables: `STAGING_QA_BASE_URL`, `STAGING_SUPABASE_PROJECT_REF`, optional `STAGING_BRANCH_ALIAS`
-- GitHub Secrets: `STAGING_QA_USERNAME`, `STAGING_QA_PASSWORD`
+- GitHub Secrets: `STAGING_QA_USERNAME`, `STAGING_QA_PASSWORD`, `STAGING_QA_PEER_USERNAME`, `STAGING_QA_PEER_PASSWORD`
 - Vercel Preview Environment: staging Supabase URL/anon/service-role values pointing at the staging project, not production
 
 ## Module Standard

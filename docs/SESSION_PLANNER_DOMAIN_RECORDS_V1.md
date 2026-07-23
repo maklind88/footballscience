@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned, additive, and disabled by default. Pure shadow comparison, a scope-gated GET-only operational shadow check, a GET-only operational backfill review, content-free backfill planning, private snapshot integrity, audit-context hardening, rollback projection verification, and a guarded staging-only drill candidate are implemented but are not wired into user-facing reads or writes.
+Planned, additive, and disabled by default. Pure shadow comparison, a scope-gated GET-only operational shadow check, a GET-only operational backfill review, content-free backfill planning, private snapshot integrity, audit-context hardening, rollback projection verification, a guarded staging-only drill candidate, and an authenticated two-user app-state canary with interruption recovery are implemented but are not wired into user-facing reads or writes.
 
 - Existing source of truth: `football-session-planner-v3` through `/api/app-state`.
 - Target pilot tables: `session_planner_sessions` and `session_planner_blocks`.
@@ -26,7 +26,7 @@ This foundation must not change Session Planner UI, autosave, navigation, permis
 | Atomic stale-write rejection and transaction rollback | `qa/session-planner-postgres-drill.api.spec.mjs` | Local PostgreSQL proven |
 | Integrity-bound recovery and rollback | `qa/session-planner-migration-safety.api.spec.mjs`, `qa/session-planner-staging-recovery.api.spec.mjs` | Contract proven; real staging drill pending |
 | Platform Identity prerequisite | Platform Identity snapshot/capture/rollback contracts | Real staging proof pending |
-| Multi-user reload and unchanged user behavior | Existing central-state/browser regression plus required authenticated staging canary | Baseline proven; domain canary pending |
+| Multi-user reload and unchanged user behavior | Existing central-state/browser regression plus `qa/session-planner-staging-canary.api.spec.mjs` and `qa/session-planner-staging-canary-recovery.api.spec.mjs` | Contract proven; real staging canary pending |
 | Production promotion | Safe Lane, staging isolation, repeated shadow equality, rollback readiness, and explicit production verification | Blocked until all pending staging evidence is green |
 
 Contract or local PostgreSQL evidence must never be reported as proof that a real
@@ -251,12 +251,78 @@ Recovery returns a content-free rollback bundle hash. Applying it additionally r
 
 Do not run the write drill until Platform Identity has passed its own staging snapshot/rollback drill, the complete migration chain has compiled on staging, the staging database has been isolated from production, and System/Security holds the current release slot. The committed atomic SQL remains candidate code until that real database proof exists.
 
+### Authenticated multi-user canary
+
+The compatibility source needs a separate real staging proof before domain-record
+promotion. The two-user canary authenticates two distinct staging accounts, forces
+fresh reads that bypass distributed snapshots, proves both users share the exact
+reviewed source revision and hash, and prepares a private recovery package. Dry-run
+performs no app-state or storage write:
+
+```bash
+STAGING_QA_USERNAME=<primary-account> \
+STAGING_QA_PASSWORD=<primary-password> \
+STAGING_QA_PEER_USERNAME=<peer-account> \
+STAGING_QA_PEER_PASSWORD=<peer-password> \
+npm run session-planner:staging:canary -- \
+  --target staging \
+  --app-origin https://staging.footballscience.xyz \
+  --expected-project-ref <staging-supabase-project-ref> \
+  --canonical-production-project-ref <production-supabase-project-ref> \
+  --expected-source-revision <revision> \
+  --expected-source-hash <sha256> \
+  --created-at <reviewed-iso-timestamp> \
+  --request-id <unique-request-id> \
+  --json
+```
+
+Write execution additionally requires `--apply`,
+`--confirm=RUN_SESSION_PLANNER_STAGING_CANARY`, and
+`--expected-recovery-sha256 <reviewed-sha256>` from the dry-run. Before the first
+write, the command stores and rereads an integrity-bound recovery package in the
+private backup bucket. It then writes a reserved non-visual canary marker, proves
+the peer receives it through an immediate fresh read, proves the peer's stale
+checkpoint is rejected with `409`, removes only the reviewed marker, and verifies
+both users see the restored state.
+
+The cleanup preserves concurrent colleague content. If a network response is lost
+after the server persisted the marker, recovery rereads the server and removes that
+exact marker. If another user changed content in the meantime, that content is kept;
+an unknown or altered marker fails closed. Public output includes only hashes,
+revisions, status, and the private recovery receipt, never coaching content,
+credentials, tokens, or user identities.
+
+If the process is terminated before automatic cleanup completes, inspect the exact
+private receipt in dry-run mode:
+
+```bash
+STAGING_QA_USERNAME=<original-primary-account> \
+STAGING_QA_PASSWORD=<primary-password> \
+npm run session-planner:staging:canary:recover -- \
+  --target staging \
+  --app-origin https://staging.footballscience.xyz \
+  --expected-project-ref <staging-supabase-project-ref> \
+  --canonical-production-project-ref <production-supabase-project-ref> \
+  --recovery-path <private-object-path> \
+  --expected-recovery-sha256 <recovery-package-sha256> \
+  --json
+```
+
+Recovery writes additionally require `--apply` and
+`--confirm=RECOVER_SESSION_PLANNER_STAGING_CANARY`. The command requires the
+original staging actor, validates the app, database project, production separation,
+private object path, and package hash, and writes nothing when the reviewed marker
+is already absent. These commands must not be executed against real staging until
+Platform Identity proof is complete and the team holds the current release slot.
+
 ### Staging operator workflows
 
-The operator commands are also exposed through two manual GitHub Actions workflows:
+The operator commands are exposed through four manual GitHub Actions workflows:
 
 - `Session Planner Staging Drill`
 - `Session Planner Staging Recovery`
+- `Session Planner Staging Multi-User Canary`
+- `Session Planner Staging Canary Recovery`
 
 Both workflows use the protected `platform-staging` GitHub Environment, share the
 `session-planner-migration-staging` concurrency lock, read elevated Supabase access

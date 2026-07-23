@@ -1,0 +1,202 @@
+name: Session Planner Staging Multi-User Canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Run the reviewed two-user write, stale-write, and rollback proof.
+        required: true
+        default: false
+        type: boolean
+      confirmation:
+        description: For apply, type RUN_SESSION_PLANNER_STAGING_CANARY exactly.
+        required: false
+        type: string
+      expected_source_revision:
+        description: Exact Session Planner app-state revision from review.
+        required: true
+        type: number
+      expected_source_hash:
+        description: Exact Session Planner app-state SHA-256 from review.
+        required: true
+        type: string
+      expected_recovery_sha256:
+        description: For apply, exact recovery SHA-256 from the matching dry-run.
+        required: false
+        type: string
+      recovery_created_at:
+        description: Deterministic ISO timestamp shared by dry-run and apply.
+        required: true
+        type: string
+      request_id:
+        description: Unique audited canary request id.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: session-planner-migration-staging
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: platform-staging
+    env:
+      APPLY: ${{ inputs.apply }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      SESSION_PLANNER_CANARY_TARGET: staging
+      STAGING_QA_BASE_URL: https://staging.footballscience.xyz
+      LIVE_QA_BASE_URL: https://footballscience.xyz
+      STAGING_SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF: ${{ vars.CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      STAGING_QA_USERNAME: ${{ secrets.STAGING_QA_USERNAME }}
+      STAGING_QA_PASSWORD: ${{ secrets.STAGING_QA_PASSWORD }}
+      STAGING_QA_PEER_USERNAME: ${{ secrets.STAGING_QA_PEER_USERNAME }}
+      STAGING_QA_PEER_PASSWORD: ${{ secrets.STAGING_QA_PEER_PASSWORD }}
+      SESSION_PLANNER_EXPECTED_SOURCE_REVISION: ${{ inputs.expected_source_revision }}
+      SESSION_PLANNER_EXPECTED_SOURCE_HASH: ${{ inputs.expected_source_hash }}
+      SESSION_PLANNER_CANARY_EXPECTED_RECOVERY_SHA256: ${{ inputs.expected_recovery_sha256 }}
+      SESSION_PLANNER_CANARY_CREATED_AT: ${{ inputs.recovery_created_at }}
+      SESSION_PLANNER_CANARY_REQUEST_ID: ${{ inputs.request_id }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Verify isolated staging context and reviewed inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REPOSITORY" != "maklind88/footballscience" ] ||
+            [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Session Planner staging canary requires canonical main." >&2
+            exit 1
+          fi
+          required=(
+            STAGING_SUPABASE_PROJECT_REF
+            CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF
+            SUPABASE_URL
+            SUPABASE_SECRET_KEY
+            STAGING_QA_USERNAME
+            STAGING_QA_PASSWORD
+            STAGING_QA_PEER_USERNAME
+            STAGING_QA_PEER_PASSWORD
+            SESSION_PLANNER_CANARY_CREATED_AT
+            SESSION_PLANNER_CANARY_REQUEST_ID
+          )
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required platform-staging value: $name" >&2
+              exit 1
+            fi
+          done
+          printf '%s\n' \
+            "$STAGING_SUPABASE_PROJECT_REF" \
+            "$CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF" \
+            "$STAGING_QA_USERNAME" \
+            "$STAGING_QA_PEER_USERNAME" |
+            while IFS= read -r value; do echo "::add-mask::$value"; done
+          if [ "$STAGING_SUPABASE_PROJECT_REF" = "$CANONICAL_PRODUCTION_SUPABASE_PROJECT_REF" ]; then
+            echo "Staging and production Supabase refs must differ." >&2
+            exit 1
+          fi
+          if [ "$STAGING_QA_USERNAME" = "$STAGING_QA_PEER_USERNAME" ]; then
+            echo "Two distinct staging accounts are required." >&2
+            exit 1
+          fi
+          if ! [[ "$SESSION_PLANNER_EXPECTED_SOURCE_REVISION" =~ ^[1-9][0-9]*$ ]]; then
+            echo "A positive reviewed source revision is required." >&2
+            exit 1
+          fi
+          if ! [[ "$SESSION_PLANNER_EXPECTED_SOURCE_HASH" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "A reviewed source SHA-256 is required." >&2
+            exit 1
+          fi
+          if [ "$APPLY" = "true" ]; then
+            if [ "$CONFIRMATION" != "RUN_SESSION_PLANNER_STAGING_CANARY" ]; then
+              echo "Exact staging canary confirmation is required." >&2
+              exit 1
+            fi
+            if ! [[ "$SESSION_PLANNER_CANARY_EXPECTED_RECOVERY_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "The reviewed recovery package SHA-256 is required." >&2
+              exit 1
+            fi
+          elif [ -n "$CONFIRMATION" ] || [ -n "$SESSION_PLANNER_CANARY_EXPECTED_RECOVERY_SHA256" ]; then
+            echo "Apply guards must be empty for a dry-run." >&2
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run qa:supabase
+      - name: Run content-free two-user canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--json)
+          if [ "$APPLY" = "true" ]; then
+            args+=(
+              --apply
+              --confirm="$CONFIRMATION"
+              --expected-recovery-sha256="$SESSION_PLANNER_CANARY_EXPECTED_RECOVERY_SHA256"
+            )
+          fi
+          node scripts/session-planner-staging-canary.mjs "${args[@]}" \
+            > session-planner-staging-canary-summary.json
+      - name: Verify content-free canary result
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const summary = JSON.parse(
+            fs.readFileSync("session-planner-staging-canary-summary.json", "utf8")
+          );
+          const apply = process.env.APPLY === "true";
+          if (
+            summary.ok !== true ||
+            summary.ready !== true ||
+            summary.target !== "staging" ||
+            summary.projectRef !== process.env.STAGING_SUPABASE_PROJECT_REF ||
+            summary.containsCoachingContent !== false ||
+            summary.recoveryPackage?.containsCoachingContent !== false ||
+            summary.mode !== (apply ? "canary" : "dry-run")
+          ) {
+            throw new Error("Session Planner staging canary result is not safe.");
+          }
+          if (
+            apply &&
+            (
+              summary.recoveryPackageReceipt?.readAfterWriteVerified !== true ||
+              summary.peerFreshReadVerified !== true ||
+              summary.staleWriteRejected !== true ||
+              summary.rollback?.verified !== true
+            )
+          ) {
+            throw new Error("Session Planner two-user canary proof is incomplete.");
+          }
+          const lines = [
+            "## Session Planner staging multi-user canary",
+            "",
+            `- Mode: ${summary.mode}`,
+            `- Source revision: ${summary.source.revision}`,
+            `- Source SHA-256: \`${summary.source.hash}\``,
+            `- Recovery package SHA-256: \`${summary.recoveryPackage.contentSha256}\``,
+            `- Distinct authenticated users: ${summary.users.authenticated}`,
+          ];
+          if (apply) {
+            lines.push(
+              `- Recovery path: \`${summary.recoveryPackageReceipt.path}\``,
+              "- Fresh peer read: verified",
+              "- Stale write rejection: verified",
+              "- Exact rollback: verified"
+            );
+          } else {
+            lines.push("- App-state writes: none", "- Storage writes: none");
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
+          NODE

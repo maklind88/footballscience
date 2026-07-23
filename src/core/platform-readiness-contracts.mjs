@@ -148,6 +148,18 @@ export const platformReadinessEnvironmentRequirements = Object.freeze([
     recommended: Object.freeze(["STAGING_QA_EXPECT_ADMIN"]),
     critical: true,
   }),
+  Object.freeze({
+    id: "staging-qa-peer-data",
+    area: "staging-mirror",
+    label: "Staging peer collaboration account",
+    location: "GitHub Secrets",
+    required: Object.freeze([
+      "STAGING_QA_PEER_USERNAME",
+      "STAGING_QA_PEER_PASSWORD",
+    ]),
+    recommended: Object.freeze([]),
+    critical: false,
+  }),
 ]);
 
 export const platformReadinessWorkflowRequirements = Object.freeze([
@@ -206,6 +218,20 @@ export const platformReadinessWorkflowRequirements = Object.freeze([
     label: "Platform identity backfill",
     packageScript: "platform:identity:backfill",
     command: "npm run platform:identity:backfill",
+  }),
+  Object.freeze({
+    id: "session-planner-staging-canary",
+    area: "staging-mirror",
+    label: "Session Planner two-user canary",
+    packageScript: "session-planner:staging:canary",
+    command: "npm run session-planner:staging:canary",
+  }),
+  Object.freeze({
+    id: "session-planner-staging-canary-recovery",
+    area: "staging-mirror",
+    label: "Session Planner canary recovery",
+    packageScript: "session-planner:staging:canary:recover",
+    command: "npm run session-planner:staging:canary:recover",
   }),
 ]);
 

@@ -43,7 +43,6 @@ const TABLES = Object.freeze({
       "metadata",
     ],
     patchFields: [
-      "organization_id",
       "slug",
       "name",
       "country_code",
@@ -70,8 +69,6 @@ const TABLES = Object.freeze({
       "metadata",
     ],
     patchFields: [
-      "organization_id",
-      "club_id",
       "slug",
       "name",
       "sport",
@@ -165,13 +162,7 @@ const TABLES = Object.freeze({
       "status",
       "metadata",
     ],
-    patchFields: [
-      "status",
-      "metadata",
-      "deleted_by",
-      "deleted_at",
-      "delete_reason",
-    ],
+    patchFields: ["status", "metadata"],
   },
 });
 

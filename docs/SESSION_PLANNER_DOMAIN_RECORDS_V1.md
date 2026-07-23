@@ -161,7 +161,26 @@ npm run session-planner:staging:drill -- \
   --json
 ```
 
-A write drill additionally requires `--apply`, the exact confirmation `--confirm=RUN_SESSION_PLANNER_STAGING_DRILL`, and `--expected-bundle-sha256 <reviewed-sha256>` from the dry-run. It refuses a target named production, refuses equal staging/production project refs, and the underlying review verifies that the configured Supabase URL resolves to the expected staging ref before any tenant or data read. Before the first domain write, the drill stores the exact baseline snapshot in the existing private backup bucket, rereads it, verifies its integrity hash, and prints a content-free recovery receipt; an existing identical object can be safely reused. The full drill then applies the bundle, proves the source projection, rolls back to the baseline projection, reapplies, and proves idempotency again. All public output remains content-free.
+A write drill additionally requires `--apply`, the exact confirmation `--confirm=RUN_SESSION_PLANNER_STAGING_DRILL`, and `--expected-bundle-sha256 <reviewed-sha256>` from the dry-run. It refuses a target named production, refuses equal staging/production project refs, and the underlying review verifies that the configured Supabase URL resolves to the expected staging ref before any tenant or data read. Before the first domain write, the drill stores an integrity-bound recovery package containing the exact baseline snapshot, backfill plan, and initial bundle in the existing private backup bucket, rereads it, verifies its integrity hash, and prints a content-free receipt; an existing identical object can be safely reused. The full drill then applies the bundle, proves the source projection, rolls back to the baseline projection, reapplies, and proves idempotency again. All public output remains content-free.
+
+If the process is interrupted after the first apply, use the separate recovery command in dry-run mode with the exact private path and package hash from the receipt:
+
+```bash
+npm run session-planner:staging:recover -- \
+  --target staging \
+  --expected-project-ref <staging-supabase-project-ref> \
+  --canonical-production-project-ref <production-supabase-project-ref> \
+  --organization-id <organization-uuid> \
+  --team-id <team-uuid> \
+  --actor-id <operator-user-uuid> \
+  --recovery-path <private-object-path> \
+  --expected-recovery-sha256 <recovery-package-sha256> \
+  --bundle-created-at <reviewed-iso-timestamp> \
+  --request-id <unique-request-id> \
+  --json
+```
+
+Recovery returns a content-free rollback bundle hash. Applying it additionally requires `--apply`, `--confirm=RECOVER_SESSION_PLANNER_STAGING_ROLLBACK`, and `--expected-rollback-bundle-sha256 <reviewed-sha256>`. It writes nothing when the active baseline projection is already restored. It only rolls back the exact, revision-matched first apply described by the recovery package; concurrent or otherwise unrecognized state fails closed for audit instead of being guessed at.
 
 Do not run the write drill until Platform Identity has passed its own staging snapshot/rollback drill, the complete migration chain has compiled on staging, the staging database has been isolated from production, and System/Security holds the current release slot. The committed atomic SQL remains candidate code until that real database proof exists.
 

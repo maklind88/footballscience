@@ -116,8 +116,11 @@ requireText("scripts/lib/platform-identity-snapshot.mjs", "footballscience-platf
 requireText("scripts/lib/platform-identity-snapshot-io.mjs", "readAfterWriteVerified", "private identity snapshots must be re-read and hash-verified after storage");
 requireText("scripts/session-planner-staging-drill.mjs", "RUN_SESSION_PLANNER_STAGING_DRILL", "Session Planner staging writes must require explicit operator confirmation");
 requireText("scripts/session-planner-staging-drill.mjs", "canonicalProductionProjectRef", "Session Planner staging drill must reject the canonical production project");
-requireText("scripts/session-planner-staging-drill.mjs", "storeMigrationSnapshot", "Session Planner staging drill must persist recovery state before domain writes");
-requireText("scripts/lib/session-planner-migration-snapshot-storage.mjs", "readAfterWriteVerified", "Session Planner recovery snapshots must be private and integrity verified");
+requireText("scripts/session-planner-staging-drill.mjs", "storeMigrationRecovery", "Session Planner staging drill must persist recovery state before domain writes");
+requireText("scripts/lib/session-planner-migration-recovery-storage.mjs", "readAfterWriteVerified", "Session Planner recovery packages must be private and integrity verified");
+requireText("scripts/session-planner-staging-recovery.mjs", "RECOVER_SESSION_PLANNER_STAGING_ROLLBACK", "Session Planner interruption recovery must require explicit operator confirmation");
+requireText("scripts/session-planner-staging-recovery.mjs", "expectedRollbackBundleSha256", "Session Planner recovery must bind writes to a reviewed rollback bundle");
+requireText("scripts/session-planner-staging-recovery.mjs", "alreadyRestored", "Session Planner recovery must recognize a restored baseline without writing again");
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "environment: platform-staging", "platform identity snapshot inspection must be staging-only");
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "summary.dryRun !== true", "platform identity snapshot inspection must verify read-only mode");
 forbidText(".github/workflows/platform-identity-snapshot-read-only.yml", "--capture", "platform identity snapshot inspection must not capture data");

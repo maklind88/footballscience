@@ -7,15 +7,20 @@ import {
   prepareSessionPlannerBackfillReview,
 } from "./session-planner-backfill-plan.mjs";
 import {
-  storeSessionPlannerMigrationSnapshot,
-} from "./lib/session-planner-migration-snapshot-storage.mjs";
+  storeSessionPlannerMigrationRecoveryPackage,
+} from "./lib/session-planner-migration-recovery-storage.mjs";
+import {
+  captureSessionPlannerOperatorSnapshot,
+  createSafeSessionPlannerExecutionResult,
+  executeSessionPlannerMigrationRpc,
+  sessionPlannerOperatorRequestId,
+  sessionPlannerOperatorTimestamp,
+} from "./lib/session-planner-migration-operator.mjs";
 
 const require = createRequire(import.meta.url);
 const { readConfig } = require("../api/_lib/supabase-admin.js");
-const { readSessionPlannerDomainSnapshot } = require("../api/_lib/session-planner-database.js");
 const {
   createSessionPlannerBackfillPlan,
-  createSessionPlannerMigrationSnapshot,
   createSessionPlannerSnapshotProjectionHash,
 } = require("../api/_lib/session-planner-migration-plan.js");
 const {
@@ -27,6 +32,10 @@ const {
   createSessionPlannerRollbackBundle,
   verifySessionPlannerMigrationBundle,
 } = require("../api/_lib/session-planner-migration-bundle.js");
+const {
+  createSessionPlannerMigrationRecoveryPackage,
+  createSessionPlannerMigrationRecoverySummary,
+} = require("../api/_lib/session-planner-migration-recovery.js");
 
 export const SESSION_PLANNER_STAGING_DRILL_SCHEMA =
   "footballscience-session-planner-staging-drill-v1";
@@ -37,12 +46,6 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 function normalizeText(value, maxLength = 240) {
   return String(value || "").replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, maxLength);
-}
-
-function scopedRequestId(requestId, suffix) {
-  const normalizedSuffix = normalizeText(suffix, 40);
-  const maxBaseLength = Math.max(1, 180 - normalizedSuffix.length);
-  return normalizeText(requestId, maxBaseLength) + normalizedSuffix;
 }
 
 function parseFlagValue(args, index) {
@@ -133,6 +136,9 @@ function validateOptions(options = {}) {
   if (!UUID_PATTERN.test(options.organizationId || "")) failures.push("a valid organization is required");
   if (!UUID_PATTERN.test(options.teamId || "")) failures.push("a valid team is required");
   if (!UUID_PATTERN.test(options.actorId || "")) failures.push("a valid audit actor is required");
+  if (options.appStateOrganizationId !== "global") {
+    failures.push("the source organization must be global");
+  }
   if (!Number.isInteger(options.expectedSourceRevision) || options.expectedSourceRevision < 1) {
     failures.push("an exact positive source revision is required");
   }
@@ -152,105 +158,6 @@ function validateOptions(options = {}) {
   return failures;
 }
 
-function databaseConfig(config = {}) {
-  const url = normalizeText(config.url, 500).replace(/\/+$/, "");
-  return {
-    url: url.endsWith("/rest/v1") ? url : url + "/rest/v1",
-    serviceRoleKey: normalizeText(config.serviceRoleKey, 1000),
-  };
-}
-
-function serviceHeaders(serviceRoleKey) {
-  return {
-    apikey: serviceRoleKey,
-    Authorization: "Bearer " + serviceRoleKey,
-    Accept: "application/json",
-    "Content-Type": "application/json",
-  };
-}
-
-function safeExecutionResult(result = {}) {
-  return {
-    ok: result.ok === true,
-    schema: normalizeText(result.schema, 120) || null,
-    operation: normalizeText(result.operation, 40) || null,
-    runId: normalizeText(result.runId, 120) || null,
-    planSha256: normalizeText(result.planSha256, 64) || null,
-    bundleSha256: normalizeText(result.bundleSha256, 64) || null,
-    projectRef: normalizeText(result.projectRef, 80) || null,
-    appliedSessions: Number(result.appliedSessions) || 0,
-    appliedBlocks: Number(result.appliedBlocks) || 0,
-    containsCoachingContent: false,
-  };
-}
-
-async function executeMigrationRpc(bundle, confirmation, options, dependencies) {
-  if (dependencies.executeRpc) {
-    return dependencies.executeRpc(bundle, confirmation, options);
-  }
-  const config = dependencies.config || readConfig();
-  const response = await (dependencies.fetchImpl || fetch)(
-    databaseConfig(config).url + "/rpc/execute_session_planner_migration_bundle",
-    {
-      method: "POST",
-      headers: serviceHeaders(config.serviceRoleKey),
-      body: JSON.stringify({
-        p_bundle: bundle,
-        p_expected_bundle_sha256: bundle.integrity.contentSha256,
-        p_source_organization_id: options.appStateOrganizationId,
-        p_confirmation: confirmation,
-      }),
-    }
-  );
-  let payload = {};
-  try {
-    payload = await response.json();
-  } catch {
-    payload = {};
-  }
-  if (!response.ok || payload?.ok !== true) {
-    throw new Error("Session Planner atomic migration RPC failed.");
-  }
-  return payload;
-}
-
-function timestamp(dependencies, label) {
-  const value = dependencies.nextTimestamp
-    ? dependencies.nextTimestamp(label)
-    : new Date().toISOString();
-  if (!value || Number.isNaN(Date.parse(value))) {
-    throw new Error("Session Planner staging drill timestamp is invalid.");
-  }
-  return new Date(value).toISOString();
-}
-
-async function captureSnapshot(options, source, dependencies, label) {
-  const config = dependencies.config || readConfig();
-  const readTarget = dependencies.readTargetSnapshot || readSessionPlannerDomainSnapshot;
-  const rows = await readTarget(
-    { organizationId: options.organizationId, teamId: options.teamId },
-    {
-      allowDisabled: true,
-      includeArchived: true,
-      config: databaseConfig(config),
-      fetchImpl: dependencies.fetchImpl,
-      env: dependencies.env || process.env,
-    }
-  );
-  if (!rows?.ok) throw new Error("Session Planner staging snapshot could not be read.");
-  const snapshot = createSessionPlannerMigrationSnapshot({
-    target: "staging",
-    projectRef: options.expectedProjectRef,
-    createdAt: timestamp(dependencies, label),
-    scope: { organizationId: options.organizationId, teamId: options.teamId },
-    sourceRevision: source.revision,
-    sourceHash: source.hash,
-    rows,
-  });
-  if (!snapshot.ok) throw new Error("Session Planner staging snapshot is invalid.");
-  return snapshot;
-}
-
 function requireBundle(bundle, operation) {
   const verification = verifySessionPlannerMigrationBundle(bundle);
   if (!verification.ok) {
@@ -263,7 +170,7 @@ function requireIdempotentProjection(sourceState, snapshot, dependencies, label)
   const plan = createSessionPlannerBackfillPlan({
     sourceState,
     baselineSnapshot: snapshot,
-    generatedAt: timestamp(dependencies, label),
+    generatedAt: sessionPlannerOperatorTimestamp(dependencies, label),
   });
   if (!plan.ok || plan.counts.actions !== 0 || plan.counts.blockers !== 0) {
     throw new Error("Session Planner applied projection does not match the source.");
@@ -291,10 +198,17 @@ export async function executeSessionPlannerStagingDrill(options = {}, dependenci
     baselineSnapshot: prepared.privateSnapshot,
     backfillPlan: prepared.backfillPlan,
     actorId: options.actorId,
-    requestId: scopedRequestId(options.requestId, ":backfill-1"),
+    requestId: sessionPlannerOperatorRequestId(options.requestId, ":backfill-1"),
     createdAt: options.bundleCreatedAt,
   }), "initial backfill");
   const initialSummary = createSessionPlannerMigrationBundleSummary(initialBundle);
+  const recoveryPackage = createSessionPlannerMigrationRecoveryPackage({
+    baselineSnapshot: prepared.privateSnapshot,
+    backfillPlan: prepared.backfillPlan,
+    initialBundle,
+    createdAt: options.bundleCreatedAt,
+  });
+  if (!recoveryPackage.ok) throw new Error("Session Planner recovery package is invalid.");
   const baseReport = {
     schema: SESSION_PLANNER_STAGING_DRILL_SCHEMA,
     target: "staging",
@@ -305,48 +219,52 @@ export async function executeSessionPlannerStagingDrill(options = {}, dependenci
       hash: prepared.privateSnapshot.source.hash,
     },
     initialBundle: initialSummary,
+    recoveryPackage: createSessionPlannerMigrationRecoverySummary(recoveryPackage),
     containsCoachingContent: false,
   };
   if (!options.apply) return Object.freeze({ ok: true, ready: true, ...baseReport });
   if (initialBundle.integrity.contentSha256 !== options.expectedInitialBundleSha256) {
     throw new Error("Session Planner initial bundle changed after review.");
   }
-  const storeSnapshot = dependencies.storeMigrationSnapshot || storeSessionPlannerMigrationSnapshot;
-  const recoverySnapshot = await storeSnapshot({
-    snapshot: prepared.privateSnapshot,
+  const storeRecovery = dependencies.storeMigrationRecovery ||
+    storeSessionPlannerMigrationRecoveryPackage;
+  const storedRecovery = await storeRecovery({
+    recoveryPackage,
     config,
     fetchImpl: dependencies.fetchImpl,
   });
   if (
-    recoverySnapshot?.ok !== true ||
-    recoverySnapshot.readAfterWriteVerified !== true ||
-    recoverySnapshot.contentSha256 !== prepared.privateSnapshot.integrity.contentSha256
+    storedRecovery?.ok !== true ||
+    storedRecovery.readAfterWriteVerified !== true ||
+    storedRecovery.contentSha256 !== recoveryPackage.integrity.contentSha256
   ) {
-    throw new Error("Session Planner recovery snapshot was not stored and verified.");
+    throw new Error("Session Planner recovery package was not stored and verified.");
   }
   const recoveryReceipt = Object.freeze({
     schema: SESSION_PLANNER_STAGING_DRILL_SCHEMA,
-    stage: "recovery-snapshot-verified",
+    stage: "recovery-package-verified",
     target: "staging",
     projectRef: options.expectedProjectRef,
-    bucket: recoverySnapshot.bucket || null,
-    path: recoverySnapshot.path || null,
-    contentSha256: recoverySnapshot.contentSha256,
+    bucket: storedRecovery.bucket || null,
+    path: storedRecovery.path || null,
+    contentSha256: storedRecovery.contentSha256,
     readAfterWriteVerified: true,
     containsCoachingContent: false,
   });
   if (dependencies.onCheckpoint) await dependencies.onCheckpoint(recoveryReceipt);
 
-  const firstExecution = await executeMigrationRpc(
+  const firstExecution = await executeSessionPlannerMigrationRpc(
     initialBundle,
     "APPLY_SESSION_PLANNER_BACKFILL",
     options,
-    dependencies
+    dependencies,
+    config
   );
-  const firstAppliedSnapshot = await captureSnapshot(
+  const firstAppliedSnapshot = await captureSessionPlannerOperatorSnapshot(
     options,
     prepared.privateSnapshot.source,
     dependencies,
+    config,
     "after-backfill"
   );
   const firstProjection = requireIdempotentProjection(
@@ -360,26 +278,28 @@ export async function executeSessionPlannerStagingDrill(options = {}, dependenci
     baselineSnapshot: prepared.privateSnapshot,
     currentSnapshot: firstAppliedSnapshot,
     backfillPlan: prepared.backfillPlan,
-    generatedAt: timestamp(dependencies, "rollback-plan"),
+    generatedAt: sessionPlannerOperatorTimestamp(dependencies, "rollback-plan"),
   });
   const rollbackBundle = requireBundle(createSessionPlannerRollbackBundle({
     baselineSnapshot: prepared.privateSnapshot,
     currentSnapshot: firstAppliedSnapshot,
     rollbackPlan,
     actorId: options.actorId,
-    requestId: scopedRequestId(options.requestId, ":rollback"),
-    createdAt: timestamp(dependencies, "rollback-bundle"),
+    requestId: sessionPlannerOperatorRequestId(options.requestId, ":rollback"),
+    createdAt: sessionPlannerOperatorTimestamp(dependencies, "rollback-bundle"),
   }), "rollback");
-  const rollbackExecution = await executeMigrationRpc(
+  const rollbackExecution = await executeSessionPlannerMigrationRpc(
     rollbackBundle,
     "APPLY_SESSION_PLANNER_ROLLBACK",
     options,
-    dependencies
+    dependencies,
+    config
   );
-  const rolledBackSnapshot = await captureSnapshot(
+  const rolledBackSnapshot = await captureSessionPlannerOperatorSnapshot(
     options,
     prepared.privateSnapshot.source,
     dependencies,
+    config,
     "after-rollback"
   );
   const baselineProjection = createSessionPlannerSnapshotProjectionHash(prepared.privateSnapshot);
@@ -395,26 +315,28 @@ export async function executeSessionPlannerStagingDrill(options = {}, dependenci
   const reapplyPlan = createSessionPlannerBackfillPlan({
     sourceState: prepared.privateSourceState,
     baselineSnapshot: rolledBackSnapshot,
-    generatedAt: timestamp(dependencies, "reapply-plan"),
+    generatedAt: sessionPlannerOperatorTimestamp(dependencies, "reapply-plan"),
   });
   const reapplyBundle = requireBundle(createSessionPlannerBackfillBundle({
     sourceState: prepared.privateSourceState,
     baselineSnapshot: rolledBackSnapshot,
     backfillPlan: reapplyPlan,
     actorId: options.actorId,
-    requestId: scopedRequestId(options.requestId, ":backfill-2"),
-    createdAt: timestamp(dependencies, "reapply-bundle"),
+    requestId: sessionPlannerOperatorRequestId(options.requestId, ":backfill-2"),
+    createdAt: sessionPlannerOperatorTimestamp(dependencies, "reapply-bundle"),
   }), "reapply");
-  const reapplyExecution = await executeMigrationRpc(
+  const reapplyExecution = await executeSessionPlannerMigrationRpc(
     reapplyBundle,
     "APPLY_SESSION_PLANNER_BACKFILL",
     options,
-    dependencies
+    dependencies,
+    config
   );
-  const finalSnapshot = await captureSnapshot(
+  const finalSnapshot = await captureSessionPlannerOperatorSnapshot(
     options,
     prepared.privateSnapshot.source,
     dependencies,
+    config,
     "after-reapply"
   );
   const finalProjection = requireIdempotentProjection(
@@ -431,20 +353,20 @@ export async function executeSessionPlannerStagingDrill(options = {}, dependenci
     ok: true,
     ready: true,
     ...baseReport,
-    recoverySnapshot: recoveryReceipt,
+    recoveryPackageReceipt: recoveryReceipt,
     firstApply: {
       bundle: initialSummary,
-      execution: safeExecutionResult(firstExecution),
+      execution: createSafeSessionPlannerExecutionResult(firstExecution),
       projectionSha256: firstProjection.contentSha256,
     },
     rollback: {
       bundle: createSessionPlannerMigrationBundleSummary(rollbackBundle),
-      execution: safeExecutionResult(rollbackExecution),
+      execution: createSafeSessionPlannerExecutionResult(rollbackExecution),
       projectionSha256: rolledBackProjection.contentSha256,
     },
     reapply: {
       bundle: createSessionPlannerMigrationBundleSummary(reapplyBundle),
-      execution: safeExecutionResult(reapplyExecution),
+      execution: createSafeSessionPlannerExecutionResult(reapplyExecution),
       projectionSha256: finalProjection.contentSha256,
     },
     containsCoachingContent: false,

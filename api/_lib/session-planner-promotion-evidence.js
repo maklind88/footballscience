@@ -44,6 +44,13 @@ function validatePlatformIdentity(report, expected, failures) {
   );
   addFailure(
     failures,
+    report?.target === "staging" &&
+      normalizeText(report?.projectRef, 80) === expected.projectRef &&
+      sameTenant(report, expected),
+    "identity_scope_mismatch"
+  );
+  addFailure(
+    failures,
     bundle.ok === true &&
       bundle.target === "staging" &&
       normalizeText(bundle.projectRef, 80) === expected.projectRef &&

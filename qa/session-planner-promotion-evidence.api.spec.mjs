@@ -33,6 +33,9 @@ function identityReport() {
     dryRun: false,
     applied: true,
     rolledBack: true,
+    target: "staging",
+    projectRef,
+    scope: { organizationId, teamId },
     recoveryRequired: false,
     failures: [],
     bundle: {
@@ -279,6 +282,20 @@ test("Session Planner promotion evidence rejects unverified rollback and user co
       "identity_bundle_invalid",
       "identity_rollback_verification_invalid",
     ]));
+  }
+});
+
+test("Session Planner promotion evidence rejects cross-team identity proof", () => {
+  const identity = identityReport();
+  identity.scope.teamId = "44444444-4444-4444-8444-444444444444";
+  try {
+    assembleSessionPlannerPromotionEvidence(
+      reviewInput({ platformIdentityReport: identity }),
+      { now }
+    );
+    throw new Error("Expected identity scope validation to fail.");
+  } catch (error) {
+    expect(error.failureCodes).toContain("identity_scope_mismatch");
   }
 });
 

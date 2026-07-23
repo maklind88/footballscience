@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned, additive, and disabled by default. Pure shadow comparison, a scope-gated GET-only operational shadow check, a GET-only operational backfill review, content-free backfill planning, private snapshot integrity, audit-context hardening, rollback projection verification, a guarded staging-only drill candidate, an authenticated two-user app-state canary with interruption recovery, and an integrity-bound staging read-promotion gateway are implemented but are not wired into user-facing reads or writes.
+Planned, additive, and disabled by default. Pure shadow comparison, a scope-gated GET-only operational shadow check, a GET-only operational backfill review, content-free backfill planning, private snapshot integrity, audit-context hardening, rollback projection verification, a guarded staging-only drill candidate, an authenticated two-user app-state canary with interruption recovery, a local read-only evidence reviewer, and an integrity-bound staging read-promotion gateway are implemented but are not wired into user-facing reads or writes.
 
 - Existing source of truth: `football-session-planner-v3` through `/api/app-state`.
 - Target pilot tables: `session_planner_sessions` and `session_planner_blocks`.
@@ -23,6 +23,7 @@ This foundation must not change Session Planner UI, autosave, navigation, permis
 | Read-only backfill review | `qa/session-planner-backfill-review.api.spec.mjs` | Contract proven |
 | Scope-gated, content-free shadow comparison | `qa/session-planner-shadow.api.spec.mjs`, `qa/session-planner-shadow-check.api.spec.mjs` | Contract proven; real staging comparison pending |
 | Repeated shadow-evidence gate | `qa/session-planner-shadow-evidence.api.spec.mjs` | Contract proven; three real staging reports pending |
+| Hash-bound promotion evidence review | `qa/session-planner-promotion-evidence.api.spec.mjs` | Contract proven; real reports and manual review pending |
 | Staging read promotion and exact fallback | `qa/session-planner-read-promotion.api.spec.mjs`, `qa/session-planner-read-gateway.api.spec.mjs` | Contract proven; deliberately not wired into `/api/app-state` |
 | Atomic stale-write rejection and transaction rollback | `qa/session-planner-postgres-drill.api.spec.mjs` | Local PostgreSQL proven |
 | Integrity-bound recovery and rollback | `qa/session-planner-migration-safety.api.spec.mjs`, `qa/session-planner-staging-recovery.api.spec.mjs` | Contract proven; real staging drill pending |
@@ -96,7 +97,9 @@ a database read:
 - Exact organization/team allowlist.
 - An active Platform Identity membership that covers the same team.
 - The exact current app-state revision and raw value hash.
-- A reviewed, integrity-bound promotion receipt that expires within 24 hours.
+- A reviewed, integrity-bound promotion receipt that expires within 24 hours,
+  identifies its reviewer, and binds the exact identity, shadow, migration,
+  canary, app-state, gateway, and fallback-contract hashes.
 - Platform Identity rollback proof, repeated shadow equality, apply/rollback/reapply
   proof, authenticated two-user reload/stale-write proof, and compatibility
   snapshot/restore proof.
@@ -104,6 +107,12 @@ a database read:
 Any missing, stale, altered, cross-tenant, unavailable, or mismatching evidence
 returns the exact existing app-state bytes. The gateway has no write, backfill,
 promotion, or automatic activation capability.
+
+`npm run session-planner:promotion:review` is a local review-only command. It
+reads four bounded content-free JSON reports plus fixed repository source and
+contract files. It has no network, database credential, write, feature-flag,
+deploy, or activation capability. Its output is a sealed content-free receipt,
+not permission to change runtime configuration.
 
 ## Alternatives Rejected
 
@@ -363,8 +372,9 @@ current release slot.
 - App-state remains untouched during dry-run and backfill.
 - A read canary falls back to the exact app-state value on any mismatch or database error.
 - The read-canary promotion receipt is bound to the exact staging project, tenant,
-  source revision/hash, and a maximum 24-hour review window; changing any of them
-  disables domain reads before the database is contacted.
+  source revision/hash, reviewer, every evidence report hash, compatibility source
+  hashes, and a maximum 24-hour review window; changing any of them disables domain
+  reads before the database is contacted.
 - The read gateway is not currently imported by `/api/app-state`, so adding its
   candidate code cannot change production reads.
 - Shadow reports contain only scope identifiers, counts, hashes, status, and reason codes; coaching content is never emitted.

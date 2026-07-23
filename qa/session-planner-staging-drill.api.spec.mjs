@@ -21,6 +21,7 @@ import {
   organizationId,
   projectRef,
   productionProjectRef,
+  teamId,
 } from "./helpers/session-planner-migration-fixture.mjs";
 
 const require = createRequire(import.meta.url);
@@ -63,7 +64,13 @@ test("Session Planner staging drill defaults to a content-free no-write dry-run"
   });
 
   expect(rpcCalls).toBe(0);
-  expect(report).toMatchObject({ ok: true, ready: true, mode: "dry-run", containsCoachingContent: false });
+  expect(report).toMatchObject({
+    ok: true,
+    ready: true,
+    mode: "dry-run",
+    scope: { organizationId, teamId },
+    containsCoachingContent: false,
+  });
   expect(report.initialBundle).toMatchObject({ ok: true, operation: "backfill", commandCount: 2 });
   expect(JSON.stringify(report)).not.toContain("Private first-team training");
   expect(JSON.stringify(report)).not.toContain("Private exercise");
@@ -156,7 +163,13 @@ test("Session Planner staging drill proves apply, rollback and reapply with exac
     ":rollback",
     ":backfill-2",
   ]);
-  expect(report).toMatchObject({ ok: true, ready: true, mode: "drill", containsCoachingContent: false });
+  expect(report).toMatchObject({
+    ok: true,
+    ready: true,
+    mode: "drill",
+    scope: { organizationId, teamId },
+    containsCoachingContent: false,
+  });
   expect(report.firstApply.projectionSha256).toBe(report.reapply.projectionSha256);
   expect(JSON.stringify(report)).not.toContain("Private first-team training");
   expect(JSON.stringify(report)).not.toContain("Private previous training");

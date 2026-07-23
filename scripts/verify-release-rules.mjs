@@ -168,6 +168,15 @@ forbidText(".github/workflows/session-planner-staging-canary-recovery.yml", "upl
 forbidText("api/_lib/session-planner-database.js", '"database"', "Session Planner database-primary mode must remain unavailable before canary promotion");
 requireText("api/_lib/session-planner-read-promotion.js", "promotion_target_not_staging", "Session Planner read promotion must remain staging-only");
 requireText("api/_lib/session-planner-read-promotion.js", "promotion_production_separation_invalid", "Session Planner read promotion must prove staging/production separation");
+requireText("api/_lib/session-planner-read-promotion.js", "promotion_evidence_manifest_invalid", "Session Planner read promotion must bind every reviewed evidence report");
+requireText("api/_lib/session-planner-read-promotion.js", "promotion_reviewer_invalid", "Session Planner read promotion must identify its reviewer");
+requireText("api/_lib/session-planner-promotion-evidence.js", "platformIdentityReport", "Session Planner promotion must validate Platform Identity staging proof");
+requireText("api/_lib/session-planner-promotion-evidence.js", "multiUserCanaryReport", "Session Planner promotion must validate authenticated multi-user proof");
+requireText("api/_lib/session-planner-promotion-evidence-safety.js", "evidence_report_contains_sensitive_field", "Session Planner promotion reports must remain content-free");
+requireText("scripts/session-planner-promotion-review.mjs", "review-only", "Session Planner promotion review must remain non-activating");
+forbidText("scripts/session-planner-promotion-review.mjs", "writeFile", "Session Planner promotion review must not write evidence or state");
+forbidText("scripts/session-planner-promotion-review.mjs", "serviceRoleKey", "Session Planner promotion review must not hold database write credentials");
+forbidText("scripts/session-planner-promotion-review.mjs", "fetch(", "Session Planner promotion review must not make network requests");
 requireText("api/_lib/session-planner-read-gateway.js", "SESSION_PLANNER_READ_PROMOTION_SHA256", "Session Planner read canary must bind to the reviewed promotion receipt");
 requireText("api/_lib/session-planner-read-gateway.js", "gateway_actor_scope_denied", "Session Planner read canary must require Platform Identity tenant access");
 requireText("api/_lib/session-planner-read-gateway.js", "gateway_candidate_mismatch", "Session Planner read canary must fail back on source mismatch");

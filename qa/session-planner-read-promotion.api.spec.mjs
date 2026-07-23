@@ -13,7 +13,70 @@ const organizationId = "11111111-1111-4111-8111-111111111111";
 const teamId = "22222222-2222-4222-8222-222222222222";
 const sourceHash = "a".repeat(64);
 const snapshotHash = "b".repeat(64);
+const identityReportHash = "c".repeat(64);
+const shadowReportHash = "d".repeat(64);
+const drillReportHash = "e".repeat(64);
+const canaryReportHash = "f".repeat(64);
+const reviewerId = "33333333-3333-4333-8333-333333333333";
 const now = new Date("2026-07-23T12:00:00.000Z");
+
+function promotionEvidence() {
+  const compatibilityBody = {
+    appStatePrimary: true,
+    fallbackEnabled: true,
+    snapshotVerified: true,
+    restoreVerified: true,
+    appStateSourceSha256: "1".repeat(64),
+    gatewaySourceSha256: "2".repeat(64),
+    gatewayContractSha256: "3".repeat(64),
+    canaryReportSha256: canaryReportHash,
+  };
+  const compatibility = {
+    ...compatibilityBody,
+    evidenceSha256: hashJsonValue(compatibilityBody),
+  };
+  const manifest = {
+    platformIdentityReportSha256: identityReportHash,
+    shadowReportSha256: shadowReportHash,
+    migrationDrillReportSha256: drillReportHash,
+    multiUserCanaryReportSha256: canaryReportHash,
+    compatibilityEvidenceSha256: compatibility.evidenceSha256,
+  };
+  return {
+    platformIdentity: {
+      passed: true,
+      rollbackVerified: true,
+      distinctUserCount: 2,
+      reportSha256: identityReportHash,
+    },
+    shadow: {
+      passed: true,
+      reportCount: 3,
+      observationSpanMs: 10 * 60 * 1000,
+      snapshotContentSha256: snapshotHash,
+      reportSha256: shadowReportHash,
+    },
+    migrationDrill: {
+      passed: true,
+      applyVerified: true,
+      rollbackVerified: true,
+      reapplyVerified: true,
+      recoveryPackageVerified: true,
+      reportSha256: drillReportHash,
+    },
+    multiUserCanary: {
+      passed: true,
+      distinctUserCount: 2,
+      immediateReloadVerified: true,
+      staleWriteRejected: true,
+      cleanupVerified: true,
+      recoveryPackageVerified: true,
+      reportSha256: canaryReportHash,
+    },
+    compatibility,
+    manifestSha256: hashJsonValue(manifest),
+  };
+}
 
 function promotionInput(overrides = {}) {
   return {
@@ -26,41 +89,9 @@ function promotionInput(overrides = {}) {
       revision: 301,
       hash: sourceHash,
     },
-    evidence: {
-      platformIdentity: {
-        passed: true,
-        rollbackVerified: true,
-        distinctUserCount: 2,
-      },
-      shadow: {
-        passed: true,
-        reportCount: 3,
-        observationSpanMs: 10 * 60 * 1000,
-        snapshotContentSha256: snapshotHash,
-      },
-      migrationDrill: {
-        passed: true,
-        applyVerified: true,
-        rollbackVerified: true,
-        reapplyVerified: true,
-        recoveryPackageVerified: true,
-      },
-      multiUserCanary: {
-        passed: true,
-        distinctUserCount: 2,
-        immediateReloadVerified: true,
-        staleWriteRejected: true,
-        cleanupVerified: true,
-        recoveryPackageVerified: true,
-      },
-      compatibility: {
-        appStatePrimary: true,
-        fallbackEnabled: true,
-        snapshotVerified: true,
-        restoreVerified: true,
-      },
-    },
+    evidence: promotionEvidence(),
     review: {
+      reviewerId,
       reviewedAt: "2026-07-23T11:30:00.000Z",
       expiresAt: "2026-07-23T15:30:00.000Z",
     },
@@ -115,6 +146,7 @@ test("Session Planner promotion receipt binds every required staging proof", () 
     integrity: {
       algorithm: "sha256",
     },
+    review: { reviewerId },
   });
   expect(result).toMatchObject({
     ok: true,

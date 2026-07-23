@@ -1,7 +1,7 @@
 const { hashJsonValue } = require("./session-planner-domain-records.js");
 
 const SESSION_PLANNER_READ_PROMOTION_SCHEMA =
-  "footballscience-session-planner-read-promotion-v1";
+  "footballscience-session-planner-read-promotion-v2";
 const SESSION_PLANNER_READ_PROMOTION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const SESSION_PLANNER_READ_PROMOTION_MIN_SHADOW_REPORTS = 3;
 const SESSION_PLANNER_READ_PROMOTION_MIN_SHADOW_SPAN_MS = 10 * 60 * 1000;
@@ -57,6 +57,10 @@ function createPromotionBody(input = {}) {
         distinctUserCount: normalizeInteger(
           input.evidence?.platformIdentity?.distinctUserCount
         ),
+        reportSha256: normalizeText(
+          input.evidence?.platformIdentity?.reportSha256,
+          64
+        ),
       },
       shadow: {
         passed: normalizeBoolean(input.evidence?.shadow?.passed),
@@ -68,6 +72,7 @@ function createPromotionBody(input = {}) {
           input.evidence?.shadow?.snapshotContentSha256,
           64
         ),
+        reportSha256: normalizeText(input.evidence?.shadow?.reportSha256, 64),
       },
       migrationDrill: {
         passed: normalizeBoolean(input.evidence?.migrationDrill?.passed),
@@ -82,6 +87,10 @@ function createPromotionBody(input = {}) {
         ),
         recoveryPackageVerified: normalizeBoolean(
           input.evidence?.migrationDrill?.recoveryPackageVerified
+        ),
+        reportSha256: normalizeText(
+          input.evidence?.migrationDrill?.reportSha256,
+          64
         ),
       },
       multiUserCanary: {
@@ -101,6 +110,10 @@ function createPromotionBody(input = {}) {
         recoveryPackageVerified: normalizeBoolean(
           input.evidence?.multiUserCanary?.recoveryPackageVerified
         ),
+        reportSha256: normalizeText(
+          input.evidence?.multiUserCanary?.reportSha256,
+          64
+        ),
       },
       compatibility: {
         appStatePrimary: normalizeBoolean(
@@ -115,12 +128,61 @@ function createPromotionBody(input = {}) {
         restoreVerified: normalizeBoolean(
           input.evidence?.compatibility?.restoreVerified
         ),
+        appStateSourceSha256: normalizeText(
+          input.evidence?.compatibility?.appStateSourceSha256,
+          64
+        ),
+        gatewaySourceSha256: normalizeText(
+          input.evidence?.compatibility?.gatewaySourceSha256,
+          64
+        ),
+        gatewayContractSha256: normalizeText(
+          input.evidence?.compatibility?.gatewayContractSha256,
+          64
+        ),
+        canaryReportSha256: normalizeText(
+          input.evidence?.compatibility?.canaryReportSha256,
+          64
+        ),
+        evidenceSha256: normalizeText(
+          input.evidence?.compatibility?.evidenceSha256,
+          64
+        ),
       },
+      manifestSha256: normalizeText(input.evidence?.manifestSha256, 64),
     },
     review: {
+      reviewerId: normalizeText(input.review?.reviewerId),
       reviewedAt: String(input.review?.reviewedAt || ""),
       expiresAt: String(input.review?.expiresAt || ""),
     },
+  };
+}
+
+function compatibilityEvidenceBody(compatibility = {}) {
+  return {
+    appStatePrimary: compatibility.appStatePrimary === true,
+    fallbackEnabled: compatibility.fallbackEnabled === true,
+    snapshotVerified: compatibility.snapshotVerified === true,
+    restoreVerified: compatibility.restoreVerified === true,
+    appStateSourceSha256: compatibility.appStateSourceSha256 || "",
+    gatewaySourceSha256: compatibility.gatewaySourceSha256 || "",
+    gatewayContractSha256: compatibility.gatewayContractSha256 || "",
+    canaryReportSha256: compatibility.canaryReportSha256 || "",
+  };
+}
+
+function promotionEvidenceManifest(evidence = {}) {
+  return {
+    platformIdentityReportSha256:
+      evidence.platformIdentity?.reportSha256 || "",
+    shadowReportSha256: evidence.shadow?.reportSha256 || "",
+    migrationDrillReportSha256:
+      evidence.migrationDrill?.reportSha256 || "",
+    multiUserCanaryReportSha256:
+      evidence.multiUserCanary?.reportSha256 || "",
+    compatibilityEvidenceSha256:
+      evidence.compatibility?.evidenceSha256 || "",
   };
 }
 
@@ -163,7 +225,8 @@ function validatePromotionBody(body, options = {}) {
   if (
     identity.passed !== true ||
     identity.rollbackVerified !== true ||
-    normalizeInteger(identity.distinctUserCount) < 2
+    normalizeInteger(identity.distinctUserCount) < 2 ||
+    !SHA256_PATTERN.test(identity.reportSha256 || "")
   ) {
     failures.add("promotion_platform_identity_unproven");
   }
@@ -174,7 +237,8 @@ function validatePromotionBody(body, options = {}) {
     normalizeInteger(shadow.reportCount) < SESSION_PLANNER_READ_PROMOTION_MIN_SHADOW_REPORTS ||
     normalizeInteger(shadow.observationSpanMs) <
       SESSION_PLANNER_READ_PROMOTION_MIN_SHADOW_SPAN_MS ||
-    !SHA256_PATTERN.test(shadow.snapshotContentSha256 || "")
+    !SHA256_PATTERN.test(shadow.snapshotContentSha256 || "") ||
+    !SHA256_PATTERN.test(shadow.reportSha256 || "")
   ) {
     failures.add("promotion_shadow_evidence_unproven");
   }
@@ -185,7 +249,8 @@ function validatePromotionBody(body, options = {}) {
     drill.applyVerified !== true ||
     drill.rollbackVerified !== true ||
     drill.reapplyVerified !== true ||
-    drill.recoveryPackageVerified !== true
+    drill.recoveryPackageVerified !== true ||
+    !SHA256_PATTERN.test(drill.reportSha256 || "")
   ) {
     failures.add("promotion_migration_drill_unproven");
   }
@@ -197,7 +262,8 @@ function validatePromotionBody(body, options = {}) {
     canary.immediateReloadVerified !== true ||
     canary.staleWriteRejected !== true ||
     canary.cleanupVerified !== true ||
-    canary.recoveryPackageVerified !== true
+    canary.recoveryPackageVerified !== true ||
+    !SHA256_PATTERN.test(canary.reportSha256 || "")
   ) {
     failures.add("promotion_multi_user_canary_unproven");
   }
@@ -207,11 +273,27 @@ function validatePromotionBody(body, options = {}) {
     compatibility.appStatePrimary !== true ||
     compatibility.fallbackEnabled !== true ||
     compatibility.snapshotVerified !== true ||
-    compatibility.restoreVerified !== true
+    compatibility.restoreVerified !== true ||
+    !SHA256_PATTERN.test(compatibility.appStateSourceSha256 || "") ||
+    !SHA256_PATTERN.test(compatibility.gatewaySourceSha256 || "") ||
+    !SHA256_PATTERN.test(compatibility.gatewayContractSha256 || "") ||
+    compatibility.canaryReportSha256 !== canary.reportSha256 ||
+    compatibility.evidenceSha256 !==
+      hashJsonValue(compatibilityEvidenceBody(compatibility))
   ) {
     failures.add("promotion_compatibility_fallback_unproven");
   }
+  if (
+    !SHA256_PATTERN.test(body.evidence?.manifestSha256 || "") ||
+    body.evidence.manifestSha256 !==
+      hashJsonValue(promotionEvidenceManifest(body.evidence))
+  ) {
+    failures.add("promotion_evidence_manifest_invalid");
+  }
 
+  if (!UUID_PATTERN.test(body.review?.reviewerId || "")) {
+    failures.add("promotion_reviewer_invalid");
+  }
   if (!now || !reviewedAt || !expiresAt) {
     failures.add("promotion_review_window_invalid");
   } else {
@@ -302,6 +384,7 @@ function evaluateSessionPlannerReadPromotion(receipt = {}, expected = {}, option
     receiptSha256: receiptHash || null,
     reviewedAt: body.review.reviewedAt || null,
     expiresAt: body.review.expiresAt || null,
+    reviewerId: body.review.reviewerId || null,
     evidencePassed: ok,
     promotionAllowed: ok,
     promotionBlocked: !ok,

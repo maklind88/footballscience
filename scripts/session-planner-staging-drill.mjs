@@ -214,6 +214,10 @@ export async function executeSessionPlannerStagingDrill(options = {}, dependenci
     target: "staging",
     projectRef: options.expectedProjectRef,
     mode: options.apply ? "drill" : "dry-run",
+    scope: {
+      organizationId: options.organizationId,
+      teamId: options.teamId,
+    },
     source: {
       revision: prepared.privateSnapshot.source.revision,
       hash: prepared.privateSnapshot.source.hash,

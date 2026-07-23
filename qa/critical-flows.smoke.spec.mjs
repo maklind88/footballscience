@@ -3480,6 +3480,46 @@ test("Session Planner block edits persist after refresh", async ({ page }) => {
   await expectStorageContains(page, sessionPlannerKey, value);
 });
 
+test("Session Planner date and block browsing does not persist view-only selection", async ({ page }) => {
+  const state = createQaSessionPlannerState();
+  state.sessions[qaSessionPlannerTrainingDate].blocks.push({
+    ...state.sessions[qaSessionPlannerTrainingDate].blocks[0],
+    id: "qa-block-2",
+    label: "Block 2",
+    title: "QA Game",
+  });
+  await page.addInitScript(
+    ({ storageKey, nextState }) => {
+      window.localStorage.setItem(storageKey, JSON.stringify(nextState));
+    },
+    { storageKey: sessionPlannerKey, nextState: state }
+  );
+
+  await bootApp(page);
+  await openWorkspace(page, "session-planner");
+  const sessionPlannerWorkspace = await waitForSessionPlannerWorkspace(page);
+  const persistedBeforeBrowsing = await page.evaluate(
+    (storageKey) => window.localStorage.getItem(storageKey),
+    sessionPlannerKey
+  );
+
+  await sessionPlannerWorkspace.locator('[data-session-date="2026-05-20"]').click();
+  await expect(sessionPlannerWorkspace.locator('[data-session-date="2026-05-20"]')).toHaveClass(/is-active/);
+  await expect.poll(() =>
+    page.evaluate((storageKey) => window.localStorage.getItem(storageKey), sessionPlannerKey)
+  ).toBe(persistedBeforeBrowsing);
+
+  const persistedAfterDateBrowsing = JSON.parse(persistedBeforeBrowsing);
+  expect(persistedAfterDateBrowsing.sessions["2026-05-20"]).toBeUndefined();
+
+  await sessionPlannerWorkspace.locator(`[data-session-date="${qaSessionPlannerTrainingDate}"]`).click();
+  await sessionPlannerWorkspace.locator('[data-session-block-id="qa-block-2"]').click();
+  await expect(sessionPlannerWorkspace.locator('[data-session-block-id="qa-block-2"]')).toHaveClass(/is-active/);
+  await expect.poll(() =>
+    page.evaluate((storageKey) => window.localStorage.getItem(storageKey), sessionPlannerKey)
+  ).toBe(persistedBeforeBrowsing);
+});
+
 test("Session Planner post-session notes stay attached to library exercises", async ({ page }) => {
   const note = `QA post-session review ${Date.now()}`;
   const exerciseId = "qa-library-review-exercise";

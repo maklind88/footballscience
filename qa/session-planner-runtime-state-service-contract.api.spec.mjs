@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { createSessionPlannerRuntimeStateService } from "../src/modules/session-planner/index.mjs";
+import {
+  createSessionPlannerRuntimeStateService,
+  createSessionPlannerStateMergeHelpers,
+} from "../src/modules/session-planner/index.mjs";
 
 function readProjectFile(relativePath) {
   return readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
@@ -8,11 +11,14 @@ function readProjectFile(relativePath) {
 
 function createLocalStorage(initialEntries = {}) {
   const values = new Map(Object.entries(initialEntries));
+  const setItemCalls = [];
   return {
     getItem: (key) => values.get(String(key)) ?? null,
     setItem: (key, value) => {
       values.set(String(key), String(value));
+      setItemCalls.push([String(key), String(value)]);
     },
+    setItemCalls,
     values,
   };
 }
@@ -79,7 +85,8 @@ function createHarness(options = {}) {
       calls.push(["marked", fields]);
       block.fieldUpdatedAt = Object.fromEntries(fields.map((field) => [field, "now"]));
     },
-    mergeStateForWrite: (existingState, nextState) => ({ ...cloneState(nextState), mergedFrom: existingState.selectedDate }),
+    mergeStateForWrite: options.mergeStateForWrite ||
+      ((existingState, nextState) => ({ ...cloneState(nextState), mergedFrom: existingState.selectedDate })),
     mergeStateFromBackup: (currentState, backupState) => ({
       state: {
         ...cloneState(currentState),
@@ -151,6 +158,104 @@ test("Session Planner runtime state service preserves field assignment and DOM s
   expect(calls).toContain("capture");
   expect(calls).toContain("autosave");
   expect(JSON.parse(localStorage.getItem(storageKey)).sessions["2026-05-01"].blocks[0].title).toBe("New title");
+});
+
+test("Session Planner runtime state service ignores semantically unchanged multi-select fields", () => {
+  const state = {
+    selectedDate: "2026-05-01",
+    sessions: {
+      "2026-05-01": {
+        id: "session-2026-05-01",
+        selectedBlockId: "block-1",
+        blocks: [{
+          id: "block-1",
+          title: "Same title",
+          minutes: 10,
+          intensity: 2,
+          phase: ["Build-up", "Pressing"],
+          fieldUpdatedAt: {},
+        }],
+      },
+    },
+  };
+  const storageKey = "football-session-planner-v3";
+  const fields = [
+    { dataset: { sessionField: "title" }, value: "Same title" },
+    { dataset: { sessionField: "phase" }, value: "Build-up, Pressing" },
+  ];
+  const { calls, localStorage, service } = createHarness({
+    fields,
+    initialStorage: { [storageKey]: JSON.stringify(state) },
+    mergeStateForWrite: (_existingState, nextState) => cloneState(nextState),
+    state: cloneState(state),
+  });
+
+  service.syncSelectedBlockFieldsFromDom();
+
+  expect(calls).not.toContain("capture");
+  expect(calls).not.toContain("autosave");
+  expect(calls.some((call) => Array.isArray(call) && call[0] === "marked")).toBe(false);
+  expect(localStorage.setItemCalls).toHaveLength(0);
+});
+
+test("Session Planner runtime state service suppresses byte-identical writes", () => {
+  const state = {
+    selectedDate: "2026-05-01",
+    sessions: {
+      "2026-05-01": {
+        id: "session-2026-05-01",
+        selectedBlockId: "block-1",
+        blocks: [{ id: "block-1", title: "Unchanged", fieldUpdatedAt: {} }],
+      },
+    },
+  };
+  const storageKey = "football-session-planner-v3";
+  const { calls, localStorage, service } = createHarness({
+    initialStorage: { [storageKey]: JSON.stringify(state) },
+    mergeStateForWrite: (_existingState, nextState) => cloneState(nextState),
+    state: cloneState(state),
+  });
+
+  expect(service.writeState()).toBe(true);
+  expect(calls).not.toContain("capture");
+  expect(calls).not.toContain("autosave");
+  expect(localStorage.setItemCalls).toHaveLength(0);
+});
+
+test("Session Planner production state merge stays idempotent for unchanged content", () => {
+  const mergeFields = ["title", "phase"];
+  const mergeHelpers = createSessionPlannerStateMergeHelpers({
+    blockMergeFields: mergeFields,
+    blockMergeFieldSet: new Set(mergeFields),
+  });
+  const state = mergeHelpers.cloneSessionPlannerState({
+    selectedDate: "2026-05-01",
+    sessions: {
+      "2026-05-01": {
+        id: "session-2026-05-01",
+        date: "2026-05-01",
+        title: "Training",
+        selectedBlockId: "block-1",
+        blocks: [{
+          id: "block-1",
+          title: "Unchanged",
+          phase: ["Build-up"],
+          fieldUpdatedAt: {},
+        }],
+      },
+    },
+  });
+  const storageKey = "football-session-planner-v3";
+  const { calls, localStorage, service } = createHarness({
+    initialStorage: { [storageKey]: JSON.stringify(state) },
+    mergeStateForWrite: mergeHelpers.mergeSessionPlannerStateForWrite,
+    state: cloneState(state),
+  });
+
+  expect(service.writeState()).toBe(true);
+  expect(calls).not.toContain("capture");
+  expect(calls).not.toContain("autosave");
+  expect(localStorage.setItemCalls).toHaveLength(0);
 });
 
 test("Session Planner runtime state service preserves normalized reads and central record scheduling", () => {

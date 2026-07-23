@@ -3,6 +3,7 @@ import { confirmPlatformAction } from "../../core/platform-confirm-dialog.mjs";
 
 export function createSessionPlannerWorkspaceController(deps = {}) {
   const {
+    areSessionPlannerBlockFieldValuesEqual = Object.is,
     assignSessionPlannerBlockFieldValue,
     assignSessionPlannerPlayerBoardAutoFormationTeams,
     assignSessionPlannerPlayerBoardFormationSlots,
@@ -163,6 +164,11 @@ function getSessionPlannerSelectedBlock() {
 const session = getSessionPlannerSelectedSession();
 return session.blocks.find((block) => block.id === session.selectedBlockId) ?? session.blocks[0] ?? null;
 }
+function syncSessionPlannerSelectedBlockHistoryBaselines() {
+const block = getSessionPlannerSelectedBlock();
+syncSessionPlannerBoardHistoryBaseline("tactical", block);
+syncSessionPlannerBoardHistoryBaseline("player", block);
+}
 function selectSessionPlannerDate(dateValue) {
 if (!local.sessionPlannerState || !dateValue) {
 return;
@@ -180,7 +186,7 @@ local.sessionPlannerPlayerBoardSelectedPlayerIds = [];
 local.sessionPlannerPlayerBoardSelectionState = null;
 local.sessionPlannerTacticalPendingPoint = null;
 getSessionPlannerSelectedSession();
-writeSessionPlannerState();
+syncSessionPlannerSelectedBlockHistoryBaselines();
 renderSessionPlannerWorkspace();
 }
 function selectSessionPlannerBlock(blockId) {
@@ -191,7 +197,7 @@ return;
 session.selectedBlockId = blockId;
 local.sessionPlannerAddMenuOpen = false;
 local.sessionPlannerVisualPreviewOpen = false;
-writeSessionPlannerState();
+syncSessionPlannerSelectedBlockHistoryBaselines();
 renderSessionPlannerWorkspace({ preserveDateStripScroll: true });
 }
 function addSessionPlannerBlock() {
@@ -1630,13 +1636,18 @@ const previousValue = block?.[field];
 if (!assignSessionPlannerBlockFieldValue(block, field, rawValue)) {
 return;
 }
-if (block[field] !== previousValue) {
-markSessionPlannerBlockFieldsUpdated(block, [field]);
+if (areSessionPlannerBlockFieldValuesEqual(previousValue, block[field])) {
+if (field === "postSessionNotes" && options.syncExerciseReview) {
+return syncSessionPlannerPostSessionNotesToLibrary(block);
 }
+return false;
+}
+markSessionPlannerBlockFieldsUpdated(block, [field]);
 const saved = writeSessionPlannerState();
 if (saved && field === "postSessionNotes" && options.syncExerciseReview) {
 syncSessionPlannerPostSessionNotesToLibrary(block);
 }
+return saved;
 }
 function getSessionPlannerDateLabel(dateValue, options = {}) {
 return new Intl.DateTimeFormat("en-GB", options).format(parseScheduleDateValue(dateValue));

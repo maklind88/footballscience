@@ -30,6 +30,25 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
 
   let snapshotRecoveryQueued = false;
 
+  function areBlockFieldValuesEqual(previousValue, nextValue) {
+    if (Object.is(previousValue, nextValue)) {
+      return true;
+    }
+    if (
+      !previousValue ||
+      !nextValue ||
+      typeof previousValue !== "object" ||
+      typeof nextValue !== "object"
+    ) {
+      return false;
+    }
+    try {
+      return JSON.stringify(previousValue) === JSON.stringify(nextValue);
+    } catch {
+      return false;
+    }
+  }
+
   function assignBlockFieldValue(block, field, rawValue) {
     if (!block || !(field in block)) return false;
     if (field === "minutes") {
@@ -53,7 +72,10 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
       const fieldKey = field.dataset.sessionField;
       if (!fieldKey || !(fieldKey in block)) return;
       const previousValue = block[fieldKey];
-      if (assignBlockFieldValue(block, fieldKey, field.value) && block[fieldKey] !== previousValue) {
+      if (
+        assignBlockFieldValue(block, fieldKey, field.value) &&
+        !areBlockFieldValuesEqual(previousValue, block[fieldKey])
+      ) {
         hasChanged = true;
         changedFields.push(fieldKey);
       }
@@ -149,18 +171,25 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
     const state = getSessionPlannerState();
     if (!state) return false;
     try {
-      captureBoardHistoryFromState();
       let existingState = null;
+      let rawExistingState = null;
       try {
-        const rawExistingState = win.localStorage.getItem(sessionPlannerStorageKey);
+        rawExistingState = win.localStorage.getItem(sessionPlannerStorageKey);
         existingState = rawExistingState ? cloneState(JSON.parse(rawExistingState)) : null;
       } catch {
         existingState = null;
+        rawExistingState = null;
       }
       const nextState = existingState ? mergeStateForWrite(existingState, state) : cloneState(state);
+      const nextValue = JSON.stringify(nextState);
+      if (rawExistingState === nextValue) {
+        setSessionPlannerState(nextState);
+        return true;
+      }
+      captureBoardHistoryFromState();
       setSessionPlannerState(nextState);
       sessionPlannerAutosaveBoundary.markSessionPlannerWrite();
-      win.localStorage.setItem(sessionPlannerStorageKey, JSON.stringify(nextState));
+      win.localStorage.setItem(sessionPlannerStorageKey, nextValue);
       return true;
     } catch {
       logEvent("Session planner could not be written to local storage.");
@@ -169,6 +198,7 @@ export function createSessionPlannerRuntimeStateService(deps = {}) {
   }
 
   return {
+    areBlockFieldValuesEqual,
     assignBlockFieldValue,
     findStateInSnapshots,
     persistNormalizedState,

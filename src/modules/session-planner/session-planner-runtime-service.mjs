@@ -73,6 +73,7 @@ export function createSessionPlannerRuntimeService(deps = {}) {
   });
 
   const workspaceController = createSessionPlannerWorkspaceController({
+    areSessionPlannerBlockFieldValuesEqual: stateService.areBlockFieldValuesEqual,
     assignSessionPlannerBlockFieldValue: stateService.assignBlockFieldValue,
     assignSessionPlannerPlayerBoardAutoFormationTeams: renderers.assignAutoFormationTeams,
     assignSessionPlannerPlayerBoardFormationSlots: renderers.assignFormationSlots,

@@ -199,7 +199,13 @@ function sessionSelect() {
     "row_version",
     "content",
     "content_hash",
+    "created_by",
+    "updated_by",
+    "created_at",
     "updated_at",
+    "archived_at",
+    "archived_by",
+    "archive_reason",
   ].join(",");
 }
 
@@ -215,8 +221,19 @@ function blockSelect() {
     "row_version",
     "payload",
     "payload_hash",
+    "created_by",
+    "updated_by",
+    "created_at",
     "updated_at",
+    "archived_at",
+    "archived_by",
+    "archive_reason",
   ].join(",");
+}
+
+function nullableText(value) {
+  const normalized = String(value || "").trim();
+  return normalized || null;
 }
 
 function mapSessionRow(row = {}) {
@@ -234,7 +251,13 @@ function mapSessionRow(row = {}) {
     rowVersion: Number(row.row_version) || 0,
     content: row.content && typeof row.content === "object" ? row.content : {},
     contentHash: String(row.content_hash || ""),
+    createdBy: nullableText(row.created_by),
+    updatedBy: nullableText(row.updated_by),
+    createdAt: String(row.created_at || ""),
     updatedAt: String(row.updated_at || ""),
+    archivedAt: nullableText(row.archived_at),
+    archivedBy: nullableText(row.archived_by),
+    archiveReason: nullableText(row.archive_reason),
   };
 }
 
@@ -250,7 +273,13 @@ function mapBlockRow(row = {}) {
     rowVersion: Number(row.row_version) || 0,
     payload: row.payload && typeof row.payload === "object" ? row.payload : {},
     payloadHash: String(row.payload_hash || ""),
+    createdBy: nullableText(row.created_by),
+    updatedBy: nullableText(row.updated_by),
+    createdAt: String(row.created_at || ""),
     updatedAt: String(row.updated_at || ""),
+    archivedAt: nullableText(row.archived_at),
+    archivedBy: nullableText(row.archived_by),
+    archiveReason: nullableText(row.archive_reason),
   };
 }
 
@@ -277,9 +306,9 @@ async function readSessionPlannerDomainSnapshot(scope = {}, options = {}) {
     organization_id: `eq.${organizationId}`,
     team_id: `eq.${teamId}`,
     session_slot: "eq.primary",
-    archived_at: "is.null",
     order: "session_date.asc,id.asc",
   });
+  if (options.includeArchived !== true) sessionQuery.set("archived_at", "is.null");
   if (scope.dateFrom) sessionQuery.set("session_date", `gte.${scope.dateFrom}`);
   if (scope.dateTo) sessionQuery.append("session_date", `lte.${scope.dateTo}`);
 
@@ -293,7 +322,15 @@ async function readSessionPlannerDomainSnapshot(scope = {}, options = {}) {
     return { ok: false, enabled: true, status: 409, code: error.code, reason: error.message };
   }
   if (!sessions.length) {
-    return { ok: true, enabled: true, organizationId, teamId, sessions: [], blocks: [] };
+    return {
+      ok: true,
+      enabled: true,
+      organizationId,
+      teamId,
+      includeArchived: options.includeArchived === true,
+      sessions: [],
+      blocks: [],
+    };
   }
 
   const blockQuery = new URLSearchParams({
@@ -301,9 +338,9 @@ async function readSessionPlannerDomainSnapshot(scope = {}, options = {}) {
     organization_id: `eq.${organizationId}`,
     team_id: `eq.${teamId}`,
     session_id: `in.(${sessions.map((session) => session.id).join(",")})`,
-    archived_at: "is.null",
     order: "session_id.asc,sort_order.asc,id.asc",
   });
+  if (options.includeArchived !== true) blockQuery.set("archived_at", "is.null");
   const blockResult = await databaseRequest(`/${BLOCK_TABLE}?${blockQuery}`, options);
   if (!blockResult.ok) return { ...blockResult, enabled: true };
   const blocks = (Array.isArray(blockResult.payload) ? blockResult.payload : []).map(mapBlockRow);
@@ -317,6 +354,7 @@ async function readSessionPlannerDomainSnapshot(scope = {}, options = {}) {
     enabled: true,
     organizationId,
     teamId,
+    includeArchived: options.includeArchived === true,
     sessions,
     blocks,
   };

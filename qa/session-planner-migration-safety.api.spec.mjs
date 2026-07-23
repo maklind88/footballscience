@@ -24,6 +24,7 @@ const {
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const teamId = "22222222-2222-4222-8222-222222222222";
 const sourceHash = "a".repeat(64);
+const projectRef = "staging-project";
 const baselineAt = "2026-07-22T20:00:00.000Z";
 const planAt = "2026-07-22T20:05:00.000Z";
 const currentAt = "2026-07-22T20:10:00.000Z";
@@ -82,6 +83,7 @@ function createFixture() {
   }, 1);
   const baselineSnapshot = createSessionPlannerMigrationSnapshot({
     target: "staging",
+    projectRef,
     createdAt: baselineAt,
     scope: { organizationId, teamId },
     sourceRevision: 300,
@@ -94,6 +96,7 @@ function createFixture() {
   const backfillPlan = createSessionPlannerBackfillPlan({ sourceState, baselineSnapshot, generatedAt: planAt });
   const currentSnapshot = createSessionPlannerMigrationSnapshot({
     target: "staging",
+    projectRef,
     createdAt: currentAt,
     scope: { organizationId, teamId },
     sourceRevision: 300,
@@ -127,6 +130,7 @@ test("Session Planner migration snapshot is private, deterministic and integrity
   expect(summary).toMatchObject({
     ok: true,
     target: "staging",
+    projectRef,
     sourceRevision: 300,
     counts: { sessions: 1, blocks: 2 },
     containsCoachingContent: false,
@@ -138,6 +142,18 @@ test("Session Planner migration snapshot is private, deterministic and integrity
   expect(verifySessionPlannerMigrationSnapshot(tampered)).toMatchObject({
     ok: false,
     code: "snapshot_hash_mismatch",
+  });
+
+  const wrongProject = structuredClone(fixture.baselineSnapshot);
+  wrongProject.projectRef = "!";
+  const { integrity: ignoredIntegrity, ...wrongProjectBody } = wrongProject;
+  wrongProject.integrity = {
+    algorithm: "sha256",
+    contentSha256: hashJsonValue(wrongProjectBody),
+  };
+  expect(verifySessionPlannerMigrationSnapshot(wrongProject)).toMatchObject({
+    ok: false,
+    code: "snapshot_project_ref_invalid",
   });
 });
 
@@ -252,6 +268,7 @@ test("Session Planner rollback blocks post-backfill drift and unknown rows", () 
   }, 1));
   const driftedSnapshot = createSessionPlannerMigrationSnapshot({
     target: "staging",
+    projectRef,
     createdAt: currentAt,
     scope: { organizationId, teamId },
     sourceRevision: 300,
@@ -294,6 +311,28 @@ test("Session Planner rollback rejects a blocked backfill plan", () => {
   });
 });
 
+test("Session Planner rollback cannot cross Supabase projects", () => {
+  const fixture = createFixture();
+  const otherProjectSnapshot = createSessionPlannerMigrationSnapshot({
+    target: "staging",
+    projectRef: "different-project",
+    createdAt: currentAt,
+    scope: { organizationId, teamId },
+    sourceRevision: 300,
+    sourceHash,
+    rows: fixture.currentSnapshot.rows,
+  });
+  const rollbackPlan = createSessionPlannerRollbackPlan({
+    baselineSnapshot: fixture.baselineSnapshot,
+    currentSnapshot: otherProjectSnapshot,
+    backfillPlan: fixture.backfillPlan,
+    generatedAt: rollbackAt,
+  });
+
+  expect(rollbackPlan.ok).toBe(false);
+  expect(rollbackPlan.blockers).toContain("snapshot_project_ref_mismatch");
+});
+
 test("Session Planner rollback projection is bound to the exact verified snapshots", () => {
   const fixture = createFixture();
   const rollbackPlan = createSessionPlannerRollbackPlan({
@@ -304,6 +343,7 @@ test("Session Planner rollback projection is bound to the exact verified snapsho
   });
   const alternateBaseline = createSessionPlannerMigrationSnapshot({
     target: "staging",
+    projectRef,
     createdAt: "2026-07-22T20:00:01.000Z",
     scope: { organizationId, teamId },
     sourceRevision: 300,
@@ -312,6 +352,7 @@ test("Session Planner rollback projection is bound to the exact verified snapsho
   });
   const alternateCurrent = createSessionPlannerMigrationSnapshot({
     target: "staging",
+    projectRef,
     createdAt: "2026-07-22T20:10:01.000Z",
     scope: { organizationId, teamId },
     sourceRevision: 300,

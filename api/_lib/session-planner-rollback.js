@@ -9,6 +9,8 @@ const {
 
 const SESSION_PLANNER_ROLLBACK_PLAN_SCHEMA = "footballscience-session-planner-rollback-plan-v1";
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
+const PROJECT_REF_PATTERN = /^[a-z0-9][a-z0-9-]{2,79}$/;
+const TARGETS = new Set(["staging", "production"]);
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -61,7 +63,18 @@ function createSessionPlannerRollbackPlan({ baselineSnapshot, currentSnapshot, b
   if (baselineCheck.contentSha256 !== backfillPlan.baselineSnapshotSha256) {
     blockers.push("backfill_baseline_snapshot_mismatch");
   }
-  if (baselineSnapshot.target !== currentSnapshot.target) blockers.push("snapshot_target_mismatch");
+  if (
+    baselineSnapshot.target !== currentSnapshot.target ||
+    baselineSnapshot.target !== backfillPlan.target
+  ) {
+    blockers.push("snapshot_target_mismatch");
+  }
+  if (
+    baselineSnapshot.projectRef !== currentSnapshot.projectRef ||
+    baselineSnapshot.projectRef !== backfillPlan.projectRef
+  ) {
+    blockers.push("snapshot_project_ref_mismatch");
+  }
   if (
     baselineSnapshot.source.revision !== currentSnapshot.source.revision ||
     baselineSnapshot.source.hash !== currentSnapshot.source.hash
@@ -134,6 +147,8 @@ function createSessionPlannerRollbackPlan({ baselineSnapshot, currentSnapshot, b
     generatedAt: timestamp,
     writeCapability: false,
     applyEnabled: false,
+    target: baselineSnapshot.target,
+    projectRef: baselineSnapshot.projectRef,
     baselineSnapshotSha256: baselineCheck.contentSha256,
     currentSnapshotSha256: currentCheck.contentSha256,
     backfillPlanSha256: backfillCheck.planSha256,
@@ -159,6 +174,9 @@ function verifySessionPlannerRollbackPlan(plan = {}) {
   if (actualHash !== planSha256) return { ok: false, code: "rollback_plan_hash_mismatch", planSha256: actualHash };
   if (plan.writeCapability !== false || plan.applyEnabled !== false) {
     return { ok: false, code: "rollback_plan_write_capability_invalid", planSha256: actualHash };
+  }
+  if (!TARGETS.has(plan.target) || !PROJECT_REF_PATTERN.test(String(plan.projectRef || ""))) {
+    return { ok: false, code: "rollback_plan_target_invalid", planSha256: actualHash };
   }
   return { ok: true, ready: ok === true, planSha256: actualHash };
 }
@@ -223,6 +241,7 @@ function verifySessionPlannerRollbackProjection({ baselineSnapshot, currentSnaps
 
   const projectedSnapshot = createSessionPlannerMigrationSnapshot({
     target: currentSnapshot.target,
+    projectRef: currentSnapshot.projectRef,
     createdAt: rollbackPlan.generatedAt,
     scope: currentSnapshot.scope,
     sourceRevision: currentSnapshot.source.revision,

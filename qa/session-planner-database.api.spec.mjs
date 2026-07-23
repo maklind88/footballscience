@@ -147,6 +147,24 @@ test("Session Planner shadow adapter reads only scoped sessions and their blocks
   expect(harness.calls[0].url).toContain("session_date=gte.2026-07-22");
   expect(harness.calls[0].url).toContain("session_date=lte.2026-07-22");
   expect(harness.calls[1].url).toContain(`session_id=in.%28${sessionId}%29`);
+  expect(harness.calls[0].url).toContain("archived_at=is.null");
+});
+
+test("Session Planner migration snapshot reads active and archived rows with audit metadata", async () => {
+  const harness = createReadHarness();
+  const result = await database.readSessionPlannerDomainSnapshot(
+    { organizationId, teamId },
+    { ...harness.options, allowDisabled: true, includeArchived: true }
+  );
+
+  expect(result).toMatchObject({ ok: true, includeArchived: true });
+  expect(result.sessions[0]).toMatchObject({ archivedAt: null, archivedBy: null });
+  expect(result.blocks[0]).toMatchObject({ archivedAt: null, archivedBy: null });
+  expect(harness.calls).toHaveLength(2);
+  expect(harness.calls.every((call) => call.options.method === "GET")).toBe(true);
+  expect(harness.calls[0].url).not.toContain("archived_at=is.null");
+  expect(harness.calls[1].url).not.toContain("archived_at=is.null");
+  expect(harness.calls[0].url).toContain("created_by%2Cupdated_by%2Ccreated_at%2Cupdated_at%2Carchived_at");
 });
 
 test("Session Planner shadow adapter rebuilds the unchanged legacy state shape", async () => {

@@ -10,6 +10,7 @@ const {
 const SESSION_PLANNER_MIGRATION_SNAPSHOT_SCHEMA = "footballscience-session-planner-migration-snapshot-v1";
 const SESSION_PLANNER_BACKFILL_PLAN_SCHEMA = "footballscience-session-planner-backfill-plan-v1";
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
+const PROJECT_REF_PATTERN = /^[a-z0-9][a-z0-9-]{2,79}$/;
 const TARGETS = new Set(["staging", "production"]);
 
 function cloneJson(value) {
@@ -73,6 +74,7 @@ function isArchived(row = {}) {
 
 function createSessionPlannerMigrationSnapshot(input = {}) {
   const target = String(input.target || "").trim().toLowerCase();
+  const projectRef = String(input.projectRef || "").trim().toLowerCase();
   const createdAt = normalizeTimestamp(input.createdAt);
   const sourceRevision = Number(input.sourceRevision);
   const sourceHash = normalizeHash(input.sourceHash);
@@ -80,6 +82,7 @@ function createSessionPlannerMigrationSnapshot(input = {}) {
   const rows = normalizeRows(input.rows);
   const failures = [];
   if (!TARGETS.has(target)) failures.push("snapshot_target_invalid");
+  if (!PROJECT_REF_PATTERN.test(projectRef)) failures.push("snapshot_project_ref_invalid");
   if (!createdAt) failures.push("snapshot_timestamp_invalid");
   if (!Number.isInteger(sourceRevision) || sourceRevision < 1) failures.push("source_revision_invalid");
   if (!sourceHash) failures.push("source_hash_invalid");
@@ -95,6 +98,7 @@ function createSessionPlannerMigrationSnapshot(input = {}) {
     ok: true,
     schema: SESSION_PLANNER_MIGRATION_SNAPSHOT_SCHEMA,
     target,
+    projectRef,
     createdAt,
     scope: {
       organizationId: String(input.scope.organizationId).trim().toLowerCase(),
@@ -125,6 +129,26 @@ function verifySessionPlannerMigrationSnapshot(snapshot = {}) {
   const { integrity, ...body } = snapshot;
   const actualHash = hashJsonValue(body);
   if (actualHash !== expectedHash) return { ok: false, code: "snapshot_hash_mismatch", contentSha256: actualHash };
+  if (!TARGETS.has(snapshot.target)) {
+    return { ok: false, code: "snapshot_target_invalid", contentSha256: actualHash };
+  }
+  if (!PROJECT_REF_PATTERN.test(String(snapshot.projectRef || ""))) {
+    return { ok: false, code: "snapshot_project_ref_invalid", contentSha256: actualHash };
+  }
+  if (!normalizeTimestamp(snapshot.createdAt)) {
+    return { ok: false, code: "snapshot_timestamp_invalid", contentSha256: actualHash };
+  }
+  if (
+    snapshot.source?.storageKey !== "football-session-planner-v3" ||
+    !Number.isInteger(snapshot.source?.revision) ||
+    snapshot.source.revision < 1 ||
+    !normalizeHash(snapshot.source?.hash)
+  ) {
+    return { ok: false, code: "snapshot_source_invalid", contentSha256: actualHash };
+  }
+  if (!sessionPlannerScopeKey(snapshot.scope)) {
+    return { ok: false, code: "tenant_scope_invalid", contentSha256: actualHash };
+  }
   if (!Array.isArray(snapshot.rows?.sessions) || !Array.isArray(snapshot.rows?.blocks)) {
     return { ok: false, code: "snapshot_rows_invalid", contentSha256: actualHash };
   }
@@ -267,6 +291,8 @@ function createSessionPlannerBackfillPlan({ sourceState, baselineSnapshot, gener
     generatedAt: timestamp,
     writeCapability: false,
     applyEnabled: false,
+    target: baselineSnapshot.target,
+    projectRef: baselineSnapshot.projectRef,
     baselineSnapshotSha256: snapshotCheck.contentSha256,
     scope: cloneJson(baselineSnapshot.scope),
     source: cloneJson(baselineSnapshot.source),
@@ -297,6 +323,9 @@ function verifySessionPlannerBackfillPlan(plan = {}) {
   if (plan.writeCapability !== false || plan.applyEnabled !== false) {
     return { ok: false, code: "backfill_plan_write_capability_invalid", planSha256: actualHash };
   }
+  if (!TARGETS.has(plan.target) || !PROJECT_REF_PATTERN.test(String(plan.projectRef || ""))) {
+    return { ok: false, code: "backfill_plan_target_invalid", planSha256: actualHash };
+  }
   return { ok: true, ready: ok === true, planSha256: actualHash };
 }
 
@@ -306,6 +335,7 @@ function createSessionPlannerMigrationSnapshotSummary(snapshot = {}) {
     ok: verification.ok,
     schema: snapshot.schema || null,
     target: snapshot.target || null,
+    projectRef: snapshot.projectRef || null,
     createdAt: snapshot.createdAt || null,
     sourceRevision: Number(snapshot.source?.revision) || 0,
     sourceHash: normalizeHash(snapshot.source?.hash) || null,

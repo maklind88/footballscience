@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned, additive, and disabled by default. Pure shadow comparison, content-free backfill planning, private snapshot integrity, and rollback projection verification are implemented but are not wired into user-facing reads or writes.
+Planned, additive, and disabled by default. Pure shadow comparison, a GET-only operational backfill review, content-free backfill planning, private snapshot integrity, audit-context hardening, and rollback projection verification are implemented but are not wired into user-facing reads or writes.
 
 - Existing source of truth: `football-session-planner-v3` through `/api/app-state`.
 - Target pilot tables: `session_planner_sessions` and `session_planner_blocks`.
@@ -126,6 +126,21 @@ npm run session-planner:domain:dry-run -- --json
 
 It resolves exactly one active team, reads only the compatibility record, verifies the source hash, performs a golden-master round trip, checks payload budgets, counts tombstones, and prints no coaching content.
 
+After that checkpoint has been reviewed, the operational planner can read the scoped target records and create a private in-memory snapshot plus a content-free action report:
+
+```bash
+npm run session-planner:backfill:plan -- \
+  --target staging \
+  --expected-project-ref <supabase-project-ref> \
+  --organization-id <organization-uuid> \
+  --team-id <team-uuid> \
+  --expected-source-revision <revision> \
+  --expected-source-hash <sha256> \
+  --json
+```
+
+The command fails before tenant or target reads if the configured Supabase project does not match the explicitly reviewed project ref. It performs GET requests only, includes active and archived rows in the private snapshot, prints no coaching payloads, and has no apply option. The audit hardening migration records the authenticated or server-supplied actor and bounded request correlation when a future server-owned write transaction is introduced; it does not enable that write path.
+
 ## Rollback
 
 - Feature mode defaults to `off`.
@@ -134,6 +149,7 @@ It resolves exactly one active team, reads only the compatibility record, verifi
 - A read canary falls back to the exact app-state value on any mismatch or database error.
 - Shadow reports contain only scope identifiers, counts, hashes, status, and reason codes; coaching content is never emitted.
 - A private migration snapshot is integrity hashed before any future apply. Its public summary contains counts and hashes only.
+- Every migration snapshot is bound to the actual Supabase project ref, explicit tenant scope, exact app-state revision, and exact app-state hash.
 - Rollback planning accepts only the exact baseline snapshot and backfill plan, requires expected post-backfill revisions/hashes, restores pre-existing rows, archives rows created by the backfill, and blocks concurrent drift or unknown rows.
 - Pure rollback projection verification proves the generated actions reconstruct the baseline projection without changing a database. This is contract evidence, not a substitute for the required staging apply/rollback/reapply drill.
 - Database-primary promotion requires a known-good compatibility snapshot and restore drill.

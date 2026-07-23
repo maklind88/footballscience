@@ -259,6 +259,12 @@ export async function executePlatformIdentityStagingDrill(
       dryRun: true,
       applied: false,
       rolledBack: false,
+      target: "staging",
+      projectRef: options.projectRef,
+      scope: {
+        organizationId: options.snapshot.scope.organizationId,
+        teamId: options.snapshot.scope.teamId,
+      },
       bundle: bundleSummary,
       piiExposed: false,
     };
@@ -389,6 +395,12 @@ export async function executePlatformIdentityStagingDrill(
     dryRun: false,
     applied: true,
     rolledBack: true,
+    target: "staging",
+    projectRef: options.projectRef,
+    scope: {
+      organizationId: options.snapshot.scope.organizationId,
+      teamId: options.snapshot.scope.teamId,
+    },
     recoveryRequired: verificationFailures.length > 0,
     failures: verificationFailures,
     bundle: bundleSummary,

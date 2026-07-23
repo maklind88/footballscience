@@ -233,6 +233,9 @@ test("Platform Identity staging drill is read-only by default and exposes no PII
     dryRun: true,
     applied: false,
     rolledBack: false,
+    target: "staging",
+    projectRef,
+    scope: { organizationId, teamId },
     piiExposed: false,
   });
   expect(executed).toBe(false);
@@ -252,6 +255,9 @@ test("Platform Identity staging drill applies, verifies, audits, rolls back, and
     dryRun: false,
     applied: true,
     rolledBack: true,
+    target: "staging",
+    projectRef,
+    scope: { organizationId, teamId },
     recoveryRequired: false,
     audit: { backfillEvents: 2, rollbackEvents: 2 },
     rollbackVerification: { ok: true, blockers: [] },

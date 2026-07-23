@@ -11,6 +11,7 @@ const {
   createSessionPlannerBackfillPlan,
   createSessionPlannerMigrationSnapshot,
   createSessionPlannerMigrationSnapshotSummary,
+  createSessionPlannerSnapshotProjectionHash,
   verifySessionPlannerBackfillPlan,
   verifySessionPlannerMigrationSnapshot,
 } = require("../api/_lib/session-planner-migration-plan.js");
@@ -155,6 +156,65 @@ test("Session Planner migration snapshot is private, deterministic and integrity
     ok: false,
     code: "snapshot_project_ref_invalid",
   });
+});
+
+test("Session Planner projection hash ignores audit revisions but detects functional drift", () => {
+  const fixture = createFixture();
+  const baselineProjection = createSessionPlannerSnapshotProjectionHash(fixture.currentSnapshot);
+  const revisionOnlyRows = structuredClone(fixture.currentSnapshot.rows);
+  revisionOnlyRows.sessions[0].rowVersion += 4;
+  revisionOnlyRows.sessions[0].updatedAt = "2026-07-22T21:00:00.000Z";
+  const revisionOnlySnapshot = createSessionPlannerMigrationSnapshot({
+    target: "staging",
+    projectRef,
+    createdAt: "2026-07-22T21:00:00.000Z",
+    scope: { organizationId, teamId },
+    sourceRevision: 300,
+    sourceHash,
+    rows: revisionOnlyRows,
+  });
+  expect(createSessionPlannerSnapshotProjectionHash(revisionOnlySnapshot))
+    .toMatchObject({ ok: true, contentSha256: baselineProjection.contentSha256 });
+
+  const archivedRows = structuredClone(fixture.currentSnapshot.rows);
+  archivedRows.blocks.push({
+    ...structuredClone(archivedRows.blocks[0]),
+    id: "99999999-9999-4999-8999-999999999999",
+    legacyBlockId: "archived-audit-row",
+    sortOrder: 99,
+    rowVersion: 2,
+    archivedAt: "2026-07-22T20:30:00.000Z",
+  });
+  const archivedSnapshot = createSessionPlannerMigrationSnapshot({
+    target: "staging",
+    projectRef,
+    createdAt: "2026-07-22T21:00:30.000Z",
+    scope: { organizationId, teamId },
+    sourceRevision: 300,
+    sourceHash,
+    rows: archivedRows,
+  });
+  expect(createSessionPlannerSnapshotProjectionHash(archivedSnapshot).contentSha256)
+    .toBe(baselineProjection.contentSha256);
+  expect(createSessionPlannerSnapshotProjectionHash(
+    archivedSnapshot,
+    { includeArchived: true }
+  ).contentSha256).not.toBe(baselineProjection.contentSha256);
+
+  revisionOnlyRows.sessions[0].title = "Functionally changed";
+  revisionOnlyRows.sessions[0].content.title = "Functionally changed";
+  revisionOnlyRows.sessions[0].contentHash = hashJsonValue(revisionOnlyRows.sessions[0].content);
+  const driftedSnapshot = createSessionPlannerMigrationSnapshot({
+    target: "staging",
+    projectRef,
+    createdAt: "2026-07-22T21:01:00.000Z",
+    scope: { organizationId, teamId },
+    sourceRevision: 300,
+    sourceHash,
+    rows: revisionOnlyRows,
+  });
+  expect(createSessionPlannerSnapshotProjectionHash(driftedSnapshot).contentSha256)
+    .not.toBe(baselineProjection.contentSha256);
 });
 
 test("Session Planner backfill plan is idempotent, content-free and revision guarded", () => {

@@ -2,13 +2,13 @@
 
 ## Status
 
-Planned, additive, and disabled by default. Pure shadow comparison, a GET-only operational backfill review, content-free backfill planning, private snapshot integrity, audit-context hardening, and rollback projection verification are implemented but are not wired into user-facing reads or writes.
+Planned, additive, and disabled by default. Pure shadow comparison, a GET-only operational backfill review, content-free backfill planning, private snapshot integrity, audit-context hardening, rollback projection verification, and a guarded staging-only drill candidate are implemented but are not wired into user-facing reads or writes.
 
 - Existing source of truth: `football-session-planner-v3` through `/api/app-state`.
 - Target pilot tables: `session_planner_sessions` and `session_planner_blocks`.
 - Current migration checkpoint: `planned`.
 - Database reads: disabled unless both shadow mode and an exact organization/team canary scope are configured.
-- Database writes: disabled.
+- Application database writes: disabled. The staging drill is a separate operator-only candidate and cannot target production.
 - App-state fallback: required.
 
 This foundation must not change Session Planner UI, autosave, navigation, permissions, or saved content.
@@ -144,6 +144,27 @@ The command fails before tenant or target reads if the configured Supabase proje
 
 A separate private migration-bundle contract now binds the exact snapshot hash, plan hash, project ref, tenant scope, source checkpoint, actor, request id, record projections, and expected revisions for both backfill and rollback. The private bundle contains the records needed by a future atomic staging transaction, but its public summary contains only hashes and counts. Execution remains explicitly disabled and no executor or database write path is exported.
 
+The staging drill command is dry-run by default. It builds the reviewed initial bundle and prints a content-free summary without invoking the atomic RPC:
+
+```bash
+npm run session-planner:staging:drill -- \
+  --target staging \
+  --expected-project-ref <staging-supabase-project-ref> \
+  --canonical-production-project-ref <production-supabase-project-ref> \
+  --organization-id <organization-uuid> \
+  --team-id <team-uuid> \
+  --actor-id <operator-user-uuid> \
+  --expected-source-revision <revision> \
+  --expected-source-hash <sha256> \
+  --bundle-created-at <reviewed-iso-timestamp> \
+  --request-id <unique-request-id> \
+  --json
+```
+
+A write drill additionally requires `--apply`, the exact confirmation `--confirm=RUN_SESSION_PLANNER_STAGING_DRILL`, and `--expected-bundle-sha256 <reviewed-sha256>` from the dry-run. It refuses a target named production, refuses equal staging/production project refs, and the underlying review verifies that the configured Supabase URL resolves to the expected staging ref before any tenant or data read. Before the first domain write, the drill stores the exact baseline snapshot in the existing private backup bucket, rereads it, verifies its integrity hash, and prints a content-free recovery receipt; an existing identical object can be safely reused. The full drill then applies the bundle, proves the source projection, rolls back to the baseline projection, reapplies, and proves idempotency again. All public output remains content-free.
+
+Do not run the write drill until Platform Identity has passed its own staging snapshot/rollback drill, the complete migration chain has compiled on staging, the staging database has been isolated from production, and System/Security holds the current release slot. The committed atomic SQL remains candidate code until that real database proof exists.
+
 ## Rollback
 
 - Feature mode defaults to `off`.
@@ -155,6 +176,7 @@ A separate private migration-bundle contract now binds the exact snapshot hash, 
 - Every migration snapshot is bound to the actual Supabase project ref, explicit tenant scope, exact app-state revision, and exact app-state hash.
 - Rollback planning accepts only the exact baseline snapshot and backfill plan, requires expected post-backfill revisions/hashes, restores pre-existing rows, archives rows created by the backfill, and blocks concurrent drift or unknown rows.
 - Pure rollback projection verification proves the generated actions reconstruct the baseline projection without changing a database. This is contract evidence, not a substitute for the required staging apply/rollback/reapply drill.
+- Active projection hashes deliberately ignore row revisions and archived migration remnants while still detecting any functional record drift. This lets the drill prove rollback and reapply semantics without pretending audit revisions rewind.
 - Backfill and rollback bundles reject semantic tampering even if an attacker recomputes the outer bundle hash, because every command is revalidated against its record projection, action type, tenant, and expected version transition.
 - Database-primary promotion requires a known-good compatibility snapshot and restore drill.
 - Code rollback happens before any data restoration.

@@ -345,12 +345,52 @@ function createSessionPlannerMigrationSnapshotSummary(snapshot = {}) {
   };
 }
 
+function createSessionPlannerSnapshotProjectionHash(snapshot = {}, options = {}) {
+  const verification = verifySessionPlannerMigrationSnapshot(snapshot);
+  if (!verification.ok) {
+    return { ok: false, code: verification.code, containsCoachingContent: false };
+  }
+  const records = [
+    ...snapshot.rows.sessions.map((row) => ({
+      recordType: "session",
+      id: row.id,
+      projectionHash: recordProjectionHash("session", row),
+      archived: isArchived(row),
+    })),
+    ...snapshot.rows.blocks.map((row) => ({
+      recordType: "block",
+      id: row.id,
+      projectionHash: recordProjectionHash("block", row),
+      archived: isArchived(row),
+    })),
+  ]
+    .filter((record) => options.includeArchived === true || !record.archived)
+    .sort((left, right) =>
+      left.recordType.localeCompare(right.recordType) ||
+      left.id.localeCompare(right.id)
+    );
+  const body = {
+    target: snapshot.target,
+    projectRef: snapshot.projectRef,
+    scope: cloneJson(snapshot.scope),
+    projectionMode: options.includeArchived === true ? "all" : "active",
+    records,
+  };
+  return Object.freeze({
+    ok: true,
+    recordCount: records.length,
+    contentSha256: hashJsonValue(body),
+    containsCoachingContent: false,
+  });
+}
+
 module.exports = {
   SESSION_PLANNER_BACKFILL_PLAN_SCHEMA,
   SESSION_PLANNER_MIGRATION_SNAPSHOT_SCHEMA,
   createSessionPlannerBackfillPlan,
   createSessionPlannerMigrationSnapshot,
   createSessionPlannerMigrationSnapshotSummary,
+  createSessionPlannerSnapshotProjectionHash,
   isArchived,
   recordProjectionHash,
   verifySessionPlannerBackfillPlan,

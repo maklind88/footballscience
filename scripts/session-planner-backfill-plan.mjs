@@ -215,7 +215,12 @@ export async function prepareSessionPlannerBackfillReview(options = {}, dependen
     readyForApplyReview: backfillPlan.ok === true,
     containsCoachingContent: false,
   });
-  return Object.freeze({ privateSnapshot, backfillPlan, report });
+  return Object.freeze({
+    privateSourceState: sourceState,
+    privateSnapshot,
+    backfillPlan,
+    report,
+  });
 }
 
 export async function runSessionPlannerBackfillReview(options = {}, dependencies = {}) {

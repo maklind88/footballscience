@@ -106,6 +106,7 @@ test("Session Planner backfill review is GET-only, content-free and includes arc
   const report = await runSessionPlannerBackfillReview(reviewOptions(record), harness.values);
 
   expect(prepared.backfillPlan).toMatchObject({ ok: true, counts: { actions: 2, blockers: 0 } });
+  expect(prepared.privateSourceState).toEqual(sourceState());
   expect(prepared.privateSnapshot.rows).toEqual({ sessions: [], blocks: [] });
   expect(report).toMatchObject({
     mode: "read-only",

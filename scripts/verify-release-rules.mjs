@@ -114,6 +114,10 @@ requireText("scripts/platform-identity-backfill.mjs", "--expected-user-count", "
 requireText("scripts/platform-identity-snapshot.mjs", "CAPTURE_PLATFORM_IDENTITY_SNAPSHOT", "platform identity snapshots must require explicit capture confirmation");
 requireText("scripts/lib/platform-identity-snapshot.mjs", "footballscience-platform-identity-snapshot-v1", "platform identity rollback must use an integrity-checked snapshot schema");
 requireText("scripts/lib/platform-identity-snapshot-io.mjs", "readAfterWriteVerified", "private identity snapshots must be re-read and hash-verified after storage");
+requireText("scripts/session-planner-staging-drill.mjs", "RUN_SESSION_PLANNER_STAGING_DRILL", "Session Planner staging writes must require explicit operator confirmation");
+requireText("scripts/session-planner-staging-drill.mjs", "canonicalProductionProjectRef", "Session Planner staging drill must reject the canonical production project");
+requireText("scripts/session-planner-staging-drill.mjs", "storeMigrationSnapshot", "Session Planner staging drill must persist recovery state before domain writes");
+requireText("scripts/lib/session-planner-migration-snapshot-storage.mjs", "readAfterWriteVerified", "Session Planner recovery snapshots must be private and integrity verified");
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "environment: platform-staging", "platform identity snapshot inspection must be staging-only");
 requireText(".github/workflows/platform-identity-snapshot-read-only.yml", "summary.dryRun !== true", "platform identity snapshot inspection must verify read-only mode");
 forbidText(".github/workflows/platform-identity-snapshot-read-only.yml", "--capture", "platform identity snapshot inspection must not capture data");

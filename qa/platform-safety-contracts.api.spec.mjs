@@ -350,7 +350,7 @@ test("release safety rails keep cron backups and live smoke hooks visible", () =
   expect(qaWorkflow).toContain("npm run qa");
 });
 
-test("modular core skeleton exists beside the current app but is not loaded by production HTML yet", () => {
+test("modular core skeleton exposes only explicitly approved production assets", () => {
   const indexHtml = readProjectFile("index.html");
 
   for (const file of coreFiles) {
@@ -358,7 +358,10 @@ test("modular core skeleton exists beside the current app but is not loaded by p
   }
 
   expect(indexHtml).not.toContain("src/core/");
-  expect(indexHtml).not.toContain("src/modules/");
+  expect(indexHtml).not.toMatch(/src\/modules\/[^"'`]+\.m?js/);
+  expect(indexHtml.match(/src\/modules\/[^"'`]+/g) || []).toEqual([
+    "src/modules/session-planner/session-planner-tacticalboard.css",
+  ]);
 });
 
 test("core module contracts are covered by dedicated QA", () => {
@@ -766,16 +769,33 @@ test("Session Planner tactical board keeps selection controls simple and explici
   const appSource = readProjectFile("app-runtime.js");
   const appRuntimeComposerSource = readProjectFile("src/modules/session-planner/session-planner-app-runtime-composer.mjs");
   const localUiStateSource = readProjectFile("src/modules/session-planner/session-planner-local-ui-state.mjs");
+  const arrangeClipboardSource = readProjectFile(
+    "src/modules/session-planner/session-planner-tactical-arrange-clipboard-controller.mjs"
+  );
   const tacticalControllerSource = readProjectFile("src/modules/session-planner/session-planner-tactical-controller.mjs");
+  const tacticalInteractionSource = readProjectFile(
+    "src/modules/session-planner/session-planner-tactical-interaction-controller.mjs"
+  );
   const visualRendererSource = readProjectFile("src/modules/session-planner/session-planner-visual-renderer.mjs");
-  const tacticalBoardSource = `${appSource}\n${appRuntimeComposerSource}\n${tacticalControllerSource}\n${visualRendererSource}`;
+  const tacticalBoardSource = `${appSource}\n${appRuntimeComposerSource}\n${arrangeClipboardSource}\n${tacticalControllerSource}\n${tacticalInteractionSource}\n${visualRendererSource}`;
 
   expect(localUiStateSource).toContain("sessionPlannerTacticalSnapEnabled: false");
   expect(appRuntimeComposerSource).toContain("createSessionPlannerLocalUiState");
   expect(tacticalBoardSource).not.toContain("data-session-tactical-snap");
   expect(tacticalBoardSource).not.toContain("Alt for precision");
   expect(tacticalBoardSource).not.toContain("Alt gives precise movement");
-  expect(tacticalControllerSource).toContain("function arrangeSelectedSessionPlannerTacticalElements(mode)");
+  expect(arrangeClipboardSource).toContain(
+    "function arrangeSelectedElements(mode)"
+  );
+  expect(tacticalControllerSource).toContain(
+    "createSessionPlannerTacticalArrangeClipboardController"
+  );
+  expect(tacticalControllerSource).toContain(
+    "arrangeSelectedElements: arrangeSelectedSessionPlannerTacticalElements"
+  );
+  expect(tacticalControllerSource).toContain(
+    "createSessionPlannerTacticalInteractionController"
+  );
   expect(tacticalBoardSource).toContain('data-session-arrange-tactical="row"');
   expect(tacticalBoardSource).toContain('data-session-arrange-tactical="column"');
   expect(tacticalBoardSource).toContain('data-session-arrange-tactical="grid"');
@@ -783,5 +803,5 @@ test("Session Planner tactical board keeps selection controls simple and explici
   expect(tacticalBoardSource).toContain('viewBox="0 0 6 6"');
   expect(tacticalBoardSource).not.toContain("data-session-align-tactical");
   expect(tacticalBoardSource).not.toContain("data-session-distribute-tactical");
-  expect(tacticalControllerSource).toMatch(/clearSessionPlannerTacticalSelection\(\);\s+local\.sessionPlannerTacticalPendingPoint = null;/);
+  expect(tacticalInteractionSource).toMatch(/clearSelection\(\);\s+localState\.sessionPlannerTacticalPendingPoint = null;/);
 });

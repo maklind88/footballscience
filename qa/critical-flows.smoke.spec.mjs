@@ -3480,6 +3480,28 @@ test("Session Planner block edits persist after refresh", async ({ page }) => {
   await expectStorageContains(page, sessionPlannerKey, value);
 });
 
+test("Session Planner save feedback stays hidden until a real change", async ({ page }) => {
+  const value = `QA saved feedback ${Date.now()}`;
+  await seedQaSessionPlannerTrainingSession(page);
+  await bootApp(page);
+  await openWorkspace(page, "session-planner");
+  const sessionPlannerWorkspace = await waitForSessionPlannerWorkspace(page);
+  const autosaveStatus = page.locator("[data-platform-autosave-status]");
+
+  await expect(autosaveStatus).toHaveClass(/is-idle/);
+  await expect(autosaveStatus).not.toBeVisible();
+
+  let field = sessionPlannerWorkspace.locator('[data-session-field="objective"]:visible').first();
+  if ((await field.count()) === 0) {
+    field = sessionPlannerWorkspace.locator("[data-session-field]:visible").first();
+  }
+  await field.fill(value);
+  await field.blur();
+
+  await expect(autosaveStatus).toBeVisible();
+  await expect(autosaveStatus).toContainText(/Saving|Saved/);
+});
+
 test("Session Planner date and block browsing does not persist view-only selection", async ({ page }) => {
   const state = createQaSessionPlannerState();
   state.sessions[qaSessionPlannerTrainingDate].blocks.push({

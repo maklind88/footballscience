@@ -27,6 +27,7 @@ export function createPlatformAutosaveStatusController(options = {}) {
     updatedAt: "",
   };
   let idleTimer = null;
+  let isIdle = true;
   let visible = options.visible !== false;
 
   function getStatusElement() {
@@ -58,7 +59,7 @@ export function createPlatformAutosaveStatusController(options = {}) {
     const state = status.state || "saved";
     const label = getPlatformAutosaveStatusLabel(state);
     const detail = status.message && status.message !== label ? status.message : "";
-    statusElement.className = `platform-autosave-status is-${state}`;
+    statusElement.className = `platform-autosave-status is-${state}${isIdle && state === "saved" ? " is-idle" : ""}`;
     statusElement.innerHTML = `
       <span class="platform-autosave-status-dot" aria-hidden="true"></span>
       <strong>${escape(label)}</strong>
@@ -77,10 +78,13 @@ export function createPlatformAutosaveStatusController(options = {}) {
       win.clearTimeout(idleTimer);
       idleTimer = null;
     }
+    isIdle = false;
     render();
     if (nextState === "saved" && win?.setTimeout) {
       idleTimer = win.setTimeout(() => {
-        getStatusElement()?.classList.add("is-idle");
+        idleTimer = null;
+        isIdle = true;
+        render();
       }, 2200);
     }
   }

@@ -14,7 +14,11 @@ import {
   sessionPlannerStorageKey,
   shouldShowSessionPlannerAutosaveStatus,
 } from "../src/modules/session-planner/index.mjs";
-import { moduleMigrationStatuses, moduleStandardRegistry } from "../src/core/index.mjs";
+import {
+  createPlatformAutosaveStatusController,
+  moduleMigrationStatuses,
+  moduleStandardRegistry,
+} from "../src/core/index.mjs";
 import { platformModuleImplementationStages } from "../src/core/platform-readiness-contracts.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -500,6 +504,74 @@ test("Session Planner autosave status never becomes a global platform autosave",
   expect(shouldShowSessionPlannerAutosaveStatus("session-planner")).toBe(true);
   expect(shouldShowSessionPlannerAutosaveStatus("schedule")).toBe(false);
   expect(shouldShowSessionPlannerAutosaveStatus("medical-team")).toBe(false);
+});
+
+test("Session Planner saved feedback only appears around a real save lifecycle", () => {
+  let statusElement = null;
+  let scheduledTimer = null;
+  const documentRef = {
+    body: {
+      appendChild(element) {
+        statusElement = element;
+      },
+    },
+    createElement() {
+      const element = {
+        className: "",
+        dataset: {},
+        hidden: false,
+        innerHTML: "",
+        setAttribute() {},
+      };
+      element.classList = {
+        add(...tokens) {
+          const classes = new Set(element.className.split(/\s+/).filter(Boolean));
+          tokens.forEach((token) => classes.add(token));
+          element.className = [...classes].join(" ");
+        },
+        contains(token) {
+          return element.className.split(/\s+/).includes(token);
+        },
+      };
+      return element;
+    },
+    querySelector() {
+      return statusElement;
+    },
+  };
+  const windowRef = {
+    clearTimeout() {
+      scheduledTimer = null;
+    },
+    setTimeout(callback, delay) {
+      scheduledTimer = { callback, delay };
+      return 1;
+    },
+  };
+  const controller = createPlatformAutosaveStatusController({
+    documentRef,
+    windowRef,
+  });
+
+  controller.setVisible(true);
+  expect(statusElement.classList.contains("is-idle")).toBe(true);
+
+  controller.set("saving", "Saving");
+  expect(statusElement.classList.contains("is-idle")).toBe(false);
+  expect(statusElement.innerHTML).toContain("Saving");
+
+  controller.set("saved", "Saved");
+  expect(statusElement.classList.contains("is-idle")).toBe(false);
+  expect(scheduledTimer?.delay).toBe(2200);
+
+  scheduledTimer.callback();
+  expect(statusElement.classList.contains("is-idle")).toBe(true);
+  controller.render();
+  expect(statusElement.classList.contains("is-idle")).toBe(true);
+
+  controller.set("issue", "Sync needs attention");
+  expect(statusElement.classList.contains("is-idle")).toBe(false);
+  expect(statusElement.innerHTML).toContain("Sync needs attention");
 });
 
 test("Session Planner autosave boundary only surfaces active session writes and sync issues", () => {

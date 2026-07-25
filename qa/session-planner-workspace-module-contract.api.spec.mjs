@@ -68,6 +68,17 @@ test("Session Planner workspace renderer keeps shell, builder, tools, and histor
   expect(html).toContain("data-session-preview-visual");
   expect(html).toContain("data-session-restore-history");
   expect(html).toContain("data-print-overlay");
+  expect(html).toContain('class="session-overview-title">Training</h2>');
+
+  const longTitleHtml = renderer.renderWorkspace({
+    sessionTitle: "Training/IDP + Lift",
+  });
+  expect(longTitleHtml).toContain('class="session-overview-title is-long">Training/IDP + Lift</h2>');
+
+  const veryLongTitleHtml = renderer.renderWorkspace({
+    sessionTitle: "Technical Development and Position Training",
+  });
+  expect(veryLongTitleHtml).toContain('class="session-overview-title is-very-long"');
 
   const emptyTools = renderer.renderToolsPanel(null, historyContext);
   expect(emptyTools).toContain("Select a block");

@@ -307,3 +307,37 @@ body.is-dark-mode #sessionPlannerWorkspace .session-post-notes-field textarea {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+#sessionPlannerWorkspace .session-blocks-card {
+  container-type: inline-size;
+}
+
+#sessionPlannerWorkspace .session-blocks-card .session-card-head {
+  gap: 0.55rem;
+}
+
+#sessionPlannerWorkspace .session-blocks-card .session-card-head > div:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#sessionPlannerWorkspace .session-blocks-card .session-card-actions {
+  flex: 0 0 auto;
+}
+
+#sessionPlannerWorkspace .session-blocks-card .session-overview-title {
+  font-size: clamp(1rem, 6.3cqi, 1.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  overflow-wrap: normal;
+  word-break: normal;
+  white-space: nowrap;
+}
+
+#sessionPlannerWorkspace .session-blocks-card .session-overview-title.is-long {
+  font-size: clamp(0.82rem, 5.35cqi, 1.22rem);
+}
+
+#sessionPlannerWorkspace .session-blocks-card .session-overview-title.is-very-long {
+  font-size: clamp(0.7rem, 4.35cqi, 0.98rem);
+}

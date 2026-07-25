@@ -221,7 +221,12 @@ export function createSessionPlannerWorkspaceRenderer({
     sessionMatchDayLabel = "",
     sessionTitle = "Session",
     sessionTotalMinutes = 0,
-  } = {}) => `
+  } = {}) => {
+    const sessionTitleLength = String(sessionTitle).trim().length;
+    const sessionTitleSizeClass =
+      sessionTitleLength > 28 ? " is-very-long" : sessionTitleLength > 16 ? " is-long" : "";
+
+    return `
     <header class="session-planner-hero">
       <div>
         <p class="placeholder-tag">Sessions</p>
@@ -241,7 +246,7 @@ export function createSessionPlannerWorkspaceRenderer({
         <div class="session-card-head">
           <div>
             <span>${escapeHtml(selectedDateLabel)}</span>
-            <h2>${escapeHtml(sessionTitle)}</h2>
+            <h2 class="session-overview-title${sessionTitleSizeClass}">${escapeHtml(sessionTitle)}</h2>
             <div class="session-planner-summary-chips">
               ${sessionMatchDayLabel ? `<strong class="session-matchday-chip">(${escapeHtml(sessionMatchDayLabel)})</strong>` : ""}
               <strong class="session-total-time-chip" aria-label="Total training time">
@@ -362,6 +367,7 @@ ${renderSessionPlannerPostSessionNotesCard(block)}
     ${renderSessionPlannerPlayerBoardOverlay(block)}
     ${renderSessionPlannerPrintOverlay(session)}
   `;
+  };
 
   return {
     renderDateStrip,

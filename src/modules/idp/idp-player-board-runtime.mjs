@@ -10,6 +10,7 @@ import {
   getIdpPlayerBoardUiState,
   IDP_PLAYER_BOARD_NEW_EXERCISE_ID,
   idpPlayerBoardHelpers,
+  isPersistedIdpPlayerBoardInterventionId,
   normalizePositiveInteger,
 } from "./idp-player-board-helpers.mjs";
 import {
@@ -127,13 +128,25 @@ function createLocalState(activeRuntime = {}) {
   ]));
 }
 
+function shouldKeepStoreBackedUiLocalDuringEdit(activeRuntime = {}, idpKey = "") {
+  if (!STORE_BACKED_IDP_PLAYER_BOARD_KEYS.has(idpKey)) return false;
+  if (idpKey === "idpPlayerBoardOpen" || idpKey === "idpPlayerBoardPreviewOpen") return false;
+  if (idpKey === "idpPlayerBoardSelectedInterventionId") return false;
+  const storeUi = activeRuntime.store?.getState?.()?.ui || {};
+  const localUi = getRuntimeLocalUi(activeRuntime);
+  return Boolean(storeUi.idpPlayerBoardOpen || localUi.idpPlayerBoardOpen);
+}
+
 function setLocalState(activeRuntime = {}, patch = {}) {
   const storePatch = {};
   const localPatch = {};
   Object.entries(patch || {}).forEach(([sessionKey, value]) => {
     const idpKey = SESSION_TO_IDP_UI_KEYS[sessionKey];
     if (!idpKey) return;
-    if (STORE_BACKED_IDP_PLAYER_BOARD_KEYS.has(idpKey)) {
+    if (
+      STORE_BACKED_IDP_PLAYER_BOARD_KEYS.has(idpKey)
+      && !shouldKeepStoreBackedUiLocalDuringEdit(activeRuntime, idpKey)
+    ) {
       storePatch[idpKey] = value;
     } else {
       localPatch[idpKey] = value;
@@ -148,7 +161,19 @@ function setLocalState(activeRuntime = {}, patch = {}) {
 }
 
 function closeTransientTacticalState(activeRuntime = {}) {
-  Object.assign(getRuntimeLocalUi(activeRuntime), createTransientIdpPlayerBoardUi());
+  const localUi = getRuntimeLocalUi(activeRuntime);
+  Object.assign(localUi, createTransientIdpPlayerBoardUi());
+  delete localUi.idpPlayerBoardOpen;
+}
+
+function setLocalSelectedInterventionId(activeRuntime = {}, interventionId = "") {
+  const localUi = getRuntimeLocalUi(activeRuntime);
+  const selectedInterventionId = String(interventionId || "").trim();
+  if (selectedInterventionId) {
+    localUi.idpPlayerBoardSelectedInterventionId = selectedInterventionId;
+    return;
+  }
+  delete localUi.idpPlayerBoardSelectedInterventionId;
 }
 
 export function resetIdpPlayerBoardRuntimeDraft(activeRuntime = {}) {
@@ -156,6 +181,7 @@ export function resetIdpPlayerBoardRuntimeDraft(activeRuntime = {}) {
   activeRuntime.idpPlayerBoardActivePlayerId = "";
   activeRuntime.idpPlayerBoardDraftDetail = null;
   closeTransientTacticalState(activeRuntime);
+  setLocalSelectedInterventionId(activeRuntime, "");
 }
 
 function getDraftDetailForCurrentPlayer(activeRuntime = {}, detail = {}) {
@@ -182,10 +208,17 @@ function persistBlockToDetail(activeRuntime = {}, block = null, options = {}) {
   const syncStore = Boolean(options?.syncStore);
   if (!detail?.profile?.playerId) return null;
   const sourceBlock = block || activeRuntime.idpPlayerBoardActiveBlock || buildIdpPlayerBoardBlock(detail);
+  const persistedInterventionId = isPersistedIdpPlayerBoardInterventionId(sourceBlock.interventionId)
+    ? sourceBlock.interventionId
+    : "";
+  const localDraftId = sourceBlock.id && !isPersistedIdpPlayerBoardInterventionId(sourceBlock.id)
+    ? sourceBlock.id
+    : "draft-idp-player-board";
+  const nextInterventionId = persistedInterventionId || localDraftId;
   const boardState = createBoardStateFromBlock(sourceBlock);
   const nextIntervention = {
-    id: sourceBlock.interventionId || sourceBlock.id || "draft-idp-player-board",
-    rowVersion: normalizePositiveInteger(sourceBlock.rowVersion, sourceBlock.interventionId ? 1 : 0),
+    id: nextInterventionId,
+    rowVersion: normalizePositiveInteger(sourceBlock.rowVersion, persistedInterventionId ? 1 : 0),
     playerId: sourceBlock.playerId || detail.profile.playerId,
     focusId: sourceBlock.focusId || detail.focuses?.[0]?.id || "",
     title: sourceBlock.title || detail.focuses?.[0]?.title || "IDP Player Board",
@@ -214,8 +247,16 @@ function persistBlockToDetail(activeRuntime = {}, block = null, options = {}) {
     nextDetail.profile?.playerId || ""
   );
   activeRuntime.idpPlayerBoardDraftDetail = nextDetail;
+  if (!persistedInterventionId) {
+    setLocalSelectedInterventionId(activeRuntime, nextInterventionId);
+  }
   if (syncStore) {
-    activeRuntime.store?.setState?.({ playerDetail: nextDetail });
+    activeRuntime.store?.setState?.({
+      playerDetail: nextDetail,
+      ui: {
+        idpPlayerBoardSelectedInterventionId: nextInterventionId,
+      },
+    });
   }
   return activeRuntime.idpPlayerBoardActiveBlock;
 }
@@ -236,7 +277,15 @@ function getCurrentBlock(activeRuntime = {}) {
 function renderWorkspace(activeRuntime = {}) {
   const ui = getIdpPlayerBoardRuntimeUi(activeRuntime);
   if (ui.idpPlayerBoardOpen && activeRuntime.idpPlayerBoardActiveBlock?.playerId) {
-    persistBlockToDetail(activeRuntime, activeRuntime.idpPlayerBoardActiveBlock, { syncStore: true });
+    const block = persistBlockToDetail(activeRuntime, activeRuntime.idpPlayerBoardActiveBlock, { syncStore: false });
+    const canvasWrap = getRoot(activeRuntime)?.querySelector?.("[data-session-tactical-canvas-wrap]");
+    if (canvasWrap && block) {
+      canvasWrap.innerHTML = renderIdpPlayerBoardExerciseVisual(block, getIdpPlayerBoardRuntimeUi(activeRuntime), {
+        large: true,
+        editor: true,
+      });
+      activeRuntime.idpPlayerBoardController?.syncSessionPlannerTacticalboardInspector?.();
+    }
     return;
   }
   activeRuntime.paint?.(activeRuntime);
@@ -268,7 +317,7 @@ function getController(activeRuntime = {}) {
     normalizeTacticalLineWidth: idpPlayerBoardHelpers.normalizeTacticalLineWidth,
     normalizeTacticalRotation: idpPlayerBoardHelpers.normalizeTacticalRotation,
     persistSessionPlannerTacticalElements: (block) =>
-      persistBlockToDetail(activeRuntime, block, { syncStore: true }),
+      persistBlockToDetail(activeRuntime, block, { syncStore: false }),
     renderSessionPlannerExerciseVisual: (block, options = {}) =>
       renderIdpPlayerBoardExerciseVisual(block, getIdpPlayerBoardRuntimeUi(activeRuntime), options),
     renderSessionPlannerWorkspace: () => renderWorkspace(activeRuntime),
@@ -370,6 +419,8 @@ function deleteFrame(activeRuntime = {}) {
 function setBoardOpen(activeRuntime = {}, isOpen = false) {
   if (isOpen) {
     activeRuntime.idpPlayerBoardActiveBlock = getCurrentBlock(activeRuntime);
+  } else if (activeRuntime.idpPlayerBoardActiveBlock?.playerId) {
+    persistBlockToDetail(activeRuntime, activeRuntime.idpPlayerBoardActiveBlock, { syncStore: true });
   }
   closeTransientTacticalState(activeRuntime);
   activeRuntime.store?.setState?.({
@@ -381,6 +432,9 @@ function setBoardOpen(activeRuntime = {}, isOpen = false) {
 }
 
 function setPreviewOpen(activeRuntime = {}, isOpen = false) {
+  if (isOpen && activeRuntime.idpPlayerBoardActiveBlock?.playerId) {
+    persistBlockToDetail(activeRuntime, activeRuntime.idpPlayerBoardActiveBlock, { syncStore: true });
+  }
   closeTransientTacticalState(activeRuntime);
   activeRuntime.store?.setState?.({
     ui: {
@@ -392,6 +446,7 @@ function setPreviewOpen(activeRuntime = {}, isOpen = false) {
 
 function selectExercise(activeRuntime = {}, interventionId = "") {
   closeTransientTacticalState(activeRuntime);
+  setLocalSelectedInterventionId(activeRuntime, interventionId || "");
   activeRuntime.idpPlayerBoardActiveBlock = null;
   activeRuntime.idpPlayerBoardActivePlayerId = "";
   activeRuntime.store?.setState?.({
@@ -406,6 +461,7 @@ function selectExercise(activeRuntime = {}, interventionId = "") {
 function startNewExercise(activeRuntime = {}) {
   const storeDetail = activeRuntime.store?.getState?.()?.playerDetail || {};
   closeTransientTacticalState(activeRuntime);
+  setLocalSelectedInterventionId(activeRuntime, IDP_PLAYER_BOARD_NEW_EXERCISE_ID);
   activeRuntime.idpPlayerBoardActiveBlock = buildIdpPlayerBoardBlock(storeDetail, {
     selectedInterventionId: IDP_PLAYER_BOARD_NEW_EXERCISE_ID,
   });
@@ -538,6 +594,34 @@ export function handleIdpPlayerBoardChange(event, activeRuntime = {}) {
   return false;
 }
 
+function handleIdpPlayerBoardCanvasClick(event, activeRuntime = {}, canvas = null, controller = getController(activeRuntime)) {
+  if (!canvas || !controller?.isSessionPlannerTacticalPlacementTool?.()) {
+    controller?.handleSessionPlannerTacticalCanvasClick?.(event, canvas);
+    return;
+  }
+  const clickedElement = event?.target?.closest?.("[data-session-tactical-element-id]");
+  if (clickedElement) {
+    controller.handleSessionPlannerTacticalCanvasClick(event, canvas);
+    return;
+  }
+  const ui = getIdpPlayerBoardRuntimeUi(activeRuntime);
+  if (ui.idpPlayerBoardSuppressNextClick) {
+    const shouldSuppressClick = Date.now() - Number(ui.idpPlayerBoardSuppressNextClickAt || 0) <= 240;
+    controller.setSessionPlannerTacticalClickSuppression(false);
+    if (shouldSuppressClick) return;
+  }
+  const clickCount = Number(event?.detail) || 1;
+  if (clickCount > 1) {
+    controller.handleSessionPlannerTacticalCanvasClick(event, canvas);
+    return;
+  }
+  const point = controller.getSessionPlannerTacticalCanvasPoint?.(event, canvas);
+  controller.setSessionPlannerTacticalClickSuppression(true);
+  if (!controller.addSessionPlannerTacticalPlacementElement?.(point)) {
+    controller.refreshSessionPlannerTacticalboardCanvas?.();
+  }
+}
+
 export function handleIdpPlayerBoardClick(event, activeRuntime = {}) {
   const target = event?.target;
   const controller = getController(activeRuntime);
@@ -588,7 +672,7 @@ export function handleIdpPlayerBoardClick(event, activeRuntime = {}) {
   if (callIfClosest("[data-session-copy-tactical-selected]", () => controller.copySelectedSessionPlannerTacticalElements())) return true;
   if (callIfClosest("[data-session-paste-tactical-clipboard]", () => controller.pasteSessionPlannerTacticalClipboard())) return true;
   if (callIfClosest("[data-session-delete-tactical-selected]", () => controller.removeSelectedSessionPlannerTacticalElement())) return true;
-  if (callIfClosest("[data-session-tactical-canvas]", (el) => controller.handleSessionPlannerTacticalCanvasClick(event, el))) return true;
+  if (callIfClosest("[data-session-tactical-canvas]", (el) => handleIdpPlayerBoardCanvasClick(event, activeRuntime, el, controller))) return true;
   return false;
 }
 
@@ -634,17 +718,38 @@ export function handleIdpPlayerBoardKeydown(event, activeRuntime = {}) {
 }
 
 function handlePointerDown(event, activeRuntime = {}) {
-  if (!activeRuntime.store?.getState?.()?.ui?.idpPlayerBoardOpen) return;
+  if (!ensurePointerEventHasOpenBoardContext(event, activeRuntime)) return;
   getController(activeRuntime).startSessionPlannerTacticalDrag(event);
 }
 
 function handlePointerMove(event, activeRuntime = {}) {
-  if (!activeRuntime.store?.getState?.()?.ui?.idpPlayerBoardOpen) return;
+  if (!ensurePointerEventHasOpenBoardContext(event, activeRuntime)) return;
   getController(activeRuntime).updateSessionPlannerTacticalDrag(event);
 }
 
-function handlePointerUp(_event, activeRuntime = {}) {
-  if (!activeRuntime.store?.getState?.()?.ui?.idpPlayerBoardOpen) return;
+function shouldHandlePointerUpEvent(event, activeRuntime = {}) {
+  if (!event || typeof event !== "object") return true;
+  if (activeRuntime.idpPlayerBoardLastPointerUpEvent === event) return false;
+  activeRuntime.idpPlayerBoardLastPointerUpEvent = event;
+  return true;
+}
+
+function ensurePointerEventHasOpenBoardContext(event, activeRuntime = {}) {
+  const ui = getIdpPlayerBoardRuntimeUi(activeRuntime);
+  if (ui.idpPlayerBoardOpen) return true;
+  const modal = event?.target?.closest?.(".session-tacticalboard-modal");
+  if (!modal) return false;
+
+  // The tactical modal is the visible source of truth while the coach is
+  // drawing. If an IDP store repaint races a pointer event, keep the shared
+  // Tactical Board controller in edit mode long enough to finish the gesture.
+  getRuntimeLocalUi(activeRuntime).idpPlayerBoardOpen = true;
+  return true;
+}
+
+function handlePointerUp(event, activeRuntime = {}) {
+  if (!shouldHandlePointerUpEvent(event, activeRuntime)) return;
+  if (!ensurePointerEventHasOpenBoardContext(event, activeRuntime)) return;
   const controller = getController(activeRuntime);
   const runtimeUi = getIdpPlayerBoardRuntimeUi(activeRuntime);
   const selection = runtimeUi.idpPlayerBoardSelectionState;
@@ -656,11 +761,28 @@ function handlePointerUp(_event, activeRuntime = {}) {
     }
     return;
   }
+  if (
+    !selection
+    && !runtimeUi.idpPlayerBoardDragState
+    && !runtimeUi.idpPlayerBoardDraftLineState
+    && !runtimeUi.idpPlayerBoardFreehandState
+    && controller.isSessionPlannerTacticalPlacementTool()
+  ) {
+    const canvas = event?.target?.closest?.("[data-session-tactical-canvas]");
+    const clickedElement = event?.target?.closest?.("[data-session-tactical-element-id]");
+    if (canvas && !clickedElement) {
+      controller.setSessionPlannerTacticalClickSuppression(true);
+      if (!controller.addSessionPlannerTacticalPlacementElement(controller.getSessionPlannerTacticalCanvasPoint(event, canvas))) {
+        controller.refreshSessionPlannerTacticalboardCanvas();
+      }
+      return;
+    }
+  }
   controller.finishSessionPlannerTacticalDrag();
 }
 
 function handleDoubleClick(event, activeRuntime = {}) {
-  if (!activeRuntime.store?.getState?.()?.ui?.idpPlayerBoardOpen) return;
+  if (!ensurePointerEventHasOpenBoardContext(event, activeRuntime)) return;
   const canvas = event?.target?.closest?.("[data-session-tactical-canvas]");
   if (!canvas) return;
   getController(activeRuntime).handleSessionPlannerTacticalCanvasDoubleClick(event, canvas);
@@ -676,6 +798,7 @@ export function bindIdpPlayerBoardEvents(activeRuntime = {}) {
   const doubleClick = (event) => handleDoubleClick(event, activeRuntime);
   const keydown = (event) => handleIdpPlayerBoardKeydown(event, activeRuntime);
   root.addEventListener?.("pointerdown", pointerDown);
+  root.addEventListener?.("pointerup", pointerUp);
   root.addEventListener?.("dblclick", doubleClick);
   win.addEventListener?.("pointermove", pointerMove);
   win.addEventListener?.("pointerup", pointerUp);
@@ -683,6 +806,7 @@ export function bindIdpPlayerBoardEvents(activeRuntime = {}) {
   root.__idpPlayerBoardEventsBound = true;
   root.__idpPlayerBoardUnbind = () => {
     root.removeEventListener?.("pointerdown", pointerDown);
+    root.removeEventListener?.("pointerup", pointerUp);
     root.removeEventListener?.("dblclick", doubleClick);
     win.removeEventListener?.("pointermove", pointerMove);
     win.removeEventListener?.("pointerup", pointerUp);

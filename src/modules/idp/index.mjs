@@ -205,8 +205,14 @@ function paint(activeRuntime = runtime) {
   ensureIdpProfileStyles(activeRuntime);
   const searchFocus = captureSearchFocus(activeRuntime);
   const state = activeRuntime.store.getState();
+  const draftDetail = activeRuntime.idpPlayerBoardDraftDetail;
+  const playerDetail = draftDetail?.profile?.playerId
+    && draftDetail.profile.playerId === state.playerDetail?.profile?.playerId
+    ? draftDetail
+    : state.playerDetail;
   const renderState = {
     ...state,
+    playerDetail,
     ui: getIdpPlayerBoardRuntimeUi(activeRuntime),
   };
   root.innerHTML = renderMarkup(renderState, {

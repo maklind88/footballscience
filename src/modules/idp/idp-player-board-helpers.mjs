@@ -56,7 +56,7 @@ function normalizeText(value = "", fallback = "") {
   return String(value || fallback).replace(/\s+/g, " ").trim();
 }
 
-function isPersistedId(value = "") {
+export function isPersistedIdpPlayerBoardInterventionId(value = "") {
   const id = normalizeText(value);
   return Boolean(id && !id.startsWith("draft-") && !id.startsWith("legacy-"));
 }
@@ -239,13 +239,14 @@ export function buildIdpPlayerBoardBlock(detail = {}, options = {}) {
   const selectedInterventionId = normalizeText(options.selectedInterventionId);
   const forceDraft = Boolean(options.forceDraft) || selectedInterventionId === IDP_PLAYER_BOARD_NEW_EXERCISE_ID;
   const intervention = forceDraft ? null : options.intervention || findIdpPlayerBoardIntervention(detail, { selectedInterventionId });
+  const hasPersistedInterventionId = isPersistedIdpPlayerBoardInterventionId(intervention?.id);
   const boardState = normalizeIdpPlayerBoardState(intervention?.boardState || {}, profile);
   const fallbackTitle = normalizeText(focus?.title, "") || `${normalizeText(profile.playerName, "Player")} Player Board`;
   return {
     id: intervention?.id || "draft-idp-player-board",
     interventionId: intervention?.id || "",
-    rowVersion: normalizePositiveInteger(intervention?.rowVersion, intervention ? 1 : 0),
-    isDraft: !isPersistedId(intervention?.id),
+    rowVersion: normalizePositiveInteger(intervention?.rowVersion, hasPersistedInterventionId ? 1 : 0),
+    isDraft: !hasPersistedInterventionId,
     playerId: profile.playerId || "",
     focusId: intervention?.focusId || focus?.id || "",
     title: normalizeText(intervention?.title, fallbackTitle),
@@ -295,9 +296,12 @@ export function createBoardStateFromBlock(block = {}) {
 }
 
 export function blockToInterventionPatch(block = {}) {
+  const persistedInterventionId = isPersistedIdpPlayerBoardInterventionId(block.interventionId)
+    ? block.interventionId
+    : "";
   return {
-    id: block.interventionId || "",
-    rowVersion: normalizePositiveInteger(block.rowVersion, block.interventionId ? 1 : 0),
+    id: persistedInterventionId,
+    rowVersion: normalizePositiveInteger(block.rowVersion, persistedInterventionId ? 1 : 0),
     playerId: block.playerId || "",
     focusId: block.focusId || "",
     title: normalizeText(block.title, "Individual exercise"),

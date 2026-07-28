@@ -357,4 +357,8 @@ body.is-dark-mode #sessionPlannerWorkspace .session-post-notes-field textarea {
 #sessionPlannerWorkspace .session-blocks-card .session-planner-summary-chips {
   grid-column: 1 / -1;
   grid-row: 3;
+  display: grid;
+  justify-items: start;
+  gap: 0.32rem;
+  margin-top: 0;
 }

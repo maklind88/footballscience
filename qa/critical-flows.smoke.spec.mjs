@@ -5044,7 +5044,7 @@ test("Medical availability list keeps participation states after overview remova
   await expect(page.locator(".medical-metric-card").filter({ hasText: "Full" })).toContainText("1");
   await expect(page.locator(".medical-metric-card").filter({ hasText: "Modified" })).toContainText("1");
   await expect(page.locator(".medical-metric-card").filter({ hasText: "Unavailable" })).toContainText("1");
-  await expect(page.locator(".medical-metric-card").filter({ hasText: "Not set" })).toContainText("1");
+  await expect(page.locator(".medical-metric-card").filter({ hasText: "Not set" })).toContainText("no entry");
   await expect(page.locator('[data-medical-roster-row="qa-positive-missing"] .medical-quick-rec-button.is-active')).toHaveText("75%");
   await expect(page.locator('[data-medical-roster-row="qa-unavailable"] .medical-quick-rec-button.is-active')).toHaveText("0%");
   await expect(page.locator('[data-medical-roster-row="qa-logged"] .medical-quick-rec-button.is-active')).toHaveText("100%");

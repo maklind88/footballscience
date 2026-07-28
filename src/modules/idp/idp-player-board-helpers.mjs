@@ -39,7 +39,7 @@ export const idpPlayerBoardUiDefaults = Object.freeze({
   idpPlayerBoardClipboardPasteCount: 0,
   idpPlayerBoardSuppressNextClick: false,
   idpPlayerBoardSuppressNextClickAt: 0,
-  idpPlayerBoardSnapEnabled: true,
+  idpPlayerBoardSnapEnabled: false,
   idpPlayerBoardLastPlacementClick: null,
   idpPlayerBoardLastPlacement: null,
   idpPlayerBoardSelectedInterventionId: "",

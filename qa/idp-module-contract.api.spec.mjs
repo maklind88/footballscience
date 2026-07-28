@@ -444,7 +444,7 @@ test("idp player board pointer tools stay active when modal DOM is open and stor
   expect(getIdpPlayerBoardRuntimeUi(runtime).idpPlayerBoardOpen).toBe(false);
 });
 
-test("idp player board drags existing objects without inspector-triggered store repaint", () => {
+test("idp player board drags existing objects smoothly by default without inspector-triggered store repaint", () => {
   const rootListeners = {};
   const windowListeners = {};
   const canvasRect = { left: 100, top: 200, width: 400, height: 600 };
@@ -483,7 +483,6 @@ test("idp player board drags existing objects without inspector-triggered store 
       idpPlayerBoardOpen: true,
       idpPlayerBoardTool: "ball",
       idpPlayerBoardSelectedInterventionId: "intervention-1",
-      idpPlayerBoardSnapEnabled: false,
     },
     playerDetail: {
       profile: { playerId: "player-1", playerName: "Test Player" },

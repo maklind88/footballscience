@@ -31,6 +31,16 @@ function createServiceHarness(options = {}) {
     archiveMedicalPlayersRemovedFromSquad: options.archiveMedicalPlayersRemovedFromSquad || (() => {}),
     canEditMedicalTeam: () => Boolean(options.canEdit),
     compareMedicalPlayers: (first, second) => String(first.name || "").localeCompare(String(second.name || "")),
+    createMedicalLinkedPlayerProfileIndex: () => ({
+      profiles: Array.isArray(options.playerProfiles) ? options.playerProfiles : [],
+      byId: new Map(
+        (Array.isArray(options.playerProfiles) ? options.playerProfiles : [])
+          .map((profile, index) => [String(profile?.id || "").trim(), { index, profile }])
+          .filter(([id]) => id)
+      ),
+      byName: new Map(),
+      byNameAndNumber: new Map(),
+    }),
     defaultMedicalPlayers: [{ id: "p1", name: "Alex Morgan", createdAt: "2026-05-01T09:00:00.000Z" }],
     formatDateValue: () => "2026-05-31",
     getCurrentMedicalActorId: () => "medical-user",
@@ -59,6 +69,11 @@ function createServiceHarness(options = {}) {
     normalizeMedicalPlayerAvailabilityStatus: (value, fallback = "") => String(value || fallback || "").trim(),
     normalizeMedicalRecord: (value = {}) => value && value.playerId ? { ...value } : null,
     normalizeMedicalShareValue: (value) => value === true || value === "true" || value === "on" || value === "1",
+    normalizePlayerProfileRosterType: (value, fallback = "squad") => {
+      const cleanValue = String(value || fallback || "squad").trim().toLowerCase();
+      return cleanValue === "guest-player" ? "guest" : cleanValue;
+    },
+    playerProfileRosterTypeCountsInSquad: (value) => String(value || "squad").trim().toLowerCase() === "squad",
     rawDataSafetySetItem: (key, value) => {
       rawWrites.push({ key, value });
       storage.setItem(key, value);
@@ -340,6 +355,98 @@ test("Medical runtime state service preserves write, sync-status, and profile st
     lastDatabaseSyncStatus: "stored",
     lastDatabaseSyncEvent: "recommendation-saved",
     lastPayloadHash: "hash-1",
+  });
+});
+
+test("Medical runtime state service materializes active Squad players into Medical roster on ensure", () => {
+  const storedState = {
+    ...createStoredMedicalState(),
+    players: [
+      {
+        id: "p1",
+        name: "Alex Morgan",
+        number: "10",
+        position: "Forward",
+        rosterType: "squad",
+        status: "Available",
+        availabilityStatus: "Available",
+        availability_status: "Available",
+      },
+    ],
+    records: [],
+    injuryPlans: [],
+  };
+  const harness = createServiceHarness({
+    canEdit: true,
+    playerProfiles: [
+      { id: "p1", name: "Alex Morgan", number: "10", position: "Forward", rosterType: "squad", countsInSquad: true },
+      {
+        id: "new-squad-player",
+        name: "New Squad Player",
+        number: "27",
+        position: "Midfielder",
+        primaryRole: "8",
+        rosterType: "squad",
+        countsInSquad: true,
+        createdAt: "2026-05-30T09:00:00.000Z",
+        updatedAt: "2026-05-30T09:00:00.000Z",
+      },
+      {
+        id: "academy-guest",
+        name: "Academy Guest",
+        number: "91",
+        position: "Forward",
+        rosterType: "academy",
+        countsInSquad: false,
+      },
+    ],
+    state: storedState,
+  });
+
+  expect(harness.service.syncMedicalRosterFromPlayerProfiles()).toBe(true);
+  expect(harness.getState().players.map((player) => player.id)).toEqual(["p1", "new-squad-player"]);
+  expect(harness.getState().players.find((player) => player.id === "p1")).toMatchObject({
+    status: "Available",
+    availabilityStatus: "Available",
+    availability_status: "Available",
+  });
+  expect(harness.getState().players.find((player) => player.id === "new-squad-player")).toMatchObject({
+    name: "New Squad Player",
+    number: "27",
+    rosterType: "squad",
+    countsInSquad: true,
+    primaryRole: "8",
+  });
+  expect(harness.getState().players.some((player) => player.id === "academy-guest")).toBe(false);
+});
+
+test("Medical runtime state service persists roster sync during private Medical ensure", () => {
+  const harness = createServiceHarness({
+    canEdit: true,
+    playerProfiles: [
+      { id: "p1", name: "Alex Morgan", rosterType: "squad", countsInSquad: true },
+      { id: "p2", name: "Central Sync Player", position: "Defender", rosterType: "squad", countsInSquad: true },
+    ],
+    state: {
+      selectedDate: "2026-05-31",
+      selectedPlayerId: "p1",
+      rosterVersion: "medical-roster-v1",
+      players: [{ id: "p1", name: "Alex Morgan", rosterType: "squad" }],
+      records: [],
+      injuryPlans: [],
+      dataSafety: {},
+      policy: {},
+    },
+  });
+
+  harness.service.ensureMedicalState();
+
+  const persisted = JSON.parse(harness.storage.value(harness.medicalTeamStorageKey));
+  expect(persisted.players.map((player) => player.id)).toContain("p2");
+  expect(persisted.players.find((player) => player.id === "p2")).toMatchObject({
+    name: "Central Sync Player",
+    position: "Defender",
+    rosterType: "squad",
   });
 });
 

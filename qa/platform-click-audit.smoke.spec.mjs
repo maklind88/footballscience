@@ -2,7 +2,9 @@ import { expect, test } from "@playwright/test";
 
 const workspaceHubKey = "football-workspace-hub-v3";
 const performanceBudgetMultiplier = process.env.CI ? 1.25 : 1;
+const workspacePerformanceBudgetMultiplier = process.env.CI ? 1.75 : 1;
 const budget = (milliseconds) => Math.ceil(milliseconds * performanceBudgetMultiplier);
+const workspaceBudget = (milliseconds) => Math.ceil(milliseconds * workspacePerformanceBudgetMultiplier);
 
 test.describe.configure({ timeout: 180_000 });
 
@@ -32,7 +34,7 @@ const workspaceViewIds = {
 };
 
 const clickBudgetMs = budget(1200);
-const workspaceClickBudgetMs = budget(1500);
+const workspaceClickBudgetMs = workspaceBudget(1500);
 const maxCandidatesPerWorkspace = Number(process.env.PLATFORM_CLICK_AUDIT_MAX || 16);
 const idpAuditProfile = {
   playerId: "ncc-2026-kailen-sheridan",

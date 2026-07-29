@@ -595,31 +595,7 @@ export function handleIdpPlayerBoardChange(event, activeRuntime = {}) {
 }
 
 function handleIdpPlayerBoardCanvasClick(event, activeRuntime = {}, canvas = null, controller = getController(activeRuntime)) {
-  if (!canvas || !controller?.isSessionPlannerTacticalPlacementTool?.()) {
-    controller?.handleSessionPlannerTacticalCanvasClick?.(event, canvas);
-    return;
-  }
-  const clickedElement = event?.target?.closest?.("[data-session-tactical-element-id]");
-  if (clickedElement) {
-    controller.handleSessionPlannerTacticalCanvasClick(event, canvas);
-    return;
-  }
-  const ui = getIdpPlayerBoardRuntimeUi(activeRuntime);
-  if (ui.idpPlayerBoardSuppressNextClick) {
-    const shouldSuppressClick = Date.now() - Number(ui.idpPlayerBoardSuppressNextClickAt || 0) <= 240;
-    controller.setSessionPlannerTacticalClickSuppression(false);
-    if (shouldSuppressClick) return;
-  }
-  const clickCount = Number(event?.detail) || 1;
-  if (clickCount > 1) {
-    controller.handleSessionPlannerTacticalCanvasClick(event, canvas);
-    return;
-  }
-  const point = controller.getSessionPlannerTacticalCanvasPoint?.(event, canvas);
-  controller.setSessionPlannerTacticalClickSuppression(true);
-  if (!controller.addSessionPlannerTacticalPlacementElement?.(point)) {
-    controller.refreshSessionPlannerTacticalboardCanvas?.();
-  }
+  controller?.handleSessionPlannerTacticalCanvasClick?.(event, canvas);
 }
 
 export function handleIdpPlayerBoardClick(event, activeRuntime = {}) {
@@ -751,33 +727,6 @@ function handlePointerUp(event, activeRuntime = {}) {
   if (!shouldHandlePointerUpEvent(event, activeRuntime)) return;
   if (!ensurePointerEventHasOpenBoardContext(event, activeRuntime)) return;
   const controller = getController(activeRuntime);
-  const runtimeUi = getIdpPlayerBoardRuntimeUi(activeRuntime);
-  const selection = runtimeUi.idpPlayerBoardSelectionState;
-  if (selection?.startPoint && !selection.moved && controller.isSessionPlannerTacticalPlacementTool()) {
-    setLocalState(activeRuntime, { sessionPlannerTacticalSelectionState: null });
-    controller.setSessionPlannerTacticalClickSuppression(true);
-    if (!controller.addSessionPlannerTacticalPlacementElement(selection.startPoint)) {
-      controller.refreshSessionPlannerTacticalboardCanvas();
-    }
-    return;
-  }
-  if (
-    !selection
-    && !runtimeUi.idpPlayerBoardDragState
-    && !runtimeUi.idpPlayerBoardDraftLineState
-    && !runtimeUi.idpPlayerBoardFreehandState
-    && controller.isSessionPlannerTacticalPlacementTool()
-  ) {
-    const canvas = event?.target?.closest?.("[data-session-tactical-canvas]");
-    const clickedElement = event?.target?.closest?.("[data-session-tactical-element-id]");
-    if (canvas && !clickedElement) {
-      controller.setSessionPlannerTacticalClickSuppression(true);
-      if (!controller.addSessionPlannerTacticalPlacementElement(controller.getSessionPlannerTacticalCanvasPoint(event, canvas))) {
-        controller.refreshSessionPlannerTacticalboardCanvas();
-      }
-      return;
-    }
-  }
   controller.finishSessionPlannerTacticalDrag();
 }
 

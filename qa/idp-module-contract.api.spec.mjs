@@ -218,7 +218,7 @@ test("idp player board interventions remain server-owned and isolated from Sessi
   expect(read("src/modules/session-planner/session-planner-workspace-controller.mjs")).not.toContain("idpPlayerBoard");
 });
 
-test("idp player board tactical modal places objects from single-click canvas coordinates without page repainting transient state", () => {
+test("idp player board tactical modal places objects only after Session Planner-style double-click without page repainting transient state", () => {
   const rootListeners = {};
   const windowListeners = {};
   const canvasRect = { left: 100, top: 200, width: 400, height: 600 };
@@ -273,20 +273,25 @@ test("idp player board tactical modal places objects from single-click canvas co
   };
 
   bindIdpPlayerBoardEvents(runtime);
-  rootListeners.pointerdown({
-    target: canvas,
-    clientX: 220,
-    clientY: 380,
-    preventDefault() {},
-    stopPropagation() {},
-  });
+  const clickCanvas = () => {
+    rootListeners.pointerdown({
+      target: canvas,
+      clientX: 220,
+      clientY: 380,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    windowListeners.pointerup({});
+  };
+  clickCanvas();
 
   const runtimeUi = getIdpPlayerBoardRuntimeUi(runtime);
-  expect(runtimeUi.idpPlayerBoardSelectionState?.startPoint).toEqual({ x: 30, y: 30 });
+  expect(runtimeUi.idpPlayerBoardSelectionState).toBeNull();
   expect(store.getState().ui.idpPlayerBoardSelectionState).toBeNull();
   expect(setStateCalls).toBe(0);
+  expect(canvasWrap.innerHTML).not.toContain("session-tactical-red-player");
 
-  windowListeners.pointerup({});
+  clickCanvas();
 
   expect(canvasWrap.innerHTML).toContain("session-tactical-red-player");
   expect(store.getState().playerDetail.interventions).toHaveLength(0);
@@ -303,7 +308,8 @@ test("idp player board tactical modal places objects from single-click canvas co
   expect(setStateCalls).toBe(1);
 });
 
-test("idp player board places equipment from a plain canvas click", () => {
+test("idp player board keeps plain canvas click as selection-only and places equipment on double-click", () => {
+  const rootListeners = {};
   const canvasRect = { left: 100, top: 200, width: 400, height: 600 };
   const canvas = {
     getBoundingClientRect: () => canvasRect,
@@ -311,6 +317,10 @@ test("idp player board places equipment from a plain canvas click", () => {
   };
   const canvasWrap = { innerHTML: "" };
   const root = {
+    addEventListener: (type, listener) => {
+      rootListeners[type] = listener;
+    },
+    removeEventListener: () => {},
     querySelector: (selector) => selector === "[data-session-tactical-canvas-wrap]" ? canvasWrap : null,
     querySelectorAll: () => [],
   };
@@ -347,6 +357,7 @@ test("idp player board places equipment from a plain canvas click", () => {
     store,
   };
 
+  bindIdpPlayerBoardEvents(runtime);
   expect(handleIdpPlayerBoardClick({
     target: canvas,
     detail: 1,
@@ -354,6 +365,19 @@ test("idp player board places equipment from a plain canvas click", () => {
     clientY: 380,
     preventDefault() {},
   }, runtime)).toBe(true);
+
+  expect(canvasWrap.innerHTML).not.toContain("session-tactical-ball");
+  expect(store.getState().playerDetail.interventions).toHaveLength(0);
+  expect(setStateCalls).toBe(0);
+
+  rootListeners.dblclick({
+    target: canvas,
+    detail: 2,
+    clientX: 220,
+    clientY: 380,
+    preventDefault() {},
+    stopPropagation() {},
+  });
 
   expect(canvasWrap.innerHTML).toContain("session-tactical-ball");
   expect(store.getState().playerDetail.interventions).toHaveLength(0);
@@ -419,19 +443,24 @@ test("idp player board pointer tools stay active when modal DOM is open and stor
   };
 
   bindIdpPlayerBoardEvents(runtime);
-  rootListeners.pointerdown({
-    target: canvas,
-    clientX: 220,
-    clientY: 380,
-    preventDefault() {},
-    stopPropagation() {},
-  });
+  const clickCanvas = () => {
+    rootListeners.pointerdown({
+      target: canvas,
+      clientX: 220,
+      clientY: 380,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    windowListeners.pointerup({
+      target: canvas,
+      clientX: 220,
+      clientY: 380,
+    });
+  };
+  clickCanvas();
   expect(getIdpPlayerBoardRuntimeUi(runtime).idpPlayerBoardOpen).toBe(true);
-  windowListeners.pointerup({
-    target: canvas,
-    clientX: 220,
-    clientY: 380,
-  });
+  expect(canvasWrap.innerHTML).not.toContain("session-tactical-cone");
+  clickCanvas();
 
   expect(canvasWrap.innerHTML).toContain("session-tactical-cone");
   expect(store.getState().ui.idpPlayerBoardOpen).toBe(false);
@@ -625,14 +654,19 @@ test("idp player board controller follows the current workspace root after a rep
   expect(handleIdpPlayerBoardInput({ target: colorField }, runtime)).toBe(true);
   workspaceRoot = currentRoot;
   bindIdpPlayerBoardEvents(runtime);
-  rootListeners.pointerdown({
-    target: canvas,
-    clientX: 220,
-    clientY: 380,
-    preventDefault() {},
-    stopPropagation() {},
-  });
-  windowListeners.pointerup({});
+  const clickCanvas = () => {
+    rootListeners.pointerdown({
+      target: canvas,
+      clientX: 220,
+      clientY: 380,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    windowListeners.pointerup({});
+  };
+  clickCanvas();
+  expect(currentCanvasWrap.innerHTML).not.toContain("session-tactical-cone");
+  clickCanvas();
 
   expect(currentCanvasWrap.innerHTML).toContain("session-tactical-cone");
 });
@@ -784,14 +818,19 @@ test("idp player board keeps a new draft visible after closing the editor", () =
   };
 
   bindIdpPlayerBoardEvents(runtime);
-  rootListeners.pointerdown({
-    target: canvas,
-    clientX: 220,
-    clientY: 380,
-    preventDefault() {},
-    stopPropagation() {},
-  });
-  windowListeners.pointerup({});
+  const clickCanvas = () => {
+    rootListeners.pointerdown({
+      target: canvas,
+      clientX: 220,
+      clientY: 380,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    windowListeners.pointerup({});
+  };
+  clickCanvas();
+  expect(canvasWrap.innerHTML).not.toContain("session-tactical-ball");
+  clickCanvas();
 
   expect(canvasWrap.innerHTML).toContain("session-tactical-ball");
   expect(store.getState().playerDetail.interventions).toHaveLength(0);
@@ -874,14 +913,19 @@ test("idp player board captures the current drawing before async save work can r
   };
 
   bindIdpPlayerBoardEvents(runtime);
-  rootListeners.pointerdown({
-    target: canvas,
-    clientX: 220,
-    clientY: 380,
-    preventDefault() {},
-    stopPropagation() {},
-  });
-  windowListeners.pointerup({});
+  const clickCanvas = () => {
+    rootListeners.pointerdown({
+      target: canvas,
+      clientX: 220,
+      clientY: 380,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    windowListeners.pointerup({});
+  };
+  clickCanvas();
+  expect(canvasWrap.innerHTML).not.toContain("session-tactical-cone");
+  clickCanvas();
 
   const saveTarget = {
     closest: (selector) => selector === "[data-idp-board-save]" ? saveTarget : null,

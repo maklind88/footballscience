@@ -31,12 +31,12 @@ jobs:
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: github/codeql-action/init@v4
+      - uses: github/codeql-action/init@v4.37.3
         if: steps.code_scanning.outputs.enabled == 'true'
         with:
           languages: javascript-typescript
 
-      - uses: github/codeql-action/analyze@v4
+      - uses: github/codeql-action/analyze@v4.37.3
         if: steps.code_scanning.outputs.enabled == 'true'
 
       - name: Skip CodeQL analysis when code scanning is not enabled

@@ -1,0 +1,23 @@
+{
+  "packageVersion": "fixture-1",
+  "competitions": [
+    {
+      "competition_id": 999,
+      "season_id": 2026,
+      "competition_name": "Fixture Women's League",
+      "competition_gender": "female"
+    }
+  ],
+  "playerSeasonStats": [
+    {
+      "player_id": 12345,
+      "player_name": "Secret Fixture Player",
+      "team_id": 67890,
+      "team_name": "Secret Fixture Team",
+      "player_season_minutes": 1234.5,
+      "player_season_np_xg": 4.2,
+      "player_season_pressures": 18.7,
+      "account_id": 42
+    }
+  ]
+}

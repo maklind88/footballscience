@@ -15,6 +15,8 @@
     "session-planner:domain:dry-run": "node scripts/session-planner-domain-dry-run.mjs",
     "qa:supabase:remote": "node scripts/verify-supabase-remote.mjs",
     "fsdb:import:reep": "node scripts/import-football-science-db-reep.mjs",
+    "scouting:statsbomb:analyze": "python3 scripts/analyze-statsbomb-api.py",
+    "scouting:statsbomb:test": "python3 -m unittest qa/scouting_statsbomb_readonly_analysis_test.py",
     "qa:live": "playwright test --config=qa/live.playwright.config.mjs",
     "qa:live:required": "node scripts/verify-live-qa-env.mjs && npm run qa:live",
     "qa:staging": "node scripts/run-staging-live-qa.mjs",

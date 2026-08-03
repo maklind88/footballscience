@@ -207,6 +207,16 @@ def write_javascript_payload(output, assignment, payload):
     )
 
 
+def write_scouting_database_payload(output, payload):
+    serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    output.write_text(
+        "window.__footballScienceBundledScoutingDatabase=" + serialized + ";\n"
+        "window.__footballScienceScoutingDatabase="
+        "window.__footballScienceScoutingDatabase||window.__footballScienceBundledScoutingDatabase;\n",
+        encoding="utf-8",
+    )
+
+
 def build_preview_payload(payload, output):
     return {
         "schema": "football-science-scouting-preview",
@@ -421,7 +431,7 @@ def main():
         isolated_payload,
     )
 
-    write_javascript_payload(output, "window.__footballScienceScoutingDatabase=", payload)
+    write_scouting_database_payload(output, payload)
     write_javascript_payload(preview_output, "window.__footballScienceScoutingPreviewDatabase=", preview_payload)
     write_javascript_payload(manifest_output, "self.__footballScienceScoutingDatabaseManifest=", manifest_payload)
     write_javascript_payload(isolated_output, "self.__footballScienceNwslStatsbombDatabase=", isolated_payload)

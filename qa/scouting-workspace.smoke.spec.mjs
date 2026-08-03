@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
+import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 
 const workspaceHubKey = "football-workspace-hub-v3";
@@ -11,8 +12,9 @@ const projectRoot = path.dirname(qaDir);
 
 function getFallbackCompareRecordOutsideFirstPage() {
   const importSource = fs.readFileSync(path.join(projectRoot, "scouting-import-data.js"), "utf8");
-  const jsonText = importSource.trim().replace(/^window\.__footballScienceScoutingDatabase=/, "").replace(/;$/, "");
-  const database = JSON.parse(jsonText);
+  const context = { window: {} };
+  vm.runInNewContext(importSource, context);
+  const database = context.window.__footballScienceBundledScoutingDatabase;
   const records = Array.isArray(database.records) ? database.records : [];
   const sortedRecords = [...records].sort((a, b) => (Number(b?.[9]) || 0) - (Number(a?.[9]) || 0) || String(a?.[1] || "").localeCompare(String(b?.[1] || "")));
   const record = sortedRecords[120] || sortedRecords[records.length - 1];

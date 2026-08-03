@@ -1,14 +1,33 @@
 import { expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import vm from "node:vm";
 
 function readProjectFile(relativePath) {
   return readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
 }
 
-function readJavascriptPayload(relativePath) {
+function evaluateJavascriptPayload(relativePath) {
   const source = readProjectFile(relativePath).trim();
-  const assignmentIndex = source.indexOf("=");
-  return JSON.parse(source.slice(assignmentIndex + 1).replace(/;$/, ""));
+  const context = { self: {}, window: {} };
+  vm.runInNewContext(source, context);
+  return context;
+}
+
+function readJavascriptPayload(relativePath) {
+  const context = evaluateJavascriptPayload(relativePath);
+  if (relativePath === "scouting-import-data.js") {
+    return context.window.__footballScienceBundledScoutingDatabase;
+  }
+  if (relativePath === "scouting-import-preview-data.js") {
+    return context.window.__footballScienceScoutingPreviewDatabase;
+  }
+  if (relativePath === "scouting-import-manifest.js") {
+    return context.self.__footballScienceScoutingDatabaseManifest;
+  }
+  if (relativePath === "scouting-statsbomb-data.js") {
+    return context.self.__footballScienceNwslStatsbombDatabase;
+  }
+  throw new Error(`Unknown JavaScript payload: ${relativePath}`);
 }
 
 test("the standard scouting database excludes the isolated StatsBomb source", () => {
@@ -44,6 +63,23 @@ test("the full database, preview, and manifest stay version aligned", () => {
   });
   expect(preview.totalRecords).toBe(database.records.length);
   expect(preview.records).toEqual(database.records.slice(0, preview.records.length));
+});
+
+test("the bundled scouting database remains stable when the active database changes", () => {
+  const context = evaluateJavascriptPayload("scouting-import-data.js");
+  const bundledDatabase = context.window.__footballScienceBundledScoutingDatabase;
+
+  expect(context.window.__footballScienceScoutingDatabase).toBe(bundledDatabase);
+  context.window.__footballScienceScoutingDatabase = {
+    source: "fsdb",
+    metrics: [],
+    records: [],
+    page: { mode: "fsdb" },
+  };
+
+  expect(context.window.__footballScienceBundledScoutingDatabase).toBe(bundledDatabase);
+  expect(context.window.__footballScienceBundledScoutingDatabase.records).toHaveLength(24_351);
+  expect(context.window.__footballScienceScoutingDatabase).not.toBe(bundledDatabase);
 });
 
 test("the StatsBomb source is preserved as a separate unloaded database", () => {

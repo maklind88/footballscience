@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   createSquadScoutingProfileHelpers,
+  createSquadScoutingRuntime,
   createSquadScoutingSpiderRenderer,
   formatPlayerProfileScoutingMinutes,
   formatPlayerProfileScoutingNumber,
@@ -23,6 +24,37 @@ const templates = {
     { label: "Duels", metricId: "duels", direction: "lower" },
   ],
 };
+
+const goalkeeperMetricIds = [
+  "exits-per-90",
+  "save-rate",
+  "prevented-goals-per-90",
+  "accurate-passes",
+  "average-pass-length-m",
+  "passes-per-90",
+];
+
+function createIndexedScoutingRecord({ id, player, season, minutes, metrics, team = "North Carolina Courage" }) {
+  return [id, player, team, team, "NWSL", season, "GK", 31, null, minutes, null, null, null, null, metrics];
+}
+
+function createIndexedScoutingDatabase(records, source = "Scouting player database") {
+  return {
+    schema: "football-science-scouting-import",
+    source,
+    metrics: goalkeeperMetricIds.map((id) => ({ id, label: id })),
+    records,
+  };
+}
+
+function createRuntimeForScoutingDatabases(win) {
+  return createSquadScoutingRuntime({
+    escapeHtml: (value) => String(value ?? ""),
+    platformModuleLoader: { loadScript: () => Promise.resolve() },
+    renderWorkspace: () => {},
+    win,
+  });
+}
 
 test("Squad scouting spider renderer queues database load and renders clean no-data state", () => {
   let queued = false;
@@ -318,4 +350,77 @@ test("Squad scouting profile helpers default player radar records to the latest 
   expect(helpers.findPlayerProfileNwslScoutingRecord({ name: "Mak Lind" })?.season).toBe("2026");
   expect(helpers.findPlayerProfileNwslScoutingRecord({ name: "Mak Lind" }, { selectedSeason: "2025" })?.season).toBe("2025");
   expect(helpers.getPlayerProfileNwslScoutingSeasonOptions({ name: "Mak Lind" }).map((season) => season.value)).toEqual(["2026", "2025", "2024"]);
+});
+
+test("Squad scouting runtime falls back to canonical data when a stale imported cache lacks the player", () => {
+  const importedDatabase = createIndexedScoutingDatabase([
+    createIndexedScoutingRecord({ id: "other-2026", player: "Other Keeper", season: "2026", minutes: 500, metrics: [1, 60, 0, 80, 30, 20] }),
+  ], "ui-import");
+  const bundledDatabase = createIndexedScoutingDatabase([
+    createIndexedScoutingRecord({ id: "k-sheridan-2023", player: "K. Sheridan", season: "2023", minutes: 1898, metrics: [1.1, 70, 0.1, 81, 28, 25] }),
+    createIndexedScoutingRecord({ id: "k-sheridan-2024", player: "K. Sheridan", season: "2024", minutes: 2544, metrics: [1.2, 71, 0.2, 82, 27, 27] }),
+    createIndexedScoutingRecord({ id: "k-sheridan-2025", player: "K. Sheridan", season: "2025", minutes: 2560, metrics: [1.3, 72, 0.3, 83, 26, 29] }),
+    createIndexedScoutingRecord({ id: "k-sheridan-2026", player: "K. Sheridan", season: "2026", minutes: 1338, metrics: [1.28, 67.4, 0.14, 85.3, 26, 30.3] }),
+  ]);
+  const activeDatabase = { source: "fsdb", metrics: [], records: [], page: { mode: "fsdb" } };
+  const win = {
+    __footballScienceImportedScoutingDatabase: importedDatabase,
+    __footballScienceBundledScoutingDatabase: bundledDatabase,
+    __footballScienceScoutingDatabase: activeDatabase,
+    localStorage: { getItem: () => JSON.stringify(importedDatabase) },
+  };
+  const runtime = createRuntimeForScoutingDatabases(win);
+
+  const markup = runtime.renderPlayerProfileScoutingSpider({ name: "Kailen Sheridan", position: "GK" });
+
+  expect(runtime.getPlayerProfileScoutingDatabase()).toBe(importedDatabase);
+  expect(markup).toContain('<option value="2026" selected>2026</option>');
+  expect(markup).toContain("Minutes 1,338");
+  expect(markup).toContain("exits-per-90: 1.28");
+  expect(markup).not.toContain("No verified data");
+  expect(win.__footballScienceScoutingDatabase).toBe(activeDatabase);
+  expect(win.__footballScienceImportedScoutingDatabase).toBe(importedDatabase);
+});
+
+test("Squad scouting runtime keeps an imported player match ahead of canonical fallback", () => {
+  const importedDatabase = createIndexedScoutingDatabase([
+    createIndexedScoutingRecord({ id: "imported-k-sheridan", player: "K. Sheridan", season: "2025", minutes: 999, metrics: [2, 75, 0.4, 88, 24, 34] }),
+  ], "ui-import");
+  const bundledDatabase = createIndexedScoutingDatabase([
+    createIndexedScoutingRecord({ id: "bundled-k-sheridan", player: "K. Sheridan", season: "2026", minutes: 1338, metrics: [1.28, 67.4, 0.14, 85.3, 26, 30.3] }),
+  ]);
+  const runtime = createRuntimeForScoutingDatabases({
+    __footballScienceImportedScoutingDatabase: importedDatabase,
+    __footballScienceBundledScoutingDatabase: bundledDatabase,
+    __footballScienceScoutingDatabase: bundledDatabase,
+    localStorage: { getItem: () => JSON.stringify(importedDatabase) },
+  });
+
+  const markup = runtime.renderPlayerProfileScoutingSpider({ name: "Kailen Sheridan", position: "GK" });
+
+  expect(markup).toContain("<span>2025</span>");
+  expect(markup).toContain("Minutes 999");
+  expect(markup).toContain("exits-per-90: 2");
+  expect(markup).not.toContain('value="2026"');
+});
+
+test("Squad scouting runtime fails closed when name aliases are not identity-safe", () => {
+  const importedDatabase = createIndexedScoutingDatabase([
+    createIndexedScoutingRecord({ id: "initial-sheridan", player: "K. Sheridan", season: "2025", minutes: 900, metrics: [2, 75, 0.4, 88, 24, 34] }),
+    createIndexedScoutingRecord({ id: "kate-sheridan", player: "Kate Sheridan", season: "2025", minutes: 800, metrics: [1, 65, 0.1, 80, 28, 25] }),
+  ], "ui-import");
+  const bundledDatabase = createIndexedScoutingDatabase([
+    createIndexedScoutingRecord({ id: "bundled-k-sheridan", player: "K. Sheridan", season: "2026", minutes: 1338, metrics: [1.28, 67.4, 0.14, 85.3, 26, 30.3] }),
+  ]);
+  const runtime = createRuntimeForScoutingDatabases({
+    __footballScienceImportedScoutingDatabase: importedDatabase,
+    __footballScienceBundledScoutingDatabase: bundledDatabase,
+    __footballScienceScoutingDatabase: bundledDatabase,
+    localStorage: { getItem: () => JSON.stringify(importedDatabase) },
+  });
+
+  const markup = runtime.renderPlayerProfileScoutingSpider({ name: "Kailen Sheridan", position: "GK" });
+
+  expect(markup).toContain("No verified data");
+  expect(markup).not.toContain("Minutes 1,338");
 });

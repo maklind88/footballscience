@@ -586,3 +586,40 @@ test("platform visible click audit keeps distinct controls responsive and labell
   expect(missingLabels, "Visible click targets need an accessible label or visible text.").toEqual([]);
   expect(slowClicks, "Visible click targets should resolve inside the interaction budget.").toEqual([]);
 });
+
+test("IDP scouting radar recovers from a stale local cache and paged active database", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "football-scouting-imported-database-v1",
+      JSON.stringify({
+        source: "ui-import",
+        metrics: [{ id: "passes-per-90", label: "Passes per 90" }],
+        records: [["other-keeper-2026", "Other Keeper", "Other Team", "Other Team", "NWSL", "2026", "GK", 24, null, 500, null, null, null, null, [20]]],
+      })
+    );
+  });
+  const runtime = await bootApp(page);
+  await page.evaluate(() => {
+    window.__footballScienceScoutingDatabase = {
+      source: "fsdb",
+      metrics: [],
+      records: [],
+      page: { mode: "fsdb", returned: 0 },
+    };
+  });
+
+  await openWorkspace(page, "idp");
+  const playerButton = page.locator('[data-idp-player="ncc-2026-kailen-sheridan"]');
+  await expect(playerButton).toHaveCount(1);
+  await playerButton.click();
+
+  const radar = page.locator(".idp-profile-scouting-radar");
+  await expect(radar).toBeVisible();
+  await expect(radar).toContainText("2026");
+  await expect(radar).toContainText("North Carolina Courage");
+  await expect(radar).toContainText("Minutes 1,338");
+  await expect(radar).not.toContainText("No verified data");
+  await expect.poll(() => page.evaluate(() => window.__footballScienceScoutingDatabase?.source)).toBe("fsdb");
+  expect(runtime.pageErrors).toEqual([]);
+  expect(runtime.consoleErrors).toEqual([]);
+});

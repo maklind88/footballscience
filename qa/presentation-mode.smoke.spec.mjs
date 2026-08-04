@@ -383,4 +383,33 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     noLandscapeBoardClass: true,
     noLandscapePitchClass: true,
   });
+  const blockPlayersLayout = await presentation.evaluate(() => {
+    const layout = document.querySelector(".presentation-block-layout");
+    const copy = document.querySelector(".presentation-block-copy");
+    const players = document.querySelector(".presentation-block-players");
+    const panel = document.querySelector(".presentation-player-panel.is-muted");
+    const chips = Array.from(document.querySelectorAll(".presentation-player-panel.is-muted .presentation-player-chip"));
+    if (!layout || !copy || !players || !panel || chips.length === 0) return null;
+    const layoutRect = layout.getBoundingClientRect();
+    const copyRect = copy.getBoundingClientRect();
+    const playersRect = players.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    return {
+      rightOfCopy: playersRect.left >= copyRect.right - 2,
+      bottomAligned: Math.abs(playersRect.bottom - layoutRect.bottom) <= 4,
+      compactHeight: panelRect.height <= layoutRect.height * 0.36,
+      compactWidth: panelRect.width <= layoutRect.width * 0.28,
+      chipsVisible: chips.every((chip) => {
+        const rect = chip.getBoundingClientRect();
+        return rect.width > 80 && rect.height >= 28 && rect.top >= panelRect.top && rect.bottom <= panelRect.bottom + 1;
+      }),
+    };
+  });
+  expect(blockPlayersLayout).toMatchObject({
+    rightOfCopy: true,
+    bottomAligned: true,
+    compactHeight: true,
+    compactWidth: true,
+    chipsVisible: true,
+  });
 });

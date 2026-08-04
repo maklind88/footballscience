@@ -76,10 +76,7 @@ export function createPresentationModeRenderer(options = {}) {
   function renderPassOptions(passes = [], dateValue = "") {
     return passes
       .map((pass) => {
-        const meta = [pass.dateLabel, pass.blockCount ? `${pass.blockCount} blocks` : "", pass.totalMinutes ? `${pass.totalMinutes} min` : ""]
-          .filter(Boolean)
-          .join(" / ");
-        return `<option value="${escapeHtml(pass.dateValue)}" ${pass.dateValue === dateValue ? "selected" : ""}>${escapeHtml(`${pass.title}${meta ? ` - ${meta}` : ""}`)}</option>`;
+        return `<option value="${escapeHtml(pass.dateValue)}" ${pass.dateValue === dateValue ? "selected" : ""}>${escapeHtml(pass.dateLabel || pass.dateValue || "Today")}</option>`;
       })
       .join("");
   }

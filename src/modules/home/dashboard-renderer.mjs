@@ -140,10 +140,8 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
       };
     const passOptions = (passes.length ? passes : [selectedPass])
       .map((pass) => {
-        const meta = [pass.dateLabel, pass.blockCount ? `${pass.blockCount} blocks` : "", pass.totalMinutes ? `${pass.totalMinutes} min` : ""]
-          .filter(Boolean)
-          .join(" / ");
-        return `<option value="${escapeHtml(pass.dateValue || selectedDate)}" ${(pass.dateValue || selectedDate) === selectedDate ? "selected" : ""}>${escapeHtml(`${pass.title || "Training Session"}${meta ? ` - ${meta}` : ""}`)}</option>`;
+        const optionDate = pass.dateValue || selectedDate;
+        return `<option value="${escapeHtml(optionDate)}" ${optionDate === selectedDate ? "selected" : ""}>${escapeHtml(pass.dateLabel || optionDate || "Today")}</option>`;
       })
       .join("");
 

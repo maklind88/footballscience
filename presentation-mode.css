@@ -87,6 +87,12 @@
   font-weight: 820;
 }
 
+.dashboard-presentation-form select option,
+.presentation-pass-controls select option {
+  color: #111827;
+  background: #ffffff;
+}
+
 .dashboard-presentation-form button {
   min-height: 2.45rem;
   border: 0;

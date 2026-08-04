@@ -41,6 +41,11 @@ async function dismissDashboardModal(page) {
 test("Presentation Mode opens from Home and renders the planned training deck", async ({ page }) => {
   const dateValue = new Date().toISOString().slice(0, 10);
   const now = new Date().toISOString();
+  const expectedDateLabel = new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(new Date(`${dateValue}T00:00:00`));
 
   await page.addInitScript(
     ({ dateValue: seededDate, now: seededNow, keys }) => {
@@ -192,12 +197,30 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   const card = page.locator("[data-dashboard-presentation-card]");
   await expect(card).toBeVisible();
   await expect(card).toContainText("Presentation Mode");
-  await expect(card).toContainText("Matchday Presentation Training");
+  await expect(card).not.toContainText("Matchday Presentation Training");
+  const homeDayOptions = await card
+    .locator("[data-dashboard-presentation-date] option")
+    .evaluateAll((options) => options.map((option) => option.textContent?.trim() || ""));
+  expect(homeDayOptions).toContain(expectedDateLabel);
+  for (const optionText of homeDayOptions) {
+    expect(optionText).not.toContain("Matchday Presentation Training");
+    expect(optionText).not.toContain("blocks");
+    expect(optionText).not.toContain("min");
+  }
 
   await card.locator("[data-dashboard-open-presentation]").click();
   const presentation = page.locator("[data-presentation-mode-shell]");
   await expect(presentation).toBeVisible();
   await expect(presentation).toContainText("Matchday Presentation Training");
+  const presentationDayOptions = await presentation
+    .locator("[data-presentation-pass-select] option")
+    .evaluateAll((options) => options.map((option) => option.textContent?.trim() || ""));
+  expect(presentationDayOptions).toContain(expectedDateLabel);
+  for (const optionText of presentationDayOptions) {
+    expect(optionText).not.toContain("Matchday Presentation Training");
+    expect(optionText).not.toContain("blocks");
+    expect(optionText).not.toContain("min");
+  }
 
   await page.keyboard.press("ArrowRight");
   await expect(presentation.locator(".presentation-info-title")).toHaveValue("Daily Info");

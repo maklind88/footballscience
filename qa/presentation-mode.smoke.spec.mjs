@@ -353,4 +353,30 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation).not.toContainText("Madison White");
   await expect(presentation).toContainText("Kailen Sheridan");
   await expect(presentation).not.toContainText("Lead Coach");
+  const blockVisualLayout = await presentation.evaluate(() => {
+    const visual = document.querySelector(".presentation-block-visual");
+    const board = document.querySelector(".presentation-block-visual .session-visual-board");
+    const pitch = document.querySelector(".presentation-block-visual .session-pitch-diagram");
+    if (!visual || !board || !pitch) return null;
+    const visualRect = visual.getBoundingClientRect();
+    const boardRect = board.getBoundingClientRect();
+    return {
+      boardIsPortrait: boardRect.height > boardRect.width * 1.35,
+      boardFitsVisual:
+        boardRect.top >= visualRect.top - 1 &&
+        boardRect.left >= visualRect.left - 1 &&
+        boardRect.right <= visualRect.right + 1 &&
+        boardRect.bottom <= visualRect.bottom + 1,
+      noLandscapeBoardClass:
+        !board.classList.contains("session-visual-board-print-landscape") &&
+        !board.classList.contains("session-visual-board-landscape"),
+      noLandscapePitchClass: !pitch.classList.contains("session-pitch-diagram-landscape"),
+    };
+  });
+  expect(blockVisualLayout).toMatchObject({
+    boardIsPortrait: true,
+    boardFitsVisual: true,
+    noLandscapeBoardClass: true,
+    noLandscapePitchClass: true,
+  });
 });

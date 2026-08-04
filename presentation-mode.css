@@ -858,16 +858,22 @@ body.is-presentation-mode-open {
 }
 
 .presentation-block-visual {
+  display: grid;
+  place-items: center;
   overflow: hidden;
+  padding: .42rem;
   border: 1px solid rgba(255, 255, 255, .16);
   border-radius: 8px;
   background: rgba(255, 255, 255, .07);
 }
 
 .presentation-block-visual .session-visual-board {
-  width: 100%;
+  width: auto;
   height: 100%;
-  min-height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+  aspect-ratio: 65 / 105;
   border: 0;
   border-radius: 0;
   box-shadow: none;

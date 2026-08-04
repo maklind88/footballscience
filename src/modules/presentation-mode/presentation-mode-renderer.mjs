@@ -435,7 +435,7 @@ export function createPresentationModeRenderer(options = {}) {
   function renderBlockSlide(model = {}, slide = {}) {
     const block = slide.block || {};
     const playerSummary = slide.playerSummary || {};
-    const visual = renderExerciseVisual(block, { large: true, landscape: true });
+    const visual = renderExerciseVisual(block, { large: true });
     const phase = [block.phase, block.subPhase].filter(Boolean).join(" / ");
     return renderSlideFrame(
       model,

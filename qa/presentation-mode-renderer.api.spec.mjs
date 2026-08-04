@@ -35,10 +35,14 @@ function createDocumentHarness() {
 
 test("Presentation Mode builds cover, info, overview and block slides from existing session data", () => {
   const storage = new Map();
+  const exerciseVisualCalls = [];
   const harness = createDocumentHarness();
   const renderer = createPresentationModeRenderer({
     escapeHtml: (value) => String(value ?? ""),
-    renderExerciseVisual: () => `<div data-exercise-visual></div>`,
+    renderExerciseVisual: (block, options = {}) => {
+      exerciseVisualCalls.push({ block, options });
+      return `<div data-exercise-visual data-landscape="${String(Boolean(options.landscape))}"></div>`;
+    },
   });
   const controller = createPresentationModeController({
     documentRef: harness.documentRef,
@@ -110,6 +114,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(infoHtml).toContain('data-presentation-info-field="title"');
   const blockHtml = renderer.renderBlockSlide(model, blockSlide);
   expect(blockHtml).toContain("data-exercise-visual");
+  expect(blockHtml).toContain('data-landscape="false"');
+  expect(exerciseVisualCalls.at(-1)?.options).toMatchObject({ large: true });
+  expect(exerciseVisualCalls.at(-1)?.options.landscape).toBeUndefined();
   expect(blockHtml).not.toContain("In this block");
   expect(blockHtml).toContain("Not in this block");
   expect(blockHtml).not.toContain("Ada Keeper");

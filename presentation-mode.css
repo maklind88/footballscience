@@ -403,17 +403,6 @@ body.is-presentation-mode-open {
   font-weight: 850;
 }
 
-.presentation-cover-metrics {
-  position: absolute;
-  left: clamp(1.4rem, 2.5vw, 2.5rem);
-  right: clamp(1.4rem, 2.5vw, 2.5rem);
-  bottom: 1.35rem;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: .6rem;
-}
-
-.presentation-cover-metrics span,
 .presentation-overview-metric,
 .presentation-block-flow article,
 .presentation-detail-block,
@@ -422,22 +411,6 @@ body.is-presentation-mode-open {
   border: 1px solid rgba(255, 255, 255, .13);
   border-radius: 8px;
   background: rgba(255, 255, 255, .08);
-}
-
-.presentation-cover-metrics span {
-  display: grid;
-  gap: .08rem;
-  padding: .72rem .82rem;
-}
-
-.presentation-cover-metrics strong {
-  color: #fff;
-  font-size: 1.2rem;
-}
-
-.presentation-cover-metrics small {
-  color: rgba(248, 250, 252, .62);
-  font-weight: 850;
 }
 
 .presentation-info-sheet {
@@ -917,15 +890,6 @@ body.is-presentation-mode-open {
   .presentation-slide-cover .presentation-slide-body {
     grid-template-columns: 1fr;
     align-content: center;
-  }
-
-  .presentation-cover-metrics {
-    position: relative;
-    left: auto;
-    right: auto;
-    bottom: auto;
-    grid-column: 1 / -1;
-    margin-top: 1rem;
   }
 
   .presentation-overview-grid,

@@ -214,6 +214,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation).toContainText("Matchday Presentation Training");
   await expect(presentation.locator("[data-presentation-pass-select]")).toHaveCount(0);
   await expect(presentation.locator("[data-presentation-date-input]")).toHaveValue(dateValue);
+  await expect(presentation.locator(".presentation-cover-metrics")).toHaveCount(0);
 
   await page.keyboard.press("ArrowRight");
   await expect(presentation.locator(".presentation-info-title")).toHaveValue("Daily Info");

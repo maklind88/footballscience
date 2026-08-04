@@ -200,11 +200,6 @@ export function createPresentationModeRenderer(options = {}) {
           <h1>${escapeHtml(model.sessionTitle)}</h1>
           <p>${escapeHtml(model.dateLabel)}</p>
         </div>
-        <div class="presentation-cover-metrics">
-          <span><strong>${escapeHtml(String(model.blockCount))}</strong><small>Blocks</small></span>
-          <span><strong>${escapeHtml(String(model.totalMinutes || 0))}</strong><small>Minutes</small></span>
-          <span><strong>${escapeHtml(model.loadLabel || "Not set")}</strong><small>Load</small></span>
-        </div>
       `
     );
   }

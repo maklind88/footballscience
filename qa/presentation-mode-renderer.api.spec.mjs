@@ -79,6 +79,11 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(harness.root.innerHTML).toContain("Presentation Mode");
   expect(harness.root.innerHTML).not.toContain("data-presentation-pass-select");
   expect(harness.root.innerHTML).toContain("data-presentation-date-input");
+  const coverHtml = renderer.renderCoverSlide(model);
+  expect(coverHtml).not.toContain("presentation-cover-metrics");
+  expect(coverHtml).not.toContain("<small>Blocks</small>");
+  expect(coverHtml).not.toContain("<small>Minutes</small>");
+  expect(coverHtml).not.toContain("<small>Load</small>");
   expect(renderer.renderBlockSlide(model, blockSlide)).toContain("data-exercise-visual");
   expect(storage.has(dashboardPresentationStorageKey)).toBe(false);
 

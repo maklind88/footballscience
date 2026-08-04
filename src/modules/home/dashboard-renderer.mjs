@@ -153,7 +153,6 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
           <div class="dashboard-presentation-copy">
             <p class="dashboard-card-kicker">Presentation Mode</p>
             <h2>Today's Training Briefing</h2>
-            <p>${escapeHtml(selectedPass.title || "Training Session")}</p>
           </div>
           <form class="dashboard-presentation-form">
             <label>

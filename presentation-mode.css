@@ -474,7 +474,7 @@ body.is-presentation-mode-open {
   height: 100%;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 1rem;
+  gap: clamp(.75rem, 1.35vw, 1.15rem);
   padding-right: 4.8rem;
 }
 
@@ -500,22 +500,24 @@ body.is-presentation-mode-open {
 
 .presentation-overview-grid {
   min-height: 0;
+  height: 100%;
   display: grid;
-  grid-template-columns: minmax(9.5rem, .86fr) repeat(2, minmax(0, 1fr)) minmax(13rem, .96fr);
+  grid-template-columns: minmax(8.8rem, .74fr) repeat(2, minmax(0, .95fr)) minmax(17rem, 1.12fr);
+  grid-template-rows: minmax(6.8rem, .72fr) minmax(5.9rem, .62fr) minmax(10.5rem, 1fr);
   grid-template-areas:
     "load phase video medical"
     "load pitch match medical"
     "focus blocks blocks medical";
-  gap: .68rem;
-  align-content: start;
+  gap: clamp(.52rem, .85vw, .82rem);
+  align-content: stretch;
 }
 
 .presentation-overview-metric {
   min-width: 0;
   display: grid;
   align-content: space-between;
-  gap: .38rem;
-  padding: .82rem;
+  gap: .42rem;
+  padding: clamp(.72rem, 1.08vw, 1rem);
 }
 
 .presentation-overview-metric span {
@@ -677,7 +679,9 @@ body.is-presentation-mode-open {
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr;
-  gap: .42rem;
+  grid-auto-rows: minmax(2.35rem, max-content);
+  align-content: start;
+  gap: clamp(.34rem, .55vw, .52rem);
 }
 
 .presentation-block-flow article {
@@ -686,7 +690,7 @@ body.is-presentation-mode-open {
   grid-template-columns: minmax(4.4rem, .52fr) minmax(0, 1.25fr) minmax(0, 1fr);
   gap: .55rem;
   align-items: center;
-  padding: .52rem .7rem;
+  padding: clamp(.48rem, .75vw, .72rem) clamp(.68rem, .95vw, .9rem);
 }
 
 .presentation-block-flow span,
@@ -718,8 +722,8 @@ body.is-presentation-mode-open {
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: .5rem;
-  padding: .68rem;
+  gap: clamp(.5rem, .75vw, .72rem);
+  padding: clamp(.68rem, 1vw, .9rem);
   background:
     linear-gradient(180deg, rgba(14, 24, 32, .84), rgba(10, 18, 24, .74)),
     rgba(255, 255, 255, .07);
@@ -756,8 +760,9 @@ body.is-presentation-mode-open {
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-content: start;
-  gap: .26rem;
+  grid-auto-rows: minmax(1.42rem, 1fr);
+  align-content: stretch;
+  gap: clamp(.18rem, .42vh, .4rem);
   overflow: hidden;
 }
 
@@ -772,26 +777,26 @@ body.is-presentation-mode-open {
 .presentation-medical-player {
   min-width: 0;
   display: grid;
-  grid-template-columns: 1.22rem minmax(0, 1fr) auto;
+  grid-template-columns: clamp(1.24rem, 3vh, 2.45rem) minmax(0, 1fr) auto;
   align-items: center;
-  gap: .26rem;
-  min-height: 1.55rem;
-  padding: .14rem .18rem .14rem .16rem;
+  gap: clamp(.22rem, .38vw, .44rem);
+  min-height: 0;
+  padding: clamp(.1rem, .2vh, .24rem) clamp(.18rem, .3vw, .36rem);
   border: 1px solid rgba(255, 255, 255, .1);
   border-radius: 8px;
   background: rgba(255, 255, 255, .07);
 }
 
 .presentation-medical-avatar {
-  width: 1.22rem;
-  height: 1.22rem;
+  width: clamp(1.24rem, 3vh, 2.45rem);
+  height: clamp(1.24rem, 3vh, 2.45rem);
   display: inline-grid;
   place-items: center;
   overflow: hidden;
   border-radius: 999px;
   color: #07120d;
   background: #d1fae5;
-  font-size: .46rem;
+  font-size: clamp(.48rem, 1.18vh, .78rem);
   font-weight: 950;
 }
 
@@ -806,19 +811,19 @@ body.is-presentation-mode-open {
   min-width: 0;
   overflow: hidden;
   color: #ffffff;
-  font-size: .58rem;
+  font-size: clamp(.6rem, 1.22vh, .86rem);
   line-height: 1.05;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .presentation-medical-player > span:last-child {
-  min-width: 1.72rem;
+  min-width: clamp(1.78rem, 4.2vh, 2.75rem);
   border-radius: 999px;
-  padding: .14rem .22rem;
+  padding: .14rem clamp(.22rem, .32vw, .36rem);
   color: #07120d;
   background: #86efac;
-  font-size: .54rem;
+  font-size: clamp(.56rem, 1.14vh, .8rem);
   font-weight: 950;
   line-height: 1;
   text-align: center;

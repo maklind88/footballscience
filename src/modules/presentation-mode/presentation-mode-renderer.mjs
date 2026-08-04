@@ -452,7 +452,6 @@ export function createPresentationModeRenderer(options = {}) {
               <p>${escapeHtml([block.minutes ? `${block.minutes} min` : "", block.pitchSize || "", phase].filter(Boolean).join(" / "))}</p>
             </div>
             <div class="presentation-block-details">
-              ${renderTextBlock("Focus", block.focus)}
               ${renderTextBlock("Objective", block.objective)}
               ${renderTextBlock("Organization", block.organization)}
               ${renderTextBlock("Coaching Points", block.principles)}

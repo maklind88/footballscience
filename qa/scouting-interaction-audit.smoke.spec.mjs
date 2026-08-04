@@ -203,7 +203,7 @@ async function startScoutingDatabaseLoad(page) {
       return "clicked";
     },
     null,
-    { timeout: 15_000 }
+    { timeout: interactionBudget(15_000) }
   );
   try {
     const status = await statusHandle.jsonValue();

@@ -221,6 +221,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation).toContainText("Arrive ready");
   await page.keyboard.press("ArrowRight");
   await expect(presentation).toContainText("Training Overview");
+  await expect(presentation.locator(".presentation-slide-overview .presentation-section-heading h2")).toHaveCount(0);
   await expect(presentation).toContainText("High");
 
   await page.keyboard.press("ArrowRight");

@@ -265,7 +265,6 @@ export function createPresentationModeRenderer(options = {}) {
         <section class="presentation-overview">
           <div class="presentation-section-heading">
             <span>Training Overview</span>
-            <h2>${escapeHtml(model.sessionTheme || model.sessionTitle)}</h2>
           </div>
           <div class="presentation-overview-grid">
             ${renderOverviewMetric("Phase", phaseLines.slice(0, 3).join(" / ") || periodization.seasonPhase || periodization.sessionType)}

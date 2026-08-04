@@ -410,7 +410,6 @@ body.is-presentation-mode-open {
 .presentation-block-flow article,
 .presentation-detail-block,
 .presentation-player-panel,
-.presentation-player-rule,
 .presentation-medical-overview {
   border: 1px solid rgba(255, 255, 255, .13);
   border-radius: 8px;
@@ -692,8 +691,7 @@ body.is-presentation-mode-open {
 
 .presentation-block-flow span,
 .presentation-detail-block span,
-.presentation-player-panel header span,
-.presentation-player-rule span {
+.presentation-player-panel header span {
   color: rgba(248, 250, 252, .58);
   font-size: .68rem;
   font-weight: 950;
@@ -924,20 +922,7 @@ body.is-presentation-mode-open {
 }
 
 .presentation-block-players {
-  grid-template-rows: auto minmax(0, 1fr);
-}
-
-.presentation-player-rule {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: .7rem;
-  padding: .68rem .76rem;
-}
-
-.presentation-player-rule strong {
-  color: #86efac;
-  font-size: 1rem;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .presentation-player-panel {

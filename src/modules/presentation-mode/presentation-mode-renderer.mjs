@@ -437,6 +437,12 @@ export function createPresentationModeRenderer(options = {}) {
     const playerSummary = slide.playerSummary || {};
     const visual = renderExerciseVisual(block, { large: true });
     const phase = [block.phase, block.subPhase].filter(Boolean).join(" / ");
+    const blockLabel = [
+      block.label || slide.label || "Block",
+      playerSummary.rule?.valueLabel ? `(${playerSummary.rule.valueLabel})` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
     return renderSlideFrame(
       model,
       { type: "block", label: slide.label, accentColor: "#f59e0b" },
@@ -447,7 +453,7 @@ export function createPresentationModeRenderer(options = {}) {
           </div>
           <div class="presentation-block-copy">
             <div class="presentation-section-heading">
-              <span>${escapeHtml(block.label || slide.label)}</span>
+              <span>${escapeHtml(blockLabel)}</span>
               <h2>${escapeHtml(block.title || "Exercise")}</h2>
               <p>${escapeHtml([block.minutes ? `${block.minutes} min` : "", block.pitchSize || "", phase].filter(Boolean).join(" / "))}</p>
             </div>
@@ -458,10 +464,6 @@ export function createPresentationModeRenderer(options = {}) {
             </div>
           </div>
           <div class="presentation-block-players">
-            <div class="presentation-player-rule">
-              <span>${escapeHtml(playerSummary.rule?.label || block.label || "Block")}</span>
-              <strong>${escapeHtml(playerSummary.rule?.valueLabel || "Available")}</strong>
-            </div>
             ${renderPlayerPanel("Not in this block", playerSummary.nonParticipants || [], "Everyone available is included.", { muted: true })}
           </div>
         </section>

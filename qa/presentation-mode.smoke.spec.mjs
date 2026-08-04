@@ -348,6 +348,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
 
   await page.keyboard.press("ArrowRight");
   await expect(presentation).toContainText("Rondo to finish");
+  await expect(presentation.locator(".presentation-slide-block .presentation-section-heading span")).toHaveText("Block 1 (10%+)");
+  await expect(presentation.locator(".presentation-player-rule")).toHaveCount(0);
   await expect(presentation).not.toContainText("Focus");
   await expect(presentation).not.toContainText("5v2");
   await expect(presentation).not.toContainText("In this block");

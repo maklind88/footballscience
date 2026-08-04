@@ -117,6 +117,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(blockHtml).toContain('data-landscape="false"');
   expect(exerciseVisualCalls.at(-1)?.options).toMatchObject({ large: true });
   expect(exerciseVisualCalls.at(-1)?.options.landscape).toBeUndefined();
+  expect(blockHtml).toContain("Block 1 (10%+)");
+  expect(blockHtml).not.toContain("presentation-player-rule");
   expect(blockHtml).not.toContain("Focus");
   expect(blockHtml).not.toContain("5v2");
   expect(blockHtml).not.toContain("In this block");

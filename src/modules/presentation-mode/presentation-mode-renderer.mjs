@@ -31,14 +31,28 @@ function getLineItems(value = "") {
     .filter(Boolean);
 }
 
-function getLoadTone(value = "") {
-  const text = String(value || "").trim().toLowerCase();
-  if (text.includes("match")) return "match";
-  if (text.includes("hard") || text.includes("high")) return "high";
-  if (text.includes("moderate") || text.includes("medium")) return "moderate";
-  if (text.includes("low") || text.includes("recovery")) return "low";
-  if (text.includes("off")) return "off";
-  return "neutral";
+function getLoadMeterModel(value = "") {
+  const label = String(value || "").trim() || "Not set";
+  const key = label.toLowerCase();
+  if (key.includes("match") || key.includes("high")) {
+    return { label, level: 5, tone: "match", color: "#d92d3f", soft: "rgba(217, 45, 63, .18)", glow: "rgba(217, 45, 63, .34)", angle: 68 };
+  }
+  if (key.includes("hard") || key.includes("medium-high") || key.includes("medium high")) {
+    return { label, level: 4, tone: "hard", color: "#f57c2b", soft: "rgba(245, 124, 43, .18)", glow: "rgba(245, 124, 43, .32)", angle: 34 };
+  }
+  if (key.includes("moderate") || key === "medium") {
+    return { label, level: 3, tone: "moderate", color: "#d9a514", soft: "rgba(217, 165, 20, .18)", glow: "rgba(217, 165, 20, .3)", angle: 0 };
+  }
+  if (key.includes("low")) {
+    return { label, level: 2, tone: "low", color: "#1f9d61", soft: "rgba(31, 157, 97, .18)", glow: "rgba(31, 157, 97, .32)", angle: -34 };
+  }
+  if (key.includes("recovery") || key.includes("light")) {
+    return { label, level: 1, tone: "recovery", color: "#74c69d", soft: "rgba(116, 198, 157, .16)", glow: "rgba(116, 198, 157, .28)", angle: -68 };
+  }
+  if (key.includes("off") || key === "not set" || key === "none") {
+    return { label, level: 0, tone: "neutral", color: "#94a3b8", soft: "rgba(148, 163, 184, .13)", glow: "rgba(148, 163, 184, .22)", angle: -76 };
+  }
+  return { label, level: 3, tone: "moderate", color: "#d9a514", soft: "rgba(217, 165, 20, .18)", glow: "rgba(217, 165, 20, .3)", angle: 0 };
 }
 
 function getParticipationTone(participation) {
@@ -252,9 +266,30 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function renderOverviewLoadMetric(value = "") {
+    const load = getLoadMeterModel(value);
+    return `
+      <div
+        class="presentation-overview-metric is-load is-${escapeHtml(load.tone)} is-level-${escapeHtml(String(load.level))}"
+        style="--presentation-load-angle: ${escapeHtml(String(load.angle))}deg; --presentation-load-color: ${escapeHtml(load.color)}; --presentation-load-soft: ${escapeHtml(load.soft)}; --presentation-load-glow: ${escapeHtml(load.glow)};"
+      >
+        <span>Load</span>
+        <div class="presentation-load-meter" aria-label="${escapeHtml(`Physical load: ${load.label}`)}">
+          <span class="presentation-load-gauge" aria-hidden="true">
+            <span class="presentation-load-needle"></span>
+            <span class="presentation-load-pin"></span>
+          </span>
+          <span class="presentation-load-copy">
+            <strong>${escapeHtml(load.label)}</strong>
+            <small>Planned today</small>
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
   function renderOverviewSlide(model = {}) {
     const periodization = model.periodization || {};
-    const loadTone = getLoadTone(model.loadLabel);
     const phaseLines = [
       ...(Array.isArray(periodization.matchPhases) ? periodization.matchPhases : []),
       ...(Array.isArray(periodization.subPhases) ? periodization.subPhases : []),
@@ -268,9 +303,9 @@ export function createPresentationModeRenderer(options = {}) {
             <span>Training Overview</span>
           </div>
           <div class="presentation-overview-grid">
+            ${renderOverviewLoadMetric(model.loadLabel)}
             ${renderOverviewMetric("Phase", phaseLines.slice(0, 3).join(" / ") || periodization.seasonPhase || periodization.sessionType, "is-phase")}
             ${renderOverviewMetric("Video", periodization.preTrainingVideo || "None", "is-video")}
-            ${renderOverviewMetric("Load", model.loadLabel, `is-load is-${loadTone}`)}
             ${renderOverviewMetric("Pitch", periodization.pitchSize || model.pitchLabel, "is-pitch")}
             ${renderOverviewMetric("Match Day", periodization.matchDay || "Not set", "is-match-day")}
             <div class="presentation-block-flow">

@@ -230,6 +230,34 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await page.keyboard.press("ArrowRight");
   await expect(presentation).toContainText("Training Overview");
   await expect(presentation.locator(".presentation-slide-overview .presentation-section-heading h2")).toHaveCount(0);
+  await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-gauge")).toHaveCount(1);
+  await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-copy strong")).toHaveText("High");
+  const overviewLoadLayout = await presentation.evaluate(() => {
+    const load = document.querySelector(".presentation-overview-metric.is-load");
+    const phase = document.querySelector(".presentation-overview-metric.is-phase");
+    const pitch = document.querySelector(".presentation-overview-metric.is-pitch");
+    const gauge = document.querySelector(".presentation-load-gauge");
+    const needle = document.querySelector(".presentation-load-needle");
+    if (!load || !phase || !pitch || !gauge || !needle) return null;
+    const loadRect = load.getBoundingClientRect();
+    const phaseRect = phase.getBoundingClientRect();
+    const pitchRect = pitch.getBoundingClientRect();
+    const loadStyle = getComputedStyle(load);
+    return {
+      leftOfPhase: loadRect.right <= phaseRect.left,
+      leftOfPitch: loadRect.right <= pitchRect.left,
+      spansTopRows: loadRect.bottom >= pitchRect.bottom - 2,
+      loadColor: loadStyle.getPropertyValue("--presentation-load-color").trim(),
+      loadAngle: loadStyle.getPropertyValue("--presentation-load-angle").trim(),
+    };
+  });
+  expect(overviewLoadLayout).toMatchObject({
+    leftOfPhase: true,
+    leftOfPitch: true,
+    spansTopRows: true,
+    loadColor: "#d92d3f",
+    loadAngle: "68deg",
+  });
   const overviewBlocksLayout = await presentation.evaluate(() => {
     const pitch = document.querySelector(".presentation-overview-metric.is-pitch");
     const matchDay = document.querySelector(".presentation-overview-metric.is-match-day");

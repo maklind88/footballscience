@@ -500,9 +500,9 @@ body.is-presentation-mode-open {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-areas:
-    "phase video load"
-    "pitch match focus"
-    "blocks blocks focus";
+    "load phase video"
+    "load pitch match"
+    "focus blocks blocks";
   gap: .68rem;
   align-content: start;
 }
@@ -529,7 +529,8 @@ body.is-presentation-mode-open {
   line-height: 1.05;
 }
 
-.presentation-overview-metric.is-high {
+.presentation-overview-metric.is-high,
+.presentation-overview-metric.is-hard {
   background: rgba(239, 68, 68, .18);
   border-color: rgba(248, 113, 113, .36);
 }
@@ -557,10 +558,6 @@ body.is-presentation-mode-open {
   grid-area: video;
 }
 
-.presentation-overview-metric.is-load {
-  grid-area: load;
-}
-
 .presentation-overview-metric.is-pitch {
   grid-area: pitch;
 }
@@ -571,6 +568,105 @@ body.is-presentation-mode-open {
 
 .presentation-overview-metric.is-focus {
   grid-area: focus;
+}
+
+.presentation-overview-metric.is-load {
+  position: relative;
+  grid-area: load;
+  overflow: hidden;
+  align-content: center;
+  gap: .72rem;
+  background:
+    radial-gradient(circle at 70% 16%, var(--presentation-load-glow, rgba(34, 197, 94, .3)), transparent 56%),
+    linear-gradient(150deg, var(--presentation-load-soft, rgba(34, 197, 94, .16)), rgba(255, 255, 255, .055) 68%),
+    rgba(10, 18, 24, .72);
+  border-color: var(--presentation-load-color, rgba(74, 222, 128, .42));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .12),
+    0 18px 32px rgba(0, 0, 0, .18);
+}
+
+.presentation-load-meter {
+  min-height: 8rem;
+  display: grid;
+  align-content: center;
+  gap: .62rem;
+}
+
+.presentation-load-gauge {
+  position: relative;
+  display: block;
+  width: min(7.8rem, 100%);
+  height: 3.85rem;
+  overflow: hidden;
+  border-radius: 8rem 8rem 0 0;
+  background:
+    radial-gradient(circle at 50% 100%, rgba(8, 15, 20, .98) 0 36%, transparent 37%),
+    conic-gradient(
+      from 270deg at 50% 100%,
+      #9be0ad 0deg 36deg,
+      #35b86f 36deg 72deg,
+      #f1cf52 72deg 108deg,
+      #f49a3f 108deg 144deg,
+      #dc4657 144deg 180deg,
+      transparent 180deg 360deg
+    );
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+}
+
+.presentation-load-gauge::after {
+  content: "";
+  position: absolute;
+  inset: .25rem .25rem 0;
+  border-radius: 7rem 7rem 0 0;
+  box-shadow: inset 0 0 0 999px rgba(255, 255, 255, .14);
+  pointer-events: none;
+}
+
+.presentation-load-needle {
+  position: absolute;
+  bottom: .08rem;
+  left: 50%;
+  z-index: 1;
+  width: .16rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  background: #f8fafc;
+  box-shadow: 0 0 0 1px rgba(8, 15, 20, .8), 0 8px 16px rgba(0, 0, 0, .22);
+  transform: translateX(-50%) rotate(var(--presentation-load-angle, 0deg));
+  transform-origin: 50% 100%;
+}
+
+.presentation-load-pin {
+  position: absolute;
+  bottom: -.22rem;
+  left: 50%;
+  z-index: 2;
+  width: .74rem;
+  height: .74rem;
+  border: .14rem solid #f8fafc;
+  border-radius: 999px;
+  background: var(--presentation-load-color, #22c55e);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, .28);
+  transform: translateX(-50%);
+}
+
+.presentation-load-copy {
+  display: grid;
+  gap: .14rem;
+}
+
+.presentation-load-copy strong {
+  color: var(--presentation-load-color, #22c55e);
+  font-size: clamp(1.55rem, 2.55vw, 2.45rem);
+  line-height: .92;
+}
+
+.presentation-load-copy small {
+  color: rgba(248, 250, 252, .62);
+  font-size: .7rem;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .presentation-block-flow {
@@ -935,6 +1031,25 @@ body.is-presentation-mode-open {
   .presentation-block-flow article {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .presentation-overview-metric.is-load {
+    align-content: start;
+  }
+
+  .presentation-load-meter {
+    min-height: auto;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .presentation-load-gauge {
+    width: 4.8rem;
+    height: 2.45rem;
+  }
+
+  .presentation-load-needle {
+    height: 1.86rem;
   }
 }
 

@@ -229,6 +229,7 @@ export function createPresentationModeRenderer(options = {}) {
             aria-label="Info slide title"
             ${readonly}
           />
+          <span class="presentation-info-rule" aria-hidden="true"></span>
           <textarea
             class="presentation-info-body"
             data-presentation-info-field="body"

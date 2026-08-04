@@ -218,6 +218,14 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
 
   await page.keyboard.press("ArrowRight");
   await expect(presentation.locator(".presentation-info-title")).toHaveValue("Daily Info");
+  await expect(presentation.locator(".presentation-info-rule")).toHaveCount(1);
+  const infoTitleAboveRule = await presentation.evaluate(() => {
+    const title = document.querySelector(".presentation-info-title");
+    const rule = document.querySelector(".presentation-info-rule");
+    if (!title || !rule) return false;
+    return title.getBoundingClientRect().bottom <= rule.getBoundingClientRect().top;
+  });
+  expect(infoTitleAboveRule).toBe(true);
   await expect(presentation).toContainText("Arrive ready");
   await page.keyboard.press("ArrowRight");
   await expect(presentation).toContainText("Training Overview");

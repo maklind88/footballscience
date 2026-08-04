@@ -470,7 +470,7 @@ body.is-presentation-mode-open {
 .presentation-overview {
   height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, .9fr) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 1rem;
   padding-right: 4.8rem;
 }
@@ -499,7 +499,12 @@ body.is-presentation-mode-open {
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    "phase video load"
+    "pitch match focus"
+    "blocks blocks focus";
   gap: .68rem;
+  align-content: start;
 }
 
 .presentation-overview-metric {
@@ -508,10 +513,6 @@ body.is-presentation-mode-open {
   align-content: space-between;
   gap: .38rem;
   padding: .82rem;
-}
-
-.presentation-overview-metric.is-wide {
-  grid-column: span 2;
 }
 
 .presentation-overview-metric span {
@@ -548,19 +549,45 @@ body.is-presentation-mode-open {
   border-color: rgba(125, 211, 252, .32);
 }
 
+.presentation-overview-metric.is-phase {
+  grid-area: phase;
+}
+
+.presentation-overview-metric.is-video {
+  grid-area: video;
+}
+
+.presentation-overview-metric.is-load {
+  grid-area: load;
+}
+
+.presentation-overview-metric.is-pitch {
+  grid-area: pitch;
+}
+
+.presentation-overview-metric.is-match-day {
+  grid-area: match;
+}
+
+.presentation-overview-metric.is-focus {
+  grid-area: focus;
+}
+
 .presentation-block-flow {
+  grid-area: blocks;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: .68rem;
+  grid-template-columns: 1fr;
+  gap: .42rem;
 }
 
 .presentation-block-flow article {
   min-width: 0;
   display: grid;
-  align-content: start;
-  gap: .25rem;
-  padding: .8rem;
+  grid-template-columns: minmax(4.4rem, .52fr) minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: .55rem;
+  align-items: center;
+  padding: .52rem .7rem;
 }
 
 .presentation-block-flow span,
@@ -576,7 +603,7 @@ body.is-presentation-mode-open {
 .presentation-block-flow strong {
   overflow-wrap: anywhere;
   color: #ffffff;
-  font-size: 1rem;
+  font-size: .98rem;
   line-height: 1.06;
 }
 
@@ -896,8 +923,18 @@ body.is-presentation-mode-open {
     grid-template-columns: 1fr;
   }
 
-  .presentation-overview-metric.is-wide {
-    grid-column: auto;
+  .presentation-overview-grid {
+    grid-template-areas: none;
+  }
+
+  .presentation-overview-metric,
+  .presentation-block-flow {
+    grid-area: auto;
+  }
+
+  .presentation-block-flow article {
+    grid-template-columns: 1fr;
+    align-items: start;
   }
 }
 

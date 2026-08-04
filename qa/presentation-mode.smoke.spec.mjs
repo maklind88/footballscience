@@ -230,6 +230,31 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await page.keyboard.press("ArrowRight");
   await expect(presentation).toContainText("Training Overview");
   await expect(presentation.locator(".presentation-slide-overview .presentation-section-heading h2")).toHaveCount(0);
+  const overviewBlocksLayout = await presentation.evaluate(() => {
+    const pitch = document.querySelector(".presentation-overview-metric.is-pitch");
+    const matchDay = document.querySelector(".presentation-overview-metric.is-match-day");
+    const blocks = document.querySelector(".presentation-block-flow");
+    const articles = Array.from(document.querySelectorAll(".presentation-block-flow article"));
+    if (!pitch || !matchDay || !blocks || articles.length === 0) return null;
+    const pitchRect = pitch.getBoundingClientRect();
+    const matchRect = matchDay.getBoundingClientRect();
+    const blocksRect = blocks.getBoundingClientRect();
+    const articleRects = articles.map((article) => article.getBoundingClientRect());
+    const combinedLeft = Math.min(pitchRect.left, matchRect.left);
+    const combinedRight = Math.max(pitchRect.right, matchRect.right);
+    return {
+      sameLeft: Math.abs(blocksRect.left - combinedLeft) <= 2,
+      sameRight: Math.abs(blocksRect.right - combinedRight) <= 2,
+      underPitchAndMatch: blocksRect.top >= Math.max(pitchRect.bottom, matchRect.bottom) - 2,
+      rowsAreWide: articleRects.every((rect) => rect.width > rect.height * 2.2),
+    };
+  });
+  expect(overviewBlocksLayout).toMatchObject({
+    sameLeft: true,
+    sameRight: true,
+    underPitchAndMatch: true,
+    rowsAreWide: true,
+  });
   await expect(presentation).toContainText("High");
 
   await page.keyboard.press("ArrowRight");

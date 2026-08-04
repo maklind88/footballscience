@@ -268,25 +268,25 @@ export function createPresentationModeRenderer(options = {}) {
             <span>Training Overview</span>
           </div>
           <div class="presentation-overview-grid">
-            ${renderOverviewMetric("Phase", phaseLines.slice(0, 3).join(" / ") || periodization.seasonPhase || periodization.sessionType)}
+            ${renderOverviewMetric("Phase", phaseLines.slice(0, 3).join(" / ") || periodization.seasonPhase || periodization.sessionType, "is-phase")}
             ${renderOverviewMetric("Video", periodization.preTrainingVideo || "None", "is-video")}
             ${renderOverviewMetric("Load", model.loadLabel, `is-load is-${loadTone}`)}
             ${renderOverviewMetric("Pitch", periodization.pitchSize || model.pitchLabel, "is-pitch")}
-            ${renderOverviewMetric("Match Day", periodization.matchDay || "Not set")}
-            ${renderOverviewMetric("Main Focus", periodization.mainFocus || model.sessionTheme || "Not set", "is-wide")}
-          </div>
-          <div class="presentation-block-flow">
-            ${model.blocks
-              .map(
-                (block, index) => `
-                  <article>
-                    <span>${escapeHtml(block.label || `Block ${index + 1}`)}</span>
-                    <strong>${escapeHtml(block.title || "Exercise")}</strong>
-                    <small>${escapeHtml([block.minutes ? `${block.minutes} min` : "", block.pitchSize || "", block.phase || ""].filter(Boolean).join(" / ") || "Ready")}</small>
-                  </article>
-                `
-              )
-              .join("") || `<article><span>Plan</span><strong>No blocks planned</strong><small>Open Session Planner to build the training.</small></article>`}
+            ${renderOverviewMetric("Match Day", periodization.matchDay || "Not set", "is-match-day")}
+            <div class="presentation-block-flow">
+              ${model.blocks
+                .map(
+                  (block, index) => `
+                    <article>
+                      <span>${escapeHtml(block.label || `Block ${index + 1}`)}</span>
+                      <strong>${escapeHtml(block.title || "Exercise")}</strong>
+                      <small>${escapeHtml([block.minutes ? `${block.minutes} min` : "", block.pitchSize || "", block.phase || ""].filter(Boolean).join(" / ") || "Ready")}</small>
+                    </article>
+                  `
+                )
+                .join("") || `<article><span>Plan</span><strong>No blocks planned</strong><small>Open Session Planner to build the training.</small></article>`}
+            </div>
+            ${renderOverviewMetric("Main Focus", periodization.mainFocus || model.sessionTheme || "Not set", "is-focus")}
           </div>
         </section>
       `

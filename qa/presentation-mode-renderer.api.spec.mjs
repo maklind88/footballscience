@@ -87,6 +87,10 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   const overviewHtml = renderer.renderOverviewSlide(model);
   expect(overviewHtml).toContain("Training Overview");
   expect(overviewHtml).not.toContain("<h2>");
+  expect(overviewHtml).toContain("presentation-block-flow");
+  expect(overviewHtml.indexOf("is-pitch")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));
+  expect(overviewHtml.indexOf("is-match-day")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));
+  expect(overviewHtml).toContain("is-focus");
   const infoSlide = model.slides.find((slide) => slide.type === "info");
   const infoHtml = renderer.renderInfoSlide(model, infoSlide);
   expect(infoHtml.indexOf("presentation-info-title")).toBeLessThan(infoHtml.indexOf("presentation-info-rule"));

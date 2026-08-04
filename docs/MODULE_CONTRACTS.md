@@ -107,7 +107,7 @@ Database-primary migration priority: Schedule, Squad, Scouting, Medical Team, Ex
 
 - `id`: `home`
 - `purpose`: staff workspace for personal tasks, delegated work, alerts, tutorial/news, and daily operational entry points.
-- `data`: `football-dashboard-tasks-v1`, `football-dashboard-notification-seen-v1`, `football-dashboard-tutorial-prefs-v1`, `football-dashboard-news-seen-v1`
+- `data`: `football-dashboard-tasks-v1`, `football-dashboard-notification-seen-v1`, `football-dashboard-tutorial-prefs-v1`, `football-dashboard-news-seen-v1`, `football-dashboard-presentation-mode-v1`
 - `permissions`: signed-in staff can manage their own tasks and participate in chat; admin can clear/delete broader records where allowed.
 - `events`: task created, task completed, profile opened.
 - `qa`: dashboard data remains protected by app-state and backups.

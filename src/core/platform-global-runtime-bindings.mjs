@@ -188,6 +188,7 @@ export function bindPlatformGlobalRuntimeEvents(deps = {}) {
     const isDashboardRefreshKey =
       event.key === deps.dashboardTaskStorageKey ||
       event.key === deps.dashboardNotificationSeenStorageKey ||
+      event.key === deps.dashboardPresentationStorageKey ||
       event.key === deps.playerProfilesStorageKey ||
       event.key === deps.scoutingStorageKey ||
       event.key === deps.transferRoomStorageKey;

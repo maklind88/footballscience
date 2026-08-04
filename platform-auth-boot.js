@@ -79,6 +79,7 @@
     "football-dashboard-notification-seen-v1",
     "football-dashboard-tutorial-prefs-v1",
     "football-dashboard-news-seen-v1",
+    "football-dashboard-presentation-mode-v1",
     MEDICAL_TEAM_STATE_KEY,
     PLAYER_PROFILES_STATE_KEY,
     SCOUTING_STATE_KEY,

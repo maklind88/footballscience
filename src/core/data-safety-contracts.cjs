@@ -102,6 +102,12 @@ const dataSafetyContracts = Object.freeze([
     mergePolicy: dataSafetyMergePolicies.revisionGuardedLastWrite,
   }),
   freezeContract({
+    moduleId: "home",
+    key: "football-dashboard-presentation-mode-v1",
+    recordType: "presentation-decks",
+    mergePolicy: dataSafetyMergePolicies.revisionGuardedLastWrite,
+  }),
+  freezeContract({
     moduleId: "chat",
     key: "football-dashboard-chat-v1",
     recordType: "chat-compatibility-state",

@@ -90,6 +90,7 @@ const platformPermissionMatrix = Object.freeze([
       "football-dashboard-notification-seen-v1",
       "football-dashboard-tutorial-prefs-v1",
       "football-dashboard-news-seen-v1",
+      "football-dashboard-presentation-mode-v1",
     ],
   }),
   moduleContract("chat", "Team Chat", "team", {

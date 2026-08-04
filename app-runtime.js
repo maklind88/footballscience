@@ -26,6 +26,11 @@ import {
   dashboardTaskStorageKey,
   dashboardTutorialPrefsStorageKey,
 } from "./src/modules/home/index.mjs";
+import {
+  createPresentationModeController,
+  createPresentationModeRenderer,
+  dashboardPresentationStorageKey,
+} from "./src/modules/presentation-mode/index.mjs";
 import { formatMonthYearLabel, formatScheduleBlockSummary as formatScheduleBlockSummaryFromModule, formatScheduleMonthName, getScheduleDayWarnings as getScheduleDayWarningsFromModule, getScheduleMainEvent as getScheduleMainEventFromModule, isScheduleSessionEvent as isScheduleSessionEventFromModule } from "./src/modules/schedule/schedule-selectors.mjs";
 import {
   cloneScheduleState,
@@ -489,6 +494,7 @@ dashboardChatStorageKey,
 dashboardNotificationSeenStorageKey,
 dashboardTutorialPrefsStorageKey,
 dashboardNewsSeenStorageKey,
+dashboardPresentationStorageKey,
 platformAppearanceStorageKey,
 medicalTeamStorageKey,
 scoutingStorageKey,
@@ -618,6 +624,11 @@ const dashboardHomeCardsRenderer = createDashboardHomeCardsRenderer({
   renderTaskList: dashboardTaskListRenderer.renderTaskList,
   resolveUserLabel: (userId, users) => getDashboardUserLabel(userId, users),
   });
+const presentationModeRenderer = createPresentationModeRenderer({
+escapeHtml,
+renderExerciseVisual: renderSessionPlannerExerciseVisual,
+});
+let presentationModeController = null;
 const dashboardRuntimeController = createDashboardRuntimeController({
 documentRef: document,
 win,
@@ -660,6 +671,9 @@ dashboardHomeContextSelectors.getSessionPlannerState();
 sessionPlannerState.selectedDate = dateValue;
 writeSessionPlannerState();
 }
+},
+openPresentationMode: (dateValue) => {
+presentationModeController?.open(dateValue);
 },
 createSessionDate: (dateValue) => {
 if (!canEditSessionPlanner()) {
@@ -706,6 +720,44 @@ showTutorialModal: showDashboardTutorialModal,
 updateTask: updateDashboardTask,
 writeAppearanceState: writePlatformAppearanceState,
 } = dashboardRuntimeController;
+presentationModeController = createPresentationModeController({
+documentRef: document,
+win,
+renderer: presentationModeRenderer,
+storageKey: dashboardPresentationStorageKey,
+readJson: readDashboardJson,
+writeJson: writeDashboardJson,
+getTodayValue: dashboardHomeContextSelectors.getTodayValue,
+getPasses: (dateValue) => dashboardHomeContextSelectors.getPresentationPasses(dateValue || dashboardHomeContextSelectors.getTodayValue()),
+getSessionForDate: (dateValue) => {
+if (!sessionPlannerState) {
+sessionPlannerState = readSessionPlannerState();
+}
+return sessionPlannerState.sessions?.[dateValue] || createSessionPlannerEmptySession(dateValue);
+},
+getScheduleEventsForDate,
+getScheduleMainEvent,
+getScheduledSessionTitle: getScheduledSessionTitleForDate,
+getPeriodizationDay,
+getAvailabilityItems: (dateValue) => {
+const medicalItems = medicalAvailabilitySelectors.getMedicalAvailabilityItems(dateValue);
+return Array.isArray(medicalItems) && medicalItems.length ? medicalItems : getSessionPlannerAvailabilityItems(dateValue);
+},
+getCustomPeople: getSessionPlannerPlayerBoardCustomPeople,
+createCustomPersonItem: createSessionPlannerPlayerBoardCustomItem,
+getTeam: () => getPlatformTeamDisplayTeam(),
+getTeamName: () => getPlatformTeamDisplayName() || "Football Science",
+getTeamLogoUrl: (team) => getPlatformTeamLogoUrl(team),
+formatDateLabel: (dateValue) => getSessionPlannerDateLabel(dateValue, { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+isEditableTarget: isEditableKeyboardTarget,
+escapeHtml,
+onDeckChange: () => {
+if (hubState?.activeWorkspaceId === "home") {
+renderDashboardCards();
+}
+},
+});
+presentationModeController.bindInteractions();
 const dashboardChatAttachmentRenderer = createDashboardChatAttachmentRenderer({
 escapeHtml,
 getSupabaseClient: getDashboardSupabaseClient,
@@ -800,6 +852,13 @@ function handleCentralSyncedStateValue(key) {
     purgeDashboardDeletedMessagesFromStorage();
     renderDashboardChatWidget();
     platformNavigationController.renderTopIconMenu();
+    return;
+  }
+  if (key === dashboardPresentationStorageKey) {
+    if (hubState?.activeWorkspaceId === "home") {
+      renderDashboardCards();
+    }
+    presentationModeController?.render();
     return;
   }
   if (key === platformAppearanceStorageKey) {
@@ -4829,6 +4888,7 @@ platformNavigationController,
 dashboardChatDeletedMessageIdsStorageKey,
 dashboardTaskStorageKey,
 dashboardNotificationSeenStorageKey,
+dashboardPresentationStorageKey,
 playerProfilesStorageKey,
 scoutingStorageKey,
 transferRoomStorageKey,

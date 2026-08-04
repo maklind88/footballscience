@@ -125,6 +125,55 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   `;
   }
 
+  function renderPresentationModeCard(context = {}) {
+    const presentation = context.presentationMode || {};
+    const passes = Array.isArray(presentation.passes) ? presentation.passes : [];
+    const selectedDate = presentation.selectedDate || context.todayValue || "";
+    const selectedPass =
+      presentation.selectedPass || passes.find((pass) => pass.dateValue === selectedDate) || passes[0] || {
+        dateValue: selectedDate,
+        dateLabel: "Today",
+        title: "Training Session",
+        blockCount: 0,
+        totalMinutes: 0,
+        hasPlan: false,
+      };
+    const readyLabel = selectedPass.hasPlan
+      ? `${selectedPass.blockCount || 0} blocks / ${selectedPass.totalMinutes || 0} min`
+      : "No blocks planned";
+    const passOptions = (passes.length ? passes : [selectedPass])
+      .map((pass) => {
+        const meta = [pass.dateLabel, pass.blockCount ? `${pass.blockCount} blocks` : "", pass.totalMinutes ? `${pass.totalMinutes} min` : ""]
+          .filter(Boolean)
+          .join(" / ");
+        return `<option value="${escapeHtml(pass.dateValue || selectedDate)}" ${(pass.dateValue || selectedDate) === selectedDate ? "selected" : ""}>${escapeHtml(`${pass.title || "Training Session"}${meta ? ` - ${meta}` : ""}`)}</option>`;
+      })
+      .join("");
+
+    return `
+      <section class="dashboard-presentation-band" aria-label="Presentation Mode">
+        <article class="dashboard-panel dashboard-presentation-card" data-dashboard-presentation-card>
+          <div class="dashboard-presentation-copy">
+            <p class="dashboard-card-kicker">Presentation Mode</p>
+            <h2>Today's Training Briefing</h2>
+            <p>${escapeHtml(selectedPass.title || "Training Session")}</p>
+          </div>
+          <div class="dashboard-presentation-status" aria-label="Selected presentation status">
+            <span>${escapeHtml(selectedPass.dateLabel || "Today")}</span>
+            <strong>${escapeHtml(readyLabel)}</strong>
+          </div>
+          <form class="dashboard-presentation-form">
+            <label>
+              <span>Pass</span>
+              <select data-dashboard-presentation-date>${passOptions}</select>
+            </label>
+            <button type="button" data-dashboard-open-presentation>Open</button>
+          </form>
+        </article>
+      </section>
+    `;
+  }
+
   function renderTodoCommand(context, staffOptions, appearanceConfig = {}) {
     const sectionAppearance = getHomeSectionAppearance(appearanceConfig, "todo");
     return `
@@ -280,6 +329,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     <section class="dashboard-workspace-layout dashboard-home-ops dashboard-home-density-${escapeHtml(homeAppearance.density)} dashboard-home-theme-${escapeHtml(homeAppearance.theme)}" aria-label="Home dashboard">
       <section class="dashboard-home-grid" aria-label="Coach workspace">
         <section class="dashboard-home-main" aria-label="Work queue and alerts">
+          ${renderPresentationModeCard(context)}
           ${mainSections}
           <section class="dashboard-symmetric-row" aria-label="Coach operations">
             ${operationSections}
@@ -292,6 +342,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
 
   return Object.freeze({
     render,
+    renderPresentationModeCard,
     renderTopTasksRow,
     renderTodoCommand,
     renderAlertsCard,

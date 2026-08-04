@@ -78,6 +78,7 @@ function createHarness() {
     dashboardNotificationSeenStorageKey: "football-dashboard-notification-seen-v1",
     dashboardTutorialPrefsStorageKey: "football-dashboard-tutorial-prefs-v1",
     dashboardNewsSeenStorageKey: "football-dashboard-news-seen-v1",
+    dashboardPresentationStorageKey: "football-dashboard-presentation-mode-v1",
     platformAppearanceStorageKey: "football-platform-appearance-v1",
     medicalTeamStorageKey: "football-medical-team-v1",
     scoutingStorageKey: "football-scouting-v1",

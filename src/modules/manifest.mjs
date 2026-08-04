@@ -12,6 +12,7 @@ export {
 } from "../core/data-safety-contracts.mjs";
 
 export * from "./home/index.mjs";
+export * from "./presentation-mode/index.mjs";
 export * from "./schedule/index.mjs";
 export * from "./squad/index.mjs";
 export * from "./idp/index.mjs";

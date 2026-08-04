@@ -54,6 +54,7 @@ export function createDashboardRuntimeController(dependencies = {}) {
     openScheduleDate = noop,
     openPeriodizationDate = noop,
     openSessionDate = noop,
+    openPresentationMode = noop,
     createSessionDate = noop,
     openTacticalBoardDate = noop,
   } = dependencies;
@@ -360,6 +361,13 @@ export function createDashboardRuntimeController(dependencies = {}) {
     if (openSessionDateButton) {
       openSessionDate(openSessionDateButton.dataset.dashboardOpenSessionDate);
       setActiveWorkspace("session-planner");
+      return true;
+    }
+    const presentationButton = event.target.closest("[data-dashboard-open-presentation]");
+    if (presentationButton) {
+      const card = presentationButton.closest("[data-dashboard-presentation-card]");
+      const dateValue = card?.querySelector("[data-dashboard-presentation-date]")?.value || getTodayValue();
+      openPresentationMode(dateValue);
       return true;
     }
     const createSessionDateButton = event.target.closest("[data-dashboard-create-session-date]");

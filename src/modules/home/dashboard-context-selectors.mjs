@@ -91,6 +91,56 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
     return (session?.blocks ?? []).reduce((total, block) => total + (Number(block.minutes) || 0), 0);
   }
 
+  function getPresentationPassTitle(dateValue, session = null, event = null) {
+    const sessionTitle = String(session?.title || "").trim();
+    if (sessionTitle && sessionTitle.toLowerCase() !== "session") {
+      return sessionTitle;
+    }
+    return String(event?.title || "").trim() || "Training Session";
+  }
+
+  function getPresentationPasses(todayValue = getTodayValue()) {
+    const sessionState = getSessionPlannerState();
+    const passMap = new Map();
+
+    function addPass(dateValue, source = {}) {
+      if (!dateValue || passMap.has(dateValue)) {
+        return;
+      }
+      const events = getScheduleEventsForDate(dateValue);
+      const sessionEvent = events.find(isScheduleSessionEvent) || getScheduleMainEvent(events) || null;
+      const session = getSessionForDate(dateValue);
+      const blockCount = Array.isArray(session?.blocks) ? session.blocks.length : 0;
+      passMap.set(dateValue, {
+        dateValue,
+        dateLabel: formatDateLabel(dateValue, "short"),
+        title: getPresentationPassTitle(dateValue, session, sessionEvent),
+        blockCount,
+        totalMinutes: getSessionTotalMinutes(session),
+        hasPlan: blockCount > 0,
+        isScheduled: Boolean(sessionEvent && isScheduleSessionEvent(sessionEvent)),
+        source: source.source || (sessionEvent ? "schedule" : blockCount ? "session-planner" : "date"),
+      });
+    }
+
+    addPass(todayValue, { source: "today" });
+    const nextSession = getNextSession(todayValue);
+    addPass(nextSession.date, { source: "next-session" });
+    getUpcomingEvents(todayValue)
+      .filter(isScheduleSessionEvent)
+      .slice(0, 8)
+      .forEach((event) => addPass(event.date, { source: "schedule" }));
+    Object.entries(sessionState.sessions ?? {})
+      .filter(([dateValue, session]) => dateValue >= todayValue && Array.isArray(session?.blocks) && session.blocks.length)
+      .sort(([firstDate], [secondDate]) => firstDate.localeCompare(secondDate))
+      .slice(0, 8)
+      .forEach(([dateValue]) => addPass(dateValue, { source: "session-planner" }));
+
+    return [...passMap.values()]
+      .sort((first, second) => first.dateValue.localeCompare(second.dateValue))
+      .slice(0, 10);
+  }
+
   function getNextSession(todayValue = getTodayValue()) {
     const state = getSessionPlannerState();
     const nextSessionEvent = getUpcomingEvents(todayValue).find(isScheduleSessionEvent) ?? null;
@@ -237,6 +287,8 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
     const nextMatch = getUpcomingEvents(todayValue, ["match"])[0] ?? null;
     const nextSession = getNextSession(todayValue);
     const microcycle = getMicrocycle(todayValue);
+    const presentationPasses = getPresentationPasses(todayValue);
+    const selectedPresentationPass = presentationPasses.find((pass) => pass.hasPlan) || presentationPasses[0] || null;
     const taskQueues = selectHomeTaskQueues(tasks, currentUser?.id);
     const context = {
       currentUser,
@@ -249,6 +301,11 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
       nextEvent,
       nextMatch,
       nextSession,
+      presentationMode: {
+        passes: presentationPasses,
+        selectedDate: selectedPresentationPass?.dateValue || todayValue,
+        selectedPass: selectedPresentationPass,
+      },
       microcycle,
       personalOpenTasks: taskQueues.personalOpenTasks,
       myOpenTasks: taskQueues.myOpenTasks,
@@ -266,6 +323,7 @@ export function createDashboardHomeContextSelectors(dependencies = {}) {
     getMedicalAlert,
     getMicrocycle,
     getNextSession,
+    getPresentationPasses,
     getRelativeDateLabel,
     getScheduleState,
     getSessionForDate,

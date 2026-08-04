@@ -5,6 +5,7 @@ export function createCentralSyncStateHandler({
   sessionPlannerExerciseLibraryFoldersStorageKey = "",
   dashboardChatStorageKey = "",
   dashboardChatDeletedMessageIdsStorageKey = "",
+  dashboardPresentationStorageKey = "",
   platformAppearanceStorageKey = "",
   playerProfilesStorageKey = "",
   medicalTeamStorageKey = "",
@@ -80,6 +81,12 @@ export function createCentralSyncStateHandler({
         purgeDashboardDeletedMessagesFromStorage();
         renderDashboardChatWidget();
         renderTopIconMenu();
+        return;
+      }
+      if (key === dashboardPresentationStorageKey) {
+        if (activeWorkspaceId() === "home") {
+          renderDashboardCards();
+        }
         return;
       }
       if (key === platformAppearanceStorageKey) {

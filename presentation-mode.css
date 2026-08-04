@@ -1,0 +1,991 @@
+.dashboard-presentation-band {
+  width: 100%;
+}
+
+.dashboard-presentation-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(18rem, .68fr);
+  gap: 1rem;
+  align-items: center;
+  min-height: 9.5rem;
+  overflow: hidden;
+  color: #f8fafc;
+  background:
+    linear-gradient(135deg, rgba(8, 18, 15, .96), rgba(21, 35, 43, .94) 56%, rgba(64, 47, 18, .9)),
+    #08120f;
+  border: 1px solid rgba(255, 255, 255, .16);
+  box-shadow: 0 24px 58px rgba(3, 9, 8, .26);
+}
+
+.dashboard-presentation-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(34, 197, 94, .22), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, .11), transparent 32%);
+  pointer-events: none;
+}
+
+.dashboard-presentation-copy,
+.dashboard-presentation-status,
+.dashboard-presentation-form {
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-presentation-copy {
+  display: grid;
+  gap: .3rem;
+}
+
+.dashboard-presentation-copy h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(1.65rem, 2.6vw, 2.6rem);
+  line-height: .98;
+}
+
+.dashboard-presentation-copy p:last-child {
+  margin: 0;
+  color: rgba(248, 250, 252, .74);
+  font-weight: 750;
+}
+
+.dashboard-presentation-status {
+  display: grid;
+  gap: .12rem;
+  min-width: 10.5rem;
+  padding: .78rem .9rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .16);
+}
+
+.dashboard-presentation-status span {
+  color: rgba(248, 250, 252, .72);
+  font-size: .74rem;
+  font-weight: 850;
+}
+
+.dashboard-presentation-status strong {
+  color: #ffffff;
+  font-size: .95rem;
+  line-height: 1.15;
+}
+
+.dashboard-presentation-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .58rem;
+  align-items: end;
+}
+
+.dashboard-presentation-form label {
+  display: grid;
+  gap: .28rem;
+  min-width: 0;
+}
+
+.dashboard-presentation-form label span {
+  color: rgba(248, 250, 252, .68);
+  font-size: .68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.dashboard-presentation-form select {
+  width: 100%;
+  min-height: 2.75rem;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 8px;
+  padding: 0 2rem 0 .75rem;
+  color: #f8fafc;
+  background: rgba(255, 255, 255, .1);
+  font: inherit;
+  font-size: .84rem;
+  font-weight: 820;
+}
+
+.dashboard-presentation-form button {
+  min-height: 2.75rem;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 1rem;
+  color: #062114;
+  background: #a7f3d0;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.presentation-mode-root {
+  position: fixed;
+  inset: 0;
+  z-index: 680;
+  color: #f8fafc;
+  background: #050806;
+}
+
+body.is-presentation-mode-open {
+  overflow: hidden;
+}
+
+.presentation-mode-shell {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  gap: .55rem;
+  padding: .72rem;
+  background:
+    linear-gradient(145deg, rgba(3, 7, 18, .98), rgba(9, 21, 18, .98) 55%, rgba(20, 28, 38, .98)),
+    #050806;
+}
+
+.presentation-control-bar,
+.presentation-editor-strip,
+.presentation-slide-tabs,
+.presentation-footer-nav {
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 8px;
+  background: rgba(8, 15, 20, .84);
+  backdrop-filter: blur(22px);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .24);
+}
+
+.presentation-control-bar {
+  display: grid;
+  grid-template-columns: minmax(13rem, 1fr) minmax(22rem, .9fr) auto;
+  gap: .72rem;
+  align-items: center;
+  padding: .55rem .68rem;
+}
+
+.presentation-control-brand,
+.presentation-control-actions,
+.presentation-pass-controls {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.presentation-control-brand {
+  gap: .65rem;
+}
+
+.presentation-control-brand div {
+  min-width: 0;
+  display: grid;
+  gap: .06rem;
+}
+
+.presentation-control-brand span,
+.presentation-pass-controls span,
+.presentation-editor-strip span {
+  color: rgba(248, 250, 252, .62);
+  font-size: .64rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.presentation-control-brand strong {
+  overflow: hidden;
+  color: #fff;
+  font-size: .9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .2);
+}
+
+.presentation-logo img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.presentation-logo-corner {
+  width: 3.2rem;
+  height: 3.2rem;
+  padding: .34rem;
+}
+
+.presentation-logo-hero {
+  width: min(18rem, 32vw);
+  height: min(18rem, 32vw);
+  padding: 1.1rem;
+}
+
+.presentation-logo.is-initials {
+  color: #052e1b;
+  background: #d1fae5;
+  font-weight: 950;
+}
+
+.presentation-pass-controls {
+  gap: .45rem;
+}
+
+.presentation-pass-controls label,
+.presentation-editor-strip label {
+  display: grid;
+  gap: .16rem;
+  min-width: 0;
+}
+
+.presentation-pass-controls label:first-child {
+  flex: 1 1 auto;
+}
+
+.presentation-pass-controls select,
+.presentation-pass-controls input,
+.presentation-editor-strip select,
+.presentation-editor-strip input {
+  min-height: 2.35rem;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 8px;
+  padding: 0 .66rem;
+  color: #f8fafc;
+  background: rgba(255, 255, 255, .08);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 800;
+}
+
+.presentation-pass-controls input {
+  width: 9.8rem;
+}
+
+.presentation-control-actions {
+  justify-content: flex-end;
+  gap: .4rem;
+}
+
+.presentation-tool-button,
+.presentation-icon-button,
+.presentation-nav-button,
+.presentation-editor-strip button {
+  min-height: 2.35rem;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 8px;
+  padding: 0 .78rem;
+  color: #f8fafc;
+  background: rgba(255, 255, 255, .08);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.presentation-tool-button.is-primary {
+  color: #052e1b;
+  background: #86efac;
+  border-color: #86efac;
+}
+
+.presentation-icon-button,
+.presentation-nav-button {
+  width: 2.35rem;
+  padding: 0;
+  font-size: 1.05rem;
+}
+
+.presentation-tool-button:disabled,
+.presentation-icon-button:disabled,
+.presentation-nav-button:disabled,
+.presentation-editor-strip button:disabled {
+  opacity: .42;
+  cursor: default;
+}
+
+.presentation-editor-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  align-items: end;
+  padding: .52rem;
+}
+
+.presentation-stage {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.presentation-slide {
+  position: relative;
+  width: min(100%, calc((100vh - 12.5rem) * 1.777));
+  max-height: calc(100vh - 12.5rem);
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(8, 18, 15, .98), rgba(13, 24, 33, .98) 58%, rgba(30, 25, 18, .98)),
+    #08120f;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .44);
+}
+
+.presentation-slide::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-top: .42rem solid var(--presentation-accent, #38bdf8);
+  pointer-events: none;
+}
+
+.presentation-slide-body {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: clamp(1.4rem, 2.5vw, 2.5rem);
+}
+
+.presentation-corner-logo {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 3;
+}
+
+.presentation-slide-footer {
+  position: absolute;
+  right: 1.3rem;
+  bottom: 1rem;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: rgba(248, 250, 252, .68);
+  font-size: .78rem;
+  font-weight: 850;
+}
+
+.presentation-slide-footer strong {
+  color: #f8fafc;
+}
+
+.presentation-cover .presentation-slide-body,
+.presentation-slide-cover .presentation-slide-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: clamp(1.6rem, 4vw, 3.6rem);
+  align-items: center;
+}
+
+.presentation-cover-mark {
+  display: grid;
+  place-items: center;
+}
+
+.presentation-cover-copy {
+  min-width: 0;
+  display: grid;
+  gap: .7rem;
+}
+
+.presentation-cover-copy span,
+.presentation-section-heading span {
+  color: var(--presentation-accent, #38bdf8);
+  font-size: .9rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.presentation-cover-copy h1 {
+  max-width: 12ch;
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(3.8rem, 8vw, 7.8rem);
+  line-height: .9;
+}
+
+.presentation-cover-copy p {
+  margin: 0;
+  color: rgba(248, 250, 252, .72);
+  font-size: clamp(1.1rem, 2vw, 1.8rem);
+  font-weight: 850;
+}
+
+.presentation-cover-metrics {
+  position: absolute;
+  left: clamp(1.4rem, 2.5vw, 2.5rem);
+  right: clamp(1.4rem, 2.5vw, 2.5rem);
+  bottom: 1.35rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .6rem;
+}
+
+.presentation-cover-metrics span,
+.presentation-overview-metric,
+.presentation-block-flow article,
+.presentation-detail-block,
+.presentation-player-panel,
+.presentation-player-rule {
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .08);
+}
+
+.presentation-cover-metrics span {
+  display: grid;
+  gap: .08rem;
+  padding: .72rem .82rem;
+}
+
+.presentation-cover-metrics strong {
+  color: #fff;
+  font-size: 1.2rem;
+}
+
+.presentation-cover-metrics small {
+  color: rgba(248, 250, 252, .62);
+  font-weight: 850;
+}
+
+.presentation-info-sheet {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 1.1rem;
+  padding: clamp(2.5rem, 5vw, 5.5rem) clamp(2rem, 5vw, 5rem) 3.2rem;
+  color: var(--presentation-info-color, #f8fafc);
+}
+
+.presentation-info-sheet::before {
+  content: "";
+  width: 7rem;
+  height: .42rem;
+  border-radius: 999px;
+  background: var(--presentation-info-accent, #38bdf8);
+}
+
+.presentation-info-title,
+.presentation-info-body {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  outline: 0;
+  resize: none;
+}
+
+.presentation-info-title {
+  min-height: 4.8rem;
+  font-size: clamp(2.6rem, 5.2vw, 5rem);
+  font-weight: 950;
+  line-height: .96;
+}
+
+.presentation-info-body {
+  font-weight: 820;
+  line-height: 1.22;
+}
+
+.presentation-info-sheet.is-size-normal .presentation-info-body {
+  font-size: clamp(1.35rem, 2vw, 2rem);
+}
+
+.presentation-info-sheet.is-size-large .presentation-info-body {
+  font-size: clamp(1.8rem, 2.75vw, 3rem);
+}
+
+.presentation-info-sheet.is-size-hero .presentation-info-body {
+  font-size: clamp(2.35rem, 3.6vw, 4.1rem);
+}
+
+.presentation-overview {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, .9fr) minmax(0, 1fr);
+  gap: 1rem;
+  padding-right: 4.8rem;
+}
+
+.presentation-section-heading {
+  min-width: 0;
+  display: grid;
+  gap: .35rem;
+}
+
+.presentation-section-heading h2 {
+  max-width: 18ch;
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(2.25rem, 4.6vw, 4.9rem);
+  line-height: .93;
+}
+
+.presentation-section-heading p {
+  margin: 0;
+  color: rgba(248, 250, 252, .68);
+  font-weight: 850;
+}
+
+.presentation-overview-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .68rem;
+}
+
+.presentation-overview-metric {
+  min-width: 0;
+  display: grid;
+  align-content: space-between;
+  gap: .38rem;
+  padding: .82rem;
+}
+
+.presentation-overview-metric.is-wide {
+  grid-column: span 2;
+}
+
+.presentation-overview-metric span {
+  color: rgba(248, 250, 252, .6);
+  font-size: .72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.presentation-overview-metric strong {
+  overflow-wrap: anywhere;
+  color: #ffffff;
+  font-size: clamp(1.05rem, 1.55vw, 1.62rem);
+  line-height: 1.05;
+}
+
+.presentation-overview-metric.is-high {
+  background: rgba(239, 68, 68, .18);
+  border-color: rgba(248, 113, 113, .36);
+}
+
+.presentation-overview-metric.is-moderate {
+  background: rgba(245, 158, 11, .18);
+  border-color: rgba(251, 191, 36, .32);
+}
+
+.presentation-overview-metric.is-low {
+  background: rgba(34, 197, 94, .16);
+  border-color: rgba(74, 222, 128, .32);
+}
+
+.presentation-overview-metric.is-match {
+  background: rgba(56, 189, 248, .16);
+  border-color: rgba(125, 211, 252, .32);
+}
+
+.presentation-block-flow {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: .68rem;
+}
+
+.presentation-block-flow article {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: .25rem;
+  padding: .8rem;
+}
+
+.presentation-block-flow span,
+.presentation-detail-block span,
+.presentation-player-panel header span,
+.presentation-player-rule span {
+  color: rgba(248, 250, 252, .58);
+  font-size: .68rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.presentation-block-flow strong {
+  overflow-wrap: anywhere;
+  color: #ffffff;
+  font-size: 1rem;
+  line-height: 1.06;
+}
+
+.presentation-block-flow small {
+  color: rgba(248, 250, 252, .62);
+  font-size: .76rem;
+  font-weight: 780;
+  line-height: 1.22;
+}
+
+.presentation-block-layout {
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, .82fr) minmax(15rem, .62fr);
+  gap: 1rem;
+  padding-right: 4.8rem;
+}
+
+.presentation-block-visual,
+.presentation-block-copy,
+.presentation-block-players {
+  min-width: 0;
+  min-height: 0;
+}
+
+.presentation-block-visual {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .07);
+}
+
+.presentation-block-visual .session-visual-board {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.presentation-block-visual .session-visual-board-surface {
+  height: 100%;
+}
+
+.presentation-block-copy,
+.presentation-block-players {
+  display: grid;
+  gap: .7rem;
+}
+
+.presentation-block-copy {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.presentation-block-copy .presentation-section-heading h2 {
+  max-width: 12ch;
+  font-size: clamp(2rem, 3.5vw, 3.9rem);
+}
+
+.presentation-block-details {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: .55rem;
+  overflow: auto;
+}
+
+.presentation-detail-block {
+  display: grid;
+  gap: .42rem;
+  padding: .72rem;
+}
+
+.presentation-detail-block ul {
+  display: grid;
+  gap: .25rem;
+  margin: 0;
+  padding-left: 1rem;
+  color: #ffffff;
+  font-size: .95rem;
+  font-weight: 780;
+  line-height: 1.25;
+}
+
+.presentation-block-players {
+  grid-template-rows: auto minmax(0, 1fr) minmax(0, .78fr);
+}
+
+.presentation-player-rule {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .7rem;
+  padding: .68rem .76rem;
+}
+
+.presentation-player-rule strong {
+  color: #86efac;
+  font-size: 1rem;
+}
+
+.presentation-player-panel {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: .48rem;
+  padding: .64rem;
+}
+
+.presentation-player-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .55rem;
+}
+
+.presentation-player-panel header strong {
+  color: #fff;
+  font-size: .95rem;
+}
+
+.presentation-player-list {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: .38rem;
+  overflow: auto;
+}
+
+.presentation-player-list p {
+  margin: 0;
+  color: rgba(248, 250, 252, .56);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.presentation-player-chip {
+  min-width: 0;
+  display: grid;
+  gap: .06rem;
+  padding: .42rem .48rem;
+  border-radius: 8px;
+  color: #f8fafc;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .12);
+}
+
+.presentation-player-chip.has-color {
+  color: var(--presentation-player-text, #111827);
+  background: var(--presentation-player-color, #86efac);
+  border-color: rgba(255, 255, 255, .22);
+}
+
+.presentation-player-chip.is-muted {
+  color: rgba(248, 250, 252, .7);
+  background: rgba(148, 163, 184, .12);
+}
+
+.presentation-player-chip.is-low,
+.presentation-player-chip.is-rehab {
+  border-color: rgba(248, 113, 113, .28);
+}
+
+.presentation-player-chip strong,
+.presentation-player-chip small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-player-chip strong {
+  font-size: .76rem;
+  line-height: 1.05;
+}
+
+.presentation-player-chip small {
+  opacity: .75;
+  font-size: .66rem;
+  font-weight: 850;
+}
+
+.presentation-slide-tabs {
+  display: flex;
+  gap: .32rem;
+  overflow: auto;
+  padding: .4rem;
+}
+
+.presentation-slide-tabs button {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: .42rem;
+  max-width: 12rem;
+  min-height: 2.35rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0 .58rem;
+  color: rgba(248, 250, 252, .7);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.presentation-slide-tabs button.is-active {
+  color: #fff;
+  background: rgba(255, 255, 255, .1);
+  border-color: rgba(255, 255, 255, .14);
+}
+
+.presentation-slide-tabs span {
+  display: inline-grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  color: #062114;
+  background: #86efac;
+  font-size: .68rem;
+  font-weight: 950;
+}
+
+.presentation-slide-tabs strong {
+  overflow: hidden;
+  font-size: .74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-footer-nav {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .38rem;
+}
+
+.presentation-progress {
+  min-width: 4.4rem;
+  text-align: center;
+  color: rgba(248, 250, 252, .72);
+  font-weight: 900;
+}
+
+.presentation-progress strong {
+  color: #fff;
+}
+
+.presentation-mode-shell.is-presenting {
+  grid-template-rows: minmax(0, 1fr);
+  padding: 0;
+}
+
+.presentation-mode-shell.is-presenting .presentation-control-bar,
+.presentation-mode-shell.is-presenting .presentation-editor-strip,
+.presentation-mode-shell.is-presenting .presentation-slide-tabs {
+  display: none;
+}
+
+.presentation-mode-shell.is-presenting .presentation-slide {
+  width: min(100vw, 177.777vh);
+  max-height: 100vh;
+  border-radius: 0;
+  border: 0;
+}
+
+.presentation-mode-shell.is-presenting .presentation-footer-nav {
+  position: fixed;
+  left: 50%;
+  bottom: .72rem;
+  z-index: 20;
+  transform: translateX(-50%);
+}
+
+@media (max-width: 980px) {
+  .dashboard-presentation-card,
+  .presentation-control-bar,
+  .presentation-block-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-presentation-form {
+    grid-template-columns: 1fr;
+  }
+
+  .presentation-pass-controls {
+    flex-wrap: wrap;
+  }
+
+  .presentation-pass-controls input {
+    width: 100%;
+  }
+
+  .presentation-slide {
+    width: 100%;
+    max-height: none;
+    aspect-ratio: auto;
+    min-height: calc(100vh - 13rem);
+  }
+
+  .presentation-slide-body,
+  .presentation-block-layout,
+  .presentation-overview {
+    padding-right: clamp(1.2rem, 4vw, 2rem);
+  }
+
+  .presentation-cover .presentation-slide-body,
+  .presentation-slide-cover .presentation-slide-body {
+    grid-template-columns: 1fr;
+    align-content: center;
+  }
+
+  .presentation-cover-metrics {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    grid-column: 1 / -1;
+    margin-top: 1rem;
+  }
+
+  .presentation-overview-grid,
+  .presentation-block-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .presentation-overview-metric.is-wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .presentation-mode-shell {
+    padding: .45rem;
+  }
+
+  .presentation-slide-body {
+    padding: 1rem;
+  }
+
+  .presentation-corner-logo {
+    top: .7rem;
+    right: .7rem;
+  }
+
+  .presentation-logo-corner {
+    width: 2.45rem;
+    height: 2.45rem;
+  }
+
+  .presentation-info-sheet {
+    padding: 4rem 1rem 2.6rem;
+  }
+
+  .presentation-info-title {
+    font-size: clamp(2rem, 12vw, 3.4rem);
+  }
+
+  .presentation-info-sheet.is-size-hero .presentation-info-body,
+  .presentation-info-sheet.is-size-large .presentation-info-body {
+    font-size: clamp(1.45rem, 7vw, 2.25rem);
+  }
+}

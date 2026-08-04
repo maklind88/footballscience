@@ -31,6 +31,7 @@ const protectedStorageKeys = [
   "football-dashboard-notification-seen-v1",
   "football-dashboard-tutorial-prefs-v1",
   "football-dashboard-news-seen-v1",
+  "football-dashboard-presentation-mode-v1",
   "football-medical-team-v1",
   "football-player-profiles-v1",
   "football-scouting-v1",
@@ -75,6 +76,9 @@ const coreFiles = [
   "src/modules/home/chat.mjs",
   "src/modules/home/chat-adapter.mjs",
   "src/modules/home/index.mjs",
+  "src/modules/presentation-mode/index.mjs",
+  "src/modules/presentation-mode/presentation-mode-controller.mjs",
+  "src/modules/presentation-mode/presentation-mode-renderer.mjs",
   "src/modules/chat/chat.mjs",
   "src/modules/chat/chat-adapter.mjs",
   "src/modules/chat/chat-api-client.mjs",
@@ -155,6 +159,7 @@ test("protected product data remains covered by client safety, central state, an
   const backupSource = readProjectFile("api/app-state-backup.js");
   const dataSafetySource = readProjectFile("src/core/data-safety-contracts.cjs");
   const homeRuntimeControllerSource = readProjectFile("src/modules/home/dashboard-runtime-controller.mjs");
+  const presentationModeControllerSource = readProjectFile("src/modules/presentation-mode/presentation-mode-controller.mjs");
   const exerciseLibraryActionsSource = readProjectFile("src/modules/exercise-library/exercise-library-actions.mjs");
   const exerciseLibraryRendererSource = readProjectFile("src/modules/exercise-library/exercise-library-renderer.mjs");
   const exerciseLibraryStateSource = readProjectFile("src/modules/exercise-library/exercise-library-state.mjs");
@@ -163,7 +168,7 @@ test("protected product data remains covered by client safety, central state, an
   const sessionPlannerVisualRendererSource = readProjectFile("src/modules/session-planner/session-planner-visual-renderer.mjs");
   const sessionPlannerPlayerBoardRendererSource = readProjectFile("src/modules/session-planner/session-planner-player-board-renderer.mjs");
   const sessionPlannerPrintRendererSource = readProjectFile("src/modules/session-planner/session-planner-print-renderer.mjs");
-  const clientSafetySource = `${appSource}\n${appRuntimeConstantsSource}\n${homeRuntimeControllerSource}\n${exerciseLibraryActionsSource}\n${exerciseLibraryRendererSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}\n${sessionPlannerRendererSource}\n${sessionPlannerVisualRendererSource}\n${sessionPlannerPlayerBoardRendererSource}\n${sessionPlannerPrintRendererSource}`;
+  const clientSafetySource = `${appSource}\n${appRuntimeConstantsSource}\n${homeRuntimeControllerSource}\n${presentationModeControllerSource}\n${exerciseLibraryActionsSource}\n${exerciseLibraryRendererSource}\n${exerciseLibraryStateSource}\n${sessionPlannerAutosaveSource}\n${sessionPlannerRendererSource}\n${sessionPlannerVisualRendererSource}\n${sessionPlannerPlayerBoardRendererSource}\n${sessionPlannerPrintRendererSource}`;
   const moduleContracts = readProjectFile("docs/MODULE_CONTRACTS.md");
 
   for (const key of protectedStorageKeys) {

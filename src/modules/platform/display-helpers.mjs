@@ -17,6 +17,38 @@ function defaultNormalizeImageUrl(value = "") {
 
 export const defaultMaxProfileImageUrlLength = 1800;
 export const defaultMaxProfileImageUploadDataUrlLength = 900000;
+export const northCarolinaCourageLogoUrl = "assets/team-logos/north-carolina-courage.svg";
+
+const northCarolinaCourageValues = new Set([
+  "club north carolina courage",
+  "north carolina courage",
+  "team north carolina courage",
+  "ncc",
+]);
+
+function normalizeTeamLogoComparable(value = "") {
+  return String(value || "").toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function isNorthCarolinaCourageTeam(team = {}) {
+  return [
+    team?.id,
+    team?.teamId,
+    team?.team_id,
+    team?.clubId,
+    team?.club_id,
+    team?.name,
+    team?.teamName,
+    team?.team,
+    team?.shortName,
+    team?.short_name,
+    team?.slug,
+  ].some((value) => northCarolinaCourageValues.has(normalizeTeamLogoComparable(value)));
+}
+
+function isLegacyRasterTeamLogoUrl(value = "") {
+  return /^data:image\/(?:webp|jpe?g);base64,/i.test(String(value || "").trim());
+}
 
 export function formatPlatformUserName(user) {
   return [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "Unknown User";
@@ -83,8 +115,12 @@ export function createPlatformDisplayHelpers(options = {}) {
     typeof options.getUserProfileImageUrl === "function" ? options.getUserProfileImageUrl : () => "";
   const getUserInitials = typeof options.getUserInitials === "function" ? options.getUserInitials : () => "U";
 
-  function getPlatformTeamLogoUrl(team) {
-    return normalizeImageUrl(team?.logoUrl || team?.logo_url || team?.logo || team?.badgeUrl || team?.crestUrl || "");
+  function getPlatformTeamLogoUrl(team = {}) {
+    const logoUrl = normalizeImageUrl(team?.logoUrl || team?.logo_url || team?.logo || team?.badgeUrl || team?.crestUrl || "");
+    if (isNorthCarolinaCourageTeam(team) && (!logoUrl || isLegacyRasterTeamLogoUrl(logoUrl))) {
+      return northCarolinaCourageLogoUrl;
+    }
+    return logoUrl;
   }
 
   function getPlatformTeamLogoInitials(team = {}, fallbackName = "Team") {

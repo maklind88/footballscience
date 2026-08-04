@@ -5,6 +5,7 @@ import {
   getPlatformRoleLabel,
   getPlatformUserInitials,
   getPlatformUserProfileImageUrl,
+  northCarolinaCourageLogoUrl,
   normalizePlatformProfileImageUrl,
 } from "../src/modules/platform/display-helpers.mjs";
 
@@ -59,11 +60,11 @@ test("Platform display helpers own role label display text", () => {
 
 test("Platform display helpers own team logo initials, upload, and image markup", () => {
   const uploadMarkup = helpers.renderPlatformTeamLogoMark(
-    { name: "North Carolina Courage", shortName: "NCC" },
+    { name: "Riverside FC", shortName: "RFC" },
     { canUpload: true }
   );
   expect(uploadMarkup).toContain("squad-team-logo-mark is-empty can-upload");
-  expect(uploadMarkup).toContain("<strong>NCC</strong>");
+  expect(uploadMarkup).toContain("<strong>RFC</strong>");
   expect(uploadMarkup).toContain("data-squad-team-logo-upload");
 
   const imageMarkup = helpers.renderPlatformTeamLogoMark({
@@ -73,6 +74,24 @@ test("Platform display helpers own team logo initials, upload, and image markup"
   expect(imageMarkup).toContain("squad-team-logo-mark has-logo");
   expect(imageMarkup).toContain('src="https://cdn.example.com/a&amp;b.png"');
   expect(imageMarkup).toContain('alt="A&amp;B Team logo"');
+});
+
+test("Platform display helpers use the canonical Courage SVG instead of legacy raster logos", () => {
+  expect(helpers.getPlatformTeamLogoUrl({ id: "team-north-carolina-courage", name: "North Carolina Courage" })).toBe(
+    northCarolinaCourageLogoUrl
+  );
+  expect(
+    helpers.getPlatformTeamLogoUrl({
+      name: "North Carolina Courage",
+      logoUrl: "data:image/webp;base64,b2xk",
+    })
+  ).toBe(northCarolinaCourageLogoUrl);
+  expect(
+    helpers.getPlatformTeamLogoUrl({
+      name: "North Carolina Courage",
+      logoUrl: "data:image/svg+xml;charset=utf-8,%3Csvg%3E%3C%2Fsvg%3E",
+    })
+  ).toBe("data:image/svg+xml;charset=utf-8,%3Csvg%3E%3C%2Fsvg%3E");
 });
 
 test("Platform display helpers can apply the current avatar to an existing element", () => {

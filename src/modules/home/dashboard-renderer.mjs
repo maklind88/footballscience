@@ -156,7 +156,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
           </div>
           <form class="dashboard-presentation-form">
             <label>
-              <span>Pass</span>
+              <span>Day</span>
               <select data-dashboard-presentation-date>${passOptions}</select>
             </label>
             <button type="button" data-dashboard-open-presentation>Open</button>

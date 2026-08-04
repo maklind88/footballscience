@@ -97,7 +97,7 @@ export function createPresentationModeRenderer(options = {}) {
         </div>
         <div class="presentation-pass-controls">
           <label>
-            <span>Pass</span>
+            <span>Day</span>
             <select data-presentation-pass-select>
               ${renderPassOptions(model.passes, model.dateValue)}
             </select>

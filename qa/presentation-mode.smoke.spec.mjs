@@ -215,6 +215,32 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator("[data-presentation-pass-select]")).toHaveCount(0);
   await expect(presentation.locator("[data-presentation-date-input]")).toHaveValue(dateValue);
   await expect(presentation.locator(".presentation-cover-metrics")).toHaveCount(0);
+  await expect(presentation.locator(".presentation-footer-nav .presentation-slide-tabs")).toBeVisible();
+  const footerNavigationLayout = await presentation.evaluate(() => {
+    const footer = document.querySelector(".presentation-footer-nav");
+    const tabs = document.querySelector(".presentation-footer-nav .presentation-slide-tabs");
+    const pager = document.querySelector(".presentation-footer-pager");
+    const progress = document.querySelector(".presentation-progress");
+    if (!footer || !tabs || !pager || !progress) return null;
+    const footerRect = footer.getBoundingClientRect();
+    const tabsRect = tabs.getBoundingClientRect();
+    const pagerRect = pager.getBoundingClientRect();
+    const progressRect = progress.getBoundingClientRect();
+    return {
+      tabsInsideFooter: footer.contains(tabs),
+      pagerInsideFooter: footer.contains(pager),
+      tabsBeforePager: tabsRect.right <= pagerRect.left + 2,
+      sameControlBand: Math.abs((tabsRect.top + tabsRect.bottom) / 2 - (progressRect.top + progressRect.bottom) / 2) <= 16,
+      compactFooter: footerRect.height <= 64,
+    };
+  });
+  expect(footerNavigationLayout).toMatchObject({
+    tabsInsideFooter: true,
+    pagerInsideFooter: true,
+    tabsBeforePager: true,
+    sameControlBand: true,
+    compactFooter: true,
+  });
 
   await page.keyboard.press("ArrowRight");
   await expect(presentation.locator(".presentation-info-title")).toHaveValue("Daily Info");

@@ -181,13 +181,16 @@ export function createPresentationModeRenderer(options = {}) {
   function renderFooter(model = {}) {
     return `
       <footer class="presentation-footer-nav">
-        <button type="button" class="presentation-nav-button" data-presentation-prev ${model.slideIndex <= 0 ? "disabled" : ""} aria-label="Previous slide" title="Previous slide">&larr;</button>
-        <div class="presentation-progress">
-          <strong>${escapeHtml(String(model.slideIndex + 1))}</strong>
-          <span>/ ${escapeHtml(String(model.slides.length))}</span>
+        ${model.presenting ? "" : renderSlideNav(model.slides, model.slideIndex)}
+        <div class="presentation-footer-pager">
+          <button type="button" class="presentation-nav-button" data-presentation-prev ${model.slideIndex <= 0 ? "disabled" : ""} aria-label="Previous slide" title="Previous slide">&larr;</button>
+          <div class="presentation-progress">
+            <strong>${escapeHtml(String(model.slideIndex + 1))}</strong>
+            <span>/ ${escapeHtml(String(model.slides.length))}</span>
+          </div>
+          <button type="button" class="presentation-nav-button" data-presentation-next ${model.slideIndex >= model.slides.length - 1 ? "disabled" : ""} aria-label="Next slide" title="Next slide">&rarr;</button>
+          ${model.presenting ? `<button type="button" class="presentation-icon-button" data-presentation-exit-fullscreen aria-label="Exit fullscreen" title="Exit fullscreen">x</button>` : ""}
         </div>
-        <button type="button" class="presentation-nav-button" data-presentation-next ${model.slideIndex >= model.slides.length - 1 ? "disabled" : ""} aria-label="Next slide" title="Next slide">&rarr;</button>
-        ${model.presenting ? `<button type="button" class="presentation-icon-button" data-presentation-exit-fullscreen aria-label="Exit fullscreen" title="Exit fullscreen">x</button>` : ""}
       </footer>
     `;
   }
@@ -488,7 +491,6 @@ export function createPresentationModeRenderer(options = {}) {
         <div class="presentation-stage" data-presentation-stage>
           ${renderActiveSlide(model)}
         </div>
-        ${model.presenting ? "" : renderSlideNav(model.slides, model.slideIndex)}
         ${renderFooter(model)}
       </section>
     `;

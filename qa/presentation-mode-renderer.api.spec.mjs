@@ -78,6 +78,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(blockSlide.playerSummary.plannedPlayers.map((item) => item.player.name)).toEqual(["Ada Keeper", "Coach"]);
   expect(blockSlide.playerSummary.nonParticipants.map((item) => item.player.name)).toEqual(["Bea Mid"]);
   expect(harness.root.innerHTML).toContain("Presentation Mode");
+  expect(harness.root.innerHTML).toMatch(/<footer class="presentation-footer-nav">[\s\S]*<nav class="presentation-slide-tabs"/);
+  expect(harness.root.innerHTML).toMatch(/<nav class="presentation-slide-tabs"[\s\S]*<div class="presentation-footer-pager">/);
   expect(harness.root.innerHTML).not.toContain("data-presentation-pass-select");
   expect(harness.root.innerHTML).toContain("data-presentation-date-input");
   const coverHtml = renderer.renderCoverSlide(model);

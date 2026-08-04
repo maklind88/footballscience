@@ -152,7 +152,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
         <article class="dashboard-panel dashboard-presentation-card" data-dashboard-presentation-card>
           <div class="dashboard-presentation-copy">
             <p class="dashboard-card-kicker">Presentation Mode</p>
-            <h2>Today's Training Briefing</h2>
+            <h2>Today's Briefing</h2>
           </div>
           <form class="dashboard-presentation-form">
             <label>

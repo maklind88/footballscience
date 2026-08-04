@@ -102,14 +102,12 @@ export function createPresentationModeRenderer(options = {}) {
         <div class="presentation-control-brand">
           ${renderLogo(model.brand)}
           <div>
-            <span>Presentation Mode</span>
-            <strong>${escapeHtml(model.sessionTitle)}</strong>
+            <strong>Presentation Mode</strong>
           </div>
         </div>
         <div class="presentation-pass-controls">
           <label>
-            <span>Date</span>
-            <input type="date" value="${escapeHtml(model.dateValue)}" data-presentation-date-input />
+            <input type="date" value="${escapeHtml(model.dateValue)}" data-presentation-date-input aria-label="Presentation date" />
           </label>
         </div>
         <div class="presentation-control-actions">
@@ -221,7 +219,6 @@ export function createPresentationModeRenderer(options = {}) {
           ${renderLogo(model.brand, "hero")}
         </div>
         <div class="presentation-cover-copy">
-          <span>${escapeHtml(model.passTypeLabel)}</span>
           <h1>${escapeHtml(model.sessionTitle)}</h1>
           <p>${escapeHtml(model.dateLabel)}</p>
         </div>

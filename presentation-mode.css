@@ -148,7 +148,7 @@ body.is-presentation-mode-open {
   grid-template-columns: minmax(13rem, 1fr) auto auto;
   gap: .72rem;
   align-items: center;
-  padding: .55rem .68rem;
+  padding: .48rem .62rem;
 }
 
 .presentation-control-brand,
@@ -169,7 +169,6 @@ body.is-presentation-mode-open {
   gap: .06rem;
 }
 
-.presentation-control-brand span,
 .presentation-pass-controls span,
 .presentation-editor-strip span {
   color: rgba(248, 250, 252, .62);
@@ -181,7 +180,8 @@ body.is-presentation-mode-open {
 .presentation-control-brand strong {
   overflow: hidden;
   color: #fff;
-  font-size: .9rem;
+  font-size: clamp(1.02rem, 1.1vw, 1.28rem);
+  line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -211,9 +211,9 @@ body.is-presentation-mode-open {
 }
 
 .presentation-logo-hero {
-  width: min(18rem, 32vw);
-  height: min(18rem, 32vw);
-  padding: 1.1rem;
+  width: min(25rem, 34vw, 49vh);
+  height: min(25rem, 34vw, 49vh);
+  padding: clamp(.9rem, 1.4vw, 1.25rem);
 }
 
 .presentation-logo.is-initials {
@@ -237,7 +237,7 @@ body.is-presentation-mode-open {
 .presentation-pass-controls input,
 .presentation-editor-strip select,
 .presentation-editor-strip input {
-  min-height: 2.35rem;
+  min-height: 2.28rem;
   min-width: 0;
   border: 1px solid rgba(255, 255, 255, .15);
   border-radius: 8px;
@@ -312,8 +312,8 @@ body.is-presentation-mode-open {
 
 .presentation-slide {
   position: relative;
-  width: min(100%, calc((100vh - 12.5rem) * 1.777));
-  max-height: calc(100vh - 12.5rem);
+  width: min(100%, calc((100dvh - 9.4rem) * 1.777));
+  max-height: min(100%, calc(100dvh - 9.4rem));
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, .16);
@@ -367,9 +367,10 @@ body.is-presentation-mode-open {
 .presentation-cover .presentation-slide-body,
 .presentation-slide-cover .presentation-slide-body {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: clamp(1.6rem, 4vw, 3.6rem);
+  grid-template-columns: minmax(13rem, .82fr) minmax(0, 1.18fr);
+  gap: clamp(2rem, 5vw, 5.5rem);
   align-items: center;
+  padding: clamp(2rem, 4.2vw, 4.6rem);
 }
 
 .presentation-cover-mark {
@@ -380,10 +381,9 @@ body.is-presentation-mode-open {
 .presentation-cover-copy {
   min-width: 0;
   display: grid;
-  gap: .7rem;
+  gap: clamp(.75rem, 1.2vw, 1.2rem);
 }
 
-.presentation-cover-copy span,
 .presentation-section-heading span {
   color: var(--presentation-accent, #38bdf8);
   font-size: .9rem;
@@ -392,17 +392,17 @@ body.is-presentation-mode-open {
 }
 
 .presentation-cover-copy h1 {
-  max-width: 12ch;
+  max-width: 10.5ch;
   margin: 0;
   color: #ffffff;
-  font-size: clamp(3.8rem, 8vw, 7.8rem);
-  line-height: .9;
+  font-size: clamp(4.3rem, 8.7vw, 9.4rem);
+  line-height: .88;
 }
 
 .presentation-cover-copy p {
   margin: 0;
   color: rgba(248, 250, 252, .72);
-  font-size: clamp(1.1rem, 2vw, 1.8rem);
+  font-size: clamp(1.32rem, 2.35vw, 2.25rem);
   font-weight: 850;
 }
 

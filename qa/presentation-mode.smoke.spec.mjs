@@ -214,7 +214,35 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation).toContainText("Matchday Presentation Training");
   await expect(presentation.locator("[data-presentation-pass-select]")).toHaveCount(0);
   await expect(presentation.locator("[data-presentation-date-input]")).toHaveValue(dateValue);
+  await expect(presentation.locator(".presentation-control-brand strong")).toHaveText("Presentation Mode");
+  await expect(presentation.locator(".presentation-control-brand")).not.toContainText("Matchday Presentation Training");
+  await expect(presentation.locator(".presentation-pass-controls span")).toHaveCount(0);
+  await expect(presentation.locator(".presentation-cover-copy > span")).toHaveCount(0);
   await expect(presentation.locator(".presentation-cover-metrics")).toHaveCount(0);
+  const coverLayout = await presentation.evaluate(() => {
+    const stage = document.querySelector(".presentation-stage");
+    const slide = document.querySelector(".presentation-slide-cover");
+    const logo = document.querySelector(".presentation-slide-cover .presentation-logo-hero");
+    const heading = document.querySelector(".presentation-cover-copy h1");
+    const date = document.querySelector(".presentation-cover-copy p");
+    if (!stage || !slide || !logo || !heading || !date) return null;
+    const stageRect = stage.getBoundingClientRect();
+    const slideRect = slide.getBoundingClientRect();
+    const logoRect = logo.getBoundingClientRect();
+    const headingRect = heading.getBoundingClientRect();
+    return {
+      slideUsesStage: slideRect.width >= stageRect.width * 0.76,
+      heroLogoScaled: logoRect.width >= slideRect.width * 0.23,
+      headingScaled: headingRect.width >= slideRect.width * 0.42,
+      dateUnderTitle: date.getBoundingClientRect().top >= headingRect.bottom - 2,
+    };
+  });
+  expect(coverLayout).toMatchObject({
+    slideUsesStage: true,
+    heroLogoScaled: true,
+    headingScaled: true,
+    dateUnderTitle: true,
+  });
   await expect(presentation.locator(".presentation-footer-nav .presentation-slide-tabs")).toBeVisible();
   const footerNavigationLayout = await presentation.evaluate(() => {
     const footer = document.querySelector(".presentation-footer-nav");

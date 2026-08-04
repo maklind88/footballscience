@@ -108,7 +108,13 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   const infoHtml = renderer.renderInfoSlide(model, infoSlide);
   expect(infoHtml.indexOf("presentation-info-title")).toBeLessThan(infoHtml.indexOf("presentation-info-rule"));
   expect(infoHtml).toContain('data-presentation-info-field="title"');
-  expect(renderer.renderBlockSlide(model, blockSlide)).toContain("data-exercise-visual");
+  const blockHtml = renderer.renderBlockSlide(model, blockSlide);
+  expect(blockHtml).toContain("data-exercise-visual");
+  expect(blockHtml).not.toContain("In this block");
+  expect(blockHtml).toContain("Not in this block");
+  expect(blockHtml).not.toContain("Ada Keeper");
+  expect(blockHtml).not.toContain("Coach");
+  expect(blockHtml).toContain("Bea Mid");
   expect(storage.has(dashboardPresentationStorageKey)).toBe(false);
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({

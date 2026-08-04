@@ -348,7 +348,9 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
 
   await page.keyboard.press("ArrowRight");
   await expect(presentation).toContainText("Rondo to finish");
-  await expect(presentation).toContainText("Madison White");
+  await expect(presentation).not.toContainText("In this block");
+  await expect(presentation).toContainText("Not in this block");
+  await expect(presentation).not.toContainText("Madison White");
   await expect(presentation).toContainText("Kailen Sheridan");
-  await expect(presentation).toContainText("Lead Coach");
+  await expect(presentation).not.toContainText("Lead Coach");
 });

@@ -918,7 +918,7 @@ body.is-presentation-mode-open {
 }
 
 .presentation-block-players {
-  grid-template-rows: auto minmax(0, 1fr) minmax(0, .78fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .presentation-player-rule {

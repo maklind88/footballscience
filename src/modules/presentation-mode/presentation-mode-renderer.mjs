@@ -463,7 +463,6 @@ export function createPresentationModeRenderer(options = {}) {
               <span>${escapeHtml(playerSummary.rule?.label || block.label || "Block")}</span>
               <strong>${escapeHtml(playerSummary.rule?.valueLabel || "Available")}</strong>
             </div>
-            ${renderPlayerPanel("In this block", playerSummary.plannedPlayers || [], "No players planned for this block.")}
             ${renderPlayerPanel("Not in this block", playerSummary.nonParticipants || [], "Everyone available is included.", { muted: true })}
           </div>
         </section>

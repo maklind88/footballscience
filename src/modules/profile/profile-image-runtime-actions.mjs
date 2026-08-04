@@ -3,6 +3,7 @@ export function createProfileImageRuntimeActions(deps = {}) {
     buildPlayerProfileOperationFeedback = (_result, fallback) => fallback,
     canEditPlayerProfiles = () => false,
     createProfileImageDataUrl: createProfileImageDataUrlFromModule = () => Promise.reject(new Error("The image could not be prepared.")),
+    createTeamLogoDataUrl: createTeamLogoDataUrlFromModule = createProfileImageDataUrlFromModule,
     documentRef = globalThis.document,
     ensurePlayerProfilesState = () => {},
     getCurrentPlatformUser = () => null,
@@ -10,6 +11,7 @@ export function createProfileImageRuntimeActions(deps = {}) {
     getPlayerProfilesState = () => ({ players: [] }),
     ImageCtor = globalThis.Image,
     maxProfileImageUploadDataUrlLength = 900000,
+    maxTeamLogoUploadDataUrlLength = maxProfileImageUploadDataUrlLength,
     readPlatformStructureState = () => ({}),
     renderPlayerProfilesWorkspace = () => {},
     updatePlayerProfile = () => null,
@@ -22,6 +24,15 @@ export function createProfileImageRuntimeActions(deps = {}) {
       documentRef,
       ImageCtor,
       maxUploadDataUrlLength: maxProfileImageUploadDataUrlLength,
+      URLRef,
+    });
+  }
+
+  function createTeamLogoDataUrl(file) {
+    return createTeamLogoDataUrlFromModule(file, {
+      documentRef,
+      ImageCtor,
+      maxUploadDataUrlLength: maxTeamLogoUploadDataUrlLength,
       URLRef,
     });
   }
@@ -47,7 +58,7 @@ export function createProfileImageRuntimeActions(deps = {}) {
       return;
     }
     try {
-      const logoUrl = await createProfileImageDataUrl(file);
+      const logoUrl = await createTeamLogoDataUrl(file);
       writePlatformTeamLogo(team.id, logoUrl);
       renderPlayerProfilesWorkspace("Team logo saved.");
     } catch (error) {
@@ -104,6 +115,7 @@ export function createProfileImageRuntimeActions(deps = {}) {
 
   return {
     createProfileImageDataUrl,
+    createTeamLogoDataUrl,
     handlePhotoInput,
     uploadPlayerProfilePhoto,
     uploadSquadTeamLogo,

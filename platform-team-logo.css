@@ -1,0 +1,45 @@
+.squad-team-logo-mark {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(247, 250, 249, 0.18));
+  background-clip: padding-box;
+}
+
+.squad-team-logo-mark.has-logo {
+  background: transparent;
+  border-color: rgba(29, 42, 50, 0.14);
+  box-shadow: none;
+}
+
+.squad-team-logo-mark.has-logo img {
+  width: calc(100% - 0.55rem);
+  height: calc(100% - 0.55rem);
+  margin: 0.275rem;
+  display: block;
+  object-fit: contain;
+  object-position: center;
+}
+
+.squad-command-bar .squad-team-logo-mark.has-logo img {
+  width: calc(100% - 0.65rem);
+  height: calc(100% - 0.65rem);
+  margin: 0.325rem;
+}
+
+.squad-team-logo-upload-dot {
+  right: -0.18rem;
+  bottom: -0.18rem;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-width: 1.5px;
+  font-size: 0.68rem;
+}
+
+.squad-command-bar .squad-team-logo-upload-dot {
+  width: 1.05rem;
+  height: 1.05rem;
+  font-size: 0.78rem;
+}
+
+body.is-dark-mode .platform-player-profiles-view .squad-team-logo-mark.has-logo {
+  background: transparent;
+  border-color: rgba(148, 163, 184, 0.28);
+}

@@ -21,6 +21,13 @@ function createHarness(options = {}) {
       }
       return "data:image/webp;base64,profile";
     },
+    createTeamLogoDataUrl: async (file, imageOptions) => {
+      calls.push(["create-logo-data-url", file?.name || "", imageOptions.maxUploadDataUrlLength, imageOptions.documentRef?.name || ""]);
+      if (options.logoError) {
+        throw options.logoError;
+      }
+      return "data:image/svg+xml;charset=utf-8,%3Csvg%3E%3C%2Fsvg%3E";
+    },
     documentRef: { name: "document-ref" },
     ensurePlayerProfilesState: () => calls.push("ensure-player-profiles"),
     getCurrentPlatformUser: () => ({ id: "coach-1" }),
@@ -55,6 +62,7 @@ test("profile image runtime actions own profile/team upload orchestration outsid
   expect(moduleSource).toContain("async function uploadSquadTeamLogo(file)");
   expect(moduleSource).toContain("async function uploadPlayerProfilePhoto(playerId, file)");
   expect(moduleSource).toContain("function handlePhotoInput(playerPhotoInput)");
+  expect(moduleSource).toContain("function createTeamLogoDataUrl(file)");
   expect(moduleSource).not.toMatch(/dashboardChat|DashboardChat|chat-widget/);
   expect(indexSource).toContain('export * from "./profile-image-runtime-actions.mjs";');
   expect(packageJson.scripts.check).toContain("src/modules/profile/profile-image-runtime-actions.mjs");
@@ -64,11 +72,11 @@ test("profile image runtime actions own profile/team upload orchestration outsid
 test("profile image runtime actions preserve team logo save behavior", async () => {
   const { actions, calls } = createHarness();
 
-  await actions.uploadSquadTeamLogo({ name: "badge.png", type: "image/png" });
+  await actions.uploadSquadTeamLogo({ name: "badge.svg", type: "image/svg+xml" });
 
   expect(calls).toEqual([
-    ["create-data-url", "badge.png", 123456, "document-ref"],
-    ["write-logo", "team-1", "data:image/webp;base64,profile"],
+    ["create-logo-data-url", "badge.svg", 123456, "document-ref"],
+    ["write-logo", "team-1", "data:image/svg+xml;charset=utf-8,%3Csvg%3E%3C%2Fsvg%3E"],
     ["render", "Team logo saved."],
   ]);
 });

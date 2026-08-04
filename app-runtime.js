@@ -97,7 +97,7 @@ import { createPlatformWorkspaceRenderers } from "./src/modules/platform/workspa
 import { getTopIconSvg } from "./top-icons.js";
 import { buildPlatformAppearanceConfigFromForm, createDefaultPlatformAppearanceConfig, getHomeAppearanceImpactSummary, normalizePlatformAppearanceConfig, normalizePlatformAppearanceValue, platformAppearanceDensityOptions, platformAppearanceHomeComponentTypeIds, platformAppearanceHomeSectionDefaults, platformAppearanceThemeOptions, platformAppearanceToneOptions } from "./src/core/appearance-governance.mjs";
 import { bindAdminRuntimeBindings, createAdminRuntimeService, getAdminUserInitials as getAdminUserInitialsFromModule } from "./src/modules/admin/index.mjs";
-import { bindProfileStaffRuntimeBindings, createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileImageRuntimeActions } from "./src/modules/profile/index.mjs";
+import { bindProfileStaffRuntimeBindings, createProfileImageDataUrl as createProfileImageDataUrlFromModule, createProfileImageRuntimeActions, createTeamLogoDataUrl as createTeamLogoDataUrlFromModule } from "./src/modules/profile/index.mjs";
 import {
   createSquadAppRuntimeComposition,
   bindPlayerProfileRuntimeBindings,
@@ -2309,6 +2309,7 @@ const profileImageRuntimeActions = createProfileImageRuntimeActions({
 buildPlayerProfileOperationFeedback,
 canEditPlayerProfiles,
 createProfileImageDataUrl: createProfileImageDataUrlFromModule,
+createTeamLogoDataUrl: createTeamLogoDataUrlFromModule,
 documentRef: document,
 ensurePlayerProfilesState,
 getCurrentPlatformUser,

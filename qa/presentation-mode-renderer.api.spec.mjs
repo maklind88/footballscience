@@ -55,7 +55,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     }),
     getPeriodizationDay: () => ({ physicalLoad: "Hard", pitchSize: "SSG", matchPhases: ["In Possession"] }),
     getAvailabilityItems: () => [
-      { player: { id: "p1", name: "Ada Keeper", position: "GK" }, record: { id: "r1" }, participation: 100, status: { label: "Full" } },
+      { player: { id: "p1", name: "Ada Keeper", position: "GK", photoUrl: "https://example.com/ada.jpg" }, record: { id: "r1" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p2", name: "Bea Mid", position: "CM" }, record: { id: "r2" }, participation: 0, status: { label: "Unavailable" } },
     ],
     getCustomPeople: () => [{ id: "staff-1", name: "Coach", kind: "staff", role: "Staff" }],
@@ -73,6 +73,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
 
   const model = controller.buildModel();
   expect(model.slides.map((slide) => slide.type)).toEqual(["cover", "info", "overview", "block"]);
+  expect(model.medicalRecommendations.map((item) => item.player.name)).toEqual(["Bea Mid", "Ada Keeper"]);
   const blockSlide = model.slides.find((slide) => slide.type === "block");
   expect(blockSlide.playerSummary.plannedPlayers.map((item) => item.player.name)).toEqual(["Ada Keeper", "Coach"]);
   expect(blockSlide.playerSummary.nonParticipants.map((item) => item.player.name)).toEqual(["Bea Mid"]);
@@ -92,6 +93,11 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).toContain("Physical load: Hard");
   expect(overviewHtml).toContain("is-load is-hard");
   expect(overviewHtml.indexOf("is-load")).toBeLessThan(overviewHtml.indexOf("is-phase"));
+  expect(overviewHtml).toContain("presentation-medical-overview");
+  expect(overviewHtml).toContain("Medical Plan");
+  expect(overviewHtml).toContain("https://example.com/ada.jpg");
+  expect(overviewHtml).toContain("100%");
+  expect(overviewHtml).toContain("0%");
   expect(overviewHtml).toContain("presentation-block-flow");
   expect(overviewHtml.indexOf("is-pitch")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));
   expect(overviewHtml.indexOf("is-match-day")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));

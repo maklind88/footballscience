@@ -232,6 +232,10 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-slide-overview .presentation-section-heading h2")).toHaveCount(0);
   await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-gauge")).toHaveCount(1);
   await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-copy strong")).toHaveText("High");
+  await expect(presentation.locator(".presentation-medical-overview")).toBeVisible();
+  await expect(presentation.locator(".presentation-medical-player").first()).toBeVisible();
+  await expect(presentation.locator(".presentation-medical-player > span:last-child", { hasText: /^100%$/ }).first()).toBeVisible();
+  await expect(presentation.locator(".presentation-medical-player > span:last-child", { hasText: /^0%$/ }).first()).toBeVisible();
   const overviewLoadLayout = await presentation.evaluate(() => {
     const load = document.querySelector(".presentation-overview-metric.is-load");
     const phase = document.querySelector(".presentation-overview-metric.is-phase");
@@ -257,6 +261,37 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     spansTopRows: true,
     loadColor: "#d92d3f",
     loadAngle: "68deg",
+  });
+  const overviewMedicalLayout = await presentation.evaluate(() => {
+    const video = document.querySelector(".presentation-overview-metric.is-video");
+    const matchDay = document.querySelector(".presentation-overview-metric.is-match-day");
+    const medical = document.querySelector(".presentation-medical-overview");
+    const players = Array.from(document.querySelectorAll(".presentation-medical-player"));
+    if (!video || !matchDay || !medical || !players.length) return null;
+    const videoRect = video.getBoundingClientRect();
+    const matchRect = matchDay.getBoundingClientRect();
+    const medicalRect = medical.getBoundingClientRect();
+    const firstPlayerRect = players[0].getBoundingClientRect();
+    return {
+      rightOfVideo: medicalRect.left >= videoRect.right - 2,
+      rightOfMatchDay: medicalRect.left >= matchRect.right - 2,
+      spansOverviewContent: medicalRect.bottom >= firstPlayerRect.bottom,
+      compactRows: players.every((player) => {
+        const rect = player.getBoundingClientRect();
+        return rect.height <= 28;
+      }),
+      allRowsFit: players.every((player) => {
+        const rect = player.getBoundingClientRect();
+        return rect.top >= medicalRect.top - 1 && rect.bottom <= medicalRect.bottom + 1;
+      }),
+    };
+  });
+  expect(overviewMedicalLayout).toMatchObject({
+    rightOfVideo: true,
+    rightOfMatchDay: true,
+    spansOverviewContent: true,
+    compactRows: true,
+    allRowsFit: true,
   });
   const overviewBlocksLayout = await presentation.evaluate(() => {
     const pitch = document.querySelector(".presentation-overview-metric.is-pitch");

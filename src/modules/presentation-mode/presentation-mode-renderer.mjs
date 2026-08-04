@@ -65,6 +65,14 @@ function getParticipationTone(participation) {
   return "full";
 }
 
+function getInitials(name = "") {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return (parts[0]?.[0] || "P") + (parts.length > 1 ? parts[parts.length - 1][0] : "");
+}
+
 export function createPresentationModeRenderer(options = {}) {
   const escapeHtml = typeof options.escapeHtml === "function" ? options.escapeHtml : defaultEscapeHtml;
   const renderExerciseVisual =
@@ -288,6 +296,51 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function renderRecommendationAvatar(player = {}) {
+    const photoUrl = String(player.photoUrl || player.avatarUrl || player.imageUrl || "").trim();
+    const label = String(player.name || "Player").trim();
+    if (photoUrl) {
+      return `
+        <span class="presentation-medical-avatar has-photo">
+          <img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(label)}" loading="lazy" />
+        </span>
+      `;
+    }
+    return `<span class="presentation-medical-avatar">${escapeHtml(getInitials(label).toUpperCase())}</span>`;
+  }
+
+  function renderMedicalRecommendation(item = {}) {
+    const player = item.player || {};
+    const participation = Number(item.participation);
+    const percentage = Number.isFinite(participation) ? `${Math.round(participation)}%` : "-";
+    const tone = getParticipationTone(participation);
+    return `
+      <article class="presentation-medical-player is-${escapeHtml(tone)}">
+        ${renderRecommendationAvatar(player)}
+        <strong>${escapeHtml(player.name || "Player")}</strong>
+        <span>${escapeHtml(percentage)}</span>
+      </article>
+    `;
+  }
+
+  function renderMedicalRecommendationsPanel(items = []) {
+    return `
+      <section class="presentation-medical-overview" aria-label="Medical participation recommendations">
+        <header>
+          <span>Medical Plan</span>
+          <strong>${escapeHtml(String(items.length))}</strong>
+        </header>
+        <div class="presentation-medical-list">
+          ${
+            items.length
+              ? items.map((item) => renderMedicalRecommendation(item)).join("")
+              : `<p>No medical recommendations for this day.</p>`
+          }
+        </div>
+      </section>
+    `;
+  }
+
   function renderOverviewSlide(model = {}) {
     const periodization = model.periodization || {};
     const phaseLines = [
@@ -322,6 +375,7 @@ export function createPresentationModeRenderer(options = {}) {
                 .join("") || `<article><span>Plan</span><strong>No blocks planned</strong><small>Open Session Planner to build the training.</small></article>`}
             </div>
             ${renderOverviewMetric("Main Focus", periodization.mainFocus || model.sessionTheme || "Not set", "is-focus")}
+            ${renderMedicalRecommendationsPanel(model.medicalRecommendations || [])}
           </div>
         </section>
       `

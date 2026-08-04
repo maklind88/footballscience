@@ -407,7 +407,8 @@ body.is-presentation-mode-open {
 .presentation-block-flow article,
 .presentation-detail-block,
 .presentation-player-panel,
-.presentation-player-rule {
+.presentation-player-rule,
+.presentation-medical-overview {
   border: 1px solid rgba(255, 255, 255, .13);
   border-radius: 8px;
   background: rgba(255, 255, 255, .08);
@@ -498,11 +499,11 @@ body.is-presentation-mode-open {
 .presentation-overview-grid {
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(9.5rem, .86fr) repeat(2, minmax(0, 1fr)) minmax(13rem, .96fr);
   grid-template-areas:
-    "load phase video"
-    "load pitch match"
-    "focus blocks blocks";
+    "load phase video medical"
+    "load pitch match medical"
+    "focus blocks blocks medical";
   gap: .68rem;
   align-content: start;
 }
@@ -708,6 +709,134 @@ body.is-presentation-mode-open {
   font-size: .76rem;
   font-weight: 780;
   line-height: 1.22;
+}
+
+.presentation-medical-overview {
+  grid-area: medical;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: .5rem;
+  padding: .68rem;
+  background:
+    linear-gradient(180deg, rgba(14, 24, 32, .84), rgba(10, 18, 24, .74)),
+    rgba(255, 255, 255, .07);
+}
+
+.presentation-medical-overview header {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .55rem;
+}
+
+.presentation-medical-overview header span {
+  color: rgba(248, 250, 252, .6);
+  font-size: .68rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.presentation-medical-overview header strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  color: #07120d;
+  background: #86efac;
+  font-size: .74rem;
+  font-weight: 950;
+}
+
+.presentation-medical-list {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: .26rem;
+  overflow: hidden;
+}
+
+.presentation-medical-list p {
+  margin: 0;
+  color: rgba(248, 250, 252, .58);
+  font-size: .8rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.presentation-medical-player {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1.22rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .26rem;
+  min-height: 1.55rem;
+  padding: .14rem .18rem .14rem .16rem;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .07);
+}
+
+.presentation-medical-avatar {
+  width: 1.22rem;
+  height: 1.22rem;
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  color: #07120d;
+  background: #d1fae5;
+  font-size: .46rem;
+  font-weight: 950;
+}
+
+.presentation-medical-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.presentation-medical-player strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #ffffff;
+  font-size: .58rem;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-medical-player > span:last-child {
+  min-width: 1.72rem;
+  border-radius: 999px;
+  padding: .14rem .22rem;
+  color: #07120d;
+  background: #86efac;
+  font-size: .54rem;
+  font-weight: 950;
+  line-height: 1;
+  text-align: center;
+}
+
+.presentation-medical-player.is-modified > span:last-child,
+.presentation-medical-player.is-controlled > span:last-child {
+  background: #fde68a;
+}
+
+.presentation-medical-player.is-rehab > span:last-child,
+.presentation-medical-player.is-low > span:last-child {
+  color: #fff;
+  background: #ef4444;
+}
+
+.presentation-medical-player.is-unset > span:last-child {
+  color: #e2e8f0;
+  background: rgba(148, 163, 184, .24);
 }
 
 .presentation-block-layout {
@@ -1024,13 +1153,18 @@ body.is-presentation-mode-open {
   }
 
   .presentation-overview-metric,
-  .presentation-block-flow {
+  .presentation-block-flow,
+  .presentation-medical-overview {
     grid-area: auto;
   }
 
   .presentation-block-flow article {
     grid-template-columns: 1fr;
     align-items: start;
+  }
+
+  .presentation-medical-list {
+    grid-template-columns: 1fr;
   }
 
   .presentation-overview-metric.is-load {

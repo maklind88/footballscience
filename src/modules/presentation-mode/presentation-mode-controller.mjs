@@ -139,6 +139,13 @@ function sortNonParticipants(first, second) {
   return String(first.player?.name || "").localeCompare(String(second.player?.name || ""));
 }
 
+function sortMedicalRecommendations(first, second) {
+  const firstParticipation = Number.isFinite(Number(first.participation)) ? Number(first.participation) : 101;
+  const secondParticipation = Number.isFinite(Number(second.participation)) ? Number(second.participation) : 101;
+  if (firstParticipation !== secondParticipation) return firstParticipation - secondParticipation;
+  return String(first.player?.name || "").localeCompare(String(second.player?.name || ""));
+}
+
 export function createPresentationModeController(dependencies = {}) {
   const {
     documentRef = globalThis.document,
@@ -270,6 +277,22 @@ export function createPresentationModeController(dependencies = {}) {
     };
   }
 
+  function getMedicalRecommendationsForDate(dateValue) {
+    const seenPlayerIds = new Set();
+    return getAvailabilityItems(dateValue)
+      .map((item) => normalizePlayerItem(item))
+      .filter(Boolean)
+      .filter((item) => {
+        const playerId = String(item.player?.id || "").trim();
+        if (!playerId || seenPlayerIds.has(playerId)) {
+          return false;
+        }
+        seenPlayerIds.add(playerId);
+        return true;
+      })
+      .sort(sortMedicalRecommendations);
+  }
+
   function getBrandModel() {
     const team = getTeam() || {};
     const teamName = getTeamName(team) || team.name || "Football Science";
@@ -326,6 +349,7 @@ export function createPresentationModeController(dependencies = {}) {
       event,
       infoSlideCount: deck.infoSlides.length,
       loadLabel: periodization.physicalLoad || event?.type || "Not set",
+      medicalRecommendations: getMedicalRecommendationsForDate(dateValue),
       passTypeLabel: event?.title || periodization.sessionType || "Training briefing",
       passes: getResolvedPasses(dateValue),
       periodization,

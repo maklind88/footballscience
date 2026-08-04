@@ -88,6 +88,39 @@ test("home dashboard renderer applies safe same-type appearance rules", () => {
   expect(rendered).toContain('data-dashboard-appearance-type="home.task-panel"');
 });
 
+test("home dashboard renderer avoids an empty work queue wrapper for presentation-only home", () => {
+  const renderer = createDashboardHomeCardsRenderer({
+    escapeHtml: (value) => String(value ?? ""),
+    renderTaskList: () => "<div></div>",
+    resolveUserLabel: renderTestUserLabel,
+  });
+  const context = {
+    currentUser: { id: "u1" },
+    users: [{ id: "u1" }],
+    myOpenTasks: [],
+    personalOpenTasks: [],
+    delegatedOpenTasks: [],
+    alerts: [],
+    todayValue: "2026-01-01",
+  };
+  const appearance = normalizePlatformAppearanceConfig({
+    modules: {
+      home: {
+        sections: {
+          topTasks: { enabled: false },
+          todo: { enabled: false },
+          alerts: { enabled: false },
+        },
+      },
+    },
+  });
+
+  const rendered = renderer.render(context, "", appearance);
+
+  expect(rendered).toContain('class="dashboard-presentation-band"');
+  expect(rendered).not.toContain('aria-label="Work queue and alerts"');
+});
+
 test("appearance governance builds Home config from form data outside app-runtime", () => {
   const formData = new FormData();
   formData.set("home.density", "compact");

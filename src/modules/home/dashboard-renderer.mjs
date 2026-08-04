@@ -314,17 +314,28 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
       .filter((section) => section.id !== "topTasks")
       .map((section) => renderHomeSection(section, context, staffOptions, appearanceConfig))
       .join("");
+    const operationSectionsMarkup = operationSections
+      ? `
+          <section class="dashboard-symmetric-row" aria-label="Coach operations">
+            ${operationSections}
+          </section>
+        `
+      : "";
+    const workQueueMarkup = `${mainSections}${operationSectionsMarkup}`;
 
     return `
     <section class="dashboard-workspace-layout dashboard-home-ops dashboard-home-density-${escapeHtml(homeAppearance.density)} dashboard-home-theme-${escapeHtml(homeAppearance.theme)}" aria-label="Home dashboard">
       <section class="dashboard-home-grid" aria-label="Coach workspace">
-        <section class="dashboard-home-main" aria-label="Work queue and alerts">
-          ${renderPresentationModeCard(context)}
-          ${mainSections}
-          <section class="dashboard-symmetric-row" aria-label="Coach operations">
-            ${operationSections}
-          </section>
-        </section>
+        ${renderPresentationModeCard(context)}
+        ${
+          workQueueMarkup
+            ? `
+              <section class="dashboard-home-main" aria-label="Work queue and alerts">
+                ${workQueueMarkup}
+              </section>
+            `
+            : ""
+        }
       </section>
     </section>
   `;

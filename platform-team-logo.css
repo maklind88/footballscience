@@ -43,3 +43,22 @@ body.is-dark-mode .platform-player-profiles-view .squad-team-logo-mark.has-logo 
   background: transparent;
   border-color: rgba(148, 163, 184, 0.28);
 }
+
+body.is-presentation-mode-open .presentation-logo {
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+body.is-presentation-mode-open .presentation-logo img {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  object-fit: contain;
+  object-position: center;
+}
+
+body.is-presentation-mode-open .presentation-logo-corner,
+body.is-presentation-mode-open .presentation-logo-hero {
+  padding: 0;
+}

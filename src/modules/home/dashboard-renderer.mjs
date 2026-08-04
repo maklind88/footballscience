@@ -138,9 +138,6 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
         totalMinutes: 0,
         hasPlan: false,
       };
-    const readyLabel = selectedPass.hasPlan
-      ? `${selectedPass.blockCount || 0} blocks / ${selectedPass.totalMinutes || 0} min`
-      : "No blocks planned";
     const passOptions = (passes.length ? passes : [selectedPass])
       .map((pass) => {
         const meta = [pass.dateLabel, pass.blockCount ? `${pass.blockCount} blocks` : "", pass.totalMinutes ? `${pass.totalMinutes} min` : ""]
@@ -157,10 +154,6 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
             <p class="dashboard-card-kicker">Presentation Mode</p>
             <h2>Today's Training Briefing</h2>
             <p>${escapeHtml(selectedPass.title || "Training Session")}</p>
-          </div>
-          <div class="dashboard-presentation-status" aria-label="Selected presentation status">
-            <span>${escapeHtml(selectedPass.dateLabel || "Today")}</span>
-            <strong>${escapeHtml(readyLabel)}</strong>
           </div>
           <form class="dashboard-presentation-form">
             <label>

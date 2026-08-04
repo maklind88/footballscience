@@ -89,8 +89,7 @@
   font-weight: 820;
 }
 
-.dashboard-presentation-form select option,
-.presentation-pass-controls select option {
+.dashboard-presentation-form select option {
   color: #111827;
   background: #ffffff;
 }
@@ -143,7 +142,7 @@ body.is-presentation-mode-open {
 
 .presentation-control-bar {
   display: grid;
-  grid-template-columns: minmax(13rem, 1fr) minmax(22rem, .9fr) auto;
+  grid-template-columns: minmax(13rem, 1fr) auto auto;
   gap: .72rem;
   align-items: center;
   padding: .55rem .68rem;
@@ -222,6 +221,7 @@ body.is-presentation-mode-open {
 
 .presentation-pass-controls {
   gap: .45rem;
+  justify-content: flex-end;
 }
 
 .presentation-pass-controls label,
@@ -231,11 +231,6 @@ body.is-presentation-mode-open {
   min-width: 0;
 }
 
-.presentation-pass-controls label:first-child {
-  flex: 1 1 auto;
-}
-
-.presentation-pass-controls select,
 .presentation-pass-controls input,
 .presentation-editor-strip select,
 .presentation-editor-strip input {

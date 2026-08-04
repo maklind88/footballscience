@@ -77,6 +77,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(blockSlide.playerSummary.plannedPlayers.map((item) => item.player.name)).toEqual(["Ada Keeper", "Coach"]);
   expect(blockSlide.playerSummary.nonParticipants.map((item) => item.player.name)).toEqual(["Bea Mid"]);
   expect(harness.root.innerHTML).toContain("Presentation Mode");
+  expect(harness.root.innerHTML).not.toContain("data-presentation-pass-select");
+  expect(harness.root.innerHTML).toContain("data-presentation-date-input");
   expect(renderer.renderBlockSlide(model, blockSlide)).toContain("data-exercise-visual");
   expect(storage.has(dashboardPresentationStorageKey)).toBe(false);
 

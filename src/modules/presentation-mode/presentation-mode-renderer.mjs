@@ -73,14 +73,6 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
-  function renderPassOptions(passes = [], dateValue = "") {
-    return passes
-      .map((pass) => {
-        return `<option value="${escapeHtml(pass.dateValue)}" ${pass.dateValue === dateValue ? "selected" : ""}>${escapeHtml(pass.dateLabel || pass.dateValue || "Today")}</option>`;
-      })
-      .join("");
-  }
-
   function renderControlBar(model = {}) {
     const slide = model.slides[model.slideIndex] || model.slides[0];
     return `
@@ -93,12 +85,6 @@ export function createPresentationModeRenderer(options = {}) {
           </div>
         </div>
         <div class="presentation-pass-controls">
-          <label>
-            <span>Day</span>
-            <select data-presentation-pass-select>
-              ${renderPassOptions(model.passes, model.dateValue)}
-            </select>
-          </label>
           <label>
             <span>Date</span>
             <input type="date" value="${escapeHtml(model.dateValue)}" data-presentation-date-input />

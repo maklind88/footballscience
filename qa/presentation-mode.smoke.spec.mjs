@@ -212,15 +212,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   const presentation = page.locator("[data-presentation-mode-shell]");
   await expect(presentation).toBeVisible();
   await expect(presentation).toContainText("Matchday Presentation Training");
-  const presentationDayOptions = await presentation
-    .locator("[data-presentation-pass-select] option")
-    .evaluateAll((options) => options.map((option) => option.textContent?.trim() || ""));
-  expect(presentationDayOptions).toContain(expectedDateLabel);
-  for (const optionText of presentationDayOptions) {
-    expect(optionText).not.toContain("Matchday Presentation Training");
-    expect(optionText).not.toContain("blocks");
-    expect(optionText).not.toContain("min");
-  }
+  await expect(presentation.locator("[data-presentation-pass-select]")).toHaveCount(0);
+  await expect(presentation.locator("[data-presentation-date-input]")).toHaveValue(dateValue);
 
   await page.keyboard.press("ArrowRight");
   await expect(presentation.locator(".presentation-info-title")).toHaveValue("Daily Info");

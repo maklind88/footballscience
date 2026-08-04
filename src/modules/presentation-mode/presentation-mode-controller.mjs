@@ -538,8 +538,7 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     const dateInput = event.target.closest("[data-presentation-date-input]");
-    const passSelect = event.target.closest("[data-presentation-pass-select]");
-    const nextDate = normalizeDateValue(dateInput?.value || passSelect?.value || "", state.dateValue);
+    const nextDate = normalizeDateValue(dateInput?.value || "", state.dateValue);
     if (!nextDate || nextDate === state.dateValue) {
       return;
     }

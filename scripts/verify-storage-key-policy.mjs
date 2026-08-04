@@ -12,6 +12,7 @@ const appSource = `${appEntrypointSource}\n${appRuntimeSource}`;
 const modularStorageSourcePaths = Object.freeze([
   "src/core/app-runtime-constants.mjs",
   "src/modules/home/dashboard-runtime-controller.mjs",
+  "src/modules/presentation-mode/presentation-mode-controller.mjs",
   "src/modules/exercise-library/exercise-library-state.mjs",
   "src/modules/session-planner/session-planner-autosave.mjs",
 ]);

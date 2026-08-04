@@ -227,6 +227,13 @@ body.is-presentation-mode-open {
   justify-content: flex-end;
 }
 
+.presentation-new-slide-button {
+  color: #d1fae5;
+  border-color: rgba(134, 239, 172, .32);
+  background: rgba(34, 197, 94, .14);
+  white-space: nowrap;
+}
+
 .presentation-pass-controls label,
 .presentation-editor-strip label {
   display: grid;
@@ -247,6 +254,11 @@ body.is-presentation-mode-open {
   font: inherit;
   font-size: .8rem;
   font-weight: 800;
+}
+
+.presentation-editor-strip select option {
+  color: #111827;
+  background: #f8fafc;
 }
 
 .presentation-pass-controls input {
@@ -454,20 +466,9 @@ body.is-presentation-mode-open {
 }
 
 .presentation-info-body {
+  font-size: clamp(1.35rem, var(--presentation-info-body-size, 3.5rem), 7rem);
   font-weight: 820;
   line-height: 1.22;
-}
-
-.presentation-info-sheet.is-size-normal .presentation-info-body {
-  font-size: clamp(1.35rem, 2vw, 2rem);
-}
-
-.presentation-info-sheet.is-size-large .presentation-info-body {
-  font-size: clamp(1.8rem, 2.75vw, 3rem);
-}
-
-.presentation-info-sheet.is-size-hero .presentation-info-body {
-  font-size: clamp(2.35rem, 3.6vw, 4.1rem);
 }
 
 .presentation-overview {
@@ -1243,8 +1244,7 @@ body.is-presentation-mode-open {
     font-size: clamp(2rem, 12vw, 3.4rem);
   }
 
-  .presentation-info-sheet.is-size-hero .presentation-info-body,
-  .presentation-info-sheet.is-size-large .presentation-info-body {
-    font-size: clamp(1.45rem, 7vw, 2.25rem);
+  .presentation-info-body {
+    font-size: clamp(1.45rem, var(--presentation-info-body-size, 2.25rem), 2.6rem);
   }
 }

@@ -38,7 +38,25 @@ function normalizeHexColor(value = "", fallback = "#38bdf8") {
 }
 
 function normalizeFontSize(value = "") {
-  return ["normal", "large", "hero"].includes(value) ? value : "large";
+  const normalized = String(value || "").trim().toLowerCase();
+  const legacySizes = {
+    normal: "40",
+    large: "56",
+    hero: "72",
+  };
+  if (legacySizes[normalized]) {
+    return legacySizes[normalized];
+  }
+  const numericSize = Number.parseInt(normalized, 10);
+  if (!Number.isFinite(numericSize)) {
+    return "56";
+  }
+  return String(Math.min(112, Math.max(28, numericSize)));
+}
+
+function getSlideLabel(title = "", fallback = "Slide") {
+  const label = String(title || "").trim() || fallback;
+  return label.length > 18 ? `${label.slice(0, 17).trim()}...` : label;
 }
 
 function createDefaultInfoSlide(dateValue = "") {
@@ -46,7 +64,7 @@ function createDefaultInfoSlide(dateValue = "") {
     id: `info-${dateValue || "date"}-main`,
     title: "Team Information",
     body: "- Meeting point\n- Training focus\n- Staff note",
-    fontSize: "large",
+    fontSize: "56",
     accentColor: "#38bdf8",
     textColor: "#f8fafc",
   };
@@ -310,7 +328,7 @@ export function createPresentationModeController(dependencies = {}) {
       ...deck.infoSlides.map((infoSlide, index) => ({
         id: infoSlide.id,
         type: "info",
-        label: index ? `Info ${index + 1}` : "Info",
+        label: getSlideLabel(infoSlide.title, index ? `Slide ${index + 1}` : "Info"),
         accentColor: infoSlide.accentColor,
         infoSlide,
       })),
@@ -434,20 +452,37 @@ export function createPresentationModeController(dependencies = {}) {
     }
   }
 
+  function requestNewSlideTitle(defaultTitle = "New Slide") {
+    if (typeof win?.prompt !== "function") {
+      return defaultTitle;
+    }
+    const requestedTitle = win.prompt("Name this slide", defaultTitle);
+    if (requestedTitle === null) {
+      return "";
+    }
+    return String(requestedTitle || "").trim().slice(0, 90) || defaultTitle;
+  }
+
   function addInfoSlide(sourceSlide = null) {
+    const title = sourceSlide
+      ? `${sourceSlide.title || "Team Information"} Copy`
+      : requestNewSlideTitle("New Slide");
+    if (!title) {
+      return;
+    }
     writeDeckForDate(state.dateValue, (deck) => {
       const nextSlide = normalizeInfoSlide(
         sourceSlide
           ? {
               ...sourceSlide,
               id: `info-${state.dateValue}-${Date.now()}`,
-              title: `${sourceSlide.title || "Team Information"} Copy`,
+              title,
             }
           : {
               id: `info-${state.dateValue}-${Date.now()}`,
-              title: "Additional Information",
+              title,
               body: "- Point one\n- Point two",
-              fontSize: "large",
+              fontSize: "56",
               accentColor: "#22c55e",
               textColor: "#f8fafc",
             },

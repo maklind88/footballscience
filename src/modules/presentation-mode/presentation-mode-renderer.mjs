@@ -20,8 +20,29 @@ function getTextColor(backgroundColor = "") {
   return 0.2126 * red + 0.7152 * green + 0.0722 * blue > 0.62 ? "#111827" : "#ffffff";
 }
 
-function getSafeSize(value = "", fallback = "large") {
-  return ["normal", "large", "hero"].includes(value) ? value : fallback;
+const infoFontSizeOptions = [28, 32, 36, 40, 44, 48, 56, 64, 72, 84, 96, 112];
+
+function getSafeSize(value = "", fallback = "56") {
+  const normalized = String(value || "").trim().toLowerCase();
+  const legacySizes = {
+    normal: "40",
+    large: "56",
+    hero: "72",
+  };
+  if (legacySizes[normalized]) {
+    return legacySizes[normalized];
+  }
+  const numericSize = Number.parseInt(normalized, 10);
+  if (!Number.isFinite(numericSize)) {
+    return fallback;
+  }
+  return String(Math.min(112, Math.max(28, numericSize)));
+}
+
+function getInfoSizeStyle(value = "") {
+  const size = Number(getSafeSize(value));
+  const remValue = `${Number((size / 16).toFixed(3))}rem`;
+  return `--presentation-info-body-size: ${remValue};`;
 }
 
 function getLineItems(value = "") {
@@ -106,6 +127,7 @@ export function createPresentationModeRenderer(options = {}) {
           </div>
         </div>
         <div class="presentation-pass-controls">
+          <button type="button" class="presentation-tool-button presentation-new-slide-button" data-presentation-add-info>New Slide</button>
           <label>
             <input type="date" value="${escapeHtml(model.dateValue)}" data-presentation-date-input aria-label="Presentation date" />
           </label>
@@ -129,16 +151,22 @@ export function createPresentationModeRenderer(options = {}) {
       return "";
     }
     const infoSlide = slide.infoSlide || {};
+    const activeSize = getSafeSize(infoSlide.fontSize);
+    const sizeOptions = infoFontSizeOptions.includes(Number(activeSize))
+      ? infoFontSizeOptions
+      : [...infoFontSizeOptions, Number(activeSize)].sort((first, second) => first - second);
     return `
       <section class="presentation-editor-strip" aria-label="Info slide editor">
-        <button type="button" data-presentation-add-info>New info slide</button>
         <button type="button" data-presentation-duplicate-info="${escapeHtml(infoSlide.id)}">Duplicate</button>
         <button type="button" data-presentation-delete-info="${escapeHtml(infoSlide.id)}" ${model.infoSlideCount <= 1 ? "disabled" : ""}>Delete</button>
         <label>
-          <span>Size</span>
+          <span>Text size</span>
           <select data-presentation-info-field="fontSize" data-presentation-info-id="${escapeHtml(infoSlide.id)}">
-            ${["normal", "large", "hero"]
-              .map((size) => `<option value="${size}" ${getSafeSize(infoSlide.fontSize) === size ? "selected" : ""}>${escapeHtml(size)}</option>`)
+            ${sizeOptions
+              .map((size) => {
+                const sizeValue = String(size);
+                return `<option value="${sizeValue}" ${activeSize === sizeValue ? "selected" : ""}>${escapeHtml(`${sizeValue} pt`)}</option>`;
+              })
               .join("")}
           </select>
         </label>
@@ -240,8 +268,8 @@ export function createPresentationModeRenderer(options = {}) {
       },
       `
         <section
-          class="presentation-info-sheet is-size-${escapeHtml(getSafeSize(infoSlide.fontSize))}"
-          style="--presentation-info-color: ${escapeHtml(textColor)}; --presentation-info-accent: ${escapeHtml(accentColor)};"
+          class="presentation-info-sheet"
+          style="--presentation-info-color: ${escapeHtml(textColor)}; --presentation-info-accent: ${escapeHtml(accentColor)}; ${escapeHtml(getInfoSizeStyle(infoSlide.fontSize))}"
         >
           <input
             class="presentation-info-title"

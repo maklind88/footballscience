@@ -273,6 +273,11 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await page.keyboard.press("ArrowRight");
   await expect(presentation.locator(".presentation-info-title")).toHaveValue("Daily Info");
   await expect(presentation.locator(".presentation-info-rule")).toHaveCount(1);
+  await presentation.locator("[data-presentation-toggle-editor]").click();
+  await expect(presentation.locator(".presentation-pass-controls [data-presentation-add-info]")).toHaveText("New Slide");
+  await expect(presentation.locator(".presentation-editor-strip")).not.toContainText("New info slide");
+  await expect(presentation.locator('[data-presentation-info-field="fontSize"]')).toHaveValue("56");
+  await expect(presentation.locator('[data-presentation-info-field="fontSize"]')).toContainText("56 pt");
   const infoTitleAboveRule = await presentation.evaluate(() => {
     const title = document.querySelector(".presentation-info-title");
     const rule = document.querySelector(".presentation-info-rule");

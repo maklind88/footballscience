@@ -33,6 +33,7 @@ const STATE_LIST_CACHE_TTL_MS = 5000;
 const STATE_READ_SNAPSHOT_SCHEMA = "footballscience-app-state-read-snapshot-v1";
 const STATE_READ_SNAPSHOT_PATH = `${STATE_PREFIX}/__app-state-read-snapshot-v1.json`;
 const STATE_READ_SNAPSHOT_MAX_AGE_MS = 30 * 1000;
+const TEAM_LOGO_MAX_URL_BYTES = 900000;
 const PERIODIZATION_KEY = "football-periodization-v2";
 const SESSION_PLANNER_KEY = "football-session-planner-v3";
 const SESSION_EXERCISE_LIBRARY_KEY = "football-session-exercise-library-v1";
@@ -2162,6 +2163,186 @@ function canActorEditWorkspace(actor, workspaceId, accessConfig = {}) {
   return permission.view.includes(role) && permission.edit.includes(role);
 }
 
+function stableJsonValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(stableJsonValue);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  return Object.keys(value)
+    .sort()
+    .reduce((normalized, key) => {
+      normalized[key] = stableJsonValue(value[key]);
+      return normalized;
+    }, {});
+}
+
+function isSameJsonValue(firstValue, secondValue) {
+  return JSON.stringify(stableJsonValue(firstValue)) === JSON.stringify(stableJsonValue(secondValue));
+}
+
+function normalizeLogoPermissionText(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function getActorTeamIdentity(actor = {}) {
+  const ids = new Set(
+    [
+      actor.teamId,
+      actor.team_id,
+      actor.app_metadata?.teamId,
+      actor.app_metadata?.team_id,
+      actor.user_metadata?.teamId,
+      actor.user_metadata?.team_id,
+    ]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+  );
+  const names = new Set(
+    [
+      actor.teamName,
+      actor.team_name,
+      actor.team,
+      actor.app_metadata?.teamName,
+      actor.app_metadata?.team_name,
+      actor.app_metadata?.team,
+      actor.user_metadata?.teamName,
+      actor.user_metadata?.team_name,
+      actor.user_metadata?.team,
+    ]
+      .map(normalizeLogoPermissionText)
+      .filter(Boolean)
+  );
+  return { ids, names };
+}
+
+function getTeamLogoUrlCandidate(team = {}) {
+  return String(team?.logoUrl || team?.logo_url || team?.logo || team?.badgeUrl || team?.crestUrl || "").trim();
+}
+
+function omitTeamLogoFields(team = {}) {
+  const { logoUrl, logo_url, logo, badgeUrl, crestUrl, ...rest } = team || {};
+  return rest;
+}
+
+function assertSafeSvgTeamLogoDataUrl(rawValue = "") {
+  const commaIndex = rawValue.indexOf(",");
+  if (commaIndex < 0) {
+    return false;
+  }
+  const metadata = rawValue.slice(5, commaIndex).toLowerCase();
+  if (!metadata.startsWith("image/svg+xml")) {
+    return false;
+  }
+  let svgText = "";
+  try {
+    const payload = rawValue.slice(commaIndex + 1);
+    svgText = metadata.includes(";base64")
+      ? Buffer.from(payload, "base64").toString("utf8")
+      : decodeURIComponent(payload);
+  } catch {
+    return false;
+  }
+  const source = String(svgText || "").trim();
+  if (!source || !/<svg[\s>]/i.test(source)) {
+    return false;
+  }
+  const unsafePattern =
+    /<\s*(script|foreignObject|iframe|object|embed)\b|\son[a-z]+\s*=|javascript:|data:text\/html|url\(\s*['"]?(?:https?:|javascript:|data:text\/html)|(?:href|xlink:href)\s*=\s*["']\s*(?!#|data:image\/(?:png|jpe?g|gif|webp);base64,)/i;
+  return !unsafePattern.test(source);
+}
+
+function isSafeDelegatedTeamLogoUrl(value = "") {
+  const rawValue = String(value || "").trim();
+  if (!rawValue || Buffer.byteLength(rawValue, "utf8") > TEAM_LOGO_MAX_URL_BYTES) {
+    return false;
+  }
+  if (/^data:image\/svg\+xml(?:;[^,]+)?,/i.test(rawValue)) {
+    return assertSafeSvgTeamLogoDataUrl(rawValue);
+  }
+  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(rawValue)) {
+    return true;
+  }
+  return false;
+}
+
+function canActorUpdateTeamLogo(actor = {}, previousTeam = {}, incomingTeam = {}) {
+  const identity = getActorTeamIdentity(actor);
+  const teamIds = [previousTeam.id, previousTeam.teamId, previousTeam.team_id, incomingTeam.id, incomingTeam.teamId, incomingTeam.team_id]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  if (teamIds.some((teamId) => identity.ids.has(teamId))) {
+    return true;
+  }
+  const teamNames = [
+    previousTeam.name,
+    previousTeam.teamName,
+    previousTeam.team,
+    incomingTeam.name,
+    incomingTeam.teamName,
+    incomingTeam.team,
+  ]
+    .map(normalizeLogoPermissionText)
+    .filter(Boolean);
+  return teamNames.some((teamName) => identity.names.has(teamName));
+}
+
+function createDelegatedTeamLogoStructureWrite(actor, rawValue, previousRawValue = "") {
+  const previousState = safeParseJson(previousRawValue, null);
+  const incomingState = safeParseJson(rawValue, null);
+  if (!previousState || !incomingState || typeof previousState !== "object" || typeof incomingState !== "object") {
+    return { ok: false, status: 400, reason: "Club/team structure logo update must be valid JSON." };
+  }
+  if (!Array.isArray(previousState.teams) || !Array.isArray(incomingState.teams)) {
+    return { ok: false, status: 400, reason: "Club/team structure logo update is missing teams." };
+  }
+
+  const previousTopLevel = { ...previousState, teams: [] };
+  const incomingTopLevel = { ...incomingState, teams: [] };
+  if (!isSameJsonValue(previousTopLevel, incomingTopLevel) || previousState.teams.length !== incomingState.teams.length) {
+    return { ok: false, status: 403, reason: "Only the active team logo can be changed from Player Profiles." };
+  }
+
+  const changedTeams = [];
+  for (let index = 0; index < previousState.teams.length; index += 1) {
+    const previousTeam = previousState.teams[index] || {};
+    const incomingTeam = incomingState.teams[index] || {};
+    if (!isSameJsonValue(omitTeamLogoFields(previousTeam), omitTeamLogoFields(incomingTeam))) {
+      return { ok: false, status: 403, reason: "Only the active team logo can be changed from Player Profiles." };
+    }
+    const previousLogoUrl = getTeamLogoUrlCandidate(previousTeam);
+    const incomingLogoUrl = getTeamLogoUrlCandidate(incomingTeam);
+    if (previousLogoUrl !== incomingLogoUrl) {
+      changedTeams.push({ index, previousTeam, incomingTeam, incomingLogoUrl });
+    }
+  }
+
+  if (changedTeams.length !== 1) {
+    return { ok: false, status: 403, reason: "Exactly one team logo must change from Player Profiles." };
+  }
+
+  const [change] = changedTeams;
+  if (!canActorUpdateTeamLogo(actor, change.previousTeam, change.incomingTeam)) {
+    return { ok: false, status: 403, reason: "You can only update your own team logo." };
+  }
+  if (!isSafeDelegatedTeamLogoUrl(change.incomingLogoUrl)) {
+    return { ok: false, status: 400, reason: "Team logo must be a safe image upload." };
+  }
+
+  const mergedState = {
+    ...previousState,
+    teams: previousState.teams.map((team, index) =>
+      index === change.index ? { ...team, logoUrl: change.incomingLogoUrl } : team
+    ),
+  };
+  return { ok: true, value: JSON.stringify(mergedState), merged: true };
+}
+
 function sanitizeWorkspaceHubRead(rawValue, accessConfig = {}) {
   const hubState = safeParseJson(rawValue, {});
   if (!hubState || typeof hubState !== "object") {
@@ -2815,10 +2996,14 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
     if (removed) {
       return { ok: false, reason: "Club/team structure cannot be removed through central sync." };
     }
-    if (!["admin", "club-admin"].includes(String(actor?.role || "").trim().toLowerCase())) {
-      return { ok: false, reason: "Only platform or club admins can sync club/team structure." };
+    if (["admin", "club-admin"].includes(String(actor?.role || "").trim().toLowerCase())) {
+      return { ok: true, value: rawValue };
     }
-    return { ok: true, value: rawValue };
+    const accessConfig = await readWorkspaceAccessConfig();
+    if (canActorEditWorkspace(actor, "player-profiles", accessConfig)) {
+      return createDelegatedTeamLogoStructureWrite(actor, rawValue, context.previousEntry?.value || "");
+    }
+    return { ok: false, reason: "Only platform or club admins can sync club/team structure." };
   }
 
   if (key === TRANSFER_ROOM_KEY) {

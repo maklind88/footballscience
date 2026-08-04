@@ -425,6 +425,146 @@ test("central app-state rejects unversioned writes once module data exists", asy
   }
 });
 
+test("central app-state lets Player Profiles editors update only their own team logo", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const key = "football-platform-structure-v1";
+  const path = `global/${key}.json`;
+  const previousStructure = {
+    version: 1,
+    activeClubId: "club-ncc",
+    activeTeamId: "team-ncc-first",
+    clubs: [{ id: "club-ncc", name: "North Carolina Courage", shortName: "NCC", status: "active" }],
+    teams: [
+      {
+        id: "team-ncc-first",
+        clubId: "club-ncc",
+        name: "North Carolina Courage",
+        shortName: "NCC",
+        logoUrl: "data:image/webp;base64,b2xk",
+        level: "First Team",
+        season: "2026",
+        status: "active",
+      },
+    ],
+    memberships: [],
+  };
+  const svgLogo =
+    "data:image/svg+xml;charset=utf-8," +
+    encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path fill="#123" d="M0 0h10v10H0z"/></svg>');
+  const nextStructure = {
+    ...previousStructure,
+    teams: previousStructure.teams.map((team) => ({ ...team, logoUrl: svgLogo })),
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [path]: createAppStateStorageEntry(key, previousStructure, { revision: 2 }),
+    },
+    "team-admin"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer logo-update-token",
+      },
+      body: JSON.stringify({
+        key,
+        value: JSON.stringify(nextStructure),
+        metadata: { baseRevision: 2 },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.payload).toMatchObject({
+      ok: true,
+      key,
+      revision: 3,
+      merged: true,
+    });
+    const structureWrite = storage.writes.find((write) => write.objectPath === path);
+    const writtenStructure = JSON.parse(structureWrite.entry.value);
+    expect(writtenStructure.teams[0].logoUrl).toBe(svgLogo);
+    expect(writtenStructure.teams[0].name).toBe("North Carolina Courage");
+    expect(writtenStructure.clubs).toEqual(previousStructure.clubs);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("central app-state rejects delegated platform structure changes beyond team logo", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const key = "football-platform-structure-v1";
+  const path = `global/${key}.json`;
+  const previousStructure = {
+    version: 1,
+    activeClubId: "club-ncc",
+    activeTeamId: "team-ncc-first",
+    clubs: [{ id: "club-ncc", name: "North Carolina Courage", shortName: "NCC", status: "active" }],
+    teams: [
+      {
+        id: "team-ncc-first",
+        clubId: "club-ncc",
+        name: "North Carolina Courage",
+        shortName: "NCC",
+        logoUrl: "data:image/webp;base64,b2xk",
+        level: "First Team",
+        season: "2026",
+        status: "active",
+      },
+    ],
+    memberships: [],
+  };
+  const nextStructure = {
+    ...previousStructure,
+    teams: previousStructure.teams.map((team) => ({ ...team, name: "Changed Team Name" })),
+  };
+  const storage = createAppStateFetchMock(
+    {
+      [path]: createAppStateStorageEntry(key, previousStructure, { revision: 2 }),
+    },
+    "team-admin"
+  );
+  global.fetch = storage.fetchMock;
+
+  try {
+    const response = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: {
+        authorization: "Bearer structure-change-token",
+      },
+      body: JSON.stringify({
+        key,
+        value: JSON.stringify(nextStructure),
+        metadata: { baseRevision: 2 },
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.payload.reason).toContain("Only the active team logo");
+    expect(storage.writes.some((write) => write.objectPath === path)).toBe(false);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("central app-state rejects unversioned deletes once module data exists", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;

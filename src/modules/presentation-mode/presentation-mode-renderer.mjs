@@ -76,6 +76,21 @@ function getLoadMeterModel(value = "") {
   return { label, level: 3, tone: "moderate", color: "#d9a514", soft: "rgba(217, 165, 20, .18)", glow: "rgba(217, 165, 20, .3)", angle: 0 };
 }
 
+function getPitchSizeTone(value = "") {
+  const key = String(value || "").trim().toLowerCase();
+  if (!key || key === "not set" || key === "none") return "empty";
+  if (key.includes("gym") || key.includes("recovery")) return "gym-recovery";
+  if (key.includes("mixed")) return "mixed";
+  if (key.includes("2/3") || key.includes("two third")) return "two-thirds";
+  if (key.includes("half")) return "half-pitch";
+  if (key.includes("final")) return "final-third";
+  if (key === "ssg" || key.includes("small") || key.includes("5v") || key.includes("20m")) return "ssg";
+  if (key === "msg" || key.includes("medium") || key.includes("7v") || key.includes("9v") || key.includes("30m")) return "msg";
+  if (key === "lsg" || key.includes("large")) return "lsg";
+  if (key === "bsg" || key.includes("big") || key.includes("full") || key.includes("11v")) return "full";
+  return "custom";
+}
+
 function getParticipationTone(participation) {
   const value = Number(participation);
   if (!Number.isFinite(value)) return "unset";
@@ -302,6 +317,21 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function renderPitchSizeMetric(value = "") {
+    const label = String(value || "").trim() || "Not set";
+    const tone = getPitchSizeTone(label);
+    return `
+      <div class="presentation-overview-metric is-pitch is-pitch-size is-${escapeHtml(tone)}">
+        <span>Pitch</span>
+        <strong>${escapeHtml(label)}</strong>
+        <span class="presentation-pitch-size-map" aria-label="${escapeHtml(`Pitch size: ${label}`)}" role="img">
+          <span class="presentation-pitch-size-lines"></span>
+          <span class="presentation-pitch-size-highlight"></span>
+        </span>
+      </div>
+    `;
+  }
+
   function renderOverviewLoadMetric(value = "") {
     const load = getLoadMeterModel(value);
     return `
@@ -383,7 +413,7 @@ export function createPresentationModeRenderer(options = {}) {
             ${renderOverviewLoadMetric(model.loadLabel)}
             ${renderOverviewMetric("Phase", phaseLines.slice(0, 3).join(" / ") || periodization.seasonPhase || periodization.sessionType, "is-phase")}
             ${renderOverviewMetric("Video", periodization.preTrainingVideo || "None", "is-video")}
-            ${renderOverviewMetric("Pitch", periodization.pitchSize || model.pitchLabel, "is-pitch")}
+            ${renderPitchSizeMetric(periodization.pitchSize || model.pitchLabel)}
             ${renderOverviewMetric("Match Day", periodization.matchDay || "Not set", "is-match-day")}
             <div class="presentation-block-flow">
               ${model.blocks

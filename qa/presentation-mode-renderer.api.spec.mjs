@@ -123,6 +123,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).toContain("100%");
   expect(overviewHtml).toContain("0%");
   expect(overviewHtml).toContain("presentation-block-flow");
+  expect(overviewHtml).toContain("presentation-pitch-size-map");
+  expect(overviewHtml).toContain("is-pitch is-pitch-size is-ssg");
   expect(overviewHtml.indexOf("is-pitch")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));
   expect(overviewHtml.indexOf("is-match-day")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));
   expect(overviewHtml).toContain("is-focus");

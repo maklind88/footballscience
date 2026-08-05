@@ -59,6 +59,20 @@ function getSlideLabel(title = "", fallback = "Slide") {
   return label.length > 18 ? `${label.slice(0, 17).trim()}...` : label;
 }
 
+function getSessionPitchLabel(blocks = []) {
+  const values = [
+    ...new Set(
+      (Array.isArray(blocks) ? blocks : [])
+        .map((block) => String(block?.pitchSize || "").trim())
+        .filter(Boolean)
+    ),
+  ];
+  if (!values.length) {
+    return "";
+  }
+  return values.length === 1 ? values[0] : "Mixed pitch";
+}
+
 function createDefaultInfoSlide(dateValue = "") {
   return {
     id: `info-${dateValue || "date"}-main`,
@@ -372,7 +386,7 @@ export function createPresentationModeController(dependencies = {}) {
       passTypeLabel: event?.title || periodization.sessionType || "Training briefing",
       passes: getResolvedPasses(dateValue),
       periodization,
-      pitchLabel: periodization.pitchSize || "",
+      pitchLabel: periodization.pitchSize || getSessionPitchLabel(blocks),
       presenting: state.presenting,
       sessionTheme: session.theme || periodization.mainFocus || "",
       sessionTitle: title,

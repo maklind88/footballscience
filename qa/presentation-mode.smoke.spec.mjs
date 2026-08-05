@@ -292,6 +292,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-gauge")).toHaveCount(1);
   await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-copy strong")).toHaveText("High");
   await expect(presentation.locator(".presentation-medical-overview")).toBeVisible();
+  await expect(presentation.locator(".presentation-medical-overview header")).toHaveCount(0);
+  await expect(presentation.locator(".presentation-medical-overview")).not.toContainText("Medical Plan");
   await expect(presentation.locator(".presentation-medical-player").first()).toBeVisible();
   await expect(presentation.locator(".presentation-medical-player > span:last-child", { hasText: /^100%$/ }).first()).toBeVisible();
   await expect(presentation.locator(".presentation-medical-player > span:last-child", { hasText: /^0%$/ }).first()).toBeVisible();

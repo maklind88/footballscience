@@ -354,10 +354,6 @@ export function createPresentationModeRenderer(options = {}) {
   function renderMedicalRecommendationsPanel(items = []) {
     return `
       <section class="presentation-medical-overview" aria-label="Medical participation recommendations">
-        <header>
-          <span>Medical Plan</span>
-          <strong>${escapeHtml(String(items.length))}</strong>
-        </header>
         <div class="presentation-medical-list">
           ${
             items.length

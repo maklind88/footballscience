@@ -554,21 +554,28 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     return {
       rightOfVisual: playersRect.left >= visualRect.right - 2,
       belowCopy: playersRect.top >= copyRect.bottom - 2,
+      rightAligned: Math.abs(playersRect.right - copyRect.right) <= 4,
       bottomAligned: Math.abs(playersRect.bottom - layoutContentBottom) <= 4,
-      compactHeight: panelRect.height <= layoutRect.height * 0.25,
-      usesCopyWidth: playersRect.width >= copyRect.width - 2,
+      compactHeight: panelRect.height <= layoutRect.height * 0.2,
+      compactWidth: playersRect.width <= copyRect.width + 2,
+      chipsCompact: chips.every((chip) => {
+        const rect = chip.getBoundingClientRect();
+        return rect.width >= 68 && rect.width <= 190 && rect.height >= 18 && rect.height <= 30;
+      }),
       chipsVisible: chips.every((chip) => {
         const rect = chip.getBoundingClientRect();
-        return rect.width > 80 && rect.height >= 28 && rect.top >= panelRect.top && rect.bottom <= panelRect.bottom + 1;
+        return rect.top >= panelRect.top && rect.bottom <= panelRect.bottom + 1;
       }),
     };
   });
   expect(blockPlayersLayout).toMatchObject({
     rightOfVisual: true,
     belowCopy: true,
+    rightAligned: true,
     bottomAligned: true,
     compactHeight: true,
-    usesCopyWidth: true,
+    compactWidth: true,
+    chipsCompact: true,
     chipsVisible: true,
   });
 });

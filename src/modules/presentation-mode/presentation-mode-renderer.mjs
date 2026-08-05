@@ -422,7 +422,7 @@ export function createPresentationModeRenderer(options = {}) {
                     <article>
                       <span>${escapeHtml(block.label || `Block ${index + 1}`)}</span>
                       <strong>${escapeHtml(block.title || "Exercise")}</strong>
-                      <small>${escapeHtml([block.minutes ? `${block.minutes} min` : "", block.pitchSize || "", block.phase || ""].filter(Boolean).join(" / ") || "Ready")}</small>
+                      <small>${escapeHtml([block.pitchSize || "", block.phase || ""].filter(Boolean).join(" / ") || "Ready")}</small>
                     </article>
                   `
                 )
@@ -506,7 +506,7 @@ export function createPresentationModeRenderer(options = {}) {
             <div class="presentation-section-heading">
               <span>${escapeHtml(blockLabel)}</span>
               <h2>${escapeHtml(block.title || "Exercise")}</h2>
-              <p>${escapeHtml([block.minutes ? `${block.minutes} min` : "", phase].filter(Boolean).join(" / "))}</p>
+              <p>${escapeHtml(phase)}</p>
             </div>
             <div class="presentation-block-details">
               ${renderTextBlock("Objective", block.objective)}

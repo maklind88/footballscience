@@ -425,10 +425,12 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     underPitchAndMatch: true,
     rowsAreWide: true,
   });
+  await expect(presentation).not.toContainText("10 min");
   await expect(presentation).toContainText("High");
 
   await page.keyboard.press("ArrowRight");
   await expect(presentation).toContainText("Possession (7v3)");
+  await expect(presentation).not.toContainText("10 min");
   await expect(presentation.locator(".presentation-slide-block .presentation-section-heading span")).toHaveText("Block 1 (10%+)");
   await expect(presentation.locator(".presentation-player-rule")).toHaveCount(0);
   await expect(presentation).not.toContainText("Focus");

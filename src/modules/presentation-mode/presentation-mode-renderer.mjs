@@ -476,7 +476,7 @@ export function createPresentationModeRenderer(options = {}) {
             <div class="presentation-section-heading">
               <span>${escapeHtml(blockLabel)}</span>
               <h2>${escapeHtml(block.title || "Exercise")}</h2>
-              <p>${escapeHtml([block.minutes ? `${block.minutes} min` : "", block.pitchSize || "", phase].filter(Boolean).join(" / "))}</p>
+              <p>${escapeHtml([block.minutes ? `${block.minutes} min` : "", phase].filter(Boolean).join(" / "))}</p>
             </div>
             <div class="presentation-block-details">
               ${renderTextBlock("Objective", block.objective)}

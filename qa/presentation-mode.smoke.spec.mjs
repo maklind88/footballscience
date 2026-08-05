@@ -97,11 +97,11 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
                 {
                   id: "qa-presentation-block-1",
                   label: "Block 1",
-                  title: "Rondo to finish",
+                  title: "Possession (7v3)",
                   focus: "- Tempo\n- Third-player support",
                   phase: "In Possession",
-                  subPhase: "Build Up",
-                  minutes: 30,
+                  subPhase: "Build Up, Creating Phase",
+                  minutes: 10,
                   pitchSize: "2/3 pitch",
                   objective: "- Connect through pressure",
                   organization: "- 7v7 + 3 neutrals",
@@ -382,7 +382,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation).toContainText("High");
 
   await page.keyboard.press("ArrowRight");
-  await expect(presentation).toContainText("Rondo to finish");
+  await expect(presentation).toContainText("Possession (7v3)");
   await expect(presentation.locator(".presentation-slide-block .presentation-section-heading span")).toHaveText("Block 1 (10%+)");
   await expect(presentation.locator(".presentation-player-rule")).toHaveCount(0);
   await expect(presentation).not.toContainText("Focus");
@@ -418,22 +418,57 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     noLandscapeBoardClass: true,
     noLandscapePitchClass: true,
   });
+  const blockCopyLayout = await presentation.evaluate(() => {
+    const visual = document.querySelector(".presentation-block-visual");
+    const copy = document.querySelector(".presentation-block-copy");
+    const heading = document.querySelector(".presentation-slide-block .presentation-section-heading h2");
+    const meta = document.querySelector(".presentation-slide-block .presentation-section-heading p");
+    const details = document.querySelector(".presentation-block-details");
+    const detailCards = Array.from(document.querySelectorAll(".presentation-detail-block"));
+    if (!visual || !copy || !heading || !meta || !details || !detailCards.length) return null;
+    const visualRect = visual.getBoundingClientRect();
+    const copyRect = copy.getBoundingClientRect();
+    const headingRect = heading.getBoundingClientRect();
+    const metaRect = meta.getBoundingClientRect();
+    const headingLineHeight = Number.parseFloat(getComputedStyle(heading).lineHeight);
+    const metaLineHeight = Number.parseFloat(getComputedStyle(meta).lineHeight);
+    const detailRect = details.getBoundingClientRect();
+    return {
+      copyRightOfVisual: copyRect.left >= visualRect.right - 2,
+      copyUsesWideColumn: copyRect.width >= visualRect.width * 1.1,
+      headingSingleLine: headingRect.height <= headingLineHeight * 1.25,
+      metaSingleLine: metaRect.height <= metaLineHeight * 1.35,
+      detailsFillCopyWidth: detailRect.width >= copyRect.width - 2,
+      cardsFillDetailsWidth: detailCards.every((card) => card.getBoundingClientRect().width >= detailRect.width - 4),
+    };
+  });
+  expect(blockCopyLayout).toMatchObject({
+    copyRightOfVisual: true,
+    copyUsesWideColumn: true,
+    headingSingleLine: true,
+    metaSingleLine: true,
+    detailsFillCopyWidth: true,
+    cardsFillDetailsWidth: true,
+  });
   const blockPlayersLayout = await presentation.evaluate(() => {
     const layout = document.querySelector(".presentation-block-layout");
     const copy = document.querySelector(".presentation-block-copy");
+    const visual = document.querySelector(".presentation-block-visual");
     const players = document.querySelector(".presentation-block-players");
     const panel = document.querySelector(".presentation-player-panel.is-muted");
     const chips = Array.from(document.querySelectorAll(".presentation-player-panel.is-muted .presentation-player-chip"));
-    if (!layout || !copy || !players || !panel || chips.length === 0) return null;
+    if (!layout || !copy || !visual || !players || !panel || chips.length === 0) return null;
     const layoutRect = layout.getBoundingClientRect();
     const copyRect = copy.getBoundingClientRect();
+    const visualRect = visual.getBoundingClientRect();
     const playersRect = players.getBoundingClientRect();
     const panelRect = panel.getBoundingClientRect();
     return {
-      rightOfCopy: playersRect.left >= copyRect.right - 2,
+      rightOfVisual: playersRect.left >= visualRect.right - 2,
+      belowCopy: playersRect.top >= copyRect.bottom - 2,
       bottomAligned: Math.abs(playersRect.bottom - layoutRect.bottom) <= 4,
-      compactHeight: panelRect.height <= layoutRect.height * 0.36,
-      compactWidth: panelRect.width <= layoutRect.width * 0.28,
+      compactHeight: panelRect.height <= layoutRect.height * 0.25,
+      usesCopyWidth: playersRect.width >= copyRect.width - 2,
       chipsVisible: chips.every((chip) => {
         const rect = chip.getBoundingClientRect();
         return rect.width > 80 && rect.height >= 28 && rect.top >= panelRect.top && rect.bottom <= panelRect.bottom + 1;
@@ -441,10 +476,11 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     };
   });
   expect(blockPlayersLayout).toMatchObject({
-    rightOfCopy: true,
+    rightOfVisual: true,
+    belowCopy: true,
     bottomAligned: true,
     compactHeight: true,
-    compactWidth: true,
+    usesCopyWidth: true,
     chipsVisible: true,
   });
 });

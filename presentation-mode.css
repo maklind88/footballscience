@@ -497,6 +497,7 @@ body.is-presentation-mode-open {
   margin: 0;
   color: rgba(248, 250, 252, .68);
   font-weight: 850;
+  line-height: 1.12;
 }
 
 .presentation-overview-grid {
@@ -821,7 +822,11 @@ body.is-presentation-mode-open {
 .presentation-block-layout {
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr) minmax(10.8rem, .48fr);
+  grid-template-columns: minmax(17rem, .9fr) minmax(0, 1.5fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "visual copy"
+    "visual players";
   gap: 1rem;
   padding-right: 4.8rem;
 }
@@ -834,6 +839,7 @@ body.is-presentation-mode-open {
 }
 
 .presentation-block-visual {
+  grid-area: visual;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -866,12 +872,23 @@ body.is-presentation-mode-open {
 }
 
 .presentation-block-copy {
+  grid-area: copy;
   grid-template-rows: auto minmax(0, 1fr);
 }
 
 .presentation-block-copy .presentation-section-heading h2 {
-  max-width: 12ch;
+  max-width: 100%;
   font-size: clamp(2rem, 3.5vw, 3.9rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-block-copy .presentation-section-heading p {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .presentation-block-details {
@@ -900,10 +917,11 @@ body.is-presentation-mode-open {
 }
 
 .presentation-block-players {
+  grid-area: players;
   align-self: end;
-  justify-self: end;
-  width: min(100%, 13.2rem);
-  max-height: min(13rem, 34vh);
+  justify-self: stretch;
+  width: 100%;
+  max-height: min(8.8rem, 24vh);
   grid-template-rows: auto;
   overflow: hidden;
 }
@@ -934,6 +952,10 @@ body.is-presentation-mode-open {
   align-content: start;
   gap: .28rem;
   overflow: auto;
+}
+
+.presentation-block-players .presentation-player-list {
+  grid-template-columns: repeat(auto-fit, minmax(9.6rem, 1fr));
 }
 
 .presentation-player-list p {
@@ -1112,6 +1134,23 @@ body.is-presentation-mode-open {
   .presentation-control-bar,
   .presentation-block-layout {
     grid-template-columns: 1fr;
+  }
+
+  .presentation-block-layout {
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "visual"
+      "copy"
+      "players";
+  }
+
+  .presentation-block-copy .presentation-section-heading h2,
+  .presentation-block-copy .presentation-section-heading p {
+    white-space: normal;
+  }
+
+  .presentation-block-players {
+    max-height: none;
   }
 
   .dashboard-presentation-form {

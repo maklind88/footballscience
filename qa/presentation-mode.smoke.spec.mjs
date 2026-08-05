@@ -345,14 +345,16 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const videoRect = video.getBoundingClientRect();
     const matchRect = matchDay.getBoundingClientRect();
     const medicalRect = medical.getBoundingClientRect();
+    const gridRect = medical.closest(".presentation-overview-grid")?.getBoundingClientRect();
     const firstPlayerRect = players[0].getBoundingClientRect();
     return {
       rightOfVideo: medicalRect.left >= videoRect.right - 2,
       rightOfMatchDay: medicalRect.left >= matchRect.right - 2,
+      widthRatio: gridRect ? medicalRect.width / gridRect.width : 0,
       spansOverviewContent: medicalRect.bottom >= firstPlayerRect.bottom,
       compactRows: players.every((player) => {
         const rect = player.getBoundingClientRect();
-        return rect.height <= 28;
+        return rect.height <= 30;
       }),
       allRowsFit: players.every((player) => {
         const rect = player.getBoundingClientRect();
@@ -367,6 +369,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     compactRows: true,
     allRowsFit: true,
   });
+  expect(overviewMedicalLayout?.widthRatio).toBeGreaterThan(0.46);
+  expect(overviewMedicalLayout?.widthRatio).toBeLessThan(0.53);
   const overviewBlocksLayout = await presentation.evaluate(() => {
     const pitch = document.querySelector(".presentation-overview-metric.is-pitch");
     const matchDay = document.querySelector(".presentation-overview-metric.is-match-day");

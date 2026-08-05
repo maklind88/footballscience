@@ -510,7 +510,7 @@ body.is-presentation-mode-open {
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(8.8rem, .74fr) repeat(2, minmax(0, .95fr)) minmax(17rem, 1.12fr);
+  grid-template-columns: minmax(7.4rem, .55fr) repeat(2, minmax(0, .725fr)) minmax(0, 2fr);
   grid-template-rows: minmax(6.8rem, .72fr) minmax(5.9rem, .62fr) minmax(10.5rem, 1fr);
   grid-template-areas:
     "load phase video medical"
@@ -730,7 +730,7 @@ body.is-presentation-mode-open {
   min-height: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
-  padding: clamp(.68rem, 1vw, .9rem);
+  padding: clamp(.72rem, 1.05vw, 1rem);
   background:
     linear-gradient(180deg, rgba(14, 24, 32, .84), rgba(10, 18, 24, .74)),
     rgba(255, 255, 255, .07);
@@ -757,9 +757,9 @@ body.is-presentation-mode-open {
 .presentation-medical-player {
   min-width: 0;
   display: grid;
-  grid-template-columns: clamp(1.24rem, 3vh, 2.45rem) minmax(0, 1fr) auto;
+  grid-template-columns: clamp(1.34rem, 3.3vh, 2.65rem) minmax(0, 1fr) auto;
   align-items: center;
-  gap: clamp(.22rem, .38vw, .44rem);
+  gap: clamp(.26rem, .42vw, .5rem);
   min-height: 0;
   padding: clamp(.1rem, .2vh, .24rem) clamp(.18rem, .3vw, .36rem);
   border: 1px solid rgba(255, 255, 255, .1);
@@ -768,8 +768,8 @@ body.is-presentation-mode-open {
 }
 
 .presentation-medical-avatar {
-  width: clamp(1.24rem, 3vh, 2.45rem);
-  height: clamp(1.24rem, 3vh, 2.45rem);
+  width: clamp(1.34rem, 3.3vh, 2.65rem);
+  height: clamp(1.34rem, 3.3vh, 2.65rem);
   display: inline-grid;
   place-items: center;
   overflow: hidden;
@@ -791,7 +791,7 @@ body.is-presentation-mode-open {
   min-width: 0;
   overflow: hidden;
   color: #ffffff;
-  font-size: clamp(.6rem, 1.22vh, .86rem);
+  font-size: clamp(.64rem, 1.26vh, .9rem);
   line-height: 1.05;
   text-overflow: ellipsis;
   white-space: nowrap;

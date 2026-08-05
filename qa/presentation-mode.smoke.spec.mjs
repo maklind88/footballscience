@@ -306,8 +306,9 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation).toContainText("Training Overview");
   await expect(presentation.locator(".presentation-slide-overview .presentation-section-heading h2")).toHaveCount(0);
   await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-gauge")).toHaveCount(1);
-  await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-copy")).toHaveText("Planned load");
-  await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-copy strong")).toHaveCount(0);
+  await expect(presentation.locator(".presentation-overview-metric.is-load > span")).toHaveText("Planned Load");
+  await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-copy")).toHaveCount(0);
+  await expect(presentation.locator(".presentation-overview-metric.is-load > span", { hasText: /^Load$/ })).toHaveCount(0);
   await expect(presentation.locator(".presentation-overview-metric.is-pitch")).toContainText("2/3 pitch");
   await expect(presentation.locator(".presentation-overview-metric.is-pitch .periodization-pitch-icon.is-2-3-pitch")).toBeVisible();
   await expect(presentation.locator(".presentation-overview-metric.is-focus")).toHaveCount(0);
@@ -321,26 +322,44 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   const overviewLoadLayout = await presentation.evaluate(() => {
     const load = document.querySelector(".presentation-overview-metric.is-load");
     const phase = document.querySelector(".presentation-overview-metric.is-phase");
+    const video = document.querySelector(".presentation-overview-metric.is-video");
     const pitch = document.querySelector(".presentation-overview-metric.is-pitch");
+    const loadLabel = document.querySelector(".presentation-overview-metric.is-load > span");
+    const phaseLabel = document.querySelector(".presentation-overview-metric.is-phase > span");
+    const videoLabel = document.querySelector(".presentation-overview-metric.is-video > span");
     const gauge = document.querySelector(".presentation-load-gauge");
     const needle = document.querySelector(".presentation-load-needle");
-    if (!load || !phase || !pitch || !gauge || !needle) return null;
+    if (!load || !phase || !video || !pitch || !loadLabel || !phaseLabel || !videoLabel || !gauge || !needle) return null;
     const loadRect = load.getBoundingClientRect();
     const phaseRect = phase.getBoundingClientRect();
+    const videoRect = video.getBoundingClientRect();
     const pitchRect = pitch.getBoundingClientRect();
+    const loadLabelRect = loadLabel.getBoundingClientRect();
+    const phaseLabelRect = phaseLabel.getBoundingClientRect();
+    const videoLabelRect = videoLabel.getBoundingClientRect();
     const loadStyle = getComputedStyle(load);
     return {
       leftOfPhase: loadRect.right <= phaseRect.left,
-      leftOfPitch: loadRect.right <= pitchRect.left,
-      spansTopRows: loadRect.bottom >= pitchRect.bottom - 2,
+      sameTopAsPhase: Math.abs(loadRect.top - phaseRect.top) <= 2,
+      sameTopAsVideo: Math.abs(loadRect.top - videoRect.top) <= 2,
+      sameHeightAsPhase: Math.abs(loadRect.height - phaseRect.height) <= 2,
+      sameWidthAsPhase: Math.abs(loadRect.width - phaseRect.width) <= 2,
+      labelAlignedWithPhase: Math.abs(loadLabelRect.top - phaseLabelRect.top) <= 2,
+      labelAlignedWithVideo: Math.abs(loadLabelRect.top - videoLabelRect.top) <= 2,
+      pitchUnderLoad: pitchRect.top >= loadRect.bottom - 2,
       loadColor: loadStyle.getPropertyValue("--presentation-load-color").trim(),
       loadAngle: loadStyle.getPropertyValue("--presentation-load-angle").trim(),
     };
   });
   expect(overviewLoadLayout).toMatchObject({
     leftOfPhase: true,
-    leftOfPitch: true,
-    spansTopRows: true,
+    sameTopAsPhase: true,
+    sameTopAsVideo: true,
+    sameHeightAsPhase: true,
+    sameWidthAsPhase: true,
+    labelAlignedWithPhase: true,
+    labelAlignedWithVideo: true,
+    pitchUnderLoad: true,
     loadColor: "#d92d3f",
     loadAngle: "68deg",
   });
@@ -352,9 +371,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
       )
     );
     if (!load || cards.length !== 4) return null;
-    const loadRect = load.getBoundingClientRect();
     return {
-      compactCards: cards.every((card) => card.getBoundingClientRect().height <= loadRect.height * 0.58),
+      compactCards: [load, ...cards].every((card) => card.getBoundingClientRect().height <= 150),
       pitchHasVisual: Boolean(document.querySelector(".presentation-overview-metric.is-pitch .periodization-pitch-icon")),
       valuesNearTop: cards.every((card) => {
         const cardRect = card.getBoundingClientRect();

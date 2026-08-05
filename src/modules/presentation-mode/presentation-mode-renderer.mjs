@@ -339,14 +339,11 @@ export function createPresentationModeRenderer(options = {}) {
         class="presentation-overview-metric is-load is-${escapeHtml(load.tone)} is-level-${escapeHtml(String(load.level))}"
         style="--presentation-load-angle: ${escapeHtml(String(load.angle))}deg; --presentation-load-color: ${escapeHtml(load.color)}; --presentation-load-soft: ${escapeHtml(load.soft)}; --presentation-load-glow: ${escapeHtml(load.glow)};"
       >
-        <span>Load</span>
+        <span>Planned Load</span>
         <div class="presentation-load-meter" aria-label="${escapeHtml(`Physical load: ${load.label}`)}">
           <span class="presentation-load-gauge" aria-hidden="true">
             <span class="presentation-load-needle"></span>
             <span class="presentation-load-pin"></span>
-          </span>
-          <span class="presentation-load-copy">
-            <small>Planned load</small>
           </span>
         </div>
       </div>

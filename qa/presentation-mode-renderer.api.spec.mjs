@@ -115,7 +115,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).toContain("presentation-load-needle");
   expect(overviewHtml).toContain("Physical load: Hard");
   expect(overviewHtml).toContain("is-load is-hard");
-  expect(overviewHtml).toContain("Planned load");
+  expect(overviewHtml).toContain("Planned Load");
+  expect(overviewHtml).not.toContain("<span>Load</span>");
+  expect(overviewHtml).not.toContain("presentation-load-copy");
   expect(overviewHtml).not.toContain("<strong>Hard</strong>");
   expect(overviewHtml.indexOf("is-load")).toBeLessThan(overviewHtml.indexOf("is-phase"));
   expect(overviewHtml).toContain("presentation-medical-overview");

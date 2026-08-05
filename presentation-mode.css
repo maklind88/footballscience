@@ -829,6 +829,7 @@ body.is-presentation-mode-open {
     "visual players";
   gap: 1rem;
   padding-right: 4.8rem;
+  padding-bottom: 1.5rem;
 }
 
 .presentation-block-visual,
@@ -850,6 +851,7 @@ body.is-presentation-mode-open {
 }
 
 .presentation-block-visual .session-visual-board {
+  --session-visual-runoff: clamp(.78rem, 2.1vh, 1.15rem);
   width: auto;
   height: 100%;
   max-width: 100%;
@@ -862,7 +864,8 @@ body.is-presentation-mode-open {
 }
 
 .presentation-block-visual .session-visual-board-surface {
-  height: 100%;
+  inset: var(--session-visual-runoff);
+  height: auto;
 }
 
 .presentation-block-copy,

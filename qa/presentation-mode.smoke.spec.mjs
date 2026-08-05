@@ -396,9 +396,17 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const visual = document.querySelector(".presentation-block-visual");
     const board = document.querySelector(".presentation-block-visual .session-visual-board");
     const pitch = document.querySelector(".presentation-block-visual .session-pitch-diagram");
-    if (!visual || !board || !pitch) return null;
+    const topGoal = document.querySelector(".presentation-block-visual .session-pitch-goal-top");
+    const bottomGoal = document.querySelector(".presentation-block-visual .session-pitch-goal-bottom");
+    const topBox = document.querySelector(".presentation-block-visual .session-pitch-box-top");
+    const bottomBox = document.querySelector(".presentation-block-visual .session-pitch-box-bottom");
+    if (!visual || !board || !pitch || !topGoal || !bottomGoal || !topBox || !bottomBox) return null;
     const visualRect = visual.getBoundingClientRect();
     const boardRect = board.getBoundingClientRect();
+    const topGoalRect = topGoal.getBoundingClientRect();
+    const bottomGoalRect = bottomGoal.getBoundingClientRect();
+    const topBoxRect = topBox.getBoundingClientRect();
+    const bottomBoxRect = bottomBox.getBoundingClientRect();
     return {
       boardIsPortrait: boardRect.height > boardRect.width * 1.35,
       boardFitsVisual:
@@ -406,6 +414,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
         boardRect.left >= visualRect.left - 1 &&
         boardRect.right <= visualRect.right + 1 &&
         boardRect.bottom <= visualRect.bottom + 1,
+      goalsFitVisual: topGoalRect.top >= visualRect.top - 1 && bottomGoalRect.bottom <= visualRect.bottom + 1,
+      boxesFitVisual: topBoxRect.top >= visualRect.top - 1 && bottomBoxRect.bottom <= visualRect.bottom + 1,
       noLandscapeBoardClass:
         !board.classList.contains("session-visual-board-print-landscape") &&
         !board.classList.contains("session-visual-board-landscape"),
@@ -415,6 +425,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   expect(blockVisualLayout).toMatchObject({
     boardIsPortrait: true,
     boardFitsVisual: true,
+    goalsFitVisual: true,
+    boxesFitVisual: true,
     noLandscapeBoardClass: true,
     noLandscapePitchClass: true,
   });
@@ -463,10 +475,12 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const visualRect = visual.getBoundingClientRect();
     const playersRect = players.getBoundingClientRect();
     const panelRect = panel.getBoundingClientRect();
+    const layoutStyle = getComputedStyle(layout);
+    const layoutContentBottom = layoutRect.bottom - Number.parseFloat(layoutStyle.paddingBottom || "0");
     return {
       rightOfVisual: playersRect.left >= visualRect.right - 2,
       belowCopy: playersRect.top >= copyRect.bottom - 2,
-      bottomAligned: Math.abs(playersRect.bottom - layoutRect.bottom) <= 4,
+      bottomAligned: Math.abs(playersRect.bottom - layoutContentBottom) <= 4,
       compactHeight: panelRect.height <= layoutRect.height * 0.25,
       usesCopyWidth: playersRect.width >= copyRect.width - 2,
       chipsVisible: chips.every((chip) => {

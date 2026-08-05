@@ -164,4 +164,11 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     title: "Daily Info",
     body: "- Arrival",
   });
+
+  controller.writeDeckForDate("2026-06-02", (deck) => ({
+    ...deck,
+    infoSlides: [],
+  }));
+  expect(storage.get(dashboardPresentationStorageKey).decks["2026-06-02"].infoSlides).toEqual([]);
+  expect(controller.buildModel().slides.map((slide) => slide.type)).toEqual(["cover", "overview", "block"]);
 });

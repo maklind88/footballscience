@@ -280,6 +280,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator('[data-presentation-info-field="fontSize"]')).toContainText("16 pt");
   await expect(presentation.locator('[data-presentation-info-field="fontSize"]')).toContainText("56 pt");
   await expect(presentation.locator('[data-presentation-info-field="fontSize"]')).toContainText("128 pt");
+  await expect(presentation.locator("[data-presentation-delete-info]")).toBeEnabled();
   const logoSizing = await presentation.evaluate(() => {
     const toolbarLogo = document.querySelector(".presentation-control-brand .presentation-logo-corner");
     const slideLogo = document.querySelector(".presentation-slide-info .presentation-corner-logo .presentation-logo-corner");
@@ -299,7 +300,9 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   });
   expect(infoTitleAboveRule).toBe(true);
   await expect(presentation).toContainText("Arrive ready");
-  await page.keyboard.press("ArrowRight");
+  await presentation.locator("[data-presentation-delete-info]").click();
+  await expect(presentation.locator(".presentation-slide-info")).toHaveCount(0);
+  await expect(presentation.locator(".presentation-slide-tabs")).not.toContainText("Daily Info");
   await expect(presentation).toContainText("Training Overview");
   await expect(presentation.locator(".presentation-slide-overview .presentation-section-heading h2")).toHaveCount(0);
   await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-gauge")).toHaveCount(1);

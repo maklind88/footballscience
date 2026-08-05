@@ -158,7 +158,7 @@ export function createPresentationModeRenderer(options = {}) {
     return `
       <section class="presentation-editor-strip" aria-label="Info slide editor">
         <button type="button" data-presentation-duplicate-info="${escapeHtml(infoSlide.id)}">Duplicate</button>
-        <button type="button" data-presentation-delete-info="${escapeHtml(infoSlide.id)}" ${model.infoSlideCount <= 1 ? "disabled" : ""}>Delete</button>
+        <button type="button" data-presentation-delete-info="${escapeHtml(infoSlide.id)}">Delete</button>
         <label>
           <span>Text size</span>
           <select data-presentation-info-field="fontSize" data-presentation-info-id="${escapeHtml(infoSlide.id)}">

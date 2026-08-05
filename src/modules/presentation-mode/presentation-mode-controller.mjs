@@ -83,12 +83,13 @@ function normalizeInfoSlide(slide = {}, index = 0, dateValue = "") {
 }
 
 function normalizeDeck(deck = {}, dateValue = "") {
-  const infoSlides = Array.isArray(deck.infoSlides)
+  const hasSavedInfoSlides = Array.isArray(deck?.infoSlides);
+  const infoSlides = hasSavedInfoSlides
     ? deck.infoSlides.map((slide, index) => normalizeInfoSlide(slide, index, dateValue)).filter((slide) => slide.id)
     : [];
   return {
     updatedAt: String(deck.updatedAt || "").trim(),
-    infoSlides: infoSlides.length ? infoSlides : [createDefaultInfoSlide(dateValue)],
+    infoSlides: hasSavedInfoSlides ? infoSlides : [createDefaultInfoSlide(dateValue)],
   };
 }
 
@@ -504,14 +505,23 @@ export function createPresentationModeController(dependencies = {}) {
 
   function deleteInfoSlide(slideId) {
     const deck = getDeckForDate();
-    if (deck.infoSlides.length <= 1) {
+    if (!slideId || !deck.infoSlides.some((slide) => slide.id === slideId)) {
       return;
     }
+    const deletedIndex = state.slideIndex;
     writeDeckForDate(state.dateValue, (currentDeck) => ({
       ...currentDeck,
       infoSlides: currentDeck.infoSlides.filter((slide) => slide.id !== slideId),
     }));
-    state.slideIndex = Math.min(state.slideIndex, buildModel().slides.length - 1);
+    const nextModel = buildModel();
+    const nextInfoIndexes = nextModel.slides.map((slide, index) => (slide.type === "info" ? index : -1)).filter((index) => index >= 0);
+    const nextInfoIndex = nextInfoIndexes.find((index) => index >= deletedIndex) ?? nextInfoIndexes.at(-1);
+    if (Number.isFinite(nextInfoIndex)) {
+      state.slideIndex = nextInfoIndex;
+    } else {
+      state.slideIndex = Math.min(deletedIndex, Math.max(0, nextModel.slides.length - 1));
+      state.editorOpen = false;
+    }
     render();
   }
 

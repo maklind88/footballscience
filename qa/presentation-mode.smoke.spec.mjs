@@ -339,6 +339,28 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     loadColor: "#d92d3f",
     loadAngle: "68deg",
   });
+  const overviewMetricCardsLayout = await presentation.evaluate(() => {
+    const load = document.querySelector(".presentation-overview-metric.is-load");
+    const cards = Array.from(
+      document.querySelectorAll(
+        ".presentation-overview-metric.is-phase, .presentation-overview-metric.is-video, .presentation-overview-metric.is-pitch, .presentation-overview-metric.is-match-day"
+      )
+    );
+    if (!load || cards.length !== 4) return null;
+    const loadRect = load.getBoundingClientRect();
+    return {
+      compactCards: cards.every((card) => card.getBoundingClientRect().height <= loadRect.height * 0.58),
+      valuesNearTop: cards.every((card) => {
+        const cardRect = card.getBoundingClientRect();
+        const valueRect = card.querySelector("strong")?.getBoundingClientRect();
+        return Boolean(valueRect && valueRect.top - cardRect.top <= cardRect.height * 0.44);
+      }),
+    };
+  });
+  expect(overviewMetricCardsLayout).toMatchObject({
+    compactCards: true,
+    valuesNearTop: true,
+  });
   const overviewMedicalLayout = await presentation.evaluate(() => {
     const video = document.querySelector(".presentation-overview-metric.is-video");
     const matchDay = document.querySelector(".presentation-overview-metric.is-match-day");

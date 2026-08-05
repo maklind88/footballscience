@@ -511,7 +511,7 @@ body.is-presentation-mode-open {
   height: 100%;
   display: grid;
   grid-template-columns: minmax(7.4rem, .55fr) repeat(2, minmax(0, .725fr)) minmax(0, 2fr);
-  grid-template-rows: minmax(6.8rem, .72fr) minmax(5.9rem, .62fr) minmax(10.5rem, 1fr);
+  grid-template-rows: minmax(4.7rem, .48fr) minmax(4.7rem, .48fr) minmax(11.2rem, 1.16fr);
   grid-template-areas:
     "load phase video medical"
     "load pitch match medical"
@@ -523,9 +523,10 @@ body.is-presentation-mode-open {
 .presentation-overview-metric {
   min-width: 0;
   display: grid;
-  align-content: space-between;
-  gap: .42rem;
-  padding: clamp(.72rem, 1.08vw, 1rem);
+  align-content: start;
+  grid-template-rows: auto auto;
+  gap: clamp(.46rem, .72vw, .68rem);
+  padding: clamp(.62rem, .9vw, .84rem);
 }
 
 .presentation-overview-metric span {
@@ -538,7 +539,7 @@ body.is-presentation-mode-open {
 .presentation-overview-metric strong {
   overflow-wrap: anywhere;
   color: #ffffff;
-  font-size: clamp(1.05rem, 1.55vw, 1.62rem);
+  font-size: clamp(.98rem, 1.35vw, 1.42rem);
   line-height: 1.05;
 }
 
@@ -588,6 +589,7 @@ body.is-presentation-mode-open {
   grid-area: load;
   overflow: hidden;
   align-content: center;
+  grid-template-rows: none;
   gap: .72rem;
   background:
     radial-gradient(circle at 70% 16%, var(--presentation-load-glow, rgba(34, 197, 94, .3)), transparent 56%),

@@ -55,7 +55,17 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     getSessionForDate: () => ({
       title: "Training Session",
       theme: "Build Up",
-      blocks: [{ id: "b1", label: "Block 1", title: "Rondo", minutes: 30, pitchSize: "SSG", phase: "In Possession" }],
+      blocks: [
+        {
+          id: "b1",
+          label: "Block 1",
+          title: "Rondo",
+          minutes: 30,
+          pitchSize: "SSG",
+          phase: "In Possession",
+          principles: "- Scan early",
+        },
+      ],
     }),
     getPeriodizationDay: () => ({ physicalLoad: "Hard", pitchSize: "SSG", matchPhases: ["In Possession"] }),
     getAvailabilityItems: () => [
@@ -134,6 +144,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(blockHtml).not.toContain("presentation-player-rule");
   expect(blockHtml).not.toContain("Focus");
   expect(blockHtml).not.toContain("5v2");
+  expect(blockHtml).toContain("Team Principles & MG Principles");
+  expect(blockHtml).not.toContain("Coaching Points");
   expect(blockHtml).not.toContain("In this block");
   expect(blockHtml).toContain("Not in this block");
   expect(blockHtml).not.toContain("Ada Keeper");

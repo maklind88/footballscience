@@ -387,6 +387,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-player-rule")).toHaveCount(0);
   await expect(presentation).not.toContainText("Focus");
   await expect(presentation).not.toContainText("5v2");
+  await expect(presentation).toContainText("Team Principles & MG Principles");
+  await expect(presentation).not.toContainText("Coaching Points");
   await expect(presentation).not.toContainText("In this block");
   await expect(presentation).toContainText("Not in this block");
   await expect(presentation).not.toContainText("Madison White");

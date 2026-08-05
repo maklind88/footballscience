@@ -481,7 +481,7 @@ export function createPresentationModeRenderer(options = {}) {
             <div class="presentation-block-details">
               ${renderTextBlock("Objective", block.objective)}
               ${renderTextBlock("Organization", block.organization)}
-              ${renderTextBlock("Coaching Points", block.principles)}
+              ${renderTextBlock("Team Principles & MG Principles", block.principles)}
             </div>
           </div>
           <div class="presentation-block-players">

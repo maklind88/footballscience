@@ -58,7 +58,10 @@ body.is-presentation-mode-open .presentation-logo img {
   object-position: center;
 }
 
-body.is-presentation-mode-open .presentation-logo-corner,
+body.is-presentation-mode-open .presentation-logo-corner {
+  padding: 0.22rem;
+}
+
 body.is-presentation-mode-open .presentation-logo-hero {
-  padding: 0;
+  padding: clamp(0.7rem, 1.1vw, 1rem);
 }

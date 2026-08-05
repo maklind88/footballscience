@@ -55,6 +55,11 @@
   background: #f7faf7;
 }
 
+.analysis-room-team-mark.has-logo {
+  background: transparent;
+  border-color: transparent;
+}
+
 .analysis-room-team-mark img {
   display: block;
   box-sizing: border-box;

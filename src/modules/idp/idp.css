@@ -68,10 +68,17 @@
   width: 52px;
 }
 
+.idp-team-mark.has-logo {
+  background: transparent;
+  border-color: transparent;
+}
+
 .idp-team-mark img {
+  box-sizing: border-box;
   display: block;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  padding: 4px;
   width: 100%;
 }
 
@@ -1957,6 +1964,11 @@ body.is-dark-mode .idp-action-form .idp-secondary-action {
   color: var(--idp-ink);
 }
 
+body.is-dark-mode .idp-team-mark.has-logo {
+  background: transparent;
+  border-color: transparent;
+}
+
 @media (max-width: 1180px) {
   .idp-profile-cockpit,
   .idp-profile-intelligence {
@@ -3833,6 +3845,11 @@ body.is-dark-mode .idp-overview-head span:not(.idp-sidebar-count) {
   background: #f8fafc;
   border-color: rgba(17, 24, 39, .08);
   color: #2457a6;
+}
+
+.idp-shell.is-profile-mode .idp-team-mark.has-logo {
+  background: transparent;
+  border-color: transparent;
 }
 
 .idp-shell.is-profile-mode .idp-title-lockup p,

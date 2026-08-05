@@ -277,7 +277,20 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-pass-controls [data-presentation-add-info]")).toHaveText("New Slide");
   await expect(presentation.locator(".presentation-editor-strip")).not.toContainText("New info slide");
   await expect(presentation.locator('[data-presentation-info-field="fontSize"]')).toHaveValue("56");
+  await expect(presentation.locator('[data-presentation-info-field="fontSize"]')).toContainText("16 pt");
   await expect(presentation.locator('[data-presentation-info-field="fontSize"]')).toContainText("56 pt");
+  await expect(presentation.locator('[data-presentation-info-field="fontSize"]')).toContainText("128 pt");
+  const logoSizing = await presentation.evaluate(() => {
+    const toolbarLogo = document.querySelector(".presentation-control-brand .presentation-logo-corner");
+    const slideLogo = document.querySelector(".presentation-slide-info .presentation-corner-logo .presentation-logo-corner");
+    if (!toolbarLogo || !slideLogo) return null;
+    return {
+      slideWidth: slideLogo.getBoundingClientRect().width,
+      toolbarWidth: toolbarLogo.getBoundingClientRect().width,
+    };
+  });
+  expect(logoSizing?.slideWidth).toBeGreaterThan(58);
+  expect(logoSizing?.toolbarWidth).toBeLessThan(logoSizing?.slideWidth || 0);
   const infoTitleAboveRule = await presentation.evaluate(() => {
     const title = document.querySelector(".presentation-info-title");
     const rule = document.querySelector(".presentation-info-rule");

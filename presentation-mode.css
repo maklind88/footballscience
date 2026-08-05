@@ -354,9 +354,15 @@ body.is-presentation-mode-open {
 
 .presentation-corner-logo {
   position: absolute;
-  top: 1.25rem;
-  right: 1.25rem;
+  top: clamp(.95rem, 1.45vw, 1.35rem);
+  right: clamp(.95rem, 1.45vw, 1.35rem);
   z-index: 3;
+}
+
+.presentation-corner-logo .presentation-logo-corner {
+  width: clamp(4.1rem, 5.1vw, 6rem);
+  height: clamp(4.1rem, 5.1vw, 6rem);
+  padding: clamp(.34rem, .58vw, .56rem);
 }
 
 .presentation-slide-footer {
@@ -434,7 +440,7 @@ body.is-presentation-mode-open {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   gap: 1.1rem;
-  padding: clamp(2.5rem, 5vw, 5.5rem) clamp(2rem, 5vw, 5rem) 3.2rem;
+  padding: clamp(2.5rem, 5vw, 5.5rem) clamp(6rem, 8vw, 8rem) 3.2rem clamp(2rem, 5vw, 5rem);
   color: var(--presentation-info-color, #f8fafc);
 }
 
@@ -466,7 +472,7 @@ body.is-presentation-mode-open {
 }
 
 .presentation-info-body {
-  font-size: clamp(1.35rem, var(--presentation-info-body-size, 3.5rem), 7rem);
+  font-size: clamp(1rem, var(--presentation-info-body-size, 3.5rem), 8rem);
   font-weight: 820;
   line-height: 1.22;
 }
@@ -476,7 +482,7 @@ body.is-presentation-mode-open {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: clamp(.75rem, 1.35vw, 1.15rem);
-  padding-right: 4.8rem;
+  padding-right: clamp(5.8rem, 7vw, 7rem);
 }
 
 .presentation-section-heading {
@@ -828,7 +834,7 @@ body.is-presentation-mode-open {
     "visual copy"
     "visual players";
   gap: 1rem;
-  padding-right: 4.8rem;
+  padding-right: clamp(5.8rem, 7vw, 7rem);
   padding-bottom: 1.5rem;
 }
 
@@ -1250,8 +1256,14 @@ body.is-presentation-mode-open {
     height: 2.45rem;
   }
 
+  .presentation-corner-logo .presentation-logo-corner {
+    width: 3.15rem;
+    height: 3.15rem;
+    padding: .28rem;
+  }
+
   .presentation-info-sheet {
-    padding: 4rem 1rem 2.6rem;
+    padding: 4.25rem 1rem 2.6rem;
   }
 
   .presentation-info-title {

@@ -51,7 +51,7 @@ function normalizeFontSize(value = "") {
   if (!Number.isFinite(numericSize)) {
     return "56";
   }
-  return String(Math.min(112, Math.max(28, numericSize)));
+  return String(Math.min(128, Math.max(16, numericSize)));
 }
 
 function getSlideLabel(title = "", fallback = "Slide") {

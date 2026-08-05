@@ -133,7 +133,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(infoHtml).toContain("--presentation-info-body-size: 3.5rem;");
   const editorHtml = renderer.render({ ...model, editorOpen: true, slideIndex: infoSlide.index });
   expect(editorHtml).toContain("Text size");
+  expect(editorHtml).toContain("16 pt");
   expect(editorHtml).toContain("56 pt");
+  expect(editorHtml).toContain("128 pt");
   expect(editorHtml).not.toContain("New info slide");
   const blockHtml = renderer.renderBlockSlide(model, blockSlide);
   expect(blockHtml).toContain("data-exercise-visual");

@@ -20,7 +20,7 @@ function getTextColor(backgroundColor = "") {
   return 0.2126 * red + 0.7152 * green + 0.0722 * blue > 0.62 ? "#111827" : "#ffffff";
 }
 
-const infoFontSizeOptions = [28, 32, 36, 40, 44, 48, 56, 64, 72, 84, 96, 112];
+const infoFontSizeOptions = [16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 88, 96, 104, 112, 120, 128];
 
 function getSafeSize(value = "", fallback = "56") {
   const normalized = String(value || "").trim().toLowerCase();
@@ -36,7 +36,7 @@ function getSafeSize(value = "", fallback = "56") {
   if (!Number.isFinite(numericSize)) {
     return fallback;
   }
-  return String(Math.min(112, Math.max(28, numericSize)));
+  return String(Math.min(128, Math.max(16, numericSize)));
 }
 
 function getInfoSizeStyle(value = "") {

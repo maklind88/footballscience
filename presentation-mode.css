@@ -515,7 +515,7 @@ body.is-presentation-mode-open {
   grid-template-areas:
     "load phase video medical"
     "load pitch match medical"
-    "focus blocks blocks medical";
+    "blocks blocks blocks medical";
   gap: clamp(.52rem, .85vw, .82rem);
   align-content: stretch;
 }
@@ -589,10 +589,6 @@ body.is-presentation-mode-open {
 
 .presentation-overview-metric.is-match-day {
   grid-area: match;
-}
-
-.presentation-overview-metric.is-focus {
-  grid-area: focus;
 }
 
 .presentation-overview-metric.is-load {

@@ -115,6 +115,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).toContain("presentation-load-needle");
   expect(overviewHtml).toContain("Physical load: Hard");
   expect(overviewHtml).toContain("is-load is-hard");
+  expect(overviewHtml).toContain("Planned load");
+  expect(overviewHtml).not.toContain("<strong>Hard</strong>");
   expect(overviewHtml.indexOf("is-load")).toBeLessThan(overviewHtml.indexOf("is-phase"));
   expect(overviewHtml).toContain("presentation-medical-overview");
   expect(overviewHtml).not.toContain("<header>");
@@ -124,11 +126,13 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).toContain("0%");
   expect(overviewHtml).toContain("presentation-block-flow");
   expect(overviewHtml).not.toContain("30 min");
+  expect(overviewHtml).not.toContain("Ready");
   expect(overviewHtml).toContain("periodization-pitch-icon is-ssg");
   expect(overviewHtml).toContain("periodization-pitch-highlight");
   expect(overviewHtml.indexOf("is-pitch")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));
   expect(overviewHtml.indexOf("is-match-day")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));
-  expect(overviewHtml).toContain("is-focus");
+  expect(overviewHtml).not.toContain("is-focus");
+  expect(overviewHtml).not.toContain("Main Focus");
   const infoSlide = model.slides.find((slide) => slide.type === "info");
   const infoHtml = renderer.renderInfoSlide(model, infoSlide);
   expect(infoHtml.indexOf("presentation-info-title")).toBeLessThan(infoHtml.indexOf("presentation-info-rule"));

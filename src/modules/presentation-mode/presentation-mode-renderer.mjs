@@ -346,8 +346,7 @@ export function createPresentationModeRenderer(options = {}) {
             <span class="presentation-load-pin"></span>
           </span>
           <span class="presentation-load-copy">
-            <strong>${escapeHtml(load.label)}</strong>
-            <small>Planned today</small>
+            <small>Planned load</small>
           </span>
         </div>
       </div>
@@ -417,18 +416,18 @@ export function createPresentationModeRenderer(options = {}) {
             ${renderOverviewMetric("Match Day", periodization.matchDay || "Not set", "is-match-day")}
             <div class="presentation-block-flow">
               ${model.blocks
-                .map(
-                  (block, index) => `
+                .map((block, index) => {
+                  const blockMeta = [block.pitchSize || "", block.phase || ""].filter(Boolean).join(" / ");
+                  return `
                     <article>
                       <span>${escapeHtml(block.label || `Block ${index + 1}`)}</span>
                       <strong>${escapeHtml(block.title || "Exercise")}</strong>
-                      <small>${escapeHtml([block.pitchSize || "", block.phase || ""].filter(Boolean).join(" / ") || "Ready")}</small>
+                      ${blockMeta ? `<small>${escapeHtml(blockMeta)}</small>` : ""}
                     </article>
-                  `
-                )
+                  `;
+                })
                 .join("") || `<article><span>Plan</span><strong>No blocks planned</strong><small>Open Session Planner to build the training.</small></article>`}
             </div>
-            ${renderOverviewMetric("Main Focus", periodization.mainFocus || model.sessionTheme || "Not set", "is-focus")}
             ${renderMedicalRecommendationsPanel(model.medicalRecommendations || [])}
           </div>
         </section>

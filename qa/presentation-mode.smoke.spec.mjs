@@ -306,9 +306,12 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation).toContainText("Training Overview");
   await expect(presentation.locator(".presentation-slide-overview .presentation-section-heading h2")).toHaveCount(0);
   await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-gauge")).toHaveCount(1);
-  await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-copy strong")).toHaveText("High");
+  await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-copy")).toHaveText("Planned load");
+  await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-copy strong")).toHaveCount(0);
   await expect(presentation.locator(".presentation-overview-metric.is-pitch")).toContainText("2/3 pitch");
   await expect(presentation.locator(".presentation-overview-metric.is-pitch .periodization-pitch-icon.is-2-3-pitch")).toBeVisible();
+  await expect(presentation.locator(".presentation-overview-metric.is-focus")).toHaveCount(0);
+  await expect(presentation).not.toContainText("Main Focus");
   await expect(presentation.locator(".presentation-medical-overview")).toBeVisible();
   await expect(presentation.locator(".presentation-medical-overview header")).toHaveCount(0);
   await expect(presentation.locator(".presentation-medical-overview")).not.toContainText("Medical Plan");
@@ -401,16 +404,18 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   expect(overviewMedicalLayout?.widthRatio).toBeGreaterThan(0.46);
   expect(overviewMedicalLayout?.widthRatio).toBeLessThan(0.53);
   const overviewBlocksLayout = await presentation.evaluate(() => {
+    const load = document.querySelector(".presentation-overview-metric.is-load");
     const pitch = document.querySelector(".presentation-overview-metric.is-pitch");
     const matchDay = document.querySelector(".presentation-overview-metric.is-match-day");
     const blocks = document.querySelector(".presentation-block-flow");
     const articles = Array.from(document.querySelectorAll(".presentation-block-flow article"));
-    if (!pitch || !matchDay || !blocks || articles.length === 0) return null;
+    if (!load || !pitch || !matchDay || !blocks || articles.length === 0) return null;
+    const loadRect = load.getBoundingClientRect();
     const pitchRect = pitch.getBoundingClientRect();
     const matchRect = matchDay.getBoundingClientRect();
     const blocksRect = blocks.getBoundingClientRect();
     const articleRects = articles.map((article) => article.getBoundingClientRect());
-    const combinedLeft = Math.min(pitchRect.left, matchRect.left);
+    const combinedLeft = Math.min(loadRect.left, pitchRect.left, matchRect.left);
     const combinedRight = Math.max(pitchRect.right, matchRect.right);
     return {
       sameLeft: Math.abs(blocksRect.left - combinedLeft) <= 2,
@@ -426,7 +431,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     rowsAreWide: true,
   });
   await expect(presentation).not.toContainText("10 min");
-  await expect(presentation).toContainText("High");
+  await expect(presentation).not.toContainText("Ready");
+  await expect(presentation).not.toContainText("High");
 
   await page.keyboard.press("ArrowRight");
   await expect(presentation).toContainText("Possession (7v3)");

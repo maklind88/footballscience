@@ -76,19 +76,17 @@ function getLoadMeterModel(value = "") {
   return { label, level: 3, tone: "moderate", color: "#d9a514", soft: "rgba(217, 165, 20, .18)", glow: "rgba(217, 165, 20, .3)", angle: 0 };
 }
 
-function getPitchSizeTone(value = "") {
+function getPitchTone(value = "") {
   const key = String(value || "").trim().toLowerCase();
   if (!key || key === "not set" || key === "none") return "empty";
   if (key.includes("gym") || key.includes("recovery")) return "gym-recovery";
-  if (key.includes("mixed")) return "mixed";
-  if (key.includes("2/3") || key.includes("two third")) return "two-thirds";
+  if (key === "ssg" || key.includes("small")) return "ssg";
+  if (key === "msg" || key.includes("9")) return "msg";
+  if (key === "bsg" || key.includes("full")) return "bsg";
+  if (key === "lsg" || key.includes("large")) return "lsg";
   if (key.includes("half")) return "half-pitch";
   if (key.includes("final")) return "final-third";
-  if (key === "ssg" || key.includes("small") || key.includes("5v") || key.includes("20m")) return "ssg";
-  if (key === "msg" || key.includes("medium") || key.includes("7v") || key.includes("9v") || key.includes("30m")) return "msg";
-  if (key === "lsg" || key.includes("large")) return "lsg";
-  if (key === "bsg" || key.includes("big") || key.includes("full") || key.includes("11v")) return "full";
-  return "custom";
+  return key.replace(/[^a-z0-9]+/g, "-");
 }
 
 function getParticipationTone(participation) {
@@ -319,15 +317,17 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderPitchSizeMetric(value = "") {
     const label = String(value || "").trim() || "Not set";
-    const tone = getPitchSizeTone(label);
+    const tone = getPitchTone(label);
     return `
-      <div class="presentation-overview-metric is-pitch is-pitch-size is-${escapeHtml(tone)}">
+      <div class="presentation-overview-metric is-pitch is-pitch-size">
         <span>Pitch</span>
-        <strong>${escapeHtml(label)}</strong>
-        <span class="presentation-pitch-size-map" aria-label="${escapeHtml(`Pitch size: ${label}`)}" role="img">
-          <span class="presentation-pitch-size-lines"></span>
-          <span class="presentation-pitch-size-highlight"></span>
-        </span>
+        <strong>
+          <span class="periodization-pitch-icon is-${escapeHtml(tone)}" aria-hidden="true">
+            <span class="periodization-pitch-lines"></span>
+            <span class="periodization-pitch-highlight"></span>
+          </span>
+          ${escapeHtml(label)}
+        </strong>
       </div>
     `;
   }

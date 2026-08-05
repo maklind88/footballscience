@@ -577,116 +577,14 @@ body.is-presentation-mode-open {
 }
 
 .presentation-overview-metric.is-pitch-size {
-  gap: clamp(.2rem, .42vw, .36rem);
   overflow: hidden;
 }
 
 .presentation-overview-metric.is-pitch-size strong {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
   font-size: clamp(.86rem, 1.12vw, 1.18rem);
-}
-
-.presentation-pitch-size-map {
-  position: relative;
-  min-height: 2.15rem;
-  width: min(100%, 7.2rem);
-  align-self: stretch;
-  display: block;
-  overflow: hidden;
-  border: 1px solid rgba(240, 253, 244, .55);
-  border-radius: 6px;
-  background:
-    repeating-linear-gradient(90deg, rgba(134, 239, 172, .22) 0 16%, rgba(34, 197, 94, .12) 16% 32%),
-    linear-gradient(135deg, rgba(21, 128, 61, .82), rgba(20, 83, 45, .92));
-  box-shadow: inset 0 0 0 1px rgba(8, 15, 20, .22);
-}
-
-.presentation-pitch-size-lines,
-.presentation-pitch-size-lines::before,
-.presentation-pitch-size-lines::after,
-.presentation-pitch-size-highlight {
-  position: absolute;
-  pointer-events: none;
-}
-
-.presentation-pitch-size-lines {
-  inset: .24rem;
-  border: 1px solid rgba(248, 250, 252, .82);
-}
-
-.presentation-pitch-size-lines::before {
-  content: "";
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  border-left: 1px solid rgba(248, 250, 252, .78);
-  transform: translateX(-50%);
-}
-
-.presentation-pitch-size-lines::after {
-  content: "";
-  top: 50%;
-  left: 50%;
-  width: 1.25rem;
-  height: 1.25rem;
-  border: 1px solid rgba(248, 250, 252, .76);
-  border-radius: 999px;
-  transform: translate(-50%, -50%);
-}
-
-.presentation-pitch-size-highlight {
-  inset: 18% 16%;
-  border: 2px solid #38bdf8;
-  border-radius: 5px;
-  background: rgba(56, 189, 248, .22);
-  box-shadow: 0 0 18px rgba(56, 189, 248, .24);
-}
-
-.presentation-overview-metric.is-ssg .presentation-pitch-size-highlight {
-  inset: 34% 36% 25%;
-}
-
-.presentation-overview-metric.is-msg .presentation-pitch-size-highlight {
-  inset: 25% 25% 18%;
-}
-
-.presentation-overview-metric.is-lsg .presentation-pitch-size-highlight {
-  inset: 15% 12% 12%;
-}
-
-.presentation-overview-metric.is-full .presentation-pitch-size-highlight,
-.presentation-overview-metric.is-custom .presentation-pitch-size-highlight {
-  inset: .38rem;
-}
-
-.presentation-overview-metric.is-half-pitch .presentation-pitch-size-highlight {
-  inset: .38rem .38rem 50%;
-}
-
-.presentation-overview-metric.is-two-thirds .presentation-pitch-size-highlight {
-  inset: .38rem .38rem 34%;
-}
-
-.presentation-overview-metric.is-final-third .presentation-pitch-size-highlight {
-  inset: .38rem .38rem 64%;
-}
-
-.presentation-overview-metric.is-mixed .presentation-pitch-size-highlight {
-  inset: 18% 12%;
-  border-style: dashed;
-}
-
-.presentation-overview-metric.is-empty .presentation-pitch-size-highlight,
-.presentation-overview-metric.is-gym-recovery .presentation-pitch-size-highlight {
-  inset: 35% 20%;
-  border-color: rgba(226, 232, 240, .52);
-  background: rgba(148, 163, 184, .16);
-  box-shadow: none;
-}
-
-.presentation-overview-metric.is-gym-recovery .presentation-pitch-size-map {
-  background:
-    repeating-linear-gradient(135deg, rgba(148, 163, 184, .14) 0 .45rem, rgba(148, 163, 184, .26) .45rem .9rem),
-    linear-gradient(135deg, rgba(51, 65, 85, .9), rgba(15, 23, 42, .94));
 }
 
 .presentation-overview-metric.is-match-day {

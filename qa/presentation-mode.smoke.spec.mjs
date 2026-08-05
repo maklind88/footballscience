@@ -308,7 +308,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-gauge")).toHaveCount(1);
   await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-copy strong")).toHaveText("High");
   await expect(presentation.locator(".presentation-overview-metric.is-pitch")).toContainText("2/3 pitch");
-  await expect(presentation.locator(".presentation-overview-metric.is-pitch.is-two-thirds .presentation-pitch-size-map")).toBeVisible();
+  await expect(presentation.locator(".presentation-overview-metric.is-pitch .periodization-pitch-icon.is-2-3-pitch")).toBeVisible();
   await expect(presentation.locator(".presentation-medical-overview")).toBeVisible();
   await expect(presentation.locator(".presentation-medical-overview header")).toHaveCount(0);
   await expect(presentation.locator(".presentation-medical-overview")).not.toContainText("Medical Plan");
@@ -352,7 +352,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const loadRect = load.getBoundingClientRect();
     return {
       compactCards: cards.every((card) => card.getBoundingClientRect().height <= loadRect.height * 0.58),
-      pitchHasVisual: Boolean(document.querySelector(".presentation-overview-metric.is-pitch .presentation-pitch-size-map")),
+      pitchHasVisual: Boolean(document.querySelector(".presentation-overview-metric.is-pitch .periodization-pitch-icon")),
       valuesNearTop: cards.every((card) => {
         const cardRect = card.getBoundingClientRect();
         const valueRect = card.querySelector("strong")?.getBoundingClientRect();

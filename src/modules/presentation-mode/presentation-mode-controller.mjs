@@ -1,3 +1,8 @@
+import {
+  getPresentationThemePreset,
+  normalizePresentationSlideStyle,
+} from "./presentation-mode-themes.mjs";
+
 export const dashboardPresentationStorageKey = "football-dashboard-presentation-mode-v1";
 
 const presentationSchema = "footballscience-presentation-mode-v1";
@@ -84,6 +89,15 @@ function createDefaultInfoSlide(dateValue = "") {
   };
 }
 
+function normalizeSlideStyles(slideStyles = {}) {
+  const styles = slideStyles && typeof slideStyles === "object" && !Array.isArray(slideStyles) ? slideStyles : {};
+  return Object.fromEntries(
+    Object.entries(styles)
+      .map(([slideId, style]) => [String(slideId || "").trim(), normalizePresentationSlideStyle(style)])
+      .filter(([slideId]) => slideId)
+  );
+}
+
 function normalizeInfoSlide(slide = {}, index = 0, dateValue = "") {
   const fallback = createDefaultInfoSlide(dateValue);
   return {
@@ -104,6 +118,7 @@ function normalizeDeck(deck = {}, dateValue = "") {
   return {
     updatedAt: String(deck.updatedAt || "").trim(),
     infoSlides: hasSavedInfoSlides ? infoSlides : [createDefaultInfoSlide(dateValue)],
+    slideStyles: normalizeSlideStyles(deck.slideStyles),
   };
 }
 
@@ -336,26 +351,45 @@ export function createPresentationModeController(dependencies = {}) {
     };
   }
 
+  function applySlideStyle(deck, slide, fallbackStyle = {}) {
+    const style = normalizePresentationSlideStyle(deck.slideStyles?.[slide.id], fallbackStyle);
+    return {
+      ...slide,
+      accentColor: style.accentColor,
+      style,
+    };
+  }
+
   function buildSlides(deck, session, dateValue) {
     const blocks = Array.isArray(session?.blocks) ? session.blocks : [];
     return [
-      { id: "cover", type: "cover", label: "Cover", accentColor: "#22c55e" },
+      applySlideStyle(deck, { id: "cover", type: "cover", label: "Cover" }, { accentColor: "#22c55e" }),
       ...deck.infoSlides.map((infoSlide, index) => ({
-        id: infoSlide.id,
-        type: "info",
-        label: getSlideLabel(infoSlide.title, index ? `Slide ${index + 1}` : "Info"),
-        accentColor: infoSlide.accentColor,
-        infoSlide,
+        ...applySlideStyle(
+          deck,
+          {
+            id: infoSlide.id,
+            type: "info",
+            label: getSlideLabel(infoSlide.title, index ? `Slide ${index + 1}` : "Info"),
+            infoSlide,
+          },
+          { accentColor: infoSlide.accentColor, textColor: infoSlide.textColor }
+        ),
       })),
-      { id: "overview", type: "overview", label: "Overview", accentColor: "#22c55e" },
-      ...blocks.map((block, index) => ({
-        id: block.id || `block-${index + 1}`,
-        type: "block",
-        label: block.label || `Block ${index + 1}`,
-        accentColor: "#f59e0b",
-        block,
-        playerSummary: getPlayerSummaryForBlock(dateValue, block, index),
-      })),
+      applySlideStyle(deck, { id: "overview", type: "overview", label: "Overview" }, { accentColor: "#22c55e" }),
+      ...blocks.map((block, index) =>
+        applySlideStyle(
+          deck,
+          {
+            id: block.id || `block-${index + 1}`,
+            type: "block",
+            label: block.label || `Block ${index + 1}`,
+            block,
+            playerSummary: getPlayerSummaryForBlock(dateValue, block, index),
+          },
+          { accentColor: "#f59e0b", glowColor: "#b45309" }
+        )
+      ),
     ].map((slide, index) => ({ ...slide, index }));
   }
 
@@ -461,10 +495,74 @@ export function createPresentationModeController(dependencies = {}) {
             )
           : slide
       ),
+      slideStyles:
+        field === "accentColor" || field === "textColor"
+          ? {
+              ...deck.slideStyles,
+              [slideId]: normalizePresentationSlideStyle(
+                {
+                  ...(deck.slideStyles?.[slideId] || {}),
+                  theme: "custom",
+                  [field]: normalizeHexColor(value, deck.slideStyles?.[slideId]?.[field]),
+                },
+                deck.slideStyles?.[slideId]
+              ),
+            }
+          : deck.slideStyles,
     }));
     if (options.render) {
       render();
     }
+  }
+
+  function updateCurrentSlideStyle(field, value) {
+    const allowedFields = new Set(["theme", "accentColor", "backgroundColor", "glowColor", "textColor"]);
+    if (!allowedFields.has(field)) {
+      return;
+    }
+    const currentSlide = buildModel().slides[state.slideIndex];
+    if (!currentSlide?.id) {
+      return;
+    }
+    writeDeckForDate(state.dateValue, (deck) => {
+      const currentStyle = normalizePresentationSlideStyle(deck.slideStyles?.[currentSlide.id], currentSlide.style);
+      let nextStyle;
+      if (field === "theme") {
+        const themeValue = String(value || "").trim();
+        if (themeValue === "custom") {
+          nextStyle = normalizePresentationSlideStyle({ ...currentStyle, theme: "custom" }, currentSlide.style);
+        } else {
+          const preset = getPresentationThemePreset(themeValue);
+          nextStyle = normalizePresentationSlideStyle(
+            {
+              theme: preset.value,
+              accentColor: preset.accentColor,
+              backgroundColor: preset.backgroundColor,
+              glowColor: preset.glowColor,
+              textColor: preset.textColor,
+            },
+            currentSlide.style
+          );
+        }
+      } else {
+        nextStyle = normalizePresentationSlideStyle(
+          {
+            ...currentStyle,
+            theme: "custom",
+            [field]: normalizeHexColor(value, currentStyle[field]),
+          },
+          currentSlide.style
+        );
+      }
+      return {
+        ...deck,
+        slideStyles: {
+          ...deck.slideStyles,
+          [currentSlide.id]: nextStyle,
+        },
+      };
+    });
+    render();
   }
 
   function requestNewSlideTitle(defaultTitle = "New Slide") {
@@ -526,6 +624,7 @@ export function createPresentationModeController(dependencies = {}) {
     writeDeckForDate(state.dateValue, (currentDeck) => ({
       ...currentDeck,
       infoSlides: currentDeck.infoSlides.filter((slide) => slide.id !== slideId),
+      slideStyles: Object.fromEntries(Object.entries(currentDeck.slideStyles || {}).filter(([styleSlideId]) => styleSlideId !== slideId)),
     }));
     const nextModel = buildModel();
     const nextInfoIndexes = nextModel.slides.map((slide, index) => (slide.type === "info" ? index : -1)).filter((index) => index >= 0);
@@ -607,17 +706,26 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     const infoField = event.target.closest("[data-presentation-info-field]");
-    if (!infoField) {
+    if (infoField) {
+      const field = infoField.dataset.presentationInfoField;
+      const slideId = infoField.dataset.presentationInfoId;
+      const shouldRender = field === "fontSize" || field === "accentColor" || field === "textColor";
+      updateInfoSlideField(slideId, field, infoField.value, { render: shouldRender });
       return;
     }
-    const field = infoField.dataset.presentationInfoField;
-    const slideId = infoField.dataset.presentationInfoId;
-    const shouldRender = field === "fontSize" || field === "accentColor" || field === "textColor";
-    updateInfoSlideField(slideId, field, infoField.value, { render: shouldRender });
+    const styleField = event.target.closest("[data-presentation-style-field]");
+    if (styleField && styleField.type === "color") {
+      updateCurrentSlideStyle(styleField.dataset.presentationStyleField, styleField.value);
+    }
   }
 
   function handleChange(event) {
     if (!state.isOpen || !root?.contains(event.target)) {
+      return;
+    }
+    const styleField = event.target.closest("[data-presentation-style-field]");
+    if (styleField) {
+      updateCurrentSlideStyle(styleField.dataset.presentationStyleField, styleField.value);
       return;
     }
     const dateInput = event.target.closest("[data-presentation-date-input]");

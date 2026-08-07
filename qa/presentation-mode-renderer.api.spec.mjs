@@ -96,6 +96,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(harness.root.innerHTML).toMatch(/<nav class="presentation-slide-tabs"[\s\S]*<div class="presentation-footer-pager">/);
   const controlHtml = renderer.renderControlBar(model);
   expect(controlHtml).toContain("<strong>Presentation Mode</strong>");
+  expect(controlHtml).toContain("data-presentation-theme-menu");
+  expect(controlHtml).toContain('data-presentation-style-field="theme"');
+  expect(controlHtml.indexOf("data-presentation-theme-menu")).toBeLessThan(controlHtml.indexOf("data-presentation-add-info"));
   expect(controlHtml).toContain("data-presentation-add-info");
   expect(controlHtml).toContain(">New Slide</button>");
   expect(controlHtml).not.toContain(model.sessionTitle);
@@ -103,6 +106,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(harness.root.innerHTML).not.toContain("data-presentation-pass-select");
   expect(harness.root.innerHTML).toContain("data-presentation-date-input");
   const coverHtml = renderer.renderCoverSlide(model);
+  expect(coverHtml).toContain("is-theme-classic");
+  expect(coverHtml).toContain("--presentation-slide-bg: #08120f");
   expect(coverHtml).not.toContain(`<span>${model.passTypeLabel}</span>`);
   expect(coverHtml).not.toContain("presentation-cover-metrics");
   expect(coverHtml).not.toContain("<small>Blocks</small>");
@@ -174,6 +179,28 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     title: "Daily Info",
     body: "- Arrival",
   });
+
+  controller.writeDeckForDate("2026-06-02", (deck) => ({
+    ...deck,
+    slideStyles: {
+      ...deck.slideStyles,
+      cover: {
+        theme: "matchday",
+        accentColor: "#f59e0b",
+        textColor: "#ffffff",
+        backgroundColor: "#14110b",
+        glowColor: "#d92d3f",
+      },
+    },
+  }));
+  const styledModel = controller.buildModel();
+  expect(styledModel.slides[0].style).toMatchObject({
+    theme: "matchday",
+    accentColor: "#f59e0b",
+    backgroundColor: "#14110b",
+    glowColor: "#d92d3f",
+  });
+  expect(renderer.renderCoverSlide(styledModel)).toContain("is-theme-matchday");
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({
     ...deck,

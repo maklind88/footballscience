@@ -1,3 +1,8 @@
+import {
+  normalizePresentationSlideStyle,
+  presentationThemeOptions,
+} from "./presentation-mode-themes.mjs";
+
 function defaultEscapeHtml(value = "") {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -129,6 +134,50 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function renderThemeControl(slide = {}) {
+    const style = normalizePresentationSlideStyle(slide.style, { accentColor: slide.accentColor });
+    return `
+      <details class="presentation-theme-menu" data-presentation-theme-menu>
+        <summary class="presentation-tool-button presentation-theme-button">Theme</summary>
+        <div class="presentation-theme-popover" role="group" aria-label="Slide theme">
+          <label class="presentation-theme-select">
+            <span>Theme</span>
+            <select data-presentation-style-field="theme" aria-label="Slide theme preset">
+              ${presentationThemeOptions
+                .map(
+                  (theme) =>
+                    `<option value="${escapeHtml(theme.value)}" ${style.theme === theme.value ? "selected" : ""}>${escapeHtml(theme.label)}</option>`
+                )
+                .join("")}
+            </select>
+          </label>
+          <div class="presentation-theme-swatches" aria-hidden="true">
+            <i style="--swatch: ${escapeHtml(style.accentColor)}"></i>
+            <i style="--swatch: ${escapeHtml(style.backgroundColor)}"></i>
+            <i style="--swatch: ${escapeHtml(style.glowColor)}"></i>
+            <i style="--swatch: ${escapeHtml(style.textColor)}"></i>
+          </div>
+          <label>
+            <span>Accent</span>
+            <input type="color" value="${escapeHtml(style.accentColor)}" data-presentation-style-field="accentColor" aria-label="Slide accent color" />
+          </label>
+          <label>
+            <span>Background</span>
+            <input type="color" value="${escapeHtml(style.backgroundColor)}" data-presentation-style-field="backgroundColor" aria-label="Slide background color" />
+          </label>
+          <label>
+            <span>Glow</span>
+            <input type="color" value="${escapeHtml(style.glowColor)}" data-presentation-style-field="glowColor" aria-label="Slide glow color" />
+          </label>
+          <label>
+            <span>Text</span>
+            <input type="color" value="${escapeHtml(style.textColor)}" data-presentation-style-field="textColor" aria-label="Slide text color" />
+          </label>
+        </div>
+      </details>
+    `;
+  }
+
   function renderControlBar(model = {}) {
     const slide = model.slides[model.slideIndex] || model.slides[0];
     return `
@@ -140,6 +189,7 @@ export function createPresentationModeRenderer(options = {}) {
           </div>
         </div>
         <div class="presentation-pass-controls">
+          ${renderThemeControl(slide)}
           <button type="button" class="presentation-tool-button presentation-new-slide-button" data-presentation-add-info>New Slide</button>
           <label>
             <input type="date" value="${escapeHtml(model.dateValue)}" data-presentation-date-input aria-label="Presentation date" />
@@ -164,6 +214,10 @@ export function createPresentationModeRenderer(options = {}) {
       return "";
     }
     const infoSlide = slide.infoSlide || {};
+    const slideStyle = normalizePresentationSlideStyle(slide.style, {
+      accentColor: infoSlide.accentColor,
+      textColor: infoSlide.textColor,
+    });
     const activeSize = getSafeSize(infoSlide.fontSize);
     const sizeOptions = infoFontSizeOptions.includes(Number(activeSize))
       ? infoFontSizeOptions
@@ -185,11 +239,11 @@ export function createPresentationModeRenderer(options = {}) {
         </label>
         <label>
           <span>Accent</span>
-          <input type="color" value="${escapeHtml(normalizeHexColor(infoSlide.accentColor, "#38bdf8"))}" data-presentation-info-field="accentColor" data-presentation-info-id="${escapeHtml(infoSlide.id)}" />
+          <input type="color" value="${escapeHtml(normalizeHexColor(slideStyle.accentColor, "#38bdf8"))}" data-presentation-info-field="accentColor" data-presentation-info-id="${escapeHtml(infoSlide.id)}" />
         </label>
         <label>
           <span>Text</span>
-          <input type="color" value="${escapeHtml(normalizeHexColor(infoSlide.textColor, "#f8fafc"))}" data-presentation-info-field="textColor" data-presentation-info-id="${escapeHtml(infoSlide.id)}" />
+          <input type="color" value="${escapeHtml(normalizeHexColor(slideStyle.textColor, "#f8fafc"))}" data-presentation-info-field="textColor" data-presentation-info-id="${escapeHtml(infoSlide.id)}" />
         </label>
       </section>
     `;
@@ -235,10 +289,11 @@ export function createPresentationModeRenderer(options = {}) {
   }
 
   function renderSlideFrame(model = {}, slide = {}, body = "") {
+    const style = normalizePresentationSlideStyle(slide.style, { accentColor: slide.accentColor || model.accentColor });
     return `
       <section
-        class="presentation-slide presentation-slide-${escapeHtml(slide.type || "blank")}"
-        style="--presentation-accent: ${escapeHtml(normalizeHexColor(slide.accentColor || model.accentColor, "#38bdf8"))};"
+        class="presentation-slide presentation-slide-${escapeHtml(slide.type || "blank")} is-theme-${escapeHtml(style.theme)}"
+        style="--presentation-accent: ${escapeHtml(style.accentColor)}; --presentation-slide-bg: ${escapeHtml(style.backgroundColor)}; --presentation-slide-glow: ${escapeHtml(style.glowColor)}; --presentation-slide-text: ${escapeHtml(style.textColor)};"
         aria-label="${escapeHtml(slide.label || "Presentation slide")}"
       >
         ${slide.type === "cover" ? "" : `<div class="presentation-corner-logo">${renderLogo(model.brand)}</div>`}
@@ -251,10 +306,16 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
-  function renderCoverSlide(model = {}) {
+  function renderCoverSlide(model = {}, slide = {}) {
+    const coverSlide = slide.id ? slide : model.slides?.find((item) => item.type === "cover") || {};
     return renderSlideFrame(
       model,
-      { type: "cover", label: "Cover", accentColor: model.accentColor },
+      {
+        type: "cover",
+        label: "Cover",
+        accentColor: coverSlide.accentColor || model.accentColor,
+        style: coverSlide.style,
+      },
       `
         <div class="presentation-cover-mark">
           ${renderLogo(model.brand, "hero")}
@@ -269,8 +330,12 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderInfoSlide(model = {}, slide = {}) {
     const infoSlide = slide.infoSlide || {};
-    const accentColor = normalizeHexColor(infoSlide.accentColor, "#38bdf8");
-    const textColor = normalizeHexColor(infoSlide.textColor, "#f8fafc");
+    const slideStyle = normalizePresentationSlideStyle(slide.style, {
+      accentColor: infoSlide.accentColor,
+      textColor: infoSlide.textColor,
+    });
+    const accentColor = normalizeHexColor(slideStyle.accentColor, "#38bdf8");
+    const textColor = normalizeHexColor(slideStyle.textColor, "#f8fafc");
     const readonly = model.editorOpen && slide.index === model.slideIndex ? "" : "readonly";
     return renderSlideFrame(
       model,
@@ -391,15 +456,21 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
-  function renderOverviewSlide(model = {}) {
+  function renderOverviewSlide(model = {}, slide = {}) {
     const periodization = model.periodization || {};
+    const overviewSlide = slide.id ? slide : model.slides?.find((item) => item.type === "overview") || {};
     const phaseLines = [
       ...(Array.isArray(periodization.matchPhases) ? periodization.matchPhases : []),
       ...(Array.isArray(periodization.subPhases) ? periodization.subPhases : []),
     ].filter(Boolean);
     return renderSlideFrame(
       model,
-      { type: "overview", label: "Overview", accentColor: "#22c55e" },
+      {
+        type: "overview",
+        label: "Overview",
+        accentColor: overviewSlide.accentColor || "#22c55e",
+        style: overviewSlide.style,
+      },
       `
         <section class="presentation-overview">
           <div class="presentation-section-heading">
@@ -492,7 +563,12 @@ export function createPresentationModeRenderer(options = {}) {
       .join(" ");
     return renderSlideFrame(
       model,
-      { type: "block", label: slide.label, accentColor: "#f59e0b" },
+      {
+        type: "block",
+        label: slide.label,
+        accentColor: slide.accentColor || "#f59e0b",
+        style: slide.style,
+      },
       `
         <section class="presentation-block-layout">
           <div class="presentation-block-visual">
@@ -523,9 +599,9 @@ export function createPresentationModeRenderer(options = {}) {
     if (!slide) {
       return "";
     }
-    if (slide.type === "cover") return renderCoverSlide(model);
+    if (slide.type === "cover") return renderCoverSlide(model, slide);
     if (slide.type === "info") return renderInfoSlide(model, slide);
-    if (slide.type === "overview") return renderOverviewSlide(model);
+    if (slide.type === "overview") return renderOverviewSlide(model, slide);
     if (slide.type === "block") return renderBlockSlide(model, slide);
     return renderSlideFrame(model, slide, "");
   }

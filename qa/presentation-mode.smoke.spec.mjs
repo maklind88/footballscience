@@ -216,7 +216,28 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator("[data-presentation-date-input]")).toHaveValue(dateValue);
   await expect(presentation.locator(".presentation-control-brand strong")).toHaveText("Presentation Mode");
   await expect(presentation.locator(".presentation-control-brand")).not.toContainText("Matchday Presentation Training");
-  await expect(presentation.locator(".presentation-pass-controls span")).toHaveCount(0);
+  await expect(presentation.locator(".presentation-pass-controls label > span", { hasText: /^Date$/ })).toHaveCount(0);
+  await expect(presentation.locator("[data-presentation-theme-menu]")).toBeVisible();
+  await expect(presentation.locator("[data-presentation-theme-menu] summary")).toHaveText("Theme");
+  await expect(presentation.locator("[data-presentation-style-field='theme']")).toHaveValue("classic");
+  await presentation.locator("[data-presentation-theme-menu] summary").click();
+  await presentation.locator("[data-presentation-style-field='theme']").selectOption("matchday");
+  await expect(presentation.locator(".presentation-slide-cover")).toHaveClass(/is-theme-matchday/);
+  const coverTheme = await presentation.locator(".presentation-slide-cover").evaluate((slide) => {
+    const style = getComputedStyle(slide);
+    return {
+      accent: style.getPropertyValue("--presentation-accent").trim(),
+      background: style.getPropertyValue("--presentation-slide-bg").trim(),
+      glow: style.getPropertyValue("--presentation-slide-glow").trim(),
+      text: style.getPropertyValue("--presentation-slide-text").trim(),
+    };
+  });
+  expect(coverTheme).toMatchObject({
+    accent: "#f59e0b",
+    background: "#14110b",
+    glow: "#d92d3f",
+    text: "#ffffff",
+  });
   await expect(presentation.locator(".presentation-cover-copy > span")).toHaveCount(0);
   await expect(presentation.locator(".presentation-cover-metrics")).toHaveCount(0);
   const coverLayout = await presentation.evaluate(() => {

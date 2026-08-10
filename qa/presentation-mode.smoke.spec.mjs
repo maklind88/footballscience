@@ -321,18 +321,41 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-pass-controls [data-presentation-add-info]")).toHaveText("New Slide");
   await expect(textToolbar).not.toContainText("New info slide");
   await expect(textToolbar.locator("[data-presentation-add-text-box]")).toBeVisible();
-  await expect(textToolbar.locator("[aria-label='Insert check']")).toBeVisible();
+  await expect(textToolbar.locator("[data-presentation-symbol-menu]")).toBeVisible();
+  await expect(textToolbar.locator("[data-presentation-shape-menu]")).toBeVisible();
+  await expect(textToolbar.locator("[data-presentation-delete-text-box]")).toHaveCount(0);
+  await expect(textToolbar.locator("[aria-label='Insert check']")).toBeHidden();
   await expect(textToolbar.locator("[data-presentation-active-font-size]")).toHaveValue("");
   await expect(textToolbar.locator("[data-presentation-active-font-size]")).toContainText("16 pt");
   await expect(textToolbar.locator("[data-presentation-active-font-size]")).toContainText("56 pt");
   await expect(textToolbar.locator("[data-presentation-active-font-size]")).toContainText("128 pt");
   await textToolbar.locator("[data-presentation-active-font-size]").selectOption("64");
   await expect(presentation.locator(".presentation-info-title")).toHaveAttribute("style", /font-size: 4rem/);
+  await textToolbar.locator("[data-presentation-symbol-menu] summary").click();
+  await expect(textToolbar.locator("[aria-label='Insert check']")).toBeVisible();
   await textToolbar.locator("[aria-label='Insert check']").click();
   await expect(presentation.locator(".presentation-info-title")).toHaveValue(/✓/);
+  await presentation.locator(".presentation-info-title").click();
+  await textToolbar.locator("[data-presentation-shape-menu] summary").click();
+  await textToolbar.locator("[data-presentation-add-shape='circle']").click();
+  const slideShape = presentation.locator("[data-presentation-shape].is-circle").first();
+  await expect(slideShape).toBeVisible();
+  await expect(textToolbar.locator("[data-presentation-active-shape-fill]")).toBeEnabled();
+  await textToolbar.locator("[data-presentation-active-shape-fill]").evaluate((input) => {
+    input.value = "#f59e0b";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  const storedShape = await page.evaluate(
+    ({ key, date }) => JSON.parse(window.localStorage.getItem(key) || "{}")?.decks?.[date]?.shapes?.["qa-info"]?.[0],
+    { key: presentationKey, date: dateValue }
+  );
+  expect(storedShape).toMatchObject({ type: "circle", fillColor: "#f59e0b" });
+  await slideShape.focus();
+  await page.keyboard.press("Delete");
+  await expect(presentation.locator("[data-presentation-shape]")).toHaveCount(0);
+  await presentation.locator(".presentation-info-title").click();
   await textToolbar.locator("[data-presentation-add-text-box]").click();
   await expect(presentation.locator(".presentation-free-text-box")).toContainText("Text box");
-  await expect(textToolbar.locator("[data-presentation-delete-text-box]")).toBeEnabled();
   const textBoxShell = presentation.locator("[data-presentation-text-box-shell]").first();
   const dragHandle = presentation.locator("[data-presentation-drag-text-box]").first();
   const beforeTextBox = await textBoxShell.boundingBox();
@@ -352,8 +375,11 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   );
   expect(storedTextBox?.x).toBeGreaterThan(56);
   expect(storedTextBox?.y).toBeGreaterThan(36);
+  await dragHandle.focus();
+  await page.keyboard.press("Delete");
+  await expect(presentation.locator("[data-presentation-text-box-shell]")).toHaveCount(0);
   await presentation.locator(".presentation-info-title").click();
-  await expect(presentation.locator("[data-presentation-delete-info]")).toBeEnabled();
+  await expect(presentation.locator("[data-presentation-delete-slide]")).toBeEnabled();
   const logoSizing = await presentation.evaluate(() => {
     const toolbarLogo = document.querySelector(".presentation-control-brand .presentation-logo-corner");
     const slideLogo = document.querySelector(".presentation-slide-info .presentation-corner-logo .presentation-logo-corner");

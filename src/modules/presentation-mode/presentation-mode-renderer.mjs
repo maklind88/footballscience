@@ -26,6 +26,37 @@ function getTextColor(backgroundColor = "") {
 }
 
 const infoFontSizeOptions = [16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 88, 96, 104, 112, 120, 128];
+const symbolOptions = [
+  { value: "&#8226;", label: "bullet" },
+  { value: "&#8594;", label: "arrow right" },
+  { value: "&#8592;", label: "arrow left" },
+  { value: "&#8593;", label: "arrow up" },
+  { value: "&#8595;", label: "arrow down" },
+  { value: "&#10003;", label: "check" },
+  { value: "&#10005;", label: "cross" },
+  { value: "+", label: "plus" },
+  { value: "&#8722;", label: "minus" },
+  { value: "&#9733;", label: "star" },
+  { value: "&#9888;", label: "warning" },
+  { value: "&#9679;", label: "circle" },
+  { value: "&#9675;", label: "open circle" },
+  { value: "&#9632;", label: "square" },
+  { value: "&#9633;", label: "open square" },
+  { value: "&#9650;", label: "triangle" },
+  { value: "&#9670;", label: "diamond" },
+  { value: "&#8212;", label: "line" },
+  { value: "&#8596;", label: "two way arrow" },
+  { value: "&#10084;", label: "heart" },
+];
+const shapeOptions = [
+  { type: "rect", label: "Rectangle" },
+  { type: "circle", label: "Circle" },
+  { type: "triangle", label: "Triangle" },
+  { type: "diamond", label: "Diamond" },
+  { type: "line", label: "Line" },
+  { type: "arrow", label: "Arrow" },
+  { type: "star", label: "Star" },
+];
 
 function getSafeSize(value = "", fallback = "56") {
   const normalized = String(value || "").trim().toLowerCase();
@@ -291,13 +322,73 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
-  function renderTextToolbar() {
+  function renderToolPopover(label = "", body = "", attributes = "") {
+    return `
+      <details class="presentation-tool-popover" ${attributes}>
+        <summary class="presentation-tool-button">${escapeHtml(label)}</summary>
+        <div class="presentation-tool-popover-panel">
+          ${body}
+        </div>
+      </details>
+    `;
+  }
+
+  function renderSymbolMenu() {
+    return renderToolPopover(
+      "Symbols",
+      `
+        <div class="presentation-symbol-grid" role="group" aria-label="Insert symbol">
+          ${symbolOptions
+            .map(
+              (symbol) => `
+                <button
+                  type="button"
+                  data-presentation-insert-symbol="${symbol.value}"
+                  title="${escapeHtml(`Insert ${symbol.label}`)}"
+                  aria-label="${escapeHtml(`Insert ${symbol.label}`)}"
+                >${symbol.value}</button>
+              `
+            )
+            .join("")}
+        </div>
+      `,
+      "data-presentation-symbol-menu"
+    );
+  }
+
+  function renderShapeMenu() {
+    return renderToolPopover(
+      "Shapes",
+      `
+        <div class="presentation-shape-grid" role="group" aria-label="Add shape">
+          ${shapeOptions
+            .map(
+              (shape) => `
+                <button
+                  type="button"
+                  data-presentation-add-shape="${escapeHtml(shape.type)}"
+                  title="${escapeHtml(`Add ${shape.label}`)}"
+                  aria-label="${escapeHtml(`Add ${shape.label}`)}"
+                >
+                  <span class="presentation-shape-preview is-${escapeHtml(shape.type)}" aria-hidden="true"></span>
+                  <strong>${escapeHtml(shape.label)}</strong>
+                </button>
+              `
+            )
+            .join("")}
+        </div>
+      `,
+      "data-presentation-shape-menu"
+    );
+  }
+
+  function renderTextToolbar(model = {}) {
+    const slide = model.slides?.[model.slideIndex] || model.slides?.[0] || {};
+    const style = normalizePresentationSlideStyle(slide.style, { accentColor: slide.accentColor || model.accentColor });
     return `
       <section class="presentation-editor-strip presentation-text-toolbar" data-presentation-text-toolbar aria-label="Text tools">
         <button type="button" class="presentation-toolbar-command" data-presentation-add-text-box title="Add text box" aria-label="Add text box">T</button>
         <button type="button" data-presentation-duplicate-info data-presentation-active-info-only disabled>Duplicate</button>
-        <button type="button" data-presentation-delete-info data-presentation-active-info-only disabled>Delete</button>
-        <button type="button" data-presentation-delete-text-box data-presentation-active-text-box-only disabled>Delete Box</button>
         <label>
           <span>Text size</span>
           <select data-presentation-active-font-size aria-label="Text size">
@@ -314,14 +405,20 @@ export function createPresentationModeRenderer(options = {}) {
           <span>Text</span>
           <input type="color" value="#f8fafc" data-presentation-active-text-color aria-label="Text color" />
         </label>
-        <div class="presentation-symbol-tools" aria-label="Insert symbol">
-          <span>Symbols</span>
-          <button type="button" data-presentation-insert-symbol="&#8226;" title="Bullet" aria-label="Insert bullet">&#8226;</button>
-          <button type="button" data-presentation-insert-symbol="&#8594;" title="Arrow" aria-label="Insert arrow">&#8594;</button>
-          <button type="button" data-presentation-insert-symbol="&#10003;" title="Check" aria-label="Insert check">&#10003;</button>
-          <button type="button" data-presentation-insert-symbol="+" title="Plus" aria-label="Insert plus">+</button>
-          <button type="button" data-presentation-insert-symbol="&#9733;" title="Star" aria-label="Insert star">&#9733;</button>
-        </div>
+        <label>
+          <span>Fill</span>
+          <input type="color" value="#38bdf8" data-presentation-active-shape-fill aria-label="Shape fill color" disabled />
+        </label>
+        <label>
+          <span>Bg</span>
+          <input type="color" value="${escapeHtml(style.backgroundColor)}" data-presentation-style-field="backgroundColor" aria-label="Slide background color" />
+        </label>
+        <label>
+          <span>Accent</span>
+          <input type="color" value="${escapeHtml(style.accentColor)}" data-presentation-style-field="accentColor" aria-label="Slide accent color" />
+        </label>
+        ${renderSymbolMenu()}
+        ${renderShapeMenu()}
       </section>
     `;
   }
@@ -414,6 +511,34 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function renderSlideShapes(model = {}, slide = {}) {
+    const shapes = Array.isArray(slide.shapes) ? slide.shapes : [];
+    if (!shapes.length) {
+      return "";
+    }
+    return `
+      <div class="presentation-shape-layer" aria-label="Slide shapes">
+        ${shapes
+          .map((shape) => {
+            const type = String(shape.type || "rect").trim();
+            return `
+              <button
+                type="button"
+                class="presentation-slide-shape is-${escapeHtml(type)}"
+                data-presentation-shape
+                data-presentation-shape-id="${escapeHtml(shape.id)}"
+                data-presentation-slide-id="${escapeHtml(slide.id)}"
+                style="left: ${escapeHtml(shape.x)}%; top: ${escapeHtml(shape.y)}%; width: ${escapeHtml(shape.width)}%; height: ${escapeHtml(shape.height)}%; --presentation-shape-fill: ${escapeHtml(normalizeHexColor(shape.fillColor, "#38bdf8"))}; --presentation-shape-stroke: ${escapeHtml(normalizeHexColor(shape.strokeColor, "#f8fafc"))};"
+                aria-label="${escapeHtml(`Move ${type} shape`)}"
+                title="Move shape"
+              ></button>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
+  }
+
   function renderSlideFrame(model = {}, slide = {}, body = "") {
     const style = normalizePresentationSlideStyle(slide.style, { accentColor: slide.accentColor || model.accentColor });
     return `
@@ -424,6 +549,7 @@ export function createPresentationModeRenderer(options = {}) {
       >
         ${slide.type === "cover" ? "" : `<div class="presentation-corner-logo">${renderLogo(model.brand)}</div>`}
         <main class="presentation-slide-body">${body}</main>
+        ${renderSlideShapes(model, slide)}
         ${renderSlideTextBoxes(model, slide)}
         <footer class="presentation-slide-footer">
           ${renderEditableElement(model, slide, "footer.teamName", model.teamName, "span", "", { label: "Footer team name" })}
@@ -441,6 +567,7 @@ export function createPresentationModeRenderer(options = {}) {
       label: "Cover",
       accentColor: coverSlide.accentColor || model.accentColor,
       style: coverSlide.style,
+      shapes: coverSlide.shapes,
       textBoxes: coverSlide.textBoxes,
       textFieldStyles: coverSlide.textFieldStyles,
       textOverrides: coverSlide.textOverrides,
@@ -475,6 +602,7 @@ export function createPresentationModeRenderer(options = {}) {
       label: slide.label,
       accentColor,
       style: slide.style,
+      shapes: slide.shapes,
       textBoxes: slide.textBoxes,
       textFieldStyles: slide.textFieldStyles,
       textOverrides: slide.textOverrides,
@@ -619,6 +747,7 @@ export function createPresentationModeRenderer(options = {}) {
       label: "Overview",
       accentColor: overviewSlide.accentColor || "#22c55e",
       style: overviewSlide.style,
+      shapes: overviewSlide.shapes,
       textBoxes: overviewSlide.textBoxes,
       textFieldStyles: overviewSlide.textFieldStyles,
       textOverrides: overviewSlide.textOverrides,
@@ -736,6 +865,7 @@ export function createPresentationModeRenderer(options = {}) {
       label: slide.label,
       accentColor: slide.accentColor || "#f59e0b",
       style: slide.style,
+      shapes: slide.shapes,
       textBoxes: slide.textBoxes,
       textFieldStyles: slide.textFieldStyles,
       textOverrides: slide.textOverrides,

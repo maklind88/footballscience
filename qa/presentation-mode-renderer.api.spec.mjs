@@ -164,11 +164,17 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(toolbarHtml).toContain("data-presentation-text-toolbar");
   expect(toolbarHtml).toContain("data-presentation-add-text-box");
   expect(toolbarHtml).toContain("data-presentation-active-font-size");
-  expect(toolbarHtml).toContain("data-presentation-delete-text-box");
+  expect(toolbarHtml).not.toContain("data-presentation-delete-text-box");
   expect(toolbarHtml).toContain("16 pt");
   expect(toolbarHtml).toContain("56 pt");
   expect(toolbarHtml).toContain("128 pt");
+  expect(toolbarHtml).toContain("data-presentation-symbol-menu");
   expect(toolbarHtml).toContain("data-presentation-insert-symbol");
+  expect(toolbarHtml).toContain("data-presentation-shape-menu");
+  expect(toolbarHtml).toContain("data-presentation-add-shape");
+  expect(toolbarHtml).toContain("data-presentation-active-shape-fill");
+  expect(toolbarHtml).toContain('data-presentation-style-field="backgroundColor"');
+  expect(toolbarHtml).toContain('data-presentation-style-field="accentColor"');
   expect(toolbarHtml).not.toContain("New info slide");
   const fullHtml = renderer.render({ ...model, slideIndex: infoSlide.index });
   expect(fullHtml).toContain("data-presentation-text-toolbar");
@@ -272,6 +278,10 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
       ...deck.textBoxes,
       cover: [{ id: "note-1", text: "Free note", x: 50, y: 40, width: 30, fontSize: 32, textColor: "#ffffff" }],
     },
+    shapes: {
+      ...deck.shapes,
+      cover: [{ id: "shape-1", type: "circle", x: 18, y: 20, width: 10, height: 10, fillColor: "#f59e0b", strokeColor: "#ffffff" }],
+    },
     textFieldStyles: {
       ...deck.textFieldStyles,
       cover: {
@@ -283,6 +293,10 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   const styledTextModel = controller.buildModel();
   const styledCoverHtml = renderer.renderCoverSlide(styledTextModel);
   expect(styledCoverHtml).toContain("presentation-free-text-box");
+  expect(styledCoverHtml).toContain("presentation-shape-layer");
+  expect(styledCoverHtml).toContain("presentation-slide-shape is-circle");
+  expect(styledCoverHtml).toContain('data-presentation-shape-id="shape-1"');
+  expect(styledCoverHtml).toContain("--presentation-shape-fill: #f59e0b");
   expect(styledCoverHtml).toContain("presentation-free-text-box-shell");
   expect(styledCoverHtml).toContain("Free note");
   expect(styledCoverHtml).toContain('data-presentation-text-box-id="note-1"');

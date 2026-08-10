@@ -133,6 +133,7 @@ export function createCentralRuntimeFacade(deps = {}) {
     queueStatusRefresh: dataSafetyRuntimeService.queueStatusRefresh,
     rawGetItem: dataSafetyRuntimeService.rawGetItem,
     rawSetItem: dataSafetyRuntimeService.rawSetItem,
+    retryConflictStorageKeys: [storageKeys.dashboardPresentationStorageKey].filter(Boolean),
     scheduleStorageKey: storageKeys.scheduleStorageKey,
     getSessionPlannerLocalUiState,
     sessionPlannerStorageKey: storageKeys.sessionPlannerStorageKey,

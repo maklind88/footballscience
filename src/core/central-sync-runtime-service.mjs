@@ -15,6 +15,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     queueSnapshot = () => {},
     rawGetItem = () => null,
     rawSetItem = () => {},
+    retryConflictStorageKeys = [],
     getSessionPlannerLocalUiState = () => ({ state: {} }),
     sessionPlannerStorageKey = "",
     scheduleStorageKey = "",
@@ -204,8 +205,14 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
   }
 
+  function shouldRetryCentralStateWriteAfterConflict(write = {}) {
+    const key = String(write.key || "");
+    const retryableKeys = new Set([sessionPlannerStorageKey, ...retryConflictStorageKeys].filter(Boolean));
+    return retryableKeys.has(key) && !write.removed && Number(write.retryCount || 0) <= 0;
+  }
+
   async function retryCentralStateWriteAfterConflict(write = {}, result = {}, bridge = getCentralStateBridge()) {
-    if (String(write.key || "") !== sessionPlannerStorageKey || write.removed || Number(write.retryCount || 0) > 0) {
+    if (!shouldRetryCentralStateWriteAfterConflict(write)) {
       return null;
     }
     const retryBaseRevision = getCentralSyncResultRevision(result);
@@ -220,7 +227,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
       return retryResult || null;
     }
     applyCentralSyncedStateValue(write, retryResult.value);
-    if (retryResult?.merged) {
+    if (String(write.key || "") === sessionPlannerStorageKey && retryResult?.merged) {
       showSessionPlannerCentralSyncNotice("Session synced with the latest team changes.");
     }
     return retryResult;

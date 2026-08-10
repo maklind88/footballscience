@@ -27,6 +27,7 @@ function createServiceHarness(options = {}) {
       getStatus: () => ({
         metadata: {
           "football-schedule-v1": { revision },
+          "football-dashboard-presentation-mode-v1": { revision },
           "football-session-planner-v1": { revision },
         },
       }),
@@ -84,6 +85,7 @@ function createServiceHarness(options = {}) {
     rawSetItem: (key, value) => {
       rawValues.set(key, value);
     },
+    retryConflictStorageKeys: options.retryConflictStorageKeys || [],
     scheduleStorageKey: "football-schedule-v1",
     sessionPlannerLocalUiState: { state: { sessionPlannerCentralSyncConflict: "existing" } },
     getSessionPlannerLocalUiState: () => ({ state: { sessionPlannerCentralSyncConflict: "existing" } }),
@@ -224,6 +226,53 @@ test("central sync runtime reconciles a non-session conflict before clearing pen
     serverRevision: 10,
   });
   expect(harness.autosaveStatuses).toContainEqual(["football-schedule-v1", "saved", "Saved"]);
+});
+
+test("central sync runtime retries presentation mode conflicts so quick deletes do not restore old objects", async () => {
+  const key = "football-dashboard-presentation-mode-v1";
+  const deletedShapeValue = JSON.stringify({
+    schema: "footballscience-presentation-mode-v1",
+    version: 1,
+    decks: {
+      "2026-08-11": {
+        updatedAt: "2026-08-11T12:00:02.000Z",
+        infoSlides: [],
+        shapes: {},
+        textBoxes: {},
+      },
+    },
+  });
+  const harness = createServiceHarness({
+    retryConflictStorageKeys: [key],
+    syncResults: [
+      { ok: false, conflict: true, status: 409, currentRevision: 10 },
+      { ok: true, value: deletedShapeValue, revision: 11 },
+    ],
+  });
+  harness.rawValues.set(key, deletedShapeValue);
+
+  harness.service.queueCentralStateWrite(key, deletedShapeValue);
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls).toEqual([
+    {
+      key,
+      value: deletedShapeValue,
+      options: { removed: false, baseRevision: 7 },
+    },
+    {
+      key,
+      value: deletedShapeValue,
+      options: { removed: false, baseRevision: 10 },
+    },
+  ]);
+  expect(harness.syncCalls.some((call) => call.hydrate)).toBe(false);
+  expect(harness.rawValues.get(key)).toBe(deletedShapeValue);
+  expect(harness.manifest.entries[key]).toMatchObject({
+    pendingCentralSync: false,
+    serverRevision: 11,
+  });
+  expect(harness.autosaveStatuses).toContainEqual([key, "saved", "Saved"]);
 });
 
 test("central sync runtime keeps a non-session conflict pending when fresh hydration fails", async () => {

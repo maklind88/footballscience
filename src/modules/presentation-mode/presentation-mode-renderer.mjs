@@ -561,7 +561,7 @@ export function createPresentationModeRenderer(options = {}) {
               model,
               slide,
               field,
-              box.text || "Text box",
+              box.text ?? "Text box",
               `class="presentation-free-text-box" data-presentation-text-box-id="${escapeHtml(box.id)}"`,
               {
                 label: "Text box",

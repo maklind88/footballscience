@@ -1370,6 +1370,15 @@ export function createPresentationModeController(dependencies = {}) {
     if (event.target.closest("[data-presentation-drag-text-box]")) {
       return;
     }
+    const toolbarSummary = event.target.closest("[data-presentation-text-toolbar] .presentation-tool-popover > summary");
+    if (toolbarSummary) {
+      const currentPopover = toolbarSummary.closest("details");
+      root.querySelectorAll("[data-presentation-text-toolbar] .presentation-tool-popover[open]").forEach((popover) => {
+        if (popover !== currentPopover) {
+          popover.removeAttribute("open");
+        }
+      });
+    }
     const symbolButton = event.target.closest("[data-presentation-insert-symbol]");
     if (symbolButton) {
       insertTextIntoActiveField(symbolButton.dataset.presentationInsertSymbol);

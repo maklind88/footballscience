@@ -545,11 +545,12 @@ body.is-presentation-mode-open {
   max-width: 100%;
   transform: translate(-50%, -50%);
   flex-wrap: nowrap;
-  align-items: center;
-  gap: .34rem;
-  padding: .24rem;
+  align-items: stretch;
+  gap: .08rem;
+  padding: .16rem .2rem;
   overflow-x: auto;
   border-color: rgba(125, 211, 252, .16);
+  border-radius: 10px;
   background:
     linear-gradient(180deg, rgba(15, 23, 42, .86), rgba(8, 15, 20, .78)),
     rgba(255, 255, 255, .05);
@@ -568,7 +569,7 @@ body.is-presentation-mode-open {
   display: block;
 }
 
-.presentation-control-edit-slot .presentation-text-toolbar label > span {
+.presentation-control-edit-slot .presentation-text-toolbar > label > span {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -590,6 +591,155 @@ body.is-presentation-mode-open {
   padding: .18rem;
 }
 
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-keynote-tool {
+  min-width: 4.05rem;
+  min-height: 3.24rem;
+  display: grid;
+  grid-template-rows: 1.38rem auto;
+  place-items: center;
+  gap: .16rem;
+  border-color: transparent;
+  border-radius: 9px;
+  padding: .34rem .46rem .28rem;
+  color: rgba(226, 232, 240, .86);
+  background: transparent;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-keynote-tool:hover,
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-keynote-tool:focus-visible,
+.presentation-tool-popover[open] > .presentation-keynote-tool {
+  color: #fff;
+  border-color: rgba(125, 211, 252, .24);
+  background: rgba(148, 163, 184, .12);
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-keynote-tool:disabled {
+  color: rgba(148, 163, 184, .48);
+  background: transparent;
+}
+
+.presentation-keynote-tool > span:not(.presentation-keynote-icon) {
+  color: rgba(226, 232, 240, .82);
+  font-size: .68rem;
+  font-weight: 780;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.presentation-keynote-icon {
+  position: relative;
+  width: 1.5rem;
+  height: 1.34rem;
+  display: grid;
+  place-items: center;
+  color: currentColor;
+}
+
+.presentation-keynote-icon.is-text {
+  border: 1.5px dashed rgba(226, 232, 240, .82);
+  border-radius: 5px;
+  font-size: .82rem;
+  font-weight: 950;
+}
+
+.presentation-keynote-icon.is-shape::before,
+.presentation-keynote-icon.is-shape::after,
+.presentation-keynote-icon.is-symbol::before,
+.presentation-keynote-icon.is-symbol::after,
+.presentation-keynote-icon.is-style::before,
+.presentation-keynote-icon.is-style::after,
+.presentation-keynote-icon.is-duplicate::before,
+.presentation-keynote-icon.is-duplicate::after {
+  content: "";
+  position: absolute;
+  display: block;
+}
+
+.presentation-keynote-icon.is-shape::before {
+  left: .14rem;
+  bottom: .08rem;
+  width: .78rem;
+  height: .78rem;
+  border: 1.6px solid currentColor;
+  border-radius: 4px;
+}
+
+.presentation-keynote-icon.is-shape::after {
+  right: .1rem;
+  top: .02rem;
+  width: .7rem;
+  height: .7rem;
+  border: 1.6px solid currentColor;
+  border-radius: 999px;
+}
+
+.presentation-keynote-icon.is-symbol::before {
+  left: .1rem;
+  top: .12rem;
+  width: .34rem;
+  height: .34rem;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: .52rem .44rem 0 currentColor, 1.04rem .08rem 0 currentColor;
+}
+
+.presentation-keynote-icon.is-symbol::after {
+  right: .08rem;
+  bottom: .06rem;
+  width: .62rem;
+  height: .38rem;
+  border: 1.5px solid currentColor;
+  border-top: 0;
+  transform: rotate(-32deg);
+}
+
+.presentation-keynote-icon.is-style::before {
+  inset: .08rem .18rem;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #38bdf8 0 50%, #f8fafc 50% 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .36);
+}
+
+.presentation-keynote-icon.is-style::after {
+  right: .02rem;
+  bottom: 0;
+  width: .48rem;
+  height: .48rem;
+  border-radius: 999px;
+  background: #86efac;
+  box-shadow: 0 0 0 2px rgba(8, 15, 20, .9);
+}
+
+.presentation-keynote-icon.is-duplicate::before {
+  right: .08rem;
+  top: .08rem;
+  width: .82rem;
+  height: .82rem;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  opacity: .74;
+}
+
+.presentation-keynote-icon.is-duplicate::after {
+  left: .14rem;
+  bottom: .08rem;
+  width: .82rem;
+  height: .82rem;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+  background: rgba(8, 15, 20, .82);
+}
+
+.presentation-toolbar-separator {
+  width: 1px;
+  min-height: 2.7rem;
+  align-self: center;
+  margin: 0 .16rem;
+  background: rgba(148, 163, 184, .2);
+}
+
 .presentation-toolbar-command {
   min-width: 2.5rem;
   font-size: 1rem;
@@ -597,10 +747,11 @@ body.is-presentation-mode-open {
 
 .presentation-tool-popover {
   position: relative;
-  align-self: end;
+  align-self: stretch;
 }
 
 .presentation-tool-popover summary {
+  cursor: pointer;
   list-style: none;
 }
 
@@ -610,10 +761,11 @@ body.is-presentation-mode-open {
 
 .presentation-tool-popover-panel {
   position: absolute;
-  top: calc(100% + .45rem);
-  left: 0;
+  top: calc(100% + .62rem);
+  left: 50%;
   z-index: 30;
   width: min(23rem, calc(100vw - 1.4rem));
+  transform: translateX(-50%);
   padding: .62rem;
   border: 1px solid rgba(148, 163, 184, .24);
   border-radius: 10px;
@@ -621,6 +773,57 @@ body.is-presentation-mode-open {
     linear-gradient(180deg, rgba(15, 23, 42, .98), rgba(8, 15, 20, .98)),
     #0f172a;
   box-shadow: 0 24px 60px rgba(0, 0, 0, .42);
+}
+
+.presentation-tool-popover[data-presentation-shape-menu] .presentation-tool-popover-panel {
+  width: min(17rem, calc(100vw - 1.4rem));
+}
+
+.presentation-tool-popover[data-presentation-symbol-menu] .presentation-tool-popover-panel {
+  width: min(21rem, calc(100vw - 1.4rem));
+}
+
+.presentation-tool-popover[data-presentation-style-menu] .presentation-tool-popover-panel {
+  width: min(20rem, calc(100vw - 1.4rem));
+}
+
+.presentation-style-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .56rem;
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-style-control {
+  display: grid;
+  gap: .24rem;
+}
+
+.presentation-style-control.is-wide {
+  grid-column: 1 / -1;
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-style-control > span {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  color: rgba(203, 213, 225, .72);
+  font-size: .62rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-style-control select,
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-style-control input {
+  width: 100%;
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-style-control input[type="color"] {
+  width: 100%;
+  padding: .16rem;
 }
 
 .presentation-symbol-grid {

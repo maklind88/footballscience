@@ -350,10 +350,30 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
-  function renderToolPopover(label = "", body = "", attributes = "") {
+  function renderToolbarIcon(type = "tool", label = "") {
+    return `
+      <span class="presentation-keynote-icon is-${escapeHtml(type)}" aria-hidden="true">
+        ${label ? `<span>${escapeHtml(label)}</span>` : ""}
+      </span>
+    `;
+  }
+
+  function renderToolbarButton(label = "", icon = "tool", attributes = "", options = {}) {
+    return `
+      <button type="button" class="presentation-keynote-tool${options.utility ? " is-utility" : ""}" ${attributes}>
+        ${renderToolbarIcon(icon, options.iconLabel || "")}
+        <span>${escapeHtml(label)}</span>
+      </button>
+    `;
+  }
+
+  function renderToolPopover(label = "", body = "", attributes = "", options = {}) {
     return `
       <details class="presentation-tool-popover" ${attributes}>
-        <summary class="presentation-tool-button">${escapeHtml(label)}</summary>
+        <summary class="presentation-keynote-tool">
+          ${renderToolbarIcon(options.icon || "tool", options.iconLabel || "")}
+          <span>${escapeHtml(label)}</span>
+        </summary>
         <div class="presentation-tool-popover-panel">
           ${body}
         </div>
@@ -363,7 +383,7 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderSymbolMenu() {
     return renderToolPopover(
-      "Symbols",
+      "Symbol",
       `
         <div class="presentation-symbol-grid" role="group" aria-label="Insert symbol">
           ${symbolOptions
@@ -380,13 +400,14 @@ export function createPresentationModeRenderer(options = {}) {
             .join("")}
         </div>
       `,
-      "data-presentation-symbol-menu"
+      "data-presentation-symbol-menu",
+      { icon: "symbol" }
     );
   }
 
   function renderShapeMenu() {
     return renderToolPopover(
-      "Shapes",
+      "Shape",
       `
         <div class="presentation-shape-grid" role="group" aria-label="Add shape">
           ${shapeOptions
@@ -406,7 +427,48 @@ export function createPresentationModeRenderer(options = {}) {
             .join("")}
         </div>
       `,
-      "data-presentation-shape-menu"
+      "data-presentation-shape-menu",
+      { icon: "shape" }
+    );
+  }
+
+  function renderStyleMenu(style = {}) {
+    return renderToolPopover(
+      "Style",
+      `
+        <div class="presentation-style-panel" role="group" aria-label="Style controls">
+          <label class="presentation-style-control is-wide">
+            <span>Text size</span>
+            <select data-presentation-active-font-size aria-label="Text size">
+              <option value="">Auto</option>
+              ${infoFontSizeOptions
+                .map((size) => {
+                  const sizeValue = String(size);
+                  return `<option value="${sizeValue}">${escapeHtml(`${sizeValue} pt`)}</option>`;
+                })
+                .join("")}
+            </select>
+          </label>
+          <label class="presentation-style-control">
+            <span>Text</span>
+            <input type="color" value="#f8fafc" data-presentation-active-text-color aria-label="Text color" />
+          </label>
+          <label class="presentation-style-control">
+            <span>Fill</span>
+            <input type="color" value="#38bdf8" data-presentation-active-shape-fill aria-label="Shape fill color" disabled />
+          </label>
+          <label class="presentation-style-control">
+            <span>Background</span>
+            <input type="color" value="${escapeHtml(style.backgroundColor)}" data-presentation-style-field="backgroundColor" aria-label="Slide background color" />
+          </label>
+          <label class="presentation-style-control">
+            <span>Accent</span>
+            <input type="color" value="${escapeHtml(style.accentColor)}" data-presentation-style-field="accentColor" aria-label="Slide accent color" />
+          </label>
+        </div>
+      `,
+      "data-presentation-style-menu",
+      { icon: "style" }
     );
   }
 
@@ -415,38 +477,12 @@ export function createPresentationModeRenderer(options = {}) {
     const style = normalizePresentationSlideStyle(slide.style, { accentColor: slide.accentColor || model.accentColor });
     return `
       <section class="presentation-editor-strip presentation-text-toolbar" data-presentation-text-toolbar aria-label="Text tools">
-        <button type="button" class="presentation-toolbar-command" data-presentation-add-text-box title="Add text box" aria-label="Add text box">T</button>
-        <button type="button" data-presentation-duplicate-info data-presentation-active-info-only disabled>Duplicate</button>
-        <label>
-          <span>Text size</span>
-          <select data-presentation-active-font-size aria-label="Text size">
-            <option value="">Auto</option>
-            ${infoFontSizeOptions
-              .map((size) => {
-                const sizeValue = String(size);
-                return `<option value="${sizeValue}">${escapeHtml(`${sizeValue} pt`)}</option>`;
-              })
-              .join("")}
-          </select>
-        </label>
-        <label>
-          <span>Text</span>
-          <input type="color" value="#f8fafc" data-presentation-active-text-color aria-label="Text color" />
-        </label>
-        <label>
-          <span>Fill</span>
-          <input type="color" value="#38bdf8" data-presentation-active-shape-fill aria-label="Shape fill color" disabled />
-        </label>
-        <label>
-          <span>Bg</span>
-          <input type="color" value="${escapeHtml(style.backgroundColor)}" data-presentation-style-field="backgroundColor" aria-label="Slide background color" />
-        </label>
-        <label>
-          <span>Accent</span>
-          <input type="color" value="${escapeHtml(style.accentColor)}" data-presentation-style-field="accentColor" aria-label="Slide accent color" />
-        </label>
-        ${renderSymbolMenu()}
+        ${renderToolbarButton("Text", "text", "data-presentation-add-text-box title=\"Add text box\" aria-label=\"Add text box\"", { iconLabel: "A" })}
         ${renderShapeMenu()}
+        ${renderSymbolMenu()}
+        ${renderStyleMenu(style)}
+        <span class="presentation-toolbar-separator" aria-hidden="true"></span>
+        ${renderToolbarButton("Duplicate", "duplicate", "data-presentation-duplicate-info data-presentation-active-info-only disabled title=\"Duplicate slide\" aria-label=\"Duplicate slide\"", { utility: true })}
       </section>
     `;
   }

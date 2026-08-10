@@ -173,6 +173,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   const toolbarHtml = renderer.renderTextToolbar(model);
   expect(toolbarHtml).toContain("data-presentation-text-toolbar");
   expect(toolbarHtml).toContain("data-presentation-add-text-box");
+  expect(toolbarHtml).toContain("presentation-keynote-tool");
   expect(toolbarHtml).toContain("data-presentation-active-font-size");
   expect(toolbarHtml).not.toContain("data-presentation-delete-text-box");
   expect(toolbarHtml).toContain("16 pt");
@@ -182,6 +183,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(toolbarHtml).toContain("data-presentation-insert-symbol");
   expect(toolbarHtml).toContain("data-presentation-shape-menu");
   expect(toolbarHtml).toContain("data-presentation-add-shape");
+  expect(toolbarHtml).toContain("data-presentation-style-menu");
   expect(toolbarHtml).toContain("data-presentation-active-shape-fill");
   expect(toolbarHtml).toContain('data-presentation-style-field="backgroundColor"');
   expect(toolbarHtml).toContain('data-presentation-style-field="accentColor"');

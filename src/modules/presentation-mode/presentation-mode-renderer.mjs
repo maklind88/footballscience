@@ -877,9 +877,9 @@ export function createPresentationModeRenderer(options = {}) {
           </div>
           <div class="presentation-overview-grid">
             ${renderOverviewLoadMetric(model, frameSlide, model.loadLabel)}
-            ${renderOverviewMetric(model, frameSlide, "Video", periodization.preTrainingVideo || "None", "is-video", "overview.video")}
             ${renderPitchSizeMetric(model, frameSlide, periodization.pitchSize || model.pitchLabel)}
             ${renderOverviewMetric(model, frameSlide, "Match Day", periodization.matchDay || "Not set", "is-match-day", "overview.matchDay")}
+            ${renderOverviewMetric(model, frameSlide, "Video", periodization.preTrainingVideo || "None", "is-video", "overview.video")}
             ${renderOverviewPhaseSummary(model, frameSlide, phaseLines.slice(0, 3).join(" / ") || periodization.seasonPhase || periodization.sessionType)}
             <div class="presentation-block-flow">
               ${model.blocks

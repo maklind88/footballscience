@@ -1369,11 +1369,11 @@ body.is-presentation-shape-drawing {
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, .72fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 4.25fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 4.6fr);
   grid-template-rows: minmax(4.8rem, .44fr) minmax(4.8rem, .44fr) minmax(3.45rem, .32fr) minmax(8.6rem, 1fr);
   grid-template-areas:
-    "load video match medical"
-    "pitch pitch pitch medical"
+    "load pitch match medical"
+    "video video video medical"
     "phase phase phase medical"
     "blocks blocks blocks medical";
   gap: clamp(.52rem, .85vw, .82rem);
@@ -2079,7 +2079,7 @@ body.is-presentation-shape-drawing {
 }
 
 .presentation-mode-shell.is-presenting .presentation-overview-grid {
-  grid-template-columns: minmax(0, .66fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 4.6fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 4.85fr);
 }
 
 .presentation-mode-shell.is-presenting .presentation-medical-list {

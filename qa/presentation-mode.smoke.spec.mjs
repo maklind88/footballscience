@@ -528,38 +528,50 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const pitch = document.querySelector(".presentation-overview-metric.is-pitch");
     const loadLabel = document.querySelector(".presentation-overview-metric.is-load > span");
     const videoLabel = document.querySelector(".presentation-overview-metric.is-video > span");
+    const pitchLabel = document.querySelector(".presentation-overview-metric.is-pitch > span");
     const matchLabel = document.querySelector(".presentation-overview-metric.is-match-day > span");
     const gauge = document.querySelector(".presentation-load-gauge");
     const needle = document.querySelector(".presentation-load-needle");
-    if (!load || !video || !matchDay || !pitch || !loadLabel || !videoLabel || !matchLabel || !gauge || !needle) return null;
+    if (!load || !video || !matchDay || !pitch || !loadLabel || !videoLabel || !pitchLabel || !matchLabel || !gauge || !needle) return null;
     const loadRect = load.getBoundingClientRect();
     const videoRect = video.getBoundingClientRect();
     const matchRect = matchDay.getBoundingClientRect();
     const pitchRect = pitch.getBoundingClientRect();
     const loadLabelRect = loadLabel.getBoundingClientRect();
     const videoLabelRect = videoLabel.getBoundingClientRect();
+    const pitchLabelRect = pitchLabel.getBoundingClientRect();
     const matchLabelRect = matchLabel.getBoundingClientRect();
     const loadStyle = getComputedStyle(load);
     return {
-      leftOfVideo: loadRect.right <= videoRect.left,
-      leftOfMatchDay: videoRect.right <= matchRect.left,
-      sameTopAsVideo: Math.abs(loadRect.top - videoRect.top) <= 2,
+      leftOfPitch: loadRect.right <= pitchRect.left,
+      pitchLeftOfMatchDay: pitchRect.right <= matchRect.left,
+      sameTopAsPitch: Math.abs(loadRect.top - pitchRect.top) <= 2,
       sameTopAsMatchDay: Math.abs(loadRect.top - matchRect.top) <= 2,
-      labelAlignedWithVideo: Math.abs(loadLabelRect.top - videoLabelRect.top) <= 2,
+      pitchSameWidthAsLoad: Math.abs(pitchRect.width - loadRect.width) <= 2,
+      pitchSameHeightAsLoad: Math.abs(pitchRect.height - loadRect.height) <= 2,
+      pitchSameHeightAsMatchDay: Math.abs(pitchRect.height - matchRect.height) <= 2,
+      labelAlignedWithPitch: Math.abs(loadLabelRect.top - pitchLabelRect.top) <= 2,
       labelAlignedWithMatchDay: Math.abs(loadLabelRect.top - matchLabelRect.top) <= 2,
-      pitchUnderLoad: pitchRect.top >= loadRect.bottom - 2,
+      videoUnderTopCards: videoRect.top >= loadRect.bottom - 2,
+      videoSpansTopCards: Math.abs(videoRect.left - loadRect.left) <= 2 && Math.abs(videoRect.right - matchRect.right) <= 2,
+      videoLabelBelowTopCards: videoLabelRect.top >= loadLabelRect.bottom,
       loadColor: loadStyle.getPropertyValue("--presentation-load-color").trim(),
       loadAngle: loadStyle.getPropertyValue("--presentation-load-angle").trim(),
     };
   });
   expect(overviewLoadLayout).toMatchObject({
-    leftOfVideo: true,
-    leftOfMatchDay: true,
-    sameTopAsVideo: true,
+    leftOfPitch: true,
+    pitchLeftOfMatchDay: true,
+    sameTopAsPitch: true,
     sameTopAsMatchDay: true,
-    labelAlignedWithVideo: true,
+    pitchSameWidthAsLoad: true,
+    pitchSameHeightAsLoad: true,
+    pitchSameHeightAsMatchDay: true,
+    labelAlignedWithPitch: true,
     labelAlignedWithMatchDay: true,
-    pitchUnderLoad: true,
+    videoUnderTopCards: true,
+    videoSpansTopCards: true,
+    videoLabelBelowTopCards: true,
     loadColor: "#d92d3f",
     loadAngle: "68deg",
   });

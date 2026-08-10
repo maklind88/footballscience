@@ -560,6 +560,7 @@ export function createPresentationModeRenderer(options = {}) {
                 data-presentation-text-box-shell
                 data-presentation-text-box-id="${escapeHtml(box.id)}"
                 data-presentation-text-box-kind="${escapeHtml(kind)}"
+                data-presentation-slide-id="${escapeHtml(slide.id)}"
                 style="left: ${escapeHtml(box.x)}%; top: ${escapeHtml(box.y)}%; width: ${escapeHtml(box.width)}%;"
               >
                 <button
@@ -571,6 +572,30 @@ export function createPresentationModeRenderer(options = {}) {
                   aria-label="Move text box"
                 ></button>
                 ${textBox}
+                <span
+                  class="presentation-text-box-edge-handle is-top"
+                  data-presentation-drag-text-box="${escapeHtml(box.id)}"
+                  data-presentation-slide-id="${escapeHtml(slide.id)}"
+                  aria-hidden="true"
+                ></span>
+                <span
+                  class="presentation-text-box-edge-handle is-right"
+                  data-presentation-drag-text-box="${escapeHtml(box.id)}"
+                  data-presentation-slide-id="${escapeHtml(slide.id)}"
+                  aria-hidden="true"
+                ></span>
+                <span
+                  class="presentation-text-box-edge-handle is-bottom"
+                  data-presentation-drag-text-box="${escapeHtml(box.id)}"
+                  data-presentation-slide-id="${escapeHtml(slide.id)}"
+                  aria-hidden="true"
+                ></span>
+                <span
+                  class="presentation-text-box-edge-handle is-left"
+                  data-presentation-drag-text-box="${escapeHtml(box.id)}"
+                  data-presentation-slide-id="${escapeHtml(slide.id)}"
+                  aria-hidden="true"
+                ></span>
                 <button
                   type="button"
                   class="presentation-text-box-resize-handle"

@@ -1065,7 +1065,7 @@ body.is-presentation-mode-open {
   position: absolute;
   top: .34rem;
   right: .34rem;
-  z-index: 2;
+  z-index: 3;
   width: 1.35rem;
   height: 1.35rem;
   padding: 0;
@@ -1078,11 +1078,50 @@ body.is-presentation-mode-open {
   opacity: .72;
 }
 
+.presentation-text-box-edge-handle {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  background: transparent;
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.presentation-text-box-edge-handle.is-top,
+.presentation-text-box-edge-handle.is-bottom {
+  left: .55rem;
+  right: .55rem;
+  height: .72rem;
+}
+
+.presentation-text-box-edge-handle.is-top {
+  top: -.22rem;
+}
+
+.presentation-text-box-edge-handle.is-bottom {
+  bottom: -.22rem;
+}
+
+.presentation-text-box-edge-handle.is-left,
+.presentation-text-box-edge-handle.is-right {
+  top: .55rem;
+  bottom: .55rem;
+  width: .72rem;
+}
+
+.presentation-text-box-edge-handle.is-left {
+  left: -.22rem;
+}
+
+.presentation-text-box-edge-handle.is-right {
+  right: -.22rem;
+}
+
 .presentation-text-box-resize-handle {
   position: absolute;
   right: .28rem;
   bottom: .28rem;
-  z-index: 2;
+  z-index: 3;
   width: 1.15rem;
   height: 1.15rem;
   padding: 0;
@@ -1101,6 +1140,12 @@ body.is-presentation-mode-open {
 .presentation-free-text-box-shell.is-dragging .presentation-text-box-drag-handle,
 .presentation-free-text-box-shell.is-resizing .presentation-text-box-resize-handle {
   opacity: 1;
+}
+
+.presentation-free-text-box-shell:hover .presentation-free-text-box,
+.presentation-free-text-box-shell.is-dragging .presentation-free-text-box {
+  border-color: color-mix(in srgb, var(--presentation-accent, #38bdf8) 78%, #ffffff);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--presentation-accent, #38bdf8) 28%, transparent);
 }
 
 .presentation-free-text-box-shell.is-dragging .presentation-text-box-drag-handle,
@@ -1131,6 +1176,10 @@ body.is-presentation-shape-drawing {
 }
 
 .presentation-mode-shell.is-presenting .presentation-text-box-drag-handle {
+  display: none;
+}
+
+.presentation-mode-shell.is-presenting .presentation-text-box-edge-handle {
   display: none;
 }
 

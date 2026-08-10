@@ -6,6 +6,7 @@ import {
 export const dashboardPresentationStorageKey = "football-dashboard-presentation-mode-v1";
 
 const presentationSchema = "footballscience-presentation-mode-v1";
+const maxTextOverrideLength = 5000;
 
 function noop() {}
 
@@ -98,11 +99,33 @@ function normalizeSlideStyles(slideStyles = {}) {
   );
 }
 
+function normalizeTextOverrides(textOverrides = {}) {
+  const overrides = textOverrides && typeof textOverrides === "object" && !Array.isArray(textOverrides) ? textOverrides : {};
+  return Object.fromEntries(
+    Object.entries(overrides)
+      .map(([slideId, fields]) => {
+        const slideFields = fields && typeof fields === "object" && !Array.isArray(fields) ? fields : {};
+        return [
+          String(slideId || "").trim(),
+          Object.fromEntries(
+            Object.entries(slideFields)
+              .map(([field, value]) => [
+                String(field || "").trim(),
+                String(value ?? "").slice(0, maxTextOverrideLength),
+              ])
+              .filter(([field]) => field)
+          ),
+        ];
+      })
+      .filter(([slideId, fields]) => slideId && Object.keys(fields).length)
+  );
+}
+
 function normalizeInfoSlide(slide = {}, index = 0, dateValue = "") {
   const fallback = createDefaultInfoSlide(dateValue);
   return {
     id: String(slide.id || (index ? `info-${dateValue}-${index + 1}` : fallback.id)).trim(),
-    title: String(slide.title || fallback.title).trim().slice(0, 90),
+    title: String(slide.title ?? fallback.title).trim().slice(0, 90),
     body: String(slide.body ?? fallback.body).slice(0, 5000),
     fontSize: normalizeFontSize(slide.fontSize),
     accentColor: normalizeHexColor(slide.accentColor, fallback.accentColor),
@@ -119,6 +142,7 @@ function normalizeDeck(deck = {}, dateValue = "") {
     updatedAt: String(deck.updatedAt || "").trim(),
     infoSlides: hasSavedInfoSlides ? infoSlides : [createDefaultInfoSlide(dateValue)],
     slideStyles: normalizeSlideStyles(deck.slideStyles),
+    textOverrides: normalizeTextOverrides(deck.textOverrides),
   };
 }
 
@@ -357,6 +381,7 @@ export function createPresentationModeController(dependencies = {}) {
       ...slide,
       accentColor: style.accentColor,
       style,
+      textOverrides: deck.textOverrides?.[slide.id] || {},
     };
   }
 
@@ -565,6 +590,24 @@ export function createPresentationModeController(dependencies = {}) {
     render();
   }
 
+  function updateTextOverride(slideId = "", field = "", value = "") {
+    const safeSlideId = String(slideId || "").trim();
+    const safeField = String(field || "").trim();
+    if (!safeSlideId || !safeField) {
+      return;
+    }
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      textOverrides: normalizeTextOverrides({
+        ...deck.textOverrides,
+        [safeSlideId]: {
+          ...(deck.textOverrides?.[safeSlideId] || {}),
+          [safeField]: String(value ?? "").slice(0, maxTextOverrideLength),
+        },
+      }),
+    }));
+  }
+
   function requestNewSlideTitle(defaultTitle = "New Slide") {
     if (typeof win?.prompt !== "function") {
       return defaultTitle;
@@ -625,6 +668,7 @@ export function createPresentationModeController(dependencies = {}) {
       ...currentDeck,
       infoSlides: currentDeck.infoSlides.filter((slide) => slide.id !== slideId),
       slideStyles: Object.fromEntries(Object.entries(currentDeck.slideStyles || {}).filter(([styleSlideId]) => styleSlideId !== slideId)),
+      textOverrides: Object.fromEntries(Object.entries(currentDeck.textOverrides || {}).filter(([textSlideId]) => textSlideId !== slideId)),
     }));
     const nextModel = buildModel();
     const nextInfoIndexes = nextModel.slides.map((slide, index) => (slide.type === "info" ? index : -1)).filter((index) => index >= 0);
@@ -716,6 +760,20 @@ export function createPresentationModeController(dependencies = {}) {
     const styleField = event.target.closest("[data-presentation-style-field]");
     if (styleField && styleField.type === "color") {
       updateCurrentSlideStyle(styleField.dataset.presentationStyleField, styleField.value);
+      return;
+    }
+    const textField = event.target.closest("[data-presentation-text-field]");
+    if (textField) {
+      const isMultiline = textField.dataset.presentationTextMultiline === "true";
+      const rawValue = String(textField.innerText ?? textField.textContent ?? "").replace(/\u00a0/g, " ");
+      const value = isMultiline
+        ? rawValue
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .join("\n")
+        : rawValue.replace(/\s+/g, " ").trim();
+      updateTextOverride(textField.dataset.presentationSlideId, textField.dataset.presentationTextField, value);
     }
   }
 

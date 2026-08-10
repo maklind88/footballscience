@@ -489,6 +489,25 @@ body.is-presentation-mode-open {
   color: var(--presentation-slide-text, #f8fafc);
 }
 
+.presentation-mode-shell:not(.is-presenting) [data-presentation-text-field] {
+  border-radius: 5px;
+  cursor: text;
+  outline: 0;
+  transition:
+    background .16s ease,
+    box-shadow .16s ease;
+}
+
+.presentation-mode-shell:not(.is-presenting) [data-presentation-text-field]:hover {
+  background: color-mix(in srgb, var(--presentation-accent, #38bdf8) 10%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--presentation-accent, #38bdf8) 34%, transparent);
+}
+
+.presentation-mode-shell:not(.is-presenting) [data-presentation-text-field]:focus {
+  background: color-mix(in srgb, var(--presentation-accent, #38bdf8) 13%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--presentation-accent, #38bdf8) 72%, transparent);
+}
+
 .presentation-cover .presentation-slide-body,
 .presentation-slide-cover .presentation-slide-body {
   display: grid;
@@ -692,6 +711,13 @@ body.is-presentation-mode-open {
   align-items: center;
   gap: .55rem;
   font-size: clamp(.86rem, 1.12vw, 1.18rem);
+}
+
+.presentation-overview-metric.is-pitch-size strong .presentation-pitch-text {
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-transform: none;
 }
 
 .presentation-overview-metric.is-match-day {

@@ -238,6 +238,22 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     glow: "#d92d3f",
     text: "#ffffff",
   });
+  const coverTitle = presentation.locator('[data-presentation-text-field="cover.title"]');
+  await expect(coverTitle).toHaveAttribute("contenteditable", "true");
+  await coverTitle.click();
+  await page.keyboard.press("ArrowRight");
+  await expect(presentation.locator(".presentation-progress strong")).toHaveText("1");
+  await coverTitle.evaluate((element) => {
+    element.textContent = "Session Briefing";
+    element.dispatchEvent(new InputEvent("input", { bubbles: true, data: "Session Briefing", inputType: "insertText" }));
+  });
+  await expect(coverTitle).toHaveText("Session Briefing");
+  const storedCoverTitle = await page.evaluate(
+    ({ key, date }) => JSON.parse(window.localStorage.getItem(key) || "{}")?.decks?.[date]?.textOverrides?.cover?.["cover.title"],
+    { key: presentationKey, date: dateValue }
+  );
+  expect(storedCoverTitle).toBe("Session Briefing");
+  await coverTitle.evaluate((element) => element.blur());
   await expect(presentation.locator(".presentation-cover-copy > span")).toHaveCount(0);
   await expect(presentation.locator(".presentation-cover-metrics")).toHaveCount(0);
   const coverLayout = await presentation.evaluate(() => {

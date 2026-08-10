@@ -178,6 +178,59 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function getSlideText(slide = {}, field = "", fallback = "") {
+    const key = String(field || "").trim();
+    const overrides = slide.textOverrides && typeof slide.textOverrides === "object" ? slide.textOverrides : {};
+    return Object.prototype.hasOwnProperty.call(overrides, key) ? String(overrides[key] ?? "") : String(fallback ?? "");
+  }
+
+  function getStableTextKey(value = "", fallback = "item") {
+    return (
+      String(value || fallback)
+        .trim()
+        .replace(/[^a-z0-9_-]+/gi, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 72) || fallback
+    );
+  }
+
+  function getEditableAttributes(model = {}, slide = {}, field = "", options = {}) {
+    if (model.presenting || !slide.id || !field) {
+      return "";
+    }
+    return [
+      `data-presentation-slide-id="${escapeHtml(slide.id)}"`,
+      `data-presentation-text-field="${escapeHtml(field)}"`,
+      options.multiline ? `data-presentation-text-multiline="true"` : "",
+      `contenteditable="true"`,
+      `spellcheck="true"`,
+      `role="textbox"`,
+      options.multiline ? `aria-multiline="true"` : "",
+      options.label ? `aria-label="${escapeHtml(options.label)}"` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  function renderEditableElement(model = {}, slide = {}, field = "", fallback = "", tagName = "span", attributes = "", options = {}) {
+    const editableAttributes = getEditableAttributes(model, slide, field, options);
+    const value = getSlideText(slide, field, fallback);
+    return `<${tagName}${attributes ? ` ${attributes}` : ""}${editableAttributes ? ` ${editableAttributes}` : ""}>${escapeHtml(value)}</${tagName}>`;
+  }
+
+  function renderEditableList(model = {}, slide = {}, field = "", fallback = "") {
+    const value = getSlideText(slide, field, fallback);
+    const lines = getLineItems(value);
+    if (!lines.length) {
+      return "";
+    }
+    return `
+      <ul ${getEditableAttributes(model, slide, field, { multiline: true, label: field })}>
+        ${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+      </ul>
+    `;
+  }
+
   function renderControlBar(model = {}) {
     const slide = model.slides[model.slideIndex] || model.slides[0];
     return `
@@ -299,8 +352,8 @@ export function createPresentationModeRenderer(options = {}) {
         ${slide.type === "cover" ? "" : `<div class="presentation-corner-logo">${renderLogo(model.brand)}</div>`}
         <main class="presentation-slide-body">${body}</main>
         <footer class="presentation-slide-footer">
-          <span>${escapeHtml(model.teamName)}</span>
-          <strong>${escapeHtml(model.dateLabel)}</strong>
+          ${renderEditableElement(model, slide, "footer.teamName", model.teamName, "span", "", { label: "Footer team name" })}
+          ${renderEditableElement(model, slide, "footer.dateLabel", model.dateLabel, "strong", "", { label: "Footer date" })}
         </footer>
       </section>
     `;
@@ -308,21 +361,24 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderCoverSlide(model = {}, slide = {}) {
     const coverSlide = slide.id ? slide : model.slides?.find((item) => item.type === "cover") || {};
+    const frameSlide = {
+      id: coverSlide.id || "cover",
+      type: "cover",
+      label: "Cover",
+      accentColor: coverSlide.accentColor || model.accentColor,
+      style: coverSlide.style,
+      textOverrides: coverSlide.textOverrides,
+    };
     return renderSlideFrame(
       model,
-      {
-        type: "cover",
-        label: "Cover",
-        accentColor: coverSlide.accentColor || model.accentColor,
-        style: coverSlide.style,
-      },
+      frameSlide,
       `
         <div class="presentation-cover-mark">
           ${renderLogo(model.brand, "hero")}
         </div>
         <div class="presentation-cover-copy">
-          <h1>${escapeHtml(model.sessionTitle)}</h1>
-          <p>${escapeHtml(model.dateLabel)}</p>
+          ${renderEditableElement(model, frameSlide, "cover.title", model.sessionTitle, "h1", "", { label: "Cover title" })}
+          ${renderEditableElement(model, frameSlide, "cover.dateLabel", model.dateLabel, "p", "", { label: "Cover date" })}
         </div>
       `
     );
@@ -336,13 +392,16 @@ export function createPresentationModeRenderer(options = {}) {
     });
     const accentColor = normalizeHexColor(slideStyle.accentColor, "#38bdf8");
     const textColor = normalizeHexColor(slideStyle.textColor, "#f8fafc");
-    const readonly = model.editorOpen && slide.index === model.slideIndex ? "" : "readonly";
+    const readonly = model.presenting ? "readonly" : "";
     return renderSlideFrame(
       model,
       {
+        id: slide.id,
         type: "info",
         label: slide.label,
         accentColor,
+        style: slide.style,
+        textOverrides: slide.textOverrides,
       },
       `
         <section
@@ -371,40 +430,40 @@ export function createPresentationModeRenderer(options = {}) {
     );
   }
 
-  function renderOverviewMetric(label, value, className = "") {
+  function renderOverviewMetric(model = {}, slide = {}, label, value, className = "", keyPrefix = "") {
     return `
       <div class="presentation-overview-metric ${escapeHtml(className)}">
-        <span>${escapeHtml(label)}</span>
-        <strong>${escapeHtml(value || "Not set")}</strong>
+        ${renderEditableElement(model, slide, `${keyPrefix}.label`, label, "span", "", { label })}
+        ${renderEditableElement(model, slide, `${keyPrefix}.value`, value || "Not set", "strong", "", { label: `${label} value` })}
       </div>
     `;
   }
 
-  function renderPitchSizeMetric(value = "") {
+  function renderPitchSizeMetric(model = {}, slide = {}, value = "") {
     const label = String(value || "").trim() || "Not set";
     const tone = getPitchTone(label);
     return `
       <div class="presentation-overview-metric is-pitch is-pitch-size">
-        <span>Pitch</span>
+        ${renderEditableElement(model, slide, "overview.pitch.label", "Pitch", "span", "", { label: "Pitch label" })}
         <strong>
           <span class="periodization-pitch-icon is-${escapeHtml(tone)}" aria-hidden="true">
             <span class="periodization-pitch-lines"></span>
             <span class="periodization-pitch-highlight"></span>
           </span>
-          ${escapeHtml(label)}
+          ${renderEditableElement(model, slide, "overview.pitch.value", label, "span", "class=\"presentation-pitch-text\"", { label: "Pitch value" })}
         </strong>
       </div>
     `;
   }
 
-  function renderOverviewLoadMetric(value = "") {
+  function renderOverviewLoadMetric(model = {}, slide = {}, value = "") {
     const load = getLoadMeterModel(value);
     return `
       <div
         class="presentation-overview-metric is-load is-${escapeHtml(load.tone)} is-level-${escapeHtml(String(load.level))}"
         style="--presentation-load-angle: ${escapeHtml(String(load.angle))}deg; --presentation-load-color: ${escapeHtml(load.color)}; --presentation-load-soft: ${escapeHtml(load.soft)}; --presentation-load-glow: ${escapeHtml(load.glow)};"
       >
-        <span>Planned Load</span>
+        ${renderEditableElement(model, slide, "overview.load.label", "Planned Load", "span", "", { label: "Planned load label" })}
         <div class="presentation-load-meter" aria-label="${escapeHtml(`Physical load: ${load.label}`)}">
           <span class="presentation-load-gauge" aria-hidden="true">
             <span class="presentation-load-needle"></span>
@@ -428,28 +487,37 @@ export function createPresentationModeRenderer(options = {}) {
     return `<span class="presentation-medical-avatar">${escapeHtml(getInitials(label).toUpperCase())}</span>`;
   }
 
-  function renderMedicalRecommendation(item = {}) {
+  function renderMedicalRecommendation(model = {}, slide = {}, item = {}, index = 0) {
     const player = item.player || {};
     const participation = Number(item.participation);
     const percentage = Number.isFinite(participation) ? `${Math.round(participation)}%` : "-";
     const tone = getParticipationTone(participation);
+    const key = getStableTextKey(player.id || player.name, `player-${index + 1}`);
     return `
       <article class="presentation-medical-player is-${escapeHtml(tone)}">
         ${renderRecommendationAvatar(player)}
-        <strong>${escapeHtml(player.name || "Player")}</strong>
-        <span>${escapeHtml(percentage)}</span>
+        ${renderEditableElement(model, slide, `medical.${key}.name`, player.name || "Player", "strong", "", { label: "Player name" })}
+        ${renderEditableElement(model, slide, `medical.${key}.percentage`, percentage, "span", "", { label: "Player participation" })}
       </article>
     `;
   }
 
-  function renderMedicalRecommendationsPanel(items = []) {
+  function renderMedicalRecommendationsPanel(model = {}, slide = {}, items = []) {
     return `
       <section class="presentation-medical-overview" aria-label="Medical participation recommendations">
         <div class="presentation-medical-list">
           ${
             items.length
-              ? items.map((item) => renderMedicalRecommendation(item)).join("")
-              : `<p>No medical recommendations for this day.</p>`
+              ? items.map((item, index) => renderMedicalRecommendation(model, slide, item, index)).join("")
+              : renderEditableElement(
+                  model,
+                  slide,
+                  "medical.empty",
+                  "No medical recommendations for this day.",
+                  "p",
+                  "",
+                  { label: "Empty medical recommendation text" }
+                )
           }
         </div>
       </section>
@@ -459,54 +527,64 @@ export function createPresentationModeRenderer(options = {}) {
   function renderOverviewSlide(model = {}, slide = {}) {
     const periodization = model.periodization || {};
     const overviewSlide = slide.id ? slide : model.slides?.find((item) => item.type === "overview") || {};
+    const frameSlide = {
+      id: overviewSlide.id || "overview",
+      type: "overview",
+      label: "Overview",
+      accentColor: overviewSlide.accentColor || "#22c55e",
+      style: overviewSlide.style,
+      textOverrides: overviewSlide.textOverrides,
+    };
     const phaseLines = [
       ...(Array.isArray(periodization.matchPhases) ? periodization.matchPhases : []),
       ...(Array.isArray(periodization.subPhases) ? periodization.subPhases : []),
     ].filter(Boolean);
     return renderSlideFrame(
       model,
-      {
-        type: "overview",
-        label: "Overview",
-        accentColor: overviewSlide.accentColor || "#22c55e",
-        style: overviewSlide.style,
-      },
+      frameSlide,
       `
         <section class="presentation-overview">
           <div class="presentation-section-heading">
-            <span>Training Overview</span>
+            ${renderEditableElement(model, frameSlide, "overview.heading", "Training Overview", "span", "", { label: "Overview heading" })}
           </div>
           <div class="presentation-overview-grid">
-            ${renderOverviewLoadMetric(model.loadLabel)}
-            ${renderOverviewMetric("Phase", phaseLines.slice(0, 3).join(" / ") || periodization.seasonPhase || periodization.sessionType, "is-phase")}
-            ${renderOverviewMetric("Video", periodization.preTrainingVideo || "None", "is-video")}
-            ${renderPitchSizeMetric(periodization.pitchSize || model.pitchLabel)}
-            ${renderOverviewMetric("Match Day", periodization.matchDay || "Not set", "is-match-day")}
+            ${renderOverviewLoadMetric(model, frameSlide, model.loadLabel)}
+            ${renderOverviewMetric(model, frameSlide, "Phase", phaseLines.slice(0, 3).join(" / ") || periodization.seasonPhase || periodization.sessionType, "is-phase", "overview.phase")}
+            ${renderOverviewMetric(model, frameSlide, "Video", periodization.preTrainingVideo || "None", "is-video", "overview.video")}
+            ${renderPitchSizeMetric(model, frameSlide, periodization.pitchSize || model.pitchLabel)}
+            ${renderOverviewMetric(model, frameSlide, "Match Day", periodization.matchDay || "Not set", "is-match-day", "overview.matchDay")}
             <div class="presentation-block-flow">
               ${model.blocks
                 .map((block, index) => {
                   const blockMeta = [block.pitchSize || "", block.phase || ""].filter(Boolean).join(" / ");
+                  const blockKey = getStableTextKey(block.id || block.label || block.title, `block-${index + 1}`);
                   return `
                     <article>
-                      <span>${escapeHtml(block.label || `Block ${index + 1}`)}</span>
-                      <strong>${escapeHtml(block.title || "Exercise")}</strong>
-                      ${blockMeta ? `<small>${escapeHtml(blockMeta)}</small>` : ""}
+                      ${renderEditableElement(model, frameSlide, `overview.${blockKey}.label`, block.label || `Block ${index + 1}`, "span", "", { label: "Overview block label" })}
+                      ${renderEditableElement(model, frameSlide, `overview.${blockKey}.title`, block.title || "Exercise", "strong", "", { label: "Overview block title" })}
+                      ${blockMeta ? renderEditableElement(model, frameSlide, `overview.${blockKey}.meta`, blockMeta, "small", "", { label: "Overview block meta" }) : ""}
                     </article>
                   `;
                 })
-                .join("") || `<article><span>Plan</span><strong>No blocks planned</strong><small>Open Session Planner to build the training.</small></article>`}
+                .join("") ||
+                `<article>
+                  ${renderEditableElement(model, frameSlide, "overview.empty.label", "Plan", "span", "", { label: "Empty plan label" })}
+                  ${renderEditableElement(model, frameSlide, "overview.empty.title", "No blocks planned", "strong", "", { label: "Empty plan title" })}
+                  ${renderEditableElement(model, frameSlide, "overview.empty.meta", "Open Session Planner to build the training.", "small", "", { label: "Empty plan meta" })}
+                </article>`}
             </div>
-            ${renderMedicalRecommendationsPanel(model.medicalRecommendations || [])}
+            ${renderMedicalRecommendationsPanel(model, frameSlide, model.medicalRecommendations || [])}
           </div>
         </section>
       `
     );
   }
 
-  function renderPlayerChip(item = {}, options = {}) {
+  function renderPlayerChip(model = {}, slide = {}, item = {}, options = {}, index = 0) {
     const player = item.player || {};
     const participation = Number(item.participation);
     const color = normalizeHexColor(item.color, "");
+    const playerKey = getStableTextKey(player.id || player.name, `player-${index + 1}`);
     const colorStyle = color
       ? `style="--presentation-player-color: ${escapeHtml(color)}; --presentation-player-text: ${escapeHtml(getTextColor(color))};"`
       : "";
@@ -517,35 +595,40 @@ export function createPresentationModeRenderer(options = {}) {
     ].filter(Boolean);
     return `
       <span class="presentation-player-chip is-${escapeHtml(getParticipationTone(participation))}${options.muted ? " is-muted" : ""}${color ? " has-color" : ""}" ${colorStyle}>
-        <strong>${escapeHtml(player.name || "Player")}</strong>
-        <small>${escapeHtml(meta.join(" / "))}</small>
+        ${renderEditableElement(model, slide, `${options.keyPrefix || "players"}.${playerKey}.name`, player.name || "Player", "strong", "", { label: "Player name" })}
+        ${renderEditableElement(model, slide, `${options.keyPrefix || "players"}.${playerKey}.meta`, meta.join(" / "), "small", "", { label: "Player status" })}
       </span>
     `;
   }
 
-  function renderPlayerPanel(title, items = [], emptyLabel = "", options = {}) {
+  function renderPlayerPanel(model = {}, slide = {}, title, items = [], emptyLabel = "", options = {}) {
     return `
       <section class="presentation-player-panel ${options.muted ? "is-muted" : ""}">
         <header>
-          <span>${escapeHtml(title)}</span>
+          ${renderEditableElement(model, slide, `${options.keyPrefix || "players"}.title`, title, "span", "", { label: "Player panel title" })}
           <strong>${escapeHtml(String(items.length))}</strong>
         </header>
         <div class="presentation-player-list">
-          ${items.length ? items.map((item) => renderPlayerChip(item, options)).join("") : `<p>${escapeHtml(emptyLabel)}</p>`}
+          ${
+            items.length
+              ? items.map((item, index) => renderPlayerChip(model, slide, item, options, index)).join("")
+              : renderEditableElement(model, slide, `${options.keyPrefix || "players"}.empty`, emptyLabel, "p", "", { label: "Empty player panel text" })
+          }
         </div>
       </section>
     `;
   }
 
-  function renderTextBlock(title, value) {
-    const lines = getLineItems(value);
+  function renderTextBlock(model = {}, slide = {}, title, value, keyPrefix = "") {
+    const bodyKey = `${keyPrefix}.body`;
+    const lines = getLineItems(getSlideText(slide, bodyKey, value));
     if (!lines.length) {
       return "";
     }
     return `
       <section class="presentation-detail-block">
-        <span>${escapeHtml(title)}</span>
-        <ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>
+        ${renderEditableElement(model, slide, `${keyPrefix}.title`, title, "span", "", { label: `${title} title` })}
+        ${renderEditableList(model, slide, bodyKey, value)}
       </section>
     `;
   }
@@ -561,14 +644,18 @@ export function createPresentationModeRenderer(options = {}) {
     ]
       .filter(Boolean)
       .join(" ");
+    const frameSlide = {
+      id: slide.id || block.id || "block",
+      type: "block",
+      label: slide.label,
+      accentColor: slide.accentColor || "#f59e0b",
+      style: slide.style,
+      textOverrides: slide.textOverrides,
+    };
+    const phaseText = getSlideText(frameSlide, "block.phase", phase);
     return renderSlideFrame(
       model,
-      {
-        type: "block",
-        label: slide.label,
-        accentColor: slide.accentColor || "#f59e0b",
-        style: slide.style,
-      },
+      frameSlide,
       `
         <section class="presentation-block-layout">
           <div class="presentation-block-visual">
@@ -576,18 +663,21 @@ export function createPresentationModeRenderer(options = {}) {
           </div>
           <div class="presentation-block-copy">
             <div class="presentation-section-heading">
-              <span>${escapeHtml(blockLabel)}</span>
-              <h2>${escapeHtml(block.title || "Exercise")}</h2>
-              <p>${escapeHtml(phase)}</p>
+              ${renderEditableElement(model, frameSlide, "block.label", blockLabel, "span", "", { label: "Block label" })}
+              ${renderEditableElement(model, frameSlide, "block.title", block.title || "Exercise", "h2", "", { label: "Block title" })}
+              ${phaseText ? renderEditableElement(model, frameSlide, "block.phase", phaseText, "p", "", { label: "Block phase" }) : ""}
             </div>
             <div class="presentation-block-details">
-              ${renderTextBlock("Objective", block.objective)}
-              ${renderTextBlock("Organization", block.organization)}
-              ${renderTextBlock("Team Principles & MG Principles", block.principles)}
+              ${renderTextBlock(model, frameSlide, "Objective", block.objective, "detail.objective")}
+              ${renderTextBlock(model, frameSlide, "Organization", block.organization, "detail.organization")}
+              ${renderTextBlock(model, frameSlide, "Team Principles & MG Principles", block.principles, "detail.principles")}
             </div>
           </div>
           <div class="presentation-block-players">
-            ${renderPlayerPanel("Not in this block", playerSummary.nonParticipants || [], "Everyone available is included.", { muted: true })}
+            ${renderPlayerPanel(model, frameSlide, "Not in this block", playerSummary.nonParticipants || [], "Everyone available is included.", {
+              keyPrefix: "players.notInBlock",
+              muted: true,
+            })}
           </div>
         </section>
       `

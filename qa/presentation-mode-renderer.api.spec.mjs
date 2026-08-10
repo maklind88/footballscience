@@ -108,6 +108,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   const coverHtml = renderer.renderCoverSlide(model);
   expect(coverHtml).toContain("is-theme-classic");
   expect(coverHtml).toContain("--presentation-slide-bg: #08120f");
+  expect(coverHtml).toContain('data-presentation-text-field="cover.title"');
+  expect(coverHtml).toContain('contenteditable="true"');
+  expect(renderer.renderCoverSlide({ ...model, presenting: true })).not.toContain('contenteditable="true"');
   expect(coverHtml).not.toContain(`<span>${model.passTypeLabel}</span>`);
   expect(coverHtml).not.toContain("presentation-cover-metrics");
   expect(coverHtml).not.toContain("<small>Blocks</small>");
@@ -115,6 +118,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(coverHtml).not.toContain("<small>Load</small>");
   const overviewHtml = renderer.renderOverviewSlide(model);
   expect(overviewHtml).toContain("Training Overview");
+  expect(overviewHtml).toContain('data-presentation-text-field="overview.heading"');
+  expect(overviewHtml).toContain('data-presentation-text-field="overview.phase.value"');
+  expect(overviewHtml).toContain('data-presentation-text-field="medical.p1.name"');
   expect(overviewHtml).not.toContain("<h2>");
   expect(overviewHtml).toContain("presentation-load-gauge");
   expect(overviewHtml).toContain("presentation-load-needle");
@@ -157,6 +163,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(exerciseVisualCalls.at(-1)?.options).toMatchObject({ large: true });
   expect(exerciseVisualCalls.at(-1)?.options.landscape).toBeUndefined();
   expect(blockHtml).toContain("Block 1 (10%+)");
+  expect(blockHtml).toContain('data-presentation-text-field="block.title"');
+  expect(blockHtml).toContain('data-presentation-text-field="detail.principles.body"');
+  expect(blockHtml).toContain('data-presentation-text-field="players.notInBlock.p2.name"');
   expect(blockHtml).not.toContain("30 min");
   expect(blockHtml).not.toContain("presentation-player-rule");
   expect(blockHtml).not.toContain("Focus");
@@ -201,6 +210,33 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     glowColor: "#d92d3f",
   });
   expect(renderer.renderCoverSlide(styledModel)).toContain("is-theme-matchday");
+
+  controller.writeDeckForDate("2026-06-02", (deck) => ({
+    ...deck,
+    textOverrides: {
+      cover: {
+        "cover.title": "Custom Briefing",
+      },
+      overview: {
+        "overview.heading": "Daily Flow",
+        "overview.phase.value": "Custom Phase",
+        "medical.p1.name": "Display Keeper",
+      },
+      b1: {
+        "block.title": "Custom Rondo",
+        "detail.principles.body": "Play forward\nProtect center",
+        "players.notInBlock.p2.name": "Display Mid",
+      },
+    },
+  }));
+  const editableModel = controller.buildModel();
+  expect(renderer.renderCoverSlide(editableModel)).toContain("Custom Briefing");
+  expect(renderer.renderOverviewSlide(editableModel, editableModel.slides.find((slide) => slide.type === "overview"))).toContain("Daily Flow");
+  expect(renderer.renderOverviewSlide(editableModel, editableModel.slides.find((slide) => slide.type === "overview"))).toContain("Custom Phase");
+  expect(renderer.renderOverviewSlide(editableModel, editableModel.slides.find((slide) => slide.type === "overview"))).toContain("Display Keeper");
+  expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Custom Rondo");
+  expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Play forward");
+  expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Display Mid");
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({
     ...deck,

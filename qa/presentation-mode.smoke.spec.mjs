@@ -597,14 +597,16 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const medicalRect = medical.getBoundingClientRect();
     const gridRect = medical.closest(".presentation-overview-grid")?.getBoundingClientRect();
     const firstPlayerRect = players[0].getBoundingClientRect();
+    const lastPlayerBottom = Math.max(...players.map((player) => player.getBoundingClientRect().bottom));
     return {
       rightOfVideo: medicalRect.left >= videoRect.right - 2,
       rightOfMatchDay: medicalRect.left >= matchRect.right - 2,
       widthRatio: gridRect ? medicalRect.width / gridRect.width : 0,
       spansOverviewContent: medicalRect.bottom >= firstPlayerRect.bottom,
-      compactRows: players.every((player) => {
+      fillsMedicalHeight: Math.abs(medicalRect.bottom - lastPlayerBottom) <= 24,
+      readableRows: players.every((player) => {
         const rect = player.getBoundingClientRect();
-        return rect.height <= 30;
+        return rect.height >= 28;
       }),
       allRowsFit: players.every((player) => {
         const rect = player.getBoundingClientRect();
@@ -616,7 +618,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     rightOfVideo: true,
     rightOfMatchDay: true,
     spansOverviewContent: true,
-    compactRows: true,
+    fillsMedicalHeight: true,
+    readableRows: true,
     allRowsFit: true,
   });
   expect(overviewMedicalLayout?.widthRatio).toBeGreaterThan(0.46);

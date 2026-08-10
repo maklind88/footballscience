@@ -219,8 +219,32 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-pass-controls label > span", { hasText: /^Date$/ })).toHaveCount(0);
   await expect(presentation.locator("[data-presentation-theme-menu]")).toBeVisible();
   await expect(presentation.locator("[data-presentation-theme-menu] summary")).toHaveText("Theme");
+  await expect(presentation.locator("[data-presentation-theme-preset='stadium']")).toBeHidden();
   await expect(presentation.locator("[data-presentation-style-field='theme']")).toHaveValue("classic");
   await expect(presentation.locator("[data-presentation-delete-slide]")).toBeDisabled();
+  await presentation.locator("[data-presentation-theme-menu] summary").click();
+  await expect(presentation.locator("[data-presentation-theme-preset='stadium']")).toBeVisible();
+  const themeMenuLayout = await presentation.evaluate(() => {
+    const popover = document.querySelector(".presentation-theme-popover");
+    const slide = document.querySelector(".presentation-slide");
+    const button = document.querySelector(".presentation-theme-button");
+    if (!popover || !slide || !button) return null;
+    const popoverRect = popover.getBoundingClientRect();
+    const slideRect = slide.getBoundingClientRect();
+    const buttonStyle = getComputedStyle(button);
+    return {
+      aboveSlide: popoverRect.top < slideRect.top,
+      readableButton: buttonStyle.color === "rgb(248, 250, 252)",
+      cardCount: document.querySelectorAll("[data-presentation-theme-preset]").length,
+    };
+  });
+  expect(themeMenuLayout).toMatchObject({
+    aboveSlide: true,
+    readableButton: true,
+  });
+  expect(themeMenuLayout?.cardCount).toBeGreaterThanOrEqual(9);
+  await presentation.locator("[data-presentation-theme-preset='stadium']").click();
+  await expect(presentation.locator(".presentation-slide-cover")).toHaveClass(/is-theme-stadium/);
   await presentation.locator("[data-presentation-theme-menu] summary").click();
   await presentation.locator("[data-presentation-style-field='theme']").selectOption("matchday");
   await expect(presentation.locator(".presentation-slide-cover")).toHaveClass(/is-theme-matchday/);

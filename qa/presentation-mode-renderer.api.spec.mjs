@@ -97,7 +97,14 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   const controlHtml = renderer.renderControlBar(model);
   expect(controlHtml).toContain("<strong>Presentation Mode</strong>");
   expect(controlHtml).toContain("data-presentation-theme-menu");
+  expect(controlHtml).toContain("data-presentation-theme-preset");
   expect(controlHtml).toContain('data-presentation-style-field="theme"');
+  expect(controlHtml).toContain("Stadium Lights");
+  expect(controlHtml).toContain("Tactical Board");
+  expect(controlHtml).toContain("Recovery");
+  expect(controlHtml).toContain("Film Room");
+  expect(controlHtml).toContain("Whiteboard");
+  expect(controlHtml).toContain("Medical Calm");
   expect(controlHtml.indexOf("data-presentation-theme-menu")).toBeLessThan(controlHtml.indexOf("data-presentation-add-info"));
   expect(controlHtml).toContain("data-presentation-add-info");
   expect(controlHtml).toContain(">New Slide</button>");

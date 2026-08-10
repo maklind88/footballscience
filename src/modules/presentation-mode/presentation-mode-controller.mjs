@@ -1382,6 +1382,11 @@ export function createPresentationModeController(dependencies = {}) {
       shapeButton.closest?.("details")?.removeAttribute?.("open");
       return;
     }
+    const themePresetButton = event.target.closest("[data-presentation-theme-preset]");
+    if (themePresetButton) {
+      updateCurrentSlideStyle("theme", themePresetButton.dataset.presentationThemePreset);
+      return;
+    }
     if (event.target.closest("[data-presentation-add-text-box]")) {
       addTextBox();
       return;

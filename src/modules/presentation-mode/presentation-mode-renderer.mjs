@@ -174,8 +174,33 @@ export function createPresentationModeRenderer(options = {}) {
     const style = normalizePresentationSlideStyle(slide.style, { accentColor: slide.accentColor });
     return `
       <details class="presentation-theme-menu" data-presentation-theme-menu>
-        <summary class="presentation-tool-button presentation-theme-button">Theme</summary>
+        <summary class="presentation-tool-button presentation-theme-button" aria-label="Open slide theme picker">
+          <span class="presentation-theme-button-mark" aria-hidden="true" style="--mark-a: ${escapeHtml(style.accentColor)}; --mark-b: ${escapeHtml(style.backgroundColor)};"></span>
+          <strong>Theme</strong>
+        </summary>
         <div class="presentation-theme-popover" role="group" aria-label="Slide theme">
+          <div class="presentation-theme-card-grid">
+            ${presentationThemeOptions
+              .filter((theme) => theme.value !== "custom")
+              .map(
+                (theme) => `
+                  <button
+                    type="button"
+                    class="presentation-theme-card ${style.theme === theme.value ? "is-active" : ""}"
+                    data-presentation-theme-preset="${escapeHtml(theme.value)}"
+                    aria-label="${escapeHtml(`Use ${theme.label} theme`)}"
+                    style="--theme-card-accent: ${escapeHtml(theme.accentColor)}; --theme-card-bg: ${escapeHtml(theme.backgroundColor)}; --theme-card-glow: ${escapeHtml(theme.glowColor)}; --theme-card-text: ${escapeHtml(theme.textColor)};"
+                  >
+                    <span class="presentation-theme-card-preview" aria-hidden="true">
+                      <i></i>
+                      <b></b>
+                    </span>
+                    <strong>${escapeHtml(theme.label)}</strong>
+                  </button>
+                `
+              )
+              .join("")}
+          </div>
           <label class="presentation-theme-select">
             <span>Theme</span>
             <select data-presentation-style-field="theme" aria-label="Slide theme preset">

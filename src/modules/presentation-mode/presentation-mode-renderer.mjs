@@ -266,6 +266,7 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderControlBar(model = {}) {
     const slide = model.slides[model.slideIndex] || model.slides[0];
+    const canDeleteSlide = slide?.type === "info";
     return `
       <header class="presentation-control-bar">
         <div class="presentation-control-brand">
@@ -277,6 +278,7 @@ export function createPresentationModeRenderer(options = {}) {
         <div class="presentation-pass-controls">
           ${renderThemeControl(slide)}
           <button type="button" class="presentation-tool-button presentation-new-slide-button" data-presentation-add-info>New Slide</button>
+          <button type="button" class="presentation-tool-button" data-presentation-delete-slide ${canDeleteSlide ? "" : "disabled"} title="${canDeleteSlide ? "Delete current slide" : "Only custom slides can be deleted"}">Delete Slide</button>
           <label>
             <input type="date" value="${escapeHtml(model.dateValue)}" data-presentation-date-input aria-label="Presentation date" />
           </label>
@@ -295,6 +297,7 @@ export function createPresentationModeRenderer(options = {}) {
         <button type="button" class="presentation-toolbar-command" data-presentation-add-text-box title="Add text box" aria-label="Add text box">T</button>
         <button type="button" data-presentation-duplicate-info data-presentation-active-info-only disabled>Duplicate</button>
         <button type="button" data-presentation-delete-info data-presentation-active-info-only disabled>Delete</button>
+        <button type="button" data-presentation-delete-text-box data-presentation-active-text-box-only disabled>Delete Box</button>
         <label>
           <span>Text size</span>
           <select data-presentation-active-font-size aria-label="Text size">
@@ -376,18 +379,35 @@ export function createPresentationModeRenderer(options = {}) {
               fontSize: box.fontSize || "36",
               textColor: box.textColor || "#f8fafc",
             };
-            return renderEditableTextArea(
+            const textBox = renderEditableTextArea(
               model,
               slide,
               field,
               box.text || "Text box",
               `class="presentation-free-text-box" data-presentation-text-box-id="${escapeHtml(box.id)}"`,
               {
-                extraStyle: `left: ${box.x}%; top: ${box.y}%; width: ${box.width}%`,
                 label: "Text box",
                 style: fallbackStyle,
               }
             );
+            return `
+              <div
+                class="presentation-free-text-box-shell"
+                data-presentation-text-box-shell
+                data-presentation-text-box-id="${escapeHtml(box.id)}"
+                style="left: ${escapeHtml(box.x)}%; top: ${escapeHtml(box.y)}%; width: ${escapeHtml(box.width)}%;"
+              >
+                <button
+                  type="button"
+                  class="presentation-text-box-drag-handle"
+                  data-presentation-drag-text-box="${escapeHtml(box.id)}"
+                  data-presentation-slide-id="${escapeHtml(slide.id)}"
+                  title="Move text box"
+                  aria-label="Move text box"
+                ></button>
+                ${textBox}
+              </div>
+            `;
           })
           .join("")}
       </div>

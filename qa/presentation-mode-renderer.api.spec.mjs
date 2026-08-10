@@ -101,6 +101,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(controlHtml.indexOf("data-presentation-theme-menu")).toBeLessThan(controlHtml.indexOf("data-presentation-add-info"));
   expect(controlHtml).toContain("data-presentation-add-info");
   expect(controlHtml).toContain(">New Slide</button>");
+  expect(controlHtml).toContain("data-presentation-delete-slide");
+  expect(controlHtml).toContain("Only custom slides can be deleted");
   expect(controlHtml).not.toContain("data-presentation-toggle-editor");
   expect(controlHtml).not.toContain(">Edit<");
   expect(controlHtml).not.toContain(model.sessionTitle);
@@ -149,6 +151,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).not.toContain("is-focus");
   expect(overviewHtml).not.toContain("Main Focus");
   const infoSlide = model.slides.find((slide) => slide.type === "info");
+  const infoControlHtml = renderer.renderControlBar({ ...model, slideIndex: infoSlide.index });
+  expect(infoControlHtml).toContain("data-presentation-delete-slide");
+  expect(infoControlHtml).toContain("Delete current slide");
   const infoHtml = renderer.renderInfoSlide(model, infoSlide);
   expect(infoHtml.indexOf("presentation-info-title")).toBeLessThan(infoHtml.indexOf("presentation-info-rule"));
   expect(infoHtml).toContain('data-presentation-info-field="title"');
@@ -159,6 +164,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(toolbarHtml).toContain("data-presentation-text-toolbar");
   expect(toolbarHtml).toContain("data-presentation-add-text-box");
   expect(toolbarHtml).toContain("data-presentation-active-font-size");
+  expect(toolbarHtml).toContain("data-presentation-delete-text-box");
   expect(toolbarHtml).toContain("16 pt");
   expect(toolbarHtml).toContain("56 pt");
   expect(toolbarHtml).toContain("128 pt");
@@ -277,8 +283,10 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   const styledTextModel = controller.buildModel();
   const styledCoverHtml = renderer.renderCoverSlide(styledTextModel);
   expect(styledCoverHtml).toContain("presentation-free-text-box");
+  expect(styledCoverHtml).toContain("presentation-free-text-box-shell");
   expect(styledCoverHtml).toContain("Free note");
   expect(styledCoverHtml).toContain('data-presentation-text-box-id="note-1"');
+  expect(styledCoverHtml).toContain('data-presentation-drag-text-box="note-1"');
   expect(styledCoverHtml).toContain('data-presentation-text-field="textbox.note-1.text"');
   expect(styledCoverHtml).toContain("left: 50%; top: 40%; width: 30%;");
   expect(styledCoverHtml).toContain("font-size: 4rem; color: #38bdf8;");

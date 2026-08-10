@@ -162,11 +162,12 @@ function normalizeTextBoxes(textBoxes = {}) {
           .map((box, index) => {
             const safeBox = box && typeof box === "object" && !Array.isArray(box) ? box : {};
             const id = String(safeBox.id || `textbox-${index + 1}`).trim();
+            const width = Math.min(70, Math.max(14, Number(safeBox.width) || 28));
             return {
               id,
-              x: Math.min(88, Math.max(4, Number(safeBox.x) || 12)),
-              y: Math.min(78, Math.max(8, Number(safeBox.y) || 22)),
-              width: Math.min(70, Math.max(14, Number(safeBox.width) || 28)),
+              x: Math.min(96 - width, Math.max(2, Number(safeBox.x) || 12)),
+              y: Math.min(88, Math.max(4, Number(safeBox.y) || 22)),
+              width,
               text: String(safeBox.text ?? "Text box").slice(0, maxTextOverrideLength),
               fontSize: normalizeFontSize(safeBox.fontSize || "36"),
               textColor: normalizeHexColor(safeBox.textColor, "#f8fafc"),
@@ -308,6 +309,7 @@ export function createPresentationModeController(dependencies = {}) {
     activeTextTarget: null,
     bound: false,
     dateValue: "",
+    dragTextBox: null,
     editorOpen: false,
     isOpen: false,
     presenting: false,
@@ -354,6 +356,18 @@ export function createPresentationModeController(dependencies = {}) {
         },
       },
     });
+  }
+
+  function clampTextBoxPosition(x, y, width = 30) {
+    const safeWidth = Math.min(70, Math.max(14, Number(width) || 30));
+    return {
+      x: Number(Math.min(96 - safeWidth, Math.max(2, Number(x) || 2)).toFixed(2)),
+      y: Number(Math.min(88, Math.max(4, Number(y) || 4)).toFixed(2)),
+    };
+  }
+
+  function getTextBoxField(boxId = "") {
+    return `textbox.${String(boxId || "").trim()}.text`;
   }
 
   function getResolvedPasses(dateValue = state.dateValue) {
@@ -532,6 +546,7 @@ export function createPresentationModeController(dependencies = {}) {
 
   function open(dateValue = "") {
     state.activeTextTarget = null;
+    state.dragTextBox = null;
     state.dateValue = normalizeDateValue(dateValue, getTodayValue());
     state.slideIndex = 0;
     state.editorOpen = false;
@@ -542,6 +557,7 @@ export function createPresentationModeController(dependencies = {}) {
 
   function close() {
     state.activeTextTarget = null;
+    state.dragTextBox = null;
     state.isOpen = false;
     state.editorOpen = false;
     state.presenting = false;
@@ -553,6 +569,7 @@ export function createPresentationModeController(dependencies = {}) {
       root.innerHTML = "";
     }
     documentRef.body.classList.remove("is-presentation-mode-open");
+    documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
   }
 
   function goToSlide(index) {
@@ -560,6 +577,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.slideIndex = Math.min(Math.max(0, Number(index) || 0), Math.max(0, slideCount - 1));
     state.editorOpen = false;
     state.activeTextTarget = null;
+    state.dragTextBox = null;
     render();
   }
 
@@ -752,6 +770,10 @@ export function createPresentationModeController(dependencies = {}) {
     toolbar.querySelectorAll("[data-presentation-active-info-only]").forEach((control) => {
       control.disabled = !isInfoSlide;
     });
+    const isTextBox = Boolean(state.activeTextTarget.textBoxId);
+    toolbar.querySelectorAll("[data-presentation-active-text-box-only]").forEach((control) => {
+      control.disabled = !isTextBox;
+    });
   }
 
   function setActiveTextTargetFromElement(element) {
@@ -765,6 +787,7 @@ export function createPresentationModeController(dependencies = {}) {
       field,
       infoId: String(textElement.dataset.presentationInfoId || "").trim(),
       slideId,
+      textBoxId: String(textElement.dataset.presentationTextBoxId || "").trim(),
     };
     syncTextToolbar();
   }
@@ -811,7 +834,7 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     const id = `textbox-${Date.now()}`;
-    const field = `textbox.${id}.text`;
+    const field = getTextBoxField(id);
     writeDeckForDate(state.dateValue, (deck) => ({
       ...deck,
       textBoxes: normalizeTextBoxes({
@@ -847,7 +870,63 @@ export function createPresentationModeController(dependencies = {}) {
         },
       }),
     }));
-    state.activeTextTarget = { field, infoId: "", slideId: currentSlide.id };
+    state.activeTextTarget = { field, infoId: "", slideId: currentSlide.id, textBoxId: id };
+    render();
+    focusActiveTextElement();
+  }
+
+  function deleteTextBox(slideId = "", boxId = "") {
+    const safeSlideId = String(slideId || "").trim();
+    const safeBoxId = String(boxId || "").trim();
+    const field = getTextBoxField(safeBoxId);
+    if (!safeSlideId || !safeBoxId) {
+      return;
+    }
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      textBoxes: normalizeTextBoxes({
+        ...deck.textBoxes,
+        [safeSlideId]: (deck.textBoxes?.[safeSlideId] || []).filter((box) => box.id !== safeBoxId),
+      }),
+      textFieldStyles: {
+        ...deck.textFieldStyles,
+        [safeSlideId]: Object.fromEntries(
+          Object.entries(deck.textFieldStyles?.[safeSlideId] || {}).filter(([styleField]) => styleField !== field)
+        ),
+      },
+      textOverrides: {
+        ...deck.textOverrides,
+        [safeSlideId]: Object.fromEntries(
+          Object.entries(deck.textOverrides?.[safeSlideId] || {}).filter(([textField]) => textField !== field)
+        ),
+      },
+    }));
+    state.activeTextTarget = null;
+    render();
+  }
+
+  function updateTextBoxPosition(slideId = "", boxId = "", x = 0, y = 0) {
+    const safeSlideId = String(slideId || "").trim();
+    const safeBoxId = String(boxId || "").trim();
+    if (!safeSlideId || !safeBoxId) {
+      return;
+    }
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      textBoxes: normalizeTextBoxes({
+        ...deck.textBoxes,
+        [safeSlideId]: (deck.textBoxes?.[safeSlideId] || []).map((box) => {
+          if (box.id !== safeBoxId) {
+            return box;
+          }
+          return {
+            ...box,
+            ...clampTextBoxPosition(x, y, box.width),
+          };
+        }),
+      }),
+    }));
+    state.activeTextTarget = { field: getTextBoxField(safeBoxId), infoId: "", slideId: safeSlideId, textBoxId: safeBoxId };
     render();
     focusActiveTextElement();
   }
@@ -928,13 +1007,23 @@ export function createPresentationModeController(dependencies = {}) {
       state.slideIndex = Math.min(deletedIndex, Math.max(0, nextModel.slides.length - 1));
       state.editorOpen = false;
     }
+    state.activeTextTarget = null;
     render();
+  }
+
+  function deleteCurrentSlide() {
+    const currentSlide = buildModel().slides[state.slideIndex];
+    if (currentSlide?.type !== "info" || !currentSlide.infoSlide?.id) {
+      return;
+    }
+    deleteInfoSlide(currentSlide.infoSlide.id);
   }
 
   function startFullscreen() {
     const currentRoot = ensureRoot();
     currentRoot.requestFullscreen?.().catch?.(noop);
     state.activeTextTarget = null;
+    state.dragTextBox = null;
     state.presenting = true;
     state.editorOpen = false;
     render();
@@ -944,6 +1033,68 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.exitFullscreen?.().catch?.(noop);
     state.presenting = false;
     render();
+  }
+
+  function beginTextBoxDrag(event, handle) {
+    const slideId = String(handle?.dataset.presentationSlideId || "").trim();
+    const boxId = String(handle?.dataset.presentationDragTextBox || "").trim();
+    const shell = handle?.closest?.("[data-presentation-text-box-shell]");
+    const slideElement = shell?.closest?.(".presentation-slide");
+    const slideRect = slideElement?.getBoundingClientRect?.();
+    const box = getDeckForDate().textBoxes?.[slideId]?.find((item) => item.id === boxId);
+    if (!slideId || !boxId || !shell || !slideRect?.width || !slideRect?.height || !box || state.presenting) {
+      return;
+    }
+    event.preventDefault?.();
+    const position = clampTextBoxPosition(box.x, box.y, box.width);
+    state.dragTextBox = {
+      boxId,
+      shell,
+      slideId,
+      slideHeight: slideRect.height,
+      slideWidth: slideRect.width,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: position.x,
+      startY: position.y,
+      nextX: position.x,
+      nextY: position.y,
+      width: box.width,
+    };
+    state.activeTextTarget = { field: getTextBoxField(boxId), infoId: "", slideId, textBoxId: boxId };
+    shell.classList.add("is-dragging");
+    documentRef.body?.classList?.add("is-presentation-text-box-dragging");
+    handle.setPointerCapture?.(event.pointerId);
+    syncTextToolbar();
+  }
+
+  function updateTextBoxDrag(event) {
+    const drag = state.dragTextBox;
+    if (!drag) {
+      return;
+    }
+    event.preventDefault?.();
+    const nextPosition = clampTextBoxPosition(
+      drag.startX + ((event.clientX - drag.startClientX) / drag.slideWidth) * 100,
+      drag.startY + ((event.clientY - drag.startClientY) / drag.slideHeight) * 100,
+      drag.width
+    );
+    drag.nextX = nextPosition.x;
+    drag.nextY = nextPosition.y;
+    drag.shell.style.left = `${nextPosition.x}%`;
+    drag.shell.style.top = `${nextPosition.y}%`;
+  }
+
+  function finishTextBoxDrag(event) {
+    const drag = state.dragTextBox;
+    if (!drag) {
+      return;
+    }
+    event.preventDefault?.();
+    drag.shell.classList.remove("is-dragging");
+    documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
+    state.dragTextBox = null;
+    updateTextBoxPosition(drag.slideId, drag.boxId, drag.nextX, drag.nextY);
   }
 
   function handleClick(event) {
@@ -975,6 +1126,9 @@ export function createPresentationModeController(dependencies = {}) {
       exitFullscreen();
       return;
     }
+    if (event.target.closest("[data-presentation-drag-text-box]")) {
+      return;
+    }
     const symbolButton = event.target.closest("[data-presentation-insert-symbol]");
     if (symbolButton) {
       insertTextIntoActiveField(symbolButton.dataset.presentationInsertSymbol);
@@ -988,6 +1142,10 @@ export function createPresentationModeController(dependencies = {}) {
       addInfoSlide();
       return;
     }
+    if (event.target.closest("[data-presentation-delete-slide]")) {
+      deleteCurrentSlide();
+      return;
+    }
     const duplicateButton = event.target.closest("[data-presentation-duplicate-info]");
     if (duplicateButton) {
       duplicateInfoSlide(duplicateButton.dataset.presentationDuplicateInfo || state.activeTextTarget?.infoId);
@@ -996,6 +1154,11 @@ export function createPresentationModeController(dependencies = {}) {
     const deleteButton = event.target.closest("[data-presentation-delete-info]");
     if (deleteButton) {
       deleteInfoSlide(deleteButton.dataset.presentationDeleteInfo || state.activeTextTarget?.infoId);
+      return;
+    }
+    const deleteTextBoxButton = event.target.closest("[data-presentation-delete-text-box]");
+    if (deleteTextBoxButton) {
+      deleteTextBox(state.activeTextTarget?.slideId, state.activeTextTarget?.textBoxId);
       return;
     }
     if (event.target.closest("[data-presentation-text-field]")) {
@@ -1016,11 +1179,16 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
+    const dragHandle = event.target.closest("[data-presentation-drag-text-box]");
+    if (dragHandle) {
+      beginTextBoxDrag(event, dragHandle);
+      return;
+    }
     if (event.target.closest("[data-presentation-text-field]")) {
       setActiveTextTargetFromElement(event.target);
       return;
     }
-    if (!event.target.closest("[data-presentation-text-toolbar]")) {
+    if (!event.target.closest("[data-presentation-text-toolbar], [data-presentation-text-box-shell]")) {
       hideTextToolbar();
     }
   }
@@ -1093,6 +1261,7 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     state.activeTextTarget = null;
+    state.dragTextBox = null;
     state.dateValue = nextDate;
     state.slideIndex = 0;
     state.editorOpen = false;
@@ -1146,6 +1315,9 @@ export function createPresentationModeController(dependencies = {}) {
     }
     state.bound = true;
     documentRef.addEventListener("pointerdown", handleTextActivation, true);
+    documentRef.addEventListener("pointermove", updateTextBoxDrag, true);
+    documentRef.addEventListener("pointerup", finishTextBoxDrag, true);
+    documentRef.addEventListener("pointercancel", finishTextBoxDrag, true);
     documentRef.addEventListener("click", handleClick);
     documentRef.addEventListener("focus", handleFocusin, true);
     documentRef.addEventListener("focusin", handleFocusin, true);

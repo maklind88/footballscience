@@ -220,6 +220,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator("[data-presentation-theme-menu]")).toBeVisible();
   await expect(presentation.locator("[data-presentation-theme-menu] summary")).toHaveText("Theme");
   await expect(presentation.locator("[data-presentation-style-field='theme']")).toHaveValue("classic");
+  await expect(presentation.locator("[data-presentation-delete-slide]")).toBeDisabled();
   await presentation.locator("[data-presentation-theme-menu] summary").click();
   await presentation.locator("[data-presentation-style-field='theme']").selectOption("matchday");
   await expect(presentation.locator(".presentation-slide-cover")).toHaveClass(/is-theme-matchday/);
@@ -310,6 +311,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await page.keyboard.press("ArrowRight");
   await expect(presentation.locator(".presentation-info-title")).toHaveValue("Daily Info");
   await expect(presentation.locator(".presentation-info-rule")).toHaveCount(1);
+  await expect(presentation.locator("[data-presentation-delete-slide]")).toBeEnabled();
   await expect(presentation.locator("[data-presentation-toggle-editor]")).toHaveCount(0);
   await expect(presentation.locator("[data-presentation-text-toolbar]")).toBeHidden();
   await presentation.locator(".presentation-info-title").click();
@@ -330,6 +332,26 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-info-title")).toHaveValue(/✓/);
   await textToolbar.locator("[data-presentation-add-text-box]").click();
   await expect(presentation.locator(".presentation-free-text-box")).toContainText("Text box");
+  await expect(textToolbar.locator("[data-presentation-delete-text-box]")).toBeEnabled();
+  const textBoxShell = presentation.locator("[data-presentation-text-box-shell]").first();
+  const dragHandle = presentation.locator("[data-presentation-drag-text-box]").first();
+  const beforeTextBox = await textBoxShell.boundingBox();
+  const dragHandleBox = await dragHandle.boundingBox();
+  expect(beforeTextBox).toBeTruthy();
+  expect(dragHandleBox).toBeTruthy();
+  await page.mouse.move(dragHandleBox.x + dragHandleBox.width / 2, dragHandleBox.y + dragHandleBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(dragHandleBox.x + dragHandleBox.width / 2 + 96, dragHandleBox.y + dragHandleBox.height / 2 + 48, { steps: 6 });
+  await page.mouse.up();
+  const afterTextBox = await textBoxShell.boundingBox();
+  expect(afterTextBox?.x).toBeGreaterThan((beforeTextBox?.x || 0) + 20);
+  expect(afterTextBox?.y).toBeGreaterThan((beforeTextBox?.y || 0) + 10);
+  const storedTextBox = await page.evaluate(
+    ({ key, date }) => JSON.parse(window.localStorage.getItem(key) || "{}")?.decks?.[date]?.textBoxes?.["qa-info"]?.[0],
+    { key: presentationKey, date: dateValue }
+  );
+  expect(storedTextBox?.x).toBeGreaterThan(56);
+  expect(storedTextBox?.y).toBeGreaterThan(36);
   await presentation.locator(".presentation-info-title").click();
   await expect(presentation.locator("[data-presentation-delete-info]")).toBeEnabled();
   const logoSizing = await presentation.evaluate(() => {
@@ -351,7 +373,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   });
   expect(infoTitleAboveRule).toBe(true);
   await expect(presentation).toContainText("Arrive ready");
-  await presentation.locator("[data-presentation-delete-info]").click();
+  await presentation.locator("[data-presentation-delete-slide]").click();
   await expect(presentation.locator(".presentation-slide-info")).toHaveCount(0);
   await expect(presentation.locator(".presentation-slide-tabs")).not.toContainText("Daily Info");
   await expect(presentation).toContainText("Training Overview");

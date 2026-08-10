@@ -121,16 +121,12 @@ body.is-presentation-mode-open {
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: .55rem;
   padding: .72rem;
   background:
     linear-gradient(145deg, rgba(3, 7, 18, .98), rgba(9, 21, 18, .98) 55%, rgba(20, 28, 38, .98)),
     #050806;
-}
-
-.presentation-mode-shell.is-editor-open {
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
 .presentation-control-bar,
@@ -415,6 +411,36 @@ body.is-presentation-mode-open {
   padding: .52rem;
 }
 
+.presentation-text-toolbar {
+  display: none;
+}
+
+.presentation-mode-shell.is-text-toolbar-open .presentation-text-toolbar {
+  display: flex;
+}
+
+.presentation-toolbar-command {
+  min-width: 2.5rem;
+  font-size: 1rem;
+}
+
+.presentation-symbol-tools {
+  display: flex;
+  align-items: end;
+  gap: .28rem;
+}
+
+.presentation-symbol-tools > span {
+  align-self: center;
+  margin-right: .16rem;
+}
+
+.presentation-symbol-tools button {
+  width: 2.22rem;
+  padding: 0;
+  font-size: .98rem;
+}
+
 .presentation-stage {
   min-height: 0;
   display: grid;
@@ -457,6 +483,33 @@ body.is-presentation-mode-open {
   width: 100%;
   height: 100%;
   padding: clamp(1.4rem, 2.5vw, 2.5rem);
+}
+
+.presentation-text-box-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.presentation-free-text-box {
+  position: absolute;
+  min-height: 2.8rem;
+  padding: .5rem .62rem;
+  border: 1px dashed color-mix(in srgb, var(--presentation-accent, #38bdf8) 58%, transparent);
+  border-radius: 8px;
+  color: var(--presentation-slide-text, #f8fafc);
+  background: rgba(8, 15, 20, .28);
+  font-weight: 850;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+  white-space: pre-wrap;
+}
+
+.presentation-mode-shell.is-presenting .presentation-free-text-box {
+  border-color: transparent;
+  background: transparent;
 }
 
 .presentation-corner-logo {

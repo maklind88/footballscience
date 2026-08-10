@@ -221,10 +221,36 @@ export function createPresentationModeRenderer(options = {}) {
       .join(" ");
   }
 
+  function getTextFieldStyle(slide = {}, field = "") {
+    const styles = slide.textFieldStyles && typeof slide.textFieldStyles === "object" ? slide.textFieldStyles : {};
+    return styles[String(field || "").trim()] || {};
+  }
+
+  function getTextFieldStyleAttribute(slide = {}, field = "", fallback = {}, extraStyle = "") {
+    const style = { ...fallback, ...getTextFieldStyle(slide, field) };
+    const declarations = [];
+    if (extraStyle) {
+      declarations.push(String(extraStyle).replace(/;+$/g, ""));
+    }
+    if (style.fontSize) {
+      declarations.push(`font-size: ${Number((Number(getSafeSize(style.fontSize)) / 16).toFixed(3))}rem`);
+    }
+    if (style.textColor) {
+      declarations.push(`color: ${normalizeHexColor(style.textColor, "#f8fafc")}`);
+    }
+    return declarations.length ? `style="${escapeHtml(`${declarations.join("; ")};`)}"` : "";
+  }
+
+  function mergeAttributes(...attributes) {
+    return attributes.filter(Boolean).join(" ");
+  }
+
   function renderEditableElement(model = {}, slide = {}, field = "", fallback = "", tagName = "span", attributes = "", options = {}) {
     const editableAttributes = getEditableAttributes(model, slide, field, options);
     const value = getSlideText(slide, field, fallback);
-    return `<${tagName}${attributes ? ` ${attributes}` : ""}${editableAttributes ? ` ${editableAttributes}` : ""}>${escapeHtml(value)}</${tagName}>`;
+    const styleAttribute = getTextFieldStyleAttribute(slide, field, options.style || {}, options.extraStyle || "");
+    const mergedAttributes = mergeAttributes(attributes, styleAttribute, editableAttributes);
+    return `<${tagName}${mergedAttributes ? ` ${mergedAttributes}` : ""}>${escapeHtml(value)}</${tagName}>`;
   }
 
   function renderEditableTextArea(model = {}, slide = {}, field = "", fallback = "", attributes = "", options = {}) {
@@ -233,7 +259,9 @@ export function createPresentationModeRenderer(options = {}) {
       return "";
     }
     const editableAttributes = getEditableAttributes(model, slide, field, { ...options, multiline: true });
-    return `<div${attributes ? ` ${attributes}` : ""}${editableAttributes ? ` ${editableAttributes}` : ""}>${escapeHtml(value)}</div>`;
+    const styleAttribute = getTextFieldStyleAttribute(slide, field, options.style || {}, options.extraStyle || "");
+    const mergedAttributes = mergeAttributes(attributes, styleAttribute, editableAttributes);
+    return `<div${mergedAttributes ? ` ${mergedAttributes}` : ""}>${escapeHtml(value)}</div>`;
   }
 
   function renderControlBar(model = {}) {
@@ -254,11 +282,6 @@ export function createPresentationModeRenderer(options = {}) {
           </label>
         </div>
         <div class="presentation-control-actions">
-          ${
-            slide?.type === "info"
-              ? `<button type="button" class="presentation-tool-button" data-presentation-toggle-editor>${model.editorOpen ? "Done" : "Edit"}</button>`
-              : ""
-          }
           <button type="button" class="presentation-tool-button is-primary" data-presentation-start title="Start fullscreen" aria-label="Start fullscreen">Start</button>
           <button type="button" class="presentation-icon-button" data-presentation-close title="Close" aria-label="Close presentation">x</button>
         </div>
@@ -266,43 +289,36 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
-  function renderInfoEditor(model = {}) {
-    const slide = model.slides[model.slideIndex] || {};
-    if (slide.type !== "info" || !model.editorOpen) {
-      return "";
-    }
-    const infoSlide = slide.infoSlide || {};
-    const slideStyle = normalizePresentationSlideStyle(slide.style, {
-      accentColor: infoSlide.accentColor,
-      textColor: infoSlide.textColor,
-    });
-    const activeSize = getSafeSize(infoSlide.fontSize);
-    const sizeOptions = infoFontSizeOptions.includes(Number(activeSize))
-      ? infoFontSizeOptions
-      : [...infoFontSizeOptions, Number(activeSize)].sort((first, second) => first - second);
+  function renderTextToolbar() {
     return `
-      <section class="presentation-editor-strip" aria-label="Info slide editor">
-        <button type="button" data-presentation-duplicate-info="${escapeHtml(infoSlide.id)}">Duplicate</button>
-        <button type="button" data-presentation-delete-info="${escapeHtml(infoSlide.id)}">Delete</button>
+      <section class="presentation-editor-strip presentation-text-toolbar" data-presentation-text-toolbar aria-label="Text tools">
+        <button type="button" class="presentation-toolbar-command" data-presentation-add-text-box title="Add text box" aria-label="Add text box">T</button>
+        <button type="button" data-presentation-duplicate-info data-presentation-active-info-only disabled>Duplicate</button>
+        <button type="button" data-presentation-delete-info data-presentation-active-info-only disabled>Delete</button>
         <label>
           <span>Text size</span>
-          <select data-presentation-info-field="fontSize" data-presentation-info-id="${escapeHtml(infoSlide.id)}">
-            ${sizeOptions
+          <select data-presentation-active-font-size aria-label="Text size">
+            <option value="">Auto</option>
+            ${infoFontSizeOptions
               .map((size) => {
                 const sizeValue = String(size);
-                return `<option value="${sizeValue}" ${activeSize === sizeValue ? "selected" : ""}>${escapeHtml(`${sizeValue} pt`)}</option>`;
+                return `<option value="${sizeValue}">${escapeHtml(`${sizeValue} pt`)}</option>`;
               })
               .join("")}
           </select>
         </label>
         <label>
-          <span>Accent</span>
-          <input type="color" value="${escapeHtml(normalizeHexColor(slideStyle.accentColor, "#38bdf8"))}" data-presentation-info-field="accentColor" data-presentation-info-id="${escapeHtml(infoSlide.id)}" />
-        </label>
-        <label>
           <span>Text</span>
-          <input type="color" value="${escapeHtml(normalizeHexColor(slideStyle.textColor, "#f8fafc"))}" data-presentation-info-field="textColor" data-presentation-info-id="${escapeHtml(infoSlide.id)}" />
+          <input type="color" value="#f8fafc" data-presentation-active-text-color aria-label="Text color" />
         </label>
+        <div class="presentation-symbol-tools" aria-label="Insert symbol">
+          <span>Symbols</span>
+          <button type="button" data-presentation-insert-symbol="&#8226;" title="Bullet" aria-label="Insert bullet">&#8226;</button>
+          <button type="button" data-presentation-insert-symbol="&#8594;" title="Arrow" aria-label="Insert arrow">&#8594;</button>
+          <button type="button" data-presentation-insert-symbol="&#10003;" title="Check" aria-label="Insert check">&#10003;</button>
+          <button type="button" data-presentation-insert-symbol="+" title="Plus" aria-label="Insert plus">+</button>
+          <button type="button" data-presentation-insert-symbol="&#9733;" title="Star" aria-label="Insert star">&#9733;</button>
+        </div>
       </section>
     `;
   }
@@ -346,6 +362,38 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function renderSlideTextBoxes(model = {}, slide = {}) {
+    const boxes = Array.isArray(slide.textBoxes) ? slide.textBoxes : [];
+    if (!boxes.length) {
+      return "";
+    }
+    return `
+      <div class="presentation-text-box-layer" aria-label="Slide text boxes">
+        ${boxes
+          .map((box) => {
+            const field = `textbox.${box.id}.text`;
+            const fallbackStyle = {
+              fontSize: box.fontSize || "36",
+              textColor: box.textColor || "#f8fafc",
+            };
+            return renderEditableTextArea(
+              model,
+              slide,
+              field,
+              box.text || "Text box",
+              `class="presentation-free-text-box" data-presentation-text-box-id="${escapeHtml(box.id)}"`,
+              {
+                extraStyle: `left: ${box.x}%; top: ${box.y}%; width: ${box.width}%`,
+                label: "Text box",
+                style: fallbackStyle,
+              }
+            );
+          })
+          .join("")}
+      </div>
+    `;
+  }
+
   function renderSlideFrame(model = {}, slide = {}, body = "") {
     const style = normalizePresentationSlideStyle(slide.style, { accentColor: slide.accentColor || model.accentColor });
     return `
@@ -356,6 +404,7 @@ export function createPresentationModeRenderer(options = {}) {
       >
         ${slide.type === "cover" ? "" : `<div class="presentation-corner-logo">${renderLogo(model.brand)}</div>`}
         <main class="presentation-slide-body">${body}</main>
+        ${renderSlideTextBoxes(model, slide)}
         <footer class="presentation-slide-footer">
           ${renderEditableElement(model, slide, "footer.teamName", model.teamName, "span", "", { label: "Footer team name" })}
           ${renderEditableElement(model, slide, "footer.dateLabel", model.dateLabel, "strong", "", { label: "Footer date" })}
@@ -372,6 +421,8 @@ export function createPresentationModeRenderer(options = {}) {
       label: "Cover",
       accentColor: coverSlide.accentColor || model.accentColor,
       style: coverSlide.style,
+      textBoxes: coverSlide.textBoxes,
+      textFieldStyles: coverSlide.textFieldStyles,
       textOverrides: coverSlide.textOverrides,
     };
     return renderSlideFrame(
@@ -398,16 +449,19 @@ export function createPresentationModeRenderer(options = {}) {
     const accentColor = normalizeHexColor(slideStyle.accentColor, "#38bdf8");
     const textColor = normalizeHexColor(slideStyle.textColor, "#f8fafc");
     const readonly = model.presenting ? "readonly" : "";
+    const frameSlide = {
+      id: slide.id,
+      type: "info",
+      label: slide.label,
+      accentColor,
+      style: slide.style,
+      textBoxes: slide.textBoxes,
+      textFieldStyles: slide.textFieldStyles,
+      textOverrides: slide.textOverrides,
+    };
     return renderSlideFrame(
       model,
-      {
-        id: slide.id,
-        type: "info",
-        label: slide.label,
-        accentColor,
-        style: slide.style,
-        textOverrides: slide.textOverrides,
-      },
+      frameSlide,
       `
         <section
           class="presentation-info-sheet"
@@ -418,7 +472,10 @@ export function createPresentationModeRenderer(options = {}) {
             value="${escapeHtml(infoSlide.title || "Team Information")}"
             data-presentation-info-field="title"
             data-presentation-info-id="${escapeHtml(infoSlide.id)}"
+            data-presentation-slide-id="${escapeHtml(frameSlide.id)}"
+            data-presentation-text-field="info.title"
             aria-label="Info slide title"
+            ${getTextFieldStyleAttribute(frameSlide, "info.title")}
             ${readonly}
           />
           <span class="presentation-info-rule" aria-hidden="true"></span>
@@ -426,8 +483,12 @@ export function createPresentationModeRenderer(options = {}) {
             class="presentation-info-body"
             data-presentation-info-field="body"
             data-presentation-info-id="${escapeHtml(infoSlide.id)}"
+            data-presentation-slide-id="${escapeHtml(frameSlide.id)}"
+            data-presentation-text-field="info.body"
+            data-presentation-text-multiline="true"
             aria-label="Info slide content"
             spellcheck="true"
+            ${getTextFieldStyleAttribute(frameSlide, "info.body")}
             ${readonly}
           >${escapeHtml(infoSlide.body || "")}</textarea>
         </section>
@@ -538,6 +599,8 @@ export function createPresentationModeRenderer(options = {}) {
       label: "Overview",
       accentColor: overviewSlide.accentColor || "#22c55e",
       style: overviewSlide.style,
+      textBoxes: overviewSlide.textBoxes,
+      textFieldStyles: overviewSlide.textFieldStyles,
       textOverrides: overviewSlide.textOverrides,
     };
     const phaseLines = [
@@ -653,6 +716,8 @@ export function createPresentationModeRenderer(options = {}) {
       label: slide.label,
       accentColor: slide.accentColor || "#f59e0b",
       style: slide.style,
+      textBoxes: slide.textBoxes,
+      textFieldStyles: slide.textFieldStyles,
       textOverrides: slide.textOverrides,
     };
     const phaseText = getSlideText(frameSlide, "block.phase", phase);
@@ -701,9 +766,9 @@ export function createPresentationModeRenderer(options = {}) {
 
   function render(model = {}) {
     return `
-      <section class="presentation-mode-shell${model.presenting ? " is-presenting" : ""}${model.editorOpen ? " is-editor-open" : ""}" data-presentation-mode-shell>
+      <section class="presentation-mode-shell${model.presenting ? " is-presenting" : ""}${model.textToolbarOpen ? " is-text-toolbar-open" : ""}" data-presentation-mode-shell>
         ${renderControlBar(model)}
-        ${renderInfoEditor(model)}
+        ${renderTextToolbar(model)}
         <div class="presentation-stage" data-presentation-stage>
           ${renderActiveSlide(model)}
         </div>
@@ -720,5 +785,6 @@ export function createPresentationModeRenderer(options = {}) {
     renderCoverSlide,
     renderInfoSlide,
     renderOverviewSlide,
+    renderTextToolbar,
   };
 }

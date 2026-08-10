@@ -101,6 +101,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(controlHtml.indexOf("data-presentation-theme-menu")).toBeLessThan(controlHtml.indexOf("data-presentation-add-info"));
   expect(controlHtml).toContain("data-presentation-add-info");
   expect(controlHtml).toContain(">New Slide</button>");
+  expect(controlHtml).not.toContain("data-presentation-toggle-editor");
+  expect(controlHtml).not.toContain(">Edit<");
   expect(controlHtml).not.toContain(model.sessionTitle);
   expect(controlHtml).not.toContain("<span>Date</span>");
   expect(harness.root.innerHTML).not.toContain("data-presentation-pass-select");
@@ -150,13 +152,22 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   const infoHtml = renderer.renderInfoSlide(model, infoSlide);
   expect(infoHtml.indexOf("presentation-info-title")).toBeLessThan(infoHtml.indexOf("presentation-info-rule"));
   expect(infoHtml).toContain('data-presentation-info-field="title"');
+  expect(infoHtml).toContain('data-presentation-text-field="info.title"');
+  expect(infoHtml).toContain('data-presentation-text-field="info.body"');
   expect(infoHtml).toContain("--presentation-info-body-size: 3.5rem;");
-  const editorHtml = renderer.render({ ...model, editorOpen: true, slideIndex: infoSlide.index });
-  expect(editorHtml).toContain("Text size");
-  expect(editorHtml).toContain("16 pt");
-  expect(editorHtml).toContain("56 pt");
-  expect(editorHtml).toContain("128 pt");
-  expect(editorHtml).not.toContain("New info slide");
+  const toolbarHtml = renderer.renderTextToolbar(model);
+  expect(toolbarHtml).toContain("data-presentation-text-toolbar");
+  expect(toolbarHtml).toContain("data-presentation-add-text-box");
+  expect(toolbarHtml).toContain("data-presentation-active-font-size");
+  expect(toolbarHtml).toContain("16 pt");
+  expect(toolbarHtml).toContain("56 pt");
+  expect(toolbarHtml).toContain("128 pt");
+  expect(toolbarHtml).toContain("data-presentation-insert-symbol");
+  expect(toolbarHtml).not.toContain("New info slide");
+  const fullHtml = renderer.render({ ...model, slideIndex: infoSlide.index });
+  expect(fullHtml).toContain("data-presentation-text-toolbar");
+  expect(fullHtml).not.toContain("data-presentation-toggle-editor");
+  expect(fullHtml).not.toContain("is-editor-open");
   const blockHtml = renderer.renderBlockSlide(model, blockSlide);
   expect(blockHtml).toContain("data-exercise-visual");
   expect(blockHtml).toContain('data-landscape="false"');
@@ -248,6 +259,30 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Display Mid");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("CM / Modified");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).not.toContain("CM / 0% / Modified");
+
+  controller.writeDeckForDate("2026-06-02", (deck) => ({
+    ...deck,
+    textBoxes: {
+      ...deck.textBoxes,
+      cover: [{ id: "note-1", text: "Free note", x: 50, y: 40, width: 30, fontSize: 32, textColor: "#ffffff" }],
+    },
+    textFieldStyles: {
+      ...deck.textFieldStyles,
+      cover: {
+        ...(deck.textFieldStyles?.cover || {}),
+        "cover.title": { fontSize: 64, textColor: "#38bdf8" },
+      },
+    },
+  }));
+  const styledTextModel = controller.buildModel();
+  const styledCoverHtml = renderer.renderCoverSlide(styledTextModel);
+  expect(styledCoverHtml).toContain("presentation-free-text-box");
+  expect(styledCoverHtml).toContain("Free note");
+  expect(styledCoverHtml).toContain('data-presentation-text-box-id="note-1"');
+  expect(styledCoverHtml).toContain('data-presentation-text-field="textbox.note-1.text"');
+  expect(styledCoverHtml).toContain("left: 50%; top: 40%; width: 30%;");
+  expect(styledCoverHtml).toContain("font-size: 4rem; color: #38bdf8;");
+  expect(styledCoverHtml).toContain("font-size: 2rem; color: #ffffff;");
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({
     ...deck,

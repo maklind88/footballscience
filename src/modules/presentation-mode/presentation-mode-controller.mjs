@@ -7,6 +7,7 @@ export const dashboardPresentationStorageKey = "football-dashboard-presentation-
 
 const presentationSchema = "footballscience-presentation-mode-v1";
 const maxTextOverrideLength = 5000;
+const maxTextBoxesPerSlide = 12;
 
 function noop() {}
 
@@ -121,6 +122,62 @@ function normalizeTextOverrides(textOverrides = {}) {
   );
 }
 
+function normalizeTextFieldStyles(textFieldStyles = {}) {
+  const styles = textFieldStyles && typeof textFieldStyles === "object" && !Array.isArray(textFieldStyles) ? textFieldStyles : {};
+  return Object.fromEntries(
+    Object.entries(styles)
+      .map(([slideId, fields]) => {
+        const slideFields = fields && typeof fields === "object" && !Array.isArray(fields) ? fields : {};
+        return [
+          String(slideId || "").trim(),
+          Object.fromEntries(
+            Object.entries(slideFields)
+              .map(([field, style]) => {
+                const textStyle = style && typeof style === "object" && !Array.isArray(style) ? style : {};
+                const normalized = {
+                  fontSize: textStyle.fontSize ? normalizeFontSize(textStyle.fontSize) : "",
+                  textColor: textStyle.textColor ? normalizeHexColor(textStyle.textColor, "") : "",
+                };
+                return [
+                  String(field || "").trim(),
+                  Object.fromEntries(Object.entries(normalized).filter(([, value]) => value)),
+                ];
+              })
+              .filter(([field, style]) => field && Object.keys(style).length)
+          ),
+        ];
+      })
+      .filter(([slideId, fields]) => slideId && Object.keys(fields).length)
+  );
+}
+
+function normalizeTextBoxes(textBoxes = {}) {
+  const boxes = textBoxes && typeof textBoxes === "object" && !Array.isArray(textBoxes) ? textBoxes : {};
+  return Object.fromEntries(
+    Object.entries(boxes)
+      .map(([slideId, slideBoxes]) => [
+        String(slideId || "").trim(),
+        (Array.isArray(slideBoxes) ? slideBoxes : [])
+          .slice(0, maxTextBoxesPerSlide)
+          .map((box, index) => {
+            const safeBox = box && typeof box === "object" && !Array.isArray(box) ? box : {};
+            const id = String(safeBox.id || `textbox-${index + 1}`).trim();
+            return {
+              id,
+              x: Math.min(88, Math.max(4, Number(safeBox.x) || 12)),
+              y: Math.min(78, Math.max(8, Number(safeBox.y) || 22)),
+              width: Math.min(70, Math.max(14, Number(safeBox.width) || 28)),
+              text: String(safeBox.text ?? "Text box").slice(0, maxTextOverrideLength),
+              fontSize: normalizeFontSize(safeBox.fontSize || "36"),
+              textColor: normalizeHexColor(safeBox.textColor, "#f8fafc"),
+            };
+          })
+          .filter((box) => box.id),
+      ])
+      .filter(([slideId, slideBoxes]) => slideId && slideBoxes.length)
+  );
+}
+
 function normalizeInfoSlide(slide = {}, index = 0, dateValue = "") {
   const fallback = createDefaultInfoSlide(dateValue);
   return {
@@ -142,6 +199,8 @@ function normalizeDeck(deck = {}, dateValue = "") {
     updatedAt: String(deck.updatedAt || "").trim(),
     infoSlides: hasSavedInfoSlides ? infoSlides : [createDefaultInfoSlide(dateValue)],
     slideStyles: normalizeSlideStyles(deck.slideStyles),
+    textBoxes: normalizeTextBoxes(deck.textBoxes),
+    textFieldStyles: normalizeTextFieldStyles(deck.textFieldStyles),
     textOverrides: normalizeTextOverrides(deck.textOverrides),
   };
 }
@@ -246,6 +305,7 @@ export function createPresentationModeController(dependencies = {}) {
   } = dependencies;
 
   const state = {
+    activeTextTarget: null,
     bound: false,
     dateValue: "",
     editorOpen: false,
@@ -381,6 +441,8 @@ export function createPresentationModeController(dependencies = {}) {
       ...slide,
       accentColor: style.accentColor,
       style,
+      textBoxes: deck.textBoxes?.[slide.id] || [],
+      textFieldStyles: deck.textFieldStyles?.[slide.id] || {},
       textOverrides: deck.textOverrides?.[slide.id] || {},
     };
   }
@@ -452,6 +514,7 @@ export function createPresentationModeController(dependencies = {}) {
       slideIndex: state.slideIndex,
       slides,
       teamName: brand.teamName,
+      textToolbarOpen: Boolean(state.activeTextTarget && !state.presenting),
       totalMinutes: getSessionTotalMinutes(session),
     };
   }
@@ -464,9 +527,11 @@ export function createPresentationModeController(dependencies = {}) {
     currentRoot.hidden = false;
     currentRoot.innerHTML = renderer.render(buildModel());
     documentRef.body.classList.add("is-presentation-mode-open");
+    syncTextToolbar();
   }
 
   function open(dateValue = "") {
+    state.activeTextTarget = null;
     state.dateValue = normalizeDateValue(dateValue, getTodayValue());
     state.slideIndex = 0;
     state.editorOpen = false;
@@ -476,6 +541,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function close() {
+    state.activeTextTarget = null;
     state.isOpen = false;
     state.editorOpen = false;
     state.presenting = false;
@@ -493,6 +559,7 @@ export function createPresentationModeController(dependencies = {}) {
     const slideCount = buildModel().slides.length;
     state.slideIndex = Math.min(Math.max(0, Number(index) || 0), Math.max(0, slideCount - 1));
     state.editorOpen = false;
+    state.activeTextTarget = null;
     render();
   }
 
@@ -608,6 +675,183 @@ export function createPresentationModeController(dependencies = {}) {
     }));
   }
 
+  function getActiveTextStyle() {
+    const target = state.activeTextTarget;
+    if (!target?.slideId || !target.field) {
+      return {};
+    }
+    return getDeckForDate().textFieldStyles?.[target.slideId]?.[target.field] || {};
+  }
+
+  function updateActiveTextStyle(field = "", value = "") {
+    const target = state.activeTextTarget;
+    const allowedFields = new Set(["fontSize", "textColor"]);
+    if (!target?.slideId || !target.field || !allowedFields.has(field)) {
+      return;
+    }
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      textFieldStyles: normalizeTextFieldStyles({
+        ...deck.textFieldStyles,
+        [target.slideId]: {
+          ...(deck.textFieldStyles?.[target.slideId] || {}),
+          [target.field]: {
+            ...(deck.textFieldStyles?.[target.slideId]?.[target.field] || {}),
+            [field]: field === "fontSize" ? (value ? normalizeFontSize(value) : "") : normalizeHexColor(value, "#f8fafc"),
+          },
+        },
+      }),
+    }));
+    render();
+    focusActiveTextElement();
+  }
+
+  function getActiveTextElement() {
+    const target = state.activeTextTarget;
+    if (!root || !target?.slideId || !target.field) {
+      return null;
+    }
+    return [...root.querySelectorAll("[data-presentation-slide-id][data-presentation-text-field]")].find(
+      (element) =>
+        element.dataset.presentationSlideId === target.slideId &&
+        element.dataset.presentationTextField === target.field
+    );
+  }
+
+  function getFocusedTextElement() {
+    const activeElement = documentRef.activeElement;
+    if (!root || !activeElement || !root.contains(activeElement)) {
+      return null;
+    }
+    return activeElement.closest?.("[data-presentation-text-field]") || null;
+  }
+
+  function focusActiveTextElement() {
+    getActiveTextElement()?.focus?.({ preventScroll: true });
+  }
+
+  function syncTextToolbar() {
+    if (!root) return;
+    const shell = root.querySelector("[data-presentation-mode-shell]");
+    const toolbar = root.querySelector("[data-presentation-text-toolbar]");
+    if (!shell || !toolbar || state.presenting || !state.activeTextTarget) {
+      shell?.classList.remove("is-text-toolbar-open");
+      return;
+    }
+    const activeStyle = getActiveTextStyle();
+    shell.classList.add("is-text-toolbar-open");
+    const fontSize = toolbar.querySelector("[data-presentation-active-font-size]");
+    if (fontSize) {
+      fontSize.value = activeStyle.fontSize || "";
+    }
+    const textColor = toolbar.querySelector("[data-presentation-active-text-color]");
+    if (textColor) {
+      textColor.value = normalizeHexColor(activeStyle.textColor, "#f8fafc");
+    }
+    const isInfoSlide = Boolean(state.activeTextTarget.infoId);
+    toolbar.querySelectorAll("[data-presentation-active-info-only]").forEach((control) => {
+      control.disabled = !isInfoSlide;
+    });
+  }
+
+  function setActiveTextTargetFromElement(element) {
+    const textElement = element?.closest?.("[data-presentation-text-field]");
+    const slideId = String(textElement?.dataset.presentationSlideId || "").trim();
+    const field = String(textElement?.dataset.presentationTextField || "").trim();
+    if (!slideId || !field || state.presenting) {
+      return;
+    }
+    state.activeTextTarget = {
+      field,
+      infoId: String(textElement.dataset.presentationInfoId || "").trim(),
+      slideId,
+    };
+    syncTextToolbar();
+  }
+
+  function hideTextToolbar() {
+    state.activeTextTarget = null;
+    root?.querySelector("[data-presentation-mode-shell]")?.classList.remove("is-text-toolbar-open");
+  }
+
+  function insertTextIntoActiveField(text = "") {
+    const symbol = String(text || "");
+    const activeElement = getActiveTextElement();
+    if (!symbol || !activeElement) {
+      return;
+    }
+    if ("setRangeText" in activeElement) {
+      const start = Number.isFinite(activeElement.selectionStart) ? activeElement.selectionStart : activeElement.value.length;
+      const end = Number.isFinite(activeElement.selectionEnd) ? activeElement.selectionEnd : start;
+      activeElement.setRangeText(symbol, start, end, "end");
+      activeElement.dispatchEvent(new InputEvent("input", { bubbles: true, data: symbol, inputType: "insertText" }));
+      activeElement.focus?.({ preventScroll: true });
+      return;
+    }
+    const selection = win?.getSelection?.();
+    if (selection?.rangeCount && activeElement.contains(selection.anchorNode)) {
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      const node = documentRef.createTextNode(symbol);
+      range.insertNode(node);
+      range.setStartAfter(node);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else {
+      activeElement.textContent = `${activeElement.textContent || ""}${symbol}`;
+    }
+    activeElement.dispatchEvent(new InputEvent("input", { bubbles: true, data: symbol, inputType: "insertText" }));
+    activeElement.focus?.({ preventScroll: true });
+  }
+
+  function addTextBox() {
+    const currentSlide = buildModel().slides[state.slideIndex];
+    if (!currentSlide?.id) {
+      return;
+    }
+    const id = `textbox-${Date.now()}`;
+    const field = `textbox.${id}.text`;
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      textBoxes: normalizeTextBoxes({
+        ...deck.textBoxes,
+        [currentSlide.id]: [
+          ...(deck.textBoxes?.[currentSlide.id] || []),
+          {
+            id,
+            text: "Text box",
+            x: 56,
+            y: 36,
+            width: 30,
+            fontSize: "36",
+            textColor: "#f8fafc",
+          },
+        ],
+      }),
+      textFieldStyles: normalizeTextFieldStyles({
+        ...deck.textFieldStyles,
+        [currentSlide.id]: {
+          ...(deck.textFieldStyles?.[currentSlide.id] || {}),
+          [field]: {
+            fontSize: "36",
+            textColor: "#f8fafc",
+          },
+        },
+      }),
+      textOverrides: normalizeTextOverrides({
+        ...deck.textOverrides,
+        [currentSlide.id]: {
+          ...(deck.textOverrides?.[currentSlide.id] || {}),
+          [field]: "Text box",
+        },
+      }),
+    }));
+    state.activeTextTarget = { field, infoId: "", slideId: currentSlide.id };
+    render();
+    focusActiveTextElement();
+  }
+
   function requestNewSlideTitle(defaultTitle = "New Slide") {
     if (typeof win?.prompt !== "function") {
       return defaultTitle;
@@ -648,9 +892,12 @@ export function createPresentationModeController(dependencies = {}) {
       return { ...deck, infoSlides: [...deck.infoSlides, nextSlide] };
     });
     const model = buildModel();
-    state.slideIndex = model.slides.findIndex((slide) => slide.id === readStore().decks[state.dateValue].infoSlides.at(-1)?.id);
-    state.editorOpen = true;
+    const nextSlideId = readStore().decks[state.dateValue].infoSlides.at(-1)?.id;
+    state.slideIndex = model.slides.findIndex((slide) => slide.id === nextSlideId);
+    state.activeTextTarget = nextSlideId ? { field: "info.title", infoId: nextSlideId, slideId: nextSlideId } : null;
+    state.editorOpen = false;
     render();
+    focusActiveTextElement();
   }
 
   function duplicateInfoSlide(slideId) {
@@ -668,6 +915,8 @@ export function createPresentationModeController(dependencies = {}) {
       ...currentDeck,
       infoSlides: currentDeck.infoSlides.filter((slide) => slide.id !== slideId),
       slideStyles: Object.fromEntries(Object.entries(currentDeck.slideStyles || {}).filter(([styleSlideId]) => styleSlideId !== slideId)),
+      textBoxes: Object.fromEntries(Object.entries(currentDeck.textBoxes || {}).filter(([boxSlideId]) => boxSlideId !== slideId)),
+      textFieldStyles: Object.fromEntries(Object.entries(currentDeck.textFieldStyles || {}).filter(([styleSlideId]) => styleSlideId !== slideId)),
       textOverrides: Object.fromEntries(Object.entries(currentDeck.textOverrides || {}).filter(([textSlideId]) => textSlideId !== slideId)),
     }));
     const nextModel = buildModel();
@@ -685,6 +934,7 @@ export function createPresentationModeController(dependencies = {}) {
   function startFullscreen() {
     const currentRoot = ensureRoot();
     currentRoot.requestFullscreen?.().catch?.(noop);
+    state.activeTextTarget = null;
     state.presenting = true;
     state.editorOpen = false;
     render();
@@ -725,9 +975,13 @@ export function createPresentationModeController(dependencies = {}) {
       exitFullscreen();
       return;
     }
-    if (event.target.closest("[data-presentation-toggle-editor]")) {
-      state.editorOpen = !state.editorOpen;
-      render();
+    const symbolButton = event.target.closest("[data-presentation-insert-symbol]");
+    if (symbolButton) {
+      insertTextIntoActiveField(symbolButton.dataset.presentationInsertSymbol);
+      return;
+    }
+    if (event.target.closest("[data-presentation-add-text-box]")) {
+      addTextBox();
       return;
     }
     if (event.target.closest("[data-presentation-add-info]")) {
@@ -736,17 +990,53 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const duplicateButton = event.target.closest("[data-presentation-duplicate-info]");
     if (duplicateButton) {
-      duplicateInfoSlide(duplicateButton.dataset.presentationDuplicateInfo);
+      duplicateInfoSlide(duplicateButton.dataset.presentationDuplicateInfo || state.activeTextTarget?.infoId);
       return;
     }
     const deleteButton = event.target.closest("[data-presentation-delete-info]");
     if (deleteButton) {
-      deleteInfoSlide(deleteButton.dataset.presentationDeleteInfo);
+      deleteInfoSlide(deleteButton.dataset.presentationDeleteInfo || state.activeTextTarget?.infoId);
+      return;
+    }
+    if (event.target.closest("[data-presentation-text-field]")) {
+      setActiveTextTargetFromElement(event.target);
+      return;
+    }
+    const focusedTextElement = getFocusedTextElement();
+    if (focusedTextElement) {
+      setActiveTextTargetFromElement(focusedTextElement);
+      return;
+    }
+    if (!event.target.closest("[data-presentation-text-field], [data-presentation-text-toolbar]")) {
+      hideTextToolbar();
+    }
+  }
+
+  function handleTextActivation(event) {
+    if (!state.isOpen || !root?.contains(event.target)) {
+      return;
+    }
+    if (event.target.closest("[data-presentation-text-field]")) {
+      setActiveTextTargetFromElement(event.target);
+      return;
+    }
+    if (!event.target.closest("[data-presentation-text-toolbar]")) {
+      hideTextToolbar();
     }
   }
 
   function handleInput(event) {
     if (!state.isOpen || !root?.contains(event.target)) {
+      return;
+    }
+    const activeTextSize = event.target.closest("[data-presentation-active-font-size]");
+    if (activeTextSize) {
+      updateActiveTextStyle("fontSize", activeTextSize.value);
+      return;
+    }
+    const activeTextColor = event.target.closest("[data-presentation-active-text-color]");
+    if (activeTextColor) {
+      updateActiveTextStyle("textColor", activeTextColor.value);
       return;
     }
     const infoField = event.target.closest("[data-presentation-info-field]");
@@ -782,6 +1072,16 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
+    const activeTextSize = event.target.closest("[data-presentation-active-font-size]");
+    if (activeTextSize) {
+      updateActiveTextStyle("fontSize", activeTextSize.value);
+      return;
+    }
+    const activeTextColor = event.target.closest("[data-presentation-active-text-color]");
+    if (activeTextColor) {
+      updateActiveTextStyle("textColor", activeTextColor.value);
+      return;
+    }
     const styleField = event.target.closest("[data-presentation-style-field]");
     if (styleField) {
       updateCurrentSlideStyle(styleField.dataset.presentationStyleField, styleField.value);
@@ -792,6 +1092,7 @@ export function createPresentationModeController(dependencies = {}) {
     if (!nextDate || nextDate === state.dateValue) {
       return;
     }
+    state.activeTextTarget = null;
     state.dateValue = nextDate;
     state.slideIndex = 0;
     state.editorOpen = false;
@@ -832,12 +1133,22 @@ export function createPresentationModeController(dependencies = {}) {
     }
   }
 
+  function handleFocusin(event) {
+    if (!state.isOpen || !root?.contains(event.target)) {
+      return;
+    }
+    setActiveTextTargetFromElement(event.target);
+  }
+
   function bindInteractions() {
     if (state.bound) {
       return;
     }
     state.bound = true;
+    documentRef.addEventListener("pointerdown", handleTextActivation, true);
     documentRef.addEventListener("click", handleClick);
+    documentRef.addEventListener("focus", handleFocusin, true);
+    documentRef.addEventListener("focusin", handleFocusin, true);
     documentRef.addEventListener("input", handleInput);
     documentRef.addEventListener("change", handleChange);
     documentRef.addEventListener("keydown", handleKeydown);

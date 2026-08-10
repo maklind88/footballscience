@@ -151,6 +151,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).toContain("100%");
   expect(overviewHtml).toContain("0%");
   expect(overviewHtml).toContain("presentation-block-flow");
+  expect(overviewHtml).not.toContain("Overview block meta");
+  expect(overviewHtml).not.toContain('data-presentation-text-field="overview.b1.meta"');
   expect(overviewHtml.indexOf("presentation-day-overview")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));
   expect(overviewHtml).not.toContain("30 min");
   expect(overviewHtml).not.toContain("Ready");

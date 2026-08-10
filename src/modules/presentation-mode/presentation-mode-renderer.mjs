@@ -884,13 +884,11 @@ export function createPresentationModeRenderer(options = {}) {
             <div class="presentation-block-flow">
               ${model.blocks
                 .map((block, index) => {
-                  const blockMeta = [block.pitchSize || "", block.phase || ""].filter(Boolean).join(" / ");
                   const blockKey = getStableTextKey(block.id || block.label || block.title, `block-${index + 1}`);
                   return `
                     <article>
                       ${renderEditableElement(model, frameSlide, `overview.${blockKey}.label`, block.label || `Block ${index + 1}`, "span", "", { label: "Overview block label" })}
                       ${renderEditableElement(model, frameSlide, `overview.${blockKey}.title`, block.title || "Exercise", "strong", "", { label: "Overview block title" })}
-                      ${blockMeta ? renderEditableElement(model, frameSlide, `overview.${blockKey}.meta`, blockMeta, "small", "", { label: "Overview block meta" }) : ""}
                     </article>
                   `;
                 })

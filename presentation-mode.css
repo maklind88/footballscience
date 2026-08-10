@@ -1584,7 +1584,7 @@ body.is-presentation-shape-drawing {
 .presentation-block-flow article {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(4.4rem, .52fr) minmax(0, 1.25fr) minmax(0, 1fr);
+  grid-template-columns: minmax(4.4rem, .4fr) minmax(0, 1fr);
   gap: .55rem;
   align-items: center;
   padding: clamp(.48rem, .75vw, .72rem) clamp(.68rem, .95vw, .9rem);

@@ -50,13 +50,6 @@ function getInfoSizeStyle(value = "") {
   return `--presentation-info-body-size: ${remValue};`;
 }
 
-function getLineItems(value = "") {
-  return String(value || "")
-    .split(/\r?\n/)
-    .map((line) => line.replace(/^\s*[-*]\s+/, "").trim())
-    .filter(Boolean);
-}
-
 function getLoadMeterModel(value = "") {
   const label = String(value || "").trim() || "Not set";
   const key = label.toLowerCase();
@@ -218,17 +211,13 @@ export function createPresentationModeRenderer(options = {}) {
     return `<${tagName}${attributes ? ` ${attributes}` : ""}${editableAttributes ? ` ${editableAttributes}` : ""}>${escapeHtml(value)}</${tagName}>`;
   }
 
-  function renderEditableList(model = {}, slide = {}, field = "", fallback = "") {
-    const value = getSlideText(slide, field, fallback);
-    const lines = getLineItems(value);
-    if (!lines.length) {
+  function renderEditableTextArea(model = {}, slide = {}, field = "", fallback = "", attributes = "", options = {}) {
+    const value = getSlideText(slide, field, fallback).replace(/\r\n?/g, "\n").trim();
+    if (!value) {
       return "";
     }
-    return `
-      <ul ${getEditableAttributes(model, slide, field, { multiline: true, label: field })}>
-        ${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
-      </ul>
-    `;
+    const editableAttributes = getEditableAttributes(model, slide, field, { ...options, multiline: true });
+    return `<div${attributes ? ` ${attributes}` : ""}${editableAttributes ? ` ${editableAttributes}` : ""}>${escapeHtml(value)}</div>`;
   }
 
   function renderControlBar(model = {}) {
@@ -621,14 +610,14 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderTextBlock(model = {}, slide = {}, title, value, keyPrefix = "") {
     const bodyKey = `${keyPrefix}.body`;
-    const lines = getLineItems(getSlideText(slide, bodyKey, value));
-    if (!lines.length) {
+    const body = getSlideText(slide, bodyKey, value).replace(/\r\n?/g, "\n").trim();
+    if (!body) {
       return "";
     }
     return `
       <section class="presentation-detail-block">
         ${renderEditableElement(model, slide, `${keyPrefix}.title`, title, "span", "", { label: `${title} title` })}
-        ${renderEditableList(model, slide, bodyKey, value)}
+        ${renderEditableTextArea(model, slide, bodyKey, value, "class=\"presentation-detail-text\"", { label: `${title} text` })}
       </section>
     `;
   }

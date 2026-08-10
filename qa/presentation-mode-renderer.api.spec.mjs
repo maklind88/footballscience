@@ -63,7 +63,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
           minutes: 30,
           pitchSize: "SSG",
           phase: "In Possession",
-          principles: "- Scan early",
+          principles: "- Scan early\n\n- Play forward when open",
         },
       ],
     }),
@@ -171,6 +171,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(blockHtml).not.toContain("Focus");
   expect(blockHtml).not.toContain("5v2");
   expect(blockHtml).toContain("Team Principles & MG Principles");
+  expect(blockHtml).toContain("presentation-detail-text");
+  expect(blockHtml).toContain("- Scan early\n\n- Play forward when open");
+  expect(blockHtml).not.toContain("<ul");
   expect(blockHtml).not.toContain("Coaching Points");
   expect(blockHtml).not.toContain("In this block");
   expect(blockHtml).toContain("Not in this block");
@@ -224,7 +227,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
       },
       b1: {
         "block.title": "Custom Rondo",
-        "detail.principles.body": "Play forward\nProtect center",
+        "detail.principles.body": "Play forward\n\nProtect center",
         "players.notInBlock.p2.name": "Display Mid",
       },
     },
@@ -236,6 +239,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(renderer.renderOverviewSlide(editableModel, editableModel.slides.find((slide) => slide.type === "overview"))).toContain("Display Keeper");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Custom Rondo");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Play forward");
+  expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Play forward\n\nProtect center");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Display Mid");
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({

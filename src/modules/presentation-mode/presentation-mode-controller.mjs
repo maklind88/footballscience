@@ -768,10 +768,11 @@ export function createPresentationModeController(dependencies = {}) {
       const rawValue = String(textField.innerText ?? textField.textContent ?? "").replace(/\u00a0/g, " ");
       const value = isMultiline
         ? rawValue
-            .split(/\r?\n/)
-            .map((line) => line.trim())
-            .filter(Boolean)
+            .replace(/\r\n?/g, "\n")
+            .split("\n")
+            .map((line) => line.trimEnd())
             .join("\n")
+            .replace(/^\n+|\n+$/g, "")
         : rawValue.replace(/\s+/g, " ").trim();
       updateTextOverride(textField.dataset.presentationSlideId, textField.dataset.presentationTextField, value);
     }

@@ -1038,15 +1038,15 @@ body.is-presentation-mode-open {
   padding: .72rem;
 }
 
-.presentation-detail-block ul {
-  display: grid;
-  gap: .25rem;
+.presentation-detail-text {
   margin: 0;
-  padding-left: 1rem;
+  padding: 0;
   color: #ffffff;
   font-size: .95rem;
   font-weight: 780;
-  line-height: 1.25;
+  line-height: 1.36;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .presentation-block-players {
@@ -1189,7 +1189,7 @@ body.is-presentation-mode-open {
 .presentation-section-heading h2,
 .presentation-overview-metric strong,
 .presentation-block-flow strong,
-.presentation-detail-block ul,
+.presentation-detail-text,
 .presentation-player-panel header strong,
 .presentation-medical-player strong {
   color: var(--presentation-slide-text, #ffffff);

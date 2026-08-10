@@ -337,11 +337,12 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-info-rule")).toHaveCount(1);
   await expect(presentation.locator("[data-presentation-delete-slide]")).toBeEnabled();
   await expect(presentation.locator("[data-presentation-toggle-editor]")).toHaveCount(0);
-  await expect(presentation.locator("[data-presentation-text-toolbar]")).toBeHidden();
+  const textToolbar = presentation.locator("[data-presentation-text-toolbar]");
+  await expect(textToolbar).toBeVisible();
+  await expect(presentation).toHaveClass(/is-text-toolbar-open/);
   const slideTopBeforeToolbar = await presentation.locator(".presentation-slide").evaluate((slide) => slide.getBoundingClientRect().top);
   await presentation.locator(".presentation-info-title").click();
   await expect(presentation).toHaveClass(/is-text-toolbar-open/);
-  const textToolbar = presentation.locator("[data-presentation-text-toolbar]");
   await expect(textToolbar).toBeVisible();
   const toolbarDockLayout = await presentation.evaluate((root, beforeTop) => {
     const controlBar = root.querySelector(".presentation-control-bar");
@@ -379,6 +380,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(textToolbar.locator("[aria-label='Insert check']")).toBeHidden();
   const styleMenu = textToolbar.locator("[data-presentation-style-menu]");
   await styleMenu.locator("summary").click();
+  await expect(styleMenu.locator(".presentation-tool-popover-panel")).toBeVisible();
   await expect(styleMenu.locator("[data-presentation-active-font-size]")).toBeVisible();
   await expect(styleMenu.locator("[data-presentation-active-font-size]")).toHaveValue("");
   await expect(styleMenu.locator("[data-presentation-active-font-size]")).toContainText("16 pt");
@@ -388,11 +390,13 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-info-title")).toHaveAttribute("style", /font-size: 4rem/);
   await textToolbar.locator("[data-presentation-symbol-menu] summary").click();
   await expect(styleMenu).not.toHaveAttribute("open", "");
+  await expect(textToolbar.locator("[data-presentation-symbol-menu] .presentation-tool-popover-panel")).toBeVisible();
   await expect(textToolbar.locator("[aria-label='Insert check']")).toBeVisible();
   await textToolbar.locator("[aria-label='Insert check']").click();
   await expect(presentation.locator(".presentation-info-title")).toHaveValue(/✓/);
   await presentation.locator(".presentation-info-title").click();
   await textToolbar.locator("[data-presentation-shape-menu] summary").click();
+  await expect(textToolbar.locator("[data-presentation-shape-menu] .presentation-tool-popover-panel")).toBeVisible();
   await textToolbar.locator("[data-presentation-add-shape='circle']").click();
   const slideShape = presentation.locator("[data-presentation-shape].is-circle").first();
   await expect(slideShape).toBeVisible();

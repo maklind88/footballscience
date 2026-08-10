@@ -573,7 +573,7 @@ export function createPresentationModeController(dependencies = {}) {
       slideIndex: state.slideIndex,
       slides,
       teamName: brand.teamName,
-      textToolbarOpen: Boolean((state.activeTextTarget || state.activeShapeTarget) && !state.presenting),
+      textToolbarOpen: !state.presenting,
       totalMinutes: getSessionTotalMinutes(session),
     };
   }
@@ -804,7 +804,7 @@ export function createPresentationModeController(dependencies = {}) {
     if (!root) return;
     const shell = root.querySelector("[data-presentation-mode-shell]");
     const toolbar = root.querySelector("[data-presentation-text-toolbar]");
-    if (!shell || !toolbar || state.presenting || (!state.activeTextTarget && !state.activeShapeTarget)) {
+    if (!shell || !toolbar || state.presenting) {
       shell?.classList.remove("is-text-toolbar-open");
       return;
     }
@@ -876,7 +876,10 @@ export function createPresentationModeController(dependencies = {}) {
   function hideTextToolbar() {
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
-    root?.querySelector("[data-presentation-mode-shell]")?.classList.remove("is-text-toolbar-open");
+    root?.querySelectorAll("[data-presentation-text-toolbar] .presentation-tool-popover[open]").forEach((popover) => {
+      popover.removeAttribute("open");
+    });
+    syncTextToolbar();
   }
 
   function insertTextIntoActiveField(text = "") {

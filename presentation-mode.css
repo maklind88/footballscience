@@ -533,6 +533,7 @@ body.is-presentation-mode-open {
   display: none;
 }
 
+.presentation-mode-shell:not(.is-presenting) .presentation-text-toolbar,
 .presentation-mode-shell.is-text-toolbar-open .presentation-text-toolbar {
   display: flex;
 }
@@ -548,7 +549,7 @@ body.is-presentation-mode-open {
   align-items: stretch;
   gap: .08rem;
   padding: .16rem .2rem;
-  overflow-x: auto;
+  overflow: visible;
   border-color: rgba(125, 211, 252, .16);
   border-radius: 10px;
   background:

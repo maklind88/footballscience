@@ -105,6 +105,18 @@ function getInitials(name = "") {
   return (parts[0]?.[0] || "P") + (parts.length > 1 ? parts[parts.length - 1][0] : "");
 }
 
+function removeParticipationPercentText(value = "") {
+  const text = String(value || "");
+  if (text.includes("/")) {
+    return text
+      .split("/")
+      .map((part) => part.trim())
+      .filter((part) => !/^\d+(?:\.\d+)?%\+?$/.test(part))
+      .join(" / ");
+  }
+  return text.replace(/\s*\(\s*\d+(?:\.\d+)?%\+?\s*\)/g, "").trim();
+}
+
 export function createPresentationModeRenderer(options = {}) {
   const escapeHtml = typeof options.escapeHtml === "function" ? options.escapeHtml : defaultEscapeHtml;
   const renderExerciseVisual =
@@ -174,7 +186,11 @@ export function createPresentationModeRenderer(options = {}) {
   function getSlideText(slide = {}, field = "", fallback = "") {
     const key = String(field || "").trim();
     const overrides = slide.textOverrides && typeof slide.textOverrides === "object" ? slide.textOverrides : {};
-    return Object.prototype.hasOwnProperty.call(overrides, key) ? String(overrides[key] ?? "") : String(fallback ?? "");
+    const value = Object.prototype.hasOwnProperty.call(overrides, key) ? String(overrides[key] ?? "") : String(fallback ?? "");
+    if (key === "block.label" || /^players\.[^.]+\..+\.meta$/.test(key)) {
+      return removeParticipationPercentText(value);
+    }
+    return value;
   }
 
   function getStableTextKey(value = "", fallback = "item") {
@@ -579,7 +595,6 @@ export function createPresentationModeRenderer(options = {}) {
       : "";
     const meta = [
       player.position || player.role || player.playerBoardRoleLabel || "",
-      Number.isFinite(participation) ? `${participation}%` : "",
       item.statusLabel || "",
     ].filter(Boolean);
     return `
@@ -629,7 +644,6 @@ export function createPresentationModeRenderer(options = {}) {
     const phase = [block.phase, block.subPhase].filter(Boolean).join(" / ");
     const blockLabel = [
       block.label || slide.label || "Block",
-      playerSummary.rule?.valueLabel ? `(${playerSummary.rule.valueLabel})` : "",
     ]
       .filter(Boolean)
       .join(" ");

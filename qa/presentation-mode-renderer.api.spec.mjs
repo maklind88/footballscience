@@ -162,7 +162,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(blockHtml).toContain('data-landscape="false"');
   expect(exerciseVisualCalls.at(-1)?.options).toMatchObject({ large: true });
   expect(exerciseVisualCalls.at(-1)?.options.landscape).toBeUndefined();
-  expect(blockHtml).toContain("Block 1 (10%+)");
+  expect(blockHtml).toContain("Block 1");
+  expect(blockHtml).not.toContain("10%+");
+  expect(blockHtml).not.toContain("0% / Unavailable");
   expect(blockHtml).toContain('data-presentation-text-field="block.title"');
   expect(blockHtml).toContain('data-presentation-text-field="detail.principles.body"');
   expect(blockHtml).toContain('data-presentation-text-field="players.notInBlock.p2.name"');
@@ -226,9 +228,11 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
         "medical.p1.name": "Display Keeper",
       },
       b1: {
+        "block.label": "Block 1 (10%+)",
         "block.title": "Custom Rondo",
         "detail.principles.body": "Play forward\n\nProtect center",
         "players.notInBlock.p2.name": "Display Mid",
+        "players.notInBlock.p2.meta": "CM / 0% / Modified",
       },
     },
   }));
@@ -238,9 +242,12 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(renderer.renderOverviewSlide(editableModel, editableModel.slides.find((slide) => slide.type === "overview"))).toContain("Custom Phase");
   expect(renderer.renderOverviewSlide(editableModel, editableModel.slides.find((slide) => slide.type === "overview"))).toContain("Display Keeper");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Custom Rondo");
+  expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).not.toContain("10%+");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Play forward");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Play forward\n\nProtect center");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Display Mid");
+  expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("CM / Modified");
+  expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).not.toContain("CM / 0% / Modified");
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({
     ...deck,

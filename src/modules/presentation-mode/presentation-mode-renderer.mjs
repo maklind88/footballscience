@@ -855,11 +855,13 @@ export function createPresentationModeRenderer(options = {}) {
   }
 
   function renderPlayerPanel(model = {}, slide = {}, title, items = [], emptyLabel = "", options = {}) {
+    const playerCountLabel = items.length === 1 ? "Player" : "Players";
+    const countText = options.inlineCount ? `(${items.length} ${playerCountLabel})` : String(items.length);
     return `
       <section class="presentation-player-panel ${options.muted ? "is-muted" : ""}">
-        <header>
+        <header class="${options.inlineCount ? "is-inline-count" : ""}">
           ${renderEditableElement(model, slide, `${options.keyPrefix || "players"}.title`, title, "span", "", { label: "Player panel title" })}
-          <strong>${escapeHtml(String(items.length))}</strong>
+          <strong>${escapeHtml(countText)}</strong>
         </header>
         <div class="presentation-player-list">
           ${
@@ -931,6 +933,7 @@ export function createPresentationModeRenderer(options = {}) {
           <div class="presentation-block-players">
             ${renderPlayerPanel(model, frameSlide, "Not in this block", playerSummary.nonParticipants || [], "Everyone available is included.", {
               keyPrefix: "players.notInBlock",
+              inlineCount: true,
               muted: true,
             })}
           </div>

@@ -212,6 +212,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(blockHtml).not.toContain("Coaching Points");
   expect(blockHtml).not.toContain("In this block");
   expect(blockHtml).toContain("Not in this block");
+  expect(blockHtml).toContain("(1 Player)");
   expect(blockHtml).not.toContain("Ada Keeper");
   expect(blockHtml).not.toContain("Coach");
   expect(blockHtml).toContain("Bea Mid");

@@ -706,13 +706,18 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const visual = document.querySelector(".presentation-block-visual");
     const players = document.querySelector(".presentation-block-players");
     const panel = document.querySelector(".presentation-player-panel.is-muted");
+    const panelHeader = panel?.querySelector("header");
+    const panelTitle = panelHeader?.querySelector("span");
+    const panelCount = panelHeader?.querySelector("strong");
     const chips = Array.from(document.querySelectorAll(".presentation-player-panel.is-muted .presentation-player-chip"));
-    if (!layout || !copy || !visual || !players || !panel || chips.length === 0) return null;
+    if (!layout || !copy || !visual || !players || !panel || !panelHeader || !panelTitle || !panelCount || chips.length === 0) return null;
     const layoutRect = layout.getBoundingClientRect();
     const copyRect = copy.getBoundingClientRect();
     const visualRect = visual.getBoundingClientRect();
     const playersRect = players.getBoundingClientRect();
     const panelRect = panel.getBoundingClientRect();
+    const titleRect = panelTitle.getBoundingClientRect();
+    const countRect = panelCount.getBoundingClientRect();
     const layoutStyle = getComputedStyle(layout);
     const layoutContentBottom = layoutRect.bottom - Number.parseFloat(layoutStyle.paddingBottom || "0");
     return {
@@ -722,6 +727,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
       bottomAligned: Math.abs(playersRect.bottom - layoutContentBottom) <= 4,
       compactHeight: panelRect.height <= layoutRect.height * 0.2,
       compactWidth: playersRect.width <= copyRect.width + 2,
+      countUsesPlayerLabel: /\(\d+ Players?\)/.test(panelCount.textContent || ""),
+      countSitsNearTitle: countRect.left - titleRect.right <= 10,
       chipsCompact: chips.every((chip) => {
         const rect = chip.getBoundingClientRect();
         return rect.width >= 68 && rect.width <= 190 && rect.height >= 18 && rect.height <= 30;
@@ -739,6 +746,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     bottomAligned: true,
     compactHeight: true,
     compactWidth: true,
+    countUsesPlayerLabel: true,
+    countSitsNearTitle: true,
     chipsCompact: true,
     chipsVisible: true,
   });

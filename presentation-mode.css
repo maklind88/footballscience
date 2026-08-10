@@ -1519,9 +1519,15 @@ body.is-presentation-shape-dragging {
   gap: .55rem;
 }
 
+.presentation-player-panel header.is-inline-count {
+  justify-content: flex-start;
+  gap: .24rem;
+}
+
 .presentation-player-panel header strong {
   color: #fff;
   font-size: .82rem;
+  white-space: nowrap;
 }
 
 .presentation-player-panel.is-muted {

@@ -131,6 +131,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).toContain("Training Overview");
   expect(overviewHtml).toContain('data-presentation-text-field="overview.heading"');
   expect(overviewHtml).toContain('data-presentation-text-field="overview.phase.value"');
+  expect(overviewHtml).toContain("presentation-day-overview");
   expect(overviewHtml).toContain('data-presentation-text-field="medical.p1.name"');
   expect(overviewHtml).not.toContain("<h2>");
   expect(overviewHtml).toContain("presentation-load-gauge");
@@ -141,7 +142,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).not.toContain("<span>Load</span>");
   expect(overviewHtml).not.toContain("presentation-load-copy");
   expect(overviewHtml).not.toContain("<strong>Hard</strong>");
-  expect(overviewHtml.indexOf("is-load")).toBeLessThan(overviewHtml.indexOf("is-phase"));
+  expect(overviewHtml).not.toContain("presentation-overview-metric is-phase");
+  expect(overviewHtml.indexOf("is-load")).toBeLessThan(overviewHtml.indexOf("presentation-day-overview"));
   expect(overviewHtml).toContain("presentation-medical-overview");
   expect(overviewHtml).not.toContain("<header>");
   expect(overviewHtml).not.toContain("Medical Plan");
@@ -149,6 +151,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).toContain("100%");
   expect(overviewHtml).toContain("0%");
   expect(overviewHtml).toContain("presentation-block-flow");
+  expect(overviewHtml.indexOf("presentation-day-overview")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));
   expect(overviewHtml).not.toContain("30 min");
   expect(overviewHtml).not.toContain("Ready");
   expect(overviewHtml).toContain("periodization-pitch-icon is-ssg");

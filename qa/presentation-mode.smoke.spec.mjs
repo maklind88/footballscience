@@ -432,6 +432,9 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-overview-metric.is-load > span")).toHaveText("Planned Load");
   await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-copy")).toHaveCount(0);
   await expect(presentation.locator(".presentation-overview-metric.is-load > span", { hasText: /^Load$/ })).toHaveCount(0);
+  await expect(presentation.locator(".presentation-day-overview")).toContainText("Phase");
+  await expect(presentation.locator(".presentation-day-overview")).toContainText("In Possession");
+  await expect(presentation.locator(".presentation-overview-metric.is-phase")).toHaveCount(0);
   await expect(presentation.locator(".presentation-overview-metric.is-pitch")).toContainText("2/3 pitch");
   await expect(presentation.locator(".presentation-overview-metric.is-pitch .periodization-pitch-icon.is-2-3-pitch")).toBeVisible();
   await expect(presentation.locator(".presentation-overview-metric.is-focus")).toHaveCount(0);
@@ -444,44 +447,42 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-medical-player > span:last-child", { hasText: /^0%$/ }).first()).toBeVisible();
   const overviewLoadLayout = await presentation.evaluate(() => {
     const load = document.querySelector(".presentation-overview-metric.is-load");
-    const phase = document.querySelector(".presentation-overview-metric.is-phase");
     const video = document.querySelector(".presentation-overview-metric.is-video");
+    const matchDay = document.querySelector(".presentation-overview-metric.is-match-day");
     const pitch = document.querySelector(".presentation-overview-metric.is-pitch");
     const loadLabel = document.querySelector(".presentation-overview-metric.is-load > span");
-    const phaseLabel = document.querySelector(".presentation-overview-metric.is-phase > span");
     const videoLabel = document.querySelector(".presentation-overview-metric.is-video > span");
+    const matchLabel = document.querySelector(".presentation-overview-metric.is-match-day > span");
     const gauge = document.querySelector(".presentation-load-gauge");
     const needle = document.querySelector(".presentation-load-needle");
-    if (!load || !phase || !video || !pitch || !loadLabel || !phaseLabel || !videoLabel || !gauge || !needle) return null;
+    if (!load || !video || !matchDay || !pitch || !loadLabel || !videoLabel || !matchLabel || !gauge || !needle) return null;
     const loadRect = load.getBoundingClientRect();
-    const phaseRect = phase.getBoundingClientRect();
     const videoRect = video.getBoundingClientRect();
+    const matchRect = matchDay.getBoundingClientRect();
     const pitchRect = pitch.getBoundingClientRect();
     const loadLabelRect = loadLabel.getBoundingClientRect();
-    const phaseLabelRect = phaseLabel.getBoundingClientRect();
     const videoLabelRect = videoLabel.getBoundingClientRect();
+    const matchLabelRect = matchLabel.getBoundingClientRect();
     const loadStyle = getComputedStyle(load);
     return {
-      leftOfPhase: loadRect.right <= phaseRect.left,
-      sameTopAsPhase: Math.abs(loadRect.top - phaseRect.top) <= 2,
+      leftOfVideo: loadRect.right <= videoRect.left,
+      leftOfMatchDay: videoRect.right <= matchRect.left,
       sameTopAsVideo: Math.abs(loadRect.top - videoRect.top) <= 2,
-      sameHeightAsPhase: Math.abs(loadRect.height - phaseRect.height) <= 2,
-      sameWidthAsPhase: Math.abs(loadRect.width - phaseRect.width) <= 2,
-      labelAlignedWithPhase: Math.abs(loadLabelRect.top - phaseLabelRect.top) <= 2,
+      sameTopAsMatchDay: Math.abs(loadRect.top - matchRect.top) <= 2,
       labelAlignedWithVideo: Math.abs(loadLabelRect.top - videoLabelRect.top) <= 2,
+      labelAlignedWithMatchDay: Math.abs(loadLabelRect.top - matchLabelRect.top) <= 2,
       pitchUnderLoad: pitchRect.top >= loadRect.bottom - 2,
       loadColor: loadStyle.getPropertyValue("--presentation-load-color").trim(),
       loadAngle: loadStyle.getPropertyValue("--presentation-load-angle").trim(),
     };
   });
   expect(overviewLoadLayout).toMatchObject({
-    leftOfPhase: true,
-    sameTopAsPhase: true,
+    leftOfVideo: true,
+    leftOfMatchDay: true,
     sameTopAsVideo: true,
-    sameHeightAsPhase: true,
-    sameWidthAsPhase: true,
-    labelAlignedWithPhase: true,
+    sameTopAsMatchDay: true,
     labelAlignedWithVideo: true,
+    labelAlignedWithMatchDay: true,
     pitchUnderLoad: true,
     loadColor: "#d92d3f",
     loadAngle: "68deg",
@@ -490,10 +491,10 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const load = document.querySelector(".presentation-overview-metric.is-load");
     const cards = Array.from(
       document.querySelectorAll(
-        ".presentation-overview-metric.is-phase, .presentation-overview-metric.is-video, .presentation-overview-metric.is-pitch, .presentation-overview-metric.is-match-day"
+        ".presentation-overview-metric.is-video, .presentation-overview-metric.is-pitch, .presentation-overview-metric.is-match-day"
       )
     );
-    if (!load || cards.length !== 4) return null;
+    if (!load || cards.length !== 3) return null;
     return {
       compactCards: [load, ...cards].every((card) => card.getBoundingClientRect().height <= 150),
       pitchHasVisual: Boolean(document.querySelector(".presentation-overview-metric.is-pitch .periodization-pitch-icon")),
@@ -543,32 +544,47 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     allRowsFit: true,
   });
   expect(overviewMedicalLayout?.widthRatio).toBeGreaterThan(0.46);
-  expect(overviewMedicalLayout?.widthRatio).toBeLessThan(0.53);
+  expect(overviewMedicalLayout?.widthRatio).toBeGreaterThan(0.57);
+  expect(overviewMedicalLayout?.widthRatio).toBeLessThan(0.66);
+  const overviewPresentingMedicalLayout = await presentation.evaluate(() => {
+    const shell = document.querySelector("[data-presentation-mode-shell]");
+    const list = document.querySelector(".presentation-medical-list");
+    if (!shell || !list) return null;
+    shell.classList.add("is-presenting");
+    const columns = getComputedStyle(list).gridTemplateColumns.split(" ").filter(Boolean).length;
+    shell.classList.remove("is-presenting");
+    return { columns };
+  });
+  expect(overviewPresentingMedicalLayout).toMatchObject({ columns: 3 });
   const overviewBlocksLayout = await presentation.evaluate(() => {
     const load = document.querySelector(".presentation-overview-metric.is-load");
     const pitch = document.querySelector(".presentation-overview-metric.is-pitch");
     const matchDay = document.querySelector(".presentation-overview-metric.is-match-day");
+    const phase = document.querySelector(".presentation-day-overview");
     const blocks = document.querySelector(".presentation-block-flow");
     const articles = Array.from(document.querySelectorAll(".presentation-block-flow article"));
-    if (!load || !pitch || !matchDay || !blocks || articles.length === 0) return null;
+    if (!load || !pitch || !matchDay || !phase || !blocks || articles.length === 0) return null;
     const loadRect = load.getBoundingClientRect();
     const pitchRect = pitch.getBoundingClientRect();
     const matchRect = matchDay.getBoundingClientRect();
+    const phaseRect = phase.getBoundingClientRect();
     const blocksRect = blocks.getBoundingClientRect();
     const articleRects = articles.map((article) => article.getBoundingClientRect());
-    const combinedLeft = Math.min(loadRect.left, pitchRect.left, matchRect.left);
-    const combinedRight = Math.max(pitchRect.right, matchRect.right);
+    const combinedLeft = Math.min(loadRect.left, pitchRect.left, matchRect.left, phaseRect.left);
+    const combinedRight = Math.max(pitchRect.right, matchRect.right, phaseRect.right);
     return {
       sameLeft: Math.abs(blocksRect.left - combinedLeft) <= 2,
       sameRight: Math.abs(blocksRect.right - combinedRight) <= 2,
-      underPitchAndMatch: blocksRect.top >= Math.max(pitchRect.bottom, matchRect.bottom) - 2,
+      phaseAboveBlocks: phaseRect.bottom <= blocksRect.top + 2,
+      phaseAlignsToBlocks: Math.abs(phaseRect.left - blocksRect.left) <= 2 && Math.abs(phaseRect.right - blocksRect.right) <= 2,
       rowsAreWide: articleRects.every((rect) => rect.width > rect.height * 2.2),
     };
   });
   expect(overviewBlocksLayout).toMatchObject({
     sameLeft: true,
     sameRight: true,
-    underPitchAndMatch: true,
+    phaseAboveBlocks: true,
+    phaseAlignsToBlocks: true,
     rowsAreWide: true,
   });
   await expect(presentation).not.toContainText("10 min");

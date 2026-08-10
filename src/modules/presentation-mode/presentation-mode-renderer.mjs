@@ -713,6 +713,15 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function renderOverviewPhaseSummary(model = {}, slide = {}, value = "") {
+    return `
+      <article class="presentation-day-overview">
+        ${renderEditableElement(model, slide, "overview.phase.label", "Phase", "span", "", { label: "Phase label" })}
+        ${renderEditableElement(model, slide, "overview.phase.value", value || "Not set", "strong", "", { label: "Phase value" })}
+      </article>
+    `;
+  }
+
   function renderRecommendationAvatar(player = {}) {
     const photoUrl = String(player.photoUrl || player.avatarUrl || player.imageUrl || "").trim();
     const label = String(player.name || "Player").trim();
@@ -791,10 +800,10 @@ export function createPresentationModeRenderer(options = {}) {
           </div>
           <div class="presentation-overview-grid">
             ${renderOverviewLoadMetric(model, frameSlide, model.loadLabel)}
-            ${renderOverviewMetric(model, frameSlide, "Phase", phaseLines.slice(0, 3).join(" / ") || periodization.seasonPhase || periodization.sessionType, "is-phase", "overview.phase")}
             ${renderOverviewMetric(model, frameSlide, "Video", periodization.preTrainingVideo || "None", "is-video", "overview.video")}
             ${renderPitchSizeMetric(model, frameSlide, periodization.pitchSize || model.pitchLabel)}
             ${renderOverviewMetric(model, frameSlide, "Match Day", periodization.matchDay || "Not set", "is-match-day", "overview.matchDay")}
+            ${renderOverviewPhaseSummary(model, frameSlide, phaseLines.slice(0, 3).join(" / ") || periodization.seasonPhase || periodization.sessionType)}
             <div class="presentation-block-flow">
               ${model.blocks
                 .map((block, index) => {

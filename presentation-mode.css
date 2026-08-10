@@ -828,6 +828,23 @@ body.is-presentation-mode-open {
   padding: .16rem;
 }
 
+.presentation-opacity-control > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+}
+
+.presentation-opacity-control output {
+  color: rgba(248, 250, 252, .9);
+  font-size: .68rem;
+  font-weight: 950;
+}
+
+.presentation-opacity-control input[type="range"] {
+  accent-color: var(--presentation-accent, #38bdf8);
+}
+
 .presentation-symbol-grid {
   display: grid;
   grid-template-columns: repeat(10, minmax(0, 1fr));
@@ -979,7 +996,26 @@ body.is-presentation-mode-open {
   background: var(--presentation-shape-fill, #38bdf8);
   box-shadow: 0 12px 28px rgba(0, 0, 0, .24);
   cursor: grab;
-  opacity: .9;
+  opacity: var(--presentation-shape-opacity, .9);
+  pointer-events: auto;
+}
+
+.presentation-shape-resize-handle {
+  position: absolute;
+  right: -.48rem;
+  bottom: -.48rem;
+  z-index: 5;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--presentation-accent, #38bdf8) 78%, #ffffff);
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, transparent 0 44%, rgba(255, 255, 255, .92) 46% 54%, transparent 56%),
+    linear-gradient(135deg, transparent 0 63%, rgba(255, 255, 255, .72) 65% 72%, transparent 74%),
+    rgba(8, 15, 20, .9);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, .3);
+  cursor: nwse-resize;
+  opacity: .84;
   pointer-events: auto;
 }
 
@@ -989,13 +1025,15 @@ body.is-presentation-mode-open {
 
 .presentation-slide-shape.is-triangle {
   border: 0;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: transparent;
+  box-shadow: none;
 }
 
 .presentation-slide-shape.is-diamond {
   border: 0;
   border-radius: 0;
-  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background: transparent;
+  box-shadow: none;
 }
 
 .presentation-slide-shape.is-line {
@@ -1005,19 +1043,56 @@ body.is-presentation-mode-open {
 
 .presentation-slide-shape.is-arrow {
   border: 0;
-  clip-path: polygon(0 35%, 62% 35%, 62% 0, 100% 50%, 62% 100%, 62% 65%, 0 65%);
+  background: transparent;
+  box-shadow: none;
 }
 
 .presentation-slide-shape.is-star {
   border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.presentation-slide-shape.is-triangle::before,
+.presentation-slide-shape.is-diamond::before,
+.presentation-slide-shape.is-arrow::before,
+.presentation-slide-shape.is-star::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--presentation-shape-fill, #38bdf8);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .24);
+  pointer-events: none;
+}
+
+.presentation-slide-shape.is-triangle::before {
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.presentation-slide-shape.is-diamond::before {
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+
+.presentation-slide-shape.is-arrow::before {
+  clip-path: polygon(0 35%, 62% 35%, 62% 0, 100% 50%, 62% 100%, 62% 65%, 0 65%);
+}
+
+.presentation-slide-shape.is-star::before {
   clip-path: polygon(50% 0, 61% 34%, 98% 34%, 68% 55%, 79% 91%, 50% 70%, 21% 91%, 32% 55%, 2% 34%, 39% 34%);
 }
 
 .presentation-slide-shape:hover,
 .presentation-slide-shape:focus-visible,
-.presentation-slide-shape.is-dragging {
+.presentation-slide-shape.is-dragging,
+.presentation-slide-shape.is-resizing {
   outline: 2px solid color-mix(in srgb, var(--presentation-accent, #38bdf8) 82%, #ffffff);
   outline-offset: 3px;
+}
+
+.presentation-slide-shape:hover .presentation-shape-resize-handle,
+.presentation-slide-shape:focus-visible .presentation-shape-resize-handle,
+.presentation-slide-shape.is-resizing .presentation-shape-resize-handle {
+  opacity: 1;
 }
 
 .presentation-slide-shape.is-drawing-preview {
@@ -1165,6 +1240,12 @@ body.is-presentation-shape-dragging {
   user-select: none;
 }
 
+.presentation-slide-shape.is-resizing,
+body.is-presentation-shape-resizing {
+  cursor: nwse-resize;
+  user-select: none;
+}
+
 body.is-presentation-shape-drawing {
   cursor: crosshair;
   user-select: none;
@@ -1189,6 +1270,10 @@ body.is-presentation-shape-drawing {
 
 .presentation-mode-shell.is-presenting .presentation-slide-shape {
   pointer-events: none;
+}
+
+.presentation-mode-shell.is-presenting .presentation-shape-resize-handle {
+  display: none;
 }
 
 .presentation-corner-logo {

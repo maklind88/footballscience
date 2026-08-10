@@ -46,6 +46,12 @@ function normalizeHexColor(value = "", fallback = "#38bdf8") {
   return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
 }
 
+function normalizeOpacity(value = "", fallback = 90) {
+  const numericValue = Number(value);
+  const safeFallback = Number.isFinite(Number(fallback)) ? Number(fallback) : 90;
+  return Number(Math.min(100, Math.max(0, Number.isFinite(numericValue) ? numericValue : safeFallback)).toFixed(0));
+}
+
 function normalizeFontSize(value = "") {
   const normalized = String(value || "").trim().toLowerCase();
   const legacySizes = {
@@ -213,6 +219,7 @@ function normalizeShapes(shapes = {}) {
               y: Math.min(96 - size.height, Math.max(2, Number(safeShape.y) || 24)),
               ...size,
               fillColor: normalizeHexColor(safeShape.fillColor, "#38bdf8"),
+              opacity: normalizeOpacity(safeShape.opacity, 90),
               strokeColor: normalizeHexColor(safeShape.strokeColor, "#f8fafc"),
             };
           })
@@ -360,6 +367,7 @@ export function createPresentationModeController(dependencies = {}) {
     editorOpen: false,
     isOpen: false,
     presenting: false,
+    resizeShape: null,
     resizeTextBox: null,
     shapeDrawTool: null,
     slideIndex: 0,
@@ -614,6 +622,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.drawShape = null;
     state.dragShape = null;
     state.dragTextBox = null;
+    state.resizeShape = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
     state.dateValue = normalizeDateValue(dateValue, getTodayValue());
@@ -630,6 +639,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.drawShape = null;
     state.dragShape = null;
     state.dragTextBox = null;
+    state.resizeShape = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
     state.isOpen = false;
@@ -647,6 +657,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     documentRef.body?.classList?.remove("is-presentation-shape-dragging");
+    documentRef.body?.classList?.remove("is-presentation-shape-resizing");
   }
 
   function goToSlide(index) {
@@ -658,10 +669,12 @@ export function createPresentationModeController(dependencies = {}) {
     state.drawShape = null;
     state.dragShape = null;
     state.dragTextBox = null;
+    state.resizeShape = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
+    documentRef.body?.classList?.remove("is-presentation-shape-resizing");
     render();
   }
 
@@ -857,6 +870,21 @@ export function createPresentationModeController(dependencies = {}) {
     if (shapeFill) {
       shapeFill.value = normalizeHexColor(activeShape?.fillColor, "#38bdf8");
       shapeFill.disabled = !activeShape;
+    }
+    const shapeStroke = toolbar.querySelector("[data-presentation-active-shape-stroke]");
+    if (shapeStroke) {
+      shapeStroke.value = normalizeHexColor(activeShape?.strokeColor, "#f8fafc");
+      shapeStroke.disabled = !activeShape;
+    }
+    const shapeOpacity = toolbar.querySelector("[data-presentation-active-shape-opacity]");
+    const shapeOpacityValue = toolbar.querySelector("[data-presentation-active-shape-opacity-value]");
+    const opacityValue = normalizeOpacity(activeShape?.opacity, 90);
+    if (shapeOpacity) {
+      shapeOpacity.value = String(opacityValue);
+      shapeOpacity.disabled = !activeShape;
+    }
+    if (shapeOpacityValue) {
+      shapeOpacityValue.textContent = activeShape ? `${opacityValue}%` : "--";
     }
     const isInfoSlide = Boolean(state.activeTextTarget?.infoId);
     toolbar.querySelectorAll("[data-presentation-active-info-only]").forEach((control) => {
@@ -1116,6 +1144,7 @@ export function createPresentationModeController(dependencies = {}) {
             ...position,
             ...size,
             fillColor: "#38bdf8",
+            opacity: 90,
             strokeColor: "#f8fafc",
           },
         ],
@@ -1126,21 +1155,56 @@ export function createPresentationModeController(dependencies = {}) {
     render();
   }
 
-  function updateActiveShapeFill(value = "") {
+  function getActiveShapeElement() {
     const target = state.activeShapeTarget;
-    if (!target?.slideId || !target.shapeId) {
+    if (!root || !target?.slideId || !target.shapeId) {
+      return null;
+    }
+    return [...root.querySelectorAll("[data-presentation-shape]")].find(
+      (element) =>
+        element.dataset.presentationSlideId === target.slideId &&
+        element.dataset.presentationShapeId === target.shapeId
+    );
+  }
+
+  function applyShapeStyleToElement(shape = {}) {
+    const element = getActiveShapeElement();
+    if (!element || !shape) {
       return;
     }
+    element.style.setProperty("--presentation-shape-fill", normalizeHexColor(shape.fillColor, "#38bdf8"));
+    element.style.setProperty("--presentation-shape-stroke", normalizeHexColor(shape.strokeColor, "#f8fafc"));
+    element.style.setProperty("--presentation-shape-opacity", String(normalizeOpacity(shape.opacity, 90) / 100));
+  }
+
+  function updateActiveShapeStyle(field = "", value = "") {
+    const target = state.activeShapeTarget;
+    const allowedFields = new Set(["fillColor", "strokeColor", "opacity"]);
+    if (!target?.slideId || !target.shapeId || !allowedFields.has(field)) {
+      return;
+    }
+    let nextActiveShape = null;
     writeDeckForDate(state.dateValue, (deck) => ({
       ...deck,
       shapes: normalizeShapes({
         ...deck.shapes,
         [target.slideId]: (deck.shapes?.[target.slideId] || []).map((shape) =>
-          shape.id === target.shapeId ? { ...shape, fillColor: normalizeHexColor(value, shape.fillColor) } : shape
+          shape.id === target.shapeId
+            ? (nextActiveShape = {
+                ...shape,
+                [field]:
+                  field === "opacity"
+                    ? normalizeOpacity(value, shape.opacity)
+                    : normalizeHexColor(value, shape[field] || (field === "strokeColor" ? "#f8fafc" : "#38bdf8")),
+              })
+            : shape
         ),
       }),
     }));
-    render();
+    if (nextActiveShape) {
+      applyShapeStyleToElement(nextActiveShape);
+    }
+    syncTextToolbar();
   }
 
   function deleteShape(slideId = "", shapeId = "") {
@@ -1173,6 +1237,33 @@ export function createPresentationModeController(dependencies = {}) {
         [safeSlideId]: (deck.shapes?.[safeSlideId] || []).map((shape) =>
           shape.id === safeShapeId ? { ...shape, ...clampShapePosition(x, y, shape.width, shape.height) } : shape
         ),
+      }),
+    }));
+    state.activeShapeTarget = { shapeId: safeShapeId, slideId: safeSlideId };
+    render();
+  }
+
+  function updateShapeBounds(slideId = "", shapeId = "", bounds = {}) {
+    const safeSlideId = String(slideId || "").trim();
+    const safeShapeId = String(shapeId || "").trim();
+    if (!safeSlideId || !safeShapeId) {
+      return;
+    }
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      shapes: normalizeShapes({
+        ...deck.shapes,
+        [safeSlideId]: (deck.shapes?.[safeSlideId] || []).map((shape) => {
+          if (shape.id !== safeShapeId) {
+            return shape;
+          }
+          const size = normalizeShapeSize(shape.type, bounds.width ?? shape.width, bounds.height ?? shape.height);
+          return {
+            ...shape,
+            ...clampShapePosition(bounds.x ?? shape.x, bounds.y ?? shape.y, size.width, size.height),
+            ...size,
+          };
+        }),
       }),
     }));
     state.activeShapeTarget = { shapeId: safeShapeId, slideId: safeSlideId };
@@ -1327,12 +1418,14 @@ export function createPresentationModeController(dependencies = {}) {
     state.drawShape = null;
     state.dragShape = null;
     state.dragTextBox = null;
+    state.resizeShape = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
     state.presenting = true;
     state.editorOpen = false;
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
+    documentRef.body?.classList?.remove("is-presentation-shape-resizing");
     render();
   }
 
@@ -1597,6 +1690,86 @@ export function createPresentationModeController(dependencies = {}) {
     updateShapePosition(drag.slideId, drag.shapeId, drag.nextX, drag.nextY);
   }
 
+  function beginShapeResize(event, handle) {
+    const slideId = String(handle?.dataset.presentationSlideId || "").trim();
+    const shapeId = String(handle?.dataset.presentationResizeShape || "").trim();
+    const shapeElement = handle?.closest?.("[data-presentation-shape]");
+    const slideElement = shapeElement?.closest?.(".presentation-slide");
+    const slideRect = slideElement?.getBoundingClientRect?.();
+    const shape = getDeckForDate().shapes?.[slideId]?.find((item) => item.id === shapeId);
+    if (!slideId || !shapeId || !shapeElement || !slideRect?.width || !slideRect?.height || !shape || state.presenting) {
+      return;
+    }
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    const size = normalizeShapeSize(shape.type, shape.width, shape.height);
+    const position = clampShapePosition(shape.x, shape.y, size.width, size.height);
+    state.resizeShape = {
+      shapeElement,
+      shapeId,
+      slideId,
+      slideHeight: slideRect.height,
+      slideWidth: slideRect.width,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startHeight: size.height,
+      startWidth: size.width,
+      startX: position.x,
+      startY: position.y,
+      type: shape.type,
+      nextBounds: {
+        ...position,
+        ...size,
+      },
+    };
+    state.activeTextTarget = null;
+    state.activeShapeTarget = { shapeId, slideId };
+    shapeElement.classList.add("is-resizing");
+    documentRef.body?.classList?.add("is-presentation-shape-resizing");
+    handle.setPointerCapture?.(event.pointerId);
+    syncTextToolbar();
+  }
+
+  function getResizedShapeBounds(resize, event) {
+    const deltaWidth = ((event.clientX - resize.startClientX) / resize.slideWidth) * 100;
+    const deltaHeight = ((event.clientY - resize.startClientY) / resize.slideHeight) * 100;
+    const maxWidth = Math.max(1, 98 - resize.startX);
+    const maxHeight = Math.max(1, 96 - resize.startY);
+    const size = normalizeShapeSize(
+      resize.type,
+      Math.min(maxWidth, resize.startWidth + deltaWidth),
+      Math.min(maxHeight, resize.startHeight + deltaHeight)
+    );
+    return {
+      x: resize.startX,
+      y: resize.startY,
+      ...size,
+    };
+  }
+
+  function updateShapeResize(event) {
+    const resize = state.resizeShape;
+    if (!resize) {
+      return;
+    }
+    event.preventDefault?.();
+    const bounds = getResizedShapeBounds(resize, event);
+    resize.nextBounds = bounds;
+    applyShapeBounds(resize.shapeElement, bounds);
+  }
+
+  function finishShapeResize(event) {
+    const resize = state.resizeShape;
+    if (!resize) {
+      return;
+    }
+    event.preventDefault?.();
+    resize.shapeElement.classList.remove("is-resizing");
+    documentRef.body?.classList?.remove("is-presentation-shape-resizing");
+    state.resizeShape = null;
+    updateShapeBounds(resize.slideId, resize.shapeId, resize.nextBounds);
+  }
+
   function handleClick(event) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
@@ -1705,6 +1878,11 @@ export function createPresentationModeController(dependencies = {}) {
       beginTextBoxResize(event, resizeHandle);
       return;
     }
+    const shapeResizeHandle = event.target.closest("[data-presentation-resize-shape]");
+    if (shapeResizeHandle) {
+      beginShapeResize(event, shapeResizeHandle);
+      return;
+    }
     const dragHandle = event.target.closest("[data-presentation-drag-text-box]");
     if (dragHandle) {
       beginTextBoxDrag(event, dragHandle);
@@ -1749,7 +1927,17 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const activeShapeFill = event.target.closest("[data-presentation-active-shape-fill]");
     if (activeShapeFill) {
-      updateActiveShapeFill(activeShapeFill.value);
+      updateActiveShapeStyle("fillColor", activeShapeFill.value);
+      return;
+    }
+    const activeShapeStroke = event.target.closest("[data-presentation-active-shape-stroke]");
+    if (activeShapeStroke) {
+      updateActiveShapeStyle("strokeColor", activeShapeStroke.value);
+      return;
+    }
+    const activeShapeOpacity = event.target.closest("[data-presentation-active-shape-opacity]");
+    if (activeShapeOpacity) {
+      updateActiveShapeStyle("opacity", activeShapeOpacity.value);
       return;
     }
     const infoField = event.target.closest("[data-presentation-info-field]");
@@ -1797,7 +1985,17 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const activeShapeFill = event.target.closest("[data-presentation-active-shape-fill]");
     if (activeShapeFill) {
-      updateActiveShapeFill(activeShapeFill.value);
+      updateActiveShapeStyle("fillColor", activeShapeFill.value);
+      return;
+    }
+    const activeShapeStroke = event.target.closest("[data-presentation-active-shape-stroke]");
+    if (activeShapeStroke) {
+      updateActiveShapeStyle("strokeColor", activeShapeStroke.value);
+      return;
+    }
+    const activeShapeOpacity = event.target.closest("[data-presentation-active-shape-opacity]");
+    if (activeShapeOpacity) {
+      updateActiveShapeStyle("opacity", activeShapeOpacity.value);
       return;
     }
     const styleField = event.target.closest("[data-presentation-style-field]");
@@ -1815,6 +2013,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.drawShape = null;
     state.dragShape = null;
     state.dragTextBox = null;
+    state.resizeShape = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
     state.dateValue = nextDate;
@@ -1822,6 +2021,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.editorOpen = false;
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
+    documentRef.body?.classList?.remove("is-presentation-shape-resizing");
     render();
   }
 
@@ -1904,14 +2104,17 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.addEventListener("pointermove", updateTextBoxResize, true);
     documentRef.addEventListener("pointermove", updateShapeDraw, true);
     documentRef.addEventListener("pointermove", updateShapeDrag, true);
+    documentRef.addEventListener("pointermove", updateShapeResize, true);
     documentRef.addEventListener("pointerup", finishTextBoxDrag, true);
     documentRef.addEventListener("pointerup", finishTextBoxResize, true);
     documentRef.addEventListener("pointerup", finishShapeDraw, true);
     documentRef.addEventListener("pointerup", finishShapeDrag, true);
+    documentRef.addEventListener("pointerup", finishShapeResize, true);
     documentRef.addEventListener("pointercancel", finishTextBoxDrag, true);
     documentRef.addEventListener("pointercancel", finishTextBoxResize, true);
     documentRef.addEventListener("pointercancel", finishShapeDraw, true);
     documentRef.addEventListener("pointercancel", finishShapeDrag, true);
+    documentRef.addEventListener("pointercancel", finishShapeResize, true);
     documentRef.addEventListener("click", handleClick);
     documentRef.addEventListener("focus", handleFocusin, true);
     documentRef.addEventListener("focusin", handleFocusin, true);

@@ -437,18 +437,44 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   const slideShape = presentation.locator("[data-presentation-shape].is-circle").first();
   await expect(slideShape).toBeVisible();
   await expect(presentation).not.toHaveClass(/is-shape-tool-active/);
+  const shapeBeforeResize = await slideShape.boundingBox();
+  const shapeResizeHandle = slideShape.locator("[data-presentation-resize-shape]");
+  const shapeResizeBox = await shapeResizeHandle.boundingBox();
+  expect(shapeBeforeResize).toBeTruthy();
+  expect(shapeResizeBox).toBeTruthy();
+  await page.mouse.move(shapeResizeBox.x + shapeResizeBox.width / 2, shapeResizeBox.y + shapeResizeBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(shapeResizeBox.x + shapeResizeBox.width / 2 + 92, shapeResizeBox.y + shapeResizeBox.height / 2 + 54, {
+    steps: 6,
+  });
+  await page.mouse.up();
+  const shapeAfterResize = await slideShape.boundingBox();
+  expect(shapeAfterResize?.width).toBeGreaterThan((shapeBeforeResize?.width || 0) + 20);
+  expect(shapeAfterResize?.height).toBeGreaterThan((shapeBeforeResize?.height || 0) + 10);
   await expect(textToolbar.locator("[data-presentation-active-shape-fill]")).toBeEnabled();
+  await expect(textToolbar.locator("[data-presentation-active-shape-stroke]")).toBeEnabled();
+  await expect(textToolbar.locator("[data-presentation-active-shape-opacity]")).toBeEnabled();
   await textToolbar.locator("[data-presentation-active-shape-fill]").evaluate((input) => {
     input.value = "#f59e0b";
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
+  await textToolbar.locator("[data-presentation-active-shape-stroke]").evaluate((input) => {
+    input.value = "#111827";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await textToolbar.locator("[data-presentation-active-shape-opacity]").evaluate((input) => {
+    input.value = "35";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await expect(textToolbar.locator("[data-presentation-active-shape-opacity-value]")).toHaveText("35%");
   const storedShape = await page.evaluate(
     ({ key, date }) => JSON.parse(window.localStorage.getItem(key) || "{}")?.decks?.[date]?.shapes?.["qa-info"]?.[0],
     { key: presentationKey, date: dateValue }
   );
-  expect(storedShape).toMatchObject({ type: "circle", fillColor: "#f59e0b" });
-  expect(Number(storedShape?.width)).toBeGreaterThan(14);
-  expect(Number(storedShape?.height)).toBeGreaterThan(14);
+  expect(storedShape).toMatchObject({ type: "circle", fillColor: "#f59e0b", opacity: 35, strokeColor: "#111827" });
+  expect(Number(storedShape?.width)).toBeGreaterThan(22);
+  expect(Number(storedShape?.height)).toBeGreaterThan(22);
+  await expect(slideShape).toHaveCSS("opacity", "0.35");
   await slideShape.focus();
   await page.keyboard.press("Delete");
   await expect(presentation.locator("[data-presentation-shape]")).toHaveCount(0);

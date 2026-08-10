@@ -189,6 +189,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(toolbarHtml).toContain("data-presentation-add-shape");
   expect(toolbarHtml).toContain("data-presentation-style-menu");
   expect(toolbarHtml).toContain("data-presentation-active-shape-fill");
+  expect(toolbarHtml).toContain("data-presentation-active-shape-stroke");
+  expect(toolbarHtml).toContain("data-presentation-active-shape-opacity");
   expect(toolbarHtml).toContain('data-presentation-style-field="backgroundColor"');
   expect(toolbarHtml).toContain('data-presentation-style-field="accentColor"');
   expect(toolbarHtml).not.toContain("New info slide");
@@ -300,7 +302,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     },
     shapes: {
       ...deck.shapes,
-      cover: [{ id: "shape-1", type: "circle", x: 18, y: 20, width: 10, height: 10, fillColor: "#f59e0b", strokeColor: "#ffffff" }],
+      cover: [{ id: "shape-1", type: "circle", x: 18, y: 20, width: 10, height: 10, fillColor: "#f59e0b", opacity: 55, strokeColor: "#ffffff" }],
     },
     textFieldStyles: {
       ...deck.textFieldStyles,
@@ -316,7 +318,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(styledCoverHtml).toContain("presentation-shape-layer");
   expect(styledCoverHtml).toContain("presentation-slide-shape is-circle");
   expect(styledCoverHtml).toContain('data-presentation-shape-id="shape-1"');
+  expect(styledCoverHtml).toContain('data-presentation-resize-shape="shape-1"');
   expect(styledCoverHtml).toContain("--presentation-shape-fill: #f59e0b");
+  expect(styledCoverHtml).toContain("--presentation-shape-opacity: 0.55");
   expect(styledCoverHtml).toContain("presentation-free-text-box-shell");
   expect(styledCoverHtml).toContain("Free note");
   expect(styledCoverHtml).toContain('data-presentation-text-box-id="note-1"');

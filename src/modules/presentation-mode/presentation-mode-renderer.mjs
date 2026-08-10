@@ -17,6 +17,12 @@ function normalizeHexColor(value = "", fallback = "#38bdf8") {
   return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
 }
 
+function normalizeOpacity(value = "", fallback = 90) {
+  const numericValue = Number(value);
+  const safeFallback = Number.isFinite(Number(fallback)) ? Number(fallback) : 90;
+  return Number(Math.min(100, Math.max(0, Number.isFinite(numericValue) ? numericValue : safeFallback)).toFixed(0));
+}
+
 function getTextColor(backgroundColor = "") {
   const color = normalizeHexColor(backgroundColor, "#ffffff");
   const red = parseInt(color.slice(1, 3), 16) / 255;
@@ -460,6 +466,14 @@ export function createPresentationModeRenderer(options = {}) {
             <input type="color" value="#38bdf8" data-presentation-active-shape-fill aria-label="Shape fill color" disabled />
           </label>
           <label class="presentation-style-control">
+            <span>Line</span>
+            <input type="color" value="#f8fafc" data-presentation-active-shape-stroke aria-label="Shape line color" disabled />
+          </label>
+          <label class="presentation-style-control is-wide presentation-opacity-control">
+            <span>Opacity <output data-presentation-active-shape-opacity-value>--</output></span>
+            <input type="range" min="0" max="100" step="5" value="90" data-presentation-active-shape-opacity aria-label="Shape opacity" disabled />
+          </label>
+          <label class="presentation-style-control">
             <span>Background</span>
             <input type="color" value="${escapeHtml(style.backgroundColor)}" data-presentation-style-field="backgroundColor" aria-label="Slide background color" />
           </label>
@@ -622,6 +636,7 @@ export function createPresentationModeRenderer(options = {}) {
         ${shapes
           .map((shape) => {
             const type = String(shape.type || "rect").trim();
+            const opacity = Number((normalizeOpacity(shape.opacity, 90) / 100).toFixed(2));
             return `
               <button
                 type="button"
@@ -629,10 +644,17 @@ export function createPresentationModeRenderer(options = {}) {
                 data-presentation-shape
                 data-presentation-shape-id="${escapeHtml(shape.id)}"
                 data-presentation-slide-id="${escapeHtml(slide.id)}"
-                style="left: ${escapeHtml(shape.x)}%; top: ${escapeHtml(shape.y)}%; width: ${escapeHtml(shape.width)}%; height: ${escapeHtml(shape.height)}%; --presentation-shape-fill: ${escapeHtml(normalizeHexColor(shape.fillColor, "#38bdf8"))}; --presentation-shape-stroke: ${escapeHtml(normalizeHexColor(shape.strokeColor, "#f8fafc"))};"
-                aria-label="${escapeHtml(`Move ${type} shape`)}"
-                title="Move shape"
-              ></button>
+                style="left: ${escapeHtml(shape.x)}%; top: ${escapeHtml(shape.y)}%; width: ${escapeHtml(shape.width)}%; height: ${escapeHtml(shape.height)}%; --presentation-shape-fill: ${escapeHtml(normalizeHexColor(shape.fillColor, "#38bdf8"))}; --presentation-shape-stroke: ${escapeHtml(normalizeHexColor(shape.strokeColor, "#f8fafc"))}; --presentation-shape-opacity: ${escapeHtml(opacity)};"
+                aria-label="${escapeHtml(`Move and resize ${type} shape`)}"
+                title="Move or resize shape"
+              >
+                <span
+                  class="presentation-shape-resize-handle"
+                  data-presentation-resize-shape="${escapeHtml(shape.id)}"
+                  data-presentation-slide-id="${escapeHtml(slide.id)}"
+                  aria-hidden="true"
+                ></span>
+              </button>
             `;
           })
           .join("")}

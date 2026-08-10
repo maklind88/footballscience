@@ -338,10 +338,33 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator("[data-presentation-delete-slide]")).toBeEnabled();
   await expect(presentation.locator("[data-presentation-toggle-editor]")).toHaveCount(0);
   await expect(presentation.locator("[data-presentation-text-toolbar]")).toBeHidden();
+  const slideTopBeforeToolbar = await presentation.locator(".presentation-slide").evaluate((slide) => slide.getBoundingClientRect().top);
   await presentation.locator(".presentation-info-title").click();
   await expect(presentation).toHaveClass(/is-text-toolbar-open/);
   const textToolbar = presentation.locator("[data-presentation-text-toolbar]");
   await expect(textToolbar).toBeVisible();
+  const toolbarDockLayout = await presentation.evaluate((root, beforeTop) => {
+    const controlBar = root.querySelector(".presentation-control-bar");
+    const editSlot = root.querySelector(".presentation-control-edit-slot");
+    const toolbar = root.querySelector("[data-presentation-text-toolbar]");
+    const slide = root.querySelector(".presentation-slide");
+    if (!controlBar || !editSlot || !toolbar || !slide) return null;
+    const controlRect = controlBar.getBoundingClientRect();
+    const toolbarRect = toolbar.getBoundingClientRect();
+    const slideRect = slide.getBoundingClientRect();
+    return {
+      toolbarInsideControlBar: controlBar.contains(toolbar),
+      toolbarInsideEditSlot: editSlot.contains(toolbar),
+      toolbarFitsControlBand: toolbarRect.top >= controlRect.top - 1 && toolbarRect.bottom <= controlRect.bottom + 1,
+      slideDidNotJump: Math.abs(slideRect.top - beforeTop) <= 2,
+    };
+  }, slideTopBeforeToolbar);
+  expect(toolbarDockLayout).toMatchObject({
+    toolbarInsideControlBar: true,
+    toolbarInsideEditSlot: true,
+    toolbarFitsControlBand: true,
+    slideDidNotJump: true,
+  });
   await expect(presentation.locator(".presentation-pass-controls [data-presentation-add-info]")).toHaveText("New Slide");
   await expect(textToolbar).not.toContainText("New info slide");
   await expect(textToolbar.locator("[data-presentation-add-text-box]")).toBeVisible();

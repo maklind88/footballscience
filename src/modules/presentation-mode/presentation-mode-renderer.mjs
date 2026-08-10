@@ -331,6 +331,9 @@ export function createPresentationModeRenderer(options = {}) {
             <strong>Presentation Mode</strong>
           </div>
         </div>
+        <div class="presentation-control-edit-slot">
+          ${renderTextToolbar(model)}
+        </div>
         <div class="presentation-pass-controls">
           ${renderThemeControl(slide)}
           <button type="button" class="presentation-tool-button presentation-new-slide-button" data-presentation-add-info>New Slide</button>
@@ -952,7 +955,6 @@ export function createPresentationModeRenderer(options = {}) {
     return `
       <section class="presentation-mode-shell${model.presenting ? " is-presenting" : ""}${model.textToolbarOpen ? " is-text-toolbar-open" : ""}" data-presentation-mode-shell>
         ${renderControlBar(model)}
-        ${renderTextToolbar(model)}
         <div class="presentation-stage" data-presentation-stage>
           ${renderActiveSlide(model)}
         </div>

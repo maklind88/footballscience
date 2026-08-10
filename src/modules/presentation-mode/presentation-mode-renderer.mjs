@@ -536,6 +536,7 @@ export function createPresentationModeRenderer(options = {}) {
         ${boxes
           .map((box) => {
             const field = `textbox.${box.id}.text`;
+            const kind = box.kind === "symbol" ? "symbol" : "text";
             const fallbackStyle = {
               fontSize: box.fontSize || "36",
               textColor: box.textColor || "#f8fafc",
@@ -553,9 +554,10 @@ export function createPresentationModeRenderer(options = {}) {
             );
             return `
               <div
-                class="presentation-free-text-box-shell"
+                class="presentation-free-text-box-shell is-${escapeHtml(kind)}"
                 data-presentation-text-box-shell
                 data-presentation-text-box-id="${escapeHtml(box.id)}"
+                data-presentation-text-box-kind="${escapeHtml(kind)}"
                 style="left: ${escapeHtml(box.x)}%; top: ${escapeHtml(box.y)}%; width: ${escapeHtml(box.width)}%;"
               >
                 <button
@@ -567,6 +569,14 @@ export function createPresentationModeRenderer(options = {}) {
                   aria-label="Move text box"
                 ></button>
                 ${textBox}
+                <button
+                  type="button"
+                  class="presentation-text-box-resize-handle"
+                  data-presentation-resize-text-box="${escapeHtml(box.id)}"
+                  data-presentation-slide-id="${escapeHtml(slide.id)}"
+                  title="Resize text box"
+                  aria-label="Resize text box"
+                ></button>
               </div>
             `;
           })

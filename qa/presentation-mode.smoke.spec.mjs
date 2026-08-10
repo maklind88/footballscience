@@ -393,7 +393,35 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(textToolbar.locator("[data-presentation-symbol-menu] .presentation-tool-popover-panel")).toBeVisible();
   await expect(textToolbar.locator("[aria-label='Insert check']")).toBeVisible();
   await textToolbar.locator("[aria-label='Insert check']").click();
-  await expect(presentation.locator(".presentation-info-title")).toHaveValue(/✓/);
+  const symbolBox = presentation.locator("[data-presentation-text-box-shell][data-presentation-text-box-kind='symbol']").first();
+  await expect(symbolBox).toBeVisible();
+  await expect(symbolBox.locator(".presentation-free-text-box")).toContainText("✓");
+  await expect(textToolbar.locator("[data-presentation-symbol-menu] .presentation-tool-popover-panel")).toBeHidden();
+  const symbolBefore = await symbolBox.boundingBox();
+  const symbolResizeHandle = symbolBox.locator("[data-presentation-resize-text-box]");
+  const symbolResizeBox = await symbolResizeHandle.boundingBox();
+  expect(symbolBefore).toBeTruthy();
+  expect(symbolResizeBox).toBeTruthy();
+  await page.mouse.move(symbolResizeBox.x + symbolResizeBox.width / 2, symbolResizeBox.y + symbolResizeBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(symbolResizeBox.x + symbolResizeBox.width / 2 + 110, symbolResizeBox.y + symbolResizeBox.height / 2 + 58, {
+    steps: 6,
+  });
+  await page.mouse.up();
+  const symbolAfter = await symbolBox.boundingBox();
+  expect(symbolAfter?.width).toBeGreaterThan((symbolBefore?.width || 0) + 20);
+  const storedSymbolBox = await page.evaluate(
+    ({ key, date }) =>
+      JSON.parse(window.localStorage.getItem(key) || "{}")?.decks?.[date]?.textBoxes?.["qa-info"]?.find(
+        (box) => box.kind === "symbol" && box.text === "✓"
+      ),
+    { key: presentationKey, date: dateValue }
+  );
+  expect(Number(storedSymbolBox?.width)).toBeGreaterThan(14);
+  expect(Number(storedSymbolBox?.fontSize)).toBeGreaterThan(88);
+  await symbolBox.locator("[data-presentation-drag-text-box]").focus();
+  await page.keyboard.press("Delete");
+  await expect(presentation.locator("[data-presentation-text-box-shell][data-presentation-text-box-kind='symbol']")).toHaveCount(0);
   await presentation.locator(".presentation-info-title").click();
   await textToolbar.locator("[data-presentation-shape-menu] summary").click();
   await expect(textToolbar.locator("[data-presentation-shape-menu] .presentation-tool-popover-panel")).toBeVisible();

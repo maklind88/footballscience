@@ -167,6 +167,7 @@ function normalizeTextBoxes(textBoxes = {}) {
             const width = Math.min(70, Math.max(14, Number(safeBox.width) || 28));
             return {
               id,
+              kind: safeBox.kind === "symbol" ? "symbol" : "text",
               x: Math.min(96 - width, Math.max(2, Number(safeBox.x) || 12)),
               y: Math.min(88, Math.max(4, Number(safeBox.y) || 22)),
               width,
@@ -348,6 +349,7 @@ export function createPresentationModeController(dependencies = {}) {
     editorOpen: false,
     isOpen: false,
     presenting: false,
+    resizeTextBox: null,
     slideIndex: 0,
   };
   let root = null;
@@ -399,6 +401,10 @@ export function createPresentationModeController(dependencies = {}) {
       x: Number(Math.min(96 - safeWidth, Math.max(2, Number(x) || 2)).toFixed(2)),
       y: Number(Math.min(88, Math.max(4, Number(y) || 4)).toFixed(2)),
     };
+  }
+
+  function clampTextBoxWidth(width = 30) {
+    return Number(Math.min(70, Math.max(14, Number(width) || 30)).toFixed(2));
   }
 
   function clampShapePosition(x, y, width = 12, height = 12) {
@@ -594,6 +600,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeTextTarget = null;
     state.dragShape = null;
     state.dragTextBox = null;
+    state.resizeTextBox = null;
     state.dateValue = normalizeDateValue(dateValue, getTodayValue());
     state.slideIndex = 0;
     state.editorOpen = false;
@@ -607,6 +614,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeTextTarget = null;
     state.dragShape = null;
     state.dragTextBox = null;
+    state.resizeTextBox = null;
     state.isOpen = false;
     state.editorOpen = false;
     state.presenting = false;
@@ -619,6 +627,7 @@ export function createPresentationModeController(dependencies = {}) {
     }
     documentRef.body.classList.remove("is-presentation-mode-open");
     documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
+    documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     documentRef.body?.classList?.remove("is-presentation-shape-dragging");
   }
 
@@ -882,43 +891,18 @@ export function createPresentationModeController(dependencies = {}) {
     syncTextToolbar();
   }
 
-  function insertTextIntoActiveField(text = "") {
-    const symbol = String(text || "");
-    const activeElement = getActiveTextElement();
-    if (!symbol || !activeElement) {
-      return;
-    }
-    if ("setRangeText" in activeElement) {
-      const start = Number.isFinite(activeElement.selectionStart) ? activeElement.selectionStart : activeElement.value.length;
-      const end = Number.isFinite(activeElement.selectionEnd) ? activeElement.selectionEnd : start;
-      activeElement.setRangeText(symbol, start, end, "end");
-      activeElement.dispatchEvent(new InputEvent("input", { bubbles: true, data: symbol, inputType: "insertText" }));
-      activeElement.focus?.({ preventScroll: true });
-      return;
-    }
-    const selection = win?.getSelection?.();
-    if (selection?.rangeCount && activeElement.contains(selection.anchorNode)) {
-      const range = selection.getRangeAt(0);
-      range.deleteContents();
-      const node = documentRef.createTextNode(symbol);
-      range.insertNode(node);
-      range.setStartAfter(node);
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    } else {
-      activeElement.textContent = `${activeElement.textContent || ""}${symbol}`;
-    }
-    activeElement.dispatchEvent(new InputEvent("input", { bubbles: true, data: symbol, inputType: "insertText" }));
-    activeElement.focus?.({ preventScroll: true });
-  }
-
-  function addTextBox() {
+  function addTextBox(options = {}) {
     const currentSlide = buildModel().slides[state.slideIndex];
     if (!currentSlide?.id) {
       return;
     }
-    const id = `textbox-${Date.now()}`;
+    const isSymbol = options.kind === "symbol";
+    const text = String(options.text ?? "Text box").slice(0, maxTextOverrideLength) || (isSymbol ? "•" : "Text box");
+    const fontSize = normalizeFontSize(options.fontSize || (isSymbol ? "88" : "36"));
+    const textColor = normalizeHexColor(options.textColor, "#f8fafc");
+    const width = clampTextBoxWidth(options.width || (isSymbol ? 14 : 30));
+    const position = clampTextBoxPosition(options.x ?? (isSymbol ? 46 : 56), options.y ?? (isSymbol ? 28 : 36), width);
+    const id = `${isSymbol ? "symbol" : "textbox"}-${Date.now()}`;
     const field = getTextBoxField(id);
     writeDeckForDate(state.dateValue, (deck) => ({
       ...deck,
@@ -928,12 +912,13 @@ export function createPresentationModeController(dependencies = {}) {
           ...(deck.textBoxes?.[currentSlide.id] || []),
           {
             id,
-            text: "Text box",
-            x: 56,
-            y: 36,
-            width: 30,
-            fontSize: "36",
-            textColor: "#f8fafc",
+            kind: isSymbol ? "symbol" : "text",
+            text,
+            x: position.x,
+            y: position.y,
+            width,
+            fontSize,
+            textColor,
           },
         ],
       }),
@@ -942,8 +927,8 @@ export function createPresentationModeController(dependencies = {}) {
         [currentSlide.id]: {
           ...(deck.textFieldStyles?.[currentSlide.id] || {}),
           [field]: {
-            fontSize: "36",
-            textColor: "#f8fafc",
+            fontSize,
+            textColor,
           },
         },
       }),
@@ -951,7 +936,7 @@ export function createPresentationModeController(dependencies = {}) {
         ...deck.textOverrides,
         [currentSlide.id]: {
           ...(deck.textOverrides?.[currentSlide.id] || {}),
-          [field]: "Text box",
+          [field]: text,
         },
       }),
     }));
@@ -959,6 +944,22 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeTextTarget = { field, infoId: "", slideId: currentSlide.id, textBoxId: id };
     render();
     focusActiveTextElement();
+  }
+
+  function addSymbolTextBox(symbol = "") {
+    const text = String(symbol || "").trim();
+    if (!text) {
+      return;
+    }
+    addTextBox({
+      kind: "symbol",
+      text,
+      width: 14,
+      fontSize: "88",
+      textColor: "#f8fafc",
+      x: 45,
+      y: 26,
+    });
   }
 
   function deleteTextBox(slideId = "", boxId = "") {
@@ -1015,6 +1016,48 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeShapeTarget = null;
     state.activeTextTarget = { field: getTextBoxField(safeBoxId), infoId: "", slideId: safeSlideId, textBoxId: safeBoxId };
     render();
+  }
+
+  function updateTextBoxSize(slideId = "", boxId = "", width = 30, fontSize = "36") {
+    const safeSlideId = String(slideId || "").trim();
+    const safeBoxId = String(boxId || "").trim();
+    const safeWidth = clampTextBoxWidth(width);
+    const safeFontSize = normalizeFontSize(fontSize);
+    const field = getTextBoxField(safeBoxId);
+    if (!safeSlideId || !safeBoxId) {
+      return;
+    }
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      textBoxes: normalizeTextBoxes({
+        ...deck.textBoxes,
+        [safeSlideId]: (deck.textBoxes?.[safeSlideId] || []).map((box) => {
+          if (box.id !== safeBoxId) {
+            return box;
+          }
+          return {
+            ...box,
+            ...clampTextBoxPosition(box.x, box.y, safeWidth),
+            width: safeWidth,
+            fontSize: safeFontSize,
+          };
+        }),
+      }),
+      textFieldStyles: normalizeTextFieldStyles({
+        ...deck.textFieldStyles,
+        [safeSlideId]: {
+          ...(deck.textFieldStyles?.[safeSlideId] || {}),
+          [field]: {
+            ...(deck.textFieldStyles?.[safeSlideId]?.[field] || {}),
+            fontSize: safeFontSize,
+          },
+        },
+      }),
+    }));
+    state.activeShapeTarget = null;
+    state.activeTextTarget = { field, infoId: "", slideId: safeSlideId, textBoxId: safeBoxId };
+    render();
+    focusActiveTextElement();
   }
 
   function getShapeDefaults(type = "rect") {
@@ -1204,8 +1247,10 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeTextTarget = null;
     state.dragShape = null;
     state.dragTextBox = null;
+    state.resizeTextBox = null;
     state.presenting = true;
     state.editorOpen = false;
+    documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     render();
   }
 
@@ -1275,6 +1320,75 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
     state.dragTextBox = null;
     updateTextBoxPosition(drag.slideId, drag.boxId, drag.nextX, drag.nextY);
+  }
+
+  function beginTextBoxResize(event, handle) {
+    const slideId = String(handle?.dataset.presentationSlideId || "").trim();
+    const boxId = String(handle?.dataset.presentationResizeTextBox || "").trim();
+    const shell = handle?.closest?.("[data-presentation-text-box-shell]");
+    const slideElement = shell?.closest?.(".presentation-slide");
+    const slideRect = slideElement?.getBoundingClientRect?.();
+    const box = getDeckForDate().textBoxes?.[slideId]?.find((item) => item.id === boxId);
+    if (!slideId || !boxId || !shell || !slideRect?.width || !slideRect?.height || !box || state.presenting) {
+      return;
+    }
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    const startWidth = clampTextBoxWidth(box.width);
+    const startFontSize = Number(normalizeFontSize(box.fontSize || "36"));
+    state.resizeTextBox = {
+      boxId,
+      shell,
+      slideId,
+      slideHeight: slideRect.height,
+      slideWidth: slideRect.width,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startFontSize,
+      startWidth,
+      nextFontSize: startFontSize,
+      nextWidth: startWidth,
+    };
+    state.activeShapeTarget = null;
+    state.activeTextTarget = { field: getTextBoxField(boxId), infoId: "", slideId, textBoxId: boxId };
+    shell.classList.add("is-resizing");
+    documentRef.body?.classList?.add("is-presentation-text-box-resizing");
+    handle.setPointerCapture?.(event.pointerId);
+    syncTextToolbar();
+  }
+
+  function updateTextBoxResize(event) {
+    const resize = state.resizeTextBox;
+    if (!resize) {
+      return;
+    }
+    event.preventDefault?.();
+    const deltaWidth = ((event.clientX - resize.startClientX) / resize.slideWidth) * 100;
+    const deltaHeight = ((event.clientY - resize.startClientY) / resize.slideHeight) * 100;
+    const deltas = [deltaWidth, deltaHeight];
+    const sizeDelta = deltas.every((value) => value < 0) ? Math.min(...deltas) : Math.max(...deltas);
+    const nextWidth = clampTextBoxWidth(resize.startWidth + sizeDelta);
+    const scale = nextWidth / Math.max(1, resize.startWidth);
+    const nextFontSize = Number(normalizeFontSize(Math.round(resize.startFontSize * scale)));
+    resize.nextWidth = nextWidth;
+    resize.nextFontSize = nextFontSize;
+    resize.shell.style.width = `${nextWidth}%`;
+    const textElement = resize.shell.querySelector(".presentation-free-text-box");
+    if (textElement) {
+      textElement.style.fontSize = `${Number((nextFontSize / 16).toFixed(3))}rem`;
+    }
+  }
+
+  function finishTextBoxResize(event) {
+    const resize = state.resizeTextBox;
+    if (!resize) {
+      return;
+    }
+    event.preventDefault?.();
+    resize.shell.classList.remove("is-resizing");
+    documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
+    state.resizeTextBox = null;
+    updateTextBoxSize(resize.slideId, resize.boxId, resize.nextWidth, resize.nextFontSize);
   }
 
   function beginShapeDrag(event, shapeElement) {
@@ -1384,7 +1498,7 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const symbolButton = event.target.closest("[data-presentation-insert-symbol]");
     if (symbolButton) {
-      insertTextIntoActiveField(symbolButton.dataset.presentationInsertSymbol);
+      addSymbolTextBox(symbolButton.dataset.presentationInsertSymbol);
       symbolButton.closest?.("details")?.removeAttribute?.("open");
       return;
     }
@@ -1442,6 +1556,11 @@ export function createPresentationModeController(dependencies = {}) {
 
   function handleTextActivation(event) {
     if (!state.isOpen || !root?.contains(event.target)) {
+      return;
+    }
+    const resizeHandle = event.target.closest("[data-presentation-resize-text-box]");
+    if (resizeHandle) {
+      beginTextBoxResize(event, resizeHandle);
       return;
     }
     const dragHandle = event.target.closest("[data-presentation-drag-text-box]");
@@ -1544,9 +1663,11 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeShapeTarget = null;
     state.dragShape = null;
     state.dragTextBox = null;
+    state.resizeTextBox = null;
     state.dateValue = nextDate;
     state.slideIndex = 0;
     state.editorOpen = false;
+    documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     render();
   }
 
@@ -1616,10 +1737,13 @@ export function createPresentationModeController(dependencies = {}) {
     state.bound = true;
     documentRef.addEventListener("pointerdown", handleTextActivation, true);
     documentRef.addEventListener("pointermove", updateTextBoxDrag, true);
+    documentRef.addEventListener("pointermove", updateTextBoxResize, true);
     documentRef.addEventListener("pointermove", updateShapeDrag, true);
     documentRef.addEventListener("pointerup", finishTextBoxDrag, true);
+    documentRef.addEventListener("pointerup", finishTextBoxResize, true);
     documentRef.addEventListener("pointerup", finishShapeDrag, true);
     documentRef.addEventListener("pointercancel", finishTextBoxDrag, true);
+    documentRef.addEventListener("pointercancel", finishTextBoxResize, true);
     documentRef.addEventListener("pointercancel", finishShapeDrag, true);
     documentRef.addEventListener("click", handleClick);
     documentRef.addEventListener("focus", handleFocusin, true);

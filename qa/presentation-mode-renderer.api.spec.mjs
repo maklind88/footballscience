@@ -314,6 +314,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(styledCoverHtml).toContain("Free note");
   expect(styledCoverHtml).toContain('data-presentation-text-box-id="note-1"');
   expect(styledCoverHtml).toContain('data-presentation-drag-text-box="note-1"');
+  expect(styledCoverHtml).toContain('data-presentation-resize-text-box="note-1"');
+  expect(styledCoverHtml).toContain('data-presentation-text-box-kind="text"');
   expect(styledCoverHtml).toContain('data-presentation-text-field="textbox.note-1.text"');
   expect(styledCoverHtml).toContain("left: 50%; top: 40%; width: 30%;");
   expect(styledCoverHtml).toContain("font-size: 4rem; color: #38bdf8;");

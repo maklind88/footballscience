@@ -1010,7 +1010,7 @@ body.is-presentation-mode-open {
 .presentation-free-text-box {
   position: relative;
   min-height: 2.8rem;
-  padding: .5rem 2.05rem .5rem .62rem;
+  padding: .5rem 2.05rem 1.25rem .62rem;
   border: 1px dashed color-mix(in srgb, var(--presentation-accent, #38bdf8) 58%, transparent);
   border-radius: 8px;
   color: var(--presentation-slide-text, #f8fafc);
@@ -1026,6 +1026,19 @@ body.is-presentation-mode-open {
   position: absolute;
   min-width: 8rem;
   pointer-events: auto;
+}
+
+.presentation-free-text-box-shell.is-symbol {
+  min-width: 3.8rem;
+}
+
+.presentation-free-text-box-shell.is-symbol .presentation-free-text-box {
+  min-height: 4.4rem;
+  display: grid;
+  place-items: center;
+  padding: .6rem 1.65rem 1.35rem;
+  text-align: center;
+  line-height: .95;
 }
 
 .presentation-text-box-drag-handle {
@@ -1045,14 +1058,40 @@ body.is-presentation-mode-open {
   opacity: .72;
 }
 
+.presentation-text-box-resize-handle {
+  position: absolute;
+  right: .28rem;
+  bottom: .28rem;
+  z-index: 2;
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--presentation-accent, #38bdf8) 70%, transparent);
+  border-radius: 5px;
+  background:
+    linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, .92) 48% 54%, transparent 56%),
+    linear-gradient(135deg, transparent 0 64%, rgba(255, 255, 255, .68) 66% 72%, transparent 74%),
+    rgba(8, 15, 20, .78);
+  cursor: nwse-resize;
+  opacity: .72;
+}
+
 .presentation-free-text-box-shell:hover .presentation-text-box-drag-handle,
-.presentation-free-text-box-shell.is-dragging .presentation-text-box-drag-handle {
+.presentation-free-text-box-shell:hover .presentation-text-box-resize-handle,
+.presentation-free-text-box-shell.is-dragging .presentation-text-box-drag-handle,
+.presentation-free-text-box-shell.is-resizing .presentation-text-box-resize-handle {
   opacity: 1;
 }
 
 .presentation-free-text-box-shell.is-dragging .presentation-text-box-drag-handle,
 body.is-presentation-text-box-dragging {
   cursor: grabbing;
+}
+
+.presentation-free-text-box-shell.is-resizing .presentation-text-box-resize-handle,
+body.is-presentation-text-box-resizing {
+  cursor: nwse-resize;
+  user-select: none;
 }
 
 .presentation-slide-shape.is-dragging,
@@ -1067,6 +1106,10 @@ body.is-presentation-shape-dragging {
 }
 
 .presentation-mode-shell.is-presenting .presentation-text-box-drag-handle {
+  display: none;
+}
+
+.presentation-mode-shell.is-presenting .presentation-text-box-resize-handle {
   display: none;
 }
 

@@ -182,6 +182,18 @@ function normalizeTextBoxes(textBoxes = {}) {
   );
 }
 
+function normalizeShapeSize(type = "rect", width = 12, height = 12) {
+  const safeType = shapeTypes.has(String(type || "").trim()) ? String(type).trim() : "rect";
+  const fallbackWidth = safeType === "line" ? 24 : safeType === "arrow" ? 22 : 14;
+  const fallbackHeight = safeType === "line" ? 1.4 : safeType === "arrow" ? 8 : 14;
+  const minWidth = safeType === "line" ? 6 : 3;
+  const minHeight = safeType === "line" ? 1 : 2.5;
+  return {
+    width: Number(Math.min(88, Math.max(minWidth, Number(width) || fallbackWidth)).toFixed(2)),
+    height: Number(Math.min(84, Math.max(minHeight, Number(height) || fallbackHeight)).toFixed(2)),
+  };
+}
+
 function normalizeShapes(shapes = {}) {
   const slideShapes = shapes && typeof shapes === "object" && !Array.isArray(shapes) ? shapes : {};
   return Object.fromEntries(
@@ -193,15 +205,13 @@ function normalizeShapes(shapes = {}) {
           .map((shape, index) => {
             const safeShape = shape && typeof shape === "object" && !Array.isArray(shape) ? shape : {};
             const type = shapeTypes.has(String(safeShape.type || "").trim()) ? String(safeShape.type).trim() : "rect";
-            const width = Math.min(42, Math.max(6, Number(safeShape.width) || (type === "line" ? 24 : 14)));
-            const height = Math.min(42, Math.max(3, Number(safeShape.height) || (type === "line" ? 4 : 14)));
+            const size = normalizeShapeSize(type, safeShape.width, safeShape.height);
             return {
               id: String(safeShape.id || `shape-${index + 1}`).trim(),
               type,
-              x: Math.min(96 - width, Math.max(2, Number(safeShape.x) || 18)),
-              y: Math.min(94 - height, Math.max(4, Number(safeShape.y) || 24)),
-              width,
-              height,
+              x: Math.min(98 - size.width, Math.max(1, Number(safeShape.x) || 18)),
+              y: Math.min(96 - size.height, Math.max(2, Number(safeShape.y) || 24)),
+              ...size,
               fillColor: normalizeHexColor(safeShape.fillColor, "#38bdf8"),
               strokeColor: normalizeHexColor(safeShape.strokeColor, "#f8fafc"),
             };
@@ -344,12 +354,14 @@ export function createPresentationModeController(dependencies = {}) {
     activeTextTarget: null,
     bound: false,
     dateValue: "",
+    drawShape: null,
     dragShape: null,
     dragTextBox: null,
     editorOpen: false,
     isOpen: false,
     presenting: false,
     resizeTextBox: null,
+    shapeDrawTool: null,
     slideIndex: 0,
   };
   let root = null;
@@ -408,11 +420,11 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function clampShapePosition(x, y, width = 12, height = 12) {
-    const safeWidth = Math.min(42, Math.max(6, Number(width) || 12));
-    const safeHeight = Math.min(42, Math.max(3, Number(height) || 12));
+    const safeWidth = Math.min(88, Math.max(1, Number(width) || 12));
+    const safeHeight = Math.min(84, Math.max(1, Number(height) || 12));
     return {
-      x: Number(Math.min(96 - safeWidth, Math.max(2, Number(x) || 2)).toFixed(2)),
-      y: Number(Math.min(94 - safeHeight, Math.max(4, Number(y) || 4)).toFixed(2)),
+      x: Number(Math.min(98 - safeWidth, Math.max(1, Number(x) || 1)).toFixed(2)),
+      y: Number(Math.min(96 - safeHeight, Math.max(2, Number(y) || 2)).toFixed(2)),
     };
   }
 
@@ -576,6 +588,7 @@ export function createPresentationModeController(dependencies = {}) {
       presenting: state.presenting,
       sessionTheme: session.theme || periodization.mainFocus || "",
       sessionTitle: title,
+      shapeDrawTool: state.shapeDrawTool,
       slideIndex: state.slideIndex,
       slides,
       teamName: brand.teamName,
@@ -598,9 +611,11 @@ export function createPresentationModeController(dependencies = {}) {
   function open(dateValue = "") {
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
+    state.drawShape = null;
     state.dragShape = null;
     state.dragTextBox = null;
     state.resizeTextBox = null;
+    state.shapeDrawTool = null;
     state.dateValue = normalizeDateValue(dateValue, getTodayValue());
     state.slideIndex = 0;
     state.editorOpen = false;
@@ -612,9 +627,11 @@ export function createPresentationModeController(dependencies = {}) {
   function close() {
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
+    state.drawShape = null;
     state.dragShape = null;
     state.dragTextBox = null;
     state.resizeTextBox = null;
+    state.shapeDrawTool = null;
     state.isOpen = false;
     state.editorOpen = false;
     state.presenting = false;
@@ -626,6 +643,7 @@ export function createPresentationModeController(dependencies = {}) {
       root.innerHTML = "";
     }
     documentRef.body.classList.remove("is-presentation-mode-open");
+    documentRef.body?.classList?.remove("is-presentation-shape-drawing");
     documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     documentRef.body?.classList?.remove("is-presentation-shape-dragging");
@@ -637,8 +655,13 @@ export function createPresentationModeController(dependencies = {}) {
     state.editorOpen = false;
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
+    state.drawShape = null;
     state.dragShape = null;
     state.dragTextBox = null;
+    state.resizeTextBox = null;
+    state.shapeDrawTool = null;
+    documentRef.body?.classList?.remove("is-presentation-shape-drawing");
+    documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     render();
   }
 
@@ -1060,22 +1083,27 @@ export function createPresentationModeController(dependencies = {}) {
     focusActiveTextElement();
   }
 
+  function normalizeShapeType(type = "rect") {
+    return shapeTypes.has(String(type || "").trim()) ? String(type).trim() : "rect";
+  }
+
   function getShapeDefaults(type = "rect") {
-    if (type === "line") return { width: 30, height: 4 };
-    if (type === "arrow") return { width: 26, height: 12 };
+    if (type === "line") return { width: 30, height: 1.4 };
+    if (type === "arrow") return { width: 26, height: 10 };
     if (type === "triangle") return { width: 14, height: 13 };
     return { width: 14, height: 14 };
   }
 
-  function addShape(type = "rect") {
-    const safeType = shapeTypes.has(String(type || "").trim()) ? String(type).trim() : "rect";
+  function addShape(type = "rect", bounds = null) {
+    const safeType = normalizeShapeType(type);
     const currentSlide = buildModel().slides[state.slideIndex];
     if (!currentSlide?.id) {
       return;
     }
     const id = `shape-${Date.now()}`;
-    const size = getShapeDefaults(safeType);
-    const position = clampShapePosition(42, 34, size.width, size.height);
+    const defaultSize = getShapeDefaults(safeType);
+    const size = normalizeShapeSize(safeType, bounds?.width ?? defaultSize.width, bounds?.height ?? defaultSize.height);
+    const position = clampShapePosition(bounds?.x ?? 42, bounds?.y ?? 34, size.width, size.height);
     writeDeckForDate(state.dateValue, (deck) => ({
       ...deck,
       shapes: normalizeShapes({
@@ -1149,6 +1177,57 @@ export function createPresentationModeController(dependencies = {}) {
     }));
     state.activeShapeTarget = { shapeId: safeShapeId, slideId: safeSlideId };
     render();
+  }
+
+  function selectShapeTool(type = "rect") {
+    state.shapeDrawTool = normalizeShapeType(type);
+    state.activeTextTarget = null;
+    state.activeShapeTarget = null;
+    syncTextToolbar();
+    render();
+  }
+
+  function getSlidePoint(event, slideRect) {
+    return {
+      x: Number(Math.min(99, Math.max(1, ((event.clientX - slideRect.left) / slideRect.width) * 100)).toFixed(2)),
+      y: Number(Math.min(98, Math.max(2, ((event.clientY - slideRect.top) / slideRect.height) * 100)).toFixed(2)),
+    };
+  }
+
+  function getDrawnShapeBounds(draw, event) {
+    const point = getSlidePoint(event, draw.slideRect);
+    const moved = Math.abs(event.clientX - draw.startClientX) > 5 || Math.abs(event.clientY - draw.startClientY) > 5;
+    const defaults = getShapeDefaults(draw.type);
+    if (!moved) {
+      const size = normalizeShapeSize(draw.type, defaults.width, defaults.height);
+      return {
+        ...clampShapePosition(draw.startPoint.x - size.width / 2, draw.startPoint.y - size.height / 2, size.width, size.height),
+        ...size,
+      };
+    }
+    if (draw.type === "line") {
+      const size = normalizeShapeSize(draw.type, Math.abs(point.x - draw.startPoint.x), defaults.height);
+      const x = point.x < draw.startPoint.x ? draw.startPoint.x - size.width : draw.startPoint.x;
+      return {
+        ...clampShapePosition(x, draw.startPoint.y - size.height / 2, size.width, size.height),
+        ...size,
+      };
+    }
+    const size = normalizeShapeSize(draw.type, Math.abs(point.x - draw.startPoint.x), Math.abs(point.y - draw.startPoint.y));
+    const x = point.x < draw.startPoint.x ? draw.startPoint.x - size.width : draw.startPoint.x;
+    const y = point.y < draw.startPoint.y ? draw.startPoint.y - size.height : draw.startPoint.y;
+    return {
+      ...clampShapePosition(x, y, size.width, size.height),
+      ...size,
+    };
+  }
+
+  function applyShapeBounds(element, bounds = {}) {
+    if (!element) return;
+    element.style.left = `${bounds.x}%`;
+    element.style.top = `${bounds.y}%`;
+    element.style.width = `${bounds.width}%`;
+    element.style.height = `${bounds.height}%`;
   }
 
   function requestNewSlideTitle(defaultTitle = "New Slide") {
@@ -1245,11 +1324,14 @@ export function createPresentationModeController(dependencies = {}) {
     currentRoot.requestFullscreen?.().catch?.(noop);
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
+    state.drawShape = null;
     state.dragShape = null;
     state.dragTextBox = null;
     state.resizeTextBox = null;
+    state.shapeDrawTool = null;
     state.presenting = true;
     state.editorOpen = false;
+    documentRef.body?.classList?.remove("is-presentation-shape-drawing");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     render();
   }
@@ -1391,6 +1473,66 @@ export function createPresentationModeController(dependencies = {}) {
     updateTextBoxSize(resize.slideId, resize.boxId, resize.nextWidth, resize.nextFontSize);
   }
 
+  function beginShapeDraw(event, slideElement) {
+    const safeType = normalizeShapeType(state.shapeDrawTool);
+    const currentSlide = buildModel().slides[state.slideIndex];
+    const slideRect = slideElement?.getBoundingClientRect?.();
+    if (!currentSlide?.id || !slideRect?.width || !slideRect?.height || state.presenting) {
+      return;
+    }
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    const previewElement = documentRef.createElement("div");
+    previewElement.className = `presentation-slide-shape is-${safeType} is-drawing-preview`;
+    previewElement.setAttribute("aria-hidden", "true");
+    previewElement.style.setProperty("--presentation-shape-fill", "#38bdf8");
+    previewElement.style.setProperty("--presentation-shape-stroke", "#f8fafc");
+    slideElement.appendChild(previewElement);
+    state.drawShape = {
+      previewElement,
+      slideId: currentSlide.id,
+      slideRect,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startPoint: getSlidePoint(event, slideRect),
+      type: safeType,
+      nextBounds: null,
+    };
+    documentRef.body?.classList?.add("is-presentation-shape-drawing");
+    slideElement.setPointerCapture?.(event.pointerId);
+    updateShapeDraw(event);
+  }
+
+  function updateShapeDraw(event) {
+    const draw = state.drawShape;
+    if (!draw) {
+      return;
+    }
+    event.preventDefault?.();
+    const bounds = getDrawnShapeBounds(draw, event);
+    draw.nextBounds = bounds;
+    applyShapeBounds(draw.previewElement, bounds);
+  }
+
+  function finishShapeDraw(event) {
+    const draw = state.drawShape;
+    if (!draw) {
+      return;
+    }
+    event.preventDefault?.();
+    const shouldCancel = event.type === "pointercancel";
+    const bounds = draw.nextBounds || getDrawnShapeBounds(draw, event);
+    draw.previewElement?.remove?.();
+    state.drawShape = null;
+    state.shapeDrawTool = null;
+    documentRef.body?.classList?.remove("is-presentation-shape-drawing");
+    if (!shouldCancel) {
+      addShape(draw.type, bounds);
+    } else {
+      render();
+    }
+  }
+
   function beginShapeDrag(event, shapeElement) {
     const slideId = String(shapeElement?.dataset.presentationSlideId || "").trim();
     const shapeId = String(shapeElement?.dataset.presentationShapeId || "").trim();
@@ -1504,8 +1646,8 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const shapeButton = event.target.closest("[data-presentation-add-shape]");
     if (shapeButton) {
-      addShape(shapeButton.dataset.presentationAddShape);
       shapeButton.closest?.("details")?.removeAttribute?.("open");
+      selectShapeTool(shapeButton.dataset.presentationAddShape);
       return;
     }
     const themePresetButton = event.target.closest("[data-presentation-theme-preset]");
@@ -1566,6 +1708,15 @@ export function createPresentationModeController(dependencies = {}) {
     const dragHandle = event.target.closest("[data-presentation-drag-text-box]");
     if (dragHandle) {
       beginTextBoxDrag(event, dragHandle);
+      return;
+    }
+    const slideElement = event.target.closest(".presentation-slide");
+    if (
+      state.shapeDrawTool &&
+      slideElement &&
+      !event.target.closest("[data-presentation-text-toolbar], [data-presentation-shape], [data-presentation-text-box-shell]")
+    ) {
+      beginShapeDraw(event, slideElement);
       return;
     }
     const shapeElement = event.target.closest("[data-presentation-shape]");
@@ -1661,12 +1812,15 @@ export function createPresentationModeController(dependencies = {}) {
     }
     state.activeTextTarget = null;
     state.activeShapeTarget = null;
+    state.drawShape = null;
     state.dragShape = null;
     state.dragTextBox = null;
     state.resizeTextBox = null;
+    state.shapeDrawTool = null;
     state.dateValue = nextDate;
     state.slideIndex = 0;
     state.editorOpen = false;
+    documentRef.body?.classList?.remove("is-presentation-shape-drawing");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     render();
   }
@@ -1691,6 +1845,16 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     if (event.key === "Escape") {
+      if (state.drawShape) {
+        finishShapeDraw({ ...event, type: "pointercancel" });
+        return;
+      }
+      if (state.shapeDrawTool) {
+        event.preventDefault();
+        state.shapeDrawTool = null;
+        render();
+        return;
+      }
       if (state.presenting || documentRef.fullscreenElement) {
         state.presenting = false;
         render();
@@ -1738,12 +1902,15 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.addEventListener("pointerdown", handleTextActivation, true);
     documentRef.addEventListener("pointermove", updateTextBoxDrag, true);
     documentRef.addEventListener("pointermove", updateTextBoxResize, true);
+    documentRef.addEventListener("pointermove", updateShapeDraw, true);
     documentRef.addEventListener("pointermove", updateShapeDrag, true);
     documentRef.addEventListener("pointerup", finishTextBoxDrag, true);
     documentRef.addEventListener("pointerup", finishTextBoxResize, true);
+    documentRef.addEventListener("pointerup", finishShapeDraw, true);
     documentRef.addEventListener("pointerup", finishShapeDrag, true);
     documentRef.addEventListener("pointercancel", finishTextBoxDrag, true);
     documentRef.addEventListener("pointercancel", finishTextBoxResize, true);
+    documentRef.addEventListener("pointercancel", finishShapeDraw, true);
     documentRef.addEventListener("pointercancel", finishShapeDrag, true);
     documentRef.addEventListener("click", handleClick);
     documentRef.addEventListener("focus", handleFocusin, true);

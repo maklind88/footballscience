@@ -610,7 +610,8 @@ body.is-presentation-mode-open {
 
 .presentation-control-edit-slot .presentation-text-toolbar .presentation-keynote-tool:hover,
 .presentation-control-edit-slot .presentation-text-toolbar .presentation-keynote-tool:focus-visible,
-.presentation-tool-popover[open] > .presentation-keynote-tool {
+.presentation-tool-popover[open] > .presentation-keynote-tool,
+.presentation-mode-shell.is-shape-tool-active [data-presentation-shape-menu] > .presentation-keynote-tool {
   color: #fff;
   border-color: rgba(125, 211, 252, .24);
   background: rgba(148, 163, 184, .12);
@@ -855,6 +856,12 @@ body.is-presentation-mode-open {
   padding: 0 .58rem;
 }
 
+.presentation-shape-grid button.is-active {
+  border-color: color-mix(in srgb, var(--presentation-accent, #38bdf8) 76%, #ffffff);
+  background: color-mix(in srgb, var(--presentation-accent, #38bdf8) 22%, rgba(15, 23, 42, .78));
+  color: #ffffff;
+}
+
 .presentation-shape-grid strong {
   font-size: .72rem;
   line-height: 1;
@@ -880,7 +887,8 @@ body.is-presentation-mode-open {
 }
 
 .presentation-shape-preview.is-diamond {
-  transform: rotate(45deg) scale(.86);
+  border: 0;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
 
 .presentation-shape-preview.is-line {
@@ -927,6 +935,10 @@ body.is-presentation-mode-open {
   color: var(--presentation-slide-text, #f8fafc);
 }
 
+.presentation-mode-shell.is-shape-tool-active .presentation-slide {
+  cursor: crosshair;
+}
+
 .presentation-slide::before {
   content: "";
   position: absolute;
@@ -959,6 +971,7 @@ body.is-presentation-mode-open {
 
 .presentation-slide-shape {
   position: absolute;
+  z-index: 2;
   display: block;
   padding: 0;
   border: 2px solid var(--presentation-shape-stroke, #f8fafc);
@@ -980,12 +993,12 @@ body.is-presentation-mode-open {
 }
 
 .presentation-slide-shape.is-diamond {
-  border-radius: 4px;
-  transform: rotate(45deg) scale(.86);
+  border: 0;
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
 
 .presentation-slide-shape.is-line {
-  height: .45rem !important;
   border: 0;
   border-radius: 999px;
 }
@@ -1005,6 +1018,13 @@ body.is-presentation-mode-open {
 .presentation-slide-shape.is-dragging {
   outline: 2px solid color-mix(in srgb, var(--presentation-accent, #38bdf8) 82%, #ffffff);
   outline-offset: 3px;
+}
+
+.presentation-slide-shape.is-drawing-preview {
+  z-index: 4;
+  cursor: crosshair;
+  opacity: .74;
+  pointer-events: none;
 }
 
 .presentation-free-text-box {
@@ -1097,6 +1117,11 @@ body.is-presentation-text-box-resizing {
 .presentation-slide-shape.is-dragging,
 body.is-presentation-shape-dragging {
   cursor: grabbing;
+  user-select: none;
+}
+
+body.is-presentation-shape-drawing {
+  cursor: crosshair;
   user-select: none;
 }
 

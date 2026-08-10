@@ -426,8 +426,17 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await textToolbar.locator("[data-presentation-shape-menu] summary").click();
   await expect(textToolbar.locator("[data-presentation-shape-menu] .presentation-tool-popover-panel")).toBeVisible();
   await textToolbar.locator("[data-presentation-add-shape='circle']").click();
+  await expect(presentation).toHaveClass(/is-shape-tool-active/);
+  const slideForShape = presentation.locator(".presentation-slide").first();
+  const slideForShapeBox = await slideForShape.boundingBox();
+  expect(slideForShapeBox).toBeTruthy();
+  await page.mouse.move(slideForShapeBox.x + slideForShapeBox.width * 0.62, slideForShapeBox.y + slideForShapeBox.height * 0.48);
+  await page.mouse.down();
+  await page.mouse.move(slideForShapeBox.x + slideForShapeBox.width * 0.82, slideForShapeBox.y + slideForShapeBox.height * 0.72, { steps: 6 });
+  await page.mouse.up();
   const slideShape = presentation.locator("[data-presentation-shape].is-circle").first();
   await expect(slideShape).toBeVisible();
+  await expect(presentation).not.toHaveClass(/is-shape-tool-active/);
   await expect(textToolbar.locator("[data-presentation-active-shape-fill]")).toBeEnabled();
   await textToolbar.locator("[data-presentation-active-shape-fill]").evaluate((input) => {
     input.value = "#f59e0b";
@@ -438,6 +447,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     { key: presentationKey, date: dateValue }
   );
   expect(storedShape).toMatchObject({ type: "circle", fillColor: "#f59e0b" });
+  expect(Number(storedShape?.width)).toBeGreaterThan(14);
+  expect(Number(storedShape?.height)).toBeGreaterThan(14);
   await slideShape.focus();
   await page.keyboard.press("Delete");
   await expect(presentation.locator("[data-presentation-shape]")).toHaveCount(0);

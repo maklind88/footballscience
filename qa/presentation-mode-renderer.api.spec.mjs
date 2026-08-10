@@ -188,6 +188,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(toolbarHtml).toContain('data-presentation-style-field="backgroundColor"');
   expect(toolbarHtml).toContain('data-presentation-style-field="accentColor"');
   expect(toolbarHtml).not.toContain("New info slide");
+  const shapeToolHtml = renderer.renderTextToolbar({ ...model, slideIndex: infoSlide.index, shapeDrawTool: "circle" });
+  expect(shapeToolHtml).toContain('data-presentation-add-shape="circle"');
+  expect(shapeToolHtml).toContain('aria-pressed="true"');
   const fullHtml = renderer.render({ ...model, slideIndex: infoSlide.index });
   expect(fullHtml).toContain("data-presentation-text-toolbar");
   expect(fullHtml).not.toContain("data-presentation-toggle-editor");

@@ -405,7 +405,7 @@ export function createPresentationModeRenderer(options = {}) {
     );
   }
 
-  function renderShapeMenu() {
+  function renderShapeMenu(model = {}) {
     return renderToolPopover(
       "Shape",
       `
@@ -415,9 +415,11 @@ export function createPresentationModeRenderer(options = {}) {
               (shape) => `
                 <button
                   type="button"
+                  class="${model.shapeDrawTool === shape.type ? "is-active" : ""}"
                   data-presentation-add-shape="${escapeHtml(shape.type)}"
-                  title="${escapeHtml(`Add ${shape.label}`)}"
-                  aria-label="${escapeHtml(`Add ${shape.label}`)}"
+                  title="${escapeHtml(`Draw ${shape.label}`)}"
+                  aria-label="${escapeHtml(`Draw ${shape.label}`)}"
+                  aria-pressed="${model.shapeDrawTool === shape.type ? "true" : "false"}"
                 >
                   <span class="presentation-shape-preview is-${escapeHtml(shape.type)}" aria-hidden="true"></span>
                   <strong>${escapeHtml(shape.label)}</strong>
@@ -478,7 +480,7 @@ export function createPresentationModeRenderer(options = {}) {
     return `
       <section class="presentation-editor-strip presentation-text-toolbar" data-presentation-text-toolbar aria-label="Text tools">
         ${renderToolbarButton("Text", "text", "data-presentation-add-text-box title=\"Add text box\" aria-label=\"Add text box\"", { iconLabel: "A" })}
-        ${renderShapeMenu()}
+        ${renderShapeMenu(model)}
         ${renderSymbolMenu()}
         ${renderStyleMenu(style)}
         <span class="presentation-toolbar-separator" aria-hidden="true"></span>
@@ -618,6 +620,7 @@ export function createPresentationModeRenderer(options = {}) {
     return `
       <section
         class="presentation-slide presentation-slide-${escapeHtml(slide.type || "blank")} is-theme-${escapeHtml(style.theme)}"
+        data-presentation-slide-id="${escapeHtml(slide.id)}"
         style="--presentation-accent: ${escapeHtml(style.accentColor)}; --presentation-slide-bg: ${escapeHtml(style.backgroundColor)}; --presentation-slide-glow: ${escapeHtml(style.glowColor)}; --presentation-slide-text: ${escapeHtml(style.textColor)};"
         aria-label="${escapeHtml(slide.label || "Presentation slide")}"
       >
@@ -1002,7 +1005,7 @@ export function createPresentationModeRenderer(options = {}) {
 
   function render(model = {}) {
     return `
-      <section class="presentation-mode-shell${model.presenting ? " is-presenting" : ""}${model.textToolbarOpen ? " is-text-toolbar-open" : ""}" data-presentation-mode-shell>
+      <section class="presentation-mode-shell${model.presenting ? " is-presenting" : ""}${model.textToolbarOpen ? " is-text-toolbar-open" : ""}${model.shapeDrawTool ? " is-shape-tool-active" : ""}" data-presentation-mode-shell>
         ${renderControlBar(model)}
         <div class="presentation-stage" data-presentation-stage>
           ${renderActiveSlide(model)}

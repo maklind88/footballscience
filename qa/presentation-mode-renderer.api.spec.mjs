@@ -67,7 +67,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
         },
       ],
     }),
-    getPeriodizationDay: () => ({ physicalLoad: "Hard", pitchSize: "SSG", matchPhases: ["In Possession"] }),
+    getPeriodizationDay: () => ({ physicalLoad: "Hard", pitchSize: "SSG", matchPhases: ["In Possession"], subPhases: ["Build Up"] }),
     getAvailabilityItems: () => [
       { player: { id: "p1", name: "Ada Keeper", position: "GK", photoUrl: "https://example.com/ada.jpg" }, record: { id: "r1" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p2", name: "Bea Mid", position: "CM" }, record: { id: "r2" }, participation: 0, status: { label: "Unavailable" } },
@@ -131,6 +131,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).toContain("Training Overview");
   expect(overviewHtml).toContain('data-presentation-text-field="overview.heading"');
   expect(overviewHtml).toContain('data-presentation-text-field="overview.phase.value"');
+  expect(overviewHtml).toContain('data-presentation-text-field="overview.subPhase.value"');
   expect(overviewHtml).toContain("presentation-day-overview");
   expect(overviewHtml).toContain('data-presentation-text-field="medical.p1.name"');
   expect(overviewHtml).not.toContain("<h2>");

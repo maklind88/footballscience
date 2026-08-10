@@ -1370,7 +1370,7 @@ body.is-presentation-shape-drawing {
   height: 100%;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 4.6fr);
-  grid-template-rows: minmax(4.8rem, .44fr) minmax(4.8rem, .44fr) minmax(3.45rem, .32fr) minmax(8.6rem, 1fr);
+  grid-template-rows: minmax(4.8rem, .44fr) minmax(4.8rem, .44fr) minmax(4.45rem, .38fr) minmax(8.6rem, 1fr);
   grid-template-areas:
     "load pitch match medical"
     "video video video medical"
@@ -1432,9 +1432,10 @@ body.is-presentation-shape-drawing {
 .presentation-day-overview {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(4.2rem, .28fr) minmax(0, 1fr);
-  gap: clamp(.5rem, .8vw, .85rem);
-  align-items: center;
+  grid-template-columns: 1fr;
+  gap: clamp(.22rem, .42vw, .38rem);
+  align-content: center;
+  align-items: start;
   padding: clamp(.54rem, .8vw, .72rem) clamp(.7rem, 1vw, 1rem);
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--presentation-accent, #38bdf8) 18%, transparent), rgba(255, 255, 255, .07) 50%),
@@ -1453,10 +1454,36 @@ body.is-presentation-shape-drawing {
   min-width: 0;
   overflow: hidden;
   color: #ffffff;
-  font-size: clamp(1.02rem, 1.45vw, 1.58rem);
+  font-size: clamp(1rem, 1.36vw, 1.48rem);
   line-height: 1.02;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.presentation-day-phase-stack {
+  min-width: 0;
+  display: grid;
+  gap: .12rem;
+}
+
+.presentation-day-subphase {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  color: rgba(248, 250, 252, .74);
+  font-size: clamp(.76rem, 1.05vw, 1.05rem);
+  font-style: normal;
+  font-weight: 850;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-day-subphase span {
+  color: inherit;
+  font: inherit;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .presentation-overview-metric.is-video {

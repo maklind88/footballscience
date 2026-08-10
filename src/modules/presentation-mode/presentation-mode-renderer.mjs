@@ -790,11 +790,20 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
-  function renderOverviewPhaseSummary(model = {}, slide = {}, value = "") {
+  function renderOverviewPhaseSummary(model = {}, slide = {}, phaseValue = "", subPhaseValue = "") {
+    const phase = String(phaseValue || "").trim() || "Not set";
+    const subPhase = String(subPhaseValue || "").trim();
     return `
       <article class="presentation-day-overview">
         ${renderEditableElement(model, slide, "overview.phase.label", "Phase", "span", "", { label: "Phase label" })}
-        ${renderEditableElement(model, slide, "overview.phase.value", value || "Not set", "strong", "", { label: "Phase value" })}
+        <div class="presentation-day-phase-stack">
+          ${renderEditableElement(model, slide, "overview.phase.value", phase, "strong", "class=\"presentation-day-phase-value\"", { label: "Phase value" })}
+          ${
+            subPhase
+              ? `<em class="presentation-day-subphase">(${renderEditableElement(model, slide, "overview.subPhase.value", subPhase, "span", "", { label: "Sub phase value" })})</em>`
+              : ""
+          }
+        </div>
       </article>
     `;
   }
@@ -863,10 +872,11 @@ export function createPresentationModeRenderer(options = {}) {
       textFieldStyles: overviewSlide.textFieldStyles,
       textOverrides: overviewSlide.textOverrides,
     };
-    const phaseLines = [
-      ...(Array.isArray(periodization.matchPhases) ? periodization.matchPhases : []),
-      ...(Array.isArray(periodization.subPhases) ? periodization.subPhases : []),
-    ].filter(Boolean);
+    const phaseValue =
+      (Array.isArray(periodization.matchPhases) ? periodization.matchPhases : []).filter(Boolean).join(" / ") ||
+      periodization.seasonPhase ||
+      periodization.sessionType;
+    const subPhaseValue = (Array.isArray(periodization.subPhases) ? periodization.subPhases : []).filter(Boolean).join(" / ");
     return renderSlideFrame(
       model,
       frameSlide,
@@ -880,7 +890,7 @@ export function createPresentationModeRenderer(options = {}) {
             ${renderPitchSizeMetric(model, frameSlide, periodization.pitchSize || model.pitchLabel)}
             ${renderOverviewMetric(model, frameSlide, "Match Day", periodization.matchDay || "Not set", "is-match-day", "overview.matchDay")}
             ${renderOverviewMetric(model, frameSlide, "Video", periodization.preTrainingVideo || "None", "is-video", "overview.video")}
-            ${renderOverviewPhaseSummary(model, frameSlide, phaseLines.slice(0, 3).join(" / ") || periodization.seasonPhase || periodization.sessionType)}
+            ${renderOverviewPhaseSummary(model, frameSlide, phaseValue, subPhaseValue)}
             <div class="presentation-block-flow">
               ${model.blocks
                 .map((block, index) => {

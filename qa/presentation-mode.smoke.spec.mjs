@@ -510,6 +510,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-overview-metric.is-load > span", { hasText: /^Load$/ })).toHaveCount(0);
   await expect(presentation.locator(".presentation-day-overview")).toContainText("Phase");
   await expect(presentation.locator(".presentation-day-overview")).toContainText("In Possession");
+  await expect(presentation.locator(".presentation-day-subphase")).toContainText("(Build Up / Final Third)");
   await expect(presentation.locator(".presentation-overview-metric.is-phase")).toHaveCount(0);
   await expect(presentation.locator(".presentation-overview-metric.is-pitch")).toContainText("2/3 pitch");
   await expect(presentation.locator(".presentation-overview-metric.is-pitch .periodization-pitch-icon.is-2-3-pitch")).toBeVisible();
@@ -532,6 +533,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const matchLabel = document.querySelector(".presentation-overview-metric.is-match-day > span");
     const gauge = document.querySelector(".presentation-load-gauge");
     const needle = document.querySelector(".presentation-load-needle");
+    const phaseValue = document.querySelector(".presentation-day-phase-value");
+    const subPhase = document.querySelector(".presentation-day-subphase");
     if (!load || !video || !matchDay || !pitch || !loadLabel || !videoLabel || !pitchLabel || !matchLabel || !gauge || !needle) return null;
     const loadRect = load.getBoundingClientRect();
     const videoRect = video.getBoundingClientRect();
@@ -541,6 +544,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const videoLabelRect = videoLabel.getBoundingClientRect();
     const pitchLabelRect = pitchLabel.getBoundingClientRect();
     const matchLabelRect = matchLabel.getBoundingClientRect();
+    const phaseValueRect = phaseValue?.getBoundingClientRect();
+    const subPhaseRect = subPhase?.getBoundingClientRect();
     const loadStyle = getComputedStyle(load);
     return {
       leftOfPitch: loadRect.right <= pitchRect.left,
@@ -555,6 +560,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
       videoUnderTopCards: videoRect.top >= loadRect.bottom - 2,
       videoSpansTopCards: Math.abs(videoRect.left - loadRect.left) <= 2 && Math.abs(videoRect.right - matchRect.right) <= 2,
       videoLabelBelowTopCards: videoLabelRect.top >= loadLabelRect.bottom,
+      subPhaseBelowPhase: Boolean(phaseValueRect && subPhaseRect && subPhaseRect.top >= phaseValueRect.bottom - 2),
       loadColor: loadStyle.getPropertyValue("--presentation-load-color").trim(),
       loadAngle: loadStyle.getPropertyValue("--presentation-load-angle").trim(),
     };
@@ -572,6 +578,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     videoUnderTopCards: true,
     videoSpansTopCards: true,
     videoLabelBelowTopCards: true,
+    subPhaseBelowPhase: true,
     loadColor: "#d92d3f",
     loadAngle: "68deg",
   });

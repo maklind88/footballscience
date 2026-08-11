@@ -5,6 +5,8 @@ const periodizationKey = "football-periodization-v2";
 const sessionPlannerKey = "football-session-planner-v3";
 const medicalKey = "football-medical-team-v1";
 const presentationKey = "football-dashboard-presentation-mode-v1";
+const undoShortcut = process.platform === "darwin" ? "Meta+Z" : "Control+Z";
+const redoShortcut = process.platform === "darwin" ? "Meta+Shift+Z" : "Control+Y";
 
 async function waitForPlatformShell(page) {
   await page.waitForFunction(
@@ -512,6 +514,11 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   expect(storedTextBox?.y).toBeGreaterThan(36);
   await textBoxShell.focus();
   await page.keyboard.press("Delete");
+  await expect(presentation.locator("[data-presentation-text-box-shell]")).toHaveCount(0);
+  await page.keyboard.press(undoShortcut);
+  await expect(presentation.locator("[data-presentation-text-box-shell]")).toHaveCount(1);
+  await expect(presentation.locator(".presentation-free-text-box")).toContainText("Text box");
+  await page.keyboard.press(redoShortcut);
   await expect(presentation.locator("[data-presentation-text-box-shell]")).toHaveCount(0);
   await presentation.locator(".presentation-info-title").click();
   await expect(presentation.locator("[data-presentation-delete-slide]")).toBeEnabled();

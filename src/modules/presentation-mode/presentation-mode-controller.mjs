@@ -9,10 +9,15 @@ const presentationSchema = "footballscience-presentation-mode-v1";
 const maxTextOverrideLength = 5000;
 const maxTextBoxesPerSlide = 12;
 const maxShapesPerSlide = 24;
+const maxUndoHistory = 80;
 const shapeTypes = new Set(["rect", "circle", "triangle", "diamond", "line", "arrow", "star"]);
 const resizeAxes = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
 
 function noop() {}
+
+function clonePlain(value) {
+  return JSON.parse(JSON.stringify(value ?? null));
+}
 
 function defaultReadJson() {
   return null;
@@ -372,6 +377,8 @@ export function createPresentationModeController(dependencies = {}) {
     resizeTextBox: null,
     shapeDrawTool: null,
     slideIndex: 0,
+    redoStack: [],
+    undoStack: [],
   };
   let root = null;
   let stageResizeObserver = null;
@@ -402,10 +409,136 @@ export function createPresentationModeController(dependencies = {}) {
     return normalizeDeck(readStore().decks?.[dateValue], dateValue);
   }
 
-  function writeDeckForDate(dateValue, updater) {
+  function getHistoryDeckSnapshot(deck = {}, dateValue = "") {
+    const { updatedAt, ...snapshot } = normalizeDeck(deck, dateValue);
+    return clonePlain(snapshot);
+  }
+
+  function getHistoryStateSnapshot() {
+    return {
+      activeShapeTarget: clonePlain(state.activeShapeTarget),
+      activeTextTarget: clonePlain(state.activeTextTarget),
+      slideIndex: state.slideIndex,
+    };
+  }
+
+  function resetUndoHistory() {
+    state.undoStack = [];
+    state.redoStack = [];
+  }
+
+  function decksMatch(firstDeck = {}, secondDeck = {}, dateValue = "") {
+    return JSON.stringify(getHistoryDeckSnapshot(firstDeck, dateValue)) === JSON.stringify(getHistoryDeckSnapshot(secondDeck, dateValue));
+  }
+
+  function pushUndoSnapshot(dateValue = "", deck = {}) {
+    if (!dateValue) {
+      return;
+    }
+    const snapshot = {
+      dateValue,
+      deck: getHistoryDeckSnapshot(deck, dateValue),
+      state: getHistoryStateSnapshot(),
+    };
+    const previousSnapshot = state.undoStack.at(-1);
+    if (
+      previousSnapshot?.dateValue === snapshot.dateValue &&
+      JSON.stringify(previousSnapshot.deck) === JSON.stringify(snapshot.deck)
+    ) {
+      return;
+    }
+    state.undoStack.push(snapshot);
+    if (state.undoStack.length > maxUndoHistory) {
+      state.undoStack.splice(0, state.undoStack.length - maxUndoHistory);
+    }
+    state.redoStack = [];
+  }
+
+  function restoreHistorySnapshot(snapshot = {}) {
+    const dateValue = normalizeDateValue(snapshot.dateValue, state.dateValue);
+    if (!dateValue) {
+      return false;
+    }
+    const store = readStore();
+    const nextDeck = normalizeDeck(snapshot.deck, dateValue);
+    writeStore({
+      ...store,
+      decks: {
+        ...store.decks,
+        [dateValue]: {
+          ...nextDeck,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    });
+    state.dateValue = dateValue;
+    state.activeShapeTarget = clonePlain(snapshot.state?.activeShapeTarget);
+    state.activeTextTarget = clonePlain(snapshot.state?.activeTextTarget);
+    state.drawShape = null;
+    state.dragShape = null;
+    state.dragTextBox = null;
+    state.resizeShape = null;
+    state.resizeTextBox = null;
+    state.shapeDrawTool = null;
+    documentRef.body?.classList?.remove("is-presentation-shape-drawing");
+    documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
+    documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
+    documentRef.body?.classList?.remove("is-presentation-shape-dragging");
+    documentRef.body?.classList?.remove("is-presentation-shape-resizing");
+    const slideCount = buildModel().slides.length;
+    state.slideIndex = Math.min(Math.max(0, Number(snapshot.state?.slideIndex) || 0), Math.max(0, slideCount - 1));
+    render();
+    focusActiveTextElement();
+    return true;
+  }
+
+  function undoDeckChange() {
+    if (state.presenting || documentRef.fullscreenElement || state.undoStack.length === 0) {
+      return false;
+    }
+    const snapshot = state.undoStack.pop();
+    state.redoStack.push({
+      dateValue: state.dateValue,
+      deck: getHistoryDeckSnapshot(getDeckForDate(), state.dateValue),
+      state: getHistoryStateSnapshot(),
+    });
+    restoreHistorySnapshot(snapshot);
+    return true;
+  }
+
+  function redoDeckChange() {
+    if (state.presenting || documentRef.fullscreenElement || state.redoStack.length === 0) {
+      return false;
+    }
+    const snapshot = state.redoStack.pop();
+    state.undoStack.push({
+      dateValue: state.dateValue,
+      deck: getHistoryDeckSnapshot(getDeckForDate(), state.dateValue),
+      state: getHistoryStateSnapshot(),
+    });
+    restoreHistorySnapshot(snapshot);
+    return true;
+  }
+
+  function isUndoShortcut(event) {
+    return (event.metaKey || event.ctrlKey) && !event.shiftKey && String(event.key || "").toLowerCase() === "z";
+  }
+
+  function isRedoShortcut(event) {
+    const key = String(event.key || "").toLowerCase();
+    return ((event.metaKey || event.ctrlKey) && event.shiftKey && key === "z") || (event.ctrlKey && !event.metaKey && key === "y");
+  }
+
+  function writeDeckForDate(dateValue, updater, options = {}) {
     const store = readStore();
     const currentDeck = normalizeDeck(store.decks?.[dateValue], dateValue);
     const nextDeck = normalizeDeck(updater(currentDeck), dateValue);
+    if (decksMatch(currentDeck, nextDeck, dateValue)) {
+      return;
+    }
+    if (options.recordHistory !== false) {
+      pushUndoSnapshot(dateValue, currentDeck);
+    }
     writeStore({
       ...store,
       decks: {
@@ -693,6 +826,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.slideIndex = 0;
     state.editorOpen = false;
     state.isOpen = true;
+    resetUndoHistory();
     render();
     ensureRoot().querySelector("[data-presentation-stage]")?.focus?.();
   }
@@ -709,6 +843,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.isOpen = false;
     state.editorOpen = false;
     state.presenting = false;
+    resetUndoHistory();
     if (documentRef.fullscreenElement && root?.contains(documentRef.fullscreenElement)) {
       documentRef.exitFullscreen?.().catch?.(noop);
     }
@@ -2175,6 +2310,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.dateValue = nextDate;
     state.slideIndex = 0;
     state.editorOpen = false;
+    resetUndoHistory();
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     documentRef.body?.classList?.remove("is-presentation-shape-resizing");
@@ -2183,6 +2319,18 @@ export function createPresentationModeController(dependencies = {}) {
 
   function handleKeydown(event) {
     if (!state.isOpen) {
+      return;
+    }
+    if (isUndoShortcut(event)) {
+      if (undoDeckChange()) {
+        event.preventDefault();
+      }
+      return;
+    }
+    if (isRedoShortcut(event)) {
+      if (redoDeckChange()) {
+        event.preventDefault();
+      }
       return;
     }
     if ((event.key === "Delete" || event.key === "Backspace") && !isEditableTarget(event.target)) {

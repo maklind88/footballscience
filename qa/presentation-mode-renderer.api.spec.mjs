@@ -81,7 +81,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
       { player: { id: "p2", name: "Bea Mid", position: "CM" }, record: { id: "r2" }, participation: 0, status: { label: "Unavailable" } },
       { player: { id: "p6", name: "Zara Striker", position: "Forward" }, participation: 0, status: { label: "Unavailable" } },
       { player: { id: "p7", name: "Anna Defender", position: "Defender" }, participation: 0, status: { label: "Unavailable" } },
-      { player: { id: "p8", name: "Kara Keeper", position: "Goalkeeper" }, participation: 0, status: { label: "Unavailable" } },
+      { player: { id: "p8", name: "Kara Keeper", position: "Goalkeeper" }, status: { label: "Not set" } },
       { player: { id: "p3", name: "Zoe Striker", position: "Forward" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p4", name: "Cara Defender", position: "Defender" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p5", name: "Mia Midfield", position: "Midfielder" }, participation: 100, status: { label: "Full" } },
@@ -102,7 +102,6 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   const model = controller.buildModel();
   expect(model.slides.map((slide) => slide.type)).toEqual(["cover", "info", "overview", "block"]);
   expect(model.medicalRecommendations.map((item) => item.player.name)).toEqual([
-    "Kara Keeper",
     "Anna Defender",
     "Bea Mid",
     "Zara Striker",
@@ -110,6 +109,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     "Cara Defender",
     "Mia Midfield",
     "Zoe Striker",
+    "Kara Keeper",
   ]);
   const blockSlide = model.slides.find((slide) => slide.type === "block");
   expect(blockSlide.playerSummary.plannedPlayers.map((item) => item.player.name)).toEqual(["Ada Keeper", "Coach"]);
@@ -173,8 +173,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).not.toContain("Medical Plan");
   expect(overviewHtml).toContain("https://example.com/ada.jpg");
   expect(overviewHtml).toContain("100%");
+  expect(overviewHtml).toContain("0%");
   expect(overviewHtml).toContain("Not recommended");
-  expect(overviewHtml).not.toContain(">0%</span>");
   expect(overviewHtml).toContain("presentation-block-flow");
   expect(overviewHtml).not.toContain("Overview block meta");
   expect(overviewHtml).not.toContain('data-presentation-text-field="overview.b1.meta"');

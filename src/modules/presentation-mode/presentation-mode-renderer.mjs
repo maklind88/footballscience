@@ -125,6 +125,7 @@ function getPitchTone(value = "") {
 }
 
 function getParticipationTone(participation) {
+  if (participation === null || participation === undefined || participation === "") return "unset";
   const value = Number(participation);
   if (!Number.isFinite(value)) return "unset";
   if (value <= 10) return "low";
@@ -135,9 +136,9 @@ function getParticipationTone(participation) {
 }
 
 function getParticipationLabel(participation) {
+  if (participation === null || participation === undefined || participation === "") return "Not recommended";
   const value = Number(participation);
-  if (!Number.isFinite(value)) return "-";
-  if (value <= 0) return "Not recommended";
+  if (!Number.isFinite(value)) return "Not recommended";
   return `${Math.round(value)}%`;
 }
 
@@ -957,7 +958,7 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderMedicalRecommendation(model = {}, slide = {}, item = {}, index = 0) {
     const player = item.player || {};
-    const participation = Number(item.participation);
+    const participation = item.participation;
     const participationLabel = getParticipationLabel(participation);
     const tone = getParticipationTone(participation);
     const key = getStableTextKey(player.id || player.name, `player-${index + 1}`);

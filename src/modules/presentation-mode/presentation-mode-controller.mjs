@@ -369,9 +369,16 @@ function getMedicalPositionRank(player = {}) {
   return 99;
 }
 
+function getMedicalParticipationSortValue(item = {}) {
+  const participation = item.participation;
+  if (participation === null || participation === undefined || participation === "") return 101;
+  const value = Number(participation);
+  return Number.isFinite(value) ? value : 101;
+}
+
 function sortMedicalRecommendations(first, second) {
-  const firstParticipation = Number.isFinite(Number(first.participation)) ? Number(first.participation) : 101;
-  const secondParticipation = Number.isFinite(Number(second.participation)) ? Number(second.participation) : 101;
+  const firstParticipation = getMedicalParticipationSortValue(first);
+  const secondParticipation = getMedicalParticipationSortValue(second);
   if (firstParticipation !== secondParticipation) return firstParticipation - secondParticipation;
   const positionDelta = getMedicalPositionRank(first.player) - getMedicalPositionRank(second.player);
   if (positionDelta) return positionDelta;

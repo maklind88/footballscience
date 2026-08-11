@@ -1813,7 +1813,7 @@ body.is-presentation-shape-drawing {
   min-height: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
-  padding: clamp(.72rem, 1.05vw, 1rem);
+  padding: clamp(.58rem, .82vw, .82rem);
   background:
     linear-gradient(180deg, rgba(14, 24, 32, .84), rgba(10, 18, 24, .74)),
     rgba(255, 255, 255, .07);
@@ -1824,10 +1824,10 @@ body.is-presentation-shape-drawing {
   height: 100%;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: minmax(2.15rem, 1fr);
+  grid-auto-rows: minmax(2.46rem, 1fr);
   align-content: stretch;
   align-items: stretch;
-  gap: clamp(.18rem, .42vh, .4rem);
+  gap: clamp(.14rem, .3vh, .28rem);
   overflow: hidden;
 }
 
@@ -1842,26 +1842,26 @@ body.is-presentation-shape-drawing {
 .presentation-medical-player {
   min-width: 0;
   display: grid;
-  grid-template-columns: clamp(1.48rem, 3.9vh, 3rem) minmax(0, 1fr) auto;
+  grid-template-columns: clamp(1.8rem, 4.45vh, 3.35rem) minmax(0, 1fr) auto;
   align-items: center;
-  gap: clamp(.26rem, .42vw, .5rem);
+  gap: clamp(.32rem, .48vw, .58rem);
   min-height: 0;
-  padding: clamp(.14rem, .34vh, .38rem) clamp(.24rem, .36vw, .46rem);
+  padding: clamp(.12rem, .24vh, .3rem) clamp(.24rem, .34vw, .42rem);
   border: 1px solid rgba(255, 255, 255, .1);
   border-radius: 8px;
   background: rgba(255, 255, 255, .07);
 }
 
 .presentation-medical-avatar {
-  width: clamp(1.48rem, 3.9vh, 3rem);
-  height: clamp(1.48rem, 3.9vh, 3rem);
+  width: clamp(1.8rem, 4.45vh, 3.35rem);
+  height: clamp(1.8rem, 4.45vh, 3.35rem);
   display: inline-grid;
   place-items: center;
   overflow: hidden;
   border-radius: 999px;
   color: #07120d;
   background: #d1fae5;
-  font-size: clamp(.48rem, 1.18vh, .78rem);
+  font-size: clamp(.56rem, 1.3vh, .86rem);
   font-weight: 950;
 }
 
@@ -1876,19 +1876,19 @@ body.is-presentation-shape-drawing {
   min-width: 0;
   overflow: hidden;
   color: #ffffff;
-  font-size: clamp(.68rem, 1.42vh, 1rem);
+  font-size: clamp(.72rem, 1.48vh, 1.06rem);
   line-height: 1.05;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .presentation-medical-player > span:last-child {
-  min-width: clamp(1.9rem, 4.6vh, 3rem);
+  min-width: clamp(2.05rem, 4.8vh, 3.12rem);
   border-radius: 999px;
-  padding: .14rem clamp(.22rem, .32vw, .36rem);
+  padding: .16rem clamp(.24rem, .34vw, .4rem);
   color: #07120d;
   background: #86efac;
-  font-size: clamp(.58rem, 1.24vh, .86rem);
+  font-size: clamp(.62rem, 1.3vh, .9rem);
   font-weight: 950;
   line-height: 1;
   text-align: center;

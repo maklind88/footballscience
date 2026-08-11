@@ -117,7 +117,7 @@ const DEFAULT_WORKSPACE_ACCESS = {
   "medical-team": ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
   staff: ["admin", "club-admin", "team-admin"],
   admin: ["admin", "club-admin", "team-admin"],
-  "team-identity": ["admin", "club-admin", "team-admin", "coach"],
+  "set-pieces-room": ["admin", "club-admin", "team-admin", "coach", "analyst"],
   "game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance"],
 };
 const DEFAULT_WORKSPACE_EDIT_ACCESS = {
@@ -134,7 +134,7 @@ const DEFAULT_WORKSPACE_EDIT_ACCESS = {
   "medical-team": ["admin", "club-admin", "team-admin", "medical", "performance"],
   staff: ["admin", "club-admin", "team-admin"],
   admin: ["admin", "club-admin", "team-admin"],
-  "team-identity": ["admin", "club-admin", "team-admin", "coach"],
+  "set-pieces-room": ["admin", "club-admin", "team-admin", "coach", "analyst"],
   "game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
 };
 const REQUIRED_WORKSPACE_ACCESS = {
@@ -158,9 +158,9 @@ const REQUIRED_WORKSPACE_ACCESS = {
     view: ["admin", "team-admin"],
     edit: ["admin", "team-admin"],
   },
-  "team-identity": {
-    view: ["admin", "club-admin", "team-admin", "coach"],
-    edit: ["admin", "club-admin", "team-admin", "coach"],
+  "set-pieces-room": {
+    view: ["admin", "club-admin", "team-admin", "coach", "analyst"],
+    edit: ["admin", "club-admin", "team-admin", "coach", "analyst"],
   },
 };
 const STATE_KEY_WORKSPACE_EDIT_MAP = {

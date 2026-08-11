@@ -1,0 +1,145 @@
+.spr-shell.is-presenting .spr-library,
+.spr-shell.is-presenting .spr-inspector,
+.spr-shell.is-presenting .spr-header,
+.spr-shell.is-presenting .spr-timeline,
+.spr-shell.is-presenting .spr-tool-rail,
+.spr-shell.is-presenting .spr-editor-toolbar > label,
+.spr-shell.is-presenting .spr-history-actions .spr-icon-button:not([data-set-piece-action="presentation"]) {
+  display: none;
+}
+
+.spr-shell.is-presenting .spr-layout {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.spr-shell.is-presenting .spr-editor {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.spr-shell.is-presenting .spr-board-row {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: calc(100vh - 140px);
+}
+
+.spr-shell.is-presenting .spr-board-stage {
+  min-height: calc(100vh - 155px);
+}
+
+body.is-dark-mode .platform-set-pieces-view,
+body.is-dark-mode .spr-shell {
+  --spr-ink: var(--fs-text);
+  --spr-muted: var(--fs-text-muted);
+  --spr-line: var(--fs-border);
+  --spr-panel: var(--fs-surface);
+  --spr-soft: var(--fs-surface-strong);
+  --spr-accent: #79cda0;
+  color: var(--spr-ink);
+  background: var(--fs-bg) !important;
+}
+
+body.is-dark-mode .spr-header,
+body.is-dark-mode .spr-library,
+body.is-dark-mode .spr-inspector,
+body.is-dark-mode .spr-variant-bar,
+body.is-dark-mode .spr-editor-toolbar,
+body.is-dark-mode .spr-playback,
+body.is-dark-mode .spr-timeline,
+body.is-dark-mode .spr-tool-rail,
+body.is-dark-mode .spr-phase-card {
+  color: var(--spr-ink) !important;
+  background: var(--spr-panel) !important;
+  border-color: var(--spr-line) !important;
+}
+
+body.is-dark-mode .spr-editor,
+body.is-dark-mode .spr-canvas-empty,
+body.is-dark-mode .spr-board-row {
+  background: var(--fs-bg-elevated) !important;
+}
+
+body.is-dark-mode .spr-board-stage {
+  border-color: var(--fs-border-strong);
+  background: #16231d;
+  box-shadow: 0 8px 24px #0000004d;
+}
+
+body.is-dark-mode .spr-segmented,
+body.is-dark-mode .spr-segmented button.is-active,
+body.is-dark-mode .spr-play-item.is-active,
+body.is-dark-mode .spr-variant-tabs button.is-active {
+  color: var(--spr-ink);
+  background: var(--fs-surface-strong);
+}
+
+body.is-dark-mode .spr-play-item.is-active,
+body.is-dark-mode .spr-phase-card.is-active {
+  border-color: #79cda080 !important;
+}
+
+body.is-dark-mode .spr-icon-button,
+body.is-dark-mode .spr-tool-button,
+body.is-dark-mode .spr-add-phase,
+body.is-dark-mode .spr-delete-plan {
+  color: var(--spr-ink);
+  border-color: var(--fs-border-strong);
+  background: var(--fs-control-bg);
+}
+
+body.is-dark-mode .spr-icon-button:hover,
+body.is-dark-mode .spr-tool-button:hover,
+body.is-dark-mode .spr-add-phase:hover {
+  background: var(--fs-hover-bg);
+}
+
+body.is-dark-mode .spr-command-button,
+body.is-dark-mode .spr-primary-empty-action,
+body.is-dark-mode .spr-play-button,
+body.is-dark-mode .spr-tool-button.is-active {
+  color: #101713 !important;
+  border-color: #79cda0 !important;
+  background: #79cda0 !important;
+}
+
+body.is-dark-mode .spr-delete-plan,
+body.is-dark-mode .spr-icon-button.is-danger,
+body.is-dark-mode .spr-save-state.is-error {
+  color: #ffaaa4;
+}
+
+body.is-dark-mode .spr-save-state,
+body.is-dark-mode .spr-play-type,
+body.is-dark-mode .spr-phase-card b,
+body.is-dark-mode .spr-variant-tabs button.is-active {
+  color: #9ce0ba;
+}
+
+@media (max-width: 1240px) {
+  .spr-layout { grid-template-columns: 190px minmax(480px, 1fr) 238px; }
+  .spr-roster-picker span,
+  .spr-editor-toolbar label:not(.spr-roster-picker) span { display: none; }
+}
+
+@media (max-width: 980px) {
+  .spr-layout { height: auto; grid-template-columns: minmax(0, 1fr); }
+  .spr-editor { grid-template-rows: auto auto minmax(360px, 1fr) auto auto; overflow: visible; }
+  .spr-library { max-height: 178px; border-right: 0; border-bottom: 1px solid var(--spr-line); }
+  .spr-play-list { grid-auto-flow: column; grid-auto-columns: 170px; overflow-x: auto; }
+  .spr-inspector { border-top: 1px solid var(--spr-line); border-left: 0; }
+  .spr-inspector { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+}
+
+@media (max-width: 680px) {
+  .spr-header { padding-inline: .7rem; }
+  .spr-board-row { grid-template-columns: minmax(0, 1fr); min-height: 360px; }
+  .spr-tool-rail { grid-auto-flow: column; grid-auto-columns: 40px; overflow-x: auto; }
+  .spr-board-stage { min-height: 360px; }
+  .spr-editor-toolbar { flex-wrap: wrap; }
+  .spr-roster-picker { min-width: 70%; }
+  .spr-inspector { display: block; }
+  .spr-field-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spr-shell *, .spr-shell *::before, .spr-shell *::after { scroll-behavior: auto !important; transition: none !important; }
+}

@@ -35,6 +35,7 @@ export const platformAppearanceStorageKey = "football-platform-appearance-v1";
 export const medicalTeamStorageKey = "football-medical-team-v1";
 export const scoutingStorageKey = "football-scouting-v1";
 export const gameplanStorageKey = "football-gameplan-v1";
+export const setPiecesRoomStorageKey = "football-set-pieces-room-v1";
 export const transferRoomStorageKey = "football-transfer-room-v1";
 export const sequenceStorageKey = "football-simulator-sequence-v1";
 export const sequenceLibraryStorageKey = "football-simulator-sequence-library-v2";
@@ -58,7 +59,7 @@ export const defaultWorkspaceAccess = {
   "medical-team": ["admin", "club-admin", "team-admin", "coach", "performance", "medical"],
   staff: ["admin"],
   admin: ["admin"],
-  "team-identity": ["admin", "club-admin", "team-admin", "coach"],
+  "set-pieces-room": ["admin", "club-admin", "team-admin", "coach", "analyst"],
   "game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance"],
 };
 
@@ -76,7 +77,7 @@ export const defaultWorkspaceEditAccess = {
   "medical-team": ["admin", "club-admin", "team-admin", "medical", "performance"],
   staff: ["admin"],
   admin: ["admin"],
-  "team-identity": ["admin", "club-admin", "team-admin", "coach"],
+  "set-pieces-room": ["admin", "club-admin", "team-admin", "coach", "analyst"],
   "game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
 };
 
@@ -105,9 +106,9 @@ export const requiredWorkspaceAccess = {
     view: ["admin", "team-admin"],
     edit: ["admin", "team-admin"],
   },
-  "team-identity": {
-    view: ["admin", "club-admin", "team-admin", "coach"],
-    edit: ["admin", "club-admin", "team-admin", "coach"],
+  "set-pieces-room": {
+    view: ["admin", "club-admin", "team-admin", "coach", "analyst"],
+    edit: ["admin", "club-admin", "team-admin", "coach", "analyst"],
   },
 };
 

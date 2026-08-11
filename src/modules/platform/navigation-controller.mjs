@@ -11,7 +11,7 @@ const topIconLabels = Object.freeze({
   staff: "Team",
   "medical-team": "Medical",
   admin: "Admin",
-  "team-identity": "Identity",
+  "set-pieces-room": "Set Pieces",
 });
 
 export function getPlatformTopIconLabel(workspace = {}) {

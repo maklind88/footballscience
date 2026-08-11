@@ -86,7 +86,7 @@ import { createPlatformRuntimeHelpers } from "./src/core/platform-runtime-helper
 import { createCentralRuntimeFacade, dataSafetySnapshotStoreName } from "./src/core/central-runtime-facade.mjs";
 import { bindPlatformWorkspaceRuntimeBindings } from "./src/core/platform-workspace-runtime-bindings.mjs";
 import { bindPlatformGlobalRuntimeEvents } from "./src/core/platform-global-runtime-bindings.mjs";
-import { canonicalPlatformClubValues, canonicalPlatformTeamValues, dashboardNotificationSeenStorageKey, dataSafetyDatabaseName, dataSafetyExportSchema, dataSafetyStorageKey, defaultWorkspaceAccess, defaultWorkspaceEditAccess, gameplanStorageKey, legacyPlatformStructureValues, maxProfileImageUploadDataUrlLength, maxProfileImageUrlLength, medicalTeamStorageKey, platformAppearanceStorageKey, platformDefaultClubId, platformDefaultClubName, platformDefaultClubShortName, platformDefaultTeamId, platformDefaultTeamLevel, platformDefaultTeamName, playerProfileAgeCacheStorageKey, playerProfileChangeLogLimit, playerProfilesDefaultRosterVersion, playerProfilesSchemaVersion, playerProfilesStorageKey, requiredWorkspaceAccess, scoutingStorageKey, sequenceLibraryStorageKey, sequenceStorageKey, sessionPlannerBlockMergeFields, sessionPlannerBlockMergeFieldSet, transferRoomStorageKey } from "./src/core/app-runtime-constants.mjs";
+import { canonicalPlatformClubValues, canonicalPlatformTeamValues, dashboardNotificationSeenStorageKey, dataSafetyDatabaseName, dataSafetyExportSchema, dataSafetyStorageKey, defaultWorkspaceAccess, defaultWorkspaceEditAccess, gameplanStorageKey, legacyPlatformStructureValues, maxProfileImageUploadDataUrlLength, maxProfileImageUrlLength, medicalTeamStorageKey, platformAppearanceStorageKey, platformDefaultClubId, platformDefaultClubName, platformDefaultClubShortName, platformDefaultTeamId, platformDefaultTeamLevel, platformDefaultTeamName, playerProfileAgeCacheStorageKey, playerProfileChangeLogLimit, playerProfilesDefaultRosterVersion, playerProfilesSchemaVersion, playerProfilesStorageKey, requiredWorkspaceAccess, scoutingStorageKey, sequenceLibraryStorageKey, sequenceStorageKey, sessionPlannerBlockMergeFields, sessionPlannerBlockMergeFieldSet, setPiecesRoomStorageKey, transferRoomStorageKey } from "./src/core/app-runtime-constants.mjs";
 import { addCalendarDays, clamp, escapeHtml, formatDashboardDateTime, formatDashboardTime, formatDataSafetyTime, isEditableKeyboardTarget, logEvent, maybeCopyToClipboard, setFormSubmitButtonState, togglePasswordInputVisibility } from "./src/core/runtime-ui-helpers.mjs";
 import { installPlatformOverlayStability } from "./src/core/overlay-stability.mjs";
 import { defaultHubState, placeholderWorkspaceContent, platformSidebarMoreOrder, platformSidebarPrimaryOrder, topIconMenuOrder } from "./src/core/workspace-defaults.mjs";
@@ -500,6 +500,7 @@ platformAppearanceStorageKey,
 medicalTeamStorageKey,
 scoutingStorageKey,
 gameplanStorageKey,
+setPiecesRoomStorageKey,
 transferRoomStorageKey,
 sequenceStorageKey,
 sequenceLibraryStorageKey,
@@ -794,6 +795,7 @@ canClearThread: isCurrentPlatformUserAdmin,
 canPinMessage: canPinDashboardChatMessage,
 });
 let centralAppStateReloadService = null;
+let reloadSetPiecesRoomFromStorage = () => {};
 const platformAutosaveStatusController = createPlatformAutosaveStatusController({
 documentRef: document,
 windowRef: window,
@@ -821,6 +823,10 @@ function setPlatformAutosaveStatusForKey(key, state, message = "") {
 }
 syncPlatformAutosaveStatusVisibility(null);
 function handleCentralSyncedStateValue(key) {
+  if (key === setPiecesRoomStorageKey) {
+    reloadSetPiecesRoomFromStorage();
+    return;
+  }
   if (key === sessionPlannerStorageKey) {
     sessionPlannerState = readSessionPlannerStatePreservingUiSelection();
     syncSessionPlannerBoardHistoryBaselines(getSessionPlannerSelectedBlock());
@@ -3426,6 +3432,7 @@ sessionPlannerRuntimeDelegates,
 sessionPlannerRuntimeRenderers,
 sessionPlannerSessionFactory,
 sessionPlannerStorageKey,
+setPiecesRoomStorageKey,
 sessionPlannerTacticalHelpers,
 sessionPlannerTacticalMaxFrames,
 sessionPlannerTacticalSnapStep,
@@ -3494,12 +3501,14 @@ sessionPlannerRuntimeService,
 sessionPlannerRuntimeStateService,
 sessionPlannerStateMergeHelpers,
 sessionPlannerToastController,
+setPiecesRoomController,
 sessionPlannerWorkspaceController: composedSessionPlannerWorkspaceController,
 syncSessionPlannerBoardHistoryBaseline,
 syncSessionPlannerBoardHistoryBaselines,
 undoSessionPlannerBoardHistory,
 workspaceShellController,
 } = workspaceRuntimeComposition;
+reloadSetPiecesRoomFromStorage = () => setPiecesRoomController.reloadFromStorage();
 centralAppStateReloadService = composedCentralAppStateReloadService;
 sessionPlannerWorkspaceController = composedSessionPlannerWorkspaceController;
 configureSessionPlannerAppRuntimeAccessors({

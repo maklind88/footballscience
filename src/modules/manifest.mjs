@@ -16,6 +16,7 @@ export * from "./presentation-mode/index.mjs";
 export * from "./schedule/index.mjs";
 export * from "./squad/index.mjs";
 export * from "./idp/index.mjs";
+export * from "./set-pieces-room/index.mjs";
 export * from "./game-simulator/index.mjs";
 export * from "./scouting/index.mjs";
 export * from "./video-analysis/index.js";

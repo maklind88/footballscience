@@ -366,6 +366,9 @@ test("modular core skeleton exposes only explicitly approved production assets",
   expect(indexHtml).not.toMatch(/src\/modules\/[^"'`]+\.m?js/);
   expect(indexHtml.match(/src\/modules\/[^"'`]+/g) || []).toEqual([
     "src/modules/session-planner/session-planner-tacticalboard.css",
+    "src/modules/set-pieces-room/set-pieces-room.css",
+    "src/modules/set-pieces-room/set-pieces-board.css",
+    "src/modules/set-pieces-room/set-pieces-theme.css",
   ]);
 });
 

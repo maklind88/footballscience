@@ -10,7 +10,7 @@ Top navigation is icon-based. Desired order:
 4. IDP
 5. Analysis Room
 6. My Team
-7. Identity
+7. Set Pieces
 8. Game Simulator
 
 The right account menu owns Profile, Settings, and Logout. The main title `Football Science` should route to Home.
@@ -287,9 +287,17 @@ Current direction:
 - MVP must stay daily-coach-first: dashboard, player view, current focus, clip bank, mark evidence, short note, review date, next action, and timeline.
 - Excluded for now: player login, AI-generated plans, PDF exports, ratings, gamification, advanced analytics, full Medical/Performance integration, and complex scheduling.
 
-## Team Identity
+## Set Pieces Room
 
-Identity currently shows an under-development view with a clean DNA-style visual. Keep it honest and avoid fake content until the real structure for phases, principles, styles and role behaviours is built.
+Set Pieces Room replaces the former Team Identity placeholder. It owns reusable attacking and defensive restart plans, opponent responses, variants, phases, structured board elements, semantic movement drawings and timeline playback.
+
+Direction:
+
+- Keep the module independent from Session Planner tacticalboard state and saved exercises.
+- Use Squad profiles as read-only player identity references; own players display unique initials and opponents display numbers.
+- Store the board as structured, editable data instead of flattened images.
+- Preserve timing, opponent movement, second-ball/rest-defence phases and variant branches in the domain model.
+- Use protected central app-state as the current compatibility path until a reviewed server-first table migration is ready.
 
 ## Medical Team
 

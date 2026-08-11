@@ -85,13 +85,13 @@ export const defaultHubState = {
       hiddenFromNav: true,
     },
     {
-      id: "team-identity",
-      kind: "placeholder",
-      title: "Identity",
-      meta: "Principles and behaviours",
-      description: "Your game model, phases, principles and style of play will live here.",
-      status: "Build next",
-      icon: "✦",
+      id: "set-pieces-room",
+      kind: "set-pieces-room",
+      title: "Set Pieces Room",
+      meta: "Restarts and variants",
+      description: "Build, animate and prepare attacking and defensive set pieces.",
+      status: "Active",
+      icon: "↗",
     },
     {
       id: "session-planner",
@@ -172,7 +172,7 @@ export const topIconMenuOrder = [
   "staff",
   "medical-team",
   "admin",
-  "team-identity",
+  "set-pieces-room",
 ];
 
 export const platformSidebarPrimaryOrder = [
@@ -191,7 +191,7 @@ export const platformSidebarMoreOrder = [
   "transfer-room",
   "staff",
   "admin",
-  "team-identity",
+  "set-pieces-room",
 ];
 
 export const placeholderWorkspaceContent = {};

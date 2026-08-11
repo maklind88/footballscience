@@ -1113,7 +1113,7 @@ test("app-state keeps required team data visible to coaches even when workspace 
         workspaceAccess: {
           "player-profiles": { view: ["admin"], edit: ["admin"] },
           "medical-team": { view: ["admin"], edit: ["admin"] },
-          "team-identity": { view: ["admin"], edit: ["admin"] },
+          "set-pieces-room": { view: ["admin"], edit: ["admin"] },
         },
       }),
       [playerProfilesPath]: createAppStateStorageEntry(playerProfilesKey, {
@@ -1142,7 +1142,7 @@ test("app-state keeps required team data visible to coaches even when workspace 
     const hubState = JSON.parse(response.payload.entries[workspaceHubKey]);
     expect(hubState.workspaceAccess["player-profiles"].view).toContain("coach");
     expect(hubState.workspaceAccess["medical-team"].view).toContain("coach");
-    expect(hubState.workspaceAccess["team-identity"].view).toContain("coach");
+    expect(hubState.workspaceAccess["set-pieces-room"].view).toContain("coach");
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

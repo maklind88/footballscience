@@ -4,6 +4,7 @@ import { createPeriodizationRuntimeBindings } from "../modules/periodization/per
 import { createProfileStaffWorkspaceController } from "../modules/profile/index.mjs";
 import { createPlayerProfileRuntimeFacade } from "../modules/squad/index.mjs";
 import { createSessionPlannerRuntimeServiceComposition } from "../modules/session-planner/session-planner-runtime-service-composer.mjs";
+import { createSetPiecesRoomController } from "../modules/set-pieces-room/index.mjs";
 
 export function createWorkspaceRuntimeComposition(deps = {}) {
   const periodizationRuntimeBindings = createPeriodizationRuntimeBindings({
@@ -143,6 +144,16 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
 
   const renderProfileWorkspace = (message = "") => profileStaffWorkspaceController.renderProfileWorkspace(message);
   const renderStaffWorkspace = (message = "") => profileStaffWorkspaceController.renderStaffWorkspace(message);
+  const setPiecesRoomController = createSetPiecesRoomController({
+    root: deps.ui?.setPiecesRoomWorkspace,
+    win: deps.win,
+    documentRef: deps.documentRef,
+    storage: deps.win?.localStorage,
+    storageKey: deps.setPiecesRoomStorageKey,
+    getPlayerProfilesState: () => deps.ensurePlayerProfilesState?.() || {},
+    getCurrentUser: deps.getCurrentPlatformUser,
+    canEdit: () => deps.canCurrentUserEditWorkspace?.("set-pieces-room") !== false,
+  });
   const renderWorkspaceByViewId = (activeViewId) => {
     if (activeViewId === "profile") renderProfileWorkspace();
     if (activeViewId === "staff") renderStaffWorkspace();
@@ -157,6 +168,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     if (activeViewId === "schedule") deps.renderScheduleWorkspace();
     if (activeViewId === "periodization") deps.renderPeriodizationWorkspace();
     if (activeViewId === "session-planner") deps.renderSessionPlannerWorkspace();
+    if (activeViewId === "set-pieces-room") setPiecesRoomController.mount();
   };
 
   const playerProfileRuntimeFacade = createPlayerProfileRuntimeFacade({
@@ -362,6 +374,7 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     renderProfileWorkspace,
     renderStaffWorkspace,
     sessionPlannerRuntimeServiceComposition,
+    setPiecesRoomController,
     workspaceShellController,
   };
 }

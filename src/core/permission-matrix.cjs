@@ -129,6 +129,18 @@ const platformPermissionMatrix = Object.freeze([
     storageKeys: ["football-gameplan-v1"],
     routes: ["/api/app-state", "/api/gameplan-player-brief"],
   }),
+  moduleContract("set-pieces-room", "Set Pieces Room", "team", {
+    read: ["admin", "club-admin", "team-admin", "coach", "analyst"],
+    write: ["admin", "club-admin", "team-admin", "coach", "analyst"],
+    delete: ["admin", "club-admin", "team-admin", "coach"],
+    export: ["admin", "coach", "analyst"],
+    restore: ["admin", "coach"],
+    admin: ["admin"],
+    observe: ["admin", "club-admin", "team-admin", "coach", "analyst"],
+  }, {
+    storageKeys: ["football-set-pieces-room-v1"],
+    routes: ["/api/app-state"],
+  }),
   moduleContract("video-analysis", "FS Player", "team", {
     read: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance"],
     write: ["admin", "club-admin", "team-admin", "coach", "analyst"],

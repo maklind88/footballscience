@@ -100,7 +100,7 @@ test("app runtime constants preserve default workspace access contracts", () => 
   expect(defaultWorkspaceEditAccess["game-simulator"]).toEqual(["admin", "club-admin", "team-admin", "coach", "scout", "analyst"]);
   expect(requiredWorkspaceAccess["player-profiles"].view).toContain("medical");
   expect(requiredWorkspaceAccess["player-profiles"].edit).not.toContain("medical");
-  expect(requiredWorkspaceAccess["team-identity"].edit).toEqual(["admin", "club-admin", "team-admin", "coach"]);
+  expect(requiredWorkspaceAccess["set-pieces-room"].edit).toEqual(["admin", "club-admin", "team-admin", "coach", "analyst"]);
 });
 
 test("app runtime constants preserve canonical platform identity defaults", () => {

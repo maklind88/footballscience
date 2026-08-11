@@ -177,7 +177,7 @@ test("dark mode foundation keeps all major workspaces visually consistent and re
     "analysis-room",
     "staff",
     "admin",
-    "team-identity",
+    "set-pieces-room",
   ]) {
     const navItem = page.locator(`[data-open-workspace="${workspaceId}"]`).first();
     if (!(await navItem.count())) continue;

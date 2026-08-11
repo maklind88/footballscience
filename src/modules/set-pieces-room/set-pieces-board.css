@@ -1,0 +1,197 @@
+.spr-pitch {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  user-select: none;
+}
+
+.spr-pitch-base {
+  fill: #2e774e;
+}
+
+.spr-pitch-stripes {
+  fill: #ffffff;
+  opacity: .035;
+}
+
+.spr-pitch-markings {
+  fill: none;
+  stroke: #f7fbf8b8;
+  stroke-width: .35;
+  vector-effect: non-scaling-stroke;
+}
+
+.spr-pitch-markings .spr-pitch-spot {
+  fill: #f7fbf8d1;
+  stroke: none;
+}
+
+.spr-pitch-markings .spr-pitch-goals {
+  stroke: #f7fbf8d9;
+  stroke-width: .5;
+}
+
+.spr-board-element {
+  cursor: grab;
+  outline: none;
+}
+
+.spr-board-element:active {
+  cursor: grabbing;
+}
+
+.spr-element-hit {
+  fill: transparent;
+  stroke: transparent;
+  pointer-events: all;
+}
+
+.spr-home-token {
+  fill: #153d64;
+  stroke: #f7fbff;
+  stroke-width: .4;
+  vector-effect: non-scaling-stroke;
+}
+
+.spr-opponent-token {
+  fill: #f8f6ef;
+  stroke: #a93842;
+  stroke-width: .55;
+  vector-effect: non-scaling-stroke;
+}
+
+.spr-ball-token {
+  fill: #f5dc75;
+  stroke: #272727;
+  stroke-width: .35;
+  vector-effect: non-scaling-stroke;
+}
+
+.spr-ball-detail {
+  fill: #343434;
+  stroke: none;
+}
+
+.spr-body-direction {
+  fill: none;
+  stroke: #f6d36a;
+  stroke-linecap: round;
+  stroke-width: .72;
+  vector-effect: non-scaling-stroke;
+}
+
+.spr-board-element.is-opponent .spr-body-direction {
+  stroke: #a93842;
+}
+
+.spr-board-element text {
+  fill: #fff;
+  font-size: 2.1px;
+  font-weight: 800;
+  letter-spacing: 0;
+  pointer-events: none;
+  text-anchor: middle;
+}
+
+.spr-board-element.is-opponent text {
+  fill: #8c2630;
+}
+
+.spr-element-layer.hide-labels text {
+  display: none;
+}
+
+.spr-selection-ring {
+  fill: none;
+  stroke: #ffd54a;
+  stroke-dasharray: 1.2 .65;
+  stroke-width: .65;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.spr-board-element.is-ghost {
+  opacity: .24;
+  pointer-events: none;
+}
+
+.spr-board-element.is-ghost .spr-body-direction,
+.spr-board-element.is-ghost .spr-selection-ring {
+  display: none;
+}
+
+.spr-drawing {
+  cursor: pointer;
+  color: #fff;
+}
+
+.spr-drawing path {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: .7;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+
+.spr-drawing.is-run { color: #f8d04a; }
+.spr-drawing.is-pass { color: #f7faf8; }
+.spr-drawing.is-dribble { color: #8ce4ae; }
+.spr-drawing.is-block { color: #ff8e9b; }
+.spr-drawing.is-press { color: #ff9b55; }
+.spr-drawing.is-mark { color: #7ab7ff; }
+
+.spr-drawing.is-pass path { stroke-dasharray: 2.1 1.25; }
+.spr-drawing.is-dribble path { stroke-dasharray: .55 1.1; }
+.spr-drawing.is-block path { stroke-width: 1.2; }
+.spr-drawing.is-mark path { stroke-dasharray: 1.25 .7; }
+
+.spr-drawing.is-selected path,
+.spr-drawing.is-selected .spr-zone-shape {
+  filter: drop-shadow(0 0 1.4px #ffe27a);
+  stroke-width: 1.1;
+}
+
+.spr-drawing.is-preview {
+  opacity: .7;
+  pointer-events: none;
+}
+
+.spr-zone-shape {
+  fill: #f4d35e2e;
+  stroke: #f4d35e;
+  stroke-dasharray: 1.6 .9;
+  stroke-width: .55;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all;
+}
+
+.spr-drawing-label {
+  fill: #fff;
+  paint-order: stroke;
+  stroke: #173b2a;
+  stroke-width: .9px;
+  font-size: 2.05px;
+  font-weight: 750;
+  letter-spacing: 0;
+  pointer-events: none;
+  text-anchor: middle;
+}
+
+.spr-selection-box {
+  fill: #d9f4e52c;
+  stroke: #d9f4e5;
+  stroke-dasharray: 1.1 .65;
+  stroke-width: .5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+#spr-arrow-run path { fill: #f8d04a; }
+#spr-arrow-pass path { fill: #f7faf8; }
+#spr-arrow-dribble path { fill: #8ce4ae; }
+#spr-arrow-press path { fill: #ff9b55; }
+#spr-arrow-mark path { fill: #7ab7ff; }

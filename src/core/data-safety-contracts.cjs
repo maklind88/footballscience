@@ -137,6 +137,16 @@ const dataSafetyContracts = Object.freeze([
     },
   }),
   freezeContract({
+    moduleId: "set-pieces-room",
+    key: "football-set-pieces-room-v1",
+    recordType: "set-piece-plans",
+    mergePolicy: dataSafetyMergePolicies.revisionGuardedLastWrite,
+    scope: {
+      teamScoped: true,
+      matchPreparation: true,
+    },
+  }),
+  freezeContract({
     moduleId: "exercise-library",
     key: "football-session-exercise-library-v1",
     recordType: "exercise-library",

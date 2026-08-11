@@ -340,6 +340,9 @@ return "periodization";
 if (workspace.kind === "session") {
 return "session-planner";
 }
+if (workspace.kind === "set-pieces-room") {
+return "set-pieces-room";
+}
 return "placeholder";
 }
 

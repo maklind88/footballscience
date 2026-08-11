@@ -21,7 +21,7 @@ const workspaceIds = [
   "staff",
   "medical-team",
   "admin",
-  "team-identity",
+  "set-pieces-room",
   "game-simulator",
   "my-profile",
   "settings",
@@ -30,7 +30,6 @@ const workspaceIds = [
 const workspaceViewIds = {
   "my-profile": "profile",
   settings: "placeholder",
-  "team-identity": "placeholder",
 };
 
 const clickBudgetMs = budget(1200);

@@ -173,7 +173,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).not.toContain("Medical Plan");
   expect(overviewHtml).toContain("https://example.com/ada.jpg");
   expect(overviewHtml).toContain("100%");
-  expect(overviewHtml).toContain("Ej rekommenderad");
+  expect(overviewHtml).toContain("Not recommended");
   expect(overviewHtml).not.toContain(">0%</span>");
   expect(overviewHtml).toContain("presentation-block-flow");
   expect(overviewHtml).not.toContain("Overview block meta");
@@ -303,6 +303,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
         "overview.heading": "Daily Flow",
         "overview.phase.value": "Custom Phase",
         "medical.p1.name": "Display Keeper",
+        "medical.p1.percentage": "0%",
       },
       b1: {
         "block.label": "Block 1 (10%+)",
@@ -314,10 +315,13 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     },
   }));
   const editableModel = controller.buildModel();
+  const editableOverviewHtml = renderer.renderOverviewSlide(editableModel, editableModel.slides.find((slide) => slide.type === "overview"));
   expect(renderer.renderCoverSlide(editableModel)).toContain("Custom Briefing");
-  expect(renderer.renderOverviewSlide(editableModel, editableModel.slides.find((slide) => slide.type === "overview"))).toContain("Daily Flow");
-  expect(renderer.renderOverviewSlide(editableModel, editableModel.slides.find((slide) => slide.type === "overview"))).toContain("Custom Phase");
-  expect(renderer.renderOverviewSlide(editableModel, editableModel.slides.find((slide) => slide.type === "overview"))).toContain("Display Keeper");
+  expect(editableOverviewHtml).toContain("Daily Flow");
+  expect(editableOverviewHtml).toContain("Custom Phase");
+  expect(editableOverviewHtml).toContain("Display Keeper");
+  expect(editableOverviewHtml).toContain(">100%");
+  expect(editableOverviewHtml).not.toContain('data-presentation-text-field="medical.p1.percentage"');
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Custom Rondo");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).not.toContain("10%+");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Play forward");

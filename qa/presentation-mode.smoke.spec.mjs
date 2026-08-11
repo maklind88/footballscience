@@ -847,6 +847,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
 
   await page.keyboard.press("ArrowRight");
   await expect(presentation).toContainText("Possession (7v3)");
+  await expect(presentation.locator(".presentation-slide-block .presentation-section-heading p")).toContainText("In Possession (Build Up, Creating Phase)");
+  await expect(presentation.locator(".presentation-slide-block .presentation-section-heading p")).not.toContainText(" / ");
   await expect(presentation).not.toContainText("10 min");
   await expect(presentation.locator(".presentation-slide-block .presentation-section-heading span")).toHaveText("Block 1");
   await expect(presentation.locator(".presentation-slide-block")).not.toContainText("10%+");

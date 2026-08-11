@@ -62,7 +62,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
           title: "Rondo",
           minutes: 30,
           pitchSize: "SSG",
-          phase: "In Possession",
+          phase: "In Possession, Out of Possession",
+          subPhase: "Build Up, Block Defending",
           principles: "- Scan early\n\n- Play forward when open",
         },
       ],
@@ -230,6 +231,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(exerciseVisualCalls.at(-1)?.options.landscape).toBeUndefined();
   expect(blockHtml).toContain("Block 1");
   expect(blockHtml).not.toContain("10%+");
+  expect(blockHtml).toContain("In Possession (Build Up), Out of Possession (Block Defending)");
+  expect(blockHtml).not.toContain("In Possession, Out of Possession / Build Up, Block Defending");
   expect(blockHtml).not.toContain("0% / Unavailable");
   expect(blockHtml).toContain('data-presentation-text-field="block.title"');
   expect(blockHtml).toContain('data-presentation-text-field="detail.principles.body"');

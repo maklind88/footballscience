@@ -1060,11 +1060,37 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function getBlockPhaseParts(value = "") {
+    const values = Array.isArray(value) ? value : String(value || "").split(/[,;\n]+/);
+    return values.map((part) => String(part || "").trim()).filter(Boolean);
+  }
+
+  function formatBlockPhaseLine(phaseValue = "", subPhaseValue = "") {
+    const phases = getBlockPhaseParts(phaseValue);
+    const subPhases = getBlockPhaseParts(subPhaseValue);
+    if (!phases.length) {
+      return subPhases.join(", ");
+    }
+    if (phases.length === 1) {
+      const subPhase = subPhases.join(", ");
+      return subPhase ? `${phases[0]} (${subPhase})` : phases[0];
+    }
+    return phases
+      .map((phase, index) => {
+        const pairedSubPhases = index === phases.length - 1
+          ? subPhases.slice(index)
+          : subPhases.slice(index, index + 1);
+        const subPhase = pairedSubPhases.join(", ");
+        return subPhase ? `${phase} (${subPhase})` : phase;
+      })
+      .join(", ");
+  }
+
   function renderBlockSlide(model = {}, slide = {}) {
     const block = slide.block || {};
     const playerSummary = slide.playerSummary || {};
     const visual = renderExerciseVisual(block, { large: true });
-    const phase = [block.phase, block.subPhase].filter(Boolean).join(" / ");
+    const phase = formatBlockPhaseLine(block.phase, block.subPhase);
     const blockLabel = [
       block.label || slide.label || "Block",
     ]

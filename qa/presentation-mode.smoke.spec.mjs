@@ -80,6 +80,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
               matchPhases: ["In Possession"],
               subPhases: ["Build Up", "Final Third"],
               preTrainingVideo: "Press trigger clips",
+              preTrainingNotes: "- First pass after regain\n\n- Fullback body shape",
             },
           },
         })
@@ -657,6 +658,18 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-overview-metric.is-phase")).toHaveCount(0);
   await expect(presentation.locator(".presentation-overview-metric.is-pitch")).toContainText("2/3 pitch");
   await expect(presentation.locator(".presentation-overview-metric.is-pitch .periodization-pitch-icon.is-2-3-pitch")).toBeVisible();
+  await expect(presentation.locator(".presentation-overview-metric.is-video")).toContainText("Press trigger clips");
+  await expect(presentation.locator(".presentation-overview-video-notes")).toContainText("First pass after regain");
+  await expect(presentation.locator(".presentation-overview-video-notes")).toContainText("Fullback body shape");
+  const videoNotesStyle = await presentation.locator(".presentation-overview-video-notes").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      text: element.textContent || "",
+      whiteSpace: style.whiteSpace,
+    };
+  });
+  expect(videoNotesStyle.text).toContain("\n\n");
+  expect(videoNotesStyle.whiteSpace).toBe("pre-wrap");
   await expect(presentation.locator(".presentation-overview-metric.is-focus")).toHaveCount(0);
   await expect(presentation).not.toContainText("Main Focus");
   await expect(presentation.locator(".presentation-medical-overview")).toBeVisible();

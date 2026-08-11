@@ -67,7 +67,14 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
         },
       ],
     }),
-    getPeriodizationDay: () => ({ physicalLoad: "Hard", pitchSize: "SSG", matchPhases: ["In Possession"], subPhases: ["Build Up"] }),
+    getPeriodizationDay: () => ({
+      physicalLoad: "Hard",
+      pitchSize: "SSG",
+      matchPhases: ["In Possession"],
+      subPhases: ["Build Up"],
+      preTrainingVideo: "Scout clips",
+      preTrainingNotes: "- Switches behind pressure\n\n- Opposite fullback timing",
+    }),
     getAvailabilityItems: () => [
       { player: { id: "p1", name: "Ada Keeper", position: "GK", photoUrl: "https://example.com/ada.jpg" }, record: { id: "r1" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p2", name: "Bea Mid", position: "CM" }, record: { id: "r2" }, participation: 0, status: { label: "Unavailable" } },
@@ -161,6 +168,10 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).toContain("periodization-pitch-icon is-ssg");
   expect(overviewHtml).toContain("periodization-pitch-highlight");
   expect(overviewHtml.indexOf("is-pitch")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));
+  expect(overviewHtml).toContain('data-presentation-text-field="overview.video.notes"');
+  expect(overviewHtml).toContain("presentation-overview-video-notes");
+  expect(overviewHtml).toContain("- Switches behind pressure");
+  expect(overviewHtml).toContain("- Opposite fullback timing");
   expect(overviewHtml.indexOf("is-match-day")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));
   expect(overviewHtml).not.toContain("is-focus");
   expect(overviewHtml).not.toContain("Main Focus");

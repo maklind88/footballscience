@@ -834,6 +834,17 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function renderOverviewVideoMetric(model = {}, slide = {}, videoValue = "", notesValue = "") {
+    const notes = String(notesValue || "").trim();
+    return `
+      <div class="presentation-overview-metric is-video">
+        ${renderEditableElement(model, slide, "overview.video.label", "Video", "span", "", { label: "Video label" })}
+        ${renderEditableElement(model, slide, "overview.video.value", videoValue || "None", "strong", "", { label: "Video value" })}
+        ${notes ? renderEditableTextArea(model, slide, "overview.video.notes", notes, "class=\"presentation-overview-video-notes\"", { label: "Video notes" }) : ""}
+      </div>
+    `;
+  }
+
   function renderPitchSizeMetric(model = {}, slide = {}, value = "") {
     const label = String(value || "").trim() || "Not set";
     const tone = getPitchTone(label);
@@ -968,7 +979,7 @@ export function createPresentationModeRenderer(options = {}) {
             ${renderOverviewLoadMetric(model, frameSlide, model.loadLabel)}
             ${renderPitchSizeMetric(model, frameSlide, periodization.pitchSize || model.pitchLabel)}
             ${renderOverviewMetric(model, frameSlide, "Match Day", periodization.matchDay || "Not set", "is-match-day", "overview.matchDay")}
-            ${renderOverviewMetric(model, frameSlide, "Video", periodization.preTrainingVideo || "None", "is-video", "overview.video")}
+            ${renderOverviewVideoMetric(model, frameSlide, periodization.preTrainingVideo || "None", periodization.preTrainingNotes || "")}
             ${renderOverviewPhaseSummary(model, frameSlide, phaseValue, subPhaseValue)}
             <div class="presentation-block-flow">
               ${model.blocks

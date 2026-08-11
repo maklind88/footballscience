@@ -1707,6 +1707,20 @@ body.is-presentation-shape-drawing {
 
 .presentation-overview-metric.is-video {
   grid-area: video;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: clamp(.22rem, .42vw, .42rem);
+}
+
+.presentation-overview-video-notes {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  color: rgba(248, 250, 252, .76);
+  font-size: clamp(.68rem, 1.02cqw, .98rem);
+  font-weight: 800;
+  line-height: 1.16;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .presentation-overview-metric.is-pitch {

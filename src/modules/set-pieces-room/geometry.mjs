@@ -13,6 +13,13 @@ export function normalizeSetPiecePoint(point = {}) {
   };
 }
 
+export function normalizeSetPiecePointForPitchView(point = {}, pitchView = "full") {
+  const normalized = normalizeSetPiecePoint(point);
+  if (pitchView === "attacking-half") normalized.x = clampSetPieceCoordinate(normalized.x, PITCH_LENGTH / 2, PITCH_LENGTH);
+  if (pitchView === "defensive-half") normalized.x = clampSetPieceCoordinate(normalized.x, 0, PITCH_LENGTH / 2);
+  return normalized;
+}
+
 export function getSetPiecePitchViewBox(pitchView = "full") {
   if (pitchView === "attacking-half") return "52.5 0 52.5 68";
   if (pitchView === "defensive-half") return "0 0 52.5 68";

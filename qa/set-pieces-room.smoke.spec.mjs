@@ -83,10 +83,19 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   const homeMarker = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
   const markerBox = await homeMarker.boundingBox();
   expect(markerBox).not.toBeNull();
+  const startCenter = { x: markerBox.x + markerBox.width / 2, y: markerBox.y + markerBox.height / 2 };
   await page.mouse.move(markerBox.x + markerBox.width / 2, markerBox.y + markerBox.height / 2);
   await page.mouse.down();
   await page.mouse.move(markerBox.x + markerBox.width / 2 + 110, markerBox.y + markerBox.height / 2 + 45, { steps: 10 });
   await page.mouse.up();
+  const movedMarkerBox = await homeMarker.boundingBox();
+  expect(movedMarkerBox).not.toBeNull();
+  expect(movedMarkerBox.x + movedMarkerBox.width / 2).toBeGreaterThan(startCenter.x + 80);
+  expect(movedMarkerBox.y + movedMarkerBox.height / 2).toBeGreaterThan(startCenter.y + 25);
+  await page.mouse.click(box.x + box.width * 0.12, box.y + box.height * 0.12);
+  await page.mouse.click(movedMarkerBox.x + movedMarkerBox.width - 2, movedMarkerBox.y + movedMarkerBox.height / 2);
+  await expect(page.locator(".spr-inspector-title").filter({ hasText: "Selected player" })).toBeVisible();
+  const movedTransform = await homeMarker.getAttribute("transform");
 
   await page.locator("[data-set-piece-phase-id]").first().click();
   const scrubber = page.getByRole("slider", { name: "Playback position" });
@@ -114,6 +123,7 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await openSetPiecesRoom(page);
   await expect(page.locator("[data-set-piece-variant-id]")).toHaveCount(2);
   await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost) text")).toHaveText("1");
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveAttribute("transform", movedTransform);
   expect(pageErrors).toEqual([]);
 });
 

@@ -16,6 +16,7 @@ import {
 import { createSetPiecesPersistence } from "../src/modules/set-pieces-room/persistence.mjs";
 import { cloneSetPiecePlay } from "../src/modules/set-pieces-room/play-helpers.mjs";
 import { renderSetPieceBoard } from "../src/modules/set-pieces-room/board-renderer.mjs";
+import { normalizeSetPiecePointForPitchView } from "../src/modules/set-pieces-room/geometry.mjs";
 import { defaultHubState } from "../src/core/workspace-defaults.mjs";
 import { platformModules, protectedStorageKeys } from "../src/core/platform-contracts.mjs";
 
@@ -89,6 +90,12 @@ test("normalization clamps unsafe geometry and timing values", () => {
 
   expect(normalizedPhase.durationMs).toBe(10000);
   expect(normalizedPhase.elements[0]).toMatchObject({ x: 105, y: 0, durationMs: 100 });
+});
+
+test("drag coordinates stay inside the visible pitch view", () => {
+  expect(normalizeSetPiecePointForPitchView({ x: 4, y: 80 }, "attacking-half")).toEqual({ x: 52.5, y: 68 });
+  expect(normalizeSetPiecePointForPitchView({ x: 90, y: -4 }, "defensive-half")).toEqual({ x: 52.5, y: 0 });
+  expect(normalizeSetPiecePointForPitchView({ x: 90, y: 30 }, "full")).toEqual({ x: 90, y: 30 });
 });
 
 test("own-player labels stay unique while opponent identity remains numeric", () => {

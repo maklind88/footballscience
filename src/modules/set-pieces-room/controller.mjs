@@ -513,6 +513,7 @@ export function createSetPiecesRoomController(options = {}) {
     root.addEventListener("pointerdown", boardInteractions.handlePointerDown);
     documentRef.addEventListener("pointermove", boardInteractions.handlePointerMove);
     documentRef.addEventListener("pointerup", boardInteractions.handlePointerUp);
+    documentRef.addEventListener("pointercancel", boardInteractions.handlePointerCancel);
     documentRef.addEventListener("keydown", boardInteractions.handleKeyDown);
   }
 

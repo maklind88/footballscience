@@ -51,7 +51,7 @@ function renderElement(element = {}, options = {}) {
   const common = `class="${classes}" transform="${transform}" data-element-id="${escapeSetPieceHtml(element.id)}" data-layer="${escapeSetPieceHtml(element.kind)}"`;
   if (element.kind === "opponent") {
     return `<g ${common}>
-      <circle r="3.45" class="spr-element-hit"></circle>
+      <circle r="4" class="spr-element-hit"></circle>
       <circle r="2.75" class="spr-opponent-token"></circle>
       <path d="M0-2.2V-4.3" class="spr-body-direction"></path>
       <text y=".85">${escapeSetPieceHtml(element.label || "1")}</text>
@@ -60,14 +60,14 @@ function renderElement(element = {}, options = {}) {
   }
   if (element.kind === "ball") {
     return `<g ${common}>
-      <circle r="2.8" class="spr-element-hit"></circle>
+      <circle r="3.4" class="spr-element-hit"></circle>
       <circle r="1.45" class="spr-ball-token"></circle>
       <path d="M-.8-.45.1-1.05.9-.35.55.65-.55.65Z" class="spr-ball-detail"></path>
       ${selected ? '<circle r="3.35" class="spr-selection-ring"></circle>' : ""}
     </g>`;
   }
   return `<g ${common}>
-    <rect x="-3.45" y="-3.45" width="6.9" height="6.9" rx="2.25" class="spr-element-hit"></rect>
+    <rect x="-4" y="-4" width="8" height="8" rx="2.65" class="spr-element-hit"></rect>
     <rect x="-2.85" y="-2.85" width="5.7" height="5.7" rx="1.7" class="spr-home-token"></rect>
     <path d="M0-2.35V-4.45" class="spr-body-direction"></path>
     <text y=".82">${escapeSetPieceHtml(element.label || "P")}</text>

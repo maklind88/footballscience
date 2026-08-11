@@ -5,6 +5,7 @@ import {
   getSetPieceSvgPoint,
   isSetPiecePointInsideRect,
   normalizeSetPiecePoint,
+  normalizeSetPiecePointForPitchView,
 } from "./geometry.mjs";
 import { createSetPiecePlayerLabelMap } from "./player-labels.mjs";
 import { createSetPieceId } from "./state.mjs";
@@ -28,6 +29,50 @@ function createBoardElement(kind, point, overrides = {}) {
 export function createSetPiecesBoardInteractionController(options = {}) {
   const root = options.root;
   let interaction = null;
+
+  function getVisibleElements(phase, ui) {
+    return (phase?.elements || []).filter((element) => {
+      if (element.kind === "home-player") return ui.layers.has("home");
+      if (element.kind === "opponent") return ui.layers.has("opponent");
+      return ui.layers.has("ball");
+    });
+  }
+
+  function getSvgHitRadius(svg, pixels = 22) {
+    const matrix = svg?.getScreenCTM?.();
+    if (!matrix) return 3.5;
+    const scaleX = Math.hypot(matrix.a, matrix.b);
+    const scaleY = Math.hypot(matrix.c, matrix.d);
+    const scale = Math.max(0.01, Math.min(scaleX || scaleY, scaleY || scaleX));
+    return Math.min(5, Math.max(1.6, pixels / scale));
+  }
+
+  function refreshInteractionBoard() {
+    options.renderBoardOnly();
+    const activeSvg = root?.querySelector?.("[data-set-piece-pitch]");
+    if (interaction && activeSvg) interaction.svg = activeSvg;
+  }
+
+  function capturePointer(stage, pointerId) {
+    try {
+      stage?.setPointerCapture?.(pointerId);
+    } catch {
+      // Pointer capture is an enhancement; document listeners remain the fallback.
+    }
+  }
+
+  function releasePointer(stage, pointerId) {
+    try {
+      if (stage?.hasPointerCapture?.(pointerId)) stage.releasePointerCapture(pointerId);
+    } catch {
+      // The pointer may already have been released by the browser.
+    }
+  }
+
+  function updateMovedElementDom(element) {
+    const marker = root?.querySelector?.(`.spr-element-layer [data-element-id="${CSS.escape(element.id)}"]`);
+    if (marker) marker.setAttribute("transform", `translate(${element.x} ${element.y}) rotate(${Number(element.rotation || 0)})`);
+  }
 
   function placeElement(point) {
     const { phase } = options.getContext();
@@ -76,15 +121,20 @@ export function createSetPiecesBoardInteractionController(options = {}) {
   }
 
   function handlePointerDown(event) {
-    if (event.button !== 0) return;
+    if (interaction || event.button !== 0 || event.isPrimary === false) return;
     const svg = event.target.closest?.("[data-set-piece-pitch]");
     if (!svg) return;
     const point = getSetPieceSvgPoint(svg, event.clientX, event.clientY);
     const { phase } = options.getContext();
     if (!point || !phase) return;
     const ui = options.ui;
-    const elementId = event.target.closest?.("[data-element-id]")?.dataset.elementId;
+    const directElementId = event.target.closest?.("[data-element-id]")?.dataset.elementId;
     const drawingId = event.target.closest?.("[data-drawing-id]")?.dataset.drawingId;
+    const nearbyElement = ui.activeTool === "select" && !directElementId && !drawingId
+      ? getNearestSetPieceElement(getVisibleElements(phase, ui), point, getSvgHitRadius(svg))
+      : null;
+    const elementId = directElementId || nearbyElement?.id || "";
+    const stage = svg.closest?.("[data-set-piece-board-stage]");
     if (ui.activeTool === "select" && elementId) {
       if (event.shiftKey) {
         if (ui.selectedElementIds.has(elementId)) ui.selectedElementIds.delete(elementId);
@@ -94,8 +144,19 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       }
       ui.selectedDrawingId = "";
       const positions = new Map(phase.elements.filter((element) => ui.selectedElementIds.has(element.id)).map((element) => [element.id, { x: element.x, y: element.y }]));
-      interaction = { type: "move", svg, start: point, positions, beforeState: structuredClone(options.getState()), moved: false };
-      options.renderBoardOnly();
+      interaction = {
+        type: "move",
+        svg,
+        stage,
+        pointerId: event.pointerId,
+        start: point,
+        startClient: { x: event.clientX, y: event.clientY },
+        positions,
+        beforeState: structuredClone(options.getState()),
+        moved: false,
+      };
+      capturePointer(stage, event.pointerId);
+      refreshInteractionBoard();
       event.preventDefault();
       return;
     }
@@ -110,51 +171,61 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       return;
     }
     if (setPieceDrawingTypes.has(ui.activeTool) && options.canEdit()) {
-      interaction = { type: "draw", svg, start: point };
+      interaction = { type: "draw", svg, stage, pointerId: event.pointerId, start: point, drawingType: ui.activeTool };
+      capturePointer(stage, event.pointerId);
       ui.previewDrawing = { id: "preview", type: ui.activeTool, startX: point.x, startY: point.y, endX: point.x, endY: point.y, curve: 0 };
-      options.renderBoardOnly();
+      refreshInteractionBoard();
       event.preventDefault();
       return;
     }
     if (ui.activeTool === "select") {
       ui.selectedElementIds.clear();
       ui.selectedDrawingId = "";
-      interaction = { type: "select", svg, start: point };
+      interaction = { type: "select", svg, stage, pointerId: event.pointerId, start: point };
+      capturePointer(stage, event.pointerId);
       ui.selectionRect = { startX: point.x, startY: point.y, endX: point.x, endY: point.y };
-      options.renderBoardOnly();
+      refreshInteractionBoard();
+      event.preventDefault();
     }
   }
 
   function handlePointerMove(event) {
-    if (!interaction) return;
+    if (!interaction || event.pointerId !== interaction.pointerId) return;
     const point = getSetPieceSvgPoint(interaction.svg, event.clientX, event.clientY);
-    const { phase } = options.getContext();
+    const { phase, play } = options.getContext();
     if (!point || !phase) return;
     const ui = options.ui;
     if (interaction.type === "move" && options.canEdit()) {
+      const screenDistance = Math.hypot(event.clientX - interaction.startClient.x, event.clientY - interaction.startClient.y);
+      if (!interaction.moved && screenDistance < 3) return;
       const dx = point.x - interaction.start.x;
       const dy = point.y - interaction.start.y;
-      interaction.moved ||= Math.hypot(dx, dy) > 0.35;
+      interaction.moved = true;
       phase.elements.forEach((element) => {
         const origin = interaction.positions.get(element.id);
-        if (origin) Object.assign(element, normalizeSetPiecePoint({ x: origin.x + dx, y: origin.y + dy }));
+        if (!origin) return;
+        Object.assign(element, normalizeSetPiecePointForPitchView({ x: origin.x + dx, y: origin.y + dy }, play?.pitchView));
+        updateMovedElementDom(element);
       });
-      options.renderBoardOnly();
+      event.preventDefault();
     }
     if (interaction.type === "draw") {
       Object.assign(ui.previewDrawing, { endX: point.x, endY: point.y });
-      options.renderBoardOnly();
+      refreshInteractionBoard();
+      event.preventDefault();
     }
     if (interaction.type === "select") {
       Object.assign(ui.selectionRect, { endX: point.x, endY: point.y });
-      options.renderBoardOnly();
+      refreshInteractionBoard();
+      event.preventDefault();
     }
   }
 
   function handlePointerUp(event) {
-    if (!interaction) return;
+    if (!interaction || event.pointerId !== interaction.pointerId) return;
     const completed = interaction;
     interaction = null;
+    releasePointer(completed.stage, completed.pointerId);
     const point = getSetPieceSvgPoint(completed.svg, event.clientX, event.clientY) || completed.start;
     const { phase } = options.getContext();
     const ui = options.ui;
@@ -167,7 +238,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       const actor = getNearestSetPieceElement(phase.elements, completed.start);
       const drawing = {
         id: createSetPieceId("drawing"),
-        type: ui.activeTool,
+        type: completed.drawingType,
         startX: completed.start.x,
         startY: completed.start.y,
         endX: point.x,
@@ -190,6 +261,23 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     }
     ui.previewDrawing = null;
     ui.selectionRect = null;
+    options.render();
+  }
+
+  function handlePointerCancel(event) {
+    if (!interaction || event.pointerId !== interaction.pointerId) return;
+    const cancelled = interaction;
+    interaction = null;
+    releasePointer(cancelled.stage, cancelled.pointerId);
+    if (cancelled.type === "move") {
+      const { phase } = options.getContext();
+      phase?.elements?.forEach((element) => {
+        const origin = cancelled.positions.get(element.id);
+        if (origin) Object.assign(element, origin);
+      });
+    }
+    options.ui.previewDrawing = null;
+    options.ui.selectionRect = null;
     options.render();
   }
 
@@ -231,5 +319,5 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     }
   }
 
-  return Object.freeze({ handleKeyDown, handlePointerDown, handlePointerMove, handlePointerUp });
+  return Object.freeze({ handleKeyDown, handlePointerCancel, handlePointerDown, handlePointerMove, handlePointerUp });
 }

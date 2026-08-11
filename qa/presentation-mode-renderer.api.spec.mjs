@@ -79,6 +79,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     getAvailabilityItems: () => [
       { player: { id: "p1", name: "Ada Keeper", position: "GK", photoUrl: "https://example.com/ada.jpg" }, record: { id: "r1" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p2", name: "Bea Mid", position: "CM" }, record: { id: "r2" }, participation: 0, status: { label: "Unavailable" } },
+      { player: { id: "p6", name: "Zara Striker", position: "Forward" }, participation: 0, status: { label: "Unavailable" } },
+      { player: { id: "p7", name: "Anna Defender", position: "Defender" }, participation: 0, status: { label: "Unavailable" } },
+      { player: { id: "p8", name: "Kara Keeper", position: "Goalkeeper" }, participation: 0, status: { label: "Unavailable" } },
       { player: { id: "p3", name: "Zoe Striker", position: "Forward" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p4", name: "Cara Defender", position: "Defender" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p5", name: "Mia Midfield", position: "Midfielder" }, participation: 100, status: { label: "Full" } },
@@ -99,7 +102,10 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   const model = controller.buildModel();
   expect(model.slides.map((slide) => slide.type)).toEqual(["cover", "info", "overview", "block"]);
   expect(model.medicalRecommendations.map((item) => item.player.name)).toEqual([
+    "Kara Keeper",
+    "Anna Defender",
     "Bea Mid",
+    "Zara Striker",
     "Ada Keeper",
     "Cara Defender",
     "Mia Midfield",

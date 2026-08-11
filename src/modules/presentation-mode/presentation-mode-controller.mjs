@@ -373,10 +373,8 @@ function sortMedicalRecommendations(first, second) {
   const firstParticipation = Number.isFinite(Number(first.participation)) ? Number(first.participation) : 101;
   const secondParticipation = Number.isFinite(Number(second.participation)) ? Number(second.participation) : 101;
   if (firstParticipation !== secondParticipation) return firstParticipation - secondParticipation;
-  if (firstParticipation >= 100 && secondParticipation >= 100) {
-    const positionDelta = getMedicalPositionRank(first.player) - getMedicalPositionRank(second.player);
-    if (positionDelta) return positionDelta;
-  }
+  const positionDelta = getMedicalPositionRank(first.player) - getMedicalPositionRank(second.player);
+  if (positionDelta) return positionDelta;
   return String(first.player?.name || "").localeCompare(String(second.player?.name || ""));
 }
 

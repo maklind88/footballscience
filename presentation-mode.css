@@ -446,6 +446,47 @@ body.is-presentation-mode-open {
   min-width: 0;
 }
 
+.presentation-pass-controls label:has(input[type="date"]) {
+  position: relative;
+}
+
+.presentation-pass-controls label:has(input[type="date"])::before,
+.presentation-pass-controls label:has(input[type="date"])::after {
+  position: absolute;
+  pointer-events: none;
+  content: "";
+}
+
+.presentation-pass-controls label:has(input[type="date"])::after {
+  top: 50%;
+  right: .74rem;
+  width: .88rem;
+  height: .88rem;
+  border: 2px solid rgba(248, 250, 252, .9);
+  border-radius: .2rem;
+  background:
+    linear-gradient(rgba(248, 250, 252, .9), rgba(248, 250, 252, .9)) 22% 18% / .11rem .28rem no-repeat,
+    linear-gradient(rgba(248, 250, 252, .9), rgba(248, 250, 252, .9)) 78% 18% / .11rem .28rem no-repeat,
+    linear-gradient(rgba(248, 250, 252, .22), rgba(248, 250, 252, .22)) 0 32% / 100% .12rem no-repeat;
+  box-shadow:
+    0 0 0 1px rgba(8, 15, 20, .48),
+    0 0 .75rem color-mix(in srgb, var(--presentation-accent, #38bdf8) 30%, transparent);
+  opacity: .96;
+  transform: translateY(-50%);
+}
+
+.presentation-pass-controls label:has(input[type="date"])::before {
+  right: .96rem;
+  top: calc(50% + .13rem);
+  z-index: 1;
+  width: .45rem;
+  height: .3rem;
+  background:
+    radial-gradient(circle, rgba(248, 250, 252, .9) 0 .055rem, transparent .06rem) 0 0 / .22rem .16rem,
+    radial-gradient(circle, rgba(248, 250, 252, .72) 0 .05rem, transparent .055rem) .11rem .14rem / .22rem .16rem;
+  transform: translateY(-50%);
+}
+
 .presentation-pass-controls input,
 .presentation-editor-strip select,
 .presentation-editor-strip input {
@@ -468,13 +509,19 @@ body.is-presentation-mode-open {
 
 .presentation-pass-controls input {
   width: 9.8rem;
+  padding-right: 2.24rem;
+  accent-color: #f8fafc;
   color-scheme: dark;
 }
 
 .presentation-pass-controls input[type="date"]::-webkit-calendar-picker-indicator {
-  opacity: .92;
+  position: relative;
+  z-index: 2;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin-right: -.28rem;
+  opacity: 0;
   cursor: pointer;
-  filter: invert(1) brightness(1.55) saturate(.88);
 }
 
 .presentation-control-actions {

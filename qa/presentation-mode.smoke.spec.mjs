@@ -217,6 +217,27 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation).toContainText("Matchday Presentation Training");
   await expect(presentation.locator("[data-presentation-pass-select]")).toHaveCount(0);
   await expect(presentation.locator("[data-presentation-date-input]")).toHaveValue(dateValue);
+  const dateIconStyle = await presentation.locator(".presentation-pass-controls label:has([data-presentation-date-input])").evaluate((label) => {
+    const icon = getComputedStyle(label, "::after");
+    const marker = getComputedStyle(label, "::before");
+    const input = label.querySelector("[data-presentation-date-input]");
+    return {
+      borderColor: icon.borderTopColor,
+      display: icon.display,
+      inputPaddingRight: input ? getComputedStyle(input).paddingRight : "",
+      markerBackground: marker.backgroundImage,
+      opacity: icon.opacity,
+      width: icon.width,
+    };
+  });
+  expect(dateIconStyle).toMatchObject({
+    display: "block",
+    opacity: "0.96",
+  });
+  expect(dateIconStyle.borderColor).toBe("rgba(248, 250, 252, 0.9)");
+  expect(dateIconStyle.inputPaddingRight).not.toBe("0px");
+  expect(dateIconStyle.markerBackground).toContain("radial-gradient");
+  expect(dateIconStyle.width).not.toBe("auto");
   await expect(presentation.locator(".presentation-control-brand strong")).toHaveText("Presentation Mode");
   await expect(presentation.locator(".presentation-control-brand")).not.toContainText("Matchday Presentation Training");
   await expect(presentation.locator(".presentation-pass-controls label > span", { hasText: /^Date$/ })).toHaveCount(0);

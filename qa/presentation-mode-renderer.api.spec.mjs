@@ -173,7 +173,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml).not.toContain("Medical Plan");
   expect(overviewHtml).toContain("https://example.com/ada.jpg");
   expect(overviewHtml).toContain("100%");
-  expect(overviewHtml).toContain("0%");
+  expect(overviewHtml).toContain("Ej rekommenderad");
+  expect(overviewHtml).not.toContain(">0%</span>");
   expect(overviewHtml).toContain("presentation-block-flow");
   expect(overviewHtml).not.toContain("Overview block meta");
   expect(overviewHtml).not.toContain('data-presentation-text-field="overview.b1.meta"');

@@ -134,6 +134,13 @@ function getParticipationTone(participation) {
   return "full";
 }
 
+function getParticipationLabel(participation) {
+  const value = Number(participation);
+  if (!Number.isFinite(value)) return "-";
+  if (value <= 0) return "Ej rekommenderad";
+  return `${Math.round(value)}%`;
+}
+
 function getInitials(name = "") {
   const parts = String(name || "")
     .trim()
@@ -270,6 +277,9 @@ export function createPresentationModeRenderer(options = {}) {
     const key = String(field || "").trim();
     const overrides = slide.textOverrides && typeof slide.textOverrides === "object" ? slide.textOverrides : {};
     const value = Object.prototype.hasOwnProperty.call(overrides, key) ? String(overrides[key] ?? "") : String(fallback ?? "");
+    if (/^medical\.[^.]+\.percentage$/.test(key) && value.trim() === "0%") {
+      return getParticipationLabel(0);
+    }
     if (key === "block.label" || /^players\.[^.]+\..+\.meta$/.test(key)) {
       return removeParticipationPercentText(value);
     }
@@ -951,14 +961,14 @@ export function createPresentationModeRenderer(options = {}) {
   function renderMedicalRecommendation(model = {}, slide = {}, item = {}, index = 0) {
     const player = item.player || {};
     const participation = Number(item.participation);
-    const percentage = Number.isFinite(participation) ? `${Math.round(participation)}%` : "-";
+    const participationLabel = getParticipationLabel(participation);
     const tone = getParticipationTone(participation);
     const key = getStableTextKey(player.id || player.name, `player-${index + 1}`);
     return `
       <article class="presentation-medical-player is-${escapeHtml(tone)}">
         ${renderRecommendationAvatar(player)}
         ${renderEditableElement(model, slide, `medical.${key}.name`, player.name || "Player", "strong", "", { label: "Player name" })}
-        ${renderEditableElement(model, slide, `medical.${key}.percentage`, percentage, "span", "", { label: "Player participation" })}
+        ${renderEditableElement(model, slide, `medical.${key}.percentage`, participationLabel, "span", "", { label: "Player participation" })}
       </article>
     `;
   }

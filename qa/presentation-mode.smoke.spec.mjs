@@ -746,7 +746,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-medical-overview")).not.toContainText("Medical Plan");
   await expect(presentation.locator(".presentation-medical-player").first()).toBeVisible();
   await expect(presentation.locator(".presentation-medical-player > span:last-child", { hasText: /^100%$/ }).first()).toBeVisible();
-  await expect(presentation.locator(".presentation-medical-player > span:last-child", { hasText: /^0%$/ }).first()).toBeVisible();
+  await expect(presentation.locator(".presentation-medical-player > span:last-child", { hasText: /^Ej rekommenderad$/ }).first()).toBeVisible();
+  await expect(presentation.locator(".presentation-medical-player > span:last-child", { hasText: /^0%$/ })).toHaveCount(0);
   const overviewLoadLayout = await presentation.evaluate(() => {
     const load = document.querySelector(".presentation-overview-metric.is-load");
     const video = document.querySelector(".presentation-overview-metric.is-video");

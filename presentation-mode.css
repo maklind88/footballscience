@@ -2074,14 +2074,18 @@ body.is-presentation-text-field-resizing {
 
 .presentation-medical-player > span:last-child {
   min-width: clamp(2.05rem, 4.8vh, 3.12rem);
+  max-width: min(8.6rem, 42cqw);
   border-radius: 999px;
   padding: .16rem clamp(.24rem, .34vw, .4rem);
+  overflow: hidden;
   color: #07120d;
   background: #86efac;
-  font-size: clamp(.62rem, 1.3vh, .9rem);
+  font-size: clamp(.54rem, 1.12vh, .82rem);
   font-weight: 950;
   line-height: 1;
   text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .presentation-medical-player.is-modified > span:last-child,

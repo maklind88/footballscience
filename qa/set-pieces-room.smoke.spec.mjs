@@ -51,6 +51,8 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await openSetPiecesRoom(page);
 
   await expect(page.getByRole("heading", { name: "Set Pieces Room" })).toBeVisible();
+  await expect(page.locator(".spr-header-team-mark")).toBeVisible();
+  await expect(page.locator(".spr-header-team-name")).not.toHaveText("Football Science");
   await page.getByRole("button", { name: "Create set piece" }).click();
   await expect(page.locator("[data-set-piece-pitch]")).toBeVisible();
 

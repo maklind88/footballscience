@@ -153,6 +153,67 @@ body.is-dark-mode .spr-variant-tabs button.is-active {
   border-right: 1px solid var(--spr-line);
 }
 
+.spr-header-identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: .62rem;
+}
+
+.spr-header-team-mark {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 38px;
+  overflow: hidden;
+  border: 1px solid var(--spr-line);
+  border-radius: 7px;
+  background: var(--spr-soft);
+}
+
+.spr-header-team-mark .squad-module-mark,
+.spr-header-team-mark .squad-team-logo-mark,
+.spr-header-team-mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+  border-radius: inherit;
+}
+
+.spr-header-team-mark img {
+  object-fit: contain;
+}
+
+.spr-header-team-mark strong,
+.spr-team-mark-fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: var(--spr-ink);
+  font-size: .7rem;
+  font-weight: 780;
+}
+
+.spr-header-titles {
+  min-width: 0;
+}
+
+.spr-header .spr-header-team-name {
+  max-width: min(52vw, 340px);
+  margin-bottom: .2rem;
+  overflow: hidden;
+  color: var(--spr-muted);
+  font-size: .67rem;
+  font-weight: 760;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .spr-plan-title span,
 .spr-tool-group-label {
   color: var(--spr-muted);

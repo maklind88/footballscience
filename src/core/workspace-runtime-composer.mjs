@@ -152,6 +152,20 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
     storageKey: deps.setPiecesRoomStorageKey,
     getPlayerProfilesState: () => deps.ensurePlayerProfilesState?.() || {},
     getCurrentUser: deps.getCurrentPlatformUser,
+    getTeamIdentity: () => {
+      const currentUser = deps.getCurrentPlatformUser?.() || {};
+      const displayTeam = deps.getPlatformTeamDisplayTeam?.(currentUser) || null;
+      const teamName = displayTeam?.name || deps.getPlatformTeamDisplayName?.(currentUser) || currentUser.teamName || currentUser.team || "Team";
+      const team = displayTeam || {
+        name: teamName,
+        shortName: currentUser.teamShortName || currentUser.team_short_name || "",
+        logoUrl: currentUser.teamLogoUrl || currentUser.team_logo_url || currentUser.teamLogo || "",
+      };
+      return {
+        name: teamName,
+        logoMarkup: deps.renderPlatformTeamLogoMark?.(team, { teamName, canUpload: false }) || "",
+      };
+    },
     canEdit: () => deps.canCurrentUserEditWorkspace?.("set-pieces-room") !== false,
   });
   const renderWorkspaceByViewId = (activeViewId) => {

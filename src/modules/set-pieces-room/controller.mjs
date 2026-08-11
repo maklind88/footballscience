@@ -112,7 +112,8 @@ export function createSetPiecesRoomController(options = {}) {
   function render() {
     if (!root) return;
     const roster = getRoster();
-    root.innerHTML = renderSetPiecesWorkspace({ state, roster, ui: rendererUi(), canEdit: canEdit() });
+    const team = options.getTeamIdentity?.() || {};
+    root.innerHTML = renderSetPiecesWorkspace({ state, roster, team, ui: rendererUi(), canEdit: canEdit() });
   }
 
   function renderBoardOnly() {

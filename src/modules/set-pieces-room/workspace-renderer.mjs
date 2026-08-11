@@ -14,6 +14,25 @@ function optionsMarkup(options = [], value = "") {
   return options.map((option) => `<option value="${escapeSetPieceHtml(option.value)}" ${option.value === value ? "selected" : ""}>${escapeSetPieceHtml(option.label)}</option>`).join("");
 }
 
+function teamInitials(teamName = "Team") {
+  return String(teamName || "Team")
+    .trim()
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 3)
+    .toUpperCase() || "TM";
+}
+
+function renderTeamIdentity(team = {}) {
+  const teamName = String(team.name || "Team").trim() || "Team";
+  const mark = team.logoMarkup || `<span class="spr-team-mark-fallback" aria-label="${escapeSetPieceHtml(`${teamName} logo`)}">${escapeSetPieceHtml(teamInitials(teamName))}</span>`;
+  return `<div class="spr-header-identity">
+    <span class="spr-header-team-mark">${mark}</span>
+    <div class="spr-header-titles"><p class="spr-header-team-name">${escapeSetPieceHtml(teamName)}</p><h1>Set Pieces Room</h1></div>
+  </div>`;
+}
+
 function renderToolRail(ui = {}, roster = []) {
   const groups = [
     { label: "Edit", tools: ["select"] },
@@ -230,13 +249,14 @@ export function renderSetPiecesWorkspace(options = {}) {
   const state = options.state || { plays: [] };
   const ui = options.ui || {};
   const roster = options.roster || [];
+  const team = options.team || {};
   const play = getActiveSetPiece(state);
   const variant = getActiveSetPieceVariant(play || {});
   const phase = getActiveSetPiecePhase(variant || {});
   const canEdit = options.canEdit !== false;
   return `<section class="spr-shell ${ui.presentationMode ? "is-presenting" : ""} ${ui.inspectorCollapsed ? "is-inspector-collapsed" : ""}" data-set-pieces-room>
     <header class="spr-header">
-      <div><p>Football Science</p><h1>Set Pieces Room</h1></div>
+      ${renderTeamIdentity(team)}
       <div class="spr-save-state ${ui.saveState === "error" ? "is-error" : ""}" role="status">${escapeSetPieceHtml(ui.saveMessage || (canEdit ? "Saved" : "View only"))}</div>
     </header>
     <div class="spr-layout">

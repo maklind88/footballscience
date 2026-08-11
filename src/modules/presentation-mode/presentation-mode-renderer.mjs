@@ -287,6 +287,15 @@ export function createPresentationModeRenderer(options = {}) {
     );
   }
 
+  function isActiveTextField(model = {}, slide = {}, field = "") {
+    const target = model.activeTextTarget;
+    return Boolean(!model.presenting && target?.slideId === slide.id && target.field === field);
+  }
+
+  function getActiveTextAttribute(model = {}, slide = {}, field = "") {
+    return isActiveTextField(model, slide, field) ? `data-presentation-active-text="true"` : "";
+  }
+
   function getEditableAttributes(model = {}, slide = {}, field = "", options = {}) {
     if (model.presenting || !slide.id || !field) {
       return "";
@@ -294,6 +303,7 @@ export function createPresentationModeRenderer(options = {}) {
     return [
       `data-presentation-slide-id="${escapeHtml(slide.id)}"`,
       `data-presentation-text-field="${escapeHtml(field)}"`,
+      getActiveTextAttribute(model, slide, field),
       options.multiline ? `data-presentation-text-multiline="true"` : "",
       `contenteditable="true"`,
       `spellcheck="true"`,
@@ -791,6 +801,7 @@ export function createPresentationModeRenderer(options = {}) {
             data-presentation-info-id="${escapeHtml(infoSlide.id)}"
             data-presentation-slide-id="${escapeHtml(frameSlide.id)}"
             data-presentation-text-field="info.title"
+            ${getActiveTextAttribute(model, frameSlide, "info.title")}
             aria-label="Info slide title"
             ${getTextFieldStyleAttribute(frameSlide, "info.title")}
             ${readonly}
@@ -803,6 +814,7 @@ export function createPresentationModeRenderer(options = {}) {
             data-presentation-slide-id="${escapeHtml(frameSlide.id)}"
             data-presentation-text-field="info.body"
             data-presentation-text-multiline="true"
+            ${getActiveTextAttribute(model, frameSlide, "info.body")}
             aria-label="Info slide content"
             spellcheck="true"
             ${getTextFieldStyleAttribute(frameSlide, "info.body")}

@@ -343,7 +343,18 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(textToolbar).toBeVisible();
   await expect(presentation).toHaveClass(/is-text-toolbar-open/);
   const slideTopBeforeToolbar = await presentation.locator(".presentation-slide").evaluate((slide) => slide.getBoundingClientRect().top);
-  await presentation.locator(".presentation-info-title").click();
+  const infoTitle = presentation.locator(".presentation-info-title");
+  await infoTitle.click();
+  await expect(infoTitle).toHaveAttribute("data-presentation-active-text", "true");
+  const activeTextMarker = await infoTitle.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      background: style.backgroundColor,
+      boxShadow: style.boxShadow,
+    };
+  });
+  expect(activeTextMarker.background).not.toBe("rgba(0, 0, 0, 0)");
+  expect(activeTextMarker.boxShadow).not.toBe("none");
   await expect(presentation).toHaveClass(/is-text-toolbar-open/);
   await expect(textToolbar).toBeVisible();
   const toolbarDockLayout = await presentation.evaluate((root, beforeTop) => {
@@ -385,6 +396,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(textToolbar.locator("[aria-label='Insert check']")).toBeHidden();
   const styleMenu = textToolbar.locator("[data-presentation-style-menu]");
   await styleMenu.locator("summary").click();
+  await expect(infoTitle).toHaveAttribute("data-presentation-active-text", "true");
   await expect(styleMenu.locator(".presentation-tool-popover-panel")).toBeVisible();
   await expect(styleMenu.locator("[data-presentation-active-font-size]")).toBeVisible();
   await expect(styleMenu.locator("[data-presentation-active-font-size]")).toHaveValue("");

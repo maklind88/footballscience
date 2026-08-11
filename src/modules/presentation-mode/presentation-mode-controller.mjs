@@ -1023,7 +1023,7 @@ export function createPresentationModeController(dependencies = {}) {
 
   function getActiveTextElement() {
     const target = state.activeTextTarget;
-    if (!root || !target?.slideId || !target.field) {
+    if (!root || typeof root.querySelectorAll !== "function" || !target?.slideId || !target.field) {
       return null;
     }
     return [...root.querySelectorAll("[data-presentation-slide-id][data-presentation-text-field]")].find(
@@ -1045,8 +1045,30 @@ export function createPresentationModeController(dependencies = {}) {
     getActiveTextElement()?.focus?.({ preventScroll: true });
   }
 
+  function syncActiveCanvasSelection() {
+    if (!root || typeof root.querySelectorAll !== "function") return;
+    const activeTextElement = getActiveTextElement();
+    root.querySelectorAll("[data-presentation-active-text='true']").forEach((element) => {
+      if (element !== activeTextElement) {
+        element.removeAttribute("data-presentation-active-text");
+      }
+    });
+    root.querySelectorAll("[data-presentation-text-box-shell]").forEach((textBoxShell) => {
+      const isActive =
+        !state.presenting &&
+        Boolean(state.activeTextTarget?.textBoxId) &&
+        textBoxShell.dataset.presentationSlideId === state.activeTextTarget.slideId &&
+        textBoxShell.dataset.presentationTextBoxId === state.activeTextTarget.textBoxId;
+      textBoxShell.classList.toggle("is-selected", isActive);
+    });
+    if (!state.presenting && activeTextElement) {
+      activeTextElement.setAttribute("data-presentation-active-text", "true");
+    }
+  }
+
   function syncTextToolbar() {
     if (!root) return;
+    syncActiveCanvasSelection();
     const shell = root.querySelector("[data-presentation-mode-shell]");
     const toolbar = root.querySelector("[data-presentation-text-toolbar]");
     if (!shell || !toolbar || state.presenting) {

@@ -1333,7 +1333,10 @@ body.is-presentation-mode-open {
 .presentation-free-text-box-shell.is-selected .presentation-free-text-box,
 .presentation-free-text-box-shell.is-dragging .presentation-free-text-box {
   border-color: color-mix(in srgb, var(--presentation-accent, #38bdf8) 78%, #ffffff);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--presentation-accent, #38bdf8) 28%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--presentation-accent, #38bdf8) 42%, transparent),
+    0 0 0 .34rem color-mix(in srgb, var(--presentation-accent, #38bdf8) 13%, transparent),
+    0 18px 38px rgba(0, 0, 0, .18);
 }
 
 body.is-presentation-text-box-dragging {
@@ -1411,6 +1414,9 @@ body.is-presentation-shape-drawing {
 
 .presentation-mode-shell:not(.is-presenting) [data-presentation-text-field] {
   border-radius: 5px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  caret-color: var(--presentation-accent, #38bdf8);
   cursor: text;
   outline: 0;
   transition:
@@ -1426,6 +1432,23 @@ body.is-presentation-shape-drawing {
 .presentation-mode-shell:not(.is-presenting) [data-presentation-text-field]:focus {
   background: color-mix(in srgb, var(--presentation-accent, #38bdf8) 13%, transparent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--presentation-accent, #38bdf8) 72%, transparent);
+}
+
+.presentation-mode-shell:not(.is-presenting) [data-presentation-text-field][data-presentation-active-text="true"] {
+  background: color-mix(in srgb, var(--presentation-accent, #38bdf8) 14%, rgba(15, 23, 42, .36));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--presentation-accent, #38bdf8) 82%, #ffffff),
+    0 0 0 .42rem color-mix(in srgb, var(--presentation-accent, #38bdf8) 17%, transparent),
+    0 16px 34px rgba(0, 0, 0, .18);
+}
+
+.presentation-mode-shell:not(.is-presenting) [data-presentation-text-field][data-presentation-active-text="true"]::selection {
+  color: #fff;
+  background: color-mix(in srgb, var(--presentation-accent, #38bdf8) 48%, rgba(15, 23, 42, .82));
+}
+
+.presentation-mode-shell:not(.is-presenting) .presentation-free-text-box-shell.is-selected .presentation-free-text-box[data-presentation-active-text="true"] {
+  background: color-mix(in srgb, var(--presentation-accent, #38bdf8) 15%, rgba(8, 15, 20, .38));
 }
 
 .presentation-cover .presentation-slide-body,

@@ -1325,16 +1325,48 @@ body.is-presentation-mode-open {
   min-height: 3.8rem;
 }
 
+.presentation-free-text-box-shell.is-symbol::after {
+  content: "";
+  position: absolute;
+  inset: -.24rem;
+  z-index: 1;
+  border: 1.25px dashed color-mix(in srgb, var(--presentation-accent, #38bdf8) 78%, #ffffff);
+  border-radius: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
 .presentation-free-text-box-shell.is-symbol .presentation-free-text-box {
   --presentation-editable-fit-size: clamp(1.25rem, min(12cqw, 42cqh), 8rem);
   min-height: 0;
   display: grid;
   place-items: center;
-  padding: .6rem 1.65rem 1.35rem;
+  padding: .14rem;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
   text-align: center;
   line-height: .95;
   cursor: grab;
   user-select: none;
+}
+
+.presentation-free-text-box-shell.is-symbol:hover::after,
+.presentation-free-text-box-shell.is-symbol.is-selected::after,
+.presentation-free-text-box-shell.is-symbol.is-dragging::after,
+.presentation-free-text-box-shell.is-symbol.is-resizing::after {
+  opacity: .82;
+}
+
+.presentation-free-text-box-shell.is-symbol .presentation-object-resize-handle {
+  z-index: 8;
+  width: .42rem;
+  height: .42rem;
+  margin: -.21rem;
+  border-color: color-mix(in srgb, var(--presentation-accent, #38bdf8) 78%, #ffffff);
+  background: color-mix(in srgb, var(--presentation-slide-bg, #08120f) 82%, #ffffff);
+  box-shadow: 0 0 0 1px rgba(248, 250, 252, .16), 0 3px 8px rgba(0, 0, 0, .24);
 }
 
 .presentation-text-box-edge-handle {
@@ -1391,6 +1423,14 @@ body.is-presentation-mode-open {
     0 0 0 1px color-mix(in srgb, var(--presentation-accent, #38bdf8) 42%, transparent),
     0 0 0 .34rem color-mix(in srgb, var(--presentation-accent, #38bdf8) 13%, transparent),
     0 18px 38px rgba(0, 0, 0, .18);
+}
+
+.presentation-free-text-box-shell.is-symbol:hover .presentation-free-text-box,
+.presentation-free-text-box-shell.is-symbol.is-selected .presentation-free-text-box,
+.presentation-free-text-box-shell.is-symbol.is-dragging .presentation-free-text-box {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 body.is-presentation-text-box-dragging {
@@ -1514,6 +1554,15 @@ body.is-presentation-shape-drawing {
 
 .presentation-mode-shell:not(.is-presenting) .presentation-free-text-box-shell.is-selected .presentation-free-text-box[data-presentation-active-text="true"] {
   background: color-mix(in srgb, var(--presentation-accent, #38bdf8) 15%, rgba(8, 15, 20, .38));
+}
+
+.presentation-mode-shell:not(.is-presenting) .presentation-free-text-box-shell.is-symbol .presentation-free-text-box:hover,
+.presentation-mode-shell:not(.is-presenting) .presentation-free-text-box-shell.is-symbol .presentation-free-text-box:focus,
+.presentation-mode-shell:not(.is-presenting) .presentation-free-text-box-shell.is-symbol .presentation-free-text-box[data-presentation-active-text="true"],
+.presentation-mode-shell:not(.is-presenting) .presentation-free-text-box-shell.is-symbol.is-selected .presentation-free-text-box[data-presentation-active-text="true"] {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
 }
 
 .presentation-text-field-edge-handle {

@@ -863,37 +863,31 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const activeStyle = getActiveTextStyle();
     shell.classList.add("is-text-toolbar-open");
-    const fontSize = toolbar.querySelector("[data-presentation-active-font-size]");
-    if (fontSize) {
+    toolbar.querySelectorAll("[data-presentation-active-font-size]").forEach((fontSize) => {
       fontSize.value = activeStyle.fontSize || "";
       fontSize.disabled = !state.activeTextTarget;
-    }
-    const textColor = toolbar.querySelector("[data-presentation-active-text-color]");
-    if (textColor) {
+    });
+    toolbar.querySelectorAll("[data-presentation-active-text-color]").forEach((textColor) => {
       textColor.value = normalizeHexColor(activeStyle.textColor, "#f8fafc");
       textColor.disabled = !state.activeTextTarget;
-    }
+    });
     const activeShape = getActiveShape();
-    const shapeFill = toolbar.querySelector("[data-presentation-active-shape-fill]");
-    if (shapeFill) {
+    toolbar.querySelectorAll("[data-presentation-active-shape-fill]").forEach((shapeFill) => {
       shapeFill.value = normalizeHexColor(activeShape?.fillColor, "#38bdf8");
       shapeFill.disabled = !activeShape;
-    }
-    const shapeStroke = toolbar.querySelector("[data-presentation-active-shape-stroke]");
-    if (shapeStroke) {
+    });
+    toolbar.querySelectorAll("[data-presentation-active-shape-stroke]").forEach((shapeStroke) => {
       shapeStroke.value = normalizeHexColor(activeShape?.strokeColor, "#f8fafc");
       shapeStroke.disabled = !activeShape;
-    }
-    const shapeOpacity = toolbar.querySelector("[data-presentation-active-shape-opacity]");
-    const shapeOpacityValue = toolbar.querySelector("[data-presentation-active-shape-opacity-value]");
+    });
     const opacityValue = normalizeOpacity(activeShape?.opacity, 90);
-    if (shapeOpacity) {
+    toolbar.querySelectorAll("[data-presentation-active-shape-opacity]").forEach((shapeOpacity) => {
       shapeOpacity.value = String(opacityValue);
       shapeOpacity.disabled = !activeShape;
-    }
-    if (shapeOpacityValue) {
+    });
+    toolbar.querySelectorAll("[data-presentation-active-shape-opacity-value]").forEach((shapeOpacityValue) => {
       shapeOpacityValue.textContent = activeShape ? `${opacityValue}%` : "--";
-    }
+    });
     const isInfoSlide = Boolean(state.activeTextTarget?.infoId);
     toolbar.querySelectorAll("[data-presentation-active-info-only]").forEach((control) => {
       control.disabled = !isInfoSlide;

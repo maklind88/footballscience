@@ -593,15 +593,15 @@ body.is-presentation-mode-open {
 }
 
 .presentation-control-edit-slot .presentation-text-toolbar .presentation-keynote-tool {
-  min-width: 4.05rem;
-  min-height: 3.24rem;
+  min-width: 3.25rem;
+  min-height: 3.02rem;
   display: grid;
-  grid-template-rows: 1.38rem auto;
+  grid-template-rows: 1.25rem auto;
   place-items: center;
-  gap: .16rem;
+  gap: .12rem;
   border-color: transparent;
   border-radius: 9px;
-  padding: .34rem .46rem .28rem;
+  padding: .3rem .34rem .26rem;
   color: rgba(226, 232, 240, .86);
   background: transparent;
   line-height: 1;
@@ -624,7 +624,7 @@ body.is-presentation-mode-open {
 
 .presentation-keynote-tool > span:not(.presentation-keynote-icon) {
   color: rgba(226, 232, 240, .82);
-  font-size: .68rem;
+  font-size: .62rem;
   font-weight: 780;
   letter-spacing: 0;
   text-transform: none;
@@ -632,8 +632,8 @@ body.is-presentation-mode-open {
 
 .presentation-keynote-icon {
   position: relative;
-  width: 1.5rem;
-  height: 1.34rem;
+  width: 1.34rem;
+  height: 1.2rem;
   display: grid;
   place-items: center;
   color: currentColor;
@@ -740,6 +740,82 @@ body.is-presentation-mode-open {
   align-self: center;
   margin: 0 .16rem;
   background: rgba(148, 163, 184, .2);
+}
+
+.presentation-quick-style-controls {
+  display: flex;
+  align-items: stretch;
+  gap: .08rem;
+  padding: 0 .12rem;
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control {
+  min-width: 2.58rem;
+  min-height: 3.24rem;
+  display: grid;
+  grid-template-rows: 1.38rem auto;
+  place-items: center;
+  gap: .16rem;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: .34rem .34rem .28rem;
+  background: transparent;
+  cursor: pointer;
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control:hover,
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control:focus-within {
+  border-color: rgba(125, 211, 252, .24);
+  background: rgba(148, 163, 184, .12);
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control:has(input:disabled) {
+  cursor: default;
+  opacity: .42;
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control span {
+  color: rgba(226, 232, 240, .82);
+  font-size: .58rem;
+  font-weight: 860;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control input[type="color"] {
+  width: 1.55rem;
+  height: 1.35rem;
+  min-height: 0;
+  border: 1px solid rgba(226, 232, 240, .28);
+  border-radius: 6px;
+  padding: .12rem;
+  background: rgba(15, 23, 42, .78);
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control.is-opacity {
+  min-width: 5.5rem;
+}
+
+.presentation-quick-style-control.is-opacity > span {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .28rem;
+}
+
+.presentation-quick-style-control.is-opacity output {
+  color: rgba(248, 250, 252, .92);
+  font-size: .58rem;
+  font-weight: 950;
+}
+
+.presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control input[type="range"] {
+  width: 4.8rem;
+  min-height: 0;
+  accent-color: var(--presentation-accent, #38bdf8);
 }
 
 .presentation-toolbar-command {

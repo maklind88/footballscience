@@ -479,18 +479,6 @@ export function createPresentationModeRenderer(options = {}) {
                 .join("")}
             </select>
           </label>
-          <label class="presentation-style-control">
-            <span>Text</span>
-            <input type="color" value="#f8fafc" data-presentation-active-text-color aria-label="Text color" />
-          </label>
-          <label class="presentation-style-control">
-            <span>Fill</span>
-            <input type="color" value="#38bdf8" data-presentation-active-shape-fill aria-label="Shape fill color" disabled />
-          </label>
-          <label class="presentation-style-control">
-            <span>Line</span>
-            <input type="color" value="#f8fafc" data-presentation-active-shape-stroke aria-label="Shape line color" disabled />
-          </label>
           <label class="presentation-style-control is-wide presentation-opacity-control">
             <span>Opacity <output data-presentation-active-shape-opacity-value>--</output></span>
             <input type="range" min="0" max="100" step="5" value="90" data-presentation-active-shape-opacity aria-label="Shape opacity" disabled />
@@ -510,6 +498,29 @@ export function createPresentationModeRenderer(options = {}) {
     );
   }
 
+  function renderQuickStyleControls(style = {}) {
+    return `
+      <div class="presentation-quick-style-controls" role="group" aria-label="Quick color controls">
+        <label class="presentation-quick-style-control" title="Text color">
+          <span>Text</span>
+          <input type="color" value="#f8fafc" data-presentation-active-text-color aria-label="Text color" disabled />
+        </label>
+        <label class="presentation-quick-style-control" title="Shape fill color">
+          <span>Fill</span>
+          <input type="color" value="#38bdf8" data-presentation-active-shape-fill aria-label="Shape fill color" disabled />
+        </label>
+        <label class="presentation-quick-style-control" title="Shape line color">
+          <span>Line</span>
+          <input type="color" value="#f8fafc" data-presentation-active-shape-stroke aria-label="Shape line color" disabled />
+        </label>
+        <label class="presentation-quick-style-control" title="Slide background color">
+          <span>Bg</span>
+          <input type="color" value="${escapeHtml(style.backgroundColor)}" data-presentation-style-field="backgroundColor" aria-label="Slide background color" />
+        </label>
+      </div>
+    `;
+  }
+
   function renderTextToolbar(model = {}) {
     const slide = model.slides?.[model.slideIndex] || model.slides?.[0] || {};
     const style = normalizePresentationSlideStyle(slide.style, { accentColor: slide.accentColor || model.accentColor });
@@ -518,6 +529,7 @@ export function createPresentationModeRenderer(options = {}) {
         ${renderToolbarButton("Text", "text", "data-presentation-add-text-box title=\"Add text box\" aria-label=\"Add text box\"", { iconLabel: "A" })}
         ${renderShapeMenu(model)}
         ${renderSymbolMenu()}
+        ${renderQuickStyleControls(style)}
         ${renderStyleMenu(style)}
         <span class="presentation-toolbar-separator" aria-hidden="true"></span>
         ${renderToolbarButton("Duplicate", "duplicate", "data-presentation-duplicate-info data-presentation-active-info-only disabled title=\"Duplicate slide\" aria-label=\"Duplicate slide\"", { utility: true })}

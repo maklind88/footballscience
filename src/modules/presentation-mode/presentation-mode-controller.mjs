@@ -10,6 +10,7 @@ const maxTextOverrideLength = 5000;
 const maxTextBoxesPerSlide = 12;
 const maxShapesPerSlide = 24;
 const shapeTypes = new Set(["rect", "circle", "triangle", "diamond", "line", "arrow", "star"]);
+const resizeAxes = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
 
 function noop() {}
 
@@ -436,6 +437,11 @@ export function createPresentationModeController(dependencies = {}) {
     };
   }
 
+  function getResizeAxis(element = null, fallback = "se") {
+    const axis = String(element?.dataset?.presentationResizeAxis || fallback || "se").trim().toLowerCase();
+    return resizeAxes.has(axis) ? axis : "se";
+  }
+
   function getTextBoxField(boxId = "") {
     return `textbox.${String(boxId || "").trim()}.text`;
   }
@@ -586,6 +592,8 @@ export function createPresentationModeController(dependencies = {}) {
       dateValue,
       editorOpen: state.editorOpen,
       event,
+      activeShapeTarget: state.activeShapeTarget ? { ...state.activeShapeTarget } : null,
+      activeTextTarget: state.activeTextTarget ? { ...state.activeTextTarget } : null,
       infoSlideCount: deck.infoSlides.length,
       loadLabel: periodization.physicalLoad || event?.type || "Not set",
       medicalRecommendations: getMedicalRecommendationsForDate(dateValue),
@@ -918,17 +926,19 @@ export function createPresentationModeController(dependencies = {}) {
 
   function setActiveTextTargetFromElement(element) {
     const textElement = element?.closest?.("[data-presentation-text-field]");
-    const slideId = String(textElement?.dataset.presentationSlideId || "").trim();
-    const field = String(textElement?.dataset.presentationTextField || "").trim();
+    const textBoxShell = textElement ? null : element?.closest?.("[data-presentation-text-box-shell]");
+    const textBoxId = String(textBoxShell?.dataset.presentationTextBoxId || "").trim();
+    const slideId = String(textElement?.dataset.presentationSlideId || textBoxShell?.dataset.presentationSlideId || "").trim();
+    const field = String(textElement?.dataset.presentationTextField || (textBoxId ? getTextBoxField(textBoxId) : "")).trim();
     if (!slideId || !field || state.presenting) {
       return;
     }
     state.activeShapeTarget = null;
     state.activeTextTarget = {
       field,
-      infoId: String(textElement.dataset.presentationInfoId || "").trim(),
+      infoId: String(textElement?.dataset.presentationInfoId || "").trim(),
       slideId,
-      textBoxId: String(textElement.dataset.presentationTextBoxId || "").trim(),
+      textBoxId: String(textElement?.dataset.presentationTextBoxId || textBoxId).trim(),
     };
     syncTextToolbar();
   }
@@ -1101,6 +1111,49 @@ export function createPresentationModeController(dependencies = {}) {
           [field]: {
             ...(deck.textFieldStyles?.[safeSlideId]?.[field] || {}),
             fontSize: safeFontSize,
+          },
+        },
+      }),
+    }));
+    state.activeShapeTarget = null;
+    state.activeTextTarget = { field, infoId: "", slideId: safeSlideId, textBoxId: safeBoxId };
+    render();
+    focusActiveTextElement();
+  }
+
+  function updateTextBoxBounds(slideId = "", boxId = "", bounds = {}, fontSize = "") {
+    const safeSlideId = String(slideId || "").trim();
+    const safeBoxId = String(boxId || "").trim();
+    const field = getTextBoxField(safeBoxId);
+    if (!safeSlideId || !safeBoxId) {
+      return;
+    }
+    let safeFontSize = "";
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      textBoxes: normalizeTextBoxes({
+        ...deck.textBoxes,
+        [safeSlideId]: (deck.textBoxes?.[safeSlideId] || []).map((box) => {
+          if (box.id !== safeBoxId) {
+            return box;
+          }
+          const safeWidth = clampTextBoxWidth(bounds.width ?? box.width);
+          safeFontSize = normalizeFontSize(fontSize || bounds.fontSize || box.fontSize || "36");
+          return {
+            ...box,
+            ...clampTextBoxPosition(bounds.x ?? box.x, bounds.y ?? box.y, safeWidth),
+            width: safeWidth,
+            fontSize: safeFontSize,
+          };
+        }),
+      }),
+      textFieldStyles: normalizeTextFieldStyles({
+        ...deck.textFieldStyles,
+        [safeSlideId]: {
+          ...(deck.textFieldStyles?.[safeSlideId] || {}),
+          [field]: {
+            ...(deck.textFieldStyles?.[safeSlideId]?.[field] || {}),
+            fontSize: safeFontSize || normalizeFontSize(fontSize || bounds.fontSize || "36"),
           },
         },
       }),
@@ -1436,6 +1489,9 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function beginTextBoxDrag(event, handle) {
+    if (event.button && event.button !== 0) {
+      return;
+    }
     const slideId = String(handle?.dataset.presentationSlideId || "").trim();
     const boxId = String(handle?.dataset.presentationDragTextBox || "").trim();
     const shell = handle?.closest?.("[data-presentation-text-box-shell]");
@@ -1498,8 +1554,12 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function beginTextBoxResize(event, handle) {
+    if (event.button && event.button !== 0) {
+      return;
+    }
     const slideId = String(handle?.dataset.presentationSlideId || "").trim();
     const boxId = String(handle?.dataset.presentationResizeTextBox || "").trim();
+    const axis = getResizeAxis(handle);
     const shell = handle?.closest?.("[data-presentation-text-box-shell]");
     const slideElement = shell?.closest?.(".presentation-slide");
     const slideRect = slideElement?.getBoundingClientRect?.();
@@ -1521,6 +1581,14 @@ export function createPresentationModeController(dependencies = {}) {
       startClientY: event.clientY,
       startFontSize,
       startWidth,
+      startX: box.x,
+      startY: box.y,
+      axis,
+      nextBounds: {
+        x: box.x,
+        y: box.y,
+        width: startWidth,
+      },
       nextFontSize: startFontSize,
       nextWidth: startWidth,
     };
@@ -1532,25 +1600,44 @@ export function createPresentationModeController(dependencies = {}) {
     syncTextToolbar();
   }
 
+  function getResizedTextBoxBounds(resize, event) {
+    const axis = resize.axis || "se";
+    const deltaWidth = ((event.clientX - resize.startClientX) / resize.slideWidth) * 100;
+    const deltaHeight = ((event.clientY - resize.startClientY) / resize.slideHeight) * 100;
+    const horizontalDelta = axis.includes("e") ? deltaWidth : axis.includes("w") ? -deltaWidth : 0;
+    const verticalDelta = axis.includes("s") ? deltaHeight : axis.includes("n") ? -deltaHeight : 0;
+    const scaleDelta = Math.abs(verticalDelta) > Math.abs(horizontalDelta) ? verticalDelta : horizontalDelta;
+    const nextWidth = axis.includes("e") || axis.includes("w") ? clampTextBoxWidth(resize.startWidth + horizontalDelta) : resize.startWidth;
+    const scaleBase = Math.max(4, resize.startWidth);
+    const scale = Math.max(0.42, Math.min(2.4, (resize.startWidth + scaleDelta) / scaleBase));
+    const nextFontSize = Number(normalizeFontSize(Math.round(resize.startFontSize * scale)));
+    const widthChange = nextWidth - resize.startWidth;
+    const nextX = axis.includes("w") ? resize.startX - widthChange : resize.startX;
+    const position = clampTextBoxPosition(nextX, resize.startY, nextWidth);
+    return {
+      x: position.x,
+      y: position.y,
+      width: nextWidth,
+      fontSize: nextFontSize,
+    };
+  }
+
   function updateTextBoxResize(event) {
     const resize = state.resizeTextBox;
     if (!resize) {
       return;
     }
     event.preventDefault?.();
-    const deltaWidth = ((event.clientX - resize.startClientX) / resize.slideWidth) * 100;
-    const deltaHeight = ((event.clientY - resize.startClientY) / resize.slideHeight) * 100;
-    const deltas = [deltaWidth, deltaHeight];
-    const sizeDelta = deltas.every((value) => value < 0) ? Math.min(...deltas) : Math.max(...deltas);
-    const nextWidth = clampTextBoxWidth(resize.startWidth + sizeDelta);
-    const scale = nextWidth / Math.max(1, resize.startWidth);
-    const nextFontSize = Number(normalizeFontSize(Math.round(resize.startFontSize * scale)));
-    resize.nextWidth = nextWidth;
-    resize.nextFontSize = nextFontSize;
-    resize.shell.style.width = `${nextWidth}%`;
+    const bounds = getResizedTextBoxBounds(resize, event);
+    resize.nextBounds = bounds;
+    resize.nextWidth = bounds.width;
+    resize.nextFontSize = bounds.fontSize;
+    resize.shell.style.left = `${bounds.x}%`;
+    resize.shell.style.top = `${bounds.y}%`;
+    resize.shell.style.width = `${bounds.width}%`;
     const textElement = resize.shell.querySelector(".presentation-free-text-box");
     if (textElement) {
-      textElement.style.fontSize = `${Number((nextFontSize / 16).toFixed(3))}rem`;
+      textElement.style.fontSize = `${Number((bounds.fontSize / 16).toFixed(3))}rem`;
     }
   }
 
@@ -1563,7 +1650,7 @@ export function createPresentationModeController(dependencies = {}) {
     resize.shell.classList.remove("is-resizing");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     state.resizeTextBox = null;
-    updateTextBoxSize(resize.slideId, resize.boxId, resize.nextWidth, resize.nextFontSize);
+    updateTextBoxBounds(resize.slideId, resize.boxId, resize.nextBounds, resize.nextFontSize);
   }
 
   function beginShapeDraw(event, slideElement) {
@@ -1627,6 +1714,9 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function beginShapeDrag(event, shapeElement) {
+    if (event.button && event.button !== 0) {
+      return;
+    }
     const slideId = String(shapeElement?.dataset.presentationSlideId || "").trim();
     const shapeId = String(shapeElement?.dataset.presentationShapeId || "").trim();
     const slideElement = shapeElement?.closest?.(".presentation-slide");
@@ -1691,8 +1781,12 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function beginShapeResize(event, handle) {
+    if (event.button && event.button !== 0) {
+      return;
+    }
     const slideId = String(handle?.dataset.presentationSlideId || "").trim();
     const shapeId = String(handle?.dataset.presentationResizeShape || "").trim();
+    const axis = getResizeAxis(handle);
     const shapeElement = handle?.closest?.("[data-presentation-shape]");
     const slideElement = shapeElement?.closest?.(".presentation-slide");
     const slideRect = slideElement?.getBoundingClientRect?.();
@@ -1716,6 +1810,7 @@ export function createPresentationModeController(dependencies = {}) {
       startWidth: size.width,
       startX: position.x,
       startY: position.y,
+      axis,
       type: shape.type,
       nextBounds: {
         ...position,
@@ -1731,18 +1826,28 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function getResizedShapeBounds(resize, event) {
+    const axis = resize.axis || "se";
     const deltaWidth = ((event.clientX - resize.startClientX) / resize.slideWidth) * 100;
     const deltaHeight = ((event.clientY - resize.startClientY) / resize.slideHeight) * 100;
-    const maxWidth = Math.max(1, 98 - resize.startX);
-    const maxHeight = Math.max(1, 96 - resize.startY);
+    const rawWidth = resize.startWidth + (axis.includes("e") ? deltaWidth : axis.includes("w") ? -deltaWidth : 0);
+    const rawHeight = resize.startHeight + (axis.includes("s") ? deltaHeight : axis.includes("n") ? -deltaHeight : 0);
+    const maxWidth = axis.includes("w")
+      ? Math.max(1, resize.startX + resize.startWidth - 1)
+      : Math.max(1, 98 - resize.startX);
+    const maxHeight = axis.includes("n")
+      ? Math.max(1, resize.startY + resize.startHeight - 2)
+      : Math.max(1, 96 - resize.startY);
     const size = normalizeShapeSize(
       resize.type,
-      Math.min(maxWidth, resize.startWidth + deltaWidth),
-      Math.min(maxHeight, resize.startHeight + deltaHeight)
+      Math.min(maxWidth, rawWidth || resize.startWidth),
+      Math.min(maxHeight, rawHeight || resize.startHeight)
     );
+    const nextX = axis.includes("w") ? resize.startX + resize.startWidth - size.width : resize.startX;
+    const nextY = axis.includes("n") ? resize.startY + resize.startHeight - size.height : resize.startY;
+    const position = clampShapePosition(nextX, nextY, size.width, size.height);
     return {
-      x: resize.startX,
-      y: resize.startY,
+      x: position.x,
+      y: position.y,
       ...size,
     };
   }

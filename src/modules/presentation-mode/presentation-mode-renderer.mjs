@@ -158,6 +158,28 @@ export function createPresentationModeRenderer(options = {}) {
   const escapeHtml = typeof options.escapeHtml === "function" ? options.escapeHtml : defaultEscapeHtml;
   const renderExerciseVisual =
     typeof options.renderExerciseVisual === "function" ? options.renderExerciseVisual : () => "";
+  const resizeDirections = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
+
+  function renderResizeHandles(kind = "text-box", id = "", slideId = "") {
+    const dataAttribute = kind === "shape" ? "data-presentation-resize-shape" : "data-presentation-resize-text-box";
+    const className =
+      kind === "shape"
+        ? "presentation-object-resize-handle presentation-shape-resize-handle"
+        : "presentation-object-resize-handle presentation-text-box-resize-handle";
+    return resizeDirections
+      .map(
+        (direction) => `
+          <span
+            class="${className} is-${escapeHtml(direction)}"
+            ${dataAttribute}="${escapeHtml(id)}"
+            data-presentation-resize-axis="${escapeHtml(direction)}"
+            data-presentation-slide-id="${escapeHtml(slideId)}"
+            aria-hidden="true"
+          ></span>
+        `
+      )
+      .join("");
+  }
 
   function renderLogo(brand = {}, variant = "corner") {
     const logoUrl = String(brand.logoUrl || brand.fallbackLogoUrl || "").trim();
@@ -553,16 +575,22 @@ export function createPresentationModeRenderer(options = {}) {
           .map((box) => {
             const field = `textbox.${box.id}.text`;
             const kind = box.kind === "symbol" ? "symbol" : "text";
+            const isActive =
+              model.activeTextTarget?.slideId === slide.id && model.activeTextTarget?.textBoxId === box.id;
             const fallbackStyle = {
               fontSize: box.fontSize || "36",
               textColor: box.textColor || "#f8fafc",
             };
+            const objectDragAttributes =
+              kind === "symbol"
+                ? `data-presentation-drag-text-box="${escapeHtml(box.id)}" data-presentation-slide-id="${escapeHtml(slide.id)}"`
+                : "";
             const textBox = renderEditableTextArea(
               model,
               slide,
               field,
               box.text ?? "Text box",
-              `class="presentation-free-text-box" data-presentation-text-box-id="${escapeHtml(box.id)}"`,
+              `class="presentation-free-text-box" data-presentation-text-box-id="${escapeHtml(box.id)}" ${objectDragAttributes}`,
               {
                 label: "Text box",
                 style: fallbackStyle,
@@ -570,21 +598,15 @@ export function createPresentationModeRenderer(options = {}) {
             );
             return `
               <div
-                class="presentation-free-text-box-shell is-${escapeHtml(kind)}"
+                class="presentation-free-text-box-shell is-${escapeHtml(kind)}${isActive ? " is-selected" : ""}"
                 data-presentation-text-box-shell
                 data-presentation-text-box-id="${escapeHtml(box.id)}"
                 data-presentation-text-box-kind="${escapeHtml(kind)}"
                 data-presentation-slide-id="${escapeHtml(slide.id)}"
+                tabindex="${model.presenting ? "-1" : "0"}"
+                aria-label="${escapeHtml(kind === "symbol" ? "Symbol object" : "Text box object")}"
                 style="left: ${escapeHtml(box.x)}%; top: ${escapeHtml(box.y)}%; width: ${escapeHtml(box.width)}%;"
               >
-                <button
-                  type="button"
-                  class="presentation-text-box-drag-handle"
-                  data-presentation-drag-text-box="${escapeHtml(box.id)}"
-                  data-presentation-slide-id="${escapeHtml(slide.id)}"
-                  title="Move text box"
-                  aria-label="Move text box"
-                ></button>
                 ${textBox}
                 <span
                   class="presentation-text-box-edge-handle is-top"
@@ -610,14 +632,7 @@ export function createPresentationModeRenderer(options = {}) {
                   data-presentation-slide-id="${escapeHtml(slide.id)}"
                   aria-hidden="true"
                 ></span>
-                <button
-                  type="button"
-                  class="presentation-text-box-resize-handle"
-                  data-presentation-resize-text-box="${escapeHtml(box.id)}"
-                  data-presentation-slide-id="${escapeHtml(slide.id)}"
-                  title="Resize text box"
-                  aria-label="Resize text box"
-                ></button>
+                ${renderResizeHandles("text-box", box.id, slide.id)}
               </div>
             `;
           })
@@ -637,10 +652,12 @@ export function createPresentationModeRenderer(options = {}) {
           .map((shape) => {
             const type = String(shape.type || "rect").trim();
             const opacity = Number((normalizeOpacity(shape.opacity, 90) / 100).toFixed(2));
+            const isActive =
+              model.activeShapeTarget?.slideId === slide.id && model.activeShapeTarget?.shapeId === shape.id;
             return `
               <button
                 type="button"
-                class="presentation-slide-shape is-${escapeHtml(type)}"
+                class="presentation-slide-shape is-${escapeHtml(type)}${isActive ? " is-selected" : ""}"
                 data-presentation-shape
                 data-presentation-shape-id="${escapeHtml(shape.id)}"
                 data-presentation-slide-id="${escapeHtml(slide.id)}"
@@ -648,12 +665,7 @@ export function createPresentationModeRenderer(options = {}) {
                 aria-label="${escapeHtml(`Move and resize ${type} shape`)}"
                 title="Move or resize shape"
               >
-                <span
-                  class="presentation-shape-resize-handle"
-                  data-presentation-resize-shape="${escapeHtml(shape.id)}"
-                  data-presentation-slide-id="${escapeHtml(slide.id)}"
-                  aria-hidden="true"
-                ></span>
+                ${renderResizeHandles("shape", shape.id, slide.id)}
               </button>
             `;
           })

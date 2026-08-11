@@ -398,7 +398,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(symbolBox.locator(".presentation-free-text-box")).toContainText("✓");
   await expect(textToolbar.locator("[data-presentation-symbol-menu] .presentation-tool-popover-panel")).toBeHidden();
   const symbolBefore = await symbolBox.boundingBox();
-  const symbolResizeHandle = symbolBox.locator("[data-presentation-resize-text-box]");
+  await expect(symbolBox.locator("[data-presentation-resize-text-box]")).toHaveCount(8);
+  const symbolResizeHandle = symbolBox.locator("[data-presentation-resize-axis='se']");
   const symbolResizeBox = await symbolResizeHandle.boundingBox();
   expect(symbolBefore).toBeTruthy();
   expect(symbolResizeBox).toBeTruthy();
@@ -419,7 +420,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   );
   expect(Number(storedSymbolBox?.width)).toBeGreaterThan(14);
   expect(Number(storedSymbolBox?.fontSize)).toBeGreaterThan(88);
-  await symbolBox.locator(".presentation-text-box-drag-handle").focus();
+  await symbolBox.focus();
   await page.keyboard.press("Delete");
   await expect(presentation.locator("[data-presentation-text-box-shell][data-presentation-text-box-kind='symbol']")).toHaveCount(0);
   await presentation.locator(".presentation-info-title").click();
@@ -438,7 +439,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(slideShape).toBeVisible();
   await expect(presentation).not.toHaveClass(/is-shape-tool-active/);
   const shapeBeforeResize = await slideShape.boundingBox();
-  const shapeResizeHandle = slideShape.locator("[data-presentation-resize-shape]");
+  await expect(slideShape.locator("[data-presentation-resize-shape]")).toHaveCount(8);
+  const shapeResizeHandle = slideShape.locator("[data-presentation-resize-axis='se']");
   const shapeResizeBox = await shapeResizeHandle.boundingBox();
   expect(shapeBeforeResize).toBeTruthy();
   expect(shapeResizeBox).toBeTruthy();
@@ -482,15 +484,15 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await textToolbar.locator("[data-presentation-add-text-box]").click();
   await expect(presentation.locator(".presentation-free-text-box")).toContainText("Text box");
   const textBoxShell = presentation.locator("[data-presentation-text-box-shell]").first();
-  const dragHandle = textBoxShell.locator("[data-presentation-drag-text-box]").first();
   const rightEdgeHandle = textBoxShell.locator(".presentation-text-box-edge-handle.is-right");
+  await expect(textBoxShell.locator("[data-presentation-resize-text-box]")).toHaveCount(8);
   const beforeTextBox = await textBoxShell.boundingBox();
   const edgeHandleBox = await rightEdgeHandle.boundingBox();
   expect(beforeTextBox).toBeTruthy();
   expect(edgeHandleBox).toBeTruthy();
-  await page.mouse.move(edgeHandleBox.x + edgeHandleBox.width / 2, edgeHandleBox.y + edgeHandleBox.height / 2);
+  await page.mouse.move(edgeHandleBox.x + edgeHandleBox.width / 2, edgeHandleBox.y + edgeHandleBox.height * 0.82);
   await page.mouse.down();
-  await page.mouse.move(edgeHandleBox.x + edgeHandleBox.width / 2 + 96, edgeHandleBox.y + edgeHandleBox.height / 2 + 48, { steps: 6 });
+  await page.mouse.move(edgeHandleBox.x + edgeHandleBox.width / 2 + 96, edgeHandleBox.y + edgeHandleBox.height * 0.82 + 48, { steps: 6 });
   await page.mouse.up();
   const afterTextBox = await textBoxShell.boundingBox();
   expect(afterTextBox?.x).toBeGreaterThan((beforeTextBox?.x || 0) + 20);
@@ -501,7 +503,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   );
   expect(storedTextBox?.x).toBeGreaterThan(56);
   expect(storedTextBox?.y).toBeGreaterThan(36);
-  await dragHandle.focus();
+  await textBoxShell.focus();
   await page.keyboard.press("Delete");
   await expect(presentation.locator("[data-presentation-text-box-shell]")).toHaveCount(0);
   await presentation.locator(".presentation-info-title").click();

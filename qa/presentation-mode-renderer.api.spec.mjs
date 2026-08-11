@@ -298,7 +298,10 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     ...deck,
     textBoxes: {
       ...deck.textBoxes,
-      cover: [{ id: "note-1", text: "Free note", x: 50, y: 40, width: 30, fontSize: 32, textColor: "#ffffff" }],
+      cover: [
+        { id: "note-1", text: "Free note", x: 50, y: 40, width: 30, fontSize: 32, textColor: "#ffffff" },
+        { id: "symbol-1", kind: "symbol", text: "♥", x: 18, y: 18, width: 14, fontSize: 88, textColor: "#ffffff" },
+      ],
     },
     shapes: {
       ...deck.shapes,
@@ -319,6 +322,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(styledCoverHtml).toContain("presentation-slide-shape is-circle");
   expect(styledCoverHtml).toContain('data-presentation-shape-id="shape-1"');
   expect(styledCoverHtml).toContain('data-presentation-resize-shape="shape-1"');
+  expect(styledCoverHtml.match(/data-presentation-resize-shape="shape-1"/g)).toHaveLength(8);
+  expect(styledCoverHtml).toContain('data-presentation-resize-axis="nw"');
+  expect(styledCoverHtml).toContain('data-presentation-resize-axis="se"');
   expect(styledCoverHtml).toContain("--presentation-shape-fill: #f59e0b");
   expect(styledCoverHtml).toContain("--presentation-shape-opacity: 0.55");
   expect(styledCoverHtml).toContain("presentation-free-text-box-shell");
@@ -326,13 +332,24 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(styledCoverHtml).toContain('data-presentation-text-box-id="note-1"');
   expect(styledCoverHtml).toContain('data-presentation-drag-text-box="note-1"');
   expect(styledCoverHtml).toContain('data-presentation-resize-text-box="note-1"');
+  expect(styledCoverHtml.match(/data-presentation-resize-text-box="note-1"/g)).toHaveLength(8);
   expect(styledCoverHtml).toContain('data-presentation-text-box-kind="text"');
+  expect(styledCoverHtml).toContain('data-presentation-text-box-kind="symbol"');
+  expect(styledCoverHtml).toContain('data-presentation-text-box-id="symbol-1" data-presentation-drag-text-box="symbol-1"');
+  expect(styledCoverHtml).toContain('data-presentation-resize-text-box="symbol-1"');
+  expect(styledCoverHtml.match(/data-presentation-resize-text-box="symbol-1"/g)).toHaveLength(8);
+  expect(styledCoverHtml).not.toContain("presentation-text-box-drag-handle");
   expect(styledCoverHtml).toContain("presentation-text-box-edge-handle is-top");
   expect(styledCoverHtml).toContain("presentation-text-box-edge-handle is-left");
   expect(styledCoverHtml).toContain('data-presentation-text-field="textbox.note-1.text"');
   expect(styledCoverHtml).toContain("left: 50%; top: 40%; width: 30%;");
   expect(styledCoverHtml).toContain("font-size: 4rem; color: #38bdf8;");
   expect(styledCoverHtml).toContain("font-size: 2rem; color: #ffffff;");
+  expect(renderer.renderCoverSlide({
+    ...styledTextModel,
+    activeShapeTarget: { slideId: "cover", shapeId: "shape-1" },
+    activeTextTarget: { slideId: "cover", textBoxId: "note-1" },
+  })).toContain("is-selected");
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({
     ...deck,

@@ -1000,23 +1000,68 @@ body.is-presentation-mode-open {
   pointer-events: auto;
 }
 
-.presentation-shape-resize-handle {
+.presentation-object-resize-handle {
   position: absolute;
-  right: -.48rem;
-  bottom: -.48rem;
-  z-index: 5;
-  width: 1.15rem;
-  height: 1.15rem;
-  border: 1px solid color-mix(in srgb, var(--presentation-accent, #38bdf8) 78%, #ffffff);
-  border-radius: 6px;
-  background:
-    linear-gradient(135deg, transparent 0 44%, rgba(255, 255, 255, .92) 46% 54%, transparent 56%),
-    linear-gradient(135deg, transparent 0 63%, rgba(255, 255, 255, .72) 65% 72%, transparent 74%),
-    rgba(8, 15, 20, .9);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, .3);
-  cursor: nwse-resize;
-  opacity: .84;
+  z-index: 7;
+  width: .58rem;
+  height: .58rem;
+  margin: -.29rem;
+  border: 1px solid color-mix(in srgb, var(--presentation-accent, #38bdf8) 86%, #ffffff);
+  border-radius: 999px;
+  background: #f8fafc;
+  box-shadow: 0 0 0 1px rgba(8, 15, 20, .55), 0 6px 14px rgba(0, 0, 0, .28);
+  opacity: 0;
   pointer-events: auto;
+  transform: scale(.86);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.presentation-object-resize-handle.is-nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.presentation-object-resize-handle.is-n {
+  top: 0;
+  left: 50%;
+  cursor: ns-resize;
+}
+
+.presentation-object-resize-handle.is-ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.presentation-object-resize-handle.is-e {
+  top: 50%;
+  right: 0;
+  cursor: ew-resize;
+}
+
+.presentation-object-resize-handle.is-se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+
+.presentation-object-resize-handle.is-s {
+  bottom: 0;
+  left: 50%;
+  cursor: ns-resize;
+}
+
+.presentation-object-resize-handle.is-sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.presentation-object-resize-handle.is-w {
+  top: 50%;
+  left: 0;
+  cursor: ew-resize;
 }
 
 .presentation-slide-shape.is-circle {
@@ -1083,16 +1128,19 @@ body.is-presentation-mode-open {
 
 .presentation-slide-shape:hover,
 .presentation-slide-shape:focus-visible,
+.presentation-slide-shape.is-selected,
 .presentation-slide-shape.is-dragging,
 .presentation-slide-shape.is-resizing {
-  outline: 2px solid color-mix(in srgb, var(--presentation-accent, #38bdf8) 82%, #ffffff);
-  outline-offset: 3px;
+  outline: 1.5px dashed color-mix(in srgb, var(--presentation-accent, #38bdf8) 82%, #ffffff);
+  outline-offset: 5px;
 }
 
-.presentation-slide-shape:hover .presentation-shape-resize-handle,
-.presentation-slide-shape:focus-visible .presentation-shape-resize-handle,
-.presentation-slide-shape.is-resizing .presentation-shape-resize-handle {
+.presentation-slide-shape:hover .presentation-object-resize-handle,
+.presentation-slide-shape:focus-visible .presentation-object-resize-handle,
+.presentation-slide-shape.is-selected .presentation-object-resize-handle,
+.presentation-slide-shape.is-resizing .presentation-object-resize-handle {
   opacity: 1;
+  transform: scale(1);
 }
 
 .presentation-slide-shape.is-drawing-preview {
@@ -1134,23 +1182,8 @@ body.is-presentation-mode-open {
   padding: .6rem 1.65rem 1.35rem;
   text-align: center;
   line-height: .95;
-}
-
-.presentation-text-box-drag-handle {
-  position: absolute;
-  top: .34rem;
-  right: .34rem;
-  z-index: 3;
-  width: 1.35rem;
-  height: 1.35rem;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--presentation-accent, #38bdf8) 62%, transparent);
-  border-radius: 999px;
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, .92) 0 1.5px, transparent 2px) 30% 30% / .44rem .44rem,
-    rgba(8, 15, 20, .72);
   cursor: grab;
-  opacity: .72;
+  user-select: none;
 }
 
 .presentation-text-box-edge-handle {
@@ -1192,43 +1225,24 @@ body.is-presentation-mode-open {
   right: -.22rem;
 }
 
-.presentation-text-box-resize-handle {
-  position: absolute;
-  right: .28rem;
-  bottom: .28rem;
-  z-index: 3;
-  width: 1.15rem;
-  height: 1.15rem;
-  padding: 0;
-  border: 1px solid color-mix(in srgb, var(--presentation-accent, #38bdf8) 70%, transparent);
-  border-radius: 5px;
-  background:
-    linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, .92) 48% 54%, transparent 56%),
-    linear-gradient(135deg, transparent 0 64%, rgba(255, 255, 255, .68) 66% 72%, transparent 74%),
-    rgba(8, 15, 20, .78);
-  cursor: nwse-resize;
-  opacity: .72;
-}
-
-.presentation-free-text-box-shell:hover .presentation-text-box-drag-handle,
-.presentation-free-text-box-shell:hover .presentation-text-box-resize-handle,
-.presentation-free-text-box-shell.is-dragging .presentation-text-box-drag-handle,
-.presentation-free-text-box-shell.is-resizing .presentation-text-box-resize-handle {
+.presentation-free-text-box-shell:hover .presentation-object-resize-handle,
+.presentation-free-text-box-shell.is-selected .presentation-object-resize-handle,
+.presentation-free-text-box-shell.is-resizing .presentation-object-resize-handle {
   opacity: 1;
+  transform: scale(1);
 }
 
 .presentation-free-text-box-shell:hover .presentation-free-text-box,
+.presentation-free-text-box-shell.is-selected .presentation-free-text-box,
 .presentation-free-text-box-shell.is-dragging .presentation-free-text-box {
   border-color: color-mix(in srgb, var(--presentation-accent, #38bdf8) 78%, #ffffff);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--presentation-accent, #38bdf8) 28%, transparent);
 }
 
-.presentation-free-text-box-shell.is-dragging .presentation-text-box-drag-handle,
 body.is-presentation-text-box-dragging {
   cursor: grabbing;
 }
 
-.presentation-free-text-box-shell.is-resizing .presentation-text-box-resize-handle,
 body.is-presentation-text-box-resizing {
   cursor: nwse-resize;
   user-select: none;
@@ -1256,24 +1270,16 @@ body.is-presentation-shape-drawing {
   background: transparent;
 }
 
-.presentation-mode-shell.is-presenting .presentation-text-box-drag-handle {
-  display: none;
-}
-
 .presentation-mode-shell.is-presenting .presentation-text-box-edge-handle {
   display: none;
 }
 
-.presentation-mode-shell.is-presenting .presentation-text-box-resize-handle {
+.presentation-mode-shell.is-presenting .presentation-object-resize-handle {
   display: none;
 }
 
 .presentation-mode-shell.is-presenting .presentation-slide-shape {
   pointer-events: none;
-}
-
-.presentation-mode-shell.is-presenting .presentation-shape-resize-handle {
-  display: none;
 }
 
 .presentation-corner-logo {

@@ -47,6 +47,14 @@ test("Platform navigation renderer has a dedicated IDP menu symbol", () => {
   expect(iconSource).toContain("M12.4 18.4");
 });
 
+test("Set Pieces Room uses a recognizable corner flag and football symbol", () => {
+  const iconSource = readFileSync(new URL("../top-icons.js", import.meta.url), "utf8");
+
+  expect(iconSource).toContain('"set-pieces-room":');
+  expect(iconSource).toContain('d="M5 21V4');
+  expect(iconSource).toContain('<circle cx="17.5" cy="17.5" r="4"');
+});
+
 test("Platform navigation renderer owns sidebar primary and overflow markup", () => {
   const markup = renderer.renderWorkspaceList({
     isPlatformNav: true,

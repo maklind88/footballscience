@@ -143,3 +143,345 @@ body.is-dark-mode .spr-variant-tabs button.is-active {
 @media (prefers-reduced-motion: reduce) {
   .spr-shell *, .spr-shell *::before, .spr-shell *::after { scroll-behavior: auto !important; transition: none !important; }
 }
+
+.spr-plan-title {
+  width: min(240px, 34%);
+  min-width: 150px;
+  display: grid;
+  gap: .12rem;
+  padding-right: .55rem;
+  border-right: 1px solid var(--spr-line);
+}
+
+.spr-plan-title span,
+.spr-tool-group-label {
+  color: var(--spr-muted);
+  font-size: .56rem;
+  font-weight: 760;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.spr-plan-title input {
+  min-width: 0;
+  height: 27px;
+  overflow: hidden;
+  border: 0;
+  padding: 0 .25rem;
+  color: var(--spr-ink);
+  background: transparent;
+  font-size: .78rem;
+  font-weight: 740;
+  text-overflow: ellipsis;
+}
+
+.spr-plan-title input:focus {
+  background: var(--spr-soft);
+}
+
+.spr-board-toggle {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.spr-board-toggle input {
+  accent-color: var(--spr-accent);
+}
+
+.spr-board-row {
+  grid-template-columns: 112px minmax(0, 1fr);
+}
+
+.spr-tool-rail {
+  align-content: start;
+  gap: .6rem;
+  padding: .42rem;
+  overflow-y: auto;
+}
+
+.spr-tool-group,
+.spr-tool-group-buttons {
+  min-width: 0;
+  display: grid;
+  gap: .28rem;
+}
+
+.spr-tool-group-buttons {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.spr-tool-group + .spr-tool-group {
+  padding-top: .55rem;
+  border-top: 1px solid var(--spr-line);
+}
+
+.spr-tool-button {
+  width: 100%;
+  height: 33px;
+  display: flex;
+  justify-content: center;
+  gap: .42rem;
+  padding: 0 .45rem;
+  overflow: hidden;
+  font-size: .72rem;
+}
+
+.spr-tool-symbol {
+  width: 18px;
+  flex: 0 0 18px;
+  font-size: .9rem;
+  text-align: center;
+}
+
+.spr-tool-name {
+  display: none;
+  min-width: 0;
+  overflow: hidden;
+  font-size: .65rem;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spr-playback {
+  min-height: 52px;
+  justify-content: flex-start;
+  gap: .55rem;
+  padding: .35rem .55rem;
+}
+
+.spr-playback-transport {
+  display: flex;
+  align-items: center;
+  gap: .25rem;
+}
+
+.spr-playhead {
+  min-width: 90px;
+  display: flex;
+  flex: 1;
+  align-items: center;
+}
+
+.spr-playhead input {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--spr-accent);
+  cursor: pointer;
+}
+
+.spr-phase-counter {
+  min-width: 4.4rem;
+  display: grid;
+  gap: .08rem;
+  line-height: 1.05;
+  text-align: left;
+}
+
+.spr-phase-counter b {
+  color: var(--spr-ink);
+  font-size: .68rem;
+}
+
+.spr-phase-counter span {
+  font-size: .59rem;
+}
+
+.spr-icon-button.is-active,
+.spr-loop-button.is-active {
+  color: #fff;
+  border-color: var(--spr-accent);
+  background: var(--spr-accent);
+}
+
+.spr-board-stage {
+  position: relative;
+}
+
+.spr-ghost-status {
+  position: absolute;
+  z-index: 2;
+  top: .55rem;
+  left: .55rem;
+  border: 1px solid #ffffff70;
+  border-radius: 4px;
+  padding: .27rem .42rem;
+  color: #fff;
+  background: #173a2dcc;
+  font-size: .58rem;
+  font-weight: 720;
+  pointer-events: none;
+}
+
+.spr-phase-card i {
+  min-width: 0;
+  overflow: hidden;
+  font-style: normal;
+  text-overflow: ellipsis;
+}
+
+.spr-shell.is-inspector-collapsed .spr-layout {
+  grid-template-columns: 220px minmax(520px, 1fr);
+}
+
+.spr-shell.is-inspector-collapsed .spr-inspector {
+  display: none;
+}
+
+body.is-dark-mode .spr-plan-title input {
+  color: var(--spr-ink);
+}
+
+body.is-dark-mode .spr-ghost-status {
+  border-color: #9ce0ba70;
+  color: #dff7e9;
+  background: #101d18e6;
+}
+
+@media (max-width: 1240px) and (min-width: 981px) {
+  .spr-board-row {
+    grid-template-columns: 50px minmax(0, 1fr);
+  }
+
+  .spr-tool-group-label,
+  .spr-tool-name {
+    display: none;
+  }
+
+  .spr-tool-button {
+    width: 40px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .spr-tool-group-buttons {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .spr-tool-group + .spr-tool-group {
+    padding-top: .38rem;
+  }
+
+  .spr-shell.is-inspector-collapsed .spr-layout {
+    grid-template-columns: 190px minmax(480px, 1fr);
+  }
+}
+
+@media (max-width: 980px) {
+  .spr-library {
+    max-height: 128px;
+    display: grid;
+    grid-template-areas:
+      "heading search"
+      "filters plans";
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: .45rem .65rem;
+    padding: .55rem .7rem;
+  }
+
+  .spr-library .spr-panel-heading { grid-area: heading; }
+  .spr-library .spr-search-field { grid-area: search; margin: 0; }
+  .spr-library .spr-segmented { grid-area: filters; margin: 0; }
+  .spr-library .spr-play-list { grid-area: plans; }
+
+  .spr-shell.is-inspector-collapsed .spr-layout,
+  .spr-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .spr-editor {
+    grid-template-rows: auto auto auto minmax(360px, 1fr) auto;
+  }
+
+  .spr-board-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .spr-tool-rail {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: .65rem;
+    overflow: hidden;
+  }
+
+  .spr-tool-group {
+    min-width: 0;
+  }
+
+  .spr-tool-group-buttons {
+    display: flex;
+  }
+
+  .spr-tool-name {
+    display: inline;
+  }
+
+  .spr-tool-group + .spr-tool-group {
+    padding-top: 0;
+    padding-left: .65rem;
+    border-top: 0;
+    border-left: 1px solid var(--spr-line);
+  }
+
+  .spr-tool-group:last-child {
+    grid-column: 1 / -1;
+    padding-top: .42rem;
+    padding-left: 0;
+    border-top: 1px solid var(--spr-line);
+    border-left: 0;
+  }
+
+  .spr-tool-button {
+    width: auto;
+    min-width: 0;
+    padding-inline: .38rem;
+  }
+
+  .spr-roster-picker span,
+  .spr-editor-toolbar label.spr-board-toggle span {
+    display: inline;
+  }
+
+  .spr-roster-picker {
+    max-width: 270px;
+  }
+}
+
+@media (max-width: 680px) {
+  .spr-library {
+    max-height: 156px;
+    grid-template-areas:
+      "heading search"
+      "filters filters"
+      "plans plans";
+    grid-template-columns: minmax(130px, .8fr) minmax(150px, 1.2fr);
+  }
+
+  .spr-plan-title {
+    width: min(190px, 48%);
+  }
+
+  .spr-playback {
+    flex-wrap: wrap;
+  }
+
+  .spr-playhead {
+    order: 3;
+    min-width: 100%;
+  }
+
+  .spr-tool-rail {
+    display: flex;
+    grid-auto-flow: initial;
+    grid-auto-columns: initial;
+    overflow-x: auto;
+  }
+
+  .spr-tool-group:last-child {
+    grid-column: auto;
+    padding-top: 0;
+    padding-left: .65rem;
+    border-top: 0;
+    border-left: 1px solid var(--spr-line);
+  }
+}

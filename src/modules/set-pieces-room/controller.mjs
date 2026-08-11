@@ -38,8 +38,12 @@ export function createSetPiecesRoomController(options = {}) {
     previewDrawing: null,
     selectionRect: null,
     playbackSpeed: 1,
+    playbackProgress: 0,
     isPlaying: false,
+    isPaused: false,
+    loopPlayback: false,
     presentationMode: false,
+    inspectorCollapsed: false,
     saveState: "saved",
     saveMessage: "Saved",
   };
@@ -116,7 +120,8 @@ export function createSetPiecesRoomController(options = {}) {
     const { play, variant, phase } = getContext();
     if (!stage || !play || !variant || !phase) return;
     const phaseIndex = variant.phases.findIndex((item) => item.id === phase.id);
-    stage.innerHTML = renderSetPieceBoard({
+    const ghostStatus = ui.showGhost && phaseIndex > 0 ? '<span class="spr-ghost-status">Previous phase shown</span>' : "";
+    stage.innerHTML = `${ghostStatus}${renderSetPieceBoard({
       phase,
       previousPhase: ui.showGhost && phaseIndex > 0 ? variant.phases[phaseIndex - 1] : null,
       pitchView: play.pitchView,
@@ -125,7 +130,7 @@ export function createSetPiecesRoomController(options = {}) {
       selectedDrawingId: ui.selectedDrawingId,
       previewDrawing: ui.previewDrawing,
       selectionRect: ui.selectionRect,
-    });
+    })}`;
   }
 
   function updatePlaybackControls() {
@@ -137,28 +142,45 @@ export function createSetPiecesRoomController(options = {}) {
     }
     const speedControl = root?.querySelector?.("[data-set-piece-playback-speed]");
     if (speedControl) speedControl.value = String(ui.playbackSpeed);
+    const scrubber = root?.querySelector?.("[data-set-piece-scrubber]");
+    const { variant, phase } = getContext();
+    if (scrubber && variant && phase) {
+      const phaseIndex = variant.phases.findIndex((item) => item.id === phase.id);
+      scrubber.value = String(Math.max(0, phaseIndex) + Number(ui.playbackProgress || 0));
+    }
+    const loopButton = root?.querySelector?.('[data-set-piece-action="toggle-loop"]');
+    if (loopButton) {
+      loopButton.classList.toggle("is-active", ui.loopPlayback);
+      loopButton.setAttribute("aria-pressed", String(ui.loopPlayback));
+    }
   }
 
   const playback = createSetPiecesPlaybackController({
     win,
     getContext,
-    onFrame(positions) {
+    onFrame(positions, progress) {
+      ui.playbackProgress = Number(progress || 0);
       positions.forEach((position, id) => {
         const marker = root?.querySelector?.(`[data-element-id="${CSS.escape(id)}"]`);
         if (marker) marker.setAttribute("transform", `translate(${position.x} ${position.y}) rotate(${position.rotation})`);
       });
+      updatePlaybackControls();
     },
     onPhaseChange(phaseId) {
       const { variant } = getContext();
       if (!variant) return;
       variant.activePhaseId = phaseId;
+      ui.playbackProgress = 0;
       ui.selectedDrawingId = "";
       render();
     },
     onResetFrame: renderBoardOnly,
     onStatus(status) {
       ui.isPlaying = status.isPlaying;
+      ui.isPaused = status.isPaused;
       ui.playbackSpeed = status.speed;
+      ui.loopPlayback = status.loop;
+      if (!status.isPlaying && !status.isPaused) ui.playbackProgress = 0;
       updatePlaybackControls();
     },
   });
@@ -279,6 +301,12 @@ export function createSetPiecesRoomController(options = {}) {
     if (next) selectPhase(next.id);
   }
 
+  function restartPlayback() {
+    const { variant } = getContext();
+    const firstPhase = variant?.phases?.[0];
+    if (firstPhase) selectPhase(firstPhase.id);
+  }
+
   function deleteSelection() {
     const { variant, phase } = getContext();
     if (!variant || !phase) return;
@@ -334,13 +362,19 @@ export function createSetPiecesRoomController(options = {}) {
       "move-phase-right": () => movePhase(1),
       "previous-phase": () => selectAdjacentPhase(-1),
       "next-phase": () => selectAdjacentPhase(1),
+      "restart-playback": restartPlayback,
       "toggle-play": () => playback.toggle(),
       stop: () => playback.stop(),
+      "toggle-loop": () => playback.setLoop(!ui.loopPlayback),
       undo,
       redo,
       "delete-selection": deleteSelection,
       presentation: () => {
         ui.presentationMode = !ui.presentationMode;
+        render();
+      },
+      "toggle-inspector": () => {
+        ui.inspectorCollapsed = !ui.inspectorCollapsed;
         render();
       },
     };
@@ -395,12 +429,31 @@ export function createSetPiecesRoomController(options = {}) {
   }
 
   function handleInput(event) {
-    if (event.target.matches?.("[data-set-piece-search]")) {
-      ui.searchQuery = event.target.value;
+    const target = event.target;
+    if (target.matches?.("[data-set-piece-search]")) {
+      ui.searchQuery = target.value;
       render();
       const search = root.querySelector("[data-set-piece-search]");
       search?.focus();
       search?.setSelectionRange?.(ui.searchQuery.length, ui.searchQuery.length);
+      return;
+    }
+    if (target.matches?.("[data-set-piece-scrubber]")) {
+      playback.seek(target.value);
+      return;
+    }
+    const { play, variant, phase } = getContext();
+    if (target.dataset?.setPiecePlayField === "title" && play) {
+      root.querySelector(`[data-set-piece-play-title="${CSS.escape(play.id)}"]`)?.replaceChildren(target.value || "Untitled set piece");
+      root.querySelector('[data-set-piece-live-text="play-title"]')?.replaceChildren(target.value || "Untitled set piece");
+    }
+    if (target.dataset?.setPieceVariantField === "title" && variant) {
+      root.querySelector('[data-set-piece-variant-id].is-active')?.replaceChildren(target.value || "Untitled variant");
+      root.querySelector('[data-set-piece-live-text="variant-title"]')?.replaceChildren(target.value || "Untitled variant");
+    }
+    if (target.dataset?.setPiecePhaseField === "title" && phase) {
+      root.querySelector(`[data-set-piece-phase-title="${CSS.escape(phase.id)}"]`)?.replaceChildren(target.value || "Untitled phase");
+      root.querySelector('[data-set-piece-live-text="phase-title"]')?.replaceChildren(target.value || "Untitled phase");
     }
   }
 

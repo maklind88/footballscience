@@ -87,6 +87,14 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.mouse.up();
 
   await page.locator("[data-set-piece-phase-id]").first().click();
+  const scrubber = page.getByRole("slider", { name: "Playback position" });
+  await scrubber.fill("0.5");
+  await expect(scrubber).toHaveValue("0.5");
+  await page.getByRole("button", { name: "Back to phase 1" }).click();
+  const loopButton = page.getByRole("button", { name: "Loop playback" });
+  await loopButton.click();
+  await expect(loopButton).toHaveAttribute("aria-pressed", "true");
+  await loopButton.click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await page.waitForTimeout(350);
   await page.getByRole("button", { name: "Pause", exact: true }).click();
@@ -94,7 +102,8 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.waitForTimeout(250);
   await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveAttribute("transform", pausedTransform);
   await page.getByRole("button", { name: "Play", exact: true }).click();
-  await expect(page.locator(".spr-phase-counter")).toHaveText("2 / 2", { timeout: 5_000 });
+  await expect(page.locator(".spr-phase-counter")).toContainText("Phase 2", { timeout: 5_000 });
+  await expect(page.locator(".spr-phase-counter")).toContainText("of 2");
 
   await page.getByRole("button", { name: "Create variant" }).click();
   await expect(page.locator("[data-set-piece-variant-id]")).toHaveCount(2);

@@ -11,10 +11,11 @@ export function createSetPiecesPlaybackController(options = {}) {
   let playing = false;
   let paused = false;
   let speed = 1;
+  let loop = false;
   let transition = null;
 
   function emitStatus() {
-    options.onStatus?.({ isPlaying: playing && !paused, isPaused: paused, speed });
+    options.onStatus?.({ isPlaying: playing && !paused, isPaused: paused, loop, speed });
   }
 
   function clearScheduled() {
@@ -40,7 +41,7 @@ export function createSetPiecesPlaybackController(options = {}) {
     return { ...context, phases, activeIndex: activeIndex >= 0 ? activeIndex : 0 };
   }
 
-  function renderTransitionFrame(progress, fromPhase, toPhase) {
+  function renderTransitionFrame(progress, fromPhase, toPhase, fromIndex = 0) {
     const start = elementMap(fromPhase);
     const end = elementMap(toPhase);
     const positions = new Map();
@@ -58,7 +59,7 @@ export function createSetPiecesPlaybackController(options = {}) {
         rotation: interpolateSetPieceValue(fromElement.rotation, toElement.rotation, localProgress),
       });
     }
-    options.onFrame?.(positions, progress);
+    options.onFrame?.(positions, progress, fromIndex);
   }
 
   function beginTransition(fromIndex, elapsedBeforePause = 0) {
@@ -84,7 +85,7 @@ export function createSetPiecesPlaybackController(options = {}) {
       const elapsed = Math.max(0, (timestamp - transition.startedAt) * speed);
       const progress = Math.min(1, elapsed / duration);
       transition.elapsedBeforePause = elapsed;
-      renderTransitionFrame(progress, fromPhase, toPhase);
+      renderTransitionFrame(progress, fromPhase, toPhase, fromIndex);
       if (progress < 1) {
         frameId = win.requestAnimationFrame?.(tick) || 0;
         return;
@@ -92,7 +93,18 @@ export function createSetPiecesPlaybackController(options = {}) {
       transition = null;
       options.onPhaseChange?.(toPhase.id);
       if (fromIndex + 1 >= phases.length - 1) {
-        stop({ resetFrame: false });
+        if (!loop) {
+          stop({ resetFrame: false });
+          return;
+        }
+        holdTimer = win.setTimeout?.(() => {
+          if (!loop) {
+            stop({ resetFrame: false });
+            return;
+          }
+          options.onPhaseChange?.(phases[0].id);
+          beginTransition(0);
+        }, Math.max(0, Number(toPhase.holdMs || 0)) / speed) || 0;
         return;
       }
       holdTimer = win.setTimeout?.(() => beginTransition(fromIndex + 1), Math.max(0, Number(toPhase.holdMs || 0)) / speed) || 0;
@@ -137,12 +149,36 @@ export function createSetPiecesPlaybackController(options = {}) {
     emitStatus();
   }
 
+  function setLoop(nextLoop) {
+    loop = Boolean(nextLoop);
+    emitStatus();
+  }
+
+  function seek(nextPosition) {
+    const { phases, activeIndex } = getContext();
+    if (phases.length < 2) return;
+    const maxPosition = phases.length - 1;
+    const position = Math.min(maxPosition, Math.max(0, Number(nextPosition) || 0));
+    stop({ resetFrame: false });
+    if (position >= maxPosition) {
+      if (activeIndex !== maxPosition) options.onPhaseChange?.(phases[maxPosition].id);
+      options.onResetFrame?.();
+      return;
+    }
+    const fromIndex = Math.floor(position);
+    const progress = position - fromIndex;
+    if (activeIndex !== fromIndex) options.onPhaseChange?.(phases[fromIndex].id);
+    renderTransitionFrame(progress, phases[fromIndex], phases[fromIndex + 1], fromIndex);
+  }
+
   return Object.freeze({
     get isPaused() { return paused; },
     get isPlaying() { return playing && !paused; },
     get speed() { return speed; },
     pause,
     play,
+    seek,
+    setLoop,
     setSpeed,
     stop,
     toggle,

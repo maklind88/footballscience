@@ -317,7 +317,11 @@ export function createPresentationModeRenderer(options = {}) {
       declarations.push(String(extraStyle).replace(/;+$/g, ""));
     }
     if (style.fontSize) {
-      declarations.push(`font-size: ${Number((Number(getSafeSize(style.fontSize)) / 16).toFixed(3))}rem`);
+      const remSize = `${Number((Number(getSafeSize(style.fontSize)) / 16).toFixed(3))}rem`;
+      declarations.push(`--presentation-editable-font-size: ${remSize}`);
+      declarations.push(
+        "font-size: min(var(--presentation-editable-font-size), var(--presentation-editable-fit-size, var(--presentation-editable-font-size)))"
+      );
     }
     if (style.textColor) {
       declarations.push(`color: ${normalizeHexColor(style.textColor, "#f8fafc")}`);

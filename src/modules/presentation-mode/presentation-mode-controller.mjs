@@ -374,6 +374,8 @@ export function createPresentationModeController(dependencies = {}) {
     slideIndex: 0,
   };
   let root = null;
+  let stageResizeObserver = null;
+  let stageMetricsFrame = 0;
 
   function ensureRoot() {
     if (root) return root;
@@ -613,6 +615,59 @@ export function createPresentationModeController(dependencies = {}) {
     };
   }
 
+  function updateStageMetrics() {
+    stageMetricsFrame = 0;
+    if (!state.isOpen || !root || root.hidden) {
+      return;
+    }
+    const stage = root.querySelector("[data-presentation-stage]");
+    if (!stage) {
+      return;
+    }
+    const rect = stage.getBoundingClientRect();
+    const stageWidth = Math.max(0, Number(rect.width) || 0);
+    const stageHeight = Math.max(0, Number(rect.height) || 0);
+    if (!stageWidth || !stageHeight) {
+      return;
+    }
+    const slideHeight = Math.min(stageHeight, stageWidth * (9 / 16));
+    const slideWidth = slideHeight * (16 / 9);
+    stage.style.setProperty("--presentation-stage-width", `${Number(stageWidth.toFixed(2))}px`);
+    stage.style.setProperty("--presentation-stage-height", `${Number(stageHeight.toFixed(2))}px`);
+    stage.style.setProperty("--presentation-slide-width", `${Number(slideWidth.toFixed(2))}px`);
+    stage.style.setProperty("--presentation-slide-height", `${Number(slideHeight.toFixed(2))}px`);
+  }
+
+  function scheduleStageMetrics() {
+    if (stageMetricsFrame || !state.isOpen) {
+      return;
+    }
+    const requestFrame = win?.requestAnimationFrame?.bind(win) || ((callback) => win?.setTimeout?.(callback, 0));
+    stageMetricsFrame = requestFrame(updateStageMetrics);
+  }
+
+  function disconnectStageMetrics() {
+    stageResizeObserver?.disconnect?.();
+    stageResizeObserver = null;
+    if (stageMetricsFrame && win?.cancelAnimationFrame) {
+      win.cancelAnimationFrame(stageMetricsFrame);
+    }
+    stageMetricsFrame = 0;
+  }
+
+  function observeStageMetrics() {
+    const stage = root?.querySelector("[data-presentation-stage]");
+    if (!stage) {
+      return;
+    }
+    stageResizeObserver?.disconnect?.();
+    if (typeof win?.ResizeObserver === "function") {
+      stageResizeObserver = new win.ResizeObserver(scheduleStageMetrics);
+      stageResizeObserver.observe(stage);
+    }
+    scheduleStageMetrics();
+  }
+
   function render() {
     if (!state.isOpen || !renderer) {
       return;
@@ -622,6 +677,7 @@ export function createPresentationModeController(dependencies = {}) {
     currentRoot.innerHTML = renderer.render(buildModel());
     documentRef.body.classList.add("is-presentation-mode-open");
     syncTextToolbar();
+    observeStageMetrics();
   }
 
   function open(dateValue = "") {
@@ -660,6 +716,7 @@ export function createPresentationModeController(dependencies = {}) {
       root.hidden = true;
       root.innerHTML = "";
     }
+    disconnectStageMetrics();
     documentRef.body.classList.remove("is-presentation-mode-open");
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
     documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
@@ -2229,7 +2286,9 @@ export function createPresentationModeController(dependencies = {}) {
         state.presenting = isPresenting;
         render();
       }
+      scheduleStageMetrics();
     });
+    win?.addEventListener?.("resize", scheduleStageMetrics);
   }
 
   return {

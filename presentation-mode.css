@@ -218,9 +218,9 @@ body.is-presentation-mode-open {
 }
 
 .presentation-logo-hero {
-  width: min(25rem, 34vw, 49vh);
-  height: min(25rem, 34vw, 49vh);
-  padding: clamp(.9rem, 1.4vw, 1.25rem);
+  width: min(25rem, 29cqw, 49cqh);
+  height: min(25rem, 29cqw, 49cqh);
+  padding: clamp(.75rem, 1.45cqw, 1.25rem);
 }
 
 .presentation-logo.is-initials {
@@ -1001,6 +1001,10 @@ body.is-presentation-mode-open {
 }
 
 .presentation-stage {
+  --presentation-stage-width: 100%;
+  --presentation-stage-height: 100%;
+  --presentation-slide-width: min(100%, calc((100dvh - 9.4rem) * 1.777));
+  --presentation-slide-height: min(100%, calc(100dvh - 9.4rem));
   min-height: 0;
   display: grid;
   place-items: center;
@@ -1009,9 +1013,13 @@ body.is-presentation-mode-open {
 
 .presentation-slide {
   position: relative;
-  width: min(100%, calc((100dvh - 9.4rem) * 1.777));
-  max-height: min(100%, calc(100dvh - 9.4rem));
+  width: min(100%, var(--presentation-slide-width));
+  height: min(100%, var(--presentation-slide-height));
+  max-width: 100%;
+  max-height: 100%;
   aspect-ratio: 16 / 9;
+  container-type: size;
+  --presentation-editable-fit-size: clamp(1rem, 4.9cqw, 5.6rem);
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, .16);
   border-radius: 8px;
@@ -1045,7 +1053,7 @@ body.is-presentation-mode-open {
   z-index: 1;
   width: 100%;
   height: 100%;
-  padding: clamp(1.4rem, 2.5vw, 2.5rem);
+  padding: clamp(1.05rem, 2.7cqw, 2.5rem);
 }
 
 .presentation-text-box-layer {
@@ -1228,6 +1236,7 @@ body.is-presentation-mode-open {
 
 .presentation-free-text-box {
   position: relative;
+  --presentation-editable-fit-size: clamp(1rem, 4.7cqw, 5.6rem);
   min-height: 2.8rem;
   padding: .5rem 2.05rem 1.25rem .62rem;
   border: 1px dashed color-mix(in srgb, var(--presentation-accent, #38bdf8) 58%, transparent);
@@ -1252,6 +1261,7 @@ body.is-presentation-mode-open {
 }
 
 .presentation-free-text-box-shell.is-symbol .presentation-free-text-box {
+  --presentation-editable-fit-size: clamp(1.5rem, 6.6cqw, 7rem);
   min-height: 4.4rem;
   display: grid;
   place-items: center;
@@ -1366,9 +1376,9 @@ body.is-presentation-shape-drawing {
 }
 
 .presentation-corner-logo .presentation-logo-corner {
-  width: clamp(4.1rem, 5.1vw, 6rem);
-  height: clamp(4.1rem, 5.1vw, 6rem);
-  padding: clamp(.34rem, .58vw, .56rem);
+  width: clamp(3.8rem, 5.45cqw, 6rem);
+  height: clamp(3.8rem, 5.45cqw, 6rem);
+  padding: clamp(.28rem, .58cqw, .56rem);
 }
 
 .presentation-slide-footer {
@@ -1411,9 +1421,9 @@ body.is-presentation-shape-drawing {
 .presentation-slide-cover .presentation-slide-body {
   display: grid;
   grid-template-columns: minmax(13rem, .82fr) minmax(0, 1.18fr);
-  gap: clamp(2rem, 5vw, 5.5rem);
+  gap: clamp(1.5rem, 5.2cqw, 5.5rem);
   align-items: center;
-  padding: clamp(2rem, 4.2vw, 4.6rem);
+  padding: clamp(1.65rem, 4.4cqw, 4.6rem);
 }
 
 .presentation-cover-mark {
@@ -1438,14 +1448,14 @@ body.is-presentation-shape-drawing {
   max-width: 10.5ch;
   margin: 0;
   color: var(--presentation-slide-text, #ffffff);
-  font-size: clamp(4.3rem, 8.7vw, 9.4rem);
+  font-size: clamp(2.8rem, 8.4cqw, 9.4rem);
   line-height: .88;
 }
 
 .presentation-cover-copy p {
   margin: 0;
   color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 72%, transparent);
-  font-size: clamp(1.32rem, 2.35vw, 2.25rem);
+  font-size: clamp(1rem, 2.25cqw, 2.25rem);
   font-weight: 850;
 }
 
@@ -1465,8 +1475,8 @@ body.is-presentation-shape-drawing {
   height: 100%;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 1.1rem;
-  padding: clamp(2.5rem, 5vw, 5.5rem) clamp(6rem, 8vw, 8rem) 3.2rem clamp(2rem, 5vw, 5rem);
+  gap: clamp(.74rem, 1.18cqw, 1.1rem);
+  padding: clamp(2.2rem, 5.4cqw, 5.5rem) clamp(3.2rem, 8.2cqw, 8rem) clamp(2.3rem, 3.2cqw, 3.2rem) clamp(1.8rem, 5.2cqw, 5rem);
   color: var(--presentation-info-color, #f8fafc);
 }
 
@@ -1491,14 +1501,15 @@ body.is-presentation-shape-drawing {
 }
 
 .presentation-info-title {
-  min-height: 4.8rem;
-  font-size: clamp(2.6rem, 5.2vw, 5rem);
+  min-height: clamp(2.9rem, 5.4cqw, 4.8rem);
+  font-size: clamp(2.1rem, 5.35cqw, 5rem);
   font-weight: 950;
   line-height: .96;
 }
 
 .presentation-info-body {
-  font-size: clamp(1rem, var(--presentation-info-body-size, 3.5rem), 8rem);
+  --presentation-editable-fit-size: clamp(1.15rem, 4.45cqw, 8rem);
+  font-size: clamp(1rem, min(var(--presentation-info-body-size, 3.5rem), var(--presentation-editable-fit-size)), 8rem);
   font-weight: 820;
   line-height: 1.22;
 }
@@ -1521,7 +1532,7 @@ body.is-presentation-shape-drawing {
   max-width: 18ch;
   margin: 0;
   color: #ffffff;
-  font-size: clamp(2.25rem, 4.6vw, 4.9rem);
+  font-size: clamp(1.8rem, 4.55cqw, 4.9rem);
   line-height: .93;
 }
 
@@ -1566,7 +1577,7 @@ body.is-presentation-shape-drawing {
 .presentation-overview-metric strong {
   overflow-wrap: anywhere;
   color: #ffffff;
-  font-size: clamp(.98rem, 1.35vw, 1.42rem);
+  font-size: clamp(.84rem, 1.42cqw, 1.42rem);
   line-height: 1.05;
 }
 
@@ -1621,7 +1632,7 @@ body.is-presentation-shape-drawing {
   min-width: 0;
   overflow: hidden;
   color: #ffffff;
-  font-size: clamp(1rem, 1.36vw, 1.48rem);
+  font-size: clamp(.9rem, 1.48cqw, 1.48rem);
   line-height: 1.02;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1638,7 +1649,7 @@ body.is-presentation-shape-drawing {
   display: block;
   overflow: hidden;
   color: rgba(248, 250, 252, .74);
-  font-size: clamp(.76rem, 1.05vw, 1.05rem);
+  font-size: clamp(.68rem, 1.08cqw, 1.05rem);
   font-style: normal;
   font-weight: 850;
   line-height: 1.08;
@@ -1972,7 +1983,7 @@ body.is-presentation-shape-drawing {
 
 .presentation-block-copy .presentation-section-heading h2 {
   max-width: 100%;
-  font-size: clamp(2rem, 3.5vw, 3.9rem);
+  font-size: clamp(1.75rem, 3.7cqw, 3.9rem);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2290,6 +2301,53 @@ body.is-presentation-shape-drawing {
   transform: translateX(-50%);
 }
 
+@media (max-width: 1180px) {
+  .presentation-control-bar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand pass actions"
+      "edit edit edit";
+    gap: .48rem;
+    align-items: center;
+  }
+
+  .presentation-control-brand {
+    grid-area: brand;
+  }
+
+  .presentation-control-edit-slot {
+    grid-area: edit;
+    justify-content: stretch;
+    min-height: 3.08rem;
+  }
+
+  .presentation-control-actions {
+    grid-area: actions;
+  }
+
+  .presentation-pass-controls {
+    grid-area: pass;
+    min-width: 0;
+    justify-content: flex-end;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .presentation-pass-controls::-webkit-scrollbar {
+    display: none;
+  }
+
+  .presentation-control-edit-slot .presentation-text-toolbar {
+    position: static;
+    width: 100%;
+    max-width: 100%;
+    transform: none;
+    justify-content: center;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+}
+
 @media (max-width: 760px) {
   .presentation-footer-nav {
     grid-template-columns: 1fr;
@@ -2303,9 +2361,80 @@ body.is-presentation-shape-drawing {
 
 @media (max-width: 980px) {
   .dashboard-presentation-card,
-  .presentation-control-bar,
   .presentation-block-layout {
     grid-template-columns: 1fr;
+  }
+
+  .presentation-control-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand actions"
+      "edit edit"
+      "pass pass";
+    gap: .36rem;
+    padding: .4rem;
+  }
+
+  .presentation-pass-controls {
+    justify-content: flex-start;
+  }
+
+  .presentation-control-edit-slot {
+    min-height: 2.72rem;
+  }
+
+  .presentation-control-edit-slot .presentation-text-toolbar {
+    justify-content: flex-start;
+    gap: .04rem;
+    padding: .12rem;
+  }
+
+  .presentation-control-edit-slot .presentation-text-toolbar .presentation-keynote-tool {
+    min-width: 2.85rem;
+    min-height: 2.46rem;
+    grid-template-rows: 1.02rem auto;
+    gap: .08rem;
+    padding: .2rem .24rem .18rem;
+  }
+
+  .presentation-keynote-icon {
+    width: 1.15rem;
+    height: 1rem;
+  }
+
+  .presentation-keynote-tool > span:not(.presentation-keynote-icon) {
+    font-size: .55rem;
+  }
+
+  .presentation-quick-style-controls {
+    gap: .04rem;
+    padding: 0 .06rem;
+  }
+
+  .presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control {
+    min-width: 2.22rem;
+    min-height: 2.46rem;
+    grid-template-rows: 1.02rem auto;
+    gap: .08rem;
+    padding: .2rem .22rem .18rem;
+  }
+
+  .presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control span,
+  .presentation-quick-style-control.is-opacity output {
+    font-size: .52rem;
+  }
+
+  .presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control input[type="color"] {
+    width: 1.28rem;
+    height: 1.12rem;
+  }
+
+  .presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control.is-opacity {
+    min-width: 4.75rem;
+  }
+
+  .presentation-control-edit-slot .presentation-text-toolbar .presentation-quick-style-control input[type="range"] {
+    width: 4rem;
   }
 
   .presentation-block-layout {
@@ -2350,10 +2479,11 @@ body.is-presentation-shape-drawing {
   }
 
   .presentation-slide {
-    width: 100%;
-    max-height: none;
-    aspect-ratio: auto;
-    min-height: calc(100vh - 13rem);
+    width: min(100%, var(--presentation-slide-width));
+    height: min(100%, var(--presentation-slide-height));
+    max-height: 100%;
+    aspect-ratio: 16 / 9;
+    min-height: 0;
   }
 
   .presentation-slide-body,

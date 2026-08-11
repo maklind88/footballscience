@@ -343,8 +343,10 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(styledCoverHtml).toContain("presentation-text-box-edge-handle is-left");
   expect(styledCoverHtml).toContain('data-presentation-text-field="textbox.note-1.text"');
   expect(styledCoverHtml).toContain("left: 50%; top: 40%; width: 30%;");
-  expect(styledCoverHtml).toContain("font-size: 4rem; color: #38bdf8;");
-  expect(styledCoverHtml).toContain("font-size: 2rem; color: #ffffff;");
+  expect(styledCoverHtml).toContain("--presentation-editable-font-size: 4rem");
+  expect(styledCoverHtml).toContain("--presentation-editable-font-size: 2rem");
+  expect(styledCoverHtml).toContain("color: #38bdf8;");
+  expect(styledCoverHtml).toContain("color: #ffffff;");
   expect(renderer.renderCoverSlide({
     ...styledTextModel,
     activeShapeTarget: { slideId: "cover", shapeId: "shape-1" },

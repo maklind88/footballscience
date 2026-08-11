@@ -387,7 +387,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(styleMenu.locator("[data-presentation-active-font-size]")).toContainText("56 pt");
   await expect(styleMenu.locator("[data-presentation-active-font-size]")).toContainText("128 pt");
   await styleMenu.locator("[data-presentation-active-font-size]").selectOption("64");
-  await expect(presentation.locator(".presentation-info-title")).toHaveAttribute("style", /font-size: 4rem/);
+  await expect(presentation.locator(".presentation-info-title")).toHaveAttribute("style", /--presentation-editable-font-size: 4rem/);
   await textToolbar.locator("[data-presentation-symbol-menu] summary").click();
   await expect(styleMenu).not.toHaveAttribute("open", "");
   await expect(textToolbar.locator("[data-presentation-symbol-menu] .presentation-tool-popover-panel")).toBeVisible();
@@ -526,6 +526,71 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     return title.getBoundingClientRect().bottom <= rule.getBoundingClientRect().top;
   });
   expect(infoTitleAboveRule).toBe(true);
+  await page.setViewportSize({ width: 857, height: 752 });
+  await page.waitForFunction(() => {
+    const stage = document.querySelector(".presentation-stage");
+    const slide = document.querySelector(".presentation-slide-info");
+    if (!stage || !slide) return false;
+    const stageStyle = getComputedStyle(stage);
+    const slideWidth = stageStyle.getPropertyValue("--presentation-slide-width").trim();
+    const slideHeight = stageStyle.getPropertyValue("--presentation-slide-height").trim();
+    const stageRect = stage.getBoundingClientRect();
+    const slideRect = slide.getBoundingClientRect();
+    return (
+      slideWidth.endsWith("px") &&
+      slideHeight.endsWith("px") &&
+      slideRect.width <= stageRect.width + 1 &&
+      slideRect.height <= stageRect.height + 1
+    );
+  });
+  const compactEditLayout = await presentation.evaluate(() => {
+    const controlBar = document.querySelector(".presentation-control-bar");
+    const toolbar = document.querySelector("[data-presentation-text-toolbar]");
+    const passControls = document.querySelector(".presentation-pass-controls");
+    const stage = document.querySelector(".presentation-stage");
+    const slide = document.querySelector(".presentation-slide-info");
+    const footer = document.querySelector(".presentation-footer-nav");
+    const title = document.querySelector(".presentation-info-title");
+    const body = document.querySelector(".presentation-info-body");
+    if (!controlBar || !toolbar || !passControls || !stage || !slide || !footer || !title || !body) return null;
+    const controlRect = controlBar.getBoundingClientRect();
+    const toolbarRect = toolbar.getBoundingClientRect();
+    const passRect = passControls.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    const slideRect = slide.getBoundingClientRect();
+    const footerRect = footer.getBoundingClientRect();
+    const titleFontSize = Number.parseFloat(getComputedStyle(title).fontSize);
+    const bodyFontSize = Number.parseFloat(getComputedStyle(body).fontSize);
+    return {
+      controlBarReasonable: controlRect.height <= 178,
+      toolbarInsideControlBar: toolbarRect.top >= controlRect.top - 1 && toolbarRect.bottom <= controlRect.bottom + 1,
+      toolbarDoesNotCoverPassControls: toolbarRect.bottom <= passRect.top || toolbarRect.top >= passRect.bottom || toolbarRect.right <= passRect.left || toolbarRect.left >= passRect.right,
+      slideFitsStage: slideRect.left >= stageRect.left - 1 && slideRect.right <= stageRect.right + 1 && slideRect.top >= stageRect.top - 1 && slideRect.bottom <= stageRect.bottom + 1,
+      slideKeepsRatio: Math.abs(slideRect.width / slideRect.height - 16 / 9) <= 0.03,
+      footerBelowStage: footerRect.top >= stageRect.bottom - 1,
+      titleScaledForEdit: titleFontSize <= 68,
+      bodyScaledForEdit: bodyFontSize <= 48,
+    };
+  });
+  expect(compactEditLayout).toMatchObject({
+    controlBarReasonable: true,
+    toolbarInsideControlBar: true,
+    toolbarDoesNotCoverPassControls: true,
+    slideFitsStage: true,
+    slideKeepsRatio: true,
+    footerBelowStage: true,
+    titleScaledForEdit: true,
+    bodyScaledForEdit: true,
+  });
+  await page.setViewportSize({ width: 1450, height: 728 });
+  await page.waitForFunction(() => {
+    const stage = document.querySelector(".presentation-stage");
+    const slide = document.querySelector(".presentation-slide-info");
+    if (!stage || !slide) return false;
+    const stageRect = stage.getBoundingClientRect();
+    const slideRect = slide.getBoundingClientRect();
+    return slideRect.width <= stageRect.width + 1 && slideRect.height <= stageRect.height + 1;
+  });
   await expect(presentation).toContainText("Arrive ready");
   await presentation.locator("[data-presentation-delete-slide]").click();
   await expect(presentation.locator(".presentation-slide-info")).toHaveCount(0);

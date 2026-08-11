@@ -78,6 +78,9 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     getAvailabilityItems: () => [
       { player: { id: "p1", name: "Ada Keeper", position: "GK", photoUrl: "https://example.com/ada.jpg" }, record: { id: "r1" }, participation: 100, status: { label: "Full" } },
       { player: { id: "p2", name: "Bea Mid", position: "CM" }, record: { id: "r2" }, participation: 0, status: { label: "Unavailable" } },
+      { player: { id: "p3", name: "Zoe Striker", position: "Forward" }, participation: 100, status: { label: "Full" } },
+      { player: { id: "p4", name: "Cara Defender", position: "Defender" }, participation: 100, status: { label: "Full" } },
+      { player: { id: "p5", name: "Mia Midfield", position: "Midfielder" }, participation: 100, status: { label: "Full" } },
     ],
     getCustomPeople: () => [{ id: "staff-1", name: "Coach", kind: "staff", role: "Staff" }],
     createCustomPersonItem: (person) => ({
@@ -94,7 +97,13 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
 
   const model = controller.buildModel();
   expect(model.slides.map((slide) => slide.type)).toEqual(["cover", "info", "overview", "block"]);
-  expect(model.medicalRecommendations.map((item) => item.player.name)).toEqual(["Bea Mid", "Ada Keeper"]);
+  expect(model.medicalRecommendations.map((item) => item.player.name)).toEqual([
+    "Bea Mid",
+    "Ada Keeper",
+    "Cara Defender",
+    "Mia Midfield",
+    "Zoe Striker",
+  ]);
   const blockSlide = model.slides.find((slide) => slide.type === "block");
   expect(blockSlide.playerSummary.plannedPlayers.map((item) => item.player.name)).toEqual(["Ada Keeper", "Coach"]);
   expect(blockSlide.playerSummary.nonParticipants.map((item) => item.player.name)).toEqual(["Bea Mid"]);

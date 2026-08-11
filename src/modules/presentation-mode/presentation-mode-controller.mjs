@@ -332,10 +332,28 @@ function sortNonParticipants(first, second) {
   return String(first.player?.name || "").localeCompare(String(second.player?.name || ""));
 }
 
+function getMedicalPositionRank(player = {}) {
+  const position = String(
+    player.position || player.role || player.playerBoardRoleLabel || player.playerBoardPosition || ""
+  )
+    .trim()
+    .toLowerCase();
+  if (!position) return 99;
+  if (/\b(gk|goalkeeper|keeper|målvakt|malvakt)\b/.test(position)) return 1;
+  if (/\b(def|defender|back|centre back|center back|cb|lb|rb|lwb|rwb)\b/.test(position)) return 2;
+  if (/\b(mid|midfielder|mittfält|mittfalt|cm|dm|am|cdm|cam|lm|rm)\b/.test(position)) return 3;
+  if (/\b(fwd|forward|striker|attacker|winger|fw|st|cf|lw|rw)\b/.test(position)) return 4;
+  return 99;
+}
+
 function sortMedicalRecommendations(first, second) {
   const firstParticipation = Number.isFinite(Number(first.participation)) ? Number(first.participation) : 101;
   const secondParticipation = Number.isFinite(Number(second.participation)) ? Number(second.participation) : 101;
   if (firstParticipation !== secondParticipation) return firstParticipation - secondParticipation;
+  if (firstParticipation >= 100 && secondParticipation >= 100) {
+    const positionDelta = getMedicalPositionRank(first.player) - getMedicalPositionRank(second.player);
+    if (positionDelta) return positionDelta;
+  }
   return String(first.player?.name || "").localeCompare(String(second.player?.name || ""));
 }
 

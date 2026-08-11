@@ -1420,6 +1420,7 @@ body.is-presentation-shape-drawing {
 }
 
 .presentation-mode-shell:not(.is-presenting) [data-presentation-text-field] {
+  position: relative;
   border-radius: 5px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
@@ -1429,6 +1430,16 @@ body.is-presentation-shape-drawing {
   transition:
     background .16s ease,
     box-shadow .16s ease;
+}
+
+.presentation-mode-shell:not(.is-presenting) [data-presentation-text-object] {
+  z-index: 5;
+  transform-origin: center;
+}
+
+.presentation-mode-shell:not(.is-presenting) [data-presentation-text-object]:has(.presentation-text-field-edge-handle),
+.presentation-mode-shell:not(.is-presenting) [data-presentation-text-object]:has(.presentation-text-field-resize-handle) {
+  overflow: visible;
 }
 
 .presentation-mode-shell:not(.is-presenting) [data-presentation-text-field]:hover {
@@ -1456,6 +1467,72 @@ body.is-presentation-shape-drawing {
 
 .presentation-mode-shell:not(.is-presenting) .presentation-free-text-box-shell.is-selected .presentation-free-text-box[data-presentation-active-text="true"] {
   background: color-mix(in srgb, var(--presentation-accent, #38bdf8) 15%, rgba(8, 15, 20, .38));
+}
+
+.presentation-text-field-edge-handle {
+  position: absolute;
+  z-index: 9;
+  display: block;
+  background: transparent;
+  content: "";
+  pointer-events: auto;
+  cursor: grab;
+  user-select: none;
+}
+
+.presentation-text-field-edge-handle.is-top,
+.presentation-text-field-edge-handle.is-bottom {
+  left: .75rem;
+  right: .75rem;
+  height: .68rem;
+}
+
+.presentation-text-field-edge-handle.is-top {
+  top: -.42rem;
+}
+
+.presentation-text-field-edge-handle.is-bottom {
+  bottom: -.42rem;
+}
+
+.presentation-text-field-edge-handle.is-left,
+.presentation-text-field-edge-handle.is-right {
+  top: .75rem;
+  bottom: .75rem;
+  width: .68rem;
+}
+
+.presentation-text-field-edge-handle.is-left {
+  left: -.42rem;
+}
+
+.presentation-text-field-edge-handle.is-right {
+  right: -.42rem;
+}
+
+.presentation-text-field-resize-handle {
+  z-index: 11;
+}
+
+.presentation-mode-shell:not(.is-presenting) [data-presentation-text-object]:hover .presentation-text-field-resize-handle,
+.presentation-mode-shell:not(.is-presenting) [data-presentation-text-object][data-presentation-active-text="true"] .presentation-text-field-resize-handle {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.presentation-mode-shell.is-presenting .presentation-text-field-edge-handle,
+.presentation-mode-shell.is-presenting .presentation-text-field-resize-handle {
+  display: none;
+}
+
+body.is-presentation-text-field-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+body.is-presentation-text-field-resizing {
+  cursor: nwse-resize;
+  user-select: none;
 }
 
 .presentation-cover .presentation-slide-body,

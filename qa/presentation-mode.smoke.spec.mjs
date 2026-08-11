@@ -308,6 +308,54 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     headingScaled: true,
     dateUnderTitle: true,
   });
+  await coverTitle.click();
+  await expect(coverTitle.locator("[data-presentation-resize-text-field='cover.title']")).toHaveCount(8);
+  const coverTitleBeforeDrag = await coverTitle.boundingBox();
+  const coverTitleDragHandle = coverTitle.locator(".presentation-text-field-edge-handle.is-right");
+  const coverTitleDragHandleBox = await coverTitleDragHandle.boundingBox();
+  expect(coverTitleBeforeDrag).toBeTruthy();
+  expect(coverTitleDragHandleBox).toBeTruthy();
+  await page.mouse.move(
+    coverTitleDragHandleBox.x + coverTitleDragHandleBox.width / 2,
+    coverTitleDragHandleBox.y + coverTitleDragHandleBox.height * 0.82
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    coverTitleDragHandleBox.x + coverTitleDragHandleBox.width / 2 + 72,
+    coverTitleDragHandleBox.y + coverTitleDragHandleBox.height * 0.82 + 36,
+    { steps: 6 }
+  );
+  await page.mouse.up();
+  const coverTitleAfterDrag = await coverTitle.boundingBox();
+  expect(coverTitleAfterDrag?.x).toBeGreaterThan((coverTitleBeforeDrag?.x || 0) + 18);
+  expect(coverTitleAfterDrag?.y).toBeGreaterThan((coverTitleBeforeDrag?.y || 0) + 8);
+  await coverTitle.click();
+  const coverTitleBeforeResize = await coverTitle.boundingBox();
+  const coverTitleResizeHandle = coverTitle.locator("[data-presentation-resize-text-field='cover.title'][data-presentation-resize-axis='se']");
+  const coverTitleResizeHandleBox = await coverTitleResizeHandle.boundingBox();
+  expect(coverTitleBeforeResize).toBeTruthy();
+  expect(coverTitleResizeHandleBox).toBeTruthy();
+  await page.mouse.move(
+    coverTitleResizeHandleBox.x + coverTitleResizeHandleBox.width / 2,
+    coverTitleResizeHandleBox.y + coverTitleResizeHandleBox.height / 2
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    coverTitleResizeHandleBox.x + coverTitleResizeHandleBox.width / 2 + 46,
+    coverTitleResizeHandleBox.y + coverTitleResizeHandleBox.height / 2 + 34,
+    { steps: 6 }
+  );
+  await page.mouse.up();
+  const storedCoverTitleStyle = await page.evaluate(
+    ({ key, date }) => JSON.parse(window.localStorage.getItem(key) || "{}")?.decks?.[date]?.textFieldStyles?.cover?.["cover.title"],
+    { key: presentationKey, date: dateValue }
+  );
+  expect(Number(storedCoverTitleStyle?.offsetX)).toBeGreaterThan(1);
+  expect(Number(storedCoverTitleStyle?.offsetY)).toBeGreaterThan(1);
+  expect(Number(storedCoverTitleStyle?.width)).toBeGreaterThan(20);
+  expect(Number(storedCoverTitleStyle?.height)).toBeGreaterThan(2);
+  expect(Number(storedCoverTitleStyle?.fontSize)).toBeGreaterThan(16);
+  await coverTitle.evaluate((element) => element.blur());
   await expect(presentation.locator(".presentation-footer-nav .presentation-slide-tabs")).toBeVisible();
   const footerNavigationLayout = await presentation.evaluate(() => {
     const footer = document.querySelector(".presentation-footer-nav");
@@ -850,7 +898,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-slide-block .presentation-section-heading p")).toContainText("In Possession (Build Up, Creating Phase)");
   await expect(presentation.locator(".presentation-slide-block .presentation-section-heading p")).not.toContainText(" / ");
   await expect(presentation).not.toContainText("10 min");
-  await expect(presentation.locator(".presentation-slide-block .presentation-section-heading span")).toHaveText("Block 1");
+  await expect(presentation.locator(".presentation-slide-block [data-presentation-text-field='block.label']")).toHaveText("Block 1");
   await expect(presentation.locator(".presentation-slide-block")).not.toContainText("10%+");
   await expect(presentation.locator(".presentation-slide-block")).not.toContainText("0% / Unavailable");
   await expect(presentation.locator(".presentation-player-rule")).toHaveCount(0);

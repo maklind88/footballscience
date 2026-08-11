@@ -161,22 +161,21 @@ export function createPresentationModeRenderer(options = {}) {
   const resizeDirections = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 
   function renderResizeHandles(kind = "text-box", id = "", slideId = "") {
-    const dataAttribute = kind === "shape" ? "data-presentation-resize-shape" : "data-presentation-resize-text-box";
+    const dataAttribute = kind === "shape"
+      ? "data-presentation-resize-shape"
+      : kind === "text-field"
+        ? "data-presentation-resize-text-field"
+        : "data-presentation-resize-text-box";
     const className =
       kind === "shape"
         ? "presentation-object-resize-handle presentation-shape-resize-handle"
+        : kind === "text-field"
+          ? "presentation-object-resize-handle presentation-text-field-resize-handle"
         : "presentation-object-resize-handle presentation-text-box-resize-handle";
     return resizeDirections
       .map(
-        (direction) => `
-          <span
-            class="${className} is-${escapeHtml(direction)}"
-            ${dataAttribute}="${escapeHtml(id)}"
-            data-presentation-resize-axis="${escapeHtml(direction)}"
-            data-presentation-slide-id="${escapeHtml(slideId)}"
-            aria-hidden="true"
-          ></span>
-        `
+        (direction) =>
+          `<span class="${className} is-${escapeHtml(direction)}" ${dataAttribute}="${escapeHtml(id)}" data-presentation-resize-axis="${escapeHtml(direction)}" data-presentation-slide-id="${escapeHtml(slideId)}" contenteditable="false" aria-hidden="true"></span>`
       )
       .join("");
   }
@@ -336,6 +335,22 @@ export function createPresentationModeRenderer(options = {}) {
     if (style.textColor) {
       declarations.push(`color: ${normalizeHexColor(style.textColor, "#f8fafc")}`);
     }
+    const offsetX = Number(style.offsetX);
+    const offsetY = Number(style.offsetY);
+    if (Number.isFinite(offsetX) || Number.isFinite(offsetY)) {
+      declarations.push(
+        `transform: translate3d(calc(var(--presentation-slide-width, 1px) * ${Number.isFinite(offsetX) ? offsetX / 100 : 0}), calc(var(--presentation-slide-height, 1px) * ${Number.isFinite(offsetY) ? offsetY / 100 : 0}), 0)`
+      );
+    }
+    if (style.width) {
+      declarations.push("display: inline-flex");
+      declarations.push("align-items: center");
+      declarations.push(`width: calc(var(--presentation-slide-width, 1px) * ${Number(style.width) / 100})`);
+      declarations.push("max-width: calc(var(--presentation-slide-width, 1px) * .94)");
+    }
+    if (style.height) {
+      declarations.push(`min-height: calc(var(--presentation-slide-height, 1px) * ${Number(style.height) / 100})`);
+    }
     return declarations.length ? `style="${escapeHtml(`${declarations.join("; ")};`)}"` : "";
   }
 
@@ -343,12 +358,30 @@ export function createPresentationModeRenderer(options = {}) {
     return attributes.filter(Boolean).join(" ");
   }
 
+  function renderTextFieldControls(model = {}, slide = {}, field = "", options = {}) {
+    if (model.presenting || options.objectFrame === false || !slide.id || !field) {
+      return "";
+    }
+    const safeField = escapeHtml(field);
+    const safeSlideId = escapeHtml(slide.id || "");
+    return [
+      `<span class="presentation-text-field-edge-handle is-top" data-presentation-drag-text-field="${safeField}" data-presentation-slide-id="${safeSlideId}" contenteditable="false" aria-hidden="true"></span>`,
+      `<span class="presentation-text-field-edge-handle is-right" data-presentation-drag-text-field="${safeField}" data-presentation-slide-id="${safeSlideId}" contenteditable="false" aria-hidden="true"></span>`,
+      `<span class="presentation-text-field-edge-handle is-bottom" data-presentation-drag-text-field="${safeField}" data-presentation-slide-id="${safeSlideId}" contenteditable="false" aria-hidden="true"></span>`,
+      `<span class="presentation-text-field-edge-handle is-left" data-presentation-drag-text-field="${safeField}" data-presentation-slide-id="${safeSlideId}" contenteditable="false" aria-hidden="true"></span>`,
+      renderResizeHandles("text-field", field, slide.id),
+    ].join("");
+  }
+
   function renderEditableElement(model = {}, slide = {}, field = "", fallback = "", tagName = "span", attributes = "", options = {}) {
     const editableAttributes = getEditableAttributes(model, slide, field, options);
     const value = getSlideText(slide, field, fallback);
     const styleAttribute = getTextFieldStyleAttribute(slide, field, options.style || {}, options.extraStyle || "");
-    const mergedAttributes = mergeAttributes(attributes, styleAttribute, editableAttributes);
-    return `<${tagName}${mergedAttributes ? ` ${mergedAttributes}` : ""}>${escapeHtml(value)}</${tagName}>`;
+    const objectAttributes = !model.presenting && options.objectFrame !== false
+      ? `data-presentation-text-object="${escapeHtml(field)}"`
+      : "";
+    const mergedAttributes = mergeAttributes(attributes, styleAttribute, objectAttributes, editableAttributes);
+    return `<${tagName}${mergedAttributes ? ` ${mergedAttributes}` : ""}>${escapeHtml(value)}${renderTextFieldControls(model, slide, field, options)}</${tagName}>`;
   }
 
   function renderEditableTextArea(model = {}, slide = {}, field = "", fallback = "", attributes = "", options = {}) {
@@ -358,8 +391,11 @@ export function createPresentationModeRenderer(options = {}) {
     }
     const editableAttributes = getEditableAttributes(model, slide, field, { ...options, multiline: true });
     const styleAttribute = getTextFieldStyleAttribute(slide, field, options.style || {}, options.extraStyle || "");
-    const mergedAttributes = mergeAttributes(attributes, styleAttribute, editableAttributes);
-    return `<div${mergedAttributes ? ` ${mergedAttributes}` : ""}>${escapeHtml(value)}</div>`;
+    const objectAttributes = !model.presenting && options.objectFrame !== false
+      ? `data-presentation-text-object="${escapeHtml(field)}"`
+      : "";
+    const mergedAttributes = mergeAttributes(attributes, styleAttribute, objectAttributes, editableAttributes);
+    return `<div${mergedAttributes ? ` ${mergedAttributes}` : ""}>${escapeHtml(value)}${renderTextFieldControls(model, slide, field, options)}</div>`;
   }
 
   function renderControlBar(model = {}) {
@@ -636,6 +672,7 @@ export function createPresentationModeRenderer(options = {}) {
               `class="presentation-free-text-box" data-presentation-text-box-id="${escapeHtml(box.id)}" ${objectDragAttributes}`,
               {
                 label: "Text box",
+                objectFrame: false,
                 style: fallbackStyle,
               }
             );

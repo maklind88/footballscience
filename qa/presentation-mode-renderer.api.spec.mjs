@@ -372,6 +372,14 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(styledCoverHtml).toContain("--presentation-editable-font-size: 2rem");
   expect(styledCoverHtml).toContain("color: #38bdf8;");
   expect(styledCoverHtml).toContain("color: #ffffff;");
+  const activeCoverTextHtml = renderer.renderCoverSlide({
+    ...styledTextModel,
+    activeTextTarget: { slideId: "cover", field: "cover.title" },
+  });
+  expect(activeCoverTextHtml).toContain('data-presentation-text-object="cover.title"');
+  expect(activeCoverTextHtml).toContain('data-presentation-drag-text-field="cover.title"');
+  expect(activeCoverTextHtml).toContain('data-presentation-resize-text-field="cover.title"');
+  expect(activeCoverTextHtml.match(/data-presentation-resize-text-field="cover.title"/g)).toHaveLength(8);
   expect(renderer.renderCoverSlide({
     ...styledTextModel,
     activeShapeTarget: { slideId: "cover", shapeId: "shape-1" },

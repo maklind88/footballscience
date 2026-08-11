@@ -75,6 +75,28 @@ function normalizeFontSize(value = "") {
   return String(Math.min(128, Math.max(16, numericSize)));
 }
 
+function normalizeTextFieldOffset(value = "", fallback = 0) {
+  const numericValue = Number(value);
+  const safeFallback = Number.isFinite(Number(fallback)) ? Number(fallback) : 0;
+  return Number(Math.min(96, Math.max(-96, Number.isFinite(numericValue) ? numericValue : safeFallback)).toFixed(2));
+}
+
+function normalizeTextFieldWidth(value = "") {
+  if (value === "" || value === null || value === undefined) {
+    return "";
+  }
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? Number(Math.min(92, Math.max(4, numericValue)).toFixed(2)) : "";
+}
+
+function normalizeTextFieldHeight(value = "") {
+  if (value === "" || value === null || value === undefined) {
+    return "";
+  }
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? Number(Math.min(88, Math.max(2, numericValue)).toFixed(2)) : "";
+}
+
 function getSlideLabel(title = "", fallback = "Slide") {
   const label = String(title || "").trim() || fallback;
   return label.length > 18 ? `${label.slice(0, 17).trim()}...` : label;
@@ -151,11 +173,12 @@ function normalizeTextFieldStyles(textFieldStyles = {}) {
                 const normalized = {
                   fontSize: textStyle.fontSize ? normalizeFontSize(textStyle.fontSize) : "",
                   textColor: textStyle.textColor ? normalizeHexColor(textStyle.textColor, "") : "",
+                  offsetX: normalizeTextFieldOffset(textStyle.offsetX),
+                  offsetY: normalizeTextFieldOffset(textStyle.offsetY),
+                  width: normalizeTextFieldWidth(textStyle.width),
+                  height: normalizeTextFieldHeight(textStyle.height),
                 };
-                return [
-                  String(field || "").trim(),
-                  Object.fromEntries(Object.entries(normalized).filter(([, value]) => value)),
-                ];
+                return [String(field || "").trim(), Object.fromEntries(Object.entries(normalized).filter(([, value]) => value !== "" && value !== 0))];
               })
               .filter(([field, style]) => field && Object.keys(style).length)
           ),
@@ -391,11 +414,13 @@ export function createPresentationModeController(dependencies = {}) {
     dateValue: "",
     drawShape: null,
     dragShape: null,
+    dragTextField: null,
     dragTextBox: null,
     editorOpen: false,
     isOpen: false,
     presenting: false,
     resizeShape: null,
+    resizeTextField: null,
     resizeTextBox: null,
     shapeDrawTool: null,
     slideIndex: 0,
@@ -498,11 +523,15 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeTextTarget = clonePlain(snapshot.state?.activeTextTarget);
     state.drawShape = null;
     state.dragShape = null;
+    state.dragTextField = null;
     state.dragTextBox = null;
     state.resizeShape = null;
+    state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
+    documentRef.body?.classList?.remove("is-presentation-text-field-dragging");
+    documentRef.body?.classList?.remove("is-presentation-text-field-resizing");
     documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     documentRef.body?.classList?.remove("is-presentation-shape-dragging");
@@ -590,6 +619,14 @@ export function createPresentationModeController(dependencies = {}) {
     return Number(Math.min(84, Math.max(5, Number(height) || 12)).toFixed(2));
   }
 
+  function clampTextFieldWidth(width = 24) {
+    return Number(Math.min(92, Math.max(4, Number(width) || 24)).toFixed(2));
+  }
+
+  function clampTextFieldHeight(height = 8) {
+    return Number(Math.min(88, Math.max(2, Number(height) || 8)).toFixed(2));
+  }
+
   function clampShapePosition(x, y, width = 12, height = 12) {
     const safeWidth = Math.min(88, Math.max(1, Number(width) || 12));
     const safeHeight = Math.min(84, Math.max(1, Number(height) || 12));
@@ -606,6 +643,92 @@ export function createPresentationModeController(dependencies = {}) {
 
   function getTextBoxField(boxId = "") {
     return `textbox.${String(boxId || "").trim()}.text`;
+  }
+
+  function getTextFieldElement(slideId = "", field = "") {
+    if (!root || typeof root.querySelectorAll !== "function") {
+      return null;
+    }
+    return [...root.querySelectorAll("[data-presentation-slide-id][data-presentation-text-field]")].find(
+      (element) =>
+        element.dataset.presentationSlideId === slideId &&
+        element.dataset.presentationTextField === field
+    );
+  }
+
+  function createTextFieldControlElement(className = "", attributes = {}) {
+    const element = documentRef.createElement?.("span");
+    if (!element) {
+      return null;
+    }
+    element.className = className;
+    element.setAttribute("contenteditable", "false");
+    element.setAttribute("aria-hidden", "true");
+    Object.entries(attributes).forEach(([name, value]) => {
+      element.setAttribute(name, value);
+    });
+    return element;
+  }
+
+  function ensureTextFieldControls(textElement = null) {
+    if (
+      state.presenting ||
+      !textElement ||
+      !textElement.dataset.presentationTextObject
+    ) {
+      return;
+    }
+    const field = String(textElement.dataset.presentationTextField || "").trim();
+    const slideId = String(textElement.dataset.presentationSlideId || "").trim();
+    if (!field || !slideId) {
+      return;
+    }
+    const existingEdges = textElement.querySelectorAll?.("[data-presentation-drag-text-field]") || [];
+    const existingResizeHandles = textElement.querySelectorAll?.("[data-presentation-resize-text-field]") || [];
+    if (existingEdges.length === 4 && existingResizeHandles.length === 8) {
+      return;
+    }
+    [...existingEdges, ...existingResizeHandles].forEach((handle) => handle.remove?.());
+    ["top", "right", "bottom", "left"].forEach((edge) => {
+      const handle = createTextFieldControlElement(`presentation-text-field-edge-handle is-${edge}`, {
+        "data-presentation-drag-text-field": field,
+        "data-presentation-slide-id": slideId,
+      });
+      if (handle) {
+        textElement.appendChild(handle);
+      }
+    });
+    ["nw", "n", "ne", "e", "se", "s", "sw", "w"].forEach((axis) => {
+      const handle = createTextFieldControlElement(`presentation-object-resize-handle presentation-text-field-resize-handle is-${axis}`, {
+        "data-presentation-resize-text-field": field,
+        "data-presentation-resize-axis": axis,
+        "data-presentation-slide-id": slideId,
+      });
+      if (handle) {
+        textElement.appendChild(handle);
+      }
+    });
+  }
+
+  function applyTextFieldLayoutStyle(element, bounds = {}) {
+    if (!element) {
+      return;
+    }
+    const offsetX = normalizeTextFieldOffset(bounds.offsetX);
+    const offsetY = normalizeTextFieldOffset(bounds.offsetY);
+    element.style.transform = `translate3d(calc(var(--presentation-slide-width, 1px) * ${offsetX / 100}), calc(var(--presentation-slide-height, 1px) * ${offsetY / 100}), 0)`;
+    if (bounds.width) {
+      element.style.display = "inline-flex";
+      element.style.alignItems = "center";
+      element.style.width = `calc(var(--presentation-slide-width, 1px) * ${clampTextFieldWidth(bounds.width) / 100})`;
+      element.style.maxWidth = "calc(var(--presentation-slide-width, 1px) * .94)";
+    }
+    if (bounds.height) {
+      element.style.minHeight = `calc(var(--presentation-slide-height, 1px) * ${clampTextFieldHeight(bounds.height) / 100})`;
+    }
+    if (bounds.fontSize) {
+      element.style.fontSize = `${Number((Number(normalizeFontSize(bounds.fontSize)) / 16).toFixed(3))}rem`;
+    }
   }
 
   function getResolvedPasses(dateValue = state.dateValue) {
@@ -845,8 +968,10 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeTextTarget = null;
     state.drawShape = null;
     state.dragShape = null;
+    state.dragTextField = null;
     state.dragTextBox = null;
     state.resizeShape = null;
+    state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
     state.dateValue = normalizeDateValue(dateValue, getTodayValue());
@@ -863,8 +988,10 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeTextTarget = null;
     state.drawShape = null;
     state.dragShape = null;
+    state.dragTextField = null;
     state.dragTextBox = null;
     state.resizeShape = null;
+    state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
     state.isOpen = false;
@@ -881,6 +1008,8 @@ export function createPresentationModeController(dependencies = {}) {
     disconnectStageMetrics();
     documentRef.body.classList.remove("is-presentation-mode-open");
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
+    documentRef.body?.classList?.remove("is-presentation-text-field-dragging");
+    documentRef.body?.classList?.remove("is-presentation-text-field-resizing");
     documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     documentRef.body?.classList?.remove("is-presentation-shape-dragging");
@@ -895,12 +1024,18 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeTextTarget = null;
     state.drawShape = null;
     state.dragShape = null;
+    state.dragTextField = null;
     state.dragTextBox = null;
     state.resizeShape = null;
+    state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
+    documentRef.body?.classList?.remove("is-presentation-text-field-dragging");
+    documentRef.body?.classList?.remove("is-presentation-text-field-resizing");
+    documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
+    documentRef.body?.classList?.remove("is-presentation-shape-dragging");
     documentRef.body?.classList?.remove("is-presentation-shape-resizing");
     render();
   }
@@ -1048,16 +1183,37 @@ export function createPresentationModeController(dependencies = {}) {
     focusActiveTextElement();
   }
 
+  function updateTextFieldLayout(slideId = "", field = "", layout = {}) {
+    const safeSlideId = String(slideId || "").trim();
+    const safeField = String(field || "").trim();
+    if (!safeSlideId || !safeField) {
+      return;
+    }
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      textFieldStyles: normalizeTextFieldStyles({
+        ...deck.textFieldStyles,
+        [safeSlideId]: {
+          ...(deck.textFieldStyles?.[safeSlideId] || {}),
+          [safeField]: {
+            ...(deck.textFieldStyles?.[safeSlideId]?.[safeField] || {}),
+            ...layout,
+          },
+        },
+      }),
+    }));
+    state.activeShapeTarget = null;
+    state.activeTextTarget = { field: safeField, infoId: state.activeTextTarget?.infoId || "", slideId: safeSlideId, textBoxId: "" };
+    render();
+    focusActiveTextElement();
+  }
+
   function getActiveTextElement() {
     const target = state.activeTextTarget;
     if (!root || typeof root.querySelectorAll !== "function" || !target?.slideId || !target.field) {
       return null;
     }
-    return [...root.querySelectorAll("[data-presentation-slide-id][data-presentation-text-field]")].find(
-      (element) =>
-        element.dataset.presentationSlideId === target.slideId &&
-        element.dataset.presentationTextField === target.field
-    );
+    return getTextFieldElement(target.slideId, target.field);
   }
 
   function getFocusedTextElement() {
@@ -1175,6 +1331,7 @@ export function createPresentationModeController(dependencies = {}) {
       slideId,
       textBoxId: String(textElement?.dataset.presentationTextBoxId || textBoxId).trim(),
     };
+    ensureTextFieldControls(textElement);
     syncTextToolbar();
   }
 
@@ -1711,14 +1868,20 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeTextTarget = null;
     state.drawShape = null;
     state.dragShape = null;
+    state.dragTextField = null;
     state.dragTextBox = null;
     state.resizeShape = null;
+    state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
     state.presenting = true;
     state.editorOpen = false;
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
+    documentRef.body?.classList?.remove("is-presentation-text-field-dragging");
+    documentRef.body?.classList?.remove("is-presentation-text-field-resizing");
+    documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
+    documentRef.body?.classList?.remove("is-presentation-shape-dragging");
     documentRef.body?.classList?.remove("is-presentation-shape-resizing");
     render();
   }
@@ -1727,6 +1890,238 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.exitFullscreen?.().catch?.(noop);
     state.presenting = false;
     render();
+  }
+
+  function beginTextFieldDrag(event, handle) {
+    if (event.button && event.button !== 0) {
+      return;
+    }
+    const textElement = handle?.closest?.("[data-presentation-text-field]");
+    const slideId = String(handle?.dataset.presentationSlideId || textElement?.dataset.presentationSlideId || "").trim();
+    const field = String(handle?.dataset.presentationDragTextField || textElement?.dataset.presentationTextField || "").trim();
+    const slideElement = textElement?.closest?.(".presentation-slide");
+    const slideRect = slideElement?.getBoundingClientRect?.();
+    const style = getDeckForDate().textFieldStyles?.[slideId]?.[field] || {};
+    if (!slideId || !field || !textElement || !slideRect?.width || !slideRect?.height || state.presenting) {
+      return;
+    }
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    const startOffsetX = normalizeTextFieldOffset(style.offsetX);
+    const startOffsetY = normalizeTextFieldOffset(style.offsetY);
+    state.dragTextField = {
+      field,
+      slideId,
+      slideHeight: slideRect.height,
+      slideWidth: slideRect.width,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startOffsetX,
+      startOffsetY,
+      nextOffsetX: startOffsetX,
+      nextOffsetY: startOffsetY,
+      textElement,
+    };
+    state.activeShapeTarget = null;
+    state.activeTextTarget = { field, infoId: String(textElement.dataset.presentationInfoId || "").trim(), slideId, textBoxId: "" };
+    textElement.setAttribute("data-presentation-active-text", "true");
+    documentRef.body?.classList?.add("is-presentation-text-field-dragging");
+    handle.setPointerCapture?.(event.pointerId);
+    syncTextToolbar();
+  }
+
+  function createVirtualTextFieldHandle(textElement = null, axis = "", mode = "drag") {
+    const field = String(textElement?.dataset.presentationTextField || "").trim();
+    const slideId = String(textElement?.dataset.presentationSlideId || "").trim();
+    return {
+      closest: (selector) => (selector === "[data-presentation-text-field]" ? textElement : textElement?.closest?.(selector)),
+      dataset: {
+        presentationDragTextField: field,
+        presentationResizeAxis: axis,
+        presentationResizeTextField: field,
+        presentationSlideId: slideId,
+      },
+      setPointerCapture: () => {},
+      type: mode,
+    };
+  }
+
+  function getTextFieldPointerHandle(event) {
+    if (state.presenting || !state.activeTextTarget?.slideId || !state.activeTextTarget.field || state.activeTextTarget.textBoxId) {
+      return null;
+    }
+    const textElement = getActiveTextElement();
+    if (!textElement?.dataset.presentationTextObject) {
+      return null;
+    }
+    const rect = textElement.getBoundingClientRect?.();
+    if (!rect?.width || !rect?.height) {
+      return null;
+    }
+    const hitSize = 14;
+    const x = event.clientX;
+    const y = event.clientY;
+    const inOuterBounds = x >= rect.left - hitSize && x <= rect.right + hitSize && y >= rect.top - hitSize && y <= rect.bottom + hitSize;
+    if (!inOuterBounds) {
+      return null;
+    }
+    const nearLeft = Math.abs(x - rect.left) <= hitSize;
+    const nearRight = Math.abs(x - rect.right) <= hitSize;
+    const nearTop = Math.abs(y - rect.top) <= hitSize;
+    const nearBottom = Math.abs(y - rect.bottom) <= hitSize;
+    const cornerAxis =
+      nearLeft && nearTop
+        ? "nw"
+        : nearRight && nearTop
+          ? "ne"
+          : nearRight && nearBottom
+            ? "se"
+            : nearLeft && nearBottom
+              ? "sw"
+              : "";
+    if (cornerAxis) {
+      return createVirtualTextFieldHandle(textElement, cornerAxis, "resize");
+    }
+    if (nearLeft || nearRight || nearTop || nearBottom) {
+      return createVirtualTextFieldHandle(textElement, "", "drag");
+    }
+    return null;
+  }
+
+  function updateTextFieldDrag(event) {
+    const drag = state.dragTextField;
+    if (!drag) {
+      return;
+    }
+    event.preventDefault?.();
+    const offsetX = normalizeTextFieldOffset(drag.startOffsetX + ((event.clientX - drag.startClientX) / drag.slideWidth) * 100);
+    const offsetY = normalizeTextFieldOffset(drag.startOffsetY + ((event.clientY - drag.startClientY) / drag.slideHeight) * 100);
+    drag.nextOffsetX = offsetX;
+    drag.nextOffsetY = offsetY;
+    applyTextFieldLayoutStyle(drag.textElement, {
+      offsetX,
+      offsetY,
+    });
+  }
+
+  function finishTextFieldDrag(event) {
+    const drag = state.dragTextField;
+    if (!drag) {
+      return;
+    }
+    event.preventDefault?.();
+    documentRef.body?.classList?.remove("is-presentation-text-field-dragging");
+    state.dragTextField = null;
+    updateTextFieldLayout(drag.slideId, drag.field, {
+      offsetX: drag.nextOffsetX,
+      offsetY: drag.nextOffsetY,
+    });
+  }
+
+  function beginTextFieldResize(event, handle) {
+    if (event.button && event.button !== 0) {
+      return;
+    }
+    const textElement = handle?.closest?.("[data-presentation-text-field]");
+    const slideId = String(handle?.dataset.presentationSlideId || textElement?.dataset.presentationSlideId || "").trim();
+    const field = String(handle?.dataset.presentationResizeTextField || textElement?.dataset.presentationTextField || "").trim();
+    const axis = getResizeAxis(handle);
+    const slideElement = textElement?.closest?.(".presentation-slide");
+    const slideRect = slideElement?.getBoundingClientRect?.();
+    const elementRect = textElement?.getBoundingClientRect?.();
+    const style = getDeckForDate().textFieldStyles?.[slideId]?.[field] || {};
+    if (!slideId || !field || !textElement || !slideRect?.width || !slideRect?.height || !elementRect?.width || state.presenting) {
+      return;
+    }
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    const startWidth = clampTextFieldWidth(style.width || (elementRect.width / slideRect.width) * 100);
+    const startHeight = clampTextFieldHeight(style.height || (elementRect.height / slideRect.height) * 100);
+    const startOffsetX = normalizeTextFieldOffset(style.offsetX);
+    const startOffsetY = normalizeTextFieldOffset(style.offsetY);
+    const startFontSize = Number(normalizeFontSize(style.fontSize || Number.parseFloat(getComputedStyle(textElement).fontSize) || "36"));
+    state.resizeTextField = {
+      axis,
+      field,
+      slideId,
+      slideHeight: slideRect.height,
+      slideWidth: slideRect.width,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startFontSize,
+      startHeight,
+      startOffsetX,
+      startOffsetY,
+      startWidth,
+      nextLayout: {
+        fontSize: startFontSize,
+        height: startHeight,
+        offsetX: startOffsetX,
+        offsetY: startOffsetY,
+        width: startWidth,
+      },
+      textElement,
+    };
+    state.activeShapeTarget = null;
+    state.activeTextTarget = { field, infoId: String(textElement.dataset.presentationInfoId || "").trim(), slideId, textBoxId: "" };
+    documentRef.body?.classList?.add("is-presentation-text-field-resizing");
+    handle.setPointerCapture?.(event.pointerId);
+    syncTextToolbar();
+  }
+
+  function getResizedTextFieldLayout(resize, event) {
+    const axis = resize.axis || "se";
+    const deltaWidth = ((event.clientX - resize.startClientX) / resize.slideWidth) * 100;
+    const deltaHeight = ((event.clientY - resize.startClientY) / resize.slideHeight) * 100;
+    const rawWidth = resize.startWidth + (axis.includes("e") ? deltaWidth : axis.includes("w") ? -deltaWidth : 0);
+    const rawHeight = resize.startHeight + (axis.includes("s") ? deltaHeight : axis.includes("n") ? -deltaHeight : 0);
+    const width = axis.includes("e") || axis.includes("w") ? clampTextFieldWidth(rawWidth || resize.startWidth) : resize.startWidth;
+    const height = axis.includes("n") || axis.includes("s") ? clampTextFieldHeight(rawHeight || resize.startHeight) : resize.startHeight;
+    const widthScale = width / Math.max(1, resize.startWidth);
+    const heightScale = height / Math.max(1, resize.startHeight);
+    const axisScales = [
+      axis.includes("e") || axis.includes("w") ? widthScale : null,
+      axis.includes("n") || axis.includes("s") ? heightScale : null,
+    ].filter((scaleValue) => Number.isFinite(scaleValue));
+    const scale = Math.max(0.35, Math.min(2.6, axisScales.length > 1 ? Math.min(...axisScales) : axisScales[0] || 1));
+    const isExpanding =
+      (axis.includes("e") && deltaWidth > 0) ||
+      (axis.includes("w") && deltaWidth < 0) ||
+      (axis.includes("s") && deltaHeight > 0) ||
+      (axis.includes("n") && deltaHeight < 0);
+    const fontScale = isExpanding ? Math.max(1, scale) : scale;
+    const fontSize = Number(normalizeFontSize(Math.round(resize.startFontSize * fontScale)));
+    const widthChange = width - resize.startWidth;
+    const heightChange = height - resize.startHeight;
+    return {
+      fontSize,
+      height,
+      offsetX: normalizeTextFieldOffset(resize.startOffsetX + (axis.includes("w") ? -widthChange : 0)),
+      offsetY: normalizeTextFieldOffset(resize.startOffsetY + (axis.includes("n") ? -heightChange : 0)),
+      width,
+    };
+  }
+
+  function updateTextFieldResize(event) {
+    const resize = state.resizeTextField;
+    if (!resize) {
+      return;
+    }
+    event.preventDefault?.();
+    const layout = getResizedTextFieldLayout(resize, event);
+    resize.nextLayout = layout;
+    applyTextFieldLayoutStyle(resize.textElement, layout);
+  }
+
+  function finishTextFieldResize(event) {
+    const resize = state.resizeTextField;
+    if (!resize) {
+      return;
+    }
+    event.preventDefault?.();
+    documentRef.body?.classList?.remove("is-presentation-text-field-resizing");
+    state.resizeTextField = null;
+    updateTextFieldLayout(resize.slideId, resize.field, resize.nextLayout);
   }
 
   function beginTextBoxDrag(event, handle) {
@@ -2176,6 +2571,9 @@ export function createPresentationModeController(dependencies = {}) {
     if (event.target.closest("[data-presentation-drag-text-box]")) {
       return;
     }
+    if (event.target.closest("[data-presentation-drag-text-field]")) {
+      return;
+    }
     const toolbarSummary = event.target.closest("[data-presentation-text-toolbar] .presentation-tool-popover > summary");
     if (toolbarSummary) {
       const currentPopover = toolbarSummary.closest("details");
@@ -2247,9 +2645,23 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
+    const pointerTextFieldHandle = getTextFieldPointerHandle(event);
+    if (pointerTextFieldHandle?.type === "resize") {
+      beginTextFieldResize(event, pointerTextFieldHandle);
+      return;
+    }
+    if (pointerTextFieldHandle?.type === "drag") {
+      beginTextFieldDrag(event, pointerTextFieldHandle);
+      return;
+    }
     const resizeHandle = event.target.closest("[data-presentation-resize-text-box]");
     if (resizeHandle) {
       beginTextBoxResize(event, resizeHandle);
+      return;
+    }
+    const textFieldResizeHandle = event.target.closest("[data-presentation-resize-text-field]");
+    if (textFieldResizeHandle) {
+      beginTextFieldResize(event, textFieldResizeHandle);
       return;
     }
     const shapeResizeHandle = event.target.closest("[data-presentation-resize-shape]");
@@ -2260,6 +2672,11 @@ export function createPresentationModeController(dependencies = {}) {
     const dragHandle = event.target.closest("[data-presentation-drag-text-box]");
     if (dragHandle) {
       beginTextBoxDrag(event, dragHandle);
+      return;
+    }
+    const textFieldDragHandle = event.target.closest("[data-presentation-drag-text-field]");
+    if (textFieldDragHandle) {
+      beginTextFieldDrag(event, textFieldDragHandle);
       return;
     }
     const slideElement = event.target.closest(".presentation-slide");
@@ -2340,6 +2757,7 @@ export function createPresentationModeController(dependencies = {}) {
             .replace(/^\n+|\n+$/g, "")
         : rawValue.replace(/\s+/g, " ").trim();
       updateTextOverride(textField.dataset.presentationSlideId, textField.dataset.presentationTextField, value);
+      ensureTextFieldControls(textField);
     }
   }
 
@@ -2386,8 +2804,10 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeShapeTarget = null;
     state.drawShape = null;
     state.dragShape = null;
+    state.dragTextField = null;
     state.dragTextBox = null;
     state.resizeShape = null;
+    state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
     state.dateValue = nextDate;
@@ -2395,7 +2815,11 @@ export function createPresentationModeController(dependencies = {}) {
     state.editorOpen = false;
     resetUndoHistory();
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
+    documentRef.body?.classList?.remove("is-presentation-text-field-dragging");
+    documentRef.body?.classList?.remove("is-presentation-text-field-resizing");
+    documentRef.body?.classList?.remove("is-presentation-text-box-dragging");
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
+    documentRef.body?.classList?.remove("is-presentation-shape-dragging");
     documentRef.body?.classList?.remove("is-presentation-shape-resizing");
     render();
   }
@@ -2487,16 +2911,22 @@ export function createPresentationModeController(dependencies = {}) {
     }
     state.bound = true;
     documentRef.addEventListener("pointerdown", handleTextActivation, true);
+    documentRef.addEventListener("pointermove", updateTextFieldDrag, true);
+    documentRef.addEventListener("pointermove", updateTextFieldResize, true);
     documentRef.addEventListener("pointermove", updateTextBoxDrag, true);
     documentRef.addEventListener("pointermove", updateTextBoxResize, true);
     documentRef.addEventListener("pointermove", updateShapeDraw, true);
     documentRef.addEventListener("pointermove", updateShapeDrag, true);
     documentRef.addEventListener("pointermove", updateShapeResize, true);
+    documentRef.addEventListener("pointerup", finishTextFieldDrag, true);
+    documentRef.addEventListener("pointerup", finishTextFieldResize, true);
     documentRef.addEventListener("pointerup", finishTextBoxDrag, true);
     documentRef.addEventListener("pointerup", finishTextBoxResize, true);
     documentRef.addEventListener("pointerup", finishShapeDraw, true);
     documentRef.addEventListener("pointerup", finishShapeDrag, true);
     documentRef.addEventListener("pointerup", finishShapeResize, true);
+    documentRef.addEventListener("pointercancel", finishTextFieldDrag, true);
+    documentRef.addEventListener("pointercancel", finishTextFieldResize, true);
     documentRef.addEventListener("pointercancel", finishTextBoxDrag, true);
     documentRef.addEventListener("pointercancel", finishTextBoxResize, true);
     documentRef.addEventListener("pointercancel", finishShapeDraw, true);

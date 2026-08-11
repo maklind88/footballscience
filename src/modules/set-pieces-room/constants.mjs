@@ -1,5 +1,5 @@
 export const SET_PIECES_STORAGE_KEY = "football-set-pieces-room-v1";
-export const SET_PIECES_SCHEMA_VERSION = 1;
+export const SET_PIECES_SCHEMA_VERSION = 2;
 export const SET_PIECES_MAX_PLAYS = 120;
 export const SET_PIECES_MAX_VARIANTS = 16;
 export const SET_PIECES_MAX_PHASES = 24;

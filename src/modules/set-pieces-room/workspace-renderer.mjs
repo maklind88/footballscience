@@ -7,6 +7,12 @@ import {
   setPieceRestartOptions,
   setPieceToolOptions,
 } from "./constants.mjs";
+import {
+  getSetPieceAssignedSlot,
+  getSetPieceAssignment,
+  getSetPieceRoleCode,
+  resolveSetPiecePhaseAssignments,
+} from "./assignments.mjs";
 import { escapeSetPieceHtml, renderSetPieceBoard, renderSetPiecePhaseThumbnail } from "./board-renderer.mjs";
 import { createSetPiecePlayerLabelMap } from "./player-labels.mjs";
 import { getActiveSetPiece, getActiveSetPiecePhase, getActiveSetPieceVariant } from "./state.mjs";
@@ -83,6 +89,66 @@ function renderPlayerPicker(roster = [], phase = {}, canEdit = false) {
   </details>`;
 }
 
+function renderAssignmentScope(ui = {}) {
+  return `<div class="spr-assignment-scope" role="group" aria-label="Player change scope">
+    <button type="button" data-set-piece-assignment-scope="play" class="${ui.assignmentScope !== "variant" ? "is-active" : ""}" aria-pressed="${ui.assignmentScope !== "variant"}">All variants</button>
+    <button type="button" data-set-piece-assignment-scope="variant" class="${ui.assignmentScope === "variant" ? "is-active" : ""}" aria-pressed="${ui.assignmentScope === "variant"}">This variant</button>
+  </div>`;
+}
+
+function renderAssignmentPicker(slotId, play, variant, roster, ui, canEdit) {
+  const assignment = getSetPieceAssignment(play, variant, slotId);
+  const labels = createSetPiecePlayerLabelMap(roster.map((entry) => entry.player));
+  const currentPlayer = roster.find((entry) => entry.id === assignment.profileId);
+  const currentMark = currentPlayer ? labels.get(currentPlayer.id) : getSetPieceRoleCode(assignment.role);
+  return `<div class="spr-assignment-control">
+    <div class="spr-assignment-control-heading"><span>Assigned player</span>${assignment.isVariantOverride ? "<small>Variant override</small>" : "<small>Routine default</small>"}</div>
+    ${renderAssignmentScope(ui)}
+    <details class="spr-assignment-picker" ${ui.assignmentPickerSlotId === slotId ? "open" : ""}>
+      <summary aria-label="Change assigned player">
+        <span class="spr-player-option-mark">${escapeSetPieceHtml(currentMark || "R")}</span>
+        <span class="spr-player-option-copy"><strong>${escapeSetPieceHtml(currentPlayer?.name || "Unassigned")}</strong><small>${escapeSetPieceHtml(assignment.role)}</small></span>
+        <span class="spr-assignment-chevron" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="spr-assignment-menu" role="menu" aria-label="Choose player for role">
+        <button type="button" class="spr-player-option ${!assignment.profileId ? "is-placed" : ""}" data-set-piece-assign-player="" data-set-piece-slot-id="${escapeSetPieceHtml(slotId)}" role="menuitem" ${canEdit ? "" : "disabled"}>
+          <span class="spr-player-option-mark is-unassigned">—</span>
+          <span class="spr-player-option-copy"><strong>Unassigned</strong><small>Keep the tactical role open</small></span>
+          <span class="spr-player-option-state" aria-hidden="true">${!assignment.profileId ? "✓" : ""}</span>
+        </button>
+        ${roster.map((entry) => {
+          const selected = entry.id === assignment.profileId;
+          const occupied = getSetPieceAssignedSlot(play, variant, entry.id, slotId);
+          return `<button type="button" class="spr-player-option ${selected ? "is-placed" : ""}" data-set-piece-assign-player="${escapeSetPieceHtml(entry.id)}" data-set-piece-slot-id="${escapeSetPieceHtml(slotId)}" role="menuitem" aria-label="Assign ${escapeSetPieceHtml(entry.name)} to ${escapeSetPieceHtml(assignment.role)}" ${canEdit ? "" : "disabled"}>
+            <span class="spr-player-option-mark">${escapeSetPieceHtml(labels.get(entry.id) || "P")}</span>
+            <span class="spr-player-option-copy"><strong>${escapeSetPieceHtml(entry.name)}</strong><small>${escapeSetPieceHtml(occupied ? `Swap with ${occupied.role}` : entry.position || "Squad player")}</small></span>
+            <span class="spr-player-option-state" aria-hidden="true">${selected ? "✓" : occupied ? "⇄" : "＋"}</span>
+          </button>`;
+        }).join("")}
+      </div>
+    </details>
+  </div>`;
+}
+
+function renderAssignmentsOverview(play, variant, roster, canEdit) {
+  const labels = createSetPiecePlayerLabelMap(roster.map((entry) => entry.player));
+  return `<div class="spr-inspector-section spr-assignments-overview">
+    <div class="spr-inspector-title"><div><p>Routine</p><strong>Assignments</strong></div><button type="button" class="spr-icon-button" data-set-piece-action="show-plan" aria-label="Back to plan" title="Back to plan">←</button></div>
+    <p class="spr-assignment-intro">Roles stay fixed. Players can change without changing positions, runs or timing.</p>
+    <div class="spr-assignment-list">
+      ${(play.assignments || []).map((slot) => {
+        const assignment = getSetPieceAssignment(play, variant, slot.slotId);
+        const player = roster.find((entry) => entry.id === assignment.profileId);
+        return `<button type="button" class="spr-assignment-row" data-set-piece-select-slot="${escapeSetPieceHtml(slot.slotId)}">
+          <span class="spr-player-option-mark">${escapeSetPieceHtml(player ? labels.get(player.id) : getSetPieceRoleCode(slot.role))}</span>
+          <span class="spr-player-option-copy"><strong>${escapeSetPieceHtml(slot.role)}</strong><small>${escapeSetPieceHtml(player?.name || "Unassigned")}${assignment.isVariantOverride ? " · This variant" : ""}</small></span>
+          <span aria-hidden="true">›</span>
+        </button>`;
+      }).join("") || '<div class="spr-player-menu-empty">Add own players to create tactical roles.</div>'}
+    </div>
+  </div>`;
+}
+
 function renderPlayLibrary(state = {}, ui = {}) {
   const filters = [
     { value: "all", label: "All", accessibleLabel: "All set pieces" },
@@ -151,10 +217,13 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
   }
   const phaseIndex = variant.phases.findIndex((item) => item.id === phase.id);
   const previousPhase = phaseIndex > 0 ? variant.phases[phaseIndex - 1] : null;
+  const resolvedPhase = resolveSetPiecePhaseAssignments(phase, play, variant, roster);
+  const resolvedPreviousPhase = previousPhase ? resolveSetPiecePhaseAssignments(previousPhase, play, variant, roster) : null;
   return `<main class="spr-editor">
     ${renderVariantBar(play, variant, canEdit)}
     <div class="spr-editor-toolbar">
       ${renderPlayerPicker(roster, phase, canEdit)}
+      <button type="button" class="spr-assignment-command ${ui.showAssignments ? "is-active" : ""}" data-set-piece-action="show-assignments"><span aria-hidden="true">⇄</span><span>Assignments</span></button>
       <label><span>Pitch</span><select data-set-piece-play-field="pitchView" ${canEdit ? "" : "disabled"}>${optionsMarkup(setPiecePitchViewOptions, play.pitchView)}</select></label>
       <label class="spr-board-toggle"><input type="checkbox" data-set-piece-ghost ${ui.showGhost ? "checked" : ""}><span>Previous</span></label>
       <div class="spr-history-actions">
@@ -170,8 +239,8 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
       <div class="spr-board-stage" data-set-piece-board-stage>
         ${ui.showGhost && previousPhase ? '<span class="spr-ghost-status">Previous phase shown</span>' : ""}
         ${renderSetPieceBoard({
-          phase,
-          previousPhase: ui.showGhost ? previousPhase : null,
+          phase: resolvedPhase,
+          previousPhase: ui.showGhost ? resolvedPreviousPhase : null,
           pitchView: play.pitchView,
           layers: ui.layers,
           selectedElementIds: ui.selectedElementIds,
@@ -184,7 +253,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
     <div class="spr-timeline" aria-label="Phase timeline">
       <div class="spr-phase-strip">
         ${variant.phases.map((item, index) => `<button type="button" class="spr-phase-card ${item.id === phase.id ? "is-active" : ""}" data-set-piece-phase-id="${escapeSetPieceHtml(item.id)}">
-          ${renderSetPiecePhaseThumbnail(item, play.pitchView)}
+          ${renderSetPiecePhaseThumbnail(resolveSetPiecePhaseAssignments(item, play, variant, roster), play.pitchView)}
           <span><b>${String(index + 1).padStart(2, "0")}</b><i data-set-piece-phase-title="${escapeSetPieceHtml(item.id)}">${escapeSetPieceHtml(item.title)}</i></span>
         </button>`).join("")}
         <button type="button" class="spr-add-phase" data-set-piece-action="add-phase" title="Duplicate current phase" aria-label="Duplicate current phase" ${canEdit ? "" : "disabled"}>＋</button>
@@ -204,13 +273,14 @@ function renderField(label, field, value, options = {}) {
   return `<label class="spr-field"><span>${label}</span><input type="${options.type || "text"}" value="${escapeSetPieceHtml(value)}" data-${options.scope || "set-piece-play"}-field="${field}" ${options.min !== undefined ? `min="${options.min}"` : ""} ${options.max !== undefined ? `max="${options.max}"` : ""} ${disabled}></label>`;
 }
 
-function renderElementInspector(element, roster, canEdit) {
+function renderElementInspector(element, play, variant, roster, ui, canEdit) {
   const isHome = element.kind === "home-player";
   const isOpponent = element.kind === "opponent";
+  const assignment = isHome ? getSetPieceAssignment(play, variant, element.id) : null;
   return `<div class="spr-inspector-section">
-    <div class="spr-inspector-title"><div><p>${isHome ? "Selected player" : "Selected object"}</p><strong>${escapeSetPieceHtml(isHome ? element.label : element.kind === "opponent" ? `Opponent ${element.label}` : "Ball")}</strong></div><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canEdit ? "" : "disabled"}>⌫</button></div>
-    ${isHome ? renderField("Player", "profileId", element.profileId, { type: "select", options: roster.map((entry) => ({ value: entry.id, label: entry.name })), scope: "set-piece-element", disabled: !canEdit }) : ""}
-    ${isHome ? renderField("Role", "role", element.role, { scope: "set-piece-element", disabled: !canEdit }) : ""}
+    <div class="spr-inspector-title"><div><p>${isHome ? "Selected role" : "Selected object"}</p><strong>${escapeSetPieceHtml(isHome ? assignment.role : element.kind === "opponent" ? `Opponent ${element.label}` : "Ball")}</strong></div><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canEdit ? "" : "disabled"}>⌫</button></div>
+    ${isHome ? renderAssignmentPicker(element.id, play, variant, roster, ui, canEdit) : ""}
+    ${isHome ? renderField("Tactical role", "role", assignment.role, { scope: "set-piece-element", disabled: !canEdit }) : ""}
     ${isOpponent ? renderField("Number", "label", element.label || "1", { type: "number", min: 1, max: 99, scope: "set-piece-element", disabled: !canEdit }) : ""}
     ${isOpponent ? `<label class="spr-toggle-field"><span><strong>Show number</strong><small>Turn off for color only</small></span><input type="checkbox" data-set-piece-element-field="showNumber" aria-label="Show number on board" ${element.showNumber !== false ? "checked" : ""} ${canEdit ? "" : "disabled"}></label>` : ""}
     ${renderField("Instruction", "instruction", element.instruction, { type: "textarea", scope: "set-piece-element", disabled: !canEdit })}
@@ -269,8 +339,10 @@ function renderInspector(play, variant, phase, roster, ui, canEdit) {
   if (!play || !variant || !phase) return '<aside class="spr-inspector"></aside>';
   const selectedElement = phase.elements.find((element) => ui.selectedElementIds.has(element.id));
   const selectedDrawing = phase.drawings.find((drawing) => drawing.id === ui.selectedDrawingId);
-  const content = selectedElement
-    ? renderElementInspector(selectedElement, roster, canEdit)
+  const content = ui.showAssignments
+    ? renderAssignmentsOverview(play, variant, roster, canEdit)
+    : selectedElement
+    ? renderElementInspector(selectedElement, play, variant, roster, ui, canEdit)
     : selectedDrawing
       ? renderDrawingInspector(selectedDrawing, canEdit)
       : renderPlanInspector(play, variant, phase, ui, canEdit);

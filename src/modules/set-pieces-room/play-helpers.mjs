@@ -21,6 +21,16 @@ export function cloneSetPiecePlay(play, actorId = "") {
       });
     });
   });
+  cloned.assignments = (cloned.assignments || []).map((assignment) => ({
+    ...assignment,
+    slotId: elementIds.get(assignment.slotId) || assignment.slotId,
+  }));
+  cloned.variants.forEach((variant) => {
+    variant.assignmentOverrides = (variant.assignmentOverrides || []).map((assignment) => ({
+      ...assignment,
+      slotId: elementIds.get(assignment.slotId) || assignment.slotId,
+    }));
+  });
 
   const oldActiveVariantId = cloned.activeVariantId;
   cloned.id = createSetPieceId("set-piece");

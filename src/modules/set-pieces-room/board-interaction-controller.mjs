@@ -1,4 +1,5 @@
 import { DEFAULT_ACTION_DURATION_MS, setPieceDrawingTypes } from "./constants.mjs";
+import { getSetPieceAssignedSlot } from "./assignments.mjs";
 import {
   getNearestSetPieceElement,
   getNextSetPiecePlayerPlacement,
@@ -76,27 +77,39 @@ export function createSetPiecesBoardInteractionController(options = {}) {
   }
 
   function placeHomePlayer(point, rosterId = options.ui.selectedRosterId) {
-    const { phase } = options.getContext();
+    const { play, variant, phase } = options.getContext();
     const ui = options.ui;
     if (!phase) return;
     const roster = options.getRoster();
     const player = roster.find((entry) => entry.id === rosterId);
     if (!player) return;
     ui.selectedRosterId = player.id;
-    const existing = phase.elements.find((element) => element.kind === "home-player" && element.profileId === player.id);
+    const assignedSlot = getSetPieceAssignedSlot(play, variant, player.id);
+    const existing = phase.elements.find((element) => (
+      element.kind === "home-player" &&
+      (element.profileId === player.id || element.id === assignedSlot?.slotId)
+    ));
     if (existing) {
       ui.selectedElementIds = new Set([existing.id]);
       ui.selectedDrawingId = "";
+      ui.assignmentPickerSlotId = existing.id;
+      ui.showAssignments = false;
       ui.activeTool = "select";
       options.render();
       return;
     }
     const label = createSetPiecePlayerLabelMap(roster.map((entry) => entry.player)).get(player.id) || "P";
     options.commit(() => {
-      const element = createBoardElement("home-player", point, { profileId: player.id, label });
+      const element = createBoardElement("home-player", point, {
+        ...(assignedSlot ? { id: assignedSlot.slotId, role: assignedSlot.role } : {}),
+        profileId: player.id,
+        label,
+      });
       phase.elements.push(element);
       ui.selectedElementIds = new Set([element.id]);
       ui.selectedDrawingId = "";
+      ui.assignmentPickerSlotId = "";
+      ui.showAssignments = false;
       ui.activeTool = "select";
     });
   }
@@ -117,6 +130,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         const element = createBoardElement("opponent", point, { label: String(opponentNumber), showNumber: true });
         phase.elements.push(element);
         ui.selectedElementIds = new Set([element.id]);
+        ui.assignmentPickerSlotId = "";
+        ui.showAssignments = false;
         ui.activeTool = "select";
       });
       return;
@@ -126,6 +141,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       options.commit(() => {
         if (existingBall) Object.assign(existingBall, point);
         else phase.elements.push(createBoardElement("ball", point));
+        ui.assignmentPickerSlotId = "";
+        ui.showAssignments = false;
         ui.activeTool = "select";
       });
     }
@@ -161,6 +178,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         ui.selectedElementIds = new Set([elementId]);
       }
       ui.selectedDrawingId = "";
+      ui.assignmentPickerSlotId = phase.elements.find((element) => element.id === elementId)?.kind === "home-player" ? elementId : "";
+      ui.showAssignments = false;
       const positions = new Map(phase.elements.filter((element) => ui.selectedElementIds.has(element.id)).map((element) => [element.id, { x: element.x, y: element.y }]));
       interaction = {
         type: "move",
@@ -181,6 +200,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     if (ui.activeTool === "select" && drawingId && drawingId !== "preview") {
       ui.selectedElementIds.clear();
       ui.selectedDrawingId = drawingId;
+      ui.assignmentPickerSlotId = "";
+      ui.showAssignments = false;
       options.render();
       return;
     }
@@ -199,6 +220,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     if (ui.activeTool === "select") {
       ui.selectedElementIds.clear();
       ui.selectedDrawingId = "";
+      ui.assignmentPickerSlotId = "";
+      ui.showAssignments = false;
       interaction = { type: "select", svg, stage, pointerId: event.pointerId, start: point };
       capturePointer(stage, event.pointerId);
       ui.selectionRect = { startX: point.x, startY: point.y, endX: point.x, endY: point.y };

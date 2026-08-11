@@ -52,6 +52,7 @@ export function createSetPieceVariant(options = {}) {
     trigger: text(options.trigger, 240),
     baseVariantId: text(options.baseVariantId, 100),
     branchFromPhaseId: text(options.branchFromPhaseId, 100),
+    assignmentOverrides: [],
     activePhaseId: options.activePhaseId || phase.id,
     phases: Array.isArray(options.phases) && options.phases.length ? structuredClone(options.phases) : [phase],
   };
@@ -71,6 +72,7 @@ export function createSetPiecePlay(options = {}) {
     objective: text(options.objective, 320),
     pitchView: allowedPitchViews.has(options.pitchView) ? options.pitchView : "attacking-half",
     status: text(options.status || "draft", 24),
+    assignments: [],
     activeVariantId: variant.id,
     variants: [variant],
     createdAt: timestamp(options.createdAt) || now,
@@ -125,6 +127,72 @@ function normalizeDrawing(drawing = {}) {
   };
 }
 
+function normalizeAssignmentList(candidate = []) {
+  const source = Array.isArray(candidate)
+    ? candidate
+    : Object.entries(candidate || {}).map(([slotId, value]) => (
+      typeof value === "string" ? { slotId, profileId: value } : { slotId, ...value }
+    ));
+  const assignments = new Map();
+  source.forEach((assignment) => {
+    const slotId = text(assignment?.slotId || assignment?.elementId, 100);
+    if (!slotId) return;
+    assignments.set(slotId, {
+      slotId,
+      role: text(assignment?.role, 80),
+      profileId: text(assignment?.profileId, 100),
+    });
+  });
+  return assignments;
+}
+
+function normalizeAssignmentOverrides(candidate = []) {
+  const source = Array.isArray(candidate)
+    ? candidate
+    : Object.entries(candidate || {}).map(([slotId, profileId]) => ({ slotId, profileId }));
+  const overrides = new Map();
+  source.forEach((assignment) => {
+    const slotId = text(assignment?.slotId || assignment?.elementId, 100);
+    if (!slotId) return;
+    overrides.set(slotId, { slotId, profileId: text(assignment?.profileId, 100) });
+  });
+  return [...overrides.values()];
+}
+
+function mergeLegacyPlayerSlots(variants = []) {
+  const aliases = new Map();
+  const canonicalSlotsByProfile = new Map();
+  variants.forEach((variant) => variant.phases.forEach((phase) => {
+    const reservedSlotIds = new Set(phase.elements
+      .filter((element) => element.kind === "home-player")
+      .map((element) => aliases.get(element.id) || element.id));
+    phase.elements.forEach((element) => {
+      if (element.kind !== "home-player") return;
+      const originalId = element.id;
+      if (aliases.has(originalId)) {
+        element.id = aliases.get(originalId);
+        return;
+      }
+      const profileId = element.profileId;
+      const candidates = canonicalSlotsByProfile.get(profileId) || [];
+      const reusableSlotId = profileId
+        ? candidates.find((slotId) => slotId === originalId || !reservedSlotIds.has(slotId))
+        : "";
+      const canonicalSlotId = reusableSlotId || originalId;
+      aliases.set(originalId, canonicalSlotId);
+      element.id = canonicalSlotId;
+      reservedSlotIds.add(canonicalSlotId);
+      if (profileId && !candidates.includes(canonicalSlotId)) {
+        candidates.push(canonicalSlotId);
+        canonicalSlotsByProfile.set(profileId, candidates);
+      }
+    });
+    phase.drawings.forEach((drawing) => {
+      drawing.actorId = aliases.get(drawing.actorId) || drawing.actorId;
+    });
+  }));
+}
+
 function normalizePhase(phase = {}, index = 0) {
   return {
     id: text(phase.id, 100) || createSetPieceId("phase"),
@@ -147,6 +215,7 @@ function normalizeVariant(variant = {}, index = 0) {
     trigger: text(variant.trigger, 240),
     baseVariantId: text(variant.baseVariantId, 100),
     branchFromPhaseId: text(variant.branchFromPhaseId, 100),
+    assignmentOverrides: normalizeAssignmentOverrides(variant.assignmentOverrides),
     activePhaseId,
     phases,
   };
@@ -155,6 +224,33 @@ function normalizeVariant(variant = {}, index = 0) {
 function normalizePlay(play = {}) {
   const variants = (Array.isArray(play.variants) ? play.variants : []).slice(0, SET_PIECES_MAX_VARIANTS).map(normalizeVariant);
   if (!variants.length) variants.push(createSetPieceVariant());
+  const explicitAssignments = normalizeAssignmentList(play.assignments);
+  if (!explicitAssignments.size) mergeLegacyPlayerSlots(variants);
+  const discoveredSlots = new Map();
+  variants.forEach((variant) => variant.phases.forEach((phase) => phase.elements.forEach((element) => {
+    if (element.kind !== "home-player" || discoveredSlots.has(element.id)) return;
+    discoveredSlots.set(element.id, { profileId: element.profileId, role: element.role });
+  })));
+  const assignments = [...discoveredSlots.entries()].map(([slotId, fallback], index) => {
+    const explicit = explicitAssignments.get(slotId);
+    return {
+      slotId,
+      role: text(explicit?.role || fallback.role || `Role ${index + 1}`, 80),
+      profileId: explicitAssignments.has(slotId) ? explicit.profileId : text(fallback.profileId, 100),
+    };
+  });
+  const assignmentsBySlot = new Map(assignments.map((assignment) => [assignment.slotId, assignment]));
+  variants.forEach((variant) => {
+    variant.assignmentOverrides = variant.assignmentOverrides.filter((assignment) => assignmentsBySlot.has(assignment.slotId));
+    const overrides = new Map(variant.assignmentOverrides.map((assignment) => [assignment.slotId, assignment]));
+    variant.phases.forEach((phase) => phase.elements.forEach((element) => {
+      if (element.kind !== "home-player") return;
+      const assignment = assignmentsBySlot.get(element.id);
+      if (!assignment) return;
+      element.profileId = overrides.has(element.id) ? overrides.get(element.id).profileId : assignment.profileId;
+      element.role = assignment.role;
+    }));
+  });
   const activeVariantId = variants.some((variant) => variant.id === play.activeVariantId) ? play.activeVariantId : variants[0].id;
   const createdAt = timestamp(play.createdAt) || new Date().toISOString();
   return {
@@ -168,6 +264,7 @@ function normalizePlay(play = {}) {
     objective: text(play.objective, 320),
     pitchView: allowedPitchViews.has(play.pitchView) ? play.pitchView : "attacking-half",
     status: text(play.status || "draft", 24),
+    assignments,
     activeVariantId,
     variants,
     createdAt,

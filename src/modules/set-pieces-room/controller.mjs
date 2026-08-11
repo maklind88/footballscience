@@ -1,4 +1,6 @@
 import { SET_PIECES_MAX_PHASES, SET_PIECES_MAX_VARIANTS } from "./constants.mjs";
+import { createSetPieceAssignmentController } from "./assignment-controller.mjs";
+import { resolveSetPiecePhaseAssignments } from "./assignments.mjs";
 import { createSetPiecesBoardInteractionController } from "./board-interaction-controller.mjs";
 import { createSetPiecesHistory } from "./history.mjs";
 import { createSetPiecesPersistence } from "./persistence.mjs";
@@ -33,6 +35,9 @@ export function createSetPiecesRoomController(options = {}) {
     selectedRosterId: "",
     selectedElementIds: new Set(),
     selectedDrawingId: "",
+    assignmentScope: "play",
+    assignmentPickerSlotId: "",
+    showAssignments: false,
     layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
     showGhost: true,
     previewDrawing: null,
@@ -121,10 +126,15 @@ export function createSetPiecesRoomController(options = {}) {
     const { play, variant, phase } = getContext();
     if (!stage || !play || !variant || !phase) return;
     const phaseIndex = variant.phases.findIndex((item) => item.id === phase.id);
+    const roster = getRoster();
+    const resolvedPhase = resolveSetPiecePhaseAssignments(phase, play, variant, roster);
+    const resolvedPreviousPhase = ui.showGhost && phaseIndex > 0
+      ? resolveSetPiecePhaseAssignments(variant.phases[phaseIndex - 1], play, variant, roster)
+      : null;
     const ghostStatus = ui.showGhost && phaseIndex > 0 ? '<span class="spr-ghost-status">Previous phase shown</span>' : "";
     stage.innerHTML = `${ghostStatus}${renderSetPieceBoard({
-      phase,
-      previousPhase: ui.showGhost && phaseIndex > 0 ? variant.phases[phaseIndex - 1] : null,
+      phase: resolvedPhase,
+      previousPhase: resolvedPreviousPhase,
       pitchView: play.pitchView,
       layers: ui.layers,
       selectedElementIds: ui.selectedElementIds,
@@ -192,6 +202,8 @@ export function createSetPiecesRoomController(options = {}) {
     state.activePlayId = playId;
     ui.selectedElementIds.clear();
     ui.selectedDrawingId = "";
+    ui.assignmentPickerSlotId = "";
+    ui.showAssignments = false;
     render();
   }
 
@@ -202,6 +214,7 @@ export function createSetPiecesRoomController(options = {}) {
     play.activeVariantId = variantId;
     ui.selectedElementIds.clear();
     ui.selectedDrawingId = "";
+    ui.assignmentPickerSlotId = "";
     render();
   }
 
@@ -212,6 +225,7 @@ export function createSetPiecesRoomController(options = {}) {
     variant.activePhaseId = phaseId;
     ui.selectedElementIds.clear();
     ui.selectedDrawingId = "";
+    ui.assignmentPickerSlotId = "";
     render();
   }
 
@@ -378,6 +392,8 @@ export function createSetPiecesRoomController(options = {}) {
         ui.inspectorCollapsed = !ui.inspectorCollapsed;
         render();
       },
+      "show-assignments": () => assignmentController.showOverview(true),
+      "show-plan": () => assignmentController.showOverview(false),
     };
     actions[action]?.();
   }
@@ -385,6 +401,10 @@ export function createSetPiecesRoomController(options = {}) {
   function updateField(scope, field, rawValue) {
     const { play, variant, phase } = getContext();
     if (!play || !variant || !phase) return;
+    if (scope === "element" && field === "role") {
+      const element = phase.elements.find((item) => ui.selectedElementIds.has(item.id));
+      if (element?.kind === "home-player") return assignmentController.updateRole(element.id, rawValue);
+    }
     commit(() => {
       const numericFields = new Set(["durationMs", "holdMs", "delayMs", "rotation", "curve"]);
       let value = numericFields.has(field) ? Number(rawValue) : rawValue;
@@ -431,6 +451,15 @@ export function createSetPiecesRoomController(options = {}) {
     if (variantId) return selectVariant(variantId);
     const phaseId = event.target.closest?.("[data-set-piece-phase-id]")?.dataset.setPiecePhaseId;
     if (phaseId) return selectPhase(phaseId);
+    const assignmentScope = event.target.closest?.("[data-set-piece-assignment-scope]")?.dataset.setPieceAssignmentScope;
+    if (assignmentScope) return assignmentController.setScope(assignmentScope);
+    const assignmentTarget = event.target.closest?.("[data-set-piece-assign-player]");
+    if (assignmentTarget) return assignmentController.assignPlayer(
+      assignmentTarget.dataset.setPieceSlotId,
+      assignmentTarget.dataset.setPieceAssignPlayer || ""
+    );
+    const assignmentSlotId = event.target.closest?.("[data-set-piece-select-slot]")?.dataset.setPieceSelectSlot;
+    if (assignmentSlotId) return assignmentController.selectSlot(assignmentSlotId);
     const rosterId = event.target.closest?.("[data-set-piece-roster-add]")?.dataset.setPieceRosterAdd;
     if (rosterId) return boardInteractions.addRosterPlayer(rosterId);
     const tool = event.target.closest?.("[data-set-piece-tool]")?.dataset.setPieceTool;
@@ -495,6 +524,13 @@ export function createSetPiecesRoomController(options = {}) {
     render();
     return true;
   }
+
+  const assignmentController = createSetPieceAssignmentController({
+    ui,
+    getContext,
+    commit,
+    render,
+  });
 
   const boardInteractions = createSetPiecesBoardInteractionController({
     root,

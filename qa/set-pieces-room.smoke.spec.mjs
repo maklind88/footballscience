@@ -102,7 +102,7 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   expect(movedMarkerBox.y + movedMarkerBox.height / 2).toBeGreaterThan(startCenter.y + 25);
   await page.mouse.click(box.x + box.width * 0.12, box.y + box.height * 0.12);
   await page.mouse.click(movedMarkerBox.x + movedMarkerBox.width - 2, movedMarkerBox.y + movedMarkerBox.height / 2);
-  await expect(page.locator(".spr-inspector-title").filter({ hasText: "Selected player" })).toBeVisible();
+  await expect(page.locator(".spr-inspector-title").filter({ hasText: "Selected role" })).toBeVisible();
   const movedTransform = await homeMarker.getAttribute("transform");
 
   await page.locator("[data-set-piece-phase-id]").first().click();
@@ -133,6 +133,71 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost) text")).toHaveText("12");
   await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveAttribute("transform", movedTransform);
   expect(pageErrors).toEqual([]);
+});
+
+test("Set Pieces Room reassigns stable tactical roles across routines and variants", async ({ page }) => {
+  await page.addInitScript(() => {
+    const isFreshTestRun = !window.sessionStorage.getItem("set-pieces-assignment-smoke-seeded");
+    window.localStorage.setItem("football-player-profiles-v1", JSON.stringify({
+      schemaVersion: 3,
+      players: [
+        { id: "player-alex", name: "Alex Example", position: "Forward" },
+        { id: "player-beth", name: "Beth Miller", position: "Midfielder" },
+        { id: "player-casey", name: "Casey Evans", position: "Defender" },
+      ],
+    }));
+    if (isFreshTestRun) {
+      window.localStorage.removeItem("football-set-pieces-room-v1");
+      window.sessionStorage.setItem("set-pieces-assignment-smoke-seeded", "true");
+    }
+  });
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await openSetPiecesRoom(page);
+  await page.getByRole("button", { name: "Create set piece" }).click();
+
+  const addPlayer = async (name) => {
+    await page.locator("[data-set-piece-player-picker] summary").click();
+    await page.getByRole("menuitem", { name: `Add ${name}` }).click();
+  };
+  await addPlayer("Alex Example");
+  await addPlayer("Beth Miller");
+
+  const alexMarker = page.locator(".spr-board-element.is-home-player:not(.is-ghost)").filter({ hasText: "AE" });
+  const alexSlotId = await alexMarker.getAttribute("data-element-id");
+  expect(alexSlotId).toBeTruthy();
+  await alexMarker.click();
+  await expect(page.locator(".spr-assignment-picker[open]")).toBeVisible();
+  const roleField = page.getByRole("textbox", { name: "Tactical role" });
+  await roleField.fill("Near post");
+  await roleField.press("Tab");
+  await page.getByRole("menuitem", { name: "Assign Beth Miller to Near post" }).click();
+
+  await expect(page.locator(`[data-element-id="${alexSlotId}"] text`)).toHaveText("BM");
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost) text")).toHaveCount(2);
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost) text")).toContainText(["BM", "AE"]);
+
+  await page.getByRole("button", { name: "Assignments" }).click();
+  await expect(page.locator(".spr-assignments-overview")).toContainText("Near post");
+  await expect(page.locator(".spr-assignment-row").filter({ hasText: "Near post" })).toContainText("Beth Miller");
+
+  await page.getByRole("button", { name: "Create variant" }).click();
+  await page.locator(".spr-assignment-row").filter({ hasText: "Near post" }).click();
+  await page.getByRole("button", { name: "This variant" }).click();
+  await page.getByRole("menuitem", { name: "Assign Casey Evans to Near post" }).click();
+  await expect(page.locator(`[data-element-id="${alexSlotId}"] text`)).toHaveText("CE");
+
+  const variants = page.locator("[data-set-piece-variant-id]");
+  await variants.first().click();
+  await expect(page.locator(`[data-element-id="${alexSlotId}"] text`)).toHaveText("BM");
+  await variants.nth(1).click();
+  await expect(page.locator(`[data-element-id="${alexSlotId}"] text`)).toHaveText("CE");
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await openSetPiecesRoom(page);
+  await expect(page.locator(`[data-element-id="${alexSlotId}"] text`)).toHaveText("CE");
 });
 
 test("Set Pieces Room keeps its editor usable on a narrow touch viewport", async ({ page }) => {

@@ -7,8 +7,13 @@ import {
   createSetPiecePlay,
   duplicateSetPiecePhase,
   duplicateSetPieceVariant,
+  getActiveSetPiece,
+  getActiveSetPiecePhase,
+  getActiveSetPieceVariant,
   normalizeSetPiecesState,
 } from "../src/modules/set-pieces-room/state.mjs";
+import { createSetPieceAssignmentController } from "../src/modules/set-pieces-room/assignment-controller.mjs";
+import { getSetPieceAssignment, resolveSetPiecePhaseAssignments } from "../src/modules/set-pieces-room/assignments.mjs";
 import {
   createSetPiecePlayerLabelMap,
   getSetPieceRosterPlayers,
@@ -65,12 +70,101 @@ test("plan duplication remaps actor identity consistently across every phase", (
   phase.drawings.push({ id: "run-a", type: "run", actorId: "runner-a", startX: 72, startY: 18, endX: 88, endY: 12 });
   play.variants[0].phases.push(duplicateSetPiecePhase(phase, 1));
 
-  const duplicate = cloneSetPiecePlay(play, "coach-a");
+  const normalizedSource = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] }).plays[0];
+  const duplicate = cloneSetPiecePlay(normalizedSource, "coach-a");
   const actorIds = duplicate.variants[0].phases.map((item) => item.elements[0].id);
   expect(new Set(actorIds).size).toBe(1);
   expect(actorIds[0]).not.toBe("runner-a");
   expect(duplicate.variants[0].phases[0].drawings[0].actorId).toBe(actorIds[0]);
+  expect(duplicate.assignments[0].slotId).toBe(actorIds[0]);
   expect(duplicate).toMatchObject({ title: "Front zone copy", updatedBy: "coach-a" });
+});
+
+test("legacy player markers migrate into stable role assignments across variants", () => {
+  const play = createSetPiecePlay({ title: "Legacy corner" });
+  delete play.assignments;
+  const phase = play.variants[0].phases[0];
+  phase.elements.push({ id: "runner-a", kind: "home-player", x: 72, y: 18, profileId: "player-a", label: "AA" });
+  play.variants[0].phases.push(duplicateSetPiecePhase(phase, 1));
+  play.variants[0].phases.push(createSetPiecePhase({
+    title: "Late phase",
+    elements: [{ id: "legacy-runner-copy", kind: "home-player", x: 88, y: 24, profileId: "player-a", label: "AA" }],
+  }));
+  play.variants.push(duplicateSetPieceVariant(play.variants[0], "Variant 2"));
+
+  const state = normalizeSetPiecesState({ schemaVersion: 1, activePlayId: play.id, plays: [play] });
+  const normalized = state.plays[0];
+  const linkedElements = normalized.variants.flatMap((variant) => variant.phases.flatMap((item) => item.elements));
+
+  expect(state.schemaVersion).toBe(2);
+  expect(normalized.assignments).toEqual([{ slotId: "runner-a", role: "Role 1", profileId: "player-a" }]);
+  expect(linkedElements.every((element) => element.id === "runner-a" && element.profileId === "player-a")).toBe(true);
+});
+
+test("player assignment swaps stay separate from tactical roles and variant overrides", () => {
+  const play = createSetPiecePlay({ title: "Role assignments" });
+  const phase = play.variants[0].phases[0];
+  phase.elements.push(
+    { id: "slot-a", kind: "home-player", x: 72, y: 18, profileId: "player-a", label: "AA", role: "Near post" },
+    { id: "slot-b", kind: "home-player", x: 78, y: 24, profileId: "player-b", label: "BB", role: "Screen" }
+  );
+  play.variants.push(duplicateSetPieceVariant(play.variants[0], "Variant 2"));
+  let state = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] });
+  const ui = {
+    assignmentScope: "play",
+    assignmentPickerSlotId: "",
+    showAssignments: false,
+    inspectorCollapsed: false,
+    selectedElementIds: new Set(),
+    selectedDrawingId: "",
+  };
+  const getContext = () => {
+    const activePlay = getActiveSetPiece(state);
+    const variant = getActiveSetPieceVariant(activePlay);
+    return { play: activePlay, variant, phase: getActiveSetPiecePhase(variant) };
+  };
+  const controller = createSetPieceAssignmentController({
+    ui,
+    getContext,
+    render: () => {},
+    commit: (mutator) => {
+      mutator(state);
+      state = normalizeSetPiecesState(state);
+    },
+  });
+
+  controller.assignPlayer("slot-a", "player-b");
+  expect(state.plays[0].assignments).toEqual([
+    { slotId: "slot-a", role: "Near post", profileId: "player-b" },
+    { slotId: "slot-b", role: "Screen", profileId: "player-a" },
+  ]);
+
+  controller.setScope("variant");
+  controller.assignPlayer("slot-a", "player-c");
+  const activePlay = state.plays[0];
+  expect(getSetPieceAssignment(activePlay, activePlay.variants[0], "slot-a")).toMatchObject({ profileId: "player-c", isVariantOverride: true });
+  expect(getSetPieceAssignment(activePlay, activePlay.variants[1], "slot-a")).toMatchObject({ profileId: "player-b", isVariantOverride: false });
+
+  controller.updateRole("slot-a", "First contact");
+  expect(state.plays[0].assignments[0].role).toBe("First contact");
+  expect(state.plays[0].variants.flatMap((variant) => variant.phases).every((item) => (
+    item.elements.find((element) => element.id === "slot-a")?.role === "First contact"
+  ))).toBe(true);
+});
+
+test("resolved phases display assigned player initials without changing geometry", () => {
+  const play = createSetPiecePlay();
+  const phase = play.variants[0].phases[0];
+  phase.elements.push({ id: "slot-a", kind: "home-player", x: 72, y: 18, profileId: "player-a", label: "OLD", role: "Taker" });
+  const state = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] });
+  const normalizedPlay = state.plays[0];
+  const variant = normalizedPlay.variants[0];
+  const resolved = resolveSetPiecePhaseAssignments(variant.phases[0], normalizedPlay, variant, [
+    { id: "player-a", player: { id: "player-a", name: "Alex Morgan" } },
+  ]);
+
+  expect(resolved.elements[0]).toMatchObject({ x: 72, y: 18, profileId: "player-a", label: "AM", role: "Taker" });
+  expect(variant.phases[0].elements[0].label).toBe("OLD");
 });
 
 test("normalization clamps unsafe geometry and timing values", () => {

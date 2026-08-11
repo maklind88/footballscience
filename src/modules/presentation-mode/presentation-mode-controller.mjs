@@ -1951,7 +1951,7 @@ export function createPresentationModeController(dependencies = {}) {
       return null;
     }
     const textElement = getActiveTextElement();
-    if (!textElement?.dataset.presentationTextObject) {
+    if (!textElement) {
       return null;
     }
     const rect = textElement.getBoundingClientRect?.();

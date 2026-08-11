@@ -91,13 +91,15 @@ export function createEmptySetPiecesState() {
 function normalizeElement(element = {}) {
   const kind = allowedElementKinds.has(element.kind) ? element.kind : "home-player";
   const point = normalizeSetPiecePoint(element);
+  const opponentNumber = String(Math.round(number(element.label || element.number, 1, 1, 99)));
   return {
     id: text(element.id, 100) || createSetPieceId(kind),
     kind,
     x: point.x,
     y: point.y,
     profileId: kind === "home-player" ? text(element.profileId, 100) : "",
-    label: text(element.label || (kind === "opponent" ? element.number : ""), 12),
+    label: kind === "opponent" ? opponentNumber : text(element.label, 12),
+    showNumber: kind === "opponent" ? element.showNumber !== false : true,
     role: text(element.role, 80),
     instruction: text(element.instruction, 240),
     rotation: number(element.rotation, 0, -180, 180),

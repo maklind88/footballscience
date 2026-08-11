@@ -74,18 +74,6 @@
   stroke: none;
 }
 
-.spr-body-direction {
-  fill: none;
-  stroke: #f6d36a;
-  stroke-linecap: round;
-  stroke-width: .72;
-  vector-effect: non-scaling-stroke;
-}
-
-.spr-board-element.is-opponent .spr-body-direction {
-  stroke: #a93842;
-}
-
 .spr-board-element text {
   fill: #fff;
   font-size: 2.1px;
@@ -117,7 +105,6 @@
   pointer-events: none;
 }
 
-.spr-board-element.is-ghost .spr-body-direction,
 .spr-board-element.is-ghost .spr-selection-ring {
   display: none;
 }

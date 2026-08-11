@@ -1,6 +1,7 @@
 import { DEFAULT_ACTION_DURATION_MS, setPieceDrawingTypes } from "./constants.mjs";
 import {
   getNearestSetPieceElement,
+  getNextSetPiecePlayerPlacement,
   getSetPieceDistance,
   getSetPieceSvgPoint,
   isSetPiecePointInsideRect,
@@ -71,7 +72,33 @@ export function createSetPiecesBoardInteractionController(options = {}) {
 
   function updateMovedElementDom(element) {
     const marker = root?.querySelector?.(`.spr-element-layer [data-element-id="${CSS.escape(element.id)}"]`);
-    if (marker) marker.setAttribute("transform", `translate(${element.x} ${element.y}) rotate(${Number(element.rotation || 0)})`);
+    if (marker) marker.setAttribute("transform", `translate(${element.x} ${element.y})`);
+  }
+
+  function placeHomePlayer(point, rosterId = options.ui.selectedRosterId) {
+    const { phase } = options.getContext();
+    const ui = options.ui;
+    if (!phase) return;
+    const roster = options.getRoster();
+    const player = roster.find((entry) => entry.id === rosterId);
+    if (!player) return;
+    ui.selectedRosterId = player.id;
+    const existing = phase.elements.find((element) => element.kind === "home-player" && element.profileId === player.id);
+    if (existing) {
+      ui.selectedElementIds = new Set([existing.id]);
+      ui.selectedDrawingId = "";
+      ui.activeTool = "select";
+      options.render();
+      return;
+    }
+    const label = createSetPiecePlayerLabelMap(roster.map((entry) => entry.player)).get(player.id) || "P";
+    options.commit(() => {
+      const element = createBoardElement("home-player", point, { profileId: player.id, label });
+      phase.elements.push(element);
+      ui.selectedElementIds = new Set([element.id]);
+      ui.selectedDrawingId = "";
+      ui.activeTool = "select";
+    });
   }
 
   function placeElement(point) {
@@ -79,23 +106,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     const ui = options.ui;
     if (!phase) return;
     if (ui.activeTool === "home-player") {
-      const roster = options.getRoster();
-      const player = roster.find((entry) => entry.id === ui.selectedRosterId);
-      if (!player) return;
-      const existing = phase.elements.find((element) => element.kind === "home-player" && element.profileId === player.id);
-      if (existing) {
-        ui.selectedElementIds = new Set([existing.id]);
-        ui.activeTool = "select";
-        options.render();
-        return;
-      }
-      const label = createSetPiecePlayerLabelMap(roster.map((entry) => entry.player)).get(player.id) || "P";
-      options.commit(() => {
-        const element = createBoardElement("home-player", point, { profileId: player.id, label });
-        phase.elements.push(element);
-        ui.selectedElementIds = new Set([element.id]);
-        ui.activeTool = "select";
-      });
+      placeHomePlayer(point);
       return;
     }
     if (ui.activeTool === "opponent") {
@@ -103,7 +114,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       let opponentNumber = 1;
       while (used.has(opponentNumber)) opponentNumber += 1;
       options.commit(() => {
-        const element = createBoardElement("opponent", point, { label: String(opponentNumber) });
+        const element = createBoardElement("opponent", point, { label: String(opponentNumber), showNumber: true });
         phase.elements.push(element);
         ui.selectedElementIds = new Set([element.id]);
         ui.activeTool = "select";
@@ -118,6 +129,13 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         ui.activeTool = "select";
       });
     }
+  }
+
+  function addRosterPlayer(playerId) {
+    const { phase, play } = options.getContext();
+    if (!phase || !options.canEdit()) return;
+    const point = getNextSetPiecePlayerPlacement(phase.elements, play?.pitchView);
+    placeHomePlayer(point, playerId);
   }
 
   function handlePointerDown(event) {
@@ -319,5 +337,5 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     }
   }
 
-  return Object.freeze({ handleKeyDown, handlePointerCancel, handlePointerDown, handlePointerMove, handlePointerUp });
+  return Object.freeze({ addRosterPlayer, handleKeyDown, handlePointerCancel, handlePointerDown, handlePointerMove, handlePointerUp });
 }

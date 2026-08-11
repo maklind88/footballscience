@@ -3,6 +3,7 @@
 .spr-shell.is-presenting .spr-header,
 .spr-shell.is-presenting .spr-timeline,
 .spr-shell.is-presenting .spr-tool-rail,
+.spr-shell.is-presenting .spr-player-picker,
 .spr-shell.is-presenting .spr-editor-toolbar > label,
 .spr-shell.is-presenting .spr-history-actions .spr-icon-button:not([data-set-piece-action="presentation"]) {
   display: none;
@@ -46,6 +47,8 @@ body.is-dark-mode .spr-editor-toolbar,
 body.is-dark-mode .spr-playback,
 body.is-dark-mode .spr-timeline,
 body.is-dark-mode .spr-tool-rail,
+body.is-dark-mode .spr-player-menu,
+body.is-dark-mode .spr-player-picker-trigger,
 body.is-dark-mode .spr-phase-card {
   color: var(--spr-ink) !important;
   background: var(--spr-panel) !important;
@@ -88,7 +91,9 @@ body.is-dark-mode .spr-delete-plan {
 
 body.is-dark-mode .spr-icon-button:hover,
 body.is-dark-mode .spr-tool-button:hover,
-body.is-dark-mode .spr-add-phase:hover {
+body.is-dark-mode .spr-add-phase:hover,
+body.is-dark-mode .spr-player-option:hover,
+body.is-dark-mode .spr-player-option:focus-visible {
   background: var(--fs-hover-bg);
 }
 
@@ -135,7 +140,8 @@ body.is-dark-mode .spr-variant-tabs button.is-active {
   .spr-tool-rail { grid-auto-flow: column; grid-auto-columns: 40px; overflow-x: auto; }
   .spr-board-stage { min-height: 360px; }
   .spr-editor-toolbar { flex-wrap: wrap; }
-  .spr-roster-picker { min-width: 70%; }
+  .spr-roster-picker,
+  .spr-player-picker { min-width: 70%; }
   .spr-inspector { display: block; }
   .spr-field-grid { grid-template-columns: minmax(0, 1fr); }
 }
@@ -504,6 +510,10 @@ body.is-dark-mode .spr-ghost-status {
   }
 
   .spr-roster-picker {
+    max-width: 270px;
+  }
+
+  .spr-player-picker {
     max-width: 270px;
   }
 }

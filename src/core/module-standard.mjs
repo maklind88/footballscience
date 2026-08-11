@@ -322,6 +322,7 @@ export const moduleStandardContracts = Object.freeze([
     cssFiles: [
       "src/modules/set-pieces-room/set-pieces-room.css",
       "src/modules/set-pieces-room/set-pieces-board.css",
+      "src/modules/set-pieces-room/set-pieces-roster.css",
       "src/modules/set-pieces-room/set-pieces-theme.css",
     ],
     testFiles: ["qa/set-pieces-room-contract.api.spec.mjs", "qa/set-pieces-room.smoke.spec.mjs"],

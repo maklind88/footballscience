@@ -8,6 +8,7 @@ import {
   setPieceToolOptions,
 } from "./constants.mjs";
 import { escapeSetPieceHtml, renderSetPieceBoard, renderSetPiecePhaseThumbnail } from "./board-renderer.mjs";
+import { createSetPiecePlayerLabelMap } from "./player-labels.mjs";
 import { getActiveSetPiece, getActiveSetPiecePhase, getActiveSetPieceVariant } from "./state.mjs";
 
 function optionsMarkup(options = [], value = "") {
@@ -51,6 +52,35 @@ function renderToolRail(ui = {}, roster = []) {
       </div>
     </div>`).join("")}
   </div>`;
+}
+
+function renderPlayerPicker(roster = [], phase = {}, canEdit = false) {
+  const labels = createSetPiecePlayerLabelMap(roster.map((entry) => entry.player));
+  const placedIds = new Set((phase.elements || [])
+    .filter((element) => element.kind === "home-player")
+    .map((element) => element.profileId));
+  const placedCount = roster.filter((entry) => placedIds.has(entry.id)).length;
+  return `<details class="spr-player-picker" data-set-piece-player-picker>
+    <summary class="spr-player-picker-trigger" aria-label="Add own players">
+      <span class="spr-player-picker-plus" aria-hidden="true">＋</span>
+      <span>Add players</span>
+      <small>${placedCount}/${roster.length}</small>
+    </summary>
+    <div class="spr-player-menu" role="menu" aria-label="Own players">
+      <div class="spr-player-menu-heading"><strong>Your squad</strong><span>Click to add</span></div>
+      <div class="spr-player-menu-list">
+        ${roster.map((entry) => {
+          const placed = placedIds.has(entry.id);
+          const action = placed ? "Select" : "Add";
+          return `<button type="button" class="spr-player-option ${placed ? "is-placed" : ""}" data-set-piece-roster-add="${escapeSetPieceHtml(entry.id)}" role="menuitem" aria-label="${action} ${escapeSetPieceHtml(entry.name)}" ${canEdit ? "" : "disabled"}>
+            <span class="spr-player-option-mark">${escapeSetPieceHtml(labels.get(entry.id) || "P")}</span>
+            <span class="spr-player-option-copy"><strong>${escapeSetPieceHtml(entry.name)}</strong><small>${escapeSetPieceHtml(entry.position || "Squad player")}</small></span>
+            <span class="spr-player-option-state" aria-hidden="true">${placed ? "✓" : "＋"}</span>
+          </button>`;
+        }).join("") || '<div class="spr-player-menu-empty">No squad profiles</div>'}
+      </div>
+    </div>
+  </details>`;
 }
 
 function renderPlayLibrary(state = {}, ui = {}) {
@@ -124,7 +154,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
   return `<main class="spr-editor">
     ${renderVariantBar(play, variant, canEdit)}
     <div class="spr-editor-toolbar">
-      <label class="spr-roster-picker"><span>Player to place</span><select data-set-piece-roster-select ${roster.length && canEdit ? "" : "disabled"}>${roster.map((entry) => `<option value="${escapeSetPieceHtml(entry.id)}" ${entry.id === ui.selectedRosterId ? "selected" : ""}>${escapeSetPieceHtml(entry.name)}</option>`).join("") || '<option value="">No squad profiles</option>'}</select></label>
+      ${renderPlayerPicker(roster, phase, canEdit)}
       <label><span>Pitch</span><select data-set-piece-play-field="pitchView" ${canEdit ? "" : "disabled"}>${optionsMarkup(setPiecePitchViewOptions, play.pitchView)}</select></label>
       <label class="spr-board-toggle"><input type="checkbox" data-set-piece-ghost ${ui.showGhost ? "checked" : ""}><span>Previous</span></label>
       <div class="spr-history-actions">
@@ -176,16 +206,18 @@ function renderField(label, field, value, options = {}) {
 
 function renderElementInspector(element, roster, canEdit) {
   const isHome = element.kind === "home-player";
+  const isOpponent = element.kind === "opponent";
   return `<div class="spr-inspector-section">
     <div class="spr-inspector-title"><div><p>${isHome ? "Selected player" : "Selected object"}</p><strong>${escapeSetPieceHtml(isHome ? element.label : element.kind === "opponent" ? `Opponent ${element.label}` : "Ball")}</strong></div><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canEdit ? "" : "disabled"}>⌫</button></div>
     ${isHome ? renderField("Player", "profileId", element.profileId, { type: "select", options: roster.map((entry) => ({ value: entry.id, label: entry.name })), scope: "set-piece-element", disabled: !canEdit }) : ""}
     ${isHome ? renderField("Role", "role", element.role, { scope: "set-piece-element", disabled: !canEdit }) : ""}
+    ${isOpponent ? renderField("Number", "label", element.label || "1", { type: "number", min: 1, max: 99, scope: "set-piece-element", disabled: !canEdit }) : ""}
+    ${isOpponent ? `<label class="spr-toggle-field"><span><strong>Show number</strong><small>Turn off for color only</small></span><input type="checkbox" data-set-piece-element-field="showNumber" aria-label="Show number on board" ${element.showNumber !== false ? "checked" : ""} ${canEdit ? "" : "disabled"}></label>` : ""}
     ${renderField("Instruction", "instruction", element.instruction, { type: "textarea", scope: "set-piece-element", disabled: !canEdit })}
     <div class="spr-field-grid">
       ${renderField("Delay ms", "delayMs", element.delayMs, { type: "number", min: 0, max: 10000, scope: "set-piece-element", disabled: !canEdit })}
       ${renderField("Duration ms", "durationMs", element.durationMs, { type: "number", min: 100, max: 10000, scope: "set-piece-element", disabled: !canEdit })}
     </div>
-    ${element.kind !== "ball" ? renderField("Body angle", "rotation", element.rotation, { type: "range", min: -180, max: 180, scope: "set-piece-element", disabled: !canEdit }) : ""}
   </div>`;
 }
 

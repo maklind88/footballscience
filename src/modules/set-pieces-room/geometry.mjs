@@ -54,6 +54,21 @@ export function getNearestSetPieceElement(elements = [], point = {}, maxDistance
   return nearest;
 }
 
+export function getNextSetPiecePlayerPlacement(elements = [], pitchView = "full") {
+  const columns = pitchView === "attacking-half"
+    ? [62, 70, 78]
+    : pitchView === "defensive-half"
+      ? [43, 35, 27]
+      : [43, 51, 59];
+  const rows = [10, 18, 26, 34, 42, 50, 58];
+  const occupied = Array.isArray(elements) ? elements : [];
+  const candidates = columns.flatMap((x) => rows.map((y) => ({ x, y })));
+  const openPoint = candidates.find((candidate) => (
+    occupied.every((element) => getSetPieceDistance(element, candidate) >= 6.5)
+  ));
+  return normalizeSetPiecePointForPitchView(openPoint || candidates[0], pitchView);
+}
+
 export function isSetPiecePointInsideRect(point = {}, rect = {}) {
   const minX = Math.min(rect.startX, rect.endX);
   const maxX = Math.max(rect.startX, rect.endX);

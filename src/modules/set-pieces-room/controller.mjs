@@ -163,7 +163,7 @@ export function createSetPiecesRoomController(options = {}) {
       ui.playbackProgress = Number(progress || 0);
       positions.forEach((position, id) => {
         const marker = root?.querySelector?.(`[data-element-id="${CSS.escape(id)}"]`);
-        if (marker) marker.setAttribute("transform", `translate(${position.x} ${position.y}) rotate(${position.rotation})`);
+        if (marker) marker.setAttribute("transform", `translate(${position.x} ${position.y})`);
       });
       updatePlaybackControls();
     },
@@ -387,13 +387,17 @@ export function createSetPiecesRoomController(options = {}) {
     if (!play || !variant || !phase) return;
     commit(() => {
       const numericFields = new Set(["durationMs", "holdMs", "delayMs", "rotation", "curve"]);
-      const value = numericFields.has(field) ? Number(rawValue) : rawValue;
+      let value = numericFields.has(field) ? Number(rawValue) : rawValue;
       if (scope === "play") play[field] = value;
       if (scope === "variant") variant[field] = value;
       if (scope === "phase") phase[field] = value;
       if (scope === "element") {
         const element = phase.elements.find((item) => ui.selectedElementIds.has(item.id));
         if (!element) return;
+        if (element.kind === "opponent" && field === "label") {
+          value = String(Math.min(99, Math.max(1, Math.round(Number(rawValue) || 1))));
+        }
+        if (field === "showNumber") value = Boolean(rawValue);
         element[field] = value;
         if (field === "profileId") {
           const roster = getRoster();
@@ -402,6 +406,12 @@ export function createSetPiecesRoomController(options = {}) {
           variant.phases.slice(phaseIndex).forEach((item) => {
             const linked = item.elements.find((candidate) => candidate.id === element.id);
             if (linked) Object.assign(linked, { profileId: value, label });
+          });
+        }
+        if (element.kind === "opponent" && ["label", "showNumber"].includes(field)) {
+          variant.phases.forEach((item) => {
+            const linked = item.elements.find((candidate) => candidate.id === element.id);
+            if (linked) linked[field] = value;
           });
         }
       }
@@ -421,6 +431,8 @@ export function createSetPiecesRoomController(options = {}) {
     if (variantId) return selectVariant(variantId);
     const phaseId = event.target.closest?.("[data-set-piece-phase-id]")?.dataset.setPiecePhaseId;
     if (phaseId) return selectPhase(phaseId);
+    const rosterId = event.target.closest?.("[data-set-piece-roster-add]")?.dataset.setPieceRosterAdd;
+    if (rosterId) return boardInteractions.addRosterPlayer(rosterId);
     const tool = event.target.closest?.("[data-set-piece-tool]")?.dataset.setPieceTool;
     if (tool) {
       ui.activeTool = tool;
@@ -460,7 +472,6 @@ export function createSetPiecesRoomController(options = {}) {
 
   function handleChange(event) {
     const target = event.target;
-    if (target.matches?.("[data-set-piece-roster-select]")) ui.selectedRosterId = target.value;
     if (target.matches?.("[data-set-piece-playback-speed]")) playback.setSpeed(target.value);
     if (target.matches?.("[data-set-piece-ghost]")) {
       ui.showGhost = target.checked;
@@ -473,7 +484,7 @@ export function createSetPiecesRoomController(options = {}) {
     }
     for (const scope of ["play", "variant", "phase", "element", "drawing"]) {
       const field = target.dataset?.[`setPiece${scope[0].toUpperCase()}${scope.slice(1)}Field`];
-      if (field) return updateField(scope, field, target.value);
+      if (field) return updateField(scope, field, target.type === "checkbox" ? target.checked : target.value);
     }
   }
 

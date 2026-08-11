@@ -60,15 +60,23 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   const box = await pitch.boundingBox();
   expect(box).not.toBeNull();
 
-  await page.getByRole("button", { name: "Own player" }).click();
-  await page.mouse.click(box.x + box.width * 0.38, box.y + box.height * 0.34);
+  await page.locator("[data-set-piece-player-picker] summary").click();
+  await page.getByRole("menuitem", { name: "Add Alex Example" }).click();
   await page.getByRole("button", { name: "Opponent" }).click();
   await page.mouse.click(box.x + box.width * 0.55, box.y + box.height * 0.4);
+  const opponentNumber = page.getByRole("spinbutton", { name: "Number" });
+  await opponentNumber.fill("12");
+  await opponentNumber.press("Tab");
+  const showOpponentNumber = page.getByRole("checkbox", { name: "Show number on board" });
+  await showOpponentNumber.uncheck();
+  await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost) text")).toHaveCount(0);
+  await showOpponentNumber.check();
   await page.getByRole("button", { name: "Ball", exact: true }).click();
   await page.mouse.click(box.x + box.width * 0.48, box.y + box.height * 0.48);
 
   await expect(page.locator(".spr-board-element.is-home-player text")).toHaveText("AE");
-  await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost) text")).toHaveText("1");
+  await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost) text")).toHaveText("12");
+  await expect(page.locator(".spr-body-direction")).toHaveCount(0);
   await expect(page.locator(".spr-board-element.is-ball")).toHaveCount(1);
 
   await page.getByRole("button", { name: "Run" }).click();
@@ -122,7 +130,7 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await waitForPlatformShell(page);
   await openSetPiecesRoom(page);
   await expect(page.locator("[data-set-piece-variant-id]")).toHaveCount(2);
-  await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost) text")).toHaveText("1");
+  await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost) text")).toHaveText("12");
   await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveAttribute("transform", movedTransform);
   expect(pageErrors).toEqual([]);
 });
@@ -145,13 +153,17 @@ test("Set Pieces Room keeps its editor usable on a narrow touch viewport", async
   await expect(page.locator("[data-set-piece-pitch]")).toBeVisible();
   await expect(page.locator(".spr-playback")).toBeVisible();
   await expect(page.locator(".spr-inspector")).toBeVisible();
+  await page.locator("[data-set-piece-player-picker] summary").click();
+  await expect(page.locator(".spr-player-menu")).toBeVisible();
   const metrics = await page.evaluate(() => ({
     documentWidth: document.documentElement.scrollWidth,
     viewportWidth: window.innerWidth,
     toolRailWidth: document.querySelector(".spr-tool-rail")?.scrollWidth || 0,
     boardWidth: document.querySelector(".spr-board-stage")?.getBoundingClientRect().width || 0,
+    playerMenuRight: document.querySelector(".spr-player-menu")?.getBoundingClientRect().right || 0,
   }));
   expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1);
   expect(metrics.toolRailWidth).toBeGreaterThan(300);
   expect(metrics.boardWidth).toBeGreaterThan(280);
+  expect(metrics.playerMenuRight).toBeLessThanOrEqual(metrics.viewportWidth);
 });

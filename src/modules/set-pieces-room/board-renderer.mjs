@@ -47,14 +47,13 @@ function renderElement(element = {}, options = {}) {
   const classes = ["spr-board-element", `is-${element.kind}`, selected ? "is-selected" : "", ghost ? "is-ghost" : ""]
     .filter(Boolean)
     .join(" ");
-  const transform = `translate(${Number(element.x || 0)} ${Number(element.y || 0)}) rotate(${Number(element.rotation || 0)})`;
+  const transform = `translate(${Number(element.x || 0)} ${Number(element.y || 0)})`;
   const common = `class="${classes}" transform="${transform}" data-element-id="${escapeSetPieceHtml(element.id)}" data-layer="${escapeSetPieceHtml(element.kind)}"`;
   if (element.kind === "opponent") {
     return `<g ${common}>
       <circle r="4" class="spr-element-hit"></circle>
       <circle r="2.75" class="spr-opponent-token"></circle>
-      <path d="M0-2.2V-4.3" class="spr-body-direction"></path>
-      <text y=".85">${escapeSetPieceHtml(element.label || "1")}</text>
+      ${element.showNumber === false ? "" : `<text y=".85">${escapeSetPieceHtml(element.label || "1")}</text>`}
       ${selected ? '<circle r="4.25" class="spr-selection-ring"></circle>' : ""}
     </g>`;
   }
@@ -69,7 +68,6 @@ function renderElement(element = {}, options = {}) {
   return `<g ${common}>
     <rect x="-4" y="-4" width="8" height="8" rx="2.65" class="spr-element-hit"></rect>
     <rect x="-2.85" y="-2.85" width="5.7" height="5.7" rx="1.7" class="spr-home-token"></rect>
-    <path d="M0-2.35V-4.45" class="spr-body-direction"></path>
     <text y=".82">${escapeSetPieceHtml(element.label || "P")}</text>
     ${selected ? '<rect x="-4.15" y="-4.15" width="8.3" height="8.3" rx="2.8" class="spr-selection-ring"></rect>' : ""}
   </g>`;

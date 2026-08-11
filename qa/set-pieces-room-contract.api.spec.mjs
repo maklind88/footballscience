@@ -16,7 +16,7 @@ import {
 import { createSetPiecesPersistence } from "../src/modules/set-pieces-room/persistence.mjs";
 import { cloneSetPiecePlay } from "../src/modules/set-pieces-room/play-helpers.mjs";
 import { renderSetPieceBoard } from "../src/modules/set-pieces-room/board-renderer.mjs";
-import { normalizeSetPiecePointForPitchView } from "../src/modules/set-pieces-room/geometry.mjs";
+import { getNextSetPiecePlayerPlacement, normalizeSetPiecePointForPitchView } from "../src/modules/set-pieces-room/geometry.mjs";
 import { defaultHubState } from "../src/core/workspace-defaults.mjs";
 import { platformModules, protectedStorageKeys } from "../src/core/platform-contracts.mjs";
 
@@ -98,6 +98,12 @@ test("drag coordinates stay inside the visible pitch view", () => {
   expect(normalizeSetPiecePointForPitchView({ x: 90, y: 30 }, "full")).toEqual({ x: 90, y: 30 });
 });
 
+test("quick player placement finds a visible open position without stacking markers", () => {
+  expect(getNextSetPiecePlayerPlacement([], "attacking-half")).toEqual({ x: 62, y: 10 });
+  expect(getNextSetPiecePlayerPlacement([{ x: 62, y: 10 }], "attacking-half")).toEqual({ x: 62, y: 18 });
+  expect(getNextSetPiecePlayerPlacement([], "defensive-half")).toEqual({ x: 43, y: 10 });
+});
+
 test("own-player labels stay unique while opponent identity remains numeric", () => {
   const players = [
     { id: "one", name: "Alex Morgan" },
@@ -133,6 +139,29 @@ test("board renderer distinguishes own initials, opponent numbers and movement s
   expect(markup).toContain(">4</text>");
   expect(markup).toContain("is-run");
   expect(markup).toContain("Q ");
+  expect(markup).not.toContain("spr-body-direction");
+});
+
+test("opponent numbers are normalized, persisted and optional on the board", () => {
+  const play = createSetPiecePlay();
+  play.variants[0].phases[0].elements.push({
+    id: "opponent-hidden",
+    kind: "opponent",
+    x: 76,
+    y: 20,
+    label: "114",
+    showNumber: false,
+  });
+  const state = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] });
+  const opponent = state.plays[0].variants[0].phases[0].elements[0];
+  const markup = renderSetPieceBoard({
+    phase: state.plays[0].variants[0].phases[0],
+    layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
+  });
+
+  expect(opponent).toMatchObject({ label: "99", showNumber: false });
+  expect(markup).toContain("is-opponent");
+  expect(markup).not.toContain(">99</text>");
 });
 
 test("persistence round-trips normalized state and reports write failures", () => {

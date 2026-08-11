@@ -176,13 +176,17 @@ function normalizeTextBoxes(textBoxes = {}) {
           .map((box, index) => {
             const safeBox = box && typeof box === "object" && !Array.isArray(box) ? box : {};
             const id = String(safeBox.id || `textbox-${index + 1}`).trim();
+            const kind = safeBox.kind === "symbol" ? "symbol" : "text";
             const width = Math.min(70, Math.max(14, Number(safeBox.width) || 28));
+            const fallbackHeight = kind === "symbol" ? Math.max(8, Math.min(28, width)) : 12;
+            const height = Math.min(84, Math.max(5, Number(safeBox.height) || fallbackHeight));
             return {
               id,
-              kind: safeBox.kind === "symbol" ? "symbol" : "text",
+              kind,
               x: Math.min(96 - width, Math.max(2, Number(safeBox.x) || 12)),
-              y: Math.min(88, Math.max(4, Number(safeBox.y) || 22)),
+              y: Math.min(96 - height, Math.max(2, Number(safeBox.y) || 22)),
               width,
+              height,
               text: String(safeBox.text ?? "Text box").slice(0, maxTextOverrideLength),
               fontSize: normalizeFontSize(safeBox.fontSize || "36"),
               textColor: normalizeHexColor(safeBox.textColor, "#f8fafc"),
@@ -551,16 +555,21 @@ export function createPresentationModeController(dependencies = {}) {
     });
   }
 
-  function clampTextBoxPosition(x, y, width = 30) {
+  function clampTextBoxPosition(x, y, width = 30, height = 12) {
     const safeWidth = Math.min(70, Math.max(14, Number(width) || 30));
+    const safeHeight = clampTextBoxHeight(height);
     return {
       x: Number(Math.min(96 - safeWidth, Math.max(2, Number(x) || 2)).toFixed(2)),
-      y: Number(Math.min(88, Math.max(4, Number(y) || 4)).toFixed(2)),
+      y: Number(Math.min(96 - safeHeight, Math.max(2, Number(y) || 2)).toFixed(2)),
     };
   }
 
   function clampTextBoxWidth(width = 30) {
     return Number(Math.min(70, Math.max(14, Number(width) || 30)).toFixed(2));
+  }
+
+  function clampTextBoxHeight(height = 12) {
+    return Number(Math.min(84, Math.max(5, Number(height) || 12)).toFixed(2));
   }
 
   function clampShapePosition(x, y, width = 12, height = 12) {
@@ -1170,7 +1179,8 @@ export function createPresentationModeController(dependencies = {}) {
     const fontSize = normalizeFontSize(options.fontSize || (isSymbol ? "88" : "36"));
     const textColor = normalizeHexColor(options.textColor, "#f8fafc");
     const width = clampTextBoxWidth(options.width || (isSymbol ? 14 : 30));
-    const position = clampTextBoxPosition(options.x ?? (isSymbol ? 46 : 56), options.y ?? (isSymbol ? 28 : 36), width);
+    const height = clampTextBoxHeight(options.height || (isSymbol ? 14 : 12));
+    const position = clampTextBoxPosition(options.x ?? (isSymbol ? 46 : 56), options.y ?? (isSymbol ? 28 : 36), width, height);
     const id = `${isSymbol ? "symbol" : "textbox"}-${Date.now()}`;
     const field = getTextBoxField(id);
     writeDeckForDate(state.dateValue, (deck) => ({
@@ -1186,6 +1196,7 @@ export function createPresentationModeController(dependencies = {}) {
             x: position.x,
             y: position.y,
             width,
+            height,
             fontSize,
             textColor,
           },
@@ -1277,7 +1288,7 @@ export function createPresentationModeController(dependencies = {}) {
           }
           return {
             ...box,
-            ...clampTextBoxPosition(x, y, box.width),
+            ...clampTextBoxPosition(x, y, box.width, box.height),
           };
         }),
       }),
@@ -1287,10 +1298,11 @@ export function createPresentationModeController(dependencies = {}) {
     render();
   }
 
-  function updateTextBoxSize(slideId = "", boxId = "", width = 30, fontSize = "36") {
+  function updateTextBoxSize(slideId = "", boxId = "", width = 30, height = 12, fontSize = "36") {
     const safeSlideId = String(slideId || "").trim();
     const safeBoxId = String(boxId || "").trim();
     const safeWidth = clampTextBoxWidth(width);
+    const safeHeight = clampTextBoxHeight(height);
     const safeFontSize = normalizeFontSize(fontSize);
     const field = getTextBoxField(safeBoxId);
     if (!safeSlideId || !safeBoxId) {
@@ -1306,8 +1318,9 @@ export function createPresentationModeController(dependencies = {}) {
           }
           return {
             ...box,
-            ...clampTextBoxPosition(box.x, box.y, safeWidth),
+            ...clampTextBoxPosition(box.x, box.y, safeWidth, safeHeight),
             width: safeWidth,
+            height: safeHeight,
             fontSize: safeFontSize,
           };
         }),
@@ -1346,11 +1359,13 @@ export function createPresentationModeController(dependencies = {}) {
             return box;
           }
           const safeWidth = clampTextBoxWidth(bounds.width ?? box.width);
+          const safeHeight = clampTextBoxHeight(bounds.height ?? box.height);
           safeFontSize = normalizeFontSize(fontSize || bounds.fontSize || box.fontSize || "36");
           return {
             ...box,
-            ...clampTextBoxPosition(bounds.x ?? box.x, bounds.y ?? box.y, safeWidth),
+            ...clampTextBoxPosition(bounds.x ?? box.x, bounds.y ?? box.y, safeWidth, safeHeight),
             width: safeWidth,
+            height: safeHeight,
             fontSize: safeFontSize,
           };
         }),
@@ -1710,7 +1725,7 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     event.preventDefault?.();
-    const position = clampTextBoxPosition(box.x, box.y, box.width);
+    const position = clampTextBoxPosition(box.x, box.y, box.width, box.height);
     state.dragTextBox = {
       boxId,
       shell,
@@ -1724,6 +1739,7 @@ export function createPresentationModeController(dependencies = {}) {
       nextX: position.x,
       nextY: position.y,
       width: box.width,
+      height: box.height,
     };
     state.activeTextTarget = { field: getTextBoxField(boxId), infoId: "", slideId, textBoxId: boxId };
     shell.classList.add("is-dragging");
@@ -1741,7 +1757,8 @@ export function createPresentationModeController(dependencies = {}) {
     const nextPosition = clampTextBoxPosition(
       drag.startX + ((event.clientX - drag.startClientX) / drag.slideWidth) * 100,
       drag.startY + ((event.clientY - drag.startClientY) / drag.slideHeight) * 100,
-      drag.width
+      drag.width,
+      drag.height
     );
     drag.nextX = nextPosition.x;
     drag.nextY = nextPosition.y;
@@ -1778,6 +1795,8 @@ export function createPresentationModeController(dependencies = {}) {
     event.preventDefault?.();
     event.stopPropagation?.();
     const startWidth = clampTextBoxWidth(box.width);
+    const startHeight = clampTextBoxHeight(box.height);
+    const startPosition = clampTextBoxPosition(box.x, box.y, startWidth, startHeight);
     const startFontSize = Number(normalizeFontSize(box.fontSize || "36"));
     state.resizeTextBox = {
       boxId,
@@ -1788,16 +1807,19 @@ export function createPresentationModeController(dependencies = {}) {
       startClientX: event.clientX,
       startClientY: event.clientY,
       startFontSize,
+      startHeight,
       startWidth,
-      startX: box.x,
-      startY: box.y,
+      startX: startPosition.x,
+      startY: startPosition.y,
       axis,
       nextBounds: {
-        x: box.x,
-        y: box.y,
+        x: startPosition.x,
+        y: startPosition.y,
         width: startWidth,
+        height: startHeight,
       },
       nextFontSize: startFontSize,
+      nextHeight: startHeight,
       nextWidth: startWidth,
     };
     state.activeShapeTarget = null;
@@ -1812,20 +1834,38 @@ export function createPresentationModeController(dependencies = {}) {
     const axis = resize.axis || "se";
     const deltaWidth = ((event.clientX - resize.startClientX) / resize.slideWidth) * 100;
     const deltaHeight = ((event.clientY - resize.startClientY) / resize.slideHeight) * 100;
-    const horizontalDelta = axis.includes("e") ? deltaWidth : axis.includes("w") ? -deltaWidth : 0;
-    const verticalDelta = axis.includes("s") ? deltaHeight : axis.includes("n") ? -deltaHeight : 0;
-    const scaleDelta = Math.abs(verticalDelta) > Math.abs(horizontalDelta) ? verticalDelta : horizontalDelta;
-    const nextWidth = axis.includes("e") || axis.includes("w") ? clampTextBoxWidth(resize.startWidth + horizontalDelta) : resize.startWidth;
-    const scaleBase = Math.max(4, resize.startWidth);
-    const scale = Math.max(0.42, Math.min(2.4, (resize.startWidth + scaleDelta) / scaleBase));
+    const rawWidth = resize.startWidth + (axis.includes("e") ? deltaWidth : axis.includes("w") ? -deltaWidth : 0);
+    const rawHeight = resize.startHeight + (axis.includes("s") ? deltaHeight : axis.includes("n") ? -deltaHeight : 0);
+    const maxWidth = axis.includes("w")
+      ? Math.max(14, resize.startX + resize.startWidth - 2)
+      : Math.max(14, 96 - resize.startX);
+    const maxHeight = axis.includes("n")
+      ? Math.max(5, resize.startY + resize.startHeight - 2)
+      : Math.max(5, 96 - resize.startY);
+    const nextWidth = axis.includes("e") || axis.includes("w")
+      ? clampTextBoxWidth(Math.min(maxWidth, rawWidth || resize.startWidth))
+      : resize.startWidth;
+    const nextHeight = axis.includes("n") || axis.includes("s")
+      ? clampTextBoxHeight(Math.min(maxHeight, rawHeight || resize.startHeight))
+      : resize.startHeight;
+    const widthScale = nextWidth / Math.max(1, resize.startWidth);
+    const heightScale = nextHeight / Math.max(1, resize.startHeight);
+    const axisScales = [
+      axis.includes("e") || axis.includes("w") ? widthScale : null,
+      axis.includes("n") || axis.includes("s") ? heightScale : null,
+    ].filter((scaleValue) => Number.isFinite(scaleValue));
+    const scale = Math.max(0.35, Math.min(2.8, axisScales.length > 1 ? Math.min(...axisScales) : axisScales[0] || 1));
     const nextFontSize = Number(normalizeFontSize(Math.round(resize.startFontSize * scale)));
     const widthChange = nextWidth - resize.startWidth;
+    const heightChange = nextHeight - resize.startHeight;
     const nextX = axis.includes("w") ? resize.startX - widthChange : resize.startX;
-    const position = clampTextBoxPosition(nextX, resize.startY, nextWidth);
+    const nextY = axis.includes("n") ? resize.startY - heightChange : resize.startY;
+    const position = clampTextBoxPosition(nextX, nextY, nextWidth, nextHeight);
     return {
       x: position.x,
       y: position.y,
       width: nextWidth,
+      height: nextHeight,
       fontSize: nextFontSize,
     };
   }
@@ -1839,12 +1879,15 @@ export function createPresentationModeController(dependencies = {}) {
     const bounds = getResizedTextBoxBounds(resize, event);
     resize.nextBounds = bounds;
     resize.nextWidth = bounds.width;
+    resize.nextHeight = bounds.height;
     resize.nextFontSize = bounds.fontSize;
     resize.shell.style.left = `${bounds.x}%`;
     resize.shell.style.top = `${bounds.y}%`;
     resize.shell.style.width = `${bounds.width}%`;
+    resize.shell.style.height = `${bounds.height}%`;
     const textElement = resize.shell.querySelector(".presentation-free-text-box");
     if (textElement) {
+      textElement.style.height = "100%";
       textElement.style.fontSize = `${Number((bounds.fontSize / 16).toFixed(3))}rem`;
     }
   }

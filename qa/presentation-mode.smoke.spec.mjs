@@ -428,6 +428,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await page.mouse.up();
   const symbolAfter = await symbolBox.boundingBox();
   expect(symbolAfter?.width).toBeGreaterThan((symbolBefore?.width || 0) + 20);
+  expect(symbolAfter?.height).toBeGreaterThan((symbolBefore?.height || 0) + 10);
   const storedSymbolBox = await page.evaluate(
     ({ key, date }) =>
       JSON.parse(window.localStorage.getItem(key) || "{}")?.decks?.[date]?.textBoxes?.["qa-info"]?.find(
@@ -436,6 +437,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     { key: presentationKey, date: dateValue }
   );
   expect(Number(storedSymbolBox?.width)).toBeGreaterThan(14);
+  expect(Number(storedSymbolBox?.height)).toBeGreaterThan(14);
   expect(Number(storedSymbolBox?.fontSize)).toBeGreaterThan(88);
   await symbolBox.focus();
   await page.keyboard.press("Delete");
@@ -505,25 +507,47 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await textToolbar.locator("[data-presentation-add-text-box]").click();
   await expect(presentation.locator(".presentation-free-text-box")).toContainText("Text box");
   const textBoxShell = presentation.locator("[data-presentation-text-box-shell]").first();
-  const rightEdgeHandle = textBoxShell.locator(".presentation-text-box-edge-handle.is-right");
   await expect(textBoxShell.locator("[data-presentation-resize-text-box]")).toHaveCount(8);
-  const beforeTextBox = await textBoxShell.boundingBox();
+  const resizeTextBoxHandle = textBoxShell.locator("[data-presentation-resize-axis='se']");
+  const resizeTextBoxBox = await resizeTextBoxHandle.boundingBox();
+  expect(resizeTextBoxBox).toBeTruthy();
+  const textBoxBeforeResize = await textBoxShell.boundingBox();
+  const textFontBeforeResize = await textBoxShell.locator(".presentation-free-text-box").evaluate((element) => parseFloat(getComputedStyle(element).fontSize));
+  await page.mouse.move(resizeTextBoxBox.x + resizeTextBoxBox.width / 2, resizeTextBoxBox.y + resizeTextBoxBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(resizeTextBoxBox.x + resizeTextBoxBox.width / 2 + 52, resizeTextBoxBox.y + resizeTextBoxBox.height / 2 + 42, {
+    steps: 6,
+  });
+  await page.mouse.up();
+  const textBoxAfterResize = await textBoxShell.boundingBox();
+  const textFontAfterResize = await textBoxShell.locator(".presentation-free-text-box").evaluate((element) => parseFloat(getComputedStyle(element).fontSize));
+  expect(textBoxAfterResize?.width).toBeGreaterThan((textBoxBeforeResize?.width || 0) + 20);
+  expect(textBoxAfterResize?.height).toBeGreaterThan((textBoxBeforeResize?.height || 0) + 10);
+  expect(textFontAfterResize).toBeGreaterThan(textFontBeforeResize);
+  const rightEdgeHandle = textBoxShell.locator(".presentation-text-box-edge-handle.is-right");
+  const beforeTextBoxDrag = await textBoxShell.boundingBox();
   const edgeHandleBox = await rightEdgeHandle.boundingBox();
-  expect(beforeTextBox).toBeTruthy();
+  expect(beforeTextBoxDrag).toBeTruthy();
   expect(edgeHandleBox).toBeTruthy();
   await page.mouse.move(edgeHandleBox.x + edgeHandleBox.width / 2, edgeHandleBox.y + edgeHandleBox.height * 0.82);
   await page.mouse.down();
   await page.mouse.move(edgeHandleBox.x + edgeHandleBox.width / 2 + 96, edgeHandleBox.y + edgeHandleBox.height * 0.82 + 48, { steps: 6 });
   await page.mouse.up();
-  const afterTextBox = await textBoxShell.boundingBox();
-  expect(afterTextBox?.x).toBeGreaterThan((beforeTextBox?.x || 0) + 20);
-  expect(afterTextBox?.y).toBeGreaterThan((beforeTextBox?.y || 0) + 10);
+  const afterTextBoxDrag = await textBoxShell.boundingBox();
+  expect(afterTextBoxDrag?.x).toBeGreaterThan((beforeTextBoxDrag?.x || 0) + 20);
+  expect(afterTextBoxDrag?.y).toBeGreaterThan((beforeTextBoxDrag?.y || 0) + 10);
   const storedTextBox = await page.evaluate(
-    ({ key, date }) => JSON.parse(window.localStorage.getItem(key) || "{}")?.decks?.[date]?.textBoxes?.["qa-info"]?.[0],
+    ({ key, date }) =>
+      JSON.parse(window.localStorage.getItem(key) || "{}")?.decks?.[date]?.textBoxes?.["qa-info"]?.find(
+        (box) => box.kind === "text" && box.text === "Text box"
+      ),
     { key: presentationKey, date: dateValue }
   );
   expect(storedTextBox?.x).toBeGreaterThan(56);
   expect(storedTextBox?.y).toBeGreaterThan(36);
+  expect(Number(storedTextBox?.width)).toBeGreaterThan(30);
+  expect(Number(storedTextBox?.height)).toBeGreaterThan(12);
+  expect(Number(storedTextBox?.fontSize)).toBeGreaterThan(36);
   await textBoxShell.focus();
   await page.keyboard.press("Delete");
   await expect(presentation.locator("[data-presentation-text-box-shell]")).toHaveCount(0);

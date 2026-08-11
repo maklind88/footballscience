@@ -648,7 +648,7 @@ export function createPresentationModeRenderer(options = {}) {
                 data-presentation-slide-id="${escapeHtml(slide.id)}"
                 tabindex="${model.presenting ? "-1" : "0"}"
                 aria-label="${escapeHtml(kind === "symbol" ? "Symbol object" : "Text box object")}"
-                style="left: ${escapeHtml(box.x)}%; top: ${escapeHtml(box.y)}%; width: ${escapeHtml(box.width)}%;"
+                style="left: ${escapeHtml(box.x)}%; top: ${escapeHtml(box.y)}%; width: ${escapeHtml(box.width)}%; height: ${escapeHtml(box.height || (kind === "symbol" ? 14 : 12))}%;"
               >
                 ${textBox}
                 <span

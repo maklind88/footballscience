@@ -21,6 +21,11 @@ function optionsMarkup(options = [], value = "") {
   return options.map((option) => `<option value="${escapeSetPieceHtml(option.value)}" ${option.value === value ? "selected" : ""}>${escapeSetPieceHtml(option.label)}</option>`).join("");
 }
 
+function formatSetPieceSeconds(value = 0) {
+  const seconds = Math.max(0, Number(value || 0)) / 1000;
+  return `${seconds.toFixed(seconds % 1 ? 1 : 0)}s`;
+}
+
 function teamInitials(teamName = "Team") {
   return String(teamName || "Team")
     .trim()
@@ -196,6 +201,13 @@ function renderPlayback(variant, phase, ui) {
   const phaseIndex = variant.phases.findIndex((item) => item.id === phase.id);
   const maxPosition = Math.max(1, variant.phases.length - 1);
   const position = Math.min(maxPosition, Math.max(0, phaseIndex + Number(ui.playbackProgress || 0)));
+  const nextPhase = variant.phases[phaseIndex + 1];
+  const isTransitioning = Boolean(nextPhase && Number(ui.playbackProgress || 0) > 0);
+  const transitionDuration = Number(nextPhase?.durationMs || 0);
+  const primaryStatus = isTransitioning ? `Phase ${phaseIndex + 1} → ${phaseIndex + 2}` : `Phase ${phaseIndex + 1}`;
+  const secondaryStatus = isTransitioning
+    ? `${formatSetPieceSeconds(transitionDuration * Number(ui.playbackProgress || 0))} / ${formatSetPieceSeconds(transitionDuration)}`
+    : phase.cue || `of ${variant.phases.length}`;
   return `<div class="spr-playback" aria-label="Playback controls">
     <div class="spr-playback-transport">
       <button type="button" class="spr-icon-button" data-set-piece-action="restart-playback" title="Back to phase 1" aria-label="Back to phase 1">|◀</button>
@@ -205,7 +217,7 @@ function renderPlayback(variant, phase, ui) {
       <button type="button" class="spr-icon-button" data-set-piece-action="stop" title="Stop" aria-label="Stop">■</button>
     </div>
     <label class="spr-playhead"><span class="sr-only">Playback position</span><input type="range" min="0" max="${maxPosition}" step="0.01" value="${position}" data-set-piece-scrubber ${variant.phases.length < 2 ? "disabled" : ""}></label>
-    <span class="spr-phase-counter"><b>Phase ${phaseIndex + 1}</b><span>of ${variant.phases.length}</span></span>
+    <span class="spr-phase-counter" data-set-piece-playback-status><b data-set-piece-playback-primary>${escapeSetPieceHtml(primaryStatus)}</b><span data-set-piece-playback-secondary>${escapeSetPieceHtml(secondaryStatus)}</span></span>
     <label class="spr-speed-control"><span class="sr-only">Playback speed</span><select data-set-piece-playback-speed>${setPiecePlaybackSpeedOptions.map((speed) => `<option value="${speed}" ${Number(ui.playbackSpeed) === speed ? "selected" : ""}>${speed}×</option>`).join("")}</select></label>
     <button type="button" class="spr-icon-button spr-loop-button ${ui.loopPlayback ? "is-active" : ""}" data-set-piece-action="toggle-loop" aria-label="Loop playback" aria-pressed="${Boolean(ui.loopPlayback)}" title="Loop playback">↻</button>
   </div>`;
@@ -252,9 +264,10 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
     </div>
     <div class="spr-timeline" aria-label="Phase timeline">
       <div class="spr-phase-strip">
-        ${variant.phases.map((item, index) => `<button type="button" class="spr-phase-card ${item.id === phase.id ? "is-active" : ""}" data-set-piece-phase-id="${escapeSetPieceHtml(item.id)}">
+        ${variant.phases.map((item, index) => `<button type="button" class="spr-phase-card ${item.id === phase.id ? "is-active" : ""}" data-set-piece-phase-id="${escapeSetPieceHtml(item.id)}" aria-label="Phase ${index + 1}, ${escapeSetPieceHtml(item.title)}, ${formatSetPieceSeconds(item.durationMs)}${item.cue ? `, ${escapeSetPieceHtml(item.cue)}` : ""}">
           ${renderSetPiecePhaseThumbnail(resolveSetPiecePhaseAssignments(item, play, variant, roster), play.pitchView)}
-          <span><b>${String(index + 1).padStart(2, "0")}</b><i data-set-piece-phase-title="${escapeSetPieceHtml(item.id)}">${escapeSetPieceHtml(item.title)}</i></span>
+          <span><b>${String(index + 1).padStart(2, "0")}</b><i data-set-piece-phase-title="${escapeSetPieceHtml(item.id)}">${escapeSetPieceHtml(item.title)}</i><small>${formatSetPieceSeconds(item.durationMs)}</small></span>
+          ${item.cue ? `<em>${escapeSetPieceHtml(item.cue)}</em>` : ""}
         </button>`).join("")}
         <button type="button" class="spr-add-phase" data-set-piece-action="add-phase" title="Duplicate current phase" aria-label="Duplicate current phase" ${canEdit ? "" : "disabled"}>＋</button>
       </div>
@@ -270,7 +283,7 @@ function renderField(label, field, value, options = {}) {
   if (options.type === "select") {
     return `<label class="spr-field"><span>${label}</span><select data-${options.scope || "set-piece-play"}-field="${field}" ${disabled}>${optionsMarkup(options.options, value)}</select></label>`;
   }
-  return `<label class="spr-field"><span>${label}</span><input type="${options.type || "text"}" value="${escapeSetPieceHtml(value)}" data-${options.scope || "set-piece-play"}-field="${field}" ${options.min !== undefined ? `min="${options.min}"` : ""} ${options.max !== undefined ? `max="${options.max}"` : ""} ${disabled}></label>`;
+  return `<label class="spr-field"><span>${label}</span><input type="${options.type || "text"}" value="${escapeSetPieceHtml(value)}" data-${options.scope || "set-piece-play"}-field="${field}" ${options.min !== undefined ? `min="${options.min}"` : ""} ${options.max !== undefined ? `max="${options.max}"` : ""} ${options.step !== undefined ? `step="${options.step}"` : ""} ${disabled}></label>`;
 }
 
 function renderElementInspector(element, play, variant, roster, ui, canEdit) {
@@ -284,9 +297,10 @@ function renderElementInspector(element, play, variant, roster, ui, canEdit) {
     ${isOpponent ? renderField("Number", "label", element.label || "1", { type: "number", min: 1, max: 99, scope: "set-piece-element", disabled: !canEdit }) : ""}
     ${isOpponent ? `<label class="spr-toggle-field"><span><strong>Show number</strong><small>Turn off for color only</small></span><input type="checkbox" data-set-piece-element-field="showNumber" aria-label="Show number on board" ${element.showNumber !== false ? "checked" : ""} ${canEdit ? "" : "disabled"}></label>` : ""}
     ${renderField("Instruction", "instruction", element.instruction, { type: "textarea", scope: "set-piece-element", disabled: !canEdit })}
+    <div class="spr-timing-summary" aria-label="Action timing"><span><small>Starts</small><strong>${formatSetPieceSeconds(element.delayMs)}</strong></span><span><small>Moves</small><strong>${formatSetPieceSeconds(element.durationMs)}</strong></span></div>
     <div class="spr-field-grid">
-      ${renderField("Delay ms", "delayMs", element.delayMs, { type: "number", min: 0, max: 10000, scope: "set-piece-element", disabled: !canEdit })}
-      ${renderField("Duration ms", "durationMs", element.durationMs, { type: "number", min: 100, max: 10000, scope: "set-piece-element", disabled: !canEdit })}
+      ${renderField("Delay (ms)", "delayMs", element.delayMs, { type: "number", min: 0, max: 10000, step: 100, scope: "set-piece-element", disabled: !canEdit })}
+      ${renderField("Movement (ms)", "durationMs", element.durationMs, { type: "number", min: 100, max: 10000, step: 100, scope: "set-piece-element", disabled: !canEdit })}
     </div>
   </div>`;
 }

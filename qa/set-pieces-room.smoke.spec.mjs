@@ -79,8 +79,11 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(page.locator(".spr-body-direction")).toHaveCount(0);
   await expect(page.locator(".spr-board-element.is-ball")).toHaveCount(1);
 
+  const initialHomeMarker = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
+  const initialHomeBox = await initialHomeMarker.boundingBox();
+  expect(initialHomeBox).not.toBeNull();
   await page.getByRole("button", { name: "Run" }).click();
-  await page.mouse.move(box.x + box.width * 0.38, box.y + box.height * 0.34);
+  await page.mouse.move(initialHomeBox.x + initialHomeBox.width / 2, initialHomeBox.y + initialHomeBox.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * 0.68, box.y + box.height * 0.25, { steps: 8 });
   await page.mouse.up();
@@ -116,6 +119,9 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await loopButton.click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await page.waitForTimeout(350);
+  await expect(page.locator(".spr-drawing.is-playing")).toHaveCount(1);
+  await expect(page.locator("[data-set-piece-playback-primary]")).toContainText("Phase 1 → 2");
+  await expect(page.locator("[data-set-piece-playback-secondary]")).toContainText("/");
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   const pausedTransform = await page.locator(".spr-board-element.is-home-player:not(.is-ghost)").getAttribute("transform");
   await page.waitForTimeout(250);
@@ -200,6 +206,50 @@ test("Set Pieces Room reassigns stable tactical roles across routines and varian
   await expect(page.locator(`[data-element-id="${alexSlotId}"] text`)).toHaveText("CE");
 });
 
+test("Set Pieces Room handles a match-sized routine without stacking roles", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("football-player-profiles-v1", JSON.stringify({
+      schemaVersion: 3,
+      players: Array.from({ length: 11 }, (_, index) => ({
+        id: `player-${index + 1}`,
+        name: `Player ${String(index + 1).padStart(2, "0")}`,
+        position: index === 0 ? "Goalkeeper" : "Outfield",
+      })),
+    }));
+    window.localStorage.removeItem("football-set-pieces-room-v1");
+  });
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await openSetPiecesRoom(page);
+  await page.getByRole("button", { name: "Create set piece" }).click();
+
+  for (let index = 1; index <= 11; index += 1) {
+    await page.locator("[data-set-piece-player-picker] summary").click();
+    await page.getByRole("menuitem", { name: `Add Player ${String(index).padStart(2, "0")}` }).click();
+  }
+  const ownMarkers = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
+  await expect(ownMarkers).toHaveCount(11);
+  const uniqueTransforms = await ownMarkers.evaluateAll((markers) => new Set(markers.map((marker) => marker.getAttribute("transform"))).size);
+  expect(uniqueTransforms).toBe(11);
+
+  const pitch = page.locator("[data-set-piece-pitch]");
+  const pitchBox = await pitch.boundingBox();
+  expect(pitchBox).not.toBeNull();
+  const opponentPoints = [
+    [.62, .2], [.72, .2], [.82, .2], [.67, .4],
+    [.77, .4], [.87, .4], [.72, .62], [.82, .62],
+  ];
+  for (const [x, y] of opponentPoints) {
+    await page.getByRole("button", { name: "Opponent" }).click();
+    await page.mouse.click(pitchBox.x + pitchBox.width * x, pitchBox.y + pitchBox.height * y);
+  }
+  await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost)")).toHaveCount(8);
+
+  await page.getByRole("button", { name: "Assignments" }).click();
+  await expect(page.locator(".spr-assignment-row")).toHaveCount(11);
+});
+
 test("Set Pieces Room keeps its editor usable on a narrow touch viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
@@ -218,6 +268,18 @@ test("Set Pieces Room keeps its editor usable on a narrow touch viewport", async
   await expect(page.locator("[data-set-piece-pitch]")).toBeVisible();
   await expect(page.locator(".spr-playback")).toBeVisible();
   await expect(page.locator(".spr-inspector")).toBeVisible();
+  const addPhase = page.getByRole("button", { name: "Duplicate current phase" });
+  for (let index = 0; index < 6; index += 1) await addPhase.click();
+  await expect(page.locator("[data-set-piece-phase-id]")).toHaveCount(7);
+  await expect(page.locator(".spr-phase-card.is-active small")).toHaveText("1.4s");
+  const activePhaseMetrics = await page.evaluate(() => {
+    const strip = document.querySelector(".spr-phase-strip")?.getBoundingClientRect();
+    const active = document.querySelector(".spr-phase-card.is-active")?.getBoundingClientRect();
+    return strip && active ? { stripLeft: strip.left, stripRight: strip.right, activeLeft: active.left, activeRight: active.right } : null;
+  });
+  expect(activePhaseMetrics).not.toBeNull();
+  expect(activePhaseMetrics.activeLeft).toBeGreaterThanOrEqual(activePhaseMetrics.stripLeft - 1);
+  expect(activePhaseMetrics.activeRight).toBeLessThanOrEqual(activePhaseMetrics.stripRight + 1);
   await page.locator("[data-set-piece-player-picker] summary").click();
   await expect(page.locator(".spr-player-menu")).toBeVisible();
   const metrics = await page.evaluate(() => ({

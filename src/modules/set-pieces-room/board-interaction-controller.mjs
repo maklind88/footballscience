@@ -28,6 +28,21 @@ function createBoardElement(kind, point, overrides = {}) {
   };
 }
 
+function getDrawingActor(phase = {}, drawingType = "", point = {}) {
+  const kinds = {
+    run: new Set(["home-player"]),
+    pass: new Set(["ball"]),
+    dribble: new Set(["home-player"]),
+    press: new Set(["home-player", "opponent"]),
+    mark: new Set(["home-player", "opponent"]),
+  }[drawingType];
+  if (!kinds) return null;
+  return getNearestSetPieceElement(
+    (phase.elements || []).filter((element) => kinds.has(element.kind)),
+    point
+  );
+}
+
 export function createSetPiecesBoardInteractionController(options = {}) {
   const root = options.root;
   let interaction = null;
@@ -276,7 +291,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       return;
     }
     if (completed.type === "draw" && getSetPieceDistance(completed.start, point) > 1.5) {
-      const actor = getNearestSetPieceElement(phase.elements, completed.start);
+      const actor = getDrawingActor(phase, completed.drawingType, completed.start);
       const drawing = {
         id: createSetPieceId("drawing"),
         type: completed.drawingType,

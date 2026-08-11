@@ -494,6 +494,8 @@
   align-items: stretch;
   gap: .38rem;
   overflow-x: auto;
+  scroll-padding-inline: .2rem;
+  scroll-snap-type: x proximity;
 }
 
 .spr-phase-card {
@@ -506,6 +508,7 @@
   padding: .28rem;
   background: #fff;
   cursor: pointer;
+  scroll-snap-align: nearest;
   text-align: left;
 }
 
@@ -548,6 +551,23 @@
 .spr-phase-card b {
   color: #36725b;
   font-size: .6rem;
+}
+
+.spr-phase-card span small {
+  margin-left: auto;
+  color: var(--spr-muted);
+  font-size: .58rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.spr-phase-card > em {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--spr-muted);
+  font-size: .57rem;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .spr-add-phase {
@@ -601,6 +621,33 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: .5rem;
+}
+
+.spr-timing-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .35rem;
+}
+
+.spr-timing-summary span {
+  min-width: 0;
+  display: grid;
+  gap: .08rem;
+  border: 1px solid var(--spr-line);
+  border-radius: 5px;
+  padding: .38rem .45rem;
+  background: var(--spr-soft);
+}
+
+.spr-timing-summary small {
+  color: var(--spr-muted);
+  font-size: .58rem;
+  font-weight: 700;
+}
+
+.spr-timing-summary strong {
+  font-size: .76rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .spr-ghost-toggle,

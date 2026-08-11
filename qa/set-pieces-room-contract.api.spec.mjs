@@ -20,6 +20,10 @@ import {
 } from "../src/modules/set-pieces-room/player-labels.mjs";
 import { createSetPiecesPersistence } from "../src/modules/set-pieces-room/persistence.mjs";
 import { cloneSetPiecePlay } from "../src/modules/set-pieces-room/play-helpers.mjs";
+import {
+  getSetPieceElementPlaybackProgress,
+  interpolateSetPiecePlaybackElement,
+} from "../src/modules/set-pieces-room/playback-geometry.mjs";
 import { renderSetPieceBoard } from "../src/modules/set-pieces-room/board-renderer.mjs";
 import { getNextSetPiecePlayerPlacement, normalizeSetPiecePointForPitchView } from "../src/modules/set-pieces-room/geometry.mjs";
 import { defaultHubState } from "../src/core/workspace-defaults.mjs";
@@ -184,6 +188,40 @@ test("normalization clamps unsafe geometry and timing values", () => {
 
   expect(normalizedPhase.durationMs).toBe(10000);
   expect(normalizedPhase.elements[0]).toMatchObject({ x: 105, y: 0, durationMs: 100 });
+});
+
+test("playback follows linked tactical routes while preserving phase endpoints", () => {
+  const fromElement = { id: "runner-a", kind: "home-player", x: 10, y: 10, rotation: 0 };
+  const toElement = { ...fromElement, x: 30, y: 10, rotation: 20 };
+  const fromPhase = {
+    drawings: [{
+      id: "route-a",
+      type: "run",
+      actorId: "runner-a",
+      startX: 8,
+      startY: 10,
+      endX: 32,
+      endY: 10,
+      curve: 10,
+    }],
+  };
+
+  expect(interpolateSetPiecePlaybackElement(fromElement, toElement, 0, fromPhase)).toMatchObject({ x: 10, y: 10, routeId: "route-a" });
+  expect(interpolateSetPiecePlaybackElement(fromElement, toElement, 0.5, fromPhase)).toMatchObject({ x: 20, y: 15, rotation: 10, routeId: "route-a" });
+  expect(interpolateSetPiecePlaybackElement(fromElement, toElement, 1, fromPhase)).toMatchObject({ x: 30, y: 10, routeId: "route-a" });
+});
+
+test("playback timing and ball routes respect delay, duration and action semantics", () => {
+  const pass = { id: "pass-a", type: "pass", actorId: "player-a", startX: 10, startY: 10, endX: 30, endY: 20, curve: 0 };
+  const phase = { drawings: [pass] };
+  const ball = { id: "ball-a", kind: "ball", x: 10, y: 10, rotation: 0 };
+  const player = { id: "player-a", kind: "home-player", x: 10, y: 10, rotation: 0 };
+
+  expect(getSetPieceElementPlaybackProgress({ delayMs: 400, durationMs: 800 }, 0.2, 1600)).toBe(0);
+  expect(getSetPieceElementPlaybackProgress({ delayMs: 400, durationMs: 800 }, 0.5, 1600)).toBe(0.5);
+  expect(getSetPieceElementPlaybackProgress({ delayMs: 9999, durationMs: 9999 }, 1, 1400)).toBe(1);
+  expect(interpolateSetPiecePlaybackElement(ball, { ...ball, x: 30, y: 20 }, 0.5, phase).routeId).toBe("pass-a");
+  expect(interpolateSetPiecePlaybackElement(player, { ...player, x: 30, y: 20 }, 0.5, phase).routeId).toBe("");
 });
 
 test("drag coordinates stay inside the visible pitch view", () => {

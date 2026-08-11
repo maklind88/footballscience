@@ -8,6 +8,11 @@ import { cloneSetPiecePlay } from "./play-helpers.mjs";
 import { createSetPiecePlayerLabelMap, getSetPieceRosterPlayers } from "./player-labels.mjs";
 import { createSetPiecesPlaybackController } from "./playback-controller.mjs";
 import {
+  renderSetPiecePlaybackFrame,
+  revealActiveSetPiecePhase,
+  updateSetPiecePlaybackView,
+} from "./playback-view.mjs";
+import {
   createSetPiecePlay,
   duplicateSetPiecePhase,
   duplicateSetPieceVariant,
@@ -119,6 +124,7 @@ export function createSetPiecesRoomController(options = {}) {
     const roster = getRoster();
     const team = options.getTeamIdentity?.() || {};
     root.innerHTML = renderSetPiecesWorkspace({ state, roster, team, ui: rendererUi(), canEdit: canEdit() });
+    revealActiveSetPiecePhase(root);
   }
 
   function renderBoardOnly() {
@@ -144,38 +150,15 @@ export function createSetPiecesRoomController(options = {}) {
     })}`;
   }
 
-  function updatePlaybackControls() {
-    const button = root?.querySelector?.('[data-set-piece-action="toggle-play"]');
-    if (button) {
-      button.setAttribute("aria-label", ui.isPlaying ? "Pause" : "Play");
-      const symbol = button.querySelector("span");
-      if (symbol) symbol.textContent = ui.isPlaying ? "Ⅱ" : "▶";
-    }
-    const speedControl = root?.querySelector?.("[data-set-piece-playback-speed]");
-    if (speedControl) speedControl.value = String(ui.playbackSpeed);
-    const scrubber = root?.querySelector?.("[data-set-piece-scrubber]");
-    const { variant, phase } = getContext();
-    if (scrubber && variant && phase) {
-      const phaseIndex = variant.phases.findIndex((item) => item.id === phase.id);
-      scrubber.value = String(Math.max(0, phaseIndex) + Number(ui.playbackProgress || 0));
-    }
-    const loopButton = root?.querySelector?.('[data-set-piece-action="toggle-loop"]');
-    if (loopButton) {
-      loopButton.classList.toggle("is-active", ui.loopPlayback);
-      loopButton.setAttribute("aria-pressed", String(ui.loopPlayback));
-    }
-  }
+  let activePlaybackRouteIds = new Set();
 
   const playback = createSetPiecesPlaybackController({
     win,
     getContext,
     onFrame(positions, progress) {
       ui.playbackProgress = Number(progress || 0);
-      positions.forEach((position, id) => {
-        const marker = root?.querySelector?.(`[data-element-id="${CSS.escape(id)}"]`);
-        if (marker) marker.setAttribute("transform", `translate(${position.x} ${position.y})`);
-      });
-      updatePlaybackControls();
+      activePlaybackRouteIds = renderSetPiecePlaybackFrame(root, activePlaybackRouteIds, positions);
+      updateSetPiecePlaybackView(root, ui, getContext());
     },
     onPhaseChange(phaseId) {
       const { variant } = getContext();
@@ -183,16 +166,20 @@ export function createSetPiecesRoomController(options = {}) {
       variant.activePhaseId = phaseId;
       ui.playbackProgress = 0;
       ui.selectedDrawingId = "";
+      activePlaybackRouteIds.clear();
       render();
     },
-    onResetFrame: renderBoardOnly,
+    onResetFrame() {
+      activePlaybackRouteIds.clear();
+      renderBoardOnly();
+    },
     onStatus(status) {
       ui.isPlaying = status.isPlaying;
       ui.isPaused = status.isPaused;
       ui.playbackSpeed = status.speed;
       ui.loopPlayback = status.loop;
       if (!status.isPlaying && !status.isPaused) ui.playbackProgress = 0;
-      updatePlaybackControls();
+      updateSetPiecePlaybackView(root, ui, getContext());
     },
   });
 

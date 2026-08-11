@@ -142,6 +142,11 @@
   stroke-width: 1.1;
 }
 
+.spr-drawing.is-playing path {
+  filter: drop-shadow(0 0 1.5px currentColor);
+  stroke-width: 1.15;
+}
+
 .spr-drawing.is-preview {
   opacity: .7;
   pointer-events: none;

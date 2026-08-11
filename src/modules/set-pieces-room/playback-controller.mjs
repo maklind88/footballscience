@@ -1,4 +1,7 @@
-import { interpolateSetPieceValue } from "./geometry.mjs";
+import {
+  getSetPieceElementPlaybackProgress,
+  interpolateSetPiecePlaybackElement,
+} from "./playback-geometry.mjs";
 
 function elementMap(phase = {}) {
   return new Map((phase.elements || []).map((element) => [element.id, element]));
@@ -49,15 +52,8 @@ export function createSetPiecesPlaybackController(options = {}) {
       const toElement = end.get(id);
       if (!toElement) continue;
       const totalDuration = Math.max(250, Number(toPhase.durationMs || 1400));
-      const elapsed = progress * totalDuration;
-      const delay = Math.max(0, Number(toElement.delayMs || 0));
-      const duration = Math.max(100, Math.min(totalDuration - Math.min(delay, totalDuration - 100), Number(toElement.durationMs || totalDuration)));
-      const localProgress = Math.min(1, Math.max(0, (elapsed - delay) / duration));
-      positions.set(id, {
-        x: interpolateSetPieceValue(fromElement.x, toElement.x, localProgress),
-        y: interpolateSetPieceValue(fromElement.y, toElement.y, localProgress),
-        rotation: interpolateSetPieceValue(fromElement.rotation, toElement.rotation, localProgress),
-      });
+      const localProgress = getSetPieceElementPlaybackProgress(toElement, progress, totalDuration);
+      positions.set(id, interpolateSetPiecePlaybackElement(fromElement, toElement, localProgress, fromPhase));
     }
     options.onFrame?.(positions, progress, fromIndex);
   }

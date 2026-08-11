@@ -187,6 +187,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(toolbarHtml).toContain("data-presentation-insert-symbol");
   expect(toolbarHtml).toContain("data-presentation-shape-menu");
   expect(toolbarHtml).toContain("data-presentation-add-shape");
+  expect(toolbarHtml).toContain("data-presentation-color-menu");
+  expect(toolbarHtml).not.toContain("presentation-quick-style-controls");
   expect(toolbarHtml).toContain("data-presentation-style-menu");
   expect(toolbarHtml).toContain("data-presentation-active-shape-fill");
   expect(toolbarHtml).toContain("data-presentation-active-shape-stroke");

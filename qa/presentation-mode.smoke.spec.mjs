@@ -371,10 +371,13 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(textToolbar.locator("[data-presentation-add-text-box]")).toBeVisible();
   await expect(textToolbar.locator("[data-presentation-symbol-menu]")).toBeVisible();
   await expect(textToolbar.locator("[data-presentation-shape-menu]")).toBeVisible();
+  await expect(textToolbar.locator("[data-presentation-color-menu]")).toBeVisible();
   await expect(textToolbar.locator("[data-presentation-style-menu]")).toBeVisible();
+  await expect(textToolbar.locator(".presentation-quick-style-controls")).toHaveCount(0);
   await expect(textToolbar.locator(".presentation-keynote-tool").filter({ hasText: "Text" })).toBeVisible();
   await expect(textToolbar.locator("[data-presentation-shape-menu] summary")).toContainText("Shape");
   await expect(textToolbar.locator("[data-presentation-symbol-menu] summary")).toContainText("Symbol");
+  await expect(textToolbar.locator("[data-presentation-color-menu] summary")).toContainText("Color");
   await expect(textToolbar.locator("[data-presentation-style-menu] summary")).toContainText("Style");
   await expect(textToolbar.locator("[data-presentation-delete-text-box]")).toHaveCount(0);
   await expect(textToolbar.locator("[aria-label='Insert check']")).toBeHidden();
@@ -453,14 +456,18 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   const shapeAfterResize = await slideShape.boundingBox();
   expect(shapeAfterResize?.width).toBeGreaterThan((shapeBeforeResize?.width || 0) + 20);
   expect(shapeAfterResize?.height).toBeGreaterThan((shapeBeforeResize?.height || 0) + 10);
-  await expect(textToolbar.locator("[data-presentation-active-shape-fill]")).toBeEnabled();
-  await expect(textToolbar.locator("[data-presentation-active-shape-stroke]")).toBeEnabled();
+  const colorMenu = textToolbar.locator("[data-presentation-color-menu]");
+  await colorMenu.locator("summary").click();
+  await expect(colorMenu.locator(".presentation-tool-popover-panel")).toBeVisible();
+  await expect(colorMenu.locator("[data-presentation-active-shape-fill]")).toBeEnabled();
+  await expect(colorMenu.locator("[data-presentation-active-shape-stroke]")).toBeEnabled();
+  await expect(colorMenu.locator("[data-presentation-style-field='backgroundColor']")).toBeEnabled();
   await expect(textToolbar.locator("[data-presentation-active-shape-opacity]")).toBeEnabled();
-  await textToolbar.locator("[data-presentation-active-shape-fill]").evaluate((input) => {
+  await colorMenu.locator("[data-presentation-active-shape-fill]").evaluate((input) => {
     input.value = "#f59e0b";
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  await textToolbar.locator("[data-presentation-active-shape-stroke]").evaluate((input) => {
+  await colorMenu.locator("[data-presentation-active-shape-stroke]").evaluate((input) => {
     input.value = "#111827";
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });

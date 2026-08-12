@@ -785,7 +785,17 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
       videoUnderTopCards: videoRect.top >= loadRect.bottom - 2,
       videoSpansTopCards: Math.abs(videoRect.left - loadRect.left) <= 2 && Math.abs(videoRect.right - matchRect.right) <= 2,
       videoLabelBelowTopCards: videoLabelRect.top >= loadLabelRect.bottom,
-      subPhaseBelowPhase: Boolean(phaseValueRect && subPhaseRect && subPhaseRect.top >= phaseValueRect.bottom - 2),
+      subPhaseBesidePhase: Boolean(
+        phaseValueRect &&
+          subPhaseRect &&
+          Math.abs(phaseValueRect.top - subPhaseRect.top) <= 8 &&
+          subPhaseRect.left >= phaseValueRect.right - 3
+      ),
+      subPhaseSmallerThanPhase: Boolean(
+        phaseValue &&
+          subPhase &&
+          Number.parseFloat(getComputedStyle(subPhase).fontSize) < Number.parseFloat(getComputedStyle(phaseValue).fontSize)
+      ),
       loadColor: loadStyle.getPropertyValue("--presentation-load-color").trim(),
       loadAngle: loadStyle.getPropertyValue("--presentation-load-angle").trim(),
     };
@@ -803,7 +813,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     videoUnderTopCards: true,
     videoSpansTopCards: true,
     videoLabelBelowTopCards: true,
-    subPhaseBelowPhase: true,
+    subPhaseBesidePhase: true,
+    subPhaseSmallerThanPhase: true,
     loadColor: "#d92d3f",
     loadAngle: "68deg",
   });

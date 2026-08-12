@@ -1859,13 +1859,21 @@ body.is-presentation-text-field-resizing {
 
 .presentation-day-phase-item {
   min-width: 0;
-  display: grid;
-  gap: .08rem;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: clamp(.26rem, .46vw, .44rem);
+  row-gap: .04rem;
+}
+
+.presentation-day-phase-value {
+  flex: 0 1 auto;
 }
 
 .presentation-day-subphase {
   min-width: 0;
-  display: block;
+  display: inline;
+  flex: 1 1 11rem;
   color: rgba(248, 250, 252, .74);
   font-size: clamp(.62rem, .9cqw, .94rem);
   font-style: normal;
@@ -1877,6 +1885,7 @@ body.is-presentation-text-field-resizing {
 
 .presentation-day-subphase span {
   color: inherit;
+  display: inline;
   font: inherit;
   letter-spacing: 0;
   text-transform: none;

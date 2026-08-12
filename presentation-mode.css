@@ -2528,20 +2528,21 @@ body.is-presentation-text-field-resizing {
 
 .presentation-mode-shell.is-presenting .presentation-overview-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 4.85fr);
+  grid-template-rows: minmax(4.8rem, .4fr) minmax(7rem, .72fr) minmax(4.45rem, .32fr) minmax(8.2rem, 1fr);
 }
 
 .presentation-mode-shell.is-presenting .presentation-medical-list {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: minmax(2.9rem, 1fr);
-  gap: clamp(.22rem, .38vh, .4rem);
+  grid-auto-rows: minmax(2.45rem, 1fr);
+  gap: clamp(.18rem, .32vh, .34rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-info-title {
-  font-size: clamp(3.1rem, 6.4cqw, 7rem);
+  font-size: clamp(2.75rem, 5.6cqw, 6.15rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-info-body {
-  --presentation-editable-fit-size: clamp(1.75rem, 5.2cqw, 9rem);
+  --presentation-editable-fit-size: clamp(1.35rem, 4.25cqw, 6.2rem);
   line-height: 1.24;
 }
 
@@ -2551,58 +2552,58 @@ body.is-presentation-text-field-resizing {
 .presentation-mode-shell.is-presenting .presentation-block-flow span,
 .presentation-mode-shell.is-presenting .presentation-detail-block span,
 .presentation-mode-shell.is-presenting .presentation-player-panel header span {
-  font-size: clamp(.82rem, 1.12cqw, 1.15rem);
+  font-size: clamp(.74rem, .96cqw, 1rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-overview-metric strong {
-  font-size: clamp(1.18rem, 1.9cqw, 2rem);
+  font-size: clamp(1.02rem, 1.55cqw, 1.65rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-day-overview strong {
-  font-size: clamp(1.24rem, 2.15cqw, 2.2rem);
+  font-size: clamp(1.06rem, 1.7cqw, 1.8rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-day-subphase,
 .presentation-mode-shell.is-presenting .presentation-overview-video-notes {
-  font-size: clamp(.92rem, 1.36cqw, 1.36rem);
+  font-size: clamp(.78rem, 1.1cqw, 1.12rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-block-flow strong {
-  font-size: clamp(1.12rem, 1.78cqw, 1.9rem);
+  font-size: clamp(.98rem, 1.38cqw, 1.48rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-block-copy .presentation-section-heading h2 {
-  font-size: clamp(2.45rem, 4.6cqw, 5.1rem);
+  font-size: clamp(2.1rem, 3.72cqw, 4.15rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-block-copy .presentation-section-heading p {
-  font-size: clamp(1.05rem, 1.72cqw, 1.8rem);
+  font-size: clamp(.94rem, 1.42cqw, 1.52rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-detail-text {
-  font-size: clamp(1.1rem, 1.55cqw, 1.65rem);
+  font-size: clamp(.96rem, 1.24cqw, 1.36rem);
   line-height: 1.32;
 }
 
 .presentation-mode-shell.is-presenting .presentation-medical-player {
-  grid-template-columns: clamp(2.35rem, 5.5vh, 4rem) minmax(0, 1fr) auto;
-  gap: clamp(.42rem, .62vw, .72rem);
-  padding: clamp(.16rem, .28vh, .36rem) clamp(.32rem, .48vw, .55rem);
+  grid-template-columns: clamp(1.95rem, 4.5vh, 3.25rem) minmax(0, 1fr) auto;
+  gap: clamp(.34rem, .5vw, .58rem);
+  padding: clamp(.14rem, .24vh, .3rem) clamp(.28rem, .4vw, .48rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-medical-avatar {
-  width: clamp(2.35rem, 5.5vh, 4rem);
-  height: clamp(2.35rem, 5.5vh, 4rem);
-  font-size: clamp(.72rem, 1.55vh, 1rem);
+  width: clamp(1.95rem, 4.5vh, 3.25rem);
+  height: clamp(1.95rem, 4.5vh, 3.25rem);
+  font-size: clamp(.62rem, 1.28vh, .88rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-medical-player strong {
-  font-size: clamp(.9rem, 1.75vh, 1.25rem);
+  font-size: clamp(.76rem, 1.45vh, 1.06rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-medical-player > span:last-child {
-  min-width: clamp(2.7rem, 5.6vh, 3.8rem);
-  font-size: clamp(.68rem, 1.32vh, .94rem);
+  min-width: clamp(2.35rem, 4.8vh, 3.28rem);
+  font-size: clamp(.58rem, 1.08vh, .8rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-player-panel header strong {

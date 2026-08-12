@@ -435,6 +435,7 @@ export function createPresentationModeController(dependencies = {}) {
   let root = null;
   let stageResizeObserver = null;
   let stageMetricsFrame = 0;
+  let presentingTextFitFrame = 0;
 
   function ensureRoot() {
     if (root) return root;
@@ -924,6 +925,7 @@ export function createPresentationModeController(dependencies = {}) {
     stage.style.setProperty("--presentation-stage-height", `${Number(stageHeight.toFixed(2))}px`);
     stage.style.setProperty("--presentation-slide-width", `${Number(slideWidth.toFixed(2))}px`);
     stage.style.setProperty("--presentation-slide-height", `${Number(slideHeight.toFixed(2))}px`);
+    schedulePresentingTextFit();
   }
 
   function scheduleStageMetrics() {
@@ -934,6 +936,80 @@ export function createPresentationModeController(dependencies = {}) {
     stageMetricsFrame = requestFrame(updateStageMetrics);
   }
 
+  function getTextFitMinimum(element) {
+    if (element.matches?.(".presentation-info-title")) return 34;
+    if (element.matches?.(".presentation-info-body")) return 26;
+    if (element.matches?.(".presentation-cover-copy p")) return 24;
+    if (element.matches?.(".presentation-block-copy .presentation-section-heading h2")) return 30;
+    if (element.matches?.(".presentation-block-copy .presentation-section-heading p")) return 18;
+    if (element.matches?.(".presentation-detail-text")) return 17;
+    if (element.matches?.(".presentation-overview-video-notes")) return 11;
+    if (element.matches?.(".presentation-day-overview strong")) return 18;
+    if (element.matches?.(".presentation-day-subphase")) return 14;
+    if (element.matches?.(".presentation-overview-metric strong")) return 17;
+    if (element.matches?.(".presentation-block-flow strong")) return 16;
+    return 14;
+  }
+
+  function elementOverflows(element) {
+    const isHeadline = element.matches?.(
+      ".presentation-info-title, .presentation-block-copy .presentation-section-heading h2"
+    );
+    const verticalTolerance = isHeadline ? 12 : 5;
+    return (
+      element.scrollHeight > element.clientHeight + verticalTolerance ||
+      element.scrollWidth > element.clientWidth + 3
+    );
+  }
+
+  function fitPresentingTextElement(element) {
+    if (!element?.isConnected) {
+      return;
+    }
+    element.style.removeProperty("font-size");
+    element.style.removeProperty("--presentation-editable-fit-size");
+    const computed = win?.getComputedStyle?.(element);
+    const startingSize = Number.parseFloat(computed?.fontSize || "");
+    if (!Number.isFinite(startingSize) || startingSize <= 0) {
+      return;
+    }
+    const minimumSize = Math.min(startingSize, getTextFitMinimum(element));
+    let nextSize = startingSize;
+    for (let index = 0; index < 12 && nextSize > minimumSize && elementOverflows(element); index += 1) {
+      nextSize = Math.max(minimumSize, nextSize * 0.92);
+      element.style.fontSize = `${Number(nextSize.toFixed(2))}px`;
+    }
+  }
+
+  function fitPresentingText() {
+    presentingTextFitFrame = 0;
+    if (!state.isOpen || !state.presenting || !root || root.hidden) {
+      return;
+    }
+    const selectors = [
+      ".presentation-cover-copy p",
+      ".presentation-info-title",
+      ".presentation-info-body",
+      ".presentation-overview-metric strong",
+      ".presentation-overview-video-notes",
+      ".presentation-day-overview strong",
+      ".presentation-day-subphase",
+      ".presentation-block-flow strong",
+      ".presentation-block-copy .presentation-section-heading h2",
+      ".presentation-block-copy .presentation-section-heading p",
+      ".presentation-detail-text",
+    ].join(", ");
+    root.querySelectorAll(selectors).forEach(fitPresentingTextElement);
+  }
+
+  function schedulePresentingTextFit() {
+    if (presentingTextFitFrame || !state.isOpen || !state.presenting) {
+      return;
+    }
+    const requestFrame = win?.requestAnimationFrame?.bind(win) || ((callback) => win?.setTimeout?.(callback, 0));
+    presentingTextFitFrame = requestFrame(fitPresentingText);
+  }
+
   function disconnectStageMetrics() {
     stageResizeObserver?.disconnect?.();
     stageResizeObserver = null;
@@ -941,6 +1017,10 @@ export function createPresentationModeController(dependencies = {}) {
       win.cancelAnimationFrame(stageMetricsFrame);
     }
     stageMetricsFrame = 0;
+    if (presentingTextFitFrame && win?.cancelAnimationFrame) {
+      win.cancelAnimationFrame(presentingTextFitFrame);
+    }
+    presentingTextFitFrame = 0;
   }
 
   function observeStageMetrics() {
@@ -966,6 +1046,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.body.classList.add("is-presentation-mode-open");
     syncTextToolbar();
     observeStageMetrics();
+    schedulePresentingTextFit();
   }
 
   function open(dateValue = "") {

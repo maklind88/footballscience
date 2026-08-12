@@ -135,8 +135,10 @@ function canEditPeriodizationWorkspace() { return canCurrentUserEditWorkspace("p
 function canEditGameSimulatorWorkspace() { return canCurrentUserEditWorkspace("game-simulator"); }
 function canEditScoutingWorkspace() { return canCurrentUserEditWorkspace("scouting"); }
 function getAccessibleWorkspacePool(sourceState = getHubState()) {
+  const accessConfig = getWorkspaceAccessConfig(sourceState);
+  const currentUser = getCurrentPlatformUser();
   return getAllWorkspacePool(sourceState).filter((workspace) =>
-    canUserAccessWorkspace(workspace, getCurrentPlatformUser(), getWorkspaceAccessConfig(sourceState))
+    canUserAccessWorkspace(workspace, currentUser, accessConfig)
   );
 }
 function getVisibleWorkspacePool(sourceState = getHubState()) {

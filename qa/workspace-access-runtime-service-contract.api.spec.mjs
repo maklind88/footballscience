@@ -123,6 +123,25 @@ test("Workspace access runtime preserves view and edit permission behavior", () 
   expect(service.canUserEditWorkspace("transfer-room", { role: "scout" })).toBe(true);
 });
 
+test("Workspace access runtime normalizes access once per pool query", () => {
+  const { service, state } = createService();
+  let accessEntryReads = 0;
+  const configuredAccess = Object.fromEntries(
+    defaultHubState.workspaces.map((workspace) => [workspace.id, { view: ["coach"], edit: ["coach"] }])
+  );
+  state.hubState.workspaceAccess = new Proxy(configuredAccess, {
+    get(target, property, receiver) {
+      if (typeof property === "string" && Object.hasOwn(target, property)) {
+        accessEntryReads += 1;
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
+
+  expect(service.getAccessibleWorkspacePool().map((workspace) => workspace.id)).toContain("player-profiles");
+  expect(accessEntryReads).toBe(defaultHubState.workspaces.length);
+});
+
 test("Workspace access runtime repairs inaccessible state and preserves default workspace definitions", () => {
   const { service } = createService({ currentUser: { id: "guest-1", role: "guest" } });
   const repaired = service.repairWorkspaceState({

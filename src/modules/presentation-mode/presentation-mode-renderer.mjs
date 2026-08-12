@@ -1193,20 +1193,24 @@ export function createPresentationModeRenderer(options = {}) {
   function formatBlockPhaseLine(phaseValue = "", subPhaseValue = "") {
     const phases = getBlockPhaseParts(phaseValue);
     const subPhases = getBlockPhaseParts(subPhaseValue);
+    const formatPhaseWithSubPhases = (phase, pairedSubPhases = []) => {
+      const phaseKey = normalizePhaseLabel(phase);
+      const uniqueSubPhases = pairedSubPhases.filter((subPhase) => normalizePhaseLabel(subPhase) !== phaseKey);
+      const subPhase = uniqueSubPhases.join(", ");
+      return subPhase ? `${phase} (${subPhase})` : phase;
+    };
     if (!phases.length) {
       return subPhases.join(", ");
     }
     if (phases.length === 1) {
-      const subPhase = subPhases.join(", ");
-      return subPhase ? `${phases[0]} (${subPhase})` : phases[0];
+      return formatPhaseWithSubPhases(phases[0], subPhases);
     }
     return phases
       .map((phase, index) => {
         const pairedSubPhases = index === phases.length - 1
           ? subPhases.slice(index)
           : subPhases.slice(index, index + 1);
-        const subPhase = pairedSubPhases.join(", ");
-        return subPhase ? `${phase} (${subPhase})` : phase;
+        return formatPhaseWithSubPhases(phase, pairedSubPhases);
       })
       .join(", ");
   }

@@ -258,6 +258,17 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(blockHtml).not.toContain("10%+");
   expect(blockHtml).toContain("In Possession (Build Up), Out of Possession (Block Defending)");
   expect(blockHtml).not.toContain("In Possession, Out of Possession / Build Up, Block Defending");
+  const repeatedPhaseHtml = renderer.renderBlockSlide(model, {
+    ...blockSlide,
+    block: {
+      ...blockSlide.block,
+      phase: "Offensive Transition, Defensive Transition",
+      subPhase: "Offensive Transition, Defensive Transition",
+    },
+  });
+  expect(repeatedPhaseHtml).toContain("Offensive Transition, Defensive Transition");
+  expect(repeatedPhaseHtml).not.toContain("Offensive Transition (Offensive Transition)");
+  expect(repeatedPhaseHtml).not.toContain("Defensive Transition (Defensive Transition)");
   expect(blockHtml).not.toContain("0% / Unavailable");
   expect(blockHtml).toContain('data-presentation-text-field="block.title"');
   expect(blockHtml).toContain('data-presentation-text-field="detail.principles.body"');

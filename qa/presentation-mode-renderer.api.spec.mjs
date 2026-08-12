@@ -257,7 +257,20 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(exerciseVisualCalls.at(-1)?.options.landscape).toBeUndefined();
   expect(blockHtml).toContain("Block 1");
   expect(blockHtml).not.toContain("10%+");
-  expect(blockHtml).toContain("In Possession (Build Up), Out of Possession (Block Defending)");
+  expect(blockHtml).toContain("In Possession (Build Up)");
+  expect(blockHtml).toContain("Out of Possession (Block Defending)");
+  expect(blockHtml).not.toContain("In Possession (Build Up), Out of Possession");
+  const multiSubPhaseHtml = renderer.renderBlockSlide(model, {
+    ...blockSlide,
+    block: {
+      ...blockSlide.block,
+      phase: "In Possession, Out of Possession",
+      subPhase: "Build Up, Creating Phase, Block Defending, High Press",
+    },
+  });
+  expect(multiSubPhaseHtml).toContain("In Possession (Build Up, Creating Phase)");
+  expect(multiSubPhaseHtml).toContain("Out of Possession (Block Defending, High Press)");
+  expect(multiSubPhaseHtml).not.toContain("Out of Possession (Creating Phase");
   expect(blockHtml).not.toContain("In Possession, Out of Possession / Build Up, Block Defending");
   const repeatedPhaseHtml = renderer.renderBlockSlide(model, {
     ...blockSlide,
@@ -267,7 +280,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
       subPhase: "Offensive Transition, Defensive Transition",
     },
   });
-  expect(repeatedPhaseHtml).toContain("Offensive Transition, Defensive Transition");
+  expect(repeatedPhaseHtml).toContain("Offensive Transition\nDefensive Transition");
   expect(repeatedPhaseHtml).not.toContain("Offensive Transition (Offensive Transition)");
   expect(repeatedPhaseHtml).not.toContain("Defensive Transition (Defensive Transition)");
   expect(blockHtml).not.toContain("0% / Unavailable");

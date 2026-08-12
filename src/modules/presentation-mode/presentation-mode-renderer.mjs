@@ -1202,17 +1202,38 @@ export function createPresentationModeRenderer(options = {}) {
     if (!phases.length) {
       return subPhases.join(", ");
     }
-    if (phases.length === 1) {
-      return formatPhaseWithSubPhases(phases[0], subPhases);
-    }
-    return phases
-      .map((phase, index) => {
-        const pairedSubPhases = index === phases.length - 1
-          ? subPhases.slice(index)
-          : subPhases.slice(index, index + 1);
-        return formatPhaseWithSubPhases(phase, pairedSubPhases);
-      })
-      .join(", ");
+    const groups = phases.map((phase) => ({
+      phase,
+      key: normalizePhaseLabel(phase),
+      subPhases: [],
+    }));
+    const groupByKey = new Map(groups.map((group) => [group.key, group]));
+    const leftovers = [];
+    subPhases.forEach((subPhase) => {
+      const entry = getPhaseLibraryEntryForSubPhase(subPhase);
+      const phaseKey = normalizePhaseLabel(entry?.[0] || "");
+      if (phaseKey && groupByKey.has(phaseKey)) {
+        groupByKey.get(phaseKey).subPhases.push(subPhase);
+        return;
+      }
+      if (groups.length === 1) {
+        groups[0].subPhases.push(subPhase);
+        return;
+      }
+      leftovers.push(subPhase);
+    });
+    leftovers.forEach((subPhase) => {
+      const alreadyUsed = groups.some((group) =>
+        normalizePhaseLabel(group.phase) === normalizePhaseLabel(subPhase) ||
+        group.subPhases.some((item) => normalizePhaseLabel(item) === normalizePhaseLabel(subPhase))
+      );
+      if (!alreadyUsed) {
+        groups[groups.length - 1]?.subPhases.push(subPhase);
+      }
+    });
+    return groups
+      .map((group) => formatPhaseWithSubPhases(group.phase, group.subPhases))
+      .join("\n");
   }
 
   function renderBlockSlide(model = {}, slide = {}) {
@@ -1249,7 +1270,7 @@ export function createPresentationModeRenderer(options = {}) {
             <div class="presentation-section-heading">
               ${renderEditableElement(model, frameSlide, "block.label", blockLabel, "span", "", { label: "Block label" })}
               ${renderEditableElement(model, frameSlide, "block.title", block.title || "Exercise", "h2", "", { label: "Block title" })}
-              ${phaseText ? renderEditableElement(model, frameSlide, "block.phase", phaseText, "p", "", { label: "Block phase" }) : ""}
+              ${phaseText ? renderEditableElement(model, frameSlide, "block.phase", phaseText, "p", "", { label: "Block phase", multiline: true }) : ""}
             </div>
             <div class="presentation-block-details">
               ${renderTextBlock(model, frameSlide, "Objective", block.objective, "detail.objective")}

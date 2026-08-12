@@ -2236,9 +2236,10 @@ body.is-presentation-text-field-resizing {
 
 .presentation-block-copy .presentation-section-heading p {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: block;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: pre-line;
 }
 
 .presentation-block-details {

@@ -1762,7 +1762,7 @@ body.is-presentation-text-field-resizing {
   height: 100%;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 4.6fr);
-  grid-template-rows: minmax(4.8rem, .44fr) minmax(4.8rem, .44fr) minmax(4.45rem, .38fr) minmax(8.6rem, 1fr);
+  grid-template-rows: minmax(4.8rem, .34fr) minmax(5.6rem, .46fr) minmax(8.6rem, .86fr) minmax(7.2rem, .82fr);
   grid-template-areas:
     "load pitch match medical"
     "video video video medical"
@@ -1777,8 +1777,8 @@ body.is-presentation-text-field-resizing {
   display: grid;
   align-content: start;
   grid-template-rows: auto auto;
-  gap: clamp(.46rem, .72vw, .68rem);
-  padding: clamp(.62rem, .9vw, .84rem);
+  gap: clamp(.28rem, .46vw, .44rem);
+  padding: clamp(.54rem, .76vw, .7rem);
 }
 
 .presentation-overview-metric span {
@@ -1825,8 +1825,8 @@ body.is-presentation-text-field-resizing {
   min-width: 0;
   display: grid;
   grid-template-columns: 1fr;
-  gap: clamp(.22rem, .42vw, .38rem);
-  align-content: center;
+  gap: clamp(.24rem, .38vw, .36rem);
+  align-content: start;
   align-items: start;
   padding: clamp(.54rem, .8vw, .72rem) clamp(.7rem, 1vw, 1rem);
   background:
@@ -1844,31 +1844,35 @@ body.is-presentation-text-field-resizing {
 
 .presentation-day-overview strong {
   min-width: 0;
-  overflow: hidden;
   color: #ffffff;
-  font-size: clamp(.9rem, 1.48cqw, 1.48rem);
-  line-height: 1.02;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: clamp(.84rem, 1.28cqw, 1.34rem);
+  line-height: 1.04;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
-.presentation-day-phase-stack {
+.presentation-day-phase-list {
   min-width: 0;
   display: grid;
-  gap: .12rem;
+  gap: clamp(.18rem, .28vw, .28rem);
+}
+
+.presentation-day-phase-item {
+  min-width: 0;
+  display: grid;
+  gap: .08rem;
 }
 
 .presentation-day-subphase {
   min-width: 0;
   display: block;
-  overflow: hidden;
   color: rgba(248, 250, 252, .74);
-  font-size: clamp(.68rem, 1.08cqw, 1.05rem);
+  font-size: clamp(.62rem, .9cqw, .94rem);
   font-style: normal;
   font-weight: 850;
   line-height: 1.08;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .presentation-day-subphase span {
@@ -2528,7 +2532,7 @@ body.is-presentation-text-field-resizing {
 
 .presentation-mode-shell.is-presenting .presentation-overview-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 4.85fr);
-  grid-template-rows: minmax(4.8rem, .4fr) minmax(7rem, .72fr) minmax(4.45rem, .32fr) minmax(8.2rem, 1fr);
+  grid-template-rows: minmax(4.8rem, .32fr) minmax(6rem, .48fr) minmax(8.9rem, .84fr) minmax(7.4rem, .82fr);
 }
 
 .presentation-mode-shell.is-presenting .presentation-medical-list {
@@ -2560,12 +2564,12 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-mode-shell.is-presenting .presentation-day-overview strong {
-  font-size: clamp(1.06rem, 1.7cqw, 1.8rem);
+  font-size: clamp(1rem, 1.52cqw, 1.65rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-day-subphase,
 .presentation-mode-shell.is-presenting .presentation-overview-video-notes {
-  font-size: clamp(.78rem, 1.1cqw, 1.12rem);
+  font-size: clamp(.74rem, 1.02cqw, 1.05rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-block-flow strong {

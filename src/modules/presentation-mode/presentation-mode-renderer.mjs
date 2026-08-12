@@ -1,4 +1,7 @@
 import {
+  periodizationPhaseLibrary,
+} from "../periodization/periodization-state.mjs";
+import {
   normalizePresentationSlideStyle,
   presentationThemeOptions,
 } from "./presentation-mode-themes.mjs";
@@ -925,19 +928,97 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function normalizePhaseLabel(value = "") {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function getOverviewPhaseParts(value = "") {
+    const values = Array.isArray(value) ? value : String(value || "").split(/\s*(?:\/|,|;|\n)\s*/);
+    return values.map((part) => String(part || "").trim()).filter(Boolean);
+  }
+
+  function getPhaseLibraryEntryForSubPhase(subPhase = "") {
+    const normalizedSubPhase = normalizePhaseLabel(subPhase);
+    if (!normalizedSubPhase) {
+      return null;
+    }
+    return Object.entries(periodizationPhaseLibrary).find(([phase, subPhases]) => {
+      if (normalizePhaseLabel(phase) === normalizedSubPhase) {
+        return true;
+      }
+      return subPhases.some((item) => normalizePhaseLabel(item) === normalizedSubPhase);
+    }) || null;
+  }
+
+  function buildOverviewPhaseGroups(phaseValue = "", subPhaseValue = "") {
+    const explicitPhases = getOverviewPhaseParts(phaseValue);
+    const subPhases = getOverviewPhaseParts(subPhaseValue);
+    const inferredPhases = subPhases
+      .map((subPhase) => getPhaseLibraryEntryForSubPhase(subPhase)?.[0] || "")
+      .filter(Boolean)
+      .filter((phase, index, phases) => phases.findIndex((item) => normalizePhaseLabel(item) === normalizePhaseLabel(phase)) === index);
+    const phases = explicitPhases.length ? explicitPhases : inferredPhases;
+    const groups = (phases.length ? phases : ["Not set"]).map((phase) => ({
+      phase,
+      subPhases: [],
+      key: normalizePhaseLabel(phase),
+    }));
+    const groupByKey = new Map(groups.map((group) => [group.key, group]));
+    const leftovers = [];
+
+    subPhases.forEach((subPhase) => {
+      const entry = getPhaseLibraryEntryForSubPhase(subPhase);
+      const phase = entry?.[0] || "";
+      const phaseKey = normalizePhaseLabel(phase);
+      const subPhaseKey = normalizePhaseLabel(subPhase);
+      if (phaseKey && phaseKey === subPhaseKey) {
+        return;
+      }
+      if (phaseKey && groupByKey.has(phaseKey)) {
+        groupByKey.get(phaseKey).subPhases.push(subPhase);
+        return;
+      }
+      if (groups.length === 1 && groups[0].phase !== "Not set") {
+        groups[0].subPhases.push(subPhase);
+        return;
+      }
+      leftovers.push(subPhase);
+    });
+
+    if (leftovers.length) {
+      groups.push({
+        phase: "Additional Focus",
+        subPhases: leftovers,
+        key: "additional-focus",
+      });
+    }
+    return groups;
+  }
+
   function renderOverviewPhaseSummary(model = {}, slide = {}, phaseValue = "", subPhaseValue = "") {
-    const phase = String(phaseValue || "").trim() || "Not set";
-    const subPhase = String(subPhaseValue || "").trim();
+    const phaseGroups = buildOverviewPhaseGroups(phaseValue, subPhaseValue);
     return `
       <article class="presentation-day-overview">
         ${renderEditableElement(model, slide, "overview.phase.label", "Phase", "span", "", { label: "Phase label" })}
-        <div class="presentation-day-phase-stack">
-          ${renderEditableElement(model, slide, "overview.phase.value", phase, "strong", "class=\"presentation-day-phase-value\"", { label: "Phase value" })}
-          ${
-            subPhase
-              ? `<em class="presentation-day-subphase">(${renderEditableElement(model, slide, "overview.subPhase.value", subPhase, "span", "", { label: "Sub phase value" })})</em>`
-              : ""
-          }
+        <div class="presentation-day-phase-list">
+          ${phaseGroups
+            .map((group, index) => {
+              const fieldKey = getStableTextKey(group.phase, `phase-${index + 1}`);
+              const subPhaseText = group.subPhases.join(" / ");
+              const phaseField = index === 0 ? "overview.phase.value" : `overview.phase.${fieldKey}.value`;
+              const subPhaseField = index === 0 ? "overview.subPhase.value" : `overview.phase.${fieldKey}.subPhase`;
+              return `
+                <div class="presentation-day-phase-item">
+                  ${renderEditableElement(model, slide, phaseField, group.phase, "strong", "class=\"presentation-day-phase-value\"", { label: "Phase value" })}
+                  ${
+                    subPhaseText
+                      ? `<em class="presentation-day-subphase">(${renderEditableElement(model, slide, subPhaseField, subPhaseText, "span", "", { label: "Sub phase value" })})</em>`
+                      : ""
+                  }
+                </div>
+              `;
+            })
+            .join("")}
         </div>
       </article>
     `;
@@ -1008,11 +1089,9 @@ export function createPresentationModeRenderer(options = {}) {
       textFieldStyles: overviewSlide.textFieldStyles,
       textOverrides: overviewSlide.textOverrides,
     };
-    const phaseValue =
-      (Array.isArray(periodization.matchPhases) ? periodization.matchPhases : []).filter(Boolean).join(" / ") ||
-      periodization.seasonPhase ||
-      periodization.sessionType;
-    const subPhaseValue = (Array.isArray(periodization.subPhases) ? periodization.subPhases : []).filter(Boolean).join(" / ");
+    const matchPhases = (Array.isArray(periodization.matchPhases) ? periodization.matchPhases : []).filter(Boolean);
+    const phaseValue = matchPhases.length ? matchPhases : periodization.seasonPhase || periodization.sessionType;
+    const subPhaseValue = (Array.isArray(periodization.subPhases) ? periodization.subPhases : []).filter(Boolean);
     return renderSlideFrame(
       model,
       frameSlide,

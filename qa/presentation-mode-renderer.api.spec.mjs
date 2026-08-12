@@ -192,6 +192,24 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(overviewHtml.indexOf("is-match-day")).toBeLessThan(overviewHtml.indexOf("presentation-block-flow"));
   expect(overviewHtml).not.toContain("is-focus");
   expect(overviewHtml).not.toContain("Main Focus");
+  const complexOverviewHtml = renderer.renderOverviewSlide({
+    ...model,
+    periodization: {
+      ...model.periodization,
+      matchPhases: ["Out of Possession", "Offensive Transition", "Defensive Transition", "Set Pieces"],
+      subPhases: ["High Press", "Block Defending", "Offensive Transition", "Defensive Transition", "Offensive Set Pieces"],
+    },
+  });
+  const complexOverviewText = complexOverviewHtml.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  expect(complexOverviewHtml).toContain("presentation-day-phase-list");
+  expect(complexOverviewHtml.match(/presentation-day-phase-item/g)).toHaveLength(4);
+  expect(complexOverviewText).toContain("Out of Possession");
+  expect(complexOverviewText).toContain("( High Press / Block Defending )");
+  expect(complexOverviewText).toContain("Offensive Transition");
+  expect(complexOverviewText).not.toContain("( Offensive Transition )");
+  expect(complexOverviewText).toContain("Defensive Transition");
+  expect(complexOverviewText).toContain("Set Pieces");
+  expect(complexOverviewText).toContain("( Offensive Set Pieces )");
   const infoSlide = model.slides.find((slide) => slide.type === "info");
   const infoControlHtml = renderer.renderControlBar({ ...model, slideIndex: infoSlide.index });
   expect(infoControlHtml).toContain("data-presentation-delete-slide");

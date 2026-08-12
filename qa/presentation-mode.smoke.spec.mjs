@@ -449,7 +449,15 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     toolbarFitsControlBand: true,
     slideDidNotJump: true,
   });
-  await expect(presentation.locator(".presentation-pass-controls [data-presentation-add-info]")).toHaveText("New Slide");
+  await expect(presentation.locator(".presentation-pass-controls [data-presentation-add-info-menu]")).toHaveText("New Slide");
+  await presentation.locator(".presentation-pass-controls [data-presentation-add-info-menu]").click();
+  await expect(presentation.locator(".presentation-new-slide-popover")).toBeVisible();
+  await expect(presentation.locator(".presentation-new-slide-popover")).toContainText("Choose Layout");
+  await expect(presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="text"]')).toBeVisible();
+  await expect(presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="title-subtitle"]')).toBeVisible();
+  await expect(presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="video"]')).toBeVisible();
+  await presentation.locator(".presentation-pass-controls [data-presentation-add-info-menu]").click();
+  await infoTitle.click();
   await expect(textToolbar).not.toContainText("New info slide");
   await expect(textToolbar.locator("[data-presentation-add-text-box]")).toBeVisible();
   await expect(textToolbar.locator("[data-presentation-symbol-menu]")).toBeVisible();
@@ -716,6 +724,36 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator(".presentation-slide-info")).toHaveCount(0);
   await expect(presentation.locator(".presentation-slide-tabs")).not.toContainText("Daily Info");
   await expect(presentation).toContainText("Training Overview");
+  const slideDragOrder = await presentation.evaluate(() => {
+    const getLabels = () =>
+      Array.from(document.querySelectorAll("[data-presentation-slide-tab]")).map(
+        (tab) => tab.querySelector("strong")?.textContent?.trim() || ""
+      );
+    const dragSlide = (fromLabel, toLabel) => {
+      const tabs = Array.from(document.querySelectorAll("[data-presentation-slide-tab]"));
+      const from = tabs.find((tab) => tab.querySelector("strong")?.textContent?.trim() === fromLabel);
+      const to = tabs.find((tab) => tab.querySelector("strong")?.textContent?.trim() === toLabel);
+      if (!from || !to) {
+        return false;
+      }
+      const dataTransfer = new DataTransfer();
+      from.dispatchEvent(new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer }));
+      to.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer }));
+      to.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }));
+      return true;
+    };
+    const firstMove = dragSlide("Overview", "Block 1");
+    const afterMoveLabels = getLabels();
+    const restoreMove = dragSlide("Overview", "Block 1");
+    const restoredLabels = getLabels();
+    return { afterMoveLabels, firstMove, restoredLabels, restoreMove };
+  });
+  expect(slideDragOrder).toMatchObject({
+    firstMove: true,
+    restoreMove: true,
+    afterMoveLabels: ["Cover", "Block 1", "Overview"],
+    restoredLabels: ["Cover", "Overview", "Block 1"],
+  });
   await expect(presentation.locator(".presentation-slide-overview .presentation-section-heading h2")).toHaveCount(0);
   await expect(presentation.locator(".presentation-overview-metric.is-load .presentation-load-gauge")).toHaveCount(1);
   await expect(presentation.locator(".presentation-overview-metric.is-load > span")).toHaveText("Planned Load");

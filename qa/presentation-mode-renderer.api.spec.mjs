@@ -118,6 +118,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(harness.root.innerHTML).toContain("Presentation Mode");
   expect(harness.root.innerHTML).toMatch(/<footer class="presentation-footer-nav">[\s\S]*<nav class="presentation-slide-tabs"/);
   expect(harness.root.innerHTML).toMatch(/<nav class="presentation-slide-tabs"[\s\S]*<div class="presentation-footer-pager">/);
+  expect(harness.root.innerHTML).toContain("data-presentation-slide-tab");
+  expect(harness.root.innerHTML).toContain('draggable="true"');
   const controlHtml = renderer.renderControlBar(model);
   expect(controlHtml).toContain("<strong>Presentation Mode</strong>");
   expect(controlHtml).toContain("data-presentation-theme-menu");
@@ -129,9 +131,16 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(controlHtml).toContain("Film Room");
   expect(controlHtml).toContain("Whiteboard");
   expect(controlHtml).toContain("Medical Calm");
-  expect(controlHtml.indexOf("data-presentation-theme-menu")).toBeLessThan(controlHtml.indexOf("data-presentation-add-info"));
+  expect(controlHtml.indexOf("data-presentation-theme-menu")).toBeLessThan(controlHtml.indexOf("data-presentation-add-info-menu"));
+  expect(controlHtml).toContain("data-presentation-add-info-menu");
   expect(controlHtml).toContain("data-presentation-add-info");
-  expect(controlHtml).toContain(">New Slide</button>");
+  expect(controlHtml).toContain("presentation-new-slide-popover");
+  expect(controlHtml.replace(/\s+/g, " ")).toContain("New Slide");
+  expect(controlHtml).toContain("Choose Layout");
+  expect(controlHtml).toContain('data-presentation-add-info="text"');
+  expect(controlHtml).toContain('data-presentation-add-info="title-subtitle"');
+  expect(controlHtml).toContain('data-presentation-add-info="video"');
+  expect(controlHtml).toContain("Bullets");
   expect(controlHtml).toContain("data-presentation-delete-slide");
   expect(controlHtml).toContain("Only custom slides can be deleted");
   expect(controlHtml).not.toContain("data-presentation-toggle-editor");
@@ -313,6 +322,18 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     title: "Daily Info",
     body: "- Arrival",
   });
+
+  controller.writeDeckForDate("2026-06-02", (deck) => ({
+    ...deck,
+    slideOrder: ["cover", "overview", deck.infoSlides[0].id, "b1"],
+  }));
+  expect(controller.buildModel().slides.map((slide) => slide.type)).toEqual(["cover", "overview", "info", "block"]);
+  expect(storage.get(dashboardPresentationStorageKey).decks["2026-06-02"].slideOrder).toEqual([
+    "cover",
+    "overview",
+    "info-2026-06-02-main",
+    "b1",
+  ]);
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({
     ...deck,

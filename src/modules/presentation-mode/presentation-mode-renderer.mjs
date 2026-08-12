@@ -66,6 +66,56 @@ const shapeOptions = [
   { type: "arrow", label: "Arrow" },
   { type: "star", label: "Star" },
 ];
+const slideTemplateOptions = [
+  {
+    value: "title",
+    label: "Title",
+    description: "Large headline",
+    preview: ["wide"],
+  },
+  {
+    value: "title-subtitle",
+    label: "Title + Subtitle",
+    description: "Headline and support line",
+    preview: ["wide", "short"],
+  },
+  {
+    value: "text",
+    label: "Text",
+    description: "Open writing area",
+    preview: ["line", "line", "line"],
+  },
+  {
+    value: "bullets",
+    label: "Bullets",
+    description: "Meeting points",
+    preview: ["wide", "line", "line"],
+  },
+  {
+    value: "media",
+    label: "Image",
+    description: "Image with notes",
+    preview: ["media", "short"],
+  },
+  {
+    value: "split",
+    label: "Text + Image",
+    description: "Text and visual",
+    preview: ["split", "line"],
+  },
+  {
+    value: "video",
+    label: "Video",
+    description: "Analysis notes",
+    preview: ["screen", "line", "line"],
+  },
+  {
+    value: "blank",
+    label: "Blank",
+    description: "Free canvas",
+    preview: [],
+  },
+];
 
 function getSafeSize(value = "", fallback = "56") {
   const normalized = String(value || "").trim().toLowerCase();
@@ -425,7 +475,7 @@ export function createPresentationModeRenderer(options = {}) {
         </div>
         <div class="presentation-pass-controls">
           ${renderThemeControl(slide)}
-          <button type="button" class="presentation-tool-button presentation-new-slide-button" data-presentation-add-info>New Slide</button>
+          ${renderNewSlideControl()}
           <button type="button" class="presentation-tool-button" data-presentation-delete-slide ${canDeleteSlide ? "" : "disabled"} title="${canDeleteSlide ? "Delete current slide" : "Only custom slides can be deleted"}">Delete Slide</button>
           <label>
             <input type="date" value="${escapeHtml(model.dateValue)}" data-presentation-date-input aria-label="Presentation date" />
@@ -436,6 +486,42 @@ export function createPresentationModeRenderer(options = {}) {
           <button type="button" class="presentation-icon-button" data-presentation-close title="Close" aria-label="Close presentation">x</button>
         </div>
       </header>
+    `;
+  }
+
+  function renderSlideTemplatePreview(template = {}) {
+    return `
+      <span class="presentation-slide-template-preview" aria-hidden="true">
+        ${(template.preview || [])
+          .map((item) => `<i class="is-${escapeHtml(item)}"></i>`)
+          .join("")}
+      </span>
+    `;
+  }
+
+  function renderNewSlideControl() {
+    return `
+      <details class="presentation-new-slide-menu">
+        <summary class="presentation-tool-button presentation-new-slide-button" data-presentation-add-info-menu aria-label="Choose new slide layout">
+          New Slide
+        </summary>
+        <div class="presentation-new-slide-popover" role="group" aria-label="New slide layout">
+          <strong class="presentation-new-slide-heading">Choose Layout</strong>
+          ${slideTemplateOptions
+            .map(
+              (template) => `
+                <button type="button" data-presentation-add-info="${escapeHtml(template.value)}">
+                  ${renderSlideTemplatePreview(template)}
+                  <span>
+                    <strong>${escapeHtml(template.label)}</strong>
+                    <small>${escapeHtml(template.description)}</small>
+                  </span>
+                </button>
+              `
+            )
+            .join("")}
+        </div>
+      </details>
     `;
   }
 
@@ -625,7 +711,11 @@ export function createPresentationModeRenderer(options = {}) {
                 type="button"
                 class="${index === activeIndex ? "is-active" : ""}"
                 data-presentation-goto="${index}"
+                data-presentation-slide-tab
+                data-presentation-slide-index="${index}"
+                draggable="true"
                 aria-label="${escapeHtml(`Go to ${slide.label}`)}"
+                title="${escapeHtml(`Drag to reorder ${slide.label}`)}"
               >
                 <span>${index + 1}</span>
                 <strong>${escapeHtml(slide.label)}</strong>
@@ -839,7 +929,7 @@ export function createPresentationModeRenderer(options = {}) {
       frameSlide,
       `
         <section
-          class="presentation-info-sheet"
+          class="presentation-info-sheet is-layout-${escapeHtml(infoSlide.layout || "bullets")}"
           style="--presentation-info-color: ${escapeHtml(textColor)}; --presentation-info-accent: ${escapeHtml(accentColor)}; ${escapeHtml(getInfoSizeStyle(infoSlide.fontSize))}"
         >
           <input

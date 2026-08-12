@@ -432,10 +432,154 @@ body.is-presentation-mode-open {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .24);
 }
 
+.presentation-new-slide-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.presentation-new-slide-menu summary {
+  list-style: none;
+}
+
+.presentation-new-slide-menu summary::-webkit-details-marker {
+  display: none;
+}
+
 .presentation-new-slide-button {
   color: #d1fae5;
   border-color: rgba(134, 239, 172, .32);
   background: rgba(34, 197, 94, .14);
+  white-space: nowrap;
+}
+
+.presentation-new-slide-menu[open] .presentation-new-slide-button,
+.presentation-new-slide-button:hover {
+  color: #ffffff;
+  border-color: rgba(134, 239, 172, .58);
+  background: rgba(34, 197, 94, .22);
+}
+
+.presentation-new-slide-popover {
+  position: absolute;
+  top: calc(100% + .48rem);
+  right: 0;
+  z-index: 80;
+  width: min(34rem, calc(100vw - 1.6rem));
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .48rem;
+  padding: .62rem;
+  border: 1px solid rgba(148, 163, 184, .24);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, .98), rgba(8, 15, 20, .98)),
+    #0f172a;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .42);
+}
+
+.presentation-new-slide-heading {
+  grid-column: 1 / -1;
+  display: block;
+  padding: .1rem .14rem .2rem;
+  color: rgba(248, 250, 252, .86);
+  font-size: .68rem;
+  font-weight: 920;
+  line-height: 1;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.presentation-new-slide-popover button {
+  min-width: 0;
+  min-height: 4.1rem;
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: .55rem;
+  align-items: center;
+  padding: .46rem .52rem;
+  text-align: left;
+}
+
+.presentation-new-slide-popover button:hover,
+.presentation-new-slide-popover button:focus-visible {
+  border-color: rgba(134, 239, 172, .42);
+  background: rgba(34, 197, 94, .13);
+}
+
+.presentation-slide-template-preview {
+  position: relative;
+  display: grid;
+  gap: .2rem;
+  align-content: center;
+  height: 2.85rem;
+  padding: .42rem;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 7px;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(56, 189, 248, .18), transparent 58%),
+    rgba(255, 255, 255, .055);
+  box-shadow: inset 0 .22rem 0 rgba(56, 189, 248, .8);
+}
+
+.presentation-slide-template-preview i {
+  display: block;
+  height: .26rem;
+  border-radius: 999px;
+  background: rgba(248, 250, 252, .82);
+}
+
+.presentation-slide-template-preview i.is-wide {
+  width: 82%;
+  height: .36rem;
+}
+
+.presentation-slide-template-preview i.is-short {
+  width: 56%;
+}
+
+.presentation-slide-template-preview i.is-line {
+  width: 70%;
+}
+
+.presentation-slide-template-preview i.is-media,
+.presentation-slide-template-preview i.is-screen {
+  width: 76%;
+  height: 1.18rem;
+  border-radius: 5px;
+  background:
+    linear-gradient(135deg, rgba(56, 189, 248, .86), rgba(134, 239, 172, .56));
+}
+
+.presentation-slide-template-preview i.is-split {
+  width: 88%;
+  height: 1.18rem;
+  border-radius: 5px;
+  background:
+    linear-gradient(90deg, rgba(56, 189, 248, .86) 0 44%, rgba(248, 250, 252, .18) 45% 100%);
+}
+
+.presentation-new-slide-popover span:not(.presentation-slide-template-preview) {
+  min-width: 0;
+  display: grid;
+  gap: .12rem;
+}
+
+.presentation-new-slide-popover button strong {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: .82rem;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-new-slide-popover button small {
+  overflow: hidden;
+  color: rgba(203, 213, 225, .66);
+  font-size: .62rem;
+  font-weight: 780;
+  line-height: 1.05;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1728,6 +1872,98 @@ body.is-presentation-text-field-resizing {
   line-height: 1.22;
 }
 
+.presentation-info-sheet.is-layout-title,
+.presentation-info-sheet.is-layout-title-subtitle {
+  align-content: center;
+  grid-template-rows: auto auto auto;
+}
+
+.presentation-info-sheet.is-layout-title .presentation-info-title {
+  max-width: 12ch;
+  font-size: clamp(3rem, 8.4cqw, 8.2rem);
+  line-height: .9;
+}
+
+.presentation-info-sheet.is-layout-title .presentation-info-body:empty {
+  display: none;
+}
+
+.presentation-info-sheet.is-layout-title-subtitle .presentation-info-title {
+  font-size: clamp(2.6rem, 6.8cqw, 6.4rem);
+}
+
+.presentation-info-sheet.is-layout-title-subtitle .presentation-info-body {
+  --presentation-editable-fit-size: clamp(1.25rem, 2.7cqw, 3.3rem);
+  color: color-mix(in srgb, var(--presentation-info-color, #f8fafc) 78%, transparent);
+  font-weight: 850;
+}
+
+.presentation-info-sheet.is-layout-text .presentation-info-title {
+  font-size: clamp(2.4rem, 5.2cqw, 5.4rem);
+}
+
+.presentation-info-sheet.is-layout-text .presentation-info-body {
+  --presentation-editable-fit-size: clamp(1.05rem, 2.65cqw, 3.2rem);
+  max-width: 78%;
+  font-weight: 780;
+  line-height: 1.16;
+}
+
+.presentation-info-sheet.is-layout-media,
+.presentation-info-sheet.is-layout-split,
+.presentation-info-sheet.is-layout-video {
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, .82fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  column-gap: clamp(1.2rem, 3.2cqw, 3rem);
+}
+
+.presentation-info-sheet.is-layout-media::after,
+.presentation-info-sheet.is-layout-split::after,
+.presentation-info-sheet.is-layout-video::after {
+  content: "";
+  grid-column: 2;
+  grid-row: 1 / -1;
+  min-height: 0;
+  border: 1px solid color-mix(in srgb, var(--presentation-info-accent, #38bdf8) 32%, rgba(255, 255, 255, .18));
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--presentation-info-accent, #38bdf8) 18%, transparent), rgba(255, 255, 255, .055)),
+    rgba(255, 255, 255, .06);
+}
+
+.presentation-info-sheet.is-layout-media .presentation-info-title,
+.presentation-info-sheet.is-layout-media .presentation-info-rule,
+.presentation-info-sheet.is-layout-media .presentation-info-body,
+.presentation-info-sheet.is-layout-split .presentation-info-title,
+.presentation-info-sheet.is-layout-split .presentation-info-rule,
+.presentation-info-sheet.is-layout-split .presentation-info-body,
+.presentation-info-sheet.is-layout-video .presentation-info-title,
+.presentation-info-sheet.is-layout-video .presentation-info-rule,
+.presentation-info-sheet.is-layout-video .presentation-info-body {
+  grid-column: 1;
+}
+
+.presentation-info-sheet.is-layout-media .presentation-info-title,
+.presentation-info-sheet.is-layout-split .presentation-info-title,
+.presentation-info-sheet.is-layout-video .presentation-info-title {
+  font-size: clamp(2.1rem, 4.6cqw, 4.9rem);
+}
+
+.presentation-info-sheet.is-layout-media .presentation-info-body,
+.presentation-info-sheet.is-layout-split .presentation-info-body,
+.presentation-info-sheet.is-layout-video .presentation-info-body {
+  --presentation-editable-fit-size: clamp(1rem, 2.55cqw, 3.1rem);
+}
+
+.presentation-info-sheet.is-layout-blank {
+  align-content: start;
+}
+
+.presentation-info-sheet.is-layout-blank .presentation-info-rule,
+.presentation-info-sheet.is-layout-blank .presentation-info-body:empty {
+  display: none;
+}
+
 .presentation-overview {
   height: 100%;
   display: grid;
@@ -2452,6 +2688,26 @@ body.is-presentation-text-field-resizing {
   background: transparent;
   font: inherit;
   cursor: pointer;
+}
+
+.presentation-slide-tabs button[draggable="true"] {
+  cursor: grab;
+}
+
+.presentation-slide-tabs button[draggable="true"]:active,
+.presentation-slide-tabs button.is-dragging {
+  cursor: grabbing;
+}
+
+.presentation-slide-tabs button.is-dragging {
+  opacity: .58;
+  border-color: rgba(134, 239, 172, .36);
+  background: rgba(134, 239, 172, .12);
+}
+
+.presentation-slide-tabs button:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, .075);
 }
 
 .presentation-slide-tabs button.is-active {

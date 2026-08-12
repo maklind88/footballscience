@@ -12,6 +12,7 @@ const maxShapesPerSlide = 24;
 const maxUndoHistory = 80;
 const shapeTypes = new Set(["rect", "circle", "triangle", "diamond", "line", "arrow", "star"]);
 const resizeAxes = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
+const slideTemplateTypes = new Set(["title", "title-subtitle", "text", "bullets", "media", "split", "video", "blank"]);
 
 function noop() {}
 
@@ -119,12 +120,44 @@ function getSessionPitchLabel(blocks = []) {
 function createDefaultInfoSlide(dateValue = "") {
   return {
     id: `info-${dateValue || "date"}-main`,
+    layout: "bullets",
     title: "Team Information",
     body: "- Meeting point\n- Training focus\n- Staff note",
     fontSize: "56",
     accentColor: "#38bdf8",
     textColor: "#f8fafc",
   };
+}
+
+function normalizeSlideTemplate(value = "") {
+  const template = String(value || "").trim();
+  return slideTemplateTypes.has(template) ? template : "bullets";
+}
+
+function getSlideTemplateDefaults(template = "bullets") {
+  const layout = normalizeSlideTemplate(template);
+  const defaults = {
+    title: { title: "Title", body: "", fontSize: "72", accentColor: "#38bdf8" },
+    "title-subtitle": { title: "Title", body: "Subtitle", fontSize: "60", accentColor: "#38bdf8" },
+    text: { title: "Text", body: "Write your notes here", fontSize: "48", accentColor: "#38bdf8" },
+    bullets: { title: "Information", body: "- First point\n- Second point\n- Third point", fontSize: "56", accentColor: "#38bdf8" },
+    media: { title: "Image", body: "Caption or notes", fontSize: "44", accentColor: "#38bdf8" },
+    split: { title: "Text + Image", body: "Supporting text", fontSize: "44", accentColor: "#38bdf8" },
+    video: { title: "Video Analysis", body: "- Clip focus\n- Player cues\n- Team principles", fontSize: "44", accentColor: "#facc15" },
+    blank: { title: "Blank", body: "", fontSize: "56", accentColor: "#38bdf8" },
+  };
+  return {
+    layout,
+    title: defaults[layout].title,
+    body: defaults[layout].body,
+    fontSize: defaults[layout].fontSize,
+    accentColor: defaults[layout].accentColor,
+    textColor: "#f8fafc",
+  };
+}
+
+function normalizeSlideOrder(slideOrder = []) {
+  return [...new Set((Array.isArray(slideOrder) ? slideOrder : []).map((id) => String(id || "").trim()).filter(Boolean))];
 }
 
 function normalizeSlideStyles(slideStyles = {}) {
@@ -303,6 +336,7 @@ function normalizeInfoSlide(slide = {}, index = 0, dateValue = "") {
   const fallback = createDefaultInfoSlide(dateValue);
   return {
     id: String(slide.id || (index ? `info-${dateValue}-${index + 1}` : fallback.id)).trim(),
+    layout: normalizeSlideTemplate(slide.layout || fallback.layout),
     title: String(slide.title ?? fallback.title).trim().slice(0, 90),
     body: String(slide.body ?? fallback.body).slice(0, 5000),
     fontSize: normalizeFontSize(slide.fontSize),
@@ -319,6 +353,7 @@ function normalizeDeck(deck = {}, dateValue = "") {
   return {
     updatedAt: String(deck.updatedAt || "").trim(),
     infoSlides: hasSavedInfoSlides ? infoSlides : [createDefaultInfoSlide(dateValue)],
+    slideOrder: normalizeSlideOrder(deck.slideOrder),
     shapes: normalizeShapes(deck.shapes),
     slideStyles: normalizeSlideStyles(deck.slideStyles),
     textBoxes: normalizeTextBoxes(deck.textBoxes),
@@ -585,6 +620,7 @@ export function createPresentationModeController(dependencies = {}) {
     bound: false,
     dateValue: "",
     drawShape: null,
+    dragSlideIndex: null,
     dragShape: null,
     dragTextField: null,
     dragTextBox: null,
@@ -695,6 +731,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeShapeTarget = clonePlain(snapshot.state?.activeShapeTarget);
     state.activeTextTarget = clonePlain(snapshot.state?.activeTextTarget);
     state.drawShape = null;
+    state.dragSlideIndex = null;
     state.dragShape = null;
     state.dragTextField = null;
     state.dragTextBox = null;
@@ -998,7 +1035,7 @@ export function createPresentationModeController(dependencies = {}) {
 
   function buildSlides(deck, session, dateValue) {
     const blocks = Array.isArray(session?.blocks) ? session.blocks : [];
-    return [
+    const naturalSlides = [
       applySlideStyle(deck, { id: "cover", type: "cover", label: "Cover" }, { accentColor: "#22c55e" }),
       ...deck.infoSlides.map((infoSlide, index) => ({
         ...applySlideStyle(
@@ -1026,7 +1063,18 @@ export function createPresentationModeController(dependencies = {}) {
           { accentColor: "#f59e0b", glowColor: "#b45309" }
         )
       ),
-    ].map((slide, index) => ({ ...slide, index }));
+    ];
+    const slideById = new Map(naturalSlides.map((slide) => [slide.id, slide]));
+    const orderedSlides = normalizeSlideOrder(deck.slideOrder)
+      .map((slideId) => slideById.get(slideId))
+      .filter(Boolean);
+    const orderedIds = new Set(orderedSlides.map((slide) => slide.id));
+    naturalSlides.forEach((slide) => {
+      if (!orderedIds.has(slide.id)) {
+        orderedSlides.push(slide);
+      }
+    });
+    return orderedSlides.map((slide, index) => ({ ...slide, index }));
   }
 
   function buildModel() {
@@ -1220,6 +1268,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
     state.drawShape = null;
+    state.dragSlideIndex = null;
     state.dragShape = null;
     state.dragTextField = null;
     state.dragTextBox = null;
@@ -1240,6 +1289,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
     state.drawShape = null;
+    state.dragSlideIndex = null;
     state.dragShape = null;
     state.dragTextField = null;
     state.dragTextBox = null;
@@ -1276,6 +1326,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
     state.drawShape = null;
+    state.dragSlideIndex = null;
     state.dragShape = null;
     state.dragTextField = null;
     state.dragTextBox = null;
@@ -2053,38 +2104,41 @@ export function createPresentationModeController(dependencies = {}) {
     return String(requestedTitle || "").trim().slice(0, 90) || defaultTitle;
   }
 
-  function addInfoSlide(sourceSlide = null) {
+  function addInfoSlide(sourceSlide = null, template = "bullets") {
+    const templateDefaults = getSlideTemplateDefaults(template);
+    const nextId = `info-${state.dateValue}-${Date.now()}`;
     const title = sourceSlide
       ? `${sourceSlide.title || "Team Information"} Copy`
-      : requestNewSlideTitle("New Slide");
+      : requestNewSlideTitle(templateDefaults.title || "New Slide");
     if (!title) {
       return;
     }
+    const currentSlideIds = buildModel().slides.map((slide) => slide.id).filter(Boolean);
     writeDeckForDate(state.dateValue, (deck) => {
       const nextSlide = normalizeInfoSlide(
         sourceSlide
           ? {
               ...sourceSlide,
-              id: `info-${state.dateValue}-${Date.now()}`,
+              id: nextId,
               title,
             }
           : {
-              id: `info-${state.dateValue}-${Date.now()}`,
+              ...templateDefaults,
+              id: nextId,
               title,
-              body: "- Point one\n- Point two",
-              fontSize: "56",
-              accentColor: "#22c55e",
-              textColor: "#f8fafc",
             },
         0,
         state.dateValue
       );
-      return { ...deck, infoSlides: [...deck.infoSlides, nextSlide] };
+      return {
+        ...deck,
+        infoSlides: [...deck.infoSlides, nextSlide],
+        slideOrder: normalizeSlideOrder([...currentSlideIds.filter((slideId) => slideId !== nextSlide.id), nextSlide.id]),
+      };
     });
     const model = buildModel();
-    const nextSlideId = readStore().decks[state.dateValue].infoSlides.at(-1)?.id;
-    state.slideIndex = model.slides.findIndex((slide) => slide.id === nextSlideId);
-    state.activeTextTarget = nextSlideId ? { field: "info.title", infoId: nextSlideId, slideId: nextSlideId } : null;
+    state.slideIndex = model.slides.findIndex((slide) => slide.id === nextId);
+    state.activeTextTarget = nextId ? { field: "info.title", infoId: nextId, slideId: nextId } : null;
     state.editorOpen = false;
     render();
     focusActiveTextElement();
@@ -2104,6 +2158,7 @@ export function createPresentationModeController(dependencies = {}) {
     writeDeckForDate(state.dateValue, (currentDeck) => ({
       ...currentDeck,
       infoSlides: currentDeck.infoSlides.filter((slide) => slide.id !== slideId),
+      slideOrder: normalizeSlideOrder((currentDeck.slideOrder || []).filter((orderedSlideId) => orderedSlideId !== slideId)),
       shapes: Object.fromEntries(Object.entries(currentDeck.shapes || {}).filter(([shapeSlideId]) => shapeSlideId !== slideId)),
       slideStyles: Object.fromEntries(Object.entries(currentDeck.slideStyles || {}).filter(([styleSlideId]) => styleSlideId !== slideId)),
       textBoxes: Object.fromEntries(Object.entries(currentDeck.textBoxes || {}).filter(([boxSlideId]) => boxSlideId !== slideId)),
@@ -2134,12 +2189,47 @@ export function createPresentationModeController(dependencies = {}) {
     deleteInfoSlide(currentSlide.infoSlide.id);
   }
 
+  function reorderSlides(fromIndex, toIndex) {
+    if (state.presenting) {
+      return;
+    }
+    const model = buildModel();
+    const slides = model.slides || [];
+    const from = Number(fromIndex);
+    const to = Number(toIndex);
+    if (
+      !Number.isInteger(from) ||
+      !Number.isInteger(to) ||
+      from < 0 ||
+      to < 0 ||
+      from >= slides.length ||
+      to >= slides.length ||
+      from === to
+    ) {
+      return;
+    }
+    const reorderedSlides = [...slides];
+    const [movedSlide] = reorderedSlides.splice(from, 1);
+    reorderedSlides.splice(to, 0, movedSlide);
+    const activeSlideId = slides[state.slideIndex]?.id || movedSlide?.id;
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      slideOrder: normalizeSlideOrder(reorderedSlides.map((slide) => slide.id)),
+    }));
+    const nextModel = buildModel();
+    const nextActiveIndex = nextModel.slides.findIndex((slide) => slide.id === activeSlideId);
+    state.slideIndex = nextActiveIndex >= 0 ? nextActiveIndex : Math.min(to, Math.max(0, nextModel.slides.length - 1));
+    state.dragSlideIndex = null;
+    render();
+  }
+
   function startFullscreen() {
     const currentRoot = ensureRoot();
     currentRoot.requestFullscreen?.().catch?.(noop);
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
     state.drawShape = null;
+    state.dragSlideIndex = null;
     state.dragShape = null;
     state.dragTextField = null;
     state.dragTextBox = null;
@@ -2816,6 +2906,12 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
+    const keepOpenMenu = event.target.closest(".presentation-new-slide-menu, [data-presentation-theme-menu], [data-presentation-text-toolbar] .presentation-tool-popover");
+    if (!keepOpenMenu) {
+      root.querySelectorAll(".presentation-new-slide-menu[open], [data-presentation-theme-menu][open], [data-presentation-text-toolbar] .presentation-tool-popover[open]").forEach((menu) => {
+        menu.removeAttribute("open");
+      });
+    }
     const gotoButton = event.target.closest("[data-presentation-goto]");
     if (gotoButton) {
       goToSlide(gotoButton.dataset.presentationGoto);
@@ -2877,8 +2973,10 @@ export function createPresentationModeController(dependencies = {}) {
       addTextBox();
       return;
     }
-    if (event.target.closest("[data-presentation-add-info]")) {
-      addInfoSlide();
+    const addInfoButton = event.target.closest("[data-presentation-add-info]");
+    if (addInfoButton) {
+      addInfoButton.closest?.("details")?.removeAttribute?.("open");
+      addInfoSlide(null, addInfoButton.dataset.presentationAddInfo || "bullets");
       return;
     }
     if (event.target.closest("[data-presentation-delete-slide]")) {
@@ -3076,6 +3174,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeTextTarget = null;
     state.activeShapeTarget = null;
     state.drawShape = null;
+    state.dragSlideIndex = null;
     state.dragShape = null;
     state.dragTextField = null;
     state.dragTextBox = null;
@@ -3178,6 +3277,64 @@ export function createPresentationModeController(dependencies = {}) {
     }
   }
 
+  function handleSlideDragStart(event) {
+    if (!state.isOpen || state.presenting || !root?.contains(event.target)) {
+      return;
+    }
+    const tab = event.target.closest("[data-presentation-slide-tab]");
+    if (!tab) {
+      return;
+    }
+    const index = Number(tab.dataset.presentationSlideIndex);
+    if (!Number.isInteger(index)) {
+      return;
+    }
+    state.dragSlideIndex = index;
+    tab.classList.add("is-dragging");
+    event.dataTransfer?.setData?.("text/plain", String(index));
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+    }
+  }
+
+  function handleSlideDragOver(event) {
+    if (state.dragSlideIndex === null || state.presenting || !root?.contains(event.target)) {
+      return;
+    }
+    const tab = event.target.closest("[data-presentation-slide-tab]");
+    if (!tab) {
+      return;
+    }
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+  }
+
+  function handleSlideDrop(event) {
+    if (state.dragSlideIndex === null || state.presenting || !root?.contains(event.target)) {
+      return;
+    }
+    const tab = event.target.closest("[data-presentation-slide-tab]");
+    if (!tab) {
+      return;
+    }
+    event.preventDefault();
+    const from = Number(event.dataTransfer?.getData?.("text/plain") || state.dragSlideIndex);
+    const to = Number(tab.dataset.presentationSlideIndex);
+    reorderSlides(from, to);
+  }
+
+  function handleSlideDragEnd(event) {
+    if (!state.isOpen || !root?.contains(event.target)) {
+      return;
+    }
+    state.dragSlideIndex = null;
+    root.querySelectorAll("[data-presentation-slide-tab].is-dragging").forEach((tab) => {
+      tab.classList.remove("is-dragging");
+    });
+  }
+
   function bindInteractions() {
     if (state.bound) {
       return;
@@ -3211,6 +3368,10 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.addEventListener("input", handleInput);
     documentRef.addEventListener("change", handleChange);
     documentRef.addEventListener("keydown", handleKeydown);
+    documentRef.addEventListener("dragstart", handleSlideDragStart);
+    documentRef.addEventListener("dragover", handleSlideDragOver);
+    documentRef.addEventListener("drop", handleSlideDrop);
+    documentRef.addEventListener("dragend", handleSlideDragEnd);
     documentRef.addEventListener("fullscreenchange", () => {
       if (!state.isOpen) {
         return;

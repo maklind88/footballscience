@@ -8,6 +8,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     hashString = (value) => String(value ?? "").length.toString(36),
     isProtectedStorageKey = () => false,
     isSessionPlannerAutosaveKey = () => false,
+    mergeDashboardPresentationStatePreservingLocalEdits = (_currentValue, syncedValue) => syncedValue,
     mergePeriodizationStatePreservingLocalUi = (_currentValue, syncedValue) => syncedValue,
     mergeScheduleStatePreservingLocalUi = (_currentValue, syncedValue) => syncedValue,
     mutateManifest = () => ({}),
@@ -16,6 +17,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     rawGetItem = () => null,
     rawSetItem = () => {},
     retryConflictStorageKeys = [],
+    dashboardPresentationStorageKey = "",
     getSessionPlannerLocalUiState = () => ({ state: {} }),
     sessionPlannerStorageKey = "",
     scheduleStorageKey = "",
@@ -125,7 +127,9 @@ export function createCentralSyncRuntimeService(deps = {}) {
         ? mergeScheduleStatePreservingLocalUi(rawGetItem(key), syncedValue)
         : key === periodizationStorageKey
           ? mergePeriodizationStatePreservingLocalUi(rawGetItem(key), syncedValue)
-          : syncedValue;
+          : key === dashboardPresentationStorageKey
+            ? mergeDashboardPresentationStatePreservingLocalEdits(rawGetItem(key), syncedValue)
+            : syncedValue;
     win.__footballScienceCentralHydrating = true;
     try {
       rawSetItem(key, valueToApply);

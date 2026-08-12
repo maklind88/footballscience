@@ -3,6 +3,7 @@ import {
   createPresentationModeController,
   createPresentationModeRenderer,
   dashboardPresentationStorageKey,
+  mergeDashboardPresentationStatePreservingLocalEdits,
 } from "../src/modules/presentation-mode/index.mjs";
 
 function createDocumentHarness() {
@@ -358,6 +359,16 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("Display Mid");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).toContain("CM / Modified");
   expect(renderer.renderBlockSlide(editableModel, editableModel.slides.find((slide) => slide.type === "block"))).not.toContain("CM / 0% / Modified");
+  const editableBlockSlide = editableModel.slides.find((slide) => slide.type === "block");
+  const hiddenPrinciplesHtml = renderer.renderBlockSlide(editableModel, {
+    ...editableBlockSlide,
+    textOverrides: {
+      ...editableBlockSlide.textOverrides,
+      "detail.principles.body": "",
+    },
+  });
+  expect(hiddenPrinciplesHtml).not.toContain("Team Principles & MG Principles");
+  expect(hiddenPrinciplesHtml).not.toContain("Play forward");
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({
     ...deck,
@@ -432,4 +443,53 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   }));
   expect(storage.get(dashboardPresentationStorageKey).decks["2026-06-02"].infoSlides).toEqual([]);
   expect(controller.buildModel().slides.map((slide) => slide.type)).toEqual(["cover", "overview", "block"]);
+});
+
+test("Presentation Mode central merge preserves newer blank text overrides", () => {
+  const localValue = JSON.stringify({
+    schema: "footballscience-presentation-mode-v1",
+    version: 1,
+    decks: {
+      "2026-08-12": {
+        updatedAt: "2026-08-12T10:04:00.000Z",
+        infoSlides: [],
+        textOverrides: {
+          "block-1": {
+            "detail.principles.body": "",
+          },
+        },
+        textOverrideUpdatedAt: {
+          "block-1": {
+            "detail.principles.body": "2026-08-12T10:04:00.000Z",
+          },
+        },
+      },
+    },
+  });
+  const syncedValue = JSON.stringify({
+    schema: "footballscience-presentation-mode-v1",
+    version: 1,
+    decks: {
+      "2026-08-12": {
+        updatedAt: "2026-08-12T10:05:00.000Z",
+        infoSlides: [],
+        textOverrides: {
+          "block-1": {
+            "detail.principles.body": "Coaching Points: Pressing player should force play wide.",
+            "block.title": "Press-Cover Game",
+          },
+        },
+        textOverrideUpdatedAt: {
+          "block-1": {
+            "block.title": "2026-08-12T10:05:00.000Z",
+          },
+        },
+      },
+    },
+  });
+
+  const merged = JSON.parse(mergeDashboardPresentationStatePreservingLocalEdits(localValue, syncedValue));
+
+  expect(merged.decks["2026-08-12"].textOverrides["block-1"]["detail.principles.body"]).toBe("");
+  expect(merged.decks["2026-08-12"].textOverrides["block-1"]["block.title"]).toBe("Press-Cover Game");
 });

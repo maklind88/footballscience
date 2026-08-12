@@ -72,6 +72,7 @@ function createServiceHarness(options = {}) {
     hashString: (value) => `hash-${String(value).length}`,
     isProtectedStorageKey: (key) => key.startsWith("football-"),
     isSessionPlannerAutosaveKey: (key) => key === "football-session-planner-v1",
+    mergeDashboardPresentationStatePreservingLocalEdits: (currentValue, syncedValue) => `presentation:${currentValue}:${syncedValue}`,
     mergePeriodizationStatePreservingLocalUi: (_currentValue, syncedValue) => `periodization:${syncedValue}`,
     mergeScheduleStatePreservingLocalUi: (_currentValue, syncedValue) => `schedule:${syncedValue}`,
     mutateManifest: (mutator) => {
@@ -86,6 +87,7 @@ function createServiceHarness(options = {}) {
       rawValues.set(key, value);
     },
     retryConflictStorageKeys: options.retryConflictStorageKeys || [],
+    dashboardPresentationStorageKey: "football-dashboard-presentation-mode-v1",
     scheduleStorageKey: "football-schedule-v1",
     sessionPlannerLocalUiState: { state: { sessionPlannerCentralSyncConflict: "existing" } },
     getSessionPlannerLocalUiState: () => ({ state: { sessionPlannerCentralSyncConflict: "existing" } }),
@@ -310,6 +312,26 @@ test("central sync runtime applies newer server values through the injected rend
     pendingCentralSync: false,
     size: 15,
   });
+});
+
+test("central sync runtime merges presentation mode values before applying server conflict data", () => {
+  const harness = createServiceHarness();
+  harness.rawValues.set("football-dashboard-presentation-mode-v1", "local-presentation");
+
+  harness.service.applyCentralSyncedStateValue(
+    { key: "football-dashboard-presentation-mode-v1", value: "local-presentation" },
+    "server-presentation"
+  );
+
+  expect(harness.rawValues.get("football-dashboard-presentation-mode-v1")).toBe(
+    "presentation:local-presentation:server-presentation"
+  );
+  expect(harness.handledKeys).toEqual([
+    {
+      key: "football-dashboard-presentation-mode-v1",
+      value: "presentation:local-presentation:server-presentation",
+    },
+  ]);
 });
 
 test("central sync runtime waits for hydration before flushing queued writes", async () => {

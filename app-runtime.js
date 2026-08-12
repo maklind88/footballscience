@@ -30,6 +30,7 @@ import {
   createPresentationModeController,
   createPresentationModeRenderer,
   dashboardPresentationStorageKey,
+  mergeDashboardPresentationStatePreservingLocalEdits,
 } from "./src/modules/presentation-mode/index.mjs";
 import { formatMonthYearLabel, formatScheduleBlockSummary as formatScheduleBlockSummaryFromModule, formatScheduleMonthName, getScheduleDayWarnings as getScheduleDayWarningsFromModule, getScheduleMainEvent as getScheduleMainEventFromModule, isScheduleSessionEvent as isScheduleSessionEventFromModule } from "./src/modules/schedule/schedule-selectors.mjs";
 import {
@@ -511,6 +512,7 @@ getActiveWorkspaceId: () => hubState?.activeWorkspaceId || "",
 getCurrentPlatformUser,
 handleSyncedStateValue: handleCentralSyncedStateValue,
 isSessionPlannerAutosaveKey,
+mergeDashboardPresentationStatePreservingLocalEdits,
 mergePeriodizationStatePreservingLocalUi,
 mergeScheduleStatePreservingLocalUi,
 getSessionPlannerLocalUiState: () => sessionPlannerLocalUiState,

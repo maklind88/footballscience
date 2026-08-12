@@ -158,6 +158,43 @@ function normalizeTextOverrides(textOverrides = {}) {
   );
 }
 
+function normalizeTextOverrideUpdatedAt(textOverrideUpdatedAt = {}) {
+  const updatedAt =
+    textOverrideUpdatedAt && typeof textOverrideUpdatedAt === "object" && !Array.isArray(textOverrideUpdatedAt)
+      ? textOverrideUpdatedAt
+      : {};
+  return Object.fromEntries(
+    Object.entries(updatedAt)
+      .map(([slideId, fields]) => {
+        const slideFields = fields && typeof fields === "object" && !Array.isArray(fields) ? fields : {};
+        return [
+          String(slideId || "").trim(),
+          Object.fromEntries(
+            Object.entries(slideFields)
+              .map(([field, value]) => [String(field || "").trim(), String(value || "").trim()])
+              .filter(([field, value]) => field && value)
+          ),
+        ];
+      })
+      .filter(([slideId, fields]) => slideId && Object.keys(fields).length)
+  );
+}
+
+function markTextOverrideUpdatedAt(deck = {}, slideId = "", field = "", updatedAt = new Date().toISOString()) {
+  const safeSlideId = String(slideId || "").trim();
+  const safeField = String(field || "").trim();
+  if (!safeSlideId || !safeField) {
+    return normalizeTextOverrideUpdatedAt(deck.textOverrideUpdatedAt);
+  }
+  return normalizeTextOverrideUpdatedAt({
+    ...deck.textOverrideUpdatedAt,
+    [safeSlideId]: {
+      ...(deck.textOverrideUpdatedAt?.[safeSlideId] || {}),
+      [safeField]: updatedAt,
+    },
+  });
+}
+
 function normalizeTextFieldStyles(textFieldStyles = {}) {
   const styles = textFieldStyles && typeof textFieldStyles === "object" && !Array.isArray(textFieldStyles) ? textFieldStyles : {};
   return Object.fromEntries(
@@ -287,6 +324,7 @@ function normalizeDeck(deck = {}, dateValue = "") {
     textBoxes: normalizeTextBoxes(deck.textBoxes),
     textFieldStyles: normalizeTextFieldStyles(deck.textFieldStyles),
     textOverrides: normalizeTextOverrides(deck.textOverrides),
+    textOverrideUpdatedAt: normalizeTextOverrideUpdatedAt(deck.textOverrideUpdatedAt),
   };
 }
 
@@ -301,6 +339,135 @@ function normalizeStore(store = {}) {
         .map(([dateValue, deck]) => [dateValue, normalizeDeck(deck, dateValue)])
     ),
   };
+}
+
+function parsePresentationStoreValue(value) {
+  if (value && typeof value === "object") {
+    return value;
+  }
+  try {
+    return JSON.parse(String(value || "{}"));
+  } catch {
+    return {};
+  }
+}
+
+function getPresentationTimestampMs(value = "") {
+  const timestamp = Date.parse(String(value || ""));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function hasTextOverrideField(deck = {}, slideId = "", field = "") {
+  const fields = deck.textOverrides?.[slideId];
+  return Boolean(fields && Object.prototype.hasOwnProperty.call(fields, field));
+}
+
+function hasTextOverrideFieldTimestamp(deck = {}, slideId = "", field = "") {
+  const fields = deck.textOverrideUpdatedAt?.[slideId];
+  return Boolean(fields && Object.prototype.hasOwnProperty.call(fields, field) && String(fields[field] || "").trim());
+}
+
+function getTextOverrideFieldUpdatedAtMs(deck = {}, slideId = "", field = "") {
+  const explicitTimestamp = getPresentationTimestampMs(deck.textOverrideUpdatedAt?.[slideId]?.[field]);
+  if (explicitTimestamp) {
+    return explicitTimestamp;
+  }
+  return hasTextOverrideField(deck, slideId, field) ? getPresentationTimestampMs(deck.updatedAt) : 0;
+}
+
+function getTextOverrideFieldUpdatedAt(deck = {}, slideId = "", field = "") {
+  return String(deck.textOverrideUpdatedAt?.[slideId]?.[field] || deck.updatedAt || "").trim();
+}
+
+function mergeTextOverrideFieldsPreservingNewest(localDeck = {}, syncedDeck = {}) {
+  const textOverrides = {};
+  const textOverrideUpdatedAt = {};
+  const slideIds = new Set([
+    ...Object.keys(localDeck.textOverrides || {}),
+    ...Object.keys(syncedDeck.textOverrides || {}),
+  ]);
+
+  slideIds.forEach((slideId) => {
+    const fieldIds = new Set([
+      ...Object.keys(localDeck.textOverrides?.[slideId] || {}),
+      ...Object.keys(syncedDeck.textOverrides?.[slideId] || {}),
+    ]);
+
+    fieldIds.forEach((field) => {
+      const localHasField = hasTextOverrideField(localDeck, slideId, field);
+      const syncedHasField = hasTextOverrideField(syncedDeck, slideId, field);
+      if (!localHasField && !syncedHasField) {
+        return;
+      }
+      const localHasTimestamp = hasTextOverrideFieldTimestamp(localDeck, slideId, field);
+      const syncedHasTimestamp = hasTextOverrideFieldTimestamp(syncedDeck, slideId, field);
+      const localUpdatedAt = getTextOverrideFieldUpdatedAtMs(localDeck, slideId, field);
+      const syncedUpdatedAt = getTextOverrideFieldUpdatedAtMs(syncedDeck, slideId, field);
+      const useLocal =
+        localHasField &&
+        (!syncedHasField ||
+          (localHasTimestamp && !syncedHasTimestamp) ||
+          localUpdatedAt >= syncedUpdatedAt);
+      const sourceDeck = useLocal ? localDeck : syncedDeck;
+      const sourceTimestamp = getTextOverrideFieldUpdatedAt(sourceDeck, slideId, field);
+
+      textOverrides[slideId] = {
+        ...(textOverrides[slideId] || {}),
+        [field]: String(sourceDeck.textOverrides?.[slideId]?.[field] ?? "").slice(0, maxTextOverrideLength),
+      };
+      if (sourceTimestamp) {
+        textOverrideUpdatedAt[slideId] = {
+          ...(textOverrideUpdatedAt[slideId] || {}),
+          [field]: sourceTimestamp,
+        };
+      }
+    });
+  });
+
+  return {
+    textOverrides: normalizeTextOverrides(textOverrides),
+    textOverrideUpdatedAt: normalizeTextOverrideUpdatedAt(textOverrideUpdatedAt),
+  };
+}
+
+export function mergeDashboardPresentationStatePreservingLocalEdits(localValue, syncedValue) {
+  const localStore = normalizeStore(parsePresentationStoreValue(localValue));
+  const syncedStore = normalizeStore(parsePresentationStoreValue(syncedValue));
+  const dateValues = new Set([...Object.keys(localStore.decks || {}), ...Object.keys(syncedStore.decks || {})]);
+  const decks = {};
+
+  dateValues.forEach((dateValue) => {
+    const hasLocalDeck = Object.prototype.hasOwnProperty.call(localStore.decks || {}, dateValue);
+    const hasSyncedDeck = Object.prototype.hasOwnProperty.call(syncedStore.decks || {}, dateValue);
+    if (!hasLocalDeck && !hasSyncedDeck) {
+      return;
+    }
+    if (!hasLocalDeck) {
+      decks[dateValue] = normalizeDeck(syncedStore.decks[dateValue], dateValue);
+      return;
+    }
+    if (!hasSyncedDeck) {
+      decks[dateValue] = normalizeDeck(localStore.decks[dateValue], dateValue);
+      return;
+    }
+
+    const localDeck = normalizeDeck(localStore.decks[dateValue], dateValue);
+    const syncedDeck = normalizeDeck(syncedStore.decks[dateValue], dateValue);
+    const localUpdatedAt = getPresentationTimestampMs(localDeck.updatedAt);
+    const syncedUpdatedAt = getPresentationTimestampMs(syncedDeck.updatedAt);
+    const baseDeck = syncedUpdatedAt > localUpdatedAt ? syncedDeck : localDeck;
+    const mergedOverrides = mergeTextOverrideFieldsPreservingNewest(localDeck, syncedDeck);
+
+    decks[dateValue] = normalizeDeck(
+      {
+        ...baseDeck,
+        ...mergedOverrides,
+      },
+      dateValue
+    );
+  });
+
+  return JSON.stringify(normalizeStore({ decks }));
 }
 
 function getBlockRule(blockIndex = 0) {
@@ -1226,16 +1393,25 @@ export function createPresentationModeController(dependencies = {}) {
     if (!safeSlideId || !safeField) {
       return;
     }
-    writeDeckForDate(state.dateValue, (deck) => ({
-      ...deck,
-      textOverrides: normalizeTextOverrides({
-        ...deck.textOverrides,
-        [safeSlideId]: {
-          ...(deck.textOverrides?.[safeSlideId] || {}),
-          [safeField]: String(value ?? "").slice(0, maxTextOverrideLength),
-        },
-      }),
-    }));
+    const nextValue = String(value ?? "").slice(0, maxTextOverrideLength);
+    writeDeckForDate(state.dateValue, (deck) => {
+      const currentFields = deck.textOverrides?.[safeSlideId] || {};
+      if (Object.prototype.hasOwnProperty.call(currentFields, safeField) && String(currentFields[safeField] ?? "") === nextValue) {
+        return deck;
+      }
+      const updatedAt = new Date().toISOString();
+      return {
+        ...deck,
+        textOverrides: normalizeTextOverrides({
+          ...deck.textOverrides,
+          [safeSlideId]: {
+            ...currentFields,
+            [safeField]: nextValue,
+          },
+        }),
+        textOverrideUpdatedAt: markTextOverrideUpdatedAt(deck, safeSlideId, safeField, updatedAt),
+      };
+    });
   }
 
   function getActiveTextStyle() {
@@ -1444,6 +1620,7 @@ export function createPresentationModeController(dependencies = {}) {
     const position = clampTextBoxPosition(options.x ?? (isSymbol ? 46 : 56), options.y ?? (isSymbol ? 28 : 36), width, height);
     const id = `${isSymbol ? "symbol" : "textbox"}-${Date.now()}`;
     const field = getTextBoxField(id);
+    const updatedAt = new Date().toISOString();
     writeDeckForDate(state.dateValue, (deck) => ({
       ...deck,
       textBoxes: normalizeTextBoxes({
@@ -1480,6 +1657,7 @@ export function createPresentationModeController(dependencies = {}) {
           [field]: text,
         },
       }),
+      textOverrideUpdatedAt: markTextOverrideUpdatedAt(deck, currentSlide.id, field, updatedAt),
     }));
     state.activeShapeTarget = null;
     state.activeTextTarget = { field, infoId: "", slideId: currentSlide.id, textBoxId: id };
@@ -1528,6 +1706,12 @@ export function createPresentationModeController(dependencies = {}) {
           Object.entries(deck.textOverrides?.[safeSlideId] || {}).filter(([textField]) => textField !== field)
         ),
       },
+      textOverrideUpdatedAt: normalizeTextOverrideUpdatedAt({
+        ...deck.textOverrideUpdatedAt,
+        [safeSlideId]: Object.fromEntries(
+          Object.entries(deck.textOverrideUpdatedAt?.[safeSlideId] || {}).filter(([textField]) => textField !== field)
+        ),
+      }),
     }));
     state.activeTextTarget = null;
     render();
@@ -1925,6 +2109,9 @@ export function createPresentationModeController(dependencies = {}) {
       textBoxes: Object.fromEntries(Object.entries(currentDeck.textBoxes || {}).filter(([boxSlideId]) => boxSlideId !== slideId)),
       textFieldStyles: Object.fromEntries(Object.entries(currentDeck.textFieldStyles || {}).filter(([styleSlideId]) => styleSlideId !== slideId)),
       textOverrides: Object.fromEntries(Object.entries(currentDeck.textOverrides || {}).filter(([textSlideId]) => textSlideId !== slideId)),
+      textOverrideUpdatedAt: Object.fromEntries(
+        Object.entries(currentDeck.textOverrideUpdatedAt || {}).filter(([textSlideId]) => textSlideId !== slideId)
+      ),
     }));
     const nextModel = buildModel();
     const nextInfoIndexes = nextModel.slides.map((slide, index) => (slide.type === "info" ? index : -1)).filter((index) => index >= 0);

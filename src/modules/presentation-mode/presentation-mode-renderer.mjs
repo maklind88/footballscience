@@ -66,6 +66,10 @@ const shapeOptions = [
   { type: "arrow", label: "Arrow" },
   { type: "star", label: "Star" },
 ];
+const mediaInsertOptions = [
+  { kind: "image", label: "Image", description: "Movable image placeholder" },
+  { kind: "video", label: "Video", description: "Movable video placeholder" },
+];
 const slideTemplateOptions = [
   {
     value: "title",
@@ -474,6 +478,7 @@ export function createPresentationModeRenderer(options = {}) {
           ${renderTextToolbar(model)}
         </div>
         <div class="presentation-pass-controls">
+          ${renderInsertControl(model)}
           ${renderThemeControl(slide)}
           ${renderNewSlideControl()}
           <button type="button" class="presentation-tool-button" data-presentation-delete-slide ${canDeleteSlide ? "" : "disabled"} title="${canDeleteSlide ? "Delete current slide" : "Only custom slides can be deleted"}">Delete Slide</button>
@@ -486,6 +491,78 @@ export function createPresentationModeRenderer(options = {}) {
           <button type="button" class="presentation-icon-button" data-presentation-close title="Close" aria-label="Close presentation">x</button>
         </div>
       </header>
+    `;
+  }
+
+  function renderInsertControl(model = {}) {
+    const quickSymbols = symbolOptions.slice(0, 10);
+    return `
+      <details class="presentation-insert-menu" data-presentation-insert-menu>
+        <summary class="presentation-tool-button presentation-insert-button" aria-label="Insert content">
+          Insert
+        </summary>
+        <div class="presentation-insert-popover" role="group" aria-label="Insert content">
+          <div class="presentation-insert-section is-primary">
+            <button type="button" data-presentation-add-text-box>
+              ${renderToolbarIcon("text", "A")}
+              <span>
+                <strong>Text</strong>
+                <small>Movable text box</small>
+              </span>
+            </button>
+            ${mediaInsertOptions
+              .map(
+                (item) => `
+                  <button type="button" data-presentation-add-media="${escapeHtml(item.kind)}">
+                    ${renderToolbarIcon(item.kind, "")}
+                    <span>
+                      <strong>${escapeHtml(item.label)}</strong>
+                      <small>${escapeHtml(item.description)}</small>
+                    </span>
+                  </button>
+                `
+              )
+              .join("")}
+          </div>
+          <div class="presentation-insert-section">
+            <strong>Shapes</strong>
+            <div class="presentation-insert-chip-grid">
+              ${shapeOptions
+                .map(
+                  (shape) => `
+                    <button
+                      type="button"
+                      class="${model.shapeDrawTool === shape.type ? "is-active" : ""}"
+                      data-presentation-add-shape="${escapeHtml(shape.type)}"
+                      aria-label="${escapeHtml(`Draw ${shape.label}`)}"
+                    >
+                      <span class="presentation-shape-preview is-${escapeHtml(shape.type)}" aria-hidden="true"></span>
+                      <span>${escapeHtml(shape.label)}</span>
+                    </button>
+                  `
+                )
+                .join("")}
+            </div>
+          </div>
+          <div class="presentation-insert-section">
+            <strong>Symbols</strong>
+            <div class="presentation-symbol-grid is-compact" role="group" aria-label="Insert quick symbol">
+              ${quickSymbols
+                .map(
+                  (symbol) => `
+                    <button
+                      type="button"
+                      data-presentation-insert-symbol="${symbol.value}"
+                      title="${escapeHtml(`Insert ${symbol.label}`)}"
+                      aria-label="${escapeHtml(`Insert ${symbol.label}`)}"
+                    >${symbol.value}</button>
+                  `
+                )
+                .join("")}
+            </div>
+          </div>
+        </div>
+      </details>
     `;
   }
 
@@ -701,6 +778,68 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
+  function renderContextMenu(model = {}) {
+    const menu = model.contextMenu;
+    if (model.presenting || !menu) {
+      return "";
+    }
+    const x = Number.isFinite(Number(menu.x)) ? Number(menu.x) : 24;
+    const y = Number.isFinite(Number(menu.y)) ? Number(menu.y) : 24;
+    const hasObjectTarget = menu.targetType === "shape" || menu.targetType === "textBox";
+    return `
+      <div
+        class="presentation-context-menu"
+        data-presentation-context-menu
+        style="--presentation-context-menu-x: ${escapeHtml(x)}px; --presentation-context-menu-y: ${escapeHtml(y)}px;"
+        role="menu"
+        aria-label="Slide context menu"
+      >
+        ${hasObjectTarget
+          ? `
+            <div class="presentation-context-section">
+              <button type="button" data-presentation-context-action="duplicate-object" role="menuitem">Duplicate</button>
+              <button type="button" data-presentation-context-action="delete-object" role="menuitem">Delete</button>
+            </div>
+          `
+          : ""}
+        <div class="presentation-context-section">
+          <strong>Insert</strong>
+          <button type="button" data-presentation-context-action="text" role="menuitem">Text</button>
+          <button type="button" data-presentation-context-action="image" role="menuitem">Image</button>
+          <button type="button" data-presentation-context-action="video" role="menuitem">Video</button>
+        </div>
+        <div class="presentation-context-section">
+          <strong>Shapes</strong>
+          <div class="presentation-context-grid">
+            ${shapeOptions
+              .slice(0, 6)
+              .map(
+                (shape) => `
+                  <button type="button" data-presentation-context-action="shape:${escapeHtml(shape.type)}" role="menuitem" aria-label="${escapeHtml(`Draw ${shape.label}`)}">
+                    <span class="presentation-shape-preview is-${escapeHtml(shape.type)}" aria-hidden="true"></span>
+                  </button>
+                `
+              )
+              .join("")}
+          </div>
+        </div>
+        <div class="presentation-context-section">
+          <strong>Symbols</strong>
+          <div class="presentation-context-grid">
+            ${symbolOptions
+              .slice(0, 12)
+              .map(
+                (symbol) => `
+                  <button type="button" data-presentation-context-action="symbol:${escapeHtml(symbol.value)}" role="menuitem" aria-label="${escapeHtml(`Insert ${symbol.label}`)}">${symbol.value}</button>
+                `
+              )
+              .join("")}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function renderSlideNav(slides = [], activeIndex = 0) {
     return `
       <nav class="presentation-slide-tabs" aria-label="Presentation slides">
@@ -754,15 +893,16 @@ export function createPresentationModeRenderer(options = {}) {
         ${boxes
           .map((box) => {
             const field = `textbox.${box.id}.text`;
-            const kind = box.kind === "symbol" ? "symbol" : "text";
+            const kind = ["symbol", "image", "video"].includes(box.kind) ? box.kind : "text";
             const isActive =
               model.activeTextTarget?.slideId === slide.id && model.activeTextTarget?.textBoxId === box.id;
             const fallbackStyle = {
               fontSize: box.fontSize || "36",
               textColor: box.textColor || "#f8fafc",
             };
+            const isFixedObject = kind === "symbol" || kind === "image" || kind === "video";
             const objectDragAttributes =
-              kind === "symbol"
+              isFixedObject
                 ? `data-presentation-drag-text-box="${escapeHtml(box.id)}" data-presentation-slide-id="${escapeHtml(slide.id)}"`
                 : "";
             const textBox = renderEditableTextArea(
@@ -785,8 +925,8 @@ export function createPresentationModeRenderer(options = {}) {
                 data-presentation-text-box-kind="${escapeHtml(kind)}"
                 data-presentation-slide-id="${escapeHtml(slide.id)}"
                 tabindex="${model.presenting ? "-1" : "0"}"
-                aria-label="${escapeHtml(kind === "symbol" ? "Symbol object" : "Text box object")}"
-                style="left: ${escapeHtml(box.x)}%; top: ${escapeHtml(box.y)}%; width: ${escapeHtml(box.width)}%; height: ${escapeHtml(box.height || (kind === "symbol" ? 14 : 12))}%;"
+                aria-label="${escapeHtml(kind === "symbol" ? "Symbol object" : kind === "image" ? "Image placeholder object" : kind === "video" ? "Video placeholder object" : "Text box object")}"
+                style="left: ${escapeHtml(box.x)}%; top: ${escapeHtml(box.y)}%; width: ${escapeHtml(box.width)}%; height: ${escapeHtml(box.height || (kind === "symbol" ? 14 : kind === "image" || kind === "video" ? 24 : 12))}%;"
               >
                 ${textBox}
                 <span
@@ -1399,6 +1539,7 @@ export function createPresentationModeRenderer(options = {}) {
         <div class="presentation-stage" data-presentation-stage>
           ${renderActiveSlide(model)}
         </div>
+        ${renderContextMenu(model)}
         ${renderFooter(model)}
       </section>
     `;

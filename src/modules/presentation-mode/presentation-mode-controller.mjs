@@ -11,6 +11,7 @@ const maxTextBoxesPerSlide = 12;
 const maxShapesPerSlide = 24;
 const maxUndoHistory = 80;
 const shapeTypes = new Set(["rect", "circle", "triangle", "diamond", "line", "arrow", "star"]);
+const textBoxKinds = new Set(["text", "symbol", "image", "video"]);
 const resizeAxes = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
 const slideTemplateTypes = new Set(["title", "title-subtitle", "text", "bullets", "media", "split", "video", "blank"]);
 
@@ -269,9 +270,10 @@ function normalizeTextBoxes(textBoxes = {}) {
           .map((box, index) => {
             const safeBox = box && typeof box === "object" && !Array.isArray(box) ? box : {};
             const id = String(safeBox.id || `textbox-${index + 1}`).trim();
-            const kind = safeBox.kind === "symbol" ? "symbol" : "text";
+            const kind = textBoxKinds.has(String(safeBox.kind || "").trim()) ? String(safeBox.kind).trim() : "text";
             const width = Math.min(70, Math.max(14, Number(safeBox.width) || 28));
-            const fallbackHeight = kind === "symbol" ? Math.max(8, Math.min(28, width)) : 12;
+            const fallbackHeight =
+              kind === "symbol" ? Math.max(8, Math.min(28, width)) : kind === "image" || kind === "video" ? 24 : 12;
             const height = Math.min(84, Math.max(5, Number(safeBox.height) || fallbackHeight));
             return {
               id,
@@ -618,6 +620,7 @@ export function createPresentationModeController(dependencies = {}) {
     activeShapeTarget: null,
     activeTextTarget: null,
     bound: false,
+    contextMenu: null,
     dateValue: "",
     drawShape: null,
     dragSlideIndex: null,
@@ -739,6 +742,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
+    state.contextMenu = null;
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
     documentRef.body?.classList?.remove("is-presentation-text-field-dragging");
     documentRef.body?.classList?.remove("is-presentation-text-field-resizing");
@@ -1100,6 +1104,7 @@ export function createPresentationModeController(dependencies = {}) {
       event,
       activeShapeTarget: state.activeShapeTarget ? { ...state.activeShapeTarget } : null,
       activeTextTarget: state.activeTextTarget ? { ...state.activeTextTarget } : null,
+      contextMenu: state.contextMenu ? { ...state.contextMenu } : null,
       infoSlideCount: deck.infoSlides.length,
       loadLabel: periodization.physicalLoad || event?.type || "Not set",
       medicalRecommendations: getMedicalRecommendationsForDate(dateValue),
@@ -1276,6 +1281,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
+    state.contextMenu = null;
     state.dateValue = normalizeDateValue(dateValue, getTodayValue());
     state.slideIndex = 0;
     state.editorOpen = false;
@@ -1297,6 +1303,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
+    state.contextMenu = null;
     state.isOpen = false;
     state.editorOpen = false;
     state.presenting = false;
@@ -1334,6 +1341,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
+    state.contextMenu = null;
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
     documentRef.body?.classList?.remove("is-presentation-text-field-dragging");
     documentRef.body?.classList?.remove("is-presentation-text-field-resizing");
@@ -1651,6 +1659,7 @@ export function createPresentationModeController(dependencies = {}) {
   function hideTextToolbar() {
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
+    state.contextMenu = null;
     root?.querySelectorAll("[data-presentation-text-toolbar] .presentation-tool-popover[open]").forEach((popover) => {
       popover.removeAttribute("open");
     });
@@ -1662,14 +1671,17 @@ export function createPresentationModeController(dependencies = {}) {
     if (!currentSlide?.id) {
       return;
     }
-    const isSymbol = options.kind === "symbol";
-    const text = String(options.text ?? "Text box").slice(0, maxTextOverrideLength) || (isSymbol ? "•" : "Text box");
-    const fontSize = normalizeFontSize(options.fontSize || (isSymbol ? "88" : "36"));
+    const kind = textBoxKinds.has(String(options.kind || "").trim()) ? String(options.kind).trim() : "text";
+    const isSymbol = kind === "symbol";
+    const isMedia = kind === "image" || kind === "video";
+    const fallbackText = isSymbol ? "•" : kind === "image" ? "Image Placeholder" : kind === "video" ? "Video Placeholder" : "Text box";
+    const text = String(options.text ?? fallbackText).slice(0, maxTextOverrideLength) || fallbackText;
+    const fontSize = normalizeFontSize(options.fontSize || (isSymbol ? "88" : isMedia ? "32" : "36"));
     const textColor = normalizeHexColor(options.textColor, "#f8fafc");
-    const width = clampTextBoxWidth(options.width || (isSymbol ? 14 : 30));
-    const height = clampTextBoxHeight(options.height || (isSymbol ? 14 : 12));
-    const position = clampTextBoxPosition(options.x ?? (isSymbol ? 46 : 56), options.y ?? (isSymbol ? 28 : 36), width, height);
-    const id = `${isSymbol ? "symbol" : "textbox"}-${Date.now()}`;
+    const width = clampTextBoxWidth(options.width || (isSymbol ? 14 : isMedia ? 34 : 30));
+    const height = clampTextBoxHeight(options.height || (isSymbol ? 14 : isMedia ? 22 : 12));
+    const position = clampTextBoxPosition(options.x ?? (isSymbol ? 46 : isMedia ? 34 : 56), options.y ?? (isSymbol ? 28 : isMedia ? 34 : 36), width, height);
+    const id = `${kind === "text" ? "textbox" : kind}-${Date.now()}`;
     const field = getTextBoxField(id);
     const updatedAt = new Date().toISOString();
     writeDeckForDate(state.dateValue, (deck) => ({
@@ -1680,7 +1692,7 @@ export function createPresentationModeController(dependencies = {}) {
           ...(deck.textBoxes?.[currentSlide.id] || []),
           {
             id,
-            kind: isSymbol ? "symbol" : "text",
+            kind,
             text,
             x: position.x,
             y: position.y,
@@ -1714,6 +1726,20 @@ export function createPresentationModeController(dependencies = {}) {
     state.activeTextTarget = { field, infoId: "", slideId: currentSlide.id, textBoxId: id };
     render();
     focusActiveTextElement();
+  }
+
+  function addMediaTextBox(kind = "image") {
+    const safeKind = kind === "video" ? "video" : "image";
+    addTextBox({
+      kind: safeKind,
+      text: safeKind === "video" ? "Video Placeholder" : "Image Placeholder",
+      width: 34,
+      height: 22,
+      fontSize: "32",
+      textColor: "#f8fafc",
+      x: 34,
+      y: 34,
+    });
   }
 
   function addSymbolTextBox(symbol = "") {
@@ -1766,6 +1792,60 @@ export function createPresentationModeController(dependencies = {}) {
     }));
     state.activeTextTarget = null;
     render();
+  }
+
+  function duplicateTextBox(slideId = "", boxId = "") {
+    const safeSlideId = String(slideId || "").trim();
+    const safeBoxId = String(boxId || "").trim();
+    const deck = getDeckForDate();
+    const sourceBox = deck.textBoxes?.[safeSlideId]?.find((box) => box.id === safeBoxId);
+    if (!safeSlideId || !safeBoxId || !sourceBox) {
+      return;
+    }
+    const sourceKind = textBoxKinds.has(String(sourceBox.kind || "").trim()) ? String(sourceBox.kind).trim() : "text";
+    const nextId = `${sourceKind === "text" ? "textbox" : sourceKind}-${Date.now()}`;
+    const sourceField = getTextBoxField(safeBoxId);
+    const nextField = getTextBoxField(nextId);
+    const position = clampTextBoxPosition(Number(sourceBox.x) + 3, Number(sourceBox.y) + 3, sourceBox.width, sourceBox.height);
+    writeDeckForDate(state.dateValue, (currentDeck) => ({
+      ...currentDeck,
+      textBoxes: normalizeTextBoxes({
+        ...currentDeck.textBoxes,
+        [safeSlideId]: [
+          ...(currentDeck.textBoxes?.[safeSlideId] || []),
+          {
+            ...sourceBox,
+            id: nextId,
+            x: position.x,
+            y: position.y,
+          },
+        ],
+      }),
+      textFieldStyles: normalizeTextFieldStyles({
+        ...currentDeck.textFieldStyles,
+        [safeSlideId]: {
+          ...(currentDeck.textFieldStyles?.[safeSlideId] || {}),
+          [nextField]: {
+            ...(currentDeck.textFieldStyles?.[safeSlideId]?.[sourceField] || {}),
+            fontSize: sourceBox.fontSize || currentDeck.textFieldStyles?.[safeSlideId]?.[sourceField]?.fontSize || "36",
+            textColor: sourceBox.textColor || currentDeck.textFieldStyles?.[safeSlideId]?.[sourceField]?.textColor || "#f8fafc",
+          },
+        },
+      }),
+      textOverrides: normalizeTextOverrides({
+        ...currentDeck.textOverrides,
+        [safeSlideId]: {
+          ...(currentDeck.textOverrides?.[safeSlideId] || {}),
+          [nextField]: currentDeck.textOverrides?.[safeSlideId]?.[sourceField] ?? sourceBox.text ?? "Text box",
+        },
+      }),
+      textOverrideUpdatedAt: markTextOverrideUpdatedAt(currentDeck, safeSlideId, nextField, new Date().toISOString()),
+    }));
+    state.activeShapeTarget = null;
+    state.activeTextTarget = { field: nextField, infoId: "", slideId: safeSlideId, textBoxId: nextId };
+    state.contextMenu = null;
+    render();
+    focusActiveTextElement();
   }
 
   function updateTextBoxPosition(slideId = "", boxId = "", x = 0, y = 0) {
@@ -1993,6 +2073,37 @@ export function createPresentationModeController(dependencies = {}) {
       }),
     }));
     state.activeShapeTarget = null;
+    render();
+  }
+
+  function duplicateShape(slideId = "", shapeId = "") {
+    const safeSlideId = String(slideId || "").trim();
+    const safeShapeId = String(shapeId || "").trim();
+    const deck = getDeckForDate();
+    const sourceShape = deck.shapes?.[safeSlideId]?.find((shape) => shape.id === safeShapeId);
+    if (!safeSlideId || !safeShapeId || !sourceShape) {
+      return;
+    }
+    const nextId = `shape-${Date.now()}`;
+    const position = clampShapePosition(Number(sourceShape.x) + 3, Number(sourceShape.y) + 3, sourceShape.width, sourceShape.height);
+    writeDeckForDate(state.dateValue, (currentDeck) => ({
+      ...currentDeck,
+      shapes: normalizeShapes({
+        ...currentDeck.shapes,
+        [safeSlideId]: [
+          ...(currentDeck.shapes?.[safeSlideId] || []),
+          {
+            ...sourceShape,
+            id: nextId,
+            x: position.x,
+            y: position.y,
+          },
+        ],
+      }),
+    }));
+    state.activeTextTarget = null;
+    state.activeShapeTarget = { shapeId: nextId, slideId: safeSlideId };
+    state.contextMenu = null;
     render();
   }
 
@@ -2237,6 +2348,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
+    state.contextMenu = null;
     state.presenting = true;
     state.editorOpen = false;
     documentRef.body?.classList?.remove("is-presentation-shape-drawing");
@@ -2902,13 +3014,137 @@ export function createPresentationModeController(dependencies = {}) {
     updateShapeBounds(resize.slideId, resize.shapeId, resize.nextBounds);
   }
 
+  function closeContextMenu(options = {}) {
+    if (!state.contextMenu) {
+      return;
+    }
+    state.contextMenu = null;
+    if (options.render) {
+      render();
+    }
+  }
+
+  function getContextTarget(event) {
+    const shapeElement = event.target.closest?.("[data-presentation-shape]");
+    if (shapeElement) {
+      return {
+        shapeId: String(shapeElement.dataset.presentationShapeId || "").trim(),
+        slideId: String(shapeElement.dataset.presentationSlideId || "").trim(),
+        targetType: "shape",
+      };
+    }
+    const textBoxElement = event.target.closest?.("[data-presentation-text-box-shell]");
+    if (textBoxElement) {
+      return {
+        slideId: String(textBoxElement.dataset.presentationSlideId || "").trim(),
+        targetType: "textBox",
+        textBoxId: String(textBoxElement.dataset.presentationTextBoxId || "").trim(),
+      };
+    }
+    const slideElement = event.target.closest?.(".presentation-slide");
+    if (slideElement) {
+      return {
+        slideId: String(slideElement.dataset.presentationSlideId || "").trim(),
+        targetType: "slide",
+      };
+    }
+    return null;
+  }
+
+  function openContextMenu(event) {
+    if (
+      !state.isOpen ||
+      state.presenting ||
+      !root?.contains(event.target) ||
+      event.target.closest?.(".presentation-control-bar, .presentation-footer-nav, .presentation-tool-popover-panel, .presentation-new-slide-popover, .presentation-insert-popover, .presentation-theme-popover")
+    ) {
+      return;
+    }
+    const target = getContextTarget(event);
+    if (!target?.slideId) {
+      return;
+    }
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    if (target.targetType === "shape" && target.shapeId) {
+      state.activeTextTarget = null;
+      state.activeShapeTarget = { shapeId: target.shapeId, slideId: target.slideId };
+    } else if (target.targetType === "textBox" && target.textBoxId) {
+      state.activeShapeTarget = null;
+      state.activeTextTarget = { field: getTextBoxField(target.textBoxId), infoId: "", slideId: target.slideId, textBoxId: target.textBoxId };
+    }
+    const width = 280;
+    const height = target.targetType === "slide" ? 410 : 500;
+    const maxX = Math.max(8, Number(win?.innerWidth || 1024) - width - 8);
+    const maxY = Math.max(8, Number(win?.innerHeight || 768) - height - 8);
+    state.contextMenu = {
+      ...target,
+      x: Math.min(maxX, Math.max(8, Number(event.clientX) || 8)),
+      y: Math.min(maxY, Math.max(8, Number(event.clientY) || 8)),
+    };
+    render();
+  }
+
+  function handleContextAction(action = "") {
+    const safeAction = String(action || "").trim();
+    const menu = state.contextMenu ? { ...state.contextMenu } : null;
+    if (!safeAction || !menu) {
+      return;
+    }
+    state.contextMenu = null;
+    if (safeAction === "text") {
+      addTextBox();
+      return;
+    }
+    if (safeAction === "image" || safeAction === "video") {
+      addMediaTextBox(safeAction);
+      return;
+    }
+    if (safeAction.startsWith("shape:")) {
+      selectShapeTool(safeAction.slice("shape:".length));
+      return;
+    }
+    if (safeAction.startsWith("symbol:")) {
+      addSymbolTextBox(safeAction.slice("symbol:".length));
+      return;
+    }
+    if (safeAction === "delete-object") {
+      if (menu.targetType === "shape" && menu.slideId && menu.shapeId) {
+        deleteShape(menu.slideId, menu.shapeId);
+        return;
+      }
+      if (menu.targetType === "textBox" && menu.slideId && menu.textBoxId) {
+        deleteTextBox(menu.slideId, menu.textBoxId);
+        return;
+      }
+    }
+    if (safeAction === "duplicate-object") {
+      if (menu.targetType === "shape" && menu.slideId && menu.shapeId) {
+        duplicateShape(menu.slideId, menu.shapeId);
+        return;
+      }
+      if (menu.targetType === "textBox" && menu.slideId && menu.textBoxId) {
+        duplicateTextBox(menu.slideId, menu.textBoxId);
+        return;
+      }
+    }
+    render();
+  }
+
   function handleClick(event) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
-    const keepOpenMenu = event.target.closest(".presentation-new-slide-menu, [data-presentation-theme-menu], [data-presentation-text-toolbar] .presentation-tool-popover");
+    const contextActionButton = event.target.closest("[data-presentation-context-action]");
+    if (contextActionButton) {
+      handleContextAction(contextActionButton.dataset.presentationContextAction);
+      return;
+    }
+    const keepOpenMenu = event.target.closest(".presentation-new-slide-menu, .presentation-insert-menu, [data-presentation-theme-menu], [data-presentation-context-menu], [data-presentation-text-toolbar] .presentation-tool-popover");
     if (!keepOpenMenu) {
-      root.querySelectorAll(".presentation-new-slide-menu[open], [data-presentation-theme-menu][open], [data-presentation-text-toolbar] .presentation-tool-popover[open]").forEach((menu) => {
+      state.contextMenu = null;
+      root.querySelector("[data-presentation-context-menu]")?.remove();
+      root.querySelectorAll(".presentation-new-slide-menu[open], .presentation-insert-menu[open], [data-presentation-theme-menu][open], [data-presentation-text-toolbar] .presentation-tool-popover[open]").forEach((menu) => {
         menu.removeAttribute("open");
       });
     }
@@ -2958,6 +3194,12 @@ export function createPresentationModeController(dependencies = {}) {
       symbolButton.closest?.("details")?.removeAttribute?.("open");
       return;
     }
+    const mediaButton = event.target.closest("[data-presentation-add-media]");
+    if (mediaButton) {
+      addMediaTextBox(mediaButton.dataset.presentationAddMedia);
+      mediaButton.closest?.("details")?.removeAttribute?.("open");
+      return;
+    }
     const shapeButton = event.target.closest("[data-presentation-add-shape]");
     if (shapeButton) {
       shapeButton.closest?.("details")?.removeAttribute?.("open");
@@ -2970,6 +3212,7 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     if (event.target.closest("[data-presentation-add-text-box]")) {
+      event.target.closest?.("details")?.removeAttribute?.("open");
       addTextBox();
       return;
     }
@@ -3014,6 +3257,13 @@ export function createPresentationModeController(dependencies = {}) {
 
   function handleTextActivation(event) {
     if (!state.isOpen || !root?.contains(event.target)) {
+      return;
+    }
+    if (
+      event.target.closest?.(
+        "[data-presentation-context-menu], .presentation-insert-popover, .presentation-new-slide-popover, .presentation-theme-popover"
+      )
+    ) {
       return;
     }
     const pointerTextFieldHandle = getTextFieldPointerHandle(event);
@@ -3068,7 +3318,11 @@ export function createPresentationModeController(dependencies = {}) {
       setActiveTextTargetFromElement(event.target);
       return;
     }
-    if (!event.target.closest("[data-presentation-text-toolbar], [data-presentation-text-box-shell], [data-presentation-shape]")) {
+    if (
+      !event.target.closest(
+        "[data-presentation-text-toolbar], [data-presentation-text-box-shell], [data-presentation-shape], [data-presentation-context-menu], .presentation-insert-popover, .presentation-new-slide-popover, .presentation-theme-popover"
+      )
+    ) {
       hideTextToolbar();
     }
   }
@@ -3182,6 +3436,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
+    state.contextMenu = null;
     state.dateValue = nextDate;
     state.slideIndex = 0;
     state.editorOpen = false;
@@ -3228,6 +3483,11 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     if (event.key === "Escape") {
+      if (state.contextMenu) {
+        event.preventDefault();
+        closeContextMenu({ render: true });
+        return;
+      }
       if (state.drawShape) {
         finishShapeDraw({ ...event, type: "pointercancel" });
         return;
@@ -3363,6 +3623,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.addEventListener("pointercancel", finishShapeDrag, true);
     documentRef.addEventListener("pointercancel", finishShapeResize, true);
     documentRef.addEventListener("click", handleClick);
+    documentRef.addEventListener("contextmenu", openContextMenu);
     documentRef.addEventListener("focus", handleFocusin, true);
     documentRef.addEventListener("focusin", handleFocusin, true);
     documentRef.addEventListener("input", handleInput);

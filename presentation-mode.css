@@ -432,17 +432,34 @@ body.is-presentation-mode-open {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .24);
 }
 
-.presentation-new-slide-menu {
+.presentation-new-slide-menu,
+.presentation-insert-menu {
   position: relative;
   flex: 0 0 auto;
 }
 
-.presentation-new-slide-menu summary {
+.presentation-new-slide-menu summary,
+.presentation-insert-menu summary {
   list-style: none;
 }
 
-.presentation-new-slide-menu summary::-webkit-details-marker {
+.presentation-new-slide-menu summary::-webkit-details-marker,
+.presentation-insert-menu summary::-webkit-details-marker {
   display: none;
+}
+
+.presentation-insert-button {
+  color: #dff6ff;
+  border-color: rgba(125, 211, 252, .32);
+  background: rgba(56, 189, 248, .13);
+  white-space: nowrap;
+}
+
+.presentation-insert-menu[open] .presentation-insert-button,
+.presentation-insert-button:hover {
+  color: #ffffff;
+  border-color: rgba(125, 211, 252, .58);
+  background: rgba(56, 189, 248, .22);
 }
 
 .presentation-new-slide-button {
@@ -475,6 +492,111 @@ body.is-presentation-mode-open {
     linear-gradient(180deg, rgba(15, 23, 42, .98), rgba(8, 15, 20, .98)),
     #0f172a;
   box-shadow: 0 24px 60px rgba(0, 0, 0, .42);
+}
+
+.presentation-insert-popover {
+  position: absolute;
+  top: calc(100% + .48rem);
+  right: 0;
+  z-index: 82;
+  width: min(32rem, calc(100vw - 1.6rem));
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr);
+  gap: .58rem;
+  padding: .66rem;
+  border: 1px solid rgba(148, 163, 184, .24);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, .98), rgba(8, 15, 20, .98)),
+    #0f172a;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .42);
+}
+
+.presentation-insert-section {
+  min-width: 0;
+  display: grid;
+  gap: .4rem;
+  align-content: start;
+}
+
+.presentation-insert-section.is-primary {
+  grid-row: span 2;
+}
+
+.presentation-insert-section > strong {
+  color: rgba(248, 250, 252, .76);
+  font-size: .64rem;
+  font-weight: 920;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.presentation-insert-section > button {
+  min-width: 0;
+  min-height: 3.15rem;
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  gap: .6rem;
+  align-items: center;
+  padding: .48rem .58rem;
+  text-align: left;
+}
+
+.presentation-insert-section > button:hover,
+.presentation-insert-section > button:focus-visible,
+.presentation-insert-chip-grid button:hover,
+.presentation-insert-chip-grid button:focus-visible {
+  border-color: rgba(125, 211, 252, .42);
+  background: rgba(56, 189, 248, .12);
+}
+
+.presentation-insert-section > button span:not(.presentation-keynote-icon) {
+  min-width: 0;
+  display: grid;
+  gap: .12rem;
+}
+
+.presentation-insert-section > button strong {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: .82rem;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-insert-section > button small {
+  overflow: hidden;
+  color: rgba(203, 213, 225, .66);
+  font-size: .62rem;
+  font-weight: 760;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-insert-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .34rem;
+}
+
+.presentation-insert-chip-grid button {
+  min-width: 0;
+  min-height: 2.2rem;
+  display: flex;
+  align-items: center;
+  gap: .42rem;
+  padding: 0 .48rem;
+}
+
+.presentation-insert-chip-grid button > span:not(.presentation-shape-preview) {
+  overflow: hidden;
+  color: #f8fafc;
+  font-size: .68rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .presentation-new-slide-heading {
@@ -946,6 +1068,48 @@ body.is-presentation-mode-open {
   background: rgba(8, 15, 20, .82);
 }
 
+.presentation-keynote-icon.is-image::before,
+.presentation-keynote-icon.is-image::after,
+.presentation-keynote-icon.is-video::before,
+.presentation-keynote-icon.is-video::after {
+  content: "";
+  position: absolute;
+  display: block;
+}
+
+.presentation-keynote-icon.is-image::before,
+.presentation-keynote-icon.is-video::before {
+  inset: .12rem .08rem;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
+}
+
+.presentation-keynote-icon.is-image::after {
+  left: .28rem;
+  right: .24rem;
+  bottom: .28rem;
+  height: .42rem;
+  background: linear-gradient(135deg, transparent 0 28%, currentColor 29% 54%, transparent 55% 100%);
+  opacity: .88;
+}
+
+.presentation-keynote-icon.is-video > span {
+  position: relative;
+  z-index: 1;
+  color: currentColor;
+  font-size: .78rem;
+  line-height: 1;
+}
+
+.presentation-keynote-icon.is-video::after {
+  right: .06rem;
+  top: .36rem;
+  width: .34rem;
+  height: .48rem;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  background: currentColor;
+}
+
 .presentation-toolbar-separator {
   width: 1px;
   min-height: 2.7rem;
@@ -1129,6 +1293,10 @@ body.is-presentation-mode-open {
   gap: .34rem;
 }
 
+.presentation-symbol-grid.is-compact {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .presentation-symbol-grid button {
   width: 100%;
   min-height: 2.1rem;
@@ -1200,6 +1368,72 @@ body.is-presentation-mode-open {
 .presentation-shape-preview.is-star {
   border: 0;
   clip-path: polygon(50% 0, 61% 34%, 98% 34%, 68% 55%, 79% 91%, 50% 70%, 21% 91%, 32% 55%, 2% 34%, 39% 34%);
+}
+
+.presentation-context-menu {
+  position: fixed;
+  left: var(--presentation-context-menu-x, 1rem);
+  top: var(--presentation-context-menu-y, 1rem);
+  z-index: 120;
+  width: min(17.5rem, calc(100vw - 1rem));
+  display: grid;
+  gap: .38rem;
+  padding: .46rem;
+  border: 1px solid rgba(148, 163, 184, .28);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, .98), rgba(8, 15, 20, .98)),
+    #0f172a;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .44);
+}
+
+.presentation-context-section {
+  min-width: 0;
+  display: grid;
+  gap: .26rem;
+  padding-bottom: .36rem;
+  border-bottom: 1px solid rgba(148, 163, 184, .14);
+}
+
+.presentation-context-section:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.presentation-context-section > strong {
+  padding: .08rem .24rem;
+  color: rgba(203, 213, 225, .68);
+  font-size: .6rem;
+  font-weight: 920;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.presentation-context-section > button {
+  justify-content: flex-start;
+  min-height: 2rem;
+  padding: 0 .54rem;
+  text-align: left;
+}
+
+.presentation-context-section > button:hover,
+.presentation-context-section > button:focus-visible,
+.presentation-context-grid button:hover,
+.presentation-context-grid button:focus-visible {
+  border-color: rgba(125, 211, 252, .38);
+  background: rgba(56, 189, 248, .12);
+}
+
+.presentation-context-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: .26rem;
+}
+
+.presentation-context-grid button {
+  min-width: 0;
+  min-height: 2rem;
+  padding: 0;
 }
 
 .presentation-stage {
@@ -1511,6 +1745,48 @@ body.is-presentation-mode-open {
   border-color: color-mix(in srgb, var(--presentation-accent, #38bdf8) 78%, #ffffff);
   background: color-mix(in srgb, var(--presentation-slide-bg, #08120f) 82%, #ffffff);
   box-shadow: 0 0 0 1px rgba(248, 250, 252, .16), 0 3px 8px rgba(0, 0, 0, .24);
+}
+
+.presentation-free-text-box-shell.is-image,
+.presentation-free-text-box-shell.is-video {
+  min-width: 9rem;
+  min-height: 5.4rem;
+}
+
+.presentation-free-text-box-shell.is-image .presentation-free-text-box,
+.presentation-free-text-box-shell.is-video .presentation-free-text-box {
+  --presentation-editable-fit-size: clamp(.82rem, min(5.2cqw, 11cqh), 2.45rem);
+  display: grid;
+  place-items: center;
+  padding: .76rem;
+  border: 1.5px dashed color-mix(in srgb, var(--presentation-accent, #38bdf8) 62%, rgba(248, 250, 252, .34));
+  background:
+    radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--presentation-accent, #38bdf8) 20%, transparent), transparent 48%),
+    rgba(8, 15, 20, .42);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06);
+  color: rgba(248, 250, 252, .88);
+  text-align: center;
+  cursor: grab;
+  user-select: none;
+}
+
+.presentation-free-text-box-shell.is-video .presentation-free-text-box::before,
+.presentation-free-text-box-shell.is-image .presentation-free-text-box::before {
+  content: "";
+  width: clamp(1.35rem, 9cqw, 3.4rem);
+  height: clamp(1.35rem, 9cqw, 3.4rem);
+  display: block;
+  margin-bottom: .32rem;
+  border: 2px solid currentColor;
+  border-radius: 8px;
+  opacity: .78;
+}
+
+.presentation-free-text-box-shell.is-video .presentation-free-text-box::before {
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  border: 0;
+  border-radius: 0;
+  background: currentColor;
 }
 
 .presentation-text-box-edge-handle {
@@ -3038,6 +3314,17 @@ body.is-presentation-text-field-resizing {
   .presentation-theme-popover {
     right: auto;
     left: 0;
+  }
+
+  .presentation-insert-popover,
+  .presentation-new-slide-popover {
+    right: auto;
+    left: 0;
+    max-width: calc(100vw - 1rem);
+  }
+
+  .presentation-insert-popover {
+    grid-template-columns: 1fr;
   }
 
   .presentation-theme-card-grid {

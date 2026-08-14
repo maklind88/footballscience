@@ -132,6 +132,14 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(controlHtml).toContain("Whiteboard");
   expect(controlHtml).toContain("Medical Calm");
   expect(controlHtml.indexOf("data-presentation-theme-menu")).toBeLessThan(controlHtml.indexOf("data-presentation-add-info-menu"));
+  expect(controlHtml).toContain("data-presentation-insert-menu");
+  expect(controlHtml.indexOf("data-presentation-insert-menu")).toBeLessThan(controlHtml.indexOf("data-presentation-theme-menu"));
+  expect(controlHtml.replace(/\s+/g, " ")).toContain("Insert");
+  expect(controlHtml).toContain("data-presentation-add-text-box");
+  expect(controlHtml).toContain('data-presentation-add-media="image"');
+  expect(controlHtml).toContain('data-presentation-add-media="video"');
+  expect(controlHtml).toContain('data-presentation-add-shape="rect"');
+  expect(controlHtml).toContain("data-presentation-insert-symbol");
   expect(controlHtml).toContain("data-presentation-add-info-menu");
   expect(controlHtml).toContain("data-presentation-add-info");
   expect(controlHtml).toContain("presentation-new-slide-popover");
@@ -257,8 +265,23 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(shapeToolHtml).toContain('aria-pressed="true"');
   const fullHtml = renderer.render({ ...model, slideIndex: infoSlide.index });
   expect(fullHtml).toContain("data-presentation-text-toolbar");
+  expect(fullHtml).not.toContain("data-presentation-context-menu");
   expect(fullHtml).not.toContain("data-presentation-toggle-editor");
   expect(fullHtml).not.toContain("is-editor-open");
+  const contextHtml = renderer.render({
+    ...model,
+    contextMenu: { slideId: infoSlide.id, targetType: "slide", x: 42, y: 64 },
+    slideIndex: infoSlide.index,
+  });
+  expect(contextHtml).toContain("data-presentation-context-menu");
+  expect(contextHtml).toContain('data-presentation-context-action="text"');
+  expect(contextHtml).toContain('data-presentation-context-action="image"');
+  expect(contextHtml).toContain('data-presentation-context-action="video"');
+  expect(contextHtml).toContain('data-presentation-context-action="shape:rect"');
+  expect(contextHtml).toContain('data-presentation-context-action="symbol:');
+  expect(renderer.render({ ...model, contextMenu: { slideId: infoSlide.id, targetType: "slide", x: 42, y: 64 }, presenting: true })).not.toContain(
+    "data-presentation-context-menu"
+  );
   const blockHtml = renderer.renderBlockSlide(model, blockSlide);
   expect(blockHtml).toContain("data-exercise-visual");
   expect(blockHtml).toContain('data-landscape="false"');

@@ -4105,7 +4105,7 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-mode-shell.is-presenting .presentation-match-squad-photo {
-  width: min(100%, clamp(5.5rem, 10.7cqh, 9rem));
+  width: min(100%, clamp(6.15rem, 11.7cqh, 9.9rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-match-squad-card-copy {
@@ -4662,5 +4662,9 @@ body.is-presentation-text-field-resizing {
   body.is-presentation-printing .presentation-match-squad-grid {
     grid-template-columns: repeat(auto-fit, minmax(clamp(8rem, 12vw, 12.5rem), 1fr)) !important;
     grid-auto-rows: minmax(clamp(8rem, 15vh, 11.5rem), 1fr) !important;
+  }
+
+  body.is-presentation-printing .presentation-match-squad-photo {
+    width: min(100%, clamp(5.9rem, 10.6vh, 9.25rem)) !important;
   }
 }

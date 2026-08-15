@@ -607,7 +607,7 @@ test("Presentation Mode renders separate Match Squad and Starting XI custom slid
             id: "qa-match-squad",
             layout: "match-squad",
             title: "Match Squad",
-            matchSquadPlayerIds: ["p1", "p3"],
+            matchSquadPlayerIds: ["p3", "p5", "p2", "p1", "p4"],
             accentColor: "#22c55e",
             textColor: "#f8fafc",
           },
@@ -647,6 +647,7 @@ test("Presentation Mode renders separate Match Squad and Starting XI custom slid
       { player: { id: "p2", name: "Bea Defender", number: "4", position: "Defender", photoUrl: "https://example.com/defender.jpg" }, participation: 100 },
       { player: { id: "p3", name: "Zoe Striker", number: "9", position: "Forward", photoUrl: "https://example.com/striker.jpg" }, participation: 100 },
       { player: { id: "p4", name: "Cara Winger", number: "11", position: "Forward", photoUrl: "https://example.com/winger.jpg" }, participation: 100 },
+      { player: { id: "p5", name: "Mia Eight", number: "8", position: "Midfielder", photoUrl: "https://example.com/midfielder.jpg" }, participation: 100 },
     ],
     getTeamName: () => "North Carolina Courage",
     getTeamLogoUrl: () => "assets/football-science-logo.png",
@@ -658,9 +659,15 @@ test("Presentation Mode renders separate Match Squad and Starting XI custom slid
   expect(model.slides.map((slide) => slide.type)).toEqual(["cover", "match-squad", "lineup", "overview"]);
   const matchSquadSlide = model.slides.find((slide) => slide.type === "match-squad");
   const lineupSlide = model.slides.find((slide) => slide.type === "lineup");
-  expect(matchSquadSlide.matchSquad.selectedPlayers.map((player) => player.name)).toEqual(["Ada Keeper", "Zoe Striker"]);
+  expect(matchSquadSlide.matchSquad.selectedPlayers.map((player) => player.name)).toEqual([
+    "Ada Keeper",
+    "Bea Defender",
+    "Mia Eight",
+    "Zoe Striker",
+    "Cara Winger",
+  ]);
   expect(lineupSlide.lineup.slots).toHaveLength(11);
-  expect(lineupSlide.lineup.playerOptions.map((player) => player.id)).toEqual(["p1", "p3", "p4"]);
+  expect(lineupSlide.lineup.playerOptions.map((player) => player.id)).toEqual(["p1", "p2", "p5", "p3", "p4"]);
   expect(lineupSlide.lineup.sourceLabel).toBe("Match Squad");
   expect(lineupSlide.lineup.slots.find((slot) => slot.id === "gk").player.name).toBe("Ada Keeper");
   expect(lineupSlide.lineup.slots.find((slot) => slot.id === "st").player.number).toBe("9");
@@ -673,7 +680,7 @@ test("Presentation Mode renders separate Match Squad and Starting XI custom slid
   expect(matchSquadHtml).toContain("data-presentation-match-squad-player=\"p1\"");
   expect(matchSquadHtml).toContain("https://example.com/keeper.jpg");
   expect(matchSquadHtml).toContain("#1 Keeper");
-  expect(matchSquadHtml).toContain("2 players selected");
+  expect(matchSquadHtml).toContain("5 players selected");
   const presentingMatchSquadHtml = renderer.renderMatchSquadSlide({ ...model, presenting: true }, matchSquadSlide);
   expect(presentingMatchSquadHtml).not.toContain("presentation-match-squad-selector");
   expect(presentingMatchSquadHtml).not.toContain("data-presentation-print-match-squad");

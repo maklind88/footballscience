@@ -1441,7 +1441,10 @@ export function createPresentationModeController(dependencies = {}) {
       matchContext,
       playerOptions,
       selectedIds,
-      selectedPlayers: selectedIds.map((playerId) => playerById.get(playerId)).filter(Boolean),
+      selectedPlayers: selectedIds
+        .map((playerId) => playerById.get(playerId))
+        .filter(Boolean)
+        .sort(sortLineupPlayerOptions),
     };
   }
 

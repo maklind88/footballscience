@@ -13,21 +13,21 @@
 .dashboard-presentation-card {
   position: relative;
   display: grid;
-  grid-template-columns: 4.65rem minmax(0, 1fr);
-  gap: .85rem 1rem;
+  grid-template-columns: 4.35rem minmax(0, 1fr);
+  gap: .78rem 1rem;
   align-items: center;
-  min-height: 9rem;
-  padding: .95rem;
+  min-height: 8.45rem;
+  padding: .9rem;
   isolation: isolate;
   overflow: hidden;
-  color: #f8fafc;
+  color: #111827;
   background:
-    linear-gradient(135deg, rgba(6, 33, 24, .98), rgba(7, 18, 27, .98) 54%, rgba(29, 27, 18, .96)),
-    #06120f;
-  border: 1px solid rgba(255, 255, 255, .18);
+    linear-gradient(135deg, rgba(255, 255, 255, .98), rgba(248, 250, 252, .96)),
+    #ffffff;
+  border: 1px solid rgba(15, 23, 42, .08);
   box-shadow:
-    0 24px 54px rgba(3, 9, 8, .24),
-    inset 0 1px 0 rgba(255, 255, 255, .14);
+    0 20px 50px rgba(15, 23, 42, .08),
+    inset 0 1px 0 rgba(255, 255, 255, .9);
 }
 
 .dashboard-presentation-card::before {
@@ -35,12 +35,12 @@
   position: absolute;
   inset: .75rem .85rem .75rem 43%;
   background:
-    linear-gradient(90deg, transparent 49.5%, rgba(167, 243, 208, .16) 49.5% 50.5%, transparent 50.5%),
-    linear-gradient(0deg, transparent 49.5%, rgba(167, 243, 208, .11) 49.5% 50.5%, transparent 50.5%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, .045) 0 1px, transparent 1px 2.8rem);
-  border: 1px solid rgba(167, 243, 208, .13);
+    linear-gradient(90deg, transparent 49.5%, rgba(20, 184, 166, .12) 49.5% 50.5%, transparent 50.5%),
+    linear-gradient(0deg, transparent 49.5%, rgba(20, 184, 166, .08) 49.5% 50.5%, transparent 50.5%),
+    repeating-linear-gradient(90deg, rgba(15, 23, 42, .035) 0 1px, transparent 1px 2.8rem);
+  border: 1px solid rgba(20, 184, 166, .12);
   border-radius: 8px;
-  opacity: .72;
+  opacity: .58;
   -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14%, #000 82%, transparent 100%);
   mask-image: linear-gradient(90deg, transparent 0, #000 14%, #000 82%, transparent 100%);
   pointer-events: none;
@@ -50,10 +50,10 @@
   content: "";
   position: absolute;
   inset: 0;
-  border-top: 3px solid rgba(52, 211, 153, .82);
+  border-top: 2px solid rgba(16, 185, 129, .64);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, .08), transparent 28%),
-    linear-gradient(90deg, rgba(16, 185, 129, .16), transparent 31%, rgba(245, 158, 11, .12));
+    linear-gradient(180deg, rgba(255, 255, 255, .7), transparent 34%),
+    linear-gradient(90deg, rgba(16, 185, 129, .06), transparent 34%);
   pointer-events: none;
 }
 
@@ -65,19 +65,20 @@
 }
 
 .dashboard-presentation-visual {
-  width: 4.65rem;
+  width: 4.35rem;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
   overflow: hidden;
-  color: #d1fae5;
+  color: #064e3b;
   background:
-    linear-gradient(135deg, rgba(14, 165, 233, .13), transparent 44%),
-    linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .04)),
-    rgba(8, 23, 22, .86);
-  border: 1px solid rgba(167, 243, 208, .24);
+    linear-gradient(135deg, rgba(16, 185, 129, .1), transparent 48%),
+    linear-gradient(180deg, #ffffff, #f8fafc);
+  border: 1px solid rgba(15, 23, 42, .12);
   border-radius: 8px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14);
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, .08),
+    inset 0 1px 0 rgba(255, 255, 255, .95);
 }
 
 .dashboard-presentation-visual::before,
@@ -89,14 +90,14 @@
 
 .dashboard-presentation-visual::before {
   inset: .55rem;
-  border: 1px solid rgba(167, 243, 208, .46);
+  border: 1px solid rgba(20, 184, 166, .36);
   border-radius: 6px;
 }
 
 .dashboard-presentation-visual::after {
   width: 1.65rem;
   aspect-ratio: 1;
-  border: 1px solid rgba(167, 243, 208, .5);
+  border: 1px solid rgba(20, 184, 166, .4);
   border-radius: 50%;
 }
 
@@ -119,7 +120,7 @@
   bottom: .55rem;
   left: 50%;
   width: 1px;
-  background: rgba(167, 243, 208, .36);
+  background: rgba(20, 184, 166, .28);
 }
 
 .dashboard-presentation-visual-line.is-box {
@@ -127,7 +128,7 @@
   bottom: 1rem;
   width: 1.3rem;
   height: 1.15rem;
-  border: 1px solid rgba(167, 243, 208, .36);
+  border: 1px solid rgba(20, 184, 166, .28);
   border-right: 0;
 }
 
@@ -135,8 +136,8 @@
   width: .36rem;
   aspect-ratio: 1;
   border-radius: 999px;
-  background: #9af5c8;
-  box-shadow: 0 0 0 3px rgba(154, 245, 200, .1);
+  background: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, .1);
 }
 
 .dashboard-presentation-visual-dot.is-one {
@@ -162,7 +163,7 @@
 
 .dashboard-presentation-copy h2 {
   margin: 0;
-  color: #ffffff;
+  color: #111827;
   font-size: clamp(1.65rem, 2.05vw, 2.2rem);
   line-height: .95;
   letter-spacing: 0;
@@ -171,7 +172,7 @@
 .dashboard-presentation-subcopy {
   max-width: 22rem;
   margin: 0;
-  color: rgba(226, 232, 240, .74);
+  color: #64748b;
   font-size: .82rem;
   font-weight: 760;
   line-height: 1.25;
@@ -199,14 +200,14 @@
   bottom: .95rem;
   width: .44rem;
   aspect-ratio: 1;
-  border-right: 2px solid rgba(248, 250, 252, .76);
-  border-bottom: 2px solid rgba(248, 250, 252, .76);
+  border-right: 2px solid rgba(15, 23, 42, .55);
+  border-bottom: 2px solid rgba(15, 23, 42, .55);
   transform: rotate(45deg);
   pointer-events: none;
 }
 
 .dashboard-presentation-form label span {
-  color: rgba(209, 250, 229, .76);
+  color: #0f766e;
   font-size: .62rem;
   font-weight: 900;
   letter-spacing: 0;
@@ -218,17 +219,18 @@
   width: 100%;
   min-height: 3rem;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, .18);
+  border: 1px solid rgba(15, 23, 42, .13);
   border-radius: 8px;
   padding: 0 2.25rem 0 .85rem;
-  color: #f8fafc;
+  color: #111827;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .055)),
-    rgba(255, 255, 255, .055);
+    linear-gradient(180deg, #ffffff, #f8fafc);
   font: inherit;
   font-size: .92rem;
   font-weight: 820;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
+  box-shadow:
+    0 10px 22px rgba(15, 23, 42, .06),
+    inset 0 1px 0 rgba(255, 255, 255, .9);
 }
 
 .dashboard-presentation-form select option {
@@ -245,15 +247,15 @@
   border: 0;
   border-radius: 8px;
   padding: 0 1.05rem;
-  color: #062114;
+  color: #ffffff;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, .38), transparent 42%),
-    #8df2bc;
+    linear-gradient(180deg, rgba(255, 255, 255, .12), transparent 42%),
+    #111827;
   font-weight: 900;
   white-space: nowrap;
   box-shadow:
-    0 12px 22px rgba(16, 185, 129, .22),
-    inset 0 1px 0 rgba(255, 255, 255, .5);
+    0 12px 22px rgba(15, 23, 42, .16),
+    inset 0 1px 0 rgba(255, 255, 255, .2);
 }
 
 .dashboard-presentation-form button::after {
@@ -267,8 +269,8 @@
 
 .dashboard-presentation-form button:hover {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, .42), transparent 42%),
-    #a7f3d0;
+    linear-gradient(180deg, rgba(255, 255, 255, .16), transparent 42%),
+    #0f172a;
   transform: translateY(-1px);
 }
 

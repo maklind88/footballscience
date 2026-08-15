@@ -1219,7 +1219,7 @@ export function createPresentationModeRenderer(options = {}) {
     return `
       <article class="presentation-match-squad-card">
         ${renderLineupAvatar(player, "presentation-match-squad-photo")}
-        <div>
+        <div class="presentation-match-squad-card-copy">
           <strong>${escapeHtml(getLineupPlayerLabel(player))}</strong>
           <small>${escapeHtml(position || player.name || `Player ${index + 1}`)}</small>
         </div>

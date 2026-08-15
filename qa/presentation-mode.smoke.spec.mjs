@@ -629,10 +629,19 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator('.presentation-insert-popover [data-presentation-add-media="image"]')).toBeVisible();
   await expect(presentation.locator('.presentation-insert-popover [data-presentation-add-media="video"]')).toBeVisible();
   await expect(presentation.locator('.presentation-insert-popover [data-presentation-add-shape="rect"]')).toBeVisible();
+  const imageChooserPromise = page.waitForEvent("filechooser");
   await presentation.locator('.presentation-insert-popover [data-presentation-add-media="image"]').click();
+  const imageChooser = await imageChooserPromise;
+  await imageChooser.setFiles({
+    name: "session-board.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEtwJ+gN7uXQAAAABJRU5ErkJggg==", "base64"),
+  });
   const imageBox = presentation.locator("[data-presentation-text-box-shell][data-presentation-text-box-kind='image']").first();
   await expect(imageBox).toBeVisible();
-  await expect(imageBox.locator(".presentation-free-text-box")).toContainText("Image Placeholder");
+  await expect(imageBox.locator(".presentation-local-media-box.is-image")).toBeVisible();
+  await expect(imageBox.locator(".presentation-local-media-object")).toHaveAttribute("src", /^blob:/);
+  await expect(imageBox.locator("figcaption")).toContainText("session-board.png");
   await expect(imageBox.locator("[data-presentation-resize-text-box]")).toHaveCount(8);
   await imageBox.focus();
   await page.keyboard.press("Delete");
@@ -643,10 +652,19 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator('[data-presentation-context-action="image"]')).toBeVisible();
   await expect(presentation.locator('[data-presentation-context-action="video"]')).toBeVisible();
   await expect(presentation.locator('[data-presentation-context-action="shape:rect"]')).toBeVisible();
+  const videoChooserPromise = page.waitForEvent("filechooser");
   await presentation.locator('[data-presentation-context-action="video"]').click();
+  const videoChooser = await videoChooserPromise;
+  await videoChooser.setFiles({
+    name: "analysis-clip.mp4",
+    mimeType: "video/mp4",
+    buffer: Buffer.from([0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109, 0, 0, 2, 0, 105, 115, 111, 109, 105, 115, 111, 50]),
+  });
   const videoBox = presentation.locator("[data-presentation-text-box-shell][data-presentation-text-box-kind='video']").first();
   await expect(videoBox).toBeVisible();
-  await expect(videoBox.locator(".presentation-free-text-box")).toContainText("Video Placeholder");
+  await expect(videoBox.locator(".presentation-local-media-box.is-video")).toBeVisible();
+  await expect(videoBox.locator(".presentation-local-media-object")).toHaveAttribute("src", /^blob:/);
+  await expect(videoBox.locator("figcaption")).toContainText("analysis-clip.mp4");
   await expect(videoBox.locator("[data-presentation-resize-text-box]")).toHaveCount(8);
   await videoBox.focus();
   await page.keyboard.press("Delete");

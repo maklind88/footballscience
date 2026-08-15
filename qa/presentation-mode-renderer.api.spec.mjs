@@ -138,6 +138,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(controlHtml).toContain("data-presentation-add-text-box");
   expect(controlHtml).toContain('data-presentation-add-media="image"');
   expect(controlHtml).toContain('data-presentation-add-media="video"');
+  expect(controlHtml).toContain("Choose local image");
+  expect(controlHtml).toContain("Choose local video");
   expect(controlHtml).toContain('data-presentation-add-shape="rect"');
   expect(controlHtml).toContain("data-presentation-insert-symbol");
   expect(controlHtml).toContain("data-presentation-add-info-menu");
@@ -438,6 +440,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
       cover: [
         { id: "note-1", text: "Free note", x: 50, y: 40, width: 30, fontSize: 32, textColor: "#ffffff" },
         { id: "symbol-1", kind: "symbol", text: "♥", x: 18, y: 18, width: 14, fontSize: 88, textColor: "#ffffff" },
+        { id: "image-1", kind: "image", text: "session-board.png", mediaName: "session-board.png", x: 10, y: 50, width: 24, height: 20, fontSize: 24, textColor: "#ffffff" },
       ],
     },
     shapes: {
@@ -453,6 +456,7 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     },
   }));
   const styledTextModel = controller.buildModel();
+  styledTextModel.slides.find((slide) => slide.id === "cover").textBoxes.find((box) => box.id === "image-1").mediaSrc = "blob:session-board";
   const styledCoverHtml = renderer.renderCoverSlide(styledTextModel);
   expect(styledCoverHtml).toContain("presentation-free-text-box");
   expect(styledCoverHtml).toContain("presentation-shape-layer");
@@ -472,6 +476,10 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(styledCoverHtml.match(/data-presentation-resize-text-box="note-1"/g)).toHaveLength(8);
   expect(styledCoverHtml).toContain('data-presentation-text-box-kind="text"');
   expect(styledCoverHtml).toContain('data-presentation-text-box-kind="symbol"');
+  expect(styledCoverHtml).toContain('data-presentation-text-box-kind="image"');
+  expect(styledCoverHtml).toContain("presentation-local-media-box is-image");
+  expect(styledCoverHtml).toContain('src="blob:session-board"');
+  expect(styledCoverHtml).toContain("session-board.png");
   expect(styledCoverHtml).toContain('data-presentation-text-box-id="symbol-1" data-presentation-drag-text-box="symbol-1"');
   expect(styledCoverHtml).toContain('data-presentation-resize-text-box="symbol-1"');
   expect(styledCoverHtml.match(/data-presentation-resize-text-box="symbol-1"/g)).toHaveLength(8);
@@ -591,8 +599,8 @@ test("Presentation Mode renders separate Match Squad and Starting XI custom slid
   expect(lineupHtml).toContain("presentation-lineup-pitch");
   expect(lineupHtml).toContain("data-presentation-lineup-formation");
   expect(lineupHtml).toContain("data-presentation-lineup-player");
-  expect(lineupHtml).toContain("4-3-3 / 11 players");
-  expect(lineupHtml).toContain("Match Squad");
+  expect(lineupHtml).not.toContain("4-3-3 / 11 players");
+  expect(lineupHtml).not.toContain("Full squad");
   expect(lineupHtml).toContain("#9 Striker");
   expect(lineupHtml.match(/class="presentation-lineup-slot/g)).toHaveLength(11);
   expect(renderer.renderLineupSlide({ ...model, presenting: true }, lineupSlide)).not.toContain("data-presentation-lineup-player");

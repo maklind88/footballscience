@@ -14,6 +14,7 @@ const shapeTypes = new Set(["rect", "circle", "triangle", "diamond", "line", "ar
 const textBoxKinds = new Set(["text", "symbol", "image", "video"]);
 const resizeAxes = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
 const slideTemplateTypes = new Set(["title", "title-subtitle", "text", "bullets", "media", "split", "video", "match-squad", "starting-xi", "blank"]);
+const localMediaKinds = new Set(["image", "video"]);
 const lineupFormationOptions = [
   {
     id: "4-3-3",
@@ -404,6 +405,16 @@ function normalizeTextBoxes(textBoxes = {}) {
             const fallbackHeight =
               kind === "symbol" ? Math.max(8, Math.min(28, width)) : kind === "image" || kind === "video" ? 24 : 12;
             const height = Math.min(84, Math.max(5, Number(safeBox.height) || fallbackHeight));
+            const mediaFields =
+              localMediaKinds.has(kind)
+                ? {
+                    mediaId: String(safeBox.mediaId || "").trim().slice(0, 120),
+                    mediaLocal: Boolean(safeBox.mediaLocal),
+                    mediaMimeType: String(safeBox.mediaMimeType || "").trim().slice(0, 140),
+                    mediaName: String(safeBox.mediaName || "").trim().slice(0, 180),
+                    mediaSize: Math.max(0, Number(safeBox.mediaSize) || 0),
+                  }
+                : {};
             return {
               id,
               kind,
@@ -414,6 +425,7 @@ function normalizeTextBoxes(textBoxes = {}) {
               text: String(safeBox.text ?? "Text box").slice(0, maxTextOverrideLength),
               fontSize: normalizeFontSize(safeBox.fontSize || "36"),
               textColor: normalizeHexColor(safeBox.textColor, "#f8fafc"),
+              ...Object.fromEntries(Object.entries(mediaFields).filter(([, value]) => value !== "" && value !== 0 && value !== false)),
             };
           })
           .filter((box) => box.id),
@@ -810,6 +822,7 @@ export function createPresentationModeController(dependencies = {}) {
     redoStack: [],
     undoStack: [],
   };
+  const localMediaAttachments = new Map();
   let root = null;
   let stageResizeObserver = null;
   let stageMetricsFrame = 0;
@@ -1270,6 +1283,24 @@ export function createPresentationModeController(dependencies = {}) {
     };
   }
 
+  function hydrateTextBoxesForRender(textBoxes = []) {
+    return (Array.isArray(textBoxes) ? textBoxes : []).map((box) => {
+      if (!localMediaKinds.has(String(box.kind || "").trim())) {
+        return box;
+      }
+      const attachment = localMediaAttachments.get(String(box.mediaId || "").trim());
+      if (!attachment?.url) {
+        return box;
+      }
+      return {
+        ...box,
+        mediaSrc: attachment.url,
+        mediaName: box.mediaName || attachment.name,
+        mediaMimeType: box.mediaMimeType || attachment.mimeType,
+      };
+    });
+  }
+
   function applySlideStyle(deck, slide, fallbackStyle = {}) {
     const style = normalizePresentationSlideStyle(deck.slideStyles?.[slide.id], fallbackStyle);
     return {
@@ -1277,7 +1308,7 @@ export function createPresentationModeController(dependencies = {}) {
       accentColor: style.accentColor,
       style,
       shapes: deck.shapes?.[slide.id] || [],
-      textBoxes: deck.textBoxes?.[slide.id] || [],
+      textBoxes: hydrateTextBoxesForRender(deck.textBoxes?.[slide.id] || []),
       textFieldStyles: deck.textFieldStyles?.[slide.id] || {},
       textOverrides: deck.textOverrides?.[slide.id] || {},
     };
@@ -2099,6 +2130,18 @@ export function createPresentationModeController(dependencies = {}) {
     const id = `${kind === "text" ? "textbox" : kind}-${Date.now()}`;
     const field = getTextBoxField(id);
     const updatedAt = new Date().toISOString();
+    const mediaFields =
+      isMedia
+        ? Object.fromEntries(
+            Object.entries({
+              mediaId: String(options.mediaId || "").trim(),
+              mediaLocal: Boolean(options.mediaLocal),
+              mediaMimeType: String(options.mediaMimeType || "").trim(),
+              mediaName: String(options.mediaName || "").trim(),
+              mediaSize: Math.max(0, Number(options.mediaSize) || 0),
+            }).filter(([, value]) => value !== "" && value !== 0 && value !== false)
+          )
+        : {};
     writeDeckForDate(state.dateValue, (deck) => ({
       ...deck,
       textBoxes: normalizeTextBoxes({
@@ -2115,6 +2158,7 @@ export function createPresentationModeController(dependencies = {}) {
             height,
             fontSize,
             textColor,
+            ...mediaFields,
           },
         ],
       }),
@@ -2143,18 +2187,86 @@ export function createPresentationModeController(dependencies = {}) {
     focusActiveTextElement();
   }
 
-  function addMediaTextBox(kind = "image") {
+  function getLocalMediaFileLabel(file = null, safeKind = "image") {
+    return String(file?.name || (safeKind === "video" ? "Local video" : "Local image")).trim();
+  }
+
+  function cacheLocalMediaAttachment(mediaId = "", file = null, safeKind = "image") {
+    const id = String(mediaId || "").trim();
+    const urlApi = win?.URL || globalThis.URL;
+    if (!id || !file || typeof urlApi?.createObjectURL !== "function") {
+      return "";
+    }
+    const previous = localMediaAttachments.get(id);
+    if (previous?.url && typeof urlApi.revokeObjectURL === "function") {
+      try {
+        urlApi.revokeObjectURL(previous.url);
+      } catch {
+        // Best-effort cleanup only; local object URLs are browser-owned.
+      }
+    }
+    const url = urlApi.createObjectURL(file);
+    localMediaAttachments.set(id, {
+      kind: safeKind,
+      mimeType: String(file.type || "").trim(),
+      name: getLocalMediaFileLabel(file, safeKind),
+      size: Math.max(0, Number(file.size) || 0),
+      url,
+    });
+    return url;
+  }
+
+  function addLocalMediaTextBox(kind = "image", file = null) {
     const safeKind = kind === "video" ? "video" : "image";
+    if (!file) {
+      return;
+    }
+    const mediaName = getLocalMediaFileLabel(file, safeKind);
+    const mediaId = `${safeKind}-media-${Date.now()}`;
+    cacheLocalMediaAttachment(mediaId, file, safeKind);
     addTextBox({
       kind: safeKind,
-      text: safeKind === "video" ? "Video Placeholder" : "Image Placeholder",
-      width: 34,
-      height: 22,
-      fontSize: "32",
+      text: mediaName,
+      width: safeKind === "video" ? 46 : 40,
+      height: safeKind === "video" ? 30 : 30,
+      fontSize: "24",
       textColor: "#f8fafc",
-      x: 34,
-      y: 34,
+      x: safeKind === "video" ? 28 : 30,
+      y: 30,
+      mediaId,
+      mediaLocal: true,
+      mediaMimeType: String(file.type || "").trim(),
+      mediaName,
+      mediaSize: Math.max(0, Number(file.size) || 0),
     });
+  }
+
+  function openLocalMediaPicker(kind = "image") {
+    const safeKind = kind === "video" ? "video" : "image";
+    if (state.presenting || !documentRef?.createElement) {
+      return;
+    }
+    const input = documentRef.createElement("input");
+    input.type = "file";
+    input.accept = safeKind === "video" ? "video/*" : "image/*";
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+    input.style.top = "-9999px";
+    input.setAttribute("aria-hidden", "true");
+    input.addEventListener(
+      "change",
+      () => {
+        const file = input.files?.[0] || null;
+        input.remove?.();
+        if (!file) {
+          return;
+        }
+        addLocalMediaTextBox(safeKind, file);
+      },
+      { once: true }
+    );
+    documentRef.body?.appendChild?.(input);
+    input.click?.();
   }
 
   function addSymbolTextBox(symbol = "") {
@@ -3518,7 +3630,7 @@ export function createPresentationModeController(dependencies = {}) {
       return;
     }
     if (safeAction === "image" || safeAction === "video") {
-      addMediaTextBox(safeAction);
+      openLocalMediaPicker(safeAction);
       return;
     }
     if (safeAction.startsWith("shape:")) {
@@ -3635,8 +3747,8 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const mediaButton = event.target.closest("[data-presentation-add-media]");
     if (mediaButton) {
-      addMediaTextBox(mediaButton.dataset.presentationAddMedia);
       mediaButton.closest?.("details")?.removeAttribute?.("open");
+      openLocalMediaPicker(mediaButton.dataset.presentationAddMedia);
       return;
     }
     const shapeButton = event.target.closest("[data-presentation-add-shape]");

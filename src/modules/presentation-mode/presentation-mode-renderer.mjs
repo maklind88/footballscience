@@ -67,8 +67,8 @@ const shapeOptions = [
   { type: "star", label: "Star" },
 ];
 const mediaInsertOptions = [
-  { kind: "image", label: "Image", description: "Movable image placeholder" },
-  { kind: "video", label: "Video", description: "Movable video placeholder" },
+  { kind: "image", label: "Image", description: "Choose local image" },
+  { kind: "video", label: "Video", description: "Choose local video" },
 ];
 const slideTemplateOptions = [
   {
@@ -907,6 +907,8 @@ export function createPresentationModeRenderer(options = {}) {
           .map((box) => {
             const field = `textbox.${box.id}.text`;
             const kind = ["symbol", "image", "video"].includes(box.kind) ? box.kind : "text";
+            const mediaSrc = String(box.mediaSrc || "").trim();
+            const mediaName = String(box.mediaName || box.text || (kind === "video" ? "Local video" : "Local image")).trim();
             const isActive =
               model.activeTextTarget?.slideId === slide.id && model.activeTextTarget?.textBoxId === box.id;
             const fallbackStyle = {
@@ -918,18 +920,35 @@ export function createPresentationModeRenderer(options = {}) {
               isFixedObject
                 ? `data-presentation-drag-text-box="${escapeHtml(box.id)}" data-presentation-slide-id="${escapeHtml(slide.id)}"`
                 : "";
-            const textBox = renderEditableTextArea(
-              model,
-              slide,
-              field,
-              box.text ?? "Text box",
-              `class="presentation-free-text-box" data-presentation-text-box-id="${escapeHtml(box.id)}" ${objectDragAttributes}`,
-              {
-                label: "Text box",
-                objectFrame: false,
-                style: fallbackStyle,
-              }
-            );
+            const textBox =
+              (kind === "image" || kind === "video") && mediaSrc
+                ? `
+                  <figure
+                    class="presentation-local-media-box is-${escapeHtml(kind)}"
+                    data-presentation-drag-text-box="${escapeHtml(box.id)}"
+                    data-presentation-slide-id="${escapeHtml(slide.id)}"
+                    aria-label="${escapeHtml(mediaName)}"
+                  >
+                    ${
+                      kind === "video"
+                        ? `<video class="presentation-local-media-object" src="${escapeHtml(mediaSrc)}" controls preload="metadata" playsinline title="${escapeHtml(mediaName)}"></video>`
+                        : `<img class="presentation-local-media-object" src="${escapeHtml(mediaSrc)}" alt="${escapeHtml(mediaName)}" />`
+                    }
+                    <figcaption>${escapeHtml(mediaName)}</figcaption>
+                  </figure>
+                `
+                : renderEditableTextArea(
+                    model,
+                    slide,
+                    field,
+                    box.text ?? "Text box",
+                    `class="presentation-free-text-box" data-presentation-text-box-id="${escapeHtml(box.id)}" ${objectDragAttributes}`,
+                    {
+                      label: "Text box",
+                      objectFrame: false,
+                      style: fallbackStyle,
+                    }
+                  );
             return `
               <div
                 class="presentation-free-text-box-shell is-${escapeHtml(kind)}${isActive ? " is-selected" : ""}"

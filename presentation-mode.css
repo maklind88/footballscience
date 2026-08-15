@@ -938,7 +938,9 @@ body.is-presentation-mode-open {
   position: relative;
   display: inline-flex;
   align-items: center;
-  flex: 0 0 auto;
+  flex: 0 0 11.35rem;
+  width: 11.35rem;
+  min-width: 11.35rem;
 }
 
 .presentation-date-picker-button {
@@ -1029,10 +1031,20 @@ body.is-presentation-mode-open {
 }
 
 .presentation-pass-controls input {
-  width: 9.8rem;
-  padding-right: 2.6rem;
+  width: 10.95rem;
+  padding-right: 2.72rem;
   accent-color: #f8fafc;
   color-scheme: dark;
+  font-variant-numeric: tabular-nums;
+}
+
+.presentation-date-control input[type="date"] {
+  width: 100%;
+  min-width: 0;
+}
+
+.presentation-date-control input[type="date"]::-webkit-datetime-edit {
+  padding: 0;
 }
 
 .presentation-pass-controls input[type="date"]::-webkit-calendar-picker-indicator {

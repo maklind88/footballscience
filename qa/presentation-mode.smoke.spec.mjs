@@ -234,7 +234,9 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     return {
       borderColor: button ? getComputedStyle(button).borderTopColor : "",
       buttonDisplay: button ? getComputedStyle(button).display : "",
+      controlWidth: control.getBoundingClientRect().width,
       inputPaddingRight: input ? getComputedStyle(input).paddingRight : "",
+      inputWidth: input ? input.getBoundingClientRect().width : 0,
       iconBorderColor: icon?.borderTopColor || "",
       iconDisplay: icon?.display || "",
       width: button ? getComputedStyle(button).width : "",
@@ -244,6 +246,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   expect(dateIconStyle.iconDisplay).toBe("block");
   expect(dateIconStyle.borderColor).not.toBe("rgba(0, 0, 0, 0)");
   expect(dateIconStyle.iconBorderColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(dateIconStyle.controlWidth).toBeGreaterThanOrEqual(175);
+  expect(dateIconStyle.inputWidth).toBeGreaterThanOrEqual(175);
   expect(dateIconStyle.inputPaddingRight).not.toBe("0px");
   expect(dateIconStyle.width).not.toBe("auto");
   const datePickerButton = presentation.locator("[data-presentation-date-picker]");

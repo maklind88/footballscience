@@ -1750,6 +1750,14 @@ body.is-presentation-mode-open {
     var(--presentation-slide-bg, #08120f);
   box-shadow: 0 30px 80px rgba(0, 0, 0, .44);
   color: var(--presentation-slide-text, #f8fafc);
+  --presentation-panel-bg: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 7%, var(--presentation-slide-bg, #08120f) 92%);
+  --presentation-panel-bg-soft: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 4%, var(--presentation-slide-bg, #08120f) 95%);
+  --presentation-panel-bg-strong: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 10%, var(--presentation-slide-bg, #08120f) 88%);
+  --presentation-panel-border: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 18%, transparent);
+  --presentation-panel-border-strong: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 26%, transparent);
+  --presentation-panel-text: var(--presentation-slide-text, #f8fafc);
+  --presentation-panel-muted: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 64%, transparent);
+  --presentation-panel-muted-strong: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 74%, transparent);
 }
 
 .presentation-mode-shell.is-shape-tool-active .presentation-slide {
@@ -2419,9 +2427,10 @@ body.is-presentation-text-field-resizing {
 .presentation-detail-block,
 .presentation-player-panel,
 .presentation-medical-overview {
-  border: 1px solid rgba(255, 255, 255, .13);
+  border: 1px solid var(--presentation-panel-border, rgba(255, 255, 255, .13));
   border-radius: 8px;
-  background: rgba(255, 255, 255, .08);
+  color: var(--presentation-panel-text, var(--presentation-slide-text, #f8fafc));
+  background: var(--presentation-panel-bg, rgba(255, 255, 255, .08));
 }
 
 .presentation-info-sheet {
@@ -2578,7 +2587,7 @@ body.is-presentation-text-field-resizing {
 
 .presentation-match-squad-layout .presentation-section-heading p,
 .presentation-lineup-layout .presentation-section-heading p {
-  color: rgba(248, 250, 252, .68);
+  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 68%, transparent);
   font-size: clamp(.78rem, 1.05cqw, 1.1rem);
   font-weight: 900;
 }
@@ -2611,11 +2620,11 @@ body.is-presentation-text-field-resizing {
   grid-template-rows: minmax(0, 1fr) auto;
   gap: .42rem;
   padding: clamp(.42rem, .72vw, .72rem);
-  border: 1px solid rgba(255, 255, 255, .14);
+  border: 1px solid var(--presentation-panel-border, rgba(255, 255, 255, .14));
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .045)),
-    rgba(8, 15, 20, .54);
+    linear-gradient(180deg, color-mix(in srgb, var(--presentation-panel-text, #f8fafc) 8%, transparent), transparent),
+    var(--presentation-panel-bg, rgba(8, 15, 20, .54));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .09);
 }
 
@@ -2662,7 +2671,7 @@ body.is-presentation-text-field-resizing {
 .presentation-match-squad-card strong {
   min-width: 0;
   overflow: hidden;
-  color: var(--presentation-slide-text, #f8fafc);
+  color: var(--presentation-panel-text, var(--presentation-slide-text, #f8fafc));
   font-size: clamp(.82rem, 1.25cqw, 1.18rem);
   line-height: 1.02;
   text-overflow: ellipsis;
@@ -2672,7 +2681,7 @@ body.is-presentation-text-field-resizing {
 .presentation-match-squad-card small {
   min-width: 0;
   overflow: hidden;
-  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 62%, transparent);
+  color: var(--presentation-panel-muted, color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 62%, transparent));
   font-size: clamp(.58rem, .82cqw, .84rem);
   font-weight: 850;
   line-height: 1;
@@ -2684,7 +2693,7 @@ body.is-presentation-text-field-resizing {
   align-self: start;
   margin: 0;
   padding: 1rem;
-  border: 1px dashed rgba(255, 255, 255, .2);
+  border: 1px dashed var(--presentation-panel-border-strong, rgba(255, 255, 255, .2));
   border-radius: 8px;
   color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 66%, transparent);
   font-weight: 850;
@@ -2697,13 +2706,14 @@ body.is-presentation-text-field-resizing {
   grid-template-rows: auto minmax(0, 1fr);
   gap: .48rem;
   padding: .62rem;
-  border: 1px solid rgba(255, 255, 255, .14);
+  border: 1px solid var(--presentation-panel-border, rgba(255, 255, 255, .14));
   border-radius: 8px;
-  background: rgba(8, 15, 20, .48);
+  color: var(--presentation-panel-text, var(--presentation-slide-text, #f8fafc));
+  background: var(--presentation-panel-bg, rgba(8, 15, 20, .48));
 }
 
 .presentation-match-squad-selector > span {
-  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 62%, transparent);
+  color: var(--presentation-panel-muted, color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 62%, transparent));
   font-size: .68rem;
   font-weight: 950;
   text-transform: uppercase;
@@ -2724,15 +2734,16 @@ body.is-presentation-text-field-resizing {
   align-items: center;
   gap: .42rem;
   padding: .34rem;
-  border: 1px solid rgba(255, 255, 255, .1);
+  border: 1px solid var(--presentation-panel-border, rgba(255, 255, 255, .1));
   border-radius: 8px;
-  background: rgba(255, 255, 255, .06);
+  color: var(--presentation-panel-text, var(--presentation-slide-text, #f8fafc));
+  background: var(--presentation-panel-bg-soft, rgba(255, 255, 255, .06));
   cursor: pointer;
 }
 
 .presentation-match-squad-option:has(input:checked) {
   border-color: color-mix(in srgb, var(--presentation-accent, #22c55e) 62%, #ffffff);
-  background: color-mix(in srgb, var(--presentation-accent, #22c55e) 16%, rgba(255, 255, 255, .06));
+  background: color-mix(in srgb, var(--presentation-accent, #22c55e) 16%, var(--presentation-panel-bg-soft, rgba(255, 255, 255, .06)));
 }
 
 .presentation-match-squad-option input {
@@ -2769,13 +2780,13 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-match-squad-option strong {
-  color: var(--presentation-slide-text, #f8fafc);
+  color: var(--presentation-panel-text, var(--presentation-slide-text, #f8fafc));
   font-size: .76rem;
   line-height: 1;
 }
 
 .presentation-match-squad-option small {
-  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 56%, transparent);
+  color: var(--presentation-panel-muted, color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 56%, transparent));
   font-size: .6rem;
   font-weight: 850;
 }
@@ -2805,11 +2816,11 @@ body.is-presentation-text-field-resizing {
 
 .presentation-lineup-controls select {
   min-width: 8.4rem;
-  border: 1px solid rgba(255, 255, 255, .14);
+  border: 1px solid var(--presentation-panel-border, rgba(255, 255, 255, .14));
   border-radius: 8px;
   padding: .54rem .68rem;
-  color: var(--presentation-slide-text, #f8fafc);
-  background: rgba(255, 255, 255, .08);
+  color: var(--presentation-panel-text, var(--presentation-slide-text, #f8fafc));
+  background: var(--presentation-panel-bg, rgba(255, 255, 255, .08));
   font: inherit;
   text-transform: none;
 }
@@ -3048,14 +3059,14 @@ body.is-presentation-text-field-resizing {
 .presentation-section-heading h2 {
   max-width: 18ch;
   margin: 0;
-  color: #ffffff;
+  color: var(--presentation-slide-text, #ffffff);
   font-size: clamp(1.8rem, 4.55cqw, 4.9rem);
   line-height: .93;
 }
 
 .presentation-section-heading p {
   margin: 0;
-  color: rgba(248, 250, 252, .68);
+  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 68%, transparent);
   font-weight: 850;
   line-height: 1.12;
 }
@@ -3088,7 +3099,7 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-overview-metric span {
-  color: rgba(248, 250, 252, .6);
+  color: var(--presentation-panel-muted, rgba(248, 250, 252, .6));
   font-size: .72rem;
   font-weight: 950;
   text-transform: uppercase;
@@ -3098,7 +3109,7 @@ body.is-presentation-text-field-resizing {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
-  color: #ffffff;
+  color: var(--presentation-panel-text, #ffffff);
   font-size: clamp(.84rem, 1.42cqw, 1.42rem);
   line-height: 1.05;
 }
@@ -3138,8 +3149,8 @@ body.is-presentation-text-field-resizing {
   align-items: start;
   padding: clamp(.54rem, .8vw, .72rem) clamp(.7rem, 1vw, 1rem);
   background:
-    linear-gradient(90deg, color-mix(in srgb, var(--presentation-accent, #38bdf8) 18%, transparent), rgba(255, 255, 255, .07) 50%),
-    rgba(255, 255, 255, .08);
+    linear-gradient(90deg, color-mix(in srgb, var(--presentation-accent, #38bdf8) 16%, var(--presentation-panel-bg, rgba(255, 255, 255, .08)) 84%), var(--presentation-panel-bg-soft, rgba(255, 255, 255, .06)) 58%),
+    var(--presentation-panel-bg, rgba(255, 255, 255, .08));
 }
 
 .presentation-day-overview span {
@@ -3152,7 +3163,7 @@ body.is-presentation-text-field-resizing {
 
 .presentation-day-overview strong {
   min-width: 0;
-  color: #ffffff;
+  color: var(--presentation-panel-text, #ffffff);
   font-size: clamp(.84rem, 1.28cqw, 1.34rem);
   line-height: 1.04;
   overflow-wrap: anywhere;
@@ -3182,7 +3193,7 @@ body.is-presentation-text-field-resizing {
   min-width: 0;
   display: inline;
   flex: 1 1 11rem;
-  color: rgba(248, 250, 252, .74);
+  color: var(--presentation-panel-muted-strong, rgba(248, 250, 252, .74));
   font-size: clamp(.62rem, .9cqw, .94rem);
   font-style: normal;
   font-weight: 850;
@@ -3209,7 +3220,7 @@ body.is-presentation-text-field-resizing {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  color: rgba(248, 250, 252, .76);
+  color: var(--presentation-panel-muted-strong, rgba(248, 250, 252, .76));
   font-size: clamp(.68rem, 1.02cqw, .98rem);
   font-weight: 800;
   line-height: 1.16;
@@ -3260,8 +3271,8 @@ body.is-presentation-text-field-resizing {
   gap: .34rem;
   background:
     radial-gradient(circle at 70% 16%, var(--presentation-load-glow, rgba(34, 197, 94, .3)), transparent 56%),
-    linear-gradient(150deg, var(--presentation-load-soft, rgba(34, 197, 94, .16)), rgba(255, 255, 255, .055) 68%),
-    rgba(10, 18, 24, .72);
+    linear-gradient(150deg, var(--presentation-load-soft, rgba(34, 197, 94, .16)), var(--presentation-panel-bg-soft, rgba(255, 255, 255, .055)) 68%),
+    var(--presentation-panel-bg, rgba(10, 18, 24, .72));
   border-color: var(--presentation-load-color, rgba(74, 222, 128, .42));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, .12),
@@ -3358,7 +3369,7 @@ body.is-presentation-text-field-resizing {
 .presentation-block-flow span,
 .presentation-detail-block span,
 .presentation-player-panel header span {
-  color: rgba(248, 250, 252, .58);
+  color: var(--presentation-panel-muted, rgba(248, 250, 252, .58));
   font-size: .68rem;
   font-weight: 950;
   text-transform: uppercase;
@@ -3368,14 +3379,14 @@ body.is-presentation-text-field-resizing {
   min-width: 0;
   align-self: center;
   overflow-wrap: anywhere;
-  color: #ffffff;
+  color: var(--presentation-panel-text, #ffffff);
   font-size: .98rem;
   line-height: 1.06;
   text-wrap: balance;
 }
 
 .presentation-block-flow small {
-  color: rgba(248, 250, 252, .62);
+  color: var(--presentation-panel-muted, rgba(248, 250, 252, .62));
   font-size: .76rem;
   font-weight: 780;
   line-height: 1.22;
@@ -3388,9 +3399,7 @@ body.is-presentation-text-field-resizing {
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   padding: clamp(.58rem, .82vw, .82rem);
-  background:
-    linear-gradient(180deg, rgba(14, 24, 32, .84), rgba(10, 18, 24, .74)),
-    rgba(255, 255, 255, .07);
+  background: var(--presentation-panel-bg-strong, rgba(255, 255, 255, .07));
 }
 
 .presentation-medical-list {
@@ -3407,7 +3416,7 @@ body.is-presentation-text-field-resizing {
 
 .presentation-medical-list p {
   margin: 0;
-  color: rgba(248, 250, 252, .58);
+  color: var(--presentation-panel-muted, rgba(248, 250, 252, .58));
   font-size: .8rem;
   font-weight: 800;
   line-height: 1.25;
@@ -3421,9 +3430,10 @@ body.is-presentation-text-field-resizing {
   gap: clamp(.32rem, .48vw, .58rem);
   min-height: 0;
   padding: clamp(.12rem, .24vh, .3rem) clamp(.24rem, .34vw, .42rem);
-  border: 1px solid rgba(255, 255, 255, .1);
+  border: 1px solid var(--presentation-panel-border, rgba(255, 255, 255, .1));
   border-radius: 8px;
-  background: rgba(255, 255, 255, .07);
+  color: var(--presentation-panel-text, #f8fafc);
+  background: color-mix(in srgb, var(--presentation-panel-text, #f8fafc) 5%, var(--presentation-panel-bg, rgba(255, 255, 255, .07)) 95%);
 }
 
 .presentation-medical-avatar {
@@ -3449,7 +3459,7 @@ body.is-presentation-text-field-resizing {
 .presentation-medical-player strong {
   min-width: 0;
   overflow: hidden;
-  color: #ffffff;
+  color: var(--presentation-panel-text, #ffffff);
   font-size: clamp(.72rem, 1.48vh, 1.06rem);
   line-height: 1.05;
   text-overflow: ellipsis;
@@ -3484,8 +3494,8 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-medical-player.is-unset > span:last-child {
-  color: #e2e8f0;
-  background: rgba(148, 163, 184, .24);
+  color: var(--presentation-panel-text, #e2e8f0);
+  background: color-mix(in srgb, var(--presentation-panel-text, #e2e8f0) 12%, transparent);
 }
 
 .presentation-block-layout {
@@ -3514,9 +3524,9 @@ body.is-presentation-text-field-resizing {
   place-items: center;
   overflow: hidden;
   padding: .42rem;
-  border: 1px solid rgba(255, 255, 255, .16);
+  border: 1px solid var(--presentation-panel-border, rgba(255, 255, 255, .16));
   border-radius: 8px;
-  background: rgba(255, 255, 255, .07);
+  background: var(--presentation-panel-bg-soft, rgba(255, 255, 255, .07));
 }
 
 .presentation-block-visual .session-visual-board {
@@ -3581,7 +3591,7 @@ body.is-presentation-text-field-resizing {
 .presentation-detail-text {
   margin: 0;
   padding: 0;
-  color: #ffffff;
+  color: var(--presentation-panel-text, #ffffff);
   font-size: .95rem;
   font-weight: 780;
   line-height: 1.36;
@@ -3621,7 +3631,7 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-player-panel header strong {
-  color: #fff;
+  color: var(--presentation-panel-text, #fff);
   font-size: .82rem;
   white-space: nowrap;
 }
@@ -3666,7 +3676,7 @@ body.is-presentation-text-field-resizing {
 
 .presentation-player-list p {
   margin: 0;
-  color: rgba(248, 250, 252, .56);
+  color: var(--presentation-panel-muted, rgba(248, 250, 252, .56));
   font-weight: 800;
   line-height: 1.25;
 }
@@ -3677,9 +3687,9 @@ body.is-presentation-text-field-resizing {
   gap: .06rem;
   padding: .32rem .38rem;
   border-radius: 8px;
-  color: #f8fafc;
-  background: rgba(255, 255, 255, .08);
-  border: 1px solid rgba(255, 255, 255, .12);
+  color: var(--presentation-panel-text, #f8fafc);
+  background: var(--presentation-panel-bg-soft, rgba(255, 255, 255, .08));
+  border: 1px solid var(--presentation-panel-border, rgba(255, 255, 255, .12));
 }
 
 .presentation-player-chip.has-color {
@@ -3696,8 +3706,8 @@ body.is-presentation-text-field-resizing {
   gap: .02rem;
   padding: .22rem .32rem;
   border-radius: 6px;
-  color: rgba(248, 250, 252, .7);
-  background: rgba(148, 163, 184, .12);
+  color: var(--presentation-panel-muted-strong, rgba(248, 250, 252, .7));
+  background: color-mix(in srgb, var(--presentation-panel-text, #f8fafc) 8%, transparent);
 }
 
 .presentation-player-chip.is-low,
@@ -3732,22 +3742,28 @@ body.is-presentation-text-field-resizing {
   font-size: .5rem;
 }
 
-.presentation-section-heading h2,
+.presentation-section-heading h2 {
+  color: var(--presentation-slide-text, #ffffff);
+}
+
+.presentation-slide-footer,
+.presentation-section-heading p {
+  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 64%, transparent);
+}
+
 .presentation-overview-metric strong,
 .presentation-block-flow strong,
 .presentation-detail-text,
 .presentation-player-panel header strong,
 .presentation-medical-player strong {
-  color: var(--presentation-slide-text, #ffffff);
+  color: var(--presentation-panel-text, var(--presentation-slide-text, #ffffff));
 }
 
-.presentation-slide-footer,
-.presentation-section-heading p,
 .presentation-overview-metric span,
 .presentation-block-flow span,
 .presentation-detail-block span,
 .presentation-player-panel header span {
-  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 64%, transparent);
+  color: var(--presentation-panel-muted, color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 64%, transparent));
 }
 
 .presentation-slide-tabs {

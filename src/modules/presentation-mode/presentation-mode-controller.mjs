@@ -154,6 +154,47 @@ function normalizeDateValue(value = "", fallback = "") {
   return /^\d{4}-\d{2}-\d{2}$/.test(dateValue) ? dateValue : fallback;
 }
 
+function addDaysToDateValue(dateValue = "", dayOffset = 0) {
+  const normalizedDate = normalizeDateValue(dateValue, "");
+  if (!normalizedDate) {
+    return "";
+  }
+  const [year, month, day] = normalizedDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + Number(dayOffset || 0)));
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function getScheduleEventTitle(event = {}) {
+  return String(event?.title || event?.name || event?.label || "").replace(/\s+/g, " ").trim();
+}
+
+function getMatchOpponentLabel(event = {}) {
+  const explicitOpponent = String(event?.opponent || event?.opponentName || event?.awayTeam || "").replace(/\s+/g, " ").trim();
+  if (explicitOpponent) {
+    return explicitOpponent;
+  }
+  const title = getScheduleEventTitle(event)
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/^match\s*[:\-]?\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const vsMatch = title.match(/\bvs\.?\s+(.+)$/i);
+  if (vsMatch?.[1]) {
+    return vsMatch[1].trim();
+  }
+  if (/^(match|game|match day|gameday)$/i.test(title)) {
+    return "";
+  }
+  return title;
+}
+
+function isMatchScheduleEvent(event = {}) {
+  return String(event?.type || "").trim().toLowerCase() === "match";
+}
+
 function normalizeHexColor(value = "", fallback = "#38bdf8") {
   const color = String(value || "").trim();
   return /^#[0-9a-f]{6}$/i.test(color) ? color : fallback;
@@ -865,6 +906,34 @@ export function createPresentationModeController(dependencies = {}) {
     return normalizeDeck(readStore().decks?.[dateValue], dateValue);
   }
 
+  function getNextMatchContext(dateValue = state.dateValue) {
+    const startDate = normalizeDateValue(dateValue, getTodayValue());
+    if (!startDate) {
+      return null;
+    }
+    for (let dayOffset = 0; dayOffset <= 14; dayOffset += 1) {
+      const candidateDate = addDaysToDateValue(startDate, dayOffset);
+      if (!candidateDate) {
+        continue;
+      }
+      const rawEvents = getScheduleEventsForDate(candidateDate);
+      const events = Array.isArray(rawEvents) ? rawEvents : [];
+      const matchEvent = events.find(isMatchScheduleEvent);
+      if (!matchEvent) {
+        continue;
+      }
+      const matchDateValue = normalizeDateValue(matchEvent.date || matchEvent.dateValue || matchEvent.startDate, candidateDate);
+      return {
+        dateLabel: formatDateLabel(matchDateValue),
+        dateValue: matchDateValue,
+        event: matchEvent,
+        eventTitle: getScheduleEventTitle(matchEvent),
+        opponentLabel: getMatchOpponentLabel(matchEvent),
+      };
+    }
+    return null;
+  }
+
   function getHistoryDeckSnapshot(deck = {}, dateValue = "") {
     const { updatedAt, ...snapshot } = normalizeDeck(deck, dateValue);
     return clonePlain(snapshot);
@@ -1248,17 +1317,18 @@ export function createPresentationModeController(dependencies = {}) {
     return [...new Set(ids)];
   }
 
-  function buildMatchSquadModel(infoSlide = {}, playerOptions = []) {
+  function buildMatchSquadModel(infoSlide = {}, playerOptions = [], matchContext = null) {
     const selectedIds = normalizeMatchSquadPlayerIds(infoSlide.matchSquadPlayerIds);
     const playerById = new Map(playerOptions.map((player) => [player.id, player]));
     return {
+      matchContext,
       playerOptions,
       selectedIds,
       selectedPlayers: selectedIds.map((playerId) => playerById.get(playerId)).filter(Boolean),
     };
   }
 
-  function buildLineupModel(infoSlide = {}, playerOptions = [], deck = {}) {
+  function buildLineupModel(infoSlide = {}, playerOptions = [], deck = {}, matchContext = null) {
     const formation = getLineupFormationModel(infoSlide.formation);
     const assignments = normalizeLineupAssignments(infoSlide.lineup);
     const playerById = new Map(playerOptions.map((player) => [player.id, player]));
@@ -1272,6 +1342,7 @@ export function createPresentationModeController(dependencies = {}) {
       formationId: formation.id,
       formationLabel: formation.label,
       formationOptions: lineupFormationOptions.map((option) => ({ id: option.id, label: option.label })),
+      matchContext,
       playerOptions: filteredPlayerOptions,
       sourceLabel: matchSquadIds.length ? "Match Squad" : "Full squad",
       slots: formation.slots.map((slot) => {
@@ -1343,7 +1414,7 @@ export function createPresentationModeController(dependencies = {}) {
     };
   }
 
-  function buildSlides(deck, session, dateValue) {
+  function buildSlides(deck, session, dateValue, matchContext = null) {
     const blocks = Array.isArray(session?.blocks) ? session.blocks : [];
     const lineupPlayerOptions = getLineupPlayerOptions(dateValue);
     const naturalSlides = [
@@ -1366,13 +1437,13 @@ export function createPresentationModeController(dependencies = {}) {
         if (isLineupSlide) {
           return {
             ...baseSlide,
-            lineup: buildLineupModel(infoSlide, lineupPlayerOptions, deck),
+            lineup: buildLineupModel(infoSlide, lineupPlayerOptions, deck, matchContext),
           };
         }
         if (isMatchSquadSlide) {
           return {
             ...baseSlide,
-            matchSquad: buildMatchSquadModel(infoSlide, lineupPlayerOptions),
+            matchSquad: buildMatchSquadModel(infoSlide, lineupPlayerOptions, matchContext),
           };
         }
         return baseSlide;
@@ -1413,7 +1484,8 @@ export function createPresentationModeController(dependencies = {}) {
     const event = getScheduleMainEvent(events) || null;
     const periodization = getPeriodizationDay(dateValue) || {};
     const blocks = Array.isArray(session.blocks) ? session.blocks : [];
-    const slides = buildSlides(deck, session, dateValue);
+    const matchContext = getNextMatchContext(dateValue);
+    const slides = buildSlides(deck, session, dateValue, matchContext);
     state.slideIndex = Math.min(Math.max(0, state.slideIndex), Math.max(0, slides.length - 1));
     const title = String(session.title || getScheduledSessionTitle(dateValue) || event?.title || "Training Session").trim();
     const brand = getBrandModel();
@@ -1432,6 +1504,7 @@ export function createPresentationModeController(dependencies = {}) {
       infoSlideCount: deck.infoSlides.length,
       loadLabel: periodization.physicalLoad || event?.type || "Not set",
       medicalRecommendations: getMedicalRecommendationsForDate(dateValue),
+      matchContext,
       passTypeLabel: event?.title || periodization.sessionType || "Training briefing",
       passes: getResolvedPasses(dateValue),
       periodization,
@@ -2797,6 +2870,37 @@ export function createPresentationModeController(dependencies = {}) {
     element.style.height = `${bounds.height}%`;
   }
 
+  function clearPresentationPrintMode() {
+    documentRef?.body?.classList?.remove("is-presentation-printing");
+    root?.removeAttribute?.("data-presentation-print-slide-id");
+  }
+
+  function printActivePresentationSlide() {
+    if (typeof win?.print !== "function") {
+      return;
+    }
+    const activeSlide = buildModel().slides[state.slideIndex] || null;
+    if (!activeSlide) {
+      return;
+    }
+    root?.setAttribute?.("data-presentation-print-slide-id", activeSlide.id || "");
+    documentRef?.body?.classList?.add("is-presentation-printing");
+    const handleAfterPrint = () => {
+      clearPresentationPrintMode();
+      win?.removeEventListener?.("afterprint", handleAfterPrint);
+    };
+    win?.addEventListener?.("afterprint", handleAfterPrint);
+    try {
+      win.print();
+    } finally {
+      if (typeof win?.setTimeout === "function") {
+        win.setTimeout(handleAfterPrint, 1000);
+      } else {
+        handleAfterPrint();
+      }
+    }
+  }
+
   function requestNewSlideTitle(defaultTitle = "New Slide") {
     if (typeof win?.prompt !== "function") {
       return defaultTitle;
@@ -2808,12 +2912,24 @@ export function createPresentationModeController(dependencies = {}) {
     return String(requestedTitle || "").trim().slice(0, 90) || defaultTitle;
   }
 
+  function getNewSlideDefaultTitle(template = "bullets", templateDefaults = {}) {
+    const matchContext = getNextMatchContext(state.dateValue);
+    const opponentLabel = String(matchContext?.opponentLabel || "").trim();
+    if (opponentLabel && template === "match-squad") {
+      return `Roster vs ${opponentLabel}`;
+    }
+    if (opponentLabel && template === "starting-xi") {
+      return `Starting XI vs ${opponentLabel}`;
+    }
+    return templateDefaults.title || "New Slide";
+  }
+
   function addInfoSlide(sourceSlide = null, template = "bullets") {
     const templateDefaults = getSlideTemplateDefaults(template);
     const nextId = `info-${state.dateValue}-${Date.now()}`;
     const title = sourceSlide
       ? `${sourceSlide.title || "Team Information"} Copy`
-      : requestNewSlideTitle(templateDefaults.title || "New Slide");
+      : requestNewSlideTitle(getNewSlideDefaultTitle(templateDefaults.layout, templateDefaults));
     if (!title) {
       return;
     }
@@ -3766,6 +3882,10 @@ export function createPresentationModeController(dependencies = {}) {
     }
     if (event.target.closest("[data-presentation-start]")) {
       startFullscreen();
+      return;
+    }
+    if (event.target.closest("[data-presentation-print-match-squad]")) {
+      printActivePresentationSlide();
       return;
     }
     const datePickerButton = event.target.closest("[data-presentation-date-picker]");

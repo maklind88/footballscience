@@ -2670,6 +2670,25 @@ body.is-presentation-text-field-resizing {
   white-space: nowrap;
 }
 
+.presentation-match-squad-heading {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.presentation-match-squad-heading .presentation-section-heading {
+  min-width: 0;
+}
+
+.presentation-match-squad-print-button {
+  align-self: flex-start;
+  min-height: 2.55rem;
+  padding-inline: .95rem;
+  white-space: nowrap;
+}
+
 .presentation-match-squad-layout .presentation-section-heading p,
 .presentation-lineup-layout .presentation-section-heading p {
   color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 68%, transparent);
@@ -4541,5 +4560,88 @@ body.is-presentation-text-field-resizing {
 
   .presentation-theme-card-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@page {
+  size: landscape;
+  margin: 0;
+}
+
+@media print {
+  body.is-presentation-printing {
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.is-presentation-printing > *:not(#presentationModeRoot) {
+    display: none !important;
+  }
+
+  body.is-presentation-printing #presentationModeRoot,
+  body.is-presentation-printing .presentation-mode-root {
+    display: block !important;
+    position: static !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    min-height: 100vh !important;
+    background: #ffffff !important;
+  }
+
+  body.is-presentation-printing .presentation-mode-shell {
+    min-height: 100vh !important;
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.is-presentation-printing .presentation-control-bar,
+  body.is-presentation-printing .presentation-editor-strip,
+  body.is-presentation-printing .presentation-footer-nav,
+  body.is-presentation-printing .presentation-slide-tabs,
+  body.is-presentation-printing .presentation-match-squad-selector,
+  body.is-presentation-printing .presentation-match-squad-print-button,
+  body.is-presentation-printing .presentation-match-squad-summary {
+    display: none !important;
+  }
+
+  body.is-presentation-printing .presentation-stage {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    display: grid !important;
+    place-items: stretch !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  body.is-presentation-printing .presentation-slide {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body.is-presentation-printing .presentation-slide-body {
+    padding: clamp(1.4rem, 2.4vw, 2.5rem) clamp(1.8rem, 3.2vw, 3.4rem) !important;
+  }
+
+  body.is-presentation-printing .presentation-match-squad-layout {
+    padding-right: clamp(3rem, 5vw, 5rem) !important;
+  }
+
+  body.is-presentation-printing .presentation-match-squad-main {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  body.is-presentation-printing .presentation-match-squad-grid {
+    grid-template-columns: repeat(auto-fit, minmax(clamp(8rem, 12vw, 12.5rem), 1fr)) !important;
+    grid-auto-rows: minmax(clamp(8rem, 15vh, 11.5rem), 1fr) !important;
   }
 }

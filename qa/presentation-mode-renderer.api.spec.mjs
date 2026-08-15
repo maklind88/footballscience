@@ -637,6 +637,10 @@ test("Presentation Mode renders separate Match Squad and Starting XI custom slid
     getTodayValue: () => "2026-06-03",
     getPasses: () => [],
     getSessionForDate: () => ({ title: "Matchday", blocks: [] }),
+    getScheduleEventsForDate: (dateValue) =>
+      dateValue === "2026-06-04"
+        ? [{ date: "2026-06-04", title: "NCC vs Gotham", type: "match" }]
+        : [],
     getPeriodizationDay: () => ({}),
     getAvailabilityItems: () => [
       { player: { id: "p1", name: "Ada Keeper", number: "1", position: "Goalkeeper", photoUrl: "https://example.com/keeper.jpg" }, participation: 100 },
@@ -663,16 +667,22 @@ test("Presentation Mode renders separate Match Squad and Starting XI custom slid
 
   const matchSquadHtml = renderer.renderMatchSquadSlide(model, matchSquadSlide);
   expect(matchSquadHtml).toContain("presentation-match-squad-layout");
+  expect(matchSquadHtml).toContain("Roster vs Gotham");
+  expect(matchSquadHtml).toContain("Thursday, 4 June 2026");
+  expect(matchSquadHtml).toContain("data-presentation-print-match-squad");
   expect(matchSquadHtml).toContain("data-presentation-match-squad-player=\"p1\"");
   expect(matchSquadHtml).toContain("https://example.com/keeper.jpg");
   expect(matchSquadHtml).toContain("#1 Keeper");
   expect(matchSquadHtml).toContain("2 players selected");
   const presentingMatchSquadHtml = renderer.renderMatchSquadSlide({ ...model, presenting: true }, matchSquadSlide);
   expect(presentingMatchSquadHtml).not.toContain("presentation-match-squad-selector");
+  expect(presentingMatchSquadHtml).not.toContain("data-presentation-print-match-squad");
   expect(presentingMatchSquadHtml).not.toContain("players selected");
 
   const lineupHtml = renderer.renderLineupSlide(model, lineupSlide);
   expect(lineupHtml).toContain("presentation-lineup-layout");
+  expect(lineupHtml).toContain("Starting XI vs Gotham");
+  expect(lineupHtml).toContain("Thursday, 4 June 2026");
   expect(lineupHtml).toContain("presentation-lineup-pitch");
   expect(lineupHtml).toContain("data-presentation-lineup-formation");
   expect(lineupHtml).toContain("data-presentation-lineup-player");

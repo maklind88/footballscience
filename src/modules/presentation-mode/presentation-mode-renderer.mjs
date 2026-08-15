@@ -1032,6 +1032,7 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderSlideFrame(model = {}, slide = {}, body = "") {
     const style = normalizePresentationSlideStyle(slide.style, { accentColor: slide.accentColor || model.accentColor });
+    const dateLabel = slide.dateLabel || model.dateLabel;
     return `
       <section
         class="presentation-slide presentation-slide-${escapeHtml(slide.type || "blank")} is-theme-${escapeHtml(style.theme)}"
@@ -1045,7 +1046,7 @@ export function createPresentationModeRenderer(options = {}) {
         ${renderSlideTextBoxes(model, slide)}
         <footer class="presentation-slide-footer">
           ${renderEditableElement(model, slide, "footer.teamName", model.teamName, "span", "", { label: "Footer team name" })}
-          ${renderEditableElement(model, slide, "footer.dateLabel", model.dateLabel, "strong", "", { label: "Footer date" })}
+          ${renderEditableElement(model, slide, "footer.dateLabel", dateLabel, "strong", "", { label: "Footer date" })}
         </footer>
       </section>
     `;
@@ -1201,6 +1202,30 @@ export function createPresentationModeRenderer(options = {}) {
     return `${number ? `#${number} ` : ""}${lastName}`;
   }
 
+  function getMatchContextOpponentLabel(matchContext = {}) {
+    return String(matchContext?.opponentLabel || matchContext?.eventTitle || "").trim();
+  }
+
+  function getMatchSquadTitle(infoSlide = {}, squad = {}) {
+    const title = String(infoSlide.title || "").trim();
+    const opponentLabel = getMatchContextOpponentLabel(squad.matchContext);
+    const isGenericTitle = !title || /^match squad$/i.test(title) || /^roster(?:\s+vs\b.*)?$/i.test(title);
+    if (opponentLabel && isGenericTitle) {
+      return `Roster vs ${opponentLabel}`;
+    }
+    return title || "Roster";
+  }
+
+  function getLineupTitle(infoSlide = {}, lineup = {}) {
+    const title = String(infoSlide.title || "").trim();
+    const opponentLabel = getMatchContextOpponentLabel(lineup.matchContext);
+    const isGenericTitle = !title || /^starting xi(?:\s+vs\b.*)?$/i.test(title);
+    if (opponentLabel && isGenericTitle) {
+      return `Starting XI vs ${opponentLabel}`;
+    }
+    return title || "Starting XI";
+  }
+
   function renderLineupAvatar(player = {}, className = "presentation-lineup-avatar") {
     const photoUrl = String(player.photoUrl || player.avatarUrl || player.imageUrl || "").trim();
     const label = String(player.name || "Player").trim();
@@ -1260,6 +1285,7 @@ export function createPresentationModeRenderer(options = {}) {
       type: "match-squad",
       label: slide.label,
       accentColor,
+      dateLabel: squad.matchContext?.dateLabel || slide.dateLabel,
       style: slide.style,
       shapes: slide.shapes,
       textBoxes: slide.textBoxes,
@@ -1280,15 +1306,21 @@ export function createPresentationModeRenderer(options = {}) {
       `;
     const selectedSummaryHtml = model.presenting
       ? ""
-      : `<p>${escapeHtml(selectedPlayers.length ? `${selectedPlayers.length} players selected` : "Select the match squad")}</p>`;
+      : `<p class="presentation-match-squad-summary">${escapeHtml(selectedPlayers.length ? `${selectedPlayers.length} players selected` : "Select the match squad")}</p>`;
+    const printButtonHtml = model.presenting
+      ? ""
+      : `<button type="button" class="presentation-tool-button presentation-match-squad-print-button" data-presentation-print-match-squad title="Print roster">Print</button>`;
     return renderSlideFrame(
       model,
       frameSlide,
       `
         <section class="presentation-match-squad-layout${model.presenting ? " is-play-mode" : ""}">
-          <div class="presentation-section-heading">
-            ${renderEditableElement(model, frameSlide, "matchSquad.title", infoSlide.title || "Match Squad", "h2", "", { label: "Match squad title" })}
-            ${selectedSummaryHtml}
+          <div class="presentation-match-squad-heading">
+            <div class="presentation-section-heading">
+              ${renderEditableElement(model, frameSlide, "matchSquad.title", getMatchSquadTitle(infoSlide, squad), "h2", "", { label: "Match squad title" })}
+              ${selectedSummaryHtml}
+            </div>
+            ${printButtonHtml}
           </div>
           <div class="presentation-match-squad-main">
             <div class="presentation-match-squad-grid">
@@ -1356,6 +1388,7 @@ export function createPresentationModeRenderer(options = {}) {
       type: "lineup",
       label: slide.label,
       accentColor,
+      dateLabel: lineup.matchContext?.dateLabel || slide.dateLabel,
       style: slide.style,
       shapes: slide.shapes,
       textBoxes: slide.textBoxes,
@@ -1386,7 +1419,7 @@ export function createPresentationModeRenderer(options = {}) {
         <section class="presentation-lineup-layout">
           <div class="presentation-lineup-heading">
             <div class="presentation-section-heading">
-              ${renderEditableElement(model, frameSlide, "lineup.title", infoSlide.title || "Starting XI", "h2", "", { label: "Starting XI title" })}
+              ${renderEditableElement(model, frameSlide, "lineup.title", getLineupTitle(infoSlide, lineup), "h2", "", { label: "Starting XI title" })}
             </div>
             ${controlsHtml}
           </div>

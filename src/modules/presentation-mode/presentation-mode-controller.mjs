@@ -1413,9 +1413,34 @@ export function createPresentationModeController(dependencies = {}) {
         : slideWidth <= 980 || slideHeight <= 552
           ? "compact"
           : "standard";
+    const halfPitchAspect = 68 / 52.5;
     const lineupPitchHeightRatio =
       state.presenting && displaySize === "large" ? 0.86 : state.presenting && displaySize === "compact" ? 0.74 : 0.78;
-    const lineupPitchWidth = Math.min(slideWidth * 0.88, slideHeight * lineupPitchHeightRatio * (68 / 52.5));
+    let lineupPitchHeight = slideHeight * lineupPitchHeightRatio;
+    const activeSlide = stage.querySelector(".presentation-slide");
+    const activeLineupLayout = activeSlide?.querySelector(".presentation-lineup-layout");
+    if (state.presenting && activeSlide && activeLineupLayout) {
+      const slideBody = activeSlide.querySelector(".presentation-slide-body");
+      const heading = activeLineupLayout.querySelector(".presentation-lineup-heading");
+      const slideBodyStyle = win?.getComputedStyle?.(slideBody || activeSlide);
+      const lineupLayoutStyle = win?.getComputedStyle?.(activeLineupLayout);
+      const readPx = (value) => {
+        const parsed = Number.parseFloat(value || "");
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+      const verticalPadding =
+        readPx(slideBodyStyle?.paddingTop) +
+        readPx(slideBodyStyle?.paddingBottom) +
+        readPx(activeLineupLayout ? lineupLayoutStyle?.paddingTop : "") +
+        readPx(activeLineupLayout ? lineupLayoutStyle?.paddingBottom : "");
+      const rowGap = readPx(lineupLayoutStyle?.rowGap || lineupLayoutStyle?.gap);
+      const headingHeight = heading?.getBoundingClientRect?.().height || 0;
+      const availablePitchHeight = slideHeight - verticalPadding - rowGap - headingHeight;
+      if (availablePitchHeight > 0) {
+        lineupPitchHeight = Math.min(lineupPitchHeight, availablePitchHeight);
+      }
+    }
+    const lineupPitchWidth = Math.min(slideWidth * 0.88, lineupPitchHeight * halfPitchAspect);
     const rootFontSize = Number.parseFloat(win?.getComputedStyle?.(documentRef.documentElement)?.fontSize) || 16;
     const setReadableSize = (name, value, minRem, maxRem) => {
       const min = minRem * rootFontSize;

@@ -40,6 +40,15 @@ async function dismissDashboardModal(page) {
     .catch(() => {});
 }
 
+async function waitForViewportSettle(page) {
+  await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      })
+  );
+}
+
 test("Presentation Mode opens from Home and renders the planned training deck", async ({ page }) => {
   const dateValue = new Date().toISOString().slice(0, 10);
   const now = new Date().toISOString();
@@ -523,38 +532,74 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     penaltyArcVisible: true,
     slotCount: 11,
   });
-  await presentation.locator("[data-presentation-start]").click();
-  await expect(presentation).toHaveClass(/is-presenting/);
-  const presentingLineupGeometry = await lineupSlide.locator(".presentation-lineup-pitch").evaluate((pitch) => {
-    const slide = pitch.closest(".presentation-slide");
-    const rect = pitch.getBoundingClientRect();
-    const slideRect = slide?.getBoundingClientRect();
-    const slots = Array.from(pitch.querySelectorAll(".presentation-lineup-slot")).map((slot) => slot.getBoundingClientRect());
-    const overlaps = slots.some((slot, index) =>
-      slots.slice(index + 1).some((other) => {
-        const horizontalGap = Math.max(0, Math.max(other.left - slot.right, slot.left - other.right));
-        const verticalGap = Math.max(0, Math.max(other.top - slot.bottom, slot.top - other.bottom));
-        return horizontalGap < 2 && verticalGap < 2;
-      })
-    );
-    return {
-      aspect: rect.width / rect.height,
-      fillsProjectorHeight: slideRect ? rect.height / slideRect.height : 0,
-      noSlotOverlap: !overlaps,
-      readableSlots: slots.every((slot) => slot.width >= 100 && slot.height >= 92),
-      slotCount: slots.length,
-    };
-  });
-  expect(presentingLineupGeometry.aspect).toBeGreaterThan(1.25);
-  expect(presentingLineupGeometry.aspect).toBeLessThan(1.35);
-  expect(presentingLineupGeometry).toMatchObject({
-    noSlotOverlap: true,
-    readableSlots: true,
-    slotCount: 11,
-  });
-  expect(presentingLineupGeometry.fillsProjectorHeight).toBeGreaterThan(0.7);
-  await presentation.locator("[data-presentation-exit-fullscreen]").click();
-  await expect(presentation).not.toHaveClass(/is-presenting/);
+  const assertLineupProjectionLayout = async ({
+    minPitchFill,
+    minSlotHeight,
+    minSlotWidth,
+    minTitleFontSize,
+    name,
+  }) => {
+    const geometry = await lineupSlide.locator(".presentation-lineup-pitch").evaluate((pitch) => {
+      const slide = pitch.closest(".presentation-slide");
+      const heading = slide?.querySelector(".presentation-lineup-layout .presentation-section-heading h2");
+      const rect = pitch.getBoundingClientRect();
+      const slideRect = slide?.getBoundingClientRect();
+      const headingRect = heading?.getBoundingClientRect();
+      const headingStyle = heading ? window.getComputedStyle(heading) : null;
+      const slots = Array.from(pitch.querySelectorAll(".presentation-lineup-slot")).map((slot) => slot.getBoundingClientRect());
+      const overlaps = slots.some((slot, index) =>
+        slots.slice(index + 1).some((other) => {
+          const horizontalGap = Math.max(0, Math.max(other.left - slot.right, slot.left - other.right));
+          const verticalGap = Math.max(0, Math.max(other.top - slot.bottom, slot.top - other.bottom));
+          return horizontalGap < 2 && verticalGap < 2;
+        })
+      );
+      return {
+        aspect: rect.width / rect.height,
+        fillsProjectorHeight: slideRect ? rect.height / slideRect.height : 0,
+        headingFitsSlide:
+          Boolean(headingRect && slideRect) &&
+          headingRect.left >= slideRect.left &&
+          headingRect.right <= slideRect.right &&
+          headingRect.bottom <= rect.top,
+        noSlotOverlap: !overlaps,
+        slotCount: slots.length,
+        slotHeight: slots.length ? Math.min(...slots.map((slot) => slot.height)) : 0,
+        slotWidth: slots.length ? Math.min(...slots.map((slot) => slot.width)) : 0,
+        titleFontSize: Number.parseFloat(headingStyle?.fontSize || "0"),
+      };
+    });
+    expect(geometry.aspect, `${name}: half-pitch keeps 68:52.5 football proportions`).toBeGreaterThan(1.28);
+    expect(geometry.aspect, `${name}: half-pitch keeps 68:52.5 football proportions`).toBeLessThan(1.31);
+    expect(geometry.fillsProjectorHeight, `${name}: pitch uses the available projector height`).toBeGreaterThan(minPitchFill);
+    expect(geometry.slotWidth, `${name}: player cards stay readable from distance`).toBeGreaterThanOrEqual(minSlotWidth);
+    expect(geometry.slotHeight, `${name}: player cards stay readable from distance`).toBeGreaterThanOrEqual(minSlotHeight);
+    expect(geometry.titleFontSize, `${name}: title remains presentation-sized`).toBeGreaterThanOrEqual(minTitleFontSize);
+    expect(geometry).toMatchObject({
+      headingFitsSlide: true,
+      noSlotOverlap: true,
+      slotCount: 11,
+    });
+  };
+  const projectionLayouts = [
+    { name: "laptop play mode", width: 1280, height: 720, minPitchFill: 0.7, minSlotWidth: 100, minSlotHeight: 92, minTitleFontSize: 34 },
+    { name: "meeting-room TV", width: 1920, height: 1080, minPitchFill: 0.74, minSlotWidth: 126, minSlotHeight: 116, minTitleFontSize: 48 },
+    { name: "large projector", width: 2560, height: 1440, minPitchFill: 0.74, minSlotWidth: 126, minSlotHeight: 116, minTitleFontSize: 48 },
+    { name: "narrow control window", width: 1117, height: 772, minPitchFill: 0.58, minSlotWidth: 97, minSlotHeight: 92, minTitleFontSize: 32 },
+  ];
+  for (const layout of projectionLayouts) {
+    await test.step(`Starting XI scales for ${layout.name}`, async () => {
+      await page.setViewportSize({ width: layout.width, height: layout.height });
+      await waitForViewportSettle(page);
+      await presentation.locator("[data-presentation-start]").click();
+      await expect(presentation).toHaveClass(/is-presenting/);
+      await assertLineupProjectionLayout(layout);
+      await presentation.locator("[data-presentation-exit-fullscreen]").click();
+      await expect(presentation).not.toHaveClass(/is-presenting/);
+    });
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await waitForViewportSettle(page);
   await presentation.locator("[data-presentation-delete-slide]").click();
   await expect(lineupSlide).toHaveCount(0);
   const insertMenu = presentation.locator("[data-presentation-insert-menu]");

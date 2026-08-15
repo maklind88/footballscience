@@ -82,7 +82,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
           days: {
             [seededDate]: {
               sessionType: "Training briefing",
-              matchDay: "MD-2",
+              matchDay: "Match Day -1",
               physicalLoad: "High",
               pitchSize: "2/3 pitch",
               mainFocus: "Build-up and final-third connections",
@@ -975,11 +975,24 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const videoLabel = document.querySelector(".presentation-overview-metric.is-video > span");
     const pitchLabel = document.querySelector(".presentation-overview-metric.is-pitch > span");
     const matchLabel = document.querySelector(".presentation-overview-metric.is-match-day > span");
+    const matchValue = document.querySelector(".presentation-overview-metric.is-match-day > strong");
     const gauge = document.querySelector(".presentation-load-gauge");
     const needle = document.querySelector(".presentation-load-needle");
     const phaseValue = document.querySelector(".presentation-day-phase-value");
     const subPhase = document.querySelector(".presentation-day-subphase");
-    if (!load || !video || !matchDay || !pitch || !loadLabel || !videoLabel || !pitchLabel || !matchLabel || !gauge || !needle) return null;
+    if (
+      !load ||
+      !video ||
+      !matchDay ||
+      !pitch ||
+      !loadLabel ||
+      !videoLabel ||
+      !pitchLabel ||
+      !matchLabel ||
+      !matchValue ||
+      !gauge ||
+      !needle
+    ) return null;
     const loadRect = load.getBoundingClientRect();
     const videoRect = video.getBoundingClientRect();
     const matchRect = matchDay.getBoundingClientRect();
@@ -988,6 +1001,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const videoLabelRect = videoLabel.getBoundingClientRect();
     const pitchLabelRect = pitchLabel.getBoundingClientRect();
     const matchLabelRect = matchLabel.getBoundingClientRect();
+    const matchValueRect = matchValue.getBoundingClientRect();
     const phaseValueRect = phaseValue?.getBoundingClientRect();
     const subPhaseRect = subPhase?.getBoundingClientRect();
     const loadStyle = getComputedStyle(load);
@@ -1001,6 +1015,11 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
       pitchSameHeightAsMatchDay: Math.abs(pitchRect.height - matchRect.height) <= 2,
       labelAlignedWithPitch: Math.abs(loadLabelRect.top - pitchLabelRect.top) <= 2,
       labelAlignedWithMatchDay: Math.abs(loadLabelRect.top - matchLabelRect.top) <= 2,
+      matchDayValueFitsCard:
+        matchValueRect.top >= matchRect.top - 1 &&
+        matchValueRect.left >= matchRect.left - 1 &&
+        matchValueRect.right <= matchRect.right + 1 &&
+        matchValueRect.bottom <= matchRect.bottom + 1,
       videoUnderTopCards: videoRect.top >= loadRect.bottom - 2,
       videoSpansTopCards: Math.abs(videoRect.left - loadRect.left) <= 2 && Math.abs(videoRect.right - matchRect.right) <= 2,
       videoLabelBelowTopCards: videoLabelRect.top >= loadLabelRect.bottom,
@@ -1029,6 +1048,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     pitchSameHeightAsMatchDay: true,
     labelAlignedWithPitch: true,
     labelAlignedWithMatchDay: true,
+    matchDayValueFitsCard: true,
     videoUnderTopCards: true,
     videoSpansTopCards: true,
     videoLabelBelowTopCards: true,
@@ -1048,17 +1068,23 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     return {
       compactCards: [load, ...cards].every((card) => card.getBoundingClientRect().height <= 150),
       pitchHasVisual: Boolean(document.querySelector(".presentation-overview-metric.is-pitch .periodization-pitch-icon")),
-      valuesNearTop: cards.every((card) => {
+      valuesFitCards: cards.every((card) => {
         const cardRect = card.getBoundingClientRect();
         const valueRect = card.querySelector("strong")?.getBoundingClientRect();
-        return Boolean(valueRect && valueRect.top - cardRect.top <= cardRect.height * 0.44);
+        return Boolean(
+          valueRect &&
+            valueRect.top >= cardRect.top - 1 &&
+            valueRect.left >= cardRect.left - 1 &&
+            valueRect.right <= cardRect.right + 1 &&
+            valueRect.bottom <= cardRect.bottom + 1
+        );
       }),
     };
   });
   expect(overviewMetricCardsLayout).toMatchObject({
     compactCards: true,
     pitchHasVisual: true,
-    valuesNearTop: true,
+    valuesFitCards: true,
   });
   const overviewMedicalLayout = await presentation.evaluate(() => {
     const video = document.querySelector(".presentation-overview-metric.is-video");
@@ -1123,6 +1149,18 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const phaseRect = phase.getBoundingClientRect();
     const blocksRect = blocks.getBoundingClientRect();
     const articleRects = articles.map((article) => article.getBoundingClientRect());
+    const rowsVerticallyCentered = articles.every((article) => {
+      const rowRect = article.getBoundingClientRect();
+      const childRects = Array.from(article.children)
+        .map((child) => child.getBoundingClientRect())
+        .filter((rect) => rect.width > 0 && rect.height > 0);
+      if (!childRects.length) return false;
+      const contentTop = Math.min(...childRects.map((rect) => rect.top));
+      const contentBottom = Math.max(...childRects.map((rect) => rect.bottom));
+      const contentCenter = contentTop + (contentBottom - contentTop) / 2;
+      const rowCenter = rowRect.top + rowRect.height / 2;
+      return Math.abs(contentCenter - rowCenter) <= Math.max(4, rowRect.height * 0.12);
+    });
     const combinedLeft = Math.min(loadRect.left, pitchRect.left, matchRect.left, phaseRect.left);
     const combinedRight = Math.max(pitchRect.right, matchRect.right, phaseRect.right);
     return {
@@ -1131,6 +1169,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
       phaseAboveBlocks: phaseRect.bottom <= blocksRect.top + 2,
       phaseAlignsToBlocks: Math.abs(phaseRect.left - blocksRect.left) <= 2 && Math.abs(phaseRect.right - blocksRect.right) <= 2,
       rowsAreWide: articleRects.every((rect) => rect.width > rect.height * 2.2),
+      rowsVerticallyCentered,
     };
   });
   expect(overviewBlocksLayout).toMatchObject({
@@ -1139,6 +1178,47 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     phaseAboveBlocks: true,
     phaseAlignsToBlocks: true,
     rowsAreWide: true,
+    rowsVerticallyCentered: true,
+  });
+  await test.step("Overview keeps projector text inside cards", async () => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await waitForViewportSettle(page);
+    await presentation.locator("[data-presentation-start]").click();
+    await expect(presentation).toHaveClass(/is-presenting/);
+    const projectorOverviewLayout = await presentation.evaluate(() => {
+      const matchDay = document.querySelector(".presentation-overview-metric.is-match-day");
+      const matchValue = matchDay?.querySelector("strong");
+      const rows = Array.from(document.querySelectorAll(".presentation-block-flow article"));
+      if (!matchDay || !matchValue || !rows.length) return null;
+      const matchRect = matchDay.getBoundingClientRect();
+      const matchValueRect = matchValue.getBoundingClientRect();
+      const rowContentIsCentered = rows.every((row) => {
+        const rowRect = row.getBoundingClientRect();
+        const childRects = Array.from(row.children)
+          .map((child) => child.getBoundingClientRect())
+          .filter((rect) => rect.width > 0 && rect.height > 0);
+        if (!childRects.length) return false;
+        const top = Math.min(...childRects.map((rect) => rect.top));
+        const bottom = Math.max(...childRects.map((rect) => rect.bottom));
+        return Math.abs(top + (bottom - top) / 2 - (rowRect.top + rowRect.height / 2)) <= Math.max(5, rowRect.height * 0.12);
+      });
+      return {
+        matchValueInsideCard:
+          matchValueRect.top >= matchRect.top - 1 &&
+          matchValueRect.left >= matchRect.left - 1 &&
+          matchValueRect.right <= matchRect.right + 1 &&
+          matchValueRect.bottom <= matchRect.bottom + 1,
+        rowContentIsCentered,
+      };
+    });
+    expect(projectorOverviewLayout).toMatchObject({
+      matchValueInsideCard: true,
+      rowContentIsCentered: true,
+    });
+    await presentation.locator("[data-presentation-exit-fullscreen]").click();
+    await expect(presentation).not.toHaveClass(/is-presenting/);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await waitForViewportSettle(page);
   });
   await expect(presentation).not.toContainText("10 min");
   await expect(presentation).not.toContainText("Ready");

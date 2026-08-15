@@ -2822,7 +2822,7 @@ body.is-presentation-text-field-resizing {
   height: 100%;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 4.6fr);
-  grid-template-rows: minmax(4.8rem, .34fr) minmax(5.6rem, .46fr) minmax(8.6rem, .86fr) minmax(7.2rem, .82fr);
+  grid-template-rows: minmax(5.35rem, .4fr) minmax(5.6rem, .46fr) minmax(8.4rem, .82fr) minmax(7.2rem, .8fr);
   grid-template-areas:
     "load pitch match medical"
     "video video video medical"
@@ -2834,11 +2834,14 @@ body.is-presentation-text-field-resizing {
 
 .presentation-overview-metric {
   min-width: 0;
+  min-height: 0;
   display: grid;
   align-content: start;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: start;
   gap: clamp(.28rem, .46vw, .44rem);
   padding: clamp(.54rem, .76vw, .7rem);
+  overflow: hidden;
 }
 
 .presentation-overview-metric span {
@@ -2849,6 +2852,8 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-overview-metric strong {
+  min-width: 0;
+  max-width: 100%;
   overflow-wrap: anywhere;
   color: #ffffff;
   font-size: clamp(.84rem, 1.42cqw, 1.42rem);
@@ -2995,6 +3000,14 @@ body.is-presentation-text-field-resizing {
   grid-area: match;
 }
 
+.presentation-overview-metric.is-match-day strong {
+  align-self: center;
+  overflow-wrap: normal;
+  word-break: normal;
+  text-wrap: balance;
+  line-height: 1;
+}
+
 .presentation-overview-metric.is-load {
   position: relative;
   grid-area: load;
@@ -3080,15 +3093,17 @@ body.is-presentation-text-field-resizing {
 .presentation-block-flow {
   grid-area: blocks;
   min-height: 0;
+  height: 100%;
   display: grid;
   grid-template-columns: 1fr;
-  grid-auto-rows: minmax(2.35rem, max-content);
+  grid-auto-rows: minmax(clamp(2.55rem, 4.2cqh, 3.35rem), max-content);
   align-content: start;
   gap: clamp(.34rem, .55vw, .52rem);
 }
 
 .presentation-block-flow article {
   min-width: 0;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(4.4rem, .4fr) minmax(0, 1fr);
   gap: .55rem;
@@ -3106,10 +3121,13 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-block-flow strong {
+  min-width: 0;
+  align-self: center;
   overflow-wrap: anywhere;
   color: #ffffff;
   font-size: .98rem;
   line-height: 1.06;
+  text-wrap: balance;
 }
 
 .presentation-block-flow small {
@@ -3726,7 +3744,7 @@ body.is-presentation-text-field-resizing {
 
 .presentation-mode-shell.is-presenting .presentation-overview-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 4.85fr);
-  grid-template-rows: minmax(4.8rem, .32fr) minmax(6rem, .48fr) minmax(8.9rem, .84fr) minmax(7.4rem, .82fr);
+  grid-template-rows: minmax(5.45rem, .42fr) minmax(6rem, .48fr) minmax(8.7rem, .78fr) minmax(7.8rem, .84fr);
 }
 
 .presentation-mode-shell.is-presenting .presentation-medical-list {
@@ -3755,6 +3773,10 @@ body.is-presentation-text-field-resizing {
 
 .presentation-mode-shell.is-presenting .presentation-overview-metric strong {
   font-size: var(--presentation-readable-metric-font, clamp(1.02rem, 1.55cqw, 1.82rem));
+}
+
+.presentation-mode-shell.is-presenting .presentation-overview-metric.is-match-day strong {
+  font-size: var(--presentation-readable-matchday-font, clamp(1rem, 1.35cqw, 1.62rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-day-overview strong {

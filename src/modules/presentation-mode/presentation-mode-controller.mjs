@@ -1456,6 +1456,7 @@ export function createPresentationModeController(dependencies = {}) {
     stage.style.setProperty("--presentation-lineup-pitch-width", `${Number(lineupPitchWidth.toFixed(2))}px`);
     setReadableSize("--presentation-readable-label-font", slideWidth * 0.0096 * readabilityScale, 0.74, 1.08);
     setReadableSize("--presentation-readable-metric-font", slideWidth * 0.0155 * readabilityScale, 1.02, 1.82);
+    setReadableSize("--presentation-readable-matchday-font", slideWidth * 0.0135 * readabilityScale, 1, 1.62);
     setReadableSize("--presentation-readable-day-font", slideWidth * 0.0152 * readabilityScale, 1, 1.82);
     setReadableSize("--presentation-readable-support-font", slideWidth * 0.0102 * readabilityScale, 0.74, 1.18);
     setReadableSize("--presentation-readable-block-row-font", slideWidth * 0.0138 * readabilityScale, 0.98, 1.64);

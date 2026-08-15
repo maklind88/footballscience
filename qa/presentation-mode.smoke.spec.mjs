@@ -1022,6 +1022,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     const pitchLabelRect = pitchLabel.getBoundingClientRect();
     const matchLabelRect = matchLabel.getBoundingClientRect();
     const matchValueRect = matchValue.getBoundingClientRect();
+    const gaugeRect = gauge.getBoundingClientRect();
     const phaseValueRect = phaseValue?.getBoundingClientRect();
     const subPhaseRect = subPhase?.getBoundingClientRect();
     const loadStyle = getComputedStyle(load);
@@ -1043,6 +1044,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
       videoUnderTopCards: videoRect.top >= loadRect.bottom - 2,
       videoSpansTopCards: Math.abs(videoRect.left - loadRect.left) <= 2 && Math.abs(videoRect.right - matchRect.right) <= 2,
       videoLabelBelowTopCards: videoLabelRect.top >= loadLabelRect.bottom,
+      loadGaugeCentered:
+        Math.abs(gaugeRect.left + gaugeRect.width / 2 - (loadRect.left + loadRect.width / 2)) <= 4,
       subPhaseBesidePhase: Boolean(
         phaseValueRect &&
           subPhaseRect &&
@@ -1072,6 +1075,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     videoUnderTopCards: true,
     videoSpansTopCards: true,
     videoLabelBelowTopCards: true,
+    loadGaugeCentered: true,
     subPhaseBesidePhase: true,
     subPhaseSmallerThanPhase: true,
     loadColor: "#d92d3f",

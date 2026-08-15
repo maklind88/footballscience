@@ -3229,9 +3229,10 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-load-meter {
+  width: 100%;
   min-height: 0;
   display: grid;
-  justify-items: start;
+  justify-items: center;
   align-content: center;
 }
 
@@ -4313,8 +4314,9 @@ body.is-presentation-text-field-resizing {
 
   .presentation-load-meter {
     min-height: auto;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: 1fr;
     align-items: center;
+    justify-items: center;
   }
 
   .presentation-load-gauge {

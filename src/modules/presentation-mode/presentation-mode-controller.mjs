@@ -13,7 +13,111 @@ const maxUndoHistory = 80;
 const shapeTypes = new Set(["rect", "circle", "triangle", "diamond", "line", "arrow", "star"]);
 const textBoxKinds = new Set(["text", "symbol", "image", "video"]);
 const resizeAxes = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
-const slideTemplateTypes = new Set(["title", "title-subtitle", "text", "bullets", "media", "split", "video", "blank"]);
+const slideTemplateTypes = new Set(["title", "title-subtitle", "text", "bullets", "media", "split", "video", "match-squad", "starting-xi", "blank"]);
+const lineupFormationOptions = [
+  {
+    id: "4-3-3",
+    label: "4-3-3",
+    slots: [
+      { id: "gk", label: "GK", x: 50, y: 86 },
+      { id: "lb", label: "LB", x: 22, y: 68 },
+      { id: "lcb", label: "LCB", x: 41, y: 70 },
+      { id: "rcb", label: "RCB", x: 59, y: 70 },
+      { id: "rb", label: "RB", x: 78, y: 68 },
+      { id: "lcm", label: "LCM", x: 31, y: 50 },
+      { id: "cm", label: "CM", x: 50, y: 54 },
+      { id: "rcm", label: "RCM", x: 69, y: 50 },
+      { id: "lw", label: "LW", x: 24, y: 28 },
+      { id: "st", label: "ST", x: 50, y: 22 },
+      { id: "rw", label: "RW", x: 76, y: 28 },
+    ],
+  },
+  {
+    id: "4-2-3-1",
+    label: "4-2-3-1",
+    slots: [
+      { id: "gk", label: "GK", x: 50, y: 86 },
+      { id: "lb", label: "LB", x: 22, y: 68 },
+      { id: "lcb", label: "LCB", x: 41, y: 70 },
+      { id: "rcb", label: "RCB", x: 59, y: 70 },
+      { id: "rb", label: "RB", x: 78, y: 68 },
+      { id: "ldm", label: "LDM", x: 39, y: 56 },
+      { id: "rdm", label: "RDM", x: 61, y: 56 },
+      { id: "lam", label: "LAM", x: 27, y: 38 },
+      { id: "cam", label: "CAM", x: 50, y: 35 },
+      { id: "ram", label: "RAM", x: 73, y: 38 },
+      { id: "st", label: "ST", x: 50, y: 20 },
+    ],
+  },
+  {
+    id: "4-4-2",
+    label: "4-4-2",
+    slots: [
+      { id: "gk", label: "GK", x: 50, y: 86 },
+      { id: "lb", label: "LB", x: 22, y: 68 },
+      { id: "lcb", label: "LCB", x: 41, y: 70 },
+      { id: "rcb", label: "RCB", x: 59, y: 70 },
+      { id: "rb", label: "RB", x: 78, y: 68 },
+      { id: "lm", label: "LM", x: 23, y: 48 },
+      { id: "lcm", label: "LCM", x: 41, y: 50 },
+      { id: "rcm", label: "RCM", x: 59, y: 50 },
+      { id: "rm", label: "RM", x: 77, y: 48 },
+      { id: "lst", label: "LST", x: 40, y: 24 },
+      { id: "rst", label: "RST", x: 60, y: 24 },
+    ],
+  },
+  {
+    id: "3-5-2",
+    label: "3-5-2",
+    slots: [
+      { id: "gk", label: "GK", x: 50, y: 86 },
+      { id: "lcb", label: "LCB", x: 34, y: 70 },
+      { id: "cb", label: "CB", x: 50, y: 72 },
+      { id: "rcb", label: "RCB", x: 66, y: 70 },
+      { id: "lwb", label: "LWB", x: 17, y: 49 },
+      { id: "lcm", label: "LCM", x: 38, y: 50 },
+      { id: "cm", label: "CM", x: 50, y: 55 },
+      { id: "rcm", label: "RCM", x: 62, y: 50 },
+      { id: "rwb", label: "RWB", x: 83, y: 49 },
+      { id: "lst", label: "LST", x: 41, y: 23 },
+      { id: "rst", label: "RST", x: 59, y: 23 },
+    ],
+  },
+  {
+    id: "3-4-3",
+    label: "3-4-3",
+    slots: [
+      { id: "gk", label: "GK", x: 50, y: 86 },
+      { id: "lcb", label: "LCB", x: 34, y: 70 },
+      { id: "cb", label: "CB", x: 50, y: 72 },
+      { id: "rcb", label: "RCB", x: 66, y: 70 },
+      { id: "lm", label: "LM", x: 22, y: 50 },
+      { id: "lcm", label: "LCM", x: 42, y: 52 },
+      { id: "rcm", label: "RCM", x: 58, y: 52 },
+      { id: "rm", label: "RM", x: 78, y: 50 },
+      { id: "lw", label: "LW", x: 25, y: 27 },
+      { id: "st", label: "ST", x: 50, y: 21 },
+      { id: "rw", label: "RW", x: 75, y: 27 },
+    ],
+  },
+  {
+    id: "4-1-4-1",
+    label: "4-1-4-1",
+    slots: [
+      { id: "gk", label: "GK", x: 50, y: 86 },
+      { id: "lb", label: "LB", x: 22, y: 68 },
+      { id: "lcb", label: "LCB", x: 41, y: 70 },
+      { id: "rcb", label: "RCB", x: 59, y: 70 },
+      { id: "rb", label: "RB", x: 78, y: 68 },
+      { id: "dm", label: "DM", x: 50, y: 57 },
+      { id: "lm", label: "LM", x: 22, y: 42 },
+      { id: "lcm", label: "LCM", x: 42, y: 42 },
+      { id: "rcm", label: "RCM", x: 58, y: 42 },
+      { id: "rm", label: "RM", x: 78, y: 42 },
+      { id: "st", label: "ST", x: 50, y: 21 },
+    ],
+  },
+];
 
 function noop() {}
 
@@ -145,6 +249,8 @@ function getSlideTemplateDefaults(template = "bullets") {
     media: { title: "Image", body: "Caption or notes", fontSize: "44", accentColor: "#38bdf8" },
     split: { title: "Text + Image", body: "Supporting text", fontSize: "44", accentColor: "#38bdf8" },
     video: { title: "Video Analysis", body: "- Clip focus\n- Player cues\n- Team principles", fontSize: "44", accentColor: "#facc15" },
+    "match-squad": { title: "Match Squad", body: "", fontSize: "48", accentColor: "#22c55e" },
+    "starting-xi": { title: "Starting XI", body: "", fontSize: "56", accentColor: "#22c55e" },
     blank: { title: "Blank", body: "", fontSize: "56", accentColor: "#38bdf8" },
   };
   return {
@@ -155,6 +261,29 @@ function getSlideTemplateDefaults(template = "bullets") {
     accentColor: defaults[layout].accentColor,
     textColor: "#f8fafc",
   };
+}
+
+function normalizeLineupFormation(value = "") {
+  const formation = String(value || "").trim();
+  return lineupFormationOptions.some((option) => option.id === formation) ? formation : lineupFormationOptions[0].id;
+}
+
+function normalizeLineupAssignments(lineup = {}) {
+  const assignments = lineup && typeof lineup === "object" && !Array.isArray(lineup) ? lineup : {};
+  return Object.fromEntries(
+    Object.entries(assignments)
+      .map(([slotId, playerId]) => [String(slotId || "").trim(), String(playerId || "").trim()])
+      .filter(([slotId, playerId]) => slotId && playerId)
+  );
+}
+
+function normalizeMatchSquadPlayerIds(value = []) {
+  const values = Array.isArray(value)
+    ? value
+    : value && typeof value === "object"
+      ? Object.values(value)
+      : String(value || "").split(/\s*(?:,|;|\n)\s*/);
+  return [...new Set(values.map((playerId) => String(playerId || "").trim()).filter(Boolean))];
 }
 
 function normalizeSlideOrder(slideOrder = []) {
@@ -335,15 +464,24 @@ function normalizeShapes(shapes = {}) {
 }
 
 function normalizeInfoSlide(slide = {}, index = 0, dateValue = "") {
-  const fallback = createDefaultInfoSlide(dateValue);
+  const defaultInfoSlide = createDefaultInfoSlide(dateValue);
+  const layout = normalizeSlideTemplate(slide.layout || defaultInfoSlide.layout);
+  const templateFallback = getSlideTemplateDefaults(layout);
+  const fallback = layout === defaultInfoSlide.layout ? defaultInfoSlide : { ...templateFallback, id: defaultInfoSlide.id };
   return {
     id: String(slide.id || (index ? `info-${dateValue}-${index + 1}` : fallback.id)).trim(),
-    layout: normalizeSlideTemplate(slide.layout || fallback.layout),
+    layout,
     title: String(slide.title ?? fallback.title).trim().slice(0, 90),
     body: String(slide.body ?? fallback.body).slice(0, 5000),
-    fontSize: normalizeFontSize(slide.fontSize),
+    fontSize: normalizeFontSize(slide.fontSize ?? fallback.fontSize),
     accentColor: normalizeHexColor(slide.accentColor, fallback.accentColor),
     textColor: normalizeHexColor(slide.textColor, fallback.textColor),
+    matchSquadPlayerIds:
+      layout === "match-squad"
+        ? normalizeMatchSquadPlayerIds(slide.matchSquadPlayerIds || slide.squadPlayerIds || slide.squad || slide.players)
+        : [],
+    formation: layout === "starting-xi" ? normalizeLineupFormation(slide.formation) : "",
+    lineup: layout === "starting-xi" ? normalizeLineupAssignments(slide.lineup) : {},
   };
 }
 
@@ -587,6 +725,40 @@ function sortMedicalRecommendations(first, second) {
   const positionDelta = getMedicalPositionRank(first.player) - getMedicalPositionRank(second.player);
   if (positionDelta) return positionDelta;
   return String(first.player?.name || "").localeCompare(String(second.player?.name || ""));
+}
+
+function getLineupPlayerNumber(player = {}) {
+  const number = [
+    player.number,
+    player.jerseyNumber,
+    player.shirtNumber,
+    player.shirt_number,
+    player.squadNumber,
+    player.rosterNumber,
+    player.uniformNumber,
+  ]
+    .map((value) => String(value ?? "").trim().replace(/^#/, ""))
+    .find(Boolean);
+  return number || "";
+}
+
+function getLineupPlayerPhotoUrl(player = {}) {
+  return String(player.photoUrl || player.avatarUrl || player.imageUrl || player.headshotUrl || player.profileImageUrl || "").trim();
+}
+
+function getLineupPlayerPosition(player = {}) {
+  return String(player.position || player.role || player.primaryRole || player.playerBoardRoleLabel || player.playerBoardPosition || "").trim();
+}
+
+function sortLineupPlayerOptions(first, second) {
+  const positionDelta = getMedicalPositionRank(first) - getMedicalPositionRank(second);
+  if (positionDelta) return positionDelta;
+  const firstNumber = Number(first.number);
+  const secondNumber = Number(second.number);
+  if (Number.isFinite(firstNumber) && Number.isFinite(secondNumber) && firstNumber !== secondNumber) {
+    return firstNumber - secondNumber;
+  }
+  return String(first.name || "").localeCompare(String(second.name || ""));
 }
 
 export function createPresentationModeController(dependencies = {}) {
@@ -1014,6 +1186,80 @@ export function createPresentationModeController(dependencies = {}) {
       .sort(sortMedicalRecommendations);
   }
 
+  function getLineupPlayerOptions(dateValue) {
+    const seenPlayerIds = new Set();
+    return getAvailabilityItems(dateValue)
+      .map((item) => normalizePlayerItem(item))
+      .filter(Boolean)
+      .filter((item) => !item.planningOnly)
+      .map((item) => {
+        const player = item.player || {};
+        return {
+          id: String(player.id || "").trim(),
+          name: String(player.name || "Player").trim(),
+          number: getLineupPlayerNumber(player),
+          position: getLineupPlayerPosition(player),
+          photoUrl: getLineupPlayerPhotoUrl(player),
+        };
+      })
+      .filter((player) => {
+        if (!player.id || !player.name || seenPlayerIds.has(player.id)) {
+          return false;
+        }
+        seenPlayerIds.add(player.id);
+        return true;
+      })
+      .sort(sortLineupPlayerOptions);
+  }
+
+  function getLineupFormationModel(formationId = "") {
+    return lineupFormationOptions.find((option) => option.id === normalizeLineupFormation(formationId)) || lineupFormationOptions[0];
+  }
+
+  function getDeckMatchSquadPlayerIds(deck = {}) {
+    const ids = (Array.isArray(deck.infoSlides) ? deck.infoSlides : [])
+      .filter((slide) => slide.layout === "match-squad")
+      .flatMap((slide) => normalizeMatchSquadPlayerIds(slide.matchSquadPlayerIds));
+    return [...new Set(ids)];
+  }
+
+  function buildMatchSquadModel(infoSlide = {}, playerOptions = []) {
+    const selectedIds = normalizeMatchSquadPlayerIds(infoSlide.matchSquadPlayerIds);
+    const playerById = new Map(playerOptions.map((player) => [player.id, player]));
+    return {
+      playerOptions,
+      selectedIds,
+      selectedPlayers: selectedIds.map((playerId) => playerById.get(playerId)).filter(Boolean),
+    };
+  }
+
+  function buildLineupModel(infoSlide = {}, playerOptions = [], deck = {}) {
+    const formation = getLineupFormationModel(infoSlide.formation);
+    const assignments = normalizeLineupAssignments(infoSlide.lineup);
+    const playerById = new Map(playerOptions.map((player) => [player.id, player]));
+    const matchSquadIds = getDeckMatchSquadPlayerIds(deck);
+    const matchSquadIdSet = new Set(matchSquadIds);
+    const assignedIds = new Set(Object.values(assignments).filter(Boolean));
+    const filteredPlayerOptions = matchSquadIds.length
+      ? playerOptions.filter((player) => matchSquadIdSet.has(player.id) || assignedIds.has(player.id))
+      : playerOptions;
+    return {
+      formationId: formation.id,
+      formationLabel: formation.label,
+      formationOptions: lineupFormationOptions.map((option) => ({ id: option.id, label: option.label })),
+      playerOptions: filteredPlayerOptions,
+      sourceLabel: matchSquadIds.length ? "Match Squad" : "Full squad",
+      slots: formation.slots.map((slot) => {
+        const playerId = assignments[slot.id] || "";
+        return {
+          ...slot,
+          playerId,
+          player: playerById.get(playerId) || null,
+        };
+      }),
+    };
+  }
+
   function getBrandModel() {
     const team = getTeam() || {};
     const teamName = getTeamName(team) || team.name || "Football Science";
@@ -1039,20 +1285,38 @@ export function createPresentationModeController(dependencies = {}) {
 
   function buildSlides(deck, session, dateValue) {
     const blocks = Array.isArray(session?.blocks) ? session.blocks : [];
+    const lineupPlayerOptions = getLineupPlayerOptions(dateValue);
     const naturalSlides = [
       applySlideStyle(deck, { id: "cover", type: "cover", label: "Cover" }, { accentColor: "#22c55e" }),
-      ...deck.infoSlides.map((infoSlide, index) => ({
-        ...applySlideStyle(
+      ...deck.infoSlides.map((infoSlide, index) => {
+        const isLineupSlide = infoSlide.layout === "starting-xi";
+        const isMatchSquadSlide = infoSlide.layout === "match-squad";
+        const slideType = isLineupSlide ? "lineup" : isMatchSquadSlide ? "match-squad" : "info";
+        const fallbackLabel = isLineupSlide ? "Starting XI" : isMatchSquadSlide ? "Match Squad" : "Info";
+        const baseSlide = applySlideStyle(
           deck,
           {
             id: infoSlide.id,
-            type: "info",
-            label: getSlideLabel(infoSlide.title, index ? `Slide ${index + 1}` : "Info"),
+            type: slideType,
+            label: getSlideLabel(infoSlide.title, index ? `Slide ${index + 1}` : fallbackLabel),
             infoSlide,
           },
           { accentColor: infoSlide.accentColor, textColor: infoSlide.textColor }
-        ),
-      })),
+        );
+        if (isLineupSlide) {
+          return {
+            ...baseSlide,
+            lineup: buildLineupModel(infoSlide, lineupPlayerOptions, deck),
+          };
+        }
+        if (isMatchSquadSlide) {
+          return {
+            ...baseSlide,
+            matchSquad: buildMatchSquadModel(infoSlide, lineupPlayerOptions),
+          };
+        }
+        return baseSlide;
+      }),
       applySlideStyle(deck, { id: "overview", type: "overview", label: "Overview" }, { accentColor: "#22c55e" }),
       ...blocks.map((block, index) =>
         applySlideStyle(
@@ -1394,6 +1658,90 @@ export function createPresentationModeController(dependencies = {}) {
     if (options.render) {
       render();
     }
+  }
+
+  function updateMatchSquadPlayer(slideId = "", playerId = "", selected = false) {
+    const safeSlideId = String(slideId || "").trim();
+    const safePlayerId = String(playerId || "").trim();
+    if (!safeSlideId || !safePlayerId) {
+      return;
+    }
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      infoSlides: deck.infoSlides.map((slide) => {
+        if (slide.id !== safeSlideId || slide.layout !== "match-squad") {
+          return slide;
+        }
+        const currentIds = normalizeMatchSquadPlayerIds(slide.matchSquadPlayerIds);
+        const nextIds = selected
+          ? [...currentIds.filter((id) => id !== safePlayerId), safePlayerId]
+          : currentIds.filter((id) => id !== safePlayerId);
+        return normalizeInfoSlide(
+          {
+            ...slide,
+            matchSquadPlayerIds: nextIds,
+          },
+          0,
+          state.dateValue
+        );
+      }),
+    }));
+    render();
+  }
+
+  function updateLineupFormation(slideId = "", formation = "") {
+    const safeSlideId = String(slideId || "").trim();
+    if (!safeSlideId) {
+      return;
+    }
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      infoSlides: deck.infoSlides.map((slide) =>
+        slide.id === safeSlideId && slide.layout === "starting-xi"
+          ? normalizeInfoSlide(
+              {
+                ...slide,
+                formation: normalizeLineupFormation(formation),
+              },
+              0,
+              state.dateValue
+            )
+          : slide
+      ),
+    }));
+    render();
+  }
+
+  function updateLineupSlotPlayer(slideId = "", slotId = "", playerId = "") {
+    const safeSlideId = String(slideId || "").trim();
+    const safeSlotId = String(slotId || "").trim();
+    if (!safeSlideId || !safeSlotId) {
+      return;
+    }
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      infoSlides: deck.infoSlides.map((slide) => {
+        if (slide.id !== safeSlideId || slide.layout !== "starting-xi") {
+          return slide;
+        }
+        const nextLineup = normalizeLineupAssignments({
+          ...slide.lineup,
+          [safeSlotId]: String(playerId || "").trim(),
+        });
+        if (!String(playerId || "").trim()) {
+          delete nextLineup[safeSlotId];
+        }
+        return normalizeInfoSlide(
+          {
+            ...slide,
+            lineup: nextLineup,
+          },
+          0,
+          state.dateValue
+        );
+      }),
+    }));
+    render();
   }
 
   function updateCurrentSlideStyle(field, value) {
@@ -2249,7 +2597,10 @@ export function createPresentationModeController(dependencies = {}) {
     });
     const model = buildModel();
     state.slideIndex = model.slides.findIndex((slide) => slide.id === nextId);
-    state.activeTextTarget = nextId ? { field: "info.title", infoId: nextId, slideId: nextId } : null;
+    const nextSlide = model.slides.find((slide) => slide.id === nextId);
+    const activeField =
+      nextSlide?.type === "lineup" ? "lineup.title" : nextSlide?.type === "match-squad" ? "matchSquad.title" : "info.title";
+    state.activeTextTarget = nextId ? { field: activeField, infoId: nextId, slideId: nextId } : null;
     state.editorOpen = false;
     render();
     focusActiveTextElement();
@@ -2280,7 +2631,7 @@ export function createPresentationModeController(dependencies = {}) {
       ),
     }));
     const nextModel = buildModel();
-    const nextInfoIndexes = nextModel.slides.map((slide, index) => (slide.type === "info" ? index : -1)).filter((index) => index >= 0);
+    const nextInfoIndexes = nextModel.slides.map((slide, index) => (slide.infoSlide?.id ? index : -1)).filter((index) => index >= 0);
     const nextInfoIndex = nextInfoIndexes.find((index) => index >= deletedIndex) ?? nextInfoIndexes.at(-1);
     if (Number.isFinite(nextInfoIndex)) {
       state.slideIndex = nextInfoIndex;
@@ -2294,7 +2645,7 @@ export function createPresentationModeController(dependencies = {}) {
 
   function deleteCurrentSlide() {
     const currentSlide = buildModel().slides[state.slideIndex];
-    if (currentSlide?.type !== "info" || !currentSlide.infoSlide?.id) {
+    if (!currentSlide?.infoSlide?.id) {
       return;
     }
     deleteInfoSlide(currentSlide.infoSlide.id);
@@ -3418,6 +3769,29 @@ export function createPresentationModeController(dependencies = {}) {
     const styleField = event.target.closest("[data-presentation-style-field]");
     if (styleField) {
       updateCurrentSlideStyle(styleField.dataset.presentationStyleField, styleField.value);
+      return;
+    }
+    const matchSquadPlayer = event.target.closest("[data-presentation-match-squad-player]");
+    if (matchSquadPlayer) {
+      updateMatchSquadPlayer(
+        matchSquadPlayer.dataset.presentationInfoId,
+        matchSquadPlayer.value || matchSquadPlayer.dataset.presentationMatchSquadPlayer,
+        Boolean(matchSquadPlayer.checked)
+      );
+      return;
+    }
+    const lineupFormation = event.target.closest("[data-presentation-lineup-formation]");
+    if (lineupFormation) {
+      updateLineupFormation(lineupFormation.dataset.presentationInfoId, lineupFormation.value);
+      return;
+    }
+    const lineupPlayer = event.target.closest("[data-presentation-lineup-player]");
+    if (lineupPlayer) {
+      updateLineupSlotPlayer(
+        lineupPlayer.dataset.presentationInfoId,
+        lineupPlayer.dataset.presentationLineupSlot,
+        lineupPlayer.value
+      );
       return;
     }
     const dateInput = event.target.closest("[data-presentation-date-input]");

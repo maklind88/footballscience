@@ -148,6 +148,10 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(controlHtml).toContain('data-presentation-add-info="text"');
   expect(controlHtml).toContain('data-presentation-add-info="title-subtitle"');
   expect(controlHtml).toContain('data-presentation-add-info="video"');
+  expect(controlHtml).toContain('data-presentation-add-info="match-squad"');
+  expect(controlHtml).toContain('data-presentation-add-info="starting-xi"');
+  expect(controlHtml).toContain("Match Squad");
+  expect(controlHtml).toContain("Starting XI");
   expect(controlHtml).toContain("Bullets");
   expect(controlHtml).toContain("data-presentation-delete-slide");
   expect(controlHtml).toContain("Only custom slides can be deleted");
@@ -500,6 +504,99 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   }));
   expect(storage.get(dashboardPresentationStorageKey).decks["2026-06-02"].infoSlides).toEqual([]);
   expect(controller.buildModel().slides.map((slide) => slide.type)).toEqual(["cover", "overview", "block"]);
+});
+
+test("Presentation Mode renders separate Match Squad and Starting XI custom slides", () => {
+  const storage = new Map();
+  const harness = createDocumentHarness();
+  const renderer = createPresentationModeRenderer({
+    escapeHtml: (value) => String(value ?? ""),
+    renderExerciseVisual: () => "<div></div>",
+  });
+  storage.set(dashboardPresentationStorageKey, {
+    schema: "footballscience-presentation-mode-v1",
+    version: 1,
+    decks: {
+      "2026-06-03": {
+        updatedAt: "2026-06-03T10:00:00.000Z",
+        infoSlides: [
+          {
+            id: "qa-match-squad",
+            layout: "match-squad",
+            title: "Match Squad",
+            matchSquadPlayerIds: ["p1", "p3"],
+            accentColor: "#22c55e",
+            textColor: "#f8fafc",
+          },
+          {
+            id: "qa-starting-xi",
+            layout: "starting-xi",
+            title: "Starting XI",
+            formation: "4-3-3",
+            lineup: {
+              gk: "p1",
+              st: "p3",
+              rw: "p4",
+            },
+            accentColor: "#22c55e",
+            textColor: "#f8fafc",
+          },
+        ],
+      },
+    },
+  });
+  const controller = createPresentationModeController({
+    documentRef: harness.documentRef,
+    win: {},
+    renderer,
+    readJson: (key, fallback) => storage.get(key) || fallback,
+    writeJson: (key, value) => storage.set(key, value),
+    getTodayValue: () => "2026-06-03",
+    getPasses: () => [],
+    getSessionForDate: () => ({ title: "Matchday", blocks: [] }),
+    getPeriodizationDay: () => ({}),
+    getAvailabilityItems: () => [
+      { player: { id: "p1", name: "Ada Keeper", number: "1", position: "Goalkeeper", photoUrl: "https://example.com/keeper.jpg" }, participation: 100 },
+      { player: { id: "p2", name: "Bea Defender", number: "4", position: "Defender", photoUrl: "https://example.com/defender.jpg" }, participation: 100 },
+      { player: { id: "p3", name: "Zoe Striker", number: "9", position: "Forward", photoUrl: "https://example.com/striker.jpg" }, participation: 100 },
+      { player: { id: "p4", name: "Cara Winger", number: "11", position: "Forward", photoUrl: "https://example.com/winger.jpg" }, participation: 100 },
+    ],
+    getTeamName: () => "North Carolina Courage",
+    getTeamLogoUrl: () => "assets/football-science-logo.png",
+  });
+
+  controller.open("2026-06-03");
+
+  const model = controller.buildModel();
+  expect(model.slides.map((slide) => slide.type)).toEqual(["cover", "match-squad", "lineup", "overview"]);
+  const matchSquadSlide = model.slides.find((slide) => slide.type === "match-squad");
+  const lineupSlide = model.slides.find((slide) => slide.type === "lineup");
+  expect(matchSquadSlide.matchSquad.selectedPlayers.map((player) => player.name)).toEqual(["Ada Keeper", "Zoe Striker"]);
+  expect(lineupSlide.lineup.slots).toHaveLength(11);
+  expect(lineupSlide.lineup.playerOptions.map((player) => player.id)).toEqual(["p1", "p3", "p4"]);
+  expect(lineupSlide.lineup.sourceLabel).toBe("Match Squad");
+  expect(lineupSlide.lineup.slots.find((slot) => slot.id === "gk").player.name).toBe("Ada Keeper");
+  expect(lineupSlide.lineup.slots.find((slot) => slot.id === "st").player.number).toBe("9");
+
+  const matchSquadHtml = renderer.renderMatchSquadSlide(model, matchSquadSlide);
+  expect(matchSquadHtml).toContain("presentation-match-squad-layout");
+  expect(matchSquadHtml).toContain("data-presentation-match-squad-player=\"p1\"");
+  expect(matchSquadHtml).toContain("https://example.com/keeper.jpg");
+  expect(matchSquadHtml).toContain("#1 Keeper");
+  expect(matchSquadHtml).toContain("2 players selected");
+  expect(renderer.renderMatchSquadSlide({ ...model, presenting: true }, matchSquadSlide)).not.toContain("presentation-match-squad-selector");
+
+  const lineupHtml = renderer.renderLineupSlide(model, lineupSlide);
+  expect(lineupHtml).toContain("presentation-lineup-layout");
+  expect(lineupHtml).toContain("presentation-lineup-pitch");
+  expect(lineupHtml).toContain("data-presentation-lineup-formation");
+  expect(lineupHtml).toContain("data-presentation-lineup-player");
+  expect(lineupHtml).toContain("4-3-3 / 11 players");
+  expect(lineupHtml).toContain("Match Squad");
+  expect(lineupHtml).toContain("#9 Striker");
+  expect(lineupHtml.match(/class="presentation-lineup-slot/g)).toHaveLength(11);
+  expect(renderer.renderLineupSlide({ ...model, presenting: true }, lineupSlide)).not.toContain("data-presentation-lineup-player");
+  expect(renderer.renderControlBar({ ...model, slideIndex: lineupSlide.index })).toContain("Delete current slide");
 });
 
 test("Presentation Mode central merge preserves newer blank text overrides", () => {

@@ -680,6 +680,24 @@ body.is-presentation-mode-open {
     linear-gradient(90deg, rgba(56, 189, 248, .86) 0 44%, rgba(248, 250, 252, .18) 45% 100%);
 }
 
+.presentation-slide-template-preview i.is-cards {
+  width: 88%;
+  height: .54rem;
+  border-radius: 5px;
+  background:
+    linear-gradient(90deg, rgba(134, 239, 172, .8) 0 16%, rgba(248, 250, 252, .18) 17% 100%);
+}
+
+.presentation-slide-template-preview i.is-pitch {
+  width: 76%;
+  height: 1.18rem;
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, transparent 49%, rgba(255, 255, 255, .7) 50%, transparent 51%),
+    linear-gradient(180deg, rgba(34, 197, 94, .58), rgba(20, 83, 45, .72));
+  box-shadow: inset 0 0 0 1px rgba(248, 250, 252, .54);
+}
+
 .presentation-new-slide-popover span:not(.presentation-slide-template-preview) {
   min-width: 0;
   display: grid;
@@ -2240,6 +2258,398 @@ body.is-presentation-text-field-resizing {
   display: none;
 }
 
+.presentation-match-squad-layout,
+.presentation-lineup-layout {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: clamp(.78rem, 1.2cqw, 1.18rem);
+  padding-right: clamp(5.8rem, 7vw, 7rem);
+}
+
+.presentation-match-squad-layout .presentation-section-heading h2,
+.presentation-lineup-layout .presentation-section-heading h2 {
+  max-width: 15ch;
+  font-size: clamp(2rem, 4.1cqw, 4.6rem);
+  white-space: nowrap;
+}
+
+.presentation-match-squad-layout .presentation-section-heading p,
+.presentation-lineup-layout .presentation-section-heading p {
+  color: rgba(248, 250, 252, .68);
+  font-size: clamp(.78rem, 1.05cqw, 1.1rem);
+  font-weight: 900;
+}
+
+.presentation-match-squad-main {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(13.5rem, .36fr);
+  gap: clamp(.72rem, 1vw, 1rem);
+}
+
+.presentation-match-squad-layout.is-play-mode .presentation-match-squad-main {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.presentation-match-squad-grid {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(clamp(6.9rem, 10.5cqw, 10.8rem), 1fr));
+  grid-auto-rows: minmax(clamp(6.7rem, 12cqh, 9.2rem), 1fr);
+  gap: clamp(.42rem, .7vw, .78rem);
+  overflow: hidden;
+}
+
+.presentation-match-squad-card {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: .42rem;
+  padding: clamp(.42rem, .72vw, .72rem);
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .045)),
+    rgba(8, 15, 20, .54);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .09);
+}
+
+.presentation-match-squad-photo,
+.presentation-lineup-avatar {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  color: #06120c;
+  background:
+    radial-gradient(circle at 32% 20%, rgba(255, 255, 255, .7), transparent 32%),
+    #bbf7d0;
+  font-weight: 950;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, .75),
+    0 10px 24px rgba(0, 0, 0, .22);
+}
+
+.presentation-match-squad-photo {
+  width: min(100%, 8.4rem);
+  aspect-ratio: 1;
+  justify-self: center;
+  font-size: clamp(1rem, 2.1cqw, 1.6rem);
+}
+
+.presentation-match-squad-photo img,
+.presentation-lineup-avatar img,
+.presentation-match-squad-option-photo img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.presentation-match-squad-card div {
+  min-width: 0;
+  display: grid;
+  gap: .08rem;
+  text-align: center;
+}
+
+.presentation-match-squad-card strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: clamp(.82rem, 1.25cqw, 1.18rem);
+  line-height: 1.02;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-match-squad-card small {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(248, 250, 252, .62);
+  font-size: clamp(.58rem, .82cqw, .84rem);
+  font-weight: 850;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-match-squad-empty {
+  align-self: start;
+  margin: 0;
+  padding: 1rem;
+  border: 1px dashed rgba(255, 255, 255, .2);
+  border-radius: 8px;
+  color: rgba(248, 250, 252, .66);
+  font-weight: 850;
+}
+
+.presentation-match-squad-selector {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: .48rem;
+  padding: .62rem;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 8px;
+  background: rgba(8, 15, 20, .48);
+}
+
+.presentation-match-squad-selector > span {
+  color: rgba(248, 250, 252, .62);
+  font-size: .68rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.presentation-match-squad-option-list {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: .3rem;
+  overflow: auto;
+}
+
+.presentation-match-squad-option {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: .42rem;
+  padding: .34rem;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .06);
+  cursor: pointer;
+}
+
+.presentation-match-squad-option:has(input:checked) {
+  border-color: color-mix(in srgb, var(--presentation-accent, #22c55e) 62%, #ffffff);
+  background: color-mix(in srgb, var(--presentation-accent, #22c55e) 16%, rgba(255, 255, 255, .06));
+}
+
+.presentation-match-squad-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.presentation-match-squad-option-photo {
+  width: 2.05rem;
+  height: 2.05rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  color: #06120c;
+  background: #bbf7d0;
+  font-size: .7rem;
+  font-weight: 950;
+}
+
+.presentation-match-squad-option span:not(.presentation-match-squad-option-photo) {
+  min-width: 0;
+  display: grid;
+  gap: .04rem;
+}
+
+.presentation-match-squad-option strong,
+.presentation-match-squad-option small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-match-squad-option strong {
+  color: #fff;
+  font-size: .76rem;
+  line-height: 1;
+}
+
+.presentation-match-squad-option small {
+  color: rgba(248, 250, 252, .56);
+  font-size: .6rem;
+  font-weight: 850;
+}
+
+.presentation-lineup-heading {
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.presentation-lineup-controls {
+  display: flex;
+  align-items: end;
+  gap: .55rem;
+}
+
+.presentation-lineup-controls label {
+  display: grid;
+  gap: .22rem;
+  color: rgba(248, 250, 252, .62);
+  font-size: .66rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.presentation-lineup-controls select {
+  min-width: 8.4rem;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 8px;
+  padding: .54rem .68rem;
+  color: #fff;
+  background: rgba(255, 255, 255, .08);
+  font: inherit;
+  text-transform: none;
+}
+
+.presentation-lineup-controls small {
+  padding: .55rem .7rem;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  color: rgba(248, 250, 252, .72);
+  background: rgba(8, 15, 20, .32);
+  font-size: .7rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.presentation-lineup-pitch {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  width: min(100%, 64rem);
+  height: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .24);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, .08) 0 12.5%, rgba(255, 255, 255, .02) 12.5% 25%, rgba(255, 255, 255, .08) 25% 37.5%, rgba(255, 255, 255, .02) 37.5% 50%, rgba(255, 255, 255, .08) 50% 62.5%, rgba(255, 255, 255, .02) 62.5% 75%, rgba(255, 255, 255, .08) 75% 87.5%, rgba(255, 255, 255, .02) 87.5% 100%),
+    linear-gradient(180deg, #1f7a4b, #2f9a57);
+  box-shadow: inset 0 0 0 999px rgba(8, 15, 20, .04), inset 0 0 0 1px rgba(255, 255, 255, .1);
+}
+
+.presentation-lineup-field-lines {
+  position: absolute;
+  inset: 4.6%;
+  border: 2px solid rgba(255, 255, 255, .82);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.presentation-lineup-field-lines::before,
+.presentation-lineup-field-lines::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.presentation-lineup-field-lines::before {
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, .78);
+  transform: translateX(-50%);
+}
+
+.presentation-lineup-field-lines::after {
+  left: 50%;
+  top: 50%;
+  width: 18%;
+  aspect-ratio: 1;
+  border: 2px solid rgba(255, 255, 255, .78);
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+}
+
+.presentation-lineup-pitch::before,
+.presentation-lineup-pitch::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  z-index: 0;
+  width: 22%;
+  height: 12%;
+  border: 2px solid rgba(255, 255, 255, .78);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.presentation-lineup-pitch::before {
+  top: 4.6%;
+  border-top: 0;
+}
+
+.presentation-lineup-pitch::after {
+  bottom: 4.6%;
+  border-bottom: 0;
+}
+
+.presentation-lineup-slot {
+  position: absolute;
+  left: var(--slot-x, 50%);
+  top: var(--slot-y, 50%);
+  z-index: 1;
+  width: clamp(5.6rem, 9.2cqw, 8.6rem);
+  min-height: clamp(5.7rem, 11cqh, 8.1rem);
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: .26rem;
+  padding: .42rem;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 8px;
+  background: rgba(8, 15, 20, .62);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, .22);
+  transform: translate(-50%, -50%);
+}
+
+.presentation-lineup-avatar {
+  width: clamp(2.75rem, 4.9cqw, 4.7rem);
+  height: clamp(2.75rem, 4.9cqw, 4.7rem);
+  font-size: clamp(.8rem, 1.5cqw, 1.24rem);
+}
+
+.presentation-lineup-avatar.is-empty {
+  color: rgba(248, 250, 252, .72);
+  background: rgba(15, 23, 42, .72);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .16);
+}
+
+.presentation-lineup-slot strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: #fff;
+  font-size: clamp(.72rem, 1.06cqw, 1.05rem);
+  line-height: 1.02;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.presentation-lineup-player-select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 6px;
+  padding: .28rem .34rem;
+  color: #fff;
+  background: rgba(15, 23, 42, .82);
+  font-size: .62rem;
+  font-weight: 850;
+}
+
 .presentation-overview {
   height: 100%;
   display: grid;
@@ -3068,6 +3478,38 @@ body.is-presentation-text-field-resizing {
   padding: clamp(1.6rem, 3.25cqw, 3.3rem);
 }
 
+.presentation-mode-shell.is-presenting .presentation-match-squad-layout,
+.presentation-mode-shell.is-presenting .presentation-lineup-layout {
+  padding-right: clamp(3.8rem, 5vw, 5.6rem);
+}
+
+.presentation-mode-shell.is-presenting .presentation-match-squad-grid {
+  grid-template-columns: repeat(auto-fit, minmax(clamp(8.2rem, 11.4cqw, 13.4rem), 1fr));
+  grid-auto-rows: minmax(clamp(8rem, 14.8cqh, 12rem), 1fr);
+}
+
+.presentation-mode-shell.is-presenting .presentation-match-squad-photo {
+  width: min(100%, 10.8rem);
+}
+
+.presentation-mode-shell.is-presenting .presentation-match-squad-card strong {
+  font-size: clamp(1rem, 1.34cqw, 1.42rem);
+}
+
+.presentation-mode-shell.is-presenting .presentation-lineup-slot {
+  width: clamp(6.7rem, 9.6cqw, 10.4rem);
+  min-height: clamp(6.9rem, 12.6cqh, 10.2rem);
+}
+
+.presentation-mode-shell.is-presenting .presentation-lineup-avatar {
+  width: clamp(3.5rem, 5.3cqw, 5.9rem);
+  height: clamp(3.5rem, 5.3cqw, 5.9rem);
+}
+
+.presentation-mode-shell.is-presenting .presentation-lineup-slot strong {
+  font-size: clamp(.92rem, 1.18cqw, 1.26rem);
+}
+
 .presentation-mode-shell.is-presenting .presentation-overview {
   padding-right: clamp(3.8rem, 5vw, 5.6rem);
 }
@@ -3345,7 +3787,9 @@ body.is-presentation-text-field-resizing {
 
   .presentation-slide-body,
   .presentation-block-layout,
-  .presentation-overview {
+  .presentation-overview,
+  .presentation-match-squad-layout,
+  .presentation-lineup-layout {
     padding-right: clamp(1.2rem, 4vw, 2rem);
   }
 
@@ -3391,6 +3835,38 @@ body.is-presentation-text-field-resizing {
 
   .presentation-overview-metric.is-load {
     align-content: start;
+  }
+
+  .presentation-match-squad-main {
+    grid-template-columns: 1fr;
+  }
+
+  .presentation-match-squad-selector {
+    max-height: 9rem;
+  }
+
+  .presentation-lineup-heading {
+    display: grid;
+  }
+
+  .presentation-lineup-controls {
+    justify-content: start;
+    overflow: auto;
+  }
+
+  .presentation-lineup-slot {
+    width: clamp(4.6rem, 10.8cqw, 6.8rem);
+    min-height: clamp(4.8rem, 12cqh, 6.4rem);
+    padding: .28rem;
+  }
+
+  .presentation-lineup-avatar {
+    width: clamp(2.2rem, 5.5cqw, 3.4rem);
+    height: clamp(2.2rem, 5.5cqw, 3.4rem);
+  }
+
+  .presentation-lineup-slot strong {
+    font-size: clamp(.58rem, 1.2cqw, .82rem);
   }
 
   .presentation-load-meter {

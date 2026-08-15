@@ -456,6 +456,8 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="text"]')).toBeVisible();
   await expect(presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="title-subtitle"]')).toBeVisible();
   await expect(presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="video"]')).toBeVisible();
+  await expect(presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="match-squad"]')).toBeVisible();
+  await expect(presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="starting-xi"]')).toBeVisible();
   await presentation.locator(".presentation-pass-controls [data-presentation-add-info-menu]").click();
   const insertMenu = presentation.locator("[data-presentation-insert-menu]");
   await expect(insertMenu.locator("summary")).toHaveText("Insert");

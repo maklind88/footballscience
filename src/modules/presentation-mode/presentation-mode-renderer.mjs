@@ -114,6 +114,18 @@ const slideTemplateOptions = [
     preview: ["screen", "line", "line"],
   },
   {
+    value: "match-squad",
+    label: "Match Squad",
+    description: "Select squad players",
+    preview: ["cards", "cards", "cards"],
+  },
+  {
+    value: "starting-xi",
+    label: "Starting XI",
+    description: "Formation with 11 players",
+    preview: ["pitch", "cards"],
+  },
+  {
     value: "blank",
     label: "Blank",
     description: "Free canvas",
@@ -465,7 +477,7 @@ export function createPresentationModeRenderer(options = {}) {
 
   function renderControlBar(model = {}) {
     const slide = model.slides[model.slideIndex] || model.slides[0];
-    const canDeleteSlide = slide?.type === "info";
+    const canDeleteSlide = Boolean(slide?.infoSlide?.id);
     return `
       <header class="presentation-control-bar">
         <div class="presentation-control-brand">
@@ -1103,6 +1115,217 @@ export function createPresentationModeRenderer(options = {}) {
     );
   }
 
+  function getLineupLastName(name = "") {
+    const parts = String(name || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    return parts.at(-1) || String(name || "Player").trim() || "Player";
+  }
+
+  function getLineupPlayerLabel(player = {}) {
+    const number = String(player.number || "").trim();
+    const lastName = getLineupLastName(player.name);
+    return `${number ? `#${number} ` : ""}${lastName}`;
+  }
+
+  function renderLineupAvatar(player = {}, className = "presentation-lineup-avatar") {
+    const photoUrl = String(player.photoUrl || player.avatarUrl || player.imageUrl || "").trim();
+    const label = String(player.name || "Player").trim();
+    if (photoUrl) {
+      return `
+        <span class="${escapeHtml(className)} has-photo">
+          <img src="${escapeHtml(photoUrl)}" alt="${escapeHtml(label)}" loading="lazy" />
+        </span>
+      `;
+    }
+    return `<span class="${escapeHtml(className)}">${escapeHtml(getInitials(label).toUpperCase())}</span>`;
+  }
+
+  function renderMatchSquadPlayerCard(player = {}, index = 0) {
+    const position = String(player.position || "").trim();
+    return `
+      <article class="presentation-match-squad-card">
+        ${renderLineupAvatar(player, "presentation-match-squad-photo")}
+        <div>
+          <strong>${escapeHtml(getLineupPlayerLabel(player))}</strong>
+          <small>${escapeHtml(position || player.name || `Player ${index + 1}`)}</small>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderMatchSquadOption(player = {}, selectedIds = new Set(), infoId = "") {
+    const playerId = String(player.id || "").trim();
+    const checked = selectedIds.has(playerId) ? "checked" : "";
+    return `
+      <label class="presentation-match-squad-option">
+        <input
+          type="checkbox"
+          value="${escapeHtml(playerId)}"
+          data-presentation-match-squad-player="${escapeHtml(playerId)}"
+          data-presentation-info-id="${escapeHtml(infoId)}"
+          ${checked}
+        />
+        ${renderLineupAvatar(player, "presentation-match-squad-option-photo")}
+        <span>
+          <strong>${escapeHtml(getLineupPlayerLabel(player))}</strong>
+          <small>${escapeHtml(player.position || player.name || "Player")}</small>
+        </span>
+      </label>
+    `;
+  }
+
+  function renderMatchSquadSlide(model = {}, slide = {}) {
+    const infoSlide = slide.infoSlide || {};
+    const squad = slide.matchSquad || {};
+    const selectedPlayers = Array.isArray(squad.selectedPlayers) ? squad.selectedPlayers : [];
+    const playerOptions = Array.isArray(squad.playerOptions) ? squad.playerOptions : [];
+    const selectedIds = new Set(Array.isArray(squad.selectedIds) ? squad.selectedIds : []);
+    const accentColor = normalizeHexColor(slide.accentColor || infoSlide.accentColor, "#22c55e");
+    const frameSlide = {
+      id: slide.id,
+      type: "match-squad",
+      label: slide.label,
+      accentColor,
+      style: slide.style,
+      shapes: slide.shapes,
+      textBoxes: slide.textBoxes,
+      textFieldStyles: slide.textFieldStyles,
+      textOverrides: slide.textOverrides,
+    };
+    const selectorHtml = model.presenting
+      ? ""
+      : `
+        <aside class="presentation-match-squad-selector" aria-label="Choose match squad players">
+          <span>Squad Pool</span>
+          <div class="presentation-match-squad-option-list">
+            ${playerOptions
+              .map((player) => renderMatchSquadOption(player, selectedIds, infoSlide.id))
+              .join("")}
+          </div>
+        </aside>
+      `;
+    return renderSlideFrame(
+      model,
+      frameSlide,
+      `
+        <section class="presentation-match-squad-layout${model.presenting ? " is-play-mode" : ""}">
+          <div class="presentation-section-heading">
+            ${renderEditableElement(model, frameSlide, "matchSquad.title", infoSlide.title || "Match Squad", "h2", "", { label: "Match squad title" })}
+            <p>${escapeHtml(selectedPlayers.length ? `${selectedPlayers.length} players selected` : "Select the match squad")}</p>
+          </div>
+          <div class="presentation-match-squad-main">
+            <div class="presentation-match-squad-grid">
+              ${
+                selectedPlayers.length
+                  ? selectedPlayers.map((player, index) => renderMatchSquadPlayerCard(player, index)).join("")
+                  : `<p class="presentation-match-squad-empty">Select players from the squad list.</p>`
+              }
+            </div>
+            ${selectorHtml}
+          </div>
+        </section>
+      `
+    );
+  }
+
+  function renderLineupPlayerSelect(model = {}, slide = {}, slot = {}, lineup = {}) {
+    if (model.presenting) {
+      return "";
+    }
+    const selectedIds = new Set((Array.isArray(lineup.slots) ? lineup.slots : []).map((item) => item.playerId).filter(Boolean));
+    const currentPlayerId = String(slot.playerId || "").trim();
+    return `
+      <select
+        class="presentation-lineup-player-select"
+        data-presentation-lineup-player
+        data-presentation-info-id="${escapeHtml(slide.infoSlide?.id || "")}"
+        data-presentation-lineup-slot="${escapeHtml(slot.id)}"
+        aria-label="${escapeHtml(`Select ${slot.label}`)}"
+      >
+        <option value="">${escapeHtml(slot.label || "Position")}</option>
+        ${(Array.isArray(lineup.playerOptions) ? lineup.playerOptions : [])
+          .map((player) => {
+            const playerId = String(player.id || "").trim();
+            const selected = playerId === currentPlayerId ? "selected" : "";
+            const disabled = selectedIds.has(playerId) && playerId !== currentPlayerId ? "disabled" : "";
+            return `<option value="${escapeHtml(playerId)}" ${selected} ${disabled}>${escapeHtml(getLineupPlayerLabel(player))}</option>`;
+          })
+          .join("")}
+      </select>
+    `;
+  }
+
+  function renderLineupSlot(model = {}, slide = {}, slot = {}, lineup = {}) {
+    const player = slot.player || null;
+    return `
+      <article
+        class="presentation-lineup-slot${player ? " has-player" : ""}"
+        style="--slot-x: ${escapeHtml(String(slot.x || 50))}%; --slot-y: ${escapeHtml(String(slot.y || 50))}%;"
+      >
+        ${player ? renderLineupAvatar(player) : `<span class="presentation-lineup-avatar is-empty">${escapeHtml(slot.label || "")}</span>`}
+        <strong>${escapeHtml(player ? getLineupPlayerLabel(player) : slot.label || "Position")}</strong>
+        ${renderLineupPlayerSelect(model, slide, slot, lineup)}
+      </article>
+    `;
+  }
+
+  function renderLineupSlide(model = {}, slide = {}) {
+    const infoSlide = slide.infoSlide || {};
+    const lineup = slide.lineup || {};
+    const slots = Array.isArray(lineup.slots) ? lineup.slots : [];
+    const accentColor = normalizeHexColor(slide.accentColor || infoSlide.accentColor, "#22c55e");
+    const frameSlide = {
+      id: slide.id,
+      type: "lineup",
+      label: slide.label,
+      accentColor,
+      style: slide.style,
+      shapes: slide.shapes,
+      textBoxes: slide.textBoxes,
+      textFieldStyles: slide.textFieldStyles,
+      textOverrides: slide.textOverrides,
+    };
+    const controlsHtml = model.presenting
+      ? ""
+      : `
+        <div class="presentation-lineup-controls">
+          <label>
+            <span>Formation</span>
+            <select data-presentation-lineup-formation data-presentation-info-id="${escapeHtml(infoSlide.id)}" aria-label="Choose formation">
+              ${(Array.isArray(lineup.formationOptions) ? lineup.formationOptions : [])
+                .map(
+                  (option) =>
+                    `<option value="${escapeHtml(option.id)}" ${option.id === lineup.formationId ? "selected" : ""}>${escapeHtml(option.label)}</option>`
+                )
+                .join("")}
+            </select>
+          </label>
+          <small>${escapeHtml(lineup.sourceLabel || "Full squad")}</small>
+        </div>
+      `;
+    return renderSlideFrame(
+      model,
+      frameSlide,
+      `
+        <section class="presentation-lineup-layout">
+          <div class="presentation-lineup-heading">
+            <div class="presentation-section-heading">
+              ${renderEditableElement(model, frameSlide, "lineup.title", infoSlide.title || "Starting XI", "h2", "", { label: "Starting XI title" })}
+              <p>${escapeHtml(lineup.formationLabel || "Formation")} / 11 players</p>
+            </div>
+            ${controlsHtml}
+          </div>
+          <div class="presentation-lineup-pitch" aria-label="Starting eleven formation">
+            <span class="presentation-lineup-field-lines" aria-hidden="true"></span>
+            ${slots.map((slot) => renderLineupSlot(model, slide, slot, lineup)).join("")}
+          </div>
+        </section>
+      `
+    );
+  }
+
   function renderOverviewMetric(model = {}, slide = {}, label, value, className = "", keyPrefix = "") {
     return `
       <div class="presentation-overview-metric ${escapeHtml(className)}">
@@ -1527,6 +1750,8 @@ export function createPresentationModeRenderer(options = {}) {
     }
     if (slide.type === "cover") return renderCoverSlide(model, slide);
     if (slide.type === "info") return renderInfoSlide(model, slide);
+    if (slide.type === "match-squad") return renderMatchSquadSlide(model, slide);
+    if (slide.type === "lineup") return renderLineupSlide(model, slide);
     if (slide.type === "overview") return renderOverviewSlide(model, slide);
     if (slide.type === "block") return renderBlockSlide(model, slide);
     return renderSlideFrame(model, slide, "");
@@ -1552,6 +1777,8 @@ export function createPresentationModeRenderer(options = {}) {
     renderControlBar,
     renderCoverSlide,
     renderInfoSlide,
+    renderLineupSlide,
+    renderMatchSquadSlide,
     renderOverviewSlide,
     renderTextToolbar,
   };

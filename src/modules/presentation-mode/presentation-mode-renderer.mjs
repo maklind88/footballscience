@@ -1302,7 +1302,6 @@ export function createPresentationModeRenderer(options = {}) {
                 .join("")}
             </select>
           </label>
-          <small>${escapeHtml(lineup.sourceLabel || "Full squad")}</small>
         </div>
       `;
     return renderSlideFrame(

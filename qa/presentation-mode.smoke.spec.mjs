@@ -523,6 +523,38 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     penaltyArcVisible: true,
     slotCount: 11,
   });
+  await presentation.locator("[data-presentation-start]").click();
+  await expect(presentation).toHaveClass(/is-presenting/);
+  const presentingLineupGeometry = await lineupSlide.locator(".presentation-lineup-pitch").evaluate((pitch) => {
+    const slide = pitch.closest(".presentation-slide");
+    const rect = pitch.getBoundingClientRect();
+    const slideRect = slide?.getBoundingClientRect();
+    const slots = Array.from(pitch.querySelectorAll(".presentation-lineup-slot")).map((slot) => slot.getBoundingClientRect());
+    const overlaps = slots.some((slot, index) =>
+      slots.slice(index + 1).some((other) => {
+        const horizontalGap = Math.max(0, Math.max(other.left - slot.right, slot.left - other.right));
+        const verticalGap = Math.max(0, Math.max(other.top - slot.bottom, slot.top - other.bottom));
+        return horizontalGap < 2 && verticalGap < 2;
+      })
+    );
+    return {
+      aspect: rect.width / rect.height,
+      fillsProjectorHeight: slideRect ? rect.height / slideRect.height : 0,
+      noSlotOverlap: !overlaps,
+      readableSlots: slots.every((slot) => slot.width >= 100 && slot.height >= 92),
+      slotCount: slots.length,
+    };
+  });
+  expect(presentingLineupGeometry.aspect).toBeGreaterThan(1.25);
+  expect(presentingLineupGeometry.aspect).toBeLessThan(1.35);
+  expect(presentingLineupGeometry).toMatchObject({
+    noSlotOverlap: true,
+    readableSlots: true,
+    slotCount: 11,
+  });
+  expect(presentingLineupGeometry.fillsProjectorHeight).toBeGreaterThan(0.7);
+  await presentation.locator("[data-presentation-exit-fullscreen]").click();
+  await expect(presentation).not.toHaveClass(/is-presenting/);
   await presentation.locator("[data-presentation-delete-slide]").click();
   await expect(lineupSlide).toHaveCount(0);
   const insertMenu = presentation.locator("[data-presentation-insert-menu]");

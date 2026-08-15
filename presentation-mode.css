@@ -1515,6 +1515,9 @@ body.is-presentation-mode-open {
   --presentation-stage-height: 100%;
   --presentation-slide-width: min(100%, calc((100dvh - 9.4rem) * 1.777));
   --presentation-slide-height: min(100%, calc(100dvh - 9.4rem));
+  --presentation-lineup-pitch-width: min(100%, calc(76cqh * 1.295));
+  --presentation-readability-scale: 1;
+  min-width: 0;
   min-height: 0;
   display: grid;
   place-items: center;
@@ -2725,6 +2728,7 @@ body.is-presentation-text-field-resizing {
   left: var(--slot-x, 50%);
   top: var(--slot-y, 50%);
   z-index: 2;
+  box-sizing: border-box;
   width: clamp(4.8rem, 6.7cqw, 6.3rem);
   min-height: clamp(4.75rem, 8.35cqh, 6.15rem);
   display: grid;
@@ -3663,6 +3667,26 @@ body.is-presentation-text-field-resizing {
   padding-right: clamp(3.8rem, 5vw, 5.6rem);
 }
 
+.presentation-mode-shell.is-presenting .presentation-lineup-layout {
+  gap: clamp(.32rem, .62cqw, .66rem);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.presentation-mode-shell.is-presenting .presentation-lineup-layout .presentation-section-heading h2 {
+  max-width: 100%;
+  font-size: clamp(2.45rem, 4.55cqw, 5.65rem);
+  line-height: .96;
+}
+
+.presentation-mode-shell.is-presenting .presentation-lineup-pitch {
+  width: min(100%, var(--presentation-lineup-pitch-width, 92rem));
+  height: auto;
+  align-self: center;
+  justify-self: center;
+  max-width: 100%;
+  max-height: 100%;
+}
+
 .presentation-mode-shell.is-presenting .presentation-match-squad-grid {
   grid-template-columns: repeat(auto-fit, minmax(clamp(8.2rem, 11.4cqw, 13.4rem), 1fr));
   grid-auto-rows: minmax(clamp(8rem, 14.8cqh, 12rem), 1fr);
@@ -3677,9 +3701,9 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-mode-shell.is-presenting .presentation-lineup-slot {
-  width: clamp(6.2rem, 8.5cqw, 9.05rem);
-  min-height: clamp(6.35rem, 11cqh, 8.9rem);
-  padding: clamp(.42rem, .64cqw, .68rem);
+  width: clamp(6.1rem, 8.35cqw, 9.75rem);
+  min-height: clamp(5.95rem, 10.15cqh, 9.25rem);
+  padding: clamp(.34rem, .58cqw, .64rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-lineup-slot::after {
@@ -3687,12 +3711,12 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-mode-shell.is-presenting .presentation-lineup-avatar {
-  width: clamp(3.7rem, 5.2cqw, 5.85rem);
-  height: clamp(3.7rem, 5.2cqw, 5.85rem);
+  width: clamp(3.35rem, 4.92cqw, 5.95rem);
+  height: clamp(3.35rem, 4.92cqw, 5.95rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-lineup-slot strong {
-  font-size: clamp(.92rem, 1.18cqw, 1.28rem);
+  font-size: clamp(.92rem, 1.22cqw, 1.45rem);
   line-height: 1.04;
 }
 
@@ -3726,74 +3750,74 @@ body.is-presentation-text-field-resizing {
 .presentation-mode-shell.is-presenting .presentation-block-flow span,
 .presentation-mode-shell.is-presenting .presentation-detail-block span,
 .presentation-mode-shell.is-presenting .presentation-player-panel header span {
-  font-size: clamp(.74rem, .96cqw, 1rem);
+  font-size: var(--presentation-readable-label-font, clamp(.74rem, .96cqw, 1.08rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-overview-metric strong {
-  font-size: clamp(1.02rem, 1.55cqw, 1.65rem);
+  font-size: var(--presentation-readable-metric-font, clamp(1.02rem, 1.55cqw, 1.82rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-day-overview strong {
-  font-size: clamp(1rem, 1.52cqw, 1.65rem);
+  font-size: var(--presentation-readable-day-font, clamp(1rem, 1.52cqw, 1.82rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-day-subphase,
 .presentation-mode-shell.is-presenting .presentation-overview-video-notes {
-  font-size: clamp(.74rem, 1.02cqw, 1.05rem);
+  font-size: var(--presentation-readable-support-font, clamp(.74rem, 1.02cqw, 1.18rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-block-flow strong {
-  font-size: clamp(.98rem, 1.38cqw, 1.48rem);
+  font-size: var(--presentation-readable-block-row-font, clamp(.98rem, 1.38cqw, 1.64rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-block-copy .presentation-section-heading h2 {
-  font-size: clamp(2.1rem, 3.72cqw, 4.15rem);
+  font-size: var(--presentation-readable-block-title-font, clamp(2.1rem, 3.72cqw, 4.5rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-block-copy .presentation-section-heading p {
-  font-size: clamp(.94rem, 1.42cqw, 1.52rem);
+  font-size: var(--presentation-readable-block-meta-font, clamp(.94rem, 1.42cqw, 1.7rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-detail-text {
-  font-size: clamp(.96rem, 1.24cqw, 1.36rem);
+  font-size: var(--presentation-readable-detail-font, clamp(.96rem, 1.24cqw, 1.52rem));
   line-height: 1.32;
 }
 
 .presentation-mode-shell.is-presenting .presentation-medical-player {
-  grid-template-columns: clamp(1.95rem, 4.5vh, 3.25rem) minmax(0, 1fr) auto;
+  grid-template-columns: var(--presentation-readable-medical-avatar, clamp(1.95rem, 4.8vh, 3.7rem)) minmax(0, 1fr) auto;
   gap: clamp(.34rem, .5vw, .58rem);
   padding: clamp(.14rem, .24vh, .3rem) clamp(.28rem, .4vw, .48rem);
 }
 
 .presentation-mode-shell.is-presenting .presentation-medical-avatar {
-  width: clamp(1.95rem, 4.5vh, 3.25rem);
-  height: clamp(1.95rem, 4.5vh, 3.25rem);
-  font-size: clamp(.62rem, 1.28vh, .88rem);
+  width: var(--presentation-readable-medical-avatar, clamp(1.95rem, 4.8vh, 3.7rem));
+  height: var(--presentation-readable-medical-avatar, clamp(1.95rem, 4.8vh, 3.7rem));
+  font-size: var(--presentation-readable-medical-initials-font, clamp(.62rem, 1.36vh, .96rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-medical-player strong {
-  font-size: clamp(.76rem, 1.45vh, 1.06rem);
+  font-size: var(--presentation-readable-medical-name-font, clamp(.76rem, 1.54vh, 1.16rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-medical-player > span:last-child {
-  min-width: clamp(2.35rem, 4.8vh, 3.28rem);
-  font-size: clamp(.58rem, 1.08vh, .8rem);
+  min-width: clamp(2.35rem, 5.05vh, 3.48rem);
+  font-size: var(--presentation-readable-medical-badge-font, clamp(.58rem, 1.16vh, .88rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-player-panel header strong {
-  font-size: clamp(.88rem, 1.28cqw, 1.2rem);
+  font-size: var(--presentation-readable-muted-title-font, clamp(.88rem, 1.28cqw, 1.34rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-player-chip strong {
-  font-size: clamp(.76rem, 1.05cqw, 1rem);
+  font-size: var(--presentation-readable-muted-name-font, clamp(.76rem, 1.05cqw, 1.12rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-player-chip small {
-  font-size: clamp(.62rem, .88cqw, .84rem);
+  font-size: var(--presentation-readable-muted-meta-font, clamp(.62rem, .88cqw, .94rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-slide-footer {
-  font-size: clamp(.9rem, 1.08cqw, 1.12rem);
+  font-size: var(--presentation-readable-footer-font, clamp(.9rem, 1.08cqw, 1.22rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-footer-nav {

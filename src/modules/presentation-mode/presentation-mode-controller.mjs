@@ -19,102 +19,102 @@ const lineupFormationOptions = [
     id: "4-3-3",
     label: "4-3-3",
     slots: [
-      { id: "gk", label: "GK", x: 50, y: 93 },
-      { id: "lb", label: "LB", x: 17, y: 73 },
-      { id: "lcb", label: "LCB", x: 39, y: 74 },
-      { id: "rcb", label: "RCB", x: 61, y: 74 },
-      { id: "rb", label: "RB", x: 83, y: 73 },
-      { id: "lcm", label: "LCM", x: 27, y: 52 },
-      { id: "cm", label: "CM", x: 50, y: 52 },
-      { id: "rcm", label: "RCM", x: 73, y: 52 },
-      { id: "lw", label: "LW", x: 20, y: 29 },
-      { id: "st", label: "ST", x: 50, y: 20 },
-      { id: "rw", label: "RW", x: 80, y: 29 },
+      { id: "gk", label: "GK", x: 50, y: 95 },
+      { id: "lb", label: "LB", x: 14, y: 70 },
+      { id: "lcb", label: "LCB", x: 38, y: 70 },
+      { id: "rcb", label: "RCB", x: 62, y: 70 },
+      { id: "rb", label: "RB", x: 86, y: 70 },
+      { id: "lcm", label: "LCM", x: 27, y: 49 },
+      { id: "cm", label: "CM", x: 50, y: 49 },
+      { id: "rcm", label: "RCM", x: 73, y: 49 },
+      { id: "lw", label: "LW", x: 18, y: 27 },
+      { id: "st", label: "ST", x: 50, y: 16 },
+      { id: "rw", label: "RW", x: 82, y: 27 },
     ],
   },
   {
     id: "4-2-3-1",
     label: "4-2-3-1",
     slots: [
-      { id: "gk", label: "GK", x: 50, y: 93 },
-      { id: "lb", label: "LB", x: 17, y: 73 },
-      { id: "lcb", label: "LCB", x: 39, y: 74 },
-      { id: "rcb", label: "RCB", x: 61, y: 74 },
-      { id: "rb", label: "RB", x: 83, y: 73 },
-      { id: "ldm", label: "LDM", x: 35, y: 52 },
-      { id: "rdm", label: "RDM", x: 65, y: 52 },
-      { id: "lam", label: "LAM", x: 18, y: 30 },
-      { id: "cam", label: "CAM", x: 50, y: 29 },
-      { id: "ram", label: "RAM", x: 82, y: 30 },
-      { id: "st", label: "ST", x: 50, y: 10 },
+      { id: "gk", label: "GK", x: 50, y: 95 },
+      { id: "lb", label: "LB", x: 14, y: 70 },
+      { id: "lcb", label: "LCB", x: 38, y: 70 },
+      { id: "rcb", label: "RCB", x: 62, y: 70 },
+      { id: "rb", label: "RB", x: 86, y: 70 },
+      { id: "ldm", label: "LDM", x: 34, y: 50 },
+      { id: "rdm", label: "RDM", x: 66, y: 50 },
+      { id: "lam", label: "LAM", x: 17, y: 32 },
+      { id: "cam", label: "CAM", x: 50, y: 32 },
+      { id: "ram", label: "RAM", x: 83, y: 32 },
+      { id: "st", label: "ST", x: 50, y: 12 },
     ],
   },
   {
     id: "4-4-2",
     label: "4-4-2",
     slots: [
-      { id: "gk", label: "GK", x: 50, y: 93 },
-      { id: "lb", label: "LB", x: 17, y: 73 },
-      { id: "lcb", label: "LCB", x: 39, y: 74 },
-      { id: "rcb", label: "RCB", x: 61, y: 74 },
-      { id: "rb", label: "RB", x: 83, y: 73 },
-      { id: "lm", label: "LM", x: 17, y: 48 },
-      { id: "lcm", label: "LCM", x: 39, y: 51 },
-      { id: "rcm", label: "RCM", x: 61, y: 51 },
-      { id: "rm", label: "RM", x: 83, y: 48 },
-      { id: "lst", label: "LST", x: 37, y: 23 },
-      { id: "rst", label: "RST", x: 63, y: 23 },
+      { id: "gk", label: "GK", x: 50, y: 95 },
+      { id: "lb", label: "LB", x: 14, y: 70 },
+      { id: "lcb", label: "LCB", x: 38, y: 70 },
+      { id: "rcb", label: "RCB", x: 62, y: 70 },
+      { id: "rb", label: "RB", x: 86, y: 70 },
+      { id: "lm", label: "LM", x: 15, y: 46 },
+      { id: "lcm", label: "LCM", x: 38, y: 46 },
+      { id: "rcm", label: "RCM", x: 62, y: 46 },
+      { id: "rm", label: "RM", x: 85, y: 46 },
+      { id: "lst", label: "LST", x: 37, y: 20 },
+      { id: "rst", label: "RST", x: 63, y: 20 },
     ],
   },
   {
     id: "3-5-2",
     label: "3-5-2",
     slots: [
-      { id: "gk", label: "GK", x: 50, y: 93 },
-      { id: "lcb", label: "LCB", x: 30, y: 70 },
-      { id: "cb", label: "CB", x: 50, y: 70 },
-      { id: "rcb", label: "RCB", x: 70, y: 70 },
-      { id: "lwb", label: "LWB", x: 13, y: 50 },
-      { id: "lcm", label: "LCM", x: 32, y: 50 },
-      { id: "cm", label: "CM", x: 50, y: 46 },
-      { id: "rcm", label: "RCM", x: 68, y: 50 },
-      { id: "rwb", label: "RWB", x: 87, y: 50 },
-      { id: "lst", label: "LST", x: 37, y: 23 },
-      { id: "rst", label: "RST", x: 63, y: 23 },
+      { id: "gk", label: "GK", x: 50, y: 95 },
+      { id: "lcb", label: "LCB", x: 29, y: 68 },
+      { id: "cb", label: "CB", x: 50, y: 68 },
+      { id: "rcb", label: "RCB", x: 71, y: 68 },
+      { id: "lwb", label: "LWB", x: 12, y: 48 },
+      { id: "lcm", label: "LCM", x: 32, y: 46 },
+      { id: "cm", label: "CM", x: 50, y: 41 },
+      { id: "rcm", label: "RCM", x: 68, y: 46 },
+      { id: "rwb", label: "RWB", x: 88, y: 48 },
+      { id: "lst", label: "LST", x: 37, y: 18 },
+      { id: "rst", label: "RST", x: 63, y: 18 },
     ],
   },
   {
     id: "3-4-3",
     label: "3-4-3",
     slots: [
-      { id: "gk", label: "GK", x: 50, y: 93 },
-      { id: "lcb", label: "LCB", x: 30, y: 70 },
-      { id: "cb", label: "CB", x: 50, y: 70 },
-      { id: "rcb", label: "RCB", x: 70, y: 70 },
-      { id: "lm", label: "LM", x: 18, y: 47 },
-      { id: "lcm", label: "LCM", x: 37, y: 48 },
-      { id: "rcm", label: "RCM", x: 63, y: 48 },
-      { id: "rm", label: "RM", x: 82, y: 47 },
-      { id: "lw", label: "LW", x: 20, y: 24 },
-      { id: "st", label: "ST", x: 50, y: 17 },
-      { id: "rw", label: "RW", x: 80, y: 24 },
+      { id: "gk", label: "GK", x: 50, y: 95 },
+      { id: "lcb", label: "LCB", x: 29, y: 68 },
+      { id: "cb", label: "CB", x: 50, y: 68 },
+      { id: "rcb", label: "RCB", x: 71, y: 68 },
+      { id: "lm", label: "LM", x: 16, y: 46 },
+      { id: "lcm", label: "LCM", x: 38, y: 46 },
+      { id: "rcm", label: "RCM", x: 62, y: 46 },
+      { id: "rm", label: "RM", x: 84, y: 46 },
+      { id: "lw", label: "LW", x: 18, y: 24 },
+      { id: "st", label: "ST", x: 50, y: 14 },
+      { id: "rw", label: "RW", x: 82, y: 24 },
     ],
   },
   {
     id: "4-1-4-1",
     label: "4-1-4-1",
     slots: [
-      { id: "gk", label: "GK", x: 50, y: 93 },
-      { id: "lb", label: "LB", x: 17, y: 73 },
-      { id: "lcb", label: "LCB", x: 39, y: 74 },
-      { id: "rcb", label: "RCB", x: 61, y: 74 },
-      { id: "rb", label: "RB", x: 83, y: 73 },
-      { id: "dm", label: "DM", x: 50, y: 52 },
-      { id: "lm", label: "LM", x: 13, y: 35 },
-      { id: "lcm", label: "LCM", x: 32, y: 34 },
-      { id: "rcm", label: "RCM", x: 68, y: 34 },
-      { id: "rm", label: "RM", x: 87, y: 35 },
-      { id: "st", label: "ST", x: 50, y: 13 },
+      { id: "gk", label: "GK", x: 50, y: 95 },
+      { id: "lb", label: "LB", x: 14, y: 70 },
+      { id: "lcb", label: "LCB", x: 38, y: 70 },
+      { id: "rcb", label: "RCB", x: 62, y: 70 },
+      { id: "rb", label: "RB", x: 86, y: 70 },
+      { id: "dm", label: "DM", x: 50, y: 50 },
+      { id: "lm", label: "LM", x: 14, y: 32 },
+      { id: "lcm", label: "LCM", x: 34, y: 32 },
+      { id: "rcm", label: "RCM", x: 66, y: 32 },
+      { id: "rm", label: "RM", x: 86, y: 32 },
+      { id: "st", label: "ST", x: 50, y: 12 },
     ],
   },
 ];
@@ -1405,10 +1405,47 @@ export function createPresentationModeController(dependencies = {}) {
     }
     const slideHeight = Math.min(stageHeight, stageWidth * (9 / 16));
     const slideWidth = slideHeight * (16 / 9);
+    const naturalScale = Math.min(slideWidth / 1280, slideHeight / 720);
+    const readabilityScale = state.presenting ? Math.min(1.18, Math.max(1, naturalScale)) : 1;
+    const displaySize =
+      slideWidth >= 1600 && slideHeight >= 900
+        ? "large"
+        : slideWidth <= 980 || slideHeight <= 552
+          ? "compact"
+          : "standard";
+    const lineupPitchHeightRatio =
+      state.presenting && displaySize === "large" ? 0.86 : state.presenting && displaySize === "compact" ? 0.74 : 0.78;
+    const lineupPitchWidth = Math.min(slideWidth * 0.88, slideHeight * lineupPitchHeightRatio * (68 / 52.5));
+    const rootFontSize = Number.parseFloat(win?.getComputedStyle?.(documentRef.documentElement)?.fontSize) || 16;
+    const setReadableSize = (name, value, minRem, maxRem) => {
+      const min = minRem * rootFontSize;
+      const max = maxRem * rootFontSize;
+      const safeValue = Math.min(max, Math.max(min, Number(value) || min));
+      stage.style.setProperty(name, `${Number(safeValue.toFixed(2))}px`);
+    };
     stage.style.setProperty("--presentation-stage-width", `${Number(stageWidth.toFixed(2))}px`);
     stage.style.setProperty("--presentation-stage-height", `${Number(stageHeight.toFixed(2))}px`);
     stage.style.setProperty("--presentation-slide-width", `${Number(slideWidth.toFixed(2))}px`);
     stage.style.setProperty("--presentation-slide-height", `${Number(slideHeight.toFixed(2))}px`);
+    stage.style.setProperty("--presentation-readability-scale", Number(readabilityScale.toFixed(3)));
+    stage.style.setProperty("--presentation-lineup-pitch-width", `${Number(lineupPitchWidth.toFixed(2))}px`);
+    setReadableSize("--presentation-readable-label-font", slideWidth * 0.0096 * readabilityScale, 0.74, 1.08);
+    setReadableSize("--presentation-readable-metric-font", slideWidth * 0.0155 * readabilityScale, 1.02, 1.82);
+    setReadableSize("--presentation-readable-day-font", slideWidth * 0.0152 * readabilityScale, 1, 1.82);
+    setReadableSize("--presentation-readable-support-font", slideWidth * 0.0102 * readabilityScale, 0.74, 1.18);
+    setReadableSize("--presentation-readable-block-row-font", slideWidth * 0.0138 * readabilityScale, 0.98, 1.64);
+    setReadableSize("--presentation-readable-block-title-font", slideWidth * 0.0372 * readabilityScale, 2.1, 4.5);
+    setReadableSize("--presentation-readable-block-meta-font", slideWidth * 0.0142 * readabilityScale, 0.94, 1.7);
+    setReadableSize("--presentation-readable-detail-font", slideWidth * 0.0124 * readabilityScale, 0.96, 1.52);
+    setReadableSize("--presentation-readable-medical-avatar", slideHeight * 0.048 * readabilityScale, 1.95, 3.7);
+    setReadableSize("--presentation-readable-medical-initials-font", slideHeight * 0.0136 * readabilityScale, 0.62, 0.96);
+    setReadableSize("--presentation-readable-medical-name-font", slideHeight * 0.0154 * readabilityScale, 0.76, 1.16);
+    setReadableSize("--presentation-readable-medical-badge-font", slideHeight * 0.0116 * readabilityScale, 0.58, 0.88);
+    setReadableSize("--presentation-readable-muted-title-font", slideWidth * 0.0128 * readabilityScale, 0.88, 1.34);
+    setReadableSize("--presentation-readable-muted-name-font", slideWidth * 0.0105 * readabilityScale, 0.76, 1.12);
+    setReadableSize("--presentation-readable-muted-meta-font", slideWidth * 0.0088 * readabilityScale, 0.62, 0.94);
+    setReadableSize("--presentation-readable-footer-font", slideWidth * 0.0108 * readabilityScale, 0.9, 1.22);
+    stage.dataset.presentationDisplaySize = displaySize;
     schedulePresentingTextFit();
   }
 

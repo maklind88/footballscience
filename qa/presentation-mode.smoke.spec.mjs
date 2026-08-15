@@ -458,7 +458,50 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="video"]')).toBeVisible();
   await expect(presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="match-squad"]')).toBeVisible();
   await expect(presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="starting-xi"]')).toBeVisible();
-  await presentation.locator(".presentation-pass-controls [data-presentation-add-info-menu]").click();
+  page.once("dialog", async (dialog) => {
+    await dialog.accept("Starting XI");
+  });
+  await presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="starting-xi"]').click();
+  const lineupSlide = presentation.locator(".presentation-slide-lineup");
+  await expect(lineupSlide).toBeVisible();
+  const lineupGeometry = await lineupSlide.locator(".presentation-lineup-pitch").evaluate((pitch) => {
+    const rect = pitch.getBoundingClientRect();
+    const field = pitch.querySelector(".presentation-lineup-field-lines")?.getBoundingClientRect();
+    const penaltyArc = pitch.querySelector(".presentation-lineup-penalty-arc")?.getBoundingClientRect();
+    const goal = pitch.querySelector(".presentation-lineup-goal")?.getBoundingClientRect();
+    const slots = Array.from(pitch.querySelectorAll(".presentation-lineup-slot")).map((slot) => slot.getBoundingClientRect());
+    const overlaps = slots.some((slot, index) =>
+      slots.slice(index + 1).some((other) => {
+        const horizontalGap = Math.max(0, Math.max(other.left - slot.right, slot.left - other.right));
+        const verticalGap = Math.max(0, Math.max(other.top - slot.bottom, slot.top - other.bottom));
+        return horizontalGap < 2 && verticalGap < 2;
+      })
+    );
+    return {
+      aspect: rect.width / rect.height,
+      fieldIsInsidePitch:
+        Boolean(field) &&
+        field.left >= rect.left &&
+        field.right <= rect.right &&
+        field.top >= rect.top &&
+        field.bottom <= rect.bottom,
+      goalVisible: Boolean(goal) && goal.width > rect.width * 0.15,
+      noSlotOverlap: !overlaps,
+      penaltyArcVisible: Boolean(penaltyArc) && penaltyArc.width > rect.width * 0.15,
+      slotCount: slots.length,
+    };
+  });
+  expect(lineupGeometry.aspect).toBeGreaterThan(1.25);
+  expect(lineupGeometry.aspect).toBeLessThan(1.35);
+  expect(lineupGeometry).toMatchObject({
+    fieldIsInsidePitch: true,
+    goalVisible: true,
+    noSlotOverlap: true,
+    penaltyArcVisible: true,
+    slotCount: 11,
+  });
+  await presentation.locator("[data-presentation-delete-slide]").click();
+  await expect(lineupSlide).toHaveCount(0);
   const insertMenu = presentation.locator("[data-presentation-insert-menu]");
   await expect(insertMenu.locator("summary")).toHaveText("Insert");
   await insertMenu.locator("summary").click();

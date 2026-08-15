@@ -1319,6 +1319,9 @@ export function createPresentationModeRenderer(options = {}) {
           </div>
           <div class="presentation-lineup-pitch" aria-label="Starting eleven formation">
             <span class="presentation-lineup-field-lines" aria-hidden="true"></span>
+            <span class="presentation-lineup-penalty-arc" aria-hidden="true"></span>
+            <span class="presentation-lineup-penalty-spot" aria-hidden="true"></span>
+            <span class="presentation-lineup-goal" aria-hidden="true"></span>
             ${slots.map((slot) => renderLineupSlot(model, slide, slot, lineup)).join("")}
           </div>
         </section>

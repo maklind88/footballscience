@@ -1313,7 +1313,6 @@ export function createPresentationModeRenderer(options = {}) {
           <div class="presentation-lineup-heading">
             <div class="presentation-section-heading">
               ${renderEditableElement(model, frameSlide, "lineup.title", infoSlide.title || "Starting XI", "h2", "", { label: "Starting XI title" })}
-              <p>${escapeHtml(lineup.formationLabel || "Formation")} / 11 players</p>
             </div>
             ${controlsHtml}
           </div>

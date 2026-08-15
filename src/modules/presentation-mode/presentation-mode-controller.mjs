@@ -2651,27 +2651,29 @@ export function createPresentationModeController(dependencies = {}) {
     deleteInfoSlide(currentSlide.infoSlide.id);
   }
 
-  function reorderSlides(fromIndex, toIndex) {
+  function reorderSlides(fromIndex, insertIndex) {
     if (state.presenting) {
-      return;
+      return false;
     }
     const model = buildModel();
     const slides = model.slides || [];
     const from = Number(fromIndex);
-    const to = Number(toIndex);
+    const insertAt = Number(insertIndex);
     if (
       !Number.isInteger(from) ||
-      !Number.isInteger(to) ||
+      !Number.isInteger(insertAt) ||
       from < 0 ||
-      to < 0 ||
+      insertAt < 0 ||
       from >= slides.length ||
-      to >= slides.length ||
-      from === to
+      insertAt > slides.length ||
+      insertAt === from ||
+      insertAt === from + 1
     ) {
-      return;
+      return false;
     }
     const reorderedSlides = [...slides];
     const [movedSlide] = reorderedSlides.splice(from, 1);
+    const to = insertAt > from ? insertAt - 1 : insertAt;
     reorderedSlides.splice(to, 0, movedSlide);
     const activeSlideId = slides[state.slideIndex]?.id || movedSlide?.id;
     writeDeckForDate(state.dateValue, (deck) => ({
@@ -2683,6 +2685,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.slideIndex = nextActiveIndex >= 0 ? nextActiveIndex : Math.min(to, Math.max(0, nextModel.slides.length - 1));
     state.dragSlideIndex = null;
     render();
+    return true;
   }
 
   function startFullscreen() {
@@ -3911,6 +3914,75 @@ export function createPresentationModeController(dependencies = {}) {
     }
   }
 
+  function getSlideDropTarget(event) {
+    const directTab = event.target.closest?.("[data-presentation-slide-tab]");
+    const nav = directTab?.closest?.(".presentation-slide-tabs") || event.target.closest?.(".presentation-slide-tabs");
+    if (!nav) {
+      return null;
+    }
+    const tabs = Array.from(nav.querySelectorAll("[data-presentation-slide-tab]"));
+    let tab = directTab;
+    let side = "before";
+    if (tab) {
+      const rect = tab.getBoundingClientRect();
+      side = event.clientX < rect.left + rect.width / 2 ? "before" : "after";
+    } else {
+      tab =
+        tabs.find((candidate) => {
+          const rect = candidate.getBoundingClientRect();
+          return event.clientX < rect.left + rect.width / 2;
+        }) || tabs[tabs.length - 1];
+      if (tab) {
+        const rect = tab.getBoundingClientRect();
+        const isAfterLastTab = tab === tabs[tabs.length - 1] && event.clientX >= rect.left + rect.width / 2;
+        side = isAfterLastTab ? "after" : "before";
+      }
+    }
+    if (!tab) {
+      return null;
+    }
+    const index = Number(tab.dataset.presentationSlideIndex);
+    if (!Number.isInteger(index)) {
+      return null;
+    }
+    return {
+      insertIndex: side === "after" ? index + 1 : index,
+      side,
+      tab,
+    };
+  }
+
+  function clearSlideDropIndicators() {
+    root
+      ?.querySelectorAll?.("[data-presentation-slide-tab].is-drop-before, [data-presentation-slide-tab].is-drop-after")
+      .forEach((tab) => {
+        tab.classList.remove("is-drop-before", "is-drop-after");
+      });
+  }
+
+  function clearSlideDragState() {
+    state.dragSlideIndex = null;
+    clearSlideDropIndicators();
+    root?.querySelectorAll?.("[data-presentation-slide-tab].is-dragging").forEach((tab) => {
+      tab.classList.remove("is-dragging");
+    });
+    root?.querySelector?.(".presentation-slide-tabs")?.classList.remove("is-reordering");
+  }
+
+  function updateSlideDropIndicator(event) {
+    const target = getSlideDropTarget(event);
+    clearSlideDropIndicators();
+    if (!target || state.dragSlideIndex === null) {
+      return null;
+    }
+    const isCurrentPosition =
+      target.insertIndex === state.dragSlideIndex || target.insertIndex === state.dragSlideIndex + 1;
+    if (!isCurrentPosition) {
+      target.tab.classList.add(target.side === "after" ? "is-drop-after" : "is-drop-before");
+    }
+    return target;
+  }
+
   function handleSlideDragStart(event) {
     if (!state.isOpen || state.presenting || !root?.contains(event.target)) {
       return;
@@ -3925,6 +3997,7 @@ export function createPresentationModeController(dependencies = {}) {
     }
     state.dragSlideIndex = index;
     tab.classList.add("is-dragging");
+    tab.closest(".presentation-slide-tabs")?.classList.add("is-reordering");
     event.dataTransfer?.setData?.("text/plain", String(index));
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = "move";
@@ -3935,38 +4008,38 @@ export function createPresentationModeController(dependencies = {}) {
     if (state.dragSlideIndex === null || state.presenting || !root?.contains(event.target)) {
       return;
     }
-    const tab = event.target.closest("[data-presentation-slide-tab]");
-    if (!tab) {
+    const target = getSlideDropTarget(event);
+    if (!target) {
       return;
     }
     event.preventDefault();
     if (event.dataTransfer) {
       event.dataTransfer.dropEffect = "move";
     }
+    updateSlideDropIndicator(event);
   }
 
   function handleSlideDrop(event) {
     if (state.dragSlideIndex === null || state.presenting || !root?.contains(event.target)) {
       return;
     }
-    const tab = event.target.closest("[data-presentation-slide-tab]");
-    if (!tab) {
+    const target = getSlideDropTarget(event);
+    if (!target) {
       return;
     }
     event.preventDefault();
     const from = Number(event.dataTransfer?.getData?.("text/plain") || state.dragSlideIndex);
-    const to = Number(tab.dataset.presentationSlideIndex);
-    reorderSlides(from, to);
+    const didReorder = reorderSlides(from, target.insertIndex);
+    if (!didReorder) {
+      clearSlideDragState();
+    }
   }
 
   function handleSlideDragEnd(event) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
-    state.dragSlideIndex = null;
-    root.querySelectorAll("[data-presentation-slide-tab].is-dragging").forEach((tab) => {
-      tab.classList.remove("is-dragging");
-    });
+    clearSlideDragState();
   }
 
   function bindInteractions() {

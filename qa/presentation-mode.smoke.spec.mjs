@@ -760,28 +760,35 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
       Array.from(document.querySelectorAll("[data-presentation-slide-tab]")).map(
         (tab) => tab.querySelector("strong")?.textContent?.trim() || ""
       );
-    const dragSlide = (fromLabel, toLabel) => {
+    const dragSlide = (fromLabel, toLabel, side = "after") => {
       const tabs = Array.from(document.querySelectorAll("[data-presentation-slide-tab]"));
       const from = tabs.find((tab) => tab.querySelector("strong")?.textContent?.trim() === fromLabel);
       const to = tabs.find((tab) => tab.querySelector("strong")?.textContent?.trim() === toLabel);
       if (!from || !to) {
-        return false;
+        return { moved: false };
       }
+      const rect = to.getBoundingClientRect();
+      const clientX = side === "after" ? rect.right - 1 : rect.left + 1;
       const dataTransfer = new DataTransfer();
       from.dispatchEvent(new DragEvent("dragstart", { bubbles: true, cancelable: true, dataTransfer }));
-      to.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer }));
-      to.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer }));
-      return true;
+      to.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, clientX, dataTransfer }));
+      const markerClass = side === "after" ? "is-drop-after" : "is-drop-before";
+      const markerVisible = to.classList.contains(markerClass);
+      to.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, clientX, dataTransfer }));
+      const markerCleared = !document.querySelector(
+        "[data-presentation-slide-tab].is-dragging, [data-presentation-slide-tab].is-drop-before, [data-presentation-slide-tab].is-drop-after"
+      );
+      return { markerCleared, markerVisible, moved: true };
     };
-    const firstMove = dragSlide("Overview", "Block 1");
+    const firstMove = dragSlide("Overview", "Block 1", "after");
     const afterMoveLabels = getLabels();
-    const restoreMove = dragSlide("Overview", "Block 1");
+    const restoreMove = dragSlide("Overview", "Block 1", "before");
     const restoredLabels = getLabels();
     return { afterMoveLabels, firstMove, restoredLabels, restoreMove };
   });
   expect(slideDragOrder).toMatchObject({
-    firstMove: true,
-    restoreMove: true,
+    firstMove: { markerCleared: true, markerVisible: true, moved: true },
+    restoreMove: { markerCleared: true, markerVisible: true, moved: true },
     afterMoveLabels: ["Cover", "Block 1", "Overview"],
     restoredLabels: ["Cover", "Overview", "Block 1"],
   });

@@ -3379,6 +3379,7 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-slide-tabs button {
+  position: relative;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -3392,10 +3393,21 @@ body.is-presentation-text-field-resizing {
   background: transparent;
   font: inherit;
   cursor: pointer;
+  transition:
+    background .16s ease,
+    border-color .16s ease,
+    box-shadow .16s ease,
+    color .16s ease,
+    opacity .16s ease,
+    transform .16s ease;
 }
 
 .presentation-slide-tabs button[draggable="true"] {
   cursor: grab;
+}
+
+.presentation-slide-tabs.is-reordering button {
+  user-select: none;
 }
 
 .presentation-slide-tabs button[draggable="true"]:active,
@@ -3404,9 +3416,43 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-slide-tabs button.is-dragging {
-  opacity: .58;
-  border-color: rgba(134, 239, 172, .36);
-  background: rgba(134, 239, 172, .12);
+  opacity: .45;
+  transform: translateY(-1px) scale(.96);
+  color: #ffffff;
+  border-color: rgba(56, 189, 248, .5);
+  background: rgba(56, 189, 248, .12);
+  box-shadow:
+    0 0 0 1px rgba(56, 189, 248, .28),
+    inset 0 0 0 1px rgba(255, 255, 255, .05);
+}
+
+.presentation-slide-tabs button.is-drop-before,
+.presentation-slide-tabs button.is-drop-after {
+  color: #ffffff;
+}
+
+.presentation-slide-tabs button.is-drop-before::before,
+.presentation-slide-tabs button.is-drop-after::after {
+  content: "";
+  position: absolute;
+  top: -.36rem;
+  bottom: -.36rem;
+  z-index: 4;
+  width: .18rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #e0f2fe, #38bdf8 54%, #86efac);
+  box-shadow:
+    0 0 0 .18rem rgba(56, 189, 248, .18),
+    0 0 18px rgba(56, 189, 248, .55);
+  pointer-events: none;
+}
+
+.presentation-slide-tabs button.is-drop-before::before {
+  left: -.28rem;
+}
+
+.presentation-slide-tabs button.is-drop-after::after {
+  right: -.28rem;
 }
 
 .presentation-slide-tabs button:hover {

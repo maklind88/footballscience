@@ -148,9 +148,18 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
     return `
       <section class="dashboard-presentation-band" aria-label="Presentation Mode">
         <article class="dashboard-panel dashboard-presentation-card" data-dashboard-presentation-card>
+          <div class="dashboard-presentation-visual" aria-hidden="true">
+            <span class="dashboard-presentation-visual-mark">FS</span>
+            <span class="dashboard-presentation-visual-line is-halfway"></span>
+            <span class="dashboard-presentation-visual-line is-box"></span>
+            <span class="dashboard-presentation-visual-dot is-one"></span>
+            <span class="dashboard-presentation-visual-dot is-two"></span>
+            <span class="dashboard-presentation-visual-dot is-three"></span>
+          </div>
           <div class="dashboard-presentation-copy">
             <p class="dashboard-card-kicker">Presentation Mode</p>
             <h2>Today's Briefing</h2>
+            <p class="dashboard-presentation-subcopy">Room-ready slides for the training day.</p>
           </div>
           <form class="dashboard-presentation-form">
             <label>

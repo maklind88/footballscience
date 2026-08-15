@@ -13,80 +13,222 @@
 .dashboard-presentation-card {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(10.5rem, .74fr) minmax(16rem, 1fr);
-  gap: .78rem;
+  grid-template-columns: 4.65rem minmax(0, 1fr);
+  gap: .85rem 1rem;
   align-items: center;
-  min-height: 7.15rem;
-  padding: .82rem .9rem;
+  min-height: 9rem;
+  padding: .95rem;
+  isolation: isolate;
   overflow: hidden;
   color: #f8fafc;
   background:
-    linear-gradient(135deg, rgba(7, 28, 19, .98), rgba(8, 22, 30, .96) 58%, rgba(47, 39, 16, .94)),
-    #08120f;
-  border: 1px solid rgba(255, 255, 255, .16);
-  box-shadow: 0 18px 42px rgba(3, 9, 8, .22);
+    linear-gradient(135deg, rgba(6, 33, 24, .98), rgba(7, 18, 27, .98) 54%, rgba(29, 27, 18, .96)),
+    #06120f;
+  border: 1px solid rgba(255, 255, 255, .18);
+  box-shadow:
+    0 24px 54px rgba(3, 9, 8, .24),
+    inset 0 1px 0 rgba(255, 255, 255, .14);
 }
 
 .dashboard-presentation-card::before {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: .75rem .85rem .75rem 43%;
   background:
-    linear-gradient(90deg, rgba(34, 197, 94, .22), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, .11), transparent 32%);
+    linear-gradient(90deg, transparent 49.5%, rgba(167, 243, 208, .16) 49.5% 50.5%, transparent 50.5%),
+    linear-gradient(0deg, transparent 49.5%, rgba(167, 243, 208, .11) 49.5% 50.5%, transparent 50.5%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .045) 0 1px, transparent 1px 2.8rem);
+  border: 1px solid rgba(167, 243, 208, .13);
+  border-radius: 8px;
+  opacity: .72;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 14%, #000 82%, transparent 100%);
+  pointer-events: none;
+}
+
+.dashboard-presentation-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-top: 3px solid rgba(52, 211, 153, .82);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .08), transparent 28%),
+    linear-gradient(90deg, rgba(16, 185, 129, .16), transparent 31%, rgba(245, 158, 11, .12));
   pointer-events: none;
 }
 
 .dashboard-presentation-copy,
-.dashboard-presentation-form {
+.dashboard-presentation-form,
+.dashboard-presentation-visual {
   position: relative;
   z-index: 1;
 }
 
+.dashboard-presentation-visual {
+  width: 4.65rem;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #d1fae5;
+  background:
+    linear-gradient(135deg, rgba(14, 165, 233, .13), transparent 44%),
+    linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .04)),
+    rgba(8, 23, 22, .86);
+  border: 1px solid rgba(167, 243, 208, .24);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14);
+}
+
+.dashboard-presentation-visual::before,
+.dashboard-presentation-visual::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.dashboard-presentation-visual::before {
+  inset: .55rem;
+  border: 1px solid rgba(167, 243, 208, .46);
+  border-radius: 6px;
+}
+
+.dashboard-presentation-visual::after {
+  width: 1.65rem;
+  aspect-ratio: 1;
+  border: 1px solid rgba(167, 243, 208, .5);
+  border-radius: 50%;
+}
+
+.dashboard-presentation-visual-mark {
+  position: relative;
+  z-index: 1;
+  font-size: .78rem;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.dashboard-presentation-visual-line,
+.dashboard-presentation-visual-dot {
+  position: absolute;
+  pointer-events: none;
+}
+
+.dashboard-presentation-visual-line.is-halfway {
+  top: .55rem;
+  bottom: .55rem;
+  left: 50%;
+  width: 1px;
+  background: rgba(167, 243, 208, .36);
+}
+
+.dashboard-presentation-visual-line.is-box {
+  right: .55rem;
+  bottom: 1rem;
+  width: 1.3rem;
+  height: 1.15rem;
+  border: 1px solid rgba(167, 243, 208, .36);
+  border-right: 0;
+}
+
+.dashboard-presentation-visual-dot {
+  width: .36rem;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: #9af5c8;
+  box-shadow: 0 0 0 3px rgba(154, 245, 200, .1);
+}
+
+.dashboard-presentation-visual-dot.is-one {
+  top: 1.22rem;
+  left: 1.16rem;
+}
+
+.dashboard-presentation-visual-dot.is-two {
+  right: 1.18rem;
+  top: 1.85rem;
+}
+
+.dashboard-presentation-visual-dot.is-three {
+  left: 2.15rem;
+  bottom: 1.2rem;
+}
+
 .dashboard-presentation-copy {
   display: grid;
-  gap: .22rem;
+  gap: .26rem;
+  min-width: 0;
 }
 
 .dashboard-presentation-copy h2 {
   margin: 0;
   color: #ffffff;
-  font-size: clamp(1.45rem, 1.85vw, 1.95rem);
-  line-height: 1;
+  font-size: clamp(1.65rem, 2.05vw, 2.2rem);
+  line-height: .95;
+  letter-spacing: 0;
+}
+
+.dashboard-presentation-subcopy {
+  max-width: 22rem;
+  margin: 0;
+  color: rgba(226, 232, 240, .74);
+  font-size: .82rem;
+  font-weight: 760;
+  line-height: 1.25;
 }
 
 .dashboard-presentation-form {
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: .48rem;
+  grid-template-columns: minmax(0, 1fr) minmax(6.75rem, auto);
+  gap: .55rem;
   align-items: end;
 }
 
 .dashboard-presentation-form label {
+  position: relative;
   display: grid;
   gap: .28rem;
   min-width: 0;
 }
 
+.dashboard-presentation-form label::after {
+  content: "";
+  position: absolute;
+  right: .9rem;
+  bottom: .95rem;
+  width: .44rem;
+  aspect-ratio: 1;
+  border-right: 2px solid rgba(248, 250, 252, .76);
+  border-bottom: 2px solid rgba(248, 250, 252, .76);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
 .dashboard-presentation-form label span {
-  color: rgba(248, 250, 252, .68);
+  color: rgba(209, 250, 229, .76);
   font-size: .62rem;
   font-weight: 900;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
 .dashboard-presentation-form select {
+  appearance: none;
   width: 100%;
-  min-height: 2.45rem;
+  min-height: 3rem;
   min-width: 0;
-  border: 1px solid rgba(255, 255, 255, .2);
+  border: 1px solid rgba(255, 255, 255, .18);
   border-radius: 8px;
-  padding: 0 2rem 0 .75rem;
+  padding: 0 2.25rem 0 .85rem;
   color: #f8fafc;
-  background: rgba(255, 255, 255, .1);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .055)),
+    rgba(255, 255, 255, .055);
   font: inherit;
-  font-size: .84rem;
+  font-size: .92rem;
   font-weight: 820;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08);
 }
 
 .dashboard-presentation-form select option {
@@ -95,14 +237,61 @@
 }
 
 .dashboard-presentation-form button {
-  min-height: 2.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
+  min-height: 3rem;
   border: 0;
   border-radius: 8px;
-  padding: 0 .88rem;
+  padding: 0 1.05rem;
   color: #062114;
-  background: #a7f3d0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .38), transparent 42%),
+    #8df2bc;
   font-weight: 900;
   white-space: nowrap;
+  box-shadow:
+    0 12px 22px rgba(16, 185, 129, .22),
+    inset 0 1px 0 rgba(255, 255, 255, .5);
+}
+
+.dashboard-presentation-form button::after {
+  content: "";
+  width: .48rem;
+  aspect-ratio: 1;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.dashboard-presentation-form button:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .42), transparent 42%),
+    #a7f3d0;
+  transform: translateY(-1px);
+}
+
+.dashboard-presentation-form button:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 560px) {
+  .dashboard-presentation-card {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-presentation-visual {
+    display: none;
+  }
+
+  .dashboard-presentation-card::before {
+    inset: .75rem;
+  }
+
+  .dashboard-presentation-form {
+    grid-template-columns: 1fr;
+  }
 }
 
 .presentation-mode-root {
@@ -3911,7 +4100,6 @@ body.is-presentation-text-field-resizing {
 }
 
 @media (max-width: 980px) {
-  .dashboard-presentation-card,
   .presentation-block-layout {
     grid-template-columns: 1fr;
   }
@@ -3975,10 +4163,6 @@ body.is-presentation-text-field-resizing {
     width: 100%;
     max-width: none;
     max-height: none;
-  }
-
-  .dashboard-presentation-form {
-    grid-template-columns: 1fr;
   }
 
   .presentation-pass-controls {

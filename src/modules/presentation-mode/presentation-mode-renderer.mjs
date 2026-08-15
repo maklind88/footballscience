@@ -1278,6 +1278,9 @@ export function createPresentationModeRenderer(options = {}) {
           </div>
         </aside>
       `;
+    const selectedSummaryHtml = model.presenting
+      ? ""
+      : `<p>${escapeHtml(selectedPlayers.length ? `${selectedPlayers.length} players selected` : "Select the match squad")}</p>`;
     return renderSlideFrame(
       model,
       frameSlide,
@@ -1285,7 +1288,7 @@ export function createPresentationModeRenderer(options = {}) {
         <section class="presentation-match-squad-layout${model.presenting ? " is-play-mode" : ""}">
           <div class="presentation-section-heading">
             ${renderEditableElement(model, frameSlide, "matchSquad.title", infoSlide.title || "Match Squad", "h2", "", { label: "Match squad title" })}
-            <p>${escapeHtml(selectedPlayers.length ? `${selectedPlayers.length} players selected` : "Select the match squad")}</p>
+            ${selectedSummaryHtml}
           </div>
           <div class="presentation-match-squad-main">
             <div class="presentation-match-squad-grid">

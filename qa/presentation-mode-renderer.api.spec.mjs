@@ -667,7 +667,9 @@ test("Presentation Mode renders separate Match Squad and Starting XI custom slid
   expect(matchSquadHtml).toContain("https://example.com/keeper.jpg");
   expect(matchSquadHtml).toContain("#1 Keeper");
   expect(matchSquadHtml).toContain("2 players selected");
-  expect(renderer.renderMatchSquadSlide({ ...model, presenting: true }, matchSquadSlide)).not.toContain("presentation-match-squad-selector");
+  const presentingMatchSquadHtml = renderer.renderMatchSquadSlide({ ...model, presenting: true }, matchSquadSlide);
+  expect(presentingMatchSquadHtml).not.toContain("presentation-match-squad-selector");
+  expect(presentingMatchSquadHtml).not.toContain("players selected");
 
   const lineupHtml = renderer.renderLineupSlide(model, lineupSlide);
   expect(lineupHtml).toContain("presentation-lineup-layout");

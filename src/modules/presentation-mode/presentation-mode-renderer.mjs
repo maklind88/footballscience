@@ -95,7 +95,7 @@ const slideTemplateOptions = [
   {
     value: "media",
     label: "Image",
-    description: "Image with notes",
+    description: "Local image with notes",
     preview: ["media", "short"],
   },
   {
@@ -107,7 +107,7 @@ const slideTemplateOptions = [
   {
     value: "video",
     label: "Video",
-    description: "Analysis notes",
+    description: "Local clip with controls",
     preview: ["screen", "line", "line"],
   },
   {
@@ -1079,6 +1079,54 @@ export function createPresentationModeRenderer(options = {}) {
     );
   }
 
+  function getInfoSlideMediaKind(infoSlide = {}) {
+    const requestedKind = String(infoSlide.mediaKind || "").trim();
+    if (requestedKind === "video" || infoSlide.layout === "video") {
+      return "video";
+    }
+    if (requestedKind === "image" || infoSlide.layout === "media" || infoSlide.layout === "split") {
+      return "image";
+    }
+    return "";
+  }
+
+  function renderInfoSlideMedia(model = {}, infoSlide = {}) {
+    const mediaKind = getInfoSlideMediaKind(infoSlide);
+    if (!mediaKind) {
+      return "";
+    }
+    const mediaSrc = String(infoSlide.mediaSrc || "").trim();
+    const mediaName = String(infoSlide.mediaName || (mediaKind === "video" ? "Local video" : "Local image")).trim();
+    const hasMedia = Boolean(mediaSrc);
+    const chooseLabel = `${hasMedia ? "Replace" : "Choose"} ${mediaKind === "video" ? "Video" : "Image"}`;
+    return `
+      <figure class="presentation-info-media-panel is-${escapeHtml(mediaKind)}${hasMedia ? " has-media" : " is-empty"}">
+        <div class="presentation-info-media-stage">
+          ${
+            hasMedia
+              ? mediaKind === "video"
+                ? `<video class="presentation-info-media-object" src="${escapeHtml(mediaSrc)}" controls preload="metadata" playsinline title="${escapeHtml(mediaName)}"></video>`
+                : `<img class="presentation-info-media-object" src="${escapeHtml(mediaSrc)}" alt="${escapeHtml(mediaName)}" />`
+              : `<span class="presentation-info-media-empty-mark">${escapeHtml(mediaKind === "video" ? "Video" : "Image")}</span>`
+          }
+        </div>
+        <figcaption class="presentation-info-media-caption">
+          <span>${escapeHtml(hasMedia ? mediaName : "")}</span>
+          ${
+            model.presenting
+              ? ""
+              : `<button
+                  type="button"
+                  class="presentation-info-media-pick"
+                  data-presentation-info-media-pick="${escapeHtml(mediaKind)}"
+                  data-presentation-info-id="${escapeHtml(infoSlide.id)}"
+                >${escapeHtml(chooseLabel)}</button>`
+          }
+        </figcaption>
+      </figure>
+    `;
+  }
+
   function renderInfoSlide(model = {}, slide = {}) {
     const infoSlide = slide.infoSlide || {};
     const slideStyle = normalizePresentationSlideStyle(slide.style, {
@@ -1133,6 +1181,7 @@ export function createPresentationModeRenderer(options = {}) {
             ${getTextFieldStyleAttribute(frameSlide, "info.body")}
             ${readonly}
           >${escapeHtml(infoSlide.body || "")}</textarea>
+          ${renderInfoSlideMedia(model, infoSlide)}
         </section>
       `
     );

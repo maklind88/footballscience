@@ -246,6 +246,38 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(infoHtml).toContain('data-presentation-text-field="info.title"');
   expect(infoHtml).toContain('data-presentation-text-field="info.body"');
   expect(infoHtml).toContain("--presentation-info-body-size: 3.5rem;");
+  const videoInfoHtml = renderer.renderInfoSlide(model, {
+    ...infoSlide,
+    id: "video-slide",
+    infoSlide: {
+      ...infoSlide.infoSlide,
+      id: "video-slide",
+      layout: "video",
+      title: "Video Analysis",
+      body: "- Press trigger",
+      mediaKind: "video",
+      mediaName: "analysis-clip.mp4",
+      mediaSrc: "blob:analysis-clip",
+    },
+  });
+  expect(videoInfoHtml).toContain("presentation-info-media-panel is-video has-media");
+  expect(videoInfoHtml).toContain("<video");
+  expect(videoInfoHtml).toContain("controls");
+  expect(videoInfoHtml).toContain('src="blob:analysis-clip"');
+  expect(videoInfoHtml).toContain("analysis-clip.mp4");
+  expect(videoInfoHtml).toContain("Replace Video");
+  expect(renderer.renderInfoSlide({ ...model, presenting: true }, {
+    ...infoSlide,
+    id: "video-slide",
+    infoSlide: {
+      ...infoSlide.infoSlide,
+      id: "video-slide",
+      layout: "video",
+      mediaKind: "video",
+      mediaName: "analysis-clip.mp4",
+      mediaSrc: "blob:analysis-clip",
+    },
+  })).not.toContain("Replace Video");
   const toolbarHtml = renderer.renderTextToolbar(model);
   expect(toolbarHtml).toContain("data-presentation-text-toolbar");
   expect(toolbarHtml).toContain("data-presentation-add-text-box");

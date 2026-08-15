@@ -677,6 +677,31 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await videoBox.focus();
   await page.keyboard.press("Delete");
   await expect(presentation.locator("[data-presentation-text-box-shell][data-presentation-text-box-kind='video']")).toHaveCount(0);
+  await presentation.locator(".presentation-pass-controls [data-presentation-add-info-menu]").click();
+  await expect(presentation.locator(".presentation-new-slide-popover")).toBeVisible();
+  page.once("dialog", async (dialog) => {
+    await dialog.accept("Video Analysis");
+  });
+  await presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="video"]').click();
+  const videoSlide = presentation.locator(".presentation-slide-info");
+  await expect(videoSlide.locator(".presentation-info-media-panel.is-video.is-empty")).toBeVisible();
+  await expect(videoSlide.locator("[data-presentation-info-media-pick='video']")).toContainText("Choose Video");
+  const videoSlideChooserPromise = page.waitForEvent("filechooser");
+  await videoSlide.locator("[data-presentation-info-media-pick='video']").click();
+  const videoSlideChooser = await videoSlideChooserPromise;
+  await videoSlideChooser.setFiles({
+    name: "film-room-clip.mp4",
+    mimeType: "video/mp4",
+    buffer: Buffer.from([0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109, 0, 0, 2, 0, 105, 115, 111, 109, 105, 115, 111, 50]),
+  });
+  await expect(videoSlide.locator(".presentation-info-media-panel.is-video.has-media")).toBeVisible();
+  await expect(videoSlide.locator("video.presentation-info-media-object")).toHaveAttribute("src", /^blob:/);
+  await expect(videoSlide.locator(".presentation-info-media-caption")).toContainText("film-room-clip.mp4");
+  await expect(videoSlide.locator("[data-presentation-info-media-pick='video']")).toContainText("Replace Video");
+  await presentation.locator("[data-presentation-delete-slide]").click();
+  await expect(presentation.locator(".presentation-slide-tabs")).not.toContainText("Video Analysis");
+  await presentation.locator('[data-presentation-goto="1"]').click();
+  await expect(infoTitle).toHaveValue("Daily Info");
   await infoTitle.click();
   await expect(textToolbar).not.toContainText("New info slide");
   await expect(textToolbar.locator("[data-presentation-add-text-box]")).toBeVisible();

@@ -247,9 +247,9 @@ function getSlideTemplateDefaults(template = "bullets") {
     "title-subtitle": { title: "Title", body: "Subtitle", fontSize: "60", accentColor: "#38bdf8" },
     text: { title: "Text", body: "Write your notes here", fontSize: "48", accentColor: "#38bdf8" },
     bullets: { title: "Information", body: "- First point\n- Second point\n- Third point", fontSize: "56", accentColor: "#38bdf8" },
-    media: { title: "Image", body: "Caption or notes", fontSize: "44", accentColor: "#38bdf8" },
+    media: { title: "Image", body: "Caption or notes", fontSize: "44", accentColor: "#38bdf8", mediaKind: "image" },
     split: { title: "Text + Image", body: "Supporting text", fontSize: "44", accentColor: "#38bdf8" },
-    video: { title: "Video Analysis", body: "- Clip focus\n- Player cues\n- Team principles", fontSize: "44", accentColor: "#facc15" },
+    video: { title: "Video Analysis", body: "- Clip focus\n- Player cues\n- Team principles", fontSize: "44", accentColor: "#facc15", mediaKind: "video" },
     "match-squad": { title: "Match Squad", body: "", fontSize: "48", accentColor: "#22c55e" },
     "starting-xi": { title: "Starting XI", body: "", fontSize: "56", accentColor: "#22c55e" },
     blank: { title: "Blank", body: "", fontSize: "56", accentColor: "#38bdf8" },
@@ -261,6 +261,7 @@ function getSlideTemplateDefaults(template = "bullets") {
     fontSize: defaults[layout].fontSize,
     accentColor: defaults[layout].accentColor,
     textColor: "#f8fafc",
+    mediaKind: defaults[layout].mediaKind || "",
   };
 }
 
@@ -480,6 +481,11 @@ function normalizeInfoSlide(slide = {}, index = 0, dateValue = "") {
   const layout = normalizeSlideTemplate(slide.layout || defaultInfoSlide.layout);
   const templateFallback = getSlideTemplateDefaults(layout);
   const fallback = layout === defaultInfoSlide.layout ? defaultInfoSlide : { ...templateFallback, id: defaultInfoSlide.id };
+  const fallbackMediaKind =
+    layout === "video" ? "video" : layout === "media" || layout === "split" ? "image" : fallback.mediaKind || "";
+  const mediaKind = localMediaKinds.has(String(slide.mediaKind || fallbackMediaKind || "").trim())
+    ? String(slide.mediaKind || fallbackMediaKind).trim()
+    : "";
   return {
     id: String(slide.id || (index ? `info-${dateValue}-${index + 1}` : fallback.id)).trim(),
     layout,
@@ -494,6 +500,12 @@ function normalizeInfoSlide(slide = {}, index = 0, dateValue = "") {
         : [],
     formation: layout === "starting-xi" ? normalizeLineupFormation(slide.formation) : "",
     lineup: layout === "starting-xi" ? normalizeLineupAssignments(slide.lineup) : {},
+    mediaKind,
+    mediaId: mediaKind ? String(slide.mediaId || "").trim().slice(0, 120) : "",
+    mediaLocal: mediaKind ? Boolean(slide.mediaLocal) : false,
+    mediaMimeType: mediaKind ? String(slide.mediaMimeType || "").trim().slice(0, 120) : "",
+    mediaName: mediaKind ? String(slide.mediaName || "").trim().slice(0, 180) : "",
+    mediaSize: mediaKind ? Math.max(0, Number(slide.mediaSize) || 0) : 0,
   };
 }
 
@@ -1301,6 +1313,22 @@ export function createPresentationModeController(dependencies = {}) {
     });
   }
 
+  function hydrateInfoSlideForRender(infoSlide = {}) {
+    if (!localMediaKinds.has(String(infoSlide.mediaKind || "").trim())) {
+      return infoSlide;
+    }
+    const attachment = localMediaAttachments.get(String(infoSlide.mediaId || "").trim());
+    if (!attachment?.url) {
+      return infoSlide;
+    }
+    return {
+      ...infoSlide,
+      mediaSrc: attachment.url,
+      mediaName: infoSlide.mediaName || attachment.name,
+      mediaMimeType: infoSlide.mediaMimeType || attachment.mimeType,
+    };
+  }
+
   function applySlideStyle(deck, slide, fallbackStyle = {}) {
     const style = normalizePresentationSlideStyle(deck.slideStyles?.[slide.id], fallbackStyle);
     return {
@@ -1311,6 +1339,7 @@ export function createPresentationModeController(dependencies = {}) {
       textBoxes: hydrateTextBoxesForRender(deck.textBoxes?.[slide.id] || []),
       textFieldStyles: deck.textFieldStyles?.[slide.id] || {},
       textOverrides: deck.textOverrides?.[slide.id] || {},
+      infoSlide: slide.infoSlide ? hydrateInfoSlideForRender(slide.infoSlide) : slide.infoSlide,
     };
   }
 
@@ -2241,7 +2270,40 @@ export function createPresentationModeController(dependencies = {}) {
     });
   }
 
-  function openLocalMediaPicker(kind = "image") {
+  function attachLocalMediaToInfoSlide(slideId = "", kind = "image", file = null) {
+    const safeSlideId = String(slideId || "").trim();
+    const safeKind = kind === "video" ? "video" : "image";
+    if (!safeSlideId || !file) {
+      return;
+    }
+    const mediaName = getLocalMediaFileLabel(file, safeKind);
+    const mediaId = `${safeKind}-slide-media-${Date.now()}`;
+    cacheLocalMediaAttachment(mediaId, file, safeKind);
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      infoSlides: deck.infoSlides.map((slide) =>
+        slide.id === safeSlideId
+          ? normalizeInfoSlide(
+              {
+                ...slide,
+                layout: slide.layout === "video" || slide.layout === "split" || slide.layout === "media" ? slide.layout : safeKind === "video" ? "video" : "media",
+                mediaKind: safeKind,
+                mediaId,
+                mediaLocal: true,
+                mediaMimeType: String(file.type || "").trim(),
+                mediaName,
+                mediaSize: Math.max(0, Number(file.size) || 0),
+              },
+              0,
+              state.dateValue
+            )
+          : slide
+      ),
+    }));
+    render();
+  }
+
+  function openLocalMediaPicker(kind = "image", options = {}) {
     const safeKind = kind === "video" ? "video" : "image";
     if (state.presenting || !documentRef?.createElement) {
       return;
@@ -2259,6 +2321,10 @@ export function createPresentationModeController(dependencies = {}) {
         const file = input.files?.[0] || null;
         input.remove?.();
         if (!file) {
+          return;
+        }
+        if (options?.infoSlideId) {
+          attachLocalMediaToInfoSlide(options.infoSlideId, safeKind, file);
           return;
         }
         addLocalMediaTextBox(safeKind, file);
@@ -3749,6 +3815,13 @@ export function createPresentationModeController(dependencies = {}) {
     if (mediaButton) {
       mediaButton.closest?.("details")?.removeAttribute?.("open");
       openLocalMediaPicker(mediaButton.dataset.presentationAddMedia);
+      return;
+    }
+    const infoMediaButton = event.target.closest("[data-presentation-info-media-pick]");
+    if (infoMediaButton) {
+      openLocalMediaPicker(infoMediaButton.dataset.presentationInfoMediaPick, {
+        infoSlideId: infoMediaButton.dataset.presentationInfoId,
+      });
       return;
     }
     const shapeButton = event.target.closest("[data-presentation-add-shape]");

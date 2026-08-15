@@ -3,7 +3,9 @@ import {
   createPresentationModeController,
   createPresentationModeRenderer,
   dashboardPresentationStorageKey,
+  isReadablePresentationTextColor,
   mergeDashboardPresentationStatePreservingLocalEdits,
+  normalizePresentationSlideStyle,
 } from "../src/modules/presentation-mode/index.mjs";
 
 function createDocumentHarness() {
@@ -505,6 +507,47 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
     activeShapeTarget: { slideId: "cover", shapeId: "shape-1" },
     activeTextTarget: { slideId: "cover", textBoxId: "note-1" },
   })).toContain("is-selected");
+
+  expect(normalizePresentationSlideStyle({
+    theme: "custom",
+    backgroundColor: "#f8fafc",
+    textColor: "#ffffff",
+  }).textColor).toBe("#111827");
+  expect(normalizePresentationSlideStyle({
+    theme: "custom",
+    backgroundColor: "#08120f",
+    textColor: "#111827",
+  }).textColor).toBe("#f8fafc");
+  expect(isReadablePresentationTextColor("#f8fafc", "#111827")).toBe(true);
+
+  controller.writeDeckForDate("2026-06-02", (deck) => ({
+    ...deck,
+    slideStyles: {
+      ...deck.slideStyles,
+      cover: {
+        theme: "custom",
+        accentColor: "#2563eb",
+        textColor: "#ffffff",
+        backgroundColor: "#f8fafc",
+        glowColor: "#bfdbfe",
+      },
+    },
+    textBoxes: {
+      ...deck.textBoxes,
+      cover: [{ id: "light-note", text: "Readable on light", x: 18, y: 22, width: 38, fontSize: 32, textColor: "#ffffff" }],
+    },
+    textFieldStyles: {
+      ...deck.textFieldStyles,
+      cover: {
+        ...(deck.textFieldStyles?.cover || {}),
+        "cover.title": { fontSize: 64, textColor: "#ffffff" },
+      },
+    },
+  }));
+  const lightThemeModel = controller.buildModel();
+  const lightThemeHtml = renderer.renderCoverSlide(lightThemeModel);
+  expect(lightThemeHtml).toContain("--presentation-slide-text: #111827;");
+  expect(lightThemeHtml.match(/color: #111827;/g)?.length || 0).toBeGreaterThanOrEqual(2);
 
   controller.writeDeckForDate("2026-06-02", (deck) => ({
     ...deck,

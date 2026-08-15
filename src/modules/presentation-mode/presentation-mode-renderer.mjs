@@ -2,6 +2,7 @@ import {
   periodizationPhaseLibrary,
 } from "../periodization/periodization-state.mjs";
 import {
+  getReadablePresentationTextColor,
   normalizePresentationSlideStyle,
   presentationThemeOptions,
 } from "./presentation-mode-themes.mjs";
@@ -27,11 +28,7 @@ function normalizeOpacity(value = "", fallback = 90) {
 }
 
 function getTextColor(backgroundColor = "") {
-  const color = normalizeHexColor(backgroundColor, "#ffffff");
-  const red = parseInt(color.slice(1, 3), 16) / 255;
-  const green = parseInt(color.slice(3, 5), 16) / 255;
-  const blue = parseInt(color.slice(5, 7), 16) / 255;
-  return 0.2126 * red + 0.7152 * green + 0.0722 * blue > 0.62 ? "#111827" : "#ffffff";
+  return getReadablePresentationTextColor(backgroundColor, "");
 }
 
 const infoFontSizeOptions = [16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 88, 96, 104, 112, 120, 128];
@@ -397,6 +394,10 @@ export function createPresentationModeRenderer(options = {}) {
   }
 
   function getTextFieldStyleAttribute(slide = {}, field = "", fallback = {}, extraStyle = "") {
+    const slideStyle = normalizePresentationSlideStyle(slide.style, {
+      accentColor: slide.accentColor,
+      textColor: fallback.textColor,
+    });
     const style = { ...fallback, ...getTextFieldStyle(slide, field) };
     const declarations = [];
     if (extraStyle) {
@@ -409,8 +410,10 @@ export function createPresentationModeRenderer(options = {}) {
         "font-size: min(var(--presentation-editable-font-size), var(--presentation-editable-fit-size, var(--presentation-editable-font-size)))"
       );
     }
-    if (style.textColor) {
-      declarations.push(`color: ${normalizeHexColor(style.textColor, "#f8fafc")}`);
+    if (style.textColor || slideStyle.textColor) {
+      declarations.push(
+        `color: ${getReadablePresentationTextColor(slideStyle.backgroundColor, style.textColor || slideStyle.textColor)}`
+      );
     }
     const offsetX = Number(style.offsetX);
     const offsetY = Number(style.offsetY);

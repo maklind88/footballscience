@@ -2662,7 +2662,7 @@ body.is-presentation-text-field-resizing {
 .presentation-match-squad-card strong {
   min-width: 0;
   overflow: hidden;
-  color: #fff;
+  color: var(--presentation-slide-text, #f8fafc);
   font-size: clamp(.82rem, 1.25cqw, 1.18rem);
   line-height: 1.02;
   text-overflow: ellipsis;
@@ -2672,7 +2672,7 @@ body.is-presentation-text-field-resizing {
 .presentation-match-squad-card small {
   min-width: 0;
   overflow: hidden;
-  color: rgba(248, 250, 252, .62);
+  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 62%, transparent);
   font-size: clamp(.58rem, .82cqw, .84rem);
   font-weight: 850;
   line-height: 1;
@@ -2686,7 +2686,7 @@ body.is-presentation-text-field-resizing {
   padding: 1rem;
   border: 1px dashed rgba(255, 255, 255, .2);
   border-radius: 8px;
-  color: rgba(248, 250, 252, .66);
+  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 66%, transparent);
   font-weight: 850;
 }
 
@@ -2703,7 +2703,7 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-match-squad-selector > span {
-  color: rgba(248, 250, 252, .62);
+  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 62%, transparent);
   font-size: .68rem;
   font-weight: 950;
   text-transform: uppercase;
@@ -2769,13 +2769,13 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-match-squad-option strong {
-  color: #fff;
+  color: var(--presentation-slide-text, #f8fafc);
   font-size: .76rem;
   line-height: 1;
 }
 
 .presentation-match-squad-option small {
-  color: rgba(248, 250, 252, .56);
+  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 56%, transparent);
   font-size: .6rem;
   font-weight: 850;
 }
@@ -2797,7 +2797,7 @@ body.is-presentation-text-field-resizing {
 .presentation-lineup-controls label {
   display: grid;
   gap: .22rem;
-  color: rgba(248, 250, 252, .62);
+  color: color-mix(in srgb, var(--presentation-slide-text, #f8fafc) 62%, transparent);
   font-size: .66rem;
   font-weight: 950;
   text-transform: uppercase;
@@ -2808,7 +2808,7 @@ body.is-presentation-text-field-resizing {
   border: 1px solid rgba(255, 255, 255, .14);
   border-radius: 8px;
   padding: .54rem .68rem;
-  color: #fff;
+  color: var(--presentation-slide-text, #f8fafc);
   background: rgba(255, 255, 255, .08);
   font: inherit;
   text-transform: none;
@@ -3014,7 +3014,7 @@ body.is-presentation-text-field-resizing {
 .presentation-lineup-slot strong {
   max-width: 100%;
   overflow: hidden;
-  color: #fff;
+  color: var(--presentation-slide-text, #f8fafc);
   font-size: clamp(.62rem, .78cqw, .8rem);
   line-height: 1.02;
   text-align: center;

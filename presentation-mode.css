@@ -3908,8 +3908,9 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-mode-shell.is-presenting .presentation-lineup-slot {
-  width: clamp(6.1rem, 8.35cqw, 9.75rem);
-  min-height: clamp(5.95rem, 10.15cqh, 9.25rem);
+  width: var(--presentation-readable-lineup-card-width, clamp(6.35rem, 9.05cqw, 10.85rem));
+  min-height: var(--presentation-readable-lineup-card-height, clamp(5.95rem, 10.9cqh, 10.15rem));
+  gap: clamp(.26rem, .42cqw, .48rem);
   padding: clamp(.34rem, .58cqw, .64rem);
 }
 
@@ -3918,13 +3919,24 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-mode-shell.is-presenting .presentation-lineup-avatar {
-  width: clamp(3.35rem, 4.92cqw, 5.95rem);
-  height: clamp(3.35rem, 4.92cqw, 5.95rem);
+  width: var(--presentation-readable-lineup-avatar, clamp(2.9rem, 4.92cqw, 5.7rem));
+  height: var(--presentation-readable-lineup-avatar, clamp(2.9rem, 4.92cqw, 5.7rem));
 }
 
 .presentation-mode-shell.is-presenting .presentation-lineup-slot strong {
-  font-size: clamp(.92rem, 1.22cqw, 1.45rem);
-  line-height: 1.04;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  min-height: 2.12em;
+  padding: .14rem .32rem;
+  overflow: visible;
+  background: rgba(3, 10, 18, .54);
+  border-radius: 6px;
+  font-size: var(--presentation-readable-lineup-name-font, clamp(.86rem, 1.12cqw, 1.36rem));
+  line-height: 1.05;
+  text-overflow: clip;
+  text-wrap: balance;
+  white-space: normal;
 }
 
 .presentation-mode-shell.is-presenting .presentation-overview {

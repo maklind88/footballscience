@@ -1471,6 +1471,10 @@ export function createPresentationModeController(dependencies = {}) {
     setReadableSize("--presentation-readable-muted-name-font", slideWidth * 0.0105 * readabilityScale, 0.76, 1.12);
     setReadableSize("--presentation-readable-muted-meta-font", slideWidth * 0.0088 * readabilityScale, 0.62, 0.94);
     setReadableSize("--presentation-readable-footer-font", slideWidth * 0.0108 * readabilityScale, 0.9, 1.22);
+    setReadableSize("--presentation-readable-lineup-card-width", slideWidth * 0.092 * readabilityScale, 6.35, 10.85);
+    setReadableSize("--presentation-readable-lineup-card-height", slideHeight * 0.149 * readabilityScale, 5.95, 10.15);
+    setReadableSize("--presentation-readable-lineup-avatar", slideHeight * 0.073 * readabilityScale, 2.9, 5.7);
+    setReadableSize("--presentation-readable-lineup-name-font", slideWidth * 0.0118 * readabilityScale, 0.86, 1.36);
     stage.dataset.presentationDisplaySize = displaySize;
     schedulePresentingTextFit();
   }

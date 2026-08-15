@@ -546,7 +546,21 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
       const slideRect = slide?.getBoundingClientRect();
       const headingRect = heading?.getBoundingClientRect();
       const headingStyle = heading ? window.getComputedStyle(heading) : null;
-      const slots = Array.from(pitch.querySelectorAll(".presentation-lineup-slot")).map((slot) => slot.getBoundingClientRect());
+      const slotNodes = Array.from(pitch.querySelectorAll(".presentation-lineup-slot"));
+      const slots = slotNodes.map((slot) => slot.getBoundingClientRect());
+      const labels = slotNodes.map((slot) => {
+        const label = slot.querySelector("strong");
+        const rect = label?.getBoundingClientRect();
+        const style = label ? window.getComputedStyle(label) : null;
+        const fontSize = Number.parseFloat(style?.fontSize || "0");
+        return {
+          fontSize,
+          height: rect?.height || 0,
+          textOverflow: style?.textOverflow || "",
+          visible: Boolean(rect && rect.width > 32 && rect.height >= fontSize && style?.visibility !== "hidden" && style?.display !== "none"),
+          whiteSpace: style?.whiteSpace || "",
+        };
+      });
       const overlaps = slots.some((slot, index) =>
         slots.slice(index + 1).some((other) => {
           const horizontalGap = Math.max(0, Math.max(other.left - slot.right, slot.left - other.right));
@@ -562,6 +576,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
           headingRect.left >= slideRect.left &&
           headingRect.right <= slideRect.right &&
           headingRect.bottom <= rect.top,
+        labelsReadable: labels.every((label) => label.visible && label.whiteSpace !== "nowrap" && label.textOverflow !== "ellipsis"),
         noSlotOverlap: !overlaps,
         slotCount: slots.length,
         slotHeight: slots.length ? Math.min(...slots.map((slot) => slot.height)) : 0,
@@ -577,6 +592,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     expect(geometry.titleFontSize, `${name}: title remains presentation-sized`).toBeGreaterThanOrEqual(minTitleFontSize);
     expect(geometry).toMatchObject({
       headingFitsSlide: true,
+      labelsReadable: true,
       noSlotOverlap: true,
       slotCount: 11,
     });

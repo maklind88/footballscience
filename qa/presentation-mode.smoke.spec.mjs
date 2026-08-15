@@ -217,27 +217,41 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation).toContainText("Matchday Presentation Training");
   await expect(presentation.locator("[data-presentation-pass-select]")).toHaveCount(0);
   await expect(presentation.locator("[data-presentation-date-input]")).toHaveValue(dateValue);
-  const dateIconStyle = await presentation.locator(".presentation-pass-controls label:has([data-presentation-date-input])").evaluate((label) => {
-    const icon = getComputedStyle(label, "::after");
-    const marker = getComputedStyle(label, "::before");
-    const input = label.querySelector("[data-presentation-date-input]");
+  await expect(presentation.locator("[data-presentation-date-picker]")).toBeVisible();
+  const dateIconStyle = await presentation.locator(".presentation-date-control").evaluate((control) => {
+    const button = control.querySelector("[data-presentation-date-picker]");
+    const icon = button ? getComputedStyle(button, "::before") : null;
+    const input = control.querySelector("[data-presentation-date-input]");
     return {
-      borderColor: icon.borderTopColor,
-      display: icon.display,
+      borderColor: button ? getComputedStyle(button).borderTopColor : "",
+      buttonDisplay: button ? getComputedStyle(button).display : "",
       inputPaddingRight: input ? getComputedStyle(input).paddingRight : "",
-      markerBackground: marker.backgroundImage,
-      opacity: icon.opacity,
-      width: icon.width,
+      iconBorderColor: icon?.borderTopColor || "",
+      iconDisplay: icon?.display || "",
+      width: button ? getComputedStyle(button).width : "",
     };
   });
-  expect(dateIconStyle).toMatchObject({
-    display: "block",
-    opacity: "0.96",
-  });
-  expect(dateIconStyle.borderColor).toBe("rgba(248, 250, 252, 0.9)");
+  expect(["flex", "inline-flex"]).toContain(dateIconStyle.buttonDisplay);
+  expect(dateIconStyle.iconDisplay).toBe("block");
+  expect(dateIconStyle.borderColor).not.toBe("rgba(0, 0, 0, 0)");
+  expect(dateIconStyle.iconBorderColor).not.toBe("rgba(0, 0, 0, 0)");
   expect(dateIconStyle.inputPaddingRight).not.toBe("0px");
-  expect(dateIconStyle.markerBackground).toContain("radial-gradient");
   expect(dateIconStyle.width).not.toBe("auto");
+  const datePickerButtonOpensPicker = await presentation.evaluate(() => {
+    const input = document.querySelector("[data-presentation-date-input]");
+    const button = document.querySelector("[data-presentation-date-picker]");
+    if (!input || !button) return false;
+    let called = false;
+    Object.defineProperty(input, "showPicker", {
+      configurable: true,
+      value: () => {
+        called = true;
+      },
+    });
+    button.click();
+    return called && document.activeElement === input;
+  });
+  expect(datePickerButtonOpensPicker).toBe(true);
   await expect(presentation.locator(".presentation-control-brand strong")).toHaveText("Presentation Mode");
   await expect(presentation.locator(".presentation-control-brand")).not.toContainText("Matchday Presentation Training");
   await expect(presentation.locator(".presentation-pass-controls label > span", { hasText: /^Date$/ })).toHaveCount(0);

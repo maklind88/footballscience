@@ -494,9 +494,10 @@ export function createPresentationModeRenderer(options = {}) {
           ${renderThemeControl(slide)}
           ${renderNewSlideControl()}
           <button type="button" class="presentation-tool-button" data-presentation-delete-slide ${canDeleteSlide ? "" : "disabled"} title="${canDeleteSlide ? "Delete current slide" : "Only custom slides can be deleted"}">Delete Slide</button>
-          <label>
+          <div class="presentation-date-control">
             <input type="date" value="${escapeHtml(model.dateValue)}" data-presentation-date-input aria-label="Presentation date" />
-          </label>
+            <button type="button" class="presentation-date-picker-button" data-presentation-date-picker aria-label="Open calendar"></button>
+          </div>
         </div>
         <div class="presentation-control-actions">
           <button type="button" class="presentation-tool-button is-primary" data-presentation-start title="Start fullscreen" aria-label="Start fullscreen">Start</button>

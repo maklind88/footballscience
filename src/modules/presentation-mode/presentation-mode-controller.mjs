@@ -3523,6 +3523,24 @@ export function createPresentationModeController(dependencies = {}) {
       startFullscreen();
       return;
     }
+    const datePickerButton = event.target.closest("[data-presentation-date-picker]");
+    if (datePickerButton) {
+      const dateControl = datePickerButton.closest(".presentation-date-control");
+      const dateInput = dateControl?.querySelector?.("[data-presentation-date-input]");
+      if (dateInput) {
+        dateInput.focus();
+        try {
+          if (typeof dateInput.showPicker === "function") {
+            dateInput.showPicker();
+          } else {
+            dateInput.click();
+          }
+        } catch {
+          dateInput.click();
+        }
+      }
+      return;
+    }
     if (event.target.closest("[data-presentation-exit-fullscreen]")) {
       exitFullscreen();
       return;

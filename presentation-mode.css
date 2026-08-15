@@ -743,45 +743,69 @@ body.is-presentation-mode-open {
   min-width: 0;
 }
 
-.presentation-pass-controls label:has(input[type="date"]) {
+.presentation-date-control {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
 }
 
-.presentation-pass-controls label:has(input[type="date"])::before,
-.presentation-pass-controls label:has(input[type="date"])::after {
+.presentation-date-picker-button {
   position: absolute;
-  pointer-events: none;
-  content: "";
-}
-
-.presentation-pass-controls label:has(input[type="date"])::after {
   top: 50%;
-  right: .74rem;
-  width: .88rem;
-  height: .88rem;
-  border: 2px solid rgba(248, 250, 252, .9);
-  border-radius: .2rem;
-  background:
-    linear-gradient(rgba(248, 250, 252, .9), rgba(248, 250, 252, .9)) 22% 18% / .11rem .28rem no-repeat,
-    linear-gradient(rgba(248, 250, 252, .9), rgba(248, 250, 252, .9)) 78% 18% / .11rem .28rem no-repeat,
-    linear-gradient(rgba(248, 250, 252, .22), rgba(248, 250, 252, .22)) 0 32% / 100% .12rem no-repeat;
+  right: .32rem;
+  z-index: 2;
+  width: 1.78rem;
+  height: 1.78rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(248, 250, 252, .24);
+  border-radius: 7px;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, .38);
   box-shadow:
-    0 0 0 1px rgba(8, 15, 20, .48),
-    0 0 .75rem color-mix(in srgb, var(--presentation-accent, #38bdf8) 30%, transparent);
-  opacity: .96;
+    inset 0 1px 0 rgba(255, 255, 255, .14),
+    0 0 .75rem color-mix(in srgb, var(--presentation-accent, #38bdf8) 24%, transparent);
+  cursor: pointer;
   transform: translateY(-50%);
 }
 
-.presentation-pass-controls label:has(input[type="date"])::before {
-  right: .96rem;
-  top: calc(50% + .13rem);
-  z-index: 1;
-  width: .45rem;
-  height: .3rem;
+.presentation-date-picker-button::before,
+.presentation-date-picker-button::after {
+  content: "";
+  position: absolute;
+  display: block;
+}
+
+.presentation-date-picker-button::before {
+  inset: .43rem .45rem .36rem;
+  border: 1.8px solid currentColor;
+  border-radius: .18rem;
   background:
-    radial-gradient(circle, rgba(248, 250, 252, .9) 0 .055rem, transparent .06rem) 0 0 / .22rem .16rem,
-    radial-gradient(circle, rgba(248, 250, 252, .72) 0 .05rem, transparent .055rem) .11rem .14rem / .22rem .16rem;
-  transform: translateY(-50%);
+    linear-gradient(currentColor, currentColor) 0 33% / 100% 1.5px no-repeat,
+    radial-gradient(circle, currentColor 0 1.2px, transparent 1.4px) 28% 62% / .3rem .3rem no-repeat,
+    radial-gradient(circle, currentColor 0 1.2px, transparent 1.4px) 72% 62% / .3rem .3rem no-repeat;
+}
+
+.presentation-date-picker-button::after {
+  top: .34rem;
+  left: .64rem;
+  width: .48rem;
+  height: .18rem;
+  border-left: 1.8px solid currentColor;
+  border-right: 1.8px solid currentColor;
+}
+
+.presentation-date-picker-button:hover,
+.presentation-date-picker-button:focus-visible {
+  border-color: rgba(248, 250, 252, .56);
+  background: rgba(56, 189, 248, .2);
+}
+
+.presentation-date-picker-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--presentation-accent, #38bdf8) 72%, #ffffff);
+  outline-offset: 2px;
 }
 
 .presentation-pass-controls input,
@@ -806,7 +830,7 @@ body.is-presentation-mode-open {
 
 .presentation-pass-controls input {
   width: 9.8rem;
-  padding-right: 2.24rem;
+  padding-right: 2.6rem;
   accent-color: #f8fafc;
   color-scheme: dark;
 }

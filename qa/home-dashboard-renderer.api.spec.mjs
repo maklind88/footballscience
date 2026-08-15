@@ -118,6 +118,10 @@ test("home dashboard renderer avoids an empty work queue wrapper for presentatio
   const rendered = renderer.render(context, "", appearance);
 
   expect(rendered).toContain('class="dashboard-presentation-band"');
+  expect(rendered).toContain('data-dashboard-presentation-type="team"');
+  expect(rendered).toContain('data-dashboard-presentation-type="technical"');
+  expect(rendered).toContain("Team Meeting");
+  expect(rendered).toContain("Technical Staff Meeting");
   expect(rendered).not.toContain('aria-label="Work queue and alerts"');
 });
 

@@ -694,6 +694,60 @@ test("Presentation Mode renders separate Match Squad and Starting XI custom slid
   expect(renderer.renderControlBar({ ...model, slideIndex: lineupSlide.index })).toContain("Delete current slide");
 });
 
+test("Presentation Mode keeps Technical Staff Meeting decks separate from Team Meeting", () => {
+  const storage = new Map();
+  const harness = createDocumentHarness();
+  const renderer = createPresentationModeRenderer({
+    escapeHtml: (value) => String(value ?? ""),
+    renderExerciseVisual: () => "<div></div>",
+  });
+  const controller = createPresentationModeController({
+    documentRef: harness.documentRef,
+    win: {},
+    renderer,
+    readJson: (key, fallback) => storage.get(key) || fallback,
+    writeJson: (key, value) => storage.set(key, value),
+    getTodayValue: () => "2026-06-02",
+    getPasses: () => [{ dateValue: "2026-06-02", dateLabel: "Tue 2 Jun", title: "Training", blockCount: 0, totalMinutes: 0 }],
+    getSessionForDate: () => ({ title: "Training Session", blocks: [] }),
+    getTeamName: () => "North Carolina Courage",
+    getTeamLogoUrl: () => "assets/football-science-logo.png",
+  });
+
+  controller.open("2026-06-02", "technical");
+  const technicalModel = controller.buildModel();
+  expect(technicalModel.meetingType).toBe("technical");
+  expect(technicalModel.meetingLabel).toBe("Technical Staff Meeting");
+  expect(technicalModel.sessionTitle).toBe("Technical Staff Meeting");
+  expect(technicalModel.trainingTitle).toBe("Training Session");
+  expect(technicalModel.slides.find((slide) => slide.type === "info")?.infoSlide.title).toBe("Technical Notes");
+
+  controller.writeDeckForDate("2026-06-02", (deck) => ({
+    ...deck,
+    infoSlides: [
+      {
+        ...deck.infoSlides[0],
+        title: "Staff Agenda",
+        body: "- Game model\n- Player decisions",
+      },
+    ],
+  }));
+
+  const storedTechnicalDeck = storage.get(dashboardPresentationStorageKey).meetingDecks.technical["2026-06-02"];
+  expect(storedTechnicalDeck.infoSlides[0]).toMatchObject({
+    title: "Staff Agenda",
+    body: "- Game model\n- Player decisions",
+  });
+  expect(storage.get(dashboardPresentationStorageKey).decks["2026-06-02"]).toBeUndefined();
+
+  controller.open("2026-06-02", "team");
+  const teamModel = controller.buildModel();
+  expect(teamModel.meetingType).toBe("team");
+  expect(teamModel.sessionTitle).toBe("Training Session");
+  expect(teamModel.passTypeLabel).toBe("Training briefing");
+  expect(teamModel.slides.find((slide) => slide.type === "info")?.infoSlide.title).toBe("Team Information");
+});
+
 test("Presentation Mode central merge preserves newer blank text overrides", () => {
   const localValue = JSON.stringify({
     schema: "footballscience-presentation-mode-v1",
@@ -741,4 +795,65 @@ test("Presentation Mode central merge preserves newer blank text overrides", () 
 
   expect(merged.decks["2026-08-12"].textOverrides["block-1"]["detail.principles.body"]).toBe("");
   expect(merged.decks["2026-08-12"].textOverrides["block-1"]["block.title"]).toBe("Press-Cover Game");
+});
+
+test("Presentation Mode central merge preserves Technical Staff Meeting decks", () => {
+  const localValue = JSON.stringify({
+    schema: "footballscience-presentation-mode-v1",
+    version: 1,
+    meetingDecks: {
+      technical: {
+        "2026-08-12": {
+          updatedAt: "2026-08-12T10:10:00.000Z",
+          infoSlides: [
+            {
+              id: "technical-2026-08-12-main",
+              title: "Staff Agenda",
+              body: "- Local",
+              layout: "bullets",
+            },
+          ],
+          textOverrides: {
+            overview: {
+              "overview.video": "Local video note",
+            },
+          },
+          textOverrideUpdatedAt: {
+            overview: {
+              "overview.video": "2026-08-12T10:10:00.000Z",
+            },
+          },
+        },
+      },
+    },
+  });
+  const syncedValue = JSON.stringify({
+    schema: "footballscience-presentation-mode-v1",
+    version: 1,
+    meetingDecks: {
+      technical: {
+        "2026-08-12": {
+          updatedAt: "2026-08-12T10:00:00.000Z",
+          infoSlides: [
+            {
+              id: "technical-2026-08-12-main",
+              title: "Old Staff Agenda",
+              body: "- Synced",
+              layout: "bullets",
+            },
+          ],
+          textOverrides: {
+            overview: {
+              "overview.video": "Synced video note",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const merged = JSON.parse(mergeDashboardPresentationStatePreservingLocalEdits(localValue, syncedValue));
+
+  expect(merged.meetingDecks.technical["2026-08-12"].infoSlides[0].title).toBe("Staff Agenda");
+  expect(merged.meetingDecks.technical["2026-08-12"].textOverrides.overview["overview.video"]).toBe("Local video note");
 });

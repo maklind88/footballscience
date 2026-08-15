@@ -6,6 +6,20 @@ import {
 export const dashboardPresentationStorageKey = "football-dashboard-presentation-mode-v1";
 
 const presentationSchema = "footballscience-presentation-mode-v1";
+const presentationMeetingTypes = {
+  team: {
+    id: "team",
+    label: "Team Meeting",
+    coverTitle: "",
+    passTypeLabel: "",
+  },
+  technical: {
+    id: "technical",
+    label: "Technical Staff Meeting",
+    coverTitle: "Technical Staff Meeting",
+    passTypeLabel: "Technical staff briefing",
+  },
+};
 const maxTextOverrideLength = 5000;
 const maxTextBoxesPerSlide = 12;
 const maxShapesPerSlide = 24;
@@ -276,6 +290,32 @@ function createDefaultInfoSlide(dateValue = "") {
   };
 }
 
+function normalizePresentationMeetingType(value = "") {
+  const meetingType = String(value || "").trim().toLowerCase();
+  return presentationMeetingTypes[meetingType]?.id || presentationMeetingTypes.team.id;
+}
+
+function getPresentationMeetingConfig(meetingType = "team") {
+  return presentationMeetingTypes[normalizePresentationMeetingType(meetingType)];
+}
+
+function createDefaultInfoSlides(dateValue = "", meetingType = "team") {
+  if (normalizePresentationMeetingType(meetingType) !== "technical") {
+    return [createDefaultInfoSlide(dateValue)];
+  }
+  return [
+    {
+      id: `technical-${dateValue || "date"}-main`,
+      layout: "bullets",
+      title: "Technical Notes",
+      body: "- Training objective\n- Staff responsibilities\n- Player management\n- Video / opponent notes",
+      fontSize: "52",
+      accentColor: "#38bdf8",
+      textColor: "#f8fafc",
+    },
+  ];
+}
+
 function normalizeSlideTemplate(value = "") {
   const template = String(value || "").trim();
   return slideTemplateTypes.has(template) ? template : "bullets";
@@ -517,8 +557,8 @@ function normalizeShapes(shapes = {}) {
   );
 }
 
-function normalizeInfoSlide(slide = {}, index = 0, dateValue = "") {
-  const defaultInfoSlide = createDefaultInfoSlide(dateValue);
+function normalizeInfoSlide(slide = {}, index = 0, dateValue = "", meetingType = "team") {
+  const defaultInfoSlide = createDefaultInfoSlides(dateValue, meetingType)[0] || createDefaultInfoSlide(dateValue);
   const layout = normalizeSlideTemplate(slide.layout || defaultInfoSlide.layout);
   const templateFallback = getSlideTemplateDefaults(layout);
   const fallback = layout === defaultInfoSlide.layout ? defaultInfoSlide : { ...templateFallback, id: defaultInfoSlide.id };
@@ -550,14 +590,14 @@ function normalizeInfoSlide(slide = {}, index = 0, dateValue = "") {
   };
 }
 
-function normalizeDeck(deck = {}, dateValue = "") {
+function normalizeDeck(deck = {}, dateValue = "", meetingType = "team") {
   const hasSavedInfoSlides = Array.isArray(deck?.infoSlides);
   const infoSlides = hasSavedInfoSlides
-    ? deck.infoSlides.map((slide, index) => normalizeInfoSlide(slide, index, dateValue)).filter((slide) => slide.id)
+    ? deck.infoSlides.map((slide, index) => normalizeInfoSlide(slide, index, dateValue, meetingType)).filter((slide) => slide.id)
     : [];
   return {
     updatedAt: String(deck.updatedAt || "").trim(),
-    infoSlides: hasSavedInfoSlides ? infoSlides : [createDefaultInfoSlide(dateValue)],
+    infoSlides: hasSavedInfoSlides ? infoSlides : createDefaultInfoSlides(dateValue, meetingType),
     slideOrder: normalizeSlideOrder(deck.slideOrder),
     shapes: normalizeShapes(deck.shapes),
     slideStyles: normalizeSlideStyles(deck.slideStyles),
@@ -570,14 +610,27 @@ function normalizeDeck(deck = {}, dateValue = "") {
 
 function normalizeStore(store = {}) {
   const decks = store?.decks && typeof store.decks === "object" && !Array.isArray(store.decks) ? store.decks : {};
+  const meetingDecks =
+    store?.meetingDecks && typeof store.meetingDecks === "object" && !Array.isArray(store.meetingDecks) ? store.meetingDecks : {};
+  const technicalDecks =
+    meetingDecks.technical && typeof meetingDecks.technical === "object" && !Array.isArray(meetingDecks.technical)
+      ? meetingDecks.technical
+      : {};
   return {
     schema: presentationSchema,
     version: 1,
     decks: Object.fromEntries(
       Object.entries(decks)
         .filter(([dateValue]) => /^\d{4}-\d{2}-\d{2}$/.test(dateValue))
-        .map(([dateValue, deck]) => [dateValue, normalizeDeck(deck, dateValue)])
+        .map(([dateValue, deck]) => [dateValue, normalizeDeck(deck, dateValue, "team")])
     ),
+    meetingDecks: {
+      technical: Object.fromEntries(
+        Object.entries(technicalDecks)
+          .filter(([dateValue]) => /^\d{4}-\d{2}-\d{2}$/.test(dateValue))
+          .map(([dateValue, deck]) => [dateValue, normalizeDeck(deck, dateValue, "technical")])
+      ),
+    },
   };
 }
 
@@ -670,29 +723,27 @@ function mergeTextOverrideFieldsPreservingNewest(localDeck = {}, syncedDeck = {}
   };
 }
 
-export function mergeDashboardPresentationStatePreservingLocalEdits(localValue, syncedValue) {
-  const localStore = normalizeStore(parsePresentationStoreValue(localValue));
-  const syncedStore = normalizeStore(parsePresentationStoreValue(syncedValue));
-  const dateValues = new Set([...Object.keys(localStore.decks || {}), ...Object.keys(syncedStore.decks || {})]);
+function mergePresentationDeckBucket(localDecks = {}, syncedDecks = {}, meetingType = "team") {
+  const dateValues = new Set([...Object.keys(localDecks || {}), ...Object.keys(syncedDecks || {})]);
   const decks = {};
 
   dateValues.forEach((dateValue) => {
-    const hasLocalDeck = Object.prototype.hasOwnProperty.call(localStore.decks || {}, dateValue);
-    const hasSyncedDeck = Object.prototype.hasOwnProperty.call(syncedStore.decks || {}, dateValue);
+    const hasLocalDeck = Object.prototype.hasOwnProperty.call(localDecks || {}, dateValue);
+    const hasSyncedDeck = Object.prototype.hasOwnProperty.call(syncedDecks || {}, dateValue);
     if (!hasLocalDeck && !hasSyncedDeck) {
       return;
     }
     if (!hasLocalDeck) {
-      decks[dateValue] = normalizeDeck(syncedStore.decks[dateValue], dateValue);
+      decks[dateValue] = normalizeDeck(syncedDecks[dateValue], dateValue, meetingType);
       return;
     }
     if (!hasSyncedDeck) {
-      decks[dateValue] = normalizeDeck(localStore.decks[dateValue], dateValue);
+      decks[dateValue] = normalizeDeck(localDecks[dateValue], dateValue, meetingType);
       return;
     }
 
-    const localDeck = normalizeDeck(localStore.decks[dateValue], dateValue);
-    const syncedDeck = normalizeDeck(syncedStore.decks[dateValue], dateValue);
+    const localDeck = normalizeDeck(localDecks[dateValue], dateValue, meetingType);
+    const syncedDeck = normalizeDeck(syncedDecks[dateValue], dateValue, meetingType);
     const localUpdatedAt = getPresentationTimestampMs(localDeck.updatedAt);
     const syncedUpdatedAt = getPresentationTimestampMs(syncedDeck.updatedAt);
     const baseDeck = syncedUpdatedAt > localUpdatedAt ? syncedDeck : localDeck;
@@ -703,11 +754,32 @@ export function mergeDashboardPresentationStatePreservingLocalEdits(localValue, 
         ...baseDeck,
         ...mergedOverrides,
       },
-      dateValue
+      dateValue,
+      meetingType
     );
   });
 
-  return JSON.stringify(normalizeStore({ decks }));
+  return decks;
+}
+
+export function mergeDashboardPresentationStatePreservingLocalEdits(localValue, syncedValue) {
+  const localStore = normalizeStore(parsePresentationStoreValue(localValue));
+  const syncedStore = normalizeStore(parsePresentationStoreValue(syncedValue));
+  const decks = mergePresentationDeckBucket(localStore.decks, syncedStore.decks, "team");
+  const technicalDecks = mergePresentationDeckBucket(
+    localStore.meetingDecks?.technical,
+    syncedStore.meetingDecks?.technical,
+    "technical"
+  );
+
+  return JSON.stringify(
+    normalizeStore({
+      decks,
+      meetingDecks: {
+        technical: technicalDecks,
+      },
+    })
+  );
 }
 
 function getBlockRule(blockIndex = 0) {
@@ -866,6 +938,7 @@ export function createPresentationModeController(dependencies = {}) {
     dragTextBox: null,
     editorOpen: false,
     isOpen: false,
+    meetingType: "team",
     presenting: false,
     resizeShape: null,
     resizeTextField: null,
@@ -902,8 +975,39 @@ export function createPresentationModeController(dependencies = {}) {
     onDeckChange();
   }
 
-  function getDeckForDate(dateValue = state.dateValue) {
-    return normalizeDeck(readStore().decks?.[dateValue], dateValue);
+  function getDeckFromStore(store = {}, dateValue = state.dateValue, meetingType = state.meetingType) {
+    const safeMeetingType = normalizePresentationMeetingType(meetingType);
+    if (safeMeetingType === "technical") {
+      return normalizeDeck(store.meetingDecks?.technical?.[dateValue], dateValue, safeMeetingType);
+    }
+    return normalizeDeck(store.decks?.[dateValue], dateValue, safeMeetingType);
+  }
+
+  function writeDeckToStore(store = {}, dateValue = state.dateValue, deck = {}, meetingType = state.meetingType) {
+    const safeMeetingType = normalizePresentationMeetingType(meetingType);
+    if (safeMeetingType === "technical") {
+      return {
+        ...store,
+        meetingDecks: {
+          ...(store.meetingDecks || {}),
+          technical: {
+            ...(store.meetingDecks?.technical || {}),
+            [dateValue]: deck,
+          },
+        },
+      };
+    }
+    return {
+      ...store,
+      decks: {
+        ...store.decks,
+        [dateValue]: deck,
+      },
+    };
+  }
+
+  function getDeckForDate(dateValue = state.dateValue, meetingType = state.meetingType) {
+    return getDeckFromStore(readStore(), dateValue, meetingType);
   }
 
   function getNextMatchContext(dateValue = state.dateValue) {
@@ -934,8 +1038,8 @@ export function createPresentationModeController(dependencies = {}) {
     return null;
   }
 
-  function getHistoryDeckSnapshot(deck = {}, dateValue = "") {
-    const { updatedAt, ...snapshot } = normalizeDeck(deck, dateValue);
+  function getHistoryDeckSnapshot(deck = {}, dateValue = "", meetingType = state.meetingType) {
+    const { updatedAt, ...snapshot } = normalizeDeck(deck, dateValue, meetingType);
     return clonePlain(snapshot);
   }
 
@@ -952,22 +1056,28 @@ export function createPresentationModeController(dependencies = {}) {
     state.redoStack = [];
   }
 
-  function decksMatch(firstDeck = {}, secondDeck = {}, dateValue = "") {
-    return JSON.stringify(getHistoryDeckSnapshot(firstDeck, dateValue)) === JSON.stringify(getHistoryDeckSnapshot(secondDeck, dateValue));
+  function decksMatch(firstDeck = {}, secondDeck = {}, dateValue = "", meetingType = state.meetingType) {
+    return (
+      JSON.stringify(getHistoryDeckSnapshot(firstDeck, dateValue, meetingType)) ===
+      JSON.stringify(getHistoryDeckSnapshot(secondDeck, dateValue, meetingType))
+    );
   }
 
-  function pushUndoSnapshot(dateValue = "", deck = {}) {
+  function pushUndoSnapshot(dateValue = "", deck = {}, meetingType = state.meetingType) {
     if (!dateValue) {
       return;
     }
+    const snapshotMeetingType = normalizePresentationMeetingType(meetingType);
     const snapshot = {
       dateValue,
-      deck: getHistoryDeckSnapshot(deck, dateValue),
+      deck: getHistoryDeckSnapshot(deck, dateValue, snapshotMeetingType),
+      meetingType: snapshotMeetingType,
       state: getHistoryStateSnapshot(),
     };
     const previousSnapshot = state.undoStack.at(-1);
     if (
       previousSnapshot?.dateValue === snapshot.dateValue &&
+      previousSnapshot?.meetingType === snapshot.meetingType &&
       JSON.stringify(previousSnapshot.deck) === JSON.stringify(snapshot.deck)
     ) {
       return;
@@ -981,22 +1091,25 @@ export function createPresentationModeController(dependencies = {}) {
 
   function restoreHistorySnapshot(snapshot = {}) {
     const dateValue = normalizeDateValue(snapshot.dateValue, state.dateValue);
+    const meetingType = normalizePresentationMeetingType(snapshot.meetingType || state.meetingType);
     if (!dateValue) {
       return false;
     }
     const store = readStore();
-    const nextDeck = normalizeDeck(snapshot.deck, dateValue);
-    writeStore({
-      ...store,
-      decks: {
-        ...store.decks,
-        [dateValue]: {
+    const nextDeck = normalizeDeck(snapshot.deck, dateValue, meetingType);
+    writeStore(
+      writeDeckToStore(
+        store,
+        dateValue,
+        {
           ...nextDeck,
           updatedAt: new Date().toISOString(),
         },
-      },
-    });
+        meetingType
+      )
+    );
     state.dateValue = dateValue;
+    state.meetingType = meetingType;
     state.activeShapeTarget = clonePlain(snapshot.state?.activeShapeTarget);
     state.activeTextTarget = clonePlain(snapshot.state?.activeTextTarget);
     state.drawShape = null;
@@ -1030,7 +1143,8 @@ export function createPresentationModeController(dependencies = {}) {
     const snapshot = state.undoStack.pop();
     state.redoStack.push({
       dateValue: state.dateValue,
-      deck: getHistoryDeckSnapshot(getDeckForDate(), state.dateValue),
+      deck: getHistoryDeckSnapshot(getDeckForDate(), state.dateValue, state.meetingType),
+      meetingType: state.meetingType,
       state: getHistoryStateSnapshot(),
     });
     restoreHistorySnapshot(snapshot);
@@ -1044,7 +1158,8 @@ export function createPresentationModeController(dependencies = {}) {
     const snapshot = state.redoStack.pop();
     state.undoStack.push({
       dateValue: state.dateValue,
-      deck: getHistoryDeckSnapshot(getDeckForDate(), state.dateValue),
+      deck: getHistoryDeckSnapshot(getDeckForDate(), state.dateValue, state.meetingType),
+      meetingType: state.meetingType,
       state: getHistoryStateSnapshot(),
     });
     restoreHistorySnapshot(snapshot);
@@ -1062,24 +1177,26 @@ export function createPresentationModeController(dependencies = {}) {
 
   function writeDeckForDate(dateValue, updater, options = {}) {
     const store = readStore();
-    const currentDeck = normalizeDeck(store.decks?.[dateValue], dateValue);
-    const nextDeck = normalizeDeck(updater(currentDeck), dateValue);
-    if (decksMatch(currentDeck, nextDeck, dateValue)) {
+    const meetingType = normalizePresentationMeetingType(options.meetingType || state.meetingType);
+    const currentDeck = getDeckFromStore(store, dateValue, meetingType);
+    const nextDeck = normalizeDeck(updater(currentDeck), dateValue, meetingType);
+    if (decksMatch(currentDeck, nextDeck, dateValue, meetingType)) {
       return;
     }
     if (options.recordHistory !== false) {
-      pushUndoSnapshot(dateValue, currentDeck);
+      pushUndoSnapshot(dateValue, currentDeck, meetingType);
     }
-    writeStore({
-      ...store,
-      decks: {
-        ...store.decks,
-        [dateValue]: {
+    writeStore(
+      writeDeckToStore(
+        store,
+        dateValue,
+        {
           ...nextDeck,
           updatedAt: new Date().toISOString(),
         },
-      },
-    });
+        meetingType
+      )
+    );
   }
 
   function clampTextBoxPosition(x, y, width = 30, height = 12) {
@@ -1478,6 +1595,7 @@ export function createPresentationModeController(dependencies = {}) {
 
   function buildModel() {
     const dateValue = normalizeDateValue(state.dateValue, getTodayValue());
+    const meetingConfig = getPresentationMeetingConfig(state.meetingType);
     const session = getSessionForDate(dateValue) || { blocks: [] };
     const deck = getDeckForDate(dateValue);
     const events = getScheduleEventsForDate(dateValue);
@@ -1487,7 +1605,12 @@ export function createPresentationModeController(dependencies = {}) {
     const matchContext = getNextMatchContext(dateValue);
     const slides = buildSlides(deck, session, dateValue, matchContext);
     state.slideIndex = Math.min(Math.max(0, state.slideIndex), Math.max(0, slides.length - 1));
-    const title = String(session.title || getScheduledSessionTitle(dateValue) || event?.title || "Training Session").trim();
+    const trainingTitle = String(session.title || getScheduledSessionTitle(dateValue) || event?.title || "Training Session").trim();
+    const title = meetingConfig.coverTitle || trainingTitle;
+    const passTypeLabel =
+      meetingConfig.id === "technical"
+        ? meetingConfig.passTypeLabel
+        : event?.title || periodization.sessionType || "Training briefing";
     const brand = getBrandModel();
     return {
       accentColor: "#22c55e",
@@ -1505,13 +1628,16 @@ export function createPresentationModeController(dependencies = {}) {
       loadLabel: periodization.physicalLoad || event?.type || "Not set",
       medicalRecommendations: getMedicalRecommendationsForDate(dateValue),
       matchContext,
-      passTypeLabel: event?.title || periodization.sessionType || "Training briefing",
+      meetingLabel: meetingConfig.label,
+      meetingType: meetingConfig.id,
+      passTypeLabel,
       passes: getResolvedPasses(dateValue),
       periodization,
       pitchLabel: periodization.pitchSize || getSessionPitchLabel(blocks),
       presenting: state.presenting,
       sessionTheme: session.theme || periodization.mainFocus || "",
       sessionTitle: title,
+      trainingTitle,
       shapeDrawTool: state.shapeDrawTool,
       slideIndex: state.slideIndex,
       slides,
@@ -1733,7 +1859,7 @@ export function createPresentationModeController(dependencies = {}) {
     schedulePresentingTextFit();
   }
 
-  function open(dateValue = "") {
+  function open(dateValue = "", meetingType = "team") {
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
     state.drawShape = null;
@@ -1747,6 +1873,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.shapeDrawTool = null;
     state.contextMenu = null;
     state.dateValue = normalizeDateValue(dateValue, getTodayValue());
+    state.meetingType = normalizePresentationMeetingType(meetingType);
     state.slideIndex = 0;
     state.editorOpen = false;
     state.isOpen = true;
@@ -2928,7 +3055,7 @@ export function createPresentationModeController(dependencies = {}) {
     const templateDefaults = getSlideTemplateDefaults(template);
     const nextId = `info-${state.dateValue}-${Date.now()}`;
     const title = sourceSlide
-      ? `${sourceSlide.title || "Team Information"} Copy`
+      ? `${sourceSlide.title || "Information"} Copy`
       : requestNewSlideTitle(getNewSlideDefaultTitle(templateDefaults.layout, templateDefaults));
     if (!title) {
       return;
@@ -2948,7 +3075,8 @@ export function createPresentationModeController(dependencies = {}) {
               title,
             },
         0,
-        state.dateValue
+        state.dateValue,
+        state.meetingType
       );
       return {
         ...deck,

@@ -367,7 +367,8 @@ export function createDashboardRuntimeController(dependencies = {}) {
     if (presentationButton) {
       const card = presentationButton.closest("[data-dashboard-presentation-card]");
       const dateValue = card?.querySelector("[data-dashboard-presentation-date]")?.value || getTodayValue();
-      openPresentationMode(dateValue);
+      const meetingType = card?.dataset.dashboardPresentationType || "team";
+      openPresentationMode(dateValue, meetingType);
       return true;
     }
     const createSessionDateButton = event.target.closest("[data-dashboard-create-session-date]");

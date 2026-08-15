@@ -145,11 +145,19 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
       })
       .join("");
 
+    const cards = [
+      { type: "team", title: "Team Meeting", mark: "FS" },
+      { type: "technical", title: "Technical Staff Meeting", mark: "TS" },
+    ];
+
     return `
       <section class="dashboard-presentation-band" aria-label="Presentation Mode">
-        <article class="dashboard-panel dashboard-presentation-card" data-dashboard-presentation-card>
+        ${cards
+          .map(
+            (card) => `
+        <article class="dashboard-panel dashboard-presentation-card is-${escapeHtml(card.type)}" data-dashboard-presentation-card data-dashboard-presentation-type="${escapeHtml(card.type)}">
           <div class="dashboard-presentation-visual" aria-hidden="true">
-            <span class="dashboard-presentation-visual-mark">FS</span>
+            <span class="dashboard-presentation-visual-mark">${escapeHtml(card.mark)}</span>
             <span class="dashboard-presentation-visual-line is-halfway"></span>
             <span class="dashboard-presentation-visual-line is-box"></span>
             <span class="dashboard-presentation-visual-dot is-one"></span>
@@ -158,7 +166,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
           </div>
           <div class="dashboard-presentation-copy">
             <p class="dashboard-card-kicker">Presentation Mode</p>
-            <h2>Team Meeting</h2>
+            <h2>${escapeHtml(card.title)}</h2>
           </div>
           <form class="dashboard-presentation-form">
             <label>
@@ -168,6 +176,9 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
             <button type="button" data-dashboard-open-presentation>Open</button>
           </form>
         </article>
+            `
+          )
+          .join("")}
       </section>
     `;
   }

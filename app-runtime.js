@@ -674,8 +674,8 @@ sessionPlannerState.selectedDate = dateValue;
 writeSessionPlannerState();
 }
 },
-openPresentationMode: (dateValue) => {
-presentationModeController?.open(dateValue);
+openPresentationMode: (dateValue, meetingType = "team") => {
+presentationModeController?.open(dateValue, meetingType);
 },
 createSessionDate: (dateValue) => {
 if (!canEditSessionPlanner()) {

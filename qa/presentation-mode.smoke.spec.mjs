@@ -206,9 +206,13 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await waitForPlatformShell(page);
   await dismissDashboardModal(page);
 
-  const card = page.locator("[data-dashboard-presentation-card]");
+  const card = page.locator('[data-dashboard-presentation-card][data-dashboard-presentation-type="team"]');
+  const technicalCard = page.locator('[data-dashboard-presentation-card][data-dashboard-presentation-type="technical"]');
   await expect(card).toBeVisible();
+  await expect(technicalCard).toBeVisible();
   await expect(card).toContainText("Presentation Mode");
+  await expect(card).toContainText("Team Meeting");
+  await expect(technicalCard).toContainText("Technical Staff Meeting");
   await expect(card).not.toContainText("Matchday Presentation Training");
   const homeDayOptions = await card
     .locator("[data-dashboard-presentation-date] option")

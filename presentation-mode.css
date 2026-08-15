@@ -2,11 +2,14 @@
   grid-column: 1 / -1;
   justify-self: start;
   width: 100%;
+  display: grid;
+  gap: .85rem;
 }
 
 @media (min-width: 981px) {
   .dashboard-presentation-band {
-    width: min(50%, 38rem);
+    width: min(100%, 64rem);
+    grid-template-columns: repeat(2, minmax(18rem, 1fr));
   }
 }
 
@@ -28,6 +31,22 @@
   box-shadow:
     0 20px 50px rgba(15, 23, 42, .08),
     inset 0 1px 0 rgba(255, 255, 255, .9);
+}
+
+.dashboard-presentation-card.is-technical .dashboard-presentation-visual {
+  color: #075985;
+  background:
+    linear-gradient(135deg, rgba(14, 165, 233, .12), transparent 48%),
+    linear-gradient(180deg, #ffffff, #f8fafc);
+}
+
+.dashboard-presentation-card.is-technical .dashboard-presentation-visual-dot {
+  background: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, .1);
+}
+
+.dashboard-presentation-card.is-technical::after {
+  border-top-color: rgba(14, 165, 233, .54);
 }
 
 .dashboard-presentation-card::before {

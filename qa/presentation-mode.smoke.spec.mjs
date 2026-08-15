@@ -237,6 +237,15 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   expect(dateIconStyle.iconBorderColor).not.toBe("rgba(0, 0, 0, 0)");
   expect(dateIconStyle.inputPaddingRight).not.toBe("0px");
   expect(dateIconStyle.width).not.toBe("auto");
+  const datePickerButton = presentation.locator("[data-presentation-date-picker]");
+  const normalDatePickerBox = await datePickerButton.boundingBox();
+  expect(normalDatePickerBox).not.toBeNull();
+  await datePickerButton.hover();
+  const hoveredDatePickerBox = await datePickerButton.boundingBox();
+  await datePickerButton.focus();
+  const focusedDatePickerBox = await datePickerButton.boundingBox();
+  expect(hoveredDatePickerBox?.y).toBeCloseTo(normalDatePickerBox?.y ?? 0, 1);
+  expect(focusedDatePickerBox?.y).toBeCloseTo(normalDatePickerBox?.y ?? 0, 1);
   const datePickerButtonOpensPicker = await presentation.evaluate(() => {
     const input = document.querySelector("[data-presentation-date-input]");
     const button = document.querySelector("[data-presentation-date-picker]");

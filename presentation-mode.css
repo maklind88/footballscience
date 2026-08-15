@@ -768,6 +768,7 @@ body.is-presentation-mode-open {
     inset 0 1px 0 rgba(255, 255, 255, .14),
     0 0 .75rem color-mix(in srgb, var(--presentation-accent, #38bdf8) 24%, transparent);
   cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
   transform: translateY(-50%);
 }
 
@@ -801,6 +802,14 @@ body.is-presentation-mode-open {
 .presentation-date-picker-button:focus-visible {
   border-color: rgba(248, 250, 252, .56);
   background: rgba(56, 189, 248, .2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .16),
+    0 0 .85rem color-mix(in srgb, var(--presentation-accent, #38bdf8) 28%, transparent);
+  transform: translateY(-50%);
+}
+
+.presentation-date-picker-button:active {
+  transform: translateY(-50%);
 }
 
 .presentation-date-picker-button:focus-visible {

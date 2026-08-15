@@ -20,7 +20,7 @@ const lineupFormationOptions = [
     id: "4-3-3",
     label: "4-3-3",
     slots: [
-      { id: "gk", label: "GK", x: 50, y: 95 },
+      { id: "gk", label: "GK", x: 50, y: 90 },
       { id: "lb", label: "LB", x: 14, y: 70 },
       { id: "lcb", label: "LCB", x: 38, y: 70 },
       { id: "rcb", label: "RCB", x: 62, y: 70 },
@@ -37,7 +37,7 @@ const lineupFormationOptions = [
     id: "4-2-3-1",
     label: "4-2-3-1",
     slots: [
-      { id: "gk", label: "GK", x: 50, y: 95 },
+      { id: "gk", label: "GK", x: 50, y: 90 },
       { id: "lb", label: "LB", x: 14, y: 70 },
       { id: "lcb", label: "LCB", x: 38, y: 70 },
       { id: "rcb", label: "RCB", x: 62, y: 70 },
@@ -54,7 +54,7 @@ const lineupFormationOptions = [
     id: "4-4-2",
     label: "4-4-2",
     slots: [
-      { id: "gk", label: "GK", x: 50, y: 95 },
+      { id: "gk", label: "GK", x: 50, y: 90 },
       { id: "lb", label: "LB", x: 14, y: 70 },
       { id: "lcb", label: "LCB", x: 38, y: 70 },
       { id: "rcb", label: "RCB", x: 62, y: 70 },
@@ -71,7 +71,7 @@ const lineupFormationOptions = [
     id: "3-5-2",
     label: "3-5-2",
     slots: [
-      { id: "gk", label: "GK", x: 50, y: 95 },
+      { id: "gk", label: "GK", x: 50, y: 90 },
       { id: "lcb", label: "LCB", x: 29, y: 68 },
       { id: "cb", label: "CB", x: 50, y: 68 },
       { id: "rcb", label: "RCB", x: 71, y: 68 },
@@ -88,7 +88,7 @@ const lineupFormationOptions = [
     id: "3-4-3",
     label: "3-4-3",
     slots: [
-      { id: "gk", label: "GK", x: 50, y: 95 },
+      { id: "gk", label: "GK", x: 50, y: 90 },
       { id: "lcb", label: "LCB", x: 29, y: 68 },
       { id: "cb", label: "CB", x: 50, y: 68 },
       { id: "rcb", label: "RCB", x: 71, y: 68 },
@@ -105,7 +105,7 @@ const lineupFormationOptions = [
     id: "4-1-4-1",
     label: "4-1-4-1",
     slots: [
-      { id: "gk", label: "GK", x: 50, y: 95 },
+      { id: "gk", label: "GK", x: 50, y: 90 },
       { id: "lb", label: "LB", x: 14, y: 70 },
       { id: "lcb", label: "LCB", x: 38, y: 70 },
       { id: "rcb", label: "RCB", x: 62, y: 70 },

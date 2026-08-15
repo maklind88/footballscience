@@ -524,6 +524,13 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
       goalVisible: Boolean(goal) && goal.width > rect.width * 0.15,
       noSlotOverlap: !overlaps,
       penaltyArcVisible: Boolean(penaltyArc) && penaltyArc.width > rect.width * 0.15,
+      slotsInsidePitch: slots.every(
+        (slot) =>
+          slot.left >= rect.left - 1 &&
+          slot.right <= rect.right + 1 &&
+          slot.top >= rect.top - 1 &&
+          slot.bottom <= rect.bottom + 1
+      ),
       slotCount: slots.length,
     };
   });
@@ -534,6 +541,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
     goalVisible: true,
     noSlotOverlap: true,
     penaltyArcVisible: true,
+    slotsInsidePitch: true,
     slotCount: 11,
   });
   const assertLineupProjectionLayout = async ({

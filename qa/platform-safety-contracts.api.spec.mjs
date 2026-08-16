@@ -370,6 +370,8 @@ test("modular core skeleton exposes only explicitly approved production assets",
     "src/modules/set-pieces-room/set-pieces-board.css",
     "src/modules/set-pieces-room/set-pieces-roster.css",
     "src/modules/set-pieces-room/set-pieces-theme.css",
+    "src/modules/set-pieces-room/set-pieces-quality.css",
+    "src/modules/presentation-mode/presentation-mode-set-pieces.css",
   ]);
 });
 
@@ -768,7 +770,7 @@ test("Session Planner central sync conflicts retry silently instead of reopening
   expect(appSource).toContain("function shouldShowPlatformAutosaveStatus");
   expect(appSource).toContain("function setPlatformAutosaveStatusForKey");
   expect(appSource).toContain("createSessionPlannerAutosaveBoundary");
-  expect(centralSyncSource).toContain('setAutosaveStatusForKey(write.key, "issue", "Sync needs attention");');
+  expect(centralSyncSource).toContain('reportSyncStatus(write.key, "issue", "Sync needs attention");');
   expect(appSource).not.toContain("${renderSessionPlannerCentralSyncConflictOverlay()}");
   expect(appSource).not.toContain("sessionPlannerCentralSyncConflict ||");
   expect(appSource).not.toContain('setPlatformAutosaveStatus("conflict", result?.reason || "Central newer.")');

@@ -471,6 +471,7 @@ platformUserRuntimeService.configureAccountMenu({
   ui,
 });
 installAppController.initialize();
+let updateSetPiecesRoomSyncStatus = () => {};
 const centralRuntimeFacade = createCentralRuntimeFacade({
 win,
 documentRef: document,
@@ -512,6 +513,9 @@ formatDataSafetyTime,
 getActiveWorkspaceId: () => hubState?.activeWorkspaceId || "",
 getCurrentPlatformUser,
 handleSyncedStateValue: handleCentralSyncedStateValue,
+handleSyncStatus: (key, status, message) => {
+if (key === setPiecesRoomStorageKey) updateSetPiecesRoomSyncStatus(status, message);
+},
 isSessionPlannerAutosaveKey,
 mergeDashboardPresentationStatePreservingLocalEdits,
 mergePeriodizationStatePreservingLocalUi,
@@ -3435,10 +3439,12 @@ sessionPlannerRuntimeRenderers,
 sessionPlannerSessionFactory,
 sessionPlannerStorageKey,
 setPiecesRoomStorageKey,
+canDeleteSetPiecesRoom: () => ["admin", "club-admin", "team-admin", "coach"].includes(normalizePlatformRole(getCurrentPlatformUser()?.role)),
 addSetPieceVariantToTeamMeeting: (reference) => presentationModeController?.addSetPieceVariantToTeamMeeting({
 ...reference,
-dateValue: dashboardHomeContextSelectors.getTodayValue(),
+dateValue: reference?.scheduledFor || dashboardHomeContextSelectors.getTodayValue(),
 }),
+getSetPieceReferenceUsage: (reference) => presentationModeController?.getSetPieceReferenceUsage(reference) || { count: 0, dates: [], slideIds: [] },
 sessionPlannerTacticalHelpers,
 sessionPlannerTacticalMaxFrames,
 sessionPlannerTacticalSnapStep,
@@ -3515,6 +3521,7 @@ undoSessionPlannerBoardHistory,
 workspaceShellController,
 } = workspaceRuntimeComposition;
 reloadSetPiecesRoomFromStorage = () => setPiecesRoomController.reloadFromStorage();
+updateSetPiecesRoomSyncStatus = (status, message) => setPiecesRoomController.setSyncStatus(status, message);
 centralAppStateReloadService = composedCentralAppStateReloadService;
 sessionPlannerWorkspaceController = composedSessionPlannerWorkspaceController;
 configureSessionPlannerAppRuntimeAccessors({

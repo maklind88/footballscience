@@ -946,4 +946,6 @@ test("Team Meeting links and deduplicates a live Set Pieces variant", () => {
   expect(harness.root.innerHTML).toContain(`presentation-set-piece-${first.slideId}-arrow-run`);
   expect(renderer.renderControlBar(model)).toContain("Linked tactical routine");
   expect(renderer.renderControlBar({ ...model, meetingType: "technical" })).not.toContain("Linked tactical routine");
+  expect(controller.getSetPieceReferenceUsage({ playId: play.id })).toMatchObject({ count: 1, dates: ["2026-08-16"] });
+  expect(controller.getSetPieceReferenceUsage({ playId: play.id, variantId: variant.id }).slideIds).toEqual([first.slideId]);
 });

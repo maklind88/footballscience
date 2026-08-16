@@ -4,6 +4,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     getCurrentUser = () => null,
     getDataSafetyNow = () => new Date().toISOString(),
     getStorageLabel = (key) => String(key || ""),
+    handleSyncStatus = () => {},
     handleSyncedStateValue = () => {},
     hashString = (value) => String(value ?? "").length.toString(36),
     isProtectedStorageKey = () => false,
@@ -33,6 +34,11 @@ export function createCentralSyncRuntimeService(deps = {}) {
   const centralStateWriteSuppressionKeys = new Set();
   let sessionPlannerCentralSyncNoticeAt = 0;
   const centralStateHydrationRetryMs = 250;
+
+  function reportSyncStatus(key, state, message) {
+    setAutosaveStatusForKey(key, state, message);
+    handleSyncStatus(key, state, message);
+  }
 
   function getCentralStateBridge() { return win.footballScienceCentralState ?? null; }
 
@@ -262,10 +268,10 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
     if (!getCurrentUser() || !bridge?.syncKey) {
       queueCentralStateStatus("Central sync unavailable.");
-      setAutosaveStatusForKey(normalizedKey, "issue", "Central sync unavailable.");
+      reportSyncStatus(normalizedKey, "issue", "Central sync unavailable.");
       return;
     }
-    setAutosaveStatusForKey(normalizedKey, "saving", "Saving");
+    reportSyncStatus(normalizedKey, "saving", "Saving");
     setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed));
     centralStateWriteQueue.set(normalizedKey, {
       key: normalizedKey,
@@ -308,7 +314,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
             setCentralSyncPendingState(write.key, false, write.removed);
             persistCentralStateServerRevision(write.key, retryResult);
             queueCentralStateStatus("");
-            setAutosaveStatusForKey(write.key, "saved", "Saved");
+            reportSyncStatus(write.key, "saved", "Saved");
             continue;
           }
           if (write.key !== sessionPlannerStorageKey) {
@@ -320,7 +326,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
               });
               if (rawGetItem(write.key) === write.value) {
                 queueCentralStateStatus("");
-                setAutosaveStatusForKey(write.key, "saved", "Saved");
+                reportSyncStatus(write.key, "saved", "Saved");
                 continue;
               }
             }
@@ -329,7 +335,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
           }
           queueCentralStateStatus(result?.reason || "Central newer.");
           registerSessionPlannerCentralSyncConflict(write, result);
-          setAutosaveStatusForKey(write.key, "issue", "Sync needs attention");
+          reportSyncStatus(write.key, "issue", "Sync needs attention");
           continue;
         }
         for (let retryIndex = index; retryIndex < writes.length; retryIndex += 1) {
@@ -337,7 +343,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
           centralStateWriteQueue.set(retryWrite.key, retryWrite);
         }
         queueCentralStateStatus(result?.reason || "Sync failed.");
-        setAutosaveStatusForKey(write.key, "issue", result?.reason || "Sync failed.");
+        reportSyncStatus(write.key, "issue", result?.reason || "Sync failed.");
         return;
       }
       persistCentralStateServerRevision(write.key, result);
@@ -346,10 +352,13 @@ export function createCentralSyncRuntimeService(deps = {}) {
         showSessionPlannerToast("Central sync merged.", "warning");
       }
       setCentralSyncPendingState(write.key, false, write.removed);
+      if (!isSessionPlannerAutosaveKey(write.key)) {
+        reportSyncStatus(write.key, "saved", "Saved");
+      }
     }
     queueCentralStateStatus("");
     if (touchedSessionPlannerAutosave) {
-      setAutosaveStatusForKey(sessionPlannerStorageKey, "saved", "Saved");
+      reportSyncStatus(sessionPlannerStorageKey, "saved", "Saved");
     }
   }
 

@@ -10,6 +10,7 @@ const {
 const { appendAuditLog } = require("./_lib/audit-log.js");
 const { appendSessionPlannerHistory } = require("./_lib/session-history.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
+const { protectSetPiecesStateWrite } = require("./_lib/set-pieces-state-authorization.js");
 const {
   isAppStateDatabaseEnabled,
   listAppStateRecords,
@@ -43,6 +44,7 @@ const PLAYER_PROFILES_KEY = "football-player-profiles-v1";
 const SCOUTING_KEY = "football-scouting-v1";
 const GAMEPLAN_KEY = "football-gameplan-v1";
 const TRANSFER_ROOM_KEY = "football-transfer-room-v1";
+const SET_PIECES_ROOM_KEY = "football-set-pieces-room-v1";
 const SESSION_PLANNER_REDUCTION_GUARD_KEY = "blockReductionGuard";
 const SESSION_PLANNER_BLOCK_DELETION_TOMBSTONE_KEY = "blockDeletionTombstones";
 const SESSION_PLANNER_REDUCTION_WINDOW_MS = 30 * 60 * 1000;
@@ -2942,6 +2944,15 @@ async function appendDataSafetyWriteAudit(actor, previousEntry, nextEntry, merge
 async function authorizeStateWrite(actor, key, rawValue, removed = false, context = {}) {
   if (key === PLATFORM_APPEARANCE_KEY && removed) {
     return { ok: false, status: 403, reason: "Platform Appearance settings cannot be removed. Publish defaults instead." };
+  }
+
+  if (key === SET_PIECES_ROOM_KEY) {
+    const setPiecesAuthorization = protectSetPiecesStateWrite(actor, rawValue, {
+      removed,
+      previousValue: context.previousEntry?.value || "",
+    });
+    if (!setPiecesAuthorization.ok) return setPiecesAuthorization;
+    rawValue = setPiecesAuthorization.value;
   }
 
   if (actor?.role === "admin") {

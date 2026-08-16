@@ -48,7 +48,16 @@ function renderElement(element = {}, options = {}) {
     .filter(Boolean)
     .join(" ");
   const transform = getSetPieceElementTransform(element, options.halfPitch ? "attacking-half" : "full");
-  const common = `class="${classes}" transform="${transform}" data-element-id="${escapeSetPieceHtml(element.id)}" data-layer="${escapeSetPieceHtml(element.kind)}"`;
+  const labels = {
+    "home-player": `Own player ${element.label || "P"}${element.role ? `, ${element.role}` : ""}`,
+    opponent: `Opponent ${element.showNumber === false ? "" : element.label || ""}`.trim(),
+    ball: "Ball",
+  };
+  const interactive = options.interactive && !ghost;
+  const accessibility = interactive
+    ? ` tabindex="0" role="button" aria-label="${escapeSetPieceHtml(labels[element.kind] || "Board object")}" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Delete"`
+    : "";
+  const common = `class="${classes}" transform="${transform}" data-element-id="${escapeSetPieceHtml(element.id)}" data-layer="${escapeSetPieceHtml(element.kind)}"${accessibility}`;
   if (element.kind === "opponent") {
     return `<g ${common}>
       <circle r="4" class="spr-element-hit"></circle>

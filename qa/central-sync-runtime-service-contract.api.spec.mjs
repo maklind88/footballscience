@@ -16,6 +16,7 @@ function createServiceHarness(options = {}) {
   const syncCalls = [];
   const autosaveStatuses = [];
   const snapshots = [];
+  const syncStatuses = [];
   const handledKeys = [];
   const timers = new Map();
   let timerId = 0;
@@ -69,6 +70,7 @@ function createServiceHarness(options = {}) {
     getDataSafetyNow: () => "2026-06-08T12:00:00.000Z",
     getStorageLabel: (key) => `Label ${key}`,
     handleSyncedStateValue: (key, value) => handledKeys.push({ key, value }),
+    handleSyncStatus: (...args) => syncStatuses.push(args),
     hashString: (value) => `hash-${String(value).length}`,
     isProtectedStorageKey: (key) => key.startsWith("football-"),
     isSessionPlannerAutosaveKey: (key) => key === "football-session-planner-v1",
@@ -109,6 +111,7 @@ function createServiceHarness(options = {}) {
       revision = Number(nextRevision) || 0;
     },
     snapshots,
+    syncStatuses,
     syncCalls,
     timers,
     win,
@@ -148,6 +151,16 @@ test("central sync runtime queues protected writes with revision metadata and fl
     serverRevision: 12,
   });
   expect(harness.autosaveStatuses).toContainEqual(["football-session-planner-v1", "saved", "Saved"]);
+});
+
+test("central sync runtime reports saving and server-confirmed status for Set Pieces", async () => {
+  const harness = createServiceHarness({ syncResult: { ok: true, value: "{\"plays\":[]}", revision: 8 } });
+  harness.service.queueCentralStateWrite("football-set-pieces-room-v1", "{\"plays\":[]}");
+  expect(harness.syncStatuses).toContainEqual(["football-set-pieces-room-v1", "saving", "Saving"]);
+
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncStatuses).toContainEqual(["football-set-pieces-room-v1", "saved", "Saved"]);
 });
 
 test("central sync runtime keeps the highest acknowledged server revision", async () => {

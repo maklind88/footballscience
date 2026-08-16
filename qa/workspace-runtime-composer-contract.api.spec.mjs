@@ -24,10 +24,19 @@ test("workspace runtime composer owns non-chat workspace service composition out
   expect(composerSource).toContain("createPeriodizationRuntimeBindings({");
   expect(composerSource).toContain("createWorkspaceShellController({");
   expect(composerSource).toContain("createCentralAppStateReloadService({");
+  expect(composerSource).toContain("canDelete: deps.canDeleteSetPiecesRoom");
   expect(composerSource).not.toMatch(/createDashboardChatWidgetRenderer|sendDashboardChatApiAction|chat-widget/);
 
   expect(packageJson.scripts.check).toContain("src/core/workspace-runtime-composer.mjs");
   expect(packageJson.scripts["qa:contracts"]).toContain("qa/workspace-runtime-composer-contract.api.spec.mjs");
+});
+
+test("Set Pieces schedules Team Meeting slides on the routine date and reports central sync", () => {
+  const appSource = readProjectFile("app-runtime.js");
+  expect(appSource).toContain("dateValue: reference?.scheduledFor || dashboardHomeContextSelectors.getTodayValue()");
+  expect(appSource).toContain("updateSetPiecesRoomSyncStatus(status, message)");
+  expect(appSource).toContain("getSetPieceReferenceUsage: (reference)");
+  expect(appSource).toContain('canDeleteSetPiecesRoom: () => ["admin", "club-admin", "team-admin", "coach"]');
 });
 
 test("workspace runtime composer preserves runtime state assignment boundaries", () => {

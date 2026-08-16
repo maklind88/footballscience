@@ -15,7 +15,9 @@ import {
 } from "./assignments.mjs";
 import { escapeSetPieceHtml, renderSetPieceBoard, renderSetPiecePhaseThumbnail } from "./board-renderer.mjs";
 import { createSetPiecePlayerLabelMap } from "./player-labels.mjs";
+import { getSetPieceDrawingActorLabel, getSetPieceDrawingActors } from "./drawing-actors.mjs";
 import { getActiveSetPiece, getActiveSetPiecePhase, getActiveSetPieceVariant } from "./state.mjs";
+import { renderSetPieceToolIcon } from "./tool-icons.mjs";
 
 function optionsMarkup(options = [], value = "") {
   return options.map((option) => `<option value="${escapeSetPieceHtml(option.value)}" ${option.value === value ? "selected" : ""}>${escapeSetPieceHtml(option.label)}</option>`).join("");
@@ -65,7 +67,7 @@ function renderToolRail(ui = {}, roster = []) {
       <div class="spr-tool-group-buttons">
         ${group.tools.map((toolValue) => {
           const tool = setPieceToolOptions.find((option) => option.value === toolValue);
-          return `<button type="button" class="spr-tool-button ${ui.activeTool === tool.value ? "is-active" : ""}" data-set-piece-tool="${tool.value}" aria-label="${escapeSetPieceHtml(tool.label)}" aria-pressed="${ui.activeTool === tool.value}" title="${escapeSetPieceHtml(`${tool.label} (${tool.shortcut})`)}" ${tool.value === "home-player" && !roster.length ? "disabled" : ""}><span class="spr-tool-symbol" aria-hidden="true">${tool.symbol}</span><span class="spr-tool-name">${escapeSetPieceHtml(tool.label)}</span></button>`;
+          return `<button type="button" class="spr-tool-button ${ui.activeTool === tool.value ? "is-active" : ""}" data-set-piece-tool="${tool.value}" aria-label="${escapeSetPieceHtml(tool.label)}" aria-pressed="${ui.activeTool === tool.value}" title="${escapeSetPieceHtml(`${tool.label} (${tool.shortcut})`)}" ${tool.value === "home-player" && !roster.length ? "disabled" : ""}><span class="spr-tool-icon">${renderSetPieceToolIcon(tool.value)}</span><span class="spr-tool-name">${escapeSetPieceHtml(tool.label)}</span></button>`;
         }).join("")}
       </div>
     </div>`).join("")}
@@ -269,6 +271,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
           selectedDrawingId: ui.selectedDrawingId,
           previewDrawing: ui.previewDrawing,
           selectionRect: ui.selectionRect,
+          interactive: canEdit && !ui.presentationMode,
         })}
       </div>
     </div>
@@ -297,12 +300,12 @@ function renderField(label, field, value, options = {}) {
   return `<label class="spr-field"><span>${label}</span><input type="${options.type || "text"}" value="${escapeSetPieceHtml(value)}" data-${options.scope || "set-piece-play"}-field="${field}" ${options.min !== undefined ? `min="${options.min}"` : ""} ${options.max !== undefined ? `max="${options.max}"` : ""} ${options.step !== undefined ? `step="${options.step}"` : ""} ${disabled}></label>`;
 }
 
-function renderElementInspector(element, play, variant, roster, ui, canEdit) {
+function renderElementInspector(element, play, variant, roster, ui, canEdit, canDelete) {
   const isHome = element.kind === "home-player";
   const isOpponent = element.kind === "opponent";
   const assignment = isHome ? getSetPieceAssignment(play, variant, element.id) : null;
   return `<div class="spr-inspector-section">
-    <div class="spr-inspector-title"><div><p>${isHome ? "Selected role" : "Selected object"}</p><strong>${escapeSetPieceHtml(isHome ? assignment.role : element.kind === "opponent" ? `Opponent ${element.label}` : "Ball")}</strong></div><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canEdit ? "" : "disabled"}>⌫</button></div>
+    <div class="spr-inspector-title"><div><p>${isHome ? "Selected role" : "Selected object"}</p><strong>${escapeSetPieceHtml(isHome ? assignment.role : element.kind === "opponent" ? `Opponent ${element.label}` : "Ball")}</strong></div><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canDelete ? "" : "disabled"}>⌫</button></div>
     ${isHome ? renderAssignmentPicker(element.id, play, variant, roster, ui, canEdit) : ""}
     ${isHome ? renderField("Tactical role", "role", assignment.role, { scope: "set-piece-element", disabled: !canEdit }) : ""}
     ${isOpponent ? renderField("Number", "label", element.label || "1", { type: "number", min: 1, max: 99, scope: "set-piece-element", disabled: !canEdit }) : ""}
@@ -316,15 +319,21 @@ function renderElementInspector(element, play, variant, roster, ui, canEdit) {
   </div>`;
 }
 
-function renderDrawingInspector(drawing, canEdit) {
+function renderDrawingInspector(drawing, phase, canEdit, canDelete) {
+  const actors = getSetPieceDrawingActors(phase, drawing.type);
+  const actorField = actors.length ? `<label class="spr-field"><span>Linked actor</span><select data-set-piece-drawing-field="actorId" ${canEdit ? "" : "disabled"}>
+    <option value="">Unlinked</option>
+    ${actors.map((actor) => `<option value="${escapeSetPieceHtml(actor.id)}" ${actor.id === drawing.actorId ? "selected" : ""}>${escapeSetPieceHtml(getSetPieceDrawingActorLabel(actor))}</option>`).join("")}
+  </select><small>The route follows this player or the ball during playback.</small></label>` : "";
   return `<div class="spr-inspector-section">
-    <div class="spr-inspector-title"><div><p>Movement</p><strong>${escapeSetPieceHtml(drawing.type)}</strong></div><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canEdit ? "" : "disabled"}>⌫</button></div>
+    <div class="spr-inspector-title"><div><p>Movement</p><strong>${escapeSetPieceHtml(drawing.type)}</strong></div><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canDelete ? "" : "disabled"}>⌫</button></div>
+    ${actorField}
     ${renderField("Label", "label", drawing.label, { scope: "set-piece-drawing", disabled: !canEdit })}
     ${drawing.type !== "zone" ? renderField("Curve", "curve", drawing.curve, { type: "range", min: -36, max: 36, scope: "set-piece-drawing", disabled: !canEdit }) : ""}
   </div>`;
 }
 
-function renderPlanInspector(play, variant, phase, ui, canEdit) {
+function renderPlanInspector(play, variant, phase, ui, canEdit, canDelete) {
   return `<div class="spr-inspector-section">
     <div class="spr-inspector-title"><div><p>Plan</p><strong data-set-piece-live-text="play-title">${escapeSetPieceHtml(play.title)}</strong></div><button type="button" class="spr-icon-button" data-set-piece-action="duplicate-play" title="Duplicate plan" aria-label="Duplicate plan" ${canEdit ? "" : "disabled"}>⧉</button></div>
     ${renderField("Title", "title", play.title, { disabled: !canEdit })}
@@ -340,12 +349,12 @@ function renderPlanInspector(play, variant, phase, ui, canEdit) {
     ${renderField("Objective", "objective", play.objective, { type: "textarea", disabled: !canEdit })}
   </div>
   <div class="spr-inspector-section">
-    <div class="spr-inspector-title"><div><p>Variant</p><strong data-set-piece-live-text="variant-title">${escapeSetPieceHtml(variant.title)}</strong></div>${play.variants.length > 1 ? `<button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-variant" title="Delete variant" aria-label="Delete variant" ${canEdit ? "" : "disabled"}>⌫</button>` : ""}</div>
+    <div class="spr-inspector-title"><div><p>Variant</p><strong data-set-piece-live-text="variant-title">${escapeSetPieceHtml(variant.title)}</strong></div>${play.variants.length > 1 ? `<button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-variant" title="Delete variant" aria-label="Delete variant" ${canDelete ? "" : "disabled"}>⌫</button>` : ""}</div>
     ${renderField("Variant name", "title", variant.title, { scope: "set-piece-variant", disabled: !canEdit })}
     ${renderField("Opponent trigger", "trigger", variant.trigger, { type: "textarea", scope: "set-piece-variant", disabled: !canEdit })}
   </div>
   <div class="spr-inspector-section">
-    <div class="spr-inspector-title"><div><p>Phase</p><strong data-set-piece-live-text="phase-title">${escapeSetPieceHtml(phase.title)}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button" data-set-piece-action="move-phase-left" title="Move phase left" aria-label="Move phase left" ${canEdit ? "" : "disabled"}>←</button><button type="button" class="spr-icon-button" data-set-piece-action="move-phase-right" title="Move phase right" aria-label="Move phase right" ${canEdit ? "" : "disabled"}>→</button>${variant.phases.length > 1 ? `<button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-phase" title="Delete phase" aria-label="Delete phase" ${canEdit ? "" : "disabled"}>⌫</button>` : ""}</div></div>
+    <div class="spr-inspector-title"><div><p>Phase</p><strong data-set-piece-live-text="phase-title">${escapeSetPieceHtml(phase.title)}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button" data-set-piece-action="move-phase-left" title="Move phase left" aria-label="Move phase left" ${canEdit ? "" : "disabled"}>←</button><button type="button" class="spr-icon-button" data-set-piece-action="move-phase-right" title="Move phase right" aria-label="Move phase right" ${canEdit ? "" : "disabled"}>→</button>${variant.phases.length > 1 ? `<button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-phase" title="Delete phase" aria-label="Delete phase" ${canDelete ? "" : "disabled"}>⌫</button>` : ""}</div></div>
     ${renderField("Phase name", "title", phase.title, { scope: "set-piece-phase", disabled: !canEdit })}
     ${renderField("Cue", "cue", phase.cue, { type: "textarea", scope: "set-piece-phase", disabled: !canEdit })}
     <div class="spr-field-grid">
@@ -357,20 +366,20 @@ function renderPlanInspector(play, variant, phase, ui, canEdit) {
     <div class="spr-inspector-title"><div><p>View</p><strong>Layers</strong></div><label class="spr-ghost-toggle"><input type="checkbox" data-set-piece-ghost ${ui.showGhost ? "checked" : ""}> Ghost</label></div>
     <div class="spr-layer-list">${setPieceLayerOptions.map((layer) => `<label><input type="checkbox" data-set-piece-layer="${layer.value}" ${ui.layers.has(layer.value) ? "checked" : ""}><span>${layer.label}</span></label>`).join("")}</div>
   </div>
-  <button type="button" class="spr-delete-plan" data-set-piece-action="delete-play" ${canEdit ? "" : "disabled"}>Delete set piece</button>`;
+  <button type="button" class="spr-delete-plan" data-set-piece-action="delete-play" ${canDelete ? "" : "disabled"}>Delete set piece</button>`;
 }
 
-function renderInspector(play, variant, phase, roster, ui, canEdit) {
+function renderInspector(play, variant, phase, roster, ui, canEdit, canDelete) {
   if (!play || !variant || !phase) return '<aside class="spr-inspector"></aside>';
   const selectedElement = phase.elements.find((element) => ui.selectedElementIds.has(element.id));
   const selectedDrawing = phase.drawings.find((drawing) => drawing.id === ui.selectedDrawingId);
   const content = ui.showAssignments
     ? renderAssignmentsOverview(play, variant, roster, canEdit)
     : selectedElement
-    ? renderElementInspector(selectedElement, play, variant, roster, ui, canEdit)
+    ? renderElementInspector(selectedElement, play, variant, roster, ui, canEdit, canDelete)
     : selectedDrawing
-      ? renderDrawingInspector(selectedDrawing, canEdit)
-      : renderPlanInspector(play, variant, phase, ui, canEdit);
+      ? renderDrawingInspector(selectedDrawing, phase, canEdit, canDelete)
+      : renderPlanInspector(play, variant, phase, ui, canEdit, canDelete);
   return `<aside class="spr-inspector" aria-label="Set piece inspector">${content}</aside>`;
 }
 
@@ -383,16 +392,18 @@ export function renderSetPiecesWorkspace(options = {}) {
   const variant = getActiveSetPieceVariant(play || {});
   const phase = getActiveSetPiecePhase(variant || {});
   const canEdit = options.canEdit !== false;
+  const canDelete = options.canDelete !== false;
   return `<section class="spr-shell ${ui.presentationMode ? "is-presenting" : "is-editing"} ${ui.inspectorCollapsed ? "is-inspector-collapsed" : ""}" data-set-pieces-room>
     <header class="spr-header">
       ${renderTeamIdentity(team)}
       <div class="spr-header-mode">${renderWorkspaceModeSwitch(ui, Boolean(play))}</div>
-      <div class="spr-save-state ${ui.saveState === "error" ? "is-error" : ""}" role="status">${escapeSetPieceHtml(ui.saveMessage || (canEdit ? "Saved" : "View only"))}</div>
+      <div class="spr-save-state is-${escapeSetPieceHtml(ui.saveState || "saved")}" role="status">${escapeSetPieceHtml(ui.saveMessage || (canEdit ? "Saved to team" : "View only"))}</div>
     </header>
+    ${ui.notice ? `<div class="spr-notice is-${escapeSetPieceHtml(ui.notice.tone || "warning")}" role="status"><span>${escapeSetPieceHtml(ui.notice.message)}</span><button type="button" data-set-piece-action="dismiss-notice" aria-label="Dismiss message" title="Dismiss">×</button></div>` : ""}
     <div class="spr-layout">
       ${renderPlayLibrary(state, ui)}
       ${renderBoardWorkspace(play, variant, phase, roster, ui, canEdit)}
-      ${renderInspector(play, variant, phase, roster, ui, canEdit)}
+      ${renderInspector(play, variant, phase, roster, ui, canEdit, canDelete)}
     </div>
   </section>`;
 }

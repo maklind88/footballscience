@@ -990,6 +990,29 @@ export function createPresentationModeController(dependencies = {}) {
     return normalizeStore(readJson(storageKey, {}));
   }
 
+  function getSetPieceReferenceUsage(reference = {}) {
+    const playId = String(reference.playId || "").trim();
+    const variantId = String(reference.variantId || "").trim();
+    if (!playId) return { count: 0, dates: [], slideIds: [] };
+    const matches = [];
+    Object.entries(readStore().decks || {}).forEach(([dateValue, deck]) => {
+      (deck?.infoSlides || []).forEach((slide) => {
+        if (
+          slide.layout === "set-piece" &&
+          slide.setPiecePlayId === playId &&
+          (!variantId || slide.setPieceVariantId === variantId)
+        ) {
+          matches.push({ dateValue, slideId: slide.id });
+        }
+      });
+    });
+    return {
+      count: matches.length,
+      dates: [...new Set(matches.map((match) => match.dateValue))].sort(),
+      slideIds: matches.map((match) => match.slideId),
+    };
+  }
+
   function writeStore(store) {
     writeJson(storageKey, normalizeStore(store));
     onDeckChange();
@@ -4881,6 +4904,7 @@ export function createPresentationModeController(dependencies = {}) {
     buildModel,
     close,
     getDeckForDate,
+    getSetPieceReferenceUsage,
     open,
     readStore,
     render,

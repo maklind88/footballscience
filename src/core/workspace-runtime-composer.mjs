@@ -167,6 +167,8 @@ export function createWorkspaceRuntimeComposition(deps = {}) {
       };
     },
     canEdit: () => deps.canCurrentUserEditWorkspace?.("set-pieces-room") !== false,
+    canDelete: deps.canDeleteSetPiecesRoom,
+    getTeamMeetingReferenceUsage: deps.getSetPieceReferenceUsage,
     onAddToTeamMeeting: deps.addSetPieceVariantToTeamMeeting,
   });
   const renderWorkspaceByViewId = (activeViewId) => {

@@ -71,12 +71,14 @@ export function createSetPiecesPlaybackController(options = {}) {
       fromPhase,
       toPhase,
       startedAt: 0,
+      lastTimestamp: 0,
       elapsedBeforePause,
     };
 
     const tick = (timestamp) => {
       if (!playing || paused || !transition) return;
       if (!transition.startedAt) transition.startedAt = timestamp - transition.elapsedBeforePause / speed;
+      transition.lastTimestamp = timestamp;
       const duration = Math.max(250, Number(toPhase.durationMs || 1400));
       const elapsed = Math.max(0, (timestamp - transition.startedAt) * speed);
       const progress = Math.min(1, elapsed / duration);
@@ -141,7 +143,11 @@ export function createSetPiecesPlaybackController(options = {}) {
 
   function setSpeed(nextSpeed) {
     const numeric = Number(nextSpeed);
-    speed = Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+    const next = Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+    if (transition && playing && !paused && transition.startedAt && transition.lastTimestamp) {
+      transition.startedAt = transition.lastTimestamp - transition.elapsedBeforePause / next;
+    }
+    speed = next;
     emitStatus();
   }
 

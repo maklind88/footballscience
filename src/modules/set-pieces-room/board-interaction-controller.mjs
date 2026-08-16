@@ -12,6 +12,7 @@ import {
 } from "./geometry.mjs";
 import { createSetPiecePlayerLabelMap } from "./player-labels.mjs";
 import { createSetPieceId } from "./state.mjs";
+import { chooseSetPieceDrawingActor } from "./drawing-actors.mjs";
 
 function createBoardElement(kind, point, overrides = {}) {
   return {
@@ -27,21 +28,6 @@ function createBoardElement(kind, point, overrides = {}) {
     durationMs: DEFAULT_ACTION_DURATION_MS,
     ...overrides,
   };
-}
-
-function getDrawingActor(phase = {}, drawingType = "", point = {}) {
-  const kinds = {
-    run: new Set(["home-player"]),
-    pass: new Set(["ball"]),
-    dribble: new Set(["home-player"]),
-    press: new Set(["home-player", "opponent"]),
-    mark: new Set(["home-player", "opponent"]),
-  }[drawingType];
-  if (!kinds) return null;
-  return getNearestSetPieceElement(
-    (phase.elements || []).filter((element) => kinds.has(element.kind)),
-    point
-  );
 }
 
 export function createSetPiecesBoardInteractionController(options = {}) {
@@ -106,7 +92,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       element.kind === "home-player" &&
       (element.profileId === player.id || element.id === assignedSlot?.slotId)
     ));
-    if (existing) {
+    if (existing && variant.phases.every((candidatePhase) => candidatePhase.elements.some((element) => element.id === existing.id))) {
       ui.selectedElementIds = new Set([existing.id]);
       ui.selectedDrawingId = "";
       ui.assignmentPickerSlotId = existing.id;
@@ -118,12 +104,34 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     }
     const label = createSetPiecePlayerLabelMap(roster.map((entry) => entry.player)).get(player.id) || "P";
     options.commit(() => {
+      const phaseTemplates = variant.phases
+        .map((candidatePhase, index) => ({
+          index,
+          element: candidatePhase.elements.find((element) => (
+            element.kind === "home-player" &&
+            (element.profileId === player.id || element.id === assignedSlot?.slotId)
+          )),
+        }))
+        .filter((entry) => entry.element);
+      const template = phaseTemplates[0]?.element;
       const element = createBoardElement("home-player", point, {
+        ...(template || {}),
         ...(assignedSlot ? { id: assignedSlot.slotId, role: assignedSlot.role } : {}),
         profileId: player.id,
         label,
+        ...point,
       });
-      phase.elements.push(element);
+      variant.phases.forEach((candidatePhase, index) => {
+        if (candidatePhase.elements.some((candidate) => candidate.id === element.id)) return;
+        const nearestTemplate = phaseTemplates.reduce((nearest, entry) => (
+          !nearest || Math.abs(entry.index - index) < Math.abs(nearest.index - index) ? entry : nearest
+        ), null)?.element;
+        candidatePhase.elements.push({
+          ...structuredClone(element),
+          x: Number(nearestTemplate?.x ?? point.x),
+          y: Number(nearestTemplate?.y ?? point.y),
+        });
+      });
       ui.selectedElementIds = new Set([element.id]);
       ui.selectedDrawingId = "";
       ui.assignmentPickerSlotId = "";
@@ -298,7 +306,12 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       return;
     }
     if (completed.type === "draw" && getSetPieceDistance(completed.start, point) > 1.5) {
-      const actor = getDrawingActor(phase, completed.drawingType, completed.start);
+      const actor = chooseSetPieceDrawingActor(
+        phase,
+        completed.drawingType,
+        completed.start,
+        ui.selectedElementIds
+      );
       const drawing = {
         id: createSetPieceId("drawing"),
         type: completed.drawingType,
@@ -348,6 +361,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     if (!root?.closest?.(".workspace-view")?.classList.contains("is-active")) return;
     const editable = event.target?.matches?.("input, textarea, select, [contenteditable='true']");
     const key = String(event.key || "").toLowerCase();
+    const focusedMarker = event.target?.closest?.("[data-element-id]");
     if (options.ui.presentationMode) {
       if (editable) return;
       if (key === " ") {
@@ -373,6 +387,41 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       return;
     }
     if (editable) return;
+    if (focusedMarker && !options.ui.presentationMode) {
+      const elementId = focusedMarker.dataset.elementId;
+      const { phase, play } = options.getContext();
+      const element = phase?.elements?.find((candidate) => candidate.id === elementId);
+      if (!element) return;
+      if (key === "enter" || key === " ") {
+        event.preventDefault();
+        options.ui.selectedElementIds = new Set([elementId]);
+        options.ui.selectedDrawingId = "";
+        options.ui.assignmentPickerSlotId = element.kind === "home-player" ? elementId : "";
+        options.ui.inspectorCollapsed = false;
+        options.render();
+        root?.querySelector?.(`[data-element-id="${CSS.escape(elementId)}"]`)?.focus?.();
+        return;
+      }
+      const direction = {
+        arrowleft: { x: -1, y: 0 },
+        arrowright: { x: 1, y: 0 },
+        arrowup: { x: 0, y: -1 },
+        arrowdown: { x: 0, y: 1 },
+      }[key];
+      if (direction && options.canEdit()) {
+        event.preventDefault();
+        const distance = event.shiftKey ? 5 : 1;
+        options.ui.selectedElementIds = new Set([elementId]);
+        options.commit(() => {
+          Object.assign(element, normalizeSetPiecePointForPitchView({
+            x: element.x + direction.x * distance,
+            y: element.y + direction.y * distance,
+          }, play?.pitchView));
+        });
+        root?.querySelector?.(`[data-element-id="${CSS.escape(elementId)}"]`)?.focus?.();
+        return;
+      }
+    }
     if (key === "delete" || key === "backspace") {
       event.preventDefault();
       options.deleteSelection();

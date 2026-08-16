@@ -25,6 +25,8 @@ import {
   interpolateSetPiecePlaybackElement,
 } from "../src/modules/set-pieces-room/playback-geometry.mjs";
 import { renderSetPieceBoard } from "../src/modules/set-pieces-room/board-renderer.mjs";
+import { chooseSetPieceDrawingActor, getSetPieceDrawingActors } from "../src/modules/set-pieces-room/drawing-actors.mjs";
+import { createSetPiecesPlaybackController } from "../src/modules/set-pieces-room/playback-controller.mjs";
 import {
   getNextSetPiecePlayerPlacement,
   getSetPiecePitchTransform,
@@ -234,6 +236,46 @@ test("playback timing and ball routes respect delay, duration and action semanti
   expect(interpolateSetPiecePlaybackElement(player, { ...player, x: 30, y: 20 }, 0.5, phase).routeId).toBe("");
 });
 
+test("changing playback speed preserves the current visual position", () => {
+  const frames = [];
+  const callbacks = [];
+  const phases = [
+    { id: "phase-1", elements: [{ id: "runner", kind: "home-player", x: 10, y: 10 }] },
+    { id: "phase-2", durationMs: 1000, elements: [{ id: "runner", kind: "home-player", x: 30, y: 10 }] },
+  ];
+  const controller = createSetPiecesPlaybackController({
+    win: {
+      requestAnimationFrame: (callback) => { callbacks.push(callback); return callbacks.length; },
+      cancelAnimationFrame: () => {},
+      setTimeout: () => 0,
+      clearTimeout: () => {},
+    },
+    getContext: () => ({ variant: { phases }, phase: phases[0] }),
+    onFrame: (_positions, progress) => frames.push(progress),
+  });
+
+  controller.play();
+  callbacks.shift()(100);
+  callbacks.shift()(500);
+  controller.setSpeed(2);
+  callbacks.shift()(600);
+
+  expect(frames[1]).toBeCloseTo(0.4, 5);
+  expect(frames[2]).toBeCloseTo(0.6, 5);
+});
+
+test("drawing routes prefer the selected compatible actor and remain editable", () => {
+  const phase = {
+    elements: [
+      { id: "runner-near", kind: "home-player", x: 10, y: 10, label: "AN" },
+      { id: "runner-selected", kind: "home-player", x: 40, y: 40, label: "BS" },
+      { id: "ball", kind: "ball", x: 12, y: 10 },
+    ],
+  };
+  expect(chooseSetPieceDrawingActor(phase, "run", { x: 10, y: 10 }, new Set(["runner-selected"])).id).toBe("runner-selected");
+  expect(getSetPieceDrawingActors(phase, "pass").map((actor) => actor.id)).toEqual(["ball"]);
+});
+
 test("drag coordinates stay inside the visible pitch view", () => {
   expect(normalizeSetPiecePointForPitchView({ x: 4, y: 80 }, "attacking-half")).toEqual({ x: 52.5, y: 68 });
   expect(normalizeSetPiecePointForPitchView({ x: 90, y: -4 }, "defensive-half")).toEqual({ x: 52.5, y: 0 });
@@ -292,6 +334,15 @@ test("board renderer distinguishes own initials, opponent numbers and movement s
   expect(markup).toContain('viewBox="0 0 68 52.5"');
   expect(markup).toContain('transform="matrix(0 -1 1 0 0 105)"');
   expect(markup).not.toContain("spr-body-direction");
+});
+
+test("editable board markers expose keyboard interaction without affecting presentation boards", () => {
+  const phase = { elements: [{ id: "home-a", kind: "home-player", x: 70, y: 18, label: "AE" }], drawings: [] };
+  const editable = renderSetPieceBoard({ phase, interactive: true, layers: new Set(["home"]) });
+  const presenting = renderSetPieceBoard({ phase, interactive: false, layers: new Set(["home"]) });
+  expect(editable).toContain('tabindex="0"');
+  expect(editable).toContain('aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Delete"');
+  expect(presenting).not.toContain('tabindex="0"');
 });
 
 test("board instances own unique arrow and pitch pattern ids", () => {

@@ -82,6 +82,9 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(page.locator(".spr-board-element.is-ball")).toHaveCount(1);
 
   const initialHomeMarker = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
+  const keyboardStartTransform = await initialHomeMarker.getAttribute("transform");
+  await initialHomeMarker.press("ArrowRight");
+  await expect(initialHomeMarker).not.toHaveAttribute("transform", keyboardStartTransform);
   const initialHomeBox = await initialHomeMarker.boundingBox();
   expect(initialHomeBox).not.toBeNull();
   await page.getByRole("button", { name: "Run" }).click();
@@ -90,10 +93,17 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.mouse.move(box.x + box.width * 0.68, box.y + box.height * 0.25, { steps: 8 });
   await page.mouse.up();
   await expect(page.locator(".spr-drawing.is-run")).toHaveCount(1);
+  await expect(page.getByRole("combobox", { name: "Linked actor" })).toHaveValue(/.+/);
 
   await page.getByRole("button", { name: "Duplicate current phase" }).click();
   await expect(page.locator("[data-set-piece-phase-id]")).toHaveCount(2);
-  const homeMarker = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
+  await page.locator("[data-set-piece-player-picker] summary").click();
+  await page.getByRole("menuitem", { name: "Add Beth Miller" }).click();
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveCount(2);
+  await page.locator("[data-set-piece-phase-id]").first().click();
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveCount(2);
+  await page.locator("[data-set-piece-phase-id]").nth(1).click();
+  const homeMarker = page.locator(".spr-board-element.is-home-player:not(.is-ghost)").first();
   const markerBox = await homeMarker.boundingBox();
   expect(markerBox).not.toBeNull();
   const startCenter = { x: markerBox.x + markerBox.width / 2, y: markerBox.y + markerBox.height / 2 };
@@ -125,9 +135,9 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(page.locator("[data-set-piece-playback-primary]")).toContainText("Phase 1 → 2");
   await expect(page.locator("[data-set-piece-playback-secondary]")).toContainText("/");
   await page.getByRole("button", { name: "Pause", exact: true }).click();
-  const pausedTransform = await page.locator(".spr-board-element.is-home-player:not(.is-ghost)").getAttribute("transform");
+  const pausedTransform = await page.locator(".spr-board-element.is-home-player:not(.is-ghost)").first().getAttribute("transform");
   await page.waitForTimeout(250);
-  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveAttribute("transform", pausedTransform);
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)").first()).toHaveAttribute("transform", pausedTransform);
   await page.getByRole("button", { name: "Play", exact: true }).click();
   await expect(page.locator(".spr-phase-counter")).toContainText("Phase 2", { timeout: 5_000 });
   await expect(page.locator(".spr-phase-counter")).toContainText("of 2");
@@ -142,6 +152,7 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(setPieces.locator(".spr-inspector")).toBeHidden();
   await expect(setPieces.locator(".spr-timeline")).toBeVisible();
   await expect(setPieces.locator(".spr-playback")).toBeVisible();
+  await expect(setPieces.locator(".spr-board-element.is-ghost")).toHaveCount(0);
   const presentPitchSize = await setPieces.locator("[data-set-piece-pitch]").evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return { width: rect.width, height: rect.height };
@@ -165,7 +176,7 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await openSetPiecesRoom(page);
   await expect(page.locator("[data-set-piece-variant-id]")).toHaveCount(2);
   await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost) text")).toHaveText("12");
-  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveAttribute("transform", movedTransform);
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)").first()).toHaveAttribute("transform", movedTransform);
   expect(pageErrors).toEqual([]);
 });
 
@@ -269,7 +280,7 @@ test("Set Pieces Room handles a match-sized routine without stacking roles", asy
     [.77, .4], [.87, .4], [.72, .62], [.82, .62],
   ];
   for (const [x, y] of opponentPoints) {
-    await page.getByRole("button", { name: "Opponent" }).click();
+    await page.getByRole("button", { name: "Opponent", exact: true }).click();
     const currentPitchBox = await pitch.boundingBox();
     expect(currentPitchBox).not.toBeNull();
     await page.mouse.click(currentPitchBox.x + currentPitchBox.width * x, currentPitchBox.y + currentPitchBox.height * y);

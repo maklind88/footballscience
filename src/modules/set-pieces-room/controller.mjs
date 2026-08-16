@@ -45,6 +45,7 @@ export function createSetPiecesRoomController(options = {}) {
     showAssignments: false,
     layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
     showGhost: true,
+    editShowGhost: true,
     previewDrawing: null,
     selectionRect: null,
     playbackSpeed: 1,
@@ -55,7 +56,8 @@ export function createSetPiecesRoomController(options = {}) {
     presentationMode: false,
     inspectorCollapsed: true,
     saveState: "saved",
-    saveMessage: "Saved",
+    saveMessage: "Saved to team",
+    notice: null,
   };
 
   function getRoster() {
@@ -75,6 +77,15 @@ export function createSetPiecesRoomController(options = {}) {
     return options.canEdit?.() !== false;
   }
 
+  function canDelete() {
+    return options.canDelete?.() !== false;
+  }
+
+  function setNotice(message = "", tone = "warning") {
+    ui.notice = message ? { message, tone } : null;
+    render();
+  }
+
   function getActorId() {
     const user = options.getCurrentUser?.() || {};
     return String(user.id || user.userId || user.email || "").trim();
@@ -90,13 +101,33 @@ export function createSetPiecesRoomController(options = {}) {
   }
 
   function save() {
+    ui.saveState = "saving";
+    ui.saveMessage = "Saving to team";
     const result = persistence.write(state);
     state = result.state;
-    ui.saveState = result.ok ? "saved" : "error";
-    ui.saveMessage = result.ok
-      ? `Saved ${new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit" }).format(new Date())}`
-      : "Save failed";
+    if (!result.ok) {
+      ui.saveState = "error";
+      ui.saveMessage = "Save failed";
+    }
     return result.ok;
+  }
+
+  function setSyncStatus(status = "", message = "") {
+    const normalized = status === "issue" || status === "conflict" ? "error" : status;
+    ui.saveState = ["saving", "saved", "error"].includes(normalized) ? normalized : "error";
+    if (normalized === "saved") {
+      const time = new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit" }).format(new Date());
+      ui.saveMessage = `Saved to team ${time}`;
+    } else if (normalized === "saving") {
+      ui.saveMessage = "Saving to team";
+    } else {
+      ui.saveMessage = message || "Sync needs attention";
+    }
+    const statusNode = root?.querySelector?.(".spr-save-state");
+    if (statusNode) {
+      statusNode.className = `spr-save-state is-${ui.saveState}`;
+      statusNode.textContent = ui.saveMessage;
+    }
   }
 
   function commit(mutator, { recordHistory = true } = {}) {
@@ -115,6 +146,7 @@ export function createSetPiecesRoomController(options = {}) {
     return {
       ...ui,
       canAddToTeamMeeting: typeof options.onAddToTeamMeeting === "function",
+      canDelete: canDelete(),
       canUndo: history.canUndo,
       canRedo: history.canRedo,
     };
@@ -124,7 +156,7 @@ export function createSetPiecesRoomController(options = {}) {
     if (!root) return;
     const roster = getRoster();
     const team = options.getTeamIdentity?.() || {};
-    root.innerHTML = renderSetPiecesWorkspace({ state, roster, team, ui: rendererUi(), canEdit: canEdit() });
+    root.innerHTML = renderSetPiecesWorkspace({ state, roster, team, ui: rendererUi(), canEdit: canEdit(), canDelete: canDelete() });
     revealActiveSetPiecePhase(root);
   }
 
@@ -148,6 +180,7 @@ export function createSetPiecesRoomController(options = {}) {
       selectedDrawingId: ui.selectedDrawingId,
       previewDrawing: ui.previewDrawing,
       selectionRect: ui.selectionRect,
+      interactive: canEdit() && !ui.presentationMode,
     })}`;
   }
 
@@ -237,6 +270,9 @@ export function createSetPiecesRoomController(options = {}) {
 
   function deleteCurrentPlay() {
     const { play } = getContext();
+    if (!canDelete()) return setNotice("Only coaches and admins can delete set pieces.");
+    const usage = options.getTeamMeetingReferenceUsage?.({ playId: play?.id }) || {};
+    if (usage.count) return setNotice(`Used in ${usage.count} Team Meeting slide${usage.count === 1 ? "" : "s"}. Remove the slide${usage.count === 1 ? "" : "s"} there before deleting this set piece.`);
     if (!play || !win.confirm?.(`Delete “${play.title}”?`)) return;
     commit((nextState) => {
       nextState.plays = nextState.plays.filter((item) => item.id !== play.id);
@@ -256,6 +292,9 @@ export function createSetPiecesRoomController(options = {}) {
 
   function deleteVariant() {
     const { play, variant } = getContext();
+    if (!canDelete()) return setNotice("Only coaches and admins can delete variants.");
+    const usage = options.getTeamMeetingReferenceUsage?.({ playId: play?.id, variantId: variant?.id }) || {};
+    if (usage.count) return setNotice(`This variant is used in ${usage.count} Team Meeting slide${usage.count === 1 ? "" : "s"}. Remove the slide${usage.count === 1 ? "" : "s"} there before deleting the variant.`);
     if (!play || !variant || play.variants.length <= 1 || !win.confirm?.(`Delete “${variant.title}”?`)) return;
     commit(() => {
       play.variants = play.variants.filter((item) => item.id !== variant.id);
@@ -276,6 +315,7 @@ export function createSetPiecesRoomController(options = {}) {
 
   function deletePhase() {
     const { variant, phase } = getContext();
+    if (!canDelete()) return setNotice("Only coaches and admins can delete phases.");
     if (!variant || !phase || variant.phases.length <= 1 || !win.confirm?.(`Delete “${phase.title}”?`)) return;
     commit(() => {
       const index = variant.phases.findIndex((item) => item.id === phase.id);
@@ -314,12 +354,18 @@ export function createSetPiecesRoomController(options = {}) {
     const { variant, phase } = getContext();
     if (!variant || !phase) return;
     const elementIds = new Set(ui.selectedElementIds);
+    const homeElementIds = new Set(phase.elements
+      .filter((element) => element.kind === "home-player" && elementIds.has(element.id))
+      .map((element) => element.id));
     const drawingId = ui.selectedDrawingId;
     if (!elementIds.size && !drawingId) return;
+    if (!canDelete()) return setNotice("Only coaches and admins can delete board content.");
     commit(() => {
       const startIndex = variant.phases.findIndex((item) => item.id === phase.id);
-      variant.phases.slice(startIndex).forEach((item) => {
-        item.elements = item.elements.filter((element) => !elementIds.has(element.id));
+      variant.phases.forEach((item, index) => {
+        item.elements = item.elements.filter((element) => (
+          !homeElementIds.has(element.id) && (index < startIndex || !elementIds.has(element.id))
+        ));
       });
       phase.drawings = phase.drawings.filter((drawing) => drawing.id !== drawingId);
       ui.selectedElementIds.clear();
@@ -354,7 +400,14 @@ export function createSetPiecesRoomController(options = {}) {
 
   function setWorkspaceMode(presentationMode) {
     playback.stop();
-    ui.presentationMode = Boolean(presentationMode);
+    const nextPresentationMode = Boolean(presentationMode);
+    if (nextPresentationMode && !ui.presentationMode) {
+      ui.editShowGhost = ui.showGhost;
+      ui.showGhost = false;
+    } else if (!nextPresentationMode && ui.presentationMode) {
+      ui.showGhost = ui.editShowGhost;
+    }
+    ui.presentationMode = nextPresentationMode;
     ui.activeTool = "select";
     ui.previewDrawing = null;
     ui.selectionRect = null;
@@ -401,6 +454,7 @@ export function createSetPiecesRoomController(options = {}) {
       "edit-mode": () => setWorkspaceMode(false),
       "present-mode": () => setWorkspaceMode(true),
       "add-to-team-meeting": addCurrentVariantToTeamMeeting,
+      "dismiss-notice": () => setNotice(""),
       "toggle-inspector": () => {
         ui.inspectorCollapsed = !ui.inspectorCollapsed;
         render();
@@ -596,5 +650,5 @@ export function createSetPiecesRoomController(options = {}) {
     render();
   }
 
-  return Object.freeze({ mount, reloadFromStorage, render });
+  return Object.freeze({ mount, reloadFromStorage, render, setSyncStatus });
 }

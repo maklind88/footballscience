@@ -13,6 +13,7 @@ export function getSetPiecePresentationCatalog(state = {}, _playerProfilesState 
     title: play.title,
     restart: play.restart,
     moment: play.moment,
+    subPhases: [...play.subPhases],
     opponent: play.opponent,
     variants: play.variants.map((variant) => ({
       id: variant.id,
@@ -44,6 +45,7 @@ export function resolveSetPiecePresentationVariant(state = {}, playerProfilesSta
     variantTitle: variant.title,
     restart: play.restart,
     moment: play.moment,
+    subPhases: [...play.subPhases],
     opponent: play.opponent,
     objective: play.objective,
     pitchView: play.pitchView,

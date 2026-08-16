@@ -29,6 +29,13 @@ import { chooseSetPieceDrawingActor, getSetPieceDrawingActors } from "../src/mod
 import { createSetPiecesPlaybackController } from "../src/modules/set-pieces-room/playback-controller.mjs";
 import { renderSetPiecesPresentationWorkspace } from "../src/modules/set-pieces-room/presentation-workspace-renderer.mjs";
 import { renderSetPiecesWorkspace } from "../src/modules/set-pieces-room/workspace-renderer.mjs";
+import { renderSetPieceLibraryLayer } from "../src/modules/set-pieces-room/library-renderer.mjs";
+import {
+  clearSetPieceLibraryFilters,
+  createSetPieceLibraryFilters,
+  matchesSetPieceLibraryFilters,
+  updateSetPieceLibraryFilter,
+} from "../src/modules/set-pieces-room/library-filters.mjs";
 import {
   getNextSetPiecePlayerPlacement,
   getSetPiecePitchTransform,
@@ -53,8 +60,89 @@ test("Set Pieces Room starts empty and creates a structured phase and variant tr
 
   const play = createSetPiecePlay({ title: "Near-post release" });
   expect(play.variants).toHaveLength(1);
+  expect(play.subPhases).toEqual(["first-action"]);
   expect(play.variants[0].phases).toHaveLength(1);
   expect(play.variants[0].phases[0]).toMatchObject({ title: "Start", elements: [], drawings: [] });
+});
+
+test("set-piece sub-phases normalize legacy, duplicate and invalid values safely", () => {
+  const legacy = createSetPiecePlay({ title: "Legacy delivery" });
+  delete legacy.subPhases;
+  const tagged = createSetPiecePlay({
+    title: "Second-ball structure",
+    subPhases: ["second-ball", "transition", "unknown", "second-ball"],
+  });
+  const state = normalizeSetPiecesState({ plays: [legacy, tagged] });
+
+  expect(state.schemaVersion).toBe(3);
+  expect(state.plays[0].subPhases).toEqual(["first-action"]);
+  expect(state.plays[1].subPhases).toEqual(["second-ball", "transition"]);
+});
+
+test("library filters combine groups with AND and choices inside a group with OR", () => {
+  const attackingCorner = createSetPiecePlay({
+    title: "Attacking corner",
+    moment: "attack",
+    restart: "corner",
+    subPhases: ["first-action", "second-ball"],
+  });
+  const defendingThrowIn = createSetPiecePlay({
+    title: "Defending throw-in",
+    moment: "defend",
+    restart: "throw-in",
+    subPhases: ["setup"],
+  });
+  const attackingPenalty = createSetPiecePlay({
+    title: "Attacking penalty",
+    moment: "attack",
+    restart: "penalty",
+    subPhases: ["first-action"],
+  });
+  let filters = createSetPieceLibraryFilters();
+  filters = updateSetPieceLibraryFilter(filters, "moment", "attack", true);
+  filters = updateSetPieceLibraryFilter(filters, "restart", "corner", true);
+  filters = updateSetPieceLibraryFilter(filters, "restart", "penalty", true);
+
+  expect(matchesSetPieceLibraryFilters(attackingCorner, filters)).toBe(true);
+  expect(matchesSetPieceLibraryFilters(attackingPenalty, filters)).toBe(true);
+  expect(matchesSetPieceLibraryFilters(defendingThrowIn, filters)).toBe(false);
+
+  filters = updateSetPieceLibraryFilter(filters, "subPhase", "second-ball", true);
+  expect(matchesSetPieceLibraryFilters(attackingCorner, filters)).toBe(true);
+  expect(matchesSetPieceLibraryFilters(attackingPenalty, filters)).toBe(false);
+  expect(matchesSetPieceLibraryFilters(attackingCorner, clearSetPieceLibraryFilters())).toBe(true);
+});
+
+test("library renders a compact multi-choice filter and compound set-piece labels", () => {
+  const corner = createSetPiecePlay({
+    id: "corner-plan",
+    title: "Near-post delivery",
+    moment: "attack",
+    restart: "corner",
+    subPhases: ["second-ball"],
+  });
+  const throwIn = createSetPiecePlay({
+    id: "throw-plan",
+    title: "Touchline pressure",
+    moment: "defend",
+    restart: "throw-in",
+    subPhases: ["setup"],
+  });
+  const state = normalizeSetPiecesState({ activePlayId: corner.id, plays: [corner, throwIn] });
+  let filters = createSetPieceLibraryFilters();
+  filters = updateSetPieceLibraryFilter(filters, "moment", "attack", true);
+  filters = updateSetPieceLibraryFilter(filters, "restart", "corner", true);
+  const markup = renderSetPieceLibraryLayer(state, {
+    libraryOpen: true,
+    libraryFiltersOpen: true,
+    libraryFilters: filters,
+  });
+
+  expect(markup).toContain('data-set-piece-action="toggle-library-filters"');
+  expect(markup).toContain('data-set-piece-library-filter-group="subPhase"');
+  expect(markup).toContain("Attacking · Corner");
+  expect(markup).toContain('data-set-piece-play-id="corner-plan"');
+  expect(markup).not.toContain('data-set-piece-play-id="throw-plan"');
 });
 
 test("saved status stays accessible without occupying the Set Pieces header", () => {
@@ -179,7 +267,7 @@ test("legacy player markers migrate into stable role assignments across variants
   const normalized = state.plays[0];
   const linkedElements = normalized.variants.flatMap((variant) => variant.phases.flatMap((item) => item.elements));
 
-  expect(state.schemaVersion).toBe(2);
+  expect(state.schemaVersion).toBe(3);
   expect(normalized.assignments).toEqual([{ slotId: "runner-a", role: "Role 1", profileId: "player-a" }]);
   expect(linkedElements.every((element) => element.id === "runner-a" && element.profileId === "player-a")).toBe(true);
 });
@@ -497,9 +585,9 @@ test("presentation adapter links a variant while resolving current squad assignm
     variantId: variant.id,
   });
 
-  expect(catalog[0]).toMatchObject({ id: play.id, title: "Near-post screen" });
+  expect(catalog[0]).toMatchObject({ id: play.id, title: "Near-post screen", subPhases: ["first-action"] });
   expect(catalog[0].variants[0]).toMatchObject({ id: variant.id, title: "Keeper screen", phaseCount: 1 });
-  expect(resolved).toMatchObject({ playId: play.id, variantId: variant.id, pitchView: "attacking-half" });
+  expect(resolved).toMatchObject({ playId: play.id, variantId: variant.id, pitchView: "attacking-half", subPhases: ["first-action"] });
   expect(resolved.phases[0].elements[0]).toMatchObject({ x: 82, y: 16, label: "AM", role: "Near post" });
   expect(state.plays[0].variants[0].phases[0].elements[0].label).toBe("OLD");
 });
@@ -533,9 +621,10 @@ test("persistence round-trips normalized state and reports write failures", () =
     setItem: (key, value) => values.set(key, value),
   };
   const persistence = createSetPiecesPersistence({ storage });
-  const play = createSetPiecePlay({ title: "Training corner" });
+  const play = createSetPiecePlay({ title: "Training corner", subPhases: ["first-contact", "second-ball"] });
   expect(persistence.write({ activePlayId: play.id, plays: [play] }).ok).toBe(true);
   expect(persistence.read().plays[0].title).toBe("Training corner");
+  expect(persistence.read().plays[0].subPhases).toEqual(["first-contact", "second-ball"]);
 
   const failing = createSetPiecesPersistence({ storage: { getItem: () => null, setItem: () => { throw new Error("quota"); } } });
   expect(failing.write({ plays: [] })).toMatchObject({ ok: false, error: "quota" });

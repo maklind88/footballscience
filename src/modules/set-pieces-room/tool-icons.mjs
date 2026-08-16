@@ -11,6 +11,7 @@ const paths = Object.freeze({
   mark: '<circle cx="7" cy="12" r="3"/><circle cx="17" cy="12" r="3"/><path d="M10 12h4M12 9v6"/>',
   zone: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="m4 10 6-5m-6 11L16 5m-6 14L20 9m-4 10 4-4"/>',
   library: '<path d="M4 5h6l2 2h8v12H4Z"/><path d="M4 10h16"/>',
+  filter: '<path d="M4 5h16l-6 7v5l-4 2v-7Z"/>',
   "skip-back": '<path d="M6 5v14"/><path d="m18 6-8 6 8 6Z"/>',
   "step-back": '<path d="m15 6-8 6 8 6Z"/>',
   play: '<path d="m8 5 11 7-11 7Z"/>',

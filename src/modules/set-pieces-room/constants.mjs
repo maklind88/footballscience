@@ -1,5 +1,5 @@
 export const SET_PIECES_STORAGE_KEY = "football-set-pieces-room-v1";
-export const SET_PIECES_SCHEMA_VERSION = 2;
+export const SET_PIECES_SCHEMA_VERSION = 3;
 export const SET_PIECES_MAX_PLAYS = 120;
 export const SET_PIECES_MAX_VARIANTS = 16;
 export const SET_PIECES_MAX_PHASES = 24;
@@ -20,6 +20,14 @@ export const setPieceMomentOptions = Object.freeze([
   { value: "attack", label: "Attacking" },
   { value: "defend", label: "Defending" },
   { value: "transition", label: "Second ball / transition" },
+]);
+
+export const setPieceSubPhaseOptions = Object.freeze([
+  { value: "setup", label: "Set-up" },
+  { value: "first-action", label: "Delivery / first action" },
+  { value: "first-contact", label: "First contact" },
+  { value: "second-ball", label: "Second ball" },
+  { value: "transition", label: "Transition / rest defence" },
 ]);
 
 export const setPieceContextOptions = Object.freeze([

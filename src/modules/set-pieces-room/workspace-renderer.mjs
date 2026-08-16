@@ -4,6 +4,7 @@ import {
   setPieceMomentOptions,
   setPiecePitchViewOptions,
   setPieceRestartOptions,
+  setPieceSubPhaseOptions,
   setPieceToolOptions,
 } from "./constants.mjs";
 import {
@@ -19,6 +20,7 @@ import { formatSetPieceSeconds, renderSetPiecePlayback } from "./playback-render
 import { renderSetPiecesPresentationWorkspace } from "./presentation-workspace-renderer.mjs";
 import { getActiveSetPiece, getActiveSetPiecePhase, getActiveSetPieceVariant } from "./state.mjs";
 import { renderSetPieceToolIcon } from "./tool-icons.mjs";
+import { renderSetPieceLibraryLayer } from "./library-renderer.mjs";
 
 function optionsMarkup(options = [], value = "") {
   return options.map((option) => `<option value="${escapeSetPieceHtml(option.value)}" ${option.value === value ? "selected" : ""}>${escapeSetPieceHtml(option.label)}</option>`).join("");
@@ -177,48 +179,6 @@ function renderAssignmentsOverview(play, variant, roster, canEdit) {
   </div>`;
 }
 
-function renderPlayLibrary(state = {}, ui = {}) {
-  const filters = [
-    { value: "all", label: "All", accessibleLabel: "All set pieces" },
-    { value: "attack", label: "Attack", accessibleLabel: "Attacking set pieces" },
-    { value: "defend", label: "Defend", accessibleLabel: "Defending set pieces" },
-    { value: "transition", label: "2nd ball", accessibleLabel: "Second ball and transition set pieces" },
-  ];
-  const query = String(ui.searchQuery || "").trim().toLowerCase();
-  const plays = (state.plays || []).filter((play) => {
-    if (ui.libraryFilter !== "all" && play.moment !== ui.libraryFilter) return false;
-    if (!query) return true;
-    return [play.title, play.restart, play.opponent].some((value) => String(value || "").toLowerCase().includes(query));
-  });
-  return `<aside class="spr-library" aria-label="Set piece library">
-    <div class="spr-panel-heading">
-      <div><p>Library</p><strong>${state.plays?.length || 0} plans</strong></div>
-      <div class="spr-library-heading-actions">
-        <button type="button" class="spr-command-button" data-set-piece-action="new-play"><span aria-hidden="true">＋</span> New</button>
-        <button type="button" class="spr-icon-button spr-library-close" data-set-piece-action="close-library" aria-label="Close set piece library" title="Close library">×</button>
-      </div>
-    </div>
-    <label class="spr-search-field"><span class="sr-only">Search set pieces</span><input type="search" placeholder="Search" value="${escapeSetPieceHtml(ui.searchQuery)}" data-set-piece-search /></label>
-    <div class="spr-segmented" role="group" aria-label="Library filter">
-      ${filters.map((option) => `<button type="button" data-set-piece-filter="${option.value}" class="${ui.libraryFilter === option.value ? "is-active" : ""}" aria-label="${option.accessibleLabel}">${option.label}</button>`).join("")}
-    </div>
-    <div class="spr-play-list">
-      ${plays.map((play) => `<button type="button" class="spr-play-item ${play.id === state.activePlayId ? "is-active" : ""}" data-set-piece-play-id="${escapeSetPieceHtml(play.id)}">
-        <span class="spr-play-type">${escapeSetPieceHtml(play.restart.replaceAll("-", " "))}</span>
-        <strong data-set-piece-play-title="${escapeSetPieceHtml(play.id)}">${escapeSetPieceHtml(play.title)}</strong>
-        <small>${escapeSetPieceHtml([play.moment, play.context, play.opponent].filter(Boolean).join(" · "))}</small>
-      </button>`).join("") || '<div class="spr-empty-list" aria-label="No set pieces"></div>'}
-    </div>
-  </aside>`;
-}
-
-function renderLibraryLayer(state = {}, ui = {}) {
-  return `<div id="setPieceLibraryPanel" class="spr-library-layer" ${ui.libraryOpen ? "" : "hidden"}>
-    <button type="button" class="spr-library-backdrop" data-set-piece-action="close-library" tabindex="-1" aria-hidden="true"></button>
-    ${renderPlayLibrary(state, ui)}
-  </div>`;
-}
-
 function renderHeaderActions(state = {}, ui = {}, saveStateClass = "spr-save-state is-saved sr-only", saveMessage = "Saved") {
   const planCount = state.plays?.length || 0;
   return `<div class="spr-header-actions">
@@ -312,6 +272,20 @@ function renderField(label, field, value, options = {}) {
   return `<label class="spr-field"><span>${label}</span><input type="${options.type || "text"}" value="${escapeSetPieceHtml(value)}" data-${options.scope || "set-piece-play"}-field="${field}" ${options.min !== undefined ? `min="${options.min}"` : ""} ${options.max !== undefined ? `max="${options.max}"` : ""} ${options.step !== undefined ? `step="${options.step}"` : ""} ${disabled}></label>`;
 }
 
+function renderSubPhaseField(play = {}, canEdit = false) {
+  const selected = new Set(play.subPhases || []);
+  const onlySelectedValue = selected.size === 1 ? [...selected][0] : "";
+  return `<fieldset class="spr-sub-phase-field">
+    <legend>Sub-phases</legend>
+    <div class="spr-sub-phase-options">
+      ${setPieceSubPhaseOptions.map((option) => `<label class="${selected.has(option.value) ? "is-selected" : ""}">
+        <input type="checkbox" data-set-piece-sub-phase="${escapeSetPieceHtml(option.value)}" ${selected.has(option.value) ? "checked" : ""} ${canEdit && option.value !== onlySelectedValue ? "" : "disabled"}>
+        <span>${escapeSetPieceHtml(option.label)}</span>
+      </label>`).join("")}
+    </div>
+  </fieldset>`;
+}
+
 function renderElementInspector(element, play, variant, roster, ui, canEdit, canDelete) {
   const isHome = element.kind === "home-player";
   const isOpponent = element.kind === "opponent";
@@ -353,6 +327,7 @@ function renderPlanInspector(play, variant, phase, ui, canEdit, canDelete) {
       ${renderField("Restart", "restart", play.restart, { type: "select", options: setPieceRestartOptions, disabled: !canEdit })}
       ${renderField("Moment", "moment", play.moment, { type: "select", options: setPieceMomentOptions, disabled: !canEdit })}
     </div>
+    ${renderSubPhaseField(play, canEdit)}
     ${renderField("Context", "context", play.context, { type: "select", options: setPieceContextOptions, disabled: !canEdit })}
     <div class="spr-field-grid">
       ${renderField("Date", "scheduledFor", play.scheduledFor, { type: "date", disabled: !canEdit })}
@@ -426,7 +401,7 @@ export function renderSetPiecesWorkspace(options = {}) {
       <div class="spr-header-mode">${renderWorkspaceModeSwitch(ui, Boolean(play))}</div>
       ${renderHeaderActions(state, ui, saveStateClass, saveMessage)}
     </header>
-    ${renderLibraryLayer(state, ui)}
+    ${renderSetPieceLibraryLayer(state, ui)}
     ${ui.notice ? `<div class="spr-notice is-${escapeSetPieceHtml(ui.notice.tone || "warning")}" role="status"><span>${escapeSetPieceHtml(ui.notice.message)}</span><button type="button" data-set-piece-action="dismiss-notice" aria-label="Dismiss message" title="Dismiss">×</button></div>` : ""}
     <div class="spr-layout">
       ${renderBoardWorkspace(play, variant, phase, roster, ui, canEdit)}

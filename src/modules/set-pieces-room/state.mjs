@@ -7,11 +7,13 @@ import {
   SET_PIECES_MAX_VARIANTS,
   SET_PIECES_SCHEMA_VERSION,
   setPieceDrawingTypes,
+  setPieceSubPhaseOptions,
 } from "./constants.mjs";
 import { normalizeSetPiecePoint } from "./geometry.mjs";
 
 const allowedElementKinds = new Set(["home-player", "opponent", "ball"]);
 const allowedPitchViews = new Set(["full", "attacking-half", "defensive-half"]);
+const allowedSubPhases = new Set(setPieceSubPhaseOptions.map((option) => option.value));
 
 export function createSetPieceId(prefix = "item") {
   if (globalThis.crypto?.randomUUID) return `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -30,6 +32,14 @@ function number(value, fallback, min, max) {
 function timestamp(value = "") {
   const parsed = new Date(value || 0).getTime();
   return Number.isFinite(parsed) && parsed > 0 ? new Date(parsed).toISOString() : "";
+}
+
+function normalizeSubPhases(candidate) {
+  const source = Array.isArray(candidate) ? candidate : candidate ? [candidate] : [];
+  const subPhases = [...new Set(source
+    .map((value) => text(value, 40))
+    .filter((value) => allowedSubPhases.has(value)))];
+  return subPhases.length ? subPhases : ["first-action"];
 }
 
 export function createSetPiecePhase(options = {}) {
@@ -66,6 +76,7 @@ export function createSetPiecePlay(options = {}) {
     title: text(options.title || "Untitled set piece", 100),
     restart: text(options.restart || "corner", 40),
     moment: text(options.moment || "attack", 40),
+    subPhases: normalizeSubPhases(options.subPhases || options.subPhase),
     context: text(options.context || "match", 40),
     scheduledFor: text(options.scheduledFor, 20),
     opponent: text(options.opponent, 100),
@@ -258,6 +269,7 @@ function normalizePlay(play = {}) {
     title: text(play.title || "Untitled set piece", 100),
     restart: text(play.restart || "corner", 40),
     moment: text(play.moment || "attack", 40),
+    subPhases: normalizeSubPhases(play.subPhases || play.subPhase),
     context: text(play.context || "match", 40),
     scheduledFor: text(play.scheduledFor, 20),
     opponent: text(play.opponent, 100),

@@ -1,4 +1,4 @@
-import { SET_PIECES_MAX_PHASES, SET_PIECES_MAX_VARIANTS } from "./constants.mjs";
+import { SET_PIECES_MAX_PHASES, SET_PIECES_MAX_VARIANTS, setPieceSubPhaseOptions } from "./constants.mjs";
 import { createSetPieceAssignmentController } from "./assignment-controller.mjs";
 import { resolveSetPiecePhaseAssignments } from "./assignments.mjs";
 import { createSetPiecesBoardInteractionController } from "./board-interaction-controller.mjs";
@@ -23,6 +23,11 @@ import {
 } from "./state.mjs";
 import { renderSetPieceBoard } from "./board-renderer.mjs";
 import { renderSetPiecesWorkspace } from "./workspace-renderer.mjs";
+import {
+  clearSetPieceLibraryFilters,
+  createSetPieceLibraryFilters,
+  updateSetPieceLibraryFilter,
+} from "./library-filters.mjs";
 
 export function createSetPiecesRoomController(options = {}) {
   const root = options.root;
@@ -36,7 +41,8 @@ export function createSetPiecesRoomController(options = {}) {
   const ui = {
     activeTool: "select",
     searchQuery: "",
-    libraryFilter: "all",
+    libraryFilters: createSetPieceLibraryFilters(),
+    libraryFiltersOpen: false,
     libraryOpen: false,
     selectedRosterId: "",
     selectedElementIds: new Set(),
@@ -228,6 +234,7 @@ export function createSetPiecesRoomController(options = {}) {
     ui.selectedDrawingId = "";
     ui.assignmentPickerSlotId = "";
     ui.showAssignments = false;
+    ui.libraryFiltersOpen = false;
     ui.libraryOpen = false;
     render();
   }
@@ -255,6 +262,7 @@ export function createSetPiecesRoomController(options = {}) {
   }
 
   function createNewPlay() {
+    ui.libraryFiltersOpen = false;
     ui.libraryOpen = false;
     commit((nextState) => {
       const play = createSetPiecePlay({ updatedBy: getActorId() });
@@ -420,6 +428,7 @@ export function createSetPiecesRoomController(options = {}) {
     ui.selectedDrawingId = "";
     ui.assignmentPickerSlotId = "";
     ui.showAssignments = false;
+    ui.libraryFiltersOpen = false;
     ui.libraryOpen = false;
     if (!nextPresentationMode && documentRef?.fullscreenElement === root) {
       documentRef.exitFullscreen?.().catch?.(() => {});
@@ -485,6 +494,8 @@ export function createSetPiecesRoomController(options = {}) {
       "dismiss-notice": () => setNotice(""),
       "toggle-library": () => setLibraryOpen(!ui.libraryOpen),
       "close-library": () => setLibraryOpen(false),
+      "toggle-library-filters": () => setLibraryFiltersOpen(!ui.libraryFiltersOpen),
+      "clear-library-filters": clearLibraryFilters,
       "toggle-inspector": () => setInspectorOpen(ui.inspectorCollapsed),
       "close-inspector": () => setInspectorOpen(false),
       "show-assignments": () => assignmentController.showOverview(true),
@@ -495,9 +506,26 @@ export function createSetPiecesRoomController(options = {}) {
 
   function setLibraryOpen(open) {
     ui.libraryOpen = Boolean(open) && !ui.presentationMode;
+    if (!ui.libraryOpen) ui.libraryFiltersOpen = false;
     render();
     const focusTarget = ui.libraryOpen ? "[data-set-piece-search]" : '[data-set-piece-action="toggle-library"]';
     win.requestAnimationFrame?.(() => root?.querySelector?.(focusTarget)?.focus?.());
+  }
+
+  function setLibraryFiltersOpen(open) {
+    ui.libraryFiltersOpen = Boolean(open) && ui.libraryOpen;
+    render();
+    const focusTarget = ui.libraryFiltersOpen
+      ? "[data-set-piece-library-filter-group]"
+      : '[data-set-piece-action="toggle-library-filters"]';
+    win.requestAnimationFrame?.(() => root?.querySelector?.(focusTarget)?.focus?.());
+  }
+
+  function clearLibraryFilters() {
+    ui.libraryFilters = clearSetPieceLibraryFilters();
+    ui.libraryFiltersOpen = true;
+    render();
+    win.requestAnimationFrame?.(() => root?.querySelector?.("[data-set-piece-library-filter-group]")?.focus?.());
   }
 
   function updateField(scope, field, rawValue) {
@@ -610,6 +638,36 @@ export function createSetPiecesRoomController(options = {}) {
 
   function handleChange(event) {
     const target = event.target;
+    if (target.matches?.("[data-set-piece-library-filter-group]")) {
+      ui.libraryFilters = updateSetPieceLibraryFilter(
+        ui.libraryFilters,
+        target.dataset.setPieceLibraryFilterGroup,
+        target.dataset.setPieceLibraryFilterValue,
+        target.checked
+      );
+      render();
+      const selector = `[data-set-piece-library-filter-group="${CSS.escape(target.dataset.setPieceLibraryFilterGroup)}"][data-set-piece-library-filter-value="${CSS.escape(target.dataset.setPieceLibraryFilterValue)}"]`;
+      win.requestAnimationFrame?.(() => root?.querySelector?.(selector)?.focus?.());
+      return;
+    }
+    if (target.matches?.("[data-set-piece-sub-phase]")) {
+      const { play } = getContext();
+      if (!play) return;
+      const value = target.dataset.setPieceSubPhase;
+      const selected = new Set(play.subPhases || []);
+      if (!target.checked && selected.size === 1 && selected.has(value)) {
+        render();
+        return;
+      }
+      commit(() => {
+        if (target.checked) selected.add(value);
+        else selected.delete(value);
+        play.subPhases = setPieceSubPhaseOptions
+          .map((option) => option.value)
+          .filter((optionValue) => selected.has(optionValue));
+      });
+      return;
+    }
     if (target.matches?.("[data-set-piece-present-variant]")) return selectVariant(target.value);
     if (target.matches?.("[data-set-piece-playback-speed]")) playback.setSpeed(target.value);
     if (target.matches?.("[data-set-piece-ghost]")) {
@@ -625,14 +683,6 @@ export function createSetPiecesRoomController(options = {}) {
       const field = target.dataset?.[`setPiece${scope[0].toUpperCase()}${scope.slice(1)}Field`];
       if (field) return updateField(scope, field, target.type === "checkbox" ? target.checked : target.value);
     }
-  }
-
-  function handleFilterClick(event) {
-    const filter = event.target.closest?.("[data-set-piece-filter]")?.dataset.setPieceFilter;
-    if (!filter) return false;
-    ui.libraryFilter = filter;
-    render();
-    return true;
   }
 
   const assignmentController = createSetPieceAssignmentController({
@@ -667,9 +717,7 @@ export function createSetPiecesRoomController(options = {}) {
   function bind() {
     if (bound || !root) return;
     bound = true;
-    root.addEventListener("click", (event) => {
-      if (!handleFilterClick(event)) handleClick(event);
-    });
+    root.addEventListener("click", handleClick);
     root.addEventListener("input", handleInput);
     root.addEventListener("change", handleChange);
     root.addEventListener("pointerdown", boardInteractions.handlePointerDown);
@@ -679,7 +727,8 @@ export function createSetPiecesRoomController(options = {}) {
     documentRef.addEventListener("keydown", (event) => {
       if (ui.libraryOpen && event.key === "Escape") {
         event.preventDefault();
-        setLibraryOpen(false);
+        if (ui.libraryFiltersOpen) setLibraryFiltersOpen(false);
+        else setLibraryOpen(false);
         return;
       }
       boardInteractions.handleKeyDown(event);

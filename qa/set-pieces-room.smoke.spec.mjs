@@ -54,10 +54,32 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   const collapsedEditorWidth = await page.locator(".spr-editor").evaluate((element) => element.getBoundingClientRect().width);
   await page.getByRole("button", { name: "Toggle details" }).click();
   await expect(page.locator(".spr-inspector")).toBeVisible();
+  const planSubPhases = page.locator(".spr-sub-phase-field");
+  await planSubPhases.getByRole("checkbox", { name: "Second ball" }).check();
+  await expect(planSubPhases.getByRole("checkbox", { name: "Second ball" })).toBeChecked();
   await page.getByRole("button", { name: "Close details" }).click();
   await expect(page.locator(".spr-inspector")).toBeHidden();
   await expect(page.getByRole("button", { name: "Toggle details" })).toBeFocused();
   await expect.poll(() => page.locator(".spr-editor").evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(collapsedEditorWidth - 1);
+
+  await page.locator('[data-set-piece-action="toggle-library"]').click();
+  const library = page.getByRole("complementary", { name: "Set piece library" });
+  await library.getByRole("button", { name: "Filters" }).click();
+  const filterPanel = page.locator(".spr-library-filter-panel");
+  await expect(library.getByRole("button", { name: "Filters" })).toHaveAttribute("aria-expanded", "true");
+  await filterPanel.getByRole("checkbox", { name: "Defending" }).check();
+  await expect(library.locator("[data-set-piece-play-id]")).toHaveCount(0);
+  await filterPanel.getByRole("checkbox", { name: "Defending" }).uncheck();
+  await filterPanel.getByRole("checkbox", { name: "Corner" }).check();
+  await filterPanel.getByRole("checkbox", { name: "Second ball", exact: true }).check();
+  await expect(library.locator("[data-set-piece-play-id]")).toHaveCount(1);
+  await filterPanel.getByRole("button", { name: "Clear" }).click();
+  await expect(library.getByRole("button", { name: "Filters" }).locator("small")).toHaveText("All");
+  await page.keyboard.press("Escape");
+  await expect(filterPanel).toBeHidden();
+  await expect(library.getByRole("button", { name: "Filters" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".spr-library-layer")).toBeHidden();
 
   await page.getByRole("button", { name: "Assignments" }).click();
   await expect(page.locator(".spr-assignments-overview")).toBeVisible();

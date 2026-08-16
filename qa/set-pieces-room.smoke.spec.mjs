@@ -297,10 +297,14 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(presentation.locator(".presentation-slide-set-piece")).toBeVisible();
   await expect(presentation.locator(".presentation-set-piece-board [data-set-piece-pitch]")).toBeVisible();
   await expect(presentation.locator("[data-presentation-set-piece-play]")).toBeVisible();
-  await presentation.getByRole("button", { name: "Play", exact: true }).click();
+  const teamMeetingPlaybackToggle = presentation.locator('[data-presentation-set-piece-action="toggle"]');
+  await teamMeetingPlaybackToggle.evaluate((button) => button.setAttribute("data-playback-control-instance", "stable"));
+  await teamMeetingPlaybackToggle.click();
+  await expect(presentation.getByRole("button", { name: "Pause", exact: true })).toHaveAttribute("data-playback-control-instance", "stable");
   await page.waitForTimeout(250);
   await expect(presentation.locator(".spr-drawing.is-playing")).toHaveCount(1);
-  await presentation.getByRole("button", { name: "Pause", exact: true }).click();
+  expect(Number(await presentation.locator("[data-presentation-set-piece-scrubber]").inputValue())).toBeGreaterThan(0);
+  await teamMeetingPlaybackToggle.click();
   await presentation.getByRole("button", { name: "Close presentation" }).click();
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-set-pieces-room]")).toHaveClass(/is-editing/);

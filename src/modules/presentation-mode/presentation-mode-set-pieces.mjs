@@ -43,6 +43,18 @@ function renderPlayback(setPiece = {}, escapeHtml) {
   </div>`;
 }
 
+export function renderPresentationSetPieceBoard(setPiece = {}, slideId = "active") {
+  const phases = Array.isArray(setPiece.phases) ? setPiece.phases : [];
+  const activePhase = phases.find((phase) => phase.id === setPiece.activePhaseId) || phases[0] || null;
+  if (!setPiece.available || !activePhase) return "";
+  return renderSetPieceBoard({
+    phase: activePhase,
+    pitchView: setPiece.pitchView,
+    layers: presentationLayers,
+    markerPrefix: `presentation-set-piece-${slideId || "active"}`,
+  });
+}
+
 export function renderPresentationSetPieceBody(model = {}, slide = {}, escapeHtml = String) {
   const setPiece = slide.setPiece || {};
   const phases = Array.isArray(setPiece.phases) ? setPiece.phases : [];
@@ -59,15 +71,10 @@ export function renderPresentationSetPieceBody(model = {}, slide = {}, escapeHtm
       ${renderSourceControls(model, slide, escapeHtml)}
     </header>
     <div class="presentation-set-piece-board">
-      ${renderSetPieceBoard({
-        phase: activePhase,
-        pitchView: setPiece.pitchView,
-        layers: presentationLayers,
-        markerPrefix: `presentation-set-piece-${slide.id || "active"}`,
-      })}
+      ${renderPresentationSetPieceBoard(setPiece, slide.id)}
     </div>
     <div class="presentation-set-piece-phases" aria-label="Set piece phases">
-      ${phases.map((phase, index) => `<button type="button" class="${phase.id === activePhase.id ? "is-active" : ""}" data-presentation-set-piece-phase="${escapeHtml(phase.id)}" aria-label="Show phase ${index + 1}: ${escapeHtml(phase.title)}"><b>${String(index + 1).padStart(2, "0")}</b><span>${escapeHtml(phase.title)}</span><small>${formatSeconds(phase.durationMs)}</small></button>`).join("")}
+      ${phases.map((phase, index) => `<button type="button" class="${phase.id === activePhase.id ? "is-active" : ""}" data-presentation-set-piece-phase="${escapeHtml(phase.id)}" aria-label="Show phase ${index + 1}: ${escapeHtml(phase.title)}" ${phase.id === activePhase.id ? 'aria-current="step"' : ""}><b>${String(index + 1).padStart(2, "0")}</b><span>${escapeHtml(phase.title)}</span><small>${formatSeconds(phase.durationMs)}</small></button>`).join("")}
     </div>
     ${renderPlayback({ ...setPiece, activePhaseId: activePhase.id }, escapeHtml)}
   </section>`;

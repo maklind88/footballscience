@@ -8,6 +8,7 @@ import {
 } from "../set-pieces-room/presentation-adapter.mjs";
 import { createSetPiecesPlaybackController } from "../set-pieces-room/playback-controller.mjs";
 import { renderSetPiecePlaybackFrame, updateSetPiecePlaybackView } from "../set-pieces-room/playback-view.mjs";
+import { renderPresentationSetPieceBoard } from "./presentation-mode-set-pieces.mjs";
 
 export const dashboardPresentationStorageKey = "football-dashboard-presentation-mode-v1";
 
@@ -1953,8 +1954,36 @@ export function createPresentationModeController(dependencies = {}) {
       play: setPiece.play,
       variant: setPiece.variant,
       phase,
+      setPiece,
       slideId: slide.id,
     };
+  }
+
+  function updateActiveSetPiecePlaybackView(context = getActiveSetPieceContext() || {}) {
+    updateSetPiecePlaybackView(root, {
+      isPlaying: state.setPiecePlayback.isPlaying,
+      loopPlayback: state.setPiecePlayback.loop,
+      playbackProgress: state.setPiecePlayback.progress,
+      playbackSpeed: state.setPiecePlayback.speed,
+    }, context);
+  }
+
+  function renderActiveSetPiecePhase() {
+    const context = getActiveSetPieceContext();
+    const board = root?.querySelector(".presentation-set-piece-board");
+    const phaseStrip = root?.querySelector(".presentation-set-piece-phases");
+    if (!context || !board || !phaseStrip) {
+      render();
+      return;
+    }
+    board.innerHTML = renderPresentationSetPieceBoard(context.setPiece, context.slideId);
+    phaseStrip.querySelectorAll("[data-presentation-set-piece-phase]").forEach((button) => {
+      const active = button.dataset.presentationSetPiecePhase === context.phase.id;
+      button.classList.toggle("is-active", active);
+      if (active) button.setAttribute("aria-current", "step");
+      else button.removeAttribute("aria-current");
+    });
+    updateActiveSetPiecePlaybackView(context);
   }
 
   const setPiecePlayback = createSetPiecesPlaybackController({
@@ -1963,7 +1992,7 @@ export function createPresentationModeController(dependencies = {}) {
     onFrame(positions, progress) {
       state.setPiecePlayback.progress = Number(progress || 0);
       activeSetPieceRouteIds = renderSetPiecePlaybackFrame(root, activeSetPieceRouteIds, positions);
-      updateSetPiecePlaybackView(root, state.setPiecePlayback, getActiveSetPieceContext() || {});
+      updateActiveSetPiecePlaybackView();
     },
     onPhaseChange(phaseId) {
       const context = getActiveSetPieceContext();
@@ -1971,11 +2000,11 @@ export function createPresentationModeController(dependencies = {}) {
       state.setPiecePhaseBySlide[context.slideId] = phaseId;
       state.setPiecePlayback.progress = 0;
       activeSetPieceRouteIds.clear();
-      render();
+      renderActiveSetPiecePhase();
     },
     onResetFrame() {
       activeSetPieceRouteIds.clear();
-      if (state.isOpen) render();
+      if (state.isOpen) renderActiveSetPiecePhase();
     },
     onStatus(status) {
       Object.assign(state.setPiecePlayback, {
@@ -1985,7 +2014,7 @@ export function createPresentationModeController(dependencies = {}) {
         speed: status.speed,
       });
       if (!status.isPlaying && !status.isPaused) state.setPiecePlayback.progress = 0;
-      updateSetPiecePlaybackView(root, state.setPiecePlayback, getActiveSetPieceContext() || {});
+      updateActiveSetPiecePlaybackView();
     },
   });
 
@@ -1995,7 +2024,7 @@ export function createPresentationModeController(dependencies = {}) {
     setPiecePlayback.stop({ resetFrame: false });
     state.setPiecePhaseBySlide[context.slideId] = phaseId;
     state.setPiecePlayback.progress = 0;
-    render();
+    renderActiveSetPiecePhase();
   }
 
   function selectAdjacentSetPiecePhase(direction = 0) {

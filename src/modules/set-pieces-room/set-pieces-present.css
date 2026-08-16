@@ -30,7 +30,7 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 68px minmax(0, 1fr) 104px 66px;
+  grid-template-rows: 68px minmax(0, 1fr) 72px 54px;
   background: var(--spr-present-bg);
 }
 
@@ -369,9 +369,9 @@
 .spr-present-phase-strip {
   min-width: 0;
   display: flex;
-  align-items: stretch;
-  gap: .5rem;
-  padding: .55rem 1rem;
+  align-items: center;
+  gap: .42rem;
+  padding: .38rem 1rem;
   border-top: 1px solid var(--spr-present-line);
   background: #111815;
   overflow-x: auto;
@@ -379,15 +379,16 @@
 }
 
 .spr-present-phase-card {
-  width: 154px;
-  min-width: 154px;
+  width: 136px;
+  min-width: 136px;
+  height: 58px;
   display: grid;
-  grid-template-columns: 66px minmax(0, 1fr);
+  grid-template-columns: 46px minmax(0, 1fr);
   align-items: center;
-  gap: .55rem;
+  gap: .45rem;
   border: 1px solid var(--spr-present-line);
   border-radius: 6px;
-  padding: .35rem;
+  padding: .3rem;
   color: var(--spr-present-text);
   background: var(--spr-present-panel);
   cursor: pointer;
@@ -408,8 +409,8 @@
 }
 
 .spr-present-phase-card > svg {
-  width: 66px;
-  height: 66px;
+  width: 46px;
+  height: 46px;
   border-radius: 4px;
 }
 
@@ -440,34 +441,42 @@
 .spr-present-phase-card > span {
   min-width: 0;
   display: grid;
-  gap: .15rem;
+  gap: .08rem;
 }
 
 .spr-present-phase-card b {
   color: var(--spr-present-warm);
-  font-size: .58rem;
+  font-size: .54rem;
 }
 
 .spr-present-phase-card strong {
   overflow: hidden;
-  font-size: .72rem;
+  font-size: .68rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .spr-present-phase-card small {
   color: var(--spr-present-muted);
-  font-size: .59rem;
+  font-size: .56rem;
 }
 
 .spr-shell.is-presenting .is-present-playback {
-  min-height: 66px;
+  min-height: 54px;
   justify-content: flex-start;
-  gap: .72rem;
-  padding: .55rem 1rem;
+  gap: .6rem;
+  padding: .38rem 1rem;
   border-color: var(--spr-present-line);
   color: var(--spr-present-text);
   background: #111815;
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-playback-transport {
+  gap: .12rem;
+  border: 1px solid var(--spr-present-line);
+  border-radius: 6px;
+  padding: 2px;
+  background: #090f0c;
 }
 
 .spr-shell.is-presenting .is-present-playback .spr-icon-button,
@@ -478,10 +487,77 @@
   background: #ffffff0a;
 }
 
-.spr-shell.is-presenting .is-present-playback .spr-play-button {
+.spr-shell.is-presenting .is-present-playback .spr-playback-transport .spr-icon-button,
+.spr-shell.is-presenting .is-present-playback .spr-playback-transport .spr-play-button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-playback-transport .spr-icon-button:hover,
+.spr-shell.is-presenting .is-present-playback .spr-playback-transport .spr-icon-button:focus-visible {
+  background: #ffffff12;
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-playback-transport .spr-play-button {
+  width: 34px;
   color: #0d1712 !important;
   border-color: var(--spr-present-accent);
   background: var(--spr-present-accent);
+}
+
+.spr-shell.is-presenting .is-present-playback button svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-play-button svg {
+  width: 16px;
+  height: 16px;
+  transform: translateX(1px);
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-play-button svg path[d^="M9"] {
+  transform: translateX(-1px);
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-play-button svg path[d^="m8"] {
+  fill: currentColor;
+  stroke: none;
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-playback-transport .spr-icon-button svg path[d^="m18"],
+.spr-shell.is-presenting .is-present-playback .spr-playback-transport .spr-icon-button svg path[d^="m15"],
+.spr-shell.is-presenting .is-present-playback .spr-playback-transport .spr-icon-button svg path[d^="m9"] {
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+.spr-shell.is-presenting .is-present-playback [data-set-piece-action="stop"] svg rect {
+  fill: currentColor;
+  stroke: none;
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-playhead input {
+  height: 16px;
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-speed-control,
+.spr-shell.is-presenting .is-present-playback .spr-speed-control select {
+  height: 30px;
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-loop-button {
+  width: 30px;
+  height: 30px;
 }
 
 .spr-shell.is-presenting .is-present-playback .spr-playhead input {

@@ -28,11 +28,11 @@
 
 @media (max-width: 900px) {
   .spr-present-workspace {
-    grid-template-rows: 64px minmax(0, 1fr) 96px 64px;
+    grid-template-rows: 64px minmax(0, 1fr) 68px 54px;
   }
 
   .spr-shell.is-presenting .is-present-playback {
-    min-height: 64px;
+    min-height: 54px;
   }
 
   .spr-present-header {
@@ -116,20 +116,20 @@
   }
 
   .spr-present-phase-card {
-    width: 146px;
-    min-width: 146px;
-    grid-template-columns: 58px minmax(0, 1fr);
+    width: 132px;
+    min-width: 132px;
+    grid-template-columns: 44px minmax(0, 1fr);
   }
 
   .spr-present-phase-card > svg {
-    width: 58px;
-    height: 58px;
+    width: 44px;
+    height: 44px;
   }
 }
 
 @media (max-height: 760px) and (min-width: 700px) {
   .spr-present-workspace {
-    grid-template-rows: 58px minmax(0, 1fr) 84px 58px;
+    grid-template-rows: 58px minmax(0, 1fr) 64px 52px;
   }
 
   .spr-present-header {
@@ -159,17 +159,20 @@
   }
 
   .spr-present-phase-card {
-    grid-template-columns: 50px minmax(0, 1fr);
+    width: 128px;
+    min-width: 128px;
+    height: 54px;
+    grid-template-columns: 42px minmax(0, 1fr);
   }
 
   .spr-present-phase-card > svg {
-    width: 50px;
-    height: 50px;
+    width: 42px;
+    height: 42px;
   }
 
   .spr-shell.is-presenting .is-present-playback {
-    min-height: 58px;
-    padding-block: .35rem;
+    min-height: 52px;
+    padding-block: .28rem;
   }
 }
 

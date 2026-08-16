@@ -176,7 +176,10 @@ function renderPlayLibrary(state = {}, ui = {}) {
   return `<aside class="spr-library" aria-label="Set piece library">
     <div class="spr-panel-heading">
       <div><p>Library</p><strong>${state.plays?.length || 0} plans</strong></div>
-      <button type="button" class="spr-command-button" data-set-piece-action="new-play"><span aria-hidden="true">＋</span> New</button>
+      <div class="spr-library-heading-actions">
+        <button type="button" class="spr-command-button" data-set-piece-action="new-play"><span aria-hidden="true">＋</span> New</button>
+        <button type="button" class="spr-icon-button spr-library-close" data-set-piece-action="close-library" aria-label="Close set piece library" title="Close library">×</button>
+      </div>
     </div>
     <label class="spr-search-field"><span class="sr-only">Search set pieces</span><input type="search" placeholder="Search" value="${escapeSetPieceHtml(ui.searchQuery)}" data-set-piece-search /></label>
     <div class="spr-segmented" role="group" aria-label="Library filter">
@@ -190,6 +193,25 @@ function renderPlayLibrary(state = {}, ui = {}) {
       </button>`).join("") || '<div class="spr-empty-list" aria-label="No set pieces"></div>'}
     </div>
   </aside>`;
+}
+
+function renderLibraryLayer(state = {}, ui = {}) {
+  return `<div id="setPieceLibraryPanel" class="spr-library-layer" ${ui.libraryOpen ? "" : "hidden"}>
+    <button type="button" class="spr-library-backdrop" data-set-piece-action="close-library" tabindex="-1" aria-hidden="true"></button>
+    ${renderPlayLibrary(state, ui)}
+  </div>`;
+}
+
+function renderHeaderActions(state = {}, ui = {}, saveStateClass = "spr-save-state is-saved sr-only", saveMessage = "Saved") {
+  const planCount = state.plays?.length || 0;
+  return `<div class="spr-header-actions">
+    <div class="${saveStateClass}" role="status" aria-live="polite">${escapeSetPieceHtml(saveMessage)}</div>
+    <button type="button" class="spr-library-trigger ${ui.libraryOpen ? "is-active" : ""}" data-set-piece-action="toggle-library" aria-controls="setPieceLibraryPanel" aria-expanded="${Boolean(ui.libraryOpen)}">
+      <span class="spr-library-trigger-icon">${renderSetPieceToolIcon("library")}</span>
+      <span>Library</span>
+      <small>${planCount}</small>
+    </button>
+  </div>`;
 }
 
 function renderVariantBar(play = null, variant = null, ui = {}, canEdit = false) {
@@ -365,6 +387,7 @@ export function renderSetPiecesWorkspace(options = {}) {
   const canDelete = options.canDelete !== false;
   const saveState = ui.saveState || "saved";
   const saveStateClass = `spr-save-state is-${escapeSetPieceHtml(saveState)}${saveState === "saved" ? " sr-only" : ""}`;
+  const saveMessage = ui.saveMessage || (canEdit ? "Saved to team" : "View only");
   if (ui.presentationMode && play && variant && phase) {
     return `<section class="spr-shell is-presenting ${ui.nativeFullscreen ? "is-native-fullscreen" : ""}" data-set-pieces-room>
       ${renderSetPiecesPresentationWorkspace({
@@ -381,11 +404,11 @@ export function renderSetPiecesWorkspace(options = {}) {
     <header class="spr-header">
       ${renderTeamIdentity(team)}
       <div class="spr-header-mode">${renderWorkspaceModeSwitch(ui, Boolean(play))}</div>
-      <div class="${saveStateClass}" role="status" aria-live="polite">${escapeSetPieceHtml(ui.saveMessage || (canEdit ? "Saved to team" : "View only"))}</div>
+      ${renderHeaderActions(state, ui, saveStateClass, saveMessage)}
     </header>
+    ${renderLibraryLayer(state, ui)}
     ${ui.notice ? `<div class="spr-notice is-${escapeSetPieceHtml(ui.notice.tone || "warning")}" role="status"><span>${escapeSetPieceHtml(ui.notice.message)}</span><button type="button" data-set-piece-action="dismiss-notice" aria-label="Dismiss message" title="Dismiss">×</button></div>` : ""}
     <div class="spr-layout">
-      ${renderPlayLibrary(state, ui)}
       ${renderBoardWorkspace(play, variant, phase, roster, ui, canEdit)}
       ${renderInspector(play, variant, phase, roster, ui, canEdit, canDelete)}
     </div>

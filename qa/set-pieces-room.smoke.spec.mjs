@@ -53,6 +53,18 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(page.getByRole("heading", { name: "Set Pieces Room" })).toBeVisible();
   await expect(page.locator(".spr-header-team-mark")).toBeVisible();
   await expect(page.locator(".spr-header-team-name")).not.toHaveText("Football Science");
+  const libraryTrigger = page.getByRole("button", { name: "Library" });
+  const editSurface = page.locator(".spr-layout > main");
+  const closedEditorWidth = await editSurface.evaluate((element) => element.getBoundingClientRect().width);
+  await expect(page.locator(".spr-library-layer")).toBeHidden();
+  await libraryTrigger.click();
+  await expect(page.getByRole("complementary", { name: "Set piece library" })).toBeVisible();
+  await expect(page.locator("[data-set-piece-search]")).toBeFocused();
+  const openEditorWidth = await editSurface.evaluate((element) => element.getBoundingClientRect().width);
+  expect(Math.abs(openEditorWidth - closedEditorWidth)).toBeLessThan(1);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".spr-library-layer")).toBeHidden();
+  await expect(libraryTrigger).toBeFocused();
   await page.getByRole("button", { name: "Create set piece" }).click();
   await expect(page.locator("[data-set-piece-pitch]")).toBeVisible();
 
@@ -315,6 +327,12 @@ test("Set Pieces presentation stays composed on landscape and portrait tablets",
   await openSetPiecesRoom(page);
   await page.getByRole("button", { name: "Create set piece" }).click();
   await page.getByRole("button", { name: "Duplicate current phase" }).click();
+  await page.getByRole("button", { name: "Library" }).click();
+  const tabletLibrary = await page.getByRole("complementary", { name: "Set piece library" }).boundingBox();
+  expect(tabletLibrary).not.toBeNull();
+  expect(tabletLibrary.width).toBeLessThanOrEqual(360);
+  expect(tabletLibrary.x + tabletLibrary.width).toBeLessThanOrEqual(1024);
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Present", exact: true }).click();
 
   const shell = page.locator("[data-set-pieces-room]");

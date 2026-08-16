@@ -37,6 +37,7 @@ export function createSetPiecesRoomController(options = {}) {
     activeTool: "select",
     searchQuery: "",
     libraryFilter: "all",
+    libraryOpen: false,
     selectedRosterId: "",
     selectedElementIds: new Set(),
     selectedDrawingId: "",
@@ -227,6 +228,7 @@ export function createSetPiecesRoomController(options = {}) {
     ui.selectedDrawingId = "";
     ui.assignmentPickerSlotId = "";
     ui.showAssignments = false;
+    ui.libraryOpen = false;
     render();
   }
 
@@ -253,6 +255,7 @@ export function createSetPiecesRoomController(options = {}) {
   }
 
   function createNewPlay() {
+    ui.libraryOpen = false;
     commit((nextState) => {
       const play = createSetPiecePlay({ updatedBy: getActorId() });
       nextState.plays.unshift(play);
@@ -417,6 +420,7 @@ export function createSetPiecesRoomController(options = {}) {
     ui.selectedDrawingId = "";
     ui.assignmentPickerSlotId = "";
     ui.showAssignments = false;
+    ui.libraryOpen = false;
     if (!nextPresentationMode && documentRef?.fullscreenElement === root) {
       documentRef.exitFullscreen?.().catch?.(() => {});
     }
@@ -471,6 +475,8 @@ export function createSetPiecesRoomController(options = {}) {
       "toggle-fullscreen": toggleFullscreen,
       "add-to-team-meeting": addCurrentVariantToTeamMeeting,
       "dismiss-notice": () => setNotice(""),
+      "toggle-library": () => setLibraryOpen(!ui.libraryOpen),
+      "close-library": () => setLibraryOpen(false),
       "toggle-inspector": () => {
         ui.inspectorCollapsed = !ui.inspectorCollapsed;
         render();
@@ -479,6 +485,13 @@ export function createSetPiecesRoomController(options = {}) {
       "show-plan": () => assignmentController.showOverview(false),
     };
     actions[action]?.();
+  }
+
+  function setLibraryOpen(open) {
+    ui.libraryOpen = Boolean(open) && !ui.presentationMode;
+    render();
+    const focusTarget = ui.libraryOpen ? "[data-set-piece-search]" : '[data-set-piece-action="toggle-library"]';
+    win.requestAnimationFrame?.(() => root?.querySelector?.(focusTarget)?.focus?.());
   }
 
   function updateField(scope, field, rawValue) {
@@ -657,7 +670,14 @@ export function createSetPiecesRoomController(options = {}) {
     documentRef.addEventListener("pointermove", boardInteractions.handlePointerMove);
     documentRef.addEventListener("pointerup", boardInteractions.handlePointerUp);
     documentRef.addEventListener("pointercancel", boardInteractions.handlePointerCancel);
-    documentRef.addEventListener("keydown", boardInteractions.handleKeyDown);
+    documentRef.addEventListener("keydown", (event) => {
+      if (ui.libraryOpen && event.key === "Escape") {
+        event.preventDefault();
+        setLibraryOpen(false);
+        return;
+      }
+      boardInteractions.handleKeyDown(event);
+    });
     documentRef.addEventListener("fullscreenchange", () => {
       if (ui.presentationMode) render();
     });

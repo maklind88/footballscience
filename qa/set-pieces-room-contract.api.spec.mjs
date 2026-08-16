@@ -68,6 +68,20 @@ test("saved status stays accessible without occupying the Set Pieces header", ()
   expect(errorMarkup).not.toContain('class="spr-save-state is-error sr-only"');
 });
 
+test("library is launched from the edit header without reducing board width", () => {
+  const state = createEmptySetPiecesState();
+  const closedMarkup = renderSetPiecesWorkspace({ state, ui: { libraryOpen: false } });
+  const openMarkup = renderSetPiecesWorkspace({ state, ui: { libraryOpen: true } });
+
+  expect(closedMarkup).toContain('data-set-piece-action="toggle-library"');
+  expect(closedMarkup).toContain('aria-expanded="false"');
+  expect(closedMarkup).toContain('id="setPieceLibraryPanel" class="spr-library-layer" hidden');
+  expect(openMarkup).toContain('aria-expanded="true"');
+  expect(openMarkup).toContain('class="spr-library-layer"');
+  expect(openMarkup).toContain('data-set-piece-action="close-library"');
+  expect(openMarkup.indexOf("spr-library-layer")).toBeLessThan(openMarkup.indexOf("spr-layout"));
+});
+
 test("phase duplication preserves actor identity without sharing mutable arrays", () => {
   const phase = createSetPiecePhase({
     elements: [{ id: "home-a", kind: "home-player", x: 80, y: 15, profileId: "player-a", label: "AE" }],

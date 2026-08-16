@@ -149,6 +149,8 @@ export function createSetPiecesRoomController(options = {}) {
       canDelete: canDelete(),
       canUndo: history.canUndo,
       canRedo: history.canRedo,
+      fullscreenAvailable: documentRef?.fullscreenEnabled === true && typeof root?.requestFullscreen === "function" && typeof documentRef?.exitFullscreen === "function",
+      nativeFullscreen: documentRef?.fullscreenElement === root,
     };
   }
 
@@ -415,7 +417,20 @@ export function createSetPiecesRoomController(options = {}) {
     ui.selectedDrawingId = "";
     ui.assignmentPickerSlotId = "";
     ui.showAssignments = false;
+    if (!nextPresentationMode && documentRef?.fullscreenElement === root) {
+      documentRef.exitFullscreen?.().catch?.(() => {});
+    }
     render();
+  }
+
+  function toggleFullscreen() {
+    if (!ui.presentationMode) return;
+    const request = root?.requestFullscreen;
+    if (documentRef?.fullscreenElement === root) {
+      documentRef.exitFullscreen?.().catch?.(() => {});
+      return;
+    }
+    request?.call(root)?.catch?.(() => setNotice("Fullscreen is not available in this browser.", "warning"));
   }
 
   function addCurrentVariantToTeamMeeting() {
@@ -453,6 +468,7 @@ export function createSetPiecesRoomController(options = {}) {
       presentation: () => setWorkspaceMode(!ui.presentationMode),
       "edit-mode": () => setWorkspaceMode(false),
       "present-mode": () => setWorkspaceMode(true),
+      "toggle-fullscreen": toggleFullscreen,
       "add-to-team-meeting": addCurrentVariantToTeamMeeting,
       "dismiss-notice": () => setNotice(""),
       "toggle-inspector": () => {
@@ -575,6 +591,7 @@ export function createSetPiecesRoomController(options = {}) {
 
   function handleChange(event) {
     const target = event.target;
+    if (target.matches?.("[data-set-piece-present-variant]")) return selectVariant(target.value);
     if (target.matches?.("[data-set-piece-playback-speed]")) playback.setSpeed(target.value);
     if (target.matches?.("[data-set-piece-ghost]")) {
       ui.showGhost = target.checked;
@@ -618,6 +635,11 @@ export function createSetPiecesRoomController(options = {}) {
     render,
     renderBoardOnly,
     playback,
+    isFullscreen: () => documentRef?.fullscreenElement === root,
+    restartPlayback,
+    selectAdjacentPhase,
+    setPresentationMode: setWorkspaceMode,
+    toggleFullscreen,
     deleteSelection,
     undo,
     redo,
@@ -636,6 +658,9 @@ export function createSetPiecesRoomController(options = {}) {
     documentRef.addEventListener("pointerup", boardInteractions.handlePointerUp);
     documentRef.addEventListener("pointercancel", boardInteractions.handlePointerCancel);
     documentRef.addEventListener("keydown", boardInteractions.handleKeyDown);
+    documentRef.addEventListener("fullscreenchange", () => {
+      if (ui.presentationMode) render();
+    });
   }
 
   function mount() {

@@ -1,0 +1,182 @@
+@media (max-width: 1180px) {
+  .spr-present-header {
+    grid-template-columns: 210px minmax(0, 1fr) 120px auto;
+    gap: .7rem;
+    padding-inline: .75rem;
+  }
+
+  .spr-present-team-meeting {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+    overflow: hidden;
+    gap: 0;
+  }
+
+  .spr-present-team-meeting-label {
+    display: none;
+  }
+
+  .spr-present-body {
+    grid-template-columns: minmax(0, 1fr) 238px;
+  }
+
+  .spr-present-cues {
+    padding: 1rem .9rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .spr-present-workspace {
+    grid-template-rows: 64px minmax(0, 1fr) 96px 64px;
+  }
+
+  .spr-shell.is-presenting .is-present-playback {
+    min-height: 64px;
+  }
+
+  .spr-present-header {
+    grid-template-columns: minmax(180px, .8fr) minmax(0, 1.2fr) 110px auto;
+  }
+
+  .spr-present-team .spr-header-team-mark {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .spr-present-routine > span,
+  .spr-present-variant-select > span {
+    display: none;
+  }
+
+  .spr-present-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .spr-present-stage {
+    padding: .75rem;
+  }
+
+  .spr-present-board-frame {
+    width: 100%;
+    height: auto;
+  }
+
+  .spr-present-cues {
+    display: grid;
+    grid-template-columns: auto minmax(130px, .7fr) minmax(220px, 1.3fr) auto;
+    align-items: center;
+    gap: .75rem;
+    padding: .62rem .8rem;
+    border-top: 1px solid var(--spr-present-line);
+    border-left: 0;
+    overflow: hidden;
+  }
+
+  .spr-present-cues h2,
+  .spr-present-cues ol,
+  .spr-present-next {
+    margin: 0;
+  }
+
+  .spr-present-cues h2 {
+    font-size: .92rem;
+  }
+
+  .spr-present-cues ol {
+    display: block;
+    min-width: 0;
+  }
+
+  .spr-present-cues li {
+    display: block;
+    overflow: hidden;
+    font-size: .7rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .spr-present-cues li::before,
+  .spr-present-cues li:nth-child(n+2) {
+    display: none;
+  }
+
+  .spr-present-empty-cue {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .spr-present-next {
+    padding: 0 0 0 .75rem;
+    border-top: 0;
+    border-left: 1px solid var(--spr-present-line);
+  }
+
+  .spr-present-phase-card {
+    width: 146px;
+    min-width: 146px;
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .spr-present-phase-card > svg {
+    width: 58px;
+    height: 58px;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 700px) {
+  .spr-present-workspace {
+    grid-template-rows: 58px minmax(0, 1fr) 84px 58px;
+  }
+
+  .spr-present-header {
+    padding-block: .35rem;
+  }
+
+  .spr-present-stage {
+    padding: .6rem .8rem;
+  }
+
+  .spr-present-cues {
+    padding-block: .75rem;
+  }
+
+  .spr-present-cues h2 {
+    margin-bottom: .65rem;
+    font-size: 1.08rem;
+  }
+
+  .spr-present-cues li {
+    gap: .4rem;
+    font-size: .7rem;
+  }
+
+  .spr-present-phase-strip {
+    padding-block: .4rem;
+  }
+
+  .spr-present-phase-card {
+    grid-template-columns: 50px minmax(0, 1fr);
+  }
+
+  .spr-present-phase-card > svg {
+    width: 50px;
+    height: 50px;
+  }
+
+  .spr-shell.is-presenting .is-present-playback {
+    min-height: 58px;
+    padding-block: .35rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spr-shell.is-presenting *,
+  .spr-shell.is-presenting *::before,
+  .spr-shell.is-presenting *::after {
+    transition: none !important;
+  }
+}

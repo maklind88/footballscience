@@ -371,6 +371,8 @@ test("modular core skeleton exposes only explicitly approved production assets",
     "src/modules/set-pieces-room/set-pieces-roster.css",
     "src/modules/set-pieces-room/set-pieces-theme.css",
     "src/modules/set-pieces-room/set-pieces-quality.css",
+    "src/modules/set-pieces-room/set-pieces-present.css",
+    "src/modules/set-pieces-room/set-pieces-present-responsive.css",
     "src/modules/presentation-mode/presentation-mode-set-pieces.css",
   ]);
 });

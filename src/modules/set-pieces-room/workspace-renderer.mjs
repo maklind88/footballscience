@@ -3,7 +3,6 @@ import {
   setPieceLayerOptions,
   setPieceMomentOptions,
   setPiecePitchViewOptions,
-  setPiecePlaybackSpeedOptions,
   setPieceRestartOptions,
   setPieceToolOptions,
 } from "./constants.mjs";
@@ -16,16 +15,13 @@ import {
 import { escapeSetPieceHtml, renderSetPieceBoard, renderSetPiecePhaseThumbnail } from "./board-renderer.mjs";
 import { createSetPiecePlayerLabelMap } from "./player-labels.mjs";
 import { getSetPieceDrawingActorLabel, getSetPieceDrawingActors } from "./drawing-actors.mjs";
+import { formatSetPieceSeconds, renderSetPiecePlayback } from "./playback-renderer.mjs";
+import { renderSetPiecesPresentationWorkspace } from "./presentation-workspace-renderer.mjs";
 import { getActiveSetPiece, getActiveSetPiecePhase, getActiveSetPieceVariant } from "./state.mjs";
 import { renderSetPieceToolIcon } from "./tool-icons.mjs";
 
 function optionsMarkup(options = [], value = "") {
   return options.map((option) => `<option value="${escapeSetPieceHtml(option.value)}" ${option.value === value ? "selected" : ""}>${escapeSetPieceHtml(option.label)}</option>`).join("");
-}
-
-function formatSetPieceSeconds(value = 0) {
-  const seconds = Math.max(0, Number(value || 0)) / 1000;
-  return `${seconds.toFixed(seconds % 1 ? 1 : 0)}s`;
 }
 
 function teamInitials(teamName = "Team") {
@@ -211,32 +207,6 @@ function renderVariantBar(play = null, variant = null, ui = {}, canEdit = false)
   </div>`;
 }
 
-function renderPlayback(variant, phase, ui) {
-  const phaseIndex = variant.phases.findIndex((item) => item.id === phase.id);
-  const maxPosition = Math.max(1, variant.phases.length - 1);
-  const position = Math.min(maxPosition, Math.max(0, phaseIndex + Number(ui.playbackProgress || 0)));
-  const nextPhase = variant.phases[phaseIndex + 1];
-  const isTransitioning = Boolean(nextPhase && Number(ui.playbackProgress || 0) > 0);
-  const transitionDuration = Number(nextPhase?.durationMs || 0);
-  const primaryStatus = isTransitioning ? `Phase ${phaseIndex + 1} → ${phaseIndex + 2}` : `Phase ${phaseIndex + 1}`;
-  const secondaryStatus = isTransitioning
-    ? `${formatSetPieceSeconds(transitionDuration * Number(ui.playbackProgress || 0))} / ${formatSetPieceSeconds(transitionDuration)}`
-    : phase.cue || `of ${variant.phases.length}`;
-  return `<div class="spr-playback" aria-label="Playback controls">
-    <div class="spr-playback-transport">
-      <button type="button" class="spr-icon-button" data-set-piece-action="restart-playback" title="Back to phase 1" aria-label="Back to phase 1">|◀</button>
-      <button type="button" class="spr-icon-button" data-set-piece-action="previous-phase" title="Previous phase" aria-label="Previous phase">◀</button>
-      <button type="button" class="spr-play-button" data-set-piece-action="toggle-play" aria-label="${ui.isPlaying ? "Pause" : "Play"}"><span aria-hidden="true">${ui.isPlaying ? "Ⅱ" : "▶"}</span></button>
-      <button type="button" class="spr-icon-button" data-set-piece-action="next-phase" title="Next phase" aria-label="Next phase">▶</button>
-      <button type="button" class="spr-icon-button" data-set-piece-action="stop" title="Stop" aria-label="Stop">■</button>
-    </div>
-    <label class="spr-playhead"><span class="sr-only">Playback position</span><input type="range" min="0" max="${maxPosition}" step="0.01" value="${position}" data-set-piece-scrubber ${variant.phases.length < 2 ? "disabled" : ""}></label>
-    <span class="spr-phase-counter" data-set-piece-playback-status><b data-set-piece-playback-primary>${escapeSetPieceHtml(primaryStatus)}</b><span data-set-piece-playback-secondary>${escapeSetPieceHtml(secondaryStatus)}</span></span>
-    <label class="spr-speed-control"><span class="sr-only">Playback speed</span><select data-set-piece-playback-speed>${setPiecePlaybackSpeedOptions.map((speed) => `<option value="${speed}" ${Number(ui.playbackSpeed) === speed ? "selected" : ""}>${speed}×</option>`).join("")}</select></label>
-    <button type="button" class="spr-icon-button spr-loop-button ${ui.loopPlayback ? "is-active" : ""}" data-set-piece-action="toggle-loop" aria-label="Loop playback" aria-pressed="${Boolean(ui.loopPlayback)}" title="Loop playback">↻</button>
-  </div>`;
-}
-
 function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
   if (!play || !variant || !phase) {
     return `<main class="spr-canvas-empty"><button type="button" class="spr-primary-empty-action" data-set-piece-action="new-play">Create set piece</button></main>`;
@@ -285,7 +255,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
         ${ui.presentationMode ? "" : `<button type="button" class="spr-add-phase" data-set-piece-action="add-phase" title="Duplicate current phase" aria-label="Duplicate current phase" ${canEdit ? "" : "disabled"}>＋</button>`}
       </div>
     </div>
-    ${renderPlayback(variant, phase, ui)}
+    ${renderSetPiecePlayback(variant, phase, ui)}
   </main>`;
 }
 
@@ -393,6 +363,18 @@ export function renderSetPiecesWorkspace(options = {}) {
   const phase = getActiveSetPiecePhase(variant || {});
   const canEdit = options.canEdit !== false;
   const canDelete = options.canDelete !== false;
+  if (ui.presentationMode && play && variant && phase) {
+    return `<section class="spr-shell is-presenting ${ui.nativeFullscreen ? "is-native-fullscreen" : ""}" data-set-pieces-room>
+      ${renderSetPiecesPresentationWorkspace({
+        play,
+        variant,
+        phase,
+        roster,
+        ui,
+        teamIdentityMarkup: renderTeamIdentity(team),
+      })}
+    </section>`;
+  }
   return `<section class="spr-shell ${ui.presentationMode ? "is-presenting" : "is-editing"} ${ui.inspectorCollapsed ? "is-inspector-collapsed" : ""}" data-set-pieces-room>
     <header class="spr-header">
       ${renderTeamIdentity(team)}

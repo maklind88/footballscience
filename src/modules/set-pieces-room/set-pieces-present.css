@@ -1,0 +1,498 @@
+.spr-shell.is-presenting {
+  --spr-present-bg: #0c1210;
+  --spr-present-panel: #141c18;
+  --spr-present-panel-strong: #1b2520;
+  --spr-present-line: #ffffff1f;
+  --spr-present-text: #f5f8f6;
+  --spr-present-muted: #aab9b1;
+  --spr-present-accent: #76c89a;
+  --spr-present-warm: #f1c75b;
+  position: fixed;
+  z-index: 620;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 0;
+  color: var(--spr-present-text);
+  background: var(--spr-present-bg);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.set-pieces-workspace:fullscreen {
+  background: var(--spr-present-bg, #0c1210);
+}
+
+.spr-present-workspace {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 68px minmax(0, 1fr) 104px 66px;
+  background: var(--spr-present-bg);
+}
+
+.spr-present-notice {
+  position: absolute;
+  z-index: 4;
+  top: 76px;
+  left: 50%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  border: 1px solid #f1c75b75;
+  border-radius: 6px;
+  padding: .45rem .5rem .45rem .75rem;
+  color: #fff0bd;
+  background: #2b2513f2;
+  box-shadow: 0 14px 36px #0008;
+  font-size: .7rem;
+  transform: translateX(-50%);
+}
+
+.spr-present-notice button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 5px;
+  color: inherit;
+  background: #ffffff0d;
+  cursor: pointer;
+}
+
+.spr-present-header {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(215px, 280px) minmax(0, 1fr) 150px auto;
+  align-items: center;
+  gap: 1rem;
+  padding: .55rem 1rem;
+  border-bottom: 1px solid var(--spr-present-line);
+  background: #111815;
+}
+
+.spr-present-team {
+  min-width: 0;
+}
+
+.spr-present-team .spr-header-identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+}
+
+.spr-present-team .spr-header-team-mark {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #ffffff24;
+  border-radius: 8px;
+  background: #ffffff0d;
+}
+
+.spr-present-team .spr-header-team-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.spr-present-team .spr-header-titles {
+  min-width: 0;
+  display: grid;
+  gap: .12rem;
+}
+
+.spr-present-team .spr-header-team-name,
+.spr-present-team .spr-header-titles h1 {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spr-present-team .spr-header-team-name {
+  color: var(--spr-present-text);
+  font-size: .74rem;
+  font-weight: 760;
+}
+
+.spr-present-team .spr-header-titles h1 {
+  color: var(--spr-present-muted);
+  font-size: .68rem;
+  font-weight: 650;
+}
+
+.spr-present-routine {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: end;
+  gap: .12rem .75rem;
+}
+
+.spr-present-routine > span {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--spr-present-muted);
+  font-size: .61rem;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.spr-present-routine > strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 1.02rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spr-present-variant-select {
+  min-width: 0;
+  display: grid;
+  gap: .14rem;
+}
+
+.spr-present-variant-select > span {
+  color: var(--spr-present-muted);
+  font-size: .56rem;
+  font-weight: 720;
+  text-transform: uppercase;
+}
+
+.spr-present-variant-select select {
+  width: 100%;
+  height: 34px;
+  border: 1px solid #76c89a45;
+  border-radius: 5px;
+  padding: 0 .5rem;
+  color: #d9f2e3;
+  background: #76c89a12;
+  font: inherit;
+  font-size: .67rem;
+  font-weight: 720;
+  outline: none;
+}
+
+.spr-present-variant-select select:focus-visible {
+  border-color: var(--spr-present-accent);
+  box-shadow: 0 0 0 3px #76c89a24;
+}
+
+.spr-present-actions {
+  display: flex;
+  align-items: center;
+  gap: .42rem;
+}
+
+.spr-present-actions button {
+  min-height: 38px;
+  border: 1px solid var(--spr-present-line);
+  border-radius: 6px;
+  color: var(--spr-present-text);
+  background: #ffffff0a;
+  cursor: pointer;
+}
+
+.spr-present-actions button:hover,
+.spr-present-actions button:focus-visible {
+  border-color: #ffffff45;
+  background: #ffffff12;
+  outline: none;
+}
+
+.spr-present-team-meeting {
+  display: inline-flex;
+  align-items: center;
+  gap: .38rem;
+  padding: 0 .75rem;
+  font-size: .7rem;
+  font-weight: 720;
+}
+
+.spr-present-icon-button {
+  width: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.spr-present-icon-button svg,
+.spr-present-exit svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.spr-present-exit {
+  display: inline-flex;
+  align-items: center;
+  gap: .42rem;
+  padding: 0 .62rem 0 .72rem;
+  font-size: .7rem;
+  font-weight: 720;
+}
+
+.spr-present-body {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+
+.spr-present-stage {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem 1.25rem;
+  background: #0b110e;
+  overflow: hidden;
+}
+
+.spr-present-board-frame {
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  border: 1px solid #ffffff30;
+  border-radius: 6px;
+  background: #173124;
+  box-shadow: 0 22px 60px #0009;
+  overflow: hidden;
+}
+
+.spr-present-stage.is-full-pitch .spr-present-board-frame {
+  aspect-ratio: 105 / 68;
+}
+
+.spr-present-stage.is-half-pitch .spr-present-board-frame {
+  aspect-ratio: 68 / 52.5;
+}
+
+.spr-present-cues {
+  min-width: 0;
+  min-height: 0;
+  padding: 1.2rem 1.15rem;
+  border-left: 1px solid var(--spr-present-line);
+  background: var(--spr-present-panel);
+  overflow: auto;
+}
+
+.spr-present-phase-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--spr-present-warm);
+  font-size: .65rem;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.spr-present-phase-heading small {
+  color: var(--spr-present-muted);
+  font-size: .62rem;
+}
+
+.spr-present-cues h2 {
+  margin: .55rem 0 1rem;
+  font-size: 1.34rem;
+  line-height: 1.15;
+}
+
+.spr-present-cues ol {
+  display: grid;
+  gap: .72rem;
+  margin: 0;
+  padding: 0;
+  counter-reset: cue;
+  list-style: none;
+}
+
+.spr-present-cues li {
+  display: grid;
+  grid-template-columns: 23px minmax(0, 1fr);
+  gap: .55rem;
+  color: #dfe8e3;
+  font-size: .8rem;
+  line-height: 1.42;
+  counter-increment: cue;
+}
+
+.spr-present-cues li::before {
+  content: counter(cue, decimal-leading-zero);
+  color: var(--spr-present-accent);
+  font-size: .59rem;
+  font-weight: 780;
+}
+
+.spr-present-empty-cue {
+  margin: 0;
+  color: var(--spr-present-muted);
+  font-size: .78rem;
+}
+
+.spr-present-next {
+  display: grid;
+  gap: .16rem;
+  margin-top: 1.35rem;
+  padding-top: .85rem;
+  border-top: 1px solid var(--spr-present-line);
+}
+
+.spr-present-next span {
+  color: var(--spr-present-muted);
+  font-size: .58rem;
+  font-weight: 720;
+  text-transform: uppercase;
+}
+
+.spr-present-next strong {
+  font-size: .78rem;
+}
+
+.spr-present-phase-strip {
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: .5rem;
+  padding: .55rem 1rem;
+  border-top: 1px solid var(--spr-present-line);
+  background: #111815;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.spr-present-phase-card {
+  width: 154px;
+  min-width: 154px;
+  display: grid;
+  grid-template-columns: 66px minmax(0, 1fr);
+  align-items: center;
+  gap: .55rem;
+  border: 1px solid var(--spr-present-line);
+  border-radius: 6px;
+  padding: .35rem;
+  color: var(--spr-present-text);
+  background: var(--spr-present-panel);
+  cursor: pointer;
+  scroll-snap-align: nearest;
+  text-align: left;
+}
+
+.spr-present-phase-card:hover,
+.spr-present-phase-card:focus-visible {
+  border-color: #ffffff48;
+  outline: none;
+}
+
+.spr-present-phase-card.is-active {
+  border-color: var(--spr-present-accent);
+  background: var(--spr-present-panel-strong);
+  box-shadow: inset 3px 0 0 var(--spr-present-accent);
+}
+
+.spr-present-phase-card > svg {
+  width: 66px;
+  height: 66px;
+  border-radius: 4px;
+}
+
+.spr-present-phase-card svg rect {
+  fill: #347f55;
+}
+
+.spr-present-phase-card svg path {
+  fill: none;
+  stroke: #ffffffa8;
+  stroke-width: .8;
+}
+
+.spr-present-phase-card svg .home {
+  fill: #153d64;
+}
+
+.spr-present-phase-card svg .opponent {
+  fill: #f6f4ee;
+  stroke: #ba4545;
+  stroke-width: .6;
+}
+
+.spr-present-phase-card svg .ball {
+  fill: #f1c75b;
+}
+
+.spr-present-phase-card > span {
+  min-width: 0;
+  display: grid;
+  gap: .15rem;
+}
+
+.spr-present-phase-card b {
+  color: var(--spr-present-warm);
+  font-size: .58rem;
+}
+
+.spr-present-phase-card strong {
+  overflow: hidden;
+  font-size: .72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spr-present-phase-card small {
+  color: var(--spr-present-muted);
+  font-size: .59rem;
+}
+
+.spr-shell.is-presenting .is-present-playback {
+  min-height: 66px;
+  justify-content: flex-start;
+  gap: .72rem;
+  padding: .55rem 1rem;
+  border-color: var(--spr-present-line);
+  color: var(--spr-present-text);
+  background: #111815;
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-icon-button,
+.spr-shell.is-presenting .is-present-playback .spr-play-button,
+.spr-shell.is-presenting .is-present-playback select {
+  border-color: var(--spr-present-line);
+  color: var(--spr-present-text);
+  background: #ffffff0a;
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-play-button {
+  color: #0d1712 !important;
+  border-color: var(--spr-present-accent);
+  background: var(--spr-present-accent);
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-playhead input {
+  accent-color: var(--spr-present-accent);
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-phase-counter b {
+  color: var(--spr-present-text);
+  font-size: .73rem;
+}
+
+.spr-shell.is-presenting .is-present-playback .spr-phase-counter span {
+  color: var(--spr-present-muted);
+}

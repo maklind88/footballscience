@@ -148,16 +148,28 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.getByRole("button", { name: "Present", exact: true }).click();
   const setPieces = page.locator("[data-set-pieces-room]");
   await expect(setPieces).toHaveClass(/is-presenting/);
-  await expect(setPieces.locator(".spr-tool-rail")).toBeHidden();
-  await expect(setPieces.locator(".spr-inspector")).toBeHidden();
-  await expect(setPieces.locator(".spr-timeline")).toBeVisible();
+  await expect(setPieces.locator(".spr-present-workspace")).toBeVisible();
+  await expect(setPieces.locator(".spr-present-cues")).toBeVisible();
+  await expect(setPieces.locator(".spr-present-phase-strip")).toBeVisible();
   await expect(setPieces.locator(".spr-playback")).toBeVisible();
+  const presentationVariant = setPieces.getByRole("combobox", { name: "Presentation variant" });
+  await expect(presentationVariant.locator("option")).toHaveCount(2);
+  const primaryVariantId = await presentationVariant.locator("option").first().getAttribute("value");
+  await presentationVariant.selectOption({ label: "Primary" });
+  await expect(presentationVariant).toHaveValue(primaryVariantId);
+  if (await page.evaluate(() => document.fullscreenEnabled)) {
+    await expect(setPieces.getByRole("button", { name: "Enter fullscreen" })).toBeVisible();
+  }
   await expect(setPieces.locator(".spr-board-element.is-ghost")).toHaveCount(0);
   const presentPitchSize = await setPieces.locator("[data-set-piece-pitch]").evaluate((element) => {
     const rect = element.getBoundingClientRect();
     return { width: rect.width, height: rect.height };
   });
   expect(presentPitchSize.width).toBeGreaterThan(presentPitchSize.height);
+  await page.keyboard.press("Home");
+  await expect(setPieces.locator(".spr-present-phase-card").first()).toHaveClass(/is-active/);
+  await page.keyboard.press("ArrowRight");
+  await expect(setPieces.locator(".spr-present-phase-card").nth(1)).toHaveClass(/is-active/);
 
   await setPieces.getByRole("button", { name: /Team Meeting/ }).click();
   const presentation = page.locator("#presentationModeRoot");
@@ -170,6 +182,8 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(presentation.locator(".spr-drawing.is-playing")).toHaveCount(1);
   await presentation.getByRole("button", { name: "Pause", exact: true }).click();
   await presentation.getByRole("button", { name: "Close presentation" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-set-pieces-room]")).toHaveClass(/is-editing/);
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await waitForPlatformShell(page);
@@ -289,6 +303,40 @@ test("Set Pieces Room handles a match-sized routine without stacking roles", asy
 
   await page.getByRole("button", { name: "Assignments" }).click();
   await expect(page.locator(".spr-assignment-row")).toHaveCount(11);
+});
+
+test("Set Pieces presentation stays composed on landscape and portrait tablets", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.removeItem("football-set-pieces-room-v1");
+  });
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await openSetPiecesRoom(page);
+  await page.getByRole("button", { name: "Create set piece" }).click();
+  await page.getByRole("button", { name: "Duplicate current phase" }).click();
+  await page.getByRole("button", { name: "Present", exact: true }).click();
+
+  const shell = page.locator("[data-set-pieces-room]");
+  const landscapeStage = await shell.locator(".spr-present-stage").boundingBox();
+  const landscapeCues = await shell.locator(".spr-present-cues").boundingBox();
+  const landscapePlayback = await shell.locator(".spr-playback").boundingBox();
+  expect(landscapeStage).not.toBeNull();
+  expect(landscapeCues).not.toBeNull();
+  expect(landscapePlayback).not.toBeNull();
+  expect(landscapeStage.x + landscapeStage.width).toBeLessThanOrEqual(landscapeCues.x + 1);
+  expect(landscapePlayback.y + landscapePlayback.height).toBeLessThanOrEqual(768);
+
+  await page.setViewportSize({ width: 820, height: 1180 });
+  const portraitStage = await shell.locator(".spr-present-stage").boundingBox();
+  const portraitCues = await shell.locator(".spr-present-cues").boundingBox();
+  const portraitPlayback = await shell.locator(".spr-playback").boundingBox();
+  expect(portraitStage).not.toBeNull();
+  expect(portraitCues).not.toBeNull();
+  expect(portraitPlayback).not.toBeNull();
+  expect(portraitStage.y + portraitStage.height).toBeLessThanOrEqual(portraitCues.y + 1);
+  expect(portraitPlayback.y + portraitPlayback.height).toBeLessThanOrEqual(1180);
+  await expect(shell.locator(".spr-present-phase-card")).toHaveCount(2);
 });
 
 test("Set Pieces Room keeps its editor usable on a narrow touch viewport", async ({ page }) => {

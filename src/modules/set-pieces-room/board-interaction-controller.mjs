@@ -368,11 +368,27 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         event.preventDefault();
         options.playback.toggle();
       }
+      if (key === "arrowleft") {
+        event.preventDefault();
+        options.selectAdjacentPhase?.(-1);
+      }
+      if (key === "arrowright") {
+        event.preventDefault();
+        options.selectAdjacentPhase?.(1);
+      }
+      if (key === "home") {
+        event.preventDefault();
+        options.restartPlayback?.();
+      }
+      if (key === "f") {
+        event.preventDefault();
+        options.toggleFullscreen?.();
+      }
       if (key === "escape") {
+        if (options.isFullscreen?.()) return;
         event.preventDefault();
         options.playback.stop();
-        options.ui.presentationMode = false;
-        options.render();
+        options.setPresentationMode?.(false);
       }
       return;
     }

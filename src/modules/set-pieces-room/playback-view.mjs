@@ -5,8 +5,8 @@ function escapeSelector(value = "") {
 }
 
 export function revealActiveSetPiecePhase(root) {
-  const phaseStrip = root?.querySelector?.(".spr-phase-strip");
-  const activePhase = phaseStrip?.querySelector?.(".spr-phase-card.is-active");
+  const phaseStrip = root?.querySelector?.(".spr-phase-strip, .spr-present-phase-strip");
+  const activePhase = phaseStrip?.querySelector?.(".spr-phase-card.is-active, .spr-present-phase-card.is-active");
   if (!phaseStrip || !activePhase) return;
   const left = activePhase.offsetLeft;
   const right = left + activePhase.offsetWidth;

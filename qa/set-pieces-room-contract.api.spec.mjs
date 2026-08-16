@@ -27,6 +27,7 @@ import {
 import { renderSetPieceBoard } from "../src/modules/set-pieces-room/board-renderer.mjs";
 import { chooseSetPieceDrawingActor, getSetPieceDrawingActors } from "../src/modules/set-pieces-room/drawing-actors.mjs";
 import { createSetPiecesPlaybackController } from "../src/modules/set-pieces-room/playback-controller.mjs";
+import { renderSetPiecesPresentationWorkspace } from "../src/modules/set-pieces-room/presentation-workspace-renderer.mjs";
 import {
   getNextSetPiecePlayerPlacement,
   getSetPiecePitchTransform,
@@ -343,6 +344,44 @@ test("editable board markers expose keyboard interaction without affecting prese
   expect(editable).toContain('tabindex="0"');
   expect(editable).toContain('aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Delete"');
   expect(presenting).not.toContain('tabindex="0"');
+});
+
+test("presentation workspace exposes an immersive tactical stage with coaching context", () => {
+  const play = createSetPiecePlay({
+    title: "Near-post release",
+    restart: "corner",
+    moment: "attack",
+    objective: "Free the back-post runner",
+  });
+  const variant = play.variants[0];
+  const phase = variant.phases[0];
+  phase.title = "Screen and release";
+  phase.cue = "Wait for the blocker to engage";
+  phase.elements.push({ id: "runner", kind: "home-player", x: 80, y: 16, instruction: "Attack the back post" });
+
+  const markup = renderSetPiecesPresentationWorkspace({
+    play,
+    variant,
+    phase,
+    ui: {
+      canAddToTeamMeeting: true,
+      fullscreenAvailable: true,
+      layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
+      playbackSpeed: 1,
+      playbackProgress: 0,
+    },
+    teamIdentityMarkup: '<div class="spr-header-identity">North Carolina Courage</div>',
+  });
+
+  expect(markup).toContain('class="spr-present-workspace"');
+  expect(markup).toContain("Phase 01 / 01");
+  expect(markup).toContain("Wait for the blocker to engage");
+  expect(markup).toContain("Attack the back post");
+  expect(markup).toContain('data-set-piece-action="toggle-fullscreen"');
+  expect(markup).toContain('aria-label="Add to Team Meeting"');
+  expect(markup).toContain('data-set-piece-present-variant');
+  expect(markup).toContain("is-present-playback");
+  expect(markup).toContain("spr-present-phase-card is-active");
 });
 
 test("board instances own unique arrow and pitch pattern ids", () => {

@@ -449,6 +449,14 @@ export function createSetPiecesRoomController(options = {}) {
     });
   }
 
+  function setInspectorOpen(open) {
+    ui.inspectorCollapsed = !open;
+    render();
+    if (!open) {
+      win.requestAnimationFrame?.(() => root?.querySelector?.('[data-set-piece-action="toggle-inspector"]')?.focus?.());
+    }
+  }
+
   function handleAction(action) {
     const actions = {
       "new-play": createNewPlay,
@@ -477,10 +485,8 @@ export function createSetPiecesRoomController(options = {}) {
       "dismiss-notice": () => setNotice(""),
       "toggle-library": () => setLibraryOpen(!ui.libraryOpen),
       "close-library": () => setLibraryOpen(false),
-      "toggle-inspector": () => {
-        ui.inspectorCollapsed = !ui.inspectorCollapsed;
-        render();
-      },
+      "toggle-inspector": () => setInspectorOpen(ui.inspectorCollapsed),
+      "close-inspector": () => setInspectorOpen(false),
       "show-assignments": () => assignmentController.showOverview(true),
       "show-plan": () => assignmentController.showOverview(false),
     };

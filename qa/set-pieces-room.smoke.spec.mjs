@@ -51,6 +51,19 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   await expect(page.getByRole("menuitem", { name: /Alex Example/ })).toBeVisible();
   await page.locator("[data-set-piece-player-picker] summary").click();
 
+  const collapsedEditorWidth = await page.locator(".spr-editor").evaluate((element) => element.getBoundingClientRect().width);
+  await page.getByRole("button", { name: "Toggle details" }).click();
+  await expect(page.locator(".spr-inspector")).toBeVisible();
+  await page.getByRole("button", { name: "Close details" }).click();
+  await expect(page.locator(".spr-inspector")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Toggle details" })).toBeFocused();
+  await expect.poll(() => page.locator(".spr-editor").evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(collapsedEditorWidth - 1);
+
+  await page.getByRole("button", { name: "Assignments" }).click();
+  await expect(page.locator(".spr-assignments-overview")).toBeVisible();
+  await page.getByRole("button", { name: "Close details" }).click();
+  await expect(page.locator(".spr-inspector")).toBeHidden();
+
   const metrics = await page.evaluate(() => {
     const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect();
     const editor = rect(".spr-editor");

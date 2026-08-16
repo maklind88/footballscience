@@ -104,6 +104,22 @@ test("editor composes variants, controls and tactical guidance as one focused wo
   expect(markup).toContain('aria-pressed="true"');
   expect(markup).toContain('data-set-piece-action="toggle-play"');
   expect(markup).toContain('<svg viewBox="0 0 24 24"');
+  expect(markup).toContain('data-set-piece-action="close-inspector"');
+
+  const assignmentsMarkup = renderSetPiecesWorkspace({
+    state,
+    roster: [],
+    ui: {
+      activeTool: "select",
+      selectedElementIds: new Set(),
+      layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
+      inspectorCollapsed: false,
+      showAssignments: true,
+      playbackSpeed: 1,
+    },
+  });
+  expect(assignmentsMarkup).toContain('data-set-piece-action="show-plan"');
+  expect(assignmentsMarkup).toContain('aria-label="Close details"');
 });
 
 test("phase duplication preserves actor identity without sharing mutable arrays", () => {

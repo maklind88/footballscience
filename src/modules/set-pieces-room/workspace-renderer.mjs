@@ -120,6 +120,10 @@ function renderAssignmentScope(ui = {}) {
   </div>`;
 }
 
+function renderInspectorCloseButton() {
+  return '<button type="button" class="spr-icon-button spr-inspector-close" data-set-piece-action="close-inspector" aria-label="Close details" title="Close details">×</button>';
+}
+
 function renderAssignmentPicker(slotId, play, variant, roster, ui, canEdit) {
   const assignment = getSetPieceAssignment(play, variant, slotId);
   const labels = createSetPiecePlayerLabelMap(roster.map((entry) => entry.player));
@@ -157,7 +161,7 @@ function renderAssignmentPicker(slotId, play, variant, roster, ui, canEdit) {
 function renderAssignmentsOverview(play, variant, roster, canEdit) {
   const labels = createSetPiecePlayerLabelMap(roster.map((entry) => entry.player));
   return `<div class="spr-inspector-section spr-assignments-overview">
-    <div class="spr-inspector-title"><div><p>Routine</p><strong>Assignments</strong></div><button type="button" class="spr-icon-button" data-set-piece-action="show-plan" aria-label="Back to plan" title="Back to plan">←</button></div>
+    <div class="spr-inspector-title"><div><p>Routine</p><strong>Assignments</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button" data-set-piece-action="show-plan" aria-label="Back to plan" title="Back to plan">←</button>${renderInspectorCloseButton()}</div></div>
     <p class="spr-assignment-intro">Roles stay fixed. Players can change without changing positions, runs or timing.</p>
     <div class="spr-assignment-list">
       ${(play.assignments || []).map((slot) => {
@@ -313,7 +317,7 @@ function renderElementInspector(element, play, variant, roster, ui, canEdit, can
   const isOpponent = element.kind === "opponent";
   const assignment = isHome ? getSetPieceAssignment(play, variant, element.id) : null;
   return `<div class="spr-inspector-section">
-    <div class="spr-inspector-title"><div><p>${isHome ? "Selected role" : "Selected object"}</p><strong>${escapeSetPieceHtml(isHome ? assignment.role : element.kind === "opponent" ? `Opponent ${element.label}` : "Ball")}</strong></div><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canDelete ? "" : "disabled"}>⌫</button></div>
+    <div class="spr-inspector-title"><div><p>${isHome ? "Selected role" : "Selected object"}</p><strong>${escapeSetPieceHtml(isHome ? assignment.role : element.kind === "opponent" ? `Opponent ${element.label}` : "Ball")}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canDelete ? "" : "disabled"}>⌫</button>${renderInspectorCloseButton()}</div></div>
     ${isHome ? renderAssignmentPicker(element.id, play, variant, roster, ui, canEdit) : ""}
     ${isHome ? renderField("Tactical role", "role", assignment.role, { scope: "set-piece-element", disabled: !canEdit }) : ""}
     ${isOpponent ? renderField("Number", "label", element.label || "1", { type: "number", min: 1, max: 99, scope: "set-piece-element", disabled: !canEdit }) : ""}
@@ -334,7 +338,7 @@ function renderDrawingInspector(drawing, phase, canEdit, canDelete) {
     ${actors.map((actor) => `<option value="${escapeSetPieceHtml(actor.id)}" ${actor.id === drawing.actorId ? "selected" : ""}>${escapeSetPieceHtml(getSetPieceDrawingActorLabel(actor))}</option>`).join("")}
   </select><small>The route follows this player or the ball during playback.</small></label>` : "";
   return `<div class="spr-inspector-section">
-    <div class="spr-inspector-title"><div><p>Movement</p><strong>${escapeSetPieceHtml(drawing.type)}</strong></div><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canDelete ? "" : "disabled"}>⌫</button></div>
+    <div class="spr-inspector-title"><div><p>Movement</p><strong>${escapeSetPieceHtml(drawing.type)}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canDelete ? "" : "disabled"}>⌫</button>${renderInspectorCloseButton()}</div></div>
     ${actorField}
     ${renderField("Label", "label", drawing.label, { scope: "set-piece-drawing", disabled: !canEdit })}
     ${drawing.type !== "zone" ? renderField("Curve", "curve", drawing.curve, { type: "range", min: -36, max: 36, scope: "set-piece-drawing", disabled: !canEdit }) : ""}
@@ -343,7 +347,7 @@ function renderDrawingInspector(drawing, phase, canEdit, canDelete) {
 
 function renderPlanInspector(play, variant, phase, ui, canEdit, canDelete) {
   return `<div class="spr-inspector-section">
-    <div class="spr-inspector-title"><div><p>Plan</p><strong data-set-piece-live-text="play-title">${escapeSetPieceHtml(play.title)}</strong></div><button type="button" class="spr-icon-button" data-set-piece-action="duplicate-play" title="Duplicate plan" aria-label="Duplicate plan" ${canEdit ? "" : "disabled"}>⧉</button></div>
+    <div class="spr-inspector-title"><div><p>Plan</p><strong data-set-piece-live-text="play-title">${escapeSetPieceHtml(play.title)}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button" data-set-piece-action="duplicate-play" title="Duplicate plan" aria-label="Duplicate plan" ${canEdit ? "" : "disabled"}>⧉</button>${renderInspectorCloseButton()}</div></div>
     ${renderField("Title", "title", play.title, { disabled: !canEdit })}
     <div class="spr-field-grid">
       ${renderField("Restart", "restart", play.restart, { type: "select", options: setPieceRestartOptions, disabled: !canEdit })}

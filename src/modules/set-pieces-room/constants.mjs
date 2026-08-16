@@ -35,17 +35,17 @@ export const setPiecePitchViewOptions = Object.freeze([
 ]);
 
 export const setPieceToolOptions = Object.freeze([
-  { value: "select", label: "Select", symbol: "↖", shortcut: "V" },
-  { value: "home-player", label: "Own player", symbol: "●", shortcut: "P" },
-  { value: "opponent", label: "Opponent", symbol: "○", shortcut: "O" },
-  { value: "ball", label: "Ball", symbol: "◉", shortcut: "B" },
-  { value: "run", label: "Run", symbol: "↗", shortcut: "R" },
-  { value: "pass", label: "Pass", symbol: "⇢", shortcut: "A" },
-  { value: "dribble", label: "Dribble", symbol: "⌁", shortcut: "D" },
-  { value: "block", label: "Block", symbol: "⊣", shortcut: "K" },
-  { value: "press", label: "Press", symbol: "⇥", shortcut: "E" },
-  { value: "mark", label: "Track", symbol: "⌖", shortcut: "M" },
-  { value: "zone", label: "Zone", symbol: "▧", shortcut: "Z" },
+  { value: "select", label: "Select", shortcut: "V", hint: "Move players, routes or a multi-selection" },
+  { value: "home-player", label: "Own player", shortcut: "P", hint: "Choose a squad player, then place them" },
+  { value: "opponent", label: "Opponent", shortcut: "O", hint: "Click the pitch to place a numbered opponent" },
+  { value: "ball", label: "Ball", shortcut: "B", hint: "Click the pitch to place or move the ball" },
+  { value: "run", label: "Run", shortcut: "R", hint: "Drag from a player to draw the run" },
+  { value: "pass", label: "Pass", shortcut: "A", hint: "Drag from the ball or player to show the pass" },
+  { value: "dribble", label: "Dribble", shortcut: "D", hint: "Drag to draw a controlled ball carry" },
+  { value: "block", label: "Block", shortcut: "K", hint: "Drag to show the screen or blocking lane" },
+  { value: "press", label: "Press", shortcut: "E", hint: "Drag to show the pressing action" },
+  { value: "mark", label: "Track", shortcut: "M", hint: "Drag between opponents to show tracking" },
+  { value: "zone", label: "Zone", shortcut: "Z", hint: "Drag a rectangle to mark the protected zone" },
 ]);
 
 export const setPieceDrawingTypes = new Set([

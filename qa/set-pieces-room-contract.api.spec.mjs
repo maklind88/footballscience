@@ -82,6 +82,30 @@ test("library is launched from the edit header without reducing board width", ()
   expect(openMarkup.indexOf("spr-library-layer")).toBeLessThan(openMarkup.indexOf("spr-layout"));
 });
 
+test("editor composes variants, controls and tactical guidance as one focused workspace", () => {
+  const play = createSetPiecePlay({ title: "Near-post release" });
+  const state = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] });
+  const markup = renderSetPiecesWorkspace({
+    state,
+    roster: [{ id: "player-a", name: "Alex Example", position: "Forward", player: { id: "player-a", name: "Alex Example" } }],
+    ui: {
+      activeTool: "run",
+      selectedElementIds: new Set(),
+      layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
+      inspectorCollapsed: true,
+      playbackSpeed: 1,
+    },
+  });
+
+  expect(markup).toContain('class="spr-editor-command-bar"');
+  expect(markup).toContain('class="spr-active-tool-hint"');
+  expect(markup).toContain("Drag from a player to draw the run");
+  expect(markup).toContain('data-set-piece-tool="run"');
+  expect(markup).toContain('aria-pressed="true"');
+  expect(markup).toContain('data-set-piece-action="toggle-play"');
+  expect(markup).toContain('<svg viewBox="0 0 24 24"');
+});
+
 test("phase duplication preserves actor identity without sharing mutable arrays", () => {
   const phase = createSetPiecePhase({
     elements: [{ id: "home-a", kind: "home-player", x: 80, y: 15, profileId: "player-a", label: "AE" }],

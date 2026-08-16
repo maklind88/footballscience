@@ -63,10 +63,23 @@ function renderToolRail(ui = {}, roster = []) {
       <div class="spr-tool-group-buttons">
         ${group.tools.map((toolValue) => {
           const tool = setPieceToolOptions.find((option) => option.value === toolValue);
-          return `<button type="button" class="spr-tool-button ${ui.activeTool === tool.value ? "is-active" : ""}" data-set-piece-tool="${tool.value}" aria-label="${escapeSetPieceHtml(tool.label)}" aria-pressed="${ui.activeTool === tool.value}" title="${escapeSetPieceHtml(`${tool.label} (${tool.shortcut})`)}" ${tool.value === "home-player" && !roster.length ? "disabled" : ""}><span class="spr-tool-icon">${renderSetPieceToolIcon(tool.value)}</span><span class="spr-tool-name">${escapeSetPieceHtml(tool.label)}</span></button>`;
+          const tooltip = `${tool.label}: ${tool.hint} (${tool.shortcut})`;
+          return `<button type="button" class="spr-tool-button ${ui.activeTool === tool.value ? "is-active" : ""}" data-set-piece-tool="${tool.value}" data-set-piece-tool-tip="${escapeSetPieceHtml(tooltip)}" aria-label="${escapeSetPieceHtml(tool.label)}" aria-pressed="${ui.activeTool === tool.value}" title="${escapeSetPieceHtml(tooltip)}" ${tool.value === "home-player" && !roster.length ? "disabled" : ""}><span class="spr-tool-icon">${renderSetPieceToolIcon(tool.value)}</span><span class="spr-tool-name">${escapeSetPieceHtml(tool.label)}</span></button>`;
         }).join("")}
       </div>
     </div>`).join("")}
+  </div>`;
+}
+
+function renderActiveToolHint(ui = {}, roster = []) {
+  const tool = setPieceToolOptions.find((option) => option.value === ui.activeTool) || setPieceToolOptions[0];
+  const hint = tool.value === "home-player" && !roster.length
+    ? "Add players to the squad before placing them"
+    : tool.hint;
+  return `<div class="spr-active-tool-hint" role="status" aria-live="polite">
+    <span class="spr-active-tool-icon">${renderSetPieceToolIcon(tool.value)}</span>
+    <span class="spr-active-tool-copy"><strong>${escapeSetPieceHtml(tool.label)}</strong><small>${escapeSetPieceHtml(hint)}</small></span>
+    <kbd>${escapeSetPieceHtml(tool.shortcut)}</kbd>
   </div>`;
 }
 
@@ -238,22 +251,25 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
   const resolvedPhase = resolveSetPiecePhaseAssignments(phase, play, variant, roster);
   const resolvedPreviousPhase = previousPhase ? resolveSetPiecePhaseAssignments(previousPhase, play, variant, roster) : null;
   return `<main class="spr-editor">
-    ${renderVariantBar(play, variant, ui, canEdit)}
-    ${ui.presentationMode ? "" : `<div class="spr-editor-toolbar">
-      ${renderPlayerPicker(roster, phase, canEdit)}
-      <button type="button" class="spr-assignment-command ${ui.showAssignments ? "is-active" : ""}" data-set-piece-action="show-assignments"><span aria-hidden="true">⇄</span><span>Assignments</span></button>
-      <label><span>Pitch</span><select data-set-piece-play-field="pitchView" ${canEdit ? "" : "disabled"}>${optionsMarkup(setPiecePitchViewOptions, play.pitchView)}</select></label>
-      <label class="spr-board-toggle"><input type="checkbox" data-set-piece-ghost ${ui.showGhost ? "checked" : ""}><span>Previous</span></label>
-      <div class="spr-history-actions">
-        <button type="button" class="spr-icon-button" data-set-piece-action="undo" title="Undo" aria-label="Undo" ${ui.canUndo ? "" : "disabled"}>↶</button>
-        <button type="button" class="spr-icon-button" data-set-piece-action="redo" title="Redo" aria-label="Redo" ${ui.canRedo ? "" : "disabled"}>↷</button>
-        <button type="button" class="spr-icon-button ${!ui.inspectorCollapsed ? "is-active" : ""}" data-set-piece-action="toggle-inspector" title="Toggle details" aria-label="Toggle details" aria-pressed="${Boolean(!ui.inspectorCollapsed)}">≡</button>
-      </div>
-    </div>`}
+    <div class="spr-editor-command-bar">
+      ${renderVariantBar(play, variant, ui, canEdit)}
+      ${ui.presentationMode ? "" : `<div class="spr-editor-toolbar">
+        ${renderPlayerPicker(roster, phase, canEdit)}
+        <button type="button" class="spr-assignment-command ${ui.showAssignments ? "is-active" : ""}" data-set-piece-action="show-assignments"><span aria-hidden="true">⇄</span><span>Assignments</span></button>
+        <label><span>Pitch</span><select data-set-piece-play-field="pitchView" ${canEdit ? "" : "disabled"}>${optionsMarkup(setPiecePitchViewOptions, play.pitchView)}</select></label>
+        <label class="spr-board-toggle"><input type="checkbox" data-set-piece-ghost ${ui.showGhost ? "checked" : ""}><span>Previous</span></label>
+        <div class="spr-history-actions">
+          <button type="button" class="spr-icon-button" data-set-piece-action="undo" title="Undo" aria-label="Undo" ${ui.canUndo ? "" : "disabled"}>↶</button>
+          <button type="button" class="spr-icon-button" data-set-piece-action="redo" title="Redo" aria-label="Redo" ${ui.canRedo ? "" : "disabled"}>↷</button>
+          <button type="button" class="spr-icon-button ${!ui.inspectorCollapsed ? "is-active" : ""}" data-set-piece-action="toggle-inspector" title="Toggle details" aria-label="Toggle details" aria-pressed="${Boolean(!ui.inspectorCollapsed)}">≡</button>
+        </div>
+      </div>`}
+    </div>
     <div class="spr-board-row ${play.pitchView === "full" ? "is-full-pitch" : "is-half-pitch"}">
       ${ui.presentationMode ? "" : renderToolRail(ui, roster)}
       <div class="spr-board-stage" data-set-piece-board-stage>
         ${ui.showGhost && previousPhase ? '<span class="spr-ghost-status">Previous phase shown</span>' : ""}
+        ${ui.presentationMode ? "" : renderActiveToolHint(ui, roster)}
         ${renderSetPieceBoard({
           phase: resolvedPhase,
           previousPhase: ui.showGhost ? resolvedPreviousPhase : null,

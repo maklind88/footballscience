@@ -28,6 +28,58 @@ async function openSetPiecesRoom(page) {
   await expect(page.locator("[data-set-pieces-room]")).toBeVisible();
 }
 
+test("Set Pieces editor gives the pitch the viewport and anchors compact playback controls", async ({ page }) => {
+  await page.setViewportSize({ width: 1470, height: 772 });
+  await page.addInitScript(() => {
+    window.localStorage.setItem("football-player-profiles-v1", JSON.stringify({
+      schemaVersion: 3,
+      players: [{ id: "player-alex", name: "Alex Example", position: "Forward" }],
+    }));
+    window.localStorage.removeItem("football-set-pieces-room-v1");
+  });
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await openSetPiecesRoom(page);
+  await page.getByRole("button", { name: "Create set piece" }).click();
+
+  const metrics = await page.evaluate(() => {
+    const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect();
+    const editor = rect(".spr-editor");
+    const command = rect(".spr-editor-command-bar");
+    const variants = rect(".spr-variant-bar");
+    const toolbar = rect(".spr-editor-toolbar");
+    const stage = rect(".spr-board-stage");
+    const timeline = rect(".spr-timeline");
+    const playback = rect(".spr-playback");
+    return { editor, command, variants, toolbar, stage, timeline, playback };
+  });
+
+  expect(metrics.editor).toBeTruthy();
+  expect(metrics.command.height).toBeLessThanOrEqual(48);
+  expect(Math.abs(metrics.variants.top - metrics.toolbar.top)).toBeLessThanOrEqual(1);
+  expect(metrics.timeline.height).toBeLessThanOrEqual(46);
+  expect(metrics.stage.height).toBeGreaterThan(420);
+  expect(metrics.stage.width).toBeGreaterThan(540);
+  expect(Math.abs(metrics.playback.bottom - metrics.editor.bottom)).toBeLessThanOrEqual(1);
+
+  for (const tool of ["Select", "Own player", "Opponent", "Ball", "Run", "Pass", "Dribble", "Block", "Press", "Track", "Zone"]) {
+    const button = page.getByRole("button", { name: tool, exact: true });
+    await button.click();
+    await expect(button).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".spr-active-tool-copy strong")).toHaveText(tool);
+  }
+
+  const playIcon = page.getByRole("button", { name: "Play", exact: true }).locator("svg");
+  await expect(playIcon).toBeVisible();
+  const playIconBox = await playIcon.boundingBox();
+  const playButtonBox = await page.getByRole("button", { name: "Play", exact: true }).boundingBox();
+  expect(playIconBox).not.toBeNull();
+  expect(playButtonBox).not.toBeNull();
+  expect(Math.abs((playIconBox.x + playIconBox.width / 2) - (playButtonBox.x + playButtonBox.width / 2))).toBeLessThan(2);
+  expect(Math.abs((playIconBox.y + playIconBox.height / 2) - (playButtonBox.y + playButtonBox.height / 2))).toBeLessThan(2);
+});
+
 test("Set Pieces Room builds, persists and plays a phased opponent response", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -128,7 +180,7 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   expect(movedMarkerBox.x + movedMarkerBox.width / 2).toBeGreaterThan(startCenter.x + 80);
   expect(movedMarkerBox.y + movedMarkerBox.height / 2).toBeGreaterThan(startCenter.y + 25);
   await page.mouse.click(box.x + box.width * 0.12, box.y + box.height * 0.12);
-  await page.mouse.click(movedMarkerBox.x + movedMarkerBox.width - 2, movedMarkerBox.y + movedMarkerBox.height / 2);
+  await homeMarker.click({ position: { x: movedMarkerBox.width - 2, y: movedMarkerBox.height / 2 } });
   await expect(page.locator(".spr-inspector-title").filter({ hasText: "Selected role" })).toBeVisible();
   const movedTransform = await homeMarker.getAttribute("transform");
 

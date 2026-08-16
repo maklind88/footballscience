@@ -1,0 +1,417 @@
+.platform-set-pieces-view,
+.set-pieces-workspace {
+  height: 100%;
+  min-height: 0;
+}
+
+.spr-shell.is-editing {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.spr-shell.is-editing > .spr-header,
+.spr-shell.is-editing > .spr-notice {
+  flex: 0 0 auto;
+}
+
+.spr-shell.is-editing > .spr-layout {
+  min-height: 0;
+  height: auto;
+  flex: 1 1 auto;
+}
+
+.spr-shell.is-editing .spr-editor {
+  height: 100%;
+  grid-template-rows: auto minmax(0, 1fr) 44px 48px;
+}
+
+.spr-editor-command-bar {
+  min-width: 0;
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: minmax(300px, .72fr) minmax(570px, 1.28fr);
+  align-items: stretch;
+  border-bottom: 1px solid var(--spr-line);
+  background: var(--spr-panel);
+}
+
+.spr-editor-command-bar .spr-variant-bar,
+.spr-editor-command-bar .spr-editor-toolbar {
+  min-height: 45px;
+  border: 0;
+  padding-block: .28rem;
+}
+
+.spr-editor-command-bar .spr-variant-bar {
+  gap: .32rem;
+  padding-right: .42rem;
+}
+
+.spr-editor-command-bar .spr-plan-title {
+  width: min(190px, 40%);
+  min-width: 132px;
+  padding-right: .4rem;
+}
+
+.spr-editor-command-bar .spr-plan-title input {
+  height: 24px;
+}
+
+.spr-editor-command-bar .spr-variant-tabs {
+  gap: .12rem;
+}
+
+.spr-editor-command-bar .spr-variant-tabs button {
+  height: 29px;
+  padding-inline: .58rem;
+}
+
+.spr-editor-command-bar .spr-editor-toolbar {
+  min-width: 0;
+  gap: .32rem;
+  border-left: 1px solid var(--spr-line);
+  padding-left: .42rem;
+}
+
+.spr-editor-command-bar .spr-player-picker {
+  min-width: 145px;
+  max-width: 230px;
+}
+
+.spr-editor-command-bar .spr-player-picker-trigger,
+.spr-editor-command-bar .spr-assignment-command {
+  height: 32px;
+}
+
+.spr-editor-command-bar .spr-assignment-command {
+  min-width: 100px;
+}
+
+.spr-editor-command-bar .spr-editor-toolbar select {
+  height: 32px;
+}
+
+.spr-shell.is-editing .spr-board-row {
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: .42rem;
+  padding: .38rem .5rem .3rem;
+  background: #e9edef;
+}
+
+.spr-shell.is-editing .spr-tool-rail {
+  position: relative;
+  z-index: 4;
+  align-content: start;
+  gap: .2rem;
+  border-color: #ccd2d0;
+  border-radius: 6px;
+  padding: .25rem;
+  overflow: visible;
+  box-shadow: 0 6px 18px #17251f10;
+}
+
+.spr-shell.is-editing .spr-tool-group,
+.spr-shell.is-editing .spr-tool-group-buttons {
+  gap: .18rem;
+}
+
+.spr-shell.is-editing .spr-tool-group + .spr-tool-group {
+  margin-top: .04rem;
+  padding-top: .25rem;
+}
+
+.spr-shell.is-editing .spr-tool-button {
+  position: relative;
+  width: 36px;
+  height: 32px;
+  justify-content: center;
+  border-color: transparent;
+  border-radius: 5px;
+  padding: 0;
+  overflow: visible;
+  color: #34423c;
+  background: transparent;
+}
+
+.spr-shell.is-editing .spr-tool-button:hover,
+.spr-shell.is-editing .spr-tool-button:focus-visible {
+  border-color: #ced8d3;
+  background: #eef4f1;
+}
+
+.spr-shell.is-editing .spr-tool-button:focus-visible {
+  outline: 2px solid #176b4d;
+  outline-offset: 1px;
+}
+
+.spr-shell.is-editing .spr-tool-button.is-active {
+  color: #fff;
+  border-color: #176b4d;
+  background: #176b4d;
+  box-shadow: 0 4px 11px #176b4d35;
+}
+
+.spr-shell.is-editing .spr-tool-button::after {
+  content: attr(data-set-piece-tool-tip);
+  position: absolute;
+  z-index: 10;
+  top: 50%;
+  left: calc(100% + 10px);
+  width: max-content;
+  max-width: 250px;
+  padding: .4rem .52rem;
+  border: 1px solid #ffffff24;
+  border-radius: 5px;
+  color: #fff;
+  background: #15211ceF;
+  box-shadow: 0 8px 22px #0b14102e;
+  font-size: .65rem;
+  font-weight: 680;
+  line-height: 1.25;
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-4px, -50%);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.spr-shell.is-editing .spr-tool-button:hover::after,
+.spr-shell.is-editing .spr-tool-button:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.spr-shell.is-editing .spr-tool-button.is-active::after {
+  display: none;
+}
+
+.spr-shell.is-editing .spr-tool-icon {
+  width: 19px;
+  height: 19px;
+  flex-basis: 19px;
+}
+
+.spr-shell.is-editing .spr-tool-icon svg {
+  stroke-width: 1.85;
+}
+
+.spr-shell.is-editing .spr-board-stage {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 5px;
+  box-shadow: 0 8px 22px #1b3b2c14;
+}
+
+.spr-active-tool-hint {
+  position: absolute;
+  z-index: 3;
+  top: .55rem;
+  right: .55rem;
+  max-width: min(260px, 46%);
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .42rem;
+  border: 1px solid #ffffff66;
+  border-radius: 5px;
+  padding: .36rem .42rem;
+  color: #fff;
+  background: #153a2dcc;
+  box-shadow: 0 6px 18px #0d21183d;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+
+.spr-active-tool-icon,
+.spr-active-tool-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.spr-active-tool-icon svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.spr-active-tool-copy {
+  min-width: 0;
+  display: grid;
+  gap: .08rem;
+}
+
+.spr-active-tool-copy strong,
+.spr-active-tool-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spr-active-tool-copy strong {
+  font-size: .66rem;
+}
+
+.spr-active-tool-copy small {
+  color: #e6f3ed;
+  font-size: .56rem;
+  font-weight: 620;
+}
+
+.spr-active-tool-hint kbd {
+  min-width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #ffffff6b;
+  border-radius: 4px;
+  background: #ffffff1f;
+  font: 700 .58rem/1 inherit;
+}
+
+.spr-shell.is-editing .spr-timeline {
+  min-height: 0;
+  height: 44px;
+  padding: .28rem .5rem;
+  border-top: 1px solid var(--spr-line);
+}
+
+.spr-shell.is-editing .spr-phase-strip {
+  height: 100%;
+  align-items: center;
+  gap: .28rem;
+}
+
+.spr-shell.is-editing .spr-phase-card {
+  width: 112px;
+  min-width: 112px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  border-radius: 5px;
+  padding: .2rem .38rem;
+}
+
+.spr-shell.is-editing .spr-phase-card svg,
+.spr-shell.is-editing .spr-phase-card em {
+  display: none;
+}
+
+.spr-shell.is-editing .spr-phase-card > span {
+  min-width: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .28rem;
+}
+
+.spr-shell.is-editing .spr-phase-card b {
+  color: #176b4d;
+  font-size: .58rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.spr-shell.is-editing .spr-phase-card i {
+  font-size: .65rem;
+  font-weight: 730;
+  white-space: nowrap;
+}
+
+.spr-shell.is-editing .spr-phase-card small {
+  color: var(--spr-muted);
+  font-size: .56rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.spr-shell.is-editing .spr-add-phase {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+}
+
+.spr-shell.is-editing .spr-playback {
+  position: relative;
+  z-index: 5;
+  min-height: 0;
+  height: 48px;
+  align-self: end;
+  justify-content: flex-start;
+  gap: .48rem;
+  padding: .32rem .5rem;
+  border-bottom: 0;
+  box-shadow: 0 -5px 16px #18231e0a;
+}
+
+.spr-shell.is-editing .spr-playback-transport {
+  gap: .2rem;
+}
+
+.spr-shell.is-editing .spr-playback .spr-icon-button,
+.spr-shell.is-editing .spr-play-button {
+  width: 32px;
+  height: 32px;
+}
+
+.spr-shell.is-editing .spr-play-button {
+  width: 38px;
+  padding: 0;
+}
+
+.spr-shell.is-editing .spr-playback button svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+}
+
+.spr-shell.is-editing .spr-play-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.spr-shell.is-editing .spr-play-button svg path[d^="m8"] {
+  transform: translateX(1px);
+}
+
+.spr-shell.is-editing .spr-playhead input {
+  height: 18px;
+}
+
+.spr-shell.is-editing .spr-speed-control select {
+  height: 32px;
+}
+
+body.is-dark-mode .spr-editor-command-bar,
+body.is-dark-mode .spr-shell.is-editing .spr-timeline,
+body.is-dark-mode .spr-shell.is-editing .spr-playback {
+  border-color: var(--spr-line);
+  background: var(--spr-panel);
+}
+
+body.is-dark-mode .spr-shell.is-editing .spr-tool-button {
+  color: var(--spr-ink);
+  background: transparent;
+}
+
+body.is-dark-mode .spr-shell.is-editing .spr-tool-button:hover,
+body.is-dark-mode .spr-shell.is-editing .spr-tool-button:focus-visible {
+  background: var(--fs-hover-bg);
+}
+
+body.is-dark-mode .spr-shell.is-editing .spr-tool-button.is-active {
+  color: #101713;
+  background: #79cda0;
+}

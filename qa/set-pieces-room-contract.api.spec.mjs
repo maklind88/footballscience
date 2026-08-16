@@ -25,7 +25,17 @@ import {
   interpolateSetPiecePlaybackElement,
 } from "../src/modules/set-pieces-room/playback-geometry.mjs";
 import { renderSetPieceBoard } from "../src/modules/set-pieces-room/board-renderer.mjs";
-import { getNextSetPiecePlayerPlacement, normalizeSetPiecePointForPitchView } from "../src/modules/set-pieces-room/geometry.mjs";
+import {
+  getNextSetPiecePlayerPlacement,
+  getSetPiecePitchTransform,
+  getSetPiecePitchViewBox,
+  getSetPieceSourcePoint,
+  normalizeSetPiecePointForPitchView,
+} from "../src/modules/set-pieces-room/geometry.mjs";
+import {
+  getSetPiecePresentationCatalog,
+  resolveSetPiecePresentationVariant,
+} from "../src/modules/set-pieces-room/presentation-adapter.mjs";
 import { defaultHubState } from "../src/core/workspace-defaults.mjs";
 import { platformModules, protectedStorageKeys } from "../src/core/platform-contracts.mjs";
 
@@ -230,6 +240,14 @@ test("drag coordinates stay inside the visible pitch view", () => {
   expect(normalizeSetPiecePointForPitchView({ x: 90, y: 30 }, "full")).toEqual({ x: 90, y: 30 });
 });
 
+test("half-pitch views use landscape coordinates and map pointer input back to source geometry", () => {
+  expect(getSetPiecePitchViewBox("attacking-half")).toBe("0 0 68 52.5");
+  expect(getSetPiecePitchTransform("attacking-half")).toBe("matrix(0 -1 1 0 0 105)");
+  expect(getSetPiecePitchTransform("defensive-half")).toBe("matrix(0 -1 1 0 0 52.5)");
+  expect(getSetPieceSourcePoint({ x: 18, y: 25 }, "attacking-half")).toEqual({ x: 80, y: 18 });
+  expect(getSetPieceSourcePoint({ x: 18, y: 25 }, "defensive-half")).toEqual({ x: 27.5, y: 18 });
+});
+
 test("quick player placement finds a visible open position without stacking markers", () => {
   expect(getNextSetPiecePlayerPlacement([], "attacking-half")).toEqual({ x: 62, y: 10 });
   expect(getNextSetPiecePlayerPlacement([{ x: 62, y: 10 }], "attacking-half")).toEqual({ x: 62, y: 18 });
@@ -271,7 +289,53 @@ test("board renderer distinguishes own initials, opponent numbers and movement s
   expect(markup).toContain(">4</text>");
   expect(markup).toContain("is-run");
   expect(markup).toContain("Q ");
+  expect(markup).toContain('viewBox="0 0 68 52.5"');
+  expect(markup).toContain('transform="matrix(0 -1 1 0 0 105)"');
   expect(markup).not.toContain("spr-body-direction");
+});
+
+test("board instances own unique arrow and pitch pattern ids", () => {
+  const phase = {
+    elements: [],
+    drawings: [{ id: "run-a", type: "run", startX: 70, startY: 18, endX: 88, endY: 28 }],
+  };
+  const first = renderSetPieceBoard({ phase, markerPrefix: "workspace-board", layers: new Set(["drawings"]) });
+  const second = renderSetPieceBoard({ phase, markerPrefix: "meeting-board", layers: new Set(["drawings"]) });
+
+  expect(first).toContain('id="workspace-board-arrow-run"');
+  expect(first).toContain('marker-end="url(#workspace-board-arrow-run)"');
+  expect(first).toContain('fill="url(#workspace-board-pitch-pattern)"');
+  expect(second).toContain('id="meeting-board-arrow-run"');
+  expect(second).not.toContain("workspace-board-arrow-run");
+});
+
+test("presentation adapter links a variant while resolving current squad assignments", () => {
+  const play = createSetPiecePlay({ title: "Near-post screen", restart: "corner", pitchView: "attacking-half" });
+  const variant = play.variants[0];
+  variant.title = "Keeper screen";
+  variant.phases[0].elements.push({
+    id: "slot-a",
+    kind: "home-player",
+    x: 82,
+    y: 16,
+    profileId: "player-a",
+    label: "OLD",
+    role: "Near post",
+  });
+  const state = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] });
+  const catalog = getSetPiecePresentationCatalog(state);
+  const resolved = resolveSetPiecePresentationVariant(state, {
+    players: [{ id: "player-a", name: "Alex Morgan", position: "Forward" }],
+  }, {
+    playId: play.id,
+    variantId: variant.id,
+  });
+
+  expect(catalog[0]).toMatchObject({ id: play.id, title: "Near-post screen" });
+  expect(catalog[0].variants[0]).toMatchObject({ id: variant.id, title: "Keeper screen", phaseCount: 1 });
+  expect(resolved).toMatchObject({ playId: play.id, variantId: variant.id, pitchView: "attacking-half" });
+  expect(resolved.phases[0].elements[0]).toMatchObject({ x: 82, y: 16, label: "AM", role: "Near post" });
+  expect(state.plays[0].variants[0].phases[0].elements[0].label).toBe("OLD");
 });
 
 test("opponent numbers are normalized, persisted and optional on the board", () => {

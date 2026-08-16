@@ -7,6 +7,11 @@ import {
   mergeDashboardPresentationStatePreservingLocalEdits,
   normalizePresentationSlideStyle,
 } from "../src/modules/presentation-mode/index.mjs";
+import {
+  createSetPiecePlay,
+  duplicateSetPiecePhase,
+  normalizeSetPiecesState,
+} from "../src/modules/set-pieces-room/state.mjs";
 
 function createDocumentHarness() {
   const classNames = new Set();
@@ -863,4 +868,82 @@ test("Presentation Mode central merge preserves Technical Staff Meeting decks", 
 
   expect(merged.meetingDecks.technical["2026-08-12"].infoSlides[0].title).toBe("Staff Agenda");
   expect(merged.meetingDecks.technical["2026-08-12"].textOverrides.overview["overview.video"]).toBe("Local video note");
+});
+
+test("Team Meeting links and deduplicates a live Set Pieces variant", () => {
+  const play = createSetPiecePlay({
+    title: "Near-post corner",
+    restart: "corner",
+    pitchView: "attacking-half",
+  });
+  const variant = play.variants[0];
+  variant.title = "Screen the keeper";
+  variant.phases[0].elements.push({
+    id: "slot-a",
+    kind: "home-player",
+    x: 82,
+    y: 16,
+    profileId: "player-a",
+    label: "OLD",
+    role: "Near post",
+  });
+  variant.phases[0].drawings.push({
+    id: "run-a",
+    type: "run",
+    actorId: "slot-a",
+    startX: 82,
+    startY: 16,
+    endX: 92,
+    endY: 22,
+  });
+  const secondPhase = duplicateSetPiecePhase(variant.phases[0], 1);
+  secondPhase.title = "Attack delivery";
+  secondPhase.elements[0].x = 92;
+  secondPhase.elements[0].y = 22;
+  variant.phases.push(secondPhase);
+  const setPiecesState = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] });
+  const storage = new Map();
+  const harness = createDocumentHarness();
+  const renderer = createPresentationModeRenderer();
+  const controller = createPresentationModeController({
+    documentRef: harness.documentRef,
+    win: {},
+    renderer,
+    readJson: (key, fallback) => storage.get(key) || fallback,
+    writeJson: (key, value) => storage.set(key, value),
+    getTodayValue: () => "2026-08-16",
+    getSetPiecesState: () => setPiecesState,
+    getPlayerProfilesState: () => ({
+      players: [{ id: "player-a", name: "Alex Morgan", position: "Forward" }],
+    }),
+  });
+
+  const first = controller.addSetPieceVariantToTeamMeeting({
+    dateValue: "2026-08-16",
+    playId: play.id,
+    variantId: variant.id,
+  });
+  const second = controller.addSetPieceVariantToTeamMeeting({
+    dateValue: "2026-08-16",
+    playId: play.id,
+    variantId: variant.id,
+  });
+  const model = controller.buildModel();
+  const linkedSlides = model.slides.filter((slide) => slide.type === "set-piece");
+
+  expect(second).toEqual(first);
+  expect(linkedSlides).toHaveLength(1);
+  expect(linkedSlides[0].setPiece).toMatchObject({
+    available: true,
+    playId: play.id,
+    variantId: variant.id,
+    playTitle: "Near-post corner",
+    variantTitle: "Screen the keeper",
+  });
+  expect(linkedSlides[0].setPiece.phases[0].elements[0]).toMatchObject({ label: "AM", role: "Near post" });
+  expect(harness.root.innerHTML).toContain("presentation-slide-set-piece");
+  expect(harness.root.innerHTML).toContain("data-presentation-set-piece-play");
+  expect(harness.root.innerHTML).toContain(`presentation-set-piece-${first.slideId}-arrow-run`);
+  expect(renderer.renderControlBar(model)).toContain("Linked tactical routine");
+  expect(renderer.renderControlBar({ ...model, meetingType: "technical" })).not.toContain("Linked tactical routine");
 });

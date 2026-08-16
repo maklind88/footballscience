@@ -2,6 +2,12 @@ import {
   getPresentationThemePreset,
   normalizePresentationSlideStyle,
 } from "./presentation-mode-themes.mjs";
+import {
+  getSetPiecePresentationCatalog,
+  resolveSetPiecePresentationVariant,
+} from "../set-pieces-room/presentation-adapter.mjs";
+import { createSetPiecesPlaybackController } from "../set-pieces-room/playback-controller.mjs";
+import { renderSetPiecePlaybackFrame, updateSetPiecePlaybackView } from "../set-pieces-room/playback-view.mjs";
 
 export const dashboardPresentationStorageKey = "football-dashboard-presentation-mode-v1";
 
@@ -27,7 +33,7 @@ const maxUndoHistory = 80;
 const shapeTypes = new Set(["rect", "circle", "triangle", "diamond", "line", "arrow", "star"]);
 const textBoxKinds = new Set(["text", "symbol", "image", "video"]);
 const resizeAxes = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw"]);
-const slideTemplateTypes = new Set(["title", "title-subtitle", "text", "bullets", "media", "split", "video", "match-squad", "starting-xi", "blank"]);
+const slideTemplateTypes = new Set(["title", "title-subtitle", "text", "bullets", "media", "split", "video", "match-squad", "starting-xi", "set-piece", "blank"]);
 const localMediaKinds = new Set(["image", "video"]);
 const lineupFormationOptions = [
   {
@@ -333,6 +339,7 @@ function getSlideTemplateDefaults(template = "bullets") {
     video: { title: "Video Analysis", body: "- Clip focus\n- Player cues\n- Team principles", fontSize: "44", accentColor: "#facc15", mediaKind: "video" },
     "match-squad": { title: "Match Squad", body: "", fontSize: "48", accentColor: "#22c55e" },
     "starting-xi": { title: "Starting XI", body: "", fontSize: "56", accentColor: "#22c55e" },
+    "set-piece": { title: "Set Piece", body: "", fontSize: "56", accentColor: "#22c55e" },
     blank: { title: "Blank", body: "", fontSize: "56", accentColor: "#38bdf8" },
   };
   return {
@@ -581,6 +588,8 @@ function normalizeInfoSlide(slide = {}, index = 0, dateValue = "", meetingType =
         : [],
     formation: layout === "starting-xi" ? normalizeLineupFormation(slide.formation) : "",
     lineup: layout === "starting-xi" ? normalizeLineupAssignments(slide.lineup) : {},
+    setPiecePlayId: layout === "set-piece" ? String(slide.setPiecePlayId || slide.playId || "").trim().slice(0, 120) : "",
+    setPieceVariantId: layout === "set-piece" ? String(slide.setPieceVariantId || slide.variantId || "").trim().slice(0, 120) : "",
     mediaKind,
     mediaId: mediaKind ? String(slide.mediaId || "").trim().slice(0, 120) : "",
     mediaLocal: mediaKind ? Boolean(slide.mediaLocal) : false,
@@ -919,6 +928,8 @@ export function createPresentationModeController(dependencies = {}) {
     getTeam = () => ({}),
     getTeamName = () => "Football Science",
     getTeamLogoUrl = () => "",
+    getSetPiecesState = () => ({ plays: [] }),
+    getPlayerProfilesState = () => ({ players: [] }),
     formatDateLabel = defaultFormatDateLabel,
     isEditableTarget = () => false,
     escapeHtml = defaultEscapeHtml,
@@ -943,6 +954,14 @@ export function createPresentationModeController(dependencies = {}) {
     resizeShape: null,
     resizeTextField: null,
     resizeTextBox: null,
+    setPiecePhaseBySlide: {},
+    setPiecePlayback: {
+      isPlaying: false,
+      isPaused: false,
+      loop: false,
+      progress: 0,
+      speed: 1,
+    },
     shapeDrawTool: null,
     slideIndex: 0,
     redoStack: [],
@@ -953,6 +972,7 @@ export function createPresentationModeController(dependencies = {}) {
   let stageResizeObserver = null;
   let stageMetricsFrame = 0;
   let presentingTextFitFrame = 0;
+  let fullscreenIntent = false;
 
   function ensureRoot() {
     if (root) return root;
@@ -1476,6 +1496,36 @@ export function createPresentationModeController(dependencies = {}) {
     };
   }
 
+  function buildSetPieceModel(infoSlide = {}, slideId = "") {
+    const setPiecesState = getSetPiecesState();
+    const playerProfilesState = getPlayerProfilesState();
+    const catalog = getSetPiecePresentationCatalog(setPiecesState, playerProfilesState);
+    const requestedPlayId = String(infoSlide.setPiecePlayId || "").trim();
+    const requestedVariantId = String(infoSlide.setPieceVariantId || "").trim();
+    const selectedPlay = requestedPlayId
+      ? catalog.find((play) => play.id === requestedPlayId) || null
+      : catalog[0] || null;
+    const selectedVariant = requestedVariantId
+      ? selectedPlay?.variants.find((variant) => variant.id === requestedVariantId) || null
+      : selectedPlay?.variants[0] || null;
+    const phaseId = state.setPiecePhaseBySlide[slideId] || "";
+    const resolved = selectedPlay && selectedVariant
+      ? resolveSetPiecePresentationVariant(setPiecesState, playerProfilesState, {
+          playId: selectedPlay.id,
+          variantId: selectedVariant.id,
+          phaseId,
+        })
+      : null;
+    return {
+      available: Boolean(resolved),
+      catalog,
+      playId: selectedPlay?.id || "",
+      variantId: selectedVariant?.id || "",
+      playback: { ...state.setPiecePlayback },
+      ...(resolved || {}),
+    };
+  }
+
   function getBrandModel() {
     const team = getTeam() || {};
     const teamName = getTeamName(team) || team.name || "Football Science";
@@ -1542,8 +1592,9 @@ export function createPresentationModeController(dependencies = {}) {
       ...deck.infoSlides.map((infoSlide, index) => {
         const isLineupSlide = infoSlide.layout === "starting-xi";
         const isMatchSquadSlide = infoSlide.layout === "match-squad";
-        const slideType = isLineupSlide ? "lineup" : isMatchSquadSlide ? "match-squad" : "info";
-        const fallbackLabel = isLineupSlide ? "Starting XI" : isMatchSquadSlide ? "Match Squad" : "Info";
+        const isSetPieceSlide = infoSlide.layout === "set-piece";
+        const slideType = isLineupSlide ? "lineup" : isMatchSquadSlide ? "match-squad" : isSetPieceSlide ? "set-piece" : "info";
+        const fallbackLabel = isLineupSlide ? "Starting XI" : isMatchSquadSlide ? "Match Squad" : isSetPieceSlide ? "Set Piece" : "Info";
         const baseSlide = applySlideStyle(
           deck,
           {
@@ -1564,6 +1615,12 @@ export function createPresentationModeController(dependencies = {}) {
           return {
             ...baseSlide,
             matchSquad: buildMatchSquadModel(infoSlide, lineupPlayerOptions, matchContext),
+          };
+        }
+        if (isSetPieceSlide) {
+          return {
+            ...baseSlide,
+            setPiece: buildSetPieceModel(infoSlide, baseSlide.id),
           };
         }
         return baseSlide;
@@ -1862,7 +1919,86 @@ export function createPresentationModeController(dependencies = {}) {
     schedulePresentingTextFit();
   }
 
+  let activeSetPieceRouteIds = new Set();
+
+  function getActiveSetPieceContext() {
+    const slide = buildModel().slides[state.slideIndex];
+    const setPiece = slide?.type === "set-piece" ? slide.setPiece : null;
+    const phase = setPiece?.phases?.find((item) => item.id === setPiece.activePhaseId) || setPiece?.phases?.[0] || null;
+    if (!slide || !setPiece?.available || !phase) return null;
+    return {
+      play: setPiece.play,
+      variant: setPiece.variant,
+      phase,
+      slideId: slide.id,
+    };
+  }
+
+  const setPiecePlayback = createSetPiecesPlaybackController({
+    win,
+    getContext: () => getActiveSetPieceContext() || {},
+    onFrame(positions, progress) {
+      state.setPiecePlayback.progress = Number(progress || 0);
+      activeSetPieceRouteIds = renderSetPiecePlaybackFrame(root, activeSetPieceRouteIds, positions);
+      updateSetPiecePlaybackView(root, state.setPiecePlayback, getActiveSetPieceContext() || {});
+    },
+    onPhaseChange(phaseId) {
+      const context = getActiveSetPieceContext();
+      if (!context) return;
+      state.setPiecePhaseBySlide[context.slideId] = phaseId;
+      state.setPiecePlayback.progress = 0;
+      activeSetPieceRouteIds.clear();
+      render();
+    },
+    onResetFrame() {
+      activeSetPieceRouteIds.clear();
+      if (state.isOpen) render();
+    },
+    onStatus(status) {
+      Object.assign(state.setPiecePlayback, {
+        isPlaying: status.isPlaying,
+        isPaused: status.isPaused,
+        loop: status.loop,
+        speed: status.speed,
+      });
+      if (!status.isPlaying && !status.isPaused) state.setPiecePlayback.progress = 0;
+      updateSetPiecePlaybackView(root, state.setPiecePlayback, getActiveSetPieceContext() || {});
+    },
+  });
+
+  function selectSetPiecePhase(phaseId = "") {
+    const context = getActiveSetPieceContext();
+    if (!context?.variant?.phases?.some((phase) => phase.id === phaseId)) return;
+    setPiecePlayback.stop({ resetFrame: false });
+    state.setPiecePhaseBySlide[context.slideId] = phaseId;
+    state.setPiecePlayback.progress = 0;
+    render();
+  }
+
+  function selectAdjacentSetPiecePhase(direction = 0) {
+    const context = getActiveSetPieceContext();
+    if (!context) return;
+    const index = context.variant.phases.findIndex((phase) => phase.id === context.phase.id);
+    const target = context.variant.phases[Math.min(context.variant.phases.length - 1, Math.max(0, index + direction))];
+    if (target) selectSetPiecePhase(target.id);
+  }
+
+  function handleSetPiecePlaybackAction(action = "") {
+    const context = getActiveSetPieceContext();
+    if (!context) return false;
+    if (action === "toggle") setPiecePlayback.toggle();
+    else if (action === "stop") setPiecePlayback.stop();
+    else if (action === "restart") selectSetPiecePhase(context.variant.phases[0]?.id);
+    else if (action === "previous") selectAdjacentSetPiecePhase(-1);
+    else if (action === "next") selectAdjacentSetPiecePhase(1);
+    else if (action === "loop") setPiecePlayback.setLoop(!state.setPiecePlayback.loop);
+    else return false;
+    return true;
+  }
+
   function open(dateValue = "", meetingType = "team") {
+    setPiecePlayback.stop({ resetFrame: false });
+    fullscreenIntent = false;
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
     state.drawShape = null;
@@ -1886,6 +2022,8 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function close() {
+    setPiecePlayback.stop({ resetFrame: false });
+    fullscreenIntent = false;
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
     state.drawShape = null;
@@ -1921,6 +2059,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function goToSlide(index) {
+    setPiecePlayback.stop({ resetFrame: false });
     const slideCount = buildModel().slides.length;
     state.slideIndex = Math.min(Math.max(0, Number(index) || 0), Math.max(0, slideCount - 1));
     state.editorOpen = false;
@@ -2070,6 +2209,34 @@ export function createPresentationModeController(dependencies = {}) {
           state.dateValue
         );
       }),
+    }));
+    render();
+  }
+
+  function updateSetPieceSource(slideId = "", selection = {}) {
+    const safeSlideId = String(slideId || "").trim();
+    if (!safeSlideId) return;
+    const catalog = getSetPiecePresentationCatalog(getSetPiecesState(), getPlayerProfilesState());
+    const currentSlide = getDeckForDate().infoSlides.find((slide) => slide.id === safeSlideId && slide.layout === "set-piece");
+    if (!currentSlide) return;
+    const playId = String(selection.playId || currentSlide.setPiecePlayId || "").trim();
+    const play = catalog.find((item) => item.id === playId) || catalog[0] || null;
+    const requestedVariantId = selection.playId ? "" : String(selection.variantId || currentSlide.setPieceVariantId || "").trim();
+    const variant = play?.variants.find((item) => item.id === requestedVariantId) || play?.variants[0] || null;
+    setPiecePlayback.stop({ resetFrame: false });
+    delete state.setPiecePhaseBySlide[safeSlideId];
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      infoSlides: deck.infoSlides.map((slide) => (
+        slide.id === safeSlideId && slide.layout === "set-piece"
+          ? normalizeInfoSlide({
+              ...slide,
+              title: play && variant ? `${play.title} · ${variant.title}` : "Set Piece",
+              setPiecePlayId: play?.id || "",
+              setPieceVariantId: variant?.id || "",
+            }, 0, state.dateValue, state.meetingType)
+          : slide
+      )),
     }));
     render();
   }
@@ -3056,10 +3223,20 @@ export function createPresentationModeController(dependencies = {}) {
 
   function addInfoSlide(sourceSlide = null, template = "bullets") {
     const templateDefaults = getSlideTemplateDefaults(template);
+    if (templateDefaults.layout === "set-piece" && state.meetingType !== "team") {
+      return;
+    }
+    const setPieceCatalog = templateDefaults.layout === "set-piece"
+      ? getSetPiecePresentationCatalog(getSetPiecesState(), getPlayerProfilesState())
+      : [];
+    const defaultSetPiecePlay = setPieceCatalog[0] || null;
+    const defaultSetPieceVariant = defaultSetPiecePlay?.variants?.[0] || null;
     const nextId = `info-${state.dateValue}-${Date.now()}`;
     const title = sourceSlide
       ? `${sourceSlide.title || "Information"} Copy`
-      : requestNewSlideTitle(getNewSlideDefaultTitle(templateDefaults.layout, templateDefaults));
+      : templateDefaults.layout === "set-piece"
+        ? templateDefaults.title
+        : requestNewSlideTitle(getNewSlideDefaultTitle(templateDefaults.layout, templateDefaults));
     if (!title) {
       return;
     }
@@ -3075,7 +3252,11 @@ export function createPresentationModeController(dependencies = {}) {
           : {
               ...templateDefaults,
               id: nextId,
-              title,
+              title: defaultSetPiecePlay && defaultSetPieceVariant
+                ? `${defaultSetPiecePlay.title} · ${defaultSetPieceVariant.title}`
+                : title,
+              setPiecePlayId: defaultSetPiecePlay?.id || "",
+              setPieceVariantId: defaultSetPieceVariant?.id || "",
             },
         0,
         state.dateValue,
@@ -3096,6 +3277,43 @@ export function createPresentationModeController(dependencies = {}) {
     state.editorOpen = false;
     render();
     focusActiveTextElement();
+  }
+
+  function addSetPieceVariantToTeamMeeting(reference = {}) {
+    const dateValue = normalizeDateValue(reference.dateValue, getTodayValue());
+    const catalog = getSetPiecePresentationCatalog(getSetPiecesState(), getPlayerProfilesState());
+    const play = catalog.find((item) => item.id === String(reference.playId || "").trim()) || null;
+    const variant = play?.variants.find((item) => item.id === String(reference.variantId || "").trim()) || null;
+    if (!dateValue || !play || !variant) return null;
+    const currentDeck = getDeckFromStore(readStore(), dateValue, "team");
+    const existing = currentDeck.infoSlides.find((slide) => (
+      slide.layout === "set-piece" &&
+      slide.setPiecePlayId === play.id &&
+      slide.setPieceVariantId === variant.id
+    ));
+    const slideId = existing?.id || `info-${dateValue}-${Date.now()}`;
+    if (!existing) {
+      writeDeckForDate(dateValue, (deck) => ({
+        ...deck,
+        infoSlides: [...deck.infoSlides, normalizeInfoSlide({
+          id: slideId,
+          layout: "set-piece",
+          title: `${play.title} · ${variant.title}`,
+          body: "",
+          fontSize: "56",
+          accentColor: "#22c55e",
+          textColor: "#f8fafc",
+          setPiecePlayId: play.id,
+          setPieceVariantId: variant.id,
+        }, 0, dateValue, "team")],
+        slideOrder: normalizeSlideOrder([...(deck.slideOrder || []), slideId]),
+      }), { meetingType: "team", recordHistory: false });
+    }
+    open(dateValue, "team");
+    const model = buildModel();
+    state.slideIndex = Math.max(0, model.slides.findIndex((slide) => slide.id === slideId));
+    render();
+    return { dateValue, slideId };
   }
 
   function duplicateInfoSlide(slideId) {
@@ -3182,6 +3400,7 @@ export function createPresentationModeController(dependencies = {}) {
 
   function startFullscreen() {
     const currentRoot = ensureRoot();
+    fullscreenIntent = true;
     currentRoot.requestFullscreen?.().catch?.(noop);
     state.activeShapeTarget = null;
     state.activeTextTarget = null;
@@ -3208,6 +3427,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   function exitFullscreen() {
+    fullscreenIntent = false;
     documentRef.exitFullscreen?.().catch?.(noop);
     state.presenting = false;
     render();
@@ -3981,6 +4201,15 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
+    const setPiecePhaseButton = event.target.closest("[data-presentation-set-piece-phase]");
+    if (setPiecePhaseButton) {
+      selectSetPiecePhase(setPiecePhaseButton.dataset.presentationSetPiecePhase);
+      return;
+    }
+    const setPiecePlaybackButton = event.target.closest("[data-presentation-set-piece-action]");
+    if (setPiecePlaybackButton && handleSetPiecePlaybackAction(setPiecePlaybackButton.dataset.presentationSetPieceAction)) {
+      return;
+    }
     const contextActionButton = event.target.closest("[data-presentation-context-action]");
     if (contextActionButton) {
       handleContextAction(contextActionButton.dataset.presentationContextAction);
@@ -4206,6 +4435,11 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
+    const setPieceScrubber = event.target.closest("[data-presentation-set-piece-scrubber]");
+    if (setPieceScrubber) {
+      setPiecePlayback.seek(setPieceScrubber.value);
+      return;
+    }
     const activeTextSize = event.target.closest("[data-presentation-active-font-size]");
     if (activeTextSize) {
       updateActiveTextStyle("fontSize", activeTextSize.value);
@@ -4265,6 +4499,11 @@ export function createPresentationModeController(dependencies = {}) {
     if (!state.isOpen || !root?.contains(event.target)) {
       return;
     }
+    const setPieceSpeed = event.target.closest("[data-presentation-set-piece-speed]");
+    if (setPieceSpeed) {
+      setPiecePlayback.setSpeed(setPieceSpeed.value);
+      return;
+    }
     const activeTextSize = event.target.closest("[data-presentation-active-font-size]");
     if (activeTextSize) {
       updateActiveTextStyle("fontSize", activeTextSize.value);
@@ -4316,6 +4555,16 @@ export function createPresentationModeController(dependencies = {}) {
         lineupPlayer.dataset.presentationLineupSlot,
         lineupPlayer.value
       );
+      return;
+    }
+    const setPiecePlay = event.target.closest("[data-presentation-set-piece-play]");
+    if (setPiecePlay) {
+      updateSetPieceSource(setPiecePlay.dataset.presentationInfoId, { playId: setPiecePlay.value });
+      return;
+    }
+    const setPieceVariant = event.target.closest("[data-presentation-set-piece-variant]");
+    if (setPieceVariant) {
+      updateSetPieceSource(setPieceVariant.dataset.presentationInfoId, { variantId: setPieceVariant.value });
       return;
     }
     const dateInput = event.target.closest("[data-presentation-date-input]");
@@ -4380,6 +4629,11 @@ export function createPresentationModeController(dependencies = {}) {
     if (isEditableTarget(event.target)) {
       return;
     }
+    if (event.key === " " && getActiveSetPieceContext()) {
+      event.preventDefault();
+      setPiecePlayback.toggle();
+      return;
+    }
     if (event.key === "Escape") {
       if (state.contextMenu) {
         event.preventDefault();
@@ -4397,8 +4651,7 @@ export function createPresentationModeController(dependencies = {}) {
         return;
       }
       if (state.presenting || documentRef.fullscreenElement) {
-        state.presenting = false;
-        render();
+        exitFullscreen();
         return;
       }
       close();
@@ -4605,7 +4858,14 @@ export function createPresentationModeController(dependencies = {}) {
       if (!state.isOpen) {
         return;
       }
-      const isPresenting = Boolean(documentRef.fullscreenElement && root?.contains(documentRef.fullscreenElement));
+      const rootIsFullscreen = Boolean(documentRef.fullscreenElement && root?.contains(documentRef.fullscreenElement));
+      if (rootIsFullscreen && !fullscreenIntent) {
+        documentRef.exitFullscreen?.().catch?.(noop);
+      }
+      if (!rootIsFullscreen) {
+        fullscreenIntent = false;
+      }
+      const isPresenting = Boolean(fullscreenIntent && rootIsFullscreen);
       if (state.presenting !== isPresenting) {
         state.presenting = isPresenting;
         render();
@@ -4616,6 +4876,7 @@ export function createPresentationModeController(dependencies = {}) {
   }
 
   return {
+    addSetPieceVariantToTeamMeeting,
     bindInteractions,
     buildModel,
     close,

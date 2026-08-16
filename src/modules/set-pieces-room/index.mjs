@@ -14,4 +14,5 @@ export {
 } from "./state.mjs";
 export { createSetPiecePlayerLabelMap, getSetPiecePlayerInitials, getSetPieceRosterPlayers } from "./player-labels.mjs";
 export { renderSetPieceBoard } from "./board-renderer.mjs";
+export { getSetPiecePresentationCatalog, resolveSetPiecePresentationVariant } from "./presentation-adapter.mjs";
 export { renderSetPiecesWorkspace } from "./workspace-renderer.mjs";

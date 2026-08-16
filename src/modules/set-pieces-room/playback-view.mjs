@@ -1,3 +1,5 @@
+import { getSetPieceElementTransform } from "./geometry.mjs";
+
 function escapeSelector(value = "") {
   return globalThis.CSS?.escape?.(String(value)) || String(value).replace(/[^a-z0-9_-]/gi, "\\$&");
 }
@@ -18,7 +20,8 @@ export function renderSetPiecePlaybackFrame(root, previousRouteIds = new Set(), 
   const nextRouteIds = new Set();
   positions.forEach((position, id) => {
     const marker = root?.querySelector?.(`[data-element-id="${escapeSelector(id)}"]`);
-    if (marker) marker.setAttribute("transform", `translate(${position.x} ${position.y})`);
+    const pitchView = marker?.closest?.("[data-set-piece-pitch]")?.dataset?.pitchView || "full";
+    if (marker) marker.setAttribute("transform", getSetPieceElementTransform(position, pitchView));
     if (position.routeId && position.localProgress > 0 && position.localProgress < 1) nextRouteIds.add(position.routeId);
   });
   previousRouteIds.forEach((id) => {

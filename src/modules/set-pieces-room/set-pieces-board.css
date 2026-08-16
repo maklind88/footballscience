@@ -182,8 +182,8 @@
   pointer-events: none;
 }
 
-#spr-arrow-run path { fill: #f8d04a; }
-#spr-arrow-pass path { fill: #f7faf8; }
-#spr-arrow-dribble path { fill: #8ce4ae; }
-#spr-arrow-press path { fill: #ff9b55; }
-#spr-arrow-mark path { fill: #7ab7ff; }
+.spr-arrow-marker.is-run path { fill: #f8d04a; }
+.spr-arrow-marker.is-pass path { fill: #f7faf8; }
+.spr-arrow-marker.is-dribble path { fill: #8ce4ae; }
+.spr-arrow-marker.is-press path { fill: #ff9b55; }
+.spr-arrow-marker.is-mark path { fill: #7ab7ff; }

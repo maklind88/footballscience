@@ -21,9 +21,27 @@ export function normalizeSetPiecePointForPitchView(point = {}, pitchView = "full
 }
 
 export function getSetPiecePitchViewBox(pitchView = "full") {
-  if (pitchView === "attacking-half") return "52.5 0 52.5 68";
-  if (pitchView === "defensive-half") return "0 0 52.5 68";
+  if (pitchView === "attacking-half" || pitchView === "defensive-half") return "0 0 68 52.5";
   return "0 0 105 68";
+}
+
+export function getSetPiecePitchTransform(pitchView = "full") {
+  if (pitchView === "attacking-half") return "matrix(0 -1 1 0 0 105)";
+  if (pitchView === "defensive-half") return "matrix(0 -1 1 0 0 52.5)";
+  return "";
+}
+
+export function getSetPieceSourcePoint(point = {}, pitchView = "full") {
+  const x = Number(point.x || 0);
+  const y = Number(point.y || 0);
+  if (pitchView === "attacking-half") return normalizeSetPiecePointForPitchView({ x: PITCH_LENGTH - y, y: x }, pitchView);
+  if (pitchView === "defensive-half") return normalizeSetPiecePointForPitchView({ x: PITCH_LENGTH / 2 - y, y: x }, pitchView);
+  return normalizeSetPiecePoint(point);
+}
+
+export function getSetPieceElementTransform(point = {}, pitchView = "full") {
+  const rotation = pitchView === "attacking-half" || pitchView === "defensive-half" ? " rotate(90)" : "";
+  return `translate(${Number(point.x || 0)} ${Number(point.y || 0)})${rotation}`;
 }
 
 export function getSetPieceSvgPoint(svg, clientX, clientY) {
@@ -33,7 +51,7 @@ export function getSetPieceSvgPoint(svg, clientX, clientY) {
   point.y = clientY;
   const matrix = svg.getScreenCTM();
   if (!matrix) return null;
-  return normalizeSetPiecePoint(point.matrixTransform(matrix.inverse()));
+  return getSetPieceSourcePoint(point.matrixTransform(matrix.inverse()), svg.dataset?.pitchView || "full");
 }
 
 export function getSetPieceDistance(first = {}, second = {}) {

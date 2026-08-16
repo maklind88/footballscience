@@ -45,6 +45,13 @@ function renderTeamIdentity(team = {}) {
   </div>`;
 }
 
+function renderWorkspaceModeSwitch(ui = {}, hasPlay = false) {
+  return `<div class="spr-mode-switch" role="group" aria-label="Set Pieces mode">
+    <button type="button" data-set-piece-action="edit-mode" class="${ui.presentationMode ? "" : "is-active"}" aria-pressed="${!ui.presentationMode}">Edit</button>
+    <button type="button" data-set-piece-action="present-mode" class="${ui.presentationMode ? "is-active" : ""}" aria-pressed="${Boolean(ui.presentationMode)}" ${hasPlay ? "" : "disabled"}>Present</button>
+  </div>`;
+}
+
 function renderToolRail(ui = {}, roster = []) {
   const groups = [
     { label: "Edit", tools: ["select"] },
@@ -78,7 +85,8 @@ function renderPlayerPicker(roster = [], phase = {}, canEdit = false) {
       <small>${placedCount}/${roster.length}</small>
     </summary>
     <div class="spr-player-menu" role="menu" aria-label="Own players">
-      <div class="spr-player-menu-heading"><strong>Your squad</strong><span>Click to add</span></div>
+      <div class="spr-player-menu-heading"><strong>Your squad</strong><span>${placedCount} placed</span></div>
+      <label class="spr-player-menu-search"><span class="sr-only">Search squad</span><input type="search" placeholder="Search squad" data-set-piece-player-search></label>
       <div class="spr-player-menu-list">
         ${roster.map((entry) => {
           const placed = placedIds.has(entry.id);
@@ -186,14 +194,18 @@ function renderPlayLibrary(state = {}, ui = {}) {
   </aside>`;
 }
 
-function renderVariantBar(play = null, variant = null, canEdit = false) {
+function renderVariantBar(play = null, variant = null, ui = {}, canEdit = false) {
   if (!play) return "";
   return `<div class="spr-variant-bar" aria-label="Variants">
-    <label class="spr-plan-title"><span>Set piece</span><input type="text" value="${escapeSetPieceHtml(play.title)}" placeholder="Name this set piece" data-set-piece-play-field="title" ${canEdit ? "" : "disabled"}></label>
+    ${ui.presentationMode
+      ? `<div class="spr-present-title"><span>${escapeSetPieceHtml(play.restart.replaceAll("-", " "))}</span><strong>${escapeSetPieceHtml(play.title)}</strong></div>`
+      : `<label class="spr-plan-title"><span>Set piece</span><input type="text" value="${escapeSetPieceHtml(play.title)}" placeholder="Name this set piece" data-set-piece-play-field="title" ${canEdit ? "" : "disabled"}></label>`}
     <div class="spr-variant-tabs" role="tablist">
       ${(play.variants || []).map((item) => `<button type="button" role="tab" aria-selected="${item.id === variant?.id}" class="${item.id === variant?.id ? "is-active" : ""}" data-set-piece-variant-id="${escapeSetPieceHtml(item.id)}">${escapeSetPieceHtml(item.title)}</button>`).join("")}
     </div>
-    <button type="button" class="spr-icon-button" data-set-piece-action="add-variant" title="Create variant" aria-label="Create variant" ${canEdit ? "" : "disabled"}>＋</button>
+    ${ui.presentationMode && ui.canAddToTeamMeeting
+      ? '<button type="button" class="spr-team-meeting-action" data-set-piece-action="add-to-team-meeting"><span aria-hidden="true">＋</span> Team Meeting</button>'
+      : `<button type="button" class="spr-icon-button" data-set-piece-action="add-variant" title="Create variant" aria-label="Create variant" ${canEdit ? "" : "disabled"}>＋</button>`}
   </div>`;
 }
 
@@ -232,8 +244,8 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
   const resolvedPhase = resolveSetPiecePhaseAssignments(phase, play, variant, roster);
   const resolvedPreviousPhase = previousPhase ? resolveSetPiecePhaseAssignments(previousPhase, play, variant, roster) : null;
   return `<main class="spr-editor">
-    ${renderVariantBar(play, variant, canEdit)}
-    <div class="spr-editor-toolbar">
+    ${renderVariantBar(play, variant, ui, canEdit)}
+    ${ui.presentationMode ? "" : `<div class="spr-editor-toolbar">
       ${renderPlayerPicker(roster, phase, canEdit)}
       <button type="button" class="spr-assignment-command ${ui.showAssignments ? "is-active" : ""}" data-set-piece-action="show-assignments"><span aria-hidden="true">⇄</span><span>Assignments</span></button>
       <label><span>Pitch</span><select data-set-piece-play-field="pitchView" ${canEdit ? "" : "disabled"}>${optionsMarkup(setPiecePitchViewOptions, play.pitchView)}</select></label>
@@ -242,12 +254,10 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
         <button type="button" class="spr-icon-button" data-set-piece-action="undo" title="Undo" aria-label="Undo" ${ui.canUndo ? "" : "disabled"}>↶</button>
         <button type="button" class="spr-icon-button" data-set-piece-action="redo" title="Redo" aria-label="Redo" ${ui.canRedo ? "" : "disabled"}>↷</button>
         <button type="button" class="spr-icon-button ${!ui.inspectorCollapsed ? "is-active" : ""}" data-set-piece-action="toggle-inspector" title="Toggle details" aria-label="Toggle details" aria-pressed="${Boolean(!ui.inspectorCollapsed)}">≡</button>
-        <button type="button" class="spr-icon-button" data-set-piece-action="presentation" title="Presentation view" aria-label="Presentation view">⛶</button>
       </div>
-    </div>
-    ${renderPlayback(variant, phase, ui)}
-    <div class="spr-board-row">
-      ${renderToolRail(ui, roster)}
+    </div>`}
+    <div class="spr-board-row ${play.pitchView === "full" ? "is-full-pitch" : "is-half-pitch"}">
+      ${ui.presentationMode ? "" : renderToolRail(ui, roster)}
       <div class="spr-board-stage" data-set-piece-board-stage>
         ${ui.showGhost && previousPhase ? '<span class="spr-ghost-status">Previous phase shown</span>' : ""}
         ${renderSetPieceBoard({
@@ -269,9 +279,10 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
           <span><b>${String(index + 1).padStart(2, "0")}</b><i data-set-piece-phase-title="${escapeSetPieceHtml(item.id)}">${escapeSetPieceHtml(item.title)}</i><small>${formatSetPieceSeconds(item.durationMs)}</small></span>
           ${item.cue ? `<em>${escapeSetPieceHtml(item.cue)}</em>` : ""}
         </button>`).join("")}
-        <button type="button" class="spr-add-phase" data-set-piece-action="add-phase" title="Duplicate current phase" aria-label="Duplicate current phase" ${canEdit ? "" : "disabled"}>＋</button>
+        ${ui.presentationMode ? "" : `<button type="button" class="spr-add-phase" data-set-piece-action="add-phase" title="Duplicate current phase" aria-label="Duplicate current phase" ${canEdit ? "" : "disabled"}>＋</button>`}
       </div>
     </div>
+    ${renderPlayback(variant, phase, ui)}
   </main>`;
 }
 
@@ -372,9 +383,10 @@ export function renderSetPiecesWorkspace(options = {}) {
   const variant = getActiveSetPieceVariant(play || {});
   const phase = getActiveSetPiecePhase(variant || {});
   const canEdit = options.canEdit !== false;
-  return `<section class="spr-shell ${ui.presentationMode ? "is-presenting" : ""} ${ui.inspectorCollapsed ? "is-inspector-collapsed" : ""}" data-set-pieces-room>
+  return `<section class="spr-shell ${ui.presentationMode ? "is-presenting" : "is-editing"} ${ui.inspectorCollapsed ? "is-inspector-collapsed" : ""}" data-set-pieces-room>
     <header class="spr-header">
       ${renderTeamIdentity(team)}
+      <div class="spr-header-mode">${renderWorkspaceModeSwitch(ui, Boolean(play))}</div>
       <div class="spr-save-state ${ui.saveState === "error" ? "is-error" : ""}" role="status">${escapeSetPieceHtml(ui.saveMessage || (canEdit ? "Saved" : "View only"))}</div>
     </header>
     <div class="spr-layout">

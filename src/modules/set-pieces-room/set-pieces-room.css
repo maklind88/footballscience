@@ -37,9 +37,9 @@
 
 .spr-header {
   min-height: 58px;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
   padding: .7rem 1rem;
   background: #fff;
@@ -72,6 +72,38 @@
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.spr-header-mode {
+  justify-self: center;
+}
+
+.spr-mode-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(64px, 1fr));
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--spr-line);
+  border-radius: 6px;
+  background: var(--spr-soft);
+}
+
+.spr-mode-switch button {
+  min-height: 29px;
+  border: 0;
+  border-radius: 4px;
+  padding: 0 .7rem;
+  color: var(--spr-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: .7rem;
+  font-weight: 720;
+}
+
+.spr-mode-switch button.is-active {
+  color: var(--spr-ink);
+  background: var(--spr-panel);
+  box-shadow: 0 1px 3px #11182712;
 }
 
 .spr-save-state.is-error {
@@ -269,7 +301,7 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   background: #e9ecee;
   overflow: hidden;
 }
@@ -296,6 +328,45 @@
   gap: .45rem;
   padding: .35rem .55rem;
   border-bottom: 1px solid var(--spr-line);
+}
+
+.spr-present-title {
+  width: min(250px, 34%);
+  min-width: 160px;
+  display: grid;
+  gap: .14rem;
+  padding-right: .65rem;
+  border-right: 1px solid var(--spr-line);
+}
+
+.spr-present-title span {
+  color: var(--spr-muted);
+  font-size: .57rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.spr-present-title strong {
+  overflow: hidden;
+  font-size: .8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spr-team-meeting-action {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border: 1px solid #b9d3c8;
+  border-radius: 6px;
+  padding: 0 .7rem;
+  color: #175840;
+  background: #eef7f3;
+  cursor: pointer;
+  font-size: .7rem;
+  font-weight: 730;
+  white-space: nowrap;
 }
 
 .spr-variant-tabs {
@@ -325,11 +396,11 @@
 }
 
 .spr-editor-toolbar {
-  min-height: 48px;
+  min-height: 44px;
   display: flex;
   align-items: center;
-  gap: .75rem;
-  padding: .38rem .55rem;
+  gap: .45rem;
+  padding: .3rem .55rem;
   border-bottom: 1px solid var(--spr-line);
 }
 
@@ -410,7 +481,7 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: 50px minmax(0, 1fr);
+  grid-template-columns: 52px minmax(0, 1fr);
   gap: .5rem;
   padding: .55rem;
   overflow: hidden;
@@ -453,8 +524,24 @@
   touch-action: none;
 }
 
+.spr-board-row.is-full-pitch .spr-board-stage {
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  aspect-ratio: 105 / 68;
+  justify-self: center;
+}
+
+.spr-board-row.is-half-pitch .spr-board-stage {
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  aspect-ratio: 68 / 52.5;
+  justify-self: center;
+}
+
 .spr-playback {
-  min-height: 48px;
+  min-height: 46px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -484,8 +571,8 @@
 }
 
 .spr-timeline {
-  min-height: 102px;
-  padding: .45rem .55rem .55rem;
+  min-height: 82px;
+  padding: .38rem .55rem .45rem;
 }
 
 .spr-phase-strip {
@@ -499,8 +586,8 @@
 }
 
 .spr-phase-card {
-  width: 112px;
-  min-width: 112px;
+  width: 98px;
+  min-width: 98px;
   display: grid;
   gap: .3rem;
   border: 1px solid #d9dddf;
@@ -519,7 +606,7 @@
 
 .spr-phase-card svg {
   width: 100%;
-  height: 48px;
+  height: 38px;
   border-radius: 3px;
 }
 
@@ -573,7 +660,7 @@
 .spr-add-phase {
   width: 36px;
   min-width: 36px;
-  min-height: 78px;
+  min-height: 66px;
   font-size: 1rem;
 }
 

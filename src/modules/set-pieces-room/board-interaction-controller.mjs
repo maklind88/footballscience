@@ -4,6 +4,7 @@ import {
   getNearestSetPieceElement,
   getNextSetPiecePlayerPlacement,
   getSetPieceDistance,
+  getSetPieceElementTransform,
   getSetPieceSvgPoint,
   isSetPiecePointInsideRect,
   normalizeSetPiecePoint,
@@ -88,7 +89,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
 
   function updateMovedElementDom(element) {
     const marker = root?.querySelector?.(`.spr-element-layer [data-element-id="${CSS.escape(element.id)}"]`);
-    if (marker) marker.setAttribute("transform", `translate(${element.x} ${element.y})`);
+    const pitchView = marker?.closest?.("[data-set-piece-pitch]")?.dataset?.pitchView || "full";
+    if (marker) marker.setAttribute("transform", getSetPieceElementTransform(element, pitchView));
   }
 
   function placeHomePlayer(point, rosterId = options.ui.selectedRosterId) {
@@ -109,6 +111,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       ui.selectedDrawingId = "";
       ui.assignmentPickerSlotId = existing.id;
       ui.showAssignments = false;
+      ui.inspectorCollapsed = false;
       ui.activeTool = "select";
       options.render();
       return;
@@ -147,6 +150,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         ui.selectedElementIds = new Set([element.id]);
         ui.assignmentPickerSlotId = "";
         ui.showAssignments = false;
+        ui.inspectorCollapsed = false;
         ui.activeTool = "select";
       });
       return;
@@ -178,6 +182,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     const { phase } = options.getContext();
     if (!point || !phase) return;
     const ui = options.ui;
+    if (ui.presentationMode) return;
     const directElementId = event.target.closest?.("[data-element-id]")?.dataset.elementId;
     const drawingId = event.target.closest?.("[data-drawing-id]")?.dataset.drawingId;
     const nearbyElement = ui.activeTool === "select" && !directElementId && !drawingId
@@ -195,6 +200,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       ui.selectedDrawingId = "";
       ui.assignmentPickerSlotId = phase.elements.find((element) => element.id === elementId)?.kind === "home-player" ? elementId : "";
       ui.showAssignments = false;
+      ui.inspectorCollapsed = false;
       const positions = new Map(phase.elements.filter((element) => ui.selectedElementIds.has(element.id)).map((element) => [element.id, { x: element.x, y: element.y }]));
       interaction = {
         type: "move",
@@ -217,6 +223,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       ui.selectedDrawingId = drawingId;
       ui.assignmentPickerSlotId = "";
       ui.showAssignments = false;
+      ui.inspectorCollapsed = false;
       options.render();
       return;
     }
@@ -341,6 +348,20 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     if (!root?.closest?.(".workspace-view")?.classList.contains("is-active")) return;
     const editable = event.target?.matches?.("input, textarea, select, [contenteditable='true']");
     const key = String(event.key || "").toLowerCase();
+    if (options.ui.presentationMode) {
+      if (editable) return;
+      if (key === " ") {
+        event.preventDefault();
+        options.playback.toggle();
+      }
+      if (key === "escape") {
+        event.preventDefault();
+        options.playback.stop();
+        options.ui.presentationMode = false;
+        options.render();
+      }
+      return;
+    }
     if ((event.metaKey || event.ctrlKey) && key === "z") {
       event.preventDefault();
       event.shiftKey ? options.redo() : options.undo();

@@ -6,6 +6,7 @@ import {
   normalizePresentationSlideStyle,
   presentationThemeOptions,
 } from "./presentation-mode-themes.mjs";
+import { renderPresentationSetPieceBody } from "./presentation-mode-set-pieces.mjs";
 
 function defaultEscapeHtml(value = "") {
   return String(value ?? "")
@@ -121,6 +122,12 @@ const slideTemplateOptions = [
     label: "Starting XI",
     description: "Formation with 11 players",
     preview: ["pitch", "cards"],
+  },
+  {
+    value: "set-piece",
+    label: "Set Piece",
+    description: "Linked tactical routine",
+    preview: ["pitch", "line"],
   },
   {
     value: "blank",
@@ -495,7 +502,7 @@ export function createPresentationModeRenderer(options = {}) {
         <div class="presentation-pass-controls">
           ${renderInsertControl(model)}
           ${renderThemeControl(slide)}
-          ${renderNewSlideControl()}
+          ${renderNewSlideControl(model)}
           <button type="button" class="presentation-tool-button" data-presentation-delete-slide ${canDeleteSlide ? "" : "disabled"} title="${canDeleteSlide ? "Delete current slide" : "Only custom slides can be deleted"}">Delete Slide</button>
           <div class="presentation-date-control">
             <input type="date" value="${escapeHtml(model.dateValue)}" data-presentation-date-input aria-label="Presentation date" />
@@ -592,7 +599,10 @@ export function createPresentationModeRenderer(options = {}) {
     `;
   }
 
-  function renderNewSlideControl() {
+  function renderNewSlideControl(model = {}) {
+    const availableTemplates = slideTemplateOptions.filter(
+      (template) => template.value !== "set-piece" || model.meetingType === "team"
+    );
     return `
       <details class="presentation-new-slide-menu">
         <summary class="presentation-tool-button presentation-new-slide-button" data-presentation-add-info-menu aria-label="Choose new slide layout">
@@ -600,7 +610,7 @@ export function createPresentationModeRenderer(options = {}) {
         </summary>
         <div class="presentation-new-slide-popover" role="group" aria-label="New slide layout">
           <strong class="presentation-new-slide-heading">Choose Layout</strong>
-          ${slideTemplateOptions
+          ${availableTemplates
             .map(
               (template) => `
                 <button type="button" data-presentation-add-info="${escapeHtml(template.value)}">
@@ -1435,6 +1445,19 @@ export function createPresentationModeRenderer(options = {}) {
     );
   }
 
+  function renderSetPieceSlide(model = {}, slide = {}) {
+    const frameSlide = {
+      ...slide,
+      type: "set-piece",
+      accentColor: slide.accentColor || "#22c55e",
+    };
+    return renderSlideFrame(
+      model,
+      frameSlide,
+      renderPresentationSetPieceBody(model, slide, escapeHtml)
+    );
+  }
+
   function renderOverviewMetric(model = {}, slide = {}, label, value, className = "", keyPrefix = "") {
     return `
       <div class="presentation-overview-metric ${escapeHtml(className)}">
@@ -1861,6 +1884,7 @@ export function createPresentationModeRenderer(options = {}) {
     if (slide.type === "info") return renderInfoSlide(model, slide);
     if (slide.type === "match-squad") return renderMatchSquadSlide(model, slide);
     if (slide.type === "lineup") return renderLineupSlide(model, slide);
+    if (slide.type === "set-piece") return renderSetPieceSlide(model, slide);
     if (slide.type === "overview") return renderOverviewSlide(model, slide);
     if (slide.type === "block") return renderBlockSlide(model, slide);
     return renderSlideFrame(model, slide, "");
@@ -1889,6 +1913,7 @@ export function createPresentationModeRenderer(options = {}) {
     renderLineupSlide,
     renderMatchSquadSlide,
     renderOverviewSlide,
+    renderSetPieceSlide,
     renderTextToolbar,
   };
 }

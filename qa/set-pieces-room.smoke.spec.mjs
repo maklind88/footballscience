@@ -57,7 +57,7 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(page.locator("[data-set-piece-pitch]")).toBeVisible();
 
   const pitch = page.locator("[data-set-piece-pitch]");
-  const box = await pitch.boundingBox();
+  let box = await pitch.boundingBox();
   expect(box).not.toBeNull();
 
   await page.locator("[data-set-piece-player-picker] summary").click();
@@ -71,6 +71,8 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await showOpponentNumber.uncheck();
   await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost) text")).toHaveCount(0);
   await showOpponentNumber.check();
+  box = await pitch.boundingBox();
+  expect(box).not.toBeNull();
   await page.getByRole("button", { name: "Ball", exact: true }).click();
   await page.mouse.click(box.x + box.width * 0.48, box.y + box.height * 0.48);
 
@@ -132,6 +134,32 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
 
   await page.getByRole("button", { name: "Create variant" }).click();
   await expect(page.locator("[data-set-piece-variant-id]")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Present", exact: true }).click();
+  const setPieces = page.locator("[data-set-pieces-room]");
+  await expect(setPieces).toHaveClass(/is-presenting/);
+  await expect(setPieces.locator(".spr-tool-rail")).toBeHidden();
+  await expect(setPieces.locator(".spr-inspector")).toBeHidden();
+  await expect(setPieces.locator(".spr-timeline")).toBeVisible();
+  await expect(setPieces.locator(".spr-playback")).toBeVisible();
+  const presentPitchSize = await setPieces.locator("[data-set-piece-pitch]").evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  });
+  expect(presentPitchSize.width).toBeGreaterThan(presentPitchSize.height);
+
+  await setPieces.getByRole("button", { name: /Team Meeting/ }).click();
+  const presentation = page.locator("#presentationModeRoot");
+  await expect(presentation).toBeVisible();
+  await expect(presentation.locator(".presentation-slide-set-piece")).toBeVisible();
+  await expect(presentation.locator(".presentation-set-piece-board [data-set-piece-pitch]")).toBeVisible();
+  await expect(presentation.locator("[data-presentation-set-piece-play]")).toBeVisible();
+  await presentation.getByRole("button", { name: "Play", exact: true }).click();
+  await page.waitForTimeout(250);
+  await expect(presentation.locator(".spr-drawing.is-playing")).toHaveCount(1);
+  await presentation.getByRole("button", { name: "Pause", exact: true }).click();
+  await presentation.getByRole("button", { name: "Close presentation" }).click();
+
   await page.reload({ waitUntil: "domcontentloaded" });
   await waitForPlatformShell(page);
   await openSetPiecesRoom(page);
@@ -242,7 +270,9 @@ test("Set Pieces Room handles a match-sized routine without stacking roles", asy
   ];
   for (const [x, y] of opponentPoints) {
     await page.getByRole("button", { name: "Opponent" }).click();
-    await page.mouse.click(pitchBox.x + pitchBox.width * x, pitchBox.y + pitchBox.height * y);
+    const currentPitchBox = await pitch.boundingBox();
+    expect(currentPitchBox).not.toBeNull();
+    await page.mouse.click(currentPitchBox.x + currentPitchBox.width * x, currentPitchBox.y + currentPitchBox.height * y);
   }
   await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost)")).toHaveCount(8);
 
@@ -267,6 +297,8 @@ test("Set Pieces Room keeps its editor usable on a narrow touch viewport", async
 
   await expect(page.locator("[data-set-piece-pitch]")).toBeVisible();
   await expect(page.locator(".spr-playback")).toBeVisible();
+  await expect(page.locator(".spr-inspector")).toBeHidden();
+  await page.getByRole("button", { name: "Toggle details" }).click();
   await expect(page.locator(".spr-inspector")).toBeVisible();
   const addPhase = page.getByRole("button", { name: "Duplicate current phase" });
   for (let index = 0; index < 6; index += 1) await addPhase.click();

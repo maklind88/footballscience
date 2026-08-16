@@ -53,7 +53,7 @@ export function createSetPiecesRoomController(options = {}) {
     isPaused: false,
     loopPlayback: false,
     presentationMode: false,
-    inspectorCollapsed: false,
+    inspectorCollapsed: true,
     saveState: "saved",
     saveMessage: "Saved",
   };
@@ -114,6 +114,7 @@ export function createSetPiecesRoomController(options = {}) {
   function rendererUi() {
     return {
       ...ui,
+      canAddToTeamMeeting: typeof options.onAddToTeamMeeting === "function",
       canUndo: history.canUndo,
       canRedo: history.canRedo,
     };
@@ -351,6 +352,31 @@ export function createSetPiecesRoomController(options = {}) {
     render();
   }
 
+  function setWorkspaceMode(presentationMode) {
+    playback.stop();
+    ui.presentationMode = Boolean(presentationMode);
+    ui.activeTool = "select";
+    ui.previewDrawing = null;
+    ui.selectionRect = null;
+    ui.selectedElementIds.clear();
+    ui.selectedDrawingId = "";
+    ui.assignmentPickerSlotId = "";
+    ui.showAssignments = false;
+    render();
+  }
+
+  function addCurrentVariantToTeamMeeting() {
+    const { play, variant } = getContext();
+    if (!play || !variant || typeof options.onAddToTeamMeeting !== "function") return;
+    options.onAddToTeamMeeting({
+      playId: play.id,
+      playTitle: play.title,
+      variantId: variant.id,
+      variantTitle: variant.title,
+      scheduledFor: play.scheduledFor,
+    });
+  }
+
   function handleAction(action) {
     const actions = {
       "new-play": createNewPlay,
@@ -371,10 +397,10 @@ export function createSetPiecesRoomController(options = {}) {
       undo,
       redo,
       "delete-selection": deleteSelection,
-      presentation: () => {
-        ui.presentationMode = !ui.presentationMode;
-        render();
-      },
+      presentation: () => setWorkspaceMode(!ui.presentationMode),
+      "edit-mode": () => setWorkspaceMode(false),
+      "present-mode": () => setWorkspaceMode(true),
+      "add-to-team-meeting": addCurrentVariantToTeamMeeting,
       "toggle-inspector": () => {
         ui.inspectorCollapsed = !ui.inspectorCollapsed;
         render();
@@ -465,6 +491,13 @@ export function createSetPiecesRoomController(options = {}) {
       const search = root.querySelector("[data-set-piece-search]");
       search?.focus();
       search?.setSelectionRange?.(ui.searchQuery.length, ui.searchQuery.length);
+      return;
+    }
+    if (target.matches?.("[data-set-piece-player-search]")) {
+      const query = String(target.value || "").trim().toLowerCase();
+      root.querySelectorAll?.("[data-set-piece-roster-add]").forEach((button) => {
+        button.hidden = Boolean(query) && !String(button.textContent || "").toLowerCase().includes(query);
+      });
       return;
     }
     if (target.matches?.("[data-set-piece-scrubber]")) {

@@ -1,4 +1,4 @@
-import { getSetPiecePitchViewBox } from "./geometry.mjs";
+import { getSetPieceElementTransform, getSetPiecePitchTransform, getSetPiecePitchViewBox } from "./geometry.mjs";
 
 export function escapeSetPieceHtml(value = "") {
   return String(value ?? "")
@@ -47,7 +47,7 @@ function renderElement(element = {}, options = {}) {
   const classes = ["spr-board-element", `is-${element.kind}`, selected ? "is-selected" : "", ghost ? "is-ghost" : ""]
     .filter(Boolean)
     .join(" ");
-  const transform = `translate(${Number(element.x || 0)} ${Number(element.y || 0)})`;
+  const transform = getSetPieceElementTransform(element, options.halfPitch ? "attacking-half" : "full");
   const common = `class="${classes}" transform="${transform}" data-element-id="${escapeSetPieceHtml(element.id)}" data-layer="${escapeSetPieceHtml(element.kind)}"`;
   if (element.kind === "opponent") {
     return `<g ${common}>
@@ -89,12 +89,16 @@ function renderDrawing(drawing = {}, options = {}) {
       ${drawing.label ? `<text x="${x + 1.2}" y="${y + 2.7}" class="spr-drawing-label">${escapeSetPieceHtml(drawing.label)}</text>` : ""}
     </g>`;
   }
-  const marker = ["run", "pass", "dribble", "press", "mark"].includes(drawing.type) ? ` marker-end="url(#spr-arrow-${drawing.type})"` : "";
+  const markerPrefix = options.markerPrefix || "spr-board";
+  const marker = ["run", "pass", "dribble", "press", "mark"].includes(drawing.type)
+    ? ` marker-end="url(#${markerPrefix}-arrow-${drawing.type})"`
+    : "";
   const midpointX = (Number(drawing.startX) + Number(drawing.endX)) / 2;
   const midpointY = (Number(drawing.startY) + Number(drawing.endY)) / 2;
+  const labelTransform = options.halfPitch ? ` transform="rotate(90 ${midpointX} ${midpointY})"` : "";
   return `<g class="${classes}" data-drawing-id="${escapeSetPieceHtml(drawing.id || "preview")}">
     <path d="${drawingPath(drawing)}"${marker}></path>
-    ${drawing.label ? `<text x="${midpointX}" y="${midpointY - 1.25}" class="spr-drawing-label">${escapeSetPieceHtml(drawing.label)}</text>` : ""}
+    ${drawing.label ? `<text x="${midpointX}" y="${midpointY - 1.25}" class="spr-drawing-label"${labelTransform}>${escapeSetPieceHtml(drawing.label)}</text>` : ""}
   </g>`;
 }
 
@@ -115,37 +119,45 @@ export function renderSetPieceBoard(options = {}) {
     return layers.has("ball");
   };
   const previousIds = new Set((phase.elements || []).map((element) => element.id));
+  const halfPitch = options.pitchView === "attacking-half" || options.pitchView === "defensive-half";
+  const markerPrefix = String(options.markerPrefix || "spr-board").replace(/[^a-zA-Z0-9_-]/g, "-");
+  const renderOptions = { ...options, halfPitch, markerPrefix };
   const ghosts = previousPhase
-    ? (previousPhase.elements || []).filter((element) => visibleElement(element) && previousIds.has(element.id)).map((element) => renderElement(element, { ghost: true })).join("")
+    ? (previousPhase.elements || []).filter((element) => visibleElement(element) && previousIds.has(element.id)).map((element) => renderElement(element, { ghost: true, halfPitch })).join("")
     : "";
   const drawings = layers.has("drawings")
-    ? (phase.drawings || []).map((drawing) => renderDrawing(drawing, options)).join("")
+    ? (phase.drawings || []).map((drawing) => renderDrawing(drawing, renderOptions)).join("")
     : "";
   const elements = (phase.elements || [])
     .filter(visibleElement)
-    .map((element) => renderElement(element, options))
+    .map((element) => renderElement(element, renderOptions))
     .join("");
-  const preview = options.previewDrawing ? renderDrawing(options.previewDrawing, { preview: true }) : "";
-  return `<svg class="spr-pitch" data-set-piece-pitch viewBox="${getSetPiecePitchViewBox(options.pitchView)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Set piece tactical board">
+  const preview = options.previewDrawing ? renderDrawing(options.previewDrawing, { preview: true, halfPitch, markerPrefix }) : "";
+  const pitchTransform = getSetPiecePitchTransform(options.pitchView);
+  return `<svg class="spr-pitch ${halfPitch ? "is-half-pitch" : "is-full-pitch"}" data-set-piece-pitch data-pitch-view="${escapeSetPieceHtml(options.pitchView || "full")}" viewBox="${getSetPiecePitchViewBox(options.pitchView)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Set piece tactical board">
     <defs>
-      ${["run", "pass", "dribble", "press", "mark"].map((type) => `<marker id="spr-arrow-${type}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z"></path></marker>`).join("")}
-      <pattern id="spr-pitch-pattern" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="6" height="12"></rect></pattern>
+      ${["run", "pass", "dribble", "press", "mark"].map((type) => `<marker id="${markerPrefix}-arrow-${type}" class="spr-arrow-marker is-${type}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z"></path></marker>`).join("")}
+      <pattern id="${markerPrefix}-pitch-pattern" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="6" height="12"></rect></pattern>
     </defs>
-    <rect width="105" height="68" class="spr-pitch-base"></rect>
-    <rect width="105" height="68" fill="url(#spr-pitch-pattern)" class="spr-pitch-stripes"></rect>
-    ${renderPitchMarkings()}
-    <g class="spr-ghost-layer">${ghosts}</g>
-    <g class="spr-drawing-layer">${drawings}${preview}</g>
-    <g class="spr-element-layer ${layers.has("labels") ? "" : "hide-labels"}">${elements}</g>
-    ${renderSelectionRect(options.selectionRect)}
+    <g class="spr-pitch-content"${pitchTransform ? ` transform="${pitchTransform}"` : ""}>
+      <rect width="105" height="68" class="spr-pitch-base"></rect>
+      <rect width="105" height="68" fill="url(#${markerPrefix}-pitch-pattern)" class="spr-pitch-stripes"></rect>
+      ${renderPitchMarkings()}
+      <g class="spr-ghost-layer">${ghosts}</g>
+      <g class="spr-drawing-layer">${drawings}${preview}</g>
+      <g class="spr-element-layer ${layers.has("labels") ? "" : "hide-labels"}">${elements}</g>
+      ${renderSelectionRect(options.selectionRect)}
+    </g>
   </svg>`;
 }
 
 export function renderSetPiecePhaseThumbnail(phase = {}, pitchView = "full") {
+  const halfPitch = pitchView === "attacking-half" || pitchView === "defensive-half";
+  const transform = getSetPiecePitchTransform(pitchView);
   const elements = (phase.elements || []).map((element) => {
     const className = element.kind === "home-player" ? "home" : element.kind === "opponent" ? "opponent" : "ball";
     const radius = element.kind === "ball" ? 1.2 : 1.8;
     return `<circle cx="${element.x}" cy="${element.y}" r="${radius}" class="${className}"></circle>`;
   }).join("");
-  return `<svg viewBox="${getSetPiecePitchViewBox(pitchView)}" aria-hidden="true"><rect width="105" height="68"></rect><path d="M52.5 0V68M0 13.84H17V54.16H0M105 13.84H88V54.16H105"></path>${elements}</svg>`;
+  return `<svg class="${halfPitch ? "is-half-pitch" : "is-full-pitch"}" viewBox="${getSetPiecePitchViewBox(pitchView)}" aria-hidden="true"><g${transform ? ` transform="${transform}"` : ""}><rect width="105" height="68"></rect><path d="M52.5 0V68M0 13.84H17V54.16H0M105 13.84H88V54.16H105"></path>${elements}</g></svg>`;
 }

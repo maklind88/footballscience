@@ -125,7 +125,7 @@ export function createSetPiecesRoomController(options = {}) {
     }
     const statusNode = root?.querySelector?.(".spr-save-state");
     if (statusNode) {
-      statusNode.className = `spr-save-state is-${ui.saveState}`;
+      statusNode.className = `spr-save-state is-${ui.saveState}${ui.saveState === "saved" ? " sr-only" : ""}`;
       statusNode.textContent = ui.saveMessage;
     }
   }

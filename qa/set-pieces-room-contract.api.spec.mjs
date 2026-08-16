@@ -28,6 +28,7 @@ import { renderSetPieceBoard } from "../src/modules/set-pieces-room/board-render
 import { chooseSetPieceDrawingActor, getSetPieceDrawingActors } from "../src/modules/set-pieces-room/drawing-actors.mjs";
 import { createSetPiecesPlaybackController } from "../src/modules/set-pieces-room/playback-controller.mjs";
 import { renderSetPiecesPresentationWorkspace } from "../src/modules/set-pieces-room/presentation-workspace-renderer.mjs";
+import { renderSetPiecesWorkspace } from "../src/modules/set-pieces-room/workspace-renderer.mjs";
 import {
   getNextSetPiecePlayerPlacement,
   getSetPiecePitchTransform,
@@ -54,6 +55,17 @@ test("Set Pieces Room starts empty and creates a structured phase and variant tr
   expect(play.variants).toHaveLength(1);
   expect(play.variants[0].phases).toHaveLength(1);
   expect(play.variants[0].phases[0]).toMatchObject({ title: "Start", elements: [], drawings: [] });
+});
+
+test("saved status stays accessible without occupying the Set Pieces header", () => {
+  const state = createEmptySetPiecesState();
+  const savedMarkup = renderSetPiecesWorkspace({ state, ui: { saveState: "saved", saveMessage: "Saved" } });
+  const errorMarkup = renderSetPiecesWorkspace({ state, ui: { saveState: "error", saveMessage: "Save failed" } });
+
+  expect(savedMarkup).toContain('class="spr-save-state is-saved sr-only"');
+  expect(savedMarkup).toContain('role="status" aria-live="polite"');
+  expect(errorMarkup).toContain('class="spr-save-state is-error"');
+  expect(errorMarkup).not.toContain('class="spr-save-state is-error sr-only"');
 });
 
 test("phase duplication preserves actor identity without sharing mutable arrays", () => {

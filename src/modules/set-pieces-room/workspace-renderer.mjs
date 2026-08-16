@@ -363,6 +363,8 @@ export function renderSetPiecesWorkspace(options = {}) {
   const phase = getActiveSetPiecePhase(variant || {});
   const canEdit = options.canEdit !== false;
   const canDelete = options.canDelete !== false;
+  const saveState = ui.saveState || "saved";
+  const saveStateClass = `spr-save-state is-${escapeSetPieceHtml(saveState)}${saveState === "saved" ? " sr-only" : ""}`;
   if (ui.presentationMode && play && variant && phase) {
     return `<section class="spr-shell is-presenting ${ui.nativeFullscreen ? "is-native-fullscreen" : ""}" data-set-pieces-room>
       ${renderSetPiecesPresentationWorkspace({
@@ -379,7 +381,7 @@ export function renderSetPiecesWorkspace(options = {}) {
     <header class="spr-header">
       ${renderTeamIdentity(team)}
       <div class="spr-header-mode">${renderWorkspaceModeSwitch(ui, Boolean(play))}</div>
-      <div class="spr-save-state is-${escapeSetPieceHtml(ui.saveState || "saved")}" role="status">${escapeSetPieceHtml(ui.saveMessage || (canEdit ? "Saved to team" : "View only"))}</div>
+      <div class="${saveStateClass}" role="status" aria-live="polite">${escapeSetPieceHtml(ui.saveMessage || (canEdit ? "Saved to team" : "View only"))}</div>
     </header>
     ${ui.notice ? `<div class="spr-notice is-${escapeSetPieceHtml(ui.notice.tone || "warning")}" role="status"><span>${escapeSetPieceHtml(ui.notice.message)}</span><button type="button" data-set-piece-action="dismiss-notice" aria-label="Dismiss message" title="Dismiss">×</button></div>` : ""}
     <div class="spr-layout">

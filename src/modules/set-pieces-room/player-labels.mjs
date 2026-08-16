@@ -2,6 +2,29 @@ function normalizeName(value = "") {
   return String(value || "").trim().replace(/\s+/g, " ");
 }
 
+function isSetPieceSquadPlayer(player = {}) {
+  const countsInSquad = player.countsInSquad ?? player.counts_in_squad;
+  if (countsInSquad === false || countsInSquad === 0 || String(countsInSquad).toLowerCase() === "false") return false;
+
+  const rosterType = String(player.rosterType || player.roster_type || player.playerType || player.player_type || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s/]+/g, "-");
+  if (rosterType) return ["squad", "squad-player", "first-team", "firstteam"].includes(rosterType);
+
+  return !(
+    player.isGuest === true ||
+    player.guest === true ||
+    player.temporary === true ||
+    player.temporaryGroup ||
+    player.temporary_group ||
+    player.temporaryFrom ||
+    player.temporary_from ||
+    player.temporaryTo ||
+    player.temporary_to
+  );
+}
+
 export function getSetPiecePlayerName(player = {}) {
   const directName = normalizeName(player.name || player.displayName || player.display_name);
   if (directName) return directName;
@@ -52,7 +75,7 @@ export function createSetPiecePlayerLabelMap(players = []) {
 export function getSetPieceRosterPlayers(playerProfilesState = {}) {
   const players = Array.isArray(playerProfilesState?.players) ? playerProfilesState.players : [];
   return players
-    .filter((player) => player?.id && !player.archivedAt && !player.removedAt)
+    .filter((player) => player?.id && !player.archivedAt && !player.removedAt && isSetPieceSquadPlayer(player))
     .map((player) => ({
       id: String(player.id),
       name: getSetPiecePlayerName(player) || "Player",

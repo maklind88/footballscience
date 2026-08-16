@@ -359,7 +359,17 @@ test("own-player labels stay unique while opponent identity remains numeric", ()
   expect(new Set(values).size).toBe(3);
   expect(values.filter((label) => label === "AM")).toHaveLength(0);
   expect(labels.get("three")).toBe("SK");
-  expect(getSetPieceRosterPlayers({ players: [...players, { id: "archived", name: "Old Player", archivedAt: "2026-01-01" }] })).toHaveLength(3);
+  const roster = getSetPieceRosterPlayers({
+    players: [
+      ...players,
+      { id: "archived", name: "Old Player", archivedAt: "2026-01-01" },
+      { id: "guest", name: "Training Guest", rosterType: "guest", countsInSquad: false },
+      { id: "academy", name: "Academy Call-up", rosterType: "academy" },
+      { id: "trial", name: "Trial Player", counts_in_squad: false },
+      { id: "temporary", name: "Temporary Player", temporaryGroup: "Training" },
+    ],
+  });
+  expect(roster.map((player) => player.id)).toEqual(["two", "one", "three"]);
 });
 
 test("board renderer distinguishes own initials, opponent numbers and movement semantics", () => {

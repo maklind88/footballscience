@@ -33,7 +33,10 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   await page.addInitScript(() => {
     window.localStorage.setItem("football-player-profiles-v1", JSON.stringify({
       schemaVersion: 3,
-      players: [{ id: "player-alex", name: "Alex Example", position: "Forward" }],
+      players: [
+        { id: "player-alex", name: "Alex Example", position: "Forward", rosterType: "squad", countsInSquad: true },
+        { id: "player-guest", name: "QA Training Guest", position: "Forward", rosterType: "guest", countsInSquad: false },
+      ],
     }));
     window.localStorage.removeItem("football-set-pieces-room-v1");
   });
@@ -42,6 +45,11 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   await waitForPlatformShell(page);
   await openSetPiecesRoom(page);
   await page.getByRole("button", { name: "Create set piece" }).click();
+
+  await page.locator("[data-set-piece-player-picker] summary").click();
+  await expect(page.getByRole("menuitem", { name: /QA Training Guest/ })).toHaveCount(0);
+  await expect(page.getByRole("menuitem", { name: /Alex Example/ })).toBeVisible();
+  await page.locator("[data-set-piece-player-picker] summary").click();
 
   const metrics = await page.evaluate(() => {
     const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect();

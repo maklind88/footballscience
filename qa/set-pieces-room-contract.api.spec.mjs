@@ -21,6 +21,7 @@ import {
 import { createSetPiecesPersistence } from "../src/modules/set-pieces-room/persistence.mjs";
 import { cloneSetPiecePlay } from "../src/modules/set-pieces-room/play-helpers.mjs";
 import {
+  easeSetPiecePlaybackProgress,
   getSetPieceElementPlaybackProgress,
   interpolateSetPiecePlaybackElement,
 } from "../src/modules/set-pieces-room/playback-geometry.mjs";
@@ -74,7 +75,7 @@ test("set-piece sub-phases normalize legacy, duplicate and invalid values safely
   });
   const state = normalizeSetPiecesState({ plays: [legacy, tagged] });
 
-  expect(state.schemaVersion).toBe(3);
+  expect(state.schemaVersion).toBe(4);
   expect(state.plays[0].subPhases).toEqual(["first-action"]);
   expect(state.plays[1].subPhases).toEqual(["second-ball", "transition"]);
 });
@@ -267,7 +268,7 @@ test("legacy player markers migrate into stable role assignments across variants
   const normalized = state.plays[0];
   const linkedElements = normalized.variants.flatMap((variant) => variant.phases.flatMap((item) => item.elements));
 
-  expect(state.schemaVersion).toBe(3);
+  expect(state.schemaVersion).toBe(4);
   expect(normalized.assignments).toEqual([{ slotId: "runner-a", role: "Role 1", profileId: "player-a" }]);
   expect(linkedElements.every((element) => element.id === "runner-a" && element.profileId === "player-a")).toBe(true);
 });
@@ -355,6 +356,49 @@ test("normalization clamps unsafe geometry and timing values", () => {
 
   expect(normalizedPhase.durationMs).toBe(10000);
   expect(normalizedPhase.elements[0]).toMatchObject({ x: 105, y: 0, durationMs: 100 });
+});
+
+test("legacy playback timing migrates to a continuous rhythm without overriding current choices", () => {
+  const legacyPlay = createSetPiecePlay();
+  legacyPlay.variants[0].phases[0].holdMs = 450;
+  legacyPlay.variants[0].phases[0].durationMs = 1800;
+  legacyPlay.variants[0].phases[0].elements.push({
+    id: "legacy-runner",
+    kind: "home-player",
+    x: 10,
+    y: 10,
+    durationMs: 900,
+  });
+  const currentPlay = structuredClone(legacyPlay);
+
+  const migrated = normalizeSetPiecesState({ schemaVersion: 2, plays: [legacyPlay] });
+  const current = normalizeSetPiecesState({ schemaVersion: 4, plays: [currentPlay] });
+
+  expect(migrated.plays[0].variants[0].phases[0].holdMs).toBe(0);
+  expect(migrated.plays[0].variants[0].phases[0].elements[0].durationMs).toBe(1800);
+  expect(current.plays[0].variants[0].phases[0].holdMs).toBe(450);
+  expect(current.plays[0].variants[0].phases[0].elements[0].durationMs).toBe(900);
+});
+
+test("playback easing keeps exact endpoints while softening runs and passes", () => {
+  const runner = { id: "runner", kind: "home-player", x: 10, y: 10, rotation: 350 };
+  const target = { ...runner, x: 30, y: 10, rotation: 10 };
+  const ball = { id: "ball", kind: "ball", x: 10, y: 10, rotation: 0 };
+  const passPhase = {
+    drawings: [{ id: "pass", type: "pass", startX: 10, startY: 10, endX: 30, endY: 10 }],
+  };
+  const runQuarter = interpolateSetPiecePlaybackElement(runner, target, 0.25, { drawings: [] });
+  const passQuarter = interpolateSetPiecePlaybackElement(ball, { ...ball, x: 30 }, 0.25, passPhase);
+  const rotationMidpoint = interpolateSetPiecePlaybackElement(runner, target, 0.5, { drawings: [] });
+
+  expect(easeSetPiecePlaybackProgress(0)).toBe(0);
+  expect(easeSetPiecePlaybackProgress(1)).toBe(1);
+  expect(easeSetPiecePlaybackProgress(0.25)).toBeCloseTo(0.19429577, 5);
+  expect(easeSetPiecePlaybackProgress(0.75)).toBeCloseTo(0.80570423, 5);
+  expect(runQuarter.x).toBeCloseTo(13.8859154, 5);
+  expect(passQuarter.x).toBeGreaterThan(15);
+  expect(passQuarter.x).toBeLessThan(30);
+  expect(rotationMidpoint.rotation).toBeCloseTo(360, 5);
 });
 
 test("playback follows linked tactical routes while preserving phase endpoints", () => {

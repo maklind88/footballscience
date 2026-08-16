@@ -1,5 +1,5 @@
 export const SET_PIECES_STORAGE_KEY = "football-set-pieces-room-v1";
-export const SET_PIECES_SCHEMA_VERSION = 3;
+export const SET_PIECES_SCHEMA_VERSION = 4;
 export const SET_PIECES_MAX_PLAYS = 120;
 export const SET_PIECES_MAX_VARIANTS = 16;
 export const SET_PIECES_MAX_PHASES = 24;
@@ -77,5 +77,5 @@ export const setPieceLayerOptions = Object.freeze([
 export const setPiecePlaybackSpeedOptions = Object.freeze([0.5, 0.75, 1, 1.25, 1.5, 2]);
 
 export const DEFAULT_PHASE_DURATION_MS = 1400;
-export const DEFAULT_PHASE_HOLD_MS = 450;
-export const DEFAULT_ACTION_DURATION_MS = 900;
+export const DEFAULT_PHASE_HOLD_MS = 0;
+export const DEFAULT_ACTION_DURATION_MS = DEFAULT_PHASE_DURATION_MS;

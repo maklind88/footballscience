@@ -1,9 +1,27 @@
-import { interpolateSetPieceValue } from "./geometry.mjs";
-
 const playbackRouteTypes = new Set(["run", "pass", "dribble", "press", "mark"]);
 
 function clampProgress(value) {
   return Math.min(1, Math.max(0, Number(value) || 0));
+}
+
+function interpolateValue(fromValue = 0, toValue = 0, progress = 0) {
+  const from = Number(fromValue || 0);
+  const to = Number(toValue || 0);
+  return from + (to - from) * clampProgress(progress);
+}
+
+export function easeSetPiecePlaybackProgress(progress = 0, movementType = "movement") {
+  const t = clampProgress(progress);
+  if (movementType === "pass") return Math.sin((Math.PI * t) / 2);
+  const smoothingStrength = 0.35;
+  return t - (smoothingStrength * Math.sin(2 * Math.PI * t)) / (2 * Math.PI);
+}
+
+function interpolateRotation(fromValue = 0, toValue = 0, progress = 0) {
+  const from = Number(fromValue || 0);
+  const to = Number(toValue || 0);
+  const delta = ((to - from + 540) % 360) - 180;
+  return from + delta * progress;
 }
 
 function routePoint(drawing = {}, progress = 0) {
@@ -15,8 +33,8 @@ function routePoint(drawing = {}, progress = 0) {
   const curve = Number(drawing.curve || 0);
   if (!curve) {
     return {
-      x: interpolateSetPieceValue(startX, endX, t),
-      y: interpolateSetPieceValue(startY, endY, t),
+      x: interpolateValue(startX, endX, t),
+      y: interpolateValue(startY, endY, t),
     };
   }
   const dx = endX - startX;
@@ -67,25 +85,28 @@ export function getSetPieceElementPlaybackProgress(element = {}, transitionProgr
 export function interpolateSetPiecePlaybackElement(fromElement = {}, toElement = {}, progress = 0, fromPhase = {}) {
   const localProgress = clampProgress(progress);
   const route = findPlaybackRoute(fromPhase, fromElement);
+  const visualProgress = easeSetPiecePlaybackProgress(localProgress, route?.type);
   if (!route) {
     return {
-      x: interpolateSetPieceValue(fromElement.x, toElement.x, localProgress),
-      y: interpolateSetPieceValue(fromElement.y, toElement.y, localProgress),
-      rotation: interpolateSetPieceValue(fromElement.rotation, toElement.rotation, localProgress),
+      x: interpolateValue(fromElement.x, toElement.x, visualProgress),
+      y: interpolateValue(fromElement.y, toElement.y, visualProgress),
+      rotation: interpolateRotation(fromElement.rotation, toElement.rotation, visualProgress),
       routeId: "",
       localProgress,
+      visualProgress,
     };
   }
-  const point = routePoint(route, localProgress);
+  const point = routePoint(route, visualProgress);
   const startOffsetX = Number(fromElement.x || 0) - Number(route.startX || 0);
   const startOffsetY = Number(fromElement.y || 0) - Number(route.startY || 0);
   const endOffsetX = Number(toElement.x || 0) - Number(route.endX || 0);
   const endOffsetY = Number(toElement.y || 0) - Number(route.endY || 0);
   return {
-    x: point.x + interpolateSetPieceValue(startOffsetX, endOffsetX, localProgress),
-    y: point.y + interpolateSetPieceValue(startOffsetY, endOffsetY, localProgress),
-    rotation: interpolateSetPieceValue(fromElement.rotation, toElement.rotation, localProgress),
+    x: point.x + interpolateValue(startOffsetX, endOffsetX, visualProgress),
+    y: point.y + interpolateValue(startOffsetY, endOffsetY, visualProgress),
+    rotation: interpolateRotation(fromElement.rotation, toElement.rotation, visualProgress),
     routeId: route.id || "",
     localProgress,
+    visualProgress,
   };
 }

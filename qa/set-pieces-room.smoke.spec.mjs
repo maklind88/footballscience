@@ -237,7 +237,20 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(loopButton).toHaveAttribute("aria-pressed", "true");
   await loopButton.click();
   await page.getByRole("button", { name: "Play", exact: true }).click();
-  await page.waitForTimeout(350);
+  const motionSamples = await page.evaluate(() => new Promise((resolve) => {
+    const marker = document.querySelector(".spr-board-element.is-home-player:not(.is-ghost)");
+    const samples = [];
+    const startedAt = performance.now();
+    const sample = (timestamp) => {
+      samples.push({ timestamp, transform: marker?.getAttribute("transform") || "" });
+      if (timestamp - startedAt >= 350) resolve(samples);
+      else requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }));
+  expect(motionSamples.length).toBeGreaterThan(10);
+  expect(new Set(motionSamples.map((sample) => sample.transform)).size).toBeGreaterThan(8);
+  await expect(page.getByRole("button", { name: "Pause", exact: true }).locator("svg path")).toHaveAttribute("d", "M9 5v14M15 5v14");
   await expect(page.locator(".spr-drawing.is-playing")).toHaveCount(1);
   await expect(page.locator("[data-set-piece-playback-primary]")).toContainText("Phase 1 → 2");
   await expect(page.locator("[data-set-piece-playback-secondary]")).toContainText("/");

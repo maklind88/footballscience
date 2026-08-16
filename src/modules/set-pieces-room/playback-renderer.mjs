@@ -23,7 +23,7 @@ export function renderSetPiecePlayback(variant, phase, ui, options = {}) {
     <div class="spr-playback-transport">
       <button type="button" class="spr-icon-button" data-set-piece-action="restart-playback" title="Back to phase 1" aria-label="Back to phase 1">${renderSetPieceToolIcon("skip-back")}</button>
       <button type="button" class="spr-icon-button" data-set-piece-action="previous-phase" title="Previous phase" aria-label="Previous phase">${renderSetPieceToolIcon("step-back")}</button>
-      <button type="button" class="spr-play-button" data-set-piece-action="toggle-play" aria-label="${ui.isPlaying ? "Pause" : "Play"}">${renderSetPieceToolIcon(ui.isPlaying ? "pause" : "play")}</button>
+      <button type="button" class="spr-play-button" data-set-piece-action="toggle-play" data-set-piece-icon="${ui.isPlaying ? "pause" : "play"}" aria-label="${ui.isPlaying ? "Pause" : "Play"}">${renderSetPieceToolIcon(ui.isPlaying ? "pause" : "play")}</button>
       <button type="button" class="spr-icon-button" data-set-piece-action="next-phase" title="Next phase" aria-label="Next phase">${renderSetPieceToolIcon("step-forward")}</button>
       <button type="button" class="spr-icon-button" data-set-piece-action="stop" title="Stop" aria-label="Stop">${renderSetPieceToolIcon("stop")}</button>
     </div>

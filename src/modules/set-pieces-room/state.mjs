@@ -101,10 +101,14 @@ export function createEmptySetPiecesState() {
   };
 }
 
-function normalizeElement(element = {}) {
+function normalizeElement(element = {}, options = {}) {
   const kind = allowedElementKinds.has(element.kind) ? element.kind : "home-player";
   const point = normalizeSetPiecePoint(element);
   const opponentNumber = String(Math.round(number(element.label || element.number, 1, 1, 99)));
+  const defaultActionDuration = Number(options.defaultActionDuration || DEFAULT_ACTION_DURATION_MS);
+  const actionDuration = options.migrateLegacyPlayback && Number(element.durationMs) === 900
+    ? defaultActionDuration
+    : element.durationMs;
   return {
     id: text(element.id, 100) || createSetPieceId(kind),
     kind,
@@ -117,7 +121,7 @@ function normalizeElement(element = {}) {
     instruction: text(element.instruction, 240),
     rotation: number(element.rotation, 0, -180, 180),
     delayMs: number(element.delayMs, 0, 0, 10000),
-    durationMs: number(element.durationMs, DEFAULT_ACTION_DURATION_MS, 100, 10000),
+    durationMs: number(actionDuration, defaultActionDuration, 100, 10000),
   };
 }
 
@@ -204,20 +208,31 @@ function mergeLegacyPlayerSlots(variants = []) {
   }));
 }
 
-function normalizePhase(phase = {}, index = 0) {
+function normalizePhase(phase = {}, index = 0, options = {}) {
+  const durationMs = number(phase.durationMs, DEFAULT_PHASE_DURATION_MS, 250, 10000);
+  const holdMs = options.migrateLegacyPlayback && Number(phase.holdMs) === 450
+    ? DEFAULT_PHASE_HOLD_MS
+    : phase.holdMs;
   return {
     id: text(phase.id, 100) || createSetPieceId("phase"),
     title: text(phase.title || `Phase ${index + 1}`, 48),
     cue: text(phase.cue, 240),
-    durationMs: number(phase.durationMs, DEFAULT_PHASE_DURATION_MS, 250, 10000),
-    holdMs: number(phase.holdMs, DEFAULT_PHASE_HOLD_MS, 0, 5000),
-    elements: (Array.isArray(phase.elements) ? phase.elements : []).map(normalizeElement).slice(0, 80),
+    durationMs,
+    holdMs: number(holdMs, DEFAULT_PHASE_HOLD_MS, 0, 5000),
+    elements: (Array.isArray(phase.elements) ? phase.elements : [])
+      .map((element) => normalizeElement(element, {
+        defaultActionDuration: durationMs,
+        migrateLegacyPlayback: options.migrateLegacyPlayback,
+      }))
+      .slice(0, 80),
     drawings: (Array.isArray(phase.drawings) ? phase.drawings : []).map(normalizeDrawing).slice(0, 160),
   };
 }
 
-function normalizeVariant(variant = {}, index = 0) {
-  const phases = (Array.isArray(variant.phases) ? variant.phases : []).slice(0, SET_PIECES_MAX_PHASES).map(normalizePhase);
+function normalizeVariant(variant = {}, index = 0, options = {}) {
+  const phases = (Array.isArray(variant.phases) ? variant.phases : [])
+    .slice(0, SET_PIECES_MAX_PHASES)
+    .map((phase, phaseIndex) => normalizePhase(phase, phaseIndex, options));
   if (!phases.length) phases.push(createSetPiecePhase());
   const activePhaseId = phases.some((phase) => phase.id === variant.activePhaseId) ? variant.activePhaseId : phases[0].id;
   return {
@@ -232,8 +247,10 @@ function normalizeVariant(variant = {}, index = 0) {
   };
 }
 
-function normalizePlay(play = {}) {
-  const variants = (Array.isArray(play.variants) ? play.variants : []).slice(0, SET_PIECES_MAX_VARIANTS).map(normalizeVariant);
+function normalizePlay(play = {}, _index = 0, options = {}) {
+  const variants = (Array.isArray(play.variants) ? play.variants : [])
+    .slice(0, SET_PIECES_MAX_VARIANTS)
+    .map((variant, variantIndex) => normalizeVariant(variant, variantIndex, options));
   if (!variants.length) variants.push(createSetPieceVariant());
   const explicitAssignments = normalizeAssignmentList(play.assignments);
   if (!explicitAssignments.size) mergeLegacyPlayerSlots(variants);
@@ -286,7 +303,10 @@ function normalizePlay(play = {}) {
 }
 
 export function normalizeSetPiecesState(candidate = {}) {
-  const plays = (Array.isArray(candidate?.plays) ? candidate.plays : []).slice(0, SET_PIECES_MAX_PLAYS).map(normalizePlay);
+  const normalizationOptions = { migrateLegacyPlayback: Number(candidate?.schemaVersion || 0) < SET_PIECES_SCHEMA_VERSION };
+  const plays = (Array.isArray(candidate?.plays) ? candidate.plays : [])
+    .slice(0, SET_PIECES_MAX_PLAYS)
+    .map((play, playIndex) => normalizePlay(play, playIndex, normalizationOptions));
   return {
     schemaVersion: SET_PIECES_SCHEMA_VERSION,
     activePlayId: plays.some((play) => play.id === candidate.activePlayId) ? candidate.activePlayId : plays[0]?.id || "",

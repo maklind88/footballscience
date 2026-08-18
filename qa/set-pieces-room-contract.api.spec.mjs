@@ -694,6 +694,11 @@ test("own-player labels stay unique while opponent identity remains numeric", ()
 });
 
 test("board renderer distinguishes own initials, opponent numbers and movement semantics", () => {
+  const fullPitchMarkup = renderSetPieceBoard({
+    phase: { elements: [], drawings: [] },
+    pitchView: "full",
+    layers: new Set(),
+  });
   const markup = renderSetPieceBoard({
     phase: {
       elements: [
@@ -718,6 +723,16 @@ test("board renderer distinguishes own initials, opponent numbers and movement s
   expect(markup).toContain("Q ");
   expect(markup).toContain('viewBox="0 0 68 35"');
   expect(markup).toContain('transform="matrix(0 -1 1 0 0 105)"');
+  expect(markup).toContain('class="spr-pitch-goal is-left-goal"');
+  expect(markup).toContain('class="spr-pitch-goal is-right-goal"');
+  expect(markup.match(/class="spr-pitch-goal-frame"/g)).toHaveLength(2);
+  expect(markup.match(/class="spr-pitch-goal-net"/g)).toHaveLength(2);
+  expect(markup.match(/class="spr-pitch-goal-post spr-round-marking"/g)).toHaveLength(4);
+  expect(markup).toContain("L-2.1 37.12");
+  expect(markup).toContain("L107.1 37.12");
+  expect(fullPitchMarkup).toContain("L3.5 37.12");
+  expect(fullPitchMarkup).toContain("L101.5 37.12");
+  expect(markup).not.toContain("spr-pitch-goals");
   expect(markup).not.toContain("spr-body-direction");
 });
 

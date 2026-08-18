@@ -1,5 +1,6 @@
 import { getSetPieceElementTransform, getSetPiecePitchTransform, getSetPiecePitchViewBox } from "./geometry.mjs";
 import { renderSetPieceBoardBallSymbol } from "./ball-symbol.mjs";
+import { getSetPieceDrawingControlPoint, getSetPieceDrawingPath } from "./drawing-geometry.mjs";
 
 export function escapeSetPieceHtml(value = "") {
   return String(value ?? "")
@@ -8,21 +9,6 @@ export function escapeSetPieceHtml(value = "") {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function drawingPath(drawing = {}) {
-  const startX = Number(drawing.startX || 0);
-  const startY = Number(drawing.startY || 0);
-  const endX = Number(drawing.endX || 0);
-  const endY = Number(drawing.endY || 0);
-  const curve = Number(drawing.curve || 0);
-  if (!curve) return `M ${startX} ${startY} L ${endX} ${endY}`;
-  const dx = endX - startX;
-  const dy = endY - startY;
-  const distance = Math.max(1, Math.hypot(dx, dy));
-  const controlX = (startX + endX) / 2 - (dy / distance) * curve;
-  const controlY = (startY + endY) / 2 + (dx / distance) * curve;
-  return `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
 }
 
 function renderPitchMarkings() {
@@ -57,7 +43,7 @@ function renderElement(element = {}, options = {}) {
   };
   const interactive = options.interactive && !ghost;
   const accessibility = interactive
-    ? ` tabindex="0" role="button" aria-label="${escapeSetPieceHtml(labels[element.kind] || "Board object")}" aria-keyshortcuts="Enter ArrowUp ArrowDown ArrowLeft ArrowRight Delete"`
+    ? ` tabindex="0" role="button" aria-label="${escapeSetPieceHtml(labels[element.kind] || "Board object")}" aria-keyshortcuts="Enter ArrowUp ArrowDown ArrowLeft ArrowRight Delete Backspace"`
     : "";
   const common = `class="${classes}" transform="${transform}" data-element-id="${escapeSetPieceHtml(element.id)}" data-layer="${escapeSetPieceHtml(element.kind)}"${accessibility}`;
   if (element.kind === "opponent") {
@@ -70,9 +56,9 @@ function renderElement(element = {}, options = {}) {
   }
   if (element.kind === "ball") {
     return `<g ${common}>
-      <circle r="3.4" class="spr-element-hit"></circle>
+      <circle r="2.8" class="spr-element-hit"></circle>
       ${renderSetPieceBoardBallSymbol()}
-      ${selected ? '<circle r="3.35" class="spr-selection-ring"></circle>' : ""}
+      ${selected ? '<circle r="2.15" class="spr-selection-ring"></circle>' : ""}
     </g>`;
   }
   const photoUrl = String(element.photoUrl || "").trim();
@@ -98,12 +84,17 @@ function renderDrawing(drawing = {}, options = {}) {
   const classes = ["spr-drawing", `is-${drawing.type}`, selected ? "is-selected" : "", preview ? "is-preview" : ""]
     .filter(Boolean)
     .join(" ");
+  const interactive = options.interactive && !preview;
+  const accessibility = interactive
+    ? ` tabindex="0" role="button" aria-label="${escapeSetPieceHtml(`${drawing.type || "Movement"} drawing`)}" aria-keyshortcuts="Enter ArrowUp ArrowDown ArrowLeft ArrowRight Delete Backspace"`
+    : "";
+  const common = `class="${classes}" data-drawing-id="${escapeSetPieceHtml(drawing.id || "preview")}"${accessibility}`;
   if (drawing.type === "zone") {
     const x = Math.min(drawing.startX, drawing.endX);
     const y = Math.min(drawing.startY, drawing.endY);
     const width = Math.abs(drawing.endX - drawing.startX);
     const height = Math.abs(drawing.endY - drawing.startY);
-    return `<g class="${classes}" data-drawing-id="${escapeSetPieceHtml(drawing.id || "preview")}">
+    return `<g ${common}>
       <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="1.2" class="spr-zone-shape"></rect>
       ${drawing.label ? `<text x="${x + 1.2}" y="${y + 2.7}" class="spr-drawing-label">${escapeSetPieceHtml(drawing.label)}</text>` : ""}
     </g>`;
@@ -115,9 +106,43 @@ function renderDrawing(drawing = {}, options = {}) {
   const midpointX = (Number(drawing.startX) + Number(drawing.endX)) / 2;
   const midpointY = (Number(drawing.startY) + Number(drawing.endY)) / 2;
   const labelTransform = options.halfPitch ? ` transform="rotate(90 ${midpointX} ${midpointY})"` : "";
-  return `<g class="${classes}" data-drawing-id="${escapeSetPieceHtml(drawing.id || "preview")}">
-    <path d="${drawingPath(drawing)}"${marker}></path>
+  return `<g ${common}>
+    <path d="${getSetPieceDrawingPath(drawing)}" class="spr-drawing-hit"></path>
+    <path d="${getSetPieceDrawingPath(drawing)}" class="spr-drawing-shape"${marker}></path>
     ${drawing.label ? `<text x="${midpointX}" y="${midpointY - 1.25}" class="spr-drawing-label"${labelTransform}>${escapeSetPieceHtml(drawing.label)}</text>` : ""}
+  </g>`;
+}
+
+function renderDrawingHandle(x, y, handle, className) {
+  return `<g class="spr-drawing-handle-target ${className}">
+    <circle cx="${x}" cy="${y}" r="2.8" class="spr-drawing-handle-hit" data-drawing-handle="${handle}"></circle>
+    <circle cx="${x}" cy="${y}" r="1.05" class="spr-drawing-handle ${className}"></circle>
+  </g>`;
+}
+
+function renderDrawingControls(drawing = {}, options = {}) {
+  if (!drawing?.id || !options.interactive || drawing.id !== options.selectedDrawingId) return "";
+  const common = `class="spr-drawing-controls is-${escapeSetPieceHtml(drawing.type)}" data-drawing-id="${escapeSetPieceHtml(drawing.id)}"`;
+  if (drawing.type === "zone") {
+    const x = Math.min(drawing.startX, drawing.endX);
+    const y = Math.min(drawing.startY, drawing.endY);
+    const width = Math.abs(drawing.endX - drawing.startX);
+    const height = Math.abs(drawing.endY - drawing.startY);
+    return `<g ${common}>
+      ${renderDrawingHandle(x, y, "zone-nw", "is-zone")}
+      ${renderDrawingHandle(x + width, y, "zone-ne", "is-zone")}
+      ${renderDrawingHandle(x + width, y + height, "zone-se", "is-zone")}
+      ${renderDrawingHandle(x, y + height, "zone-sw", "is-zone")}
+    </g>`;
+  }
+  const midpointX = (Number(drawing.startX) + Number(drawing.endX)) / 2;
+  const midpointY = (Number(drawing.startY) + Number(drawing.endY)) / 2;
+  const control = getSetPieceDrawingControlPoint(drawing);
+  return `<g ${common}>
+    <path d="M ${midpointX} ${midpointY} L ${control.x} ${control.y}" class="spr-drawing-transform-guide"></path>
+    ${renderDrawingHandle(drawing.startX, drawing.startY, "start", "is-endpoint")}
+    ${renderDrawingHandle(drawing.endX, drawing.endY, "end", "is-endpoint")}
+    ${renderDrawingHandle(control.x, control.y, "curve", "is-curve")}
   </g>`;
 }
 
@@ -152,6 +177,10 @@ export function renderSetPieceBoard(options = {}) {
     .filter(visibleElement)
     .map((element) => renderElement(element, renderOptions))
     .join("");
+  const drawingControls = renderDrawingControls(
+    (phase.drawings || []).find((drawing) => drawing.id === options.selectedDrawingId),
+    renderOptions
+  );
   const preview = options.previewDrawing ? renderDrawing(options.previewDrawing, { preview: true, halfPitch, markerPrefix }) : "";
   const pitchTransform = getSetPiecePitchTransform(options.pitchView);
   return `<svg class="spr-pitch ${halfPitch ? "is-half-pitch" : "is-full-pitch"} ${wideEditor ? "is-wide-editor-pitch" : ""}" data-set-piece-pitch data-pitch-view="${escapeSetPieceHtml(options.pitchView || "full")}" viewBox="${getSetPiecePitchViewBox(options.pitchView)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Set piece tactical board">
@@ -167,6 +196,7 @@ export function renderSetPieceBoard(options = {}) {
       <g class="spr-ghost-layer">${ghosts}</g>
       <g class="spr-drawing-layer">${drawings}${preview}</g>
       <g class="spr-element-layer ${layers.has("labels") ? "" : "hide-labels"}">${elements}</g>
+      <g class="spr-interaction-layer">${drawingControls}</g>
       ${renderSelectionRect(options.selectionRect)}
     </g>
   </svg>`;

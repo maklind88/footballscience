@@ -254,6 +254,23 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   await page.mouse.up();
   const zoneDrawing = cornerBoard.locator(".spr-drawing.is-zone");
   await expect(zoneDrawing).toBeVisible();
+  const zoneControls = cornerBoard.locator('.spr-drawing-controls[data-drawing-id]');
+  await expect(zoneControls.locator("[data-drawing-handle]")).toHaveCount(4);
+  const zoneRectBefore = await zoneDrawing.locator(".spr-zone-shape").evaluate((element) => ({
+    width: element.getAttribute("width"),
+    height: element.getAttribute("height"),
+  }));
+  const zoneResizeHandle = zoneControls.locator('[data-drawing-handle="zone-se"]');
+  const zoneResizeBox = await zoneResizeHandle.boundingBox();
+  await page.mouse.move(zoneResizeBox.x + zoneResizeBox.width / 2, zoneResizeBox.y + zoneResizeBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(zoneResizeBox.x + zoneResizeBox.width / 2 + 24, zoneResizeBox.y + zoneResizeBox.height / 2 + 16, { steps: 5 });
+  await page.mouse.up();
+  const zoneRectAfter = await zoneDrawing.locator(".spr-zone-shape").evaluate((element) => ({
+    width: element.getAttribute("width"),
+    height: element.getAttribute("height"),
+  }));
+  expect(zoneRectAfter).not.toEqual(zoneRectBefore);
   await expect(page.locator(".spr-inspector")).toBeHidden();
   await zoneDrawing.click();
   await expect(page.locator(".spr-inspector")).toBeHidden();
@@ -390,6 +407,9 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(page.locator(".spr-board-element.is-ball .spr-ball-token")).toHaveCount(1);
   await expect(page.locator(".spr-board-element.is-ball .spr-ball-panel")).toHaveCount(6);
   await expect(page.locator(".spr-board-element.is-ball .spr-ball-seam")).toHaveCount(5);
+  const ballTokenBox = await page.locator(".spr-board-element.is-ball .spr-ball-token").boundingBox();
+  const opponentTokenBox = await page.locator(".spr-board-element.is-opponent:not(.is-ghost) .spr-opponent-token").boundingBox();
+  expect(ballTokenBox.width).toBeLessThan(opponentTokenBox.width * .55);
 
   const initialHomeMarker = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
   const keyboardStartTransform = await initialHomeMarker.getAttribute("transform");
@@ -402,8 +422,30 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * 0.68, box.y + box.height * 0.25, { steps: 8 });
   await page.mouse.up();
-  await expect(page.locator(".spr-drawing.is-run")).toHaveCount(1);
+  const runDrawing = page.locator(".spr-drawing.is-run");
+  await expect(runDrawing).toHaveCount(1);
+  const runControls = page.locator('.spr-drawing-controls[data-drawing-id]');
+  await expect(runControls.locator("[data-drawing-handle]")).toHaveCount(3);
+  const runPathBefore = await runDrawing.locator(".spr-drawing-shape").getAttribute("d");
+  const runEndHandle = runControls.locator('[data-drawing-handle="end"]');
+  const runEndBox = await runEndHandle.boundingBox();
+  await page.mouse.move(runEndBox.x + runEndBox.width / 2, runEndBox.y + runEndBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(runEndBox.x + runEndBox.width / 2 + 38, runEndBox.y + runEndBox.height / 2 + 18, { steps: 6 });
+  await page.mouse.up();
+  await expect(runDrawing.locator(".spr-drawing-shape")).not.toHaveAttribute("d", runPathBefore);
+  const curveHandle = runControls.locator('[data-drawing-handle="curve"]');
+  const curveBox = await curveHandle.boundingBox();
+  await page.mouse.move(curveBox.x + curveBox.width / 2, curveBox.y + curveBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(curveBox.x + curveBox.width / 2, curveBox.y + curveBox.height / 2 + 28, { steps: 6 });
+  await page.mouse.up();
+  await expect(runDrawing.locator(".spr-drawing-shape")).toHaveAttribute("d", / Q /);
   await expect(page.getByRole("combobox", { name: "Linked actor" })).toHaveValue(/.+/);
+  await runDrawing.press("Delete");
+  await expect(runDrawing).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(runDrawing).toHaveCount(1);
 
   await page.getByRole("button", { name: "Duplicate current phase" }).click();
   await expect(page.locator("[data-set-piece-phase-id]")).toHaveCount(2);

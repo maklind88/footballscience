@@ -29,6 +29,12 @@ import {
 } from "../src/modules/set-pieces-room/playback-geometry.mjs";
 import { renderSetPieceBoard } from "../src/modules/set-pieces-room/board-renderer.mjs";
 import { chooseSetPieceDrawingActor, getSetPieceDrawingActors } from "../src/modules/set-pieces-room/drawing-actors.mjs";
+import {
+  getSetPieceDrawingControlPoint,
+  getSetPieceDrawingLength,
+  translateSetPieceDrawing,
+  updateSetPieceDrawingHandle,
+} from "../src/modules/set-pieces-room/drawing-geometry.mjs";
 import { createSetPiecesPlaybackController } from "../src/modules/set-pieces-room/playback-controller.mjs";
 import { renderSetPiecesPresentationWorkspace } from "../src/modules/set-pieces-room/presentation-workspace-renderer.mjs";
 import { renderSetPiecesWorkspace } from "../src/modules/set-pieces-room/workspace-renderer.mjs";
@@ -564,6 +570,21 @@ test("drawing routes prefer the selected compatible actor and remain editable", 
   expect(chooseSetPieceDrawingActor(phase, "run", { x: 12, y: 10 }, new Set(), { maxDistance: 5 }).id).toBe("runner-near");
 });
 
+test("selected drawing geometry supports direct length, curve, move and zone resize controls", () => {
+  const route = { id: "pass-a", type: "pass", startX: 10, startY: 10, endX: 30, endY: 10, curve: 0 };
+  expect(getSetPieceDrawingLength(route)).toBe(20);
+  expect(updateSetPieceDrawingHandle(route, "end", { x: 42, y: 22 }, "full")).toEqual({ endX: 42, endY: 22 });
+  expect(updateSetPieceDrawingHandle(route, "curve", { x: 20, y: 18 }, "full").curve).toBe(8);
+  expect(getSetPieceDrawingControlPoint({ ...route, curve: 8 })).toEqual({ x: 20, y: 18 });
+  expect(translateSetPieceDrawing(route, { x: -30, y: 4 }, "full")).toEqual({ startX: 0, startY: 14, endX: 20, endY: 14 });
+
+  const zone = { id: "zone-a", type: "zone", startX: 10, startY: 10, endX: 30, endY: 25 };
+  expect(updateSetPieceDrawingHandle(zone, "zone-se", { x: 44, y: 34 }, "full"))
+    .toEqual({ startX: 10, startY: 10, endX: 44, endY: 34 });
+  expect(updateSetPieceDrawingHandle(zone, "zone-nw", { x: 29, y: 24 }, "full"))
+    .toEqual({ startX: 27, startY: 22, endX: 30, endY: 25 });
+});
+
 test("drag coordinates stay inside the visible pitch view", () => {
   expect(normalizeSetPiecePointForPitchView({ x: 4, y: 80 }, "attacking-half")).toEqual({ x: 70, y: 68 });
   expect(normalizeSetPiecePointForPitchView({ x: 90, y: -4 }, "defensive-half")).toEqual({ x: 35, y: 0 });
@@ -660,7 +681,29 @@ test("editable board markers expose keyboard interaction without affecting prese
   const editable = renderSetPieceBoard({ phase, interactive: true, layers: new Set(["home"]) });
   const presenting = renderSetPieceBoard({ phase, interactive: false, layers: new Set(["home"]) });
   expect(editable).toContain('tabindex="0"');
-  expect(editable).toContain('aria-keyshortcuts="Enter ArrowUp ArrowDown ArrowLeft ArrowRight Delete"');
+  expect(editable).toContain('aria-keyshortcuts="Enter ArrowUp ArrowDown ArrowLeft ArrowRight Delete Backspace"');
+  expect(presenting).not.toContain('tabindex="0"');
+});
+
+test("selected drawings expose contextual transform handles only while editing", () => {
+  const phase = {
+    elements: [],
+    drawings: [
+      { id: "pass-a", type: "pass", startX: 10, startY: 10, endX: 30, endY: 18, curve: 5 },
+      { id: "zone-a", type: "zone", startX: 40, startY: 12, endX: 55, endY: 24 },
+    ],
+  };
+  const route = renderSetPieceBoard({ phase, interactive: true, selectedDrawingId: "pass-a", layers: new Set(["drawings"]) });
+  const zone = renderSetPieceBoard({ phase, interactive: true, selectedDrawingId: "zone-a", layers: new Set(["drawings"]) });
+  const presenting = renderSetPieceBoard({ phase, interactive: false, selectedDrawingId: "pass-a", layers: new Set(["drawings"]) });
+
+  expect(route).toContain('class="spr-drawing-hit"');
+  expect(route).toContain('data-drawing-handle="start"');
+  expect(route).toContain('data-drawing-handle="end"');
+  expect(route).toContain('data-drawing-handle="curve"');
+  expect(route).toContain('aria-keyshortcuts="Enter ArrowUp ArrowDown ArrowLeft ArrowRight Delete Backspace"');
+  expect(zone.match(/data-drawing-handle="zone-/g)).toHaveLength(4);
+  expect(presenting).not.toContain("data-drawing-handle");
   expect(presenting).not.toContain('tabindex="0"');
 });
 

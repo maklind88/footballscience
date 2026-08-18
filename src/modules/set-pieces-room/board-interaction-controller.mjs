@@ -12,6 +12,7 @@ import {
 import { createSetPiecePlayerLabelMap } from "./player-labels.mjs";
 import { createSetPieceId } from "./state.mjs";
 import { chooseSetPieceDrawingActor } from "./drawing-actors.mjs";
+import { translateSetPieceDrawing, updateSetPieceDrawingHandle } from "./drawing-geometry.mjs";
 
 const DOUBLE_SELECTION_DELAY_MS = 450;
 
@@ -236,6 +237,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     if (ui.presentationMode) return;
     const directElementId = event.target.closest?.("[data-element-id]")?.dataset.elementId;
     const drawingId = event.target.closest?.("[data-drawing-id]")?.dataset.drawingId;
+    const drawingHandle = event.target.closest?.("[data-drawing-handle]")?.dataset.drawingHandle;
     const nearbyElement = ui.activeTool === "select" && !directElementId && !drawingId
       ? getNearestSetPieceElement(getVisibleElements(phase, ui), point, getSvgHitRadius(svg))
       : null;
@@ -271,10 +273,52 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       return;
     }
     if (ui.activeTool === "select" && drawingId && drawingId !== "preview") {
+      const drawing = phase.drawings.find((candidate) => candidate.id === drawingId);
+      if (!drawing) return;
       ui.selectedElementIds.clear();
       ui.selectedDrawingId = drawingId;
       ui.assignmentPickerSlotId = "";
       ui.showAssignments = false;
+      if (drawingHandle && options.canEdit()) {
+        resetSelectionActivation();
+        interaction = {
+          type: "transform-drawing",
+          svg,
+          stage,
+          pointerId: event.pointerId,
+          start: point,
+          startClient: { x: event.clientX, y: event.clientY },
+          drawingId,
+          drawingHandle,
+          original: structuredClone(drawing),
+          beforeState: structuredClone(options.getState()),
+          moved: false,
+        };
+        capturePointer(stage, event.pointerId);
+        refreshInteractionBoard();
+        event.preventDefault();
+        return;
+      }
+      if (options.canEdit()) {
+        interaction = {
+          type: "move-drawing",
+          svg,
+          stage,
+          pointerId: event.pointerId,
+          start: point,
+          startClient: { x: event.clientX, y: event.clientY },
+          drawingId,
+          original: structuredClone(drawing),
+          beforeState: structuredClone(options.getState()),
+          moved: false,
+          selectionKey: `drawing:${drawingId}`,
+          allowInspectorActivation: !event.shiftKey,
+        };
+        capturePointer(stage, event.pointerId);
+        refreshInteractionBoard();
+        event.preventDefault();
+        return;
+      }
       if (!event.shiftKey) registerSelectionActivation(`drawing:${drawingId}`, event);
       else resetSelectionActivation();
       options.render();
@@ -335,6 +379,29 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       });
       event.preventDefault();
     }
+    if (["move-drawing", "transform-drawing"].includes(interaction.type) && options.canEdit()) {
+      const screenDistance = Math.hypot(event.clientX - interaction.startClient.x, event.clientY - interaction.startClient.y);
+      if (!interaction.moved && screenDistance < 3) return;
+      if (!interaction.moved) resetSelectionActivation();
+      const drawing = phase.drawings.find((candidate) => candidate.id === interaction.drawingId);
+      if (!drawing) return;
+      interaction.moved = true;
+      if (interaction.type === "move-drawing") {
+        Object.assign(drawing, translateSetPieceDrawing(interaction.original, {
+          x: point.x - interaction.start.x,
+          y: point.y - interaction.start.y,
+        }, play?.pitchView));
+      } else {
+        Object.assign(drawing, updateSetPieceDrawingHandle(
+          interaction.original,
+          interaction.drawingHandle,
+          point,
+          play?.pitchView
+        ));
+      }
+      refreshInteractionBoard();
+      event.preventDefault();
+    }
     if (interaction.type === "draw") {
       Object.assign(ui.previewDrawing, { endX: point.x, endY: point.y });
       refreshInteractionBoard();
@@ -360,8 +427,15 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       options.finalizeDirectMutation(completed.beforeState);
       return;
     }
+    if (["move-drawing", "transform-drawing"].includes(completed.type) && completed.moved && options.canEdit()) {
+      options.finalizeDirectMutation(completed.beforeState);
+      return;
+    }
     if (completed.type === "move" && completed.allowInspectorActivation) {
       registerSelectionActivation(completed.selectionKey, event, completed.selectionKey.replace("element:", ""));
+    }
+    if (completed.type === "move-drawing" && completed.allowInspectorActivation) {
+      registerSelectionActivation(completed.selectionKey, event);
     }
     if (completed.type === "draw" && getSetPieceDistance(completed.pointerStart || completed.start, point) > 1.5) {
       const drawing = {
@@ -405,6 +479,12 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         if (origin) Object.assign(element, origin);
       });
     }
+    if (["move-drawing", "transform-drawing"].includes(cancelled.type)) {
+      resetSelectionActivation();
+      const { phase } = options.getContext();
+      const drawing = phase?.drawings?.find((candidate) => candidate.id === cancelled.drawingId);
+      if (drawing) Object.assign(drawing, cancelled.original);
+    }
     options.ui.previewDrawing = null;
     options.ui.selectionRect = null;
     options.render();
@@ -416,6 +496,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     const editable = event.target?.matches?.("input, textarea, select, [contenteditable='true']");
     const key = String(event.key || "").toLowerCase();
     const focusedMarker = event.target?.closest?.("[data-element-id]");
+    const focusedDrawing = event.target?.closest?.("[data-drawing-id]");
     if (options.ui.presentationMode) {
       if (editable) return;
       if (key === " ") {
@@ -497,6 +578,41 @@ export function createSetPiecesBoardInteractionController(options = {}) {
           }, play?.pitchView, element.kind));
         });
         root?.querySelector?.(`[data-element-id="${CSS.escape(elementId)}"]`)?.focus?.();
+        return;
+      }
+    }
+    if (focusedDrawing && !options.ui.presentationMode) {
+      const drawingId = focusedDrawing.dataset.drawingId;
+      const { phase, play } = options.getContext();
+      const drawing = phase?.drawings?.find((candidate) => candidate.id === drawingId);
+      if (!drawing) return;
+      if (key === "enter" || key === " ") {
+        event.preventDefault();
+        options.ui.selectedElementIds.clear();
+        options.ui.selectedDrawingId = drawingId;
+        if (key === "enter") options.ui.inspectorCollapsed = false;
+        options.render();
+        root?.querySelector?.(`[data-drawing-id="${CSS.escape(drawingId)}"]`)?.focus?.();
+        return;
+      }
+      const direction = {
+        arrowleft: { x: -1, y: 0 },
+        arrowright: { x: 1, y: 0 },
+        arrowup: { x: 0, y: -1 },
+        arrowdown: { x: 0, y: 1 },
+      }[key];
+      if (direction && options.canEdit()) {
+        event.preventDefault();
+        const distance = event.shiftKey ? 5 : 1;
+        options.ui.selectedElementIds.clear();
+        options.ui.selectedDrawingId = drawingId;
+        options.commit(() => {
+          Object.assign(drawing, translateSetPieceDrawing(drawing, {
+            x: direction.x * distance,
+            y: direction.y * distance,
+          }, play?.pitchView));
+        });
+        root?.querySelector?.(`[data-drawing-id="${CSS.escape(drawingId)}"]`)?.focus?.();
         return;
       }
     }

@@ -155,12 +155,21 @@
   color: #fff;
 }
 
-.spr-drawing path {
+.spr-drawing .spr-drawing-shape {
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: .7;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+
+.spr-drawing .spr-drawing-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-linecap: round;
+  stroke-width: 14px;
   vector-effect: non-scaling-stroke;
   pointer-events: stroke;
 }
@@ -172,21 +181,52 @@
 .spr-drawing.is-press { color: #ff9b55; }
 .spr-drawing.is-mark { color: #7ab7ff; }
 
-.spr-drawing.is-pass path { stroke-dasharray: 2.1 1.25; }
-.spr-drawing.is-dribble path { stroke-dasharray: .55 1.1; }
-.spr-drawing.is-block path { stroke-width: 1.2; }
-.spr-drawing.is-mark path { stroke-dasharray: 1.25 .7; }
+.spr-drawing.is-pass .spr-drawing-shape { stroke-dasharray: 2.1 1.25; }
+.spr-drawing.is-dribble .spr-drawing-shape { stroke-dasharray: .55 1.1; }
+.spr-drawing.is-block .spr-drawing-shape { stroke-width: 1.2; }
+.spr-drawing.is-mark .spr-drawing-shape { stroke-dasharray: 1.25 .7; }
 
-.spr-drawing.is-selected path,
+.spr-drawing.is-selected .spr-drawing-shape,
 .spr-drawing.is-selected .spr-zone-shape {
   filter: drop-shadow(0 0 1.4px #ffe27a);
   stroke-width: 1.1;
 }
 
-.spr-drawing.is-playing path {
+.spr-drawing.is-playing .spr-drawing-shape {
   filter: drop-shadow(0 0 1.5px currentColor);
   stroke-width: 1.15;
 }
+
+.spr-drawing-transform-guide {
+  fill: none;
+  stroke: #f7fbf8a8;
+  stroke-dasharray: 1.1 .8;
+  stroke-width: .5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.spr-drawing-handle {
+  fill: #fff;
+  stroke: #143e30;
+  stroke-width: .45;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.spr-drawing-handle-hit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+}
+
+.spr-drawing-handle-target.is-endpoint { cursor: move; }
+.spr-drawing-handle-target.is-curve { cursor: grab; }
+.spr-drawing-handle-target.is-curve .spr-drawing-handle,
+.spr-drawing-handle-target.is-zone .spr-drawing-handle { fill: #f8d04a; }
+.spr-drawing-handle-target.is-zone { cursor: nwse-resize; }
+.spr-drawing-handle-hit[data-drawing-handle="zone-ne"],
+.spr-drawing-handle-hit[data-drawing-handle="zone-sw"] { cursor: nesw-resize; }
 
 .spr-drawing.is-preview {
   opacity: .7;

@@ -214,6 +214,8 @@ test("editor keeps tactical guidance in a first-run dialog instead of over the p
   expect(markup).toContain('aria-pressed="true"');
   expect(markup).toContain('data-set-piece-action="toggle-play"');
   expect(markup).toContain('<svg viewBox="0 0 24 24"');
+  expect(markup).toContain('data-set-piece-action="add-phase"');
+  expect(markup).toContain('<path d="M12 5v14M5 12h14"/>');
   expect(markup).toContain('data-set-piece-action="close-inspector"');
 
   const assignmentsMarkup = renderSetPiecesWorkspace({

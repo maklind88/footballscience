@@ -671,7 +671,13 @@
   width: 36px;
   min-width: 36px;
   min-height: 66px;
+  padding: 0;
   font-size: 1rem;
+}
+
+.spr-add-phase .spr-tool-icon {
+  display: block;
+  line-height: 0;
 }
 
 .spr-inspector-section {

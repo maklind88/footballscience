@@ -280,7 +280,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDele
           <span><b>${String(index + 1).padStart(2, "0")}</b><i data-set-piece-phase-title="${escapeSetPieceHtml(item.id)}">${escapeSetPieceHtml(item.title)}</i></span>
           ${item.cue ? `<em>${escapeSetPieceHtml(item.cue)}</em>` : ""}
         </button>`).join("")}
-        ${ui.presentationMode ? "" : `<button type="button" class="spr-add-phase" data-set-piece-action="add-phase" title="Duplicate current phase" aria-label="Duplicate current phase" ${canEdit ? "" : "disabled"}>＋</button>`}
+        ${ui.presentationMode ? "" : `<button type="button" class="spr-add-phase" data-set-piece-action="add-phase" title="Duplicate current phase" aria-label="Duplicate current phase" ${canEdit ? "" : "disabled"}><span class="spr-tool-icon" aria-hidden="true">${renderSetPieceToolIcon("plus")}</span></button>`}
       </div>
     </div>
     ${renderSetPiecePlayback(variant, phase, ui)}

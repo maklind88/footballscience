@@ -915,6 +915,17 @@ test("Set Pieces Room keeps its editor usable on a narrow touch viewport", async
   await page.getByRole("button", { name: "Toggle details" }).click();
   await expect(page.locator(".spr-inspector")).toBeVisible();
   const addPhase = page.getByRole("button", { name: "Duplicate current phase" });
+  const plusAlignment = await addPhase.evaluate((button) => {
+    const buttonRect = button.getBoundingClientRect();
+    const iconRect = button.querySelector("svg")?.getBoundingClientRect();
+    return iconRect ? {
+      x: (buttonRect.left + buttonRect.width / 2) - (iconRect.left + iconRect.width / 2),
+      y: (buttonRect.top + buttonRect.height / 2) - (iconRect.top + iconRect.height / 2),
+    } : null;
+  });
+  expect(plusAlignment).not.toBeNull();
+  expect(Math.abs(plusAlignment.x)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(plusAlignment.y)).toBeLessThanOrEqual(0.5);
   for (let index = 0; index < 6; index += 1) await addPhase.click();
   await expect(page.locator("[data-set-piece-phase-id]")).toHaveCount(7);
   await expect(page.locator(".spr-phase-card small")).toHaveCount(0);

@@ -570,6 +570,7 @@
 .spr-play-button {
   width: 38px;
   height: 34px;
+  padding: 0;
   color: #fff !important;
   border-color: #1b6047;
   background: #1b6047;

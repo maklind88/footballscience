@@ -900,6 +900,18 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
   await expect(shell.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
   await shell.getByRole("button", { name: "Pause", exact: true }).click();
 
+  const playAlignment = await shell.locator(".spr-play-button").evaluate((button) => {
+    const icon = button.querySelector("svg");
+    const buttonBounds = button.getBoundingClientRect();
+    const iconBounds = icon.getBoundingClientRect();
+    return {
+      x: Math.abs((buttonBounds.left + buttonBounds.width / 2) - (iconBounds.left + iconBounds.width / 2)),
+      y: Math.abs((buttonBounds.top + buttonBounds.height / 2) - (iconBounds.top + iconBounds.height / 2)),
+    };
+  });
+  expect(playAlignment.x).toBeLessThanOrEqual(1.1);
+  expect(playAlignment.y).toBeLessThanOrEqual(0.1);
+
   const readLayout = () => page.evaluate(() => {
     const rect = (selector) => {
       const bounds = document.querySelector(selector)?.getBoundingClientRect();

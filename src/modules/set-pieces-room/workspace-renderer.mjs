@@ -214,7 +214,7 @@ function renderVariantBar(play = null, variant = null, ui = {}, canEdit = false)
   </div>`;
 }
 
-function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
+function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDelete) {
   if (!play || !variant || !phase) {
     return `<main class="spr-canvas-empty"><button type="button" class="spr-primary-empty-action" data-set-piece-action="new-play">Create set piece</button></main>`;
   }
@@ -222,6 +222,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
   const previousPhase = phaseIndex > 0 ? variant.phases[phaseIndex - 1] : null;
   const resolvedPhase = resolveSetPiecePhaseAssignments(phase, play, variant, roster);
   const resolvedPreviousPhase = previousPhase ? resolveSetPiecePhaseAssignments(previousPhase, play, variant, roster) : null;
+  const hasSelection = Boolean(ui.selectedElementIds?.size || ui.selectedDrawingId);
   return `<main class="spr-editor">
     <div class="spr-editor-command-bar">
       ${renderVariantBar(play, variant, ui, canEdit)}
@@ -233,6 +234,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
         <div class="spr-history-actions">
           <button type="button" class="spr-icon-button" data-set-piece-action="undo" title="Undo" aria-label="Undo" ${ui.canUndo ? "" : "disabled"}>↶</button>
           <button type="button" class="spr-icon-button" data-set-piece-action="redo" title="Redo" aria-label="Redo" ${ui.canRedo ? "" : "disabled"}>↷</button>
+          ${hasSelection && ui.inspectorCollapsed ? `<button type="button" class="spr-icon-button is-danger spr-delete-selection-command" data-set-piece-action="delete-selection" title="Delete selected (Delete)" aria-label="Delete selected" aria-keyshortcuts="Delete Backspace" ${canDelete ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("trash")}</span></button>` : ""}
           <button type="button" class="spr-icon-button ${!ui.inspectorCollapsed ? "is-active" : ""}" data-set-piece-action="toggle-inspector" title="Toggle details" aria-label="Toggle details" aria-pressed="${Boolean(!ui.inspectorCollapsed)}">≡</button>
         </div>
       </div>`}
@@ -299,7 +301,7 @@ function renderElementInspector(element, play, variant, roster, ui, canEdit, can
   const isOpponent = element.kind === "opponent";
   const assignment = isHome ? getSetPieceAssignment(play, variant, element.id) : null;
   return `<div class="spr-inspector-section">
-    <div class="spr-inspector-title"><div><p>${isHome ? "Selected role" : "Selected object"}</p><strong>${escapeSetPieceHtml(isHome ? assignment.role : element.kind === "opponent" ? `Opponent ${element.label}` : "Ball")}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canDelete ? "" : "disabled"}>⌫</button>${renderInspectorCloseButton()}</div></div>
+    <div class="spr-inspector-title"><div><p>${isHome ? "Selected role" : "Selected object"}</p><strong>${escapeSetPieceHtml(isHome ? assignment.role : element.kind === "opponent" ? `Opponent ${element.label}` : "Ball")}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete selected (Delete)" aria-label="Delete selected" aria-keyshortcuts="Delete Backspace" ${canDelete ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("trash")}</span></button>${renderInspectorCloseButton()}</div></div>
     ${isHome ? renderAssignmentPicker(element.id, play, variant, roster, ui, canEdit) : ""}
     ${isHome ? renderField("Tactical role", "role", assignment.role, { scope: "set-piece-element", disabled: !canEdit }) : ""}
     ${isOpponent ? renderField("Number", "label", element.label || "1", { type: "number", min: 1, max: 99, scope: "set-piece-element", disabled: !canEdit }) : ""}
@@ -320,7 +322,7 @@ function renderDrawingInspector(drawing, phase, canEdit, canDelete) {
     ${actors.map((actor) => `<option value="${escapeSetPieceHtml(actor.id)}" ${actor.id === drawing.actorId ? "selected" : ""}>${escapeSetPieceHtml(getSetPieceDrawingActorLabel(actor))}</option>`).join("")}
   </select><small>The route follows this player or the ball during playback.</small></label>` : "";
   return `<div class="spr-inspector-section">
-    <div class="spr-inspector-title"><div><p>Movement</p><strong>${escapeSetPieceHtml(drawing.type)}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete" aria-label="Delete" ${canDelete ? "" : "disabled"}>⌫</button>${renderInspectorCloseButton()}</div></div>
+    <div class="spr-inspector-title"><div><p>Movement</p><strong>${escapeSetPieceHtml(drawing.type)}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete selected (Delete)" aria-label="Delete selected" aria-keyshortcuts="Delete Backspace" ${canDelete ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("trash")}</span></button>${renderInspectorCloseButton()}</div></div>
     ${actorField}
     ${renderField("Label", "label", drawing.label, { scope: "set-piece-drawing", disabled: !canEdit })}
     ${drawing.type !== "zone" ? renderField("Curve", "curve", drawing.curve, { type: "range", min: -36, max: 36, scope: "set-piece-drawing", disabled: !canEdit }) : ""}
@@ -413,7 +415,7 @@ export function renderSetPiecesWorkspace(options = {}) {
     ${ui.notice ? `<div class="spr-notice is-${escapeSetPieceHtml(ui.notice.tone || "warning")}" role="status"><span>${escapeSetPieceHtml(ui.notice.message)}</span><button type="button" data-set-piece-action="dismiss-notice" aria-label="Dismiss message" title="Dismiss">×</button></div>` : ""}
     ${renderOnboarding(ui)}
     <div class="spr-layout">
-      ${renderBoardWorkspace(play, variant, phase, roster, ui, canEdit)}
+      ${renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDelete)}
       ${renderInspector(play, variant, phase, roster, ui, canEdit, canDelete)}
     </div>
   </section>`;

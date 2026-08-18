@@ -247,6 +247,26 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
 
   await page.locator("[data-set-piece-player-picker] summary").click();
   await page.getByRole("menuitem", { name: "Add Alex Example" }).click();
+  const selectedPlayer = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
+  await selectedPlayer.click();
+  const deleteSelected = page.getByRole("button", { name: "Delete selected" });
+  await expect(deleteSelected).toBeVisible();
+  await deleteSelected.click();
+  await expect(selectedPlayer).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(selectedPlayer).toHaveCount(1);
+  await selectedPlayer.click();
+  await page.keyboard.press("Delete");
+  await expect(selectedPlayer).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(selectedPlayer).toHaveCount(1);
+  await selectedPlayer.click();
+  await page.getByRole("textbox", { name: "Set piece" }).press("Backspace");
+  await expect(selectedPlayer).toHaveCount(1);
+  await page.getByRole("button", { name: "Close details" }).click();
+  await expect(deleteSelected).toBeVisible();
+  box = await pitch.boundingBox();
+  expect(box).not.toBeNull();
   await page.getByRole("button", { name: "Opponent" }).click();
   await page.mouse.click(box.x + box.width * 0.55, box.y + box.height * 0.4);
   const opponentNumber = page.getByRole("spinbutton", { name: "Number" });

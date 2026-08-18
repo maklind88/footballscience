@@ -745,7 +745,8 @@ test("Set Pieces Room keeps its editor usable on a narrow touch viewport", async
   const addPhase = page.getByRole("button", { name: "Duplicate current phase" });
   for (let index = 0; index < 6; index += 1) await addPhase.click();
   await expect(page.locator("[data-set-piece-phase-id]")).toHaveCount(7);
-  await expect(page.locator(".spr-phase-card.is-active small")).toHaveText("1.4s");
+  await expect(page.locator(".spr-phase-card small")).toHaveCount(0);
+  await expect(page.locator(".spr-phase-card.is-active")).not.toHaveAccessibleName(/1\.4s/);
   const activePhaseMetrics = await page.evaluate(() => {
     const strip = document.querySelector(".spr-phase-strip")?.getBoundingClientRect();
     const active = document.querySelector(".spr-phase-card.is-active")?.getBoundingClientRect();

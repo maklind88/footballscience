@@ -265,9 +265,9 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDele
     </div>
     <div class="spr-timeline" aria-label="Phase timeline">
       <div class="spr-phase-strip">
-        ${variant.phases.map((item, index) => `<button type="button" class="spr-phase-card ${item.id === phase.id ? "is-active" : ""}" data-set-piece-phase-id="${escapeSetPieceHtml(item.id)}" aria-label="Phase ${index + 1}, ${escapeSetPieceHtml(item.title)}, ${formatSetPieceSeconds(item.durationMs)}${item.cue ? `, ${escapeSetPieceHtml(item.cue)}` : ""}">
+        ${variant.phases.map((item, index) => `<button type="button" class="spr-phase-card ${item.id === phase.id ? "is-active" : ""}" data-set-piece-phase-id="${escapeSetPieceHtml(item.id)}" aria-label="Phase ${index + 1}, ${escapeSetPieceHtml(item.title)}${item.cue ? `, ${escapeSetPieceHtml(item.cue)}` : ""}">
           ${renderSetPiecePhaseThumbnail(resolveSetPiecePhaseAssignments(item, play, variant, roster), play.pitchView)}
-          <span><b>${String(index + 1).padStart(2, "0")}</b><i data-set-piece-phase-title="${escapeSetPieceHtml(item.id)}">${escapeSetPieceHtml(item.title)}</i><small>${formatSetPieceSeconds(item.durationMs)}</small></span>
+          <span><b>${String(index + 1).padStart(2, "0")}</b><i data-set-piece-phase-title="${escapeSetPieceHtml(item.id)}">${escapeSetPieceHtml(item.title)}</i></span>
           ${item.cue ? `<em>${escapeSetPieceHtml(item.cue)}</em>` : ""}
         </button>`).join("")}
         ${ui.presentationMode ? "" : `<button type="button" class="spr-add-phase" data-set-piece-action="add-phase" title="Duplicate current phase" aria-label="Duplicate current phase" ${canEdit ? "" : "disabled"}>＋</button>`}

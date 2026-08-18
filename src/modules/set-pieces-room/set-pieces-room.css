@@ -640,13 +640,6 @@
   font-size: .6rem;
 }
 
-.spr-phase-card span small {
-  margin-left: auto;
-  color: var(--spr-muted);
-  font-size: .58rem;
-  font-variant-numeric: tabular-nums;
-}
-
 .spr-phase-card > em {
   min-width: 0;
   overflow: hidden;

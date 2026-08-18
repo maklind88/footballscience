@@ -568,7 +568,7 @@ body.is-dark-mode .spr-onboarding-close {
   min-width: 0;
   width: 100%;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: .28rem;
 }
@@ -583,12 +583,6 @@ body.is-dark-mode .spr-onboarding-close {
   font-size: .65rem;
   font-weight: 730;
   white-space: nowrap;
-}
-
-.spr-shell.is-editing .spr-phase-card small {
-  color: var(--spr-muted);
-  font-size: .56rem;
-  font-variant-numeric: tabular-nums;
 }
 
 .spr-shell.is-editing .spr-add-phase {

@@ -602,6 +602,13 @@ export function createSetPiecesRoomController(options = {}) {
     });
   }
 
+  function filterPlayerPickerOptions(value = "") {
+    const query = String(value).trim().toLowerCase();
+    root.querySelectorAll?.("[data-set-piece-roster-toggle]").forEach((button) => {
+      button.hidden = Boolean(query) && !String(button.textContent || "").toLowerCase().includes(query);
+    });
+  }
+
   function handleClick(event) {
     const action = event.target.closest?.("[data-set-piece-action]")?.dataset.setPieceAction;
     if (action) return handleAction(action);
@@ -620,8 +627,24 @@ export function createSetPiecesRoomController(options = {}) {
     );
     const assignmentSlotId = event.target.closest?.("[data-set-piece-select-slot]")?.dataset.setPieceSelectSlot;
     if (assignmentSlotId) return assignmentController.selectSlot(assignmentSlotId);
-    const rosterId = event.target.closest?.("[data-set-piece-roster-toggle]")?.dataset.setPieceRosterToggle;
-    if (rosterId) return boardInteractions.toggleRosterPlayer(rosterId);
+    const rosterTarget = event.target.closest?.("[data-set-piece-roster-toggle]");
+    const rosterId = rosterTarget?.dataset.setPieceRosterToggle;
+    if (rosterId) {
+      const searchQuery = root.querySelector?.("[data-set-piece-player-search]")?.value || "";
+      const scrollTop = rosterTarget.closest?.(".spr-player-menu-list")?.scrollTop || 0;
+      const result = boardInteractions.toggleRosterPlayer(rosterId);
+      const picker = root.querySelector?.("[data-set-piece-player-picker]");
+      if (picker) {
+        picker.open = true;
+        const search = picker.querySelector?.("[data-set-piece-player-search]");
+        if (search) search.value = searchQuery;
+        filterPlayerPickerOptions(searchQuery);
+        const list = picker.querySelector?.(".spr-player-menu-list");
+        if (list) list.scrollTop = scrollTop;
+        picker.querySelector?.(`[data-set-piece-roster-toggle="${CSS.escape(rosterId)}"]`)?.focus?.();
+      }
+      return result;
+    }
     const tool = event.target.closest?.("[data-set-piece-tool]")?.dataset.setPieceTool;
     if (tool) {
       if (tool === "home-player") {
@@ -652,10 +675,7 @@ export function createSetPiecesRoomController(options = {}) {
       return;
     }
     if (target.matches?.("[data-set-piece-player-search]")) {
-      const query = String(target.value || "").trim().toLowerCase();
-      root.querySelectorAll?.("[data-set-piece-roster-toggle]").forEach((button) => {
-        button.hidden = Boolean(query) && !String(button.textContent || "").toLowerCase().includes(query);
-      });
+      filterPlayerPickerOptions(target.value);
       return;
     }
     if (target.matches?.("[data-set-piece-scrubber]")) {

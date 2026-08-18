@@ -292,6 +292,10 @@
   overflow: auto;
 }
 
+.spr-present-cues-summary {
+  display: none;
+}
+
 .spr-present-phase-heading {
   display: flex;
   align-items: center;

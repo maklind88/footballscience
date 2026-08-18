@@ -603,6 +603,89 @@ test("Set Pieces presentation stays composed on landscape and portrait tablets",
   await expect(shell.locator(".spr-present-phase-card")).toHaveCount(2);
 });
 
+test("Set Pieces native fullscreen prioritizes the pitch without distorting it", async ({ page }) => {
+  await page.setViewportSize({ width: 1470, height: 772 });
+  await page.addInitScript(() => {
+    window.localStorage.removeItem("football-set-pieces-room-v1");
+  });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await openSetPiecesRoom(page);
+  await page.getByRole("button", { name: "Create set piece" }).click();
+  await page.getByRole("button", { name: "Duplicate current phase" }).click();
+  await page.getByRole("button", { name: "Present", exact: true }).click();
+
+  const shell = page.locator("[data-set-pieces-room]");
+  if (await page.evaluate(() => document.fullscreenEnabled)) {
+    await shell.getByRole("button", { name: "Enter fullscreen" }).click();
+    await expect(shell).toHaveClass(/is-native-fullscreen/);
+  } else {
+    await shell.evaluate((element) => element.classList.add("is-native-fullscreen"));
+    await shell.locator(".spr-present-cues").evaluate((element) => element.removeAttribute("open"));
+  }
+
+  const readLayout = () => page.evaluate(() => {
+    const rect = (selector) => {
+      const bounds = document.querySelector(selector)?.getBoundingClientRect();
+      return bounds ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height, right: bounds.right, bottom: bounds.bottom } : null;
+    };
+    return {
+      viewport: { width: innerWidth, height: innerHeight },
+      header: rect(".spr-present-header"),
+      body: rect(".spr-present-body"),
+      stage: rect(".spr-present-stage"),
+      board: rect(".spr-present-board-frame"),
+      cues: rect(".spr-present-cues"),
+      strip: rect(".spr-present-phase-strip"),
+      playback: rect(".is-present-playback"),
+      overflow: {
+        width: document.documentElement.scrollWidth - innerWidth,
+        height: document.documentElement.scrollHeight - innerHeight,
+      },
+    };
+  });
+
+  const compact = await readLayout();
+  expect(compact.header.height).toBeLessThanOrEqual(53);
+  expect(compact.body.width).toBeGreaterThanOrEqual(compact.viewport.width - 1);
+  expect(compact.stage.width).toBeGreaterThanOrEqual(compact.viewport.width - 1);
+  expect(compact.strip.y).toBeCloseTo(compact.playback.y, 0);
+  expect(compact.strip.height).toBeLessThanOrEqual(63);
+  expect(compact.playback.height).toBeLessThanOrEqual(63);
+  expect(compact.board.height).toBeGreaterThanOrEqual(compact.body.height - 14);
+  expect(compact.board.width / compact.board.height).toBeCloseTo(68 / 52.5, 2);
+  expect(compact.cues.height).toBeLessThanOrEqual(44);
+  expect(compact.overflow.width).toBeLessThanOrEqual(0);
+  expect(compact.overflow.height).toBeLessThanOrEqual(0);
+
+  await shell.locator(".spr-present-cues-summary").click();
+  await expect(shell.locator(".spr-present-cues")).toHaveAttribute("open", "");
+  const expanded = await readLayout();
+  expect(expanded.board.width).toBeCloseTo(compact.board.width, 0);
+  expect(expanded.board.height).toBeCloseTo(compact.board.height, 0);
+  expect(expanded.cues.height).toBeGreaterThan(compact.cues.height);
+
+  if (await page.evaluate(() => document.fullscreenElement !== null)) {
+    await shell.getByRole("button", { name: "Exit fullscreen" }).click();
+    await expect(shell).not.toHaveClass(/is-native-fullscreen/);
+  } else {
+    await shell.evaluate((element) => element.classList.remove("is-native-fullscreen"));
+  }
+  await page.setViewportSize({ width: 820, height: 1180 });
+  if (await page.evaluate(() => document.fullscreenEnabled)) {
+    await shell.getByRole("button", { name: "Enter fullscreen" }).click();
+    await expect(shell).toHaveClass(/is-native-fullscreen/);
+  } else {
+    await shell.evaluate((element) => element.classList.add("is-native-fullscreen"));
+    await shell.locator(".spr-present-cues").evaluate((element) => element.removeAttribute("open"));
+  }
+  const portrait = await readLayout();
+  expect(portrait.board.width / portrait.board.height).toBeCloseTo(68 / 52.5, 2);
+  expect(portrait.board.width).toBeGreaterThanOrEqual(portrait.viewport.width - 18);
+  expect(portrait.overflow.width).toBeLessThanOrEqual(0);
+  expect(portrait.overflow.height).toBeLessThanOrEqual(0);
+});
+
 test("Set Pieces Room keeps its editor usable on a narrow touch viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {

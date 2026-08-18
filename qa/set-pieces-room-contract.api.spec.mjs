@@ -674,6 +674,23 @@ test("presentation workspace exposes an immersive tactical stage with coaching c
   expect(markup).toContain('data-set-piece-present-variant');
   expect(markup).toContain("is-present-playback");
   expect(markup).toContain("spr-present-phase-card is-active");
+  expect(markup).toContain('<details class="spr-present-cues" role="complementary" aria-label="Phase coaching notes" open>');
+  expect(markup).toContain('class="spr-present-cues-summary"');
+
+  const fullscreenMarkup = renderSetPiecesPresentationWorkspace({
+    play,
+    variant,
+    phase,
+    ui: {
+      fullscreenAvailable: true,
+      nativeFullscreen: true,
+      layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
+      playbackSpeed: 1,
+      playbackProgress: 0,
+    },
+  });
+  expect(fullscreenMarkup).toContain('<details class="spr-present-cues" role="complementary" aria-label="Phase coaching notes" >');
+  expect(fullscreenMarkup).not.toContain('aria-label="Phase coaching notes" open>');
 });
 
 test("board instances own unique marker, pattern, and avatar clip ids", () => {

@@ -7,6 +7,7 @@ function renderPresentIcon(name) {
     fullscreen: '<path d="M7 3H3v4M17 3h4v4M7 21H3v-4M17 21h4v-4"/>',
     minimize: '<path d="M8 3v5H3M16 3v5h5M8 21v-5H3M16 21v-5h5"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
+    chevron: '<path d="m8 10 4 4 4-4"/>',
   };
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.fullscreen}</svg>`;
 }
@@ -69,12 +70,18 @@ export function renderSetPiecesPresentationWorkspace(options = {}) {
           })}
         </div>
       </section>
-      <aside class="spr-present-cues" aria-label="Phase coaching notes">
-        <div class="spr-present-phase-heading"><span>Phase ${String(phaseIndex + 1).padStart(2, "0")} / ${String(variant.phases.length).padStart(2, "0")}</span><small>${formatSetPieceSeconds(phase.durationMs)}</small></div>
-        <h2>${escapeSetPieceHtml(phase.title)}</h2>
-        ${coachingPoints.length ? `<ol>${coachingPoints.map((point) => `<li>${escapeSetPieceHtml(point)}</li>`).join("")}</ol>` : '<p class="spr-present-empty-cue">No coaching cue for this phase.</p>'}
-        ${nextPhase ? `<div class="spr-present-next"><span>Next</span><strong>${escapeSetPieceHtml(nextPhase.title)}</strong></div>` : '<div class="spr-present-next is-last"><span>Final phase</span><strong>Reset or replay</strong></div>'}
-      </aside>
+      <details class="spr-present-cues" role="complementary" aria-label="Phase coaching notes" ${ui.nativeFullscreen ? "" : "open"}>
+        <summary class="spr-present-cues-summary">
+          <span><small>Phase ${String(phaseIndex + 1).padStart(2, "0")} / ${String(variant.phases.length).padStart(2, "0")}</small><strong>${escapeSetPieceHtml(phase.title)}</strong></span>
+          ${renderPresentIcon("chevron")}
+        </summary>
+        <div class="spr-present-cues-content">
+          <div class="spr-present-phase-heading"><span>Phase ${String(phaseIndex + 1).padStart(2, "0")} / ${String(variant.phases.length).padStart(2, "0")}</span><small>${formatSetPieceSeconds(phase.durationMs)}</small></div>
+          <h2>${escapeSetPieceHtml(phase.title)}</h2>
+          ${coachingPoints.length ? `<ol>${coachingPoints.map((point) => `<li>${escapeSetPieceHtml(point)}</li>`).join("")}</ol>` : '<p class="spr-present-empty-cue">No coaching cue for this phase.</p>'}
+          ${nextPhase ? `<div class="spr-present-next"><span>Next</span><strong>${escapeSetPieceHtml(nextPhase.title)}</strong></div>` : '<div class="spr-present-next is-last"><span>Final phase</span><strong>Reset or replay</strong></div>'}
+        </div>
+      </details>
     </div>
     ${renderPresentPhaseStrip(play, variant, roster)}
     ${renderSetPiecePlayback(variant, phase, ui, { presentation: true })}

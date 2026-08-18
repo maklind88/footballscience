@@ -1,0 +1,176 @@
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-workspace {
+  grid-template-columns: minmax(260px, .7fr) minmax(480px, 1.3fr);
+  grid-template-rows: 52px minmax(0, 1fr) 62px;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-header,
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-body {
+  grid-column: 1 / -1;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-header {
+  grid-template-columns: minmax(150px, 230px) minmax(140px, 1fr) 132px auto;
+  gap: .65rem;
+  padding: .3rem .65rem;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-team .spr-header-team-mark {
+  width: 34px;
+  height: 34px;
+  flex-basis: 34px;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-actions button {
+  min-height: 34px;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-body {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-stage {
+  padding: .35rem .5rem;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-board-frame {
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues {
+  position: absolute;
+  z-index: 3;
+  top: .55rem;
+  right: .55rem;
+  width: clamp(176px, 13vw, 216px);
+  min-height: 0;
+  max-height: calc(100% - 1.1rem);
+  padding: 0;
+  border: 1px solid #ffffff2b;
+  border-radius: 6px;
+  background: #141c18f2;
+  box-shadow: 0 14px 34px #0007;
+  overflow: auto;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues-summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+  padding: .48rem .58rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues-summary::-webkit-details-marker {
+  display: none;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues-summary > span {
+  min-width: 0;
+  display: grid;
+  gap: .08rem;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues-summary small {
+  color: var(--spr-present-warm);
+  font-size: .52rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues-summary strong {
+  overflow: hidden;
+  font-size: .7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues-summary svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  transition: transform 160ms ease;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues[open] .spr-present-cues-summary {
+  border-bottom: 1px solid var(--spr-present-line);
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues[open] .spr-present-cues-summary svg {
+  transform: rotate(180deg);
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues-content {
+  padding: .65rem .7rem .75rem;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues h2 {
+  margin: .38rem 0 .65rem;
+  font-size: .94rem;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues ol {
+  gap: .42rem;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-cues li {
+  grid-template-columns: 19px minmax(0, 1fr);
+  gap: .35rem;
+  font-size: .67rem;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-next {
+  margin-top: .8rem;
+  padding-top: .6rem;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-phase-strip {
+  grid-column: 1;
+  grid-row: 3;
+  gap: .32rem;
+  padding: .3rem .55rem;
+  border-right: 1px solid var(--spr-present-line);
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-phase-card {
+  width: 118px;
+  min-width: 118px;
+  height: 50px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: .35rem;
+  padding: .24rem;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .spr-present-phase-card > svg {
+  width: 38px;
+  height: 38px;
+}
+
+.spr-shell.is-presenting.is-native-fullscreen .is-present-playback {
+  grid-column: 2;
+  grid-row: 3;
+  min-width: 0;
+  min-height: 62px;
+  padding: .3rem .55rem;
+  border-top: 1px solid var(--spr-present-line);
+  border-bottom: 0;
+}
+
+@media (max-aspect-ratio: 1 / 1) and (min-width: 700px) {
+  .spr-shell.is-presenting.is-native-fullscreen .spr-present-board-frame {
+    width: 100%;
+    height: auto;
+  }
+}

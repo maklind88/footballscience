@@ -209,7 +209,12 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
     window.localStorage.setItem("football-player-profiles-v1", JSON.stringify({
       schemaVersion: 3,
       players: [
-        { id: "player-alex", name: "Alex Example", position: "Forward" },
+        {
+          id: "player-alex",
+          name: "Alex Example",
+          position: "Forward",
+          photoUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZzrIAAAAASUVORK5CYII=",
+        },
         { id: "player-beth", name: "Beth Miller", position: "Midfielder" },
       ],
     }));
@@ -248,6 +253,11 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.locator("[data-set-piece-player-picker] summary").click();
   await page.getByRole("menuitem", { name: "Add Alex Example" }).click();
   const selectedPlayer = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
+  await expect(selectedPlayer.locator(".spr-home-avatar-photo")).toHaveCount(1);
+  await expect(selectedPlayer.locator(".spr-home-initials")).toHaveText("AE");
+  const avatarBox = await selectedPlayer.locator(".spr-home-avatar-frame").boundingBox();
+  expect(avatarBox).not.toBeNull();
+  expect(avatarBox.width).toBeLessThan(box.width * 0.07);
   await selectedPlayer.click();
   const deleteSelected = page.getByRole("button", { name: "Delete selected" });
   await expect(deleteSelected).toBeVisible();
@@ -305,6 +315,10 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.locator("[data-set-piece-player-picker] summary").click();
   await page.getByRole("menuitem", { name: "Add Beth Miller" }).click();
   await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveCount(2);
+  const bethMarker = page.getByRole("button", { name: /Own player Beth Miller/ });
+  await expect(bethMarker.locator(".spr-home-avatar-photo")).toHaveCount(0);
+  await expect(bethMarker.locator(".spr-home-avatar.is-fallback")).toHaveCount(1);
+  await expect(bethMarker.locator(".spr-home-initials")).toHaveText("BM");
   await page.locator("[data-set-piece-phase-id]").first().click();
   await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveCount(2);
   await page.locator("[data-set-piece-phase-id]").nth(1).click();

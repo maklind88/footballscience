@@ -16,6 +16,7 @@ import { createSetPieceAssignmentController } from "../src/modules/set-pieces-ro
 import { getSetPieceAssignment, resolveSetPiecePhaseAssignments } from "../src/modules/set-pieces-room/assignments.mjs";
 import {
   createSetPiecePlayerLabelMap,
+  getSetPiecePlayerPhotoUrl,
   getSetPieceRosterPlayers,
 } from "../src/modules/set-pieces-room/player-labels.mjs";
 import { createSetPiecesPersistence } from "../src/modules/set-pieces-room/persistence.mjs";
@@ -327,7 +328,7 @@ test("player assignment swaps stay separate from tactical roles and variant over
   ))).toBe(true);
 });
 
-test("resolved phases display assigned player initials without changing geometry", () => {
+test("resolved phases display current player identity without changing saved geometry", () => {
   const play = createSetPiecePlay();
   const phase = play.variants[0].phases[0];
   phase.elements.push({ id: "slot-a", kind: "home-player", x: 72, y: 18, profileId: "player-a", label: "OLD", role: "Taker" });
@@ -335,11 +336,28 @@ test("resolved phases display assigned player initials without changing geometry
   const normalizedPlay = state.plays[0];
   const variant = normalizedPlay.variants[0];
   const resolved = resolveSetPiecePhaseAssignments(variant.phases[0], normalizedPlay, variant, [
-    { id: "player-a", player: { id: "player-a", name: "Alex Morgan" } },
+    { id: "player-a", player: { id: "player-a", name: "Alex Morgan", photoUrl: "https://images.example/alex.png" } },
   ]);
 
-  expect(resolved.elements[0]).toMatchObject({ x: 72, y: 18, profileId: "player-a", label: "AM", role: "Taker" });
+  expect(resolved.elements[0]).toMatchObject({
+    x: 72,
+    y: 18,
+    profileId: "player-a",
+    playerName: "Alex Morgan",
+    photoUrl: "https://images.example/alex.png",
+    label: "AM",
+    role: "Taker",
+  });
   expect(variant.phases[0].elements[0].label).toBe("OLD");
+  expect(variant.phases[0].elements[0].photoUrl).toBeUndefined();
+});
+
+test("player photos only accept image-safe URL schemes", () => {
+  expect(getSetPiecePlayerPhotoUrl({ photoUrl: "https://images.example/player.webp" })).toBe("https://images.example/player.webp");
+  expect(getSetPiecePlayerPhotoUrl({ photoUrl: "/uploads/player.png" })).toBe("/uploads/player.png");
+  expect(getSetPiecePlayerPhotoUrl({ photoUrl: "data:image/png;base64,AAAA" })).toBe("data:image/png;base64,AAAA");
+  expect(getSetPiecePlayerPhotoUrl({ photoUrl: "javascript:alert(1)" })).toBe("");
+  expect(getSetPiecePlayerPhotoUrl({ photoUrl: "data:image/svg+xml,<svg onload=alert(1)>" })).toBe("");
 });
 
 test("normalization clamps unsafe geometry and timing values", () => {
@@ -527,7 +545,7 @@ test("board renderer distinguishes own initials, opponent numbers and movement s
   const markup = renderSetPieceBoard({
     phase: {
       elements: [
-        { id: "home-a", kind: "home-player", x: 70, y: 18, label: "AE", rotation: 0 },
+        { id: "home-a", kind: "home-player", x: 70, y: 18, label: "AE", playerName: "Alex Example", photoUrl: "https://images.example/alex.png", rotation: 0 },
         { id: "opponent-a", kind: "opponent", x: 76, y: 20, label: "4", rotation: 0 },
       ],
       drawings: [{ id: "run-a", type: "run", startX: 70, startY: 18, endX: 88, endY: 28, curve: 8 }],
@@ -538,6 +556,9 @@ test("board renderer distinguishes own initials, opponent numbers and movement s
   });
 
   expect(markup).toContain("is-home-player");
+  expect(markup).toContain('class="spr-home-avatar-photo"');
+  expect(markup).toContain('href="https://images.example/alex.png"');
+  expect(markup).toContain('class="spr-home-initials"');
   expect(markup).toContain(">AE</text>");
   expect(markup).toContain("is-opponent");
   expect(markup).toContain(">4</text>");
@@ -595,7 +616,7 @@ test("presentation workspace exposes an immersive tactical stage with coaching c
   expect(markup).toContain("spr-present-phase-card is-active");
 });
 
-test("board instances own unique arrow and pitch pattern ids", () => {
+test("board instances own unique marker, pattern, and avatar clip ids", () => {
   const phase = {
     elements: [],
     drawings: [{ id: "run-a", type: "run", startX: 70, startY: 18, endX: 88, endY: 28 }],
@@ -606,8 +627,11 @@ test("board instances own unique arrow and pitch pattern ids", () => {
   expect(first).toContain('id="workspace-board-arrow-run"');
   expect(first).toContain('marker-end="url(#workspace-board-arrow-run)"');
   expect(first).toContain('fill="url(#workspace-board-pitch-pattern)"');
+  expect(first).toContain('id="workspace-board-home-avatar-clip"');
   expect(second).toContain('id="meeting-board-arrow-run"');
+  expect(second).toContain('id="meeting-board-home-avatar-clip"');
   expect(second).not.toContain("workspace-board-arrow-run");
+  expect(second).not.toContain("workspace-board-home-avatar-clip");
 });
 
 test("presentation adapter links a variant while resolving current squad assignments", () => {

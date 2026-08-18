@@ -55,6 +55,40 @@
   vector-effect: non-scaling-stroke;
 }
 
+.spr-home-avatar-frame {
+  fill: #edf4f1;
+  stroke: #fff;
+  stroke-width: .34;
+  vector-effect: non-scaling-stroke;
+}
+
+.spr-home-avatar-fallback {
+  fill: #153d64;
+}
+
+.spr-home-avatar-fallback-symbol {
+  fill: #eaf1f5;
+  opacity: .9;
+  pointer-events: none;
+}
+
+.spr-home-avatar-photo {
+  pointer-events: none;
+}
+
+.spr-home-initials-bg {
+  fill: #102f4d;
+  stroke: #f7fbff;
+  stroke-width: .28;
+  vector-effect: non-scaling-stroke;
+}
+
+.spr-board-element .spr-home-initials {
+  fill: #fff;
+  font-size: 1.2px;
+  font-weight: 820;
+}
+
 .spr-opponent-token {
   fill: #f8f6ef;
   stroke: #a93842;

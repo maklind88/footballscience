@@ -37,6 +37,16 @@ export function getSetPiecePlayerInitials(player = {}) {
   return `${words[0][0] || ""}${words.length > 1 ? words.at(-1)?.[0] || "" : ""}`.toUpperCase();
 }
 
+export function getSetPiecePlayerPhotoUrl(player = {}) {
+  const value = String(
+    player.photoUrl || player.photo_url || player.imageUrl || player.image_url || player.profileImageUrl || player.profile_image_url || ""
+  ).trim();
+  if (/^https?:\/\/[^\s]+$/i.test(value)) return value;
+  if (/^\/(?!\/)[^\s]*$/.test(value)) return value;
+  if (/^data:image\/(?:png|jpe?g|webp|gif|avif);base64,[a-z0-9+/=]+$/i.test(value)) return value;
+  return "";
+}
+
 function getLabelCandidates(player = {}) {
   const words = getSetPiecePlayerName(player).split(/\s+/).filter(Boolean);
   const first = words[0] || "Player";

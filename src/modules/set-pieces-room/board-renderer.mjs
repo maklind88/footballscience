@@ -49,7 +49,7 @@ function renderElement(element = {}, options = {}) {
     .join(" ");
   const transform = getSetPieceElementTransform(element, options.halfPitch ? "attacking-half" : "full");
   const labels = {
-    "home-player": `Own player ${element.label || "P"}${element.role ? `, ${element.role}` : ""}`,
+    "home-player": `Own player ${element.playerName || element.label || "P"}${element.role ? `, ${element.role}` : ""}`,
     opponent: `Opponent ${element.showNumber === false ? "" : element.label || ""}`.trim(),
     ball: "Ball",
   };
@@ -74,11 +74,20 @@ function renderElement(element = {}, options = {}) {
       ${selected ? '<circle r="3.35" class="spr-selection-ring"></circle>' : ""}
     </g>`;
   }
+  const photoUrl = String(element.photoUrl || "").trim();
+  const avatarClipId = `${options.markerPrefix || "spr-board"}-home-avatar-clip`;
   return `<g ${common}>
-    <rect x="-4" y="-4" width="8" height="8" rx="2.65" class="spr-element-hit"></rect>
-    <rect x="-2.85" y="-2.85" width="5.7" height="5.7" rx="1.7" class="spr-home-token"></rect>
-    <text y=".82">${escapeSetPieceHtml(element.label || "P")}</text>
-    ${selected ? '<rect x="-4.15" y="-4.15" width="8.3" height="8.3" rx="2.8" class="spr-selection-ring"></rect>' : ""}
+    <rect x="-3" y="-3.1" width="6" height="6.5" rx="2.4" class="spr-element-hit"></rect>
+    <g class="spr-home-avatar ${photoUrl ? "has-photo" : "is-fallback"}">
+      <circle cy="-.65" r="1.9" class="spr-home-avatar-frame"></circle>
+      <circle cy="-.65" r="1.68" class="spr-home-avatar-fallback"></circle>
+      <circle cy="-1.12" r=".46" class="spr-home-avatar-fallback-symbol"></circle>
+      <path d="M-1.02 .55c.12-.86.52-1.3 1.02-1.3S.9-.31 1.02.55Z" class="spr-home-avatar-fallback-symbol"></path>
+      ${photoUrl ? `<image x="-1.68" y="-2.33" width="3.36" height="3.36" preserveAspectRatio="xMidYMid slice" href="${escapeSetPieceHtml(photoUrl)}" clip-path="url(#${escapeSetPieceHtml(avatarClipId)})" class="spr-home-avatar-photo"></image>` : ""}
+      <rect x="-1.95" y="1.14" width="3.9" height="1.55" rx=".66" class="spr-home-initials-bg"></rect>
+      <text y="2.28" class="spr-home-initials">${escapeSetPieceHtml(element.label || "P")}</text>
+    </g>
+    ${selected ? '<rect x="-2.35" y="-2.85" width="4.7" height="5.95" rx="2.2" class="spr-selection-ring"></rect>' : ""}
   </g>`;
 }
 
@@ -132,7 +141,7 @@ export function renderSetPieceBoard(options = {}) {
   const markerPrefix = String(options.markerPrefix || "spr-board").replace(/[^a-zA-Z0-9_-]/g, "-");
   const renderOptions = { ...options, halfPitch, markerPrefix };
   const ghosts = previousPhase
-    ? (previousPhase.elements || []).filter((element) => visibleElement(element) && previousIds.has(element.id)).map((element) => renderElement(element, { ghost: true, halfPitch })).join("")
+    ? (previousPhase.elements || []).filter((element) => visibleElement(element) && previousIds.has(element.id)).map((element) => renderElement(element, { ghost: true, halfPitch, markerPrefix })).join("")
     : "";
   const drawings = layers.has("drawings")
     ? (phase.drawings || []).map((drawing) => renderDrawing(drawing, renderOptions)).join("")
@@ -147,6 +156,7 @@ export function renderSetPieceBoard(options = {}) {
     <defs>
       ${["run", "pass", "dribble", "press", "mark"].map((type) => `<marker id="${markerPrefix}-arrow-${type}" class="spr-arrow-marker is-${type}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z"></path></marker>`).join("")}
       <pattern id="${markerPrefix}-pitch-pattern" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="6" height="12"></rect></pattern>
+      <clipPath id="${markerPrefix}-home-avatar-clip"><circle cy="-.65" r="1.68"></circle></clipPath>
     </defs>
     <g class="spr-pitch-content"${pitchTransform ? ` transform="${pitchTransform}"` : ""}>
       <rect width="105" height="68" class="spr-pitch-base"></rect>

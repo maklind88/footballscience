@@ -7,8 +7,7 @@ import {
   getSetPieceElementTransform,
   getSetPieceSvgPoint,
   isSetPiecePointInsideRect,
-  normalizeSetPiecePoint,
-  normalizeSetPiecePointForPitchView,
+  normalizeSetPieceElementPointForPitchView,
 } from "./geometry.mjs";
 import { createSetPiecePlayerLabelMap } from "./player-labels.mjs";
 import { createSetPieceId } from "./state.mjs";
@@ -303,7 +302,11 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       phase.elements.forEach((element) => {
         const origin = interaction.positions.get(element.id);
         if (!origin) return;
-        Object.assign(element, normalizeSetPiecePointForPitchView({ x: origin.x + dx, y: origin.y + dy }, play?.pitchView));
+        Object.assign(element, normalizeSetPieceElementPointForPitchView(
+          { x: origin.x + dx, y: origin.y + dy },
+          play?.pitchView,
+          element.kind
+        ));
         updateMovedElementDom(element);
       });
       event.preventDefault();
@@ -451,10 +454,10 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         const distance = event.shiftKey ? 5 : 1;
         options.ui.selectedElementIds = new Set([elementId]);
         options.commit(() => {
-          Object.assign(element, normalizeSetPiecePointForPitchView({
+          Object.assign(element, normalizeSetPieceElementPointForPitchView({
             x: element.x + direction.x * distance,
             y: element.y + direction.y * distance,
-          }, play?.pitchView));
+          }, play?.pitchView, element.kind));
         });
         root?.querySelector?.(`[data-element-id="${CSS.escape(elementId)}"]`)?.focus?.();
         return;

@@ -203,11 +203,34 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   await runTool.hover();
   await expect(page.getByRole("tooltip").filter({ hasText: "Drag from the runner" })).toBeVisible();
 
+  await page.locator('[data-set-piece-play-field="pitchView"]').selectOption("defensive-half");
   const squadTool = tacticalTools.getByRole("button", { name: "Squad players", exact: true });
   await squadTool.click();
   await expect(page.locator("[data-set-piece-player-picker]")).toHaveAttribute("open", "");
   await expect(page.locator("[data-set-piece-player-picker] summary")).toBeFocused();
+  await page.getByRole("menuitemcheckbox", { name: "Add Alex Example" }).click();
   await page.locator("[data-set-piece-player-picker] summary").click();
+
+  const cornerBoard = page.locator("[data-set-piece-board-stage]");
+  const cornerPitch = cornerBoard.locator("[data-set-piece-pitch]");
+  const cornerPlayer = cornerBoard.locator(".spr-board-element.is-home-player:not(.is-ghost)");
+  const cornerPitchBox = await cornerPitch.boundingBox();
+  const cornerPlayerStartBox = await cornerPlayer.boundingBox();
+  expect(cornerPitchBox).not.toBeNull();
+  expect(cornerPlayerStartBox).not.toBeNull();
+  await page.mouse.move(
+    cornerPlayerStartBox.x + cornerPlayerStartBox.width / 2,
+    cornerPlayerStartBox.y + cornerPlayerStartBox.height / 2
+  );
+  await page.mouse.down();
+  await page.mouse.move(cornerPitchBox.x + 1, cornerPitchBox.y + cornerPitchBox.height - 1, { steps: 6 });
+  await page.mouse.up();
+  const cornerPlayerEndBox = await cornerPlayer.boundingBox();
+  expect(cornerPlayerEndBox.x).toBeGreaterThanOrEqual(cornerPitchBox.x - 1);
+  expect(cornerPlayerEndBox.y).toBeGreaterThanOrEqual(cornerPitchBox.y - 1);
+  expect(cornerPlayerEndBox.x + cornerPlayerEndBox.width).toBeLessThanOrEqual(cornerPitchBox.x + cornerPitchBox.width + 1);
+  expect(cornerPlayerEndBox.y + cornerPlayerEndBox.height).toBeLessThanOrEqual(cornerPitchBox.y + cornerPitchBox.height + 1);
+  await page.getByRole("button", { name: "Close details" }).click();
 
   for (const tool of ["Select", "Opponent", "Ball", "Run", "Pass", "Dribble", "Block", "Press", "Track", "Zone"]) {
     const button = page.getByRole("button", { name: tool, exact: true });
@@ -502,8 +525,8 @@ test("Set Pieces Room reassigns stable tactical roles across routines and varian
   await openSetPiecesRoom(page);
   await page.getByRole("button", { name: "Create set piece" }).click();
 
+  await page.locator("[data-set-piece-player-picker] summary").click();
   const addPlayer = async (name) => {
-    await page.locator("[data-set-piece-player-picker] summary").click();
     await page.getByRole("menuitemcheckbox", { name: `Add ${name}` }).click();
   };
   await addPlayer("Alex Example");
@@ -563,8 +586,8 @@ test("Set Pieces Room handles a match-sized routine without stacking roles", asy
   await openSetPiecesRoom(page);
   await page.getByRole("button", { name: "Create set piece" }).click();
 
+  await page.locator("[data-set-piece-player-picker] summary").click();
   for (let index = 1; index <= 11; index += 1) {
-    await page.locator("[data-set-piece-player-picker] summary").click();
     await page.getByRole("menuitemcheckbox", { name: `Add Player ${String(index).padStart(2, "0")}` }).click();
   }
   const ownMarkers = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");

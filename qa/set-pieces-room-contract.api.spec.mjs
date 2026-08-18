@@ -45,6 +45,7 @@ import {
   getSetPiecePitchTransform,
   getSetPiecePitchViewBox,
   getSetPieceSourcePoint,
+  normalizeSetPieceElementPointForPitchView,
   normalizeSetPiecePointForPitchView,
 } from "../src/modules/set-pieces-room/geometry.mjs";
 import {
@@ -566,6 +567,9 @@ test("drag coordinates stay inside the visible pitch view", () => {
   expect(normalizeSetPiecePointForPitchView({ x: 4, y: 80 }, "attacking-half")).toEqual({ x: 52.5, y: 68 });
   expect(normalizeSetPiecePointForPitchView({ x: 90, y: -4 }, "defensive-half")).toEqual({ x: 52.5, y: 0 });
   expect(normalizeSetPiecePointForPitchView({ x: 90, y: 30 }, "full")).toEqual({ x: 90, y: 30 });
+  expect(normalizeSetPieceElementPointForPitchView({ x: 0, y: 0 }, "defensive-half", "home-player")).toEqual({ x: 4, y: 4 });
+  expect(normalizeSetPieceElementPointForPitchView({ x: 105, y: 68 }, "attacking-half", "opponent")).toEqual({ x: 101, y: 64 });
+  expect(normalizeSetPieceElementPointForPitchView({ x: 0, y: 0 }, "defensive-half", "ball")).toEqual({ x: 0, y: 0 });
 });
 
 test("half-pitch views use landscape coordinates and map pointer input back to source geometry", () => {

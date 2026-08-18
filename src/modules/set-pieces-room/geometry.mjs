@@ -1,5 +1,6 @@
 const PITCH_LENGTH = 105;
 const PITCH_WIDTH = 68;
+const PLAYER_MARKER_INSET = 4;
 
 export function clampSetPieceCoordinate(value, min, max) {
   const numeric = Number(value);
@@ -18,6 +19,17 @@ export function normalizeSetPiecePointForPitchView(point = {}, pitchView = "full
   if (pitchView === "attacking-half") normalized.x = clampSetPieceCoordinate(normalized.x, PITCH_LENGTH / 2, PITCH_LENGTH);
   if (pitchView === "defensive-half") normalized.x = clampSetPieceCoordinate(normalized.x, 0, PITCH_LENGTH / 2);
   return normalized;
+}
+
+export function normalizeSetPieceElementPointForPitchView(point = {}, pitchView = "full", kind = point.kind) {
+  const normalized = normalizeSetPiecePointForPitchView(point, pitchView);
+  if (!["home-player", "opponent"].includes(kind)) return normalized;
+  const minX = pitchView === "attacking-half" ? PITCH_LENGTH / 2 : 0;
+  const maxX = pitchView === "defensive-half" ? PITCH_LENGTH / 2 : PITCH_LENGTH;
+  return {
+    x: clampSetPieceCoordinate(normalized.x, minX + PLAYER_MARKER_INSET, maxX - PLAYER_MARKER_INSET),
+    y: clampSetPieceCoordinate(normalized.y, PLAYER_MARKER_INSET, PITCH_WIDTH - PLAYER_MARKER_INSET),
+  };
 }
 
 export function getSetPiecePitchViewBox(pitchView = "full") {
@@ -40,8 +52,9 @@ export function getSetPieceSourcePoint(point = {}, pitchView = "full") {
 }
 
 export function getSetPieceElementTransform(point = {}, pitchView = "full") {
+  const normalized = normalizeSetPieceElementPointForPitchView(point, pitchView);
   const rotation = pitchView === "attacking-half" || pitchView === "defensive-half" ? " rotate(90)" : "";
-  return `translate(${Number(point.x || 0)} ${Number(point.y || 0)})${rotation}`;
+  return `translate(${normalized.x} ${normalized.y})${rotation}`;
 }
 
 export function getSetPieceSvgPoint(svg, clientX, clientY) {

@@ -49,7 +49,7 @@ function renderElement(element = {}, options = {}) {
   const classes = ["spr-board-element", `is-${element.kind}`, selected ? "is-selected" : "", ghost ? "is-ghost" : ""]
     .filter(Boolean)
     .join(" ");
-  const transform = getSetPieceElementTransform(element, options.halfPitch ? "attacking-half" : "full");
+  const transform = getSetPieceElementTransform(element, options.pitchView || "full");
   const labels = {
     "home-player": `Own player ${element.playerName || element.label || "P"}${element.role ? `, ${element.role}` : ""}`,
     opponent: `Opponent ${element.showNumber === false ? "" : element.label || ""}`.trim(),
@@ -143,7 +143,7 @@ export function renderSetPieceBoard(options = {}) {
   const markerPrefix = String(options.markerPrefix || "spr-board").replace(/[^a-zA-Z0-9_-]/g, "-");
   const renderOptions = { ...options, halfPitch, markerPrefix };
   const ghosts = previousPhase
-    ? (previousPhase.elements || []).filter((element) => visibleElement(element) && previousIds.has(element.id)).map((element) => renderElement(element, { ghost: true, halfPitch, markerPrefix })).join("")
+    ? (previousPhase.elements || []).filter((element) => visibleElement(element) && previousIds.has(element.id)).map((element) => renderElement(element, { ...renderOptions, ghost: true })).join("")
     : "";
   const drawings = layers.has("drawings")
     ? (phase.drawings || []).map((drawing) => renderDrawing(drawing, renderOptions)).join("")

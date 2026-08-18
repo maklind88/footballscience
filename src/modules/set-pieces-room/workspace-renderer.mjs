@@ -205,12 +205,21 @@ function renderHeaderActions(state = {}, ui = {}, saveStateClass = "spr-save-sta
 
 function renderVariantBar(play = null, variant = null, ui = {}, canEdit = false) {
   if (!play) return "";
+  const variants = play.variants || [];
+  const activeIndex = Math.max(0, variants.findIndex((item) => item.id === variant?.id));
   return `<div class="spr-variant-bar" aria-label="Variants">
     ${ui.presentationMode
       ? `<div class="spr-present-title"><span>${escapeSetPieceHtml(play.restart.replaceAll("-", " "))}</span><strong>${escapeSetPieceHtml(play.title)}</strong></div>`
       : `<label class="spr-plan-title"><span>Set piece</span><input type="text" value="${escapeSetPieceHtml(play.title)}" placeholder="Name this set piece" data-set-piece-play-field="title" ${canEdit ? "" : "disabled"}></label>`}
-    <div class="spr-variant-tabs" role="tablist">
-      ${(play.variants || []).map((item) => `<button type="button" role="tab" aria-selected="${item.id === variant?.id}" class="${item.id === variant?.id ? "is-active" : ""}" data-set-piece-variant-id="${escapeSetPieceHtml(item.id)}">${escapeSetPieceHtml(item.title)}</button>`).join("")}
+    <div class="spr-variant-navigation" role="group" aria-label="Variant navigation">
+      <button type="button" class="spr-icon-button" data-set-piece-action="previous-variant" title="Previous variant" aria-label="Previous variant" ${activeIndex <= 0 ? "disabled" : ""}><span class="spr-tool-icon">${renderSetPieceToolIcon("chevron-left")}</span></button>
+      <label class="spr-variant-select">
+        <span class="sr-only">Variant</span>
+        <select data-set-piece-variant-select aria-label="Variant">
+          ${variants.map((item) => `<option value="${escapeSetPieceHtml(item.id)}" ${item.id === variant?.id ? "selected" : ""}>${escapeSetPieceHtml(item.title)}</option>`).join("")}
+        </select>
+      </label>
+      <button type="button" class="spr-icon-button" data-set-piece-action="next-variant" title="Next variant" aria-label="Next variant" ${activeIndex >= variants.length - 1 ? "disabled" : ""}><span class="spr-tool-icon">${renderSetPieceToolIcon("chevron-right")}</span></button>
     </div>
     ${ui.presentationMode && ui.canAddToTeamMeeting
       ? '<button type="button" class="spr-team-meeting-action" data-set-piece-action="add-to-team-meeting"><span aria-hidden="true">＋</span> Team Meeting</button>'

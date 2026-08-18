@@ -369,30 +369,47 @@
   white-space: nowrap;
 }
 
-.spr-variant-tabs {
+.spr-variant-navigation {
   min-width: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  align-items: center;
   flex: 1;
-  gap: .25rem;
-  overflow-x: auto;
+  gap: .2rem;
 }
 
-.spr-variant-tabs button {
-  flex: 0 0 auto;
+.spr-variant-navigation .spr-icon-button {
+  width: 30px;
+  height: 30px;
+}
+
+.spr-variant-select {
+  min-width: 0;
+  display: block;
+}
+
+.spr-variant-select select {
+  width: 100%;
   height: 31px;
-  border: 0;
-  border-radius: 5px;
-  padding: 0 .7rem;
-  color: var(--spr-muted);
-  background: transparent;
+  border: 1px solid #d9dde0;
+  border-radius: 6px;
+  padding: 0 .55rem;
+  color: var(--spr-ink);
+  background: #fff;
   cursor: pointer;
   font-size: .73rem;
   font-weight: 700;
 }
 
-.spr-variant-tabs button.is-active {
-  color: #1c5d46;
-  background: #e9f4ef;
+.spr-variant-select select:hover {
+  border-color: #b7c2bd;
+  background: #f8faf9;
+}
+
+.spr-variant-select select:focus-visible {
+  border-color: var(--spr-accent);
+  outline: 2px solid #77cfa533;
+  outline-offset: 1px;
 }
 
 .spr-editor-toolbar {

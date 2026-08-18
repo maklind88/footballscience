@@ -232,6 +232,21 @@ test("editor keeps tactical guidance in a first-run dialog instead of over the p
   expect(assignmentsMarkup).toContain('aria-label="Close details"');
 });
 
+test("editor variants use compact previous, next and direct selection controls", () => {
+  const play = createSetPiecePlay({ title: "Near-post release" });
+  const secondary = duplicateSetPieceVariant(play.variants[0], "Back-post release");
+  play.variants.push(secondary);
+  const state = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] });
+  const markup = renderSetPiecesWorkspace({ state, ui: { selectedElementIds: new Set(), layers: new Set() } });
+
+  expect(markup).toContain('data-set-piece-variant-select aria-label="Variant"');
+  expect(markup).toContain(`value="${play.variants[0].id}" selected>Primary</option>`);
+  expect(markup).toContain(`value="${secondary.id}" >Back-post release</option>`);
+  expect(markup).toMatch(/data-set-piece-action="previous-variant"[^>]*disabled/);
+  expect(markup).toContain('data-set-piece-action="next-variant"');
+  expect(markup).not.toContain("spr-variant-tabs");
+});
+
 test("phase duplication preserves actor identity without sharing mutable arrays", () => {
   const phase = createSetPiecePhase({
     elements: [{ id: "home-a", kind: "home-player", x: 80, y: 15, profileId: "player-a", label: "AE" }],

@@ -710,7 +710,7 @@ export function createSetPiecesRoomController(options = {}) {
       root.querySelector('[data-set-piece-live-text="play-title"]')?.replaceChildren(target.value || "Untitled set piece");
     }
     if (target.dataset?.setPieceVariantField === "title" && variant) {
-      root.querySelector('[data-set-piece-variant-id].is-active')?.replaceChildren(target.value || "Untitled variant");
+      root.querySelector(`[data-set-piece-variant-select] option[value="${CSS.escape(variant.id)}"]`)?.replaceChildren(target.value || "Untitled variant");
       root.querySelector('[data-set-piece-live-text="variant-title"]')?.replaceChildren(target.value || "Untitled variant");
     }
     if (target.dataset?.setPiecePhaseField === "title" && phase) {
@@ -751,7 +751,7 @@ export function createSetPiecesRoomController(options = {}) {
       });
       return;
     }
-    if (target.matches?.("[data-set-piece-present-variant]")) return selectVariant(target.value);
+    if (target.matches?.("[data-set-piece-present-variant], [data-set-piece-variant-select]")) return selectVariant(target.value);
     if (target.matches?.("[data-set-piece-playback-speed]")) playback.setSpeed(target.value);
     if (target.matches?.("[data-set-piece-ghost]")) {
       ui.showGhost = target.checked;

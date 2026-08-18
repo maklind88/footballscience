@@ -69,13 +69,13 @@
   height: 24px;
 }
 
-.spr-editor-command-bar .spr-variant-tabs {
+.spr-editor-command-bar .spr-variant-navigation {
   gap: .12rem;
 }
 
-.spr-editor-command-bar .spr-variant-tabs button {
-  height: 29px;
-  padding-inline: .58rem;
+.spr-editor-command-bar .spr-variant-navigation .spr-icon-button,
+.spr-editor-command-bar .spr-variant-select select {
+  height: 30px;
 }
 
 .spr-editor-command-bar .spr-editor-toolbar {

@@ -551,7 +551,15 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(page.locator(".spr-phase-counter")).toContainText("of 2");
 
   await page.getByRole("button", { name: "Create variant" }).click();
-  await expect(page.locator("[data-set-piece-variant-id]")).toHaveCount(2);
+  const editVariantSelect = page.getByRole("combobox", { name: "Variant", exact: true });
+  await expect(editVariantSelect.locator("option")).toHaveCount(2);
+  const editPrimaryVariantId = await editVariantSelect.locator("option").first().getAttribute("value");
+  const editSecondVariantId = await editVariantSelect.locator("option").nth(1).getAttribute("value");
+  await expect(page.getByRole("button", { name: "Next variant" })).toBeDisabled();
+  await page.getByRole("button", { name: "Previous variant" }).click();
+  await expect(editVariantSelect).toHaveValue(editPrimaryVariantId);
+  await page.getByRole("button", { name: "Next variant" }).click();
+  await expect(editVariantSelect).toHaveValue(editSecondVariantId);
 
   await page.getByRole("button", { name: "Present", exact: true }).click();
   const setPieces = page.locator("[data-set-pieces-room]");
@@ -600,7 +608,7 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.reload({ waitUntil: "domcontentloaded" });
   await waitForPlatformShell(page);
   await openSetPiecesRoom(page);
-  await expect(page.locator("[data-set-piece-variant-id]")).toHaveCount(2);
+  await expect(page.getByRole("combobox", { name: "Variant", exact: true }).locator("option")).toHaveCount(2);
   await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost) text")).toHaveText("12");
   await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)").first()).toHaveAttribute("transform", movedTransform);
   expect(pageErrors).toEqual([]);
@@ -663,10 +671,12 @@ test("Set Pieces Room reassigns stable tactical roles across routines and varian
   await page.getByRole("menuitem", { name: "Assign Casey Evans to Near post" }).click();
   await expect(page.locator(`[data-element-id="${alexSlotId}"] text`)).toHaveText("CE");
 
-  const variants = page.locator("[data-set-piece-variant-id]");
-  await variants.first().click();
+  const variants = page.getByRole("combobox", { name: "Variant", exact: true });
+  const primaryVariantId = await variants.locator("option").first().getAttribute("value");
+  const secondaryVariantId = await variants.locator("option").nth(1).getAttribute("value");
+  await variants.selectOption(primaryVariantId);
   await expect(page.locator(`[data-element-id="${alexSlotId}"] text`)).toHaveText("BM");
-  await variants.nth(1).click();
+  await variants.selectOption(secondaryVariantId);
   await expect(page.locator(`[data-element-id="${alexSlotId}"] text`)).toHaveText("CE");
 
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -786,10 +796,10 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
   await page.getByRole("button", { name: "Create set piece" }).click();
   await page.getByRole("button", { name: "Duplicate current phase" }).click();
   await page.getByRole("button", { name: "Create variant" }).click();
-  const editVariants = page.locator("[data-set-piece-variant-id]");
-  const primaryVariantId = await editVariants.first().getAttribute("data-set-piece-variant-id");
-  const secondVariantId = await editVariants.nth(1).getAttribute("data-set-piece-variant-id");
-  await editVariants.first().click();
+  const editVariants = page.getByRole("combobox", { name: "Variant", exact: true });
+  const primaryVariantId = await editVariants.locator("option").first().getAttribute("value");
+  const secondVariantId = await editVariants.locator("option").nth(1).getAttribute("value");
+  await editVariants.selectOption(primaryVariantId);
   await page.getByRole("button", { name: "Present", exact: true }).click();
 
   const shell = page.locator("[data-set-pieces-room]");

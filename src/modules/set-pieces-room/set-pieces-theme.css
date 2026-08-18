@@ -84,9 +84,10 @@ body.is-dark-mode .spr-board-stage {
 body.is-dark-mode .spr-segmented,
 body.is-dark-mode .spr-segmented button.is-active,
 body.is-dark-mode .spr-play-item.is-active,
-body.is-dark-mode .spr-variant-tabs button.is-active {
+body.is-dark-mode .spr-variant-select select {
   color: var(--spr-ink);
   background: var(--fs-surface-strong);
+  border-color: var(--fs-border-strong);
 }
 
 body.is-dark-mode .spr-play-item.is-active,
@@ -128,8 +129,7 @@ body.is-dark-mode .spr-save-state.is-error {
 
 body.is-dark-mode .spr-save-state,
 body.is-dark-mode .spr-play-type,
-body.is-dark-mode .spr-phase-card b,
-body.is-dark-mode .spr-variant-tabs button.is-active {
+body.is-dark-mode .spr-phase-card b {
   color: #9ce0ba;
 }
 

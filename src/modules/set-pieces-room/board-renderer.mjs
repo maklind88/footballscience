@@ -115,8 +115,8 @@ function renderDrawing(drawing = {}, options = {}) {
 
 function renderDrawingHandle(x, y, handle, className) {
   return `<g class="spr-drawing-handle-target ${className}">
-    <circle cx="${x}" cy="${y}" r="2.8" class="spr-drawing-handle-hit" data-drawing-handle="${handle}"></circle>
-    <circle cx="${x}" cy="${y}" r="1.05" class="spr-drawing-handle ${className}"></circle>
+    <circle cx="${x}" cy="${y}" r=".5" class="spr-drawing-handle-hit" data-drawing-handle="${handle}"></circle>
+    <circle cx="${x}" cy="${y}" r=".38" class="spr-drawing-handle ${className}"></circle>
   </g>`;
 }
 
@@ -192,7 +192,7 @@ export function renderSetPieceBoard(options = {}) {
   const pitchTransform = getSetPiecePitchTransform(options.pitchView);
   return `<svg class="spr-pitch ${halfPitch ? "is-half-pitch" : "is-full-pitch"} ${wideEditor ? "is-wide-editor-pitch" : ""}" data-set-piece-pitch data-pitch-view="${escapeSetPieceHtml(options.pitchView || "full")}" viewBox="${getSetPiecePitchViewBox(options.pitchView)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Set piece tactical board">
     <defs>
-      ${["run", "pass", "dribble", "press", "mark"].map((type) => `<marker id="${markerPrefix}-arrow-${type}" class="spr-arrow-marker is-${type}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z"></path></marker>`).join("")}
+      ${["run", "pass", "dribble", "press", "mark"].map((type) => `<marker id="${markerPrefix}-arrow-${type}" class="spr-arrow-marker is-${type}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z"></path></marker>`).join("")}
       <pattern id="${markerPrefix}-pitch-pattern" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="6" height="12"></rect></pattern>
       <clipPath id="${markerPrefix}-home-avatar-clip"><circle cy="-.65" r="1.68"></circle></clipPath>
     </defs>

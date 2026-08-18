@@ -426,6 +426,30 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(runDrawing).toHaveCount(1);
   const runControls = page.locator('.spr-drawing-controls[data-drawing-id]');
   await expect(runControls.locator("[data-drawing-handle]")).toHaveCount(3);
+  const routeVisualMetrics = await runDrawing.evaluate((drawing) => {
+    const shape = drawing.querySelector(".spr-drawing-shape");
+    const markerId = shape?.getAttribute("marker-end")?.match(/#([^\)]+)/)?.[1];
+    const marker = markerId ? document.getElementById(markerId) : null;
+    return {
+      strokeWidth: Number.parseFloat(getComputedStyle(shape).strokeWidth),
+      markerWidth: Number(marker?.getAttribute("markerWidth") || 0),
+    };
+  });
+  expect(routeVisualMetrics.strokeWidth).toBeGreaterThanOrEqual(1.2);
+  expect(routeVisualMetrics.markerWidth).toBeGreaterThanOrEqual(5);
+  const handleVisualMetrics = await runControls.locator('.spr-drawing-handle-target').first().evaluate((target) => {
+    const visible = target.querySelector(".spr-drawing-handle");
+    const hit = target.querySelector(".spr-drawing-handle-hit");
+    return visible && hit ? {
+      visibleRadius: Number(visible.getAttribute("r")),
+      hitRadius: Number(hit.getAttribute("r")),
+      hitStrokeWidth: Number.parseFloat(getComputedStyle(hit).strokeWidth),
+    } : null;
+  });
+  expect(handleVisualMetrics).not.toBeNull();
+  expect(handleVisualMetrics.visibleRadius).toBeLessThan(.5);
+  expect(handleVisualMetrics.hitRadius).toBeGreaterThan(handleVisualMetrics.visibleRadius);
+  expect(handleVisualMetrics.hitStrokeWidth).toBeGreaterThanOrEqual(24);
   const runPathBefore = await runDrawing.locator(".spr-drawing-shape").getAttribute("d");
   const runEndHandle = runControls.locator('[data-drawing-handle="end"]');
   const runEndBox = await runEndHandle.boundingBox();

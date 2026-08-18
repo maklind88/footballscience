@@ -735,6 +735,8 @@ test("selected drawings expose contextual transform handles only while editing",
   const presenting = renderSetPieceBoard({ phase, interactive: false, selectedDrawingId: "pass-a", layers: new Set(["drawings"]) });
 
   expect(route).toContain('class="spr-drawing-hit"');
+  expect(route).toContain('r=".5" class="spr-drawing-handle-hit"');
+  expect(route).toContain('r=".38" class="spr-drawing-handle');
   expect(route).toContain('data-drawing-handle="start"');
   expect(route).toContain('data-drawing-handle="end"');
   expect(route).toContain('data-drawing-handle="curve"');
@@ -832,6 +834,7 @@ test("board instances own unique marker, pattern, and avatar clip ids", () => {
 
   expect(first).toContain('id="workspace-board-arrow-run"');
   expect(first).toContain('marker-end="url(#workspace-board-arrow-run)"');
+  expect(first).toContain('markerWidth="5" markerHeight="5"');
   expect(first).toContain('fill="url(#workspace-board-pitch-pattern)"');
   expect(first).toContain('id="workspace-board-home-avatar-clip"');
   expect(second).toContain('id="meeting-board-arrow-run"');

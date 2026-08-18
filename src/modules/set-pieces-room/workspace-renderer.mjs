@@ -239,18 +239,20 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
     </div>
     <div class="spr-board-row ${play.pitchView === "full" ? "is-full-pitch" : "is-half-pitch"}">
       ${ui.presentationMode ? "" : renderToolRail(ui, roster)}
-      <div class="spr-board-stage" data-set-piece-board-stage>
-        ${renderSetPieceBoard({
-          phase: resolvedPhase,
-          previousPhase: ui.showGhost ? resolvedPreviousPhase : null,
-          pitchView: play.pitchView,
-          layers: ui.layers,
-          selectedElementIds: ui.selectedElementIds,
-          selectedDrawingId: ui.selectedDrawingId,
-          previewDrawing: ui.previewDrawing,
-          selectionRect: ui.selectionRect,
-          interactive: canEdit && !ui.presentationMode,
-        })}
+      <div class="spr-board-stage-slot">
+        <div class="spr-board-stage" data-set-piece-board-stage>
+          ${renderSetPieceBoard({
+            phase: resolvedPhase,
+            previousPhase: ui.showGhost ? resolvedPreviousPhase : null,
+            pitchView: play.pitchView,
+            layers: ui.layers,
+            selectedElementIds: ui.selectedElementIds,
+            selectedDrawingId: ui.selectedDrawingId,
+            previewDrawing: ui.previewDrawing,
+            selectionRect: ui.selectionRect,
+            interactive: canEdit && !ui.presentationMode,
+          })}
+        </div>
       </div>
     </div>
     <div class="spr-timeline" aria-label="Phase timeline">

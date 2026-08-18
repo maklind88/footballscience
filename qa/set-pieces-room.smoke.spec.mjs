@@ -86,16 +86,48 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   await expect(page.getByRole("menuitem", { name: /Alex Example/ })).toBeVisible();
   await page.locator("[data-set-piece-player-picker] summary").click();
 
-  const collapsedEditorWidth = await page.locator(".spr-editor").evaluate((element) => element.getBoundingClientRect().width);
+  const readEditorLayout = () => page.evaluate(() => {
+    const readRect = (selector) => {
+      const rect = document.querySelector(selector)?.getBoundingClientRect();
+      return rect ? {
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      } : null;
+    };
+    return {
+      editor: readRect(".spr-editor"),
+      command: readRect(".spr-editor-command-bar"),
+      stage: readRect(".spr-board-stage"),
+      timeline: readRect(".spr-timeline"),
+      playback: readRect(".spr-playback"),
+    };
+  });
+
+  const collapsedLayout = await readEditorLayout();
   await page.getByRole("button", { name: "Toggle details" }).click();
   await expect(page.locator(".spr-inspector")).toBeVisible();
+  const expandedLayout = await readEditorLayout();
+  expect(expandedLayout.editor.width).toBeLessThan(collapsedLayout.editor.width - 200);
+  expect(Math.abs(expandedLayout.editor.height - collapsedLayout.editor.height)).toBeLessThanOrEqual(1);
+  expect(Math.abs(expandedLayout.command.top - collapsedLayout.command.top)).toBeLessThanOrEqual(1);
+  expect(Math.abs(expandedLayout.stage.top - collapsedLayout.stage.top)).toBeLessThanOrEqual(1);
+  expect(expandedLayout.stage.width).toBeLessThanOrEqual(collapsedLayout.stage.width + 1);
+  expect(expandedLayout.stage.bottom).toBeLessThanOrEqual(expandedLayout.timeline.top + 1);
+  expect(Math.abs(expandedLayout.playback.bottom - expandedLayout.editor.bottom)).toBeLessThanOrEqual(1);
   const planSubPhases = page.locator(".spr-sub-phase-field");
   await planSubPhases.getByRole("checkbox", { name: "Second ball" }).check();
   await expect(planSubPhases.getByRole("checkbox", { name: "Second ball" })).toBeChecked();
   await page.getByRole("button", { name: "Close details" }).click();
   await expect(page.locator(".spr-inspector")).toBeHidden();
   await expect(page.getByRole("button", { name: "Toggle details" })).toBeFocused();
-  await expect.poll(() => page.locator(".spr-editor").evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(collapsedEditorWidth - 1);
+  const restoredLayout = await readEditorLayout();
+  expect(Math.abs(restoredLayout.editor.width - collapsedLayout.editor.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(restoredLayout.stage.top - collapsedLayout.stage.top)).toBeLessThanOrEqual(1);
+  expect(Math.abs(restoredLayout.stage.width - collapsedLayout.stage.width)).toBeLessThanOrEqual(1);
 
   await page.locator('[data-set-piece-action="toggle-library"]').click();
   const library = page.getByRole("complementary", { name: "Set piece library" });
@@ -156,6 +188,17 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   expect(playButtonBox).not.toBeNull();
   expect(Math.abs((playIconBox.x + playIconBox.width / 2) - (playButtonBox.x + playButtonBox.width / 2))).toBeLessThan(2);
   expect(Math.abs((playIconBox.y + playIconBox.height / 2) - (playButtonBox.y + playButtonBox.height / 2))).toBeLessThan(2);
+
+  await page.setViewportSize({ width: 1024, height: 768 });
+  const tabletCollapsedLayout = await readEditorLayout();
+  await page.getByRole("button", { name: "Toggle details" }).click();
+  await expect(page.locator(".spr-inspector")).toBeVisible();
+  const tabletExpandedLayout = await readEditorLayout();
+  expect(Math.abs(tabletExpandedLayout.editor.height - tabletCollapsedLayout.editor.height)).toBeLessThanOrEqual(1);
+  expect(Math.abs(tabletExpandedLayout.stage.top - tabletCollapsedLayout.stage.top)).toBeLessThanOrEqual(1);
+  expect(tabletExpandedLayout.stage.width).toBeLessThan(tabletCollapsedLayout.stage.width - 50);
+  expect(Math.abs((tabletExpandedLayout.stage.width / tabletExpandedLayout.stage.height) - (68 / 52.5))).toBeLessThan(0.01);
+  expect(tabletExpandedLayout.stage.bottom).toBeLessThanOrEqual(tabletExpandedLayout.timeline.top + 1);
 });
 
 test("Set Pieces Room builds, persists and plays a phased opponent response", async ({ page }) => {

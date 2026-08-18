@@ -33,12 +33,14 @@
   }
 
   .spr-shell.is-editing > .spr-layout {
+    height: auto;
     flex: 0 0 auto;
+    overflow: visible;
   }
 
   .spr-shell.is-editing .spr-editor {
     min-height: calc(100dvh - 128px);
-    grid-template-rows: auto auto minmax(360px, 1fr) 44px 48px;
+    grid-template-rows: auto minmax(360px, 1fr) 44px 48px;
   }
 
   .spr-editor-command-bar {
@@ -82,6 +84,10 @@
 @media (max-width: 680px) {
   .spr-onboarding-dialog {
     padding: 1rem;
+  }
+
+  .spr-shell.is-editing .spr-editor {
+    grid-template-rows: auto minmax(360px, 1fr) 44px auto;
   }
 
   .spr-shell.is-editing .spr-playback {

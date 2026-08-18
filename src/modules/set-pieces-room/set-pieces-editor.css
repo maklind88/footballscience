@@ -20,13 +20,21 @@
 
 .spr-shell.is-editing > .spr-layout {
   min-height: 0;
-  height: auto;
-  flex: 1 1 auto;
+  height: 0;
+  flex: 1 1 0;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .spr-shell.is-editing .spr-editor {
   height: 100%;
   grid-template-rows: auto minmax(0, 1fr) 44px 48px;
+}
+
+.spr-shell.is-editing .spr-inspector {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .spr-editor-command-bar {
@@ -205,6 +213,32 @@
   max-height: 100%;
   border-radius: 5px;
   box-shadow: 0 8px 22px #1b3b2c14;
+}
+
+.spr-shell.is-editing .spr-board-stage-slot {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  container: spr-board-stage-slot / size;
+}
+
+@container spr-board-stage-slot (max-aspect-ratio: 105 / 68) {
+  .spr-board-row.is-full-pitch .spr-board-stage {
+    width: 100%;
+    height: auto;
+    align-self: start;
+  }
+}
+
+@container spr-board-stage-slot (max-aspect-ratio: 68 / 52.5) {
+  .spr-board-row.is-half-pitch .spr-board-stage {
+    width: 100%;
+    height: auto;
+    align-self: start;
+  }
 }
 
 .spr-onboarding-layer {

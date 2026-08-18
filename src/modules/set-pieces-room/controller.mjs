@@ -28,6 +28,7 @@ import {
 } from "./state.mjs";
 import { renderSetPieceBoard } from "./board-renderer.mjs";
 import { renderSetPiecesWorkspace } from "./workspace-renderer.mjs";
+import { syncSetPiecesWideEditorBoard } from "./wide-editor-board.mjs";
 import {
   clearSetPieceLibraryFilters,
   createSetPieceLibraryFilters,
@@ -182,6 +183,7 @@ export function createSetPiecesRoomController(options = {}) {
     const team = options.getTeamIdentity?.() || {};
     root.innerHTML = renderSetPiecesWorkspace({ state, roster, team, ui: rendererUi(), canEdit: canEdit(), canDelete: canDelete() });
     revealActiveSetPiecePhase(root);
+    syncSetPiecesWideEditorBoard(root, win);
   }
 
   function renderBoardOnly() {
@@ -204,7 +206,9 @@ export function createSetPiecesRoomController(options = {}) {
       previewDrawing: ui.previewDrawing,
       selectionRect: ui.selectionRect,
       interactive: canEdit() && !ui.presentationMode,
+      wideEditor: !ui.presentationMode,
     });
+    syncSetPiecesWideEditorBoard(root, win);
   }
 
   let activePlaybackRouteIds = new Set();

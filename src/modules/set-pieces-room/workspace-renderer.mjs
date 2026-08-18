@@ -255,6 +255,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDele
             previewDrawing: ui.previewDrawing,
             selectionRect: ui.selectionRect,
             interactive: canEdit && !ui.presentationMode,
+            wideEditor: !ui.presentationMode,
           })}
         </div>
       </div>

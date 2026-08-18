@@ -32,6 +32,7 @@ import { chooseSetPieceDrawingActor, getSetPieceDrawingActors } from "../src/mod
 import { createSetPiecesPlaybackController } from "../src/modules/set-pieces-room/playback-controller.mjs";
 import { renderSetPiecesPresentationWorkspace } from "../src/modules/set-pieces-room/presentation-workspace-renderer.mjs";
 import { renderSetPiecesWorkspace } from "../src/modules/set-pieces-room/workspace-renderer.mjs";
+import { getSetPiecesWideEditorProjection } from "../src/modules/set-pieces-room/wide-editor-board.mjs";
 import { renderSetPieceLibraryLayer } from "../src/modules/set-pieces-room/library-renderer.mjs";
 import {
   clearSetPieceLibraryFilters,
@@ -568,6 +569,21 @@ test("half-pitch views use landscape coordinates and map pointer input back to s
   expect(getSetPiecePitchTransform("defensive-half")).toBe("matrix(0 -1 1 0 0 52.5)");
   expect(getSetPieceSourcePoint({ x: 18, y: 25 }, "attacking-half")).toEqual({ x: 80, y: 18 });
   expect(getSetPieceSourcePoint({ x: 18, y: 25 }, "defensive-half")).toEqual({ x: 27.5, y: 18 });
+});
+
+test("wide editor projection fills broad canvases while preserving narrow pitch geometry", () => {
+  const broad = getSetPiecesWideEditorProjection(
+    { width: 1036, height: 562 },
+    { width: 68, height: 52.5 }
+  );
+  expect(broad.active).toBe(true);
+  expect(broad.counterScale).toBeCloseTo(.702, 2);
+
+  const narrow = getSetPiecesWideEditorProjection(
+    { width: 620, height: 562 },
+    { width: 68, height: 52.5 }
+  );
+  expect(narrow).toEqual({ active: false, counterScale: 1 });
 });
 
 test("quick player placement finds a visible open position without stacking markers", () => {

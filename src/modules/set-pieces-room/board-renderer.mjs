@@ -29,13 +29,14 @@ function renderPitchMarkings() {
     <g class="spr-pitch-markings" aria-hidden="true">
       <rect x="0.7" y="0.7" width="103.6" height="66.6" rx="0.5"></rect>
       <path d="M52.5 0.7V67.3"></path>
-      <circle cx="52.5" cy="34" r="9.15"></circle>
-      <circle cx="52.5" cy="34" r="0.8" class="spr-pitch-spot"></circle>
+      <circle cx="52.5" cy="34" r="9.15" class="spr-round-marking"></circle>
+      <circle cx="52.5" cy="34" r="0.8" class="spr-pitch-spot spr-round-marking"></circle>
       <path d="M0.7 13.84H17.2V54.16H0.7M104.3 13.84H87.8V54.16H104.3"></path>
       <path d="M0.7 24.84H6.2V43.16H0.7M104.3 24.84H98.8V43.16H104.3"></path>
-      <circle cx="11" cy="34" r="0.65" class="spr-pitch-spot"></circle>
-      <circle cx="94" cy="34" r="0.65" class="spr-pitch-spot"></circle>
-      <path d="M17.2 26.65A9.15 9.15 0 0 1 17.2 41.35M87.8 26.65A9.15 9.15 0 0 0 87.8 41.35"></path>
+      <circle cx="11" cy="34" r="0.65" class="spr-pitch-spot spr-round-marking"></circle>
+      <circle cx="94" cy="34" r="0.65" class="spr-pitch-spot spr-round-marking"></circle>
+      <path d="M17.2 26.65A9.15 9.15 0 0 1 17.2 41.35" class="spr-round-marking"></path>
+      <path d="M87.8 26.65A9.15 9.15 0 0 0 87.8 41.35" class="spr-round-marking"></path>
       <path d="M0 30.34H-2.4V37.66H0M105 30.34H107.4V37.66H105" class="spr-pitch-goals"></path>
       <path d="M0.7 1.7A1 1 0 0 0 1.7.7M103.3.7a1 1 0 0 0 1 1M.7 66.3a1 1 0 0 1 1 1M104.3 66.3a1 1 0 0 0-1 1"></path>
     </g>`;
@@ -138,6 +139,7 @@ export function renderSetPieceBoard(options = {}) {
   };
   const previousIds = new Set((phase.elements || []).map((element) => element.id));
   const halfPitch = options.pitchView === "attacking-half" || options.pitchView === "defensive-half";
+  const wideEditor = Boolean(options.wideEditor);
   const markerPrefix = String(options.markerPrefix || "spr-board").replace(/[^a-zA-Z0-9_-]/g, "-");
   const renderOptions = { ...options, halfPitch, markerPrefix };
   const ghosts = previousPhase
@@ -152,7 +154,7 @@ export function renderSetPieceBoard(options = {}) {
     .join("");
   const preview = options.previewDrawing ? renderDrawing(options.previewDrawing, { preview: true, halfPitch, markerPrefix }) : "";
   const pitchTransform = getSetPiecePitchTransform(options.pitchView);
-  return `<svg class="spr-pitch ${halfPitch ? "is-half-pitch" : "is-full-pitch"}" data-set-piece-pitch data-pitch-view="${escapeSetPieceHtml(options.pitchView || "full")}" viewBox="${getSetPiecePitchViewBox(options.pitchView)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Set piece tactical board">
+  return `<svg class="spr-pitch ${halfPitch ? "is-half-pitch" : "is-full-pitch"} ${wideEditor ? "is-wide-editor-pitch" : ""}" data-set-piece-pitch data-pitch-view="${escapeSetPieceHtml(options.pitchView || "full")}" viewBox="${getSetPiecePitchViewBox(options.pitchView)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Set piece tactical board">
     <defs>
       ${["run", "pass", "dribble", "press", "mark"].map((type) => `<marker id="${markerPrefix}-arrow-${type}" class="spr-arrow-marker is-${type}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z"></path></marker>`).join("")}
       <pattern id="${markerPrefix}-pitch-pattern" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="6" height="12"></rect></pattern>

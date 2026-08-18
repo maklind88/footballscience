@@ -1,0 +1,32 @@
+.spr-shell.is-editing .spr-board-row.is-wide-projection-active .spr-board-stage-slot {
+  place-items: stretch;
+}
+
+.spr-shell.is-editing .spr-board-row.is-wide-projection-active .spr-board-stage {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+  justify-self: stretch;
+  align-self: stretch;
+}
+
+.spr-pitch.is-wide-projection-active .spr-board-element > *,
+.spr-pitch.is-wide-projection-active .spr-drawing-label {
+  transform: scaleX(var(--spr-wide-counter-scale, 1));
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.spr-pitch.is-wide-projection-active.is-full-pitch .spr-pitch-markings .spr-round-marking {
+  transform: scaleX(var(--spr-wide-counter-scale, 1));
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.spr-pitch.is-wide-projection-active.is-half-pitch .spr-pitch-markings .spr-round-marking {
+  transform: scaleY(var(--spr-wide-counter-scale, 1));
+  transform-box: fill-box;
+  transform-origin: center;
+}

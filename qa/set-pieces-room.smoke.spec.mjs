@@ -101,21 +101,31 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
     return {
       editor: readRect(".spr-editor"),
       command: readRect(".spr-editor-command-bar"),
+      slot: readRect(".spr-board-stage-slot"),
       stage: readRect(".spr-board-stage"),
+      centerCircle: readRect(".spr-pitch-markings .spr-round-marking"),
       timeline: readRect(".spr-timeline"),
       playback: readRect(".spr-playback"),
     };
   });
 
+  await expect(page.locator(".spr-board-row")).toHaveClass(/is-wide-projection-active/);
   const collapsedLayout = await readEditorLayout();
+  expect(Math.abs(collapsedLayout.stage.width - collapsedLayout.slot.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(collapsedLayout.stage.height - collapsedLayout.slot.height)).toBeLessThanOrEqual(1);
+  expect(collapsedLayout.stage.width / collapsedLayout.stage.height).toBeGreaterThan(68 / 52.5);
+  expect(Math.abs(collapsedLayout.centerCircle.width - collapsedLayout.centerCircle.height)).toBeLessThanOrEqual(1);
   await page.getByRole("button", { name: "Toggle details" }).click();
   await expect(page.locator(".spr-inspector")).toBeVisible();
+  await expect(page.locator(".spr-board-row")).toHaveClass(/is-wide-projection-active/);
   const expandedLayout = await readEditorLayout();
   expect(expandedLayout.editor.width).toBeLessThan(collapsedLayout.editor.width - 200);
   expect(Math.abs(expandedLayout.editor.height - collapsedLayout.editor.height)).toBeLessThanOrEqual(1);
   expect(Math.abs(expandedLayout.command.top - collapsedLayout.command.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(expandedLayout.stage.top - collapsedLayout.stage.top)).toBeLessThanOrEqual(1);
   expect(expandedLayout.stage.width).toBeLessThanOrEqual(collapsedLayout.stage.width + 1);
+  expect(Math.abs(expandedLayout.stage.width - expandedLayout.slot.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(expandedLayout.centerCircle.width - expandedLayout.centerCircle.height)).toBeLessThanOrEqual(1);
   expect(expandedLayout.stage.bottom).toBeLessThanOrEqual(expandedLayout.timeline.top + 1);
   expect(Math.abs(expandedLayout.playback.bottom - expandedLayout.editor.bottom)).toBeLessThanOrEqual(1);
   const planSubPhases = page.locator(".spr-sub-phase-field");
@@ -128,6 +138,7 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   expect(Math.abs(restoredLayout.editor.width - collapsedLayout.editor.width)).toBeLessThanOrEqual(1);
   expect(Math.abs(restoredLayout.stage.top - collapsedLayout.stage.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(restoredLayout.stage.width - collapsedLayout.stage.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(restoredLayout.stage.width - restoredLayout.slot.width)).toBeLessThanOrEqual(1);
 
   await page.locator('[data-set-piece-action="toggle-library"]').click();
   const library = page.getByRole("complementary", { name: "Set piece library" });

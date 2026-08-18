@@ -93,14 +93,15 @@ function renderToolRail(ui = {}, roster = []) {
   </div>`;
 }
 
-function renderPlayerPicker(roster = [], phase = {}, canEdit = false) {
+function renderPlayerPicker(roster = [], play = {}, variant = {}, canEdit = false, canDelete = false) {
   const labels = createSetPiecePlayerLabelMap(roster.map((entry) => entry.player));
-  const placedIds = new Set((phase.elements || [])
+  const placedIds = new Set((variant.phases || []).flatMap((phase) => (phase.elements || [])
     .filter((element) => element.kind === "home-player")
-    .map((element) => element.profileId));
+    .map((element) => getSetPieceAssignment(play, variant, element.id).profileId)
+    .filter(Boolean)));
   const placedCount = roster.filter((entry) => placedIds.has(entry.id)).length;
   return `<details class="spr-player-picker" data-set-piece-player-picker>
-    <summary class="spr-player-picker-trigger" aria-label="Add own players">
+    <summary class="spr-player-picker-trigger" aria-label="Manage own players on board">
       <span class="spr-player-picker-plus" aria-hidden="true">＋</span>
       <span>Add players</span>
       <small>${placedCount}/${roster.length}</small>
@@ -111,10 +112,11 @@ function renderPlayerPicker(roster = [], phase = {}, canEdit = false) {
       <div class="spr-player-menu-list">
         ${roster.map((entry) => {
           const placed = placedIds.has(entry.id);
-          const action = placed ? "Select" : "Add";
-          return `<button type="button" class="spr-player-option ${placed ? "is-placed" : ""}" data-set-piece-roster-add="${escapeSetPieceHtml(entry.id)}" role="menuitem" aria-label="${action} ${escapeSetPieceHtml(entry.name)}" ${canEdit ? "" : "disabled"}>
+          const action = placed ? "Remove" : "Add";
+          const disabled = placed ? !canDelete : !canEdit;
+          return `<button type="button" class="spr-player-option ${placed ? "is-placed" : ""}" data-set-piece-roster-toggle="${escapeSetPieceHtml(entry.id)}" role="menuitemcheckbox" aria-checked="${placed}" aria-label="${action} ${escapeSetPieceHtml(entry.name)}" ${disabled ? "disabled" : ""}>
             <span class="spr-player-option-mark">${escapeSetPieceHtml(labels.get(entry.id) || "P")}</span>
-            <span class="spr-player-option-copy"><strong>${escapeSetPieceHtml(entry.name)}</strong><small>${escapeSetPieceHtml(entry.position || "Squad player")}</small></span>
+            <span class="spr-player-option-copy"><strong>${escapeSetPieceHtml(entry.name)}</strong><small>${escapeSetPieceHtml(placed ? "On board" : entry.position || "Squad player")}</small></span>
             <span class="spr-player-option-state" aria-hidden="true">${placed ? "✓" : "＋"}</span>
           </button>`;
         }).join("") || '<div class="spr-player-menu-empty">No squad profiles</div>'}
@@ -227,7 +229,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDele
     <div class="spr-editor-command-bar">
       ${renderVariantBar(play, variant, ui, canEdit)}
       ${ui.presentationMode ? "" : `<div class="spr-editor-toolbar">
-        ${renderPlayerPicker(roster, phase, canEdit)}
+        ${renderPlayerPicker(roster, play, variant, canEdit, canDelete)}
         <button type="button" class="spr-assignment-command ${ui.showAssignments ? "is-active" : ""}" data-set-piece-action="show-assignments"><span aria-hidden="true">⇄</span><span>Assignments</span></button>
         <label><span>Pitch</span><select data-set-piece-play-field="pitchView" ${canEdit ? "" : "disabled"}>${optionsMarkup(setPiecePitchViewOptions, play.pitchView)}</select></label>
         <label class="spr-board-toggle"><input type="checkbox" data-set-piece-ghost ${ui.showGhost ? "checked" : ""}><span>Previous</span></label>

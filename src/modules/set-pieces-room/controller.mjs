@@ -616,8 +616,8 @@ export function createSetPiecesRoomController(options = {}) {
     );
     const assignmentSlotId = event.target.closest?.("[data-set-piece-select-slot]")?.dataset.setPieceSelectSlot;
     if (assignmentSlotId) return assignmentController.selectSlot(assignmentSlotId);
-    const rosterId = event.target.closest?.("[data-set-piece-roster-add]")?.dataset.setPieceRosterAdd;
-    if (rosterId) return boardInteractions.addRosterPlayer(rosterId);
+    const rosterId = event.target.closest?.("[data-set-piece-roster-toggle]")?.dataset.setPieceRosterToggle;
+    if (rosterId) return boardInteractions.toggleRosterPlayer(rosterId);
     const tool = event.target.closest?.("[data-set-piece-tool]")?.dataset.setPieceTool;
     if (tool) {
       ui.activeTool = tool;
@@ -638,7 +638,7 @@ export function createSetPiecesRoomController(options = {}) {
     }
     if (target.matches?.("[data-set-piece-player-search]")) {
       const query = String(target.value || "").trim().toLowerCase();
-      root.querySelectorAll?.("[data-set-piece-roster-add]").forEach((button) => {
+      root.querySelectorAll?.("[data-set-piece-roster-toggle]").forEach((button) => {
         button.hidden = Boolean(query) && !String(button.textContent || "").toLowerCase().includes(query);
       });
       return;
@@ -725,6 +725,7 @@ export function createSetPiecesRoomController(options = {}) {
     getContext,
     getRoster,
     canEdit,
+    canDelete,
     commit,
     finalizeDirectMutation,
     render,
@@ -733,6 +734,7 @@ export function createSetPiecesRoomController(options = {}) {
     isFullscreen: () => documentRef?.fullscreenElement === root,
     restartPlayback,
     selectAdjacentPhase,
+    setNotice,
     setPresentationMode: setWorkspaceMode,
     toggleFullscreen,
     deleteSelection,

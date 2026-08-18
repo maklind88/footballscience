@@ -13,6 +13,7 @@ import {
   normalizeSetPiecesState,
 } from "../src/modules/set-pieces-room/state.mjs";
 import { createSetPieceAssignmentController } from "../src/modules/set-pieces-room/assignment-controller.mjs";
+import { createSetPiecesBoardInteractionController } from "../src/modules/set-pieces-room/board-interaction-controller.mjs";
 import { getSetPieceAssignment, resolveSetPiecePhaseAssignments } from "../src/modules/set-pieces-room/assignments.mjs";
 import {
   createSetPiecePlayerLabelMap,
@@ -326,6 +327,65 @@ test("player assignment swaps stay separate from tactical roles and variant over
   expect(state.plays[0].variants.flatMap((variant) => variant.phases).every((item) => (
     item.elements.find((element) => element.id === "slot-a")?.role === "First contact"
   ))).toBe(true);
+});
+
+test("squad picker removes a player from every phase of only the active variant", () => {
+  const play = createSetPiecePlay({ title: "Variant player toggle" });
+  const sourceVariant = play.variants[0];
+  sourceVariant.phases[0].elements.push({
+    id: "slot-a",
+    kind: "home-player",
+    x: 72,
+    y: 18,
+    profileId: "player-a",
+    label: "AA",
+    role: "Near post",
+  });
+  sourceVariant.phases.push(duplicateSetPiecePhase(sourceVariant.phases[0], 1));
+  play.variants.push(duplicateSetPieceVariant(sourceVariant, "Variant 2"));
+  let state = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] });
+  state.plays[0].variants[0].assignmentOverrides = [{ slotId: "slot-a", profileId: "player-a" }];
+  const ui = {
+    assignmentPickerSlotId: "slot-a",
+    inspectorCollapsed: true,
+    layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
+    playbackSpeed: 1,
+    selectedElementIds: new Set(["slot-a"]),
+    showAssignments: false,
+  };
+  const pickerMarkup = renderSetPiecesWorkspace({
+    state,
+    roster: [{ id: "player-a", name: "Alex Example", position: "Forward", player: { id: "player-a", name: "Alex Example" } }],
+    ui,
+  });
+  expect(pickerMarkup).toContain('data-set-piece-roster-toggle="player-a"');
+  expect(pickerMarkup).toContain('role="menuitemcheckbox" aria-checked="true" aria-label="Remove Alex Example"');
+  expect(pickerMarkup).toContain("On board");
+  const getContext = () => {
+    const activePlay = getActiveSetPiece(state);
+    const variant = getActiveSetPieceVariant(activePlay);
+    return { play: activePlay, variant, phase: getActiveSetPiecePhase(variant) };
+  };
+  const controller = createSetPiecesBoardInteractionController({
+    ui,
+    getContext,
+    canDelete: () => true,
+    canEdit: () => true,
+    commit: (mutator) => {
+      mutator(state);
+      state = normalizeSetPiecesState(state);
+    },
+  });
+
+  controller.toggleRosterPlayer("player-a");
+
+  const [activeVariant, untouchedVariant] = state.plays[0].variants;
+  expect(activeVariant.phases.every((phase) => phase.elements.every((element) => element.id !== "slot-a"))).toBe(true);
+  expect(activeVariant.assignmentOverrides).toEqual([]);
+  expect(untouchedVariant.phases.every((phase) => phase.elements.some((element) => element.id === "slot-a"))).toBe(true);
+  expect(state.plays[0].assignments).toContainEqual(expect.objectContaining({ slotId: "slot-a", profileId: "player-a" }));
+  expect(ui.selectedElementIds.size).toBe(0);
+  expect(ui.assignmentPickerSlotId).toBe("");
 });
 
 test("resolved phases display current player identity without changing saved geometry", () => {

@@ -1,5 +1,5 @@
 import { DEFAULT_ACTION_DURATION_MS, setPieceDrawingTypes } from "./constants.mjs";
-import { getSetPieceAssignedSlot } from "./assignments.mjs";
+import { getSetPieceAssignedSlot, getSetPieceAssignment } from "./assignments.mjs";
 import {
   getNearestSetPieceElement,
   getNextSetPiecePlayerPlacement,
@@ -175,9 +175,33 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     }
   }
 
-  function addRosterPlayer(playerId) {
-    const { phase, play } = options.getContext();
-    if (!phase || !options.canEdit()) return;
+  function toggleRosterPlayer(playerId) {
+    const { phase, play, variant } = options.getContext();
+    if (!phase || !play || !variant) return;
+    const placedSlotIds = new Set((variant.phases || []).flatMap((candidatePhase) => (
+      candidatePhase.elements || []
+    )).filter((element) => (
+      element.kind === "home-player" && getSetPieceAssignment(play, variant, element.id).profileId === playerId
+    )).map((element) => element.id));
+    if (placedSlotIds.size) {
+      if (!options.canDelete()) {
+        options.setNotice?.("Only coaches and admins can remove players from the board.");
+        return;
+      }
+      options.commit(() => {
+        variant.phases.forEach((candidatePhase) => {
+          candidatePhase.elements = candidatePhase.elements.filter((element) => !placedSlotIds.has(element.id));
+        });
+        variant.assignmentOverrides = (variant.assignmentOverrides || [])
+          .filter((assignment) => !placedSlotIds.has(assignment.slotId));
+        options.ui.selectedElementIds = new Set([...options.ui.selectedElementIds]
+          .filter((elementId) => !placedSlotIds.has(elementId)));
+        options.ui.assignmentPickerSlotId = "";
+        options.ui.showAssignments = false;
+      });
+      return;
+    }
+    if (!options.canEdit()) return;
     const point = getNextSetPiecePlayerPlacement(phase.elements, play?.pitchView);
     placeHomePlayer(point, playerId);
   }
@@ -461,5 +485,5 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     }
   }
 
-  return Object.freeze({ addRosterPlayer, handleKeyDown, handlePointerCancel, handlePointerDown, handlePointerMove, handlePointerUp });
+  return Object.freeze({ handleKeyDown, handlePointerCancel, handlePointerDown, handlePointerMove, handlePointerUp, toggleRosterPlayer });
 }

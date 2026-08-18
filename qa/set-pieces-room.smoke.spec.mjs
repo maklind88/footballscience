@@ -82,8 +82,8 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   await page.getByRole("button", { name: "Create set piece" }).click();
 
   await page.locator("[data-set-piece-player-picker] summary").click();
-  await expect(page.getByRole("menuitem", { name: /QA Training Guest/ })).toHaveCount(0);
-  await expect(page.getByRole("menuitem", { name: /Alex Example/ })).toBeVisible();
+  await expect(page.getByRole("menuitemcheckbox", { name: /QA Training Guest/ })).toHaveCount(0);
+  await expect(page.getByRole("menuitemcheckbox", { name: /Alex Example/ })).toBeVisible();
   await page.locator("[data-set-piece-player-picker] summary").click();
 
   const readEditorLayout = () => page.evaluate(() => {
@@ -251,7 +251,7 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   expect(box).not.toBeNull();
 
   await page.locator("[data-set-piece-player-picker] summary").click();
-  await page.getByRole("menuitem", { name: "Add Alex Example" }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Add Alex Example" }).click();
   const selectedPlayer = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
   await expect(selectedPlayer.locator(".spr-home-avatar-photo")).toHaveCount(1);
   await expect(selectedPlayer.locator(".spr-home-initials")).toHaveText("AE");
@@ -313,15 +313,23 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.getByRole("button", { name: "Duplicate current phase" }).click();
   await expect(page.locator("[data-set-piece-phase-id]")).toHaveCount(2);
   await page.locator("[data-set-piece-player-picker] summary").click();
-  await page.getByRole("menuitem", { name: "Add Beth Miller" }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Add Beth Miller" }).click();
   await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveCount(2);
   const bethMarker = page.getByRole("button", { name: /Own player Beth Miller/ });
   await expect(bethMarker.locator(".spr-home-avatar-photo")).toHaveCount(0);
   await expect(bethMarker.locator(".spr-home-avatar.is-fallback")).toHaveCount(1);
   await expect(bethMarker.locator(".spr-home-initials")).toHaveText("BM");
+  await page.locator("[data-set-piece-player-picker] summary").click();
+  const removeBeth = page.getByRole("menuitemcheckbox", { name: "Remove Beth Miller" });
+  await expect(removeBeth).toHaveAttribute("aria-checked", "true");
+  await removeBeth.click();
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveCount(1);
   await page.locator("[data-set-piece-phase-id]").first().click();
-  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveCount(2);
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveCount(1);
   await page.locator("[data-set-piece-phase-id]").nth(1).click();
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveCount(1);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator(".spr-board-element.is-home-player:not(.is-ghost)")).toHaveCount(2);
   const homeMarker = page.locator(".spr-board-element.is-home-player:not(.is-ghost)").first();
   const markerBox = await homeMarker.boundingBox();
   expect(markerBox).not.toBeNull();
@@ -454,7 +462,7 @@ test("Set Pieces Room reassigns stable tactical roles across routines and varian
 
   const addPlayer = async (name) => {
     await page.locator("[data-set-piece-player-picker] summary").click();
-    await page.getByRole("menuitem", { name: `Add ${name}` }).click();
+    await page.getByRole("menuitemcheckbox", { name: `Add ${name}` }).click();
   };
   await addPlayer("Alex Example");
   await addPlayer("Beth Miller");
@@ -515,7 +523,7 @@ test("Set Pieces Room handles a match-sized routine without stacking roles", asy
 
   for (let index = 1; index <= 11; index += 1) {
     await page.locator("[data-set-piece-player-picker] summary").click();
-    await page.getByRole("menuitem", { name: `Add Player ${String(index).padStart(2, "0")}` }).click();
+    await page.getByRole("menuitemcheckbox", { name: `Add Player ${String(index).padStart(2, "0")}` }).click();
   }
   const ownMarkers = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
   await expect(ownMarkers).toHaveCount(11);

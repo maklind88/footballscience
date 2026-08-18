@@ -1,4 +1,5 @@
 import { getSetPieceElementTransform, getSetPiecePitchTransform, getSetPiecePitchViewBox } from "./geometry.mjs";
+import { renderSetPieceBoardBallSymbol } from "./ball-symbol.mjs";
 
 export function escapeSetPieceHtml(value = "") {
   return String(value ?? "")
@@ -70,8 +71,7 @@ function renderElement(element = {}, options = {}) {
   if (element.kind === "ball") {
     return `<g ${common}>
       <circle r="3.4" class="spr-element-hit"></circle>
-      <circle r="1.45" class="spr-ball-token"></circle>
-      <path d="M-.8-.45.1-1.05.9-.35.55.65-.55.65Z" class="spr-ball-detail"></path>
+      ${renderSetPieceBoardBallSymbol()}
       ${selected ? '<circle r="3.35" class="spr-selection-ring"></circle>' : ""}
     </g>`;
   }

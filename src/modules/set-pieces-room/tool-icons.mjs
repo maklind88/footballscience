@@ -1,8 +1,10 @@
+import { renderSetPieceToolBallSymbol } from "./ball-symbol.mjs";
+
 const paths = Object.freeze({
   select: '<path d="m5 3 13 8-6 1.5L9 18Z"/><path d="m12 13 5 7"/>',
   "home-player": '<path d="m8 5 2-2h4l2 2 4 2-2 5-2-1v9H8v-9l-2 1-2-5Z"/><path d="M10 3c.4 1.5 3.6 1.5 4 0"/>',
   opponent: '<circle cx="12" cy="12" r="8"/><path d="M10 9h2v6m-2 0h5"/>',
-  ball: '<circle cx="12" cy="12" r="8"/><path d="m12 8 2.5 1.8-.9 3h-3.2l-.9-3Z"/><path d="m12 8-2.7-2m5.2 3.8 3-1.1m-3.9 4.1 1.8 2.8m-5-2.8-1.8 2.8m.9-5.8-3-1.1"/>',
+  ball: renderSetPieceToolBallSymbol(),
   run: '<circle cx="5" cy="18" r="1.4"/><path d="M6.5 17c1.2-6.2 4.4-9.4 10.5-10"/><path d="m14 4 4 2.5-2.6 4"/>',
   pass: '<circle cx="5" cy="12" r="2"/><path d="M8.5 12H19" stroke-dasharray="2 2"/><path d="m16 8 4 4-4 4"/>',
   dribble: '<circle cx="4.5" cy="16.5" r="1.6"/><path d="M7 16c2.2 0 1.4-5 4-5s1.8 5 4.2 5H20"/><path d="m17 13 3 3-3 3"/>',

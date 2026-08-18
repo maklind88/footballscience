@@ -97,15 +97,22 @@
 }
 
 .spr-ball-token {
-  fill: #f5dc75;
-  stroke: #272727;
-  stroke-width: .35;
-  vector-effect: non-scaling-stroke;
+  fill: #fff;
+  stroke: #17211e;
+  stroke-width: .24;
 }
 
-.spr-ball-detail {
-  fill: #343434;
-  stroke: none;
+.spr-ball-panel {
+  fill: #17211e;
+  pointer-events: none;
+}
+
+.spr-ball-seam {
+  fill: none;
+  stroke: #64706b;
+  stroke-linecap: round;
+  stroke-width: .12;
+  pointer-events: none;
 }
 
 .spr-board-element text {

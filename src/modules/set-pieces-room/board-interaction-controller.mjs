@@ -266,12 +266,15 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     const elementId = directElementId || nearbyElement?.id || "";
     const stage = svg.closest?.("[data-set-piece-board-stage]");
     if (ui.activeTool === "select" && elementId) {
+      let selectionChanged = false;
       if (event.shiftKey) {
         if (ui.selectedElementIds.has(elementId)) ui.selectedElementIds.delete(elementId);
         else ui.selectedElementIds.add(elementId);
+        selectionChanged = true;
       } else if (!ui.selectedElementIds.has(elementId)) {
         ui.selectedElementIds = new Set([elementId]);
         clearDrawingSelection();
+        selectionChanged = true;
       }
       ui.assignmentPickerSlotId = "";
       ui.showAssignments = false;
@@ -299,7 +302,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         allowInspectorActivation: !event.shiftKey && getSelectionCount() === 1,
       };
       capturePointer(stage, event.pointerId);
-      refreshInteractionBoard();
+      if (selectionChanged) refreshInteractionBoard();
       event.preventDefault();
       return;
     }

@@ -903,7 +903,10 @@ test("presentation workspace exposes an immersive tactical stage with coaching c
   expect(markup).toContain("Attack the back post");
   expect(markup).toContain('data-set-piece-action="toggle-fullscreen"');
   expect(markup).toContain('aria-label="Add to Team Meeting"');
-  expect(markup).toContain('data-set-piece-present-variant');
+  expect(markup).toContain('class="spr-present-variant-menu"');
+  expect(markup).toContain('role="menu" aria-label="Presentation variants"');
+  expect(markup).toContain('role="menuitemradio" aria-checked="true"');
+  expect(markup).toContain('aria-label="Choose presentation variant, Primary"');
   expect(markup).toContain('data-set-piece-action="previous-variant"');
   expect(markup).toContain('data-set-piece-action="next-variant"');
   expect(markup).toContain("is-present-playback");

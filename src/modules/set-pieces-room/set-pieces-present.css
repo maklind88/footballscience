@@ -170,6 +170,7 @@
 }
 
 .spr-present-variant-controls {
+  position: relative;
   min-width: 0;
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr) 32px;
@@ -177,9 +178,18 @@
   gap: .25rem;
 }
 
-.spr-present-variant-select select {
+.spr-present-variant-menu {
+  position: relative;
+  min-width: 0;
+}
+
+.spr-present-variant-menu > summary {
   width: 100%;
   height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .4rem;
   border: 1px solid #76c89a45;
   border-radius: 5px;
   padding: 0 .5rem;
@@ -189,9 +199,92 @@
   font-size: .67rem;
   font-weight: 720;
   outline: none;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
 }
 
-.spr-present-variant-controls button {
+.spr-present-variant-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.spr-present-variant-menu > summary strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spr-present-variant-menu > summary svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+  transition: transform 150ms ease;
+}
+
+.spr-present-variant-menu[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.spr-present-variant-options {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + .38rem);
+  right: 0;
+  width: clamp(190px, 19vw, 260px);
+  max-width: calc(100vw - 1.5rem);
+  max-height: min(320px, calc(100vh - 84px));
+  display: grid;
+  gap: .18rem;
+  padding: .32rem;
+  border: 1px solid #ffffff26;
+  border-radius: 6px;
+  background: #131c18fa;
+  box-shadow: 0 16px 38px #0009;
+  overflow: auto;
+}
+
+.spr-present-variant-option {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+  border: 0;
+  border-radius: 4px;
+  padding: .46rem .55rem;
+  color: var(--spr-present-text);
+  background: transparent;
+  font: inherit;
+  font-size: .69rem;
+  font-weight: 680;
+  text-align: left;
+  cursor: pointer;
+}
+
+.spr-present-variant-option:hover,
+.spr-present-variant-option:focus-visible {
+  background: #76c89a18;
+  outline: none;
+}
+
+.spr-present-variant-option.is-active {
+  color: #e8fff1;
+  background: #76c89a22;
+}
+
+.spr-present-variant-check {
+  color: var(--spr-present-accent);
+  font-size: .82rem;
+}
+
+.spr-present-variant-controls > button {
   width: 32px;
   height: 34px;
   display: grid;
@@ -205,7 +298,7 @@
   touch-action: manipulation;
 }
 
-.spr-present-variant-controls button svg {
+.spr-present-variant-controls > button svg {
   width: 16px;
   height: 16px;
   fill: none;
@@ -215,19 +308,21 @@
   stroke-width: 1.9;
 }
 
-.spr-present-variant-controls button:hover,
-.spr-present-variant-controls button:focus-visible {
+.spr-present-variant-controls > button:hover,
+.spr-present-variant-controls > button:focus-visible,
+.spr-present-variant-menu > summary:hover,
+.spr-present-variant-menu > summary:focus-visible {
   border-color: var(--spr-present-accent);
   background: #76c89a20;
   outline: none;
 }
 
-.spr-present-variant-controls button:disabled {
+.spr-present-variant-controls > button:disabled {
   opacity: .34;
   cursor: default;
 }
 
-.spr-present-variant-select select:focus-visible {
+.spr-present-variant-menu[open] > summary {
   border-color: var(--spr-present-accent);
   box-shadow: 0 0 0 3px #76c89a24;
 }

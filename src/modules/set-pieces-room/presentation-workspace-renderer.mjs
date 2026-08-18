@@ -27,6 +27,20 @@ function presentCoachingPoints(play, variant, phase) {
   return [...new Set(points)].slice(0, 4);
 }
 
+function renderPresentVariantControl(play, variant, variantIndex) {
+  const variantTitle = escapeSetPieceHtml(variant.title);
+  return `<div class="spr-present-variant-select"><span>Variant</span><div class="spr-present-variant-controls" role="group" aria-label="Presentation variant controls">
+    <button type="button" data-set-piece-action="previous-variant" aria-label="Previous variant" title="Previous variant" aria-keyshortcuts="ArrowUp" ${variantIndex <= 0 ? "disabled" : ""}>${renderPresentIcon("previous")}</button>
+    <details class="spr-present-variant-menu">
+      <summary aria-label="Choose presentation variant, ${variantTitle}" title="Choose variant"><strong>${variantTitle}</strong>${renderPresentIcon("chevron")}</summary>
+      <div class="spr-present-variant-options" role="menu" aria-label="Presentation variants">
+        ${play.variants.map((item) => `<button type="button" class="spr-present-variant-option ${item.id === variant.id ? "is-active" : ""}" data-set-piece-variant-id="${escapeSetPieceHtml(item.id)}" role="menuitemradio" aria-checked="${item.id === variant.id ? "true" : "false"}"><span>${escapeSetPieceHtml(item.title)}</span>${item.id === variant.id ? '<span class="spr-present-variant-check" aria-hidden="true">✓</span>' : ""}</button>`).join("")}
+      </div>
+    </details>
+    <button type="button" data-set-piece-action="next-variant" aria-label="Next variant" title="Next variant" aria-keyshortcuts="ArrowDown" ${variantIndex >= play.variants.length - 1 ? "disabled" : ""}>${renderPresentIcon("next")}</button>
+  </div></div>`;
+}
+
 function renderPresentPhaseStrip(play, variant, roster) {
   return `<div class="spr-present-phase-strip" aria-label="Phase timeline">
     ${variant.phases.map((item, index) => `<button type="button" class="spr-present-phase-card ${item.id === variant.activePhaseId ? "is-active" : ""}" data-set-piece-phase-id="${escapeSetPieceHtml(item.id)}" aria-label="Phase ${index + 1}, ${escapeSetPieceHtml(item.title)}, ${formatSetPieceSeconds(item.durationMs)}${item.cue ? `, ${escapeSetPieceHtml(item.cue)}` : ""}">
@@ -52,11 +66,7 @@ export function renderSetPiecesPresentationWorkspace(options = {}) {
         <span>${escapeSetPieceHtml(formatRestart(play.restart))}${context ? ` · ${escapeSetPieceHtml(context)}` : ""}</span>
         <strong>${escapeSetPieceHtml(play.title)}</strong>
       </div>
-      <div class="spr-present-variant-select"><span>Variant</span><div class="spr-present-variant-controls" role="group" aria-label="Presentation variant controls">
-        <button type="button" data-set-piece-action="previous-variant" aria-label="Previous variant" title="Previous variant" aria-keyshortcuts="ArrowUp" ${variantIndex <= 0 ? "disabled" : ""}>${renderPresentIcon("previous")}</button>
-        <select data-set-piece-present-variant aria-label="Presentation variant">${play.variants.map((item) => `<option value="${escapeSetPieceHtml(item.id)}" ${item.id === variant.id ? "selected" : ""}>${escapeSetPieceHtml(item.title)}</option>`).join("")}</select>
-        <button type="button" data-set-piece-action="next-variant" aria-label="Next variant" title="Next variant" aria-keyshortcuts="ArrowDown" ${variantIndex >= play.variants.length - 1 ? "disabled" : ""}>${renderPresentIcon("next")}</button>
-      </div></div>
+      ${renderPresentVariantControl(play, variant, variantIndex)}
       <div class="spr-present-actions">
         ${ui.canAddToTeamMeeting ? '<button type="button" class="spr-present-team-meeting" data-set-piece-action="add-to-team-meeting" aria-label="Add to Team Meeting" title="Add to Team Meeting"><span aria-hidden="true">＋</span><span class="spr-present-team-meeting-label">Team Meeting</span></button>' : ""}
         ${ui.fullscreenAvailable ? `<button type="button" class="spr-present-icon-button" data-set-piece-action="toggle-fullscreen" aria-label="${ui.nativeFullscreen ? "Exit fullscreen" : "Enter fullscreen"}" title="${ui.nativeFullscreen ? "Exit fullscreen" : "Enter fullscreen"}">${renderPresentIcon(ui.nativeFullscreen ? "minimize" : "fullscreen")}</button>` : ""}

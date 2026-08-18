@@ -636,11 +636,11 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(setPieces.locator(".spr-present-cues")).toBeVisible();
   await expect(setPieces.locator(".spr-present-phase-strip")).toBeVisible();
   await expect(setPieces.locator(".spr-playback")).toBeVisible();
-  const presentationVariant = setPieces.getByRole("combobox", { name: "Presentation variant" });
-  await expect(presentationVariant.locator("option")).toHaveCount(2);
-  const primaryVariantId = await presentationVariant.locator("option").first().getAttribute("value");
-  await presentationVariant.selectOption({ label: "Primary" });
-  await expect(presentationVariant).toHaveValue(primaryVariantId);
+  const presentationVariant = setPieces.locator(".spr-present-variant-menu");
+  await expect(presentationVariant.locator(".spr-present-variant-option")).toHaveCount(2);
+  await presentationVariant.locator("summary").click();
+  await presentationVariant.getByRole("menuitemradio", { name: "Primary" }).click();
+  await expect(presentationVariant.locator("summary")).toHaveAccessibleName("Choose presentation variant, Primary");
   if (await page.evaluate(() => document.fullscreenEnabled)) {
     await expect(setPieces.getByRole("button", { name: "Enter fullscreen" })).toBeVisible();
   }
@@ -866,7 +866,6 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
   await page.getByRole("button", { name: "Create variant" }).click();
   const editVariants = page.getByRole("combobox", { name: "Variant", exact: true });
   const primaryVariantId = await editVariants.locator("option").first().getAttribute("value");
-  const secondVariantId = await editVariants.locator("option").nth(1).getAttribute("value");
   await editVariants.selectOption(primaryVariantId);
   await page.getByRole("button", { name: "Present", exact: true }).click();
 
@@ -879,18 +878,24 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
     await shell.locator(".spr-present-cues").evaluate((element) => element.removeAttribute("open"));
   }
 
-  const fullscreenVariant = shell.getByRole("combobox", { name: "Presentation variant" });
-  await expect(fullscreenVariant.locator("option")).toHaveCount(2);
-  await expect(fullscreenVariant).toHaveValue(primaryVariantId);
+  const fullscreenVariant = shell.locator(".spr-present-variant-menu");
+  await expect(fullscreenVariant.locator(".spr-present-variant-option")).toHaveCount(2);
+  await expect(fullscreenVariant.locator("summary")).toHaveAccessibleName("Choose presentation variant, Primary");
   await shell.getByRole("button", { name: "Next variant" }).click();
-  await expect(fullscreenVariant).toHaveValue(secondVariantId);
-  await fullscreenVariant.selectOption(primaryVariantId);
-  await expect(fullscreenVariant).toHaveValue(primaryVariantId);
+  await expect(fullscreenVariant.locator("summary")).toHaveAccessibleName("Choose presentation variant, Variant 2");
+  await fullscreenVariant.locator("summary").click();
+  await page.keyboard.press("ArrowUp");
+  await expect(fullscreenVariant.getByRole("menuitemradio", { name: "Primary" })).toBeFocused();
+  await fullscreenVariant.getByRole("menuitemradio", { name: "Primary" }).click();
+  await expect(fullscreenVariant.locator("summary")).toHaveAccessibleName("Choose presentation variant, Primary");
+  await fullscreenVariant.locator("summary").click();
+  await page.keyboard.press("Escape");
+  await expect(fullscreenVariant).not.toHaveAttribute("open", "");
   await shell.locator(".spr-present-stage").click();
   await page.keyboard.press("ArrowDown");
-  await expect(fullscreenVariant).toHaveValue(secondVariantId);
+  await expect(fullscreenVariant.locator("summary")).toHaveAccessibleName("Choose presentation variant, Variant 2");
   await shell.getByRole("button", { name: "Previous variant" }).click();
-  await expect(fullscreenVariant).toHaveValue(primaryVariantId);
+  await expect(fullscreenVariant.locator("summary")).toHaveAccessibleName("Choose presentation variant, Primary");
   const fullscreenPhases = shell.locator(".spr-present-phase-card");
   await fullscreenPhases.first().click();
   await expect(fullscreenPhases.first()).toHaveClass(/is-active/);

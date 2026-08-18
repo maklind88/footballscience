@@ -630,6 +630,10 @@ export function createSetPiecesRoomController(options = {}) {
 
   function handleClick(event) {
     if (!event.target.closest?.("[data-set-piece-pitch]")) boardInteractions.resetSelectionActivation();
+    const openPresentationVariantMenu = root.querySelector?.(".spr-present-variant-menu[open]");
+    if (openPresentationVariantMenu && !event.target.closest?.(".spr-present-variant-menu")) {
+      openPresentationVariantMenu.removeAttribute("open");
+    }
     const action = event.target.closest?.("[data-set-piece-action]")?.dataset.setPieceAction;
     if (action) return handleAction(action);
     const playId = event.target.closest?.("[data-set-piece-play-id]")?.dataset.setPiecePlayId;
@@ -857,6 +861,29 @@ export function createSetPiecesRoomController(options = {}) {
         event.preventDefault();
         if (ui.libraryFiltersOpen) setLibraryFiltersOpen(false);
         else setLibraryOpen(false);
+        return;
+      }
+      const presentationVariantMenu = root.querySelector?.(".spr-present-variant-menu[open]");
+      if (ui.presentationMode && presentationVariantMenu?.contains?.(event.target)) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          presentationVariantMenu.removeAttribute("open");
+          presentationVariantMenu.querySelector?.("summary")?.focus?.();
+          return;
+        }
+        if (["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+          event.preventDefault();
+          const choices = [...presentationVariantMenu.querySelectorAll?.(".spr-present-variant-option")];
+          const activeIndex = Math.max(0, choices.findIndex((choice) => choice.classList.contains("is-active")));
+          const focusedIndex = choices.indexOf(documentRef.activeElement);
+          let nextIndex = focusedIndex < 0 ? activeIndex : focusedIndex;
+          if (event.key === "ArrowUp") nextIndex = (nextIndex - 1 + choices.length) % choices.length;
+          if (event.key === "ArrowDown") nextIndex = (nextIndex + 1) % choices.length;
+          if (event.key === "Home") nextIndex = 0;
+          if (event.key === "End") nextIndex = choices.length - 1;
+          choices[nextIndex]?.focus?.();
+          return;
+        }
         return;
       }
       boardInteractions.handleKeyDown(event);

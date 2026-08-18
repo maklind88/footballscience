@@ -39,6 +39,72 @@
   line-height: 1.35;
 }
 
+.spr-zone-color-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.spr-zone-color-field legend {
+  margin-bottom: .4rem;
+  color: var(--spr-muted);
+  font-size: .66rem;
+  font-weight: 700;
+}
+
+.spr-zone-color-options {
+  display: flex;
+  align-items: center;
+  gap: .42rem;
+}
+
+.spr-zone-color-options label {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.spr-zone-color-options input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.spr-zone-color-options span {
+  width: 20px;
+  height: 20px;
+  border: 1px solid #173b2a66;
+  border-radius: 50%;
+  background: var(--spr-zone-swatch);
+  box-shadow: 0 1px 2px #10271e24;
+}
+
+.spr-zone-color-options .is-yellow { --spr-zone-swatch: #f4d35e; }
+.spr-zone-color-options .is-blue { --spr-zone-swatch: #67b7ff; }
+.spr-zone-color-options .is-red { --spr-zone-swatch: #ff7a85; }
+.spr-zone-color-options .is-green { --spr-zone-swatch: #7ad99b; }
+.spr-zone-color-options .is-white { --spr-zone-swatch: #f0f4f2; }
+
+.spr-zone-color-options input:checked + span {
+  box-shadow: 0 0 0 2px var(--spr-panel), 0 0 0 4px var(--spr-accent);
+}
+
+.spr-zone-color-options input:focus-visible + span {
+  outline: 2px solid var(--spr-accent);
+  outline-offset: 4px;
+}
+
+.spr-zone-color-options input:disabled + span {
+  cursor: default;
+  opacity: .55;
+}
+
 .spr-board-element[tabindex="0"] {
   cursor: grab;
   outline: none;

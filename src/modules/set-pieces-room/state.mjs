@@ -2,12 +2,14 @@ import {
   DEFAULT_ACTION_DURATION_MS,
   DEFAULT_PHASE_DURATION_MS,
   DEFAULT_PHASE_HOLD_MS,
+  DEFAULT_SET_PIECE_ZONE_COLOR,
   SET_PIECES_MAX_PHASES,
   SET_PIECES_MAX_PLAYS,
   SET_PIECES_MAX_VARIANTS,
   SET_PIECES_SCHEMA_VERSION,
   setPieceDrawingTypes,
   setPieceSubPhaseOptions,
+  setPieceZoneColors,
 } from "./constants.mjs";
 import { normalizeSetPiecePoint } from "./geometry.mjs";
 
@@ -139,6 +141,9 @@ function normalizeDrawing(drawing = {}) {
     actorId: text(drawing.actorId, 100),
     label: text(drawing.label, 80),
     curve: number(drawing.curve, 0, -36, 36),
+    zoneColor: type === "zone" && setPieceZoneColors.has(drawing.zoneColor)
+      ? drawing.zoneColor
+      : type === "zone" ? DEFAULT_SET_PIECE_ZONE_COLOR : "",
   };
 }
 

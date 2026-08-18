@@ -180,6 +180,11 @@
 .spr-drawing.is-block { color: #ff8e9b; }
 .spr-drawing.is-press { color: #ff9b55; }
 .spr-drawing.is-mark { color: #7ab7ff; }
+.spr-drawing.is-zone { --spr-zone-fill: #f4d35e2e; --spr-zone-stroke: #f4d35e; }
+.spr-drawing.is-zone-blue { --spr-zone-fill: #67b7ff30; --spr-zone-stroke: #67b7ff; }
+.spr-drawing.is-zone-red { --spr-zone-fill: #ff7a8530; --spr-zone-stroke: #ff7a85; }
+.spr-drawing.is-zone-green { --spr-zone-fill: #7ad99b30; --spr-zone-stroke: #7ad99b; }
+.spr-drawing.is-zone-white { --spr-zone-fill: #f0f4f229; --spr-zone-stroke: #f0f4f2; }
 
 .spr-drawing.is-pass .spr-drawing-shape { stroke-dasharray: 2.1 1.25; }
 .spr-drawing.is-dribble .spr-drawing-shape { stroke-dasharray: .55 1.1; }
@@ -236,8 +241,8 @@
 }
 
 .spr-zone-shape {
-  fill: #f4d35e2e;
-  stroke: #f4d35e;
+  fill: var(--spr-zone-fill);
+  stroke: var(--spr-zone-stroke);
   stroke-dasharray: 1.6 .9;
   stroke-width: .55;
   vector-effect: non-scaling-stroke;

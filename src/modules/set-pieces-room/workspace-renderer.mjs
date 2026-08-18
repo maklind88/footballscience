@@ -1,4 +1,5 @@
 import {
+  DEFAULT_SET_PIECE_ZONE_COLOR,
   setPieceContextOptions,
   setPieceLayerOptions,
   setPieceMomentOptions,
@@ -6,6 +7,8 @@ import {
   setPieceRestartOptions,
   setPieceSubPhaseOptions,
   setPieceToolOptions,
+  setPieceZoneColorOptions,
+  setPieceZoneColors,
 } from "./constants.mjs";
 import {
   getSetPieceAssignedSlot,
@@ -333,6 +336,7 @@ function renderElementInspector(element, play, variant, roster, ui, canEdit, can
 
 function renderDrawingInspector(drawing, phase, canEdit, canDelete) {
   const actors = getSetPieceDrawingActors(phase, drawing.type);
+  const zoneColor = setPieceZoneColors.has(drawing.zoneColor) ? drawing.zoneColor : DEFAULT_SET_PIECE_ZONE_COLOR;
   const actorField = actors.length ? `<label class="spr-field"><span>Linked actor</span><select data-set-piece-drawing-field="actorId" ${canEdit ? "" : "disabled"}>
     <option value="">Unlinked</option>
     ${actors.map((actor) => `<option value="${escapeSetPieceHtml(actor.id)}" ${actor.id === drawing.actorId ? "selected" : ""}>${escapeSetPieceHtml(getSetPieceDrawingActorLabel(actor))}</option>`).join("")}
@@ -341,6 +345,9 @@ function renderDrawingInspector(drawing, phase, canEdit, canDelete) {
     <div class="spr-inspector-title"><div><p>Movement</p><strong>${escapeSetPieceHtml(drawing.type)}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete selected (Delete)" aria-label="Delete selected" aria-keyshortcuts="Delete Backspace" ${canDelete ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("trash")}</span></button>${renderInspectorCloseButton()}</div></div>
     ${actorField}
     ${renderField("Label", "label", drawing.label, { scope: "set-piece-drawing", disabled: !canEdit })}
+    ${drawing.type === "zone" ? `<fieldset class="spr-zone-color-field"><legend>Zone color</legend><div class="spr-zone-color-options" role="radiogroup" aria-label="Zone color">
+      ${setPieceZoneColorOptions.map((option) => `<label class="is-${option.value}" title="${escapeSetPieceHtml(option.label)}"><input type="radio" name="set-piece-zone-color" value="${option.value}" data-set-piece-drawing-field="zoneColor" aria-label="${escapeSetPieceHtml(`${option.label} zone`)}" ${option.value === zoneColor ? "checked" : ""} ${canEdit ? "" : "disabled"}><span aria-hidden="true"></span></label>`).join("")}
+    </div></fieldset>` : ""}
     ${drawing.type !== "zone" ? renderField("Curve", "curve", drawing.curve, { type: "range", min: -36, max: 36, scope: "set-piece-drawing", disabled: !canEdit }) : ""}
   </div>`;
 }

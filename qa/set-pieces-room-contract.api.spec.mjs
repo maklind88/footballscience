@@ -465,11 +465,16 @@ test("normalization clamps unsafe geometry and timing values", () => {
     label: "4",
     durationMs: -5,
   });
+  phase.drawings.push(
+    { id: "zone-safe", type: "zone", startX: 10, startY: 10, endX: 20, endY: 20, zoneColor: "blue" },
+    { id: "zone-unsafe", type: "zone", startX: 30, startY: 10, endX: 40, endY: 20, zoneColor: "url(javascript:alert(1))" }
+  );
   const state = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] });
   const normalizedPhase = state.plays[0].variants[0].phases[0];
 
   expect(normalizedPhase.durationMs).toBe(10000);
   expect(normalizedPhase.elements[0]).toMatchObject({ x: 105, y: 0, durationMs: 100 });
+  expect(normalizedPhase.drawings.map((drawing) => drawing.zoneColor)).toEqual(["blue", "yellow"]);
 });
 
 test("legacy playback timing migrates to a continuous rhythm without overriding current choices", () => {
@@ -740,7 +745,7 @@ test("selected drawings expose contextual transform handles only while editing",
     elements: [],
     drawings: [
       { id: "pass-a", type: "pass", startX: 10, startY: 10, endX: 30, endY: 18, curve: 5 },
-      { id: "zone-a", type: "zone", startX: 40, startY: 12, endX: 55, endY: 24 },
+      { id: "zone-a", type: "zone", startX: 40, startY: 12, endX: 55, endY: 24, zoneColor: "blue" },
     ],
   };
   const route = renderSetPieceBoard({ phase, interactive: true, selectedDrawingId: "pass-a", layers: new Set(["drawings"]) });
@@ -755,6 +760,7 @@ test("selected drawings expose contextual transform handles only while editing",
   expect(route).toContain('data-drawing-handle="curve"');
   expect(route).toContain('aria-keyshortcuts="Enter ArrowUp ArrowDown ArrowLeft ArrowRight Delete Backspace"');
   expect(zone.match(/data-drawing-handle="zone-/g)).toHaveLength(4);
+  expect(zone).toContain("is-zone-blue");
   expect(presenting).not.toContain("data-drawing-handle");
   expect(presenting).not.toContain('tabindex="0"');
 });

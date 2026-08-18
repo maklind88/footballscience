@@ -1,6 +1,7 @@
 import { getSetPieceElementTransform, getSetPiecePitchTransform, getSetPiecePitchViewBox } from "./geometry.mjs";
 import { renderSetPieceBoardBallSymbol } from "./ball-symbol.mjs";
 import { getSetPieceDrawingControlPoint, getSetPieceDrawingPath } from "./drawing-geometry.mjs";
+import { DEFAULT_SET_PIECE_ZONE_COLOR, setPieceZoneColors } from "./constants.mjs";
 
 export function escapeSetPieceHtml(value = "") {
   return String(value ?? "")
@@ -81,7 +82,8 @@ function renderElement(element = {}, options = {}) {
 function renderDrawing(drawing = {}, options = {}) {
   const selected = options.selectedDrawingIds?.has(drawing.id) || drawing.id === options.selectedDrawingId;
   const preview = Boolean(options.preview);
-  const classes = ["spr-drawing", `is-${drawing.type}`, selected ? "is-selected" : "", preview ? "is-preview" : ""]
+  const zoneColor = setPieceZoneColors.has(drawing.zoneColor) ? drawing.zoneColor : DEFAULT_SET_PIECE_ZONE_COLOR;
+  const classes = ["spr-drawing", `is-${drawing.type}`, drawing.type === "zone" ? `is-zone-${zoneColor}` : "", selected ? "is-selected" : "", preview ? "is-preview" : ""]
     .filter(Boolean)
     .join(" ");
   const interactive = options.interactive && !preview;

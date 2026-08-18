@@ -67,6 +67,18 @@ export const setPieceDrawingTypes = new Set([
   "zone",
 ]);
 
+export const DEFAULT_SET_PIECE_ZONE_COLOR = "yellow";
+
+export const setPieceZoneColorOptions = Object.freeze([
+  { value: "yellow", label: "Yellow" },
+  { value: "blue", label: "Blue" },
+  { value: "red", label: "Red" },
+  { value: "green", label: "Green" },
+  { value: "white", label: "White" },
+]);
+
+export const setPieceZoneColors = new Set(setPieceZoneColorOptions.map((option) => option.value));
+
 export const setPieceLayerOptions = Object.freeze([
   { value: "home", label: "Own team" },
   { value: "opponent", label: "Opponent" },

@@ -277,6 +277,18 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   await page.waitForTimeout(500);
   await zoneDrawing.dblclick();
   await expect(page.locator(".spr-inspector")).toContainText("Movement");
+  const zoneColors = page.getByRole("radiogroup", { name: "Zone color" });
+  await expect(zoneColors.getByRole("radio", { name: "Yellow zone" })).toBeChecked();
+  await zoneColors.getByRole("radio", { name: "Blue zone" }).check();
+  await expect(zoneDrawing).toHaveClass(/is-zone-blue/);
+  const savedZoneColor = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem("football-set-pieces-room-v1") || "{}");
+    return state.plays?.flatMap((play) => play.variants || [])
+      .flatMap((variant) => variant.phases || [])
+      .flatMap((phase) => phase.drawings || [])
+      .find((drawing) => drawing.type === "zone")?.zoneColor;
+  });
+  expect(savedZoneColor).toBe("blue");
   await page.getByRole("button", { name: "Close details" }).click();
 
   for (const tool of ["Select", "Opponent", "Ball", "Run", "Pass", "Dribble", "Block", "Press", "Track", "Zone"]) {

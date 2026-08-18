@@ -81,6 +81,7 @@ function renderToolRail(ui = {}, roster = []) {
     { label: "Players", tools: ["home-player", "opponent", "ball"] },
     { label: "Ball & movement", tools: ["run", "pass", "dribble"] },
     { label: "Opponent & response", tools: ["block", "press", "mark", "zone"] },
+    { label: "Annotation", tools: ["text"] },
   ];
   return `<div class="spr-tool-rail" role="toolbar" aria-label="Tactical tools">
     ${groups.map((group) => `<div class="spr-tool-group">
@@ -298,7 +299,7 @@ function renderField(label, field, value, options = {}) {
   if (options.type === "select") {
     return `<label class="spr-field"><span>${label}</span><select data-${options.scope || "set-piece-play"}-field="${field}" ${disabled}>${optionsMarkup(options.options, value)}</select></label>`;
   }
-  return `<label class="spr-field"><span>${label}</span><input type="${options.type || "text"}" value="${escapeSetPieceHtml(value)}" data-${options.scope || "set-piece-play"}-field="${field}" ${options.min !== undefined ? `min="${options.min}"` : ""} ${options.max !== undefined ? `max="${options.max}"` : ""} ${options.step !== undefined ? `step="${options.step}"` : ""} ${disabled}></label>`;
+  return `<label class="spr-field"><span>${label}</span><input type="${options.type || "text"}" value="${escapeSetPieceHtml(value)}" data-${options.scope || "set-piece-play"}-field="${field}" ${options.placeholder ? `placeholder="${escapeSetPieceHtml(options.placeholder)}"` : ""} ${options.maxLength !== undefined ? `maxlength="${options.maxLength}"` : ""} ${options.min !== undefined ? `min="${options.min}"` : ""} ${options.max !== undefined ? `max="${options.max}"` : ""} ${options.step !== undefined ? `step="${options.step}"` : ""} ${disabled}></label>`;
 }
 
 function renderSubPhaseField(play = {}, canEdit = false) {
@@ -337,18 +338,19 @@ function renderElementInspector(element, play, variant, roster, ui, canEdit, can
 function renderDrawingInspector(drawing, phase, canEdit, canDelete) {
   const actors = getSetPieceDrawingActors(phase, drawing.type);
   const zoneColor = setPieceZoneColors.has(drawing.zoneColor) ? drawing.zoneColor : DEFAULT_SET_PIECE_ZONE_COLOR;
+  const isText = drawing.type === "text";
   const actorField = actors.length ? `<label class="spr-field"><span>Linked actor</span><select data-set-piece-drawing-field="actorId" ${canEdit ? "" : "disabled"}>
     <option value="">Unlinked</option>
     ${actors.map((actor) => `<option value="${escapeSetPieceHtml(actor.id)}" ${actor.id === drawing.actorId ? "selected" : ""}>${escapeSetPieceHtml(getSetPieceDrawingActorLabel(actor))}</option>`).join("")}
   </select><small>The route follows this player or the ball during playback.</small></label>` : "";
   return `<div class="spr-inspector-section">
-    <div class="spr-inspector-title"><div><p>Movement</p><strong>${escapeSetPieceHtml(drawing.type)}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete selected (Delete)" aria-label="Delete selected" aria-keyshortcuts="Delete Backspace" ${canDelete ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("trash")}</span></button>${renderInspectorCloseButton()}</div></div>
+    <div class="spr-inspector-title"><div><p>${isText ? "Annotation" : "Movement"}</p><strong>${isText ? "Text" : escapeSetPieceHtml(drawing.type)}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete selected (Delete)" aria-label="Delete selected" aria-keyshortcuts="Delete Backspace" ${canDelete ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("trash")}</span></button>${renderInspectorCloseButton()}</div></div>
     ${actorField}
-    ${renderField("Label", "label", drawing.label, { scope: "set-piece-drawing", disabled: !canEdit })}
+    ${renderField(isText ? "Text" : "Label", "label", drawing.label, { scope: "set-piece-drawing", placeholder: isText ? "Type a tactical note" : "", maxLength: 80, disabled: !canEdit })}
     ${drawing.type === "zone" ? `<fieldset class="spr-zone-color-field"><legend>Zone color</legend><div class="spr-zone-color-options" role="radiogroup" aria-label="Zone color">
       ${setPieceZoneColorOptions.map((option) => `<label class="is-${option.value}" title="${escapeSetPieceHtml(option.label)}"><input type="radio" name="set-piece-zone-color" value="${option.value}" data-set-piece-drawing-field="zoneColor" aria-label="${escapeSetPieceHtml(`${option.label} zone`)}" ${option.value === zoneColor ? "checked" : ""} ${canEdit ? "" : "disabled"}><span aria-hidden="true"></span></label>`).join("")}
     </div></fieldset>` : ""}
-    ${drawing.type !== "zone" ? renderField("Curve", "curve", drawing.curve, { type: "range", min: -36, max: 36, scope: "set-piece-drawing", disabled: !canEdit }) : ""}
+    ${!["zone", "text"].includes(drawing.type) ? renderField("Curve", "curve", drawing.curve, { type: "range", min: -36, max: 36, scope: "set-piece-drawing", disabled: !canEdit }) : ""}
   </div>`;
 }
 

@@ -199,7 +199,7 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
 
   const tacticalTools = page.getByRole("toolbar", { name: "Tactical tools" });
   const iconSignatures = await tacticalTools.locator(".spr-tool-icon svg").evaluateAll((icons) => icons.map((icon) => icon.innerHTML));
-  expect(new Set(iconSignatures).size).toBe(11);
+  expect(new Set(iconSignatures).size).toBe(12);
   const runTool = tacticalTools.getByRole("button", { name: "Run", exact: true });
   await runTool.hover();
   await expect(page.getByRole("tooltip").filter({ hasText: "Drag from the runner" })).toBeVisible();
@@ -291,11 +291,43 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   expect(savedZoneColor).toBe("blue");
   await page.getByRole("button", { name: "Close details" }).click();
 
-  for (const tool of ["Select", "Opponent", "Ball", "Run", "Pass", "Dribble", "Block", "Press", "Track", "Zone"]) {
+  await tacticalTools.getByRole("button", { name: "Text", exact: true }).click();
+  const textPitchBox = await cornerPitch.boundingBox();
+  await page.mouse.click(textPitchBox.x + textPitchBox.width * .72, textPitchBox.y + textPitchBox.height * .7);
+  const textAnnotation = cornerBoard.locator(".spr-drawing.is-text");
+  await expect(textAnnotation).toBeVisible();
+  await expect(page.locator(".spr-inspector")).toContainText("Annotation");
+  const textField = page.locator('[data-set-piece-drawing-field="label"]');
+  await expect(textField).toBeFocused();
+  await textField.fill("Block goalkeeper");
+  await textField.press("Tab");
+  await expect(textAnnotation.locator(".spr-text-annotation-label")).toHaveText("Block goalkeeper");
+  await expect(cornerBoard.locator(".spr-drawing-controls")).toHaveCount(0);
+  const textTransformBefore = await textAnnotation.getAttribute("transform");
+  await page.getByRole("button", { name: "Close details" }).click();
+  await expect(page.locator(".spr-inspector")).toBeHidden();
+  const textBox = await textAnnotation.boundingBox();
+  await page.mouse.move(textBox.x + textBox.width / 2, textBox.y + textBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(textBox.x + textBox.width / 2 + 32, textBox.y + textBox.height / 2 + 18, { steps: 5 });
+  await page.mouse.up();
+  await expect(textAnnotation).not.toHaveAttribute("transform", textTransformBefore);
+  await expect(page.locator(".spr-inspector")).toBeHidden();
+  const savedText = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem("football-set-pieces-room-v1") || "{}");
+    return state.plays?.flatMap((play) => play.variants || [])
+      .flatMap((variant) => variant.phases || [])
+      .flatMap((phase) => phase.drawings || [])
+      .find((drawing) => drawing.type === "text")?.label;
+  });
+  expect(savedText).toBe("Block goalkeeper");
+
+  for (const tool of ["Select", "Opponent", "Ball", "Run", "Pass", "Dribble", "Block", "Press", "Track", "Zone", "Text"]) {
     const button = page.getByRole("button", { name: tool, exact: true });
     await button.click();
     await expect(button).toHaveAttribute("aria-pressed", "true");
   }
+  await expect(page.locator(".spr-inspector")).toBeHidden();
   await expect(page.locator(".spr-active-tool-hint, .spr-ghost-status")).toHaveCount(0);
 
   const playIcon = page.getByRole("button", { name: "Play", exact: true }).locator("svg");

@@ -27,7 +27,7 @@ import {
   getSetPieceElementPlaybackProgress,
   interpolateSetPiecePlaybackElement,
 } from "../src/modules/set-pieces-room/playback-geometry.mjs";
-import { renderSetPieceBoard } from "../src/modules/set-pieces-room/board-renderer.mjs";
+import { getSetPieceTextAnnotationMetrics, renderSetPieceBoard } from "../src/modules/set-pieces-room/board-renderer.mjs";
 import { chooseSetPieceDrawingActor, getSetPieceDrawingActors } from "../src/modules/set-pieces-room/drawing-actors.mjs";
 import {
   getSetPieceDrawingControlPoint,
@@ -211,6 +211,9 @@ test("editor keeps tactical guidance in a first-run dialog instead of over the p
   expect(markup).toContain("Double-click a player or object");
   expect(markup).toContain("Drag from the runner toward the target position");
   expect(markup).toContain('data-set-piece-tool="run"');
+  expect(markup).toContain('data-set-piece-tool="text"');
+  expect(markup).toContain('aria-label="Text"');
+  expect(markup).toContain('aria-keyshortcuts="T"');
   expect(markup).toContain('aria-pressed="true"');
   expect(markup).toContain('data-set-piece-action="toggle-play"');
   expect(markup).toContain('<svg viewBox="0 0 24 24"');
@@ -763,6 +766,72 @@ test("selected drawings expose contextual transform handles only while editing",
   expect(zone).toContain("is-zone-blue");
   expect(presenting).not.toContain("data-drawing-handle");
   expect(presenting).not.toContain('tabindex="0"');
+});
+
+test("text annotations render as compact movable labels without route transform handles", () => {
+  const phase = {
+    elements: [],
+    drawings: [{
+      id: "text-a",
+      type: "text",
+      startX: 82,
+      startY: 24,
+      endX: 82,
+      endY: 24,
+      label: "Block goalkeeper",
+    }],
+  };
+  const editable = renderSetPieceBoard({
+    phase,
+    pitchView: "attacking-half",
+    interactive: true,
+    selectedDrawingId: "text-a",
+    layers: new Set(["drawings"]),
+  });
+  const presenting = renderSetPieceBoard({
+    phase,
+    pitchView: "attacking-half",
+    interactive: false,
+    layers: new Set(["drawings"]),
+  });
+
+  expect(getSetPieceTextAnnotationMetrics("Block goalkeeper")).toEqual({
+    label: "Block goalkeeper",
+    width: 20.2,
+    height: 5,
+  });
+  expect(editable).toContain("spr-drawing is-text is-selected");
+  expect(editable).toContain("spr-text-annotation-surface");
+  expect(editable).toContain(">Block goalkeeper</text>");
+  expect(editable).toContain('aria-label="Text annotation: Block goalkeeper"');
+  expect(editable).toContain('transform="rotate(90)"');
+  expect(editable).not.toContain("spr-drawing-controls is-text");
+  expect(presenting).toContain(">Block goalkeeper</text>");
+  expect(presenting).not.toContain('tabindex="0"');
+});
+
+test("text annotations survive state normalization with their point and label", () => {
+  const play = createSetPiecePlay({ title: "Screen call" });
+  play.variants[0].phases[0].drawings.push({
+    id: "text-a",
+    type: "text",
+    startX: 88,
+    startY: 18,
+    endX: 88,
+    endY: 18,
+    label: "Block goalkeeper",
+  });
+
+  const normalized = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] });
+  expect(normalized.plays[0].variants[0].phases[0].drawings[0]).toMatchObject({
+    id: "text-a",
+    type: "text",
+    startX: 88,
+    startY: 18,
+    endX: 88,
+    endY: 18,
+    label: "Block goalkeeper",
+  });
 });
 
 test("mixed multi-selection highlights every object without exposing single-object transform handles", () => {

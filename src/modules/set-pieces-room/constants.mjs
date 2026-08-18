@@ -55,6 +55,7 @@ export const setPieceToolOptions = Object.freeze([
   { value: "press", label: "Press", shortcut: "E", hint: "Drag from the presser toward the pressure target" },
   { value: "mark", label: "Track", shortcut: "M", hint: "Drag from the marker toward the tracked movement" },
   { value: "zone", label: "Zone", shortcut: "Z", hint: "Drag a rectangle over the area to protect" },
+  { value: "text", label: "Text", shortcut: "T", hint: "Click the pitch to place a tactical note" },
 ]);
 
 export const setPieceDrawingTypes = new Set([
@@ -65,6 +66,7 @@ export const setPieceDrawingTypes = new Set([
   "press",
   "mark",
   "zone",
+  "text",
 ]);
 
 export const DEFAULT_SET_PIECE_ZONE_COLOR = "yellow";

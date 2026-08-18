@@ -13,7 +13,8 @@
 }
 
 .spr-pitch.is-wide-projection-active .spr-board-element > *,
-.spr-pitch.is-wide-projection-active .spr-drawing-label {
+.spr-pitch.is-wide-projection-active .spr-drawing-label,
+.spr-pitch.is-wide-projection-active .spr-text-annotation-content {
   transform: scaleX(var(--spr-wide-counter-scale, 1));
   transform-box: fill-box;
   transform-origin: center;

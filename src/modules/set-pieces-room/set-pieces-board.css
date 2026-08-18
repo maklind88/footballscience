@@ -180,6 +180,7 @@
 .spr-drawing.is-block { color: #ff8e9b; }
 .spr-drawing.is-press { color: #ff9b55; }
 .spr-drawing.is-mark { color: #7ab7ff; }
+.spr-drawing.is-text { color: #f7faf8; }
 .spr-drawing.is-zone { --spr-zone-fill: #f4d35e2e; --spr-zone-stroke: #f4d35e; }
 .spr-drawing.is-zone-blue { --spr-zone-fill: #67b7ff30; --spr-zone-stroke: #67b7ff; }
 .spr-drawing.is-zone-red { --spr-zone-fill: #ff7a8530; --spr-zone-stroke: #ff7a85; }
@@ -247,6 +248,38 @@
   stroke-width: .55;
   vector-effect: non-scaling-stroke;
   pointer-events: all;
+}
+
+.spr-text-annotation-hit {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 6px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: all;
+}
+
+.spr-text-annotation-surface {
+  fill: #10271ee8;
+  stroke: #ffffffa8;
+  stroke-width: .35;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.spr-text-annotation-label {
+  fill: #fff;
+  font-size: 2.15px;
+  font-weight: 760;
+  letter-spacing: 0;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
+.spr-drawing.is-text.is-selected .spr-text-annotation-surface {
+  stroke: #f8d04a;
+  stroke-width: .65;
+  filter: drop-shadow(0 0 1.2px #10271e);
 }
 
 .spr-drawing-label {

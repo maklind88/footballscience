@@ -12,6 +12,7 @@ const paths = Object.freeze({
   press: '<circle cx="18" cy="12" r="2.6"/><path d="m4 6 8 4m-8 8 8-4"/><path d="m9 7.5 3 2.5-3 .7m0 5.8 3-2.5-3-.7"/>',
   mark: '<circle cx="6.5" cy="12" r="2.7"/><circle cx="17.5" cy="12" r="2.7"/><path d="M9.5 12h5" stroke-dasharray="1.5 1.5"/><path d="m12.5 9.5 2.5 2.5-2.5 2.5"/>',
   zone: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="m4 10 6-5m-6 11L16 5m-6 14L20 9m-4 10 4-4"/>',
+  text: '<path d="M5 5h14M12 5v14M8.5 19h7"/>',
   trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/>',
   library: '<path d="M4 5h6l2 2h8v12H4Z"/><path d="M4 10h16"/>',
   filter: '<path d="M4 5h16l-6 7v5l-4 2v-7Z"/>',

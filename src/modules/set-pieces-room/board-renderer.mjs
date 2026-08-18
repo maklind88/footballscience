@@ -12,6 +12,16 @@ export function escapeSetPieceHtml(value = "") {
     .replaceAll("'", "&#039;");
 }
 
+export function getSetPieceTextAnnotationMetrics(label = "") {
+  const source = String(label || "Text").trim() || "Text";
+  const visibleLabel = source.length > 34 ? `${source.slice(0, 31)}...` : source;
+  return {
+    label: visibleLabel,
+    width: Math.min(38, Math.max(9, visibleLabel.length * 1.05 + 3.4)),
+    height: 5,
+  };
+}
+
 function renderPitchMarkings() {
   return `
     <g class="spr-pitch-markings" aria-hidden="true">
@@ -87,10 +97,24 @@ function renderDrawing(drawing = {}, options = {}) {
     .filter(Boolean)
     .join(" ");
   const interactive = options.interactive && !preview;
+  const drawingAccessibilityLabel = drawing.type === "text"
+    ? `Text annotation: ${drawing.label || "Text"}`
+    : `${drawing.type || "Movement"} drawing`;
   const accessibility = interactive
-    ? ` tabindex="0" role="button" aria-label="${escapeSetPieceHtml(`${drawing.type || "Movement"} drawing`)}" aria-keyshortcuts="Enter ArrowUp ArrowDown ArrowLeft ArrowRight Delete Backspace"`
+    ? ` tabindex="0" role="button" aria-label="${escapeSetPieceHtml(drawingAccessibilityLabel)}" aria-keyshortcuts="Enter ArrowUp ArrowDown ArrowLeft ArrowRight Delete Backspace"`
     : "";
   const common = `class="${classes}" data-drawing-id="${escapeSetPieceHtml(drawing.id || "preview")}"${accessibility}`;
+  if (drawing.type === "text") {
+    const metrics = getSetPieceTextAnnotationMetrics(drawing.label);
+    const orientation = options.halfPitch ? ' transform="rotate(90)"' : "";
+    return `<g ${common} transform="translate(${Number(drawing.startX || 0)} ${Number(drawing.startY || 0)})" data-set-piece-text-annotation>
+      <g${orientation}><g class="spr-text-annotation-content">
+        <rect x="${-metrics.width / 2}" y="${-metrics.height / 2}" width="${metrics.width}" height="${metrics.height}" rx="1.2" class="spr-text-annotation-hit"></rect>
+        <rect x="${-metrics.width / 2}" y="${-metrics.height / 2}" width="${metrics.width}" height="${metrics.height}" rx="1.2" class="spr-text-annotation-surface"></rect>
+        <text y=".12" class="spr-text-annotation-label">${escapeSetPieceHtml(metrics.label)}</text>
+      </g></g>
+    </g>`;
+  }
   if (drawing.type === "zone") {
     const x = Math.min(drawing.startX, drawing.endX);
     const y = Math.min(drawing.startY, drawing.endY);
@@ -126,6 +150,7 @@ function renderDrawingControls(drawing = {}, options = {}) {
   const drawingSelectionCount = options.selectedDrawingIds?.size || (options.selectedDrawingId ? 1 : 0);
   if (
     !drawing?.id ||
+    drawing.type === "text" ||
     !options.interactive ||
     drawing.id !== options.selectedDrawingId ||
     drawingSelectionCount !== 1 ||

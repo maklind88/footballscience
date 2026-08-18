@@ -221,6 +221,7 @@ body.is-dark-mode .spr-editor-command-bar .spr-command-icon-button.is-active {
 .spr-shell.is-editing .spr-tool-button[data-set-piece-tool="press"] { --spr-tool-tone: #b85620; }
 .spr-shell.is-editing .spr-tool-button[data-set-piece-tool="mark"] { --spr-tool-tone: #356fba; }
 .spr-shell.is-editing .spr-tool-button[data-set-piece-tool="zone"] { --spr-tool-tone: #786410; }
+.spr-shell.is-editing .spr-tool-button[data-set-piece-tool="text"] { --spr-tool-tone: #4c5470; }
 
 .spr-shell.is-editing .spr-tool-button:hover,
 .spr-shell.is-editing .spr-tool-button:focus-visible {

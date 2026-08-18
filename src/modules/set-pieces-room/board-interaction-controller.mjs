@@ -218,6 +218,35 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     }
   }
 
+  function placeTextAnnotation(point) {
+    const { phase } = options.getContext();
+    const ui = options.ui;
+    if (!phase || !options.canEdit()) return;
+    const drawing = {
+      id: createSetPieceId("drawing"),
+      type: "text",
+      startX: point.x,
+      startY: point.y,
+      endX: point.x,
+      endY: point.y,
+      actorId: "",
+      label: "Text",
+      curve: 0,
+    };
+    options.commit(() => {
+      phase.drawings.push(drawing);
+      getSelectedDrawingIds().clear();
+      getSelectedDrawingIds().add(drawing.id);
+      ui.selectedDrawingId = drawing.id;
+      ui.selectedElementIds.clear();
+      ui.assignmentPickerSlotId = "";
+      ui.showAssignments = false;
+      ui.inspectorCollapsed = false;
+      ui.activeTool = "select";
+    });
+    options.focusDrawingLabel?.();
+  }
+
   function toggleRosterPlayer(playerId) {
     const { phase, play, variant } = options.getContext();
     if (!phase || !play || !variant) return;
@@ -395,6 +424,11 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     }
     if (["home-player", "opponent", "ball"].includes(ui.activeTool) && options.canEdit()) {
       placeElement(point);
+      return;
+    }
+    if (ui.activeTool === "text" && options.canEdit()) {
+      placeTextAnnotation(point);
+      event.preventDefault();
       return;
     }
     if (setPieceDrawingTypes.has(ui.activeTool) && options.canEdit()) {
@@ -762,7 +796,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       options.playback.toggle();
       return;
     }
-    const tool = { v: "select", p: "home-player", o: "opponent", b: "ball", r: "run", a: "pass", d: "dribble", k: "block", e: "press", m: "mark", z: "zone" }[key];
+    const tool = { v: "select", p: "home-player", o: "opponent", b: "ball", r: "run", a: "pass", d: "dribble", k: "block", e: "press", m: "mark", z: "zone", t: "text" }[key];
     if (tool) {
       if (tool === "home-player") {
         options.ui.activeTool = "select";

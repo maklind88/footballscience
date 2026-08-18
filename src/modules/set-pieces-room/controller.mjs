@@ -686,6 +686,17 @@ export function createSetPiecesRoomController(options = {}) {
     }
   }
 
+  function handleInspectorPointerDown(event) {
+    if (event.button !== 0 || event.isPrimary === false) return;
+    const action = event.target.closest?.("[data-set-piece-action]")?.dataset.setPieceAction;
+    if (!["close-inspector", "toggle-inspector"].includes(action)) return;
+    const shouldOpen = action === "toggle-inspector" ? ui.inspectorCollapsed : false;
+    const activeField = documentRef?.activeElement;
+    if (root?.contains?.(activeField) && activeField?.matches?.("input, textarea, select")) activeField.blur?.();
+    setInspectorOpen(shouldOpen);
+    event.preventDefault();
+  }
+
   function handleInput(event) {
     const target = event.target;
     if (target.matches?.("[data-set-piece-search]")) {
@@ -775,6 +786,16 @@ export function createSetPiecesRoomController(options = {}) {
     render,
   });
 
+  function focusDrawingLabel() {
+    const focus = () => {
+      const field = root?.querySelector?.('[data-set-piece-drawing-field="label"]');
+      field?.focus?.();
+      field?.select?.();
+    };
+    if (typeof win.requestAnimationFrame === "function") win.requestAnimationFrame(focus);
+    else focus();
+  }
+
   const boardInteractions = createSetPiecesBoardInteractionController({
     root,
     ui,
@@ -785,6 +806,7 @@ export function createSetPiecesRoomController(options = {}) {
     canDelete,
     commit,
     finalizeDirectMutation,
+    focusDrawingLabel,
     render,
     renderBoardOnly,
     playback,
@@ -807,6 +829,7 @@ export function createSetPiecesRoomController(options = {}) {
     root.addEventListener("input", handleInput);
     root.addEventListener("change", handleChange);
     root.addEventListener("dblclick", boardInteractions.handleDoubleClick);
+    root.addEventListener("pointerdown", handleInspectorPointerDown);
     root.addEventListener("pointerdown", boardInteractions.handlePointerDown);
     documentRef.addEventListener("pointermove", boardInteractions.handlePointerMove);
     documentRef.addEventListener("pointerup", boardInteractions.handlePointerUp);

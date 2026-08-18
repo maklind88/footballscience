@@ -806,6 +806,7 @@ export function createSetPiecesRoomController(options = {}) {
     root.addEventListener("click", handleClick);
     root.addEventListener("input", handleInput);
     root.addEventListener("change", handleChange);
+    root.addEventListener("dblclick", boardInteractions.handleDoubleClick);
     root.addEventListener("pointerdown", boardInteractions.handlePointerDown);
     documentRef.addEventListener("pointermove", boardInteractions.handlePointerMove);
     documentRef.addEventListener("pointerup", boardInteractions.handlePointerUp);

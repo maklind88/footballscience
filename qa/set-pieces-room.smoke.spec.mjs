@@ -125,18 +125,19 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   const collapsedLayout = await readEditorLayout();
   expect(Math.abs(collapsedLayout.stage.width - collapsedLayout.slot.width)).toBeLessThanOrEqual(1);
   expect(Math.abs(collapsedLayout.stage.height - collapsedLayout.slot.height)).toBeLessThanOrEqual(1);
-  expect(collapsedLayout.stage.width / collapsedLayout.stage.height).toBeGreaterThan(68 / 52.5);
+  expect(collapsedLayout.stage.width / collapsedLayout.stage.height).toBeGreaterThan(68 / 35);
   expect(Math.abs(collapsedLayout.centerCircle.width - collapsedLayout.centerCircle.height)).toBeLessThanOrEqual(1);
   await page.getByRole("button", { name: "Toggle details" }).click();
   await expect(page.locator(".spr-inspector")).toBeVisible();
-  await expect(page.locator(".spr-board-row")).toHaveClass(/is-wide-projection-active/);
+  await expect(page.locator(".spr-board-row")).not.toHaveClass(/is-wide-projection-active/);
   const expandedLayout = await readEditorLayout();
   expect(expandedLayout.editor.width).toBeLessThan(collapsedLayout.editor.width - 200);
   expect(Math.abs(expandedLayout.editor.height - collapsedLayout.editor.height)).toBeLessThanOrEqual(1);
   expect(Math.abs(expandedLayout.command.top - collapsedLayout.command.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(expandedLayout.stage.top - collapsedLayout.stage.top)).toBeLessThanOrEqual(1);
   expect(expandedLayout.stage.width).toBeLessThanOrEqual(collapsedLayout.stage.width + 1);
-  expect(Math.abs(expandedLayout.stage.width - expandedLayout.slot.width)).toBeLessThanOrEqual(1);
+  expect(expandedLayout.stage.width).toBeLessThanOrEqual(expandedLayout.slot.width + 1);
+  expect(Math.abs((expandedLayout.stage.width / expandedLayout.stage.height) - (68 / 35))).toBeLessThan(0.01);
   expect(Math.abs(expandedLayout.centerCircle.width - expandedLayout.centerCircle.height)).toBeLessThanOrEqual(1);
   expect(expandedLayout.stage.bottom).toBeLessThanOrEqual(expandedLayout.timeline.top + 1);
   expect(Math.abs(expandedLayout.playback.bottom - expandedLayout.editor.bottom)).toBeLessThanOrEqual(1);
@@ -256,7 +257,7 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   expect(Math.abs(tabletExpandedLayout.editor.height - tabletCollapsedLayout.editor.height)).toBeLessThanOrEqual(1);
   expect(Math.abs(tabletExpandedLayout.stage.top - tabletCollapsedLayout.stage.top)).toBeLessThanOrEqual(1);
   expect(tabletExpandedLayout.stage.width).toBeLessThan(tabletCollapsedLayout.stage.width - 50);
-  expect(Math.abs((tabletExpandedLayout.stage.width / tabletExpandedLayout.stage.height) - (68 / 52.5))).toBeLessThan(0.01);
+  expect(Math.abs((tabletExpandedLayout.stage.width / tabletExpandedLayout.stage.height) - (68 / 35))).toBeLessThan(0.01);
   expect(tabletExpandedLayout.stage.bottom).toBeLessThanOrEqual(tabletExpandedLayout.timeline.top + 1);
 });
 
@@ -744,7 +745,7 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
   expect(compact.strip.height).toBeLessThanOrEqual(63);
   expect(compact.playback.height).toBeLessThanOrEqual(63);
   expect(compact.board.height).toBeGreaterThanOrEqual(compact.body.height - 14);
-  expect(compact.board.width / compact.board.height).toBeCloseTo(68 / 52.5, 2);
+  expect(compact.board.width / compact.board.height).toBeCloseTo(68 / 35, 2);
   expect(compact.cues.height).toBeLessThanOrEqual(44);
   expect(compact.overflow.width).toBeLessThanOrEqual(0);
   expect(compact.overflow.height).toBeLessThanOrEqual(0);
@@ -771,7 +772,7 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
     await shell.locator(".spr-present-cues").evaluate((element) => element.removeAttribute("open"));
   }
   const portrait = await readLayout();
-  expect(portrait.board.width / portrait.board.height).toBeCloseTo(68 / 52.5, 2);
+  expect(portrait.board.width / portrait.board.height).toBeCloseTo(68 / 35, 2);
   expect(portrait.board.width).toBeGreaterThanOrEqual(portrait.viewport.width - 18);
   expect(portrait.overflow.width).toBeLessThanOrEqual(0);
   expect(portrait.overflow.height).toBeLessThanOrEqual(0);

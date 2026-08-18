@@ -1,5 +1,7 @@
 const PITCH_LENGTH = 105;
 const PITCH_WIDTH = 68;
+const PITCH_THIRD_LENGTH = PITCH_LENGTH / 3;
+const ATTACKING_THIRD_START = PITCH_LENGTH - PITCH_THIRD_LENGTH;
 const PLAYER_MARKER_INSET = 4;
 
 export function clampSetPieceCoordinate(value, min, max) {
@@ -16,16 +18,16 @@ export function normalizeSetPiecePoint(point = {}) {
 
 export function normalizeSetPiecePointForPitchView(point = {}, pitchView = "full") {
   const normalized = normalizeSetPiecePoint(point);
-  if (pitchView === "attacking-half") normalized.x = clampSetPieceCoordinate(normalized.x, PITCH_LENGTH / 2, PITCH_LENGTH);
-  if (pitchView === "defensive-half") normalized.x = clampSetPieceCoordinate(normalized.x, 0, PITCH_LENGTH / 2);
+  if (pitchView === "attacking-half") normalized.x = clampSetPieceCoordinate(normalized.x, ATTACKING_THIRD_START, PITCH_LENGTH);
+  if (pitchView === "defensive-half") normalized.x = clampSetPieceCoordinate(normalized.x, 0, PITCH_THIRD_LENGTH);
   return normalized;
 }
 
 export function normalizeSetPieceElementPointForPitchView(point = {}, pitchView = "full", kind = point.kind) {
   const normalized = normalizeSetPiecePointForPitchView(point, pitchView);
   if (!["home-player", "opponent"].includes(kind)) return normalized;
-  const minX = pitchView === "attacking-half" ? PITCH_LENGTH / 2 : 0;
-  const maxX = pitchView === "defensive-half" ? PITCH_LENGTH / 2 : PITCH_LENGTH;
+  const minX = pitchView === "attacking-half" ? ATTACKING_THIRD_START : 0;
+  const maxX = pitchView === "defensive-half" ? PITCH_THIRD_LENGTH : PITCH_LENGTH;
   return {
     x: clampSetPieceCoordinate(normalized.x, minX + PLAYER_MARKER_INSET, maxX - PLAYER_MARKER_INSET),
     y: clampSetPieceCoordinate(normalized.y, PLAYER_MARKER_INSET, PITCH_WIDTH - PLAYER_MARKER_INSET),
@@ -33,13 +35,13 @@ export function normalizeSetPieceElementPointForPitchView(point = {}, pitchView 
 }
 
 export function getSetPiecePitchViewBox(pitchView = "full") {
-  if (pitchView === "attacking-half" || pitchView === "defensive-half") return "0 0 68 52.5";
+  if (pitchView === "attacking-half" || pitchView === "defensive-half") return "0 0 68 35";
   return "0 0 105 68";
 }
 
 export function getSetPiecePitchTransform(pitchView = "full") {
   if (pitchView === "attacking-half") return "matrix(0 -1 1 0 0 105)";
-  if (pitchView === "defensive-half") return "matrix(0 -1 1 0 0 52.5)";
+  if (pitchView === "defensive-half") return "matrix(0 -1 1 0 0 35)";
   return "";
 }
 
@@ -47,7 +49,7 @@ export function getSetPieceSourcePoint(point = {}, pitchView = "full") {
   const x = Number(point.x || 0);
   const y = Number(point.y || 0);
   if (pitchView === "attacking-half") return normalizeSetPiecePointForPitchView({ x: PITCH_LENGTH - y, y: x }, pitchView);
-  if (pitchView === "defensive-half") return normalizeSetPiecePointForPitchView({ x: PITCH_LENGTH / 2 - y, y: x }, pitchView);
+  if (pitchView === "defensive-half") return normalizeSetPiecePointForPitchView({ x: PITCH_THIRD_LENGTH - y, y: x }, pitchView);
   return normalizeSetPiecePoint(point);
 }
 
@@ -87,9 +89,9 @@ export function getNearestSetPieceElement(elements = [], point = {}, maxDistance
 
 export function getNextSetPiecePlayerPlacement(elements = [], pitchView = "full") {
   const columns = pitchView === "attacking-half"
-    ? [62, 70, 78]
+    ? [78, 86, 94]
     : pitchView === "defensive-half"
-      ? [43, 35, 27]
+      ? [27, 19, 11]
       : [43, 51, 59];
   const rows = [10, 18, 26, 34, 42, 50, 58];
   const occupied = Array.isArray(elements) ? elements : [];

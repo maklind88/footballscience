@@ -39,8 +39,8 @@ export const setPieceContextOptions = Object.freeze([
 
 export const setPiecePitchViewOptions = Object.freeze([
   { value: "full", label: "Full pitch" },
-  { value: "attacking-half", label: "Attacking half" },
-  { value: "defensive-half", label: "Defensive half" },
+  { value: "attacking-half", label: "Attacking third" },
+  { value: "defensive-half", label: "Defensive third" },
 ]);
 
 export const setPieceToolOptions = Object.freeze([

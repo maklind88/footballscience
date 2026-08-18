@@ -564,41 +564,41 @@ test("drawing routes prefer the selected compatible actor and remain editable", 
 });
 
 test("drag coordinates stay inside the visible pitch view", () => {
-  expect(normalizeSetPiecePointForPitchView({ x: 4, y: 80 }, "attacking-half")).toEqual({ x: 52.5, y: 68 });
-  expect(normalizeSetPiecePointForPitchView({ x: 90, y: -4 }, "defensive-half")).toEqual({ x: 52.5, y: 0 });
+  expect(normalizeSetPiecePointForPitchView({ x: 4, y: 80 }, "attacking-half")).toEqual({ x: 70, y: 68 });
+  expect(normalizeSetPiecePointForPitchView({ x: 90, y: -4 }, "defensive-half")).toEqual({ x: 35, y: 0 });
   expect(normalizeSetPiecePointForPitchView({ x: 90, y: 30 }, "full")).toEqual({ x: 90, y: 30 });
   expect(normalizeSetPieceElementPointForPitchView({ x: 0, y: 0 }, "defensive-half", "home-player")).toEqual({ x: 4, y: 4 });
   expect(normalizeSetPieceElementPointForPitchView({ x: 105, y: 68 }, "attacking-half", "opponent")).toEqual({ x: 101, y: 64 });
   expect(normalizeSetPieceElementPointForPitchView({ x: 0, y: 0 }, "defensive-half", "ball")).toEqual({ x: 0, y: 0 });
 });
 
-test("half-pitch views use landscape coordinates and map pointer input back to source geometry", () => {
-  expect(getSetPiecePitchViewBox("attacking-half")).toBe("0 0 68 52.5");
+test("focused third views use landscape coordinates and map pointer input back to source geometry", () => {
+  expect(getSetPiecePitchViewBox("attacking-half")).toBe("0 0 68 35");
   expect(getSetPiecePitchTransform("attacking-half")).toBe("matrix(0 -1 1 0 0 105)");
-  expect(getSetPiecePitchTransform("defensive-half")).toBe("matrix(0 -1 1 0 0 52.5)");
+  expect(getSetPiecePitchTransform("defensive-half")).toBe("matrix(0 -1 1 0 0 35)");
   expect(getSetPieceSourcePoint({ x: 18, y: 25 }, "attacking-half")).toEqual({ x: 80, y: 18 });
-  expect(getSetPieceSourcePoint({ x: 18, y: 25 }, "defensive-half")).toEqual({ x: 27.5, y: 18 });
+  expect(getSetPieceSourcePoint({ x: 18, y: 25 }, "defensive-half")).toEqual({ x: 10, y: 18 });
 });
 
 test("wide editor projection fills broad canvases while preserving narrow pitch geometry", () => {
   const broad = getSetPiecesWideEditorProjection(
-    { width: 1036, height: 562 },
-    { width: 68, height: 52.5 }
+    { width: 1200, height: 480 },
+    { width: 68, height: 35 }
   );
   expect(broad.active).toBe(true);
-  expect(broad.counterScale).toBeCloseTo(.702, 2);
+  expect(broad.counterScale).toBeCloseTo(.777, 2);
 
   const narrow = getSetPiecesWideEditorProjection(
     { width: 620, height: 562 },
-    { width: 68, height: 52.5 }
+    { width: 68, height: 35 }
   );
   expect(narrow).toEqual({ active: false, counterScale: 1 });
 });
 
 test("quick player placement finds a visible open position without stacking markers", () => {
-  expect(getNextSetPiecePlayerPlacement([], "attacking-half")).toEqual({ x: 62, y: 10 });
-  expect(getNextSetPiecePlayerPlacement([{ x: 62, y: 10 }], "attacking-half")).toEqual({ x: 62, y: 18 });
-  expect(getNextSetPiecePlayerPlacement([], "defensive-half")).toEqual({ x: 43, y: 10 });
+  expect(getNextSetPiecePlayerPlacement([], "attacking-half")).toEqual({ x: 78, y: 10 });
+  expect(getNextSetPiecePlayerPlacement([{ x: 78, y: 10 }], "attacking-half")).toEqual({ x: 78, y: 18 });
+  expect(getNextSetPiecePlayerPlacement([], "defensive-half")).toEqual({ x: 27, y: 10 });
 });
 
 test("own-player labels stay unique while opponent identity remains numeric", () => {
@@ -649,7 +649,7 @@ test("board renderer distinguishes own initials, opponent numbers and movement s
   expect(markup).toContain(">4</text>");
   expect(markup).toContain("is-run");
   expect(markup).toContain("Q ");
-  expect(markup).toContain('viewBox="0 0 68 52.5"');
+  expect(markup).toContain('viewBox="0 0 68 35"');
   expect(markup).toContain('transform="matrix(0 -1 1 0 0 105)"');
   expect(markup).not.toContain("spr-body-direction");
 });

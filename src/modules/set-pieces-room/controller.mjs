@@ -624,6 +624,17 @@ export function createSetPiecesRoomController(options = {}) {
     if (rosterId) return boardInteractions.toggleRosterPlayer(rosterId);
     const tool = event.target.closest?.("[data-set-piece-tool]")?.dataset.setPieceTool;
     if (tool) {
+      if (tool === "home-player") {
+        ui.activeTool = "select";
+        ui.selectedDrawingId = "";
+        render();
+        const picker = root.querySelector?.("[data-set-piece-player-picker]");
+        if (picker) {
+          picker.open = true;
+          picker.querySelector?.("summary")?.focus?.();
+        }
+        return;
+      }
       ui.activeTool = tool;
       ui.selectedDrawingId = "";
       render();

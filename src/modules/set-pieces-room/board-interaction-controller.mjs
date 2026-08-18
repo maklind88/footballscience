@@ -264,9 +264,13 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       return;
     }
     if (setPieceDrawingTypes.has(ui.activeTool) && options.canEdit()) {
-      interaction = { type: "draw", svg, stage, pointerId: event.pointerId, start: point, drawingType: ui.activeTool };
+      const actor = chooseSetPieceDrawingActor(phase, ui.activeTool, point, ui.selectedElementIds, {
+        maxDistance: getSvgHitRadius(svg, 30),
+      });
+      const start = actor ? { x: Number(actor.x || 0), y: Number(actor.y || 0) } : point;
+      interaction = { type: "draw", svg, stage, pointerId: event.pointerId, start, pointerStart: point, drawingType: ui.activeTool, actorId: actor?.id || "" };
       capturePointer(stage, event.pointerId);
-      ui.previewDrawing = { id: "preview", type: ui.activeTool, startX: point.x, startY: point.y, endX: point.x, endY: point.y, curve: 0 };
+      ui.previewDrawing = { id: "preview", type: ui.activeTool, startX: start.x, startY: start.y, endX: point.x, endY: point.y, curve: 0 };
       refreshInteractionBoard();
       event.preventDefault();
       return;
@@ -329,13 +333,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       options.finalizeDirectMutation(completed.beforeState);
       return;
     }
-    if (completed.type === "draw" && getSetPieceDistance(completed.start, point) > 1.5) {
-      const actor = chooseSetPieceDrawingActor(
-        phase,
-        completed.drawingType,
-        completed.start,
-        ui.selectedElementIds
-      );
+    if (completed.type === "draw" && getSetPieceDistance(completed.pointerStart || completed.start, point) > 1.5) {
       const drawing = {
         id: createSetPieceId("drawing"),
         type: completed.drawingType,
@@ -343,7 +341,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         startY: completed.start.y,
         endX: point.x,
         endY: point.y,
-        actorId: actor?.id || "",
+        actorId: completed.actorId,
         label: "",
         curve: 0,
       };
@@ -474,6 +472,16 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     }
     const tool = { v: "select", p: "home-player", o: "opponent", b: "ball", r: "run", a: "pass", d: "dribble", k: "block", e: "press", m: "mark", z: "zone" }[key];
     if (tool) {
+      if (tool === "home-player") {
+        options.ui.activeTool = "select";
+        options.render();
+        const picker = root.querySelector?.("[data-set-piece-player-picker]");
+        if (picker) {
+          picker.open = true;
+          picker.querySelector?.("summary")?.focus?.();
+        }
+        return;
+      }
       options.ui.activeTool = tool;
       options.render();
     }

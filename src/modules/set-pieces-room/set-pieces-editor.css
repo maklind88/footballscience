@@ -198,6 +198,7 @@ body.is-dark-mode .spr-editor-command-bar .spr-command-icon-button.is-active {
 }
 
 .spr-shell.is-editing .spr-tool-button {
+  --spr-tool-tone: #34423c;
   position: relative;
   width: 36px;
   height: 32px;
@@ -206,9 +207,20 @@ body.is-dark-mode .spr-editor-command-bar .spr-command-icon-button.is-active {
   border-radius: 5px;
   padding: 0;
   overflow: visible;
-  color: #34423c;
+  color: var(--spr-tool-tone);
   background: transparent;
 }
+
+.spr-shell.is-editing .spr-tool-button[data-set-piece-tool="home-player"] { --spr-tool-tone: #184f78; }
+.spr-shell.is-editing .spr-tool-button[data-set-piece-tool="opponent"] { --spr-tool-tone: #9a303a; }
+.spr-shell.is-editing .spr-tool-button[data-set-piece-tool="ball"] { --spr-tool-tone: #3d4542; }
+.spr-shell.is-editing .spr-tool-button[data-set-piece-tool="run"] { --spr-tool-tone: #8b6900; }
+.spr-shell.is-editing .spr-tool-button[data-set-piece-tool="pass"] { --spr-tool-tone: #316ca3; }
+.spr-shell.is-editing .spr-tool-button[data-set-piece-tool="dribble"] { --spr-tool-tone: #16744d; }
+.spr-shell.is-editing .spr-tool-button[data-set-piece-tool="block"] { --spr-tool-tone: #a13f50; }
+.spr-shell.is-editing .spr-tool-button[data-set-piece-tool="press"] { --spr-tool-tone: #b85620; }
+.spr-shell.is-editing .spr-tool-button[data-set-piece-tool="mark"] { --spr-tool-tone: #356fba; }
+.spr-shell.is-editing .spr-tool-button[data-set-piece-tool="zone"] { --spr-tool-tone: #786410; }
 
 .spr-shell.is-editing .spr-tool-button:hover,
 .spr-shell.is-editing .spr-tool-button:focus-visible {
@@ -228,39 +240,73 @@ body.is-dark-mode .spr-editor-command-bar .spr-command-icon-button.is-active {
   box-shadow: 0 4px 11px #176b4d35;
 }
 
-.spr-shell.is-editing .spr-tool-button::after {
-  content: attr(data-set-piece-tool-tip);
+.spr-shell.is-editing .spr-tool-tip {
   position: absolute;
   z-index: 10;
   top: 50%;
   left: calc(100% + 10px);
-  width: max-content;
-  max-width: 250px;
-  padding: .4rem .52rem;
+  width: 220px;
+  display: grid;
+  gap: .22rem;
+  padding: .48rem .56rem;
   border: 1px solid #ffffff24;
   border-radius: 5px;
   color: #fff;
-  background: #15211ceF;
+  background: #15211cf5;
   box-shadow: 0 8px 22px #0b14102e;
-  font-size: .65rem;
-  font-weight: 680;
   line-height: 1.25;
   text-align: left;
   white-space: normal;
+  visibility: hidden;
   opacity: 0;
   pointer-events: none;
   transform: translate(-4px, -50%);
-  transition: opacity 120ms ease, transform 120ms ease;
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
 }
 
-.spr-shell.is-editing .spr-tool-button:hover::after,
-.spr-shell.is-editing .spr-tool-button:focus-visible::after {
+.spr-shell.is-editing .spr-tool-tip > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+}
+
+.spr-shell.is-editing .spr-tool-tip strong {
+  font-size: .69rem;
+  font-weight: 760;
+}
+
+.spr-shell.is-editing .spr-tool-tip kbd {
+  min-width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #ffffff35;
+  border-radius: 4px;
+  color: #eff8f3;
+  background: #ffffff12;
+  font: 700 .6rem/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+
+.spr-shell.is-editing .spr-tool-tip small {
+  color: #cbd8d1;
+  font-size: .63rem;
+  font-weight: 560;
+  line-height: 1.35;
+}
+
+.spr-shell.is-editing .spr-tool-button:focus-visible .spr-tool-tip {
+  visibility: visible;
   opacity: 1;
   transform: translate(0, -50%);
 }
 
-.spr-shell.is-editing .spr-tool-button.is-active::after {
-  display: none;
+@media (hover: hover) and (pointer: fine) {
+  .spr-shell.is-editing .spr-tool-button:hover .spr-tool-tip {
+    visibility: visible;
+    opacity: 1;
+    transform: translate(0, -50%);
+  }
 }
 
 .spr-shell.is-editing .spr-tool-icon {

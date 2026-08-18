@@ -44,17 +44,17 @@ export const setPiecePitchViewOptions = Object.freeze([
 ]);
 
 export const setPieceToolOptions = Object.freeze([
-  { value: "select", label: "Select", shortcut: "V", hint: "Move players, routes or a multi-selection" },
-  { value: "home-player", label: "Own player", shortcut: "P", hint: "Choose a squad player, then place them" },
-  { value: "opponent", label: "Opponent", shortcut: "O", hint: "Click the pitch to place a numbered opponent" },
-  { value: "ball", label: "Ball", shortcut: "B", hint: "Click the pitch to place or move the ball" },
-  { value: "run", label: "Run", shortcut: "R", hint: "Drag from a player to draw the run" },
-  { value: "pass", label: "Pass", shortcut: "A", hint: "Drag from the ball or player to show the pass" },
-  { value: "dribble", label: "Dribble", shortcut: "D", hint: "Drag to draw a controlled ball carry" },
-  { value: "block", label: "Block", shortcut: "K", hint: "Drag to show the screen or blocking lane" },
-  { value: "press", label: "Press", shortcut: "E", hint: "Drag to show the pressing action" },
-  { value: "mark", label: "Track", shortcut: "M", hint: "Drag between opponents to show tracking" },
-  { value: "zone", label: "Zone", shortcut: "Z", hint: "Drag a rectangle to mark the protected zone" },
+  { value: "select", label: "Select", shortcut: "V", hint: "Click or drag to select, then move objects on the pitch" },
+  { value: "home-player", label: "Squad players", shortcut: "P", hint: "Open the squad list to add or remove your players" },
+  { value: "opponent", label: "Opponent", shortcut: "O", hint: "Click to place, then select to edit the number" },
+  { value: "ball", label: "Ball", shortcut: "B", hint: "Click to place or reposition the match ball" },
+  { value: "run", label: "Run", shortcut: "R", hint: "Drag from the runner toward the target position" },
+  { value: "pass", label: "Pass", shortcut: "A", hint: "Drag from the ball or passer toward the receiver" },
+  { value: "dribble", label: "Dribble", shortcut: "D", hint: "Drag from the carrier toward the end position" },
+  { value: "block", label: "Block", shortcut: "K", hint: "Drag across the lane to show a screen or block" },
+  { value: "press", label: "Press", shortcut: "E", hint: "Drag from the presser toward the pressure target" },
+  { value: "mark", label: "Track", shortcut: "M", hint: "Drag from the marker toward the tracked movement" },
+  { value: "zone", label: "Zone", shortcut: "Z", hint: "Drag a rectangle over the area to protect" },
 ]);
 
 export const setPieceDrawingTypes = new Set([

@@ -194,7 +194,7 @@ test("editor keeps tactical guidance in a first-run dialog instead of over the p
   expect(markup).toContain('class="spr-onboarding-dialog"');
   expect(markup).not.toContain('class="spr-active-tool-hint"');
   expect(markup).not.toContain("Previous phase shown");
-  expect(markup).toContain("Drag from a player to draw the run");
+  expect(markup).toContain("Drag from the runner toward the target position");
   expect(markup).toContain('data-set-piece-tool="run"');
   expect(markup).toContain('aria-pressed="true"');
   expect(markup).toContain('data-set-piece-action="toggle-play"');
@@ -555,6 +555,8 @@ test("drawing routes prefer the selected compatible actor and remain editable", 
   };
   expect(chooseSetPieceDrawingActor(phase, "run", { x: 10, y: 10 }, new Set(["runner-selected"])).id).toBe("runner-selected");
   expect(getSetPieceDrawingActors(phase, "pass").map((actor) => actor.id)).toEqual(["ball"]);
+  expect(chooseSetPieceDrawingActor(phase, "run", { x: 90, y: 60 }, new Set(), { maxDistance: 5 })).toBeNull();
+  expect(chooseSetPieceDrawingActor(phase, "run", { x: 12, y: 10 }, new Set(), { maxDistance: 5 }).id).toBe("runner-near");
 });
 
 test("drag coordinates stay inside the visible pitch view", () => {

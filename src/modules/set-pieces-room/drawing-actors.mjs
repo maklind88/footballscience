@@ -14,10 +14,15 @@ export function getSetPieceDrawingActors(phase = {}, drawingType = "") {
   return (phase.elements || []).filter((element) => kinds.has(element.kind));
 }
 
-export function chooseSetPieceDrawingActor(phase = {}, drawingType = "", point = {}, selectedIds = new Set()) {
+export function chooseSetPieceDrawingActor(phase = {}, drawingType = "", point = {}, selectedIds = new Set(), constraints = {}) {
   const candidates = getSetPieceDrawingActors(phase, drawingType);
   const selected = candidates.find((element) => selectedIds.has(element.id));
-  return selected || getNearestSetPieceElement(candidates, point);
+  if (selected) return selected;
+  const nearest = getNearestSetPieceElement(candidates, point);
+  if (!nearest) return null;
+  const maxDistance = Number(constraints.maxDistance ?? Number.POSITIVE_INFINITY);
+  const distance = Math.hypot(Number(nearest.x || 0) - Number(point.x || 0), Number(nearest.y || 0) - Number(point.y || 0));
+  return distance <= maxDistance ? nearest : null;
 }
 
 export function getSetPieceDrawingActorLabel(element = {}) {

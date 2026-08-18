@@ -196,7 +196,20 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   expect(metrics.stage.width).toBeGreaterThan(540);
   expect(Math.abs(metrics.playback.bottom - metrics.editor.bottom)).toBeLessThanOrEqual(1);
 
-  for (const tool of ["Select", "Own player", "Opponent", "Ball", "Run", "Pass", "Dribble", "Block", "Press", "Track", "Zone"]) {
+  const tacticalTools = page.getByRole("toolbar", { name: "Tactical tools" });
+  const iconSignatures = await tacticalTools.locator(".spr-tool-icon svg").evaluateAll((icons) => icons.map((icon) => icon.innerHTML));
+  expect(new Set(iconSignatures).size).toBe(11);
+  const runTool = tacticalTools.getByRole("button", { name: "Run", exact: true });
+  await runTool.hover();
+  await expect(page.getByRole("tooltip").filter({ hasText: "Drag from the runner" })).toBeVisible();
+
+  const squadTool = tacticalTools.getByRole("button", { name: "Squad players", exact: true });
+  await squadTool.click();
+  await expect(page.locator("[data-set-piece-player-picker]")).toHaveAttribute("open", "");
+  await expect(page.locator("[data-set-piece-player-picker] summary")).toBeFocused();
+  await page.locator("[data-set-piece-player-picker] summary").click();
+
+  for (const tool of ["Select", "Opponent", "Ball", "Run", "Pass", "Dribble", "Block", "Press", "Track", "Zone"]) {
     const button = page.getByRole("button", { name: tool, exact: true });
     await button.click();
     await expect(button).toHaveAttribute("aria-pressed", "true");

@@ -86,7 +86,9 @@ function renderToolRail(ui = {}, roster = []) {
         ${group.tools.map((toolValue) => {
           const tool = setPieceToolOptions.find((option) => option.value === toolValue);
           const tooltip = `${tool.label}: ${tool.hint} (${tool.shortcut})`;
-          return `<button type="button" class="spr-tool-button ${ui.activeTool === tool.value ? "is-active" : ""}" data-set-piece-tool="${tool.value}" data-set-piece-tool-tip="${escapeSetPieceHtml(tooltip)}" aria-label="${escapeSetPieceHtml(tool.label)}" aria-pressed="${ui.activeTool === tool.value}" title="${escapeSetPieceHtml(tooltip)}" ${tool.value === "home-player" && !roster.length ? "disabled" : ""}><span class="spr-tool-icon">${renderSetPieceToolIcon(tool.value)}</span><span class="spr-tool-name">${escapeSetPieceHtml(tool.label)}</span></button>`;
+          const tooltipId = `spr-tool-tip-${tool.value}`;
+          const isMode = tool.value !== "home-player";
+          return `<button type="button" class="spr-tool-button ${isMode && ui.activeTool === tool.value ? "is-active" : ""}" data-set-piece-tool="${tool.value}" data-set-piece-tool-tip="${escapeSetPieceHtml(tooltip)}" aria-label="${escapeSetPieceHtml(tool.label)}" ${isMode ? `aria-pressed="${ui.activeTool === tool.value}"` : ""} aria-describedby="${tooltipId}" aria-keyshortcuts="${tool.shortcut}" ${tool.value === "home-player" && !roster.length ? "disabled" : ""}><span class="spr-tool-icon">${renderSetPieceToolIcon(tool.value)}</span><span class="spr-tool-name">${escapeSetPieceHtml(tool.label)}</span><span class="spr-tool-tip" id="${tooltipId}" role="tooltip"><span><strong>${escapeSetPieceHtml(tool.label)}</strong><kbd>${escapeSetPieceHtml(tool.shortcut)}</kbd></span><small>${escapeSetPieceHtml(tool.hint)}</small></span></button>`;
         }).join("")}
       </div>
     </div>`).join("")}

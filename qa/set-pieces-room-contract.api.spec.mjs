@@ -149,13 +149,16 @@ test("library renders a compact multi-choice filter and compound set-piece label
   expect(markup).not.toContain('data-set-piece-play-id="throw-plan"');
 });
 
-test("saved status stays accessible without occupying the Set Pieces header", () => {
+test("normal save statuses stay accessible without occupying the Set Pieces header", () => {
   const state = createEmptySetPiecesState();
   const savedMarkup = renderSetPiecesWorkspace({ state, ui: { saveState: "saved", saveMessage: "Saved" } });
+  const savingMarkup = renderSetPiecesWorkspace({ state, ui: { saveState: "saving", saveMessage: "Saving to team" } });
   const errorMarkup = renderSetPiecesWorkspace({ state, ui: { saveState: "error", saveMessage: "Save failed" } });
 
   expect(savedMarkup).toContain('class="spr-save-state is-saved sr-only"');
   expect(savedMarkup).toContain('role="status" aria-live="polite"');
+  expect(savingMarkup).toContain('class="spr-save-state is-saving sr-only"');
+  expect(savingMarkup).toContain('role="status" aria-live="polite"');
   expect(errorMarkup).toContain('class="spr-save-state is-error"');
   expect(errorMarkup).not.toContain('class="spr-save-state is-error sr-only"');
 });

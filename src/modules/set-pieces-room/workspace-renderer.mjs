@@ -397,7 +397,7 @@ export function renderSetPiecesWorkspace(options = {}) {
   const canEdit = options.canEdit !== false;
   const canDelete = options.canDelete !== false;
   const saveState = ui.saveState || "saved";
-  const saveStateClass = `spr-save-state is-${escapeSetPieceHtml(saveState)}${saveState === "saved" ? " sr-only" : ""}`;
+  const saveStateClass = `spr-save-state is-${escapeSetPieceHtml(saveState)}${saveState !== "error" ? " sr-only" : ""}`;
   const saveMessage = ui.saveMessage || (canEdit ? "Saved to team" : "View only");
   if (ui.presentationMode && play && variant && phase) {
     return `<section class="spr-shell is-presenting ${ui.nativeFullscreen ? "is-native-fullscreen" : ""}" data-set-pieces-room>

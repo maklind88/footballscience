@@ -620,6 +620,7 @@ export function createSetPiecesRoomController(options = {}) {
   }
 
   function handleClick(event) {
+    if (!event.target.closest?.("[data-set-piece-pitch]")) boardInteractions.resetSelectionActivation();
     const action = event.target.closest?.("[data-set-piece-action]")?.dataset.setPieceAction;
     if (action) return handleAction(action);
     const playId = event.target.closest?.("[data-set-piece-play-id]")?.dataset.setPiecePlayId;

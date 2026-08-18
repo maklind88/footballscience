@@ -64,7 +64,7 @@ function renderOnboarding(ui = {}) {
       <p class="spr-onboarding-intro" id="setPieceOnboardingDescription">Create each phase visually, then play the full routine back for the team.</p>
       <ol class="spr-onboarding-steps">
         <li><span>${renderSetPieceToolIcon("home-player")}</span><div><strong>Place the actors</strong><small>Add squad players, opponents and the ball from the tools.</small></div></li>
-        <li><span>${renderSetPieceToolIcon("run")}</span><div><strong>Shape the movement</strong><small>Select and drag players, or draw runs, passes and responses.</small></div></li>
+        <li><span>${renderSetPieceToolIcon("run")}</span><div><strong>Shape the movement</strong><small>Select or drag to arrange. Double-click a player or object to edit its role or details.</small></div></li>
         <li><span>${renderSetPieceToolIcon("step-back")}</span><div><strong>Compare the phases</strong><small>Turn on Previous when you need the last positions as a reference.</small></div></li>
       </ol>
       <button type="button" class="spr-onboarding-primary" data-set-piece-action="dismiss-onboarding">Start creating</button>

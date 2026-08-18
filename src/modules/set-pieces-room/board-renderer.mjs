@@ -57,7 +57,7 @@ function renderElement(element = {}, options = {}) {
   };
   const interactive = options.interactive && !ghost;
   const accessibility = interactive
-    ? ` tabindex="0" role="button" aria-label="${escapeSetPieceHtml(labels[element.kind] || "Board object")}" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Delete"`
+    ? ` tabindex="0" role="button" aria-label="${escapeSetPieceHtml(labels[element.kind] || "Board object")}" aria-keyshortcuts="Enter ArrowUp ArrowDown ArrowLeft ArrowRight Delete"`
     : "";
   const common = `class="${classes}" transform="${transform}" data-element-id="${escapeSetPieceHtml(element.id)}" data-layer="${escapeSetPieceHtml(element.kind)}"${accessibility}`;
   if (element.kind === "opponent") {

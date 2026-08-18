@@ -198,6 +198,7 @@ test("editor keeps tactical guidance in a first-run dialog instead of over the p
   expect(markup).toContain('class="spr-onboarding-dialog"');
   expect(markup).not.toContain('class="spr-active-tool-hint"');
   expect(markup).not.toContain("Previous phase shown");
+  expect(markup).toContain("Double-click a player or object");
   expect(markup).toContain("Drag from the runner toward the target position");
   expect(markup).toContain('data-set-piece-tool="run"');
   expect(markup).toContain('aria-pressed="true"');
@@ -659,7 +660,7 @@ test("editable board markers expose keyboard interaction without affecting prese
   const editable = renderSetPieceBoard({ phase, interactive: true, layers: new Set(["home"]) });
   const presenting = renderSetPieceBoard({ phase, interactive: false, layers: new Set(["home"]) });
   expect(editable).toContain('tabindex="0"');
-  expect(editable).toContain('aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Delete"');
+  expect(editable).toContain('aria-keyshortcuts="Enter ArrowUp ArrowDown ArrowLeft ArrowRight Delete"');
   expect(presenting).not.toContain('tabindex="0"');
 });
 

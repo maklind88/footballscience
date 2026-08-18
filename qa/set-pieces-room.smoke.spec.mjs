@@ -231,6 +231,35 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   expect(cornerPlayerEndBox.y).toBeGreaterThanOrEqual(cornerPitchBox.y - 1);
   expect(cornerPlayerEndBox.x + cornerPlayerEndBox.width).toBeLessThanOrEqual(cornerPitchBox.x + cornerPitchBox.width + 1);
   expect(cornerPlayerEndBox.y + cornerPlayerEndBox.height).toBeLessThanOrEqual(cornerPitchBox.y + cornerPitchBox.height + 1);
+  await expect(page.locator(".spr-inspector")).toBeHidden();
+
+  await tacticalTools.getByRole("button", { name: "Opponent", exact: true }).click();
+  const objectPitchBox = await cornerPitch.boundingBox();
+  await page.mouse.click(objectPitchBox.x + objectPitchBox.width * .68, objectPitchBox.y + objectPitchBox.height * .42);
+  const opponentMarker = cornerBoard.locator(".spr-board-element.is-opponent:not(.is-ghost)");
+  await expect(opponentMarker).toBeVisible();
+  await expect(page.locator(".spr-inspector")).toBeHidden();
+  await opponentMarker.click();
+  await expect(page.locator(".spr-inspector")).toBeHidden();
+  await page.waitForTimeout(500);
+  await opponentMarker.dblclick();
+  await expect(page.locator(".spr-inspector")).toContainText("Selected object");
+  await page.getByRole("button", { name: "Close details" }).click();
+
+  await tacticalTools.getByRole("button", { name: "Zone", exact: true }).click();
+  const drawingPitchBox = await cornerPitch.boundingBox();
+  await page.mouse.move(drawingPitchBox.x + drawingPitchBox.width * .38, drawingPitchBox.y + drawingPitchBox.height * .38);
+  await page.mouse.down();
+  await page.mouse.move(drawingPitchBox.x + drawingPitchBox.width * .56, drawingPitchBox.y + drawingPitchBox.height * .55, { steps: 5 });
+  await page.mouse.up();
+  const zoneDrawing = cornerBoard.locator(".spr-drawing.is-zone");
+  await expect(zoneDrawing).toBeVisible();
+  await expect(page.locator(".spr-inspector")).toBeHidden();
+  await zoneDrawing.click();
+  await expect(page.locator(".spr-inspector")).toBeHidden();
+  await page.waitForTimeout(500);
+  await zoneDrawing.dblclick();
+  await expect(page.locator(".spr-inspector")).toContainText("Movement");
   await page.getByRole("button", { name: "Close details" }).click();
 
   for (const tool of ["Select", "Opponent", "Ball", "Run", "Pass", "Dribble", "Block", "Press", "Track", "Zone"]) {
@@ -333,12 +362,15 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await selectedPlayer.click();
   await page.getByRole("textbox", { name: "Set piece" }).press("Backspace");
   await expect(selectedPlayer).toHaveCount(1);
-  await page.getByRole("button", { name: "Close details" }).click();
+  await expect(page.locator(".spr-inspector")).toBeHidden();
   await expect(deleteSelected).toBeVisible();
   box = await pitch.boundingBox();
   expect(box).not.toBeNull();
   await page.getByRole("button", { name: "Opponent" }).click();
   await page.mouse.click(box.x + box.width * 0.55, box.y + box.height * 0.4);
+  await expect(page.locator(".spr-inspector")).toBeHidden();
+  const opponentMarker = page.locator(".spr-board-element.is-opponent:not(.is-ghost)");
+  await opponentMarker.dblclick();
   const opponentNumber = page.getByRole("spinbutton", { name: "Number" });
   await opponentNumber.fill("12");
   await opponentNumber.press("Tab");
@@ -537,6 +569,10 @@ test("Set Pieces Room reassigns stable tactical roles across routines and varian
   const alexSlotId = await alexMarker.getAttribute("data-element-id");
   expect(alexSlotId).toBeTruthy();
   await alexMarker.click();
+  await expect(alexMarker).toHaveClass(/is-selected/);
+  await expect(page.locator(".spr-inspector")).toBeHidden();
+  await page.waitForTimeout(500);
+  await alexMarker.dblclick();
   await expect(page.locator(".spr-assignment-picker[open]")).toBeVisible();
   const roleField = page.getByRole("textbox", { name: "Tactical role" });
   await roleField.fill("Near post");

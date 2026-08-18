@@ -13,6 +13,8 @@ import { createSetPiecePlayerLabelMap } from "./player-labels.mjs";
 import { createSetPieceId } from "./state.mjs";
 import { chooseSetPieceDrawingActor } from "./drawing-actors.mjs";
 
+const DOUBLE_SELECTION_DELAY_MS = 450;
+
 function createBoardElement(kind, point, overrides = {}) {
   return {
     id: createSetPieceId(kind),
@@ -32,6 +34,26 @@ function createBoardElement(kind, point, overrides = {}) {
 export function createSetPiecesBoardInteractionController(options = {}) {
   const root = options.root;
   let interaction = null;
+  let lastSelectionActivation = { key: "", at: 0 };
+
+  function resetSelectionActivation() {
+    lastSelectionActivation = { key: "", at: 0 };
+  }
+
+  function registerSelectionActivation(key, event, elementId = "") {
+    const at = Number.isFinite(Number(event?.timeStamp)) ? Number(event.timeStamp) : Date.now();
+    const isRepeated = lastSelectionActivation.key === key
+      && at - lastSelectionActivation.at >= 0
+      && at - lastSelectionActivation.at <= DOUBLE_SELECTION_DELAY_MS;
+    lastSelectionActivation = isRepeated ? { key: "", at: 0 } : { key, at };
+    if (!isRepeated) return false;
+    const { phase } = options.getContext();
+    const element = elementId ? phase?.elements?.find((candidate) => candidate.id === elementId) : null;
+    options.ui.assignmentPickerSlotId = element?.kind === "home-player" ? elementId : "";
+    options.ui.showAssignments = false;
+    options.ui.inspectorCollapsed = false;
+    return true;
+  }
 
   function getVisibleElements(phase, ui) {
     return (phase?.elements || []).filter((element) => {
@@ -94,9 +116,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     if (existing && variant.phases.every((candidatePhase) => candidatePhase.elements.some((element) => element.id === existing.id))) {
       ui.selectedElementIds = new Set([existing.id]);
       ui.selectedDrawingId = "";
-      ui.assignmentPickerSlotId = existing.id;
+      ui.assignmentPickerSlotId = "";
       ui.showAssignments = false;
-      ui.inspectorCollapsed = false;
       ui.activeTool = "select";
       options.render();
       return;
@@ -157,7 +178,6 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         ui.selectedElementIds = new Set([element.id]);
         ui.assignmentPickerSlotId = "";
         ui.showAssignments = false;
-        ui.inspectorCollapsed = false;
         ui.activeTool = "select";
       });
       return;
@@ -229,9 +249,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         ui.selectedElementIds = new Set([elementId]);
       }
       ui.selectedDrawingId = "";
-      ui.assignmentPickerSlotId = phase.elements.find((element) => element.id === elementId)?.kind === "home-player" ? elementId : "";
+      ui.assignmentPickerSlotId = "";
       ui.showAssignments = false;
-      ui.inspectorCollapsed = false;
       const positions = new Map(phase.elements.filter((element) => ui.selectedElementIds.has(element.id)).map((element) => [element.id, { x: element.x, y: element.y }]));
       interaction = {
         type: "move",
@@ -243,6 +262,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         positions,
         beforeState: structuredClone(options.getState()),
         moved: false,
+        selectionKey: `element:${elementId}`,
+        allowInspectorActivation: !event.shiftKey,
       };
       capturePointer(stage, event.pointerId);
       refreshInteractionBoard();
@@ -254,7 +275,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       ui.selectedDrawingId = drawingId;
       ui.assignmentPickerSlotId = "";
       ui.showAssignments = false;
-      ui.inspectorCollapsed = false;
+      if (!event.shiftKey) registerSelectionActivation(`drawing:${drawingId}`, event);
+      else resetSelectionActivation();
       options.render();
       return;
     }
@@ -275,6 +297,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       return;
     }
     if (ui.activeTool === "select") {
+      resetSelectionActivation();
       ui.selectedElementIds.clear();
       ui.selectedDrawingId = "";
       ui.assignmentPickerSlotId = "";
@@ -296,6 +319,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     if (interaction.type === "move" && options.canEdit()) {
       const screenDistance = Math.hypot(event.clientX - interaction.startClient.x, event.clientY - interaction.startClient.y);
       if (!interaction.moved && screenDistance < 3) return;
+      if (!interaction.moved) resetSelectionActivation();
       const dx = point.x - interaction.start.x;
       const dy = point.y - interaction.start.y;
       interaction.moved = true;
@@ -336,6 +360,9 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       options.finalizeDirectMutation(completed.beforeState);
       return;
     }
+    if (completed.type === "move" && completed.allowInspectorActivation) {
+      registerSelectionActivation(completed.selectionKey, event, completed.selectionKey.replace("element:", ""));
+    }
     if (completed.type === "draw" && getSetPieceDistance(completed.pointerStart || completed.start, point) > 1.5) {
       const drawing = {
         id: createSetPieceId("drawing"),
@@ -371,6 +398,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     interaction = null;
     releasePointer(cancelled.stage, cancelled.pointerId);
     if (cancelled.type === "move") {
+      resetSelectionActivation();
       const { phase } = options.getContext();
       phase?.elements?.forEach((element) => {
         const origin = cancelled.positions.get(element.id);
@@ -384,6 +412,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
 
   function handleKeyDown(event) {
     if (!root?.closest?.(".workspace-view")?.classList.contains("is-active")) return;
+    resetSelectionActivation();
     const editable = event.target?.matches?.("input, textarea, select, [contenteditable='true']");
     const key = String(event.key || "").toLowerCase();
     const focusedMarker = event.target?.closest?.("[data-element-id]");
@@ -445,8 +474,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         event.preventDefault();
         options.ui.selectedElementIds = new Set([elementId]);
         options.ui.selectedDrawingId = "";
-        options.ui.assignmentPickerSlotId = element.kind === "home-player" ? elementId : "";
-        options.ui.inspectorCollapsed = false;
+        options.ui.assignmentPickerSlotId = key === "enter" && element.kind === "home-player" ? elementId : "";
+        if (key === "enter") options.ui.inspectorCollapsed = false;
         options.render();
         root?.querySelector?.(`[data-element-id="${CSS.escape(elementId)}"]`)?.focus?.();
         return;
@@ -504,5 +533,13 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     }
   }
 
-  return Object.freeze({ handleKeyDown, handlePointerCancel, handlePointerDown, handlePointerMove, handlePointerUp, toggleRosterPlayer });
+  return Object.freeze({
+    handleKeyDown,
+    handlePointerCancel,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
+    resetSelectionActivation,
+    toggleRosterPlayer,
+  });
 }

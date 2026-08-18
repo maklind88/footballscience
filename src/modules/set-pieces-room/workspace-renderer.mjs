@@ -52,6 +52,26 @@ function renderWorkspaceModeSwitch(ui = {}, hasPlay = false) {
   </div>`;
 }
 
+function renderOnboarding(ui = {}) {
+  if (!ui.onboardingOpen) return "";
+  return `<div class="spr-onboarding-layer" data-set-piece-onboarding>
+    <section class="spr-onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="setPieceOnboardingTitle" aria-describedby="setPieceOnboardingDescription">
+      <button type="button" class="spr-onboarding-close" data-set-piece-action="dismiss-onboarding" aria-label="Close introduction" title="Close introduction">×</button>
+      <div class="spr-onboarding-heading">
+        <span class="spr-onboarding-symbol">${renderSetPieceToolIcon("select")}</span>
+        <div><p>Quick start</p><h2 id="setPieceOnboardingTitle">Build directly on the pitch</h2></div>
+      </div>
+      <p class="spr-onboarding-intro" id="setPieceOnboardingDescription">Create each phase visually, then play the full routine back for the team.</p>
+      <ol class="spr-onboarding-steps">
+        <li><span>${renderSetPieceToolIcon("home-player")}</span><div><strong>Place the actors</strong><small>Add squad players, opponents and the ball from the tools.</small></div></li>
+        <li><span>${renderSetPieceToolIcon("run")}</span><div><strong>Shape the movement</strong><small>Select and drag players, or draw runs, passes and responses.</small></div></li>
+        <li><span>${renderSetPieceToolIcon("step-back")}</span><div><strong>Compare the phases</strong><small>Turn on Previous when you need the last positions as a reference.</small></div></li>
+      </ol>
+      <button type="button" class="spr-onboarding-primary" data-set-piece-action="dismiss-onboarding">Start creating</button>
+    </section>
+  </div>`;
+}
+
 function renderToolRail(ui = {}, roster = []) {
   const groups = [
     { label: "Edit", tools: ["select"] },
@@ -70,18 +90,6 @@ function renderToolRail(ui = {}, roster = []) {
         }).join("")}
       </div>
     </div>`).join("")}
-  </div>`;
-}
-
-function renderActiveToolHint(ui = {}, roster = []) {
-  const tool = setPieceToolOptions.find((option) => option.value === ui.activeTool) || setPieceToolOptions[0];
-  const hint = tool.value === "home-player" && !roster.length
-    ? "Add players to the squad before placing them"
-    : tool.hint;
-  return `<div class="spr-active-tool-hint" role="status" aria-live="polite">
-    <span class="spr-active-tool-icon">${renderSetPieceToolIcon(tool.value)}</span>
-    <span class="spr-active-tool-copy"><strong>${escapeSetPieceHtml(tool.label)}</strong><small>${escapeSetPieceHtml(hint)}</small></span>
-    <kbd>${escapeSetPieceHtml(tool.shortcut)}</kbd>
   </div>`;
 }
 
@@ -232,8 +240,6 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit) {
     <div class="spr-board-row ${play.pitchView === "full" ? "is-full-pitch" : "is-half-pitch"}">
       ${ui.presentationMode ? "" : renderToolRail(ui, roster)}
       <div class="spr-board-stage" data-set-piece-board-stage>
-        ${ui.showGhost && previousPhase ? '<span class="spr-ghost-status">Previous phase shown</span>' : ""}
-        ${ui.presentationMode ? "" : renderActiveToolHint(ui, roster)}
         ${renderSetPieceBoard({
           phase: resolvedPhase,
           previousPhase: ui.showGhost ? resolvedPreviousPhase : null,
@@ -403,6 +409,7 @@ export function renderSetPiecesWorkspace(options = {}) {
     </header>
     ${renderSetPieceLibraryLayer(state, ui)}
     ${ui.notice ? `<div class="spr-notice is-${escapeSetPieceHtml(ui.notice.tone || "warning")}" role="status"><span>${escapeSetPieceHtml(ui.notice.message)}</span><button type="button" data-set-piece-action="dismiss-notice" aria-label="Dismiss message" title="Dismiss">×</button></div>` : ""}
+    ${renderOnboarding(ui)}
     <div class="spr-layout">
       ${renderBoardWorkspace(play, variant, phase, roster, ui, canEdit)}
       ${renderInspector(play, variant, phase, roster, ui, canEdit, canDelete)}

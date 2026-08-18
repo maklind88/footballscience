@@ -171,7 +171,7 @@ test("library is launched from the edit header without reducing board width", ()
   expect(openMarkup.indexOf("spr-library-layer")).toBeLessThan(openMarkup.indexOf("spr-layout"));
 });
 
-test("editor composes variants, controls and tactical guidance as one focused workspace", () => {
+test("editor keeps tactical guidance in a first-run dialog instead of over the pitch", () => {
   const play = createSetPiecePlay({ title: "Near-post release" });
   const state = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] });
   const markup = renderSetPiecesWorkspace({
@@ -183,11 +183,14 @@ test("editor composes variants, controls and tactical guidance as one focused wo
       layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
       inspectorCollapsed: true,
       playbackSpeed: 1,
+      onboardingOpen: true,
     },
   });
 
   expect(markup).toContain('class="spr-editor-command-bar"');
-  expect(markup).toContain('class="spr-active-tool-hint"');
+  expect(markup).toContain('class="spr-onboarding-dialog"');
+  expect(markup).not.toContain('class="spr-active-tool-hint"');
+  expect(markup).not.toContain("Previous phase shown");
   expect(markup).toContain("Drag from a player to draw the run");
   expect(markup).toContain('data-set-piece-tool="run"');
   expect(markup).toContain('aria-pressed="true"');

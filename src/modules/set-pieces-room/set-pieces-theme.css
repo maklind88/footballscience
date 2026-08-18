@@ -388,21 +388,6 @@ body.is-dark-mode .spr-variant-tabs button.is-active {
   position: relative;
 }
 
-.spr-ghost-status {
-  position: absolute;
-  z-index: 2;
-  top: .55rem;
-  left: .55rem;
-  border: 1px solid #ffffff70;
-  border-radius: 4px;
-  padding: .27rem .42rem;
-  color: #fff;
-  background: #173a2dcc;
-  font-size: .58rem;
-  font-weight: 720;
-  pointer-events: none;
-}
-
 .spr-phase-card i {
   min-width: 0;
   overflow: hidden;
@@ -424,12 +409,6 @@ body.is-dark-mode .spr-variant-tabs button.is-active {
 
 body.is-dark-mode .spr-plan-title input {
   color: var(--spr-ink);
-}
-
-body.is-dark-mode .spr-ghost-status {
-  border-color: #9ce0ba70;
-  color: #dff7e9;
-  background: #101d18e6;
 }
 
 @media (max-width: 1240px) and (min-width: 981px) {

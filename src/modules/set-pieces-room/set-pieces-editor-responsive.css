@@ -80,13 +80,8 @@
 }
 
 @media (max-width: 680px) {
-  .spr-active-tool-hint {
-    max-width: calc(100% - 1rem);
-  }
-
-  .spr-active-tool-copy small,
-  .spr-active-tool-hint kbd {
-    display: none;
+  .spr-onboarding-dialog {
+    padding: 1rem;
   }
 
   .spr-shell.is-editing .spr-playback {

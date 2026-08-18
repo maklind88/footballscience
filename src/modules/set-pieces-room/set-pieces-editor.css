@@ -207,33 +207,69 @@
   box-shadow: 0 8px 22px #1b3b2c14;
 }
 
-.spr-active-tool-hint {
-  position: absolute;
-  z-index: 3;
-  top: .55rem;
-  right: .55rem;
-  max-width: min(260px, 46%);
+.spr-onboarding-layer {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
   display: grid;
-  grid-template-columns: 25px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: .42rem;
-  border: 1px solid #ffffff66;
+  place-items: center;
+  padding: 1rem;
+  background: #10181580;
+  backdrop-filter: blur(5px);
+}
+
+.spr-onboarding-dialog {
+  position: relative;
+  width: min(500px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  border: 1px solid #d8ddda;
+  border-radius: 7px;
+  padding: 1.35rem;
+  color: #171b19;
+  background: #fff;
+  box-shadow: 0 22px 60px #09130f52;
+}
+
+.spr-onboarding-close {
+  position: absolute;
+  top: .7rem;
+  right: .7rem;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #d9dddb;
   border-radius: 5px;
-  padding: .36rem .42rem;
+  color: #4d5752;
+  background: #f7f8f7;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.spr-onboarding-heading {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: .75rem;
+  padding-right: 2.6rem;
+}
+
+.spr-onboarding-symbol {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
   color: #fff;
-  background: #153a2dcc;
-  box-shadow: 0 6px 18px #0d21183d;
-  pointer-events: none;
-  backdrop-filter: blur(8px);
+  background: #176b4d;
 }
 
-.spr-active-tool-icon,
-.spr-active-tool-icon svg {
-  width: 20px;
-  height: 20px;
-}
-
-.spr-active-tool-icon svg {
+.spr-onboarding-symbol svg,
+.spr-onboarding-steps svg {
+  width: 21px;
+  height: 21px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -241,38 +277,117 @@
   stroke-width: 1.8;
 }
 
-.spr-active-tool-copy {
-  min-width: 0;
+.spr-onboarding-heading p,
+.spr-onboarding-heading h2,
+.spr-onboarding-intro {
+  margin: 0;
+}
+
+.spr-onboarding-heading p {
+  color: #6b746f;
+  font-size: .65rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.spr-onboarding-heading h2 {
+  margin-top: .15rem;
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.spr-onboarding-intro {
+  margin-top: .85rem;
+  color: #56605b;
+  font-size: .84rem;
+  line-height: 1.5;
+}
+
+.spr-onboarding-steps {
+  margin: 1rem 0 1.15rem;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid #e3e6e4;
+}
+
+.spr-onboarding-steps li {
   display: grid;
-  gap: .08rem;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: .7rem;
+  padding: .72rem 0;
+  border-bottom: 1px solid #e3e6e4;
 }
 
-.spr-active-tool-copy strong,
-.spr-active-tool-copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.spr-active-tool-copy strong {
-  font-size: .66rem;
-}
-
-.spr-active-tool-copy small {
-  color: #e6f3ed;
-  font-size: .56rem;
-  font-weight: 620;
-}
-
-.spr-active-tool-hint kbd {
-  min-width: 21px;
-  height: 21px;
+.spr-onboarding-steps li > span {
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
-  border: 1px solid #ffffff6b;
-  border-radius: 4px;
-  background: #ffffff1f;
-  font: 700 .58rem/1 inherit;
+  border-radius: 5px;
+  color: #176b4d;
+  background: #eaf4ef;
+}
+
+.spr-onboarding-steps li > div {
+  display: grid;
+  gap: .14rem;
+}
+
+.spr-onboarding-steps strong {
+  font-size: .77rem;
+}
+
+.spr-onboarding-steps small {
+  color: #68716d;
+  font-size: .7rem;
+  line-height: 1.4;
+}
+
+.spr-shell .spr-onboarding-primary {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #176b4d;
+  border-radius: 5px;
+  color: #fff;
+  background: #176b4d;
+  font-size: .78rem;
+  font-weight: 740;
+  cursor: pointer;
+}
+
+.spr-onboarding-close:hover,
+.spr-onboarding-close:focus-visible {
+  color: #171b19;
+  background: #edf0ee;
+}
+
+.spr-shell .spr-onboarding-primary:hover,
+.spr-shell .spr-onboarding-primary:focus-visible {
+  background: #12593f;
+}
+
+body.is-dark-mode .spr-onboarding-dialog {
+  border-color: #39423e;
+  color: #f2f5f3;
+  background: #171d1a;
+}
+
+body.is-dark-mode .spr-onboarding-intro,
+body.is-dark-mode .spr-onboarding-steps small,
+body.is-dark-mode .spr-onboarding-heading p {
+  color: #b4beb9;
+}
+
+body.is-dark-mode .spr-onboarding-steps,
+body.is-dark-mode .spr-onboarding-steps li {
+  border-color: #36403b;
+}
+
+body.is-dark-mode .spr-onboarding-close {
+  border-color: #414a46;
+  color: #dbe2de;
+  background: #232a27;
 }
 
 .spr-shell.is-editing .spr-timeline {

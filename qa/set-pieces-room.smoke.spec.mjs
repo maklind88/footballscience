@@ -14,7 +14,7 @@ async function waitForPlatformShell(page) {
   );
 }
 
-async function openSetPiecesRoom(page) {
+async function openSetPiecesRoom(page, { dismissIntro = true } = {}) {
   const modal = page.locator("#dashboardIntroModal, .dashboard-intro-modal, [data-dashboard-intro-modal]").first();
   if (await modal.isVisible().catch(() => false)) {
     const dismiss = modal.getByRole("button", { name: /close|dismiss|skip|later|continue|got it/i }).first();
@@ -26,7 +26,42 @@ async function openSetPiecesRoom(page) {
   });
   await expect(page.locator('[data-workspace-view="set-pieces-room"].is-active')).toBeVisible();
   await expect(page.locator("[data-set-pieces-room]")).toBeVisible();
+  const intro = page.getByRole("dialog", { name: "Build directly on the pitch" });
+  if (dismissIntro && await intro.isVisible().catch(() => false)) {
+    await intro.getByRole("button", { name: "Start creating" }).click();
+  }
 }
+
+test("Set Pieces quick start appears once without leaving guidance over the pitch", async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!window.sessionStorage.getItem("set-pieces-onboarding-test-ready")) {
+      window.localStorage.removeItem("football-set-pieces-room-onboarding-v1");
+      window.sessionStorage.setItem("set-pieces-onboarding-test-ready", "true");
+    }
+  });
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await openSetPiecesRoom(page, { dismissIntro: false });
+
+  const intro = page.getByRole("dialog", { name: "Build directly on the pitch" });
+  await expect(intro).toBeVisible();
+  const startCreating = intro.getByRole("button", { name: "Start creating" });
+  const closeIntroduction = intro.getByRole("button", { name: "Close introduction" });
+  await expect(startCreating).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(closeIntroduction).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(startCreating).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(intro).toHaveCount(0);
+  await expect(page.locator(".spr-active-tool-hint, .spr-ghost-status")).toHaveCount(0);
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await openSetPiecesRoom(page, { dismissIntro: false });
+  await expect(page.getByRole("dialog", { name: "Build directly on the pitch" })).toHaveCount(0);
+});
 
 test("Set Pieces editor gives the pitch the viewport and anchors compact playback controls", async ({ page }) => {
   await page.setViewportSize({ width: 1470, height: 772 });
@@ -110,8 +145,8 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
     const button = page.getByRole("button", { name: tool, exact: true });
     await button.click();
     await expect(button).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator(".spr-active-tool-copy strong")).toHaveText(tool);
   }
+  await expect(page.locator(".spr-active-tool-hint, .spr-ghost-status")).toHaveCount(0);
 
   const playIcon = page.getByRole("button", { name: "Play", exact: true }).locator("svg");
   await expect(playIcon).toBeVisible();

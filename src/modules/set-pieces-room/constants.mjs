@@ -1,4 +1,5 @@
 export const SET_PIECES_STORAGE_KEY = "football-set-pieces-room-v1";
+export const SET_PIECES_ONBOARDING_KEY = "football-set-pieces-room-onboarding-v1";
 export const SET_PIECES_SCHEMA_VERSION = 4;
 export const SET_PIECES_MAX_PLAYS = 120;
 export const SET_PIECES_MAX_VARIANTS = 16;

@@ -1,4 +1,9 @@
-import { SET_PIECES_MAX_PHASES, SET_PIECES_MAX_VARIANTS, setPieceSubPhaseOptions } from "./constants.mjs";
+import {
+  SET_PIECES_MAX_PHASES,
+  SET_PIECES_MAX_VARIANTS,
+  SET_PIECES_ONBOARDING_KEY,
+  setPieceSubPhaseOptions,
+} from "./constants.mjs";
 import { createSetPieceAssignmentController } from "./assignment-controller.mjs";
 import { resolveSetPiecePhaseAssignments } from "./assignments.mjs";
 import { createSetPiecesBoardInteractionController } from "./board-interaction-controller.mjs";
@@ -34,9 +39,18 @@ export function createSetPiecesRoomController(options = {}) {
   const win = options.win || globalThis;
   const documentRef = options.documentRef || win.document;
   const persistence = createSetPiecesPersistence({ storage: options.storage, storageKey: options.storageKey });
+  const preferenceStorage = options.storage || win.localStorage;
   const history = createSetPiecesHistory();
   let state = persistence.read();
   let bound = false;
+
+  function hasDismissedOnboarding() {
+    try {
+      return preferenceStorage?.getItem?.(SET_PIECES_ONBOARDING_KEY) === "dismissed";
+    } catch {
+      return false;
+    }
+  }
 
   const ui = {
     activeTool: "select",
@@ -65,6 +79,7 @@ export function createSetPiecesRoomController(options = {}) {
     saveState: "saved",
     saveMessage: "Saved to team",
     notice: null,
+    onboardingOpen: !hasDismissedOnboarding(),
   };
 
   function getRoster() {
@@ -179,8 +194,7 @@ export function createSetPiecesRoomController(options = {}) {
     const resolvedPreviousPhase = ui.showGhost && phaseIndex > 0
       ? resolveSetPiecePhaseAssignments(variant.phases[phaseIndex - 1], play, variant, roster)
       : null;
-    const ghostStatus = ui.showGhost && phaseIndex > 0 ? '<span class="spr-ghost-status">Previous phase shown</span>' : "";
-    stage.innerHTML = `${ghostStatus}${renderSetPieceBoard({
+    stage.innerHTML = renderSetPieceBoard({
       phase: resolvedPhase,
       previousPhase: resolvedPreviousPhase,
       pitchView: play.pitchView,
@@ -190,7 +204,7 @@ export function createSetPiecesRoomController(options = {}) {
       previewDrawing: ui.previewDrawing,
       selectionRect: ui.selectionRect,
       interactive: canEdit() && !ui.presentationMode,
-    })}`;
+    });
   }
 
   let activePlaybackRouteIds = new Set();
@@ -466,6 +480,17 @@ export function createSetPiecesRoomController(options = {}) {
     }
   }
 
+  function dismissOnboarding() {
+    ui.onboardingOpen = false;
+    try {
+      preferenceStorage?.setItem?.(SET_PIECES_ONBOARDING_KEY, "dismissed");
+    } catch {
+      // The introduction still closes when browser storage is unavailable.
+    }
+    render();
+    win.requestAnimationFrame?.(() => root?.querySelector?.('[data-set-piece-tool="select"]')?.focus?.());
+  }
+
   function handleAction(action) {
     const actions = {
       "new-play": createNewPlay,
@@ -492,6 +517,7 @@ export function createSetPiecesRoomController(options = {}) {
       "toggle-fullscreen": toggleFullscreen,
       "add-to-team-meeting": addCurrentVariantToTeamMeeting,
       "dismiss-notice": () => setNotice(""),
+      "dismiss-onboarding": dismissOnboarding,
       "toggle-library": () => setLibraryOpen(!ui.libraryOpen),
       "close-library": () => setLibraryOpen(false),
       "toggle-library-filters": () => setLibraryFiltersOpen(!ui.libraryFiltersOpen),
@@ -725,6 +751,24 @@ export function createSetPiecesRoomController(options = {}) {
     documentRef.addEventListener("pointerup", boardInteractions.handlePointerUp);
     documentRef.addEventListener("pointercancel", boardInteractions.handlePointerCancel);
     documentRef.addEventListener("keydown", (event) => {
+      const onboarding = root?.querySelector?.("[data-set-piece-onboarding]");
+      if (ui.onboardingOpen && onboarding?.getClientRects?.().length) {
+        const buttons = [...(root?.querySelectorAll?.("[data-set-piece-onboarding] button:not([disabled])") || [])];
+        if (event.key === "Escape") {
+          event.preventDefault();
+          dismissOnboarding();
+          return;
+        }
+        if (event.key === "Tab" && buttons.length) {
+          event.preventDefault();
+          const activeIndex = buttons.indexOf(documentRef.activeElement);
+          const nextIndex = event.shiftKey
+            ? (activeIndex <= 0 ? buttons.length - 1 : activeIndex - 1)
+            : (activeIndex + 1) % buttons.length;
+          buttons[nextIndex].focus();
+          return;
+        }
+      }
       if (ui.libraryOpen && event.key === "Escape") {
         event.preventDefault();
         if (ui.libraryFiltersOpen) setLibraryFiltersOpen(false);
@@ -741,6 +785,9 @@ export function createSetPiecesRoomController(options = {}) {
   function mount() {
     bind();
     render();
+    if (ui.onboardingOpen) {
+      win.requestAnimationFrame?.(() => root?.querySelector?.(".spr-onboarding-primary")?.focus?.());
+    }
   }
 
   function reloadFromStorage() {

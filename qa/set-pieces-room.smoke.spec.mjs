@@ -109,6 +109,18 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
     };
   });
 
+  const historyControls = page.getByRole("group", { name: "Edit history and details" });
+  await expect(historyControls.getByRole("button", { name: "Undo" }).locator("svg")).toBeVisible();
+  await expect(historyControls.getByRole("button", { name: "Redo" }).locator("svg")).toBeVisible();
+  await expect(historyControls.getByRole("button", { name: "Toggle details" }).locator("svg")).toBeVisible();
+  const controlRects = await historyControls.getByRole("button").evaluateAll((buttons) => buttons.map((button) => {
+    const rect = button.getBoundingClientRect();
+    return { top: rect.top, width: rect.width, height: rect.height };
+  }));
+  expect(new Set(controlRects.map(({ width }) => width)).size).toBe(1);
+  expect(new Set(controlRects.map(({ height }) => height)).size).toBe(1);
+  expect(Math.max(...controlRects.map(({ top }) => top)) - Math.min(...controlRects.map(({ top }) => top))).toBeLessThanOrEqual(1);
+
   await expect(page.locator(".spr-board-row")).toHaveClass(/is-wide-projection-active/);
   const collapsedLayout = await readEditorLayout();
   expect(Math.abs(collapsedLayout.stage.width - collapsedLayout.slot.width)).toBeLessThanOrEqual(1);

@@ -20,6 +20,9 @@ const paths = Object.freeze({
   "step-forward": '<path d="m9 6 8 6-8 6Z"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1"/>',
   repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="m7 22-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
+  undo: '<path d="M9 7 4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 6 6"/>',
+  redo: '<path d="m15 7 5 5-5 5"/><path d="M20 12H10a6 6 0 0 0-6 6"/>',
+  details: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/><path d="M18 8h.01M18 12h.01M18 16h.01"/>',
 });
 
 export function renderSetPieceToolIcon(tool = "") {

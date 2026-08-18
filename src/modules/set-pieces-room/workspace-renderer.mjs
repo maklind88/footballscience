@@ -233,11 +233,12 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDele
         <button type="button" class="spr-assignment-command ${ui.showAssignments ? "is-active" : ""}" data-set-piece-action="show-assignments"><span aria-hidden="true">⇄</span><span>Assignments</span></button>
         <label><span>Pitch</span><select data-set-piece-play-field="pitchView" ${canEdit ? "" : "disabled"}>${optionsMarkup(setPiecePitchViewOptions, play.pitchView)}</select></label>
         <label class="spr-board-toggle"><input type="checkbox" data-set-piece-ghost ${ui.showGhost ? "checked" : ""}><span>Previous</span></label>
-        <div class="spr-history-actions">
-          <button type="button" class="spr-icon-button" data-set-piece-action="undo" title="Undo" aria-label="Undo" ${ui.canUndo ? "" : "disabled"}>↶</button>
-          <button type="button" class="spr-icon-button" data-set-piece-action="redo" title="Redo" aria-label="Redo" ${ui.canRedo ? "" : "disabled"}>↷</button>
-          ${hasSelection && ui.inspectorCollapsed ? `<button type="button" class="spr-icon-button is-danger spr-delete-selection-command" data-set-piece-action="delete-selection" title="Delete selected (Delete)" aria-label="Delete selected" aria-keyshortcuts="Delete Backspace" ${canDelete ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("trash")}</span></button>` : ""}
-          <button type="button" class="spr-icon-button ${!ui.inspectorCollapsed ? "is-active" : ""}" data-set-piece-action="toggle-inspector" title="Toggle details" aria-label="Toggle details" aria-pressed="${Boolean(!ui.inspectorCollapsed)}">≡</button>
+        <div class="spr-history-actions" role="group" aria-label="Edit history and details">
+          <button type="button" class="spr-icon-button spr-command-icon-button" data-set-piece-action="undo" title="Undo last change (Command Z)" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" ${ui.canUndo ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("undo")}</span></button>
+          <button type="button" class="spr-icon-button spr-command-icon-button" data-set-piece-action="redo" title="Redo last change (Shift Command Z)" aria-label="Redo" aria-keyshortcuts="Meta+Shift+Z Control+Y" ${ui.canRedo ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("redo")}</span></button>
+          ${hasSelection && ui.inspectorCollapsed ? `<button type="button" class="spr-icon-button spr-command-icon-button is-danger spr-delete-selection-command" data-set-piece-action="delete-selection" title="Delete selected (Delete)" aria-label="Delete selected" aria-keyshortcuts="Delete Backspace" ${canDelete ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("trash")}</span></button>` : ""}
+          <span class="spr-command-control-divider" aria-hidden="true"></span>
+          <button type="button" class="spr-icon-button spr-command-icon-button ${!ui.inspectorCollapsed ? "is-active" : ""}" data-set-piece-action="toggle-inspector" title="${ui.inspectorCollapsed ? "Show" : "Hide"} details panel" aria-label="Toggle details" aria-pressed="${Boolean(!ui.inspectorCollapsed)}"><span class="spr-tool-icon">${renderSetPieceToolIcon("details")}</span></button>
         </div>
       </div>`}
     </div>

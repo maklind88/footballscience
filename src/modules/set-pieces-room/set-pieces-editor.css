@@ -103,6 +103,71 @@
   height: 32px;
 }
 
+.spr-editor-command-bar .spr-history-actions {
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--spr-line);
+  border-radius: 7px;
+  background: var(--spr-soft);
+}
+
+.spr-editor-command-bar .spr-command-icon-button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 5px;
+  color: #3e4744;
+  background: transparent;
+}
+
+.spr-editor-command-bar .spr-history-actions .spr-command-icon-button .spr-tool-icon {
+  width: 17px;
+  height: 17px;
+  flex-basis: 17px;
+}
+
+.spr-editor-command-bar .spr-command-icon-button:hover:not(:disabled),
+.spr-editor-command-bar .spr-command-icon-button:focus-visible {
+  background: #e5eae7;
+}
+
+.spr-editor-command-bar .spr-command-icon-button:focus-visible {
+  outline: 2px solid var(--spr-accent);
+  outline-offset: 1px;
+}
+
+.spr-editor-command-bar .spr-command-icon-button.is-active {
+  color: #fff;
+  background: var(--spr-accent);
+}
+
+.spr-editor-command-bar .spr-command-control-divider {
+  width: 1px;
+  height: 18px;
+  align-self: center;
+  margin-inline: 2px;
+  background: var(--spr-line);
+}
+
+body.is-dark-mode .spr-editor-command-bar .spr-history-actions {
+  background: var(--fs-control-bg);
+}
+
+body.is-dark-mode .spr-editor-command-bar .spr-command-icon-button {
+  color: var(--spr-ink);
+  background: transparent;
+}
+
+body.is-dark-mode .spr-editor-command-bar .spr-command-icon-button:hover:not(:disabled),
+body.is-dark-mode .spr-editor-command-bar .spr-command-icon-button:focus-visible {
+  background: var(--fs-hover-bg);
+}
+
+body.is-dark-mode .spr-editor-command-bar .spr-command-icon-button.is-active {
+  color: #101713;
+  background: #79cda0;
+}
+
 .spr-shell.is-editing .spr-board-row {
   grid-template-columns: 46px minmax(0, 1fr);
   gap: .42rem;

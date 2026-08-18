@@ -678,6 +678,11 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
   await openSetPiecesRoom(page);
   await page.getByRole("button", { name: "Create set piece" }).click();
   await page.getByRole("button", { name: "Duplicate current phase" }).click();
+  await page.getByRole("button", { name: "Create variant" }).click();
+  const editVariants = page.locator("[data-set-piece-variant-id]");
+  const primaryVariantId = await editVariants.first().getAttribute("data-set-piece-variant-id");
+  const secondVariantId = await editVariants.nth(1).getAttribute("data-set-piece-variant-id");
+  await editVariants.first().click();
   await page.getByRole("button", { name: "Present", exact: true }).click();
 
   const shell = page.locator("[data-set-pieces-room]");
@@ -688,6 +693,27 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
     await shell.evaluate((element) => element.classList.add("is-native-fullscreen"));
     await shell.locator(".spr-present-cues").evaluate((element) => element.removeAttribute("open"));
   }
+
+  const fullscreenVariant = shell.getByRole("combobox", { name: "Presentation variant" });
+  await expect(fullscreenVariant.locator("option")).toHaveCount(2);
+  await expect(fullscreenVariant).toHaveValue(primaryVariantId);
+  await shell.getByRole("button", { name: "Next variant" }).click();
+  await expect(fullscreenVariant).toHaveValue(secondVariantId);
+  await fullscreenVariant.selectOption(primaryVariantId);
+  await expect(fullscreenVariant).toHaveValue(primaryVariantId);
+  await shell.locator(".spr-present-stage").click();
+  await page.keyboard.press("ArrowDown");
+  await expect(fullscreenVariant).toHaveValue(secondVariantId);
+  await shell.getByRole("button", { name: "Previous variant" }).click();
+  await expect(fullscreenVariant).toHaveValue(primaryVariantId);
+  const fullscreenPhases = shell.locator(".spr-present-phase-card");
+  await fullscreenPhases.first().click();
+  await expect(fullscreenPhases.first()).toHaveClass(/is-active/);
+  await shell.getByRole("button", { name: "Next phase", exact: true }).click();
+  await expect(fullscreenPhases.nth(1)).toHaveClass(/is-active/);
+  await shell.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(shell.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await shell.getByRole("button", { name: "Pause", exact: true }).click();
 
   const readLayout = () => page.evaluate(() => {
     const rect = (selector) => {

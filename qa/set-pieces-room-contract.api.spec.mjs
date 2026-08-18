@@ -697,6 +697,8 @@ test("presentation workspace exposes an immersive tactical stage with coaching c
   expect(markup).toContain('data-set-piece-action="toggle-fullscreen"');
   expect(markup).toContain('aria-label="Add to Team Meeting"');
   expect(markup).toContain('data-set-piece-present-variant');
+  expect(markup).toContain('data-set-piece-action="previous-variant"');
+  expect(markup).toContain('data-set-piece-action="next-variant"');
   expect(markup).toContain("is-present-playback");
   expect(markup).toContain("spr-present-phase-card is-active");
   expect(markup).toContain('<details class="spr-present-cues" role="complementary" aria-label="Phase coaching notes" open>');

@@ -401,6 +401,14 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         event.preventDefault();
         options.selectAdjacentPhase?.(1);
       }
+      if (key === "arrowup") {
+        event.preventDefault();
+        options.selectAdjacentVariant?.(-1);
+      }
+      if (key === "arrowdown") {
+        event.preventDefault();
+        options.selectAdjacentVariant?.(1);
+      }
       if (key === "home") {
         event.preventDefault();
         options.restartPlayback?.();

@@ -268,6 +268,14 @@ export function createSetPiecesRoomController(options = {}) {
     render();
   }
 
+  function selectAdjacentVariant(direction) {
+    const { play, variant } = getContext();
+    if (!play || !variant) return;
+    const index = play.variants.findIndex((item) => item.id === variant.id);
+    const next = play.variants[index + direction];
+    if (next) selectVariant(next.id);
+  }
+
   function selectPhase(phaseId) {
     const { variant } = getContext();
     if (!variant?.phases.some((phase) => phase.id === phaseId)) return;
@@ -508,6 +516,8 @@ export function createSetPiecesRoomController(options = {}) {
       "move-phase-right": () => movePhase(1),
       "previous-phase": () => selectAdjacentPhase(-1),
       "next-phase": () => selectAdjacentPhase(1),
+      "previous-variant": () => selectAdjacentVariant(-1),
+      "next-variant": () => selectAdjacentVariant(1),
       "restart-playback": restartPlayback,
       "toggle-play": () => playback.toggle(),
       stop: () => playback.stop(),
@@ -769,6 +779,7 @@ export function createSetPiecesRoomController(options = {}) {
     isFullscreen: () => documentRef?.fullscreenElement === root,
     restartPlayback,
     selectAdjacentPhase,
+    selectAdjacentVariant,
     setNotice,
     setPresentationMode: setWorkspaceMode,
     toggleFullscreen,

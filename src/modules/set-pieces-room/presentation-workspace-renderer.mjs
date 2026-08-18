@@ -8,6 +8,8 @@ function renderPresentIcon(name) {
     minimize: '<path d="M8 3v5H3M16 3v5h5M8 21v-5H3M16 21v-5h5"/>',
     close: '<path d="M6 6l12 12M18 6 6 18"/>',
     chevron: '<path d="m8 10 4 4 4-4"/>',
+    previous: '<path d="m15 18-6-6 6-6"/>',
+    next: '<path d="m9 18 6-6-6-6"/>',
   };
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name] || paths.fullscreen}</svg>`;
 }
@@ -42,6 +44,7 @@ export function renderSetPiecesPresentationWorkspace(options = {}) {
   const coachingPoints = presentCoachingPoints(play, variant, phase);
   const resolvedPhase = resolveSetPiecePhaseAssignments(phase, play, variant, roster);
   const context = [play.moment, play.context, play.opponent].filter(Boolean).join(" · ");
+  const variantIndex = play.variants.findIndex((item) => item.id === variant.id);
   return `<main class="spr-present-workspace" aria-label="Set piece presentation">
     <header class="spr-present-header">
       <div class="spr-present-team">${teamIdentityMarkup}</div>
@@ -49,7 +52,11 @@ export function renderSetPiecesPresentationWorkspace(options = {}) {
         <span>${escapeSetPieceHtml(formatRestart(play.restart))}${context ? ` · ${escapeSetPieceHtml(context)}` : ""}</span>
         <strong>${escapeSetPieceHtml(play.title)}</strong>
       </div>
-      <label class="spr-present-variant-select"><span>Variant</span><select data-set-piece-present-variant aria-label="Presentation variant">${play.variants.map((item) => `<option value="${escapeSetPieceHtml(item.id)}" ${item.id === variant.id ? "selected" : ""}>${escapeSetPieceHtml(item.title)}</option>`).join("")}</select></label>
+      <div class="spr-present-variant-select"><span>Variant</span><div class="spr-present-variant-controls" role="group" aria-label="Presentation variant controls">
+        <button type="button" data-set-piece-action="previous-variant" aria-label="Previous variant" title="Previous variant" aria-keyshortcuts="ArrowUp" ${variantIndex <= 0 ? "disabled" : ""}>${renderPresentIcon("previous")}</button>
+        <select data-set-piece-present-variant aria-label="Presentation variant">${play.variants.map((item) => `<option value="${escapeSetPieceHtml(item.id)}" ${item.id === variant.id ? "selected" : ""}>${escapeSetPieceHtml(item.title)}</option>`).join("")}</select>
+        <button type="button" data-set-piece-action="next-variant" aria-label="Next variant" title="Next variant" aria-keyshortcuts="ArrowDown" ${variantIndex >= play.variants.length - 1 ? "disabled" : ""}>${renderPresentIcon("next")}</button>
+      </div></div>
       <div class="spr-present-actions">
         ${ui.canAddToTeamMeeting ? '<button type="button" class="spr-present-team-meeting" data-set-piece-action="add-to-team-meeting" aria-label="Add to Team Meeting" title="Add to Team Meeting"><span aria-hidden="true">＋</span><span class="spr-present-team-meeting-label">Team Meeting</span></button>' : ""}
         ${ui.fullscreenAvailable ? `<button type="button" class="spr-present-icon-button" data-set-piece-action="toggle-fullscreen" aria-label="${ui.nativeFullscreen ? "Exit fullscreen" : "Enter fullscreen"}" title="${ui.nativeFullscreen ? "Exit fullscreen" : "Enter fullscreen"}">${renderPresentIcon(ui.nativeFullscreen ? "minimize" : "fullscreen")}</button>` : ""}

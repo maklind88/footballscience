@@ -1,6 +1,6 @@
 @media (max-width: 1180px) {
   .spr-present-header {
-    grid-template-columns: 210px minmax(0, 1fr) 120px auto;
+    grid-template-columns: 210px minmax(0, 1fr) 180px auto;
     gap: .7rem;
     padding-inline: .75rem;
   }
@@ -36,7 +36,7 @@
   }
 
   .spr-present-header {
-    grid-template-columns: minmax(180px, .8fr) minmax(0, 1.2fr) 110px auto;
+    grid-template-columns: minmax(180px, .8fr) minmax(0, 1.2fr) 164px auto;
   }
 
   .spr-present-team .spr-header-team-mark {

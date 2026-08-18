@@ -29,7 +29,7 @@ function presentCoachingPoints(play, variant, phase) {
 
 function renderPresentVariantControl(play, variant, variantIndex) {
   const variantTitle = escapeSetPieceHtml(variant.title);
-  return `<div class="spr-present-variant-select"><span>Variant</span><div class="spr-present-variant-controls" role="group" aria-label="Presentation variant controls">
+  return `<div class="spr-present-variant-select"><div class="spr-present-variant-controls" role="group" aria-label="Presentation variant controls">
     <button type="button" data-set-piece-action="previous-variant" aria-label="Previous variant" title="Previous variant" aria-keyshortcuts="ArrowUp" ${variantIndex <= 0 ? "disabled" : ""}>${renderPresentIcon("previous")}</button>
     <details class="spr-present-variant-menu">
       <summary aria-label="Choose presentation variant, ${variantTitle}" title="Choose variant"><strong>${variantTitle}</strong>${renderPresentIcon("chevron")}</summary>

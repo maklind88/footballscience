@@ -45,8 +45,7 @@
     flex-basis: 38px;
   }
 
-  .spr-present-routine > span,
-  .spr-present-variant-select > span {
+  .spr-present-routine > span {
     display: none;
   }
 

@@ -162,13 +162,6 @@
   gap: .14rem;
 }
 
-.spr-present-variant-select > span {
-  color: var(--spr-present-muted);
-  font-size: .56rem;
-  font-weight: 720;
-  text-transform: uppercase;
-}
-
 .spr-present-variant-controls {
   position: relative;
   min-width: 0;

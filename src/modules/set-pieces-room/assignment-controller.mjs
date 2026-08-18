@@ -26,6 +26,7 @@ export function createSetPieceAssignmentController(options = {}) {
     if (visible) ui.inspectorCollapsed = false;
     ui.assignmentPickerSlotId = "";
     ui.selectedElementIds.clear();
+    ui.selectedDrawingIds?.clear?.();
     ui.selectedDrawingId = "";
     options.render();
   }
@@ -40,6 +41,7 @@ export function createSetPieceAssignmentController(options = {}) {
     ui.inspectorCollapsed = false;
     ui.assignmentPickerSlotId = slotId;
     ui.selectedElementIds = new Set([slotId]);
+    ui.selectedDrawingIds?.clear?.();
     ui.selectedDrawingId = "";
     options.render();
   }

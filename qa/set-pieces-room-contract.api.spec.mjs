@@ -35,6 +35,10 @@ import {
   translateSetPieceDrawing,
   updateSetPieceDrawingHandle,
 } from "../src/modules/set-pieces-room/drawing-geometry.mjs";
+import {
+  constrainSetPieceSelectionDelta,
+  isSetPieceDrawingInsideRect,
+} from "../src/modules/set-pieces-room/selection-geometry.mjs";
 import { createSetPiecesPlaybackController } from "../src/modules/set-pieces-room/playback-controller.mjs";
 import { renderSetPiecesPresentationWorkspace } from "../src/modules/set-pieces-room/presentation-workspace-renderer.mjs";
 import { renderSetPiecesWorkspace } from "../src/modules/set-pieces-room/workspace-renderer.mjs";
@@ -585,6 +589,22 @@ test("selected drawing geometry supports direct length, curve, move and zone res
     .toEqual({ startX: 27, startY: 22, endX: 30, endY: 25 });
 });
 
+test("marquee selection includes routes and zones while mixed groups keep a shared movement delta", () => {
+  const route = { id: "pass-a", type: "pass", startX: 20, startY: 20, endX: 45, endY: 28, curve: 6 };
+  const zone = { id: "zone-a", type: "zone", startX: 55, startY: 14, endX: 70, endY: 30 };
+  expect(isSetPieceDrawingInsideRect(route, { startX: 30, startY: 20, endX: 36, endY: 30 })).toBe(true);
+  expect(isSetPieceDrawingInsideRect(zone, { startX: 65, startY: 24, endX: 75, endY: 34 })).toBe(true);
+  expect(isSetPieceDrawingInsideRect(zone, { startX: 2, startY: 2, endX: 8, endY: 8 })).toBe(false);
+
+  const delta = constrainSetPieceSelectionDelta(
+    [{ id: "home-a", kind: "home-player", x: 10, y: 12 }],
+    [route],
+    { x: -20, y: 8 },
+    "full"
+  );
+  expect(delta).toEqual({ x: -6, y: 8 });
+});
+
 test("drag coordinates stay inside the visible pitch view", () => {
   expect(normalizeSetPiecePointForPitchView({ x: 4, y: 80 }, "attacking-half")).toEqual({ x: 70, y: 68 });
   expect(normalizeSetPiecePointForPitchView({ x: 90, y: -4 }, "defensive-half")).toEqual({ x: 35, y: 0 });
@@ -705,6 +725,27 @@ test("selected drawings expose contextual transform handles only while editing",
   expect(zone.match(/data-drawing-handle="zone-/g)).toHaveLength(4);
   expect(presenting).not.toContain("data-drawing-handle");
   expect(presenting).not.toContain('tabindex="0"');
+});
+
+test("mixed multi-selection highlights every object without exposing single-object transform handles", () => {
+  const phase = {
+    elements: [{ id: "home-a", kind: "home-player", x: 20, y: 20, label: "AE" }],
+    drawings: [
+      { id: "pass-a", type: "pass", startX: 20, startY: 20, endX: 35, endY: 25, curve: 0 },
+      { id: "zone-a", type: "zone", startX: 40, startY: 12, endX: 55, endY: 24 },
+    ],
+  };
+  const markup = renderSetPieceBoard({
+    phase,
+    interactive: true,
+    selectedElementIds: new Set(["home-a"]),
+    selectedDrawingIds: new Set(["pass-a", "zone-a"]),
+    selectedDrawingId: "zone-a",
+    layers: new Set(["home", "drawings"]),
+  });
+  expect(markup.match(/spr-drawing[^\"]*is-selected/g)).toHaveLength(2);
+  expect(markup).toContain("spr-board-element is-home-player is-selected");
+  expect(markup).not.toContain("spr-drawing-controls is-");
 });
 
 test("presentation workspace exposes an immersive tactical stage with coaching context", () => {

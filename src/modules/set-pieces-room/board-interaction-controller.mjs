@@ -13,6 +13,7 @@ import { createSetPiecePlayerLabelMap } from "./player-labels.mjs";
 import { createSetPieceId } from "./state.mjs";
 import { chooseSetPieceDrawingActor } from "./drawing-actors.mjs";
 import { translateSetPieceDrawing, updateSetPieceDrawingHandle } from "./drawing-geometry.mjs";
+import { constrainSetPieceSelectionDelta, isSetPieceDrawingInsideRect } from "./selection-geometry.mjs";
 
 const DOUBLE_SELECTION_DELAY_MS = 450;
 
@@ -39,6 +40,26 @@ export function createSetPiecesBoardInteractionController(options = {}) {
 
   function resetSelectionActivation() {
     lastSelectionActivation = { key: "", at: 0 };
+  }
+
+  function getSelectedDrawingIds() {
+    if (!(options.ui.selectedDrawingIds instanceof Set)) {
+      options.ui.selectedDrawingIds = new Set(options.ui.selectedDrawingId ? [options.ui.selectedDrawingId] : []);
+    }
+    return options.ui.selectedDrawingIds;
+  }
+
+  function clearDrawingSelection() {
+    getSelectedDrawingIds().clear();
+    options.ui.selectedDrawingId = "";
+  }
+
+  function setPrimaryDrawingId(drawingId = "") {
+    options.ui.selectedDrawingId = drawingId || [...getSelectedDrawingIds()].at(-1) || "";
+  }
+
+  function getSelectionCount() {
+    return options.ui.selectedElementIds.size + getSelectedDrawingIds().size;
   }
 
   function registerSelectionActivation(key, event, elementId = "") {
@@ -116,7 +137,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     ));
     if (existing && variant.phases.every((candidatePhase) => candidatePhase.elements.some((element) => element.id === existing.id))) {
       ui.selectedElementIds = new Set([existing.id]);
-      ui.selectedDrawingId = "";
+      clearDrawingSelection();
       ui.assignmentPickerSlotId = "";
       ui.showAssignments = false;
       ui.activeTool = "select";
@@ -154,7 +175,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         });
       });
       ui.selectedElementIds = new Set([element.id]);
-      ui.selectedDrawingId = "";
+      clearDrawingSelection();
       ui.assignmentPickerSlotId = "";
       ui.showAssignments = false;
       ui.activeTool = "select";
@@ -177,6 +198,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         const element = createBoardElement("opponent", point, { label: String(opponentNumber), showNumber: true });
         phase.elements.push(element);
         ui.selectedElementIds = new Set([element.id]);
+        clearDrawingSelection();
         ui.assignmentPickerSlotId = "";
         ui.showAssignments = false;
         ui.activeTool = "select";
@@ -249,23 +271,32 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         else ui.selectedElementIds.add(elementId);
       } else if (!ui.selectedElementIds.has(elementId)) {
         ui.selectedElementIds = new Set([elementId]);
+        clearDrawingSelection();
       }
-      ui.selectedDrawingId = "";
       ui.assignmentPickerSlotId = "";
       ui.showAssignments = false;
-      const positions = new Map(phase.elements.filter((element) => ui.selectedElementIds.has(element.id)).map((element) => [element.id, { x: element.x, y: element.y }]));
+      if (!ui.selectedElementIds.has(elementId)) {
+        resetSelectionActivation();
+        options.render();
+        return;
+      }
       interaction = {
-        type: "move",
+        type: "move-selection",
         svg,
         stage,
         pointerId: event.pointerId,
         start: point,
         startClient: { x: event.clientX, y: event.clientY },
-        positions,
+        elements: new Map(phase.elements
+          .filter((element) => ui.selectedElementIds.has(element.id))
+          .map((element) => [element.id, structuredClone(element)])),
+        drawings: new Map(phase.drawings
+          .filter((drawing) => getSelectedDrawingIds().has(drawing.id))
+          .map((drawing) => [drawing.id, structuredClone(drawing)])),
         beforeState: structuredClone(options.getState()),
         moved: false,
         selectionKey: `element:${elementId}`,
-        allowInspectorActivation: !event.shiftKey,
+        allowInspectorActivation: !event.shiftKey && getSelectionCount() === 1,
       };
       capturePointer(stage, event.pointerId);
       refreshInteractionBoard();
@@ -275,10 +306,23 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     if (ui.activeTool === "select" && drawingId && drawingId !== "preview") {
       const drawing = phase.drawings.find((candidate) => candidate.id === drawingId);
       if (!drawing) return;
-      ui.selectedElementIds.clear();
-      ui.selectedDrawingId = drawingId;
+      const selectedDrawingIds = getSelectedDrawingIds();
+      if (event.shiftKey) {
+        if (selectedDrawingIds.has(drawingId)) selectedDrawingIds.delete(drawingId);
+        else selectedDrawingIds.add(drawingId);
+      } else if (!selectedDrawingIds.has(drawingId)) {
+        ui.selectedElementIds.clear();
+        selectedDrawingIds.clear();
+        selectedDrawingIds.add(drawingId);
+      }
+      setPrimaryDrawingId(selectedDrawingIds.has(drawingId) ? drawingId : "");
       ui.assignmentPickerSlotId = "";
       ui.showAssignments = false;
+      if (!selectedDrawingIds.has(drawingId)) {
+        resetSelectionActivation();
+        options.render();
+        return;
+      }
       if (drawingHandle && options.canEdit()) {
         resetSelectionActivation();
         interaction = {
@@ -301,18 +345,22 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       }
       if (options.canEdit()) {
         interaction = {
-          type: "move-drawing",
+          type: "move-selection",
           svg,
           stage,
           pointerId: event.pointerId,
           start: point,
           startClient: { x: event.clientX, y: event.clientY },
-          drawingId,
-          original: structuredClone(drawing),
+          elements: new Map(phase.elements
+            .filter((element) => ui.selectedElementIds.has(element.id))
+            .map((element) => [element.id, structuredClone(element)])),
+          drawings: new Map(phase.drawings
+            .filter((candidate) => selectedDrawingIds.has(candidate.id))
+            .map((candidate) => [candidate.id, structuredClone(candidate)])),
           beforeState: structuredClone(options.getState()),
           moved: false,
           selectionKey: `drawing:${drawingId}`,
-          allowInspectorActivation: !event.shiftKey,
+          allowInspectorActivation: !event.shiftKey && getSelectionCount() === 1,
         };
         capturePointer(stage, event.pointerId);
         refreshInteractionBoard();
@@ -342,11 +390,16 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     }
     if (ui.activeTool === "select") {
       resetSelectionActivation();
-      ui.selectedElementIds.clear();
-      ui.selectedDrawingId = "";
+      const additive = event.shiftKey;
+      const initialElementIds = new Set(ui.selectedElementIds);
+      const initialDrawingIds = new Set(getSelectedDrawingIds());
+      if (!additive) {
+        ui.selectedElementIds.clear();
+        clearDrawingSelection();
+      }
       ui.assignmentPickerSlotId = "";
       ui.showAssignments = false;
-      interaction = { type: "select", svg, stage, pointerId: event.pointerId, start: point };
+      interaction = { type: "select", svg, stage, pointerId: event.pointerId, start: point, additive, initialElementIds, initialDrawingIds };
       capturePointer(stage, event.pointerId);
       ui.selectionRect = { startX: point.x, startY: point.y, endX: point.x, endY: point.y };
       refreshInteractionBoard();
@@ -360,45 +413,43 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     const { phase, play } = options.getContext();
     if (!point || !phase) return;
     const ui = options.ui;
-    if (interaction.type === "move" && options.canEdit()) {
+    if (interaction.type === "move-selection" && options.canEdit()) {
       const screenDistance = Math.hypot(event.clientX - interaction.startClient.x, event.clientY - interaction.startClient.y);
       if (!interaction.moved && screenDistance < 3) return;
       if (!interaction.moved) resetSelectionActivation();
-      const dx = point.x - interaction.start.x;
-      const dy = point.y - interaction.start.y;
+      const delta = constrainSetPieceSelectionDelta(
+        [...interaction.elements.values()],
+        [...interaction.drawings.values()],
+        { x: point.x - interaction.start.x, y: point.y - interaction.start.y },
+        play?.pitchView
+      );
       interaction.moved = true;
       phase.elements.forEach((element) => {
-        const origin = interaction.positions.get(element.id);
+        const origin = interaction.elements.get(element.id);
         if (!origin) return;
-        Object.assign(element, normalizeSetPieceElementPointForPitchView(
-          { x: origin.x + dx, y: origin.y + dy },
-          play?.pitchView,
-          element.kind
-        ));
+        Object.assign(element, { x: origin.x + delta.x, y: origin.y + delta.y });
         updateMovedElementDom(element);
       });
+      phase.drawings.forEach((drawing) => {
+        const origin = interaction.drawings.get(drawing.id);
+        if (origin) Object.assign(drawing, translateSetPieceDrawing(origin, delta, play?.pitchView));
+      });
+      if (interaction.drawings.size) refreshInteractionBoard();
       event.preventDefault();
     }
-    if (["move-drawing", "transform-drawing"].includes(interaction.type) && options.canEdit()) {
+    if (interaction.type === "transform-drawing" && options.canEdit()) {
       const screenDistance = Math.hypot(event.clientX - interaction.startClient.x, event.clientY - interaction.startClient.y);
       if (!interaction.moved && screenDistance < 3) return;
       if (!interaction.moved) resetSelectionActivation();
       const drawing = phase.drawings.find((candidate) => candidate.id === interaction.drawingId);
       if (!drawing) return;
       interaction.moved = true;
-      if (interaction.type === "move-drawing") {
-        Object.assign(drawing, translateSetPieceDrawing(interaction.original, {
-          x: point.x - interaction.start.x,
-          y: point.y - interaction.start.y,
-        }, play?.pitchView));
-      } else {
-        Object.assign(drawing, updateSetPieceDrawingHandle(
-          interaction.original,
-          interaction.drawingHandle,
-          point,
-          play?.pitchView
-        ));
-      }
+      Object.assign(drawing, updateSetPieceDrawingHandle(
+        interaction.original,
+        interaction.drawingHandle,
+        point,
+        play?.pitchView
+      ));
       refreshInteractionBoard();
       event.preventDefault();
     }
@@ -423,19 +474,19 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     const { phase } = options.getContext();
     const ui = options.ui;
     if (!phase) return;
-    if (completed.type === "move" && completed.moved && options.canEdit()) {
+    if (completed.type === "move-selection" && completed.moved && options.canEdit()) {
       options.finalizeDirectMutation(completed.beforeState);
       return;
     }
-    if (["move-drawing", "transform-drawing"].includes(completed.type) && completed.moved && options.canEdit()) {
+    if (completed.type === "transform-drawing" && completed.moved && options.canEdit()) {
       options.finalizeDirectMutation(completed.beforeState);
       return;
     }
-    if (completed.type === "move" && completed.allowInspectorActivation) {
-      registerSelectionActivation(completed.selectionKey, event, completed.selectionKey.replace("element:", ""));
-    }
-    if (completed.type === "move-drawing" && completed.allowInspectorActivation) {
-      registerSelectionActivation(completed.selectionKey, event);
+    if (completed.type === "move-selection" && completed.allowInspectorActivation) {
+      const elementId = completed.selectionKey.startsWith("element:")
+        ? completed.selectionKey.replace("element:", "")
+        : "";
+      registerSelectionActivation(completed.selectionKey, event, elementId);
     }
     if (completed.type === "draw" && getSetPieceDistance(completed.pointerStart || completed.start, point) > 1.5) {
       const drawing = {
@@ -452,6 +503,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       ui.previewDrawing = null;
       options.commit(() => {
         phase.drawings.push(drawing);
+        getSelectedDrawingIds().clear();
+        getSelectedDrawingIds().add(drawing.id);
         ui.selectedDrawingId = drawing.id;
         ui.selectedElementIds.clear();
         ui.activeTool = "select";
@@ -459,7 +512,19 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       return;
     }
     if (completed.type === "select" && ui.selectionRect) {
-      ui.selectedElementIds = new Set(phase.elements.filter((element) => isSetPiecePointInsideRect(element, ui.selectionRect)).map((element) => element.id));
+      const elementIds = new Set(getVisibleElements(phase, ui)
+        .filter((element) => isSetPiecePointInsideRect(element, ui.selectionRect))
+        .map((element) => element.id));
+      const drawingIds = new Set((ui.layers.has("drawings") ? phase.drawings : [])
+        .filter((drawing) => isSetPieceDrawingInsideRect(drawing, ui.selectionRect))
+        .map((drawing) => drawing.id));
+      ui.selectedElementIds = completed.additive
+        ? new Set([...completed.initialElementIds, ...elementIds])
+        : elementIds;
+      ui.selectedDrawingIds = completed.additive
+        ? new Set([...completed.initialDrawingIds, ...drawingIds])
+        : drawingIds;
+      setPrimaryDrawingId();
     }
     ui.previewDrawing = null;
     ui.selectionRect = null;
@@ -471,15 +536,19 @@ export function createSetPiecesBoardInteractionController(options = {}) {
     const cancelled = interaction;
     interaction = null;
     releasePointer(cancelled.stage, cancelled.pointerId);
-    if (cancelled.type === "move") {
+    if (cancelled.type === "move-selection") {
       resetSelectionActivation();
       const { phase } = options.getContext();
       phase?.elements?.forEach((element) => {
-        const origin = cancelled.positions.get(element.id);
+        const origin = cancelled.elements.get(element.id);
         if (origin) Object.assign(element, origin);
       });
+      phase?.drawings?.forEach((drawing) => {
+        const origin = cancelled.drawings.get(drawing.id);
+        if (origin) Object.assign(drawing, origin);
+      });
     }
-    if (["move-drawing", "transform-drawing"].includes(cancelled.type)) {
+    if (cancelled.type === "transform-drawing") {
       resetSelectionActivation();
       const { phase } = options.getContext();
       const drawing = phase?.drawings?.find((candidate) => candidate.id === cancelled.drawingId);
@@ -554,7 +623,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       if (key === "enter" || key === " ") {
         event.preventDefault();
         options.ui.selectedElementIds = new Set([elementId]);
-        options.ui.selectedDrawingId = "";
+        clearDrawingSelection();
         options.ui.assignmentPickerSlotId = key === "enter" && element.kind === "home-player" ? elementId : "";
         if (key === "enter") options.ui.inspectorCollapsed = false;
         options.render();
@@ -571,6 +640,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         event.preventDefault();
         const distance = event.shiftKey ? 5 : 1;
         options.ui.selectedElementIds = new Set([elementId]);
+        clearDrawingSelection();
         options.commit(() => {
           Object.assign(element, normalizeSetPieceElementPointForPitchView({
             x: element.x + direction.x * distance,
@@ -589,6 +659,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       if (key === "enter" || key === " ") {
         event.preventDefault();
         options.ui.selectedElementIds.clear();
+        getSelectedDrawingIds().clear();
+        getSelectedDrawingIds().add(drawingId);
         options.ui.selectedDrawingId = drawingId;
         if (key === "enter") options.ui.inspectorCollapsed = false;
         options.render();
@@ -605,6 +677,8 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         event.preventDefault();
         const distance = event.shiftKey ? 5 : 1;
         options.ui.selectedElementIds.clear();
+        getSelectedDrawingIds().clear();
+        getSelectedDrawingIds().add(drawingId);
         options.ui.selectedDrawingId = drawingId;
         options.commit(() => {
           Object.assign(drawing, translateSetPieceDrawing(drawing, {

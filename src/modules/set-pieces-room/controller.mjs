@@ -61,6 +61,7 @@ export function createSetPiecesRoomController(options = {}) {
     libraryOpen: false,
     selectedRosterId: "",
     selectedElementIds: new Set(),
+    selectedDrawingIds: new Set(),
     selectedDrawingId: "",
     assignmentScope: "play",
     assignmentPickerSlotId: "",
@@ -202,6 +203,7 @@ export function createSetPiecesRoomController(options = {}) {
       pitchView: play.pitchView,
       layers: ui.layers,
       selectedElementIds: ui.selectedElementIds,
+      selectedDrawingIds: ui.selectedDrawingIds,
       selectedDrawingId: ui.selectedDrawingId,
       previewDrawing: ui.previewDrawing,
       selectionRect: ui.selectionRect,
@@ -226,6 +228,7 @@ export function createSetPiecesRoomController(options = {}) {
       if (!variant) return;
       variant.activePhaseId = phaseId;
       ui.playbackProgress = 0;
+      ui.selectedDrawingIds.clear();
       ui.selectedDrawingId = "";
       activePlaybackRouteIds.clear();
       render();
@@ -249,6 +252,7 @@ export function createSetPiecesRoomController(options = {}) {
     playback.stop();
     state.activePlayId = playId;
     ui.selectedElementIds.clear();
+    ui.selectedDrawingIds.clear();
     ui.selectedDrawingId = "";
     ui.assignmentPickerSlotId = "";
     ui.showAssignments = false;
@@ -263,6 +267,7 @@ export function createSetPiecesRoomController(options = {}) {
     playback.stop();
     play.activeVariantId = variantId;
     ui.selectedElementIds.clear();
+    ui.selectedDrawingIds.clear();
     ui.selectedDrawingId = "";
     ui.assignmentPickerSlotId = "";
     render();
@@ -282,6 +287,7 @@ export function createSetPiecesRoomController(options = {}) {
     playback.stop();
     variant.activePhaseId = phaseId;
     ui.selectedElementIds.clear();
+    ui.selectedDrawingIds.clear();
     ui.selectedDrawingId = "";
     ui.assignmentPickerSlotId = "";
     render();
@@ -396,8 +402,9 @@ export function createSetPiecesRoomController(options = {}) {
     const homeElementIds = new Set(phase.elements
       .filter((element) => element.kind === "home-player" && elementIds.has(element.id))
       .map((element) => element.id));
-    const drawingId = ui.selectedDrawingId;
-    if (!elementIds.size && !drawingId) return;
+    const drawingIds = new Set(ui.selectedDrawingIds);
+    if (ui.selectedDrawingId) drawingIds.add(ui.selectedDrawingId);
+    if (!elementIds.size && !drawingIds.size) return;
     if (!canDelete()) return setNotice("Only coaches and admins can delete board content.");
     commit(() => {
       const startIndex = variant.phases.findIndex((item) => item.id === phase.id);
@@ -406,8 +413,9 @@ export function createSetPiecesRoomController(options = {}) {
           !homeElementIds.has(element.id) && (index < startIndex || !elementIds.has(element.id))
         ));
       });
-      phase.drawings = phase.drawings.filter((drawing) => drawing.id !== drawingId);
+      phase.drawings = phase.drawings.filter((drawing) => !drawingIds.has(drawing.id));
       ui.selectedElementIds.clear();
+      ui.selectedDrawingIds.clear();
       ui.selectedDrawingId = "";
     });
   }
@@ -451,6 +459,7 @@ export function createSetPiecesRoomController(options = {}) {
     ui.previewDrawing = null;
     ui.selectionRect = null;
     ui.selectedElementIds.clear();
+    ui.selectedDrawingIds.clear();
     ui.selectedDrawingId = "";
     ui.assignmentPickerSlotId = "";
     ui.showAssignments = false;
@@ -660,6 +669,7 @@ export function createSetPiecesRoomController(options = {}) {
     if (tool) {
       if (tool === "home-player") {
         ui.activeTool = "select";
+        ui.selectedDrawingIds.clear();
         ui.selectedDrawingId = "";
         render();
         const picker = root.querySelector?.("[data-set-piece-player-picker]");
@@ -670,6 +680,7 @@ export function createSetPiecesRoomController(options = {}) {
         return;
       }
       ui.activeTool = tool;
+      ui.selectedDrawingIds.clear();
       ui.selectedDrawingId = "";
       render();
     }

@@ -1,22 +1,11 @@
 import {
   clampSetPieceCoordinate,
+  getSetPiecePitchBounds,
   normalizeSetPiecePointForPitchView,
-  setPiecePitchSize,
 } from "./geometry.mjs";
 
 const MIN_ZONE_SIZE = 3;
 const MAX_CURVE = 36;
-
-function getPitchBounds(pitchView = "full") {
-  const third = setPiecePitchSize.length / 3;
-  if (pitchView === "attacking-half") {
-    return { minX: setPiecePitchSize.length - third, maxX: setPiecePitchSize.length, minY: 0, maxY: setPiecePitchSize.width };
-  }
-  if (pitchView === "defensive-half") {
-    return { minX: 0, maxX: third, minY: 0, maxY: setPiecePitchSize.width };
-  }
-  return { minX: 0, maxX: setPiecePitchSize.length, minY: 0, maxY: setPiecePitchSize.width };
-}
 
 export function getSetPieceDrawingControlPoint(drawing = {}) {
   const startX = Number(drawing.startX || 0);
@@ -51,7 +40,7 @@ export function getSetPieceDrawingLength(drawing = {}) {
 }
 
 function resizeZone(drawing, handle, point, pitchView) {
-  const bounds = getPitchBounds(pitchView);
+  const bounds = getSetPiecePitchBounds(pitchView);
   const x1 = Math.min(Number(drawing.startX || 0), Number(drawing.endX || 0));
   const x2 = Math.max(Number(drawing.startX || 0), Number(drawing.endX || 0));
   const y1 = Math.min(Number(drawing.startY || 0), Number(drawing.endY || 0));
@@ -95,7 +84,7 @@ export function updateSetPieceDrawingHandle(drawing = {}, handle = "", point = {
 }
 
 export function translateSetPieceDrawing(drawing = {}, delta = {}, pitchView = "full") {
-  const bounds = getPitchBounds(pitchView);
+  const bounds = getSetPiecePitchBounds(pitchView);
   const startX = Number(drawing.startX || 0);
   const startY = Number(drawing.startY || 0);
   const endX = Number(drawing.endX || 0);

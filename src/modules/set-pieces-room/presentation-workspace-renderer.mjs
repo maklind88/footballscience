@@ -72,6 +72,7 @@ export function renderSetPiecesPresentationWorkspace(options = {}) {
             pitchView: play.pitchView,
             layers: ui.layers,
             selectedElementIds: new Set(),
+            selectedDrawingIds: new Set(),
             selectedDrawingId: "",
             interactive: false,
           })}

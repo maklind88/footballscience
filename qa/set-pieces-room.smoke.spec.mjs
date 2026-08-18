@@ -447,6 +447,34 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(runDrawing).toHaveCount(1);
 
+  box = await pitch.boundingBox();
+  await page.mouse.move(box.x + 5, box.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 5, box.y + box.height - 5, { steps: 8 });
+  await page.mouse.up();
+  const selectedBoardElements = page.locator(".spr-board-element.is-selected:not(.is-ghost)");
+  await expect(selectedBoardElements).toHaveCount(3);
+  await expect(runDrawing).toHaveClass(/is-selected/);
+  await expect(page.locator(".spr-drawing-controls")).toHaveCount(0);
+
+  const groupedHome = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
+  const groupedHomeTransform = await groupedHome.getAttribute("transform");
+  const groupedRoutePath = await runDrawing.locator(".spr-drawing-shape").getAttribute("d");
+  const groupedHomeBox = await groupedHome.boundingBox();
+  await page.mouse.move(groupedHomeBox.x + groupedHomeBox.width / 2, groupedHomeBox.y + groupedHomeBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(groupedHomeBox.x + groupedHomeBox.width / 2 + 18, groupedHomeBox.y + groupedHomeBox.height / 2 + 12, { steps: 6 });
+  await page.mouse.up();
+  await expect(groupedHome).not.toHaveAttribute("transform", groupedHomeTransform);
+  await expect(runDrawing.locator(".spr-drawing-shape")).not.toHaveAttribute("d", groupedRoutePath);
+
+  await page.keyboard.press("Delete");
+  await expect(page.locator(".spr-board-element:not(.is-ghost)")).toHaveCount(0);
+  await expect(runDrawing).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator(".spr-board-element:not(.is-ghost)")).toHaveCount(3);
+  await expect(runDrawing).toHaveCount(1);
+
   await page.getByRole("button", { name: "Duplicate current phase" }).click();
   await expect(page.locator("[data-set-piece-phase-id]")).toHaveCount(2);
   await page.locator("[data-set-piece-player-picker] summary").click();

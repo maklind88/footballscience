@@ -226,7 +226,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDele
   const previousPhase = phaseIndex > 0 ? variant.phases[phaseIndex - 1] : null;
   const resolvedPhase = resolveSetPiecePhaseAssignments(phase, play, variant, roster);
   const resolvedPreviousPhase = previousPhase ? resolveSetPiecePhaseAssignments(previousPhase, play, variant, roster) : null;
-  const hasSelection = Boolean(ui.selectedElementIds?.size || ui.selectedDrawingId);
+  const hasSelection = Boolean(ui.selectedElementIds?.size || ui.selectedDrawingIds?.size || ui.selectedDrawingId);
   return `<main class="spr-editor">
     <div class="spr-editor-command-bar">
       ${renderVariantBar(play, variant, ui, canEdit)}
@@ -254,6 +254,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDele
             pitchView: play.pitchView,
             layers: ui.layers,
             selectedElementIds: ui.selectedElementIds,
+            selectedDrawingIds: ui.selectedDrawingIds,
             selectedDrawingId: ui.selectedDrawingId,
             previewDrawing: ui.previewDrawing,
             selectionRect: ui.selectionRect,
@@ -335,6 +336,13 @@ function renderDrawingInspector(drawing, phase, canEdit, canDelete) {
   </div>`;
 }
 
+function renderGroupInspector(selectionCount, canDelete) {
+  return `<div class="spr-inspector-section spr-group-inspector">
+    <div class="spr-inspector-title"><div><p>Selection</p><strong>${selectionCount} objects</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete selected (Delete)" aria-label="Delete selected" aria-keyshortcuts="Delete Backspace" ${canDelete ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("trash")}</span></button>${renderInspectorCloseButton()}</div></div>
+    <p class="spr-inspector-guidance">Drag any selected object to move the complete group. Hold Shift to add or remove objects.</p>
+  </div>`;
+}
+
 function renderPlanInspector(play, variant, phase, ui, canEdit, canDelete) {
   return `<div class="spr-inspector-section">
     <div class="spr-inspector-title"><div><p>Plan</p><strong data-set-piece-live-text="play-title">${escapeSetPieceHtml(play.title)}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button" data-set-piece-action="duplicate-play" title="Duplicate plan" aria-label="Duplicate plan" ${canEdit ? "" : "disabled"}>⧉</button>${renderInspectorCloseButton()}</div></div>
@@ -374,10 +382,14 @@ function renderPlanInspector(play, variant, phase, ui, canEdit, canDelete) {
 
 function renderInspector(play, variant, phase, roster, ui, canEdit, canDelete) {
   if (!play || !variant || !phase) return '<aside class="spr-inspector"></aside>';
+  const drawingSelectionCount = ui.selectedDrawingIds?.size || (ui.selectedDrawingId ? 1 : 0);
+  const selectionCount = (ui.selectedElementIds?.size || 0) + drawingSelectionCount;
   const selectedElement = phase.elements.find((element) => ui.selectedElementIds.has(element.id));
   const selectedDrawing = phase.drawings.find((drawing) => drawing.id === ui.selectedDrawingId);
   const content = ui.showAssignments
     ? renderAssignmentsOverview(play, variant, roster, canEdit)
+    : selectionCount > 1
+      ? renderGroupInspector(selectionCount, canDelete)
     : selectedElement
     ? renderElementInspector(selectedElement, play, variant, roster, ui, canEdit, canDelete)
     : selectedDrawing

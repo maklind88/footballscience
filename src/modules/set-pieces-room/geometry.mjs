@@ -45,6 +45,16 @@ export function getSetPiecePitchTransform(pitchView = "full") {
   return "";
 }
 
+export function getSetPiecePitchBounds(pitchView = "full") {
+  if (pitchView === "attacking-half") {
+    return { minX: ATTACKING_THIRD_START, maxX: PITCH_LENGTH, minY: 0, maxY: PITCH_WIDTH };
+  }
+  if (pitchView === "defensive-half") {
+    return { minX: 0, maxX: PITCH_THIRD_LENGTH, minY: 0, maxY: PITCH_WIDTH };
+  }
+  return { minX: 0, maxX: PITCH_LENGTH, minY: 0, maxY: PITCH_WIDTH };
+}
+
 export function getSetPieceSourcePoint(point = {}, pitchView = "full") {
   const x = Number(point.x || 0);
   const y = Number(point.y || 0);

@@ -79,7 +79,7 @@ function renderElement(element = {}, options = {}) {
 }
 
 function renderDrawing(drawing = {}, options = {}) {
-  const selected = drawing.id === options.selectedDrawingId;
+  const selected = options.selectedDrawingIds?.has(drawing.id) || drawing.id === options.selectedDrawingId;
   const preview = Boolean(options.preview);
   const classes = ["spr-drawing", `is-${drawing.type}`, selected ? "is-selected" : "", preview ? "is-preview" : ""]
     .filter(Boolean)
@@ -121,7 +121,14 @@ function renderDrawingHandle(x, y, handle, className) {
 }
 
 function renderDrawingControls(drawing = {}, options = {}) {
-  if (!drawing?.id || !options.interactive || drawing.id !== options.selectedDrawingId) return "";
+  const drawingSelectionCount = options.selectedDrawingIds?.size || (options.selectedDrawingId ? 1 : 0);
+  if (
+    !drawing?.id ||
+    !options.interactive ||
+    drawing.id !== options.selectedDrawingId ||
+    drawingSelectionCount !== 1 ||
+    options.selectedElementIds?.size
+  ) return "";
   const common = `class="spr-drawing-controls is-${escapeSetPieceHtml(drawing.type)}" data-drawing-id="${escapeSetPieceHtml(drawing.id)}"`;
   if (drawing.type === "zone") {
     const x = Math.min(drawing.startX, drawing.endX);

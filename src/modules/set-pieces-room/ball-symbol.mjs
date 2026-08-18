@@ -10,7 +10,7 @@ function renderRotatedPaths(path, attributes) {
 }
 
 export function renderSetPieceBoardBallSymbol() {
-  return `<g class="spr-board-ball-symbol" transform="scale(.67)">
+  return `<g class="spr-board-ball-symbol" transform="scale(.44)">
     <circle r="1.65" class="spr-ball-token"></circle>
     <path d="${centerPanelPath}" class="spr-ball-panel"></path>
     ${renderRotatedPaths(edgePanelPath, 'class="spr-ball-panel"')}

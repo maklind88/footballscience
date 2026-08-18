@@ -409,7 +409,7 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(page.locator(".spr-board-element.is-ball .spr-ball-seam")).toHaveCount(5);
   const ballTokenBox = await page.locator(".spr-board-element.is-ball .spr-ball-token").boundingBox();
   const opponentTokenBox = await page.locator(".spr-board-element.is-opponent:not(.is-ghost) .spr-opponent-token").boundingBox();
-  expect(ballTokenBox.width).toBeLessThan(opponentTokenBox.width * .55);
+  expect(ballTokenBox.width).toBeLessThan(opponentTokenBox.width * .35);
 
   const initialHomeMarker = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
   const keyboardStartTransform = await initialHomeMarker.getAttribute("transform");

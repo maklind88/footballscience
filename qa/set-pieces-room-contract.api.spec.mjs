@@ -722,6 +722,19 @@ test("editable board markers expose keyboard interaction without affecting prese
   expect(presenting).not.toContain('tabindex="0"');
 });
 
+test("board ball stays compact while retaining a generous interaction target", () => {
+  const markup = renderSetPieceBoard({
+    phase: { elements: [{ id: "ball-a", kind: "ball", x: 50, y: 50 }], drawings: [] },
+    interactive: true,
+    selectedElementIds: new Set(["ball-a"]),
+    layers: new Set(["ball"]),
+  });
+
+  expect(markup).toContain('class="spr-board-ball-symbol" transform="scale(.44)"');
+  expect(markup).toContain('<circle r="2.8" class="spr-element-hit"></circle>');
+  expect(markup).toContain('<circle r="1.25" class="spr-selection-ring"></circle>');
+});
+
 test("selected drawings expose contextual transform handles only while editing", () => {
   const phase = {
     elements: [],

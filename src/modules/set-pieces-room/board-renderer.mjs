@@ -58,7 +58,7 @@ function renderElement(element = {}, options = {}) {
     return `<g ${common}>
       <circle r="2.8" class="spr-element-hit"></circle>
       ${renderSetPieceBoardBallSymbol()}
-      ${selected ? '<circle r="2.15" class="spr-selection-ring"></circle>' : ""}
+      ${selected ? '<circle r="1.25" class="spr-selection-ring"></circle>' : ""}
     </g>`;
   }
   const photoUrl = String(element.photoUrl || "").trim();

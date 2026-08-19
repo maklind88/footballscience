@@ -103,55 +103,142 @@
   height: 32px;
 }
 
-.spr-player-marker-control {
-  min-width: 82px;
-  height: 32px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2px;
-  margin: 0;
-  border: 1px solid var(--spr-line);
-  border-radius: 7px;
-  padding: 2px;
-  background: var(--spr-soft);
+.spr-player-marker-menu {
+  position: fixed;
+  z-index: 120;
+  top: clamp(8px, var(--spr-player-menu-y), calc(100dvh - 286px));
+  left: clamp(8px, var(--spr-player-menu-x), calc(100vw - 254px));
+  width: 246px;
+  overflow: hidden;
+  border: 1px solid #ccd5d1;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 36px #101a1630, 0 2px 8px #101a161c;
+  color: var(--spr-ink);
 }
 
-.spr-player-marker-control label {
-  position: relative;
-  min-width: 0;
+.spr-player-marker-menu-heading {
+  display: grid;
+  gap: 1px;
+  padding: 11px 12px 8px;
+  border-bottom: 1px solid var(--spr-line);
+}
+
+.spr-player-marker-menu-heading span,
+.spr-player-marker-menu-note {
+  color: var(--spr-muted);
+  font-size: .62rem;
+}
+
+.spr-player-marker-menu-heading span {
+  text-transform: uppercase;
+  font-weight: 750;
+}
+
+.spr-player-marker-menu-heading strong {
+  overflow: hidden;
+  font-size: .78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spr-player-marker-menu-options {
+  padding: 5px;
+}
+
+.spr-player-marker-menu-option,
+.spr-player-marker-menu-details {
+  width: 100%;
+  min-height: 44px;
+  display: grid;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 5px;
+  padding: 6px 7px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
   cursor: pointer;
 }
 
-.spr-player-marker-control input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
+.spr-player-marker-menu-option {
+  grid-template-columns: 30px minmax(0, 1fr) 14px;
 }
 
-.spr-player-marker-control span {
-  height: 26px;
+.spr-player-marker-menu-option:hover,
+.spr-player-marker-menu-option:focus-visible,
+.spr-player-marker-menu-details:hover,
+.spr-player-marker-menu-details:focus-visible {
+  outline: 0;
+  background: #edf4f0;
+}
+
+.spr-player-marker-menu-option.is-selected {
+  background: #e3f1e9;
+}
+
+.spr-player-marker-menu-preview {
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
-  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #cad4cf;
+  border-radius: 50%;
+  color: #fff;
+  background: #173e63;
+  font-size: .56rem;
+  font-weight: 800;
+}
+
+.spr-player-marker-menu-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.spr-player-marker-menu-copy,
+.spr-player-marker-menu-details > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.spr-player-marker-menu-copy strong,
+.spr-player-marker-menu-details strong {
+  font-size: .72rem;
+}
+
+.spr-player-marker-menu-copy small,
+.spr-player-marker-menu-details small {
   color: var(--spr-muted);
-  font-size: .6rem;
-  font-weight: 720;
+  font-size: .61rem;
 }
 
-.spr-player-marker-control input:checked + span {
-  color: var(--spr-ink);
-  background: #fff;
-  box-shadow: 0 1px 3px #11182712;
+.spr-player-marker-menu-check {
+  color: var(--spr-accent);
+  font-size: .8rem;
+  font-weight: 800;
 }
 
-.spr-player-marker-control input:focus-visible + span {
-  box-shadow: 0 0 0 2px var(--spr-accent);
+.spr-player-marker-menu-details {
+  grid-template-columns: 30px minmax(0, 1fr);
+  border-top: 1px solid var(--spr-line);
+  border-radius: 0;
+  padding: 8px 12px;
 }
 
-.spr-player-marker-control input:disabled + span {
-  cursor: default;
-  opacity: .55;
+.spr-player-marker-menu-details > span:first-child {
+  display: grid;
+  place-items: center;
+  color: var(--spr-accent);
+  font-size: 1rem;
+}
+
+.spr-player-marker-menu-note {
+  margin: 0;
+  padding: 0 12px 10px;
 }
 
 .spr-editor-command-bar .spr-history-actions {

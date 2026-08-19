@@ -29,6 +29,7 @@ import {
 import { renderSetPieceBoard } from "./board-renderer.mjs";
 import { renderSetPiecesWorkspace } from "./workspace-renderer.mjs";
 import { syncSetPiecesWideEditorBoard } from "./wide-editor-board.mjs";
+import { createSetPiecePlayerMarkerMenuController } from "./player-marker-menu.mjs";
 import {
   clearSetPieceLibraryFilters,
   createSetPieceLibraryFilters,
@@ -82,6 +83,7 @@ export function createSetPiecesRoomController(options = {}) {
     saveMessage: "Saved to team",
     notice: null,
     onboardingOpen: !hasDismissedOnboarding(),
+    playerMarkerMenu: null,
   };
 
   function getRoster() {
@@ -630,6 +632,7 @@ export function createSetPiecesRoomController(options = {}) {
   }
 
   function handleClick(event) {
+    if (playerMarkerMenu.handleClick(event)) return;
     if (!event.target.closest?.("[data-set-piece-pitch]")) boardInteractions.resetSelectionActivation();
     const openPresentationVariantMenu = root.querySelector?.(".spr-present-variant-menu[open]");
     if (openPresentationVariantMenu && !event.target.closest?.(".spr-present-variant-menu")) {
@@ -791,6 +794,31 @@ export function createSetPiecesRoomController(options = {}) {
     render,
   });
 
+  const playerMarkerMenu = createSetPiecePlayerMarkerMenuController({
+    root,
+    ui,
+    win,
+    getContext,
+    canEdit,
+    render,
+    setMarkerMode(mode) {
+      if (!new Set(["photo", "initials"]).has(mode)) return;
+      updateField("play", "playerMarkerMode", mode);
+    },
+    openPlayerDetails(elementId) {
+      const { phase } = getContext();
+      const element = phase?.elements?.find((candidate) => candidate.id === elementId && candidate.kind === "home-player");
+      if (!element) return;
+      ui.selectedElementIds = new Set([elementId]);
+      ui.selectedDrawingIds.clear();
+      ui.selectedDrawingId = "";
+      ui.assignmentPickerSlotId = elementId;
+      ui.showAssignments = false;
+      ui.inspectorCollapsed = false;
+      render();
+    },
+  });
+
   function focusDrawingLabel() {
     const focus = () => {
       const field = root?.querySelector?.('[data-set-piece-drawing-field="label"]');
@@ -834,12 +862,15 @@ export function createSetPiecesRoomController(options = {}) {
     root.addEventListener("input", handleInput);
     root.addEventListener("change", handleChange);
     root.addEventListener("dblclick", boardInteractions.handleDoubleClick);
+    root.addEventListener("contextmenu", playerMarkerMenu.handleContextMenu);
     root.addEventListener("pointerdown", handleInspectorPointerDown);
     root.addEventListener("pointerdown", boardInteractions.handlePointerDown);
+    documentRef.addEventListener("pointerdown", playerMarkerMenu.handlePointerDown);
     documentRef.addEventListener("pointermove", boardInteractions.handlePointerMove);
     documentRef.addEventListener("pointerup", boardInteractions.handlePointerUp);
     documentRef.addEventListener("pointercancel", boardInteractions.handlePointerCancel);
     documentRef.addEventListener("keydown", (event) => {
+      if (playerMarkerMenu.handleKeyDown(event)) return;
       const onboarding = root?.querySelector?.("[data-set-piece-onboarding]");
       if (ui.onboardingOpen && onboarding?.getClientRects?.().length) {
         const buttons = [...(root?.querySelectorAll?.("[data-set-piece-onboarding] button:not([disabled])") || [])];

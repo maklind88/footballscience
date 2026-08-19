@@ -4,7 +4,6 @@ import {
   setPieceLayerOptions,
   setPieceMomentOptions,
   setPiecePitchViewOptions,
-  setPiecePlayerMarkerModeOptions,
   setPieceRestartOptions,
   setPieceSubPhaseOptions,
   setPieceToolOptions,
@@ -25,16 +24,10 @@ import { renderSetPiecesPresentationWorkspace } from "./presentation-workspace-r
 import { getActiveSetPiece, getActiveSetPiecePhase, getActiveSetPieceVariant } from "./state.mjs";
 import { renderSetPieceToolIcon } from "./tool-icons.mjs";
 import { renderSetPieceLibraryLayer } from "./library-renderer.mjs";
+import { renderSetPiecePlayerMarkerMenu } from "./player-marker-menu.mjs";
 
 function optionsMarkup(options = [], value = "") {
   return options.map((option) => `<option value="${escapeSetPieceHtml(option.value)}" ${option.value === value ? "selected" : ""}>${escapeSetPieceHtml(option.label)}</option>`).join("");
-}
-
-function renderPlayerMarkerModeControl(play, canEdit) {
-  return `<fieldset class="spr-player-marker-control">
-    <legend class="sr-only">Own player markers</legend>
-    ${setPiecePlayerMarkerModeOptions.map((option) => `<label title="Show ${option.label.toLowerCase()}"><input type="radio" name="set-piece-player-marker-mode" value="${option.value}" data-set-piece-play-field="playerMarkerMode" aria-label="${option.label}" ${play.playerMarkerMode === option.value ? "checked" : ""} ${canEdit ? "" : "disabled"}><span aria-hidden="true">${option.value === "photo" ? "Photo" : "ABC"}</span></label>`).join("")}
-  </fieldset>`;
 }
 
 function teamInitials(teamName = "Team") {
@@ -255,7 +248,6 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDele
         ${renderPlayerPicker(roster, play, variant, canEdit, canDelete)}
         <button type="button" class="spr-assignment-command ${ui.showAssignments ? "is-active" : ""}" data-set-piece-action="show-assignments"><span aria-hidden="true">⇄</span><span>Assignments</span></button>
         <label><span>Pitch</span><select data-set-piece-play-field="pitchView" ${canEdit ? "" : "disabled"}>${optionsMarkup(setPiecePitchViewOptions, play.pitchView)}</select></label>
-        ${renderPlayerMarkerModeControl(play, canEdit)}
         <label class="spr-board-toggle" title="Show previous phase positions"><input type="checkbox" data-set-piece-ghost ${ui.showGhost ? "checked" : ""}><span>Previous phase</span></label>
         <div class="spr-history-actions" role="group" aria-label="Edit history and details">
           <button type="button" class="spr-icon-button spr-command-icon-button" data-set-piece-action="undo" title="Undo last change (Command Z)" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" ${ui.canUndo ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("undo")}</span></button>
@@ -266,6 +258,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDele
         </div>
       </div>`}
     </div>
+    ${renderSetPiecePlayerMarkerMenu(play, resolvedPhase, ui, canEdit)}
     <div class="spr-board-row ${play.pitchView === "full" ? "is-full-pitch" : "is-half-pitch"}">
       ${ui.presentationMode ? "" : renderToolRail(ui, roster)}
       <div class="spr-board-stage-slot">

@@ -76,8 +76,21 @@ test("Set Pieces Room starts empty and creates a structured phase and variant tr
   const play = createSetPiecePlay({ title: "Near-post release" });
   expect(play.variants).toHaveLength(1);
   expect(play.subPhases).toEqual(["first-action"]);
+  expect(play.playerMarkerMode).toBe("photo");
   expect(play.variants[0].phases).toHaveLength(1);
   expect(play.variants[0].phases[0]).toMatchObject({ title: "Start", elements: [], drawings: [] });
+});
+
+test("own-player marker mode defaults and normalizes without migrating existing routines", () => {
+  const photoMode = createSetPiecePlay({ playerMarkerMode: "photo" });
+  const initialsMode = createSetPiecePlay({ playerMarkerMode: "initials" });
+  const legacy = createSetPiecePlay();
+  delete legacy.playerMarkerMode;
+  const invalid = createSetPiecePlay();
+  invalid.playerMarkerMode = "portrait-and-label";
+
+  const state = normalizeSetPiecesState({ plays: [photoMode, initialsMode, legacy, invalid] });
+  expect(state.plays.map((play) => play.playerMarkerMode)).toEqual(["photo", "initials", "photo", "photo"]);
 });
 
 test("set-piece sub-phases normalize legacy, duplicate and invalid values safely", () => {
@@ -693,7 +706,7 @@ test("own-player labels stay unique while opponent identity remains numeric", ()
   expect(roster.map((player) => player.id)).toEqual(["two", "one", "three"]);
 });
 
-test("board renderer distinguishes own initials, opponent numbers and movement semantics", () => {
+test("board renderer uses one circular own-player marker in photo or initials mode", () => {
   const fullPitchMarkup = renderSetPieceBoard({
     phase: { elements: [], drawings: [] },
     pitchView: "full",
@@ -708,15 +721,33 @@ test("board renderer distinguishes own initials, opponent numbers and movement s
       drawings: [{ id: "run-a", type: "run", startX: 70, startY: 18, endX: 88, endY: 28, curve: 8 }],
     },
     pitchView: "attacking-half",
+    playerMarkerMode: "photo",
     layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
     selectedElementIds: new Set(),
+  });
+  const initialsMarkup = renderSetPieceBoard({
+    phase: {
+      elements: [
+        { id: "home-a", kind: "home-player", x: 70, y: 18, label: "AE", playerName: "Alex Example", photoUrl: "https://images.example/alex.png", rotation: 0 },
+      ],
+      drawings: [],
+    },
+    pitchView: "attacking-half",
+    playerMarkerMode: "initials",
+    layers: new Set(["home", "labels"]),
+    selectedElementIds: new Set(["home-a"]),
   });
 
   expect(markup).toContain("is-home-player");
   expect(markup).toContain('class="spr-home-avatar-photo"');
   expect(markup).toContain('href="https://images.example/alex.png"');
-  expect(markup).toContain('class="spr-home-initials"');
-  expect(markup).toContain(">AE</text>");
+  expect(markup).not.toContain('class="spr-home-initials"');
+  expect(markup).not.toContain("spr-home-initials-bg");
+  expect(initialsMarkup).toContain('class="spr-home-avatar is-initials"');
+  expect(initialsMarkup).toContain('class="spr-home-initials"');
+  expect(initialsMarkup).toContain(">AE</text>");
+  expect(initialsMarkup).not.toContain('class="spr-home-avatar-photo"');
+  expect(initialsMarkup).toContain('<circle r="2.2" class="spr-selection-ring"></circle>');
   expect(markup).toContain("is-opponent");
   expect(markup).toContain(">4</text>");
   expect(markup).toContain("is-run");
@@ -973,7 +1004,7 @@ test("presentation adapter links a variant while resolving current squad assignm
 
   expect(catalog[0]).toMatchObject({ id: play.id, title: "Near-post screen", subPhases: ["first-action"] });
   expect(catalog[0].variants[0]).toMatchObject({ id: variant.id, title: "Keeper screen", phaseCount: 1 });
-  expect(resolved).toMatchObject({ playId: play.id, variantId: variant.id, pitchView: "attacking-half", subPhases: ["first-action"] });
+  expect(resolved).toMatchObject({ playId: play.id, variantId: variant.id, pitchView: "attacking-half", playerMarkerMode: "photo", subPhases: ["first-action"] });
   expect(resolved.phases[0].elements[0]).toMatchObject({ x: 82, y: 16, label: "AM", role: "Near post" });
   expect(state.plays[0].variants[0].phases[0].elements[0].label).toBe("OLD");
 });

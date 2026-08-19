@@ -201,6 +201,7 @@ export function createSetPiecesRoomController(options = {}) {
       phase: resolvedPhase,
       previousPhase: resolvedPreviousPhase,
       pitchView: play.pitchView,
+      playerMarkerMode: play.playerMarkerMode,
       layers: ui.layers,
       selectedElementIds: ui.selectedElementIds,
       selectedDrawingIds: ui.selectedDrawingIds,

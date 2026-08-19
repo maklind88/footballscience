@@ -43,6 +43,11 @@ export const setPiecePitchViewOptions = Object.freeze([
   { value: "defensive-half", label: "Defensive third" },
 ]);
 
+export const setPiecePlayerMarkerModeOptions = Object.freeze([
+  { value: "photo", label: "Photos" },
+  { value: "initials", label: "Initials" },
+]);
+
 export const setPieceToolOptions = Object.freeze([
   { value: "select", label: "Select", shortcut: "V", hint: "Click or drag to select, then move objects on the pitch" },
   { value: "home-player", label: "Squad players", shortcut: "P", hint: "Open the squad list to add or remove your players" },

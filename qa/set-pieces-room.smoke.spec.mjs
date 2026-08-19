@@ -395,6 +395,9 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(libraryTrigger).toBeFocused();
   await page.getByRole("button", { name: "Create set piece" }).click();
   await expect(page.locator("[data-set-piece-pitch]")).toBeVisible();
+  const photoMarkers = page.getByRole("radio", { name: "Photos" });
+  const initialMarkers = page.getByRole("radio", { name: "Initials" });
+  await expect(photoMarkers).toBeChecked();
 
   const pitch = page.locator("[data-set-piece-pitch]");
   let box = await pitch.boundingBox();
@@ -404,7 +407,14 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.getByRole("menuitemcheckbox", { name: "Add Alex Example" }).click();
   const selectedPlayer = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
   await expect(selectedPlayer.locator(".spr-home-avatar-photo")).toHaveCount(1);
+  await expect(selectedPlayer.locator(".spr-home-initials")).toHaveCount(0);
+  await initialMarkers.check();
+  await expect(selectedPlayer.locator(".spr-home-avatar-photo")).toHaveCount(0);
+  await expect(selectedPlayer.locator(".spr-home-avatar.is-initials")).toHaveCount(1);
   await expect(selectedPlayer.locator(".spr-home-initials")).toHaveText("AE");
+  await photoMarkers.check();
+  await expect(selectedPlayer.locator(".spr-home-avatar-photo")).toHaveCount(1);
+  await expect(selectedPlayer.locator(".spr-home-initials")).toHaveCount(0);
   const avatarBox = await selectedPlayer.locator(".spr-home-avatar-frame").boundingBox();
   expect(avatarBox).not.toBeNull();
   expect(avatarBox.width).toBeLessThan(box.width * 0.07);
@@ -444,7 +454,7 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await page.getByRole("button", { name: "Ball", exact: true }).click();
   await page.mouse.click(box.x + box.width * 0.48, box.y + box.height * 0.48);
 
-  await expect(page.locator(".spr-board-element.is-home-player text")).toHaveText("AE");
+  await expect(page.locator(".spr-board-element.is-home-player .spr-home-avatar-photo")).toHaveCount(1);
   await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost) text")).toHaveText("12");
   await expect(page.locator(".spr-body-direction")).toHaveCount(0);
   await expect(page.locator(".spr-board-element.is-ball")).toHaveCount(1);

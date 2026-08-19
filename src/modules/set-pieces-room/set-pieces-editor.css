@@ -103,6 +103,57 @@
   height: 32px;
 }
 
+.spr-player-marker-control {
+  min-width: 82px;
+  height: 32px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  margin: 0;
+  border: 1px solid var(--spr-line);
+  border-radius: 7px;
+  padding: 2px;
+  background: var(--spr-soft);
+}
+
+.spr-player-marker-control label {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.spr-player-marker-control input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.spr-player-marker-control span {
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--spr-muted);
+  font-size: .6rem;
+  font-weight: 720;
+}
+
+.spr-player-marker-control input:checked + span {
+  color: var(--spr-ink);
+  background: #fff;
+  box-shadow: 0 1px 3px #11182712;
+}
+
+.spr-player-marker-control input:focus-visible + span {
+  box-shadow: 0 0 0 2px var(--spr-accent);
+}
+
+.spr-player-marker-control input:disabled + span {
+  cursor: default;
+  opacity: .55;
+}
+
 .spr-editor-command-bar .spr-history-actions {
   gap: 2px;
   padding: 2px;

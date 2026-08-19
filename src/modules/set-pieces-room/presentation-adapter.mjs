@@ -49,6 +49,7 @@ export function resolveSetPiecePresentationVariant(state = {}, playerProfilesSta
     opponent: play.opponent,
     objective: play.objective,
     pitchView: play.pitchView,
+    playerMarkerMode: play.playerMarkerMode,
     trigger: variant.trigger,
     activePhaseId,
     phases,

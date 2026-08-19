@@ -85,27 +85,20 @@
   fill: #153d64;
 }
 
-.spr-home-avatar-fallback-symbol {
-  fill: #eaf1f5;
-  opacity: .9;
-  pointer-events: none;
-}
-
 .spr-home-avatar-photo {
   pointer-events: none;
 }
 
-.spr-home-initials-bg {
-  fill: #102f4d;
-  stroke: #f7fbff;
-  stroke-width: .28;
-  vector-effect: non-scaling-stroke;
-}
-
 .spr-board-element .spr-home-initials {
   fill: #fff;
-  font-size: 1.2px;
+  font-size: 1.05px;
   font-weight: 820;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+
+.spr-element-layer.hide-labels .spr-home-initials {
+  display: block;
 }
 
 .spr-opponent-token {

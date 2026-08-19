@@ -50,6 +50,7 @@ export function renderPresentationSetPieceBoard(setPiece = {}, slideId = "active
   return renderSetPieceBoard({
     phase: activePhase,
     pitchView: setPiece.pitchView,
+    playerMarkerMode: setPiece.playerMarkerMode,
     layers: presentationLayers,
     markerPrefix: `presentation-set-piece-${slideId || "active"}`,
   });

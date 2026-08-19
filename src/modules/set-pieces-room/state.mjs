@@ -8,6 +8,7 @@ import {
   SET_PIECES_MAX_VARIANTS,
   SET_PIECES_SCHEMA_VERSION,
   setPieceDrawingTypes,
+  setPiecePlayerMarkerModeOptions,
   setPieceSubPhaseOptions,
   setPieceZoneColors,
 } from "./constants.mjs";
@@ -15,6 +16,7 @@ import { normalizeSetPiecePoint } from "./geometry.mjs";
 
 const allowedElementKinds = new Set(["home-player", "opponent", "ball"]);
 const allowedPitchViews = new Set(["full", "attacking-half", "defensive-half"]);
+const allowedPlayerMarkerModes = new Set(setPiecePlayerMarkerModeOptions.map((option) => option.value));
 const allowedSubPhases = new Set(setPieceSubPhaseOptions.map((option) => option.value));
 
 export function createSetPieceId(prefix = "item") {
@@ -84,6 +86,7 @@ export function createSetPiecePlay(options = {}) {
     opponent: text(options.opponent, 100),
     objective: text(options.objective, 320),
     pitchView: allowedPitchViews.has(options.pitchView) ? options.pitchView : "attacking-half",
+    playerMarkerMode: allowedPlayerMarkerModes.has(options.playerMarkerMode) ? options.playerMarkerMode : "photo",
     status: text(options.status || "draft", 24),
     assignments: [],
     activeVariantId: variant.id,
@@ -297,6 +300,7 @@ function normalizePlay(play = {}, _index = 0, options = {}) {
     opponent: text(play.opponent, 100),
     objective: text(play.objective, 320),
     pitchView: allowedPitchViews.has(play.pitchView) ? play.pitchView : "attacking-half",
+    playerMarkerMode: allowedPlayerMarkerModes.has(play.playerMarkerMode) ? play.playerMarkerMode : "photo",
     status: text(play.status || "draft", 24),
     assignments,
     activeVariantId,

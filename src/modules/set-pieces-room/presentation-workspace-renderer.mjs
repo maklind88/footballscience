@@ -80,6 +80,7 @@ export function renderSetPiecesPresentationWorkspace(options = {}) {
           ${renderSetPieceBoard({
             phase: resolvedPhase,
             pitchView: play.pitchView,
+            playerMarkerMode: play.playerMarkerMode,
             layers: ui.layers,
             selectedElementIds: new Set(),
             selectedDrawingIds: new Set(),

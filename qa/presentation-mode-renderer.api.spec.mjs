@@ -875,6 +875,7 @@ test("Team Meeting links and deduplicates a live Set Pieces variant", () => {
     title: "Near-post corner",
     restart: "corner",
     pitchView: "attacking-half",
+    playerMarkerMode: "initials",
   });
   const variant = play.variants[0];
   variant.title = "Screen the keeper";
@@ -914,7 +915,7 @@ test("Team Meeting links and deduplicates a live Set Pieces variant", () => {
     getTodayValue: () => "2026-08-16",
     getSetPiecesState: () => setPiecesState,
     getPlayerProfilesState: () => ({
-      players: [{ id: "player-a", name: "Alex Morgan", position: "Forward" }],
+      players: [{ id: "player-a", name: "Alex Morgan", position: "Forward", photoUrl: "https://images.example/alex.png" }],
     }),
   });
 
@@ -939,11 +940,14 @@ test("Team Meeting links and deduplicates a live Set Pieces variant", () => {
     variantId: variant.id,
     playTitle: "Near-post corner",
     variantTitle: "Screen the keeper",
+    playerMarkerMode: "initials",
   });
   expect(linkedSlides[0].setPiece.phases[0].elements[0]).toMatchObject({ label: "AM", role: "Near post" });
   expect(harness.root.innerHTML).toContain("presentation-slide-set-piece");
   expect(harness.root.innerHTML).toContain("data-presentation-set-piece-play");
   expect(harness.root.innerHTML).toContain(`presentation-set-piece-${first.slideId}-arrow-run`);
+  expect(harness.root.innerHTML).toContain('class="spr-home-avatar is-initials"');
+  expect(harness.root.innerHTML).not.toContain('class="spr-home-avatar-photo"');
   expect(renderer.renderControlBar(model)).toContain("Linked tactical routine");
   expect(renderer.renderControlBar({ ...model, meetingType: "technical" })).not.toContain("Linked tactical routine");
   expect(controller.getSetPieceReferenceUsage({ playId: play.id })).toMatchObject({ count: 1, dates: ["2026-08-16"] });

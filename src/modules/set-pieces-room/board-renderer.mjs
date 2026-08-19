@@ -100,19 +100,17 @@ function renderElement(element = {}, options = {}) {
     </g>`;
   }
   const photoUrl = String(element.photoUrl || "").trim();
+  const playerMarkerMode = options.playerMarkerMode === "initials" ? "initials" : "photo";
+  const showPhoto = playerMarkerMode === "photo" && Boolean(photoUrl);
   const avatarClipId = `${options.markerPrefix || "spr-board"}-home-avatar-clip`;
   return `<g ${common}>
-    <rect x="-3" y="-3.1" width="6" height="6.5" rx="2.4" class="spr-element-hit"></rect>
-    <g class="spr-home-avatar ${photoUrl ? "has-photo" : "is-fallback"}">
-      <circle cy="-.65" r="1.9" class="spr-home-avatar-frame"></circle>
-      <circle cy="-.65" r="1.68" class="spr-home-avatar-fallback"></circle>
-      <circle cy="-1.12" r=".46" class="spr-home-avatar-fallback-symbol"></circle>
-      <path d="M-1.02 .55c.12-.86.52-1.3 1.02-1.3S.9-.31 1.02.55Z" class="spr-home-avatar-fallback-symbol"></path>
-      ${photoUrl ? `<image x="-1.68" y="-2.33" width="3.36" height="3.36" preserveAspectRatio="xMidYMid slice" href="${escapeSetPieceHtml(photoUrl)}" clip-path="url(#${escapeSetPieceHtml(avatarClipId)})" class="spr-home-avatar-photo"></image>` : ""}
-      <rect x="-1.95" y="1.14" width="3.9" height="1.55" rx=".66" class="spr-home-initials-bg"></rect>
-      <text y="2.28" class="spr-home-initials">${escapeSetPieceHtml(element.label || "P")}</text>
+    <circle r="3" class="spr-element-hit"></circle>
+    <g class="spr-home-avatar ${showPhoto ? "has-photo" : "is-initials"}${playerMarkerMode === "photo" && !showPhoto ? " is-fallback" : ""}">
+      <circle r="1.86" class="spr-home-avatar-frame"></circle>
+      <circle r="1.62" class="spr-home-avatar-fallback"></circle>
+      ${showPhoto ? `<image x="-1.62" y="-1.62" width="3.24" height="3.24" preserveAspectRatio="xMidYMid slice" href="${escapeSetPieceHtml(photoUrl)}" clip-path="url(#${escapeSetPieceHtml(avatarClipId)})" class="spr-home-avatar-photo"></image>` : `<text y=".43" class="spr-home-initials">${escapeSetPieceHtml(element.label || "P")}</text>`}
     </g>
-    ${selected ? '<rect x="-2.35" y="-2.85" width="4.7" height="5.95" rx="2.2" class="spr-selection-ring"></rect>' : ""}
+    ${selected ? '<circle r="2.2" class="spr-selection-ring"></circle>' : ""}
   </g>`;
 }
 
@@ -248,7 +246,7 @@ export function renderSetPieceBoard(options = {}) {
     <defs>
       ${["run", "pass", "dribble", "press", "mark"].map((type) => `<marker id="${markerPrefix}-arrow-${type}" class="spr-arrow-marker is-${type}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z"></path></marker>`).join("")}
       <pattern id="${markerPrefix}-pitch-pattern" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="6" height="12"></rect></pattern>
-      <clipPath id="${markerPrefix}-home-avatar-clip"><circle cy="-.65" r="1.68"></circle></clipPath>
+      <clipPath id="${markerPrefix}-home-avatar-clip"><circle r="1.62"></circle></clipPath>
     </defs>
     <g class="spr-pitch-content"${pitchTransform ? ` transform="${pitchTransform}"` : ""}>
       <rect width="105" height="68" class="spr-pitch-base"></rect>

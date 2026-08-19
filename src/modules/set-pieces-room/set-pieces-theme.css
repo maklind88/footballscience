@@ -137,6 +137,7 @@ body.is-dark-mode .spr-phase-card b {
   .spr-layout { grid-template-columns: 190px minmax(480px, 1fr) 238px; }
   .spr-roster-picker span,
   .spr-editor-toolbar label:not(.spr-roster-picker) span { display: none; }
+  .spr-editor-toolbar label.spr-board-toggle span { display: inline; }
 }
 
 @media (max-width: 980px) {

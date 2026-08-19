@@ -81,6 +81,12 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   await openSetPiecesRoom(page);
   await page.getByRole("button", { name: "Create set piece" }).click();
 
+  await page.setViewportSize({ width: 1230, height: 772 });
+  await expect(page.getByRole("checkbox", { name: "Previous phase" })).toBeVisible();
+  await expect(page.locator(".spr-board-toggle span")).toHaveText("Previous phase");
+  await expect(page.locator(".spr-board-toggle span")).toBeVisible();
+  await page.setViewportSize({ width: 1470, height: 772 });
+
   await page.locator("[data-set-piece-player-picker] summary").click();
   await expect(page.getByRole("menuitemcheckbox", { name: /QA Training Guest/ })).toHaveCount(0);
   await expect(page.getByRole("menuitemcheckbox", { name: /Alex Example/ })).toBeVisible();

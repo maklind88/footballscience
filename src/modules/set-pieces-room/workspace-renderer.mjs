@@ -256,7 +256,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDele
         <button type="button" class="spr-assignment-command ${ui.showAssignments ? "is-active" : ""}" data-set-piece-action="show-assignments"><span aria-hidden="true">⇄</span><span>Assignments</span></button>
         <label><span>Pitch</span><select data-set-piece-play-field="pitchView" ${canEdit ? "" : "disabled"}>${optionsMarkup(setPiecePitchViewOptions, play.pitchView)}</select></label>
         ${renderPlayerMarkerModeControl(play, canEdit)}
-        <label class="spr-board-toggle"><input type="checkbox" data-set-piece-ghost ${ui.showGhost ? "checked" : ""}><span>Previous</span></label>
+        <label class="spr-board-toggle" title="Show previous phase positions"><input type="checkbox" data-set-piece-ghost ${ui.showGhost ? "checked" : ""}><span>Previous phase</span></label>
         <div class="spr-history-actions" role="group" aria-label="Edit history and details">
           <button type="button" class="spr-icon-button spr-command-icon-button" data-set-piece-action="undo" title="Undo last change (Command Z)" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z" ${ui.canUndo ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("undo")}</span></button>
           <button type="button" class="spr-icon-button spr-command-icon-button" data-set-piece-action="redo" title="Redo last change (Shift Command Z)" aria-label="Redo" aria-keyshortcuts="Meta+Shift+Z Control+Y" ${ui.canRedo ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("redo")}</span></button>

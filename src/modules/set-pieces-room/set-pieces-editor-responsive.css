@@ -15,6 +15,10 @@
     display: none;
   }
 
+  .spr-editor-command-bar .spr-board-toggle span {
+    display: inline;
+  }
+
   .spr-editor-command-bar .spr-player-picker {
     min-width: 132px;
   }

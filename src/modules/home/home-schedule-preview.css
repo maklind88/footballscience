@@ -1,6 +1,6 @@
 .platform-home-hero {
-  grid-template-columns: minmax(0, 1fr) minmax(17rem, 19rem);
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
 }
 
 .platform-home-hero > div:first-child {
@@ -9,6 +9,7 @@
 }
 
 .dashboard-schedule-preview {
+  align-self: stretch;
   min-width: 0;
 }
 
@@ -70,7 +71,7 @@
 .dashboard-schedule-day,
 .dashboard-schedule-day-spacer {
   width: 100%;
-  aspect-ratio: 1;
+  min-height: 1.82rem;
 }
 
 .dashboard-schedule-day {
@@ -237,10 +238,6 @@ body.is-dark-mode .dashboard-schedule-day.is-today {
 }
 
 @media (max-width: 680px) {
-  .platform-home-hero {
-    grid-template-columns: 1fr;
-  }
-
   .dashboard-schedule-preview {
     width: 100%;
   }

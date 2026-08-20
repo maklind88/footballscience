@@ -179,6 +179,11 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
             `
           )
           .join("")}
+        <aside
+          id="dashboardSchedulePreview"
+          class="dashboard-schedule-preview"
+          aria-label="Current month schedule"
+        ></aside>
       </section>
     `;
   }

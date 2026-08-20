@@ -278,7 +278,7 @@ export function createDashboardRuntimeController(dependencies = {}) {
 
   function renderCards() {
     const ui = getUi();
-    const schedulePreview = ui.dashboardSchedulePreview || getElement("dashboardSchedulePreview");
+    const schedulePreview = getElement("dashboardSchedulePreview") || ui.dashboardSchedulePreview;
     if (!ui.dashboardGrid) {
       return;
     }
@@ -300,8 +300,9 @@ export function createDashboardRuntimeController(dependencies = {}) {
       )
       .join("");
     ui.dashboardGrid.innerHTML = `${homeCardsRenderer.render(context, staffOptions, appearance)}`;
-    if (schedulePreview) {
-      schedulePreview.innerHTML = scheduleMonthRenderer?.render?.({
+    const renderedSchedulePreview = getElement("dashboardSchedulePreview") || schedulePreview;
+    if (renderedSchedulePreview) {
+      renderedSchedulePreview.innerHTML = scheduleMonthRenderer?.render?.({
         state: homeContextSelectors?.getScheduleState?.(),
         todayValue: context.todayValue || homeContextSelectors?.getTodayValue?.(),
       }) || "";
@@ -358,8 +359,8 @@ export function createDashboardRuntimeController(dependencies = {}) {
     }
     const scheduleDateButton = event.target.closest("[data-dashboard-open-schedule-date]");
     if (scheduleDateButton) {
-      openScheduleDate(scheduleDateButton.dataset.dashboardOpenScheduleDate);
       setActiveWorkspace("schedule");
+      openScheduleDate(scheduleDateButton.dataset.dashboardOpenScheduleDate);
       return true;
     }
     const periodizationDateButton = event.target.closest("[data-dashboard-open-periodization-date]");
@@ -487,10 +488,8 @@ export function createDashboardRuntimeController(dependencies = {}) {
 
   function bindInteractions() {
     const ui = getUi();
-    const schedulePreview = ui.dashboardSchedulePreview || getElement("dashboardSchedulePreview");
     ui.dashboardGrid?.addEventListener("click", handleDashboardGridClick);
     ui.dashboardGrid?.addEventListener("submit", handleDashboardGridSubmit);
-    schedulePreview?.addEventListener("click", handleDashboardGridClick);
     documentRef.addEventListener("click", handleModalClick);
     documentRef.addEventListener("keydown", handleModalKeydown);
   }

@@ -2877,6 +2877,58 @@ test("Schedule Today anchors overview to the real current date", async ({ page }
     });
 });
 
+test("Home presents meetings and Schedule as equal desktop columns and opens the selected date", async ({ page }) => {
+  await page.addInitScript(({ key }) => {
+    const realDate = Date;
+    const fixedNow = new realDate("2026-05-09T12:00:00-04:00").getTime();
+    class FixedDate extends realDate {
+      constructor(...args) {
+        super(...(args.length ? args : [fixedNow]));
+      }
+      static now() {
+        return fixedNow;
+      }
+    }
+    FixedDate.UTC = realDate.UTC;
+    FixedDate.parse = realDate.parse;
+    FixedDate.prototype = realDate.prototype;
+    window.Date = FixedDate;
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        selectedYear: 2026,
+        selectedMonthIndex: 4,
+        selectedDate: "2026-05-09",
+        viewMode: "overview",
+        overviewSpan: 6,
+        importVersion: "ncc-2026-numbers-v1",
+        events: [
+          { id: "home-schedule-match", date: "2026-05-16", type: "match", title: "Home Match" },
+        ],
+      })
+    );
+  }, { key: scheduleKey });
+
+  await bootApp(page);
+  await openWorkspace(page, "home");
+
+  const presentationBand = page.locator(".dashboard-presentation-band");
+  await expect(presentationBand.locator(".dashboard-presentation-card")).toHaveCount(2);
+  await expect(presentationBand.locator("#dashboardSchedulePreview")).toBeVisible();
+  const columnWidths = await presentationBand
+    .locator(":scope > .dashboard-presentation-card, :scope > .dashboard-schedule-preview")
+    .evaluateAll((columns) => columns.map((column) => column.getBoundingClientRect().width));
+  expect(columnWidths).toHaveLength(3);
+  expect(Math.max(...columnWidths) - Math.min(...columnWidths)).toBeLessThanOrEqual(1);
+
+  await presentationBand.locator('[data-dashboard-open-schedule-date="2026-05-16"]').click();
+
+  await expect(page.locator('[data-workspace-view="schedule"].is-active')).toBeVisible();
+  await expect(page.locator("#scheduleOverviewViewButton")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('.schedule-overview-day.is-selected[data-schedule-date="2026-05-16"]')).toBeVisible();
+  await expect(page.locator("#scheduleSelectedDateLabel")).toHaveText("Saturday, 16 May 2026");
+});
+
 test("Schedule overview copies and pastes selected days with command shortcuts", async ({ page }) => {
   await page.addInitScript(({ key }) => {
     window.localStorage.setItem(

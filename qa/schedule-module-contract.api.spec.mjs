@@ -70,6 +70,7 @@ test("Schedule renders the current month preview for Home from the shared schedu
 test("Schedule app integration delegates controller wiring to the module", () => {
   const app = readProjectFile("app-runtime.js");
   const index = readProjectFile("index.html");
+  const homeRenderer = readProjectFile("src/modules/home/dashboard-renderer.mjs");
   const appComposer = readProjectFile("src/core/platform-app-runtime-services-composer.mjs");
   const composer = readProjectFile("src/core/platform-runtime-services-composer.mjs");
   const platformBindings = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
@@ -97,6 +98,8 @@ test("Schedule app integration delegates controller wiring to the module", () =>
   expect(index).not.toContain('id="scheduleWeekGrid"');
   expect(index).toContain('id="scheduleOverviewViewButton"');
   expect(index).toContain('id="schedulePlannerViewButton"');
+  expect(index).not.toContain('id="dashboardSchedulePreview"');
+  expect(homeRenderer).toContain('id="dashboardSchedulePreview"');
 });
 
 function createFakeElement(dataset = {}) {

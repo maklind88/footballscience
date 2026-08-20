@@ -6,10 +6,27 @@
   gap: .85rem;
 }
 
-@media (min-width: 981px) {
+@media (min-width: 720px) {
   .dashboard-presentation-band {
-    width: min(100%, 64rem);
     grid-template-columns: repeat(2, minmax(18rem, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .dashboard-presentation-band {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-presentation-card {
+    grid-template-columns: 3.7rem minmax(0, 1fr);
+  }
+
+  .dashboard-presentation-visual {
+    width: 3.7rem;
+  }
+
+  .dashboard-presentation-copy h2 {
+    font-size: 1.52rem;
   }
 }
 

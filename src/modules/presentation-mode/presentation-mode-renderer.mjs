@@ -28,6 +28,19 @@ function normalizeOpacity(value = "", fallback = 90) {
   return Number(Math.min(100, Math.max(0, Number.isFinite(numericValue) ? numericValue : safeFallback)).toFixed(0));
 }
 
+function normalizeInfoMediaSize(value = "", fallback = 100) {
+  const numericValue = String(value ?? "").trim() ? Number(value) : Number.NaN;
+  const fallbackValue = String(fallback ?? "").trim() ? Number(fallback) : Number.NaN;
+  const safeFallback = Number.isFinite(fallbackValue) ? fallbackValue : 100;
+  return Number(Math.min(180, Math.max(30, Number.isFinite(numericValue) ? numericValue : safeFallback)).toFixed(2));
+}
+
+function normalizeInfoMediaOffset(value = "", fallback = 0) {
+  const numericValue = Number(value);
+  const safeFallback = Number.isFinite(Number(fallback)) ? Number(fallback) : 0;
+  return Number(Math.min(40, Math.max(-40, Number.isFinite(numericValue) ? numericValue : safeFallback)).toFixed(2));
+}
+
 function getTextColor(backgroundColor = "") {
   return getReadablePresentationTextColor(backgroundColor, "");
 }
@@ -1110,19 +1123,43 @@ export function createPresentationModeRenderer(options = {}) {
     const mediaName = String(infoSlide.mediaName || (mediaKind === "video" ? "Local video" : "Local image")).trim();
     const hasMedia = Boolean(mediaSrc);
     const chooseLabel = `${hasMedia ? "Replace" : "Choose"} ${mediaKind === "video" ? "Video" : "Image"}`;
+    const mediaWidth = normalizeInfoMediaSize(infoSlide.mediaWidth, 100);
+    const mediaHeight = normalizeInfoMediaSize(infoSlide.mediaHeight, 100);
+    const mediaOffsetX = normalizeInfoMediaOffset(infoSlide.mediaOffsetX, 0);
+    const mediaOffsetY = normalizeInfoMediaOffset(infoSlide.mediaOffsetY, 0);
+    const resizeZones =
+      !model.presenting && mediaKind === "image" && hasMedia
+        ? resizeDirections
+            .map(
+              (axis) => `<span
+                class="presentation-info-media-resize-zone is-${axis}"
+                data-presentation-resize-info-media="${escapeHtml(infoSlide.id)}"
+                data-presentation-resize-axis="${axis}"
+                contenteditable="false"
+                aria-hidden="true"
+              ></span>`
+            )
+            .join("")
+        : "";
     return `
-      <figure class="presentation-info-media-panel is-${escapeHtml(mediaKind)}${hasMedia ? " has-media" : " is-empty"}">
+      <figure
+        class="presentation-info-media-panel is-${escapeHtml(mediaKind)}${hasMedia ? " has-media" : " is-empty"}"
+        data-presentation-info-media-panel="${escapeHtml(infoSlide.id)}"
+        style="--presentation-info-media-width: ${mediaWidth}%; --presentation-info-media-height: ${mediaHeight}%; transform: translate3d(calc(var(--presentation-slide-width, 1px) * ${mediaOffsetX / 100}), calc(var(--presentation-slide-height, 1px) * ${mediaOffsetY / 100}), 0);"
+      >
         <div class="presentation-info-media-stage">
           ${
             hasMedia
               ? mediaKind === "video"
                 ? `<video class="presentation-info-media-object" src="${escapeHtml(mediaSrc)}" controls preload="metadata" playsinline title="${escapeHtml(mediaName)}"></video>`
-                : `<img class="presentation-info-media-object" src="${escapeHtml(mediaSrc)}" alt="${escapeHtml(mediaName)}" />`
-              : `<span class="presentation-info-media-empty-mark">${escapeHtml(mediaKind === "video" ? "Video" : "Image")}</span>`
+                : `<img class="presentation-info-media-object" src="${escapeHtml(mediaSrc)}" alt="" />`
+              : mediaKind === "video"
+                ? `<span class="presentation-info-media-empty-mark">Video</span>`
+                : ""
           }
         </div>
         <figcaption class="presentation-info-media-caption">
-          <span>${escapeHtml(hasMedia ? mediaName : "")}</span>
+          ${mediaKind === "video" ? `<span>${escapeHtml(hasMedia ? mediaName : "")}</span>` : ""}
           ${
             model.presenting
               ? ""
@@ -1134,6 +1171,7 @@ export function createPresentationModeRenderer(options = {}) {
                 >${escapeHtml(chooseLabel)}</button>`
           }
         </figcaption>
+        ${resizeZones}
       </figure>
     `;
   }

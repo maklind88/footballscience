@@ -271,6 +271,43 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(videoInfoHtml).toContain('src="blob:analysis-clip"');
   expect(videoInfoHtml).toContain("analysis-clip.mp4");
   expect(videoInfoHtml).toContain("Replace Video");
+  const imageInfoHtml = renderer.renderInfoSlide(model, {
+    ...infoSlide,
+    id: "image-slide",
+    infoSlide: {
+      ...infoSlide.infoSlide,
+      id: "image-slide",
+      layout: "media",
+      title: "Question",
+      body: "Discussion prompt",
+      mediaKind: "image",
+      mediaName: "team-photo.png",
+      mediaSrc: "blob:team-photo",
+      mediaWidth: 126,
+      mediaHeight: 118,
+      mediaOffsetX: 4,
+      mediaOffsetY: -3,
+    },
+  });
+  expect(imageInfoHtml).toContain("presentation-info-media-panel is-image has-media");
+  expect(imageInfoHtml).toContain('src="blob:team-photo"');
+  expect(imageInfoHtml).toContain('alt=""');
+  expect(imageInfoHtml).toContain("--presentation-info-media-width: 126%");
+  expect(imageInfoHtml).toContain("--presentation-info-media-height: 118%");
+  expect(imageInfoHtml.match(/data-presentation-resize-info-media=/g)).toHaveLength(8);
+  expect(imageInfoHtml).not.toContain("team-photo.png");
+  expect(renderer.renderInfoSlide(model, {
+    ...infoSlide,
+    id: "empty-image-slide",
+    infoSlide: {
+      ...infoSlide.infoSlide,
+      id: "empty-image-slide",
+      layout: "media",
+      mediaKind: "image",
+      mediaName: "",
+      mediaSrc: "",
+    },
+  })).not.toContain("presentation-info-media-empty-mark");
   expect(renderer.renderInfoSlide({ ...model, presenting: true }, {
     ...infoSlide,
     id: "video-slide",
@@ -283,6 +320,18 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
       mediaSrc: "blob:analysis-clip",
     },
   })).not.toContain("Replace Video");
+  expect(renderer.renderInfoSlide({ ...model, presenting: true }, {
+    ...infoSlide,
+    id: "image-slide",
+    infoSlide: {
+      ...infoSlide.infoSlide,
+      id: "image-slide",
+      layout: "media",
+      mediaKind: "image",
+      mediaName: "team-photo.png",
+      mediaSrc: "blob:team-photo",
+    },
+  })).not.toContain("data-presentation-resize-info-media");
   const toolbarHtml = renderer.renderTextToolbar(model);
   expect(toolbarHtml).toContain("data-presentation-text-toolbar");
   expect(toolbarHtml).toContain("data-presentation-add-text-box");

@@ -2601,9 +2601,14 @@ body.is-presentation-text-field-resizing {
 }
 
 .presentation-info-media-panel {
+  position: relative;
   grid-column: 2;
   grid-row: 1 / -1;
+  width: var(--presentation-info-media-width, 100%);
+  height: var(--presentation-info-media-height, 100%);
   min-height: 0;
+  align-self: center;
+  justify-self: center;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   margin: 0;
@@ -2660,6 +2665,87 @@ body.is-presentation-text-field-resizing {
   line-height: 1.1;
 }
 
+.presentation-info-media-panel.is-image .presentation-info-media-caption {
+  justify-content: flex-end;
+}
+
+.presentation-info-media-resize-zone {
+  position: absolute;
+  z-index: 5;
+  display: block;
+  border: 0;
+  opacity: 0;
+  background: transparent;
+  touch-action: none;
+  user-select: none;
+}
+
+.presentation-info-media-resize-zone.is-n,
+.presentation-info-media-resize-zone.is-s {
+  right: 1rem;
+  left: 1rem;
+  height: .9rem;
+}
+
+.presentation-info-media-resize-zone.is-n {
+  top: 0;
+  cursor: ns-resize;
+}
+
+.presentation-info-media-resize-zone.is-s {
+  bottom: 0;
+  cursor: ns-resize;
+}
+
+.presentation-info-media-resize-zone.is-e,
+.presentation-info-media-resize-zone.is-w {
+  top: 1rem;
+  bottom: 1rem;
+  width: .9rem;
+}
+
+.presentation-info-media-resize-zone.is-e {
+  right: 0;
+  cursor: ew-resize;
+}
+
+.presentation-info-media-resize-zone.is-w {
+  left: 0;
+  cursor: ew-resize;
+}
+
+.presentation-info-media-resize-zone.is-nw,
+.presentation-info-media-resize-zone.is-ne,
+.presentation-info-media-resize-zone.is-se,
+.presentation-info-media-resize-zone.is-sw {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.presentation-info-media-resize-zone.is-nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.presentation-info-media-resize-zone.is-ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.presentation-info-media-resize-zone.is-se {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+
+.presentation-info-media-resize-zone.is-sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
 .presentation-info-media-caption > span {
   min-width: 0;
   overflow: hidden;
@@ -2689,6 +2775,14 @@ body.is-presentation-text-field-resizing {
 
 .presentation-mode-shell.is-presenting .presentation-info-media-caption {
   padding: .56rem .7rem;
+}
+
+.presentation-mode-shell.is-presenting .presentation-info-media-panel.is-image .presentation-info-media-caption {
+  display: none;
+}
+
+body.is-presentation-info-media-resizing {
+  user-select: none;
 }
 
 .presentation-mode-shell.is-presenting .presentation-info-media-panel.is-empty {

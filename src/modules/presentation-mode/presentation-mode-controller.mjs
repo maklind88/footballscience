@@ -266,6 +266,19 @@ function normalizeTextFieldHeight(value = "") {
   return Number.isFinite(numericValue) ? Number(Math.min(88, Math.max(2, numericValue)).toFixed(2)) : "";
 }
 
+function normalizeInfoMediaSize(value = "", fallback = 100) {
+  const numericValue = String(value ?? "").trim() ? Number(value) : Number.NaN;
+  const fallbackValue = String(fallback ?? "").trim() ? Number(fallback) : Number.NaN;
+  const safeFallback = Number.isFinite(fallbackValue) ? fallbackValue : 100;
+  return Number(Math.min(180, Math.max(30, Number.isFinite(numericValue) ? numericValue : safeFallback)).toFixed(2));
+}
+
+function normalizeInfoMediaOffset(value = "", fallback = 0) {
+  const numericValue = Number(value);
+  const safeFallback = Number.isFinite(Number(fallback)) ? Number(fallback) : 0;
+  return Number(Math.min(40, Math.max(-40, Number.isFinite(numericValue) ? numericValue : safeFallback)).toFixed(2));
+}
+
 function getSlideLabel(title = "", fallback = "Slide") {
   const label = String(title || "").trim() || fallback;
   return label.length > 18 ? `${label.slice(0, 17).trim()}...` : label;
@@ -597,6 +610,10 @@ function normalizeInfoSlide(slide = {}, index = 0, dateValue = "", meetingType =
     mediaMimeType: mediaKind ? String(slide.mediaMimeType || "").trim().slice(0, 120) : "",
     mediaName: mediaKind ? String(slide.mediaName || "").trim().slice(0, 180) : "",
     mediaSize: mediaKind ? Math.max(0, Number(slide.mediaSize) || 0) : 0,
+    mediaWidth: mediaKind === "image" ? normalizeInfoMediaSize(slide.mediaWidth, 100) : 100,
+    mediaHeight: mediaKind === "image" ? normalizeInfoMediaSize(slide.mediaHeight, 100) : 100,
+    mediaOffsetX: mediaKind === "image" ? normalizeInfoMediaOffset(slide.mediaOffsetX, 0) : 0,
+    mediaOffsetY: mediaKind === "image" ? normalizeInfoMediaOffset(slide.mediaOffsetY, 0) : 0,
   };
 }
 
@@ -953,6 +970,7 @@ export function createPresentationModeController(dependencies = {}) {
     meetingType: "team",
     presenting: false,
     resizeShape: null,
+    resizeInfoMedia: null,
     resizeTextField: null,
     resizeTextBox: null,
     setPiecePhaseBySlide: {},
@@ -1162,6 +1180,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.dragTextField = null;
     state.dragTextBox = null;
     state.resizeShape = null;
+    state.resizeInfoMedia = null;
     state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
@@ -1173,6 +1192,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     documentRef.body?.classList?.remove("is-presentation-shape-dragging");
     documentRef.body?.classList?.remove("is-presentation-shape-resizing");
+    documentRef.body?.classList?.remove("is-presentation-info-media-resizing");
     const slideCount = buildModel().slides.length;
     state.slideIndex = Math.min(Math.max(0, Number(snapshot.state?.slideIndex) || 0), Math.max(0, slideCount - 1));
     render();
@@ -2059,6 +2079,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.dragTextField = null;
     state.dragTextBox = null;
     state.resizeShape = null;
+    state.resizeInfoMedia = null;
     state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
@@ -2084,6 +2105,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.dragTextField = null;
     state.dragTextBox = null;
     state.resizeShape = null;
+    state.resizeInfoMedia = null;
     state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
@@ -2108,6 +2130,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     documentRef.body?.classList?.remove("is-presentation-shape-dragging");
     documentRef.body?.classList?.remove("is-presentation-shape-resizing");
+    documentRef.body?.classList?.remove("is-presentation-info-media-resizing");
   }
 
   function goToSlide(index) {
@@ -2123,6 +2146,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.dragTextField = null;
     state.dragTextBox = null;
     state.resizeShape = null;
+    state.resizeInfoMedia = null;
     state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
@@ -2134,6 +2158,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     documentRef.body?.classList?.remove("is-presentation-shape-dragging");
     documentRef.body?.classList?.remove("is-presentation-shape-resizing");
+    documentRef.body?.classList?.remove("is-presentation-info-media-resizing");
     render();
   }
 
@@ -2179,6 +2204,33 @@ export function createPresentationModeController(dependencies = {}) {
     if (options.render) {
       render();
     }
+  }
+
+  function updateInfoMediaLayout(slideId = "", layout = {}) {
+    const safeSlideId = String(slideId || "").trim();
+    if (!safeSlideId) {
+      return;
+    }
+    writeDeckForDate(state.dateValue, (deck) => ({
+      ...deck,
+      infoSlides: deck.infoSlides.map((slide) =>
+        slide.id === safeSlideId && slide.mediaKind === "image"
+          ? normalizeInfoSlide(
+              {
+                ...slide,
+                mediaWidth: normalizeInfoMediaSize(layout.mediaWidth, slide.mediaWidth),
+                mediaHeight: normalizeInfoMediaSize(layout.mediaHeight, slide.mediaHeight),
+                mediaOffsetX: normalizeInfoMediaOffset(layout.mediaOffsetX, slide.mediaOffsetX),
+                mediaOffsetY: normalizeInfoMediaOffset(layout.mediaOffsetY, slide.mediaOffsetY),
+              },
+              0,
+              state.dateValue,
+              state.meetingType
+            )
+          : slide
+      ),
+    }));
+    render();
   }
 
   function updateMatchSquadPlayer(slideId = "", playerId = "", selected = false) {
@@ -3462,6 +3514,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.dragTextField = null;
     state.dragTextBox = null;
     state.resizeShape = null;
+    state.resizeInfoMedia = null;
     state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
@@ -3475,6 +3528,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     documentRef.body?.classList?.remove("is-presentation-shape-dragging");
     documentRef.body?.classList?.remove("is-presentation-shape-resizing");
+    documentRef.body?.classList?.remove("is-presentation-info-media-resizing");
     render();
   }
 
@@ -3715,6 +3769,129 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.body?.classList?.remove("is-presentation-text-field-resizing");
     state.resizeTextField = null;
     updateTextFieldLayout(resize.slideId, resize.field, resize.nextLayout);
+  }
+
+  function applyInfoMediaLayoutStyle(panel, layout = {}) {
+    if (!panel) {
+      return;
+    }
+    panel.style.setProperty("--presentation-info-media-width", `${normalizeInfoMediaSize(layout.mediaWidth, 100)}%`);
+    panel.style.setProperty("--presentation-info-media-height", `${normalizeInfoMediaSize(layout.mediaHeight, 100)}%`);
+    const offsetX = normalizeInfoMediaOffset(layout.mediaOffsetX, 0);
+    const offsetY = normalizeInfoMediaOffset(layout.mediaOffsetY, 0);
+    panel.style.transform = `translate3d(calc(var(--presentation-slide-width, 1px) * ${offsetX / 100}), calc(var(--presentation-slide-height, 1px) * ${offsetY / 100}), 0)`;
+  }
+
+  function beginInfoMediaResize(event, handle) {
+    if (event.button && event.button !== 0) {
+      return;
+    }
+    const slideId = String(handle?.dataset.presentationResizeInfoMedia || "").trim();
+    const axis = getResizeAxis(handle);
+    const panel = handle?.closest?.("[data-presentation-info-media-panel]");
+    const slideElement = panel?.closest?.(".presentation-slide");
+    const slideRect = slideElement?.getBoundingClientRect?.();
+    const panelRect = panel?.getBoundingClientRect?.();
+    const infoSlide = getDeckForDate().infoSlides.find((slide) => slide.id === slideId && slide.mediaKind === "image");
+    if (
+      !slideId ||
+      !panel ||
+      !slideRect?.width ||
+      !slideRect?.height ||
+      !panelRect?.width ||
+      !panelRect?.height ||
+      !infoSlide ||
+      state.presenting
+    ) {
+      return;
+    }
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    const startWidth = normalizeInfoMediaSize(infoSlide.mediaWidth, 100);
+    const startHeight = normalizeInfoMediaSize(infoSlide.mediaHeight, 100);
+    const startOffsetX = normalizeInfoMediaOffset(infoSlide.mediaOffsetX, 0);
+    const startOffsetY = normalizeInfoMediaOffset(infoSlide.mediaOffsetY, 0);
+    state.resizeInfoMedia = {
+      axis,
+      basePanelHeight: panelRect.height / (startHeight / 100),
+      basePanelWidth: panelRect.width / (startWidth / 100),
+      panel,
+      slideHeight: slideRect.height,
+      slideId,
+      slideWidth: slideRect.width,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startHeight,
+      startOffsetX,
+      startOffsetY,
+      startWidth,
+      nextLayout: {
+        mediaHeight: startHeight,
+        mediaOffsetX: startOffsetX,
+        mediaOffsetY: startOffsetY,
+        mediaWidth: startWidth,
+      },
+    };
+    state.activeShapeTarget = null;
+    state.activeTextTarget = null;
+    panel.classList.add("is-resizing");
+    documentRef.body?.classList?.add("is-presentation-info-media-resizing");
+    handle.setPointerCapture?.(event.pointerId);
+  }
+
+  function getResizedInfoMediaLayout(resize, event) {
+    const axis = resize.axis || "se";
+    const deltaX = event.clientX - resize.startClientX;
+    const deltaY = event.clientY - resize.startClientY;
+    const widthDelta = (deltaX / resize.basePanelWidth) * 100;
+    const heightDelta = (deltaY / resize.basePanelHeight) * 100;
+    const mediaWidth =
+      axis.includes("e") || axis.includes("w")
+        ? normalizeInfoMediaSize(resize.startWidth + (axis.includes("e") ? widthDelta : -widthDelta), resize.startWidth)
+        : resize.startWidth;
+    const mediaHeight =
+      axis.includes("n") || axis.includes("s")
+        ? normalizeInfoMediaSize(resize.startHeight + (axis.includes("s") ? heightDelta : -heightDelta), resize.startHeight)
+        : resize.startHeight;
+    const widthChangePx = resize.basePanelWidth * ((mediaWidth - resize.startWidth) / 100);
+    const heightChangePx = resize.basePanelHeight * ((mediaHeight - resize.startHeight) / 100);
+    const mediaOffsetX = normalizeInfoMediaOffset(
+      resize.startOffsetX +
+        (axis.includes("e") ? widthChangePx / 2 : axis.includes("w") ? -widthChangePx / 2 : 0) /
+          resize.slideWidth *
+          100,
+      resize.startOffsetX
+    );
+    const mediaOffsetY = normalizeInfoMediaOffset(
+      resize.startOffsetY +
+        (axis.includes("s") ? heightChangePx / 2 : axis.includes("n") ? -heightChangePx / 2 : 0) /
+          resize.slideHeight *
+          100,
+      resize.startOffsetY
+    );
+    return { mediaHeight, mediaOffsetX, mediaOffsetY, mediaWidth };
+  }
+
+  function updateInfoMediaResize(event) {
+    const resize = state.resizeInfoMedia;
+    if (!resize) {
+      return;
+    }
+    event.preventDefault?.();
+    resize.nextLayout = getResizedInfoMediaLayout(resize, event);
+    applyInfoMediaLayoutStyle(resize.panel, resize.nextLayout);
+  }
+
+  function finishInfoMediaResize(event) {
+    const resize = state.resizeInfoMedia;
+    if (!resize) {
+      return;
+    }
+    event.preventDefault?.();
+    resize.panel.classList.remove("is-resizing");
+    documentRef.body?.classList?.remove("is-presentation-info-media-resizing");
+    state.resizeInfoMedia = null;
+    updateInfoMediaLayout(resize.slideId, resize.nextLayout);
   }
 
   function beginTextBoxDrag(event, handle) {
@@ -4422,6 +4599,11 @@ export function createPresentationModeController(dependencies = {}) {
     ) {
       return;
     }
+    const infoMediaResizeHandle = event.target.closest("[data-presentation-resize-info-media]");
+    if (infoMediaResizeHandle) {
+      beginInfoMediaResize(event, infoMediaResizeHandle);
+      return;
+    }
     const pointerTextFieldHandle = getTextFieldPointerHandle(event);
     if (pointerTextFieldHandle?.type === "resize") {
       beginTextFieldResize(event, pointerTextFieldHandle);
@@ -4632,6 +4814,7 @@ export function createPresentationModeController(dependencies = {}) {
     state.dragTextField = null;
     state.dragTextBox = null;
     state.resizeShape = null;
+    state.resizeInfoMedia = null;
     state.resizeTextField = null;
     state.resizeTextBox = null;
     state.shapeDrawTool = null;
@@ -4647,6 +4830,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.body?.classList?.remove("is-presentation-text-box-resizing");
     documentRef.body?.classList?.remove("is-presentation-shape-dragging");
     documentRef.body?.classList?.remove("is-presentation-shape-resizing");
+    documentRef.body?.classList?.remove("is-presentation-info-media-resizing");
     render();
   }
 
@@ -4876,6 +5060,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.addEventListener("pointerdown", handleTextActivation, true);
     documentRef.addEventListener("pointermove", updateTextFieldDrag, true);
     documentRef.addEventListener("pointermove", updateTextFieldResize, true);
+    documentRef.addEventListener("pointermove", updateInfoMediaResize, true);
     documentRef.addEventListener("pointermove", updateTextBoxDrag, true);
     documentRef.addEventListener("pointermove", updateTextBoxResize, true);
     documentRef.addEventListener("pointermove", updateShapeDraw, true);
@@ -4883,6 +5068,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.addEventListener("pointermove", updateShapeResize, true);
     documentRef.addEventListener("pointerup", finishTextFieldDrag, true);
     documentRef.addEventListener("pointerup", finishTextFieldResize, true);
+    documentRef.addEventListener("pointerup", finishInfoMediaResize, true);
     documentRef.addEventListener("pointerup", finishTextBoxDrag, true);
     documentRef.addEventListener("pointerup", finishTextBoxResize, true);
     documentRef.addEventListener("pointerup", finishShapeDraw, true);
@@ -4890,6 +5076,7 @@ export function createPresentationModeController(dependencies = {}) {
     documentRef.addEventListener("pointerup", finishShapeResize, true);
     documentRef.addEventListener("pointercancel", finishTextFieldDrag, true);
     documentRef.addEventListener("pointercancel", finishTextFieldResize, true);
+    documentRef.addEventListener("pointercancel", finishInfoMediaResize, true);
     documentRef.addEventListener("pointercancel", finishTextBoxDrag, true);
     documentRef.addEventListener("pointercancel", finishTextBoxResize, true);
     documentRef.addEventListener("pointercancel", finishShapeDraw, true);

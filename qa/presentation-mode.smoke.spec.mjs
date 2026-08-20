@@ -684,6 +684,63 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await presentation.locator(".presentation-pass-controls [data-presentation-add-info-menu]").click();
   await expect(presentation.locator(".presentation-new-slide-popover")).toBeVisible();
   page.once("dialog", async (dialog) => {
+    await dialog.accept("Question");
+  });
+  await presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="media"]').click();
+  const imageSlide = presentation.locator(".presentation-slide-info");
+  await expect(imageSlide.locator(".presentation-info-media-panel.is-image.is-empty")).toBeVisible();
+  await expect(imageSlide.locator(".presentation-info-media-empty-mark")).toHaveCount(0);
+  const imageSlideChooserPromise = page.waitForEvent("filechooser");
+  await imageSlide.locator("[data-presentation-info-media-pick='image']").click();
+  const imageSlideChooser = await imageSlideChooserPromise;
+  await imageSlideChooser.setFiles({
+    name: "question-photo.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEtwJ+gN7uXQAAAABJRU5ErkJggg==", "base64"),
+  });
+  const imagePanel = imageSlide.locator(".presentation-info-media-panel.is-image.has-media");
+  await expect(imagePanel).toBeVisible();
+  await expect(imagePanel.locator("img.presentation-info-media-object")).toHaveAttribute("src", /^blob:/);
+  await expect(imagePanel.locator("figcaption")).not.toContainText("question-photo.png");
+  await expect(imagePanel.locator("[data-presentation-resize-info-media]")).toHaveCount(8);
+  const imagePanelBefore = await imagePanel.boundingBox();
+  const imagePanelResizeHandle = imagePanel.locator("[data-presentation-resize-axis='se']");
+  const imagePanelResizeBox = await imagePanelResizeHandle.boundingBox();
+  expect(imagePanelBefore).toBeTruthy();
+  expect(imagePanelResizeBox).toBeTruthy();
+  await page.mouse.move(
+    imagePanelResizeBox.x + imagePanelResizeBox.width / 2,
+    imagePanelResizeBox.y + imagePanelResizeBox.height / 2
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    imagePanelResizeBox.x + imagePanelResizeBox.width / 2 + 56,
+    imagePanelResizeBox.y + imagePanelResizeBox.height / 2 + 42,
+    { steps: 6 }
+  );
+  await page.mouse.up();
+  const imagePanelAfter = await imagePanel.boundingBox();
+  expect(imagePanelAfter?.width).toBeGreaterThan((imagePanelBefore?.width || 0) + 20);
+  expect(imagePanelAfter?.height).toBeGreaterThan((imagePanelBefore?.height || 0) + 10);
+  const storedImageSlide = await page.evaluate(
+    ({ key, date }) =>
+      JSON.parse(window.localStorage.getItem(key) || "{}")?.decks?.[date]?.infoSlides?.find(
+        (slide) => slide.title === "Question" && slide.mediaKind === "image"
+      ),
+    { key: presentationKey, date: dateValue }
+  );
+  expect(Number(storedImageSlide?.mediaWidth)).toBeGreaterThan(100);
+  expect(Number(storedImageSlide?.mediaHeight)).toBeGreaterThan(100);
+  await presentation.locator("[data-presentation-start]").click();
+  await expect(presentation).toHaveClass(/is-presenting/);
+  await expect(imagePanel.locator("[data-presentation-resize-info-media]")).toHaveCount(0);
+  await presentation.locator("[data-presentation-exit-fullscreen]").click();
+  await expect(presentation).not.toHaveClass(/is-presenting/);
+  await presentation.locator("[data-presentation-delete-slide]").click();
+  await expect(presentation.locator(".presentation-slide-tabs")).not.toContainText("Question");
+  await presentation.locator(".presentation-pass-controls [data-presentation-add-info-menu]").click();
+  await expect(presentation.locator(".presentation-new-slide-popover")).toBeVisible();
+  page.once("dialog", async (dialog) => {
     await dialog.accept("Video Analysis");
   });
   await presentation.locator('.presentation-new-slide-popover [data-presentation-add-info="video"]').click();

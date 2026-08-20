@@ -157,10 +157,12 @@ test("Schedule adapter treats invalid legacy payloads as empty instead of destru
   expect(normalizeScheduleState("{not-json}", { now, idFactory })).toMatchObject({
     selectedYear: 2026,
     selectedMonthIndex: 4,
-    viewMode: "month",
+    viewMode: "overview",
     overviewSpan: 6,
     visibleEventTypes: ["training", "match", "meeting", "travel", "recovery", "off"],
     events: [],
   });
   expect(normalizeScheduleState({ events: "bad" }, { now, idFactory }).events).toEqual([]);
+  expect(normalizeScheduleState({ viewMode: "month" }, { now, idFactory }).viewMode).toBe("overview");
+  expect(normalizeScheduleState({ viewMode: "week" }, { now, idFactory }).viewMode).toBe("overview");
 });

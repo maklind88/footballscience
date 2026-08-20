@@ -19,7 +19,7 @@
 }
 
 .schedule-workspace.is-overview-view .schedule-view-switch {
-  grid-template-columns: repeat(4, 4.62rem);
+  grid-template-columns: repeat(2, 4.62rem);
   gap: .16rem;
   padding: .12rem;
   background: #ffffffc9;
@@ -312,7 +312,7 @@ body.is-dark-mode .platform-schedule-view .schedule-workspace.is-overview-view .
   }
 
   .schedule-workspace.is-overview-view .schedule-view-switch {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .schedule-workspace.is-overview-view .schedule-span-select {

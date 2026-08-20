@@ -9,18 +9,9 @@ import {
   scheduleViewModes,
 } from "./schedule-state.mjs";
 
-function addCalendarDays(date, days) {
-  const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + days);
-  return nextDate;
-}
-
 export function getScheduleNavigationStepForState(state) {
   if (!state) {
     return 1;
-  }
-  if (state.viewMode === "week") {
-    return 7;
   }
   return state.viewMode === "overview" ? state.overviewSpan : 1;
 }
@@ -30,10 +21,7 @@ export function shiftScheduleStateWindow(state, delta) {
     return state;
   }
 
-  const nextDate =
-    state.viewMode === "week"
-      ? addCalendarDays(parseScheduleDateValue(state.selectedDate), delta)
-      : new Date(state.selectedYear, state.selectedMonthIndex + delta, 1);
+  const nextDate = new Date(state.selectedYear, state.selectedMonthIndex + delta, 1);
 
   state.selectedYear = nextDate.getFullYear();
   state.selectedMonthIndex = nextDate.getMonth();
@@ -45,7 +33,7 @@ export function setScheduleStateViewMode(state, viewMode) {
   if (!state) {
     return state;
   }
-  state.viewMode = scheduleViewModes.includes(viewMode) ? viewMode : "month";
+  state.viewMode = scheduleViewModes.includes(viewMode) ? viewMode : "overview";
   const selectedDate = parseScheduleDateValue(state.selectedDate);
   state.selectedYear = selectedDate.getFullYear();
   state.selectedMonthIndex = selectedDate.getMonth();

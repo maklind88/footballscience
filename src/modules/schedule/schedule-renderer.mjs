@@ -13,12 +13,6 @@ function defaultEscapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-function addCalendarDays(date, days) {
-  const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + days);
-  return nextDate;
-}
-
 function formatScheduleMonthLabel(date) {
   return new Intl.DateTimeFormat("en-GB", {
     month: "long",
@@ -49,13 +43,6 @@ function getScheduleMonthGridDates(year, monthIndex) {
     date.setDate(gridStart.getDate() + index);
     return date;
   });
-}
-
-function getScheduleWeekDates(dateValue) {
-  const selectedDate = parseScheduleDateValue(dateValue);
-  const mondayOffset = (selectedDate.getDay() + 6) % 7;
-  const weekStart = addCalendarDays(selectedDate, -mondayOffset);
-  return Array.from({ length: 7 }, (_, index) => addCalendarDays(weekStart, index));
 }
 
 function getScheduleLegendTypes(events = []) {
@@ -455,41 +442,6 @@ ${escapeHtml(eventType.label)}
     `;
   }
 
-  function renderWeekDay(context, date) {
-    const { state, getEventsForDate, getVisibleEvents = (events) => events, getSessionForDate = () => null } = context;
-    const dateValue = formatScheduleDateValue(date);
-    const selectedDateValue = state?.selectedDate || "";
-    const todayValue = formatScheduleDateValue(getNow());
-    const allEvents = getEventsForDate(dateValue);
-    const events = getVisibleEvents(allEvents);
-    const mainEvent = getMainEvent(events);
-    const mainTone = mainEvent ? scheduleEventTypes[mainEvent.type]?.tone || "training" : "";
-    const eventToneClass = mainTone ? ` is-main-${mainTone}` : "";
-    const periodizationDay = getPeriodizationDay(dateValue);
-    const periodizationLabel = getPeriodizationDayScheduleLabel(periodizationDay);
-    const session = getSessionForDate(dateValue);
-    const sessionBlockCount = Array.isArray(session?.blocks) ? session.blocks.length : 0;
-    const weekdayLabel = new Intl.DateTimeFormat("en-GB", { weekday: "short" }).format(date);
-    const eventSummary = events.length
-      ? `<span class="schedule-week-event-summary">${events.length} plan${events.length === 1 ? "" : "s"}</span>`
-      : `<span class="schedule-week-empty"></span>`;
-    return `
-    <article class="schedule-week-day${dateValue === selectedDateValue ? " is-selected" : ""}${dateValue === todayValue ? " is-today" : ""}${events.length ? ` has-events${eventToneClass}` : ""}" data-schedule-date="${escapeHtml(dateValue)}">
-      <button type="button" class="schedule-week-day-head" data-schedule-date="${escapeHtml(dateValue)}">
-        <span>${escapeHtml(weekdayLabel)}</span>
-        <strong>${date.getDate()}</strong>
-      </button>
-      <div class="schedule-week-day-meta">
-        ${periodizationLabel ? `<span>${escapeHtml(periodizationLabel)}</span>` : ""}
-        ${sessionBlockCount ? `<span>${sessionBlockCount} blocks</span>` : ""}
-      </div>
-      <div class="schedule-week-event-stack">
-        ${eventSummary}
-      </div>
-    </article>
-  `;
-  }
-
   function renderEventCard(context, event, isAdmin, dayContext = null) {
     const eventType = scheduleEventTypes[event.type] ?? scheduleEventTypes.training;
     const isSessionEvent =
@@ -560,48 +512,34 @@ ${escapeHtml(eventType.label)}
     return `${formatScheduleMonthLabel(startDate)} - ${formatScheduleMonthLabel(endDate)}`;
   }
 
-  function getWeekLabel(state) {
-    const weekDates = getScheduleWeekDates(state?.selectedDate);
-    const startDate = weekDates[0];
-    const endDate = weekDates[6];
-    const weekLabelFormatter = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
-    return `${weekLabelFormatter.format(startDate)} - ${weekLabelFormatter.format(endDate)}`;
-  }
-
   function renderWorkspace(context) {
     const { ui, state, clipboard, editingEventId, dayPanelMode, canEdit } = context;
-    if (!state || !ui?.scheduleWorkspace || !ui.scheduleMonthTitle || !ui.scheduleCalendarGrid || !ui.scheduleSelectedDateLabel || !ui.scheduleEventList) {
+    if (
+      !state ||
+      !ui?.scheduleWorkspace ||
+      !ui.scheduleMonthTitle ||
+      !ui.scheduleOverviewGrid ||
+      !ui.scheduleSelectedDateLabel ||
+      !ui.scheduleEventList
+    ) {
       return;
     }
 
-    const selectedMonthDate = new Date(state.selectedYear, state.selectedMonthIndex, 1);
-    const selectedMonthLabel = formatScheduleMonthLabel(selectedMonthDate);
     const selectedDateValue = state.selectedDate;
     const isOverview = state.viewMode === "overview";
-    const isWeek = state.viewMode === "week";
     const isPlanner = state.viewMode === "planner";
     const plannerMonthCount = isPlanner ? getPlannerMonthCount(context) : 3;
     const isEditingDay = dayPanelMode === "edit" && canEdit;
     const editingEvent = state.events.find((event) => event.id === editingEventId) ?? null;
 
-    ui.scheduleWorkspace?.classList.toggle("is-month-view", state.viewMode === "month");
-    ui.scheduleWorkspace?.classList.toggle("is-week-view", isWeek);
     ui.scheduleWorkspace?.classList.toggle("is-overview-view", isOverview);
     ui.scheduleWorkspace?.classList.toggle("is-planner-view", isPlanner);
-    ui.scheduleMonthTitle.textContent = isOverview
-      ? getOverviewLabel(state)
-      : isWeek
-        ? getWeekLabel(state)
-        : isPlanner
-          ? getPlannerLabel(state, plannerMonthCount)
-          : selectedMonthLabel;
+    ui.scheduleMonthTitle.textContent = isPlanner
+      ? getPlannerLabel(state, plannerMonthCount)
+      : getOverviewLabel(state);
     ui.scheduleMonthTitle.hidden = false;
-    ui.scheduleMonthViewButton?.classList.toggle("is-active", state.viewMode === "month");
-    ui.scheduleWeekViewButton?.classList.toggle("is-active", isWeek);
     ui.scheduleOverviewViewButton?.classList.toggle("is-active", isOverview);
     ui.schedulePlannerViewButton?.classList.toggle("is-active", isPlanner);
-    ui.scheduleMonthViewButton?.setAttribute("aria-pressed", String(state.viewMode === "month"));
-    ui.scheduleWeekViewButton?.setAttribute("aria-pressed", String(isWeek));
     ui.scheduleOverviewViewButton?.setAttribute("aria-pressed", String(isOverview));
     ui.schedulePlannerViewButton?.setAttribute("aria-pressed", String(isPlanner));
 
@@ -614,15 +552,6 @@ ${escapeHtml(eventType.label)}
       button.setAttribute("aria-pressed", String(isActiveSpan));
       button.tabIndex = isOverview ? 0 : -1;
     });
-    if (ui.scheduleWeekdays) {
-      ui.scheduleWeekdays.hidden = isOverview || isWeek || isPlanner;
-    }
-    if (ui.scheduleCalendarGrid) {
-      ui.scheduleCalendarGrid.hidden = isOverview || isWeek || isPlanner;
-    }
-    if (ui.scheduleWeekGrid) {
-      ui.scheduleWeekGrid.hidden = !isWeek;
-    }
     if (ui.scheduleOverviewGrid) {
       ui.scheduleOverviewGrid.hidden = !isOverview;
       ui.scheduleOverviewGrid.dataset.months = String(state.overviewSpan);
@@ -693,11 +622,6 @@ ${escapeHtml(eventType.label)}
       ui.schedulePlannerGrid.innerHTML = `${Array.from({ length: plannerMonthCount }, (_, index) =>
         renderPlannerMonth(context, new Date(state.selectedYear, state.selectedMonthIndex + index, 1))
       ).join("")}${renderPlannerContextMenu(context)}${renderPlannerNoteOverlay(context)}`;
-    } else if (isWeek && ui.scheduleWeekGrid) {
-      ui.scheduleWeekGrid.innerHTML = getScheduleWeekDates(state.selectedDate).map((date) => renderWeekDay(context, date)).join("");
-    } else {
-      const days = getScheduleMonthGridDates(state.selectedYear, state.selectedMonthIndex);
-      ui.scheduleCalendarGrid.innerHTML = days.map((date) => renderMonthDay(context, date)).join("");
     }
 
     const selectedEvents = context.getEventsForDate(selectedDateValue);
@@ -715,8 +639,6 @@ ${escapeHtml(eventType.label)}
     getOverviewLabel,
     getPlannerLabel,
     getPlannerMonthCountForWidth,
-    getWeekDates: getScheduleWeekDates,
-    getWeekLabel,
     renderDayInsights,
     renderEventCard,
     renderEventPill,
@@ -725,7 +647,6 @@ ${escapeHtml(eventType.label)}
     renderOverviewMonth,
     renderPlannerDay,
     renderPlannerMonth,
-    renderWeekDay,
     renderWorkspace,
   });
 }

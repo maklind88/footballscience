@@ -373,11 +373,7 @@ export function createScheduleWorkspaceController(options = {}) {
     const root =
       state?.viewMode === "overview"
         ? ui.scheduleOverviewGrid
-        : state?.viewMode === "week"
-          ? ui.scheduleWeekGrid
-          : state?.viewMode === "planner"
-            ? ui.schedulePlannerGrid
-            : ui.scheduleCalendarGrid;
+        : ui.schedulePlannerGrid;
     if (!root || !dateValue) {
       return;
     }
@@ -1756,19 +1752,13 @@ export function createScheduleWorkspaceController(options = {}) {
       shiftWindow(getScheduleNavigationStepForState(getState()));
     });
     ui.scheduleTodayButton?.addEventListener?.("click", jumpToToday);
-    ui.scheduleMonthViewButton?.addEventListener?.("click", () => setViewMode("month"));
-    ui.scheduleWeekViewButton?.addEventListener?.("click", () => setViewMode("week"));
     ui.scheduleOverviewViewButton?.addEventListener?.("click", () => setViewMode("overview"));
     ui.schedulePlannerViewButton?.addEventListener?.("click", () => setViewMode("planner"));
     ui.scheduleOverviewSpanButtons?.forEach?.((button) => {
       button.addEventListener?.("click", () => setOverviewSpan(button.dataset.scheduleSpan));
     });
-    ui.scheduleCalendarGrid?.addEventListener?.("click", handleDateGridClick);
-    ui.scheduleCalendarGrid?.addEventListener?.("dblclick", handleDateGridDoubleClick);
     ui.scheduleOverviewGrid?.addEventListener?.("click", handleDateGridClick);
     ui.scheduleOverviewGrid?.addEventListener?.("dblclick", handleDateGridDoubleClick);
-    ui.scheduleWeekGrid?.addEventListener?.("click", handleDateGridClick);
-    ui.scheduleWeekGrid?.addEventListener?.("dblclick", handleDateGridDoubleClick);
     ui.schedulePlannerGrid?.addEventListener?.("click", handlePlannerClick);
     ui.schedulePlannerGrid?.addEventListener?.("dblclick", handlePlannerDblClick);
     ui.schedulePlannerGrid?.addEventListener?.("submit", handlePlannerSubmit);

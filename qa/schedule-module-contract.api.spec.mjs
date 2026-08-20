@@ -69,6 +69,7 @@ test("Schedule renders the current month preview for Home from the shared schedu
 
 test("Schedule app integration delegates controller wiring to the module", () => {
   const app = readProjectFile("app-runtime.js");
+  const index = readProjectFile("index.html");
   const appComposer = readProjectFile("src/core/platform-app-runtime-services-composer.mjs");
   const composer = readProjectFile("src/core/platform-runtime-services-composer.mjs");
   const platformBindings = readProjectFile("src/core/platform-workspace-runtime-bindings.mjs");
@@ -90,6 +91,12 @@ test("Schedule app integration delegates controller wiring to the module", () =>
   expect(app).not.toContain("function renderScheduleMonthDay(date");
   expect(app).toContain("scheduleWorkspaceController?.selectDate(dateValue);");
   expect(app).not.toContain("selectScheduleDate(dateValue);");
+  expect(index).not.toContain('id="scheduleMonthViewButton"');
+  expect(index).not.toContain('id="scheduleWeekViewButton"');
+  expect(index).not.toContain('id="scheduleCalendarGrid"');
+  expect(index).not.toContain('id="scheduleWeekGrid"');
+  expect(index).toContain('id="scheduleOverviewViewButton"');
+  expect(index).toContain('id="schedulePlannerViewButton"');
 });
 
 function createFakeElement(dataset = {}) {
@@ -113,6 +120,7 @@ function createFakeElement(dataset = {}) {
 
 test("Schedule controller owns date navigation and shortcut clipboard wiring", () => {
   const state = createDefaultScheduleState(new Date(2026, 4, 7));
+  state.viewMode = "planner";
   state.events = [{ id: "training", date: "2026-06-01", time: "10:00", type: "training", title: "Training" }];
   const writes = [];
   const renderContexts = [];
@@ -244,6 +252,10 @@ test("Schedule controller remeasures planner width after the view becomes active
 test("Schedule actions preserve navigation, copy paste, and upsert behavior", () => {
   const state = createDefaultScheduleState(new Date(2026, 4, 7));
   expect(state.dayNotes).toEqual({});
+  expect(state.viewMode).toBe("overview");
+
+  setScheduleStateViewMode(state, "month");
+  expect(state.viewMode).toBe("overview");
 
   setScheduleStateViewMode(state, "overview");
   setScheduleStateOverviewSpan(state, 6);
@@ -290,7 +302,7 @@ test("Schedule actions preserve navigation, copy paste, and upsert behavior", ()
   expect(state.selectedDate).toBe("2026-11-01");
 });
 
-test("Schedule renderer keeps the visible day operations contract", () => {
+test("Schedule renderer keeps Planner and selected-day operations", () => {
   const renderer = createScheduleWorkspaceRenderer({
     getNow: () => new Date(2026, 4, 8),
     getPeriodizationDay: () => ({ daySchedule: "Training" }),
@@ -300,24 +312,10 @@ test("Schedule renderer keeps the visible day operations contract", () => {
     selectedYear: 2026,
     selectedMonthIndex: 4,
     selectedDate: "2026-05-08",
-    viewMode: "week",
+    viewMode: "overview",
     overviewSpan: 6,
     events: [{ id: "training", date: "2026-05-08", time: "10:00", type: "training", title: "Training" }],
   };
-
-  const html = renderer.renderWeekDay(
-    {
-      state,
-      getEventsForDate: () => state.events,
-      getVisibleEvents: (events) => events,
-      getSessionForDate: () => ({ blocks: [{ minutes: 15 }] }),
-    },
-    new Date(2026, 4, 8)
-  );
-
-  expect(html).toContain("schedule-week-day");
-  expect(html).toContain("1 plan");
-  expect(html).toContain("1 blocks");
 
   const insights = renderer.renderDayInsights(
     {

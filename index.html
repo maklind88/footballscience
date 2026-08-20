@@ -307,9 +307,7 @@
                 </div>
                 <div class="schedule-toolbar" aria-label="Calendar navigation">
                   <div class="schedule-view-switch" aria-label="Schedule view">
-                    <button id="scheduleMonthViewButton" type="button" class="schedule-view-button is-active">Month</button>
-                    <button id="scheduleWeekViewButton" type="button" class="schedule-view-button">Week</button>
-                    <button id="scheduleOverviewViewButton" type="button" class="schedule-view-button">Overview</button>
+                    <button id="scheduleOverviewViewButton" type="button" class="schedule-view-button is-active">Overview</button>
                     <button id="schedulePlannerViewButton" type="button" class="schedule-view-button">Planner</button>
                   </div>
                   <div id="scheduleOverviewSpanControl" class="schedule-span-select" aria-label="Overview months">
@@ -327,18 +325,7 @@
               </header>
               <section class="schedule-layout">
                 <article class="schedule-board-card">
-                  <div id="scheduleWeekdays" class="schedule-weekdays" aria-hidden="true">
-                    <span>Mon</span>
-                    <span>Tue</span>
-                    <span>Wed</span>
-                    <span>Thu</span>
-                    <span>Fri</span>
-                    <span>Sat</span>
-                    <span>Sun</span>
-                  </div>
-                  <div id="scheduleCalendarGrid" class="schedule-calendar-grid"></div>
-                  <div id="scheduleWeekGrid" class="schedule-week-agenda-grid" hidden></div>
-                  <div id="scheduleOverviewGrid" class="schedule-overview-grid" hidden></div>
+                  <div id="scheduleOverviewGrid" class="schedule-overview-grid"></div>
                   <div id="schedulePlannerGrid" class="schedule-planner-grid" hidden></div>
                 </article>
                 <aside id="scheduleDayCard" class="schedule-day-card">

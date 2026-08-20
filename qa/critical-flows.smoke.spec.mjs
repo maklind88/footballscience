@@ -2950,7 +2950,7 @@ test("Schedule overview copies and pastes selected days with command shortcuts",
     .toEqual(["Copied Meeting", "Copied Training"]);
 });
 
-test("Schedule week view shows daily operations and opens linked session", async ({ page }) => {
+test("Schedule Overview shows daily operations and opens linked session", async ({ page }) => {
   await page.addInitScript(({ scheduleKey, sessionPlannerKey, periodizationKey }) => {
     const realDate = Date;
     const fixedNow = new realDate("2026-05-09T12:00:00-04:00").getTime();
@@ -3044,11 +3044,10 @@ test("Schedule week view shows daily operations and opens linked session", async
 
   await bootApp(page);
   await openWorkspace(page, "schedule");
-  await page.locator("#scheduleWeekViewButton").click();
 
-  await expect(page.locator("#scheduleWeekGrid")).toBeVisible();
-  await expect(page.locator(".schedule-week-day.is-selected")).toContainText("9");
-  await expect(page.locator(".schedule-week-day.is-selected .schedule-week-event-summary")).toHaveText("1 plan");
+  await expect(page.locator("#scheduleOverviewViewButton")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#scheduleOverviewGrid")).toBeVisible();
+  await expect(page.locator('.schedule-overview-day.is-selected[data-schedule-date="2026-05-09"]')).toBeVisible();
   const trainingCard = page.locator("#scheduleEventList .schedule-event-card");
   await expect(trainingCard).toHaveCount(1);
   await expect(trainingCard).toContainText("Training (1 block / 15 min)");
@@ -3064,7 +3063,7 @@ test("Schedule week view shows daily operations and opens linked session", async
   await expect(page.locator("#sessionPlannerWorkspace")).toContainText("Training Session");
 });
 
-test("Schedule keeps the board simple while the selected day shows all plans", async ({ page }) => {
+test("Schedule migrates legacy Week state while the selected day shows all plans", async ({ page }) => {
   await page.addInitScript(({ scheduleKey, sessionPlannerKey, periodizationKey }) => {
     const realDate = Date;
     const fixedNow = new realDate("2026-05-10T12:00:00-04:00").getTime();
@@ -3142,19 +3141,15 @@ test("Schedule keeps the board simple while the selected day shows all plans", a
   await bootApp(page);
   await openWorkspace(page, "schedule");
 
-  await expect(page.locator("#scheduleWeekGrid")).toBeVisible();
+  await expect(page.locator("#scheduleOverviewViewButton")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("#scheduleOverviewGrid")).toBeVisible();
   await expect(page.locator('[data-schedule-layer]')).toHaveCount(0);
-  await expect(page.locator(".schedule-week-day.is-selected .schedule-week-event-summary")).toHaveText("3 plans");
-  await expect(page.locator(".schedule-week-day.is-selected")).not.toContainText("alert");
+  const selectedDay = page.locator('.schedule-overview-day.is-selected[data-schedule-date="2026-05-10"]');
+  await expect(selectedDay).toHaveClass(/is-main-match/);
+  await expect(selectedDay).not.toContainText("alert");
   await expect(page.locator("#scheduleEventList")).toContainText("Training");
   await expect(page.locator("#scheduleEventList")).toContainText("QA Match");
   await expect(page.locator("#scheduleEventList")).toContainText("Off");
-
-  await page.locator("#scheduleMonthViewButton").click();
-  const selectedDay = page.locator(".schedule-day-button.is-selected");
-  await expect(selectedDay.locator(".schedule-event-pill")).toHaveCount(1);
-  await expect(selectedDay.locator(".schedule-event-pill")).toContainText("QA Match");
-  await expect(selectedDay.locator(".schedule-more-pill")).toHaveText("+2");
 });
 
 test("Periodization Today opens the real current date", async ({ page }) => {

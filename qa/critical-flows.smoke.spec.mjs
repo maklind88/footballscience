@@ -2931,6 +2931,7 @@ test("Home stacks compact meeting cards beside the calendar and opens selected d
   expect(calendarBox.x).toBeGreaterThan(teamMeeting.x + teamMeeting.width);
   expect(calendarBox.height).toBeGreaterThan(teamMeeting.height * 1.9);
   expect(teamMeeting.width).toBeGreaterThan(calendarBox.width * 1.8);
+  expect(calendarBox.width).toBeLessThanOrEqual(352);
   const calendarDaySize = await presentationBand.locator(".dashboard-schedule-day").first().evaluate((day) => {
     const rect = day.getBoundingClientRect();
     return { width: rect.width, height: rect.height };

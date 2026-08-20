@@ -9,20 +9,25 @@
 }
 
 .dashboard-schedule-preview {
-  align-self: stretch;
+  align-self: start;
+  justify-self: end;
+  width: min(22rem, 100%);
   min-width: 0;
 }
 
 .dashboard-schedule-month-card {
   position: relative;
-  height: 100%;
+  height: auto;
   display: grid;
   align-content: start;
-  gap: 0.38rem;
-  padding: 0.7rem 0.78rem 0.66rem;
-  border: 1px solid rgba(29, 29, 31, 0.09);
+  gap: 0.42rem;
+  padding: 0.78rem 0.82rem 0.72rem;
+  border: 1px solid rgba(29, 29, 31, 0.1);
   border-radius: 8px;
-  background: rgba(248, 249, 251, 0.88);
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%);
+  box-shadow:
+    0 16px 36px rgba(23, 29, 38, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94);
   overflow: hidden;
 }
 
@@ -37,8 +42,13 @@
 .dashboard-schedule-weekdays,
 .dashboard-schedule-days,
 .dashboard-schedule-legend {
-  width: min(19rem, 100%);
+  width: 100%;
   margin-inline: auto;
+}
+
+.dashboard-schedule-month-card > header {
+  padding-bottom: 0.46rem;
+  border-bottom: 1px solid rgba(29, 29, 31, 0.07);
 }
 
 .dashboard-schedule-month-card > header p,
@@ -410,7 +420,14 @@
 
 body.is-dark-mode .dashboard-schedule-month-card {
   border-color: rgba(148, 163, 184, 0.26);
-  background: rgba(15, 23, 42, 0.68);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.84));
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+body.is-dark-mode .dashboard-schedule-month-card > header {
+  border-bottom-color: rgba(148, 163, 184, 0.18);
 }
 
 body.is-dark-mode .dashboard-schedule-month-card > header h2,

@@ -2915,11 +2915,26 @@ test("Home presents meetings and Schedule as equal desktop columns and opens the
   const presentationBand = page.locator(".dashboard-presentation-band");
   await expect(presentationBand.locator(".dashboard-presentation-card")).toHaveCount(2);
   await expect(presentationBand.locator("#dashboardSchedulePreview")).toBeVisible();
-  const columnWidths = await presentationBand
+  const columnBoxes = await presentationBand
     .locator(":scope > .dashboard-presentation-card, :scope > .dashboard-schedule-preview")
-    .evaluateAll((columns) => columns.map((column) => column.getBoundingClientRect().width));
-  expect(columnWidths).toHaveLength(3);
-  expect(Math.max(...columnWidths) - Math.min(...columnWidths)).toBeLessThanOrEqual(1);
+    .evaluateAll((columns) =>
+      columns.map((column) => {
+        const rect = column.getBoundingClientRect();
+        return { width: rect.width, height: rect.height };
+      })
+    );
+  expect(columnBoxes).toHaveLength(3);
+  expect(
+    Math.max(...columnBoxes.map(({ width }) => width)) - Math.min(...columnBoxes.map(({ width }) => width))
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.max(...columnBoxes.map(({ height }) => height)) - Math.min(...columnBoxes.map(({ height }) => height))
+  ).toBeLessThanOrEqual(1);
+  const calendarDaySize = await presentationBand.locator(".dashboard-schedule-day").first().evaluate((day) => {
+    const rect = day.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  });
+  expect(Math.abs(calendarDaySize.width - calendarDaySize.height)).toBeLessThanOrEqual(1);
 
   await presentationBand.locator('[data-dashboard-open-schedule-date="2026-05-16"]').click();
 

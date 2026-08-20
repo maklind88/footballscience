@@ -18,15 +18,15 @@
   }
 
   .dashboard-presentation-card {
-    grid-template-columns: 3.7rem minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-content: stretch;
+    height: 100%;
   }
 
+  .dashboard-presentation-copy,
   .dashboard-presentation-visual {
-    width: 3.7rem;
-  }
-
-  .dashboard-presentation-copy h2 {
-    font-size: 1.52rem;
+    align-self: start;
+    margin-top: 1rem;
   }
 }
 

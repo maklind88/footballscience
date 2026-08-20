@@ -31,6 +31,14 @@
   gap: 0.75rem;
 }
 
+.dashboard-schedule-month-card > header,
+.dashboard-schedule-weekdays,
+.dashboard-schedule-days,
+.dashboard-schedule-legend {
+  width: min(19rem, 100%);
+  margin-inline: auto;
+}
+
 .dashboard-schedule-month-card > header p,
 .dashboard-schedule-month-card > header h2 {
   margin: 0;
@@ -71,7 +79,7 @@
 .dashboard-schedule-day,
 .dashboard-schedule-day-spacer {
   width: 100%;
-  min-height: 1.82rem;
+  aspect-ratio: 1;
 }
 
 .dashboard-schedule-day {

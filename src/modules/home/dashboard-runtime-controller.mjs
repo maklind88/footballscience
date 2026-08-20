@@ -29,6 +29,7 @@ export function createDashboardRuntimeController(dependencies = {}) {
     getUi = () => ({}),
     homeContextSelectors,
     homeCardsRenderer,
+    scheduleMonthRenderer,
     taskStorageKey = dashboardTaskStorageKey,
     tutorialPrefsStorageKey = dashboardTutorialPrefsStorageKey,
     newsSeenStorageKey = dashboardNewsSeenStorageKey,
@@ -277,12 +278,16 @@ export function createDashboardRuntimeController(dependencies = {}) {
 
   function renderCards() {
     const ui = getUi();
+    const schedulePreview = ui.dashboardSchedulePreview || getElement("dashboardSchedulePreview");
     if (!ui.dashboardGrid) {
       return;
     }
     const currentUser = getCurrentUser();
     if (!currentUser) {
       ui.dashboardGrid.innerHTML = "";
+      if (schedulePreview) {
+        schedulePreview.innerHTML = "";
+      }
       return;
     }
     const users = getUsers().filter((user) => user.status === "active");
@@ -295,6 +300,12 @@ export function createDashboardRuntimeController(dependencies = {}) {
       )
       .join("");
     ui.dashboardGrid.innerHTML = `${homeCardsRenderer.render(context, staffOptions, appearance)}`;
+    if (schedulePreview) {
+      schedulePreview.innerHTML = scheduleMonthRenderer?.render?.({
+        state: homeContextSelectors?.getScheduleState?.(),
+        todayValue: context.todayValue || homeContextSelectors?.getTodayValue?.(),
+      }) || "";
+    }
     syncChatNotificationCursor();
   }
 
@@ -476,8 +487,10 @@ export function createDashboardRuntimeController(dependencies = {}) {
 
   function bindInteractions() {
     const ui = getUi();
+    const schedulePreview = ui.dashboardSchedulePreview || getElement("dashboardSchedulePreview");
     ui.dashboardGrid?.addEventListener("click", handleDashboardGridClick);
     ui.dashboardGrid?.addEventListener("submit", handleDashboardGridSubmit);
+    schedulePreview?.addEventListener("click", handleDashboardGridClick);
     documentRef.addEventListener("click", handleModalClick);
     documentRef.addEventListener("keydown", handleModalKeydown);
   }

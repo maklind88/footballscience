@@ -18,24 +18,30 @@ function createStorageHarness() {
 function createRuntime(overrides = {}) {
   const harness = createStorageHarness();
   const dashboardGrid = { innerHTML: "" };
+  const dashboardSchedulePreview = { innerHTML: "" };
   const calls = {
     renderProfileWorkspace: [],
     syncChatNotificationCursor: 0,
   };
   const controller = createDashboardRuntimeController({
     win: { setTimeout: (callback) => callback(), confirm: () => true },
-    getUi: () => ({ dashboardGrid }),
+    getUi: () => ({ dashboardGrid, dashboardSchedulePreview }),
     homeContextSelectors: {
       getSessionPlannerState: () => ({ sessions: {} }),
       getSessionTotalMinutes: (session) =>
         (session?.blocks || []).reduce((total, block) => total + Number(block.minutes || 0), 0),
       getTodayValue: () => "2026-06-07",
+      getScheduleState: () => ({ events: [{ id: "training" }] }),
       getHomeContext: (currentUser, users, tasks) => ({ currentUser, users, tasks }),
     },
     homeCardsRenderer: {
       render: (context, staffOptions, appearance) =>
         `<section data-task-count="${context.tasks.length}" data-theme="${appearance.theme || ""}">${staffOptions}</section>`,
       renderTutorialModal: ({ shouldShowNext }) => `<div data-tutorial="${shouldShowNext ? "next" : "once"}"></div>`,
+    },
+    scheduleMonthRenderer: {
+      render: ({ state, todayValue }) =>
+        `<aside data-schedule-events="${state.events.length}" data-schedule-today="${todayValue}"></aside>`,
     },
     readJson: harness.readJson,
     writeJson: harness.writeJson,
@@ -60,7 +66,7 @@ function createRuntime(overrides = {}) {
     },
     ...overrides,
   });
-  return { calls, controller, dashboardGrid, storage: harness.storage };
+  return { calls, controller, dashboardGrid, dashboardSchedulePreview, storage: harness.storage };
 }
 
 test("Home dashboard runtime preserves legacy task create/update/remove behavior", () => {
@@ -86,7 +92,7 @@ test("Home dashboard runtime preserves legacy task create/update/remove behavior
 });
 
 test("Home dashboard runtime renders Home from active users, tasks, and appearance state", () => {
-  const { calls, controller, dashboardGrid, storage } = createRuntime();
+  const { calls, controller, dashboardGrid, dashboardSchedulePreview, storage } = createRuntime();
   storage.set("appearance", JSON.stringify({ theme: "dark" }));
 
   controller.createTask({ title: "Personal note", scope: "personal" });
@@ -96,6 +102,8 @@ test("Home dashboard runtime renders Home from active users, tasks, and appearan
   expect(dashboardGrid.innerHTML).toContain('data-theme="dark"');
   expect(dashboardGrid.innerHTML).toContain('value="coach-1" selected');
   expect(dashboardGrid.innerHTML).not.toContain("coach-2");
+  expect(dashboardSchedulePreview.innerHTML).toContain('data-schedule-events="1"');
+  expect(dashboardSchedulePreview.innerHTML).toContain('data-schedule-today="2026-06-07"');
   expect(calls.syncChatNotificationCursor).toBe(1);
 
   controller.refreshSurfaces("Saved.");

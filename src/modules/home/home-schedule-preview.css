@@ -1,0 +1,252 @@
+.platform-home-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 19rem);
+  align-items: stretch;
+}
+
+.platform-home-hero > div:first-child {
+  align-self: center;
+  min-width: 0;
+}
+
+.dashboard-schedule-preview {
+  min-width: 0;
+}
+
+.dashboard-schedule-month-card {
+  height: 100%;
+  display: grid;
+  align-content: start;
+  gap: 0.38rem;
+  padding: 0.7rem 0.78rem 0.66rem;
+  border: 1px solid rgba(29, 29, 31, 0.09);
+  border-radius: 8px;
+  background: rgba(248, 249, 251, 0.88);
+}
+
+.dashboard-schedule-month-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dashboard-schedule-month-card > header p,
+.dashboard-schedule-month-card > header h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.dashboard-schedule-month-card > header p {
+  color: #77777d;
+  font-size: 0.61rem;
+  font-weight: 850;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.dashboard-schedule-month-card > header h2 {
+  margin-top: 0.12rem;
+  color: #1d1d1f;
+  font-size: 1.02rem;
+  line-height: 1.05;
+}
+
+.dashboard-schedule-weekdays,
+.dashboard-schedule-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.2rem;
+}
+
+.dashboard-schedule-weekdays span {
+  display: grid;
+  place-items: center;
+  min-height: 0.85rem;
+  color: #77777d;
+  font-size: 0.56rem;
+  font-weight: 850;
+}
+
+.dashboard-schedule-day,
+.dashboard-schedule-day-spacer {
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.dashboard-schedule-day {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid rgba(29, 29, 31, 0.07);
+  border-radius: 7px;
+  color: #6e6e73;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: none;
+  font: inherit;
+  font-size: 0.67rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.dashboard-schedule-day:hover,
+.dashboard-schedule-day:focus-visible {
+  border-color: rgba(29, 29, 31, 0.28);
+  background: #fff;
+  color: #1d1d1f;
+  outline: 0;
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.16);
+  transform: none;
+}
+
+.dashboard-schedule-day.has-event {
+  color: #173758;
+  border-color: rgba(10, 132, 255, 0.42);
+  background: rgba(10, 132, 255, 0.14);
+}
+
+.dashboard-schedule-day.is-match {
+  color: #8b231e;
+  border-color: rgba(255, 59, 48, 0.44);
+  background: rgba(255, 59, 48, 0.14);
+}
+
+.dashboard-schedule-day.is-travel {
+  color: #83510a;
+  border-color: rgba(255, 159, 10, 0.48);
+  background: rgba(255, 159, 10, 0.16);
+}
+
+.dashboard-schedule-day.is-recovery {
+  color: #15606b;
+  border-color: rgba(50, 173, 190, 0.45);
+  background: rgba(50, 173, 190, 0.15);
+}
+
+.dashboard-schedule-day.is-meeting {
+  color: #62408a;
+  border-color: rgba(124, 82, 174, 0.4);
+  background: rgba(124, 82, 174, 0.13);
+}
+
+.dashboard-schedule-day.is-off {
+  color: #68686d;
+  border-color: rgba(110, 110, 115, 0.3);
+  background: rgba(110, 110, 115, 0.1);
+}
+
+.dashboard-schedule-day.is-today {
+  box-shadow: inset 0 0 0 2px #1d1d1f;
+}
+
+.dashboard-schedule-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.22rem 0.48rem;
+  min-height: 0.75rem;
+  padding-top: 0.08rem;
+}
+
+.dashboard-schedule-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: #5f5f64;
+  font-size: 0.56rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.dashboard-schedule-legend i {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: #0a84ff;
+}
+
+.dashboard-schedule-legend .is-match i { background: #ff3b30; }
+.dashboard-schedule-legend .is-travel i { background: #ff9f0a; }
+.dashboard-schedule-legend .is-recovery i { background: #32adbe; }
+.dashboard-schedule-legend .is-meeting i { background: #7c52ae; }
+.dashboard-schedule-legend .is-off i { background: #8e8e93; }
+
+body.is-dark-mode .dashboard-schedule-month-card {
+  border-color: rgba(148, 163, 184, 0.26);
+  background: rgba(15, 23, 42, 0.68);
+}
+
+body.is-dark-mode .dashboard-schedule-month-card > header h2,
+body.is-dark-mode .dashboard-schedule-day:hover,
+body.is-dark-mode .dashboard-schedule-day:focus-visible {
+  color: #f1f5f9;
+}
+
+body.is-dark-mode .dashboard-schedule-month-card > header p,
+body.is-dark-mode .dashboard-schedule-weekdays span,
+body.is-dark-mode .dashboard-schedule-legend span {
+  color: #aeb8c7;
+}
+
+body.is-dark-mode .dashboard-schedule-day {
+  border-color: rgba(148, 163, 184, 0.18) !important;
+  color: #aeb8c7 !important;
+  background: rgba(15, 23, 42, 0.54) !important;
+}
+
+body.is-dark-mode .dashboard-schedule-day.has-event {
+  color: #b9d7ff !important;
+  border-color: rgba(90, 168, 255, 0.5) !important;
+  background: rgba(10, 132, 255, 0.2) !important;
+}
+
+body.is-dark-mode .dashboard-schedule-day.is-match {
+  color: #ffc1bd !important;
+  border-color: rgba(255, 105, 97, 0.52) !important;
+  background: rgba(255, 59, 48, 0.2) !important;
+}
+
+body.is-dark-mode .dashboard-schedule-day.is-travel {
+  color: #ffd28a !important;
+  border-color: rgba(255, 178, 56, 0.52) !important;
+  background: rgba(255, 159, 10, 0.2) !important;
+}
+
+body.is-dark-mode .dashboard-schedule-day.is-recovery {
+  color: #a5e7ef !important;
+  border-color: rgba(86, 196, 210, 0.5) !important;
+  background: rgba(50, 173, 190, 0.2) !important;
+}
+
+body.is-dark-mode .dashboard-schedule-day.is-meeting {
+  color: #dac2f3 !important;
+  border-color: rgba(168, 126, 211, 0.48) !important;
+  background: rgba(124, 82, 174, 0.22) !important;
+}
+
+body.is-dark-mode .dashboard-schedule-day.is-off {
+  color: #d1d5db !important;
+  border-color: rgba(174, 174, 178, 0.38) !important;
+  background: rgba(142, 142, 147, 0.18) !important;
+}
+
+body.is-dark-mode .dashboard-schedule-day.is-today {
+  box-shadow: inset 0 0 0 2px #f1f5f9;
+}
+
+@media (max-width: 680px) {
+  .platform-home-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-schedule-preview {
+    width: 100%;
+  }
+
+  .dashboard-schedule-month-card {
+    width: min(20rem, 100%);
+    margin: 0 auto;
+  }
+}

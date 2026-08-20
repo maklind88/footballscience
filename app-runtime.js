@@ -33,6 +33,7 @@ import {
   mergeDashboardPresentationStatePreservingLocalEdits,
 } from "./src/modules/presentation-mode/index.mjs";
 import { formatMonthYearLabel, formatScheduleBlockSummary as formatScheduleBlockSummaryFromModule, formatScheduleMonthName, getScheduleDayWarnings as getScheduleDayWarningsFromModule, getScheduleMainEvent as getScheduleMainEventFromModule, isScheduleSessionEvent as isScheduleSessionEventFromModule } from "./src/modules/schedule/schedule-selectors.mjs";
+import { createScheduleHomeMonthRenderer } from "./src/modules/schedule/schedule-home-month-renderer.mjs";
 import {
   cloneScheduleState,
   createDefaultScheduleState,
@@ -631,6 +632,7 @@ const dashboardHomeCardsRenderer = createDashboardHomeCardsRenderer({
   renderTaskList: dashboardTaskListRenderer.renderTaskList,
   resolveUserLabel: (userId, users) => getDashboardUserLabel(userId, users),
   });
+const scheduleHomeMonthRenderer = createScheduleHomeMonthRenderer({ escapeHtml });
 const presentationModeRenderer = createPresentationModeRenderer({
 escapeHtml,
 renderExerciseVisual: renderSessionPlannerExerciseVisual,
@@ -643,6 +645,7 @@ getElement,
 getUi: () => ui,
 homeContextSelectors: dashboardHomeContextSelectors,
 homeCardsRenderer: dashboardHomeCardsRenderer,
+scheduleMonthRenderer: scheduleHomeMonthRenderer,
 appearanceStorageKey: platformAppearanceStorageKey,
 readJson: readDashboardJson,
 writeJson: writeDashboardJson,
@@ -666,7 +669,7 @@ if (dateValue) {
 if (!scheduleState) {
 scheduleState = readScheduleState();
 }
-selectScheduleDate(dateValue);
+scheduleWorkspaceController?.selectDate(dateValue);
 }
 },
 openPeriodizationDate: (dateValue) => {

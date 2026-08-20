@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 import {
   createDefaultScheduleState,
   createScheduleDayClipboard,
+  createScheduleHomeMonthRenderer,
   createScheduleWorkspaceController,
   createScheduleWorkspaceRenderer,
   moveScheduleEventToDate,
@@ -31,10 +32,39 @@ test("Schedule extraction owns the required module file slots", () => {
     "src/modules/schedule/schedule-actions.mjs",
     "src/modules/schedule/schedule-adapter.mjs",
     "src/modules/schedule/schedule-controller.mjs",
+    "src/modules/schedule/schedule-home-month-renderer.mjs",
     "src/modules/schedule/schedule.css",
   ].forEach((path) => {
     expect(existsSync(resolve(root, path)), `${path} should exist`).toBe(true);
   });
+});
+
+test("Schedule renders the current month preview for Home from the shared schedule state", () => {
+  const renderer = createScheduleHomeMonthRenderer({
+    getNow: () => new Date(2026, 7, 19),
+  });
+  const markup = renderer.render({
+    todayValue: "2026-08-19",
+    state: {
+      visibleEventTypes: ["training", "match", "travel"],
+      events: [
+        { id: "training", date: "2026-08-19", type: "training", title: "Training" },
+        { id: "match", date: "2026-08-22", type: "match", title: "Match" },
+        { id: "travel", date: "2026-08-23", type: "travel", title: "Travel" },
+        { id: "hidden", date: "2026-08-24", type: "recovery", title: "Recovery" },
+        { id: "next-month", date: "2026-09-01", type: "training", title: "Training" },
+      ],
+    },
+  });
+
+  expect(markup).toContain("<h2>August</h2>");
+  expect(markup).toContain('data-dashboard-open-schedule-date="2026-08-19"');
+  expect(markup).toContain('class="dashboard-schedule-day is-today has-event is-training"');
+  expect(markup).toContain('data-dashboard-open-schedule-date="2026-08-22"');
+  expect(markup).toContain("is-match");
+  expect(markup).toContain("is-travel");
+  expect(markup).not.toContain("Recovery");
+  expect(markup).not.toContain("2026-09-01");
 });
 
 test("Schedule app integration delegates controller wiring to the module", () => {
@@ -58,6 +88,8 @@ test("Schedule app integration delegates controller wiring to the module", () =>
   expect(app).not.toContain("data-edit-schedule-event");
   expect(app).not.toContain("function renderScheduleEventCard(event");
   expect(app).not.toContain("function renderScheduleMonthDay(date");
+  expect(app).toContain("scheduleWorkspaceController?.selectDate(dateValue);");
+  expect(app).not.toContain("selectScheduleDate(dateValue);");
 });
 
 function createFakeElement(dataset = {}) {

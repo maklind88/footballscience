@@ -62,6 +62,8 @@ export function createDashboardRuntimeController(dependencies = {}) {
 
   let modalAfterClose = null;
   let popupsScheduledForUserId = null;
+  let schedulePreviewMonthValue = "";
+  let schedulePreviewSelectedDate = "";
 
   function normalizeTask(task) {
     const currentUser = getCurrentUser();
@@ -276,6 +278,22 @@ export function createDashboardRuntimeController(dependencies = {}) {
     }, 350);
   }
 
+  function renderSchedulePreview(options = {}) {
+    const preview = options.preview || getElement("dashboardSchedulePreview") || getUi().dashboardSchedulePreview;
+    if (!preview) {
+      return;
+    }
+    preview.innerHTML = scheduleMonthRenderer?.render?.({
+      state: homeContextSelectors?.getScheduleState?.(),
+      todayValue: options.todayValue || homeContextSelectors?.getTodayValue?.(),
+      monthValue: schedulePreviewMonthValue,
+      selectedDate: schedulePreviewSelectedDate,
+    }) || "";
+    if (options.focusSelector) {
+      preview.querySelector?.(options.focusSelector)?.focus?.();
+    }
+  }
+
   function renderCards() {
     const ui = getUi();
     const schedulePreview = getElement("dashboardSchedulePreview") || ui.dashboardSchedulePreview;
@@ -302,10 +320,10 @@ export function createDashboardRuntimeController(dependencies = {}) {
     ui.dashboardGrid.innerHTML = `${homeCardsRenderer.render(context, staffOptions, appearance)}`;
     const renderedSchedulePreview = getElement("dashboardSchedulePreview") || schedulePreview;
     if (renderedSchedulePreview) {
-      renderedSchedulePreview.innerHTML = scheduleMonthRenderer?.render?.({
-        state: homeContextSelectors?.getScheduleState?.(),
+      renderSchedulePreview({
+        preview: renderedSchedulePreview,
         todayValue: context.todayValue || homeContextSelectors?.getTodayValue?.(),
-      }) || "";
+      });
     }
     syncChatNotificationCursor();
   }
@@ -330,6 +348,46 @@ export function createDashboardRuntimeController(dependencies = {}) {
     }
     if (event.target.closest("[data-dashboard-action='open-tutorial']")) {
       showTutorialModal();
+      return true;
+    }
+    const schedulePreviousButton = event.target.closest("[data-dashboard-schedule-prev]");
+    if (schedulePreviousButton) {
+      schedulePreviewMonthValue = scheduleMonthRenderer?.shiftMonthValue?.(
+        schedulePreviousButton.dataset.dashboardScheduleMonth,
+        -1
+      ) || "";
+      schedulePreviewSelectedDate = "";
+      renderSchedulePreview({ focusSelector: "[data-dashboard-schedule-prev]" });
+      return true;
+    }
+    const scheduleNextButton = event.target.closest("[data-dashboard-schedule-next]");
+    if (scheduleNextButton) {
+      schedulePreviewMonthValue = scheduleMonthRenderer?.shiftMonthValue?.(
+        scheduleNextButton.dataset.dashboardScheduleMonth,
+        1
+      ) || "";
+      schedulePreviewSelectedDate = "";
+      renderSchedulePreview({ focusSelector: "[data-dashboard-schedule-next]" });
+      return true;
+    }
+    if (event.target.closest("[data-dashboard-schedule-today]")) {
+      schedulePreviewMonthValue = "";
+      schedulePreviewSelectedDate = getTodayValue();
+      renderSchedulePreview({ focusSelector: "[data-dashboard-close-schedule-day]" });
+      return true;
+    }
+    const selectedScheduleDateButton = event.target.closest("[data-dashboard-select-schedule-date]");
+    if (selectedScheduleDateButton) {
+      schedulePreviewSelectedDate = selectedScheduleDateButton.dataset.dashboardSelectScheduleDate;
+      renderSchedulePreview({ focusSelector: "[data-dashboard-close-schedule-day]" });
+      return true;
+    }
+    if (event.target.closest("[data-dashboard-close-schedule-day]")) {
+      const selectedDate = schedulePreviewSelectedDate;
+      schedulePreviewSelectedDate = "";
+      renderSchedulePreview({
+        focusSelector: `[data-dashboard-select-schedule-date="${selectedDate}"]`,
+      });
       return true;
     }
     const toggleTaskButton = event.target.closest("[data-dashboard-toggle-task]");
@@ -471,6 +529,16 @@ export function createDashboardRuntimeController(dependencies = {}) {
   function handleModalKeydown(event) {
     if (event.key !== "Escape") {
       return false;
+    }
+    const schedulePreview = getElement("dashboardSchedulePreview") || getUi().dashboardSchedulePreview;
+    if (schedulePreviewSelectedDate && schedulePreview) {
+      const selectedDate = schedulePreviewSelectedDate;
+      schedulePreviewSelectedDate = "";
+      renderSchedulePreview({
+        preview: schedulePreview,
+        focusSelector: `[data-dashboard-select-schedule-date="${selectedDate}"]`,
+      });
+      return true;
     }
     const modalRoot = getElement("dashboardModalRoot");
     if (!modalRoot || modalRoot.hidden) {

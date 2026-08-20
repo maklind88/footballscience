@@ -2877,7 +2877,7 @@ test("Schedule Today anchors overview to the real current date", async ({ page }
     });
 });
 
-test("Home presents meetings and Schedule as equal desktop columns and opens the selected date", async ({ page }) => {
+test("Home calendar keeps equal columns, browses months, and opens selected day details", async ({ page }) => {
   await page.addInitScript(({ key }) => {
     const realDate = Date;
     const fixedNow = new realDate("2026-05-09T12:00:00-04:00").getTime();
@@ -2936,7 +2936,26 @@ test("Home presents meetings and Schedule as equal desktop columns and opens the
   });
   expect(Math.abs(calendarDaySize.width - calendarDaySize.height)).toBeLessThanOrEqual(1);
 
-  await presentationBand.locator('[data-dashboard-open-schedule-date="2026-05-16"]').click();
+  const calendar = presentationBand.locator("#dashboardSchedulePreview");
+  await expect(calendar.locator("[data-dashboard-schedule-prev]")).toBeVisible();
+  await expect(calendar.locator("[data-dashboard-schedule-today]")).toBeVisible();
+  await expect(calendar.locator("[data-dashboard-schedule-next]")).toBeVisible();
+
+  await calendar.locator("[data-dashboard-schedule-next]").click();
+  await expect(calendar.locator("h2")).toHaveText("June");
+  await calendar.locator("[data-dashboard-schedule-prev]").click();
+  await expect(calendar.locator("h2")).toHaveText("May");
+  await calendar.locator("[data-dashboard-schedule-next]").click();
+  await calendar.locator("[data-dashboard-schedule-today]").click();
+  await expect(calendar.locator("h2")).toHaveText("May");
+  await expect(calendar.locator("#dashboardScheduleDayTitle")).toHaveText("Saturday 9 May");
+  await calendar.locator("[data-dashboard-close-schedule-day]").click();
+
+  await calendar.locator('[data-dashboard-select-schedule-date="2026-05-16"]').click();
+  await expect(page.locator('[data-workspace-view="home"].is-active')).toBeVisible();
+  await expect(calendar.locator("#dashboardScheduleDayTitle")).toHaveText("Saturday 16 May");
+  await expect(calendar.locator(".dashboard-schedule-day-event")).toContainText("Home Match");
+  await calendar.locator('[data-dashboard-open-schedule-date="2026-05-16"]').click();
 
   await expect(page.locator('[data-workspace-view="schedule"].is-active')).toBeVisible();
   await expect(page.locator("#scheduleOverviewViewButton")).toHaveAttribute("aria-pressed", "true");

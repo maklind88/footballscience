@@ -58,13 +58,43 @@ test("Schedule renders the current month preview for Home from the shared schedu
   });
 
   expect(markup).toContain("<h2>August</h2>");
-  expect(markup).toContain('data-dashboard-open-schedule-date="2026-08-19"');
+  expect(markup).toContain('data-dashboard-select-schedule-date="2026-08-19"');
   expect(markup).toContain('class="dashboard-schedule-day is-today has-event is-training"');
-  expect(markup).toContain('data-dashboard-open-schedule-date="2026-08-22"');
+  expect(markup).toContain('data-dashboard-select-schedule-date="2026-08-22"');
+  expect(markup).toContain("data-dashboard-schedule-prev");
+  expect(markup).toContain("data-dashboard-schedule-today");
+  expect(markup).toContain("data-dashboard-schedule-next");
   expect(markup).toContain("is-match");
   expect(markup).toContain("is-travel");
   expect(markup).not.toContain("Recovery");
   expect(markup).not.toContain("2026-09-01");
+
+  const selectedMarkup = renderer.render({
+    todayValue: "2026-08-19",
+    monthValue: renderer.shiftMonthValue("2026-08-01", 1),
+    selectedDate: "2026-09-01",
+    state: {
+      visibleEventTypes: ["training"],
+      events: [
+        {
+          id: "next-month",
+          date: "2026-09-01",
+          time: "10:30",
+          type: "training",
+          title: "Next month training",
+          note: "Pitch 2",
+        },
+      ],
+    },
+  });
+
+  expect(selectedMarkup).toContain("<h2>September</h2>");
+  expect(selectedMarkup).toContain("Tuesday, 1 September");
+  expect(selectedMarkup).toContain("Next month training");
+  expect(selectedMarkup).toContain("10:30");
+  expect(selectedMarkup).toContain("Pitch 2");
+  expect(selectedMarkup).toContain('data-dashboard-open-schedule-date="2026-09-01"');
+  expect(selectedMarkup).toContain('class="dashboard-schedule-day is-selected has-event is-training"');
 });
 
 test("Schedule app integration delegates controller wiring to the module", () => {

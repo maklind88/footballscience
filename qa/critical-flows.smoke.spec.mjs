@@ -2877,7 +2877,7 @@ test("Schedule Today anchors overview to the real current date", async ({ page }
     });
 });
 
-test("Home calendar keeps equal columns, browses months, and opens selected day details", async ({ page }) => {
+test("Home stacks compact meeting cards beside the calendar and opens selected day details", async ({ page }) => {
   await page.addInitScript(({ key }) => {
     const realDate = Date;
     const fixedNow = new realDate("2026-05-09T12:00:00-04:00").getTime();
@@ -2915,21 +2915,22 @@ test("Home calendar keeps equal columns, browses months, and opens selected day 
   const presentationBand = page.locator(".dashboard-presentation-band");
   await expect(presentationBand.locator(".dashboard-presentation-card")).toHaveCount(2);
   await expect(presentationBand.locator("#dashboardSchedulePreview")).toBeVisible();
-  const columnBoxes = await presentationBand
+  const layoutBoxes = await presentationBand
     .locator(":scope > .dashboard-presentation-card, :scope > .dashboard-schedule-preview")
     .evaluateAll((columns) =>
       columns.map((column) => {
         const rect = column.getBoundingClientRect();
-        return { width: rect.width, height: rect.height };
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
       })
     );
-  expect(columnBoxes).toHaveLength(3);
-  expect(
-    Math.max(...columnBoxes.map(({ width }) => width)) - Math.min(...columnBoxes.map(({ width }) => width))
-  ).toBeLessThanOrEqual(1);
-  expect(
-    Math.max(...columnBoxes.map(({ height }) => height)) - Math.min(...columnBoxes.map(({ height }) => height))
-  ).toBeLessThanOrEqual(1);
+  expect(layoutBoxes).toHaveLength(3);
+  const [teamMeeting, technicalMeeting, calendarBox] = layoutBoxes;
+  expect(Math.abs(teamMeeting.x - technicalMeeting.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(teamMeeting.width - technicalMeeting.width)).toBeLessThanOrEqual(1);
+  expect(technicalMeeting.y).toBeGreaterThan(teamMeeting.y + teamMeeting.height);
+  expect(calendarBox.x).toBeGreaterThan(teamMeeting.x + teamMeeting.width);
+  expect(calendarBox.height).toBeGreaterThan(teamMeeting.height * 1.9);
+  expect(teamMeeting.width).toBeGreaterThan(calendarBox.width * 1.8);
   const calendarDaySize = await presentationBand.locator(".dashboard-schedule-day").first().evaluate((day) => {
     const rect = day.getBoundingClientRect();
     return { width: rect.width, height: rect.height };

@@ -514,7 +514,7 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
       markerWidth: Number(marker?.getAttribute("markerWidth") || 0),
     };
   });
-  expect(routeVisualMetrics.strokeWidth).toBeGreaterThanOrEqual(1.2);
+  expect(routeVisualMetrics.strokeWidth).toBeGreaterThanOrEqual(1.5);
   expect(routeVisualMetrics.markerWidth).toBeGreaterThanOrEqual(5);
   const handleVisualMetrics = await runControls.locator('.spr-drawing-handle-target').first().evaluate((target) => {
     const visible = target.querySelector(".spr-drawing-handle");

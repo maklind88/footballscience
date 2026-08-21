@@ -172,7 +172,7 @@
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.2;
+  stroke-width: 1.5;
   vector-effect: non-scaling-stroke;
   pointer-events: stroke;
 }

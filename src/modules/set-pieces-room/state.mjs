@@ -2,7 +2,12 @@ import {
   DEFAULT_ACTION_DURATION_MS,
   DEFAULT_PHASE_DURATION_MS,
   DEFAULT_PHASE_HOLD_MS,
+  DEFAULT_SET_PIECE_TEXT_BACKGROUND,
+  DEFAULT_SET_PIECE_TEXT_COLOR,
+  DEFAULT_SET_PIECE_TEXT_FONT_SIZE,
   DEFAULT_SET_PIECE_ZONE_COLOR,
+  MAX_SET_PIECE_TEXT_FONT_SIZE,
+  MIN_SET_PIECE_TEXT_FONT_SIZE,
   SET_PIECES_MAX_PHASES,
   SET_PIECES_MAX_PLAYS,
   SET_PIECES_MAX_VARIANTS,
@@ -10,6 +15,8 @@ import {
   setPieceDrawingTypes,
   setPiecePlayerMarkerModeOptions,
   setPieceSubPhaseOptions,
+  setPieceTextBackgrounds,
+  setPieceTextColors,
   setPieceZoneColors,
 } from "./constants.mjs";
 import { normalizeSetPiecePoint } from "./geometry.mjs";
@@ -134,7 +141,7 @@ function normalizeDrawing(drawing = {}) {
   const type = setPieceDrawingTypes.has(drawing.type) ? drawing.type : "run";
   const start = normalizeSetPiecePoint({ x: drawing.startX, y: drawing.startY });
   const end = normalizeSetPiecePoint({ x: drawing.endX, y: drawing.endY });
-  return {
+  const normalized = {
     id: text(drawing.id, 100) || createSetPieceId("drawing"),
     type,
     startX: start.x,
@@ -148,6 +155,21 @@ function normalizeDrawing(drawing = {}) {
       ? drawing.zoneColor
       : type === "zone" ? DEFAULT_SET_PIECE_ZONE_COLOR : "",
   };
+  if (type === "text") {
+    normalized.fontSize = number(
+      drawing.fontSize,
+      DEFAULT_SET_PIECE_TEXT_FONT_SIZE,
+      MIN_SET_PIECE_TEXT_FONT_SIZE,
+      MAX_SET_PIECE_TEXT_FONT_SIZE
+    );
+    normalized.textColor = setPieceTextColors.has(drawing.textColor)
+      ? drawing.textColor
+      : DEFAULT_SET_PIECE_TEXT_COLOR;
+    normalized.textBackground = setPieceTextBackgrounds.has(drawing.textBackground)
+      ? drawing.textBackground
+      : DEFAULT_SET_PIECE_TEXT_BACKGROUND;
+  }
+  return normalized;
 }
 
 function normalizeAssignmentList(candidate = []) {

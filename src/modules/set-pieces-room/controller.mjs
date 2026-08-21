@@ -588,7 +588,7 @@ export function createSetPiecesRoomController(options = {}) {
       if (element?.kind === "home-player") return assignmentController.updateRole(element.id, rawValue);
     }
     commit(() => {
-      const numericFields = new Set(["durationMs", "holdMs", "delayMs", "rotation", "curve"]);
+      const numericFields = new Set(["durationMs", "holdMs", "delayMs", "rotation", "curve", "fontSize"]);
       let value = numericFields.has(field) ? Number(rawValue) : rawValue;
       if (scope === "play") play[field] = value;
       if (scope === "variant") variant[field] = value;

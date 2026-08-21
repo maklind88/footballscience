@@ -1,4 +1,10 @@
-import { DEFAULT_ACTION_DURATION_MS, setPieceDrawingTypes } from "./constants.mjs";
+import {
+  DEFAULT_ACTION_DURATION_MS,
+  DEFAULT_SET_PIECE_TEXT_BACKGROUND,
+  DEFAULT_SET_PIECE_TEXT_COLOR,
+  DEFAULT_SET_PIECE_TEXT_FONT_SIZE,
+  setPieceDrawingTypes,
+} from "./constants.mjs";
 import { getSetPieceAssignedSlot, getSetPieceAssignment } from "./assignments.mjs";
 import {
   getNearestSetPieceElement,
@@ -232,6 +238,9 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       actorId: "",
       label: "Text",
       curve: 0,
+      fontSize: DEFAULT_SET_PIECE_TEXT_FONT_SIZE,
+      textColor: DEFAULT_SET_PIECE_TEXT_COLOR,
+      textBackground: DEFAULT_SET_PIECE_TEXT_BACKGROUND,
     };
     options.commit(() => {
       phase.drawings.push(drawing);

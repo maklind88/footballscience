@@ -86,6 +86,32 @@ export const setPieceZoneColorOptions = Object.freeze([
 
 export const setPieceZoneColors = new Set(setPieceZoneColorOptions.map((option) => option.value));
 
+export const DEFAULT_SET_PIECE_TEXT_FONT_SIZE = 1.65;
+export const MIN_SET_PIECE_TEXT_FONT_SIZE = 1.2;
+export const MAX_SET_PIECE_TEXT_FONT_SIZE = 3;
+
+export const setPieceTextColorOptions = Object.freeze([
+  { value: "white", label: "White" },
+  { value: "dark", label: "Dark" },
+  { value: "yellow", label: "Yellow" },
+  { value: "blue", label: "Blue" },
+  { value: "red", label: "Red" },
+]);
+
+export const setPieceTextBackgroundOptions = Object.freeze([
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+  { value: "yellow", label: "Yellow" },
+  { value: "blue", label: "Blue" },
+  { value: "red", label: "Red" },
+  { value: "none", label: "No background" },
+]);
+
+export const DEFAULT_SET_PIECE_TEXT_COLOR = "white";
+export const DEFAULT_SET_PIECE_TEXT_BACKGROUND = "dark";
+export const setPieceTextColors = new Set(setPieceTextColorOptions.map((option) => option.value));
+export const setPieceTextBackgrounds = new Set(setPieceTextBackgroundOptions.map((option) => option.value));
+
 export const setPieceLayerOptions = Object.freeze([
   { value: "home", label: "Own team" },
   { value: "opponent", label: "Opponent" },

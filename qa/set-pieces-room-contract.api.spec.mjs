@@ -845,10 +845,13 @@ test("text annotations render as compact movable labels without route transform 
 
   expect(getSetPieceTextAnnotationMetrics("Block goalkeeper")).toEqual({
     label: "Block goalkeeper",
-    width: 20.2,
-    height: 5,
+    width: 17.58,
+    height: 3.85,
+    fontSize: 1.65,
   });
-  expect(editable).toContain("spr-drawing is-text is-selected");
+  expect(editable).toContain("spr-drawing is-text");
+  expect(editable).toContain("is-text-color-white is-text-background-dark is-selected");
+  expect(editable).toContain("--spr-text-font-size:1.65px");
   expect(editable).toContain("spr-text-annotation-surface");
   expect(editable).toContain(">Block goalkeeper</text>");
   expect(editable).toContain('aria-label="Text annotation: Block goalkeeper"');
@@ -856,6 +859,20 @@ test("text annotations render as compact movable labels without route transform 
   expect(editable).not.toContain("spr-drawing-controls is-text");
   expect(presenting).toContain(">Block goalkeeper</text>");
   expect(presenting).not.toContain('tabindex="0"');
+});
+
+test("text annotations normalize compact typography and safe color defaults", () => {
+  const play = createSetPiecePlay({ title: "Annotation styles" });
+  play.variants[0].phases[0].drawings.push(
+    { id: "legacy-text", type: "text", startX: 40, startY: 20, endX: 40, endY: 20, label: "Legacy" },
+    { id: "styled-text", type: "text", startX: 50, startY: 20, endX: 50, endY: 20, label: "Styled", fontSize: 2.4, textColor: "blue", textBackground: "light" },
+    { id: "unsafe-text", type: "text", startX: 60, startY: 20, endX: 60, endY: 20, label: "Unsafe", fontSize: 99, textColor: "purple", textBackground: "gradient" }
+  );
+  const drawings = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] }).plays[0].variants[0].phases[0].drawings;
+
+  expect(drawings[0]).toMatchObject({ fontSize: 1.65, textColor: "white", textBackground: "dark" });
+  expect(drawings[1]).toMatchObject({ fontSize: 2.4, textColor: "blue", textBackground: "light" });
+  expect(drawings[2]).toMatchObject({ fontSize: 3, textColor: "white", textBackground: "dark" });
 });
 
 test("text annotations survive state normalization with their point and label", () => {

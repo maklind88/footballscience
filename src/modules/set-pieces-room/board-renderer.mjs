@@ -6,7 +6,17 @@ import {
 } from "./geometry.mjs";
 import { renderSetPieceBoardBallSymbol } from "./ball-symbol.mjs";
 import { getSetPieceDrawingControlPoint, getSetPieceDrawingPath } from "./drawing-geometry.mjs";
-import { DEFAULT_SET_PIECE_ZONE_COLOR, setPieceZoneColors } from "./constants.mjs";
+import {
+  DEFAULT_SET_PIECE_TEXT_BACKGROUND,
+  DEFAULT_SET_PIECE_TEXT_COLOR,
+  DEFAULT_SET_PIECE_TEXT_FONT_SIZE,
+  DEFAULT_SET_PIECE_ZONE_COLOR,
+  MAX_SET_PIECE_TEXT_FONT_SIZE,
+  MIN_SET_PIECE_TEXT_FONT_SIZE,
+  setPieceTextBackgrounds,
+  setPieceTextColors,
+  setPieceZoneColors,
+} from "./constants.mjs";
 
 export function escapeSetPieceHtml(value = "") {
   return String(value ?? "")
@@ -17,13 +27,19 @@ export function escapeSetPieceHtml(value = "") {
     .replaceAll("'", "&#039;");
 }
 
-export function getSetPieceTextAnnotationMetrics(label = "") {
+export function getSetPieceTextAnnotationMetrics(label = "", requestedFontSize = DEFAULT_SET_PIECE_TEXT_FONT_SIZE) {
   const source = String(label || "Text").trim() || "Text";
   const visibleLabel = source.length > 34 ? `${source.slice(0, 31)}...` : source;
+  const numericFontSize = Number(requestedFontSize);
+  const fontSize = Math.min(
+    MAX_SET_PIECE_TEXT_FONT_SIZE,
+    Math.max(MIN_SET_PIECE_TEXT_FONT_SIZE, Number.isFinite(numericFontSize) ? numericFontSize : DEFAULT_SET_PIECE_TEXT_FONT_SIZE)
+  );
   return {
     label: visibleLabel,
-    width: Math.min(38, Math.max(9, visibleLabel.length * 1.05 + 3.4)),
-    height: 5,
+    width: Number(Math.min(38, Math.max(7, visibleLabel.length * fontSize * .56 + 2.8)).toFixed(2)),
+    height: Number((fontSize + 2.2).toFixed(2)),
+    fontSize,
   };
 }
 
@@ -123,7 +139,16 @@ function renderDrawing(drawing = {}, options = {}) {
   const selected = options.selectedDrawingIds?.has(drawing.id) || drawing.id === options.selectedDrawingId;
   const preview = Boolean(options.preview);
   const zoneColor = setPieceZoneColors.has(drawing.zoneColor) ? drawing.zoneColor : DEFAULT_SET_PIECE_ZONE_COLOR;
-  const classes = ["spr-drawing", `is-${drawing.type}`, drawing.type === "zone" ? `is-zone-${zoneColor}` : "", selected ? "is-selected" : "", preview ? "is-preview" : ""]
+  const textColor = setPieceTextColors.has(drawing.textColor) ? drawing.textColor : DEFAULT_SET_PIECE_TEXT_COLOR;
+  const textBackground = setPieceTextBackgrounds.has(drawing.textBackground) ? drawing.textBackground : DEFAULT_SET_PIECE_TEXT_BACKGROUND;
+  const classes = [
+    "spr-drawing",
+    `is-${drawing.type}`,
+    drawing.type === "zone" ? `is-zone-${zoneColor}` : "",
+    drawing.type === "text" ? `is-text-color-${textColor} is-text-background-${textBackground}` : "",
+    selected ? "is-selected" : "",
+    preview ? "is-preview" : "",
+  ]
     .filter(Boolean)
     .join(" ");
   const interactive = options.interactive && !preview;
@@ -135,11 +160,11 @@ function renderDrawing(drawing = {}, options = {}) {
     : "";
   const common = `class="${classes}" data-drawing-id="${escapeSetPieceHtml(drawing.id || "preview")}"${accessibility}`;
   if (drawing.type === "text") {
-    const metrics = getSetPieceTextAnnotationMetrics(drawing.label);
+    const metrics = getSetPieceTextAnnotationMetrics(drawing.label, drawing.fontSize);
     const orientation = options.halfPitch ? ' transform="rotate(90)"' : "";
     return `<g ${common} transform="translate(${Number(drawing.startX || 0)} ${Number(drawing.startY || 0)})" data-set-piece-text-annotation>
-      <g${orientation}><g class="spr-text-annotation-content">
-        <rect x="${-metrics.width / 2}" y="${-metrics.height / 2}" width="${metrics.width}" height="${metrics.height}" rx="1.2" class="spr-text-annotation-hit"></rect>
+      <g${orientation}><g class="spr-text-annotation-content" style="--spr-text-font-size:${metrics.fontSize}px">
+        <rect x="${-metrics.width / 2 - .8}" y="${-metrics.height / 2 - .8}" width="${metrics.width + 1.6}" height="${metrics.height + 1.6}" rx="1.5" class="spr-text-annotation-hit"></rect>
         <rect x="${-metrics.width / 2}" y="${-metrics.height / 2}" width="${metrics.width}" height="${metrics.height}" rx="1.2" class="spr-text-annotation-surface"></rect>
         <text y=".12" class="spr-text-annotation-label">${escapeSetPieceHtml(metrics.label)}</text>
       </g></g>

@@ -315,6 +315,15 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   await textField.fill("Block goalkeeper");
   await textField.press("Tab");
   await expect(textAnnotation.locator(".spr-text-annotation-label")).toHaveText("Block goalkeeper");
+  const textSize = page.getByRole("slider", { name: "Text size" });
+  await expect(textSize).toHaveValue("1.65");
+  await textSize.fill("2.25");
+  await page.getByRole("radiogroup", { name: "Text color" }).getByRole("radio", { name: "Blue" }).check();
+  await page.getByRole("radiogroup", { name: "Background" }).getByRole("radio", { name: "Light" }).check();
+  await expect(textAnnotation).toHaveClass(/is-text-color-blue/);
+  await expect(textAnnotation).toHaveClass(/is-text-background-light/);
+  await expect(textAnnotation.locator(".spr-text-annotation-label")).toHaveCSS("font-size", "2.25px");
+  await expect(textAnnotation.locator(".spr-text-annotation-surface")).toHaveCSS("filter", "none");
   await expect(cornerBoard.locator(".spr-drawing-controls")).toHaveCount(0);
   const textTransformBefore = await textAnnotation.getAttribute("transform");
   await page.getByRole("button", { name: "Close details" }).click();
@@ -331,9 +340,14 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
     return state.plays?.flatMap((play) => play.variants || [])
       .flatMap((variant) => variant.phases || [])
       .flatMap((phase) => phase.drawings || [])
-      .find((drawing) => drawing.type === "text")?.label;
+      .find((drawing) => drawing.type === "text");
   });
-  expect(savedText).toBe("Block goalkeeper");
+  expect(savedText).toMatchObject({
+    label: "Block goalkeeper",
+    fontSize: 2.25,
+    textColor: "blue",
+    textBackground: "light",
+  });
 
   for (const tool of ["Select", "Opponent", "Ball", "Run", "Pass", "Dribble", "Block", "Press", "Track", "Zone", "Text"]) {
     const button = page.getByRole("button", { name: tool, exact: true });

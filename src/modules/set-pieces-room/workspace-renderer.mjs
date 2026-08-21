@@ -1,4 +1,9 @@
 import {
+  DEFAULT_SET_PIECE_TEXT_BACKGROUND,
+  DEFAULT_SET_PIECE_TEXT_COLOR,
+  DEFAULT_SET_PIECE_TEXT_FONT_SIZE,
+  MAX_SET_PIECE_TEXT_FONT_SIZE,
+  MIN_SET_PIECE_TEXT_FONT_SIZE,
   DEFAULT_SET_PIECE_ZONE_COLOR,
   setPieceContextOptions,
   setPieceLayerOptions,
@@ -6,6 +11,8 @@ import {
   setPiecePitchViewOptions,
   setPieceRestartOptions,
   setPieceSubPhaseOptions,
+  setPieceTextBackgroundOptions,
+  setPieceTextColorOptions,
   setPieceToolOptions,
   setPieceZoneColorOptions,
   setPieceZoneColors,
@@ -28,6 +35,19 @@ import { renderSetPiecePlayerMarkerMenu } from "./player-marker-menu.mjs";
 
 function optionsMarkup(options = [], value = "") {
   return options.map((option) => `<option value="${escapeSetPieceHtml(option.value)}" ${option.value === value ? "selected" : ""}>${escapeSetPieceHtml(option.label)}</option>`).join("");
+}
+
+function renderTextStyleOptions({ field, legend, options, value, drawingId, kind, canEdit }) {
+  return `<fieldset class="spr-text-style-field is-${kind}"><legend>${escapeSetPieceHtml(legend)}</legend><div class="spr-text-style-options" role="radiogroup" aria-label="${escapeSetPieceHtml(legend)}">
+    ${options.map((option) => `<label class="is-${escapeSetPieceHtml(option.value)}" title="${escapeSetPieceHtml(option.label)}"><input type="radio" name="set-piece-${escapeSetPieceHtml(field)}-${escapeSetPieceHtml(drawingId)}" value="${escapeSetPieceHtml(option.value)}" data-set-piece-drawing-field="${escapeSetPieceHtml(field)}" aria-label="${escapeSetPieceHtml(option.label)}" ${option.value === value ? "checked" : ""} ${canEdit ? "" : "disabled"}><span aria-hidden="true">A</span></label>`).join("")}
+  </div></fieldset>`;
+}
+
+function getTextSizeLabel(fontSize) {
+  if (fontSize <= 1.45) return "Small";
+  if (fontSize <= 1.95) return "Compact";
+  if (fontSize <= 2.45) return "Medium";
+  return "Large";
 }
 
 function teamInitials(teamName = "Team") {
@@ -342,6 +362,9 @@ function renderDrawingInspector(drawing, phase, canEdit, canDelete) {
   const actors = getSetPieceDrawingActors(phase, drawing.type);
   const zoneColor = setPieceZoneColors.has(drawing.zoneColor) ? drawing.zoneColor : DEFAULT_SET_PIECE_ZONE_COLOR;
   const isText = drawing.type === "text";
+  const fontSize = Number(drawing.fontSize || DEFAULT_SET_PIECE_TEXT_FONT_SIZE);
+  const textColor = drawing.textColor || DEFAULT_SET_PIECE_TEXT_COLOR;
+  const textBackground = drawing.textBackground || DEFAULT_SET_PIECE_TEXT_BACKGROUND;
   const actorField = actors.length ? `<label class="spr-field"><span>Linked actor</span><select data-set-piece-drawing-field="actorId" ${canEdit ? "" : "disabled"}>
     <option value="">Unlinked</option>
     ${actors.map((actor) => `<option value="${escapeSetPieceHtml(actor.id)}" ${actor.id === drawing.actorId ? "selected" : ""}>${escapeSetPieceHtml(getSetPieceDrawingActorLabel(actor))}</option>`).join("")}
@@ -350,6 +373,9 @@ function renderDrawingInspector(drawing, phase, canEdit, canDelete) {
     <div class="spr-inspector-title"><div><p>${isText ? "Annotation" : "Movement"}</p><strong>${isText ? "Text" : escapeSetPieceHtml(drawing.type)}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete selected (Delete)" aria-label="Delete selected" aria-keyshortcuts="Delete Backspace" ${canDelete ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("trash")}</span></button>${renderInspectorCloseButton()}</div></div>
     ${actorField}
     ${renderField(isText ? "Text" : "Label", "label", drawing.label, { scope: "set-piece-drawing", placeholder: isText ? "Type a tactical note" : "", maxLength: 80, disabled: !canEdit })}
+    ${isText ? `<label class="spr-field spr-text-size-field"><span>Text size <output>${escapeSetPieceHtml(getTextSizeLabel(fontSize))}</output></span><input type="range" min="${MIN_SET_PIECE_TEXT_FONT_SIZE}" max="${MAX_SET_PIECE_TEXT_FONT_SIZE}" step="0.05" value="${fontSize}" data-set-piece-drawing-field="fontSize" aria-label="Text size" ${canEdit ? "" : "disabled"}><small>Keep notes compact on the pitch; increase only for presentation emphasis.</small></label>
+    ${renderTextStyleOptions({ field: "textColor", legend: "Text color", options: setPieceTextColorOptions, value: textColor, drawingId: drawing.id, kind: "text", canEdit })}
+    ${renderTextStyleOptions({ field: "textBackground", legend: "Background", options: setPieceTextBackgroundOptions, value: textBackground, drawingId: drawing.id, kind: "background", canEdit })}` : ""}
     ${drawing.type === "zone" ? `<fieldset class="spr-zone-color-field"><legend>Zone color</legend><div class="spr-zone-color-options" role="radiogroup" aria-label="Zone color">
       ${setPieceZoneColorOptions.map((option) => `<label class="is-${option.value}" title="${escapeSetPieceHtml(option.label)}"><input type="radio" name="set-piece-zone-color" value="${option.value}" data-set-piece-drawing-field="zoneColor" aria-label="${escapeSetPieceHtml(`${option.label} zone`)}" ${option.value === zoneColor ? "checked" : ""} ${canEdit ? "" : "disabled"}><span aria-hidden="true"></span></label>`).join("")}
     </div></fieldset>` : ""}

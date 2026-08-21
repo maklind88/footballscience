@@ -102,10 +102,21 @@
   display: block;
 }
 
+.spr-board-element.is-opponent {
+  --spr-opponent-fill: #f8f6ef;
+  --spr-opponent-stroke: #a93842;
+  --spr-opponent-text: #8c2630;
+}
+
+.spr-board-element.is-opponent-color-blue { --spr-opponent-fill: #e8f3fc; --spr-opponent-stroke: #2f73ab; --spr-opponent-text: #194e78; }
+.spr-board-element.is-opponent-color-yellow { --spr-opponent-fill: #fff1ad; --spr-opponent-stroke: #a97900; --spr-opponent-text: #604500; }
+.spr-board-element.is-opponent-color-white { --spr-opponent-fill: #fff; --spr-opponent-stroke: #44534f; --spr-opponent-text: #17211e; }
+.spr-board-element.is-opponent-color-dark { --spr-opponent-fill: #25312e; --spr-opponent-stroke: #f1f5f2; --spr-opponent-text: #fff; }
+
 .spr-opponent-token {
-  fill: #f8f6ef;
-  stroke: #a93842;
-  stroke-width: .55;
+  fill: var(--spr-opponent-fill);
+  stroke: var(--spr-opponent-stroke);
+  stroke-width: .42;
   vector-effect: non-scaling-stroke;
 }
 
@@ -138,7 +149,8 @@
 }
 
 .spr-board-element.is-opponent text {
-  fill: #8c2630;
+  fill: var(--spr-opponent-text);
+  font-size: 1.5px;
 }
 
 .spr-element-layer.hide-labels text {

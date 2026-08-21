@@ -1,5 +1,6 @@
 import {
   DEFAULT_ACTION_DURATION_MS,
+  DEFAULT_SET_PIECE_OPPONENT_COLOR,
   DEFAULT_SET_PIECE_TEXT_BACKGROUND,
   DEFAULT_SET_PIECE_TEXT_COLOR,
   DEFAULT_SET_PIECE_TEXT_FONT_SIZE,
@@ -202,7 +203,11 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       let opponentNumber = 1;
       while (used.has(opponentNumber)) opponentNumber += 1;
       options.commit(() => {
-        const element = createBoardElement("opponent", point, { label: String(opponentNumber), showNumber: true });
+        const element = createBoardElement("opponent", point, {
+          label: String(opponentNumber),
+          showNumber: true,
+          opponentColor: DEFAULT_SET_PIECE_OPPONENT_COLOR,
+        });
         phase.elements.push(element);
         ui.selectedElementIds = new Set([element.id]);
         clearDrawingSelection();

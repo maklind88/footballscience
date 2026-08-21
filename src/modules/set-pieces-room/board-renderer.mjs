@@ -7,12 +7,14 @@ import {
 import { renderSetPieceBoardBallSymbol } from "./ball-symbol.mjs";
 import { getSetPieceDrawingControlPoint, getSetPieceDrawingPath } from "./drawing-geometry.mjs";
 import {
+  DEFAULT_SET_PIECE_OPPONENT_COLOR,
   DEFAULT_SET_PIECE_TEXT_BACKGROUND,
   DEFAULT_SET_PIECE_TEXT_COLOR,
   DEFAULT_SET_PIECE_TEXT_FONT_SIZE,
   DEFAULT_SET_PIECE_ZONE_COLOR,
   MAX_SET_PIECE_TEXT_FONT_SIZE,
   MIN_SET_PIECE_TEXT_FONT_SIZE,
+  setPieceOpponentColors,
   setPieceTextBackgrounds,
   setPieceTextColors,
   setPieceZoneColors,
@@ -99,7 +101,16 @@ function renderPitchMarkings() {
 function renderElement(element = {}, options = {}) {
   const selected = options.selectedElementIds?.has(element.id);
   const ghost = Boolean(options.ghost);
-  const classes = ["spr-board-element", `is-${element.kind}`, selected ? "is-selected" : "", ghost ? "is-ghost" : ""]
+  const opponentColor = setPieceOpponentColors.has(element.opponentColor)
+    ? element.opponentColor
+    : DEFAULT_SET_PIECE_OPPONENT_COLOR;
+  const classes = [
+    "spr-board-element",
+    `is-${element.kind}`,
+    element.kind === "opponent" ? `is-opponent-color-${opponentColor}` : "",
+    selected ? "is-selected" : "",
+    ghost ? "is-ghost" : "",
+  ]
     .filter(Boolean)
     .join(" ");
   const transform = getSetPieceElementTransform(element, options.pitchView || "full");
@@ -116,9 +127,9 @@ function renderElement(element = {}, options = {}) {
   if (element.kind === "opponent") {
     return `<g ${common}>
       <circle r="4" class="spr-element-hit"></circle>
-      <circle r="2.75" class="spr-opponent-token"></circle>
-      ${element.showNumber === false ? "" : `<text y=".85">${escapeSetPieceHtml(element.label || "1")}</text>`}
-      ${selected ? '<circle r="4.25" class="spr-selection-ring"></circle>' : ""}
+      <circle r="1.85" class="spr-opponent-token"></circle>
+      ${element.showNumber === false ? "" : `<text y=".52">${escapeSetPieceHtml(element.label || "1")}</text>`}
+      ${selected ? '<circle r="2.25" class="spr-selection-ring"></circle>' : ""}
     </g>`;
   }
   if (element.kind === "ball") {

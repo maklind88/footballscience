@@ -2,6 +2,7 @@ import {
   DEFAULT_ACTION_DURATION_MS,
   DEFAULT_PHASE_DURATION_MS,
   DEFAULT_PHASE_HOLD_MS,
+  DEFAULT_SET_PIECE_OPPONENT_COLOR,
   DEFAULT_SET_PIECE_TEXT_BACKGROUND,
   DEFAULT_SET_PIECE_TEXT_COLOR,
   DEFAULT_SET_PIECE_TEXT_FONT_SIZE,
@@ -13,6 +14,7 @@ import {
   SET_PIECES_MAX_VARIANTS,
   SET_PIECES_SCHEMA_VERSION,
   setPieceDrawingTypes,
+  setPieceOpponentColors,
   setPiecePlayerMarkerModeOptions,
   setPieceSubPhaseOptions,
   setPieceTextBackgrounds,
@@ -129,6 +131,9 @@ function normalizeElement(element = {}, options = {}) {
     profileId: kind === "home-player" ? text(element.profileId, 100) : "",
     label: kind === "opponent" ? opponentNumber : text(element.label, 12),
     showNumber: kind === "opponent" ? element.showNumber !== false : true,
+    opponentColor: kind === "opponent" && setPieceOpponentColors.has(element.opponentColor)
+      ? element.opponentColor
+      : kind === "opponent" ? DEFAULT_SET_PIECE_OPPONENT_COLOR : "",
     role: text(element.role, 80),
     instruction: text(element.instruction, 240),
     rotation: number(element.rotation, 0, -180, 180),

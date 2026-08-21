@@ -1,4 +1,5 @@
 import {
+  DEFAULT_SET_PIECE_OPPONENT_COLOR,
   DEFAULT_SET_PIECE_TEXT_BACKGROUND,
   DEFAULT_SET_PIECE_TEXT_COLOR,
   DEFAULT_SET_PIECE_TEXT_FONT_SIZE,
@@ -8,6 +9,8 @@ import {
   setPieceContextOptions,
   setPieceLayerOptions,
   setPieceMomentOptions,
+  setPieceOpponentColorOptions,
+  setPieceOpponentColors,
   setPiecePitchViewOptions,
   setPieceRestartOptions,
   setPieceSubPhaseOptions,
@@ -342,12 +345,18 @@ function renderSubPhaseField(play = {}, canEdit = false) {
 function renderElementInspector(element, play, variant, roster, ui, canEdit, canDelete) {
   const isHome = element.kind === "home-player";
   const isOpponent = element.kind === "opponent";
+  const opponentColor = setPieceOpponentColors.has(element.opponentColor)
+    ? element.opponentColor
+    : DEFAULT_SET_PIECE_OPPONENT_COLOR;
   const assignment = isHome ? getSetPieceAssignment(play, variant, element.id) : null;
   return `<div class="spr-inspector-section">
     <div class="spr-inspector-title"><div><p>${isHome ? "Selected role" : "Selected object"}</p><strong>${escapeSetPieceHtml(isHome ? assignment.role : element.kind === "opponent" ? `Opponent ${element.label}` : "Ball")}</strong></div><div class="spr-inline-actions"><button type="button" class="spr-icon-button is-danger" data-set-piece-action="delete-selection" title="Delete selected (Delete)" aria-label="Delete selected" aria-keyshortcuts="Delete Backspace" ${canDelete ? "" : "disabled"}><span class="spr-tool-icon">${renderSetPieceToolIcon("trash")}</span></button>${renderInspectorCloseButton()}</div></div>
     ${isHome ? renderAssignmentPicker(element.id, play, variant, roster, ui, canEdit) : ""}
     ${isHome ? renderField("Tactical role", "role", assignment.role, { scope: "set-piece-element", disabled: !canEdit }) : ""}
     ${isOpponent ? renderField("Number", "label", element.label || "1", { type: "number", min: 1, max: 99, scope: "set-piece-element", disabled: !canEdit }) : ""}
+    ${isOpponent ? `<fieldset class="spr-opponent-color-field"><legend>Marker color</legend><div class="spr-opponent-color-options" role="radiogroup" aria-label="Opponent color">
+      ${setPieceOpponentColorOptions.map((option) => `<label class="is-${option.value}" title="${escapeSetPieceHtml(option.label)}"><input type="radio" name="set-piece-opponent-color-${escapeSetPieceHtml(element.id)}" value="${option.value}" data-set-piece-element-field="opponentColor" aria-label="${escapeSetPieceHtml(`${option.label} opponent marker`)}" ${option.value === opponentColor ? "checked" : ""} ${canEdit ? "" : "disabled"}><span aria-hidden="true">1</span></label>`).join("")}
+    </div></fieldset>` : ""}
     ${isOpponent ? `<label class="spr-toggle-field"><span><strong>Show number</strong><small>Turn off for color only</small></span><input type="checkbox" data-set-piece-element-field="showNumber" aria-label="Show number on board" ${element.showNumber !== false ? "checked" : ""} ${canEdit ? "" : "disabled"}></label>` : ""}
     ${renderField("Instruction", "instruction", element.instruction, { type: "textarea", scope: "set-piece-element", disabled: !canEdit })}
     <div class="spr-timing-summary" aria-label="Action timing"><span><small>Starts</small><strong>${formatSetPieceSeconds(element.delayMs)}</strong></span><span><small>Moves</small><strong>${formatSetPieceSeconds(element.durationMs)}</strong></span></div>

@@ -1035,7 +1035,7 @@ test("presentation adapter links a variant while resolving current squad assignm
   expect(state.plays[0].variants[0].phases[0].elements[0].label).toBe("OLD");
 });
 
-test("opponent numbers are normalized, persisted and optional on the board", () => {
+test("opponent numbers and colors are normalized, persisted and optional on the board", () => {
   const play = createSetPiecePlay();
   play.variants[0].phases[0].elements.push({
     id: "opponent-hidden",
@@ -1044,17 +1044,44 @@ test("opponent numbers are normalized, persisted and optional on the board", () 
     y: 20,
     label: "114",
     showNumber: false,
+    opponentColor: "blue",
+  }, {
+    id: "opponent-legacy",
+    kind: "opponent",
+    x: 80,
+    y: 24,
+    label: "2",
+    opponentColor: "neon",
   });
   const state = normalizeSetPiecesState({ activePlayId: play.id, plays: [play] });
-  const opponent = state.plays[0].variants[0].phases[0].elements[0];
+  const [opponent, legacyOpponent] = state.plays[0].variants[0].phases[0].elements;
   const markup = renderSetPieceBoard({
     phase: state.plays[0].variants[0].phases[0],
     layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
+    selectedElementIds: new Set([opponent.id]),
+  });
+  const inspectorMarkup = renderSetPiecesWorkspace({
+    state,
+    ui: {
+      selectedElementIds: new Set([opponent.id]),
+      selectedDrawingIds: new Set(),
+      selectedDrawingId: "",
+      layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
+      inspectorCollapsed: false,
+      playbackSpeed: 1,
+    },
   });
 
-  expect(opponent).toMatchObject({ label: "99", showNumber: false });
-  expect(markup).toContain("is-opponent");
+  expect(opponent).toMatchObject({ label: "99", showNumber: false, opponentColor: "blue" });
+  expect(legacyOpponent).toMatchObject({ label: "2", showNumber: true, opponentColor: "red" });
+  expect(markup).toContain("is-opponent-color-blue");
+  expect(markup).toContain("is-opponent-color-red");
+  expect(markup).toContain('<circle r="1.85" class="spr-opponent-token"></circle>');
+  expect(markup).toContain('<circle r="4" class="spr-element-hit"></circle>');
+  expect(markup).toContain('<circle r="2.25" class="spr-selection-ring"></circle>');
   expect(markup).not.toContain(">99</text>");
+  expect(inspectorMarkup).toContain('role="radiogroup" aria-label="Opponent color"');
+  expect(inspectorMarkup).toMatch(/value="blue" data-set-piece-element-field="opponentColor"[^>]*checked/);
 });
 
 test("persistence round-trips normalized state and reports write failures", () => {

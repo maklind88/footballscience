@@ -1,7 +1,9 @@
 import {
+  DEFAULT_SET_PIECE_OPPONENT_COLOR,
   SET_PIECES_MAX_PHASES,
   SET_PIECES_MAX_VARIANTS,
   SET_PIECES_ONBOARDING_KEY,
+  setPieceOpponentColors,
   setPieceSubPhaseOptions,
 } from "./constants.mjs";
 import { createSetPieceAssignmentController } from "./assignment-controller.mjs";
@@ -599,6 +601,9 @@ export function createSetPiecesRoomController(options = {}) {
         if (element.kind === "opponent" && field === "label") {
           value = String(Math.min(99, Math.max(1, Math.round(Number(rawValue) || 1))));
         }
+        if (element.kind === "opponent" && field === "opponentColor") {
+          value = setPieceOpponentColors.has(rawValue) ? rawValue : DEFAULT_SET_PIECE_OPPONENT_COLOR;
+        }
         if (field === "showNumber") value = Boolean(rawValue);
         element[field] = value;
         if (field === "profileId") {
@@ -610,7 +615,7 @@ export function createSetPiecesRoomController(options = {}) {
             if (linked) Object.assign(linked, { profileId: value, label });
           });
         }
-        if (element.kind === "opponent" && ["label", "showNumber"].includes(field)) {
+        if (element.kind === "opponent" && ["label", "showNumber", "opponentColor"].includes(field)) {
           variant.phases.forEach((item) => {
             const linked = item.elements.find((candidate) => candidate.id === element.id);
             if (linked) linked[field] = value;

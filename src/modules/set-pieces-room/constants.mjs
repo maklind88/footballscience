@@ -51,7 +51,7 @@ export const setPiecePlayerMarkerModeOptions = Object.freeze([
 export const setPieceToolOptions = Object.freeze([
   { value: "select", label: "Select", shortcut: "V", hint: "Click or drag to select, then move objects on the pitch" },
   { value: "home-player", label: "Squad players", shortcut: "P", hint: "Open the squad list to add or remove your players" },
-  { value: "opponent", label: "Opponent", shortcut: "O", hint: "Click to place, then select to edit the number" },
+  { value: "opponent", label: "Opponent", shortcut: "O", hint: "Click to place; double-click to edit number and color" },
   { value: "ball", label: "Ball", shortcut: "B", hint: "Click to place or reposition the match ball" },
   { value: "run", label: "Run", shortcut: "R", hint: "Drag from the runner toward the target position" },
   { value: "pass", label: "Pass", shortcut: "A", hint: "Drag from the ball or passer toward the receiver" },
@@ -85,6 +85,18 @@ export const setPieceZoneColorOptions = Object.freeze([
 ]);
 
 export const setPieceZoneColors = new Set(setPieceZoneColorOptions.map((option) => option.value));
+
+export const DEFAULT_SET_PIECE_OPPONENT_COLOR = "red";
+
+export const setPieceOpponentColorOptions = Object.freeze([
+  { value: "red", label: "Red" },
+  { value: "blue", label: "Blue" },
+  { value: "yellow", label: "Yellow" },
+  { value: "white", label: "White" },
+  { value: "dark", label: "Dark" },
+]);
+
+export const setPieceOpponentColors = new Set(setPieceOpponentColorOptions.map((option) => option.value));
 
 export const DEFAULT_SET_PIECE_TEXT_FONT_SIZE = 1.65;
 export const MIN_SET_PIECE_TEXT_FONT_SIZE = 1.2;

@@ -790,9 +790,10 @@ test("board ball stays compact while retaining a generous interaction target", (
     layers: new Set(["ball"]),
   });
 
-  expect(markup).toContain('class="spr-board-ball-symbol" transform="scale(.44)"');
+  expect(markup).toContain('<g class="spr-board-ball-visual"><g class="spr-board-ball-symbol"');
+  expect(markup).toContain('class="spr-board-ball-symbol" transform="scale(.30)"');
   expect(markup).toContain('<circle r="2.8" class="spr-element-hit"></circle>');
-  expect(markup).toContain('<circle r="1.25" class="spr-selection-ring"></circle>');
+  expect(markup).toContain('<circle r=".82" class="spr-selection-ring"></circle>');
 });
 
 test("selected drawings expose contextual transform handles only while editing", () => {

@@ -124,8 +124,8 @@ function renderElement(element = {}, options = {}) {
   if (element.kind === "ball") {
     return `<g ${common}>
       <circle r="2.8" class="spr-element-hit"></circle>
-      ${renderSetPieceBoardBallSymbol()}
-      ${selected ? '<circle r="1.25" class="spr-selection-ring"></circle>' : ""}
+      <g class="spr-board-ball-visual">${renderSetPieceBoardBallSymbol()}</g>
+      ${selected ? '<circle r=".82" class="spr-selection-ring"></circle>' : ""}
     </g>`;
   }
   const photoUrl = String(element.photoUrl || "").trim();

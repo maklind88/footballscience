@@ -1,8 +1,6 @@
 import { clampSetPieceCoordinate, getSetPiecePitchBounds } from "./geometry.mjs";
 import { getSetPieceDrawingControlPoint } from "./drawing-geometry.mjs";
 
-const PLAYER_MARKER_INSET = 4;
-
 function normalizedRect(rect = {}) {
   return {
     minX: Math.min(Number(rect.startX || 0), Number(rect.endX || 0)),
@@ -73,8 +71,12 @@ export function constrainSetPieceSelectionDelta(elements = [], drawings = [], de
   const bounds = getSetPiecePitchBounds(pitchView);
   const extents = [];
   elements.forEach((element) => {
-    const inset = ["home-player", "opponent"].includes(element.kind) ? PLAYER_MARKER_INSET : 0;
-    extents.push({ minX: Number(element.x || 0) - inset, maxX: Number(element.x || 0) + inset, minY: Number(element.y || 0) - inset, maxY: Number(element.y || 0) + inset });
+    extents.push({
+      minX: Number(element.x || 0),
+      maxX: Number(element.x || 0),
+      minY: Number(element.y || 0),
+      maxY: Number(element.y || 0),
+    });
   });
   drawings.forEach((drawing) => {
     const points = drawingPoints(drawing);

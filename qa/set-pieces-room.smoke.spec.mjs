@@ -143,7 +143,7 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   expect(Math.abs(expandedLayout.stage.top - collapsedLayout.stage.top)).toBeLessThanOrEqual(1);
   expect(expandedLayout.stage.width).toBeLessThanOrEqual(collapsedLayout.stage.width + 1);
   expect(expandedLayout.stage.width).toBeLessThanOrEqual(expandedLayout.slot.width + 1);
-  expect(Math.abs((expandedLayout.stage.width / expandedLayout.stage.height) - (68 / 35))).toBeLessThan(0.01);
+  expect(Math.abs((expandedLayout.stage.width / expandedLayout.stage.height) - (145 / 79))).toBeLessThan(0.01);
   expect(Math.abs(expandedLayout.centerCircle.width - expandedLayout.centerCircle.height)).toBeLessThanOrEqual(1);
   expect(expandedLayout.stage.bottom).toBeLessThanOrEqual(expandedLayout.timeline.top + 1);
   expect(Math.abs(expandedLayout.playback.bottom - expandedLayout.editor.bottom)).toBeLessThanOrEqual(1);
@@ -233,10 +233,17 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   await page.mouse.move(cornerPitchBox.x + 1, cornerPitchBox.y + cornerPitchBox.height - 1, { steps: 6 });
   await page.mouse.up();
   const cornerPlayerEndBox = await cornerPlayer.boundingBox();
-  expect(cornerPlayerEndBox.x).toBeGreaterThanOrEqual(cornerPitchBox.x - 1);
-  expect(cornerPlayerEndBox.y).toBeGreaterThanOrEqual(cornerPitchBox.y - 1);
-  expect(cornerPlayerEndBox.x + cornerPlayerEndBox.width).toBeLessThanOrEqual(cornerPitchBox.x + cornerPitchBox.width + 1);
-  expect(cornerPlayerEndBox.y + cornerPlayerEndBox.height).toBeLessThanOrEqual(cornerPitchBox.y + cornerPitchBox.height + 1);
+  const cornerPlayerVisualBox = await cornerPlayer.locator(".spr-home-avatar-frame").boundingBox();
+  expect(cornerPlayerEndBox).not.toBeNull();
+  expect(cornerPlayerVisualBox.x).toBeGreaterThanOrEqual(cornerPitchBox.x - 1);
+  expect(cornerPlayerVisualBox.y).toBeGreaterThanOrEqual(cornerPitchBox.y - 1);
+  expect(cornerPlayerVisualBox.x + cornerPlayerVisualBox.width).toBeLessThanOrEqual(cornerPitchBox.x + cornerPitchBox.width + 1);
+  expect(cornerPlayerVisualBox.y + cornerPlayerVisualBox.height).toBeLessThanOrEqual(cornerPitchBox.y + cornerPitchBox.height + 1);
+  await expect(cornerPitch).toHaveAttribute("viewBox", "-2.25 -2.25 72.5 39.5");
+  await expect(cornerPlayer).toHaveAttribute("transform", /translate\((0|0\.\d+) (0|0\.\d+)\)/);
+  const pitchSurface = cornerPitch.locator(".spr-pitch-base");
+  await expect(pitchSurface).toHaveAttribute("x", "-2.25");
+  await expect(pitchSurface).toHaveAttribute("y", "-2.25");
   await expect(page.locator(".spr-inspector")).toBeHidden();
 
   await tacticalTools.getByRole("button", { name: "Opponent", exact: true }).click();
@@ -353,7 +360,7 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   expect(Math.abs(tabletExpandedLayout.editor.height - tabletCollapsedLayout.editor.height)).toBeLessThanOrEqual(1);
   expect(Math.abs(tabletExpandedLayout.stage.top - tabletCollapsedLayout.stage.top)).toBeLessThanOrEqual(1);
   expect(tabletExpandedLayout.stage.width).toBeLessThan(tabletCollapsedLayout.stage.width - 50);
-  expect(Math.abs((tabletExpandedLayout.stage.width / tabletExpandedLayout.stage.height) - (68 / 35))).toBeLessThan(0.01);
+  expect(Math.abs((tabletExpandedLayout.stage.width / tabletExpandedLayout.stage.height) - (145 / 79))).toBeLessThan(0.01);
   expect(tabletExpandedLayout.stage.bottom).toBeLessThanOrEqual(tabletExpandedLayout.timeline.top + 1);
 });
 
@@ -974,7 +981,7 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
   expect(compact.strip.height).toBeLessThanOrEqual(63);
   expect(compact.playback.height).toBeLessThanOrEqual(63);
   expect(compact.board.height).toBeGreaterThanOrEqual(compact.body.height - 14);
-  expect(compact.board.width / compact.board.height).toBeCloseTo(68 / 35, 2);
+  expect(compact.board.width / compact.board.height).toBeCloseTo(145 / 79, 2);
   expect(compact.cues.height).toBeLessThanOrEqual(44);
   expect(compact.overflow.width).toBeLessThanOrEqual(0);
   expect(compact.overflow.height).toBeLessThanOrEqual(0);
@@ -1001,7 +1008,7 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
     await shell.locator(".spr-present-cues").evaluate((element) => element.removeAttribute("open"));
   }
   const portrait = await readLayout();
-  expect(portrait.board.width / portrait.board.height).toBeCloseTo(68 / 35, 2);
+  expect(portrait.board.width / portrait.board.height).toBeCloseTo(145 / 79, 2);
   expect(portrait.board.width).toBeGreaterThanOrEqual(portrait.viewport.width - 18);
   expect(portrait.overflow.width).toBeLessThanOrEqual(0);
   expect(portrait.overflow.height).toBeLessThanOrEqual(0);

@@ -408,11 +408,11 @@
 }
 
 .spr-present-stage.is-full-pitch .spr-present-board-frame {
-  aspect-ratio: 105 / 68;
+  aspect-ratio: 219 / 145;
 }
 
 .spr-present-stage.is-half-pitch .spr-present-board-frame {
-  aspect-ratio: 68 / 35;
+  aspect-ratio: 145 / 79;
 }
 
 .spr-present-cues {

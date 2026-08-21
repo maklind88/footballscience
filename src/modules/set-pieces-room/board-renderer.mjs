@@ -1,4 +1,9 @@
-import { getSetPieceElementTransform, getSetPiecePitchTransform, getSetPiecePitchViewBox } from "./geometry.mjs";
+import {
+  getSetPieceElementTransform,
+  getSetPiecePitchTransform,
+  getSetPiecePitchViewBox,
+  setPiecePitchCanvas,
+} from "./geometry.mjs";
 import { renderSetPieceBoardBallSymbol } from "./ball-symbol.mjs";
 import { getSetPieceDrawingControlPoint, getSetPieceDrawingPath } from "./drawing-geometry.mjs";
 import { DEFAULT_SET_PIECE_ZONE_COLOR, setPieceZoneColors } from "./constants.mjs";
@@ -249,8 +254,8 @@ export function renderSetPieceBoard(options = {}) {
       <clipPath id="${markerPrefix}-home-avatar-clip"><circle r="1.62"></circle></clipPath>
     </defs>
     <g class="spr-pitch-content"${pitchTransform ? ` transform="${pitchTransform}"` : ""}>
-      <rect width="105" height="68" class="spr-pitch-base"></rect>
-      <rect width="105" height="68" fill="url(#${markerPrefix}-pitch-pattern)" class="spr-pitch-stripes"></rect>
+      <rect x="${setPiecePitchCanvas.x}" y="${setPiecePitchCanvas.y}" width="${setPiecePitchCanvas.width}" height="${setPiecePitchCanvas.height}" class="spr-pitch-base"></rect>
+      <rect x="${setPiecePitchCanvas.x}" y="${setPiecePitchCanvas.y}" width="${setPiecePitchCanvas.width}" height="${setPiecePitchCanvas.height}" fill="url(#${markerPrefix}-pitch-pattern)" class="spr-pitch-stripes"></rect>
       ${renderPitchMarkings({ halfPitch })}
       <g class="spr-ghost-layer">${ghosts}</g>
       <g class="spr-drawing-layer">${drawings}${preview}</g>
@@ -269,5 +274,5 @@ export function renderSetPiecePhaseThumbnail(phase = {}, pitchView = "full") {
     const radius = element.kind === "ball" ? 1.2 : 1.8;
     return `<circle cx="${element.x}" cy="${element.y}" r="${radius}" class="${className}"></circle>`;
   }).join("");
-  return `<svg class="${halfPitch ? "is-half-pitch" : "is-full-pitch"}" viewBox="${getSetPiecePitchViewBox(pitchView)}" aria-hidden="true"><g${transform ? ` transform="${transform}"` : ""}><rect width="105" height="68"></rect><path d="M52.5 0V68M0 13.84H17V54.16H0M105 13.84H88V54.16H105"></path>${elements}</g></svg>`;
+  return `<svg class="${halfPitch ? "is-half-pitch" : "is-full-pitch"}" viewBox="${getSetPiecePitchViewBox(pitchView)}" aria-hidden="true"><g${transform ? ` transform="${transform}"` : ""}><rect x="${setPiecePitchCanvas.x}" y="${setPiecePitchCanvas.y}" width="${setPiecePitchCanvas.width}" height="${setPiecePitchCanvas.height}"></rect><path d="M52.5 0V68M0 13.84H17V54.16H0M105 13.84H88V54.16H105"></path>${elements}</g></svg>`;
 }

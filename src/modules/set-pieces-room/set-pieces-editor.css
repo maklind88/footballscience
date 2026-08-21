@@ -475,7 +475,7 @@ body.is-dark-mode .spr-editor-command-bar .spr-command-icon-button.is-active {
   container: spr-board-stage-slot / size;
 }
 
-@container spr-board-stage-slot (max-aspect-ratio: 105 / 68) {
+@container spr-board-stage-slot (max-aspect-ratio: 219 / 145) {
   .spr-board-row.is-full-pitch .spr-board-stage {
     width: 100%;
     height: auto;
@@ -483,7 +483,7 @@ body.is-dark-mode .spr-editor-command-bar .spr-command-icon-button.is-active {
   }
 }
 
-@container spr-board-stage-slot (max-aspect-ratio: 68 / 35) {
+@container spr-board-stage-slot (max-aspect-ratio: 145 / 79) {
   .spr-board-row.is-half-pitch .spr-board-stage {
     width: 100%;
     height: auto;

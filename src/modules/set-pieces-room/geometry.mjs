@@ -2,7 +2,7 @@ const PITCH_LENGTH = 105;
 const PITCH_WIDTH = 68;
 const PITCH_THIRD_LENGTH = PITCH_LENGTH / 3;
 const ATTACKING_THIRD_START = PITCH_LENGTH - PITCH_THIRD_LENGTH;
-const PLAYER_MARKER_INSET = 4;
+const PITCH_SURROUND = 2.25;
 
 export function clampSetPieceCoordinate(value, min, max) {
   const numeric = Number(value);
@@ -23,20 +23,15 @@ export function normalizeSetPiecePointForPitchView(point = {}, pitchView = "full
   return normalized;
 }
 
-export function normalizeSetPieceElementPointForPitchView(point = {}, pitchView = "full", kind = point.kind) {
-  const normalized = normalizeSetPiecePointForPitchView(point, pitchView);
-  if (!["home-player", "opponent"].includes(kind)) return normalized;
-  const minX = pitchView === "attacking-half" ? ATTACKING_THIRD_START : 0;
-  const maxX = pitchView === "defensive-half" ? PITCH_THIRD_LENGTH : PITCH_LENGTH;
-  return {
-    x: clampSetPieceCoordinate(normalized.x, minX + PLAYER_MARKER_INSET, maxX - PLAYER_MARKER_INSET),
-    y: clampSetPieceCoordinate(normalized.y, PLAYER_MARKER_INSET, PITCH_WIDTH - PLAYER_MARKER_INSET),
-  };
+export function normalizeSetPieceElementPointForPitchView(point = {}, pitchView = "full") {
+  return normalizeSetPiecePointForPitchView(point, pitchView);
 }
 
 export function getSetPiecePitchViewBox(pitchView = "full") {
-  if (pitchView === "attacking-half" || pitchView === "defensive-half") return "0 0 68 35";
-  return "0 0 105 68";
+  if (pitchView === "attacking-half" || pitchView === "defensive-half") {
+    return `${-PITCH_SURROUND} ${-PITCH_SURROUND} ${PITCH_WIDTH + PITCH_SURROUND * 2} ${PITCH_THIRD_LENGTH + PITCH_SURROUND * 2}`;
+  }
+  return `${-PITCH_SURROUND} ${-PITCH_SURROUND} ${PITCH_LENGTH + PITCH_SURROUND * 2} ${PITCH_WIDTH + PITCH_SURROUND * 2}`;
 }
 
 export function getSetPiecePitchTransform(pitchView = "full") {
@@ -129,3 +124,10 @@ export function interpolateSetPieceValue(from, to, progress) {
 }
 
 export const setPiecePitchSize = Object.freeze({ length: PITCH_LENGTH, width: PITCH_WIDTH });
+export const setPiecePitchCanvas = Object.freeze({
+  x: -PITCH_SURROUND,
+  y: -PITCH_SURROUND,
+  width: PITCH_LENGTH + PITCH_SURROUND * 2,
+  height: PITCH_WIDTH + PITCH_SURROUND * 2,
+  margin: PITCH_SURROUND,
+});

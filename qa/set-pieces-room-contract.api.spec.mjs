@@ -640,20 +640,21 @@ test("marquee selection includes routes and zones while mixed groups keep a shar
     { x: -20, y: 8 },
     "full"
   );
-  expect(delta).toEqual({ x: -6, y: 8 });
+  expect(delta).toEqual({ x: -10, y: 8 });
 });
 
-test("drag coordinates stay inside the visible pitch view", () => {
+test("drag coordinates reach the pitch lines while remaining inside the selected pitch view", () => {
   expect(normalizeSetPiecePointForPitchView({ x: 4, y: 80 }, "attacking-half")).toEqual({ x: 70, y: 68 });
   expect(normalizeSetPiecePointForPitchView({ x: 90, y: -4 }, "defensive-half")).toEqual({ x: 35, y: 0 });
   expect(normalizeSetPiecePointForPitchView({ x: 90, y: 30 }, "full")).toEqual({ x: 90, y: 30 });
-  expect(normalizeSetPieceElementPointForPitchView({ x: 0, y: 0 }, "defensive-half", "home-player")).toEqual({ x: 4, y: 4 });
-  expect(normalizeSetPieceElementPointForPitchView({ x: 105, y: 68 }, "attacking-half", "opponent")).toEqual({ x: 101, y: 64 });
+  expect(normalizeSetPieceElementPointForPitchView({ x: 0, y: 0 }, "defensive-half", "home-player")).toEqual({ x: 0, y: 0 });
+  expect(normalizeSetPieceElementPointForPitchView({ x: 105, y: 68 }, "attacking-half", "opponent")).toEqual({ x: 105, y: 68 });
   expect(normalizeSetPieceElementPointForPitchView({ x: 0, y: 0 }, "defensive-half", "ball")).toEqual({ x: 0, y: 0 });
 });
 
 test("focused third views use landscape coordinates and map pointer input back to source geometry", () => {
-  expect(getSetPiecePitchViewBox("attacking-half")).toBe("0 0 68 35");
+  expect(getSetPiecePitchViewBox("attacking-half")).toBe("-2.25 -2.25 72.5 39.5");
+  expect(getSetPiecePitchViewBox("full")).toBe("-2.25 -2.25 109.5 72.5");
   expect(getSetPiecePitchTransform("attacking-half")).toBe("matrix(0 -1 1 0 0 105)");
   expect(getSetPiecePitchTransform("defensive-half")).toBe("matrix(0 -1 1 0 0 35)");
   expect(getSetPieceSourcePoint({ x: 18, y: 25 }, "attacking-half")).toEqual({ x: 80, y: 18 });
@@ -752,7 +753,8 @@ test("board renderer uses one circular own-player marker in photo or initials mo
   expect(markup).toContain(">4</text>");
   expect(markup).toContain("is-run");
   expect(markup).toContain("Q ");
-  expect(markup).toContain('viewBox="0 0 68 35"');
+  expect(markup).toContain('viewBox="-2.25 -2.25 72.5 39.5"');
+  expect(markup).toContain('<rect x="-2.25" y="-2.25" width="109.5" height="72.5" class="spr-pitch-base"></rect>');
   expect(markup).toContain('transform="matrix(0 -1 1 0 0 105)"');
   expect(markup).toContain('class="spr-pitch-goal is-left-goal"');
   expect(markup).toContain('class="spr-pitch-goal is-right-goal"');

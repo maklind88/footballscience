@@ -9,6 +9,10 @@ import {
 import { createSetPieceAssignmentController } from "./assignment-controller.mjs";
 import { resolveSetPiecePhaseAssignments } from "./assignments.mjs";
 import { createSetPiecesBoardInteractionController } from "./board-interaction-controller.mjs";
+import {
+  createSetPieceBoardClipboard,
+  pasteSetPieceBoardClipboard,
+} from "./board-clipboard.mjs";
 import { createSetPiecesHistory } from "./history.mjs";
 import { createSetPiecesPersistence } from "./persistence.mjs";
 import { cloneSetPiecePlay } from "./play-helpers.mjs";
@@ -47,6 +51,8 @@ export function createSetPiecesRoomController(options = {}) {
   const history = createSetPiecesHistory();
   let state = persistence.read();
   let bound = false;
+  let boardClipboard = null;
+  let boardPasteCount = 0;
 
   function hasDismissedOnboarding() {
     try {
@@ -423,6 +429,46 @@ export function createSetPiecesRoomController(options = {}) {
       ui.selectedDrawingIds.clear();
       ui.selectedDrawingId = "";
     });
+  }
+
+  function copySelection() {
+    const { phase } = getContext();
+    if (!phase) return false;
+    const drawingIds = new Set(ui.selectedDrawingIds);
+    if (ui.selectedDrawingId) drawingIds.add(ui.selectedDrawingId);
+    const clipboard = createSetPieceBoardClipboard(phase, {
+      elementIds: ui.selectedElementIds,
+      drawingIds,
+    });
+    if (!clipboard) return false;
+    boardClipboard = clipboard;
+    boardPasteCount = 0;
+    return true;
+  }
+
+  function pasteSelection() {
+    const { play, phase } = getContext();
+    if (!play || !phase || !boardClipboard || !canEdit()) return false;
+    const pasteIndex = boardPasteCount + 1;
+    const pasted = pasteSetPieceBoardClipboard(boardClipboard, {
+      existingElementIds: phase.elements.map((element) => element.id),
+      pasteIndex,
+      pitchView: play.pitchView,
+    });
+    if (!pasted.elementIds.size && !pasted.drawingIds.size) return false;
+    const committed = commit(() => {
+      phase.elements.push(...pasted.elements);
+      phase.drawings.push(...pasted.drawings);
+      ui.selectedElementIds = pasted.elementIds;
+      ui.selectedDrawingIds = pasted.drawingIds;
+      ui.selectedDrawingId = [...pasted.drawingIds].at(-1) || "";
+      ui.assignmentPickerSlotId = "";
+      ui.showAssignments = false;
+      ui.inspectorCollapsed = true;
+      ui.activeTool = "select";
+    });
+    if (committed) boardPasteCount = pasteIndex;
+    return committed;
   }
 
   function undo() {
@@ -856,6 +902,8 @@ export function createSetPiecesRoomController(options = {}) {
     setPresentationMode: setWorkspaceMode,
     toggleFullscreen,
     deleteSelection,
+    copySelection,
+    pasteSelection,
     undo,
     redo,
   });

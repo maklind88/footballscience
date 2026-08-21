@@ -725,6 +725,14 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       return;
     }
     if (editable) return;
+    if ((event.metaKey || event.ctrlKey) && key === "c") {
+      if (options.copySelection?.()) event.preventDefault();
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && key === "v") {
+      if (options.pasteSelection?.()) event.preventDefault();
+      return;
+    }
     if (focusedMarker && !options.ui.presentationMode) {
       const elementId = focusedMarker.dataset.elementId;
       const { phase, play } = options.getContext();

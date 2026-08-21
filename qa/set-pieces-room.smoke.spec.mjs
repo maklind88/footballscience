@@ -499,6 +499,23 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(page.locator(".spr-board-element.is-opponent:not(.is-ghost) text")).toHaveCount(0);
   await showOpponentNumber.check();
   await page.getByRole("button", { name: "Close details" }).click();
+  await opponentMarker.click();
+  const originalOpponentTransform = await opponentMarker.getAttribute("transform");
+  await page.keyboard.press("Control+C");
+  await page.keyboard.press("Control+V");
+  const pastedOpponents = page.locator(".spr-board-element.is-opponent:not(.is-ghost)");
+  await expect(pastedOpponents).toHaveCount(2);
+  const pastedOpponentTransforms = await pastedOpponents.evaluateAll((markers) => (
+    markers.map((marker) => marker.getAttribute("transform"))
+  ));
+  expect(new Set(pastedOpponentTransforms).size).toBe(2);
+  expect(pastedOpponentTransforms).toContain(originalOpponentTransform);
+  await page.getByRole("textbox", { name: "Set piece" }).focus();
+  await page.keyboard.press("Control+C");
+  await page.keyboard.press("Control+V");
+  await expect(pastedOpponents).toHaveCount(2);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(pastedOpponents).toHaveCount(1);
   await expect(pitch).toHaveClass(/is-wide-projection-active/);
   box = await pitch.boundingBox();
   expect(box).not.toBeNull();

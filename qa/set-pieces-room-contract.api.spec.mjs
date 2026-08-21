@@ -14,6 +14,10 @@ import {
 } from "../src/modules/set-pieces-room/state.mjs";
 import { createSetPieceAssignmentController } from "../src/modules/set-pieces-room/assignment-controller.mjs";
 import { createSetPiecesBoardInteractionController } from "../src/modules/set-pieces-room/board-interaction-controller.mjs";
+import {
+  createSetPieceBoardClipboard,
+  pasteSetPieceBoardClipboard,
+} from "../src/modules/set-pieces-room/board-clipboard.mjs";
 import { getSetPieceAssignment, resolveSetPiecePhaseAssignments } from "../src/modules/set-pieces-room/assignments.mjs";
 import {
   createSetPiecePlayerLabelMap,
@@ -641,6 +645,65 @@ test("marquee selection includes routes and zones while mixed groups keep a shar
     "full"
   );
   expect(delta).toEqual({ x: -10, y: 8 });
+});
+
+test("board clipboard copies mixed selections with fresh ids, shared offset and actor links", () => {
+  const phase = {
+    elements: [
+      { id: "runner-a", kind: "home-player", x: 20, y: 18, profileId: "player-a", label: "AA" },
+      { id: "opponent-a", kind: "opponent", x: 30, y: 24, label: "4" },
+    ],
+    drawings: [
+      { id: "run-a", type: "run", startX: 20, startY: 18, endX: 34, endY: 20, actorId: "runner-a" },
+      { id: "press-a", type: "press", startX: 30, startY: 24, endX: 22, endY: 18, actorId: "opponent-a" },
+    ],
+  };
+  const clipboard = createSetPieceBoardClipboard(phase, {
+    elementIds: new Set(["runner-a"]),
+    drawingIds: new Set(["run-a", "press-a"]),
+  });
+  let nextId = 0;
+  const pasted = pasteSetPieceBoardClipboard(clipboard, {
+    existingElementIds: phase.elements.map((element) => element.id),
+    pitchView: "full",
+    createId: (prefix) => `${prefix}-copy-${++nextId}`,
+  });
+
+  expect(clipboard).toEqual({
+    elements: [phase.elements[0]],
+    drawings: phase.drawings,
+  });
+  expect(pasted.elements[0]).toMatchObject({ id: "home-player-copy-1", x: 22, y: 20, profileId: "player-a" });
+  expect(pasted.drawings[0]).toMatchObject({ id: "drawing-copy-2", startX: 22, startY: 20, endX: 36, endY: 22, actorId: "home-player-copy-1" });
+  expect(pasted.drawings[1]).toMatchObject({ id: "drawing-copy-3", actorId: "opponent-a" });
+  expect([...pasted.elementIds]).toEqual(["home-player-copy-1"]);
+  expect([...pasted.drawingIds]).toEqual(["drawing-copy-2", "drawing-copy-3"]);
+  expect(phase.elements[0]).toMatchObject({ id: "runner-a", x: 20, y: 18 });
+
+  let crossId = 0;
+  const crossPhasePaste = pasteSetPieceBoardClipboard(clipboard, {
+    existingElementIds: [],
+    pitchView: "full",
+    createId: (prefix) => `${prefix}-cross-${++crossId}`,
+  });
+  expect(crossPhasePaste.drawings[0].actorId).toBe("home-player-cross-1");
+  expect(crossPhasePaste.drawings[1].actorId).toBe("");
+});
+
+test("board clipboard keeps a pasted group inside the active pitch view", () => {
+  const clipboard = {
+    elements: [{ id: "opponent-a", kind: "opponent", x: 104, y: 67, label: "1" }],
+    drawings: [{ id: "zone-a", type: "zone", startX: 98, startY: 60, endX: 105, endY: 68 }],
+  };
+  let nextId = 0;
+  const pasted = pasteSetPieceBoardClipboard(clipboard, {
+    pitchView: "full",
+    pasteIndex: 4,
+    createId: (prefix) => `${prefix}-${++nextId}`,
+  });
+
+  expect(pasted.elements[0]).toMatchObject({ x: 104, y: 67 });
+  expect(pasted.drawings[0]).toMatchObject({ startX: 98, startY: 60, endX: 105, endY: 68 });
 });
 
 test("drag coordinates reach the pitch lines while remaining inside the selected pitch view", () => {

@@ -1,5 +1,6 @@
 export { SET_PIECES_STORAGE_KEY } from "./constants.mjs";
 export { createSetPiecesRoomController } from "./controller.mjs";
+export { createSetPieceBoardClipboard, pasteSetPieceBoardClipboard } from "./board-clipboard.mjs";
 export {
   createEmptySetPiecesState,
   createSetPiecePhase,

@@ -29,27 +29,26 @@
 }
 
 .spr-pitch-markings .spr-pitch-goal-surface {
-  fill: #f7fbf80d;
+  fill: #f7fbf812;
   stroke: none;
 }
 
 .spr-pitch-markings .spr-pitch-goal-frame {
-  stroke: #f7fbf8e8;
-  stroke-width: .58;
+  stroke: #f7fbf8f2;
+  stroke-width: .42;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .spr-pitch-markings .spr-pitch-goal-net {
-  stroke: #f7fbf87a;
-  stroke-width: .2;
+  stroke: #f7fbf8a8;
+  stroke-width: .11;
   stroke-linecap: round;
 }
 
 .spr-pitch-markings .spr-pitch-goal-post {
   fill: #f7fbf8;
-  stroke: #174a32;
-  stroke-width: .1;
+  stroke: none;
 }
 
 .spr-board-element {

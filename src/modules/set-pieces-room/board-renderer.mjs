@@ -204,8 +204,8 @@ function renderDrawing(drawing = {}, options = {}) {
 
 function renderDrawingHandle(x, y, handle, className) {
   return `<g class="spr-drawing-handle-target ${className}">
-    <circle cx="${x}" cy="${y}" r=".5" class="spr-drawing-handle-hit" data-drawing-handle="${handle}"></circle>
-    <circle cx="${x}" cy="${y}" r=".38" class="spr-drawing-handle ${className}"></circle>
+    <circle cx="${x}" cy="${y}" r=".55" class="spr-drawing-handle-hit" data-drawing-handle="${handle}" aria-hidden="true"></circle>
+    <circle cx="${x}" cy="${y}" r=".26" class="spr-drawing-handle ${className}" aria-hidden="true"></circle>
   </g>`;
 }
 

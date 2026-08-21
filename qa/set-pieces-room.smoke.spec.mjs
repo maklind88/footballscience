@@ -521,15 +521,22 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(runControls.locator("[data-drawing-handle]")).toHaveCount(3);
   const routeVisualMetrics = await runDrawing.evaluate((drawing) => {
     const shape = drawing.querySelector(".spr-drawing-shape");
+    const hit = drawing.querySelector(".spr-drawing-hit");
     const markerId = shape?.getAttribute("marker-end")?.match(/#([^\)]+)/)?.[1];
     const marker = markerId ? document.getElementById(markerId) : null;
     return {
       strokeWidth: Number.parseFloat(getComputedStyle(shape).strokeWidth),
       markerWidth: Number(marker?.getAttribute("markerWidth") || 0),
+      outlineStyle: getComputedStyle(drawing).outlineStyle,
+      hitOpacity: getComputedStyle(hit).opacity,
+      hitPointerEvents: getComputedStyle(hit).pointerEvents,
     };
   });
   expect(routeVisualMetrics.strokeWidth).toBeGreaterThanOrEqual(1.5);
   expect(routeVisualMetrics.markerWidth).toBeGreaterThanOrEqual(5);
+  expect(routeVisualMetrics.outlineStyle).toBe("none");
+  expect(routeVisualMetrics.hitOpacity).toBe("0");
+  expect(routeVisualMetrics.hitPointerEvents).toBe("stroke");
   const handleVisualMetrics = await runControls.locator('.spr-drawing-handle-target').first().evaluate((target) => {
     const visible = target.querySelector(".spr-drawing-handle");
     const hit = target.querySelector(".spr-drawing-handle-hit");
@@ -537,12 +544,14 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
       visibleRadius: Number(visible.getAttribute("r")),
       hitRadius: Number(hit.getAttribute("r")),
       hitStrokeWidth: Number.parseFloat(getComputedStyle(hit).strokeWidth),
+      hitOpacity: getComputedStyle(hit).opacity,
     } : null;
   });
   expect(handleVisualMetrics).not.toBeNull();
-  expect(handleVisualMetrics.visibleRadius).toBeLessThan(.5);
+  expect(handleVisualMetrics.visibleRadius).toBeLessThan(.3);
   expect(handleVisualMetrics.hitRadius).toBeGreaterThan(handleVisualMetrics.visibleRadius);
   expect(handleVisualMetrics.hitStrokeWidth).toBeGreaterThanOrEqual(24);
+  expect(handleVisualMetrics.hitOpacity).toBe("0");
   const runPathBefore = await runDrawing.locator(".spr-drawing-shape").getAttribute("d");
   const runEndHandle = runControls.locator('[data-drawing-handle="end"]');
   const runEndBox = await runEndHandle.boundingBox();

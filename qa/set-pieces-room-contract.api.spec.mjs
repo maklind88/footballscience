@@ -808,8 +808,10 @@ test("selected drawings expose contextual transform handles only while editing",
   const presenting = renderSetPieceBoard({ phase, interactive: false, selectedDrawingId: "pass-a", layers: new Set(["drawings"]) });
 
   expect(route).toContain('class="spr-drawing-hit"');
-  expect(route).toContain('r=".5" class="spr-drawing-handle-hit"');
-  expect(route).toContain('r=".38" class="spr-drawing-handle');
+  expect(route).toContain('r=".55" class="spr-drawing-handle-hit"');
+  expect(route).toContain('r=".26" class="spr-drawing-handle');
+  expect(route.match(/class="spr-drawing-handle-hit"[^>]+aria-hidden="true"/g)).toHaveLength(3);
+  expect(route.match(/class="spr-drawing-handle [^"]+" aria-hidden="true"/g)).toHaveLength(3);
   expect(route).toContain('data-drawing-handle="start"');
   expect(route).toContain('data-drawing-handle="end"');
   expect(route).toContain('data-drawing-handle="curve"');

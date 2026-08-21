@@ -61,8 +61,10 @@
 }
 
 .spr-element-hit {
-  fill: transparent;
-  stroke: transparent;
+  fill: #000;
+  stroke: #000;
+  opacity: 0;
+  forced-color-adjust: none;
   pointer-events: all;
 }
 
@@ -164,6 +166,7 @@
 .spr-drawing {
   cursor: pointer;
   color: #fff;
+  outline: none;
 }
 
 .spr-drawing .spr-drawing-shape {
@@ -178,10 +181,12 @@
 
 .spr-drawing .spr-drawing-hit {
   fill: none;
-  stroke: transparent;
+  stroke: #000;
   stroke-linecap: round;
   stroke-width: 14px;
   vector-effect: non-scaling-stroke;
+  opacity: 0;
+  forced-color-adjust: none;
   pointer-events: stroke;
 }
 
@@ -218,10 +223,19 @@
 .spr-drawing.is-block .spr-drawing-shape { stroke-width: 1.55; }
 .spr-drawing.is-mark .spr-drawing-shape { stroke-dasharray: 1.25 .7; }
 
-.spr-drawing.is-selected .spr-drawing-shape,
-.spr-drawing.is-selected .spr-zone-shape {
-  filter: drop-shadow(0 0 1.4px #ffe27a);
+.spr-drawing.is-selected .spr-drawing-shape {
+  filter: drop-shadow(0 0 .85px #fff3b0);
   stroke-width: 1.55;
+}
+
+.spr-drawing.is-selected .spr-zone-shape {
+  filter: drop-shadow(0 0 .75px #fff3b0);
+  stroke-width: .72;
+}
+
+.spr-drawing[tabindex="0"]:focus-visible .spr-drawing-shape,
+.spr-drawing[tabindex="0"]:focus-visible .spr-zone-shape {
+  filter: drop-shadow(0 0 1px #d8ffea);
 }
 
 .spr-drawing.is-playing .spr-drawing-shape {
@@ -231,9 +245,9 @@
 
 .spr-drawing-transform-guide {
   fill: none;
-  stroke: #f7fbf8a8;
-  stroke-dasharray: 1.1 .8;
-  stroke-width: .5;
+  stroke: #e7f5eea8;
+  stroke-dasharray: .85 .75;
+  stroke-width: .38;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
@@ -241,16 +255,18 @@
 .spr-drawing-handle {
   fill: #fff;
   stroke: #143e30;
-  stroke-width: .45;
+  stroke-width: .32;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
 }
 
 .spr-drawing-handle-hit {
-  fill: transparent;
-  stroke: transparent;
+  fill: #000;
+  stroke: #000;
   stroke-width: 24px;
   vector-effect: non-scaling-stroke;
+  opacity: 0;
+  forced-color-adjust: none;
   pointer-events: all;
 }
 
@@ -277,8 +293,10 @@
 }
 
 .spr-text-annotation-hit {
-  fill: transparent;
+  fill: #000;
   stroke: none;
+  opacity: 0;
+  forced-color-adjust: none;
   pointer-events: all;
 }
 
@@ -308,6 +326,10 @@
   stroke-width: .42;
   stroke-dasharray: .8 .45;
   filter: none;
+}
+
+.spr-drawing.is-text[tabindex="0"]:focus-visible .spr-text-annotation-surface {
+  stroke: #d8ffea;
 }
 
 .spr-drawing-label {

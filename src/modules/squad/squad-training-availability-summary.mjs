@@ -145,6 +145,32 @@ function getTeamTrainingDateValuesForSummary({
   return Array.from(new Set([...scheduledDates, ...fallbackDates])).sort((first, second) => first.localeCompare(second));
 }
 
+export function createSquadTrainingAvailabilityContext({
+  records = [],
+  getActivityContext = () => null,
+  getTeamTrainingDateValues = () => [],
+} = {}) {
+  const sourceRecords = Array.isArray(records) ? records : [];
+  const recordsByPlayerId = new Map();
+  sourceRecords.forEach((record) => {
+    const playerId = String(record?.playerId || "").trim();
+    if (!playerId) {
+      return;
+    }
+    const playerRecords = recordsByPlayerId.get(playerId) || [];
+    playerRecords.push(record);
+    recordsByPlayerId.set(playerId, playerRecords);
+  });
+  return {
+    recordsByPlayerId,
+    trainingDateValues: getTeamTrainingDateValuesForSummary({
+      records: sourceRecords,
+      getActivityContext,
+      getTeamTrainingDateValues,
+    }),
+  };
+}
+
 export function getSquadTrainingAvailabilitySummary({
   playerId = "",
   records = [],
@@ -154,6 +180,7 @@ export function getSquadTrainingAvailabilitySummary({
   getActiveMedicalInjuryPlan = () => null,
   getPlayerAvailabilityStatusForDate = () => "",
   getTeamTrainingDateValues = () => [],
+  summaryContext = null,
 } = {}) {
   const cleanPlayerId = String(playerId || "").trim();
   const referenceDate = parseDateValue(referenceDateValue) || parseDateValue(defaultFormatDateValue(new Date()));
@@ -169,8 +196,13 @@ export function getSquadTrainingAvailabilitySummary({
     };
   }
 
+  const hasPlayerRecordIndex = summaryContext?.recordsByPlayerId instanceof Map;
+  const contextPlayerRecords = hasPlayerRecordIndex ? summaryContext.recordsByPlayerId.get(cleanPlayerId) : null;
+  const playerRecords = hasPlayerRecordIndex
+    ? (Array.isArray(contextPlayerRecords) ? contextPlayerRecords : [])
+    : records;
   const completedRecords = getLatestRecordPerDate(
-    records
+    playerRecords
       .filter((record) => String(record?.playerId || "").trim() === cleanPlayerId)
       .filter((record) => !isArchivedRecord(record))
       .filter((record) => isDateValue(record?.date))
@@ -187,11 +219,13 @@ export function getSquadTrainingAvailabilitySummary({
   const referenceYear = referenceDate.getUTCFullYear();
   const getAgeDays = (recordDate) => Math.floor((referenceDate - recordDate) / dayMs);
   const playerRecordByDate = getLatestRecordMapByDate(completedRecords);
-  const trainingDateValues = getTeamTrainingDateValuesForSummary({
-    records,
-    getActivityContext,
-    getTeamTrainingDateValues,
-  });
+  const trainingDateValues = Array.isArray(summaryContext?.trainingDateValues)
+    ? summaryContext.trainingDateValues
+    : getTeamTrainingDateValuesForSummary({
+        records,
+        getActivityContext,
+        getTeamTrainingDateValues,
+      });
   const trainingOpportunities = trainingDateValues
     .map((date) => {
       const dateValue = parseDateValue(date);

@@ -1,4 +1,7 @@
-import { getSquadTrainingAvailabilitySummary } from "./squad-training-availability-summary.mjs";
+import {
+  createSquadTrainingAvailabilityContext,
+  getSquadTrainingAvailabilitySummary,
+} from "./squad-training-availability-summary.mjs";
 
 export function createSquadMedicalStatusService(deps = {}) {
   const {
@@ -16,9 +19,42 @@ export function createSquadMedicalStatusService(deps = {}) {
     medicalActualParticipationFallback = "not-logged",
   } = deps;
 
+  function createPlayerProfileMedicalSnapshotContext(options = {}) {
+    if (options.medicalStateReady !== true) {
+      ensureMedicalState();
+    }
+    const records = Array.isArray(getMedicalState()?.records) ? getMedicalState().records : [];
+    const latestManualLogByPlayerId = new Map();
+    records.forEach((record) => {
+      const playerId = String(record?.playerId || "").trim();
+      if (!playerId) {
+        return;
+      }
+      const current = latestManualLogByPlayerId.get(playerId);
+      const currentTimestamp = Date.parse(current?.createdAt || "") || 0;
+      const nextTimestamp = Date.parse(record?.createdAt || "") || 0;
+      if (!current || record.date > current.date || (record.date === current.date && nextTimestamp >= currentTimestamp)) {
+        latestManualLogByPlayerId.set(playerId, record);
+      }
+    });
+    return {
+      latestManualLogByPlayerId,
+      trainingAvailability: options.includeTrainingAvailability === false
+        ? null
+        : createSquadTrainingAvailabilityContext({
+            records,
+            getActivityContext: getMedicalRecommendationActivityContext,
+            getTeamTrainingDateValues,
+          }),
+    };
+  }
+
   function getLatestManualMedicalLog(playerId, options = {}) {
     if (options.medicalStateReady !== true) {
       ensureMedicalState();
+    }
+    if (options.snapshotContext?.latestManualLogByPlayerId instanceof Map) {
+      return options.snapshotContext.latestManualLogByPlayerId.get(playerId) ?? null;
     }
     return (getMedicalState().records || [])
       .filter((record) => record.playerId === playerId)
@@ -62,7 +98,10 @@ export function createSquadMedicalStatusService(deps = {}) {
       ensureMedicalState();
     }
     const currentRecord = getLatestMedicalRecord(playerId, dateValue);
-    const latestLog = getLatestManualMedicalLog(playerId, { medicalStateReady: true });
+    const latestLog = getLatestManualMedicalLog(playerId, {
+      medicalStateReady: true,
+      snapshotContext: options.snapshotContext,
+    });
     const activePlan = getActiveMedicalInjuryPlan(playerId, dateValue);
     const openEndedLog =
       !currentRecord &&
@@ -98,16 +137,19 @@ export function createSquadMedicalStatusService(deps = {}) {
     const returnDate = activePlan?.endDate || "";
     const returnDateLabel = returnDate ? formatMedicalDateLabel(returnDate) : "";
     const activeInjuryLabel = activePlan ? [activePlan.injuryType, activePlan.bodyArea].filter(Boolean).join(" / ") : "";
-    const trainingAvailability = getSquadTrainingAvailabilitySummary({
-      playerId,
-      records: getMedicalState().records || [],
-      referenceDateValue: dateValue,
-      medicalActualParticipationFallback,
-      getActivityContext: getMedicalRecommendationActivityContext,
-      getActiveMedicalInjuryPlan,
-      getPlayerAvailabilityStatusForDate,
-      getTeamTrainingDateValues,
-    });
+    const trainingAvailability = options.includeTrainingAvailability === false
+      ? null
+      : getSquadTrainingAvailabilitySummary({
+          playerId,
+          records: getMedicalState().records || [],
+          referenceDateValue: dateValue,
+          medicalActualParticipationFallback,
+          getActivityContext: getMedicalRecommendationActivityContext,
+          getActiveMedicalInjuryPlan,
+          getPlayerAvailabilityStatusForDate,
+          getTeamTrainingDateValues,
+          summaryContext: options.snapshotContext?.trainingAvailability,
+        });
     return {
       currentAvailability: availabilityLabel,
       rtpStatus,
@@ -129,6 +171,7 @@ export function createSquadMedicalStatusService(deps = {}) {
   }
 
   return {
+    createPlayerProfileMedicalSnapshotContext,
     getLatestManualMedicalLog,
     getPlayerProfileEffectiveStatus,
     getPlayerProfileEffectiveStatusFromSnapshot,

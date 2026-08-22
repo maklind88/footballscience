@@ -36,6 +36,8 @@ function createHarness() {
   const localStorageWrites = [];
   const medicalUpserts = [];
   const modalDrafts = [];
+  const frames = [];
+  const rosterRenderCalls = [];
   const timers = [];
   const form = { id: "playerProfileEditForm" };
   const newPlayerForm = {
@@ -81,6 +83,10 @@ function createHarness() {
     localStorage: {
       getItem: () => null,
       setItem: (key, value) => localStorageWrites.push({ key, value }),
+    },
+    requestAnimationFrame: (handler) => {
+      frames.push(handler);
+      return frames.length;
     },
     setTimeout: (handler, delayMs) => {
       const timer = { delayMs, handler };
@@ -224,7 +230,10 @@ function createHarness() {
       renderOptionSet: () => "options",
     },
     squadRosterRenderer: {
-      renderRosterSections: (players) => `roster=${players.map((player) => player.name).join(",")}`,
+      renderRosterSections: (players, summaries) => {
+        rosterRenderCalls.push({ players, summaries });
+        return `roster=${players.map((player) => player.name).join(",")}`;
+      },
       renderStatusChip: (statusKey) => `status=${statusKey}`,
     },
     squadWorkspaceRenderer: {
@@ -249,11 +258,13 @@ function createHarness() {
   return {
     facade,
     form,
+    frames,
     getState: () => playerProfilesState,
     localStorageWrites,
     medicalUpserts,
     modalDrafts,
     newPlayerForm,
+    rosterRenderCalls,
     timers,
     ui,
   };
@@ -263,6 +274,7 @@ test("Squad player profile runtime facade is the only app-runtime boundary for p
   const app = readProjectFile("app-runtime.js");
   const workspaceComposer = readProjectFile("src/core/workspace-runtime-composer.mjs");
   const facade = readProjectFile("src/modules/squad/player-profile-runtime-facade.mjs");
+  const rosterRuntime = readProjectFile("src/modules/squad/squad-roster-runtime-controller.mjs");
   const index = readProjectFile("src/modules/squad/index.mjs");
 
   expect(typeof createPlayerProfileRuntimeFacade).toBe("function");
@@ -283,6 +295,11 @@ test("Squad player profile runtime facade is the only app-runtime boundary for p
   expect(facade).toContain("createPlayerProfileRuntimeImportService({");
   expect(facade).toContain("createPlayerProfileRuntimeMedicalSyncService({");
   expect(facade).toContain("createSquadMedicalStatusService({");
+  expect(facade).toContain("createSquadRosterRuntimeController({");
+  expect(rosterRuntime).toContain("isWorkspaceActive");
+  expect(rosterRuntime).toContain("generation !== availabilityHydrationGeneration");
+  expect(rosterRuntime).toContain("focusedPlayerId");
+  expect(rosterRuntime).toContain("preventScroll: true");
   expect(facade).not.toContain("createDashboardChat");
   expect(facade).not.toContain("renderDashboardChatWidget");
   expect(index).toContain('export * from "./player-profile-runtime-facade.mjs";');
@@ -296,6 +313,16 @@ test("Squad player profile runtime facade preserves workspace render and edit-sa
   expect(harness.ui.playerProfilesWorkspace.innerHTML).toContain("message=Saved");
   expect(harness.ui.playerProfilesWorkspace.innerHTML).toContain("roster=Ada Midfielder");
   expect(harness.timers).toHaveLength(1);
+  expect(harness.rosterRenderCalls[0]?.summaries).toMatchObject({
+    medicalStateReady: true,
+    includeTrainingAvailability: false,
+  });
+
+  harness.frames.shift()?.();
+  harness.frames.shift()?.();
+  const hydrationTimer = harness.timers.find((timer) => timer.delayMs === 0);
+  hydrationTimer?.handler();
+  expect(harness.rosterRenderCalls).toHaveLength(1);
 
   const result = harness.facade.savePlayerProfileEditForm(harness.form);
   expect(result).toMatchObject({ ok: true, status: "success" });

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createSquadProfileSupportRenderer, getSquadTrainingAvailabilitySummary } from "../src/modules/squad/index.mjs";
+import { createSquadTrainingAvailabilityContext } from "../src/modules/squad/squad-training-availability-summary.mjs";
 
 test("Squad profile support renderer owns option lists, support panels, and add-player modal", () => {
   const player = {
@@ -307,4 +308,49 @@ test("Squad training availability summary does not infer team trainings from off
   expect(summary.season).toEqual({ average: null, count: 0 });
   expect(summary.lastTwoWeeks).toEqual({ average: null, count: 0 });
   expect(summary.lastFive).toEqual({ average: null, count: 0 });
+});
+
+test("Squad training availability render context preserves legacy results and avoids empty-player full scans", () => {
+  const records = [
+    { playerId: "p1", date: "2026-06-10", participation: 100, actualParticipation: 100, updatedAt: "2026-06-10T14:00:00Z" },
+    { playerId: "p1", date: "2026-06-09", participation: 25, actualParticipation: "not-logged", updatedAt: "2026-06-09T10:00:00Z" },
+    { playerId: "p1", date: "2026-06-09", participation: 75, actualParticipation: 50, updatedAt: "2026-06-09T12:00:00Z" },
+    { playerId: "p1", date: "2026-06-08", participation: 0, actualParticipation: 0, archivedAt: "2026-06-09T12:00:00Z" },
+    { playerId: "p1", date: "2026-07-01", participation: 0, actualParticipation: 0, updatedAt: "2026-07-01T12:00:00Z" },
+    { playerId: "p2", date: "2026-06-10", participation: 25, actualParticipation: 25, updatedAt: "2026-06-10T12:00:00Z" },
+  ];
+  const getActivityContext = () => ({ type: "training" });
+  const getTeamTrainingDateValues = () => ["2026-06-08", "2026-06-09", "2026-06-10"];
+  const sharedOptions = {
+    referenceDateValue: "2026-06-10",
+    medicalActualParticipationFallback: "not-logged",
+    records,
+    getActivityContext,
+    getTeamTrainingDateValues,
+  };
+  const summaryContext = createSquadTrainingAvailabilityContext({
+    records,
+    getActivityContext,
+    getTeamTrainingDateValues,
+  });
+
+  expect(getSquadTrainingAvailabilitySummary({ ...sharedOptions, playerId: "p1", summaryContext }))
+    .toEqual(getSquadTrainingAvailabilitySummary({ ...sharedOptions, playerId: "p1" }));
+  expect(getSquadTrainingAvailabilitySummary({ ...sharedOptions, playerId: "p-empty", summaryContext }))
+    .toEqual(getSquadTrainingAvailabilitySummary({ ...sharedOptions, playerId: "p-empty" }));
+
+  const recordsThatRejectFullScan = new Proxy(records, {
+    get(target, property, receiver) {
+      if (property === "filter") {
+        throw new Error("Context miss must not scan the complete record list");
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  expect(() => getSquadTrainingAvailabilitySummary({
+    ...sharedOptions,
+    playerId: "p-empty",
+    records: recordsThatRejectFullScan,
+    summaryContext,
+  })).not.toThrow();
 });

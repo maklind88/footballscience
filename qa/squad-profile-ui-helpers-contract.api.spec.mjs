@@ -193,6 +193,49 @@ test("Squad medical status service preserves medical snapshot golden-master beha
   const ensureCallsBeforeReadySnapshot = ensureMedicalStateCalls;
   service.getPlayerProfileMedicalSnapshot("p1", "2026-06-07", { medicalStateReady: true });
   expect(ensureMedicalStateCalls).toBe(ensureCallsBeforeReadySnapshot);
+  const snapshotContext = service.createPlayerProfileMedicalSnapshotContext({ medicalStateReady: true });
+  expect(service.getPlayerProfileMedicalSnapshot("p1", "2026-06-07", {
+    medicalStateReady: true,
+    snapshotContext,
+  })).toEqual(service.getPlayerProfileMedicalSnapshot("p1", "2026-06-07", { medicalStateReady: true }));
+  expect(service.getPlayerProfileMedicalSnapshot("p1", "2026-06-07", {
+    medicalStateReady: true,
+    includeTrainingAvailability: false,
+    snapshotContext: service.createPlayerProfileMedicalSnapshotContext({
+      medicalStateReady: true,
+      includeTrainingAvailability: false,
+    }),
+  })).toMatchObject({
+    currentAvailability: "RTP return-to-train / 60%",
+    medicalStatusKey: "rehab",
+    trainingAvailability: null,
+  });
+});
+
+test("Squad medical snapshot context preserves future and same-date latest-log selection", () => {
+  const records = [
+    { playerId: "p1", date: "2026-06-05", createdAt: "2026-06-05T09:00:00Z", status: "modified", participation: 50 },
+    { playerId: "p1", date: "2026-06-05", createdAt: "2026-06-05T12:00:00Z", status: "controlled", participation: 75 },
+    { playerId: "p2", date: "2026-07-01", createdAt: "2026-07-01T12:00:00Z", status: "rehab", participation: 25 },
+  ];
+  const service = createSquadMedicalStatusService({
+    formatMedicalDateLabel: (value) => value,
+    getMedicalRecordStatus: (record) => ({ label: record.status }),
+    getMedicalRtpPhaseOption: () => ({ label: "No restriction" }),
+    getMedicalState: () => ({ records }),
+  });
+  const snapshotContext = service.createPlayerProfileMedicalSnapshotContext({ medicalStateReady: true });
+
+  expect(service.getLatestManualMedicalLog("p1", { medicalStateReady: true, snapshotContext }))
+    .toEqual(service.getLatestManualMedicalLog("p1", { medicalStateReady: true }));
+  expect(service.getLatestManualMedicalLog("p1", { medicalStateReady: true, snapshotContext })).toMatchObject({
+    status: "controlled",
+    participation: 75,
+  });
+  expect(service.getPlayerProfileMedicalSnapshot("p2", "2026-06-07", {
+    medicalStateReady: true,
+    snapshotContext,
+  })).toEqual(service.getPlayerProfileMedicalSnapshot("p2", "2026-06-07", { medicalStateReady: true }));
 });
 
 test("Squad medical status service is a read-only extracted runtime boundary", () => {

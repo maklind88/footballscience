@@ -3,12 +3,11 @@ import { createPlayerProfileRuntimeMedicalSyncService } from "./player-profile-r
 import { createPlayerProfileRuntimeStateService } from "./player-profile-runtime-state-service.mjs";
 import { createPlayerProfileRuntimeWriteService } from "./player-profile-runtime-write-service.mjs";
 import { createSquadMedicalStatusService } from "./squad-medical-status-service.mjs";
-
+import { createSquadRosterRuntimeController } from "./squad-roster-runtime-controller.mjs";
 export function createPlayerProfileRuntimeFacade(deps = {}) {
   const win = deps.win ?? globalThis;
   const ui = deps.ui ?? {};
   const call = (name, ...args) => deps[name]?.(...args);
-
   let ageCacheState = null;
   let ageHydrationTimer = 0;
   let ageHydrationPending = false;
@@ -23,8 +22,8 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
   let runtimeMedicalSyncService = null;
   let runtimeStateService = null;
   let runtimeWriteService = null;
+  let squadRosterRuntimeController = null;
   let squadMedicalStatusService = null;
-
   const getProfilesState = () => call("getPlayerProfilesState") || null;
   const setProfilesState = (nextState) => call("setPlayerProfilesState", nextState);
   const getMedicalState = () => call("getMedicalState") || null;
@@ -182,6 +181,22 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     medicalActualParticipationFallback: deps.medicalActualParticipationFallback,
   });
 
+  squadRosterRuntimeController = createSquadRosterRuntimeController({
+    createMedicalSnapshotContext: (options) => squadMedicalStatusService.createPlayerProfileMedicalSnapshotContext(options),
+    ensureMedicalState: deps.ensureMedicalState,
+    ensurePlayerProfilesState,
+    getMedicalSnapshot: (...args) => squadMedicalStatusService.getPlayerProfileMedicalSnapshot(...args),
+    getPlayers: () => getProfilesState()?.players || [],
+    getRosterSummary: deps.getPlayerProfilesRosterSummary,
+    getTemporaryPlayerProfiles: getAllTemporaryPlayerProfiles,
+    getVisiblePlayerProfiles,
+    getWorkspace: () => ui.playerProfilesWorkspace,
+    queueAgeHydration: queuePlayerProfileAgeHydration,
+    renderRosterSections: renderSquadRosterSections,
+    renderWorkspace: renderPlayerProfilesWorkspace,
+    win,
+  });
+
   function getVisiblePlayerProfiles() {
     ensurePlayerProfilesState();
     return deps.playerProfileRosterUiSelectors.getVisibleProfiles(getProfilesState().players, {
@@ -204,21 +219,8 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     return deps.squadRosterRenderer.renderRosterSections(visiblePlayers, summaries);
   }
 
-  function renderPlayerProfilesRosterListOnly() {
-    ensurePlayerProfilesState();
-    deps.ensureMedicalState();
-    const listPanel = ui.playerProfilesWorkspace?.querySelector(".squad-list-panel");
-    if (!listPanel) {
-      renderPlayerProfilesWorkspace();
-      return;
-    }
-    const visiblePlayers = getVisiblePlayerProfiles();
-    listPanel.innerHTML = renderSquadRosterSections(visiblePlayers, {
-      rosterSummary: deps.getPlayerProfilesRosterSummary(getProfilesState().players),
-      visibleSummary: deps.getPlayerProfilesRosterSummary(visiblePlayers),
-      medicalStateReady: true,
-    });
-    queuePlayerProfileAgeHydration();
+  function renderPlayerProfilesRosterListOnly(renderOptions = {}) {
+    return squadRosterRuntimeController?.renderListOnly(renderOptions);
   }
 
   runtimeImportService = createPlayerProfileRuntimeImportService({
@@ -266,6 +268,7 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     if (!ui.playerProfilesWorkspace) {
       return;
     }
+    const { generation: hydrationGeneration, isColdWorkspaceRender } = squadRosterRuntimeController.beginWorkspaceRender();
     ensurePlayerProfilesState();
     deps.ensureMedicalState();
     syncPlayerProfilesFromMedicalTrainingGuests({ medicalStateReady: true });
@@ -279,6 +282,10 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     const squadTeamName = squadTeam?.name || deps.getPlatformTeamDisplayName(currentPlatformUser, platformStructure);
     const canEdit = renderOptions.canEdit === true || (renderOptions.canEdit !== false && canEditPlayerProfiles());
     const newPlayerModalMarkup = deps.squadProfileSupportRenderer.renderNewPlayerModal(readPlayerProfileNewPlayerDraft());
+    const medicalSnapshotContext = squadMedicalStatusService.createPlayerProfileMedicalSnapshotContext({
+      medicalStateReady: true,
+      includeTrainingAvailability: !isColdWorkspaceRender,
+    });
     ui.playerProfilesWorkspace.innerHTML = deps.squadWorkspaceRenderer.renderWorkspace({
       canEdit,
       messageMarkup: message ? deps.renderPlayerProfilesWorkspaceMessage(message) : "",
@@ -288,12 +295,21 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
       roleGroupFilter: deps.getPlayerProfilesRoleGroupFilter(),
       roleGroupOptionsMarkup: deps.squadProfileSupportRenderer.renderOptionSet(deps.playerProfileRoleGroupOptions, deps.getPlayerProfilesRoleGroupFilter()),
       rosterFilterOptionsMarkup: deps.squadProfileSupportRenderer.renderOptionSet(deps.playerProfileRosterFilterOptions, deps.getPlayerProfilesRosterFilter()),
-      rosterSectionsMarkup: renderSquadRosterSections(visiblePlayers, { rosterSummary, visibleSummary, medicalStateReady: true }),
+      rosterSectionsMarkup: renderSquadRosterSections(visiblePlayers, {
+        rosterSummary,
+        visibleSummary,
+        medicalStateReady: true,
+        includeTrainingAvailability: !isColdWorkspaceRender,
+        medicalSnapshotContext,
+      }),
       searchQuery: deps.getPlayerProfilesSearchQuery(),
       teamLogoMarkup: deps.renderPlatformTeamLogoMark(squadTeam || { name: squadTeamName }, { teamName: squadTeamName, canUpload: canEdit }),
       teamName: squadTeamName,
     });
     queuePlayerProfileAgeHydration();
+    if (isColdWorkspaceRender) {
+      squadRosterRuntimeController.queueAvailabilityHydration(hydrationGeneration);
+    }
   }
 
   runtimeMedicalSyncService = createPlayerProfileRuntimeMedicalSyncService({
@@ -472,12 +488,8 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     renderPlayerProfilesWorkspace,
     renderSquadRosterSections,
     savePlayerProfileEditForm,
-    setPendingPlayerProfileImportPlan: (nextPlan) => {
-      pendingImportPlan = nextPlan;
-    },
-    setPlayerProfileAutosaveLastSignature: (nextSignature) => {
-      autosaveLastSignature = nextSignature;
-    },
+    setPendingPlayerProfileImportPlan: (nextPlan) => { pendingImportPlan = nextPlan; },
+    setPlayerProfileAutosaveLastSignature: (nextSignature) => { autosaveLastSignature = nextSignature; },
     syncMedicalPlayersFromPlayerProfiles,
     syncPlayerProfilesFromMedicalTrainingGuests,
     updatePlayerProfile,

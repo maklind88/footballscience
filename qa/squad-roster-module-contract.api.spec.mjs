@@ -41,11 +41,13 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
       medicalSnapshotCalls.push({ playerId, dateValue, options });
       return {
         returnLabel: playerId === "p2" ? "10 Jun" : "",
-        trainingAvailability: {
-          season: { average: 82, count: 12 },
-          lastTwoWeeks: { average: 90, count: 5 },
-          lastFive: { average: 90, count: 5 },
-        },
+        trainingAvailability: options?.includeTrainingAvailability === false
+          ? null
+          : {
+              season: { average: 82, count: 12 },
+              lastTwoWeeks: { average: 90, count: 5 },
+              lastFive: { average: 90, count: 5 },
+            },
       };
     },
     getPlayerProfileOption: getOption,
@@ -108,10 +110,55 @@ test("Squad roster renderer owns roster table, temporary section, and status mar
   expect(markup).toContain("1 Jun - 7 Jun");
   expect(markup).not.toContain("Squad player");
   expect(medicalSnapshotCalls).toEqual([
-    { playerId: "p1", dateValue: undefined, options: { medicalStateReady: true } },
-    { playerId: "p2", dateValue: undefined, options: { medicalStateReady: true } },
+    {
+      playerId: "p1",
+      dateValue: undefined,
+      options: { medicalStateReady: true, includeTrainingAvailability: true, snapshotContext: undefined },
+    },
+    {
+      playerId: "p2",
+      dateValue: undefined,
+      options: { medicalStateReady: true, includeTrainingAvailability: true, snapshotContext: undefined },
+    },
   ]);
   expect(renderer.renderStatusChip("injured", { returnLabel: "10 Jun" })).toContain("10 Jun");
+
+  medicalSnapshotCalls.length = 0;
+  const pendingContext = { latestManualLogByPlayerId: new Map() };
+  const pendingMarkup = renderer.renderRosterSections([squadPlayer], {
+    rosterSummary: { squadCount: 1, temporaryCount: 1 },
+    visibleSummary: { squadCount: 1, temporaryCount: 0 },
+    medicalStateReady: true,
+    includeTrainingAvailability: false,
+    medicalSnapshotContext: pendingContext,
+  });
+  expect(pendingMarkup).toContain('aria-busy="true"');
+  expect(pendingMarkup).toContain("Loading availability");
+  expect(medicalSnapshotCalls[0]?.options).toEqual({
+    medicalStateReady: true,
+    includeTrainingAvailability: false,
+    snapshotContext: pendingContext,
+  });
+
+  medicalSnapshotCalls.length = 0;
+  const hydratedSnapshot = {
+    returnLabel: "",
+    trainingAvailability: {
+      season: { average: 88, count: 10 },
+      lastTwoWeeks: { average: 90, count: 5 },
+    },
+  };
+  const hydratedMarkup = renderer.renderRosterSections([squadPlayer], {
+    rosterSummary: { squadCount: 1, temporaryCount: 1 },
+    visibleSummary: { squadCount: 1, temporaryCount: 0 },
+    medicalStateReady: true,
+    medicalSnapshotsByPlayerId: new Map([
+      ["p1", hydratedSnapshot],
+      ["p2", hydratedSnapshot],
+    ]),
+  });
+  expect(hydratedMarkup).toContain("88%");
+  expect(medicalSnapshotCalls).toEqual([]);
 });
 
 test("Squad roster renderer defaults training guests to hidden", () => {

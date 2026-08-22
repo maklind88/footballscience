@@ -113,7 +113,7 @@ export function createSquadRosterRenderer({
     const countLabel = cleanCount ? `${cleanCount} training${cleanCount === 1 ? "" : "s"}` : emptyLabel;
     const title = showCount ? `${value} - ${countLabel}` : average === null ? emptyLabel : value;
     return `
-    <div class="squad-availability-cell is-${escapeHtml(tone)}" title="${escapeHtml(title)}">
+    <div class="squad-availability-cell is-${escapeHtml(tone)}" title="${escapeHtml(title)}"${options.pending ? ' aria-busy="true"' : ""}>
       <strong>${escapeHtml(value)}</strong>
       <span class="squad-availability-track" aria-hidden="true"><i style="width:${width}%"></i></span>
       ${showCount ? `<small>${escapeHtml(countLabel)}</small>` : ""}
@@ -122,12 +122,16 @@ export function createSquadRosterRenderer({
   };
 
   const renderPlayerRow = (player, options = {}) => {
-    const medicalSnapshot = getPlayerProfileMedicalSnapshot(player.id, undefined, {
-      medicalStateReady: options.medicalStateReady === true,
-    });
+    const indexedMedicalSnapshot = options.medicalSnapshotsByPlayerId?.get(player.id);
+    const medicalSnapshot = indexedMedicalSnapshot || getPlayerProfileMedicalSnapshot(player.id, undefined, {
+        medicalStateReady: options.medicalStateReady === true,
+        includeTrainingAvailability: options.includeTrainingAvailability !== false,
+        snapshotContext: options.medicalSnapshotContext,
+      });
     const effectiveStatus = getPlayerProfileEffectiveStatusFromSnapshot(player, medicalSnapshot);
     const isSelected = player.id === getSelectedPlayerId();
     const trainingAvailability = medicalSnapshot?.trainingAvailability || {};
+    const availabilityPending = options.includeTrainingAvailability === false;
     return `
     <tr
       class="squad-player-row${isSelected ? " is-selected" : ""}${isTemporaryPlayerProfile(player) ? " is-temporary" : ""}"
@@ -148,8 +152,8 @@ export function createSquadRosterRenderer({
       <td>${renderRoleCell(player)}</td>
       <td>${renderStatusChip(effectiveStatus, medicalSnapshot)}</td>
       <td>${renderIdpCell(player)}</td>
-      <td>${renderAvailabilityCell(trainingAvailability.season, "No season data")}</td>
-      <td>${renderAvailabilityCell(trainingAvailability.lastTwoWeeks || trainingAvailability.lastFive, "No recent data", { showCount: false })}</td>
+      <td>${renderAvailabilityCell(trainingAvailability.season, availabilityPending ? "Loading availability" : "No season data", { pending: availabilityPending })}</td>
+      <td>${renderAvailabilityCell(trainingAvailability.lastTwoWeeks || trainingAvailability.lastFive, availabilityPending ? "Loading availability" : "No recent data", { pending: availabilityPending, showCount: false })}</td>
     </tr>
   `;
   };
@@ -210,7 +214,12 @@ export function createSquadRosterRenderer({
     const rosterSummary = summaries.rosterSummary || getPlayerProfileRosterSummary(getAllPlayerProfiles());
     const visibleSummary = summaries.visibleSummary || getPlayerProfileRosterSummary(visiblePlayers);
     const listSummary = getRosterListSummary(visibleSummary, rosterSummary);
-    const renderOptions = { medicalStateReady: summaries.medicalStateReady === true };
+    const renderOptions = {
+      medicalStateReady: summaries.medicalStateReady === true,
+      includeTrainingAvailability: summaries.includeTrainingAvailability !== false,
+      medicalSnapshotContext: summaries.medicalSnapshotContext,
+      medicalSnapshotsByPlayerId: summaries.medicalSnapshotsByPlayerId,
+    };
     const squadPlayers = visiblePlayers.filter(playerProfileCountsInSquad);
     const temporaryPlayers = getAllTemporaryPlayerProfiles();
     if (!squadPlayers.length && !temporaryPlayers.length) {

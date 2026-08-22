@@ -63,6 +63,32 @@ test("Set Pieces quick start appears once without leaving guidance over the pitc
   await expect(page.getByRole("dialog", { name: "Build directly on the pitch" })).toHaveCount(0);
 });
 
+test("Set Pieces keeps analysis guides optional across edit and presentation", async ({ page }) => {
+  await page.setViewportSize({ width: 1470, height: 772 });
+  await page.addInitScript(() => {
+    window.localStorage.removeItem("football-set-pieces-room-v1");
+  });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await openSetPiecesRoom(page);
+  await page.getByRole("button", { name: "Create set piece" }).click();
+
+  const shell = page.locator("[data-set-pieces-room]");
+  await expect(shell.locator(".spr-pitch-goal")).toHaveCount(2);
+  await expect(shell.locator(".spr-pitch-goal-net")).toHaveCount(2);
+  await expect(shell.locator(".spr-pitch-guides")).toHaveCount(0);
+
+  await shell.getByRole("button", { name: "Toggle details" }).click();
+  const guides = shell.getByRole("checkbox", { name: /Analysis guides/ });
+  await expect(guides).not.toBeChecked();
+  await guides.check();
+  await expect(shell.locator(".spr-pitch-guides")).toBeVisible();
+
+  await shell.getByRole("button", { name: "Present", exact: true }).click();
+  await expect(shell).toHaveClass(/is-presenting/);
+  await expect(shell.locator(".spr-pitch-guides")).toBeVisible();
+});
+
 test("Set Pieces editor gives the pitch the viewport and anchors compact playback controls", async ({ page }) => {
   await page.setViewportSize({ width: 1470, height: 772 });
   await page.addInitScript(() => {

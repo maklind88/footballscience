@@ -292,6 +292,7 @@ function renderBoardWorkspace(play, variant, phase, roster, ui, canEdit, canDele
             pitchView: play.pitchView,
             playerMarkerMode: play.playerMarkerMode,
             layers: ui.layers,
+            showPitchGuides: ui.showPitchGuides,
             selectedElementIds: ui.selectedElementIds,
             selectedDrawingIds: ui.selectedDrawingIds,
             selectedDrawingId: ui.selectedDrawingId,
@@ -432,6 +433,7 @@ function renderPlanInspector(play, variant, phase, ui, canEdit, canDelete) {
   <div class="spr-inspector-section">
     <div class="spr-inspector-title"><div><p>View</p><strong>Layers</strong></div><label class="spr-ghost-toggle"><input type="checkbox" data-set-piece-ghost ${ui.showGhost ? "checked" : ""}> Ghost</label></div>
     <div class="spr-layer-list">${setPieceLayerOptions.map((layer) => `<label><input type="checkbox" data-set-piece-layer="${layer.value}" ${ui.layers.has(layer.value) ? "checked" : ""}><span>${layer.label}</span></label>`).join("")}</div>
+    <label class="spr-pitch-guide-toggle"><input type="checkbox" data-set-piece-pitch-guides ${ui.showPitchGuides ? "checked" : ""}><span><strong>Analysis guides</strong><small>Show corridor and channel reference lines</small></span></label>
   </div>
   <button type="button" class="spr-delete-plan" data-set-piece-action="delete-play" ${canDelete ? "" : "disabled"}>Delete set piece</button>`;
 }

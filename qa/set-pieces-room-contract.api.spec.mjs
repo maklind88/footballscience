@@ -821,17 +821,22 @@ test("board renderer uses one circular own-player marker in photo or initials mo
   expect(markup).toContain('transform="matrix(0 -1 1 0 0 105)"');
   expect(markup).toContain('class="spr-pitch-goal is-left-goal"');
   expect(markup).toContain('class="spr-pitch-goal is-right-goal"');
+  expect(markup.match(/class="spr-pitch-goal-shadow"/g)).toHaveLength(2);
   expect(markup.match(/class="spr-pitch-goal-frame"/g)).toHaveLength(2);
   expect(markup.match(/class="spr-pitch-goal-net"/g)).toHaveLength(2);
+  expect(markup.match(/class="spr-pitch-goal-mouth"/g)).toHaveLength(2);
   expect(markup.match(/class="spr-pitch-goal-post spr-round-marking"/g)).toHaveLength(4);
-  expect(markup).toContain('d="M0.7 30.34L-1.55 30.79V37.21L0.7 37.66" class="spr-pitch-goal-frame"');
-  expect(markup).toContain('d="M104.3 30.34L106.55 30.79V37.21L104.3 37.66" class="spr-pitch-goal-frame"');
-  expect(markup).toContain("M-0.43 30.57V37.43");
-  expect(markup).toContain("M105.42 30.57V37.43");
-  expect(fullPitchMarkup).toContain("L-1.55 30.79");
-  expect(fullPitchMarkup).toContain("L106.55 30.79");
+  expect(markup).toContain('d="M0.7 30.34L-1.35 30.89V37.11L0.7 37.66" class="spr-pitch-goal-frame"');
+  expect(markup).toContain('d="M104.3 30.34L106.35 30.89V37.11L104.3 37.66" class="spr-pitch-goal-frame"');
+  expect(markup).toContain("M-0.35 30.62V37.38");
+  expect(markup).toContain("M105.35 30.62V37.38");
+  expect(fullPitchMarkup).toContain("L-1.35 30.89");
+  expect(fullPitchMarkup).toContain("L106.35 30.89");
   expect(fullPitchMarkup).not.toContain("L3.5 37.12");
   expect(fullPitchMarkup).not.toContain("L101.5 37.12");
+  expect(fullPitchMarkup).not.toContain("spr-pitch-guides");
+  expect(renderSetPieceBoard({ phase: { elements: [], drawings: [] }, showPitchGuides: true, layers: new Set() }))
+    .toContain('<g class="spr-pitch-guides" aria-hidden="true">');
   expect(markup).not.toContain("spr-pitch-goals");
   expect(markup).not.toContain("spr-body-direction");
 });

@@ -49,27 +49,30 @@ function renderPitchGoal({ side, frontX, direction }) {
   const round = (value) => Number(value.toFixed(2));
   const frontTop = 30.34;
   const frontBottom = 37.66;
-  const depth = 2.25;
-  const rearInset = .45;
+  const depth = 2.05;
+  const rearInset = .55;
   const rearX = round(frontX + direction * depth);
   const rearTop = round(frontTop + rearInset);
   const rearBottom = round(frontBottom - rearInset);
+  const surface = `M${frontX} ${frontTop}L${rearX} ${rearTop}V${rearBottom}L${frontX} ${frontBottom}Z`;
   const frame = `M${frontX} ${frontTop}L${rearX} ${rearTop}V${rearBottom}L${frontX} ${frontBottom}`;
-  const crossNet = [.25, .5, .75].map((progress) => {
+  const depthNet = [.17, .34, .51, .68, .85].map((progress) => {
     const x = round(frontX + direction * depth * progress);
     const top = round(frontTop + rearInset * progress);
     const bottom = round(frontBottom - rearInset * progress);
     return `M${x} ${top}V${bottom}`;
   }).join("");
-  const lengthNet = [.2, .4, .6, .8].map((progress) => {
+  const widthNet = [.125, .25, .375, .5, .625, .75, .875].map((progress) => {
     const startY = round(frontTop + (frontBottom - frontTop) * progress);
     const rearY = round(rearTop + (rearBottom - rearTop) * progress);
     return `M${frontX} ${startY}L${rearX} ${rearY}`;
   }).join("");
   return `<g class="spr-pitch-goal is-${side}-goal">
-      <path d="M${frontX} ${frontTop}L${rearX} ${rearTop}V${rearBottom}L${frontX} ${frontBottom}Z" class="spr-pitch-goal-surface"></path>
-      <path d="${crossNet}${lengthNet}" class="spr-pitch-goal-net"></path>
+      <path d="${surface}" class="spr-pitch-goal-shadow" transform="translate(${round(direction * .14)} .16)"></path>
+      <path d="${surface}" class="spr-pitch-goal-surface"></path>
+      <path d="${depthNet}${widthNet}" class="spr-pitch-goal-net"></path>
       <path d="${frame}" class="spr-pitch-goal-frame"></path>
+      <path d="M${frontX} ${frontTop}V${frontBottom}" class="spr-pitch-goal-mouth"></path>
       <circle cx="${frontX}" cy="${frontTop}" r=".18" class="spr-pitch-goal-post spr-round-marking"></circle>
       <circle cx="${frontX}" cy="${frontBottom}" r=".18" class="spr-pitch-goal-post spr-round-marking"></circle>
     </g>`;
@@ -96,6 +99,12 @@ function renderPitchMarkings() {
       ${renderPitchGoals()}
       <path d="M0.7 1.7A1 1 0 0 0 1.7.7M103.3.7a1 1 0 0 0 1 1M.7 66.3a1 1 0 0 1 1 1M104.3 66.3a1 1 0 0 0-1 1"></path>
     </g>`;
+}
+
+function renderPitchGuides() {
+  return `<g class="spr-pitch-guides" aria-hidden="true">
+    <path d="M.7 13.6H104.3M.7 27.2H104.3M.7 40.8H104.3M.7 54.4H104.3"></path>
+  </g>`;
 }
 
 function renderElement(element = {}, options = {}) {
@@ -301,6 +310,7 @@ export function renderSetPieceBoard(options = {}) {
       <rect x="${setPiecePitchCanvas.x}" y="${setPiecePitchCanvas.y}" width="${setPiecePitchCanvas.width}" height="${setPiecePitchCanvas.height}" class="spr-pitch-base"></rect>
       <rect x="${setPiecePitchCanvas.x}" y="${setPiecePitchCanvas.y}" width="${setPiecePitchCanvas.width}" height="${setPiecePitchCanvas.height}" fill="url(#${markerPrefix}-pitch-pattern)" class="spr-pitch-stripes"></rect>
       ${renderPitchMarkings()}
+      ${options.showPitchGuides ? renderPitchGuides() : ""}
       <g class="spr-ghost-layer">${ghosts}</g>
       <g class="spr-drawing-layer">${drawings}${preview}</g>
       <g class="spr-element-layer ${layers.has("labels") ? "" : "hide-labels"}">${elements}</g>

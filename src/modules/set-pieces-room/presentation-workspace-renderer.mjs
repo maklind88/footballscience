@@ -82,6 +82,7 @@ export function renderSetPiecesPresentationWorkspace(options = {}) {
             pitchView: play.pitchView,
             playerMarkerMode: play.playerMarkerMode,
             layers: ui.layers,
+            showPitchGuides: ui.showPitchGuides,
             selectedElementIds: new Set(),
             selectedDrawingIds: new Set(),
             selectedDrawingId: "",

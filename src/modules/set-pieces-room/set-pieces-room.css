@@ -782,6 +782,39 @@
   accent-color: #1d6b4e;
 }
 
+.spr-pitch-guide-toggle {
+  margin-top: .65rem;
+  padding-top: .65rem;
+  border-top: 1px solid var(--spr-line);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: .5rem;
+  cursor: pointer;
+}
+
+.spr-pitch-guide-toggle input {
+  margin-top: .15rem;
+  accent-color: #1d6b4e;
+}
+
+.spr-pitch-guide-toggle span {
+  min-width: 0;
+  display: grid;
+  gap: .12rem;
+}
+
+.spr-pitch-guide-toggle strong {
+  color: var(--spr-text);
+  font-size: .7rem;
+}
+
+.spr-pitch-guide-toggle small {
+  color: var(--spr-muted);
+  font-size: .61rem;
+  line-height: 1.35;
+}
+
 .spr-delete-plan {
   width: 100%;
   color: #9f3131;

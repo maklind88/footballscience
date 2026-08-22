@@ -78,6 +78,7 @@ export function createSetPiecesRoomController(options = {}) {
     layers: new Set(["home", "opponent", "ball", "drawings", "labels"]),
     showGhost: true,
     editShowGhost: true,
+    showPitchGuides: false,
     previewDrawing: null,
     selectionRect: null,
     playbackSpeed: 1,
@@ -213,6 +214,7 @@ export function createSetPiecesRoomController(options = {}) {
       pitchView: play.pitchView,
       playerMarkerMode: play.playerMarkerMode,
       layers: ui.layers,
+      showPitchGuides: ui.showPitchGuides,
       selectedElementIds: ui.selectedElementIds,
       selectedDrawingIds: ui.selectedDrawingIds,
       selectedDrawingId: ui.selectedDrawingId,
@@ -825,6 +827,10 @@ export function createSetPiecesRoomController(options = {}) {
     if (target.matches?.("[data-set-piece-playback-speed]")) playback.setSpeed(target.value);
     if (target.matches?.("[data-set-piece-ghost]")) {
       ui.showGhost = target.checked;
+      renderBoardOnly();
+    }
+    if (target.matches?.("[data-set-piece-pitch-guides]")) {
+      ui.showPitchGuides = target.checked;
       renderBoardOnly();
     }
     if (target.matches?.("[data-set-piece-layer]")) {

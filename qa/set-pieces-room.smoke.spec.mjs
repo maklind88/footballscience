@@ -765,7 +765,8 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await presentationVariant.getByRole("menuitemradio", { name: "Primary" }).click();
   await expect(presentationVariant.locator("summary")).toHaveAccessibleName("Choose presentation variant, Primary");
   if (await page.evaluate(() => document.fullscreenEnabled)) {
-    await expect(setPieces.getByRole("button", { name: "Enter fullscreen" })).toBeVisible();
+    await expect(setPieces).toHaveClass(/is-native-fullscreen/);
+    await expect(setPieces.getByRole("button", { name: "Exit fullscreen" })).toBeVisible();
   }
   await expect(setPieces.locator(".spr-board-element.is-ghost")).toHaveCount(0);
   await expect(setPieces.locator(".spr-board-element.is-opponent:not(.is-ghost)").first()).toHaveClass(/is-opponent-color-blue/);
@@ -943,6 +944,11 @@ test("Set Pieces presentation stays composed on landscape and portrait tablets",
   await page.getByRole("button", { name: "Present", exact: true }).click();
 
   const shell = page.locator("[data-set-pieces-room]");
+  if (await page.evaluate(() => document.fullscreenEnabled)) {
+    await expect(shell).toHaveClass(/is-native-fullscreen/);
+    await shell.getByRole("button", { name: "Exit fullscreen" }).click();
+    await expect(shell).not.toHaveClass(/is-native-fullscreen/);
+  }
   const landscapeStage = await shell.locator(".spr-present-stage").boundingBox();
   const landscapeCues = await shell.locator(".spr-present-cues").boundingBox();
   const landscapeTimeline = await shell.locator(".spr-present-phase-strip").boundingBox();
@@ -996,7 +1002,6 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
 
   const shell = page.locator("[data-set-pieces-room]");
   if (await page.evaluate(() => document.fullscreenEnabled)) {
-    await shell.getByRole("button", { name: "Enter fullscreen" }).click();
     await expect(shell).toHaveClass(/is-native-fullscreen/);
   } else {
     await shell.evaluate((element) => element.classList.add("is-native-fullscreen"));
@@ -1056,6 +1061,15 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
       cues: rect(".spr-present-cues"),
       strip: rect(".spr-present-phase-strip"),
       playback: rect(".is-present-playback"),
+      frameStyle: (() => {
+        const frame = document.querySelector(".spr-present-board-frame");
+        const style = frame ? getComputedStyle(frame) : null;
+        return style ? {
+          borderWidth: style.borderTopWidth,
+          borderRadius: style.borderRadius,
+          boxShadow: style.boxShadow,
+        } : null;
+      })(),
       overflow: {
         width: document.documentElement.scrollWidth - innerWidth,
         height: document.documentElement.scrollHeight - innerHeight,
@@ -1068,10 +1082,12 @@ test("Set Pieces native fullscreen prioritizes the pitch without distorting it",
   expect(compact.body.width).toBeGreaterThanOrEqual(compact.viewport.width - 1);
   expect(compact.stage.width).toBeGreaterThanOrEqual(compact.viewport.width - 1);
   expect(compact.strip.y).toBeCloseTo(compact.playback.y, 0);
-  expect(compact.strip.height).toBeLessThanOrEqual(63);
-  expect(compact.playback.height).toBeLessThanOrEqual(63);
-  expect(compact.board.height).toBeGreaterThanOrEqual(compact.body.height - 14);
+  expect(compact.strip.height).toBeLessThanOrEqual(54);
+  expect(compact.playback.height).toBeLessThanOrEqual(54);
+  expect(compact.board.height).toBeGreaterThanOrEqual(compact.viewport.height - 1);
+  expect(compact.board.width).toBeGreaterThanOrEqual(compact.viewport.width - 60);
   expect(compact.board.width / compact.board.height).toBeCloseTo(145 / 79, 2);
+  expect(compact.frameStyle).toEqual({ borderWidth: "0px", borderRadius: "0px", boxShadow: "none" });
   expect(compact.cues.height).toBeLessThanOrEqual(44);
   expect(compact.overflow.width).toBeLessThanOrEqual(0);
   expect(compact.overflow.height).toBeLessThanOrEqual(0);

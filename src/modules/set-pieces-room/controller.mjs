@@ -524,26 +524,44 @@ export function createSetPiecesRoomController(options = {}) {
     render();
   }
 
+  function requestPresentationFullscreen() {
+    const request = root?.requestFullscreen;
+    if (documentRef?.fullscreenElement === root || documentRef?.fullscreenEnabled !== true || typeof request !== "function") return;
+    request.call(root)?.catch?.(() => setNotice("Fullscreen is not available in this browser.", "warning"));
+  }
+
+  function enterPresentationMode() {
+    setWorkspaceMode(true);
+    requestPresentationFullscreen();
+  }
+
   function toggleFullscreen() {
     if (!ui.presentationMode) return;
-    const request = root?.requestFullscreen;
     if (documentRef?.fullscreenElement === root) {
       documentRef.exitFullscreen?.().catch?.(() => {});
       return;
     }
-    request?.call(root)?.catch?.(() => setNotice("Fullscreen is not available in this browser.", "warning"));
+    requestPresentationFullscreen();
   }
 
   function addCurrentVariantToTeamMeeting() {
     const { play, variant } = getContext();
     if (!play || !variant || typeof options.onAddToTeamMeeting !== "function") return;
-    options.onAddToTeamMeeting({
+    const openTeamMeeting = () => options.onAddToTeamMeeting({
       playId: play.id,
       playTitle: play.title,
       variantId: variant.id,
       variantTitle: variant.title,
       scheduledFor: play.scheduledFor,
     });
+    if (documentRef?.fullscreenElement === root) {
+      const exit = documentRef.exitFullscreen?.();
+      if (typeof exit?.then === "function") {
+        exit.then(openTeamMeeting, openTeamMeeting);
+        return;
+      }
+    }
+    openTeamMeeting();
   }
 
   function setInspectorOpen(open) {
@@ -587,9 +605,9 @@ export function createSetPiecesRoomController(options = {}) {
       undo,
       redo,
       "delete-selection": deleteSelection,
-      presentation: () => setWorkspaceMode(!ui.presentationMode),
+      presentation: () => (ui.presentationMode ? setWorkspaceMode(false) : enterPresentationMode()),
       "edit-mode": () => setWorkspaceMode(false),
-      "present-mode": () => setWorkspaceMode(true),
+      "present-mode": enterPresentationMode,
       "toggle-fullscreen": toggleFullscreen,
       "add-to-team-meeting": addCurrentVariantToTeamMeeting,
       "dismiss-notice": () => setNotice(""),

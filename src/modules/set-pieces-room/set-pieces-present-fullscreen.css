@@ -1,17 +1,22 @@
 .spr-shell.is-presenting.is-native-fullscreen .spr-present-workspace {
-  grid-template-columns: minmax(260px, .7fr) minmax(480px, 1.3fr);
-  grid-template-rows: 52px minmax(0, 1fr) 62px;
+  display: block;
 }
 
 .spr-shell.is-presenting.is-native-fullscreen .spr-present-header,
 .spr-shell.is-presenting.is-native-fullscreen .spr-present-body {
-  grid-column: 1 / -1;
+  position: absolute;
+  left: 0;
+  right: 0;
 }
 
 .spr-shell.is-presenting.is-native-fullscreen .spr-present-header {
+  z-index: 5;
+  top: 0;
   grid-template-columns: minmax(150px, 230px) minmax(140px, 1fr) minmax(190px, 220px) auto;
   gap: .65rem;
   padding: .3rem .65rem;
+  background: #111815e8;
+  backdrop-filter: blur(14px);
 }
 
 .spr-shell.is-presenting.is-native-fullscreen .spr-present-team .spr-header-team-mark {
@@ -25,13 +30,17 @@
 }
 
 .spr-shell.is-presenting.is-native-fullscreen .spr-present-body {
-  position: relative;
+  z-index: 1;
+  inset: 0;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
 }
 
 .spr-shell.is-presenting.is-native-fullscreen .spr-present-stage {
-  padding: .35rem .5rem;
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  background: var(--spr-present-bg);
 }
 
 .spr-shell.is-presenting.is-native-fullscreen .spr-present-board-frame {
@@ -39,12 +48,16 @@
   max-width: 100%;
   height: 100%;
   max-height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .spr-shell.is-presenting.is-native-fullscreen .spr-present-cues {
   position: absolute;
   z-index: 3;
-  top: .55rem;
+  top: 3.8rem;
   right: .55rem;
   width: clamp(176px, 13vw, 216px);
   min-height: 0;
@@ -137,11 +150,19 @@
 }
 
 .spr-shell.is-presenting.is-native-fullscreen .spr-present-phase-strip {
-  grid-column: 1;
-  grid-row: 3;
+  position: absolute;
+  z-index: 5;
+  left: .55rem;
+  bottom: .55rem;
+  width: min(46vw, 680px);
+  height: 52px;
   gap: .32rem;
   padding: .3rem .55rem;
-  border-right: 1px solid var(--spr-present-line);
+  border: 1px solid var(--spr-present-line);
+  border-radius: 6px;
+  background: #111815e8;
+  box-shadow: 0 12px 32px #0006;
+  backdrop-filter: blur(14px);
 }
 
 .spr-shell.is-presenting.is-native-fullscreen .spr-present-phase-card {
@@ -159,18 +180,34 @@
 }
 
 .spr-shell.is-presenting.is-native-fullscreen .is-present-playback {
-  grid-column: 2;
-  grid-row: 3;
+  position: absolute;
+  z-index: 5;
+  right: .55rem;
+  bottom: .55rem;
+  width: min(52vw, 760px);
   min-width: 0;
-  min-height: 62px;
+  min-height: 52px;
   padding: .3rem .55rem;
-  border-top: 1px solid var(--spr-present-line);
-  border-bottom: 0;
+  border: 1px solid var(--spr-present-line);
+  border-radius: 6px;
+  background: #111815e8;
+  box-shadow: 0 12px 32px #0006;
+  backdrop-filter: blur(14px);
 }
 
 @media (max-aspect-ratio: 1 / 1) and (min-width: 700px) {
   .spr-shell.is-presenting.is-native-fullscreen .spr-present-board-frame {
     width: 100%;
     height: auto;
+  }
+
+  .spr-shell.is-presenting.is-native-fullscreen .spr-present-phase-strip {
+    width: calc(100% - 1.1rem);
+    bottom: 4.25rem;
+  }
+
+  .spr-shell.is-presenting.is-native-fullscreen .is-present-playback {
+    left: .55rem;
+    width: calc(100% - 1.1rem);
   }
 }

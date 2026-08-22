@@ -494,7 +494,9 @@ test("normalization clamps unsafe geometry and timing values", () => {
   const normalizedPhase = state.plays[0].variants[0].phases[0];
 
   expect(normalizedPhase.durationMs).toBe(10000);
-  expect(normalizedPhase.elements[0]).toMatchObject({ x: 105, y: 0, durationMs: 100 });
+  expect(normalizedPhase.elements[0].x).toBeCloseTo(109.37, 4);
+  expect(normalizedPhase.elements[0].y).toBeCloseTo(-1.87, 4);
+  expect(normalizedPhase.elements[0].durationMs).toBe(100);
   expect(normalizedPhase.drawings.map((drawing) => drawing.zoneColor)).toEqual(["blue", "yellow"]);
 });
 
@@ -623,7 +625,7 @@ test("selected drawing geometry supports direct length, curve, move and zone res
   expect(updateSetPieceDrawingHandle(route, "end", { x: 42, y: 22 }, "full")).toEqual({ endX: 42, endY: 22 });
   expect(updateSetPieceDrawingHandle(route, "curve", { x: 20, y: 18 }, "full").curve).toBe(8);
   expect(getSetPieceDrawingControlPoint({ ...route, curve: 8 })).toEqual({ x: 20, y: 18 });
-  expect(translateSetPieceDrawing(route, { x: -30, y: 4 }, "full")).toEqual({ startX: 0, startY: 14, endX: 20, endY: 14 });
+  expect(translateSetPieceDrawing(route, { x: -30, y: 4 }, "full")).toEqual({ startX: -6.25, startY: 14, endX: 13.75, endY: 14 });
 
   const zone = { id: "zone-a", type: "zone", startX: 10, startY: 10, endX: 30, endY: 25 };
   expect(updateSetPieceDrawingHandle(zone, "zone-se", { x: 44, y: 34 }, "full"))
@@ -645,7 +647,8 @@ test("marquee selection includes routes and zones while mixed groups keep a shar
     { x: -20, y: 8 },
     "full"
   );
-  expect(delta).toEqual({ x: -10, y: 8 });
+  expect(delta.x).toBeCloseTo(-14.05, 4);
+  expect(delta.y).toBe(8);
 });
 
 test("board clipboard copies mixed selections with fresh ids, shared offset and actor links", () => {
@@ -703,22 +706,33 @@ test("board clipboard keeps a pasted group inside the active pitch view", () => 
     createId: (prefix) => `${prefix}-${++nextId}`,
   });
 
-  expect(pasted.elements[0]).toMatchObject({ x: 104, y: 67 });
-  expect(pasted.drawings[0]).toMatchObject({ startX: 98, startY: 60, endX: 105, endY: 68 });
+  expect(pasted.elements[0].x).toBeCloseTo(109.37, 4);
+  expect(pasted.elements[0].y).toBeCloseTo(69.87, 4);
+  expect(pasted.drawings[0].startX).toBeCloseTo(103.37, 4);
+  expect(pasted.drawings[0].startY).toBeCloseTo(62.87, 4);
+  expect(pasted.drawings[0].endX).toBeCloseTo(110.37, 4);
+  expect(pasted.drawings[0].endY).toBeCloseTo(70.87, 4);
 });
 
-test("drag coordinates reach the pitch lines while remaining inside the selected pitch view", () => {
-  expect(normalizeSetPiecePointForPitchView({ x: 4, y: 80 }, "attacking-half")).toEqual({ x: 70, y: 68 });
-  expect(normalizeSetPiecePointForPitchView({ x: 90, y: -4 }, "defensive-half")).toEqual({ x: 35, y: 0 });
+test("drag coordinates use all visible grass while board objects remain fully in view", () => {
+  expect(normalizeSetPiecePointForPitchView({ x: 4, y: 80 }, "attacking-half")).toEqual({ x: 66.25, y: 71.75 });
+  expect(normalizeSetPiecePointForPitchView({ x: 90, y: -4 }, "defensive-half")).toEqual({ x: 38.75, y: -3.75 });
   expect(normalizeSetPiecePointForPitchView({ x: 90, y: 30 }, "full")).toEqual({ x: 90, y: 30 });
-  expect(normalizeSetPieceElementPointForPitchView({ x: 0, y: 0 }, "defensive-half", "home-player")).toEqual({ x: 0, y: 0 });
-  expect(normalizeSetPieceElementPointForPitchView({ x: 105, y: 68 }, "attacking-half", "opponent")).toEqual({ x: 105, y: 68 });
-  expect(normalizeSetPieceElementPointForPitchView({ x: 0, y: 0 }, "defensive-half", "ball")).toEqual({ x: 0, y: 0 });
+  const homePlayer = normalizeSetPieceElementPointForPitchView({ x: -20, y: -20 }, "defensive-half", "home-player");
+  const opponent = normalizeSetPieceElementPointForPitchView({ x: 120, y: 90 }, "attacking-half", "opponent");
+  const ball = normalizeSetPieceElementPointForPitchView({ x: -20, y: -20 }, "defensive-half", "ball");
+  expect(homePlayer.x).toBeCloseTo(-4.05, 4);
+  expect(homePlayer.y).toBeCloseTo(-1.55, 4);
+  expect(opponent.x).toBeCloseTo(109.37, 4);
+  expect(opponent.y).toBeCloseTo(69.87, 4);
+  expect(ball.x).toBeCloseTo(-5.43, 4);
+  expect(ball.y).toBeCloseTo(-2.93, 4);
 });
 
 test("focused third views use landscape coordinates and map pointer input back to source geometry", () => {
-  expect(getSetPiecePitchViewBox("attacking-half")).toBe("-6.25 -6.25 80.5 47.5");
-  expect(getSetPiecePitchViewBox("full")).toBe("-6.25 -6.25 117.5 80.5");
+  expect(getSetPiecePitchViewBox("attacking-half")).toBe("-3.75 -6.25 75.5 45");
+  expect(getSetPiecePitchViewBox("defensive-half")).toBe("-3.75 -3.75 75.5 45");
+  expect(getSetPiecePitchViewBox("full")).toBe("-6.25 -3.75 117.5 75.5");
   expect(getSetPiecePitchLayoutAspect("attacking-half")).toBeCloseTo(72.5 / 39.5, 4);
   expect(getSetPiecePitchLayoutAspect("full")).toBeCloseTo(109.5 / 72.5, 4);
   expect(getSetPiecePitchTransform("attacking-half")).toBe("matrix(0 -1 1 0 0 105)");
@@ -743,7 +757,7 @@ test("wide editor projection fills broad canvases while preserving narrow pitch 
 
   const stableWithVisualMargin = getSetPiecesWideEditorProjection(
     { width: 900, height: 490 },
-    { width: 80.5, height: 47.5 },
+    { width: 75.5, height: 45 },
     72.5 / 39.5
   );
   expect(stableWithVisualMargin).toEqual({ active: false, counterScale: 1 });
@@ -826,10 +840,10 @@ test("board renderer uses one circular own-player marker in photo or initials mo
   expect(markup).toContain(">4</text>");
   expect(markup).toContain("is-run");
   expect(markup).toContain("Q ");
-  expect(markup).toContain('viewBox="-6.25 -6.25 80.5 47.5"');
-  expect(markup).toContain('<rect x="-6.25" y="-6.25" width="117.5" height="80.5" class="spr-pitch-base"></rect>');
+  expect(markup).toContain('viewBox="-3.75 -6.25 75.5 45"');
+  expect(markup).toContain('<rect x="-6.25" y="-3.75" width="117.5" height="75.5" class="spr-pitch-base"></rect>');
   expect(markup).toContain('href="assets/set-pieces/pitch-grass-reference.jpg"');
-  expect(markup).toContain('x="12.25" y="-24.75" width="80.5" height="117.5"');
+  expect(markup).toContain('x="14.75" y="-24.75" width="75.5" height="117.5"');
   expect(markup).toContain('class="spr-pitch-grass"');
   expect(markup).toContain('transform="matrix(0 -1 1 0 0 105)"');
   expect(markup).toContain('class="spr-pitch-goal is-left-goal"');

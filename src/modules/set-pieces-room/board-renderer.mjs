@@ -21,6 +21,13 @@ import {
   setPieceZoneColors,
 } from "./constants.mjs";
 
+const pitchGrassImage = Object.freeze({
+  x: 52.5 - setPiecePitchCanvas.height / 2,
+  y: 34 - setPiecePitchCanvas.width / 2,
+  width: setPiecePitchCanvas.height,
+  height: setPiecePitchCanvas.width,
+});
+
 export function escapeSetPieceHtml(value = "") {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -312,7 +319,7 @@ export function renderSetPieceBoard(options = {}) {
     </defs>
     <g class="spr-pitch-content"${pitchTransform ? ` transform="${pitchTransform}"` : ""}>
       <rect x="${setPiecePitchCanvas.x}" y="${setPiecePitchCanvas.y}" width="${setPiecePitchCanvas.width}" height="${setPiecePitchCanvas.height}" class="spr-pitch-base"></rect>
-      <image href="assets/set-pieces/pitch-grass-reference.jpg" x="12.25" y="-24.75" width="80.5" height="117.5" transform="rotate(90 52.5 34)" preserveAspectRatio="xMidYMid slice" class="spr-pitch-grass"></image>
+      <image href="assets/set-pieces/pitch-grass-reference.jpg" x="${pitchGrassImage.x}" y="${pitchGrassImage.y}" width="${pitchGrassImage.width}" height="${pitchGrassImage.height}" transform="rotate(90 52.5 34)" preserveAspectRatio="xMidYMid slice" class="spr-pitch-grass"></image>
       ${renderPitchMarkings()}
       ${options.showPitchGuides ? renderPitchGuides() : ""}
       <g class="spr-ghost-layer">${ghosts}</g>

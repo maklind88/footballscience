@@ -153,6 +153,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       return;
     }
     const label = createSetPiecePlayerLabelMap(roster.map((entry) => entry.player)).get(player.id) || "P";
+    const placedPoint = normalizeSetPieceElementPointForPitchView(point, play?.pitchView, "home-player");
     options.commit(() => {
       const phaseTemplates = variant.phases
         .map((candidatePhase, index) => ({
@@ -164,22 +165,25 @@ export function createSetPiecesBoardInteractionController(options = {}) {
         }))
         .filter((entry) => entry.element);
       const template = phaseTemplates[0]?.element;
-      const element = createBoardElement("home-player", point, {
+      const element = createBoardElement("home-player", placedPoint, {
         ...(template || {}),
         ...(assignedSlot ? { id: assignedSlot.slotId, role: assignedSlot.role } : {}),
         profileId: player.id,
         label,
-        ...point,
+        ...placedPoint,
       });
       variant.phases.forEach((candidatePhase, index) => {
         if (candidatePhase.elements.some((candidate) => candidate.id === element.id)) return;
         const nearestTemplate = phaseTemplates.reduce((nearest, entry) => (
           !nearest || Math.abs(entry.index - index) < Math.abs(nearest.index - index) ? entry : nearest
         ), null)?.element;
+        const candidatePoint = normalizeSetPieceElementPointForPitchView({
+          x: Number(nearestTemplate?.x ?? placedPoint.x),
+          y: Number(nearestTemplate?.y ?? placedPoint.y),
+        }, play?.pitchView, "home-player");
         candidatePhase.elements.push({
           ...structuredClone(element),
-          x: Number(nearestTemplate?.x ?? point.x),
-          y: Number(nearestTemplate?.y ?? point.y),
+          ...candidatePoint,
         });
       });
       ui.selectedElementIds = new Set([element.id]);
@@ -191,7 +195,7 @@ export function createSetPiecesBoardInteractionController(options = {}) {
   }
 
   function placeElement(point) {
-    const { phase } = options.getContext();
+    const { phase, play } = options.getContext();
     const ui = options.ui;
     if (!phase) return;
     if (ui.activeTool === "home-player") {
@@ -199,11 +203,12 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       return;
     }
     if (ui.activeTool === "opponent") {
+      const placedPoint = normalizeSetPieceElementPointForPitchView(point, play?.pitchView, "opponent");
       const used = new Set(phase.elements.filter((element) => element.kind === "opponent").map((element) => Number(element.label)));
       let opponentNumber = 1;
       while (used.has(opponentNumber)) opponentNumber += 1;
       options.commit(() => {
-        const element = createBoardElement("opponent", point, {
+        const element = createBoardElement("opponent", placedPoint, {
           label: String(opponentNumber),
           showNumber: true,
           opponentColor: DEFAULT_SET_PIECE_OPPONENT_COLOR,
@@ -218,10 +223,11 @@ export function createSetPiecesBoardInteractionController(options = {}) {
       return;
     }
     if (ui.activeTool === "ball") {
+      const placedPoint = normalizeSetPieceElementPointForPitchView(point, play?.pitchView, "ball");
       const existingBall = phase.elements.find((element) => element.kind === "ball");
       options.commit(() => {
-        if (existingBall) Object.assign(existingBall, point);
-        else phase.elements.push(createBoardElement("ball", point));
+        if (existingBall) Object.assign(existingBall, placedPoint);
+        else phase.elements.push(createBoardElement("ball", placedPoint));
         ui.assignmentPickerSlotId = "";
         ui.showAssignments = false;
         ui.activeTool = "select";

@@ -21,7 +21,10 @@ import {
   setPieceTextColors,
   setPieceZoneColors,
 } from "./constants.mjs";
-import { normalizeSetPiecePoint } from "./geometry.mjs";
+import {
+  normalizeSetPieceElementPointForPitchView,
+  normalizeSetPiecePoint,
+} from "./geometry.mjs";
 
 const allowedElementKinds = new Set(["home-player", "opponent", "ball"]);
 const allowedPitchViews = new Set(["full", "attacking-half", "defensive-half"]);
@@ -117,7 +120,7 @@ export function createEmptySetPiecesState() {
 
 function normalizeElement(element = {}, options = {}) {
   const kind = allowedElementKinds.has(element.kind) ? element.kind : "home-player";
-  const point = normalizeSetPiecePoint(element);
+  const point = normalizeSetPieceElementPointForPitchView(element, "full", kind);
   const opponentNumber = String(Math.round(number(element.label || element.number, 1, 1, 99)));
   const defaultActionDuration = Number(options.defaultActionDuration || DEFAULT_ACTION_DURATION_MS);
   const actionDuration = options.migrateLegacyPlayback && Number(element.durationMs) === 900

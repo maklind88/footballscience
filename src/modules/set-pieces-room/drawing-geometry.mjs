@@ -89,15 +89,17 @@ export function translateSetPieceDrawing(drawing = {}, delta = {}, pitchView = "
   const startY = Number(drawing.startY || 0);
   const endX = Number(drawing.endX || 0);
   const endY = Number(drawing.endY || 0);
+  const points = [{ x: startX, y: startY }, { x: endX, y: endY }];
+  if (Number(drawing.curve || 0)) points.push(getSetPieceDrawingControlPoint(drawing));
   const dx = clampSetPieceCoordinate(
     Number(delta.x || 0),
-    bounds.minX - Math.min(startX, endX),
-    bounds.maxX - Math.max(startX, endX)
+    bounds.minX - Math.min(...points.map((point) => point.x)),
+    bounds.maxX - Math.max(...points.map((point) => point.x))
   );
   const dy = clampSetPieceCoordinate(
     Number(delta.y || 0),
-    bounds.minY - Math.min(startY, endY),
-    bounds.maxY - Math.max(startY, endY)
+    bounds.minY - Math.min(...points.map((point) => point.y)),
+    bounds.maxY - Math.max(...points.map((point) => point.y))
   );
   return { startX: startX + dx, startY: startY + dy, endX: endX + dx, endY: endY + dy };
 }

@@ -1,4 +1,8 @@
-import { clampSetPieceCoordinate, getSetPiecePitchBounds } from "./geometry.mjs";
+import {
+  clampSetPieceCoordinate,
+  getSetPieceElementEdgeInset,
+  getSetPiecePitchBounds,
+} from "./geometry.mjs";
 import { getSetPieceDrawingControlPoint } from "./drawing-geometry.mjs";
 
 function normalizedRect(rect = {}) {
@@ -71,11 +75,14 @@ export function constrainSetPieceSelectionDelta(elements = [], drawings = [], de
   const bounds = getSetPiecePitchBounds(pitchView);
   const extents = [];
   elements.forEach((element) => {
+    const inset = getSetPieceElementEdgeInset(element.kind);
+    const x = Number(element.x || 0);
+    const y = Number(element.y || 0);
     extents.push({
-      minX: Number(element.x || 0),
-      maxX: Number(element.x || 0),
-      minY: Number(element.y || 0),
-      maxY: Number(element.y || 0),
+      minX: x - inset,
+      maxX: x + inset,
+      minY: y - inset,
+      maxY: y + inset,
     });
   });
   drawings.forEach((drawing) => {

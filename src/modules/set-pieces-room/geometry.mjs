@@ -2,8 +2,15 @@ const PITCH_LENGTH = 105;
 const PITCH_WIDTH = 68;
 const PITCH_THIRD_LENGTH = PITCH_LENGTH / 3;
 const ATTACKING_THIRD_START = PITCH_LENGTH - PITCH_THIRD_LENGTH;
-const PITCH_SURROUND = 6.25;
+const PITCH_GOAL_LINE_SURROUND = 6.25;
+const PITCH_TOUCH_LINE_SURROUND = 3.75;
 const EDITOR_LAYOUT_SURROUND = 2.25;
+
+const SET_PIECE_ELEMENT_EDGE_INSETS = Object.freeze({
+  "home-player": 2.2,
+  opponent: 1.88,
+  ball: .82,
+});
 
 export function clampSetPieceCoordinate(value, min, max) {
   const numeric = Number(value);
@@ -11,28 +18,43 @@ export function clampSetPieceCoordinate(value, min, max) {
 }
 
 export function normalizeSetPiecePoint(point = {}) {
+  const bounds = getSetPiecePitchBounds("full");
+  const x = Number(point.x);
+  const y = Number(point.y);
   return {
-    x: clampSetPieceCoordinate(point.x, 0, PITCH_LENGTH),
-    y: clampSetPieceCoordinate(point.y, 0, PITCH_WIDTH),
+    x: clampSetPieceCoordinate(Number.isFinite(x) ? x : 0, bounds.minX, bounds.maxX),
+    y: clampSetPieceCoordinate(Number.isFinite(y) ? y : 0, bounds.minY, bounds.maxY),
   };
 }
 
-export function normalizeSetPiecePointForPitchView(point = {}, pitchView = "full") {
-  const normalized = normalizeSetPiecePoint(point);
-  if (pitchView === "attacking-half") normalized.x = clampSetPieceCoordinate(normalized.x, ATTACKING_THIRD_START, PITCH_LENGTH);
-  if (pitchView === "defensive-half") normalized.x = clampSetPieceCoordinate(normalized.x, 0, PITCH_THIRD_LENGTH);
-  return normalized;
+export function normalizeSetPiecePointForPitchView(point = {}, pitchView = "full", inset = 0) {
+  const bounds = getSetPiecePitchBounds(pitchView, inset);
+  const x = Number(point.x);
+  const y = Number(point.y);
+  return {
+    x: clampSetPieceCoordinate(Number.isFinite(x) ? x : 0, bounds.minX, bounds.maxX),
+    y: clampSetPieceCoordinate(Number.isFinite(y) ? y : 0, bounds.minY, bounds.maxY),
+  };
 }
 
-export function normalizeSetPieceElementPointForPitchView(point = {}, pitchView = "full") {
-  return normalizeSetPiecePointForPitchView(point, pitchView);
+export function getSetPieceElementEdgeInset(kind = "") {
+  return SET_PIECE_ELEMENT_EDGE_INSETS[kind] || 0;
+}
+
+export function normalizeSetPieceElementPointForPitchView(point = {}, pitchView = "full", kind = point.kind) {
+  return normalizeSetPiecePointForPitchView(point, pitchView, getSetPieceElementEdgeInset(kind));
 }
 
 export function getSetPiecePitchViewBox(pitchView = "full") {
-  if (pitchView === "attacking-half" || pitchView === "defensive-half") {
-    return `${-PITCH_SURROUND} ${-PITCH_SURROUND} ${PITCH_WIDTH + PITCH_SURROUND * 2} ${PITCH_THIRD_LENGTH + PITCH_SURROUND * 2}`;
+  const halfWidth = PITCH_WIDTH + PITCH_TOUCH_LINE_SURROUND * 2;
+  const halfHeight = PITCH_THIRD_LENGTH + PITCH_TOUCH_LINE_SURROUND + PITCH_GOAL_LINE_SURROUND;
+  if (pitchView === "attacking-half") {
+    return `${-PITCH_TOUCH_LINE_SURROUND} ${-PITCH_GOAL_LINE_SURROUND} ${halfWidth} ${halfHeight}`;
   }
-  return `${-PITCH_SURROUND} ${-PITCH_SURROUND} ${PITCH_LENGTH + PITCH_SURROUND * 2} ${PITCH_WIDTH + PITCH_SURROUND * 2}`;
+  if (pitchView === "defensive-half") {
+    return `${-PITCH_TOUCH_LINE_SURROUND} ${-PITCH_TOUCH_LINE_SURROUND} ${halfWidth} ${halfHeight}`;
+  }
+  return `${-PITCH_GOAL_LINE_SURROUND} ${-PITCH_TOUCH_LINE_SURROUND} ${PITCH_LENGTH + PITCH_GOAL_LINE_SURROUND * 2} ${PITCH_WIDTH + PITCH_TOUCH_LINE_SURROUND * 2}`;
 }
 
 export function getSetPiecePitchLayoutAspect(pitchView = "full") {
@@ -48,14 +70,30 @@ export function getSetPiecePitchTransform(pitchView = "full") {
   return "";
 }
 
-export function getSetPiecePitchBounds(pitchView = "full") {
+export function getSetPiecePitchBounds(pitchView = "full", requestedInset = 0) {
+  const inset = clampSetPieceCoordinate(requestedInset, 0, PITCH_TOUCH_LINE_SURROUND);
   if (pitchView === "attacking-half") {
-    return { minX: ATTACKING_THIRD_START, maxX: PITCH_LENGTH, minY: 0, maxY: PITCH_WIDTH };
+    return {
+      minX: ATTACKING_THIRD_START - PITCH_TOUCH_LINE_SURROUND + inset,
+      maxX: PITCH_LENGTH + PITCH_GOAL_LINE_SURROUND - inset,
+      minY: -PITCH_TOUCH_LINE_SURROUND + inset,
+      maxY: PITCH_WIDTH + PITCH_TOUCH_LINE_SURROUND - inset,
+    };
   }
   if (pitchView === "defensive-half") {
-    return { minX: 0, maxX: PITCH_THIRD_LENGTH, minY: 0, maxY: PITCH_WIDTH };
+    return {
+      minX: -PITCH_GOAL_LINE_SURROUND + inset,
+      maxX: PITCH_THIRD_LENGTH + PITCH_TOUCH_LINE_SURROUND - inset,
+      minY: -PITCH_TOUCH_LINE_SURROUND + inset,
+      maxY: PITCH_WIDTH + PITCH_TOUCH_LINE_SURROUND - inset,
+    };
   }
-  return { minX: 0, maxX: PITCH_LENGTH, minY: 0, maxY: PITCH_WIDTH };
+  return {
+    minX: -PITCH_GOAL_LINE_SURROUND + inset,
+    maxX: PITCH_LENGTH + PITCH_GOAL_LINE_SURROUND - inset,
+    minY: -PITCH_TOUCH_LINE_SURROUND + inset,
+    maxY: PITCH_WIDTH + PITCH_TOUCH_LINE_SURROUND - inset,
+  };
 }
 
 export function getSetPieceSourcePoint(point = {}, pitchView = "full") {
@@ -67,7 +105,7 @@ export function getSetPieceSourcePoint(point = {}, pitchView = "full") {
 }
 
 export function getSetPieceElementTransform(point = {}, pitchView = "full") {
-  const normalized = normalizeSetPieceElementPointForPitchView(point, pitchView);
+  const normalized = normalizeSetPieceElementPointForPitchView(point, pitchView, point.kind);
   const rotation = pitchView === "attacking-half" || pitchView === "defensive-half" ? " rotate(90)" : "";
   return `translate(${normalized.x} ${normalized.y})${rotation}`;
 }
@@ -133,9 +171,11 @@ export function interpolateSetPieceValue(from, to, progress) {
 
 export const setPiecePitchSize = Object.freeze({ length: PITCH_LENGTH, width: PITCH_WIDTH });
 export const setPiecePitchCanvas = Object.freeze({
-  x: -PITCH_SURROUND,
-  y: -PITCH_SURROUND,
-  width: PITCH_LENGTH + PITCH_SURROUND * 2,
-  height: PITCH_WIDTH + PITCH_SURROUND * 2,
-  margin: PITCH_SURROUND,
+  x: -PITCH_GOAL_LINE_SURROUND,
+  y: -PITCH_TOUCH_LINE_SURROUND,
+  width: PITCH_LENGTH + PITCH_GOAL_LINE_SURROUND * 2,
+  height: PITCH_WIDTH + PITCH_TOUCH_LINE_SURROUND * 2,
+  margin: PITCH_TOUCH_LINE_SURROUND,
+  goalLineMargin: PITCH_GOAL_LINE_SURROUND,
+  touchLineMargin: PITCH_TOUCH_LINE_SURROUND,
 });

@@ -267,11 +267,14 @@ test("Set Pieces editor gives the pitch the viewport and anchors compact playbac
   expect(cornerPlayerVisualBox.y).toBeGreaterThanOrEqual(cornerPitchBox.y - 1);
   expect(cornerPlayerVisualBox.x + cornerPlayerVisualBox.width).toBeLessThanOrEqual(cornerPitchBox.x + cornerPitchBox.width + 1);
   expect(cornerPlayerVisualBox.y + cornerPlayerVisualBox.height).toBeLessThanOrEqual(cornerPitchBox.y + cornerPitchBox.height + 1);
-  await expect(cornerPitch).toHaveAttribute("viewBox", "-6.25 -6.25 80.5 47.5");
-  await expect(cornerPlayer).toHaveAttribute("transform", /translate\((0|0\.\d+) (0|0\.\d+)\)/);
+  await expect(cornerPitch).toHaveAttribute("viewBox", "-3.75 -3.75 75.5 45");
+  const cornerPlayerTransform = await cornerPlayer.getAttribute("transform");
+  const cornerPlayerPosition = cornerPlayerTransform?.match(/translate\(([-\d.]+) ([-\d.]+)\)/);
+  expect(Number(cornerPlayerPosition?.[1])).toBeCloseTo(-4.05, 2);
+  expect(Number(cornerPlayerPosition?.[2])).toBeCloseTo(-1.55, 2);
   const pitchSurface = cornerPitch.locator(".spr-pitch-base");
   await expect(pitchSurface).toHaveAttribute("x", "-6.25");
-  await expect(pitchSurface).toHaveAttribute("y", "-6.25");
+  await expect(pitchSurface).toHaveAttribute("y", "-3.75");
   await expect(page.locator(".spr-inspector")).toBeHidden();
 
   await tacticalTools.getByRole("button", { name: "Opponent", exact: true }).click();

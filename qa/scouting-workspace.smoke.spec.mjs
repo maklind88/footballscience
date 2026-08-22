@@ -515,3 +515,73 @@ test("Scouting My Team formation and squad placement stay stable", async ({ page
   await myTeamTab.click();
   await expect(page.locator("[data-scouting-my-team-formation]").first()).toHaveValue("3-5-2");
 });
+
+test("Scouting mobile squad boards stack without visual overflow", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedScoutingAccess(page, { activeTab: "my-team" });
+  const boot = await bootApp(page);
+  expect(boot.pageErrors).toEqual([]);
+  await openWorkspace(page, "scouting");
+
+  const expectMobileBoardGeometry = async ({ tabId, pitchSelector, sideSelector }) => {
+    const tab = page.locator(`.scouting-tab[data-scouting-tab="${tabId}"]`).first();
+    await expect(tab).toBeVisible({ timeout: 15_000 });
+    await tab.click();
+    await expect(tab).toHaveClass(/is-active/);
+    await expect(page.locator(pitchSelector).first()).toBeVisible({ timeout: 15_000 });
+
+    const geometry = await page.evaluate(
+      ({ pitchQuery, sideQuery }) => {
+        const overlaps = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+        const pitch = document.querySelector(pitchQuery);
+        const side = document.querySelector(sideQuery);
+        const slots = Array.from(pitch?.querySelectorAll(".scouting-shadow-slot") || []);
+        const slotRects = slots.map((slot) => slot.getBoundingClientRect());
+        const cardRects = slots.map((slot) => slot.querySelector(".scouting-my-team-slot-card")?.getBoundingClientRect());
+        const collisions = [];
+        for (let index = 0; index < slotRects.length; index += 1) {
+          for (let candidate = index + 1; candidate < slotRects.length; candidate += 1) {
+            if (overlaps(slotRects[index], slotRects[candidate])) collisions.push([index, candidate]);
+          }
+        }
+        const pitchRect = pitch?.getBoundingClientRect();
+        const sideRect = side?.getBoundingClientRect();
+        return {
+          documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          pitchSideOverlap: pitchRect && sideRect ? overlaps(pitchRect, sideRect) : true,
+          slots: slots.length,
+          positions: slots.map((slot) => getComputedStyle(slot).position),
+          collisions,
+          clippedCards: slotRects.filter((rect, index) => cardRects[index] && rect.height + 1 < cardRects[index].height).length,
+          minLeft: slotRects.length ? Math.min(...slotRects.map((rect) => rect.left)) : -1,
+          maxRight: slotRects.length ? Math.max(...slotRects.map((rect) => rect.right)) : innerWidth + 1,
+          viewportWidth: innerWidth,
+        };
+      },
+      { pitchQuery: pitchSelector, sideQuery: sideSelector }
+    );
+
+    expect(geometry).toMatchObject({
+      documentOverflow: 0,
+      pitchSideOverlap: false,
+      slots: 11,
+      collisions: [],
+      clippedCards: 0,
+    });
+    expect(new Set(geometry.positions)).toEqual(new Set(["relative"]));
+    expect(geometry.minLeft).toBeGreaterThanOrEqual(0);
+    expect(geometry.maxRight).toBeLessThanOrEqual(geometry.viewportWidth);
+  };
+
+  await expectMobileBoardGeometry({
+    tabId: "my-team",
+    pitchSelector: ".scouting-my-team-layout .scouting-my-team-pitch",
+    sideSelector: ".scouting-my-team-side",
+  });
+  await expectMobileBoardGeometry({
+    tabId: "shadow-xi",
+    pitchSelector: ".scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-pitch",
+    sideSelector: ".scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-shadow-side",
+  });
+});

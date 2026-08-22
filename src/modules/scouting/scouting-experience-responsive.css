@@ -25,6 +25,23 @@
     flex: 0 0 auto;
   }
 
+  #scoutingWorkspace :where(.scouting-shadow-layout, .scouting-my-team-layout) {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  #scoutingWorkspace :where(.scouting-shadow-side, .scouting-my-team-side) {
+    position: static;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+  }
+
   #scoutingWorkspace .scouting-database-results-header {
     min-height: 0;
     display: grid;
@@ -237,5 +254,46 @@
     .scouting-comparison-selected-grid
   ) {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  #scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) {
+    height: auto !important;
+    min-height: 0 !important;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 8px;
+    padding: 64px 8px 8px;
+    overflow: visible;
+  }
+
+  #scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) .scouting-pitch-toolbar {
+    top: 8px;
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-width: calc(100% - 16px);
+    justify-content: space-between;
+  }
+
+  #scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) .scouting-pitch-line {
+    display: none;
+  }
+
+  #scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) .scouting-shadow-slot {
+    position: relative;
+    inset: auto;
+    height: auto;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: max-content;
+    transform: none !important;
+  }
+
+  #scoutingWorkspace .scouting-my-team-slot-card {
+    width: 100%;
+    min-width: 0;
   }
 }

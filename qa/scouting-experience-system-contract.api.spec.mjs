@@ -43,3 +43,17 @@ test("Scouting database readiness is explicit and uses a restrained progress sta
   expect(databaseRenderer).toContain("Preparing player database");
   expect(databaseRenderer).not.toContain("scouting-loader-player");
 });
+
+test("Scouting mobile boards stack without absolute-position overlap", () => {
+  const responsive = readProjectFile("src/modules/scouting/scouting-experience-responsive.css");
+
+  expect(responsive).toContain(
+    "#scoutingWorkspace :where(.scouting-shadow-layout, .scouting-my-team-layout) {\n    grid-template-columns: minmax(0, 1fr);"
+  );
+  expect(responsive).toContain("@media (max-width: 560px)");
+  expect(responsive).toContain(
+    "#scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) .scouting-shadow-slot {\n    position: relative;"
+  );
+  expect(responsive).toContain("min-height: max-content;");
+  expect(responsive).toContain("transform: none !important;");
+});

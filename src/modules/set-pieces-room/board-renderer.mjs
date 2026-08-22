@@ -1,5 +1,6 @@
 import {
   getSetPieceElementTransform,
+  getSetPiecePitchLayoutAspect,
   getSetPiecePitchTransform,
   getSetPiecePitchViewBox,
   setPiecePitchCanvas,
@@ -71,7 +72,7 @@ function renderPitchGoal({ side, frontX, direction }) {
   const rearEdge = `M-${rearHalfWidth} ${rearDepth}${rearCurve}`;
   return `<g class="spr-pitch-goal is-${side}-goal" transform="translate(${frontX} 34) rotate(${rotation})">
       <g class="spr-pitch-goal-net">
-        <image href="assets/set-pieces/pitch-goal-reference.png" x="-4.55" y="-2.24" width="9.1" height="3.9" preserveAspectRatio="none" class="spr-pitch-goal-image"></image>
+        <image href="assets/set-pieces/pitch-goal-reference.png" x="-5.18" y="-5.9" width="10.36" height="6.21" preserveAspectRatio="xMidYMid meet" class="spr-pitch-goal-image"></image>
         <path d="M-${frontHalfWidth} 0L-${rearHalfWidth} ${rearDepth}${rearCurve}L${frontHalfWidth} 0Z" class="spr-pitch-goal-net-surface"></path>
         <path d="${depthMesh}${widthMesh}${rearEdge}" class="spr-pitch-goal-mesh"></path>
         <path d="M-${frontHalfWidth} 0L-${rearHalfWidth} ${rearDepth}${rearCurve}L${frontHalfWidth} 0" class="spr-pitch-goal-net-edge"></path>
@@ -304,14 +305,14 @@ export function renderSetPieceBoard(options = {}) {
   );
   const preview = options.previewDrawing ? renderDrawing(options.previewDrawing, { preview: true, halfPitch, markerPrefix }) : "";
   const pitchTransform = getSetPiecePitchTransform(options.pitchView);
-  return `<svg class="spr-pitch ${halfPitch ? "is-half-pitch" : "is-full-pitch"} ${wideEditor ? "is-wide-editor-pitch" : ""}" data-set-piece-pitch data-pitch-view="${escapeSetPieceHtml(options.pitchView || "full")}" viewBox="${getSetPiecePitchViewBox(options.pitchView)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Set piece tactical board">
+  return `<svg class="spr-pitch ${halfPitch ? "is-half-pitch" : "is-full-pitch"} ${wideEditor ? "is-wide-editor-pitch" : ""}" data-set-piece-pitch data-pitch-view="${escapeSetPieceHtml(options.pitchView || "full")}" data-layout-aspect="${getSetPiecePitchLayoutAspect(options.pitchView)}" viewBox="${getSetPiecePitchViewBox(options.pitchView)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Set piece tactical board">
     <defs>
       ${["run", "pass", "dribble", "press", "mark"].map((type) => `<marker id="${markerPrefix}-arrow-${type}" class="spr-arrow-marker is-${type}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z"></path></marker>`).join("")}
       <clipPath id="${markerPrefix}-home-avatar-clip"><circle r="1.62"></circle></clipPath>
     </defs>
     <g class="spr-pitch-content"${pitchTransform ? ` transform="${pitchTransform}"` : ""}>
       <rect x="${setPiecePitchCanvas.x}" y="${setPiecePitchCanvas.y}" width="${setPiecePitchCanvas.width}" height="${setPiecePitchCanvas.height}" class="spr-pitch-base"></rect>
-      <image href="assets/set-pieces/pitch-grass-reference.jpg" x="16.25" y="-20.75" width="72.5" height="109.5" transform="rotate(90 52.5 34)" preserveAspectRatio="xMidYMid slice" class="spr-pitch-grass"></image>
+      <image href="assets/set-pieces/pitch-grass-reference.jpg" x="12.25" y="-24.75" width="80.5" height="117.5" transform="rotate(90 52.5 34)" preserveAspectRatio="xMidYMid slice" class="spr-pitch-grass"></image>
       ${renderPitchMarkings()}
       ${options.showPitchGuides ? renderPitchGuides() : ""}
       <g class="spr-ghost-layer">${ghosts}</g>

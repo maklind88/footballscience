@@ -1,12 +1,13 @@
 const observers = new WeakMap();
 
-export function getSetPiecesWideEditorProjection(rect = {}, viewBox = {}) {
+export function getSetPiecesWideEditorProjection(rect = {}, viewBox = {}, preferredAspect = 0) {
   const width = Number(rect.width || 0);
   const height = Number(rect.height || 0);
   const viewBoxWidth = Number(viewBox.width || 0);
   const viewBoxHeight = Number(viewBox.height || 0);
   if (!width || !height || !viewBoxWidth || !viewBoxHeight) return { active: false, counterScale: 1 };
-  const naturalAspect = viewBoxWidth / viewBoxHeight;
+  const stableAspect = Number(preferredAspect || 0);
+  const naturalAspect = stableAspect > 0 ? stableAspect : viewBoxWidth / viewBoxHeight;
   const availableAspect = width / height;
   const active = availableAspect > naturalAspect * 1.04;
   const horizontalScale = width / viewBoxWidth;
@@ -26,7 +27,7 @@ function applyWideEditorProjection(root) {
   const rect = slot.getBoundingClientRect?.();
   const viewBox = pitch.viewBox?.baseVal;
   if (!rect?.width || !rect?.height || !viewBox?.width || !viewBox?.height) return;
-  const projection = getSetPiecesWideEditorProjection(rect, viewBox);
+  const projection = getSetPiecesWideEditorProjection(rect, viewBox, pitch.dataset.layoutAspect);
   row.classList.toggle("is-wide-projection-active", projection.active);
   pitch.classList.toggle("is-wide-projection-active", projection.active);
   pitch.setAttribute("preserveAspectRatio", projection.active ? "none" : "xMidYMid meet");

@@ -2,7 +2,8 @@ const PITCH_LENGTH = 105;
 const PITCH_WIDTH = 68;
 const PITCH_THIRD_LENGTH = PITCH_LENGTH / 3;
 const ATTACKING_THIRD_START = PITCH_LENGTH - PITCH_THIRD_LENGTH;
-const PITCH_SURROUND = 2.25;
+const PITCH_SURROUND = 6.25;
+const EDITOR_LAYOUT_SURROUND = 2.25;
 
 export function clampSetPieceCoordinate(value, min, max) {
   const numeric = Number(value);
@@ -32,6 +33,13 @@ export function getSetPiecePitchViewBox(pitchView = "full") {
     return `${-PITCH_SURROUND} ${-PITCH_SURROUND} ${PITCH_WIDTH + PITCH_SURROUND * 2} ${PITCH_THIRD_LENGTH + PITCH_SURROUND * 2}`;
   }
   return `${-PITCH_SURROUND} ${-PITCH_SURROUND} ${PITCH_LENGTH + PITCH_SURROUND * 2} ${PITCH_WIDTH + PITCH_SURROUND * 2}`;
+}
+
+export function getSetPiecePitchLayoutAspect(pitchView = "full") {
+  if (pitchView === "attacking-half" || pitchView === "defensive-half") {
+    return (PITCH_WIDTH + EDITOR_LAYOUT_SURROUND * 2) / (PITCH_THIRD_LENGTH + EDITOR_LAYOUT_SURROUND * 2);
+  }
+  return (PITCH_LENGTH + EDITOR_LAYOUT_SURROUND * 2) / (PITCH_WIDTH + EDITOR_LAYOUT_SURROUND * 2);
 }
 
 export function getSetPiecePitchTransform(pitchView = "full") {

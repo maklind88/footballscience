@@ -56,6 +56,7 @@ import {
 } from "../src/modules/set-pieces-room/library-filters.mjs";
 import {
   getNextSetPiecePlayerPlacement,
+  getSetPiecePitchLayoutAspect,
   getSetPiecePitchTransform,
   getSetPiecePitchViewBox,
   getSetPieceSourcePoint,
@@ -716,8 +717,10 @@ test("drag coordinates reach the pitch lines while remaining inside the selected
 });
 
 test("focused third views use landscape coordinates and map pointer input back to source geometry", () => {
-  expect(getSetPiecePitchViewBox("attacking-half")).toBe("-2.25 -2.25 72.5 39.5");
-  expect(getSetPiecePitchViewBox("full")).toBe("-2.25 -2.25 109.5 72.5");
+  expect(getSetPiecePitchViewBox("attacking-half")).toBe("-6.25 -6.25 80.5 47.5");
+  expect(getSetPiecePitchViewBox("full")).toBe("-6.25 -6.25 117.5 80.5");
+  expect(getSetPiecePitchLayoutAspect("attacking-half")).toBeCloseTo(72.5 / 39.5, 4);
+  expect(getSetPiecePitchLayoutAspect("full")).toBeCloseTo(109.5 / 72.5, 4);
   expect(getSetPiecePitchTransform("attacking-half")).toBe("matrix(0 -1 1 0 0 105)");
   expect(getSetPiecePitchTransform("defensive-half")).toBe("matrix(0 -1 1 0 0 35)");
   expect(getSetPieceSourcePoint({ x: 18, y: 25 }, "attacking-half")).toEqual({ x: 80, y: 18 });
@@ -737,6 +740,13 @@ test("wide editor projection fills broad canvases while preserving narrow pitch 
     { width: 68, height: 35 }
   );
   expect(narrow).toEqual({ active: false, counterScale: 1 });
+
+  const stableWithVisualMargin = getSetPiecesWideEditorProjection(
+    { width: 900, height: 490 },
+    { width: 80.5, height: 47.5 },
+    72.5 / 39.5
+  );
+  expect(stableWithVisualMargin).toEqual({ active: false, counterScale: 1 });
 });
 
 test("quick player placement finds a visible open position without stacking markers", () => {
@@ -816,9 +826,10 @@ test("board renderer uses one circular own-player marker in photo or initials mo
   expect(markup).toContain(">4</text>");
   expect(markup).toContain("is-run");
   expect(markup).toContain("Q ");
-  expect(markup).toContain('viewBox="-2.25 -2.25 72.5 39.5"');
-  expect(markup).toContain('<rect x="-2.25" y="-2.25" width="109.5" height="72.5" class="spr-pitch-base"></rect>');
+  expect(markup).toContain('viewBox="-6.25 -6.25 80.5 47.5"');
+  expect(markup).toContain('<rect x="-6.25" y="-6.25" width="117.5" height="80.5" class="spr-pitch-base"></rect>');
   expect(markup).toContain('href="assets/set-pieces/pitch-grass-reference.jpg"');
+  expect(markup).toContain('x="12.25" y="-24.75" width="80.5" height="117.5"');
   expect(markup).toContain('class="spr-pitch-grass"');
   expect(markup).toContain('transform="matrix(0 -1 1 0 0 105)"');
   expect(markup).toContain('class="spr-pitch-goal is-left-goal"');
@@ -828,6 +839,7 @@ test("board renderer uses one circular own-player marker in photo or initials mo
   expect(markup.match(/class="spr-pitch-goal-mouth"/g)).toHaveLength(2);
   expect(markup.match(/class="spr-pitch-goal-post spr-round-marking"/g)).toHaveLength(4);
   expect(markup.match(/href="assets\/set-pieces\/pitch-goal-reference.png"/g)).toHaveLength(2);
+  expect(markup.match(/x="-5.18" y="-5.9" width="10.36" height="6.21"/g)).toHaveLength(2);
   expect(markup).toContain('transform="translate(0.7 34) rotate(-90)"');
   expect(markup).toContain('transform="translate(104.3 34) rotate(90)"');
   expect(fullPitchMarkup).not.toContain("spr-pitch-goal-frame");

@@ -242,19 +242,13 @@
 .dashboard-schedule-legend .is-off i { background: #8e8e93; }
 
 .dashboard-schedule-day-panel {
-  position: absolute;
-  inset: 0.5rem;
-  z-index: 2;
   min-width: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 0.62rem;
-  padding: 0.78rem;
-  border: 1px solid rgba(29, 29, 31, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.97);
-  box-shadow: 0 16px 38px rgba(23, 29, 38, 0.18);
-  backdrop-filter: blur(14px);
+  grid-template-rows: auto auto auto;
+  gap: 0.48rem;
+  margin-top: 0.22rem;
+  padding: 0.62rem 0 0;
+  border-top: 1px solid rgba(29, 29, 31, 0.09);
   animation: dashboard-schedule-panel-in 150ms ease-out both;
 }
 
@@ -287,14 +281,12 @@
 }
 
 .dashboard-schedule-panel-close {
-  width: 1.65rem;
-  height: 1.65rem;
-  flex: 0 0 auto;
-  font-size: 1.05rem;
+  display: none;
 }
 
 .dashboard-schedule-day-events {
   min-height: 0;
+  max-height: 7.5rem;
   display: grid;
   align-content: start;
   gap: 0.42rem;
@@ -304,7 +296,7 @@
 
 .dashboard-schedule-day-event {
   min-width: 0;
-  padding: 0.55rem 0.62rem;
+  padding: 0.48rem 0.55rem;
   border: 1px solid rgba(10, 132, 255, 0.16);
   border-left: 3px solid #0a84ff;
   border-radius: 7px;
@@ -375,7 +367,7 @@
 }
 
 .dashboard-schedule-day-empty {
-  min-height: 100%;
+  min-height: 2.7rem;
   display: grid;
   place-content: center;
   gap: 0.22rem;
@@ -393,6 +385,7 @@
 }
 
 .dashboard-schedule-open-button {
+  width: 100%;
   min-height: 2rem;
   padding: 0.42rem 0.65rem;
   border: 0;
@@ -496,8 +489,7 @@ body.is-dark-mode .dashboard-schedule-day.is-today {
 }
 
 body.is-dark-mode .dashboard-schedule-day-panel {
-  border-color: rgba(148, 163, 184, 0.28);
-  background: rgba(15, 23, 42, 0.97);
+  border-top-color: rgba(148, 163, 184, 0.2);
 }
 
 body.is-dark-mode .dashboard-schedule-day-panel > header h3,

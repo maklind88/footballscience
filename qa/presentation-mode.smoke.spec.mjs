@@ -52,10 +52,10 @@ async function waitForViewportSettle(page) {
 test("Presentation Mode opens from Home and renders the planned training deck", async ({ page }) => {
   const dateValue = new Date().toISOString().slice(0, 10);
   const now = new Date().toISOString();
-  const expectedDateLabel = new Intl.DateTimeFormat("en-GB", {
-    weekday: "short",
+  const selectedDayLabel = new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
     day: "numeric",
-    month: "short",
+    month: "long",
   }).format(new Date(`${dateValue}T00:00:00`));
 
   await page.addInitScript(
@@ -214,15 +214,11 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(card).toContainText("Team Meeting");
   await expect(technicalCard).toContainText("Technical Staff Meeting");
   await expect(card).not.toContainText("Matchday Presentation Training");
-  const homeDayOptions = await card
-    .locator("[data-dashboard-presentation-date] option")
-    .evaluateAll((options) => options.map((option) => option.textContent?.trim() || ""));
-  expect(homeDayOptions).toContain(expectedDateLabel);
-  for (const optionText of homeDayOptions) {
-    expect(optionText).not.toContain("Matchday Presentation Training");
-    expect(optionText).not.toContain("blocks");
-    expect(optionText).not.toContain("min");
-  }
+  await expect(card.locator("[data-dashboard-presentation-date]")).toHaveCount(0);
+  const homeCalendar = page.locator("#dashboardSchedulePreview");
+  await homeCalendar.locator(`[data-dashboard-select-schedule-date="${dateValue}"]`).click();
+  await expect(homeCalendar.locator("#dashboardScheduleDayTitle")).toHaveText(selectedDayLabel);
+  await expect(homeCalendar.getByText("Matchday Presentation Training", { exact: true })).toBeVisible();
 
   await card.locator("[data-dashboard-open-presentation]").click();
   const presentation = page.locator("[data-presentation-mode-shell]");

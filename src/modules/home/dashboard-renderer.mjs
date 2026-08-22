@@ -125,26 +125,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
   `;
   }
 
-  function renderPresentationModeCard(context = {}) {
-    const presentation = context.presentationMode || {};
-    const passes = Array.isArray(presentation.passes) ? presentation.passes : [];
-    const selectedDate = presentation.selectedDate || context.todayValue || "";
-    const selectedPass =
-      presentation.selectedPass || passes.find((pass) => pass.dateValue === selectedDate) || passes[0] || {
-        dateValue: selectedDate,
-        dateLabel: "Today",
-        title: "Training Session",
-        blockCount: 0,
-        totalMinutes: 0,
-        hasPlan: false,
-      };
-    const passOptions = (passes.length ? passes : [selectedPass])
-      .map((pass) => {
-        const optionDate = pass.dateValue || selectedDate;
-        return `<option value="${escapeHtml(optionDate)}" ${optionDate === selectedDate ? "selected" : ""}>${escapeHtml(pass.dateLabel || optionDate || "Today")}</option>`;
-      })
-      .join("");
-
+  function renderPresentationModeCard() {
     const cards = [
       {
         type: "team",
@@ -171,13 +152,9 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
             <p class="dashboard-card-kicker">Presentation Mode</p>
             <h2>${escapeHtml(card.title)}</h2>
           </div>
-          <form class="dashboard-presentation-form">
-            <label>
-              <span>Day</span>
-              <select data-dashboard-presentation-date>${passOptions}</select>
-            </label>
+          <div class="dashboard-presentation-action">
             <button type="button" data-dashboard-open-presentation>Open</button>
-          </form>
+          </div>
         </article>
             `
           )

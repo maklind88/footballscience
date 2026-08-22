@@ -124,6 +124,7 @@ test("home dashboard renderer avoids an empty work queue wrapper for presentatio
   expect(rendered).toMatch(/dashboard-presentation-band[\s\S]*dashboardSchedulePreview/);
   expect(rendered).toContain("Team Meeting");
   expect(rendered).toContain("Technical Staff Meeting");
+  expect(rendered).not.toContain("data-dashboard-presentation-date");
   expect(rendered).not.toContain('aria-label="Work queue and alerts"');
 });
 

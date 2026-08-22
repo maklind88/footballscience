@@ -373,13 +373,15 @@ export function createDashboardRuntimeController(dependencies = {}) {
     if (event.target.closest("[data-dashboard-schedule-today]")) {
       schedulePreviewMonthValue = "";
       schedulePreviewSelectedDate = getTodayValue();
-      renderSchedulePreview({ focusSelector: "[data-dashboard-close-schedule-day]" });
+      renderSchedulePreview({ focusSelector: "[data-dashboard-schedule-today]" });
       return true;
     }
     const selectedScheduleDateButton = event.target.closest("[data-dashboard-select-schedule-date]");
     if (selectedScheduleDateButton) {
       schedulePreviewSelectedDate = selectedScheduleDateButton.dataset.dashboardSelectScheduleDate;
-      renderSchedulePreview({ focusSelector: "[data-dashboard-close-schedule-day]" });
+      renderSchedulePreview({
+        focusSelector: `[data-dashboard-select-schedule-date="${schedulePreviewSelectedDate}"]`,
+      });
       return true;
     }
     if (event.target.closest("[data-dashboard-close-schedule-day]")) {
@@ -436,7 +438,7 @@ export function createDashboardRuntimeController(dependencies = {}) {
     const presentationButton = event.target.closest("[data-dashboard-open-presentation]");
     if (presentationButton) {
       const card = presentationButton.closest("[data-dashboard-presentation-card]");
-      const dateValue = card?.querySelector("[data-dashboard-presentation-date]")?.value || getTodayValue();
+      const dateValue = schedulePreviewSelectedDate || getTodayValue();
       const meetingType = card?.dataset.dashboardPresentationType || "team";
       openPresentationMode(dateValue, meetingType);
       return true;

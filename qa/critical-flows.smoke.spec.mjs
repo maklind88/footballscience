@@ -2951,7 +2951,6 @@ test("Home stacks compact meeting cards beside the calendar and opens selected d
   await calendar.locator("[data-dashboard-schedule-today]").click();
   await expect(calendar.locator("h2")).toHaveText("May");
   await expect(calendar.locator("#dashboardScheduleDayTitle")).toHaveText("Saturday 9 May");
-  await calendar.locator("[data-dashboard-close-schedule-day]").click();
 
   await calendar.locator('[data-dashboard-select-schedule-date="2026-05-16"]').click();
   await expect(page.locator('[data-workspace-view="home"].is-active')).toBeVisible();

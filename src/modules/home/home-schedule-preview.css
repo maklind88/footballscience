@@ -482,25 +482,25 @@ body.is-dark-mode .dashboard-schedule-day {
 body.is-dark-mode .dashboard-schedule-day.has-event {
   color: #b9d7ff !important;
   border-color: rgba(90, 168, 255, 0.5) !important;
-  background: rgba(10, 132, 255, 0.2) !important;
+  background: rgba(10, 132, 255, 0.18) !important;
 }
 
 body.is-dark-mode .dashboard-schedule-day.is-match {
   color: #ffc1bd !important;
   border-color: rgba(255, 105, 97, 0.52) !important;
-  background: rgba(255, 59, 48, 0.2) !important;
+  background: rgba(255, 59, 48, 0.18) !important;
 }
 
 body.is-dark-mode .dashboard-schedule-day.is-travel {
   color: #ffd28a !important;
   border-color: rgba(255, 178, 56, 0.52) !important;
-  background: rgba(255, 159, 10, 0.2) !important;
+  background: rgba(255, 159, 10, 0.18) !important;
 }
 
 body.is-dark-mode .dashboard-schedule-day.is-recovery {
   color: #a5e7ef !important;
   border-color: rgba(86, 196, 210, 0.5) !important;
-  background: rgba(50, 173, 190, 0.2) !important;
+  background: rgba(50, 173, 190, 0.18) !important;
 }
 
 body.is-dark-mode .dashboard-schedule-day.is-meeting {

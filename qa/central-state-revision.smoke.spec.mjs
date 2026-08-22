@@ -1140,7 +1140,7 @@ test("central Schedule hydration preserves the local selected day", async ({ bro
       .toEqual({
         selectedDate: "2026-05-09",
         selectedMonthIndex: 4,
-        viewMode: "overview",
+        viewMode: "planner",
         overviewSpan: 6,
         eventTitles: ["Central Match"],
       });

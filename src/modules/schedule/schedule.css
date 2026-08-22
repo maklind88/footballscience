@@ -432,7 +432,7 @@ body.is-dark-mode .platform-schedule-view .schedule-planner-date span{color:var(
 body.is-dark-mode .platform-schedule-view .schedule-planner-date strong{color:var(--dark-text)!important;background:#94a3b82e!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-day.is-today .schedule-planner-date strong{color:#fff!important;background:var(--schedule-event-solid,#60a5fa)!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip{background:#ffffff14!important;border-color:var(--dark-line)!important;color:var(--schedule-event-text,var(--dark-text))!important}
-body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-training{background:#458bce3d!important;color:#dbeafe!important}
+body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-training{background:#458bce3d!important;color:#eff6ff!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-match{background:#be414140!important;color:#fee2e2!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-meeting{background:#935dc440!important;color:#ede9fe!important}
 body.is-dark-mode .platform-schedule-view .schedule-planner-event-chip.is-travel{background:#be7d2342!important;color:#fef3c7!important}

@@ -12,6 +12,7 @@ import {
   getActiveGameplan,
   getGameplanMatchLabel,
 } from "./gameplan-state.js";
+import { confirmPlatformAction } from "./src/core/platform-confirm-dialog.mjs";
 
 const gameplanStorageKey = "football-gameplan-v1";
 const scheduleStorageKey = "football-schedule-v1";
@@ -799,7 +800,7 @@ function ensureSeedGameplan() {
 
 function getPlanById(planId = "") {
   const plans = Array.isArray(getState().gameplans) ? getState().gameplans : [];
-  return plans.find((plan) => plan.id === planId) || null;
+  return plans.find((plan) => plan.id === planId && !plan.archivedAt) || null;
 }
 
 function getPlayerById(playerId = "") {
@@ -812,6 +813,10 @@ function canEditPlan(plan = getPlan()) {
 
 function canEditWorkspace() {
   return activeContext?.canEdit?.() === true;
+}
+
+function canDeleteGameplan() {
+  return activeContext?.canDelete?.() === true;
 }
 
 function formatDate(value = "") {
@@ -1278,6 +1283,49 @@ function removeGameplanMiniPrinciple(itemId = "") {
   });
 }
 
+function archiveGameplan(gameplanId = "") {
+  if (!canDeleteGameplan() || !gameplanId) return null;
+  const state = getState();
+  const previousState = cloneGameplanState(state, { currentUser: activeContext?.currentUser || {} });
+  const visiblePlans = (Array.isArray(state.gameplans) ? state.gameplans : []).filter((plan) => !plan.archivedAt);
+  const planIndex = visiblePlans.findIndex((plan) => plan.id === gameplanId);
+  const plan = visiblePlans[planIndex] || null;
+  if (!plan) return null;
+
+  const archivedAt = new Date().toISOString();
+  plan.archivedAt = archivedAt;
+  plan.archivedBy = String(activeContext?.currentUser?.id || "");
+  plan.updatedAt = archivedAt;
+
+  if (state.activeGameplanId === gameplanId) {
+    const remainingPlans = visiblePlans.filter((candidate) => candidate.id !== gameplanId);
+    state.activeGameplanId = remainingPlans[Math.min(planIndex, remainingPlans.length - 1)]?.id || "";
+    state.activeTab = "plan";
+    state.planMode = "briefing";
+  }
+
+  try {
+    writeGameplanState();
+  } catch (error) {
+    gameplanState = previousState;
+    throw error;
+  }
+  return plan;
+}
+
+function confirmGameplanArchive(plan = {}) {
+  const title = plan.title || plan.opponent || "Match Plan";
+  return confirmPlatformAction({
+    eyebrow: "Gameplan",
+    title: `Delete "${title}"?`,
+    message:
+      "This removes the match plan from Gameplan, including its lineup, staff assignments, evidence and Player Brief. Shared Player Brief links will stop working. The plan remains in protected history for recovery.",
+    confirmLabel: "Delete gameplan",
+    tone: "danger",
+    win: activeContext?.win || globalThis.window,
+  });
+}
+
 function setActiveGameplan(gameplanId = "") {
   const state = getState();
   if (!state.gameplans?.some((plan) => plan.id === gameplanId)) return;
@@ -1312,7 +1360,7 @@ function createGameplanFromScheduleMatch(matchId = "") {
   const match = getScheduleMatches().find((candidate) => candidate.id === matchId);
   if (!match) return;
   const state = getState();
-  const existing = state.gameplans?.find((plan) => plan.matchEventId === match.id);
+  const existing = state.gameplans?.find((plan) => plan.matchEventId === match.id && !plan.archivedAt);
   if (existing) {
     state.activeGameplanId = existing.id;
     state.activeTab = "plan";
@@ -1822,7 +1870,7 @@ function renderBriefingPhase(key = "", value = "") {
 
 function renderPlanList() {
   const state = getState();
-  const plans = Array.isArray(state.gameplans) ? state.gameplans : [];
+  const plans = Array.isArray(state.gameplans) ? state.gameplans.filter((plan) => !plan.archivedAt) : [];
   const matches = getScheduleMatches();
   const activeId = state.activeGameplanId;
   return `
@@ -1887,6 +1935,13 @@ function renderHero(plan) {
           ${plan.kickoff ? `<span>${escapeHtml(plan.kickoff)}</span>` : ""}
           ${plan.venue ? `<span>${escapeHtml(plan.venue)}</span>` : ""}
           ${plan.competition ? `<span>${escapeHtml(plan.competition)}</span>` : ""}
+          ${
+            canDeleteGameplan()
+              ? `<button type="button" class="gameplan-delete-plan" data-gameplan-delete="${escapeHtml(plan.id)}" aria-label="Delete ${escapeHtml(
+                  plan.title || plan.opponent || "gameplan"
+                )}">Delete gameplan</button>`
+              : ""
+          }
         </div>
       </div>
       <div class="gameplan-status-board">
@@ -2998,7 +3053,8 @@ export function render(context = {}) {
         ${renderPlanList()}
         <main class="gameplan-main">
           <section class="gameplan-empty">
-            <h2>No scheduled match to build from yet.</h2>
+            <h2>No gameplan selected.</h2>
+            <p>Create one from Schedule when the next match is ready.</p>
           </section>
         </main>
       </section>
@@ -3071,6 +3127,27 @@ export async function handleClick(event, context = activeContext) {
   if (copyBriefTrigger) {
     const url = copyBriefTrigger.dataset.gameplanCopyBriefLink || "";
     navigator.clipboard?.writeText(url)?.catch?.(() => {});
+    return;
+  }
+  const deleteTrigger = event.target.closest("[data-gameplan-delete]");
+  if (deleteTrigger) {
+    const plan = getPlanById(deleteTrigger.dataset.gameplanDelete);
+    if (plan && canDeleteGameplan() && (await confirmGameplanArchive(plan))) {
+      try {
+        archiveGameplan(plan.id);
+        rerenderGameplan();
+      } catch {
+        await confirmPlatformAction({
+          eyebrow: "Gameplan",
+          title: "Gameplan was not deleted",
+          message: "The central save did not complete. No plan was removed. Please try again.",
+          cancelLabel: "Close",
+          confirmLabel: "Close",
+          tone: "warning",
+          win: activeContext?.win || globalThis.window,
+        });
+      }
+    }
     return;
   }
   const openTrigger = event.target.closest("[data-gameplan-open]");

@@ -295,7 +295,7 @@ function parseStateValue(entry = {}) {
 
 function findPlan(gameplanState = {}, planId = "") {
   const plans = Array.isArray(gameplanState.gameplans) ? gameplanState.gameplans : [];
-  return plans.find((plan) => normalizeText(plan?.id, 180) === planId) || null;
+  return plans.find((plan) => normalizeText(plan?.id, 180) === planId && !normalizeText(plan?.archivedAt, 40)) || null;
 }
 
 function findPlayer(playerProfilesState = {}, playerId = "") {

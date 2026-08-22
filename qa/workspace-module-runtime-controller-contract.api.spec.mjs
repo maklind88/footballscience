@@ -93,6 +93,7 @@ function createRuntime(overrides = {}) {
     getPlayerProfilesStateForIdp: () => ({ players: [{ id: "p-idp", name: "IDP Player" }] }),
     renderPlayerProfileScoutingSpider: (player) => `radar:${player.name || player.playerName}`,
     canEditGameplan: () => true,
+    canDeleteGameplan: () => true,
     canEditVideoAnalysis: () => true,
     canEditIdp: () => true,
     getAuthToken: () => "token",
@@ -157,6 +158,7 @@ test("workspace module runtime owns Gameplan, Scouting, and Video Analysis lazy 
   expect(calls.stylesheets).toContain("gameplan");
   expect(calls.gameplanRender[0]).toMatchObject({ currentUser: { id: "u1", team: "First Team" } });
   expect(calls.gameplanRender[0].canEdit()).toBe(true);
+  expect(calls.gameplanRender[0].canDelete()).toBe(true);
 
   controller.renderScoutingWorkspace();
   expect(ui.scoutingWorkspace.innerHTML).toContain("Loading Scouting");
@@ -246,6 +248,7 @@ test("workspace module runtime owns lazy workspace event delegation", async () =
 
   expect(calls.gameplanEvents[0][0]).toBe("click");
   expect(calls.gameplanEvents[0][2].canEdit()).toBe(true);
+  expect(calls.gameplanEvents[0][2].canDelete()).toBe(true);
   expect(calls.scoutingEvents.map(([type]) => type)).toEqual(["input"]);
   expect(calls.analysisEvents[0][0]).toBe("change");
   expect(calls.analysisEvents[0][2].ui.analysisRoomWorkspace).toBe(ui.analysisRoomWorkspace);

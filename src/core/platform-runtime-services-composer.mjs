@@ -284,6 +284,10 @@ export function createPlatformRuntimeServices(deps = {}) {
     getExerciseLibraryForIdp,
     renderPlayerProfileScoutingSpider: deps.renderPlayerProfileScoutingSpider,
     canEditGameplan: () => canCurrentUserEditWorkspace("gameplan"),
+    canDeleteGameplan: () => {
+      const user = getCurrentPlatformUser();
+      return isPlatformManagementUser(user) || normalizePlatformRole(user?.role, "") === "coach";
+    },
     canEditVideoAnalysis: () => canCurrentUserEditWorkspace("analysis-room"),
     canEditIdp: () => canCurrentUserEditWorkspace("idp"),
     getAuthToken: getPlatformApiAccessToken,

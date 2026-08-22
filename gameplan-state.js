@@ -1,4 +1,4 @@
-const gameplanSchemaVersion = 5;
+const gameplanSchemaVersion = 6;
 
 const defaultPhaseKeys = Object.freeze([
   "inPossession",
@@ -449,6 +449,8 @@ export function normalizeGameplan(source = {}) {
     live: normalizeGameplanLive(source.live),
     review: normalizeGameplanReview(source.review),
     checklist,
+    archivedAt: normalizeGameplanText(source.archivedAt, 40),
+    archivedBy: normalizeGameplanText(source.archivedBy, 180),
     createdAt: normalizeGameplanText(source.createdAt, 40) || now,
     updatedAt: normalizeGameplanText(source.updatedAt, 40) || now,
     createdBy: normalizeGameplanText(source.createdBy, 180),
@@ -462,8 +464,11 @@ export function cloneGameplanState(source = {}, options = {}) {
   if (!gameplans.length && matches[0]) {
     gameplans.push(createGameplanFromMatch(matches[0], options));
   }
+  const visibleGameplans = gameplans.filter((plan) => !plan.archivedAt);
   const selectedId = normalizeGameplanText(source.activeGameplanId, 180);
-  const activeGameplanId = gameplans.some((plan) => plan.id === selectedId) ? selectedId : gameplans[0]?.id || "";
+  const activeGameplanId = visibleGameplans.some((plan) => plan.id === selectedId)
+    ? selectedId
+    : visibleGameplans[0]?.id || "";
   const activeTab = normalizeGameplanActiveTab(source.activeTab);
   return {
     schemaVersion: gameplanSchemaVersion,
@@ -476,6 +481,6 @@ export function cloneGameplanState(source = {}, options = {}) {
 }
 
 export function getActiveGameplan(state = {}) {
-  const plans = Array.isArray(state.gameplans) ? state.gameplans : [];
+  const plans = Array.isArray(state.gameplans) ? state.gameplans.filter((plan) => !plan?.archivedAt) : [];
   return plans.find((plan) => plan.id === state.activeGameplanId) || plans[0] || null;
 }

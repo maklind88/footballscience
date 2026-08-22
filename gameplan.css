@@ -242,6 +242,35 @@
   font-weight: 850;
 }
 
+.gameplan-delete-plan {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.85rem;
+  padding: 0 0.7rem;
+  border: 1px solid rgba(180, 35, 24, 0.24);
+  border-radius: 999px;
+  background: rgba(180, 35, 24, 0.06);
+  color: #a3261c;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 850;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.gameplan-delete-plan:hover,
+.gameplan-delete-plan:focus-visible {
+  border-color: rgba(180, 35, 24, 0.44);
+  background: rgba(180, 35, 24, 0.12);
+  color: #7f1d1d;
+}
+
+.gameplan-delete-plan:focus-visible {
+  outline: 3px solid rgba(180, 35, 24, 0.2);
+  outline-offset: 2px;
+}
+
 .gameplan-status-board {
   display: grid;
   grid-template-columns: minmax(9rem, 1.2fr) repeat(3, 1fr);
@@ -1636,6 +1665,19 @@ body.is-dark-mode .gameplan-plan-card.is-active small {
 
 body.is-dark-mode .gameplan-plan-card.is-active strong {
   color: #fff;
+}
+
+body.is-dark-mode .gameplan-delete-plan {
+  border-color: rgba(252, 165, 165, 0.32);
+  background: rgba(127, 29, 29, 0.2);
+  color: #fecaca;
+}
+
+body.is-dark-mode .gameplan-delete-plan:hover,
+body.is-dark-mode .gameplan-delete-plan:focus-visible {
+  border-color: rgba(254, 202, 202, 0.5);
+  background: rgba(153, 27, 27, 0.34);
+  color: #fff1f2;
 }
 
 body.is-dark-mode .gameplan-tabs {

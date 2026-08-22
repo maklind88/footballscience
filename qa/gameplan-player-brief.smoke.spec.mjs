@@ -280,3 +280,81 @@ test("Gameplan Player Brief portal is audience-gated and records player receipts
   expect(pageErrors).toEqual([]);
   expect(portalErrors).toEqual([]);
 });
+
+test("Gameplan deletion is confirmed, archived, and keeps the next plan stable", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      "football-schedule-v1",
+      JSON.stringify({
+        events: [
+          { id: "delete-match-1", date: "2026-08-22", type: "match", title: "First Opponent" },
+          { id: "delete-match-2", date: "2026-08-29", type: "match", title: "Next Opponent" },
+        ],
+      })
+    );
+    window.localStorage.setItem(
+      "football-gameplan-v1",
+      JSON.stringify({
+        schemaVersion: 6,
+        activeGameplanId: "delete-plan-1",
+        activeTab: "plan",
+        planMode: "briefing",
+        gameplans: [
+          { id: "delete-plan-1", matchEventId: "delete-match-1", date: "2026-08-22", title: "First Opponent", status: "draft" },
+          { id: "delete-plan-2", matchEventId: "delete-match-2", date: "2026-08-29", title: "Next Opponent", status: "draft" },
+        ],
+      })
+    );
+  });
+
+  await bootApp(page);
+  await page.evaluate(() => {
+    const store = window.platformAuthStore;
+    const currentUser = store?.getCurrentUser?.();
+    if (!store || !currentUser) return;
+    const coachUser = {
+      ...currentUser,
+      id: "qa-gameplan-coach",
+      email: "qa-gameplan-coach@footballscience.local",
+      role: "coach",
+      title: "Head Coach",
+    };
+    store.writeUsers([coachUser, ...store.getUsers().filter((user) => user.id !== coachUser.id)]);
+    store.setCurrentUser(coachUser.id);
+  });
+  await openWorkspace(page, "gameplan");
+  await expect(page.locator("[data-gameplan-open]")).toHaveCount(2);
+  await expect(page.locator("[data-gameplan-delete]")).toBeVisible();
+
+  await page.locator("[data-gameplan-delete]").click();
+  await expect(page.locator(".platform-confirm-dialog")).toContainText('Delete "First Opponent"?');
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.locator("[data-gameplan-open]")).toHaveCount(2);
+
+  await page.locator("[data-gameplan-delete]").click();
+  await page.getByRole("button", { name: "Delete gameplan" }).click();
+  await expect(page.locator("[data-gameplan-open]")).toHaveCount(1);
+  await expect(page.locator("#gameplanWorkspace h1")).toHaveText("Next Opponent");
+
+  const firstDeleteState = await page.evaluate(() => JSON.parse(window.localStorage.getItem("football-gameplan-v1") || "{}"));
+  expect(firstDeleteState.activeGameplanId).toBe("delete-plan-2");
+  expect(firstDeleteState.gameplans.find((plan) => plan.id === "delete-plan-1")?.archivedAt).toBeTruthy();
+  expect(firstDeleteState.gameplans.find((plan) => plan.id === "delete-plan-1")?.archivedBy).toBe("qa-gameplan-coach");
+
+  await page.locator("[data-gameplan-delete]").click();
+  await page.getByRole("button", { name: "Delete gameplan" }).click();
+  await expect(page.locator("[data-gameplan-open]")).toHaveCount(0);
+  await expect(page.locator("#gameplanWorkspace")).toContainText("No gameplan selected.");
+  await expect(page.locator("[data-gameplan-delete]")).toHaveCount(0);
+
+  const archivedState = await page.evaluate(() => JSON.parse(window.localStorage.getItem("football-gameplan-v1") || "{}"));
+  expect(archivedState.gameplans).toHaveLength(2);
+  expect(archivedState.gameplans.every((plan) => Boolean(plan.archivedAt))).toBe(true);
+
+  await page.locator('[data-gameplan-create-match="delete-match-1"]').click();
+  await expect(page.locator("[data-gameplan-open]")).toHaveCount(1);
+  await expect(page.locator("#gameplanWorkspace h1")).toHaveText("First Opponent");
+  expect(pageErrors).toEqual([]);
+});

@@ -15,6 +15,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     getExerciseLibraryForIdp = () => [],
     renderPlayerProfileScoutingSpider = () => "",
     canEditGameplan = () => false,
+    canDeleteGameplan = () => false,
     canEditVideoAnalysis = () => false,
     canEditIdp = () => false,
     getAuthToken = () => "",
@@ -55,11 +56,13 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
 
   function getGameplanContext() {
     return {
+      win,
       users: getUsers(),
       currentUser: getCurrentUser(),
       getScheduleState: getScheduleStateForGameplan,
       getPlayerProfilesState: getPlayerProfilesStateForGameplan,
       canEdit: canEditGameplan,
+      canDelete: canDeleteGameplan,
       getAuthToken,
       suppressCentralWrites,
       unsuppressCentralWrites,

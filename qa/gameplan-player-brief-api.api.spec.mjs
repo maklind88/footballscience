@@ -126,6 +126,17 @@ test("Gameplan Player Brief payload returns only player-facing fields", () => {
   expect(JSON.stringify(payload)).not.toContain("opponentPlan");
 });
 
+test("Archived Gameplan Player Briefs are no longer accessible", () => {
+  const state = sampleGameplanState();
+  state.gameplans[0].archivedAt = "2026-08-22T12:00:00.000Z";
+  state.gameplans[0].archivedBy = "coach-1";
+  const payload = playerBrief.resolvePlayerBriefPayload(state, samplePlayerProfilesState, {
+    planId: "plan-1",
+    playerId: "player-1",
+  });
+  expect(payload).toMatchObject({ ok: false, status: 404, reason: "Brief not found." });
+});
+
 test("Gameplan Player Brief audience and receipts stay enforced server-side", () => {
   const blocked = playerBrief.resolvePlayerBriefPayload(sampleGameplanState(), samplePlayerProfilesState, {
     planId: "plan-1",

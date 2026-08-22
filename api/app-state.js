@@ -10,6 +10,7 @@ const {
 const { appendAuditLog } = require("./_lib/audit-log.js");
 const { appendSessionPlannerHistory } = require("./_lib/session-history.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
+const { protectGameplanStateWrite } = require("./_lib/gameplan-state-authorization.js");
 const { protectSetPiecesStateWrite } = require("./_lib/set-pieces-state-authorization.js");
 const {
   isAppStateDatabaseEnabled,
@@ -2953,6 +2954,15 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
     });
     if (!setPiecesAuthorization.ok) return setPiecesAuthorization;
     rawValue = setPiecesAuthorization.value;
+  }
+
+  if (key === GAMEPLAN_KEY) {
+    const gameplanAuthorization = protectGameplanStateWrite(actor, rawValue, {
+      removed,
+      previousValue: context.previousEntry?.value || "",
+    });
+    if (!gameplanAuthorization.ok) return gameplanAuthorization;
+    rawValue = gameplanAuthorization.value;
   }
 
   if (actor?.role === "admin") {

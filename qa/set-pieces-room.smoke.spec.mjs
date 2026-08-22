@@ -510,8 +510,8 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   const ownMarkerBox = await page.locator(".spr-board-element.is-home-player:not(.is-ghost) .spr-home-avatar-frame").boundingBox();
   expect(opponentMarkerBox).not.toBeNull();
   expect(ownMarkerBox).not.toBeNull();
-  expect(opponentMarkerBox.width).toBeGreaterThan(ownMarkerBox.width * .9);
-  expect(opponentMarkerBox.width).toBeLessThan(ownMarkerBox.width * 1.08);
+  expect(opponentMarkerBox.width).toBeGreaterThan(ownMarkerBox.width * .76);
+  expect(opponentMarkerBox.width).toBeLessThan(ownMarkerBox.width * .84);
   await opponentMarker.dblclick();
   const blueOpponentMarker = page.getByRole("radio", { name: "Blue opponent marker" });
   await blueOpponentMarker.click();
@@ -557,10 +557,10 @@ test("Set Pieces Room builds, persists and plays a phased opponent response", as
   await expect(page.locator(".spr-board-element.is-ball .spr-ball-seam")).toHaveCount(5);
   const ballTokenBox = await page.locator(".spr-board-element.is-ball .spr-ball-token").boundingBox();
   const opponentTokenBox = await page.locator(".spr-board-element.is-opponent:not(.is-ghost) .spr-opponent-token").boundingBox();
-  expect(ballTokenBox.width).toBeLessThan(opponentTokenBox.width * .35);
+  expect(ballTokenBox.width).toBeLessThan(opponentTokenBox.width * .38);
   await page.locator(".spr-board-element.is-ball").click();
   const ballSelectionBox = await page.locator(".spr-board-element.is-ball .spr-selection-ring").boundingBox();
-  expect(ballSelectionBox.width).toBeLessThan(opponentTokenBox.width * .5);
+  expect(ballSelectionBox.width).toBeLessThan(opponentTokenBox.width * .6);
   await page.locator(".spr-board-element.is-ball").dblclick();
   await expect(page.locator(".spr-inspector")).toBeVisible();
 

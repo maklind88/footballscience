@@ -1,0 +1,477 @@
+/* Experience foundation: quiet materials, compact controls and content-first hierarchy. */
+.platform-scouting-view {
+  background: #f5f5f7 !important;
+}
+
+#scoutingWorkspace {
+  --scout-ink: #1d1d1f;
+  --scout-strong: #101113;
+  --scout-muted: #6e6e73;
+  --scout-subtle: #8e8e93;
+  --scout-soft: #f5f5f7;
+  --scout-panel: #ffffff;
+  --scout-panel-strong: #ffffff;
+  --scout-line: rgba(60, 60, 67, 0.14);
+  --scout-line-strong: rgba(60, 60, 67, 0.22);
+  --scout-green: #244636;
+  --scout-green-2: #315d49;
+  --scout-blue: #e8f1fb;
+  --scout-gold: #fbf4df;
+  --scout-danger: #b42318;
+  --scout-danger-soft: #fff1f0;
+  --scout-radius-sm: 7px;
+  --scout-radius: 8px;
+  --scout-radius-lg: 8px;
+  --scout-gap: 12px;
+  --scout-control-height: 44px;
+  --scout-focus: rgba(36, 70, 54, 0.2);
+  --scout-shadow: 0 1px 2px rgba(16, 17, 19, 0.06);
+  --scout-shadow-strong: 0 18px 50px rgba(16, 17, 19, 0.18);
+  color: var(--scout-ink);
+}
+
+#scoutingWorkspace,
+#scoutingWorkspace * {
+  letter-spacing: 0 !important;
+}
+
+#scoutingWorkspace .scouting-shell {
+  gap: 12px;
+}
+
+#scoutingWorkspace :where(
+  .scouting-board,
+  .scouting-content,
+  .scouting-database-panel,
+  .scouting-database-workbench,
+  .scouting-database-main,
+  .scouting-database-results-header,
+  .scouting-database-results-actions,
+  .scouting-database-paging,
+  .scouting-database-controls,
+  .scouting-record-table,
+  .scouting-record-grid,
+  .scouting-record-card
+) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#scoutingWorkspace :where(.scouting-board, .scouting-content, .scouting-database-panel) {
+  width: 100%;
+}
+
+#scoutingWorkspace .scouting-hero {
+  min-height: 76px !important;
+  padding: 14px 58px 14px 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: #18372b !important;
+  box-shadow: none !important;
+}
+
+#scoutingWorkspace .scouting-hero h1 {
+  margin: 2px 0 0;
+  color: #ffffff;
+  font-size: 28px !important;
+  font-weight: 720;
+  line-height: 1.08 !important;
+}
+
+#scoutingWorkspace .scouting-hero .placeholder-tag {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px !important;
+  font-weight: 650;
+  line-height: 1.2 !important;
+  text-transform: none;
+}
+
+#scoutingWorkspace .scouting-settings-menu > summary {
+  width: 38px !important;
+  height: 38px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+#scoutingWorkspace .scouting-command-bar {
+  min-height: 48px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-tabs {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 48px;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 4px;
+  overflow-x: auto;
+  border: 1px solid var(--scout-line);
+  border-radius: 8px;
+  background: #e9e9ec;
+  scrollbar-width: none;
+}
+
+#scoutingWorkspace .scouting-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+#scoutingWorkspace .scouting-tab,
+#scoutingWorkspace .scouting-profile-tabs button {
+  min-height: 38px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #515154;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 650;
+  transform: none;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+#scoutingWorkspace .scouting-tab:hover,
+#scoutingWorkspace .scouting-profile-tabs button:hover {
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--scout-strong);
+  box-shadow: none;
+  transform: none;
+}
+
+#scoutingWorkspace .scouting-tab.is-active,
+#scoutingWorkspace .scouting-profile-tabs button.is-active {
+  border-color: transparent;
+  background: #ffffff;
+  color: var(--scout-strong);
+  box-shadow: 0 1px 3px rgba(16, 17, 19, 0.12);
+}
+
+#scoutingWorkspace :where(button, summary, input, select, textarea) {
+  font-family: inherit;
+}
+
+#scoutingWorkspace :where(input, select, textarea) {
+  border: 1px solid var(--scout-line-strong);
+  border-radius: 7px;
+  background: #ffffff;
+  color: var(--scout-ink);
+  font-size: 14px;
+  font-weight: 550;
+  box-shadow: none;
+}
+
+#scoutingWorkspace :where(input:not([type="checkbox"]):not([type="radio"]), select) {
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+#scoutingWorkspace textarea {
+  padding: 10px 12px;
+  line-height: 1.4;
+}
+
+#scoutingWorkspace :where(input, select, textarea, button, summary):focus-visible {
+  outline: 0;
+  border-color: var(--scout-green) !important;
+  box-shadow: 0 0 0 4px var(--scout-focus) !important;
+}
+
+#scoutingWorkspace :where(
+  .scouting-primary-button,
+  .scouting-secondary-button,
+  .scouting-filter-toggle,
+  .scouting-database-controls button,
+  .scouting-profile-actions button,
+  .scouting-profile-tabs-actions button,
+  .scouting-comparison-candidate-toggle
+) {
+  min-height: 44px;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 650;
+  box-shadow: none;
+  transform: none;
+}
+
+#scoutingWorkspace :where(
+  .scouting-primary-button,
+  .scouting-filter-toggle,
+  .scouting-database-controls button[type="submit"]
+) {
+  border: 1px solid var(--scout-green);
+  background: var(--scout-green);
+  color: #ffffff;
+}
+
+#scoutingWorkspace :where(
+  .scouting-primary-button,
+  .scouting-filter-toggle,
+  .scouting-database-controls button[type="submit"]
+):not(:disabled):hover {
+  border-color: #193529;
+  background: #193529;
+  transform: none;
+}
+
+#scoutingWorkspace :where(.scouting-secondary-button, .scouting-comparison-candidate-toggle) {
+  border: 1px solid var(--scout-line-strong);
+  background: #ffffff;
+  color: var(--scout-ink);
+}
+
+#scoutingWorkspace :where(.scouting-secondary-button, .scouting-comparison-candidate-toggle):not(:disabled):hover {
+  background: #f5f5f7;
+  transform: none;
+}
+
+#scoutingWorkspace :where(.placeholder-tag, .scouting-muted-label, label > span:first-child) {
+  color: var(--scout-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+}
+
+#scoutingWorkspace :where(
+  .scouting-load-panel,
+  .scouting-database-results-header,
+  .scouting-database-controls,
+  .scouting-shadow-card,
+  .scouting-list-card,
+  .scouting-comparison-lab,
+  .scouting-comparison-studio,
+  .scouting-target-board,
+  .scouting-budget-board,
+  .scouting-reports-list,
+  .scouting-reports-form-card,
+  .scouting-role-models,
+  .scouting-profile-dossier,
+  .scouting-profile-radar,
+  .scouting-profile-metrics,
+  .scouting-season-table,
+  .scouting-contact-form-card,
+  .scouting-contact-list-card,
+  .scouting-empty-panel
+) {
+  border: 1px solid var(--scout-line);
+  border-radius: 8px;
+  background: var(--scout-panel);
+  box-shadow: var(--scout-shadow);
+}
+
+#scoutingWorkspace :where(
+  .scouting-record-card,
+  .scouting-my-team-slot-card,
+  .scouting-my-team-player,
+  .scouting-comparison-selected-player,
+  .scouting-comparison-decision > div,
+  .scouting-comparison-radar,
+  .scouting-comparison-table,
+  .scouting-comparison-winners,
+  .scouting-comparison-winners article,
+  .scouting-role-model-card,
+  .scouting-role-model-card-notes,
+  .scouting-role-model-card-matches
+) {
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-load-panel {
+  min-height: 240px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 32px;
+  text-align: center;
+}
+
+#scoutingWorkspace .scouting-load-panel h2,
+#scoutingWorkspace .scouting-load-panel p {
+  margin: 0;
+}
+
+#scoutingWorkspace .scouting-load-panel h2 {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+#scoutingWorkspace .scouting-load-panel p {
+  max-width: 600px;
+  color: var(--scout-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+#scoutingWorkspace .scouting-database-progress {
+  width: min(220px, 62vw);
+  height: 4px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #e5e5e8;
+}
+
+#scoutingWorkspace .scouting-database-progress span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--scout-green);
+  animation: scouting-database-progress 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes scouting-database-progress {
+  from { transform: translateX(-15%); }
+  to { transform: translateX(155%); }
+}
+
+#scoutingWorkspace .scouting-database-panel {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-database-main,
+#scoutingWorkspace .scouting-database-workbench {
+  gap: 12px;
+}
+
+#scoutingWorkspace .scouting-database-results-header,
+#scoutingWorkspace .scouting-database-controls {
+  padding: 12px;
+}
+
+#scoutingWorkspace .scouting-database-results-header {
+  min-height: 56px;
+}
+
+#scoutingWorkspace .scouting-result-summary {
+  color: var(--scout-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+#scoutingWorkspace .scouting-database-search {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+#scoutingWorkspace .scouting-database-quick-filters {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 8px;
+}
+
+#scoutingWorkspace .scouting-database-quick-filters > .scouting-filter-toggle {
+  border-color: var(--scout-line-strong);
+  background: #f5f5f7;
+  color: var(--scout-ink);
+}
+
+#scoutingWorkspace .scouting-database-quick-filters > .scouting-filter-toggle:hover {
+  border-color: var(--scout-line-strong);
+  background: #e9e9ec;
+  color: var(--scout-strong);
+}
+
+#scoutingWorkspace .scouting-database-quick-filters > .scouting-filter-toggle.is-open {
+  border-color: var(--scout-green);
+  background: var(--scout-green);
+  color: #ffffff;
+}
+
+#scoutingWorkspace .scouting-record-table {
+  overflow: hidden;
+  border: 1px solid var(--scout-line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: none;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 1160px;
+}
+
+#scoutingWorkspace .scouting-record-table-head {
+  background: #f5f5f7;
+}
+
+#scoutingWorkspace .scouting-record-grid {
+  gap: 0;
+}
+
+#scoutingWorkspace .scouting-record-card {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--scout-line);
+  border-radius: 0;
+  background: #ffffff;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 58px;
+  transition: background-color 100ms ease;
+}
+
+#scoutingWorkspace .scouting-record-card:hover {
+  border-color: var(--scout-line);
+  background: #f8faf9;
+}
+
+#scoutingWorkspace :where(.scouting-database-paging button, .scouting-record-more-menu summary) {
+  border-radius: 7px;
+}
+
+#scoutingWorkspace :where(.scouting-my-team-pitch, .scouting-shadow-pitch) {
+  border-radius: 8px;
+}
+
+#scoutingWorkspace .scouting-shadow-layout:not(.scouting-my-team-layout) .scouting-my-team-pitch,
+#scoutingWorkspace .scouting-my-team-layout .scouting-my-team-pitch {
+  height: 820px;
+  min-height: 820px;
+}
+
+#scoutingWorkspace :where(.scouting-my-team-slot-card, .scouting-my-team-player, .scouting-shadow-empty) {
+  border: 1px solid var(--scout-line-strong);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-my-team-avatar {
+  background: var(--scout-green);
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-list-card {
+  min-height: 176px;
+  align-content: start;
+}
+
+#scoutingWorkspace .scouting-next-actions > article {
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-next-actions > article.is-primary {
+  border-color: rgba(36, 70, 54, 0.18);
+  background: #f1f6f3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #scoutingWorkspace .scouting-database-progress span {
+    animation: none;
+    transform: none;
+  }
+}

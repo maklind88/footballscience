@@ -142,15 +142,11 @@ async function waitForScoutingRows(page, { timeout = 60_000 } = {}) {
     () => {
       const workspace = document.querySelector('[data-workspace-view="scouting"].is-active');
       const grid = workspace?.querySelector("[data-scouting-record-grid]");
-      if (!grid) {
+      const firstRow = grid?.querySelector("[data-open-scouting-record]");
+      if (!firstRow) {
         return false;
       }
-      const rows = Array.from(grid.querySelectorAll("[data-open-scouting-record]")).filter((node) => {
-        const rect = node.getBoundingClientRect();
-        const style = window.getComputedStyle(node);
-        return !node.disabled && rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-      });
-      return rows.length > 0 && !workspace.querySelector(".scouting-database-loader") && !workspace.querySelector("[data-scouting-retry-database]");
+      return !firstRow.disabled && !workspace.querySelector(":is(.scouting-database-progress, .scouting-database-loader)") && !workspace.querySelector("[data-scouting-retry-database]");
     },
     null,
     { timeout }
@@ -331,7 +327,7 @@ test("Scouting critical clicks stay within interaction budgets", async ({ page }
     };
   });
   expect(fallbackDatabase.source).toBe("worker");
-  expect(fallbackDatabase.records).toBeLessThanOrEqual(50);
+  expect(fallbackDatabase.records).toBeLessThanOrEqual(20);
   expect(fallbackDatabase.total).toBeGreaterThanOrEqual(fallbackDatabase.records);
 
   const firstRow = await waitForScoutingRows(page);

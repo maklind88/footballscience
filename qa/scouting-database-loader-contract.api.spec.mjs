@@ -106,10 +106,7 @@ test("Scouting database loader dedupes queued renders while a load is active", a
   await harness.loader.ensureLoaded();
   await Promise.resolve();
 
-  expect(harness.calls.renders).toEqual([
-    { preserveFocus: true },
-    { custom: true, preserveFocus: true },
-  ]);
+  expect(harness.calls.renders).toEqual([{ custom: true, preserveFocus: true }]);
   expect(harness.loader.isLoading()).toBe(false);
 });
 

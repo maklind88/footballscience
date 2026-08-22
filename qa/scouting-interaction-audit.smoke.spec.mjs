@@ -161,7 +161,7 @@ async function waitForScoutingRows(page, { timeout = 60_000 } = {}) {
         return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
       };
       const rows = Array.from(grid.querySelectorAll("[data-open-scouting-record]")).filter((node) => !node.disabled && isVisible(node));
-      return rows.length > 0 && !workspace.querySelector(".scouting-database-loader") && !workspace.querySelector("[data-scouting-retry-database]");
+      return rows.length > 0 && !workspace.querySelector(":is(.scouting-database-progress, .scouting-database-loader)") && !workspace.querySelector("[data-scouting-retry-database]");
     },
     null,
     { timeout }
@@ -190,7 +190,7 @@ async function startScoutingDatabaseLoad(page) {
       if (hasRows) {
         return "loaded";
       }
-      if (isVisible(workspace?.querySelector(".scouting-database-loader"))) {
+      if (isVisible(workspace?.querySelector(":is(.scouting-database-progress, .scouting-database-loader)"))) {
         return "loading";
       }
       const loadTrigger = Array.from(

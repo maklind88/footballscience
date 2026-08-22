@@ -78,7 +78,7 @@ export function createScoutingDatabaseBackgroundController(deps = {}) {
     }, normalizeDelay(delayMs));
   }
 
-  function scheduleAutoLoad(delayMs = 1200) {
+  function scheduleAutoLoad(delayMs = 320) {
     clearTimer(autoLoadTimer);
     autoLoadTimer = timers.setTimeout?.(() => {
       autoLoadTimer = 0;

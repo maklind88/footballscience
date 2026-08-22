@@ -77,6 +77,14 @@ test("Scouting database background controller autoloads only active local Databa
   expect(harness.calls.renders).toEqual([{ preserveFocus: true }]);
 });
 
+test("Scouting database background controller starts the default load after first paint", () => {
+  const harness = createHarness();
+
+  harness.controller.scheduleAutoLoad();
+
+  expect(harness.calls.timers).toEqual([{ delayMs: 320, timerId: 10 }]);
+});
+
 test("Scouting database background controller guards autoload when the source or state is unsafe", () => {
   const fsdbHarness = createHarness({ source: "fsdb" });
   fsdbHarness.controller.scheduleAutoLoad(0);

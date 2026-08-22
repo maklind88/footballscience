@@ -24,26 +24,17 @@ export function renderScoutingDatabaseWorkspace(deps = {}) {
     const isLoading = Boolean(deps.isDatabaseLoading);
     const fsdbSegmentLabel = deps.getFootballScienceDbGenderSegmentLabel(filters.fsdbGenderSegment);
     return `
-      <section class="scouting-load-panel${isLoading ? " is-loading" : ""}">
+      <section class="scouting-load-panel${isLoading ? " is-loading" : ""}" role="status" aria-live="polite">
         ${
           isLoading
             ? `
-              <div class="scouting-database-loader" aria-hidden="true">
-                <div class="scouting-loader-pitch">
-                  <span class="scouting-loader-player">
-                    <i class="scouting-loader-head"></i>
-                    <i class="scouting-loader-body"></i>
-                    <i class="scouting-loader-leg is-left"></i>
-                    <i class="scouting-loader-leg is-right"></i>
-                  </span>
-                  <span class="scouting-loader-ball"></span>
-                  <span class="scouting-loader-goal"></span>
-                </div>
+              <div class="scouting-database-progress" aria-hidden="true">
+                <span></span>
               </div>
             `
             : ""
         }
-        <h2>${isLoading ? (isFootballScienceDb ? `Loading ${fsdbSegmentLabel} source enrichment` : "Loading the scouting database") : isFootballScienceDb ? "Source enrichment is handled inside Scouting" : "Scouting database is ready"}</h2>
+        <h2>${isLoading ? (isFootballScienceDb ? `Loading ${fsdbSegmentLabel} source enrichment` : "Preparing player database") : isFootballScienceDb ? "Source enrichment is handled inside Scouting" : "Player database"}</h2>
         <p>${
           isLoading
             ? isFootballScienceDb
@@ -60,7 +51,7 @@ export function renderScoutingDatabaseWorkspace(deps = {}) {
               ? ""
               : `
                 <div class="scouting-load-actions">
-                  <button type="button" class="scouting-primary-button" data-scouting-load-database>Load scouting player database</button>
+                  <button type="button" class="scouting-primary-button" data-scouting-load-database>Open player database</button>
                 </div>
               `
         }
@@ -202,6 +193,10 @@ export function handleScoutingDatabaseClick(event, deps = {}) {
     const details = metricFilterSummary.closest("[data-scouting-metric-filter-details]");
     const open = !details?.open;
     deps.setDatabaseMetricFilterOpen(open);
+    if (open && !details?.querySelector("[data-scouting-metric-filter-search]")) {
+      deps.refreshDatabaseSurface({ controls: true });
+      return true;
+    }
     if (details) {
       details.open = open;
     }

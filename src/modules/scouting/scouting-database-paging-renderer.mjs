@@ -48,8 +48,8 @@ export function createScoutingDatabasePagingRenderer(deps = {}) {
             <input type="number" min="1" name="page" value="${currentPage}" aria-label="Football Science DB page" title="Cursor pages can move one page at a time" disabled />
           </form>
           <div>
-            <button type="button" class="scouting-secondary-button" data-scouting-page-cursor="previous" ${cursorStack.length ? "" : "disabled"}>Previous 50</button>
-            <button type="button" class="scouting-primary-button" data-scouting-page-cursor="next" data-scouting-next-cursor="${escapeMarkup(deps, paging.nextCursor || "")}" ${hasMore && paging.nextCursor ? "" : "disabled"}>Next 50</button>
+            <button type="button" class="scouting-secondary-button" data-scouting-page-cursor="previous" ${cursorStack.length ? "" : "disabled"}>Previous</button>
+            <button type="button" class="scouting-primary-button" data-scouting-page-cursor="next" data-scouting-next-cursor="${escapeMarkup(deps, paging.nextCursor || "")}" ${hasMore && paging.nextCursor ? "" : "disabled"}>Next</button>
           </div>
         </div>
       `;
@@ -75,8 +75,8 @@ export function createScoutingDatabasePagingRenderer(deps = {}) {
             ${totalPages ? `<span>/ ${totalPages}</span>` : ""}
           </form>
           <div>
-            <button type="button" class="scouting-secondary-button" data-scouting-page-offset="${previousOffset}" ${apiOffset <= 0 ? "disabled" : ""}>Previous 50</button>
-            <button type="button" class="scouting-primary-button" data-scouting-page-offset="${nextOffset}" ${!hasMore ? "disabled" : ""}>Next 50</button>
+            <button type="button" class="scouting-secondary-button" data-scouting-page-offset="${previousOffset}" ${apiOffset <= 0 ? "disabled" : ""}>Previous</button>
+            <button type="button" class="scouting-primary-button" data-scouting-page-offset="${nextOffset}" ${!hasMore ? "disabled" : ""}>Next</button>
           </div>
         </div>
       `;
@@ -100,8 +100,8 @@ export function createScoutingDatabasePagingRenderer(deps = {}) {
           <span>/ ${totalPages}</span>
         </form>
         <div>
-          <button type="button" class="scouting-secondary-button" data-scouting-page-offset="${previousOffset}" ${currentPage <= 1 ? "disabled" : ""}>Previous 50</button>
-          <button type="button" class="scouting-primary-button" data-scouting-page-offset="${nextOffset}" ${currentPage >= totalPages ? "disabled" : ""}>Next 50</button>
+          <button type="button" class="scouting-secondary-button" data-scouting-page-offset="${previousOffset}" ${currentPage <= 1 ? "disabled" : ""}>Previous</button>
+          <button type="button" class="scouting-primary-button" data-scouting-page-offset="${nextOffset}" ${currentPage >= totalPages ? "disabled" : ""}>Next</button>
         </div>
       </div>
     `;

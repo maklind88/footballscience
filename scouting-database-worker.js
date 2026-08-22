@@ -32,11 +32,6 @@ let metricPercentileCache = new Map();
 let searchCorpusCache = new Map();
 let filteredRecordCache = new Map();
 let recordByIdCache = { database: null, byId: new Map() };
-let loadedManifest = null;
-let loadedManifestScriptUrl = "";
-let workerDatabaseCacheOpenPromise = null;
-const workerDatabaseCacheName = "football-science-scouting-worker-cache-v1";
-const workerDatabaseCacheStore = "databases";
 
 function normalizeText(value = "", limit = 120) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, limit);
@@ -372,174 +367,6 @@ function getRecordMinutes(record) {
   return normalizeNumber(getRecordValue(record, recordIndex.minutes), 0);
 }
 
-function getDatabaseRecordCount(database = {}) {
-  return Array.isArray(database.records) ? database.records.length : 0;
-}
-
-function getDatabaseMetricCount(database = {}) {
-  return Array.isArray(database.metrics) ? database.metrics.length : 0;
-}
-
-function normalizeScriptCacheKey(scriptUrl = "") {
-  return String(scriptUrl || "").split("?")[0].split("#")[0] || "scouting-import-data.js";
-}
-
-function loadDatabaseManifest(scriptUrl = "scouting-import-manifest.js") {
-  const normalizedScriptUrl = String(scriptUrl || "scouting-import-manifest.js");
-  if (loadedManifest && loadedManifestScriptUrl === normalizedScriptUrl) {
-    return loadedManifest;
-  }
-  self.__footballScienceScoutingDatabaseManifest = null;
-  importScripts(normalizedScriptUrl);
-  const manifest = self.__footballScienceScoutingDatabaseManifest;
-  if (!manifest || manifest.schema !== "football-science-scouting-import-manifest") {
-    throw new Error("Scouting player database manifest did not register.");
-  }
-  loadedManifest = manifest;
-  loadedManifestScriptUrl = normalizedScriptUrl;
-  return loadedManifest;
-}
-
-function getDatabaseManifestEntry(kind = "full", manifest = loadedManifest) {
-  const entry = kind === "preview" ? manifest?.preview : manifest?.full;
-  return entry && typeof entry === "object" ? entry : null;
-}
-
-function getWorkerDatabaseCacheKey(kind = "full", scriptUrl = "", manifest = loadedManifest) {
-  const entry = getDatabaseManifestEntry(kind, manifest);
-  return [
-    "scouting-worker-database",
-    kind,
-    entry?.version || "",
-    entry?.records || "",
-    entry?.metrics || "",
-    normalizeScriptCacheKey(entry?.script || scriptUrl),
-  ].join("|");
-}
-
-function isDatabaseCompatibleWithManifest(database = {}, kind = "full", manifest = loadedManifest) {
-  const entry = getDatabaseManifestEntry(kind, manifest);
-  if (!database || !Array.isArray(database.records) || !Array.isArray(database.metrics)) {
-    return false;
-  }
-  if (!entry) {
-    return true;
-  }
-  if (entry.schema && database.schema && database.schema !== entry.schema) {
-    return false;
-  }
-  if (entry.version && database.version && database.version !== entry.version) {
-    return false;
-  }
-  if (Number.isFinite(Number(entry.records)) && getDatabaseRecordCount(database) !== Number(entry.records)) {
-    return false;
-  }
-  if (Number.isFinite(Number(entry.metrics)) && getDatabaseMetricCount(database) !== Number(entry.metrics)) {
-    return false;
-  }
-  return true;
-}
-
-function canUseWorkerDatabaseCache() {
-  try {
-    return Boolean(self.indexedDB);
-  } catch {
-    return false;
-  }
-}
-
-function openWorkerDatabaseCache() {
-  if (!canUseWorkerDatabaseCache()) {
-    return Promise.resolve(null);
-  }
-  if (workerDatabaseCacheOpenPromise) {
-    return workerDatabaseCacheOpenPromise;
-  }
-  workerDatabaseCacheOpenPromise = new Promise((resolve) => {
-    try {
-      const request = self.indexedDB.open(workerDatabaseCacheName, 1);
-      request.onupgradeneeded = () => {
-        const database = request.result;
-        if (!database.objectStoreNames.contains(workerDatabaseCacheStore)) {
-          database.createObjectStore(workerDatabaseCacheStore, { keyPath: "key" });
-        }
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-      request.onblocked = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
-  });
-  return workerDatabaseCacheOpenPromise;
-}
-
-async function readWorkerCachedDatabase(kind = "full", scriptUrl = "", manifest = loadedManifest) {
-  const cache = await openWorkerDatabaseCache();
-  if (!cache) {
-    return null;
-  }
-  const key = getWorkerDatabaseCacheKey(kind, scriptUrl, manifest);
-  return new Promise((resolve) => {
-    try {
-      const transaction = cache.transaction(workerDatabaseCacheStore, "readonly");
-      const store = transaction.objectStore(workerDatabaseCacheStore);
-      const request = store.get(key);
-      request.onsuccess = () => {
-        const cached = request.result?.database || null;
-        resolve(isDatabaseCompatibleWithManifest(cached, kind, manifest) ? cached : null);
-      };
-      request.onerror = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
-  });
-}
-
-async function writeWorkerCachedDatabase(kind = "full", scriptUrl = "", database = {}, manifest = loadedManifest) {
-  if (!isDatabaseCompatibleWithManifest(database, kind, manifest)) {
-    return false;
-  }
-  const cache = await openWorkerDatabaseCache();
-  if (!cache) {
-    return false;
-  }
-  const entry = getDatabaseManifestEntry(kind, manifest);
-  const payload = {
-    key: getWorkerDatabaseCacheKey(kind, scriptUrl, manifest),
-    kind,
-    script: normalizeScriptCacheKey(entry?.script || scriptUrl),
-    version: entry?.version || database.version || "",
-    records: getDatabaseRecordCount(database),
-    metrics: getDatabaseMetricCount(database),
-    savedAt: new Date().toISOString(),
-    database,
-  };
-  return new Promise((resolve) => {
-    try {
-      const transaction = cache.transaction(workerDatabaseCacheStore, "readwrite");
-      const store = transaction.objectStore(workerDatabaseCacheStore);
-      transaction.oncomplete = () => resolve(true);
-      transaction.onerror = () => resolve(false);
-      const cursorRequest = store.openCursor();
-      cursorRequest.onsuccess = () => {
-        const cursor = cursorRequest.result;
-        if (!cursor) {
-          store.put(payload);
-          return;
-        }
-        if (cursor.value?.kind === kind && cursor.key !== payload.key) {
-          cursor.delete();
-        }
-        cursor.continue();
-      };
-      cursorRequest.onerror = () => store.put(payload);
-    } catch {
-      resolve(false);
-    }
-  });
-}
-
 function getPositionTokens(recordOrPosition) {
   const position = Array.isArray(recordOrPosition) ? getRecordPosition(recordOrPosition) : normalizeText(recordOrPosition, 120);
   return position
@@ -781,14 +608,42 @@ function primeDatabaseIndexes(database = loadedDatabase, options = {}) {
   }
 }
 
-function loadDatabaseFromScript(scriptUrl = "scouting-import-data.js") {
+function parseGeneratedDatabaseSource(source = "", globalName = "") {
+  const marker = `window.${globalName}=`;
+  const startIndex = source.indexOf(marker);
+  if (startIndex < 0) {
+    throw new Error("Scouting player database payload marker is missing.");
+  }
+  const payloadStart = startIndex + marker.length;
+  const nextAssignmentIndex = source.indexOf(";\nwindow.", payloadStart);
+  const payloadEnd = nextAssignmentIndex >= 0 ? nextAssignmentIndex : source.lastIndexOf(";");
+  if (payloadEnd <= payloadStart) {
+    throw new Error("Scouting player database payload is incomplete.");
+  }
+  return JSON.parse(source.slice(payloadStart, payloadEnd));
+}
+
+async function fetchGeneratedDatabase(scriptUrl, globalName) {
+  const response = await fetch(scriptUrl, { cache: "force-cache" });
+  if (!response.ok) {
+    throw new Error(`Scouting player database request failed (${response.status}).`);
+  }
+  return parseGeneratedDatabaseSource(await response.text(), globalName);
+}
+
+async function loadDatabaseFromScript(scriptUrl = "scouting-import-data.js") {
   const normalizedScriptUrl = String(scriptUrl || "scouting-import-data.js");
   if (loadedFullDatabase && loadedFullScriptUrl === normalizedScriptUrl) {
     return activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
   }
-  self.__footballScienceScoutingDatabase = null;
-  importScripts(normalizedScriptUrl);
-  const database = self.__footballScienceScoutingDatabase;
+  let database = null;
+  try {
+    database = await fetchGeneratedDatabase(normalizedScriptUrl, "__footballScienceBundledScoutingDatabase");
+  } catch {
+    self.__footballScienceScoutingDatabase = null;
+    importScripts(normalizedScriptUrl);
+    database = self.__footballScienceScoutingDatabase;
+  }
   if (!database || !Array.isArray(database.records) || !Array.isArray(database.metrics)) {
     throw new Error("Scouting player database did not register.");
   }
@@ -797,14 +652,19 @@ function loadDatabaseFromScript(scriptUrl = "scouting-import-data.js") {
   return activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
 }
 
-function loadPreviewDatabaseFromScript(scriptUrl = "scouting-import-preview-data.js") {
+async function loadPreviewDatabaseFromScript(scriptUrl = "scouting-import-preview-data.js") {
   const normalizedScriptUrl = String(scriptUrl || "scouting-import-preview-data.js");
   if (loadedPreviewDatabase && loadedPreviewScriptUrl === normalizedScriptUrl) {
     return activateDatabase(loadedPreviewDatabase, loadedPreviewScriptUrl);
   }
-  self.__footballScienceScoutingPreviewDatabase = null;
-  importScripts(normalizedScriptUrl);
-  const database = self.__footballScienceScoutingPreviewDatabase;
+  let database = null;
+  try {
+    database = await fetchGeneratedDatabase(normalizedScriptUrl, "__footballScienceScoutingPreviewDatabase");
+  } catch {
+    self.__footballScienceScoutingPreviewDatabase = null;
+    importScripts(normalizedScriptUrl);
+    database = self.__footballScienceScoutingPreviewDatabase;
+  }
   if (!database || !Array.isArray(database.records) || !Array.isArray(database.metrics)) {
     throw new Error("Scouting player database preview did not register.");
   }
@@ -813,7 +673,7 @@ function loadPreviewDatabaseFromScript(scriptUrl = "scouting-import-preview-data
   return activateDatabase(loadedPreviewDatabase, loadedPreviewScriptUrl);
 }
 
-async function loadDatabase(scriptUrl = "scouting-import-data.js", manifestScriptUrl = "scouting-import-manifest.js", options = {}) {
+async function loadDatabase(scriptUrl = "scouting-import-data.js", options = {}) {
   const normalizedScriptUrl = String(scriptUrl || "scouting-import-data.js");
   const primeOptions = options.prime && typeof options.prime === "object" ? options.prime : {};
   if (loadedFullDatabase && loadedFullScriptUrl === normalizedScriptUrl) {
@@ -821,18 +681,10 @@ async function loadDatabase(scriptUrl = "scouting-import-data.js", manifestScrip
   }
 
   if (!loadedFullDatabaseLoad || loadedFullDatabaseLoad.scriptUrl !== normalizedScriptUrl) {
-    const manifest = loadDatabaseManifest(manifestScriptUrl);
-    const promise = (async () => {
-      const cachedDatabase = await readWorkerCachedDatabase("full", normalizedScriptUrl, manifest);
-      if (cachedDatabase) {
-        loadedFullDatabase = cachedDatabase;
-        loadedFullScriptUrl = normalizedScriptUrl;
-        return loadedFullDatabase;
-      }
+    const promise = Promise.resolve().then(() => {
       const database = loadDatabaseFromScript(normalizedScriptUrl);
-      writeWorkerCachedDatabase("full", normalizedScriptUrl, database, manifest).catch(() => false);
       return database;
-    })();
+    });
     loadedFullDatabaseLoad = { promise, scriptUrl: normalizedScriptUrl };
   }
 
@@ -854,7 +706,7 @@ async function loadPreviewDatabase(scriptUrl = "scouting-import-preview-data.js"
   if (loadedPreviewDatabase && loadedPreviewScriptUrl === normalizedScriptUrl) {
     return activateDatabase(loadedPreviewDatabase, loadedPreviewScriptUrl);
   }
-  const database = loadPreviewDatabaseFromScript(normalizedScriptUrl);
+  const database = await loadPreviewDatabaseFromScript(normalizedScriptUrl);
   primeDatabaseIndexes(database, { recordsById: false });
   return database;
 }
@@ -1061,9 +913,8 @@ async function handleWorkerMessage(event) {
   try {
     const fullScriptUrl = event.data.scriptUrl || "scouting-import-data.js";
     const previewScriptUrl = event.data.previewScriptUrl || "scouting-import-preview-data.js";
-    const manifestScriptUrl = event.data.manifestScriptUrl || "scouting-import-manifest.js";
     if (event.data.type === "preview") {
-      await loadPreviewDatabase(previewScriptUrl, manifestScriptUrl);
+      await loadPreviewDatabase(previewScriptUrl);
       self.postMessage({
         type: "database",
         requestId,
@@ -1072,7 +923,7 @@ async function handleWorkerMessage(event) {
       return;
     }
     if (event.data.type === "preload") {
-      await loadDatabase(fullScriptUrl, manifestScriptUrl, { prime: { options: true, search: true } });
+      await loadDatabase(fullScriptUrl, { prime: { options: true, search: true } });
       self.postMessage({
         type: "preloaded",
         requestId,
@@ -1080,7 +931,7 @@ async function handleWorkerMessage(event) {
       return;
     }
     if (event.data.type === "recordsByIds") {
-      await loadDatabase(fullScriptUrl, manifestScriptUrl, { prime: { options: false, search: false } });
+      await loadDatabase(fullScriptUrl, { prime: { options: false, search: false } });
       self.postMessage({
         type: "records",
         requestId,
@@ -1089,7 +940,7 @@ async function handleWorkerMessage(event) {
       return;
     }
     if (!loadedFullDatabase || loadedFullScriptUrl !== String(fullScriptUrl || "scouting-import-data.js")) {
-      await loadDatabase(fullScriptUrl, manifestScriptUrl);
+      await loadDatabase(fullScriptUrl);
     }
     activateDatabase(loadedFullDatabase, loadedFullScriptUrl);
     self.postMessage({

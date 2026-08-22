@@ -169,7 +169,7 @@ async function waitForScoutingRows(page, { timeout = 60_000 } = {}) {
       };
       const rows = Array.from(grid.querySelectorAll("[data-open-scouting-record]")).filter((node) => !node.disabled && isVisible(node));
       const retry = workspace.querySelector("[data-scouting-retry-database]");
-      const loader = workspace.querySelector(".scouting-database-loader");
+      const loader = workspace.querySelector(":is(.scouting-database-progress, .scouting-database-loader)");
       return rows.length > 0 && !retry && !loader;
     },
     null,
@@ -292,7 +292,7 @@ async function expectScoutingDatabasePayloadNotLoaded(page) {
           hasDatabase: Boolean(window.__footballScienceScoutingDatabase),
           hasScript: Array.from(document.scripts).some((script) => /scouting-import-data\.js/.test(script.src || "")),
           hasRows: Boolean(document.querySelector('[data-workspace-view="scouting"].is-active [data-scouting-record-grid] [data-open-scouting-record]')),
-          hasLoader: Boolean(document.querySelector('[data-workspace-view="scouting"].is-active .scouting-database-loader')),
+          hasLoader: Boolean(document.querySelector('[data-workspace-view="scouting"].is-active :is(.scouting-database-progress, .scouting-database-loader)')),
         })),
       { timeout: 5_000 }
     )
@@ -356,11 +356,11 @@ async function expectScoutingDatabaseReachableForRole(page, role) {
       const isVisible = (node) => Boolean(node && (node.offsetParent || node.getClientRects().length));
       const loadButton = workspace?.querySelector("[data-scouting-load-database]");
       if (isVisible(loadButton)) {
-        return !loadButton.disabled && /Load scouting player database/i.test(loadButton.textContent || "")
+        return !loadButton.disabled && /(Load scouting player database|Open player database)/i.test(loadButton.textContent || "")
           ? "load-ready"
           : "";
       }
-      if (isVisible(workspace?.querySelector(".scouting-database-loader"))) return "loading";
+      if (isVisible(workspace?.querySelector(":is(.scouting-database-progress, .scouting-database-loader)"))) return "loading";
       if (isVisible(workspace?.querySelector("[data-scouting-record-grid] [data-open-scouting-record], [data-scouting-record-row]"))) {
         return "loaded";
       }

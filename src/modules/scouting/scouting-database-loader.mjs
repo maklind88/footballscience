@@ -1,6 +1,7 @@
 export function createScoutingDatabaseLoader(deps = {}) {
   let activeLoadPromise = null;
   let activeLoadSource = "";
+  let queuedRenderRequest = null;
 
   function getFilters() {
     return deps.normalizeDatabaseFilters?.(deps.ensureState?.().databaseFilters) || {};
@@ -73,11 +74,21 @@ export function createScoutingDatabaseLoader(deps = {}) {
       scheduleRender();
       return;
     }
-    if (activeLoadPromise) {
-      activeLoadPromise.then(scheduleRender).catch(scheduleRender);
+    const loadPromise = activeLoadPromise || ensureLoaded();
+    if (queuedRenderRequest?.promise === loadPromise) {
+      queuedRenderRequest.render = render;
       return;
     }
-    ensureLoaded().then(scheduleRender).catch(scheduleRender);
+    const request = { promise: loadPromise, render };
+    queuedRenderRequest = request;
+    const finish = () => {
+      if (queuedRenderRequest !== request) {
+        return;
+      }
+      queuedRenderRequest = null;
+      request.render?.({ preserveFocus: true });
+    };
+    loadPromise.then(finish).catch(finish);
   }
 
   return {

@@ -314,9 +314,10 @@ const scoutingImportSourcePresets = Object.freeze([
 const SCOUTING_IMPORT_MAX_RECORDS_PER_CHUNK = 10;
 const SCOUTING_IMPORT_MAX_CHUNK_PAYLOAD_CHARACTERS = 70000;
 const SCOUTING_IMPORT_MAX_CHUNK_BYTES = 200000;
-const SCOUTING_API_DATABASE_PAGE_LIMIT = 50;
-const SCOUTING_DATABASE_PAGE_SIZE = 50;
+const SCOUTING_API_DATABASE_PAGE_LIMIT = 20;
+const SCOUTING_DATABASE_PAGE_SIZE = 20;
 const SCOUTING_ADVANCED_PANEL_RECORD_LIMIT = 4;
+const SCOUTING_SERVER_FIRST_DATABASE_ENABLED = false;
 const SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED = false;
 const SCOUTING_FSDB_GENDER_SEGMENT_OPTIONS = SCOUTING_FSDB_GENDER_SEGMENT_POLICY_OPTIONS;
 const scoutingDatabaseSourcePolicy = createScoutingDatabaseSourcePolicy({
@@ -458,7 +459,7 @@ const scoutingDatabaseBackgroundController = createScoutingDatabaseBackgroundCon
   prewarmFullWorker: prewarmFullScoutingDatabaseWorker,
   prewarmWorker: prewarmScoutingDatabaseWorker,
   queueDatabaseLoad: queueScoutingDatabaseLoad,
-  renderActiveTabSurfaceOrWorkspace: renderScoutingActiveTabSurfaceOrWorkspace,
+  renderActiveTabSurfaceOrWorkspace: renderScoutingLoadedDatabaseSurface,
   scheduleDatabaseRefresh: scheduleScoutingDatabaseRefresh,
   windowRef: typeof globalThis !== "undefined" ? globalThis.window : null,
 });
@@ -3017,7 +3018,6 @@ function requestScoutingDatabaseWorkerQuery(options = {}) {
       type: options.type || "query",
       scriptUrl: `scouting-import-data.js?v=${getScoutingAssetVersion()}`,
       previewScriptUrl: `scouting-import-preview-data.js?v=${getScoutingAssetVersion()}`,
-      manifestScriptUrl: `scouting-import-manifest.js?v=${getScoutingAssetVersion()}`,
       query: options.query && typeof options.query === "object" ? options.query : getScoutingWorkerQueryFromState(),
       recordIds: Array.isArray(options.recordIds) ? options.recordIds : [],
     },
@@ -3149,7 +3149,7 @@ function queueScoutingDatabaseLoad(onReady = renderScoutingWorkspace) {
 function cancelScoutingDatabaseBackgroundTimers() {
   scoutingDatabaseBackgroundController.cancel();
 }
-function scheduleScoutingDatabaseAutoLoad(delayMs = 1200) {
+function scheduleScoutingDatabaseAutoLoad(delayMs = 320) {
   scoutingDatabaseBackgroundController.scheduleAutoLoad(delayMs);
 }
 function getScoutingMetricOptions() {
@@ -10484,7 +10484,9 @@ function getScoutingDatabaseLoader() {
     loadBySource: (filters = {}) =>
       filters.source === "fsdb"
         ? loadFootballScienceDbDatabase()
-        : loadScoutingDatabaseWithApi().catch(() => loadScoutingDatabaseWithWorker()),
+        : SCOUTING_SERVER_FIRST_DATABASE_ENABLED
+          ? loadScoutingDatabaseWithApi().catch(() => loadScoutingDatabaseWithWorker({ previewFirst: false }))
+          : loadScoutingDatabaseWithWorker({ previewFirst: false }),
     normalizeDatabaseFilters: normalizeScoutingDatabaseFilters,
     renderWorkspace: renderScoutingWorkspace,
     resetComputedCaches: resetScoutingComputedCaches,
@@ -10742,11 +10744,11 @@ function renderScoutingDatabaseControls() {
       <form class="scouting-database-search" data-scouting-database-search-form>
         <label>
           <span>Search</span>
-          <input type="search" name="query" value="${escapeHtml(searchValue)}" placeholder="Player, club, league, player type" data-scouting-database-search-input />
+          <input type="search" name="query" value="${escapeHtml(searchValue)}" placeholder="Players, clubs or leagues" data-scouting-database-search-input />
         </label>
         <button type="submit" class="scouting-primary-button">Search</button>
       </form>
-      <div class="scouting-database-quick-filters">
+      <div class="scouting-database-quick-filters${advancedFiltersOpen ? " is-open" : ""}">
         <label>
           <span>League</span>
           <select data-scouting-filter="league">
@@ -10776,8 +10778,8 @@ function renderScoutingDatabaseControls() {
               .join("")}
           </select>
         </label>
-        <button type="button" class="scouting-filter-toggle${advancedFiltersOpen ? " is-open" : ""}" data-toggle-scouting-advanced-filters aria-expanded="${advancedFiltersOpen ? "true" : "false"}">
-          ${escapeHtml(`Advanced filters${advancedCount ? ` (${advancedCount})` : ""}`)}
+        <button type="button" class="scouting-filter-toggle${advancedFiltersOpen ? " is-open" : ""}" data-toggle-scouting-advanced-filters aria-label="Advanced filters" aria-expanded="${advancedFiltersOpen ? "true" : "false"}">
+          ${escapeHtml(`Filters${advancedCount ? ` (${advancedCount})` : ""}`)}
         </button>
       </div>
       <div class="scouting-database-advanced-filters${advancedFiltersOpen ? " is-open" : ""}" ${advancedFiltersOpen ? "" : "hidden"}>
@@ -10817,30 +10819,36 @@ function renderScoutingDatabaseControls() {
               <strong title="${escapeHtml(selectedMetricLabels.join(", "))}">${escapeHtml(selectedMetricSummary || "Choose metrics")}</strong>
               <em>${escapeHtml(selectedMetricLabels.length ? `${selectedMetricLabels.length} selected` : `${metricOptions.length} available`)}</em>
             </summary>
-            <div class="scouting-filter-multi-search">
-              <input
-                type="search"
-                value="${escapeHtml(metricFilterInputValue)}"
-                placeholder="Search among ${escapeHtml(metricOptions.length)} metrics..."
-                data-scouting-metric-filter-search
-              />
-              <p>Select one or more metrics, then use Metric percentile to set the floor.</p>
-            </div>
-            <div class="scouting-filter-multi-options">
-              ${filteredMetricOptions.length ? filteredMetricOptions
-                .map(
-                  (metric) => `
-                    <label>
-                      <input type="checkbox" value="${escapeHtml(metric.id)}" data-scouting-metric-filter ${selectedMetricIds.includes(metric.id) ? "checked" : ""} />
-                      <span>
-                        <strong>${escapeHtml(metric.label)}</strong>
-                        ${metric.group ? `<em>${escapeHtml(metric.group)}</em>` : ""}
-                      </span>
-                    </label>
-                  `
-                )
-                .join("") : `<p class="scouting-filter-multi-empty">No metrics match this search.</p>`}
-            </div>
+            ${
+              metricFilterOpen
+                ? `
+                  <div class="scouting-filter-multi-search">
+                    <input
+                      type="search"
+                      value="${escapeHtml(metricFilterInputValue)}"
+                      placeholder="Search among ${escapeHtml(metricOptions.length)} metrics..."
+                      data-scouting-metric-filter-search
+                    />
+                    <p>Select one or more metrics, then use Metric percentile to set the floor.</p>
+                  </div>
+                  <div class="scouting-filter-multi-options">
+                    ${filteredMetricOptions.length ? filteredMetricOptions
+                      .map(
+                        (metric) => `
+                          <label>
+                            <input type="checkbox" value="${escapeHtml(metric.id)}" data-scouting-metric-filter ${selectedMetricIds.includes(metric.id) ? "checked" : ""} />
+                            <span>
+                              <strong>${escapeHtml(metric.label)}</strong>
+                              ${metric.group ? `<em>${escapeHtml(metric.group)}</em>` : ""}
+                            </span>
+                          </label>
+                        `
+                      )
+                      .join("") : `<p class="scouting-filter-multi-empty">No metrics match this search.</p>`}
+                  </div>
+                `
+                : ""
+            }
           </details>
         </div>
         <label>
@@ -12511,6 +12519,13 @@ function renderScoutingActiveTabSurfaceOrWorkspace(options = {}) {
     renderScoutingWorkspace(options);
   }
 }
+function renderScoutingLoadedDatabaseSurface(options = {}) {
+  renderScoutingActiveTabSurfaceOrWorkspace(options);
+  const state = ensureScoutingState();
+  if (state.selectedRecordId && ui.scoutingWorkspace?.querySelector("[data-scouting-profile-modal]")) {
+    renderScoutingProfileModalIntoDom(state.selectedRecordId);
+  }
+}
 function scheduleScoutingTabSurfaceRender(callback) {
   if (typeof callback !== "function") {
     return false;
@@ -13015,12 +13030,14 @@ function syncScoutingAdvancedDatabaseFiltersDom() {
   const root = ui.scoutingWorkspace;
   const trigger = root?.querySelector("[data-toggle-scouting-advanced-filters]");
   const panel = root?.querySelector(".scouting-database-advanced-filters");
+  const quickFilters = root?.querySelector(".scouting-database-quick-filters");
   if (!trigger || !panel) {
     return false;
   }
   const isOpen = getScoutingAdvancedDatabaseFiltersOpen();
   trigger.classList.toggle("is-open", isOpen);
   trigger.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  quickFilters?.classList.toggle("is-open", isOpen);
   panel.classList.toggle("is-open", isOpen);
   panel.hidden = !isOpen;
   return true;
@@ -13141,6 +13158,7 @@ function getScoutingShadowXiActions() {
     refreshWorkspaceAfterShadowMutation: refreshScoutingWorkspaceAfterShadowMutation,
     rememberRecordSnapshot: rememberScoutingRecordSnapshot,
     renderActiveTabSurfaceOrWorkspace: renderScoutingActiveTabSurfaceOrWorkspace,
+    setActiveTab: setScoutingActiveTab,
     setPreferredSlotId: (slotId) => {
       preferredScoutingShadowSlotId = slotId || "";
     },

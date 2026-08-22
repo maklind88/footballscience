@@ -36,6 +36,31 @@ test("Scouting worker honors lightweight query payload flags", () => {
   expect(query.limit).toBe(50);
 });
 
+test("Scouting worker avoids duplicating the static player database in IndexedDB", () => {
+  const worker = readFileSync(resolve(projectRoot, "scouting-database-worker.js"), "utf8");
+  const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
+
+  expect(worker).not.toContain("indexedDB");
+  expect(worker).not.toContain("football-science-scouting-worker-cache");
+  expect(workspace).toContain("loadScoutingDatabaseWithWorker({ previewFirst: false })");
+  expect(workspace).not.toContain("manifestScriptUrl:");
+});
+
+test("Scouting worker parses generated data as JSON before using script execution fallback", () => {
+  const worker = readFileSync(resolve(projectRoot, "scouting-database-worker.js"), "utf8");
+  const sandbox = loadScoutingWorkerSandbox();
+  const parsed = sandbox.parseGeneratedDatabaseSource(
+    'window.__testDatabase={"records":[["p1"]],"metrics":[]};\nwindow.__activeDatabase=window.__testDatabase;',
+    "__testDatabase"
+  );
+
+  expect(worker).toContain("parseGeneratedDatabaseSource");
+  expect(worker).toContain("JSON.parse(source.slice(payloadStart, payloadEnd))");
+  expect(worker).toContain('fetch(scriptUrl, { cache: "force-cache" })');
+  expect(worker).toContain("importScripts(normalizedScriptUrl)");
+  expect(parsed.records[0][0]).toBe("p1");
+});
+
 test("Scouting database keeps source enrichment behind one visual player database", () => {
   const workspace = readFileSync(resolve(projectRoot, "scouting-workspace.js"), "utf8");
   const client = readFileSync(resolve(projectRoot, "src/modules/scouting/scouting-football-science-db-client.mjs"), "utf8");
@@ -56,6 +81,7 @@ test("Scouting database keeps source enrichment behind one visual player databas
   expect(workspace).toContain("createFootballScienceDbScoutingAdapter");
   expect(workspace).toContain("createFootballScienceDbScoutingModels");
   expect(workspace).toContain("SCOUTING_STANDALONE_FSDB_DATABASE_ENABLED = false");
+  expect(workspace).toContain("SCOUTING_SERVER_FIRST_DATABASE_ENABLED = false");
   expect(workspace).toContain("createScoutingDatabaseSourcePolicy");
   expect(workspace).toContain("scoutingDatabaseSourcePolicy.normalizeFilterSource(filters.source)");
   expect(workspace).toContain("renderScoutingProfileOverviewPanelShell");

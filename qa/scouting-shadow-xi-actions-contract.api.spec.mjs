@@ -60,6 +60,9 @@ function createHarness(overrides = {}) {
     refreshWorkspaceAfterShadowMutation: (options, recordId) => calls.refreshes.push({ options, recordId }),
     rememberRecordSnapshot: (record, currentState, options) => calls.snapshots.push({ record, currentState, options }),
     renderActiveTabSurfaceOrWorkspace: (options) => calls.activeRefreshes.push(options),
+    setActiveTab: overrides.setActiveTab
+      ? (tabId) => overrides.setActiveTab(tabId, state, calls)
+      : undefined,
     setPreferredSlotId: (slotId) => {
       preferredSlotId = slotId || "";
     },
@@ -140,6 +143,23 @@ test("Scouting Shadow XI actions select and clear slot focus", () => {
   expect(harness.state.shadowXi.selectedSlotId).toBe("");
   expect(harness.preferredSlotId).toBe("");
   expect(harness.calls.writes[1]).toEqual({ syncCentral: false });
+});
+
+test("Scouting Shadow XI slot navigation uses the shared deferred tab controller", () => {
+  const harness = createHarness({
+    setActiveTab: (tabId, state, calls) => {
+      state.activeTab = tabId;
+      calls.activeRefreshes.push({ deferredTab: tabId });
+    },
+  });
+  harness.state.activeTab = "shadow-xi";
+
+  const selected = harness.actions.selectSlot("rb");
+
+  expect(selected).toMatchObject({ changed: true, slotId: "rb" });
+  expect(harness.state.activeTab).toBe("database");
+  expect(harness.calls.activeRefreshes).toEqual([{ deferredTab: "database" }]);
+  expect(harness.calls.writes).toEqual([]);
 });
 
 test("Scouting Shadow XI actions save formation, pitch position, and record meta", () => {

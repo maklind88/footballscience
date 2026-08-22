@@ -63,9 +63,13 @@ export function createScoutingShadowXiActions(deps = {}) {
     const shadowXi = getShadowXiState(state);
     deps.setPreferredSlotId?.(slot.id);
     shadowXi.selectedSlotId = slot.id;
-    state.activeTab = "database";
-    deps.writeState?.({ syncCentral: false });
-    deps.renderActiveTabSurfaceOrWorkspace?.({ preserveFocus: true });
+    if (typeof deps.setActiveTab === "function") {
+      deps.setActiveTab("database");
+    } else {
+      state.activeTab = "database";
+      deps.writeState?.({ syncCentral: false });
+      deps.renderActiveTabSurfaceOrWorkspace?.({ preserveFocus: true });
+    }
     return { changed: true, slotId: slot.id, status: "updated" };
   }
 

@@ -1,0 +1,97 @@
+/* Comparison, overlays and player dossiers share one restrained detail layer. */
+#scoutingWorkspace :where(
+  .scouting-comparison-form,
+  .scouting-comparison-decision,
+  .scouting-comparison-radar,
+  .scouting-comparison-winners,
+  .scouting-comparison-drawer-section
+) {
+  border-radius: 8px;
+  background: #f5f5f7;
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-comparison-form {
+  align-items: start;
+}
+
+#scoutingWorkspace :where(
+  .scouting-comparison-player-search-field,
+  .scouting-comparison-metric-choice,
+  .scouting-comparison-metric-choice details
+) {
+  height: auto;
+  align-content: start;
+}
+
+#scoutingWorkspace .scouting-comparison-metric-choice {
+  max-height: 64px;
+  align-self: start;
+}
+
+#scoutingWorkspace :where(
+  .scouting-comparison-selected-player,
+  .scouting-comparison-decision > div,
+  .scouting-comparison-winners article,
+  .scouting-role-model-card-notes,
+  .scouting-role-model-card-matches
+) {
+  border: 1px solid var(--scout-line);
+}
+
+#scoutingWorkspace :where(
+  .scouting-profile-modal,
+  .scouting-saved-views-modal,
+  .scouting-role-model-modal,
+  .scouting-settings-modal
+) {
+  border: 1px solid var(--scout-line);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: var(--scout-shadow-strong);
+}
+
+#scoutingWorkspace .scouting-profile-modal:focus {
+  outline: 0;
+}
+
+#scoutingWorkspace :where(.scouting-profile-close, .scouting-profile-favorite-star) {
+  background: #f5f5f7;
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-profile-tabs {
+  padding: 4px;
+  border: 1px solid var(--scout-line);
+  border-radius: 8px;
+  background: #e9e9ec;
+}
+
+#scoutingWorkspace .scouting-profile-actions > button,
+#scoutingWorkspace .scouting-profile-action-menu > summary {
+  background: var(--scout-green);
+  color: #ffffff;
+}
+
+#scoutingWorkspace .scouting-star-button {
+  border-color: rgba(133, 96, 0, 0.18);
+  background: var(--scout-gold);
+}
+
+#scoutingWorkspace :where(.scouting-radar-head, .scouting-profile-spider-context) {
+  border-radius: 8px;
+  background: #f1f6f3;
+  box-shadow: none;
+}
+
+#scoutingWorkspace .scouting-profile-tabs-row {
+  min-height: 48px;
+  padding: 4px;
+  border: 1px solid var(--scout-line);
+  border-radius: 8px;
+  background: #e9e9ec;
+}
+
+#scoutingWorkspace .scouting-profile-role-spider-grid {
+  grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
+}

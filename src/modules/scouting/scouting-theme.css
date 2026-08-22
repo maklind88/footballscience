@@ -33,12 +33,12 @@ body.is-dark-mode #scoutingWorkspace {
 }
 
 body.is-dark-mode .platform-scouting-view {
-  background: linear-gradient(180deg, var(--fs-page-bg-soft), var(--fs-page-bg)) !important;
+  background: var(--fs-page-bg) !important;
   color: var(--fs-text) !important;
 }
 
 body.is-dark-mode #scoutingWorkspace .scouting-hero {
-  background: linear-gradient(135deg, var(--fs-panel-bg-strong), var(--fs-panel-bg)) !important;
+  background: var(--fs-panel-bg-strong) !important;
   border-color: var(--scout-line) !important;
   color: var(--scout-strong) !important;
   box-shadow: var(--scout-shadow) !important;

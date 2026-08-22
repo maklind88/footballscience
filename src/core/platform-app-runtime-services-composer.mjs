@@ -102,6 +102,7 @@ export function createPlatformAppRuntimeServices(deps = {}) {
     getPlatformUsers: deps.getPlatformUsers,
     getPlayerProfilesState: deps.getPlayerProfilesState,
     getPlayerProfilesStateForGameplan: deps.getPlayerProfilesStateForGameplan,
+    openPresentationMode: deps.openPresentationMode,
     getPlayerProfilesStateForTransferRoom: deps.getPlayerProfilesStateForTransferRoom,
     renderPlayerProfileScoutingSpider: deps.renderPlayerProfileScoutingSpider,
     getSafeWorkspaceId: deps.getSafeWorkspaceId,

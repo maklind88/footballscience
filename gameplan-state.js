@@ -1,4 +1,4 @@
-const gameplanSchemaVersion = 6;
+const gameplanSchemaVersion = 7;
 
 const defaultPhaseKeys = Object.freeze([
   "inPossession",
@@ -16,48 +16,9 @@ const defaultPhaseLabels = Object.freeze({
   setPieces: "Set Pieces",
 });
 
-const defaultChecklistStages = Object.freeze([
-  { stage: "T-3", title: "Opponent analysis locked" },
-  { stage: "T-1", title: "Staff alignment meeting" },
-  { stage: "MD", title: "Player brief delivered" },
-  { stage: "Warm-up", title: "Final availability check" },
-  { stage: "Halftime", title: "Staff observation report" },
-  { stage: "Post", title: "Review notes captured" },
-]);
-
-const defaultScenarioTemplates = Object.freeze([
-  {
-    title: "First 15 minutes",
-    trigger: "Opponent builds through the same side twice in a row.",
-    staffAction: "Lock the press cue and confirm distances from the bench.",
-    playerMessage: "Stay compact, jump together, protect the second ball.",
-  },
-  {
-    title: "Protect lead after 75",
-    trigger: "We lead by one goal after 75 minutes or opponent adds another forward.",
-    staffAction: "Check rest defence, slow restart tempo, prepare control substitution.",
-    playerMessage: "Keep the ball-side distances short and defend the box early.",
-  },
-  {
-    title: "Chasing goal after 70",
-    trigger: "We are level or behind after 70 minutes and territory is stable.",
-    staffAction: "Prepare higher full-back position and extra box runner.",
-    playerMessage: "Play forward earlier, attack second phase, keep counter cover.",
-  },
-]);
-
-const defaultStaffResponsibilityTemplates = Object.freeze([
-  { role: "Head Coach", area: "Match direction" },
-  { role: "Assistant Coach", area: "Out of possession" },
-  { role: "Analyst", area: "Opponent trends" },
-  { role: "Set Piece Lead", area: "Set pieces" },
-  { role: "Goalkeeper Coach", area: "Goalkeeper and box control" },
-  { role: "Performance", area: "Load and readiness" },
-  { role: "Medical", area: "Availability risk" },
-]);
-
 export const gameplanPhaseKeys = defaultPhaseKeys;
 export const gameplanPhaseLabels = defaultPhaseLabels;
+export const gameplanCommandPhaseKeys = Object.freeze(defaultPhaseKeys.filter((key) => key !== "setPieces"));
 export const gameplanActiveTabs = Object.freeze(["plan", "staff", "player-brief", "matchday"]);
 export const gameplanPlanModes = Object.freeze(["briefing", "edit"]);
 export const gameplanStatusOptions = Object.freeze([
@@ -221,23 +182,84 @@ function normalizeGameplanLineup(source = {}) {
 }
 
 function normalizeMiniGamePrinciple(entry = {}) {
+  const targetType = ["team", "unit", "players"].includes(normalizeGameplanText(entry.targetType, 20))
+    ? normalizeGameplanText(entry.targetType, 20)
+    : entry.playerIds?.length || entry.assignedPlayerIds?.length || entry.playerId
+      ? "players"
+      : "team";
   return {
     id: normalizeGameplanText(entry.id, 160) || createGameplanId("mini"),
     principle: normalizeGameplanText(entry.principle || entry.title || entry.label, 180),
     phase: normalizeGameplanText(entry.phase, 80),
+    phaseKey: gameplanCommandPhaseKeys.includes(normalizeGameplanText(entry.phaseKey, 40))
+      ? normalizeGameplanText(entry.phaseKey, 40)
+      : "",
+    targetType,
+    unit: normalizeGameplanText(entry.unit, 80),
     playerIds: normalizeStringArray(entry.playerIds || entry.assignedPlayerIds || (entry.playerId ? [entry.playerId] : []), 180),
     source: normalizeGameplanText(entry.source, 120),
   };
 }
 
+function normalizeGameplanFocusSource(entry = {}) {
+  if (typeof entry === "string") {
+    return { ref: normalizeGameplanText(entry, 260), label: "", date: "" };
+  }
+  return {
+    ref: normalizeGameplanText(entry.ref || entry.id, 260),
+    label: normalizeGameplanText(entry.label || entry.source, 120),
+    date: normalizeDate(entry.date),
+  };
+}
+
+function normalizeGameplanFocusItem(entry = {}) {
+  const phaseKey = normalizeGameplanText(entry.phaseKey, 40);
+  const targetType = ["team", "unit", "players"].includes(normalizeGameplanText(entry.targetType, 20))
+    ? normalizeGameplanText(entry.targetType, 20)
+    : "team";
+  return {
+    id: normalizeGameplanText(entry.id, 160) || createGameplanId("focus"),
+    phaseKey: gameplanCommandPhaseKeys.includes(phaseKey) ? phaseKey : "inPossession",
+    principle: normalizeGameplanText(entry.principle || entry.title, 240),
+    cue: normalizeGameplanText(entry.cue || entry.matchCue, 500),
+    why: normalizeGameplanText(entry.why || entry.matchRelevance, 500),
+    ownerUserId: normalizeGameplanText(entry.ownerUserId, 180),
+    targetType,
+    unit: normalizeGameplanText(entry.unit, 80),
+    targetIds: normalizeStringArray(entry.targetIds || entry.playerIds, 180),
+    evidenceIds: normalizeStringArray(entry.evidenceIds, 180),
+    sourceRefs: Array.isArray(entry.sourceRefs)
+      ? entry.sourceRefs.map(normalizeGameplanFocusSource).filter((source) => source.ref || source.label)
+      : [],
+    approved: Boolean(entry.approved),
+  };
+}
+
 function normalizeGameplanMatchFocus(source = {}) {
+  const phasePrinciples = normalizePhaseMap(source.phasePrinciples, 900);
+  const normalizedFocusItems = Array.isArray(source.focusItems)
+    ? source.focusItems.map(normalizeGameplanFocusItem).filter((entry) => entry.principle || entry.cue).slice(0, 3)
+    : [];
+  const legacyFocusItems = normalizedFocusItems.length
+    ? []
+    : gameplanCommandPhaseKeys
+        .filter((phaseKey) => phasePrinciples[phaseKey])
+        .slice(0, 3)
+        .map((phaseKey) =>
+          normalizeGameplanFocusItem({
+            phaseKey,
+            principle: phasePrinciples[phaseKey],
+            sourceRefs: [{ ref: `legacy:phase:${phaseKey}`, label: "Saved Gameplan" }],
+          })
+        );
   return {
     sourceGeneratedAt: normalizeGameplanText(source.sourceGeneratedAt, 40),
     sourceWindow: normalizeGameplanText(source.sourceWindow, 120),
-    phasePrinciples: normalizePhaseMap(source.phasePrinciples, 900),
+    phasePrinciples,
     miniGamePrinciples: Array.isArray(source.miniGamePrinciples)
       ? source.miniGamePrinciples.map(normalizeMiniGamePrinciple).filter((entry) => entry.principle || entry.playerIds.length)
       : [],
+    focusItems: normalizedFocusItems.length ? normalizedFocusItems : legacyFocusItems,
   };
 }
 
@@ -256,11 +278,7 @@ function normalizeGameplanObservation(entry = {}) {
 
 function normalizeGameplanMeeting(source = {}) {
   return {
-    agenda: normalizeGameplanText(
-      source.agenda ||
-        "1. Opponent identity and key threats\n2. Our match objective and non-negotiables\n3. Scenario decisions\n4. Player Brief approval",
-      1200
-    ),
+    agenda: normalizeGameplanText(source.agenda, 1200),
     decisions: normalizeGameplanText(source.decisions, 1200),
     approvedByUserId: normalizeGameplanText(source.approvedByUserId, 180),
     approvedAt: normalizeGameplanText(source.approvedAt, 40),
@@ -348,12 +366,7 @@ export function createGameplanFromMatch(match = {}, options = {}) {
     opponentPlan: {},
     lineup: {},
     matchFocus: {},
-    staffResponsibilities: defaultStaffResponsibilityTemplates.map((template) =>
-      normalizeGameplanPerson({
-        ...template,
-        id: createGameplanId("staff"),
-      })
-    ),
+    staffResponsibilities: [],
     playerBrief: {
       headline: "",
       message: "",
@@ -367,21 +380,11 @@ export function createGameplanFromMatch(match = {}, options = {}) {
       phases: {},
     },
     meeting: normalizeGameplanMeeting(),
-    scenarioCards: defaultScenarioTemplates.map((item) =>
-      normalizeGameplanScenario({
-        ...item,
-        id: createGameplanId("scenario"),
-      })
-    ),
+    scenarioCards: [],
     evidence: [],
     live: normalizeGameplanLive(),
     review: normalizeGameplanReview(),
-    checklist: defaultChecklistStages.map((item) =>
-      normalizeChecklistItem({
-        ...item,
-        id: createGameplanId("check"),
-      })
-    ),
+    checklist: [],
     createdAt: now,
     updatedAt: now,
     createdBy: normalizeGameplanText(currentUser.id, 180),
@@ -398,6 +401,17 @@ export function normalizeGameplan(source = {}) {
   const checklist = Array.isArray(source.checklist)
     ? source.checklist.map(normalizeChecklistItem).filter((entry) => entry.title || entry.stage)
     : [];
+  const tactical = normalizePhaseMap(source.tactical, 1000);
+  const savedPhasePrinciples = source.matchFocus?.phasePrinciples && typeof source.matchFocus.phasePrinciples === "object"
+    ? source.matchFocus.phasePrinciples
+    : {};
+  const matchFocusSource = {
+    ...(source.matchFocus || {}),
+    phasePrinciples: gameplanPhaseKeys.reduce((map, phaseKey) => {
+      map[phaseKey] = savedPhasePrinciples[phaseKey] || tactical[phaseKey] || "";
+      return map;
+    }, {}),
+  };
   return {
     id,
     matchEventId: normalizeGameplanText(source.matchEventId, 180),
@@ -413,7 +427,7 @@ export function normalizeGameplan(source = {}) {
       matchStory: normalizeGameplanText(source.summary?.matchStory, 900),
       nonNegotiables: normalizeGameplanText(source.summary?.nonNegotiables, 900),
     },
-    tactical: normalizePhaseMap(source.tactical, 1000),
+    tactical,
     opponentPlan: {
       shape: normalizeGameplanText(source.opponentPlan?.shape, 700),
       threats: normalizeGameplanText(source.opponentPlan?.threats, 900),
@@ -424,7 +438,7 @@ export function normalizeGameplan(source = {}) {
     },
     staffResponsibilities,
     lineup: normalizeGameplanLineup(source.lineup),
-    matchFocus: normalizeGameplanMatchFocus(source.matchFocus),
+    matchFocus: normalizeGameplanMatchFocus(matchFocusSource),
     playerBrief: {
       headline: normalizeGameplanText(playerBrief.headline, 180),
       message: normalizeGameplanText(playerBrief.message, 900),

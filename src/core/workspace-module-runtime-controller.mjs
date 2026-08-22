@@ -12,6 +12,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
     getPlayerProfilesStateForGameplan = () => ({}),
     getPlayerProfilesStateForVideoAnalysis = getPlayerProfilesStateForGameplan,
     getPlayerProfilesStateForIdp = getPlayerProfilesStateForVideoAnalysis,
+    openPresentationMode = () => {},
     getExerciseLibraryForIdp = () => [],
     renderPlayerProfileScoutingSpider = () => "",
     canEditGameplan = () => false,
@@ -61,6 +62,7 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
       currentUser: getCurrentUser(),
       getScheduleState: getScheduleStateForGameplan,
       getPlayerProfilesState: getPlayerProfilesStateForGameplan,
+      openPresentationMode,
       canEdit: canEditGameplan,
       canDelete: canDeleteGameplan,
       getAuthToken,
@@ -78,8 +80,12 @@ export function createWorkspaceModuleRuntimeController(deps = {}) {
         id: "gameplanStylesheet",
         required: true,
       }),
+      platformModuleLoader.loadStylesheet("gameplan-command", "src/modules/gameplan/gameplan-command.css", {
+        id: "gameplanCommandStylesheet",
+        required: true,
+      }),
       platformModuleLoader.loadModule("gameplan", () => import(`../../gameplan.js?v=${encodeURIComponent(getAssetVersion())}`)),
-    ]).then(([, module]) => {
+    ]).then(([, , module]) => {
       gameplanModule = module;
       return module;
     });

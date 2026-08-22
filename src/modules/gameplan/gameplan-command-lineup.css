@@ -1,0 +1,321 @@
+#gameplanWorkspace .gp-command-plan {
+  display: grid;
+  gap: 24px;
+  padding-top: 22px;
+}
+
+#gameplanWorkspace .gp-command-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 18px;
+}
+
+#gameplanWorkspace .gp-command-objective {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  min-height: 88px;
+  padding: 14px 18px;
+  border-left: 3px solid var(--gp-green);
+  background: var(--gp-paper);
+}
+
+#gameplanWorkspace .gp-command-objective h2 {
+  max-width: 940px;
+  margin: 0;
+  color: var(--gp-ink);
+  font-size: 20px;
+  font-weight: 680;
+  letter-spacing: 0;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+#gameplanWorkspace .gp-command-objective textarea {
+  width: 100%;
+  padding: 9px 10px;
+  resize: vertical;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+#gameplanWorkspace .gp-command-readiness {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(92px, 1fr));
+  border: 1px solid var(--gp-line);
+  border-radius: 8px;
+  background: var(--gp-paper);
+}
+
+#gameplanWorkspace .gp-command-readiness article {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  min-height: 88px;
+  padding: 12px 15px;
+  border-right: 1px solid var(--gp-line);
+}
+
+#gameplanWorkspace .gp-command-readiness article:last-child {
+  border-right: 0;
+}
+
+#gameplanWorkspace .gp-command-readiness strong {
+  font-size: 19px;
+  line-height: 1;
+}
+
+#gameplanWorkspace .gp-command-readiness span {
+  color: var(--gp-muted);
+  font-size: 11px;
+}
+
+#gameplanWorkspace .gp-command-primary-grid {
+  display: grid;
+  grid-template-columns: minmax(500px, 1.2fr) minmax(380px, 0.8fr);
+  gap: 22px;
+  align-items: start;
+}
+
+#gameplanWorkspace .gp-command-lineup,
+#gameplanWorkspace .gp-command-focus,
+#gameplanWorkspace .gp-command-timeline,
+#gameplanWorkspace .gp-command-mini,
+#gameplanWorkspace .gp-command-evidence {
+  min-width: 0;
+  border-top: 1px solid var(--gp-line);
+  background: transparent;
+}
+
+#gameplanWorkspace .gp-command-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 66px;
+  padding: 10px 0;
+}
+
+#gameplanWorkspace .gp-command-section-head h2 {
+  margin: 3px 0 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+#gameplanWorkspace .gp-command-section-head > strong {
+  color: var(--gp-muted);
+  font-size: 12px;
+}
+
+#gameplanWorkspace .gp-command-source-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#gameplanWorkspace .gp-command-source-state {
+  color: var(--gp-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+#gameplanWorkspace .gp-command-source-state.is-ready {
+  color: var(--gp-green-bright);
+}
+
+#gameplanWorkspace .gp-command-pitch-wrap {
+  display: grid;
+  place-items: center;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #e7ece9;
+}
+
+#gameplanWorkspace .gp-command-pitch {
+  position: relative;
+  width: min(100%, 560px);
+  aspect-ratio: 0.82;
+  overflow: hidden;
+  border: 1px solid #bcd0c7;
+  border-radius: 8px;
+  background: #1f5a45;
+  box-shadow: 0 12px 26px rgb(24 32 29 / 12%);
+}
+
+#gameplanWorkspace .gp-command-pitch::before {
+  position: absolute;
+  inset: 3.5%;
+  border: 1px solid rgb(236 248 242 / 72%);
+  content: "";
+  pointer-events: none;
+}
+
+#gameplanWorkspace .gp-command-pitch-half {
+  position: absolute;
+  top: 50%;
+  right: 3.5%;
+  left: 3.5%;
+  border-top: 1px solid rgb(236 248 242 / 72%);
+}
+
+#gameplanWorkspace .gp-command-pitch-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24%;
+  aspect-ratio: 1;
+  border: 1px solid rgb(236 248 242 / 72%);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+#gameplanWorkspace .gp-command-pitch-box {
+  position: absolute;
+  left: 27%;
+  width: 46%;
+  height: 15%;
+  border: 1px solid rgb(236 248 242 / 72%);
+}
+
+#gameplanWorkspace .gp-command-pitch-box.is-top {
+  top: 3.5%;
+}
+
+#gameplanWorkspace .gp-command-pitch-box.is-bottom {
+  bottom: 3.5%;
+}
+
+#gameplanWorkspace .gp-command-pitch-player {
+  position: absolute;
+  top: var(--y);
+  left: var(--x);
+  display: grid;
+  justify-items: center;
+  width: 82px;
+  color: #ffffff;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+#gameplanWorkspace .gp-command-pitch-player strong {
+  display: block;
+  width: 100%;
+  margin-top: 3px;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 760;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 50%);
+  white-space: nowrap;
+}
+
+#gameplanWorkspace .gp-command-pitch-player small {
+  color: #d5ebe2;
+  font-size: 9px;
+  line-height: 1;
+}
+
+#gameplanWorkspace .gp-command-pitch-avatar,
+#gameplanWorkspace .gp-command-pitch-empty {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: #eff4f1;
+  color: #16372d;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 4px 10px rgb(7 32 23 / 28%);
+}
+
+#gameplanWorkspace .gp-command-pitch-empty {
+  border-style: dashed;
+  background: rgb(17 59 45 / 66%);
+  color: #d7ebe3;
+  box-shadow: none;
+}
+
+#gameplanWorkspace .gp-command-pitch-avatar img,
+#gameplanWorkspace .gp-command-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#gameplanWorkspace .gp-command-bench {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 12px 0 8px;
+}
+
+#gameplanWorkspace .gp-command-bench > div:first-child {
+  display: grid;
+  min-width: 50px;
+}
+
+#gameplanWorkspace .gp-command-bench > div:first-child span,
+#gameplanWorkspace .gp-command-provenance {
+  color: var(--gp-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+#gameplanWorkspace .gp-command-bench-list {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px 1px 4px;
+}
+
+#gameplanWorkspace .gp-command-bench-list article {
+  display: grid;
+  justify-items: center;
+  flex: 0 0 58px;
+  gap: 3px;
+  min-width: 0;
+}
+
+#gameplanWorkspace .gp-command-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border: 1px solid var(--gp-line);
+  border-radius: 50%;
+  background: var(--gp-paper);
+  color: var(--gp-green);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+#gameplanWorkspace .gp-command-bench-list article > span:last-child {
+  width: 100%;
+  overflow: hidden;
+  font-size: 9px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#gameplanWorkspace .gp-command-bench-list p,
+#gameplanWorkspace .gp-command-prepared p,
+#gameplanWorkspace .gp-command-mini-list > p {
+  margin: 0;
+  color: var(--gp-muted);
+  font-size: 12px;
+}
+
+#gameplanWorkspace .gp-command-provenance {
+  margin: 0;
+}

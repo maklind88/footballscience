@@ -1,0 +1,173 @@
+body.is-dark-mode #gameplanWorkspace {
+  --gp-ink: #f1f4f2;
+  --gp-muted: #a8b2ad;
+  --gp-line: #3b4641;
+  --gp-soft: #252d29;
+  --gp-paper: #202824;
+  --gp-canvas: #171d1a;
+  --gp-green: #75c9a8;
+  --gp-green-bright: #6fd0a8;
+  --gp-blue: #71a9df;
+  --gp-red: #ef8c91;
+}
+
+body.is-dark-mode #gameplanWorkspace .gp-command-mode,
+body.is-dark-mode #gameplanWorkspace .gp-command-candidate,
+body.is-dark-mode #gameplanWorkspace .gp-command-pitch-wrap {
+  background: #29322e;
+}
+
+body.is-dark-mode #gameplanWorkspace .gp-command-focus-item p {
+  color: #c6ceca;
+}
+
+body.is-dark-mode #gameplanWorkspace .gp-command-focus-item > footer {
+  border-color: #343e39;
+}
+
+body.is-dark-mode #gameplanWorkspace .gp-command-days article > div span {
+  background: #29453a;
+  color: #b9dfcf;
+}
+
+@media (max-width: 1180px) {
+  #gameplanWorkspace .gp-command-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  #gameplanWorkspace .gp-command-head-actions {
+    justify-content: flex-start;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  #gameplanWorkspace .gp-command-primary-grid {
+    grid-template-columns: minmax(440px, 1.05fr) minmax(340px, 0.95fr);
+  }
+
+  #gameplanWorkspace .gp-command-summary {
+    grid-template-columns: 1fr;
+  }
+
+  #gameplanWorkspace .gp-command-readiness {
+    width: 100%;
+  }
+}
+
+@media (max-width: 900px) {
+  #gameplanWorkspace .gameplan-shell.is-command-hq {
+    padding: 14px 14px 36px;
+  }
+
+  #gameplanWorkspace .gp-command-primary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #gameplanWorkspace .gp-command-days {
+    grid-template-columns: repeat(5, minmax(170px, 1fr));
+    overflow-x: auto;
+  }
+
+  #gameplanWorkspace .gp-command-mini-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  #gameplanWorkspace .gameplan-shell.is-command-hq {
+    padding: 10px 10px 28px;
+  }
+
+  #gameplanWorkspace .gp-command-identity h1 {
+    font-size: 32px;
+  }
+
+  #gameplanWorkspace .gp-command-plan-picker {
+    width: 100%;
+  }
+
+  #gameplanWorkspace .gp-command-plan-picker select {
+    width: 100%;
+    max-width: none;
+  }
+
+  #gameplanWorkspace .gp-command-mode {
+    flex: 1 1 170px;
+  }
+
+  #gameplanWorkspace .gp-command-tabs {
+    gap: 18px;
+    overflow-x: auto;
+  }
+
+  #gameplanWorkspace .gp-command-tabs button {
+    flex: 0 0 auto;
+  }
+
+  #gameplanWorkspace .gp-command-readiness article {
+    min-width: 0;
+    padding: 10px;
+  }
+
+  #gameplanWorkspace .gp-command-readiness strong {
+    font-size: 17px;
+  }
+
+  #gameplanWorkspace .gp-command-primary-grid {
+    display: block;
+  }
+
+  #gameplanWorkspace .gp-command-focus {
+    margin-top: 24px;
+  }
+
+  #gameplanWorkspace .gp-command-source-actions {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+
+  #gameplanWorkspace .gp-command-pitch-wrap {
+    padding: 8px;
+  }
+
+  #gameplanWorkspace .gp-command-pitch-player {
+    width: 58px;
+  }
+
+  #gameplanWorkspace .gp-command-pitch-avatar,
+  #gameplanWorkspace .gp-command-pitch-empty {
+    width: 31px;
+    height: 31px;
+  }
+
+  #gameplanWorkspace .gp-command-pitch-player strong {
+    font-size: 8px;
+  }
+
+  #gameplanWorkspace .gp-command-bench {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  #gameplanWorkspace .gp-command-focus-item.is-editing > header {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  #gameplanWorkspace .gp-command-focus-item.is-editing > header select {
+    min-width: 0;
+    flex: 1 1 160px;
+  }
+
+  #gameplanWorkspace .gp-command-focus-controls,
+  #gameplanWorkspace .gp-command-mini-fields,
+  #gameplanWorkspace .gp-command-mini-targets,
+  #gameplanWorkspace .gp-command-mini-list {
+    grid-template-columns: 1fr;
+  }
+
+  #gameplanWorkspace .gp-command-mini-list > article {
+    grid-template-columns: 1fr;
+  }
+}

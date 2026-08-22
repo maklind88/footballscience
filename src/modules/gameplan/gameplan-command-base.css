@@ -1,0 +1,217 @@
+#gameplanWorkspace {
+  --gp-ink: #18201d;
+  --gp-muted: #67716d;
+  --gp-line: #d9dedb;
+  --gp-soft: #f1f4f2;
+  --gp-paper: #ffffff;
+  --gp-canvas: #f7f8f7;
+  --gp-green: #155744;
+  --gp-green-bright: #2d8b68;
+  --gp-blue: #2867a9;
+  --gp-red: #b43b42;
+  color: var(--gp-ink);
+}
+
+#gameplanWorkspace * {
+  letter-spacing: 0;
+}
+
+#gameplanWorkspace .gameplan-shell.is-command-hq {
+  display: block;
+  min-height: 100%;
+  padding: 18px 22px 44px;
+  background: var(--gp-canvas);
+}
+
+#gameplanWorkspace .gameplan-shell.is-command-hq .gameplan-main {
+  width: min(100%, 1520px);
+  margin: 0 auto;
+}
+
+#gameplanWorkspace .gp-command-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 10px 2px 18px;
+  border-bottom: 1px solid var(--gp-line);
+}
+
+#gameplanWorkspace .gp-command-identity {
+  min-width: 0;
+}
+
+#gameplanWorkspace .gp-command-identity > span,
+#gameplanWorkspace .gp-command-section-head span,
+#gameplanWorkspace .gp-command-objective > span,
+#gameplanWorkspace .gp-command-plan-picker > span,
+#gameplanWorkspace .gp-command-focus-item label > span,
+#gameplanWorkspace .gp-command-mini-list label > span {
+  display: block;
+  color: var(--gp-muted);
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+#gameplanWorkspace .gp-command-identity h1 {
+  max-width: 760px;
+  margin: 3px 0 4px;
+  color: var(--gp-ink);
+  font-size: 32px;
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 0.98;
+  overflow-wrap: anywhere;
+}
+
+#gameplanWorkspace .gp-command-identity p {
+  margin: 0;
+  color: var(--gp-muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+#gameplanWorkspace .gp-command-head-actions {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+#gameplanWorkspace .gp-command-plan-picker {
+  display: grid;
+  gap: 5px;
+  min-width: 220px;
+}
+
+#gameplanWorkspace .gp-command-plan-picker select,
+#gameplanWorkspace .gp-command-focus-item select,
+#gameplanWorkspace .gp-command-focus-item input,
+#gameplanWorkspace .gp-command-mini-list select,
+#gameplanWorkspace .gp-command-mini-list input,
+#gameplanWorkspace .gp-command-focus-item textarea,
+#gameplanWorkspace .gp-command-objective textarea {
+  min-height: 38px;
+  border: 1px solid var(--gp-line);
+  border-radius: 7px;
+  background: var(--gp-paper);
+  color: var(--gp-ink);
+  font: inherit;
+}
+
+#gameplanWorkspace .gp-command-plan-picker select {
+  max-width: 310px;
+  padding: 0 32px 0 11px;
+  font-size: 13px;
+}
+
+#gameplanWorkspace .gp-command-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(66px, 1fr));
+  min-height: 38px;
+  padding: 3px;
+  border: 1px solid var(--gp-line);
+  border-radius: 8px;
+  background: #e9edeb;
+}
+
+#gameplanWorkspace .gp-command-mode button,
+#gameplanWorkspace .gp-command-tabs button,
+#gameplanWorkspace .gp-command-header button,
+#gameplanWorkspace .gp-command-section-head button,
+#gameplanWorkspace .gp-command-source-actions button,
+#gameplanWorkspace .gp-command-candidate button,
+#gameplanWorkspace .gp-command-mini-candidates button,
+#gameplanWorkspace .gp-command-focus-item button,
+#gameplanWorkspace .gp-command-mini-list button {
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+#gameplanWorkspace .gp-command-mode button {
+  padding: 0 12px;
+  background: transparent;
+  color: var(--gp-muted);
+}
+
+#gameplanWorkspace .gp-command-mode button.is-active {
+  background: var(--gp-paper);
+  color: var(--gp-ink);
+  box-shadow: 0 1px 3px rgb(23 32 29 / 14%);
+}
+
+#gameplanWorkspace button:focus-visible,
+#gameplanWorkspace select:focus-visible,
+#gameplanWorkspace textarea:focus-visible,
+#gameplanWorkspace input:focus-visible {
+  outline: 3px solid rgb(40 103 169 / 30%);
+  outline-offset: 2px;
+}
+
+#gameplanWorkspace button:disabled,
+#gameplanWorkspace select:disabled,
+#gameplanWorkspace textarea:disabled,
+#gameplanWorkspace input:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+#gameplanWorkspace .gp-command-secondary,
+#gameplanWorkspace .gp-command-source-actions button,
+#gameplanWorkspace .gp-command-section-head > button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--gp-line);
+  background: var(--gp-paper);
+  color: var(--gp-ink);
+  white-space: nowrap;
+}
+
+#gameplanWorkspace .gp-command-delete {
+  min-height: 38px;
+  padding: 0 10px;
+  background: transparent;
+  color: var(--gp-red);
+}
+
+#gameplanWorkspace .gp-command-tabs {
+  display: flex;
+  gap: 26px;
+  padding: 0 2px;
+  border-bottom: 1px solid var(--gp-line);
+}
+
+#gameplanWorkspace .gp-command-tabs button {
+  position: relative;
+  min-height: 48px;
+  padding: 0;
+  background: transparent;
+  color: #56615d;
+  font-size: 13px;
+}
+
+#gameplanWorkspace .gp-command-tabs button::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: transparent;
+  content: "";
+}
+
+#gameplanWorkspace .gp-command-tabs button.is-active {
+  color: var(--gp-ink);
+}
+
+#gameplanWorkspace .gp-command-tabs button.is-active::after {
+  background: var(--gp-green);
+}

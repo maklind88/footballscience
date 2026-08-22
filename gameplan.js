@@ -2,6 +2,7 @@ import {
   cloneGameplanState,
   createGameplanFromMatch,
   gameplanActiveTabs,
+  gameplanCommandPhaseKeys,
   gameplanEvidenceConfidenceOptions,
   gameplanObservationStatusOptions,
   gameplanPhaseKeys,
@@ -13,12 +14,21 @@ import {
   getGameplanMatchLabel,
 } from "./gameplan-state.js";
 import { confirmPlatformAction } from "./src/core/platform-confirm-dialog.mjs";
+import {
+  buildGameplanPreparation,
+  getGameplanPhaseLabel,
+  renderGameplanCommandHeader,
+  renderGameplanCommandPlan,
+  renderGameplanCommandTabs,
+  resolveGameplanPresentationLineup,
+} from "./src/modules/gameplan/index.mjs";
 
 const gameplanStorageKey = "football-gameplan-v1";
 const scheduleStorageKey = "football-schedule-v1";
 const playerProfilesStorageKey = "football-player-profiles-v1";
 const sessionPlannerStorageKey = "football-session-planner-v3";
 const periodizationStorageKey = "football-periodization-v2";
+const presentationStorageKey = "football-dashboard-presentation-mode-v1";
 const scoutingStorageKey = "football-scouting-v1";
 const scoutingImportedDatabaseStorageKey = "football-scouting-imported-database-v1";
 const scoutingImportLastUploadStorageKey = "football-scouting-last-import-summary-v1";
@@ -150,167 +160,43 @@ function getSquadPlayers() {
       number: player.number || player.jerseyNumber || "",
       position: player.position || player.primaryRole || "",
       roleGroup: player.roleGroup || "",
+      photoUrl: player.photoUrl || player.photo_url || player.imageUrl || player.image_url || player.profileImageUrl || "",
     }));
 }
 
-function parseGameplanDate(value = "") {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return null;
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function formatGameplanDateValue(date = null) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function addGameplanDays(date = null, days = 0) {
-  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
-  const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + days);
-  return nextDate;
-}
-
-function getGameplanPreparationDates(plan = {}, lookbackDays = 6) {
-  const matchDate = parseGameplanDate(plan.date);
-  if (!matchDate) return [];
-  return Array.from({ length: lookbackDays }, (_, index) => formatGameplanDateValue(addGameplanDays(matchDate, index - lookbackDays))).filter(Boolean);
-}
-
-function splitPrincipleText(value = "") {
-  return String(value || "")
-    .split(/\n|;|,|\u2022|\|/)
-    .map((item) => item.replace(/^[-\d.)\s]+/, "").trim())
-    .filter((item) => item.length >= 3);
-}
-
-function uniqueGameplanTexts(values = [], limit = 8) {
-  const seen = new Set();
-  const output = [];
-  for (const value of values) {
-    const text = String(value || "").trim();
-    const key = normalizeSearchText(text);
-    if (!text || seen.has(key)) continue;
-    seen.add(key);
-    output.push(text);
-    if (output.length >= limit) break;
-  }
-  return output;
-}
-
-function getGameplanPhaseKeyFromText(value = "") {
-  const text = normalizeSearchText(value);
-  if (text.includes("set piece") || text.includes("corner") || text.includes("throw") || text.includes("goalkick") || text.includes("free kick")) {
-    return "setPieces";
-  }
-  if (
-    text.includes("defensive transition") ||
-    text.includes("counter press") ||
-    text.includes("counter-press") ||
-    text.includes("after loss") ||
-    text.includes("loss")
-  ) {
-    return "defensiveTransition";
-  }
-  if (
-    text.includes("attacking transition") ||
-    text.includes("counter attack") ||
-    text.includes("counter-attack") ||
-    text.includes("regain") ||
-    text.includes("after winning")
-  ) {
-    return "attackingTransition";
-  }
-  if (text.includes("out of possession") || text.includes("defend") || text.includes("press") || text.includes("block")) {
-    return "outOfPossession";
-  }
-  if (
-    text.includes("in possession") ||
-    text.includes("build") ||
-    text.includes("final third") ||
-    text.includes("attack") ||
-    text.includes("possession")
-  ) {
-    return "inPossession";
-  }
-  return "";
-}
-
-function getPhaseBucketForPrinciple(entry = {}) {
-  return getGameplanPhaseKeyFromText([entry.phase, entry.subPhase, entry.principle, entry.focus, entry.title].join(" ")) || "inPossession";
-}
-
-function getGameplanWeekFocusSources(plan = {}) {
-  const dates = new Set(getGameplanPreparationDates(plan));
-  const sessionState = readStorageJson(sessionPlannerStorageKey);
-  const periodizationState = readStorageJson(periodizationStorageKey);
-  const sources = [];
-
-  Object.entries(sessionState.sessions || {}).forEach(([dateValue, session]) => {
-    if (!dates.has(dateValue)) return;
-    (Array.isArray(session?.blocks) ? session.blocks : []).forEach((block) => {
-      const phase = [block.phase, block.subPhase].filter(Boolean).join(" / ");
-      splitPrincipleText(block.principles || block.focus || block.objective).forEach((principle) => {
-        sources.push({
-          date: dateValue,
-          phase,
-          subPhase: block.subPhase || "",
-          principle,
-          focus: block.focus || "",
-          title: block.title || "",
-          source: "Session Planner",
-        });
-      });
-    });
+function getGameplanPreparation(plan = {}) {
+  return buildGameplanPreparation({
+    plan,
+    sessionState: readStorageJson(sessionPlannerStorageKey),
+    periodizationState: readStorageJson(periodizationStorageKey),
   });
-
-  Object.entries(periodizationState.days || {}).forEach(([dateValue, day]) => {
-    if (!dates.has(dateValue)) return;
-    const phase = [...(Array.isArray(day.matchPhases) ? day.matchPhases : []), ...(Array.isArray(day.subPhases) ? day.subPhases : [])].join(" / ");
-    (Array.isArray(day.teamPrinciples) ? day.teamPrinciples : []).forEach((principle) => {
-      sources.push({ date: dateValue, phase, principle, source: "Periodization" });
-    });
-    (Array.isArray(day.miniGamePrinciples) ? day.miniGamePrinciples : []).forEach((principle) => {
-      sources.push({ date: dateValue, phase, principle, isMiniGame: true, source: "Periodization" });
-    });
-  });
-
-  return sources;
 }
 
 function buildGameplanWeekFocusSuggestion(plan = {}) {
-  const sources = getGameplanWeekFocusSources(plan);
+  const preparation = getGameplanPreparation(plan);
   const phasePrinciples = gameplanPhaseKeys.reduce((map, key) => {
-    const phaseTexts = sources.filter((entry) => !entry.isMiniGame && getPhaseBucketForPrinciple(entry) === key).map((entry) => entry.principle);
-    map[key] = uniqueGameplanTexts(phaseTexts, 5).join("\n");
+    map[key] = key === "setPieces"
+      ? ""
+      : preparation.teamCandidates
+          .filter((candidate) => candidate.phaseKey === key)
+          .slice(0, 5)
+          .map((candidate) => candidate.principle)
+          .join("\n");
     return map;
   }, {});
-  const unplacedPrinciples = sources.filter((entry) => !entry.isMiniGame && !phasePrinciples[getPhaseBucketForPrinciple(entry)]).map((entry) => entry.principle);
-  if (!Object.values(phasePrinciples).some(Boolean) && unplacedPrinciples.length) {
-    phasePrinciples.inPossession = uniqueGameplanTexts(unplacedPrinciples, 5).join("\n");
-  }
-  const miniGamePrinciples = uniqueGameplanTexts(
-    [
-      ...sources.filter((entry) => entry.isMiniGame).map((entry) => entry.principle),
-      ...sources
-        .filter((entry) => !entry.isMiniGame && /mini|game|constraint|duel|wave|rondo/i.test([entry.title, entry.focus, entry.subPhase].join(" ")))
-        .map((entry) => entry.principle),
-    ],
-    6
-  ).map((principle, index) => ({
-    id: createGameplanLocalId("mini"),
-    principle,
-    phase: sources.find((entry) => entry.principle === principle)?.phase || "",
-    playerIds: [],
-    source: sources.find((entry) => entry.principle === principle)?.source || "Week focus",
-    sortIndex: index,
-  }));
-  const dates = [...new Set(sources.map((entry) => entry.date).filter(Boolean))].sort();
   return {
     sourceGeneratedAt: new Date().toISOString(),
-    sourceWindow: dates.length ? `${dates[0]} to ${dates[dates.length - 1]}` : "",
+    sourceWindow: preparation.sourceWindow,
     phasePrinciples,
-    miniGamePrinciples,
+    miniGamePrinciples: preparation.miniGameCandidates.slice(0, 6).map((candidate) => ({
+      id: createGameplanLocalId("mini"),
+      principle: candidate.principle,
+      phase: "",
+      phaseKey: candidate.phaseKey,
+      targetType: "team",
+      playerIds: [],
+      source: candidate.sources.join(" + "),
+    })),
   };
 }
 
@@ -785,12 +671,6 @@ function ensureSeedGameplan() {
   const match = getScheduleMatches()[0];
   if (!match) return;
   const plan = createGameplanFromMatch(match, { currentUser: activeContext?.currentUser || null });
-  const suggestion = buildGameplanWeekFocusSuggestion(plan);
-  plan.matchFocus = {
-    ...(plan.matchFocus || {}),
-    ...suggestion,
-    miniGamePrinciples: assignMiniGamePrinciplesToPlayers(suggestion.miniGamePrinciples || [], plan),
-  };
   state.gameplans.push(plan);
   state.activeGameplanId = plan.id;
   state.activeTab = "plan";
@@ -1162,20 +1042,6 @@ function normalizeLineupSelection(lineup = {}) {
   };
 }
 
-function getLineupSelectedPlayerIds(plan = {}) {
-  const lineup = normalizeLineupSelection(plan.lineup || {});
-  return [...lineup.startingPlayerIds, ...lineup.benchPlayerIds];
-}
-
-function assignMiniGamePrinciplesToPlayers(miniGamePrinciples = [], plan = {}) {
-  const selectedPlayerIds = getLineupSelectedPlayerIds(plan);
-  if (!selectedPlayerIds.length) return miniGamePrinciples;
-  return miniGamePrinciples.map((item, index) => ({
-    ...item,
-    playerIds: item.playerIds?.length ? item.playerIds : [selectedPlayerIds[index % selectedPlayerIds.length]],
-  }));
-}
-
 function syncGameplanWeekFocus() {
   if (!canEditPlan()) return;
   mutateActiveGameplan((plan) => {
@@ -1194,7 +1060,7 @@ function syncGameplanWeekFocus() {
       sourceGeneratedAt: suggestion.sourceGeneratedAt,
       sourceWindow: suggestion.sourceWindow,
       phasePrinciples,
-      miniGamePrinciples: assignMiniGamePrinciplesToPlayers([...(current.miniGamePrinciples || []), ...suggestedMinis], plan),
+      miniGamePrinciples: [...(current.miniGamePrinciples || []), ...suggestedMinis],
     };
   });
 }
@@ -1226,9 +1092,6 @@ function toggleGameplanLineupPlayer(playerId = "", group = "", isSelected = fals
       startingPlayerIds: Array.from(starters),
       benchPlayerIds: Array.from(bench),
     });
-    if (Array.isArray(plan.matchFocus?.miniGamePrinciples)) {
-      plan.matchFocus.miniGamePrinciples = assignMiniGamePrinciplesToPlayers(plan.matchFocus.miniGamePrinciples, plan);
-    }
   });
 }
 
@@ -1241,6 +1104,9 @@ function addGameplanMiniPrinciple() {
       id: createGameplanLocalId("mini"),
       principle: "New mini-game principle",
       phase: "",
+      phaseKey: "",
+      targetType: "team",
+      unit: "",
       playerIds: [],
       source: "Manual",
     });
@@ -1259,6 +1125,15 @@ function updateGameplanMiniPrinciple(itemId = "", patch = {}) {
             ...patch,
             principle: patch.principle !== undefined ? String(patch.principle || "").slice(0, 180) : entry.principle,
             phase: patch.phase !== undefined ? String(patch.phase || "").slice(0, 80) : entry.phase,
+            phaseKey:
+              patch.phaseKey !== undefined && gameplanCommandPhaseKeys.includes(String(patch.phaseKey || ""))
+                ? String(patch.phaseKey)
+                : entry.phaseKey || "",
+            targetType:
+              patch.targetType !== undefined && ["team", "unit", "players"].includes(String(patch.targetType || ""))
+                ? String(patch.targetType)
+                : entry.targetType || "team",
+            unit: patch.unit !== undefined ? String(patch.unit || "").slice(0, 80) : entry.unit || "",
             playerIds:
               patch.playerId !== undefined
                 ? patch.playerId
@@ -1271,6 +1146,154 @@ function updateGameplanMiniPrinciple(itemId = "", patch = {}) {
         : entry
     );
     plan.matchFocus = focus;
+  });
+}
+
+function addGameplanMiniCandidate(candidateId = "") {
+  if (!canEditPlan() || !candidateId) return;
+  mutateActiveGameplan((plan) => {
+    const candidate = getGameplanPreparation(plan).miniGameCandidates.find((item) => item.id === candidateId);
+    if (!candidate) return;
+    const focus = plan.matchFocus || {};
+    const items = Array.isArray(focus.miniGamePrinciples) ? focus.miniGamePrinciples : [];
+    if (items.some((item) => normalizeSearchText(item.principle) === normalizeSearchText(candidate.principle))) return;
+    items.push({
+      id: createGameplanLocalId("mini"),
+      principle: candidate.principle,
+      phase: "",
+      phaseKey: candidate.phaseKey,
+      targetType: "team",
+      unit: "",
+      playerIds: [],
+      source: candidate.sources.join(" + "),
+    });
+    plan.matchFocus = { ...focus, miniGamePrinciples: items };
+  });
+}
+
+function addGameplanMiniPlayer(itemId = "", playerId = "") {
+  if (!canEditPlan() || !itemId || !playerId) return;
+  mutateActiveGameplan((plan) => {
+    const focus = plan.matchFocus || {};
+    focus.miniGamePrinciples = (focus.miniGamePrinciples || []).map((entry) =>
+      entry.id === itemId
+        ? {
+            ...entry,
+            targetType: "players",
+            playerIds: [...new Set([...(entry.playerIds || []), playerId])],
+          }
+        : entry
+    );
+    plan.matchFocus = focus;
+  });
+}
+
+function removeGameplanMiniPlayer(itemId = "", playerId = "") {
+  if (!canEditPlan() || !itemId || !playerId) return;
+  mutateActiveGameplan((plan) => {
+    const focus = plan.matchFocus || {};
+    focus.miniGamePrinciples = (focus.miniGamePrinciples || []).map((entry) =>
+      entry.id === itemId
+        ? {
+            ...entry,
+            playerIds: (entry.playerIds || []).filter((id) => id !== playerId),
+          }
+        : entry
+    );
+    plan.matchFocus = focus;
+  });
+}
+
+function getGameplanFocusItems(plan = {}) {
+  return Array.isArray(plan.matchFocus?.focusItems) ? plan.matchFocus.focusItems.slice(0, 3) : [];
+}
+
+function addGameplanFocusItem(candidateId = "") {
+  if (!canEditPlan()) return;
+  mutateActiveGameplan((plan) => {
+    const focus = plan.matchFocus || {};
+    const items = getGameplanFocusItems(plan);
+    if (items.length >= 3) return;
+    const preparation = getGameplanPreparation(plan);
+    const candidate = candidateId ? preparation.teamCandidates.find((item) => item.id === candidateId) : null;
+    if (candidate && items.some((item) => normalizeSearchText(item.principle) === normalizeSearchText(candidate.principle))) return;
+    const sources = candidate
+      ? preparation.entries
+          .filter((entry) => candidate.sourceRefs.includes(entry.id))
+          .map((entry) => ({ ref: entry.id, label: entry.source, date: entry.date }))
+      : [];
+    items.push({
+      id: createGameplanLocalId("focus"),
+      phaseKey: candidate?.phaseKey || "inPossession",
+      principle: candidate?.principle || "New match focus",
+      cue: "",
+      why: "",
+      ownerUserId: "",
+      targetType: "team",
+      unit: "",
+      targetIds: [],
+      evidenceIds: [],
+      sourceRefs: sources,
+      approved: false,
+    });
+    plan.matchFocus = {
+      ...focus,
+      sourceGeneratedAt: candidate ? new Date().toISOString() : focus.sourceGeneratedAt || "",
+      sourceWindow: candidate ? preparation.sourceWindow : focus.sourceWindow || "",
+      focusItems: items,
+    };
+  });
+}
+
+function updateGameplanFocusItem(itemId = "", patch = {}) {
+  if (!canEditPlan() || !itemId) return;
+  mutateActiveGameplan((plan) => {
+    const focus = plan.matchFocus || {};
+    focus.focusItems = getGameplanFocusItems(plan).map((entry) => {
+      if (entry.id !== itemId) return entry;
+      const next = { ...entry };
+      if (patch.phaseKey !== undefined && gameplanCommandPhaseKeys.includes(String(patch.phaseKey || ""))) next.phaseKey = String(patch.phaseKey);
+      if (patch.principle !== undefined) next.principle = String(patch.principle || "").slice(0, 240);
+      if (patch.cue !== undefined) next.cue = String(patch.cue || "").slice(0, 500);
+      if (patch.why !== undefined) next.why = String(patch.why || "").slice(0, 500);
+      if (patch.ownerUserId !== undefined) next.ownerUserId = String(patch.ownerUserId || "").slice(0, 180);
+      if (patch.targetType !== undefined && ["team", "unit", "players"].includes(String(patch.targetType || ""))) {
+        next.targetType = String(patch.targetType);
+      }
+      if (patch.unit !== undefined) next.unit = String(patch.unit || "").slice(0, 80);
+      if (Array.isArray(patch.targetIds)) next.targetIds = [...new Set(patch.targetIds.map(String).filter(Boolean))];
+      if (patch.approved !== undefined) next.approved = Boolean(patch.approved);
+      return next;
+    });
+    plan.matchFocus = focus;
+  });
+}
+
+function removeGameplanFocusItem(itemId = "") {
+  if (!canEditPlan() || !itemId) return;
+  mutateActiveGameplan((plan) => {
+    const focus = plan.matchFocus || {};
+    focus.focusItems = getGameplanFocusItems(plan).filter((entry) => entry.id !== itemId);
+    plan.matchFocus = focus;
+  });
+}
+
+function addGameplanFocusPlayer(itemId = "", playerId = "") {
+  if (!canEditPlan() || !itemId || !playerId) return;
+  const item = getGameplanFocusItems(getPlan()).find((entry) => entry.id === itemId);
+  if (!item) return;
+  updateGameplanFocusItem(itemId, {
+    targetIds: [...new Set([...(item.targetIds || []), playerId])],
+    targetType: "players",
+  });
+}
+
+function removeGameplanFocusPlayer(itemId = "", playerId = "") {
+  if (!canEditPlan() || !itemId || !playerId) return;
+  const item = getGameplanFocusItems(getPlan()).find((entry) => entry.id === itemId);
+  if (!item) return;
+  updateGameplanFocusItem(itemId, {
+    targetIds: (item.targetIds || []).filter((id) => id !== playerId),
   });
 }
 
@@ -1369,12 +1392,6 @@ function createGameplanFromScheduleMatch(matchId = "") {
     return;
   }
   const plan = createGameplanFromMatch(match, { currentUser: activeContext?.currentUser || null });
-  const suggestion = buildGameplanWeekFocusSuggestion(plan);
-  plan.matchFocus = {
-    ...(plan.matchFocus || {}),
-    ...suggestion,
-    miniGamePrinciples: assignMiniGamePrinciplesToPlayers(suggestion.miniGamePrinciples || [], plan),
-  };
   state.gameplans = Array.isArray(state.gameplans) ? state.gameplans : [];
   state.gameplans.push(plan);
   state.activeGameplanId = plan.id;
@@ -1422,7 +1439,17 @@ function setGameplanAudience(mode = "") {
   mutateActiveGameplan((plan) => {
     const brief = plan.playerBrief || {};
     const players = getSquadPlayers();
-    brief.audiencePlayerIds = mode === "all" ? players.map((player) => player.id) : [];
+    if (mode === "match-squad") {
+      const lineup = resolveGameplanPresentationLineup({
+        presentationState: readStorageJson(presentationStorageKey),
+        scheduleMatches: getScheduleMatches(),
+        plan,
+        players,
+      });
+      brief.audiencePlayerIds = [...lineup.startingPlayerIds, ...lineup.benchPlayerIds];
+    } else {
+      brief.audiencePlayerIds = mode === "all" ? players.map((player) => player.id) : [];
+    }
     plan.playerBrief = brief;
   });
 }
@@ -1449,6 +1476,38 @@ function publishGameplanPlayerBrief() {
     if (plan.status === "draft" || plan.status === "staff-review") {
       plan.status = "player-brief-ready";
     }
+  });
+}
+
+function buildGameplanPlayerBriefFromFocus() {
+  if (!canEditWorkspace()) return;
+  mutateActiveGameplan((plan) => {
+    const approvedItems = getGameplanFocusItems(plan).filter((item) => item.approved && item.principle);
+    if (!approvedItems.length) return;
+    const phases = { ...(plan.playerBrief?.phases || {}) };
+    gameplanCommandPhaseKeys.forEach((phaseKey) => {
+      phases[phaseKey] = approvedItems
+        .filter((item) => item.phaseKey === phaseKey)
+        .map((item) => [item.principle, item.cue].filter(Boolean).join(" · "))
+        .join("\n");
+    });
+    const players = getSquadPlayers();
+    const lineup = resolveGameplanPresentationLineup({
+      presentationState: readStorageJson(presentationStorageKey),
+      scheduleMatches: getScheduleMatches(),
+      plan,
+      players,
+    });
+    plan.playerBrief = {
+      ...(plan.playerBrief || {}),
+      focus: approvedItems.map((item) => [item.principle, item.cue].filter(Boolean).join(" · ")).join("\n"),
+      phases,
+      audiencePlayerIds: plan.playerBrief?.audiencePlayerIds?.length
+        ? plan.playerBrief.audiencePlayerIds
+        : [...lineup.startingPlayerIds, ...lineup.benchPlayerIds],
+      publishedAt: "",
+    };
+    if (plan.status === "player-brief-ready") plan.status = "staff-review";
   });
 }
 
@@ -1748,7 +1807,19 @@ function getRoleResponsibilities(plan = {}, keywords = []) {
 
 function getCurrentUserResponsibilities(plan = {}) {
   const currentUserId = getCurrentUser().id || "";
-  const assigned = currentUserId ? (plan.staffResponsibilities || []).filter((item) => item.userId === currentUserId) : [];
+  const assignedFocus = currentUserId
+    ? getGameplanFocusItems(plan)
+        .filter((item) => item.ownerUserId === currentUserId)
+        .map((item) => ({
+          id: `focus:${item.id}`,
+          role: "Match focus",
+          area: getGameplanPhaseLabel(item.phaseKey),
+          watchFor: item.principle,
+          decisionTrigger: item.cue,
+          userId: currentUserId,
+        }))
+    : [];
+  const assigned = currentUserId ? [...assignedFocus, ...(plan.staffResponsibilities || []).filter((item) => item.userId === currentUserId)] : [];
   if (assigned.length) return assigned;
   const roleMatches = getRoleResponsibilities(plan, getCurrentUserRoleKeywords());
   return roleMatches.slice(0, 3);
@@ -2315,6 +2386,7 @@ function renderCommandScenarioCard(item, index) {
         <select data-gameplan-scenario="${escapeHtml(item.id)}" data-gameplan-scenario-field="status" ${disabled ? "disabled" : ""} aria-label="Decision trigger status">
           ${renderOptions(gameplanScenarioStatusOptions, item.status || "open")}
         </select>
+        <button type="button" data-gameplan-remove-scenario="${escapeHtml(item.id)}" ${disabled ? "disabled" : ""}>Remove</button>
       </div>
       <div class="gameplan-command-trigger-body">
         <label>
@@ -2419,8 +2491,64 @@ function renderPlanEditTab(plan) {
   `;
 }
 
+function getNextUnplannedGameplanMatch() {
+  const plannedMatchIds = new Set(
+    (getState().gameplans || []).filter((plan) => !plan.archivedAt).map((plan) => String(plan.matchEventId || "")).filter(Boolean)
+  );
+  const now = new Date();
+  const todayValue = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return getScheduleMatches().find((match) => match.date >= todayValue && !plannedMatchIds.has(String(match.id || ""))) || null;
+}
+
+function getGameplanCommandModel(plan = {}) {
+  const players = getSquadPlayers();
+  const plans = (getState().gameplans || [])
+    .filter((item) => !item.archivedAt)
+    .sort((first, second) => `${first.date || ""} ${first.kickoff || ""}`.localeCompare(`${second.date || ""} ${second.kickoff || ""}`));
+  return {
+    plan,
+    plans,
+    nextUnplannedMatch: getNextUnplannedGameplanMatch(),
+    activeTab: getState().activeTab || "plan",
+    mode: getGameplanPlanMode(plan),
+    canEdit: canEditPlan(plan),
+    canDelete: canDeleteGameplan(),
+    escapeHtml,
+    formatDate,
+    renderUserOptions,
+    getUserName,
+    players,
+    playersById: new Map(players.map((player) => [player.id, player])),
+    focusItems: getGameplanFocusItems(plan),
+    miniGamePrinciples: Array.isArray(plan.matchFocus?.miniGamePrinciples) ? plan.matchFocus.miniGamePrinciples : [],
+    preparation: getGameplanPreparation(plan),
+    lineup: resolveGameplanPresentationLineup({
+      presentationState: readStorageJson(presentationStorageKey),
+      scheduleMatches: getScheduleMatches(),
+      plan,
+      players,
+    }),
+  };
+}
+
 function renderPlanTab(plan) {
-  return getGameplanPlanMode(plan) === "edit" ? renderPlanEditTab(plan) : renderPlanBriefingTab(plan);
+  const model = getGameplanCommandModel(plan);
+  const evidence = plan.evidence || [];
+  return `
+    ${renderGameplanCommandPlan(model)}
+    <section class="gp-command-evidence" aria-label="Match evidence">
+      <header class="gp-command-section-head">
+        <div><span>Evidence</span><h2>${evidence.length} linked source${evidence.length === 1 ? "" : "s"}</h2></div>
+        ${model.mode === "edit" ? `<button type="button" data-gameplan-add-evidence ${model.canEdit ? "" : "disabled"}>Add source</button>` : ""}
+      </header>
+      ${renderEvidenceChips(plan)}
+      ${
+        model.mode === "edit"
+          ? `<details class="gp-command-evidence-details"><summary>Analysis and scouting sources</summary>${renderEvidenceQuickEditor(plan)}${renderEvidenceSourcePanel(plan)}</details>`
+          : ""
+      }
+    </section>
+  `;
 }
 
 function renderRoleResponsibilityItem(item = {}) {
@@ -2629,6 +2757,7 @@ function renderPlayerAudience(plan) {
       <header>
         <span>Audience</span>
         <div>
+          <button type="button" data-gameplan-audience="match-squad" ${!canEditPlan() ? "disabled" : ""}>Match squad</button>
           <button type="button" data-gameplan-audience="all" ${!canEditPlan() ? "disabled" : ""}>All</button>
           <button type="button" data-gameplan-audience="none" ${!canEditPlan() ? "disabled" : ""}>None</button>
         </div>
@@ -2669,7 +2798,7 @@ function renderPlayerBriefPreview(plan) {
         ${brief.focus ? `<section><span>Team focus</span><p>${escapeHtml(brief.focus)}</p></section>` : ""}
         ${brief.positionGroupFocus ? `<section><span>Position group focus</span><p>${escapeHtml(brief.positionGroupFocus)}</p></section>` : ""}
         <div class="gameplan-player-preview-phases">
-          ${gameplanPhaseKeys
+          ${gameplanCommandPhaseKeys
             .map((key) =>
               brief.phases?.[key]
                 ? `<section><span>${escapeHtml(gameplanPhaseLabels[key])}</span><p>${escapeHtml(brief.phases[key])}</p></section>`
@@ -2771,12 +2900,16 @@ function renderIndividualBriefNotes(plan) {
 
 function renderPlayerBriefTab(plan) {
   const brief = plan.playerBrief || {};
+  const approvedFocusCount = getGameplanFocusItems(plan).filter((item) => item.approved && item.principle).length;
   return `
     <section class="gameplan-panel gameplan-player-layout">
       <section class="gameplan-card">
         <header>
-          <span>Player Brief Builder</span>
-          <button type="button" data-gameplan-publish-player-brief ${!canEditPlan() ? "disabled" : ""}>Publish brief</button>
+          <span>Player Brief</span>
+          <div class="gameplan-card-actions">
+            <button type="button" data-gameplan-build-player-brief ${!canEditPlan() || !approvedFocusCount ? "disabled" : ""}>Use approved focus</button>
+            <button type="button" data-gameplan-publish-player-brief ${!canEditPlan() ? "disabled" : ""}>Publish brief</button>
+          </div>
         </header>
         <div class="gameplan-form-grid">
           ${renderField("playerBrief.headline", "Headline", brief.headline, { rows: 2 })}
@@ -2785,7 +2918,7 @@ function renderPlayerBriefTab(plan) {
           ${renderField("playerBrief.positionGroupFocus", "Position group focus", brief.positionGroupFocus, { rows: 3, wide: true })}
         </div>
         <div class="gameplan-phase-grid">
-          ${gameplanPhaseKeys
+          ${gameplanCommandPhaseKeys
             .map((key) => renderField(`playerBrief.phases.${key}`, gameplanPhaseLabels[key], brief.phases?.[key], { rows: 3 }))
             .join("")}
         </div>
@@ -2843,7 +2976,7 @@ function renderPlayerBriefPortalCard({ plan = {}, player = {}, brief = {}, recei
         ${brief.focus ? `<section><span>Team focus</span><p>${escapeHtml(brief.focus)}</p></section>` : ""}
         ${brief.positionGroupFocus ? `<section><span>Position group focus</span><p>${escapeHtml(brief.positionGroupFocus)}</p></section>` : ""}
         <div class="gameplan-player-portal-phases">
-          ${gameplanPhaseKeys
+          ${gameplanCommandPhaseKeys
             .map((key) =>
               brief.phases?.[key]
                 ? `<section><span>${escapeHtml(gameplanPhaseLabels[key])}</span><p>${escapeHtml(brief.phases[key])}</p></section>`
@@ -2968,6 +3101,7 @@ function renderMatchdayTab(plan) {
   const live = plan.live || {};
   const halftime = live.halftime || {};
   const observations = live.observations || [];
+  const scenarioCards = (plan.scenarioCards || []).slice(0, 3);
   const review = plan.review || {};
   const disabled = !canEditPlan();
   return `
@@ -2978,6 +3112,19 @@ function renderMatchdayTab(plan) {
           ${renderField("live.halftime.keyMessage", "Halftime message", halftime.keyMessage, { rows: 2 })}
           ${renderField("live.halftime.adjustments", "Adjustments", halftime.adjustments, { rows: 2 })}
           ${renderField("live.halftime.risks", "Risks", halftime.risks, { rows: 2, wide: true })}
+        </div>
+      </section>
+      <section class="gameplan-card">
+        <header>
+          <span>Decision Triggers</span>
+          <button type="button" data-gameplan-add-scenario ${disabled || scenarioCards.length >= 3 ? "disabled" : ""}>Add trigger</button>
+        </header>
+        <div class="gameplan-command-triggers">
+          ${
+            scenarioCards.length
+              ? scenarioCards.map(renderCommandScenarioCard).join("")
+              : `<div class="gameplan-empty-small">No matchday triggers set.</div>`
+          }
         </div>
       </section>
       <section class="gameplan-card">
@@ -3048,25 +3195,35 @@ export function render(context = {}) {
   ensureSeedGameplan();
   const plan = getPlan();
   if (!plan) {
+    const matches = getScheduleMatches();
     root.innerHTML = `
-      <section class="gameplan-shell">
-        ${renderPlanList()}
+      <section class="gameplan-shell is-command-hq">
         <main class="gameplan-main">
           <section class="gameplan-empty">
-            <h2>No gameplan selected.</h2>
-            <p>Create one from Schedule when the next match is ready.</p>
+            <h2>No upcoming match plan.</h2>
+            <p>Add the next match in Schedule. Gameplan will create the first command view from it.</p>
+            <div class="gp-command-empty-actions">
+              ${matches
+                .slice(0, 5)
+                .map(
+                  (match) => `<button type="button" data-gameplan-create-match="${escapeHtml(match.id)}" ${canEditWorkspace() ? "" : "disabled"}>Create ${escapeHtml(
+                    getGameplanMatchLabel(match)
+                  )}</button>`
+                )
+                .join("")}
+            </div>
           </section>
         </main>
       </section>
     `;
     return;
   }
+  const commandModel = getGameplanCommandModel(plan);
   root.innerHTML = `
-    <section class="gameplan-shell">
-      ${renderPlanList()}
+    <section class="gameplan-shell is-command-hq">
       <main class="gameplan-main">
-        ${renderHero(plan)}
-        ${renderTabs()}
+        ${renderGameplanCommandHeader(commandModel)}
+        ${renderGameplanCommandTabs(commandModel)}
         ${renderActiveTab(plan)}
       </main>
     </section>
@@ -3162,6 +3319,12 @@ export async function handleClick(event, context = activeContext) {
     rerenderGameplan();
     return;
   }
+  const presentationTrigger = event.target.closest("[data-gameplan-open-presentation]");
+  if (presentationTrigger) {
+    const dateValue = presentationTrigger.dataset.gameplanOpenPresentation || getPlan()?.date || "";
+    activeContext?.openPresentationMode?.(dateValue, "team");
+    return;
+  }
   const tabTrigger = event.target.closest("[data-gameplan-tab]");
   if (tabTrigger) {
     setGameplanActiveTab(tabTrigger.dataset.gameplanTab);
@@ -3211,9 +3374,50 @@ export async function handleClick(event, context = activeContext) {
     rerenderGameplan();
     return;
   }
+  const addMiniCandidateTrigger = event.target.closest("[data-gameplan-add-mini-candidate]");
+  if (addMiniCandidateTrigger) {
+    addGameplanMiniCandidate(addMiniCandidateTrigger.dataset.gameplanAddMiniCandidate);
+    rerenderGameplan();
+    return;
+  }
   const removeMiniTrigger = event.target.closest("[data-gameplan-remove-mini-principle]");
   if (removeMiniTrigger) {
     removeGameplanMiniPrinciple(removeMiniTrigger.dataset.gameplanRemoveMiniPrinciple);
+    rerenderGameplan();
+    return;
+  }
+  const removeMiniPlayerTrigger = event.target.closest("[data-gameplan-remove-mini-player][data-gameplan-mini-player-id]");
+  if (removeMiniPlayerTrigger) {
+    removeGameplanMiniPlayer(
+      removeMiniPlayerTrigger.dataset.gameplanRemoveMiniPlayer,
+      removeMiniPlayerTrigger.dataset.gameplanMiniPlayerId
+    );
+    rerenderGameplan();
+    return;
+  }
+  if (event.target.closest("[data-gameplan-add-focus]")) {
+    addGameplanFocusItem();
+    rerenderGameplan();
+    return;
+  }
+  const addFocusCandidateTrigger = event.target.closest("[data-gameplan-add-focus-candidate]");
+  if (addFocusCandidateTrigger) {
+    addGameplanFocusItem(addFocusCandidateTrigger.dataset.gameplanAddFocusCandidate);
+    rerenderGameplan();
+    return;
+  }
+  const removeFocusTrigger = event.target.closest("[data-gameplan-remove-focus]");
+  if (removeFocusTrigger) {
+    removeGameplanFocusItem(removeFocusTrigger.dataset.gameplanRemoveFocus);
+    rerenderGameplan();
+    return;
+  }
+  const removeFocusPlayerTrigger = event.target.closest("[data-gameplan-remove-focus-player][data-gameplan-focus-player-id]");
+  if (removeFocusPlayerTrigger) {
+    removeGameplanFocusPlayer(
+      removeFocusPlayerTrigger.dataset.gameplanRemoveFocusPlayer,
+      removeFocusPlayerTrigger.dataset.gameplanFocusPlayerId
+    );
     rerenderGameplan();
     return;
   }
@@ -3242,6 +3446,11 @@ export async function handleClick(event, context = activeContext) {
   }
   if (event.target.closest("[data-gameplan-publish-player-brief]")) {
     publishGameplanPlayerBrief();
+    rerenderGameplan();
+    return;
+  }
+  if (event.target.closest("[data-gameplan-build-player-brief]")) {
+    buildGameplanPlayerBriefFromFocus();
     rerenderGameplan();
     return;
   }
@@ -3296,6 +3505,19 @@ export function handleInput(event, context = activeContext) {
     });
     return;
   }
+  const focusField = event.target.closest("[data-gameplan-focus][data-gameplan-focus-field]");
+  if (focusField) {
+    updateGameplanFocusItem(focusField.dataset.gameplanFocus, {
+      [focusField.dataset.gameplanFocusField]: focusField.value,
+    });
+    return;
+  }
+  const addFocusPlayer = event.target.closest("[data-gameplan-add-focus-player]");
+  if (addFocusPlayer) {
+    addGameplanFocusPlayer(addFocusPlayer.dataset.gameplanAddFocusPlayer, addFocusPlayer.value);
+    rerenderGameplan();
+    return;
+  }
   const miniField = event.target.closest("[data-gameplan-mini-principle][data-gameplan-mini-field]");
   if (miniField) {
     updateGameplanMiniPrinciple(miniField.dataset.gameplanMiniPrinciple, {
@@ -3320,6 +3542,12 @@ export function handleInput(event, context = activeContext) {
 
 export function handleChange(event, context = activeContext) {
   setContext(context);
+  const planSelect = event.target.closest("[data-gameplan-open-select]");
+  if (planSelect) {
+    setActiveGameplan(planSelect.value);
+    rerenderGameplan();
+    return;
+  }
   const lineupField = event.target.closest("[data-gameplan-lineup-player][data-gameplan-lineup-group]");
   if (lineupField) {
     toggleGameplanLineupPlayer(
@@ -3378,6 +3606,26 @@ export function handleChange(event, context = activeContext) {
     if (evidenceField.matches("select")) {
       rerenderGameplan();
     }
+    return;
+  }
+  const focusApproval = event.target.closest("[data-gameplan-focus-approved]");
+  if (focusApproval) {
+    updateGameplanFocusItem(focusApproval.dataset.gameplanFocusApproved, { approved: focusApproval.checked });
+    rerenderGameplan();
+    return;
+  }
+  const focusField = event.target.closest("[data-gameplan-focus][data-gameplan-focus-field]");
+  if (focusField) {
+    updateGameplanFocusItem(focusField.dataset.gameplanFocus, {
+      [focusField.dataset.gameplanFocusField]: focusField.value,
+    });
+    if (focusField.matches("select")) rerenderGameplan();
+    return;
+  }
+  const addMiniPlayer = event.target.closest("[data-gameplan-add-mini-player]");
+  if (addMiniPlayer) {
+    addGameplanMiniPlayer(addMiniPlayer.dataset.gameplanAddMiniPlayer, addMiniPlayer.value);
+    rerenderGameplan();
     return;
   }
   const miniField = event.target.closest("[data-gameplan-mini-principle][data-gameplan-mini-field]");

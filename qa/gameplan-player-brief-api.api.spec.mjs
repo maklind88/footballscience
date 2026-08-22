@@ -265,7 +265,7 @@ test("Gameplan state carries elite workflow sections", async () => {
 
   expect(result.activeTab).toBe("matchday");
   expect(result.planMode).toBe("briefing");
-  expect(result.agenda).toContain("Opponent identity");
+  expect(result.agenda).toBe("");
   expect(result.decisions).toBe("Press trigger approved.");
   expect(result.scenario).toEqual(expect.objectContaining({ title: "Protect lead", status: "ready" }));
   expect(result.evidence).toEqual(

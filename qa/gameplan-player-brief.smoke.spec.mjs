@@ -121,7 +121,25 @@ async function seedGameplanEvidenceSources(page) {
             matchPhases: ["In Possession", "Out of Possession"],
             subPhases: ["Build Up", "High Press"],
             teamPrinciples: ["Create width", "Protect central lane"],
-            miniGamePrinciples: ["Find the Third", "Counterpress five seconds"],
+            miniGamePrinciples: ["FT3 (Find the Third)", "Counterpress five seconds"],
+          },
+        },
+      })
+    );
+    window.localStorage.setItem(
+      "football-dashboard-presentation-mode-v1",
+      JSON.stringify({
+        decks: {
+          "2026-05-30": {
+            updatedAt: "2026-06-01T12:00:00.000Z",
+            infoSlides: [
+              { layout: "match-squad", matchSquadPlayerIds: ["qa-player-1", "qa-player-2", "qa-player-3"] },
+              {
+                layout: "starting-xi",
+                formation: "4-3-3",
+                lineup: { gk: "qa-player-3", cm: "qa-player-1" },
+              },
+            ],
           },
         },
       })
@@ -176,31 +194,50 @@ test("Gameplan Player Brief portal is audience-gated and records player receipts
   await openWorkspace(page, "gameplan");
   await expect(page.locator("#gameplanWorkspace .gameplan-shell")).toBeVisible();
   await expect(page.locator("#gameplanWorkspace [data-gameplan-tab]")).toHaveCount(4);
-  await expect(page.locator("#gameplanWorkspace")).toContainText("Match Command");
-  await expect(page.locator("#gameplanWorkspace")).toContainText("Briefing");
+  await expect(page.locator("#gameplanWorkspace")).toContainText("Match intention");
+  await expect(page.locator("#gameplanWorkspace")).toContainText("Command");
   await expect(page.locator('[data-gameplan-field="summary.objective"]')).toHaveCount(0);
   await page.locator('[data-gameplan-plan-mode="edit"]').click();
   await expect(page.locator('[data-gameplan-field="summary.objective"]')).toBeVisible();
-  await expect(page.locator(".gameplan-lineup-editor")).toBeVisible();
-  await expect(page.locator(".gameplan-week-focus-card")).toContainText("Create width");
-  const lineupRows = page.locator(".gameplan-lineup-player-row");
-  await expect(lineupRows.first()).toBeVisible();
-  const selectedLineupPlayerId = await lineupRows.nth(0).locator('[data-gameplan-lineup-group="starting"]').getAttribute("data-gameplan-lineup-player");
-  await lineupRows.nth(0).locator('[data-gameplan-lineup-group="starting"]').check();
-  await lineupRows.nth(1).locator('[data-gameplan-lineup-group="bench"]').check();
-  await page.locator("[data-gameplan-sync-week-focus]").click();
-  await expect
-    .poll(() => page.locator('[data-gameplan-mini-field="principle"]').evaluateAll((fields) => fields.map((field) => field.value).join(" | ")))
-    .toContain("Find the Third");
+  await expect(page.locator(".gameplan-lineup-editor")).toHaveCount(0);
+  await expect(page.locator(".gp-command-lineup")).toContainText("QA Captain");
+  await expect(page.locator(".gp-command-lineup")).toContainText("QA Forward");
+  const selectedLineupPlayerId = "qa-player-1";
+  const focusCandidate = page.locator(".gp-command-candidate").filter({ hasText: "Create width" }).first();
+  await expect(focusCandidate).toBeVisible();
+  await focusCandidate.locator("[data-gameplan-add-focus-candidate]").click();
+  await page.locator('[data-gameplan-focus-field="targetType"]').selectOption("players");
+  await page.locator("[data-gameplan-add-focus-player]").selectOption(selectedLineupPlayerId);
+  await expect(page.locator(`[data-gameplan-remove-focus-player][data-gameplan-focus-player-id="${selectedLineupPlayerId}"]`)).toBeVisible();
+  await page.locator(`[data-gameplan-remove-focus-player][data-gameplan-focus-player-id="${selectedLineupPlayerId}"]`).click();
+  await page.locator('[data-gameplan-focus-field="targetType"]').selectOption("team");
+  await page.locator("[data-gameplan-focus-approved]").check();
+  const miniCandidate = page.locator("[data-gameplan-add-mini-candidate]").filter({ hasText: "Find the Third" });
+  await expect(miniCandidate).toBeVisible();
+  await miniCandidate.click();
+  await page.locator('[data-gameplan-mini-field="targetType"]').selectOption("players");
+  await page.locator("[data-gameplan-add-mini-player]").selectOption(selectedLineupPlayerId);
+  await page.locator("[data-gameplan-add-mini-player]").selectOption("qa-player-2");
+  await expect(page.locator('[data-gameplan-remove-mini-player][data-gameplan-mini-player-id="qa-player-1"]')).toBeVisible();
+  await page.locator('[data-gameplan-remove-mini-player][data-gameplan-mini-player-id="qa-player-2"]').click();
+  await expect(page.locator('[data-gameplan-remove-mini-player][data-gameplan-mini-player-id="qa-player-2"]')).toHaveCount(0);
+  await page.locator("[data-gameplan-add-mini-principle]").click();
+  const manualMini = page.locator(".gp-command-mini-list > article").last();
+  await manualMini.locator('[data-gameplan-mini-field="principle"]').fill("Recover inside before the second action");
+  await manualMini.locator('[data-gameplan-mini-field="phaseKey"]').selectOption("defensiveTransition");
+  await expect(manualMini.locator('[data-gameplan-mini-field="principle"]')).toHaveValue("Recover inside before the second action");
+  await manualMini.locator("[data-gameplan-remove-mini-principle]").click();
+  await expect(page.locator(".gp-command-mini-list")).not.toContainText("Recover inside before the second action");
   await page.locator('[data-gameplan-field="summary.objective"]').fill("Win territory early and keep the game connected.");
+  await page.locator(".gp-command-evidence-details > summary").click();
   await expect(page.locator(".gameplan-evidence-source-panel")).toBeVisible();
   await expect(page.locator(".gameplan-evidence-source-panel")).toContainText("Opponent build-up clip");
   await page.locator(".gameplan-evidence-source-row").filter({ hasText: "Opponent build-up clip" }).locator("[data-gameplan-link-evidence]").click();
   await expect(page.locator(".gameplan-evidence-chips")).toContainText("Opponent build-up clip");
   await page.locator('[data-gameplan-plan-mode="briefing"]').click();
-  await expect(page.locator(".gameplan-lineup-overview")).toContainText("1/11");
-  await expect(page.locator(".gameplan-lineup-overview")).toContainText("Bench");
-  await expect(page.locator(".gameplan-week-focus-card")).toContainText("Find the Third");
+  await expect(page.locator(".gp-command-lineup")).toContainText("2/11 selected");
+  await expect(page.locator(".gp-command-lineup")).toContainText("Bench");
+  await expect(page.locator(".gp-command-mini")).toContainText("Find the Third");
   await expect(page.locator("#gameplanWorkspace")).toContainText("Win territory early");
   await expect(page.locator("#gameplanWorkspace")).toContainText("Opponent build-up clip");
   await expect(page.locator('[data-gameplan-field="summary.objective"]')).toHaveCount(0);
@@ -213,9 +250,16 @@ test("Gameplan Player Brief portal is audience-gated and records player receipts
   await expect(page.locator(".gameplan-role-lens")).toContainText("Player-Safe View");
   await page.locator('[data-gameplan-tab="matchday"]').click();
   await expect(page.locator("#gameplanWorkspace")).toContainText("Coach Mode");
+  await expect(page.locator("#gameplanWorkspace")).toContainText("Decision Triggers");
+  await page.locator("[data-gameplan-add-scenario]").click();
+  await expect(page.locator("[data-gameplan-scenario]").first()).toBeVisible();
+  await page.locator("[data-gameplan-remove-scenario]").click();
+  await expect(page.locator("[data-gameplan-scenario]")).toHaveCount(0);
 
   await page.locator('[data-gameplan-tab="player-brief"]').click();
   await expect(page.locator(".gameplan-player-layout")).toBeVisible();
+  await page.locator("[data-gameplan-build-player-brief]").click();
+  await page.locator('[data-gameplan-audience="none"]').click();
 
   const playerInputs = page.locator('[data-gameplan-player-audience]');
   await expect(playerInputs.first()).toBeVisible();
@@ -325,17 +369,17 @@ test("Gameplan deletion is confirmed, archived, and keeps the next plan stable",
     store.setCurrentUser(coachUser.id);
   });
   await openWorkspace(page, "gameplan");
-  await expect(page.locator("[data-gameplan-open]")).toHaveCount(2);
+  await expect(page.locator("[data-gameplan-open-select] option")).toHaveCount(2);
   await expect(page.locator("[data-gameplan-delete]")).toBeVisible();
 
   await page.locator("[data-gameplan-delete]").click();
   await expect(page.locator(".platform-confirm-dialog")).toContainText('Delete "First Opponent"?');
   await page.getByRole("button", { name: "Cancel" }).click();
-  await expect(page.locator("[data-gameplan-open]")).toHaveCount(2);
+  await expect(page.locator("[data-gameplan-open-select] option")).toHaveCount(2);
 
   await page.locator("[data-gameplan-delete]").click();
   await page.getByRole("button", { name: "Delete gameplan" }).click();
-  await expect(page.locator("[data-gameplan-open]")).toHaveCount(1);
+  await expect(page.locator("[data-gameplan-open-select] option")).toHaveCount(1);
   await expect(page.locator("#gameplanWorkspace h1")).toHaveText("Next Opponent");
 
   const firstDeleteState = await page.evaluate(() => JSON.parse(window.localStorage.getItem("football-gameplan-v1") || "{}"));
@@ -345,8 +389,8 @@ test("Gameplan deletion is confirmed, archived, and keeps the next plan stable",
 
   await page.locator("[data-gameplan-delete]").click();
   await page.getByRole("button", { name: "Delete gameplan" }).click();
-  await expect(page.locator("[data-gameplan-open]")).toHaveCount(0);
-  await expect(page.locator("#gameplanWorkspace")).toContainText("No gameplan selected.");
+  await expect(page.locator("[data-gameplan-open-select]")).toHaveCount(0);
+  await expect(page.locator("#gameplanWorkspace")).toContainText("No upcoming match plan.");
   await expect(page.locator("[data-gameplan-delete]")).toHaveCount(0);
 
   const archivedState = await page.evaluate(() => JSON.parse(window.localStorage.getItem("football-gameplan-v1") || "{}"));
@@ -354,7 +398,7 @@ test("Gameplan deletion is confirmed, archived, and keeps the next plan stable",
   expect(archivedState.gameplans.every((plan) => Boolean(plan.archivedAt))).toBe(true);
 
   await page.locator('[data-gameplan-create-match="delete-match-1"]').click();
-  await expect(page.locator("[data-gameplan-open]")).toHaveCount(1);
+  await expect(page.locator("[data-gameplan-open-select] option")).toHaveCount(1);
   await expect(page.locator("#gameplanWorkspace h1")).toHaveText("First Opponent");
   expect(pageErrors).toEqual([]);
 });

@@ -518,49 +518,23 @@ ${escapeHtml(eventType.label)}
       !state ||
       !ui?.scheduleWorkspace ||
       !ui.scheduleMonthTitle ||
-      !ui.scheduleOverviewGrid ||
-      !ui.scheduleSelectedDateLabel ||
-      !ui.scheduleEventList
+      !ui.schedulePlannerGrid
     ) {
       return;
     }
 
     const selectedDateValue = state.selectedDate;
-    const isOverview = state.viewMode === "overview";
-    const isPlanner = state.viewMode === "planner";
-    const plannerMonthCount = isPlanner ? getPlannerMonthCount(context) : 3;
+    const plannerMonthCount = getPlannerMonthCount(context);
     const isEditingDay = dayPanelMode === "edit" && canEdit;
     const editingEvent = state.events.find((event) => event.id === editingEventId) ?? null;
 
-    ui.scheduleWorkspace?.classList.toggle("is-overview-view", isOverview);
-    ui.scheduleWorkspace?.classList.toggle("is-planner-view", isPlanner);
-    ui.scheduleMonthTitle.textContent = isPlanner
-      ? getPlannerLabel(state, plannerMonthCount)
-      : getOverviewLabel(state);
+    ui.scheduleWorkspace?.classList.remove("is-overview-view");
+    ui.scheduleWorkspace?.classList.add("is-planner-view");
+    ui.scheduleMonthTitle.textContent = getPlannerLabel(state, plannerMonthCount);
     ui.scheduleMonthTitle.hidden = false;
-    ui.scheduleOverviewViewButton?.classList.toggle("is-active", isOverview);
-    ui.schedulePlannerViewButton?.classList.toggle("is-active", isPlanner);
-    ui.scheduleOverviewViewButton?.setAttribute("aria-pressed", String(isOverview));
-    ui.schedulePlannerViewButton?.setAttribute("aria-pressed", String(isPlanner));
-
-    if (ui.scheduleOverviewSpanControl) {
-      ui.scheduleOverviewSpanControl.hidden = !isOverview;
-    }
-    ui.scheduleOverviewSpanButtons?.forEach((button) => {
-      const isActiveSpan = Number(button.dataset.scheduleSpan) === state.overviewSpan;
-      button.classList.toggle("is-active", isActiveSpan);
-      button.setAttribute("aria-pressed", String(isActiveSpan));
-      button.tabIndex = isOverview ? 0 : -1;
-    });
-    if (ui.scheduleOverviewGrid) {
-      ui.scheduleOverviewGrid.hidden = !isOverview;
-      ui.scheduleOverviewGrid.dataset.months = String(state.overviewSpan);
-    }
-    if (ui.schedulePlannerGrid) {
-      ui.schedulePlannerGrid.hidden = !isPlanner;
-      ui.schedulePlannerGrid.dataset.months = String(plannerMonthCount);
-      ui.schedulePlannerGrid.style?.setProperty?.("--schedule-planner-months", String(plannerMonthCount));
-    }
+    ui.schedulePlannerGrid.hidden = false;
+    ui.schedulePlannerGrid.dataset.months = String(plannerMonthCount);
+    ui.schedulePlannerGrid.style?.setProperty?.("--schedule-planner-months", String(plannerMonthCount));
 
     if (ui.scheduleEventDate) {
       ui.scheduleEventDate.value = editingEvent?.date ?? selectedDateValue;
@@ -587,7 +561,7 @@ ${escapeHtml(eventType.label)}
       ui.scheduleSelectedDateLabel.textContent = getScheduleDateLabel(selectedDateValue);
     }
     if (ui.scheduleDayCard) {
-      ui.scheduleDayCard.hidden = isPlanner;
+      ui.scheduleDayCard.hidden = true;
       ui.scheduleDayCard.classList.toggle("is-admin-view", canEdit);
       ui.scheduleDayCard.classList.toggle("is-editing-view", isEditingDay);
       ui.scheduleDayCard.classList.toggle("is-readonly-view", !isEditingDay);
@@ -614,21 +588,17 @@ ${escapeHtml(eventType.label)}
       ui.scheduleCopyDayButton.disabled = !context.getEventsForDate(selectedDateValue).length;
     }
 
-    if (isOverview && ui.scheduleOverviewGrid) {
-      ui.scheduleOverviewGrid.innerHTML = Array.from({ length: state.overviewSpan }, (_, index) =>
-        renderOverviewMonth(context, new Date(state.selectedYear, state.selectedMonthIndex + index, 1))
-      ).join("");
-    } else if (isPlanner && ui.schedulePlannerGrid) {
-      ui.schedulePlannerGrid.innerHTML = `${Array.from({ length: plannerMonthCount }, (_, index) =>
-        renderPlannerMonth(context, new Date(state.selectedYear, state.selectedMonthIndex + index, 1))
-      ).join("")}${renderPlannerContextMenu(context)}${renderPlannerNoteOverlay(context)}`;
-    }
+    ui.schedulePlannerGrid.innerHTML = `${Array.from({ length: plannerMonthCount }, (_, index) =>
+      renderPlannerMonth(context, new Date(state.selectedYear, state.selectedMonthIndex + index, 1))
+    ).join("")}${renderPlannerContextMenu(context)}${renderPlannerNoteOverlay(context)}`;
 
     const selectedEvents = context.getEventsForDate(selectedDateValue);
     const selectedDayContext = context.getSelectedDayContext?.(selectedDateValue) || defaultSelectedDayContext();
-    ui.scheduleEventList.innerHTML = selectedEvents.length
-      ? selectedEvents.map((event) => renderEventCard(context, event, isEditingDay, selectedDayContext)).join("")
-      : `<p class="schedule-empty-state">No plans on this day yet.</p>`;
+    if (ui.scheduleEventList) {
+      ui.scheduleEventList.innerHTML = selectedEvents.length
+        ? selectedEvents.map((event) => renderEventCard(context, event, isEditingDay, selectedDayContext)).join("")
+        : `<p class="schedule-empty-state">No plans on this day yet.</p>`;
+    }
     if (ui.scheduleDayInsights) {
       ui.scheduleDayInsights.innerHTML = renderDayInsights(context, selectedDateValue, selectedEvents);
     }

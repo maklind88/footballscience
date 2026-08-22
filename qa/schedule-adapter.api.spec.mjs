@@ -18,7 +18,7 @@ test("Schedule adapter normalizes current schedule storage without changing the 
     selectedYear: "2026",
     selectedMonthIndex: "4",
     selectedDate: "2026-05-07",
-    viewMode: "overview",
+    viewMode: "planner",
     overviewSpan: 9,
     visibleEventTypes: ["match", "training", "match", "bad"],
     importVersion: "ncc-2026-numbers-v1",
@@ -62,7 +62,7 @@ test("Schedule adapter normalizes current schedule storage without changing the 
     selectedYear: 2026,
     selectedMonthIndex: 4,
     selectedDate: "2026-05-07",
-    viewMode: "overview",
+    viewMode: "planner",
     overviewSpan: 9,
     visibleEventTypes: ["match", "training"],
     importVersion: "ncc-2026-numbers-v1",
@@ -157,12 +157,12 @@ test("Schedule adapter treats invalid legacy payloads as empty instead of destru
   expect(normalizeScheduleState("{not-json}", { now, idFactory })).toMatchObject({
     selectedYear: 2026,
     selectedMonthIndex: 4,
-    viewMode: "overview",
+    viewMode: "planner",
     overviewSpan: 6,
     visibleEventTypes: ["training", "match", "meeting", "travel", "recovery", "off"],
     events: [],
   });
   expect(normalizeScheduleState({ events: "bad" }, { now, idFactory }).events).toEqual([]);
-  expect(normalizeScheduleState({ viewMode: "month" }, { now, idFactory }).viewMode).toBe("overview");
-  expect(normalizeScheduleState({ viewMode: "week" }, { now, idFactory }).viewMode).toBe("overview");
+  expect(normalizeScheduleState({ viewMode: "month" }, { now, idFactory }).viewMode).toBe("planner");
+  expect(normalizeScheduleState({ viewMode: "week" }, { now, idFactory }).viewMode).toBe("planner");
 });

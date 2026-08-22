@@ -126,8 +126,10 @@ test("Schedule app integration delegates controller wiring to the module", () =>
   expect(index).not.toContain('id="scheduleWeekViewButton"');
   expect(index).not.toContain('id="scheduleCalendarGrid"');
   expect(index).not.toContain('id="scheduleWeekGrid"');
-  expect(index).toContain('id="scheduleOverviewViewButton"');
-  expect(index).toContain('id="schedulePlannerViewButton"');
+  expect(index).not.toContain('id="scheduleOverviewViewButton"');
+  expect(index).not.toContain('id="schedulePlannerViewButton"');
+  expect(index).not.toContain('id="scheduleOverviewGrid"');
+  expect(index).toContain('id="schedulePlannerGrid"');
   expect(index).not.toContain('id="dashboardSchedulePreview"');
   expect(homeRenderer).toContain('id="dashboardSchedulePreview"');
 });
@@ -285,10 +287,10 @@ test("Schedule controller remeasures planner width after the view becomes active
 test("Schedule actions preserve navigation, copy paste, and upsert behavior", () => {
   const state = createDefaultScheduleState(new Date(2026, 4, 7));
   expect(state.dayNotes).toEqual({});
-  expect(state.viewMode).toBe("overview");
+  expect(state.viewMode).toBe("planner");
 
   setScheduleStateViewMode(state, "month");
-  expect(state.viewMode).toBe("overview");
+  expect(state.viewMode).toBe("planner");
 
   setScheduleStateViewMode(state, "overview");
   setScheduleStateOverviewSpan(state, 6);
@@ -297,7 +299,7 @@ test("Schedule actions preserve navigation, copy paste, and upsert behavior", ()
     selectedYear: 2026,
     selectedMonthIndex: 4,
     selectedDate: "2026-05-08",
-    viewMode: "overview",
+    viewMode: "planner",
     overviewSpan: 6,
   });
 
@@ -345,7 +347,7 @@ test("Schedule renderer keeps Planner and selected-day operations", () => {
     selectedYear: 2026,
     selectedMonthIndex: 4,
     selectedDate: "2026-05-08",
-    viewMode: "overview",
+    viewMode: "planner",
     overviewSpan: 6,
     events: [{ id: "training", date: "2026-05-08", time: "10:00", type: "training", title: "Training" }],
   };

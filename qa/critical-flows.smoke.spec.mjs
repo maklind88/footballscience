@@ -2808,22 +2808,25 @@ test("Schedule edits persist after refresh", async ({ page }) => {
   await bootApp(page);
   await openWorkspace(page, "schedule");
 
-  await page.locator("#scheduleTodayButton").click();
-  await page.locator("#scheduleEditDayButton").click();
-  await expect(page.locator("#scheduleEventForm")).toBeVisible();
-  await page.locator("#scheduleEventTitle").fill(title);
-  await page.locator("#scheduleEventNote").fill("QA smoke test event");
-  await page.locator("#scheduleEventSubmitButton").click();
-  await expect(page.locator("#scheduleEventList")).toContainText(title);
+  const targetDay = page.locator(".schedule-planner-day:not(.has-events)").first();
+  const targetDate = await targetDay.getAttribute("data-schedule-date");
+  expect(targetDate).toBeTruthy();
+  await targetDay.dblclick();
+  const addInput = page.locator(`[data-schedule-planner-add-date="${targetDate}"] [name="plannerTitle"]`);
+  await expect(addInput).toBeFocused();
+  await addInput.fill(title);
+  await addInput.press("Enter");
+  await expect(page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`)).toContainText(title);
   await expectStorageContains(page, scheduleKey, title);
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await waitForPlatformShell(page);
   await openWorkspace(page, "schedule");
   await expectStorageContains(page, scheduleKey, title);
+  await expect(page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`)).toContainText(title);
 });
 
-test("Schedule Today anchors overview to the real current date", async ({ page }) => {
+test("Schedule Today anchors Planner to the real current date", async ({ page }) => {
   await page.addInitScript(({ key }) => {
     const realDate = Date;
     const fixedNow = new realDate("2026-05-09T12:00:00-04:00").getTime();
@@ -2857,10 +2860,11 @@ test("Schedule Today anchors overview to the real current date", async ({ page }
   await openWorkspace(page, "schedule");
   await page.locator("#scheduleTodayButton").click();
 
-  await expect(page.locator("#scheduleMonthTitle")).toHaveText("May - October");
-  await expect(page.locator("#scheduleSelectedDateLabel")).toHaveText("Saturday, 9 May 2026");
-  await expect(page.locator(".schedule-overview-month h3").first()).toHaveText("May");
-  await expect(page.locator('[data-schedule-date="2026-05-09"]')).toHaveClass(/is-selected/);
+  await expect(page.locator("#scheduleOverviewViewButton")).toHaveCount(0);
+  await expect(page.locator("#schedulePlannerViewButton")).toHaveCount(0);
+  await expect(page.locator("#schedulePlannerGrid")).toBeVisible();
+  await expect(page.locator(".schedule-planner-month h3").first()).toHaveText("May");
+  await expect(page.locator('.schedule-planner-day.is-selected[data-schedule-date="2026-05-09"]')).toBeVisible();
   await expect
     .poll(() =>
       page.evaluate((key) => {
@@ -2959,12 +2963,13 @@ test("Home stacks compact meeting cards beside the calendar and opens selected d
   await calendar.locator('[data-dashboard-open-schedule-date="2026-05-16"]').click();
 
   await expect(page.locator('[data-workspace-view="schedule"].is-active')).toBeVisible();
-  await expect(page.locator("#scheduleOverviewViewButton")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator('.schedule-overview-day.is-selected[data-schedule-date="2026-05-16"]')).toBeVisible();
-  await expect(page.locator("#scheduleSelectedDateLabel")).toHaveText("Saturday, 16 May 2026");
+  await expect(page.locator("#scheduleOverviewViewButton")).toHaveCount(0);
+  await expect(page.locator("#schedulePlannerViewButton")).toHaveCount(0);
+  await expect(page.locator("#schedulePlannerGrid")).toBeVisible();
+  await expect(page.locator('.schedule-planner-day.is-selected[data-schedule-date="2026-05-16"]')).toBeVisible();
 });
 
-test("Schedule overview copies and pastes selected days with command shortcuts", async ({ page }) => {
+test("Schedule Planner copies and pastes selected days with command shortcuts", async ({ page }) => {
   await page.addInitScript(({ key }) => {
     window.localStorage.setItem(
       key,
@@ -3007,23 +3012,24 @@ test("Schedule overview copies and pastes selected days with command shortcuts",
 
   await bootApp(page);
   await openWorkspace(page, "schedule");
-  await expect(page.locator("#scheduleOverviewGrid")).toBeVisible();
-  await page.locator('[data-schedule-date="2026-05-09"]').first().click();
-  await expect(page.locator("#scheduleEventList")).toContainText("Copied Training");
+  await expect(page.locator("#schedulePlannerGrid")).toBeVisible();
+  await page.locator('.schedule-planner-date[data-schedule-date="2026-05-09"]').click();
+  await expect(page.locator('.schedule-planner-day[data-schedule-date="2026-05-09"]')).toContainText("Copied Training");
 
   await page.evaluate(() => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "c", metaKey: true, bubbles: true, cancelable: true }));
   });
-  await page.locator('[data-schedule-date="2026-05-12"]').first().click();
-  await expect(page.locator("#scheduleEventForm")).toBeHidden();
+  await page.locator('.schedule-planner-date[data-schedule-date="2026-05-12"]').click();
+  await expect(page.locator('.schedule-planner-day.is-selected[data-schedule-date="2026-05-12"]')).toBeVisible();
 
   await page.evaluate(() => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "v", metaKey: true, bubbles: true, cancelable: true }));
   });
 
-  await expect(page.locator("#scheduleEventList")).toContainText("Copied Training");
-  await expect(page.locator("#scheduleEventList")).toContainText("Copied Meeting");
-  await expect(page.locator("#scheduleEventList")).not.toContainText("Existing Target");
+  const targetDay = page.locator('.schedule-planner-day[data-schedule-date="2026-05-12"]');
+  await expect(targetDay).toContainText("Copied Training");
+  await expect(targetDay).toContainText("Copied Meeting");
+  await expect(targetDay).not.toContainText("Existing Target");
   await expect
     .poll(() =>
       page.evaluate((key) => {
@@ -3037,7 +3043,7 @@ test("Schedule overview copies and pastes selected days with command shortcuts",
     .toEqual(["Copied Meeting", "Copied Training"]);
 });
 
-test("Schedule Overview shows daily operations and opens linked session", async ({ page }) => {
+test("Schedule Planner migrates legacy state and removes duplicate plans", async ({ page }) => {
   await page.addInitScript(({ scheduleKey, sessionPlannerKey, periodizationKey }) => {
     const realDate = Date;
     const fixedNow = new realDate("2026-05-09T12:00:00-04:00").getTime();
@@ -3132,22 +3138,14 @@ test("Schedule Overview shows daily operations and opens linked session", async 
   await bootApp(page);
   await openWorkspace(page, "schedule");
 
-  await expect(page.locator("#scheduleOverviewViewButton")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#scheduleOverviewGrid")).toBeVisible();
-  await expect(page.locator('.schedule-overview-day.is-selected[data-schedule-date="2026-05-09"]')).toBeVisible();
-  const trainingCard = page.locator("#scheduleEventList .schedule-event-card");
-  await expect(trainingCard).toHaveCount(1);
-  await expect(trainingCard).toContainText("Training (1 block / 15 min)");
-  await expect(trainingCard).toContainText("MD-1");
-  await expect(trainingCard).toContainText("In Possession / Build-up");
-  await expect(page.locator("#scheduleDayInsights .schedule-day-summary-grid")).toHaveCount(0);
-  await expect(page.locator("#scheduleDayInsights")).not.toContainText("1 block / 15 min");
-  await expect(page.locator("#scheduleDayInsights")).not.toContainText("Training Session");
-
-  await page.locator('[data-schedule-open-session-date="2026-05-09"]').click();
-
-  await expect(page.locator('[data-workspace-view="session-planner"].is-active')).toBeVisible();
-  await expect(page.locator("#sessionPlannerWorkspace")).toContainText("Training Session");
+  await expect(page.locator("#scheduleOverviewViewButton")).toHaveCount(0);
+  await expect(page.locator("#schedulePlannerViewButton")).toHaveCount(0);
+  await expect(page.locator("#schedulePlannerGrid")).toBeVisible();
+  const selectedDay = page.locator('.schedule-planner-day.is-selected[data-schedule-date="2026-05-09"]');
+  await expect(selectedDay).toBeVisible();
+  const trainingChip = selectedDay.locator(".schedule-planner-event-chip");
+  await expect(trainingChip).toHaveCount(1);
+  await expect(trainingChip).toContainText("Training");
 });
 
 test("Schedule migrates legacy Week state while the selected day shows all plans", async ({ page }) => {
@@ -3228,15 +3226,16 @@ test("Schedule migrates legacy Week state while the selected day shows all plans
   await bootApp(page);
   await openWorkspace(page, "schedule");
 
-  await expect(page.locator("#scheduleOverviewViewButton")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#scheduleOverviewGrid")).toBeVisible();
+  await expect(page.locator("#scheduleOverviewViewButton")).toHaveCount(0);
+  await expect(page.locator("#schedulePlannerViewButton")).toHaveCount(0);
+  await expect(page.locator("#schedulePlannerGrid")).toBeVisible();
   await expect(page.locator('[data-schedule-layer]')).toHaveCount(0);
-  const selectedDay = page.locator('.schedule-overview-day.is-selected[data-schedule-date="2026-05-10"]');
+  const selectedDay = page.locator('.schedule-planner-day.is-selected[data-schedule-date="2026-05-10"]');
   await expect(selectedDay).toHaveClass(/is-main-match/);
   await expect(selectedDay).not.toContainText("alert");
-  await expect(page.locator("#scheduleEventList")).toContainText("Training");
-  await expect(page.locator("#scheduleEventList")).toContainText("QA Match");
-  await expect(page.locator("#scheduleEventList")).toContainText("Off");
+  await expect(selectedDay).toContainText("Training");
+  await expect(selectedDay).toContainText("QA Match");
+  await expect(selectedDay).toContainText("Off");
 });
 
 test("Periodization Today opens the real current date", async ({ page }) => {

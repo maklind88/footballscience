@@ -23,10 +23,6 @@ function getLiveBaseUrl() {
   return process.env.PLAYWRIGHT_BASE_URL || process.env.LIVE_QA_BASE_URL || "https://footballscience.xyz";
 }
 
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 async function dismissDashboardModal(page) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const isOpen = await page.evaluate(() => {
@@ -460,19 +456,13 @@ async function expectCentralSyncContains(page, key, text) {
 
 async function removeScheduleEventIfPresent(page, title) {
   await openWorkspace(page, "schedule");
-  await page.locator("#scheduleTodayButton").click();
-
-  const editButton = page.locator("#scheduleEditDayButton");
-  if ((await editButton.count()) === 0 || !(await editButton.isVisible())) {
+  const eventChip = page.locator(".schedule-planner-event-chip").filter({ hasText: title }).first();
+  if ((await eventChip.count()) === 0 || !(await eventChip.isVisible())) {
     return;
   }
-
-  await editButton.click();
-  const removeButton = page.getByLabel(new RegExp(`^Remove ${escapeRegExp(title)}$`));
-  if ((await removeButton.count()) > 0) {
-    await removeButton.first().click();
-    await expect(page.locator("#scheduleEventList")).not.toContainText(title);
-  }
+  await eventChip.click();
+  await page.keyboard.press("Delete");
+  await expect(page.locator("#schedulePlannerGrid")).not.toContainText(title);
 }
 
 test("production admin account can open Access & Users", async ({ page }) => {
@@ -731,19 +721,22 @@ test("production test account can save and reload a schedule record", async ({ p
   try {
     await openWorkspace(page, "schedule");
     await page.locator("#scheduleTodayButton").click();
-    await page.locator("#scheduleEditDayButton").click();
-    await expect(page.locator("#scheduleEventForm")).toBeVisible();
-    await page.locator("#scheduleEventTitle").fill(title);
-    await page.locator("#scheduleEventNote").fill("Production-safe smoke test. Remove automatically.");
-    await page.locator("#scheduleEventSubmitButton").click();
-    await expect(page.locator("#scheduleEventList")).toContainText(title);
+    const targetDay = page.locator(".schedule-planner-day:not(.has-events)").first();
+    const targetDate = await targetDay.getAttribute("data-schedule-date");
+    expect(targetDate).toBeTruthy();
+    await targetDay.dblclick();
+    const addInput = page.locator(`[data-schedule-planner-add-date="${targetDate}"] [name="plannerTitle"]`);
+    await expect(addInput).toBeFocused();
+    await addInput.fill(title);
+    await addInput.press("Enter");
+    await expect(page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`)).toContainText(title);
     await expectStorageContains(page, scheduleKey, title);
     await expectCentralSyncContains(page, scheduleKey, title);
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.locator("#hubShell")).toBeVisible();
     await openWorkspace(page, "schedule");
-    await expect(page.locator("#scheduleEventList")).toContainText(title);
+    await expect(page.locator(`.schedule-planner-day[data-schedule-date="${targetDate}"]`)).toContainText(title);
     await expectStorageContains(page, scheduleKey, title);
   } finally {
     await removeScheduleEventIfPresent(page, title).catch(() => {});

@@ -305,18 +305,6 @@
                   <h1 id="scheduleMonthTitle" class="schedule-title">Season Calendar</h1>
                 </div>
                 <div class="schedule-toolbar" aria-label="Calendar navigation">
-                  <div class="schedule-view-switch" aria-label="Schedule view">
-                    <button id="scheduleOverviewViewButton" type="button" class="schedule-view-button is-active">Overview</button>
-                    <button id="schedulePlannerViewButton" type="button" class="schedule-view-button">Planner</button>
-                  </div>
-                  <div id="scheduleOverviewSpanControl" class="schedule-span-select" aria-label="Overview months">
-                    <div class="schedule-span-buttons" role="group" aria-label="Overview months">
-                      <button id="scheduleOverviewSpan3Button" type="button" data-schedule-span="3" aria-label="Show 3 months">3M</button>
-                      <button id="scheduleOverviewSpan6Button" type="button" data-schedule-span="6" aria-label="Show 6 months">6M</button>
-                      <button id="scheduleOverviewSpan9Button" type="button" data-schedule-span="9" aria-label="Show 9 months">9M</button>
-                      <button id="scheduleOverviewSpan12Button" type="button" data-schedule-span="12" aria-label="Show 12 months">12M</button>
-                    </div>
-                  </div>
                   <button id="schedulePrevMonthButton" type="button" class="schedule-nav-button" aria-label="Previous month">←</button>
                   <button id="scheduleTodayButton" type="button" class="schedule-today-button">Today</button>
                   <button id="scheduleNextMonthButton" type="button" class="schedule-nav-button" aria-label="Next month">→</button>
@@ -324,64 +312,8 @@
               </header>
               <section class="schedule-layout">
                 <article class="schedule-board-card">
-                  <div id="scheduleOverviewGrid" class="schedule-overview-grid"></div>
-                  <div id="schedulePlannerGrid" class="schedule-planner-grid" hidden></div>
+                  <div id="schedulePlannerGrid" class="schedule-planner-grid"></div>
                 </article>
-                <aside id="scheduleDayCard" class="schedule-day-card">
-                  <div class="schedule-day-card-head">
-                    <div>
-                      <p id="scheduleDayEyebrow" class="placeholder-tag">Selected Day</p>
-                      <h2 id="scheduleSelectedDateLabel">Today</h2>
-                    </div>
-                    <button
-                      id="scheduleEditDayButton"
-                      type="button"
-                      class="schedule-day-edit-button"
-                      data-schedule-edit-day
-                      aria-label="Edit selected day"
-                    >
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M4 17.25V20h2.75L17.9 8.85l-2.75-2.75L4 17.25Z"></path>
-                        <path d="m17.1 4.15 2.75 2.75"></path>
-                      </svg>
-                    </button>
-                  </div>
-                  <div id="scheduleEventList" class="schedule-event-list"></div>
-                  <div id="scheduleDayInsights" class="schedule-day-insights"></div>
-                  <form id="scheduleEventForm" class="schedule-event-form" novalidate>
-                    <label>
-                      <span>Date</span>
-                      <input id="scheduleEventDate" name="date" type="date" required />
-                    </label>
-                    <label>
-                      <span>Time</span>
-                      <input id="scheduleEventTime" name="time" type="time" />
-                    </label>
-                    <label>
-                      <span>Type</span>
-                      <select id="scheduleEventType" name="type">
-                        <option value="training">Training</option>
-                        <option value="match">Match</option>
-                        <option value="meeting">Meeting</option>
-                        <option value="travel">Travel</option>
-                        <option value="recovery">Recovery</option>
-                        <option value="off">Off</option>
-                      </select>
-                    </label>
-                    <label class="schedule-form-wide">
-                      <span>Title</span>
-                      <input id="scheduleEventTitle" name="title" placeholder="Training, match, meeting..." required />
-                    </label>
-                    <label class="schedule-form-wide">
-                      <span>Notes</span>
-                      <textarea id="scheduleEventNote" name="note" rows="3"></textarea>
-                    </label>
-                    <div class="schedule-form-actions schedule-form-wide">
-                      <button id="scheduleEventSubmitButton" type="submit">Add Plan</button>
-                      <button id="scheduleEventCancelButton" type="button" hidden>Cancel</button>
-                    </div>
-                  </form>
-                </aside>
               </section>
             </div>
           </section>

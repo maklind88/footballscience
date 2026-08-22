@@ -6,14 +6,10 @@ import {
   normalizeScheduleDayNotes,
   parseScheduleDateValue,
   scheduleOverviewSpanOptions,
-  scheduleViewModes,
 } from "./schedule-state.mjs";
 
-export function getScheduleNavigationStepForState(state) {
-  if (!state) {
-    return 1;
-  }
-  return state.viewMode === "overview" ? state.overviewSpan : 1;
+export function getScheduleNavigationStepForState() {
+  return 1;
 }
 
 export function shiftScheduleStateWindow(state, delta) {
@@ -29,11 +25,11 @@ export function shiftScheduleStateWindow(state, delta) {
   return state;
 }
 
-export function setScheduleStateViewMode(state, viewMode) {
+export function setScheduleStateViewMode(state) {
   if (!state) {
     return state;
   }
-  state.viewMode = scheduleViewModes.includes(viewMode) ? viewMode : "overview";
+  state.viewMode = "planner";
   const selectedDate = parseScheduleDateValue(state.selectedDate);
   state.selectedYear = selectedDate.getFullYear();
   state.selectedMonthIndex = selectedDate.getMonth();
@@ -46,7 +42,7 @@ export function setScheduleStateOverviewSpan(state, span) {
   }
   const overviewSpan = Number(span);
   state.overviewSpan = scheduleOverviewSpanOptions.includes(overviewSpan) ? overviewSpan : 6;
-  state.viewMode = "overview";
+  state.viewMode = "planner";
   return state;
 }
 
@@ -58,25 +54,14 @@ export function selectScheduleStateDate(state, dateValue, options = {}) {
   const date = parseScheduleDateValue(dateValue);
   const windowStart = new Date(state.selectedYear, state.selectedMonthIndex, 1);
   const plannerWindowMonths = Math.max(1, Math.floor(Number(options.plannerWindowMonths) || 1));
-  let visibleMonthCount = 1;
-  if (state.viewMode === "overview") {
-    visibleMonthCount = state.overviewSpan;
-  } else if (state.viewMode === "planner") {
-    visibleMonthCount = plannerWindowMonths;
-  }
+  const visibleMonthCount = plannerWindowMonths;
   const windowEnd = new Date(state.selectedYear, state.selectedMonthIndex + visibleMonthCount, 0);
-  const keepOverviewWindow =
-    options.keepOverviewWindow !== false &&
-    state.viewMode === "overview" &&
-    date >= windowStart &&
-    date <= windowEnd;
   const keepPlannerWindow =
     options.keepPlannerWindow !== false &&
-    state.viewMode === "planner" &&
     date >= windowStart &&
     date <= windowEnd;
 
-  if (!keepOverviewWindow && !keepPlannerWindow) {
+  if (!keepPlannerWindow) {
     state.selectedYear = date.getFullYear();
     state.selectedMonthIndex = date.getMonth();
   }

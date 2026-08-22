@@ -7,8 +7,6 @@ import {
   removeScheduleEventById,
   selectScheduleStateDate,
   setScheduleDayNote,
-  setScheduleStateOverviewSpan,
-  setScheduleStateViewMode,
   shiftScheduleStateWindow,
   startScheduleEventEdit,
   upsertScheduleEventFromValues,
@@ -77,7 +75,6 @@ export function createScheduleWorkspaceController(options = {}) {
   const ui = { ...(options.ui || {}) };
   const win = options.window || globalThis.window || {};
   const doc = options.document || globalThis.document || null;
-  ui.schedulePlannerViewButton = ui.schedulePlannerViewButton || doc?.getElementById?.("schedulePlannerViewButton") || null;
   ui.schedulePlannerGrid = ui.schedulePlannerGrid || doc?.getElementById?.("schedulePlannerGrid") || null;
   const renderer = options.renderer || createScheduleWorkspaceRenderer(options.rendererOptions);
   const isEditableKeyboardTarget =
@@ -370,10 +367,7 @@ export function createScheduleWorkspaceController(options = {}) {
 
   function scrollDateIntoView(dateValue) {
     const state = getState();
-    const root =
-      state?.viewMode === "overview"
-        ? ui.scheduleOverviewGrid
-        : ui.schedulePlannerGrid;
+    const root = ui.schedulePlannerGrid;
     if (!root || !dateValue) {
       return;
     }
@@ -399,34 +393,6 @@ export function createScheduleWorkspaceController(options = {}) {
       return;
     }
     shiftScheduleStateWindow(state, delta);
-    writeState({ syncCentral: false });
-    render();
-  }
-
-  function setViewMode(viewMode) {
-    const state = ensureState();
-    if (!state) {
-      return;
-    }
-    setScheduleStateViewMode(state, viewMode);
-    if (state.viewMode !== "planner") {
-      selectedPlannerEventId = "";
-      plannerEditingEventId = "";
-      plannerEditingDate = "";
-      plannerNoteDate = "";
-      plannerMenu = null;
-      draggedPlannerEventId = "";
-    }
-    writeState({ syncCentral: false });
-    render();
-  }
-
-  function setOverviewSpan(span) {
-    const state = ensureState();
-    if (!state) {
-      return;
-    }
-    setScheduleStateOverviewSpan(state, span);
     writeState({ syncCentral: false });
     render();
   }
@@ -1752,13 +1718,6 @@ export function createScheduleWorkspaceController(options = {}) {
       shiftWindow(getScheduleNavigationStepForState(getState()));
     });
     ui.scheduleTodayButton?.addEventListener?.("click", jumpToToday);
-    ui.scheduleOverviewViewButton?.addEventListener?.("click", () => setViewMode("overview"));
-    ui.schedulePlannerViewButton?.addEventListener?.("click", () => setViewMode("planner"));
-    ui.scheduleOverviewSpanButtons?.forEach?.((button) => {
-      button.addEventListener?.("click", () => setOverviewSpan(button.dataset.scheduleSpan));
-    });
-    ui.scheduleOverviewGrid?.addEventListener?.("click", handleDateGridClick);
-    ui.scheduleOverviewGrid?.addEventListener?.("dblclick", handleDateGridDoubleClick);
     ui.schedulePlannerGrid?.addEventListener?.("click", handlePlannerClick);
     ui.schedulePlannerGrid?.addEventListener?.("dblclick", handlePlannerDblClick);
     ui.schedulePlannerGrid?.addEventListener?.("submit", handlePlannerSubmit);

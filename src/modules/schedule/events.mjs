@@ -173,7 +173,7 @@ export function normalizeScheduleState(rawValue, options = {}) {
     selectedYear,
     selectedMonthIndex,
     selectedDate,
-    viewMode: ["overview", "planner"].includes(source.viewMode) ? source.viewMode : "overview",
+    viewMode: "planner",
     overviewSpan,
     visibleEventTypes: normalizeScheduleVisibleEventTypes(source.visibleEventTypes),
     importVersion: normalizeText(source.importVersion),

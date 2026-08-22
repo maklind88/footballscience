@@ -20,7 +20,7 @@ export {
   scheduleStorageKey,
 };
 
-export const scheduleViewModes = Object.freeze(["overview", "planner"]);
+export const scheduleViewModes = Object.freeze(["planner"]);
 
 function normalizeText(value) {
   return String(value ?? "").trim();
@@ -40,7 +40,7 @@ export function createDefaultScheduleState(now = new Date()) {
     selectedYear: date.getFullYear(),
     selectedMonthIndex: date.getMonth(),
     selectedDate: formatScheduleDateValue(date),
-    viewMode: "overview",
+    viewMode: "planner",
     overviewSpan: 6,
     visibleEventTypes: [...scheduleEventTypeKeys],
     importVersion: "",
@@ -111,7 +111,7 @@ export function cloneScheduleState(source = createDefaultScheduleState(), option
     : fallbackState.selectedMonthIndex;
   const selectedDate =
     normalizeText(source.selectedDate) || formatScheduleDateValue(new Date(selectedYear, selectedMonthIndex, 1));
-  const viewMode = scheduleViewModes.includes(source.viewMode) ? source.viewMode : "overview";
+  const viewMode = "planner";
   const overviewSpan = scheduleOverviewSpanOptions.includes(Number(source.overviewSpan))
     ? Number(source.overviewSpan)
     : 6;
@@ -178,7 +178,7 @@ export function mergeScheduleStatePreservingLocalUi(localValue, centralValue) {
     selectedYear: localState.selectedYear ?? centralStateValue.selectedYear,
     selectedMonthIndex: localState.selectedMonthIndex ?? centralStateValue.selectedMonthIndex,
     selectedDate: localState.selectedDate ?? centralStateValue.selectedDate,
-    viewMode: localState.viewMode ?? centralStateValue.viewMode,
+    viewMode: "planner",
     overviewSpan: localState.overviewSpan ?? centralStateValue.overviewSpan,
     visibleEventTypes: localState.visibleEventTypes ?? centralStateValue.visibleEventTypes,
   });

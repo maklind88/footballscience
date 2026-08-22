@@ -146,8 +146,16 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
       .join("");
 
     const cards = [
-      { type: "team", title: "Team Meeting", mark: "FS" },
-      { type: "technical", title: "Technical Staff Meeting", mark: "TS" },
+      {
+        type: "team",
+        title: "Team Meeting",
+        icon: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M7.5 9.5h9M9 13h6"/>',
+      },
+      {
+        type: "technical",
+        title: "Technical Staff Meeting",
+        icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+      },
     ];
 
     return `
@@ -157,12 +165,7 @@ export function createDashboardHomeCardsRenderer(dependencies = {}) {
             (card) => `
         <article class="dashboard-panel dashboard-presentation-card is-${escapeHtml(card.type)}" data-dashboard-presentation-card data-dashboard-presentation-type="${escapeHtml(card.type)}">
           <div class="dashboard-presentation-visual" aria-hidden="true">
-            <span class="dashboard-presentation-visual-mark">${escapeHtml(card.mark)}</span>
-            <span class="dashboard-presentation-visual-line is-halfway"></span>
-            <span class="dashboard-presentation-visual-line is-box"></span>
-            <span class="dashboard-presentation-visual-dot is-one"></span>
-            <span class="dashboard-presentation-visual-dot is-two"></span>
-            <span class="dashboard-presentation-visual-dot is-three"></span>
+            <svg viewBox="0 0 24 24">${card.icon}</svg>
           </div>
           <div class="dashboard-presentation-copy">
             <p class="dashboard-card-kicker">Presentation Mode</p>

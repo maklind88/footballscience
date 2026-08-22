@@ -104,8 +104,8 @@ function renderPitchMarkings() {
       <circle cx="52.5" cy="34" r="0.8" class="spr-pitch-spot spr-round-marking"></circle>
       <path d="M0.7 13.84H17.2V54.16H0.7M104.3 13.84H87.8V54.16H104.3"></path>
       <path d="M0.7 24.84H6.2V43.16H0.7M104.3 24.84H98.8V43.16H104.3"></path>
-      <circle cx="11" cy="34" r="0.65" class="spr-pitch-spot spr-round-marking"></circle>
-      <circle cx="94" cy="34" r="0.65" class="spr-pitch-spot spr-round-marking"></circle>
+      <circle cx="11" cy="34" r="0.4" class="spr-pitch-spot spr-penalty-spot spr-round-marking"></circle>
+      <circle cx="94" cy="34" r="0.4" class="spr-pitch-spot spr-penalty-spot spr-round-marking"></circle>
       <path d="M17.2 26.65A9.15 9.15 0 0 1 17.2 41.35" class="spr-round-marking"></path>
       <path d="M87.8 26.65A9.15 9.15 0 0 0 87.8 41.35" class="spr-round-marking"></path>
       ${renderPitchGoals()}

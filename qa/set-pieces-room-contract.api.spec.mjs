@@ -855,6 +855,8 @@ test("board renderer uses one circular own-player marker in photo or initials mo
   expect(markup).toContain('x="14.75" y="-24.75" width="75.5" height="117.5"');
   expect(markup).toContain('class="spr-pitch-grass"');
   expect(markup).toContain('transform="matrix(0 -1 1 0 0 105)"');
+  expect(markup).toContain('<circle cx="11" cy="34" r="0.4" class="spr-pitch-spot spr-penalty-spot spr-round-marking"></circle>');
+  expect(markup).toContain('<circle cx="94" cy="34" r="0.4" class="spr-pitch-spot spr-penalty-spot spr-round-marking"></circle>');
   expect(markup).toContain('class="spr-pitch-goal is-left-goal"');
   expect(markup).toContain('class="spr-pitch-goal is-right-goal"');
   expect(markup.match(/class="spr-pitch-goal-net"/g)).toHaveLength(2);

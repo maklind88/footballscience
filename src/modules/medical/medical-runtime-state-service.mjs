@@ -36,6 +36,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
     setMedicalState = () => {},
     win = globalThis,
   } = deps;
+  let medicalReadBatchDepth = 0;
 
   function getMedicalStatusOptionForDate(statusKey, dateValue = getMedicalState()?.selectedDate, rtpPhase = "") {
     return getMedicalStatusOptionForDateFromHelper(statusKey, dateValue, rtpPhase);
@@ -505,6 +506,9 @@ export function createMedicalRuntimeStateService(deps = {}) {
   }
 
   function ensureMedicalState() {
+    if (medicalReadBatchDepth > 0 && getMedicalState()) {
+      return getMedicalState();
+    }
     if (!getMedicalState()) {
       setMedicalState(readMedicalState());
     }
@@ -515,6 +519,16 @@ export function createMedicalRuntimeStateService(deps = {}) {
       writeMedicalState();
     }
     return getMedicalState();
+  }
+
+  function withMedicalStateReadBatch(callback) {
+    ensureMedicalState();
+    medicalReadBatchDepth += 1;
+    try {
+      return typeof callback === "function" ? callback(getMedicalState()) : getMedicalState();
+    } finally {
+      medicalReadBatchDepth = Math.max(0, medicalReadBatchDepth - 1);
+    }
   }
 
   return {
@@ -532,6 +546,7 @@ export function createMedicalRuntimeStateService(deps = {}) {
     syncMedicalRosterFromPlayerProfiles,
     syncMedicalPlayerAvailabilityStatusesFromProfiles,
     updateMedicalDatabaseSyncStatus,
+    withMedicalStateReadBatch,
     writeMedicalState,
   };
 }

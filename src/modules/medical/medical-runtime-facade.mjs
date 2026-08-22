@@ -245,6 +245,7 @@ export function createMedicalRuntimeFacade(deps = {}) {
     renderOperationsTopMenu: renderMedicalOperationsTopMenu,
     rosterRenderer: deps.medicalRosterRenderer,
     setOperationsTab: deps.setMedicalOperationsTab,
+    withEnsuredState: deps.withMedicalStateReadBatch,
   });
 
   operationsService = createMedicalRuntimeOperationsService({

@@ -16,18 +16,25 @@ export function createMedicalWorkspaceRuntimeRenderer(deps = {}) {
     typeof deps.renderOperationsSystem === "function" ? deps.renderOperationsSystem : () => "";
   const rosterRenderer = deps.rosterRenderer ?? { renderAvailabilityWorkspace: () => "" };
   const playerModalRenderer = deps.playerModalRenderer ?? { renderPlayerModal: () => "" };
+  const withEnsuredState =
+    typeof deps.withEnsuredState === "function"
+      ? deps.withEnsuredState
+      : (callback) => {
+          ensureState();
+          return callback();
+        };
 
   function renderMedicalTeamWorkspace(message = "", options = {}) {
     const workspace = getWorkspace();
     if (!workspace) {
       return;
     }
-    ensureState();
-    const teamName = getHeroTeamName();
-    const operationsTab = normalizeOperationsTab(getOperationsTab());
-    setOperationsTab(operationsTab);
-    const showAvailabilityWorkspace = !canViewPrivateDetails() || operationsTab === "availability";
-    workspace.innerHTML = `
+    return withEnsuredState(() => {
+      const teamName = getHeroTeamName();
+      const operationsTab = normalizeOperationsTab(getOperationsTab());
+      setOperationsTab(operationsTab);
+      const showAvailabilityWorkspace = !canViewPrivateDetails() || operationsTab === "availability";
+      workspace.innerHTML = `
 <div class="medical-shell">
 <header class="medical-hero">
 <div>
@@ -45,25 +52,26 @@ ${
 ${playerModalRenderer.renderPlayerModal(options)}
 </div>
 `;
-    if (options.focusRosterSearch) {
-      const searchInput = workspace.querySelector("[data-medical-roster-search]");
-      if (searchInput) {
-        searchInput.focus({ preventScroll: true });
-        const valueLength = searchInput.value.length;
-        const selectionStart = Math.min(Number(options.searchSelectionStart ?? valueLength), valueLength);
-        const selectionEnd = Math.min(Number(options.searchSelectionEnd ?? selectionStart), valueLength);
-        if (typeof searchInput.setSelectionRange === "function") {
-          searchInput.setSelectionRange(selectionStart, selectionEnd);
+      if (options.focusRosterSearch) {
+        const searchInput = workspace.querySelector("[data-medical-roster-search]");
+        if (searchInput) {
+          searchInput.focus({ preventScroll: true });
+          const valueLength = searchInput.value.length;
+          const selectionStart = Math.min(Number(options.searchSelectionStart ?? valueLength), valueLength);
+          const selectionEnd = Math.min(Number(options.searchSelectionEnd ?? selectionStart), valueLength);
+          if (typeof searchInput.setSelectionRange === "function") {
+            searchInput.setSelectionRange(selectionStart, selectionEnd);
+          }
         }
       }
-    }
-    if (options.focusMedicalRtpPlan) {
-      const focusTarget = workspace.querySelector("[data-medical-rtp-focus-target]") ?? workspace.querySelector("[data-medical-rtp-focus-row]");
-      if (focusTarget) {
-        focusTarget.scrollIntoView?.({ block: "center", behavior: "smooth" });
-        focusTarget.focus?.({ preventScroll: true });
+      if (options.focusMedicalRtpPlan) {
+        const focusTarget = workspace.querySelector("[data-medical-rtp-focus-target]") ?? workspace.querySelector("[data-medical-rtp-focus-row]");
+        if (focusTarget) {
+          focusTarget.scrollIntoView?.({ block: "center", behavior: "smooth" });
+          focusTarget.focus?.({ preventScroll: true });
+        }
       }
-    }
+    });
   }
 
   return {

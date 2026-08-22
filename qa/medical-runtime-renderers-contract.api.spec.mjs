@@ -52,6 +52,9 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
     innerHTML: "",
     querySelector: () => null,
   };
+  let batchCalls = 0;
+  let batchOpen = false;
+  let renderedInsideBatch = false;
   const renderer = createMedicalWorkspaceRuntimeRenderer({
     canViewPrivateDetails: () => true,
     ensureState: () => {},
@@ -64,8 +67,22 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
     playerModalRenderer: { renderPlayerModal: () => "<aside>Modal</aside>" },
     renderOperationsTopMenu: () => "<nav>Tabs</nav>",
     renderOperationsSystem: () => "<section>System</section>",
-    rosterRenderer: { renderAvailabilityWorkspace: (message) => `<main>${message}</main>` },
+    rosterRenderer: {
+      renderAvailabilityWorkspace: (message) => {
+        renderedInsideBatch = batchOpen;
+        return `<main>${message}</main>`;
+      },
+    },
     setOperationsTab: () => {},
+    withEnsuredState: (callback) => {
+      batchCalls += 1;
+      batchOpen = true;
+      try {
+        return callback();
+      } finally {
+        batchOpen = false;
+      }
+    },
   });
 
   renderer.renderMedicalTeamWorkspace("Saved.");
@@ -74,11 +91,14 @@ test("Medical workspace runtime renderer owns shell rendering outside app-runtim
   expect(workspace.innerHTML).toContain("Medical Team");
   expect(workspace.innerHTML).toContain("First Team");
   expect(workspace.innerHTML).toContain("<main>Saved.</main>");
+  expect(batchCalls).toBe(1);
+  expect(renderedInsideBatch).toBe(true);
   expect(app).toContain("configureMedicalRuntimeAccessors(() => medicalRuntimeService);");
   expect(runtimeService).toContain("createMedicalRuntimeFacade({");
   expect(accessors).toContain('export function renderMedicalTeamWorkspace(...args) { return callFacade("renderMedicalTeamWorkspace", args); }');
   expect(app).not.toContain("createMedicalWorkspaceRuntimeRenderer({");
   expect(facade).toContain("createMedicalWorkspaceRuntimeRenderer({");
+  expect(facade).toContain("withEnsuredState: deps.withMedicalStateReadBatch");
   expect(workspaceRenderer).not.toContain("writeMedicalState");
   expect(workspaceRenderer).not.toContain("recordMedicalDatabaseSyncEvent");
   expect(workspaceRenderer).not.toContain("localStorage");

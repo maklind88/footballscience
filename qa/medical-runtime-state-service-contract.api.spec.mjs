@@ -32,6 +32,7 @@ function createServiceHarness(options = {}) {
     canEditMedicalTeam: () => Boolean(options.canEdit),
     compareMedicalPlayers: (first, second) => String(first.name || "").localeCompare(String(second.name || "")),
     createMedicalLinkedPlayerProfileIndex: () => ({
+      ...(options.onCreateMedicalLinkedPlayerProfileIndex?.() || {}),
       profiles: Array.isArray(options.playerProfiles) ? options.playerProfiles : [],
       byId: new Map(
         (Array.isArray(options.playerProfiles) ? options.playerProfiles : [])
@@ -448,6 +449,56 @@ test("Medical runtime state service persists roster sync during private Medical 
     position: "Defender",
     rosterType: "squad",
   });
+});
+
+test("Medical runtime state service batches repeated render reads behind one roster sync", () => {
+  const players = Array.from({ length: 28 }, (_, index) => ({
+    id: `player-${index + 1}`,
+    name: `Player ${String(index + 1).padStart(2, "0")}`,
+    number: String(index + 1),
+    position: index < 3 ? "Goalkeeper" : index < 11 ? "Defender" : index < 19 ? "Midfielder" : "Forward",
+    rosterType: "squad",
+    countsInSquad: true,
+  }));
+  const createHarness = (counters) => createServiceHarness({
+    archiveMedicalPlayersRemovedFromSquad: () => {
+      counters.archivePasses += 1;
+    },
+    onCreateMedicalLinkedPlayerProfileIndex: () => {
+      counters.profileIndexPasses += 1;
+    },
+    playerProfiles: players,
+    state: {
+      selectedDate: "2026-05-31",
+      selectedPlayerId: players[0].id,
+      rosterVersion: "medical-roster-v1",
+      players,
+      records: [],
+      injuryPlans: [],
+      dataSafety: {},
+      policy: {},
+    },
+  });
+  const readCount = 200;
+  const baselineCounters = { archivePasses: 0, profileIndexPasses: 0 };
+  const baselineHarness = createHarness(baselineCounters);
+  for (let index = 0; index < readCount; index += 1) {
+    baselineHarness.service.ensureMedicalState();
+  }
+
+  const batchedCounters = { archivePasses: 0, profileIndexPasses: 0 };
+  const batchedHarness = createHarness(batchedCounters);
+  batchedHarness.service.withMedicalStateReadBatch(() => {
+    for (let index = 0; index < readCount; index += 1) {
+      batchedHarness.service.ensureMedicalState();
+    }
+  });
+
+  expect(baselineCounters).toEqual({ archivePasses: readCount, profileIndexPasses: readCount * 2 });
+  expect(batchedCounters).toEqual({ archivePasses: 1, profileIndexPasses: 2 });
+  expect(batchedHarness.getState().players.map((player) => player.id)).toEqual(
+    baselineHarness.getState().players.map((player) => player.id)
+  );
 });
 
 test("Medical runtime state service seeds missing roster through raw data-safety storage", () => {

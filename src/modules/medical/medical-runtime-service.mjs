@@ -277,6 +277,7 @@ export function createMedicalRuntimeService(deps = {}) {
       setMedicalPlayerModalTab: deps.setMedicalPlayerModalTab,
       setMedicalState: deps.setMedicalState,
       updateMedicalDatabaseSyncStatus: fromStateService("updateMedicalDatabaseSyncStatus"),
+      withMedicalStateReadBatch: fromStateService("withMedicalStateReadBatch"),
       win: deps.win,
       writeMedicalState: fromStateService("writeMedicalState"),
     });

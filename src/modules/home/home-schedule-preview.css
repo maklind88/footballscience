@@ -13,27 +13,28 @@
 }
 
 .platform-home-club-mark {
-  width: clamp(4.6rem, 7vw, 6rem);
+  width: clamp(6rem, 8vw, 7.5rem);
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  overflow: hidden;
-  border: 1px solid rgba(29, 29, 31, 0.1);
-  border-radius: 8px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
   color: #1d1d1f;
-  background: rgba(247, 247, 249, 0.86);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  background: transparent;
+  box-shadow: none;
 }
 
 .platform-home-club-mark img {
-  width: 78%;
-  height: 78%;
+  width: 100%;
+  height: 100%;
   display: block;
   object-fit: contain;
+  filter: drop-shadow(0 0.55rem 0.85rem rgba(29, 29, 31, 0.14));
 }
 
 .platform-home-club-mark strong {
-  font-size: clamp(1.05rem, 2vw, 1.45rem);
+  font-size: clamp(1.35rem, 2.4vw, 1.8rem);
   font-weight: 800;
   line-height: 1;
 }
@@ -546,10 +547,7 @@ body.is-dark-mode .dashboard-schedule-day-event.is-meeting { background: rgba(63
 body.is-dark-mode .dashboard-schedule-day-event.is-off { background: rgba(55, 65, 81, 0.46); }
 
 body.is-dark-mode .platform-home-club-mark {
-  border-color: rgba(148, 163, 184, 0.24);
   color: #f1f5f9;
-  background: rgba(15, 23, 42, 0.62);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -564,7 +562,7 @@ body.is-dark-mode .platform-home-club-mark {
   }
 
   .platform-home-club-mark {
-    width: 3.8rem;
+    width: 4.8rem;
   }
 
   .dashboard-schedule-preview {

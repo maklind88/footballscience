@@ -284,7 +284,7 @@ test("Presentation Mode opens from Home and renders the planned training deck", 
   await expect(presentation.locator("[data-presentation-theme-menu]")).toBeVisible();
   await expect(presentation.locator("[data-presentation-theme-menu] summary")).toHaveText("Theme");
   await expect(presentation.locator("[data-presentation-theme-preset='stadium']")).toBeHidden();
-  await expect(presentation.locator("[data-presentation-style-field='theme']")).toHaveValue("classic");
+  await expect(presentation.locator("[data-presentation-style-field='theme']")).toHaveValue("whiteboard");
   await expect(presentation.locator("[data-presentation-delete-slide]")).toBeDisabled();
   await presentation.locator("[data-presentation-theme-menu] summary").click();
   await expect(presentation.locator("[data-presentation-theme-preset='stadium']")).toBeVisible();

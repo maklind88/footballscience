@@ -171,8 +171,8 @@ test("Presentation Mode builds cover, info, overview and block slides from exist
   expect(harness.root.innerHTML).not.toContain("data-presentation-pass-select");
   expect(harness.root.innerHTML).toContain("data-presentation-date-input");
   const coverHtml = renderer.renderCoverSlide(model);
-  expect(coverHtml).toContain("is-theme-classic");
-  expect(coverHtml).toContain("--presentation-slide-bg: #08120f");
+  expect(coverHtml).toContain("is-theme-whiteboard");
+  expect(coverHtml).toContain("--presentation-slide-bg: #f3f7fb");
   expect(coverHtml).toContain('data-presentation-text-field="cover.title"');
   expect(coverHtml).toContain('contenteditable="true"');
   expect(renderer.renderCoverSlide({ ...model, presenting: true })).not.toContain('contenteditable="true"');

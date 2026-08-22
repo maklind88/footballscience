@@ -1,4 +1,4 @@
-const defaultTheme = "classic";
+const defaultTheme = "whiteboard";
 
 export const presentationThemeOptions = Object.freeze([
   {

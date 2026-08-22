@@ -79,9 +79,9 @@ ${escapeHtml(getRtpProgramItems(plan.rtpProgramWarningPoints, 1)[0] || "Set hold
 <section class="medical-rtp-action-queue" aria-label="RTP medical action queue">
 <header>
 <div>
-<span>RTP Action Queue</span>
-<strong>What Medical should handle next</strong>
-<small>Prioritized by hold rules, reviews and tracker status.</small>
+<span>Next actions</span>
+<strong>Clinical review queue</strong>
+<small>Hold rules, review dates and current progression.</small>
 </div>
 <b>${summary.total ? `${summary.total} action${summary.total === 1 ? "" : "s"}` : "No actions"}</b>
 </header>
@@ -120,7 +120,7 @@ aria-label="Open Medical Plan RTP focus for ${escapeHtml(item.playerName)}"
   )
   .join("")}
 </div>`
-    : `<div class="medical-empty-inline">No RTP action queue items. Active RTP programs are tracking normally.</div>`
+    : `<div class="medical-empty-inline">No RTP actions due.</div>`
 }
 </section>
 `;
@@ -130,24 +130,16 @@ aria-label="Open Medical Plan RTP focus for ${escapeHtml(item.playerName)}"
     const activeCases = Array.isArray(summary.activeCases) ? summary.activeCases : [];
     const rtpCases = activeCases.filter(({ plan }) => hasRtpProgramStarter(plan)).slice(0, 6);
     if (!activeCases.length) {
-      return `
-<section class="medical-rtp-program-empty-board" aria-label="No active RTP programs">
-<div>
-<span>Active player RTP programs</span>
-<strong>No player-specific RTP program is active yet</strong>
-<small>Create or open a player's Medical Plan, apply a Library guide, then save it. That saved plan will appear here and on the Player Profile.</small>
-</div>
-</section>
-`;
+      return "";
     }
     return `
 <section class="medical-rtp-case-workspace" aria-label="Medical RTP program workspace">
 <header>
 <div>
-<span>Active player RTP programs</span>
-<strong>Saved Medical Plans using RTP Library starters</strong>
+<span>RTP programs</span>
+<strong>Structured return-to-play</strong>
 </div>
-<small>${rtpCases.length}/${activeCases.length} active cases have a structured starter</small>
+<small>${rtpCases.length}/${activeCases.length} plans linked to RTP Library</small>
 </header>
 ${renderRtpActionQueue(activeCases)}
 ${
@@ -190,7 +182,7 @@ ${renderRtpProgramSection("Hold rules", getRtpProgramItems(plan.rtpProgramHoldRu
   })
   .join("")}
 </div>`
-    : `<div class="medical-empty-inline">No player-specific RTP program has been saved yet. Apply a Library guide to an active case, review the Medical Plan, then save it.</div>`
+    : `<div class="medical-empty-inline">No structured RTP program for the active cases.</div>`
 }
 </section>
 `;

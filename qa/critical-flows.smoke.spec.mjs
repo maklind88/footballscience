@@ -4085,6 +4085,37 @@ test("Medical plan draft survives modal rerenders and saves long-term zero avail
   await modalTabs.getByRole("tab", { name: "Medical Plan" }).click();
   const planForm = page.locator("#medicalInjuryPlanForm");
   await expect(planForm).toBeVisible();
+  const expectPlanModalToFitViewport = async () => {
+    const layout = await page.evaluate(() => {
+      const selectors = [
+        ".medical-modal-card",
+        ".medical-modal-body",
+        "#medicalInjuryPlanForm",
+        ".medical-plan-case-section",
+        ".medical-plan-program-section",
+      ];
+      return {
+        viewportWidth: window.innerWidth,
+        elements: selectors.map((selector) => {
+          const element = document.querySelector(selector);
+          const rect = element?.getBoundingClientRect();
+          return {
+            selector,
+            left: rect?.left ?? 0,
+            right: rect?.right ?? 0,
+            clientWidth: element?.clientWidth ?? 0,
+            scrollWidth: element?.scrollWidth ?? 0,
+          };
+        }),
+      };
+    });
+    layout.elements.forEach((element) => {
+      expect(element.left, element.selector).toBeGreaterThanOrEqual(-1);
+      expect(element.right, element.selector).toBeLessThanOrEqual(layout.viewportWidth + 1);
+      expect(element.scrollWidth, element.selector).toBeLessThanOrEqual(element.clientWidth + 2);
+    });
+  };
+  await expectPlanModalToFitViewport();
 
   await planForm.locator('[name="injuryType"]').fill("ACL long-term injury");
   await planForm.locator('[name="bodyArea"]').fill("Knee");
@@ -4177,6 +4208,9 @@ test("Medical plan draft survives modal rerenders and saves long-term zero avail
       participation: 0,
     });
 
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectPlanModalToFitViewport();
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.locator(".medical-modal-close").click();
   const playerRow = page.locator('[data-medical-roster-row="qa-plan-player"]');
   await expect(playerRow.locator(".medical-quick-rec-button.is-active")).toHaveText("0%");
@@ -4888,7 +4922,7 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(operationsMenu.locator("[data-medical-ops-tab]")).toHaveCount(7);
   await expect(operationsMenu.locator('[data-medical-ops-tab="overview"]')).toHaveCount(0);
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveText("Availability");
-  await expect(operationsMenu.locator('[data-medical-ops-tab="programs"]')).toHaveText("Programs");
+  await expect(operationsMenu.locator('[data-medical-ops-tab="programs"]')).toHaveText("Rehab Programs");
   await expect(operationsMenu.locator('[data-medical-ops-tab="rtp-library"]')).toHaveText("RTP Library");
   await expect(operationsMenu.locator('[data-medical-ops-tab="availability"]')).toHaveClass(/is-active/);
   await expect(page.locator("[data-medical-availability-workspace]")).toBeVisible();
@@ -4929,7 +4963,7 @@ test("Medical operations board separates signals, cases, history and season view
   await expect(operations).not.toContainText("Actual exceeded recommendation");
   const signalsTable = operations.locator(".medical-ops-signals-table");
   await expect(signalsTable).toContainText("QA Risk Player");
-  await expect(signalsTable).toContainText("QA Clear Player");
+  await expect(signalsTable).not.toContainText("QA Clear Player");
   await expect(signalsTable).not.toContainText("QA Guest Risk");
 
   await operationsMenu.locator('[data-medical-ops-tab="cases"]').click();

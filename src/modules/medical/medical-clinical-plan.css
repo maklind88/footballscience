@@ -1,0 +1,146 @@
+#medicalTeamWorkspace .medical-plan-case-section {
+  overflow: hidden;
+  border: 1px solid var(--medical-line);
+  border-radius: 8px;
+  background: var(--medical-surface);
+}
+
+#medicalTeamWorkspace .medical-plan-case-section > header {
+  min-height: 2.55rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--medical-line);
+  background: var(--medical-surface-muted);
+}
+
+#medicalTeamWorkspace .medical-plan-case-section > header span,
+#medicalTeamWorkspace .medical-plan-case-section > header strong {
+  color: var(--medical-ink);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+#medicalTeamWorkspace .medical-plan-case-section > header span {
+  color: var(--medical-muted);
+  text-transform: uppercase;
+}
+
+#medicalTeamWorkspace .medical-plan-case-section .medical-plan-form-grid {
+  padding: 0.7rem;
+}
+
+#medicalTeamWorkspace .medical-plan-case-section .medical-duration-presets {
+  padding: 0 0.7rem 0.7rem;
+}
+
+#medicalTeamWorkspace .medical-plan-program-section {
+  overflow: hidden;
+  border: 1px solid var(--medical-line);
+  border-radius: 8px;
+  background: var(--medical-surface);
+}
+
+#medicalTeamWorkspace .medical-plan-program-section > summary {
+  min-height: 3.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+  list-style: none;
+  background: var(--medical-surface);
+}
+
+#medicalTeamWorkspace .medical-plan-program-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+#medicalTeamWorkspace .medical-plan-program-section > summary > span {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+#medicalTeamWorkspace .medical-plan-program-section > summary strong {
+  color: var(--medical-ink);
+  font-size: 0.8rem;
+  font-weight: 760;
+}
+
+#medicalTeamWorkspace .medical-plan-program-section > summary small {
+  color: var(--medical-muted);
+  font-size: 0.66rem;
+  font-weight: 630;
+}
+
+#medicalTeamWorkspace .medical-plan-program-section > summary b {
+  min-height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.48rem;
+  border: 1px solid var(--medical-line);
+  border-radius: 4px;
+  color: var(--medical-muted);
+  background: var(--medical-surface-muted);
+  font-size: 0.64rem;
+  font-weight: 720;
+}
+
+#medicalTeamWorkspace .medical-plan-program-section[open] > summary {
+  border-bottom: 1px solid var(--medical-line);
+  background: var(--medical-surface-muted);
+}
+
+#medicalTeamWorkspace .medical-plan-program-content {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.7rem;
+}
+
+#medicalTeamWorkspace .medical-rtp-program-editor,
+#medicalTeamWorkspace .medical-rtp-program-tracker,
+#medicalTeamWorkspace .medical-rtp-program-guide-loader,
+#medicalTeamWorkspace .medical-rtp-guide-preview,
+#medicalTeamWorkspace .medical-rtp-program-field {
+  border-color: var(--medical-line);
+  border-radius: 6px;
+  background: var(--medical-surface);
+  box-shadow: none;
+}
+
+#medicalTeamWorkspace .medical-rtp-exercise-grid-compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0;
+  border-top: 0;
+}
+
+#medicalTeamWorkspace .medical-rtp-exercise-card,
+#medicalTeamWorkspace .medical-rtp-exercise-card > header,
+#medicalTeamWorkspace .medical-rtp-exercise-card > header strong,
+#medicalTeamWorkspace .medical-rtp-exercise-card p,
+#medicalTeamWorkspace .medical-rtp-exercise-card small {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+#medicalTeamWorkspace .medical-rtp-exercise-card {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#medicalTeamWorkspace .medical-rtp-exercise-card > header {
+  display: grid;
+  gap: 0.18rem;
+}
+
+@media (max-width: 820px) {
+  #medicalTeamWorkspace .medical-rtp-exercise-grid-compact {
+    grid-template-columns: 1fr;
+  }
+}

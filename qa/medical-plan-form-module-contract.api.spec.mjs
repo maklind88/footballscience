@@ -62,6 +62,9 @@ test("Medical plan form renderer keeps injury plan and clearance form contracts"
 
   const form = renderer.renderInjuryPlanForm(player, true);
   expect(form).toContain('id="medicalInjuryPlanForm"');
+  expect(form).toContain('class="medical-plan-case-section"');
+  expect(form).toContain('class="medical-plan-program-section" open');
+  expect(form.indexOf("medical-plan-case-section")).toBeLessThan(form.indexOf("medical-plan-program-section"));
   expect(form).toContain('name="planId" value="plan1"');
   expect(form).toContain("RTP Library starter");
   expect(form).toContain("Hamstring Strain");

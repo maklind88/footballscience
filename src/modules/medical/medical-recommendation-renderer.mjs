@@ -218,7 +218,7 @@ ${
 }
 <small class="medical-rtp-program-privacy-note">Private Medical program. Share only coach-safe status separately.</small>
 `
-    : `<div class="medical-empty-inline">No RTP Library starter has been applied to this player's Medical Plan yet.</div>`
+    : `<div class="medical-empty-inline">No RTP program attached.</div>`
 }
 </article>
 `;

@@ -80,12 +80,12 @@ export const medicalDefaultRosterVersion = "ncc-2026-roster-v1";
 
 export const medicalOperationsTabOptions = [
   { key: "availability", label: "Availability" },
-  { key: "signals", label: "Risk Signals" },
+  { key: "signals", label: "Review Queue" },
   { key: "cases", label: "Active Cases" },
-  { key: "programs", label: "Programs" },
+  { key: "programs", label: "Rehab Programs" },
   { key: "history", label: "History" },
   { key: "rtp-library", label: "RTP Library" },
-  { key: "season", label: "Season" },
+  { key: "season", label: "Reports" },
 ];
 
 export const medicalPlayerModalTabOptions = [

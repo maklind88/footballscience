@@ -601,7 +601,6 @@ ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medica
       ? requestedSelectedPlanId
       : "";
     const activePrograms = activeItems.length;
-    const structuredPrograms = playerItems.filter((item) => item.hasProgramStarter).length;
     const programView = selectedPlanId ? "detail" : "list";
     return `
 <div class="medical-rtp-programs-workspace medical-programs-workspace">
@@ -609,20 +608,20 @@ ${renderTacticalBoardPitchSvgLines("full-wide", { escapeHtml, className: "medica
 <article class="medical-program-list-panel" data-medical-program-list-panel ${selectedPlanId ? "hidden" : ""}>
 <header>
 <div>
-<span>Medical programs</span>
-<strong>Active player RTP programs</strong>
+<span>Rehab programs</span>
+<strong>Player programs</strong>
 </div>
-<small>${activePrograms} active / ${structuredPrograms} structured</small>
+<small>${activePrograms} active</small>
 </header>
 <div class="medical-program-player-list medical-program-active-list">
 ${activeItems.length
     ? activeItems.map((item) => renderPlayerProgramRow(item, selectedPlanId)).join("")
-    : `<div class="medical-program-empty"><strong>No active RTP programs</strong><span>Create one only when a player has a Medical Plan that requires structured return-to-performance work.</span></div>`}
+    : `<div class="medical-program-empty"><strong>No active programs</strong><span>Create a program when a player needs structured rehabilitation.</span></div>`}
 </div>
 ${inactiveItems.length ? `
 <details class="medical-program-squad-starters">
 <summary>
-<span><strong>Start from squad player</strong><small>Players without an active medical program</small></span>
+<span><strong>Create program</strong><small>Select a squad player</small></span>
 <b>${inactiveItems.length}</b>
 </summary>
 <div class="medical-program-player-list">

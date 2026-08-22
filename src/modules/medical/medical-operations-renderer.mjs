@@ -82,118 +82,6 @@ ${renderTabs(activeTab, tabOptions, "medical-ops-tabs-top")}
     medicalLoadGateOptions,
   });
 
-  const normalizeRtpCaseText = (value) =>
-    String(value ?? "")
-      .trim()
-      .toLowerCase();
-
-  const planHasRtpStarter = (plan = {}) =>
-    Boolean(
-      plan.rtpLibraryProfileId ||
-        plan.rtpLibraryProfileName ||
-        (Array.isArray(plan.rtpProgramGateCriteria) && plan.rtpProgramGateCriteria.length) ||
-        (Array.isArray(plan.rtpProgramExercises) && plan.rtpProgramExercises.length) ||
-        (Array.isArray(plan.rtpProgramNextSteps) && plan.rtpProgramNextSteps.length)
-    );
-
-  const getProfileMatchText = (profile = {}) =>
-    [
-      profile.id,
-      profile.name,
-      profile.system,
-      profile.bodyArea,
-      ...(profile.symptoms || []),
-      ...(profile.riskTags || []),
-      ...(profile.movementPlanes || []),
-    ]
-      .map(normalizeRtpCaseText)
-      .join(" ");
-
-  const getPlanMatchTerms = (plan = {}) =>
-    [plan.injuryType, plan.bodyArea, plan.phase, plan.comment, plan.coachNote]
-      .map(normalizeRtpCaseText)
-      .filter(Boolean);
-
-  const getProfileScoreForPlan = (profile, plan) => {
-    const terms = getPlanMatchTerms(plan);
-    const text = getProfileMatchText(profile);
-    return terms.reduce((score, term) => {
-      if (!term) return score;
-      if (normalizeRtpCaseText(profile.name) === term) return score + 8;
-      if (normalizeRtpCaseText(profile.bodyArea) === term) return score + 4;
-      return text.includes(term) || term.includes(normalizeRtpCaseText(profile.bodyArea)) ? score + 2 : score;
-    }, 0);
-  };
-
-  const getSuggestedProfilesForPlan = (plan = {}) =>
-    [...getMedicalRtpLibraryProfiles()].sort((first, second) => {
-      const scoreDiff = getProfileScoreForPlan(second, plan) - getProfileScoreForPlan(first, plan);
-      return scoreDiff || String(first.name || "").localeCompare(String(second.name || ""));
-    });
-
-  const renderCaseRtpStarterLinker = (summary) => {
-    const profiles = getMedicalRtpLibraryProfiles();
-    const casesNeedingStarter = summary.activeCases.filter(({ plan }) => !planHasRtpStarter(plan));
-    if (!profiles.length || !casesNeedingStarter.length) {
-      return "";
-    }
-    return `
-<section class="medical-rtp-case-linker" aria-label="Open RTP starter drafts from active cases">
-<header>
-<div class="medical-rtp-case-linker-heading">
-<span>RTP Starter Queue</span>
-<strong>${casesNeedingStarter.length} active case${casesNeedingStarter.length === 1 ? "" : "s"} ${casesNeedingStarter.length === 1 ? "needs" : "need"} a Library guide</strong>
-<small>Choose the best RTP guide, open the player's Medical Plan draft, then review and save. Nothing becomes active until Medical saves the plan.</small>
-</div>
-<div class="medical-rtp-case-linker-source">
-<b>${casesNeedingStarter.length}/${summary.activeCases.length} need starter</b>
-<small>Medical Plan remains source</small>
-</div>
-</header>
-<div class="medical-rtp-case-linker-steps" aria-label="Safe RTP starter workflow">
-<span><strong>1</strong><b>Case</b><small>Confirm injury context</small></span>
-<span><strong>2</strong><b>Guide</b><small>Select RTP Library starter</small></span>
-<span><strong>3</strong><b>Draft</b><small>Open Medical Plan</small></span>
-<span><strong>4</strong><b>Save</b><small>Medical approves program</small></span>
-</div>
-<div class="medical-rtp-case-linker-grid">
-${casesNeedingStarter
-  .map(({ player, plan, severity, review }) => {
-    const suggestedProfiles = getSuggestedProfilesForPlan(plan);
-    const topProfile = suggestedProfiles[0] || profiles[0];
-    return `
-<article class="medical-rtp-case-linker-card medical-ops-tone-${escapeHtml(severity.tone)}">
-<div class="medical-rtp-case-linker-player">
-<span>Active case</span>
-<strong>${escapeHtml(player.name)}</strong>
-<small>${escapeHtml([player.position || "Position", plan.injuryType, plan.bodyArea].filter(Boolean).join(" / "))}</small>
-</div>
-<div class="medical-rtp-case-linker-guide">
-<span>Suggested guide</span>
-<strong>${escapeHtml(review.label)}</strong>
-<small>${topProfile ? `Best match: ${escapeHtml(topProfile.name)}` : "Select the RTP Library guide that fits this case."}</small>
-</div>
-<form data-medical-rtp-case-linker-form data-medical-plan-id="${escapeHtml(plan.id)}">
-<label>
-<span>Guide to load</span>
-<select data-medical-rtp-case-profile aria-label="RTP Library guide for ${escapeHtml(player.name)}">
-${suggestedProfiles
-  .map((profileItem, index) => `<option value="${escapeHtml(profileItem.id)}">${index === 0 ? "Suggested: " : ""}${escapeHtml(profileItem.name)}</option>`)
-  .join("")}
-</select>
-</label>
-<button type="submit">Open Medical Plan draft</button>
-<small>No program is saved yet. Medical reviews the draft and saves the plan.</small>
-</form>
-</article>
-`;
-  })
-  .join("")}
-</div>
-</section>
-`;
-  };
-
   const rtpProgramWorkspaceRenderer = createMedicalRtpProgramWorkspaceRenderer({
     escapeHtml,
     formatMedicalDateLabel,
@@ -350,7 +238,9 @@ ${summary.activeCases.length
 `;
   };
 
-  const renderSignals = (summary) => `
+  const renderSignals = (summary) => {
+    const signals = Array.isArray(summary.actionSignals) ? summary.actionSignals : [];
+    return `
 <div class="medical-ops-table medical-ops-signals-table">
 <div class="medical-ops-table-head" aria-hidden="true">
 <span>Player</span>
@@ -359,8 +249,8 @@ ${summary.activeCases.length
 <span>Signals</span>
 <span>Action</span>
 </div>
-${summary.signals
-  .map((signal) => {
+${signals.length
+  ? signals.map((signal) => {
     const planLabel = signal.activePlan
       ? `${signal.activePlan.injuryType} / ${getMedicalRtpPhaseOption(signal.activePlan.rtpPhase).label}`
       : "No active case";
@@ -373,10 +263,11 @@ ${summary.signals
 <strong>${escapeHtml(signal.actionSeverity ? signal.actionLabel : signal.label)}<small>${escapeHtml(signal.actionSeverity ? signal.primaryActionDriver : "No action")}</small></strong>
 </button>
 `;
-  })
-  .join("")}
+  }).join("")
+  : `<div class="medical-empty-inline">No players need medical review right now.</div>`}
 </div>
 `;
+  };
 
   const renderCases = (summary) => `
 <div class="medical-rtp-case-layout">
@@ -405,7 +296,6 @@ ${summary.activeCases.length
   : `<div class="medical-empty-inline">No active clinical cases today.</div>`}
 </div>
 ${rtpProgramRenderer.renderRtpCaseProgramCards(summary)}
-${renderCaseRtpStarterLinker(summary)}
 </div>
 `;
 
@@ -448,7 +338,7 @@ ${renderCaseRtpStarterLinker(summary)}
 <form class="medical-ops-history-controls" id="medicalHistoryFilterForm" data-medical-history-filter-form aria-label="Filter medical history">
 <label class="medical-ops-history-search">
 <span>Search</span>
-<input type="search" name="historySearch" value="${escapeHtml(searchQuery)}" placeholder="Search restricted history" data-medical-history-search>
+<input type="search" name="historySearch" value="${escapeHtml(searchQuery)}" placeholder="Search medical history" data-medical-history-search>
 </label>
 <button type="submit" class="medical-ops-history-search-button">Search</button>
 <label>
@@ -524,7 +414,7 @@ ${index < initialVisibleCount ? "" : "hidden"}
 `
       )
       .join("")
-  : `<div class="medical-empty-inline">${allEvents.length ? "No restricted history matches the current filters." : "No restricted medical history yet."}</div>`}
+  : `<div class="medical-empty-inline">${allEvents.length ? "No medical history matches the current filters." : "No medical history yet."}</div>`}
 ${filteredEvents.length > historyPageSize
   ? `
 <div class="medical-ops-history-pager" data-medical-history-pager>

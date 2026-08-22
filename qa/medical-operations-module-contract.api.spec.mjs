@@ -11,6 +11,15 @@ test("Medical operations renderer owns operations tabs, private system, and coac
     "rtp-library",
     "season",
   ]);
+  expect(medicalOperationsTabOptions.map((tab) => tab.label)).toEqual([
+    "Availability",
+    "Review Queue",
+    "Active Cases",
+    "Rehab Programs",
+    "History",
+    "RTP Library",
+    "Reports",
+  ]);
 
   const signal = {
     player: { id: "p1", name: "Mak Player", position: "CM" },
@@ -147,11 +156,12 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(privateMarkup).toContain("medical-operations-system");
   expect(privateMarkup).toContain("medical-ops-signals-table");
   expect(privateMarkup).toContain("Mak Player");
+  expect(privateMarkup).not.toContain("Clear Player");
   const casesMarkup = renderer.renderPrivateSystem(summary, "cases", "2026-05-31");
-  expect(casesMarkup).toContain("Active player RTP programs");
-  expect(casesMarkup).toContain("Saved Medical Plans using RTP Library starters");
-  expect(casesMarkup).toContain("RTP Action Queue");
-  expect(casesMarkup).toContain("What Medical should handle next");
+  expect(casesMarkup).toContain("Structured return-to-play");
+  expect(casesMarkup).toContain("plans linked to RTP Library");
+  expect(casesMarkup).toContain("Next actions");
+  expect(casesMarkup).toContain("Clinical review queue");
   expect(casesMarkup).toContain("Blocked by hold rule");
   expect(casesMarkup).toContain("Hold progression");
   expect(casesMarkup).toContain('data-medical-rtp-focus="hold"');
@@ -165,30 +175,24 @@ test("Medical operations renderer owns operations tabs, private system, and coac
   expect(casesMarkup).toContain("1/3 passed");
   expect(casesMarkup).toContain("Hold: pain with walking after 48 hours");
   expect(casesMarkup).toContain("Open Medical Plan");
-  expect(casesMarkup).toContain("RTP Starter Queue");
-  expect(casesMarkup).toContain("active case needs a Library guide");
-  expect(casesMarkup).toContain("Medical Plan remains source");
-  expect(casesMarkup).toContain("Medical approves program");
-  expect(casesMarkup).toContain("data-medical-rtp-case-linker-form");
-  expect(casesMarkup).toContain("data-medical-plan-id=\"plan-2\"");
-  expect(casesMarkup).toContain("Best match: ACL Reconstruction RTP");
-  expect(casesMarkup).toContain("Guide to load");
-  expect(casesMarkup).toContain("Open Medical Plan draft");
-  expect(casesMarkup).toContain("Nothing becomes active until Medical saves the plan.");
+  expect(casesMarkup).not.toContain("RTP Starter Queue");
+  expect(casesMarkup).not.toContain("medical-rtp-case-linker");
   expect(casesMarkup).toContain("Load focus");
   expect(casesMarkup).toContain("Risk watch");
   expect(casesMarkup).toContain("Warning point");
-  expect(casesMarkup.indexOf("medical-ops-cases-table")).toBeLessThan(casesMarkup.indexOf("RTP Starter Queue"));
-  expect(casesMarkup.indexOf("medical-ops-cases-table")).toBeLessThan(casesMarkup.indexOf("Active player RTP programs"));
+  expect(casesMarkup.indexOf("medical-ops-cases-table")).toBeLessThan(casesMarkup.indexOf("Structured return-to-play"));
+  const emptyCasesMarkup = renderer.renderPrivateSystem({ ...summary, activeCases: [] }, "cases", "2026-05-31");
+  expect(emptyCasesMarkup).toContain("No active clinical cases today.");
+  expect(emptyCasesMarkup).not.toContain("medical-rtp-case-workspace");
   const programsMarkup = renderer.renderPrivateSystem(summary, "programs", "2026-05-31");
   expect(programsMarkup).toContain("medical-rtp-programs-workspace");
   expect(programsMarkup).toContain("medical-programs-layout");
   expect(programsMarkup).toContain('data-medical-program-view="list"');
   expect(programsMarkup).toContain("data-medical-program-list-panel");
-  expect(programsMarkup).toContain("Medical programs");
-  expect(programsMarkup).toContain("Active player RTP programs");
-  expect(programsMarkup).toContain("2 active / 1 structured");
-  expect(programsMarkup).toContain("Start from squad player");
+  expect(programsMarkup).toContain("Rehab programs");
+  expect(programsMarkup).toContain("Player programs");
+  expect(programsMarkup).toContain("2 active");
+  expect(programsMarkup).toContain("Create program");
   expect(programsMarkup).toContain("Field Board");
   expect(programsMarkup).toContain("medical-board-surface");
   expect(programsMarkup).toContain("Mak Player");
@@ -258,8 +262,8 @@ test("Medical operations renderer owns operations tabs, private system, and coac
     "2026-05-31"
   );
   expect(emptyProgramsMarkup).toContain('data-medical-program-view="list"');
-  expect(emptyProgramsMarkup).toContain("No active RTP programs");
-  expect(emptyProgramsMarkup).toContain("Start from squad player");
+  expect(emptyProgramsMarkup).toContain("No active programs");
+  expect(emptyProgramsMarkup).toContain("Create program");
   expect(emptyProgramsMarkup).toContain("Field Board");
   expect(emptyProgramsMarkup).toContain("No player program is active on the board");
   const rtpMarkup = renderer.renderPrivateSystem(summary, "rtp-library", "2026-05-31");

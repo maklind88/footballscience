@@ -330,11 +330,12 @@ ${renderProgramField({
     const isEditing = Boolean(draft.planId);
     const hasRtpLibraryStarter = Boolean(draft.rtpLibraryProfileId);
     const trackerSummary = getMedicalRtpTrackerSummary(draft);
+    const shouldOpenRtpProgram = hasRtpLibraryStarter || isRtpFocusForDraft(draft, options);
     return `
 <article class="medical-modal-main-card medical-injury-plan-card">
 <div class="medical-card-headline">
 <h2>${isEditing ? "Edit Medical Plan" : "Medical Plan"}</h2>
-<span>${isEditing ? "Updates restriction, RTP program and Player Profile summary" : "Create the player-specific case, restriction and RTP program"}</span>
+<span>${isEditing ? "Case, restriction and RTP" : "New case, restriction and RTP"}</span>
 </div>
 <form id="medicalInjuryPlanForm" class="medical-profile-form">
 <input type="hidden" name="planId" value="${escapeHtml(draft.planId)}" />
@@ -343,19 +344,11 @@ ${renderProgramField({
 <input type="hidden" name="rtpLibraryProfileName" value="${escapeHtml(draft.rtpLibraryProfileName)}" />
 <input type="hidden" name="rtpLibraryEvidenceLevel" value="${escapeHtml(draft.rtpLibraryEvidenceLevel)}" />
 <input type="hidden" name="rtpLibrarySummary" value="${escapeHtml(draft.rtpLibrarySummary)}" />
-${hasRtpLibraryStarter ? `
-<section class="medical-rtp-plan-starter">
-<div>
-<span>RTP Library starter</span>
-<strong>${escapeHtml(draft.rtpLibraryProfileName)}</strong>
-<small>${escapeHtml(draft.rtpLibraryEvidenceLevel)} evidence level</small>
-</div>
-<p>${escapeHtml(draft.rtpLibrarySummary)}</p>
-</section>
-` : ""}
-${renderRtpProgramBuilder(draft, canEdit)}
-${renderRtpProgramFocus(draft, trackerSummary, options)}
-${renderRtpProgramTracker(draft, canEdit, options)}
+<section class="medical-plan-case-section" aria-label="Case and availability">
+<header>
+<span>Case and availability</span>
+<strong>${isEditing ? "Current medical plan" : "New medical plan"}</strong>
+</header>
 <div class="medical-form-grid medical-plan-form-grid">
 <label>
 <span>Injury / reason</span>
@@ -421,6 +414,31 @@ ${canEdit ? "" : "disabled"}
   )
   .join("")}
 </div>
+</section>
+<details class="medical-plan-program-section" ${shouldOpenRtpProgram ? "open" : ""}>
+<summary>
+<span>
+<strong>RTP program</strong>
+<small>Guide, progression criteria, exercises and hold rules</small>
+</span>
+<b>${hasRtpLibraryStarter ? "Configured" : "Optional"}</b>
+</summary>
+<div class="medical-plan-program-content">
+${hasRtpLibraryStarter ? `
+<section class="medical-rtp-plan-starter">
+<div>
+<span>RTP Library starter</span>
+<strong>${escapeHtml(draft.rtpLibraryProfileName)}</strong>
+<small>${escapeHtml(draft.rtpLibraryEvidenceLevel)} evidence level</small>
+</div>
+<p>${escapeHtml(draft.rtpLibrarySummary)}</p>
+</section>
+` : ""}
+${renderRtpProgramBuilder(draft, canEdit)}
+${renderRtpProgramFocus(draft, trackerSummary, options)}
+${renderRtpProgramTracker(draft, canEdit, options)}
+</div>
+</details>
 <label>
 <span>Internal clinical note</span>
 <textarea name="comment" rows="3" ${canEdit ? "" : "disabled"}>${escapeHtml(draft.comment)}</textarea>

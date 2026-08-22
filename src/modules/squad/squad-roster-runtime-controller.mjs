@@ -35,12 +35,12 @@ export function createSquadRosterRuntimeController(options = {}) {
   }
 
   function renderListOnly(renderOptions = {}) {
-    const hydrationGeneration = Number(renderOptions.hydrationGeneration) || 0;
+    let hydrationGeneration = Number(renderOptions.hydrationGeneration) || 0;
     if (hydrationGeneration && hydrationGeneration !== availabilityHydrationGeneration) {
       return false;
     }
     if (!hydrationGeneration) {
-      availabilityHydrationGeneration += 1;
+      hydrationGeneration = ++availabilityHydrationGeneration;
     }
     options.ensurePlayerProfilesState?.();
     if (renderOptions.medicalStateReady !== true) {
@@ -58,23 +58,29 @@ export function createSquadRosterRuntimeController(options = {}) {
       ? activeElement.closest?.("[data-player-profile-select]")?.dataset?.playerProfileSelect || ""
       : "";
     const medicalSnapshotsByPlayerId = renderOptions.medicalSnapshotsByPlayerId;
+    const includeTrainingAvailability = Boolean(
+      medicalSnapshotsByPlayerId || renderOptions.includeTrainingAvailability === true
+    );
     const medicalSnapshotContext = medicalSnapshotsByPlayerId
       ? null
       : options.createMedicalSnapshotContext?.({
           medicalStateReady: true,
-          includeTrainingAvailability: renderOptions.includeTrainingAvailability !== false,
+          includeTrainingAvailability,
         });
 
     listPanel.innerHTML = options.renderRosterSections?.(visiblePlayers, {
       rosterSummary: options.getRosterSummary?.(options.getPlayers?.() || []),
       visibleSummary: options.getRosterSummary?.(visiblePlayers),
       medicalStateReady: true,
-      includeTrainingAvailability: renderOptions.includeTrainingAvailability !== false,
+      includeTrainingAvailability,
       medicalSnapshotContext,
       medicalSnapshotsByPlayerId,
     }) || "";
     restoreFocusedPlayer(listPanel, focusedPlayerId);
     options.queueAgeHydration?.();
+    if (!medicalSnapshotsByPlayerId && renderOptions.includeTrainingAvailability !== true) {
+      queueAvailabilityHydration(hydrationGeneration);
+    }
     return true;
   }
 
@@ -99,7 +105,7 @@ export function createSquadRosterRuntimeController(options = {}) {
       if (generation !== availabilityHydrationGeneration || !isWorkspaceActive()) {
         return;
       }
-      players.slice(playerIndex, playerIndex + 4).forEach((player) => {
+      players.slice(playerIndex, playerIndex + 1).forEach((player) => {
         medicalSnapshotsByPlayerId.set(
           player.id,
           options.getMedicalSnapshot?.(player.id, undefined, {
@@ -109,7 +115,7 @@ export function createSquadRosterRuntimeController(options = {}) {
           })
         );
       });
-      playerIndex += 4;
+      playerIndex += 1;
       if (playerIndex < players.length) {
         win.setTimeout(hydrateNextChunk, 0);
         return;

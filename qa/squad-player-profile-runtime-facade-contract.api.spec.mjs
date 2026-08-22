@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPlayerProfileRuntimeFacade } from "../src/modules/squad/index.mjs";
+import { createSquadRosterRuntimeController } from "../src/modules/squad/squad-roster-runtime-controller.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
@@ -364,4 +365,128 @@ test("Squad player profile runtime facade preserves Add Player draft values acro
     temporaryTo: "2026-06-18",
   });
   expect(harness.ui.playerProfilesWorkspace.innerHTML).toContain("new-player-modal=Draft Forward");
+});
+
+test("Squad roster runtime hydrates historical availability one player per task and preserves focus", () => {
+  const players = [{ id: "p1" }, { id: "p2" }, { id: "p3" }];
+  const frames = [];
+  const timers = [];
+  const snapshotCalls = [];
+  const renderCalls = [];
+  const contextCalls = [];
+  const focusCalls = [];
+  const focusedRow = {
+    dataset: { playerProfileSelect: "p2" },
+    focus: (options) => focusCalls.push(options),
+  };
+  const focusedControl = { closest: () => focusedRow };
+  const listPanel = {
+    innerHTML: "",
+    contains: (element) => element === focusedControl,
+    querySelectorAll: () => [focusedRow],
+  };
+  const workspace = {
+    closest: () => ({ classList: { contains: (value) => value === "is-active" } }),
+    matches: () => false,
+    querySelector: (selector) => selector === ".squad-list-panel"
+      ? listPanel
+      : selector === ".squad-board-shell" ? {} : null,
+  };
+  const controller = createSquadRosterRuntimeController({
+    createMedicalSnapshotContext: ({ includeTrainingAvailability }) => {
+      contextCalls.push(includeTrainingAvailability);
+      return {};
+    },
+    ensureMedicalState: () => {},
+    ensurePlayerProfilesState: () => {},
+    getMedicalSnapshot: (playerId) => {
+      snapshotCalls.push(playerId);
+      return { playerId };
+    },
+    getPlayers: () => players,
+    getRosterSummary: (items) => ({ totalCount: items.length }),
+    getTemporaryPlayerProfiles: () => [],
+    getVisiblePlayerProfiles: () => players,
+    getWorkspace: () => workspace,
+    queueAgeHydration: () => {},
+    renderRosterSections: (items, summaries) => {
+      renderCalls.push({ items, summaries });
+      return "roster";
+    },
+    win: {
+      document: { activeElement: focusedControl },
+      requestAnimationFrame: (handler) => frames.push(handler),
+      setTimeout: (handler, delayMs) => timers.push({ delayMs, handler }),
+    },
+  });
+
+  expect(controller.renderListOnly()).toBe(true);
+  expect(renderCalls).toHaveLength(1);
+  expect(renderCalls[0].summaries).toMatchObject({ includeTrainingAvailability: false });
+  expect(snapshotCalls).toEqual([]);
+
+  frames.shift()?.();
+  frames.shift()?.();
+  expect(timers).toHaveLength(1);
+
+  timers.shift()?.handler();
+  expect(snapshotCalls).toEqual(["p1"]);
+  expect(renderCalls).toHaveLength(1);
+  timers.shift()?.handler();
+  expect(snapshotCalls).toEqual(["p1", "p2"]);
+  expect(renderCalls).toHaveLength(1);
+  timers.shift()?.handler();
+
+  expect(snapshotCalls).toEqual(["p1", "p2", "p3"]);
+  expect(renderCalls).toHaveLength(2);
+  expect(renderCalls[1].summaries).toMatchObject({ includeTrainingAvailability: true });
+  expect(renderCalls[1].summaries.medicalSnapshotsByPlayerId).toEqual(new Map([
+    ["p1", { playerId: "p1" }],
+    ["p2", { playerId: "p2" }],
+    ["p3", { playerId: "p3" }],
+  ]));
+  expect(contextCalls).toEqual([false, true]);
+  expect(focusCalls).toEqual([{ preventScroll: true }, { preventScroll: true }]);
+});
+
+test("Squad roster runtime cancels queued availability work after leaving the workspace", () => {
+  const frames = [];
+  const timers = [];
+  const snapshotCalls = [];
+  let isActive = true;
+  const listPanel = {
+    innerHTML: "",
+    contains: () => false,
+    querySelectorAll: () => [],
+  };
+  const workspace = {
+    closest: () => ({ classList: { contains: () => isActive } }),
+    matches: () => false,
+    querySelector: (selector) => selector === ".squad-list-panel"
+      ? listPanel
+      : selector === ".squad-board-shell" ? {} : null,
+  };
+  const controller = createSquadRosterRuntimeController({
+    createMedicalSnapshotContext: () => ({}),
+    getMedicalSnapshot: (playerId) => snapshotCalls.push(playerId),
+    getPlayers: () => [{ id: "p1" }],
+    getRosterSummary: () => ({}),
+    getTemporaryPlayerProfiles: () => [],
+    getVisiblePlayerProfiles: () => [{ id: "p1" }],
+    getWorkspace: () => workspace,
+    renderRosterSections: () => "roster",
+    win: {
+      document: { activeElement: null },
+      requestAnimationFrame: (handler) => frames.push(handler),
+      setTimeout: (handler, delayMs) => timers.push({ delayMs, handler }),
+    },
+  });
+
+  expect(controller.renderListOnly()).toBe(true);
+  frames.shift()?.();
+  frames.shift()?.();
+  isActive = false;
+  timers.shift()?.handler();
+
+  expect(snapshotCalls).toEqual([]);
 });

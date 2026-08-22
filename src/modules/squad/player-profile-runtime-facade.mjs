@@ -268,7 +268,7 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     if (!ui.playerProfilesWorkspace) {
       return;
     }
-    const { generation: hydrationGeneration, isColdWorkspaceRender } = squadRosterRuntimeController.beginWorkspaceRender();
+    const { generation: hydrationGeneration } = squadRosterRuntimeController.beginWorkspaceRender();
     ensurePlayerProfilesState();
     deps.ensureMedicalState();
     syncPlayerProfilesFromMedicalTrainingGuests({ medicalStateReady: true });
@@ -284,7 +284,14 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
     const newPlayerModalMarkup = deps.squadProfileSupportRenderer.renderNewPlayerModal(readPlayerProfileNewPlayerDraft());
     const medicalSnapshotContext = squadMedicalStatusService.createPlayerProfileMedicalSnapshotContext({
       medicalStateReady: true,
-      includeTrainingAvailability: !isColdWorkspaceRender,
+      includeTrainingAvailability: false,
+    });
+    const rosterSectionsMarkup = renderSquadRosterSections(visiblePlayers, {
+      rosterSummary,
+      visibleSummary,
+      medicalStateReady: true,
+      includeTrainingAvailability: false,
+      medicalSnapshotContext,
     });
     ui.playerProfilesWorkspace.innerHTML = deps.squadWorkspaceRenderer.renderWorkspace({
       canEdit,
@@ -295,21 +302,13 @@ export function createPlayerProfileRuntimeFacade(deps = {}) {
       roleGroupFilter: deps.getPlayerProfilesRoleGroupFilter(),
       roleGroupOptionsMarkup: deps.squadProfileSupportRenderer.renderOptionSet(deps.playerProfileRoleGroupOptions, deps.getPlayerProfilesRoleGroupFilter()),
       rosterFilterOptionsMarkup: deps.squadProfileSupportRenderer.renderOptionSet(deps.playerProfileRosterFilterOptions, deps.getPlayerProfilesRosterFilter()),
-      rosterSectionsMarkup: renderSquadRosterSections(visiblePlayers, {
-        rosterSummary,
-        visibleSummary,
-        medicalStateReady: true,
-        includeTrainingAvailability: !isColdWorkspaceRender,
-        medicalSnapshotContext,
-      }),
+      rosterSectionsMarkup,
       searchQuery: deps.getPlayerProfilesSearchQuery(),
       teamLogoMarkup: deps.renderPlatformTeamLogoMark(squadTeam || { name: squadTeamName }, { teamName: squadTeamName, canUpload: canEdit }),
       teamName: squadTeamName,
     });
     queuePlayerProfileAgeHydration();
-    if (isColdWorkspaceRender) {
-      squadRosterRuntimeController.queueAvailabilityHydration(hydrationGeneration);
-    }
+    squadRosterRuntimeController.queueAvailabilityHydration(hydrationGeneration);
   }
 
   runtimeMedicalSyncService = createPlayerProfileRuntimeMedicalSyncService({

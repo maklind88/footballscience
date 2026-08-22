@@ -91,6 +91,47 @@ test("Set Pieces keeps analysis guides optional across edit and presentation", a
   await expect(shell.locator(".spr-pitch-guides")).toBeVisible();
 });
 
+test("Set Pieces pitch views behave like cameras without moving placed players", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("football-player-profiles-v1", JSON.stringify({
+      schemaVersion: 3,
+      players: [
+        { id: "player-camera-test", name: "Camera Test", position: "Forward", rosterType: "squad", countsInSquad: true },
+      ],
+    }));
+    window.localStorage.removeItem("football-set-pieces-room-v1");
+  });
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await waitForPlatformShell(page);
+  await openSetPiecesRoom(page);
+  await page.getByRole("button", { name: "Create set piece" }).click();
+  await page.locator("[data-set-piece-player-picker] summary").click();
+  await page.getByRole("menuitemcheckbox", { name: "Add Camera Test" }).click();
+  await page.locator("[data-set-piece-player-picker] summary").click();
+
+  const pitchView = page.locator('[data-set-piece-play-field="pitchView"]');
+  const player = page.locator(".spr-board-element.is-home-player:not(.is-ghost)");
+  const readStoredPosition = () => page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("football-set-pieces-room-v1") || "{}");
+    const element = state.plays?.[0]?.variants?.[0]?.phases?.[0]?.elements?.find((item) => item.kind === "home-player");
+    return element ? { x: element.x, y: element.y } : null;
+  });
+
+  await expect(pitchView).toHaveValue("attacking-half");
+  await expect(player).toHaveAttribute("transform", "translate(78 10) rotate(90)");
+  const initialPosition = await readStoredPosition();
+  expect(initialPosition).toEqual({ x: 78, y: 10 });
+
+  await pitchView.selectOption("full");
+  await expect(player).toHaveAttribute("transform", "translate(78 10)");
+  await pitchView.selectOption("defensive-half");
+  await expect(player).toHaveAttribute("transform", "translate(78 10) rotate(90)");
+  await pitchView.selectOption("attacking-half");
+  await expect(player).toHaveAttribute("transform", "translate(78 10) rotate(90)");
+  expect(await readStoredPosition()).toEqual(initialPosition);
+});
+
 test("Set Pieces editor gives the pitch the viewport and anchors compact playback controls", async ({ page }) => {
   await page.setViewportSize({ width: 1470, height: 772 });
   await page.addInitScript(() => {

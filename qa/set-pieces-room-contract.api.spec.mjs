@@ -56,6 +56,7 @@ import {
 } from "../src/modules/set-pieces-room/library-filters.mjs";
 import {
   getNextSetPiecePlayerPlacement,
+  getSetPieceElementTransform,
   getSetPiecePitchLayoutAspect,
   getSetPiecePitchTransform,
   getSetPiecePitchViewBox,
@@ -739,6 +740,14 @@ test("focused third views use landscape coordinates and map pointer input back t
   expect(getSetPiecePitchTransform("defensive-half")).toBe("matrix(0 -1 1 0 0 35)");
   expect(getSetPieceSourcePoint({ x: 18, y: 25 }, "attacking-half")).toEqual({ x: 80, y: 18 });
   expect(getSetPieceSourcePoint({ x: 18, y: 25 }, "defensive-half")).toEqual({ x: 10, y: 18 });
+});
+
+test("pitch views preserve canonical player positions and only rotate their markers", () => {
+  const player = { kind: "home-player", x: 10, y: 8 };
+
+  expect(getSetPieceElementTransform(player, "full")).toBe("translate(10 8)");
+  expect(getSetPieceElementTransform(player, "attacking-half")).toBe("translate(10 8) rotate(90)");
+  expect(getSetPieceElementTransform(player, "defensive-half")).toBe("translate(10 8) rotate(90)");
 });
 
 test("wide editor projection fills broad canvases while preserving narrow pitch geometry", () => {

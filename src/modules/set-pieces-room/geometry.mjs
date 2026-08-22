@@ -105,7 +105,8 @@ export function getSetPieceSourcePoint(point = {}, pitchView = "full") {
 }
 
 export function getSetPieceElementTransform(point = {}, pitchView = "full") {
-  const normalized = normalizeSetPieceElementPointForPitchView(point, pitchView, point.kind);
+  // Pitch views are cameras over one canonical full-pitch coordinate system.
+  const normalized = normalizeSetPieceElementPointForPitchView(point, "full", point.kind);
   const rotation = pitchView === "attacking-half" || pitchView === "defensive-half" ? " rotate(90)" : "";
   return `translate(${normalized.x} ${normalized.y})${rotation}`;
 }

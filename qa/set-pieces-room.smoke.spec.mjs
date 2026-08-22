@@ -80,6 +80,8 @@ test("Set Pieces keeps analysis guides optional across edit and presentation", a
   await expect(shell.locator(".spr-pitch-goal-image")).toHaveCount(2);
   await expect(shell.locator(".spr-penalty-spot")).toHaveCount(2);
   await expect(shell.locator(".spr-penalty-spot").first()).toHaveAttribute("r", "0.4");
+  await expect(shell.locator(".spr-pitch-corner-flag")).toHaveCount(4);
+  await expect(shell.locator(".spr-pitch-corner-flag-pennant")).toHaveCount(4);
   await expect(shell.locator(".spr-pitch-guides")).toHaveCount(0);
 
   await shell.getByRole("button", { name: "Toggle details" }).click();

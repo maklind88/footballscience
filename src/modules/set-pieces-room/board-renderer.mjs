@@ -95,6 +95,19 @@ function renderPitchGoals() {
     ${renderPitchGoal({ side: "right", frontX: 104.3, direction: 1 })}`;
 }
 
+function renderPitchCornerFlags() {
+  return [
+    { x: .7, y: .7, rotation: -45 },
+    { x: 104.3, y: .7, rotation: 45 },
+    { x: .7, y: 67.3, rotation: -135 },
+    { x: 104.3, y: 67.3, rotation: 135 },
+  ].map(({ x, y, rotation }) => `<g class="spr-pitch-corner-flag" transform="translate(${x} ${y}) rotate(${rotation})">
+      <circle r=".11" class="spr-pitch-corner-flag-base"></circle>
+      <path d="M0 0V-1.55" class="spr-pitch-corner-flag-pole"></path>
+      <path d="M0 -1.52L.66 -1.3L0 -1.07Z" class="spr-pitch-corner-flag-pennant"></path>
+    </g>`).join("");
+}
+
 function renderPitchMarkings() {
   return `
     <g class="spr-pitch-markings" aria-hidden="true">
@@ -109,6 +122,7 @@ function renderPitchMarkings() {
       <path d="M17.2 26.65A9.15 9.15 0 0 1 17.2 41.35" class="spr-round-marking"></path>
       <path d="M87.8 26.65A9.15 9.15 0 0 0 87.8 41.35" class="spr-round-marking"></path>
       ${renderPitchGoals()}
+      <g class="spr-pitch-corner-flags">${renderPitchCornerFlags()}</g>
       <path d="M0.7 1.7A1 1 0 0 0 1.7.7M103.3.7a1 1 0 0 0 1 1M.7 66.3a1 1 0 0 1 1 1M104.3 66.3a1 1 0 0 0-1 1"></path>
     </g>`;
 }

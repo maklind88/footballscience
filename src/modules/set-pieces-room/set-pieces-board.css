@@ -30,6 +30,33 @@
   stroke: none;
 }
 
+.spr-pitch-corner-flags,
+.spr-pitch-corner-flag {
+  pointer-events: none;
+}
+
+.spr-pitch-markings .spr-pitch-corner-flag-base {
+  fill: #fffdf0;
+  stroke: #314536;
+  stroke-width: .06;
+}
+
+.spr-pitch-markings .spr-pitch-corner-flag-pole {
+  fill: none;
+  stroke: #314536;
+  stroke-width: .09;
+  stroke-linecap: round;
+  filter: drop-shadow(0 .06px .04px #173f2459);
+}
+
+.spr-pitch-markings .spr-pitch-corner-flag-pennant {
+  fill: #e9c85c;
+  stroke: #6e5920;
+  stroke-width: .05;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 .06px .05px #173f2459);
+}
+
 .spr-pitch-goal,
 .spr-pitch-goal-net {
   pointer-events: none;

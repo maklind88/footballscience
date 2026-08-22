@@ -8,89 +8,72 @@
 }
 
 .spr-pitch-base {
-  fill: #4f8a43;
+  fill: #83ad4f;
 }
 
-.spr-pitch-stripes {
-  opacity: .1;
-  mix-blend-mode: soft-light;
+.spr-pitch-grass {
+  filter: saturate(.86) contrast(1.04) brightness(.93);
   pointer-events: none;
-}
-
-.spr-pitch-stripe-light {
-  fill: #eff6d8;
-}
-
-.spr-pitch-grain {
-  opacity: .2;
-  mix-blend-mode: soft-light;
-  pointer-events: none;
-}
-
-.spr-pitch-fibre {
-  fill: none;
-  stroke: #f2f7df;
-  stroke-width: .055;
-  stroke-linecap: round;
 }
 
 .spr-pitch-markings {
   fill: none;
-  stroke: #f7fbf8b8;
-  stroke-width: .35;
+  stroke: #fffdf0;
+  stroke-width: .24;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
 
 .spr-pitch-markings .spr-pitch-spot {
-  fill: #f7fbf8d1;
+  fill: #fffdf0;
   stroke: none;
 }
 
-.spr-pitch-markings .spr-pitch-goal-surface {
-  fill: #f3f8f21c;
+.spr-pitch-goal,
+.spr-pitch-goal-net {
+  pointer-events: none;
+}
+
+.spr-pitch-goal-image {
+  filter: contrast(1.55) brightness(1.22) drop-shadow(0 .08px .08px #173f2470);
+  opacity: .76;
+  pointer-events: none;
+}
+
+.spr-pitch-markings .spr-pitch-goal-net-surface {
+  fill: #fffef20d;
   stroke: none;
 }
 
-.spr-pitch-markings .spr-pitch-goal-shadow {
-  fill: #071a1261;
-  stroke: none;
-}
-
-.spr-pitch-markings .spr-pitch-goal-support {
+.spr-pitch-markings .spr-pitch-goal-mesh {
   fill: none;
-  stroke: #243129e3;
-  stroke-width: .32;
+  stroke: #fffef2;
+  stroke-width: .075;
   stroke-linecap: round;
   stroke-linejoin: round;
+  opacity: .88;
+  filter: drop-shadow(0 .04px .05px #173f2466);
 }
 
-.spr-pitch-markings .spr-pitch-goal-anchor {
-  fill: #26342c;
-  stroke: #e9efea;
-  stroke-width: .08;
-}
-
-.spr-pitch-markings .spr-pitch-goal-frame {
-  stroke: #fbfdfb;
-  stroke-width: .48;
+.spr-pitch-markings .spr-pitch-goal-net-edge {
+  fill: none;
+  stroke: #fff;
+  stroke-width: .13;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.spr-pitch-markings .spr-pitch-goal-net {
-  stroke: #f5faf2d1;
-  stroke-width: .11;
-  stroke-linecap: round;
+  opacity: .96;
 }
 
 .spr-pitch-markings .spr-pitch-goal-mouth {
   stroke: #fff;
-  stroke-width: .56;
+  stroke-width: .34;
   stroke-linecap: round;
+  filter: drop-shadow(0 .08px .08px #173f2480);
 }
 
 .spr-pitch-markings .spr-pitch-goal-post {
-  fill: #f7fbf8;
+  fill: #fff;
   stroke: none;
 }
 

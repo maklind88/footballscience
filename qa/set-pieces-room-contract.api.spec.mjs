@@ -818,24 +818,20 @@ test("board renderer uses one circular own-player marker in photo or initials mo
   expect(markup).toContain("Q ");
   expect(markup).toContain('viewBox="-2.25 -2.25 72.5 39.5"');
   expect(markup).toContain('<rect x="-2.25" y="-2.25" width="109.5" height="72.5" class="spr-pitch-base"></rect>');
+  expect(markup).toContain('href="assets/set-pieces/pitch-grass-reference.jpg"');
+  expect(markup).toContain('class="spr-pitch-grass"');
   expect(markup).toContain('transform="matrix(0 -1 1 0 0 105)"');
   expect(markup).toContain('class="spr-pitch-goal is-left-goal"');
   expect(markup).toContain('class="spr-pitch-goal is-right-goal"');
-  expect(markup.match(/class="spr-pitch-goal-shadow"/g)).toHaveLength(2);
-  expect(markup.match(/class="spr-pitch-goal-frame"/g)).toHaveLength(2);
-  expect(markup.match(/class="spr-pitch-goal-support"/g)).toHaveLength(2);
   expect(markup.match(/class="spr-pitch-goal-net"/g)).toHaveLength(2);
+  expect(markup.match(/class="spr-pitch-goal-image"/g)).toHaveLength(2);
   expect(markup.match(/class="spr-pitch-goal-mouth"/g)).toHaveLength(2);
-  expect(markup.match(/class="spr-pitch-goal-anchor"/g)).toHaveLength(4);
   expect(markup.match(/class="spr-pitch-goal-post spr-round-marking"/g)).toHaveLength(4);
-  expect(markup).toContain('d="M0.7 30.34L-1.8 30.62V37.38L0.7 37.66" class="spr-pitch-goal-frame"');
-  expect(markup).toContain('d="M104.3 30.34L106.8 30.62V37.38L104.3 37.66" class="spr-pitch-goal-frame"');
-  expect(markup).toContain('d="M-1.8 30.62L0.32 31.04M-1.8 37.38L0.32 36.96" class="spr-pitch-goal-support"');
-  expect(markup).toContain('d="M106.8 30.62L104.68 31.04M106.8 37.38L104.68 36.96" class="spr-pitch-goal-support"');
-  expect(fullPitchMarkup).toContain("L-1.8 30.62");
-  expect(fullPitchMarkup).toContain("L106.8 30.62");
-  expect(fullPitchMarkup).not.toContain("L3.5 37.12");
-  expect(fullPitchMarkup).not.toContain("L101.5 37.12");
+  expect(markup.match(/href="assets\/set-pieces\/pitch-goal-reference.png"/g)).toHaveLength(2);
+  expect(markup).toContain('transform="translate(0.7 34) rotate(-90)"');
+  expect(markup).toContain('transform="translate(104.3 34) rotate(90)"');
+  expect(fullPitchMarkup).not.toContain("spr-pitch-goal-frame");
+  expect(fullPitchMarkup).not.toContain("spr-pitch-goal-support");
   expect(fullPitchMarkup).not.toContain("spr-pitch-guides");
   expect(renderSetPieceBoard({ phase: { elements: [], drawings: [] }, showPitchGuides: true, layers: new Set() }))
     .toContain('<g class="spr-pitch-guides" aria-hidden="true">');
@@ -1057,7 +1053,7 @@ test("presentation workspace exposes an immersive tactical stage with coaching c
   expect(fullscreenMarkup).not.toContain('aria-label="Phase coaching notes" open>');
 });
 
-test("board instances own unique marker, pattern, and avatar clip ids", () => {
+test("board instances own unique marker and avatar clip ids", () => {
   const phase = {
     elements: [],
     drawings: [{ id: "run-a", type: "run", startX: 70, startY: 18, endX: 88, endY: 28 }],
@@ -1068,9 +1064,7 @@ test("board instances own unique marker, pattern, and avatar clip ids", () => {
   expect(first).toContain('id="workspace-board-arrow-run"');
   expect(first).toContain('marker-end="url(#workspace-board-arrow-run)"');
   expect(first).toContain('markerWidth="5" markerHeight="5"');
-  expect(first).toContain('fill="url(#workspace-board-pitch-pattern)"');
-  expect(first).toContain('fill="url(#workspace-board-pitch-texture)"');
-  expect(first).toContain('id="workspace-board-pitch-texture"');
+  expect(first).toContain('href="assets/set-pieces/pitch-grass-reference.jpg"');
   expect(first).toContain('id="workspace-board-home-avatar-clip"');
   expect(second).toContain('id="meeting-board-arrow-run"');
   expect(second).toContain('id="meeting-board-home-avatar-clip"');

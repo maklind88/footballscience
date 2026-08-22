@@ -47,38 +47,38 @@ export function getSetPieceTextAnnotationMetrics(label = "", requestedFontSize =
 
 function renderPitchGoal({ side, frontX, direction }) {
   const round = (value) => Number(value.toFixed(2));
-  const frontTop = 30.34;
-  const frontBottom = 37.66;
-  const depth = 2.5;
-  const rearInset = .28;
-  const rearX = round(frontX + direction * depth);
-  const rearTop = round(frontTop + rearInset);
-  const rearBottom = round(frontBottom - rearInset);
-  const surface = `M${frontX} ${frontTop}L${rearX} ${rearTop}V${rearBottom}L${frontX} ${frontBottom}Z`;
-  const frame = `M${frontX} ${frontTop}L${rearX} ${rearTop}V${rearBottom}L${frontX} ${frontBottom}`;
-  const supports = `M${rearX} ${rearTop}L${round(frontX + direction * .38)} ${round(frontTop + .7)}M${rearX} ${rearBottom}L${round(frontX + direction * .38)} ${round(frontBottom - .7)}`;
-  const depthNet = [.125, .25, .375, .5, .625, .75, .875].map((progress) => {
-    const x = round(frontX + direction * depth * progress);
-    const top = round(frontTop + rearInset * progress);
-    const bottom = round(frontBottom - rearInset * progress);
-    return `M${x} ${top}V${bottom}`;
-  }).join("");
-  const widthNet = Array.from({ length: 11 }, (_, index) => (index + 1) / 12).map((progress) => {
-    const startY = round(frontTop + (frontBottom - frontTop) * progress);
-    const rearY = round(rearTop + (rearBottom - rearTop) * progress);
-    return `M${frontX} ${startY}L${rearX} ${rearY}`;
-  }).join("");
-  return `<g class="spr-pitch-goal is-${side}-goal">
-      <path d="${surface}" class="spr-pitch-goal-shadow" transform="translate(${round(direction * .2)} .2)"></path>
-      <path d="${surface}" class="spr-pitch-goal-surface"></path>
-      <path d="${depthNet}${widthNet}" class="spr-pitch-goal-net"></path>
-      <path d="${supports}" class="spr-pitch-goal-support"></path>
-      <path d="${frame}" class="spr-pitch-goal-frame"></path>
-      <path d="M${frontX} ${frontTop}V${frontBottom}" class="spr-pitch-goal-mouth"></path>
-      <circle cx="${rearX}" cy="${rearTop}" r=".14" class="spr-pitch-goal-anchor"></circle>
-      <circle cx="${rearX}" cy="${rearBottom}" r=".14" class="spr-pitch-goal-anchor"></circle>
-      <circle cx="${frontX}" cy="${frontTop}" r=".18" class="spr-pitch-goal-post spr-round-marking"></circle>
-      <circle cx="${frontX}" cy="${frontBottom}" r=".18" class="spr-pitch-goal-post spr-round-marking"></circle>
+  const rotation = direction < 0 ? -90 : 90;
+  const frontHalfWidth = 3.66;
+  const rearHalfWidth = 4.08;
+  const rearDepth = -2.12;
+  const rearY = (x) => round(rearDepth + .34 * (1 - Math.abs(x / frontHalfWidth)));
+  const depthMesh = [-3.05, -2.44, -1.83, -1.22, -.61, 0, .61, 1.22, 1.83, 2.44, 3.05]
+    .map((x) => {
+      const rearX = round((x / frontHalfWidth) * rearHalfWidth);
+      const controlX = round((x + rearX) / 2);
+      return `M${x} 0Q${controlX} -1.06 ${rearX} ${rearY(x)}`;
+    })
+    .join("");
+  const widthMesh = [.14, .28, .42, .56, .7, .84]
+    .map((progress) => {
+      const edgeX = round(frontHalfWidth + (rearHalfWidth - frontHalfWidth) * progress);
+      const edgeY = round(rearDepth * progress);
+      const centerY = round((rearDepth + .34) * progress + .08 * Math.sin(progress * Math.PI));
+      return `M-${edgeX} ${edgeY}Q0 ${centerY} ${edgeX} ${edgeY}`;
+    })
+    .join("");
+  const rearCurve = `Q0 ${rearDepth + .34} ${rearHalfWidth} ${rearDepth}`;
+  const rearEdge = `M-${rearHalfWidth} ${rearDepth}${rearCurve}`;
+  return `<g class="spr-pitch-goal is-${side}-goal" transform="translate(${frontX} 34) rotate(${rotation})">
+      <g class="spr-pitch-goal-net">
+        <image href="assets/set-pieces/pitch-goal-reference.png" x="-4.55" y="-2.24" width="9.1" height="3.9" preserveAspectRatio="none" class="spr-pitch-goal-image"></image>
+        <path d="M-${frontHalfWidth} 0L-${rearHalfWidth} ${rearDepth}${rearCurve}L${frontHalfWidth} 0Z" class="spr-pitch-goal-net-surface"></path>
+        <path d="${depthMesh}${widthMesh}${rearEdge}" class="spr-pitch-goal-mesh"></path>
+        <path d="M-${frontHalfWidth} 0L-${rearHalfWidth} ${rearDepth}${rearCurve}L${frontHalfWidth} 0" class="spr-pitch-goal-net-edge"></path>
+      </g>
+      <path d="M-3.66 0H3.66" class="spr-pitch-goal-mouth"></path>
+      <circle cx="-3.66" cy="0" r=".13" class="spr-pitch-goal-post spr-round-marking"></circle>
+      <circle cx="3.66" cy="0" r=".13" class="spr-pitch-goal-post spr-round-marking"></circle>
     </g>`;
 }
 
@@ -307,14 +307,11 @@ export function renderSetPieceBoard(options = {}) {
   return `<svg class="spr-pitch ${halfPitch ? "is-half-pitch" : "is-full-pitch"} ${wideEditor ? "is-wide-editor-pitch" : ""}" data-set-piece-pitch data-pitch-view="${escapeSetPieceHtml(options.pitchView || "full")}" viewBox="${getSetPiecePitchViewBox(options.pitchView)}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Set piece tactical board">
     <defs>
       ${["run", "pass", "dribble", "press", "mark"].map((type) => `<marker id="${markerPrefix}-arrow-${type}" class="spr-arrow-marker is-${type}" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z"></path></marker>`).join("")}
-      <pattern id="${markerPrefix}-pitch-pattern" width="18" height="12" patternUnits="userSpaceOnUse"><rect width="9" height="12" class="spr-pitch-stripe-light"></rect></pattern>
-      <pattern id="${markerPrefix}-pitch-texture" width="2.4" height="2.4" patternUnits="userSpaceOnUse" patternTransform="rotate(-7)"><path d="M.18 2.08l.07-.44M.72.92l.05-.34M1.26 2.22l.07-.46M1.79 1.42l.05-.36M2.18.58l.04-.3" class="spr-pitch-fibre"></path></pattern>
       <clipPath id="${markerPrefix}-home-avatar-clip"><circle r="1.62"></circle></clipPath>
     </defs>
     <g class="spr-pitch-content"${pitchTransform ? ` transform="${pitchTransform}"` : ""}>
       <rect x="${setPiecePitchCanvas.x}" y="${setPiecePitchCanvas.y}" width="${setPiecePitchCanvas.width}" height="${setPiecePitchCanvas.height}" class="spr-pitch-base"></rect>
-      <rect x="${setPiecePitchCanvas.x}" y="${setPiecePitchCanvas.y}" width="${setPiecePitchCanvas.width}" height="${setPiecePitchCanvas.height}" fill="url(#${markerPrefix}-pitch-pattern)" class="spr-pitch-stripes"></rect>
-      <rect x="${setPiecePitchCanvas.x}" y="${setPiecePitchCanvas.y}" width="${setPiecePitchCanvas.width}" height="${setPiecePitchCanvas.height}" fill="url(#${markerPrefix}-pitch-texture)" class="spr-pitch-grain"></rect>
+      <image href="assets/set-pieces/pitch-grass-reference.jpg" x="16.25" y="-20.75" width="72.5" height="109.5" transform="rotate(90 52.5 34)" preserveAspectRatio="xMidYMid slice" class="spr-pitch-grass"></image>
       ${renderPitchMarkings()}
       ${options.showPitchGuides ? renderPitchGuides() : ""}
       <g class="spr-ghost-layer">${ghosts}</g>

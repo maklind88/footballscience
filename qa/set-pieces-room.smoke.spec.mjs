@@ -74,8 +74,10 @@ test("Set Pieces keeps analysis guides optional across edit and presentation", a
   await page.getByRole("button", { name: "Create set piece" }).click();
 
   const shell = page.locator("[data-set-pieces-room]");
+  await expect(shell.locator(".spr-pitch-grass")).toBeVisible();
   await expect(shell.locator(".spr-pitch-goal")).toHaveCount(2);
   await expect(shell.locator(".spr-pitch-goal-net")).toHaveCount(2);
+  await expect(shell.locator(".spr-pitch-goal-image")).toHaveCount(2);
   await expect(shell.locator(".spr-pitch-guides")).toHaveCount(0);
 
   await shell.getByRole("button", { name: "Toggle details" }).click();

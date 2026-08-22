@@ -12,6 +12,7 @@
 }
 
 .spr-pitch-grass {
+  filter: brightness(1.1) saturate(.9) contrast(.95);
   pointer-events: none;
 }
 

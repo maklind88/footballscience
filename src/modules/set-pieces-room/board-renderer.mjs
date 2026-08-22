@@ -72,7 +72,7 @@ function renderPitchGoal({ side, frontX, direction }) {
   const rearEdge = `M-${rearHalfWidth} ${rearDepth}${rearCurve}`;
   return `<g class="spr-pitch-goal is-${side}-goal" transform="translate(${frontX} 34) rotate(${rotation})">
       <g class="spr-pitch-goal-net">
-        <image href="assets/set-pieces/pitch-goal-reference.png" x="-5.18" y="-5.9" width="10.36" height="6.21" preserveAspectRatio="xMidYMid meet" class="spr-pitch-goal-image"></image>
+        <image href="assets/set-pieces/pitch-goal-reference.png" x="-5.18" y="-5.58" width="10.36" height="6.21" preserveAspectRatio="xMidYMid meet" class="spr-pitch-goal-image"></image>
         <path d="M-${frontHalfWidth} 0L-${rearHalfWidth} ${rearDepth}${rearCurve}L${frontHalfWidth} 0Z" class="spr-pitch-goal-net-surface"></path>
         <path d="${depthMesh}${widthMesh}${rearEdge}" class="spr-pitch-goal-mesh"></path>
         <path d="M-${frontHalfWidth} 0L-${rearHalfWidth} ${rearDepth}${rearCurve}L${frontHalfWidth} 0" class="spr-pitch-goal-net-edge"></path>

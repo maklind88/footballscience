@@ -839,7 +839,7 @@ test("board renderer uses one circular own-player marker in photo or initials mo
   expect(markup.match(/class="spr-pitch-goal-mouth"/g)).toHaveLength(2);
   expect(markup.match(/class="spr-pitch-goal-post spr-round-marking"/g)).toHaveLength(4);
   expect(markup.match(/href="assets\/set-pieces\/pitch-goal-reference.png"/g)).toHaveLength(2);
-  expect(markup.match(/x="-5.18" y="-5.9" width="10.36" height="6.21"/g)).toHaveLength(2);
+  expect(markup.match(/x="-5.18" y="-5.58" width="10.36" height="6.21"/g)).toHaveLength(2);
   expect(markup).toContain('transform="translate(0.7 34) rotate(-90)"');
   expect(markup).toContain('transform="translate(104.3 34) rotate(90)"');
   expect(fullPitchMarkup).not.toContain("spr-pitch-goal-frame");

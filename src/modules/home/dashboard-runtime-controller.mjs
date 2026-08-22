@@ -40,6 +40,10 @@ export function createDashboardRuntimeController(dependencies = {}) {
     createId = defaultIdFactory,
     getCurrentUser = () => null,
     getUsers = () => [],
+    getPlatformStructureState = () => ({ clubs: [], teams: [] }),
+    getPlatformTeamDisplayTeam = () => null,
+    getPlatformTeamLogoUrl = () => "",
+    getUserClubName = () => "",
     getActiveWorkspaceId = () => "",
     formatUserName = (user) => user?.name || "",
     escapeHtml = (value) => String(value ?? ""),
@@ -64,6 +68,57 @@ export function createDashboardRuntimeController(dependencies = {}) {
   let popupsScheduledForUserId = null;
   let schedulePreviewMonthValue = "";
   let schedulePreviewSelectedDate = "";
+
+  function getHomeClubIdentity(currentUser) {
+    const structure = getPlatformStructureState();
+    const displayTeam = getPlatformTeamDisplayTeam(currentUser, structure) || {};
+    const resolvedClubName = String(
+      getUserClubName(currentUser, structure)
+        || currentUser?.clubName
+        || currentUser?.club
+        || displayTeam.name
+        || "Football Science"
+    ).trim();
+    const clubName = resolvedClubName && !["club", "team"].includes(resolvedClubName.toLowerCase())
+      ? resolvedClubName
+      : "Football Science";
+    const initials = clubName
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 3)
+      .toUpperCase() || "FS";
+    return { clubName, initials, logoUrl: getPlatformTeamLogoUrl(displayTeam) };
+  }
+
+  function syncHomeClubIdentity(currentUser) {
+    const clubNameElement = getElement("dashboardClubName");
+    const clubMarkElement = getElement("dashboardClubMark");
+    const logoImage = getElement("dashboardClubLogoImage");
+    const logoInitials = getElement("dashboardClubLogoInitials");
+    const identity = getHomeClubIdentity(currentUser);
+
+    if (clubNameElement) clubNameElement.textContent = identity.clubName;
+    clubMarkElement?.setAttribute?.("aria-label", `${identity.clubName} logo`);
+    if (logoInitials) {
+      logoInitials.textContent = identity.initials;
+      logoInitials.hidden = Boolean(identity.logoUrl);
+    }
+    if (logoImage) {
+      logoImage.hidden = !identity.logoUrl;
+      logoImage.alt = identity.logoUrl ? `${identity.clubName} logo` : "";
+      if (identity.logoUrl) {
+        logoImage.src = identity.logoUrl;
+        logoImage.onerror = () => {
+          logoImage.hidden = true;
+          if (logoInitials) logoInitials.hidden = false;
+        };
+      } else {
+        logoImage.removeAttribute?.("src");
+      }
+    }
+  }
 
   function normalizeTask(task) {
     const currentUser = getCurrentUser();
@@ -308,6 +363,7 @@ export function createDashboardRuntimeController(dependencies = {}) {
       }
       return;
     }
+    syncHomeClubIdentity(currentUser);
     const users = getUsers().filter((user) => user.status === "active");
     const context = getHomeContext(currentUser, users, readTasks());
     const appearance = readAppearanceState();

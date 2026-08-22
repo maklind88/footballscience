@@ -1,11 +1,41 @@
 .platform-home-hero {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
 }
 
 .platform-home-hero > div:first-child {
   align-self: center;
   min-width: 0;
+}
+
+.platform-home-hero .workspace-heading {
+  overflow-wrap: anywhere;
+}
+
+.platform-home-club-mark {
+  width: clamp(4.6rem, 7vw, 6rem);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  border-radius: 8px;
+  color: #1d1d1f;
+  background: rgba(247, 247, 249, 0.86);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.platform-home-club-mark img {
+  width: 78%;
+  height: 78%;
+  display: block;
+  object-fit: contain;
+}
+
+.platform-home-club-mark strong {
+  font-size: clamp(1.05rem, 2vw, 1.45rem);
+  font-weight: 800;
+  line-height: 1;
 }
 
 .dashboard-schedule-preview {
@@ -515,6 +545,13 @@ body.is-dark-mode .dashboard-schedule-day-event.is-recovery { background: rgba(2
 body.is-dark-mode .dashboard-schedule-day-event.is-meeting { background: rgba(63, 45, 84, 0.42); }
 body.is-dark-mode .dashboard-schedule-day-event.is-off { background: rgba(55, 65, 81, 0.46); }
 
+body.is-dark-mode .platform-home-club-mark {
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #f1f5f9;
+  background: rgba(15, 23, 42, 0.62);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-schedule-day-panel {
     animation: none;
@@ -522,6 +559,14 @@ body.is-dark-mode .dashboard-schedule-day-event.is-off { background: rgba(55, 65
 }
 
 @media (max-width: 680px) {
+  .platform-home-hero {
+    gap: 0.75rem;
+  }
+
+  .platform-home-club-mark {
+    width: 3.8rem;
+  }
+
   .dashboard-schedule-preview {
     width: 100%;
   }

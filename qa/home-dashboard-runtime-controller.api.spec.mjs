@@ -19,12 +19,23 @@ function createRuntime(overrides = {}) {
   const harness = createStorageHarness();
   const dashboardGrid = { innerHTML: "" };
   const dashboardSchedulePreview = { innerHTML: "" };
+  const dashboardClubName = { textContent: "" };
+  const dashboardClubMark = { setAttribute: (name, value) => calls.clubMark.push([name, value]) };
+  const dashboardClubLogoImage = { alt: "", hidden: true, removeAttribute: () => {} };
+  const dashboardClubLogoInitials = { hidden: false, textContent: "" };
   const calls = {
+    clubMark: [],
     renderProfileWorkspace: [],
     syncChatNotificationCursor: 0,
   };
   const controller = createDashboardRuntimeController({
     win: { setTimeout: (callback) => callback(), confirm: () => true },
+    getElement: (id) => ({
+      dashboardClubName,
+      dashboardClubMark,
+      dashboardClubLogoImage,
+      dashboardClubLogoInitials,
+    })[id] || null,
     getUi: () => ({ dashboardGrid, dashboardSchedulePreview }),
     homeContextSelectors: {
       getSessionPlannerState: () => ({ sessions: {} }),
@@ -47,6 +58,10 @@ function createRuntime(overrides = {}) {
     writeJson: harness.writeJson,
     createId: (prefix) => `${prefix}-stable`,
     getCurrentUser: () => ({ id: "coach-1" }),
+    getPlatformStructureState: () => ({ clubs: [{ id: "club-ncc", name: "North Carolina Courage" }], teams: [] }),
+    getPlatformTeamDisplayTeam: () => ({ name: "First Team", logoUrl: "/club-mark.png" }),
+    getPlatformTeamLogoUrl: (team) => team.logoUrl || "",
+    getUserClubName: () => "North Carolina Courage",
     getUsers: () => [
       { id: "coach-1", status: "active", name: "Coach One" },
       { id: "coach-2", status: "inactive", name: "Coach Two" },
@@ -66,7 +81,16 @@ function createRuntime(overrides = {}) {
     },
     ...overrides,
   });
-  return { calls, controller, dashboardGrid, dashboardSchedulePreview, storage: harness.storage };
+  return {
+    calls,
+    controller,
+    dashboardClubLogoImage,
+    dashboardClubLogoInitials,
+    dashboardClubName,
+    dashboardGrid,
+    dashboardSchedulePreview,
+    storage: harness.storage,
+  };
 }
 
 test("Home dashboard runtime preserves legacy task create/update/remove behavior", () => {
@@ -92,7 +116,16 @@ test("Home dashboard runtime preserves legacy task create/update/remove behavior
 });
 
 test("Home dashboard runtime renders Home from active users, tasks, and appearance state", () => {
-  const { calls, controller, dashboardGrid, dashboardSchedulePreview, storage } = createRuntime();
+  const {
+    calls,
+    controller,
+    dashboardClubLogoImage,
+    dashboardClubLogoInitials,
+    dashboardClubName,
+    dashboardGrid,
+    dashboardSchedulePreview,
+    storage,
+  } = createRuntime();
   storage.set("appearance", JSON.stringify({ theme: "dark" }));
 
   controller.createTask({ title: "Personal note", scope: "personal" });
@@ -104,10 +137,38 @@ test("Home dashboard runtime renders Home from active users, tasks, and appearan
   expect(dashboardGrid.innerHTML).not.toContain("coach-2");
   expect(dashboardSchedulePreview.innerHTML).toContain('data-schedule-events="1"');
   expect(dashboardSchedulePreview.innerHTML).toContain('data-schedule-today="2026-06-07"');
+  expect(dashboardClubName.textContent).toBe("North Carolina Courage");
+  expect(dashboardClubLogoImage.src).toBe("/club-mark.png");
+  expect(dashboardClubLogoImage.alt).toBe("North Carolina Courage logo");
+  expect(dashboardClubLogoImage.hidden).toBe(false);
+  expect(dashboardClubLogoInitials.textContent).toBe("NCC");
+  expect(dashboardClubLogoInitials.hidden).toBe(true);
+  expect(calls.clubMark).toContainEqual(["aria-label", "North Carolina Courage logo"]);
   expect(calls.syncChatNotificationCursor).toBe(1);
 
   controller.refreshSurfaces("Saved.");
   expect(calls.renderProfileWorkspace).toEqual(["Saved."]);
+});
+
+test("Home dashboard runtime falls back to club initials when no logo is available", () => {
+  const {
+    controller,
+    dashboardClubLogoImage,
+    dashboardClubLogoInitials,
+    dashboardClubName,
+  } = createRuntime({
+    getPlatformTeamDisplayTeam: () => ({ name: "First Team", logoUrl: "" }),
+    getPlatformTeamLogoUrl: () => "",
+    getUserClubName: () => "Riverside Athletic",
+  });
+
+  controller.renderCards();
+
+  expect(dashboardClubName.textContent).toBe("Riverside Athletic");
+  expect(dashboardClubLogoImage.hidden).toBe(true);
+  expect(dashboardClubLogoImage.alt).toBe("");
+  expect(dashboardClubLogoInitials.textContent).toBe("RA");
+  expect(dashboardClubLogoInitials.hidden).toBe(false);
 });
 
 test("Home dashboard runtime keeps tutorial/news and appearance storage scoped to Home keys", () => {

@@ -20,6 +20,9 @@ function createFakeStorageConstructor(options = {}) {
     return this.values.has(normalizedKey) ? this.values.get(normalizedKey) : null;
   };
   FakeStorage.prototype.setItem = function setItem(key, value) {
+    if (String(key) === "football-data-safety-v1" && options.failManifestWrites === true) {
+      throw new Error("Manifest persistence failed.");
+    }
     if (String(key) === options.quotaKey) {
       const error = new Error(`Setting ${String(key)} exceeded the quota.`);
       error.name = "QuotaExceededError";
@@ -123,7 +126,26 @@ function createHarness(options = {}) {
     createCentralBackedStorageError: () => new Error("Central sync is not ready."),
     getCentralStateBridge: () => win.footballScienceCentralState,
     getCentralStateWriteSuppressionKeys: () => options.suppressionKeys || new Set(),
-    queueCentralStateWrite: (...args) => queuedWrites.push(args),
+    queueCentralStateWrite: (...args) => {
+      queuedWrites.push(args);
+      const [key, value, writeOptions = {}] = args;
+      const mutation = service.mutateManifestWithResult((manifest) => {
+        const previousEntry = manifest.entries[String(key)] || {};
+        const recordWrite = writeOptions.recordWrite || {};
+        manifest.lastSavedAt = String(recordWrite.updatedAt || "");
+        manifest.lastKey = String(key);
+        manifest.lastError = "";
+        manifest.entries[String(key)] = {
+          ...previousEntry,
+          ...recordWrite,
+          writes: Number(previousEntry.writes || 0) + 1,
+          deletedAt: writeOptions.removed ? String(recordWrite.updatedAt || "") : "",
+          pendingCentralSync: true,
+          principalScope: "user-1:org-1:club-1:team-1:coach:active",
+        };
+      });
+      return mutation.persisted;
+    },
   });
   return { centralCache, dataSafetyStatus, localStorage, queuedWrites, service, timers, win };
 }
@@ -158,13 +180,51 @@ test("data safety runtime service preserves protected localStorage write trackin
     size: 13,
     writes: 1,
   });
-  expect(queuedWrites).toContainEqual(["football-schedule-v1", "{\"events\":[]}", {}]);
+  expect(queuedWrites).toContainEqual([
+    "football-schedule-v1",
+    "{\"events\":[]}",
+    expect.objectContaining({
+      recordWrite: expect.objectContaining({ label: "Schedule", size: 13 }),
+    }),
+  ]);
   expect(service.createBackupEnvelope("manual").summary).toMatchObject({
     keyCount: 1,
     totalBytes: 13,
   });
   expect(typeof win.footballScienceDataSafety.exportBackup).toBe("function");
   expect(timers.size).toBeGreaterThan(0);
+});
+
+test("data safety runtime service applies hydration cache values without rewriting the pending generation", () => {
+  const key = "football-medical-team-v1";
+  const localValue = JSON.stringify({ injuryPlans: [{ id: "pending-a" }] });
+  const hydratedValue = JSON.stringify({ injuryPlans: [{ id: "central" }, { id: "pending-a" }] });
+  const { localStorage, queuedWrites, service, win } = createHarness();
+
+  service.install();
+  localStorage.setItem(key, localValue);
+  service.mutateManifestWithResult((manifest) => {
+    manifest.entries[key] = {
+      ...manifest.entries[key],
+      hash: "pending-generation-a",
+      serverRevision: 7,
+      updatedAt: "2026-08-23T12:00:00.000Z",
+      writes: 4,
+    };
+  });
+  const expectedEntry = structuredClone(service.readManifest().entries[key]);
+  const queuedBeforeHydration = queuedWrites.length;
+
+  win.__footballScienceCentralHydrating = true;
+  try {
+    localStorage.setItem(key, hydratedValue);
+  } finally {
+    win.__footballScienceCentralHydrating = false;
+  }
+
+  expect(service.rawGetItem(key)).toBe(hydratedValue);
+  expect(queuedWrites).toHaveLength(queuedBeforeHydration);
+  expect(service.readManifest().entries[key]).toEqual(expectedEntry);
 });
 
 test("data safety runtime service falls back to central memory when browser cache quota is full", () => {
@@ -180,7 +240,13 @@ test("data safety runtime service falls back to central memory when browser cach
   expect(localStorage.getItem(key)).toBe(value);
   expect(service.rawGetItem(key)).toBe(value);
   expect(service.createBackupEnvelope("quota-fallback").storage[key]).toBe(value);
-  expect(queuedWrites).toContainEqual([key, value, {}]);
+  expect(queuedWrites).toContainEqual([
+    key,
+    value,
+    expect.objectContaining({
+      recordWrite: expect.objectContaining({ label: "Medical Room", size: value.length }),
+    }),
+  ]);
   expect(service.status.lastError).toBe("");
 });
 
@@ -194,6 +260,34 @@ test("data safety runtime service blocks protected writes until central sync is 
   expect(queuedWrites).toEqual([]);
   expect(service.status.lastError).toBe("Central sync is not ready.");
   expect(service.readManifest().lastError).toBe("Central sync is not ready.");
+});
+
+test("data safety runtime service rejects a protected write before raw data changes when the recovery manifest cannot persist", () => {
+  const options = {};
+  const { localStorage, service } = createHarness(options);
+
+  service.install();
+  options.failManifestWrites = true;
+
+  expect(() => localStorage.setItem("football-schedule-v1", "{\"events\":[{\"id\":\"new\"}]}"))
+    .toThrow("The local save was rejected because its recovery record could not be persisted safely.");
+  expect(localStorage.values.has("football-schedule-v1")).toBe(false);
+  expect(service.rawGetItem("football-schedule-v1")).toBe(null);
+});
+
+test("data safety runtime service rejects a protected delete before raw data changes when the recovery manifest cannot persist", () => {
+  const options = {};
+  const { localStorage, service } = createHarness(options);
+  const key = "football-schedule-v1";
+  const value = "{\"events\":[{\"id\":\"must-survive\"}]}";
+
+  localStorage.setItem(key, value);
+  service.install();
+  options.failManifestWrites = true;
+
+  expect(() => localStorage.removeItem(key))
+    .toThrow("The local save was rejected because its recovery record could not be persisted safely.");
+  expect(service.rawGetItem(key)).toBe(value);
 });
 
 test("data safety runtime service preserves legacy migration and queued snapshot flushing", () => {

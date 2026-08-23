@@ -3,6 +3,7 @@ const { readConfig, buildSupabaseKeyHeaders } = require("./supabase-admin.js");
 
 const APP_STATE_RECORDS_TABLE = "platform_app_state_records";
 const APP_STATE_WRITE_RPC = "write_platform_app_state_record";
+const APP_STATE_TENANT_MIGRATIONS_TABLE = "platform_app_state_tenant_migrations";
 const DATABASE_MODE_VALUES = new Set(["database", "db", "postgres", "supabase", "on", "true", "1"]);
 const DATABASE_REQUEST_TIMEOUT_MS = 10000;
 
@@ -82,7 +83,7 @@ function normalizeRecord(row = {}) {
     schema: "footballscience-app-state-v1",
     key: String(row.state_key),
     moduleId: String(row.module_id || ""),
-    organizationId: String(row.organization_id || "global"),
+    organizationId: String(row.organization_id || ""),
     mergePolicy: String(row.merge_policy || ""),
     revision: Number(row.revision) || 0,
     value: String(row.value ?? ""),
@@ -102,13 +103,17 @@ function recordSelect() {
   return "organization_id,state_key,module_id,merge_policy,revision,value,removed,updated_by,updated_at,value_hash,metadata";
 }
 
-async function readAppStateRecord(key, organizationId = "global") {
+async function readAppStateRecord(key, organizationId = "") {
   if (!isAppStateDatabaseEnabled()) {
     return { ok: false, enabled: false };
   }
+  const tenantId = String(organizationId || "").trim();
+  if (!tenantId) {
+    return { ok: false, enabled: true, status: 400, reason: "Central app-state tenant scope is required." };
+  }
   const query = new URLSearchParams({
     select: recordSelect(),
-    organization_id: `eq.${organizationId}`,
+    organization_id: `eq.${tenantId}`,
     state_key: `eq.${key}`,
     limit: "1",
   });
@@ -119,13 +124,17 @@ async function readAppStateRecord(key, organizationId = "global") {
   return { ok: true, enabled: true, entry: normalizeRecord(result.payload?.[0]) };
 }
 
-async function listAppStateRecords(organizationId = "global", keys = null) {
+async function listAppStateRecords(organizationId = "", keys = null) {
   if (!isAppStateDatabaseEnabled()) {
     return { ok: false, enabled: false };
   }
+  const tenantId = String(organizationId || "").trim();
+  if (!tenantId) {
+    return { ok: false, enabled: true, status: 400, reason: "Central app-state tenant scope is required." };
+  }
   const query = new URLSearchParams({
     select: recordSelect(),
-    organization_id: `eq.${organizationId}`,
+    organization_id: `eq.${tenantId}`,
     order: "state_key.asc",
   });
   if (Array.isArray(keys)) {
@@ -149,10 +158,14 @@ async function writeAppStateRecord(entry = {}, expectedRevision = 0) {
   if (!isAppStateDatabaseEnabled()) {
     return { ok: false, enabled: false };
   }
+  const organizationId = String(entry.organizationId || "").trim();
+  if (!organizationId) {
+    return { ok: false, enabled: true, status: 400, reason: "Central app-state tenant scope is required." };
+  }
   const result = await databaseRequest(`/rpc/${APP_STATE_WRITE_RPC}`, {
     method: "POST",
     body: {
-      p_organization_id: String(entry.organizationId || "global"),
+      p_organization_id: organizationId,
       p_state_key: String(entry.key || ""),
       p_module_id: String(entry.moduleId || ""),
       p_merge_policy: String(entry.mergePolicy || ""),
@@ -189,11 +202,38 @@ async function writeAppStateRecord(entry = {}, expectedRevision = 0) {
   return { ok: true, enabled: true, entry: persistedEntry };
 }
 
+async function readAppStateTenantMigrationStatus(organizationId = "") {
+  if (!isAppStateDatabaseEnabled()) {
+    return { ok: false, enabled: false };
+  }
+  const tenantId = String(organizationId || "").trim();
+  if (!tenantId) {
+    return { ok: false, enabled: true, status: 400, reason: "Central app-state tenant scope is required." };
+  }
+  const query = new URLSearchParams({
+    select: "id,status,plan_sha256,source_record_count,source_content_sha256,source_revision_sha256,target_after_record_count,target_after_content_sha256,target_after_revision_sha256,completed_at",
+    source_organization_id: "eq.global",
+    target_organization_id: `eq.${tenantId}`,
+    order: "created_at.desc",
+    limit: "1",
+  });
+  const result = await databaseRequest(`/${APP_STATE_TENANT_MIGRATIONS_TABLE}?${query.toString()}`);
+  if (!result.ok) return result;
+  const row = Array.isArray(result.payload) ? result.payload[0] : null;
+  return {
+    ok: true,
+    enabled: true,
+    completed: row?.status === "completed",
+    migration: row || null,
+  };
+}
+
 module.exports = {
   APP_STATE_RECORDS_TABLE,
   isAppStateDatabaseEnabled,
   listAppStateRecords,
   readAppStateRecord,
+  readAppStateTenantMigrationStatus,
   writeAppStateRecord,
   _private: {
     databaseRequest,

@@ -168,16 +168,24 @@ export function createDataSafetyRuntimeService(deps = {}) {
     };
     try {
       rawSetItem(storageKey, JSON.stringify(normalizedManifest));
+      return true;
     } catch (error) {
       status.lastError = error?.message || "Data safety manifest could not be saved.";
+      return false;
     }
   }
 
-  function mutateManifest(mutator) {
+  function mutateManifestWithResult(mutator) {
     const manifest = readManifest();
     mutator(manifest);
-    writeManifest(manifest);
-    return manifest;
+    return {
+      manifest,
+      persisted: writeManifest(manifest),
+    };
+  }
+
+  function mutateManifest(mutator) {
+    return mutateManifestWithResult(mutator).manifest;
   }
 
   function hashString(value) {
@@ -197,28 +205,47 @@ export function createDataSafetyRuntimeService(deps = {}) {
   function recordWrite(key, value, options = {}) {
     const normalizedKey = String(key || "");
     if (!isProtectedStorageKey(normalizedKey)) return;
+    if (win.__footballScienceCentralHydrating) {
+      return typeof options.rawWrite === "function" ? options.rawWrite() : undefined;
+    }
     const textValue = String(value ?? "");
     const now = getNow();
     status.lastError = "";
-    mutateManifest((manifest) => {
-      const previousEntry = manifest.entries[normalizedKey] || {};
-      manifest.lastSavedAt = now;
-      manifest.lastKey = normalizedKey;
-      manifest.lastError = "";
-      manifest.entries[normalizedKey] = {
-        label: getStorageLabel(normalizedKey),
-        updatedAt: now,
-        size: textValue.length,
-        hash: hashString(textValue),
-        writes: Number(previousEntry.writes || 0) + 1,
-        deletedAt: options.removed ? now : "",
-      };
-    });
-    queueSnapshot(options.removed ? "after-remove" : "autosave");
+    const recordMetadata = {
+      label: getStorageLabel(normalizedKey),
+      updatedAt: now,
+      size: textValue.length,
+      hash: hashString(textValue),
+    };
     if (!getCentralStateWriteSuppressionKeys().has(normalizedKey)) {
-      queueCentralStateWrite(normalizedKey, textValue, options);
+      const queued = queueCentralStateWrite(normalizedKey, textValue, {
+        ...options,
+        recordWrite: recordMetadata,
+      });
+      if (queued !== true) {
+        throw new Error("The local save was rejected because its recovery record could not be persisted safely.");
+      }
+    } else {
+      const mutation = mutateManifestWithResult((manifest) => {
+        const previousEntry = manifest.entries[normalizedKey] || {};
+        manifest.lastSavedAt = now;
+        manifest.lastKey = normalizedKey;
+        manifest.lastError = "";
+        manifest.entries[normalizedKey] = {
+          ...previousEntry,
+          ...recordMetadata,
+          writes: Number(previousEntry.writes || 0) + 1,
+          deletedAt: options.removed ? now : "",
+        };
+      });
+      if (!mutation.persisted) {
+        throw new Error("The local save was rejected because its recovery record could not be persisted safely.");
+      }
     }
+    const rawResult = typeof options.rawWrite === "function" ? options.rawWrite() : undefined;
+    queueSnapshot(options.removed ? "after-remove" : "autosave");
     queueStatusRefresh();
+    return rawResult;
   }
 
   function handleWriteError(key, error) {
@@ -507,8 +534,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
     await saveSnapshot("before-restore");
     try {
       entries.forEach(([key, value]) => {
-        rawSetItem(key, value);
-        recordWrite(key, value);
+        recordWrite(key, value, {
+          rawWrite: () => rawSetItem(key, value),
+        });
       });
       mutateManifest((manifest) => {
         manifest.lastImportedAt = getNow();
@@ -532,8 +560,9 @@ export function createDataSafetyRuntimeService(deps = {}) {
       if (!legacyKey) return;
       const legacyValue = rawGetItem(legacyKey);
       try {
-        rawSetItem(currentKey, legacyValue);
-        recordWrite(currentKey, legacyValue);
+        recordWrite(currentKey, legacyValue, {
+          rawWrite: () => rawSetItem(currentKey, legacyValue),
+        });
         mutateManifest((manifest) => {
           manifest.entries[currentKey] = {
             ...(manifest.entries[currentKey] || {}),
@@ -575,9 +604,13 @@ export function createDataSafetyRuntimeService(deps = {}) {
       }
       const previousValue = rawGetItem(normalizedKey);
       try {
-        const result = rawSetItem(normalizedKey, normalizedValue);
-        if (previousValue !== normalizedValue) recordWrite(normalizedKey, normalizedValue);
-        return result;
+        if (previousValue === normalizedValue) {
+          return nativeSetItem.call(this, key, value);
+        }
+        return recordWrite(normalizedKey, normalizedValue, {
+          previousValue,
+          rawWrite: () => rawSetItem(normalizedKey, normalizedValue),
+        });
       } catch (error) {
         handleWriteError(normalizedKey, error);
         throw error;
@@ -593,9 +626,14 @@ export function createDataSafetyRuntimeService(deps = {}) {
       }
       const previousValue = rawGetItem(normalizedKey);
       if (previousValue !== null) saveSnapshot("before-remove");
-      const result = rawRemoveItem(normalizedKey);
-      if (previousValue !== null) recordWrite(normalizedKey, "", { removed: true });
-      return result;
+      if (previousValue === null) {
+        return nativeRemoveItem.call(this, key);
+      }
+      return recordWrite(normalizedKey, "", {
+        removed: true,
+        previousValue,
+        rawWrite: () => rawRemoveItem(normalizedKey),
+      });
     };
     storageConstructor.prototype.clear = function patchedDataSafetyClear() {
       const removedKeys = this === storage ? Object.keys(collectStorageData()) : [];
@@ -651,6 +689,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     readManifest,
     writeManifest,
     mutateManifest,
+    mutateManifestWithResult,
     hashString,
     getStorageLabel,
     recordWrite,

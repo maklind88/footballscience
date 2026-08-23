@@ -19,6 +19,7 @@ function loadFreshAppStateHandler() {
 
 const supabaseEnvKeys = [
   "APP_STATE_DATABASE_MODE",
+  "APP_STATE_BACKUP_ORGANIZATION_ID",
   "CRON_SECRET",
   "SUPABASE_URL",
   "SUPABASE_ANON_KEY",
@@ -51,6 +52,14 @@ function clearEnv(keys) {
   keys.forEach((key) => {
     delete process.env[key];
   });
+}
+
+function configureTenantBackupEnv() {
+  process.env.APP_STATE_DATABASE_MODE = "database";
+  process.env.APP_STATE_BACKUP_ORGANIZATION_ID = backupOrganizationId;
+  process.env.CRON_SECRET = "cron-test-secret";
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 }
 
 function sha256(value) {
@@ -106,6 +115,8 @@ const appStateSessionPlannerPath = `global/${appStateSessionPlannerKey}.json`;
 const appStateSessionHistoryKey = "football-session-planner-history-v1";
 const appStateSessionHistoryPath = `global/${appStateSessionHistoryKey}.json`;
 const appStateChatKey = "football-dashboard-chat-v1";
+const homeTasksKey = "football-dashboard-tasks-v1";
+const homeTasksPath = `global/${homeTasksKey}.json`;
 const periodizationKey = "football-periodization-v2";
 const periodizationPath = `global/${periodizationKey}.json`;
 const workspaceHubKey = "football-workspace-hub-v3";
@@ -117,7 +128,28 @@ const medicalTeamPath = `global/${medicalTeamKey}.json`;
 const transferRoomKey = "football-transfer-room-v1";
 const transferRoomPath = `global/${transferRoomKey}.json`;
 const scheduleKey = "football-schedule-v1";
+const gameplanKey = "football-gameplan-v1";
+const gameplanPath = `global/${gameplanKey}.json`;
+const setPiecesKey = "football-set-pieces-room-v1";
+const setPiecesPath = `global/${setPiecesKey}.json`;
+const platformStructureKey = "football-platform-structure-v1";
+const platformStructurePath = `global/${platformStructureKey}.json`;
+const platformAppearanceKey = "football-platform-appearance-v1";
+const platformAppearancePath = `global/${platformAppearanceKey}.json`;
 const appStateReadSnapshotPath = "global/__app-state-read-snapshot-v1.json";
+const backupOrganizationId = "00000000-0000-4000-8000-000000000101";
+const appStateActorId = "00000000-0000-4000-8000-000000000001";
+const appStateMembershipId = "00000000-0000-4000-8000-000000000102";
+const appStateClubId = "00000000-0000-4000-8000-000000000103";
+const appStateTeamId = "00000000-0000-4000-8000-000000000104";
+
+function tenantStatePath(key, organizationId = backupOrganizationId) {
+  return `organizations/${organizationId}/${key}.json`;
+}
+
+function tenantBackupPrefix(organizationId = backupOrganizationId) {
+  return `backups/app-state/organizations/${organizationId}`;
+}
 
 function createAppStateStorageEntry(key, value, updatedAt = "2026-05-07T00:00:00.000Z") {
   return {
@@ -169,7 +201,7 @@ function createSquadStatusRepairFixture() {
     ...createAppStateStorageEntry(playerProfilesKey, currentState),
     revision: 12,
     moduleId: "squad",
-    organizationId: "global",
+    organizationId: backupOrganizationId,
     mergePolicy: "server-merge",
     updatedAt: "2026-06-08T13:56:46.000Z",
   };
@@ -189,7 +221,7 @@ function createSquadStatusRepairFixture() {
   backupManifest[playerProfilesKey] = {
     present: true,
     moduleId: "squad",
-    organizationId: "global",
+    organizationId: backupOrganizationId,
     revision: 11,
     mergePolicy: "server-merge",
     updatedAt: "2026-06-08T08:00:00.000Z",
@@ -201,6 +233,7 @@ function createSquadStatusRepairFixture() {
     schema: "footballscience-app-state-backup-v1",
     createdAt: "2026-06-08T08:00:00.000Z",
     source: "api/app-state-backup",
+    organizationId: backupOrganizationId,
     actor: {
       id: "vercel-cron",
       role: "system",
@@ -216,9 +249,10 @@ function createSquadStatusRepairFixture() {
     ...backupCore,
     contentSha256: sha256(JSON.stringify(backupCore)),
   };
-  const backupPath = `backups/app-state/2026-06-08/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
+  const backupPath = `${tenantBackupPrefix()}/2026-06-08/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
   const latestPointer = {
     schema: "footballscience-app-state-backup-pointer-v1",
+    organizationId: backupOrganizationId,
     createdAt: backupEnvelope.createdAt,
     path: backupPath,
     entryCount: backupEnvelope.entryCount,
@@ -233,16 +267,16 @@ function createSquadStatusRepairFixture() {
     backupPath,
     latestPointer,
     storageObjects: {
-      [playerProfilesPath]: currentEntry,
-      "backups/app-state/latest.json": latestPointer,
+      [`${tenantBackupPrefix()}/latest.json`]: latestPointer,
       [backupPath]: backupEnvelope,
     },
+    databaseEntries: [currentEntry],
   };
 }
 
 function createMockPlatformUser(role = "coach") {
   return {
-    id: "coach-1",
+    id: appStateActorId,
     email: "coach@example.com",
     user_metadata: {
       firstName: "QA",
@@ -258,13 +292,53 @@ function createMockPlatformUser(role = "coach") {
 }
 
 function createAppStateFetchMock(initialObjects = {}, role = "coach") {
+  process.env.APP_STATE_DATABASE_MODE = "database";
   const objects = new Map(Object.entries(initialObjects));
+  const database = new Map();
   const writes = [];
   const reads = [];
   const readRequests = [];
   const deletes = [];
+  const databaseReads = [];
+  const databaseWrites = [];
   const user = createMockPlatformUser(role);
 
+  const toDatabaseRow = (entry = {}, applied) => ({
+    ...(applied === undefined ? {} : { applied }),
+    organization_id: entry.organizationId || backupOrganizationId,
+    state_key: entry.key,
+    module_id: entry.moduleId || dataSafetyRegistry.getByKey(entry.key)?.moduleId || "",
+    merge_policy: entry.mergePolicy || dataSafetyRegistry.getByKey(entry.key)?.mergePolicy || "replace",
+    revision: Number(entry.revision) || 0,
+    value: String(entry.value ?? ""),
+    removed: Boolean(entry.removed),
+    updated_by: entry.updatedBy || appStateActorId,
+    updated_at: entry.updatedAt || "2026-05-07T00:00:00.000Z",
+    value_hash: entry.hash || sha256(entry.value),
+    metadata: entry.metadata || {},
+  });
+  const seedDatabaseEntry = (key, source = {}, metadata = {}) => {
+    if (!dataSafetyRegistry.getByKey(key) || database.has(key)) return;
+    database.set(key, {
+      key,
+      organizationId: backupOrganizationId,
+      moduleId: source.moduleId || metadata.moduleId || dataSafetyRegistry.getByKey(key)?.moduleId || "",
+      mergePolicy: source.mergePolicy || metadata.mergePolicy || dataSafetyRegistry.getByKey(key)?.mergePolicy || "replace",
+      revision: Number(source.revision ?? metadata.revision) || 1,
+      value: typeof source.value === "string" ? source.value : String(source ?? ""),
+      removed: Boolean(source.removed),
+      updatedBy: source.updatedBy || metadata.updatedBy || appStateActorId,
+      updatedAt: source.updatedAt || metadata.updatedAt || "2026-05-07T00:00:00.000Z",
+      hash: source.hash || metadata.hash || sha256(typeof source.value === "string" ? source.value : source),
+      metadata: source.metadata || {},
+    });
+  };
+  Object.entries(initialObjects).forEach(([path, source]) => {
+    const match = /^global\/(.+)\.json$/.exec(path);
+    if (match && match[1] !== "__app-state-read-snapshot-v1") {
+      seedDatabaseEntry(decodeURIComponent(match[1]), source);
+    }
+  });
   const fetchMock = async (url, options = {}) => {
     const requestUrl = String(url);
     const method = String(options.method || "GET").toUpperCase();
@@ -273,8 +347,115 @@ function createAppStateFetchMock(initialObjects = {}, role = "coach") {
       return new Response(JSON.stringify(user), { status: 200 });
     }
 
-    if (requestUrl.includes("/auth/v1/admin/users/coach-1")) {
+    if (requestUrl.includes(`/auth/v1/admin/users/${appStateActorId}`)) {
       return new Response(JSON.stringify(user), { status: 200 });
+    }
+
+    const parsedUrl = new URL(requestUrl);
+    if (parsedUrl.pathname === "/rest/v1/platform_memberships") {
+      return new Response(JSON.stringify([{
+        id: appStateMembershipId,
+        organization_id: backupOrganizationId,
+        club_id: appStateClubId,
+        team_id: appStateTeamId,
+        user_id: appStateActorId,
+        role,
+        scope: "team",
+        status: "active",
+        relationship: "staff",
+        accepted_at: "2026-05-07T00:00:00.000Z",
+        created_at: "2026-05-07T00:00:00.000Z",
+        updated_at: "2026-05-07T00:00:00.000Z",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_user_profiles") {
+      return new Response(JSON.stringify([{
+        user_id: appStateActorId,
+        primary_organization_id: backupOrganizationId,
+        primary_club_id: appStateClubId,
+        primary_team_id: appStateTeamId,
+        display_name: "QA Coach",
+        first_name: "QA",
+        last_name: "Coach",
+        email: user.email,
+        title: "Coach",
+        department: "Football",
+        status: "active",
+        updated_at: "2026-05-07T00:00:00.000Z",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_module_migration_checkpoints") {
+      return new Response(JSON.stringify([]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_organizations") {
+      return new Response(JSON.stringify([{
+        id: backupOrganizationId,
+        slug: "qa-org",
+        name: "QA Organization",
+        status: "active",
+        updated_at: "2026-05-07T00:00:00.000Z",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_clubs") {
+      return new Response(JSON.stringify([{
+        id: appStateClubId,
+        organization_id: backupOrganizationId,
+        slug: "qa-club",
+        name: "QA Club",
+        status: "active",
+        updated_at: "2026-05-07T00:00:00.000Z",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_teams") {
+      return new Response(JSON.stringify([{
+        id: appStateTeamId,
+        organization_id: backupOrganizationId,
+        club_id: appStateClubId,
+        slug: "qa-team",
+        name: "QA Team",
+        sport: "football",
+        age_group: "senior",
+        gender: "women",
+        status: "active",
+        updated_at: "2026-05-07T00:00:00.000Z",
+      }]), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/platform_app_state_records") {
+      const organizationId = String(parsedUrl.searchParams.get("organization_id") || "").replace(/^eq\./, "");
+      const keyFilter = String(parsedUrl.searchParams.get("state_key") || "");
+      databaseReads.push({ organizationId, url: parsedUrl.toString() });
+      const rows = Array.from(database.values())
+        .filter((entry) => entry.organizationId === organizationId)
+        .filter((entry) => !keyFilter || keyFilter.includes(entry.key))
+        .map((entry) => toDatabaseRow(entry));
+      return new Response(JSON.stringify(rows), { status: 200 });
+    }
+    if (parsedUrl.pathname === "/rest/v1/rpc/write_platform_app_state_record") {
+      const body = JSON.parse(String(options.body || "{}"));
+      databaseWrites.push(body);
+      const current = database.get(body.p_state_key);
+      const expectedRevision = Number(body.p_expected_revision) || 0;
+      if (
+        body.p_organization_id !== backupOrganizationId ||
+        expectedRevision !== Number(current?.revision || 0)
+      ) {
+        return new Response(JSON.stringify(current ? [{ ...toDatabaseRow(current), applied: false }] : []), { status: 200 });
+      }
+      const next = {
+        key: body.p_state_key,
+        organizationId: body.p_organization_id,
+        moduleId: body.p_module_id,
+        mergePolicy: body.p_merge_policy,
+        revision: body.p_next_revision,
+        value: body.p_value,
+        removed: body.p_removed,
+        updatedBy: body.p_updated_by,
+        updatedAt: "2026-08-23T12:00:00.000Z",
+        hash: body.p_value_hash,
+        metadata: body.p_metadata || {},
+      };
+      database.set(next.key, next);
+      return new Response(JSON.stringify([{ ...toDatabaseRow(next), applied: true }]), { status: 200 });
     }
 
     if (requestUrl.endsWith("/storage/v1/bucket/footballscience-app-state")) {
@@ -325,7 +506,104 @@ function createAppStateFetchMock(initialObjects = {}, role = "coach") {
     return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
   };
 
-  return { fetchMock, objects, writes, reads, readRequests, deletes };
+  return { database, databaseReads, databaseWrites, fetchMock, objects, writes, reads, readRequests, deletes };
+}
+
+function createTenantBackupFetchMock({ databaseEntries = [], storageObjects = {} } = {}) {
+  const database = new Map(databaseEntries.map((entry) => [entry.key, structuredClone(entry)]));
+  const objects = new Map(Object.entries(storageObjects));
+  const writes = [];
+  const reads = [];
+  const databaseReads = [];
+  const databaseWrites = [];
+
+  function toDatabaseRow(entry, applied) {
+    return {
+      ...(applied === undefined ? {} : { applied }),
+      organization_id: entry.organizationId,
+      state_key: entry.key,
+      module_id: entry.moduleId,
+      merge_policy: entry.mergePolicy,
+      revision: entry.revision,
+      value: entry.value,
+      removed: Boolean(entry.removed),
+      updated_by: entry.updatedBy,
+      updated_at: entry.updatedAt,
+      value_hash: entry.hash || sha256(entry.value),
+      metadata: entry.metadata || {},
+    };
+  }
+
+  const fetchMock = async (url, options = {}) => {
+    const requestUrl = new URL(String(url));
+    const method = String(options.method || "GET").toUpperCase();
+
+    if (requestUrl.pathname === "/storage/v1/bucket/footballscience-app-state") {
+      return new Response(JSON.stringify({ id: "footballscience-app-state", public: false }), { status: 200 });
+    }
+    if (requestUrl.pathname === "/rest/v1/platform_app_state_records") {
+      const organizationId = String(requestUrl.searchParams.get("organization_id") || "").replace(/^eq\./, "");
+      databaseReads.push({ organizationId, url: requestUrl.toString() });
+      const keyFilter = String(requestUrl.searchParams.get("state_key") || "");
+      const rows = Array.from(database.values())
+        .filter((entry) => entry.organizationId === organizationId)
+        .filter((entry) => !keyFilter || keyFilter.includes(entry.key))
+        .map((entry) => toDatabaseRow(entry));
+      return new Response(JSON.stringify(rows), { status: 200 });
+    }
+    if (requestUrl.pathname === "/rest/v1/rpc/write_platform_app_state_record") {
+      const body = JSON.parse(String(options.body || "{}"));
+      databaseWrites.push(body);
+      const current = database.get(body.p_state_key);
+      if (
+        body.p_organization_id !== backupOrganizationId ||
+        Number(body.p_expected_revision || 0) !== Number(current?.revision || 0)
+      ) {
+        return new Response(JSON.stringify(current ? [{ ...toDatabaseRow(current), applied: false }] : []), { status: 200 });
+      }
+      const next = {
+        organizationId: body.p_organization_id,
+        key: body.p_state_key,
+        moduleId: body.p_module_id,
+        mergePolicy: body.p_merge_policy,
+        revision: body.p_next_revision,
+        value: body.p_value,
+        removed: body.p_removed,
+        updatedBy: body.p_updated_by,
+        updatedAt: "2026-08-23T12:00:00.000Z",
+        hash: body.p_value_hash,
+        metadata: body.p_metadata,
+      };
+      database.set(next.key, next);
+      return new Response(JSON.stringify([{ ...toDatabaseRow(next), applied: true }]), { status: 200 });
+    }
+
+    const objectMarker = "/storage/v1/object/footballscience-app-state/";
+    if (requestUrl.pathname === "/storage/v1/object/footballscience-app-state" && method === "DELETE") {
+      const body = JSON.parse(String(options.body || "{}"));
+      (Array.isArray(body.prefixes) ? body.prefixes : []).forEach((path) => objects.delete(path));
+      return new Response(JSON.stringify({ deleted: 1 }), { status: 200 });
+    }
+    const markerIndex = requestUrl.pathname.indexOf(objectMarker);
+    if (markerIndex >= 0) {
+      const objectPath = decodeURIComponent(requestUrl.pathname.slice(markerIndex + objectMarker.length));
+      if (method === "GET") {
+        reads.push(objectPath);
+        return objects.has(objectPath)
+          ? new Response(JSON.stringify(objects.get(objectPath)), { status: 200 })
+          : new Response("{}", { status: 404 });
+      }
+      if (method === "PUT" || method === "POST") {
+        const entry = JSON.parse(String(options.body || "{}"));
+        objects.set(objectPath, entry);
+        writes.push({ method, objectPath, entry });
+        return new Response(JSON.stringify({ Key: objectPath }), { status: 200 });
+      }
+    }
+    return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
+  };
+
+  return { fetchMock, database, objects, writes, reads, databaseReads, databaseWrites };
 }
 
 test("client-config fails loudly when Supabase browser config is missing", async () => {
@@ -654,10 +932,63 @@ test("platform auth boot hydrates central state in bounded read batches", () => 
   expect(source).toContain("const CENTRAL_STATE_READ_BATCH_SIZE = 8;");
   expect(source).toContain("function buildCentralStateReadBatches()");
   expect(source).toContain("async function readCentralStateBatches(options = {})");
-  expect(source).toContain("Promise.all(buildCentralStateReadBatches().map((keys)");
+  expect(source).toContain("Promise.all(buildCentralStateReadBatches().map((keys, index)");
   expect(source).toContain('query.set("keys", keys.join(","));');
-  expect(source).toContain("const response = await readCentralStateBatches(options);");
+  expect(source).toContain('accessMode: index === 0 ? "fresh" : "none"');
+  expect(source).toContain("Object.assign(combined.payload.seedAccess, response.payload?.seedAccess || {});");
+  expect(source).toContain("filterCentralStateWriteEntries(collectCentralLocalStateEntries(), seedAccess)");
+  expect(source).toContain("return options.returnEntries ? { ok: true, entries, metadata } : true;");
+  expect(source).toContain("const response = await readCentralStateBatches({\n        ...options,\n        authToken: authContext.accessToken,\n      });");
+  expect(source).toContain("hydrationGeneration === centralStateHydrationGeneration");
+  expect(source).toContain("isAuthPrincipalContextCurrent(authContext)");
   expect(source).not.toContain("const statePath = options.forceApply || options.fresh");
+});
+
+test("platform auth boot routes principal lifecycle changes through the fail-closed transition boundary", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const source = readFileSync(path.join(process.cwd(), "platform-auth-boot.js"), "utf8");
+  const functionBody = (name, nextName) => source.slice(
+    source.indexOf(`function ${name}`),
+    source.indexOf(`function ${nextName}`)
+  );
+
+  expect(source).toContain("function resetCentralStateReconcileRequirements()");
+  expect(source).toContain("function transitionCentralStatePrincipal(nextUser = null)");
+  expect(source).toContain("if (scopeChanged) {\n      resetCentralStateForPrincipalTransition();\n    }");
+  expect(functionBody("setCurrentUserById", "setCurrentUserFromSession")).toContain(
+    "if (!transitionCentralStatePrincipal(nextUser))"
+  );
+  expect(functionBody("setCurrentUserFromSession", "isPausedAccount")).toContain(
+    "if (!transitionCentralStatePrincipal(null))"
+  );
+  expect(functionBody("setCurrentUserFromSession", "isPausedAccount")).toContain(
+    "mergeAuthUser(nextUser, { setCurrent: true"
+  );
+  const mergeUserBody = functionBody("mergeAuthUser", "refreshUserCache");
+  expect(mergeUserBody).toContain("if (shouldSetCurrent && !transitionCentralStatePrincipal(normalizedUser))");
+  expect(mergeUserBody.indexOf("transitionCentralStatePrincipal(normalizedUser)")).toBeLessThan(
+    mergeUserBody.indexOf("authState.users.findIndex")
+  );
+  expect(functionBody("refreshUserCache", "refreshCurrentUserProfile")).toContain(
+    "if (!transitionCentralStatePrincipal(refreshedCurrentUser))"
+  );
+  expect(functionBody("hydrateCurrentUser", "signInWithIdentifier")).toContain(
+    "if (!nextSession || !nextSessionUser)"
+  );
+  expect(functionBody("hydrateCurrentUser", "signInWithIdentifier")).toContain(
+    "transitionCentralStatePrincipal(null);"
+  );
+  expect(functionBody("clearAuthState", "clearStoredAuthArtifacts")).toContain(
+    "transitionCentralStatePrincipal(null);"
+  );
+  expect(functionBody("hydrateCentralState", "syncCentralStateKey")).toContain(
+    "centralState.localDev = true;"
+  );
+  expect(functionBody("hydrateCentralState", "syncCentralStateKey")).toContain(
+    "resetCentralStateReconcileRequirements();"
+  );
+  expect(source).toMatch(/clearCurrentUser:\s*\(\)\s*=>\s*\{[\s\S]*?transitionCentralStatePrincipal\(null\);/);
 });
 
 test("current actor lookup avoids duplicate admin fetches and reuses a brief validated token cache", async () => {
@@ -679,7 +1010,7 @@ test("current actor lookup avoids duplicate admin fetches and reuses a brief val
       userCalls += 1;
       return new Response(JSON.stringify(rawUser), { status: 200 });
     }
-    if (requestUrl.includes("/auth/v1/admin/users/coach-1")) {
+    if (requestUrl.includes(`/auth/v1/admin/users/${appStateActorId}`)) {
       adminUserCalls += 1;
       return new Response(JSON.stringify(rawUser), { status: 200 });
     }
@@ -690,8 +1021,8 @@ test("current actor lookup avoids duplicate admin fetches and reuses a brief val
     const first = await getCurrentActor(`Bearer ${token}`);
     const second = await getCurrentActor(`Bearer ${token}`);
 
-    expect(first?.id).toBe("coach-1");
-    expect(second?.id).toBe("coach-1");
+    expect(first?.id).toBe(appStateActorId);
+    expect(second?.id).toBe(appStateActorId);
     expect(userCalls).toBe(1);
     expect(adminUserCalls).toBe(0);
   } finally {
@@ -720,7 +1051,7 @@ test("app-state rejects unauthenticated requests before touching Supabase storag
   }
 });
 
-test("app-state uses shared read snapshot before fanning out to protected storage keys", async () => {
+test("app-state reads tenant database records without falling back to global storage snapshots", async () => {
   const handler = loadFreshAppStateHandler();
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
@@ -729,7 +1060,7 @@ test("app-state uses shared read snapshot before fanning out to protected storag
   process.env.SUPABASE_ANON_KEY = "anon-test-key";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
-  const scheduleValue = JSON.stringify({ events: [{ id: "event-1", title: "Training" }] });
+  const scheduleValue = JSON.stringify({ events: [{ id: "event-1", title: "Tenant training" }] });
   const storage = createAppStateFetchMock({
     [appStateReadSnapshotPath]: {
       schema: "footballscience-app-state-read-snapshot-v1",
@@ -746,7 +1077,10 @@ test("app-state uses shared read snapshot before fanning out to protected storag
         },
       },
     },
-    [`global/${scheduleKey}.json`]: createAppStateStorageEntry(scheduleKey, { events: [] }),
+    [`global/${scheduleKey}.json`]: {
+      ...createAppStateStorageEntry(scheduleKey, JSON.parse(scheduleValue)),
+      revision: 7,
+    },
   });
   global.fetch = storage.fetchMock;
 
@@ -761,7 +1095,16 @@ test("app-state uses shared read snapshot before fanning out to protected storag
 
     expect(response.status).toBe(200);
     expect(response.payload.entries[scheduleKey]).toBe(scheduleValue);
-    expect(storage.reads).toContain(appStateReadSnapshotPath);
+    expect(response.payload.metadata[scheduleKey]).toMatchObject({
+      organizationId: backupOrganizationId,
+      revision: 7,
+    });
+    expect(storage.databaseReads.length).toBeGreaterThanOrEqual(1);
+    expect(new Set(storage.databaseReads.map((read) => read.organizationId))).toEqual(
+      new Set([backupOrganizationId])
+    );
+    expect(storage.databaseReads.some((read) => read.url.includes("order=state_key.asc"))).toBe(true);
+    expect(storage.reads).not.toContain(appStateReadSnapshotPath);
     expect(storage.reads).not.toContain(`global/${scheduleKey}.json`);
   } finally {
     global.fetch = originalFetch;
@@ -769,7 +1112,7 @@ test("app-state uses shared read snapshot before fanning out to protected storag
   }
 });
 
-test("app-state bypasses shared read snapshots when a fresh central state read is requested", async () => {
+test("app-state fresh reads use tenant database records and never global storage snapshots", async () => {
   const handler = loadFreshAppStateHandler();
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
@@ -778,14 +1121,13 @@ test("app-state bypasses shared read snapshots when a fresh central state read i
   process.env.SUPABASE_ANON_KEY = "anon-test-key";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
 
-  const snapshotState = { events: [{ id: "event-stale", title: "Stale training" }] };
   const sourceState = { events: [{ id: "event-fresh", title: "Fresh training" }] };
   const storage = createAppStateFetchMock({
     [appStateReadSnapshotPath]: {
       schema: "footballscience-app-state-read-snapshot-v1",
       generatedAt: new Date().toISOString(),
       entries: {
-        [scheduleKey]: JSON.stringify(snapshotState),
+        [scheduleKey]: JSON.stringify({ events: [{ id: "event-stale", title: "Stale training" }] }),
       },
       metadata: {
         [scheduleKey]: {
@@ -813,21 +1155,21 @@ test("app-state bypasses shared read snapshots when a fresh central state read i
     expect(response.status).toBe(200);
     expect(response.payload.entries[scheduleKey]).toBe(JSON.stringify(sourceState));
     expect(response.payload.metadata[scheduleKey].revision).toBe(9);
-    expect(storage.reads).not.toContain(appStateReadSnapshotPath);
-    expect(storage.reads).toContain(`global/${scheduleKey}.json`);
-    const sourceRead = storage.readRequests.find(
-      (request) => request.objectPath === `global/${scheduleKey}.json`
+    expect(response.payload.metadata[scheduleKey].organizationId).toBe(backupOrganizationId);
+    expect(storage.databaseReads.length).toBeGreaterThanOrEqual(1);
+    expect(new Set(storage.databaseReads.map((read) => read.organizationId))).toEqual(
+      new Set([backupOrganizationId])
     );
-    expect(new URL(sourceRead.url).searchParams.get("cacheNonce")).toBeTruthy();
-    expect(sourceRead.headers["cache-control"]).toBe("no-cache, no-store");
-    expect(sourceRead.headers.pragma).toBe("no-cache");
+    expect(storage.databaseReads.some((read) => read.url.includes("order=state_key.asc"))).toBe(true);
+    expect(storage.reads).not.toContain(appStateReadSnapshotPath);
+    expect(storage.reads).not.toContain(`global/${scheduleKey}.json`);
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);
   }
 });
 
-test("app-state uses one cache-busted source revision throughout a protected write", async () => {
+test("app-state uses one tenant database revision throughout a protected write", async () => {
   const handler = loadFreshAppStateHandler();
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
@@ -859,12 +1201,19 @@ test("app-state uses one cache-busted source revision throughout a protected wri
     });
 
     expect(response.status).toBe(200);
-    const sourceReads = storage.readRequests.filter(
-      (request) => request.objectPath === `global/${scheduleKey}.json`
+    expect(storage.databaseReads.length).toBeGreaterThanOrEqual(1);
+    expect(new Set(storage.databaseReads.map((read) => read.organizationId))).toEqual(
+      new Set([backupOrganizationId])
     );
-    expect(sourceReads).toHaveLength(1);
-    expect(new URL(sourceReads[0].url).searchParams.get("cacheNonce")).toBeTruthy();
-    expect(sourceReads[0].headers["cache-control"]).toBe("no-cache, no-store");
+    expect(storage.databaseReads[0].organizationId).toBe(backupOrganizationId);
+    expect(storage.databaseWrites).toHaveLength(1);
+    expect(storage.databaseWrites[0]).toMatchObject({
+      p_organization_id: backupOrganizationId,
+      p_state_key: scheduleKey,
+      p_expected_revision: 4,
+      p_next_revision: 5,
+    });
+    expect(storage.reads).not.toContain(`global/${scheduleKey}.json`);
     expect(response.payload.revision).toBe(5);
   } finally {
     global.fetch = originalFetch;
@@ -872,7 +1221,7 @@ test("app-state uses one cache-busted source revision throughout a protected wri
   }
 });
 
-test("app-state ignores stale shared read snapshots and rebuilds them from source objects", async () => {
+test("app-state ignores stale global snapshots when tenant database records exist", async () => {
   const handler = loadFreshAppStateHandler();
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
@@ -908,19 +1257,23 @@ test("app-state ignores stale shared read snapshots and rebuilds them from sourc
       },
     });
 
-    const snapshotWrite = storage.writes.find((write) => write.objectPath === appStateReadSnapshotPath);
     expect(response.status).toBe(200);
     expect(response.payload.entries[scheduleKey]).toBe(JSON.stringify(sourceState));
-    expect(storage.reads).toContain(appStateReadSnapshotPath);
-    expect(storage.reads).toContain(`global/${scheduleKey}.json`);
-    expect(snapshotWrite?.entry.entries[scheduleKey]).toBe(JSON.stringify(sourceState));
+    expect(response.payload.metadata[scheduleKey].organizationId).toBe(backupOrganizationId);
+    expect(storage.databaseReads.length).toBeGreaterThanOrEqual(1);
+    expect(new Set(storage.databaseReads.map((read) => read.organizationId))).toEqual(
+      new Set([backupOrganizationId])
+    );
+    expect(storage.reads).not.toContain(appStateReadSnapshotPath);
+    expect(storage.reads).not.toContain(`global/${scheduleKey}.json`);
+    expect(storage.writes.find((write) => write.objectPath === appStateReadSnapshotPath)).toBeUndefined();
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);
   }
 });
 
-test("app-state rebuilds the shared read snapshot when the snapshot is missing", async () => {
+test("app-state does not rebuild legacy global snapshots from tenant database reads", async () => {
   const handler = loadFreshAppStateHandler();
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
@@ -944,20 +1297,22 @@ test("app-state rebuilds the shared read snapshot when the snapshot is missing",
       },
     });
 
-    const snapshotWrite = storage.writes.find((write) => write.objectPath === appStateReadSnapshotPath);
     expect(response.status).toBe(200);
     expect(response.payload.entries[scheduleKey]).toBe(JSON.stringify(sourceState));
-    expect(storage.reads).toContain(appStateReadSnapshotPath);
-    expect(storage.reads).toContain(`global/${scheduleKey}.json`);
-    expect(snapshotWrite?.entry.schema).toBe("footballscience-app-state-read-snapshot-v1");
-    expect(snapshotWrite?.entry.entries[scheduleKey]).toBe(JSON.stringify(sourceState));
+    expect(storage.databaseReads.length).toBeGreaterThanOrEqual(1);
+    expect(new Set(storage.databaseReads.map((read) => read.organizationId))).toEqual(
+      new Set([backupOrganizationId])
+    );
+    expect(storage.reads).not.toContain(appStateReadSnapshotPath);
+    expect(storage.reads).not.toContain(`global/${scheduleKey}.json`);
+    expect(storage.writes.find((write) => write.objectPath === appStateReadSnapshotPath)).toBeUndefined();
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);
   }
 });
 
-test("app-state invalidates the shared read snapshot after central state writes", async () => {
+test("app-state writes tenant database records without mutating legacy global snapshots", async () => {
   const handler = loadFreshAppStateHandler();
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
@@ -999,9 +1354,15 @@ test("app-state invalidates the shared read snapshot after central state writes"
     });
 
     expect(response.status).toBe(200);
-    expect(storage.deletes).toContain(appStateReadSnapshotPath);
-    expect(storage.objects.has(appStateReadSnapshotPath)).toBe(false);
-    expect(storage.objects.get(`global/${scheduleKey}.json`)?.value).toBe(JSON.stringify(nextState));
+    expect(storage.databaseWrites).toHaveLength(1);
+    expect(storage.database.get(scheduleKey)).toMatchObject({
+      organizationId: backupOrganizationId,
+      revision: 2,
+      value: JSON.stringify(nextState),
+    });
+    expect(storage.deletes).not.toContain(appStateReadSnapshotPath);
+    expect(storage.objects.has(appStateReadSnapshotPath)).toBe(true);
+    expect(storage.objects.get(`global/${scheduleKey}.json`)?.value).toBe(JSON.stringify({ events: [] }));
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);
@@ -1063,7 +1424,11 @@ test("app-state accepts Session Planner saves above the shared small JSON limit"
       ok: true,
       key: appStateSessionPlannerKey,
     });
-    expect(storage.objects.has(appStateSessionPlannerPath)).toBe(true);
+    expect(storage.database.get(appStateSessionPlannerKey)).toMatchObject({
+      organizationId: backupOrganizationId,
+      revision: 1,
+      value: JSON.stringify(largeSessionPlannerState),
+    });
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);
@@ -1149,6 +1514,358 @@ test("app-state keeps required team data visible to coaches even when workspace 
   }
 });
 
+test("app-state exposes an explicit fail-closed access decision for every protected registry key", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const protectedKeys = Array.from(dataSafetyRegistry.keys()).sort();
+  global.fetch = createAppStateFetchMock({}, "admin").fetchMock;
+
+  try {
+    const response = await callHandler(loadFreshAppStateHandler(), {
+      method: "GET",
+      url: `/api/app-state?keys=${protectedKeys.join(",")}&access=fresh`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(Object.keys(response.payload.writeAccess || {}).sort()).toEqual(protectedKeys);
+    expect(Object.keys(response.payload.seedAccess || {}).sort()).toEqual(protectedKeys);
+    expect(Object.values(response.payload.writeAccess)).toEqual(
+      expect.arrayContaining([expect.any(Boolean)])
+    );
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state applies Home and Set Pieces role contracts without a fail-open fallback", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const initialObjects = {
+    [homeTasksPath]: createAppStateStorageEntry(homeTasksKey, { tasks: [] }),
+    [setPiecesPath]: createAppStateStorageEntry(setPiecesKey, { plays: [] }),
+  };
+
+  try {
+    const coachStorage = createAppStateFetchMock(initialObjects, "coach");
+    global.fetch = coachStorage.fetchMock;
+    const coachRead = await callHandler(loadFreshAppStateHandler(), {
+      method: "GET",
+      url: `/api/app-state?keys=${homeTasksKey},${setPiecesKey}&access=fresh`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(coachRead.status).toBe(200);
+    expect(coachRead.payload.entries).toHaveProperty(homeTasksKey);
+    expect(coachRead.payload.entries).toHaveProperty(setPiecesKey);
+    expect(coachRead.payload.writeAccess).toMatchObject({
+      [homeTasksKey]: true,
+      [setPiecesKey]: true,
+    });
+
+    for (const [key, value] of [
+      [homeTasksKey, JSON.stringify({ tasks: [{ id: "task-1", text: "Prepare training" }] })],
+      [setPiecesKey, JSON.stringify({ plays: [{ id: "play-1", variants: [] }] })],
+    ]) {
+      const response = await callHandler(loadFreshAppStateHandler(), {
+        method: "POST",
+        url: "/api/app-state",
+        headers: { authorization: "Bearer test-access-token" },
+        body: JSON.stringify({ key, value, metadata: { baseRevision: 1 } }),
+      });
+      expect(response.status).toBe(200);
+    }
+
+    const guestStorage = createAppStateFetchMock(initialObjects, "guest");
+    global.fetch = guestStorage.fetchMock;
+    const guestRead = await callHandler(loadFreshAppStateHandler(), {
+      method: "GET",
+      url: `/api/app-state?keys=${homeTasksKey},${setPiecesKey}&access=fresh`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(guestRead.status).toBe(200);
+    expect(guestRead.payload.entries).toHaveProperty(homeTasksKey);
+    expect(guestRead.payload.entries).not.toHaveProperty(setPiecesKey);
+    expect(guestRead.payload.writeAccess).toMatchObject({
+      [homeTasksKey]: false,
+      [setPiecesKey]: false,
+    });
+
+    for (const key of [homeTasksKey, setPiecesKey]) {
+      const response = await callHandler(loadFreshAppStateHandler(), {
+        method: "POST",
+        url: "/api/app-state",
+        headers: { authorization: "Bearer test-access-token" },
+        body: JSON.stringify({ key, value: JSON.stringify({}), metadata: { baseRevision: 1 } }),
+      });
+      expect(response.status).toBe(403);
+    }
+    expect(guestStorage.writes).toEqual([]);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state reports effective Medical write access for each actor", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const initialObjects = {
+    [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+      workspaceAccess: {
+        "medical-team": {
+          view: ["admin", "coach", "medical"],
+          edit: ["admin", "medical"],
+        },
+        "player-profiles": {
+          view: ["admin", "coach", "medical"],
+          edit: ["admin", "coach"],
+        },
+      },
+    }),
+    [medicalTeamPath]: createAppStateStorageEntry(medicalTeamKey, {
+      players: [{ id: "player-1", name: "QA Player" }],
+      records: [],
+      injuryPlans: [],
+    }),
+    [playerProfilesPath]: createAppStateStorageEntry(playerProfilesKey, {
+      players: [{ id: "player-1", name: "QA Player" }],
+    }),
+  };
+
+  try {
+    global.fetch = createAppStateFetchMock(initialObjects, "coach").fetchMock;
+    const coachResponse = await callHandler(appStateHandler, {
+      method: "GET",
+      url: `/api/app-state?keys=${medicalTeamKey},${playerProfilesKey}`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+
+    expect(coachResponse.status).toBe(200);
+    expect(coachResponse.payload.writeAccess).toMatchObject({
+      [medicalTeamKey]: false,
+      [playerProfilesKey]: true,
+    });
+
+    global.fetch = createAppStateFetchMock(initialObjects, "medical").fetchMock;
+    const medicalResponse = await callHandler(appStateHandler, {
+      method: "GET",
+      url: `/api/app-state?keys=${medicalTeamKey}`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+
+    expect(medicalResponse.status).toBe(200);
+    expect(medicalResponse.payload.writeAccess).toMatchObject({
+      [medicalTeamKey]: true,
+    });
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state returns fresh full access contracts without allowing delegated structure seed", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const editableHubState = {
+    workspaceAccess: {
+      "medical-team": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+      "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+      gameplan: { view: ["admin", "coach"], edit: ["admin", "coach"] },
+    },
+  };
+  const revokedHubState = {
+    workspaceAccess: {
+      "medical-team": { view: ["admin"], edit: ["admin"] },
+      "player-profiles": { view: ["admin", "coach"], edit: ["admin", "coach"] },
+      gameplan: { view: ["admin"], edit: ["admin"] },
+    },
+  };
+  const transferRoomState = {
+    activeTeamId: "team-ncc-first",
+    teams: [{ id: "team-ncc-first", name: "North Carolina Courage" }],
+    accessByTeam: { "team-ncc-first": { userIds: [appStateActorId] } },
+  };
+  const storage = createAppStateFetchMock({
+    [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, editableHubState),
+    [medicalTeamPath]: createAppStateStorageEntry(medicalTeamKey, { players: [], records: [], injuryPlans: [] }),
+    [gameplanPath]: createAppStateStorageEntry(gameplanKey, { phases: [] }),
+    [playerProfilesPath]: createAppStateStorageEntry(playerProfilesKey, { players: [] }),
+    [platformStructurePath]: createAppStateStorageEntry(platformStructureKey, { clubs: [] }),
+    [platformAppearancePath]: createAppStateStorageEntry(platformAppearanceKey, { mode: "auto" }),
+    [transferRoomPath]: createAppStateStorageEntry(transferRoomKey, transferRoomState),
+  }, "coach");
+  global.fetch = storage.fetchMock;
+  const freshHandler = loadFreshAppStateHandler();
+
+  try {
+    const cachedResponse = await callHandler(freshHandler, {
+      method: "GET",
+      url: "/api/app-state",
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(cachedResponse.status).toBe(200);
+    expect(cachedResponse.payload.writeAccess[medicalTeamKey]).toBe(true);
+
+    const freshAllowResponse = await callHandler(freshHandler, {
+      method: "GET",
+      url: `/api/app-state?keys=${medicalTeamKey},${gameplanKey}&access=fresh`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(freshAllowResponse.status).toBe(200);
+    expect(freshAllowResponse.payload.entries).toHaveProperty(gameplanKey);
+    expect(freshAllowResponse.payload.metadata).toHaveProperty(gameplanKey);
+    expect(freshAllowResponse.payload.writeAccess[gameplanKey]).toBe(true);
+    expect(freshAllowResponse.payload.seedAccess[gameplanKey]).toBe(true);
+
+    storage.database.set(workspaceHubKey, {
+      ...storage.database.get(workspaceHubKey),
+      revision: 2,
+      value: JSON.stringify(revokedHubState),
+      updatedAt: "2026-08-23T12:05:00.000Z",
+      hash: sha256(JSON.stringify(revokedHubState)),
+    });
+    const freshAccessResponse = await callHandler(freshHandler, {
+      method: "GET",
+      url: `/api/app-state?keys=${medicalTeamKey},${gameplanKey}&access=fresh`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+
+    expect(freshAccessResponse.status).toBe(200);
+    expect(freshAccessResponse.payload.entries).not.toHaveProperty(gameplanKey);
+    expect(freshAccessResponse.payload.metadata).not.toHaveProperty(gameplanKey);
+    expect(freshAccessResponse.payload.writeAccess[gameplanKey]).toBe(false);
+    expect(freshAccessResponse.payload.seedAccess[gameplanKey]).toBe(false);
+    expect(freshAccessResponse.payload.writeAccess).toMatchObject({
+      [medicalTeamKey]: false,
+      [platformStructureKey]: true,
+      [platformAppearanceKey]: false,
+      [workspaceHubKey]: true,
+      [transferRoomKey]: true,
+    });
+    expect(freshAccessResponse.payload.seedAccess).toMatchObject({
+      [medicalTeamKey]: false,
+      [platformStructureKey]: false,
+      [platformAppearanceKey]: false,
+      [workspaceHubKey]: true,
+      [transferRoomKey]: false,
+    });
+    expect(freshAccessResponse.payload.writeAccess).toHaveProperty(scheduleKey);
+
+    const laterBatchResponse = await callHandler(freshHandler, {
+      method: "GET",
+      url: `/api/app-state?keys=${gameplanKey}&access=none`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(laterBatchResponse.status).toBe(200);
+    expect(laterBatchResponse.payload.entries).not.toHaveProperty(gameplanKey);
+    expect(laterBatchResponse.payload.metadata).not.toHaveProperty(gameplanKey);
+    expect(laterBatchResponse.payload).not.toHaveProperty("writeAccess");
+    expect(laterBatchResponse.payload).not.toHaveProperty("seedAccess");
+
+    const noAccessResponse = await callHandler(freshHandler, {
+      method: "GET",
+      url: `/api/app-state?keys=${medicalTeamKey}&access=none`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(noAccessResponse.status).toBe(200);
+    expect(noAccessResponse.payload).not.toHaveProperty("writeAccess");
+    expect(noAccessResponse.payload).not.toHaveProperty("seedAccess");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state keeps coach Medical writes blocked while Medical writes remain allowed", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const currentMedicalState = {
+    players: [{ id: "player-1", name: "QA Player" }],
+    records: [],
+    injuryPlans: [],
+  };
+  const nextMedicalState = {
+    ...currentMedicalState,
+    records: [{ id: "record-1", playerId: "player-1", date: "2026-08-23", participation: 75 }],
+  };
+  const initialObjects = {
+    [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+      workspaceAccess: {
+        "medical-team": {
+          view: ["admin", "coach", "medical"],
+          edit: ["admin", "medical"],
+        },
+      },
+    }),
+    [medicalTeamPath]: createAppStateStorageEntry(medicalTeamKey, currentMedicalState),
+  };
+
+  try {
+    const coachStorage = createAppStateFetchMock(initialObjects, "coach");
+    global.fetch = coachStorage.fetchMock;
+    const coachResponse = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: { authorization: "Bearer test-access-token" },
+      body: JSON.stringify({
+        key: medicalTeamKey,
+        value: JSON.stringify(nextMedicalState),
+        metadata: { baseRevision: 1 },
+      }),
+    });
+
+    expect(coachResponse.status).toBe(403);
+    expect(coachResponse.payload.reason).toBe("You do not have edit access for medical-team.");
+    expect(coachStorage.databaseWrites).toHaveLength(0);
+    expect(JSON.parse(coachStorage.database.get(medicalTeamKey).value).records).toEqual([]);
+
+    const medicalStorage = createAppStateFetchMock(initialObjects, "medical");
+    global.fetch = medicalStorage.fetchMock;
+    const medicalResponse = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: { authorization: "Bearer test-access-token" },
+      body: JSON.stringify({
+        key: medicalTeamKey,
+        value: JSON.stringify(nextMedicalState),
+        metadata: { baseRevision: 1 },
+      }),
+    });
+
+    expect(medicalResponse.status).toBe(200);
+    expect(medicalResponse.payload).toMatchObject({ ok: true, key: medicalTeamKey });
+    expect(medicalStorage.databaseWrites).toHaveLength(1);
+    expect(JSON.parse(medicalStorage.database.get(medicalTeamKey).value).records).toEqual(nextMedicalState.records);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("app-state hides Transfer Room from non-selected staff", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
@@ -1200,7 +1917,7 @@ test("app-state lets selected Transfer Room staff edit content without changing 
   const existingTransferRoomState = {
     activeTeamId: "team-ncc-first",
     teams: [{ id: "team-ncc-first", name: "North Carolina Courage" }],
-    accessByTeam: { "team-ncc-first": { userIds: ["coach-1"] } },
+    accessByTeam: { "team-ncc-first": { userIds: [appStateActorId] } },
     targetPlans: {},
   };
   const storage = createAppStateFetchMock(
@@ -1230,10 +1947,10 @@ test("app-state lets selected Transfer Room staff edit content without changing 
     });
 
     expect(response.status).toBe(200);
-    const savedEntry = storage.writes.find((write) => write.objectPath === transferRoomPath)?.entry;
-    const savedValue = JSON.parse(savedEntry.value);
+    expect(storage.databaseWrites).toHaveLength(1);
+    const savedValue = JSON.parse(storage.database.get(transferRoomKey).value);
     expect(savedValue.targetPlans["target-1"].wage).toBe(100000);
-    expect(savedValue.accessByTeam["team-ncc-first"].userIds).toEqual(["coach-1"]);
+    expect(savedValue.accessByTeam["team-ncc-first"].userIds).toEqual([appStateActorId]);
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);
@@ -1263,7 +1980,7 @@ test("app-state blocks staff from granting themselves new Transfer Room access",
         value: JSON.stringify({
           activeTeamId: "team-ncc-first",
           teams: [{ id: "team-ncc-first", name: "North Carolina Courage" }],
-          accessByTeam: { "team-ncc-first": { userIds: ["coach-1"] } },
+          accessByTeam: { "team-ncc-first": { userIds: [appStateActorId] } },
         }),
       }),
     });
@@ -1347,7 +2064,8 @@ test("app-state strips active workspace from hub writes before saving centrally"
     });
 
     expect(response.status).toBe(200);
-    const savedHubState = JSON.parse(storage.writes.find((entry) => entry.objectPath === workspaceHubPath).entry.value);
+    expect(storage.databaseWrites).toHaveLength(1);
+    const savedHubState = JSON.parse(storage.database.get(workspaceHubKey).value);
     expect(savedHubState.activeWorkspaceId).toBeUndefined();
     expect(JSON.parse(response.payload.value).activeWorkspaceId).toBeUndefined();
   } finally {
@@ -1531,8 +2249,8 @@ test("app-state syncs Squad role changes for coach editors", async () => {
       ok: true,
       key: playerProfilesKey,
     });
-    const write = storage.writes.find((entry) => entry.objectPath === playerProfilesPath);
-    expect(JSON.parse(write.entry.value).players[0]).toMatchObject({
+    expect(storage.databaseWrites).toHaveLength(1);
+    expect(JSON.parse(storage.database.get(playerProfilesKey).value).players[0]).toMatchObject({
       id: "player-1",
       primaryRole: "8",
       roleGroup: "midfielder",
@@ -2766,7 +3484,7 @@ test("app-state merges concurrent Session Planner edits by field timestamps", as
       merged: true,
     });
 
-    const storedState = JSON.parse(storage.objects.get(appStateSessionPlannerPath).value);
+    const storedState = JSON.parse(storage.database.get(appStateSessionPlannerKey).value);
     const storedBlock = storedState.sessions["2026-05-05"].blocks[0];
     expect(storedBlock.objective).toBe("Central objective");
     expect(storedBlock.organization).toBe("New organization from another tab");
@@ -2877,7 +3595,7 @@ test("app-state preserves newest Session Planner tactical frame state during sta
       merged: true,
     });
 
-    const storedState = JSON.parse(storage.objects.get(appStateSessionPlannerPath).value);
+    const storedState = JSON.parse(storage.database.get(appStateSessionPlannerKey).value);
     const storedBlock = storedState.sessions["2026-05-05"].blocks[0];
     expect(storedBlock.organization).toBe("Fresh organization from another coach");
     expect(storedBlock.tacticalElements).toEqual([{ id: "current-line", type: "line" }]);
@@ -2973,7 +3691,7 @@ test("app-state merges stale Periodization day edits by field timestamps", async
       merged: true,
     });
 
-    const storedState = JSON.parse(storage.objects.get(periodizationPath).value);
+    const storedState = JSON.parse(storage.database.get(periodizationKey).value);
     expect(storedState.days["2026-05-09"].physicalLoad).toBe("High");
     expect(storedState.days["2026-05-09"].sessionNotes).toBe("Fresh coach edit");
     expect(storedState.days["2026-05-10"].sessionNotes).toBe("Existing recovery");
@@ -3043,17 +3761,17 @@ test("app-state preserves Session Planner blocks during stale single-user saves"
       merged: true,
     });
 
-    const storedState = JSON.parse(storage.objects.get(appStateSessionPlannerPath).value);
+    const storedState = JSON.parse(storage.database.get(appStateSessionPlannerKey).value);
     const storedBlocks = storedState.sessions["2026-05-05"].blocks;
     expect(storedBlocks.map((block) => block.id)).toEqual(["block-1", "block-2"]);
     expect(storedBlocks[0].title).toBe("Block one edited");
     expect(storedBlocks[1].title).toBe("Block two");
-    const sourceReads = storage.readRequests.filter(
-      (request) => request.objectPath === appStateSessionPlannerPath
+    const sourceReads = storage.databaseReads.filter(
+      (request) => new URL(request.url).searchParams.get("state_key") === `eq.${appStateSessionPlannerKey}`
     );
     expect(sourceReads).toHaveLength(1);
-    expect(new URL(sourceReads[0].url).searchParams.get("cacheNonce")).toBeTruthy();
-    expect(sourceReads[0].headers["cache-control"]).toBe("no-cache, no-store");
+    expect(sourceReads[0].organizationId).toBe(backupOrganizationId);
+    expect(storage.reads).not.toContain(appStateSessionPlannerPath);
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);
@@ -3138,7 +3856,7 @@ test("app-state prevents stale Session Planner saves from resurrecting deleted b
       }),
     });
     expect(deleteResponse.status).toBe(200);
-    expect(JSON.parse(storage.objects.get(appStateSessionPlannerPath).value).sessions[dateValue].blocks.map((block) => block.id)).toEqual(["block-1"]);
+    expect(JSON.parse(storage.database.get(appStateSessionPlannerKey).value).sessions[dateValue].blocks.map((block) => block.id)).toEqual(["block-1"]);
 
     const staleResponse = await callHandler(appStateHandler, {
       method: "POST",
@@ -3158,7 +3876,7 @@ test("app-state prevents stale Session Planner saves from resurrecting deleted b
       merged: true,
     });
 
-    const storedState = JSON.parse(storage.objects.get(appStateSessionPlannerPath).value);
+    const storedState = JSON.parse(storage.database.get(appStateSessionPlannerKey).value);
     expect(storedState.sessions[dateValue].selectedBlockId).toBe("block-1");
     expect(storedState.sessions[dateValue].blocks.map((block) => block.id)).toEqual(["block-1"]);
     expect(storedState.sessions[dateValue].blocks[0].title).toBe("Keep from stale tab");
@@ -3311,43 +4029,25 @@ test("app-state backup accepts Vercel cron secret and writes a backup pointer", 
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
   clearEnv(supabaseEnvKeys);
-  process.env.CRON_SECRET = "cron-test-secret";
-  process.env.SUPABASE_URL = "https://example.supabase.co";
-  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  configureTenantBackupEnv();
 
-  const writes = [];
-  global.fetch = async (url, options = {}) => {
-    const requestUrl = String(url);
-    if (requestUrl.endsWith("/storage/v1/bucket/footballscience-app-state")) {
-      return new Response(JSON.stringify({ id: "footballscience-app-state" }), { status: 200 });
-    }
-
-    if (requestUrl.includes("/storage/v1/object/footballscience-app-state/global/football-schedule-v1.json")) {
-      return new Response(
-        JSON.stringify({
-          key: "football-schedule-v1",
-          value: JSON.stringify({ events: [{ title: "QA backup fixture" }] }),
-          updatedAt: "2026-05-07T00:00:00.000Z",
-        }),
-        { status: 200 }
-      );
-    }
-
-    if (requestUrl.includes("/storage/v1/object/footballscience-app-state/global/")) {
-      return new Response("{}", { status: 404 });
-    }
-
-    if (requestUrl.includes("/storage/v1/object/footballscience-app-state/backups/app-state/")) {
-      writes.push({
-        url: requestUrl,
-        method: options.method,
-        body: String(options.body || ""),
-      });
-      return new Response(JSON.stringify({ Key: "backup" }), { status: 200 });
-    }
-
-    return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
-  };
+  const scheduleValue = JSON.stringify({ events: [{ title: "QA backup fixture" }] });
+  const storage = createTenantBackupFetchMock({
+    databaseEntries: [{
+      key: scheduleKey,
+      organizationId: backupOrganizationId,
+      moduleId: "schedule",
+      mergePolicy: "revision-guarded-last-write",
+      revision: 3,
+      value: scheduleValue,
+      removed: false,
+      updatedBy: "vercel-cron",
+      updatedAt: "2026-05-07T00:00:00.000Z",
+      hash: sha256(scheduleValue),
+      metadata: {},
+    }],
+  });
+  global.fetch = storage.fetchMock;
 
   try {
     const response = await callHandler(appStateBackupHandler, {
@@ -3362,10 +4062,11 @@ test("app-state backup accepts Vercel cron secret and writes a backup pointer", 
       ok: true,
       entryCount: 1,
     });
-    expect(response.payload.path).toContain("backups/app-state/");
-    expect(writes.some((write) => write.url.endsWith("/backups/app-state/latest.json"))).toBe(true);
-    expect(writes.some((write) => write.body.includes("QA backup fixture"))).toBe(true);
-    expect(JSON.stringify(writes)).not.toContain("service-role-test-key");
+    expect(response.payload.path).toContain(`${tenantBackupPrefix()}/`);
+    expect(storage.writes.some((write) => write.objectPath === `${tenantBackupPrefix()}/latest.json`)).toBe(true);
+    expect(storage.writes.some((write) => JSON.stringify(write.entry).includes("QA backup fixture"))).toBe(true);
+    expect(storage.databaseReads.every((read) => read.organizationId === backupOrganizationId)).toBe(true);
+    expect(JSON.stringify(storage.writes)).not.toContain("service-role-test-key");
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);
@@ -3376,9 +4077,7 @@ test("app-state backup status verifies latest pointer without exposing backup en
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
   clearEnv(supabaseEnvKeys);
-  process.env.CRON_SECRET = "cron-test-secret";
-  process.env.SUPABASE_URL = "https://example.supabase.co";
-  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  configureTenantBackupEnv();
   const scheduleValue = JSON.stringify({ privateFixture: "must stay out of status" });
 
   const backupManifest = Object.fromEntries(
@@ -3396,7 +4095,7 @@ test("app-state backup status verifies latest pointer without exposing backup en
   backupManifest["football-schedule-v1"] = {
     present: true,
     moduleId: "schedule",
-    organizationId: "global",
+    organizationId: backupOrganizationId,
     revision: 2,
     mergePolicy: "server-merge",
     updatedAt: "2026-05-07T00:00:00.000Z",
@@ -3409,6 +4108,7 @@ test("app-state backup status verifies latest pointer without exposing backup en
     schema: "footballscience-app-state-backup-v1",
     createdAt: new Date().toISOString(),
     source: "api/app-state-backup",
+    organizationId: backupOrganizationId,
     actor: {
       id: "vercel-cron",
       role: "system",
@@ -3424,27 +4124,23 @@ test("app-state backup status verifies latest pointer without exposing backup en
     ...backupCore,
     contentSha256: sha256(JSON.stringify(backupCore)),
   };
-  const backupPath = `backups/app-state/2026-05-09/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
+  const backupPath = `${tenantBackupPrefix()}/2026-05-09/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
   const latestPointer = {
     schema: "footballscience-app-state-backup-pointer-v1",
+    organizationId: backupOrganizationId,
     createdAt: backupEnvelope.createdAt,
     path: backupPath,
     entryCount: backupEnvelope.entryCount,
     contentSha256: backupEnvelope.contentSha256,
   };
 
-  global.fetch = async (url) => {
-    const requestUrl = String(url);
-    if (requestUrl.endsWith("/storage/v1/object/footballscience-app-state/backups/app-state/latest.json")) {
-      return new Response(JSON.stringify(latestPointer), { status: 200 });
-    }
-
-    if (requestUrl.endsWith(`/storage/v1/object/footballscience-app-state/${backupPath}`)) {
-      return new Response(JSON.stringify(backupEnvelope), { status: 200 });
-    }
-
-    return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
-  };
+  const storage = createTenantBackupFetchMock({
+    storageObjects: {
+      [`${tenantBackupPrefix()}/latest.json`]: latestPointer,
+      [backupPath]: backupEnvelope,
+    },
+  });
+  global.fetch = storage.fetchMock;
 
   try {
     const anonymousResponse = await callHandler(appStateBackupHandler, {
@@ -3484,7 +4180,7 @@ test("app-state backup status verifies latest pointer without exposing backup en
         "football-schedule-v1": {
           present: true,
           moduleId: "schedule",
-          organizationId: "global",
+          organizationId: backupOrganizationId,
           revision: 2,
           mergePolicy: "server-merge",
           updatedAt: "2026-05-07T00:00:00.000Z",
@@ -3507,9 +4203,7 @@ test("app-state restore drill parses latest backup without restoring or exposing
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
   clearEnv(supabaseEnvKeys);
-  process.env.CRON_SECRET = "cron-test-secret";
-  process.env.SUPABASE_URL = "https://example.supabase.co";
-  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  configureTenantBackupEnv();
   const scheduleValue = JSON.stringify({ privateFixture: "must stay out of restore drill" });
 
   const backupManifest = Object.fromEntries(
@@ -3527,7 +4221,7 @@ test("app-state restore drill parses latest backup without restoring or exposing
   backupManifest["football-schedule-v1"] = {
     present: true,
     moduleId: "schedule",
-    organizationId: "global",
+    organizationId: backupOrganizationId,
     revision: 4,
     mergePolicy: "server-merge",
     updatedAt: "2026-05-07T00:00:00.000Z",
@@ -3540,6 +4234,7 @@ test("app-state restore drill parses latest backup without restoring or exposing
     schema: "footballscience-app-state-backup-v1",
     createdAt: new Date().toISOString(),
     source: "api/app-state-backup",
+    organizationId: backupOrganizationId,
     actor: {
       id: "vercel-cron",
       role: "system",
@@ -3555,27 +4250,23 @@ test("app-state restore drill parses latest backup without restoring or exposing
     ...backupCore,
     contentSha256: sha256(JSON.stringify(backupCore)),
   };
-  const backupPath = `backups/app-state/2026-05-09/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
+  const backupPath = `${tenantBackupPrefix()}/2026-05-09/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
   const latestPointer = {
     schema: "footballscience-app-state-backup-pointer-v1",
+    organizationId: backupOrganizationId,
     createdAt: backupEnvelope.createdAt,
     path: backupPath,
     entryCount: backupEnvelope.entryCount,
     contentSha256: backupEnvelope.contentSha256,
   };
 
-  global.fetch = async (url) => {
-    const requestUrl = String(url);
-    if (requestUrl.endsWith("/storage/v1/object/footballscience-app-state/backups/app-state/latest.json")) {
-      return new Response(JSON.stringify(latestPointer), { status: 200 });
-    }
-
-    if (requestUrl.endsWith(`/storage/v1/object/footballscience-app-state/${backupPath}`)) {
-      return new Response(JSON.stringify(backupEnvelope), { status: 200 });
-    }
-
-    return new Response(JSON.stringify({ message: `Unexpected request: ${requestUrl}` }), { status: 500 });
-  };
+  const storage = createTenantBackupFetchMock({
+    storageObjects: {
+      [`${tenantBackupPrefix()}/latest.json`]: latestPointer,
+      [backupPath]: backupEnvelope,
+    },
+  });
+  global.fetch = storage.fetchMock;
 
   try {
     const response = await callHandler(appStateBackupHandler, {
@@ -3625,13 +4316,83 @@ test("app-state restore drill parses latest backup without restoring or exposing
   }
 });
 
+test("app-state backup status and restore drill reject cross-organization backup pointers before reading them", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  configureTenantBackupEnv();
+  const otherOrganizationId = "00000000-0000-4000-8000-000000000102";
+  const manifest = Object.fromEntries(dataSafetyRegistry.keys().map((key) => [
+    key,
+    { present: false, moduleId: dataSafetyRegistry.getByKey(key)?.moduleId || "" },
+  ]));
+  const aCore = {
+    schema: "footballscience-app-state-backup-v1",
+    createdAt: "2026-08-23T10:00:00.000Z",
+    source: "api/app-state-backup",
+    organizationId: backupOrganizationId,
+    actor: { id: "vercel-cron", role: "system", email: "" },
+    entryCount: 0,
+    manifest,
+    entries: {},
+  };
+  const aBackup = { ...aCore, contentSha256: sha256(JSON.stringify(aCore)) };
+  const aPath = `${tenantBackupPrefix()}/2026-08-23/a-backup.json`;
+  const aPointer = {
+    schema: "footballscience-app-state-backup-pointer-v1",
+    organizationId: backupOrganizationId,
+    createdAt: aBackup.createdAt,
+    path: aPath,
+    entryCount: 0,
+    contentSha256: aBackup.contentSha256,
+  };
+  const bPath = `${tenantBackupPrefix(otherOrganizationId)}/2026-08-23/b-private.json`;
+  const bBackup = {
+    ...aBackup,
+    organizationId: otherOrganizationId,
+    entries: { [scheduleKey]: "club-b-private" },
+  };
+  const storage = createTenantBackupFetchMock({
+    storageObjects: {
+      [`${tenantBackupPrefix()}/latest.json`]: aPointer,
+      [aPath]: aBackup,
+      [bPath]: bBackup,
+    },
+  });
+  global.fetch = storage.fetchMock;
+
+  try {
+    const healthy = await callHandler(appStateBackupHandler, {
+      method: "GET",
+      url: "/api/app-state-backup-status",
+      headers: { authorization: "Bearer cron-test-secret" },
+    });
+    expect(healthy.status).toBe(200);
+    expect(storage.reads).toEqual([`${tenantBackupPrefix()}/latest.json`, aPath]);
+    expect(storage.reads).not.toContain(bPath);
+
+    storage.reads.length = 0;
+    storage.objects.set(`${tenantBackupPrefix()}/latest.json`, { ...aPointer, path: bPath });
+    const blocked = await callHandler(appStateBackupHandler, {
+      method: "GET",
+      url: "/api/app-state-backup?mode=restore-drill",
+      headers: { authorization: "Bearer cron-test-secret" },
+    });
+    expect(blocked.status).toBe(409);
+    expect(blocked.payload.reason).toContain("invalid path");
+    expect(storage.reads).toEqual([`${tenantBackupPrefix()}/latest.json`]);
+    expect(JSON.stringify(blocked.payload)).not.toContain("club-b-private");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("app-state Squad status audit reports only sanitized drift metadata", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
   clearEnv(supabaseEnvKeys);
-  process.env.CRON_SECRET = "cron-test-secret";
-  process.env.SUPABASE_URL = "https://example.supabase.co";
-  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  configureTenantBackupEnv();
   const currentState = {
     players: [
       {
@@ -3668,6 +4429,8 @@ test("app-state Squad status audit reports only sanitized drift metadata", async
     ...createAppStateStorageEntry(playerProfilesKey, currentState),
     revision: 12,
     moduleId: "squad",
+    organizationId: backupOrganizationId,
+    mergePolicy: "record-timestamp-merge",
     updatedAt: "2026-06-08T13:56:46.000Z",
   };
   const backupValue = JSON.stringify(backupState);
@@ -3686,7 +4449,7 @@ test("app-state Squad status audit reports only sanitized drift metadata", async
   backupManifest[playerProfilesKey] = {
     present: true,
     moduleId: "squad",
-    organizationId: "global",
+    organizationId: backupOrganizationId,
     revision: 11,
     mergePolicy: "server-merge",
     updatedAt: "2026-06-08T08:00:00.000Z",
@@ -3698,6 +4461,7 @@ test("app-state Squad status audit reports only sanitized drift metadata", async
     schema: "footballscience-app-state-backup-v1",
     createdAt: "2026-06-08T08:00:00.000Z",
     source: "api/app-state-backup",
+    organizationId: backupOrganizationId,
     actor: {
       id: "vercel-cron",
       role: "system",
@@ -3713,22 +4477,22 @@ test("app-state Squad status audit reports only sanitized drift metadata", async
     ...backupCore,
     contentSha256: sha256(JSON.stringify(backupCore)),
   };
-  const backupPath = `backups/app-state/2026-06-08/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
+  const backupPath = `${tenantBackupPrefix()}/2026-06-08/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
   const latestPointer = {
     schema: "footballscience-app-state-backup-pointer-v1",
+    organizationId: backupOrganizationId,
     createdAt: backupEnvelope.createdAt,
     path: backupPath,
     entryCount: backupEnvelope.entryCount,
     contentSha256: backupEnvelope.contentSha256,
   };
-  const storage = createAppStateFetchMock(
-    {
-      [playerProfilesPath]: currentEntry,
-      "backups/app-state/latest.json": latestPointer,
+  const storage = createTenantBackupFetchMock({
+    databaseEntries: [currentEntry],
+    storageObjects: {
+      [`${tenantBackupPrefix()}/latest.json`]: latestPointer,
       [backupPath]: backupEnvelope,
     },
-    "admin"
-  );
+  });
   global.fetch = storage.fetchMock;
 
   try {
@@ -3791,9 +4555,7 @@ test("app-state Squad status repair dry-run reports only sanitized repair metada
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
   clearEnv(supabaseEnvKeys);
-  process.env.CRON_SECRET = "cron-test-secret";
-  process.env.SUPABASE_URL = "https://example.supabase.co";
-  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  configureTenantBackupEnv();
   const currentState = {
     players: [
       {
@@ -3830,6 +4592,8 @@ test("app-state Squad status repair dry-run reports only sanitized repair metada
     ...createAppStateStorageEntry(playerProfilesKey, currentState),
     revision: 12,
     moduleId: "squad",
+    organizationId: backupOrganizationId,
+    mergePolicy: "record-timestamp-merge",
     updatedAt: "2026-06-08T13:56:46.000Z",
   };
   const backupValue = JSON.stringify(backupState);
@@ -3848,7 +4612,7 @@ test("app-state Squad status repair dry-run reports only sanitized repair metada
   backupManifest[playerProfilesKey] = {
     present: true,
     moduleId: "squad",
-    organizationId: "global",
+    organizationId: backupOrganizationId,
     revision: 11,
     mergePolicy: "server-merge",
     updatedAt: "2026-06-08T08:00:00.000Z",
@@ -3860,6 +4624,7 @@ test("app-state Squad status repair dry-run reports only sanitized repair metada
     schema: "footballscience-app-state-backup-v1",
     createdAt: "2026-06-08T08:00:00.000Z",
     source: "api/app-state-backup",
+    organizationId: backupOrganizationId,
     actor: {
       id: "vercel-cron",
       role: "system",
@@ -3875,22 +4640,22 @@ test("app-state Squad status repair dry-run reports only sanitized repair metada
     ...backupCore,
     contentSha256: sha256(JSON.stringify(backupCore)),
   };
-  const backupPath = `backups/app-state/2026-06-08/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
+  const backupPath = `${tenantBackupPrefix()}/2026-06-08/${backupEnvelope.contentSha256.slice(0, 12)}.json`;
   const latestPointer = {
     schema: "footballscience-app-state-backup-pointer-v1",
+    organizationId: backupOrganizationId,
     createdAt: backupEnvelope.createdAt,
     path: backupPath,
     entryCount: backupEnvelope.entryCount,
     contentSha256: backupEnvelope.contentSha256,
   };
-  const storage = createAppStateFetchMock(
-    {
-      [playerProfilesPath]: currentEntry,
-      "backups/app-state/latest.json": latestPointer,
+  const storage = createTenantBackupFetchMock({
+    databaseEntries: [currentEntry],
+    storageObjects: {
+      [`${tenantBackupPrefix()}/latest.json`]: latestPointer,
       [backupPath]: backupEnvelope,
     },
-    "admin"
-  );
+  });
   global.fetch = storage.fetchMock;
 
   try {
@@ -3977,11 +4742,9 @@ test("app-state Squad status repair execute refuses guard mismatch without write
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
   clearEnv(supabaseEnvKeys);
-  process.env.CRON_SECRET = "cron-test-secret";
-  process.env.SUPABASE_URL = "https://example.supabase.co";
-  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  configureTenantBackupEnv();
   const fixture = createSquadStatusRepairFixture();
-  const storage = createAppStateFetchMock(fixture.storageObjects, "admin");
+  const storage = createTenantBackupFetchMock(fixture);
   global.fetch = storage.fetchMock;
 
   try {
@@ -4040,11 +4803,9 @@ test("app-state Squad status repair execute writes only guarded status fields wi
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;
   clearEnv(supabaseEnvKeys);
-  process.env.CRON_SECRET = "cron-test-secret";
-  process.env.SUPABASE_URL = "https://example.supabase.co";
-  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  configureTenantBackupEnv();
   const fixture = createSquadStatusRepairFixture();
-  const storage = createAppStateFetchMock(fixture.storageObjects, "admin");
+  const storage = createTenantBackupFetchMock(fixture);
   global.fetch = storage.fetchMock;
 
   try {
@@ -4117,7 +4878,7 @@ test("app-state Squad status repair execute writes only guarded status fields wi
         rawBackupExposed: false,
       },
     });
-    expect(response.payload.preWriteSnapshot.path).toContain("backups/app-state/repair-snapshots/squad-status/");
+    expect(response.payload.preWriteSnapshot.path).toContain(`${tenantBackupPrefix()}/repair-snapshots/squad-status/`);
     expect(response.payload.preWriteSnapshot.contentSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(response.payload.after.valueSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(response.payload.after.valueSha256).not.toBe(response.payload.before.valueSha256);
@@ -4132,9 +4893,9 @@ test("app-state Squad status repair execute writes only guarded status fields wi
     expect(payloadText).not.toContain('"changeLog"');
     expect(payloadText).not.toContain("service-role-test-key");
 
-    const stateWrite = storage.writes.find((write) => write.objectPath === playerProfilesPath);
+    const stateWrite = storage.writes.find((write) => write.objectPath === tenantStatePath(playerProfilesKey));
     const snapshotWrite = storage.writes.find((write) =>
-      write.objectPath.startsWith("backups/app-state/repair-snapshots/squad-status/")
+      write.objectPath.startsWith(`${tenantBackupPrefix()}/repair-snapshots/squad-status/`)
     );
     expect(stateWrite).toBeTruthy();
     expect(snapshotWrite).toBeTruthy();

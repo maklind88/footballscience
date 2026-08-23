@@ -10,12 +10,14 @@ const {
 const { appendAuditLog } = require("./_lib/audit-log.js");
 const { appendSessionPlannerHistory } = require("./_lib/session-history.js");
 const { guardApiRequest } = require("./_lib/platform-security.js");
+const { resolvePlatformActorScope } = require("./_lib/platform-identity.js");
 const { protectGameplanStateWrite } = require("./_lib/gameplan-state-authorization.js");
 const { protectSetPiecesStateWrite } = require("./_lib/set-pieces-state-authorization.js");
 const {
   isAppStateDatabaseEnabled,
   listAppStateRecords,
   readAppStateRecord,
+  readAppStateTenantMigrationStatus,
   writeAppStateRecord,
 } = require("./_lib/app-state-records-database.js");
 const { dataSafetyRegistry } = require("../src/core/data-safety-contracts.cjs");
@@ -28,6 +30,8 @@ const crypto = require("crypto");
 
 const STATE_BUCKET = "footballscience-app-state";
 const STATE_PREFIX = "global";
+const APP_STATE_LEGACY_ORGANIZATION_ENV = "APP_STATE_LEGACY_GLOBAL_ORGANIZATION_ID";
+const APP_STATE_LEGACY_READ_FALLBACK_ENV = "APP_STATE_LEGACY_READ_FALLBACK_ENABLED";
 const MAX_APP_STATE_JSON_BODY_BYTES = 4 * 1024 * 1024;
 const MAX_STATE_VALUE_BYTES = 12 * 1024 * 1024;
 const STATE_BUCKET_CHECK_TTL_MS = 10 * 60 * 1000;
@@ -107,6 +111,7 @@ const WORKSPACE_HUB_KEY = "football-workspace-hub-v3";
 const PLATFORM_STRUCTURE_KEY = "football-platform-structure-v1";
 const PLATFORM_APPEARANCE_KEY = PLATFORM_APPEARANCE_STORAGE_KEY;
 const DEFAULT_WORKSPACE_ACCESS = {
+  home: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
   chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   schedule: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
   gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
@@ -124,6 +129,7 @@ const DEFAULT_WORKSPACE_ACCESS = {
   "game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance"],
 };
 const DEFAULT_WORKSPACE_EDIT_ACCESS = {
+  home: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   schedule: ["admin", "club-admin", "team-admin", "coach"],
   gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
@@ -169,6 +175,11 @@ const REQUIRED_WORKSPACE_ACCESS = {
 const STATE_KEY_WORKSPACE_EDIT_MAP = {
   [PLATFORM_STRUCTURE_KEY]: "admin",
   "football-dashboard-chat-v1": "chat",
+  "football-dashboard-tasks-v1": "home",
+  "football-dashboard-notification-seen-v1": "home",
+  "football-dashboard-tutorial-prefs-v1": "home",
+  "football-dashboard-news-seen-v1": "home",
+  "football-dashboard-presentation-mode-v1": "home",
   "football-schedule-v1": "schedule",
   [PERIODIZATION_KEY]: "periodization",
   [SESSION_PLANNER_KEY]: "session-planner",
@@ -181,9 +192,19 @@ const STATE_KEY_WORKSPACE_EDIT_MAP = {
   [SCOUTING_KEY]: "scouting",
   [GAMEPLAN_KEY]: "gameplan",
   [TRANSFER_ROOM_KEY]: "transfer-room",
+  [SET_PIECES_ROOM_KEY]: "set-pieces-room",
   "football-simulator-sequence-v1": "game-simulator",
   "football-simulator-sequence-library-v2": "game-simulator",
 };
+const DIRECT_STATE_PERMISSION_KEYS = new Set([WORKSPACE_HUB_KEY, PLATFORM_APPEARANCE_KEY]);
+const UNMAPPED_PROTECTED_STATE_KEYS = Array.from(CENTRAL_STATE_KEYS).filter(
+  (key) => !DIRECT_STATE_PERMISSION_KEYS.has(key) && !STATE_KEY_WORKSPACE_EDIT_MAP[key]
+);
+if (UNMAPPED_PROTECTED_STATE_KEYS.length) {
+  throw new Error(
+    `Protected app-state keys require an explicit permission owner: ${UNMAPPED_PROTECTED_STATE_KEYS.join(", ")}`
+  );
+}
 const ADMIN_ONLY_STATE_KEYS = new Set(["mak-coaching-platform-users-v1", PLATFORM_APPEARANCE_KEY]);
 const MEDICAL_PRIVATE_ROLES = new Set(["admin", "club-admin", "team-admin", "medical", "performance"]);
 const TRANSFER_ROOM_ACCESS_ADMIN_ROLES = new Set(["admin", "team-admin"]);
@@ -257,6 +278,12 @@ function getRequestedStateKeys(req = {}) {
       .map(sanitizeStateKey)
       .filter(Boolean)
   ));
+}
+
+function getStateAccessMode(req = {}) {
+  const url = new URL(req.url || "/", "http://localhost");
+  const mode = String(url.searchParams.get("access") || "").trim().toLowerCase();
+  return ["fresh", "none"].includes(mode) ? mode : "requested";
 }
 
 function selectStateListResultKeys(result = {}, keys = []) {
@@ -466,8 +493,98 @@ function normalizeWorkspaceAccessConfig(config = {}) {
   }, {});
 }
 
-function objectPathForKey(key) {
-  return `${STATE_PREFIX}/${encodeURIComponent(key)}.json`;
+function getLegacyGlobalOrganizationId() {
+  return String(process.env[APP_STATE_LEGACY_ORGANIZATION_ENV] || "").trim();
+}
+
+function canUseLegacyGlobalState(organizationId = "") {
+  const legacyOrganizationId = getLegacyGlobalOrganizationId();
+  return Boolean(legacyOrganizationId && String(organizationId || "") === legacyOrganizationId);
+}
+
+function isLegacyReadFallbackConfigured() {
+  return ["1", "true", "yes", "on"].includes(
+    String(process.env[APP_STATE_LEGACY_READ_FALLBACK_ENV] || "").trim().toLowerCase()
+  );
+}
+
+async function resolveLegacyReadFallback(organizationId = "") {
+  if (!canUseLegacyGlobalState(organizationId)) {
+    return { allowed: false, migrationPending: false };
+  }
+  const status = await readAppStateTenantMigrationStatus(organizationId);
+  if (!status.ok) {
+    throw new Error(status.reason || "Legacy app-state migration status could not be verified.");
+  }
+  if (status.completed === true) {
+    return { allowed: false, migrationPending: false };
+  }
+  if (!isLegacyReadFallbackConfigured()) {
+    throw new Error(
+      "Legacy app-state migration is incomplete and temporary read-only fallback is not enabled."
+    );
+  }
+  return { allowed: true, migrationPending: true };
+}
+
+function stateStoragePrefix(organizationId = "") {
+  const normalizedOrganizationId = String(organizationId || "").trim();
+  if (!normalizedOrganizationId) {
+    throw new Error("Central app-state tenant scope is required.");
+  }
+  return `organizations/${encodeURIComponent(normalizedOrganizationId)}`;
+}
+
+function objectPathForKey(key, organizationId = "", options = {}) {
+  const prefix = options.legacy === true ? STATE_PREFIX : stateStoragePrefix(organizationId);
+  return `${prefix}/${encodeURIComponent(key)}.json`;
+}
+
+async function resolveAppStateActorTenant(actor = {}) {
+  if (!String(actor.id || "").trim()) {
+    return { ok: false, status: 401, reason: "You must be signed in." };
+  }
+  const identity = await resolvePlatformActorScope(actor);
+  if (!identity.ok) {
+    return identity;
+  }
+  const primaryMembership = identity.scope?.primary || null;
+  const profile = identity.actor?.profile || null;
+  const organizationId = String(
+    primaryMembership?.organizationId || profile?.primaryOrganizationId || ""
+  ).trim();
+  if (!organizationId) {
+    return {
+      ok: false,
+      status: 403,
+      reason: "No active canonical organization is assigned to this account.",
+    };
+  }
+  const bootstrapRole = String(identity.actor?.bootstrapRole || "").trim().toLowerCase();
+  const hasActiveMembership = (identity.scope?.memberships || []).some(
+    (membership) =>
+      membership?.status === "active" &&
+      String(membership.organizationId || "") === organizationId
+  );
+  if (!hasActiveMembership && bootstrapRole !== "admin") {
+    return {
+      ok: false,
+      status: 403,
+      reason: "No active membership exists for the canonical organization.",
+    };
+  }
+  return {
+    ok: true,
+    organizationId,
+    actor: {
+      ...actor,
+      organizationId,
+      clubId: String(primaryMembership?.clubId || profile?.primaryClubId || "").trim(),
+      teamId: String(primaryMembership?.teamId || profile?.primaryTeamId || "").trim(),
+      role: String(identity.actor?.role || actor.role || "guest").trim().toLowerCase(),
+      status: String(identity.actor?.status || actor.status || "active").trim().toLowerCase(),
+    },
+  };
 }
 
 function hashStateValue(value = "") {
@@ -480,15 +597,11 @@ function getStateEntryRevision(entry = {}) {
 }
 
 function getActorOrganizationId(actor = {}, contract = {}) {
-  const candidates = [
-    actor.organizationId,
-    actor.organization_id,
-    actor.app_metadata?.organizationId,
-    actor.app_metadata?.organization_id,
-    contract.defaultOrganizationId,
-    "global",
-  ];
-  return String(candidates.find((value) => String(value || "").trim()) || "global").trim();
+  const organizationId = String(actor.organizationId || actor.organization_id || "").trim();
+  if (!organizationId) {
+    throw new Error(`Canonical tenant scope is missing for ${contract?.moduleId || "central app-state"}.`);
+  }
+  return organizationId;
 }
 
 function getStateEntryMetadata(entry = {}) {
@@ -497,7 +610,7 @@ function getStateEntryMetadata(entry = {}) {
     updatedAt: entry?.updatedAt || "",
     updatedBy: entry?.updatedBy || "",
     revision: getStateEntryRevision(entry),
-    organizationId: String(entry?.organizationId || "global"),
+    organizationId: String(entry?.organizationId || ""),
     moduleId: String(entry?.moduleId || dataSafetyRegistry.getByKey(entry?.key)?.moduleId || ""),
     mergePolicy: String(entry?.mergePolicy || dataSafetyRegistry.getByKey(entry?.key)?.mergePolicy || ""),
     hash: entry?.hash || hashStateValue(value),
@@ -516,7 +629,7 @@ function normalizeDatabaseStateEntry(entry = {}) {
     ...entry,
     key: String(entry.key),
     moduleId: String(entry.moduleId || contract.moduleId || ""),
-    organizationId: String(entry.organizationId || contract.defaultOrganizationId || "global"),
+    organizationId: String(entry.organizationId || ""),
     savePipeline: entry.savePipeline || contract.savePipeline,
     sourceOfTruth: entry.sourceOfTruth || contract.sourceOfTruth,
     localPersistence: entry.localPersistence || contract.localPersistence,
@@ -678,8 +791,18 @@ function getStaleWriteRejection(contract, previousEntry, authorization, clientBa
   };
 }
 
+function getLegacyMigrationWriteBlock(previousEntry = null) {
+  return previousEntry?.metadata?.legacyFallback === true
+    ? {
+        ok: false,
+        status: 503,
+        reason: "Legacy central state must complete its verified tenant migration before it can be changed.",
+      }
+    : null;
+}
+
 async function readStorageStateObject(key, options = {}) {
-  const path = objectPathForKey(key);
+  const path = objectPathForKey(key, options.organizationId, { legacy: options.legacy === true });
   const cacheNonce = options.fresh
     ? String(options.cacheNonce || crypto.randomUUID())
     : "";
@@ -711,11 +834,15 @@ async function readStorageStateObject(key, options = {}) {
 }
 
 async function readStateObject(key, options = {}) {
+  const organizationId = String(options.organizationId || "").trim();
+  if (!organizationId) {
+    throw new Error("Central app-state tenant scope is required.");
+  }
   if (!isAppStateDatabaseEnabled()) {
-    return readStorageStateObject(key, options);
+    throw new Error("Tenant-scoped central app-state requires database mode.");
   }
 
-  const databaseResult = await readAppStateRecord(key);
+  const databaseResult = await readAppStateRecord(key, organizationId);
   if (databaseResult.ok && databaseResult.entry) {
     return normalizeDatabaseStateEntry(databaseResult.entry);
   }
@@ -723,22 +850,32 @@ async function readStateObject(key, options = {}) {
     throw new Error(databaseResult.reason || `Central app-state database read failed for ${key}.`);
   }
 
-  const backupEntry = await readStorageStateObject(key, { ...options, fresh: true });
+  let legacyEntry = null;
+  if (options.allowLegacyFallback === true && canUseLegacyGlobalState(organizationId)) {
+    const legacyDatabaseResult = await readAppStateRecord(key, STATE_PREFIX);
+    if (!legacyDatabaseResult.ok) {
+      throw new Error(legacyDatabaseResult.reason || `Legacy central app-state read failed for ${key}.`);
+    }
+    legacyEntry = legacyDatabaseResult.entry || await readStorageStateObject(key, {
+      ...options,
+      organizationId,
+      legacy: true,
+      fresh: true,
+    });
+  }
+  const backupEntry = legacyEntry;
   if (!backupEntry) {
     return null;
   }
-  const normalizedBackupEntry = normalizeDatabaseStateEntry(backupEntry);
-  const seeded = await writeAppStateRecord(normalizedBackupEntry, 0);
-  if (seeded.ok && seeded.entry) {
-    return normalizeDatabaseStateEntry(seeded.entry);
-  }
-  if (seeded.conflict) {
-    const current = await readAppStateRecord(key);
-    if (current.ok && current.entry) {
-      return normalizeDatabaseStateEntry(current.entry);
-    }
-  }
-  throw new Error(seeded.reason || `Central app-state database bootstrap failed for ${key}.`);
+  return normalizeDatabaseStateEntry({
+    ...backupEntry,
+    organizationId,
+    metadata: {
+      ...(backupEntry.metadata || {}),
+      legacyFallback: true,
+      legacySourceOrganizationId: STATE_PREFIX,
+    },
+  });
 }
 
 function parsePeriodizationStateValue(rawValue) {
@@ -852,7 +989,10 @@ async function protectPeriodizationStateValue(rawValue, context = {}) {
   }
 
   const incomingDays = getPeriodizationDays(incomingState);
-  const existingEntry = context.previousEntry || await readStateObject(PERIODIZATION_KEY, { fresh: true });
+  const existingEntry = context.previousEntry || await readStateObject(PERIODIZATION_KEY, {
+    organizationId: context.organizationId,
+    fresh: true,
+  });
   const existingState = parsePeriodizationStateValue(existingEntry?.value);
   if (!existingState) {
     const normalizedState = {
@@ -1172,7 +1312,10 @@ async function protectSessionPlannerStateValue(rawValue, context = {}) {
     return { ok: false, reason: "Session planner data is invalid and was not saved." };
   }
 
-  const existingEntry = context.previousEntry || await readStateObject(SESSION_PLANNER_KEY, { fresh: true });
+  const existingEntry = context.previousEntry || await readStateObject(SESSION_PLANNER_KEY, {
+    organizationId: context.organizationId,
+    fresh: true,
+  });
   const existingState = parseSessionPlannerStateValue(existingEntry?.value);
   if (!existingState) {
     normalizeSessionPlannerReductionGuards(incomingState);
@@ -1275,7 +1418,10 @@ async function protectSessionPlannerExerciseLibraryValue(rawValue, context = {})
     return { ok: false, reason: "Exercise library data is invalid and was not saved." };
   }
 
-  const existingEntry = context.previousEntry || await readStateObject(SESSION_EXERCISE_LIBRARY_KEY, { fresh: true });
+  const existingEntry = context.previousEntry || await readStateObject(SESSION_EXERCISE_LIBRARY_KEY, {
+    organizationId: context.organizationId,
+    fresh: true,
+  });
   const existingLibrary = parseSessionPlannerExerciseLibraryValue(existingEntry?.value);
   if (!existingLibrary) {
     return { ok: true, value: JSON.stringify(incomingLibrary), merged: false };
@@ -1970,7 +2116,10 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
     ),
     removedPlayerIds: incomingRemovedPlayerIds,
   };
-  const existingEntry = context.previousEntry || await readStateObject(PLAYER_PROFILES_KEY, { fresh: true });
+  const existingEntry = context.previousEntry || await readStateObject(PLAYER_PROFILES_KEY, {
+    organizationId: context.organizationId,
+    fresh: true,
+  });
   const existingState = restorePlayerProfilesStateExplicitFieldsFromChangeLog(parsePlayerProfilesStateValue(existingEntry?.value));
   if (!existingState || !Array.isArray(existingState.players)) {
     const normalizedValue = JSON.stringify(incomingStateWithRemovals);
@@ -2106,13 +2255,13 @@ async function protectPlayerProfilesStateValue(rawValue, context = {}) {
   return { ok: true, value: mergedValue, merged: mergedValue !== rawValue };
 }
 
-async function readWorkspaceHubStateValue() {
-  const entry = await readStateObject(WORKSPACE_HUB_KEY, { fresh: true });
+async function readWorkspaceHubStateValue(organizationId = "") {
+  const entry = await readStateObject(WORKSPACE_HUB_KEY, { organizationId, fresh: true });
   return entry?.value || "";
 }
 
-async function readWorkspaceAccessConfig() {
-  const hubState = safeParseJson(await readWorkspaceHubStateValue(), {});
+async function readWorkspaceAccessConfig(organizationId = "") {
+  const hubState = safeParseJson(await readWorkspaceHubStateValue(organizationId), {});
   return normalizeWorkspaceAccessConfig(hubState?.workspaceAccess || {});
 }
 
@@ -2373,7 +2522,7 @@ async function sanitizeWorkspaceHubWriteForActor(actor, rawValue) {
     });
   }
 
-  const currentState = safeParseJson(await readWorkspaceHubStateValue(), {});
+  const currentState = safeParseJson(await readWorkspaceHubStateValue(actor.organizationId), {});
   return JSON.stringify({
     ...sharedNextState,
     workspaces: currentState?.workspaces || sharedNextState.workspaces,
@@ -3020,7 +3169,7 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
     if (["admin", "club-admin"].includes(String(actor?.role || "").trim().toLowerCase())) {
       return { ok: true, value: rawValue };
     }
-    const accessConfig = await readWorkspaceAccessConfig();
+    const accessConfig = await readWorkspaceAccessConfig(actor.organizationId);
     if (canActorEditWorkspace(actor, "player-profiles", accessConfig)) {
       return createDelegatedTeamLogoStructureWrite(actor, rawValue, context.previousEntry?.value || "");
     }
@@ -3044,10 +3193,10 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
 
   const workspaceId = STATE_KEY_WORKSPACE_EDIT_MAP[key];
   if (!workspaceId) {
-    return { ok: true, value: rawValue };
+    return { ok: false, status: 403, reason: "This protected state key has no explicit write permission mapping." };
   }
 
-  const accessConfig = await readWorkspaceAccessConfig();
+  const accessConfig = await readWorkspaceAccessConfig(actor.organizationId);
   if (!canActorEditWorkspace(actor, workspaceId, accessConfig)) {
     return { ok: false, reason: `You do not have edit access for ${workspaceId}.` };
   }
@@ -3075,8 +3224,103 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
   return { ok: true, value: rawValue };
 }
 
-function filterStateEntriesForActor(actor, entries = {}) {
+function canActorAttemptStateWrite(actor, key, entries = {}, accessConfig = {}) {
+  if (normalizeActorRole(actor) === "admin") {
+    return true;
+  }
+
+  if (ADMIN_ONLY_STATE_KEYS.has(key)) {
+    return false;
+  }
+
+  if (key === WORKSPACE_HUB_KEY) {
+    return true;
+  }
+
+  if (key === PLATFORM_STRUCTURE_KEY) {
+    if (normalizeActorRole(actor) === "club-admin") {
+      return true;
+    }
+    return canActorEditWorkspace(actor, "player-profiles", accessConfig);
+  }
+
+  if (key === TRANSFER_ROOM_KEY) {
+    return canActorViewTransferRoom(actor, entries[key] || "");
+  }
+
+  const workspaceId = STATE_KEY_WORKSPACE_EDIT_MAP[key];
+  return workspaceId ? canActorEditWorkspace(actor, workspaceId, accessConfig) : false;
+}
+
+function canActorSeedState(actor, key, entries = {}, accessConfig = {}) {
+  const role = normalizeActorRole(actor);
+  if (role === "admin") {
+    return true;
+  }
+
+  if (ADMIN_ONLY_STATE_KEYS.has(key)) {
+    return false;
+  }
+
+  if (key === WORKSPACE_HUB_KEY) {
+    return true;
+  }
+
+  if (key === PLATFORM_STRUCTURE_KEY) {
+    return role === "club-admin";
+  }
+
+  if (key === TRANSFER_ROOM_KEY) {
+    return TRANSFER_ROOM_ACCESS_ADMIN_ROLES.has(role);
+  }
+
+  const workspaceId = STATE_KEY_WORKSPACE_EDIT_MAP[key];
+  return workspaceId ? canActorEditWorkspace(actor, workspaceId, accessConfig) : false;
+}
+
+function getStateWriteAccessForActor(actor, keys = [], entries = {}) {
   const accessConfig = getWorkspaceAccessConfigFromHubValue(entries[WORKSPACE_HUB_KEY]);
+  return Array.from(new Set(keys)).reduce((writeAccess, key) => {
+    const normalizedKey = sanitizeStateKey(key);
+    if (normalizedKey) {
+      writeAccess[normalizedKey] = canActorAttemptStateWrite(actor, normalizedKey, entries, accessConfig);
+    }
+    return writeAccess;
+  }, {});
+}
+
+function getStateSeedAccessForActor(actor, keys = [], entries = {}) {
+  const accessConfig = getWorkspaceAccessConfigFromHubValue(entries[WORKSPACE_HUB_KEY]);
+  return Array.from(new Set(keys)).reduce((seedAccess, key) => {
+    const normalizedKey = sanitizeStateKey(key);
+    if (normalizedKey) {
+      seedAccess[normalizedKey] = canActorSeedState(actor, normalizedKey, entries, accessConfig);
+    }
+    return seedAccess;
+  }, {});
+}
+
+async function getFreshStateAccessEntries(entries = {}, organizationId = "", allowLegacyFallback = false) {
+  const [workspaceHubEntry, transferRoomEntry] = await Promise.all([
+    readStateObject(WORKSPACE_HUB_KEY, { organizationId, allowLegacyFallback, fresh: true }),
+    readStateObject(TRANSFER_ROOM_KEY, { organizationId, allowLegacyFallback, fresh: true }),
+  ]);
+  const accessEntries = { ...entries };
+  if (workspaceHubEntry?.key && !workspaceHubEntry.removed) {
+    accessEntries[WORKSPACE_HUB_KEY] = workspaceHubEntry.value || "";
+  } else {
+    delete accessEntries[WORKSPACE_HUB_KEY];
+  }
+  if (transferRoomEntry?.key && !transferRoomEntry.removed) {
+    accessEntries[TRANSFER_ROOM_KEY] = transferRoomEntry.value || "";
+  } else {
+    delete accessEntries[TRANSFER_ROOM_KEY];
+  }
+  return accessEntries;
+}
+
+function filterStateEntriesForActor(actor, entries = {}, accessEntries = entries) {
+  const accessConfig = getWorkspaceAccessConfigFromHubValue(accessEntries[WORKSPACE_HUB_KEY]);
   return Object.entries(entries).reduce((filtered, [key, value]) => {
     if (key === WORKSPACE_HUB_KEY) {
       filtered[key] = sanitizeWorkspaceHubRead(value, accessConfig);
@@ -3084,7 +3328,7 @@ function filterStateEntriesForActor(actor, entries = {}) {
     }
 
     if (key === TRANSFER_ROOM_KEY) {
-      if (canActorViewTransferRoom(actor, value)) {
+      if (canActorViewTransferRoom(actor, accessEntries[TRANSFER_ROOM_KEY])) {
         filtered[key] = value;
       }
       return filtered;
@@ -3105,7 +3349,7 @@ function filterStateEntriesForActor(actor, entries = {}) {
     }
 
     const workspaceId = STATE_KEY_WORKSPACE_EDIT_MAP[key];
-    if (workspaceId && !canActorViewWorkspace(actor, workspaceId, accessConfig)) {
+    if (!workspaceId || !canActorViewWorkspace(actor, workspaceId, accessConfig)) {
       return filtered;
     }
 
@@ -3127,7 +3371,7 @@ function filterStateMetadataForEntries(metadata = {}, entries = {}) {
       updatedAt: baseMetadata.updatedAt || "",
       updatedBy: baseMetadata.updatedBy || "",
       revision: getStateEntryRevision(baseMetadata),
-      organizationId: baseMetadata.organizationId || "global",
+      organizationId: String(baseMetadata.organizationId || ""),
       moduleId: baseMetadata.moduleId || dataSafetyRegistry.getByKey(key)?.moduleId || "",
       mergePolicy: baseMetadata.mergePolicy || dataSafetyRegistry.getByKey(key)?.mergePolicy || "",
       hash: hashStateValue(value),
@@ -3138,7 +3382,7 @@ function filterStateMetadataForEntries(metadata = {}, entries = {}) {
 }
 
 async function writeStorageStateObject(entry) {
-  const path = objectPathForKey(entry.key);
+  const path = objectPathForKey(entry.key, entry.organizationId);
   const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}/${path}`, {
     method: "PUT",
     headers: {
@@ -3172,8 +3416,11 @@ async function writeStorageStateObject(entry) {
 }
 
 async function writeStateObject(entry) {
+  if (!String(entry?.organizationId || "").trim()) {
+    return { ok: false, status: 400, reason: "Central app-state tenant scope is required." };
+  }
   if (!isAppStateDatabaseEnabled()) {
-    return writeStorageStateObject(entry);
+    return { ok: false, status: 503, reason: "Tenant-scoped central app-state requires database mode." };
   }
 
   const expectedRevision = Math.max(0, Number(entry?.revision || 1) - 1);
@@ -3196,8 +3443,8 @@ async function writeStateObject(entry) {
   return { ok: true, entry: persistedEntry, backupOk: Boolean(backupResult.ok) };
 }
 
-async function removeStorageStateObject(key) {
-  const path = objectPathForKey(key);
+async function removeStorageStateObject(key, organizationId = "") {
+  const path = objectPathForKey(key, organizationId);
   const result = await storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}`, {
     method: "DELETE",
     body: JSON.stringify({ prefixes: [path] }),
@@ -3211,9 +3458,9 @@ async function removeStorageStateObject(key) {
 
 async function removeStateObject(key, tombstoneEntry = null) {
   if (!isAppStateDatabaseEnabled()) {
-    return removeStorageStateObject(key);
+    return { ok: false, status: 503, reason: "Tenant-scoped central app-state requires database mode." };
   }
-  if (!tombstoneEntry) {
+  if (!tombstoneEntry || !String(tombstoneEntry.organizationId || "").trim()) {
     return { ok: false, status: 400, reason: "Central app-state delete requires revision metadata." };
   }
 
@@ -3226,7 +3473,7 @@ async function removeStateObject(key, tombstoneEntry = null) {
     ...tombstoneEntry,
     ...(databaseResult.entry || {}),
   });
-  const backupResult = await removeStorageStateObject(key);
+  const backupResult = await removeStorageStateObject(key, persistedEntry.organizationId);
   if (!backupResult.ok && backupResult.status !== 404) {
     console.error("[app-state] compatibility backup delete failed", {
       key,
@@ -3241,10 +3488,7 @@ async function removeStateObject(key, tombstoneEntry = null) {
 
 async function removeStateListSnapshot() {
   stateReadSnapshotCache = { updatedAt: 0, result: null, pending: null };
-  return storageRequest(`/object/${encodeURIComponent(STATE_BUCKET)}`, {
-    method: "DELETE",
-    body: JSON.stringify({ prefixes: [STATE_READ_SNAPSHOT_PATH] }),
-  });
+  return { ok: true };
 }
 
 function normalizeStateListSnapshot(payload = {}, nowMs = Date.now()) {
@@ -3344,94 +3588,83 @@ async function writeStateListSnapshot(result = {}) {
 }
 
 async function listStateObjects(options = {}) {
-  const now = Date.now();
+  const organizationId = String(options.organizationId || "").trim();
+  if (!organizationId) {
+    throw new Error("Central app-state tenant scope is required.");
+  }
+  if (!isAppStateDatabaseEnabled()) {
+    throw new Error("Tenant-scoped central app-state requires database mode.");
+  }
   const requestedKeys = Array.isArray(options.keys)
     ? Array.from(new Set(options.keys.filter((key) => CENTRAL_STATE_KEYS.has(key))))
     : Array.from(CENTRAL_STATE_KEYS);
   const isPartialRead = Array.isArray(options.keys);
-  if (
-    !isAppStateDatabaseEnabled() &&
-    !options.bypassSnapshot &&
-    stateListObjectsCache.result &&
-    now - stateListObjectsCache.updatedAt < STATE_LIST_CACHE_TTL_MS
-  ) {
-    const cachedResult = cloneStateListResult(stateListObjectsCache.result);
-    return isPartialRead ? selectStateListResultKeys(cachedResult, requestedKeys) : cachedResult;
-  }
-  if (!isAppStateDatabaseEnabled() && !options.bypassSnapshot) {
-    const snapshot = await readStateListSnapshot();
-    if (snapshot) {
-      stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(snapshot) };
-      return isPartialRead ? selectStateListResultKeys(snapshot, requestedKeys) : cloneStateListResult(snapshot);
-    }
-  }
-
-  if (isAppStateDatabaseEnabled()) {
-    const databaseResult = await listAppStateRecords("global", isPartialRead ? requestedKeys : null);
-    if (databaseResult.ok) {
-      const recordsByKey = new Map(
-        databaseResult.entries
-          .map(normalizeDatabaseStateEntry)
-          .filter((entry) => entry && CENTRAL_STATE_KEYS.has(entry.key))
-          .map((entry) => [entry.key, entry])
-      );
-      const missingKeys = requestedKeys.filter((key) => !recordsByKey.has(key));
-      await Promise.all(missingKeys.map(async (key) => {
-        const backupEntry = await readStorageStateObject(key, { fresh: true, cacheNonce: crypto.randomUUID() });
-        if (!backupEntry) {
-          return;
-        }
-        const normalizedBackupEntry = normalizeDatabaseStateEntry(backupEntry);
-        const seeded = await writeAppStateRecord(normalizedBackupEntry, 0);
-        if (seeded.ok && seeded.entry) {
-          recordsByKey.set(key, normalizeDatabaseStateEntry(seeded.entry));
-          return;
-        }
-        if (seeded.conflict) {
-          const current = await readAppStateRecord(key);
-          if (current.ok && current.entry) {
-            recordsByKey.set(key, normalizeDatabaseStateEntry(current.entry));
-          }
-        }
-      }));
-
-      const databaseEntries = {};
-      const databaseMetadata = {};
-      recordsByKey.forEach((entry) => {
-        if (!entry?.key || entry.removed) {
-          return;
-        }
-        databaseEntries[entry.key] = entry.value ?? "";
-        databaseMetadata[entry.key] = getStateEntryMetadata(entry);
-      });
-      const result = { entries: databaseEntries, metadata: databaseMetadata };
-      if (!isPartialRead) {
-        stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(result) };
-      }
-      return result;
-    }
+  const databaseResult = await listAppStateRecords(organizationId, isPartialRead ? requestedKeys : null);
+  if (!databaseResult.ok) {
     throw new Error(databaseResult.reason || "Central app-state database list failed.");
+  }
+  const recordsByKey = new Map(
+    databaseResult.entries
+      .map(normalizeDatabaseStateEntry)
+      .filter((entry) => entry && CENTRAL_STATE_KEYS.has(entry.key))
+      .map((entry) => [entry.key, entry])
+  );
+  const migrationRequiredKeys = new Set();
+  let missingKeys = requestedKeys.filter((key) => !recordsByKey.has(key));
+  if (missingKeys.length && options.allowLegacyFallback === true && canUseLegacyGlobalState(organizationId)) {
+    const legacyResult = await listAppStateRecords(STATE_PREFIX, missingKeys);
+    if (!legacyResult.ok) {
+      throw new Error(legacyResult.reason || "Legacy central app-state list failed.");
+    }
+    legacyResult.entries.forEach((legacyEntry) => {
+      const fallbackEntry = normalizeDatabaseStateEntry({
+        ...legacyEntry,
+        organizationId,
+        metadata: {
+          ...(legacyEntry.metadata || {}),
+          legacyFallback: true,
+          legacySourceOrganizationId: STATE_PREFIX,
+        },
+      });
+      if (fallbackEntry?.key) {
+        recordsByKey.set(fallbackEntry.key, fallbackEntry);
+        migrationRequiredKeys.add(fallbackEntry.key);
+      }
+    });
+    missingKeys = requestedKeys.filter((key) => !recordsByKey.has(key));
+    await Promise.all(missingKeys.map(async (key) => {
+      const backupEntry = await readStorageStateObject(key, {
+        organizationId,
+        legacy: true,
+        fresh: true,
+        cacheNonce: crypto.randomUUID(),
+      });
+      if (!backupEntry) {
+        return;
+      }
+      recordsByKey.set(key, normalizeDatabaseStateEntry({
+        ...backupEntry,
+        organizationId,
+        metadata: {
+          ...(backupEntry.metadata || {}),
+          legacyFallback: true,
+          legacySourceOrganizationId: STATE_PREFIX,
+        },
+      }));
+      migrationRequiredKeys.add(key);
+    }));
   }
 
   const entries = {};
   const metadata = {};
-  const sourceReadOptions = options.bypassSnapshot
-    ? { fresh: true, cacheNonce: crypto.randomUUID() }
-    : {};
-  await Promise.all(requestedKeys.map(async (key) => {
-    const entry = await readStateObject(key, sourceReadOptions);
-    if (entry?.key && !entry.removed) {
-      entries[entry.key] = entry.value ?? "";
-      metadata[entry.key] = getStateEntryMetadata(entry);
+  recordsByKey.forEach((entry) => {
+    if (!entry?.key || entry.removed) {
+      return;
     }
-  }));
-
-  const result = { entries, metadata };
-  if (!isPartialRead) {
-    stateListObjectsCache = { updatedAt: Date.now(), result: cloneStateListResult(result) };
-    await writeStateListSnapshot(result).catch(() => null);
-  }
-  return result;
+    entries[entry.key] = entry.value ?? "";
+    metadata[entry.key] = getStateEntryMetadata(entry);
+  });
+  return { entries, metadata, migrationRequiredKeys: Array.from(migrationRequiredKeys) };
 }
 
 async function applyStateEntries(actor, entries = {}, metadata = {}) {
@@ -3443,11 +3676,19 @@ async function applyStateEntries(actor, entries = {}, metadata = {}) {
     }
 
     const contract = dataSafetyRegistry.requireByKey(normalizedKey);
-    const previousEntry = await readStateObject(normalizedKey, { fresh: true });
+    const previousEntry = await readStateObject(normalizedKey, {
+      organizationId: actor.organizationId,
+      fresh: true,
+    });
+    const migrationBlock = getLegacyMigrationWriteBlock(previousEntry);
+    if (migrationBlock) {
+      return migrationBlock;
+    }
     const clientBaseRevision = getClientBaseRevision(metadata, normalizedKey);
     const authorization = await authorizeStateWrite(actor, normalizedKey, rawValue, false, {
       previousEntry,
       clientBaseRevision,
+      organizationId: actor.organizationId,
     });
     if (!authorization.ok) {
       return {
@@ -3529,19 +3770,38 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const actor = await getCurrentActor(req.headers?.authorization || req.headers?.Authorization);
-  if (!actor) {
+  const authenticatedActor = await getCurrentActor(req.headers?.authorization || req.headers?.Authorization);
+  if (!authenticatedActor) {
     return sendJson(res, 401, { ok: false, reason: "You must be signed in." });
   }
 
   const security = guardApiRequest(req, res, {
     route: "/api/app-state",
     moduleId: "app-state",
-    actor,
+    actor: authenticatedActor,
     enforcePermission: false,
   });
   if (!security.ok) {
     return;
+  }
+
+  const tenant = await resolveAppStateActorTenant(authenticatedActor);
+  if (!tenant.ok) {
+    return sendJson(res, tenant.status || 403, {
+      ok: false,
+      reason: tenant.reason || "Canonical tenant scope is unavailable.",
+    });
+  }
+  const actor = tenant.actor;
+  const organizationId = tenant.organizationId;
+  let legacyReadFallback;
+  try {
+    legacyReadFallback = await resolveLegacyReadFallback(organizationId);
+  } catch (error) {
+    return sendJson(res, 503, {
+      ok: false,
+      reason: error?.message || "Legacy app-state migration status is unavailable.",
+    });
   }
 
   const bucket = await ensureStateBucket();
@@ -3557,27 +3817,59 @@ module.exports = async (req, res) => {
   try {
     if (req.method === "GET") {
       const requestedKeys = getRequestedStateKeys(req);
+      const accessMode = getStateAccessMode(req);
       const readKeys = requestedKeys === null
         ? null
         : Array.from(new Set([...requestedKeys, WORKSPACE_HUB_KEY]));
       const stateObjects = await listStateObjects({
+        organizationId,
+        allowLegacyFallback: legacyReadFallback.allowed,
         bypassSnapshot: shouldBypassStateReadSnapshot(req),
         keys: readKeys,
       });
-      const actorEntries = filterStateEntriesForActor(actor, stateObjects.entries);
+      const accessEntries = await getFreshStateAccessEntries(
+        stateObjects.entries,
+        organizationId,
+        legacyReadFallback.allowed
+      );
+      const actorEntries = filterStateEntriesForActor(actor, stateObjects.entries, accessEntries);
       const entries = requestedKeys === null
         ? actorEntries
         : selectStateListResultKeys({ entries: actorEntries }, requestedKeys).entries;
+      const accessKeys = accessMode === "fresh"
+        ? Array.from(CENTRAL_STATE_KEYS)
+        : requestedKeys === null
+          ? Array.from(CENTRAL_STATE_KEYS)
+          : requestedKeys;
+      const migrationRequiredKeys = new Set(stateObjects.migrationRequiredKeys || []);
+      const writeAccess = getStateWriteAccessForActor(actor, accessKeys, accessEntries);
+      const seedAccess = getStateSeedAccessForActor(actor, accessKeys, accessEntries);
+      migrationRequiredKeys.forEach((key) => {
+        writeAccess[key] = false;
+        seedAccess[key] = false;
+      });
       return sendJson(res, 200, {
         ok: true,
+        organizationId,
         entries,
         metadata: filterStateMetadataForEntries(stateObjects.metadata, entries),
+        migrationRequiredKeys: Array.from(migrationRequiredKeys),
+        ...(accessMode === "none" ? {} : {
+          writeAccess,
+          seedAccess,
+        }),
         updatedAt: new Date().toISOString(),
       });
     }
 
     if (req.method !== "POST" && req.method !== "PUT" && req.method !== "PATCH" && req.method !== "DELETE") {
       return sendJson(res, 405, { ok: false, reason: "Method not allowed." });
+    }
+    if (legacyReadFallback.migrationPending) {
+      return sendJson(res, 503, {
+        ok: false,
+        reason: "Legacy central state is read-only until its verified tenant migration completes.",
+      });
     }
 
     const body = await parseJsonBody(req, { maxBytes: MAX_APP_STATE_JSON_BODY_BYTES });
@@ -3594,11 +3886,16 @@ module.exports = async (req, res) => {
     const removed = req.method === "DELETE" || body?.removed === true;
     if (removed) {
       const contract = dataSafetyRegistry.requireByKey(key);
-      const previousEntry = await readStateObject(key, { fresh: true });
+      const previousEntry = await readStateObject(key, { organizationId, fresh: true });
+      const migrationBlock = getLegacyMigrationWriteBlock(previousEntry);
+      if (migrationBlock) {
+        return sendJson(res, migrationBlock.status, migrationBlock);
+      }
       const clientBaseRevision = getClientBaseRevision(body?.metadata || body, key);
       const authorization = await authorizeStateWrite(actor, key, "", true, {
         previousEntry,
         clientBaseRevision,
+        organizationId,
       });
       if (!authorization.ok) {
         return sendJson(res, authorization.status || 403, { ok: false, ...authorization });
@@ -3633,11 +3930,16 @@ module.exports = async (req, res) => {
     }
 
     const contract = dataSafetyRegistry.requireByKey(key);
-    const previousEntry = await readStateObject(key, { fresh: true });
+    const previousEntry = await readStateObject(key, { organizationId, fresh: true });
+    const migrationBlock = getLegacyMigrationWriteBlock(previousEntry);
+    if (migrationBlock) {
+      return sendJson(res, migrationBlock.status, migrationBlock);
+    }
     const clientBaseRevision = getClientBaseRevision(body?.metadata || body, key);
     const authorization = await authorizeStateWrite(actor, key, body?.value, false, {
       previousEntry,
       clientBaseRevision,
+      organizationId,
     });
     if (!authorization.ok) {
       return sendJson(res, authorization.status || 403, { ok: false, ...authorization });

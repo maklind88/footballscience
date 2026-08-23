@@ -3075,6 +3075,45 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
   return { ok: true, value: rawValue };
 }
 
+function canActorAttemptStateWrite(actor, key, entries = {}, accessConfig = {}) {
+  if (normalizeActorRole(actor) === "admin") {
+    return true;
+  }
+
+  if (ADMIN_ONLY_STATE_KEYS.has(key)) {
+    return false;
+  }
+
+  if (key === WORKSPACE_HUB_KEY) {
+    return true;
+  }
+
+  if (key === PLATFORM_STRUCTURE_KEY) {
+    if (normalizeActorRole(actor) === "club-admin") {
+      return true;
+    }
+    return canActorEditWorkspace(actor, "player-profiles", accessConfig);
+  }
+
+  if (key === TRANSFER_ROOM_KEY) {
+    return canActorViewTransferRoom(actor, entries[key] || "");
+  }
+
+  const workspaceId = STATE_KEY_WORKSPACE_EDIT_MAP[key];
+  return workspaceId ? canActorEditWorkspace(actor, workspaceId, accessConfig) : true;
+}
+
+function getStateWriteAccessForActor(actor, keys = [], entries = {}) {
+  const accessConfig = getWorkspaceAccessConfigFromHubValue(entries[WORKSPACE_HUB_KEY]);
+  return Array.from(new Set(keys)).reduce((writeAccess, key) => {
+    const normalizedKey = sanitizeStateKey(key);
+    if (normalizedKey) {
+      writeAccess[normalizedKey] = canActorAttemptStateWrite(actor, normalizedKey, entries, accessConfig);
+    }
+    return writeAccess;
+  }, {});
+}
+
 function filterStateEntriesForActor(actor, entries = {}) {
   const accessConfig = getWorkspaceAccessConfigFromHubValue(entries[WORKSPACE_HUB_KEY]);
   return Object.entries(entries).reduce((filtered, [key, value]) => {
@@ -3568,10 +3607,12 @@ module.exports = async (req, res) => {
       const entries = requestedKeys === null
         ? actorEntries
         : selectStateListResultKeys({ entries: actorEntries }, requestedKeys).entries;
+      const writeAccessKeys = requestedKeys === null ? Array.from(CENTRAL_STATE_KEYS) : requestedKeys;
       return sendJson(res, 200, {
         ok: true,
         entries,
         metadata: filterStateMetadataForEntries(stateObjects.metadata, entries),
+        writeAccess: getStateWriteAccessForActor(actor, writeAccessKeys, stateObjects.entries),
         updatedAt: new Date().toISOString(),
       });
     }

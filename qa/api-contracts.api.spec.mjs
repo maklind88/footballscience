@@ -1149,6 +1149,137 @@ test("app-state keeps required team data visible to coaches even when workspace 
   }
 });
 
+test("app-state reports effective Medical write access for each actor", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const initialObjects = {
+    [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+      workspaceAccess: {
+        "medical-team": {
+          view: ["admin", "coach", "medical"],
+          edit: ["admin", "medical"],
+        },
+        "player-profiles": {
+          view: ["admin", "coach", "medical"],
+          edit: ["admin", "coach"],
+        },
+      },
+    }),
+    [medicalTeamPath]: createAppStateStorageEntry(medicalTeamKey, {
+      players: [{ id: "player-1", name: "QA Player" }],
+      records: [],
+      injuryPlans: [],
+    }),
+    [playerProfilesPath]: createAppStateStorageEntry(playerProfilesKey, {
+      players: [{ id: "player-1", name: "QA Player" }],
+    }),
+  };
+
+  try {
+    global.fetch = createAppStateFetchMock(initialObjects, "coach").fetchMock;
+    const coachResponse = await callHandler(appStateHandler, {
+      method: "GET",
+      url: `/api/app-state?keys=${medicalTeamKey},${playerProfilesKey}`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+
+    expect(coachResponse.status).toBe(200);
+    expect(coachResponse.payload.writeAccess).toMatchObject({
+      [medicalTeamKey]: false,
+      [playerProfilesKey]: true,
+    });
+
+    global.fetch = createAppStateFetchMock(initialObjects, "medical").fetchMock;
+    const medicalResponse = await callHandler(appStateHandler, {
+      method: "GET",
+      url: `/api/app-state?keys=${medicalTeamKey}`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+
+    expect(medicalResponse.status).toBe(200);
+    expect(medicalResponse.payload.writeAccess).toMatchObject({
+      [medicalTeamKey]: true,
+    });
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state keeps coach Medical writes blocked while Medical writes remain allowed", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+
+  const currentMedicalState = {
+    players: [{ id: "player-1", name: "QA Player" }],
+    records: [],
+    injuryPlans: [],
+  };
+  const nextMedicalState = {
+    ...currentMedicalState,
+    records: [{ id: "record-1", playerId: "player-1", date: "2026-08-23", participation: 75 }],
+  };
+  const initialObjects = {
+    [workspaceHubPath]: createAppStateStorageEntry(workspaceHubKey, {
+      workspaceAccess: {
+        "medical-team": {
+          view: ["admin", "coach", "medical"],
+          edit: ["admin", "medical"],
+        },
+      },
+    }),
+    [medicalTeamPath]: createAppStateStorageEntry(medicalTeamKey, currentMedicalState),
+  };
+
+  try {
+    const coachStorage = createAppStateFetchMock(initialObjects, "coach");
+    global.fetch = coachStorage.fetchMock;
+    const coachResponse = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: { authorization: "Bearer test-access-token" },
+      body: JSON.stringify({
+        key: medicalTeamKey,
+        value: JSON.stringify(nextMedicalState),
+        metadata: { baseRevision: 1 },
+      }),
+    });
+
+    expect(coachResponse.status).toBe(403);
+    expect(coachResponse.payload.reason).toBe("You do not have edit access for medical-team.");
+    expect(coachStorage.writes.some((write) => write.objectPath === medicalTeamPath)).toBe(false);
+
+    const medicalStorage = createAppStateFetchMock(initialObjects, "medical");
+    global.fetch = medicalStorage.fetchMock;
+    const medicalResponse = await callHandler(appStateHandler, {
+      method: "POST",
+      url: "/api/app-state",
+      headers: { authorization: "Bearer test-access-token" },
+      body: JSON.stringify({
+        key: medicalTeamKey,
+        value: JSON.stringify(nextMedicalState),
+        metadata: { baseRevision: 1 },
+      }),
+    });
+
+    expect(medicalResponse.status).toBe(200);
+    expect(medicalResponse.payload).toMatchObject({ ok: true, key: medicalTeamKey });
+    expect(medicalStorage.writes.some((write) => write.objectPath === medicalTeamPath)).toBe(true);
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
 test("app-state hides Transfer Room from non-selected staff", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;

@@ -74,6 +74,7 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
   const sessionUser = options.sessionUser || qaUser;
   const profileUser = options.profileUser || qaUser;
   const appStateGetUrls = Array.isArray(options.appStateGetUrls) ? options.appStateGetUrls : [];
+  const allSyncBodies = Array.isArray(options.allSyncBodies) ? options.allSyncBodies : [];
 
   await context.route("**/npm/@supabase/supabase-js@2/**", async (route) => {
     await route.fulfill({
@@ -121,13 +122,18 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
 
     if (method === "GET") {
       appStateGetUrls.push(request.url());
+      const entries = { [revisionStateKey]: centralStore.value, ...(centralStore.entries || {}) };
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           ok: true,
-          entries: { [revisionStateKey]: centralStore.value, ...(centralStore.entries || {}) },
+          entries,
           metadata: { [revisionStateKey]: centralStore.metadata, ...(centralStore.metadataEntries || {}) },
+          writeAccess: {
+            ...Object.fromEntries(Object.keys(entries).map((key) => [key, true])),
+            ...(centralStore.writeAccess || {}),
+          },
           updatedAt: new Date().toISOString(),
         }),
       });
@@ -135,6 +141,7 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
     }
 
     const body = JSON.parse(request.postData() || "{}");
+    allSyncBodies.push(body);
     if (body.key !== revisionStateKey) {
       const value = String(body.value || "");
       const baseRevision = Number(body?.metadata?.baseRevision ?? body?.baseRevision);
@@ -254,6 +261,75 @@ test("fresh server profile restores admin access when the stored Supabase sessio
     await expect(tab.page.locator('[data-workspace-view="admin"].is-active')).toBeVisible();
     await expect(tab.page.locator("#adminWorkspace")).toContainText("Access & Users");
     await expect(tab.page.locator("#adminWorkspace")).toContainText("Platform Admin");
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("coach central hydration stays ready without unauthorized Medical writeback retries", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const centralMedicalState = {
+    players: [{ id: "player-1", name: "QA Player" }],
+    records: [],
+    injuryPlans: [],
+  };
+  const centralMedicalValue = JSON.stringify(centralMedicalState);
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: { [medicalTeamStateKey]: centralMedicalValue },
+    metadataEntries: {
+      [medicalTeamStateKey]: {
+        ...createMetadata(2, centralMedicalValue),
+        moduleId: "medical-team",
+        mergePolicy: "record-timestamp-merge",
+      },
+    },
+    writeAccess: { [medicalTeamStateKey]: false },
+  };
+  const coachUser = {
+    ...qaUser,
+    app_metadata: { role: "coach", status: "active" },
+  };
+  const allSyncBodies = [];
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "coach-medical-read-only-hydration", {
+    sessionUser: coachUser,
+    profileUser: coachUser,
+    allSyncBodies,
+    initScript: ({ key }) => {
+      window.localStorage.setItem(key, JSON.stringify({
+        players: [{
+          id: "player-1",
+          name: "QA Player",
+          photoUrl: "https://images.example.test/player-1.jpg",
+        }],
+        records: [],
+        injuryPlans: [],
+      }));
+    },
+    initArg: { key: medicalTeamStateKey },
+  });
+
+  try {
+    await expect
+      .poll(() => tab.page.evaluate(() => {
+        const status = window.footballScienceCentralState.getStatus();
+        return {
+          hydrated: status.hydrated,
+          hydrating: status.hydrating,
+          lastError: status.lastError || "",
+        };
+      }))
+      .toEqual({ hydrated: true, hydrating: false, lastError: "" });
+
+    await tab.page.evaluate(async () => {
+      await window.footballScienceCentralState.hydrate({ forceApply: true });
+      await window.footballScienceCentralState.hydrate({ forceApply: true });
+    });
+    await tab.page.waitForTimeout(500);
+
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(0);
+    expect(await tab.page.evaluate(() => window.footballScienceCentralState.getStatus().lastError || "")).toBe("");
   } finally {
     await closeCentralStateContext(tab.context);
   }

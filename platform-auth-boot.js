@@ -644,8 +644,20 @@ async function getActiveAccessToken() {
     return responses.reduce((combined, response) => {
       Object.assign(combined.payload.entries, response.payload?.entries || {});
       Object.assign(combined.payload.metadata, response.payload?.metadata || {});
+      Object.assign(combined.payload.writeAccess, response.payload?.writeAccess || {});
       return combined;
-    }, { ok: true, status: 200, payload: { entries: {}, metadata: {} } });
+    }, { ok: true, status: 200, payload: { entries: {}, metadata: {}, writeAccess: {} } });
+  }
+  function canWriteCentralStateKey(key, writeAccess = {}) {
+    return writeAccess?.[key] === true;
+  }
+  function filterCentralStateWriteEntries(entries = {}, writeAccess = {}) {
+    return Object.entries(entries).reduce((filtered, [key, value]) => {
+      if (canWriteCentralStateKey(key, writeAccess)) {
+        filtered[key] = value;
+      }
+      return filtered;
+    }, {});
   }
   function readCentralSyncManifestEntries() {
     try {
@@ -1396,6 +1408,7 @@ async function getActiveAccessToken() {
       Object.entries(normalizedEntries).forEach(([key, value]) => {
         const pendingEntry = pendingEntries[key] || {};
         const metadataEntry = incomingMetadata[key] || {};
+        const canWriteEntry = canWriteCentralStateKey(key, options.writeAccess);
         nextMetadata[key] = resolveCentralHydrationMetadata(
           key,
           metadataEntry,
@@ -1427,7 +1440,7 @@ async function getActiveAccessToken() {
         } else if (!options.forceApply && key === PLAYER_PROFILES_STATE_KEY) {
           const mergedValue = mergeCentralStateMediaValues(window.localStorage.getItem(key), value);
           valueToApply = mergedValue.value;
-          if (mergedValue.changed) {
+          if (mergedValue.changed && canWriteEntry) {
             writeBackEntries.push([key, valueToApply]);
           }
         } else if (key === MEDICAL_TEAM_STATE_KEY) {
@@ -1443,7 +1456,7 @@ async function getActiveAccessToken() {
             mergedValue.value,
             MEDICAL_LOCAL_UI_FIELDS
           ).value;
-          if (mergedValue.changed) {
+          if (mergedValue.changed && canWriteEntry) {
             if (shouldPreserveLocalMedical) {
               requiredWriteBackEntries.push([
                 key,
@@ -1511,11 +1524,14 @@ async function getActiveAccessToken() {
       const metadata = response.payload?.metadata && typeof response.payload.metadata === "object"
         ? response.payload.metadata
         : {};
+      const writeAccess = response.payload?.writeAccess && typeof response.payload.writeAccess === "object"
+        ? response.payload.writeAccess
+        : {};
       const hasCentralEntries = Object.keys(entries).length > 0;
       if (hasCentralEntries) {
-        await applyCentralStateEntries(entries, metadata, options);
+        await applyCentralStateEntries(entries, metadata, { ...options, writeAccess });
       } else {
-        const localEntries = collectCentralLocalStateEntries();
+        const localEntries = filterCentralStateWriteEntries(collectCentralLocalStateEntries(), writeAccess);
         if (Object.keys(localEntries).length) {
           const seedResponse = await apiRequest(API_APP_STATE, {
             method: "POST",

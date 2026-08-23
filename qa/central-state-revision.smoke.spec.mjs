@@ -67,6 +67,16 @@ function createSecondaryQaSession() {
   };
 }
 
+function createDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, reject, resolve };
+}
+
 function reverseObjectKeyOrder(value) {
   if (Array.isArray(value)) {
     return value.map(reverseObjectKeyOrder);
@@ -80,8 +90,8 @@ function reverseObjectKeyOrder(value) {
   }, {});
 }
 
-function createFakeSupabaseScript(sessionUser = qaUser) {
-  const session = {
+function createFakeSupabaseScript(sessionUser = qaUser, sdkSession = null) {
+  const session = sdkSession?.access_token ? sdkSession : {
     access_token: "qa-access-token",
     user: sessionUser,
   };
@@ -99,6 +109,9 @@ function createFakeSupabaseScript(sessionUser = qaUser) {
               if (window.__qaGetSessionDelayMs) {
                 await new Promise((resolve) => window.setTimeout(resolve, window.__qaGetSessionDelayMs));
               }
+              if (typeof window.__qaBeforeGetSessionReturn === "function") {
+                await window.__qaBeforeGetSessionReturn();
+              }
               return {
                 data: { session: window.__qaGetSessionResolvedSession || window.__qaSession },
                 error: null,
@@ -108,6 +121,11 @@ function createFakeSupabaseScript(sessionUser = qaUser) {
             signInWithPassword: async () => ({ data: { session: window.__qaSession }, error: null }),
             setSession: async (tokens) => {
               window.__qaSetSessionCalls.push({ ...tokens });
+              if (window.__qaHoldSetSession) {
+                await new Promise((resolve) => {
+                  window.__qaReleaseSetSession = resolve;
+                });
+              }
               if (window.__qaStartDelayedGetSessionDuringSetSession) {
                 window.platformAuthStore.clearCurrentUser();
                 window.__qaLateGetSessionTokenPromise = window.platformAuthStore.getAccessToken();
@@ -172,7 +190,7 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
     await route.fulfill({
       status: 200,
       contentType: "text/javascript",
-      body: createFakeSupabaseScript(sessionUser),
+      body: createFakeSupabaseScript(sessionUser, options.sdkSession),
     });
   });
 
@@ -203,6 +221,17 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
     const authorization = route.request().headers().authorization || "";
     const profileForRequest = Object.entries(options.profileUsersByAccessToken || {})
       .find(([token]) => authorization.includes(token))?.[1] || profileUser;
+    if (typeof options.profileReadHandler === "function") {
+      const handled = await options.profileReadHandler({
+        authorization,
+        profileForRequest,
+        route,
+        url,
+      });
+      if (handled) {
+        return;
+      }
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -227,6 +256,17 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
     if (method === "GET") {
       appStateGetUrls.push(request.url());
       const requestUrl = new URL(request.url());
+      if (typeof options.appStateReadHandler === "function") {
+        const handled = await options.appStateReadHandler({
+          authorization: request.headers().authorization || "",
+          centralStore,
+          requestUrl,
+          route,
+        });
+        if (handled) {
+          return;
+        }
+      }
       const accessMode = requestUrl.searchParams.get("access") || "requested";
       const entries = centralStore.emptyCentralState
         ? {}
@@ -397,15 +437,20 @@ async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabNa
     await expect(page.locator("#loginScreen")).toBeVisible();
     return { context, page };
   }
-  await expect(page.locator("#hubShell")).toBeVisible();
   await page.waitForFunction(
-    () => Boolean(window.footballScienceDataSafety && window.footballScienceCentralState?.isHydrated?.()),
+    () => Boolean(
+      window.__footballScienceAppReady &&
+      window.platformAuthStore?.getCurrentUser?.()?.id &&
+      window.footballScienceDataSafety &&
+      window.footballScienceCentralState?.isHydrated?.()
+    ),
     null,
     { timeout: 15_000 }
   );
+  await expect(page.locator("#hubShell")).toBeVisible();
   await expect
     .poll(() => page.evaluate((key) => window.localStorage.getItem(key) || "", revisionStateKey), { timeout: 10_000 })
-    .toContain("Original central sequence");
+    .toContain(options.expectedRevisionStateText || "Original central sequence");
   return { context, page };
 }
 
@@ -884,6 +929,7 @@ test("server login never installs a new SDK session when principal transition fa
     appStateRequests,
     authLoginRequests,
     authLoginSession: sessionB,
+    profileUsersByAccessToken: { [sessionB.access_token]: sessionB.user },
     initScript: ({ manifestKey }) => {
       const originalSetItem = window.Storage.prototype.setItem;
       window.__qaFailNextManifestWrite = false;
@@ -1074,6 +1120,8 @@ test("existing SDK session failure signs out locally and quarantines the previou
   }, [], "existing-session-quarantine-failure", {
     appStateRequests,
     expectAuthFailure: true,
+    profileUsersByAccessToken: { [sessionB.access_token]: sessionB.user },
+    sdkSession: sessionB,
     sessionUser: sessionB.user,
     initScript: ({ key, manifestKey, principalScope, valueA }) => {
       const originalSetItem = window.Storage.prototype.setItem;
@@ -1091,11 +1139,14 @@ test("existing SDK session failure signs out locally and quarantines the previou
         },
       }));
       window.__qaSignOutDelayMs = 50;
-      window.__qaFailNextManifestWrite = true;
+      window.__qaFailPrincipalIsolationWrite = true;
       window.Storage.prototype.setItem = function failNextManifestWrite(storageKey, value) {
-        if (storageKey === manifestKey && window.__qaFailNextManifestWrite) {
-          window.__qaFailNextManifestWrite = false;
-          throw new DOMException("Quota exceeded", "QuotaExceededError");
+        if (storageKey === manifestKey && window.__qaFailPrincipalIsolationWrite) {
+          const candidate = JSON.parse(String(value || "{}"));
+          if (candidate.principalPending?.[principalScope]?.[key]) {
+            window.__qaFailPrincipalIsolationWrite = false;
+            throw new DOMException("Quota exceeded", "QuotaExceededError");
+          }
         }
         return originalSetItem.call(this, storageKey, value);
       };
@@ -1113,7 +1164,12 @@ test("existing SDK session failure signs out locally and quarantines the previou
     const result = await tab.page.evaluate(({ key, manifestKey, principalScope }) => {
       const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
       return {
+        activeScope: manifest.activePrincipalScope || "",
+        centralError: window.footballScienceCentralState.getStatus().lastError || "",
         currentUserId: window.platformAuthStore.getCurrentUser()?.id || "",
+        manifest,
+        pendingScopes: Object.keys(manifest.principalPending || {}),
+        rawValue: window.localStorage.getItem(key) || "",
         quarantinedValue: manifest.principalPending?.[principalScope]?.[key]?.value || "",
         sdkSessionUserId: window.__qaSession?.user?.id || "",
         signOutPending: Boolean(window.__qaSignOutPending),
@@ -1126,7 +1182,12 @@ test("existing SDK session failure signs out locally and quarantines the previou
     });
 
     expect(result).toEqual({
+      activeScope: "",
+      centralError: "",
       currentUserId: "",
+      manifest: result.manifest,
+      pendingScopes: [qaPrincipalScope],
+      rawValue: "",
       quarantinedValue: valueA,
       sdkSessionUserId: "",
       signOutPending: false,
@@ -1148,6 +1209,7 @@ test("auth state change failure cannot show the previous principal under the new
     metadata: createMetadata(1, initialValue),
   }, [], "auth-event-quarantine-failure", {
     appStateRequests,
+    profileUsersByAccessToken: { [sessionB.access_token]: sessionB.user },
     initScript: ({ manifestKey }) => {
       const originalSetItem = window.Storage.prototype.setItem;
       window.__qaFailNextManifestWrite = false;
@@ -1207,6 +1269,500 @@ test("auth state change failure cannot show the previous principal under the new
       signOutScopes: ["local"],
     });
     expect(appStateRequests.some((request) => request.authorization.includes(sessionB.access_token))).toBe(false);
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("a stale central hydration response cannot apply after the principal changes", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const sessionB = createSecondaryQaSession();
+  const staleScheduleValue = JSON.stringify({ events: [{ id: "stale-a-event" }] });
+  const aReadStarted = createDeferred();
+  const releaseARead = createDeferred();
+  let deferARead = false;
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "stale-hydration-principal-epoch", {
+    profileUsersByAccessToken: { [sessionB.access_token]: sessionB.user },
+    appStateReadHandler: async ({ authorization, requestUrl, route }) => {
+      if (!deferARead || !authorization.includes("qa-access-token")) {
+        return false;
+      }
+      aReadStarted.resolve();
+      await releaseARead.promise;
+      const accessMode = requestUrl.searchParams.get("access") || "requested";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          entries: { [scheduleStateKey]: staleScheduleValue },
+          metadata: { [scheduleStateKey]: createMetadata(2, staleScheduleValue) },
+          ...(accessMode === "none" ? {} : {
+            writeAccess: { [scheduleStateKey]: true },
+            seedAccess: { [scheduleStateKey]: true },
+          }),
+        }),
+      });
+      return true;
+    },
+  });
+
+  try {
+    deferARead = true;
+    await tab.page.evaluate(() => {
+      window.__qaStaleHydration = window.footballScienceCentralState.hydrate({ fresh: true, forceApply: true });
+    });
+    await aReadStarted.promise;
+
+    await tab.page.evaluate(async (nextSession) => {
+      window.__qaSession = nextSession;
+      await window.__qaAuthStateCallbacks[0]("SIGNED_IN", nextSession);
+    }, sessionB);
+    await expect.poll(() => tab.page.evaluate(
+      () => window.platformAuthStore.getCurrentUser()?.id || ""
+    )).toBe(sessionB.user.id);
+
+    releaseARead.resolve();
+    expect(await tab.page.evaluate(() => window.__qaStaleHydration)).toBe(false);
+    expect(await tab.page.evaluate((key) => ({
+      currentUserId: window.platformAuthStore.getCurrentUser()?.id || "",
+      staleScheduleVisible: String(window.localStorage.getItem(key) || "").includes("stale-a-event"),
+    }), scheduleStateKey)).toEqual({
+      currentUserId: sessionB.user.id,
+      staleScheduleVisible: false,
+    });
+  } finally {
+    releaseARead.resolve();
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("same-principal role demotion invalidates an older Medical hydration and cached write access", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const staleMedicalValue = JSON.stringify({ injuryPlans: [{ id: "stale-admin-medical" }] });
+  const freshMedicalValue = JSON.stringify({ injuryPlans: [{ id: "fresh-guest-medical" }] });
+  const staleReadStarted = createDeferred();
+  const releaseStaleRead = createDeferred();
+  const demotedUser = {
+    ...qaUser,
+    app_metadata: { role: "guest", status: "active" },
+  };
+  let deferOneRead = false;
+  let deferredReadClaimed = false;
+  let serveDemotedProfile = false;
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+    entries: { [medicalTeamStateKey]: freshMedicalValue },
+    metadataEntries: { [medicalTeamStateKey]: createMetadata(3, freshMedicalValue) },
+    writeAccess: { [medicalTeamStateKey]: true },
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "same-principal-authz-epoch", {
+    appStateReadHandler: async ({ authorization, requestUrl, route }) => {
+      if (
+        !deferOneRead ||
+        deferredReadClaimed ||
+        !authorization.includes("qa-access-token")
+      ) {
+        return false;
+      }
+      deferredReadClaimed = true;
+      staleReadStarted.resolve();
+      await releaseStaleRead.promise;
+      const accessMode = requestUrl.searchParams.get("access") || "requested";
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          entries: { [medicalTeamStateKey]: staleMedicalValue },
+          metadata: { [medicalTeamStateKey]: createMetadata(2, staleMedicalValue) },
+          ...(accessMode === "none" ? {} : {
+            writeAccess: { [medicalTeamStateKey]: true },
+            seedAccess: { [medicalTeamStateKey]: true },
+          }),
+        }),
+      });
+      return true;
+    },
+    profileReadHandler: async ({ route, url }) => {
+      if (!serveDemotedProfile) {
+        return false;
+      }
+      centralStore.writeAccess[medicalTeamStateKey] = false;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(url.searchParams.has("me")
+          ? { ok: true, user: demotedUser }
+          : { ok: true, users: [demotedUser], roles: ["guest"] }),
+      });
+      return true;
+    },
+  });
+
+  try {
+    deferOneRead = true;
+    await tab.page.evaluate(() => {
+      window.__qaAuthzStaleHydration = window.footballScienceCentralState.hydrate({
+        fresh: true,
+        forceApply: true,
+      });
+    });
+    await staleReadStarted.promise;
+
+    serveDemotedProfile = true;
+    await tab.page.evaluate(async () => {
+      await window.__qaAuthStateCallbacks[0]("TOKEN_REFRESHED", window.__qaSession);
+    });
+    await expect.poll(() => tab.page.evaluate(
+      () => window.platformAuthStore.getCurrentUser()?.role || ""
+    )).toBe("guest");
+
+    releaseStaleRead.resolve();
+    expect(await tab.page.evaluate(() => window.__qaAuthzStaleHydration)).toBe(false);
+    await expect.poll(() => tab.page.evaluate(({ key }) => ({
+      canWriteMedical: window.footballScienceCentralState.canWriteKey(key),
+      role: window.platformAuthStore.getCurrentUser()?.role || "",
+      staleMedicalVisible: String(window.localStorage.getItem(key) || "").includes("stale-admin-medical"),
+    }), { key: medicalTeamStateKey })).toEqual({
+      canWriteMedical: false,
+      role: "guest",
+      staleMedicalVisible: false,
+    });
+  } finally {
+    releaseStaleRead.resolve();
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("a stale profile response cannot replace a newer authenticated principal", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const sessionB = createSecondaryQaSession();
+  const aProfileStarted = createDeferred();
+  const releaseAProfile = createDeferred();
+  let deferAProfile = false;
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "stale-profile-principal-epoch", {
+    profileUsersByAccessToken: { [sessionB.access_token]: sessionB.user },
+    profileReadHandler: async ({ authorization, profileForRequest, route, url }) => {
+      if (!deferAProfile || !url.searchParams.has("me") || !authorization.includes("qa-access-token")) {
+        return false;
+      }
+      aProfileStarted.resolve();
+      await releaseAProfile.promise;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          user: {
+            ...profileForRequest,
+            user_metadata: { ...profileForRequest.user_metadata, firstName: "Stale A" },
+          },
+        }),
+      });
+      return true;
+    },
+  });
+
+  try {
+    deferAProfile = true;
+    await tab.page.evaluate(async () => {
+      await window.__qaAuthStateCallbacks[0]("TOKEN_REFRESHED", window.__qaSession);
+    });
+    await aProfileStarted.promise;
+
+    await tab.page.evaluate(async (nextSession) => {
+      window.__qaSession = nextSession;
+      await window.__qaAuthStateCallbacks[0]("SIGNED_IN", nextSession);
+    }, sessionB);
+    await expect.poll(() => tab.page.evaluate(
+      () => window.platformAuthStore.getCurrentUser()?.id || ""
+    )).toBe(sessionB.user.id);
+
+    releaseAProfile.resolve();
+    await tab.page.waitForTimeout(100);
+    expect(await tab.page.evaluate(() => ({
+      currentUserId: window.platformAuthStore.getCurrentUser()?.id || "",
+      firstName: window.platformAuthStore.getCurrentUser()?.firstName || "",
+    }))).toEqual({
+      currentUserId: sessionB.user.id,
+      firstName: "Second",
+    });
+  } finally {
+    releaseAProfile.resolve();
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("server login publishes the new principal only after SDK session installation succeeds", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const sessionB = createSecondaryQaSession();
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "server-login-atomic-session", {
+    authLoginSession: sessionB,
+    profileUsersByAccessToken: { [sessionB.access_token]: sessionB.user },
+  });
+
+  try {
+    await tab.page.evaluate((nextSession) => {
+      window.__qaHoldSetSession = true;
+      window.__qaSetSessionResolvedSession = nextSession;
+      document.getElementById("loginUsername").value = nextSession.user.email;
+      document.getElementById("loginPassword").value = "test-password";
+      document.getElementById("loginForm").requestSubmit();
+    }, sessionB);
+    await expect.poll(() => tab.page.evaluate(() => window.__qaSetSessionCalls.length)).toBe(1);
+    expect(await tab.page.evaluate(() => ({
+      currentUserId: window.platformAuthStore.getCurrentUser()?.id || "",
+      sdkUserId: window.__qaSession?.user?.id || "",
+    }))).toEqual({
+      currentUserId: qaUser.id,
+      sdkUserId: qaUser.id,
+    });
+
+    await tab.page.evaluate(() => {
+      window.__qaHoldSetSession = false;
+      window.__qaReleaseSetSession?.();
+    });
+
+    await expect.poll(() => tab.page.evaluate(
+      () => window.platformAuthStore.getCurrentUser()?.id || ""
+    )).toBe(sessionB.user.id);
+    expect(await tab.page.evaluate(() => window.__qaSession?.user?.id || "")).toBe(sessionB.user.id);
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("a new login waits for terminal sign-out and ignores a late stale SIGNED_OUT event", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const sessionB = createSecondaryQaSession();
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "serialized-signout-login", {
+    authLoginSession: sessionB,
+    profileUsersByAccessToken: { [sessionB.access_token]: sessionB.user },
+  });
+
+  try {
+    await tab.page.evaluate((nextSession) => {
+      window.__qaSignOutDelayMs = 100;
+      window.__qaSetSessionResolvedSession = nextSession;
+      document.getElementById("logoutButton").click();
+      document.getElementById("loginUsername").value = nextSession.user.email;
+      document.getElementById("loginPassword").value = "test-password";
+      document.getElementById("loginForm").requestSubmit();
+    }, sessionB);
+    await tab.page.waitForTimeout(25);
+    expect(await tab.page.evaluate(() => window.__qaSetSessionCalls.length)).toBe(0);
+
+    await expect.poll(() => tab.page.evaluate(
+      () => window.platformAuthStore.getCurrentUser()?.id || ""
+    )).toBe(sessionB.user.id);
+    await tab.page.evaluate(async () => {
+      await window.__qaAuthStateCallbacks[0]("SIGNED_OUT", null);
+    });
+    expect(await tab.page.evaluate(() => ({
+      currentUserId: window.platformAuthStore.getCurrentUser()?.id || "",
+      sdkUserId: window.__qaSession?.user?.id || "",
+    }))).toEqual({
+      currentUserId: sessionB.user.id,
+      sdkUserId: sessionB.user.id,
+    });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("a late getSession result cannot restore a principal after sign-out", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "late-session-read-after-signout");
+
+  try {
+    const result = await tab.page.evaluate(async () => {
+      const staleSession = window.__qaSession;
+      window.__qaGetSessionDelayMs = 100;
+      window.__qaGetSessionResolvedSession = staleSession;
+      window.platformAuthStore.clearCurrentUser();
+      const lateTokenPromise = window.platformAuthStore.getAccessToken();
+      document.getElementById("logoutButton").click();
+      const lateToken = await lateTokenPromise;
+      await new Promise((resolve) => window.setTimeout(resolve, 125));
+      return {
+        currentUserId: window.platformAuthStore.getCurrentUser()?.id || "",
+        lateToken,
+        sdkSessionUserId: window.__qaSession?.user?.id || "",
+      };
+    });
+
+    expect(result).toEqual({
+      currentUserId: "",
+      lateToken: null,
+      sdkSessionUserId: "",
+    });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("a session read started after local clear cannot resurrect the signing-out principal", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "post-clear-session-read-during-signout");
+
+  try {
+    const result = await tab.page.evaluate(async () => {
+      window.__qaSignOutDelayMs = 100;
+      document.getElementById("logoutButton").click();
+      while (!window.__qaSignOutPending) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1));
+      }
+      const tokenDuringSignOut = await window.platformAuthStore.getAccessToken();
+      const principalDuringSignOut = window.platformAuthStore.getCurrentUser()?.id || "";
+      await new Promise((resolve) => window.setTimeout(resolve, 125));
+      return {
+        principalDuringSignOut,
+        finalPrincipalId: window.platformAuthStore.getCurrentUser()?.id || "",
+        sdkSessionUserId: window.__qaSession?.user?.id || "",
+        tokenDuringSignOut,
+      };
+    });
+
+    expect(result).toEqual({
+      principalDuringSignOut: "",
+      finalPrincipalId: "",
+      sdkSessionUserId: "",
+      tokenDuringSignOut: null,
+    });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("a late non-null SDK event cannot replace the authoritative newer session", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const sessionB = createSecondaryQaSession();
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  }, [], "late-non-null-sdk-event", {
+    profileUsersByAccessToken: { [sessionB.access_token]: sessionB.user },
+  });
+
+  try {
+    const result = await tab.page.evaluate(async (nextSession) => {
+      const staleSession = window.__qaSession;
+      window.__qaSession = nextSession;
+      await window.__qaAuthStateCallbacks[0]("SIGNED_IN", nextSession);
+      await window.__qaAuthStateCallbacks[0]("TOKEN_REFRESHED", staleSession);
+      return {
+        activeToken: await window.platformAuthStore.getAccessToken(),
+        currentUserId: window.platformAuthStore.getCurrentUser()?.id || "",
+        sdkSessionUserId: window.__qaSession?.user?.id || "",
+      };
+    }, sessionB);
+
+    expect(result).toEqual({
+      activeToken: sessionB.access_token,
+      currentUserId: sessionB.user.id,
+      sdkSessionUserId: sessionB.user.id,
+    });
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("a reload never replaces durable A quarantine with restored B after a phase-two crash", async ({ browser, baseURL }) => {
+  const sessionB = createSecondaryQaSession();
+  const scopeB = "qa-user-2:club-b:team-b";
+  const valueA = createStateValue("Durable owner A");
+  const valueB = createStateValue("Restored owner B");
+  const entryA = {
+    label: "Simulator",
+    hash: "crash-a-hash",
+    pendingCentralSync: true,
+    principalScope: qaPrincipalScope,
+    serverRevision: 4,
+    updatedAt: "2026-08-23T11:00:00.000Z",
+    writes: 4,
+  };
+  const entryB = {
+    label: "Simulator",
+    hash: "crash-b-hash",
+    pendingCentralSync: true,
+    principalScope: scopeB,
+    serverRevision: 7,
+    updatedAt: "2026-08-23T11:01:00.000Z",
+    writes: 5,
+  };
+  const tab = await bootCentralPage(browser, baseURL, {
+    value: valueB,
+    metadata: createMetadata(7, valueB),
+  }, [], "principal-quarantine-crash-recovery", {
+    expectedRevisionStateText: "Restored owner B",
+    sessionUser: sessionB.user,
+    profileUser: sessionB.user,
+    initScript: ({ entryA, entryB, key, manifestKey, principalScope, scopeB, valueA, valueB }) => {
+      window.localStorage.setItem(key, valueB);
+      window.localStorage.setItem(manifestKey, JSON.stringify({
+        version: 1,
+        activePrincipalScope: principalScope,
+        entries: { [key]: entryA },
+        principalPending: {
+          [principalScope]: {
+            [key]: { entry: entryA, value: valueA },
+          },
+          [scopeB]: {
+            [key]: { entry: entryB, value: valueB },
+          },
+        },
+      }));
+    },
+    initArg: {
+      entryA,
+      entryB,
+      key: revisionStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+      scopeB,
+      valueA,
+      valueB,
+    },
+  });
+
+  try {
+    const recovered = await tab.page.evaluate(({ key, manifestKey, principalScope }) => {
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        activeScope: manifest.activePrincipalScope,
+        durableEntry: manifest.principalPending?.[principalScope]?.[key]?.entry,
+        durableValue: manifest.principalPending?.[principalScope]?.[key]?.value,
+        localValue: window.localStorage.getItem(key),
+      };
+    }, {
+      key: revisionStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+    });
+    expect(recovered.activeScope).toBe(scopeB);
+    expect(recovered.durableValue).toBe(valueA);
+    expect(recovered.durableEntry).toEqual(entryA);
+    expect(JSON.parse(recovered.localValue)).toMatchObject({ name: "Restored owner B" });
   } finally {
     await closeCentralStateContext(tab.context);
   }
@@ -1279,6 +1835,91 @@ test("central writes require a matching key and a strictly advancing durable rev
       window.footballScienceCentralState.getStatus().metadata[key]?.revision
     ), scheduleStateKey)).toBe(baseRevision + 1);
   } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("an in-flight write cannot acknowledge a newer cross-tab manifest generation", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const valueA = createStateValue("In-flight A");
+  const valueB = createStateValue("Newer cross-tab B");
+  const writeStarted = createDeferred();
+  const releaseWrite = createDeferred();
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "cross-tab-write-generation-cas", {
+    appStateWriteHandler: async ({ body, route }) => {
+      if (body.key !== revisionStateKey) {
+        return false;
+      }
+      writeStarted.resolve(body);
+      await releaseWrite.promise;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          key: revisionStateKey,
+          value: valueA,
+          revision: 2,
+          metadata: createMetadata(2, valueA),
+        }),
+      });
+      return true;
+    },
+  });
+
+  try {
+    await tab.page.evaluate(({ key, value }) => window.localStorage.setItem(key, value), {
+      key: revisionStateKey,
+      value: valueA,
+    });
+    await writeStarted.promise;
+    const crossTabEntry = await tab.page.evaluate(({ key, manifestKey, principalScope, value }) => {
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, value);
+        const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+        const current = manifest.entries?.[key] || {};
+        manifest.entries[key] = {
+          ...current,
+          hash: "cross-tab-b-hash",
+          pendingCentralSync: false,
+          principalScope,
+          serverRevision: 7,
+          updatedAt: "2026-08-23T12:00:01.000Z",
+          writes: Number(current.writes || 0) + 1,
+        };
+        window.localStorage.setItem(manifestKey, JSON.stringify(manifest));
+        return manifest.entries[key];
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+    }, {
+      key: revisionStateKey,
+      manifestKey: dataSafetyManifestKey,
+      principalScope: qaPrincipalScope,
+      value: valueB,
+    });
+
+    releaseWrite.resolve();
+    await tab.page.waitForTimeout(300);
+    const result = await tab.page.evaluate(({ key, manifestKey }) => {
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        centralRevision: window.footballScienceCentralState.getStatus().metadata[key]?.revision,
+        entry: manifest.entries?.[key],
+        value: window.localStorage.getItem(key),
+      };
+    }, { key: revisionStateKey, manifestKey: dataSafetyManifestKey });
+
+    expect(result.value).toBe(valueB);
+    expect(result.entry).toEqual(crossTabEntry);
+    expect(result.centralRevision).toBe(1);
+  } finally {
+    releaseWrite.resolve();
     await closeCentralStateContext(tab.context);
   }
 });
@@ -1449,6 +2090,156 @@ test("authorized Medical hydration writes pending data exactly once and clears p
       lastError: "",
     });
   } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("an H1 Medical writeback cannot mutate metadata after same-principal H2 hydration", async ({ browser, baseURL }) => {
+  const initialValue = createStateValue("Original central sequence");
+  const h1WriteStarted = createDeferred();
+  const releaseH1Write = createDeferred();
+  const allSyncBodies = [];
+  let writebackActive = false;
+  let medicalWriteAttempts = 0;
+  const localMedicalState = {
+    players: [{ id: "player-1", name: "Local player", photoUrl: "data:image/png;base64,qa-photo" }],
+    records: [],
+    injuryPlans: [],
+  };
+  const h1MedicalState = {
+    players: [{ id: "player-1", name: "H1 player" }],
+    records: [],
+    injuryPlans: [],
+  };
+  const h2MedicalState = {
+    players: [{ id: "player-1", name: "H2 player" }],
+    records: [],
+    injuryPlans: [],
+  };
+  const centralStore = {
+    value: initialValue,
+    metadata: createMetadata(1, initialValue),
+  };
+  const tab = await bootCentralPage(browser, baseURL, centralStore, [], "medical-hydration-writeback-generation", {
+    allSyncBodies,
+    appStateWriteHandler: async ({ body, route }) => {
+      if (!writebackActive || body.key !== medicalTeamStateKey) {
+        return false;
+      }
+      medicalWriteAttempts += 1;
+      if (medicalWriteAttempts !== 1) {
+        return false;
+      }
+      h1WriteStarted.resolve();
+      await releaseH1Write.promise;
+      const value = String(body.value || "");
+      const metadata = {
+        ...createMetadata(3, value),
+        moduleId: "medical-team",
+        mergePolicy: "record-timestamp-merge",
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, key: body.key, value, revision: 3, metadata }),
+      });
+      return true;
+    },
+  });
+
+  try {
+    await tab.page.evaluate(({ key, value }) => {
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, value);
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+    }, { key: medicalTeamStateKey, value: JSON.stringify(localMedicalState) });
+    centralStore.entries = { [medicalTeamStateKey]: JSON.stringify(h1MedicalState) };
+    centralStore.metadataEntries = {
+      [medicalTeamStateKey]: {
+        ...createMetadata(2, JSON.stringify(h1MedicalState)),
+        moduleId: "medical-team",
+        mergePolicy: "record-timestamp-merge",
+      },
+    };
+    centralStore.writeAccess = { [medicalTeamStateKey]: true };
+    writebackActive = true;
+
+    expect(await tab.page.evaluate(() =>
+      window.footballScienceCentralState.hydrate({ fresh: true })
+    )).toBe(true);
+    await h1WriteStarted.promise;
+
+    centralStore.entries[medicalTeamStateKey] = JSON.stringify(h2MedicalState);
+    centralStore.metadataEntries[medicalTeamStateKey] = {
+      ...createMetadata(3, JSON.stringify(h2MedicalState)),
+      moduleId: "medical-team",
+      mergePolicy: "record-timestamp-merge",
+    };
+    expect(await tab.page.evaluate(() =>
+      window.footballScienceCentralState.hydrate({ fresh: true })
+    )).toBe(true);
+    await expect.poll(() => allSyncBodies.some((body) => (
+      body.key === medicalTeamStateKey &&
+      JSON.parse(body.value || "{}").players?.[0]?.name === "H2 player"
+    ))).toBe(true);
+
+    const scenarioWrites = allSyncBodies
+      .filter((body) => body.key === medicalTeamStateKey)
+      .map((body) => ({
+        name: JSON.parse(body.value || "{}").players?.[0]?.name || "",
+        baseRevision: Number(body.baseRevision ?? body.metadata?.baseRevision),
+      }))
+      .filter((write) => write.name === "H1 player" || write.name === "H2 player");
+    expect({
+      local: await tab.page.evaluate(({ key }) => {
+        const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+        const metadata = window.footballScienceCentralState.getStatus().metadata?.[key] || {};
+        return {
+          name: state.players?.[0]?.name || "",
+          photoUrl: state.players?.[0]?.photoUrl || "",
+          revision: Number(metadata.revision || 0),
+        };
+      }, { key: medicalTeamStateKey }),
+      writes: scenarioWrites,
+    }).toEqual({
+      local: {
+        name: "H2 player",
+        photoUrl: "data:image/png;base64,qa-photo",
+        revision: 4,
+      },
+      writes: [
+        { name: "H1 player", baseRevision: 2 },
+        { name: "H2 player", baseRevision: 3 },
+      ],
+    });
+
+    releaseH1Write.resolve();
+    await expect.poll(() => tab.page.evaluate(({ key }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      const metadata = window.footballScienceCentralState.getStatus().metadata?.[key] || {};
+      return {
+        name: state.players?.[0]?.name || "",
+        photoUrl: state.players?.[0]?.photoUrl || "",
+        revision: Number(metadata.revision || 0),
+      };
+    }, { key: medicalTeamStateKey })).toEqual({
+      name: "H2 player",
+      photoUrl: "data:image/png;base64,qa-photo",
+      revision: 4,
+    });
+    expect(allSyncBodies.filter((body) => {
+      if (body.key !== medicalTeamStateKey) {
+        return false;
+      }
+      const name = JSON.parse(body.value || "{}").players?.[0]?.name || "";
+      return name === "H1 player" || name === "H2 player";
+    })).toHaveLength(2);
+    expect(JSON.parse(centralStore.entries[medicalTeamStateKey]).players[0].name).toBe("H2 player");
+  } finally {
+    releaseH1Write.resolve();
     await closeCentralStateContext(tab.context);
   }
 });

@@ -106,6 +106,8 @@ const appStateSessionPlannerPath = `global/${appStateSessionPlannerKey}.json`;
 const appStateSessionHistoryKey = "football-session-planner-history-v1";
 const appStateSessionHistoryPath = `global/${appStateSessionHistoryKey}.json`;
 const appStateChatKey = "football-dashboard-chat-v1";
+const homeTasksKey = "football-dashboard-tasks-v1";
+const homeTasksPath = `global/${homeTasksKey}.json`;
 const periodizationKey = "football-periodization-v2";
 const periodizationPath = `global/${periodizationKey}.json`;
 const workspaceHubKey = "football-workspace-hub-v3";
@@ -119,6 +121,8 @@ const transferRoomPath = `global/${transferRoomKey}.json`;
 const scheduleKey = "football-schedule-v1";
 const gameplanKey = "football-gameplan-v1";
 const gameplanPath = `global/${gameplanKey}.json`;
+const setPiecesKey = "football-set-pieces-room-v1";
+const setPiecesPath = `global/${setPiecesKey}.json`;
 const platformStructureKey = "football-platform-structure-v1";
 const platformStructurePath = `global/${platformStructureKey}.json`;
 const platformAppearanceKey = "football-platform-appearance-v1";
@@ -666,7 +670,9 @@ test("platform auth boot hydrates central state in bounded read batches", () => 
   expect(source).toContain("Object.assign(combined.payload.seedAccess, response.payload?.seedAccess || {});");
   expect(source).toContain("filterCentralStateWriteEntries(collectCentralLocalStateEntries(), seedAccess)");
   expect(source).toContain("return options.returnEntries ? { ok: true, entries, metadata } : true;");
-  expect(source).toContain("const response = await readCentralStateBatches(options);");
+  expect(source).toContain("const response = await readCentralStateBatches({\n        ...options,\n        authToken: authContext.accessToken,\n      });");
+  expect(source).toContain("hydrationGeneration === centralStateHydrationGeneration");
+  expect(source).toContain("isAuthPrincipalContextCurrent(authContext)");
   expect(source).not.toContain("const statePath = options.forceApply || options.fresh");
 });
 
@@ -686,7 +692,7 @@ test("platform auth boot routes principal lifecycle changes through the fail-clo
     "if (!transitionCentralStatePrincipal(nextUser))"
   );
   expect(functionBody("setCurrentUserFromSession", "isPausedAccount")).toContain(
-    "transitionCentralStatePrincipal(null);"
+    "if (!transitionCentralStatePrincipal(null))"
   );
   expect(functionBody("setCurrentUserFromSession", "isPausedAccount")).toContain(
     "mergeAuthUser(nextUser, { setCurrent: true"
@@ -1200,6 +1206,107 @@ test("app-state keeps required team data visible to coaches even when workspace 
     expect(hubState.workspaceAccess["player-profiles"].view).toContain("coach");
     expect(hubState.workspaceAccess["medical-team"].view).toContain("coach");
     expect(hubState.workspaceAccess["set-pieces-room"].view).toContain("coach");
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state exposes an explicit fail-closed access decision for every protected registry key", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const protectedKeys = Array.from(dataSafetyRegistry.keys()).sort();
+  global.fetch = createAppStateFetchMock({}, "admin").fetchMock;
+
+  try {
+    const response = await callHandler(loadFreshAppStateHandler(), {
+      method: "GET",
+      url: `/api/app-state?keys=${protectedKeys.join(",")}&access=fresh`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+
+    expect(response.status).toBe(200);
+    expect(Object.keys(response.payload.writeAccess || {}).sort()).toEqual(protectedKeys);
+    expect(Object.keys(response.payload.seedAccess || {}).sort()).toEqual(protectedKeys);
+    expect(Object.values(response.payload.writeAccess)).toEqual(
+      expect.arrayContaining([expect.any(Boolean)])
+    );
+  } finally {
+    global.fetch = originalFetch;
+    restoreEnv(env);
+  }
+});
+
+test("app-state applies Home and Set Pieces role contracts without a fail-open fallback", async () => {
+  const env = snapshotEnv(supabaseEnvKeys);
+  const originalFetch = global.fetch;
+  clearEnv(supabaseEnvKeys);
+  process.env.SUPABASE_URL = "https://example.supabase.co";
+  process.env.SUPABASE_ANON_KEY = "anon-test-key";
+  process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
+  const initialObjects = {
+    [homeTasksPath]: createAppStateStorageEntry(homeTasksKey, { tasks: [] }),
+    [setPiecesPath]: createAppStateStorageEntry(setPiecesKey, { plays: [] }),
+  };
+
+  try {
+    const coachStorage = createAppStateFetchMock(initialObjects, "coach");
+    global.fetch = coachStorage.fetchMock;
+    const coachRead = await callHandler(loadFreshAppStateHandler(), {
+      method: "GET",
+      url: `/api/app-state?keys=${homeTasksKey},${setPiecesKey}&access=fresh`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(coachRead.status).toBe(200);
+    expect(coachRead.payload.entries).toHaveProperty(homeTasksKey);
+    expect(coachRead.payload.entries).toHaveProperty(setPiecesKey);
+    expect(coachRead.payload.writeAccess).toMatchObject({
+      [homeTasksKey]: true,
+      [setPiecesKey]: true,
+    });
+
+    for (const [key, value] of [
+      [homeTasksKey, JSON.stringify({ tasks: [{ id: "task-1", text: "Prepare training" }] })],
+      [setPiecesKey, JSON.stringify({ plays: [{ id: "play-1", variants: [] }] })],
+    ]) {
+      const response = await callHandler(loadFreshAppStateHandler(), {
+        method: "POST",
+        url: "/api/app-state",
+        headers: { authorization: "Bearer test-access-token" },
+        body: JSON.stringify({ key, value, metadata: { baseRevision: 1 } }),
+      });
+      expect(response.status).toBe(200);
+    }
+
+    const guestStorage = createAppStateFetchMock(initialObjects, "guest");
+    global.fetch = guestStorage.fetchMock;
+    const guestRead = await callHandler(loadFreshAppStateHandler(), {
+      method: "GET",
+      url: `/api/app-state?keys=${homeTasksKey},${setPiecesKey}&access=fresh`,
+      headers: { authorization: "Bearer test-access-token" },
+    });
+    expect(guestRead.status).toBe(200);
+    expect(guestRead.payload.entries).toHaveProperty(homeTasksKey);
+    expect(guestRead.payload.entries).not.toHaveProperty(setPiecesKey);
+    expect(guestRead.payload.writeAccess).toMatchObject({
+      [homeTasksKey]: false,
+      [setPiecesKey]: false,
+    });
+
+    for (const key of [homeTasksKey, setPiecesKey]) {
+      const response = await callHandler(loadFreshAppStateHandler(), {
+        method: "POST",
+        url: "/api/app-state",
+        headers: { authorization: "Bearer test-access-token" },
+        body: JSON.stringify({ key, value: JSON.stringify({}), metadata: { baseRevision: 1 } }),
+      });
+      expect(response.status).toBe(403);
+    }
+    expect(guestStorage.writes).toEqual([]);
   } finally {
     global.fetch = originalFetch;
     restoreEnv(env);

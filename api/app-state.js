@@ -107,6 +107,7 @@ const WORKSPACE_HUB_KEY = "football-workspace-hub-v3";
 const PLATFORM_STRUCTURE_KEY = "football-platform-structure-v1";
 const PLATFORM_APPEARANCE_KEY = PLATFORM_APPEARANCE_STORAGE_KEY;
 const DEFAULT_WORKSPACE_ACCESS = {
+  home: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
   chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   schedule: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical", "guest"],
   gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
@@ -124,6 +125,7 @@ const DEFAULT_WORKSPACE_ACCESS = {
   "game-simulator": ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance"],
 };
 const DEFAULT_WORKSPACE_EDIT_ACCESS = {
+  home: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   chat: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst", "performance", "medical"],
   schedule: ["admin", "club-admin", "team-admin", "coach"],
   gameplan: ["admin", "club-admin", "team-admin", "coach", "scout", "analyst"],
@@ -169,6 +171,11 @@ const REQUIRED_WORKSPACE_ACCESS = {
 const STATE_KEY_WORKSPACE_EDIT_MAP = {
   [PLATFORM_STRUCTURE_KEY]: "admin",
   "football-dashboard-chat-v1": "chat",
+  "football-dashboard-tasks-v1": "home",
+  "football-dashboard-notification-seen-v1": "home",
+  "football-dashboard-tutorial-prefs-v1": "home",
+  "football-dashboard-news-seen-v1": "home",
+  "football-dashboard-presentation-mode-v1": "home",
   "football-schedule-v1": "schedule",
   [PERIODIZATION_KEY]: "periodization",
   [SESSION_PLANNER_KEY]: "session-planner",
@@ -181,9 +188,19 @@ const STATE_KEY_WORKSPACE_EDIT_MAP = {
   [SCOUTING_KEY]: "scouting",
   [GAMEPLAN_KEY]: "gameplan",
   [TRANSFER_ROOM_KEY]: "transfer-room",
+  [SET_PIECES_ROOM_KEY]: "set-pieces-room",
   "football-simulator-sequence-v1": "game-simulator",
   "football-simulator-sequence-library-v2": "game-simulator",
 };
+const DIRECT_STATE_PERMISSION_KEYS = new Set([WORKSPACE_HUB_KEY, PLATFORM_APPEARANCE_KEY]);
+const UNMAPPED_PROTECTED_STATE_KEYS = Array.from(CENTRAL_STATE_KEYS).filter(
+  (key) => !DIRECT_STATE_PERMISSION_KEYS.has(key) && !STATE_KEY_WORKSPACE_EDIT_MAP[key]
+);
+if (UNMAPPED_PROTECTED_STATE_KEYS.length) {
+  throw new Error(
+    `Protected app-state keys require an explicit permission owner: ${UNMAPPED_PROTECTED_STATE_KEYS.join(", ")}`
+  );
+}
 const ADMIN_ONLY_STATE_KEYS = new Set(["mak-coaching-platform-users-v1", PLATFORM_APPEARANCE_KEY]);
 const MEDICAL_PRIVATE_ROLES = new Set(["admin", "club-admin", "team-admin", "medical", "performance"]);
 const TRANSFER_ROOM_ACCESS_ADMIN_ROLES = new Set(["admin", "team-admin"]);
@@ -3050,7 +3067,7 @@ async function authorizeStateWrite(actor, key, rawValue, removed = false, contex
 
   const workspaceId = STATE_KEY_WORKSPACE_EDIT_MAP[key];
   if (!workspaceId) {
-    return { ok: true, value: rawValue };
+    return { ok: false, status: 403, reason: "This protected state key has no explicit write permission mapping." };
   }
 
   const accessConfig = await readWorkspaceAccessConfig();
@@ -3106,7 +3123,7 @@ function canActorAttemptStateWrite(actor, key, entries = {}, accessConfig = {}) 
   }
 
   const workspaceId = STATE_KEY_WORKSPACE_EDIT_MAP[key];
-  return workspaceId ? canActorEditWorkspace(actor, workspaceId, accessConfig) : true;
+  return workspaceId ? canActorEditWorkspace(actor, workspaceId, accessConfig) : false;
 }
 
 function canActorSeedState(actor, key, entries = {}, accessConfig = {}) {
@@ -3132,7 +3149,7 @@ function canActorSeedState(actor, key, entries = {}, accessConfig = {}) {
   }
 
   const workspaceId = STATE_KEY_WORKSPACE_EDIT_MAP[key];
-  return workspaceId ? canActorEditWorkspace(actor, workspaceId, accessConfig) : true;
+  return workspaceId ? canActorEditWorkspace(actor, workspaceId, accessConfig) : false;
 }
 
 function getStateWriteAccessForActor(actor, keys = [], entries = {}) {
@@ -3206,7 +3223,7 @@ function filterStateEntriesForActor(actor, entries = {}, accessEntries = entries
     }
 
     const workspaceId = STATE_KEY_WORKSPACE_EDIT_MAP[key];
-    if (workspaceId && !canActorViewWorkspace(actor, workspaceId, accessConfig)) {
+    if (!workspaceId || !canActorViewWorkspace(actor, workspaceId, accessConfig)) {
       return filtered;
     }
 

@@ -25,14 +25,17 @@ function createServiceHarness(options = {}) {
   let lastError = String(options.lastError || "");
   let hydrationError = String(options.hydrationError || "");
   let revision = Number.isInteger(Number(options.revision)) ? Number(options.revision) : 7;
+  let principalEpoch = Number.isInteger(Number(options.principalEpoch)) ? Number(options.principalEpoch) : 1;
   let currentUser = options.currentUser ?? { id: "coach-1", clubId: "club-1", teamId: "team-1" };
   let syncResultIndex = 0;
+  let failNextSafeManifestWrite = Boolean(options.failNextSafeManifestWrite);
   const win = {
     footballScienceCentralState: {
       getStatus: () => ({
         hydrating,
         hydrationError,
         lastError,
+        principalEpoch,
         metadata: {
           "football-schedule-v1": { revision },
           "football-dashboard-presentation-mode-v1": { revision },
@@ -45,16 +48,27 @@ function createServiceHarness(options = {}) {
       canWriteKey: (key) => options.writeAccess?.[key] !== false,
       canAutoRetryKey: (key) => options.autoRetryAccess?.[key] !== false,
       syncKey: async (key, value, syncOptions) => {
-        syncCalls.push({ key, value, options: syncOptions });
+        const { isGenerationCurrent: _isGenerationCurrent, ...recordedOptions } = syncOptions || {};
+        syncCalls.push({ key, value, options: recordedOptions });
+        let result;
         if (typeof options.syncKey === "function") {
-          return options.syncKey({ key, value, syncOptions, syncCalls });
-        }
-        if (Array.isArray(options.syncResults)) {
-          const result = options.syncResults[Math.min(syncResultIndex, options.syncResults.length - 1)];
+          result = await options.syncKey({ key, value, syncOptions, syncCalls });
+        } else if (Array.isArray(options.syncResults)) {
+          result = options.syncResults[Math.min(syncResultIndex, options.syncResults.length - 1)];
           syncResultIndex += 1;
+        } else {
+          result = options.syncResult ?? { ok: true, value };
+        }
+        if (!result?.ok || options.preserveSyncResult === true) {
           return result;
         }
-        return options.syncResult ?? { ok: true, value };
+        return {
+          ...result,
+          key: Object.prototype.hasOwnProperty.call(result, "key") ? result.key : key,
+          revision: Number.isInteger(Number(result.revision))
+            ? Number(result.revision)
+            : Number(syncOptions?.baseRevision || 0) + 1,
+        };
       },
       hydrate: async (hydrateOptions) => {
         syncCalls.push({ hydrate: true, options: hydrateOptions });
@@ -97,6 +111,18 @@ function createServiceHarness(options = {}) {
       mutator(manifest);
       return manifest;
     },
+    mutateManifestWithResult: (mutator) => {
+      const draft = structuredClone(manifest);
+      mutator(draft);
+      if (failNextSafeManifestWrite) {
+        failNextSafeManifestWrite = false;
+        options.onSafeManifestPersistenceFailure?.({ manifest, rawValues });
+        return { manifest: draft, persisted: false };
+      }
+      Object.keys(manifest).forEach((key) => delete manifest[key]);
+      Object.assign(manifest, draft);
+      return { manifest, persisted: true };
+    },
     periodizationStorageKey: "football-periodization-v2",
     queueSnapshot: (reason) => snapshots.push(reason),
     queueStatusRefresh: () => {},
@@ -104,6 +130,7 @@ function createServiceHarness(options = {}) {
     rawSetItem: (key, value) => {
       rawValues.set(key, value);
     },
+    readManifest: () => manifest,
     retryConflictStorageKeys: options.retryConflictStorageKeys || [],
     dashboardPresentationStorageKey: "football-dashboard-presentation-mode-v1",
     scheduleStorageKey: "football-schedule-v1",
@@ -114,6 +141,15 @@ function createServiceHarness(options = {}) {
     showSessionPlannerToast: (...args) => autosaveStatuses.push(["toast", ...args]),
     win,
   });
+  const queueCentralStateWrite = service.queueCentralStateWrite.bind(service);
+  service.queueCentralStateWrite = (key, value, queueOptions = {}) => {
+    if (queueOptions.removed) {
+      rawValues.delete(key);
+    } else {
+      rawValues.set(key, String(value ?? ""));
+    }
+    return queueCentralStateWrite(key, value, queueOptions);
+  };
   return {
     autosaveStatuses,
     handledKeys,
@@ -137,6 +173,9 @@ function createServiceHarness(options = {}) {
     },
     setRevision: (nextRevision) => {
       revision = Number(nextRevision) || 0;
+    },
+    setPrincipalEpoch: (nextEpoch) => {
+      principalEpoch = Number(nextEpoch) || 0;
     },
     snapshots,
     syncStatuses,
@@ -320,6 +359,53 @@ test("central sync runtime sends an explicit write to the backend even when cach
   });
 });
 
+for (const invalidAcknowledgement of [
+  { label: "missing key", result: { ok: true, value: "A", revision: 99 } },
+  { label: "stale revision", result: { ok: true, key: "football-schedule-v1", value: "A", revision: 7 } },
+]) {
+  test(`central sync runtime keeps pending data when an acknowledgement has ${invalidAcknowledgement.label}`, async () => {
+    const key = "football-schedule-v1";
+    const harness = createServiceHarness({
+      preserveSyncResult: true,
+      syncResult: invalidAcknowledgement.result,
+    });
+
+    harness.service.queueCentralStateWrite(key, "A");
+    await harness.service.flushCentralStateWrites();
+
+    expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+    expect(harness.manifest.entries[key].serverRevision).toBeUndefined();
+    expect(harness.syncStatuses).toContainEqual([
+      key,
+      "issue",
+      "Central sync acknowledgement did not match the queued write.",
+    ]);
+  });
+}
+
+test("central sync runtime allows a later valid explicit write after an operation-level 403", async () => {
+  const key = "football-medical-team-v1";
+  const harness = createServiceHarness({
+    syncResults: [
+      { ok: false, status: 403, reason: "Operation denied." },
+      { ok: true, key, value: "B", revision: 8 },
+    ],
+  });
+
+  harness.service.queueCentralStateWrite(key, "A");
+  await harness.service.flushCentralStateWrites();
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+
+  harness.service.queueCentralStateWrite(key, "B");
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.syncCalls.filter((call) => call.key === key).map(({ value }) => value)).toEqual(["A", "B"]);
+  expect(harness.manifest.entries[key]).toMatchObject({
+    pendingCentralSync: false,
+    serverRevision: 8,
+  });
+});
+
 test("central sync runtime does not retry a permission-denied write loop", async () => {
   const key = "football-medical-team-v1";
   const reason = "You do not have edit access for medical-team.";
@@ -347,11 +433,14 @@ test("central sync runtime drains a newer queued generation after an in-flight a
     resolveFirstWrite = resolve;
   });
   const harness = createServiceHarness({
-    syncKey: async ({ value, syncCalls }) => {
+    syncKey: async ({ value, syncOptions, syncCalls }) => {
       if (syncCalls.length === 1) {
         return firstWrite;
       }
-      return { ok: true, value, revision: 9 };
+      if (Number(syncOptions?.baseRevision) === 7) {
+        return { ok: false, conflict: true, status: 409, currentRevision: 8 };
+      }
+      return { ok: true, key, value, revision: 9 };
     },
   });
 
@@ -375,6 +464,7 @@ test("central sync runtime drains a newer queued generation after an in-flight a
 
   expect(harness.syncCalls).toEqual([
     { key, value: firstValue, options: { removed: false, baseRevision: 7 } },
+    { key, value: secondValue, options: { removed: false, baseRevision: 7 } },
     { key, value: secondValue, options: { removed: false, baseRevision: 8 } },
   ]);
   expect(harness.manifest.entries[key]).toMatchObject({
@@ -581,18 +671,13 @@ test("central sync runtime persists the acknowledged revision after a conflict r
   });
 });
 
-test("central sync runtime reconciles a non-session conflict before clearing pending state", async () => {
+test("central sync runtime retries a current Schedule conflict before clearing pending state", async () => {
   const value = "{\"events\":[{\"id\":\"training-1\"}]}";
   const harness = createServiceHarness({
-    syncResult: { ok: false, conflict: true, status: 409, currentRevision: 10 },
-    hydratePayload: {
-      ok: true,
-      entries: { "football-schedule-v1": value },
-      metadata: { "football-schedule-v1": { revision: 10 } },
-    },
-    onHydrate: ({ setRevision }) => {
-      setRevision(10);
-    },
+    syncResults: [
+      { ok: false, conflict: true, status: 409, currentRevision: 10 },
+      { ok: true, key: "football-schedule-v1", value, revision: 11 },
+    ],
   });
   harness.rawValues.set("football-schedule-v1", value);
 
@@ -606,43 +691,37 @@ test("central sync runtime reconciles a non-session conflict before clearing pen
       options: { removed: false, baseRevision: 7 },
     },
     {
-      hydrate: true,
-      options: { forceApply: true, returnEntries: true },
+      key: "football-schedule-v1",
+      value,
+      options: { removed: false, baseRevision: 10 },
     },
   ]);
   expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
     pendingCentralSync: false,
-    serverRevision: 10,
+    serverRevision: 11,
   });
   expect(harness.autosaveStatuses).toContainEqual(["football-schedule-v1", "saved", "Saved"]);
 });
 
-test("central sync runtime keeps a newer generation pending across mismatched 409 hydration", async () => {
+test("central sync runtime never hydrates stale A over B and retries B with the fresh revision", async () => {
   const key = "football-schedule-v1";
   const firstValue = "{\"events\":[{\"id\":\"training-a\"}]}";
   const secondValue = "{\"events\":[{\"id\":\"training-b\"}]}";
-  const staleServerValue = "{\"events\":[{\"id\":\"server-old\"}]}";
   let resolveFirstWrite;
   let postCount = 0;
   const firstWrite = new Promise((resolve) => {
     resolveFirstWrite = resolve;
   });
   const harness = createServiceHarness({
-    hydratePayload: {
-      ok: true,
-      entries: { [key]: staleServerValue },
-      metadata: { [key]: { revision: 10 } },
-    },
-    onHydrate: ({ rawValues, setRevision }) => {
-      rawValues.set(key, staleServerValue);
-      setRevision(10);
-    },
-    syncKey: async ({ value }) => {
+    syncKey: async ({ value, syncOptions }) => {
       postCount += 1;
       if (postCount === 1) {
         return firstWrite;
       }
-      return { ok: true, value, revision: 11 };
+      if (Number(syncOptions?.baseRevision) === 7) {
+        return { ok: false, conflict: true, status: 409, currentRevision: 10 };
+      }
+      return { ok: true, key, value, revision: 11 };
     },
   });
 
@@ -665,17 +744,15 @@ test("central sync runtime keeps a newer generation pending across mismatched 40
 
   expect(harness.syncCalls.filter((call) => call.key === key)).toEqual([
     { key, value: firstValue, options: { removed: false, baseRevision: 7 } },
+    { key, value: secondValue, options: { removed: false, baseRevision: 7 } },
     { key, value: secondValue, options: { removed: false, baseRevision: 10 } },
   ]);
-  expect(harness.syncCalls).toContainEqual({
-    hydrate: true,
-    options: { forceApply: true, returnEntries: true },
-  });
+  expect(harness.syncCalls.some((call) => call.hydrate)).toBe(false);
   expect(harness.manifest.entries[key]).toMatchObject({
     pendingCentralSync: false,
     serverRevision: 11,
   });
-  expect(harness.rawValues.get(key)).toBe(`schedule:${secondValue}`);
+  expect(harness.rawValues.get(key)).toBe(secondValue);
 });
 
 test("central sync runtime never lets B acknowledgement overwrite a newer local C generation", async () => {
@@ -692,8 +769,7 @@ test("central sync runtime never lets B acknowledgement overwrite a newer local 
       entries: { [key]: serverValue },
       metadata: { [key]: { revision: 10 } },
     },
-    onHydrate: ({ rawValues, setRevision }) => {
-      rawValues.set(key, serverValue);
+    onHydrate: ({ setRevision }) => {
       setRevision(10);
     },
     syncKey: async () => {
@@ -721,6 +797,61 @@ test("central sync runtime never lets B acknowledgement overwrite a newer local 
 
   expect(harness.rawValues.get(key)).toBe("C");
   expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+});
+
+test("central sync runtime never acknowledges an older response over a newer cross-tab generation", async () => {
+  const key = "football-medical-team-v1";
+  let resolveA;
+  const deferredA = new Promise((resolve) => { resolveA = resolve; });
+  const harness = createServiceHarness({ syncKey: async () => deferredA });
+
+  harness.service.queueCentralStateWrite(key, "A");
+  const flush = harness.service.flushCentralStateWrites();
+  await expect.poll(() => harness.syncCalls.length).toBe(1);
+
+  const crossTabEntry = {
+    ...harness.manifest.entries[key],
+    hash: "hash-cross-tab-b",
+    writes: Number(harness.manifest.entries[key].writes || 0) + 1,
+    updatedAt: "2026-06-08T12:00:01.000Z",
+    pendingCentralSync: false,
+    serverRevision: 7,
+  };
+  harness.rawValues.set(key, "B");
+  harness.manifest.entries[key] = crossTabEntry;
+
+  resolveA({ ok: true, key, value: "A", revision: 8 });
+  await flush;
+
+  expect(harness.rawValues.get(key)).toBe("B");
+  expect(harness.manifest.entries[key]).toEqual(crossTabEntry);
+  expect(harness.syncStatuses).not.toContainEqual([key, "saved", "Saved"]);
+});
+
+test("central sync runtime rejects an in-flight response from an older auth epoch", async () => {
+  const key = "football-medical-team-v1";
+  let resolveWrite;
+  let generationCurrentAtResponse = true;
+  const harness = createServiceHarness({
+    syncKey: async ({ syncOptions }) => {
+      await new Promise((resolve) => { resolveWrite = resolve; });
+      generationCurrentAtResponse = syncOptions.isGenerationCurrent();
+      return { ok: true, key, value: "A", revision: 8 };
+    },
+  });
+
+  harness.service.queueCentralStateWrite(key, "A");
+  const flush = harness.service.flushCentralStateWrites();
+  await expect.poll(() => harness.syncCalls.length).toBe(1);
+  harness.setPrincipalEpoch(2);
+  resolveWrite();
+  await flush;
+
+  expect(generationCurrentAtResponse).toBe(false);
+  expect(harness.rawValues.get(key)).toBe("A");
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+  expect(harness.manifest.entries[key].serverRevision).toBeUndefined();
+  expect(harness.syncStatuses).not.toContainEqual([key, "saved", "Saved"]);
 });
 
 test("central sync runtime retries presentation mode conflicts so quick deletes do not restore old objects", async () => {
@@ -809,6 +940,58 @@ test("central sync runtime applies newer server values through the injected rend
     pendingCentralSync: false,
     size: 15,
   });
+});
+
+test("central sync runtime restores pending local data when manifest persistence fails after the raw write", async () => {
+  const key = "football-medical-team-v1";
+  const localValue = JSON.stringify({ injuryPlans: [{ id: "local-a" }] });
+  const serverValue = JSON.stringify({ injuryPlans: [{ id: "server" }] });
+  const harness = createServiceHarness({
+    failNextSafeManifestWrite: true,
+    syncResult: { ok: true, key, value: serverValue, revision: 8 },
+  });
+
+  harness.service.queueCentralStateWrite(key, localValue);
+  const pendingEntry = structuredClone(harness.manifest.entries[key]);
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.rawValues.get(key)).toBe(localValue);
+  expect(harness.manifest.entries[key]).toEqual(pendingEntry);
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+  expect(harness.manifest.entries[key].serverRevision).toBeUndefined();
+  expect(harness.snapshots).toEqual([]);
+  expect(harness.handledKeys).toEqual([]);
+  expect(harness.syncStatuses).not.toContainEqual([key, "saved", "Saved"]);
+});
+
+test("central sync runtime never rolls A back over a newer generation after manifest persistence fails", async () => {
+  const key = "football-medical-team-v1";
+  const localValue = JSON.stringify({ injuryPlans: [{ id: "local-a" }] });
+  const serverAndNewerValue = JSON.stringify({ injuryPlans: [{ id: "shared-value" }] });
+  let newerEntry;
+  const harness = createServiceHarness({
+    failNextSafeManifestWrite: true,
+    syncResult: { ok: true, key, value: serverAndNewerValue, revision: 8 },
+    onSafeManifestPersistenceFailure: ({ manifest, rawValues }) => {
+      newerEntry = {
+        ...manifest.entries[key],
+        hash: "hash-newer-c",
+        writes: Number(manifest.entries[key]?.writes || 0) + 1,
+        updatedAt: "2026-06-08T12:00:02.000Z",
+        pendingCentralSync: true,
+      };
+      rawValues.set(key, serverAndNewerValue);
+      manifest.entries[key] = newerEntry;
+    },
+  });
+
+  harness.service.queueCentralStateWrite(key, localValue);
+  await harness.service.flushCentralStateWrites();
+
+  expect(harness.rawValues.get(key)).toBe(serverAndNewerValue);
+  expect(harness.manifest.entries[key]).toEqual(newerEntry);
+  expect(harness.manifest.entries[key]).toMatchObject({ pendingCentralSync: true });
+  expect(harness.syncStatuses).not.toContainEqual([key, "saved", "Saved"]);
 });
 
 test("central sync runtime merges presentation mode values before applying server conflict data", () => {

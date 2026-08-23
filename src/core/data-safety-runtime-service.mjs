@@ -168,16 +168,24 @@ export function createDataSafetyRuntimeService(deps = {}) {
     };
     try {
       rawSetItem(storageKey, JSON.stringify(normalizedManifest));
+      return true;
     } catch (error) {
       status.lastError = error?.message || "Data safety manifest could not be saved.";
+      return false;
     }
   }
 
-  function mutateManifest(mutator) {
+  function mutateManifestWithResult(mutator) {
     const manifest = readManifest();
     mutator(manifest);
-    writeManifest(manifest);
-    return manifest;
+    return {
+      manifest,
+      persisted: writeManifest(manifest),
+    };
+  }
+
+  function mutateManifest(mutator) {
+    return mutateManifestWithResult(mutator).manifest;
   }
 
   function hashString(value) {
@@ -651,6 +659,7 @@ export function createDataSafetyRuntimeService(deps = {}) {
     readManifest,
     writeManifest,
     mutateManifest,
+    mutateManifestWithResult,
     hashString,
     getStorageLabel,
     recordWrite,

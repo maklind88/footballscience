@@ -159,6 +159,16 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
 
     const body = JSON.parse(request.postData() || "{}");
     allSyncBodies.push(body);
+    if (typeof options.appStateWriteHandler === "function") {
+      const handled = await options.appStateWriteHandler({
+        body,
+        centralStore,
+        route,
+      });
+      if (handled) {
+        return;
+      }
+    }
     if (body.entries && typeof body.entries === "object") {
       const results = Object.keys(body.entries).map((key, index) => ({
         key,
@@ -347,10 +357,14 @@ async function bootPendingMedicalHydration(browser, baseURL, accessMode, options
   };
   const allSyncBodies = [];
   const tab = await bootCentralPage(browser, baseURL, centralStore, [], `coach-medical-${accessMode}-hydration`, {
+    ...options,
     sessionUser: coachUser,
     profileUser: coachUser,
     allSyncBodies,
-    initScript: ({ key, value, manifestKey }) => {
+    initScript: ({ key, value, manifestKey, stagePendingOnBoot }) => {
+      if (!stagePendingOnBoot) {
+        return;
+      }
       window.localStorage.setItem(key, value);
       window.localStorage.setItem(manifestKey, JSON.stringify({
         version: 1,
@@ -367,6 +381,7 @@ async function bootPendingMedicalHydration(browser, baseURL, accessMode, options
       key: medicalTeamStateKey,
       value: JSON.stringify(localMedicalState),
       manifestKey: dataSafetyManifestKey,
+      stagePendingOnBoot: !options.stagePendingAfterBoot,
     },
   });
   return { allSyncBodies, centralStore, tab };
@@ -424,6 +439,137 @@ test("authorized Medical hydration writes pending data exactly once and clears p
       lastError: "",
     });
   } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
+test("Medical hydration acknowledgement never clears a newer pending local write", async ({ browser, baseURL }) => {
+  let resolveFirstWrite;
+  let resolveSecondWrite;
+  const firstWriteGate = new Promise((resolve) => { resolveFirstWrite = resolve; });
+  const secondWriteGate = new Promise((resolve) => { resolveSecondWrite = resolve; });
+  let medicalWriteCount = 0;
+
+  const { allSyncBodies, tab } = await bootPendingMedicalHydration(browser, baseURL, "true", {
+    stagePendingAfterBoot: true,
+    appStateWriteHandler: async ({ body, centralStore, route }) => {
+      if (body.key !== medicalTeamStateKey) {
+        return false;
+      }
+      medicalWriteCount += 1;
+      if (medicalWriteCount === 1) {
+        await firstWriteGate;
+      } else if (medicalWriteCount === 2) {
+        await secondWriteGate;
+      }
+      const value = String(body.value || "");
+      const currentRevision = Number(centralStore.metadataEntries?.[medicalTeamStateKey]?.revision) || 0;
+      const metadata = {
+        ...createMetadata(currentRevision + 1, value),
+        moduleId: "medical-team",
+        mergePolicy: "record-timestamp-merge",
+      };
+      centralStore.entries = { ...(centralStore.entries || {}), [medicalTeamStateKey]: value };
+      centralStore.metadataEntries = {
+        ...(centralStore.metadataEntries || {}),
+        [medicalTeamStateKey]: metadata,
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          key: medicalTeamStateKey,
+          value,
+          revision: metadata.revision,
+          metadata,
+        }),
+      });
+      return true;
+    },
+  });
+
+  try {
+    await tab.page.evaluate(({ key, manifestKey }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      state.selectedDate = "2026-08-23";
+      state.injuryPlans = [{
+        id: "pending-plan-1",
+        playerId: "player-1",
+        injuryType: "Pending local plan",
+        updatedAt: "2026-08-23T10:00:00.000Z",
+      }];
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, JSON.stringify(state));
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      manifest.entries[key].pendingCentralSync = true;
+      window.localStorage.setItem(manifestKey, JSON.stringify(manifest));
+      window.__qaMedicalHydrationPromise = window.footballScienceCentralState.hydrate({ forceApply: true });
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey });
+    await expect.poll(() => medicalWriteCount).toBe(1);
+    await tab.page.evaluate(({ key }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      state.injuryPlans = [
+        ...(state.injuryPlans || []),
+        {
+          id: "pending-plan-2",
+          playerId: "player-1",
+          injuryType: "Newer pending local plan",
+          updatedAt: "2026-08-23T10:01:00.000Z",
+        },
+      ];
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }, { key: medicalTeamStateKey });
+
+    expect(await tab.page.evaluate(({ key, manifestKey }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+        planIds: (state.injuryPlans || []).map((plan) => plan.id).sort(),
+        writes: manifest.entries?.[key]?.writes,
+      };
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({
+      pendingCentralSync: true,
+      planIds: ["pending-plan-1", "pending-plan-2"],
+      writes: 2,
+    });
+
+    resolveFirstWrite();
+    await expect.poll(() => medicalWriteCount).toBe(2);
+
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(2);
+    expect(await tab.page.evaluate(({ key, manifestKey }) => {
+      const state = JSON.parse(window.localStorage.getItem(key) || "{}");
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+        planIds: (state.injuryPlans || []).map((plan) => plan.id).sort(),
+      };
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({
+      pendingCentralSync: true,
+      planIds: ["pending-plan-1", "pending-plan-2"],
+    });
+
+    resolveSecondWrite();
+    await expect.poll(() => tab.page.evaluate(({ key, manifestKey }) => {
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return manifest.entries?.[key]?.pendingCentralSync;
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toBe(false);
+
+    const medicalWrites = allSyncBodies.filter((body) => body.key === medicalTeamStateKey);
+    expect(medicalWrites).toHaveLength(2);
+    expect(JSON.parse(medicalWrites[0].value).injuryPlans.map((plan) => plan.id).sort())
+      .toEqual(["pending-plan-1"]);
+    expect(JSON.parse(medicalWrites[1].value).injuryPlans.map((plan) => plan.id).sort())
+      .toEqual(["pending-plan-1", "pending-plan-2"]);
+  } finally {
+    resolveFirstWrite?.();
+    resolveSecondWrite?.();
     await closeCentralStateContext(tab.context);
   }
 });

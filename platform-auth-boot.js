@@ -811,13 +811,41 @@ async function getActiveAccessToken() {
       centralValue === localValue;
     return centralMatchesLocal || Boolean(centralHash && localPendingHash && centralHash === localPendingHash);
   }
-  function clearCentralPendingSyncFlag(key, metadataEntry = {}) {
+  function getCentralPendingSyncGenerationToken(entry = {}) {
+    return JSON.stringify({
+      hash: Object.prototype.hasOwnProperty.call(entry, "hash") ? String(entry.hash || "") : null,
+      writes: Object.prototype.hasOwnProperty.call(entry, "writes") ? Number(entry.writes) : null,
+      updatedAt: Object.prototype.hasOwnProperty.call(entry, "updatedAt") ? String(entry.updatedAt || "") : null,
+      deletedAt: Object.prototype.hasOwnProperty.call(entry, "deletedAt") ? String(entry.deletedAt || "") : null,
+    });
+  }
+  function normalizeCentralPendingSyncValue(value, localUiFields = []) {
+    const normalizedValue = String(value ?? "");
+    return localUiFields.length
+      ? stripCentralStateLocalUiFields(normalizedValue, localUiFields)
+      : normalizedValue;
+  }
+  function captureCentralPendingSyncExpectation(key, value, localUiFields = []) {
+    const entry = readCentralSyncManifestEntries()[key] || {};
+    return {
+      generationToken: getCentralPendingSyncGenerationToken(entry),
+      value: normalizeCentralPendingSyncValue(value, localUiFields),
+      localUiFields,
+    };
+  }
+  function clearCentralPendingSyncFlag(key, metadataEntry = {}, expectation = null) {
     try {
       const raw = window.localStorage.getItem(DATA_SAFETY_MANIFEST_KEY);
       const manifest = raw ? JSON.parse(raw) : null;
       const entry = manifest?.entries?.[key];
-      if (!entry?.pendingCentralSync) {
-        return;
+      const localValue = window.localStorage.getItem(key);
+      if (
+        !entry?.pendingCentralSync ||
+        !expectation ||
+        getCentralPendingSyncGenerationToken(entry) !== expectation.generationToken ||
+        normalizeCentralPendingSyncValue(localValue, expectation.localUiFields) !== expectation.value
+      ) {
+        return false;
       }
       const acknowledgedRevision = Number(metadataEntry?.revision);
       const currentRevision = Number(entry.serverRevision);
@@ -831,7 +859,10 @@ async function getActiveAccessToken() {
       manifest.lastCentralError = "";
       manifest.lastCentralSyncedAt = new Date().toISOString();
       window.localStorage.setItem(DATA_SAFETY_MANIFEST_KEY, JSON.stringify(manifest));
-    } catch {}
+      return true;
+    } catch {
+      return false;
+    }
   }
   function persistCentralHydrationRevisions(revisionEntries = [], options = {}) {
     if (!Array.isArray(revisionEntries) || !revisionEntries.length) {
@@ -1427,6 +1458,8 @@ async function getActiveAccessToken() {
         const pendingEntry = pendingEntries[key] || {};
         const metadataEntry = incomingMetadata[key] || {};
         const canWriteEntry = canWriteCentralStateKey(key, options.writeAccess);
+        const acknowledgesPending = doesCentralStateAcknowledgePending(key, pendingEntry, metadataEntry, value);
+        let requiredWriteBackValue = null;
         nextMetadata[key] = resolveCentralHydrationMetadata(
           key,
           metadataEntry,
@@ -1436,9 +1469,6 @@ async function getActiveAccessToken() {
         );
         if (!shouldApplyCentralStateEntry(key, pendingEntry, metadataEntry, value, options)) {
           return;
-        }
-        if (doesCentralStateAcknowledgePending(key, pendingEntry, metadataEntry, value)) {
-          resolvedPendingKeys.push([key, metadataEntry]);
         }
         let valueToApply = value;
         if (key === WORKSPACE_HUB_STATE_KEY) {
@@ -1477,11 +1507,7 @@ async function getActiveAccessToken() {
           const sharedValueToApply = stripCentralStateLocalUiFields(valueToApply, MEDICAL_LOCAL_UI_FIELDS);
           if (mergedValue.changed && canWriteEntry && sharedValueToApply !== sharedValue) {
             if (shouldPreserveLocalMedical) {
-              requiredWriteBackEntries.push([
-                key,
-                sharedValueToApply,
-                pendingEntry,
-              ]);
+              requiredWriteBackValue = sharedValueToApply;
             } else {
               writeBackEntries.push([
                 key,
@@ -1491,6 +1517,24 @@ async function getActiveAccessToken() {
           }
         }
         cacheCentralStateValue(key, valueToApply);
+        if (acknowledgesPending) {
+          resolvedPendingKeys.push([
+            key,
+            metadataEntry,
+            captureCentralPendingSyncExpectation(
+              key,
+              valueToApply,
+              key === MEDICAL_TEAM_STATE_KEY ? MEDICAL_LOCAL_UI_FIELDS : []
+            ),
+          ]);
+        }
+        if (requiredWriteBackValue !== null) {
+          requiredWriteBackEntries.push([
+            key,
+            requiredWriteBackValue,
+            captureCentralPendingSyncExpectation(key, valueToApply, MEDICAL_LOCAL_UI_FIELDS),
+          ]);
+        }
         hydratedRevisionEntries.push([key, metadataEntry, pendingEntry]);
       });
     } finally {
@@ -1498,7 +1542,7 @@ async function getActiveAccessToken() {
     }
     centralState.metadata = nextMetadata;
     persistCentralHydrationRevisions(hydratedRevisionEntries, options);
-    for (const [key, value, pendingEntry] of requiredWriteBackEntries) {
+    for (const [key, value, expectation] of requiredWriteBackEntries) {
       const result = await syncCentralStateKey(key, value, { hydrationWriteback: true });
       if (result?.status === 403) {
         continue;
@@ -1508,11 +1552,11 @@ async function getActiveAccessToken() {
       }
       const acknowledgedMetadata = result.metadata || { revision: result.revision };
       persistCentralHydrationRevisions([[key, acknowledgedMetadata, {}]]);
-      if (pendingEntry?.pendingCentralSync) {
-        clearCentralPendingSyncFlag(key, acknowledgedMetadata);
-      }
+      clearCentralPendingSyncFlag(key, acknowledgedMetadata, expectation);
     }
-    resolvedPendingKeys.forEach(([key, metadataEntry]) => clearCentralPendingSyncFlag(key, metadataEntry));
+    resolvedPendingKeys.forEach(([key, metadataEntry, expectation]) => {
+      clearCentralPendingSyncFlag(key, metadataEntry, expectation);
+    });
     clearResolvedCentralHydrationError();
     writeBackEntries.forEach(([key, value]) => {
       syncCentralStateKey(key, value, { hydrationWriteback: true }).catch(() => {});

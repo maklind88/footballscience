@@ -122,6 +122,7 @@
   const centralState = {
     hydrated: false,
     hydrating: false,
+    hydrationError: "",
     lastError: "",
     lastSyncedAt: "",
     localDev: false,
@@ -821,6 +822,15 @@ async function getActiveAccessToken() {
       deletedAt: Object.prototype.hasOwnProperty.call(entry, "deletedAt") ? String(entry.deletedAt || "") : null,
     });
   }
+  function hashCentralPendingSyncValue(value) {
+    const text = String(value ?? "");
+    let hash = 2166136261;
+    for (let index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+  }
   function normalizeCentralPendingSyncValue(value, localUiFields = []) {
     const normalizedValue = String(value ?? "");
     const sharedValue = localUiFields.length
@@ -847,8 +857,8 @@ async function getActiveAccessToken() {
       return sorted;
     }, {});
   }
-  function captureCentralPendingSyncExpectation(key, value, localUiFields = []) {
-    const entry = readCentralSyncManifestEntries()[key] || {};
+  function captureCentralPendingSyncExpectation(key, value, localUiFields = [], expectedEntry = null) {
+    const entry = expectedEntry || readCentralSyncManifestEntries()[key] || {};
     return {
       generationToken: getCentralPendingSyncGenerationToken(entry),
       value: normalizeCentralPendingSyncValue(value, localUiFields),
@@ -886,7 +896,7 @@ async function getActiveAccessToken() {
       return false;
     }
   }
-  function preserveCentralPendingSyncEntryAfterHydrationCache(key, pendingEntry = {}) {
+  function preserveCentralPendingSyncEntryAfterHydrationCache(key, pendingEntry = {}, cachedValue = "") {
     if (!pendingEntry?.pendingCentralSync) {
       return false;
     }
@@ -897,6 +907,25 @@ async function getActiveAccessToken() {
         return false;
       }
       const currentEntry = manifest.entries[key] || {};
+      if (
+        currentEntry.pendingCentralSync &&
+        getCentralPendingSyncGenerationToken(currentEntry) === getCentralPendingSyncGenerationToken(pendingEntry)
+      ) {
+        return true;
+      }
+      const pendingWrites = Number(pendingEntry.writes);
+      const currentWrites = Number(currentEntry.writes);
+      const hasPendingWrites =
+        Object.prototype.hasOwnProperty.call(pendingEntry, "writes") && Number.isFinite(pendingWrites);
+      const isSyntheticHydrationCacheWrite =
+        !currentEntry.pendingCentralSync &&
+        String(currentEntry.hash || "") === hashCentralPendingSyncValue(cachedValue) &&
+        Number(currentEntry.size) === String(cachedValue).length &&
+        (!hasPendingWrites || currentWrites === pendingWrites + 1) &&
+        !String(currentEntry.deletedAt || "");
+      if (!isSyntheticHydrationCacheWrite) {
+        return false;
+      }
       manifest.entries[key] = {
         ...currentEntry,
         ...pendingEntry,
@@ -1560,24 +1589,34 @@ async function getActiveAccessToken() {
             }
           }
         }
+        const pendingExpectation = pendingEntry.pendingCentralSync
+          ? captureCentralPendingSyncExpectation(
+              key,
+              valueToApply,
+              key === MEDICAL_TEAM_STATE_KEY ? MEDICAL_LOCAL_UI_FIELDS : [],
+              pendingEntry
+            )
+          : null;
         cacheCentralStateValue(key, valueToApply);
-        preserveCentralPendingSyncEntryAfterHydrationCache(key, pendingEntry);
-        if (acknowledgesPending) {
+        const pendingGenerationPreserved = preserveCentralPendingSyncEntryAfterHydrationCache(
+          key,
+          pendingEntry,
+          valueToApply
+        );
+        const canAcknowledgePendingGeneration =
+          !pendingEntry.pendingCentralSync || pendingGenerationPreserved;
+        if (acknowledgesPending && canAcknowledgePendingGeneration) {
           resolvedPendingKeys.push([
             key,
             metadataEntry,
-            captureCentralPendingSyncExpectation(
-              key,
-              valueToApply,
-              key === MEDICAL_TEAM_STATE_KEY ? MEDICAL_LOCAL_UI_FIELDS : []
-            ),
+            pendingExpectation,
           ]);
         }
-        if (requiredWriteBackValue !== null) {
+        if (requiredWriteBackValue !== null && canAcknowledgePendingGeneration) {
           requiredWriteBackEntries.push([
             key,
             requiredWriteBackValue,
-            captureCentralPendingSyncExpectation(key, valueToApply, MEDICAL_LOCAL_UI_FIELDS),
+            pendingExpectation,
           ]);
         }
         hydratedRevisionEntries.push([key, metadataEntry, pendingEntry]);
@@ -1611,6 +1650,7 @@ async function getActiveAccessToken() {
     if (authState.devMode) {
       centralState.hydrated = true;
       centralState.hydrating = false;
+      centralState.hydrationError = "";
       centralState.lastError = "";
       centralState.lastSyncedAt = new Date().toISOString();
       centralState.localDev = true;
@@ -1628,6 +1668,7 @@ async function getActiveAccessToken() {
       return centralState.hydrated;
     }
     centralState.hydrating = true;
+    centralState.hydrationError = "";
     centralState.lastError = "";
     centralState.writeAccess = {};
     try {
@@ -1635,6 +1676,7 @@ async function getActiveAccessToken() {
       const response = await readCentralStateBatches(options);
       if (!response.ok) {
         centralState.lastError = response.payload?.reason || "Central app data could not be loaded.";
+        centralState.hydrationError = centralState.lastError;
         return false;
       }
       const entries = response.payload?.entries && typeof response.payload.entries === "object"
@@ -1661,7 +1703,8 @@ async function getActiveAccessToken() {
             body: JSON.stringify({ entries: localEntries }),
           });
           if (!seedResponse.ok) {
-          centralState.lastError = seedResponse.payload?.reason || "Central seed failed.";
+            centralState.lastError = seedResponse.payload?.reason || "Central seed failed.";
+            centralState.hydrationError = centralState.lastError;
             return false;
           }
           if (Array.isArray(seedResponse.payload?.results)) {
@@ -1684,6 +1727,7 @@ async function getActiveAccessToken() {
       return options.returnEntries ? { ok: true, entries, metadata } : true;
     } catch (error) {
       centralState.lastError = error?.message || "Central load failed.";
+      centralState.hydrationError = centralState.lastError;
       return false;
     } finally {
       centralState.hydrating = false;

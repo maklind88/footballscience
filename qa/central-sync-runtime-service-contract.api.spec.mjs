@@ -22,6 +22,7 @@ function createServiceHarness(options = {}) {
   let timerId = 0;
   let hydrated = options.hydrated !== false;
   let hydrating = Boolean(options.hydrating);
+  let lastError = String(options.lastError || "");
   let hydrationError = String(options.hydrationError || "");
   let revision = Number.isInteger(Number(options.revision)) ? Number(options.revision) : 7;
   let syncResultIndex = 0;
@@ -29,7 +30,8 @@ function createServiceHarness(options = {}) {
     footballScienceCentralState: {
       getStatus: () => ({
         hydrating,
-        lastError: hydrationError,
+        hydrationError,
+        lastError,
         metadata: {
           "football-schedule-v1": { revision },
           "football-dashboard-presentation-mode-v1": { revision },
@@ -123,6 +125,9 @@ function createServiceHarness(options = {}) {
     },
     setHydrationError: (nextValue) => {
       hydrationError = String(nextValue || "");
+    },
+    setLastError: (nextValue) => {
+      lastError = String(nextValue || "");
     },
     setRevision: (nextRevision) => {
       revision = Number(nextRevision) || 0;
@@ -650,6 +655,36 @@ test("central sync runtime stops retry timers after terminal hydration failure a
     pendingCentralSync: false,
   });
 });
+
+for (const previousWriteError of [
+  "Previous POST failed.",
+  "Previous write returned 409.",
+  "Previous write returned 403.",
+]) {
+  test(`central sync runtime does not treat ${previousWriteError} as a hydration failure`, async () => {
+    const harness = createServiceHarness({
+      hydrated: true,
+      lastError: previousWriteError,
+      revision: 4,
+    });
+
+    harness.service.queueCentralStateWrite("football-schedule-v1", "{\"events\":[\"B\"]}");
+    const flush = Array.from(harness.timers.values())[0];
+    expect(typeof flush).toBe("function");
+    await flush();
+
+    expect(harness.syncCalls).toEqual([
+      {
+        key: "football-schedule-v1",
+        value: "{\"events\":[\"B\"]}",
+        options: { removed: false, baseRevision: 4 },
+      },
+    ]);
+    expect(harness.manifest.entries["football-schedule-v1"]).toMatchObject({
+      pendingCentralSync: false,
+    });
+  });
+}
 
 test("central sync runtime keeps chat and workspace rendering outside the service", () => {
   const serviceSource = readFileSync(new URL("../src/core/central-sync-runtime-service.mjs", import.meta.url), "utf8");

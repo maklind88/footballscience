@@ -60,7 +60,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     if (status.hydrating === true) {
       return "active";
     }
-    if (String(status.lastError || "").trim()) {
+    if (String(status.hydrationError || "").trim()) {
       return "failed";
     }
     const hydrated = typeof bridge?.isHydrated === "function" ? Boolean(bridge.isHydrated()) : true;
@@ -346,7 +346,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
     const hydrationState = getCentralStateBridgeHydrationState(bridge);
     if (hydrationState !== "ready") {
-      const hydrationError = String(bridge?.getStatus?.()?.lastError || "").trim();
+      const hydrationError = String(bridge?.getStatus?.()?.hydrationError || "").trim();
       const message = hydrationState === "failed"
         ? hydrationError || "Central sync could not load. Your changes remain pending."
         : "Central sync is loading.";

@@ -764,6 +764,132 @@ test("Medical hydration acknowledgement never clears a newer pending local write
   }
 });
 
+test("Medical hydration cache restoration never overwrites a newer pending generation", async ({ browser, baseURL }) => {
+  const { allSyncBodies, centralStore, tab } = await bootPendingMedicalHydration(browser, baseURL, "false", {
+    stagePendingAfterBoot: true,
+  });
+
+  try {
+    const centralStateWithHydrationMerge = JSON.parse(centralStore.entries[medicalTeamStateKey] || "{}");
+    centralStateWithHydrationMerge.injuryPlans = [{
+      id: "central-plan",
+      playerId: "player-1",
+      injuryType: "Central plan",
+      updatedAt: "2026-08-23T09:59:00.000Z",
+    }];
+    const centralHydrationValue = JSON.stringify(centralStateWithHydrationMerge);
+    centralStore.entries[medicalTeamStateKey] = centralHydrationValue;
+    centralStore.metadataEntries[medicalTeamStateKey] = {
+      ...createMetadata(2, centralHydrationValue),
+      moduleId: "medical-team",
+      mergePolicy: "record-timestamp-merge",
+    };
+    await tab.page.evaluate(async ({ key, manifestKey }) => {
+      const initialState = JSON.parse(window.footballScienceDataSafety.collect()[key] || "{}");
+      initialState.injuryPlans = [{
+        id: "pending-plan-a",
+        playerId: "player-1",
+        injuryType: "Pending plan A",
+        updatedAt: "2026-08-23T10:00:00.000Z",
+      }];
+      const pendingValue = JSON.stringify(initialState);
+      window.__footballScienceCentralHydrating = true;
+      try {
+        window.localStorage.setItem(key, pendingValue);
+        window.footballScienceCentralState.setCachedValue(key, pendingValue);
+        window.localStorage.setItem(manifestKey, JSON.stringify({
+          version: 1,
+          entries: {
+            [key]: {
+              label: "Medical Room",
+              hash: "pending-medical-generation-a",
+              size: pendingValue.length,
+              writes: 7,
+              updatedAt: "2026-08-23T10:00:00.000Z",
+              deletedAt: "",
+              pendingCentralSync: true,
+              serverRevision: 2,
+            },
+          },
+        }));
+      } finally {
+        window.__footballScienceCentralHydrating = false;
+      }
+
+      const patchedSetItem = window.Storage.prototype.setItem;
+      window.__qaDidInjectNewerMedicalGeneration = false;
+      window.Storage.prototype.setItem = function injectNewerMedicalGeneration(storageKey, value) {
+        const result = patchedSetItem.call(this, storageKey, value);
+        if (
+          !window.__qaDidInjectNewerMedicalGeneration &&
+          this === window.localStorage &&
+          storageKey === key &&
+          window.__footballScienceCentralHydrating
+        ) {
+          window.__qaDidInjectNewerMedicalGeneration = true;
+          const newerState = JSON.parse(String(value || "{}"));
+          newerState.injuryPlans = [
+            ...(newerState.injuryPlans || []),
+            {
+              id: "pending-plan-b",
+              playerId: "player-1",
+              injuryType: "Newer pending plan B",
+              updatedAt: "2026-08-23T10:01:00.000Z",
+            },
+          ];
+          const newerValue = JSON.stringify(newerState);
+          patchedSetItem.call(this, storageKey, newerValue);
+          window.footballScienceCentralState.setCachedValue(key, newerValue);
+          patchedSetItem.call(this, manifestKey, JSON.stringify({
+            version: 1,
+            entries: {
+              [key]: {
+                label: "Medical Room",
+                hash: "pending-medical-generation-b",
+                size: newerValue.length,
+                writes: 9,
+                updatedAt: "2026-08-23T10:01:00.000Z",
+                deletedAt: "",
+                pendingCentralSync: true,
+                serverRevision: 2,
+              },
+            },
+          }));
+        }
+        return result;
+      };
+      try {
+        await window.footballScienceCentralState.hydrate({ forceApply: true });
+      } finally {
+        window.Storage.prototype.setItem = patchedSetItem;
+      }
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey });
+
+    expect(await tab.page.evaluate(({ key, manifestKey }) => {
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      const rawState = JSON.parse(window.footballScienceDataSafety.collect()[key] || "{}");
+      return {
+        injected: window.__qaDidInjectNewerMedicalGeneration,
+        hash: manifest.entries?.[key]?.hash,
+        pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+        planIds: (rawState.injuryPlans || []).map((plan) => plan.id).sort(),
+        updatedAt: manifest.entries?.[key]?.updatedAt,
+        writes: manifest.entries?.[key]?.writes,
+      };
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({
+      injected: true,
+      hash: "pending-medical-generation-b",
+      pendingCentralSync: true,
+      planIds: ["central-plan", "pending-plan-a", "pending-plan-b"],
+      updatedAt: "2026-08-23T10:01:00.000Z",
+      writes: 9,
+    });
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(0);
+  } finally {
+    await closeCentralStateContext(tab.context);
+  }
+});
+
 test("permission revoke race keeps pending Medical data without blocking hydration", async ({ browser, baseURL }) => {
   const { allSyncBodies, centralStore, tab } = await bootPendingMedicalHydration(browser, baseURL, "true", {
     rejectWrite: true,

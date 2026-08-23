@@ -670,6 +670,43 @@ test("platform auth boot hydrates central state in bounded read batches", () => 
   expect(source).not.toContain("const statePath = options.forceApply || options.fresh");
 });
 
+test("platform auth boot resets transient reconcile guards across principal and auth lifecycle changes", () => {
+  const { readFileSync } = require("node:fs");
+  const path = require("node:path");
+  const source = readFileSync(path.join(process.cwd(), "platform-auth-boot.js"), "utf8");
+  const functionBody = (name, nextName) => source.slice(
+    source.indexOf(`function ${name}`),
+    source.indexOf(`function ${nextName}`)
+  );
+
+  expect(source).toContain("function resetCentralStateReconcileRequirements()");
+  expect(functionBody("setCurrentUserById", "setCurrentUserFromSession")).toContain(
+    "getCentralStatePrincipalScope(authState.currentUser) !== getCentralStatePrincipalScope(nextUser)"
+  );
+  expect(functionBody("setCurrentUserById", "setCurrentUserFromSession")).toContain(
+    "resetCentralStateReconcileRequirements();"
+  );
+  expect(functionBody("setCurrentUserFromSession", "isPausedAccount")).toContain(
+    "resetCentralStateReconcileRequirements();"
+  );
+  expect(functionBody("hydrateCurrentUser", "signInWithIdentifier")).toContain(
+    "if (!nextSession || !nextSessionUser)"
+  );
+  expect(functionBody("hydrateCurrentUser", "signInWithIdentifier")).toContain(
+    "resetCentralStateReconcileRequirements();"
+  );
+  expect(functionBody("clearAuthState", "clearStoredAuthArtifacts")).toContain(
+    "resetCentralStateReconcileRequirements();"
+  );
+  expect(functionBody("hydrateCentralState", "syncCentralStateKey")).toContain(
+    "centralState.localDev = true;"
+  );
+  expect(functionBody("hydrateCentralState", "syncCentralStateKey")).toContain(
+    "resetCentralStateReconcileRequirements();"
+  );
+  expect(source).toMatch(/clearCurrentUser:\s*\(\)\s*=>\s*\{[\s\S]*?resetCentralStateReconcileRequirements\(\);/);
+});
+
 test("current actor lookup avoids duplicate admin fetches and reuses a brief validated token cache", async () => {
   const env = snapshotEnv(supabaseEnvKeys);
   const originalFetch = global.fetch;

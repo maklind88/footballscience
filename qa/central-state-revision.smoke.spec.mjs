@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 
 const revisionStateKey = "football-simulator-sequence-v1";
 const periodizationStateKey = "football-periodization-v2";
@@ -267,6 +268,20 @@ async function installCentralRevisionRoutes(context, centralStore, syncBodies, o
 async function bootCentralPage(browser, baseURL, centralStore, syncBodies, tabName, options = {}) {
   const context = await browser.newContext();
   await installCentralRevisionRoutes(context, centralStore, syncBodies, options);
+  await context.route("**/platform-auth-boot.js*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/javascript",
+      body: readFileSync(new URL("../platform-auth-boot.js", import.meta.url), "utf8"),
+    });
+  });
+  await context.route("**/src/core/central-sync-runtime-service.mjs*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/javascript",
+      body: readFileSync(new URL("../src/core/central-sync-runtime-service.mjs", import.meta.url), "utf8"),
+    });
+  });
   const page = await context.newPage();
   await page.addInitScript(() => {
     window.__footballScienceQaForceCentralState = true;
@@ -765,8 +780,41 @@ test("Medical hydration acknowledgement never clears a newer pending local write
 });
 
 test("Medical hydration cache restoration never overwrites a newer pending generation", async ({ browser, baseURL }) => {
-  const { allSyncBodies, centralStore, tab } = await bootPendingMedicalHydration(browser, baseURL, "false", {
+  let allowReconciledWrite = false;
+  let returnAnomalousAcknowledgement = true;
+  const { allSyncBodies, centralStore, tab } = await bootPendingMedicalHydration(browser, baseURL, "true", {
     stagePendingAfterBoot: true,
+    appStateWriteHandler: async ({ body, route }) => {
+      if (body.key !== medicalTeamStateKey || allowReconciledWrite) {
+        if (body.key !== medicalTeamStateKey || !returnAnomalousAcknowledgement) {
+          return false;
+        }
+        returnAnomalousAcknowledgement = false;
+        const value = String(body.value || "");
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ok: true,
+            key: medicalTeamStateKey,
+            value,
+            revision: 6,
+            metadata: createMetadata(6, value),
+          }),
+        });
+        return true;
+      }
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: false,
+          reason: "A newer external Medical generation is already pending.",
+          currentRevision: 7,
+        }),
+      });
+      return true;
+    },
   });
 
   try {
@@ -851,7 +899,7 @@ test("Medical hydration cache restoration never overwrites a newer pending gener
                 updatedAt: "2026-08-23T10:01:00.000Z",
                 deletedAt: "",
                 pendingCentralSync: true,
-                serverRevision: 2,
+                serverRevision: 7,
               },
             },
           }));
@@ -869,22 +917,89 @@ test("Medical hydration cache restoration never overwrites a newer pending gener
       const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
       const rawState = JSON.parse(window.footballScienceDataSafety.collect()[key] || "{}");
       return {
+        bridgeRevision: window.footballScienceCentralState.getStatus().metadata[key]?.revision,
         injected: window.__qaDidInjectNewerMedicalGeneration,
         hash: manifest.entries?.[key]?.hash,
         pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
         planIds: (rawState.injuryPlans || []).map((plan) => plan.id).sort(),
+        reconcileRevision: window.footballScienceCentralState.getStatus().reconcileRequired[key],
+        serverRevision: manifest.entries?.[key]?.serverRevision,
         updatedAt: manifest.entries?.[key]?.updatedAt,
         writes: manifest.entries?.[key]?.writes,
       };
     }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({
+      bridgeRevision: 7,
       injected: true,
       hash: "pending-medical-generation-b",
       pendingCentralSync: true,
       planIds: ["central-plan", "pending-plan-a", "pending-plan-b"],
+      reconcileRevision: 7,
+      serverRevision: 7,
       updatedAt: "2026-08-23T10:01:00.000Z",
       writes: 9,
     });
+    await tab.page.waitForTimeout(250);
     expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(0);
+
+    centralStore.metadataEntries[medicalTeamStateKey] = {
+      ...createMetadata(7, centralHydrationValue),
+      moduleId: "medical-team",
+      mergePolicy: "record-timestamp-merge",
+    };
+    allowReconciledWrite = true;
+    expect(await tab.page.evaluate(
+      () => window.footballScienceCentralState.hydrate({ fresh: true, forceApply: true })
+    )).toBe(false);
+
+    await expect.poll(() => allSyncBodies.filter((body) => body.key === medicalTeamStateKey).length).toBe(1);
+    const [anomalousWrite] = allSyncBodies.filter((body) => body.key === medicalTeamStateKey);
+    expect(anomalousWrite.baseRevision).toBe(7);
+    expect(JSON.parse(anomalousWrite.value).injuryPlans.map((plan) => plan.id).sort())
+      .toEqual(["central-plan", "pending-plan-a", "pending-plan-b"]);
+    expect(await tab.page.evaluate(({ key, manifestKey }) => {
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        bridgeRevision: window.footballScienceCentralState.getStatus().metadata[key]?.revision,
+        pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+        reconcileRevision: window.footballScienceCentralState.getStatus().reconcileRequired[key],
+        serverRevision: manifest.entries?.[key]?.serverRevision,
+      };
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({
+      bridgeRevision: 7,
+      pendingCentralSync: true,
+      reconcileRevision: 7,
+      serverRevision: 7,
+    });
+
+    expect(await tab.page.evaluate(
+      () => window.footballScienceCentralState.hydrate({ fresh: true, forceApply: true })
+    )).toBe(true);
+    await expect.poll(() => allSyncBodies.filter((body) => body.key === medicalTeamStateKey).length).toBe(2);
+    const [, newerWrite] = allSyncBodies.filter((body) => body.key === medicalTeamStateKey);
+    expect(newerWrite.baseRevision).toBe(7);
+    expect(JSON.parse(newerWrite.value).injuryPlans.map((plan) => plan.id)).toContain("pending-plan-b");
+    expect(JSON.parse(newerWrite.value).injuryPlans.map((plan) => plan.id)).not.toEqual([
+      "central-plan",
+      "pending-plan-a",
+    ]);
+    await tab.page.waitForTimeout(250);
+    expect(allSyncBodies.filter((body) => body.key === medicalTeamStateKey)).toHaveLength(2);
+    expect(await tab.page.evaluate(({ key, manifestKey }) => {
+      const manifest = JSON.parse(window.localStorage.getItem(manifestKey) || "{}");
+      return {
+        hash: manifest.entries?.[key]?.hash,
+        pendingCentralSync: manifest.entries?.[key]?.pendingCentralSync,
+        serverRevision: manifest.entries?.[key]?.serverRevision,
+        updatedAt: manifest.entries?.[key]?.updatedAt,
+        writes: manifest.entries?.[key]?.writes,
+      };
+    }, { key: medicalTeamStateKey, manifestKey: dataSafetyManifestKey })).toEqual({
+      hash: "pending-medical-generation-b",
+      pendingCentralSync: false,
+      serverRevision: 8,
+      updatedAt: "2026-08-23T10:01:00.000Z",
+      writes: 9,
+    });
   } finally {
     await closeCentralStateContext(tab.context);
   }

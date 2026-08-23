@@ -128,7 +128,17 @@
     localDev: false,
     metadata: {},
     writeAccess: {},
+    reconcileRequired: {},
   };
+  function resetCentralStateReconcileRequirements() {
+    centralState.reconcileRequired = {};
+  }
+  function getCentralStatePrincipalScope(user = {}) {
+    const principal = user && typeof user === "object" ? user : {};
+    return [principal.id, principal.clubId, principal.teamId]
+      .map((value) => String(value || ""))
+      .join(":");
+  }
   let authRefreshTokenPromise = null;
   let authSessionReadPromise = null;
   let currentUserProfileRefreshPromise = null;
@@ -1603,8 +1613,48 @@ async function getActiveAccessToken() {
           pendingEntry,
           valueToApply
         );
-        const canAcknowledgePendingGeneration =
+        const pendingGenerationSuperseded =
+          Boolean(pendingEntry.pendingCentralSync) && !pendingGenerationPreserved;
+        if (pendingGenerationSuperseded) {
+          const supersedingEntry = readCentralSyncManifestEntries()[key] || {};
+          const supersedingRevision = Number(supersedingEntry.serverRevision);
+          const requiredRevision = Number(centralState.reconcileRequired[key]);
+          centralState.reconcileRequired[key] = Math.max(
+            Number.isInteger(requiredRevision) && requiredRevision > 0 ? requiredRevision : 0,
+            Number.isInteger(supersedingRevision) && supersedingRevision > 0 ? supersedingRevision : 0
+          );
+          nextMetadata[key] = resolveCentralHydrationMetadata(
+            key,
+            metadataEntry,
+            supersedingEntry,
+            nextMetadata[key],
+            {}
+          );
+        }
+        const requiresReconcile = Object.prototype.hasOwnProperty.call(
+          centralState.reconcileRequired,
+          key
+        );
+        const requiredRevision = Number(centralState.reconcileRequired[key]);
+        const incomingRevision = Number(metadataEntry.revision);
+        const pendingGenerationStable =
           !pendingEntry.pendingCentralSync || pendingGenerationPreserved;
+        const hasFreshReconcile =
+          !requiresReconcile ||
+          (
+            pendingGenerationStable &&
+            Boolean(options.fresh || options.forceApply) &&
+            (
+              !Number.isInteger(requiredRevision) ||
+              requiredRevision <= 0 ||
+              (Number.isInteger(incomingRevision) && incomingRevision >= requiredRevision)
+            )
+          );
+        const canAcknowledgePendingGeneration =
+          pendingGenerationStable && hasFreshReconcile;
+        if (canAcknowledgePendingGeneration && requiresReconcile) {
+          nextMetadata[key] = { ...metadataEntry };
+        }
         if (acknowledgesPending && canAcknowledgePendingGeneration) {
           resolvedPendingKeys.push([
             key,
@@ -1619,7 +1669,9 @@ async function getActiveAccessToken() {
             pendingExpectation,
           ]);
         }
-        hydratedRevisionEntries.push([key, metadataEntry, pendingEntry]);
+        if (canAcknowledgePendingGeneration) {
+          hydratedRevisionEntries.push([key, metadataEntry, pendingEntry]);
+        }
       });
     } finally {
       window.__footballScienceCentralHydrating = false;
@@ -1639,7 +1691,9 @@ async function getActiveAccessToken() {
       clearCentralPendingSyncFlag(key, acknowledgedMetadata, expectation);
     }
     resolvedPendingKeys.forEach(([key, metadataEntry, expectation]) => {
-      clearCentralPendingSyncFlag(key, metadataEntry, expectation);
+      if (clearCentralPendingSyncFlag(key, metadataEntry, expectation)) {
+        delete centralState.reconcileRequired[key];
+      }
     });
     clearResolvedCentralHydrationError();
     writeBackEntries.forEach(([key, value]) => {
@@ -1655,6 +1709,7 @@ async function getActiveAccessToken() {
       centralState.lastSyncedAt = new Date().toISOString();
       centralState.localDev = true;
       centralState.metadata = {};
+      resetCentralStateReconcileRequirements();
       window.dispatchEvent(
         new CustomEvent("footballscience:central-state-ready", {
           detail: { entries: collectCentralLocalStateEntries(), localDev: true },
@@ -1782,6 +1837,36 @@ async function getActiveAccessToken() {
           reason,
         };
       }
+      const hasReconcileRequirement = Object.prototype.hasOwnProperty.call(
+        centralState.reconcileRequired,
+        key
+      );
+      const requiredReconcileRevision = Number(centralState.reconcileRequired[key]);
+      const acknowledgedRevision = Number(
+        response.payload?.metadata?.revision ?? response.payload?.revision
+      );
+      if (
+        hasReconcileRequirement &&
+        (
+          !Number.isInteger(acknowledgedRevision) ||
+          acknowledgedRevision <= 0 ||
+          (
+            Number.isInteger(requiredReconcileRevision) &&
+            requiredReconcileRevision > 0 &&
+            acknowledgedRevision < requiredReconcileRevision
+          )
+        )
+      ) {
+        const reason = "Central sync acknowledgement was older than the required fresh revision.";
+        centralState.lastError = reason;
+        return {
+          ok: false,
+          status: 409,
+          conflict: true,
+          currentRevision: Number.isInteger(acknowledgedRevision) ? acknowledgedRevision : undefined,
+          reason,
+        };
+      }
       centralState.lastError = "";
       centralState.lastSyncedAt = new Date().toISOString();
       if (response.payload?.metadata) {
@@ -1790,6 +1875,7 @@ async function getActiveAccessToken() {
           [key]: response.payload.metadata,
         };
       }
+      delete centralState.reconcileRequired[key];
       if (options.removed) {
         removeCentralCachedValue(key);
       } else if (getCentralCachedValue(key) === undefined) {
@@ -1931,15 +2017,24 @@ async function getActiveAccessToken() {
     if (!nextUser) {
       return;
     }
+    if (getCentralStatePrincipalScope(authState.currentUser) !== getCentralStatePrincipalScope(nextUser)) {
+      resetCentralStateReconcileRequirements();
+    }
     authState.currentUser = nextUser;
     notifyAuthChange(nextUser);
   }
   function setCurrentUserFromSession(sessionUser) {
     const nextUser = normalizeAuthUser(sessionUser);
     if (!nextUser.id) {
+      resetCentralStateReconcileRequirements();
       authState.currentUser = null;
       notifyAuthChange(null);
       return;
+    }
+    if (
+      getCentralStatePrincipalScope(authState.currentUser) !== getCentralStatePrincipalScope(nextUser)
+    ) {
+      resetCentralStateReconcileRequirements();
     }
     mergeAuthUser(nextUser, { setCurrent: true });
   }
@@ -1952,6 +2047,7 @@ async function getActiveAccessToken() {
     const waitForCentral = options.waitForCentral !== false;
     const waitForProfile = options.waitForProfile !== false;
     if (!nextSession || !nextSessionUser) {
+      resetCentralStateReconcileRequirements();
       authState.currentUser = null;
       authState.session = null;
       authState.users = [];
@@ -2434,6 +2530,7 @@ async function getActiveAccessToken() {
     authState.currentUser = null;
     authState.session = null;
     authState.users = [];
+    resetCentralStateReconcileRequirements();
     notifyAuthChange(null);
   }
   function clearStoredAuthArtifacts() {
@@ -2862,6 +2959,7 @@ async function getActiveAccessToken() {
       authState.currentUser = null;
       authState.users = [];
       authState.session = null;
+      resetCentralStateReconcileRequirements();
       if (authState.devMode) {
         writeDevAuthSession("");
       }
@@ -2870,7 +2968,7 @@ async function getActiveAccessToken() {
     isAdmin: () => ["admin", "club-admin", "team-admin"].includes(normalizeRoleForAuth(authState.currentUser?.role, "")),
     roles: authState.roles,
   };
-  window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,canWriteKey:(key)=>authState.devMode||centralState.writeAccess?.[String(key||"")]===true,getCachedValue:getCentralCachedValue,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState})};
+  window.footballScienceCentralState={hydrate:hydrateCentralState,syncKey:syncCentralStateKey,isCentralKey:isCentralStateKey,isHydrated:()=>centralState.hydrated,canWriteKey:(key)=>authState.devMode||centralState.writeAccess?.[String(key||"")]===true,canAutoRetryKey:(key)=>authState.devMode||!Object.prototype.hasOwnProperty.call(centralState.reconcileRequired,String(key||"")),getCachedValue:getCentralCachedValue,setCachedValue:setCentralCachedValue,removeCachedValue:removeCentralCachedValue,getStatus:()=>({...centralState,reconcileRequired:{...centralState.reconcileRequired}})};
   window.footballScienceAudit={record:recordAuditEvent};
   window.footballScienceMedicalDatabase={record:recordMedicalDatabaseEvent};
   window.platformAuthReadyPromise=bootAuth();

@@ -31,6 +31,8 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   let centralStateWriteTimer = null;
   let centralStateWriteFlushInFlight = false;
+  let centralStateManifestReader = null;
+  let centralStateManifestRetryRequested = false;
   let centralStateWriteGeneration = 0;
   const centralStateWriteQueue = new Map();
   const centralStateWriteSuppressionKeys = new Set();
@@ -73,6 +75,16 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   function canWriteCentralStateKey(key, bridge = getCentralStateBridge()) {
     return typeof bridge?.canWriteKey === "function" && bridge.canWriteKey(String(key || "")) === true;
+  }
+
+  function canAutomaticallyRetryCentralStateKey(key, bridge = getCentralStateBridge()) {
+    return (
+      canWriteCentralStateKey(key, bridge) &&
+      (
+        typeof bridge?.canAutoRetryKey !== "function" ||
+        bridge.canAutoRetryKey(String(key || "")) === true
+      )
+    );
   }
 
   function getCentralStateWriteBaseRevision(write = {}) {
@@ -140,11 +152,19 @@ export function createCentralSyncRuntimeService(deps = {}) {
 
   function retryCentral(readManifest) {
     const bridge = getCentralStateBridge();
-    if (centralStateWriteTimer || centralStateWriteFlushInFlight || centralStateWriteQueue.size || win.__footballScienceCentralHydrating || !getCurrentUser() || !bridge?.syncKey) return;
+    if (typeof readManifest === "function") {
+      centralStateManifestReader = readManifest;
+    }
+    if (centralStateWriteTimer || centralStateWriteQueue.size || win.__footballScienceCentralHydrating || !getCurrentUser() || !bridge?.syncKey) return;
+    if (centralStateWriteFlushInFlight) {
+      centralStateManifestRetryRequested = true;
+      return;
+    }
+    centralStateManifestRetryRequested = false;
     const manifest = typeof readManifest === "function" ? readManifest() : {};
     for (const [key, entry] of Object.entries(manifest.entries || {})) {
       const value = rawGetItem(key);
-      if (entry?.pendingCentralSync && canWriteCentralStateKey(key, bridge) && (entry.deletedAt || value !== null)) {
+      if (entry?.pendingCentralSync && canAutomaticallyRetryCentralStateKey(key, bridge) && (entry.deletedAt || value !== null)) {
         queueCentralStateWrite(key, value ?? "", {
           removed: !!entry.deletedAt,
           automaticRetry: true,
@@ -319,7 +339,7 @@ export function createCentralSyncRuntimeService(deps = {}) {
     }
     setCentralSyncPendingState(normalizedKey, true, Boolean(options.removed));
     const automaticRetry = Boolean(options.automaticRetry);
-    if (automaticRetry && !canWriteCentralStateKey(normalizedKey, bridge)) {
+    if (automaticRetry && !canAutomaticallyRetryCentralStateKey(normalizedKey, bridge)) {
       return;
     }
     reportSyncStatus(normalizedKey, "saving", "Saving");
@@ -461,6 +481,11 @@ export function createCentralSyncRuntimeService(deps = {}) {
       }
     } finally {
       centralStateWriteFlushInFlight = false;
+      const retryManifestAfterFlush = centralStateManifestRetryRequested;
+      centralStateManifestRetryRequested = false;
+      if (retryManifestAfterFlush && centralStateManifestReader) {
+        retryCentral(centralStateManifestReader);
+      }
       if (shouldRescheduleQueuedWrites && centralStateWriteQueue.size && !centralStateWriteTimer) {
         centralStateWriteTimer = win.setTimeout(flushCentralStateWrites, 120);
       }
